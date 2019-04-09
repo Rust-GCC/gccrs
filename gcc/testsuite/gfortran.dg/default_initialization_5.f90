@@ -44,13 +44,13 @@ contains
         type(data_all_t2) :: dum2
 
         if (associated(dum%my_data%head)) then
-          call abort()
+          STOP 1
         else
             print *, 'OK: do_job my_data%head is NOT associated'
         end if
 
         if (dum2%my_data%head%a /= 77) &
-          call abort()
+          STOP 2
     end subroutine
 end module
 !***************
@@ -62,4 +62,3 @@ end program
 
 ! { dg-final { scan-tree-dump-times "my_data.head = 0B" 1 "original" } }
 ! { dg-final { scan-tree-dump-times "my_data.head = &tgt" 1 "original" } }
-! { dg-final { cleanup-tree-dump "original" } }

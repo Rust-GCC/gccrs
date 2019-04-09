@@ -1,5 +1,5 @@
 /* Frv initialization file linked after all user modules
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
     Contributed by Red Hat, Inc.
   
    This file is part of GCC.
@@ -23,7 +23,6 @@
    see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    <http://www.gnu.org/licenses/>.  */
 
-#include "defaults.h"
 #include <stddef.h>
 #include "../libgcc/unwind-dw2-fde.h"
 

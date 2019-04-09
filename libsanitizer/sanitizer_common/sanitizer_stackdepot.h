@@ -8,11 +8,13 @@
 // This file is shared between AddressSanitizer and ThreadSanitizer
 // run-time libraries.
 //===----------------------------------------------------------------------===//
+
 #ifndef SANITIZER_STACKDEPOT_H
 #define SANITIZER_STACKDEPOT_H
 
 #include "sanitizer_common.h"
 #include "sanitizer_internal_defs.h"
+#include "sanitizer_stacktrace.h"
 
 namespace __sanitizer {
 
@@ -20,23 +22,21 @@ namespace __sanitizer {
 struct StackDepotNode;
 struct StackDepotHandle {
   StackDepotNode *node_;
-  StackDepotHandle() : node_(0) {}
+  StackDepotHandle() : node_(nullptr) {}
   explicit StackDepotHandle(StackDepotNode *node) : node_(node) {}
   bool valid() { return node_; }
   u32 id();
   int use_count();
   void inc_use_count_unsafe();
-  uptr size();
-  uptr *stack();
 };
 
 const int kStackDepotMaxUseCount = 1U << 20;
 
 StackDepotStats *StackDepotGetStats();
-u32 StackDepotPut(const uptr *stack, uptr size);
-StackDepotHandle StackDepotPut_WithHandle(const uptr *stack, uptr size);
+u32 StackDepotPut(StackTrace stack);
+StackDepotHandle StackDepotPut_WithHandle(StackTrace stack);
 // Retrieves a stored stack trace by the id.
-const uptr *StackDepotGet(u32 id, uptr *size);
+StackTrace StackDepotGet(u32 id);
 
 void StackDepotLockAll();
 void StackDepotUnlockAll();
@@ -48,7 +48,7 @@ void StackDepotUnlockAll();
 class StackDepotReverseMap {
  public:
   StackDepotReverseMap();
-  const uptr *Get(u32 id, uptr *size);
+  StackTrace Get(u32 id);
 
  private:
   struct IdDescPair {
@@ -65,6 +65,6 @@ class StackDepotReverseMap {
   void operator=(const StackDepotReverseMap&);
 };
 
-}  // namespace __sanitizer
+} // namespace __sanitizer
 
-#endif  // SANITIZER_STACKDEPOT_H
+#endif // SANITIZER_STACKDEPOT_H

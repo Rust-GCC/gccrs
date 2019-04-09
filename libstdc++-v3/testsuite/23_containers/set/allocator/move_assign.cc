@@ -1,4 +1,4 @@
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,9 +15,12 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-options "-std=gnu++11" }
+// { dg-do run { target c++11 } }
+// { dg-require-cstdint "" }
 
 #include <set>
+#include <random>
+
 #include <testsuite_hooks.h>
 #include <testsuite_allocator.h>
 
@@ -31,7 +34,6 @@ using __gnu_test::propagating_allocator;
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   typedef propagating_allocator<T, false> alloc_type;
   typedef std::set<T, Cmp, alloc_type> test_type;
   test_type v1(alloc_type(1));
@@ -45,7 +47,6 @@ void test01()
 
 void test02()
 {
-  bool test __attribute__((unused)) = true;
   typedef propagating_allocator<T, true> alloc_type;
   typedef std::set<T, Cmp, alloc_type> test_type;
   test_type v1(alloc_type(1));
@@ -61,8 +62,6 @@ void test02()
 
 void test03()
 {
-  bool test __attribute__((unused)) = true;
-
   using namespace __gnu_test;
 
   typedef propagating_allocator<int, false, tracker_allocator<int>> alloc_type;
@@ -89,10 +88,41 @@ void test03()
   VERIFY( tracker_allocator_counter::get_construct_count() == constructs + 2 );
 }
 
+void test04()
+{
+  using namespace __gnu_test;
+
+  typedef tracker_allocator<int> alloc_type;
+  typedef std::set<int, std::less<int>, alloc_type> test_type;
+
+  std::mt19937 rng;
+  std::uniform_int_distribution<int> d;
+  std::uniform_int_distribution<int>::param_type p{0, 100};
+  std::uniform_int_distribution<int>::param_type x{0, 1000};
+
+  for (int i = 0; i < 10; ++i)
+  {
+    test_type l, r;
+    for (int n = d(rng, p); n > 0; --n)
+    {
+      int i = d(rng, x);
+      l.insert(i);
+      r.insert(i);
+
+      tracker_allocator_counter::reset();
+
+      l = r;
+
+      VERIFY( tracker_allocator_counter::get_allocation_count() == 0 );
+    }
+  }
+}
+
 int main()
 {
   test01();
   test02();
   test03();
+  test04();
   return 0;
 }

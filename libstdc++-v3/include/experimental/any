@@ -1,6 +1,6 @@
 // <experimental/any> -*- C++ -*-
 
-// Copyright (C) 2014 Free Software Foundation, Inc.
+// Copyright (C) 2014-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -31,25 +31,22 @@
 
 #pragma GCC system_header
 
-#if __cplusplus <= 201103L
-# include <bits/c++14_warning.h>
-#else
+#if __cplusplus >= 201402L
 
 #include <typeinfo>
-#include <memory>
+#include <new>
 #include <utility>
 #include <type_traits>
-#include <bits/alloc_traits.h>
-#include <bits/uses_allocator.h>
+#include <experimental/bits/lfts_config.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
 namespace experimental
 {
 inline namespace fundamentals_v1
 {
-_GLIBCXX_BEGIN_NAMESPACE_VERSION
-
   /**
    * @defgroup any Type-safe container of any type
    * @ingroup experimental
@@ -59,6 +56,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *
    * @{
    */
+
+#define __cpp_lib_experimental_any 201411
 
   /**
    *  @brief Exception class thrown by a failed @c any_cast
@@ -72,7 +71,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   [[gnu::noreturn]] inline void __throw_bad_any_cast()
   {
-#ifdef __EXCEPTIONS
+#if __cpp_exceptions
     throw bad_any_cast{};
 #else
     __builtin_abort();
@@ -90,12 +89,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     // Holds either pointer to a heap object or the contained object itself.
     union _Storage
     {
+      // This constructor intentionally doesn't initialize anything.
+      _Storage() = default;
+
+      // Prevent trivial copies of this type, buffer might hold a non-POD.
+      _Storage(const _Storage&) = delete;
+      _Storage& operator=(const _Storage&) = delete;
+
       void* _M_ptr;
-      std::aligned_storage<sizeof(_M_ptr), sizeof(_M_ptr)>::type _M_buffer;
+      aligned_storage<sizeof(_M_ptr), alignof(void*)>::type _M_buffer;
     };
 
-    template<typename _Tp, typename _Safe = is_nothrow_copy_constructible<_Tp>,
-	     bool _Fits = (sizeof(_Tp) <= sizeof(_Storage))>
+    template<typename _Tp, typename _Safe = is_nothrow_move_constructible<_Tp>,
+	     bool _Fits = (sizeof(_Tp) <= sizeof(_Storage))
+			  && (alignof(_Tp) <= alignof(_Storage))>
       using _Internal = std::integral_constant<bool, _Safe::value && _Fits>;
 
     template<typename _Tp>
@@ -109,19 +116,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 				     _Manager_internal<_Tp>,
 				     _Manager_external<_Tp>>;
 
-#ifdef __GXX_RTTI
-    // When RTTI is disabled __any_caster assumes the manager is either
-    // _Manager_internal or _Manager_external, so this type must not be used.
-    template<typename _Tp, typename _Alloc>
-      struct _Manager_alloc; // creates contained object using an allocator
-
-    template<typename _Tp, typename _Alloc,
-	     typename _TpAlloc = __alloc_rebind<_Alloc, _Tp>>
-      using _ManagerAlloc = conditional_t<_Internal<_Tp>::value,
-					  _Manager_internal<_Tp>,
-					  _Manager_alloc<_Tp, _TpAlloc>>;
-#endif
-
     template<typename _Tp, typename _Decayed = decay_t<_Tp>>
       using _Decay = enable_if_t<!is_same<_Decayed, any>::value, _Decayed>;
 
@@ -132,75 +126,70 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     any() noexcept : _M_manager(nullptr) { }
 
     /// Copy constructor, copies the state of @p __other
-    any(const any& __other) : _M_manager(__other._M_manager)
+    any(const any& __other)
     {
-      if (!__other.empty())
+      if (__other.empty())
+	_M_manager = nullptr;
+      else
 	{
 	  _Arg __arg;
 	  __arg._M_any = this;
-	  _M_manager(_Op_clone, &__other, &__arg);
+	  __other._M_manager(_Op_clone, &__other, &__arg);
 	}
     }
 
     /**
      * @brief Move constructor, transfer the state from @p __other
      *
-     * @post @c __other.empty() (not guaranteed for other implementations)
+     * @post @c __other.empty() (this postcondition is a GNU extension)
      */
     any(any&& __other) noexcept
-    : _M_manager(__other._M_manager),
-      _M_storage(__other._M_storage)
-    { __other._M_manager = nullptr; }
+    {
+      if (__other.empty())
+	_M_manager = nullptr;
+      else
+	{
+	  _Arg __arg;
+	  __arg._M_any = this;
+	  __other._M_manager(_Op_xfer, &__other, &__arg);
+	}
+    }
 
     /// Construct with a copy of @p __value as the contained object.
     template <typename _ValueType, typename _Tp = _Decay<_ValueType>,
-	      typename _Mgr = _Manager<_Tp>>
+	      typename _Mgr = _Manager<_Tp>,
+              typename enable_if<is_constructible<_Tp, _ValueType&&>::value,
+                                 bool>::type = true>
       any(_ValueType&& __value)
-      : _M_manager(&_Mgr::_S_manage),
-        _M_storage(_Mgr::_S_create(std::forward<_ValueType>(__value)))
+      : _M_manager(&_Mgr::_S_manage)
       {
+        _Mgr::_S_create(_M_storage, std::forward<_ValueType>(__value));
 	static_assert(is_copy_constructible<_Tp>::value,
 		      "The contained object must be CopyConstructible");
       }
 
-    /// Allocator-extended default constructor (the allocator is ignored).
-    template <typename _Allocator>
-      any(allocator_arg_t, const _Allocator&) noexcept : any() { }
-
-#ifdef __GXX_RTTI
     /// Construct with a copy of @p __value as the contained object.
-    template <typename _Allocator, typename _ValueType,
-	      typename _Tp = _Decay<_ValueType>,
-	      typename _Mgr = _ManagerAlloc<_Tp, _Allocator>>
-      any(allocator_arg_t, const _Allocator& __a, _ValueType&& __value)
-      : _M_manager(&_Mgr::_S_manage),
-        _M_storage(_Mgr::_S_alloc(__a, std::forward<_ValueType>(__value)))
+    template <typename _ValueType, typename _Tp = _Decay<_ValueType>,
+	      typename _Mgr = _Manager<_Tp>,
+              typename enable_if<!is_constructible<_Tp, _ValueType&&>::value,
+                                 bool>::type = false>
+      any(_ValueType&& __value)
+      : _M_manager(&_Mgr::_S_manage)
       {
+        _Mgr::_S_create(_M_storage, __value);
 	static_assert(is_copy_constructible<_Tp>::value,
 		      "The contained object must be CopyConstructible");
       }
-#endif
-
-    /* TODO: implement this somehow
-    /// Allocator-extended copy constructor.
-    template <class _Allocator>
-      any(allocator_arg_t, const _Allocator& __a, const any& __other);
-    */
-
-    /// Allocator-extended move constructor (the allocator is ignored).
-    template <typename _Allocator>
-      any(allocator_arg_t, const _Allocator&, any&& __other) noexcept
-      : any(std::move(__other)) { }
 
     /// Destructor, calls @c clear()
     ~any() { clear(); }
 
     // assignments
 
-    /// Copy the state of 
+    /// Copy the state of another object.
     any& operator=(const any& __rhs)
     {
-      any(__rhs).swap(*this);
+      *this = any(__rhs);
       return *this;
     }
 
@@ -211,15 +200,24 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
      */
     any& operator=(any&& __rhs) noexcept
     {
-      any(std::move(__rhs)).swap(*this);
+      if (__rhs.empty())
+	clear();
+      else if (this != &__rhs)
+	{
+	  clear();
+	  _Arg __arg;
+	  __arg._M_any = this;
+	  __rhs._M_manager(_Op_xfer, &__rhs, &__arg);
+	}
       return *this;
     }
 
     /// Store a copy of @p __rhs as the contained object.
     template<typename _ValueType>
-      any& operator=(_ValueType&& __rhs)
+      enable_if_t<!is_same<any, decay_t<_ValueType>>::value, any&>
+      operator=(_ValueType&& __rhs)
       {
-	any(std::forward<_ValueType>(__rhs)).swap(*this);
+	*this = any(std::forward<_ValueType>(__rhs));
 	return *this;
       }
 
@@ -238,16 +236,39 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     /// Exchange state with another object.
     void swap(any& __rhs) noexcept
     {
-      std::swap(_M_manager, __rhs._M_manager);
-      std::swap(_M_storage, __rhs._M_storage);
+      if (empty() && __rhs.empty())
+	return;
+
+      if (!empty() && !__rhs.empty())
+	{
+	  if (this == &__rhs)
+	    return;
+
+	  any __tmp;
+	  _Arg __arg;
+	  __arg._M_any = &__tmp;
+	  __rhs._M_manager(_Op_xfer, &__rhs, &__arg);
+	  __arg._M_any = &__rhs;
+	  _M_manager(_Op_xfer, this, &__arg);
+	  __arg._M_any = this;
+	  __tmp._M_manager(_Op_xfer, &__tmp, &__arg);
+	}
+      else
+	{
+	  any* __empty = empty() ? this : &__rhs;
+	  any* __full = empty() ? &__rhs : this;
+	  _Arg __arg;
+	  __arg._M_any = __empty;
+	  __full->_M_manager(_Op_xfer, __full, &__arg);
+	}
     }
 
     // observers
 
     /// Reports whether there is a contained object or not.
-    bool empty() const noexcept { return _M_manager == nullptr; }
+    _GLIBCXX_NODISCARD bool empty() const noexcept { return _M_manager == nullptr; }
 
-#ifdef __GXX_RTTI
+#if __cpp_rtti
     /// The @c typeid of the contained object, or @c typeid(void) if empty.
     const type_info& type() const noexcept
     {
@@ -264,7 +285,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return __or_<is_reference<_Tp>, is_copy_constructible<_Tp>>::value; }
 
   private:
-    enum _Op { _Op_access, _Op_get_type_info, _Op_clone, _Op_destroy };
+    enum _Op {
+	_Op_access, _Op_get_type_info, _Op_clone, _Op_destroy, _Op_xfer
+    };
 
     union _Arg
     {
@@ -277,19 +300,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     _Storage _M_storage;
 
     template<typename _Tp>
-      friend void* __any_caster(const any* __any)
-      {
-#ifdef __GXX_RTTI
-	if (__any->type() != typeid(_Tp))
-	  return nullptr;
-#else
-	if (__any->_M_manager != &_Manager<decay_t<_Tp>>::_S_manage)
-	  return nullptr;
-#endif
-	_Arg __arg;
-	__any->_M_manager(_Op_access, __any, &__arg);
-	return __arg._M_obj;
-      }
+      friend void* __any_caster(const any* __any);
 
     // Manage in-place contained object.
     template<typename _Tp>
@@ -299,20 +310,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_S_manage(_Op __which, const any* __anyp, _Arg* __arg);
 
 	template<typename _Up>
-	  static _Storage
-	  _S_create(_Up&& __value)
+	  static void
+	  _S_create(_Storage& __storage, _Up&& __value)
 	  {
-	    _Storage __storage;
 	    void* __addr = &__storage._M_buffer;
 	    ::new (__addr) _Tp(std::forward<_Up>(__value));
-	    return __storage;
-	  }
-
-	template<typename _Alloc, typename _Up>
-	  static _Storage
-	  _S_alloc(const _Alloc&, _Up&& __value)
-	  {
-	    return _S_create(std::forward<_Up>(__value));
 	  }
       };
 
@@ -324,37 +326,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_S_manage(_Op __which, const any* __anyp, _Arg* __arg);
 
 	template<typename _Up>
-	  static _Storage
-	  _S_create(_Up&& __value)
+	  static void
+	  _S_create(_Storage& __storage, _Up&& __value)
 	  {
-	    _Storage __storage;
 	    __storage._M_ptr = new _Tp(std::forward<_Up>(__value));
-	    return __storage;
 	  }
       };
-
-#ifdef __GXX_RTTI
-    // Manage external contained object using an allocator
-    template<typename _Tp, typename _Alloc>
-      struct _Manager_alloc
-      {
-	static_assert(std::is_same<_Tp, typename _Alloc::value_type>::value,
-		      "Allocator's value_type is correct");
-
-	// Type that holds contained object and allocator
-	struct _Data;
-
-	using _Traits = typename std::allocator_traits<_Alloc>::template
-	  rebind_traits<_Data>;
-
-	static void
-	_S_manage(_Op __which, const any* __anyp, _Arg* __arg);
-
-	template<typename _Up>
-	  static _Storage
-	  _S_alloc(const _Alloc& __a, _Up&& __value);
-      };
-#endif
   };
 
   /// Exchange the states of two @c any objects.
@@ -404,7 +381,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __throw_bad_any_cast();
     }
 
-  template<typename _ValueType>
+  template<typename _ValueType,
+           typename enable_if<!is_move_constructible<_ValueType>::value
+                              || is_lvalue_reference<_ValueType>::value,
+                              bool>::type = true>
     inline _ValueType any_cast(any&& __any)
     {
       static_assert(any::__is_valid_cast<_ValueType>(),
@@ -414,7 +394,34 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	return *__p;
       __throw_bad_any_cast();
     }
+
+  template<typename _ValueType,
+           typename enable_if<is_move_constructible<_ValueType>::value
+                              && !is_lvalue_reference<_ValueType>::value,
+                              bool>::type = false>
+    inline _ValueType any_cast(any&& __any)
+    {
+      static_assert(any::__is_valid_cast<_ValueType>(),
+	  "Template argument must be a reference or CopyConstructible type");
+      auto __p = any_cast<remove_reference_t<_ValueType>>(&__any);
+      if (__p)
+	return std::move(*__p);
+      __throw_bad_any_cast();
+    }
   // @}
+
+  template<typename _Tp>
+    void* __any_caster(const any* __any)
+    {
+      struct _None { };
+      using _Up = decay_t<_Tp>;
+      using _Vp = conditional_t<is_copy_constructible<_Up>::value, _Up, _None>;
+      if (__any->_M_manager != &any::_Manager<_Vp>::_S_manage)
+	return nullptr;
+      any::_Arg __arg;
+      __any->_M_manager(any::_Op_access, __any, &__arg);
+      return __arg._M_obj;
+    }
 
   /**
    * @brief Access the contained object.
@@ -444,71 +451,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     }
   // @}
 
-#ifdef __GXX_RTTI
-  template<typename _Tp, typename _Alloc>
-    struct any::_Manager_alloc<_Tp, _Alloc>::_Data
-    {
-      using _Traits = std::allocator_traits<_Alloc>;
-
-      std::tuple<__gnu_cxx::__aligned_buffer<_Tp>, _Alloc> _M_data;
-
-      _Alloc&       _M_alloc()       { return std::get<1>(_M_data); }
-      const _Alloc& _M_alloc() const { return std::get<1>(_M_data); }
-
-      _Tp*       _M_obj()       { return std::get<0>(_M_data)._M_ptr(); }
-      const _Tp* _M_obj() const { return std::get<0>(_M_data)._M_ptr(); }
-
-      template<typename _Up>
-	_Data(const _Alloc& __a, _Up&& __val) : _M_data(nullptr, __a)
-	{
-	  this->_M_construct(std::__use_alloc<_Tp, _Alloc, _Up&&>(_M_alloc()),
-			     std::forward<_Up>(__val));
-	}
-
-      ~_Data() { _Traits::destroy(_M_alloc(), _M_obj()); }
-
-      template<typename _Up>
-	void
-	_M_construct(__uses_alloc0, _Up&& __val)
-	{
-	  _Traits::construct(_M_alloc(), _M_obj(),
-			     std::forward<_Up>(__val));
-	}
-
-      template<typename _Up>
-	void
-	_M_construct(__uses_alloc1<_Alloc> __a, _Up&& __val)
-	{
-	  _Traits::construct(_M_alloc(), _M_obj(),
-			     std::allocator_arg, *__a._M_a,
-			     std::forward<_Up>(__val));
-	}
-
-      template<typename _Up>
-	void
-	_M_construct(__uses_alloc2<_Alloc> __a, _Up&& __val)
-	{
-	  _Traits::construct(_M_alloc(), _M_obj(),
-			     std::forward<_Up>(__val), *__a._M_a);
-	}
-    };
-
-  template<typename _Tp, typename _Alloc>
-  template<typename _Up>
-    any::_Storage
-    any::_Manager_alloc<_Tp, _Alloc>::
-    _S_alloc(const _Alloc& __a, _Up&& __value)
-    {
-      typename _Traits::allocator_type __a2(__a);
-      auto __guard = std::__allocate_guarded(__a2);
-      any::_Storage __storage;
-      __storage._M_ptr = __guard.get();
-      ::new(__storage._M_ptr) _Data{__a, std::forward<_Up>(__value)};
-      __guard = nullptr;
-      return __storage;
-    }
-#endif
-
   template<typename _Tp>
     void
     any::_Manager_internal<_Tp>::
@@ -522,15 +464,23 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	__arg->_M_obj = const_cast<_Tp*>(__ptr);
 	break;
       case _Op_get_type_info:
-#ifdef __GXX_RTTI
+#if __cpp_rtti
 	__arg->_M_typeinfo = &typeid(_Tp);
 #endif
 	break;
       case _Op_clone:
 	::new(&__arg->_M_any->_M_storage._M_buffer) _Tp(*__ptr);
+	__arg->_M_any->_M_manager = __any->_M_manager;
 	break;
       case _Op_destroy:
 	__ptr->~_Tp();
+	break;
+      case _Op_xfer:
+	::new(&__arg->_M_any->_M_storage._M_buffer) _Tp
+	  (std::move(*const_cast<_Tp*>(__ptr)));
+	__ptr->~_Tp();
+	__arg->_M_any->_M_manager = __any->_M_manager;
+	const_cast<any*>(__any)->_M_manager = nullptr;
 	break;
       }
     }
@@ -548,55 +498,30 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	__arg->_M_obj = const_cast<_Tp*>(__ptr);
 	break;
       case _Op_get_type_info:
-#ifdef __GXX_RTTI
+#if __cpp_rtti
 	__arg->_M_typeinfo = &typeid(_Tp);
 #endif
 	break;
       case _Op_clone:
 	__arg->_M_any->_M_storage._M_ptr = new _Tp(*__ptr);
+	__arg->_M_any->_M_manager = __any->_M_manager;
 	break;
       case _Op_destroy:
 	delete __ptr;
 	break;
-      }
-    }
-
-#ifdef __GXX_RTTI
-  template<typename _Tp, typename _Alloc>
-    void
-    any::_Manager_alloc<_Tp, _Alloc>::
-    _S_manage(_Op __which, const any* __any, _Arg* __arg)
-    {
-      // The contained object is at _M_storage._M_ptr->_M_obj()
-      auto __ptr = static_cast<const _Data*>(__any->_M_storage._M_ptr);
-      switch (__which)
-      {
-      case _Op_access:
-	__arg->_M_obj = const_cast<_Tp*>(__ptr->_M_obj());
-	break;
-      case _Op_get_type_info:
-	__arg->_M_typeinfo = &typeid(_Tp);
-	break;
-      case _Op_clone:
-	__arg->_M_any->_M_storage
-	  = _S_alloc(__ptr->_M_alloc(), *__ptr->_M_obj());
-	break;
-      case _Op_destroy:
-	{
-	  using _Alloc2 = typename _Traits::allocator_type;
-	  _Alloc2 __a(__ptr->_M_alloc());
-	  __allocated_ptr<_Alloc2> __guard{__a, const_cast<_Data*>(__ptr)};
-	  __ptr->~_Data();
-	}
+      case _Op_xfer:
+	__arg->_M_any->_M_storage._M_ptr = __any->_M_storage._M_ptr;
+	__arg->_M_any->_M_manager = __any->_M_manager;
+	const_cast<any*>(__any)->_M_manager = nullptr;
 	break;
       }
     }
-#endif
 
   // @} group any
-_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace fundamentals_v1
 } // namespace experimental
+
+_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 
 #endif // C++14

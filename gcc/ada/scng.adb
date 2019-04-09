@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -149,45 +149,132 @@ package body Scng is
       --  Token_Type are detected by the compiler.
 
       case Token is
-         when Tok_Integer_Literal | Tok_Real_Literal | Tok_String_Literal |
-              Tok_Char_Literal | Tok_Operator_Symbol | Tok_Identifier |
-              Tok_Double_Asterisk | Tok_Ampersand | Tok_Minus | Tok_Plus |
-              Tok_Asterisk | Tok_Mod | Tok_Rem | Tok_Slash | Tok_New |
-              Tok_Abs | Tok_Others | Tok_Null | Tok_Dot | Tok_Apostrophe |
-              Tok_Left_Paren | Tok_Delta | Tok_Digits | Tok_Range |
-              Tok_Right_Paren | Tok_Comma | Tok_And | Tok_Or | Tok_Xor |
-              Tok_Less | Tok_Equal | Tok_Greater | Tok_Not_Equal |
-              Tok_Greater_Equal | Tok_Less_Equal | Tok_In | Tok_Not |
-              Tok_Box | Tok_Colon_Equal | Tok_Colon | Tok_Greater_Greater |
-              Tok_Abstract | Tok_Access | Tok_Aliased | Tok_All | Tok_Array |
-              Tok_At | Tok_Body | Tok_Constant | Tok_Do | Tok_Is |
-              Tok_Interface | Tok_Limited | Tok_Of | Tok_Out | Tok_Record |
-              Tok_Renames | Tok_Reverse =>
-
+         when Tok_Abs
+            | Tok_Abstract
+            | Tok_Access
+            | Tok_Aliased
+            | Tok_All
+            | Tok_Ampersand
+            | Tok_And
+            | Tok_Apostrophe
+            | Tok_Array
+            | Tok_Asterisk
+            | Tok_At
+            | Tok_At_Sign
+            | Tok_Body
+            | Tok_Box
+            | Tok_Char_Literal
+            | Tok_Colon
+            | Tok_Colon_Equal
+            | Tok_Comma
+            | Tok_Constant
+            | Tok_Delta
+            | Tok_Digits
+            | Tok_Do
+            | Tok_Dot
+            | Tok_Double_Asterisk
+            | Tok_Equal
+            | Tok_Greater
+            | Tok_Greater_Equal
+            | Tok_Greater_Greater
+            | Tok_Identifier
+            | Tok_In
+            | Tok_Integer_Literal
+            | Tok_Interface
+            | Tok_Is
+            | Tok_Left_Paren
+            | Tok_Less
+            | Tok_Less_Equal
+            | Tok_Limited
+            | Tok_Minus
+            | Tok_Mod
+            | Tok_New
+            | Tok_Not
+            | Tok_Not_Equal
+            | Tok_Null
+            | Tok_Of
+            | Tok_Operator_Symbol
+            | Tok_Or
+            | Tok_Others
+            | Tok_Out
+            | Tok_Plus
+            | Tok_Range
+            | Tok_Real_Literal
+            | Tok_Record
+            | Tok_Rem
+            | Tok_Renames
+            | Tok_Reverse
+            | Tok_Right_Paren
+            | Tok_Slash
+            | Tok_String_Literal
+            | Tok_Xor
+         =>
             System.CRC32.Update
               (System.CRC32.CRC32 (Checksum),
                Character'Val (Token_Type'Pos (Token)));
 
          when Tok_Some =>
-
             System.CRC32.Update
               (System.CRC32.CRC32 (Checksum),
                Character'Val (Token_Type'Pos (Tok_Identifier)));
 
-         when Tok_Tagged | Tok_Then | Tok_Less_Less | Tok_Abort | Tok_Accept |
-              Tok_Case | Tok_Delay | Tok_Else | Tok_Elsif | Tok_End |
-              Tok_Exception | Tok_Exit | Tok_Goto | Tok_If | Tok_Pragma |
-              Tok_Raise | Tok_Requeue | Tok_Return | Tok_Select |
-              Tok_Terminate | Tok_Until | Tok_When | Tok_Begin | Tok_Declare |
-              Tok_For | Tok_Loop | Tok_While | Tok_Entry | Tok_Protected |
-              Tok_Task | Tok_Type | Tok_Subtype | Tok_Overriding |
-              Tok_Synchronized | Tok_Use | Tok_Function | Tok_Generic |
-              Tok_Package | Tok_Procedure | Tok_Private | Tok_With |
-              Tok_Separate | Tok_EOF | Tok_Semicolon | Tok_Arrow |
-              Tok_Vertical_Bar | Tok_Dot_Dot | Tok_Project | Tok_Extends |
-              Tok_External | Tok_External_As_List | Tok_Comment |
-              Tok_End_Of_Line | Tok_Special | Tok_SPARK_Hide | No_Token =>
-
+         when No_Token
+            | Tok_Abort
+            | Tok_Accept
+            | Tok_Arrow
+            | Tok_Begin
+            | Tok_Case
+            | Tok_Comment
+            | Tok_Declare
+            | Tok_Delay
+            | Tok_Dot_Dot
+            | Tok_Else
+            | Tok_Elsif
+            | Tok_End
+            | Tok_End_Of_Line
+            | Tok_Entry
+            | Tok_EOF
+            | Tok_Exception
+            | Tok_Exit
+            | Tok_Extends
+            | Tok_External
+            | Tok_External_As_List
+            | Tok_For
+            | Tok_Function
+            | Tok_Generic
+            | Tok_Goto
+            | Tok_If
+            | Tok_Less_Less
+            | Tok_Loop
+            | Tok_Overriding
+            | Tok_Package
+            | Tok_Pragma
+            | Tok_Private
+            | Tok_Procedure
+            | Tok_Project
+            | Tok_Protected
+            | Tok_Raise
+            | Tok_Requeue
+            | Tok_Return
+            | Tok_Select
+            | Tok_Semicolon
+            | Tok_Separate
+            | Tok_SPARK_Hide
+            | Tok_Special
+            | Tok_Subtype
+            | Tok_Synchronized
+            | Tok_Tagged
+            | Tok_Task
+            | Tok_Terminate
+            | Tok_Then
+            | Tok_Type
+            | Tok_Until
+            | Tok_Use
+            | Tok_Vertical_Bar
+            | Tok_When
+            | Tok_While
+            | Tok_With
+         =>
             System.CRC32.Update
               (System.CRC32.CRC32 (Checksum),
                Character'Val (Token_Type'Pos (Token_Type'Pred (Token))));
@@ -205,54 +292,143 @@ package body Scng is
       --  Token_Type are detected by the compiler.
 
       case Token is
-         when Tok_Integer_Literal | Tok_Real_Literal | Tok_String_Literal |
-              Tok_Char_Literal | Tok_Operator_Symbol | Tok_Identifier |
-              Tok_Double_Asterisk | Tok_Ampersand | Tok_Minus | Tok_Plus |
-              Tok_Asterisk | Tok_Mod | Tok_Rem | Tok_Slash | Tok_New |
-              Tok_Abs | Tok_Others | Tok_Null | Tok_Dot | Tok_Apostrophe |
-              Tok_Left_Paren | Tok_Delta | Tok_Digits | Tok_Range |
-              Tok_Right_Paren | Tok_Comma | Tok_And | Tok_Or | Tok_Xor |
-              Tok_Less | Tok_Equal | Tok_Greater | Tok_Not_Equal |
-              Tok_Greater_Equal | Tok_Less_Equal | Tok_In | Tok_Not |
-              Tok_Box | Tok_Colon_Equal | Tok_Colon | Tok_Greater_Greater |
-              Tok_Abstract | Tok_Access | Tok_Aliased | Tok_All | Tok_Array |
-              Tok_At | Tok_Body | Tok_Constant | Tok_Do | Tok_Is =>
-
+         when Tok_Abs
+            | Tok_Abstract
+            | Tok_Access
+            | Tok_Aliased
+            | Tok_All
+            | Tok_Ampersand
+            | Tok_And
+            | Tok_Apostrophe
+            | Tok_Array
+            | Tok_Asterisk
+            | Tok_At
+            | Tok_At_Sign
+            | Tok_Body
+            | Tok_Box
+            | Tok_Char_Literal
+            | Tok_Colon
+            | Tok_Colon_Equal
+            | Tok_Comma
+            | Tok_Constant
+            | Tok_Delta
+            | Tok_Digits
+            | Tok_Do
+            | Tok_Dot
+            | Tok_Double_Asterisk
+            | Tok_Equal
+            | Tok_Greater
+            | Tok_Greater_Equal
+            | Tok_Greater_Greater
+            | Tok_Identifier
+            | Tok_In
+            | Tok_Integer_Literal
+            | Tok_Is
+            | Tok_Left_Paren
+            | Tok_Less
+            | Tok_Less_Equal
+            | Tok_Minus
+            | Tok_Mod
+            | Tok_New
+            | Tok_Not
+            | Tok_Not_Equal
+            | Tok_Null
+            | Tok_Operator_Symbol
+            | Tok_Or
+            | Tok_Others
+            | Tok_Plus
+            | Tok_Range
+            | Tok_Real_Literal
+            | Tok_Rem
+            | Tok_Right_Paren
+            | Tok_Slash
+            | Tok_String_Literal
+            | Tok_Xor
+         =>
             System.CRC32.Update
               (System.CRC32.CRC32 (Checksum),
                Character'Val (Token_Type'Pos (Token)));
 
-         when Tok_Interface | Tok_Some | Tok_Overriding | Tok_Synchronized =>
+         when Tok_Interface
+            | Tok_Overriding
+            | Tok_Some
+            | Tok_Synchronized
+         =>
             System.CRC32.Update
               (System.CRC32.CRC32 (Checksum),
                Character'Val (Token_Type'Pos (Tok_Identifier)));
 
-         when Tok_Limited | Tok_Of | Tok_Out | Tok_Record |
-              Tok_Renames | Tok_Reverse =>
-
+         when Tok_Limited
+            | Tok_Of
+            | Tok_Out
+            | Tok_Record
+            | Tok_Renames
+            | Tok_Reverse
+         =>
             System.CRC32.Update
               (System.CRC32.CRC32 (Checksum),
                Character'Val (Token_Type'Pos (Token) - 1));
 
-         when Tok_Tagged | Tok_Then | Tok_Less_Less | Tok_Abort | Tok_Accept |
-              Tok_Case | Tok_Delay | Tok_Else | Tok_Elsif | Tok_End |
-              Tok_Exception | Tok_Exit | Tok_Goto | Tok_If | Tok_Pragma |
-              Tok_Raise | Tok_Requeue | Tok_Return | Tok_Select |
-              Tok_Terminate | Tok_Until | Tok_When | Tok_Begin | Tok_Declare |
-              Tok_For | Tok_Loop | Tok_While | Tok_Entry | Tok_Protected |
-              Tok_Task | Tok_Type | Tok_Subtype =>
-
+         when Tok_Abort
+            | Tok_Accept
+            | Tok_Begin
+            | Tok_Case
+            | Tok_Declare
+            | Tok_Delay
+            | Tok_Else
+            | Tok_Elsif
+            | Tok_End
+            | Tok_Entry
+            | Tok_Exception
+            | Tok_Exit
+            | Tok_For
+            | Tok_Goto
+            | Tok_If
+            | Tok_Less_Less
+            | Tok_Loop
+            | Tok_Pragma
+            | Tok_Protected
+            | Tok_Raise
+            | Tok_Requeue
+            | Tok_Return
+            | Tok_Select
+            | Tok_Subtype
+            | Tok_Tagged
+            | Tok_Task
+            | Tok_Terminate
+            | Tok_Then
+            | Tok_Type
+            | Tok_Until
+            | Tok_When
+            | Tok_While
+         =>
             System.CRC32.Update
               (System.CRC32.CRC32 (Checksum),
                Character'Val (Token_Type'Pos (Token) - 2));
 
-         when Tok_Use | Tok_Function | Tok_Generic |
-              Tok_Package | Tok_Procedure | Tok_Private | Tok_With |
-              Tok_Separate | Tok_EOF | Tok_Semicolon | Tok_Arrow |
-              Tok_Vertical_Bar | Tok_Dot_Dot | Tok_Project | Tok_Extends |
-              Tok_External | Tok_External_As_List | Tok_Comment |
-              Tok_End_Of_Line | Tok_Special | Tok_SPARK_Hide | No_Token =>
-
+         when No_Token
+            | Tok_Arrow
+            | Tok_Comment
+            | Tok_Dot_Dot
+            | Tok_End_Of_Line
+            | Tok_EOF
+            | Tok_Extends
+            | Tok_External
+            | Tok_External_As_List
+            | Tok_Function
+            | Tok_Generic
+            | Tok_Package
+            | Tok_Private
+            | Tok_Procedure
+            | Tok_Project
+            | Tok_Semicolon
+            | Tok_Separate
+            | Tok_SPARK_Hide
+            | Tok_Special
+            | Tok_Use
+            | Tok_Vertical_Bar
+            | Tok_With
+         =>
             System.CRC32.Update
               (System.CRC32.CRC32 (Checksum),
                Character'Val (Token_Type'Pos (Token) - 4));
@@ -641,7 +817,7 @@ package body Scng is
             end loop;
          end Scan_Integer;
 
-      --  Start of Processing for Nlit
+      --  Start of processing for Nlit
 
       begin
          Base := 10;
@@ -1435,6 +1611,20 @@ package body Scng is
                return;
             end if;
 
+         when '@' =>
+            if Ada_Version < Ada_2020 then
+               Error_Msg ("target_name is an Ada 2020 feature", Scan_Ptr);
+               Scan_Ptr := Scan_Ptr + 1;
+
+            else
+               --  AI12-0125-03 : @ is target_name
+
+               Accumulate_Checksum ('@');
+               Scan_Ptr := Scan_Ptr + 1;
+               Token := Tok_At_Sign;
+               return;
+            end if;
+
          --  Asterisk (can be multiplication operator or double asterisk which
          --  is the exponentiation compound delimiter).
 
@@ -1757,10 +1947,15 @@ package body Scng is
                   then
                      Scan_Ptr := Scan_Ptr + 1;
 
-                  --  Otherwise we have an illegal comment character
+                  --  Otherwise we have an illegal comment character, ignore
+                  --  this error in relaxed semantics mode.
 
                   else
-                     Error_Illegal_Character;
+                     if Relaxed_RM_Semantics then
+                        Scan_Ptr := Scan_Ptr + 1;
+                     else
+                        Error_Illegal_Character;
+                     end if;
                   end if;
                end loop;
 
@@ -1829,14 +2024,19 @@ package body Scng is
 
          --  Apostrophe. This can either be the start of a character literal,
          --  or an isolated apostrophe used in a qualified expression or an
-         --  attribute. We treat it as a character literal if it does not
-         --  follow a right parenthesis, identifier, the keyword ALL or
-         --  a literal. This means that we correctly treat constructs like:
+         --  attribute. In the following:
 
          --    A := CHARACTER'('A');
 
-         --  Note that RM-2.2(7) does not require a separator between
-         --  "CHARACTER" and "'" in the above.
+         --  the first apostrophe is treated as an isolated apostrophe, and the
+         --  second one is treated as the start of the character literal 'A'.
+         --  Note that RM-2.2(7) does not require a separator between "'" and
+         --  "(" in the above, so we cannot use lookahead to distinguish the
+         --  cases; we use look-back instead. Analysis of the grammar shows
+         --  that some tokens can be followed by an apostrophe, and some by a
+         --  character literal, but none by both. Some cannot be followed by
+         --  either, so it doesn't matter what we do in those cases, except to
+         --  get good error behavior.
 
          when ''' => Char_Literal_Case : declare
             Code : Char_Code;
@@ -1846,19 +2046,24 @@ package body Scng is
             Accumulate_Checksum (''');
             Scan_Ptr := Scan_Ptr + 1;
 
-            --  Here is where we make the test to distinguish the cases. Treat
-            --  as apostrophe if previous token is an identifier, right paren
-            --  or the reserved word "all" (latter case as in A.all'Address)
-            --  (or the reserved word "project" in project files). Also treat
-            --  it as apostrophe after a literal (this catches some legitimate
-            --  cases, like A."abs"'Address, and also gives better error
-            --  behavior for impossible cases like 123'xxx).
+            --  Distinguish between apostrophe and character literal. It's an
+            --  apostrophe if the previous token is one of the following.
+            --  Reserved words are included for things like A.all'Address and
+            --  T'Digits'Img. Strings literals are included for things like
+            --  "abs"'Address. Other literals are included to give better error
+            --  behavior for illegal cases like 123'Img.
+            --
+            --  In Ada 2020, a target name (i.e. @) is a valid prefix of an
+            --  attribute, and functions like a name.
 
-            if Prev_Token = Tok_Identifier
-               or else Prev_Token = Tok_Right_Paren
-               or else Prev_Token = Tok_All
-               or else Prev_Token = Tok_Project
-               or else Prev_Token in Token_Class_Literal
+            if Prev_Token = Tok_All
+              or else Prev_Token = Tok_At_Sign
+              or else Prev_Token = Tok_Delta
+              or else Prev_Token = Tok_Digits
+              or else Prev_Token = Tok_Identifier
+              or else Prev_Token = Tok_Project
+              or else Prev_Token = Tok_Right_Paren
+              or else Prev_Token in Token_Class_Literal
             then
                Token := Tok_Apostrophe;
 
@@ -2206,15 +2411,40 @@ package body Scng is
 
          --  Invalid control characters
 
-         when NUL | SOH | STX | ETX | EOT | ENQ | ACK | BEL | BS  | ASCII.SO |
-              SI  | DLE | DC1 | DC2 | DC3 | DC4 | NAK | SYN | ETB | CAN |
-              EM  | FS  | GS  | RS  | US  | DEL
+         when ACK
+            | ASCII.SO
+            | BEL
+            | BS
+            | CAN
+            | DC1
+            | DC2
+            | DC3
+            | DC4
+            | DEL
+            | DLE
+            | EM
+            | ENQ
+            | EOT
+            | ETB
+            | ETX
+            | FS
+            | GS
+            | NAK
+            | NUL
+            | RS
+            | SI
+            | SOH
+            | STX
+            | SYN
+            | US
          =>
             Error_Illegal_Character;
 
          --  Invalid graphic characters
+         --  Note that '@' is handled elsewhere, because following AI12-125
+         --  it denotes the target_name of an assignment.
 
-         when '#' | '$' | '?' | '@' | '`' | '\' | '^' | '~' =>
+         when '#' | '$' | '?' | '`' | '\' | '^' | '~' =>
 
             --  If Set_Special_Character has been called for this character,
             --  set Scans.Special_Character and return a Special token.
@@ -2303,15 +2533,16 @@ package body Scng is
 
       --  End loop past format effectors. The exit from this loop is by
       --  executing a return statement following completion of token scan
-      --  (control never falls out of this loop to the code which follows)
+      --  (control never falls out of this loop to the code that follows).
 
       end loop;
+
+      pragma Assert (False);
 
       --  Wide_Character scanning routine. On entry we have encountered the
       --  initial character of a wide character sequence.
 
       <<Scan_Wide_Character>>
-
          declare
             Code : Char_Code;
             Cat  : Category;

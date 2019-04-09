@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -40,12 +40,11 @@ package Exp_Ch11 is
    --  See runtime routine Ada.Exceptions for full details on the format and
    --  content of these tables.
 
-   procedure Expand_At_End_Handler (HSS : Node_Id; Block : Node_Id);
-   --  Given a handled statement sequence, HSS, for which the At_End_Proc
-   --  field is set, and which currently has no exception handlers, this
-   --  procedure expands the special exception handler required.
-   --  This procedure also create a new scope for the given Block, if
-   --  Block is not Empty.
+   procedure Expand_At_End_Handler (HSS : Node_Id; Blk_Id : Entity_Id);
+   --  Given handled statement sequence HSS for which the At_End_Proc field
+   --  is set, and which currently has no exception handlers, this procedure
+   --  expands the special exception handler required. This procedure also
+   --  create a new scope for the given block, if Blk_Id is not Empty.
 
    procedure Expand_Exception_Handlers (HSS : Node_Id);
    --  This procedure expands exception handlers, and is called as part
@@ -90,5 +89,10 @@ package Exp_Ch11 is
    --  handler (and restriction No_Exception_Propagation is set), or if there
    --  is a local handler marking that it has a local raise. E is the entity
    --  of the corresponding exception.
+
+   procedure Warn_If_No_Local_Raise (N : Node_Id);
+   --  Called for an exception handler that is not the target of a local raise.
+   --  Issues warning if No_Exception_Propagation restriction is set. N is the
+   --  node for the handler.
 
 end Exp_Ch11;

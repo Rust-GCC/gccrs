@@ -1,5 +1,5 @@
 /* Exported functions from alias.c
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,14 +20,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_ALIAS_H
 #define GCC_ALIAS_H
 
-/* The type of an alias set.  Code currently assumes that variables of
-   this type can take the values 0 (the alias set which aliases
-   everything) and -1 (sometimes indicating that the alias set is
-   unknown, sometimes indicating a memory barrier) and -2 (indicating
-   that the alias set should be set to a unique value but has not been
-   set yet).  */
-typedef int alias_set_type;
-
 extern alias_set_type new_alias_set (void);
 extern alias_set_type get_alias_set (tree);
 extern alias_set_type get_deref_alias_set (tree);
@@ -41,8 +33,10 @@ extern int alias_sets_conflict_p (alias_set_type, alias_set_type);
 extern int alias_sets_must_conflict_p (alias_set_type, alias_set_type);
 extern int objects_must_conflict_p (tree, tree);
 extern int nonoverlapping_memrefs_p (const_rtx, const_rtx, bool);
+extern void dump_alias_stats_in_alias_c (FILE *s);
 tree reference_alias_ptr_type (tree);
 bool alias_ptr_types_compatible_p (tree, tree);
+int compare_base_decls (tree, tree);
 
 /* This alias set can be used to force a memory to conflict with all
    other memories, creating a barrier across which no memory reference

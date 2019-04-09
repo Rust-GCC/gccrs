@@ -1,7 +1,8 @@
-// { dg-do run }
-// { dg-options "-g -O0 -std=gnu++14" }
+// { dg-do run { target c++14 } }
+// { dg-options "-g -O0" }
+// { dg-skip-if "" { *-*-* } { "-D_GLIBCXX_PROFILE" } }
 
-// Copyright (C) 2014 Free Software Foundation, Inc.
+// Copyright (C) 2014-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,11 +19,15 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+// Type printers only recognize the old std::string for now.
+#define _GLIBCXX_USE_CXX11_ABI 0
+
 #include <experimental/any>
 #include <experimental/optional>
 #include <experimental/string_view>
 #include <string>
 #include <map>
+#include <iostream>
 
 using std::experimental::any;
 using std::experimental::optional;
@@ -63,6 +68,7 @@ main()
   any am = *om;
 // { dg-final { note-test am {std::experimental::any containing std::map with 3 elements = {[1] = 2, [3] = 4, [5] = 6}} } }
 
+  std::cout << "\n";
   return 0;			// Mark SPOT
 }
 

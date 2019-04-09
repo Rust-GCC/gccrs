@@ -1,5 +1,5 @@
-/* s_atanhl.c -- __float128 version of s_atan.c.
- * Conversion to __float128 by Ulrich Drepper,
+/* s_atanhl.c -- long double version of s_atan.c.
+ * Conversion to long double by Ulrich Drepper,
  * Cygnus Support, drepper@cygnus.com.
  */
 
@@ -22,8 +22,8 @@
  *	atanhl(x) = --- * log(1 + -------) = 0.5 * log1p(2 * --------)
  *                   2             1 - x                      1 - x
  *
- * 	For x<0.5
- *	atanhl(x) = 0.5*log1pl(2x+2x*x/(1-x))
+ *	For x<0.5
+ *	atanhl(x) = 0.5*log1pq(2x+2x*x/(1-x))
  *
  * Special cases:
  *	atanhl(x) is NaN if |x| > 1 with signal;
@@ -34,11 +34,12 @@
 
 #include "quadmath-imp.h"
 
-static const __float128 one = 1.0Q, huge = 1e4900Q;
-static const __float128 zero = 0.0Q;
+static const __float128 one = 1, huge = 1e4900Q;
+
+static const __float128 zero = 0;
 
 __float128
-atanhq (__float128 x)
+atanhq(__float128 x)
 {
 	__float128 t;
 	uint32_t jx, ix;
@@ -55,7 +56,11 @@ atanhq (__float128 x)
 	    else
 	      return (x-x)/(x-x);
 	  }
-	if(ix<0x3fc60000 && (huge+x)>zero) return x;	/* x < 2^-57 */
+	if(ix<0x3fc60000 && (huge+x)>zero)	/* x < 2^-57 */
+	  {
+	    math_check_force_underflow (x);
+	    return x;
+	  }
 
 	if(ix<0x3ffe0000) {		/* x < 0.5 */
 	    t = u.value+u.value;

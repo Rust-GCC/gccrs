@@ -1,7 +1,6 @@
-// { dg-options "-std=c++11" }
-// { dg-do compile }
+// { dg-do compile { target c++11 } }
 
-// Copyright (C) 2012-2014 Free Software Foundation, Inc.
+// Copyright (C) 2012-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -20,9 +19,6 @@
 
 #include <type_traits>
 #include <initializer_list>
-
-//TODO: Uncomment this once gcc bug 53000 has been resolved:
-//#define HAS_53000_FIXED
 
 // Helper types:
 struct has_type_impl
@@ -163,7 +159,10 @@ namespace std {
   };
 }
 
+static_assert(is_type<std::common_type<int>, int>(), "");
+static_assert(is_type<std::common_type<const int>, int>(), "");
 static_assert(is_type<std::common_type<int, int>, int>(), "");
+static_assert(is_type<std::common_type<const int, int>, int>(), "");
 static_assert(is_type<std::common_type<ScEn, ScEn>, ScEn>(), "");
 static_assert(is_type<std::common_type<UnscEn, UnscEn>, UnscEn>(), "");
 static_assert(is_type<std::common_type<UnscEn, int>, int>(), "");
@@ -184,6 +183,8 @@ static_assert(is_type<std::common_type<int*, const volatile int*>,
 	      const volatile int*>(), "");
 static_assert(is_type<std::common_type<void*, const volatile int*>,
 	      const volatile void*>(), "");
+static_assert(is_type<std::common_type<void>, void>(), "");
+static_assert(is_type<std::common_type<const void>, void>(), "");
 static_assert(is_type<std::common_type<void, void>, void>(), "");
 static_assert(is_type<std::common_type<const void, const void>, void>(), "");
 static_assert(is_type<std::common_type<int&, int&&>, int>(), "");
@@ -246,15 +247,17 @@ static_assert(is_type<std::common_type<UConv1, const Abstract*&>,
 static_assert(is_type<std::common_type<UConv1, UConv2>, Abstract*>(), "");
 static_assert(is_type<std::common_type<UConv1&, UConv2&>, Abstract*>(), "");
 
-#ifdef HAS_53000_FIXED
 static_assert(is_type<std::common_type<Abstract&&, Abstract&&>,
 	      Abstract>(), "");
 static_assert(is_type<std::common_type<const Abstract&&,
+				       const Abstract&&>, Abstract>(), "");
+static_assert(is_type<std::common_type<volatile Abstract&&,
 				       volatile Abstract&&>, Abstract>(), "");
 static_assert(is_type<std::common_type<Ukn&&, Ukn&&>, Ukn>(), "");
-static_assert(is_type<std::common_type<const Ukn&&, volatile Ukn&&>,
+static_assert(is_type<std::common_type<const Ukn&&, const Ukn&&>,
 	      Ukn>(), "");
-#endif
+static_assert(is_type<std::common_type<volatile Ukn&&, volatile Ukn&&>,
+	      Ukn>(), "");
 
 static_assert(is_type<std::common_type<X1, X2>, RX12>(), "");
 static_assert(is_type<std::common_type<X2, X1>, RX21>(), "");
@@ -317,6 +320,14 @@ static_assert(!has_type<std::common_type<U, S, Abstract, void, D,
 static_assert(!has_type<std::common_type<UConv1, Abstract&&>>(), "");
 static_assert(!has_type<std::common_type<std::initializer_list<int>,
 					 std::initializer_list<long>>>(), "");
+
+// PR libstdc++/89102
+static_assert(!has_type<std::common_type<int() &>>(), "");
+static_assert(!has_type<std::common_type<int() & noexcept>>(), "");
+static_assert(!has_type<std::common_type<int() const>>(), "");
+static_assert(!has_type<std::common_type<int(...) &>>(), "");
+static_assert(!has_type<std::common_type<int(...) & noexcept>>(), "");
+static_assert(!has_type<std::common_type<int(...) const>>(), "");
 
 void test(int i)
 {

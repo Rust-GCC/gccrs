@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -40,7 +40,6 @@ with Sinfo;    use Sinfo;
 with Sinput;   use Sinput;
 with Sprint;   use Sprint;
 with Sdefault; use Sdefault;
-with Targparm; use Targparm;
 with Treepr;   use Treepr;
 with Types;    use Types;
 
@@ -116,35 +115,19 @@ package body Comperr is
       Abort_In_Progress := True;
 
       --  Generate a "standard" error message instead of a bug box in case
-      --  of .NET compiler, since we do not support all constructs of the
-      --  language. Of course ideally, we should detect this before bombing on
-      --  e.g. an assertion error, but in practice most of these bombs are due
-      --  to a legitimate case of a construct not being supported (in a sense
-      --  they all are, since for sure we are not supporting something if we
-      --  bomb). By giving this message, we provide a more reasonable practical
-      --  interface, since giving scary bug boxes on unsupported features is
-      --  definitely not helpful.
-
-      --  Similarly if we are generating SCIL, an error message is sufficient
-      --  instead of generating a bug box.
+      --  of CodePeer rather than generating a bug box, friendlier.
 
       --  Note that the call to Error_Msg_N below sets Serious_Errors_Detected
       --  to 1, so we use the regular mechanism below in order to display a
       --  "compilation abandoned" message and exit, so we still know we have
       --  this case (and -gnatdk can still be used to get the bug box).
 
-      if (VM_Target = CLI_Target or else CodePeer_Mode)
+      if CodePeer_Mode
         and then Serious_Errors_Detected = 0
         and then not Debug_Flag_K
         and then Sloc (Current_Error_Node) > No_Location
       then
-         if VM_Target = CLI_Target then
-            Error_Msg_N
-              ("unsupported construct in this context",
-               Current_Error_Node);
-         else
-            Error_Msg_N ("cannot generate 'S'C'I'L", Current_Error_Node);
-         end if;
+         Error_Msg_N ("cannot generate 'S'C'I'L", Current_Error_Node);
       end if;
 
       --  If we are in CodePeer mode, we must also delete SCIL files
@@ -270,6 +253,7 @@ package body Comperr is
          --  we use the contents of this file at this point.
 
          declare
+            FD  : File_Descriptor;
             Lo  : Source_Ptr;
             Hi  : Source_Ptr;
             Src : Source_Buffer_Ptr;
@@ -278,11 +262,11 @@ package body Comperr is
             Namet.Unlock;
             Name_Buffer (1 .. 12) := "gnat_bug.box";
             Name_Len := 12;
-            Read_Source_File (Name_Enter, 0, Hi, Src);
+            Read_Source_File (Name_Enter, 0, Hi, Src, FD);
 
             --  If we get a Src file, we use it
 
-            if Src /= null then
+            if not Null_Source_Buffer_Ptr (Src) then
                Lo := 0;
 
                Outer : while Lo < Hi loop
@@ -311,7 +295,7 @@ package body Comperr is
                if Is_FSF_Version then
                   Write_Str
                     ("| Please submit a bug report; see" &
-                     " http://gcc.gnu.org/bugs.html.");
+                     " https://gcc.gnu.org/bugs/ .");
                   End_Line;
 
                elsif Is_GPL_Version then
@@ -367,21 +351,16 @@ package body Comperr is
                End_Line;
 
                Write_Str
-                 ("| Include the exact gcc or gnatmake command " &
-                  "that you entered.");
+                 ("| Include the exact command that you entered.");
                End_Line;
 
                Write_Str
-                 ("| Also include sources listed below in gnatchop format");
-               End_Line;
-
-               Write_Str
-                 ("| (concatenated together with no headers between files).");
+                 ("| Also include sources listed below.");
                End_Line;
 
                if not Is_FSF_Version then
                   Write_Str
-                    ("| Use plain ASCII or MIME attachment.");
+                    ("| Use plain ASCII or MIME attachment(s).");
                   End_Line;
                end if;
             end if;
@@ -479,7 +458,7 @@ package body Comperr is
       --  If parsing was not successful, no Main_Unit is available, so return
       --  immediately.
 
-      if Main_Source_File = No_Source_File then
+      if Main_Source_File <= No_Source_File then
          return;
       end if;
 
@@ -489,18 +468,25 @@ package body Comperr is
       Main := Unit (Cunit (Main_Unit));
 
       case Nkind (Main) is
-         when N_Subprogram_Body | N_Package_Declaration =>
+         when N_Package_Declaration
+            | N_Subprogram_Body
+            | N_Subprogram_Declaration
+         =>
             Unit_Name := Defining_Unit_Name (Specification (Main));
 
          when N_Package_Body =>
             Unit_Name := Corresponding_Spec (Main);
 
-         when N_Package_Renaming_Declaration =>
+         when N_Package_Instantiation
+            | N_Package_Renaming_Declaration
+         =>
             Unit_Name := Defining_Unit_Name (Main);
 
          --  No SCIL file generated for generic package declarations
 
-         when N_Generic_Package_Declaration =>
+         when N_Generic_Package_Declaration
+            | N_Generic_Package_Renaming_Declaration
+         =>
             return;
 
          --  Should never happen, but can be ignored in production

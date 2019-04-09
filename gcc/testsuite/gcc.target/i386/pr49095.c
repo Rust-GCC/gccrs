@@ -1,7 +1,7 @@
 /* PR rtl-optimization/49095 */
 /* { dg-do compile } */
-/* { dg-options "-Os" } */
-/* { dg-options "-Os -mregparm=2" { target ia32 } } */
+/* { dg-options "-Os -fno-shrink-wrap -masm=att" } */
+/* { dg-additional-options "-mregparm=2" { target ia32 } } */
 
 void foo (void *);
 
@@ -71,3 +71,5 @@ G (int)
 G (long)
 
 /* { dg-final { scan-assembler-not "test\[lq\]" } } */
+/* { dg-final { scan-assembler-not "\\(%eax\\), %" { target { ia32 } } } } */
+/* { dg-final { scan-assembler-not "\\(%\[re\]di\\), %" { target { ! ia32 } } } } */

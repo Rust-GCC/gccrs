@@ -37,4 +37,4 @@ match (void)
    for such cases.  */
 
 /* { dg-final { scan-tree-dump-times "loop_1" 0 "graphite" { xfail *-*-* } } } */
-/* { dg-final { cleanup-tree-dump "graphite" } } */
+/* { dg-final { scan-tree-dump "number of SCoPs: 0" "graphite" } } */

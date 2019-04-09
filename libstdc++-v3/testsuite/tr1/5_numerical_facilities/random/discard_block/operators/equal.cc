@@ -1,6 +1,6 @@
 // 2006-06-19  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,7 +26,6 @@
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
   using namespace std::tr1;
 
   discard_block
@@ -36,7 +35,7 @@ test01()
     > u, v;
 
   VERIFY( u == v );
-  
+
   for (int i = 0; i < 100; ++i)
     {
       u();

@@ -1,4 +1,4 @@
-# Copyright (C) 2000-2014 Free Software Foundation, Inc.
+# Copyright (C) 2000-2019 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -16,12 +16,16 @@
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
 
+PASSES_EXTRA += $(srcdir)/config/avr/avr-passes.def
+
 driver-avr.o: $(srcdir)/config/avr/driver-avr.c \
-  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H)
+  $(CONFIG_H) $(SYSTEM_H) coretypes.h \
+  $(srcdir)/config/avr/avr-arch.h $(TM_H)
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
 
 avr-devices.o: $(srcdir)/config/avr/avr-devices.c \
   $(srcdir)/config/avr/avr-mcus.def \
+  $(srcdir)/config/avr/avr-arch.h \
   $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H)
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
 
@@ -36,7 +40,7 @@ avr-log.o: $(srcdir)/config/avr/avr-log.c \
 avr.o avr-c.o: $(srcdir)/config/avr/builtins.def
 
 # This overrides stdfix.h from USER_H which we supply and include
-# in our own stdint.h as stdint-gcc.h.
+# in our own stdfix.h as stdfix-gcc.h.
 
 EXTRA_HEADERS = $(srcdir)/config/avr/stdfix.h \
 	      	stdfix-gcc.h
@@ -53,15 +57,9 @@ AVR_MCUS = $(srcdir)/config/avr/avr-mcus.def
 .PHONY: avr-mcus
 
 avr-mcus: $(srcdir)/config/avr/t-multilib \
-	  $(srcdir)/config/avr/avr-tables.opt \
 	  $(srcdir)/doc/avr-mmcu.texi ; @true
 
-# Make sure that -mmcu= is supported for devices from avr-mcus.def and
-# all -mmcu= values are displayed on the help screen
-$(srcdir)/config/avr/avr-tables.opt: $(srcdir)/config/avr/genopt.sh $(AVR_MCUS)
-	$(SHELL) $< $(AVR_MCUS) > $@
-
-# Make sure that -mmcu= support is in sync with -mmcu= documentation.
+# Make sure that native -mmcu= support is in sync with -mmcu= documentation.
 gen-avr-mmcu-texi$(build_exeext): $(srcdir)/config/avr/gen-avr-mmcu-texi.c \
   $(AVR_MCUS) $(srcdir)/config/avr/avr-devices.c \
   $(srcdir)/config/avr/avr-arch.h
@@ -69,8 +67,8 @@ gen-avr-mmcu-texi$(build_exeext): $(srcdir)/config/avr/gen-avr-mmcu-texi.c \
 
 gen-avr-mmcu-specs$(build_exeext): $(srcdir)/config/avr/gen-avr-mmcu-specs.c \
   $(AVR_MCUS) $(srcdir)/config/avr/avr-devices.c \
-  $(srcdir)/config/avr/avr-arch.h
-	$(CC_FOR_BUILD) $(CFLAGS_FOR_BUILD) $< -o $@
+  $(srcdir)/config/avr/avr-arch.h $(TM_H)
+	$(CXX_FOR_BUILD) $(CXXFLAGS_FOR_BUILD) $< -o $@ $(INCLUDES)
 
 $(srcdir)/doc/avr-mmcu.texi: gen-avr-mmcu-texi$(build_exeext)
 	$(RUN_GEN) ./$< > $@
@@ -88,17 +86,16 @@ install-device-specs: s-device-specs installdirs
 	-rm -rf $(DESTDIR)$(libsubdir)/device-specs
 	mkdir $(DESTDIR)$(libsubdir)/device-specs
 	-for file in device-specs/*; do \
-	$(INSTALL_PROGRAM) $${file} $(DESTDIR)$(libsubdir)/$${file}; \
+		$(INSTALL_DATA) $${file} $(DESTDIR)$(libsubdir)/$${file}; \
 	done
 
-# Map -mmcu= to the right multilib variant
+# Get multilib layout
 # MULTILIB_OPTIONS
 # MULTILIB_DIRNAMES
-# MULTILIB_EXCEPTIONS
-# MULTILIB_MATCHES
+# MULTILIB_REQUIRED
 
 s-mlib: $(srcdir)/config/avr/t-multilib
 
 $(srcdir)/config/avr/t-multilib: $(srcdir)/config/avr/genmultilib.awk \
 				 $(AVR_MCUS)
-	$(AWK) -f $< -v FORMAT=Makefile   $< $(AVR_MCUS) > $@
+	$(AWK) -f $< $< $(AVR_MCUS) > $@

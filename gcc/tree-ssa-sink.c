@@ -1,5 +1,5 @@
 /* Code sinking for trees
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2019 Free Software Foundation, Inc.
    Contributed by Daniel Berlin <dan@dberlin.org>
 
 This file is part of GCC.
@@ -21,27 +21,18 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "backend.h"
 #include "tree.h"
-#include "stor-layout.h"
-#include "basic-block.h"
-#include "gimple-pretty-print.h"
-#include "tree-inline.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "is-a.h"
 #include "gimple.h"
-#include "gimple-iterator.h"
-#include "gimple-ssa.h"
-#include "tree-cfg.h"
-#include "tree-phinodes.h"
-#include "ssa-iterators.h"
-#include "hashtab.h"
-#include "tree-iterator.h"
-#include "alloc-pool.h"
+#include "cfghooks.h"
 #include "tree-pass.h"
-#include "flags.h"
+#include "ssa.h"
+#include "gimple-pretty-print.h"
+#include "fold-const.h"
+#include "stor-layout.h"
+#include "cfganal.h"
+#include "gimple-iterator.h"
+#include "tree-cfg.h"
 #include "cfgloop.h"
 #include "params.h"
 
@@ -85,7 +76,7 @@ static struct
    we return NULL.  */
 
 static basic_block
-find_bb_for_arg (gimple phi, tree def)
+find_bb_for_arg (gphi *phi, tree def)
 {
   size_t i;
   bool foundone = false;
@@ -116,7 +107,7 @@ all_immediate_uses_same_place (def_operand_p def_p)
   imm_use_iterator imm_iter;
   use_operand_p use_p;
 
-  gimple firstuse = NULL;
+  gimple *firstuse = NULL;
   FOR_EACH_IMM_USE_FAST (use_p, imm_iter, var)
     {
       if (is_gimple_debug (USE_STMT (use_p)))
@@ -137,7 +128,7 @@ static basic_block
 nearest_common_dominator_of_uses (def_operand_p def_p, bool *debug_stmts)
 {
   tree var = DEF_FROM_PTR (def_p);
-  bitmap blocks = BITMAP_ALLOC (NULL);
+  auto_bitmap blocks;
   basic_block commondom;
   unsigned int j;
   bitmap_iterator bi;
@@ -146,14 +137,14 @@ nearest_common_dominator_of_uses (def_operand_p def_p, bool *debug_stmts)
 
   FOR_EACH_IMM_USE_FAST (use_p, imm_iter, var)
     {
-      gimple usestmt = USE_STMT (use_p);
+      gimple *usestmt = USE_STMT (use_p);
       basic_block useblock;
 
-      if (gimple_code (usestmt) == GIMPLE_PHI)
+      if (gphi *phi = dyn_cast <gphi *> (usestmt))
 	{
 	  int idx = PHI_ARG_INDEX_FROM_USE (use_p);
 
-	  useblock = gimple_phi_arg_edge (usestmt, idx)->src;
+	  useblock = gimple_phi_arg_edge (phi, idx)->src;
 	}
       else if (is_gimple_debug (usestmt))
 	{
@@ -167,17 +158,14 @@ nearest_common_dominator_of_uses (def_operand_p def_p, bool *debug_stmts)
 
       /* Short circuit. Nothing dominates the entry block.  */
       if (useblock == ENTRY_BLOCK_PTR_FOR_FN (cfun))
-	{
-	  BITMAP_FREE (blocks);
-	  return NULL;
-	}
+	return NULL;
+
       bitmap_set_bit (blocks, useblock->index);
     }
   commondom = BASIC_BLOCK_FOR_FN (cfun, bitmap_first_set_bit (blocks));
   EXECUTE_IF_SET_IN_BITMAP (blocks, 0, j, bi)
     commondom = nearest_common_dominator (CDI_DOMINATORS, commondom,
 					  BASIC_BLOCK_FOR_FN (cfun, j));
-  BITMAP_FREE (blocks);
   return commondom;
 }
 
@@ -200,7 +188,7 @@ nearest_common_dominator_of_uses (def_operand_p def_p, bool *debug_stmts)
 static basic_block
 select_best_block (basic_block early_bb,
 		   basic_block late_bb,
-		   gimple stmt)
+		   gimple *stmt)
 {
   basic_block best_bb = late_bb;
   basic_block temp_bb = late_bb;
@@ -238,7 +226,10 @@ select_best_block (basic_block early_bb,
   /* If BEST_BB is at the same nesting level, then require it to have
      significantly lower execution frequency to avoid gratutious movement.  */
   if (bb_loop_depth (best_bb) == bb_loop_depth (early_bb)
-      && best_bb->frequency < (early_bb->frequency * threshold / 100.0))
+      /* If result of comparsion is unknown, preffer EARLY_BB.
+	 Thus use !(...>=..) rather than (...<...)  */
+      && !(best_bb->count.apply_scale (100, 1)
+	   > (early_bb->count.apply_scale (threshold, 1))))
     return best_bb;
 
   /* No better block found, so return EARLY_BB, which happens to be the
@@ -252,10 +243,10 @@ select_best_block (basic_block early_bb,
    statement before that STMT should be moved.  */
 
 static bool
-statement_sink_location (gimple stmt, basic_block frombb,
-			 gimple_stmt_iterator *togsi)
+statement_sink_location (gimple *stmt, basic_block frombb,
+			 gimple_stmt_iterator *togsi, bool *zero_uses_p)
 {
-  gimple use;
+  gimple *use;
   use_operand_p one_use = NULL_USE_OPERAND_P;
   basic_block sinkbb;
   use_operand_p use_p;
@@ -263,17 +254,19 @@ statement_sink_location (gimple stmt, basic_block frombb,
   ssa_op_iter iter;
   imm_use_iterator imm_iter;
 
-  /* We only can sink assignments.  */
-  if (!is_gimple_assign (stmt))
+  *zero_uses_p = false;
+
+  /* We only can sink assignments and non-looping const/pure calls.  */
+  int cf;
+  if (!is_gimple_assign (stmt)
+      && (!is_gimple_call (stmt)
+	  || !((cf = gimple_call_flags (stmt)) & (ECF_CONST|ECF_PURE))
+	  || (cf & ECF_LOOPING_CONST_OR_PURE)))
     return false;
 
   /* We only can sink stmts with a single definition.  */
   def_p = single_ssa_def_operand (stmt, SSA_OP_ALL_DEFS);
   if (def_p == NULL_DEF_OPERAND_P)
-    return false;
-
-  /* Return if there are no immediate uses of this stmt.  */
-  if (has_zero_uses (DEF_FROM_PTR (def_p)))
     return false;
 
   /* There are a few classes of things we can't or don't move, some because we
@@ -301,10 +294,16 @@ statement_sink_location (gimple stmt, basic_block frombb,
   */
   if (stmt_ends_bb_p (stmt)
       || gimple_has_side_effects (stmt)
-      || gimple_has_volatile_ops (stmt)
       || (cfun->has_local_explicit_reg_vars
-	  && TYPE_MODE (TREE_TYPE (gimple_assign_lhs (stmt))) == BLKmode))
+	  && TYPE_MODE (TREE_TYPE (gimple_get_lhs (stmt))) == BLKmode))
     return false;
+
+  /* Return if there are no immediate uses of this stmt.  */
+  if (has_zero_uses (DEF_FROM_PTR (def_p)))
+    {
+      *zero_uses_p = true;
+      return false;
+    }
 
   if (SSA_NAME_OCCURS_IN_ABNORMAL_PHI (DEF_FROM_PTR (def_p)))
     return false;
@@ -324,19 +323,19 @@ statement_sink_location (gimple stmt, basic_block frombb,
     {
       FOR_EACH_IMM_USE_FAST (use_p, imm_iter, DEF_FROM_PTR (def_p))
 	{
-	  gimple use_stmt = USE_STMT (use_p);
+	  gimple *use_stmt = USE_STMT (use_p);
 
 	  /* A killing definition is not a use.  */
 	  if ((gimple_has_lhs (use_stmt)
-	       && operand_equal_p (gimple_assign_lhs (stmt),
+	       && operand_equal_p (gimple_get_lhs (stmt),
 				   gimple_get_lhs (use_stmt), 0))
-	      || stmt_kills_ref_p (use_stmt, gimple_assign_lhs (stmt)))
+	      || stmt_kills_ref_p (use_stmt, gimple_get_lhs (stmt)))
 	    {
 	      /* If use_stmt is or might be a nop assignment then USE_STMT
 	         acts as a use as well as definition.  */
 	      if (stmt != use_stmt
 		  && ref_maybe_used_by_stmt_p (use_stmt,
-					       gimple_assign_lhs (stmt)))
+					       gimple_get_lhs (stmt)))
 		return false;
 	      continue;
 	    }
@@ -385,7 +384,7 @@ statement_sink_location (gimple stmt, basic_block frombb,
 	  basic_block found = NULL;
 	  FOR_EACH_IMM_USE_FAST (use_p, imm_iter, gimple_vuse (stmt))
 	    {
-	      gimple use_stmt = USE_STMT (use_p);
+	      gimple *use_stmt = USE_STMT (use_p);
 	      basic_block bb = gimple_bb (use_stmt);
 	      /* For PHI nodes the block we know sth about
 		 is the incoming block with the use.  */
@@ -446,7 +445,7 @@ statement_sink_location (gimple stmt, basic_block frombb,
 	}
     }
 
-  sinkbb = find_bb_for_arg (use, DEF_FROM_PTR (def_p));
+  sinkbb = find_bb_for_arg (as_a <gphi *> (use), DEF_FROM_PTR (def_p));
 
   /* This can happen if there are multiple uses in a PHI.  */
   if (!sinkbb)
@@ -490,14 +489,25 @@ sink_code_in_bb (basic_block bb)
 
   for (gsi = gsi_last_bb (bb); !gsi_end_p (gsi);)
     {
-      gimple stmt = gsi_stmt (gsi);
+      gimple *stmt = gsi_stmt (gsi);
       gimple_stmt_iterator togsi;
+      bool zero_uses_p;
 
-      if (!statement_sink_location (stmt, bb, &togsi))
+      if (!statement_sink_location (stmt, bb, &togsi, &zero_uses_p))
 	{
+	  gimple_stmt_iterator saved = gsi;
 	  if (!gsi_end_p (gsi))
 	    gsi_prev (&gsi);
-	  last = false;
+	  /* If we face a dead stmt remove it as it possibly blocks
+	     sinking of uses.  */
+	  if (zero_uses_p
+	      && ! gimple_vdef (stmt))
+	    {
+	      gsi_remove (&saved, true);
+	      release_defs (stmt);
+	    }
+	  else
+	    last = false;
 	  continue;
 	}
       if (dump_file)
@@ -514,7 +524,7 @@ sink_code_in_bb (basic_block bb)
 	{
 	  imm_use_iterator iter;
 	  use_operand_p use_p;
-	  gimple vuse_stmt;
+	  gimple *vuse_stmt;
 
 	  FOR_EACH_IMM_USE_STMT (vuse_stmt, iter, gimple_vdef (stmt))
 	    if (gimple_code (vuse_stmt) != GIMPLE_PHI)

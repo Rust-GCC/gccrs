@@ -1,4 +1,7 @@
-/* { dg-do compile {target sparc64*-*-* aarch64*-*-* x86_64-*-* powerpc64*-*-*} } */
+/* Target architectures which have been found to produce the expected RTL
+   (neg:DI (ge:DI ...)) when compiling for LP64.  */
+/* { dg-do compile { target aarch64*-*-* arm*-*-* i?86-*-* ia64-*-* powerpc*-*-* sparc*-*-* x86_64-*-* } } */
+/* { dg-require-effective-target lp64 } */
 /* { dg-options "-O2 -fdump-rtl-combine-all" } */
 
 typedef long long int int64_t;
@@ -15,4 +18,3 @@ foo (int64_t a)
    the *attempt* to match this RTL pattern, regardless of whether an
    actual insn may be found on the platform.  */
 /* { dg-final { scan-rtl-dump "\\(neg:DI \\(ge:DI" "combine" } } */
-/* { dg-final { cleanup-rtl-dump "combine" } } */

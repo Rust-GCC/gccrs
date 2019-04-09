@@ -1,5 +1,5 @@
 /* main.c: defines main() for cc1, cc1plus, etc.
-   Copyright (C) 2007-2014 Free Software Foundation, Inc.
+   Copyright (C) 2007-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -26,12 +26,15 @@ along with GCC; see the file COPYING3.  If not see
 
 int main (int argc, char **argv);
 
-/* We define main() to call toplev_main(), which is defined in toplev.c.
+/* We define main() to call toplev::main(), which is defined in toplev.c.
    We do this in a separate file in order to allow the language front-end
    to define a different main(), if it so desires.  */
 
 int
 main (int argc, char **argv)
 {
-  return toplev_main (argc, argv);
+  toplev toplev (NULL, /* external_timer */
+		 true /* init_signals */);
+
+  return toplev.main (argc, argv);
 }

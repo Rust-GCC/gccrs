@@ -1,5 +1,5 @@
 /* Check calls to formatted I/O functions (-Wformat).
-   Copyright (C) 1992-2014 Free Software Foundation, Inc.
+   Copyright (C) 1992-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -84,7 +84,7 @@ enum
 
 /* Structure describing a length modifier supported in format checking, and
    possibly a doubled version such as "hh".  */
-typedef struct
+struct format_length_info
 {
   /* Name of the single-character length modifier. If prefixed by
      a zero character, it describes a multi character length
@@ -102,12 +102,12 @@ typedef struct
   /* If this flag is set, just scalar width identity is checked, and
      not the type identity itself.  */
   int scalar_identity_flag;
-} format_length_info;
+};
 
 
 /* Structure describing the combination of a conversion specifier
    (or a set of specifiers which act identically) and a length modifier.  */
-typedef struct
+struct format_type_detail
 {
   /* The standard version this combination of length and type appeared in.
      This is only relevant if greater than those for length and type
@@ -118,7 +118,7 @@ typedef struct
   const char *name;
   /* The type itself.  */
   tree *type;
-} format_type_detail;
+};
 
 
 /* Macros to fill out tables of these.  */
@@ -129,7 +129,7 @@ typedef struct
 
 /* Structure describing a format conversion specifier (or a set of specifiers
    which act identically), and the length modifiers used with it.  */
-typedef struct format_char_info
+struct format_char_info
 {
   const char *format_chars;
   int pointer_count;
@@ -151,18 +151,27 @@ typedef struct format_char_info
      "W" if the argument is a pointer which is dereferenced and written into,
      "R" if the argument is a pointer which is dereferenced and read from,
      "i" for printf integer formats where the '0' flag is ignored with
-     precision, and "[" for the starting character of a scanf scanset.  */
+     precision, and "[" for the starting character of a scanf scanset,
+     "<" if the specifier introduces a quoted sequence (such as "%<"),
+     ">" if the specifier terminates a quoted sequence (such as "%>"),
+     "[" if the specifier introduces a color sequence (such as "%r"),
+     "]" if the specifier terminates a color sequence (such as "%R"),
+     "'" (single quote) if the specifier is expected to be quoted when
+     it appears outside a quoted sequence and unquoted otherwise (such
+     as the GCC internal printf format directive "%T"), and
+     "\"" (double quote) if the specifier is not expected to appear in
+     a quoted sequence (such as the GCC internal format directive "%K".  */
   const char *flags2;
   /* If this format conversion character consumes more than one argument,
      CHAIN points to information about the next argument.  For later
      arguments, only POINTER_COUNT, TYPES, and the "c", "R", and "W" flags
      in FLAGS2 are used.  */
   const struct format_char_info *chain;
-} format_char_info;
+};
 
 
 /* Structure describing a flag accepted by some kind of format.  */
-typedef struct
+struct format_flag_spec
 {
   /* The flag character in question (0 for end of array).  */
   int flag_char;
@@ -178,6 +187,8 @@ typedef struct
   /* Nonzero if the next character after this flag in the format should
      be skipped ('=' in strfmon), zero otherwise.  */
   int skip_next_char;
+  /* True if the flag introduces quoting (as in GCC's %qE).  */
+  bool quoting;
   /* The name to use for this flag in diagnostic messages.  For example,
      N_("'0' flag"), N_("field width").  */
   const char *name;
@@ -186,12 +197,12 @@ typedef struct
   const char *long_name;
   /* The standard version in which it appeared.  */
   enum format_std_version std;
-} format_flag_spec;
+};
 
 
 /* Structure describing a combination of flags that is bad for some kind
    of format.  */
-typedef struct
+struct format_flag_pair
 {
   /* The first flag character in question (0 for end of array).  */
   int flag_char1;
@@ -204,11 +215,11 @@ typedef struct
      a nonzero character from flags2 if it only applies in some
      circumstances (e.g. 'i' for printf formats ignoring 0 with precision).  */
   int predicate;
-} format_flag_pair;
+};
 
 
 /* Structure describing a particular kind of format processed by GCC.  */
-typedef struct
+struct format_kind_info
 {
   /* The name of this kind of format, for use in diagnostics.  Also
      the name of the attribute (without preceding and following __).  */
@@ -251,7 +262,7 @@ typedef struct
   /* Pointer to type of argument expected if '*' is used for a precision,
      or NULL if '*' not used for precisions.  */
   tree *precision_type;
-} format_kind_info;
+};
 
 #define T_I	&integer_type_node
 #define T89_I	{ STD_C89, NULL, T_I }
@@ -287,6 +298,9 @@ typedef struct
 #define T_UC	&unsigned_char_type_node
 #define T99_UC	{ STD_C99, NULL, T_UC }
 #define T_V	&void_type_node
+#define T89_G   { STD_C89, NULL, &local_gimple_ptr_node }
+#define T_CGRAPH_NODE   { STD_C89, NULL, &local_cgraph_node_ptr_node }
+#define T89_T   { STD_C89, NULL, &local_tree_type_node }
 #define T89_V	{ STD_C89, NULL, T_V }
 #define T_W	&wchar_type_node
 #define T94_W	{ STD_C94, "wchar_t", T_W }
@@ -317,12 +331,12 @@ typedef struct
    interpreted as "gnu_printf" or "ms_printf" on a particular system.
    TARGET_OVERRIDES_FORMAT_ATTRIBUTES is used to specify target-specific
    defaults.  */
-typedef struct
+struct target_ovr_attr
 {
   /* The name of the to be copied format attribute. */
   const char *named_attr_src;
   /* The name of the to be overridden format attribute. */
   const char *named_attr_dst;
-} target_ovr_attr;
+};
 
 #endif /* GCC_C_FORMAT_H */

@@ -1,5 +1,5 @@
 /* Communication between reload.c, reload1.c and the rest of compiler.
-   Copyright (C) 1987-2014 Free Software Foundation, Inc.
+   Copyright (C) 1987-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -30,9 +30,9 @@ along with GCC; see the file COPYING3.  If not see
   SECONDARY_RELOAD_CLASS (CLASS, MODE, X)
 #endif
 
-extern int register_move_cost (enum machine_mode, reg_class_t, reg_class_t);
-extern int memory_move_cost (enum machine_mode, reg_class_t, bool);
-extern int memory_move_secondary_cost (enum machine_mode, reg_class_t, bool);
+extern int register_move_cost (machine_mode, reg_class_t, reg_class_t);
+extern int memory_move_cost (machine_mode, reg_class_t, bool);
+extern int memory_move_secondary_cost (machine_mode, reg_class_t, bool);
 
 /* Maximum number of reloads we can need.  */
 #define MAX_RELOADS (2 * MAX_RECOG_OPERANDS * (MAX_REGS_PER_ADDRESS + 1))
@@ -84,12 +84,12 @@ struct reload
   enum reg_class rclass;
 
   /* The mode this operand should have when reloaded, on input.  */
-  enum machine_mode inmode;
+  machine_mode inmode;
   /* The mode this operand should have when reloaded, on output.  */
-  enum machine_mode outmode;
+  machine_mode outmode;
 
   /* The mode of the reload register.  */
-  enum machine_mode mode;
+  machine_mode mode;
 
   /* the largest number of registers this reload will require.  */
   unsigned int nregs;
@@ -97,7 +97,7 @@ struct reload
   /* Positive amount to increment or decrement by if
      reload_in is a PRE_DEC, PRE_INC, POST_DEC, POST_INC.
      Ignored otherwise (don't assume it is zero).  */
-  int inc;
+  poly_int64_pod inc;
   /* A reg for which reload_in is the equivalent.
      If reload_in is a symbol_ref which came from
      reg_equiv_constant, then this is the pseudo
@@ -159,16 +159,13 @@ struct target_reload {
      which these are valid is the same as spill_indirect_levels, above.  */
   bool x_indirect_symref_ok;
 
-  /* Nonzero if an address (plus (reg frame_pointer) (reg ...)) is valid.  */
-  bool x_double_reg_address_ok;
-
   /* Nonzero if indirect addressing is supported on the machine; this means
      that spilling (REG n) does not require reloading it into a register in
      order to do (MEM (REG n)) or (MEM (PLUS (REG n) (CONST_INT c))).  The
      value indicates the level of indirect addressing supported, e.g., two
      means that (MEM (MEM (REG n))) is also valid if (REG n) does not get
      a hard register.  */
-  bool x_spill_indirect_levels;
+  unsigned char x_spill_indirect_levels;
 
   /* True if caller-save has been reinitialized.  */
   bool x_caller_save_initialized_p;
@@ -177,9 +174,13 @@ struct target_reload {
      enough to save the entire contents of the register.  When saving the
      register because it is live we first try to save in multi-register modes.
      If that is not possible the save is done one register at a time.  */
-  enum machine_mode (x_regno_save_mode
+  machine_mode (x_regno_save_mode
 		     [FIRST_PSEUDO_REGISTER]
 		     [MAX_MOVE_MAX / MIN_UNITS_PER_WORD + 1]);
+
+  /* Nonzero if an address (plus (reg frame_pointer) (reg ...)) is valid
+     in the given mode.  */
+  bool x_double_reg_address_ok[MAX_MACHINE_MODE];
 
   /* We will only make a register eligible for caller-save if it can be
      saved in its widest mode with a simple SET insn as long as the memory
@@ -239,7 +240,7 @@ struct reg_equivs_t
 
   /* The list of insns that initialized reg N from its equivalent
      constant or memory slot.  */
-  rtx init;
+  rtx_insn_list *init;
 };
 
 #define reg_equiv_constant(ELT) \
@@ -331,7 +332,7 @@ extern void compute_use_by_pseudos (HARD_REG_SET *, bitmap);
 /* Functions from reload.c:  */
 
 extern reg_class_t secondary_reload_class (bool, reg_class_t,
-					   enum machine_mode, rtx);
+					   machine_mode, rtx);
 
 #ifdef GCC_INSN_CODES_H
 extern enum reg_class scratch_reload_class (enum insn_code);
@@ -340,7 +341,7 @@ extern enum reg_class scratch_reload_class (enum insn_code);
 /* Return a memory location that will be used to copy X in mode MODE.
    If we haven't already made a location for this mode in this insn,
    call find_reloads_address on the location being returned.  */
-extern rtx get_secondary_mem (rtx, enum machine_mode, int, enum reload_type);
+extern rtx get_secondary_mem (rtx, machine_mode, int, enum reload_type);
 
 /* Clear any secondary memory locations we've made.  */
 extern void clear_secondary_mem (void);
@@ -372,7 +373,7 @@ extern int find_reloads (rtx_insn *, int, int, int, short *);
    address, namely: sum constant integers, surround the sum of two
    constants with a CONST, put the constant as the second operand, and
    group the constant on the outermost sum.  */
-extern rtx form_sum (enum machine_mode, rtx, rtx);
+extern rtx form_sum (machine_mode, rtx, rtx);
 
 /* Substitute into the current INSN the registers into which we have reloaded
    the things that need reloading.  */
@@ -396,17 +397,17 @@ extern int reg_overlap_mentioned_for_reload_p (rtx, rtx);
 /* Check the insns before INSN to see if there is a suitable register
    containing the same value as GOAL.  */
 extern rtx find_equiv_reg (rtx, rtx_insn *, enum reg_class, int, short *,
-			   int, enum machine_mode);
+			   int, machine_mode);
 
 /* Return 1 if register REGNO is the subject of a clobber in insn INSN.  */
-extern int regno_clobbered_p (unsigned int, rtx_insn *, enum machine_mode, int);
+extern int regno_clobbered_p (unsigned int, rtx_insn *, machine_mode, int);
 
 /* Return 1 if X is an operand of an insn that is being earlyclobbered.  */
 extern int earlyclobber_operand_p (rtx);
 
 /* Record one reload that needs to be performed.  */
 extern int push_reload (rtx, rtx, rtx *, rtx *, enum reg_class,
-			enum machine_mode, enum machine_mode,
+			machine_mode, machine_mode,
 			int, int, int, enum reload_type);
 
 /* Functions in reload1.c:  */
@@ -423,7 +424,7 @@ extern void mark_home_live (int);
 
 /* Scan X and replace any eliminable registers (such as fp) with a
    replacement (such as sp), plus an offset.  */
-extern rtx eliminate_regs (rtx, enum machine_mode, rtx);
+extern rtx eliminate_regs (rtx, machine_mode, rtx);
 extern bool elimination_target_reg_p (rtx);
 
 /* Called from the register allocator to estimate costs of eliminating
@@ -456,7 +457,7 @@ extern void debug_reload (void);
 
 /* Compute the actual register we should reload to, in case we're
    reloading to/from a register that is wider than a word.  */
-extern rtx reload_adjust_reg_for_mode (rtx, enum machine_mode);
+extern rtx reload_adjust_reg_for_mode (rtx, machine_mode);
 
 /* Allocate or grow the reg_equiv tables, initializing new entries to 0.  */
 extern void grow_reg_equivs (void);

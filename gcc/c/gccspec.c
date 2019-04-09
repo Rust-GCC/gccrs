@@ -1,5 +1,5 @@
 /* Specific flags and argument handling of the C front-end.
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,7 +21,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include "gcc.h"
 #include "opts.h"
 
 /* Filter command line before processing by the gcc driver proper.  */

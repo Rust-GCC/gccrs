@@ -14,22 +14,32 @@ load_lib dg.exp
 # loaded until ${tool}_target_compile is defined since it uses that
 # to determine default LTO options.
 
+load_gcc_lib multiline.exp
 load_gcc_lib prune.exp
 load_gcc_lib target-libpath.exp
 load_gcc_lib wrapper.exp
+load_gcc_lib target-supports.exp
+load_gcc_lib target-utils.exp
 load_gcc_lib gcc-defs.exp
 load_gcc_lib timeout.exp
-load_gcc_lib target-supports.exp
 load_gcc_lib file-format.exp
 load_gcc_lib target-supports-dg.exp
 load_gcc_lib scanasm.exp
 load_gcc_lib scandump.exp
+load_gcc_lib scanlang.exp
 load_gcc_lib scanrtl.exp
 load_gcc_lib scantree.exp
+load_gcc_lib scanltranstree.exp
+load_gcc_lib scanoffloadtree.exp
+load_gcc_lib scanoffloadrtl.exp
 load_gcc_lib scanipa.exp
+load_gcc_lib scanwpaipa.exp
 load_gcc_lib timeout-dg.exp
 load_gcc_lib torture-options.exp
 load_gcc_lib fortran-modules.exp
+
+# Try to load a test support file, built during libgomp configuration.
+load_file libgomp-test-support.exp
 
 set dg-do-what-default run
 
@@ -107,6 +117,23 @@ proc libgomp_init { args } {
     # Compute what needs to be put into LD_LIBRARY_PATH
     set always_ld_library_path ".:${blddir}/.libs"
 
+    # Add liboffloadmic build directory in LD_LIBRARY_PATH to support
+    # Intel MIC offloading testing.
+    global offload_plugins
+    if { [string match "*,intelmic,*" ",$offload_plugins,"] } {
+	append always_ld_library_path ":${blddir}/../liboffloadmic/.libs"
+	append always_ld_library_path ":${blddir}/../liboffloadmic/plugin/.libs"
+	# libstdc++ is required by liboffloadmic
+	append always_ld_library_path ":${blddir}/../libstdc++-v3/src/.libs"
+	# libgcc_s is required by libstdc++
+	append always_ld_library_path ":${blddir}/../libgcc"
+    }
+
+    global offload_additional_lib_paths
+    if { $offload_additional_lib_paths != "" } {
+	append always_ld_library_path "${offload_additional_lib_paths}"
+    }
+
     # Compute what needs to be added to the existing LD_LIBRARY_PATH.
     if {$gccdir != ""} {
 	# Add AIX pthread directory first.
@@ -140,7 +167,31 @@ proc libgomp_init { args } {
         lappend ALWAYS_CFLAGS "additional_flags=-I${blddir}"
         lappend ALWAYS_CFLAGS "ldflags=-L${blddir}/.libs"
     }
+    # The top-level include directory, for gomp-constants.h.
+    lappend ALWAYS_CFLAGS "additional_flags=-I${srcdir}/../../include"
     lappend ALWAYS_CFLAGS "additional_flags=-I${srcdir}/.."
+
+    # For build-tree testing, also consider the library paths used for builing.
+    # For installed testing, we assume all that to be provided in the sysroot.
+    if { $blddir != "" } {
+	global cuda_driver_include
+	global cuda_driver_lib
+	if { $cuda_driver_include != "" } {
+	    # Stop gfortran from freaking out:
+	    # Warning: Nonexistent include directory "[...]"
+	    if {[file exists $cuda_driver_include]} {
+		lappend ALWAYS_CFLAGS "additional_flags=-I$cuda_driver_include"
+	    }
+	}
+	if { $cuda_driver_lib != "" } {
+	    lappend ALWAYS_CFLAGS "additional_flags=-L$cuda_driver_lib"
+	    append always_ld_library_path ":$cuda_driver_lib"
+	}
+	global hsa_runtime_lib
+	if { $hsa_runtime_lib != "" } {
+	    append always_ld_library_path ":$hsa_runtime_lib"
+	}
+    }
 
     # We use atomic operations in the testcases to validate results.
     if { ([istarget i?86-*-*] || [istarget x86_64-*-*])
@@ -167,8 +218,17 @@ proc libgomp_init { args } {
     # Disable caret
     lappend ALWAYS_CFLAGS "additional_flags=-fno-diagnostics-show-caret"
 
+    # Disable HSA warnings by default.
+    lappend ALWAYS_CFLAGS "additional_flags=-Wno-hsa"
+
     # Disable color diagnostics
     lappend ALWAYS_CFLAGS "additional_flags=-fdiagnostics-color=never"
+
+    # Help GCC to find offload compilers' 'mkoffload'.
+    global offload_additional_options
+    if { $offload_additional_options != "" } {
+	lappend ALWAYS_CFLAGS "additional_flags=${offload_additional_options}"
+    }
 }
 
 #
@@ -238,4 +298,149 @@ proc libgomp_option_proc { option } {
     } else {
 	return 0
     }
+}
+
+# Translate offload target to OpenACC device type.  Return the empty string if
+# not supported, and 'host' for offload target 'disable'.
+proc offload_target_to_openacc_device_type { offload_target } {
+    switch -glob $offload_target {
+	disable {
+	    return "host"
+	}
+	hsa* {
+	    return ""
+	}
+	*-intelmic* {
+	    return ""
+	}
+	nvptx* {
+	    return "nvidia"
+	}
+	default {
+	    error "Unknown offload target: $offload_target"
+	}
+    }
+}
+
+# Return 1 if offload device is available.
+proc check_effective_target_offload_device { } {
+    return [check_runtime_nocache offload_device_available_ {
+      #include <omp.h>
+      int main ()
+	{
+	  int a;
+	  #pragma omp target map(from: a)
+	    a = omp_is_initial_device ();
+	  return a;
+	}
+    } ]
+}
+
+# Return 1 if offload device is available and it has non-shared address space.
+proc check_effective_target_offload_device_nonshared_as { } {
+    return [check_runtime_nocache offload_device_nonshared_as {
+      int main ()
+	{
+	  int a = 8;
+	  #pragma omp target map(to: a)
+	    a++;
+	  return a != 8;
+	}
+    } ]
+}
+  
+# Return 1 if offload device is available and it has shared address space.
+proc check_effective_target_offload_device_shared_as { } {
+    return [check_runtime_nocache offload_device_shared_as {
+      int main ()
+	{
+	  int x = 10;
+	  #pragma omp target map(to: x)
+	    x++;
+	  return x == 10;
+	}
+    } ]
+}
+
+# Return 1 if at least one Nvidia GPU is accessible.
+
+proc check_effective_target_openacc_nvidia_accel_present { } {
+    return [check_runtime openacc_nvidia_accel_present {
+	#include <openacc.h>
+	int main () {
+	return !(acc_get_num_devices (acc_device_nvidia) > 0);
+	}
+    } "" ]
+}
+
+# Return 1 if at least one Nvidia GPU is accessible, and the OpenACC 'nvidia'
+# device type is selected.
+
+proc check_effective_target_openacc_nvidia_accel_selected { } {
+    if { ![check_effective_target_openacc_nvidia_accel_present] } {
+	return 0;
+    }
+    global openacc_device_type
+    return [string match "nvidia" $openacc_device_type]
+}
+
+# Return 1 if the OpenACC 'host' device type is selected.
+
+proc check_effective_target_openacc_host_selected { } {
+    global openacc_device_type
+    return [string match "host" $openacc_device_type]
+}
+
+# Return 1 if the selected OMP device is actually a HSA device
+
+proc check_effective_target_hsa_offloading_selected_nocache {} {
+    global tool
+
+    set src {
+	int main () {
+	    int v = 1;
+	    #pragma omp target map(from:v)
+	    v = 0;
+	    return v;
+	}
+    }
+    
+    set result [check_compile hsa_offloading_src executable $src]
+    set lines [lindex $result 0]
+    set exe [lindex $result 1]
+
+    set ok 0
+    if { [string match "" $lines] } {
+	# No error messages, let us switch on HSA debugging output and run it
+	set prev_HSA_DEBUG [getenv HSA_DEBUG]
+	setenv HSA_DEBUG "1"
+	set result [remote_load target "./$exe"]
+	if { [string match "" $prev_HSA_DEBUG] } {
+	    unsetenv HSA_DEBUG
+	} else {
+	    setenv HSA_DEBUG $prev_HSA_DEBUG
+	}
+	set status [lindex $result 0]
+	if { $status != "pass" } {
+	    remote_file build delete $exe
+	    verbose "HSA availability test failed"
+	    return 0
+	}
+	set output [lindex $result 1]
+	if { [string match "*HSA debug: Going to dispatch kernel*" $output] } {
+	    verbose "HSA availability detected"
+	    set ok 1
+	}
+    }
+    remote_file build delete $exe
+    return $ok
+}
+
+# Return 1 if the selected OMP device is actually a HSA device and
+# cache the result
+
+proc check_effective_target_hsa_offloading_selected {} {
+    return [check_cached_effective_target hsa_offloading_selected {
+	check_effective_target_hsa_offloading_selected_nocache
+    }]
 }

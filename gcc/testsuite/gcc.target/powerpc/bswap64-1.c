@@ -1,5 +1,5 @@
 /* { dg-do compile { target { powerpc*-*-* } } } */
-/* { dg-options "-O2 -mno-popcntd -mcpu=power5" } */
+/* { dg-options "-O2 -mno-popcntd -mdejagnu-cpu=power5" } */
 /* { dg-require-effective-target lp64 } */
 /* { dg-final { scan-assembler "lwbrx" } } */
 /* { dg-final { scan-assembler "stwbrx" } } */

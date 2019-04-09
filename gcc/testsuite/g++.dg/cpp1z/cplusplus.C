@@ -1,6 +1,5 @@
-// { dg-do compile }
-// { dg-options "-std=c++1z" }
+// { dg-do compile { target c++17_only } }
 
-#if __cplusplus <= 201402L
-#error "__cplusplus <= 201402L"
+#if __cplusplus != 201703L
+#error "__cplusplus != 201703L"
 #endif

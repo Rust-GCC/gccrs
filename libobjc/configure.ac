@@ -1,5 +1,5 @@
 # Process this file with autoconf to produce a configure script.
-#   Copyright (C) 1994-2014 Free Software Foundation, Inc.
+#   Copyright (C) 1994-2019 Free Software Foundation, Inc.
 #   Originally contributed by Dave Love (d.love@dl.ac.uk).
 #
 #This file is part of GCC.
@@ -18,7 +18,6 @@
 #along with GCC; see the file COPYING3.  If not see
 #<http://www.gnu.org/licenses/>.
 
-AC_PREREQ(2.64)
 AC_INIT(package-unused, version-unused,, libobjc)
 AC_CONFIG_SRCDIR([objc/objc.h])
 GCC_TOPLEV_SUBDIRS
@@ -56,26 +55,6 @@ AC_ARG_ENABLE(version-specific-runtime-libs,
  esac],
 [version_specific_libs=no])
 AC_MSG_RESULT($version_specific_libs)
-
-AC_ARG_ENABLE(objc-gc,
-[  --enable-objc-gc       enable the use of Boehm's garbage collector with
-                          the GNU Objective-C runtime.],
-[case $enable_objc_gc in
-  no)
-    OBJC_GCFLAGS=''
-    OBJC_BOEHM_GC=''
-    OBJC_BOEHM_GC_INCLUDES=''
-    ;;
-  *)
-    OBJC_GCFLAGS='-DOBJC_WITH_GC=1'
-    OBJC_BOEHM_GC='libobjc_gc$(libsuffix).la'
-    OBJC_BOEHM_GC_INCLUDES='-I$(top_srcdir)/../boehm-gc/include -I../boehm-gc/include'
-    ;;
-esac],
-[OBJC_GCFLAGS=''; OBJC_BOEHM_GC=''; OBJC_BOEHM_GC_INCLUDES=''])
-AC_SUBST(OBJC_GCFLAGS)
-AC_SUBST(OBJC_BOEHM_GC)
-AC_SUBST(OBJC_BOEHM_GC_INCLUDES)
 
 # -----------
 # Directories
@@ -171,7 +150,12 @@ case "${host}" in
 esac
 AC_SUBST(extra_ldflags_libobjc)
 
+# Add CET specific flags if CET is enabled
+GCC_CET_FLAGS(CET_FLAGS)
+XCFLAGS="$XCFLAGS $CET_FLAGS"
+
 AC_SUBST(CFLAGS)
+AC_SUBST(XCFLAGS)
 
 AC_CHECK_TOOL(AS, as)
 AC_CHECK_TOOL(AR, ar)
@@ -212,59 +196,176 @@ AC_CHECK_HEADERS(sched.h)
 # Check if we have thread-local storage
 GCC_CHECK_TLS
 
-AC_MSG_CHECKING([for exception model to use])
-AC_LANG_PUSH(C)
-AC_ARG_ENABLE(sjlj-exceptions,
-  AS_HELP_STRING([--enable-sjlj-exceptions],
-                 [force use of builtin_setjmp for exceptions]),
-[:],
-[dnl Botheration.  Now we've got to detect the exception model.
-dnl Link tests against libgcc.a are problematic since -- at least
-dnl as of this writing -- we've not been given proper -L bits for
-dnl single-tree newlib and libgloss.
-dnl
-dnl This is what AC_TRY_COMPILE would do if it didn't delete the
-dnl conftest files before we got a change to grep them first.
-cat > conftest.$ac_ext << EOF
-[#]line __oline__ "configure"
-@interface Frob
-@end
-@implementation Frob
-@end
-int proc();
-int foo()
-{
-  @try {
-   return proc();
-  }
-  @catch (Frob* ex) {
-    return 0;
-  }
-}
-EOF
-old_CFLAGS="$CFLAGS" 
-dnl work around that we don't have Objective-C support in autoconf
-CFLAGS="-x objective-c -fgnu-runtime -fobjc-exceptions -S"
-if AC_TRY_EVAL(ac_compile); then
-  if grep _Unwind_SjLj_Resume conftest.s >/dev/null 2>&1 ; then
-    enable_sjlj_exceptions=yes
-  elif grep _Unwind_Resume conftest.s >/dev/null 2>&1 ; then
-    enable_sjlj_exceptions=no
+gt_BITFIELD_TYPE_MATTERS
+
+# -----------
+# boehm-gc
+# -----------
+
+AC_ARG_ENABLE(objc-gc,
+[AS_HELP_STRING([--enable-objc-gc],
+		[enable use of Boehm's garbage collector with the
+		 GNU Objective-C runtime])],,enable_objc_gc=no)
+AC_ARG_WITH([target-bdw-gc],
+[AS_HELP_STRING([--with-target-bdw-gc=PATHLIST],
+		[specify prefix directory for installed bdw-gc package.
+		 Equivalent to --with-target-bdw-gc-include=PATH/include
+		 plus --with-target-bdw-gc-lib=PATH/lib])])
+AC_ARG_WITH([target-bdw-gc-include],
+[AS_HELP_STRING([--with-target-bdw-gc-include=PATHLIST],
+		[specify directories for installed bdw-gc include files])])
+AC_ARG_WITH([target-bdw-gc-lib],
+[AS_HELP_STRING([--with-target-bdw-gc-lib=PATHLIST],
+		[specify directories for installed bdw-gc library])])
+		  
+case "$enable_objc_gc" in
+no)
+  use_bdw_gc=no
+  ;;
+*)
+  AC_MSG_CHECKING([for bdw garbage collector])
+  if test "x$with_target_bdw_gc$with_target_bdw_gc_include$with_target_bdw_gc_lib" = x; then
+    dnl no bdw-gw options, assuming bdw-gc in default locations
+    BDW_GC_CFLAGS=
+    BDW_GC_LIBS="-lgc"
+  else
+    dnl bdw-gw options passed by configure flags
+    if test "x$with_target_bdw_gc_include" = x && test "x$with_target_bdw_gc_lib" != x; then
+      AC_MSG_ERROR([found --with-target-bdw-gc-lib but --with-target-bdw-gc-include missing])
+    elif test "x$with_target_bdw_gc_include" != x && test "x$with_target_bdw_gc_lib" = x; then
+      AC_MSG_ERROR([found --with-target-bdw-gc-include but --with-target-bdw-gc-lib missing])
+    else
+      AC_MSG_RESULT([using paths configured with --with-target-bdw-gc options])
+    fi
+    mldir=`${CC-gcc} --print-multi-directory 2>/dev/null`
+    bdw_val=
+    if test "x$with_target_bdw_gc" != x; then
+      for i in `echo $with_target_bdw_gc | tr ',' ' '`; do
+        case "$i" in
+          *=*) sd=${i%%=*}; d=${i#*=} ;;
+          *) sd=.; d=$i ;;
+        esac
+        if test "$mldir" = "$sd"; then
+          bdw_val=$d
+        fi
+      done
+      if test "x$bdw_val" = x; then
+        AC_MSG_ERROR([no multilib path ($mldir) found in --with-target-bdw-gc])
+      fi
+      bdw_inc_dir="$bdw_val/include"
+      bdw_lib_dir="$bdw_val/lib"
+    fi
+    bdw_val=
+    if test "x$with_target_bdw_gc_include" != x; then
+      for i in `echo $with_target_bdw_gc_include | tr ',' ' '`; do
+        case "$i" in
+          *=*) sd=${i%%=*}; d=${i#*=} ;;
+          *) sd=.; d=$i; fallback=$i ;;
+        esac
+        if test "$mldir" = "$sd"; then
+          bdw_val=$d
+        fi
+      done
+      if test "x$bdw_val" = x && test "x$bdw_inc_dir" = x && test "x$fallback" != x; then
+        bdw_inc_dir="$fallback"
+      elif test "x$bdw_val" = x; then
+        AC_MSG_ERROR([no multilib path ($mldir) found in --with-target-bdw-gc-include])
+      else
+        bdw_inc_dir="$bdw_val"
+      fi
+    fi
+    bdw_val=
+    if test "x$with_target_bdw_gc_lib" != x; then
+      for i in `echo $with_target_bdw_gc_lib | tr ',' ' '`; do
+        case "$i" in
+          *=*) sd=${i%%=*}; d=${i#*=} ;;
+          *) sd=.; d=$i ;;
+        esac
+        if test "$mldir" = "$sd"; then
+          bdw_val=$d
+        fi
+      done
+      if test "x$bdw_val" = x; then
+        AC_MSG_ERROR([no multilib path ($mldir) found in --with-target-bdw-gc-lib])
+      fi
+      bdw_lib_dir="$bdw_val"
+    fi
+    if test "x$bdw_inc_dir" = x; then
+      AC_MSG_ERROR([no multilib path ($mldir) found in --with-target-bdw-gc-include])
+    fi
+    if test "x$bdw_lib_dir" = x; then
+      AC_MSG_ERROR([no multilib path ($mldir) found in --with-target-bdw-gc-lib])
+    fi
+    BDW_GC_CFLAGS="-I$bdw_inc_dir"
+    if test -f $bdw_lib_dir/libgc.la; then
+      BDW_GC_LIBS="$bdw_lib_dir/libgc.la"
+    else
+      BDW_GC_LIBS="-L$bdw_lib_dir -lgc"
+    fi
+    AC_MSG_RESULT([found])
   fi
-fi
-CFLAGS="$old_CFLAGS"
-rm -f conftest*])
-if test x$enable_sjlj_exceptions = xyes; then
-  AC_DEFINE(SJLJ_EXCEPTIONS, 1,
-	[Define if the compiler is configured for setjmp/longjmp exceptions.])
-  ac_exception_model_name=sjlj
-elif test x$enable_sjlj_exceptions = xno; then
-  ac_exception_model_name="call frame"
+
+  case "$BDW_GC_LIBS" in
+  *libgc.la)
+    use_bdw_gc=yes
+    ;;
+  *)
+    AC_MSG_CHECKING([for system boehm-gc])
+    save_CFLAGS=$CFLAGS
+    save_LIBS=$LIBS
+    CFLAGS="$CFLAGS $BDW_GC_CFLAGS"
+    LIBS="$LIBS $BDW_GC_LIBS"
+    dnl the link test is not good enough for ARM32 multilib detection,
+    dnl first check to link, then to run
+    AC_LINK_IFELSE(
+      [AC_LANG_PROGRAM([#include <gc/gc.h>],[GC_init()])],
+      [
+        AC_RUN_IFELSE([AC_LANG_SOURCE([[
+          #include <gc/gc.h>
+          int main() {
+            GC_init();
+            return 0;
+          }
+          ]])],
+          [system_bdw_gc_found=yes],
+          [system_bdw_gc_found=no],
+          dnl assume no system boehm-gc for cross builds ...
+          [system_bdw_gc_found=no]
+        )
+      ],
+      [system_bdw_gc_found=no])
+    CFLAGS=$save_CFLAGS
+    LIBS=$save_LIBS
+    if test x$enable_objc_gc = xauto && test x$system_bdw_gc_found = xno; then
+      AC_MSG_WARN([system bdw-gc not found, not building libobjc_gc])
+      use_bdw_gc=no
+    elif test x$enable_objc_gc = xyes && test x$system_bdw_gc_found = xno; then
+      AC_MSG_ERROR([system bdw-gc required but not found])
+    else
+      use_bdw_gc=yes
+      AC_MSG_RESULT([found])
+    fi
+  esac
+esac
+
+if test "$use_bdw_gc" = no; then
+  OBJC_GCFLAGS=''
+  OBJC_BOEHM_GC=''
+  OBJC_BOEHM_GC_INCLUDES=''
+  OBJC_BOEHM_GC_LIBS=''
 else
-  AC_MSG_ERROR([unable to detect exception model])
+  OBJC_GCFLAGS='-DOBJC_WITH_GC=1'
+  OBJC_BOEHM_GC='libobjc_gc$(libsuffix).la'
+  OBJC_BOEHM_GC_INCLUDES=$BDW_GC_CFLAGS
+  OBJC_BOEHM_GC_LIBS=$BDW_GC_LIBS
 fi
-AC_LANG_POP(C)
-AC_MSG_RESULT($ac_exception_model_name)
+AC_SUBST(OBJC_GCFLAGS)
+AC_SUBST(OBJC_BOEHM_GC)
+AC_SUBST(OBJC_BOEHM_GC_INCLUDES)
+AC_SUBST(OBJC_BOEHM_GC_LIBS)
+
+# Determine what GCC version number to use in filesystem paths.
+GCC_BASE_VER
 
 # ------
 # Output

@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-pre-stats" } */
+/* { dg-options "-O2 -fdump-tree-pre-stats -fno-tree-loop-im" } */
 
 double pcheck;
 
@@ -32,4 +32,3 @@ bb18:
 
 /* { dg-final { scan-tree-dump "New PHIs: 2" "pre" } } */
 /* { dg-final { scan-tree-dump "PHI <.*0\\\.0" "pre" } } */
-/* { dg-final { cleanup-tree-dump "pre" } } */

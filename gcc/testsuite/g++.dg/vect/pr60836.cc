@@ -27,6 +27,8 @@ norm_ (const int &)
       b = e (b, d);
       b = e (b, c);
     }
+
+  return 0.0;
 }
 
 void
@@ -36,4 +38,3 @@ norm ()
   f = 0;
 }
 
-// { dg-final { cleanup-tree-dump "vect" } }

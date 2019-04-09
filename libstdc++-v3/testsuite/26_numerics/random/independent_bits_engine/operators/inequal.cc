@@ -1,9 +1,9 @@
-// { dg-options "-std=c++0x" }
+// { dg-do run { target c++11 } }
 // { dg-require-cstdint "" }
 //
 // 2010-03-16  Paolo Carlini  <paolo.carlini@oracle.com>
 //
-// Copyright (C) 2010-2014 Free Software Foundation, Inc.
+// Copyright (C) 2010-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,8 +28,6 @@
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
-
   std::independent_bits_engine
     <std::subtract_with_carry_engine<uint_fast64_t, 48, 5, 12>,
      48, uint_fast64_t> u, v;

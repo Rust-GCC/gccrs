@@ -1,5 +1,5 @@
 /* Common hooks for IA64.
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -22,6 +22,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "diagnostic-core.h"
 #include "tm.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "common/common-target.h"
 #include "common/common-target-def.h"
@@ -32,7 +33,6 @@ along with GCC; see the file COPYING3.  If not see
 /* Implement overriding of the optimization options.  */
 static const struct default_options ia64_option_optimization_table[] =
   {
-    { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
 #ifdef SUBTARGET_OPTIMIZATION_OPTIONS
     SUBTARGET_OPTIMIZATION_OPTIONS,
 #endif
@@ -55,7 +55,7 @@ ia64_handle_option (struct gcc_options *opts ATTRIBUTE_UNUSED,
     {
     case OPT_mtls_size_:
       if (value != 14 && value != 22 && value != 64)
-	error_at (loc, "bad value %<%s%> for -mtls-size= switch", arg);
+	error_at (loc, "bad value %<%s%> for %<-mtls-size=%> switch", arg);
       return true;
 
     default:

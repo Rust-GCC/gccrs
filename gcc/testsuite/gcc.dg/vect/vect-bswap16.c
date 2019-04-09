@@ -4,8 +4,6 @@
 
 #define N 128
 
-volatile int y = 0;
-
 static inline void
 vfoo16 (unsigned short int* a)
 {
@@ -21,12 +19,13 @@ main (void)
   unsigned short expect[N];
   int i;
 
+  check_vect ();
+
   for (i = 0; i < N; ++i)
     {
       arr[i] = i;
       expect[i] = __builtin_bswap16 (i);
-      if (y) /* Avoid vectorisation.  */
-        abort ();
+      asm volatile ("" ::: "memory");
     }
 
   vfoo16 (arr);
@@ -41,4 +40,3 @@ main (void)
 }
 
 /* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */

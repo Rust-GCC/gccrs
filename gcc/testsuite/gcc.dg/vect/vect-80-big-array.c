@@ -13,8 +13,6 @@ float fc[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
    the expression that represents the first location accessed - is
    more involved than just an ssa_name.  */
 
-volatile int y = 0;
-
 __attribute__ ((noinline)) int
 main1 (float * __restrict__ pa, float * __restrict__ pb, float *__restrict__ pc)
 {
@@ -24,14 +22,12 @@ main1 (float * __restrict__ pa, float * __restrict__ pb, float *__restrict__ pc)
     {
       fb[i] = i;
       fc[i] = 0.5+i;
-      if (y)
-	abort ();
+      asm volatile ("" ::: "memory");
     }
   for (; i < N+4; i++)
     {
       fb[i] = i;
-      if (y)
-	abort ();
+      asm volatile ("" ::: "memory");
     }
 
   for (i = 0; i < N; i++)
@@ -68,4 +64,3 @@ int main (void)
  dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 1 "vect" { xfail vect_no_align } }
  dg-final { scan-tree-dump-times "Alignment of access forced using versioning." 3 "vect" { target vect_no_align } }
 */
-/* { dg-final { cleanup-tree-dump "vect" } } */

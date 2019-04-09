@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -166,7 +166,7 @@ package body Style is
                   Error_Msg_Node_1 := Def;
                   Error_Msg_Sloc := Sloc (Def);
                   Error_Msg -- CODEFIX
-                    ("(style) bad casing of & declared#", Sref);
+                    ("(style) bad casing of & declared#", Sref, Ref);
                   return;
 
                --  Else end of identifiers, and they match
@@ -264,10 +264,13 @@ package body Style is
    begin
       --  Perform the check on source subprograms and on subprogram instances,
       --  because these can be primitives of untagged types. Note that such
-      --  indicators were introduced in Ada 2005.
+      --  indicators were introduced in Ada 2005. We apply Comes_From_Source
+      --  to Original_Node to catch the case of a procedure body declared with
+      --  "is null" that has been rewritten as a normal empty body.
 
       if Style_Check_Missing_Overriding
-        and then (Comes_From_Source (N) or else Is_Generic_Instance (E))
+        and then (Comes_From_Source (Original_Node (N))
+                   or else Is_Generic_Instance (E))
         and then Ada_Version_Explicit >= Ada_2005
       then
          --  If the subprogram is an instantiation,  its declaration appears
@@ -285,6 +288,12 @@ package body Style is
          if Nkind (N) = N_Subprogram_Body then
             Error_Msg_NE -- CODEFIX
               ("(style) missing OVERRIDING indicator in body of&", N, E);
+
+         elsif Nkind (N) = N_Abstract_Subprogram_Declaration then
+            Error_Msg_NE -- CODEFIX
+              ("(style) missing OVERRIDING indicator in declaration of&",
+                Specification (N), E);
+
          else
             Error_Msg_NE -- CODEFIX
               ("(style) missing OVERRIDING indicator in declaration of&",

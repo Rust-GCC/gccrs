@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,6 +29,7 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
+with Debug; use Debug;
 with Opt;   use Opt;
 with Table;
 with Types; use Types;
@@ -151,13 +152,10 @@ package body Snames is
                                               Convention_Ada_Pass_By_Reference;
          when Name_Assembler             => return Convention_Assembler;
          when Name_C                     => return Convention_C;
-         when Name_CIL                   => return Convention_CIL;
          when Name_COBOL                 => return Convention_COBOL;
          when Name_CPP                   => return Convention_CPP;
          when Name_Fortran               => return Convention_Fortran;
-         when Name_Ghost                 => return Convention_Ghost;
          when Name_Intrinsic             => return Convention_Intrinsic;
-         when Name_Java                  => return Convention_Java;
          when Name_Stdcall               => return Convention_Stdcall;
          when Name_Stubbed               => return Convention_Stubbed;
 
@@ -188,14 +186,11 @@ package body Snames is
             return Name_Ada_Pass_By_Reference;
          when Convention_Assembler             => return Name_Assembler;
          when Convention_C                     => return Name_C;
-         when Convention_CIL                   => return Name_CIL;
          when Convention_COBOL                 => return Name_COBOL;
          when Convention_CPP                   => return Name_CPP;
          when Convention_Entry                 => return Name_Entry;
          when Convention_Fortran               => return Name_Fortran;
-         when Convention_Ghost                 => return Name_Ghost;
          when Convention_Intrinsic             => return Name_Intrinsic;
-         when Convention_Java                  => return Name_Java;
          when Convention_Protected             => return Name_Protected;
          when Convention_Stdcall               => return Name_Stdcall;
          when Convention_Stubbed               => return Name_Stubbed;
@@ -234,6 +229,8 @@ package body Snames is
             return Pragma_Lock_Free;
          when Name_Priority                         =>
             return Pragma_Priority;
+         when Name_Secondary_Stack_Size             =>
+            return Pragma_Secondary_Stack_Size;
          when Name_Storage_Size                     =>
             return Pragma_Storage_Size;
          when Name_Storage_Unit                     =>
@@ -336,7 +333,7 @@ package body Snames is
 
    function Is_Configuration_Pragma_Name (N : Name_Id) return Boolean is
    begin
-      return N in First_Pragma_Name .. Last_Configuration_Pragma_Name
+      return N in Configuration_Pragma_Names
         or else N = Name_Default_Scalar_Storage_Order
         or else N = Name_Fast_Math;
    end Is_Configuration_Pragma_Name;
@@ -397,7 +394,11 @@ package body Snames is
         and then (Ada_Version >= Ada_95
                    or else N not in Ada_95_Reserved_Words)
         and then (Ada_Version >= Ada_2005
-                   or else N not in Ada_2005_Reserved_Words)
+                   or else N not in Ada_2005_Reserved_Words
+                   or else (Debug_Flag_Dot_DD and then N = Name_Overriding))
+                   --  Accept 'overriding' keywords if -gnatd.D is used,
+                   --  for compatibility with Ada 95 compilers implementing
+                   --  only this Ada 2005 extension.
         and then (Ada_Version >= Ada_2012
                    or else N not in Ada_2012_Reserved_Words);
    end Is_Keyword_Name;
@@ -456,8 +457,8 @@ package body Snames is
         or else N = Name_Interface
         or else N = Name_Interrupt_Priority
         or else N = Name_Lock_Free
-        or else N = Name_Relative_Deadline
         or else N = Name_Priority
+        or else N = Name_Secondary_Stack_Size
         or else N = Name_Storage_Size
         or else N = Name_Storage_Unit;
    end Is_Pragma_Name;

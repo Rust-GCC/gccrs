@@ -1,6 +1,6 @@
 /* Communication between the Integrated Register Allocator (IRA) and
    the rest of the compiler.
-   Copyright (C) 2006-2014 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -21,6 +21,8 @@ along with GCC; see the file COPYING3.  If not see
 
 #ifndef GCC_IRA_H
 #define GCC_IRA_H
+
+#include "emit-rtl.h"
 
 /* True when we use LRA instead of reload pass for the current
    function.  */
@@ -64,7 +66,7 @@ struct target_ira
      class.  */
   enum reg_class x_ira_pressure_class_translate[N_REG_CLASSES];
 
-  /* Bigest pressure register class containing stack registers.
+  /* Biggest pressure register class containing stack registers.
      NO_REGS if there are no stack registers.  */
   enum reg_class x_ira_stack_reg_pressure_class;
 
@@ -107,9 +109,14 @@ struct target_ira
      index [CL][M] gives the number of that register, otherwise it is -1.  */
   short x_ira_class_singleton[N_REG_CLASSES][MAX_MACHINE_MODE];
 
-  /* Function specific hard registers can not be used for the register
+  /* Function specific hard registers cannot be used for the register
      allocation.  */
   HARD_REG_SET x_ira_no_alloc_regs;
+
+  /* Array whose values are hard regset of hard registers available for
+     the allocation of given register class whose targetm.hard_regno_mode_ok
+     values for given mode are false.  */
+  HARD_REG_SET x_ira_prohibited_class_mode_regs[N_REG_CLASSES][NUM_MACHINE_MODES];
 };
 
 extern struct target_ira default_target_ira;
@@ -155,6 +162,8 @@ extern struct target_ira *this_target_ira;
   (this_target_ira->x_ira_class_singleton)
 #define ira_no_alloc_regs \
   (this_target_ira->x_ira_no_alloc_regs)
+#define ira_prohibited_class_mode_regs \
+  (this_target_ira->x_ira_prohibited_class_mode_regs)
 
 /* Major structure describing equivalence info for a pseudo.  */
 struct ira_reg_equiv_s
@@ -181,22 +190,38 @@ extern struct ira_reg_equiv_s *ira_reg_equiv;
 extern void ira_init_once (void);
 extern void ira_init (void);
 extern void ira_setup_eliminable_regset (void);
-extern rtx ira_eliminate_regs (rtx, enum machine_mode);
+extern rtx ira_eliminate_regs (rtx, machine_mode);
 extern void ira_set_pseudo_classes (bool, FILE *);
-extern void ira_implicitly_set_insn_hard_regs (HARD_REG_SET *);
 extern void ira_expand_reg_equiv (void);
 extern void ira_update_equiv_info_by_shuffle_insn (int, int, rtx_insn *);
 
-extern void ira_sort_regnos_for_alter_reg (int *, int, unsigned int *);
+extern void ira_sort_regnos_for_alter_reg (int *, int, machine_mode *);
 extern void ira_mark_allocation_change (int);
 extern void ira_mark_memory_move_deletion (int, int);
 extern bool ira_reassign_pseudos (int *, int, HARD_REG_SET, HARD_REG_SET *,
 				  HARD_REG_SET *, bitmap);
-extern rtx ira_reuse_stack_slot (int, unsigned int, unsigned int);
-extern void ira_mark_new_stack_slot (rtx, int, unsigned int);
-extern bool ira_better_spill_reload_regno_p (int *, int *, rtx, rtx, rtx);
+extern rtx ira_reuse_stack_slot (int, poly_uint64, poly_uint64);
+extern void ira_mark_new_stack_slot (rtx, int, poly_uint64);
+extern bool ira_better_spill_reload_regno_p (int *, int *, rtx, rtx, rtx_insn *);
 extern bool ira_bad_reload_regno (int, rtx, rtx);
 
 extern void ira_adjust_equiv_reg_cost (unsigned, int);
+
+/* ira-costs.c */
+extern void ira_costs_c_finalize (void);
+
+/* ira-lives.c */
+extern rtx non_conflicting_reg_copy_p (rtx_insn *);
+
+/* Spilling static chain pseudo may result in generation of wrong
+   non-local goto code using frame-pointer to address saved stack
+   pointer value after restoring old frame pointer value.  The
+   function returns TRUE if REGNO is such a static chain pseudo.  */
+static inline bool
+non_spilled_static_chain_regno_p (int regno)
+{
+  return (cfun->static_chain_decl && crtl->has_nonlocal_goto
+	  && REG_EXPR (regno_reg_rtx[regno]) == cfun->static_chain_decl);
+}
 
 #endif /* GCC_IRA_H */

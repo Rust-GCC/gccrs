@@ -6,7 +6,6 @@
 
 #include "runtime.h"
 #include "go-type.h"
-#include "map.h"
 
 /* The compiler will track fields that have the tag go:"track".  Any
    function that refers to such a field will call this function with a
@@ -28,21 +27,41 @@ __go_fieldtrack (byte *p __attribute__ ((unused)))
    map[string]bool.  */
 
 extern const char _etext[] __attribute__ ((weak));
+extern const char _edata[] __attribute__ ((weak));
+#ifdef _AIX
+// Following symbols do not exist on AIX
+const char *__etext = NULL;
+const char *__data_start = NULL;
+const char *__edata = NULL;
+const char *__bss_start = NULL;
+#else
 extern const char __etext[] __attribute__ ((weak));
 extern const char __data_start[] __attribute__ ((weak));
-extern const char _edata[] __attribute__ ((weak));
 extern const char __edata[] __attribute__ ((weak));
 extern const char __bss_start[] __attribute__ ((weak));
+#endif
 
-void runtime_Fieldtrack (struct __go_map *) __asm__ (GOSYM_PREFIX "runtime.Fieldtrack");
+extern void *mapassign (const struct __go_map_type *, void *hmap,
+			const void *key)
+  __asm__ (GOSYM_PREFIX "runtime.mapassign");
+
+// The type descriptor for map[string] bool.  */
+extern const char map_string_bool[] __attribute__ ((weak));
+extern const char map_string_bool[]
+  __asm__ (GOSYM_PREFIX "type..map.6string.7bool");
+
+void runtime_Fieldtrack (void *) __asm__ (GOSYM_PREFIX "runtime.Fieldtrack");
 
 void
-runtime_Fieldtrack (struct __go_map *m)
+runtime_Fieldtrack (void *m)
 {
   const char *p;
   const char *pend;
   const char *prefix;
   size_t prefix_len;
+
+  if (map_string_bool == NULL)
+    return;
 
   p = __data_start;
   if (p == NULL)
@@ -86,14 +105,12 @@ runtime_Fieldtrack (struct __go_map *m)
       if (__builtin_memchr (q1, '\0', q2 - q1) == NULL)
 	{
 	  String s;
-	  void *v;
-	  _Bool *pb;
+	  void *p;
 
 	  s.str = (const byte *) q1;
 	  s.len = q2 - q1;
-	  v = __go_map_index (m, &s, 1);
-	  pb = (_Bool *) v;
-	  *pb = 1;
+	  p = mapassign((const void*) map_string_bool, m, &s);
+	  *(_Bool*)p = 1;
 	}
 
       p = q2;

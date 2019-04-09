@@ -14,9 +14,8 @@ main ()
 {
   int i;
   /* The loop will be optimized away after ipa-inline.  */
-  for (i = 0; i < 1000; i++)
+  for (i = 0; i < 1000000; i++)
     t ();
   return 0;
 }
 /* { dg-final-use { scan-tree-dump-not "Invalid sum" "optimized"} } */
-/* { dg-final-use { cleanup-tree-dump "optimized" } } */

@@ -32,14 +32,17 @@ handle_pragma_sayhello (cpp_reader *dummy)
       return;
     }
   if (TREE_STRING_LENGTH (message) > 1)
-    if (cfun)
-      warning (OPT_Wpragmas, 
-	      "%<pragma GCCPLUGIN sayhello%> from function %qE: %s",
-	      cfun->decl, TREE_STRING_POINTER (message));
+    {
+      location_t loc = expansion_point_location (input_location);
+      if (cfun)
+	warning_at (loc, OPT_Wpragmas, 
+		    "%<pragma GCCPLUGIN sayhello%> from function %qE: %s",
+		    cfun->decl, TREE_STRING_POINTER (message));
       else
-	warning (OPT_Wpragmas, 
-	    "%<pragma GCCPLUGIN sayhello%> outside of function: %s",
-	    TREE_STRING_POINTER (message));
+	warning_at (loc, OPT_Wpragmas, 
+		    "%<pragma GCCPLUGIN sayhello%> outside of function: %s",
+		    TREE_STRING_POINTER (message));
+    }
 }
 
 /* Plugin callback called during pragma registration */

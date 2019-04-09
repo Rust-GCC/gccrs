@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-einline --param max-early-inliner-iterations=5" } */
+/* { dg-options "-O2 -fdump-tree-einline-optimized --param max-early-inliner-iterations=5" } */
 /* { dg-add-options bind_pic_locally } */
 
 #include <algorithm>
@@ -26,4 +26,3 @@ int main(int argc, char **argv)
 
 /* { dg-final { scan-tree-dump-times "Inlining void inline_me\\(" 1 "einline"} } */
 /* { dg-final { scan-tree-dump-times "Inlining void inline_me_too\\(" 1 "einline"} } */
-/* { dg-final { cleanup-tree-dump "einline" } } */

@@ -1,6 +1,6 @@
 // class template regex -*- C++ -*-
 
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,10 +30,10 @@
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
-namespace __detail
-{
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
+namespace __detail
+{
 #ifdef _GLIBCXX_DEBUG
   inline std::ostream&
   _State_base::_M_print(std::ostream& ostr) const
@@ -148,6 +148,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     _StateIdT
     _NFA<_TraitsT>::_M_insert_backref(size_t __index)
     {
+      if (this->_M_flags & regex_constants::__polynomial)
+	__throw_regex_error(regex_constants::error_complexity,
+			    "Unexpected back-reference in polynomial mode.");
       // To figure out whether a backref is valid, a stack is used to store
       // unfinished sub-expressions. For example, when parsing
       // "(a(b)(c\\1(d)))" at '\\1', _M_subexpr_count is 3, indicating that 3
@@ -156,10 +159,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // _M_paren_stack is {1, 3}, for incomplete "(a.." and "(c..". At this
       // time, "\\2" is valid, but "\\1" and "\\3" are not.
       if (__index >= _M_subexpr_count)
-	__throw_regex_error(regex_constants::error_backref);
+	__throw_regex_error(
+	  regex_constants::error_backref,
+	  "Back-reference index exceeds current sub-expression count.");
       for (auto __it : this->_M_paren_stack)
 	if (__index == __it)
-	  __throw_regex_error(regex_constants::error_backref);
+	  __throw_regex_error(
+	    regex_constants::error_backref,
+	    "Back-reference referred to an opened sub-expression.");
       this->_M_has_backref = true;
       _StateT __tmp(_S_opcode_backref);
       __tmp._M_backref_index = __index;
@@ -172,13 +179,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       for (auto& __it : *this)
 	{
-	  while (__it._M_next >= 0 && (*this)[__it._M_next]._M_opcode
+	  while (__it._M_next >= 0 && (*this)[__it._M_next]._M_opcode()
 		 == _S_opcode_dummy)
 	    __it._M_next = (*this)[__it._M_next]._M_next;
-	  if (__it._M_opcode == _S_opcode_alternative
-	      || __it._M_opcode == _S_opcode_repeat
-	      || __it._M_opcode == _S_opcode_subexpr_lookahead)
-	    while (__it._M_alt >= 0 && (*this)[__it._M_alt]._M_opcode
+	  if (__it._M_has_alt())
+	    while (__it._M_alt >= 0 && (*this)[__it._M_alt]._M_opcode()
 		   == _S_opcode_dummy)
 	      __it._M_alt = (*this)[__it._M_alt]._M_next;
 	}
@@ -198,11 +203,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  __stack.pop();
 	  auto __dup = _M_nfa[__u];
 	  // _M_insert_state() never return -1
-	  auto __id = _M_nfa._M_insert_state(__dup);
+	  auto __id = _M_nfa._M_insert_state(std::move(__dup));
 	  __m[__u] = __id;
-	  if (__dup._M_opcode == _S_opcode_alternative
-	      || __dup._M_opcode == _S_opcode_repeat
-	      || __dup._M_opcode == _S_opcode_subexpr_lookahead)
+	  if (__dup._M_has_alt())
 	    if (__dup._M_alt != _S_invalid_state_id
 		&& __m.count(__dup._M_alt) == 0)
 	      __stack.push(__dup._M_alt);
@@ -217,22 +220,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  auto __v = __it.second;
 	  auto& __ref = _M_nfa[__v];
 	  if (__ref._M_next != _S_invalid_state_id)
-	    {
-	      _GLIBCXX_DEBUG_ASSERT(__m.count(__ref._M_next) > 0);
-	      __ref._M_next = __m[__ref._M_next];
-	    }
-	  if (__ref._M_opcode == _S_opcode_alternative
-	      || __ref._M_opcode == _S_opcode_repeat
-	      || __ref._M_opcode == _S_opcode_subexpr_lookahead)
-	    if (__ref._M_alt != _S_invalid_state_id)
-	      {
-		_GLIBCXX_DEBUG_ASSERT(__m.count(__ref._M_alt) > 0);
-		__ref._M_alt = __m[__ref._M_alt];
-	      }
+	    __ref._M_next = __m.find(__ref._M_next)->second;
+	  if (__ref._M_has_alt() && __ref._M_alt != _S_invalid_state_id)
+	    __ref._M_alt = __m.find(__ref._M_alt)->second;
 	}
       return _StateSeq(_M_nfa, __m[_M_start], __m[_M_end]);
     }
+} // namespace __detail
 
 _GLIBCXX_END_NAMESPACE_VERSION
-} // namespace __detail
 } // namespace

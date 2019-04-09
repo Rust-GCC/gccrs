@@ -1,6 +1,6 @@
 ;;   Machine description for GNU compiler,
 ;;   for Atmel AVR micro controllers.
-;;   Copyright (C) 1998-2014 Free Software Foundation, Inc.
+;;   Copyright (C) 1998-2019 Free Software Foundation, Inc.
 ;;   Contributed by Georg Lay (avr@gjlay.de)
 ;;
 ;; This file is part of GCC.
@@ -68,6 +68,7 @@
   {
     rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
 
+    avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, ACC_A));
     emit_move_insn (acc_a, operands[1]);
 
     if (DImode == <MODE>mode
@@ -145,6 +146,7 @@
   {
     rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
 
+    avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, ACC_A));
     emit_move_insn (acc_a, operands[1]);
 
     if (const_operand (operands[2], GET_MODE (operands[2])))
@@ -201,6 +203,7 @@
   {
     rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
 
+    avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, ACC_A));
     emit_move_insn (acc_a, operands[1]);
 
     if (const_operand (operands[2], GET_MODE (operands[2])))
@@ -249,6 +252,7 @@
   {
     rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
 
+    avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, ACC_A));
     emit_move_insn (acc_a, operands[1]);
 
     if (const_operand (operands[2], GET_MODE (operands[2])))
@@ -338,6 +342,7 @@
   {
     rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
 
+    avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, ACC_A));
     emit_move_insn (acc_a, operands[1]);
 
     if (s8_operand (operands[2], VOIDmode))
@@ -424,6 +429,7 @@
   {
     rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
 
+    avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, ACC_A));
     emit_move_insn (acc_a, operands[1]);
     emit_move_insn (gen_rtx_REG (QImode, 16), operands[2]);
     emit_insn (gen_<code_stdname><mode>3_insn ());
@@ -455,8 +461,10 @@
               (match_operand:SI 2 "general_operand" "")
               ;; Just to mention the iterator 
               (clobber (any_extend:SI (match_dup 1)))])]
-  "avr_have_dimode"
+  "avr_have_dimode
+   && AVR_HAVE_MUL"
   {
+    avr_fix_inputs (operands, 1 << 2, regmask (SImode, 22));
     emit_move_insn (gen_rtx_REG (SImode, 22), operands[1]);
     emit_move_insn (gen_rtx_REG (SImode, 18), operands[2]);
     emit_insn (gen_<extend_u>mulsidi3_insn());
@@ -473,7 +481,8 @@
                  (any_extend:DI (reg:SI 22))))
    (clobber (reg:HI REG_X))
    (clobber (reg:HI REG_Z))]
-  "avr_have_dimode"
+  "avr_have_dimode
+   && AVR_HAVE_MUL"
   "%~call __<extend_u>mulsidi3"
   [(set_attr "adjust_len" "call")
    (set_attr "cc" "clobber")])

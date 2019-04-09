@@ -1,5 +1,6 @@
 ! { dg-do run }
 ! { dg-shouldfail "dimension of array B incorrect in MATMUL intrinsic" }
+! { dg-options "-finline-matmul-limit=0" }
 program main
   real, dimension(:,:), allocatable :: a
   real, dimension(:), allocatable :: b
@@ -8,4 +9,4 @@ program main
   call random_number(b)
   print *,matmul(a,b)
 end program main
-! { dg-output "Fortran runtime error: dimension of array B incorrect in MATMUL intrinsic.*" }
+! { dg-output "Fortran runtime error: Incorrect extent in argument B in MATMUL intrinsic in dimension 1" }

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1999-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,7 +28,6 @@ with Debug;    use Debug;
 with Einfo;    use Einfo;
 with Errout;   use Errout;
 with Exp_Code; use Exp_Code;
-with Fname;    use Fname;
 with Lib;      use Lib;
 with Lib.Xref; use Lib.Xref;
 with Namet;    use Namet;
@@ -40,12 +39,14 @@ with Sem;      use Sem;
 with Sem_Ch8;  use Sem_Ch8;
 with Sem_Aux;  use Sem_Aux;
 with Sem_Eval; use Sem_Eval;
+with Sem_Prag; use Sem_Prag;
 with Sem_Util; use Sem_Util;
 with Sinfo;    use Sinfo;
 with Sinput;   use Sinput;
 with Snames;   use Snames;
 with Stand;    use Stand;
 with Stringt;  use Stringt;
+with Tbuild;   use Tbuild;
 with Uintp;    use Uintp;
 
 package body Sem_Warn is
@@ -139,6 +140,12 @@ package body Sem_Warn is
    --  this is simply the setting of the flag Has_Pragma_Unreferenced. If E is
    --  a body formal, the setting of the flag in the corresponding spec is
    --  also checked (and True returned if either flag is True).
+
+   function Is_Attribute_And_Known_Value_Comparison
+     (Op : Node_Id) return Boolean;
+   --  Determine whether operator Op denotes a comparison where the left
+   --  operand is an attribute reference and the value of the right operand is
+   --  known at compile time.
 
    function Never_Set_In_Source_Check_Spec (E : Entity_Id) return Boolean;
    --  Tests Never_Set_In_Source status for entity E. If E is not a formal,
@@ -241,6 +248,10 @@ package body Sem_Warn is
       --  If so, Ref is set to point to the reference node, and Var is set to
       --  the referenced Entity.
 
+      function Has_Condition_Actions (Iter : Node_Id) return Boolean;
+      --  Determine whether iteration scheme Iter has meaningful condition
+      --  actions.
+
       function Has_Indirection (T : Entity_Id) return Boolean;
       --  If the controlling variable is an access type, or is a record type
       --  with access components, assume that it is changed indirectly and
@@ -313,6 +324,11 @@ package body Sem_Warn is
             elsif Is_Suspicious_Function_Name (Entity (Name (N))) then
                return;
 
+            --  Forget it if function is marked Volatile_Function
+
+            elsif Is_Volatile_Function (Entity (Name (N))) then
+               return;
+
             --  Forget it if warnings are suppressed on function entity
 
             elsif Has_Warnings_Off (Entity (Name (N))) then
@@ -348,6 +364,29 @@ package body Sem_Warn is
          end if;
       end Find_Var;
 
+      ---------------------------
+      -- Has_Condition_Actions --
+      ---------------------------
+
+      function Has_Condition_Actions (Iter : Node_Id) return Boolean is
+         Action : Node_Id;
+
+      begin
+         --  A call marker is not considered a meaningful action because it
+         --  acts as an annotation and has no runtime semantics.
+
+         Action := First (Condition_Actions (Iter));
+         while Present (Action) loop
+            if Nkind (Action) /= N_Call_Marker then
+               return True;
+            end if;
+
+            Next (Action);
+         end loop;
+
+         return False;
+      end Has_Condition_Actions;
+
       ---------------------
       -- Has_Indirection --
       ---------------------
@@ -381,7 +420,7 @@ package body Sem_Warn is
          Comp := First_Component (Rec);
          while Present (Comp) loop
             if Is_Access_Type (Etype (Comp))
-              or else Is_Descendent_Of_Address (Etype (Comp))
+              or else Is_Descendant_Of_Address (Etype (Comp))
             then
                return True;
             end if;
@@ -470,7 +509,7 @@ package body Sem_Warn is
             end if;
 
             --  If the condition contains a function call, we consider it may
-            --  be modified by side-effects from a procedure call. Otherwise,
+            --  be modified by side effects from a procedure call. Otherwise,
             --  we consider the condition may not be modified, although that
             --  might happen if Variable is itself a by-reference parameter,
             --  and the procedure called modifies the global object referred to
@@ -585,7 +624,7 @@ package body Sem_Warn is
                --  Skip processing for while iteration with conditions actions,
                --  since they make it too complicated to get the warning right.
 
-               if Present (Condition_Actions (Iter)) then
+               if Has_Condition_Actions (Iter) then
                   return;
                end if;
 
@@ -722,28 +761,33 @@ package body Sem_Warn is
    ----------------------------
 
    procedure Check_Low_Bound_Tested (Expr : Node_Id) is
+      procedure Check_Low_Bound_Tested_For (Opnd : Node_Id);
+      --  Determine whether operand Opnd denotes attribute 'First whose prefix
+      --  is a formal parameter. If this is the case, mark the entity of the
+      --  prefix as having its low bound tested.
+
+      --------------------------------
+      -- Check_Low_Bound_Tested_For --
+      --------------------------------
+
+      procedure Check_Low_Bound_Tested_For (Opnd : Node_Id) is
+      begin
+         if Nkind (Opnd) = N_Attribute_Reference
+           and then Attribute_Name (Opnd) = Name_First
+           and then Is_Entity_Name (Prefix (Opnd))
+           and then Present (Entity (Prefix (Opnd)))
+           and then Is_Formal (Entity (Prefix (Opnd)))
+         then
+            Set_Low_Bound_Tested (Entity (Prefix (Opnd)));
+         end if;
+      end Check_Low_Bound_Tested_For;
+
+   --  Start of processing for Check_Low_Bound_Tested
+
    begin
       if Comes_From_Source (Expr) then
-         declare
-            L : constant Node_Id := Left_Opnd (Expr);
-            R : constant Node_Id := Right_Opnd (Expr);
-         begin
-            if Nkind (L) = N_Attribute_Reference
-              and then Attribute_Name (L) = Name_First
-              and then Is_Entity_Name (Prefix (L))
-              and then Is_Formal (Entity (Prefix (L)))
-            then
-               Set_Low_Bound_Tested (Entity (Prefix (L)));
-            end if;
-
-            if Nkind (R) = N_Attribute_Reference
-              and then Attribute_Name (R) = Name_First
-              and then Is_Entity_Name (Prefix (R))
-              and then Is_Formal (Entity (Prefix (R)))
-            then
-               Set_Low_Bound_Tested (Entity (Prefix (R)));
-            end if;
-         end;
+         Check_Low_Bound_Tested_For (Left_Opnd  (Expr));
+         Check_Low_Bound_Tested_For (Right_Opnd (Expr));
       end if;
    end Check_Low_Bound_Tested;
 
@@ -898,7 +942,7 @@ package body Sem_Warn is
 
       procedure Output_Reference_Error (M : String) is
       begin
-         --  Never issue messages for internal names, nor for renamings
+         --  Never issue messages for internal names or renamings
 
          if Is_Internal_Name (Chars (E1))
            or else Nkind (Parent (E1)) = N_Object_Renaming_Declaration
@@ -979,7 +1023,7 @@ package body Sem_Warn is
                --  Similarly, the generic formals of a generic subprogram are
                --  not accessible.
 
-               when N_Generic_Subprogram_Declaration  =>
+               when N_Generic_Subprogram_Declaration =>
                   if Is_List_Member (Prev)
                     and then List_Containing (Prev) =
                                Generic_Formal_Declarations (P)
@@ -1003,12 +1047,13 @@ package body Sem_Warn is
 
                --  If we reach any other body, definitely not referenceable
 
-               when N_Package_Body    |
-                    N_Task_Body       |
-                    N_Entry_Body      |
-                    N_Protected_Body  |
-                    N_Block_Statement |
-                    N_Subunit         =>
+               when N_Block_Statement
+                  | N_Entry_Body
+                  | N_Package_Body
+                  | N_Protected_Body
+                  | N_Subunit
+                  | N_Task_Body
+               =>
                   return False;
 
                --  For all other cases, keep looking up tree
@@ -1074,6 +1119,13 @@ package body Sem_Warn is
                 (Ekind_In (E1, E_Out_Parameter, E_In_Out_Parameter)
                   and then not Is_Protected_Type (Current_Scope))
             then
+               --  If the formal has a class-wide type, retrieve its type
+               --  because checks below depend on its private nature.
+
+               if Is_Class_Wide_Type (E1T) then
+                  E1T := Etype (E1T);
+               end if;
+
                --  Case of an unassigned variable
 
                --  First gather any Unset_Reference indication for E1. In the
@@ -1124,13 +1176,16 @@ package body Sem_Warn is
                   --  A special case, if this variable is volatile and not
                   --  imported, it is not helpful to tell the programmer
                   --  to mark the variable as constant, since this would be
-                  --  illegal by virtue of RM C.6(13).
+                  --  illegal by virtue of RM C.6(13). Instead we suggest
+                  --  using pragma Export (can't be Import because of the
+                  --  initial value).
 
                   if (Is_Volatile (E1) or else Has_Volatile_Components (E1))
                     and then not Is_Imported (E1)
                   then
                      Error_Msg_N
-                       ("?k?& is not modified, volatile has no effect!", E1);
+                       ("?k?& is not modified, consider pragma Export for "
+                        & "volatile variable!", E1);
 
                   --  Another special case, Exception_Occurrence, this catches
                   --  the case of exception choice (and a bit more too, but not
@@ -1354,16 +1409,25 @@ package body Sem_Warn is
                   --  deal with case where original unset reference has been
                   --  rewritten during expansion.
 
-                  --  In some cases, the original node may be a type conversion
-                  --  or qualification, and in this case we want the object
-                  --  entity inside.
+                  --  In some cases, the original node may be a type
+                  --  conversion, a qualification or an attribute reference and
+                  --  in this case we want the object entity inside. Same for
+                  --  an expression with actions.
 
                   UR := Original_Node (UR);
-                  while Nkind (UR) = N_Type_Conversion
-                    or else Nkind (UR) = N_Qualified_Expression
-                    or else Nkind (UR) = N_Expression_With_Actions
                   loop
-                     UR := Expression (UR);
+                     if Nkind_In (UR, N_Expression_With_Actions,
+                                      N_Qualified_Expression,
+                                      N_Type_Conversion)
+                     then
+                        UR := Expression (UR);
+
+                     elsif Nkind (UR) = N_Attribute_Reference then
+                        UR := Prefix (UR);
+
+                     else
+                        exit;
+                     end if;
                   end loop;
 
                   --  Don't issue warning if appearing inside Initial_Condition
@@ -1584,10 +1648,7 @@ package body Sem_Warn is
                --  (these would be junk warnings for an applications program,
                --  since they refer to problems in internal units).
 
-               if GNAT_Mode
-                 or else not Is_Internal_File_Name
-                               (Unit_File_Name (Get_Source_Unit (E1)))
-               then
+               if GNAT_Mode or else not In_Internal_Unit (E1) then
                   --  We do not immediately flag the error. This is because we
                   --  have not expanded generic bodies yet, and they may have
                   --  the missing reference. So instead we park the entity on a
@@ -1684,6 +1745,14 @@ package body Sem_Warn is
       begin
          if Is_Access_Type (Typ) and then Is_Dereferenced (N) then
             return False;
+
+         --  A type subject to pragma Default_Initial_Condition may be fully
+         --  default initialized depending on inheritance and the argument of
+         --  the pragma (SPARK RM 3.1 and SPARK RM 7.3.3).
+
+         elsif Has_Fully_Default_Initializing_DIC_Pragma (Typ) then
+            return True;
+
          else
             return Is_Fully_Initialized_Type (Typ);
          end if;
@@ -1758,7 +1827,9 @@ package body Sem_Warn is
 
          --  For identifier or expanded name, examine the entity involved
 
-         when N_Identifier | N_Expanded_Name =>
+         when N_Expanded_Name
+            | N_Identifier
+         =>
             declare
                E : constant Entity_Id := Entity (N);
 
@@ -1843,7 +1914,7 @@ package body Sem_Warn is
                         Nod := Parent (N);
                         while Present (Nod) loop
                            if Nkind (Nod) = N_Pragma
-                             and then Nam_In (Pragma_Name (Nod),
+                             and then Nam_In (Pragma_Name_Unmapped (Nod),
                                               Name_Postcondition,
                                               Name_Refined_Post,
                                               Name_Contract_Cases)
@@ -1854,8 +1925,9 @@ package body Sem_Warn is
                               P := Parent (Nod);
 
                               if Nkind (P) = N_Pragma
-                                and then Pragma_Name (P) = Name_Test_Case
-                                and then Nod = Get_Ensures_From_CTC_Pragma (P)
+                                and then Pragma_Name (P) =
+                                  Name_Test_Case
+                                and then Nod = Test_Case_Arg (P, Name_Ensures)
                               then
                                  return True;
                               end if;
@@ -2017,8 +2089,9 @@ package body Sem_Warn is
 
          --  Indexed component or slice
 
-         when N_Indexed_Component | N_Slice =>
-
+         when N_Indexed_Component
+            | N_Slice
+         =>
             --  If prefix does not involve dereferencing an access type, then
             --  we know we are OK if the component type is fully initialized,
             --  since the component will have been set as part of the default
@@ -2089,9 +2162,10 @@ package body Sem_Warn is
          --  For type conversions, qualifications, or expressions with actions,
          --  examine the expression.
 
-         when N_Type_Conversion         |
-              N_Qualified_Expression    |
-              N_Expression_With_Actions =>
+         when N_Expression_With_Actions
+            | N_Qualified_Expression
+            | N_Type_Conversion
+         =>
             Check_Unset_Reference (Expression (N));
 
          --  For explicit dereference, always check prefix, which will generate
@@ -2104,7 +2178,6 @@ package body Sem_Warn is
 
          when others =>
             null;
-
       end case;
    end Check_Unset_Reference;
 
@@ -2174,29 +2247,21 @@ package body Sem_Warn is
             ----------------------
 
             function Check_Use_Clause (N : Node_Id) return Traverse_Result is
-               Nam  : Node_Id;
-
             begin
-               if Nkind (N) = N_Use_Package_Clause then
-                  Nam := First (Names (N));
-                  while Present (Nam) loop
-                     if Entity (Nam) = Pack then
+               if Nkind (N) = N_Use_Package_Clause
+                 and then Entity (Name (N)) = Pack
+               then
+                  --  Suppress message if any serious errors detected that turn
+                  --  off expansion, and thus result in false positives for
+                  --  this warning.
 
-                        --  Suppress message if any serious errors detected
-                        --  that turn off expansion, and thus result in false
-                        --  positives for this warning.
-
-                        if Serious_Errors_Detected = 0 then
-                           Error_Msg_Qual_Level := 1;
-                           Error_Msg_NE -- CODEFIX
-                             ("?u?no entities of package& are referenced!",
-                                Nam, Pack);
-                           Error_Msg_Qual_Level := 0;
-                        end if;
-                     end if;
-
-                     Next (Nam);
-                  end loop;
+                  if Serious_Errors_Detected = 0 then
+                     Error_Msg_Qual_Level := 1;
+                     Error_Msg_NE -- CODEFIX
+                       ("?u?no entities of package& are referenced!",
+                          Name (N), Pack);
+                     Error_Msg_Qual_Level := 0;
+                  end if;
                end if;
 
                return OK;
@@ -2332,15 +2397,6 @@ package body Sem_Warn is
 
          if not In_Extended_Main_Source_Unit (Cnode) then
             return;
-
-         --  In configurable run time mode, we remove the bodies of non-inlined
-         --  subprograms, which may lead to spurious warnings, which are
-         --  clearly undesirable.
-
-         elsif Configurable_Run_Time_Mode
-           and then Is_Predefined_File_Name (Unit_File_Name (Unit))
-         then
-            return;
          end if;
 
          --  Loop through context items in this unit
@@ -2350,6 +2406,13 @@ package body Sem_Warn is
             if Nkind (Item) = N_With_Clause
               and then not Implicit_With (Item)
               and then In_Extended_Main_Source_Unit (Item)
+
+              --  Guard for no entity present. Not clear under what conditions
+              --  this happens, but it does occur, and since this is only a
+              --  warning, we just suppress the warning in this case.
+
+              and then Nkind (Name (Item)) in N_Has_Entity
+              and then Present (Entity (Name (Item)))
             then
                Lunit := Entity (Name (Item));
 
@@ -2362,9 +2425,7 @@ package body Sem_Warn is
                   --  (these would be junk warnings for an application program,
                   --  since they refer to problems in internal units).
 
-                  if GNAT_Mode
-                    or else not Is_Internal_File_Name (Unit_File_Name (Unit))
-                  then
+                  if GNAT_Mode or else not Is_Internal_Unit (Unit) then
                      --  Here we definitely have a non-referenced unit. If it
                      --  is the special call for a spec unit, then just set the
                      --  flag to be read later.
@@ -2450,38 +2511,61 @@ package body Sem_Warn is
                            elsif Check_System_Aux then
                               null;
 
-                           --  Else give the warning
+                           --  Else the warning may be needed
 
                            else
-                              --  Warn if we unreferenced flag set and we have
-                              --  not had serious errors. The reason we inhibit
-                              --  the message if there are errors is to prevent
-                              --  false positives from disabling expansion.
+                              declare
+                                 Eitem : constant Entity_Id :=
+                                           Entity (Name (Item));
 
-                              if not Has_Unreferenced (Entity (Name (Item)))
-                                and then Serious_Errors_Detected = 0
-                              then
-                                 Error_Msg_N -- CODEFIX
-                                   ("?u?no entities of & are referenced!",
-                                    Name (Item));
-                              end if;
+                              begin
+                                 --  Warn if we unreferenced flag set and we
+                                 --  have not had serious errors. The reason we
+                                 --  inhibit the message if there are errors is
+                                 --  to prevent false positives from disabling
+                                 --  expansion.
 
-                              --  Look for renamings of this package, and flag
-                              --  them as well. If the original package has
-                              --  warnings off, we suppress the warning on the
-                              --  renaming as well.
+                                 if not Has_Unreferenced (Eitem)
+                                   and then Serious_Errors_Detected = 0
+                                 then
+                                    --  Get possible package renaming
 
-                              Pack := Find_Package_Renaming (Munite, Lunit);
+                                    Pack :=
+                                      Find_Package_Renaming (Munite, Lunit);
 
-                              if Present (Pack)
-                                and then not Has_Warnings_Off (Lunit)
-                                and then not Has_Unreferenced (Pack)
-                              then
-                                 Error_Msg_NE -- CODEFIX
-                                   ("?u?no entities of & are referenced!",
-                                     Unit_Declaration_Node (Pack),
-                                     Pack);
-                              end if;
+                                    --  No warning if either the package or its
+                                    --  renaming is used as a generic actual.
+
+                                    if Used_As_Generic_Actual (Eitem)
+                                      or else
+                                        (Present (Pack)
+                                          and then
+                                            Used_As_Generic_Actual (Pack))
+                                    then
+                                       exit;
+                                    end if;
+
+                                    --  Here we give the warning
+
+                                    Error_Msg_N -- CODEFIX
+                                      ("?u?no entities of & are referenced!",
+                                       Name (Item));
+
+                                    --  Flag renaming of package as well. If
+                                    --  the original package has warnings off,
+                                    --  we suppress the warning on the renaming
+                                    --  as well.
+
+                                    if Present (Pack)
+                                      and then not Has_Warnings_Off (Lunit)
+                                      and then not Has_Unreferenced (Pack)
+                                    then
+                                       Error_Msg_NE -- CODEFIX
+                                         ("?u?no entities of& are referenced!",
+                                          Unit_Declaration_Node (Pack), Pack);
+                                    end if;
+                                 end if;
+                              end;
                            end if;
 
                            exit;
@@ -2728,6 +2812,7 @@ package body Sem_Warn is
 
          --  Note: use of OR instead of OR ELSE here is deliberate, we want
          --  to mess with Unmodified flags on both body and spec entities.
+         --  Has_Unmodified has side effects!
 
          return Has_Unmodified (E)
                   or
@@ -2770,6 +2855,23 @@ package body Sem_Warn is
       Unreferenced_Entities.Init;
       In_Out_Warnings.Init;
    end Initialize;
+
+   ---------------------------------------------
+   -- Is_Attribute_And_Known_Value_Comparison --
+   ---------------------------------------------
+
+   function Is_Attribute_And_Known_Value_Comparison
+     (Op : Node_Id) return Boolean
+   is
+      Orig_Op : constant Node_Id := Original_Node (Op);
+
+   begin
+      return
+        Nkind (Orig_Op) in N_Op_Compare
+          and then Nkind (Original_Node (Left_Opnd (Orig_Op))) =
+                     N_Attribute_Reference
+          and then Compile_Time_Known_Value (Right_Opnd (Orig_Op));
+   end Is_Attribute_And_Known_Value_Comparison;
 
    ------------------------------------
    -- Never_Set_In_Source_Check_Spec --
@@ -3066,9 +3168,7 @@ package body Sem_Warn is
 
    procedure Output_Unreferenced_Messages is
    begin
-      for J in Unreferenced_Entities.First ..
-               Unreferenced_Entities.Last
-      loop
+      for J in Unreferenced_Entities.First .. Unreferenced_Entities.Last loop
          Warn_On_Unreferenced_Entity (Unreferenced_Entities.Table (J));
       end loop;
    end Output_Unreferenced_Messages;
@@ -3172,14 +3272,75 @@ package body Sem_Warn is
       end if;
    end Referenced_As_Out_Parameter_Check_Spec;
 
+   --------------------------------------
+   -- Warn_On_Constant_Valid_Condition --
+   --------------------------------------
+
+   procedure Warn_On_Constant_Valid_Condition (Op : Node_Id) is
+      Left  : constant Node_Id := Left_Opnd  (Op);
+      Right : constant Node_Id := Right_Opnd (Op);
+
+      True_Result  : Boolean;
+      False_Result : Boolean;
+
+   begin
+      --  Determine the potential outcome of the comparison assuming that the
+      --  scalar operands are valid.
+
+      if Constant_Condition_Warnings
+        and then Comes_From_Source (Original_Node (Op))
+        and then Is_Scalar_Type (Etype (Left))
+        and then Is_Scalar_Type (Etype (Right))
+
+        --  Do not consider instances because the check was already performed
+        --  in the generic.
+
+        and then not In_Instance
+
+        --  Do not consider comparisons between two static expressions such as
+        --  constants or literals because those values cannot be invalidated.
+
+        and then not (Is_Static_Expression (Left)
+                       and then Is_Static_Expression (Right))
+
+        --  Do not consider comparison between an attribute reference and a
+        --  compile-time known value since this is most likely a conditional
+        --  compilation.
+
+        and then not Is_Attribute_And_Known_Value_Comparison (Op)
+
+        --  Do not consider internal files to allow for various assertions and
+        --  safeguards within our runtime.
+
+        and then not In_Internal_Unit (Op)
+      then
+         Test_Comparison
+           (Op           => Op,
+            Assume_Valid => True,
+            True_Result  => True_Result,
+            False_Result => False_Result);
+
+         --  Warn on a possible evaluation to False / True in the presence of
+         --  invalid values.
+
+         if True_Result then
+            Error_Msg_N
+              ("condition can only be False if invalid values present??", Op);
+
+         elsif False_Result then
+            Error_Msg_N
+              ("condition can only be True if invalid values present??", Op);
+         end if;
+      end if;
+   end Warn_On_Constant_Valid_Condition;
+
    -----------------------------
    -- Warn_On_Known_Condition --
    -----------------------------
 
    procedure Warn_On_Known_Condition (C : Node_Id) is
-      P           : Node_Id;
-      Orig        : constant Node_Id := Original_Node (C);
-      Test_Result : Boolean;
+      Test_Result : Boolean := False;
+      --  Force initialization to facilitate static analysis
 
       function Is_Known_Branch return Boolean;
       --  If the type of the condition is Boolean, the constant value of the
@@ -3260,6 +3421,11 @@ package body Sem_Warn is
          end if;
       end Track;
 
+      --  Local variables
+
+      Orig : constant Node_Id := Original_Node (C);
+      P    : Node_Id;
+
    --  Start of processing for Warn_On_Known_Condition
 
    begin
@@ -3298,11 +3464,7 @@ package body Sem_Warn is
          --  Don't warn if comparison of result of attribute against a constant
          --  value, since this is likely legitimate conditional compilation.
 
-         if Nkind (Orig) in N_Op_Compare
-           and then Compile_Time_Known_Value (Right_Opnd (Orig))
-           and then Nkind (Original_Node (Left_Opnd (Orig))) =
-                                                     N_Attribute_Reference
-         then
+         if Is_Attribute_And_Known_Value_Comparison (C) then
             return;
          end if;
 
@@ -3311,7 +3473,7 @@ package body Sem_Warn is
          P := Parent (C);
          loop
             --  If tree is not attached, do not issue warning (this is very
-            --  peculiar, and probably arises from some other error condition)
+            --  peculiar, and probably arises from some other error condition).
 
             if No (P) then
                return;
@@ -3336,8 +3498,8 @@ package body Sem_Warn is
             --  node, since assert pragmas get rewritten at analysis time.
 
             elsif Nkind (Original_Node (P)) = N_Pragma
-              and then Nam_In (Pragma_Name (Original_Node (P)), Name_Assert,
-                                                                Name_Check)
+              and then Nam_In (Pragma_Name_Unmapped (Original_Node (P)),
+                               Name_Assert, Name_Check)
             then
                return;
             end if;
@@ -3360,18 +3522,22 @@ package body Sem_Warn is
                Cond        : Node_Id := C;
 
             begin
-               if Present (Parent (C)) and then Nkind (Parent (C)) = N_Op_Not
+               if Present (Parent (C))
+                 and then Nkind (Parent (C)) = N_Op_Not
                then
                   True_Branch := not True_Branch;
-                  Cond        := Parent (C);
+                  Cond := Parent (C);
                end if;
+
+               --  Condition always True
 
                if True_Branch then
                   if Is_Entity_Name (Original_Node (C))
                     and then Nkind (Cond) /= N_Op_Not
                   then
                      Error_Msg_NE
-                       ("object & is always True?c?", Cond, Original_Node (C));
+                       ("object & is always True at this point?c?",
+                        Cond, Original_Node (C));
                      Track (Original_Node (C), Cond);
 
                   else
@@ -3379,9 +3545,21 @@ package body Sem_Warn is
                      Track (Cond, Cond);
                   end if;
 
+               --  Condition always False
+
                else
-                  Error_Msg_N ("condition is always False?c?", Cond);
-                  Track (Cond, Cond);
+                  if Is_Entity_Name (Original_Node (C))
+                    and then Nkind (Cond) /= N_Op_Not
+                  then
+                     Error_Msg_NE
+                       ("object & is always False at this point?c?",
+                        Cond, Original_Node (C));
+                     Track (Original_Node (C), Cond);
+
+                  else
+                     Error_Msg_N ("condition is always False?c?", Cond);
+                     Track (Cond, Cond);
+                  end if;
                end if;
             end;
          end if;
@@ -3404,13 +3582,12 @@ package body Sem_Warn is
    ---------------------------------
 
    procedure Warn_On_Overlapping_Actuals (Subp : Entity_Id; N : Node_Id) is
-      Act1, Act2   : Node_Id;
-      Form1, Form2 : Entity_Id;
-
       function Is_Covered_Formal (Formal : Node_Id) return Boolean;
       --  Return True if Formal is covered by the rule
 
-      function Refer_Same_Object (Act1, Act2 : Node_Id) return Boolean;
+      function Refer_Same_Object
+        (Act1 : Node_Id;
+         Act2 : Node_Id) return Boolean;
       --  Two names are known to refer to the same object if the two names
       --  are known to denote the same object; or one of the names is a
       --  selected_component, indexed_component, or slice and its prefix is
@@ -3418,16 +3595,6 @@ package body Sem_Warn is
       --  two names statically denotes a renaming declaration whose renamed
       --  object_name is known to refer to the same object as the other name
       --  (RM 6.4.1(6.11/3))
-
-      -----------------------
-      -- Refer_Same_Object --
-      -----------------------
-
-      function Refer_Same_Object (Act1, Act2 : Node_Id) return Boolean is
-      begin
-         return Denotes_Same_Object (Act1, Act2)
-           or else Denotes_Same_Prefix (Act1, Act2);
-      end Refer_Same_Object;
 
       -----------------------
       -- Is_Covered_Formal --
@@ -3442,10 +3609,60 @@ package body Sem_Warn is
                         or else Is_Array_Type (Etype (Formal)));
       end Is_Covered_Formal;
 
+      -----------------------
+      -- Refer_Same_Object --
+      -----------------------
+
+      function Refer_Same_Object
+        (Act1 : Node_Id;
+         Act2 : Node_Id) return Boolean
+      is
+      begin
+         return
+           Denotes_Same_Object (Act1, Act2)
+             or else Denotes_Same_Prefix (Act1, Act2);
+      end Refer_Same_Object;
+
+      --  Local variables
+
+      Act1      : Node_Id;
+      Act2      : Node_Id;
+      Form1     : Entity_Id;
+      Form2     : Entity_Id;
+      Warn_Only : Boolean;
+      --  GNAT warns on overlapping in-out parameters of any type, not just for
+      --  elementary in-out parameters (as specified in RM 6.4.1 (15/3-17/3)).
+
+   --  Start of processing for Warn_On_Overlapping_Actuals
+
    begin
+
       if Ada_Version < Ada_2012 and then not Warn_On_Overlap then
          return;
       end if;
+
+      --  The call is illegal only if there are at least two in-out parameters
+      --  of the same elementary type.
+
+      Warn_Only := True;
+      Form1 := First_Formal (Subp);
+      while Present (Form1) loop
+         Form2 := Next_Formal (Form1);
+         while Present (Form2) loop
+            if Is_Elementary_Type (Etype (Form1))
+              and then Is_Elementary_Type (Etype (Form2))
+              and then Ekind (Form1) /= E_In_Parameter
+              and then Ekind (Form2) /= E_In_Parameter
+            then
+               Warn_Only := False;
+               exit;
+            end if;
+
+            Next_Formal (Form2);
+         end loop;
+
+         Next_Formal (Form1);
+      end loop;
 
       --  Exclude calls rewritten as enumeration literals
 
@@ -3526,10 +3743,11 @@ package body Sem_Warn is
 
                        or else not Is_Elementary_Type (Etype (Form1))
 
-                       --  Finally, debug flag -gnatd.E changes the error to a
-                       --  warning even in Ada 2012 mode.
+                       --  debug flag -gnatd.E changes the error to a warning
+                       --  even in Ada 2012 mode.
 
-                       or else Error_To_Warning;
+                       or else Error_To_Warning
+                       or else Warn_Only;
 
                      declare
                         Act  : Node_Id;
@@ -3676,6 +3894,13 @@ package body Sem_Warn is
          procedure Warn1;
          --  Generate first warning line
 
+         procedure Warn_On_Index_Below_Lower_Bound;
+         --  Generate a warning on indexing the array with a literal value
+         --  below the lower bound of the index type.
+
+         procedure Warn_On_Literal_Index;
+         --  Generate a warning on indexing the array with a literal value
+
          ----------------------
          -- Length_Reference --
          ----------------------
@@ -3701,21 +3926,31 @@ package body Sem_Warn is
               ("?w?index for& may assume lower bound of^", X, Ent);
          end Warn1;
 
-      --  Start of processing for Test_Suspicious_Index
+         -------------------------------------
+         -- Warn_On_Index_Below_Lower_Bound --
+         -------------------------------------
 
-      begin
-         --  Nothing to do if subscript does not come from source (we don't
-         --  want to give garbage warnings on compiler expanded code, e.g. the
-         --  loops generated for slice assignments. Such junk warnings would
-         --  be placed on source constructs with no subscript in sight).
+         procedure Warn_On_Index_Below_Lower_Bound is
+         begin
+            if Is_Standard_String_Type (Typ) then
+               Discard_Node
+                 (Compile_Time_Constraint_Error
+                   (N   => X,
+                    Msg => "?w?string index should be positive"));
+            else
+               Discard_Node
+                 (Compile_Time_Constraint_Error
+                   (N   => X,
+                    Msg => "?w?index out of the allowed range"));
+            end if;
+         end Warn_On_Index_Below_Lower_Bound;
 
-         if not Comes_From_Source (Original_Node (X)) then
-            return;
-         end if;
+         ---------------------------
+         -- Warn_On_Literal_Index --
+         ---------------------------
 
-         --  Case where subscript is a constant integer
-
-         if Nkind (X) = N_Integer_Literal then
+         procedure Warn_On_Literal_Index is
+         begin
             Warn1;
 
             --  Case where original form of subscript is an integer literal
@@ -3835,6 +4070,34 @@ package body Sem_Warn is
                Error_Msg_FE -- CODEFIX
                  ("\?w?suggested replacement: `&~`", Original_Node (X), Ent);
             end if;
+         end Warn_On_Literal_Index;
+
+      --  Start of processing for Test_Suspicious_Index
+
+      begin
+         --  Nothing to do if subscript does not come from source (we don't
+         --  want to give garbage warnings on compiler expanded code, e.g. the
+         --  loops generated for slice assignments. Such junk warnings would
+         --  be placed on source constructs with no subscript in sight).
+
+         if not Comes_From_Source (Original_Node (X)) then
+            return;
+         end if;
+
+         --  Case where subscript is a constant integer
+
+         if Nkind (X) = N_Integer_Literal then
+
+            --  Case where subscript is lower than the lowest possible bound.
+            --  This might be the case for example when programmers try to
+            --  access a string at index 0, as they are used to in other
+            --  programming languages like C.
+
+            if Intval (X) < Low_Bound then
+               Warn_On_Index_Below_Lower_Bound;
+            else
+               Warn_On_Literal_Index;
+            end if;
 
          --  Case where subscript is of the form X'Length
 
@@ -3883,6 +4146,40 @@ package body Sem_Warn is
          end if;
       end if;
    end Warn_On_Suspicious_Index;
+
+   -------------------------------
+   -- Warn_On_Suspicious_Update --
+   -------------------------------
+
+   procedure Warn_On_Suspicious_Update (N : Node_Id) is
+      Par : constant Node_Id := Parent (N);
+      Arg : Node_Id;
+
+   begin
+      --  Only process if warnings activated
+
+      if Warn_On_Suspicious_Contract then
+         if Nkind_In (Par, N_Op_Eq, N_Op_Ne) then
+            if N = Left_Opnd (Par) then
+               Arg := Right_Opnd (Par);
+            else
+               Arg := Left_Opnd (Par);
+            end if;
+
+            if Same_Object (Prefix (N), Arg) then
+               if Nkind (Par) = N_Op_Eq then
+                  Error_Msg_N
+                    ("suspicious equality test with modified version of "
+                     & "same object?T?", Par);
+               else
+                  Error_Msg_N
+                    ("suspicious inequality test with modified version of "
+                     & "same object?T?", Par);
+               end if;
+            end if;
+         end if;
+      end if;
+   end Warn_On_Suspicious_Update;
 
    --------------------------------------
    -- Warn_On_Unassigned_Out_Parameter --
@@ -3963,6 +4260,7 @@ package body Sem_Warn is
         and then not Has_Pragma_Unreferenced_Check_Spec (E)
         and then not Warnings_Off_Check_Spec (E)
         and then not Has_Junk_Name (Spec_E)
+        and then not Is_Exported (Spec_E)
       then
          case Ekind (E) is
             when E_Variable =>
@@ -3982,7 +4280,7 @@ package body Sem_Warn is
                   then
                      if not Has_Pragma_Unmodified_Check_Spec (E) then
                         Error_Msg_N -- CODEFIX
-                          ("?u?variable & is assigned but never read!", E);
+                          ("?m?variable & is assigned but never read!", E);
                      end if;
 
                      Set_Last_Assignment (E, Empty);
@@ -4027,11 +4325,11 @@ package body Sem_Warn is
                   end if;
                end if;
 
-            when E_In_Parameter     |
-                 E_In_Out_Parameter =>
-
-               --  Do not emit message for formals of a renaming, because
-               --  they are never referenced explicitly.
+            when E_In_Out_Parameter
+               | E_In_Parameter
+            =>
+               --  Do not emit message for formals of a renaming, because they
+               --  are never referenced explicitly.
 
                if Nkind (Original_Node (Unit_Declaration_Node (Scope (E)))) /=
                                           N_Subprogram_Renaming_Declaration
@@ -4062,8 +4360,9 @@ package body Sem_Warn is
             when E_Discriminant =>
                Error_Msg_N ("?u?discriminant & is not referenced!", E);
 
-            when E_Named_Integer |
-                 E_Named_Real    =>
+            when E_Named_Integer
+               | E_Named_Real
+            =>
                Error_Msg_N -- CODEFIX
                  ("?u?named number & is not referenced!", E);
 
@@ -4113,8 +4412,12 @@ package body Sem_Warn is
          end case;
 
          --  Kill warnings on the entity on which the message has been posted
+         --  (nothing is posted on out parameters because back end might be
+         --  able to uncover an uninitialized path, and warn accordingly).
 
-         Set_Warnings_Off (E);
+         if Ekind (E) /= E_Out_Parameter then
+            Set_Warnings_Off (E);
+         end if;
       end if;
    end Warn_On_Unreferenced_Entity;
 
@@ -4186,8 +4489,10 @@ package body Sem_Warn is
 
             --  When we hit a package/subprogram body, issue warning and exit
 
-            elsif Nkind (P) = N_Subprogram_Body
-              or else Nkind (P) = N_Package_Body
+            elsif Nkind_In (P, N_Entry_Body,
+                               N_Package_Body,
+                               N_Subprogram_Body,
+                               N_Task_Body)
             then
                --  Case of assigned value never referenced
 
@@ -4198,7 +4503,12 @@ package body Sem_Warn is
                   begin
                      --  Don't give this for OUT and IN OUT formals, since
                      --  clearly caller may reference the assigned value. Also
-                     --  never give such warnings for internal variables.
+                     --  never give such warnings for internal variables. In
+                     --  either case, word the warning in a conditional way,
+                     --  because in the case of a component of a controlled
+                     --  type, the assigned value might be referenced in the
+                     --  Finalize operation, so we can't make a definitive
+                     --  statement that it's never referenced.
 
                      if Ekind (Ent) = E_Variable
                        and then not Is_Internal_Name (Chars (Ent))
@@ -4206,17 +4516,17 @@ package body Sem_Warn is
                         --  Give appropriate message, distinguishing between
                         --  assignment statements and out parameters.
 
-                        if Nkind_In (Parent (LA), N_Procedure_Call_Statement,
-                                                  N_Parameter_Association)
+                        if Nkind_In (Parent (LA), N_Parameter_Association,
+                                                  N_Procedure_Call_Statement)
                         then
                            Error_Msg_NE
-                             ("?m?& modified by call, but value never "
+                             ("?m?& modified by call, but value might not be "
                               & "referenced", LA, Ent);
 
                         else
                            Error_Msg_NE -- CODEFIX
-                             ("?m?useless assignment to&, value never "
-                              & "referenced!", LA, Ent);
+                             ("?m?possibly useless assignment to&, value "
+                              & "might not be referenced!", LA, Ent);
                         end if;
                      end if;
                   end;
@@ -4265,8 +4575,10 @@ package body Sem_Warn is
                   --  not generate the warning, since the variable in question
                   --  may be accessed after an exception in the outer block.
 
-                  if Nkind (Parent (P)) /= N_Subprogram_Body
-                    and then Nkind (Parent (P)) /= N_Package_Body
+                  if not Nkind_In (Parent (P), N_Entry_Body,
+                                               N_Package_Body,
+                                               N_Subprogram_Body,
+                                               N_Task_Body)
                   then
                      Set_Last_Assignment (Ent, Empty);
                      return;
@@ -4274,7 +4586,7 @@ package body Sem_Warn is
                      --  Otherwise we are at the outer level. An exception
                      --  handler is significant only if it references the
                      --  variable in question, or if the entity in question
-                     --  is an OUT or IN OUT parameter, which which case
+                     --  is an OUT or IN OUT parameter, in which case
                      --  the caller can reference it after the exception
                      --  handler completes.
 

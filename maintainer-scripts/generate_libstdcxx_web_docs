@@ -7,11 +7,23 @@ DOCSDIR=${2}
 
 if ! [ $# -eq 2 -a -x "${SRCDIR}/configure" -a -d "${DOCSDIR}" ]
 then
+  if ! [ $# -eq 2 ]
+  then
+    echo "$0: Wrong number of arguments" >&2
+  elif ! [ -x "${SRCDIR}/configure" ]
+  then
+    echo "$0: No executable configure script found in $SRCDIR" >&2
+  elif ! [ -d "${DOCSDIR}" ]
+  then
+    echo "$0: Output directory does not exist: $DOCSDIR" >&2
+  fi
   echo "Usage: $0 <gcc src dir> <doc output dir>" >&2
   exit 1
 fi
 
 set -e
+
+DOCSDIR=$(realpath ${DOCSDIR})
 
 # Check we have some of the required tools
 for i in doxygen dot dblatex pdflatex makeindex
@@ -34,6 +46,9 @@ set -x
 ${SRCDIR}/configure --enable-languages=c,c++ --disable-gcc $disabled_libs --docdir=/docs
 eval `grep '^target=' config.log`
 make configure-target
+# If the following step fails with an error like
+# ! LaTeX Error: File `xtab.sty' not found.
+# then you need to install the relevant TeX package e.g. texlive-xtab
 make -C $target/libstdc++-v3 doc-install-html doc-install-xml doc-install-pdf DESTDIR=$DESTDIR
 cd $DESTDIR/docs
 mkdir libstdc++

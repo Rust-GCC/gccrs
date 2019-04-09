@@ -1,5 +1,5 @@
 /* Generate code from machine description to recognize rtl as insns.
-   Copyright (C) 1987-2014 Free Software Foundation, Inc.
+   Copyright (C) 1987-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -35,31 +35,25 @@
 #include "gensupport.h"
 
 
-extern int main (int, char **);
+extern int main (int, const char **);
 
 int
-main (int argc, char **argv)
+main (int argc, const char **argv)
 {
-  rtx desc;
-  int pattern_lineno;
-  int code; /* not used */
   progname = "genmddump";
 
   if (!init_rtx_reader_args (argc, argv))
     return (FATAL_EXIT_CODE);
 
   /* Read the machine description.  */
-  while (1)
+  md_rtx_info info;
+  while (read_md_rtx (&info))
     {
-      desc = read_md_rtx (&pattern_lineno, &code);
-      if (desc == NULL)
-	break;
-      printf (";; %s: %d\n", read_md_filename, pattern_lineno);
-      print_inline_rtx (stdout, desc, 0);
+      printf (";; %s: %d\n", info.loc.filename, info.loc.lineno);
+      print_inline_rtx (stdout, info.def, 0);
       printf ("\n\n");
     }
 
   fflush (stdout);
   return (ferror (stdout) != 0 ? FATAL_EXIT_CODE : SUCCESS_EXIT_CODE);
 }
-

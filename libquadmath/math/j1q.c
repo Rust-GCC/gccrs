@@ -6,9 +6,9 @@
  *
  * SYNOPSIS:
  *
- * __float128 x, y, j1q();
+ * long double x, y, j1l();
  *
- * y = j1q( x );
+ * y = j1l( x );
  *
  *
  *
@@ -52,9 +52,9 @@
  *
  * SYNOPSIS:
  *
- * __float128, y, y1q();
+ * double x, y, y1l();
  *
- * y = y1q( x );
+ * y = y1l( x );
  *
  *
  *
@@ -92,8 +92,8 @@
     Lesser General Public License for more details.
 
     You should have received a copy of the GNU Lesser General Public
-    License along with this library; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307  USA */
+    License along with this library; if not, see
+    <http://www.gnu.org/licenses/>.  */
 
 #include "quadmath-imp.h"
 
@@ -101,7 +101,7 @@
 static const __float128 ONEOSQPI = 5.6418958354775628694807945156077258584405E-1Q;
 /* 2 / pi */
 static const __float128 TWOOPI = 6.3661977236758134307553505349005744813784E-1Q;
-static const __float128 zero = 0.0Q;
+static const __float128 zero = 0;
 
 /* J1(x) = .5x + x x^2 R(x^2)
    Peak relative error 1.9e-35
@@ -125,7 +125,7 @@ static const __float128 J0_2D[NJ0_2D + 1] = {
   5.673775894803172808323058205986256928794E8Q,
   1.080329960080981204840966206372671147224E6Q,
   1.411951256636576283942477881535283304912E3Q,
- /* 1.000000000000000000000000000000000000000E0Q */
+ /* 1.000000000000000000000000000000000000000E0L */
 };
 
 /* J1(x)cosX + Y1(x)sinX = sqrt( 2/(pi x)) P1(x), P1(x) = 1 + 1/x^2 R(1/x^2),
@@ -687,14 +687,22 @@ j1q (__float128 x)
   if (! finiteq (x))
     {
       if (x != x)
-	return x;
+	return x + x;
       else
-	return 0.0Q;
+	return 0;
     }
-  if (x == 0.0Q)
+  if (x == 0)
     return x;
   xx = fabsq (x);
-  if (xx <= 2.0Q)
+  if (xx <= 0x1p-58Q)
+    {
+      __float128 ret = x * 0.5Q;
+      math_check_force_underflow (ret);
+      if (ret == 0)
+	errno = ERANGE;
+      return ret;
+    }
+  if (xx <= 2)
     {
       /* 0 <= x <= 2 */
       z = xx * xx;
@@ -705,7 +713,33 @@ j1q (__float128 x)
       return p;
     }
 
-  xinv = 1.0Q / xx;
+  /* X = x - 3 pi/4
+     cos(X) = cos(x) cos(3 pi/4) + sin(x) sin(3 pi/4)
+     = 1/sqrt(2) * (-cos(x) + sin(x))
+     sin(X) = sin(x) cos(3 pi/4) - cos(x) sin(3 pi/4)
+     = -1/sqrt(2) * (sin(x) + cos(x))
+     cf. Fdlibm.  */
+  sincosq (xx, &s, &c);
+  ss = -s - c;
+  cc = s - c;
+  if (xx <= FLT128_MAX / 2)
+    {
+      z = cosq (xx + xx);
+      if ((s * c) > 0)
+	cc = z / ss;
+      else
+	ss = z / cc;
+    }
+
+  if (xx > 0x1p256Q)
+    {
+      z = ONEOSQPI * cc / sqrtq (xx);
+      if (x < 0)
+	z = -z;
+      return z;
+    }
+
+  xinv = 1 / xx;
   z = xinv * xinv;
   if (xinv <= 0.25)
     {
@@ -763,23 +797,9 @@ j1q (__float128 x)
 	  q = neval (z, Q2_2r3N, NQ2_2r3N) / deval (z, Q2_2r3D, NQ2_2r3D);
 	}
     }
-  p = 1.0Q + z * p;
+  p = 1 + z * p;
   q = z * q;
   q = q * xinv + 0.375Q * xinv;
-  /* X = x - 3 pi/4
-     cos(X) = cos(x) cos(3 pi/4) + sin(x) sin(3 pi/4)
-     = 1/sqrt(2) * (-cos(x) + sin(x))
-     sin(X) = sin(x) cos(3 pi/4) - cos(x) sin(3 pi/4)
-     = -1/sqrt(2) * (sin(x) + cos(x))
-     cf. Fdlibm.  */
-  sincosq (xx, &s, &c);
-  ss = -s - c;
-  cc = s - c;
-  z = cosq (xx + xx);
-  if ((s * c) > 0)
-    cc = z / ss;
-  else
-    ss = z / cc;
   z = ONEOSQPI * (p * cc - q * ss) / sqrtq (xx);
   if (x < 0)
     z = -z;
@@ -787,11 +807,12 @@ j1q (__float128 x)
 }
 
 
+
 /* Y1(x) = 2/pi * (log(x) * J1(x) - 1/x) + x R(x^2)
    Peak relative error 6.2e-38
    0 <= x <= 2   */
 #define NY0_2N 7
-static __float128 Y0_2N[NY0_2N + 1] = {
+static const __float128 Y0_2N[NY0_2N + 1] = {
   -6.804415404830253804408698161694720833249E19Q,
   1.805450517967019908027153056150465849237E19Q,
   -8.065747497063694098810419456383006737312E17Q,
@@ -802,7 +823,7 @@ static __float128 Y0_2N[NY0_2N + 1] = {
   9.541172044989995856117187515882879304461E5Q,
 };
 #define NY0_2D 7
-static __float128 Y0_2D[NY0_2D + 1] = {
+static const __float128 Y0_2D[NY0_2D + 1] = {
   3.470629591820267059538637461549677594549E20Q,
   4.120796439009916326855848107545425217219E18Q,
   2.477653371652018249749350657387030814542E16Q,
@@ -823,24 +844,25 @@ y1q (__float128 x)
   __float128 xx, xinv, z, p, q, c, s, cc, ss;
 
   if (! finiteq (x))
+    return 1 / (x + x * x);
+  if (x <= 0)
     {
-      if (x != x)
-	return x;
-      else
-	return 0.0Q;
-    }
-  if (x <= 0.0Q)
-    {
-      if (x < 0.0Q)
+      if (x < 0)
 	return (zero / (zero * x));
-      return -HUGE_VALQ + x;
+      return -1 / zero; /* -inf and divide by zero exception.  */
     }
   xx = fabsq (x);
   if (xx <= 0x1p-114)
-    return -TWOOPI / x;
-  if (xx <= 2.0Q)
-   {
+    {
+      z = -TWOOPI / x;
+      if (isinfq (z))
+	errno = ERANGE;
+      return z;
+    }
+  if (xx <= 2)
+    {
       /* 0 <= x <= 2 */
+      SET_RESTORE_ROUNDF128 (FE_TONEAREST);
       z = xx * xx;
       p = xx * neval (z, Y0_2N, NY0_2N) / deval (z, Y0_2D, NY0_2D);
       p = -TWOOPI / xx + p;
@@ -848,7 +870,28 @@ y1q (__float128 x)
       return p;
     }
 
-  xinv = 1.0Q / xx;
+  /* X = x - 3 pi/4
+     cos(X) = cos(x) cos(3 pi/4) + sin(x) sin(3 pi/4)
+     = 1/sqrt(2) * (-cos(x) + sin(x))
+     sin(X) = sin(x) cos(3 pi/4) - cos(x) sin(3 pi/4)
+     = -1/sqrt(2) * (sin(x) + cos(x))
+     cf. Fdlibm.  */
+  sincosq (xx, &s, &c);
+  ss = -s - c;
+  cc = s - c;
+  if (xx <= FLT128_MAX / 2)
+    {
+      z = cosq (xx + xx);
+      if ((s * c) > 0)
+	cc = z / ss;
+      else
+	ss = z / cc;
+    }
+
+  if (xx > 0x1p256Q)
+    return ONEOSQPI * ss / sqrtq (xx);
+
+  xinv = 1 / xx;
   z = xinv * xinv;
   if (xinv <= 0.25)
     {
@@ -906,23 +949,9 @@ y1q (__float128 x)
 	  q = neval (z, Q2_2r3N, NQ2_2r3N) / deval (z, Q2_2r3D, NQ2_2r3D);
 	}
     }
-  p = 1.0Q + z * p;
+  p = 1 + z * p;
   q = z * q;
   q = q * xinv + 0.375Q * xinv;
-  /* X = x - 3 pi/4
-     cos(X) = cos(x) cos(3 pi/4) + sin(x) sin(3 pi/4)
-     = 1/sqrt(2) * (-cos(x) + sin(x))
-     sin(X) = sin(x) cos(3 pi/4) - cos(x) sin(3 pi/4)
-     = -1/sqrt(2) * (sin(x) + cos(x))
-     cf. Fdlibm.  */
-  sincosq (xx, &s, &c);
-  ss = -s - c;
-  cc = s - c;
-  z = cosq (xx + xx);
-  if ((s * c) > 0)
-    cc = z / ss;
-  else
-    ss = z / cc;
   z = ONEOSQPI * (p * ss + q * cc) / sqrtq (xx);
   return z;
 }

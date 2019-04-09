@@ -1,5 +1,5 @@
 ;; Machine description for Tilera TILE-Gx chip for GCC.
-;; Copyright (C) 2011-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2019 Free Software Foundation, Inc.
 ;; Contributed by Walter Lee (walt@tilera.com)
 ;;
 ;; This file is part of GCC.
@@ -904,7 +904,7 @@
 ;; Addresses
 ;;
 
-;; The next three patterns are used to to materialize a position
+;; The next three patterns are used to materialize a position
 ;; independent address by adding the difference of two labels to a base
 ;; label in the text segment, assuming that the difference fits in 32
 ;; signed bits.
@@ -964,7 +964,7 @@
   "%1 = . + 8\n\tlnk\t%0"
   [(set_attr "type" "Y1")])
 
-;; The next three patterns are used to to materialize a position
+;; The next three patterns are used to materialize a position
 ;; independent address by adding the difference of two labels to a
 ;; base label in the text segment, assuming that the difference fits
 ;; in 32 signed bits.
@@ -997,7 +997,7 @@
   "flag_pic"
   "add<x>\t%0, %r1, %r2")
 
-;; The next three patterns are used to to materialize a position
+;; The next three patterns are used to materialize a position
 ;; independent 64-bit address by adding the difference of two labels to
 ;; a base label in the text segment, without any limitation on the size
 ;; of the difference.
@@ -1237,7 +1237,7 @@
   "ld<four_s_if_si>_tls\t%0, %1, tls_ie_load(%2)"
   [(set_attr "type" "X1_2cycle")])
 
-(define_insn "*zero_extract<mode>"
+(define_insn_and_split "*zero_extract<mode>"
   [(set (match_operand:I48MODE 0 "register_operand" "=r")
 	(zero_extract:I48MODE
          (match_operand:I48MODE 1 "reg_or_0_operand" "r")
@@ -1245,6 +1245,18 @@
          (match_operand:I48MODE 3 "u6bit_cint_operand" "n")))]
   ""
   "bfextu\t%0, %r1, %3, %3+%2-1"
+  "&& reload_completed"
+  [(set (match_dup 0) (zero_extract:I48MODE
+                       (match_dup 1)
+                       (match_dup 2)
+                       (match_dup 3)))]
+{
+  HOST_WIDE_INT bit_width = INTVAL (operands[2]);
+  HOST_WIDE_INT bit_offset = INTVAL (operands[3]);
+
+  if (bit_offset + bit_width > 64)
+    operands[2] = GEN_INT (64 - bit_offset);
+}
   [(set_attr "type" "X0")])
 
 (define_insn "*sign_extract_low32"
@@ -1256,7 +1268,7 @@
   "INTVAL (operands[3]) == 0 && INTVAL (operands[2]) == 32"
   "addxi\t%0, %r1, 0")
 
-(define_insn "*sign_extract"
+(define_insn_and_split "*sign_extract"
   [(set (match_operand:I48MODE 0 "register_operand" "=r")
 	(sign_extract:I48MODE
          (match_operand:I48MODE 1 "reg_or_0_operand" "r")
@@ -1264,6 +1276,18 @@
          (match_operand:I48MODE 3 "u6bit_cint_operand" "n")))]
   ""
   "bfexts\t%0, %r1, %3, %3+%2-1"
+  "&& reload_completed"
+  [(set (match_dup 0) (sign_extract:I48MODE
+                       (match_dup 1)
+                       (match_dup 2)
+                       (match_dup 3)))]
+{
+  HOST_WIDE_INT bit_width = INTVAL (operands[2]);
+  HOST_WIDE_INT bit_offset = INTVAL (operands[3]);
+
+  if (bit_offset + bit_width > 64)
+    operands[2] = GEN_INT (64 - bit_offset);
+}
   [(set_attr "type" "X0")])
 
 
@@ -1798,16 +1822,20 @@
   [(set_attr "type" "Y0")])
 
 (define_expand "clzsi2"
-  [(set (match_dup 2)
-        (ashift:DI (match_operand:SI 1 "reg_or_0_operand" "")
-                   (const_int 32)))
-   (set (subreg:DI (match_operand:SI 0 "register_operand" "") 0)
-	(clz:DI (match_dup 2)))]
-   ""
-   {
-     operands[1] = simplify_gen_subreg (DImode, operands[1], SImode, 0);
-     operands[2] = gen_reg_rtx (DImode);
-   })
+  [(set (match_operand:SI 0 "register_operand" "=r")
+       (clz:SI (match_operand:SI 1 "reg_or_0_operand" "rO")))]
+  ""
+  {
+    rtx tmp1 = gen_reg_rtx (DImode);
+    rtx tmp2 = gen_reg_rtx (DImode);
+    rtx tmp3 = gen_reg_rtx (DImode);
+
+    emit_insn (gen_zero_extendsidi2 (tmp1, operands[1]));
+    emit_insn (gen_ashldi3 (tmp2, tmp1, (GEN_INT (32))));
+    emit_insn (gen_clzdi2 (tmp3, tmp2));
+    emit_move_insn (operands[0], gen_lowpart (SImode, tmp3));
+    DONE;
+  })
 
 (define_insn "ctz<mode>2"
   [(set (match_operand:I48MODE 0 "register_operand" "=r")
@@ -1976,8 +2004,8 @@
    ld2s_add\t%0, %I1, %i1"
   [(set_attr "type" "X0,Y2_2cycle,X1_2cycle")])
 
-;; All SImode integer registers should already be in sign-extended
-;; form (see TRULY_NOOP_TRUNCATION and truncdisi2).  We can therefore
+;; All SImode integer registers should already be in sign-extended form
+;; (see TARGET_TRULY_NOOP_TRUNCATION and truncdisi2).  We can therefore
 ;; get rid of register->register instructions if we constrain the
 ;; source to be in the same register as the destination.
 (define_insn_and_split "extendsidi2"
@@ -2000,7 +2028,7 @@
 ;; modes is a no-op, as it is for most other GCC ports.  Truncating
 ;; DImode values to SImode is not a no-op since we
 ;; need to make sure that the lower 32 bits are properly sign-extended
-;; (see TRULY_NOOP_TRUNCATION).  Truncating DImode values into modes
+;; (see TARGET_TRULY_NOOP_TRUNCATION).  Truncating DImode values into modes
 ;; smaller than SImode is equivalent to two separate truncations:
 ;;
 ;;                        A       B
@@ -2434,7 +2462,7 @@
      rtx s0;
      rtx bcomp;
      rtx loc_ref;
-     enum machine_mode mode = GET_MODE (operands[0]);
+     machine_mode mode = GET_MODE (operands[0]);
 
      /* only deal with loop counters in SImode or DImode  */
      if (mode != SImode && mode != DImode)
@@ -2444,7 +2472,7 @@
      emit_move_insn (s0, gen_rtx_PLUS (mode, s0, GEN_INT (-1)));
      bcomp = gen_rtx_NE(mode, s0, const0_rtx);
      loc_ref = gen_rtx_LABEL_REF (VOIDmode, operands [1]);
-     emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
+     emit_jump_insn (gen_rtx_SET (pc_rtx,
                                   gen_rtx_IF_THEN_ELSE (VOIDmode, bcomp,
                                                         loc_ref, pc_rtx)));
      DONE;
@@ -2670,7 +2698,7 @@
 {
   int i;
 
-  emit_call_insn (GEN_CALL (operands[0], const0_rtx, NULL, const0_rtx));
+  emit_call_insn (gen_call (operands[0], const0_rtx));
 
   for (i = 0; i < XVECLEN (operands[2], 0); i++)
     {
@@ -2744,6 +2772,12 @@
   ""
   "nop"
   [(set_attr "type" "Y01")])
+
+(define_insn "trap"
+  [(trap_if (const_int 1) (const_int 0))]
+  ""
+  "raise; moveli zero, 6"
+  [(set_attr "type" "cannot_bundle")])
 
 
 ;;
@@ -5533,7 +5567,7 @@
   rtx ssp_addr = gen_rtx_PLUS (Pmode, tp, GEN_INT (TARGET_THREAD_SSP_OFFSET));
   rtx ssp = gen_reg_rtx (Pmode);
   
-  emit_insn (gen_rtx_SET (VOIDmode, ssp, ssp_addr));
+  emit_insn (gen_rtx_SET (ssp, ssp_addr));
 
   operands[1] = gen_rtx_MEM (Pmode, ssp);
 #endif
@@ -5580,7 +5614,7 @@
   rtx ssp_addr = gen_rtx_PLUS (Pmode, tp, GEN_INT (TARGET_THREAD_SSP_OFFSET));
   rtx ssp = gen_reg_rtx (Pmode);
   
-  emit_insn (gen_rtx_SET (VOIDmode, ssp, ssp_addr));
+  emit_insn (gen_rtx_SET (ssp, ssp_addr));
 
   operands[1] = gen_rtx_MEM (Pmode, ssp);
 #endif
@@ -5598,7 +5632,7 @@
 
   loc_ref = gen_rtx_LABEL_REF (VOIDmode, operands[2]);
 
-  emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
+  emit_jump_insn (gen_rtx_SET (pc_rtx,
 			       gen_rtx_IF_THEN_ELSE (VOIDmode, bcomp,
 						     loc_ref, pc_rtx)));
 

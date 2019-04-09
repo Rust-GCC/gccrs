@@ -1,5 +1,5 @@
 /* params.h - Run-time parameters.
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2019 Free Software Foundation, Inc.
    Written by Mark Mitchell <mark@codesourcery.com>.
 
 This file is part of GCC.
@@ -42,7 +42,7 @@ struct param_info
 {
   /* The name used with the `--param <name>=<value>' switch to set this
      value.  */
-  const char *const option;
+  const char *option;
 
   /* The default value.  */
   int default_value;
@@ -54,7 +54,10 @@ struct param_info
   int max_value;
 
   /* A short description of the option.  */
-  const char *const help;
+  const char *help;
+
+  /* The optional names corresponding to the values.  */
+  const char **value_names;
 };
 
 /* An array containing the compiler parameters and their current
@@ -81,12 +84,13 @@ extern void set_param_value (const char *name, int value,
 
 enum compiler_param
 {
-#define DEFPARAM(enumerator, option, msgid, default, min, max) \
-  enumerator,
-#include "params.def"
-#undef DEFPARAM
+#include "params.list"
   LAST_PARAM
 };
+
+extern bool find_param (const char *, enum compiler_param *);
+extern const char *find_param_fuzzy (const char *name);
+extern bool param_string_value_p (enum compiler_param, const char *, int *);
 
 /* The value of the parameter given by ENUM.  Not an lvalue.  */
 #define PARAM_VALUE(ENUM) \
@@ -112,6 +116,10 @@ extern void global_init_params (void);
 /* Note that all parameters have been added and all default values
    set.  */
 extern void finish_params (void);
+
+/* Reset all state in params.c  */
+
+extern void params_c_finalize (void);
 
 /* Return the default value of parameter NUM.  */
 
@@ -188,6 +196,10 @@ extern void init_param_values (int *params);
   PARAM_VALUE (PARAM_L1_CACHE_LINE_SIZE)
 #define L2_CACHE_SIZE \
   PARAM_VALUE (PARAM_L2_CACHE_SIZE)
+#define PREFETCH_DYNAMIC_STRIDES \
+  PARAM_VALUE (PARAM_PREFETCH_DYNAMIC_STRIDES)
+#define PREFETCH_MINIMUM_STRIDE \
+  PARAM_VALUE (PARAM_PREFETCH_MINIMUM_STRIDE)
 #define USE_CANONICAL_TYPES \
   PARAM_VALUE (PARAM_USE_CANONICAL_TYPES)
 #define IRA_MAX_LOOPS_NUM \
@@ -198,6 +210,8 @@ extern void init_param_values (int *params);
   PARAM_VALUE (PARAM_IRA_LOOP_RESERVED_REGS)
 #define LRA_MAX_CONSIDERED_RELOAD_PSEUDOS \
   PARAM_VALUE (PARAM_LRA_MAX_CONSIDERED_RELOAD_PSEUDOS)
+#define LRA_INHERITANCE_EBB_PROBABILITY_CUTOFF \
+  PARAM_VALUE (PARAM_LRA_INHERITANCE_EBB_PROBABILITY_CUTOFF)
 #define SWITCH_CONVERSION_BRANCH_RATIO \
   PARAM_VALUE (PARAM_SWITCH_CONVERSION_BRANCH_RATIO)
 #define LOOP_INVARIANT_MAX_BBS_IN_LOOP \
@@ -222,6 +236,8 @@ extern void init_param_values (int *params);
   PARAM_VALUE (PARAM_ALLOW_PACKED_STORE_DATA_RACES)
 #define ASAN_STACK \
   PARAM_VALUE (PARAM_ASAN_STACK)
+#define ASAN_PROTECT_ALLOCAS \
+  PARAM_VALUE (PARAM_ASAN_PROTECT_ALLOCAS)
 #define ASAN_GLOBALS \
   PARAM_VALUE (PARAM_ASAN_GLOBALS)
 #define ASAN_INSTRUMENT_READS \
@@ -234,5 +250,7 @@ extern void init_param_values (int *params);
   PARAM_VALUE (PARAM_ASAN_USE_AFTER_RETURN)
 #define ASAN_INSTRUMENTATION_WITH_CALL_THRESHOLD \
   PARAM_VALUE (PARAM_ASAN_INSTRUMENTATION_WITH_CALL_THRESHOLD)
+#define ASAN_PARAM_USE_AFTER_SCOPE_DIRECT_EMISSION_THRESHOLD \
+  ((unsigned) PARAM_VALUE (PARAM_USE_AFTER_SCOPE_DIRECT_EMISSION_THRESHOLD))
 
 #endif /* ! GCC_PARAMS_H */

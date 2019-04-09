@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -19,6 +19,8 @@
 // @require@ %-*.tst %-*.txt
 // @diff@ %-*.tst %-*.txt
 
+// { dg-require-fileio "" }
+
 #include <istream>
 #include <sstream>
 #include <fstream>
@@ -30,7 +32,6 @@
 void
 test07()
 {
-  bool test __attribute__((unused)) = true;
   const char* tfn = "istream_unformatted-1.txt";
   std::wifstream infile;
   infile.open(tfn);

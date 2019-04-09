@@ -11,9 +11,9 @@
 
 /* Modifications and expansions for 128-bit long double are
    Copyright (C) 2001 Stephen L. Moshier <moshier@na-net.ornl.gov>
-   and are incorporated herein by permission of the author.  The author 
+   and are incorporated herein by permission of the author.  The author
    reserves the right to distribute this material elsewhere under different
-   copying permissions.  These modifications are distributed here under 
+   copying permissions.  These modifications are distributed here under
    the following terms:
 
     This library is free software; you can redistribute it and/or
@@ -27,11 +27,11 @@
     Lesser General Public License for more details.
 
     You should have received a copy of the GNU Lesser General Public
-    License along with this library; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307  USA */
+    License along with this library; if not, see
+    <http://www.gnu.org/licenses/>.  */
 
-/* __float128 erfq(__float128 x)
- * __float128 erfcq(__float128 x)
+/* double erf(double x)
+ * double erfc(double x)
  *			     x
  *		      2      |\
  *     erf(x)  =  ---------  | exp(-t*t)dt
@@ -98,11 +98,6 @@
 
 #include "quadmath-imp.h"
 
-
-
-__float128 erfcq (__float128);
-
-
 /* Evaluate P[n] x^n  +  P[n-1] x^(n-1)  +  ...  +  P[0] */
 
 static __float128
@@ -142,13 +137,10 @@ deval (__float128 x, const __float128 *p, int n)
 
 static const __float128
 tiny = 1e-4931Q,
-  half = 0.5Q,
-  one = 1.0Q,
-  two = 2.0Q,
+  one = 1,
+  two = 2,
   /* 2/sqrt(pi) - 1 */
-  efx = 1.2837916709551257389615890312154517168810E-1Q,
-  /* 8 * (2/sqrt(pi) - 1) */
-  efx8 = 1.0270333367641005911692712249723613735048E0Q;
+  efx = 1.2837916709551257389615890312154517168810E-1Q;
 
 
 /* erf(x)  = x  + x R(x^2)
@@ -773,6 +765,8 @@ erfq (__float128 x)
 
   if (ix >= 0x3fff0000) /* |x| >= 1.0 */
     {
+      if (ix >= 0x40030000 && sign > 0)
+	return one; /* x >= 16, avoid spurious underflow from erfc.  */
       y = erfcq (x);
       return (one - y);
       /*    return (one - erfcq (x)); */
@@ -785,7 +779,12 @@ erfq (__float128 x)
       if (ix < 0x3fc60000) /* |x|<2**-57 */
 	{
 	  if (ix < 0x00080000)
-	    return 0.125 * (8.0 * x + efx8 * x);	/*avoid underflow */
+	    {
+	      /* Avoid spurious underflow.  */
+	      __float128 ret =  0.0625 * (16.0 * x + (16.0 * efx) * x);
+	      math_check_force_underflow (ret);
+	      return ret;
+	    }
 	  return x + efx * x;
 	}
       y = a + a * neval (z, TN1, NTN1) / deval (z, TD1, NTD1);
@@ -805,7 +804,7 @@ erfq (__float128 x)
 __float128
 erfcq (__float128 x)
 {
-  __float128 y = 0.0Q, z, p, r;
+  __float128 y, z, p, r;
   int32_t i, ix, sign;
   ieee854_float128 u;
 
@@ -863,18 +862,18 @@ erfcq (__float128 x)
 	  y += C18a;
 	  break;
 	case 8:
-	  z = x - 1.0Q;
+	  z = x - 1;
 	  y = C19b + z * neval (z, RNr19, NRNr19) / deval (z, RDr19, NRDr19);
 	  y += C19a;
 	  break;
-	case 9:
+	default: /* i == 9.  */
 	  z = x - 1.125Q;
 	  y = C20b + z * neval (z, RNr20, NRNr20) / deval (z, RDr20, NRDr20);
 	  y += C20a;
 	  break;
 	}
       if (sign & 0x80000000)
-	y = 2.0Q - y;
+	y = 2 - y;
       return y;
     }
   /* 1.25 < |x| < 107 */
@@ -919,16 +918,25 @@ erfcq (__float128 x)
       u.words32.w3 = 0;
       u.words32.w2 &= 0xfe000000;
       z = u.value;
-      r = expq (-z * z - 0.5625) * expq ((z - x) * (z + x) + p);
+      r = expq (-z * z - 0.5625) *
+	expq ((z - x) * (z + x) + p);
       if ((sign & 0x80000000) == 0)
-	return r / x;
+	{
+	  __float128 ret = r / x;
+	  if (ret == 0)
+	    errno = ERANGE;
+	  return ret;
+	}
       else
 	return two - r / x;
     }
   else
     {
       if ((sign & 0x80000000) == 0)
-	return tiny * tiny;
+	{
+	  errno = ERANGE;
+	  return tiny * tiny;
+	}
       else
 	return two - tiny;
     }

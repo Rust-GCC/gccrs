@@ -1,5 +1,5 @@
 /* Definitions of C specific functions for GNU compiler.
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by Steve Ellcey <sje@cup.hp.com>
 
 This file is part of GCC.
@@ -18,17 +18,15 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#define IN_TARGET_CODE 1
+
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include "tree.h"
-#include "stringpool.h"
-#include "cpplib.h"
 #include "c-family/c-common.h"
+#include "stringpool.h"
 #include "c-family/c-pragma.h"
-#include "diagnostic-core.h"
-#include "tm_p.h"
 
 static void ia64_hpux_add_pragma_builtin (tree func);
 

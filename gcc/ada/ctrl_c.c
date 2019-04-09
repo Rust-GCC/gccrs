@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *        Copyright (C) 2002-2013, Free Software Foundation, Inc.           *
+ *        Copyright (C) 2002-2019, Free Software Foundation, Inc.           *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -92,8 +92,8 @@ __gnat_install_int_handler (void (*proc) (void))
   if (sigint_intercepted == 0)
     {
       act.sa_handler = __gnat_int_handler;
-#if defined (__Lynx__) || defined (VMS)
-      /* LynxOS and VMS do not support SA_RESTART. */
+#if defined (__Lynx__) || defined (VMS) || defined(__DJGPP__)
+      /* LynxOS, VMS and DJGPP do not support SA_RESTART. */
       act.sa_flags = 0;
 #else
       act.sa_flags = SA_RESTART;

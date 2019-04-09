@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, Renesas M32R cpu.
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -159,7 +159,7 @@
 
 /* Options to pass on to the assembler.  */
 #undef  ASM_SPEC
-#define ASM_SPEC "%(asm_cpu) %(relax) %{fpic|fpie:-K PIC} %{fPIC|fPIE:-K PIC}"
+#define ASM_SPEC "%(asm_cpu) %(relax) %{" FPIE_OR_FPIC_SPEC ":-K PIC}"
 
 #define LINK_SPEC "%{v} %(link_cpu) %(relax)"
 
@@ -259,12 +259,6 @@
 
 /* The best alignment to use in cases where we have a choice.  */
 #define FASTEST_ALIGNMENT 32
-
-/* Make strings word-aligned so strcpy from constants will be faster.  */
-#define CONSTANT_ALIGNMENT(EXP, ALIGN)	\
-  ((TREE_CODE (EXP) == STRING_CST	\
-    && (ALIGN) < FASTEST_ALIGNMENT)	\
-   ? FASTEST_ALIGNMENT : (ALIGN))
 
 /* Make arrays of chars word-aligned for the same reasons.  */
 #define DATA_ALIGNMENT(TYPE, ALIGN)					\
@@ -389,34 +383,6 @@
 }
 #endif
 
-/* Return number of consecutive hard regs needed starting at reg REGNO
-   to hold something of mode MODE.
-   This is ordinarily the length in words of a value of mode MODE
-   but can be less for certain modes in special long registers.  */
-#define HARD_REGNO_NREGS(REGNO, MODE) \
-  ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
-
-/* Value is 1 if hard register REGNO can hold a value of machine-mode MODE.  */
-extern const unsigned int m32r_hard_regno_mode_ok[FIRST_PSEUDO_REGISTER];
-extern unsigned int m32r_mode_class[];
-#define HARD_REGNO_MODE_OK(REGNO, MODE) \
-  ((m32r_hard_regno_mode_ok[REGNO] & m32r_mode_class[MODE]) != 0)
-
-/* A C expression that is nonzero if it is desirable to choose
-   register allocation so as to avoid move instructions between a
-   value of mode MODE1 and a value of mode MODE2.
-
-   If `HARD_REGNO_MODE_OK (R, MODE1)' and `HARD_REGNO_MODE_OK (R,
-   MODE2)' are ever different for any R, then `MODES_TIEABLE_P (MODE1,
-   MODE2)' must be zero.  */
-
-/* Tie QI/HI/SI modes together.  */
-#define MODES_TIEABLE_P(MODE1, MODE2) 		\
-  (   GET_MODE_CLASS (MODE1) == MODE_INT	\
-   && GET_MODE_CLASS (MODE2) == MODE_INT	\
-   && GET_MODE_SIZE (MODE1) <= UNITS_PER_WORD	\
-   && GET_MODE_SIZE (MODE2) <= UNITS_PER_WORD)
-
 #define HARD_REGNO_RENAME_OK(OLD_REG, NEW_REG) \
   m32r_hard_regno_rename_ok (OLD_REG, NEW_REG)
 
@@ -524,16 +490,7 @@ extern enum reg_class m32r_regno_reg_class[FIRST_PSEUDO_REGISTER];
 
 /* Define this macro if pushing a word onto the stack moves the stack
    pointer to a smaller address.  */
-#define STACK_GROWS_DOWNWARD
-
-/* Offset from frame pointer to start allocating local variables at.
-   If FRAME_GROWS_DOWNWARD, this is the offset to the END of the
-   first local allocated.  Otherwise, it is the offset to the BEGINNING
-   of the first local allocated.  */
-/* The frame pointer points at the same place as the stack pointer, except if
-   alloca has been called.  */
-#define STARTING_FRAME_OFFSET \
-  M32R_STACK_ALIGN (crtl->outgoing_args_size)
+#define STACK_GROWS_DOWNWARD 1
 
 /* Offset from the stack pointer register to the first location at which
    outgoing arguments are placed.  */
@@ -581,15 +538,6 @@ extern enum reg_class m32r_regno_reg_class[FIRST_PSEUDO_REGISTER];
 
 /* Eliminating the frame and arg pointers.  */
 
-#if 0
-/* C statement to store the difference between the frame pointer
-   and the stack pointer values immediately after the function prologue.
-   If `ELIMINABLE_REGS' is defined, this macro will be not be used and
-   need not be defined.  */
-#define INITIAL_FRAME_POINTER_OFFSET(VAR) \
-((VAR) = m32r_compute_frame_size (get_frame_size ()))
-#endif
-
 /* If defined, this macro specifies a table of register pairs used to
    eliminate unneeded registers that point into the stack frame.  If
    it is not defined, the only elimination attempted by the compiler
@@ -604,10 +552,8 @@ extern enum reg_class m32r_regno_reg_class[FIRST_PSEUDO_REGISTER];
  { ARG_POINTER_REGNUM,	 STACK_POINTER_REGNUM },	\
  { ARG_POINTER_REGNUM,   FRAME_POINTER_REGNUM }}
 
-/* This macro is similar to `INITIAL_FRAME_POINTER_OFFSET'.  It
-   specifies the initial difference between the specified pair of
-   registers.  This macro must be defined if `ELIMINABLE_REGS' is
-   defined.  */
+/* This macro returns the initial difference between the specified pair
+   of registers.  */
 
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET)				\
   do										\
@@ -767,7 +713,7 @@ L2:     .word STATIC
 
 /* Define this macro if it is as good or better to call a constant
    function address than to call an address kept in a register.  */
-#define NO_FUNCTION_CSE
+#define NO_FUNCTION_CSE 1
 
 /* Section selection.  */
 
@@ -920,7 +866,8 @@ L2:     .word STATIC
    of a loop.  */
 /* On the M32R, align loops to 32 byte boundaries (cache line size)
    if -malign-loops.  */
-#define LOOP_ALIGN(LABEL) (TARGET_ALIGN_LOOPS ? 5 : 0)
+#define LOOP_ALIGN(LABEL) ((TARGET_ALIGN_LOOPS \
+			    ? align_flags (5) : align_flags ()))
 
 /* Define this to be the maximum number of insns to move around when moving
    a loop test from the top of a loop to the bottom
@@ -1004,7 +951,7 @@ L2:     .word STATIC
 
 /* Define if operations between registers always perform the operation
    on the full register even if a narrower mode is specified.  */
-#define WORD_REGISTER_OPERATIONS
+#define WORD_REGISTER_OPERATIONS 1
 
 /* Define if loading in MODE, an integral mode narrower than BITS_PER_WORD
    will either zero-extend or sign-extend.  The value of this macro should
@@ -1019,10 +966,6 @@ L2:     .word STATIC
 /* Define this to be nonzero if shift instructions ignore all but the low-order
    few bits.  */
 #define SHIFT_COUNT_TRUNCATED 1
-
-/* Value is 1 if truncating an integer of INPREC bits to OUTPREC bits
-   is done just by pretending it is already truncated.  */
-#define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC) 1
 
 /* Specify the machine mode that pointers have.
    After generation of rtl, the compiler makes no further distinction

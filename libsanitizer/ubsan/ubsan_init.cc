@@ -9,51 +9,55 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ubsan_platform.h"
+#if CAN_SANITIZE_UB
+#include "ubsan_diag.h"
 #include "ubsan_init.h"
 #include "ubsan_flags.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_mutex.h"
-#include "sanitizer_common/sanitizer_suppressions.h"
 #include "sanitizer_common/sanitizer_symbolizer.h"
 
 using namespace __ubsan;
 
-static bool ubsan_inited;
-
-void __ubsan::InitIfNecessary() {
-#if !SANITIZER_CAN_USE_PREINIT_ARRAY
-  // No need to lock mutex if we're initializing from preinit array.
-  static StaticSpinMutex init_mu;
-  SpinMutexLock l(&init_mu);
-#endif
-  if (LIKELY(ubsan_inited))
-   return;
-  if (0 == internal_strcmp(SanitizerToolName, "SanitizerTool")) {
-    // WARNING: If this condition holds, then either UBSan runs in a standalone
-    // mode, or initializer for another sanitizer hasn't run yet. In a latter
-    // case, another sanitizer will overwrite "SanitizerToolName" and reparse
-    // common flags. It means, that we are not allowed to *use* common flags
-    // in this function.
-    SanitizerToolName = "UndefinedBehaviorSanitizer";
-    InitializeCommonFlags();
-  }
-  // Initialize UBSan-specific flags.
-  InitializeFlags();
-  SuppressionContext::InitIfNecessary();
-  ubsan_inited = true;
+const char *__ubsan::GetSanititizerToolName() {
+  return "UndefinedBehaviorSanitizer";
 }
 
-#if SANITIZER_CAN_USE_PREINIT_ARRAY
-__attribute__((section(".preinit_array"), used))
-void (*__local_ubsan_preinit)(void) = __ubsan::InitIfNecessary;
-#else
-// Use a dynamic initializer.
-class UbsanInitializer {
- public:
-  UbsanInitializer() {
-    InitIfNecessary();
+static bool ubsan_initialized;
+static StaticSpinMutex ubsan_init_mu;
+
+static void CommonInit() {
+  InitializeSuppressions();
+}
+
+static void CommonStandaloneInit() {
+  SanitizerToolName = GetSanititizerToolName();
+  CacheBinaryName();
+  InitializeFlags();
+  __sanitizer_set_report_path(common_flags()->log_path);
+  AndroidLogInit();
+  InitializeCoverage(common_flags()->coverage, common_flags()->coverage_dir);
+  CommonInit();
+}
+
+void __ubsan::InitAsStandalone() {
+  SpinMutexLock l(&ubsan_init_mu);
+  if (!ubsan_initialized) {
+    CommonStandaloneInit();
+    ubsan_initialized = true;
   }
-};
-static UbsanInitializer ubsan_initializer;
-#endif  // SANITIZER_CAN_USE_PREINIT_ARRAY
+}
+
+void __ubsan::InitAsStandaloneIfNecessary() { return InitAsStandalone(); }
+
+void __ubsan::InitAsPlugin() {
+  SpinMutexLock l(&ubsan_init_mu);
+  if (!ubsan_initialized) {
+    CommonInit();
+    ubsan_initialized = true;
+  }
+}
+
+#endif  // CAN_SANITIZE_UB

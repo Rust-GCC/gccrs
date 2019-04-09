@@ -1,9 +1,9 @@
-// { dg-require-namedlocale "en_US" }
-// { dg-require-namedlocale "fr_FR" }
+// { dg-require-namedlocale "en_US.ISO8859-1" }
+// { dg-require-namedlocale "fr_FR.ISO8859-15" }
 
 // 2004-01-11  Petur Runolfsson  <peturr02@ru.is>
 
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,11 +29,10 @@
 // libstdc++/13582
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using namespace std;
 
-  locale loc_en(locale("en_US"));
-  locale loc_fr(locale("fr_FR"));
+  locale loc_en(locale(ISO_8859(1,en_US)));
+  locale loc_fr(locale(ISO_8859(15,fr_FR)));
 
   const char* name = "tmp_13582-3.tst";
 

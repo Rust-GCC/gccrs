@@ -251,7 +251,7 @@ exception neutrality and exception safety.
   </para>
 
 <programlisting>
-#ifdef __EXCEPTIONS
+#if __cpp_exceptions
 # define __try      try
 # define __catch(X) catch(X)
 # define __throw_exception_again throw
@@ -269,7 +269,7 @@ exception neutrality and exception safety.
 </para>
 
 <programlisting>
-#ifdef __EXCEPTIONS
+#if __cpp_exceptions
   void __throw_bad_exception(void)
   { throw bad_exception(); }
 #else
@@ -447,7 +447,7 @@ is called.
   <biblioentry>
       <title>
 	<link xmlns:xlink="http://www.w3.org/1999/xlink"
-	      xlink:href="http://www.boost.org/community/error_handling.html">
+	      xlink:href="https://www.boost.org/community/error_handling.html">
 	Error and Exception Handling
 	</link>
       </title>
@@ -464,7 +464,7 @@ is called.
   <biblioentry>
       <title>
 	<link xmlns:xlink="http://www.w3.org/1999/xlink"
-	      xlink:href="http://www.boost.org/community/exception_safety.html">
+	      xlink:href="https://www.boost.org/community/exception_safety.html">
 	Exception-Safety in Generic Components
 	</link>
       </title>
@@ -512,7 +512,7 @@ is called.
   <biblioentry>
       <title>
 	<link xmlns:xlink="http://www.w3.org/1999/xlink"
-	      xlink:href="http://www.research.att.com/~bs/3rd_safe.pdf">
+	      xlink:href="http://www.stroustrup.com/3rd_safe.pdf">
 	Appendix E: Standard-Library Exception Safety
 	</link>
       </title>

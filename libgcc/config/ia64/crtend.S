@@ -1,4 +1,4 @@
-/* Copyright (C) 2000-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2000-2019 Free Software Foundation, Inc.
    Contributed by Jes Sorensen, <Jes.Sorensen@cern.ch>
 
    This file is part of GCC.
@@ -34,12 +34,7 @@ __CTOR_END__:
 __DTOR_END__:
 	data8	0
 
-.section .jcr,"aw","progbits"
-	.align 8
-__JCR_END__:
-	data8	0
-
-#ifdef HAVE_INITFINI_ARRAY_SUPPORT
+#if HAVE_INITFINI_ARRAY_SUPPORT
 	.global __do_global_ctors_aux
 	.hidden	__do_global_ctors_aux
 #else /* !HAVE_INITFINI_ARRAY_SUPPORT */

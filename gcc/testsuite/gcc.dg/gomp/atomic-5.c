@@ -27,7 +27,7 @@ void f1(void)
   #pragma omp atomic
     bar() += 1;		/* { dg-error "lvalue required" } */
   #pragma omp atomic a	/* { dg-error "expected end of line" } */
-    x++;
+    x++;		/* { dg-error "expected 'read', 'write', 'update', 'capture', 'seq_cst', 'acq_rel', 'release', 'relaxed' or 'hint' clause" "" { target *-*-* } .-1 } */
   #pragma omp atomic
     ;			/* { dg-error "expected expression" } */
   #pragma omp atomic
@@ -35,5 +35,5 @@ void f1(void)
     ;
   /* Check that we didn't get stuck on the pragma eol marker.  */
   undef;		/* { dg-error "" } */
-  /* { dg-message "undeclared identifier is reported only once" "reminder" { target *-*-* } 37 } */
+  /* { dg-message "undeclared identifier is reported only once" "reminder" { target *-*-* } .-1 } */
 }

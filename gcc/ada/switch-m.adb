@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -24,11 +24,8 @@
 ------------------------------------------------------------------------------
 
 with Debug;    use Debug;
-with Makeutl;  use Makeutl;
 with Osint;    use Osint;
 with Opt;      use Opt;
-with Prj;      use Prj;
-with Prj.Env;  use Prj.Env;
 with Table;
 
 with System.Multiprocessors; use System.Multiprocessors;
@@ -50,6 +47,8 @@ package body Switch.M is
 
    Global_Switches : Argument_List_Access := null;
    --  Used by function Normalize_Compiler_Switches
+
+   Subdirs_Option : constant String := "--subdirs=";
 
    ---------------------------------
    -- Normalize_Compiler_Switches --
@@ -150,7 +149,6 @@ package body Switch.M is
          --  Processing for a switch
 
          case Switch_Starts_With_Gnat is
-
             when False =>
 
                --  All switches that don't start with -gnat stay as is,
@@ -196,24 +194,6 @@ package body Switch.M is
                      Add_Switch_Component ("-mrtp");
                   end if;
 
-               --  Switch for universal addressing on AAMP target
-
-               elsif Switch_Chars'Length >= 5
-                 and then
-                   Switch_Chars
-                     (Switch_Chars'First .. Switch_Chars'First + 4) = "-univ"
-               then
-                  Add_Switch_Component (Switch_Chars);
-
-               --  Switch for specifying AAMP target library
-
-               elsif Switch_Chars'Length > 13
-                 and then
-                   Switch_Chars (Switch_Chars'First .. Switch_Chars'First + 12)
-                     = "-aamp_target="
-               then
-                  Add_Switch_Component (Switch_Chars);
-
                --  Special case for -fstack-check (alias for
                --  -fstack-check=specific)
 
@@ -236,15 +216,15 @@ package body Switch.M is
                return;
 
             when True =>
-
                case C is
 
                   --  One-letter switches
 
-                  when 'a' | 'A' | 'b' | 'B' | 'c' | 'C' | 'E' | 'f' |
-                       'F' | 'g' | 'h' | 'H' | 'I' | 'L' | 'N' | 'p' |
-                       'P' | 'q' | 'Q' | 'r' | 's' | 'S' | 't' | 'u' |
-                       'U' | 'v' | 'x' | 'X' | 'Z' =>
+                  when 'a' | 'A' | 'b' | 'B' | 'c' | 'C' | 'E' | 'f' | 'F'
+                     | 'g' | 'h' | 'H' | 'I' | 'L' | 'N' | 'p' | 'P' | 'q'
+                     | 'Q' | 'r' | 's' | 'S' | 't' | 'u' | 'U' | 'v' | 'x'
+                     | 'X' | 'Z'
+                  =>
                      Storing (First_Stored) := C;
                      Add_Switch_Component
                        (Storing (Storing'First .. First_Stored));
@@ -309,7 +289,6 @@ package body Switch.M is
 
                      else
                         case Switch_Chars (Ptr) is
-
                            when 'A' =>
                               Ptr := Ptr + 1;
                               Add_Switch_Component ("-gnateA");
@@ -483,37 +462,29 @@ package body Switch.M is
                      Add_Switch_Component
                        (Storing (Storing'First .. Last_Stored));
 
-                  --  -gnatR may be followed by '0', '1', '2' or '3',
-                  --  then by 's'
+                  --  -gnatR may be followed by '0', '1', '2', '3' or '4',
+                  --  then by 'e', 'j', 'm' or 's'.
 
                   when 'R' =>
                      Last_Stored := First_Stored;
                      Storing (Last_Stored) := 'R';
                      Ptr := Ptr + 1;
 
-                     if Ptr <= Max
-                       and then Switch_Chars (Ptr) in '0' .. '9'
-                     then
+                     while Ptr <= Max loop
                         C := Switch_Chars (Ptr);
 
-                        if C in '4' .. '9' then
-                           Last := 0;
-                           return;
+                        case C is
 
-                        else
+                        when '0' .. '4' | 'e' | 'j' | 'm' | 's' =>
                            Last_Stored := Last_Stored + 1;
                            Storing (Last_Stored) := C;
                            Ptr := Ptr + 1;
 
-                           if Ptr <= Max
-                             and then Switch_Chars (Ptr) = 's'
-                           then
-                              Last_Stored := Last_Stored + 1;
-                              Storing (Last_Stored) := 's';
-                              Ptr := Ptr + 1;
-                           end if;
-                        end if;
-                     end if;
+                        when others =>
+                           Last := 0;
+                           return;
+                        end case;
+                     end loop;
 
                      Add_Switch_Component
                        (Storing (Storing'First .. Last_Stored));
@@ -705,9 +676,7 @@ package body Switch.M is
                   when others =>
                      Last := 0;
                      return;
-
                end case;
-
          end case;
       end loop;
    end Normalize_Compiler_Switches;
@@ -732,8 +701,7 @@ package body Switch.M is
    ------------------------
 
    procedure Scan_Make_Switches
-     (Env               : in out Prj.Tree.Environment;
-      Switch_Chars      : String;
+     (Switch_Chars      : String;
       Success           : out Boolean)
    is
       Ptr : Integer          := Switch_Chars'First;
@@ -767,6 +735,10 @@ package body Switch.M is
 
       --  Multiple character switches
 
+      --  To preserve building gnat_util, it is not possible to use the
+      --  constant Strings declare in Make_Util, as Make_Util is not in
+      --  gnat_util.
+
       if Switch_Chars'Length > 2 then
          if Switch_Chars = "--create-missing-dirs" then
             Setup_Projects := True;
@@ -779,21 +751,20 @@ package body Switch.M is
                                                             Subdirs_Option
          then
             Subdirs :=
-              new String'
-                (Switch_Chars
-                  (Switch_Chars'First + Subdirs_Option'Length ..
-                   Switch_Chars'Last));
+              new String'(Switch_Chars
+                           (Switch_Chars'First + Subdirs_Option'Length ..
+                            Switch_Chars'Last));
 
-         elsif Switch_Chars = Makeutl.Unchecked_Shared_Lib_Imports then
+         elsif Switch_Chars = "--unchecked-shared-lib-imports" then
             Opt.Unchecked_Shared_Lib_Imports := True;
 
-         elsif Switch_Chars = Makeutl.Single_Compile_Per_Obj_Dir_Switch then
+         elsif Switch_Chars = "--single-compile-per-obj-dir" then
             Opt.One_Compilation_Per_Obj_Dir := True;
 
-         elsif Switch_Chars = Makeutl.No_Exit_Message_Option then
+         elsif Switch_Chars = "--no-exit-message" then
             Opt.No_Exit_Message := True;
 
-         elsif Switch_Chars = Makeutl.Keep_Temp_Files_Option then
+         elsif Switch_Chars = "--keep-temp-files" then
             Opt.Keep_Temporary_Files := True;
 
          elsif Switch_Chars (Ptr) = '-' then
@@ -802,26 +773,18 @@ package body Switch.M is
          elsif Switch_Chars'Length > 3
            and then Switch_Chars (Ptr .. Ptr + 1) = "aP"
          then
-            Add_Directories
-              (Env.Project_Path,
-               Switch_Chars (Ptr + 2 .. Switch_Chars'Last));
+            null;
+            --  This is only used by gprbuild
 
          elsif C = 'v' and then Switch_Chars'Length = 3 then
             Ptr := Ptr + 1;
             Verbose_Mode := True;
 
             case Switch_Chars (Ptr) is
-               when 'l' =>
-                  Verbosity_Level := Opt.Low;
-
-               when 'm' =>
-                  Verbosity_Level := Opt.Medium;
-
-               when 'h' =>
-                  Verbosity_Level := Opt.High;
-
-               when others =>
-                  Success := False;
+            when 'l'    => Verbosity_Level := Opt.Low;
+            when 'm'    => Verbosity_Level := Opt.Medium;
+            when 'h'    => Verbosity_Level := Opt.High;
+            when others => Success := False;
             end case;
 
          elsif C = 'd' then
@@ -852,37 +815,37 @@ package body Switch.M is
 
                --  Processing for eI switch
 
-               when 'I' =>
-                  Ptr := Ptr + 1;
-                  Scan_Pos (Switch_Chars, Max, Ptr, Main_Index, C);
+            when 'I' =>
+               Ptr := Ptr + 1;
+               Scan_Pos (Switch_Chars, Max, Ptr, Main_Index, C);
 
-                  if Ptr <= Max then
-                     Bad_Switch (Switch_Chars);
-                  end if;
+               if Ptr <= Max then
+                  Bad_Switch (Switch_Chars);
+               end if;
 
                --  Processing for eL switch
 
-               when 'L' =>
-                  if Ptr /= Max then
-                     Bad_Switch (Switch_Chars);
+            when 'L' =>
+               if Ptr /= Max then
+                  Bad_Switch (Switch_Chars);
 
-                  else
-                     Follow_Links_For_Files := True;
-                     Follow_Links_For_Dirs  := True;
-                  end if;
+               else
+                  Follow_Links_For_Files := True;
+                  Follow_Links_For_Dirs  := True;
+               end if;
 
                --  Processing for eS switch
 
-               when 'S' =>
-                  if Ptr /= Max then
-                     Bad_Switch (Switch_Chars);
-
-                  else
-                     Commands_To_Stdout := True;
-                  end if;
-
-               when others =>
+            when 'S' =>
+               if Ptr /= Max then
                   Bad_Switch (Switch_Chars);
+
+               else
+                  Commands_To_Stdout := True;
+               end if;
+
+            when others =>
+               Bad_Switch (Switch_Chars);
             end case;
 
          elsif C = 'j' then
@@ -934,9 +897,7 @@ package body Switch.M is
 
       else
          Check_Switch : begin
-
             case C is
-
                when 'a' =>
                   Check_Readonly_Files := True;
 
@@ -1076,7 +1037,6 @@ package body Switch.M is
                   else
                      Success := False;
                   end if;
-
             end case;
          end Check_Switch;
       end if;

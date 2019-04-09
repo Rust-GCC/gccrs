@@ -1,6 +1,7 @@
 // { dg-do compile }
+// { dg-require-normal-namespace "" }
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -16,6 +17,8 @@
 // You should have received a copy of the GNU General Public License along
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
+
+// { dg-options "-Wno-deprecated" }
 
 #include <functional>
 
@@ -48,9 +51,11 @@ namespace std {
   //  lib.negators, negators:
   template <class Predicate> struct unary_negate;
   template <class Predicate>
+  _GLIBCXX14_CONSTEXPR
   unary_negate<Predicate>  not1(const Predicate&);
   template <class Predicate> struct binary_negate;
   template <class Predicate>
+  _GLIBCXX14_CONSTEXPR
   binary_negate<Predicate> not2(const Predicate&);
 
   //  lib.binders, binders:

@@ -5,6 +5,7 @@
 package os
 
 import (
+	"runtime"
 	"sync"
 	"syscall"
 )
@@ -19,31 +20,34 @@ var getwdCache struct {
 var useSyscallwd = func(error) bool { return true }
 
 // Getwd returns a rooted path name corresponding to the
-// current directory.  If the current directory can be
+// current directory. If the current directory can be
 // reached via multiple paths (due to symbolic links),
 // Getwd may return any one of them.
 func Getwd() (dir string, err error) {
-	// If the operating system provides a Getwd call, use it.
-	if syscall.ImplementsGetwd {
-		s, e := syscall.Getwd()
-		if useSyscallwd(e) {
-			return s, NewSyscallError("getwd", e)
-		}
-	}
-
-	// Otherwise, we're trying to find our way back to ".".
-	dot, err := Stat(".")
-	if err != nil {
-		return "", err
+	if runtime.GOOS == "windows" || runtime.GOOS == "plan9" {
+		return syscall.Getwd()
 	}
 
 	// Clumsy but widespread kludge:
 	// if $PWD is set and matches ".", use it.
+	dot, err := statNolog(".")
+	if err != nil {
+		return "", err
+	}
 	dir = Getenv("PWD")
 	if len(dir) > 0 && dir[0] == '/' {
-		d, err := Stat(dir)
+		d, err := statNolog(dir)
 		if err == nil && SameFile(dot, d) {
 			return dir, nil
+		}
+	}
+
+	// If the operating system provides a Getwd call, use it.
+	// Otherwise, we're trying to find our way back to ".".
+	if syscall.ImplementsGetwd {
+		s, e := syscall.Getwd()
+		if useSyscallwd(e) {
+			return s, NewSyscallError("getwd", e)
 		}
 	}
 
@@ -52,7 +56,7 @@ func Getwd() (dir string, err error) {
 	dir = getwdCache.dir
 	getwdCache.Unlock()
 	if len(dir) > 0 {
-		d, err := Stat(dir)
+		d, err := statNolog(dir)
 		if err == nil && SameFile(dot, d) {
 			return dir, nil
 		}
@@ -60,7 +64,7 @@ func Getwd() (dir string, err error) {
 
 	// Root is a special case because it has no parent
 	// and ends in a slash.
-	root, err := Stat("/")
+	root, err := statNolog("/")
 	if err != nil {
 		// Can't stat root - no hope.
 		return "", err
@@ -70,14 +74,14 @@ func Getwd() (dir string, err error) {
 	}
 
 	// General algorithm: find name in parent
-	// and then find name of parent.  Each iteration
+	// and then find name of parent. Each iteration
 	// adds /name to the beginning of dir.
 	dir = ""
 	for parent := ".."; ; parent = "../" + parent {
 		if len(parent) >= 1024 { // Sanity check
 			return "", syscall.ENAMETOOLONG
 		}
-		fd, err := Open(parent)
+		fd, err := openFileNolog(parent, O_RDONLY, 0)
 		if err != nil {
 			return "", err
 		}
@@ -89,7 +93,7 @@ func Getwd() (dir string, err error) {
 				return "", err
 			}
 			for _, name := range names {
-				d, _ := Lstat(parent + "/" + name)
+				d, _ := lstatNolog(parent + "/" + name)
 				if SameFile(d, dot) {
 					dir = "/" + name + dir
 					goto Found

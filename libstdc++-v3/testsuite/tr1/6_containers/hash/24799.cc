@@ -1,6 +1,6 @@
 // 2005-11-11  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,18 +29,16 @@ template<typename T>
   void
   do_test()
   {
-    bool test __attribute__((unused)) = true;
-
     using std::tr1::is_same;
     using __gnu_test::test_relationship;
-    
+
     typedef typename std::tr1::hash<T>::argument_type  argument_type;
     typedef typename std::tr1::hash<T>::result_type    result_type;
-    
+
     VERIFY( (test_relationship<is_same, argument_type, T>(true)) );
     VERIFY( (test_relationship<is_same, result_type, std::size_t>(true)) );
   }
-  
+
 // libstdc++/24799
 void test01()
 {

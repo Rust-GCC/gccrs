@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -155,7 +155,7 @@ package body Ch10 is
          Item := P_Pragma;
 
          if Item = Error
-           or else Pragma_Name (Item) /= Name_Source_Reference
+           or else Pragma_Name_Unmapped (Item) /= Name_Source_Reference
          then
             Restore_Scan_State (Scan_State);
 
@@ -184,12 +184,14 @@ package body Ch10 is
          Save_Scan_State (Scan_State);
          Item := P_Pragma;
 
-         if Item /= Error and then Pragma_Name (Item) = Name_No_Body then
+         if Item /= Error and then Pragma_Name_Unmapped (Item) = Name_No_Body
+         then
             No_Body := True;
          end if;
 
          if Item = Error
-           or else not Is_Configuration_Pragma_Name (Pragma_Name (Item))
+           or else
+             not Is_Configuration_Pragma_Name (Pragma_Name_Unmapped (Item))
          then
             Restore_Scan_State (Scan_State);
             exit;
@@ -596,7 +598,7 @@ package body Ch10 is
 
       else
          Cunit_Error_Flag := True;
-         Set_Fatal_Error (Current_Source_Unit);
+         Set_Fatal_Error (Current_Source_Unit, Error_Detected);
       end if;
 
       --  Clear away any missing semicolon indication, we are done with that
@@ -726,7 +728,7 @@ package body Ch10 is
          --  cascaded messages in some situations.
 
          else
-            if not Fatal_Error (Current_Source_Unit) then
+            if Fatal_Error (Current_Source_Unit) /= Error_Detected then
                if Token in Token_Class_Cunit then
                   Error_Msg_SC
                     ("end of file expected, " &
@@ -758,7 +760,7 @@ package body Ch10 is
       --  An error resync is a serious bomb, so indicate result unit no good
 
       when Error_Resync =>
-         Set_Fatal_Error (Current_Source_Unit);
+         Set_Fatal_Error (Current_Source_Unit, Error_Detected);
          return Error;
    end P_Compilation_Unit;
 
@@ -968,7 +970,7 @@ package body Ch10 is
          --  Processing for USE clause
 
          elsif Token = Tok_Use then
-            Append (P_Use_Clause, Item_List);
+            P_Use_Clause (Item_List);
 
          --  Anything else is end of context clause
 

@@ -1,5 +1,3 @@
-/* { dg-do run } */
-/* { dg-options "-O2 -fgraphite-identity -fgraphite-code-generator=isl" } */
 int n = 50;
 
 void

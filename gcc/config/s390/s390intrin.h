@@ -1,5 +1,5 @@
 /* S/390 System z specific intrinsics
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
    Contributed by Andreas Krebbel (Andreas.Krebbel@de.ibm.com)
 
 This file is part of GCC.
@@ -29,5 +29,8 @@ along with GCC; see the file COPYING3.  If not see
 #include <htmintrin.h>
 #endif
 
+#ifdef __VEC__
+#include <vecintrin.h>
+#endif
 
 #endif /* _S390INTRIN_H*/

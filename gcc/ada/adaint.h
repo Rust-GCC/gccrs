@@ -6,7 +6,7 @@
  *                                                                          *
  *                              C Header File                               *
  *                                                                          *
- *          Copyright (C) 1992-2014, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2019, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -36,7 +36,7 @@ extern "C" {
 #include <sys/stat.h>
 #include <stdio.h>
 
-#ifdef _WIN32
+#if defined (_WIN32) || defined (__CYGWIN__)
 #include "mingw32.h"
 #endif
 
@@ -51,7 +51,7 @@ extern "C" {
    determine at compile time what support the system offers for large files.
    For now we just list the platforms we have manually tested. */
 
-#if defined (__GLIBC__) || defined (sun)
+#if defined (__GLIBC__) || defined (__sun__) || defined (__QNX__)
 #define GNAT_FOPEN fopen64
 #define GNAT_OPEN open64
 #define GNAT_STAT stat64
@@ -66,6 +66,30 @@ extern "C" {
 #define GNAT_FSTAT fstat64
 #define GNAT_LSTAT lstat
 #define GNAT_STRUCT_STAT struct stat64
+
+#elif defined(__APPLE__)
+
+# include <TargetConditionals.h>
+
+# if TARGET_IPHONE_SIMULATOR
+  /* On iOS (simulator or not), the stat structure is the 64 bit one.
+     But the simulator uses the MacOS X syscalls that aren't 64 bit.
+     Fix this interfacing issue here.  */
+    int fstat64(int, struct stat *);
+    int stat64(const char *, struct stat *);
+    int lstat64(const char *, struct stat *);
+#   define GNAT_STAT stat64
+#   define GNAT_FSTAT fstat64
+#   define GNAT_LSTAT lstat64
+# else
+#   define GNAT_STAT stat
+#   define GNAT_FSTAT fstat
+#   define GNAT_LSTAT lstat
+# endif
+
+#   define GNAT_FOPEN fopen
+#   define GNAT_OPEN open
+#   define GNAT_STRUCT_STAT struct stat
 
 #else
 #define GNAT_FOPEN fopen
@@ -84,6 +108,7 @@ typedef long OS_Time;
 #endif
 
 #define __int64 long long
+GNAT_STRUCT_STAT;
 
 /* A lazy cache for the attributes of a file. On some systems, a single call to
    stat() will give all this information, so it is better than doing a system
@@ -183,6 +208,8 @@ extern int    __gnat_is_directory		      (char *);
 extern int    __gnat_is_writable_file		   (char *);
 extern int    __gnat_is_readable_file		   (char *name);
 extern int    __gnat_is_executable_file      (char *name);
+extern int    __gnat_is_write_accessible_file	(char *name);
+extern int    __gnat_is_read_accessible_file	(char *name);
 
 extern void   __gnat_reset_attributes (struct file_attributes *);
 extern int    __gnat_error_attributes (struct file_attributes *);
@@ -206,8 +233,10 @@ extern int    __gnat_is_symbolic_link		   (char *name);
 extern int    __gnat_portable_spawn                (char *[]);
 extern int    __gnat_portable_no_block_spawn       (char *[]);
 extern int    __gnat_portable_wait                 (int *);
+extern int    __gnat_portable_no_block_wait        (int *);
+extern int    __gnat_current_process_id            (void);
 extern char  *__gnat_locate_exec                   (char *, char *);
-extern char  *__gnat_locate_exec_on_path	   (char *);
+extern char  *__gnat_locate_exec_on_path           (char *);
 extern char  *__gnat_locate_regular_file           (char *, char *);
 extern void   __gnat_maybe_glob_args               (int *, char ***);
 extern void   __gnat_os_exit			   (int);
@@ -279,10 +308,10 @@ extern char * __gnat_locate_file_with_predicate    (char *, char *,
 						    int (*)(char*));
 
 #if defined (__ANDROID__)
-#undef linux
+#undef __linux__
 extern void   *__gnat_lwp_self                     (void);
 
-#elif defined (linux)
+#elif defined (__linux__)
 extern void   *__gnat_lwp_self			   (void);
 
 /* Routines for interface to required CPU set primitives */
@@ -299,7 +328,7 @@ extern void   __gnat_cpu_set                       (int, size_t, cpu_set_t *);
 #if defined (_WIN32)
 /* Interface to delete a handle from internally maintained list of child
    process handles on Windows */
-extern void
+extern int
 __gnat_win32_remove_handle (HANDLE h, int pid);
 #endif
 

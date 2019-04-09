@@ -1,6 +1,6 @@
 /* Form lists of pseudo register references for autoinc optimization
    for GNU compiler.  This is part of flow optimization.
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
    Originally contributed by Michael P. Hayes
              (m.hayes@elec.canterbury.ac.nz, mhayes@redhat.com)
    Major rewrite contributed by Danny Berlin (dberlin@dberlin.org)
@@ -25,10 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_DF_H
 #define GCC_DF_H
 
-#include "bitmap.h"
 #include "regset.h"
-#include "sbitmap.h"
-#include "basic-block.h"
 #include "alloc-pool.h"
 #include "timevar.h"
 
@@ -46,16 +43,20 @@ union df_ref_d;
    a uniform manner.  The last four problems can be added or deleted
    at any time are always defined (though LIVE is always there at -O2
    or higher); the others are always there.  */
-#define DF_SCAN    0
-#define DF_LR      1      /* Live Registers backward. */
-#define DF_LIVE    2      /* Live Registers & Uninitialized Registers */
-#define DF_RD      3      /* Reaching Defs. */
-#define DF_CHAIN   4      /* Def-Use and/or Use-Def Chains. */
-#define DF_WORD_LR 5      /* Subreg tracking lr.  */
-#define DF_NOTE    6      /* REG_DEAD and REG_UNUSED notes.  */
-#define DF_MD      7      /* Multiple Definitions. */
+enum df_problem_id
+  {
+    DF_SCAN,
+    DF_LR,                /* Live Registers backward. */
+    DF_LIVE,              /* Live Registers & Uninitialized Registers */
+    DF_RD,                /* Reaching Defs. */
+    DF_CHAIN,             /* Def-Use and/or Use-Def Chains. */
+    DF_WORD_LR,           /* Subreg tracking lr.  */
+    DF_NOTE,              /* REG_DEAD and REG_UNUSED notes.  */
+    DF_MD,                /* Multiple Definitions. */
+    DF_MIR,               /* Must-initialized Registers.  */
 
-#define DF_LAST_PROBLEM_PLUS1 (DF_MD + 1)
+    DF_LAST_PROBLEM_PLUS1
+  };
 
 /* Dataflow direction.  */
 enum df_flow_dir
@@ -253,7 +254,7 @@ typedef void (*df_verify_solution_end) (void);
 struct df_problem {
   /* The unique id of the problem.  This is used it index into
      df->defined_problems to make accessing the problem data easy.  */
-  unsigned int id;
+  enum df_problem_id id;
   enum df_flow_dir dir;			/* Dataflow direction.  */
   df_alloc_function alloc_fun;
   df_reset_function reset_fun;
@@ -274,7 +275,7 @@ struct df_problem {
   df_dump_insn_problem_function dump_insn_bottom_fun;
   df_verify_solution_start verify_start_fun;
   df_verify_solution_end verify_end_fun;
-  struct df_problem *dependent_problem;
+  const struct df_problem *dependent_problem;
   unsigned int block_info_elt_size;
 
   /* The timevar id associated with this pass.  */
@@ -289,7 +290,7 @@ struct df_problem {
 /* The specific instance of the problem to solve.  */
 struct dataflow
 {
-  struct df_problem *problem;           /* The problem to be solved.  */
+  const struct df_problem *problem;     /* The problem to be solved.  */
 
   /* Array indexed by bb->index, that contains basic block problem and
      solution specific information.  */
@@ -297,7 +298,7 @@ struct dataflow
   unsigned int block_info_size;
 
   /* The pool to allocate the block_info from. */
-  alloc_pool block_pool;
+  object_allocator<df_link> *block_pool;
 
   /* The lr and live problems have their transfer functions recomputed
      only if necessary.  This is possible for them because, the
@@ -449,6 +450,13 @@ enum df_chain_flags
   DF_UD_CHAIN      =  2  /* Build UD chains.  */
 };
 
+enum df_scan_flags
+{
+  /* Flags for the SCAN problem.  */
+  DF_SCAN_EMPTY_ENTRY_EXIT = 1  /* Don't define any registers in the entry
+				   block; don't use any in the exit block.  */
+};
+
 enum df_changeable_flags
 {
   /* Scanning flags.  */
@@ -574,11 +582,9 @@ struct df_d
   bitmap_head insns_to_notes_rescan;
   int *postorder;                /* The current set of basic blocks
                                     in reverse postorder.  */
-  int *postorder_inverted;       /* The current set of basic blocks
+  vec<int> postorder_inverted;       /* The current set of basic blocks
                                     in reverse postorder of inverted CFG.  */
   int n_blocks;                  /* The number of blocks in reverse postorder.  */
-  int n_blocks_inverted;         /* The number of blocks
-                                    in reverse postorder of inverted CFG.  */
 
   /* An array [FIRST_PSEUDO_REGISTER], indexed by regno, of the number
      of refs that qualify as being real hard regs uses.  Artificial
@@ -615,11 +621,15 @@ struct df_d
 #define DF_LIVE_BB_INFO(BB) (df_live_get_bb_info ((BB)->index))
 #define DF_WORD_LR_BB_INFO(BB) (df_word_lr_get_bb_info ((BB)->index))
 #define DF_MD_BB_INFO(BB) (df_md_get_bb_info ((BB)->index))
+#define DF_MIR_BB_INFO(BB) (df_mir_get_bb_info ((BB)->index))
 
 /* Most transformations that wish to use live register analysis will
    use these macros.  This info is the and of the lr and live sets.  */
 #define DF_LIVE_IN(BB) (&DF_LIVE_BB_INFO (BB)->in)
 #define DF_LIVE_OUT(BB) (&DF_LIVE_BB_INFO (BB)->out)
+
+#define DF_MIR_IN(BB) (&DF_MIR_BB_INFO (BB)->in)
+#define DF_MIR_OUT(BB) (&DF_MIR_BB_INFO (BB)->out)
 
 /* These macros are used by passes that are not tolerant of
    uninitialized variables.  This intolerance should eventually
@@ -899,6 +909,21 @@ struct df_word_lr_bb_info
   bitmap_head out;   /* At the bottom of the block.  */
 };
 
+/* Must-initialized registers.  All bitmaps are referenced by the
+   register number.  */
+struct df_mir_bb_info
+{
+  /* Local sets to describe the basic blocks.  */
+  bitmap_head kill;  /* The set of registers unset in this block.  Calls,
+		        for instance, unset registers.  */
+  bitmap_head gen;   /* The set of registers set in this block, excluding the
+			ones killed later on in this block.  */
+
+  /* The results of the dataflow problem.  */
+  bitmap_head in;    /* At the top of the block.  */
+  bitmap_head out;   /* At the bottom of the block.  */
+};
+
 
 /* This is used for debugging and for the dumpers to find the latest
    instance so that the df info can be added to the dumps.  This
@@ -912,6 +937,7 @@ extern struct df_d *df;
 #define df_word_lr (df->problems_by_index[DF_WORD_LR])
 #define df_note    (df->problems_by_index[DF_NOTE])
 #define df_md      (df->problems_by_index[DF_MD])
+#define df_mir     (df->problems_by_index[DF_MIR])
 
 /* This symbol turns on checking that each modification of the cfg has
   been identified to the appropriate df routines.  It is not part of
@@ -927,7 +953,7 @@ extern struct df_d *df;
 
 /* Functions defined in df-core.c.  */
 
-extern void df_add_problem (struct df_problem *);
+extern void df_add_problem (const struct df_problem *);
 extern int df_set_flags (int);
 extern int df_clear_flags (int);
 extern void df_set_blocks (bitmap);
@@ -1008,6 +1034,8 @@ extern void df_note_add_problem (void);
 extern void df_md_add_problem (void);
 extern void df_md_simulate_artificial_defs_at_top (basic_block, bitmap);
 extern void df_md_simulate_one_insn (basic_block, rtx_insn *, bitmap);
+extern void df_mir_add_problem (void);
+extern void df_mir_simulate_one_insn (basic_block, rtx_insn *, bitmap, bitmap);
 extern void df_simulate_find_noclobber_defs (rtx_insn *, bitmap);
 extern void df_simulate_find_defs (rtx_insn *, bitmap);
 extern void df_simulate_defs (rtx_insn *, bitmap);
@@ -1041,7 +1069,7 @@ extern void df_recompute_luids (basic_block);
 extern void df_insn_change_bb (rtx_insn *, basic_block);
 extern void df_maybe_reorganize_use_refs (enum df_ref_order);
 extern void df_maybe_reorganize_def_refs (enum df_ref_order);
-extern void df_ref_change_reg_with_loc (int, int, rtx);
+extern void df_ref_change_reg_with_loc (rtx, unsigned int);
 extern void df_notes_rescan (rtx_insn *);
 extern void df_hard_reg_init (void);
 extern void df_update_entry_block_defs (void);
@@ -1052,7 +1080,6 @@ extern unsigned int df_hard_reg_used_count (unsigned int);
 extern bool df_regs_ever_live_p (unsigned int);
 extern void df_set_regs_ever_live (unsigned int, bool);
 extern void df_compute_regs_ever_live (bool);
-extern bool df_read_modify_subreg_p (rtx);
 extern void df_scan_verify (void);
 
 
@@ -1110,6 +1137,15 @@ df_word_lr_get_bb_info (unsigned int index)
 {
   if (index < df_word_lr->block_info_size)
     return &((struct df_word_lr_bb_info *) df_word_lr->block_info)[index];
+  else
+    return NULL;
+}
+
+static inline struct df_mir_bb_info *
+df_mir_get_bb_info (unsigned int index)
+{
+  if (index < df_mir->block_info_size)
+    return &((struct df_mir_bb_info *) df_mir->block_info)[index];
   else
     return NULL;
 }

@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O3 -fipa-cp -fipa-cp-clone -fdump-ipa-cp -fno-early-inlining -fdump-tree-optimized"  } */
+/* { dg-options "-O3 -fipa-cp -fipa-cp-clone -fdump-ipa-cp -fno-early-inlining -fdump-tree-optimized -fno-ipa-icf"  } */
 /* { dg-add-options bind_pic_locally } */
 
 int array[100];
@@ -77,5 +77,3 @@ main()
 /* { dg-final { scan-ipa-dump-not "Creating a specialized node of i_can_not_be_propagated_fully/" "cp"  } } */
 /* { dg-final { scan-tree-dump-not "i_can_be_propagated_fully \\(" "optimized"  } } */
 /* { dg-final { scan-tree-dump-not "i_can_be_propagated_fully2 \\(" "optimized"  } } */
-/* { dg-final { cleanup-ipa-dump "cp" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

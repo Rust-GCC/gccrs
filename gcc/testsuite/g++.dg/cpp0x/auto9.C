@@ -21,8 +21,8 @@ struct A
 
 struct A2
 {
-  operator auto () -> int;			// { dg-error "invalid use of" "" { target { ! c++14 } } }
-  operator auto *() -> int;			// { dg-error "auto" }
+  operator auto () -> int;			// { dg-error "invalid use of|trailing return type" }
+  operator auto*() -> int;			// { dg-error "invalid use of|trailing return type" }
 };
 
 template <typename> struct B
@@ -103,21 +103,21 @@ auto fnlate2 () -> auto *;			// { dg-error "invalid use of|expected" "" { target
 
 void
 badthrow () throw (auto)			// { dg-error "invalid use of" }
-{
-}
+{						// { dg-error "dynamic exception specification" "" { target c++17 } .-1 }
+}						// { dg-warning "deprecated" "" { target { ! c++17 } } .-2 }
 
 void
 badthrow2 () throw (auto &)			// { dg-error "invalid use of|expected" }
-{
-}
+{						// { dg-error "dynamic exception specification" "" { target c++17 } .-1 }
+}						// { dg-warning "deprecated" "" { target { ! c++17 } } .-2 }
 
-template <auto V = 4> struct G {};		// { dg-error "auto" }
+template <auto V = 4> struct G {};		// { dg-error "auto" "" { target { ! c++17 } } }
 
 template <typename T> struct H { H (); ~H (); };
-H<auto> h;					// { dg-error "invalid" }
+H<auto> h;					// { dg-error "invalid|initializer" }
 
-void qq (auto);			// { dg-error "auto" }
-void qr (auto*);		// { dg-error "auto" }
+void qq (auto);		       // { dg-error "auto" "" { target { ! concepts } } }
+void qr (auto*);	       // { dg-error "auto" "" { target { ! concepts } } }
 
 // PR c++/46145
-typedef auto autot;		// { dg-error "auto" }
+typedef auto autot;		// { dg-error "9:typedef declared .auto." }

@@ -1,9 +1,9 @@
-// { dg-require-namedlocale "en_US" }
-// { dg-require-namedlocale "de_DE" }
+// { dg-require-namedlocale "en_US.ISO8859-1" }
+// { dg-require-namedlocale "de_DE.ISO8859-15" }
 
 // 2001-05-21 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,16 +30,15 @@
 void test07()
 {
   using std::locale;
-  bool test __attribute__((unused)) = true;
 
   locale loc;
   std::wfilebuf ob;
   VERIFY( ob.getloc() == loc );
 
-  locale::global(locale("en_US"));
+  locale::global(locale(ISO_8859(1,en_US)));
   VERIFY( ob.getloc() == loc );
 
-  locale loc_de = locale("de_DE");
+  locale loc_de = locale(ISO_8859(15,de_DE));
   locale ret = ob.pubimbue(loc_de);
   VERIFY( ob.getloc() == loc_de );
   VERIFY( ret == loc );

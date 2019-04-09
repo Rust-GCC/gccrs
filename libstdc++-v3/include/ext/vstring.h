@@ -1,6 +1,6 @@
 // Versatile string -*- C++ -*-
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -518,7 +518,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        *  Returns true if the %string is empty.  Equivalent to 
        *  <code>*this == ""</code>.
        */
-      bool
+      _GLIBCXX_NODISCARD bool
       empty() const _GLIBCXX_NOEXCEPT
       { return this->size() == 0; }
 
@@ -536,7 +536,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       const_reference
       operator[] (size_type __pos) const _GLIBCXX_NOEXCEPT
       {
-	_GLIBCXX_DEBUG_ASSERT(__pos <= this->size());
+	__glibcxx_assert(__pos <= this->size());
 	return this->_M_data()[__pos];
       }
 
@@ -555,7 +555,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       {
         // Allow pos == size() both in C++98 mode, as v3 extension,
 	// and in C++11 mode.
-	_GLIBCXX_DEBUG_ASSERT(__pos <= this->size());
+	__glibcxx_assert(__pos <= this->size());
         // In pedantic mode be strict in C++98 mode.
 	_GLIBCXX_DEBUG_PEDASSERT(__cplusplus >= 201103L
 				 || __pos < this->size());
@@ -613,7 +613,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        *  element of the %string.
        */
       reference
-      front() _GLIBCXX_NOEXCEPT
+      front() noexcept
       { return operator[](0); }
 
       /**
@@ -621,7 +621,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        *  element of the %string.
        */
       const_reference
-      front() const _GLIBCXX_NOEXCEPT
+      front() const noexcept
       { return operator[](0); }
 
       /**
@@ -629,7 +629,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        *  element of the %string.
        */
       reference
-      back() _GLIBCXX_NOEXCEPT
+      back() noexcept
       { return operator[](this->size() - 1); }
 
       /**
@@ -637,7 +637,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        *  last element of the %string.
        */
       const_reference
-      back() const _GLIBCXX_NOEXCEPT
+      back() const noexcept
       { return operator[](this->size() - 1); }
 #endif
 
@@ -2680,7 +2680,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
 
-#if ((__cplusplus >= 201103L) && defined(_GLIBCXX_USE_C99))
+#if __cplusplus >= 201103L
 
 #include <ext/string_conversions.h>
 
@@ -2688,6 +2688,7 @@ namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
+#if _GLIBCXX_USE_C99_STDLIB
   // 21.4 Numeric Conversions [string.conversions].
   inline int
   stoi(const __vstring& __str, std::size_t* __idx = 0, int __base = 10)
@@ -2726,7 +2727,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   inline long double
   stold(const __vstring& __str, std::size_t* __idx = 0)
   { return __gnu_cxx::__stoa(&std::strtold, "stold", __str.c_str(), __idx); }
+#endif // _GLIBCXX_USE_C99_STDLIB
 
+#if _GLIBCXX_USE_C99_STDIO
   // NB: (v)snprintf vs sprintf.
 
   // DR 1261.
@@ -2789,8 +2792,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     return __gnu_cxx::__to_xstring<__vstring>(&std::vsnprintf, __n,
 					      "%Lf", __val);
   }
+#endif // _GLIBCXX_USE_C99_STDIO
 
-#ifdef _GLIBCXX_USE_WCHAR_T
+#if defined(_GLIBCXX_USE_WCHAR_T) && _GLIBCXX_USE_C99_WCHAR
   inline int 
   stoi(const __wvstring& __str, std::size_t* __idx = 0, int __base = 10)
   { return __gnu_cxx::__stoa<long, int>(&std::wcstol, "stoi", __str.c_str(),
@@ -2890,8 +2894,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     return __gnu_cxx::__to_xstring<__wvstring>(&std::vswprintf, __n,
 					       L"%Lf", __val);
   }
-#endif
-#endif
+#endif // _GLIBCXX_HAVE_BROKEN_VSWPRINTF
+#endif // _GLIBCXX_USE_WCHAR_T && _GLIBCXX_USE_C99_WCHAR
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
@@ -2929,7 +2933,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     };
 #endif
 
-#ifdef _GLIBCXX_USE_C99_STDINT_TR1
   /// std::hash specialization for __u16vstring.
   template<>
     struct hash<__gnu_cxx::__u16vstring>
@@ -2951,13 +2954,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return std::_Hash_impl::hash(__s.data(),
                                      __s.length() * sizeof(char32_t)); }
     };
-#endif
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
 
 #endif // C++11
 
-#include "vstring.tcc" 
+#include <ext/vstring.tcc>
 
 #endif /* _VSTRING_H */

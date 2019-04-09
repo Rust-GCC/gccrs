@@ -1,5 +1,5 @@
 /* Rtl-level induction variable analysis.
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -35,32 +35,30 @@ along with GCC; see the file COPYING3.  If not see
 
    The available functions are:
 
-   iv_analyze (insn, reg, iv): Stores the description of the induction variable
-     corresponding to the use of register REG in INSN to IV.  Returns true if
-     REG is an induction variable in INSN. false otherwise.
-     If use of REG is not found in INSN, following insns are scanned (so that
-     we may call this function on insn returned by get_condition).
+   iv_analyze (insn, mode, reg, iv): Stores the description of the induction
+     variable corresponding to the use of register REG in INSN to IV, given
+     that REG has mode MODE.  Returns true if REG is an induction variable
+     in INSN. false otherwise.  If a use of REG is not found in INSN,
+     the following insns are scanned (so that we may call this function
+     on insns returned by get_condition).
    iv_analyze_result (insn, def, iv):  Stores to IV the description of the iv
      corresponding to DEF, which is a register defined in INSN.
-   iv_analyze_expr (insn, rhs, mode, iv):  Stores to IV the description of iv
+   iv_analyze_expr (insn, mode, expr, iv):  Stores to IV the description of iv
      corresponding to expression EXPR evaluated at INSN.  All registers used bu
-     EXPR must also be used in INSN.
+     EXPR must also be used in INSN.  MODE is the mode of EXPR.
 */
 
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "backend.h"
 #include "rtl.h"
-#include "hard-reg-set.h"
-#include "obstack.h"
-#include "basic-block.h"
-#include "cfgloop.h"
-#include "expr.h"
-#include "intl.h"
-#include "diagnostic-core.h"
 #include "df.h"
-#include "hash-table.h"
+#include "memmodel.h"
+#include "emit-rtl.h"
+#include "diagnostic-core.h"
+#include "cfgloop.h"
+#include "intl.h"
 #include "dumpfile.h"
 #include "rtl-iter.h"
 
@@ -109,18 +107,17 @@ static struct loop *current_loop;
 
 /* Hashtable helper.  */
 
-struct biv_entry_hasher : typed_free_remove <biv_entry>
+struct biv_entry_hasher : free_ptr_hash <biv_entry>
 {
-  typedef biv_entry value_type;
-  typedef rtx_def compare_type;
-  static inline hashval_t hash (const value_type *);
-  static inline bool equal (const value_type *, const compare_type *);
+  typedef rtx_def *compare_type;
+  static inline hashval_t hash (const biv_entry *);
+  static inline bool equal (const biv_entry *, const rtx_def *);
 };
 
 /* Returns hash value for biv B.  */
 
 inline hashval_t
-biv_entry_hasher::hash (const value_type *b)
+biv_entry_hasher::hash (const biv_entry *b)
 {
   return b->regno;
 }
@@ -128,7 +125,7 @@ biv_entry_hasher::hash (const value_type *b)
 /* Compares biv B and register R.  */
 
 inline bool
-biv_entry_hasher::equal (const value_type *b, const compare_type *r)
+biv_entry_hasher::equal (const biv_entry *b, const rtx_def *r)
 {
   return b->regno == REGNO (r);
 }
@@ -137,7 +134,7 @@ biv_entry_hasher::equal (const value_type *b, const compare_type *r)
 
 static hash_table<biv_entry_hasher> *bivs;
 
-static bool iv_analyze_op (rtx_insn *, rtx, struct rtx_iv *);
+static bool iv_analyze_op (rtx_insn *, scalar_int_mode, rtx, struct rtx_iv *);
 
 /* Return the RTX code corresponding to the IV extend code EXTEND.  */
 static inline enum rtx_code
@@ -197,17 +194,6 @@ dump_iv_info (FILE *file, struct rtx_iv *iv)
     }
   if (iv->first_special)
     fprintf (file, " (first special)");
-}
-
-/* Generates a subreg to get the least significant part of EXPR (in mode
-   INNER_MODE) to OUTER_MODE.  */
-
-rtx
-lowpart_subreg (enum machine_mode outer_mode, rtx expr,
-		enum machine_mode inner_mode)
-{
-  return simplify_gen_subreg (outer_mode, expr, inner_mode,
-			      subreg_lowpart_offset (outer_mode, inner_mode));
 }
 
 static void
@@ -398,11 +384,8 @@ iv_get_reaching_def (rtx_insn *insn, rtx reg, df_ref *def)
    consistency with other iv manipulation functions that may fail).  */
 
 static bool
-iv_constant (struct rtx_iv *iv, rtx cst, enum machine_mode mode)
+iv_constant (struct rtx_iv *iv, scalar_int_mode mode, rtx cst)
 {
-  if (mode == VOIDmode)
-    mode = GET_MODE (cst);
-
   iv->mode = mode;
   iv->base = cst;
   iv->step = const0_rtx;
@@ -418,7 +401,7 @@ iv_constant (struct rtx_iv *iv, rtx cst, enum machine_mode mode)
 /* Evaluates application of subreg to MODE on IV.  */
 
 static bool
-iv_subreg (struct rtx_iv *iv, enum machine_mode mode)
+iv_subreg (struct rtx_iv *iv, scalar_int_mode mode)
 {
   /* If iv is invariant, just calculate the new value.  */
   if (iv->step == const0_rtx
@@ -460,7 +443,7 @@ iv_subreg (struct rtx_iv *iv, enum machine_mode mode)
 /* Evaluates application of EXTEND to MODE on IV.  */
 
 static bool
-iv_extend (struct rtx_iv *iv, enum iv_extend_code extend, enum machine_mode mode)
+iv_extend (struct rtx_iv *iv, enum iv_extend_code extend, scalar_int_mode mode)
 {
   /* If iv is invariant, just calculate the new value.  */
   if (iv->step == const0_rtx
@@ -523,7 +506,7 @@ iv_neg (struct rtx_iv *iv)
 static bool
 iv_add (struct rtx_iv *iv0, struct rtx_iv *iv1, enum rtx_code op)
 {
-  enum machine_mode mode;
+  scalar_int_mode mode;
   rtx arg;
 
   /* Extend the constant to extend_mode of the other operand if necessary.  */
@@ -593,7 +576,7 @@ iv_add (struct rtx_iv *iv0, struct rtx_iv *iv1, enum rtx_code op)
 static bool
 iv_mult (struct rtx_iv *iv, rtx mby)
 {
-  enum machine_mode mode = iv->extend_mode;
+  scalar_int_mode mode = iv->extend_mode;
 
   if (GET_MODE (mby) != VOIDmode
       && GET_MODE (mby) != mode)
@@ -618,7 +601,7 @@ iv_mult (struct rtx_iv *iv, rtx mby)
 static bool
 iv_shift (struct rtx_iv *iv, rtx mby)
 {
-  enum machine_mode mode = iv->extend_mode;
+  scalar_int_mode mode = iv->extend_mode;
 
   if (GET_MODE (mby) != VOIDmode
       && GET_MODE (mby) != mode)
@@ -643,13 +626,13 @@ iv_shift (struct rtx_iv *iv, rtx mby)
    at get_biv_step.  */
 
 static bool
-get_biv_step_1 (df_ref def, rtx reg,
-		rtx *inner_step, enum machine_mode *inner_mode,
-		enum iv_extend_code *extend, enum machine_mode outer_mode,
+get_biv_step_1 (df_ref def, scalar_int_mode outer_mode, rtx reg,
+		rtx *inner_step, scalar_int_mode *inner_mode,
+		enum iv_extend_code *extend,
 		rtx *outer_step)
 {
   rtx set, rhs, op0 = NULL_RTX, op1 = NULL_RTX;
-  rtx next, nextr, tmp;
+  rtx next, nextr;
   enum rtx_code code;
   rtx_insn *insn = DF_REF_INSN (def);
   df_ref next_def;
@@ -679,9 +662,7 @@ get_biv_step_1 (df_ref def, rtx reg,
       op1 = XEXP (rhs, 1);
 
       if (code == PLUS && CONSTANT_P (op0))
-	{
-	  tmp = op0; op0 = op1; op1 = tmp;
-	}
+	std::swap (op0, op1);
 
       if (!simple_reg_p (op0)
 	  || !CONSTANT_P (op1))
@@ -749,16 +730,16 @@ get_biv_step_1 (df_ref def, rtx reg,
       *inner_mode = outer_mode;
       *outer_step = const0_rtx;
     }
-  else if (!get_biv_step_1 (next_def, reg,
-			    inner_step, inner_mode, extend, outer_mode,
+  else if (!get_biv_step_1 (next_def, outer_mode, reg,
+			    inner_step, inner_mode, extend,
 			    outer_step))
     return false;
 
   if (GET_CODE (next) == SUBREG)
     {
-      enum machine_mode amode = GET_MODE (next);
-
-      if (GET_MODE_SIZE (amode) > GET_MODE_SIZE (*inner_mode))
+      scalar_int_mode amode;
+      if (!is_a <scalar_int_mode> (GET_MODE (next), &amode)
+	  || GET_MODE_SIZE (amode) > GET_MODE_SIZE (*inner_mode))
 	return false;
 
       *inner_mode = amode;
@@ -810,19 +791,17 @@ get_biv_step_1 (df_ref def, rtx reg,
    LAST_DEF is the definition of REG that dominates loop latch.  */
 
 static bool
-get_biv_step (df_ref last_def, rtx reg, rtx *inner_step,
-	      enum machine_mode *inner_mode, enum iv_extend_code *extend,
-	      enum machine_mode *outer_mode, rtx *outer_step)
+get_biv_step (df_ref last_def, scalar_int_mode outer_mode, rtx reg,
+	      rtx *inner_step, scalar_int_mode *inner_mode,
+	      enum iv_extend_code *extend, rtx *outer_step)
 {
-  *outer_mode = GET_MODE (reg);
-
-  if (!get_biv_step_1 (last_def, reg,
-		       inner_step, inner_mode, extend, *outer_mode,
+  if (!get_biv_step_1 (last_def, outer_mode, reg,
+		       inner_step, inner_mode, extend,
 		       outer_step))
     return false;
 
-  gcc_assert ((*inner_mode == *outer_mode) != (*extend != IV_UNKNOWN_EXTEND));
-  gcc_assert (*inner_mode != *outer_mode || *outer_step == const0_rtx);
+  gcc_assert ((*inner_mode == outer_mode) != (*extend != IV_UNKNOWN_EXTEND));
+  gcc_assert (*inner_mode != outer_mode || *outer_step == const0_rtx);
 
   return true;
 }
@@ -867,13 +846,13 @@ record_biv (rtx def, struct rtx_iv *iv)
 }
 
 /* Determines whether DEF is a biv and if so, stores its description
-   to *IV.  */
+   to *IV.  OUTER_MODE is the mode of DEF.  */
 
 static bool
-iv_analyze_biv (rtx def, struct rtx_iv *iv)
+iv_analyze_biv (scalar_int_mode outer_mode, rtx def, struct rtx_iv *iv)
 {
   rtx inner_step, outer_step;
-  enum machine_mode inner_mode, outer_mode;
+  scalar_int_mode inner_mode;
   enum iv_extend_code extend;
   df_ref last_def;
 
@@ -889,7 +868,7 @@ iv_analyze_biv (rtx def, struct rtx_iv *iv)
       if (!CONSTANT_P (def))
 	return false;
 
-      return iv_constant (iv, def, VOIDmode);
+      return iv_constant (iv, outer_mode, def);
     }
 
   if (!latch_dominating_def (def, &last_def))
@@ -900,7 +879,7 @@ iv_analyze_biv (rtx def, struct rtx_iv *iv)
     }
 
   if (!last_def)
-    return iv_constant (iv, def, VOIDmode);
+    return iv_constant (iv, outer_mode, def);
 
   if (analyzed_for_bivness_p (def, iv))
     {
@@ -909,8 +888,8 @@ iv_analyze_biv (rtx def, struct rtx_iv *iv)
       return iv->base != NULL_RTX;
     }
 
-  if (!get_biv_step (last_def, def, &inner_step, &inner_mode, &extend,
-		     &outer_mode, &outer_step))
+  if (!get_biv_step (last_def, outer_mode, def, &inner_step, &inner_mode,
+		     &extend, &outer_step))
     {
       iv->base = NULL_RTX;
       goto end;
@@ -947,16 +926,15 @@ iv_analyze_biv (rtx def, struct rtx_iv *iv)
    The mode of the induction variable is MODE.  */
 
 bool
-iv_analyze_expr (rtx_insn *insn, rtx rhs, enum machine_mode mode,
+iv_analyze_expr (rtx_insn *insn, scalar_int_mode mode, rtx rhs,
 		 struct rtx_iv *iv)
 {
-  rtx mby = NULL_RTX, tmp;
+  rtx mby = NULL_RTX;
   rtx op0 = NULL_RTX, op1 = NULL_RTX;
   struct rtx_iv iv0, iv1;
   enum rtx_code code = GET_CODE (rhs);
-  enum machine_mode omode = mode;
+  scalar_int_mode omode = mode;
 
-  iv->mode = VOIDmode;
   iv->base = NULL_RTX;
   iv->step = NULL_RTX;
 
@@ -965,18 +943,7 @@ iv_analyze_expr (rtx_insn *insn, rtx rhs, enum machine_mode mode,
   if (CONSTANT_P (rhs)
       || REG_P (rhs)
       || code == SUBREG)
-    {
-      if (!iv_analyze_op (insn, rhs, iv))
-	return false;
-
-      if (iv->mode == VOIDmode)
-	{
-	  iv->mode = mode;
-	  iv->extend_mode = mode;
-	}
-
-      return true;
-    }
+    return iv_analyze_op (insn, mode, rhs, iv);
 
   switch (code)
     {
@@ -988,7 +955,9 @@ iv_analyze_expr (rtx_insn *insn, rtx rhs, enum machine_mode mode,
     case ZERO_EXTEND:
     case NEG:
       op0 = XEXP (rhs, 0);
-      omode = GET_MODE (op0);
+      /* We don't know how many bits there are in a sign-extended constant.  */
+      if (!is_a <scalar_int_mode> (GET_MODE (op0), &omode))
+	return false;
       break;
 
     case PLUS:
@@ -1001,11 +970,7 @@ iv_analyze_expr (rtx_insn *insn, rtx rhs, enum machine_mode mode,
       op0 = XEXP (rhs, 0);
       mby = XEXP (rhs, 1);
       if (!CONSTANT_P (mby))
-	{
-	  tmp = op0;
-	  op0 = mby;
-	  mby = tmp;
-	}
+	std::swap (op0, mby);
       if (!CONSTANT_P (mby))
 	return false;
       break;
@@ -1022,11 +987,11 @@ iv_analyze_expr (rtx_insn *insn, rtx rhs, enum machine_mode mode,
     }
 
   if (op0
-      && !iv_analyze_expr (insn, op0, omode, &iv0))
+      && !iv_analyze_expr (insn, omode, op0, &iv0))
     return false;
 
   if (op1
-      && !iv_analyze_expr (insn, op1, omode, &iv1))
+      && !iv_analyze_expr (insn, omode, op1, &iv1))
     return false;
 
   switch (code)
@@ -1096,11 +1061,11 @@ iv_analyze_def (df_ref def, struct rtx_iv *iv)
       return iv->base != NULL_RTX;
     }
 
-  iv->mode = VOIDmode;
   iv->base = NULL_RTX;
   iv->step = NULL_RTX;
 
-  if (!REG_P (reg))
+  scalar_int_mode mode;
+  if (!REG_P (reg) || !is_a <scalar_int_mode> (GET_MODE (reg), &mode))
     return false;
 
   set = single_set (insn);
@@ -1117,7 +1082,7 @@ iv_analyze_def (df_ref def, struct rtx_iv *iv)
   else
     rhs = SET_SRC (set);
 
-  iv_analyze_expr (insn, rhs, GET_MODE (reg), iv);
+  iv_analyze_expr (insn, mode, rhs, iv);
   record_iv (def, iv);
 
   if (dump_file)
@@ -1133,10 +1098,11 @@ iv_analyze_def (df_ref def, struct rtx_iv *iv)
   return iv->base != NULL_RTX;
 }
 
-/* Analyzes operand OP of INSN and stores the result to *IV.  */
+/* Analyzes operand OP of INSN and stores the result to *IV.  MODE is the
+   mode of OP.  */
 
 static bool
-iv_analyze_op (rtx_insn *insn, rtx op, struct rtx_iv *iv)
+iv_analyze_op (rtx_insn *insn, scalar_int_mode mode, rtx op, struct rtx_iv *iv)
 {
   df_ref def = NULL;
   enum iv_grd_result res;
@@ -1153,13 +1119,15 @@ iv_analyze_op (rtx_insn *insn, rtx op, struct rtx_iv *iv)
     res = GRD_INVARIANT;
   else if (GET_CODE (op) == SUBREG)
     {
-      if (!subreg_lowpart_p (op))
+      scalar_int_mode inner_mode;
+      if (!subreg_lowpart_p (op)
+	  || !is_a <scalar_int_mode> (GET_MODE (SUBREG_REG (op)), &inner_mode))
 	return false;
 
-      if (!iv_analyze_op (insn, SUBREG_REG (op), iv))
+      if (!iv_analyze_op (insn, inner_mode, SUBREG_REG (op), iv))
 	return false;
 
-      return iv_subreg (iv, GET_MODE (op));
+      return iv_subreg (iv, mode);
     }
   else
     {
@@ -1174,7 +1142,7 @@ iv_analyze_op (rtx_insn *insn, rtx op, struct rtx_iv *iv)
 
   if (res == GRD_INVARIANT)
     {
-      iv_constant (iv, op, VOIDmode);
+      iv_constant (iv, mode, op);
 
       if (dump_file)
 	{
@@ -1186,15 +1154,16 @@ iv_analyze_op (rtx_insn *insn, rtx op, struct rtx_iv *iv)
     }
 
   if (res == GRD_MAYBE_BIV)
-    return iv_analyze_biv (op, iv);
+    return iv_analyze_biv (mode, op, iv);
 
   return iv_analyze_def (def, iv);
 }
 
-/* Analyzes value VAL at INSN and stores the result to *IV.  */
+/* Analyzes value VAL at INSN and stores the result to *IV.  MODE is the
+   mode of VAL.  */
 
 bool
-iv_analyze (rtx_insn *insn, rtx val, struct rtx_iv *iv)
+iv_analyze (rtx_insn *insn, scalar_int_mode mode, rtx val, struct rtx_iv *iv)
 {
   rtx reg;
 
@@ -1213,7 +1182,7 @@ iv_analyze (rtx_insn *insn, rtx val, struct rtx_iv *iv)
 	insn = NEXT_INSN (insn);
     }
 
-  return iv_analyze_op (insn, val, iv);
+  return iv_analyze_op (insn, mode, val, iv);
 }
 
 /* Analyzes definition of DEF in INSN and stores the result to IV.  */
@@ -1231,11 +1200,13 @@ iv_analyze_result (rtx_insn *insn, rtx def, struct rtx_iv *iv)
 }
 
 /* Checks whether definition of register REG in INSN is a basic induction
-   variable.  IV analysis must have been initialized (via a call to
+   variable.  MODE is the mode of REG.
+
+   IV analysis must have been initialized (via a call to
    iv_analysis_loop_init) for this function to produce a result.  */
 
 bool
-biv_p (rtx_insn *insn, rtx reg)
+biv_p (rtx_insn *insn, scalar_int_mode mode, rtx reg)
 {
   struct rtx_iv iv;
   df_ref def, last_def;
@@ -1250,7 +1221,7 @@ biv_p (rtx_insn *insn, rtx reg)
   if (last_def != def)
     return false;
 
-  if (!iv_analyze_biv (reg, &iv))
+  if (!iv_analyze_biv (mode, reg, &iv))
     return false;
 
   return iv.step != const0_rtx;
@@ -1517,8 +1488,8 @@ replace_in_expr (rtx *expr, rtx dest, rtx src)
 static bool
 implies_p (rtx a, rtx b)
 {
-  rtx op0, op1, opb0, opb1, r;
-  enum machine_mode mode;
+  rtx op0, op1, opb0, opb1;
+  machine_mode mode;
 
   if (rtx_equal_p (a, b))
     return true;
@@ -1532,7 +1503,7 @@ implies_p (rtx a, rtx b)
 	  || (GET_CODE (op0) == SUBREG
 	      && REG_P (SUBREG_REG (op0))))
 	{
-	  r = simplify_replace_rtx (b, op0, op1);
+	  rtx r = simplify_replace_rtx (b, op0, op1);
 	  if (r == const_true_rtx)
 	    return true;
 	}
@@ -1541,7 +1512,7 @@ implies_p (rtx a, rtx b)
 	  || (GET_CODE (op1) == SUBREG
 	      && REG_P (SUBREG_REG (op1))))
 	{
-	  r = simplify_replace_rtx (b, op1, op0);
+	  rtx r = simplify_replace_rtx (b, op1, op0);
 	  if (r == const_true_rtx)
 	    return true;
 	}
@@ -1577,18 +1548,10 @@ implies_p (rtx a, rtx b)
     {
 
       if (GET_CODE (a) == GT)
-	{
-	  r = op0;
-	  op0 = op1;
-	  op1 = r;
-	}
+	std::swap (op0, op1);
 
       if (GET_CODE (b) == GE)
-	{
-	  r = opb0;
-	  opb0 = opb1;
-	  opb1 = r;
-	}
+	std::swap (opb0, opb1);
 
       if (SCALAR_INT_MODE_P (mode)
 	  && rtx_equal_p (op1, opb1)
@@ -1643,7 +1606,7 @@ implies_p (rtx a, rtx b)
 	  && CONST_INT_P (XEXP (opb0, 1))
 	  /* Avoid overflows.  */
 	  && ((unsigned HOST_WIDE_INT) INTVAL (XEXP (opb0, 1))
-	      != ((unsigned HOST_WIDE_INT) 1 << (HOST_BITS_PER_WIDE_INT - 1)))
+	      != (HOST_WIDE_INT_1U << (HOST_BITS_PER_WIDE_INT - 1)))
 	  && rtx_equal_p (XEXP (opb0, 0), op0))
 	return INTVAL (op1) == -INTVAL (XEXP (opb0, 1));
       if (GET_CODE (b) == GEU
@@ -1652,7 +1615,7 @@ implies_p (rtx a, rtx b)
 	  && CONST_INT_P (XEXP (opb0, 1))
 	  /* Avoid overflows.  */
 	  && ((unsigned HOST_WIDE_INT) INTVAL (XEXP (opb0, 1))
-	      != ((unsigned HOST_WIDE_INT) 1 << (HOST_BITS_PER_WIDE_INT - 1)))
+	      != (HOST_WIDE_INT_1U << (HOST_BITS_PER_WIDE_INT - 1)))
 	  && rtx_equal_p (XEXP (opb0, 0), op0))
 	return INTVAL (op1) == -INTVAL (XEXP (opb0, 1));
     }
@@ -1680,10 +1643,9 @@ implies_p (rtx a, rtx b)
 rtx
 canon_condition (rtx cond)
 {
-  rtx tem;
   rtx op0, op1;
   enum rtx_code code;
-  enum machine_mode mode;
+  machine_mode mode;
 
   code = GET_CODE (cond);
   op0 = XEXP (cond, 0);
@@ -1692,9 +1654,7 @@ canon_condition (rtx cond)
   if (swap_commutative_operands_p (op0, op1))
     {
       code = swap_condition (code);
-      tem = op0;
-      op0 = op1;
-      op1 = tem;
+      std::swap (op0, op1);
     }
 
   mode = GET_MODE (op0);
@@ -1702,39 +1662,42 @@ canon_condition (rtx cond)
     mode = GET_MODE (op1);
   gcc_assert (mode != VOIDmode);
 
-  if (CONST_INT_P (op1)
-      && GET_MODE_CLASS (mode) != MODE_CC
-      && GET_MODE_BITSIZE (mode) <= HOST_BITS_PER_WIDE_INT)
+  if (CONST_SCALAR_INT_P (op1) && GET_MODE_CLASS (mode) != MODE_CC)
     {
-      HOST_WIDE_INT const_val = INTVAL (op1);
-      unsigned HOST_WIDE_INT uconst_val = const_val;
-      unsigned HOST_WIDE_INT max_val
-	= (unsigned HOST_WIDE_INT) GET_MODE_MASK (mode);
+      rtx_mode_t const_val (op1, mode);
 
       switch (code)
 	{
 	case LE:
-	  if ((unsigned HOST_WIDE_INT) const_val != max_val >> 1)
-	    code = LT, op1 = gen_int_mode (const_val + 1, GET_MODE (op0));
+	  if (wi::ne_p (const_val, wi::max_value (mode, SIGNED)))
+	    {
+	      code = LT;
+	      op1 = immed_wide_int_const (wi::add (const_val, 1),  mode);
+	    }
 	  break;
 
-	/* When cross-compiling, const_val might be sign-extended from
-	   BITS_PER_WORD to HOST_BITS_PER_WIDE_INT */
 	case GE:
-	  if ((HOST_WIDE_INT) (const_val & max_val)
-	      != (((HOST_WIDE_INT) 1
-		   << (GET_MODE_BITSIZE (GET_MODE (op0)) - 1))))
-	    code = GT, op1 = gen_int_mode (const_val - 1, mode);
+	  if (wi::ne_p (const_val, wi::min_value (mode, SIGNED)))
+	    {
+	      code = GT;
+	      op1 = immed_wide_int_const (wi::sub (const_val, 1), mode);
+	    }
 	  break;
 
 	case LEU:
-	  if (uconst_val < max_val)
-	    code = LTU, op1 = gen_int_mode (uconst_val + 1, mode);
+	  if (wi::ne_p (const_val, -1))
+	    {
+	      code = LTU;
+	      op1 = immed_wide_int_const (wi::add (const_val, 1), mode);
+	    }
 	  break;
 
 	case GEU:
-	  if (uconst_val != 0)
-	    code = GTU, op1 = gen_int_mode (uconst_val - 1, mode);
+	  if (wi::ne_p (const_val, 0))
+	    {
+	      code = GTU;
+	      op1 = immed_wide_int_const (wi::sub (const_val, 1), mode);
+	    }
 	  break;
 
 	default:
@@ -2026,7 +1989,7 @@ simplify_using_initial_values (struct loop *loop, enum rtx_code op, rtx *expr)
 
 	      for (pnote = &cond_list; *pnote; pnote = pnote_next)
 		{
-		  rtx note = *pnote;
+		  rtx_expr_list *note = *pnote;
 		  rtx old_cond = XEXP (note, 0);
 
 		  pnote_next = (rtx_expr_list **)&XEXP (note, 1);
@@ -2060,7 +2023,7 @@ simplify_using_initial_values (struct loop *loop, enum rtx_code op, rtx *expr)
 	      /* Likewise for the conditions.  */
 	      for (pnote = &cond_list; *pnote; pnote = pnote_next)
 		{
-		  rtx note = *pnote;
+		  rtx_expr_list *note = *pnote;
 		  rtx old_cond = XEXP (note, 0);
 
 		  pnote_next = (rtx_expr_list **)&XEXP (note, 1);
@@ -2107,7 +2070,7 @@ simplify_using_initial_values (struct loop *loop, enum rtx_code op, rtx *expr)
    is SIGNED_P to DESC.  */
 
 static void
-shorten_into_mode (struct rtx_iv *iv, enum machine_mode mode,
+shorten_into_mode (struct rtx_iv *iv, scalar_int_mode mode,
 		   enum rtx_code cond, bool signed_p, struct niter_desc *desc)
 {
   rtx mmin, mmax, cond_over, cond_under;
@@ -2169,7 +2132,7 @@ static bool
 canonicalize_iv_subregs (struct rtx_iv *iv0, struct rtx_iv *iv1,
 			 enum rtx_code cond, struct niter_desc *desc)
 {
-  enum machine_mode comp_mode;
+  scalar_int_mode comp_mode;
   bool signed_p;
 
   /* If the ivs behave specially in the first iteration, or are
@@ -2302,7 +2265,7 @@ determine_max_iter (struct loop *loop, struct niter_desc *desc, rtx old_niter)
     }
 
   get_mode_bounds (desc->mode, desc->signed_p, desc->mode, &mmin, &mmax);
-  nmax = INTVAL (mmax) - INTVAL (mmin);
+  nmax = UINTVAL (mmax) - UINTVAL (mmin);
 
   if (GET_CODE (niter) == UDIV)
     {
@@ -2330,7 +2293,7 @@ determine_max_iter (struct loop *loop, struct niter_desc *desc, rtx old_niter)
   if (andmax)
     nmax = MIN (nmax, andmax);
   if (dump_file)
-    fprintf (dump_file, ";; Determined upper bound %"PRId64".\n",
+    fprintf (dump_file, ";; Determined upper bound %" PRId64".\n",
 	     nmax);
   return nmax;
 }
@@ -2344,13 +2307,14 @@ iv_number_of_iterations (struct loop *loop, rtx_insn *insn, rtx condition,
 			 struct niter_desc *desc)
 {
   rtx op0, op1, delta, step, bound, may_xform, tmp, tmp0, tmp1;
-  struct rtx_iv iv0, iv1, tmp_iv;
+  struct rtx_iv iv0, iv1;
   rtx assumption, may_not_xform;
   enum rtx_code cond;
-  enum machine_mode mode, comp_mode;
+  machine_mode nonvoid_mode;
+  scalar_int_mode comp_mode;
   rtx mmin, mmax, mode_mmin, mode_mmax;
-  uint64_t s, size, d, inv, max;
-  int64_t up, down, inc, step_val;
+  uint64_t s, size, d, inv, max, up, down;
+  int64_t inc, step_val;
   int was_sharp = false;
   rtx old_niter;
   bool step_is_pow2;
@@ -2372,28 +2336,24 @@ iv_number_of_iterations (struct loop *loop, rtx_insn *insn, rtx condition,
   cond = GET_CODE (condition);
   gcc_assert (COMPARISON_P (condition));
 
-  mode = GET_MODE (XEXP (condition, 0));
-  if (mode == VOIDmode)
-    mode = GET_MODE (XEXP (condition, 1));
+  nonvoid_mode = GET_MODE (XEXP (condition, 0));
+  if (nonvoid_mode == VOIDmode)
+    nonvoid_mode = GET_MODE (XEXP (condition, 1));
   /* The constant comparisons should be folded.  */
-  gcc_assert (mode != VOIDmode);
+  gcc_assert (nonvoid_mode != VOIDmode);
 
   /* We only handle integers or pointers.  */
-  if (GET_MODE_CLASS (mode) != MODE_INT
-      && GET_MODE_CLASS (mode) != MODE_PARTIAL_INT)
+  scalar_int_mode mode;
+  if (!is_a <scalar_int_mode> (nonvoid_mode, &mode))
     goto fail;
 
   op0 = XEXP (condition, 0);
-  if (!iv_analyze (insn, op0, &iv0))
+  if (!iv_analyze (insn, mode, op0, &iv0))
     goto fail;
-  if (iv0.extend_mode == VOIDmode)
-    iv0.mode = iv0.extend_mode = mode;
 
   op1 = XEXP (condition, 1);
-  if (!iv_analyze (insn, op1, &iv1))
+  if (!iv_analyze (insn, mode, op1, &iv1))
     goto fail;
-  if (iv1.extend_mode == VOIDmode)
-    iv1.mode = iv1.extend_mode = mode;
 
   if (GET_MODE_BITSIZE (iv0.extend_mode) > HOST_BITS_PER_WIDE_INT
       || GET_MODE_BITSIZE (iv1.extend_mode) > HOST_BITS_PER_WIDE_INT)
@@ -2407,7 +2367,7 @@ iv_number_of_iterations (struct loop *loop, rtx_insn *insn, rtx condition,
       case GT:
       case GEU:
       case GTU:
-	tmp_iv = iv0; iv0 = iv1; iv1 = tmp_iv;
+	std::swap (iv0, iv1);
 	cond = swap_condition (cond);
 	break;
       case NE:
@@ -3028,6 +2988,8 @@ find_simple_exit (struct loop *loop, struct niter_desc *desc)
 
 	  fprintf (dump_file, "  upper bound: %li\n",
 		   (long)get_max_loop_iterations_int (loop));
+	  fprintf (dump_file, "  likely upper bound: %li\n",
+		   (long)get_likely_max_loop_iterations_int (loop));
 	  fprintf (dump_file, "  realistic bound: %li\n",
 		   (long)get_estimated_loop_iterations_int (loop));
 	}
@@ -3055,42 +3017,6 @@ get_simple_loop_desc (struct loop *loop)
   iv_analysis_loop_init (loop);
   find_simple_exit (loop, desc);
   loop->simple_loop_desc = desc;
-
-  if (desc->simple_p && (desc->assumptions || desc->infinite))
-    {
-      const char *wording;
-
-      /* Assume that no overflow happens and that the loop is finite.
-	 We already warned at the tree level if we ran optimizations there.  */
-      if (!flag_tree_loop_optimize && warn_unsafe_loop_optimizations)
-	{
-	  if (desc->infinite)
-	    {
-	      wording =
-		flag_unsafe_loop_optimizations
-		? N_("assuming that the loop is not infinite")
-		: N_("cannot optimize possibly infinite loops");
-	      warning (OPT_Wunsafe_loop_optimizations, "%s",
-		       gettext (wording));
-	    }
-	  if (desc->assumptions)
-	    {
-	      wording =
-		flag_unsafe_loop_optimizations
-		? N_("assuming that the loop counter does not overflow")
-		: N_("cannot optimize loop, the loop counter may overflow");
-	      warning (OPT_Wunsafe_loop_optimizations, "%s",
-		       gettext (wording));
-	    }
-	}
-
-      if (flag_unsafe_loop_optimizations)
-	{
-	  desc->assumptions = NULL_RTX;
-	  desc->infinite = NULL_RTX;
-	}
-    }
-
   return desc;
 }
 

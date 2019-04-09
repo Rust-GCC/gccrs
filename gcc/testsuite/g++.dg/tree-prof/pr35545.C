@@ -27,7 +27,7 @@ int main()
 
   A* ap = 0;
 
-  for (i = 0; i < 10000; i++)
+  for (i = 0; i < 1000000; i++)
   {
 
      if (i%7==0)
@@ -47,6 +47,4 @@ int main()
 
 }
 /* { dg-final-use { scan-ipa-dump "Indirect call -> direct call" "profile_estimate" } } */
-/* { dg-final-use { cleanup-ipa-dump "profile" } } */
-/* { dg-final-use { scan-ipa-dump-not "OBJ_TYPE_REF" "optimized" } } */
-/* { dg-final-use { cleanup-tree-dump "optimized" } } */
+/* { dg-final-use { scan-tree-dump-not "OBJ_TYPE_REF" "optimized" } } */

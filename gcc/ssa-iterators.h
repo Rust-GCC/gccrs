@@ -1,5 +1,5 @@
 /* Header file for SSA iterators.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -93,6 +93,12 @@ struct imm_use_iterator
      break;							\
    }
 
+/* Similarly for return.  */
+#define RETURN_FROM_IMM_USE_STMT(ITER, VAL)			\
+  {								\
+    end_imm_use_stmt_traverse (&(ITER));			\
+    return (VAL);						\
+  }
 
 /* Use this iterator in combination with FOR_EACH_IMM_USE_STMT to
    get access to each occurrence of ssavar on the stmt returned by
@@ -114,9 +120,8 @@ struct imm_use_iterator
 
 
 
-extern bool has_zero_uses_1 (const ssa_use_operand_t *head);
 extern bool single_imm_use_1 (const ssa_use_operand_t *head,
-			      use_operand_p *use_p, gimple *stmt);
+			      use_operand_p *use_p, gimple **stmt);
 
 
 enum ssa_op_iter_type {
@@ -139,7 +144,7 @@ struct ssa_op_iter
   unsigned i;
   unsigned numops;
   use_optype_p uses;
-  gimple stmt;
+  gimple *stmt;
 };
 
 /* NOTE: Keep these in sync with doc/tree-ssa.texi.  */
@@ -194,7 +199,9 @@ struct ssa_op_iter
    a real stmt or a PHI node, looking at the USE nodes matching FLAGS.  */
 #define FOR_EACH_PHI_OR_STMT_USE(USEVAR, STMT, ITER, FLAGS)	\
   for ((USEVAR) = (gimple_code (STMT) == GIMPLE_PHI 		\
-		   ? op_iter_init_phiuse (&(ITER), STMT, FLAGS)	\
+		   ? op_iter_init_phiuse (&(ITER),              \
+					  as_a <gphi *> (STMT), \
+					  FLAGS)		\
 		   : op_iter_init_use (&(ITER), STMT, FLAGS));	\
        !op_iter_done (&(ITER));					\
        (USEVAR) = op_iter_next_use (&(ITER)))
@@ -203,7 +210,9 @@ struct ssa_op_iter
    a real stmt or a PHI node, looking at the DEF nodes matching FLAGS.  */
 #define FOR_EACH_PHI_OR_STMT_DEF(DEFVAR, STMT, ITER, FLAGS)	\
   for ((DEFVAR) = (gimple_code (STMT) == GIMPLE_PHI 		\
-		   ? op_iter_init_phidef (&(ITER), STMT, FLAGS)	\
+		   ? op_iter_init_phidef (&(ITER),		\
+					  as_a <gphi *> (STMT), \
+					  FLAGS)		\
 		   : op_iter_init_def (&(ITER), STMT, FLAGS));	\
        !op_iter_done (&(ITER));					\
        (DEFVAR) = op_iter_next_def (&(ITER)))
@@ -288,7 +297,7 @@ set_ssa_use_from_ptr (use_operand_p use, tree val)
 /* Link ssa_imm_use node LINKNODE into the chain for DEF, with use occurring
    in STMT.  */
 static inline void
-link_imm_use_stmt (ssa_use_operand_t *linknode, tree def, gimple stmt)
+link_imm_use_stmt (ssa_use_operand_t *linknode, tree def, gimple *stmt)
 {
   if (stmt)
     link_imm_use (linknode, def);
@@ -318,7 +327,7 @@ relink_imm_use (ssa_use_operand_t *node, ssa_use_operand_t *old)
    in STMT.  */
 static inline void
 relink_imm_use_stmt (ssa_use_operand_t *linknode, ssa_use_operand_t *old,
-		     gimple stmt)
+		     gimple *stmt)
 {
   if (stmt)
     relink_imm_use (linknode, old);
@@ -341,9 +350,7 @@ first_readonly_imm_use (imm_use_iterator *imm, tree var)
 {
   imm->end_p = &(SSA_NAME_IMM_USE_NODE (var));
   imm->imm_use = imm->end_p->next;
-#ifdef ENABLE_CHECKING
   imm->iter_node.next = imm->imm_use->next;
-#endif
   if (end_readonly_imm_use_p (imm))
     return NULL_USE_OPERAND_P;
   return imm->imm_use;
@@ -355,14 +362,15 @@ next_readonly_imm_use (imm_use_iterator *imm)
 {
   use_operand_p old = imm->imm_use;
 
-#ifdef ENABLE_CHECKING
   /* If this assertion fails, it indicates the 'next' pointer has changed
      since the last bump.  This indicates that the list is being modified
      via stmt changes, or SET_USE, or somesuch thing, and you need to be
      using the SAFE version of the iterator.  */
-  gcc_assert (imm->iter_node.next == old->next);
-  imm->iter_node.next = old->next->next;
-#endif
+  if (flag_checking)
+    {
+      gcc_assert (imm->iter_node.next == old->next);
+      imm->iter_node.next = old->next->next;
+    }
 
   imm->imm_use = old->next;
   if (end_readonly_imm_use_p (imm))
@@ -375,46 +383,40 @@ next_readonly_imm_use (imm_use_iterator *imm)
 static inline bool
 has_zero_uses (const_tree var)
 {
-  const ssa_use_operand_t *const ptr = &(SSA_NAME_IMM_USE_NODE (var));
+  const ssa_use_operand_t *const head = &(SSA_NAME_IMM_USE_NODE (var));
+  const ssa_use_operand_t *ptr;
 
-  /* A single use_operand means there is no items in the list.  */
-  if (ptr == ptr->next)
-    return true;
+  for (ptr = head->next; ptr != head; ptr = ptr->next)
+    if (USE_STMT (ptr) && !is_gimple_debug (USE_STMT (ptr)))
+      return false;
 
-  /* If there are debug stmts, we have to look at each use and see
-     whether there are any nondebug uses.  */
-  if (!MAY_HAVE_DEBUG_STMTS)
-    return false;
-
-  return has_zero_uses_1 (ptr);
+  return true;
 }
 
 /* Return true if VAR has a single nondebug use.  */
 static inline bool
 has_single_use (const_tree var)
 {
-  const ssa_use_operand_t *const ptr = &(SSA_NAME_IMM_USE_NODE (var));
+  const ssa_use_operand_t *const head = &(SSA_NAME_IMM_USE_NODE (var));
+  const ssa_use_operand_t *ptr;
+  bool single = false;
+   
+  for (ptr = head->next; ptr != head; ptr = ptr->next)
+    if (USE_STMT(ptr) && !is_gimple_debug (USE_STMT (ptr)))
+      {
+	if (single)
+	  return false;
+	else 
+	  single = true;
+      }
 
-  /* If there aren't any uses whatsoever, we're done.  */
-  if (ptr == ptr->next)
-    return false;
-
-  /* If there's a single use, check that it's not a debug stmt.  */
-  if (ptr == ptr->next->next)
-    return !is_gimple_debug (USE_STMT (ptr->next));
-
-  /* If there are debug stmts, we have to look at each of them.  */
-  if (!MAY_HAVE_DEBUG_STMTS)
-    return false;
-
-  return single_imm_use_1 (ptr, NULL, NULL);
+  return single;
 }
-
-
+    
 /* If VAR has only a single immediate nondebug use, return true, and
    set USE_P and STMT to the use pointer and stmt of occurrence.  */
 static inline bool
-single_imm_use (const_tree var, use_operand_p *use_p, gimple *stmt)
+single_imm_use (const_tree var, use_operand_p *use_p, gimple **stmt)
 {
   const ssa_use_operand_t *const ptr = &(SSA_NAME_IMM_USE_NODE (var));
 
@@ -430,7 +432,7 @@ single_imm_use (const_tree var, use_operand_p *use_p, gimple *stmt)
   /* If there's a single use, check that it's not a debug stmt.  */
   if (ptr == ptr->next->next)
     {
-      if (!is_gimple_debug (USE_STMT (ptr->next)))
+      if (USE_STMT (ptr->next) && !is_gimple_debug (USE_STMT (ptr->next)))
 	{
 	  *use_p = ptr->next;
 	  *stmt = ptr->next->loc.stmt;
@@ -439,10 +441,6 @@ single_imm_use (const_tree var, use_operand_p *use_p, gimple *stmt)
       else
 	goto return_false;
     }
-
-  /* If there are debug stmts, we have to look at each of them.  */
-  if (!MAY_HAVE_DEBUG_STMTS)
-    goto return_false;
 
   return single_imm_use_1 (ptr, use_p, stmt);
 }
@@ -455,12 +453,15 @@ num_imm_uses (const_tree var)
   const ssa_use_operand_t *ptr;
   unsigned int num = 0;
 
-  if (!MAY_HAVE_DEBUG_STMTS)
-    for (ptr = start->next; ptr != start; ptr = ptr->next)
-      num++;
+  if (!MAY_HAVE_DEBUG_BIND_STMTS)
+    {
+      for (ptr = start->next; ptr != start; ptr = ptr->next)
+	if (USE_STMT (ptr))
+	  num++;
+    }
   else
     for (ptr = start->next; ptr != start; ptr = ptr->next)
-      if (!is_gimple_debug (USE_STMT (ptr)))
+      if (USE_STMT (ptr) && !is_gimple_debug (USE_STMT (ptr)))
 	num++;
 
   return num;
@@ -592,7 +593,7 @@ clear_and_done_ssa_iter (ssa_op_iter *ptr)
 
 /* Initialize the iterator PTR to the virtual defs in STMT.  */
 static inline void
-op_iter_init (ssa_op_iter *ptr, gimple stmt, int flags)
+op_iter_init (ssa_op_iter *ptr, gimple *stmt, int flags)
 {
   /* PHI nodes require a different iterator initialization path.  We
      do not support iterating over virtual defs or uses without
@@ -610,7 +611,11 @@ op_iter_init (ssa_op_iter *ptr, gimple stmt, int flags)
 	    ptr->numops = 1;
 	    break;
 	  case GIMPLE_ASM:
-	    ptr->numops = gimple_asm_noutputs (stmt);
+	    ptr->numops = gimple_asm_noutputs (as_a <gasm *> (stmt));
+	    break;
+	  case GIMPLE_TRANSACTION:
+	    ptr->numops = 0;
+	    flags &= ~SSA_OP_DEF;
 	    break;
 	  default:
 	    ptr->numops = 0;
@@ -633,7 +638,7 @@ op_iter_init (ssa_op_iter *ptr, gimple stmt, int flags)
 /* Initialize iterator PTR to the use operands in STMT based on FLAGS. Return
    the first use.  */
 static inline use_operand_p
-op_iter_init_use (ssa_op_iter *ptr, gimple stmt, int flags)
+op_iter_init_use (ssa_op_iter *ptr, gimple *stmt, int flags)
 {
   gcc_checking_assert ((flags & SSA_OP_ALL_DEFS) == 0
 		       && (flags & SSA_OP_USE));
@@ -645,7 +650,7 @@ op_iter_init_use (ssa_op_iter *ptr, gimple stmt, int flags)
 /* Initialize iterator PTR to the def operands in STMT based on FLAGS. Return
    the first def.  */
 static inline def_operand_p
-op_iter_init_def (ssa_op_iter *ptr, gimple stmt, int flags)
+op_iter_init_def (ssa_op_iter *ptr, gimple *stmt, int flags)
 {
   gcc_checking_assert ((flags & SSA_OP_ALL_USES) == 0
 		       && (flags & SSA_OP_DEF));
@@ -657,7 +662,7 @@ op_iter_init_def (ssa_op_iter *ptr, gimple stmt, int flags)
 /* Initialize iterator PTR to the operands in STMT based on FLAGS. Return
    the first operand as a tree.  */
 static inline tree
-op_iter_init_tree (ssa_op_iter *ptr, gimple stmt, int flags)
+op_iter_init_tree (ssa_op_iter *ptr, gimple *stmt, int flags)
 {
   op_iter_init (ptr, stmt, flags);
   ptr->iter_type = ssa_op_iter_tree;
@@ -668,7 +673,7 @@ op_iter_init_tree (ssa_op_iter *ptr, gimple stmt, int flags)
 /* If there is a single operand in STMT matching FLAGS, return it.  Otherwise
    return NULL.  */
 static inline tree
-single_ssa_tree_operand (gimple stmt, int flags)
+single_ssa_tree_operand (gimple *stmt, int flags)
 {
   tree var;
   ssa_op_iter iter;
@@ -686,7 +691,7 @@ single_ssa_tree_operand (gimple stmt, int flags)
 /* If there is a single operand in STMT matching FLAGS, return it.  Otherwise
    return NULL.  */
 static inline use_operand_p
-single_ssa_use_operand (gimple stmt, int flags)
+single_ssa_use_operand (gimple *stmt, int flags)
 {
   use_operand_p var;
   ssa_op_iter iter;
@@ -700,12 +705,21 @@ single_ssa_use_operand (gimple stmt, int flags)
   return NULL_USE_OPERAND_P;
 }
 
+/* Return the single virtual use operand in STMT if present.  Otherwise
+   return NULL.  */
+static inline use_operand_p
+ssa_vuse_operand (gimple *stmt)
+{
+  if (! gimple_vuse (stmt))
+    return NULL_USE_OPERAND_P;
+  return USE_OP_PTR (gimple_use_ops (stmt));
+}
 
 
 /* If there is a single operand in STMT matching FLAGS, return it.  Otherwise
    return NULL.  */
 static inline def_operand_p
-single_ssa_def_operand (gimple stmt, int flags)
+single_ssa_def_operand (gimple *stmt, int flags)
 {
   def_operand_p var;
   ssa_op_iter iter;
@@ -723,7 +737,7 @@ single_ssa_def_operand (gimple stmt, int flags)
 /* Return true if there are zero operands in STMT matching the type
    given in FLAGS.  */
 static inline bool
-zero_ssa_operands (gimple stmt, int flags)
+zero_ssa_operands (gimple *stmt, int flags)
 {
   ssa_op_iter iter;
 
@@ -734,7 +748,7 @@ zero_ssa_operands (gimple stmt, int flags)
 
 /* Return the number of operands matching FLAGS in STMT.  */
 static inline int
-num_ssa_operands (gimple stmt, int flags)
+num_ssa_operands (gimple *stmt, int flags)
 {
   ssa_op_iter iter;
   tree t;
@@ -749,7 +763,7 @@ num_ssa_operands (gimple stmt, int flags)
 /* If there is a single DEF in the PHI node which matches FLAG, return it.
    Otherwise return NULL_DEF_OPERAND_P.  */
 static inline tree
-single_phi_def (gimple stmt, int flags)
+single_phi_def (gphi *stmt, int flags)
 {
   tree def = PHI_RESULT (stmt);
   if ((flags & SSA_OP_DEF) && is_gimple_reg (def))
@@ -762,7 +776,7 @@ single_phi_def (gimple stmt, int flags)
 /* Initialize the iterator PTR for uses matching FLAGS in PHI.  FLAGS should
    be either SSA_OP_USES or SSA_OP_VIRTUAL_USES.  */
 static inline use_operand_p
-op_iter_init_phiuse (ssa_op_iter *ptr, gimple phi, int flags)
+op_iter_init_phiuse (ssa_op_iter *ptr, gphi *phi, int flags)
 {
   tree phi_def = gimple_phi_result (phi);
   int comp;
@@ -792,7 +806,7 @@ op_iter_init_phiuse (ssa_op_iter *ptr, gimple phi, int flags)
 /* Start an iterator for a PHI definition.  */
 
 static inline def_operand_p
-op_iter_init_phidef (ssa_op_iter *ptr, gimple phi, int flags)
+op_iter_init_phidef (ssa_op_iter *ptr, gphi *phi, int flags)
 {
   tree phi_def = PHI_RESULT (phi);
   int comp;
@@ -873,7 +887,7 @@ link_use_stmts_after (use_operand_p head, imm_use_iterator *imm)
 {
   use_operand_p use_p;
   use_operand_p last_p = head;
-  gimple head_stmt = USE_STMT (head);
+  gimple *head_stmt = USE_STMT (head);
   tree use = USE_FROM_PTR (head);
   ssa_op_iter op_iter;
   int flag;
@@ -881,9 +895,9 @@ link_use_stmts_after (use_operand_p head, imm_use_iterator *imm)
   /* Only look at virtual or real uses, depending on the type of HEAD.  */
   flag = (is_gimple_reg (use) ? SSA_OP_USE : SSA_OP_VIRTUAL_USES);
 
-  if (gimple_code (head_stmt) == GIMPLE_PHI)
+  if (gphi *phi = dyn_cast <gphi *> (head_stmt))
     {
-      FOR_EACH_PHI_ARG (use_p, head_stmt, op_iter, flag)
+      FOR_EACH_PHI_ARG (use_p, phi, op_iter, flag)
 	if (USE_FROM_PTR (use_p) == use)
 	  last_p = move_use_after_head (use_p, head, last_p);
     }
@@ -908,7 +922,7 @@ link_use_stmts_after (use_operand_p head, imm_use_iterator *imm)
 }
 
 /* Initialize IMM to traverse over uses of VAR.  Return the first statement.  */
-static inline gimple
+static inline gimple *
 first_imm_use_stmt (imm_use_iterator *imm, tree var)
 {
   imm->end_p = &(SSA_NAME_IMM_USE_NODE (var));
@@ -933,7 +947,7 @@ first_imm_use_stmt (imm_use_iterator *imm, tree var)
 
 /* Bump IMM to the next stmt which has a use of var.  */
 
-static inline gimple
+static inline gimple *
 next_imm_use_stmt (imm_use_iterator *imm)
 {
   imm->imm_use = imm->iter_node.next;
@@ -983,7 +997,7 @@ next_imm_use_on_stmt (imm_use_iterator *imm)
 
 /* Delink all immediate_use information for STMT.  */
 static inline void
-delink_stmt_imm_use (gimple stmt)
+delink_stmt_imm_use (gimple *stmt)
 {
    ssa_op_iter iter;
    use_operand_p use_p;

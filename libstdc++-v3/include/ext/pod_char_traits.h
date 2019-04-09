@@ -1,6 +1,6 @@
 // POD character, std::char_traits specialization -*- C++ -*-
 
-// Copyright (C) 2002-2014 Free Software Foundation, Inc.
+// Copyright (C) 2002-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -144,6 +144,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       static char_type*
       move(char_type* __s1, const char_type* __s2, size_t __n)
       { 
+	if (__n == 0)
+	  return __s1;
 	return static_cast<char_type*>
 	  (__builtin_memmove(__s1, __s2, __n * sizeof(char_type)));
       }
@@ -151,6 +153,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       static char_type*
       copy(char_type* __s1, const char_type* __s2, size_t __n)
       {
+	if (__n == 0)
+	  return __s1;
 	std::copy(__s2, __s2 + __n, __s1);
 	return __s1;
       }

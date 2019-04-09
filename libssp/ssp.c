@@ -1,5 +1,5 @@
 /* Stack protector support.
-   Copyright (C) 2005-2013 Free Software Foundation, Inc.
+   Copyright (C) 2005-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -55,6 +55,8 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 /* Native win32 apps don't know about /dev/tty but can print directly
    to the console using  "CONOUT$"   */
 #if defined (_WIN32) && !defined (__CYGWIN__)
+#include <windows.h>
+#include <wincrypt.h>
 # define _PATH_TTY "CONOUT$"
 #else
 # define _PATH_TTY "/dev/tty"
@@ -70,12 +72,25 @@ static void __attribute__ ((constructor))
 __guard_setup (void)
 {
   unsigned char *p;
-  int fd;
 
   if (__stack_chk_guard != 0)
     return;
 
-  fd = open ("/dev/urandom", O_RDONLY);
+#if defined (_WIN32) && !defined (__CYGWIN__)
+  HCRYPTPROV hprovider = 0;
+  if (CryptAcquireContext(&hprovider, NULL, NULL, PROV_RSA_FULL,
+                          CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
+    {
+      if (CryptGenRandom(hprovider, sizeof (__stack_chk_guard),
+          (BYTE *)&__stack_chk_guard) &&  __stack_chk_guard != 0)
+        {
+           CryptReleaseContext(hprovider, 0);
+           return;
+        }
+      CryptReleaseContext(hprovider, 0);
+    }
+#else
+  int fd = open ("/dev/urandom", O_RDONLY);
   if (fd != -1)
     {
       ssize_t size = read (fd, &__stack_chk_guard,
@@ -85,6 +100,7 @@ __guard_setup (void)
         return;
     }
 
+#endif
   /* If a random generator can't be used, the protector switches the guard
      to the "terminator canary".  */
   p = (unsigned char *) &__stack_chk_guard;

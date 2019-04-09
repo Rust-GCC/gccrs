@@ -1,4 +1,4 @@
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,8 +15,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-do compile }
-// { dg-options "-std=gnu++11" }
+// { dg-do compile { target c++11 } }
 
 #include <map>
 #include <testsuite_allocator.h>
@@ -27,16 +26,10 @@ bool operator<(T l, T r) { return l.i < r.i; }
 
 using Cmp = std::less<T>;
 
-struct U { };
+struct CmpThrow : Cmp { };
+void swap(CmpThrow&, CmpThrow&) noexcept(false) { }
 
-namespace __gnu_test
-{
-  template<typename U>
-    inline void
-    swap(propagating_allocator<U, true>& l, propagating_allocator<U, true>& r)
-    noexcept(false)
-    { }
-}
+struct U { };
 
 using __gnu_test::propagating_allocator;
 
@@ -53,6 +46,16 @@ void test01()
 
 void test02()
 {
+  typedef std::allocator<std::pair<const T, U>> alloc_type;
+  typedef std::map<T, U, CmpThrow, alloc_type> test_type;
+  test_type v1;
+  test_type v2;
+  static_assert( noexcept( v1 = std::move(v2) ), "Move assign cannot throw" );
+  static_assert( !noexcept( v1.swap(v2) ), "Swap can throw" );
+}
+
+void test03()
+{
   typedef propagating_allocator<std::pair<const T, U>, false> alloc_type;
   typedef std::map<T, U, Cmp, alloc_type> test_type;
   test_type v1(alloc_type(1));
@@ -61,12 +64,12 @@ void test02()
   static_assert( noexcept( v1.swap(v2) ), "Swap cannot throw" );
 }
 
-void test03()
+void test04()
 {
   typedef propagating_allocator<std::pair<const T, U>, true> alloc_type;
   typedef std::map<T, U, Cmp, alloc_type> test_type;
   test_type v1(alloc_type(1));
   test_type v2(alloc_type(2));
   static_assert( noexcept( v1 = std::move(v2) ), "Move assign cannot throw" );
-  static_assert( !noexcept( v1.swap(v2) ), "Swap can throw" );
+  static_assert( noexcept( v1.swap(v2) ), "Swap cannot throw" );
 }

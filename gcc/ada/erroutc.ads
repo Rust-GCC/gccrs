@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -68,6 +68,10 @@ package Erroutc is
    --  "info: " and is to be treated as an information message. This string
    --  will be prepended to the message and all its continuations.
 
+   Is_Check_Msg : Boolean := False;
+   --  Set True to indicate that the current message starts with one of
+   --  "high: ", "medium: ", "low: " and is to be treated as a check message.
+
    Warning_Msg_Char : Character;
    --  Warning character, valid only if Is_Warning_Msg is True
    --    ' '      -- ?   or <   appeared on its own in message
@@ -127,6 +131,11 @@ package Erroutc is
    --  instantiation. If this variable is set True, then this note is not
    --  output. This is used for internal processing for the case of an
    --  illegal instantiation. See Error_Msg routine for further details.
+
+   type Subprogram_Name_Type is access function (N : Node_Id) return String;
+   Subprogram_Name_Ptr : Subprogram_Name_Type;
+   --  Indirect call to Sem_Util.Subprogram_Name to break circular
+   --  dependency with the static elaboration model.
 
    ----------------------------
    -- Message ID Definitions --
@@ -188,13 +197,13 @@ package Erroutc is
       --  have Sptr pointing to the instantiation point.
 
       Optr : Source_Ptr;
-      --  Flag location used in the call to post the error. This is normally
-      --  the same as Sptr, except when an error is posted on a particular
-      --  instantiation of a generic. In such a case, Sptr will point to
-      --  the original source location of the instantiation itself, but
-      --  Optr will point to the template location (more accurately to the
-      --  template copy in the instantiation copy corresponding to the
-      --  instantiation referenced by Sptr).
+      --  Flag location used in the call to post the error. This is the same as
+      --  Sptr, except when an error is posted on a particular instantiation of
+      --  a generic. In such a case, Sptr will point to the original source
+      --  location of the instantiation itself, but Optr will point to the
+      --  template location (more accurately to the template copy in the
+      --  instantiation copy corresponding to the instantiation referenced by
+      --  Sptr).
 
       Line : Physical_Line_Number;
       --  Line number for error message
@@ -207,6 +216,9 @@ package Erroutc is
 
       Info : Boolean;
       --  True if info message
+
+      Check : Boolean;
+      --  True if check message
 
       Warn_Err : Boolean;
       --  True if this is a warning message which is to be treated as an error
@@ -244,6 +256,11 @@ package Erroutc is
       Deleted : Boolean;
       --  If this flag is set, the message is not printed. This is used
       --  in the circuit for deleting duplicate/redundant error messages.
+
+      Node : Node_Id;
+      --  If set, points to the node relevant for this message which will be
+      --  used to compute the enclosing subprogram name if
+      --  Opt.Include_Subprogram_In_Messages is set.
    end record;
 
    package Errors is new Table.Table (
@@ -520,7 +537,8 @@ package Erroutc is
    procedure Set_Msg_Str (Text : String);
    --  Add a sequence of characters to the current message. This routine does
    --  not check for special insertion characters (they are just treated as
-   --  text characters if they occur).
+   --  text characters if they occur). It does perform the transformation of
+   --  the special strings _xxx (xxx = Pre/Post/Type_Invariant) to xxx'Class.
 
    procedure Set_Next_Non_Deleted_Msg (E : in out Error_Msg_Id);
    --  Given a message id, move to next message id, but skip any deleted
@@ -544,7 +562,7 @@ package Erroutc is
    --  pragma, or the null string if no reason is given. Config is True for the
    --  configuration pragma case (where there is no requirement for a matching
    --  OFF pragma). Used is set True to disable the check that the warning
-   --  actually has has the effect of suppressing a warning.
+   --  actually has the effect of suppressing a warning.
 
    procedure Set_Specific_Warning_On
      (Loc : Source_Ptr;
@@ -572,7 +590,7 @@ package Erroutc is
    --  which generates a warning range for the whole source file). This routine
    --  only deals with the general ON/OFF case, not specific warnings. The
    --  returned result is No_String if warnings are not suppressed. If warnings
-   --  are suppressed for the given location, then then corresponding Reason
+   --  are suppressed for the given location, then corresponding Reason
    --  parameter from the pragma is returned (or the null string if no Reason
    --  parameter was present).
 

@@ -1,6 +1,6 @@
 // 2005-01-26 Douglas Gregor <dgregor@cs.indiana.edu>
 //
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -68,7 +68,7 @@ void test01(int r = 0)
   const int& bypc = mem_fn(&X::bar)(ypc);
   const int& byd = mem_fn(&X::bar)(yd);
   const int& bydc = mem_fn(&X::bar)(ydc);
-  
+
   // Avoid unused variable warnings.
   r = bx + bxc + bxp + bxpc + bxd + bxdc + by + byc + byp + bypc + byd + bydc;
 }

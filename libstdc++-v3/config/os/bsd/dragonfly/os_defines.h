@@ -1,6 +1,6 @@
 // Specific definitions for BSD  -*- C++ -*-
 
-// Copyright (C) 2014 Free Software Foundation, Inc.
+// Copyright (C) 2014-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,5 +28,14 @@
 
 // System-specific #define, typedefs, corrections, etc, go here.  This
 // file will come before all others.
+
+#define _GLIBCXX_USE_C99 1
+#define _GLIBCXX_USE_C99_STDIO 1
+#define _GLIBCXX_USE_C99_STDLIB 1
+#define _GLIBCXX_USE_C99_WCHAR 1
+#define _GLIBCXX_USE_C99_CHECK 1
+#define _GLIBCXX_USE_C99_DYNAMIC (!(__ISO_C_VISIBLE >= 1999))
+#define _GLIBCXX_USE_C99_LONG_LONG_CHECK 1
+#define _GLIBCXX_USE_C99_LONG_LONG_DYNAMIC (_GLIBCXX_USE_C99_DYNAMIC || !defined __LONG_LONG_SUPPORTED)
 
 #endif

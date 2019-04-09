@@ -1,30 +1,34 @@
 msim
 Target
-Use simulator runtime
+Use simulator runtime.
 
 masm-hex
 Target Mask(ASM_HEX)
-Force assembly output to always use hex constants
+Force assembly output to always use hex constants.
 
 mmcu=
 Target Report ToLower Joined RejectNegative Var(target_mcu)
 Specify the MCU to build for.
 
+mwarn-mcu
+Target Report Var(msp430_warn_mcu) Init(1)
+Warn if an MCU name is unrecognized or conflicts with other options (default: on).
+
 mcpu=
 Target Report Joined RejectNegative Var(target_cpu)
-Specify the ISA to build for: msp430, mdsp430x, msp430xv2
+Specify the ISA to build for: msp430, msp430x, msp430xv2.
 
 mlarge
 Target Report Mask(LARGE) RejectNegative
-Select large model - 20-bit addresses/pointers
+Select large model - 20-bit addresses/pointers.
 
 msmall
 Target Report InverseMask(LARGE) RejectNegative
-Select small model - 16-bit addresses/pointers (default)
+Select small model - 16-bit addresses/pointers (default).
 
 mrelax
 Target Report
-Optimize opcode sizes at link time
+Optimize opcode sizes at link time.
 
 mOs
 Target Undocumented Mask(OPT_SPACE)
@@ -37,23 +41,54 @@ HeaderInclude
 config/msp430/msp430-opts.h
 
 mhwmult=
-Target Joined RejectNegative Report ToLower Var(msp430_hwmult_type) Enum(msp430_hwmult_types) Init(AUTO)
-Specify the type of hardware multiply to support
+Target Joined RejectNegative Report ToLower Var(msp430_hwmult_type) Enum(msp430_hwmult_types) Init(MSP430_HWMULT_AUTO)
+Specify the type of hardware multiply to support.
 
 Enum
 Name(msp430_hwmult_types) Type(enum msp430_hwmult_types)
 
 EnumValue
-Enum(msp430_hwmult_types) String(none) Value(NONE)
+Enum(msp430_hwmult_types) String(none) Value(MSP430_HWMULT_NONE)
 
 EnumValue
-Enum(msp430_hwmult_types) String(auto) Value(AUTO)
+Enum(msp430_hwmult_types) String(auto) Value(MSP430_HWMULT_AUTO)
 
 EnumValue
-Enum(msp430_hwmult_types) String(16bit) Value(SMALL)
+Enum(msp430_hwmult_types) String(16bit) Value(MSP430_HWMULT_SMALL)
 
 EnumValue
-Enum(msp430_hwmult_types) String(32bit) Value(LARGE)
+Enum(msp430_hwmult_types) String(32bit) Value(MSP430_HWMULT_LARGE)
 
 EnumValue
-Enum(msp430_hwmult_types) String(f5series) Value(F5SERIES)
+Enum(msp430_hwmult_types) String(f5series) Value(MSP430_HWMULT_F5SERIES)
+
+mcode-region=
+Target Joined RejectNegative Report ToLower Var(msp430_code_region) Enum(msp430_regions) Init(MSP430_REGION_ANY)
+Specify whether functions should be placed into low or high memory.
+
+mdata-region=
+Target Joined RejectNegative Report ToLower Var(msp430_data_region) Enum(msp430_regions) Init(MSP430_REGION_ANY)
+Specify whether variables should be placed into low or high memory.
+
+Enum
+Name(msp430_regions) Type(enum msp430_regions)
+
+EnumValue
+Enum(msp430_regions) String(none) Value(MSP430_REGION_ANY)
+
+EnumValue
+Enum(msp430_regions) String(either) Value(MSP430_REGION_EITHER)
+
+EnumValue
+Enum(msp430_regions) String(lower) Value(MSP430_REGION_LOWER)
+
+EnumValue
+Enum(msp430_regions) String(upper) Value(MSP430_REGION_UPPER)
+
+msilicon-errata=
+Target Joined RejectNegative Report ToLower
+Passes on a request to the assembler to enable fixes for various silicon errata.
+
+msilicon-errata-warn=
+Target Joined RejectNegative Report ToLower
+Passes on a request to the assembler to warn about various silicon errata.

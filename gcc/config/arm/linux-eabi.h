@@ -1,5 +1,5 @@
 /* Configuration file for ARM GNU/Linux EABI targets.
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2019 Free Software Foundation, Inc.
    Contributed by CodeSourcery, LLC   
 
    This file is part of GCC.
@@ -30,6 +30,9 @@
     }						\
   while (false)
 
+#define EXTRA_TARGET_D_OS_VERSIONS()		\
+  ANDROID_TARGET_D_OS_VERSIONS();
+
 /* We default to a soft-float ABI so that binaries can run on all
    target hardware.  If you override this to use the hard-float ABI then
    change the setting of GLIBC_DYNAMIC_LINKER_DEFAULT as well.  */
@@ -40,12 +43,6 @@
    default.  */
 #undef  ARM_DEFAULT_ABI
 #define ARM_DEFAULT_ABI ARM_ABI_AAPCS_LINUX
-
-/* Default to armv5t so that thumb shared libraries work.
-   The ARM10TDMI core is the default for armv5t, so set
-   SUBTARGET_CPU_DEFAULT to achieve this.  */
-#undef  SUBTARGET_CPU_DEFAULT
-#define SUBTARGET_CPU_DEFAULT TARGET_CPU_arm10tdmi
 
 /* TARGET_BIG_ENDIAN_DEFAULT is set in
    config.gcc for big endian configurations.  */
@@ -77,6 +74,23 @@
     %{mfloat-abi=soft*:" GLIBC_DYNAMIC_LINKER_SOFT_FLOAT "} \
     %{!mfloat-abi=*:" GLIBC_DYNAMIC_LINKER_DEFAULT "}"
 
+/* For ARM musl currently supports four dynamic linkers:
+   - ld-musl-arm.so.1 - for the EABI-derived soft-float ABI
+   - ld-musl-armhf.so.1 - for the EABI-derived hard-float ABI
+   - ld-musl-armeb.so.1 - for the EABI-derived soft-float ABI, EB
+   - ld-musl-armebhf.so.1 - for the EABI-derived hard-float ABI, EB
+   musl does not support the legacy OABI mode.
+   All the dynamic linkers live in /lib.
+   We default to soft-float, EL. */
+#undef  MUSL_DYNAMIC_LINKER
+#if TARGET_BIG_ENDIAN_DEFAULT
+#define MUSL_DYNAMIC_LINKER_E "%{mlittle-endian:;:eb}"
+#else
+#define MUSL_DYNAMIC_LINKER_E "%{mbig-endian:eb}"
+#endif
+#define MUSL_DYNAMIC_LINKER \
+  "/lib/ld-musl-arm" MUSL_DYNAMIC_LINKER_E "%{mfloat-abi=hard:hf}.so.1"
+
 /* At this point, bpabi.h will have clobbered LINK_SPEC.  We want to
    use the GNU/Linux version, not the generic BPABI version.  */
 #undef  LINK_SPEC
@@ -107,6 +121,7 @@
 
 #undef	ENDFILE_SPEC
 #define ENDFILE_SPEC \
+  "%{Ofast|ffast-math|funsafe-math-optimizations:crtfastmath.o%s} "	\
   LINUX_OR_ANDROID_LD (GNU_USER_TARGET_ENDFILE_SPEC, ANDROID_ENDFILE_SPEC)
 
 /* Use the default LIBGCC_SPEC, not the version in linux-elf.h, as we

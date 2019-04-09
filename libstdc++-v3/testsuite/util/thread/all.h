@@ -1,7 +1,7 @@
 // -*- C++ -*-
 // Utilities for testing threads for the C++ library testsuite.
 //
-// Copyright (C) 2009-2014 Free Software Foundation, Inc.
+// Copyright (C) 2009-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,9 +26,9 @@
 #include <stdexcept>
 #include <type_traits>
 
-// C++0x only.
+// C++11 only.
 namespace __gnu_test
-{  
+{
   // Assume _Tp::native_handle_type.
   // Check C++ to native_handle_type characteristics: size and alignment.
   template<typename _Tp>
@@ -42,7 +42,7 @@ namespace __gnu_test
       typedef typename std::remove_pointer<native_handle>::type native_type;
 
       int st = sizeof(test_type);
-      int snt = sizeof(native_type);      
+      int snt = sizeof(native_type);
       int at = __alignof__(test_type);
       int ant = __alignof__(native_type);
       if (st != snt || at != ant)

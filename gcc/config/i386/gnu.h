@@ -1,7 +1,7 @@
 /* Configuration for an i386 running GNU with ELF as the target machine.  */
 
 /*
-Copyright (C) 1994-2014 Free Software Foundation, Inc.
+Copyright (C) 1994-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -27,21 +27,24 @@ along with GCC.  If not, see <http://www.gnu.org/licenses/>.
 #undef	STARTFILE_SPEC
 #if defined HAVE_LD_PIE
 #define STARTFILE_SPEC \
-  "%{!shared: %{pg|p|profile:gcrt0.o%s;pie:Scrt1.o%s;static:crt0.o%s;:crt1.o%s}} \
+  "%{!shared: %{pg|p|profile:%{static:gcrt0.o%s;:gcrt1.o%s};pie:Scrt1.o%s;static:crt0.o%s;:crt1.o%s}} \
    crti.o%s %{static:crtbeginT.o%s;shared|pie:crtbeginS.o%s;:crtbegin.o%s}"
 #else
 #define STARTFILE_SPEC \
-  "%{!shared: %{pg|p|profile:gcrt0.o%s;static:crt0.o%s;:crt1.o%s}} \
+  "%{!shared: %{pg|p|profile:%{static:gcrt0.o%s;:gcrt1.o%s};static:crt0.o%s;:crt1.o%s}} \
    crti.o%s %{static:crtbeginT.o%s;shared|pie:crtbeginS.o%s;:crtbegin.o%s}"
 #endif
 
 #ifdef TARGET_LIBC_PROVIDES_SSP
 
-/* Not supported yet.  */
-# undef TARGET_THREAD_SSP_OFFSET
+/* i386 glibc provides __stack_chk_guard in %gs:0x14.  */
+#define TARGET_THREAD_SSP_OFFSET        0x14
 
-/* Not supported yet.  */
-# undef TARGET_CAN_SPLIT_STACK
-# undef TARGET_THREAD_SPLIT_STACK_OFFSET
-
+/* We only build the -fsplit-stack support in libgcc if the
+   assembler has full support for the CFI directives.  */
+#if HAVE_GAS_CFI_PERSONALITY_DIRECTIVE
+#define TARGET_CAN_SPLIT_STACK
+#endif
+/* We steal the last transactional memory word.  */
+#define TARGET_THREAD_SPLIT_STACK_OFFSET 0x30
 #endif

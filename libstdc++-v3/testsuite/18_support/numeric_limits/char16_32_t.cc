@@ -1,9 +1,9 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 // { dg-require-cstdint "" }
 
 // 2008-05-20  Paolo Carlini  <paolo.carlini@oracle.com>
 //
-// Copyright (C) 2008-2014 Free Software Foundation, Inc.
+// Copyright (C) 2008-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,13 +26,11 @@
 #include <cstdint>
 #include <testsuite_hooks.h>
 
-// Test specializations for char16_t and char32_t, in C++0x.
+// Test specializations for char16_t and char32_t, in C++11.
 template<typename T, typename R>
   void
   do_test()
   {
-    bool test __attribute__((unused)) = true;
-
     typedef std::numeric_limits<T> char_type;
     typedef std::numeric_limits<R> impl_type;
 
@@ -70,8 +68,8 @@ template<typename T, typename R>
 
 int main()
 {
-  do_test<char16_t, uint_least16_t>();
-  do_test<char32_t, uint_least32_t>();
+  do_test<char16_t, std::uint_least16_t>();
+  do_test<char32_t, std::uint_least32_t>();
 
   return 0;
 }

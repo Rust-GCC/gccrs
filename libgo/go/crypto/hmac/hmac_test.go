@@ -25,7 +25,7 @@ type hmacTest struct {
 
 var hmacTests = []hmacTest{
 	// Tests from US FIPS 198
-	// http://csrc.nist.gov/publications/fips/fips198/fips-198a.pdf
+	// https://csrc.nist.gov/publications/fips/fips198/fips-198a.pdf
 	{
 		sha1.New,
 		[]byte{
@@ -205,7 +205,7 @@ var hmacTests = []hmacTest{
 		sha256.BlockSize,
 	},
 
-	// Tests from http://csrc.nist.gov/groups/ST/toolkit/examples.html
+	// Tests from https://csrc.nist.gov/groups/ST/toolkit/examples.html
 	// (truncated tag tests are left out)
 	{
 		sha1.New,
@@ -566,5 +566,31 @@ func TestEqual(t *testing.T) {
 	}
 	if Equal(b, c) {
 		t.Error("Equal accepted unequal slices")
+	}
+}
+
+func BenchmarkHMACSHA256_1K(b *testing.B) {
+	key := make([]byte, 32)
+	buf := make([]byte, 1024)
+	h := New(sha256.New, key)
+	b.SetBytes(int64(len(buf)))
+	for i := 0; i < b.N; i++ {
+		h.Write(buf)
+		h.Reset()
+		mac := h.Sum(nil)
+		buf[0] = mac[0]
+	}
+}
+
+func BenchmarkHMACSHA256_32(b *testing.B) {
+	key := make([]byte, 32)
+	buf := make([]byte, 32)
+	h := New(sha256.New, key)
+	b.SetBytes(int64(len(buf)))
+	for i := 0; i < b.N; i++ {
+		h.Write(buf)
+		h.Reset()
+		mac := h.Sum(nil)
+		buf[0] = mac[0]
 	}
 }

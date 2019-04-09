@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -104,7 +104,7 @@ namespace __gnu_pbds
 	typedef std::map< Native_Key_Type, std::string> type;
 
       public:
-	static const typename type::key_type& 
+	static const typename type::key_type&
         extract_key(typename type::const_reference r_val)
 	{
 	  return (r_val.first);
@@ -130,7 +130,7 @@ namespace __gnu_pbds
 	typedef std::set< Native_Key_Type> type;
 
       public:
-	static const typename type::key_type& 
+	static const typename type::key_type&
         extract_key(typename type::const_reference r_val)
 	{
 	  return (r_val);

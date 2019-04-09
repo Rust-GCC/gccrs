@@ -1,7 +1,8 @@
 // { dg-do compile }
 // { dg-require-normal-mode "" }
+// { dg-require-normal-namespace "" }
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -21,7 +22,9 @@
 #include <list>
 
 namespace std {
+_GLIBCXX_BEGIN_NAMESPACE_CXX11
   template <class T, class Allocator> class list;
+_GLIBCXX_END_NAMESPACE_CXX11
 
   template <class T, class Allocator>
   bool operator==(const list<T,Allocator>& x, const list<T,Allocator>&);

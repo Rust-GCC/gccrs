@@ -1,7 +1,7 @@
 /* { dg-do link } */
 /* { dg-options "-O2 -fdump-tree-optimized" } */
 
-extern int t;
+int t;
 extern void link_error(void);
 int main (void)
 {
@@ -15,4 +15,3 @@ int main (void)
 
 
 /* { dg-final { scan-tree-dump-times "link_error" 0 "optimized"  } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

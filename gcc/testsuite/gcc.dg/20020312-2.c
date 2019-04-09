@@ -7,6 +7,8 @@
 
 /* { dg-do run } */
 /* { dg-options "-O -fno-pic" } */
+/* { dg-additional-options "-no-pie" { target pie_enabled } } */
+/* { dg-require-effective-target nonlocal_goto } */
 
 extern void abort (void);
 
@@ -66,6 +68,8 @@ extern void abort (void);
 # else
 #  define PIC_REG  "30"
 # endif
+#elif defined(__riscv)
+/* No pic register.  */
 #elif defined(__RX__)
 /* No pic register.  */
 #elif defined(__s390__)
@@ -79,6 +83,8 @@ extern void abort (void);
 #elif defined(__v850)
 /* No pic register.  */
 #elif defined(__vax__)
+/* No pic register.  */
+#elif defined(__VISIUM__)
 /* No pic register.  */
 #elif defined(__xstormy16__)
 /* No pic register.  */
@@ -103,6 +109,17 @@ extern void abort (void);
 #elif defined(__RL78__)
 /* No pic register.  */
 #elif defined(__MSP430__)
+/* No pic register.  */
+#elif defined (__nvptx__)
+/* No pic register.  */
+#elif defined (__csky__)
+/* Pic register is r28, but some cores only have r0-r15.  */
+# if defined (__CK807__) || defined (__CK810__)
+#   define PIC_REG  "r28"
+# endif
+#elif defined (__or1k__)
+/* No pic register.  */
+#elif defined (__AMDGCN__)
 /* No pic register.  */
 #else
 # error "Modify the test for your target."

@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-options "-O -fdump-tree-optimized" } */
+/* { dg-add-options bind_pic_locally } */
 
 union X {
     int i;
@@ -24,4 +25,3 @@ void foo (union X *x)
    baz makes sure that ystruct has its address taken.  */
 
 /* { dg-final { scan-tree-dump-not "ystruct" "optimized" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

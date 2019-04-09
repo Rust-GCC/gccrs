@@ -1,7 +1,6 @@
-// { dg-options "-std=gnu++14" }
-// { dg-do run }
+// { dg-do run { target c++14 } }
 
-// Copyright (C) 2014 Free Software Foundation, Inc.
+// Copyright (C) 2014-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -77,32 +76,51 @@ void test02()
   }
 }
 
+static int move_count = 0;
+
 void test03()
 {
-  using std::experimental::bad_any_cast;
-  any x(std::allocator_arg, std::allocator<double>{}, 1);
-  auto p = any_cast<double>(&x);
-  VERIFY(p == nullptr);
-
-  x = any(std::allocator_arg, std::allocator<int>{}, 1.0);
-  p = any_cast<double>(&x);
-  VERIFY(p != nullptr);
-
-  x = any(std::allocator_arg, std::allocator<char>{});
-  p = any_cast<double>(&x);
-  VERIFY(p == nullptr);
-
-  try {
-    any_cast<double>(x);
-    VERIFY(false);
-  } catch (const bad_any_cast&) {
-  }
+  struct MoveEnabled
+  {
+    MoveEnabled(MoveEnabled&&)
+    {
+      ++move_count;
+    }
+    MoveEnabled() = default;
+    MoveEnabled(const MoveEnabled&) = default;
+  };
+  MoveEnabled m;
+  MoveEnabled m2 = any_cast<MoveEnabled>(any(m));
+  VERIFY(move_count == 1);
+  MoveEnabled&& m3 = any_cast<MoveEnabled&&>(any(m));
+  VERIFY(move_count == 1);
+  struct MoveDeleted
+  {
+    MoveDeleted(MoveDeleted&&) = delete;
+    MoveDeleted() = default;
+    MoveDeleted(const MoveDeleted&) = default;
+  };
+  MoveDeleted md;
+  MoveDeleted&& md2 = any_cast<MoveDeleted>(any(std::move(md)));
+  MoveDeleted&& md3 = any_cast<MoveDeleted&&>(any(std::move(md)));
 }
 
+void test04()
+{
+  // PR libstdc++/69321
+  struct noncopyable {
+    noncopyable(noncopyable const&) = delete;
+  };
+
+  any a;
+  auto p = any_cast<noncopyable>(&a);
+  VERIFY( p == nullptr );
+}
 
 int main()
 {
   test01();
   test02();
   test03();
+  test04();
 }

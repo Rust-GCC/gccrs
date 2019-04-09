@@ -1,7 +1,6 @@
 # Process this file with autoconf to produce a configure script, like so:
 # aclocal && autoconf && autoheader && automake
 
-AC_PREREQ(2.64)
 AC_INIT([GCC Quad-precision Math Library], 0.1,,[libquadmath])
 AC_CONFIG_HEADER(config.h)
 
@@ -22,6 +21,8 @@ AC_CONFIG_HEADER(config.h)
 # http://gcc.gnu.org/ml/libstdc++/2003-07/msg00451.html
 AC_CANONICAL_SYSTEM
 ACX_NONCANONICAL_TARGET
+
+AM_ENABLE_MULTILIB(, ..)
 
 target_alias=${target_alias-$host_alias}
 AC_SUBST(target_alias)
@@ -51,7 +52,7 @@ ACX_CHECK_PROG_VER([MAKEINFO], [makeinfo], [--version],
                    [4.[4-9]*|4.[1-9][0-9]*|[5-9]*|[1-9][0-9]*])
 AM_CONDITIONAL(BUILD_INFO, test $gcc_cv_prog_makeinfo_modern = "yes")
 
-ACX_BUGURL([http://gcc.gnu.org/bugs.html])
+ACX_BUGURL([https://gcc.gnu.org/bugs/])
 
 # Configure libtool
 AM_PROG_LIBTOOL
@@ -60,7 +61,6 @@ AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
 
 AM_MAINTAINER_MODE
-AM_ENABLE_MULTILIB(, ..)
 
 AC_LANG_C
 # The same as in boehm-gc and libstdc++. Have to borrow it from there.
@@ -209,7 +209,11 @@ AM_CONDITIONAL(LIBQUAD_USE_SYMVER_SUN, [test "x$quadmath_use_symver" = xsun])
 
 AC_CACHE_CHECK([whether __float128 is supported], [libquad_cv_have_float128],
   [GCC_TRY_COMPILE_OR_LINK([
+    #if (!defined(_ARCH_PPC)) || defined(__LONG_DOUBLE_IEEE128__)
     typedef _Complex float __attribute__((mode(TC))) __complex128;
+    #else
+    typedef _Complex float __attribute__((mode(KC))) __complex128;
+    #endif
 
     __float128 foo (__float128 x)
     {
@@ -336,6 +340,11 @@ if test x$quadmath_use_i18n_number_h = xyes; then
   AC_DEFINE([USE_I18N_NUMBER_H],[1],[whether i18n number rewriting can be supported])
 fi
 
+# Add CET specific flags if CET is enabled
+GCC_CET_FLAGS(CET_FLAGS)
+XCFLAGS="$XCFLAGS $CET_FLAGS"
+AC_SUBST(XCFLAGS)
+
 AC_CACHE_SAVE
 
 if test ${multilib} = yes; then
@@ -363,6 +372,8 @@ AS_HELP_STRING([--enable-generated-files-in-srcdir],
 AC_MSG_RESULT($enable_generated_files_in_srcdir)
 AM_CONDITIONAL(GENINSRC, test "$enable_generated_files_in_srcdir" = yes)
 
+# Determine what GCC version number to use in filesystem paths.
+GCC_BASE_VER
 
 AC_CONFIG_FILES(Makefile)
 AC_OUTPUT

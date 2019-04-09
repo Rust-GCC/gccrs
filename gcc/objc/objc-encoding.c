@@ -1,5 +1,5 @@
 /* Routines dealing with ObjC encoding of types
-   Copyright (C) 1992-2014 Free Software Foundation, Inc.
+   Copyright (C) 1992-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,6 +21,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
+#include "options.h"
 #include "stringpool.h"
 #include "stor-layout.h"
 
@@ -31,7 +32,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "c/c-lang.h"
 #endif
 
-#include "c-family/c-common.h"
 #include "c-family/c-objc.h"
 
 #include "objc-encoding.h"
@@ -41,7 +41,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "objc-runtime-shared-support.h"
 
 /* For BITS_PER_UNIT.  */
-#include "tm.h"
 
 /* When building Objective-C++, we are not linking against the C front-end
    and so need to replicate the C tree-construction functions in some way.  */
@@ -51,7 +50,6 @@ along with GCC; see the file COPYING3.  If not see
 #endif  /* OBJCPLUS */
 
 /* Set up for use of obstacks.  */
-#include "obstack.h"
 
 /* This obstack is used to accumulate the encoding of a data type.  */
 static struct obstack util_obstack;
@@ -380,7 +378,7 @@ encode_array (tree type, int curtype, int format)
 	 identifier.
       */
       {
-	char *enc = obstack_base (&util_obstack) + curtype;
+	char *enc = (char *) obstack_base (&util_obstack) + curtype;
 	if (memchr (enc, '=',
 		    obstack_object_size (&util_obstack) - curtype) == NULL)
 	  {
@@ -493,13 +491,14 @@ encode_aggregate_within (tree type, int curtype, int format, int left,
 
   if (flag_next_runtime)
     {
-      if (ob_size > 0  &&  *(obstack_next_free (&util_obstack) - 1) == '^')
+      if (ob_size > 0
+	  && *((char *) obstack_next_free (&util_obstack) - 1) == '^')
 	pointed_to = true;
 
       if ((format == OBJC_ENCODE_INLINE_DEFS || generating_instance_variables)
 	  && (!pointed_to || ob_size - curtype == 1
 	      || (ob_size - curtype == 2
-		  && *(obstack_next_free (&util_obstack) - 2) == 'r')))
+		  && *((char *) obstack_next_free (&util_obstack) - 2) == 'r')))
 	inline_contents = true;
     }
   else
@@ -510,9 +509,10 @@ encode_aggregate_within (tree type, int curtype, int format, int left,
 	 comment above applies: in that case we should avoid encoding
 	 the names of instance variables.
       */
-      char c1 = ob_size > 1 ? *(obstack_next_free (&util_obstack) - 2) : 0;
-      char c0 = ob_size > 0 ? *(obstack_next_free (&util_obstack) - 1) : 0;
+      char c0, c1;
 
+      c1 = ob_size > 1 ? *((char *) obstack_next_free (&util_obstack) - 2) : 0;
+      c0 = ob_size > 0 ? *((char *) obstack_next_free (&util_obstack) - 1) : 0;
       if (c0 == '^' || (c1 == '^' && c0 == 'r'))
 	pointed_to = true;
 
@@ -553,7 +553,7 @@ encode_aggregate_within (tree type, int curtype, int format, int left,
      args as a composite struct tag name. */
   if (name && TREE_CODE (name) == IDENTIFIER_NODE
       /* Did this struct have a tag?  */
-      && !TYPE_WAS_ANONYMOUS (type))
+      && !TYPE_WAS_UNNAMED (type))
     obstack_grow (&util_obstack,
 		  decl_as_string (type, TFF_DECL_SPECIFIERS | TFF_UNQUALIFIED_NAME),
 		  strlen (decl_as_string (type, TFF_DECL_SPECIFIERS | TFF_UNQUALIFIED_NAME)));
@@ -622,10 +622,11 @@ encode_type (tree type, int curtype, int format)
 	}
       /* Else, they are encoded exactly like the integer type that is
 	 used by the compiler to store them.  */
+      /* FALLTHRU */
     case INTEGER_TYPE:
       {
 	char c;
-	switch (GET_MODE_BITSIZE (TYPE_MODE (type)))
+	switch (GET_MODE_BITSIZE (SCALAR_INT_TYPE_MODE (type)))
 	  {
 	  case 8:  c = TYPE_UNSIGNED (type) ? 'C' : 'c'; break;
 	  case 16: c = TYPE_UNSIGNED (type) ? 'S' : 's'; break;
@@ -663,7 +664,7 @@ encode_type (tree type, int curtype, int format)
       {
 	char c;
 	/* Floating point types.  */
-	switch (GET_MODE_BITSIZE (TYPE_MODE (type)))
+	switch (GET_MODE_BITSIZE (SCALAR_FLOAT_TYPE_MODE (type)))
 	  {
 	  case 32:  c = 'f'; break;
 	  case 64:  c = 'd'; break;
@@ -729,11 +730,11 @@ encode_type (tree type, int curtype, int format)
 	 to be rearranged for compatibility with gcc-3.3.  */
       if (code == POINTER_TYPE && obstack_object_size (&util_obstack) >= 3)
 	{
-	  char *enc = obstack_base (&util_obstack) + curtype;
+	  char *enc = (char *) obstack_base (&util_obstack) + curtype;
 
 	  /* Rewrite "in const" from "nr" to "rn".  */
 	  if (curtype >= 1 && !strncmp (enc - 1, "nr", 2))
-	    strncpy (enc - 1, "rn", 2);
+	    memcpy (enc - 1, "rn", 2);
 	}
     }
 }
@@ -755,11 +756,11 @@ encode_gnu_bitfield (int position, tree type, int size)
 	{
 	  switch (TYPE_MODE (type))
 	    {
-	    case QImode:
+	    case E_QImode:
 	      charType = 'C'; break;
-	    case HImode:
+	    case E_HImode:
 	      charType = 'S'; break;
-	    case SImode:
+	    case E_SImode:
 	      {
 		if (type == long_unsigned_type_node)
 		  charType = 'L';
@@ -767,7 +768,7 @@ encode_gnu_bitfield (int position, tree type, int size)
 		  charType = 'I';
 		break;
 	      }
-	    case DImode:
+	    case E_DImode:
 	      charType = 'Q'; break;
 	    default:
 	      gcc_unreachable ();
@@ -778,11 +779,11 @@ encode_gnu_bitfield (int position, tree type, int size)
 	{
 	  switch (TYPE_MODE (type))
 	    {
-	    case QImode:
+	    case E_QImode:
 	      charType = 'c'; break;
-	    case HImode:
+	    case E_HImode:
 	      charType = 's'; break;
-	    case SImode:
+	    case E_SImode:
 	      {
 		if (type == long_integer_type_node)
 		  charType = 'l';
@@ -790,7 +791,7 @@ encode_gnu_bitfield (int position, tree type, int size)
 		  charType = 'i';
 		break;
 	      }
-	    case DImode:
+	    case E_DImode:
 	      charType = 'q'; break;
 	    default:
 	      gcc_unreachable ();

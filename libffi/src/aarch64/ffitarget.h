@@ -27,8 +27,15 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
 #endif
 
 #ifndef LIBFFI_ASM
+#ifdef __ILP32__
+#define FFI_SIZEOF_ARG 8
+#define FFI_SIZEOF_JAVA_RAW  4
+typedef unsigned long long ffi_arg;
+typedef signed long long ffi_sarg;
+#else
 typedef unsigned long ffi_arg;
 typedef signed long ffi_sarg;
+#endif
 
 typedef enum ffi_abi
   {
@@ -42,18 +49,26 @@ typedef enum ffi_abi
 /* ---- Definitions for closures ----------------------------------------- */
 
 #define FFI_CLOSURES 1
-#define FFI_TRAMPOLINE_SIZE 36
+#if defined (__APPLE__)
+#define FFI_TRAMPOLINE_SIZE 20
+#define FFI_TRAMPOLINE_CLOSURE_OFFSET 16
+#else
+#define FFI_TRAMPOLINE_SIZE 24
+#define FFI_TRAMPOLINE_CLOSURE_OFFSET FFI_TRAMPOLINE_SIZE
+#endif
 #define FFI_NATIVE_RAW_API 0
 
 /* ---- Internal ---- */
 
+#if defined (__APPLE__)
+#define FFI_TARGET_SPECIFIC_VARIADIC
+#define FFI_EXTRA_CIF_FIELDS unsigned aarch64_nfixedargs
+#else
+/* iOS reserves x18 for the system.  Disable Go closures until
+   a new static chain is chosen.  */
+#define FFI_GO_CLOSURES 1
+#endif
 
-#define FFI_EXTRA_CIF_FIELDS unsigned aarch64_flags
-
-#define AARCH64_FFI_WITH_V_BIT 0
-
-#define AARCH64_N_XREG 32
-#define AARCH64_N_VREG 32
-#define AARCH64_CALL_CONTEXT_SIZE (AARCH64_N_XREG * 8 + AARCH64_N_VREG * 16)
+#define FFI_TARGET_HAS_COMPLEX_TYPE
 
 #endif

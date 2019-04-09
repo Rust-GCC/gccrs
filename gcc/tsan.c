@@ -1,5 +1,5 @@
 /* GCC instrumentation plugin for ThreadSanitizer.
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by Dmitry Vyukov <dvyukov@google.com>
 
 This file is part of GCC.
@@ -22,34 +22,29 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "backend.h"
+#include "rtl.h"
 #include "tree.h"
-#include "expr.h"
-#include "intl.h"
-#include "tm.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "is-a.h"
+#include "memmodel.h"
 #include "gimple.h"
+#include "tree-pass.h"
+#include "ssa.h"
+#include "cgraph.h"
+#include "fold-const.h"
 #include "gimplify.h"
 #include "gimple-iterator.h"
-#include "function.h"
-#include "gimple-ssa.h"
-#include "cgraph.h"
+#include "gimplify-me.h"
 #include "tree-cfg.h"
-#include "stringpool.h"
-#include "tree-ssanames.h"
-#include "tree-pass.h"
 #include "tree-iterator.h"
-#include "langhooks.h"
-#include "output.h"
-#include "options.h"
-#include "target.h"
-#include "diagnostic.h"
 #include "tree-ssa-propagate.h"
+#include "tree-ssa-loop-ivopts.h"
+#include "tree-eh.h"
 #include "tsan.h"
+#include "stringpool.h"
+#include "attribs.h"
 #include "asan.h"
+#include "builtins.h"
+#include "target.h"
 
 /* Number of instrumented memory accesses in the current function.  */
 
@@ -83,7 +78,7 @@ get_memory_access_decl (bool is_write, unsigned size)
 /* Check as to whether EXPR refers to a store to vptr.  */
 
 static tree
-is_vptr_store (gimple stmt, tree expr, bool is_write)
+is_vptr_store (gimple *stmt, tree expr, bool is_write)
 {
   if (is_write == true
       && gimple_assign_single_p (stmt)
@@ -106,69 +101,115 @@ instrument_expr (gimple_stmt_iterator gsi, tree expr, bool is_write)
   tree base, rhs, expr_ptr, builtin_decl;
   basic_block bb;
   HOST_WIDE_INT size;
-  gimple stmt, g;
+  gimple *stmt, *g;
   gimple_seq seq;
   location_t loc;
+  unsigned int align;
 
   size = int_size_in_bytes (TREE_TYPE (expr));
-  if (size == -1)
+  if (size <= 0)
     return false;
 
-  /* For now just avoid instrumenting bit field acceses.
-     TODO: handle bit-fields as if touching the whole field.  */
-  HOST_WIDE_INT bitsize, bitpos;
+  poly_int64 unused_bitsize, unused_bitpos;
   tree offset;
-  enum machine_mode mode;
-  int volatilep = 0, unsignedp = 0;
-  base = get_inner_reference (expr, &bitsize, &bitpos, &offset,
-			      &mode, &unsignedp, &volatilep, false);
+  machine_mode mode;
+  int unsignedp, reversep, volatilep = 0;
+  base = get_inner_reference (expr, &unused_bitsize, &unused_bitpos, &offset,
+			      &mode, &unsignedp, &reversep, &volatilep);
 
   /* No need to instrument accesses to decls that don't escape,
      they can't escape to other threads then.  */
-  if (DECL_P (base))
+  if (DECL_P (base) && !is_global_var (base))
     {
       struct pt_solution pt;
       memset (&pt, 0, sizeof (pt));
       pt.escaped = 1;
       pt.ipa_escaped = flag_ipa_pta != 0;
-      pt.nonlocal = 1;
       if (!pt_solution_includes (&pt, base))
 	return false;
-      if (!is_global_var (base) && !may_be_aliased (base))
+      if (!may_be_aliased (base))
 	return false;
     }
 
-  if (TREE_READONLY (base)
-      || (TREE_CODE (base) == VAR_DECL
-	  && DECL_HARD_REGISTER (base)))
-    return false;
-
-  if (size == 0
-      || bitpos % (size * BITS_PER_UNIT)
-      || bitsize != size * BITS_PER_UNIT)
+  if (TREE_READONLY (base) || (VAR_P (base) && DECL_HARD_REGISTER (base)))
     return false;
 
   stmt = gsi_stmt (gsi);
   loc = gimple_location (stmt);
   rhs = is_vptr_store (stmt, expr, is_write);
-  gcc_checking_assert (rhs != NULL || is_gimple_addressable (expr));
-  expr_ptr = build_fold_addr_expr (unshare_expr (expr));
-  seq = NULL;
-  if (!is_gimple_val (expr_ptr))
+
+  if ((TREE_CODE (expr) == COMPONENT_REF
+       && DECL_BIT_FIELD_TYPE (TREE_OPERAND (expr, 1)))
+      || TREE_CODE (expr) == BIT_FIELD_REF)
     {
-      g = gimple_build_assign (make_ssa_name (TREE_TYPE (expr_ptr), NULL),
-			       expr_ptr);
-      expr_ptr = gimple_assign_lhs (g);
-      gimple_set_location (g, loc);
-      gimple_seq_add_stmt_without_update (&seq, g);
+      HOST_WIDE_INT bitpos, bitsize;
+      base = TREE_OPERAND (expr, 0);
+      if (TREE_CODE (expr) == COMPONENT_REF)
+	{
+	  expr = TREE_OPERAND (expr, 1);
+	  if (is_write && DECL_BIT_FIELD_REPRESENTATIVE (expr))
+	    expr = DECL_BIT_FIELD_REPRESENTATIVE (expr);
+	  if (!tree_fits_uhwi_p (DECL_FIELD_OFFSET (expr))
+	      || !tree_fits_uhwi_p (DECL_FIELD_BIT_OFFSET (expr))
+	      || !tree_fits_uhwi_p (DECL_SIZE (expr)))
+	    return false;
+	  bitpos = tree_to_uhwi (DECL_FIELD_OFFSET (expr)) * BITS_PER_UNIT
+		   + tree_to_uhwi (DECL_FIELD_BIT_OFFSET (expr));
+	  bitsize = tree_to_uhwi (DECL_SIZE (expr));
+	}
+      else
+	{
+	  if (!tree_fits_uhwi_p (TREE_OPERAND (expr, 2))
+	      || !tree_fits_uhwi_p (TREE_OPERAND (expr, 1)))
+	    return false;
+	  bitpos = tree_to_uhwi (TREE_OPERAND (expr, 2));
+	  bitsize = tree_to_uhwi (TREE_OPERAND (expr, 1));
+	}
+      if (bitpos < 0 || bitsize <= 0)
+	return false;
+      size = (bitpos % BITS_PER_UNIT + bitsize + BITS_PER_UNIT - 1)
+	     / BITS_PER_UNIT;
+      if (may_be_nonaddressable_p (base))
+	return false;
+      align = get_object_alignment (base);
+      if (align < BITS_PER_UNIT)
+	return false;
+      bitpos = bitpos & ~(BITS_PER_UNIT - 1);
+      if ((align - 1) & bitpos)
+	{
+	  align = (align - 1) & bitpos;
+	  align = least_bit_hwi (align);
+	}
+      expr = build_fold_addr_expr (unshare_expr (base));
+      expr = build2 (MEM_REF, char_type_node, expr,
+		     build_int_cst (TREE_TYPE (expr), bitpos / BITS_PER_UNIT));
+      expr_ptr = build_fold_addr_expr (expr);
     }
-  if (rhs == NULL)
+  else
+    {
+      if (may_be_nonaddressable_p (expr))
+	return false;
+      align = get_object_alignment (expr);
+      if (align < BITS_PER_UNIT)
+	return false;
+      expr_ptr = build_fold_addr_expr (unshare_expr (expr));
+    }
+  expr_ptr = force_gimple_operand (expr_ptr, &seq, true, NULL_TREE);
+  if ((size & (size - 1)) != 0 || size > 16
+      || align < MIN (size, 8) * BITS_PER_UNIT)
+    {
+      builtin_decl = builtin_decl_implicit (is_write
+					    ? BUILT_IN_TSAN_WRITE_RANGE
+					    : BUILT_IN_TSAN_READ_RANGE);
+      g = gimple_build_call (builtin_decl, 2, expr_ptr, size_int (size));
+    }
+  else if (rhs == NULL)
     g = gimple_build_call (get_memory_access_decl (is_write, size),
 			   1, expr_ptr);
   else
     {
       builtin_decl = builtin_decl_implicit (BUILT_IN_TSAN_VPTR_UPDATE);
-      g = gimple_build_call (builtin_decl, 1, expr_ptr);
+      g = gimple_build_call (builtin_decl, 2, expr_ptr, unshare_expr (rhs));
     }
   gimple_set_location (g, loc);
   gimple_seq_add_stmt_without_update (&seq, g);
@@ -203,7 +244,8 @@ instrument_expr (gimple_stmt_iterator gsi, tree expr, bool is_write)
 enum tsan_atomic_action
 {
   check_last, add_seq_cst, add_acquire, weak_cas, strong_cas,
-  bool_cas, val_cas, lock_release, fetch_op, fetch_op_seq_cst
+  bool_cas, val_cas, lock_release, fetch_op, fetch_op_seq_cst,
+  bool_clear, bool_test_and_set
 };
 
 /* Table how to map sync/atomic builtins to their corresponding
@@ -237,6 +279,10 @@ static const struct tsan_map_atomic
   TRANSFORM (fcode, tsan_fcode, fetch_op, code)
 #define FETCH_OPS(fcode, tsan_fcode, code) \
   TRANSFORM (fcode, tsan_fcode, fetch_op_seq_cst, code)
+#define BOOL_CLEAR(fcode, tsan_fcode) \
+  TRANSFORM (fcode, tsan_fcode, bool_clear, ERROR_MARK)
+#define BOOL_TEST_AND_SET(fcode, tsan_fcode) \
+  TRANSFORM (fcode, tsan_fcode, bool_test_and_set, ERROR_MARK)
 
   CHECK_LAST (ATOMIC_LOAD_1, TSAN_ATOMIC8_LOAD),
   CHECK_LAST (ATOMIC_LOAD_2, TSAN_ATOMIC16_LOAD),
@@ -426,7 +472,11 @@ static const struct tsan_map_atomic
   LOCK_RELEASE (SYNC_LOCK_RELEASE_2, TSAN_ATOMIC16_STORE),
   LOCK_RELEASE (SYNC_LOCK_RELEASE_4, TSAN_ATOMIC32_STORE),
   LOCK_RELEASE (SYNC_LOCK_RELEASE_8, TSAN_ATOMIC64_STORE),
-  LOCK_RELEASE (SYNC_LOCK_RELEASE_16, TSAN_ATOMIC128_STORE)
+  LOCK_RELEASE (SYNC_LOCK_RELEASE_16, TSAN_ATOMIC128_STORE),
+
+  BOOL_CLEAR (ATOMIC_CLEAR, TSAN_ATOMIC8_STORE),
+
+  BOOL_TEST_AND_SET (ATOMIC_TEST_AND_SET, TSAN_ATOMIC8_EXCHANGE)
 };
 
 /* Instrument an atomic builtin.  */
@@ -434,7 +484,7 @@ static const struct tsan_map_atomic
 static void
 instrument_builtin_call (gimple_stmt_iterator *gsi)
 {
-  gimple stmt = gsi_stmt (*gsi), g;
+  gimple *stmt = gsi_stmt (*gsi), *g;
   tree callee = gimple_call_fndecl (stmt), last_arg, args[6], t, lhs;
   enum built_in_function fcode = DECL_FUNCTION_CODE (callee);
   unsigned int i, num = gimple_call_num_args (stmt), j;
@@ -453,11 +503,12 @@ instrument_builtin_call (gimple_stmt_iterator *gsi)
 	  case check_last:
 	  case fetch_op:
 	    last_arg = gimple_call_arg (stmt, num - 1);
-	    if (!tree_fits_uhwi_p (last_arg)
-		|| tree_to_uhwi (last_arg) > MEMMODEL_SEQ_CST)
+	    if (tree_fits_uhwi_p (last_arg)
+		&& memmodel_base (tree_to_uhwi (last_arg)) >= MEMMODEL_LAST)
 	      return;
 	    gimple_call_set_fndecl (stmt, decl);
 	    update_stmt (stmt);
+	    maybe_clean_eh_stmt (stmt);
 	    if (tsan_atomic_table[i].action == fetch_op)
 	      {
 		args[1] = gimple_call_arg (stmt, 1);
@@ -478,6 +529,7 @@ instrument_builtin_call (gimple_stmt_iterator *gsi)
 				       ? MEMMODEL_SEQ_CST
 				       : MEMMODEL_ACQUIRE);
 	    update_gimple_call (gsi, decl, num + 1, args[0], args[1], args[2]);
+	    maybe_clean_or_replace_eh_stmt (stmt, gsi_stmt (*gsi));
 	    stmt = gsi_stmt (*gsi);
 	    if (tsan_atomic_table[i].action == fetch_op_seq_cst)
 	      {
@@ -488,30 +540,24 @@ instrument_builtin_call (gimple_stmt_iterator *gsi)
 		if (!useless_type_conversion_p (TREE_TYPE (lhs),
 						TREE_TYPE (args[1])))
 		  {
-		    tree var = make_ssa_name (TREE_TYPE (lhs), NULL);
-		    g = gimple_build_assign_with_ops (NOP_EXPR, var,
-						      args[1], NULL_TREE);
+		    tree var = make_ssa_name (TREE_TYPE (lhs));
+		    g = gimple_build_assign (var, NOP_EXPR, args[1]);
 		    gsi_insert_after (gsi, g, GSI_NEW_STMT);
 		    args[1] = var;
 		  }
-		gimple_call_set_lhs (stmt,
-				     make_ssa_name (TREE_TYPE (lhs), NULL));
+		gimple_call_set_lhs (stmt, make_ssa_name (TREE_TYPE (lhs)));
 		/* BIT_NOT_EXPR stands for NAND.  */
 		if (tsan_atomic_table[i].code == BIT_NOT_EXPR)
 		  {
-		    tree var = make_ssa_name (TREE_TYPE (lhs), NULL);
-		    g = gimple_build_assign_with_ops (BIT_AND_EXPR, var,
-						      gimple_call_lhs (stmt),
-						      args[1]);
+		    tree var = make_ssa_name (TREE_TYPE (lhs));
+		    g = gimple_build_assign (var, BIT_AND_EXPR,
+					     gimple_call_lhs (stmt), args[1]);
 		    gsi_insert_after (gsi, g, GSI_NEW_STMT);
-		    g = gimple_build_assign_with_ops (BIT_NOT_EXPR, lhs, var,
-						      NULL_TREE);
+		    g = gimple_build_assign (lhs, BIT_NOT_EXPR, var);
 		  }
 		else
-		  g = gimple_build_assign_with_ops (tsan_atomic_table[i].code,
-						    lhs,
-						    gimple_call_lhs (stmt),
-						    args[1]);
+		  g = gimple_build_assign (lhs, tsan_atomic_table[i].code,
+					   gimple_call_lhs (stmt), args[1]);
 		update_stmt (stmt);
 		gsi_insert_after (gsi, g, GSI_NEW_STMT);
 	      }
@@ -524,14 +570,15 @@ instrument_builtin_call (gimple_stmt_iterator *gsi)
 	    gcc_assert (num == 6);
 	    for (j = 0; j < 6; j++)
 	      args[j] = gimple_call_arg (stmt, j);
-	    if (!tree_fits_uhwi_p (args[4])
-		|| tree_to_uhwi (args[4]) > MEMMODEL_SEQ_CST)
+	    if (tree_fits_uhwi_p (args[4])
+		&& memmodel_base (tree_to_uhwi (args[4])) >= MEMMODEL_LAST)
 	      return;
-	    if (!tree_fits_uhwi_p (args[5])
-		|| tree_to_uhwi (args[5]) > MEMMODEL_SEQ_CST)
+	    if (tree_fits_uhwi_p (args[5])
+		&& memmodel_base (tree_to_uhwi (args[5])) >= MEMMODEL_LAST)
 	      return;
 	    update_gimple_call (gsi, decl, 5, args[0], args[1], args[2],
 				args[4], args[5]);
+	    maybe_clean_or_replace_eh_stmt (stmt, gsi_stmt (*gsi));
 	    return;
 	  case bool_cas:
 	  case val_cas:
@@ -540,15 +587,13 @@ instrument_builtin_call (gimple_stmt_iterator *gsi)
 	      args[j] = gimple_call_arg (stmt, j);
 	    t = TYPE_ARG_TYPES (TREE_TYPE (decl));
 	    t = TREE_VALUE (TREE_CHAIN (TREE_CHAIN (t)));
-	    t = create_tmp_var (t, NULL);
+	    t = create_tmp_var (t);
 	    mark_addressable (t);
 	    if (!useless_type_conversion_p (TREE_TYPE (t),
 					    TREE_TYPE (args[1])))
 	      {
-		g = gimple_build_assign_with_ops (NOP_EXPR,
-						  make_ssa_name (TREE_TYPE (t),
-								 NULL),
-						  args[1], NULL_TREE);
+		g = gimple_build_assign (make_ssa_name (TREE_TYPE (t)),
+					 NOP_EXPR, args[1]);
 		gsi_insert_before (gsi, g, GSI_SAME_STMT);
 		args[1] = gimple_assign_lhs (g);
 	      }
@@ -561,19 +606,18 @@ instrument_builtin_call (gimple_stmt_iterator *gsi)
 					       MEMMODEL_SEQ_CST),
 				build_int_cst (NULL_TREE,
 					       MEMMODEL_SEQ_CST));
+	    maybe_clean_or_replace_eh_stmt (stmt, gsi_stmt (*gsi));
 	    if (tsan_atomic_table[i].action == val_cas && lhs)
 	      {
 		tree cond;
 		stmt = gsi_stmt (*gsi);
-		g = gimple_build_assign (make_ssa_name (TREE_TYPE (t), NULL),
-					 t);
+		g = gimple_build_assign (make_ssa_name (TREE_TYPE (t)), t);
 		gsi_insert_after (gsi, g, GSI_NEW_STMT);
 		t = make_ssa_name (TREE_TYPE (TREE_TYPE (decl)), stmt);
 		cond = build2 (NE_EXPR, boolean_type_node, t,
 			       build_int_cst (TREE_TYPE (t), 0));
-		g = gimple_build_assign_with_ops (COND_EXPR, lhs, cond,
-						  args[1],
-						  gimple_assign_lhs (g));
+		g = gimple_build_assign (lhs, COND_EXPR, cond, args[1],
+					 gimple_assign_lhs (g));
 		gimple_call_set_lhs (stmt, t);
 		update_stmt (stmt);
 		gsi_insert_after (gsi, g, GSI_NEW_STMT);
@@ -587,6 +631,60 @@ instrument_builtin_call (gimple_stmt_iterator *gsi)
 				build_int_cst (t, 0),
 				build_int_cst (NULL_TREE,
 					       MEMMODEL_RELEASE));
+	    maybe_clean_or_replace_eh_stmt (stmt, gsi_stmt (*gsi));
+	    return;
+	  case bool_clear:
+	  case bool_test_and_set:
+	    if (BOOL_TYPE_SIZE != 8)
+	      {
+		decl = NULL_TREE;
+		for (j = 1; j < 5; j++)
+		  if (BOOL_TYPE_SIZE == (8 << j))
+		    {
+		      enum built_in_function tsan_fcode
+			= (enum built_in_function)
+			  (tsan_atomic_table[i].tsan_fcode + j);
+		      decl = builtin_decl_implicit (tsan_fcode);
+		      break;
+		    }
+		if (decl == NULL_TREE)
+		  return;
+	      }
+	    last_arg = gimple_call_arg (stmt, num - 1);
+	    if (tree_fits_uhwi_p (last_arg)
+		&& memmodel_base (tree_to_uhwi (last_arg)) >= MEMMODEL_LAST)
+	      return;
+	    t = TYPE_ARG_TYPES (TREE_TYPE (decl));
+	    t = TREE_VALUE (TREE_CHAIN (t));
+	    if (tsan_atomic_table[i].action == bool_clear)
+	      {
+		update_gimple_call (gsi, decl, 3, gimple_call_arg (stmt, 0),
+				    build_int_cst (t, 0), last_arg);
+		maybe_clean_or_replace_eh_stmt (stmt, gsi_stmt (*gsi));
+		return;
+	      }
+	    t = build_int_cst (t, targetm.atomic_test_and_set_trueval);
+	    update_gimple_call (gsi, decl, 3, gimple_call_arg (stmt, 0),
+				t, last_arg);
+	    maybe_clean_or_replace_eh_stmt (stmt, gsi_stmt (*gsi));
+	    stmt = gsi_stmt (*gsi);
+	    lhs = gimple_call_lhs (stmt);
+	    if (lhs == NULL_TREE)
+	      return;
+	    if (targetm.atomic_test_and_set_trueval != 1
+		|| !useless_type_conversion_p (TREE_TYPE (lhs),
+					       TREE_TYPE (t)))
+	      {
+		tree new_lhs = make_ssa_name (TREE_TYPE (t));
+		gimple_call_set_lhs (stmt, new_lhs);
+		if (targetm.atomic_test_and_set_trueval != 1)
+		  g = gimple_build_assign (lhs, NE_EXPR, new_lhs,
+					   build_int_cst (TREE_TYPE (t), 0));
+		else
+		  g = gimple_build_assign (lhs, NOP_EXPR, new_lhs);
+		gsi_insert_after (gsi, g, GSI_NEW_STMT);
+		update_stmt (stmt);
+	      }
 	    return;
 	  default:
 	    continue;
@@ -600,7 +698,7 @@ instrument_builtin_call (gimple_stmt_iterator *gsi)
 static bool
 instrument_gimple (gimple_stmt_iterator *gsi)
 {
-  gimple stmt;
+  gimple *stmt;
   tree rhs, lhs;
   bool instrumented = false;
 
@@ -609,6 +707,10 @@ instrument_gimple (gimple_stmt_iterator *gsi)
       && (gimple_call_fndecl (stmt)
 	  != builtin_decl_implicit (BUILT_IN_TSAN_INIT)))
     {
+      /* All functions with function call will have exit instrumented,
+	 therefore no function calls other than __tsan_func_exit
+	 shall appear in the functions.  */
+      gimple_call_set_tail (as_a <gcall *> (stmt), false);
       if (gimple_call_builtin_p (stmt, BUILT_IN_NORMAL))
 	instrument_builtin_call (gsi);
       return true;
@@ -630,49 +732,19 @@ instrument_gimple (gimple_stmt_iterator *gsi)
   return instrumented;
 }
 
-/* Instruments all interesting memory accesses in the current function.
-   Return true if func entry/exit should be instrumented.  */
-
-static bool
-instrument_memory_accesses (void)
-{
-  basic_block bb;
-  gimple_stmt_iterator gsi;
-  bool fentry_exit_instrument = false;
-
-  FOR_EACH_BB_FN (bb, cfun)
-    for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
-      fentry_exit_instrument |= instrument_gimple (&gsi);
-  return fentry_exit_instrument;
-}
-
-/* Instruments function entry.  */
+/* Replace TSAN_FUNC_EXIT internal call with function exit tsan builtin.  */
 
 static void
-instrument_func_entry (void)
+replace_func_exit (gimple *stmt)
 {
-  basic_block succ_bb;
-  gimple_stmt_iterator gsi;
-  tree ret_addr, builtin_decl;
-  gimple g;
-
-  succ_bb = single_succ (ENTRY_BLOCK_PTR_FOR_FN (cfun));
-  gsi = gsi_after_labels (succ_bb);
-
-  builtin_decl = builtin_decl_implicit (BUILT_IN_RETURN_ADDRESS);
-  g = gimple_build_call (builtin_decl, 1, integer_zero_node);
-  ret_addr = make_ssa_name (ptr_type_node, NULL);
-  gimple_call_set_lhs (g, ret_addr);
-  gimple_set_location (g, cfun->function_start_locus);
-  gsi_insert_before (&gsi, g, GSI_SAME_STMT);
-
-  builtin_decl =  builtin_decl_implicit (BUILT_IN_TSAN_FUNC_ENTRY);
-  g = gimple_build_call (builtin_decl, 1, ret_addr);
-  gimple_set_location (g, cfun->function_start_locus);
-  gsi_insert_before (&gsi, g, GSI_SAME_STMT);
+  tree builtin_decl = builtin_decl_implicit (BUILT_IN_TSAN_FUNC_EXIT);
+  gimple *g = gimple_build_call (builtin_decl, 0);
+  gimple_set_location (g, cfun->function_end_locus);
+  gimple_stmt_iterator gsi = gsi_for_stmt (stmt);
+  gsi_replace (&gsi, g, true);
 }
 
-/* Instruments function exits.  */
+/* Instrument function exit.  Used when TSAN_FUNC_EXIT does not exist.  */
 
 static void
 instrument_func_exit (void)
@@ -680,7 +752,7 @@ instrument_func_exit (void)
   location_t loc;
   basic_block exit_bb;
   gimple_stmt_iterator gsi;
-  gimple stmt, g;
+  gimple *stmt, *g;
   tree builtin_decl;
   edge e;
   edge_iterator ei;
@@ -701,18 +773,87 @@ instrument_func_exit (void)
     }
 }
 
+/* Instruments all interesting memory accesses in the current function.
+   Return true if func entry/exit should be instrumented.  */
+
+static bool
+instrument_memory_accesses (bool *cfg_changed)
+{
+  basic_block bb;
+  gimple_stmt_iterator gsi;
+  bool fentry_exit_instrument = false;
+  bool func_exit_seen = false;
+  auto_vec<gimple *> tsan_func_exits;
+
+  FOR_EACH_BB_FN (bb, cfun)
+    {
+      for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
+	{
+	  gimple *stmt = gsi_stmt (gsi);
+	  if (gimple_call_internal_p (stmt, IFN_TSAN_FUNC_EXIT))
+	    {
+	      if (fentry_exit_instrument)
+		replace_func_exit (stmt);
+	      else
+		tsan_func_exits.safe_push (stmt);
+	      func_exit_seen = true;
+	    }
+	  else
+	    fentry_exit_instrument |= instrument_gimple (&gsi);
+	}
+      if (gimple_purge_dead_eh_edges (bb))
+	*cfg_changed = true;
+    }
+  unsigned int i;
+  gimple *stmt;
+  FOR_EACH_VEC_ELT (tsan_func_exits, i, stmt)
+    if (fentry_exit_instrument)
+      replace_func_exit (stmt);
+    else
+      {
+	gsi = gsi_for_stmt (stmt);
+	gsi_remove (&gsi, true);
+      }
+  if (fentry_exit_instrument && !func_exit_seen)
+    instrument_func_exit ();
+  return fentry_exit_instrument;
+}
+
+/* Instruments function entry.  */
+
+static void
+instrument_func_entry (void)
+{
+  tree ret_addr, builtin_decl;
+  gimple *g;
+  gimple_seq seq = NULL;
+
+  builtin_decl = builtin_decl_implicit (BUILT_IN_RETURN_ADDRESS);
+  g = gimple_build_call (builtin_decl, 1, integer_zero_node);
+  ret_addr = make_ssa_name (ptr_type_node);
+  gimple_call_set_lhs (g, ret_addr);
+  gimple_set_location (g, cfun->function_start_locus);
+  gimple_seq_add_stmt_without_update (&seq, g);
+
+  builtin_decl = builtin_decl_implicit (BUILT_IN_TSAN_FUNC_ENTRY);
+  g = gimple_build_call (builtin_decl, 1, ret_addr);
+  gimple_set_location (g, cfun->function_start_locus);
+  gimple_seq_add_stmt_without_update (&seq, g);
+
+  edge e = single_succ_edge (ENTRY_BLOCK_PTR_FOR_FN (cfun));
+  gsi_insert_seq_on_edge_immediate (e, seq);
+}
+
 /* ThreadSanitizer instrumentation pass.  */
 
 static unsigned
 tsan_pass (void)
 {
   initialize_sanitizer_builtins ();
-  if (instrument_memory_accesses ())
-    {
-      instrument_func_entry ();
-      instrument_func_exit ();
-    }
-  return 0;
+  bool cfg_changed = false;
+  if (instrument_memory_accesses (&cfg_changed))
+    instrument_func_entry ();
+  return cfg_changed ? TODO_cleanup_cfg : 0;
 }
 
 /* Inserts __tsan_init () into the list of CTORs.  */
@@ -758,7 +899,7 @@ public:
   opt_pass * clone () { return new pass_tsan (m_ctxt); }
   virtual bool gate (function *)
 {
-  return (flag_sanitize & SANITIZE_THREAD) != 0;
+  return sanitize_flags_p (SANITIZE_THREAD);
 }
 
   virtual unsigned int execute (function *) { return tsan_pass (); }
@@ -798,7 +939,7 @@ public:
   /* opt_pass methods: */
   virtual bool gate (function *)
     {
-      return (flag_sanitize & SANITIZE_THREAD) != 0 && !optimize;
+      return (sanitize_flags_p (SANITIZE_THREAD) && !optimize);
     }
 
   virtual unsigned int execute (function *) { return tsan_pass (); }

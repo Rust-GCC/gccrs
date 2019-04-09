@@ -103,7 +103,7 @@ func TestPSSGolden(t *testing.T) {
 			switch {
 			case len(line) == 0:
 				if len(partialValue) > 0 {
-					values <- strings.Replace(partialValue, " ", "", -1)
+					values <- strings.ReplaceAll(partialValue, " ", "")
 					partialValue = ""
 					lastWasValue = true
 				}
@@ -187,6 +187,15 @@ func TestPSSOpenSSL(t *testing.T) {
 	if err := VerifyPSS(&rsaPrivateKey.PublicKey, hash, hashed, sig, nil); err != nil {
 		t.Error(err)
 	}
+}
+
+func TestPSSNilOpts(t *testing.T) {
+	hash := crypto.SHA256
+	h := hash.New()
+	h.Write([]byte("testing"))
+	hashed := h.Sum(nil)
+
+	SignPSS(rand.Reader, rsaPrivateKey, hash, hashed, nil)
 }
 
 func TestPSSSigning(t *testing.T) {

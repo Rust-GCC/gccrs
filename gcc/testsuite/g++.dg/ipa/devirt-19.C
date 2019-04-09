@@ -3,6 +3,8 @@
    a type change.  */
 /* { dg-do compile } */
 /* { dg-options "-O2 -fdump-ipa-cp"  } */
+/* { dg-additional-options "-Wno-return-type"  } */
+
 struct A {
   void operator==(const A &);
 };
@@ -28,5 +30,4 @@ template <typename T, typename M> const M &C<T, M>::m_fn2(const T &) {
 
 void fn1() { b.m_fn2(0); }
 /* { dg-final { scan-ipa-dump-times "Discovered a virtual call to a known target" 1 "cp"  } } */
-/* { dg-final { cleanup-ipa-dump "cp" } } */
 

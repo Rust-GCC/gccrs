@@ -15,14 +15,13 @@
   q4(q4) = (/(i, i = 1, 4)/)
   p8(q8) = (/(i, i = 1, 4)/)
   q8(q8) = (/(i, i = 1, 4)/)
-  if (any(p4 .ne. q4)) call abort ()
-  if (any(p8 .ne. q8)) call abort ()
+  if (any(p4 .ne. q4)) STOP 1
+  if (any(p8 .ne. q8)) STOP 2
 end
 ! Whichever is the default length for array indices will yield
 ! parm 18 times, because a temporary is not necessary.  The other
 ! cases will all yield a temporary, so that atmp appears 18 times.
 ! Note that it is the kind conversion that generates the temp.
 !
-! { dg-final { scan-tree-dump-times "parm" 18 "original" } }
+! { dg-final { scan-tree-dump-times "parm" 20 "original" } }
 ! { dg-final { scan-tree-dump-times "atmp" 18 "original" } }
-! { dg-final { cleanup-tree-dump "original" } }

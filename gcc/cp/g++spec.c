@@ -1,5 +1,5 @@
 /* Specific flags and argument handling of the C++ front end.
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,7 +21,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include "gcc.h"
 #include "opts.h"
 
 /* This bit is set if we saw a `-xfoo' language specification.  */
@@ -185,6 +184,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
 	  break;
 
 	case OPT_c:
+	case OPT_r:
 	case OPT_S:
 	case OPT_E:
 	case OPT_M:

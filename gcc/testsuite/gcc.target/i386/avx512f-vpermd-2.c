@@ -17,7 +17,11 @@ CALC (int *mask, int *src1, int *dst)
 
   for (i = 0; i < SIZE; i++)
     {
+#if AVX512F_LEN == 512
       dst[i] = src1[mask[i] & 15];
+#else
+      dst[i] = src1[mask[i] & 7];
+#endif
     }
 }
 

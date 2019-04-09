@@ -1,5 +1,7 @@
 /* Miscellaneous transactional memory support definitions.
-   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 2009-2019 Free Software Foundation, Inc.
+   Contributed by Richard Henderson <rth@redhat.com>
+   and Aldy Hernandez <aldyh@redhat.com>.
 
    This file is part of GCC.
 
@@ -38,7 +40,7 @@
 #define PR_READONLY		0x4000
 
 extern void compute_transaction_bits (void);
-extern bool is_tm_ending (gimple);
+extern bool is_tm_ending (gimple *);
 extern tree build_tm_abort_call (location_t, bool);
 extern bool is_tm_safe (const_tree);
 extern bool is_tm_pure (const_tree);

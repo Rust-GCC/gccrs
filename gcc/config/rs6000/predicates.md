@@ -1,5 +1,5 @@
 ;; Predicate definitions for POWER and PowerPC.
-;; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -31,17 +31,52 @@
        (match_test "REGNO (op) == CTR_REGNO
 		    || REGNO (op) > LAST_VIRTUAL_REGISTER")))
 
+;; Return 1 if op is a SUBREG that is used to look at a SFmode value as
+;; and integer or vice versa.
+;;
+;; In the normal case where SFmode is in a floating point/vector register, it
+;; is stored as a DFmode and has a different format.  If we don't transform the
+;; value, things that use logical operations on the values will get the wrong
+;; value.
+;;
+;; If we don't have 64-bit and direct move, this conversion will be done by
+;; store and load, instead of by fiddling with the bits within the register.
+(define_predicate "sf_subreg_operand"
+  (match_code "subreg")
+{
+  rtx inner_reg = SUBREG_REG (op);
+  machine_mode inner_mode = GET_MODE (inner_reg);
+
+  if (TARGET_ALLOW_SF_SUBREG || !REG_P (inner_reg))
+    return 0;
+
+  if ((mode == SFmode && GET_MODE_CLASS (inner_mode) == MODE_INT)
+       || (GET_MODE_CLASS (mode) == MODE_INT && inner_mode == SFmode))
+    {
+      if (INT_REGNO_P (REGNO (inner_reg)))
+	return 0;
+
+      return 1;
+    }
+  return 0;
+})
+
 ;; Return 1 if op is an Altivec register.
 (define_predicate "altivec_register_operand"
   (match_operand 0 "register_operand")
 {
-  if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+  if (SUBREG_P (op))
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
 
   if (!REG_P (op))
     return 0;
 
-  if (REGNO (op) > LAST_VIRTUAL_REGISTER)
+  if (!HARD_REGISTER_P (op))
     return 1;
 
   return ALTIVEC_REGNO_P (REGNO (op));
@@ -51,13 +86,34 @@
 (define_predicate "vsx_register_operand"
   (match_operand 0 "register_operand")
 {
-  if (GET_CODE (op) == SUBREG)
+  if (SUBREG_P (op))
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
+
+  if (!REG_P (op))
+    return 0;
+
+  if (!HARD_REGISTER_P (op))
+    return 1;
+
+  return VSX_REGNO_P (REGNO (op));
+})
+
+;; Like vsx_register_operand, but allow SF SUBREGS
+(define_predicate "vsx_reg_sfsubreg_ok"
+  (match_operand 0 "register_operand")
+{
+  if (SUBREG_P (op))
     op = SUBREG_REG (op);
 
   if (!REG_P (op))
     return 0;
 
-  if (REGNO (op) > LAST_VIRTUAL_REGISTER)
+  if (!HARD_REGISTER_P (op))
     return 1;
 
   return VSX_REGNO_P (REGNO (op));
@@ -68,13 +124,18 @@
 (define_predicate "vfloat_operand"
   (match_operand 0 "register_operand")
 {
-  if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+  if (SUBREG_P (op))
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
 
   if (!REG_P (op))
     return 0;
 
-  if (REGNO (op) > LAST_VIRTUAL_REGISTER)
+  if (!HARD_REGISTER_P (op))
     return 1;
 
   return VFLOAT_REGNO_P (REGNO (op));
@@ -85,13 +146,18 @@
 (define_predicate "vint_operand"
   (match_operand 0 "register_operand")
 {
-  if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+  if (SUBREG_P (op))
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
 
   if (!REG_P (op))
     return 0;
 
-  if (REGNO (op) > LAST_VIRTUAL_REGISTER)
+  if (!HARD_REGISTER_P (op))
     return 1;
 
   return VINT_REGNO_P (REGNO (op));
@@ -102,13 +168,19 @@
 (define_predicate "vlogical_operand"
   (match_operand 0 "register_operand")
 {
-  if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+  if (SUBREG_P (op))
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
+
 
   if (!REG_P (op))
     return 0;
 
-  if (REGNO (op) > LAST_VIRTUAL_REGISTER)
+  if (!HARD_REGISTER_P (op))
     return 1;
 
   return VLOGICAL_REGNO_P (REGNO (op));
@@ -118,7 +190,7 @@
 (define_predicate "ca_operand"
   (match_operand 0 "register_operand")
 {
-  if (GET_CODE (op) == SUBREG)
+  if (SUBREG_P (op))
     op = SUBREG_REG (op);
 
   if (!REG_P (op))
@@ -126,6 +198,16 @@
 
   return CA_REGNO_P (REGNO (op));
 })
+
+;; Return 1 if operand is constant zero (scalars and vectors).
+(define_predicate "zero_constant"
+  (and (match_code "const_int,const_double,const_wide_int,const_vector")
+       (match_test "op == CONST0_RTX (mode)")))
+
+;; Return 1 if operand is constant -1 (scalars and vectors).
+(define_predicate "all_ones_constant"
+  (and (match_code "const_int,const_double,const_wide_int,const_vector")
+       (match_test "op == CONSTM1_RTX (mode) && !FLOAT_MODE_P (mode)")))
 
 ;; Return 1 if op is a signed 5-bit constant integer.
 (define_predicate "s5bit_cint_operand"
@@ -141,6 +223,16 @@
 (define_predicate "u5bit_cint_operand"
   (and (match_code "const_int")
        (match_test "INTVAL (op) >= 0 && INTVAL (op) <= 31")))
+
+;; Return 1 if op is a unsigned 6-bit constant integer.
+(define_predicate "u6bit_cint_operand"
+  (and (match_code "const_int")
+       (match_test "INTVAL (op) >= 0 && INTVAL (op) <= 63")))
+
+;; Return 1 if op is an unsigned 7-bit constant integer.
+(define_predicate "u7bit_cint_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 127)")))
 
 ;; Return 1 if op is a signed 8-bit constant integer.
 ;; Integer multiplication complete more quickly
@@ -162,6 +254,12 @@
 (define_predicate "u_short_cint_operand"
   (and (match_code "const_int")
        (match_test "satisfies_constraint_K (op)")))
+
+;; Return 1 if op is a constant integer that is a signed 16-bit constant
+;; shifted left 16 bits
+(define_predicate "upper16_cint_operand"
+  (and (match_code "const_int")
+       (match_test "satisfies_constraint_L (op)")))
 
 ;; Return 1 if op is a constant integer that cannot fit in a signed D field.
 (define_predicate "non_short_cint_operand"
@@ -189,25 +287,43 @@
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op), 2, 3)")))
 
+;; Match op = 0..7.
+(define_predicate "const_0_to_7_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 7)")))
+
+;; Match op = 0..11
+(define_predicate "const_0_to_12_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 12)")))
+
 ;; Match op = 0..15
 (define_predicate "const_0_to_15_operand"
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op), 0, 15)")))
 
 ;; Return 1 if op is a register that is not special.
+;; Disallow (SUBREG:SF (REG:SI)) and (SUBREG:SI (REG:SF)) on VSX systems where
+;; you need to be careful in moving a SFmode to SImode and vice versa due to
+;; the fact that SFmode is represented as DFmode in the VSX registers.
 (define_predicate "gpc_reg_operand"
   (match_operand 0 "register_operand")
 {
-  if ((TARGET_E500_DOUBLE || TARGET_SPE) && invalid_e500_subreg (op, mode))
-    return 0;
+  if (SUBREG_P (op))
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
 
-  if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+      op = SUBREG_REG (op);
+    }
 
   if (!REG_P (op))
     return 0;
 
-  if (REGNO (op) >= ARG_POINTER_REGNUM && !CA_REGNO_P (REGNO (op)))
+  if (!HARD_REGISTER_P (op))
+    return 1;
+
+  if (TARGET_ALTIVEC && ALTIVEC_REGNO_P (REGNO (op)))
     return 1;
 
   if (TARGET_VSX && VSX_REGNO_P (REGNO (op)))
@@ -217,21 +333,42 @@
 })
 
 ;; Return 1 if op is a general purpose register.  Unlike gpc_reg_operand, don't
-;; allow floating point or vector registers.
+;; allow floating point or vector registers.  Since vector registers are not
+;; allowed, we don't have to reject SFmode/SImode subregs.
 (define_predicate "int_reg_operand"
   (match_operand 0 "register_operand")
 {
-  if ((TARGET_E500_DOUBLE || TARGET_SPE) && invalid_e500_subreg (op, mode))
+  if (SUBREG_P (op))
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
+
+  if (!REG_P (op))
     return 0;
 
-  if (GET_CODE (op) == SUBREG)
+  if (!HARD_REGISTER_P (op))
+    return 1;
+
+  return INT_REGNO_P (REGNO (op));
+})
+
+;; Like int_reg_operand, but don't return true for pseudo registers
+;; We don't have to check for SF SUBREGS because pseudo registers
+;; are not allowed, and SF SUBREGs are ok within GPR registers.
+(define_predicate "int_reg_operand_not_pseudo"
+  (match_operand 0 "register_operand")
+{
+  if (SUBREG_P (op))
     op = SUBREG_REG (op);
 
   if (!REG_P (op))
     return 0;
 
-  if (REGNO (op) >= FIRST_PSEUDO_REGISTER)
-    return 1;
+  if (!HARD_REGISTER_P (op))
+    return 0;
 
   return INT_REGNO_P (REGNO (op));
 })
@@ -240,13 +377,33 @@
 (define_predicate "base_reg_operand"
   (match_operand 0 "int_reg_operand")
 {
-  if (GET_CODE (op) == SUBREG)
+  if (SUBREG_P (op))
     op = SUBREG_REG (op);
 
   if (!REG_P (op))
     return 0;
 
   return (REGNO (op) != FIRST_GPR_REGNO);
+})
+
+
+;; Return true if this is a traditional floating point register
+(define_predicate "fpr_reg_operand"
+  (match_code "reg,subreg")
+{
+  HOST_WIDE_INT r;
+
+  if (SUBREG_P (op))
+    op = SUBREG_REG (op);
+
+  if (!REG_P (op))
+    return 0;
+
+  r = REGNO (op);
+  if (!HARD_REGISTER_NUM_P (r))
+    return 1;
+
+  return FP_REGNO_P (r);
 })
 
 ;; Return 1 if op is a HTM specific SPR register.
@@ -256,7 +413,7 @@
   if (!TARGET_HTM)
     return 0;
 
-  if (GET_CODE (op) == SUBREG)
+  if (SUBREG_P (op))
     op = SUBREG_REG (op);
 
   if (!REG_P (op))
@@ -278,22 +435,21 @@
 
 ;; Return 1 if op is a general purpose register that is an even register
 ;; which suitable for a load/store quad operation
+;; Subregs are not allowed here because when they are combine can
+;; create (subreg:PTI (reg:TI pseudo)) which will cause reload to
+;; think the innermost reg needs reloading, in TImode instead of
+;; PTImode.  So reload will choose a reg in TImode which has no
+;; requirement that the reg be even.
 (define_predicate "quad_int_reg_operand"
-  (match_operand 0 "register_operand")
+  (match_code "reg")
 {
   HOST_WIDE_INT r;
 
   if (!TARGET_QUAD_MEMORY && !TARGET_QUAD_MEMORY_ATOMIC)
     return 0;
 
-  if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
-
-  if (!REG_P (op))
-    return 0;
-
   r = REGNO (op);
-  if (r >= FIRST_PSEUDO_REGISTER)
+  if (!HARD_REGISTER_NUM_P (r))
     return 1;
 
   return (INT_REGNO_P (r) && ((r & 1) == 0));
@@ -303,7 +459,7 @@
 (define_predicate "cc_reg_operand"
   (match_operand 0 "register_operand")
 {
-  if (GET_CODE (op) == SUBREG)
+  if (SUBREG_P (op))
     op = SUBREG_REG (op);
 
   if (!REG_P (op))
@@ -319,7 +475,7 @@
 (define_predicate "cc_reg_not_cr0_operand"
   (match_operand 0 "register_operand")
 {
-  if (GET_CODE (op) == SUBREG)
+  if (SUBREG_P (op))
     op = SUBREG_REG (op);
 
   if (!REG_P (op))
@@ -331,41 +487,11 @@
   return CR_REGNO_NOT_CR0_P (REGNO (op));
 })
 
-;; Return 1 if op is a register that is a condition register field and if generating microcode, not cr0.
-(define_predicate "cc_reg_not_micro_cr0_operand"
-  (match_operand 0 "register_operand")
-{
-  if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
-
-  if (!REG_P (op))
-    return 0;
-
-  if (REGNO (op) > LAST_VIRTUAL_REGISTER)
-    return 1;
-
-  if (rs6000_gen_cell_microcode)
-    return CR_REGNO_NOT_CR0_P (REGNO (op));
-  else
-    return CR_REGNO_P (REGNO (op));
-})
-
 ;; Return 1 if op is a constant integer valid for D field
 ;; or non-special register register.
 (define_predicate "reg_or_short_operand"
   (if_then_else (match_code "const_int")
     (match_operand 0 "short_cint_operand")
-    (match_operand 0 "gpc_reg_operand")))
-
-;; Return 1 if op is a constant integer valid whose negation is valid for
-;; D field or non-special register register.
-;; Do not allow a constant zero because all patterns that call this
-;; predicate use "addic r1,r2,-const" to set carry when r2 is greater than
-;; or equal to const, which does not work for zero.
-(define_predicate "reg_or_neg_short_operand"
-  (if_then_else (match_code "const_int")
-    (match_test "satisfies_constraint_P (op)
-		 && INTVAL (op) != 0")
     (match_operand 0 "gpc_reg_operand")))
 
 ;; Return 1 if op is a constant integer valid for DS field
@@ -383,17 +509,21 @@
     (match_operand 0 "u_short_cint_operand")
     (match_operand 0 "gpc_reg_operand")))
 
-;; Return 1 if op is any constant integer 
-;; or non-special register.
+;; Return 1 if op is any constant integer or a non-special register.
 (define_predicate "reg_or_cint_operand"
   (ior (match_code "const_int")
+       (match_operand 0 "gpc_reg_operand")))
+
+;; Return 1 if op is constant zero or a non-special register.
+(define_predicate "reg_or_zero_operand"
+  (ior (match_operand 0 "zero_constant")
        (match_operand 0 "gpc_reg_operand")))
 
 ;; Return 1 if op is a constant integer valid for addition with addis, addi.
 (define_predicate "add_cint_operand"
   (and (match_code "const_int")
-       (match_test "(unsigned HOST_WIDE_INT)
-		      (INTVAL (op) + (mode == SImode ? 0x80000000 : 0x80008000))
+       (match_test "((unsigned HOST_WIDE_INT) INTVAL (op)
+		       + (mode == SImode ? 0x80000000 : 0x80008000))
 		    < (unsigned HOST_WIDE_INT) 0x100000000ll")))
 
 ;; Return 1 if op is a constant integer valid for addition
@@ -408,7 +538,7 @@
 (define_predicate "reg_or_sub_cint_operand"
   (if_then_else (match_code "const_int")
     (match_test "(unsigned HOST_WIDE_INT)
-		   (- INTVAL (op) + (mode == SImode ? 0x80000000 : 0x80008000))
+		   (- UINTVAL (op) + (mode == SImode ? 0x80000000 : 0x80008000))
 		 < (unsigned HOST_WIDE_INT) 0x100000000ll")
     (match_operand 0 "gpc_reg_operand")))
 
@@ -432,101 +562,74 @@
 (define_predicate "easy_fp_constant"
   (match_code "const_double")
 {
-  long k[4];
-  REAL_VALUE_TYPE rv;
+  gcc_assert (GET_MODE (op) == mode && SCALAR_FLOAT_MODE_P (mode));
 
-  if (GET_MODE (op) != mode
-      || (!SCALAR_FLOAT_MODE_P (mode) && mode != DImode))
-    return 0;
+  /* Consider all constants with -msoft-float to be easy when regs are
+     32-bit and thus can be loaded with a maximum of 2 insns.  For
+     64-bit avoid long dependent insn sequences.  */
+  if (TARGET_SOFT_FLOAT)
+    {
+      if (!TARGET_POWERPC64)
+        return 1;
 
-  /* Consider all constants with -msoft-float to be easy.  */
-  if ((TARGET_SOFT_FLOAT || TARGET_E500_SINGLE 
-      || (TARGET_HARD_FLOAT && (TARGET_SINGLE_FLOAT && ! TARGET_DOUBLE_FLOAT)))
-      && mode != DImode)
-    return 1;
+      int size = GET_MODE_SIZE (mode);
+      if (size < 8)
+        return 1;
 
-  /* The constant 0.0 is easy under VSX.  */
-  if ((mode == SFmode || mode == DFmode || mode == SDmode || mode == DDmode)
-      && VECTOR_UNIT_VSX_P (DFmode) && op == CONST0_RTX (mode))
-    return 1;
+      int load_from_mem_insns = 2;
+      if (size > 8)
+        load_from_mem_insns++;
+      if (TARGET_CMODEL != CMODEL_SMALL)
+        load_from_mem_insns++;
+      if (num_insns_constant (op, mode) <= load_from_mem_insns)
+        return 1;
+    }
 
+  /* 0.0D is not all zero bits.  */
   if (DECIMAL_FLOAT_MODE_P (mode))
     return 0;
 
-  /* If we are using V.4 style PIC, consider all constants to be hard.  */
-  if (flag_pic && DEFAULT_ABI == ABI_V4)
-    return 0;
-
-#ifdef TARGET_RELOCATABLE
-  /* Similarly if we are using -mrelocatable, consider all constants
-     to be hard.  */
-  if (TARGET_RELOCATABLE)
-    return 0;
-#endif
-
-  switch (mode)
-    {
-    case TFmode:
-      if (TARGET_E500_DOUBLE)
-	return 0;
-
-      REAL_VALUE_FROM_CONST_DOUBLE (rv, op);
-      REAL_VALUE_TO_TARGET_LONG_DOUBLE (rv, k);
-
-      return (num_insns_constant_wide ((HOST_WIDE_INT) k[0]) == 1
-	      && num_insns_constant_wide ((HOST_WIDE_INT) k[1]) == 1
-	      && num_insns_constant_wide ((HOST_WIDE_INT) k[2]) == 1
-	      && num_insns_constant_wide ((HOST_WIDE_INT) k[3]) == 1);
-
-    case DFmode:
-      /* The constant 0.f is easy under VSX.  */
-      if (op == CONST0_RTX (DFmode) && VECTOR_UNIT_VSX_P (DFmode))
-	return 1;
-
-      /* Force constants to memory before reload to utilize
-	 compress_float_constant.
-	 Avoid this when flag_unsafe_math_optimizations is enabled
-	 because RDIV division to reciprocal optimization is not able
-	 to regenerate the division.  */
-      if (TARGET_E500_DOUBLE
-          || (!reload_in_progress && !reload_completed
-	      && !flag_unsafe_math_optimizations))
-        return 0;
-
-      REAL_VALUE_FROM_CONST_DOUBLE (rv, op);
-      REAL_VALUE_TO_TARGET_DOUBLE (rv, k);
-
-      return (num_insns_constant_wide ((HOST_WIDE_INT) k[0]) == 1
-	      && num_insns_constant_wide ((HOST_WIDE_INT) k[1]) == 1);
-
-    case SFmode:
-      /* The constant 0.f is easy.  */
-      if (op == CONST0_RTX (SFmode))
-	return 1;
-
-      /* Force constants to memory before reload to utilize
-	 compress_float_constant.
-	 Avoid this when flag_unsafe_math_optimizations is enabled
-	 because RDIV division to reciprocal optimization is not able
-	 to regenerate the division.  */
-      if (!reload_in_progress && !reload_completed
-          && !flag_unsafe_math_optimizations)
-	return 0;
-
-      REAL_VALUE_FROM_CONST_DOUBLE (rv, op);
-      REAL_VALUE_TO_TARGET_SINGLE (rv, k[0]);
-
-      return num_insns_constant_wide (k[0]) == 1;
-
-  case DImode:
-    return (num_insns_constant (op, DImode) <= 2);
-
-  case SImode:
+  /* The constant 0.0 is easy under VSX.  */
+  if (TARGET_VSX && op == CONST0_RTX (mode))
     return 1;
 
-  default:
-    gcc_unreachable ();
-  }
+  /* Otherwise consider floating point constants hard, so that the
+     constant gets pushed to memory during the early RTL phases.  This
+     has the advantage that double precision constants that can be
+     represented in single precision without a loss of precision will
+     use single precision loads.  */
+   return 0;
+})
+
+;; Return 1 if the operand is a constant that can loaded with a XXSPLTIB
+;; instruction and then a VUPKHSB, VECSB2W or VECSB2D instruction.
+
+(define_predicate "xxspltib_constant_split"
+  (match_code "const_vector,vec_duplicate,const_int")
+{
+  int value = 256;
+  int num_insns = -1;
+
+  if (!xxspltib_constant_p (op, mode, &num_insns, &value))
+    return false;
+
+  return num_insns > 1;
+})
+
+
+;; Return 1 if the operand is constant that can loaded directly with a XXSPLTIB
+;; instruction.
+
+(define_predicate "xxspltib_constant_nosplit"
+  (match_code "const_vector,vec_duplicate,const_int")
+{
+  int value = 256;
+  int num_insns = -1;
+
+  if (!xxspltib_constant_p (op, mode, &num_insns, &value))
+    return false;
+
+  return num_insns == 1;
 })
 
 ;; Return 1 if the operand is a CONST_VECTOR and can be loaded into a
@@ -534,43 +637,19 @@
 (define_predicate "easy_vector_constant"
   (match_code "const_vector")
 {
-  /* As the paired vectors are actually FPRs it seems that there is
-     no easy way to load a CONST_VECTOR without using memory.  */
-  if (TARGET_PAIRED_FLOAT)
-    return false;
-
   if (VECTOR_MEM_ALTIVEC_OR_VSX_P (mode))
     {
-      if (zero_constant (op, mode))
+      int value = 256;
+      int num_insns = -1;
+
+      if (zero_constant (op, mode) || all_ones_constant (op, mode))
+	return true;
+
+      if (TARGET_P9_VECTOR
+          && xxspltib_constant_p (op, mode, &num_insns, &value))
 	return true;
 
       return easy_altivec_constant (op, mode);
-    }
-
-  if (SPE_VECTOR_MODE (mode))
-    {
-      int cst, cst2;
-      if (zero_constant (op, mode))
-	return true;
-      if (GET_MODE_CLASS (mode) != MODE_VECTOR_INT)
-        return false;
-
-      /* Limit SPE vectors to 15 bits signed.  These we can generate with:
-	   li r0, CONSTANT1
-	   evmergelo r0, r0, r0
-	   li r0, CONSTANT2
-
-	 I don't know how efficient it would be to allow bigger constants,
-	 considering we'll have an extra 'ori' for every 'li'.  I doubt 5
-	 instructions is better than a 64-bit memory load, but I don't
-	 have the e500 timing specs.  */
-      if (mode == V2SImode)
-	{
-	  cst  = INTVAL (CONST_VECTOR_ELT (op, 0));
-	  cst2 = INTVAL (CONST_VECTOR_ELT (op, 1));
-	  return cst  >= -0x7fff && cst <= 0x7fff
-	         && cst2 >= -0x7fff && cst2 <= 0x7fff;
-	}
     }
 
   return false;
@@ -607,10 +686,28 @@
   return EASY_VECTOR_MSB (val, GET_MODE_INNER (mode));
 })
 
-;; Return 1 if operand is constant zero (scalars and vectors).
-(define_predicate "zero_constant"
-  (and (match_code "const_int,const_double,const_wide_int,const_vector")
-       (match_test "op == CONST0_RTX (mode)")))
+;; Return true if this is an easy altivec constant that we form
+;; by using VSLDOI.
+(define_predicate "easy_vector_constant_vsldoi"
+  (and (match_code "const_vector")
+       (and (match_test "TARGET_ALTIVEC")
+	    (and (match_test "easy_altivec_constant (op, mode)")
+		 (match_test "vspltis_shifted (op) != 0")))))
+
+;; Return 1 if operand is a vector int register or is either a vector constant
+;; of all 0 bits of a vector constant of all 1 bits.
+(define_predicate "vector_int_reg_or_same_bit"
+  (match_code "reg,subreg,const_vector")
+{
+  if (GET_MODE_CLASS (mode) != MODE_VECTOR_INT)
+    return 0;
+
+  else if (REG_P (op) || SUBREG_P (op))
+    return vint_operand (op, mode);
+
+  else
+    return op == CONST0_RTX (mode) || op == CONSTM1_RTX (mode);
+})
 
 ;; Return 1 if operand is 0.0.
 (define_predicate "zero_fp_constant"
@@ -626,63 +723,54 @@
   (and (and (match_code "mem")
 	    (match_test "MEM_VOLATILE_P (op)"))
        (if_then_else (match_test "reload_completed")
-         (match_operand 0 "memory_operand")
-         (if_then_else (match_test "reload_in_progress")
-	   (match_test "strict_memory_address_p (mode, XEXP (op, 0))")
-	   (match_test "memory_address_p (mode, XEXP (op, 0))")))))
+	 (match_operand 0 "memory_operand")
+	 (match_test "memory_address_p (mode, XEXP (op, 0))"))))
 
 ;; Return 1 if the operand is an offsettable memory operand.
 (define_predicate "offsettable_mem_operand"
   (and (match_operand 0 "memory_operand")
        (match_test "offsettable_nonstrict_memref_p (op)")))
 
+;; Return 1 if the operand is a simple offsettable memory operand
+;; that does not include pre-increment, post-increment, etc.
+(define_predicate "simple_offsettable_mem_operand"
+  (match_operand 0 "offsettable_mem_operand")
+{
+  rtx addr = XEXP (op, 0);
+
+  if (GET_CODE (addr) != PLUS && GET_CODE (addr) != LO_SUM)
+    return 0;
+
+  if (!CONSTANT_P (XEXP (addr, 1)))
+    return 0;
+
+  return base_reg_operand (XEXP (addr, 0), Pmode);
+})
+
 ;; Return 1 if the operand is suitable for load/store quad memory.
 ;; This predicate only checks for non-atomic loads/stores (not lqarx/stqcx).
 (define_predicate "quad_memory_operand"
   (match_code "mem")
 {
-  rtx addr, op0, op1;
-  int ret;
-
   if (!TARGET_QUAD_MEMORY && !TARGET_SYNC_TI)
-    ret = 0;
+    return false;
 
-  else if (!memory_operand (op, mode))
-    ret = 0;
+  if (GET_MODE_SIZE (mode) != 16 || !MEM_P (op) || MEM_ALIGN (op) < 128)
+    return false;
 
-  else if (GET_MODE_SIZE (GET_MODE (op)) != 16)
-    ret = 0;
+  return quad_address_p (XEXP (op, 0), mode, false);
+})
 
-  else if (MEM_ALIGN (op) < 128)
-    ret = 0;
+;; Return 1 if the operand is suitable for load/store to vector registers with
+;; d-form addressing (register+offset), which was added in ISA 3.0.
+;; Unlike quad_memory_operand, we do not have to check for alignment.
+(define_predicate "vsx_quad_dform_memory_operand"
+  (match_code "mem")
+{
+  if (!TARGET_P9_VECTOR || !MEM_P (op) || GET_MODE_SIZE (mode) != 16)
+    return false;
 
-  else
-    {
-      addr = XEXP (op, 0);
-      if (int_reg_operand (addr, Pmode))
-	ret = 1;
-
-      else if (GET_CODE (addr) != PLUS)
-	ret = 0;
-
-      else
-	{
-	  op0 = XEXP (addr, 0);
-	  op1 = XEXP (addr, 1);
-	  ret = (int_reg_operand (op0, Pmode)
-		 && GET_CODE (op1) == CONST_INT
-		 && IN_RANGE (INTVAL (op1), -32768, 32767)
-		 && (INTVAL (op1) & 15) == 0);
-	}
-    }
-
-  if (TARGET_DEBUG_ADDR)
-    {
-      fprintf (stderr, "\nquad_memory_operand, ret = %s\n", ret ? "true" : "false");
-      debug_rtx (op);
-    }
-
-  return ret;
+  return quad_address_p (XEXP (op, 0), mode, false);
 })
 
 ;; Return 1 if the operand is an indexed or indirect memory operand.
@@ -692,7 +780,7 @@
   op = XEXP (op, 0);
   if (VECTOR_MEM_ALTIVEC_P (mode)
       && GET_CODE (op) == AND
-      && GET_CODE (XEXP (op, 1)) == CONST_INT
+      && CONST_INT_P (XEXP (op, 1))
       && INTVAL (XEXP (op, 1)) == -16)
     op = XEXP (op, 0);
 
@@ -702,7 +790,7 @@
 ;; Like indexed_or_indirect_operand, but also allow a GPR register if direct
 ;; moves are supported.
 (define_predicate "reg_or_indexed_operand"
-  (match_code "mem,reg")
+  (match_code "mem,reg,subreg")
 {
   if (MEM_P (op))
     return indexed_or_indirect_operand (op, mode);
@@ -722,7 +810,7 @@
   op = XEXP (op, 0);
   if (VECTOR_MEM_ALTIVEC_OR_VSX_P (mode)
       && GET_CODE (op) == AND
-      && GET_CODE (XEXP (op, 1)) == CONST_INT
+      && CONST_INT_P (XEXP (op, 1))
       && INTVAL (XEXP (op, 1)) == -16)
     return indexed_or_indirect_address (XEXP (op, 0), mode);
 
@@ -758,21 +846,18 @@
 		    || (GET_CODE (XEXP (op, 0)) == PRE_MODIFY
 			&& indexed_address (XEXP (XEXP (op, 0), 1), mode))))"))
 
-;; Used for the destination of the fix_truncdfsi2 expander.
-;; If stfiwx will be used, the result goes to memory; otherwise,
-;; we're going to emit a store and a load of a subreg, so the dest is a
-;; register.
-(define_predicate "fix_trunc_dest_operand"
-  (if_then_else (match_test "! TARGET_E500_DOUBLE && TARGET_PPC_GFXOPT")
-   (match_operand 0 "memory_operand")
-   (match_operand 0 "gpc_reg_operand")))
-
 ;; Return 1 if the operand is either a non-special register or can be used
 ;; as the operand of a `mode' add insn.
 (define_predicate "add_operand"
   (if_then_else (match_code "const_int")
     (match_test "satisfies_constraint_I (op)
 		 || satisfies_constraint_L (op)")
+    (match_operand 0 "gpc_reg_operand")))
+
+;; Return 1 if the operand is either a non-special register, or 0, or -1.
+(define_predicate "adde_operand"
+  (if_then_else (match_code "const_int")
+    (match_test "INTVAL (op) == 0 || INTVAL (op) == -1")
     (match_operand 0 "gpc_reg_operand")))
 
 ;; Return 1 if OP is a constant but not a valid add_operand.
@@ -782,7 +867,7 @@
 		    && !satisfies_constraint_L (op)")))
 
 ;; Return 1 if the operand is a constant that can be used as the operand
-;; of an OR or XOR.
+;; of an AND, OR or XOR.
 (define_predicate "logical_const_operand"
   (match_code "const_int")
 {
@@ -795,7 +880,7 @@
 })
 
 ;; Return 1 if the operand is a non-special register or a constant that
-;; can be used as the operand of an OR or XOR.
+;; can be used as the operand of an AND, OR or XOR.
 (define_predicate "logical_operand"
   (ior (match_operand 0 "gpc_reg_operand")
        (match_operand 0 "logical_const_operand")))
@@ -807,177 +892,14 @@
        (and (not (match_operand 0 "logical_operand"))
 	    (match_operand 0 "reg_or_logical_cint_operand"))))
 
-;; Return 1 if op is a constant that can be encoded in a 32-bit mask,
-;; suitable for use with rlwinm (no more than two 1->0 or 0->1
-;; transitions).  Reject all ones and all zeros, since these should have
-;; been optimized away and confuse the making of MB and ME.
-(define_predicate "mask_operand"
-  (match_code "const_int")
-{
-  HOST_WIDE_INT c, lsb;
-
-  c = INTVAL (op);
-
-  if (TARGET_POWERPC64)
-    {
-      /* Fail if the mask is not 32-bit.  */
-      if (mode == DImode && (c & ~(unsigned HOST_WIDE_INT) 0xffffffff) != 0)
-	return 0;
-
-      /* Fail if the mask wraps around because the upper 32-bits of the
-	 mask will all be 1s, contrary to GCC's internal view.  */
-      if ((c & 0x80000001) == 0x80000001)
-	return 0;
-    }
-
-  /* We don't change the number of transitions by inverting,
-     so make sure we start with the LS bit zero.  */
-  if (c & 1)
-    c = ~c;
-
-  /* Reject all zeros or all ones.  */
-  if (c == 0)
-    return 0;
-
-  /* Find the first transition.  */
-  lsb = c & -c;
-
-  /* Invert to look for a second transition.  */
-  c = ~c;
-
-  /* Erase first transition.  */
-  c &= -lsb;
-
-  /* Find the second transition (if any).  */
-  lsb = c & -c;
-
-  /* Match if all the bits above are 1's (or c is zero).  */
-  return c == -lsb;
-})
-
-;; Return 1 for the PowerPC64 rlwinm corner case.
-(define_predicate "mask_operand_wrap"
-  (match_code "const_int")
-{
-  HOST_WIDE_INT c, lsb;
-
-  c = INTVAL (op);
-
-  if ((c & 0x80000001) != 0x80000001)
-    return 0;
-
-  c = ~c;
-  if (c == 0)
-    return 0;
-
-  lsb = c & -c;
-  c = ~c;
-  c &= -lsb;
-  lsb = c & -c;
-  return c == -lsb;
-})
-
-;; Return 1 if the operand is a constant that is a PowerPC64 mask
-;; suitable for use with rldicl or rldicr (no more than one 1->0 or 0->1
-;; transition).  Reject all zeros, since zero should have been
-;; optimized away and confuses the making of MB and ME.
-(define_predicate "mask64_operand"
-  (match_code "const_int")
-{
-  HOST_WIDE_INT c, lsb;
-
-  c = INTVAL (op);
-
-  /* Reject all zeros.  */
-  if (c == 0)
-    return 0;
-
-  /* We don't change the number of transitions by inverting,
-     so make sure we start with the LS bit zero.  */
-  if (c & 1)
-    c = ~c;
-
-  /* Find the first transition.  */
-  lsb = c & -c;
-
-  /* Match if all the bits above are 1's (or c is zero).  */
-  return c == -lsb;
-})
-
-;; Like mask64_operand, but allow up to three transitions.  This
-;; predicate is used by insn patterns that generate two rldicl or
-;; rldicr machine insns.
-(define_predicate "mask64_2_operand"
-  (match_code "const_int")
-{
-  HOST_WIDE_INT c, lsb;
-
-  c = INTVAL (op);
-
-  /* Disallow all zeros.  */
-  if (c == 0)
-    return 0;
-
-  /* We don't change the number of transitions by inverting,
-     so make sure we start with the LS bit zero.  */
-  if (c & 1)
-    c = ~c;
-
-  /* Find the first transition.  */
-  lsb = c & -c;
-
-  /* Invert to look for a second transition.  */
-  c = ~c;
-
-  /* Erase first transition.  */
-  c &= -lsb;
-
-  /* Find the second transition.  */
-  lsb = c & -c;
-
-  /* Invert to look for a third transition.  */
-  c = ~c;
-
-  /* Erase second transition.  */
-  c &= -lsb;
-
-  /* Find the third transition (if any).  */
-  lsb = c & -c;
-
-  /* Match if all the bits above are 1's (or c is zero).  */
-  return c == -lsb;
-})
-
-;; Match a mask_operand or a mask64_operand.
-(define_predicate "any_mask_operand"
-  (ior (match_operand 0 "mask_operand")
-       (and (match_test "TARGET_POWERPC64 && mode == DImode")
-	    (match_operand 0 "mask64_operand"))))
-
-;; Like and_operand, but also match constants that can be implemented
-;; with two rldicl or rldicr insns.
-(define_predicate "and64_2_operand"
-  (ior (match_operand 0 "mask64_2_operand")
-       (if_then_else (match_test "fixed_regs[CR0_REGNO]")
-	 (match_operand 0 "gpc_reg_operand")
-	 (match_operand 0 "logical_operand"))))
-
 ;; Return 1 if the operand is either a non-special register or a
 ;; constant that can be used as the operand of a logical AND.
 (define_predicate "and_operand"
-  (ior (match_operand 0 "mask_operand")
-       (and (match_test "TARGET_POWERPC64 && mode == DImode")
-	    (match_operand 0 "mask64_operand"))
+  (ior (and (match_code "const_int")
+	    (match_test "rs6000_is_valid_and_mask (op, mode)"))
        (if_then_else (match_test "fixed_regs[CR0_REGNO]")
 	 (match_operand 0 "gpc_reg_operand")
 	 (match_operand 0 "logical_operand"))))
-
-;; Return 1 if the operand is a constant that can be used as the operand
-;; of a logical AND, implemented with two rld* insns, and it cannot be done
-;; using just one insn.
-(define_predicate "and_2rld_operand"
-  (and (match_operand 0 "and64_2_operand")
-       (not (match_operand 0 "and_operand"))))
 
 ;; Return 1 if the operand is either a logical operand or a short cint operand.
 (define_predicate "scc_eq_operand"
@@ -986,24 +908,16 @@
 
 ;; Return 1 if the operand is a general non-special register or memory operand.
 (define_predicate "reg_or_mem_operand"
-     (ior (match_operand 0 "memory_operand")
-	  (ior (and (match_code "mem")
-		    (match_test "macho_lo_sum_memory_operand (op, mode)"))
-	       (ior (match_operand 0 "volatile_mem_operand")
-		    (match_operand 0 "gpc_reg_operand")))))
-
-;; Return 1 if the operand is either an easy FP constant or memory or reg.
-(define_predicate "reg_or_none500mem_operand"
-  (if_then_else (match_code "mem")
-     (and (match_test "!TARGET_E500_DOUBLE")
-	  (ior (match_operand 0 "memory_operand")
-	       (ior (match_test "macho_lo_sum_memory_operand (op, mode)")
-		    (match_operand 0 "volatile_mem_operand"))))
-     (match_operand 0 "gpc_reg_operand")))
+  (ior (match_operand 0 "memory_operand")
+       (and (match_code "mem")
+	    (match_test "macho_lo_sum_memory_operand (op, mode)"))
+       (match_operand 0 "volatile_mem_operand")
+       (match_operand 0 "gpc_reg_operand")))
 
 ;; Return 1 if the operand is CONST_DOUBLE 0, register or memory operand.
 (define_predicate "zero_reg_mem_operand"
-  (ior (match_operand 0 "zero_fp_constant")
+  (ior (and (match_test "TARGET_VSX")
+	    (match_operand 0 "zero_fp_constant"))
        (match_operand 0 "reg_or_mem_operand")))
 
 ;; Return 1 if the operand is a CONST_INT and it is the element for 64-bit
@@ -1023,14 +937,12 @@
   rtx inner, addr, offset;
 
   inner = op;
-  if (reload_completed && GET_CODE (inner) == SUBREG)
+  if (reload_completed && SUBREG_P (inner))
     inner = SUBREG_REG (inner);
 
   if (gpc_reg_operand (inner, mode))
     return true;
   if (!memory_operand (inner, mode))
-    return false;
-  if (!rs6000_gen_cell_microcode)
     return false;
 
   addr = XEXP (inner, 0);
@@ -1040,13 +952,13 @@
 	  && !legitimate_indexed_address_p (XEXP (addr, 1), 0)))
     return false;
   if (GET_CODE (addr) == LO_SUM
-      && GET_CODE (XEXP (addr, 0)) == REG
+      && REG_P (XEXP (addr, 0))
       && GET_CODE (XEXP (addr, 1)) == CONST)
     addr = XEXP (XEXP (addr, 1), 0);
   if (GET_CODE (addr) != PLUS)
     return true;
   offset = XEXP (addr, 1);
-  if (GET_CODE (offset) != CONST_INT)
+  if (!CONST_INT_P (offset))
     return true;
   return INTVAL (offset) % 4 == 0;
 })
@@ -1072,26 +984,59 @@
   (and (match_code "symbol_ref")
        (match_test "RS6000_SYMBOL_REF_TLS_P (op)")))
 
+;; Return 1 for the CONST_INT or UNSPEC second CALL operand.
+;; Prevents unwanted substitution of the unspec got_reg arg.
+(define_predicate "unspec_tls"
+  (match_code "const_int,unspec")
+{
+  if (CONST_INT_P (op))
+    return 1;
+  if (XINT (op, 1) == UNSPEC_TLSGD)
+    return REG_P (XVECEXP (op, 0, 1));
+  if (XINT (op, 1) == UNSPEC_TLSLD)
+    return REG_P (XVECEXP (op, 0, 0));
+  return 0;
+})
+
 ;; Return 1 if the operand, used inside a MEM, is a valid first argument
 ;; to CALL.  This is a SYMBOL_REF, a pseudo-register, LR or CTR.
 (define_predicate "call_operand"
   (if_then_else (match_code "reg")
      (match_test "REGNO (op) == LR_REGNO
 		  || REGNO (op) == CTR_REGNO
-		  || REGNO (op) >= FIRST_PSEUDO_REGISTER")
+		  || !HARD_REGISTER_P (op)")
      (match_code "symbol_ref")))
+
+;; Return 1 if the operand, used inside a MEM, is a valid first argument
+;; to an indirect CALL.  This is LR, CTR, or a PLTSEQ unspec using CTR.
+(define_predicate "indirect_call_operand"
+  (match_code "reg,unspec")
+{
+  if (REG_P (op))
+    return (REGNO (op) == LR_REGNO
+	    || REGNO (op) == CTR_REGNO);
+  if (GET_CODE (op) == UNSPEC)
+    {
+      if (XINT (op, 1) != UNSPEC_PLTSEQ)
+	return false;
+      op = XVECEXP (op, 0, 0);
+      return REG_P (op) && REGNO (op) == CTR_REGNO;
+    }
+  return false;
+})
 
 ;; Return 1 if the operand is a SYMBOL_REF for a function known to be in
 ;; this file.
 (define_predicate "current_file_function_operand"
   (and (match_code "symbol_ref")
        (match_test "(DEFAULT_ABI != ABI_AIX || SYMBOL_REF_FUNCTION_P (op))
-		    && ((SYMBOL_REF_LOCAL_P (op)
-			 && ((DEFAULT_ABI != ABI_AIX
-			      && DEFAULT_ABI != ABI_ELFv2)
-			     || !SYMBOL_REF_EXTERNAL_P (op)))
-		        || (op == XEXP (DECL_RTL (current_function_decl),
-						  0)))")))
+		    && (SYMBOL_REF_LOCAL_P (op)
+			|| (op == XEXP (DECL_RTL (current_function_decl), 0)
+			    && !decl_replaceable_p (current_function_decl)))
+		    && !((DEFAULT_ABI == ABI_AIX
+			  || DEFAULT_ABI == ABI_ELFv2)
+			 && (SYMBOL_REF_EXTERNAL_P (op)
+			     || SYMBOL_REF_WEAK (op)))")))
 
 ;; Return 1 if this operand is a valid input for a move insn.
 (define_predicate "input_operand"
@@ -1117,12 +1062,6 @@
       && easy_vector_constant (op, mode))
     return 1;
 
-  /* Do not allow invalid E500 subregs.  */
-  if ((TARGET_E500_DOUBLE || TARGET_SPE)
-      && GET_CODE (op) == SUBREG
-      && invalid_e500_subreg (op, mode))
-    return 0;
-
   /* For floating-point or multi-word mode, the only remaining valid type
      is a register.  */
   if (SCALAR_FLOAT_MODE_P (mode)
@@ -1142,7 +1081,7 @@
   /* V.4 allows SYMBOL_REFs and CONSTs that are in the small data region
      to be valid.  */
   if (DEFAULT_ABI == ABI_V4
-      && (GET_CODE (op) == SYMBOL_REF || GET_CODE (op) == CONST)
+      && (SYMBOL_REF_P (op) || GET_CODE (op) == CONST)
       && small_data_operand (op, Pmode))
     return 1;
 
@@ -1151,37 +1090,39 @@
 
 ;; Return 1 if this operand is a valid input for a vsx_splat insn.
 (define_predicate "splat_input_operand"
-  (match_code "symbol_ref,const,reg,subreg,mem,
-	       const_double,const_wide_int,const_vector,const_int")
-{
-  if (MEM_P (op))
-    {
-      if (! volatile_ok && MEM_VOLATILE_P (op))
-	return 0;
-      if (mode == DFmode)
-	mode = V2DFmode;
-      else if (mode == DImode)
-	mode = V2DImode;
-      else
-	gcc_unreachable ();
-      return memory_address_addr_space_p (mode, XEXP (op, 0),
-					  MEM_ADDR_SPACE (op));
-    }
-  return input_operand (op, mode);
-})
-
-;; Return true if OP is a non-immediate operand and not an invalid
-;; SUBREG operation on the e500.
-(define_predicate "rs6000_nonimmediate_operand"
   (match_code "reg,subreg,mem")
 {
-  if ((TARGET_E500_DOUBLE || TARGET_SPE)
-      && GET_CODE (op) == SUBREG
-      && invalid_e500_subreg (op, mode))
-    return 0;
+  machine_mode vmode;
 
-  return nonimmediate_operand (op, mode);
+  if (mode == DFmode)
+    vmode = V2DFmode;
+  else if (mode == DImode)
+    vmode = V2DImode;
+  else if (mode == SImode && TARGET_P9_VECTOR)
+    vmode = V4SImode;
+  else if (mode == SFmode && TARGET_P9_VECTOR)
+    vmode = V4SFmode;
+  else
+    return false;
+
+  if (MEM_P (op))
+    {
+      rtx addr = XEXP (op, 0);
+
+      if (! volatile_ok && MEM_VOLATILE_P (op))
+	return 0;
+
+      if (lra_in_progress || reload_completed)
+	return indexed_or_indirect_address (addr, vmode);
+      else
+	return memory_address_addr_space_p (vmode, addr, MEM_ADDR_SPACE (op));
+    }
+  return gpc_reg_operand (op, mode);
 })
+
+;; Return true if operand is an operator used in rotate-and-mask instructions.
+(define_predicate "rotate_mask_operator"
+  (match_code "rotate,ashift,lshiftrt"))
 
 ;; Return true if operand is boolean operator.
 (define_predicate "boolean_operator"
@@ -1195,10 +1136,6 @@
 (define_special_predicate "equality_operator"
   (match_code "eq,ne"))
 
-;; Return true if operand is MIN or MAX operator.
-(define_predicate "min_max_operator"
-  (match_code "smin,smax,umin,umax"))
-
 ;; Return 1 if OP is a comparison operation that is valid for a branch
 ;; instruction.  We check the opcode against the mode of the CC value.
 ;; validate_condition_mode is an assertion.
@@ -1209,17 +1146,13 @@
 						   GET_MODE (XEXP (op, 0))),
 			  1"))))
 
-;; Return 1 if OP is a valid comparison operator for "cbranch" instructions.
-;; If we're assuming that FP operations cannot generate user-visible traps,
-;; then on e500 we can use the ordered-signaling instructions to implement
-;; the unordered-quiet FP comparison predicates modulo a reversal.
-(define_predicate "rs6000_cbranch_operator"
-  (if_then_else (match_test "TARGET_HARD_FLOAT && !TARGET_FPRS")
-		(if_then_else (match_test "flag_trapping_math")
-			      (match_operand 0 "ordered_comparison_operator")
-			      (ior (match_operand 0 "ordered_comparison_operator")
-				   (match_code ("unlt,unle,ungt,unge"))))
-		(match_operand 0 "comparison_operator")))
+;; Return 1 if OP is an unsigned comparison operator.
+(define_predicate "unsigned_comparison_operator"
+  (match_code "ltu,gtu,leu,geu"))
+
+;; Return 1 if OP is a signed comparison operator.
+(define_predicate "signed_comparison_operator"
+  (match_code "lt,gt,le,ge"))
 
 ;; Return 1 if OP is a comparison operation that is valid for an SCC insn --
 ;; it must be a positive comparison.
@@ -1233,90 +1166,27 @@
   (and (match_operand 0 "branch_comparison_operator")
        (match_code "ne,le,ge,leu,geu,ordered")))
 
+;; Return 1 if OP is a comparison operator suitable for floating point
+;; vector/scalar comparisons that generate a -1/0 mask.
+(define_predicate "fpmask_comparison_operator"
+  (match_code "eq,gt,ge"))
+
+;; Return 1 if OP is a comparison operator suitable for vector/scalar
+;; comparisons that generate a 0/-1 mask (i.e. the inverse of
+;; fpmask_comparison_operator).
+(define_predicate "invert_fpmask_comparison_operator"
+  (match_code "ne,unlt,unle"))
+
+;; Return 1 if OP is a comparison operation suitable for integer vector/scalar
+;; comparisons that generate a -1/0 mask.
+(define_predicate "vecint_comparison_operator"
+  (match_code "eq,gt,gtu"))
+
 ;; Return 1 if OP is a comparison operation that is valid for a branch
 ;; insn, which is true if the corresponding bit in the CC register is set.
 (define_predicate "branch_positive_comparison_operator"
   (and (match_operand 0 "branch_comparison_operator")
        (match_code "eq,lt,gt,ltu,gtu,unordered")))
-
-;; Return 1 if OP is a load multiple operation, known to be a PARALLEL.
-(define_predicate "load_multiple_operation"
-  (match_code "parallel")
-{
-  int count = XVECLEN (op, 0);
-  unsigned int dest_regno;
-  rtx src_addr;
-  int i;
-
-  /* Perform a quick check so we don't blow up below.  */
-  if (count <= 1
-      || GET_CODE (XVECEXP (op, 0, 0)) != SET
-      || GET_CODE (SET_DEST (XVECEXP (op, 0, 0))) != REG
-      || GET_CODE (SET_SRC (XVECEXP (op, 0, 0))) != MEM)
-    return 0;
-
-  dest_regno = REGNO (SET_DEST (XVECEXP (op, 0, 0)));
-  src_addr = XEXP (SET_SRC (XVECEXP (op, 0, 0)), 0);
-
-  for (i = 1; i < count; i++)
-    {
-      rtx elt = XVECEXP (op, 0, i);
-
-      if (GET_CODE (elt) != SET
-	  || GET_CODE (SET_DEST (elt)) != REG
-	  || GET_MODE (SET_DEST (elt)) != SImode
-	  || REGNO (SET_DEST (elt)) != dest_regno + i
-	  || GET_CODE (SET_SRC (elt)) != MEM
-	  || GET_MODE (SET_SRC (elt)) != SImode
-	  || GET_CODE (XEXP (SET_SRC (elt), 0)) != PLUS
-	  || ! rtx_equal_p (XEXP (XEXP (SET_SRC (elt), 0), 0), src_addr)
-	  || GET_CODE (XEXP (XEXP (SET_SRC (elt), 0), 1)) != CONST_INT
-	  || INTVAL (XEXP (XEXP (SET_SRC (elt), 0), 1)) != i * 4)
-	return 0;
-    }
-
-  return 1;
-})
-
-;; Return 1 if OP is a store multiple operation, known to be a PARALLEL.
-;; The second vector element is a CLOBBER.
-(define_predicate "store_multiple_operation"
-  (match_code "parallel")
-{
-  int count = XVECLEN (op, 0) - 1;
-  unsigned int src_regno;
-  rtx dest_addr;
-  int i;
-
-  /* Perform a quick check so we don't blow up below.  */
-  if (count <= 1
-      || GET_CODE (XVECEXP (op, 0, 0)) != SET
-      || GET_CODE (SET_DEST (XVECEXP (op, 0, 0))) != MEM
-      || GET_CODE (SET_SRC (XVECEXP (op, 0, 0))) != REG)
-    return 0;
-
-  src_regno = REGNO (SET_SRC (XVECEXP (op, 0, 0)));
-  dest_addr = XEXP (SET_DEST (XVECEXP (op, 0, 0)), 0);
-
-  for (i = 1; i < count; i++)
-    {
-      rtx elt = XVECEXP (op, 0, i + 1);
-
-      if (GET_CODE (elt) != SET
-	  || GET_CODE (SET_SRC (elt)) != REG
-	  || GET_MODE (SET_SRC (elt)) != SImode
-	  || REGNO (SET_SRC (elt)) != src_regno + i
-	  || GET_CODE (SET_DEST (elt)) != MEM
-	  || GET_MODE (SET_DEST (elt)) != SImode
-	  || GET_CODE (XEXP (SET_DEST (elt), 0)) != PLUS
-	  || ! rtx_equal_p (XEXP (XEXP (SET_DEST (elt), 0), 0), dest_addr)
-	  || GET_CODE (XEXP (XEXP (SET_DEST (elt), 0), 1)) != CONST_INT
-	  || INTVAL (XEXP (XEXP (SET_DEST (elt), 0), 1)) != i * 4)
-	return 0;
-    }
-
-  return 1;
-})
 
 ;; Return 1 if OP is valid for a save_world call in prologue, known to be
 ;; a PARLLEL.
@@ -1340,9 +1210,9 @@
     {
       elt = XVECEXP (op, 0, index++);
       if (GET_CODE (elt) != SET
-	  || GET_CODE (SET_DEST (elt)) != MEM
-	  || ! memory_operand (SET_DEST (elt), DFmode)
-	  || GET_CODE (SET_SRC (elt)) != REG
+	  || !MEM_P (SET_DEST (elt))
+	  || !memory_operand (SET_DEST (elt), DFmode)
+	  || !REG_P (SET_SRC (elt))
 	  || GET_MODE (SET_SRC (elt)) != DFmode)
 	return 0;
     }
@@ -1351,8 +1221,8 @@
     {
       elt = XVECEXP (op, 0, index++);
       if (GET_CODE (elt) != SET
-	  || GET_CODE (SET_DEST (elt)) != MEM
-	  || GET_CODE (SET_SRC (elt)) != REG
+	  || !MEM_P (SET_DEST (elt))
+	  || !REG_P (SET_SRC (elt))
 	  || GET_MODE (SET_SRC (elt)) != V4SImode)
 	return 0;
     }
@@ -1361,18 +1231,18 @@
     {
       elt = XVECEXP (op, 0, index++);
       if (GET_CODE (elt) != SET
-	  || GET_CODE (SET_DEST (elt)) != MEM
-	  || ! memory_operand (SET_DEST (elt), Pmode)
-	  || GET_CODE (SET_SRC (elt)) != REG
+	  || !MEM_P (SET_DEST (elt))
+	  || !memory_operand (SET_DEST (elt), Pmode)
+	  || !REG_P (SET_SRC (elt))
 	  || GET_MODE (SET_SRC (elt)) != Pmode)
 	return 0;
     }
 
   elt = XVECEXP (op, 0, index++);
   if (GET_CODE (elt) != SET
-      || GET_CODE (SET_DEST (elt)) != MEM
-      || ! memory_operand (SET_DEST (elt), Pmode)
-      || GET_CODE (SET_SRC (elt)) != REG
+      || !MEM_P (SET_DEST (elt))
+      || !memory_operand (SET_DEST (elt), Pmode)
+      || !REG_P (SET_SRC (elt))
       || REGNO (SET_SRC (elt)) != CR2_REGNO
       || GET_MODE (SET_SRC (elt)) != Pmode)
     return 0;
@@ -1393,21 +1263,20 @@
   rtx elt;
   int count = XVECLEN (op, 0);
 
-  if (count != 59)
+  if (count != 58)
     return 0;
 
   index = 0;
   if (GET_CODE (XVECEXP (op, 0, index++)) != RETURN
-      || GET_CODE (XVECEXP (op, 0, index++)) != USE
       || GET_CODE (XVECEXP (op, 0, index++)) != USE
       || GET_CODE (XVECEXP (op, 0, index++)) != CLOBBER)
     return 0;
 
   elt = XVECEXP (op, 0, index++);
   if (GET_CODE (elt) != SET
-      || GET_CODE (SET_SRC (elt)) != MEM
-      || ! memory_operand (SET_SRC (elt), Pmode)
-      || GET_CODE (SET_DEST (elt)) != REG
+      || !MEM_P (SET_SRC (elt))
+      || !memory_operand (SET_SRC (elt), Pmode)
+      || !REG_P (SET_DEST (elt))
       || REGNO (SET_DEST (elt)) != CR2_REGNO
       || GET_MODE (SET_DEST (elt)) != Pmode)
     return 0;
@@ -1416,9 +1285,9 @@
     {
       elt = XVECEXP (op, 0, index++);
       if (GET_CODE (elt) != SET
-	  || GET_CODE (SET_SRC (elt)) != MEM
-	  || ! memory_operand (SET_SRC (elt), Pmode)
-	  || GET_CODE (SET_DEST (elt)) != REG
+	  || !MEM_P (SET_SRC (elt))
+	  || !memory_operand (SET_SRC (elt), Pmode)
+	  || !REG_P (SET_DEST (elt))
 	  || GET_MODE (SET_DEST (elt)) != Pmode)
 	return 0;
     }
@@ -1427,8 +1296,8 @@
     {
       elt = XVECEXP (op, 0, index++);
       if (GET_CODE (elt) != SET
-	  || GET_CODE (SET_SRC (elt)) != MEM
-	  || GET_CODE (SET_DEST (elt)) != REG
+	  || !MEM_P (SET_SRC (elt))
+	  || !REG_P (SET_DEST (elt))
 	  || GET_MODE (SET_DEST (elt)) != V4SImode)
 	return 0;
     }
@@ -1437,9 +1306,9 @@
     {
       elt = XVECEXP (op, 0, index++);
       if (GET_CODE (elt) != SET
-	  || GET_CODE (SET_SRC (elt)) != MEM
-	  || ! memory_operand (SET_SRC (elt), DFmode)
-	  || GET_CODE (SET_DEST (elt)) != REG
+	  || !MEM_P (SET_SRC (elt))
+	  || !memory_operand (SET_SRC (elt), DFmode)
+	  || !REG_P (SET_DEST (elt))
 	  || GET_MODE (SET_DEST (elt)) != DFmode)
 	return 0;
     }
@@ -1463,7 +1332,7 @@
 
   if (count <= 1
       || GET_CODE (XVECEXP (op, 0, 0)) != SET
-      || GET_CODE (SET_DEST (XVECEXP (op, 0, 0))) != REG
+      || !REG_P (SET_DEST (XVECEXP (op, 0, 0)))
       || GET_CODE (SET_SRC (XVECEXP (op, 0, 0))) != UNSPEC_VOLATILE
       || XINT (SET_SRC (XVECEXP (op, 0, 0)), 1) != UNSPECV_SET_VRSAVE)
     return 0;
@@ -1509,13 +1378,13 @@
 
       src_reg = XVECEXP (SET_SRC (exp), 0, 0);
 
-      if (GET_CODE (src_reg) != REG
+      if (!REG_P (src_reg)
 	  || GET_MODE (src_reg) != CCmode
 	  || ! CR_REGNO_P (REGNO (src_reg)))
 	return 0;
 
       if (GET_CODE (exp) != SET
-	  || GET_CODE (SET_DEST (exp)) != REG
+	  || !REG_P (SET_DEST (exp))
 	  || GET_MODE (SET_DEST (exp)) != SImode
 	  || ! INT_REGNO_P (REGNO (SET_DEST (exp))))
 	return 0;
@@ -1526,7 +1395,7 @@
 	  || XINT (unspec, 1) != UNSPEC_MOVESI_FROM_CR
 	  || XVECLEN (unspec, 0) != 2
 	  || XVECEXP (unspec, 0, 0) != src_reg
-	  || GET_CODE (XVECEXP (unspec, 0, 1)) != CONST_INT
+	  || !CONST_INT_P (XVECEXP (unspec, 0, 1))
 	  || INTVAL (XVECEXP (unspec, 0, 1)) != maskval)
 	return 0;
     }
@@ -1549,7 +1418,7 @@
     return 0;
   src_reg = XVECEXP (SET_SRC (XVECEXP (op, 0, 0)), 0, 0);
 
-  if (GET_CODE (src_reg) != REG
+  if (!REG_P (src_reg)
       || GET_MODE (src_reg) != SImode
       || ! INT_REGNO_P (REGNO (src_reg)))
     return 0;
@@ -1561,7 +1430,7 @@
       int maskval;
 
       if (GET_CODE (exp) != SET
-	  || GET_CODE (SET_DEST (exp)) != REG
+	  || !REG_P (SET_DEST (exp))
 	  || GET_MODE (SET_DEST (exp)) != CCmode
 	  || ! CR_REGNO_P (REGNO (SET_DEST (exp))))
 	return 0;
@@ -1572,7 +1441,7 @@
 	  || XINT (unspec, 1) != UNSPEC_MOVESI_TO_CR
 	  || XVECLEN (unspec, 0) != 2
 	  || XVECEXP (unspec, 0, 0) != src_reg
-	  || GET_CODE (XVECEXP (unspec, 0, 1)) != CONST_INT
+	  || !CONST_INT_P (XVECEXP (unspec, 0, 1))
 	  || INTVAL (XVECEXP (unspec, 0, 1)) != maskval)
 	return 0;
     }
@@ -1591,7 +1460,7 @@
       rtx exp = XVECEXP (op, 0, i);
 
       if (GET_CODE (exp) != USE
-	  || GET_CODE (XEXP (exp, 0)) != REG
+	  || !REG_P (XEXP (exp, 0))
 	  || GET_MODE (XEXP (exp, 0)) != CCmode
 	  || ! CR_REGNO_P (REGNO (XEXP (exp, 0))))
 	return 0;
@@ -1613,8 +1482,8 @@
   /* Perform a quick check so we don't blow up below.  */
   if (count <= 1
       || GET_CODE (XVECEXP (op, 0, 0)) != SET
-      || GET_CODE (SET_DEST (XVECEXP (op, 0, 0))) != REG
-      || GET_CODE (SET_SRC (XVECEXP (op, 0, 0))) != MEM)
+      || !REG_P (SET_DEST (XVECEXP (op, 0, 0)))
+      || !MEM_P (SET_SRC (XVECEXP (op, 0, 0))))
     return 0;
 
   dest_regno = REGNO (SET_DEST (XVECEXP (op, 0, 0)));
@@ -1647,10 +1516,10 @@
       HOST_WIDE_INT newoffset;
 
       if (GET_CODE (elt) != SET
-	  || GET_CODE (SET_DEST (elt)) != REG
+	  || !REG_P (SET_DEST (elt))
 	  || GET_MODE (SET_DEST (elt)) != SImode
 	  || REGNO (SET_DEST (elt)) != dest_regno + i
-	  || GET_CODE (SET_SRC (elt)) != MEM
+	  || !MEM_P (SET_SRC (elt))
 	  || GET_MODE (SET_SRC (elt)) != SImode)
 	return 0;
       newaddr = XEXP (SET_SRC (elt), 0);
@@ -1688,8 +1557,8 @@
   /* Perform a quick check so we don't blow up below.  */
   if (count <= 1
       || GET_CODE (XVECEXP (op, 0, 0)) != SET
-      || GET_CODE (SET_DEST (XVECEXP (op, 0, 0))) != MEM
-      || GET_CODE (SET_SRC (XVECEXP (op, 0, 0))) != REG)
+      || !MEM_P (SET_DEST (XVECEXP (op, 0, 0)))
+      || !REG_P (SET_SRC (XVECEXP (op, 0, 0))))
     return 0;
 
   src_regno = REGNO (SET_SRC (XVECEXP (op, 0, 0)));
@@ -1722,10 +1591,10 @@
       HOST_WIDE_INT newoffset;
 
       if (GET_CODE (elt) != SET
-	  || GET_CODE (SET_SRC (elt)) != REG
+	  || !REG_P (SET_SRC (elt))
 	  || GET_MODE (SET_SRC (elt)) != SImode
 	  || REGNO (SET_SRC (elt)) != src_regno + i
-	  || GET_CODE (SET_DEST (elt)) != MEM
+	  || !MEM_P (SET_DEST (elt))
 	  || GET_MODE (SET_DEST (elt)) != SImode)
 	return 0;
       newaddr = XEXP (SET_DEST (elt), 0);
@@ -1754,7 +1623,7 @@
   (match_code "parallel")
 {
   return (GET_CODE (XVECEXP (op, 0, 0)) == SET
-	  && GET_CODE (XEXP (XVECEXP (op, 0, 0), 0)) == MEM
+	  && MEM_P (XEXP (XVECEXP (op, 0, 0), 0))
 	  && GET_MODE (XEXP (XVECEXP (op, 0, 0), 0)) == BLKmode
 	  && XEXP (XVECEXP (op, 0, 0), 1) == const0_rtx);
 })
@@ -1792,8 +1661,6 @@
   else
     return 0;
 
-  /* Power8 currently will only do the fusion if the top 11 bits of the addis
-     value are all 1's or 0's.  */
   value = INTVAL (int_const);
   if ((value & (HOST_WIDE_INT)0xffff) != 0)
     return 0;
@@ -1801,7 +1668,9 @@
   if ((value & (HOST_WIDE_INT)0xffff0000) == 0)
     return 0;
 
-  return (IN_RANGE (value >> 16, -32, 31));
+  /* Power8 only does the fusion if the top 12 bits of the addis value are all
+     1's or 0's.  */
+  return (IN_RANGE (value >> 16, -16, 15));
 })
 
 ;; Match the second insn (lbz, lhz, lwz, ld) in fusing the combination of addis
@@ -1824,16 +1693,18 @@
 
   switch (mode)
     {
-    case QImode:
-    case HImode:
-    case SImode:
+    case E_QImode:
+    case E_HImode:
+    case E_SImode:
       break;
 
-    case DImode:
+    case E_DImode:
       if (!TARGET_POWERPC64)
 	return 0;
       break;
 
+    /* Do not allow SF/DFmode in GPR fusion.  While the loads do occur, they
+       are not common.  */
     default:
       return 0;
     }
@@ -1866,7 +1737,7 @@
 ;; Match a GPR load (lbz, lhz, lwz, ld) that uses a combined address in the
 ;; memory field with both the addis and the memory offset.  Sign extension
 ;; is not handled here, since lha and lwa are not fused.
-(define_predicate "fusion_gpr_mem_combo"
+(define_predicate "fusion_addis_mem_combo_load"
   (match_code "mem,zero_extend")
 {
   rtx addr, base, offset;
@@ -1883,16 +1754,20 @@
 
   switch (mode)
     {
-    case QImode:
-    case HImode:
-    case SImode:
+    case E_QImode:
+    case E_HImode:
+    case E_SImode:
       break;
 
-    case DImode:
+    /* Do not fuse 64-bit DImode in 32-bit since it splits into two
+       separate instructions.  */
+    case E_DImode:
       if (!TARGET_POWERPC64)
 	return 0;
       break;
 
+    /* Do not allow SF/DFmode in GPR fusion.  While the loads do occur, they
+       are not common.  */
     default:
       return 0;
     }

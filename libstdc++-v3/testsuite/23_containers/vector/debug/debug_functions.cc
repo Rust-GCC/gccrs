@@ -1,4 +1,4 @@
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -20,32 +20,8 @@
 #include <vector>
 #include <testsuite_hooks.h>
 
-void test01()
-{
-  bool test __attribute__((unused)) = true;
-  using namespace __gnu_debug;
-
-  std::vector<int> v1(3, 1);
-  VERIFY( __check_dereferenceable(v1.begin()) );
-  std::vector<int>::iterator it = v1.begin();
-  VERIFY( __check_dereferenceable(it) );
-
-  VERIFY( !__check_dereferenceable(v1.end()) );
-  it = v1.end();
-  VERIFY( !__check_dereferenceable(it) );
-
-  const volatile int* pi = 0;
-  VERIFY( !__check_dereferenceable(pi) );
-
-  int i;
-  pi = &i;
-
-  VERIFY( __check_dereferenceable(pi) );
-}
-
 void test02()
 {
-  bool test __attribute__((unused)) = true;
   using namespace __gnu_debug;
 
   std::vector<int> v1(3, 1);
@@ -69,7 +45,6 @@ void test02()
 
 int main()
 {
-  test01();
   test02();
   return 0;
 }

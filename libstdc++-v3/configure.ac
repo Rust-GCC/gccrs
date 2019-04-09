@@ -1,6 +1,5 @@
 # Process this file with autoreconf to produce a configure script.
 
-AC_PREREQ(2.64)
 AC_INIT(package-unused, version-unused,, libstdc++)
 AC_CONFIG_SRCDIR(src/shared/hashtable-aux.cc)
 AC_CONFIG_HEADER(config.h)
@@ -147,12 +146,15 @@ GLIBCXX_ENABLE_HOSTED
 GLIBCXX_ENABLE_VERBOSE
 
 # Enable compiler support that doesn't require linking.
-GLIBCXX_ENABLE_SJLJ_EXCEPTIONS
 GLIBCXX_ENABLE_PCH($is_hosted)
 GLIBCXX_ENABLE_THREADS
 GLIBCXX_ENABLE_ATOMIC_BUILTINS
+GLIBCXX_ENABLE_LOCK_POLICY
 GLIBCXX_ENABLE_DECIMAL_FLOAT
 GLIBCXX_ENABLE_INT128_FLOAT128
+if test "$enable_float128" = yes; then
+  port_specific_symbol_files="$port_specific_symbol_files \$(top_srcdir)/config/abi/pre/float128.ver"
+fi
 
 # Checks for compiler support that doesn't require linking.
 GLIBCXX_CHECK_COMPILER_FEATURES
@@ -166,19 +168,21 @@ GLIBCXX_ENABLE_LONG_LONG([yes])
 GLIBCXX_ENABLE_WCHAR_T([yes])
 GLIBCXX_ENABLE_C99([yes])
 GLIBCXX_ENABLE_CONCEPT_CHECKS([no])
-GLIBCXX_ENABLE_DEBUG_FLAGS(["-gdwarf-4 -g3 -O0"])
+GLIBCXX_ENABLE_DEBUG_FLAGS(["-gdwarf-4 -g3 -O0 -D_GLIBCXX_ASSERTIONS"])
 GLIBCXX_ENABLE_DEBUG([no])
 GLIBCXX_ENABLE_PARALLEL([yes])
 GLIBCXX_ENABLE_CXX_FLAGS
 GLIBCXX_ENABLE_FULLY_DYNAMIC_STRING([no])
 GLIBCXX_ENABLE_EXTERN_TEMPLATE([yes])
 GLIBCXX_ENABLE_PYTHON
-GLIBCXX_ENABLE_WERROR([yes])
+GLIBCXX_ENABLE_WERROR([no])
 GLIBCXX_ENABLE_VTABLE_VERIFY([no])
 
 # Checks for operating systems support that doesn't require linking.
 GLIBCXX_CHECK_STDIO_PROTO
+GLIBCXX_CHECK_MATH11_PROTO
 GLIBCXX_CHECK_SYSTEM_ERROR
+GLIBCXX_CHECK_UCHAR_H
 
 # For the streamoff typedef.
 GLIBCXX_CHECK_INT64_T
@@ -233,7 +237,13 @@ AC_CHECK_HEADERS([endian.h execinfo.h float.h fp.h ieeefp.h inttypes.h \
 locale.h machine/endian.h machine/param.h nan.h stdint.h stdlib.h string.h \
 strings.h sys/ipc.h sys/isa_defs.h sys/machine.h sys/param.h \
 sys/resource.h sys/sem.h sys/stat.h sys/time.h sys/types.h unistd.h \
-wchar.h wctype.h])
+wchar.h wctype.h linux/types.h])
+
+AC_CHECK_HEADERS([linux/random.h], [], [],
+[[#ifdef HAVE_LINUX_TYPES_H
+# include <linux/types.h>
+#endif
+]])
 
 # Only do link tests if native. Else, hardcode.
 if $GLIBCXX_IS_NATIVE; then
@@ -245,13 +255,21 @@ if $GLIBCXX_IS_NATIVE; then
   GLIBCXX_CHECK_MATH_SUPPORT
   GLIBCXX_CHECK_STDLIB_SUPPORT
 
-  # For /dev/random and /dev/urandom for TR1.
-  GLIBCXX_CHECK_RANDOM_TR1
+  # For /dev/random and /dev/urandom for std::random_device.
+  GLIBCXX_CHECK_DEV_RANDOM
 
   # For TLS support.
   GCC_CHECK_TLS
 
-  AC_CHECK_FUNCS(__cxa_thread_atexit_impl)
+  AC_CHECK_FUNCS(__cxa_thread_atexit_impl __cxa_thread_atexit)
+  AC_CHECK_FUNCS(aligned_alloc posix_memalign memalign _aligned_malloc)
+  AC_CHECK_FUNCS(_wfopen)
+
+  # C11 functions for C++17 library
+  AC_CHECK_FUNCS(timespec_get)
+
+  # For Networking TS.
+  AC_CHECK_FUNCS(sockatmark)
 
   # For iconv support.
   AM_ICONV
@@ -319,6 +337,7 @@ else
     AC_DEFINE(HAVE_TANHF)
 
     AC_DEFINE(HAVE_ICONV)
+    AC_DEFINE(HAVE_MEMALIGN)
   else
     GLIBCXX_CROSSCONFIG
   fi
@@ -365,7 +384,11 @@ AC_SUBST(libtool_VERSION)
 
 GLIBCXX_ENABLE_LIBSTDCXX_VISIBILITY([yes])
 
+GLIBCXX_ENABLE_LIBSTDCXX_DUAL_ABI([yes])
+GLIBCXX_DEFAULT_ABI
+
 ac_ldbl_compat=no
+LONG_DOUBLE_COMPAT_FLAGS="-mlong-double-64"
 case "$target" in
   powerpc*-*-linux* | \
   sparc*-*-linux* | \
@@ -380,12 +403,17 @@ case "$target" in
     AC_DEFINE([_GLIBCXX_LONG_DOUBLE_COMPAT],1,
 	      [Define if compatibility should be provided for -mlong-double-64.])
     port_specific_symbol_files="\$(top_srcdir)/config/os/gnu-linux/ldbl-extra.ver"
+    case "$target" in
+      powerpc*-*-linux*)
+	LONG_DOUBLE_COMPAT_FLAGS="$LONG_DOUBLE_COMPAT_FLAGS -mno-gnu-attribute" ;;
+    esac
   fi
 esac
+AC_SUBST(LONG_DOUBLE_COMPAT_FLAGS)
 GLIBCXX_CONDITIONAL(GLIBCXX_LDBL_COMPAT, test $ac_ldbl_compat = yes)
 
 # Check if assembler supports disabling hardware capability support.
-GLIBCXX_CHECK_ASSEMBLER_HWCAP
+GCC_CHECK_ASSEMBLER_HWCAP
 
 # Check if assembler supports rdrand opcode.
 GLIBCXX_CHECK_X86_RDRAND
@@ -395,6 +423,20 @@ GLIBCXX_CONFIGURE_TESTSUITE
 
 # For gthread support.  Depends on GLIBCXX_ENABLE_SYMVERS.
 GLIBCXX_CHECK_GTHREADS
+
+# For Filesystem TS.
+AC_CHECK_HEADERS([fcntl.h dirent.h sys/statvfs.h utime.h])
+GLIBCXX_ENABLE_FILESYSTEM_TS
+GLIBCXX_CHECK_FILESYSTEM_DEPS
+
+# For Networking TS.
+AC_CHECK_HEADERS([fcntl.h sys/ioctl.h sys/socket.h sys/uio.h poll.h netdb.h arpa/inet.h netinet/in.h netinet/tcp.h])
+
+# For Transactional Memory TS
+GLIBCXX_CHECK_SIZE_T_MANGLING
+
+# Check which release added std::exception_ptr for the target
+GLIBCXX_CHECK_EXCEPTION_PTR_SYMVER
 
 # Define documentation rules conditionally.
 
@@ -410,6 +452,7 @@ AC_CHECK_PROG([DOXYGEN], doxygen, yes, no)
 AC_CHECK_PROG([DOT], dot, yes, no)
 
 # Check for docbook
+AC_CHECK_PROG([XMLCATALOG], xmlcatalog, yes, no)
 AC_CHECK_PROG([XSLTPROC], xsltproc, yes, no)
 AC_CHECK_PROG([XMLLINT], xmllint, yes, no)
 GLIBCXX_CONFIGURE_DOCBOOK
@@ -441,6 +484,12 @@ AM_CONDITIONAL(BUILD_PDF,
 	       test $ac_cv_prog_DBLATEX = "yes" &&
 	       test $ac_cv_prog_PDFLATEX = "yes")
 
+case "$build" in
+ *-*-darwin* ) glibcxx_include_dir_notparallel=yes ;;
+ * ) glibcxx_include_dir_notparallel=no ;;
+esac
+AM_CONDITIONAL(INCLUDE_DIR_NOTPARALLEL,
+               test $glibcxx_include_dir_notparallel = "yes")
 
 # Propagate the target-specific source directories through the build chain.
 ATOMICITY_SRCDIR=config/${atomicity_dir}
@@ -463,6 +512,13 @@ AC_SUBST(CPU_OPT_EXT_RANDOM)
 AC_SUBST(CPU_OPT_BITS_RANDOM)
 
 
+# Add CET specific flags if Intel CET is enabled.
+GCC_CET_FLAGS(CET_FLAGS)
+EXTRA_CXX_FLAGS="$EXTRA_CXX_FLAGS $CET_FLAGS"
+EXTRA_CFLAGS="$EXTRA_CFLAGS $CET_FLAGS"
+AC_SUBST(EXTRA_CFLAGS)
+AC_SUBST(EXTRA_CXX_FLAGS)
+
 # Determine cross-compile flags and AM_CONDITIONALs.
 #AC_SUBST(GLIBCXX_IS_NATIVE)
 #AM_CONDITIONAL(CANADIAN, test $CANADIAN = yes)
@@ -482,6 +538,9 @@ GLIBCXX_EXPORT_INSTALL_INFO
 # Export all the include and flag information to Makefiles.
 GLIBCXX_EXPORT_INCLUDES
 GLIBCXX_EXPORT_FLAGS
+
+# Determine what GCC version number to use in filesystem paths.
+GCC_BASE_VER
 
 dnl In autoconf 2.5x, AC_OUTPUT is replaced by four AC_CONFIG_* macros,
 dnl which can all be called multiple times as needed, plus one (different)

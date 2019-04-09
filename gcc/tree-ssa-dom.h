@@ -1,5 +1,5 @@
 /* Header file for SSA dominator optimizations.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,8 +20,9 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_TREE_SSA_DOM_H
 #define GCC_TREE_SSA_DOM_H
 
-extern void dump_dominator_optimization_stats (FILE *);
-extern void debug_dominator_optimization_stats (void);
-extern bool simple_iv_increment_p (gimple);
+extern bool simple_iv_increment_p (gimple *);
+extern void record_temporary_equivalences (edge,
+					   class const_and_copies *,
+					   class avail_exprs_stack *);
 
 #endif /* GCC_TREE_SSA_DOM_H */

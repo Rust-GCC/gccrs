@@ -1,5 +1,5 @@
 /* Definitions for RDOS on x86_64.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -16,9 +16,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
-
-#undef REAL_PIC_OFFSET_TABLE_REGNUM
-#define REAL_PIC_OFFSET_TABLE_REGNUM  R15_REG
 
 #undef DEFAULT_LARGE_SECTION_THRESHOLD
 #define DEFAULT_LARGE_SECTION_THRESHOLD 16

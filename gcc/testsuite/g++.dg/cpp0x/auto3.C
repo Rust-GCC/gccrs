@@ -10,18 +10,18 @@ auto x;				// { dg-error "auto" }
 auto i = 42, j = 42.0;		// { dg-error "auto" }
 
 // New CWG issue
-auto a[2] = { 1, 2 };		// { dg-error "auto|initializer_list" }
+auto a[2] = { 1, 2 };		// { dg-error "6:.a. declared as array of .auto" }
 
 template<class T>
 struct A { };
 
 A<int> A1;
 // CWG issue 625
-A<auto> A2 = A1;		// { dg-error "" }
+A<auto> A2 = A1;		// { dg-error "" "" { target { ! concepts } } }
 
 auto foo() { }			// { dg-error "auto" "" { target { ! c++14 } } }
 
-void bar(auto i)		// { dg-error "incomplete|auto" }
+void bar(auto i)		// { dg-error "incomplete|auto" "" { target { ! concepts } } }
 {
   (void)i;
 }

@@ -1,7 +1,8 @@
-/* Copyright (C) 2005-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2019 Free Software Foundation, Inc.
    Contributed by Ilie Garbacea <ilie@mips.com>, Chao-ying Fu <fu@mips.com>.
 
-   This file is part of the GNU OpenMP Library (libgomp).
+   This file is part of the GNU Offloading and Multi Processing Library
+   (libgomp).
 
    Libgomp is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by
@@ -25,6 +26,11 @@
 /* Provide target-specific access to the futex system call.  */
 
 #include <sys/syscall.h>
+
+#if !defined (SYS_futex)
+#define SYS_futex __NR_futex
+#endif
+
 #define FUTEX_WAIT 0
 #define FUTEX_WAKE 1
 

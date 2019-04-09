@@ -209,10 +209,10 @@ var tokenList = []token{
 	{String, `"` + f100 + `"`},
 
 	{Comment, "// raw strings"},
-	{String, "``"},
-	{String, "`\\`"},
-	{String, "`" + "\n\n/* foobar */\n\n" + "`"},
-	{String, "`" + f100 + "`"},
+	{RawString, "``"},
+	{RawString, "`\\`"},
+	{RawString, "`" + "\n\n/* foobar */\n\n" + "`"},
+	{RawString, "`" + f100 + "`"},
 
 	{Comment, "// individual characters"},
 	// NUL character is not allowed
@@ -252,6 +252,14 @@ func checkTok(t *testing.T, s *Scanner, line int, got, want rune, text string) {
 	}
 }
 
+func checkTokErr(t *testing.T, s *Scanner, line int, want rune, text string) {
+	prevCount := s.ErrorCount
+	checkTok(t, s, line, s.Scan(), want, text)
+	if s.ErrorCount != prevCount+1 {
+		t.Fatalf("want error for %q", text)
+	}
+}
+
 func countNewlines(s string) int {
 	n := 0
 	for _, ch := range s {
@@ -280,6 +288,21 @@ func testScan(t *testing.T, mode uint) {
 func TestScan(t *testing.T) {
 	testScan(t, GoTokens)
 	testScan(t, GoTokens&^SkipComments)
+}
+
+func TestIllegalExponent(t *testing.T) {
+	const src = "1.5e 1.5E 1e+ 1e- 1.5z"
+	s := new(Scanner).Init(strings.NewReader(src))
+	checkTokErr(t, s, 1, Float, "1.5e")
+	checkTokErr(t, s, 1, Float, "1.5E")
+	checkTokErr(t, s, 1, Float, "1e+")
+	checkTokErr(t, s, 1, Float, "1e-")
+	checkTok(t, s, 1, s.Scan(), Float, "1.5")
+	checkTok(t, s, 1, s.Scan(), Ident, "z")
+	checkTok(t, s, 1, s.Scan(), EOF, "")
+	if s.ErrorCount != 4 {
+		t.Errorf("%d errors, want 4", s.ErrorCount)
+	}
 }
 
 func TestPosition(t *testing.T) {
@@ -357,6 +380,28 @@ func TestScanSelectedMask(t *testing.T) {
 	testScanSelectedMode(t, ScanComments, Comment)
 }
 
+func TestScanCustomIdent(t *testing.T) {
+	const src = "faab12345 a12b123 a12 3b"
+	s := new(Scanner).Init(strings.NewReader(src))
+	// ident = ( 'a' | 'b' ) { digit } .
+	// digit = '0' .. '3' .
+	// with a maximum length of 4
+	s.IsIdentRune = func(ch rune, i int) bool {
+		return i == 0 && (ch == 'a' || ch == 'b') || 0 < i && i < 4 && '0' <= ch && ch <= '3'
+	}
+	checkTok(t, s, 1, s.Scan(), 'f', "f")
+	checkTok(t, s, 1, s.Scan(), Ident, "a")
+	checkTok(t, s, 1, s.Scan(), Ident, "a")
+	checkTok(t, s, 1, s.Scan(), Ident, "b123")
+	checkTok(t, s, 1, s.Scan(), Int, "45")
+	checkTok(t, s, 1, s.Scan(), Ident, "a12")
+	checkTok(t, s, 1, s.Scan(), Ident, "b123")
+	checkTok(t, s, 1, s.Scan(), Ident, "a12")
+	checkTok(t, s, 1, s.Scan(), Int, "3")
+	checkTok(t, s, 1, s.Scan(), Ident, "b")
+	checkTok(t, s, 1, s.Scan(), EOF, "")
+}
+
 func TestScanNext(t *testing.T) {
 	const BOM = '\uFEFF'
 	BOMs := string(BOM)
@@ -429,37 +474,41 @@ func testError(t *testing.T, src, pos, msg string, tok rune) {
 }
 
 func TestError(t *testing.T) {
-	testError(t, "\x00", "1:1", "illegal character NUL", 0)
-	testError(t, "\x80", "1:1", "illegal UTF-8 encoding", utf8.RuneError)
-	testError(t, "\xff", "1:1", "illegal UTF-8 encoding", utf8.RuneError)
+	testError(t, "\x00", "<input>:1:1", "illegal character NUL", 0)
+	testError(t, "\x80", "<input>:1:1", "illegal UTF-8 encoding", utf8.RuneError)
+	testError(t, "\xff", "<input>:1:1", "illegal UTF-8 encoding", utf8.RuneError)
 
-	testError(t, "a\x00", "1:2", "illegal character NUL", Ident)
-	testError(t, "ab\x80", "1:3", "illegal UTF-8 encoding", Ident)
-	testError(t, "abc\xff", "1:4", "illegal UTF-8 encoding", Ident)
+	testError(t, "a\x00", "<input>:1:2", "illegal character NUL", Ident)
+	testError(t, "ab\x80", "<input>:1:3", "illegal UTF-8 encoding", Ident)
+	testError(t, "abc\xff", "<input>:1:4", "illegal UTF-8 encoding", Ident)
 
-	testError(t, `"a`+"\x00", "1:3", "illegal character NUL", String)
-	testError(t, `"ab`+"\x80", "1:4", "illegal UTF-8 encoding", String)
-	testError(t, `"abc`+"\xff", "1:5", "illegal UTF-8 encoding", String)
+	testError(t, `"a`+"\x00", "<input>:1:3", "illegal character NUL", String)
+	testError(t, `"ab`+"\x80", "<input>:1:4", "illegal UTF-8 encoding", String)
+	testError(t, `"abc`+"\xff", "<input>:1:5", "illegal UTF-8 encoding", String)
 
-	testError(t, "`a"+"\x00", "1:3", "illegal character NUL", String)
-	testError(t, "`ab"+"\x80", "1:4", "illegal UTF-8 encoding", String)
-	testError(t, "`abc"+"\xff", "1:5", "illegal UTF-8 encoding", String)
+	testError(t, "`a"+"\x00", "<input>:1:3", "illegal character NUL", RawString)
+	testError(t, "`ab"+"\x80", "<input>:1:4", "illegal UTF-8 encoding", RawString)
+	testError(t, "`abc"+"\xff", "<input>:1:5", "illegal UTF-8 encoding", RawString)
 
-	testError(t, `'\"'`, "1:3", "illegal char escape", Char)
-	testError(t, `"\'"`, "1:3", "illegal char escape", String)
+	testError(t, `'\"'`, "<input>:1:3", "illegal char escape", Char)
+	testError(t, `"\'"`, "<input>:1:3", "illegal char escape", String)
 
-	testError(t, `01238`, "1:6", "illegal octal number", Int)
-	testError(t, `01238123`, "1:9", "illegal octal number", Int)
-	testError(t, `0x`, "1:3", "illegal hexadecimal number", Int)
-	testError(t, `0xg`, "1:3", "illegal hexadecimal number", Int)
-	testError(t, `'aa'`, "1:4", "illegal char literal", Char)
+	testError(t, `01238`, "<input>:1:6", "illegal octal number", Int)
+	testError(t, `01238123`, "<input>:1:9", "illegal octal number", Int)
+	testError(t, `0x`, "<input>:1:3", "illegal hexadecimal number", Int)
+	testError(t, `0xg`, "<input>:1:3", "illegal hexadecimal number", Int)
+	testError(t, `'aa'`, "<input>:1:4", "illegal char literal", Char)
+	testError(t, `1.5e`, "<input>:1:5", "illegal exponent", Float)
+	testError(t, `1.5E`, "<input>:1:5", "illegal exponent", Float)
+	testError(t, `1.5e+`, "<input>:1:6", "illegal exponent", Float)
+	testError(t, `1.5e-`, "<input>:1:6", "illegal exponent", Float)
 
-	testError(t, `'`, "1:2", "literal not terminated", Char)
-	testError(t, `'`+"\n", "1:2", "literal not terminated", Char)
-	testError(t, `"abc`, "1:5", "literal not terminated", String)
-	testError(t, `"abc`+"\n", "1:5", "literal not terminated", String)
-	testError(t, "`abc\n", "2:1", "literal not terminated", String)
-	testError(t, `/*/`, "1:4", "comment not terminated", EOF)
+	testError(t, `'`, "<input>:1:2", "literal not terminated", Char)
+	testError(t, `'`+"\n", "<input>:1:2", "literal not terminated", Char)
+	testError(t, `"abc`, "<input>:1:5", "literal not terminated", String)
+	testError(t, `"abc`+"\n", "<input>:1:5", "literal not terminated", String)
+	testError(t, "`abc\n", "<input>:2:1", "literal not terminated", RawString)
+	testError(t, `/*/`, "<input>:1:4", "comment not terminated", EOF)
 }
 
 // An errReader returns (0, err) where err is not io.EOF.
@@ -592,5 +641,54 @@ func TestPos(t *testing.T) {
 	}
 	if s.ErrorCount != 0 {
 		t.Errorf("%d errors", s.ErrorCount)
+	}
+}
+
+type countReader int
+
+func (r *countReader) Read([]byte) (int, error) {
+	*r++
+	return 0, io.EOF
+}
+
+func TestNextEOFHandling(t *testing.T) {
+	var r countReader
+
+	// corner case: empty source
+	s := new(Scanner).Init(&r)
+
+	tok := s.Next()
+	if tok != EOF {
+		t.Error("1) EOF not reported")
+	}
+
+	tok = s.Peek()
+	if tok != EOF {
+		t.Error("2) EOF not reported")
+	}
+
+	if r != 1 {
+		t.Errorf("scanner called Read %d times, not once", r)
+	}
+}
+
+func TestScanEOFHandling(t *testing.T) {
+	var r countReader
+
+	// corner case: empty source
+	s := new(Scanner).Init(&r)
+
+	tok := s.Scan()
+	if tok != EOF {
+		t.Error("1) EOF not reported")
+	}
+
+	tok = s.Peek()
+	if tok != EOF {
+		t.Error("2) EOF not reported")
+	}
+
+	if r != 1 {
+		t.Errorf("scanner called Read %d times, not once", r)
 	}
 }

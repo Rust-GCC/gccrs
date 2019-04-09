@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>Concurrency</title><meta name="generator" content="DocBook XSL-NS Stylesheets V1.78.1" /><meta name="keywords" content="ISO C++, library" /><meta name="keywords" content="ISO C++, runtime, library" /><link rel="home" href="../index.html" title="The GNU C++ Library" /><link rel="up" href="using.html" title="Chapter 3. Using" /><link rel="prev" href="using_dynamic_or_shared.html" title="Linking" /><link rel="next" href="using_exceptions.html" title="Exceptions" /></head><body><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Concurrency</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="using_dynamic_or_shared.html">Prev</a> </td><th width="60%" align="center">Chapter 3. Using</th><td width="20%" align="right"> <a accesskey="n" href="using_exceptions.html">Next</a></td></tr></table><hr /></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="manual.intro.using.concurrency"></a>Concurrency</h2></div></div></div><p>This section discusses issues surrounding the proper compilation
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>Concurrency</title><meta name="generator" content="DocBook XSL Stylesheets Vsnapshot" /><meta name="keywords" content="ISO C++, library" /><meta name="keywords" content="ISO C++, runtime, library" /><link rel="home" href="../index.html" title="The GNU C++ Library" /><link rel="up" href="using.html" title="Chapter 3. Using" /><link rel="prev" href="using_dynamic_or_shared.html" title="Linking" /><link rel="next" href="using_exceptions.html" title="Exceptions" /></head><body><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Concurrency</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="using_dynamic_or_shared.html">Prev</a> </td><th width="60%" align="center">Chapter 3. Using</th><td width="20%" align="right"> <a accesskey="n" href="using_exceptions.html">Next</a></td></tr></table><hr /></div><div class="section"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="manual.intro.using.concurrency"></a>Concurrency</h2></div></div></div><p>This section discusses issues surrounding the proper compilation
       of multithreaded applications which use the Standard C++
       library.  This information is GCC-specific since the C++
       standard does not address matters of multithreaded applications.
@@ -24,13 +24,14 @@
       all required macros to a compilation (if any such flags are
       required then you must provide the flag for all compilations not
       just linking) and link-library additions and/or replacements at
-      link time.  The documentation is weak.  Here is a quick summary
-      to display how ad hoc this is: On Solaris, both -pthreads and
-      -threads (with subtly different meanings) are honored.  
-      On GNU/Linux x86, -pthread is honored.  On FreeBSD,
-      -pthread is honored.  Some other ports use other switches.
-      AFAIK, none of this is properly documented anywhere other than
-      in ``gcc -dumpspecs'' (look at lib and cpp entries).
+      link time.  The documentation is weak.  On several targets (including
+      GNU/Linux, Solaris and various BSDs) -pthread is honored.
+      Some other ports use other switches.
+      This is not well documented anywhere other than
+      in "gcc -dumpspecs" (look at the 'lib' and 'cpp' entries).
+   </p><p>
+     Some uses of <code class="classname">std::atomic</code> also require linking
+     to <code class="filename">libatomic</code>.
    </p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a id="manual.intro.using.concurrency.thread_safety"></a>Thread Safety</h3></div></div></div><p>
 In the terms of the 2011 C++ standard a thread-safe program is one which
 does not perform any conflicting non-atomic operations on memory locations
@@ -39,7 +40,7 @@ The standard places requirements on the library to ensure that no data
 races are caused by the library itself or by programs which use the
 library correctly (as described below).
 The C++11 memory model and library requirements are a more formal version
-of the <a class="link" href="http://www.sgi.com/tech/stl/thread_safety.html" target="_top">SGI STL</a> definition of thread safety, which the library used
+of the <a class="link" href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/thread_safety.html" target="_top">SGI STL</a> definition of thread safety, which the library used
 prior to the 2011 standard.
 </p><p>The library strives to be thread-safe when all of the following
 	 conditions are met:
@@ -59,11 +60,16 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
 	 Requisite command-line flags are used for atomic operations
 	 and threading. Examples of this include <code class="code">-pthread</code>
 	 and <code class="code">-march=native</code>, although specifics vary
-	 depending on the host environment. See <a class="link" href="http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html" target="_top">Machine
+	 depending on the host environment. See
+	 <a class="link" href="using.html#manual.intro.using.flags" title="Command Options">Command Options</a> and
+	 <a class="link" href="http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html" target="_top">Machine
 	 Dependent Options</a>.
        </p></li><li class="listitem"><p>
-	   An implementation of atomicity.h functions
-	   exists for the architecture in question. See the internals documentation for more <a class="link" href="internals.html#internals.thread_safety" title="Thread Safety">details</a>.
+	   An implementation of the
+	   <code class="filename">atomicity.h</code> functions
+	   exists for the architecture in question. See the
+	   <a class="link" href="internals.html#internals.thread_safety" title="Thread Safety">internals
+	   documentation</a> for more details.
        </p></li></ul></div><p>The user code must guard against concurrent function calls which
          access any particular library object's state when one or more of
          those accesses modifies the state. An object will be modified by
@@ -151,9 +157,9 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
       t2.join();
     }
       </pre><p>For further details of the C++11 memory model see Hans-J. Boehm's
-      <a class="link" href="http://www.hpl.hp.com/personal/Hans_Boehm/c++mm/user-faq.html" target="_top">Threads
-      and memory model for C++</a> pages, particularly the <a class="link" href="http://www.hpl.hp.com/personal/Hans_Boehm/c++mm/threadsintro.html" target="_top">introduction</a> 
-      and <a class="link" href="http://www.hpl.hp.com/personal/Hans_Boehm/c++mm/user-faq.html" target="_top">FAQ</a>.
+      <a class="link" href="https://www.hboehm.info/c++mm/" target="_top">Threads
+      and memory model for C++</a> pages, particularly the <a class="link" href="http://www.hboehm.info/c++mm/threadsintro.html" target="_top">introduction</a> 
+      and <a class="link" href="https://www.hboehm.info/c++mm/user-faq.html" target="_top">FAQ</a>.
       </p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a id="manual.intro.using.concurrency.atomics"></a>Atomics</h3></div></div></div><p>
     </p></div><div class="section"><div class="titlepage"><div><div><h3 class="title"><a id="manual.intro.using.concurrency.io"></a>IO</h3></div></div></div><p>This gets a bit tricky.  Please read carefully, and bear with me.
    </p><div class="section"><div class="titlepage"><div><div><h4 class="title"><a id="concurrency.io.structure"></a>Structure</h4></div></div></div><p>A wrapper
@@ -174,10 +180,11 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
       implementations of the C library with varying tradeoffs of threadsafety
       and efficiency.  You, the programmer, are always required to take care
       with multiple threads.
-   </p><p>(As an example, the POSIX standard requires that C stdio FILE*
-       operations are atomic.  POSIX-conforming C libraries (e.g, on Solaris
-       and GNU/Linux) have an internal mutex to serialize operations on
-       FILE*s.  However, you still need to not do stupid things like calling
+   </p><p>(As an example, the POSIX standard requires that C stdio
+       <code class="code">FILE*</code> operations are atomic.  POSIX-conforming C libraries
+       (e.g, on Solaris and GNU/Linux) have an internal mutex to serialize
+       operations on <code class="code">FILE*</code>s.
+       However, you still need to not do stupid things like calling
        <code class="code">fclose(fs)</code> in one thread followed by an access of
        <code class="code">fs</code> in another.)
    </p><p>So, if your platform's C library is threadsafe, then your
@@ -226,10 +233,10 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
       threaded and non-threaded code), see Chapter 17.
    </p><p>Two excellent pages to read when working with the Standard C++
       containers and threads are
-      <a class="link" href="http://www.sgi.com/tech/stl/thread_safety.html" target="_top">SGI's
-      http://www.sgi.com/tech/stl/thread_safety.html</a> and
-      <a class="link" href="http://www.sgi.com/tech/stl/Allocators.html" target="_top">SGI's
-      http://www.sgi.com/tech/stl/Allocators.html</a>.
+      <a class="link" href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/thread_safety.html" target="_top">SGI's
+      https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/thread_safety.html</a> and
+      <a class="link" href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/Allocators.html" target="_top">SGI's
+      https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/Allocators.html</a>.
    </p><p><span class="emphasis"><em>However, please ignore all discussions about the user-level
       configuration of the lock implementation inside the STL
       container-memory allocator on those pages.  For the sake of this

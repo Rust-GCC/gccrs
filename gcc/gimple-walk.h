@@ -1,5 +1,5 @@
 /* Header file for gimple statement walk support.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -28,6 +28,7 @@ struct walk_stmt_info
 {
   /* Points to the current statement being walked.  */
   gimple_stmt_iterator gsi;
+  gimple *stmt;
 
   /* Additional data that the callback functions may want to carry
      through the recursion.  */
@@ -82,19 +83,19 @@ struct walk_stmt_info
 typedef tree (*walk_stmt_fn) (gimple_stmt_iterator *, bool *,
 			      struct walk_stmt_info *);
 
-extern gimple walk_gimple_seq_mod (gimple_seq *, walk_stmt_fn, walk_tree_fn,
+extern gimple *walk_gimple_seq_mod (gimple_seq *, walk_stmt_fn, walk_tree_fn,
 				   struct walk_stmt_info *);
-extern gimple walk_gimple_seq (gimple_seq, walk_stmt_fn, walk_tree_fn,
+extern gimple *walk_gimple_seq (gimple_seq, walk_stmt_fn, walk_tree_fn,
 			       struct walk_stmt_info *);
-extern tree walk_gimple_op (gimple, walk_tree_fn, struct walk_stmt_info *);
+extern tree walk_gimple_op (gimple *, walk_tree_fn, struct walk_stmt_info *);
 extern tree walk_gimple_stmt (gimple_stmt_iterator *, walk_stmt_fn,
 			      walk_tree_fn, struct walk_stmt_info *);
-typedef bool (*walk_stmt_load_store_addr_fn) (gimple, tree, tree, void *);
-extern bool walk_stmt_load_store_addr_ops (gimple, void *,
+typedef bool (*walk_stmt_load_store_addr_fn) (gimple *, tree, tree, void *);
+extern bool walk_stmt_load_store_addr_ops (gimple *, void *,
 					   walk_stmt_load_store_addr_fn,
 					   walk_stmt_load_store_addr_fn,
 					   walk_stmt_load_store_addr_fn);
-extern bool walk_stmt_load_store_ops (gimple, void *,
+extern bool walk_stmt_load_store_ops (gimple *, void *,
 				      walk_stmt_load_store_addr_fn,
 				      walk_stmt_load_store_addr_fn);
 #endif /* GCC_GIMPLE_WALK_H */

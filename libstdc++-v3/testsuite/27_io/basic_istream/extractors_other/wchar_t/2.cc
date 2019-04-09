@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -19,6 +19,8 @@
 // @require@ %-*.tst %-*.txt
 // @diff@ %-*.tst %-*.txt
 
+// { dg-require-fileio "" }
+
 #include <istream>
 #include <fstream>
 #include <testsuite_hooks.h>
@@ -26,7 +28,6 @@
 // filebufs.
 void test02() 
 {
-  bool test __attribute__((unused)) = true;
   const char name_01[] = "wistream_extractor_other-1.txt"; //read 
   const char name_02[] = "wistream_extractor_other-2.txt"; //write
 
@@ -36,12 +37,11 @@ void test02()
   VERIFY( fbin.is_open() );
   VERIFY( fbout.is_open() );
 
-  if (test)
-    {
-      std::wistream is(&fbin);
-      is.unsetf(std::ios_base::skipws);
-      is >> &fbout;
-    }
+  {
+    std::wistream is(&fbin);
+    is.unsetf(std::ios_base::skipws);
+    is >> &fbout;
+  }
 
   fbout.close();
   fbin.close();

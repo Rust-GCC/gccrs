@@ -1,5 +1,5 @@
 /* Checking gets.
-   Copyright (C) 2005, 2009 Free Software Foundation, Inc.
+   Copyright (C) 2005-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -49,6 +49,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #endif
 #ifdef HAVE_STRING_H
 # include <string.h>
+#endif
+
+#if !(!defined __USE_ISOC11				\
+      || (defined __cplusplus && __cplusplus <= 201103L))
+extern char *gets (char *);
 #endif
 
 extern void __chk_fail (void) __attribute__((__noreturn__));

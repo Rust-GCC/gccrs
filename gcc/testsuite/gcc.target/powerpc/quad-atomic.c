@@ -1,8 +1,8 @@
 /* { dg-do run { target { powerpc*-*-linux* && lp64 } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
-/* { dg-skip-if "" { powerpc*-*-*spe* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
+/* { dg-skip-if "" { powerpc*-*-*spe* } } */
 /* { dg-require-effective-target p8vector_hw } */
-/* { dg-options "-mcpu=power8 -O2" } */
+/* { dg-options "-mdejagnu-cpu=power8 -O2 -Wno-shift-overflow" } */
 
 /* Test whether we get the right bits for quad word atomic instructions.  */
 #include <stdlib.h>

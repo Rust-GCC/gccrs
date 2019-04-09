@@ -1,5 +1,5 @@
 /* General Solaris system support.
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2019 Free Software Foundation, Inc.
    Contributed by CodeSourcery, LLC.
 
 This file is part of GCC.
@@ -21,17 +21,16 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "target.h"
+#include "rtl.h"
 #include "tree.h"
+#include "memmodel.h"
+#include "tm_p.h"
 #include "stringpool.h"
+#include "attribs.h"
+#include "diagnostic-core.h"
 #include "varasm.h"
 #include "output.h"
-#include "tm.h"
-#include "rtl.h"
-#include "target.h"
-#include "tm_p.h"
-#include "diagnostic-core.h"
-#include "ggc.h"
-#include "hash-table.h"
 
 tree solaris_pending_aligns, solaris_pending_inits, solaris_pending_finis;
 
@@ -145,8 +144,11 @@ solaris_assemble_visibility (tree decl, int vis ATTRIBUTE_UNUSED)
   };
 
   const char *name, *type;
+  tree id = DECL_ASSEMBLER_NAME (decl);
 
-  name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl));
+  while (IDENTIFIER_TRANSPARENT_ALIAS (id))
+    id = TREE_CHAIN (id);
+  name = IDENTIFIER_POINTER (id);
   type = visibility_types[vis];
 
   fprintf (asm_out_file, "\t.%s\t", type);
@@ -171,24 +173,22 @@ typedef struct comdat_entry
 
 /* Helpers for maintaining solaris_comdat_htab.  */
 
-struct comdat_entry_hasher : typed_noop_remove <comdat_entry>
+struct comdat_entry_hasher : nofree_ptr_hash <comdat_entry>
 {
-  typedef comdat_entry value_type;
-  typedef comdat_entry compare_type;
-  static inline hashval_t hash (const value_type *);
-  static inline bool equal (const value_type *, const compare_type *);
-  static inline void remove (value_type *);
+  static inline hashval_t hash (const comdat_entry *);
+  static inline bool equal (const comdat_entry *, const comdat_entry *);
+  static inline void remove (comdat_entry *);
 };
 
 inline hashval_t
-comdat_entry_hasher::hash (const value_type *entry)
+comdat_entry_hasher::hash (const comdat_entry *entry)
 {
   return htab_hash_string (entry->sig);
 }
 
 inline bool
-comdat_entry_hasher::equal (const value_type *entry1,
-			    const compare_type *entry2)
+comdat_entry_hasher::equal (const comdat_entry *entry1,
+			    const comdat_entry *entry2)
 {
   return strcmp (entry1->sig, entry2->sig) == 0;
 }

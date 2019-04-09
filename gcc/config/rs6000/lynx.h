@@ -1,5 +1,5 @@
 /* Definitions for Rs6000 running LynxOS.
-   Copyright (C) 1995-2014 Free Software Foundation, Inc.
+   Copyright (C) 1995-2019 Free Software Foundation, Inc.
    Contributed by David Henkel-Wallace, Cygnus Support (gumby@cygnus.com)
    Rewritten by Adam Nemet, LynuxWorks Inc.
 
@@ -71,16 +71,6 @@
     }						\
   while (0)
 
-/* Override the rs6000.h definition.  */
-
-#undef ASM_APP_ON
-#define ASM_APP_ON "#APP\n"
-
-/* Override the rs6000.h definition.  */
-
-#undef ASM_APP_OFF
-#define ASM_APP_OFF "#NO_APP\n"
-
 /* LynxOS does not do anything with .fixup plus let's not create
    writable section for linkonce.r and linkonce.t.  */
 
@@ -99,7 +89,8 @@
 #undef HAVE_AS_TLS
 #define HAVE_AS_TLS 0
 
-#define DBX_REGISTER_NUMBER(REGNO) rs6000_dbx_register_number (REGNO)
+/* Use standard DWARF numbering for DWARF debugging information.  */
+#define RS6000_USE_DWARF_NUMBERING
 
 #ifdef CRT_BEGIN
 /* This function is part of crtbegin*.o which is at the beginning of

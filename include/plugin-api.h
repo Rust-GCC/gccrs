@@ -1,6 +1,6 @@
 /* plugin-api.h -- External linker plugin API.  */
 
-/* Copyright 2009, 2010 Free Software Foundation, Inc.
+/* Copyright (C) 2009-2019 Free Software Foundation, Inc.
    Written by Cary Coutant <ccoutant@google.com>.
 
    This file is part of binutils.
@@ -34,7 +34,7 @@
 #include <sys/types.h>
 #if !defined(HAVE_STDINT_H) && !defined(HAVE_INTTYPES_H) && \
     !defined(UINT64_MAX) && !defined(uint64_t)
-#error can not find uint64_t type
+#error cannot find uint64_t type
 #endif
 
 #ifdef __cplusplus
@@ -345,6 +345,48 @@ enum ld_plugin_status
     const struct ld_plugin_section * section_list,
     unsigned int num_sections);
 
+/* The linker's interface for retrieving the section alignment requirement
+   of a specific section in an object.  This interface should only be invoked in the
+   claim_file handler.  This function sets *ADDRALIGN to the ELF sh_addralign
+   value of the input section.  */
+
+typedef
+enum ld_plugin_status
+(*ld_plugin_get_input_section_alignment) (const struct ld_plugin_section section,
+                                          unsigned int *addralign);
+
+/* The linker's interface for retrieving the section size of a specific section
+   in an object.  This interface should only be invoked in the claim_file handler.
+   This function sets *SECSIZE to the ELF sh_size
+   value of the input section.  */
+
+typedef
+enum ld_plugin_status
+(*ld_plugin_get_input_section_size) (const struct ld_plugin_section section,
+                                     uint64_t *secsize);
+
+typedef
+enum ld_plugin_status
+(*ld_plugin_new_input_handler) (const struct ld_plugin_input_file *file);
+
+/* The linker's interface for registering the "new_input" handler. This handler
+   will be notified when a new input file has been added after the
+   all_symbols_read event, allowing the plugin to, for example, set a unique
+   segment for sections in plugin-generated input files. */
+
+typedef
+enum ld_plugin_status
+(*ld_plugin_register_new_input) (ld_plugin_new_input_handler handler);
+
+/* The linker's interface for getting the list of wrapped symbols using the
+   --wrap option. This sets *NUM_SYMBOLS to number of wrapped symbols and
+   *WRAP_SYMBOL_LIST to the list of wrapped symbols. */
+
+typedef
+enum ld_plugin_status
+(*ld_plugin_get_wrap_symbols) (uint64_t *num_symbols,
+                               const char ***wrap_symbol_list);
+
 enum ld_plugin_level
 {
   LDPL_INFO,
@@ -384,7 +426,12 @@ enum ld_plugin_tag
   LDPT_ALLOW_SECTION_ORDERING = 24,
   LDPT_GET_SYMBOLS_V2 = 25,
   LDPT_ALLOW_UNIQUE_SEGMENT_FOR_SECTIONS = 26,
-  LDPT_UNIQUE_SEGMENT_FOR_SECTIONS = 27
+  LDPT_UNIQUE_SEGMENT_FOR_SECTIONS = 27,
+  LDPT_GET_SYMBOLS_V3 = 28,
+  LDPT_GET_INPUT_SECTION_ALIGNMENT = 29,
+  LDPT_GET_INPUT_SECTION_SIZE = 30,
+  LDPT_REGISTER_NEW_INPUT_HOOK = 31,
+  LDPT_GET_WRAP_SYMBOLS = 32
 };
 
 /* The plugin transfer vector.  */
@@ -416,6 +463,10 @@ struct ld_plugin_tv
     ld_plugin_allow_section_ordering tv_allow_section_ordering;
     ld_plugin_allow_unique_segment_for_sections tv_allow_unique_segment_for_sections; 
     ld_plugin_unique_segment_for_sections tv_unique_segment_for_sections;
+    ld_plugin_get_input_section_alignment tv_get_input_section_alignment;
+    ld_plugin_get_input_section_size tv_get_input_section_size;
+    ld_plugin_register_new_input tv_register_new_input;
+    ld_plugin_get_wrap_symbols tv_get_wrap_symbols;
   } tv_u;
 };
 

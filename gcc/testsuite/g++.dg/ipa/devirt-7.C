@@ -2,6 +2,7 @@
    comes from a method that has been early-inlined into a descendant.  */
 /* { dg-do run } */
 /* { dg-options "-O3 -fdump-ipa-cp"  } */
+/* { dg-add-options bind_pic_locally } */
 
 extern "C" void abort (void);
 
@@ -84,4 +85,3 @@ int main (int argc, char *argv[])
 }
 
 /* { dg-final { scan-ipa-dump "Discovered a virtual call to a known target.*B::foo"  "cp"  } } */
-/* { dg-final { cleanup-ipa-dump "cp" } } */

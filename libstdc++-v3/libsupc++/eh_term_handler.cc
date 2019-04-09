@@ -1,5 +1,5 @@
 // -*- C++ -*- std::terminate handler
-// Copyright (C) 2002-2014 Free Software Foundation, Inc.
+// Copyright (C) 2002-2019 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -32,7 +32,7 @@
    --disable-libstdcxx-verbose and rebuilding the library.
    In a freestanding environment, we default to this latter approach.  */
 
-#if _GLIBCXX_HOSTED && _GLIBCXX_VERBOSE
+#if _GLIBCXX_HOSTED && _GLIBCXX_VERBOSE && __cpp_exceptions
 /* The current installed user handler.  */
 std::terminate_handler __cxxabiv1::__terminate_handler =
 	__gnu_cxx::__verbose_terminate_handler;

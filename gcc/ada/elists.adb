@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -288,16 +288,42 @@ package body Elists is
       return Elmts.Last;
    end Last_Elmt_Id;
 
+   -----------------
+   -- List_Length --
+   -----------------
+
+   function List_Length (List : Elist_Id) return Nat is
+      Elmt : Elmt_Id;
+      N    : Nat;
+
+   begin
+      if List = No_Elist then
+         return 0;
+
+      else
+         N := 0;
+         Elmt := First_Elmt (List);
+         loop
+            if No (Elmt) then
+               return N;
+            else
+               N := N + 1;
+               Next_Elmt (Elmt);
+            end if;
+         end loop;
+      end if;
+   end List_Length;
+
    ----------
    -- Lock --
    ----------
 
    procedure Lock is
    begin
-      Elists.Locked := True;
-      Elmts.Locked := True;
       Elists.Release;
+      Elists.Locked := True;
       Elmts.Release;
+      Elmts.Locked := True;
    end Lock;
 
    --------------------
@@ -423,6 +449,17 @@ package body Elists is
 
       Elists.Table (To).First  := Elmts.Last;
    end Prepend_Elmt;
+
+   -------------------------
+   -- Prepend_Unique_Elmt --
+   -------------------------
+
+   procedure Prepend_Unique_Elmt (N : Node_Or_Entity_Id; To : Elist_Id) is
+   begin
+      if not Contains (To, N) then
+         Prepend_Elmt (N, To);
+      end if;
+   end Prepend_Unique_Elmt;
 
    -------------
    -- Present --

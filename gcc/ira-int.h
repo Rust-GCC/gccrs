@@ -1,5 +1,5 @@
 /* Integrated Register Allocator (IRA) intercommunication header file.
-   Copyright (C) 2006-2014 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -21,14 +21,12 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_IRA_INT_H
 #define GCC_IRA_INT_H
 
-#include "cfgloop.h"
-#include "ira.h"
-#include "alloc-pool.h"
+#include "recog.h"
 
 /* To provide consistency in naming, all IRA external variables,
    functions, common typedefs start with prefix ira_.  */
 
-#ifdef ENABLE_CHECKING
+#if CHECKING_P
 #define ENABLE_IRA_CHECKING
 #endif
 
@@ -109,7 +107,7 @@ struct ira_loop_tree_node
 
   /* Allocnos in the loop corresponding to their regnos.  If it is
      NULL the loop does not form a separate register allocation region
-     (e.g. because it has abnormal enter/exit edges and we can not put
+     (e.g. because it has abnormal enter/exit edges and we cannot put
      code for register shuffling on the edges if a different
      allocation is used for a pseudo-register on different sides of
      the edges).  Caps are not in the map (remember we can have more
@@ -147,7 +145,7 @@ extern ira_loop_tree_node_t ira_loop_tree_root;
 extern int ira_loop_tree_height;
 
 /* All nodes representing basic blocks are referred through the
-   following array.  We can not use basic block member `aux' for this
+   following array.  We cannot use basic block member `aux' for this
    because it is used for insertion of insns on edges.  */
 extern ira_loop_tree_node_t ira_bb_nodes;
 
@@ -252,7 +250,7 @@ struct ira_object
      of other ira_objects that this one can conflict with.  */
   int min, max;
   /* Initial and accumulated hard registers conflicting with this
-     object and as a consequences can not be assigned to the allocno.
+     object and as a consequences cannot be assigned to the allocno.
      All non-allocatable hard regs and hard regs of register classes
      different from given allocno one are included in the sets.  */
   HARD_REG_SET conflict_hard_regs, total_conflict_hard_regs;
@@ -531,7 +529,7 @@ extern ira_object_t *ira_object_id_map;
 /* The size of the previous array.  */
 extern int ira_objects_num;
 
-/* The following structure represents a hard register prefererence of
+/* The following structure represents a hard register preference of
    allocno.  The preference represent move insns or potential move
    insns usually because of two operand insn constraints.  One move
    operand is a hard register.  */
@@ -546,7 +544,7 @@ struct ira_allocno_pref
   int freq;
   /* Given allocno.  */
   ira_allocno_t allocno;
-  /* All prefernces with the same allocno are linked by the following
+  /* All preferences with the same allocno are linked by the following
      member.  */
   ira_pref_t next_pref;
 };
@@ -606,7 +604,7 @@ struct ira_spilled_reg_stack_slot
   /* RTL representation of the stack slot.  */
   rtx mem;
   /* Size of the stack slot.  */
-  unsigned int width;
+  poly_uint64_pod width;
 };
 
 /* The number of elements in the following array.  */
@@ -620,9 +618,9 @@ extern struct ira_spilled_reg_stack_slot *ira_spilled_reg_stack_slots;
    allocnos assigned to hard-registers, cost of the allocnos assigned
    to memory, cost of loads, stores and register move insns generated
    for pseudo-register live range splitting (see ira-emit.c).  */
-extern int ira_overall_cost;
-extern int ira_reg_cost, ira_mem_cost;
-extern int ira_load_cost, ira_store_cost, ira_shuffle_cost;
+extern int64_t ira_overall_cost;
+extern int64_t ira_reg_cost, ira_mem_cost;
+extern int64_t ira_load_cost, ira_store_cost, ira_shuffle_cost;
 extern int ira_move_loops_num, ira_additional_jumps_num;
 
 
@@ -784,7 +782,7 @@ struct target_ira_int {
 
   /* Initialized once.  It is a maximal possible size of the allocated
      struct costs.  */
-  int x_max_struct_costs_size;
+  size_t x_max_struct_costs_size;
 
   /* Allocated and initialized once, and used to initialize cost values
      for each insn.  */
@@ -797,7 +795,7 @@ struct target_ira_int {
   struct costs *x_op_costs[MAX_RECOG_OPERANDS];
   struct costs *x_this_op_costs[MAX_RECOG_OPERANDS];
 
-  /* Hard registers that can not be used for the register allocator for
+  /* Hard registers that cannot be used for the register allocator for
      all functions of the current compilation unit.  */
   HARD_REG_SET x_no_unit_alloc_regs;
 
@@ -842,11 +840,6 @@ struct target_ira_int {
      register classes;.  The index is negative for hard registers
      unavailable for the allocation.  */
   short x_ira_class_hard_reg_index[N_REG_CLASSES][FIRST_PSEUDO_REGISTER];
-
-  /* Array whose values are hard regset of hard registers available for
-     the allocation of given register class whose HARD_REGNO_MODE_OK
-     values for given mode are zero.  */
-  HARD_REG_SET x_ira_prohibited_class_mode_regs[N_REG_CLASSES][NUM_MACHINE_MODES];
 
   /* Index [CL][M] contains R if R appears somewhere in a register of the form:
 
@@ -939,8 +932,6 @@ extern struct target_ira_int *this_target_ira_int;
   (this_target_ira_int->x_ira_non_ordered_class_hard_regs)
 #define ira_class_hard_reg_index \
   (this_target_ira_int->x_ira_class_hard_reg_index)
-#define ira_prohibited_class_mode_regs \
-  (this_target_ira_int->x_ira_prohibited_class_mode_regs)
 #define ira_useful_class_mode_regs \
   (this_target_ira_int->x_ira_useful_class_mode_regs)
 #define ira_important_classes_num \
@@ -971,7 +962,7 @@ extern void ira_free_bitmap (bitmap);
 extern void ira_print_disposition (FILE *);
 extern void ira_debug_disposition (void);
 extern void ira_debug_allocno_classes (void);
-extern void ira_init_register_move_cost (enum machine_mode);
+extern void ira_init_register_move_cost (machine_mode);
 extern void ira_setup_alts (rtx_insn *insn, HARD_REG_SET &alts);
 extern int ira_get_dup_out_num (int op_num, HARD_REG_SET &alts);
 
@@ -1052,6 +1043,8 @@ extern void ira_debug_live_ranges (void);
 extern void ira_create_allocno_live_ranges (void);
 extern void ira_compress_allocno_live_ranges (void);
 extern void ira_finish_allocno_live_ranges (void);
+extern void ira_implicitly_set_insn_hard_regs (HARD_REG_SET *,
+					       alternative_mask);
 
 /* ira-conflicts.c */
 extern void ira_debug_conflicts (bool);
@@ -1088,7 +1081,7 @@ ira_equiv_no_lvalue_p (int regno)
 
 /* Initialize register costs for MODE if necessary.  */
 static inline void
-ira_init_register_move_cost_if_necessary (enum machine_mode mode)
+ira_init_register_move_cost_if_necessary (machine_mode mode)
 {
   if (ira_register_move_cost[mode] == NULL)
     ira_init_register_move_cost (mode);
@@ -1394,13 +1387,13 @@ ira_object_conflict_iter_cond (ira_object_conflict_iterator *i,
    starting with HARD_REGNO and containing value of MODE are in set
    HARD_REGSET.  */
 static inline bool
-ira_hard_reg_set_intersection_p (int hard_regno, enum machine_mode mode,
+ira_hard_reg_set_intersection_p (int hard_regno, machine_mode mode,
 				 HARD_REG_SET hard_regset)
 {
   int i;
 
   gcc_assert (hard_regno >= 0);
-  for (i = hard_regno_nregs[hard_regno][mode] - 1; i >= 0; i--)
+  for (i = hard_regno_nregs (hard_regno, mode) - 1; i >= 0; i--)
     if (TEST_HARD_REG_BIT (hard_regset, hard_regno + i))
       return true;
   return false;
@@ -1422,13 +1415,13 @@ hard_reg_set_size (HARD_REG_SET set)
    HARD_REGNO and containing value of MODE are fully in set
    HARD_REGSET.  */
 static inline bool
-ira_hard_reg_in_set_p (int hard_regno, enum machine_mode mode,
+ira_hard_reg_in_set_p (int hard_regno, machine_mode mode,
 		       HARD_REG_SET hard_regset)
 {
   int i;
 
   ira_assert (hard_regno >= 0);
-  for (i = hard_regno_nregs[hard_regno][mode] - 1; i >= 0; i--)
+  for (i = hard_regno_nregs (hard_regno, mode) - 1; i >= 0; i--)
     if (!TEST_HARD_REG_BIT (hard_regset, hard_regno + i))
       return false;
   return true;

@@ -1,6 +1,6 @@
 // 2005-12-20  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,7 +28,6 @@
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
   using namespace std::tr1;
   using std::pair;
   using std::equal_to;
@@ -102,7 +101,7 @@ test01()
   VERIFY( ummap04.empty() );
   VERIFY( ummap03.get_allocator().get_personality() == personality02 );
   VERIFY( ummap04.get_allocator().get_personality() == personality01 );
-  
+
   my_ummap ummap05(mmap01_ref.begin(), mmap01_ref.end(), 10, hash<char>(),
 		   equal_to<char>(), alloc01);
   size01 = ummap05.size();
@@ -136,7 +135,7 @@ test01()
   VERIFY( my_map(ummap07.begin(), ummap07.end())
 	  == my_map(mmap03_ref.begin(), mmap03_ref.end()) );
   VERIFY( ummap08.size() == size01 );
-  VERIFY( my_map(ummap08.begin(), ummap08.end()) 
+  VERIFY( my_map(ummap08.begin(), ummap08.end())
 	  == my_map(mmap01_ref.begin(), mmap01_ref.end()) );
   VERIFY( ummap07.get_allocator().get_personality() == personality02 );
   VERIFY( ummap08.get_allocator().get_personality() == personality01 );
@@ -200,7 +199,7 @@ test01()
 }
 
 int main()
-{ 
+{
   test01();
   return 0;
 }

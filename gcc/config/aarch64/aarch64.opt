@@ -1,5 +1,5 @@
 ; Machine description for AArch64 architecture.
-; Copyright (C) 2009-2014 Free Software Foundation, Inc.
+; Copyright (C) 2009-2019 Free Software Foundation, Inc.
 ; Contributed by ARM Ltd.
 ;
 ; This file is part of GCC.
@@ -20,6 +20,21 @@
 
 HeaderInclude
 config/aarch64/aarch64-opts.h
+
+TargetVariable
+enum aarch64_processor explicit_tune_core = aarch64_none
+
+TargetVariable
+enum aarch64_arch explicit_arch = aarch64_no_arch
+
+TargetSave
+const char *x_aarch64_override_tune_string
+
+TargetVariable
+unsigned long aarch64_isa_flags = 0
+
+TargetVariable
+unsigned aarch64_enable_bti = 2
 
 ; The TLS dialect names to use with -mtls-dialect.
 
@@ -48,64 +63,80 @@ Enum(cmodel) String(small) Value(AARCH64_CMODEL_SMALL)
 EnumValue
 Enum(cmodel) String(large) Value(AARCH64_CMODEL_LARGE)
 
-; The cpu/arch option names to use in cpu/arch selection.
-
-Variable
-const char *aarch64_arch_string
-
-Variable
-const char *aarch64_cpu_string
-
-Variable
-const char *aarch64_tune_string
-
 mbig-endian
 Target Report RejectNegative Mask(BIG_END)
-Assume target CPU is configured as big endian
+Assume target CPU is configured as big endian.
 
 mgeneral-regs-only
-Target Report RejectNegative Mask(GENERAL_REGS_ONLY)
-Generate code which uses only the general registers
+Target Report RejectNegative Mask(GENERAL_REGS_ONLY) Save
+Generate code which uses only the general registers.
+
+mfix-cortex-a53-835769
+Target Report Var(aarch64_fix_a53_err835769) Init(2) Save
+Workaround for ARM Cortex-A53 Erratum number 835769.
+
+mfix-cortex-a53-843419
+Target Report Var(aarch64_fix_a53_err843419) Init(2) Save
+Workaround for ARM Cortex-A53 Erratum number 843419.
 
 mlittle-endian
 Target Report RejectNegative InverseMask(BIG_END)
-Assume target CPU is configured as little endian
+Assume target CPU is configured as little endian.
 
 mcmodel=
-Target RejectNegative Joined Enum(cmodel) Var(aarch64_cmodel_var) Init(AARCH64_CMODEL_SMALL)
-Specify the code model
+Target RejectNegative Joined Enum(cmodel) Var(aarch64_cmodel_var) Init(AARCH64_CMODEL_SMALL) Save
+Specify the code model.
 
 mstrict-align
-Target Report RejectNegative Mask(STRICT_ALIGN)
-Don't assume that unaligned accesses are handled by the system
+Target Report Mask(STRICT_ALIGN) Save
+Don't assume that unaligned accesses are handled by the system.
 
 momit-leaf-frame-pointer
-Target Report Save Var(flag_omit_leaf_frame_pointer) Init(1)
-Omit the frame pointer in leaf functions
+Target Report Var(flag_omit_leaf_frame_pointer) Init(2) Save
+Omit the frame pointer in leaf functions.
 
 mtls-dialect=
-Target RejectNegative Joined Enum(tls_type) Var(aarch64_tls_dialect) Init(TLS_DESCRIPTORS)
-Specify TLS dialect
+Target RejectNegative Joined Enum(tls_type) Var(aarch64_tls_dialect) Init(TLS_DESCRIPTORS) Save
+Specify TLS dialect.
+
+mtls-size=
+Target RejectNegative Joined Var(aarch64_tls_size) Enum(aarch64_tls_size)
+Specifies bit size of immediate TLS offsets.  Valid values are 12, 24, 32, 48.
+
+Enum
+Name(aarch64_tls_size) Type(int)
+
+EnumValue
+Enum(aarch64_tls_size) String(12) Value(12)
+
+EnumValue
+Enum(aarch64_tls_size) String(24) Value(24)
+
+EnumValue
+Enum(aarch64_tls_size) String(32) Value(32)
+
+EnumValue
+Enum(aarch64_tls_size) String(48) Value(48)
 
 march=
 Target RejectNegative ToLower Joined Var(aarch64_arch_string)
--march=ARCH	Use features of architecture ARCH
+Use features of architecture ARCH.
 
 mcpu=
 Target RejectNegative ToLower Joined Var(aarch64_cpu_string)
--mcpu=CPU	Use features of and optimize for CPU
+Use features of and optimize for CPU.
 
 mtune=
 Target RejectNegative ToLower Joined Var(aarch64_tune_string)
--mtune=CPU	Optimize for CPU
+Optimize for CPU.
 
 mabi=
 Target RejectNegative Joined Enum(aarch64_abi) Var(aarch64_abi) Init(AARCH64_ABI_DEFAULT)
--mabi=ABI	Generate code that conforms to the specified ABI
+Generate code that conforms to the specified ABI.
 
-mlra
-Target Report Var(aarch64_lra_flag) Init(1) Save
-Use LRA instead of reload (transitional)
+moverride=
+Target RejectNegative ToLower Joined Var(aarch64_override_tune_string)
+-moverride=<string>	Power users only! Override CPU optimization parameters.
 
 Enum
 Name(aarch64_abi) Type(int)
@@ -116,3 +147,111 @@ Enum(aarch64_abi) String(ilp32) Value(AARCH64_ABI_ILP32)
 
 EnumValue
 Enum(aarch64_abi) String(lp64) Value(AARCH64_ABI_LP64)
+
+mpc-relative-literal-loads
+Target Report Save Var(pcrelative_literal_loads) Init(2) Save
+PC relative literal loads.
+
+mbranch-protection=
+Target RejectNegative Joined Var(aarch64_branch_protection_string) Save
+Use branch-protection features.
+
+msign-return-address=
+Target Deprecated RejectNegative Joined Enum(aarch64_ra_sign_scope_t) Var(aarch64_ra_sign_scope) Init(AARCH64_FUNCTION_NONE) Save
+Select return address signing scope.
+
+Enum
+Name(aarch64_ra_sign_scope_t) Type(enum aarch64_function_type)
+Supported AArch64 return address signing scope (for use with -msign-return-address= option):
+
+EnumValue
+Enum(aarch64_ra_sign_scope_t) String(none) Value(AARCH64_FUNCTION_NONE)
+
+EnumValue
+Enum(aarch64_ra_sign_scope_t) String(non-leaf) Value(AARCH64_FUNCTION_NON_LEAF)
+
+EnumValue
+Enum(aarch64_ra_sign_scope_t) String(all) Value(AARCH64_FUNCTION_ALL)
+
+mlow-precision-recip-sqrt
+Target Var(flag_mrecip_low_precision_sqrt) Optimization
+Enable the reciprocal square root approximation.  Enabling this reduces
+precision of reciprocal square root results to about 16 bits for
+single precision and to 32 bits for double precision.
+
+mlow-precision-sqrt
+Target Var(flag_mlow_precision_sqrt) Optimization
+Enable the square root approximation.  Enabling this reduces
+precision of square root results to about 16 bits for
+single precision and to 32 bits for double precision.
+If enabled, it implies -mlow-precision-recip-sqrt.
+
+mlow-precision-div
+Target Var(flag_mlow_precision_div) Optimization
+Enable the division approximation.  Enabling this reduces
+precision of division results to about 16 bits for
+single precision and to 32 bits for double precision.
+
+Enum
+Name(sve_vector_bits) Type(enum aarch64_sve_vector_bits_enum)
+The possible SVE vector lengths:
+
+EnumValue
+Enum(sve_vector_bits) String(scalable) Value(SVE_SCALABLE)
+
+EnumValue
+Enum(sve_vector_bits) String(128) Value(SVE_128)
+
+EnumValue
+Enum(sve_vector_bits) String(256) Value(SVE_256)
+
+EnumValue
+Enum(sve_vector_bits) String(512) Value(SVE_512)
+
+EnumValue
+Enum(sve_vector_bits) String(1024) Value(SVE_1024)
+
+EnumValue
+Enum(sve_vector_bits) String(2048) Value(SVE_2048)
+
+msve-vector-bits=
+Target RejectNegative Joined Enum(sve_vector_bits) Var(aarch64_sve_vector_bits) Init(SVE_SCALABLE)
+-msve-vector-bits=<number>	Set the number of bits in an SVE vector register to N.
+
+mverbose-cost-dump
+Target Undocumented Var(flag_aarch64_verbose_cost)
+Enables verbose cost model dumping in the debug dump files.
+
+mtrack-speculation
+Target Var(aarch64_track_speculation)
+Generate code to track when the CPU might be speculating incorrectly.
+
+mstack-protector-guard=
+Target RejectNegative Joined Enum(stack_protector_guard) Var(aarch64_stack_protector_guard) Init(SSP_GLOBAL)
+Use given stack-protector guard.
+
+Enum
+Name(stack_protector_guard) Type(enum stack_protector_guard)
+Valid arguments to -mstack-protector-guard=:
+
+EnumValue
+Enum(stack_protector_guard) String(sysreg) Value(SSP_SYSREG)
+
+EnumValue
+Enum(stack_protector_guard) String(global) Value(SSP_GLOBAL)
+
+mstack-protector-guard-reg=
+Target Joined RejectNegative String Var(aarch64_stack_protector_guard_reg_str)
+Use the system register specified on the command line as the stack protector
+guard register. This option is for use with fstack-protector-strong and
+not for use in user-land code.
+
+mstack-protector-guard-offset=
+Target Joined RejectNegative String Var(aarch64_stack_protector_guard_offset_str)
+Use an immediate to offset from the stack protector guard register, sp_el0.
+This option is for use with fstack-protector-strong and not for use in
+user-land code.
+
+TargetVariable
+long aarch64_stack_protector_guard_offset = 0
+

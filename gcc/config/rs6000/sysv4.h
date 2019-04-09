@@ -1,5 +1,5 @@
 /* Target definitions for GNU compiler for PowerPC running System V.4
-   Copyright (C) 1995-2014 Free Software Foundation, Inc.
+   Copyright (C) 1995-2019 Free Software Foundation, Inc.
    Contributed by Cygnus Support.
 
    This file is part of GCC.
@@ -23,9 +23,10 @@
    see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    <http://www.gnu.org/licenses/>.  */
 
-/* Header files should be C++ aware in general.  */
-#undef  NO_IMPLICIT_EXTERN_C
-#define NO_IMPLICIT_EXTERN_C
+#undef GNU_USER_TARGET_CRTI
+#define GNU_USER_TARGET_CRTI "%{mnewlib:ecrti.o%s;:crti.o%s}"
+#undef GNU_USER_TARGET_CRTN
+#define GNU_USER_TARGET_CRTN "%{mnewlib:ecrtn.o%s;:crtn.o%s}"
 
 /* Yes!  We are ELF.  */
 #define	TARGET_OBJECT_FORMAT OBJECT_ELF
@@ -40,10 +41,8 @@
 #undef	ASM_DEFAULT_SPEC
 #define	ASM_DEFAULT_SPEC "-mppc"
 
-#define	TARGET_TOC		((rs6000_isa_flags & OPTION_MASK_64BIT)	\
-				 || ((rs6000_isa_flags			\
-				      & (OPTION_MASK_RELOCATABLE	\
-					 | OPTION_MASK_MINIMAL_TOC))	\
+#define	TARGET_TOC		(TARGET_64BIT				\
+				 || (TARGET_MINIMAL_TOC			\
 				     && flag_pic > 1)			\
 				 || DEFAULT_ABI != ABI_V4)
 
@@ -58,6 +57,11 @@
 #ifdef HAVE_AS_REL16
 #undef TARGET_SECURE_PLT
 #define TARGET_SECURE_PLT	secure_plt
+#endif
+
+#if HAVE_AS_PLTSEQ
+#undef TARGET_PLTSEQ
+#define TARGET_PLTSEQ rs6000_pltseq
 #endif
 
 #define SDATA_DEFAULT_SIZE 8
@@ -110,7 +114,7 @@ do {									\
   else									\
     {									\
       rs6000_current_abi = ABI_V4;					\
-      error ("bad value for -mcall-%s", rs6000_abi_name);		\
+      error ("bad value for %<%s-%s%>", "-mcall", rs6000_abi_name);	\
     }									\
 									\
   if (rs6000_sdata_name)						\
@@ -126,7 +130,7 @@ do {									\
       else if (!strcmp (rs6000_sdata_name, "eabi"))			\
 	rs6000_sdata = SDATA_EABI;					\
       else								\
-	error ("bad value for -msdata=%s", rs6000_sdata_name);		\
+	error ("bad value for %<%s=%s%>", "-msdata", rs6000_sdata_name);\
     }									\
   else if (DEFAULT_ABI == ABI_V4)					\
     {									\
@@ -143,8 +147,8 @@ do {									\
       (rs6000_sdata == SDATA_EABI || rs6000_sdata == SDATA_SYSV))	\
     {									\
       rs6000_sdata = SDATA_DATA;					\
-      error ("-mrelocatable and -msdata=%s are incompatible",		\
-	     rs6000_sdata_name);					\
+      error ("%qs and %<%s=%s%> are incompatible", rs6000_sdata_name,	\
+	     "-mrelocatable", "-msdata");				\
     }									\
 									\
   else if (flag_pic && DEFAULT_ABI == ABI_V4				\
@@ -152,17 +156,17 @@ do {									\
 	       || rs6000_sdata == SDATA_SYSV))				\
     {									\
       rs6000_sdata = SDATA_DATA;					\
-      error ("-f%s and -msdata=%s are incompatible",			\
+      error ("%<-f%s%> and %<%s=%s%> are incompatible",			\
 	     (flag_pic > 1) ? "PIC" : "pic",				\
-	     rs6000_sdata_name);					\
+	     "-msdata", rs6000_sdata_name);				\
     }									\
 									\
   if ((rs6000_sdata != SDATA_NONE && DEFAULT_ABI != ABI_V4)		\
       || (rs6000_sdata == SDATA_EABI && !TARGET_EABI))			\
     {									\
       rs6000_sdata = SDATA_NONE;					\
-      error ("-msdata=%s and -mcall-%s are incompatible",		\
-	     rs6000_sdata_name, rs6000_abi_name);			\
+      error ("%<%s=%s%> and %<%s-%s%> are incompatible",		\
+	     "-msdata", rs6000_sdata_name, "-mcall", rs6000_abi_name);	\
     }									\
 									\
   targetm.have_srodata_section = rs6000_sdata == SDATA_EABI;		\
@@ -170,45 +174,75 @@ do {									\
   if (TARGET_RELOCATABLE && !TARGET_MINIMAL_TOC)			\
     {									\
       rs6000_isa_flags |= OPTION_MASK_MINIMAL_TOC;			\
-      error ("-mrelocatable and -mno-minimal-toc are incompatible");	\
+      error ("%qs and %qs are incompatible", "-mrelocatable",		\
+	     "-mno-minimal-toc");					\
     }									\
 									\
   if (TARGET_RELOCATABLE && rs6000_current_abi != ABI_V4)		\
     {									\
       rs6000_isa_flags &= ~OPTION_MASK_RELOCATABLE;			\
-      error ("-mrelocatable and -mcall-%s are incompatible",		\
-	     rs6000_abi_name);						\
+      error ("%qs and %<%s-%s%> are incompatible",			\
+	     "-mrelocatable", "-mcall", rs6000_abi_name);		\
     }									\
 									\
   if (!TARGET_64BIT && flag_pic > 1 && rs6000_current_abi != ABI_V4)	\
     {									\
       flag_pic = 0;							\
-      error ("-fPIC and -mcall-%s are incompatible",			\
-	     rs6000_abi_name);						\
+      error ("%qs and %<%s-%s%> are incompatible",			\
+	     "-fPIC", "-mcall", rs6000_abi_name);			\
     }									\
 									\
   if (TARGET_SECURE_PLT != secure_plt)					\
     {									\
-      error ("-msecure-plt not supported by your assembler");		\
+      error ("%qs not supported by your assembler", "-msecure-plt");	\
     }									\
 									\
-  /* Treat -fPIC the same as -mrelocatable.  */				\
+  if (TARGET_PLTSEQ != rs6000_pltseq					\
+      && global_options_set.x_rs6000_pltseq)				\
+    {									\
+      error ("%qs not supported by your assembler", "-mpltseq");	\
+    }									\
+									\
+  if (DEFAULT_ABI == ABI_V4 && TARGET_PLTSEQ && !TARGET_SECURE_PLT)	\
+    {									\
+      if (global_options_set.x_rs6000_pltseq)				\
+	{								\
+	  if (global_options_set.x_secure_plt)				\
+	    error ("%qs and %qs are incompatible",			\
+		   "-mpltseq", "-mbss-plt");				\
+	  else								\
+	    secure_plt = true;						\
+	}								\
+      if (!TARGET_SECURE_PLT)						\
+	rs6000_pltseq = false;						\
+    }									\
+									\
   if (flag_pic > 1 && DEFAULT_ABI == ABI_V4)				\
     {									\
-      rs6000_isa_flags |= OPTION_MASK_RELOCATABLE | OPTION_MASK_MINIMAL_TOC; \
+      /* Note: flag_pic should not change any option flags that would	\
+	 be invalid with or pessimise -fno-PIC code.  LTO turns off	\
+	 flag_pic when linking/recompiling a fixed position executable. \
+	 However, if the objects were originally compiled with -fPIC,	\
+	 then other target options forced on here by -fPIC are restored \
+	 when recompiling those objects without -fPIC.  In particular	\
+	 TARGET_RELOCATABLE must not be enabled here by flag_pic.  */	\
+      rs6000_isa_flags |= OPTION_MASK_MINIMAL_TOC;			\
       TARGET_NO_FP_IN_TOC = 1;						\
     }									\
 									\
-  else if (TARGET_RELOCATABLE)						\
-    if (!flag_pic)							\
-      flag_pic = 2;							\
+  if (TARGET_RELOCATABLE)						\
+    {									\
+      if (!flag_pic)							\
+	flag_pic = 2;							\
+      TARGET_NO_FP_IN_TOC = 1;						\
+    }									\
 } while (0)
 
 #ifndef RS6000_BI_ARCH
 # define SUBSUBTARGET_OVERRIDE_OPTIONS					\
 do {									\
   if ((TARGET_DEFAULT ^ rs6000_isa_flags) & OPTION_MASK_64BIT)		\
-    error ("-m%s not supported in this configuration",			\
+    error ("%<-m%s%> not supported in this configuration",		\
 	   (rs6000_isa_flags & OPTION_MASK_64BIT) ? "64" : "32");	\
 } while (0)
 #endif
@@ -291,8 +325,8 @@ do {									\
 
 /* An expression for the alignment of a structure field FIELD if the
    alignment computed in the usual way is COMPUTED.  */
-#define ADJUST_FIELD_ALIGN(FIELD, COMPUTED)				      \
-	(rs6000_special_adjust_field_align_p ((FIELD), (COMPUTED))	      \
+#define ADJUST_FIELD_ALIGN(FIELD, TYPE, COMPUTED)			      \
+	(rs6000_special_adjust_field_align_p ((TYPE), (COMPUTED))	      \
 	 ? 128 : COMPUTED)
 
 #undef  BIGGEST_FIELD_ALIGNMENT
@@ -317,8 +351,7 @@ do {									\
 
 /* Put PC relative got entries in .got2.  */
 #define	MINIMAL_TOC_SECTION_ASM_OP \
-  (TARGET_RELOCATABLE || (flag_pic && DEFAULT_ABI == ABI_V4)		\
-   ? "\t.section\t\".got2\",\"aw\"" : "\t.section\t\".got1\",\"aw\"")
+  (flag_pic ? "\t.section\t\".got2\",\"aw\"" : "\t.section\t\".got1\",\"aw\"")
 
 #define	SDATA_SECTION_ASM_OP "\t.section\t\".sdata\",\"aw\""
 #define	SDATA2_SECTION_ASM_OP "\t.section\t\".sdata2\",\"a\""
@@ -345,15 +378,14 @@ do {									\
 #undef	ASM_OUTPUT_SPECIAL_POOL_ENTRY_P
 #define	ASM_OUTPUT_SPECIAL_POOL_ENTRY_P(X, MODE)			\
   (TARGET_TOC								\
-   && (GET_CODE (X) == SYMBOL_REF					\
+   && (SYMBOL_REF_P (X)							\
        || (GET_CODE (X) == CONST && GET_CODE (XEXP (X, 0)) == PLUS	\
-	   && GET_CODE (XEXP (XEXP (X, 0), 0)) == SYMBOL_REF)		\
+	   && SYMBOL_REF_P (XEXP (XEXP (X, 0), 0)))			\
        || GET_CODE (X) == LABEL_REF					\
-       || (GET_CODE (X) == CONST_INT 					\
+       || (CONST_INT_P (X)						\
 	   && GET_MODE_BITSIZE (MODE) <= GET_MODE_BITSIZE (Pmode))	\
        || (!TARGET_NO_FP_IN_TOC						\
-	   && !TARGET_RELOCATABLE					\
-	   && GET_CODE (X) == CONST_DOUBLE				\
+	   && CONST_DOUBLE_P (X)					\
 	   && SCALAR_FLOAT_MODE_P (GET_MODE (X))			\
 	   && BITS_PER_WORD == HOST_BITS_PER_INT)))
 
@@ -408,7 +440,7 @@ do {									\
     {									\
       fprintf (FILE, "%s", LCOMM_ASM_OP);				\
       assemble_name ((FILE), (NAME));					\
-      fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n",		\
+      fprintf ((FILE), "," HOST_WIDE_INT_PRINT_UNSIGNED",%u\n",		\
 	       (SIZE), (ALIGN) / BITS_PER_UNIT);			\
     }									\
   ASM_OUTPUT_TYPE_DIRECTIVE (FILE, NAME, "object");			\
@@ -457,7 +489,7 @@ do {									\
 do {									\
   if (DEFAULT_ABI == ABI_V4)						\
     asm_fprintf (FILE,							\
-		 "\tlwz %s,12(%s)\n\taddic %s,%s,16\n",	\
+		 "\tlwz %s,12(%s)\n\taddi %s,%s,16\n",	\
 		 reg_names[REGNO], reg_names[1], reg_names[1],		\
 		 reg_names[1]);						\
 } while (0)
@@ -530,12 +562,15 @@ extern int fixuplabelno;
 #undef	ASM_SPEC
 #define	ASM_SPEC "%(asm_cpu) \
 %{,assembler|,assembler-with-cpp: %{mregnames} %{mno-regnames}} \
-%{mrelocatable} %{mrelocatable-lib} %{fpic|fpie|fPIC|fPIE:-K PIC} \
+%{mrelocatable} %{mrelocatable-lib} %{" FPIE_OR_FPIC_SPEC ":-K PIC} \
 %{memb|msdata=eabi: -memb}" \
 ENDIAN_SELECT(" -mbig", " -mlittle", DEFAULT_ASM_ENDIAN)
 
 #ifndef CC1_SECURE_PLT_DEFAULT_SPEC
 #define CC1_SECURE_PLT_DEFAULT_SPEC ""
+#endif
+#ifndef LINK_SECURE_PLT_DEFAULT_SPEC
+#define LINK_SECURE_PLT_DEFAULT_SPEC ""
 #endif
 
 /* Pass -G xxx to the compiler.  */
@@ -551,8 +586,8 @@ ENDIAN_SELECT(" -mbig", " -mlittle", DEFAULT_ASM_ENDIAN)
     %{mcall-openbsd: -mno-eabi }}} \
 %{msdata: -msdata=default} \
 %{mno-sdata: -msdata=none} \
-%{!mbss-plt: %{!msecure-plt: %(cc1_secure_plt_default)}} \
-%{profile: -p}"
+%{!mbss-plt: %{!msecure-plt: %(cc1_secure_plt_default)}}" \
+GNU_USER_TARGET_CC1_SPEC
 
 /* Default starting address if specified.  */
 #define LINK_START_SPEC "\
@@ -567,6 +602,7 @@ ENDIAN_SELECT(" -mbig", " -mlittle", DEFAULT_ASM_ENDIAN)
                : %(link_start_default)     }"
 
 #define LINK_START_DEFAULT_SPEC ""
+#define LINK_SECURE_PLT_SPEC LINK_SECURE_PLT_DEFAULT_SPEC
 
 #undef	LINK_SPEC
 #define	LINK_SPEC "\
@@ -574,7 +610,7 @@ ENDIAN_SELECT(" -mbig", " -mlittle", DEFAULT_ASM_ENDIAN)
 %{R*} \
 %(link_shlib) \
 %{!T*: %(link_start) } \
-%(link_target) \
+%{!static: %{!mbss-plt: %(link_secure_plt)}} \
 %(link_os)"
 
 /* Shared libraries are not default.  */
@@ -583,10 +619,6 @@ ENDIAN_SELECT(" -mbig", " -mlittle", DEFAULT_ASM_ENDIAN)
 %{static: } \
 %{shared:-G -dy -z text } \
 %{symbolic:-Bsymbolic -G -dy -z text }"
-
-/* Override the default target of the linker.  */
-#define	LINK_TARGET_SPEC \
-  ENDIAN_SELECT("", " --oformat elf32-powerpcle", "")
 
 /* Any specific OS flags.  */
 #define LINK_OS_SPEC "\
@@ -601,9 +633,6 @@ ENDIAN_SELECT(" -mbig", " -mlittle", DEFAULT_ASM_ENDIAN)
                : %(link_os_default)     }"
 
 #define LINK_OS_DEFAULT_SPEC ""
-
-#define DRIVER_SELF_SPECS "%{mfpu=none: %<mfpu=* \
- 	%<msingle-float %<mdouble-float}"
 
 /* Override rs6000.h definition.  */
 #undef	CPP_SPEC
@@ -740,54 +769,32 @@ ENDIAN_SELECT(" -mbig", " -mlittle", DEFAULT_ASM_ENDIAN)
   %{symbolic:-Bsymbolic}"
 
 /* GNU/Linux support.  */
-#define LIB_LINUX_SPEC "%{mnewlib: --start-group -llinux -lc --end-group } \
-%{!mnewlib: %{pthread:-lpthread} %{shared:-lc} \
-%{!shared: %{profile:-lc_p} %{!profile:-lc}}}"
+#define LIB_LINUX_SPEC \
+  "%{mnewlib: --start-group -llinux -lc --end-group; \
+     :" GNU_USER_TARGET_LIB_SPEC "}"
 
-#ifdef HAVE_LD_PIE
-#define	STARTFILE_LINUX_SPEC "\
-%{!shared: %{pg|p|profile:gcrt1.o%s;pie:Scrt1.o%s;:crt1.o%s}} \
-%{mnewlib:ecrti.o%s;:crti.o%s} \
-%{static:crtbeginT.o%s;shared|pie:crtbeginS.o%s;:crtbegin.o%s}"
-#else
-#define	STARTFILE_LINUX_SPEC "\
-%{!shared: %{pg|p|profile:gcrt1.o%s;:crt1.o%s}} \
-%{mnewlib:ecrti.o%s;:crti.o%s} \
-%{static:crtbeginT.o%s;shared|pie:crtbeginS.o%s;:crtbegin.o%s}"
-#endif
+#define	STARTFILE_LINUX_SPEC GNU_USER_TARGET_STARTFILE_SPEC
 
-#define	ENDFILE_LINUX_SPEC "\
-%{shared|pie:crtendS.o%s;:crtend.o%s} \
-%{mnewlib:ecrtn.o%s;:crtn.o%s}"
+#define ENDFILE_LINUX_SPEC GNU_USER_TARGET_ENDFILE_SPEC
 
 #define LINK_START_LINUX_SPEC ""
 
+#define MUSL_DYNAMIC_LINKER_E ENDIAN_SELECT("","le","")
+
 #define GLIBC_DYNAMIC_LINKER "/lib/ld.so.1"
-#define UCLIBC_DYNAMIC_LINKER "/lib/ld-uClibc.so.0"
-#if DEFAULT_LIBC == LIBC_UCLIBC
-#define CHOOSE_DYNAMIC_LINKER(G, U) "%{mglibc:" G ";:" U "}"
-#elif !defined (DEFAULT_LIBC) || DEFAULT_LIBC == LIBC_GLIBC
-#define CHOOSE_DYNAMIC_LINKER(G, U) "%{muclibc:" U ";:" G "}"
-#else
-#error "Unsupported DEFAULT_LIBC"
+#undef MUSL_DYNAMIC_LINKER
+#define MUSL_DYNAMIC_LINKER \
+  "/lib/ld-musl-powerpc" MUSL_DYNAMIC_LINKER_E "%{msoft-float:-sf}.so.1"
+
+#ifndef GNU_USER_DYNAMIC_LINKER
+#define GNU_USER_DYNAMIC_LINKER GLIBC_DYNAMIC_LINKER
 #endif
-#define GNU_USER_DYNAMIC_LINKER \
-  CHOOSE_DYNAMIC_LINKER (GLIBC_DYNAMIC_LINKER, UCLIBC_DYNAMIC_LINKER)
 
 #define LINK_OS_LINUX_SPEC "-m elf32ppclinux %{!shared: %{!static: \
   %{rdynamic:-export-dynamic} \
   -dynamic-linker " GNU_USER_DYNAMIC_LINKER "}}"
 
-#if defined(HAVE_LD_EH_FRAME_HDR)
-# define LINK_EH_SPEC "%{!static:--eh-frame-hdr} "
-#endif
-
-#define CPP_OS_LINUX_SPEC "-D__unix__ -D__gnu_linux__ -D__linux__ \
-%{!undef:							  \
-  %{!ansi:							  \
-    %{!std=*:-Dunix -D__unix -Dlinux -D__linux}			  \
-    %{std=gnu*:-Dunix -D__unix -Dlinux -D__linux}}}		  \
--Asystem=linux -Asystem=unix -Asystem=posix %{pthread:-D_REENTRANT}"
+#define CPP_OS_LINUX_SPEC "%{pthread:-D_REENTRANT}"
 
 /* NetBSD support.  */
 #define LIB_NETBSD_SPEC "\
@@ -873,7 +880,6 @@ ncrtn.o%s"
   { "endfile_openbsd",		ENDFILE_OPENBSD_SPEC },			\
   { "endfile_default",		ENDFILE_DEFAULT_SPEC },			\
   { "link_shlib",		LINK_SHLIB_SPEC },			\
-  { "link_target",		LINK_TARGET_SPEC },			\
   { "link_start",		LINK_START_SPEC },			\
   { "link_start_ads",		LINK_START_ADS_SPEC },			\
   { "link_start_yellowknife",	LINK_START_YELLOWKNIFE_SPEC },		\
@@ -895,6 +901,7 @@ ncrtn.o%s"
   { "link_os_openbsd",		LINK_OS_OPENBSD_SPEC },			\
   { "link_os_default",		LINK_OS_DEFAULT_SPEC },			\
   { "cc1_secure_plt_default",	CC1_SECURE_PLT_DEFAULT_SPEC },		\
+  { "link_secure_plt",		LINK_SECURE_PLT_SPEC },			\
   { "cpp_os_ads",		CPP_OS_ADS_SPEC },			\
   { "cpp_os_yellowknife",	CPP_OS_YELLOWKNIFE_SPEC },		\
   { "cpp_os_mvme",		CPP_OS_MVME_SPEC },			\
@@ -931,9 +938,10 @@ ncrtn.o%s"
 /* Select a format to encode pointers in exception handling data.  CODE
    is 0 for data, 1 for code labels, 2 for function pointers.  GLOBAL is
    true if the symbol may be affected by dynamic relocations.  */
-#define ASM_PREFERRED_EH_DATA_FORMAT(CODE,GLOBAL)			     \
-  ((flag_pic || TARGET_RELOCATABLE)					     \
-   ? (((GLOBAL) ? DW_EH_PE_indirect : 0) | DW_EH_PE_pcrel | DW_EH_PE_sdata4) \
+#define ASM_PREFERRED_EH_DATA_FORMAT(CODE, GLOBAL)			\
+  (flag_pic								\
+   ? (((GLOBAL) ? DW_EH_PE_indirect : 0) | DW_EH_PE_pcrel		\
+      | DW_EH_PE_sdata4)						\
    : DW_EH_PE_absptr)
 
 #define DOUBLE_INT_ASM_OP "\t.quad\t"
@@ -949,4 +957,73 @@ ncrtn.o%s"
 /* This target uses the sysv4.opt file.  */
 #define TARGET_USES_SYSV4_OPT 1
 
-#undef DBX_REGISTER_NUMBER
+/* Include order changes for musl, same as in generic linux.h.  */
+#if DEFAULT_LIBC == LIBC_MUSL
+#define INCLUDE_DEFAULTS_MUSL_GPP			\
+    { GPLUSPLUS_INCLUDE_DIR, "G++", 1, 1,		\
+      GPLUSPLUS_INCLUDE_DIR_ADD_SYSROOT, 0 },		\
+    { GPLUSPLUS_TOOL_INCLUDE_DIR, "G++", 1, 1,		\
+      GPLUSPLUS_INCLUDE_DIR_ADD_SYSROOT, 1 },		\
+    { GPLUSPLUS_BACKWARD_INCLUDE_DIR, "G++", 1, 1,	\
+      GPLUSPLUS_INCLUDE_DIR_ADD_SYSROOT, 0 },
+
+#ifdef LOCAL_INCLUDE_DIR
+#define INCLUDE_DEFAULTS_MUSL_LOCAL			\
+    { LOCAL_INCLUDE_DIR, 0, 0, 1, 1, 2 },		\
+    { LOCAL_INCLUDE_DIR, 0, 0, 1, 1, 0 },
+#else
+#define INCLUDE_DEFAULTS_MUSL_LOCAL
+#endif
+
+#ifdef PREFIX_INCLUDE_DIR
+#define INCLUDE_DEFAULTS_MUSL_PREFIX			\
+    { PREFIX_INCLUDE_DIR, 0, 0, 1, 0, 0},
+#else
+#define INCLUDE_DEFAULTS_MUSL_PREFIX
+#endif
+
+#ifdef CROSS_INCLUDE_DIR
+#define INCLUDE_DEFAULTS_MUSL_CROSS			\
+    { CROSS_INCLUDE_DIR, "GCC", 0, 0, 0, 0},
+#else
+#define INCLUDE_DEFAULTS_MUSL_CROSS
+#endif
+
+#ifdef TOOL_INCLUDE_DIR
+#define INCLUDE_DEFAULTS_MUSL_TOOL			\
+    { TOOL_INCLUDE_DIR, "BINUTILS", 0, 1, 0, 0},
+#else
+#define INCLUDE_DEFAULTS_MUSL_TOOL
+#endif
+
+#ifdef NATIVE_SYSTEM_HEADER_DIR
+#define INCLUDE_DEFAULTS_MUSL_NATIVE			\
+    { NATIVE_SYSTEM_HEADER_DIR, 0, 0, 0, 1, 2 },	\
+    { NATIVE_SYSTEM_HEADER_DIR, 0, 0, 0, 1, 0 },
+#else
+#define INCLUDE_DEFAULTS_MUSL_NATIVE
+#endif
+
+#if defined (CROSS_DIRECTORY_STRUCTURE) && !defined (TARGET_SYSTEM_ROOT)
+# undef INCLUDE_DEFAULTS_MUSL_LOCAL
+# define INCLUDE_DEFAULTS_MUSL_LOCAL
+# undef INCLUDE_DEFAULTS_MUSL_NATIVE
+# define INCLUDE_DEFAULTS_MUSL_NATIVE
+#else
+# undef INCLUDE_DEFAULTS_MUSL_CROSS
+# define INCLUDE_DEFAULTS_MUSL_CROSS
+#endif
+
+#undef INCLUDE_DEFAULTS
+#define INCLUDE_DEFAULTS				\
+  {							\
+    INCLUDE_DEFAULTS_MUSL_GPP				\
+    INCLUDE_DEFAULTS_MUSL_LOCAL				\
+    INCLUDE_DEFAULTS_MUSL_PREFIX			\
+    INCLUDE_DEFAULTS_MUSL_CROSS				\
+    INCLUDE_DEFAULTS_MUSL_TOOL				\
+    INCLUDE_DEFAULTS_MUSL_NATIVE			\
+    { GCC_INCLUDE_DIR, "GCC", 0, 1, 0, 0 },		\
+    { 0, 0, 0, 0, 0, 0 }				\
+  }
+#endif

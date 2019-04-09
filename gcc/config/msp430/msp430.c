@@ -1,5 +1,5 @@
 /* Subroutines used for code generation on TI MSP430 processors.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Red Hat.
 
    This file is part of GCC.
@@ -18,40 +18,36 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
+#define IN_TARGET_CODE 1
+
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "backend.h"
+#include "target.h"
+#include "rtl.h"
 #include "tree.h"
+#include "stringpool.h"
+#include "attribs.h"
+#include "gimple-expr.h"
+#include "df.h"
+#include "memmodel.h"
+#include "tm_p.h"
+#include "regs.h"
+#include "emit-rtl.h"
+#include "diagnostic-core.h"
+#include "fold-const.h"
 #include "stor-layout.h"
 #include "calls.h"
-#include "rtl.h"
-#include "regs.h"
-#include "hard-reg-set.h"
-#include "insn-config.h"
-#include "conditions.h"
 #include "output.h"
-#include "insn-attr.h"
-#include "flags.h"
-#include "function.h"
+#include "explow.h"
 #include "expr.h"
-#include "optabs.h"
-#include "libfuncs.h"
-#include "recog.h"
-#include "diagnostic-core.h"
-#include "toplev.h"
-#include "reload.h"
-#include "df.h"
-#include "ggc.h"
-#include "tm_p.h"
-#include "debug.h"
-#include "target.h"
-#include "target-def.h"
 #include "langhooks.h"
-#include "msp430-protos.h"
-#include "dumpfile.h"
-#include "opts.h"
 #include "builtins.h"
+#include "intl.h"
+
+/* This file should be included last.  */
+#include "target-def.h"
 
 
 static void msp430_compute_frame_info (void);
@@ -99,64 +95,626 @@ msp430_init_machine_status (void)
 #undef  TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE		msp430_option_override
 
-static const char * msp430_mcu_names [] =
+/* This is a copy of the same data structure found in gas/config/tc-msp430.c
+   Also another (sort-of) copy can be found in gcc/config/msp430/t-msp430
+   Keep these three structures in sync.
+   The data in this structure has been extracted from version 1.194 of the
+   devices.csv file released by TI in September 2016.  */
+
+struct msp430_mcu_data
 {
-"msp430afe221",	"msp430afe222",	"msp430afe223",	"msp430afe231",	
-"msp430afe232",	"msp430afe233",	"msp430afe251",	"msp430afe252",	
-"msp430afe253",	"msp430c091",	"msp430c092",	"msp430c111",	
-"msp430c1111",	"msp430c112",	"msp430c1121",	"msp430c1331",	
-"msp430c1351",	"msp430c311s",	"msp430c312",	"msp430c313",	
-"msp430c314",	"msp430c315",	"msp430c323",	"msp430c325",	
-"msp430c336",	"msp430c337",	"msp430c412",	"msp430c413",	
-"msp430e112",	"msp430e313",	"msp430e315",	"msp430e325",	
-"msp430e337",	"msp430f110",	"msp430f1101",	"msp430f1101a",	
-"msp430f1111",	"msp430f1111a",	"msp430f112",	"msp430f1121",	
-"msp430f1121a",	"msp430f1122",	"msp430f1132",	"msp430f122",	
-"msp430f1222",	"msp430f123",	"msp430f1232",	"msp430f133",	
-"msp430f135",	"msp430f147",	"msp430f1471",	"msp430f148",	
-"msp430f1481",	"msp430f149",	"msp430f1491",	"msp430f155",	
-"msp430f156",	"msp430f157",	"msp430f1610",	"msp430f1611",	
-"msp430f1612",	"msp430f167",	"msp430f168",	"msp430f169",	
-"msp430f2001",	"msp430f2002",	"msp430f2003",	"msp430f2011",	
-"msp430f2012",	"msp430f2013",	"msp430f2101",	"msp430f2111",	
-"msp430f2112",	"msp430f2121",	"msp430f2122",	"msp430f2131",	
-"msp430f2132",	"msp430f2232",	"msp430f2234",	"msp430f2252",	
-"msp430f2254",	"msp430f2272",	"msp430f2274",	"msp430f233",	
-"msp430f2330",	"msp430f235",	"msp430f2350",	"msp430f2370",	
-"msp430f2410",	"msp430f247",	"msp430f2471",	"msp430f248",	
-"msp430f2481",	"msp430f249",	"msp430f2491",	"msp430f412",	
-"msp430f413",	"msp430f4132",	"msp430f415",	"msp430f4152",	
-"msp430f417",	"msp430f423",	"msp430f423a",	"msp430f425",	
-"msp430f4250",	"msp430f425a",	"msp430f4260",	"msp430f427",	
-"msp430f4270",	"msp430f427a",	"msp430f435",	"msp430f4351",	
-"msp430f436",	"msp430f4361",	"msp430f437",	"msp430f4371",	
-"msp430f438",	"msp430f439",	"msp430f447",	"msp430f448",	
-"msp430f4481",	"msp430f449",	"msp430f4491",	"msp430f477",	
-"msp430f478",	"msp430f4783",	"msp430f4784",	"msp430f479",	
-"msp430f4793",	"msp430f4794",	"msp430fe423",	"msp430fe4232",	
-"msp430fe423a",	"msp430fe4242",	"msp430fe425",	"msp430fe4252",	
-"msp430fe425a",	"msp430fe427",	"msp430fe4272",	"msp430fe427a",	
-"msp430fg4250",	"msp430fg4260",	"msp430fg4270",	"msp430fg437",	
-"msp430fg438",	"msp430fg439",	"msp430fg477",	"msp430fg478",	
-"msp430fg479",	"msp430fw423",	"msp430fw425",	"msp430fw427",	
-"msp430fw428",	"msp430fw429",	"msp430g2001",	"msp430g2101",	
-"msp430g2102",	"msp430g2111",	"msp430g2112",	"msp430g2113",	
-"msp430g2121",	"msp430g2131",	"msp430g2132",	"msp430g2152",	
-"msp430g2153",	"msp430g2201",	"msp430g2202",	"msp430g2203",	
-"msp430g2210",	"msp430g2211",	"msp430g2212",	"msp430g2213",	
-"msp430g2221",	"msp430g2230",	"msp430g2231",	"msp430g2232",	
-"msp430g2233",	"msp430g2252",	"msp430g2253",	"msp430g2302",	
-"msp430g2303",	"msp430g2312",	"msp430g2313",	"msp430g2332",	
-"msp430g2333",	"msp430g2352",	"msp430g2353",	"msp430g2402",	
-"msp430g2403",	"msp430g2412",	"msp430g2413",	"msp430g2432",	
-"msp430g2433",	"msp430g2444",	"msp430g2452",	"msp430g2453",	
-"msp430g2513",	"msp430g2533",	"msp430g2544",	"msp430g2553",	
-"msp430g2744",	"msp430g2755",	"msp430g2855",	"msp430g2955",	
-"msp430i2020",	"msp430i2021",	"msp430i2030",	"msp430i2031",	
-"msp430i2040",	"msp430i2041",	"msp430l092",   "msp430p112",	
-"msp430p313",	"msp430p315",	"msp430p315s",	"msp430p325",	
-"msp430p337",	"msp430tch5e"
-};
+  const char * name;
+  unsigned int revision; /* 0=> MSP430, 1=>MSP430X, 2=> MSP430Xv2.  */
+  unsigned int hwmpy;    /* 0=>none, 1=>16-bit, 2=>16-bit w/sign extend, 4=>32-bit, 8=> 32-bit (5xx).  */
+}
+msp430_mcu_data [] =
+{
+  { "cc430f5123",2,8 },
+  { "cc430f5125",2,8 },
+  { "cc430f5133",2,8 },
+  { "cc430f5135",2,8 },
+  { "cc430f5137",2,8 },
+  { "cc430f5143",2,8 },
+  { "cc430f5145",2,8 },
+  { "cc430f5147",2,8 },
+  { "cc430f6125",2,8 },
+  { "cc430f6126",2,8 },
+  { "cc430f6127",2,8 },
+  { "cc430f6135",2,8 },
+  { "cc430f6137",2,8 },
+  { "cc430f6143",2,8 },
+  { "cc430f6145",2,8 },
+  { "cc430f6147",2,8 },
+  { "msp430afe221",0,2 },
+  { "msp430afe222",0,2 },
+  { "msp430afe223",0,2 },
+  { "msp430afe231",0,2 },
+  { "msp430afe232",0,2 },
+  { "msp430afe233",0,2 },
+  { "msp430afe251",0,2 },
+  { "msp430afe252",0,2 },
+  { "msp430afe253",0,2 },
+  { "msp430bt5190",2,8 },
+  { "msp430c091",0,0 },
+  { "msp430c092",0,0 },
+  { "msp430c111",0,0 },
+  { "msp430c1111",0,0 },
+  { "msp430c112",0,0 },
+  { "msp430c1121",0,0 },
+  { "msp430c1331",0,0 },
+  { "msp430c1351",0,0 },
+  { "msp430c311s",0,0 },
+  { "msp430c312",0,0 },
+  { "msp430c313",0,0 },
+  { "msp430c314",0,0 },
+  { "msp430c315",0,0 },
+  { "msp430c323",0,0 },
+  { "msp430c325",0,0 },
+  { "msp430c336",0,1 },
+  { "msp430c337",0,1 },
+  { "msp430c412",0,0 },
+  { "msp430c413",0,0 },
+  { "msp430cg4616",1,1 },
+  { "msp430cg4617",1,1 },
+  { "msp430cg4618",1,1 },
+  { "msp430cg4619",1,1 },
+  { "msp430e112",0,0 },
+  { "msp430e313",0,0 },
+  { "msp430e315",0,0 },
+  { "msp430e325",0,0 },
+  { "msp430e337",0,1 },
+  { "msp430f110",0,0 },
+  { "msp430f1101",0,0 },
+  { "msp430f1101a",0,0 },
+  { "msp430f1111",0,0 },
+  { "msp430f1111a",0,0 },
+  { "msp430f112",0,0 },
+  { "msp430f1121",0,0 },
+  { "msp430f1121a",0,0 },
+  { "msp430f1122",0,0 },
+  { "msp430f1132",0,0 },
+  { "msp430f122",0,0 },
+  { "msp430f1222",0,0 },
+  { "msp430f123",0,0 },
+  { "msp430f1232",0,0 },
+  { "msp430f133",0,0 },
+  { "msp430f135",0,0 },
+  { "msp430f147",0,1 },
+  { "msp430f1471",0,1 },
+  { "msp430f148",0,1 },
+  { "msp430f1481",0,1 },
+  { "msp430f149",0,1 },
+  { "msp430f1491",0,1 },
+  { "msp430f155",0,0 },
+  { "msp430f156",0,0 },
+  { "msp430f157",0,0 },
+  { "msp430f1610",0,1 },
+  { "msp430f1611",0,1 },
+  { "msp430f1612",0,1 },
+  { "msp430f167",0,1 },
+  { "msp430f168",0,1 },
+  { "msp430f169",0,1 },
+  { "msp430f2001",0,0 },
+  { "msp430f2002",0,0 },
+  { "msp430f2003",0,0 },
+  { "msp430f2011",0,0 },
+  { "msp430f2012",0,0 },
+  { "msp430f2013",0,0 },
+  { "msp430f2101",0,0 },
+  { "msp430f2111",0,0 },
+  { "msp430f2112",0,0 },
+  { "msp430f2121",0,0 },
+  { "msp430f2122",0,0 },
+  { "msp430f2131",0,0 },
+  { "msp430f2132",0,0 },
+  { "msp430f2232",0,0 },
+  { "msp430f2234",0,0 },
+  { "msp430f2252",0,0 },
+  { "msp430f2254",0,0 },
+  { "msp430f2272",0,0 },
+  { "msp430f2274",0,0 },
+  { "msp430f233",0,2 },
+  { "msp430f2330",0,2 },
+  { "msp430f235",0,2 },
+  { "msp430f2350",0,2 },
+  { "msp430f2370",0,2 },
+  { "msp430f2410",0,2 },
+  { "msp430f2416",1,2 },
+  { "msp430f2417",1,2 },
+  { "msp430f2418",1,2 },
+  { "msp430f2419",1,2 },
+  { "msp430f247",0,2 },
+  { "msp430f2471",0,2 },
+  { "msp430f248",0,2 },
+  { "msp430f2481",0,2 },
+  { "msp430f249",0,2 },
+  { "msp430f2491",0,2 },
+  { "msp430f2616",1,2 },
+  { "msp430f2617",1,2 },
+  { "msp430f2618",1,2 },
+  { "msp430f2619",1,2 },
+  { "msp430f412",0,0 },
+  { "msp430f413",0,0 },
+  { "msp430f4132",0,0 },
+  { "msp430f415",0,0 },
+  { "msp430f4152",0,0 },
+  { "msp430f417",0,0 },
+  { "msp430f423",0,1 },
+  { "msp430f423a",0,1 },
+  { "msp430f425",0,1 },
+  { "msp430f4250",0,0 },
+  { "msp430f425a",0,1 },
+  { "msp430f4260",0,0 },
+  { "msp430f427",0,1 },
+  { "msp430f4270",0,0 },
+  { "msp430f427a",0,1 },
+  { "msp430f435",0,0 },
+  { "msp430f4351",0,0 },
+  { "msp430f436",0,0 },
+  { "msp430f4361",0,0 },
+  { "msp430f437",0,0 },
+  { "msp430f4371",0,0 },
+  { "msp430f438",0,0 },
+  { "msp430f439",0,0 },
+  { "msp430f447",0,1 },
+  { "msp430f448",0,1 },
+  { "msp430f4481",0,1 },
+  { "msp430f449",0,1 },
+  { "msp430f4491",0,1 },
+  { "msp430f4616",1,1 },
+  { "msp430f46161",1,1 },
+  { "msp430f4617",1,1 },
+  { "msp430f46171",1,1 },
+  { "msp430f4618",1,1 },
+  { "msp430f46181",1,1 },
+  { "msp430f4619",1,1 },
+  { "msp430f46191",1,1 },
+  { "msp430f47126",1,4 },
+  { "msp430f47127",1,4 },
+  { "msp430f47163",1,4 },
+  { "msp430f47166",1,4 },
+  { "msp430f47167",1,4 },
+  { "msp430f47173",1,4 },
+  { "msp430f47176",1,4 },
+  { "msp430f47177",1,4 },
+  { "msp430f47183",1,4 },
+  { "msp430f47186",1,4 },
+  { "msp430f47187",1,4 },
+  { "msp430f47193",1,4 },
+  { "msp430f47196",1,4 },
+  { "msp430f47197",1,4 },
+  { "msp430f477",0,0 },
+  { "msp430f478",0,0 },
+  { "msp430f4783",0,4 },
+  { "msp430f4784",0,4 },
+  { "msp430f479",0,0 },
+  { "msp430f4793",0,4 },
+  { "msp430f4794",0,4 },
+  { "msp430f5131",2,8 },
+  { "msp430f5132",2,8 },
+  { "msp430f5151",2,8 },
+  { "msp430f5152",2,8 },
+  { "msp430f5171",2,8 },
+  { "msp430f5172",2,8 },
+  { "msp430f5212",2,8 },
+  { "msp430f5213",2,8 },
+  { "msp430f5214",2,8 },
+  { "msp430f5217",2,8 },
+  { "msp430f5218",2,8 },
+  { "msp430f5219",2,8 },
+  { "msp430f5222",2,8 },
+  { "msp430f5223",2,8 },
+  { "msp430f5224",2,8 },
+  { "msp430f5227",2,8 },
+  { "msp430f5228",2,8 },
+  { "msp430f5229",2,8 },
+  { "msp430f5232",2,8 },
+  { "msp430f5234",2,8 },
+  { "msp430f5237",2,8 },
+  { "msp430f5239",2,8 },
+  { "msp430f5242",2,8 },
+  { "msp430f5244",2,8 },
+  { "msp430f5247",2,8 },
+  { "msp430f5249",2,8 },
+  { "msp430f5252",2,8 },
+  { "msp430f5253",2,8 },
+  { "msp430f5254",2,8 },
+  { "msp430f5255",2,8 },
+  { "msp430f5256",2,8 },
+  { "msp430f5257",2,8 },
+  { "msp430f5258",2,8 },
+  { "msp430f5259",2,8 },
+  { "msp430f5304",2,8 },
+  { "msp430f5308",2,8 },
+  { "msp430f5309",2,8 },
+  { "msp430f5310",2,8 },
+  { "msp430f5324",2,8 },
+  { "msp430f5325",2,8 },
+  { "msp430f5326",2,8 },
+  { "msp430f5327",2,8 },
+  { "msp430f5328",2,8 },
+  { "msp430f5329",2,8 },
+  { "msp430f5333",2,8 },
+  { "msp430f5335",2,8 },
+  { "msp430f5336",2,8 },
+  { "msp430f5338",2,8 },
+  { "msp430f5340",2,8 },
+  { "msp430f5341",2,8 },
+  { "msp430f5342",2,8 },
+  { "msp430f5358",2,8 },
+  { "msp430f5359",2,8 },
+  { "msp430f5418",2,8 },
+  { "msp430f5418a",2,8 },
+  { "msp430f5419",2,8 },
+  { "msp430f5419a",2,8 },
+  { "msp430f5435",2,8 },
+  { "msp430f5435a",2,8 },
+  { "msp430f5436",2,8 },
+  { "msp430f5436a",2,8 },
+  { "msp430f5437",2,8 },
+  { "msp430f5437a",2,8 },
+  { "msp430f5438",2,8 },
+  { "msp430f5438a",2,8 },
+  { "msp430f5500",2,8 },
+  { "msp430f5501",2,8 },
+  { "msp430f5502",2,8 },
+  { "msp430f5503",2,8 },
+  { "msp430f5504",2,8 },
+  { "msp430f5505",2,8 },
+  { "msp430f5506",2,8 },
+  { "msp430f5507",2,8 },
+  { "msp430f5508",2,8 },
+  { "msp430f5509",2,8 },
+  { "msp430f5510",2,8 },
+  { "msp430f5513",2,8 },
+  { "msp430f5514",2,8 },
+  { "msp430f5515",2,8 },
+  { "msp430f5517",2,8 },
+  { "msp430f5519",2,8 },
+  { "msp430f5521",2,8 },
+  { "msp430f5522",2,8 },
+  { "msp430f5524",2,8 },
+  { "msp430f5525",2,8 },
+  { "msp430f5526",2,8 },
+  { "msp430f5527",2,8 },
+  { "msp430f5528",2,8 },
+  { "msp430f5529",2,8 },
+  { "msp430f5630",2,8 },
+  { "msp430f5631",2,8 },
+  { "msp430f5632",2,8 },
+  { "msp430f5633",2,8 },
+  { "msp430f5634",2,8 },
+  { "msp430f5635",2,8 },
+  { "msp430f5636",2,8 },
+  { "msp430f5637",2,8 },
+  { "msp430f5638",2,8 },
+  { "msp430f5658",2,8 },
+  { "msp430f5659",2,8 },
+  { "msp430f5xx_6xxgeneric",2,8 },
+  { "msp430f6433",2,8 },
+  { "msp430f6435",2,8 },
+  { "msp430f6436",2,8 },
+  { "msp430f6438",2,8 },
+  { "msp430f6458",2,8 },
+  { "msp430f6459",2,8 },
+  { "msp430f6630",2,8 },
+  { "msp430f6631",2,8 },
+  { "msp430f6632",2,8 },
+  { "msp430f6633",2,8 },
+  { "msp430f6634",2,8 },
+  { "msp430f6635",2,8 },
+  { "msp430f6636",2,8 },
+  { "msp430f6637",2,8 },
+  { "msp430f6638",2,8 },
+  { "msp430f6658",2,8 },
+  { "msp430f6659",2,8 },
+  { "msp430f6720",2,8 },
+  { "msp430f6720a",2,8 },
+  { "msp430f6721",2,8 },
+  { "msp430f6721a",2,8 },
+  { "msp430f6723",2,8 },
+  { "msp430f6723a",2,8 },
+  { "msp430f6724",2,8 },
+  { "msp430f6724a",2,8 },
+  { "msp430f6725",2,8 },
+  { "msp430f6725a",2,8 },
+  { "msp430f6726",2,8 },
+  { "msp430f6726a",2,8 },
+  { "msp430f6730",2,8 },
+  { "msp430f6730a",2,8 },
+  { "msp430f6731",2,8 },
+  { "msp430f6731a",2,8 },
+  { "msp430f6733",2,8 },
+  { "msp430f6733a",2,8 },
+  { "msp430f6734",2,8 },
+  { "msp430f6734a",2,8 },
+  { "msp430f6735",2,8 },
+  { "msp430f6735a",2,8 },
+  { "msp430f6736",2,8 },
+  { "msp430f6736a",2,8 },
+  { "msp430f6745",2,8 },
+  { "msp430f67451",2,8 },
+  { "msp430f67451a",2,8 },
+  { "msp430f6745a",2,8 },
+  { "msp430f6746",2,8 },
+  { "msp430f67461",2,8 },
+  { "msp430f67461a",2,8 },
+  { "msp430f6746a",2,8 },
+  { "msp430f6747",2,8 },
+  { "msp430f67471",2,8 },
+  { "msp430f67471a",2,8 },
+  { "msp430f6747a",2,8 },
+  { "msp430f6748",2,8 },
+  { "msp430f67481",2,8 },
+  { "msp430f67481a",2,8 },
+  { "msp430f6748a",2,8 },
+  { "msp430f6749",2,8 },
+  { "msp430f67491",2,8 },
+  { "msp430f67491a",2,8 },
+  { "msp430f6749a",2,8 },
+  { "msp430f67621",2,8 },
+  { "msp430f67621a",2,8 },
+  { "msp430f67641",2,8 },
+  { "msp430f67641a",2,8 },
+  { "msp430f6765",2,8 },
+  { "msp430f67651",2,8 },
+  { "msp430f67651a",2,8 },
+  { "msp430f6765a",2,8 },
+  { "msp430f6766",2,8 },
+  { "msp430f67661",2,8 },
+  { "msp430f67661a",2,8 },
+  { "msp430f6766a",2,8 },
+  { "msp430f6767",2,8 },
+  { "msp430f67671",2,8 },
+  { "msp430f67671a",2,8 },
+  { "msp430f6767a",2,8 },
+  { "msp430f6768",2,8 },
+  { "msp430f67681",2,8 },
+  { "msp430f67681a",2,8 },
+  { "msp430f6768a",2,8 },
+  { "msp430f6769",2,8 },
+  { "msp430f67691",2,8 },
+  { "msp430f67691a",2,8 },
+  { "msp430f6769a",2,8 },
+  { "msp430f6775",2,8 },
+  { "msp430f67751",2,8 },
+  { "msp430f67751a",2,8 },
+  { "msp430f6775a",2,8 },
+  { "msp430f6776",2,8 },
+  { "msp430f67761",2,8 },
+  { "msp430f67761a",2,8 },
+  { "msp430f6776a",2,8 },
+  { "msp430f6777",2,8 },
+  { "msp430f67771",2,8 },
+  { "msp430f67771a",2,8 },
+  { "msp430f6777a",2,8 },
+  { "msp430f6778",2,8 },
+  { "msp430f67781",2,8 },
+  { "msp430f67781a",2,8 },
+  { "msp430f6778a",2,8 },
+  { "msp430f6779",2,8 },
+  { "msp430f67791",2,8 },
+  { "msp430f67791a",2,8 },
+  { "msp430f6779a",2,8 },
+  { "msp430fe423",0,0 },
+  { "msp430fe4232",0,0 },
+  { "msp430fe423a",0,0 },
+  { "msp430fe4242",0,0 },
+  { "msp430fe425",0,0 },
+  { "msp430fe4252",0,0 },
+  { "msp430fe425a",0,0 },
+  { "msp430fe427",0,0 },
+  { "msp430fe4272",0,0 },
+  { "msp430fe427a",0,0 },
+  { "msp430fg4250",0,0 },
+  { "msp430fg4260",0,0 },
+  { "msp430fg4270",0,0 },
+  { "msp430fg437",0,0 },
+  { "msp430fg438",0,0 },
+  { "msp430fg439",0,0 },
+  { "msp430fg4616",1,1 },
+  { "msp430fg4617",1,1 },
+  { "msp430fg4618",1,1 },
+  { "msp430fg4619",1,1 },
+  { "msp430fg477",0,0 },
+  { "msp430fg478",0,0 },
+  { "msp430fg479",0,0 },
+  { "msp430fg6425",2,8 },
+  { "msp430fg6426",2,8 },
+  { "msp430fg6625",2,8 },
+  { "msp430fg6626",2,8 },
+  { "msp430fr2032",2,0 },
+  { "msp430fr2033",2,0 },
+  { "msp430fr2110",2,0 },
+  { "msp430fr2111",2,0 },
+  { "msp430fr2310",2,0 },
+  { "msp430fr2311",2,0 },
+  { "msp430fr2433",2,8 },
+  { "msp430fr2532",2,8 },
+  { "msp430fr2533",2,8 },
+  { "msp430fr2632",2,8 },
+  { "msp430fr2633",2,8 },
+  { "msp430fr2xx_4xxgeneric",2,8 },
+  { "msp430fr4131",2,0 },
+  { "msp430fr4132",2,0 },
+  { "msp430fr4133",2,0 },
+  { "msp430fr5720",2,8 },
+  { "msp430fr5721",2,8 },
+  { "msp430fr5722",2,8 },
+  { "msp430fr5723",2,8 },
+  { "msp430fr5724",2,8 },
+  { "msp430fr5725",2,8 },
+  { "msp430fr5726",2,8 },
+  { "msp430fr5727",2,8 },
+  { "msp430fr5728",2,8 },
+  { "msp430fr5729",2,8 },
+  { "msp430fr5730",2,8 },
+  { "msp430fr5731",2,8 },
+  { "msp430fr5732",2,8 },
+  { "msp430fr5733",2,8 },
+  { "msp430fr5734",2,8 },
+  { "msp430fr5735",2,8 },
+  { "msp430fr5736",2,8 },
+  { "msp430fr5737",2,8 },
+  { "msp430fr5738",2,8 },
+  { "msp430fr5739",2,8 },
+  { "msp430fr57xxgeneric",2,8 },
+  { "msp430fr5847",2,8 },
+  { "msp430fr58471",2,8 },
+  { "msp430fr5848",2,8 },
+  { "msp430fr5849",2,8 },
+  { "msp430fr5857",2,8 },
+  { "msp430fr5858",2,8 },
+  { "msp430fr5859",2,8 },
+  { "msp430fr5867",2,8 },
+  { "msp430fr58671",2,8 },
+  { "msp430fr5868",2,8 },
+  { "msp430fr5869",2,8 },
+  { "msp430fr5870",2,8 },
+  { "msp430fr5872",2,8 },
+  { "msp430fr58721",2,8 },
+  { "msp430fr5887",2,8 },
+  { "msp430fr5888",2,8 },
+  { "msp430fr5889",2,8 },
+  { "msp430fr58891",2,8 },
+  { "msp430fr5922",2,8 },
+  { "msp430fr59221",2,8 },
+  { "msp430fr5947",2,8 },
+  { "msp430fr59471",2,8 },
+  { "msp430fr5948",2,8 },
+  { "msp430fr5949",2,8 },
+  { "msp430fr5957",2,8 },
+  { "msp430fr5958",2,8 },
+  { "msp430fr5959",2,8 },
+  { "msp430fr5962",2,8 },
+  { "msp430fr5964",2,8 },
+  { "msp430fr5967",2,8 },
+  { "msp430fr5968",2,8 },
+  { "msp430fr5969",2,8 },
+  { "msp430fr59691",2,8 },
+  { "msp430fr5970",2,8 },
+  { "msp430fr5972",2,8 },
+  { "msp430fr59721",2,8 },
+  { "msp430fr5986",2,8 },
+  { "msp430fr5987",2,8 },
+  { "msp430fr5988",2,8 },
+  { "msp430fr5989",2,8 },
+  { "msp430fr59891",2,8 },
+  { "msp430fr5992",2,8 },
+  { "msp430fr5994",2,8 },
+  { "msp430fr59941",2,8 },
+  { "msp430fr5xx_6xxgeneric",2,8 },
+  { "msp430fr6820",2,8 },
+  { "msp430fr6822",2,8 },
+  { "msp430fr68221",2,8 },
+  { "msp430fr6870",2,8 },
+  { "msp430fr6872",2,8 },
+  { "msp430fr68721",2,8 },
+  { "msp430fr6877",2,8 },
+  { "msp430fr6879",2,8 },
+  { "msp430fr68791",2,8 },
+  { "msp430fr6887",2,8 },
+  { "msp430fr6888",2,8 },
+  { "msp430fr6889",2,8 },
+  { "msp430fr68891",2,8 },
+  { "msp430fr6920",2,8 },
+  { "msp430fr6922",2,8 },
+  { "msp430fr69221",2,8 },
+  { "msp430fr6927",2,8 },
+  { "msp430fr69271",2,8 },
+  { "msp430fr6928",2,8 },
+  { "msp430fr6970",2,8 },
+  { "msp430fr6972",2,8 },
+  { "msp430fr69721",2,8 },
+  { "msp430fr6977",2,8 },
+  { "msp430fr6979",2,8 },
+  { "msp430fr69791",2,8 },
+  { "msp430fr6987",2,8 },
+  { "msp430fr6988",2,8 },
+  { "msp430fr6989",2,8 },
+  { "msp430fr69891",2,8 },
+  { "msp430fw423",0,0 },
+  { "msp430fw425",0,0 },
+  { "msp430fw427",0,0 },
+  { "msp430fw428",0,0 },
+  { "msp430fw429",0,0 },
+  { "msp430g2001",0,0 },
+  { "msp430g2101",0,0 },
+  { "msp430g2102",0,0 },
+  { "msp430g2111",0,0 },
+  { "msp430g2112",0,0 },
+  { "msp430g2113",0,0 },
+  { "msp430g2121",0,0 },
+  { "msp430g2131",0,0 },
+  { "msp430g2132",0,0 },
+  { "msp430g2152",0,0 },
+  { "msp430g2153",0,0 },
+  { "msp430g2201",0,0 },
+  { "msp430g2202",0,0 },
+  { "msp430g2203",0,0 },
+  { "msp430g2210",0,0 },
+  { "msp430g2211",0,0 },
+  { "msp430g2212",0,0 },
+  { "msp430g2213",0,0 },
+  { "msp430g2221",0,0 },
+  { "msp430g2230",0,0 },
+  { "msp430g2231",0,0 },
+  { "msp430g2232",0,0 },
+  { "msp430g2233",0,0 },
+  { "msp430g2252",0,0 },
+  { "msp430g2253",0,0 },
+  { "msp430g2302",0,0 },
+  { "msp430g2303",0,0 },
+  { "msp430g2312",0,0 },
+  { "msp430g2313",0,0 },
+  { "msp430g2332",0,0 },
+  { "msp430g2333",0,0 },
+  { "msp430g2352",0,0 },
+  { "msp430g2353",0,0 },
+  { "msp430g2402",0,0 },
+  { "msp430g2403",0,0 },
+  { "msp430g2412",0,0 },
+  { "msp430g2413",0,0 },
+  { "msp430g2432",0,0 },
+  { "msp430g2433",0,0 },
+  { "msp430g2444",0,0 },
+  { "msp430g2452",0,0 },
+  { "msp430g2453",0,0 },
+  { "msp430g2513",0,0 },
+  { "msp430g2533",0,0 },
+  { "msp430g2544",0,0 },
+  { "msp430g2553",0,0 },
+  { "msp430g2744",0,0 },
+  { "msp430g2755",0,0 },
+  { "msp430g2855",0,0 },
+  { "msp430g2955",0,0 },
+  { "msp430i2020",0,2 },
+  { "msp430i2021",0,2 },
+  { "msp430i2030",0,2 },
+  { "msp430i2031",0,2 },
+  { "msp430i2040",0,2 },
+  { "msp430i2041",0,2 },
+  { "msp430i2xxgeneric",0,2 },
+  { "msp430l092",0,0 },
+  { "msp430p112",0,0 },
+  { "msp430p313",0,0 },
+  { "msp430p315",0,0 },
+  { "msp430p315s",0,0 },
+  { "msp430p325",0,0 },
+  { "msp430p337",0,1 },
+  { "msp430sl5438a",2,8 },
+  { "msp430tch5e",0,0 },
+  { "msp430xgeneric",2,8 },
+  { "rf430f5144",2,8 },
+  { "rf430f5155",2,8 },
+  { "rf430f5175",2,8 },
+  { "rf430frl152h",0,0 },
+  { "rf430frl152h_rom",0,0 },
+  { "rf430frl153h",0,0 },
+  { "rf430frl153h_rom",0,0 },
+  { "rf430frl154h",0,0 },
+  { "rf430frl154h_rom",0,0 }
+};  
 
 /* Generate a C preprocessor symbol based upon the MCU selected by the user.
    If a specific MCU has not been selected then return a generic symbol instead.  */
@@ -167,10 +725,25 @@ msp430_mcu_name (void)
   if (target_mcu)
     {
       unsigned int i;
-      static char mcu_name [64];
+      unsigned int start_upper;
+      unsigned int end_upper;
+      static char mcu_name[64];
 
-      snprintf (mcu_name, sizeof (mcu_name) - 1, "__%s__", target_mcu);
-      for (i = strlen (mcu_name); i--;)
+      /* The 'i' in the device name symbol for msp430i* devices must be lower
+	 case, to match the expected symbol in msp430.h.  */
+      if (strncmp (target_mcu, "msp430i", 7) == 0)
+	{
+	  snprintf (mcu_name, sizeof (mcu_name) - 1, "__MSP430i%s__",
+		    target_mcu + 7);
+	  start_upper = 9;
+	}
+      else
+	{
+	  snprintf (mcu_name, sizeof (mcu_name) - 1, "__%s__", target_mcu);
+	  start_upper = 2;
+	}
+      end_upper = strlen (mcu_name) - 2;
+      for (i = start_upper; i < end_upper; i++)
 	mcu_name[i] = TOUPPER (mcu_name[i]);
       return mcu_name;
     }
@@ -178,41 +751,134 @@ msp430_mcu_name (void)
   return msp430x ? "__MSP430XGENERIC__" : "__MSP430GENERIC__";
 }
 
+static const char *
+hwmult_name (unsigned int val)
+{
+  switch (val)
+    {
+    case 0: return "none";
+    case 1: return "16-bit";
+    case 2: return "16-bit";
+    case 4: return "32-bit";
+    case 8: return "32-bit (5xx)";
+    default: gcc_unreachable ();
+    }
+}
+
 static void
 msp430_option_override (void)
 {
+  /* The MSP430 architecture can safely dereference a NULL pointer. In fact,
+  there are memory mapped registers there.  */
+  flag_delete_null_pointer_checks = 0;
+
   init_machine_status = msp430_init_machine_status;
 
   if (target_cpu)
     {
+      /* gcc/common/config/msp430-common.c will have
+	 already canonicalised the string in target_cpu.  */
       if (strcasecmp (target_cpu, "msp430x") == 0)
 	msp430x = true;
       else /* target_cpu == "msp430" - already handled by the front end.  */
 	msp430x = false;
     }
-  /* Note - the front end has already ensured at most
-     one of target_cpu and target_mcu will be set.  */
-  else if (target_mcu)
+
+  if (target_mcu)
     {
       int i;
 
-      /* If we are given an MCU name, we assume that it supports 430X.
-	 Then we check to see if it is one of the known MCUs that only
-	 supports 430.  */
-      msp430x = true;
-
-      for (i = ARRAY_SIZE (msp430_mcu_names); i--;)
-	if (strcasecmp (msp430_mcu_names[i], target_mcu) == 0)
+      /* FIXME: If the array were alpha sorted, we could use a binary search.  */
+      for (i = ARRAY_SIZE (msp430_mcu_data); i--;)
+	if (strcasecmp (msp430_mcu_data[i].name, target_mcu) == 0)
 	  {
-	    msp430x = false;
+	    bool xisa = msp430_mcu_data[i].revision >= 1; 
+
+	    if (msp430_warn_mcu)
+	      {
+		if (target_cpu&& msp430x != xisa)
+		  warning (0, "MCU %qs supports %s ISA but %<-mcpu%> option "
+			   "is set to %s",
+			   target_mcu, xisa ? "430X" : "430", msp430x ? "430X" : "430");
+
+		if (msp430_mcu_data[i].hwmpy == 0
+		    && msp430_hwmult_type != MSP430_HWMULT_AUTO
+		    && msp430_hwmult_type != MSP430_HWMULT_NONE)
+		  warning (0, "MCU %qs does not have hardware multiply "
+			   "support, but %<-mhwmult%> is set to %s",
+			   target_mcu,
+			   msp430_hwmult_type == MSP430_HWMULT_SMALL ? "16-bit"
+			   : msp430_hwmult_type == MSP430_HWMULT_LARGE ? "32-bit" : "f5series");
+		else if (msp430_hwmult_type == MSP430_HWMULT_SMALL
+		    && msp430_mcu_data[i].hwmpy != 1
+		    && msp430_mcu_data[i].hwmpy != 2 )
+		  warning (0, "MCU %qs supports %s hardware multiply, "
+			   "but %<-mhwmult%> is set to 16-bit",
+			   target_mcu, hwmult_name (msp430_mcu_data[i].hwmpy));
+		else if (msp430_hwmult_type == MSP430_HWMULT_LARGE && msp430_mcu_data[i].hwmpy != 4)
+		  warning (0, "MCU %qs supports %s hardware multiply, "
+			   "but %<-mhwmult%> is set to 32-bit",
+			   target_mcu, hwmult_name (msp430_mcu_data[i].hwmpy));
+		else if (msp430_hwmult_type == MSP430_HWMULT_F5SERIES && msp430_mcu_data[i].hwmpy != 8)
+		  warning (0, "MCU %qs supports %s hardware multiply, "
+			   "but %<-mhwmult%> is set to f5series",
+			   target_mcu, hwmult_name (msp430_mcu_data[i].hwmpy));
+	      }
+
+	    msp430x = xisa;
 	    break;
 	  }
-      /* It is not an error if we do not match the MCU name.  There are
-	 hundreds of them.  */
+
+      if (i < 0)
+	{
+	  if (msp430_hwmult_type == MSP430_HWMULT_AUTO)
+	    {
+	      if (msp430_warn_mcu)
+		{
+		  if (target_cpu == NULL)
+		    warning (0,
+			     "Unrecognized MCU name %qs, assuming that it is "
+			     "just a MSP430 with no hardware multiply.\n"
+			     "Use the %<-mcpu%> and %<-mhwmult%> options to "
+			     "set these explicitly.",
+			     target_mcu);
+		  else
+		    warning (0,
+			     "Unrecognized MCU name %qs, assuming that it "
+			     "has no hardware multiply.\nUse the %<-mhwmult%> "
+			     "option to set this explicitly.",
+			     target_mcu);
+		}
+
+	      msp430_hwmult_type = MSP430_HWMULT_NONE;
+	    }
+	  else if (target_cpu == NULL)
+	    {
+	      if (msp430_warn_mcu)
+		warning (0,
+			 "Unrecognized MCU name %qs, assuming that it just "
+			 "supports the MSP430 ISA.\nUse the %<-mcpu%> option "
+			 "to set the ISA explicitly.",
+			 target_mcu);
+
+	      msp430x = false;
+	    }
+	  else if (msp430_warn_mcu)
+	    warning (0, "Unrecognized MCU name %qs.", target_mcu);
+	}
     }
 
+  /* The F5 series are all able to support the 430X ISA.  */
+  if (target_cpu == NULL && target_mcu == NULL && msp430_hwmult_type == MSP430_HWMULT_F5SERIES)
+    msp430x = true;
+
   if (TARGET_LARGE && !msp430x)
-    error ("-mlarge requires a 430X-compatible -mmcu=");
+    error ("%<-mlarge%> requires a 430X-compatible %<-mmcu=%>");
+
+  if (msp430_code_region == MSP430_REGION_UPPER && ! msp430x)
+    error ("%<-mcode-region=upper%> requires 430X-compatible cpu");
+  if (msp430_data_region == MSP430_REGION_UPPER && ! msp430x)
+    error ("%<-mdata-region=upper%> requires 430X-compatible cpu");
 
   if (flag_exceptions || flag_non_call_exceptions
       || flag_unwind_tables || flag_asynchronous_unwind_tables)
@@ -226,6 +892,21 @@ msp430_option_override (void)
      possible to build newlib with -Os enabled.  Until now...  */
   if (TARGET_OPT_SPACE && optimize < 3)
     optimize_size = 1;
+}
+
+#undef  TARGET_SCALAR_MODE_SUPPORTED_P
+#define TARGET_SCALAR_MODE_SUPPORTED_P msp430_scalar_mode_supported_p
+
+static bool
+msp430_scalar_mode_supported_p (scalar_mode m)
+{
+  if (m == PSImode && msp430x)
+    return true;
+#if 0
+  if (m == TImode)
+    return true;
+#endif
+  return default_scalar_mode_supported_p (m);
 }
 
 
@@ -245,11 +926,24 @@ msp430_ms_bitfield_layout_p (const_tree record_type ATTRIBUTE_UNUSED)
 
 /* Register Usage */
 
-/* Implements HARD_REGNO_NREGS.  MSP430X registers can hold a single
-   PSImode value, but not an SImode value.  */
+#undef TARGET_HARD_REGNO_NREGS
+#define TARGET_HARD_REGNO_NREGS msp430_hard_regno_nregs
+
+static unsigned int
+msp430_hard_regno_nregs (unsigned int, machine_mode mode)
+{
+  if (mode == PSImode && msp430x)
+    return 1;
+  if (mode == CPSImode && msp430x)
+    return 2;
+  return ((GET_MODE_SIZE (mode) + UNITS_PER_WORD - 1)
+	  / UNITS_PER_WORD);
+}
+
+/* Implements HARD_REGNO_NREGS_HAS_PADDING.  */
 int
-msp430_hard_regno_nregs (int regno ATTRIBUTE_UNUSED,
-			 enum machine_mode mode)
+msp430_hard_regno_nregs_has_padding (int regno ATTRIBUTE_UNUSED,
+				     machine_mode mode)
 {
   if (mode == PSImode && msp430x)
     return 1;
@@ -257,17 +951,33 @@ msp430_hard_regno_nregs (int regno ATTRIBUTE_UNUSED,
 	  / UNITS_PER_WORD);
 }
 
-/* Implements HARD_REGNO_MODE_OK.  */
+/* Implements HARD_REGNO_NREGS_WITH_PADDING.  */
 int
-msp430_hard_regno_mode_ok (int regno ATTRIBUTE_UNUSED,
-			   enum machine_mode mode)
+msp430_hard_regno_nregs_with_padding (int regno ATTRIBUTE_UNUSED,
+				     machine_mode mode)
 {
-  return regno <= (ARG_POINTER_REGNUM - msp430_hard_regno_nregs (regno, mode));
+  if (mode == PSImode)
+    return 2;
+  if (mode == CPSImode)
+    return 4;
+  return msp430_hard_regno_nregs (regno, mode);
 }
 
-/* Implements MODES_TIEABLE_P.  */
-bool
-msp430_modes_tieable_p (enum machine_mode mode1, enum machine_mode mode2)
+#undef TARGET_HARD_REGNO_MODE_OK
+#define TARGET_HARD_REGNO_MODE_OK msp430_hard_regno_mode_ok
+
+static bool
+msp430_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
+{
+  return regno <= (ARG_POINTER_REGNUM
+		   - (unsigned int) msp430_hard_regno_nregs (regno, mode));
+}
+
+#undef TARGET_MODES_TIEABLE_P
+#define TARGET_MODES_TIEABLE_P msp430_modes_tieable_p
+
+static bool
+msp430_modes_tieable_p (machine_mode mode1, machine_mode mode2)
 {
   if ((mode1 == PSImode || mode2 == SImode)
       || (mode1 == SImode || mode2 == PSImode))
@@ -347,7 +1057,7 @@ msp430_initial_elimination_offset (int from, int to)
 #undef  TARGET_ADDR_SPACE_ADDRESS_MODE
 #define TARGET_ADDR_SPACE_ADDRESS_MODE msp430_addr_space_pointer_mode
 
-static enum machine_mode
+static scalar_int_mode
 msp430_addr_space_pointer_mode (addr_space_t addrspace)
 {
   switch (addrspace)
@@ -367,10 +1077,11 @@ msp430_addr_space_pointer_mode (addr_space_t addrspace)
 #undef  TARGET_UNWIND_WORD_MODE
 #define TARGET_UNWIND_WORD_MODE msp430_unwind_word_mode
 
-static enum machine_mode
+static scalar_int_mode
 msp430_unwind_word_mode (void)
 {
-  return TARGET_LARGE ? SImode : HImode;
+  /* This needs to match msp430_init_dwarf_reg_sizes_extra (below).  */
+  return msp430x ? PSImode : HImode;
 }
 
 /* Determine if one named address space is a subset of another.  */
@@ -483,7 +1194,7 @@ msp430_function_value (const_tree ret_type,
 #define TARGET_LIBCALL_VALUE msp430_libcall_value
 
 rtx
-msp430_libcall_value (enum machine_mode mode, const_rtx fun ATTRIBUTE_UNUSED)
+msp430_libcall_value (machine_mode mode, const_rtx fun ATTRIBUTE_UNUSED)
 {
   return gen_rtx_REG (mode, 12);
 }
@@ -516,7 +1227,7 @@ msp430_init_cumulative_args (CUMULATIVE_ARGS *ca,
    code that determines where an argument will be passed.  */
 static void
 msp430_evaluate_arg (cumulative_args_t cap,
-		     enum machine_mode mode,
+		     machine_mode mode,
 		     const_tree type ATTRIBUTE_UNUSED,
 		     bool named)
 {
@@ -601,7 +1312,7 @@ msp430_promote_prototypes (const_tree fntype ATTRIBUTE_UNUSED)
 
 rtx
 msp430_function_arg (cumulative_args_t cap,
-		     enum machine_mode mode,
+		     machine_mode mode,
 		     const_tree type,
 		     bool named)
 {
@@ -620,7 +1331,7 @@ msp430_function_arg (cumulative_args_t cap,
 
 int
 msp430_arg_partial_bytes (cumulative_args_t cap,
-			  enum machine_mode mode,
+			  machine_mode mode,
 			  tree type,
 			  bool named)
 {
@@ -639,7 +1350,7 @@ msp430_arg_partial_bytes (cumulative_args_t cap,
 
 static bool
 msp430_pass_by_reference (cumulative_args_t cap ATTRIBUTE_UNUSED,
-			  enum machine_mode mode,
+			  machine_mode mode,
 			  const_tree type,
 			  bool named ATTRIBUTE_UNUSED)
 {
@@ -653,7 +1364,7 @@ msp430_pass_by_reference (cumulative_args_t cap ATTRIBUTE_UNUSED,
 
 static bool
 msp430_callee_copies (cumulative_args_t cap ATTRIBUTE_UNUSED,
-                     enum machine_mode mode ATTRIBUTE_UNUSED,
+                     machine_mode mode ATTRIBUTE_UNUSED,
                      const_tree type ATTRIBUTE_UNUSED,
                      bool named ATTRIBUTE_UNUSED)
 {
@@ -665,7 +1376,7 @@ msp430_callee_copies (cumulative_args_t cap ATTRIBUTE_UNUSED,
 
 void
 msp430_function_arg_advance (cumulative_args_t cap,
-			     enum machine_mode mode,
+			     machine_mode mode,
 			     const_tree type,
 			     bool named)
 {
@@ -685,7 +1396,7 @@ msp430_function_arg_advance (cumulative_args_t cap,
 #define TARGET_FUNCTION_ARG_BOUNDARY msp430_function_arg_boundary
 
 static unsigned int
-msp430_function_arg_boundary (enum machine_mode mode, const_tree type)
+msp430_function_arg_boundary (machine_mode mode, const_tree type)
 {
   if (mode == BLKmode
       && int_size_in_bytes (type) > 1)
@@ -701,7 +1412,7 @@ msp430_function_arg_boundary (enum machine_mode mode, const_tree type)
 static bool
 msp430_return_in_memory (const_tree ret_type, const_tree fntype ATTRIBUTE_UNUSED)
 {
-  enum machine_mode mode = TYPE_MODE (ret_type);
+  machine_mode mode = TYPE_MODE (ret_type);
 
   if (mode == BLKmode
       || (fntype && TREE_CODE (TREE_TYPE (fntype)) == RECORD_TYPE)
@@ -717,16 +1428,17 @@ msp430_return_in_memory (const_tree ret_type, const_tree fntype ATTRIBUTE_UNUSED
 #undef  TARGET_GET_RAW_ARG_MODE
 #define TARGET_GET_RAW_ARG_MODE msp430_get_raw_arg_mode
 
-static enum machine_mode
+static fixed_size_mode
 msp430_get_raw_arg_mode (int regno)
 {
-  return (regno == ARG_POINTER_REGNUM) ? VOIDmode : Pmode;
+  return as_a <fixed_size_mode> (regno == ARG_POINTER_REGNUM
+				 ? VOIDmode : Pmode);
 }
 
 #undef  TARGET_GET_RAW_RESULT_MODE
 #define TARGET_GET_RAW_RESULT_MODE msp430_get_raw_result_mode
 
-static enum machine_mode
+static fixed_size_mode
 msp430_get_raw_result_mode (int regno ATTRIBUTE_UNUSED)
 {
   return Pmode;
@@ -736,7 +1448,6 @@ msp430_get_raw_result_mode (int regno ATTRIBUTE_UNUSED)
 #define TARGET_GIMPLIFY_VA_ARG_EXPR msp430_gimplify_va_arg_expr
 
 #include "gimplify.h"
-#include "gimple-expr.h"
 
 static tree
 msp430_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
@@ -795,7 +1506,7 @@ msp430_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
   if (boundary < TYPE_ALIGN (type))
     {
       type = build_variant_type_copy (type);
-      TYPE_ALIGN (type) = boundary;
+      SET_TYPE_ALIGN (type, boundary);
     }
 
   /* Compute the rounded size of the type.  */
@@ -823,6 +1534,9 @@ msp430_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
   return addr;
 }
 
+#undef TARGET_LRA_P
+#define TARGET_LRA_P hook_bool_void_false
+
 /* Addressing Modes */
 
 #undef  TARGET_LEGITIMATE_ADDRESS_P
@@ -843,7 +1557,7 @@ reg_ok_for_addr (rtx r, bool strict)
 }
 
 bool
-msp430_legitimate_address_p (enum machine_mode mode ATTRIBUTE_UNUSED,
+msp430_legitimate_address_p (machine_mode mode ATTRIBUTE_UNUSED,
 			     rtx x ATTRIBUTE_UNUSED,
 			     bool strict ATTRIBUTE_UNUSED)
 {
@@ -874,7 +1588,7 @@ msp430_legitimate_address_p (enum machine_mode mode ATTRIBUTE_UNUSED,
     case REG:
       if (!reg_ok_for_addr (x, strict))
 	return false;
-      /* else... */
+      /* FALLTHRU */
     case CONST:
     case SYMBOL_REF:
     case CONST_INT:
@@ -885,35 +1599,84 @@ msp430_legitimate_address_p (enum machine_mode mode ATTRIBUTE_UNUSED,
     }
 }
 
+#undef  TARGET_ADDR_SPACE_LEGITIMATE_ADDRESS_P
+#define TARGET_ADDR_SPACE_LEGITIMATE_ADDRESS_P msp430_addr_space_legitimate_address_p
+
+bool
+msp430_addr_space_legitimate_address_p (machine_mode mode,
+					rtx x,
+					bool strict,
+					addr_space_t as ATTRIBUTE_UNUSED)
+{
+  return msp430_legitimate_address_p (mode, x, strict);
+}
+
+#undef  TARGET_ASM_INTEGER
+#define TARGET_ASM_INTEGER msp430_asm_integer
+static bool
+msp430_asm_integer (rtx x, unsigned int size, int aligned_p)
+{
+  int c = GET_CODE (x);
+
+  if (size == 3 && GET_MODE (x) == PSImode)
+    size = 4;
+
+  switch (size)
+    {
+    case 4:
+      if (c == SYMBOL_REF || c == CONST || c == LABEL_REF || c == CONST_INT
+	  || c == PLUS || c == MINUS)
+	{
+	  fprintf (asm_out_file, "\t.long\t");
+	  output_addr_const (asm_out_file, x);
+	  fputc ('\n', asm_out_file);
+	  return true;
+	}
+      break;
+    }
+  return default_assemble_integer (x, size, aligned_p);
+}
+
+#undef  TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA
+#define TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA msp430_asm_output_addr_const_extra
+static bool
+msp430_asm_output_addr_const_extra (FILE *file ATTRIBUTE_UNUSED, rtx x)
+{
+  debug_rtx(x);
+  return false;
+}
+
 #undef  TARGET_LEGITIMATE_CONSTANT_P
 #define TARGET_LEGITIMATE_CONSTANT_P msp430_legitimate_constant
 
 static bool
-msp430_legitimate_constant (enum machine_mode mode, rtx x)
+msp430_legitimate_constant (machine_mode mode, rtx x)
 {
   return ! CONST_INT_P (x)
     || mode != PSImode
     /* GCC does not know the width of the PSImode, so make
        sure that it does not try to use a constant value that
        is out of range.  */
-    || (INTVAL (x) < (1 << 20) && INTVAL (x) >= (-1 << 20));
+    || (INTVAL (x) < (1 << 20) && INTVAL (x) >= (HOST_WIDE_INT)(HOST_WIDE_INT_M1U << 20));
 }
 
 
 #undef  TARGET_RTX_COSTS
 #define TARGET_RTX_COSTS msp430_rtx_costs
 
-static bool msp430_rtx_costs (rtx   x ATTRIBUTE_UNUSED,
-			      int   code,
-			      int   outer_code ATTRIBUTE_UNUSED,
-			      int   opno ATTRIBUTE_UNUSED,
-			      int * total,
-			      bool  speed ATTRIBUTE_UNUSED)
+static bool msp430_rtx_costs (rtx	   x ATTRIBUTE_UNUSED,
+			      machine_mode mode,
+			      int	   outer_code ATTRIBUTE_UNUSED,
+			      int	   opno ATTRIBUTE_UNUSED,
+			      int *	   total,
+			      bool	   speed ATTRIBUTE_UNUSED)
 {
+  int code = GET_CODE (x);
+
   switch (code)
     {
     case SIGN_EXTEND:
-      if (GET_MODE (x) == SImode && outer_code == SET)
+      if (mode == SImode && outer_code == SET)
 	{
 	  *total = COSTS_N_INSNS (4);
 	  return true;
@@ -1034,10 +1797,31 @@ msp430_compute_frame_info (void)
 			      + cfun->machine->framesize_outgoing);
 }
 
+/* Attribute Handling.  */
+
+const char * const  ATTR_INTR   = "interrupt";
+const char * const  ATTR_WAKEUP = "wakeup";
+const char * const  ATTR_NAKED  = "naked";
+const char * const  ATTR_REENT  = "reentrant";
+const char * const  ATTR_CRIT   = "critical";
+const char * const  ATTR_LOWER  = "lower";
+const char * const  ATTR_UPPER  = "upper";
+const char * const  ATTR_EITHER = "either";
+const char * const  ATTR_NOINIT = "noinit";
+const char * const  ATTR_PERSIST = "persistent";
+
 static inline bool
-is_attr_func (const char * attr)
+has_attr (const char * attr, tree decl)
 {
-  return lookup_attribute (attr, DECL_ATTRIBUTES (current_function_decl)) != NULL_TREE;
+  if (decl == NULL_TREE)
+    return false;
+  return lookup_attribute (attr, DECL_ATTRIBUTES (decl)) != NULL_TREE;
+}
+
+static bool
+is_interrupt_func (tree decl = current_function_decl)
+{
+  return has_attr (ATTR_INTR, decl);
 }
 
 /* Returns true if the current function has the "interrupt" attribute.  */
@@ -1045,40 +1829,298 @@ is_attr_func (const char * attr)
 bool
 msp430_is_interrupt_func (void)
 {
-  if (current_function_decl == NULL)
-    return false;
-  return is_attr_func ("interrupt");
+  return is_interrupt_func (current_function_decl);
 }
 
 static bool
-is_wakeup_func (void)
+is_wakeup_func (tree decl = current_function_decl)
 {
-  return msp430_is_interrupt_func () && is_attr_func ("wakeup");
+  return is_interrupt_func (decl) && has_attr (ATTR_WAKEUP, decl);
 }
 
 static inline bool
-is_naked_func (void)
+is_naked_func (tree decl = current_function_decl)
 {
-  return is_attr_func ("naked");
+  return has_attr (ATTR_NAKED, decl);
 }
 
 static inline bool
-is_reentrant_func (void)
+is_reentrant_func (tree decl = current_function_decl)
 {
-  return is_attr_func ("reentrant");
+  return has_attr (ATTR_REENT, decl);
 }
 
 static inline bool
-is_critical_func (void)
+is_critical_func (tree decl = current_function_decl)
 {
-  return is_attr_func ("critical");
+  return has_attr (ATTR_CRIT, decl);
 }
+
+static bool
+has_section_name (const char * name, tree decl = current_function_decl)
+{
+  if (decl == NULL_TREE)
+    return false;
+  return (DECL_SECTION_NAME (decl)
+    && (strcmp (name, DECL_SECTION_NAME (decl)) == 0));
+}
+
+#undef  TARGET_ALLOCATE_STACK_SLOTS_FOR_ARGS
+#define TARGET_ALLOCATE_STACK_SLOTS_FOR_ARGS	msp430_allocate_stack_slots_for_args
+
+static bool
+msp430_allocate_stack_slots_for_args (void)
+{
+  /* Naked functions should not allocate stack slots for arguments.  */
+  return ! is_naked_func ();
+}
+
+#undef TARGET_WARN_FUNC_RETURN
+#define TARGET_WARN_FUNC_RETURN msp430_warn_func_return
+
+static bool
+msp430_warn_func_return (tree decl)
+{
+  /* Naked functions are implemented entirely in assembly, including the
+     return sequence, so suppress warnings about this.  */
+  return !is_naked_func (decl);
+}
+
+/* Verify MSP430 specific attributes.  */
+#define TREE_NAME_EQ(NAME, STR) (strcmp (IDENTIFIER_POINTER (NAME), (STR)) == 0)
+
+static tree
+msp430_attr (tree * node,
+	     tree   name,
+	     tree   args,
+	     int    flags ATTRIBUTE_UNUSED,
+	     bool * no_add_attrs)
+{
+  gcc_assert (DECL_P (* node));
+
+  /* Only the interrupt attribute takes an argument.  */
+  if (args != NULL)
+    {
+      tree value = TREE_VALUE (args);
+
+      switch (TREE_CODE (value))
+	{
+	case STRING_CST:
+	  if (   strcmp (TREE_STRING_POINTER (value), "reset")
+	      && strcmp (TREE_STRING_POINTER (value), "nmi")
+	      && strcmp (TREE_STRING_POINTER (value), "watchdog"))
+	    /* Allow the attribute to be added - the linker script
+	       being used may still recognise this name.  */
+	    warning (OPT_Wattributes,
+		     "unrecognized interrupt vector argument of %qE attribute",
+		     name);
+	  break;
+
+	case INTEGER_CST:
+	  if (wi::gtu_p (wi::to_wide (value), 63))
+	    /* Allow the attribute to be added - the linker script
+	       being used may still recognise this value.  */
+	    warning (OPT_Wattributes,
+		     "numeric argument of %qE attribute must be in range 0..63",
+		     name);
+	  break;
+
+	default:
+	  warning (OPT_Wattributes,
+		   "argument of %qE attribute is not a string constant or number",
+		   name);
+	  *no_add_attrs = true;
+	  break;
+	}
+    }
+
+  const char * message = NULL;
+
+  if (TREE_CODE (* node) != FUNCTION_DECL)
+    {
+      message = "%qE attribute only applies to functions";
+    }
+  else if (TREE_NAME_EQ (name, ATTR_INTR))
+    {
+      if (TREE_CODE (TREE_TYPE (* node)) == FUNCTION_TYPE
+	  && ! VOID_TYPE_P (TREE_TYPE (TREE_TYPE (* node))))
+	message = "interrupt handlers must be void";
+      else
+	{
+	  /* Ensure interrupt handlers never get optimised out.  */
+	  TREE_USED (* node) = 1;
+	  DECL_PRESERVE_P (* node) = 1;
+	}
+      if (is_critical_func (* node))
+	{
+	  warning (OPT_Wattributes,
+		   "critical attribute has no effect on interrupt functions");
+	  DECL_ATTRIBUTES (*node) = remove_attribute (ATTR_CRIT,
+						      DECL_ATTRIBUTES (* node));
+	}
+    }
+  else if (TREE_NAME_EQ (name, ATTR_REENT))
+    {
+      if (is_naked_func (* node))
+	message = "naked functions cannot be reentrant";
+      else if (is_critical_func (* node))
+	message = "critical functions cannot be reentrant";
+    }
+  else if (TREE_NAME_EQ (name, ATTR_CRIT))
+    {
+      if (is_naked_func (* node))
+	message = "naked functions cannot be critical";
+      else if (is_reentrant_func (* node))
+	message = "reentrant functions cannot be critical";
+      else if (is_interrupt_func ( *node))
+	message = "critical attribute has no effect on interrupt functions";
+    }
+  else if (TREE_NAME_EQ (name, ATTR_NAKED))
+    {
+      if (is_critical_func (* node))
+	message = "critical functions cannot be naked";
+      else if (is_reentrant_func (* node))
+	message = "reentrant functions cannot be naked";
+    }
+
+  if (message)
+    {
+      warning (OPT_Wattributes, message, name);
+      * no_add_attrs = true;
+    }
+    
+  return NULL_TREE;
+}
+
+static tree
+msp430_section_attr (tree * node,
+		     tree   name,
+		     tree   args,
+		     int    flags ATTRIBUTE_UNUSED,
+		     bool * no_add_attrs ATTRIBUTE_UNUSED)
+{
+  gcc_assert (DECL_P (* node));
+  gcc_assert (args == NULL);
+
+  const char * message = NULL;
+
+  if (TREE_NAME_EQ (name, ATTR_UPPER))
+    {
+      if (has_attr (ATTR_LOWER, * node))
+	message = "already marked with 'lower' attribute";
+      else if (has_attr (ATTR_EITHER, * node))
+	message = "already marked with 'either' attribute";
+      else if (! msp430x)
+	message = "upper attribute needs a 430X cpu";
+    }
+  else if (TREE_NAME_EQ (name, ATTR_LOWER))
+    {
+      if (has_attr (ATTR_UPPER, * node))
+	message = "already marked with 'upper' attribute";
+      else if (has_attr (ATTR_EITHER, * node))
+	message = "already marked with 'either' attribute";
+    }
+  else
+    {
+      gcc_assert (TREE_NAME_EQ (name, ATTR_EITHER));
+
+      if (has_attr (ATTR_LOWER, * node))
+	message = "already marked with 'lower' attribute";
+      else if (has_attr (ATTR_UPPER, * node))
+	message = "already marked with 'upper' attribute";
+    }
+
+  if (message)
+    {
+      warning (OPT_Wattributes, message, name);
+      * no_add_attrs = true;
+    }
+    
+  return NULL_TREE;
+}
+
+static tree
+msp430_data_attr (tree * node,
+		  tree   name,
+		  tree   args,
+		  int    flags ATTRIBUTE_UNUSED,
+		  bool * no_add_attrs ATTRIBUTE_UNUSED)
+{
+  const char * message = NULL;
+
+  gcc_assert (DECL_P (* node));
+  gcc_assert (args == NULL);
+
+  if (TREE_CODE (* node) != VAR_DECL)
+    message = G_("%qE attribute only applies to variables");
+
+  /* Check that it's possible for the variable to have a section.  */
+  if ((TREE_STATIC (* node) || DECL_EXTERNAL (* node) || in_lto_p)
+      && DECL_SECTION_NAME (* node))
+    message = G_("%qE attribute cannot be applied to variables with specific sections");
+
+  if (!message && TREE_NAME_EQ (name, ATTR_PERSIST) && !TREE_STATIC (* node)
+      && !TREE_PUBLIC (* node) && !DECL_EXTERNAL (* node))
+    message = G_("%qE attribute has no effect on automatic variables");
+
+  /* It's not clear if there is anything that can be set here to prevent the
+     front end placing the variable before the back end can handle it, in a
+     similar way to how DECL_COMMON is used below.
+     So just place the variable in the .persistent section now.  */
+  if ((TREE_STATIC (* node) || DECL_EXTERNAL (* node) || in_lto_p)
+      && TREE_NAME_EQ (name, ATTR_PERSIST))
+    set_decl_section_name (* node, ".persistent");
+
+  /* If this var is thought to be common, then change this.  Common variables
+     are assigned to sections before the backend has a chance to process them.  */
+  if (DECL_COMMON (* node))
+    DECL_COMMON (* node) = 0;
+
+  if (message)
+    {
+      warning (OPT_Wattributes, message, name);
+      * no_add_attrs = true;
+    }
+    
+  return NULL_TREE;
+}
+
+
+#undef  TARGET_ATTRIBUTE_TABLE
+#define TARGET_ATTRIBUTE_TABLE		msp430_attribute_table
+
+/* Table of MSP430-specific attributes.  */
+const struct attribute_spec msp430_attribute_table[] =
+{
+  /* Name        min_num_args     type_req,             handler
+		      max_num_args,     fn_type_req		exclude
+                          decl_req               affects_type_identity.  */
+  { ATTR_INTR,        0, 1, true,  false, false, false, msp430_attr, NULL },
+  { ATTR_NAKED,       0, 0, true,  false, false, false, msp430_attr, NULL },
+  { ATTR_REENT,       0, 0, true,  false, false, false, msp430_attr, NULL },
+  { ATTR_CRIT,        0, 0, true,  false, false, false, msp430_attr, NULL },
+  { ATTR_WAKEUP,      0, 0, true,  false, false, false, msp430_attr, NULL },
+
+  { ATTR_LOWER,       0, 0, true,  false, false, false, msp430_section_attr,
+    NULL },
+  { ATTR_UPPER,       0, 0, true,  false, false, false, msp430_section_attr,
+    NULL },
+  { ATTR_EITHER,      0, 0, true,  false, false, false, msp430_section_attr,
+    NULL },
+
+  { ATTR_NOINIT,      0, 0, true,  false, false, false, msp430_data_attr,
+    NULL },
+  { ATTR_PERSIST,     0, 0, true,  false, false, false, msp430_data_attr,
+    NULL },
+
+  { NULL,             0, 0, false, false, false, false, NULL,  NULL }
+};
 
 #undef  TARGET_ASM_FUNCTION_PROLOGUE
 #define TARGET_ASM_FUNCTION_PROLOGUE	msp430_start_function
 
 static void
-msp430_start_function (FILE *outfile, HOST_WIDE_INT hwi_local ATTRIBUTE_UNUSED)
+msp430_start_function (FILE *outfile)
 {
   int r, n;
 
@@ -1148,85 +2190,6 @@ increment_stack (HOST_WIDE_INT amount)
     }
 }
 
-/* Verify MSP430 specific attributes.  */
-
-static tree
-msp430_attr (tree * node,
-	     tree   name,
-	     tree   args,
-	     int    flags ATTRIBUTE_UNUSED,
-	     bool * no_add_attrs)
-{
-  gcc_assert (DECL_P (* node));
-
-  if (args != NULL)
-    {
-      tree value = TREE_VALUE (args);
-
-      switch (TREE_CODE (value))
-	{
-	case STRING_CST:
-	  if (   strcmp (TREE_STRING_POINTER (value), "reset")
-	      && strcmp (TREE_STRING_POINTER (value), "nmi")
-	      && strcmp (TREE_STRING_POINTER (value), "watchdog"))
-	    /* Allow the attribute to be added - the linker script
-	       being used may still recognise this name.  */
-	    warning (OPT_Wattributes,
-		     "unrecognised interrupt vector argument of %qE attribute",
-		     name);
-	  break;
-
-	case INTEGER_CST:
-	  if (wi::gtu_p (value, 63))
-	    /* Allow the attribute to be added - the linker script
-	       being used may still recognise this value.  */
-	    warning (OPT_Wattributes,
-		     "numeric argument of %qE attribute must be in range 0..63",
-		     name);
-	  break;
-
-	default:
-	  warning (OPT_Wattributes,
-		   "argument of %qE attribute is not a string constant or number",
-		   name);
-	  *no_add_attrs = true;
-	  break;
-	}
-    }
-
-  if (TREE_CODE (* node) != FUNCTION_DECL)
-    {
-      warning (OPT_Wattributes,
-	       "%qE attribute only applies to functions",
-	       name);
-      * no_add_attrs = true;
-    }
-
-  /* FIXME: We ought to check that the interrupt handler
-     attribute has been applied to a void function.  */
-  /* FIXME: We should check that reentrant and critical
-     functions are not naked and that critical functions
-     are not reentrant.  */
-
-  return NULL_TREE;
-}
-
-#undef  TARGET_ATTRIBUTE_TABLE
-#define TARGET_ATTRIBUTE_TABLE		msp430_attribute_table
-
-/* Table of MSP430-specific attributes.  */
-const struct attribute_spec msp430_attribute_table[] =
-{
-  /* Name          min_len  decl_req,    fn_type_req,    affects_type_identity
-                       max_len,  type_req,        handler.  */
-  { "interrupt",      0, 1, true,  false, false, msp430_attr, false },
-  { "naked",          0, 0, true,  false, false, msp430_attr, false },
-  { "reentrant",      0, 0, true,  false, false, msp430_attr, false },
-  { "critical",       0, 0, true,  false, false, msp430_attr, false },
-  { "wakeup",         0, 0, true,  false, false, msp430_attr, false },
-  { NULL,             0, 0, false, false, false, NULL,        false }
-};
-
 void
 msp430_start_function (FILE *file, const char *name, tree decl)
 {
@@ -1240,6 +2203,13 @@ msp430_start_function (FILE *file, const char *name, tree decl)
       if (intr_vector != NULL_TREE)
 	{
 	  char buf[101];
+
+	  /* Interrupt vector sections should be unique, but use of weak
+	     functions implies multiple definitions.  */
+	  if (DECL_WEAK (decl))
+	    {
+	      error ("argument to interrupt attribute is unsupported for weak functions");
+	    }
 
 	  intr_vector = TREE_VALUE (intr_vector);
 
@@ -1263,24 +2233,284 @@ msp430_start_function (FILE *file, const char *name, tree decl)
     }
 
   switch_to_section (function_section (decl));
+  ASM_OUTPUT_TYPE_DIRECTIVE(file, name, "function");
   ASM_OUTPUT_FUNCTION_LABEL (file, name, decl);
 }
 
-static section *
-msp430_function_section (tree decl, enum node_frequency freq, bool startup, bool exit)
+static const char * const lower_prefix = ".lower";
+static const char * const upper_prefix = ".upper";
+static const char * const either_prefix = ".either";
+
+/* Generate a prefix for a section name, based upon
+   the region into which the object should be placed.  */
+
+static const char *
+gen_prefix (tree decl)
 {
+  if (DECL_ONE_ONLY (decl))
+    return NULL;
+
+  /* If the user has specified a particular section then do not use any prefix.  */
+  if (has_attr ("section", decl))
+    return NULL;
+
+  /* If the function has been put in the .lowtext section (because it is an
+     interrupt handler, and the large memory model is used), then do not add
+     any prefixes.  */
+  if (has_section_name (".lowtext", decl))
+    return NULL;
+
+  /* If the object has __attribute__((lower)) then use the ".lower." prefix.  */
+  if (has_attr (ATTR_LOWER, decl))
+    return lower_prefix;
+
+  /* If we are compiling for the MSP430 then we do not support the upper region.  */
+  if (! msp430x)
+    return NULL;
+
+  if (has_attr (ATTR_UPPER, decl))
+    return upper_prefix;
+
+  if (has_attr (ATTR_EITHER, decl))
+    return either_prefix;
+
+  if (TREE_CODE (decl) == FUNCTION_DECL)
+    {
+      if (msp430_code_region == MSP430_REGION_LOWER)
+	return lower_prefix;
+
+      if (msp430_code_region == MSP430_REGION_UPPER)
+	return upper_prefix;
+
+      if (msp430_code_region == MSP430_REGION_EITHER)
+	return either_prefix;
+    }
+  else
+    {
+      if (msp430_data_region == MSP430_REGION_LOWER)
+	return lower_prefix;
+
+      if (msp430_data_region == MSP430_REGION_UPPER)
+	return upper_prefix;
+
+      if (msp430_data_region == MSP430_REGION_EITHER)
+	return either_prefix;
+    }
+
+  return NULL;
+}
+
+static section * noinit_section;
+static section * persist_section;
+
+#undef  TARGET_ASM_INIT_SECTIONS
+#define TARGET_ASM_INIT_SECTIONS msp430_init_sections
+
+static void
+msp430_init_sections (void)
+{
+  noinit_section = get_unnamed_section (0, output_section_asm_op, ".section .noinit,\"aw\"");
+  persist_section = get_unnamed_section (0, output_section_asm_op, ".section .persistent,\"aw\"");
+}
+
+#undef  TARGET_ASM_SELECT_SECTION
+#define TARGET_ASM_SELECT_SECTION msp430_select_section
+
+static section *
+msp430_select_section (tree decl, int reloc, unsigned HOST_WIDE_INT align)
+{
+  gcc_assert (decl != NULL_TREE);
+
+  if (TREE_CODE (decl) == STRING_CST
+      || TREE_CODE (decl) == CONSTRUCTOR
+      || TREE_CODE (decl) == INTEGER_CST
+      || TREE_CODE (decl) == VECTOR_CST
+      || TREE_CODE (decl) == COMPLEX_CST)
+    return default_select_section (decl, reloc, align);
+  
   /* In large mode we must make sure that interrupt handlers are put into
      low memory as the vector table only accepts 16-bit addresses.  */
-  if (TARGET_LARGE
-      && lookup_attribute ("interrupt", DECL_ATTRIBUTES (decl)))
+  if (TARGET_LARGE && TREE_CODE (decl) == FUNCTION_DECL && is_interrupt_func (decl))
     return get_section (".lowtext", SECTION_CODE | SECTION_WRITE , decl);
 
-  /* Otherwise, use the default function section.  */
-  return default_function_section (decl, freq, startup, exit);
+  const char * prefix = gen_prefix (decl);
+  if (prefix == NULL)
+    {
+      if (TREE_CODE (decl) == FUNCTION_DECL)
+	return text_section;
+      else if (has_attr (ATTR_NOINIT, decl))
+	return noinit_section;
+      else if (has_attr (ATTR_PERSIST, decl))
+	return persist_section;
+      else
+	return default_select_section (decl, reloc, align);
+    }
+  
+  const char * sec;
+  switch (categorize_decl_for_section (decl, reloc))
+    {
+    case SECCAT_TEXT:   sec = ".text";   break;
+    case SECCAT_DATA:   sec = ".data";   break;
+    case SECCAT_BSS:    sec = ".bss";    break;
+    case SECCAT_RODATA: sec = ".rodata"; break;
+
+    case SECCAT_RODATA_MERGE_STR:
+    case SECCAT_RODATA_MERGE_STR_INIT:
+    case SECCAT_RODATA_MERGE_CONST:
+    case SECCAT_SRODATA:
+    case SECCAT_DATA_REL:
+    case SECCAT_DATA_REL_LOCAL:
+    case SECCAT_DATA_REL_RO:
+    case SECCAT_DATA_REL_RO_LOCAL:
+    case SECCAT_SDATA:
+    case SECCAT_SBSS:
+    case SECCAT_TDATA:
+    case SECCAT_TBSS:
+      return default_select_section (decl, reloc, align);
+
+    default:
+      gcc_unreachable ();
+    }
+  
+  const char * dec_name = DECL_SECTION_NAME (decl);
+  char * name = ACONCAT ((prefix, sec, dec_name, NULL));
+
+  return get_named_section (decl, name, 0);
 }
 
 #undef  TARGET_ASM_FUNCTION_SECTION
 #define TARGET_ASM_FUNCTION_SECTION msp430_function_section
+
+static section *
+msp430_function_section (tree decl, enum node_frequency freq, bool startup, bool exit)
+{
+  const char * name;
+
+  gcc_assert (DECL_SECTION_NAME (decl) != NULL);
+  name = DECL_SECTION_NAME (decl);
+
+  const char * prefix = gen_prefix (decl);
+  if (prefix == NULL
+      || strncmp (name, prefix, strlen (prefix)) == 0)
+    return default_function_section (decl, freq, startup, exit);
+
+  name = ACONCAT ((prefix, name, NULL));
+  return get_named_section (decl, name, 0);
+}
+
+#undef  TARGET_SECTION_TYPE_FLAGS
+#define TARGET_SECTION_TYPE_FLAGS msp430_section_type_flags
+
+unsigned int
+msp430_section_type_flags (tree decl, const char * name, int reloc)
+{
+  if (strncmp (name, lower_prefix, strlen (lower_prefix)) == 0)
+    name += strlen (lower_prefix);
+  else if (strncmp (name, upper_prefix, strlen (upper_prefix)) == 0)
+    name += strlen (upper_prefix);
+  else if (strncmp (name, either_prefix, strlen (either_prefix)) == 0)
+    name += strlen (either_prefix);
+  else if (strcmp (name, ".noinit") == 0)
+    return SECTION_WRITE | SECTION_BSS | SECTION_NOTYPE;
+  else if (strcmp (name, ".persistent") == 0)
+    return SECTION_WRITE | SECTION_NOTYPE;
+  
+  return default_section_type_flags (decl, name, reloc);
+}
+
+#undef  TARGET_ASM_UNIQUE_SECTION
+#define TARGET_ASM_UNIQUE_SECTION msp430_unique_section
+
+static void
+msp430_unique_section (tree decl, int reloc)
+{
+  gcc_assert (decl != NULL_TREE);
+
+  /* In large mode we must make sure that interrupt handlers are put into
+     low memory as the vector table only accepts 16-bit addresses.  */
+  if (TARGET_LARGE && TREE_CODE (decl) == FUNCTION_DECL && is_interrupt_func (decl))
+    {
+      set_decl_section_name (decl, ".lowtext");
+      return;
+    }
+
+  default_unique_section (decl, reloc);
+
+  const char * prefix;
+
+  if (   TREE_CODE (decl) == STRING_CST
+      || TREE_CODE (decl) == CONSTRUCTOR
+      || TREE_CODE (decl) == INTEGER_CST
+      || TREE_CODE (decl) == VECTOR_CST
+      || TREE_CODE (decl) == COMPLEX_CST
+      || (prefix = gen_prefix (decl)) == NULL
+      )
+    return;
+
+  const char * dec_name = DECL_SECTION_NAME (decl);
+  char * name = ACONCAT ((prefix, dec_name, NULL));
+
+  set_decl_section_name (decl, name);
+}
+
+/* Emit a declaration of a common symbol.
+   If a data region is in use then put the symbol into the
+   equivalent .bss section instead.  */
+
+void
+msp430_output_aligned_decl_common (FILE *                 stream,
+				   const tree             decl,
+				   const char *           name,
+				   unsigned HOST_WIDE_INT size,
+				   unsigned int           align)
+{
+  if (msp430_data_region == MSP430_REGION_ANY)
+    {
+      fprintf (stream, COMMON_ASM_OP);
+      assemble_name (stream, name);
+      fprintf (stream, "," HOST_WIDE_INT_PRINT_UNSIGNED",%u\n",
+	       size, align / BITS_PER_UNIT);
+    }
+  else
+    {
+      section * sec;
+
+      if (decl)
+	sec = msp430_select_section (decl, 0, align);
+      else
+	switch (msp430_data_region)
+	  {
+	  case MSP430_REGION_UPPER: sec = get_named_section (NULL, ".upper.bss", 0); break;
+	  case MSP430_REGION_LOWER: sec = get_named_section (NULL, ".lower.bss", 0); break;
+	  case MSP430_REGION_EITHER: sec = get_named_section (NULL, ".either.bss", 0); break;
+	  default:
+	    gcc_unreachable ();
+	  }
+      gcc_assert (sec != NULL);
+
+      switch_to_section (sec);
+      ASM_OUTPUT_ALIGN (stream, floor_log2 (align / BITS_PER_UNIT));
+      targetm.asm_out.globalize_label (stream, name);
+      ASM_WEAKEN_LABEL (stream, name);
+      ASM_OUTPUT_LABEL (stream, name);
+      ASM_OUTPUT_SKIP (stream, size ? size : 1);
+    }
+}
+
+bool
+msp430_do_not_relax_short_jumps (void)
+{
+  /* When placing code into "either" low or high memory we do not want the linker
+     to grow the size of sections, which it can do if it is encounters a branch to
+     a label that is too far away.  So we tell the cbranch patterns to avoid using
+     short jumps when there is a chance that the instructions will end up in a low
+     section.  */
+  return
+    msp430_code_region == MSP430_REGION_EITHER
+    || msp430_code_region == MSP430_REGION_LOWER
+    || has_attr (ATTR_EITHER, current_function_decl)
+    || has_attr (ATTR_LOWER, current_function_decl);
+}
 
 enum msp430_builtin
 {
@@ -1364,7 +2594,7 @@ msp430_expand_delay_cycles (rtx arg)
     {
       if (c < 0)
 	{
-	  error ("__delay_cycles only takes non-negative cycle counts.");
+	  error ("__delay_cycles only takes non-negative cycle counts");
 	  return NULL_RTX;
 	}
     }
@@ -1384,7 +2614,7 @@ msp430_expand_delay_cycles (rtx arg)
 	  c %= 4;
 	  if ((unsigned long long) i > 0xffffffffULL)
 	    {
-	      error ("__delay_cycles is limited to 32-bit loop counts.");
+	      error ("__delay_cycles is limited to 32-bit loop counts");
 	      return NULL_RTX;
 	    }
 	}
@@ -1442,7 +2672,7 @@ static rtx
 msp430_expand_builtin (tree exp,
 		       rtx target ATTRIBUTE_UNUSED,
 		       rtx subtarget ATTRIBUTE_UNUSED,
-		       enum machine_mode mode ATTRIBUTE_UNUSED,
+		       machine_mode mode ATTRIBUTE_UNUSED,
 		       int ignore ATTRIBUTE_UNUSED)
 {
   tree fndecl = TREE_OPERAND (CALL_EXPR_FN (exp), 0);
@@ -1526,13 +2756,15 @@ msp430_expand_prologue (void)
       p = emit_insn (gen_grow_and_swap ());
 
       /* Document the stack decrement...  */
-      note = F (gen_rtx_SET (Pmode, stack_pointer_rtx,
+      note = F (gen_rtx_SET (stack_pointer_rtx,
 			     gen_rtx_MINUS (Pmode, stack_pointer_rtx, GEN_INT (2))));
       add_reg_note (p, REG_FRAME_RELATED_EXPR, note);
 
       /* ...and the establishment of a new location for the return address.  */
-      note = F (gen_rtx_SET (Pmode, gen_rtx_MEM (Pmode,
-						 gen_rtx_PLUS (Pmode, stack_pointer_rtx, GEN_INT (-2))),
+      note = F (gen_rtx_SET (gen_rtx_MEM (Pmode,
+					  gen_rtx_PLUS (Pmode,
+							stack_pointer_rtx,
+							GEN_INT (-2))),
 			     pc_rtx));
       add_reg_note (p, REG_CFA_OFFSET, note);
       F (p);
@@ -1557,11 +2789,10 @@ msp430_expand_prologue (void)
 	    note = gen_rtx_SEQUENCE (VOIDmode, rtvec_alloc (count + 1));
 
 	    XVECEXP (note, 0, 0)
-	      = F (gen_rtx_SET (VOIDmode,
-			     stack_pointer_rtx,
-			     gen_rtx_PLUS (Pmode,
-					   stack_pointer_rtx,
-					   GEN_INT (count * (TARGET_LARGE ? -4 : -2)))));
+	      = F (gen_rtx_SET (stack_pointer_rtx,
+				gen_rtx_PLUS (Pmode,
+					      stack_pointer_rtx,
+					      GEN_INT (count * (TARGET_LARGE ? -4 : -2)))));
 
 	    /* *sp-- = R[i-j] */
 	    /* sp+N	R10
@@ -1578,8 +2809,7 @@ msp430_expand_prologue (void)
 		  addr = stack_pointer_rtx;
 
 		XVECEXP (note, 0, j + 1) =
-		  F (gen_rtx_SET (VOIDmode,
-				  gen_rtx_MEM (Pmode, addr),
+		  F (gen_rtx_SET (gen_rtx_MEM (Pmode, addr),
 				  gen_rtx_REG (Pmode, i - j)) );
 	      }
 
@@ -1753,6 +2983,34 @@ msp430_expand_eh_return (rtx eh_handler)
   emit_move_insn (tmp, ra);
 }
 
+#undef  TARGET_INIT_DWARF_REG_SIZES_EXTRA
+#define TARGET_INIT_DWARF_REG_SIZES_EXTRA msp430_init_dwarf_reg_sizes_extra
+void
+msp430_init_dwarf_reg_sizes_extra (tree address)
+{
+  int i;
+  rtx addr = expand_normal (address);
+  rtx mem = gen_rtx_MEM (BLKmode, addr);
+
+  /* This needs to match msp430_unwind_word_mode (above).  */
+  if (!msp430x)
+    return;
+
+  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
+    {
+      unsigned int dnum = DWARF_FRAME_REGNUM (i);
+      unsigned int rnum = DWARF2_FRAME_REG_OUT (dnum, 1);
+
+      if (rnum < DWARF_FRAME_REGISTERS)
+	{
+	  HOST_WIDE_INT offset = rnum * GET_MODE_SIZE (QImode);
+
+	  emit_move_insn (adjust_address (mem, QImode, offset),
+			  gen_int_mode (4, QImode));
+	}
+    }
+}
+
 /* This is a list of MD patterns that implement fixed-count shifts.  */
 static struct
 {
@@ -1763,7 +3021,7 @@ static struct
 }
   const_shift_helpers[] =
 {
-#define CSH(N,C,X,G) { "__mspabi_"N, C, X, gen_##G }
+#define CSH(N,C,X,G) { "__mspabi_" N, C, X, gen_##G }
 
   CSH ("slli", 1, 1, slli_1),
   CSH ("slll", 1, 1, slll_1),
@@ -1790,9 +3048,9 @@ msp430_expand_helper (rtx *operands, const char *helper_name, bool const_variant
   char *helper_const = NULL;
   int arg2 = 13;
   int arg1sz = 1;
-  enum machine_mode arg0mode = GET_MODE (operands[0]);
-  enum machine_mode arg1mode = GET_MODE (operands[1]);
-  enum machine_mode arg2mode = GET_MODE (operands[2]);
+  machine_mode arg0mode = GET_MODE (operands[0]);
+  machine_mode arg1mode = GET_MODE (operands[1]);
+  machine_mode arg2mode = GET_MODE (operands[2]);
   int have_430x = msp430x ? 1 : 0;
 
   if (CONST_INT_P (operands[2]))
@@ -1857,7 +3115,7 @@ msp430_expand_helper (rtx *operands, const char *helper_name, bool const_variant
 
 /* Called by cbranch<mode>4 to coerce operands into usable forms.  */
 void
-msp430_fixup_compare_operands (enum machine_mode my_mode, rtx * operands)
+msp430_fixup_compare_operands (machine_mode my_mode, rtx * operands)
 {
   /* constants we're looking for, not constants which are allowed.  */
   int const_op_idx = 1;
@@ -1874,7 +3132,7 @@ msp430_fixup_compare_operands (enum machine_mode my_mode, rtx * operands)
    need it to below, so we use this function for when we must get a
    valid subreg in a "natural" state.  */
 rtx
-msp430_subreg (enum machine_mode mode, rtx r, enum machine_mode omode, int byte)
+msp430_subreg (machine_mode mode, rtx r, machine_mode omode, int byte)
 {
   rtx rv;
 
@@ -1882,7 +3140,7 @@ msp430_subreg (enum machine_mode mode, rtx r, enum machine_mode omode, int byte)
       && SUBREG_BYTE (r) == 0)
     {
       rtx ireg = SUBREG_REG (r);
-      enum machine_mode imode = GET_MODE (ireg);
+      machine_mode imode = GET_MODE (ireg);
 
       /* special case for (HI (SI (PSI ...), 0)) */
       if (imode == PSImode
@@ -1894,6 +3152,13 @@ msp430_subreg (enum machine_mode mode, rtx r, enum machine_mode omode, int byte)
     }
   else if (GET_CODE (r) == MEM)
     rv = adjust_address (r, mode, byte);
+  else if (GET_CODE (r) == SYMBOL_REF
+	   && (byte == 0 || byte == 2)
+	   && mode == HImode)
+    {
+      rv = gen_rtx_ZERO_EXTRACT (HImode, r, GEN_INT (16), GEN_INT (8*byte));
+      rv = gen_rtx_CONST (HImode, r);
+    }
   else
     rv = simplify_gen_subreg (mode, r, omode, byte);
 
@@ -2022,8 +3287,8 @@ static const struct
   { "__divsi3", "__mspabi_divli" },
   { "__divdi3", "__mspabi_divlli" },
   { "__udivhi3", "__mspabi_divu" },
-  { "__udivsi3", "__mspabi_divlu" },
-  { "__udivdi3", "__mspabi_divllu" },
+  { "__udivsi3", "__mspabi_divul" },
+  { "__udivdi3", "__mspabi_divull" },
   { "__modhi3", "__mspabi_remi" },
   { "__modsi3", "__mspabi_remli" },
   { "__moddi3", "__mspabi_remlli" },
@@ -2049,10 +3314,10 @@ msp430_use_f5_series_hwmult (void)
   static const char * cached_match = NULL;
   static bool         cached_result;
 
-  if (msp430_hwmult_type == F5SERIES)
+  if (msp430_hwmult_type == MSP430_HWMULT_F5SERIES)
     return true;
 
-  if (target_mcu == NULL || msp430_hwmult_type != AUTO)
+  if (target_mcu == NULL || msp430_hwmult_type != MSP430_HWMULT_AUTO)
     return false;
 
   if (target_mcu == cached_match)
@@ -2062,21 +3327,17 @@ msp430_use_f5_series_hwmult (void)
 
   if (strncasecmp (target_mcu, "msp430f5", 8) == 0)
     return cached_result = true;
+  if (strncasecmp (target_mcu, "msp430fr5", 9) == 0)
+    return cached_result = true;
+  if (strncasecmp (target_mcu, "msp430f6", 8) == 0)
+    return cached_result = true;
 
-  static const char * known_f5_mult_mcus [] =
-    {
-      "cc430f5123",	"cc430f5125",	"cc430f5133",
-      "cc430f5135",	"cc430f5137",	"cc430f5143",
-      "cc430f5145",	"cc430f5147",	"cc430f6125",
-      "cc430f6126",	"cc430f6127",	"cc430f6135",
-      "cc430f6137",	"cc430f6143",	"cc430f6145",
-      "cc430f6147",	"msp430bt5190",	"msp430sl5438a"
-    };
   int i;
 
-  for (i = ARRAY_SIZE (known_f5_mult_mcus); i--;)
-    if (strcasecmp (target_mcu, known_f5_mult_mcus[i]) == 0)
-      return cached_result = true;
+  /* FIXME: This array is alpha sorted - we could use a binary search.  */
+  for (i = ARRAY_SIZE (msp430_mcu_data); i--;)
+    if (strcasecmp (target_mcu, msp430_mcu_data[i].name) == 0)
+      return cached_result = msp430_mcu_data[i].hwmpy == 8;
 
   return cached_result = false;
 }
@@ -2087,32 +3348,25 @@ msp430_use_f5_series_hwmult (void)
 static bool
 use_32bit_hwmult (void)
 {
-  static const char * known_32bit_mult_mcus [] =
-    {
-      "msp430f4783",      "msp430f4793",      "msp430f4784",
-      "msp430f4794",      "msp430f47126",     "msp430f47127",
-      "msp430f47163",     "msp430f47173",     "msp430f47183",
-      "msp430f47193",     "msp430f47166",     "msp430f47176",
-      "msp430f47186",     "msp430f47196",     "msp430f47167",
-      "msp430f47177",     "msp430f47187",     "msp430f47197"
-    };
   static const char * cached_match = NULL;
   static bool         cached_result;
   int i;
 
-  if (msp430_hwmult_type == LARGE)
+  if (msp430_hwmult_type == MSP430_HWMULT_LARGE)
     return true;
 
-  if (target_mcu == NULL || msp430_hwmult_type != AUTO)
+  if (target_mcu == NULL || msp430_hwmult_type != MSP430_HWMULT_AUTO)
     return false;
 
   if (target_mcu == cached_match)
     return cached_result;
 
   cached_match = target_mcu;
-  for (i = ARRAY_SIZE (known_32bit_mult_mcus); i--;)
-    if (strcasecmp (target_mcu, known_32bit_mult_mcus[i]) == 0)
-      return cached_result = true;
+
+  /* FIXME: This array is alpha sorted - we could use a binary search.  */
+  for (i = ARRAY_SIZE (msp430_mcu_data); i--;)
+    if (strcasecmp (target_mcu, msp430_mcu_data[i].name) == 0)
+      return cached_result = msp430_mcu_data[i].hwmpy == 4;
 
   return cached_result = false;
 }
@@ -2123,83 +3377,32 @@ use_32bit_hwmult (void)
 static bool
 msp430_no_hwmult (void)
 {
-  static const char * known_nomult_mcus [] =
-    {
-      "msp430c091",	"msp430c092",	"msp430c111",
-      "msp430c1111", 	"msp430c112", 	"msp430c1121",
-      "msp430c1331", 	"msp430c1351", 	"msp430c311s",
-      "msp430c312", 	"msp430c313", 	"msp430c314",
-      "msp430c315", 	"msp430c323", 	"msp430c325",
-      "msp430c412", 	"msp430c413", 	"msp430e112",
-      "msp430e313", 	"msp430e315", 	"msp430e325",
-      "msp430f110", 	"msp430f1101", 	"msp430f1101a",
-      "msp430f1111", 	"msp430f1111a",	"msp430f112",
-      "msp430f1121", 	"msp430f1121a", "msp430f1122",
-      "msp430f1132", 	"msp430f122", 	"msp430f1222",
-      "msp430f123", 	"msp430f1232", 	"msp430f133",
-      "msp430f135", 	"msp430f155", 	"msp430f156",
-      "msp430f157", 	"msp430f2001", 	"msp430f2002",
-      "msp430f2003", 	"msp430f2011", 	"msp430f2012",
-      "msp430f2013", 	"msp430f2101", 	"msp430f2111",
-      "msp430f2112", 	"msp430f2121", 	"msp430f2122",
-      "msp430f2131", 	"msp430f2132", 	"msp430f2232",
-      "msp430f2234", 	"msp430f2252", 	"msp430f2254",
-      "msp430f2272", 	"msp430f2274", 	"msp430f412",
-      "msp430f413", 	"msp430f4132", 	"msp430f415",
-      "msp430f4152", 	"msp430f417", 	"msp430f4250",
-      "msp430f4260", 	"msp430f4270", 	"msp430f435",
-      "msp430f4351", 	"msp430f436", 	"msp430f4361",
-      "msp430f437", 	"msp430f4371", 	"msp430f438",
-      "msp430f439", 	"msp430f477", 	"msp430f478",
-      "msp430f479", 	"msp430fe423", 	"msp430fe4232",
-      "msp430fe423a",   "msp430fe4242",	"msp430fe425",
-      "msp430fe4252",   "msp430fe425a", "msp430fe427",
-      "msp430fe4272",   "msp430fe427a", "msp430fg4250",
-      "msp430fg4260",   "msp430fg4270", "msp430fg437",
-      "msp430fg438", 	"msp430fg439", 	"msp430fg477",
-      "msp430fg478", 	"msp430fg479",  "msp430fr2032",
-      "msp430fr2033",	"msp430fr4131",	"msp430fr4132",
-      "msp430fr4133",	"msp430fw423",  "msp430fw425",
-      "msp430fw427", 	"msp430fw428",  "msp430fw429",
-      "msp430g2001", 	"msp430g2101",  "msp430g2102",
-      "msp430g2111", 	"msp430g2112",  "msp430g2113",
-      "msp430g2121", 	"msp430g2131",  "msp430g2132",
-      "msp430g2152", 	"msp430g2153",  "msp430g2201",
-      "msp430g2202", 	"msp430g2203",  "msp430g2210",
-      "msp430g2211", 	"msp430g2212",  "msp430g2213",
-      "msp430g2221", 	"msp430g2230",  "msp430g2231",
-      "msp430g2232", 	"msp430g2233",  "msp430g2252",
-      "msp430g2253", 	"msp430g2302",  "msp430g2303",
-      "msp430g2312", 	"msp430g2313",  "msp430g2332",
-      "msp430g2333", 	"msp430g2352",  "msp430g2353",
-      "msp430g2402", 	"msp430g2403",  "msp430g2412",
-      "msp430g2413", 	"msp430g2432",  "msp430g2433",
-      "msp430g2444", 	"msp430g2452",  "msp430g2453",
-      "msp430g2513", 	"msp430g2533",  "msp430g2544",
-      "msp430g2553", 	"msp430g2744",  "msp430g2755",
-      "msp430g2855", 	"msp430g2955",  "msp430l092",
-      "msp430p112", 	"msp430p313",   "msp430p315",
-      "msp430p315s", 	"msp430p325",   "msp430tch5e"
-    };
   static const char * cached_match = NULL;
   static bool         cached_result;
   int i;
 
-  if (msp430_hwmult_type == NONE)
+  if (msp430_hwmult_type == MSP430_HWMULT_NONE)
     return true;
 
-  if (target_mcu == NULL || msp430_hwmult_type != AUTO)
+  if (msp430_hwmult_type != MSP430_HWMULT_AUTO)
     return false;
+
+  if (target_mcu == NULL)
+    return true;
 
   if (target_mcu == cached_match)
     return cached_result;
 
   cached_match = target_mcu;
-  for (i = ARRAY_SIZE (known_nomult_mcus); i--;)
-    if (strcasecmp (target_mcu, known_nomult_mcus[i]) == 0)
-      return cached_result = true;
 
-  return cached_result = false;
+  /* FIXME: This array is alpha sorted - we could use a binary search.  */
+  for (i = ARRAY_SIZE (msp430_mcu_data); i--;)
+    if (strcasecmp (target_mcu, msp430_mcu_data[i].name) == 0)
+      return cached_result = msp430_mcu_data[i].hwmpy == 0;
+
+  /* If we do not recognise the MCU name, we assume that it does not support
+     any kind of hardware multiply - this is the safest assumption to make.  */
+  return cached_result = true;
 }
 
 /* This function does the same as the default, but it will replace GCC
@@ -2219,7 +3422,7 @@ msp430_output_labelref (FILE *file, const char *name)
 
   /* If we have been given a specific MCU name then we may be
      able to make use of its hardware multiply capabilities.  */
-  if (msp430_hwmult_type != NONE)
+  if (msp430_hwmult_type != MSP430_HWMULT_NONE)
     {
       if (strcmp ("__mspabi_mpyi", name) == 0)
 	{
@@ -2238,6 +3441,9 @@ msp430_output_labelref (FILE *file, const char *name)
 	    name = "__mulsi2";
 	}
     }
+
+  if (user_label_prefix[0] != 0)
+    fputs (user_label_prefix, file);
 
   fputs (name, file);
 }
@@ -2277,6 +3483,11 @@ msp430_print_operand_raw (FILE * file, rtx op)
     }
 }
 
+#undef  TARGET_ASM_ALIGNED_PSI_OP
+#define TARGET_ASM_ALIGNED_PSI_OP "\t.long\t"
+#undef  TARGET_ASM_UNALIGNED_PSI_OP
+#define TARGET_ASM_UNALIGNED_PSI_OP TARGET_ASM_ALIGNED_PSI_OP
+
 #undef  TARGET_PRINT_OPERAND_ADDRESS
 #define TARGET_PRINT_OPERAND_ADDRESS	msp430_print_operand_addr
 
@@ -2285,7 +3496,7 @@ msp430_print_operand_raw (FILE * file, rtx op)
    is ADDR.  */
 
 static void
-msp430_print_operand_addr (FILE * file, rtx addr)
+msp430_print_operand_addr (FILE * file, machine_mode /*mode*/, rtx addr)
 {
   switch (GET_CODE (addr))
     {
@@ -2401,10 +3612,10 @@ msp430_print_operand (FILE * file, rtx op, int letter)
     case 'b':
       switch (GET_MODE (op))
 	{
-	case QImode: fprintf (file, ".B"); return;
-	case HImode: fprintf (file, ".W"); return;
-	case PSImode: fprintf (file, ".A"); return;
-	case SImode: fprintf (file, ".A"); return;
+	case E_QImode: fprintf (file, ".B"); return;
+	case E_HImode: fprintf (file, ".W"); return;
+	case E_PSImode: fprintf (file, ".A"); return;
+	case E_SImode: fprintf (file, ".A"); return;
 	default:
 	  return;
 	}
@@ -2485,7 +3696,7 @@ msp430_print_operand (FILE * file, rtx op, int letter)
     case 'X':
       /* This is used to turn, for example, an ADD opcode into an ADDX
 	 opcode when we're using 20-bit addresses.  */
-      if (TARGET_LARGE)
+      if (TARGET_LARGE || GET_MODE (op) == PSImode)
 	fprintf (file, "X");
       /* We don't care which operand we use, but we want 'X' in the MD
 	 file, so we do it this way.  */
@@ -2493,7 +3704,7 @@ msp430_print_operand (FILE * file, rtx op, int letter)
 
     case 'x':
       /* Similarly, but only for PSImodes.  BIC, for example, needs this.  */
-      if (TARGET_LARGE && GET_MODE (op) == PSImode)
+      if (GET_MODE (op) == PSImode)
 	fprintf (file, "X");
       return;
 
@@ -2529,7 +3740,7 @@ msp430_print_operand (FILE * file, rtx op, int letter)
 
     case MEM:
       addr = XEXP (op, 0);
-      msp430_print_operand_addr (file, addr);
+      msp430_print_operand_addr (file, GET_MODE (op), addr);
       break;
 
     case CONST:
@@ -2662,7 +3873,26 @@ msp430x_logical_shift_right (rtx amount)
      right shift instruction to perform the rest of the shift.  */
   return "rrum.w\t#1, %0 { rpt\t%Z2 { rrax.w\t%0"; /* Six bytes.  */
 }
+
+/* Stop GCC from thinking that it can eliminate (SUBREG:PSI (SI)).  */
+
+#undef TARGET_CAN_CHANGE_MODE_CLASS
+#define TARGET_CAN_CHANGE_MODE_CLASS msp430_can_change_mode_class
+
+static bool
+msp430_can_change_mode_class (machine_mode from, machine_mode to, reg_class_t)
+{
+  if ((to == PSImode && from == SImode)
+      || (to == SImode && from == PSImode)
+      || (to == DImode && from == PSImode)
+      || (to == PSImode && from == DImode))
+    return false;
+  return true;
+}
 
+#undef  TARGET_HAVE_SPECULATION_SAFE_VALUE
+#define TARGET_HAVE_SPECULATION_SAFE_VALUE speculation_safe_value_not_needed
+
 struct gcc_target targetm = TARGET_INITIALIZER;
 
 #include "gt-msp430.h"

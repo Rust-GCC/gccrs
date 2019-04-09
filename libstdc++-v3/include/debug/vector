@@ -1,6 +1,6 @@
 // Debugging vector implementation -*- C++ -*-
 
-// Copyright (C) 2003-2014 Free Software Foundation, Inc.
+// Copyright (C) 2003-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,6 +29,13 @@
 #ifndef _GLIBCXX_DEBUG_VECTOR
 #define _GLIBCXX_DEBUG_VECTOR 1
 
+#pragma GCC system_header
+
+#include <bits/c++config.h>
+namespace std _GLIBCXX_VISIBILITY(default) { namespace __debug {
+  template<typename _Tp, typename _Allocator> class vector;
+} } // namespace std::__debug
+
 #include <vector>
 #include <utility>
 #include <debug/safe_sequence.h>
@@ -37,9 +44,12 @@
 
 namespace __gnu_debug
 {
-  /// Special vector safe base class to add a guaranteed capacity information
-  /// useful to detect code relying on the libstdc++ reallocation management
-  /// implementation detail.
+  /** @brief Base class for Debug Mode vector.
+   *
+   * Adds information about the guaranteed capacity, which is useful for
+   * detecting code which relies on non-portable implementation details of
+   * the libstdc++ reallocation policy.
+   */
   template<typename _SafeSequence,
 	   typename _BaseSequence>
     class _Safe_vector
@@ -69,13 +79,17 @@ namespace __gnu_debug
 
       _Safe_vector&
       operator=(const _Safe_vector&) noexcept
-      { _M_update_guaranteed_capacity(); }
+      {
+	_M_update_guaranteed_capacity();
+	return *this;
+      }
 
       _Safe_vector&
       operator=(_Safe_vector&& __x) noexcept
       {
 	_M_update_guaranteed_capacity();
 	__x._M_guaranteed_capacity = 0;
+	return *this;
       }
 #endif
 
@@ -117,6 +131,9 @@ namespace __debug
       typedef typename _Base::iterator		_Base_iterator;
       typedef typename _Base::const_iterator	_Base_const_iterator;
       typedef __gnu_debug::_Equal_to<_Base_const_iterator> _Equal;
+
+      template<typename _ItT, typename _SeqT, typename _CatT>
+	friend class ::__gnu_debug::_Safe_iterator;
 
     public:
       typedef typename _Base::reference			reference;
@@ -173,8 +190,8 @@ namespace __debug
 #endif
 	vector(_InputIterator __first, _InputIterator __last,
 	       const _Allocator& __a = _Allocator())
-	: _Base(__gnu_debug::__base(__gnu_debug::__check_valid_range(__first,
-								     __last)),
+	: _Base(__gnu_debug::__base(
+		  __glibcxx_check_valid_constructor_range(__first, __last)),
 		__gnu_debug::__base(__last), __a) { }
 
 #if __cplusplus < 201103L
@@ -190,6 +207,8 @@ namespace __debug
       : _Base(__x, __a) { }
 
       vector(vector&& __x, const allocator_type& __a)
+	noexcept( noexcept(
+	  _Base(std::declval<_Base&&>()), std::declval<const allocator_type&>()) )
       : _Safe(std::move(__x._M_safe()), __a),
 	_Base(std::move(__x._M_base()), __a),
 	_Safe_vector(std::move(__x)) { }
@@ -240,9 +259,15 @@ namespace __debug
 	void
 	assign(_InputIterator __first, _InputIterator __last)
 	{
-	  __glibcxx_check_valid_range(__first, __last);
-	  _Base::assign(__gnu_debug::__base(__first),
-			__gnu_debug::__base(__last));
+	  typename __gnu_debug::_Distance_traits<_InputIterator>::__type __dist;
+	  __glibcxx_check_valid_range2(__first, __last, __dist);
+
+	  if (__dist.second >= __gnu_debug::__dp_sign)
+	    _Base::assign(__gnu_debug::__unsafe(__first),
+			  __gnu_debug::__unsafe(__last));
+	  else
+	    _Base::assign(__first, __last);
+
 	  this->_M_invalidate_all();
 	  this->_M_update_guaranteed_capacity();
 	}
@@ -463,7 +488,11 @@ namespace __debug
 	{ emplace_back(std::move(__x)); }
 
       template<typename... _Args>
+#if __cplusplus > 201402L
+	reference
+#else
 	void
+#endif
 	emplace_back(_Args&&... __args)
 	{
 	  bool __realloc = this->_M_requires_reallocation(this->size() + 1);
@@ -471,6 +500,9 @@ namespace __debug
 	  if (__realloc)
 	    this->_M_invalidate_all();
 	  this->_M_update_guaranteed_capacity();
+#if __cplusplus > 201402L
+	  return back();
+#endif
 	}
 #endif
 
@@ -489,7 +521,7 @@ namespace __debug
 	{
 	  __glibcxx_check_insert(__position);
 	  bool __realloc = this->_M_requires_reallocation(this->size() + 1);
-	  difference_type __offset = __position.base() - _Base::begin();
+	  difference_type __offset = __position.base() - _Base::cbegin();
 	  _Base_iterator __res = _Base::emplace(__position.base(),
 						std::forward<_Args>(__args)...);
 	  if (__realloc)
@@ -497,7 +529,7 @@ namespace __debug
 	  else
 	    this->_M_invalidate_after_nth(__offset);
 	  this->_M_update_guaranteed_capacity();
-	  return iterator(__res, this);
+	  return { __res, this };
 	}
 #endif
 
@@ -545,7 +577,7 @@ namespace __debug
 	else
 	  this->_M_invalidate_after_nth(__offset);
 	this->_M_update_guaranteed_capacity();
-	return iterator(__res, this);
+	return { __res, this };
       }
 #else
       void
@@ -570,23 +602,28 @@ namespace __debug
 	insert(const_iterator __position,
 	       _InputIterator __first, _InputIterator __last)
 	{
-	  __glibcxx_check_insert_range(__position, __first, __last);
+	  typename __gnu_debug::_Distance_traits<_InputIterator>::__type __dist;
+	  __glibcxx_check_insert_range(__position, __first, __last, __dist);
 
 	  /* Hard to guess if invalidation will occur, because __last
 	     - __first can't be calculated in all cases, so we just
 	     punt here by checking if it did occur. */
 	  _Base_iterator __old_begin = _M_base().begin();
 	  difference_type __offset = __position.base() - _Base::cbegin();
-	  _Base_iterator __res = _Base::insert(__position.base(),
-					       __gnu_debug::__base(__first),
-					       __gnu_debug::__base(__last));
+	  _Base_iterator __res;
+	  if (__dist.second >= __gnu_debug::__dp_sign)
+	    __res = _Base::insert(__position.base(),
+				  __gnu_debug::__unsafe(__first),
+				  __gnu_debug::__unsafe(__last));
+	  else
+	    __res = _Base::insert(__position.base(), __first, __last);
 
 	  if (_M_base().begin() != __old_begin)
 	    this->_M_invalidate_all();
 	  else
 	    this->_M_invalidate_after_nth(__offset);
 	  this->_M_update_guaranteed_capacity();
-	  return iterator(__res, this);
+	  return { __res, this };
 	}
 #else
       template<class _InputIterator>
@@ -594,15 +631,19 @@ namespace __debug
 	insert(iterator __position,
 	       _InputIterator __first, _InputIterator __last)
 	{
-	  __glibcxx_check_insert_range(__position, __first, __last);
+	  typename __gnu_debug::_Distance_traits<_InputIterator>::__type __dist;
+	  __glibcxx_check_insert_range(__position, __first, __last, __dist);
 
 	  /* Hard to guess if invalidation will occur, because __last
 	     - __first can't be calculated in all cases, so we just
 	     punt here by checking if it did occur. */
 	  _Base_iterator __old_begin = _M_base().begin();
 	  difference_type __offset = __position.base() - _Base::begin();
-	  _Base::insert(__position.base(), __gnu_debug::__base(__first),
-					   __gnu_debug::__base(__last));
+	  if (__dist.second >= __gnu_debug::__dp_sign)
+	    _Base::insert(__position.base(), __gnu_debug::__unsafe(__first),
+					     __gnu_debug::__unsafe(__last));
+	  else
+	    _Base::insert(__position.base(), __first, __last);
 
 	  if (_M_base().begin() != __old_begin)
 	    this->_M_invalidate_all();
@@ -647,7 +688,7 @@ namespace __debug
 	  }
 	else
 #if __cplusplus >= 201103L
-	  return begin() + (__first.base() - cbegin().base());
+	  return { _Base::begin() + (__first.base() - _Base::cbegin()), this };
 #else
 	  return __first;
 #endif
@@ -655,9 +696,7 @@ namespace __debug
 
       void
       swap(vector& __x)
-#if __cplusplus >= 201103L
-	noexcept( noexcept(declval<_Base>().swap(__x)) )
-#endif
+      _GLIBCXX_NOEXCEPT_IF( noexcept(declval<_Base&>().swap(__x)) )
       {
 	_Safe::_M_swap(__x);
 	_Base::swap(__x);
@@ -669,7 +708,6 @@ namespace __debug
       {
 	_Base::clear();
 	this->_M_invalidate_all();
-	this->_M_guaranteed_capacity = 0;
       }
 
       _Base&
@@ -726,9 +764,22 @@ namespace __debug
   template<typename _Tp, typename _Alloc>
     inline void
     swap(vector<_Tp, _Alloc>& __lhs, vector<_Tp, _Alloc>& __rhs)
+    _GLIBCXX_NOEXCEPT_IF(noexcept(__lhs.swap(__rhs)))
     { __lhs.swap(__rhs); }
 
+#if __cpp_deduction_guides >= 201606
+  template<typename _InputIterator, typename _ValT
+	     = typename iterator_traits<_InputIterator>::value_type,
+	   typename _Allocator = allocator<_ValT>,
+	   typename = _RequireInputIter<_InputIterator>,
+	   typename = _RequireAllocator<_Allocator>>
+    vector(_InputIterator, _InputIterator, _Allocator = _Allocator())
+      -> vector<_ValT, _Allocator>;
+#endif
+
 } // namespace __debug
+
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 #if __cplusplus >= 201103L
   // DR 1182.
@@ -739,11 +790,32 @@ namespace __debug
     {
       size_t
       operator()(const __debug::vector<bool, _Alloc>& __b) const noexcept
-      { return std::hash<_GLIBCXX_STD_C::vector<bool, _Alloc>>()
-	  (__b._M_base()); }
+      { return std::hash<_GLIBCXX_STD_C::vector<bool, _Alloc>>()(__b); }
     };
 #endif
 
+ template<typename _Iterator, typename _Container, typename _Sequence>
+    _Iterator
+    __niter_base(const __gnu_debug::_Safe_iterator<
+		 __gnu_cxx::__normal_iterator<_Iterator, _Container>,
+		 _Sequence, std::random_access_iterator_tag>& __it)
+    { return std::__niter_base(__it.base()); }
+
+#if __cplusplus >= 201703L
+  namespace __detail::__variant
+  {
+    template<typename> struct _Never_valueless_alt; // see <variant>
+
+    // Provide the strong exception-safety guarantee when emplacing a
+    // vector into a variant, but only if move assignment cannot throw.
+    template<typename _Tp, typename _Alloc>
+      struct _Never_valueless_alt<__debug::vector<_Tp, _Alloc>>
+      : std::is_nothrow_move_assignable<__debug::vector<_Tp, _Alloc>>
+      { };
+  }  // namespace __detail::__variant
+#endif // C++17
+
+_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 
 namespace __gnu_debug

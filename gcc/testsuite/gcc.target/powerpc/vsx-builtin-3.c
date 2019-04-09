@@ -1,7 +1,7 @@
 /* { dg-do compile { target { powerpc*-*-* && lp64 } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
 /* { dg-require-effective-target powerpc_vsx_ok } */
-/* { dg-options "-O2 -mcpu=power7" } */
+/* { dg-options "-O2 -mdejagnu-cpu=power7" } */
 /* { dg-final { scan-assembler "xxsel" } } */
 /* { dg-final { scan-assembler "vperm" } } */
 /* { dg-final { scan-assembler "xvrdpi" } } */
@@ -34,6 +34,8 @@
 /* { dg-final { scan-assembler "xvcmpgesp" } } */
 /* { dg-final { scan-assembler "xxsldwi" } } */
 /* { dg-final { scan-assembler-not "call" } } */
+/* { dg-final { scan-assembler "xvcvsxdsp" } } */
+/* { dg-final { scan-assembler "xvcvuxdsp" } } */
 
 extern __vector int si[][4];
 extern __vector short ss[][4];
@@ -49,7 +51,9 @@ extern __vector __pixel p[][4];
 #ifdef __VSX__
 extern __vector double d[][4];
 extern __vector long sl[][4];
+extern __vector long long sll[][4];
 extern __vector unsigned long ul[][4];
+extern __vector unsigned long long ull[][4];
 extern __vector __bool long bl[][4];
 #endif
 
@@ -210,3 +214,22 @@ int do_xxsldwi (void)
   d[i][0] = __builtin_vsx_xxsldwi (d[i][1], d[i][2], 3); i++;
   return i;
 }
+
+int do_xvcvsxdsp (void)
+{
+  int i = 0;
+
+  f[i][0] = __builtin_vsx_xvcvsxdsp (sll[i][1]); i++;
+
+  return i;
+}
+
+int do_xvcvuxdsp (void)
+{
+  int i = 0;
+
+  f[i][0] = __builtin_vsx_xvcvuxdsp (ull[i][1]); i++;
+
+  return i;
+}
+

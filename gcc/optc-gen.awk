@@ -1,4 +1,4 @@
-#  Copyright (C) 2003-2014 Free Software Foundation, Inc.
+#  Copyright (C) 2003-2019 Free Software Foundation, Inc.
 #  Contributed by Kelley Cook, June 2004.
 #  Original code from Neil Booth, May 2003.
 #
@@ -30,7 +30,21 @@
 # Dump that array of options into a C file.
 END {
 
-# Record first EnabledBy and LangEnabledBy uses.
+
+# Combine the flags of identical switches.  Switches
+# appear many times if they are handled by many front
+# ends, for example.
+for (i = 0; i < n_opts; i++) {
+    merged_flags[i] = flags[i]
+}
+for (i = 0; i < n_opts; i++) {
+    while(i + 1 != n_opts && opts[i] == opts[i + 1] ) {
+	merged_flags[i + 1] = merged_flags[i] " " merged_flags[i + 1];
+	i++;
+    }
+}
+
+# Record EnabledBy and LangEnabledBy uses.
 n_enabledby = 0;
 for (i = 0; i < n_langs; i++) {
     n_enabledby_lang[i] = 0;
@@ -38,18 +52,30 @@ for (i = 0; i < n_langs; i++) {
 for (i = 0; i < n_opts; i++) {
     enabledby_arg = opt_args("EnabledBy", flags[i]);
     if (enabledby_arg != "") {
-        n_enabledby_names = split(enabledby_arg, enabledby_names, " && ");
-        if (n_enabledby_names > 2) {
-            print "#error EnabledBy (Wfoo && Wbar && Wbaz) not currently supported"
+        logical_and = index(enabledby_arg, " && ");
+        if (logical_and != 0) {
+            # EnabledBy(arg1 && arg2)
+            split_sep = " && ";
+        } else {
+            # EnabledBy(arg) or EnabledBy(arg1 || arg2 || arg3)
+            split_sep = " \\|\\| ";
+        }
+        n_enabledby_names = split(enabledby_arg, enabledby_names, split_sep);
+        if (logical_and != 0 && n_enabledby_names > 2) {
+            print "#error " opts[i] " EnabledBy(Wfoo && Wbar && Wbaz) currently not supported"
         }
         for (j = 1; j <= n_enabledby_names; j++) {
             enabledby_name = enabledby_names[j];
             enabledby_index = opt_numbers[enabledby_name];
             if (enabledby_index == "") {
-                print "#error Enabledby: " enabledby_name 
-            } else {
-                condition = "";
-                if (n_enabledby_names == 2) {
+                print "#error " opts[i] " Enabledby(" enabledby_name "), unknown option '" enabledby_name "'"
+            } else if (!flag_set_p("Common", merged_flags[enabledby_index])) {
+		print "#error " opts[i] " Enabledby(" enabledby_name "), '" \
+		    enabledby_name "' must have flag 'Common'"		\
+		    " to use Enabledby(), otherwise use LangEnabledBy()"
+	    } else {
+		condition = "";
+                if (logical_and != 0) {
                     opt_var_name_1 = search_var_name(enabledby_names[1], opt_numbers, opts, flags, n_opts);
                     opt_var_name_2 = search_var_name(enabledby_names[2], opt_numbers, opts, flags, n_opts);
                     if (opt_var_name_1 == "") {
@@ -248,6 +274,7 @@ for (i = 0; i < n_opts; i++) {
 	j++;
 }
 
+optindex = 0
 for (i = 0; i < n_opts; i++) {
 	# With identical flags, pick only the last one.  The
 	# earlier loop ensured that it has all flags merged,
@@ -277,35 +304,54 @@ for (i = 0; i < n_opts; i++) {
 		comma = ""
 
 	if (help[i] == "")
-		hlp = "0"
+		hlp = "NULL"
 	else
 		hlp = quote help[i] quote;
 
 	missing_arg_error = opt_args("MissingArgError", flags[i])
 	if (missing_arg_error == "")
-		missing_arg_error = "0"
+		missing_arg_error = "NULL"
 	else
 		missing_arg_error = quote missing_arg_error quote
 
 
 	warn_message = opt_args("Warn", flags[i])
 	if (warn_message == "")
-		warn_message = "0"
+		warn_message = "NULL"
 	else
 		warn_message = quote warn_message quote
 
 	alias_arg = opt_args("Alias", flags[i])
 	if (alias_arg == "") {
-		if (flag_set_p("Ignore", flags[i]))
-			alias_data = "NULL, NULL, OPT_SPECIAL_ignore"
+		if (flag_set_p("Ignore", flags[i])) {
+			  alias_data = "NULL, NULL, OPT_SPECIAL_ignore"
+        if (warn_message != "NULL")
+				  print "#error Ignored option with Warn"
+        if (var_name(flags[i]) != "")
+				  print "#error Ignored option with Var"
+        if (flag_set_p("Report", flags[i]))
+				  print "#error Ignored option with Report"
+      }
+    else if (flag_set_p("Deprecated", flags[i])) {
+			  alias_data = "NULL, NULL, OPT_SPECIAL_deprecated"
+        if (warn_message != "NULL")
+				  print "#error Deprecated option with Warn"
+        if (flag_set_p("Report", flags[i]))
+				  print "#error Deprecated option with Report"
+      }
 		else
 			alias_data = "NULL, NULL, N_OPTS"
+		if (flag_set_p("Enum.*", flags[i])) {
+			if (!flag_set_p("RejectNegative", flags[i]) \
+			    && opts[i] ~ "^[Wfgm]")
+				print "#error Enum allowing negative form"
+		}
 	} else {
 		alias_opt = nth_arg(0, alias_arg)
 		alias_posarg = nth_arg(1, alias_arg)
 		alias_negarg = nth_arg(2, alias_arg)
 
-		if (var_ref(opts[i], flags[i]) != "-1")
+		if (var_ref(opts[i], flags[i]) != "(unsigned short) -1")
 			print "#error Alias setting variable"
 
 		if (alias_posarg != "" && alias_negarg == "") {
@@ -339,7 +385,7 @@ for (i = 0; i < n_opts; i++) {
 		if (flag_set_p("RejectNegative", flags[i]))
 			idx = -1;
 		else {
-			if (opts[i] ~ "^[Wfm]")
+			if (opts[i] ~ "^[Wfgm]")
 				idx = indices[opts[i]];
 			else
 				idx = -1;
@@ -347,10 +393,11 @@ for (i = 0; i < n_opts; i++) {
 	}
 	# Split the printf after %u to work around an ia64-hp-hpux11.23
 	# awk bug.
-	printf("  { %c-%s%c,\n    %s,\n    %s,\n    %s,\n    %s, %s, %u,",
+	printf(" /* [%i] = */ {\n", optindex)
+	printf("    %c-%s%c,\n    %s,\n    %s,\n    %s,\n    %s, %s, %u,",
 	       quote, opts[i], quote, hlp, missing_arg_error, warn_message,
 	       alias_data, back_chain[i], len)
-	printf(" %d,\n", idx)
+	printf(" /* .neg_idx = */ %d,\n", idx)
 	condition = opt_args("Condition", flags[i])
 	cl_flags = switch_flags(flags[i])
 	cl_bit_fields = switch_bit_fields(flags[i])
@@ -368,9 +415,13 @@ for (i = 0; i < n_opts; i++) {
 		printf("    %s,\n" \
 		       "    0, %s,\n",
 		       cl_flags, cl_bit_fields)
-	printf("    %s, %s }%s\n", var_ref(opts[i], flags[i]),
-	       var_set(flags[i]), comma)
-}
+	printf("    %s, %s, %s }%s\n", var_ref(opts[i], flags[i]),
+	       var_set(flags[i]), integer_range_info(opt_args("IntegerRange", flags[i]),
+		    opt_args("Init", flags[i]), opts[i]), comma)
+
+	# Bump up the informational option index.
+	++optindex
+ }
 
 print "};"
 
@@ -385,7 +436,7 @@ print "                           const struct cl_option_handlers *handlers, "
 print "                           diagnostic_context *dc)                    "
 print "{                                                                     "
 print "  size_t scode = decoded->opt_index;                                  "
-print "  int value = decoded->value;                                         "
+print "  HOST_WIDE_INT value = decoded->value;                               "
 print "  enum opt_code code = (enum opt_code) scode;                         "
 print "                                                                      "
 print "  gcc_assert (decoded->canonical_option_num_elements <= 2);           "
@@ -413,7 +464,7 @@ for (i = 0; i < n_enabledby; i++) {
             print "      if (" condition ")"
             print "        handle_generated_option (opts, opts_set,"
             print "                                 " opt_enum(thisenable[j]) ", NULL, " value ","
-            print "                                 lang_mask, kind, loc, handlers, dc);"
+            print "                                 lang_mask, kind, loc, handlers, true, dc);"
         } else {
             print "#error " thisenable[j] " does not have a Var() flag"
         }
@@ -435,7 +486,7 @@ for (i = 0; i < n_langs; i++) {
     print "bool                                                                  "
     print lang_name "_handle_option_auto (struct gcc_options *opts" mark_unused ",              "
     print "                           struct gcc_options *opts_set" mark_unused ",              "
-    print "                           size_t scode" mark_unused ", const char *arg" mark_unused ", int value" mark_unused ",  "
+    print "                           size_t scode" mark_unused ", const char *arg" mark_unused ", HOST_WIDE_INT value" mark_unused ",  "
     print "                           unsigned int lang_mask" mark_unused ", int kind" mark_unused ",          "
     print "                           location_t loc" mark_unused ",                            "
     print "                           const struct cl_option_handlers *handlers" mark_unused ", "
@@ -466,7 +517,7 @@ for (i = 0; i < n_langs; i++) {
                 print "      if (!opts_set->x_" opt_var_name ")"
                 print "        handle_generated_option (opts, opts_set,"
                 print "                                 " opt_enum(thisenable_opt) ", NULL, " value ","
-                print "                                 lang_mask, kind, loc, handlers, dc);"
+                print "                                 lang_mask, kind, loc, handlers, true, dc);"
             } else {
                 print "#error " thisenable_opt " does not have a Var() flag"
             }

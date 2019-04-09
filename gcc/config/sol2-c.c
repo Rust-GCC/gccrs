@@ -1,5 +1,5 @@
 /* Solaris support needed only by C/C++ frontends.
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2019 Free Software Foundation, Inc.
    Contributed by CodeSourcery, LLC.
 
 This file is part of GCC.
@@ -21,18 +21,15 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tree.h"
+#include "tm.h"
+#include "c-family/c-common.h"
 #include "stringpool.h"
 #include "attribs.h"
-#include "tm.h"
-#include "tm_p.h"
 
 #include "c-family/c-format.h"
 #include "intl.h"
 
-#include "cpplib.h"
 #include "c-family/c-pragma.h"
-#include "c-family/c-common.h"
 
 /* cmn_err only accepts "l" and "ll".  */
 static const format_length_info cmn_err_length_specs[] =
@@ -43,9 +40,9 @@ static const format_length_info cmn_err_length_specs[] =
 
 static const format_flag_spec cmn_err_flag_specs[] =
 {
-  { 'w',  0, 0, N_("field width"),     N_("field width in printf format"),     STD_C89 },
-  { 'L',  0, 0, N_("length modifier"), N_("length modifier in printf format"), STD_C89 },
-  { 0, 0, 0, NULL, NULL, STD_C89 }
+  { 'w',  0, 0, 0, N_("field width"),     N_("field width in printf format"),     STD_C89 },
+  { 'L',  0, 0, 0, N_("length modifier"), N_("length modifier in printf format"), STD_C89 },
+  { 0, 0, 0, 0, NULL, NULL, STD_C89 }
 };
 
 
@@ -116,7 +113,7 @@ solaris_pragma_align (cpp_reader *pfile ATTRIBUTE_UNUSED)
       tree decl = identifier_global_value (t);
       if (decl && DECL_P (decl))
 	warning (0, "%<#pragma align%> must appear before the declaration of "
-		 "%D, ignoring", decl);
+		 "%qD, ignoring", decl);
       else
 	solaris_pending_aligns = tree_cons (t, build_tree_list (NULL, x),
 					    solaris_pending_aligns);

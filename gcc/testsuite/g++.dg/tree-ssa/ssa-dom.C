@@ -1,7 +1,7 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-dom1" } */
+/* { dg-options "-O2 -fdump-tree-dom2" } */
 
-typedef long unsigned int size_t;
+typedef __SIZE_TYPE__ size_t;
 extern void abort (void) __attribute__ ((__noreturn__));
 union tree_node;
 typedef union tree_node *tree;
@@ -99,6 +99,5 @@ gimple_return_set_retval (gimple gs, tree retval)
     abort ();
   gimple_set_op (gs, 0, retval);
 }
-/* { dg-final { scan-tree-dump-times "gss_for_code_.10." 1 "dom1"} } */
-/* { dg-final { cleanup-tree-dump "dom1" } } */
+/* { dg-final { scan-tree-dump-times "gss_for_code_.10." 1 "dom2"} } */
 

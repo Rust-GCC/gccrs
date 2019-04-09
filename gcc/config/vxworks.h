@@ -1,5 +1,5 @@
 /* Common VxWorks target definitions for GNU compiler.
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
    Contributed by Wind River Systems.
    Rewritten by CodeSourcery, LLC.
 
@@ -36,21 +36,77 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Since we provide a default -isystem, expand -isystem on the command
    line early.  */
+#if TARGET_VXWORKS7
+
+#undef VXWORKS_ADDITIONAL_CPP_SPEC
+#define VXWORKS_ADDITIONAL_CPP_SPEC                     \
+ "%{!nostdinc:                                          \
+    %{isystem*}                                         \
+    %{mrtp: -idirafter %:getenv(VSB_DIR /h)             \
+            -idirafter %:getenv(VSB_DIR /share/h)       \
+            -idirafter %:getenv(VSB_DIR /usr/h/public)  \
+            -idirafter %:getenv(VSB_DIR /usr/h)         \
+      ;:    -idirafter %:getenv(VSB_DIR /h)             \
+            -idirafter %:getenv(VSB_DIR /share/h)       \
+            -idirafter %:getenv(VSB_DIR /krnl/h/system) \
+            -idirafter %:getenv(VSB_DIR /krnl/h/public)}}"
+
+#else /* TARGET_VXWORKS7 */
+
 #undef VXWORKS_ADDITIONAL_CPP_SPEC
 #define VXWORKS_ADDITIONAL_CPP_SPEC		\
  "%{!nostdinc:					\
-    %{isystem*} -idirafter			\
-    %{mrtp: %:getenv(WIND_USR /h)		\
-      ;:    %:getenv(WIND_BASE /target/h)}}"
+    %{isystem*}					\
+    %{mrtp: -idirafter %:getenv(WIND_USR /h)	\
+	    -idirafter %:getenv(WIND_USR /h/wrn/coreip) \
+      ;:    -idirafter %:getenv(WIND_BASE /target/h) \
+	    -idirafter %:getenv(WIND_BASE /target/h/wrn/coreip) \
+}}"
 
-/* The references to __init and __fini will be satisfied by
-   libc_internal.a.  */
+#endif
+
+/* For VxWorks static rtps, the system provides libc_internal.a, a superset of
+   libgcc.a that we need to use e.g. to satisfy references to __init and
+   __fini.  We still want our libgcc to prevail for symbols it would provide
+   (e.g. register save entry points), so re-place it here between libraries
+   that might reference it and libc_internal.
+
+   In addition, some versions of VxWorks rely on explicit extra libraries for
+   system calls and the set of base network libraries of common use varies
+   across architectures.  The default settings defined here might be redefined
+   by target specific port configuration files.  */
+
+#define VXWORKS_SYSCALL_LIBS_RTP
+
+#define VXWORKS_NET_LIBS_RTP "-lnet -ldsi"
+
+#define VXWORKS_LIBS_RTP \
+  VXWORKS_SYSCALL_LIBS_RTP " " VXWORKS_NET_LIBS_RTP " -lc -lgcc -lc_internal"
+
+/* On Vx6 and previous, the libraries to pick up depends on the architecture,
+   so cannot be defined for all archs at once.  On Vx7, a VSB is always needed
+   and its structure is fixed and does not depend on the arch.  We can thus
+   tell gcc where to look for when linking with RTP libraries.  Use
+   STARTFILE_PREFIX_SPEC for this, instead of explicit -L options in LIB_SPEC,
+   so they survive -nodefaultlibs.  */
+
+/* On Vx7 RTP, we need to drag the __tls__ symbol to trigger initialization of
+   tlsLib, responsible for TLS support by the OS.  */
+
+#if TARGET_VXWORKS7
+#undef  STARTFILE_PREFIX_SPEC
+#define STARTFILE_PREFIX_SPEC "%:getenv(VSB_DIR /usr/lib/common)"
+#define TLS_SYM "-u __tls__"
+#else
+#define TLS_SYM ""
+#endif
+
 #undef VXWORKS_LIB_SPEC
 #define	VXWORKS_LIB_SPEC						\
 "%{mrtp:%{shared:-u " USER_LABEL_PREFIX "__init -u " USER_LABEL_PREFIX "__fini} \
 	%{!shared:%{non-static:-u " USER_LABEL_PREFIX "_STI__6__rtld -ldl} \
-		  --start-group -lc -lgcc -lc_internal -lnet -ldsi	\
-		  --end-group}}"
+		  " TLS_SYM " \
+		  --start-group " VXWORKS_LIBS_RTP " --end-group}}"
 
 /* The no-op spec for "-shared" below is present because otherwise GCC
    will treat it as an unrecognized option.  */
@@ -71,27 +127,35 @@ along with GCC; see the file COPYING3.  If not see
  %{mrtp:%{!shared:%{!non-static:-static}		\
  		  %{non-static:--force-dynamic --export-dynamic}}}"
 
-/* For VxWorks, the system provides libc_internal.a.  This is a superset
-   of libgcc.a; we want to use it.  Make sure not to dynamically export
-   any of its symbols, though.  Always look for libgcc.a first so that
-   we get the latest versions of the GNU intrinsics during our builds.  */
 #undef VXWORKS_LIBGCC_SPEC
-#define VXWORKS_LIBGCC_SPEC \
-  "-lgcc %{mrtp:--exclude-libs=libc_internal,libgcc -lc_internal}"
+#define VXWORKS_LIBGCC_SPEC "-lgcc"
 
 #undef VXWORKS_STARTFILE_SPEC
 #define	VXWORKS_STARTFILE_SPEC "%{mrtp:%{!shared:-l:crt0.o}}"
 #define VXWORKS_ENDFILE_SPEC ""
 
 /* Do VxWorks-specific parts of TARGET_OPTION_OVERRIDE.  */
+
+#define VXWORKS_HAVE_TLS (TARGET_VXWORKS7 && TARGET_VXWORKS_RTP)
+
 #undef VXWORKS_OVERRIDE_OPTIONS
 #define VXWORKS_OVERRIDE_OPTIONS vxworks_override_options ()
 extern void vxworks_override_options (void);
 
-/* Only RTPs support prioritized constructors and destructors:
-   the implementation relies on numbered .ctors* sections.  */
-#define SUPPORTS_INIT_PRIORITY TARGET_VXWORKS_RTP
+/* Whether the VxWorks variant and mode supports constructors/destructors
+   placed in .ctors/.dtors section or if we should generate proxy functions
+   for them, with special names which munch knows how to collect.  On most
+   versions of VxWorks, only the RTP loader supports .ctors/.dtors sections,
+   not the kernel module loader.  */
+#define TARGET_VXWORKS_HAVE_CTORS_DTORS TARGET_VXWORKS_RTP
 
+/* Support for prioritized ctors/dtors is in sync with the support for sections
+   on the VxWorks front, and is assumed to be provided by whatever linker level
+   glue is required if we were configured with --enable-initfini-array.  */
+#define SUPPORTS_INIT_PRIORITY \
+  (TARGET_VXWORKS_HAVE_CTORS_DTORS || HAVE_INITFINI_ARRAY_SUPPORT)
+
+#if !HAVE_INITFINI_ARRAY_SUPPORT
 /* VxWorks requires special handling of constructors and destructors.
    All VxWorks configurations must use these functions.  */
 #undef TARGET_ASM_CONSTRUCTOR
@@ -100,6 +164,7 @@ extern void vxworks_override_options (void);
 #define TARGET_ASM_DESTRUCTOR vxworks_asm_out_destructor
 extern void vxworks_asm_out_constructor (rtx symbol, int priority);
 extern void vxworks_asm_out_destructor (rtx symbol, int priority);
+#endif
 
 /* Override the vxworks-dummy.h definitions.  TARGET_VXWORKS_RTP
    is defined by vxworks.opt.  */
@@ -109,10 +174,10 @@ extern void vxworks_asm_out_destructor (rtx symbol, int priority);
 #define VXWORKS_GOTT_INDEX "__GOTT_INDEX__"
 
 #undef PTRDIFF_TYPE
-#define PTRDIFF_TYPE "int"
+#define PTRDIFF_TYPE (TARGET_VXWORKS64 ? "long int" : "int")
 
 #undef SIZE_TYPE
-#define SIZE_TYPE "unsigned int"
+#define SIZE_TYPE (TARGET_VXWORKS64 ? "long unsigned int" : "unsigned int")
 
 #undef TARGET_LIBC_HAS_FUNCTION
 #define TARGET_LIBC_HAS_FUNCTION no_c99_libc_has_function
@@ -121,6 +186,13 @@ extern void vxworks_asm_out_destructor (rtx symbol, int priority);
 #define TARGET_POSIX_IO
 
 /* A VxWorks implementation of TARGET_OS_CPP_BUILTINS.  */
+
+/* The VxWorks personality we rely on, controlling which sections of system
+   headers files we trigger.  This might be redefined on targets where the
+   base VxWorks environment doesn't come with a GNU toolchain.  */
+
+#define VXWORKS_PERSONALITY "gnu"
+
 #define VXWORKS_OS_CPP_BUILTINS()					\
   do									\
     {									\
@@ -131,6 +203,19 @@ extern void vxworks_asm_out_destructor (rtx symbol, int priority);
 	builtin_define ("__RTP__");					\
       else								\
 	builtin_define ("_WRS_KERNEL");					\
+      builtin_define ("TOOL_FAMILY=" VXWORKS_PERSONALITY);		\
+      builtin_define ("TOOL=" VXWORKS_PERSONALITY);			\
+      if (TARGET_VXWORKS7)						\
+        {								\
+           builtin_define ("_VSB_CONFIG_FILE=<config/vsbConfig.h>");	\
+           								\
+	   /* _ALLOW_KEYWORD_MACROS is needed on VxWorks 7 to		\
+	      prevent compilation failures triggered by our		\
+	      definition of "inline" in ansidecl when "inline"		\
+	      is not a keyword.  */					\
+	   if (!flag_isoc99 && !c_dialect_cxx())			\
+             builtin_define ("_ALLOW_KEYWORD_MACROS");			\
+        }								\
     }									\
   while (0)
 
@@ -138,3 +223,18 @@ extern void vxworks_asm_out_destructor (rtx symbol, int priority);
 
 /* The diab linker does not handle .gnu_attribute sections.  */
 #undef HAVE_AS_GNU_ATTRIBUTE
+
+/* We provide our own version of __clear_cache in libgcc, using a separate C
+   file to facilitate #inclusion of VxWorks header files.  */
+#undef CLEAR_INSN_CACHE
+#define CLEAR_INSN_CACHE 1
+
+/* Default dwarf control values, for non-gdb debuggers that come with
+   VxWorks.  */
+
+#undef VXWORKS_DWARF_VERSION_DEFAULT
+#define VXWORKS_DWARF_VERSION_DEFAULT (TARGET_VXWORKS7 ? 4 : 2)
+
+#undef DWARF_GNAT_ENCODINGS_DEFAULT
+#define DWARF_GNAT_ENCODINGS_DEFAULT \
+  (TARGET_VXWORKS7 ? DWARF_GNAT_ENCODINGS_MINIMAL : DWARF_GNAT_ENCODINGS_ALL)

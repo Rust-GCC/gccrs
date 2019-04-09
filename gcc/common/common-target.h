@@ -1,5 +1,5 @@
 /* Data structure definitions for common hooks.
-   Copyright (C) 2010-2014 Free Software Foundation, Inc.
+   Copyright (C) 2010-2019 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by the
@@ -22,7 +22,6 @@
 #ifndef GCC_COMMON_TARGET_H
 #define GCC_COMMON_TARGET_H
 
-#include "input.h"
 
 /* Sets of optimization levels at which an option may be enabled by
    default_options_optimization.  */

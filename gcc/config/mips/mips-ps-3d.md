@@ -1,5 +1,5 @@
 ;; MIPS Paired-Single Floating and MIPS-3D Instructions.
-;; Copyright (C) 2004-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2019 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -164,19 +164,6 @@
   [(set_attr "type" "fmove")
    (set_attr "mode" "SF")])
 
-(define_expand "vec_perm_constv2sf"
-  [(match_operand:V2SF 0 "register_operand" "")
-   (match_operand:V2SF 1 "register_operand" "")
-   (match_operand:V2SF 2 "register_operand" "")
-   (match_operand:V2SI 3 "" "")]
-  "TARGET_HARD_FLOAT && TARGET_PAIRED_SINGLE_FLOAT"
-{
-  if (mips_expand_vec_perm_const (operands))
-    DONE;
-  else
-    FAIL;
-})
-
 ;; Expanders for builtins.  The instruction:
 ;;
 ;;     P[UL][UL].PS <result>, <a>, <b>
@@ -254,7 +241,7 @@
 })
 
 ; vec_init
-(define_expand "vec_initv2sf"
+(define_expand "vec_initv2sfsf"
   [(match_operand:V2SF 0 "register_operand")
    (match_operand:V2SF 1 "")]
   "TARGET_HARD_FLOAT && TARGET_PAIRED_SINGLE_FLOAT"
@@ -282,7 +269,7 @@
 ;; emulated.  There is no other way to get a vector mode bitfield extract
 ;; currently.
 
-(define_insn "vec_extractv2sf"
+(define_insn "vec_extractv2sfsf"
   [(set (match_operand:SF 0 "register_operand" "=f")
 	(vec_select:SF (match_operand:V2SF 1 "register_operand" "f")
 		       (parallel
@@ -371,13 +358,17 @@
   [(set_attr "type" "fadd")
    (set_attr "mode" "SF")])
 
-(define_insn "reduc_splus_v2sf"
-  [(set (match_operand:V2SF 0 "register_operand" "=f")
-	(unspec:V2SF [(match_operand:V2SF 1 "register_operand" "f")
-		      (match_dup 1)]
-		     UNSPEC_ADDR_PS))]
+(define_expand "reduc_plus_scal_v2sf"
+  [(match_operand:SF 0 "register_operand" "=f")
+   (match_operand:V2SF 1 "register_operand" "f")]
   "TARGET_HARD_FLOAT && TARGET_MIPS3D"
-  "")
+  {
+    rtx temp = gen_reg_rtx (V2SFmode);
+    emit_insn (gen_mips_addr_ps (temp, operands[1], operands[1]));
+    rtx lane = BYTES_BIG_ENDIAN ? const1_rtx : const0_rtx;
+    emit_insn (gen_vec_extractv2sfsf (operands[0], temp, lane));
+    DONE;
+  })
 
 ; cvt.pw.ps - Floating Point Convert Paired Single to Paired Word
 (define_insn "mips_cvt_pw_ps"
@@ -745,20 +736,26 @@
   DONE;
 })
 
-(define_expand "reduc_smin_v2sf"
-  [(match_operand:V2SF 0 "register_operand")
+(define_expand "reduc_smin_scal_v2sf"
+  [(match_operand:SF 0 "register_operand")
    (match_operand:V2SF 1 "register_operand")]
   "TARGET_HARD_FLOAT && TARGET_PAIRED_SINGLE_FLOAT"
 {
-  mips_expand_vec_reduc (operands[0], operands[1], gen_sminv2sf3);
+  rtx temp = gen_reg_rtx (V2SFmode);
+  mips_expand_vec_reduc (temp, operands[1], gen_sminv2sf3);
+  rtx lane = BYTES_BIG_ENDIAN ? const1_rtx : const0_rtx;
+  emit_insn (gen_vec_extractv2sfsf (operands[0], temp, lane));
   DONE;
 })
 
-(define_expand "reduc_smax_v2sf"
-  [(match_operand:V2SF 0 "register_operand")
+(define_expand "reduc_smax_scal_v2sf"
+  [(match_operand:SF 0 "register_operand")
    (match_operand:V2SF 1 "register_operand")]
   "TARGET_HARD_FLOAT && TARGET_PAIRED_SINGLE_FLOAT"
 {
-  mips_expand_vec_reduc (operands[0], operands[1], gen_smaxv2sf3);
+  rtx temp = gen_reg_rtx (V2SFmode);
+  mips_expand_vec_reduc (temp, operands[1], gen_smaxv2sf3);
+  rtx lane = BYTES_BIG_ENDIAN ? const1_rtx : const0_rtx;
+  emit_insn (gen_vec_extractv2sfsf (operands[0], temp, lane));
   DONE;
 })

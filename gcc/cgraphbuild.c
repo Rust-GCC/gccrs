@@ -1,5 +1,5 @@
 /* Callgraph construction.
-   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+   Copyright (C) 2003-2019 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -21,23 +21,16 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "backend.h"
 #include "tree.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-fold.h"
-#include "gimple-expr.h"
-#include "is-a.h"
 #include "gimple.h"
+#include "tree-pass.h"
+#include "cgraph.h"
+#include "gimple-fold.h"
 #include "gimple-iterator.h"
 #include "gimple-walk.h"
-#include "langhooks.h"
-#include "intl.h"
-#include "tree-pass.h"
 #include "ipa-utils.h"
 #include "except.h"
-#include "ipa-inline.h"
 
 /* Context of record_reference.  */
 struct record_reference_ctx
@@ -84,7 +77,7 @@ record_reference (tree *tp, int *walk_subtrees, void *data)
 	  ctx->varpool_node->create_reference (node, IPA_REF_ADDR);
 	}
 
-      if (TREE_CODE (decl) == VAR_DECL)
+      if (VAR_P (decl))
 	{
 	  varpool_node *vnode = varpool_node::get_create (decl);
 	  ctx->varpool_node->create_reference (vnode, IPA_REF_ADDR);
@@ -121,7 +114,7 @@ record_type_list (cgraph_node *node, tree list)
       if (TREE_CODE (type) == ADDR_EXPR)
 	{
 	  type = TREE_OPERAND (type, 0);
-	  if (TREE_CODE (type) == VAR_DECL)
+	  if (VAR_P (type))
 	    {
 	      varpool_node *vnode = varpool_node::get_create (type);
 	      node->create_reference (vnode, IPA_REF_ADDR);
@@ -197,27 +190,14 @@ record_eh_tables (cgraph_node *node, function *fun)
 int
 compute_call_stmt_bb_frequency (tree decl, basic_block bb)
 {
-  int entry_freq = ENTRY_BLOCK_PTR_FOR_FN
-  		     (DECL_STRUCT_FUNCTION (decl))->frequency;
-  int freq = bb->frequency;
-
-  if (profile_status_for_fn (DECL_STRUCT_FUNCTION (decl)) == PROFILE_ABSENT)
-    return CGRAPH_FREQ_BASE;
-
-  if (!entry_freq)
-    entry_freq = 1, freq++;
-
-  freq = freq * CGRAPH_FREQ_BASE / entry_freq;
-  if (freq > CGRAPH_FREQ_MAX)
-    freq = CGRAPH_FREQ_MAX;
-
-  return freq;
+  return bb->count.to_cgraph_frequency
+      (ENTRY_BLOCK_PTR_FOR_FN (DECL_STRUCT_FUNCTION (decl))->count);
 }
 
 /* Mark address taken in STMT.  */
 
 static bool
-mark_address (gimple stmt, tree addr, tree, void *data)
+mark_address (gimple *stmt, tree addr, tree, void *data)
 {
   addr = get_base_address (addr);
   if (TREE_CODE (addr) == FUNCTION_DECL)
@@ -226,7 +206,7 @@ mark_address (gimple stmt, tree addr, tree, void *data)
       node->mark_address_taken ();
       ((symtab_node *)data)->create_reference (node, IPA_REF_ADDR, stmt);
     }
-  else if (addr && TREE_CODE (addr) == VAR_DECL
+  else if (addr && VAR_P (addr)
 	   && (TREE_STATIC (addr) || DECL_EXTERNAL (addr)))
     {
       varpool_node *vnode = varpool_node::get_create (addr);
@@ -240,7 +220,7 @@ mark_address (gimple stmt, tree addr, tree, void *data)
 /* Mark load of T.  */
 
 static bool
-mark_load (gimple stmt, tree t, tree, void *data)
+mark_load (gimple *stmt, tree t, tree, void *data)
 {
   t = get_base_address (t);
   if (t && TREE_CODE (t) == FUNCTION_DECL)
@@ -251,8 +231,7 @@ mark_load (gimple stmt, tree t, tree, void *data)
       node->mark_address_taken ();
       ((symtab_node *)data)->create_reference (node, IPA_REF_ADDR, stmt);
     }
-  else if (t && TREE_CODE (t) == VAR_DECL
-	   && (TREE_STATIC (t) || DECL_EXTERNAL (t)))
+  else if (t && VAR_P (t) && (TREE_STATIC (t) || DECL_EXTERNAL (t)))
     {
       varpool_node *vnode = varpool_node::get_create (t);
 
@@ -264,11 +243,10 @@ mark_load (gimple stmt, tree t, tree, void *data)
 /* Mark store of T.  */
 
 static bool
-mark_store (gimple stmt, tree t, tree, void *data)
+mark_store (gimple *stmt, tree t, tree, void *data)
 {
   t = get_base_address (t);
-  if (t && TREE_CODE (t) == VAR_DECL
-      && (TREE_STATIC (t) || DECL_EXTERNAL (t)))
+  if (t && VAR_P (t) && (TREE_STATIC (t) || DECL_EXTERNAL (t)))
     {
       varpool_node *vnode = varpool_node::get_create (t);
 
@@ -280,7 +258,7 @@ mark_store (gimple stmt, tree t, tree, void *data)
 /* Record all references from cgraph_node that are taken in statement STMT.  */
 
 void
-cgraph_node::record_stmt_references (gimple stmt)
+cgraph_node::record_stmt_references (gimple *stmt)
 {
   walk_stmt_load_store_addr_ops (stmt, this, mark_load, mark_store,
 				 mark_address);
@@ -331,31 +309,28 @@ pass_build_cgraph_edges::execute (function *fun)
     {
       for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
-	  gimple stmt = gsi_stmt (gsi);
+	  gimple *stmt = gsi_stmt (gsi);
 	  tree decl;
 
 	  if (is_gimple_debug (stmt))
 	    continue;
 
-	  if (is_gimple_call (stmt))
+	  if (gcall *call_stmt = dyn_cast <gcall *> (stmt))
 	    {
-	      int freq = compute_call_stmt_bb_frequency (current_function_decl,
-							 bb);
-	      decl = gimple_call_fndecl (stmt);
+	      decl = gimple_call_fndecl (call_stmt);
 	      if (decl)
-		node->create_edge (cgraph_node::get_create (decl), stmt, bb->count, freq);
-	      else if (gimple_call_internal_p (stmt))
+		node->create_edge (cgraph_node::get_create (decl), call_stmt, bb->count);
+	      else if (gimple_call_internal_p (call_stmt))
 		;
 	      else
-		node->create_indirect_edge (stmt,
-					    gimple_call_flags (stmt),
-					    bb->count, freq);
+		node->create_indirect_edge (call_stmt,
+					    gimple_call_flags (call_stmt),
+					    bb->count);
 	    }
 	  node->record_stmt_references (stmt);
-	  if (gimple_code (stmt) == GIMPLE_OMP_PARALLEL
-	      && gimple_omp_parallel_child_fn (stmt))
+	  if (gomp_parallel *omp_par_stmt = dyn_cast <gomp_parallel *> (stmt))
 	    {
-	      tree fn = gimple_omp_parallel_child_fn (stmt);
+	      tree fn = gimple_omp_parallel_child_fn (omp_par_stmt);
 	      node->create_reference (cgraph_node::get_create (fn),
 				      IPA_REF_ADDR, stmt);
 	    }
@@ -377,9 +352,10 @@ pass_build_cgraph_edges::execute (function *fun)
 
   /* Look for initializers of constant variables and private statics.  */
   FOR_EACH_LOCAL_DECL (fun, ix, decl)
-    if (TREE_CODE (decl) == VAR_DECL
+    if (VAR_P (decl)
 	&& (TREE_STATIC (decl) && !DECL_EXTERNAL (decl))
-	&& !DECL_HAS_VALUE_EXPR_P (decl))
+	&& !DECL_HAS_VALUE_EXPR_P (decl)
+	&& TREE_TYPE (decl) != error_mark_node)
       varpool_node::finalize_decl (decl);
   record_eh_tables (node, fun);
 
@@ -430,23 +406,21 @@ cgraph_edge::rebuild_edges (void)
     {
       for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
-	  gimple stmt = gsi_stmt (gsi);
+	  gimple *stmt = gsi_stmt (gsi);
 	  tree decl;
 
-	  if (is_gimple_call (stmt))
+	  if (gcall *call_stmt = dyn_cast <gcall *> (stmt))
 	    {
-	      int freq = compute_call_stmt_bb_frequency (current_function_decl,
-							 bb);
-	      decl = gimple_call_fndecl (stmt);
+	      decl = gimple_call_fndecl (call_stmt);
 	      if (decl)
-		node->create_edge (cgraph_node::get_create (decl), stmt,
-				   bb->count, freq);
-	      else if (gimple_call_internal_p (stmt))
+		node->create_edge (cgraph_node::get_create (decl), call_stmt,
+				   bb->count);
+	      else if (gimple_call_internal_p (call_stmt))
 		;
 	      else
-		node->create_indirect_edge (stmt,
-					    gimple_call_flags (stmt),
-					    bb->count, freq);
+		node->create_indirect_edge (call_stmt,
+					    gimple_call_flags (call_stmt),
+					    bb->count);
 	    }
 	  node->record_stmt_references (stmt);
 	}
@@ -455,7 +429,6 @@ cgraph_edge::rebuild_edges (void)
     }
   record_eh_tables (node, cfun);
   gcc_assert (!node->global.inlined_to);
-
   return 0;
 }
 
@@ -477,8 +450,6 @@ cgraph_edge::rebuild_references (void)
       ref->remove_reference ();
     else
       i++;
-
-  node->count = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
 
   FOR_EACH_BB_FN (bb, cfun)
     {

@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-dse-details" } */
+/* { dg-options "-O2 -fdump-tree-dse1-details" } */
 
 #define N 256
 
@@ -28,5 +28,4 @@ foo (void)
 }
 
 /* { dg-final { scan-tree-dump-times "Deleted dead store" 2 "dse1" } } */
-/* { dg-final { cleanup-tree-dump "dse*" } } */
 

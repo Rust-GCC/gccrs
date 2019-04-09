@@ -1,6 +1,6 @@
 // The template and inlines for the -*- C++ -*- internal _Meta class.
 
-// Copyright (C) 1997-2014 Free Software Foundation, Inc.
+// Copyright (C) 1997-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -331,14 +331,24 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return pow(__x, __y); }
   };
 
+  template<typename _Tp, bool _IsValidValarrayValue = !__is_abstract(_Tp)>
+    struct __fun_with_valarray
+    {
+      typedef _Tp result_type;
+    };
+
+  template<typename _Tp>
+    struct __fun_with_valarray<_Tp, false>
+    {
+      // No result type defined for invalid value types.
+    };
 
   // We need these bits in order to recover the return type of
   // some functions/operators now that we're no longer using
   // function templates.
   template<typename, typename _Tp>
-    struct __fun
+    struct __fun : __fun_with_valarray<_Tp>
     {
-      typedef _Tp result_type;
     };
 
   // several specializations for relational operators.
@@ -396,6 +406,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       typedef bool result_type;
     };
 
+namespace __detail
+{
+  // Closure types already have reference semantics and are often short-lived,
+  // so store them by value to avoid (some cases of) dangling references to
+  // out-of-scope temporaries.
+  template<typename _Tp>
+    struct _ValArrayRef
+    { typedef const _Tp __type; };
+
+  // Use real references for std::valarray objects.
+  template<typename _Tp>
+    struct _ValArrayRef< valarray<_Tp> >
+    { typedef const valarray<_Tp>& __type; };
+
   //
   // Apply function taking a value/const reference closure
   //
@@ -415,7 +439,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       size_t size() const { return _M_expr.size ();}
 
     private:
-      const _Dom& _M_expr;
+      typename _ValArrayRef<_Dom>::__type _M_expr;
       value_type (*_M_func)(_Arg);
     };
 
@@ -480,7 +504,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       size_t size() const { return _M_expr.size(); }
       
     private:
-      const _Arg& _M_expr;
+      typename _ValArrayRef<_Arg>::__type _M_expr;
     };
 
   template<class _Oper, class _Dom>
@@ -526,8 +550,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       size_t size() const { return _M_expr1.size(); }
 
     private:
-      const _FirstArg& _M_expr1;
-      const _SecondArg& _M_expr2;
+      typename _ValArrayRef<_FirstArg>::__type _M_expr1;
+      typename _ValArrayRef<_SecondArg>::__type _M_expr2;
     };
 
 
@@ -547,8 +571,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       size_t size() const { return _M_expr1.size(); }
 
     private:
-      const _Clos& _M_expr1;
-      const _Vt& _M_expr2;
+      typename _ValArrayRef<_Clos>::__type _M_expr1;
+      _Vt _M_expr2;
     };
 
   template<class _Oper, class _Clos>
@@ -567,8 +591,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       size_t size() const { return _M_expr2.size(); }
 
     private:
-      const _Vt& _M_expr1;
-      const _Clos& _M_expr2;
+      _Vt _M_expr1;
+      typename _ValArrayRef<_Clos>::__type _M_expr2;
     };
 
   template<class _Oper, class _Dom1, class _Dom2>
@@ -582,7 +606,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     };
 
   template<class _Oper, typename _Tp>
-    struct _BinClos<_Oper,_ValArray, _ValArray, _Tp, _Tp>
+    struct _BinClos<_Oper, _ValArray, _ValArray, _Tp, _Tp>
     : _BinBase<_Oper, valarray<_Tp>, valarray<_Tp> >
     {
       typedef _BinBase<_Oper, valarray<_Tp>, valarray<_Tp> > _Base;
@@ -658,10 +682,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _BinClos(const _Tp& __t, const valarray<_Tp>& __v) : _Base(__t, __v) {}
     };
 
-    //
-    // slice_array closure.
-    //
-  template<typename _Dom> 
+  //
+  // slice_array closure.
+  //
+  template<typename _Dom>
     class _SBase
     {
     public:
@@ -679,7 +703,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return _M_slice.size (); }
 
     private:
-      const _Dom& _M_expr;
+      typename _ValArrayRef<_Dom>::__type _M_expr;
       const slice& _M_slice;
     };
 
@@ -726,6 +750,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       
       _SClos (_Array<_Tp> __a, const slice& __s) : _Base (__a, __s) {}
     };
+} // namespace __detail
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace

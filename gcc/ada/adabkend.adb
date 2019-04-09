@@ -1,12 +1,12 @@
 ------------------------------------------------------------------------------
 --                                                                          --
---                        GNAAMP COMPILER COMPONENTS                        --
+--                         GNAT COMPILER COMPONENTS                         --
 --                                                                          --
 --                             A D A B K E N D                              --
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 2001-2014, AdaCore                     --
+--                     Copyright (C) 2001-2019, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -22,6 +22,7 @@
 
 --  This is the version of the Back_End package for back ends written in Ada
 
+with Atree;    use Atree;
 with Debug;
 with Lib;
 with Opt;      use Opt;
@@ -56,12 +57,19 @@ package body Adabkend is
          Write_Eol;
       end if;
 
+      --  The front end leaves the Current_Error_Node at a location that is
+      --  meaningless and confusing when emitting bug boxes from the back end.
+      --  Reset the global variable in order to emit "No source file position
+      --  information available" messages on back end crashes.
+
+      Current_Error_Node := Empty;
+
       Driver (Lib.Cunit (Types.Main_Unit));
    end Call_Back_End;
 
-   ------------------------
-   -- Scan_Compiler_Args --
-   ------------------------
+   -----------------------------
+   -- Scan_Compiler_Arguments --
+   -----------------------------
 
    procedure Scan_Compiler_Arguments is
       Output_File_Name_Seen : Boolean := False;
@@ -83,7 +91,7 @@ package body Adabkend is
       --
       --  If the switch is not valid, control will not return. The switches
       --  must still be scanned to skip the "-o" arguments, or internal GCC
-      --  switches, which may be safely ignored by other back-ends.
+      --  switches, which may be safely ignored by other back ends.
 
       ----------------------------
       -- Scan_Back_End_Switches --
@@ -98,30 +106,14 @@ package body Adabkend is
          --  affect code generation or falling through if it does, so the
          --  switch will get stored.
 
-         if Is_Internal_GCC_Switch (Switch_Chars) then
+         --  Skip -o, -G or internal GCC switches together with their argument.
+
+         if Switch_Chars (First .. Last) = "o"
+           or else Switch_Chars (First .. Last) = "G"
+           or else Is_Internal_GCC_Switch (Switch_Chars)
+         then
             Next_Arg := Next_Arg + 1;
             return; -- ignore this switch
-
-         --  Record that an object file name has been specified. The actual
-         --  file name argument is picked up and saved below by the main body
-         --  of Scan_Compiler_Arguments.
-
-         elsif Switch_Chars (First .. Last) = "o" then
-            if First = Last then
-               if Opt.Output_File_Name_Present then
-
-                  --  Ignore extra -o when -gnatO has already been specified
-
-                  Next_Arg := Next_Arg + 1;
-
-               else
-                  Opt.Output_File_Name_Present := True;
-               end if;
-
-               return;
-            else
-               Fail ("invalid switch: " & Switch_Chars);
-            end if;
 
          --  Set optimization indicators appropriately. In gcc-based GNAT this
          --  is picked up from imported variables set by the gcc driver, but
@@ -157,8 +149,8 @@ package body Adabkend is
             return; -- ignore this switch
 
          --  The -x switch and its language name argument will generally be
-         --  ignored by non-gcc back ends (e.g. the GNAAMP back end). In any
-         --  case, we save the switch and argument in the compilation switches.
+         --  ignored by non-gcc back ends. In any case, we save the switch and
+         --  argument in the compilation switches.
 
          elsif Switch_Chars (First .. Last) = "x" then
             Lib.Store_Compilation_Switch (Switch_Chars);
@@ -178,12 +170,13 @@ package body Adabkend is
             return;
 
          --  Special check, the back end switch -fno-inline also sets the
-         --  front end flag to entirely inhibit all inlining. So we store it
-         --  and set the appropriate flag.
+         --  front end flags to entirely inhibit all inlining. So we store it
+         --  and set the appropriate flags.
 
          elsif Switch_Chars (First .. Last) = "fno-inline" then
             Lib.Store_Compilation_Switch (Switch_Chars);
-            Opt.Suppress_All_Inlining := True;
+            Opt.Disable_FE_Inline := True;
+            Opt.Disable_FE_Inline_Always := True;
             return;
 
          --  Similar processing for -fpreserve-control-flow
@@ -192,6 +185,26 @@ package body Adabkend is
             Lib.Store_Compilation_Switch (Switch_Chars);
             Opt.Suppress_Control_Flow_Optimizations := True;
             return;
+
+         --  Recognize -gxxx switches
+
+         elsif Switch_Chars (First) = 'g' then
+            Debugger_Level := 2;
+
+            if First < Last then
+               case Switch_Chars (First + 1) is
+                  when '0' =>
+                     Debugger_Level := 0;
+                  when '1' =>
+                     Debugger_Level := 1;
+                  when '2' =>
+                     Debugger_Level := 2;
+                  when '3' =>
+                     Debugger_Level := 3;
+                  when others =>
+                     null;
+               end case;
+            end if;
 
          --  Ignore all other back end switches
 
@@ -243,16 +256,6 @@ package body Adabkend is
             then
                if Is_Switch (Argv) then
                   Fail ("Object file name missing after -gnatO");
-
-               --  In GNATprove_Mode, such an object file is never written, and
-               --  the call to Set_Output_Object_File_Name may fail (e.g. when
-               --  the object file name does not have the expected suffix).
-               --  So we skip that call when GNATprove_Mode is set. Same for
-               --  CodePeer_Mode.
-
-               elsif GNATprove_Mode or CodePeer_Mode then
-                  Output_File_Name_Seen := True;
-
                else
                   Set_Output_Object_File_Name (Argv);
                   Output_File_Name_Seen := True;
@@ -268,7 +271,7 @@ package body Adabkend is
                else
                   Add_Src_Search_Dir (Argv);
 
-                  --  Add directory to lib search so that back-end can take as
+                  --  Add directory to lib search so that back end can take as
                   --  input ALI files if needed. Otherwise this won't have any
                   --  impact on the compiler.
 

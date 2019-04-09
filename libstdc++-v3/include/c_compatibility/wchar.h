@@ -1,6 +1,6 @@
 // -*- C++ -*- compatibility header.
 
-// Copyright (C) 2002-2014 Free Software Foundation, Inc.
+// Copyright (C) 2002-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -103,7 +103,7 @@ using std::wmemmove;
 using std::wmemset;
 using std::wcsftime;
 
-#if _GLIBCXX_USE_C99
+#if _GLIBCXX_USE_C99_WCHAR
 using std::wcstold;
 using std::wcstoll;
 using std::wcstoull;

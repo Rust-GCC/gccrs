@@ -1,6 +1,6 @@
 // Explicit instantiation file.
 
-// Copyright (C) 1997-2014 Free Software Foundation, Inc.
+// Copyright (C) 1997-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,6 +26,11 @@
 // ISO C++ 14882:
 //
 
+#ifndef _GLIBCXX_USE_CXX11_ABI
+// Instantiations in this file use the new SSO std::string ABI unless included
+// by another file which defines _GLIBCXX_USE_CXX11_ABI=0.
+# define _GLIBCXX_USE_CXX11_ABI 1
+#endif
 #include <sstream>
 
 namespace std _GLIBCXX_VISIBILITY(default)
@@ -39,9 +44,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 #ifdef _GLIBCXX_USE_WCHAR_T
   template class basic_stringbuf<wchar_t>;
-  template class basic_istringstream<wchar_t>; 
-  template class basic_ostringstream<wchar_t>; 
-  template class basic_stringstream<wchar_t>; 
+  template class basic_istringstream<wchar_t>;
+  template class basic_ostringstream<wchar_t>;
+  template class basic_stringstream<wchar_t>;
 #endif
 
 _GLIBCXX_END_NAMESPACE_VERSION

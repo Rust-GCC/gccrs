@@ -1,7 +1,7 @@
 C Test for bug in reg-stack handling conditional moves.
 C Reported by Tim Prince <tprince@computer.org>
 C
-C { dg-do run { target { { i[6789]86-*-* x86_64-*-* } && ia32 } } }
+C { dg-do run { target { { i?86-*-* x86_64-*-* } && ia32 } } }
 C { dg-options "-ffast-math -march=pentiumpro" }
 
       double precision function foo(x, y)
@@ -46,7 +46,7 @@ C and its expected return value.
          result = foo(a(i), b(i))
          if (abs(result - x(i)) > tolerance) then
            print *, i, a(i), b(i), x(i), result
-           call abort
+           STOP 1
          end if
       end do
       end

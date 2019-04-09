@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-lim1-details" } */
+/* { dg-options "-O2 -fdump-tree-lim2-details" } */
 
 struct Foo
 {
@@ -16,5 +16,4 @@ void bar(Foo f, int * __restrict__ q)
     }
 }
 
-/* { dg-final { scan-tree-dump "Executing store motion" "lim1" } } */
-/* { dg-final { cleanup-tree-dump "lim1" } } */
+/* { dg-final { scan-tree-dump "Executing store motion" "lim2" } } */

@@ -1,6 +1,6 @@
 /* ET-trees data structure implementation.
    Contributed by Pavel Nejedly
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
 
 This file is part of the libiberty library.
 Libiberty is free software; you can redistribute it and/or
@@ -25,14 +25,16 @@ License along with libiberty; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "et-forest.h"
 #include "alloc-pool.h"
+#include "et-forest.h"
+#include "selftest.h"
 
-/* We do not enable this with ENABLE_CHECKING, since it is awfully slow.  */
+/* We do not enable this with CHECKING_P, since it is awfully slow.  */
 #undef DEBUG_ET
 
 #ifdef DEBUG_ET
-#include "basic-block.h" /* To access index in record_path_before_1.  */
+#include "backend.h"
+#include "hard-reg-set.h"
 #endif
 
 /* The occurrence of a node in the et tree.  */
@@ -53,8 +55,8 @@ struct et_occ
 				   depth.  */
 };
 
-static alloc_pool et_nodes;
-static alloc_pool et_occurrences;
+static object_allocator<et_node> et_nodes ("et_nodes pool");
+static object_allocator<et_occ> et_occurrences ("et_occ pool");
 
 /* Changes depth of OCC to D.  */
 
@@ -441,11 +443,7 @@ et_splay (struct et_occ *occ)
 static struct et_occ *
 et_new_occ (struct et_node *node)
 {
-  struct et_occ *nw;
-
-  if (!et_occurrences)
-    et_occurrences = create_alloc_pool ("et_occ pool", sizeof (struct et_occ), 300);
-  nw = (struct et_occ *) pool_alloc (et_occurrences);
+  et_occ *nw = et_occurrences.allocate ();
 
   nw->of = node;
   nw->parent = NULL;
@@ -464,11 +462,7 @@ et_new_occ (struct et_node *node)
 struct et_node *
 et_new_tree (void *data)
 {
-  struct et_node *nw;
-
-  if (!et_nodes)
-    et_nodes = create_alloc_pool ("et_node pool", sizeof (struct et_node), 300);
-  nw = (struct et_node *) pool_alloc (et_nodes);
+  et_node *nw = et_nodes.allocate ();
 
   nw->data = data;
   nw->father = NULL;
@@ -493,8 +487,8 @@ et_free_tree (struct et_node *t)
   if (t->father)
     et_split (t);
 
-  pool_free (et_occurrences, t->rightmost_occ);
-  pool_free (et_nodes, t);
+  et_occurrences.remove (t->rightmost_occ);
+  et_nodes.remove (t);
 }
 
 /* Releases et tree T without maintaining other nodes.  */
@@ -502,10 +496,10 @@ et_free_tree (struct et_node *t)
 void
 et_free_tree_force (struct et_node *t)
 {
-  pool_free (et_occurrences, t->rightmost_occ);
+  et_occurrences.remove (t->rightmost_occ);
   if (t->parent_occ)
-    pool_free (et_occurrences, t->parent_occ);
-  pool_free (et_nodes, t);
+    et_occurrences.remove (t->parent_occ);
+  et_nodes.remove (t);
 }
 
 /* Release the alloc pools, if they are empty.  */
@@ -513,8 +507,8 @@ et_free_tree_force (struct et_node *t)
 void
 et_free_pools (void)
 {
-  free_alloc_pool_if_empty (&et_occurrences);
-  free_alloc_pool_if_empty (&et_nodes);
+  et_occurrences.release_if_empty ();
+  et_nodes.release_if_empty ();
 }
 
 /* Sets father of et tree T to FATHER.  */
@@ -606,7 +600,7 @@ et_split (struct et_node *t)
   rmost->depth = 0;
   rmost->min = 0;
 
-  pool_free (et_occurrences, p_occ);
+  et_occurrences.remove (p_occ);
 
   /* Update the tree.  */
   if (father->son == t)
@@ -677,7 +671,7 @@ et_nca (struct et_node *n1, struct et_node *n2)
       return NULL;
     }
 
-  if (0 < o2->depth)
+  if (o2->depth > 0)
     {
       om = o1;
       mn = o1->depth;
@@ -749,7 +743,7 @@ et_below (struct et_node *down, struct et_node *up)
       return false;
     }
 
-  if (0 >= d->depth)
+  if (d->depth <= 0)
     return false;
 
   return !d->next || d->next->min + d->depth >= 0;
@@ -771,3 +765,120 @@ et_root (struct et_node *node)
 
   return r->of;
 }
+
+#if CHECKING_P
+
+namespace selftest {
+
+/* Selftests for et-forest.c.  */
+
+/* Perform sanity checks for a tree consisting of a single node.  */
+
+static void
+test_single_node ()
+{
+  void *test_data = (void *)0xcafebabe;
+
+  et_node *n = et_new_tree (test_data);
+  ASSERT_EQ (n->data, test_data);
+  ASSERT_EQ (n, et_root (n));
+  et_free_tree (n);
+}
+
+/* Test of this tree:
+       a
+      / \
+     /   \
+    b     c
+   / \    |
+  d   e   f.  */
+
+static void
+test_simple_tree ()
+{
+  et_node *a = et_new_tree (NULL);
+  et_node *b = et_new_tree (NULL);
+  et_node *c = et_new_tree (NULL);
+  et_node *d = et_new_tree (NULL);
+  et_node *e = et_new_tree (NULL);
+  et_node *f = et_new_tree (NULL);
+
+  et_set_father (b, a);
+  et_set_father (c, a);
+  et_set_father (d, b);
+  et_set_father (e, b);
+  et_set_father (f, c);
+
+  ASSERT_TRUE (et_below (a, a));
+  ASSERT_TRUE (et_below (b, a));
+  ASSERT_TRUE (et_below (c, a));
+  ASSERT_TRUE (et_below (d, a));
+  ASSERT_TRUE (et_below (e, a));
+  ASSERT_TRUE (et_below (f, a));
+
+  ASSERT_FALSE (et_below (a, b));
+  ASSERT_TRUE (et_below (b, b));
+  ASSERT_FALSE (et_below (c, b));
+  ASSERT_TRUE (et_below (d, b));
+  ASSERT_TRUE (et_below (e, b));
+  ASSERT_FALSE (et_below (f, b));
+
+  ASSERT_FALSE (et_below (a, c));
+  ASSERT_FALSE (et_below (b, c));
+  ASSERT_TRUE (et_below (c, c));
+  ASSERT_FALSE (et_below (d, c));
+  ASSERT_FALSE (et_below (e, c));
+  ASSERT_TRUE (et_below (f, c));
+
+  ASSERT_FALSE (et_below (a, d));
+  ASSERT_FALSE (et_below (b, d));
+  ASSERT_FALSE (et_below (c, d));
+  ASSERT_TRUE (et_below (d, d));
+  ASSERT_FALSE (et_below (e, d));
+  ASSERT_FALSE (et_below (f, d));
+
+  ASSERT_FALSE (et_below (a, e));
+  ASSERT_FALSE (et_below (b, e));
+  ASSERT_FALSE (et_below (c, e));
+  ASSERT_FALSE (et_below (d, e));
+  ASSERT_TRUE (et_below (e, e));
+  ASSERT_FALSE (et_below (f, e));
+
+  ASSERT_FALSE (et_below (a, f));
+  ASSERT_FALSE (et_below (b, f));
+  ASSERT_FALSE (et_below (c, f));
+  ASSERT_FALSE (et_below (d, f));
+  ASSERT_FALSE (et_below (e, f));
+  ASSERT_TRUE (et_below (f, f));
+
+  et_free_tree_force (a);
+}
+
+/* Verify that two disconnected nodes are unrelated.  */
+
+static void
+test_disconnected_nodes ()
+{
+  et_node *a = et_new_tree (NULL);
+  et_node *b = et_new_tree (NULL);
+
+  ASSERT_FALSE (et_below (a, b));
+  ASSERT_FALSE (et_below (b, a));
+
+  et_free_tree (a);
+  et_free_tree (b);
+}
+
+/* Run all of the selftests within this file.  */
+
+void
+et_forest_c_tests ()
+{
+  test_single_node ();
+  test_simple_tree ();
+  test_disconnected_nodes ();
+}
+
+} // namespace selftest
+
+#endif /* CHECKING_P */

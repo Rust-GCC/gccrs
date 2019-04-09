@@ -1,7 +1,7 @@
 /* { dg-require-effective-target vect_int } */
+/* { dg-additional-options "-fno-ipa-icf" } */
 
 #include "tree-vect.h"
-#include <stdlib.h>
 
 #define N 32
 #define COEF 32470
@@ -31,6 +31,8 @@ int main (void)
 {
   int i;
 
+  check_vect ();
+
   for (i = 0; i < N; i++)
     {
       in[i] = i;
@@ -55,5 +57,4 @@ int main (void)
 /* { dg-final { scan-tree-dump-times "vectorized 1 loops" 2 "vect" { target vect_widen_mult_hi_to_si } } } */
 /* { dg-final { scan-tree-dump-times "vect_recog_widen_mult_pattern: detected" 2 "vect" { target vect_widen_mult_hi_to_si_pattern } } } */
 /* { dg-final { scan-tree-dump-times "pattern recognized" 2 "vect" { target vect_widen_mult_hi_to_si_pattern } } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */
 

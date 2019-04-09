@@ -1,6 +1,6 @@
 // Allocators -*- C++ -*-
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -188,7 +188,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       destroy(pointer __p) { __p->~_Tp(); }
 #endif
 
-      pointer
+      _GLIBCXX_NODISCARD pointer
       allocate(size_type __n, const void* = 0);
 
       void
@@ -210,7 +210,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     __pool_alloc<_Tp>::_S_force_new;
 
   template<typename _Tp>
-    _Tp*
+    _GLIBCXX_NODISCARD _Tp*
     __pool_alloc<_Tp>::allocate(size_type __n, const void*)
     {
       pointer __ret = 0;
@@ -218,6 +218,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	{
 	  if (__n > this->max_size())
 	    std::__throw_bad_alloc();
+
+	  const size_t __bytes = __n * sizeof(_Tp);
+
+#if __cpp_aligned_new
+	  if (alignof(_Tp) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)
+	    {
+	      std::align_val_t __al = std::align_val_t(alignof(_Tp));
+	      return static_cast<_Tp*>(::operator new(__bytes, __al));
+	    }
+#endif
 
 	  // If there is a race through here, assume answer from getenv
 	  // will resolve in same direction.  Inspired by techniques
@@ -230,7 +240,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		__atomic_add_dispatch(&_S_force_new, -1);
 	    }
 
-	  const size_t __bytes = __n * sizeof(_Tp);	      
 	  if (__bytes > size_t(_S_max_bytes) || _S_force_new > 0)
 	    __ret = static_cast<_Tp*>(::operator new(__bytes));
 	  else
@@ -259,6 +268,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       if (__builtin_expect(__n != 0 && __p != 0, true))
 	{
+#if __cpp_aligned_new
+	  if (alignof(_Tp) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)
+	    {
+	      ::operator delete(__p, std::align_val_t(alignof(_Tp)));
+	      return;
+	    }
+#endif
 	  const size_t __bytes = __n * sizeof(_Tp);
 	  if (__bytes > static_cast<size_t>(_S_max_bytes) || _S_force_new > 0)
 	    ::operator delete(__p);

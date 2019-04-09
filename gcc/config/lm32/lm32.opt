@@ -1,7 +1,7 @@
 ; Options for the Lattice Mico32 port of the compiler.
 ; Contributed by Jon Beniston <jon@beniston.com>
 ;
-; Copyright (C) 2009-2014 Free Software Foundation, Inc.
+; Copyright (C) 2009-2019 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -21,20 +21,20 @@
    
 mmultiply-enabled
 Target Report Mask(MULTIPLY_ENABLED)
-Enable multiply instructions
+Enable multiply instructions.
 
 mdivide-enabled
 Target Report Mask(DIVIDE_ENABLED)
-Enable divide and modulus instructions
+Enable divide and modulus instructions.
 
 mbarrel-shift-enabled
 Target Report Mask(BARREL_SHIFT_ENABLED)
-Enable barrel shift instructions
+Enable barrel shift instructions.
 
 msign-extend-enabled
 Target Report Mask(SIGN_EXTEND_ENABLED)
-Enable sign extend instructions
+Enable sign extend instructions.
 
 muser-enabled
 Target Report Mask(USER_ENABLED)
-Enable user-defined instructions
+Enable user-defined instructions.

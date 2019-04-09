@@ -1,5 +1,5 @@
 /* Definitions of target machine GNU compiler. 32bit VMS version.
-   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 2009-2019 Free Software Foundation, Inc.
    Contributed by Douglas B Rupp (rupp@gnat.com).
 
 This file is part of GCC.
@@ -18,16 +18,17 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#define IN_TARGET_CODE 1
+
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "target.h"
 #include "tree.h"
 #include "stringpool.h"
+#include "alias.h"
 #include "vms-protos.h"
-#include "ggc.h"
-#include "target.h"
 #include "output.h"
-#include "tm.h"
 #include "dwarf2out.h"
 
 /* Correlation of standard CRTL names with DECCRTL function names.  */

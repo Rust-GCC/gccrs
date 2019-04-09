@@ -1,6 +1,7 @@
 /* { dg-do compile } */
 /* { dg-options "-O -ffast-math -fdump-tree-optimized" } */
 /* { dg-require-effective-target c99_runtime } */
+/* { dg-require-effective-target libc_has_complex_functions } */
 
 double test1 (double x)
 {
@@ -29,4 +30,3 @@ double test4(double x, double y)
 /* { dg-final { scan-tree-dump "sin" "optimized" } } */
 /* { dg-final { scan-tree-dump "cos" "optimized" } } */
 /* { dg-final { scan-tree-dump "return 0.0" "optimized" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

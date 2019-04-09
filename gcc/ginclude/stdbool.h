@@ -1,4 +1,4 @@
-/* Copyright (C) 1998-2014 Free Software Foundation, Inc.
+/* Copyright (C) 1998-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -36,11 +36,15 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #else /* __cplusplus */
 
-/* Supporting <stdbool.h> in C++ is a GCC extension.  */
+/* Supporting _Bool in C++ is a GCC extension.  */
 #define _Bool	bool
+
+#if __cplusplus < 201103L
+/* Defining these macros in C++98 is a GCC extension.  */
 #define bool	bool
 #define false	false
 #define true	true
+#endif
 
 #endif /* __cplusplus */
 

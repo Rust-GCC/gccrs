@@ -1,5 +1,5 @@
 /* Null garbage collection for the GNU compiler.
-   Copyright (C) 1998-2014 Free Software Foundation, Inc.
+   Copyright (C) 1998-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -29,7 +29,7 @@
 
 #include "system.h"
 #include "coretypes.h"
-#include "ggc.h"
+#include "hash-table.h"
 
 /* For a given size of memory requested for allocation, return the
    actual size that is going to be allocated.  */

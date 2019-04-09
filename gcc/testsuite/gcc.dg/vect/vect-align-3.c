@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-require-effective-target vect_int } */
+/* { dg-add-options bind_pic_locally } */
 
 int a[2048];
 
@@ -51,4 +52,3 @@ f4 (int x, int y)
 
 /* { dg-final { scan-tree-dump-not "vect_do_peeling_for_loop_bound" "vect" } } */
 /* { dg-final { scan-tree-dump-not "loop peeled for vectorization" "vect" } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */

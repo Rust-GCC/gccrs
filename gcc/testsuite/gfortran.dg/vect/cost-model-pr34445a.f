@@ -1,4 +1,5 @@
 c { dg-do compile }
+c { dg-additional-options "-std=legacy" }
       subroutine derv (xx,b,bv,det,r,s,t,ndopt,cosxy,thick,edis,
      1                  vni,vnt)
       implicit real*8 (a-h,o-z)
@@ -26,4 +27,3 @@ c
   130 continue
       return
       end
-c { dg-final { cleanup-tree-dump "vect" } }

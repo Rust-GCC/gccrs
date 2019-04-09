@@ -6,7 +6,7 @@ package math
 
 // The original C code, the long comment, and the constants
 // below are from FreeBSD's /usr/src/lib/msun/src/e_acosh.c
-// and came with this notice.  The go code is a simplified
+// and came with this notice. The go code is a simplified
 // version of the original C.
 //
 // ====================================================
@@ -40,6 +40,13 @@ package math
 //	Acosh(x) = NaN if x < 1
 //	Acosh(NaN) = NaN
 func Acosh(x float64) float64 {
+	return libc_acosh(x)
+}
+
+//extern acosh
+func libc_acosh(float64) float64
+
+func acosh(x float64) float64 {
 	const (
 		Ln2   = 6.93147180559945286227e-01 // 0x3FE62E42FEFA39EF
 		Large = 1 << 28                    // 2**28

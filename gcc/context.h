@@ -1,5 +1,5 @@
 /* context.h - Holder for global state
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -32,8 +32,18 @@ class context
 {
 public:
   context ();
+  ~context ();
+
+  /* The flag shows if there are symbols to be streamed for offloading.  */
+  bool have_offload;
 
   /* Pass-management.  */
+
+  void set_passes (pass_manager *m)
+  {
+    gcc_assert (!m_passes);
+    m_passes = m;
+  }
 
   pass_manager *get_passes () { gcc_assert (m_passes); return m_passes; }
 

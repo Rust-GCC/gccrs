@@ -7,7 +7,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2000-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 2000-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -86,7 +86,7 @@ pragma Style_Checks ("M32766");
  ** a number of non-POSIX but useful/required features.
  **/
 
-#if defined (__linux__)
+#if defined (__linux__) || defined (__ANDROID__)
 
 /* Define _XOPEN_SOURCE to get IOV_MAX */
 # if !defined (_XOPEN_SOURCE)
@@ -108,16 +108,7 @@ pragma Style_Checks ("M32766");
 #include <fcntl.h>
 #include <time.h>
 
-#if defined (__VMS)
-/** VMS is unable to do vector IO operations with default value of IOV_MAX,
- ** so its value is redefined to a small one which is known to work properly.
- **/
-#undef IOV_MAX
-#define IOV_MAX 16
-#endif
-
-#if ! (defined (__vxworks) || defined (__VMS) || defined (__MINGW32__) || \
-       defined (__nucleus__))
+#if ! (defined (__vxworks) || defined (__MINGW32__))
 # define HAVE_TERMIOS
 #endif
 
@@ -166,7 +157,8 @@ pragma Style_Checks ("M32766");
 # include <_types.h>
 #endif
 
-#ifdef __linux__
+#if defined (__linux__) || defined (__ANDROID__) || defined (__QNX__) \
+  || defined (__rtems__)
 # include <pthread.h>
 # include <signal.h>
 #endif
@@ -286,12 +278,10 @@ package System.OS_Constants is
    -- General platform parameters --
    ---------------------------------
 
-   type OS_Type is (Windows, VMS, Other_OS);
+   type OS_Type is (Windows, Other_OS);
 */
 #if defined (__MINGW32__)
 # define TARGET_OS "Windows"
-#elif defined (__VMS)
-# define TARGET_OS "VMS"
 #else
 # define TARGET_OS "Other_OS"
 #endif
@@ -413,7 +403,7 @@ CND(FNDELAY, "Nonblocking")
 
 /* ioctl(2) requests are "int" in UNIX, but "unsigned long" on FreeBSD */
 
-#ifdef __FreeBSD__
+#if defined (__FreeBSD__) || defined (__DragonFly__)
 # define CNI CNU
 # define IOCTL_Req_T "unsigned"
 #else
@@ -1025,7 +1015,7 @@ CNU(RTS_CONTROL_ENABLE, "Enable RTS flow ctrl")
 
 */
 
-#if defined (__FreeBSD__) || defined (linux)
+#if defined (__FreeBSD__) || defined (__linux__) || defined (__DragonFly__)
 # define PTY_Library "-lutil"
 #else
 # define PTY_Library ""
@@ -1051,20 +1041,144 @@ CST(PTY_Library, "for g-exptty")
 #endif
 CND(AF_INET, "IPv4 address family")
 
-/**
- ** RTEMS lies and defines AF_INET6 even though there is no IPV6 support.
- ** Its TCP/IP stack is in transition.  It has newer .h files but no IPV6 yet.
- **/
-#if defined(__rtems__)
-# undef AF_INET6
-#endif
-
 #ifndef AF_INET6
 # define AF_INET6 -1
 #else
 # define HAVE_AF_INET6 1
 #endif
 CND(AF_INET6, "IPv6 address family")
+
+#ifndef AF_UNSPEC
+# define AF_UNSPEC -1
+#else
+# define HAVE_AF_UNSPEC 1
+#endif
+CND(AF_UNSPEC, "Unspecified address family")
+
+/*
+
+   -----------------------------
+   -- addrinfo fields offsets --
+   -----------------------------
+
+*/
+
+#ifdef AI_CANONNAME
+  const struct addrinfo ai;
+
+#define AI_FLAGS_OFFSET ((void *)&ai.ai_flags - (void *)&ai)
+#define AI_FAMILY_OFFSET ((void *)&ai.ai_family - (void *)&ai)
+#define AI_SOCKTYPE_OFFSET ((void *)&ai.ai_socktype - (void *)&ai)
+#define AI_PROTOCOL_OFFSET ((void *)&ai.ai_protocol - (void *)&ai)
+#define AI_ADDRLEN_OFFSET ((void *)&ai.ai_addrlen - (void *)&ai)
+#define AI_ADDR_OFFSET ((void *)&ai.ai_addr - (void *)&ai)
+#define AI_CANONNAME_OFFSET ((void *)&ai.ai_canonname - (void *)&ai)
+#define AI_NEXT_OFFSET ((void *)&ai.ai_next - (void *)&ai)
+
+#else
+
+#define AI_FLAGS_OFFSET 0
+#define AI_FAMILY_OFFSET 4
+#define AI_SOCKTYPE_OFFSET 8
+#define AI_PROTOCOL_OFFSET 12
+#define AI_ADDRLEN_OFFSET 16
+#define AI_CANONNAME_OFFSET 24
+#define AI_ADDR_OFFSET 32
+#define AI_NEXT_OFFSET 40
+
+#endif
+
+CND(AI_FLAGS_OFFSET,     "Offset of ai_flags in addrinfo");
+CND(AI_FAMILY_OFFSET,    "Offset of ai_family in addrinfo");
+CND(AI_SOCKTYPE_OFFSET,  "Offset of ai_socktype in addrinfo");
+CND(AI_PROTOCOL_OFFSET,  "Offset of ai_protocol in addrinfo");
+CND(AI_ADDRLEN_OFFSET,   "Offset of ai_addrlen in addrinfo");
+CND(AI_ADDR_OFFSET,      "Offset of ai_addr in addrinfo");
+CND(AI_CANONNAME_OFFSET, "Offset of ai_canonname in addrinfo");
+CND(AI_NEXT_OFFSET,      "Offset of ai_next in addrinfo");
+
+/*
+
+   ---------------------------------------
+   -- getaddrinfo getnameinfo constants --
+   ---------------------------------------
+
+*/
+
+#ifndef AI_PASSIVE
+# define AI_PASSIVE -1
+#endif
+CND(AI_PASSIVE, "NULL nodename for accepting")
+
+#ifndef AI_CANONNAME
+# define AI_CANONNAME -1
+#endif
+CND(AI_CANONNAME, "Get the host official name")
+
+#ifndef AI_NUMERICSERV
+# define AI_NUMERICSERV -1
+#endif
+CND(AI_NUMERICSERV, "Service is a numeric string")
+
+#ifndef AI_NUMERICHOST
+# define AI_NUMERICHOST -1
+#endif
+CND(AI_NUMERICHOST, "Node is a numeric IP address")
+
+#ifndef AI_ADDRCONFIG
+# define AI_ADDRCONFIG -1
+#endif
+CND(AI_ADDRCONFIG, "Returns addresses for only locally configured families")
+
+#ifndef AI_V4MAPPED
+# define AI_V4MAPPED -1
+#endif
+CND(AI_V4MAPPED, "Returns IPv4 mapped to IPv6")
+
+#ifndef AI_ALL
+# define AI_ALL -1
+#endif
+CND(AI_ALL, "Change AI_V4MAPPED behavior for unavailavle IPv6 addresses")
+
+#ifndef NI_NAMEREQD
+# define NI_NAMEREQD -1
+#endif
+CND(NI_NAMEREQD, "Error if the hostname cannot be determined")
+
+#ifndef NI_DGRAM
+# define NI_DGRAM -1
+#endif
+CND(NI_DGRAM, "Service is datagram")
+
+#ifndef NI_NOFQDN
+# define NI_NOFQDN -1
+#endif
+CND(NI_NOFQDN, "Return only the hostname part for local hosts")
+
+#ifndef NI_NUMERICSERV
+# define NI_NUMERICSERV -1
+#endif
+CND(NI_NUMERICSERV, "Numeric form of the service")
+
+#ifndef NI_NUMERICHOST
+# define NI_NUMERICHOST -1
+#endif
+CND(NI_NUMERICHOST, "Numeric form of the hostname")
+
+#ifndef NI_MAXHOST
+# define NI_MAXHOST -1
+#endif
+CND(NI_MAXHOST, "Maximum size of hostname")
+
+#ifndef NI_MAXSERV
+# define NI_MAXSERV -1
+#endif
+CND(NI_MAXSERV, "Maximum size of service name")
+
+#ifndef EAI_SYSTEM
+# define EAI_SYSTEM -1
+#endif
+CND(EAI_SYSTEM, "Check errno for details")
 
 /*
 
@@ -1083,6 +1197,11 @@ CND(SOCK_STREAM, "Stream socket")
 # define SOCK_DGRAM -1
 #endif
 CND(SOCK_DGRAM, "Datagram socket")
+
+#ifndef SOCK_RAW
+# define SOCK_RAW -1
+#endif
+CND(SOCK_RAW, "Raw socket")
 
 /*
 
@@ -1153,6 +1272,11 @@ CND(SOL_SOCKET, "Options for socket level")
 #endif
 CND(IPPROTO_IP, "Dummy protocol for IP")
 
+#ifndef IPPROTO_IPV6
+# define IPPROTO_IPV6 -1
+#endif
+CND(IPPROTO_IPV6, "IPv6 socket option level")
+
 #ifndef IPPROTO_UDP
 # define IPPROTO_UDP -1
 #endif
@@ -1202,7 +1326,7 @@ CND(MSG_WAITALL, "Wait for full reception")
 #endif
 CND(MSG_NOSIGNAL, "No SIGPIPE on send")
 
-#ifdef __linux__
+#if defined (__linux__) || defined (__ANDROID__) || defined (__QNX__)
 # define MSG_Forced_Flags "MSG_NOSIGNAL"
 #else
 # define MSG_Forced_Flags "0"
@@ -1275,6 +1399,11 @@ CND(SO_RCVTIMEO, "Reception timeout")
 #endif
 CND(SO_ERROR, "Get/clear error status")
 
+#ifndef SO_BUSY_POLL
+# define SO_BUSY_POLL -1
+#endif
+CND(SO_BUSY_POLL, "Busy polling")
+
 #ifndef IP_MULTICAST_IF
 # define IP_MULTICAST_IF -1
 #endif
@@ -1305,6 +1434,111 @@ CND(IP_DROP_MEMBERSHIP, "Leave a multicast group")
 #endif
 CND(IP_PKTINFO, "Get datagram info")
 
+#ifndef IP_RECVERR
+# define IP_RECVERR -1
+#endif
+CND(IP_RECVERR, "Extended reliable error message passing")
+
+#ifndef IPV6_ADDRFORM
+# define IPV6_ADDRFORM -1
+#endif
+CND(IPV6_ADDRFORM, "Turn IPv6 socket into different address family")
+
+#ifndef IPV6_ADD_MEMBERSHIP
+# define IPV6_ADD_MEMBERSHIP -1
+#endif
+CND(IPV6_ADD_MEMBERSHIP, "Join IPv6 multicast group")
+
+#ifndef IPV6_DROP_MEMBERSHIP
+# define IPV6_DROP_MEMBERSHIP -1
+#endif
+CND(IPV6_DROP_MEMBERSHIP, "Leave IPv6 multicast group")
+
+#ifndef IPV6_MTU
+# define IPV6_MTU -1
+#endif
+CND(IPV6_MTU, "Set/get MTU used for the socket")
+
+#ifndef IPV6_MTU_DISCOVER
+# define IPV6_MTU_DISCOVER -1
+#endif
+CND(IPV6_MTU_DISCOVER, "Control path-MTU discovery on the socket")
+
+#ifndef IPV6_MULTICAST_HOPS
+# define IPV6_MULTICAST_HOPS -1
+#endif
+CND(IPV6_MULTICAST_HOPS, "Set the multicast hop limit for the socket")
+
+#ifndef IPV6_MULTICAST_IF
+# define IPV6_MULTICAST_IF -1
+#endif
+CND(IPV6_MULTICAST_IF, "Set/get IPv6 mcast interface")
+
+#ifndef IPV6_MULTICAST_LOOP
+# define IPV6_MULTICAST_LOOP -1
+#endif
+CND(IPV6_MULTICAST_LOOP, "Set/get mcast loopback")
+
+#ifndef IPV6_RECVPKTINFO
+# define IPV6_RECVPKTINFO -1
+#endif
+CND(IPV6_RECVPKTINFO, "Set delivery of the IPV6_PKTINFO")
+
+#ifndef IPV6_PKTINFO
+# define IPV6_PKTINFO -1
+#endif
+CND(IPV6_PKTINFO, "Get IPv6datagram info")
+
+#ifndef IPV6_RTHDR
+# define IPV6_RTHDR -1
+#endif
+CND(IPV6_RTHDR, "Set the routing header delivery")
+
+#ifndef IPV6_AUTHHDR
+# define IPV6_AUTHHDR -1
+#endif
+CND(IPV6_AUTHHDR, "Set the authentication header delivery")
+
+#ifndef IPV6_DSTOPTS
+# define IPV6_DSTOPTS -1
+#endif
+CND(IPV6_DSTOPTS, "Set the destination options delivery")
+
+#ifndef IPV6_HOPOPTS
+# define IPV6_HOPOPTS -1
+#endif
+CND(IPV6_HOPOPTS, "Set the hop options delivery")
+
+#ifndef IPV6_FLOWINFO
+# define IPV6_FLOWINFO -1
+#endif
+CND(IPV6_FLOWINFO, "Set the flow ID delivery")
+
+#ifndef IPV6_HOPLIMIT
+# define IPV6_HOPLIMIT -1
+#endif
+CND(IPV6_HOPLIMIT, "Set the hop count of the packet delivery")
+
+#ifndef IPV6_RECVERR
+# define IPV6_RECVERR -1
+#endif
+CND(IPV6_RECVERR, "Extended reliable error message passing")
+
+#ifndef IPV6_ROUTER_ALERT
+# define IPV6_ROUTER_ALERT -1
+#endif
+CND(IPV6_ROUTER_ALERT, "Pass forwarded router alert hop-by-hop option")
+
+#ifndef IPV6_UNICAST_HOPS
+# define IPV6_UNICAST_HOPS -1
+#endif
+CND(IPV6_UNICAST_HOPS, "Set the unicast hop limit")
+
+#ifndef IPV6_V6ONLY
+# define IPV6_V6ONLY -1
+#endif
+CND(IPV6_V6ONLY, "Restricted to IPv6 communications only")
+
 /*
 
    ----------------------
@@ -1332,7 +1566,7 @@ CND(SIZEOF_tv_usec, "tv_usec")
  ** hard-wired limit of 100 million.
  ** On IA64 HP-UX the limit is 2**31 - 1.
  **/
-#if defined (sun)
+#if defined (__sun__)
 # define MAX_tv_sec "100_000_000"
 
 #elif defined (__hpux__)
@@ -1367,10 +1601,26 @@ CND(SIZEOF_struct_hostent, "struct hostent")
 #define SIZEOF_struct_servent (sizeof (struct servent))
 CND(SIZEOF_struct_servent, "struct servent")
 
-#if defined (__linux__)
+#if defined (__linux__) || defined (__ANDROID__) || defined (__QNX__)
 #define SIZEOF_sigset (sizeof (sigset_t))
 CND(SIZEOF_sigset, "sigset")
 #endif
+
+#if defined(_WIN32) || defined(__vxworks)
+#define SIZEOF_socklen_t sizeof (size_t)
+#else
+#define SIZEOF_socklen_t sizeof (socklen_t)
+#endif
+CND(SIZEOF_socklen_t, "Size of socklen_t");
+
+#ifndef IF_NAMESIZE
+#ifdef IF_MAX_STRING_SIZE
+#define IF_NAMESIZE IF_MAX_STRING_SIZE
+#else
+#define IF_NAMESIZE -1
+#endif
+#endif
+CND(IF_NAMESIZE, "Max size of interface name with 0 terminator");
 
 /*
 
@@ -1414,6 +1664,13 @@ C("Thread_Blocking_IO", Boolean, "True", "")
 #endif
 CST(Inet_Pton_Linkname, "")
 
+#ifdef HAVE_INET_NTOP
+# define Inet_Ntop_Linkname "inet_ntop"
+#else
+# define Inet_Ntop_Linkname "__gnat_inet_ntop"
+#endif
+CST(Inet_Ntop_Linkname, "")
+
 #endif /* HAVE_SOCKETS */
 
 /*
@@ -1446,7 +1703,9 @@ CND(CLOCK_FASTEST, "Fastest clock")
 #endif
 CND(CLOCK_THREAD_CPUTIME_ID, "Thread CPU clock")
 
-#if defined(__FreeBSD__) || (defined(_AIX) && defined(_AIXVERSION_530))
+#if defined(__linux__) || defined(__FreeBSD__) \
+ || (defined(_AIX) && defined(_AIXVERSION_530)) \
+ || defined(__DragonFly__) || defined(__QNX__)
 /** On these platforms use system provided monotonic clock instead of
  ** the default CLOCK_REALTIME. We then need to set up cond var attributes
  ** appropriately (see thread.c).
@@ -1467,7 +1726,8 @@ CND(CLOCK_THREAD_CPUTIME_ID, "Thread CPU clock")
 CNS(CLOCK_RT_Ada, "")
 #endif
 
-#if defined (__APPLE__) || defined (__linux__) || defined (DUMMY)
+#if defined (__APPLE__) || defined (__linux__) || defined (__ANDROID__) \
+  || defined (__QNX__) || defined (__rtems__) || defined (DUMMY)
 /*
 
    --  Sizes of pthread data types
@@ -1510,7 +1770,7 @@ CND(PTHREAD_RWLOCKATTR_SIZE, "pthread_rwlockattr_t")
 CND(PTHREAD_RWLOCK_SIZE,     "pthread_rwlock_t")
 CND(PTHREAD_ONCE_SIZE,       "pthread_once_t")
 
-#endif /* __APPLE__ || __linux__ */
+#endif /* __APPLE__ || __linux__ || __ANDROID__ || __rtems__ */
 
 /*
 

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -54,16 +54,6 @@ package Exp_Ch9 is
    --  Given an access-to-limited class-wide type or an access-to-limited
    --  interface, ensure that the designated type has a _master and generate
    --  a renaming of the said master to service the access type.
-
-   procedure Build_Entry_Names
-     (Obj_Ref : Node_Id;
-      Obj_Typ : Entity_Id;
-      Stmts   : List_Id);
-   --  Given a concurrent object, create static string names for all entries
-   --  and entry families. Associate each name with the Protection_Entries or
-   --  ATCB field of the object. Obj_Ref is a reference to the concurrent
-   --  object. Obj_Typ is the type of the object. Stmts is the list where all
-   --  generated code is attached.
 
    procedure Build_Master_Entity (Obj_Or_Typ : Entity_Id);
    --  Given the name of an object or a type which is either a task, contains
@@ -266,12 +256,13 @@ package Exp_Ch9 is
    --  allows these two nodes to be found from the type, without benefit of
    --  further attributes, using Corresponding_Record.
 
-   procedure Expand_N_Requeue_Statement          (N : Node_Id);
-   procedure Expand_N_Selective_Accept           (N : Node_Id);
-   procedure Expand_N_Single_Task_Declaration    (N : Node_Id);
-   procedure Expand_N_Task_Body                  (N : Node_Id);
-   procedure Expand_N_Task_Type_Declaration      (N : Node_Id);
-   procedure Expand_N_Timed_Entry_Call           (N : Node_Id);
+   procedure Expand_N_Requeue_Statement            (N : Node_Id);
+   procedure Expand_N_Selective_Accept             (N : Node_Id);
+   procedure Expand_N_Single_Protected_Declaration (N : Node_Id);
+   procedure Expand_N_Single_Task_Declaration      (N : Node_Id);
+   procedure Expand_N_Task_Body                    (N : Node_Id);
+   procedure Expand_N_Task_Type_Declaration        (N : Node_Id);
+   procedure Expand_N_Timed_Entry_Call             (N : Node_Id);
 
    procedure Expand_Protected_Body_Declarations
      (N       : Node_Id;
@@ -282,7 +273,7 @@ package Exp_Ch9 is
    --  is the entity for the corresponding protected type declaration.
 
    function External_Subprogram (E : Entity_Id) return Entity_Id;
-   --  return the external version of a protected operation, which locks
+   --  Return the external version of a protected operation, which locks
    --  the object before invoking the internal protected subprogram body.
 
    function Find_Master_Scope (E : Entity_Id) return Entity_Id;

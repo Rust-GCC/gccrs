@@ -1,5 +1,5 @@
 /* Routines for liveness in SSA trees.
-   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+   Copyright (C) 2003-2019 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod  <amacleod@redhat.com>
 
 This file is part of GCC.
@@ -62,27 +62,49 @@ typedef struct _var_map
 
   /* Map of partitions numbers to base variable table indexes.  */
   int *partition_to_base_index;
+
+  /* Bitmap of basic block.  It describes the region within which the analysis
+     is done.  Using pointer avoids allocating memory in out-of-ssa case.  */
+  bitmap bmp_bbs;
+
+  /* Vector of basic block in the region.  */
+  vec<basic_block> vec_bbs;
+
+  /* True if this map is for out-of-ssa, otherwise for live range
+     computation.  When for out-of-ssa, it also means the var map is computed
+     for whole current function.  */
+  bool outofssa_p;
 } *var_map;
 
 
 /* Value used to represent no partition number.  */
 #define NO_PARTITION		-1
 
-extern var_map init_var_map (int);
+extern var_map init_var_map (int, struct loop* = NULL);
 extern void delete_var_map (var_map);
 extern int var_union (var_map, tree, tree);
-extern void partition_view_normal (var_map, bool);
-extern void partition_view_bitmap (var_map, bitmap, bool);
-extern void dump_scope_blocks (FILE *, int);
-extern void debug_scope_block (tree, int);
-extern void debug_scope_blocks (int);
+extern void partition_view_normal (var_map);
+extern void partition_view_bitmap (var_map, bitmap);
+extern void dump_scope_blocks (FILE *, dump_flags_t);
+extern void debug_scope_block (tree, dump_flags_t);
+extern void debug_scope_blocks (dump_flags_t);
 extern void remove_unused_locals (void);
 extern void dump_var_map (FILE *, var_map);
 extern void debug (_var_map &ref);
 extern void debug (_var_map *ptr);
-#ifdef ENABLE_CHECKING
-extern void register_ssa_partition_check (tree ssa_var);
-#endif
+
+
+/* Return TRUE if region of the MAP contains basic block BB.  */
+
+inline bool
+region_contains_p (var_map map, basic_block bb)
+{
+  /* It's possible that the function is called with ENTRY_BLOCK/EXIT_BLOCK.  */
+  if (map->outofssa_p)
+    return (bb->index != ENTRY_BLOCK && bb->index != EXIT_BLOCK);
+
+  return bitmap_bit_p (map->bmp_bbs, bb->index);
+}
 
 
 /* Return number of partitions in MAP.  */
@@ -176,20 +198,6 @@ num_basevars (var_map map)
 }
 
 
-
-/* This routine registers a partition for SSA_VAR with MAP.  Any unregistered
-   partitions may be filtered out by a view later.  */
-
-static inline void
-register_ssa_partition (var_map map ATTRIBUTE_UNUSED,
-			tree ssa_var ATTRIBUTE_UNUSED)
-{
-#if defined ENABLE_CHECKING
-  register_ssa_partition_check (ssa_var);
-#endif
-}
-
-
 /*  ---------------- live on entry/exit info ------------------------------
 
     This structure is used to represent live range information on SSA based
@@ -242,6 +250,10 @@ typedef struct tree_live_info_d
 
   /* Top of workstack.  */
   int *stack_top;
+
+  /* Obstacks to allocate the bitmaps on.  */
+  bitmap_obstack livein_obstack;
+  bitmap_obstack liveout_obstack;
 } *tree_live_info_p;
 
 
@@ -249,8 +261,7 @@ typedef struct tree_live_info_d
 #define LIVEDUMP_EXIT	0x02
 #define LIVEDUMP_ALL	(LIVEDUMP_ENTRY | LIVEDUMP_EXIT)
 extern void delete_tree_live_info (tree_live_info_p);
-extern void calculate_live_on_exit (tree_live_info_p);
-extern tree_live_info_p calculate_live_ranges (var_map);
+extern tree_live_info_p calculate_live_ranges (var_map, bool);
 extern void debug (tree_live_info_d &ref);
 extern void debug (tree_live_info_d *ptr);
 extern void dump_live_info (FILE *, tree_live_info_p, int);
@@ -300,18 +311,6 @@ static inline var_map
 live_var_map (tree_live_info_p live)
 {
   return live->map;
-}
-
-
-/* Merge the live on entry information in LIVE for partitions P1 and P2. Place
-   the result into P1.  Clear P2.  */
-
-static inline void
-live_merge_and_clear (tree_live_info_p live, int p1, int p2)
-{
-  gcc_checking_assert (&live->livein[p1] && &live->livein[p2]);
-  bitmap_ior_into (&live->livein[p1], &live->livein[p2]);
-  bitmap_clear (&live->livein[p2]);
 }
 
 

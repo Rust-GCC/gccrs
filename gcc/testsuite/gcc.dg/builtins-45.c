@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-require-effective-target inf } */
 /* { dg-options "-O1 -fno-trapping-math -fno-finite-math-only -fdump-tree-optimized" } */
   
 extern void f(int);
@@ -54,4 +55,3 @@ main ()
 
 /* Check that all instances of link_error were subject to DCE.  */
 /* { dg-final { scan-tree-dump-times "link_error" 0 "optimized" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

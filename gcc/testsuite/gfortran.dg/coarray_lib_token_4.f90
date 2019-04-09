@@ -35,9 +35,9 @@ end program test_caf
 
 ! { dg-final { scan-tree-dump-times "expl \\(integer\\(kind=4\\).0:. . restrict z, void . restrict caf_token.\[0-9\]+, integer\\(kind=.\\) caf_offset.\[0-9\]+\\)" 1 "original" } }
 !
-! { dg-final { scan-tree-dump-times "bar \\(struct array1_integer\\(kind=4\\) & restrict y, void . restrict caf_token.\[0-9\]+, integer\\(kind=.\\) caf_offset.\[0-9\]+\\)" 1 "original" } }
+! { dg-final { scan-tree-dump-times "bar \\(struct array01_integer\\(kind=4\\) & restrict y, void . restrict caf_token.\[0-9\]+, integer\\(kind=.\\) caf_offset.\[0-9\]+\\)" 1 "original" } }
 !
-! { dg-final { scan-tree-dump-times "foo \\(struct array1_integer\\(kind=4\\) & restrict x, struct array1_integer\\(kind=4\\) & restrict y, integer\\(kind=4\\) & restrict test, void . restrict caf_token.\[0-9\]+, integer\\(kind=.\\) caf_offset.\[0-9\]+, void . restrict caf_token.\[0-9\]+, integer\\(kind=.\\) caf_offset.\[0-9\]+\\)" 1 "original" } }
+! { dg-final { scan-tree-dump-times "foo \\(struct array01_integer\\(kind=4\\) & restrict x, struct array01_integer\\(kind=4\\) & restrict y, integer\\(kind=4\\) & restrict test, void . restrict caf_token.\[0-9\]+, integer\\(kind=.\\) caf_offset.\[0-9\]+, void . restrict caf_token.\[0-9\]+, integer\\(kind=.\\) caf_offset.\[0-9\]+\\)" 1 "original" } }
 !
 ! { dg-final { scan-tree-dump-times "bar \\(&parm.\[0-9\]+, caf_token.\[0-9\]+, \\(\\(integer\\(kind=.\\)\\) parm.\[0-9\]+.data - \\(integer\\(kind=.\\)\\) x.\[0-9\]+\\) \\+ caf_offset.\[0-9\]+\\);" 1 "original" } }
 !
@@ -49,4 +49,3 @@ end program test_caf
 !
 ! { dg-final { scan-tree-dump-times "foo \\(&parm.\[0-9\]+, &a, &C.\[0-9\]+, caf_token.\[0-9\]+, \\(integer\\(kind=.\\)\\) parm.\[0-9\]+.data - \\(integer\\(kind=.\\)\\) b, a.token, 0\\);" 1 "original" } }
 !
-! { dg-final { cleanup-tree-dump "original" } }

@@ -1,6 +1,6 @@
 # Make-lang.in -- Top level -*- makefile -*- fragment for gcc Go frontend.
 
-# Copyright (C) 2009-2014 Free Software Foundation, Inc.
+# Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 # This file is part of GCC.
 
@@ -50,25 +50,31 @@ go-warn = $(STRICT_WARN)
 
 GO_OBJS = \
 	go/ast-dump.o \
-	go/dataflow.o \
+	go/escape.o \
 	go/export.o \
 	go/expressions.o \
 	go/go-backend.o \
+	go/go-diagnostics.o \
+	go/go-encode-id.o \
 	go/go-dump.o \
 	go/go-gcc.o \
+	go/go-gcc-diagnostics.o \
 	go/go-lang.o \
 	go/go-linemap.o \
 	go/go-optimize.o \
+	go/go-sha1.o \
 	go/go.o \
 	go/gogo.o \
 	go/import.o \
 	go/import-archive.o \
 	go/lex.o \
+	go/names.o \
 	go/parse.o \
 	go/runtime.o \
 	go/statements.o \
 	go/types.o \
-	go/unsafe.o
+	go/unsafe.o \
+	go/wb.o
 
 go_OBJS = $(GO_OBJS) go/gospec.o
 
@@ -132,6 +138,9 @@ go.srcman: doc/gccgo.1
 lang_checks += check-go
 lang_checks_parallelized += check-go
 check_go_parallelize = 10
+
+# No go-specific selftests
+selftest-go:
 
 # Install hooks.
 
@@ -197,6 +206,7 @@ go.uninstall:
 go.mostlyclean:
 	-rm -f go/*$(objext)
 	-rm -f go/*$(coverageexts)
+	-rm -f gccgo$(exeext) gccgo-cross$(exeext) go1$(exeext)
 go.clean:
 go.distclean:
 go.maintainer-clean:
@@ -224,6 +234,9 @@ GOINCLUDES = -I $(srcdir)/go -I $(srcdir)/go/gofrontend
 
 CFLAGS-go/go-gcc.o += $(GOINCLUDES)
 CFLAGS-go/go-linemap.o += $(GOINCLUDES)
+CFLAGS-go/go-sha1.o += $(GOINCLUDES)
+CFLAGS-go/go-gcc-diagnostics.o += $(GOINCLUDES)
+CFLAGS-go/go-encode-id.o += $(GOINCLUDES)
 
 go/%.o: go/gofrontend/%.cc
 	$(COMPILE) $(GOINCLUDES) $<

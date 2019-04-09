@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,7 +27,7 @@ with Atree;    use Atree;
 with Checks;   use Checks;
 with Einfo;    use Einfo;
 with Exp_Ch3;  use Exp_Ch3;
-with Exp_Ch6;  use Exp_Ch6;
+with Exp_Ch6;
 with Exp_Imgv; use Exp_Imgv;
 with Exp_Tss;  use Exp_Tss;
 with Exp_Util; use Exp_Util;
@@ -47,7 +47,6 @@ with Sem_Eval; use Sem_Eval;
 with Sem_Util; use Sem_Util;
 with Sinfo;    use Sinfo;
 with Snames;   use Snames;
-with Targparm; use Targparm;
 with Tbuild;   use Tbuild;
 with Uintp;    use Uintp;
 with Validsw;  use Validsw;
@@ -114,7 +113,7 @@ package body Exp_Ch13 is
                   and then Present (Expression (Decl))
                   and then Nkind (Expression (Decl)) /= N_Null
                   and then
-                   not Comes_From_Source (Original_Node (Expression (Decl)))
+                    not Comes_From_Source (Original_Node (Expression (Decl)))
                then
                   if Present (Base_Init_Proc (Typ))
                     and then
@@ -123,8 +122,8 @@ package body Exp_Ch13 is
                      null;
 
                   elsif Init_Or_Norm_Scalars
-                    and then
-                      (Is_Scalar_Type (Typ) or else Is_String_Type (Typ))
+                    and then (Is_Scalar_Type (Typ)
+                               or else Is_String_Type (Typ))
                   then
                      null;
 
@@ -136,9 +135,16 @@ package body Exp_Ch13 is
                --  has a delayed freeze, but the address expression itself
                --  must be elaborated at the point it appears. If the object
                --  is controlled, additional checks apply elsewhere.
+               --  If the attribute comes from an aspect specification it
+               --  is being elaborated at the freeze point and side effects
+               --  need not be removed (and shouldn't, if the expression
+               --  depends on other entities that have delayed freeze).
+               --  This is another consequence of the delayed analysis of
+               --  aspects, and a real semantic difference.
 
                elsif Nkind (Decl) = N_Object_Declaration
                  and then not Needs_Constant_Address (Decl, Typ)
+                 and then not From_Aspect_Specification (N)
                then
                   Remove_Side_Effects (Exp);
                end if;
@@ -154,8 +160,7 @@ package body Exp_Ch13 is
             --  integer literal (this simplifies things in Gigi).
 
             if Nkind (Exp) /= N_Integer_Literal then
-               Rewrite
-                 (Exp, Make_Integer_Literal (Loc, Expr_Value (Exp)));
+               Rewrite (Exp, Make_Integer_Literal (Loc, Expr_Value (Exp)));
             end if;
 
             --  A complex case arises if the alignment clause applies to an
@@ -169,9 +174,10 @@ package body Exp_Ch13 is
               and then not Is_Entity_Name (Renamed_Object (Ent))
             then
                declare
-                  Loc      : constant Source_Ptr := Sloc (N);
-                  Decl     : constant Node_Id    := Parent (Ent);
-                  Temp     : constant Entity_Id  := Make_Temporary (Loc, 'T');
+                  Decl : constant Node_Id    := Parent (Ent);
+                  Loc  : constant Source_Ptr := Sloc (N);
+                  Temp : constant Entity_Id  := Make_Temporary (Loc, 'T');
+
                   New_Decl : Node_Id;
 
                begin
@@ -220,7 +226,7 @@ package body Exp_Ch13 is
                begin
                   Assign :=
                     Make_Assignment_Statement (Loc,
-                      Name =>
+                      Name       =>
                         New_Occurrence_Of (Storage_Size_Variable (Ent), Loc),
                       Expression =>
                         Convert_To (RTE (RE_Size_Type), Expression (N)));
@@ -260,9 +266,9 @@ package body Exp_Ch13 is
                   Insert_Action (N,
                     Make_Object_Declaration (Loc,
                       Defining_Identifier => V,
-                      Object_Definition  =>
+                      Object_Definition   =>
                         New_Occurrence_Of (RTE (RE_Storage_Offset), Loc),
-                      Expression =>
+                      Expression          =>
                         Convert_To (RTE (RE_Storage_Offset), Expression (N))));
 
                   Set_Storage_Size_Variable (Ent, Entity_Id (V));
@@ -273,7 +279,6 @@ package body Exp_Ch13 is
 
          when others =>
             null;
-
       end case;
    end Expand_N_Attribute_Definition_Clause;
 
@@ -290,12 +295,6 @@ package body Exp_Ch13 is
       --  for controlled types.
 
       if Restriction_Active (No_Finalization) then
-         return;
-
-      --  Do not create a specialized Deallocate since .NET/JVM compilers do
-      --  not support pools and address arithmetic.
-
-      elsif VM_Target /= No_VM then
          return;
       end if;
 
@@ -344,10 +343,8 @@ package body Exp_Ch13 is
             Insert_Action (N,
               Make_Object_Declaration (Loc,
                 Defining_Identifier => Temp_Id,
-                Object_Definition =>
-                  New_Occurrence_Of (Expr_Typ, Loc),
-                Expression =>
-                  Relocate_Node (Expr)));
+                Object_Definition   => New_Occurrence_Of (Expr_Typ, Loc),
+                Expression          => Relocate_Node (Expr)));
 
             New_Expr := New_Occurrence_Of (Temp_Id, Loc);
             Set_Etype (New_Expr, Expr_Typ);
@@ -368,12 +365,13 @@ package body Exp_Ch13 is
    ----------------------------
 
    procedure Expand_N_Freeze_Entity (N : Node_Id) is
-      E              : constant Entity_Id := Entity (N);
+      E : constant Entity_Id := Entity (N);
+
+      Decl           : Node_Id;
+      Delete         : Boolean := False;
       E_Scope        : Entity_Id;
       In_Other_Scope : Boolean;
       In_Outer_Scope : Boolean;
-      Decl           : Node_Id;
-      Delete         : Boolean := False;
 
    begin
       --  If there are delayed aspect specifications, we insert them just
@@ -400,7 +398,14 @@ package body Exp_Ch13 is
                   --  Skip this for aspects (e.g. Current_Value) for which
                   --  there is no corresponding pragma or attribute.
 
-                  if Present (Aitem) then
+                  if Present (Aitem)
+
+                    --  Also skip if we have a null statement rather than a
+                    --  delayed aspect (this happens when we are ignoring rep
+                    --  items from use of the -gnatI switch).
+
+                    and then Nkind (Aitem) /= N_Null_Statement
+                  then
                      pragma Assert (Is_Delayed_Aspect (Aitem));
                      Insert_Before (N, Aitem);
                   end if;
@@ -418,11 +423,24 @@ package body Exp_Ch13 is
             Apply_Address_Clause_Check (E, N);
          end if;
 
+         --  Analyze actions in freeze node, if any
+
+         if Present (Actions (N)) then
+            declare
+               Act : Node_Id;
+            begin
+               Act := First (Actions (N));
+               while Present (Act) loop
+                  Analyze (Act);
+                  Next (Act);
+               end loop;
+            end;
+         end if;
+
          --  If initialization statements have been captured in a compound
          --  statement, insert them back into the tree now.
 
          Explode_Initialization_Compound_Statement (E);
-
          return;
 
       --  Only other items requiring any front end action are types and
@@ -451,6 +469,11 @@ package body Exp_Ch13 is
       if Is_Type (E_Scope)
         and then Ekind (E_Scope) not in Concurrent_Kind
       then
+         E_Scope := Scope (E_Scope);
+
+      --  The entity may be a subtype declared for an iterator
+
+      elsif Ekind (E_Scope) = E_Loop then
          E_Scope := Scope (E_Scope);
       end if;
 
@@ -517,6 +540,8 @@ package body Exp_Ch13 is
          --      moved to the non-protected version of the subprogram.
          --    * Task bodies - The declarations and statements are moved to the
          --      task body procedure.
+         --    * Blocks that will be rewritten as subprograms when unnesting
+         --      is in effect.
 
          --  Visible declarations do not need to be installed in these three
          --  cases since it does not make semantic sense to do so. All entities
@@ -528,8 +553,9 @@ package body Exp_Ch13 is
            and then
              (Is_Entry (E_Scope)
                 or else (Is_Subprogram (E_Scope)
-                           and then Is_Protected_Type (Scope (E_Scope)))
-                or else Is_Task_Type (E_Scope))
+                          and then Is_Protected_Type (Scope (E_Scope)))
+                or else Is_Task_Type (E_Scope)
+                or else Ekind (E_Scope) = E_Block)
          then
             null;
          else
@@ -566,7 +592,7 @@ package body Exp_Ch13 is
       --  If subprogram, freeze the subprogram
 
       elsif Is_Subprogram (E) then
-         Freeze_Subprogram (N);
+         Exp_Ch6.Freeze_Subprogram (N);
 
          --  Ada 2005 (AI-251): Remove the freezing node associated with the
          --  entities internally used by the frontend to register primitives

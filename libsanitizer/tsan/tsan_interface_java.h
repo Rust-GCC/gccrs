@@ -55,6 +55,10 @@ void __tsan_java_move(jptr src, jptr dst, jptr size) INTERFACE_ATTRIBUTE;
 // It ensures necessary synchronization between
 // java object creation and finalization.
 void __tsan_java_finalize() INTERFACE_ATTRIBUTE;
+// Finds the first allocated memory block in the [*from_ptr, to) range, saves
+// its address in *from_ptr and returns its size. Returns 0 if there are no
+// allocated memory blocks in the range.
+jptr __tsan_java_find(jptr *from_ptr, jptr to) INTERFACE_ATTRIBUTE;
 
 // Mutex lock.
 // Addr is any unique address associated with the mutex.
@@ -76,6 +80,14 @@ void __tsan_java_mutex_lock_rec(jptr addr, int rec) INTERFACE_ATTRIBUTE;
 // It must be passed back to __tsan_java_mutex_lock_rec() to restore
 // the same recursion level.
 int __tsan_java_mutex_unlock_rec(jptr addr) INTERFACE_ATTRIBUTE;
+
+// Raw acquire/release primitives.
+// Can be used to establish happens-before edges on volatile/final fields,
+// in atomic operations, etc. release_store is the same as release, but it
+// breaks release sequence on addr (see C++ standard 1.10/7 for details).
+void __tsan_java_acquire(jptr addr) INTERFACE_ATTRIBUTE;
+void __tsan_java_release(jptr addr) INTERFACE_ATTRIBUTE;
+void __tsan_java_release_store(jptr addr) INTERFACE_ATTRIBUTE;
 
 #ifdef __cplusplus
 }  // extern "C"

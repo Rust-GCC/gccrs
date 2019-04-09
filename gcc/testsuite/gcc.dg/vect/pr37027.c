@@ -18,8 +18,8 @@ void
 foo (void)
 {
   int i;
-  int sum1;
-  int sum2;
+  int sum1 = 0;
+  int sum2 = 0;
 
   for (i = 0; i < 16; i++)
   {
@@ -33,5 +33,4 @@ foo (void)
 
 /* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" { xfail vect_no_int_add } } } */
 /* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 1 "vect" { xfail vect_no_int_add } } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */
 

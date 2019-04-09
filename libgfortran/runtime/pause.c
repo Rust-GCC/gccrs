@@ -1,5 +1,5 @@
 /* Implementation of the PAUSE statement.
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
 
 This file is part of the GNU Fortran runtime library (libgfortran).
@@ -40,35 +40,39 @@ do_pause (void)
 
   fgets(buff, 4, stdin);
   if (strncmp(buff, "go\n", 3) != 0)
-    stop_string ('\0', 0);
+    stop_string ('\0', 0, false);
   estr_write ("RESUMED\n");
 }
 
 /* A numeric PAUSE statement.  */
 
-extern void pause_numeric (GFC_INTEGER_4);
+extern void pause_numeric (GFC_INTEGER_8);
 export_proto(pause_numeric);
 
 void
-pause_numeric (GFC_INTEGER_4 code)
+pause_numeric (GFC_INTEGER_8 code)
 {
-  st_printf ("PAUSE %d\n", (int) code);
+  st_printf ("PAUSE %ld\n", (long) code);
   do_pause ();
 }
 
 /* A character string or blank PAUSE statement.  */
 
-extern void pause_string (char *string, GFC_INTEGER_4 len);
+extern void pause_string (char *string, size_t len);
 export_proto(pause_string);
 
 void
-pause_string (char *string, GFC_INTEGER_4 len)
+pause_string (char *string, size_t len)
 {
-  estr_write ("PAUSE ");
-  ssize_t w = write (STDERR_FILENO, string, len);
-  (void) sizeof (w); /* Avoid compiler warning about not using write
-			return val.  */
-  estr_write ("\n");
+  struct iovec iov[3];
+
+  iov[0].iov_base = (char*) "PAUSE ";
+  iov[0].iov_len = strlen (iov[0].iov_base);
+  iov[1].iov_base = string;
+  iov[1].iov_len = len;
+  iov[2].iov_base = (char*) "\n";
+  iov[2].iov_len = 1;
+  estr_writev (iov, 3);
 
   do_pause ();
 }

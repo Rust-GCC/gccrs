@@ -1,5 +1,4 @@
 /* { dg-do compile } */
-/* { dg-require-effective-target sse4 } */
 /* { dg-options "-O2 -ffast-math -ftree-vectorize -msse4.2 -mtune=corei7" } */
 
 #include <math.h>
@@ -24,4 +23,4 @@ norm (struct XYZ *in, struct XYZ *out, int size)
     }
 }
 
-/* { dg-final { scan-assembler "blend" } } */
+/* { dg-final { scan-assembler "rsqrtps" } } */

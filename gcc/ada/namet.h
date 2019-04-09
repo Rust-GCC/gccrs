@@ -6,7 +6,7 @@
  *                                                                          *
  *                              C Header File                               *
  *                                                                          *
- *            Copyright (C) 1992-2014, Free Software Foundation, Inc.       *
+ *            Copyright (C) 1992-2019, Free Software Foundation, Inc.       *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -25,7 +25,7 @@
 
 /* This is the C file that corresponds to the Ada package specification
    Namet.  It was created manually from files namet.ads and namet.adb.
-   Some subprograms from Sinput are also made acessable here.  */
+   Subprograms from Exp_Dbug and Sinput are also made accessible here.  */
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,16 +52,27 @@ extern struct Name_Entry *Names_Ptr;
 #define Name_Chars_Ptr namet__name_chars__table
 extern char *Name_Chars_Ptr;
 
-#define Name_Buffer namet__name_buffer
-extern char Name_Buffer[];
+/* This is Hostparm.Max_Line_Length.  */
+#define Max_Line_Length (32767 - 1)
 
-extern Int namet__name_len;
-#define Name_Len namet__name_len
+/* The global name buffer.  */
+struct Bounded_String
+{
+  Nat Max_Length;
+  Nat Length;
+  char Chars[4 * Max_Line_Length]; /* Exact value for overflow detection.  */
+};
 
-/* Get_Name_String returns a null terminated C string for the specified name.
+#define Global_Name_Buffer namet__global_name_buffer
+extern struct Bounded_String Global_Name_Buffer;
+
+#define Name_Buffer Global_Name_Buffer.Chars
+#define Name_Len Global_Name_Buffer.Length
+
+/* Get_Name_String returns a NUL terminated C string for the specified name.
    We could use the official Ada routine for this purpose, but since the
    strings we want are sitting in the name strings table in exactly the form
-   we need them (null terminated), we just point to the name directly. */
+   we need them (NUL terminated), we just point to the name directly. */
 
 static char *Get_Name_String (Name_Id);
 
@@ -71,28 +82,8 @@ Get_Name_String (Name_Id Id)
   return Name_Chars_Ptr + Names_Ptr[Id - First_Name_Id].Name_Chars_Index + 1;
 }
 
-/* Get_Decoded_Name_String returns a null terminated C string in the same
-   manner as Get_Name_String, except that it is decoded (i.e. upper half or
-   wide characters are put back in their external form, and character literals
-   are also returned in their external form (with surrounding apostrophes) */
-
-extern void namet__get_decoded_name_string (Name_Id);
-
-static char *Get_Decoded_Name_String (Name_Id);
-
-INLINE char *
-Get_Decoded_Name_String (Name_Id Id)
-{
-  namet__get_decoded_name_string (Id);
-  Name_Buffer[Name_Len] = 0;
-  return Name_Buffer;
-}
-
-/* Like Get_Decoded_Name_String, but the result has all qualification and
-   package body entity suffixes stripped, and also all letters are upper
-   cased.  This is used for building the enumeration literal table. */
-
-extern void casing__set_all_upper_case (void);
+#define Name_Equals namet__name_equals
+extern Boolean Name_Equals (Name_Id, Name_Id);
 
 /* The following routines and variables are not part of Namet, but we
    include the header here since it seems the best place for it.  */

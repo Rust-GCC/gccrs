@@ -1,4 +1,4 @@
-/* Copyright (C) 2011-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2011-2019 Free Software Foundation, Inc.
 
    This file is part of the GNU Transactional Memory Library (libitm).
 
@@ -32,7 +32,7 @@
        trapa #0x14; or r0,r0; or r0,r0; or r0,r0; or r0,r0; or r0,r0"
 
 static inline long
-sys_futex0 (std::atomic<int> *addr, long op, long val)
+sys_futex0 (std::atomic<int> *addr, int op, int val)
 {
   int __status;
   register long __r3 asm ("r3") = SYS_futex;

@@ -9,5 +9,4 @@ float foo(float x)
 }
 
 /* We should *not* fold the arithmetic.  */
-/* { dg-final { scan-tree-dump-times "0\\.0" 0 "dom2"} } */
-/* { dg-final { cleanup-tree-dump "dom2" } } */
+/* { dg-final { scan-tree-dump-times "0\\.0\[^%0\]" 0 "dom2"} } */

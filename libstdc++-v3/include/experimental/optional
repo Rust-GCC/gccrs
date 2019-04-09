@@ -1,6 +1,6 @@
 // <optional> -*- C++ -*-
 
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,11 +33,15 @@
  * @defgroup experimental Experimental
  *
  * Components specified by various Technical Specifications.
+ *
+ * As indicated by the std::experimental namespace and the  header paths,
+ * the contents of these Technical Specifications are experimental and not
+ * part of the C++ standard. As such the interfaces and implementations may
+ * change in the future, and there is <STRONG> no guarantee of compatibility
+ * between different GCC releases </STRONG> for these features.
  */
 
-#if __cplusplus <= 201103L
-# include <bits/c++14_warning.h>
-#else
+#if __cplusplus >= 201402L
 
 #include <utility>
 #include <type_traits>
@@ -47,15 +51,16 @@
 #include <bits/functexcept.h>
 #include <bits/functional_hash.h>
 #include <bits/enable_special_members.h>
+#include <experimental/bits/lfts_config.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
 namespace experimental
 {
 inline namespace fundamentals_v1
 {
-_GLIBCXX_BEGIN_NAMESPACE_VERSION
-
   /**
    * @defgroup optional Optional values
    * @ingroup experimental
@@ -66,6 +71,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *
    * @{
    */
+
+#define __cpp_lib_experimental_optional 201411
 
   // All subsequent [X.Y.n] references are against n3793.
 
@@ -108,9 +115,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   class bad_optional_access : public logic_error
   {
   public:
-    // XXX Should not be inline
-    explicit bad_optional_access(const string& __arg) : logic_error(__arg) { }
+    bad_optional_access() : logic_error("bad optional access") { }
 
+    // XXX This constructor is non-standard. Should not be inline
     explicit bad_optional_access(const char* __arg) : logic_error(__arg) { }
 
     virtual ~bad_optional_access() noexcept = default;
@@ -125,23 +132,36 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   __throw_bad_optional_access(const char* __s)
   { _GLIBCXX_THROW_OR_ABORT(bad_optional_access(__s)); }
 
-  template<typename _Tp, typename _Sfinae = void>
-    struct _Has_addressof_impl : std::false_type { };
+#ifndef __cpp_lib_addressof_constexpr
+  template<typename _Tp, typename = void>
+    struct _Has_addressof_mem : std::false_type { };
 
   template<typename _Tp>
-    struct _Has_addressof_impl<_Tp,
-      decltype( std::declval<const _Tp&>().operator&(), void() )>
-      : std::true_type { };
+    struct _Has_addressof_mem<_Tp,
+         __void_t<decltype( std::declval<const _Tp&>().operator&() )>
+      >
+    : std::true_type { };
+
+  template<typename _Tp, typename = void>
+    struct _Has_addressof_free : std::false_type { };
+
+  template<typename _Tp>
+    struct _Has_addressof_free<_Tp,
+         __void_t<decltype( operator&(std::declval<const _Tp&>()) )>
+      >
+    : std::true_type { };
 
   /**
     * @brief Trait that detects the presence of an overloaded unary operator&.
     *
     * Practically speaking this detects the presence of such an operator when
-    * called on a const-qualified lvalue (i.e.
-    * declval<_Tp * const&>().operator&()).
+    * called on a const-qualified lvalue (e.g.
+    * declval<const _Tp&>().operator&()).
     */
   template<typename _Tp>
-    struct _Has_addressof : _Has_addressof_impl<_Tp>::type { };
+    struct _Has_addressof
+    : std::__or_<_Has_addressof_mem<_Tp>, _Has_addressof_free<_Tp>>::type
+    { };
 
   /**
     * @brief An overload that attempts to take the address of an lvalue as a
@@ -149,18 +169,21 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     * overloaded addressof operator (unary operator&), in which case the call
     * will not be a constant expression.
     */
-  template<typename _Tp, typename enable_if<!_Has_addressof<_Tp>::value,
-                                            int>::type...>
-    constexpr _Tp* __constexpr_addressof(_Tp& __t)
+  template<typename _Tp>
+    constexpr
+    enable_if_t<!_Has_addressof<_Tp>::value, _Tp*>
+    __constexpr_addressof(_Tp& __t)
     { return &__t; }
 
   /**
     * @brief Fallback overload that defers to __addressof.
     */
-  template<typename _Tp, typename enable_if<_Has_addressof<_Tp>::value,
-                                            int>::type...>
-    inline _Tp* __constexpr_addressof(_Tp& __t)
+  template<typename _Tp>
+    inline
+    enable_if_t<_Has_addressof<_Tp>::value, _Tp*>
+    __constexpr_addressof(_Tp& __t)
     { return std::__addressof(__t); }
+#endif // __cpp_lib_addressof_constexpr
 
   /**
     * @brief Class template that holds the necessary state for @ref optional
@@ -182,7 +205,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // Remove const to avoid prohibition of reusing object storage for
       // const-qualified types in [3.8/9]. This is strictly internal
       // and even optional itself is oblivious to it.
-      using _Stored_type = typename remove_const<_Tp>::type;
+      using _Stored_type = remove_const_t<_Tp>;
 
     public:
       // [X.Y.4.1] Constructors.
@@ -195,21 +218,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       : _Optional_base{} { }
 
       // Constructors for engaged optionals.
-      constexpr _Optional_base(const _Tp& __t)
-      : _M_payload(__t), _M_engaged(true) { }
-
-      constexpr _Optional_base(_Tp&& __t)
-      : _M_payload(std::move(__t)), _M_engaged(true) { }
-
       template<typename... _Args>
         constexpr explicit _Optional_base(in_place_t, _Args&&... __args)
         : _M_payload(std::forward<_Args>(__args)...), _M_engaged(true) { }
 
       template<typename _Up, typename... _Args,
-               typename enable_if<is_constructible<_Tp,
-                                                   initializer_list<_Up>&,
-                                                   _Args&&...>::value,
-                                  int>::type...>
+               enable_if_t<is_constructible<_Tp,
+                                            initializer_list<_Up>&,
+                                            _Args&&...>::value,
+                           int>...>
         constexpr explicit _Optional_base(in_place_t,
                                           initializer_list<_Up> __il,
                                           _Args&&... __args)
@@ -278,7 +295,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return this->_M_engaged; }
 
       // The _M_get operations have _M_engaged as a precondition.
-      _Tp&
+      constexpr _Tp&
       _M_get() noexcept
       { return _M_payload; }
 
@@ -328,7 +345,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     class _Optional_base<_Tp, false>
     {
     private:
-      using _Stored_type = typename remove_const<_Tp>::type;
+      using _Stored_type = remove_const_t<_Tp>;
 
     public:
       constexpr _Optional_base() noexcept
@@ -337,21 +354,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       constexpr _Optional_base(nullopt_t) noexcept
       : _Optional_base{} { }
 
-      constexpr _Optional_base(const _Tp& __t)
-      : _M_payload(__t), _M_engaged(true) { }
-
-      constexpr _Optional_base(_Tp&& __t)
-      : _M_payload(std::move(__t)), _M_engaged(true) { }
-
       template<typename... _Args>
         constexpr explicit _Optional_base(in_place_t, _Args&&... __args)
         : _M_payload(std::forward<_Args>(__args)...), _M_engaged(true) { }
 
       template<typename _Up, typename... _Args,
-               typename enable_if<is_constructible<_Tp,
-                                                   initializer_list<_Up>&,
-                                                   _Args&&...>::value,
-                                  int>::type...>
+               enable_if_t<is_constructible<_Tp,
+                                            initializer_list<_Up>&,
+                                            _Args&&...>::value,
+			   int>...>
         constexpr explicit _Optional_base(in_place_t,
                                           initializer_list<_Up> __il,
                                           _Args&&... __args)
@@ -452,6 +463,27 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       bool _M_engaged = false;
     };
 
+  template<typename _Tp>
+  class optional;
+
+  template<typename _Tp, typename _Up>
+    using __converts_from_optional =
+      __or_<is_constructible<_Tp, const optional<_Up>&>,
+	    is_constructible<_Tp, optional<_Up>&>,
+	    is_constructible<_Tp, const optional<_Up>&&>,
+	    is_constructible<_Tp, optional<_Up>&&>,
+	    is_convertible<const optional<_Up>&, _Tp>,
+	    is_convertible<optional<_Up>&, _Tp>,
+	    is_convertible<const optional<_Up>&&, _Tp>,
+	    is_convertible<optional<_Up>&&, _Tp>>;
+
+  template<typename _Tp, typename _Up>
+    using __assigns_from_optional =
+      __or_<is_assignable<_Tp&, const optional<_Up>&>,
+	    is_assignable<_Tp&, optional<_Up>&>,
+	    is_assignable<_Tp&, const optional<_Up>&&>,
+	    is_assignable<_Tp&, optional<_Up>&&>>;
+
   /**
     * @brief Class template for optional values.
     */
@@ -470,10 +502,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         // Unique tag type.
         optional<_Tp>>
     {
-      static_assert(__and_<__not_<is_same<typename remove_cv<_Tp>::type,
-					  nullopt_t>>,
-			   __not_<is_same<typename remove_cv<_Tp>::type,
-					  in_place_t>>,
+      static_assert(__and_<__not_<is_same<remove_cv_t<_Tp>, nullopt_t>>,
+			   __not_<is_same<remove_cv_t<_Tp>, in_place_t>>,
 			   __not_<is_reference<_Tp>>>(),
                     "Invalid instantiation of optional<T>");
 
@@ -486,6 +516,78 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // _Optional_base has the responsibility for construction.
       using _Base::_Base;
 
+      constexpr optional() = default;
+      // Converting constructors for engaged optionals.
+      template <typename _Up = _Tp,
+                enable_if_t<__and_<
+			      __not_<is_same<optional<_Tp>, decay_t<_Up>>>,
+			      is_constructible<_Tp, _Up&&>,
+			      is_convertible<_Up&&, _Tp>
+			      >::value, bool> = true>
+      constexpr optional(_Up&& __t)
+        : _Base(in_place, std::forward<_Up>(__t)) { }
+
+      template <typename _Up = _Tp,
+                enable_if_t<__and_<
+			      __not_<is_same<optional<_Tp>, decay_t<_Up>>>,
+			      is_constructible<_Tp, _Up&&>,
+			      __not_<is_convertible<_Up&&, _Tp>>
+			      >::value, bool> = false>
+      explicit constexpr optional(_Up&& __t)
+        : _Base(in_place, std::forward<_Up>(__t)) { }
+
+      template <typename _Up,
+                enable_if_t<__and_<
+			    __not_<is_same<_Tp, _Up>>,
+			    is_constructible<_Tp, const _Up&>,
+			    is_convertible<const _Up&, _Tp>,
+			    __not_<__converts_from_optional<_Tp, _Up>>
+			    >::value, bool> = true>
+      constexpr optional(const optional<_Up>& __t)
+      {
+	if (__t)
+	  emplace(*__t);
+      }
+
+      template <typename _Up,
+                 enable_if_t<__and_<
+			       __not_<is_same<_Tp, _Up>>,
+			       is_constructible<_Tp, const _Up&>,
+			       __not_<is_convertible<const _Up&, _Tp>>,
+			       __not_<__converts_from_optional<_Tp, _Up>>
+			       >::value, bool> = false>
+      explicit constexpr optional(const optional<_Up>& __t)
+      {
+	if (__t)
+	  emplace(*__t);
+      }
+
+      template <typename _Up,
+                enable_if_t<__and_<
+			      __not_<is_same<_Tp, _Up>>,
+			      is_constructible<_Tp, _Up&&>,
+			      is_convertible<_Up&&, _Tp>,
+			      __not_<__converts_from_optional<_Tp, _Up>>
+			      >::value, bool> = true>
+      constexpr optional(optional<_Up>&& __t)
+      {
+	if (__t)
+	  emplace(std::move(*__t));
+      }
+
+      template <typename _Up,
+                enable_if_t<__and_<
+			    __not_<is_same<_Tp, _Up>>,
+			    is_constructible<_Tp, _Up&&>,
+			    __not_<is_convertible<_Up&&, _Tp>>,
+			    __not_<__converts_from_optional<_Tp, _Up>>
+			    >::value, bool> = false>
+      explicit constexpr optional(optional<_Up>&& __t)
+      {
+	if (__t)
+	  emplace(std::move(*__t));
+      }
+
       // [X.Y.4.3] (partly) Assignment.
       optional&
       operator=(nullopt_t) noexcept
@@ -494,17 +596,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         return *this;
       }
 
-      template<typename _Up>
-        typename enable_if<
-                 is_same<_Tp, typename decay<_Up>::type>::value,
-                 optional&
-               >::type
+      template<typename _Up = _Tp>
+        enable_if_t<__and_<
+		      __not_<is_same<optional<_Tp>, decay_t<_Up>>>,
+		      is_constructible<_Tp, _Up>,
+		      __not_<__and_<is_scalar<_Tp>,
+				    is_same<_Tp, decay_t<_Up>>>>,
+		      is_assignable<_Tp&, _Up>>::value,
+		    optional&>
         operator=(_Up&& __u)
         {
-          static_assert(__and_<is_constructible<_Tp, _Up>,
-			       is_assignable<_Tp&, _Up>>(),
-                        "Cannot assign to value type from argument");
-
           if (this->_M_is_engaged())
             this->_M_get() = std::forward<_Up>(__u);
           else
@@ -513,23 +614,68 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
           return *this;
         }
 
+      template<typename _Up>
+	enable_if_t<__and_<
+		      __not_<is_same<_Tp, _Up>>,
+		      is_constructible<_Tp, const _Up&>,
+		      is_assignable<_Tp&, _Up>,
+		      __not_<__converts_from_optional<_Tp, _Up>>,
+		      __not_<__assigns_from_optional<_Tp, _Up>>
+		      >::value,
+		    optional&>
+        operator=(const optional<_Up>& __u)
+        {
+          if (__u)
+            {
+              if (this->_M_is_engaged())
+                this->_M_get() = *__u;
+              else
+                this->_M_construct(*__u);
+            }
+          else
+            {
+              this->_M_reset();
+            }
+          return *this;
+        }
+
+      template<typename _Up>
+	enable_if_t<__and_<
+		      __not_<is_same<_Tp, _Up>>,
+		      is_constructible<_Tp, _Up>,
+		      is_assignable<_Tp&, _Up>,
+		      __not_<__converts_from_optional<_Tp, _Up>>,
+		      __not_<__assigns_from_optional<_Tp, _Up>>
+		      >::value,
+		    optional&>
+        operator=(optional<_Up>&& __u)
+        {
+          if (__u)
+            {
+              if (this->_M_is_engaged())
+                this->_M_get() = std::move(*__u);
+              else
+                this->_M_construct(std::move(*__u));
+            }
+          else
+            {
+              this->_M_reset();
+            }
+
+          return *this;
+        }
+
       template<typename... _Args>
-	void
+	enable_if_t<is_constructible<_Tp, _Args&&...>::value>
 	emplace(_Args&&... __args)
 	{
-	  static_assert(is_constructible<_Tp, _Args&&...>(),
-			"Cannot emplace value type from arguments");
-
 	  this->_M_reset();
 	  this->_M_construct(std::forward<_Args>(__args)...);
 	}
 
       template<typename _Up, typename... _Args>
-        typename enable_if<
-                 is_constructible<_Tp,
-                                  initializer_list<_Up>&,
-                                  _Args&&...>::value
-               >::type
+	enable_if_t<is_constructible<_Tp, initializer_list<_Up>&,
+				     _Args&&...>::value>
 	emplace(initializer_list<_Up> __il, _Args&&... __args)
 	{
 	  this->_M_reset();
@@ -542,7 +688,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       void
       swap(optional& __other)
       noexcept(is_nothrow_move_constructible<_Tp>()
-               && noexcept(swap(declval<_Tp&>(), declval<_Tp&>())))
+               && __is_nothrow_swappable<_Tp>::value)
       {
         using std::swap;
 
@@ -563,25 +709,39 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // [X.Y.4.5] Observers.
       constexpr const _Tp*
       operator->() const
-      { return __constexpr_addressof(this->_M_get()); }
+      {
+#ifndef __cpp_lib_addressof_constexpr
+	return __constexpr_addressof(this->_M_get());
+#else
+	return std::__addressof(this->_M_get());
+#endif
+      }
 
       _Tp*
       operator->()
       { return std::__addressof(this->_M_get()); }
 
       constexpr const _Tp&
-      operator*() const
+      operator*() const&
       { return this->_M_get(); }
 
-      _Tp&
-      operator*()
+      constexpr _Tp&
+      operator*()&
       { return this->_M_get(); }
+
+      constexpr _Tp&&
+      operator*()&&
+      { return std::move(this->_M_get()); }
+
+      constexpr const _Tp&&
+      operator*() const&&
+      { return std::move(this->_M_get()); }
 
       constexpr explicit operator bool() const noexcept
       { return this->_M_is_engaged(); }
 
       constexpr const _Tp&
-      value() const
+      value() const&
       {
 	return this->_M_is_engaged()
 	  ?  this->_M_get()
@@ -590,14 +750,34 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	     this->_M_get());
       }
 
-      _Tp&
-      value()
+      constexpr _Tp&
+      value()&
       {
-        if (this->_M_is_engaged())
-          return this->_M_get();
+	return this->_M_is_engaged()
+	  ?  this->_M_get()
+	  : (__throw_bad_optional_access("Attempt to access value of a "
+		                         "disengaged optional object"),
+	     this->_M_get());
+      }
 
-        __throw_bad_optional_access("Attempt to access value of a "
-				    "disengaged optional object");
+      constexpr _Tp&&
+      value()&&
+      {
+	return this->_M_is_engaged()
+	  ?  std::move(this->_M_get())
+	  : (__throw_bad_optional_access("Attempt to access value of a "
+		                         "disengaged optional object"),
+	     std::move(this->_M_get()));
+      }
+
+      constexpr const _Tp&&
+      value() const&&
+      {
+	return this->_M_is_engaged()
+	  ?  std::move(this->_M_get())
+	  : (__throw_bad_optional_access("Attempt to access value of a "
+		                         "disengaged optional object"),
+	     std::move(this->_M_get()));
       }
 
       template<typename _Up>
@@ -793,14 +973,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     { __lhs.swap(__rhs); }
 
   template<typename _Tp>
-    constexpr optional<typename decay<_Tp>::type>
+    constexpr optional<decay_t<_Tp>>
     make_optional(_Tp&& __t)
-    { return optional<typename decay<_Tp>::type> { std::forward<_Tp>(__t) }; }
+    { return optional<decay_t<_Tp>> { std::forward<_Tp>(__t) }; }
 
   // @} group optional
-_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace fundamentals_v1
-}
+} // namespace experimental
 
   // [X.Y.12]
   template<typename _Tp>
@@ -819,7 +998,9 @@ _GLIBCXX_END_NAMESPACE_VERSION
         return __t ? hash<_Tp> {}(*__t) : __magic_disengaged_hash;
       }
     };
-}
+
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace std
 
 #endif // C++14
 

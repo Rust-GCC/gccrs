@@ -1,8 +1,8 @@
-/* Round __float128 value to long long int.
-   Copyright (C) 1997, 1999, 2004 Free Software Foundation, Inc.
+/* Round long double value to long long int.
+   Copyright (C) 1997-2018 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
    Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997 and
-   		  Jakub Jelinek <jj@ultra.linux.cz>, 1999.
+		  Jakub Jelinek <jj@ultra.linux.cz>, 1999.
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -15,12 +15,10 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include "quadmath-imp.h"
-
 
 long long int
 llroundq (__float128 x)
@@ -59,13 +57,37 @@ llroundq (__float128 x)
 	  if (j0 == 48)
 	    result = (long long int) i0;
 	  else
-	    result = ((long long int) i0 << (j0 - 48)) | (j >> (112 - j0));
+	    {
+	      result = ((long long int) i0 << (j0 - 48)) | (j >> (112 - j0));
+#ifdef FE_INVALID
+	      if (sign == 1 && result == LLONG_MIN)
+		/* Rounding brought the value out of range.  */
+		feraiseexcept (FE_INVALID);
+#endif
+	    }
 	}
     }
   else
     {
-      /* The number is too large.  It is left implementation defined
-	 what happens.  */
+      /* The number is too large.  Unless it rounds to LLONG_MIN,
+	 FE_INVALID must be raised and the return value is
+	 unspecified.  */
+#ifdef FE_INVALID
+      if (FIX_FLT128_LLONG_CONVERT_OVERFLOW
+	  && !(sign == -1 && x > (__float128) LLONG_MIN - 0.5Q))
+	{
+	  feraiseexcept (FE_INVALID);
+	  return sign == 1 ? LLONG_MAX : LLONG_MIN;
+	}
+      else if (!FIX_FLT128_LLONG_CONVERT_OVERFLOW
+	       && x <= (__float128) LLONG_MIN - 0.5Q)
+	{
+	  /* If truncation produces LLONG_MIN, the cast will not raise
+	     the exception, but may raise "inexact".  */
+	  feraiseexcept (FE_INVALID);
+	  return LLONG_MIN;
+	}
+#endif
       return (long long int) x;
     }
 

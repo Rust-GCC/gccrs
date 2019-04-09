@@ -17,8 +17,8 @@ Final Draft International Standard, Standard for Programming Language C++
 </para>
 
 <para>
-In this implementation <literal>-std=gnu++11</literal> or
-<literal>-std=c++11</literal> flags must be used to enable language
+In this implementation the <literal>-std=gnu++11</literal> or
+<literal>-std=c++11</literal> flag must be used to enable language
 and library
 features. See <link linkend="manual.intro.using.flags">dialect</link>
 options. The pre-defined symbol
@@ -75,11 +75,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>18.2</entry>
       <entry>Types</entry>
-      <entry>Partial</entry>
-      <entry>Missing offsetof</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>18.3</entry>
@@ -270,11 +269,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>19.2</entry>
       <entry>Exception classes</entry>
-      <entry>Partial</entry>
-      <entry>Missing <code>const char*</code> constructors.</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>19.3</entry>
@@ -319,11 +317,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>19.5.5</entry>
       <entry>Class <code>system_error</code></entry>
-      <entry>Partial</entry>
-      <entry>Missing <code>const char*</code> constructors.</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>
@@ -532,17 +529,15 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>20.6.4</entry>
       <entry>Pointer safety</entry>
-      <entry>Partial</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#C8B0B0" ?>
       <entry>20.6.5</entry>
       <entry>Align</entry>
-      <entry>N</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
@@ -646,10 +641,8 @@ particular release.
       <entry>Class template <code>shared_ptr</code></entry>
       <entry>Y</entry>
       <entry>
-	<para>
 	  Uses code from
 	  <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.boost.org/libs/smart_ptr/shared_ptr.htm">boost::shared_ptr</link>.
-	</para>
       </entry>
     </row>
     <row>
@@ -665,10 +658,9 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>20.7.2.5</entry>
       <entry><code>shared_ptr</code> atomic access</entry>
-      <entry>Partial</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
@@ -811,16 +803,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>20.9.4.3</entry>
       <entry>Type properties</entry>
-      <entry>Partial</entry>
-      <entry>Missing is_trivially_copyable,
-      is_trivially_constructible, is_trivially_default_constructible,
-      is_trivially_copy_constructible, is_trivially_move_constructible,
-      is_trivially_assignable, is_trivially_default_assignable,
-      is_trivially_copy_assignable, is_trivially_move_assignable
-      </entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>20.9.5</entry>
@@ -955,11 +941,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>20.11.5</entry>
       <entry>Class template <code>duration</code></entry>
-      <entry>Partial</entry>
-      <entry>Missing constexpr for non-member arithmetic operations</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>20.11.6</entry>
@@ -1022,11 +1007,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>20.12.4</entry>
       <entry>Scoped allocator adaptor members</entry>
-      <entry>Partial</entry>
-      <entry>OUTERMOST is not recursive.</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>20.12.5</entry>
@@ -1079,18 +1063,16 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>21.2.3.1</entry>
       <entry>struct <code>char_traits&lt;char&gt;</code></entry>
-      <entry>Partial</entry>
-      <entry>Missing constexpr</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>21.2.3.2</entry>
       <entry>struct <code>char_traits&lt;char16_t&gt;</code></entry>
-      <entry>Partial</entry>
-      <entry>Missing constexpr</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>21.2.3.3</entry>
@@ -1111,11 +1093,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>21.4</entry>
       <entry>Class template <code>basic_string</code></entry>
-      <entry>Partial</entry>
-      <entry>Non-conforming Copy-On-Write implementation</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>21.5</entry>
@@ -1183,11 +1164,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>22.3.3.1</entry>
       <entry>Character classification</entry>
-      <entry>Partial</entry>
-      <entry>Missing <code>isblank</code>.</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>22.3.3.2</entry>
@@ -1202,17 +1182,15 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#C8B0B0" ?>
       <entry>22.3.3.2.2</entry>
       <entry><code>string</code> conversions</entry>
-      <entry>N</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#C8B0B0" ?>
       <entry>22.3.3.2.3</entry>
       <entry>Buffer conversions</entry>
-      <entry>N</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
@@ -1222,12 +1200,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>22.4.1</entry>
       <entry>The <code>ctype</code> category</entry>
-      <entry>Partial</entry>
-      <entry>Missing <code>codecvt&lt;char16_t></code> and
-             <code>codecvt&lt;char32_t></code></entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>22.4.2</entry>
@@ -1266,18 +1242,16 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>22.4.5.1</entry>
       <entry>Class template <code>time_get</code></entry>
-      <entry>Partial</entry>
-      <entry>Missing <code>get</code> and <code>do_get</code></entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>22.4.5.2</entry>
       <entry>Class template <code>time_get_byname</code></entry>
-      <entry>Partial</entry>
-      <entry>Likewise</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>22.4.5.3</entry>
@@ -1334,10 +1308,9 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#C8B0B0" ?>
       <entry>22.5</entry>
       <entry>Standard code conversion facets</entry>
-      <entry>N</entry>
+      <entry>Y</entry>
       <entry/>
     </row>
     <row>
@@ -1367,12 +1340,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>23.2.1</entry>
       <entry>General container requirements</entry>
-      <entry>Partial</entry>
-      <entry><code>list</code> does not meet the requirements
-             relating to allocator use and propagation.</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>23.2.2</entry>
@@ -1423,11 +1394,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>23.3.5</entry>
       <entry>Class template <code>list</code></entry>
-      <entry>Partial</entry>
-      <entry>Incomplete allocator support.</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>23.3.6</entry>
@@ -1638,11 +1608,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>25.3</entry>
       <entry>Mutating sequence operations</entry>
-      <entry>Partial</entry>
-      <entry><code>rotate</code> returns <code>void</code>.</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>25.4</entry>
@@ -1685,8 +1654,8 @@ particular release.
     <row>
       <entry>26.4</entry>
       <entry>Complex numbers</entry>
-      <entry>Partial</entry>
-      <entry>Missing constexpr</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>26.5</entry>
@@ -1716,19 +1685,19 @@ particular release.
       <entry>26.5.3.1</entry>
       <entry>Class template <code>linear_congruential_engine</code></entry>
       <entry>Y</entry>
-      <entry>Missing constexpr</entry>
+      <entry/>
     </row>
     <row>
       <entry>26.5.3.2</entry>
       <entry>Class template <code>mersenne_twister_engine</code></entry>
       <entry>Y</entry>
-      <entry>Missing constexpr</entry>
+      <entry/>
     </row>
     <row>
       <entry>26.5.3.3</entry>
       <entry>Class template <code>subtract_with_carry_engine</code></entry>
       <entry>Y</entry>
-      <entry>Missing constexpr</entry>
+      <entry/>
     </row>
     <row>
       <entry>26.5.4</entry>
@@ -1740,19 +1709,19 @@ particular release.
       <entry>26.5.4.2</entry>
       <entry>Class template <code>discard_block_engine</code></entry>
       <entry>Y</entry>
-      <entry>Missing constexpr</entry>
+      <entry/>
     </row>
     <row>
       <entry>26.5.4.3</entry>
       <entry>Class template <code>independent_bits_engine</code></entry>
       <entry>Y</entry>
-      <entry>Missing constexpr</entry>
+      <entry/>
     </row>
     <row>
       <entry>26.5.4.4</entry>
       <entry>Class template <code>shuffle_order_engine</code></entry>
       <entry>Y</entry>
-      <entry>Missing constexpr</entry>
+      <entry/>
     </row>
     <row>
       <entry>26.5.5</entry>
@@ -1764,7 +1733,7 @@ particular release.
       <entry>26.5.6</entry>
       <entry>Class <code>random_device</code></entry>
       <entry>Y</entry>
-      <entry>Missing constexpr</entry>
+      <entry/>
     </row>
     <row>
       <entry>26.5.7</entry>
@@ -2124,14 +2093,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>27.5</entry>
       <entry>Iostreams base classes</entry>
-      <entry>Partial</entry>
-      <entry>
-        Missing <code>io_errc</code> and <code>iostream_category</code>.
-        <code>ios_base::failure</code> is not derived from <code>system_error</code>.
-      </entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>27.6</entry>
@@ -2140,13 +2105,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>27.7</entry>
       <entry>Formatting and manipulators</entry>
-      <entry>Partial</entry>
-      <entry>
-        Missing <code>get_time</code> and <code>put_time</code> manipulators.
-      </entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>27.8</entry>
@@ -2384,8 +2346,7 @@ particular release.
       <entry>30.4.1.3</entry>
       <entry>Timed mutex types</entry>
       <entry/>
-      <entry>On POSIX sytems these types are only defined if the OS
-         supports the POSIX Timeouts option. </entry>
+      <entry/>
     </row>
     <row>
       <entry>30.4.1.3.1</entry>
@@ -2442,11 +2403,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>30.5</entry>
       <entry>Condition variables</entry>
-      <entry>Partial</entry>
-      <entry>Missing notify_all_at_thread_exit</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>30.5.1</entry>
@@ -2491,11 +2451,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>30.6.5</entry>
       <entry>Class template <code>promise</code></entry>
-      <entry>Partial</entry>
-      <entry>Missing set_*_at_thread_exit</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>30.6.6</entry>
@@ -2516,11 +2475,10 @@ particular release.
       <entry/>
     </row>
     <row>
-      <?dbhtml bgcolor="#B0B0B0" ?>
       <entry>30.6.9</entry>
       <entry>Class template <code>packaged_task</code></entry>
-      <entry>Partial</entry>
-      <entry>Missing make_ready_at_thread_exit</entry>
+      <entry>Y</entry>
+      <entry/>
     </row>
     <row>
       <entry>
@@ -2610,9 +2568,95 @@ particular release.
    </para>
 
    <para>
+      <emphasis>17.6.5.12 [res.on.exception.handling]</emphasis>
+      There are no implementation-defined exception classes, only standard
+      exception classes (or classes derived from them) will be thrown.
+   </para>
+
+   <para>
+      <emphasis>17.6.5.14 [value.error.codes]</emphasis>
+      The <classname>error_category</classname> for errors originating outside
+      the OS, and the possible error code values for each error category,
+      should be documented here.
+   </para>
+
+   <para>
+      <emphasis>18.6.2.2 [new.badlength]</emphasis>
+      <function>what()</function> returns
+      <literal>"std::bad_array_new_length"</literal>.
+   </para>
+
+   <para>
+      <emphasis>20.6.9.1 [allocator.member]/5</emphasis>
+      Over-aligned types are not supported by
+      <classname>std::allocator</classname>.
+   </para>
+
+   <para>
+      <emphasis>20.7.2.2.1 [util.smartptr.shared.const]</emphasis>
+      When a <classname>shared_ptr</classname> constructor fails
+      <classname>bad_alloc</classname> (or types derived from it) will
+      be thrown, or when an allocator is passed to the constructor then any
+      exceptions thrown by the allocator.
+   </para>
+
+   <para>
+      <emphasis>20.7.2.0 [util.smartptr.weakptr]</emphasis>
+      <code>what()</code> returns <literal>"bad_weak_ptr"</literal>.
+   </para>
+
+   <para>
       <emphasis>20.8.9.1.3 [func.bind.place]/1</emphasis> There are 29
       placeholders defined and the placeholder types are
       <literal>CopyAssignable</literal>.
+   </para>
+
+   <para>
+      <emphasis>20.11.7.1 [time.clock.system]/3, /4</emphasis>
+      Time point values are truncated to <code>time_t</code> values.
+      There is no loss of precision for conversions in the other direction.
+   </para>
+
+   <para>
+      <emphasis>20.15.7 [meta.trans]/2</emphasis>
+      <classname>aligned_storage</classname> does not support extended
+      alignment.
+   </para>
+
+   <para>
+      <emphasis>21.2.3.2 [char.traits.specializations.char16_t]</emphasis>,
+      <emphasis>21.2.3.3 [char.traits.specializations.char32_t]</emphasis>
+      The types <classname>u16streampos</classname> and
+      <classname>u32streampos</classname> are both synonyms for
+      <classname>fpos&lt;mbstate_t&gt;</classname>.
+      The function <function>eof</function> returns <code>int_type(-1)</code>.
+      <function>char_traits&lt;char16_t&gt;::to_int_type</function> will
+      transform the "noncharacter" U+FFFF to U+FFFD (REPLACEMENT CHARACTER).
+      This is done to ensure that <function>to_int_type</function> never
+      returns the same value as <function>eof</function>, which is U+FFFF.
+   </para>
+
+   <para>
+      <emphasis>22.3.1 [locale]</emphasis>
+      There is one global locale for the whole program, not per-thread.
+   </para>
+
+   <para>
+      <emphasis>22.4.5.1.2 [locale.time.get.virtuals]</emphasis>,
+      <emphasis>22.4.5.3.2 [locale.time.put.virtuals]</emphasis>
+      Additional supported formats should be documented here.
+   </para>
+
+   <para>
+      <emphasis> 22.4.7.1.2 [locale.messages.virtuals]</emphasis>
+      The mapping should be documented here.
+   </para>
+
+   <para>
+      <emphasis>23.3.2.1 [array.overview]</emphasis>
+      <classname>array&lt;T, N&gt;::iterator</classname> is <code>T*</code> and
+      <classname>array&lt;T, N&gt;::const_iterator</classname> is
+      <code>const T*</code>.
    </para>
 
    <para>
@@ -2620,15 +2664,91 @@ particular release.
       <emphasis>23.5.5.2 [unord.multimap.cnstr]</emphasis>,
       <emphasis>23.5.6.2 [unord.set.cnstr]</emphasis>,
       <emphasis>23.5.7.2 [unord.multiset.cnstr]</emphasis>
-      The default bucket count is 10 for the default constructors
-      and 0 for the range constructors and initializer-list constructors.
+      The default minimal bucket count is 0 for the default constructors, range
+      constructors and initializer-list constructors.
+   </para>
+
+   <para>
+      <emphasis>25.3.12 [alg.random.shuffle]</emphasis>
+      The two-argument overload of <function>random_shuffle</function>
+      uses <function>rand</function> as the source of randomness.
+   </para>
+
+   <para>
+      <emphasis>26.5.5 [rand.predef]</emphasis>
+      The type <classname>default_random_engine</classname> is a synonym for
+      <classname>minstd_rand0</classname>.
+   </para>
+
+   <para>
+      <emphasis> 26.5.6 [rand.device] </emphasis>
+      The default <code>token</code> argument to the
+      <classname>random_device</classname> constructor is
+      <literal>"default"</literal>. Other valid arguments are
+      <literal>"/dev/random"</literal> and <literal>"/dev/urandom"</literal>,
+      which determine the character special file to read random bytes from.
+      The <literal>"default"</literal> token will read bytes from a hardware
+      RNG if available (currently this only supports the IA-32 RDRAND
+      instruction) otherwise it is equivalent to
+      <literal>"/dev/urandom"</literal>.
+      An exception of type <classname>runtime_error</classname> will be
+      thrown if a <classname>random_device</classname> object cannot open
+      or read from the source of random bytes.
+   </para>
+
+   <para>
+      <emphasis>26.5.8.1 [rand.dist.general]</emphasis>
+      The algorithms used by the distributions should be documented here.
+   </para>
+
+   <para>
+      <emphasis>26.8 [c.math]</emphasis> Whether the
+      <function>rand</function> function introduces data races depends on
+      the C library as the function is not provided by libstdc++.
+   </para>
+
+   <para>
+      <emphasis>27.8.2.1 [stringbuf.cons]</emphasis>
+      Whether the sequence pointers are copied by the
+      <classname>basic_stringbuf</classname> move constructor should be
+      documented here.
+   </para>
+
+   <para>
+      <emphasis>27.9.1.2 [filebuf.cons]</emphasis>
+      Whether the sequence pointers are copied by the
+      <classname>basic_filebuf</classname> move constructor should be
+      documented here.
+   </para>
+
+   <para>
+      <emphasis>28.5.1 [re.synopt]</emphasis>,
+      <emphasis> 28.5.2 [re.matchflag] </emphasis>,
+      <emphasis> 28.5.3 [re.err] </emphasis>
+      <code>syntax_option_type</code>, <code>match_flag_type</code>
+      and <code>error_type</code> are unscoped enumeration types.
+   </para>
+
+   <para>
+      <emphasis>28.7 [re.traits]</emphasis>
+      The <literal>blank</literal> character class corresponds to the
+      <code>ctype_base::blank</code> mask.
+   </para>
+
+   <para>
+      <emphasis>29.4 [atomics.lockfree]</emphasis>
+      The values of the <code>ATOMIC_xxx_LOCK_FREE</code> macros depend on
+      the target and cannot be listed here.
    </para>
 
    <para>
       <emphasis>30.2.3 [thread.req.native]/1</emphasis>
       <classname>native_handle_type</classname> and
       <methodname>native_handle</methodname> are provided. The handle types
-      are defined in terms of the Gthreads abstraction layer.
+      are defined in terms of the Gthreads abstraction layer, although this
+      is subject to change at any time. Any use of
+      <classname>native_handle</classname> is inherently non-portable and
+      not guaranteed to work between major releases of GCC.
       <itemizedlist>
          <listitem><para><classname>thread</classname>: The native handle type is
             a typedef for <code>__gthread_t</code> i.e. <code>pthread_t</code>

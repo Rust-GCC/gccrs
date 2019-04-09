@@ -1,9 +1,8 @@
-// { dg-options "-std=gnu++0x" }
-// { dg-require-cstdint "" }
+// { dg-do run { target c++11 } }
 
 // 2008-07-03 Chris Fairles <chris.fairles@gmail.com>
 
-// Copyright (C) 2008-2014 Free Software Foundation, Inc.
+// Copyright (C) 2008-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,8 +25,6 @@
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
-
   std::ratio_add<std::ratio<3,8>, std::ratio<5,12>>::type r;
 
   VERIFY( r.num == 19 );
@@ -37,7 +34,6 @@ test01()
 void
 test02()
 {  
-  bool test __attribute__((unused)) = true;
   std::ratio_subtract<std::ratio<3,8>, std::ratio<5,12>>::type r;
 
   VERIFY( r.num == -1 );
@@ -47,7 +43,6 @@ test02()
 void
 test03()
 {
-  bool test __attribute__((unused)) = true;
   std::ratio_multiply<std::ratio<3,8>, std::ratio<5,12>>::type r;
 
   VERIFY( r.num == 5 );
@@ -57,7 +52,6 @@ test03()
 void
 test04()
 {
-  bool test __attribute__((unused)) = true;
   std::ratio_divide<std::ratio<3,8>, std::ratio<5,12>>::type r;
 
   VERIFY( r.num == 9 );

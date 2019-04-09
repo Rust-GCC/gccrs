@@ -1,5 +1,5 @@
 /* Subroutine declarations for Altera Nios II target support.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Jonah Graham (jgraham@altera.com).
    Contributed by Mentor Graphics, Inc.
 
@@ -26,36 +26,47 @@ extern int nios2_initial_elimination_offset (int, int);
 extern int nios2_can_use_return_insn (void);
 extern void nios2_expand_prologue (void);
 extern void nios2_expand_epilogue (bool);
+extern bool nios2_expand_return (void);
 extern void nios2_function_profiler (FILE *, int);
 
 #ifdef RTX_CODE
-extern int nios2_emit_move_sequence (rtx *, enum machine_mode);
-extern void nios2_emit_expensive_div (rtx *, enum machine_mode);
-extern void nios2_adjust_call_address (rtx *);
+extern bool nios2_large_constant_p (rtx);
+extern bool nios2_large_constant_memory_operand_p (rtx);
+
+extern rtx nios2_split_large_constant (rtx, rtx);
+extern rtx nios2_split_large_constant_memory_operand (rtx);
+extern bool nios2_emit_move_sequence (rtx *, machine_mode);
+extern void nios2_emit_expensive_div (rtx *, machine_mode);
+extern void nios2_adjust_call_address (rtx *, rtx);
 
 extern rtx nios2_get_return_address (int);
 extern void nios2_set_return_address (rtx, rtx);
 
-extern bool nios2_validate_compare (enum machine_mode, rtx *, rtx *, rtx *);
-extern bool nios2_validate_fpu_compare (enum machine_mode, rtx *, rtx *, rtx *,
+extern bool nios2_validate_compare (machine_mode, rtx *, rtx *, rtx *);
+extern bool nios2_validate_fpu_compare (machine_mode, rtx *, rtx *, rtx *,
 					bool);
 
 extern bool nios2_fpu_insn_enabled (enum n2fpu_code);
 extern const char * nios2_fpu_insn_asm (enum n2fpu_code);
+extern const char * nios2_add_insn_asm (rtx_insn *, rtx *);
 
 extern bool nios2_legitimate_pic_operand_p (rtx);
-extern bool nios2_symbol_ref_in_small_data_p (rtx);
+extern bool gprel_constant_p (rtx);
+extern bool r0rel_constant_p (rtx);
 extern bool nios2_regno_ok_for_base_p (int, bool);
 extern bool nios2_unspec_reloc_p (rtx);
 
-#ifdef TREE_CODE
-#ifdef ARGS_SIZE_RTX
-/* expr.h defines both ARGS_SIZE_RTX and `enum direction' */
-extern enum direction nios2_function_arg_padding (enum machine_mode, const_tree);
-extern enum direction nios2_block_reg_padding (enum machine_mode, tree, int);
-#endif /* ARGS_SIZE_RTX */
+extern int nios2_label_align (rtx);
+extern bool nios2_cdx_narrow_form_p (rtx_insn *);
 
-#endif /* TREE_CODE */
+extern bool pop_operation_p (rtx);
+extern bool ldstwm_operation_p (rtx, bool);
+extern bool gen_ldstwm_peep (bool, int, rtx, rtx *);
+
+extern void nios2_adjust_reg_alloc_order (void);
+
+extern pad_direction nios2_block_reg_padding (machine_mode, tree, int);
+
 #endif /* RTX_CODE */
 
 #endif /* GCC_NIOS2_PROTOS_H */

@@ -1,10 +1,10 @@
-// { dg-do run }
-// { dg-options "-std=c++0x" }
+// { dg-do run { target c++11 } }
+// { dg-additional-options "-DNEWLINE_IN_CLASS_BLANK" { target newlib } }
 
 //
 // 2010-06-23  Stephen M. Webb <stephen.webb@bregmasoft.ca>
 //
-// Copyright (C) 2010-2014 Free Software Foundation, Inc.
+// Copyright (C) 2010-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -31,7 +31,6 @@
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
   typedef char CharT;
   typedef std::regex_traits<CharT> traits;
 
@@ -53,7 +52,9 @@ test01()
   VERIFY(!t.isctype('_', t.lookup_classname(range(digit))));
   VERIFY( t.isctype(' ', t.lookup_classname(range(blank))));
   VERIFY( t.isctype('\t', t.lookup_classname(range(blank))));
+#if !defined (NEWLINE_IN_CLASS_BLANK)
   VERIFY(!t.isctype('\n', t.lookup_classname(range(blank))));
+#endif
   VERIFY( t.isctype('t', t.lookup_classname(range(upper), true)));
   VERIFY( t.isctype('T', t.lookup_classname(range(lower), true)));
 #undef range

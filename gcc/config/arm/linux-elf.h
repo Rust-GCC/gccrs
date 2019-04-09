@@ -1,5 +1,5 @@
 /* Definitions for ARM running Linux-based GNU systems using ELF
-   Copyright (C) 1993-2014 Free Software Foundation, Inc.
+   Copyright (C) 1993-2019 Free Software Foundation, Inc.
    Contributed by Philip Blundell <philb@gnu.org>
 
    This file is part of GCC.
@@ -45,8 +45,6 @@
 #undef  TARGET_DEFAULT
 #define TARGET_DEFAULT (TARGET_ENDIAN_DEFAULT)
 
-#define SUBTARGET_CPU_DEFAULT TARGET_CPU_arm6
-
 #define SUBTARGET_EXTRA_LINK_SPEC " -m " TARGET_LINKER_EMULATION " -p"
 
 /* We do not have any MULTILIB_OPTIONS specified, so there are no
@@ -70,7 +68,7 @@
    %{symbolic:-Bsymbolic} \
    %{!static: \
      %{rdynamic:-export-dynamic} \
-     -dynamic-linker " GNU_USER_DYNAMIC_LINKER "} \
+     %{!shared:-dynamic-linker " GNU_USER_DYNAMIC_LINKER "}} \
    -X \
    %{mbig-endian:-EB} %{mlittle-endian:-EL}" \
    SUBTARGET_EXTRA_LINK_SPEC
@@ -84,20 +82,6 @@
 	GNU_USER_TARGET_OS_CPP_BUILTINS();	\
     }						\
   while (0)
-
-/* This is how we tell the assembler that two symbols have the same value.  */
-#define ASM_OUTPUT_DEF(FILE, NAME1, NAME2) \
-  do					   \
-    {					   \
-      assemble_name (FILE, NAME1); 	   \
-      fputs (" = ", FILE);		   \
-      assemble_name (FILE, NAME2);	   \
-      fputc ('\n', FILE);		   \
-    }					   \
-  while (0)
-
-#undef  FPUTYPE_DEFAULT
-#define FPUTYPE_DEFAULT "vfp"
 
 /* Call the function profiler with a given profile label.  */
 #undef  ARM_FUNCTION_PROFILER
@@ -118,3 +102,12 @@
 /* Add .note.GNU-stack.  */
 #undef NEED_INDICATE_EXEC_STACK
 #define NEED_INDICATE_EXEC_STACK	1
+
+/* Uninitialized common symbols in non-PIE executables, even with
+   strong definitions in dependent shared libraries, will resolve
+   to COPY relocated symbol in the executable.  See PR65780.  */
+#undef TARGET_BINDS_LOCAL_P
+#define TARGET_BINDS_LOCAL_P default_binds_local_p_2
+
+/* Define this to be nonzero if static stack checking is supported.  */
+#define STACK_CHECK_STATIC_BUILTIN 1

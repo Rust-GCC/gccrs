@@ -1,4 +1,4 @@
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <testsuite_hooks.h>
 #include <testsuite_iterators.h>
+#include <testsuite_new_operators.h>
 
 using __gnu_test::test_container;
 using __gnu_test::bidirectional_iterator_wrapper;
@@ -41,8 +42,6 @@ test1()
 void 
 test2()
 {
-  bool test __attribute__((unused)) = true;
-
   int array[] = { 0, 2, 4, 1, 3, 5 };
   container con(array, array + 6);
   inplace_merge(con.begin(), con.it(3), con.end());
@@ -64,19 +63,27 @@ struct S
 void 
 test3()
 {
-  bool test __attribute__((unused)) = true;
-
-  S s[4];
+  S s[8];
   s[0].a = 0;
   s[1].a = 1;
-  s[2].a = 0;
-  s[3].a = 1;
+  s[2].a = 2;
+  s[3].a = 3;
+  s[4].a = 0;
+  s[5].a = 1;
+  s[6].a = 2;
+  s[7].a = 3;
+
   s[0].b = 0;
-  s[1].b = 0;
-  s[2].b = 1;
-  s[3].b = 1;
-  inplace_merge(s, s + 2, s + 4);
-  VERIFY( s[0].b == 0 && s[1].b == 1 && s[2].b == 0 && s[3].b == 1 );
+  s[1].b = 1;
+  s[2].b = 2;
+  s[3].b = 3;
+  s[4].b = 4;
+  s[5].b = 5;
+  s[6].b = 6;
+  s[7].b = 7;
+
+  inplace_merge(s, s + 4, s + 8);
+  VERIFY( s[0].b == 0 && s[1].b == 4 && s[2].b == 1 && s[3].b == 5 );
 }
 
 int 
@@ -85,5 +92,15 @@ main()
   test1();
   test2();
   test3();
+
+  __gnu_test::set_new_limit(sizeof(S) * 4);
+  test3();
+
+  __gnu_test::set_new_limit(sizeof(S));
+  test3();
+
+  __gnu_test::set_new_limit(0);
+  test3();
+
   return 0;
 }

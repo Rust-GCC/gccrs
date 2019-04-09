@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU Atomic Library (libatomic).
@@ -70,7 +70,7 @@ SIZE(libat_compare_exchange) (UTYPE *mptr, UTYPE *eptr, UTYPE newval,
       mask = -1;
     }
 
-  weval = *eptr << shift;
+  weval = (UWORD)*eptr << shift;
   wnewval = (UWORD)newval << shift;
   woldval = __atomic_load_n (wptr, __ATOMIC_RELAXED);
   do

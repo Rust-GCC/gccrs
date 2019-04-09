@@ -1,5 +1,5 @@
 /* Perform optimizations on tree structure.
-   Copyright (C) 1998-2014 Free Software Foundation, Inc.
+   Copyright (C) 1998-2019 Free Software Foundation, Inc.
    Written by Mark Michell (mark@codesourcery.com).
 
 This file is part of GCC.
@@ -21,22 +21,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "tree.h"
-#include "stringpool.h"
-#include "cp-tree.h"
-#include "input.h"
-#include "params.h"
-#include "hashtab.h"
 #include "target.h"
+#include "cp-tree.h"
+#include "stringpool.h"
+#include "cgraph.h"
 #include "debug.h"
 #include "tree-inline.h"
-#include "flags.h"
-#include "langhooks.h"
-#include "diagnostic-core.h"
-#include "dumpfile.h"
 #include "tree-iterator.h"
-#include "cgraph.h"
 
 /* Prototypes.  */
 
@@ -55,6 +46,8 @@ update_cloned_parm (tree parm, tree cloned_parm, bool first)
   /* We may have taken its address.  */
   TREE_ADDRESSABLE (cloned_parm) = TREE_ADDRESSABLE (parm);
 
+  DECL_BY_REFERENCE (cloned_parm) = DECL_BY_REFERENCE (parm);
+
   /* The definition might have different constness.  */
   TREE_READONLY (cloned_parm) = TREE_READONLY (parm);
 
@@ -68,6 +61,25 @@ update_cloned_parm (tree parm, tree cloned_parm, bool first)
   DECL_GIMPLE_REG_P (cloned_parm) = DECL_GIMPLE_REG_P (parm);
 }
 
+/* Like copy_decl_no_change, but handle DECL_OMP_PRIVATIZED_MEMBER
+   properly.  */
+
+static tree
+cxx_copy_decl (tree decl, copy_body_data *id)
+{
+  tree copy = copy_decl_no_change (decl, id);
+  if (VAR_P (decl)
+      && DECL_HAS_VALUE_EXPR_P (decl)
+      && DECL_ARTIFICIAL (decl)
+      && DECL_LANG_SPECIFIC (decl)
+      && DECL_OMP_PRIVATIZED_MEMBER (decl))
+    {
+      tree expr = DECL_VALUE_EXPR (copy);
+      walk_tree (&expr, copy_tree_body_r, id, NULL);
+      SET_DECL_VALUE_EXPR (copy, expr);
+    }
+  return copy;
+}
 
 /* FN is a function in High GIMPLE form that has a complete body and no
    CFG.  CLONE is a function whose body is to be set to a copy of FN,
@@ -87,7 +99,7 @@ clone_body (tree clone, tree fn, void *arg_map)
   id.src_cfun = DECL_STRUCT_FUNCTION (fn);
   id.decl_map = static_cast<hash_map<tree, tree> *> (arg_map);
 
-  id.copy_decl = copy_decl_no_change;
+  id.copy_decl = cxx_copy_decl;
   id.transform_call_graph_edges = CB_CGE_DUPLICATE;
   id.transform_new_cfg = true;
   id.transform_return_to_modify = false;
@@ -121,28 +133,37 @@ clone_body (tree clone, tree fn, void *arg_map)
 static void
 build_delete_destructor_body (tree delete_dtor, tree complete_dtor)
 {
-  tree call_dtor, call_delete;
   tree parm = DECL_ARGUMENTS (delete_dtor);
   tree virtual_size = cxx_sizeof (current_class_type);
 
-  /* Call the corresponding complete destructor.  */
-  gcc_assert (complete_dtor);
-  call_dtor = build_cxx_call (complete_dtor, 1, &parm,
-			      tf_warning_or_error);
-  add_stmt (call_dtor);
-
-  add_stmt (build_stmt (0, LABEL_EXPR, cdtor_label));
-
   /* Call the delete function.  */
-  call_delete = build_op_delete_call (DELETE_EXPR, current_class_ptr,
-                                      virtual_size,
-                                      /*global_p=*/false,
-                                      /*placement=*/NULL_TREE,
-                                      /*alloc_fn=*/NULL_TREE,
-				      tf_warning_or_error);
-  add_stmt (call_delete);
+  tree call_delete = build_op_delete_call (DELETE_EXPR, current_class_ptr,
+					   virtual_size,
+					   /*global_p=*/false,
+					   /*placement=*/NULL_TREE,
+					   /*alloc_fn=*/NULL_TREE,
+					   tf_warning_or_error);
 
-  /* Return the address of the object.  */
+  tree op = get_callee_fndecl (call_delete);
+  if (op && DECL_P (op) && destroying_delete_p (op))
+    {
+      /* The destroying delete will handle calling complete_dtor.  */
+      add_stmt (call_delete);
+    }
+  else
+    {
+      /* Call the corresponding complete destructor.  */
+      gcc_assert (complete_dtor);
+      tree call_dtor = build_cxx_call (complete_dtor, 1, &parm,
+				       tf_warning_or_error);
+
+      /* Operator delete must be called, whether or not the dtor throws.  */
+      add_stmt (build2 (TRY_FINALLY_EXPR, void_type_node,
+			call_dtor, call_delete));
+    }
+
+  /* Return the address of the object.
+     ??? How is it useful to return an invalid address?  */
   if (targetm.cxx.cdtor_returns_this ())
     {
       tree val = DECL_ARGUMENTS (delete_dtor);
@@ -177,7 +198,8 @@ cdtor_comdat_group (tree complete, tree base)
       {
 	gcc_assert (!diff_seen
 		    && idx > 0
-		    && (p[idx - 1] == 'C' || p[idx - 1] == 'D')
+		    && (p[idx - 1] == 'C' || p[idx - 1] == 'D'
+			|| p[idx - 1] == 'I')
 		    && p[idx] == '1'
 		    && q[idx] == '2');
 	grp_name[idx] = '5';
@@ -194,18 +216,17 @@ cdtor_comdat_group (tree complete, tree base)
 static bool
 can_alias_cdtor (tree fn)
 {
-#ifndef ASM_OUTPUT_DEF
   /* If aliases aren't supported by the assembler, fail.  */
-  return false;
-#endif
+  if (!TARGET_SUPPORTS_ALIASES)
+    return false;
+
   /* We can't use an alias if there are virtual bases.  */
   if (CLASSTYPE_VBASECLASSES (DECL_CONTEXT (fn)))
     return false;
   /* ??? Why not use aliases with -frepo?  */
   if (flag_use_repository)
     return false;
-  gcc_assert (DECL_MAYBE_IN_CHARGE_CONSTRUCTOR_P (fn)
-	      || DECL_MAYBE_IN_CHARGE_DESTRUCTOR_P (fn));
+  gcc_assert (DECL_MAYBE_IN_CHARGE_CDTOR_P (fn));
   /* Don't use aliases for weak/linkonce definitions unless we can put both
      symbols in the same COMDAT group.  */
   return (DECL_INTERFACE_KNOWN (fn)
@@ -270,6 +291,15 @@ maybe_thunk_body (tree fn, bool force)
      (for non-vague linkage ctors) or the COMDAT group (otherwise).  */
 
   populate_clone_array (fn, fns);
+
+  /* Can happen during error recovery (c++/71464).  */
+  if (!fns[0] || !fns[1])
+    return 0;
+
+  /* Don't use thunks if the base clone omits inherited parameters.  */
+  if (ctor_omit_inherited_parms (fns[0]))
+    return 0;
+
   DECL_ABSTRACT_P (fn) = false;
   if (!DECL_WEAK (fn))
     {
@@ -279,7 +309,11 @@ maybe_thunk_body (tree fn, bool force)
     }
   else if (HAVE_COMDAT_GROUP)
     {
+      /* At eof, defer creation of mangling aliases temporarily.  */
+      bool save_defer_mangling_aliases = defer_mangling_aliases;
+      defer_mangling_aliases = true;
       tree comdat_group = cdtor_comdat_group (fns[1], fns[0]);
+      defer_mangling_aliases = save_defer_mangling_aliases;
       cgraph_node::get_create (fns[0])->set_comdat_group (comdat_group);
       cgraph_node::get_create (fns[1])->add_to_same_comdat_group
 	(cgraph_node::get_create (fns[0]));
@@ -290,6 +324,9 @@ maybe_thunk_body (tree fn, bool force)
 	   virtual, it goes into the same comdat group as well.  */
 	cgraph_node::get_create (fns[2])->add_to_same_comdat_group
 	  (symtab_node::get (fns[0]));
+      /* Emit them now that the thunks are same comdat group aliases.  */
+      if (!save_defer_mangling_aliases)
+	generate_mangling_aliases ();
       TREE_PUBLIC (fn) = false;
       DECL_EXTERNAL (fn) = false;
       DECL_INTERFACE_KNOWN (fn) = true;
@@ -322,9 +359,9 @@ maybe_thunk_body (tree fn, bool force)
       if (length > max_parms)
         max_parms = length;
     }
-  args = (tree *) alloca (max_parms * sizeof (tree));
+  args = XALLOCAVEC (tree, max_parms);
 
-  /* We know that any clones immediately follow FN in TYPE_METHODS.  */
+  /* We know that any clones immediately follow FN in TYPE_FIELDS.  */
   FOR_EACH_CLONE (clone, fn)
     {
       tree clone_parm;
@@ -380,6 +417,8 @@ maybe_thunk_body (tree fn, bool force)
 		  gcc_assert (clone_parm);
 		  DECL_ABSTRACT_ORIGIN (clone_parm) = NULL;
 		  args[parmno] = clone_parm;
+		  /* Clear TREE_ADDRESSABLE on thunk arguments.  */
+		  TREE_ADDRESSABLE (clone_parm) = 0;
 		  clone_parm = TREE_CHAIN (clone_parm);
 		}
 	      if (fn_parm_typelist)
@@ -414,7 +453,7 @@ maybe_thunk_body (tree fn, bool force)
 	}
 
       DECL_ABSTRACT_ORIGIN (clone) = NULL;
-      expand_or_defer_fn (finish_function (0));
+      expand_or_defer_fn (finish_function (/*inline_p=*/false));
     }
   return 1;
 }
@@ -434,8 +473,7 @@ maybe_clone_body (tree fn)
   bool need_alias = false;
 
   /* We only clone constructors and destructors.  */
-  if (!DECL_MAYBE_IN_CHARGE_CONSTRUCTOR_P (fn)
-      && !DECL_MAYBE_IN_CHARGE_DESTRUCTOR_P (fn))
+  if (!DECL_MAYBE_IN_CHARGE_CDTOR_P (fn))
     return 0;
 
   populate_clone_array (fn, fns);
@@ -445,7 +483,7 @@ maybe_clone_body (tree fn)
   if (!tree_versionable_function_p (fn))
     need_alias = true;
 
-  /* We know that any clones immediately follow FN in the TYPE_METHODS
+  /* We know that any clones immediately follow FN in the TYPE_FIELDS
      list.  */
   push_to_top_level ();
   for (idx = 0; idx < 3; idx++)
@@ -494,7 +532,7 @@ maybe_clone_body (tree fn)
 	parm = DECL_CHAIN (parm);
       if (DECL_HAS_VTT_PARM_P (clone))
 	clone_parm = DECL_CHAIN (clone_parm);
-      for (; parm;
+      for (; parm && clone_parm;
 	   parm = DECL_CHAIN (parm), clone_parm = DECL_CHAIN (clone_parm))
 	/* Update this parameter.  */
 	update_cloned_parm (parm, clone_parm, first);
@@ -514,7 +552,7 @@ maybe_clone_body (tree fn)
   /* Emit the DWARF1 abstract instance.  */
   (*debug_hooks->deferred_inline_function) (fn);
 
-  /* We know that any clones immediately follow FN in the TYPE_METHODS list. */
+  /* We know that any clones immediately follow FN in the TYPE_FIELDS. */
   for (idx = 0; idx < 3; idx++)
     {
       tree parm;
@@ -619,8 +657,21 @@ maybe_clone_body (tree fn)
                  function.  */
               else
                 {
-                  decl_map->put (parm, clone_parm);
-                  clone_parm = DECL_CHAIN (clone_parm);
+		  tree replacement;
+		  if (clone_parm)
+		    {
+		      replacement = clone_parm;
+		      clone_parm = DECL_CHAIN (clone_parm);
+		    }
+		  else
+		    {
+		      /* Inheriting ctors can omit parameters from the base
+			 clone.  Replace them with null lvalues.  */
+		      tree reftype = build_reference_type (TREE_TYPE (parm));
+		      replacement = fold_convert (reftype, null_pointer_node);
+		      replacement = convert_from_reference (replacement);
+		    }
+                  decl_map->put (parm, replacement);
                 }
             }
 
@@ -642,12 +693,14 @@ maybe_clone_body (tree fn)
       cp_function_chain->can_throw = !TREE_NOTHROW (fn);
 
       /* Now, expand this function into RTL, if appropriate.  */
-      finish_function (0);
+      finish_function (/*inline_p=*/false);
       BLOCK_ABSTRACT_ORIGIN (DECL_INITIAL (clone)) = DECL_INITIAL (fn);
       if (alias)
 	{
 	  if (expand_or_defer_fn_1 (clone))
 	    emit_associated_thunks (clone);
+	  /* We didn't generate a body, so remove the empty one.  */
+	  DECL_SAVED_TREE (clone) = NULL_TREE;
 	}
       else
 	expand_or_defer_fn (clone);

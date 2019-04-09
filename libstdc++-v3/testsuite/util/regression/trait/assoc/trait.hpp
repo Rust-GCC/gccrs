@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -161,7 +161,7 @@ namespace detail
     native_value(const_reference r_val)
     { return native_type_traits_base::native_value(r_val); }
 
-    static const native_key_type& 
+    static const native_key_type&
     extract_native_key(const native_value_type& r_val)
     { return native_type_traits_base::extract_key(r_val); }
 

@@ -1,6 +1,6 @@
 // C++ includes used for precompiling extensions -*- C++ -*-
 
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,13 +28,22 @@
 
 #if __cplusplus < 201103L
 #include <bits/stdtr1c++.h>
+#else
+#include <bits/stdc++.h>
 #endif
 
 #include <ext/algorithm>
+#if __cplusplus >= 201103L
+# include <ext/aligned_buffer.h>
+#endif
+#include <ext/alloc_traits.h>
 #include <ext/array_allocator.h>
 #include <ext/atomicity.h>
 #include <ext/bitmap_allocator.h>
 #include <ext/cast.h>
+#if __cplusplus >= 201103L
+# include <ext/cmath>
+#endif
 #include <ext/concurrence.h>
 #include <ext/debug_allocator.h>
 #include <ext/extptr_allocator.h>
@@ -45,9 +54,13 @@
 #include <ext/mt_allocator.h>
 #include <ext/new_allocator.h>
 #include <ext/numeric>
+#include <ext/numeric_traits.h>
 #include <ext/pod_char_traits.h>
 #include <ext/pointer.h>
 #include <ext/pool_allocator.h>
+#if __cplusplus >= 201103L
+# include <ext/random>
+#endif
 #include <ext/rb_tree>
 #include <ext/rope>
 #include <ext/slist>

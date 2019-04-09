@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *         Copyright (C) 1992-2014, Free Software Foundation, Inc.          *
+ *         Copyright (C) 1992-2019, Free Software Foundation, Inc.          *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -49,7 +49,7 @@
 #endif
 
 #ifdef __ANDROID__
-#undef linux
+#undef __linux__
 #endif
 
 #ifdef IN_RTS
@@ -58,9 +58,6 @@
 #include "tsystem.h"
 #include <fcntl.h>
 #include <sys/stat.h>
-#ifdef VMS
-#include <unixio.h>
-#endif
 #else
 #include "config.h"
 #include "system.h"
@@ -69,7 +66,7 @@
 #include <time.h>
 #include <errno.h>
 
-#if defined (sun) && defined (__SVR4) && !defined (__vxworks)
+#if defined (__sun__) && !defined (__vxworks)
 /* The declaration is present in <time.h> but conditionalized
    on a couple of macros we don't define.  */
 extern struct tm *localtime_r(const time_t *, struct tm *);
@@ -129,7 +126,7 @@ extern struct tm *localtime_r(const time_t *, struct tm *);
 
 */
 
-#if defined (WINNT) || defined (__CYGWIN__)
+#if defined (WINNT) || defined (__CYGWIN__) || defined (__DJGPP__)
 
 const char __gnat_text_translation_required = 1;
 
@@ -139,6 +136,11 @@ const char __gnat_text_translation_required = 1;
 #else
 #define WIN_SETMODE _setmode
 #endif
+
+#if defined (__DJGPP__)
+#include <io.h>
+#define _setmode setmode
+#endif /* __DJGPP__ */
 
 void
 __gnat_set_binary_mode (int handle)
@@ -152,6 +154,30 @@ __gnat_set_text_mode (int handle)
   WIN_SETMODE (handle, O_TEXT);
 }
 
+#if defined (__CYGWIN__) || defined (__DJGPP__)
+void
+__gnat_set_mode (int handle, int mode)
+{
+  /*  the values here must be synchronized with
+      System.File_Control_Block.Content_Encodding:
+
+      None         = 0
+      Default_Text = 1
+      Text         = 2
+      U8text       = 3
+      Wtext        = 4
+      U16text      = 5  */
+
+ switch (mode) {
+    case 0 : setmode(handle, O_BINARY);          break;
+    case 1 : setmode(handle, O_TEXT);            break;
+    case 2 : setmode(handle, O_TEXT);            break;
+    case 3 : setmode(handle, O_TEXT);            break;
+    case 4 : setmode(handle, O_BINARY);          break;
+    case 5 : setmode(handle, O_BINARY);          break;
+ }
+}
+#else
 void
 __gnat_set_mode (int handle, int mode)
 {
@@ -167,13 +193,14 @@ __gnat_set_mode (int handle, int mode)
 
  switch (mode) {
     case 0 : WIN_SETMODE (handle, _O_BINARY);          break;
-    case 1 : WIN_SETMODE (handle, CurrentCCSEncoding); break;
+    case 1 : WIN_SETMODE (handle, __gnat_current_ccs_encoding); break;
     case 2 : WIN_SETMODE (handle, _O_TEXT);            break;
     case 3 : WIN_SETMODE (handle, _O_U8TEXT);          break;
     case 4 : WIN_SETMODE (handle, _O_WTEXT);           break;
     case 5 : WIN_SETMODE (handle, _O_U16TEXT);         break;
  }
 }
+#endif
 
 #ifdef __CYGWIN__
 
@@ -189,8 +216,6 @@ __gnat_ttyname (int filedes)
 
 #if defined (__CYGWIN__) || defined (__MINGW32__)
 #include <windows.h>
-
-#ifndef RTX
 
 int __gnat_is_windows_xp (void);
 
@@ -215,8 +240,6 @@ __gnat_is_windows_xp (void)
     }
   return is_win_xp;
 }
-
-#endif /* !RTX */
 
 /* Get the bounds of the stack.  The stack pointer is supposed to be
    initialized to BASE when a thread is created and the stack can be extended
@@ -279,22 +302,23 @@ __gnat_set_mode (int handle ATTRIBUTE_UNUSED, int mode ATTRIBUTE_UNUSED)
 char *
 __gnat_ttyname (int filedes)
 {
-#if defined (__vxworks) || defined (__nucleus)
+#if defined (__vxworks)
   return "";
 #else
   extern char *ttyname (int);
 
   return ttyname (filedes);
-#endif /* defined (__vxworks) || defined (__nucleus) */
+#endif /* defined (__vxworks) */
 }
 #endif
 
-#if defined (linux) || defined (sun) \
+#if defined (__linux__) || defined (__sun__) \
   || defined (WINNT) \
   || defined (__MACHTEN__) || defined (__hpux__) || defined (_AIX) \
-  || (defined (__svr4__) && defined (i386)) || defined (__Lynx__) \
+  || (defined (__svr4__) && defined (__i386__)) || defined (__Lynx__) \
   || defined (__CYGWIN__) || defined (__FreeBSD__) || defined (__OpenBSD__) \
-  || defined (__GLIBC__) || defined (__APPLE__)
+  || defined (__GLIBC__) || defined (__APPLE__) || defined (__DragonFly__) \
+  || defined (__QNX__)
 
 # ifdef __MINGW32__
 #  if OLD_MINGW
@@ -306,11 +330,6 @@ __gnat_ttyname (int filedes)
 #  include <termios.h>
 # endif
 
-#else
-# if defined (VMS)
-extern char *decc$ga_stdscr;
-static int initted = 0;
-# endif
 #endif
 
 /* Implements the common processing for getc_immediate and
@@ -347,11 +366,12 @@ getc_immediate_common (FILE *stream,
                        int *avail,
                        int waiting ATTRIBUTE_UNUSED)
 {
-#if defined (linux) || defined (sun) \
+#if defined (__linux__) || defined (__sun__) \
     || defined (__CYGWIN32__) || defined (__MACHTEN__) || defined (__hpux__) \
-    || defined (_AIX) || (defined (__svr4__) && defined (i386)) \
+    || defined (_AIX) || (defined (__svr4__) && defined (__i386__)) \
     || defined (__Lynx__) || defined (__FreeBSD__) || defined (__OpenBSD__) \
-    || defined (__GLIBC__) || defined (__APPLE__)
+    || defined (__GLIBC__) || defined (__APPLE__) || defined (__DragonFly__) \
+    || defined (__QNX__)
   char c;
   int nread;
   int good_one = 0;
@@ -367,11 +387,12 @@ getc_immediate_common (FILE *stream,
       /* Set RAW mode, with no echo */
       termios_rec.c_lflag = termios_rec.c_lflag & ~ICANON & ~ECHO;
 
-#if defined(linux) || defined (sun) \
+#if defined (__linux__) || defined (__sun__) \
     || defined (__MACHTEN__) || defined (__hpux__) \
-    || defined (_AIX) || (defined (__svr4__) && defined (i386)) \
+    || defined (_AIX) || (defined (__svr4__) && defined (__i386__)) \
     || defined (__Lynx__) || defined (__FreeBSD__) || defined (__OpenBSD__) \
-    || defined (__GLIBC__) || defined (__APPLE__)
+    || defined (__GLIBC__) || defined (__APPLE__) || defined (__DragonFly__) \
+    || defined (__QNX__)
       eof_ch = termios_rec.c_cc[VEOF];
 
       /* If waiting (i.e. Get_Immediate (Char)), set MIN = 1 and wait for
@@ -423,29 +444,6 @@ getc_immediate_common (FILE *stream,
       *ch = c;
     }
 
-  else
-#elif defined (VMS)
-  int fd = fileno (stream);
-
-  if (isatty (fd))
-    {
-      if (initted == 0)
-	{
-	  decc$bsd_initscr ();
-	  initted = 1;
-	}
-
-      decc$bsd_cbreak ();
-      *ch = decc$bsd_wgetch (decc$ga_stdscr);
-
-      if (*ch == 4)
-	*end_of_file = 1;
-      else
-	*end_of_file = 0;
-
-      *avail = 1;
-      decc$bsd_nocbreak ();
-    }
   else
 #elif defined (__MINGW32__)
   int fd = fileno (stream);
@@ -629,23 +627,6 @@ rts_get_nShowCmd (void)
 }
 
 #endif /* WINNT */
-#ifdef VMS
-
-/* This gets around a problem with using the old threads library on VMS 7.0. */
-
-extern long get_gmtoff (void);
-
-long
-get_gmtoff (void)
-{
-  time_t t;
-  struct tm *ts;
-
-  t = time ((time_t) 0);
-  ts = localtime (&t);
-  return ts->tm_gmtoff;
-}
-#endif
 
 /* This value is returned as the time zone offset when a valid value
    cannot be determined. It is simply a bizarre value that will never
@@ -656,27 +637,6 @@ long __gnat_invalid_tzoff = 259273;
 /* Definition of __gnat_localtime_r used by a-calend.adb */
 
 #if defined (__MINGW32__)
-
-#ifdef CERT
-
-/* For the Cert run times on native Windows we use dummy functions
-   for locking and unlocking tasks since we do not support multiple
-   threads on this configuration (Cert run time on native Windows). */
-
-void dummy (void) {}
-
-void (*Lock_Task) ()   = &dummy;
-void (*Unlock_Task) () = &dummy;
-
-#else
-
-#define Lock_Task system__soft_links__lock_task
-extern void (*Lock_Task) (void);
-
-#define Unlock_Task system__soft_links__unlock_task
-extern void (*Unlock_Task) (void);
-
-#endif
 
 /* Reentrant localtime for Windows. */
 
@@ -689,25 +649,16 @@ __gnat_localtime_tzoff (const time_t *timer, const int *is_historic, long *off)
 {
   TIME_ZONE_INFORMATION tzi;
 
-  BOOL  rtx_active;
   DWORD tzi_status;
-
-#ifdef RTX
-  rtx_active = 1;
-#else
-  rtx_active = 0;
-#endif
-
-  (*Lock_Task) ();
 
   tzi_status = GetTimeZoneInformation (&tzi);
 
-  /* Processing for RTX targets or cases where we simply want to extract the
-     offset of the current time zone, regardless of the date. A value of "0"
-     for flag "is_historic" signifies that the date is NOT historic, see the
+  /* Cases where we simply want to extract the offset of the current time
+     zone, regardless of the date. A value of "0" for flag "is_historic"
+     signifies that the date is NOT historic, see the
      body of Ada.Calendar.UTC_Time_Offset. */
 
-  if (rtx_active || *is_historic == 0) {
+  if (*is_historic == 0) {
     *off = tzi.Bias;
 
     /* The system is operating in the range covered by the StandardDate
@@ -771,15 +722,11 @@ __gnat_localtime_tzoff (const time_t *timer, const int *is_historic, long *off)
       }
     }
   }
-
-  (*Unlock_Task) ();
 }
 
-#else
+#elif defined (__Lynx__)
 
 /* On Lynx, all time values are treated in GMT */
-
-#if defined (__Lynx__)
 
 /* As of LynxOS 3.1.0a patch level 040, LynuxWorks changes the
    prototype to the C library function localtime_r from the POSIX.4
@@ -798,13 +745,7 @@ __gnat_localtime_tzoff (const time_t *timer, const int *is_historic, long *off)
 
 #else
 
-/* VMS does not need __gnat_localtime_tzoff */
-
-#if defined (VMS)
-
-/* Other targets except Lynx, VMS and Windows provide a standard localtime_r */
-
-#else
+/* Other targets except Lynx and Windows provide a standard localtime_r */
 
 #define Lock_Task system__soft_links__lock_task
 extern void (*Lock_Task) (void);
@@ -823,7 +764,7 @@ __gnat_localtime_tzoff (const time_t *timer ATTRIBUTE_UNUSED,
   struct tm tp ATTRIBUTE_UNUSED;
 
 /* AIX, HPUX, Sun Solaris */
-#if defined (_AIX) || defined (__hpux__) || defined (sun)
+#if defined (_AIX) || defined (__hpux__) || defined (__sun__)
 {
   (*Lock_Task) ();
 
@@ -866,7 +807,7 @@ __gnat_localtime_tzoff (const time_t *timer ATTRIBUTE_UNUSED,
 
     tz_start = index (tz_str, ':') + 2;
     tz_end = index (tz_start, ':');
-    tz_end = '\0';
+    *tz_end = '\0';
 
     /* The Ada layer expects an offset in seconds. Note that we must reverse
        the sign of the result since west is positive and east is negative on
@@ -886,8 +827,9 @@ __gnat_localtime_tzoff (const time_t *timer ATTRIBUTE_UNUSED,
 /* Darwin, Free BSD, Linux, where component tm_gmtoff is present in
    struct tm */
 
-#elif defined (__APPLE__) || defined (__FreeBSD__) || defined (linux) \
-  || defined (__GLIBC__)
+#elif defined (__APPLE__) || defined (__FreeBSD__) || defined (__linux__) \
+  || defined (__GLIBC__) || defined (__DragonFly__) || defined (__OpenBSD__) \
+  || defined (__DJGPP__) || defined (__QNX__)
 {
   localtime_r (timer, &tp);
   *off = tp.tm_gmtoff;
@@ -898,11 +840,9 @@ __gnat_localtime_tzoff (const time_t *timer ATTRIBUTE_UNUSED,
 #else
   *off = 0;
 
-#endif
+#endif  /* defined(_AIX) ... */
 }
 
-#endif
-#endif
 #endif
 
 #ifdef __vxworks
@@ -934,10 +874,23 @@ __gnat_get_task_options (void)
 
   /* Mask those bits that are not under user control */
 #ifdef VX_USR_TASK_OPTIONS
-  return options & VX_USR_TASK_OPTIONS;
-#else
-  return options;
+  /* O810-007, TSR 00043679:
+     Workaround a bug in Vx-7 where VX_DEALLOC_TCB == VX_PRIVATE_UMASK and:
+     - VX_DEALLOC_TCB is an internal option not to be used by users
+     - VX_PRIVATE_UMASK as a user-definable option
+     This leads to VX_USR_TASK_OPTIONS allowing 0x8000 as VX_PRIVATE_UMASK but
+     taskCreate refusing this option (VX_DEALLOC_TCB is not allowed)
+
+     Note that the same error occurs in both RTP and Kernel mode, but
+     VX_DEALLOC_TCB is not defined in the RTP headers, so we need to
+     explicitely check if VX_PRIVATE_UMASK has value 0x8000
+  */
+# if defined (VX_PRIVATE_UMASK) && (0x8000 == VX_PRIVATE_UMASK)
+  options &= ~VX_PRIVATE_UMASK;
+# endif
+  options &= VX_USR_TASK_OPTIONS;
 #endif
+  return options;
 }
 
 #endif
@@ -968,6 +921,89 @@ __gnat_is_file_not_found_error (int errno_val) {
         return 0;
    }
 }
+
+#if defined (__linux__)
+
+/* Note well: If this code is modified, it should be tested by hand,
+   because automated testing doesn't exercise it.
+*/
+
+/* HAVE_CAPABILITY is supposed to be defined if sys/capability.h exists on the
+   system where this is being compiled. If this macro is defined, we #include
+   the header. Otherwise we have the relevant declarations textually here.
+*/
+
+#if defined (HAVE_CAPABILITY)
+#include <sys/capability.h>
+#else
+
+/* HAVE_CAPABILITY is not defined, so sys/capability.h does might not exist. */
+
+typedef struct _cap_struct *cap_t;
+typedef enum {
+    CAP_CLEAR=0,
+    CAP_SET=1
+} cap_flag_value_t;
+#define CAP_SYS_NICE         23
+typedef enum {
+    CAP_EFFECTIVE=0,                        /* Specifies the effective flag */
+    CAP_PERMITTED=1,                        /* Specifies the permitted flag */
+    CAP_INHERITABLE=2                     /* Specifies the inheritable flag */
+} cap_flag_t;
+
+typedef int cap_value_t;
+
+extern cap_t   cap_get_proc(void);
+extern int     cap_get_flag(cap_t, cap_value_t, cap_flag_t, cap_flag_value_t *);
+extern int     cap_free(void *);
+
+#endif
+
+/* __gnat_has_cap_sys_nice returns 1 if the current process has the
+   CAP_SYS_NICE capability. This capability is necessary to use the
+   Ceiling_Locking policy. Returns 0 otherwise. Note that this is
+   defined only for Linux.
+*/
+
+/* Define these as weak symbols, so if support for capabilities is not present,
+   programs can still link. On Ubuntu, support for capabilities can be
+   installed via "sudo apt-get --assume-yes install libcap-dev".
+   In addition, the user must link with "-lcap", or else these
+   symbols will be 0, and __gnat_has_cap_sys_nice will return 0.
+*/
+
+static cap_t cap_get_proc_weak(void)
+  __attribute__ ((weakref ("cap_get_proc")));
+static int cap_get_flag_weak(cap_t, cap_value_t, cap_flag_t, cap_flag_value_t *)
+  __attribute__ ((weakref ("cap_get_flag")));
+static int cap_free_weak(void *)
+  __attribute__ ((weakref ("cap_free")));
+
+int
+__gnat_has_cap_sys_nice () {
+  /* If the address of cap_get_proc_weak is 0, this means support for
+     capabilities is not present, so we return 0. */
+  if (&cap_get_proc_weak == 0)
+    return 0;
+
+  cap_t caps = cap_get_proc_weak();
+  if (caps == NULL)
+    return 0;
+
+  cap_flag_value_t value;
+
+  if (cap_get_flag_weak(caps, CAP_SYS_NICE, CAP_EFFECTIVE, &value) == -1)
+    return 0;
+
+  if (cap_free_weak(caps) == -1)
+    return 0;
+
+  if (value == CAP_SET)
+    return 1;
+
+  return 0;
+}
+#endif
 
 #ifdef __ANDROID__
 
@@ -1013,3 +1049,21 @@ _getpagesize (void)
   return getpagesize ();
 }
 #endif
+
+int
+__gnat_name_case_equivalence ()
+{
+  /*  the values here must be synchronized with Ada.Directories.Name_Case_Kind:
+
+      Unknown          = 0
+      Case_Sensitive   = 1
+      Case_Insensitive = 2
+      Case_Preserving  = 3  */
+
+#if defined (__APPLE__) || defined (WIN32)
+  return 3;
+#else
+  return 1;
+#endif
+}
+

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1997-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1997-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -194,7 +194,7 @@ package body Sem_Elim is
    -- Tables --
    ------------
 
-   --  The following table records the data for each pragmas, using the
+   --  The following table records the data for each pragma, using the
    --  entity name as the hash key for retrieval. Entries in this table
    --  are set by Process_Eliminate_Pragma and read by Check_Eliminated.
 
@@ -574,7 +574,7 @@ package body Sem_Elim is
                      --------------------
 
                      function Line_Num_Match return Boolean is
-                        N : Int := 0;
+                        N : Nat := 0;
 
                      begin
                         if Idx = 0 then
@@ -599,9 +599,8 @@ package body Sem_Elim is
                               Idx := Idx + 1;
                            end loop;
 
-                           if Idx <= Last and then
-                             Sloc_Trace (Idx) = '['
-                           then
+                           if Idx <= Last then
+                              pragma Assert (Sloc_Trace (Idx) = '[');
                               Idx := Idx + 1;
                               Idx := Skip_Spaces;
                            else

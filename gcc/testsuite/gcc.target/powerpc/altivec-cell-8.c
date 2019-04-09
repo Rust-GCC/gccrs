@@ -1,7 +1,7 @@
 /* { dg-do run { target { powerpc*-*-* && cell_hw } } } */
 /* { dg-do compile { target { powerpc*-*-* && { ! cell_hw } } } } */
 /* { dg-require-effective-target powerpc_ppu_ok } */
-/* { dg-options "-O2 -maltivec -mabi=altivec -mcpu=cell" } */
+/* { dg-options "-O2 -maltivec -mabi=altivec -mdejagnu-cpu=cell" } */
 #include <altivec.h>
 #include <string.h>
 

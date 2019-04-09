@@ -1,5 +1,5 @@
 /* Header file for middle end gimplification.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -32,6 +32,6 @@ extern tree force_gimple_operand_gsi_1 (gimple_stmt_iterator *, tree,
 					bool, enum gsi_iterator_update);
 extern tree force_gimple_operand_gsi (gimple_stmt_iterator *, tree, bool, tree,
 				      bool, enum gsi_iterator_update);
-extern void gimple_regimplify_operands (gimple, gimple_stmt_iterator *);
+extern void gimple_regimplify_operands (gimple *, gimple_stmt_iterator *);
 
 #endif /* GCC_GIMPLIFY_ME_H */

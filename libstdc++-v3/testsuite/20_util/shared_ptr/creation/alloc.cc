@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -56,7 +56,6 @@ struct reset_count_struct
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
   reset_count_struct __attribute__((unused)) reset;
 
   {
@@ -64,7 +63,7 @@ test01()
     VERIFY( p1.get() != 0 );
     VERIFY( p1.use_count() == 1 );
     VERIFY( A::ctor_count == 1 );
-    VERIFY( tracker_allocator_counter::get_allocation_count() > 0 );
+    VERIFY( tracker_allocator_counter::get_allocation_count() > sizeof(A) );
   }
   VERIFY( A::ctor_count == A::dtor_count );
   VERIFY( tracker_allocator_counter::get_allocation_count()
@@ -74,19 +73,18 @@ test01()
 void
 test02()
 {
-  bool test __attribute__((unused)) = true;
   reset_count_struct __attribute__((unused)) reset;
 
   std::shared_ptr<A> p1;
   
   p1 = std::allocate_shared<A>(tracker_allocator<A>(), 1);
   VERIFY( A::ctor_count == 1 );
-  VERIFY( tracker_allocator_counter::get_allocation_count() > 0 );
+  VERIFY( tracker_allocator_counter::get_allocation_count() > sizeof(A) );
 
   p1 = std::allocate_shared<A>(tracker_allocator<A>(), 1, 2.0);
   VERIFY( A::ctor_count == 2 );
   VERIFY( A::dtor_count == 1 );
-  VERIFY( tracker_allocator_counter::get_deallocation_count() > 0 );
+  VERIFY( tracker_allocator_counter::get_deallocation_count() > sizeof(A) );
 
   p1 = std::allocate_shared<A>(tracker_allocator<A>(), 1, 2.0, '3');
   VERIFY( A::ctor_count == 3 );

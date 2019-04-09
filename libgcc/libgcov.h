@@ -1,5 +1,5 @@
 /* Header file for libgcov-*.c.
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -38,12 +38,14 @@
 /* This path will be used by libgcov runtime.  */
 
 #include "tconfig.h"
+#include "auto-target.h"
 #include "tsystem.h"
 #include "coretypes.h"
 #include "tm.h"
 #include "libgcc_tm.h"
+#include "gcov.h"
 
-#if BITS_PER_UNIT == 8
+#if __CHAR_BIT__ == 8
 typedef unsigned gcov_unsigned_t __attribute__ ((mode (SI)));
 typedef unsigned gcov_position_t __attribute__ ((mode (SI)));
 #if LONG_LONG_TYPE_SIZE > 32
@@ -54,7 +56,7 @@ typedef signed gcov_type __attribute__ ((mode (SI)));
 typedef unsigned gcov_type_unsigned __attribute__ ((mode (SI)));
 #endif
 #else
-#if BITS_PER_UNIT == 16
+#if __CHAR_BIT__ == 16
 typedef unsigned gcov_unsigned_t __attribute__ ((mode (HI)));
 typedef unsigned gcov_position_t __attribute__ ((mode (HI)));
 #if LONG_LONG_TYPE_SIZE > 32
@@ -126,7 +128,6 @@ typedef unsigned gcov_position_t;
 #define L_gcov 1
 #define L_gcov_merge_add 1
 #define L_gcov_merge_single 1
-#define L_gcov_merge_delta 1
 #define L_gcov_merge_ior 1
 #define L_gcov_merge_time_profile 1
 #define L_gcov_merge_icall_topn 1
@@ -225,6 +226,15 @@ struct gcov_master
   gcov_unsigned_t version;
   struct gcov_root *root;
 };
+
+struct indirect_call_tuple
+{
+  /* Callee function.  */
+  void *callee;
+
+  /* Pointer to counters.  */
+  gcov_type *counters;
+};
   
 /* Exactly one of these will be active in the process.  */
 extern struct gcov_master __gcov_master;
@@ -235,16 +245,14 @@ extern void __gcov_dump_one (struct gcov_root *) ATTRIBUTE_HIDDEN;
 /* Register a new object file module.  */
 extern void __gcov_init (struct gcov_info *) ATTRIBUTE_HIDDEN;
 
-/* Called before fork, to avoid double counting.  */
-extern void __gcov_flush (void) ATTRIBUTE_HIDDEN;
+/* GCOV exit function registered via a static destructor.  */
+extern void __gcov_exit (void) ATTRIBUTE_HIDDEN;
 
 /* Function to reset all counters to 0.  Both externally visible (and
    overridable) and internal version.  */
-extern void __gcov_reset (void);
 extern void __gcov_reset_int (void) ATTRIBUTE_HIDDEN;
 
 /* User function to enable early write of profile information so far.  */
-extern void __gcov_dump (void);
 extern void __gcov_dump_int (void) ATTRIBUTE_HIDDEN;
 
 /* The merge function that just sums the counters.  */
@@ -256,10 +264,6 @@ extern void __gcov_merge_time_profile (gcov_type *, unsigned) ATTRIBUTE_HIDDEN;
 /* The merge function to choose the most common value.  */
 extern void __gcov_merge_single (gcov_type *, unsigned) ATTRIBUTE_HIDDEN;
 
-/* The merge function to choose the most common difference between
-   consecutive values.  */
-extern void __gcov_merge_delta (gcov_type *, unsigned) ATTRIBUTE_HIDDEN;
-
 /* The merge function that just ors the counters together.  */
 extern void __gcov_merge_ior (gcov_type *, unsigned) ATTRIBUTE_HIDDEN;
 
@@ -268,14 +272,19 @@ extern void __gcov_merge_icall_topn (gcov_type *, unsigned) ATTRIBUTE_HIDDEN;
 
 /* The profiler functions.  */
 extern void __gcov_interval_profiler (gcov_type *, gcov_type, int, unsigned);
+extern void __gcov_interval_profiler_atomic (gcov_type *, gcov_type, int,
+					     unsigned);
 extern void __gcov_pow2_profiler (gcov_type *, gcov_type);
+extern void __gcov_pow2_profiler_atomic (gcov_type *, gcov_type);
 extern void __gcov_one_value_profiler (gcov_type *, gcov_type);
-extern void __gcov_indirect_call_profiler (gcov_type*, gcov_type,
-                                           void*, void*);
-extern void __gcov_indirect_call_profiler_v2 (gcov_type, void *);
+extern void __gcov_one_value_profiler_atomic (gcov_type *, gcov_type);
+extern void __gcov_indirect_call_profiler_v3 (gcov_type, void *);
 extern void __gcov_time_profiler (gcov_type *);
+extern void __gcov_time_profiler_atomic (gcov_type *);
 extern void __gcov_average_profiler (gcov_type *, gcov_type);
+extern void __gcov_average_profiler_atomic (gcov_type *, gcov_type);
 extern void __gcov_ior_profiler (gcov_type *, gcov_type);
+extern void __gcov_ior_profiler_atomic (gcov_type *, gcov_type);
 extern void __gcov_indirect_call_topn_profiler (gcov_type, void *);
 extern void gcov_sort_n_vals (gcov_type *, int);
 

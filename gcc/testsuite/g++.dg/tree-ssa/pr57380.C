@@ -1,5 +1,6 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-phiopt1" } */
+/* { dg-options "-O2 -fdump-tree-phiopt2" } */
+/* { dg-add-options bind_pic_locally } */
 
 struct my_array {
     int data[4];
@@ -17,5 +18,4 @@ int f(my_array a, my_array b) {
     return res;
 }
 
-/* { dg-final { scan-tree-dump "MAX_EXPR" "phiopt1" } } */
-/* { dg-final { cleanup-tree-dump "phiopt1" } } */
+/* { dg-final { scan-tree-dump "MAX_EXPR" "phiopt2" } } */

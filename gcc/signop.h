@@ -1,5 +1,5 @@
 /* Operations with SIGNED and UNSIGNED.  -*- C++ -*-
-   Copyright (C) 2012-2013 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -25,11 +25,9 @@ along with GCC; see the file COPYING3.  If not see
    unsigned types.  The signedness of a tree type can be found by
    using the TYPE_SIGN macro.  */
 
-enum signop_e {
+enum signop {
   SIGNED,
   UNSIGNED
 };
-
-typedef enum signop_e signop;
 
 #endif

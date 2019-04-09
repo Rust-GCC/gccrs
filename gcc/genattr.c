@@ -1,5 +1,5 @@
 /* Generate attribute information (insn-attr.h) from machine description.
-   Copyright (C) 1991-2014 Free Software Foundation, Inc.
+   Copyright (C) 1991-2019 Free Software Foundation, Inc.
    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
 
 This file is part of GCC.
@@ -29,15 +29,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "gensupport.h"
 
 
-static void gen_attr (rtx);
-
 static vec<rtx> const_attrs, reservations;
 
 
 static void
-gen_attr (rtx attr)
+gen_attr (md_rtx_info *info)
 {
   const char *p;
+  rtx attr = info->def;
   int is_const = GET_CODE (XEXP (attr, 2)) == CONST;
 
   if (is_const)
@@ -139,12 +138,10 @@ find_tune_attr (rtx exp)
 }
 
 int
-main (int argc, char **argv)
+main (int argc, const char **argv)
 {
-  rtx desc;
-  int have_delay = 0;
-  int have_annul_true = 0;
-  int have_annul_false = 0;
+  bool have_annul_true = false;
+  bool have_annul_false = false;
   int num_insn_reservations = 0;
   int i;
 
@@ -162,52 +159,45 @@ main (int argc, char **argv)
 
   /* Read the machine description.  */
 
-  while (1)
+  md_rtx_info info;
+  while (read_md_rtx (&info))
     {
-      int line_no, insn_code_number;
-
-      desc = read_md_rtx (&line_no, &insn_code_number);
-      if (desc == NULL)
-	break;
-
-      if (GET_CODE (desc) == DEFINE_ATTR
-	  || GET_CODE (desc) == DEFINE_ENUM_ATTR)
-	gen_attr (desc);
-
-      else if (GET_CODE (desc) == DEFINE_DELAY)
-        {
-	  if (! have_delay)
-	    {
-	      printf ("extern int num_delay_slots (rtx_insn *);\n");
-	      printf ("extern int eligible_for_delay (rtx_insn *, int, rtx_insn *, int);\n\n");
-	      printf ("extern int const_num_delay_slots (rtx_insn *);\n\n");
-	      have_delay = 1;
-	    }
-
-	  for (i = 0; i < XVECLEN (desc, 1); i += 3)
-	    {
-	      if (XVECEXP (desc, 1, i + 1) && ! have_annul_true)
-		{
-		  printf ("#define ANNUL_IFTRUE_SLOTS\n");
-		  printf ("extern int eligible_for_annul_true (rtx_insn *, int, rtx_insn *, int);\n");
-		  have_annul_true = 1;
-		}
-
-	      if (XVECEXP (desc, 1, i + 2) && ! have_annul_false)
-		{
-		  printf ("#define ANNUL_IFFALSE_SLOTS\n");
-		  printf ("extern int eligible_for_annul_false (rtx_insn *, int, rtx_insn *, int);\n");
-		  have_annul_false = 1;
-		}
-	    }
-        }
-
-      else if (GET_CODE (desc) == DEFINE_INSN_RESERVATION)
+      rtx def = info.def;
+      switch (GET_CODE (def))
 	{
+	case DEFINE_ATTR:
+	case DEFINE_ENUM_ATTR:
+	  gen_attr (&info);
+	  break;
+
+	case DEFINE_DELAY:
+	  for (i = 0; i < XVECLEN (def, 1); i += 3)
+	    {
+	      if (XVECEXP (def, 1, i + 1))
+		have_annul_true = true;
+
+	      if (XVECEXP (def, 1, i + 2))
+		have_annul_false = true;
+	    }
+	  break;
+
+	case DEFINE_INSN_RESERVATION:
 	  num_insn_reservations++;
-	  reservations.safe_push (desc);
+	  reservations.safe_push (def);
+	  break;
+
+	default:
+	  break;
 	}
     }
+
+  printf ("extern int num_delay_slots (rtx_insn *);\n");
+  printf ("extern int eligible_for_delay (rtx_insn *, int, rtx_insn *, int);\n\n");
+  printf ("extern int const_num_delay_slots (rtx_insn *);\n\n");
+  printf ("#define ANNUL_IFTRUE_SLOTS %d\n", have_annul_true);
+  printf ("extern int eligible_for_annul_true (rtx_insn *, int, rtx_insn *, int);\n");
+  printf ("#define ANNUL_IFFALSE_SLOTS %d\n", have_annul_false);
+  printf ("extern int eligible_for_annul_false (rtx_insn *, int, rtx_insn *, int);\n");
 
   if (num_insn_reservations > 0)
     {
@@ -250,11 +240,11 @@ main (int argc, char **argv)
       printf ("/* Insn latency time on data consumed by the 2nd insn.\n");
       printf ("   Use the function if bypass_p returns nonzero for\n");
       printf ("   the 1st insn. */\n");
-      printf ("extern int insn_latency (rtx, rtx);\n\n");
+      printf ("extern int insn_latency (rtx_insn *, rtx_insn *);\n\n");
       printf ("/* Maximal insn latency time possible of all bypasses for this insn.\n");
       printf ("   Use the function if bypass_p returns nonzero for\n");
       printf ("   the 1st insn. */\n");
-      printf ("extern int maximal_insn_latency (rtx);\n\n");
+      printf ("extern int maximal_insn_latency (rtx_insn *);\n\n");
       printf ("\n#if AUTOMATON_ALTS\n");
       printf ("/* The following function returns number of alternative\n");
       printf ("   reservations of given insn.  It may be used for better\n");
@@ -300,8 +290,8 @@ main (int argc, char **argv)
       printf ("    state_transition should return negative value for\n");
       printf ("    the insn and the state).  Data dependencies between\n");
       printf ("    the insns are ignored by the function.  */\n");
-      printf
-	("extern int min_insn_conflict_delay (state_t, rtx, rtx);\n");
+      printf ("extern int "
+              "min_insn_conflict_delay (state_t, rtx_insn *, rtx_insn *);\n");
       printf ("/* The following function outputs reservations for given\n");
       printf ("   insn as they are described in the corresponding\n");
       printf ("   define_insn_reservation.  */\n");
@@ -338,7 +328,9 @@ main (int argc, char **argv)
     }
 
   /* Special-purpose attributes should be tested with if, not #ifdef.  */
-  const char * const special_attrs[] = { "length", "enabled", 0 };
+  const char * const special_attrs[] = { "length", "enabled",
+					 "preferred_for_size",
+					 "preferred_for_speed", 0 };
   for (const char * const *p = special_attrs; *p; p++)
     {
       printf ("#ifndef HAVE_ATTR_%s\n"
@@ -355,9 +347,15 @@ main (int argc, char **argv)
 	"#define insn_current_length hook_int_rtx_insn_unreachable\n"
 	"#include \"insn-addr.h\"\n"
 	"#endif\n"
-	"#if !HAVE_ATTR_enabled\n"
 	"extern int hook_int_rtx_1 (rtx);\n"
+	"#if !HAVE_ATTR_enabled\n"
 	"#define get_attr_enabled hook_int_rtx_1\n"
+	"#endif\n"
+	"#if !HAVE_ATTR_preferred_for_size\n"
+	"#define get_attr_preferred_for_size hook_int_rtx_1\n"
+	"#endif\n"
+	"#if !HAVE_ATTR_preferred_for_speed\n"
+	"#define get_attr_preferred_for_speed hook_int_rtx_1\n"
 	"#endif\n");
 
   /* Output flag masks for use by reorg.

@@ -1,5 +1,5 @@
 /* minigzip.c -- simulate gzip using the zlib compression library
- * Copyright (C) 1995-2006, 2010, 2011 Jean-loup Gailly.
+ * Copyright (C) 1995-2006, 2010, 2011, 2016 Jean-loup Gailly
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
 
@@ -38,6 +38,10 @@
 #  define SET_BINARY_MODE(file) setmode(fileno(file), O_BINARY)
 #else
 #  define SET_BINARY_MODE(file)
+#endif
+
+#if defined(_MSC_VER) && _MSC_VER < 1900
+#  define snprintf _snprintf
 #endif
 
 #ifdef VMS
@@ -152,14 +156,14 @@ void *myalloc(q, n, m)
     void *q;
     unsigned n, m;
 {
-    q = Z_NULL;
+    (void)q;
     return calloc(n, m);
 }
 
 void myfree(q, p)
     void *q, *p;
 {
-    q = Z_NULL;
+    (void)q;
     free(p);
 }
 
@@ -329,7 +333,7 @@ const char *gzerror(gz, err)
 
 #endif
 
-char *prog;
+static char *prog;
 
 void error            OF((const char *msg));
 void gz_compress      OF((FILE   *in, gzFile out));
@@ -463,8 +467,12 @@ void file_compress(file, mode)
         exit(1);
     }
 
+#if !defined(NO_snprintf) && !defined(NO_vsnprintf)
+    snprintf(outfile, sizeof(outfile), "%s%s", file, GZ_SUFFIX);
+#else
     strcpy(outfile, file);
     strcat(outfile, GZ_SUFFIX);
+#endif
 
     in = fopen(file, "rb");
     if (in == NULL) {
@@ -492,14 +500,18 @@ void file_uncompress(file)
     char *infile, *outfile;
     FILE  *out;
     gzFile in;
-    size_t len = strlen(file);
+    unsigned len = strlen(file);
 
     if (len + strlen(GZ_SUFFIX) >= sizeof(buf)) {
         fprintf(stderr, "%s: filename too long\n", prog);
         exit(1);
     }
 
+#if !defined(NO_snprintf) && !defined(NO_vsnprintf)
+    snprintf(buf, sizeof(buf), "%s", file);
+#else
     strcpy(buf, file);
+#endif
 
     if (len > SUFFIX_LEN && strcmp(file+len-SUFFIX_LEN, GZ_SUFFIX) == 0) {
         infile = file;
@@ -508,7 +520,11 @@ void file_uncompress(file)
     } else {
         outfile = file;
         infile = buf;
+#if !defined(NO_snprintf) && !defined(NO_vsnprintf)
+        snprintf(buf + len, sizeof(buf) - len, "%s", GZ_SUFFIX);
+#else
         strcat(infile, GZ_SUFFIX);
+#endif
     }
     in = gzopen(infile, "rb");
     if (in == NULL) {
@@ -546,7 +562,11 @@ int main(argc, argv)
     gzFile file;
     char *bname, outmode[20];
 
+#if !defined(NO_snprintf) && !defined(NO_vsnprintf)
+    snprintf(outmode, sizeof(outmode), "%s", "wb6 ");
+#else
     strcpy(outmode, "wb6 ");
+#endif
 
     prog = argv[0];
     bname = strrchr(argv[0], '/');

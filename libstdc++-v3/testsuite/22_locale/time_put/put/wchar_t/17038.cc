@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "ta_IN" }
+// { dg-require-namedlocale "ta_IN.UTF-8" }
 
 // 2004-08-25  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -31,14 +31,12 @@ void test01()
   using namespace std;
   typedef ostreambuf_iterator<wchar_t> iterator_type;
 
-  bool test __attribute__((unused)) = true;
-
   // create "C" time objects
   const tm time1 = __gnu_test::test_tm(0, 0, 12, 4, 3, 71, 0, 93, 0);
 
   // basic construction
   locale loc_c = locale::classic();
-  locale loc_in = locale("ta_IN");
+  locale loc_in = locale("ta_IN.UTF-8");
   VERIFY( loc_in != loc_c );
 
   // create an ostream-derived object, cache the time_put facet
@@ -51,7 +49,7 @@ void test01()
   wstring result1 = oss.str();
 
   wchar_t time_buffer[128];
-  setlocale(LC_ALL, "ta_IN");
+  setlocale(LC_ALL, "ta_IN.UTF-8");
   VERIFY( wcsftime(time_buffer, 128, L"%c", &time1) );
   
   VERIFY( result1 == time_buffer );

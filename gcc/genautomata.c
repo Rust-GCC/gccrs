@@ -1,5 +1,5 @@
 /* Pipeline hazard description translator.
-   Copyright (C) 2000-2014 Free Software Foundation, Inc.
+   Copyright (C) 2000-2019 Free Software Foundation, Inc.
 
    Written by Vladimir Makarov <vmakarov@redhat.com>
 
@@ -114,8 +114,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "gensupport.h"
 
 #include <math.h>
-#include "hashtab.h"
-#include "vec.h"
 #include "fnmatch.h"
 
 #ifndef CHAR_BIT
@@ -250,7 +248,7 @@ static int ndfa_flag;
 
 /* When making an NDFA, produce additional transitions that collapse
    NDFA state into a deterministic one suitable for querying CPU units.
-   Provide avance-state transitions only for deterministic states.  */
+   Provide advance-state transitions only for deterministic states.  */
 static int collapse_flag;
 
 /* Do not make minimization of DFA (`-no-minimization').  */
@@ -881,7 +879,7 @@ struct state_ainsn_table
 /* Macros to access members of unions.  Use only them for access to
    union members of declarations and regexps.  */
 
-#if defined ENABLE_CHECKING && (GCC_VERSION >= 2007)
+#if CHECKING_P && (GCC_VERSION >= 2007)
 
 #define DECL_UNIT(d) __extension__					\
 (({ __typeof (d) const _decl = (d);					\
@@ -1072,7 +1070,7 @@ regexp_mode_check_failed (enum regexp_mode mode,
   exit (1);
 }
 
-#else /* #if defined ENABLE_RTL_CHECKING && (GCC_VERSION >= 2007) */
+#else /* #if CHECKING_P && (GCC_VERSION >= 2007) */
 
 #define DECL_UNIT(d) (&(d)->decl.unit)
 #define DECL_BYPASS(d) (&(d)->decl.bypass)
@@ -1090,7 +1088,7 @@ regexp_mode_check_failed (enum regexp_mode mode,
 #define REGEXP_ALLOF(r) (&(r)->regexp.allof)
 #define REGEXP_ONEOF(r) (&(r)->regexp.oneof)
 
-#endif /* #if defined ENABLE_RTL_CHECKING && (GCC_VERSION >= 2007) */
+#endif /* #if CHECKING_P && (GCC_VERSION >= 2007) */
 
 #define XCREATENODE(T) ((T *) create_node (sizeof (T)))
 #define XCREATENODEVEC(T, N) ((T *) create_node (sizeof (T) * (N)))
@@ -1178,7 +1176,7 @@ next_sep_el (const char **pstr, int sep, int par_flag)
 	}
     }
   obstack_1grow (&irp, '\0');
-  out_str = obstack_base (&irp);
+  out_str = (char *) obstack_base (&irp);
   obstack_finish (&irp);
 
   *pstr = p;
@@ -1245,16 +1243,18 @@ get_str_vect (const char *str, int *els_num, int sep, int paren_p)
    This gives information about a unit contained in CPU.  We fill a
    struct unit_decl with information used later by `expand_automata'.  */
 static void
-gen_cpu_unit (rtx def)
+gen_cpu_unit (md_rtx_info *info)
 {
   decl_t decl;
   char **str_cpu_units;
   int vect_length;
   int i;
 
+  rtx def = info->def;
   str_cpu_units = get_str_vect (XSTR (def, 0), &vect_length, ',', FALSE);
   if (str_cpu_units == NULL)
-    fatal ("invalid string `%s' in define_cpu_unit", XSTR (def, 0));
+    fatal_at (info->loc, "invalid string `%s' in %s",
+	      XSTR (def, 0), GET_RTX_NAME (GET_CODE (def)));
   for (i = 0; i < vect_length; i++)
     {
       decl = XCREATENODE (struct decl);
@@ -1274,17 +1274,19 @@ gen_cpu_unit (rtx def)
    This gives information about a unit contained in CPU.  We fill a
    struct unit_decl with information used later by `expand_automata'.  */
 static void
-gen_query_cpu_unit (rtx def)
+gen_query_cpu_unit (md_rtx_info *info)
 {
   decl_t decl;
   char **str_cpu_units;
   int vect_length;
   int i;
 
+  rtx def = info->def;
   str_cpu_units = get_str_vect (XSTR (def, 0), &vect_length, ',',
 				FALSE);
   if (str_cpu_units == NULL)
-    fatal ("invalid string `%s' in define_query_cpu_unit", XSTR (def, 0));
+    fatal_at (info->loc, "invalid string `%s' in %s",
+	      XSTR (def, 0), GET_RTX_NAME (GET_CODE (def)));
   for (i = 0; i < vect_length; i++)
     {
       decl = XCREATENODE (struct decl);
@@ -1303,7 +1305,7 @@ gen_query_cpu_unit (rtx def)
    in a struct bypass_decl with information used later by
    `expand_automata'.  */
 static void
-gen_bypass (rtx def)
+gen_bypass (md_rtx_info *info)
 {
   decl_t decl;
   char **out_patterns;
@@ -1312,12 +1314,15 @@ gen_bypass (rtx def)
   int in_length;
   int i, j;
 
+  rtx def = info->def;
   out_patterns = get_str_vect (XSTR (def, 1), &out_length, ',', FALSE);
   if (out_patterns == NULL)
-    fatal ("invalid string `%s' in define_bypass", XSTR (def, 1));
+    fatal_at (info->loc, "invalid string `%s' in %s",
+	      XSTR (def, 1), GET_RTX_NAME (GET_CODE (def)));
   in_patterns = get_str_vect (XSTR (def, 2), &in_length, ',', FALSE);
   if (in_patterns == NULL)
-    fatal ("invalid string `%s' in define_bypass", XSTR (def, 2));
+    fatal_at (info->loc, "invalid string `%s' in %s",
+	      XSTR (def, 2), GET_RTX_NAME (GET_CODE (def)));
   for (i = 0; i < out_length; i++)
     for (j = 0; j < in_length; j++)
       {
@@ -1338,7 +1343,7 @@ gen_bypass (rtx def)
    struct excl_rel_decl (excl) with information used later by
    `expand_automata'.  */
 static void
-gen_excl_set (rtx def)
+gen_excl_set (md_rtx_info *info)
 {
   decl_t decl;
   char **first_str_cpu_units;
@@ -1347,16 +1352,20 @@ gen_excl_set (rtx def)
   int length;
   int i;
 
+  rtx def = info->def;
   first_str_cpu_units
     = get_str_vect (XSTR (def, 0), &first_vect_length, ',', FALSE);
   if (first_str_cpu_units == NULL)
-    fatal ("invalid first string `%s' in exclusion_set", XSTR (def, 0));
+    fatal_at (info->loc, "invalid string `%s' in %s",
+	      XSTR (def, 0), GET_RTX_NAME (GET_CODE (def)));
   second_str_cpu_units = get_str_vect (XSTR (def, 1), &length, ',',
 				       FALSE);
   if (second_str_cpu_units == NULL)
-    fatal ("invalid second string `%s' in exclusion_set", XSTR (def, 1));
+    fatal_at (info->loc, "invalid string `%s' in %s",
+	      XSTR (def, 1), GET_RTX_NAME (GET_CODE (def)));
   length += first_vect_length;
-  decl = XCREATENODEVAR (struct decl, sizeof (struct decl) + (length - 1) * sizeof (char *));
+  decl = XCREATENODEVAR (struct decl, (sizeof (struct decl)
+				       + (length - 1) * sizeof (char *)));
   decl->mode = dm_excl;
   decl->pos = 0;
   DECL_EXCL (decl)->all_names_num = length;
@@ -1377,7 +1386,7 @@ gen_excl_set (rtx def)
    We fill a struct unit_pattern_rel_decl with information used later
    by `expand_automata'.  */
 static void
-gen_presence_absence_set (rtx def, int presence_p, int final_p)
+gen_presence_absence_set (md_rtx_info *info, int presence_p, int final_p)
 {
   decl_t decl;
   char **str_cpu_units;
@@ -1388,27 +1397,17 @@ gen_presence_absence_set (rtx def, int presence_p, int final_p)
   int patterns_length;
   int i;
 
+  rtx def = info->def;
   str_cpu_units = get_str_vect (XSTR (def, 0), &cpu_units_length, ',',
 				FALSE);
   if (str_cpu_units == NULL)
-    fatal ((presence_p
-	    ? (final_p
-	       ? "invalid first string `%s' in final_presence_set"
-	       : "invalid first string `%s' in presence_set")
-	    : (final_p
-	       ? "invalid first string `%s' in final_absence_set"
-	       : "invalid first string `%s' in absence_set")),
-	   XSTR (def, 0));
+    fatal_at (info->loc, "invalid string `%s' in %s",
+	      XSTR (def, 0), GET_RTX_NAME (GET_CODE (def)));
   str_pattern_lists = get_str_vect (XSTR (def, 1),
 				    &patterns_length, ',', FALSE);
   if (str_pattern_lists == NULL)
-    fatal ((presence_p
-	    ? (final_p
-	       ? "invalid second string `%s' in final_presence_set"
-	       : "invalid second string `%s' in presence_set")
-	    : (final_p
-	       ? "invalid second string `%s' in final_absence_set"
-	       : "invalid second string `%s' in absence_set")), XSTR (def, 1));
+    fatal_at (info->loc, "invalid string `%s' in %s",
+	      XSTR (def, 1), GET_RTX_NAME (GET_CODE (def)));
   str_patterns = XOBNEWVEC (&irp, char **, patterns_length);
   for (i = 0; i < patterns_length; i++)
     {
@@ -1441,13 +1440,13 @@ gen_presence_absence_set (rtx def, int presence_p, int final_p)
 
 /* Process a PRESENCE_SET.
 
-    This gives information about a cpu unit reservation requirements.
+   This gives information about a cpu unit reservation requirements.
    We fill a struct unit_pattern_rel_decl (presence) with information
    used later by `expand_automata'.  */
 static void
-gen_presence_set (rtx def)
+gen_presence_set (md_rtx_info *info)
 {
-  gen_presence_absence_set (def, TRUE, FALSE);
+  gen_presence_absence_set (info, TRUE, FALSE);
 }
 
 /* Process a FINAL_PRESENCE_SET.
@@ -1456,9 +1455,9 @@ gen_presence_set (rtx def)
    We fill a struct unit_pattern_rel_decl (presence) with information
    used later by `expand_automata'.  */
 static void
-gen_final_presence_set (rtx def)
+gen_final_presence_set (md_rtx_info *info)
 {
-  gen_presence_absence_set (def, TRUE, TRUE);
+  gen_presence_absence_set (info, TRUE, TRUE);
 }
 
 /* Process an ABSENCE_SET.
@@ -1467,9 +1466,9 @@ gen_final_presence_set (rtx def)
    We fill a struct unit_pattern_rel_decl (absence) with information
    used later by `expand_automata'.  */
 static void
-gen_absence_set (rtx def)
+gen_absence_set (md_rtx_info *info)
 {
-  gen_presence_absence_set (def, FALSE, FALSE);
+  gen_presence_absence_set (info, FALSE, FALSE);
 }
 
 /* Process a FINAL_ABSENCE_SET.
@@ -1478,9 +1477,9 @@ gen_absence_set (rtx def)
    We fill a struct unit_pattern_rel_decl (absence) with information
    used later by `expand_automata'.  */
 static void
-gen_final_absence_set (rtx def)
+gen_final_absence_set (md_rtx_info *info)
 {
-  gen_presence_absence_set (def, FALSE, TRUE);
+  gen_presence_absence_set (info, FALSE, TRUE);
 }
 
 /* Process a DEFINE_AUTOMATON.
@@ -1489,16 +1488,18 @@ gen_final_absence_set (rtx def)
    recognizing pipeline hazards.  We fill a struct automaton_decl
    with information used later by `expand_automata'.  */
 static void
-gen_automaton (rtx def)
+gen_automaton (md_rtx_info *info)
 {
   decl_t decl;
   char **str_automata;
   int vect_length;
   int i;
 
+  rtx def = info->def;
   str_automata = get_str_vect (XSTR (def, 0), &vect_length, ',', FALSE);
   if (str_automata == NULL)
-    fatal ("invalid string `%s' in define_automaton", XSTR (def, 0));
+    fatal_at (info->loc, "invalid string `%s' in %s",
+	      XSTR (def, 0), GET_RTX_NAME (GET_CODE (def)));
   for (i = 0; i < vect_length; i++)
     {
       decl = XCREATENODE (struct decl);
@@ -1514,28 +1515,30 @@ gen_automaton (rtx def)
    This gives information how to generate finite state automaton used
    for recognizing pipeline hazards.  */
 static void
-gen_automata_option (rtx def)
+gen_automata_option (md_rtx_info *info)
 {
-  if (strcmp (XSTR (def, 0), NO_MINIMIZATION_OPTION + 1) == 0)
+  const char *option = XSTR (info->def, 0);
+  if (strcmp (option, NO_MINIMIZATION_OPTION + 1) == 0)
     no_minimization_flag = 1;
-  else if (strcmp (XSTR (def, 0), TIME_OPTION + 1) == 0)
+  else if (strcmp (option, TIME_OPTION + 1) == 0)
     time_flag = 1;
-  else if (strcmp (XSTR (def, 0), STATS_OPTION + 1) == 0)
+  else if (strcmp (option, STATS_OPTION + 1) == 0)
     stats_flag = 1;
-  else if (strcmp (XSTR (def, 0), V_OPTION + 1) == 0)
+  else if (strcmp (option, V_OPTION + 1) == 0)
     v_flag = 1;
-  else if (strcmp (XSTR (def, 0), W_OPTION + 1) == 0)
+  else if (strcmp (option, W_OPTION + 1) == 0)
     w_flag = 1;
-  else if (strcmp (XSTR (def, 0), NDFA_OPTION + 1) == 0)
+  else if (strcmp (option, NDFA_OPTION + 1) == 0)
     ndfa_flag = 1;
-  else if (strcmp (XSTR (def, 0), COLLAPSE_OPTION + 1) == 0)
+  else if (strcmp (option, COLLAPSE_OPTION + 1) == 0)
     collapse_flag = 1;
-  else if (strcmp (XSTR (def, 0), NO_COMB_OPTION + 1) == 0)
+  else if (strcmp (option, NO_COMB_OPTION + 1) == 0)
     no_comb_flag = 1;
-  else if (strcmp (XSTR (def, 0), PROGRESS_OPTION + 1) == 0)
+  else if (strcmp (option, PROGRESS_OPTION + 1) == 0)
     progress_flag = 1;
   else
-    fatal ("invalid option `%s' in automata_option", XSTR (def, 0));
+    fatal_at (info->loc, "invalid option `%s' in %s",
+	      option, GET_RTX_NAME (GET_CODE (info->def)));
 }
 
 /* Name in reservation to denote absence reservation.  */
@@ -1705,10 +1708,11 @@ gen_regexp (const char *str)
    in a struct reserv_decl with information used later by
    `expand_automata'.  */
 static void
-gen_reserv (rtx def)
+gen_reserv (md_rtx_info *info)
 {
   decl_t decl;
 
+  rtx def = info->def;
   decl = XCREATENODE (struct decl);
   decl->mode = dm_reserv;
   decl->pos = 0;
@@ -1723,10 +1727,11 @@ gen_reserv (rtx def)
    insn.  We fill a struct insn_reserv_decl with information used
    later by `expand_automata'.  */
 static void
-gen_insn_reserv (rtx def)
+gen_insn_reserv (md_rtx_info *info)
 {
   decl_t decl;
 
+  rtx def = info->def;
   decl = XCREATENODE (struct decl);
   decl->mode = dm_insn_reserv;
   decl->pos = 0;
@@ -5534,9 +5539,9 @@ form_reservs_matter (automaton_t automaton)
       if (units_array [unit]->automaton_decl
 	  == automaton->corresponding_automaton_decl
 	  && (cycle >= units_array [unit]->min_occ_cycle_num
-	      /* We can not remove queried unit from reservations.  */
+	      /* We cannot remove queried unit from reservations.  */
 	      || units_array [unit]->query_p
-	      /* We can not remove units which are used
+	      /* We cannot remove units which are used
 		 `exclusion_set', `presence_set',
 		 `final_presence_set', `absence_set', and
 		 `final_absence_set'.  */
@@ -6873,7 +6878,7 @@ regexp_representation (regexp_t regexp)
 {
   form_regexp (regexp);
   obstack_1grow (&irp, '\0');
-  return obstack_base (&irp);
+  return (char *) obstack_base (&irp);
 }
 
 /* The function frees memory allocated for last formed string
@@ -8108,14 +8113,10 @@ output_internal_trans_func (void)
 
 /* Output code
 
-  if (insn != 0)
-    {
-      insn_code = dfa_insn_code (insn);
-      if (insn_code > DFA__ADVANCE_CYCLE)
-        return code;
-    }
-  else
-    insn_code = DFA__ADVANCE_CYCLE;
+  gcc_checking_assert (insn != 0);
+  insn_code = dfa_insn_code (insn);
+  if (insn_code >= DFA__ADVANCE_CYCLE)
+    return code;
 
   where insn denotes INSN_NAME, insn_code denotes INSN_CODE_NAME, and
   code denotes CODE.  */
@@ -8124,21 +8125,12 @@ output_internal_insn_code_evaluation (const char *insn_name,
 				      const char *insn_code_name,
 				      int code)
 {
-  fprintf (output_file, "\n  if (%s == 0)\n", insn_name);
-  fprintf (output_file, "    %s = %s;\n\n",
-	   insn_code_name, ADVANCE_CYCLE_VALUE_NAME);
-  if (collapse_flag)
-    {
-      fprintf (output_file, "\n  else if (%s == const0_rtx)\n", insn_name);
-      fprintf (output_file, "    %s = %s;\n\n",
-	       insn_code_name, COLLAPSE_NDFA_VALUE_NAME);
-    }
-  fprintf (output_file, "\n  else\n    {\n");
-  fprintf (output_file,
-	   "      %s = %s (as_a <rtx_insn *> (%s));\n",
-	   insn_code_name, DFA_INSN_CODE_FUNC_NAME, insn_name);
-  fprintf (output_file, "      if (%s > %s)\n        return %d;\n    }\n",
-	   insn_code_name, ADVANCE_CYCLE_VALUE_NAME, code);
+  fprintf (output_file, "  gcc_checking_assert (%s != 0);\n"
+           "  %s = %s (%s);\n"
+           "  if (%s >= %s)\n    return %d;\n",
+           insn_name,
+           insn_code_name, DFA_INSN_CODE_FUNC_NAME, insn_name,
+           insn_code_name, ADVANCE_CYCLE_VALUE_NAME, code);
 }
 
 
@@ -8199,8 +8191,22 @@ output_trans_func (void)
 	   TRANSITION_FUNC_NAME, STATE_TYPE_NAME, STATE_NAME,
 	   INSN_PARAMETER_NAME);
   fprintf (output_file, "{\n  int %s;\n", INTERNAL_INSN_CODE_NAME);
-  output_internal_insn_code_evaluation (INSN_PARAMETER_NAME,
-					INTERNAL_INSN_CODE_NAME, -1);
+  fprintf (output_file, "\n  if (%s == 0)\n", INSN_PARAMETER_NAME);
+  fprintf (output_file, "    %s = %s;\n",
+	   INTERNAL_INSN_CODE_NAME, ADVANCE_CYCLE_VALUE_NAME);
+  if (collapse_flag)
+    {
+      fprintf (output_file, "  else if (%s == const0_rtx)\n",
+	       INSN_PARAMETER_NAME);
+      fprintf (output_file, "    %s = %s;\n",
+	       INTERNAL_INSN_CODE_NAME, COLLAPSE_NDFA_VALUE_NAME);
+    }
+  fprintf (output_file, "  else\n    {\n");
+  fprintf (output_file, "      %s = %s (as_a <rtx_insn *> (%s));\n",
+	   INTERNAL_INSN_CODE_NAME, DFA_INSN_CODE_FUNC_NAME,
+	   INSN_PARAMETER_NAME);
+  fprintf (output_file, "      if (%s > %s)\n        return -1;\n    }\n",
+	   INTERNAL_INSN_CODE_NAME, ADVANCE_CYCLE_VALUE_NAME);
   fprintf (output_file, "  return %s (%s, (struct %s *) %s);\n}\n\n",
 	   INTERNAL_TRANSITION_FUNC_NAME, INTERNAL_INSN_CODE_NAME, CHIP_NAME, STATE_NAME);
 }
@@ -8292,7 +8298,7 @@ static void
 output_min_insn_conflict_delay_func (void)
 {
   fprintf (output_file,
-	   "int\n%s (%s %s, rtx %s, rtx %s)\n",
+	   "int\n%s (%s %s, rtx_insn *%s, rtx_insn *%s)\n",
 	   MIN_INSN_CONFLICT_DELAY_FUNC_NAME, STATE_TYPE_NAME,
 	   STATE_NAME, INSN_PARAMETER_NAME, INSN2_PARAMETER_NAME);
   fprintf (output_file, "{\n  struct %s %s;\n  int %s, %s, transition;\n",
@@ -8361,10 +8367,12 @@ output_internal_insn_latency_func (void)
   decl_t decl;
   struct bypass_decl *bypass;
 
-  fprintf (output_file, "static int\n%s (int %s ATTRIBUTE_UNUSED,\n\tint %s ATTRIBUTE_UNUSED,\n\trtx %s ATTRIBUTE_UNUSED,\n\trtx %s ATTRIBUTE_UNUSED)\n",
-	   INTERNAL_INSN_LATENCY_FUNC_NAME, INTERNAL_INSN_CODE_NAME,
-	   INTERNAL_INSN2_CODE_NAME, "insn_or_const0",
-	   "insn2_or_const0");
+  fprintf (output_file, "static int\n"
+	   "%s (int %s ATTRIBUTE_UNUSED, int %s ATTRIBUTE_UNUSED,\n"
+	   "\trtx_insn *%s ATTRIBUTE_UNUSED, rtx_insn *%s ATTRIBUTE_UNUSED)\n",
+	   INTERNAL_INSN_LATENCY_FUNC_NAME,
+	   INTERNAL_INSN_CODE_NAME, INTERNAL_INSN2_CODE_NAME,
+	   INSN_PARAMETER_NAME, INSN2_PARAMETER_NAME);
   fprintf (output_file, "{\n");
 
   if (DECL_INSN_RESERV (advance_cycle_insn_decl)->insn_num == 0)
@@ -8372,32 +8380,6 @@ output_internal_insn_latency_func (void)
       fputs ("  return 0;\n}\n\n", output_file);
       return;
     }
-
-  fprintf (output_file, "  if (%s >= %s || %s >= %s)\n    return 0;\n",
-	   INTERNAL_INSN_CODE_NAME, ADVANCE_CYCLE_VALUE_NAME,
-	   INTERNAL_INSN2_CODE_NAME, ADVANCE_CYCLE_VALUE_NAME);
-
-  /* We've now rejected the case that
-       INTERNAL_INSN_CODE_NAME >= ADVANCE_CYCLE_VALUE_NAME
-     i.e. that
-       insn_code >= DFA__ADVANCE_CYCLE,
-     and similarly for insn2_code.  */
-  fprintf (output_file,
-	   "  /* Within output_internal_insn_code_evaluation, the generated\n"
-	   "     code sets \"code\" to NDFA__COLLAPSE for const0_rtx, and\n"
-	   "     NDFA__COLLAPSE > DFA__ADVANCE_CYCLE.  Hence we can't be\n"
-	   "     dealing with const0_rtx instances at this point.  */\n");
-  if (collapse_flag)
-    fprintf (output_file,
-	     "  gcc_assert (NDFA__COLLAPSE > DFA__ADVANCE_CYCLE);\n");
-  fprintf (output_file,
-	   ("  gcc_assert (insn_or_const0 != const0_rtx);\n"
-	    "  rtx_insn *%s ATTRIBUTE_UNUSED = safe_as_a <rtx_insn *> (insn_or_const0);\n"),
-	   INSN_PARAMETER_NAME);
-  fprintf (output_file,
-	   ("  gcc_assert (insn2_or_const0 != const0_rtx);\n"
-	    "  rtx_insn *%s ATTRIBUTE_UNUSED = safe_as_a <rtx_insn *> (insn2_or_const0);\n"),
-	   INSN2_PARAMETER_NAME);
 
   fprintf (output_file, "  switch (%s)\n    {\n", INTERNAL_INSN_CODE_NAME);
   for (i = 0; i < description->decls_num; i++)
@@ -8461,9 +8443,8 @@ output_internal_maximal_insn_latency_func (void)
   int i;
   int max;
 
-  fprintf (output_file, "static int\n%s (int %s ATTRIBUTE_UNUSED,\n\trtx %s ATTRIBUTE_UNUSED)\n",
-	   "internal_maximal_insn_latency", INTERNAL_INSN_CODE_NAME,
-	   INSN_PARAMETER_NAME);
+  fprintf (output_file, "static int\n%s (int %s ATTRIBUTE_UNUSED)\n",
+	   "internal_maximal_insn_latency", INTERNAL_INSN_CODE_NAME);
   fprintf (output_file, "{\n");
 
   if (DECL_INSN_RESERV (advance_cycle_insn_decl)->insn_num == 0)
@@ -8500,7 +8481,7 @@ output_internal_maximal_insn_latency_func (void)
 static void
 output_insn_latency_func (void)
 {
-  fprintf (output_file, "int\n%s (rtx %s, rtx %s)\n",
+  fprintf (output_file, "int\n%s (rtx_insn *%s, rtx_insn *%s)\n",
 	   INSN_LATENCY_FUNC_NAME, INSN_PARAMETER_NAME, INSN2_PARAMETER_NAME);
   fprintf (output_file, "{\n  int %s, %s;\n",
 	   INTERNAL_INSN_CODE_NAME, INTERNAL_INSN2_CODE_NAME);
@@ -8518,15 +8499,14 @@ output_insn_latency_func (void)
 static void
 output_maximal_insn_latency_func (void)
 {
-  fprintf (output_file, "int\n%s (rtx %s)\n",
+  fprintf (output_file, "int\n%s (rtx_insn *%s)\n",
 	   "maximal_insn_latency", INSN_PARAMETER_NAME);
   fprintf (output_file, "{\n  int %s;\n",
 	   INTERNAL_INSN_CODE_NAME);
   output_internal_insn_code_evaluation (INSN_PARAMETER_NAME,
 					INTERNAL_INSN_CODE_NAME, 0);
-  fprintf (output_file, "  return %s (%s, %s);\n}\n\n",
-	   "internal_maximal_insn_latency",
-	   INTERNAL_INSN_CODE_NAME, INSN_PARAMETER_NAME);
+  fprintf (output_file, "  return %s (%s);\n}\n\n",
+	   "internal_maximal_insn_latency", INTERNAL_INSN_CODE_NAME);
 }
 
 /* The function outputs PHR interface function `print_reservation'.  */
@@ -9227,7 +9207,7 @@ generate (void)
 #define STANDARD_OUTPUT_DESCRIPTION_FILE_SUFFIX ".dfa"
 
 /* The function returns suffix of given file name.  The returned
-   string can not be changed.  */
+   string cannot be changed.  */
 static const char *
 file_name_suffix (const char *file_name)
 {
@@ -9242,7 +9222,7 @@ file_name_suffix (const char *file_name)
 /* The function returns base name of given file name, i.e. pointer to
    first char after last `/' (or `\' for WIN32) in given file name,
    given file name itself if the directory name is absent.  The
-   returned string can not be changed.  */
+   returned string cannot be changed.  */
 static const char *
 base_file_name (const char *file_name)
 {
@@ -9295,7 +9275,7 @@ parse_automata_opt (const char *str)
 /* The following is top level function to initialize the work of
    pipeline hazards description translator.  */
 static void
-initiate_automaton_gen (char **argv)
+initiate_automaton_gen (const char **argv)
 {
   const char *base_name;
 
@@ -9312,7 +9292,7 @@ initiate_automaton_gen (char **argv)
   obstack_grow (&irp, STANDARD_OUTPUT_DESCRIPTION_FILE_SUFFIX,
 		strlen (STANDARD_OUTPUT_DESCRIPTION_FILE_SUFFIX) + 1);
   obstack_1grow (&irp, '\0');
-  output_description_file_name = obstack_base (&irp);
+  output_description_file_name = (char *) obstack_base (&irp);
   obstack_finish (&irp);
 }
 
@@ -9587,79 +9567,69 @@ write_automata (void)
 }
 
 int
-main (int argc, char **argv)
+main (int argc, const char **argv)
 {
-  rtx desc;
-
   progname = "genautomata";
 
   if (!init_rtx_reader_args_cb (argc, argv, parse_automata_opt))
     return (FATAL_EXIT_CODE);
 
   initiate_automaton_gen (argv);
-  while (1)
-    {
-      int lineno;
-      int insn_code_number;
-
-      desc = read_md_rtx (&lineno, &insn_code_number);
-      if (desc == NULL)
+  md_rtx_info info;
+  while (read_md_rtx (&info))
+    switch (GET_CODE (info.def))
+      {
+      case DEFINE_CPU_UNIT:
+	gen_cpu_unit (&info);
 	break;
 
-      switch (GET_CODE (desc))
-	{
-	case DEFINE_CPU_UNIT:
-	  gen_cpu_unit (desc);
-	  break;
+      case DEFINE_QUERY_CPU_UNIT:
+	gen_query_cpu_unit (&info);
+	break;
 
-	case DEFINE_QUERY_CPU_UNIT:
-	  gen_query_cpu_unit (desc);
-	  break;
+      case DEFINE_BYPASS:
+	gen_bypass (&info);
+	break;
 
-	case DEFINE_BYPASS:
-	  gen_bypass (desc);
-	  break;
+      case EXCLUSION_SET:
+	gen_excl_set (&info);
+	break;
 
-	case EXCLUSION_SET:
-	  gen_excl_set (desc);
-	  break;
+      case PRESENCE_SET:
+	gen_presence_set (&info);
+	break;
 
-	case PRESENCE_SET:
-	  gen_presence_set (desc);
-	  break;
+      case FINAL_PRESENCE_SET:
+	gen_final_presence_set (&info);
+	break;
 
-	case FINAL_PRESENCE_SET:
-	  gen_final_presence_set (desc);
-	  break;
+      case ABSENCE_SET:
+	gen_absence_set (&info);
+	break;
 
-	case ABSENCE_SET:
-	  gen_absence_set (desc);
-	  break;
+      case FINAL_ABSENCE_SET:
+	gen_final_absence_set (&info);
+	break;
 
-	case FINAL_ABSENCE_SET:
-	  gen_final_absence_set (desc);
-	  break;
+      case DEFINE_AUTOMATON:
+	gen_automaton (&info);
+	break;
 
-	case DEFINE_AUTOMATON:
-	  gen_automaton (desc);
-	  break;
+      case AUTOMATA_OPTION:
+	gen_automata_option (&info);
+	break;
 
-	case AUTOMATA_OPTION:
-	  gen_automata_option (desc);
-	  break;
+      case DEFINE_RESERVATION:
+	gen_reserv (&info);
+	break;
 
-	case DEFINE_RESERVATION:
-	  gen_reserv (desc);
-	  break;
+      case DEFINE_INSN_RESERVATION:
+	gen_insn_reserv (&info);
+	break;
 
-	case DEFINE_INSN_RESERVATION:
-	  gen_insn_reserv (desc);
-	  break;
-
-	default:
-	  break;
-	}
-    }
+      default:
+	break;
+      }
 
   if (have_error)
     return FATAL_EXIT_CODE;
@@ -9671,15 +9641,18 @@ main (int argc, char **argv)
 	{
 	  puts ("/* Generated automatically by the program `genautomata'\n"
 		"   from the machine description file `md'.  */\n\n"
+		"#define IN_TARGET_CODE 1\n"
 		"#include \"config.h\"\n"
 		"#include \"system.h\"\n"
 		"#include \"coretypes.h\"\n"
 		"#include \"tm.h\"\n"
+		"#include \"alias.h\"\n"
 		"#include \"tree.h\"\n"
 		"#include \"varasm.h\"\n"
 		"#include \"stor-layout.h\"\n"
 		"#include \"calls.h\"\n"
 		"#include \"rtl.h\"\n"
+		"#include \"memmodel.h\"\n"
 		"#include \"tm_p.h\"\n"
 		"#include \"insn-config.h\"\n"
 		"#include \"recog.h\"\n"

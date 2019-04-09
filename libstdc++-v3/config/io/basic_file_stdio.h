@@ -1,6 +1,6 @@
 // Wrapper of C-language FILE struct -*- C++ -*-
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -47,7 +47,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // Generic declaration.
   template<typename _CharT>
-    class __basic_file; 
+    class __basic_file;
 
   // Specialization.
   template<>
@@ -63,7 +63,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __basic_file(__c_lock* __lock = 0) throw ();
 
 #if __cplusplus >= 201103L
-      __basic_file(__basic_file&& __rv, __c_lock* __lock = 0) noexcept
+      __basic_file(__basic_file&& __rv, __c_lock* = 0) noexcept
       : _M_cfile(__rv._M_cfile), _M_cfile_created(__rv._M_cfile_created)
       {
 	__rv._M_cfile = nullptr;
@@ -81,8 +81,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
 #endif
 
-      __basic_file* 
+      __basic_file*
       open(const char* __name, ios_base::openmode __mode, int __prot = 0664);
+
+#if _GLIBCXX_HAVE__WFOPEN && _GLIBCXX_USE_WCHAR_T
+      __basic_file*
+      open(const wchar_t* __name, ios_base::openmode __mode);
+#endif
 
       __basic_file*
       sys_open(__c_file* __file, ios_base::openmode);
@@ -90,13 +95,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __basic_file*
       sys_open(int __fd, ios_base::openmode __mode) throw ();
 
-      __basic_file* 
-      close(); 
+      __basic_file*
+      close();
 
-      _GLIBCXX_PURE bool 
+      _GLIBCXX_PURE bool
       is_open() const throw ();
 
-      _GLIBCXX_PURE int 
+      _GLIBCXX_PURE int
       fd() throw ();
 
       _GLIBCXX_PURE __c_file*
@@ -104,20 +109,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       ~__basic_file();
 
-      streamsize 
+      streamsize
       xsputn(const char* __s, streamsize __n);
 
-      streamsize 
+      streamsize
       xsputn_2(const char* __s1, streamsize __n1,
 	       const char* __s2, streamsize __n2);
 
-      streamsize 
+      streamsize
       xsgetn(char* __s, streamsize __n);
 
       streamoff
       seekoff(streamoff __off, ios_base::seekdir __way) throw ();
 
-      int 
+      int
       sync();
 
       streamsize
@@ -127,4 +132,4 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
 
-#endif	
+#endif

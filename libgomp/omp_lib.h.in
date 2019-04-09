@@ -1,7 +1,8 @@
-!  Copyright (C) 2005-2014 Free Software Foundation, Inc.
+!  Copyright (C) 2005-2019 Free Software Foundation, Inc.
 !  Contributed by Jakub Jelinek <jakub@redhat.com>.
 
-!  This file is part of the GNU OpenMP Library (libgomp).
+!  This file is part of the GNU Offloading and Multi Processing Library
+!  (libgomp).
 
 !  Libgomp is free software; you can redistribute it and/or modify it
 !  under the terms of the GNU General Public License as published by
@@ -45,9 +46,29 @@
       parameter (omp_proc_bind_master = 2)
       parameter (omp_proc_bind_close = 3)
       parameter (omp_proc_bind_spread = 4)
-      parameter (openmp_version = 201307)
+      integer omp_lock_hint_kind
+      parameter (omp_lock_hint_kind = 4)
+      integer (omp_lock_hint_kind) omp_lock_hint_none
+      integer (omp_lock_hint_kind) omp_lock_hint_uncontended
+      integer (omp_lock_hint_kind) omp_lock_hint_contended
+      integer (omp_lock_hint_kind) omp_lock_hint_nonspeculative
+      integer (omp_lock_hint_kind) omp_lock_hint_speculative
+      parameter (omp_lock_hint_none = 0)
+      parameter (omp_lock_hint_uncontended = 1)
+      parameter (omp_lock_hint_contended = 2)
+      parameter (omp_lock_hint_nonspeculative = 4)
+      parameter (omp_lock_hint_speculative = 8)
+      parameter (openmp_version = 201511)
+      integer omp_pause_resource_kind
+      parameter (omp_pause_resource_kind = 4)
+      integer (omp_pause_resource_kind) omp_pause_soft
+      integer (omp_pause_resource_kind) omp_pause_hard
+      parameter (omp_pause_soft = 1)
+      parameter (omp_pause_hard = 2)
 
       external omp_init_lock, omp_init_nest_lock
+      external omp_init_lock_with_hint
+      external omp_init_nest_lock_with_hint
       external omp_destroy_lock, omp_destroy_nest_lock
       external omp_set_lock, omp_set_nest_lock
       external omp_unset_lock, omp_unset_nest_lock
@@ -87,6 +108,17 @@
       external omp_get_proc_bind
       integer(omp_proc_bind_kind) omp_get_proc_bind
 
+      integer(4) omp_get_num_places
+      external omp_get_num_places
+      integer(4) omp_get_place_num_procs
+      external omp_get_place_num_procs
+      external omp_get_place_proc_ids
+      integer(4) omp_get_place_num
+      external omp_get_place_num
+      integer(4) omp_get_partition_num_places
+      external omp_get_partition_num_places
+      external omp_get_partition_place_nums
+
       external omp_set_default_device, omp_get_default_device
       external omp_get_num_devices, omp_get_num_teams
       external omp_get_team_num
@@ -95,3 +127,17 @@
 
       external omp_is_initial_device
       logical(4) omp_is_initial_device
+      external omp_get_initial_device
+      integer(4) omp_get_initial_device
+
+      external omp_get_max_task_priority
+      integer(4) omp_get_max_task_priority
+
+      external omp_set_affinity_format, omp_get_affinity_format
+      external omp_display_affinity, omp_capture_affinity
+      integer(4) omp_get_affinity_format
+      integer(4) omp_capture_affinity
+
+      external omp_pause_resource, omp_pause_resource_all
+      integer(4) omp_pause_resource
+      integer(4) omp_pause_resource_all

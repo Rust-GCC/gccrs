@@ -1,6 +1,6 @@
 // Control various target specific ABI tweaks.  ARM version.
 
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,7 +33,7 @@
 #ifdef __cplusplus
 namespace __cxxabiv1
 {
-  extern "C" 
+  extern "C"
   {
 #endif
 
@@ -49,7 +49,7 @@ namespace __cxxabiv1
 
   // We also want the element size in array cookies.
 #define _GLIBCXX_ELTSIZE_IN_COOKIE 1
-  
+
   // __cxa_vec_ctor should return a pointer to the array.
   typedef void * __cxa_vec_ctor_return_type;
 #define _GLIBCXX_CXA_VEC_CTOR_RETURN(x) return x
@@ -79,4 +79,4 @@ namespace __cxxabiv1
 } // namespace __cxxabiv1
 #endif
 
-#endif 
+#endif

@@ -1,6 +1,6 @@
 // 2000-06-29 bkoz
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,6 +22,8 @@
 // @require@ %-*.tst %-*.txt
 // @diff@ %-*.tst %-*.txt
 
+// { dg-require-fileio "" }
+
 #include <istream>
 #include <sstream>
 #include <fstream>
@@ -32,7 +34,6 @@ void test05(void)
 {
   typedef std::istream::off_type off_type;
 
-  bool test __attribute__((unused)) = true;
   std::wistream::pos_type pos01, pos02, pos03, pos04, pos05, pos06;
   std::ios_base::iostate state01, state02;
   const char str_lit01[] = "wistream_seeks-1.tst";

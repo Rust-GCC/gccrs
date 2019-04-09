@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package path
+// +build gccgo_examples
 
-/* Commented out until gccgo has example support.
+package path
 
 import (
 	"fmt"
@@ -13,7 +13,12 @@ import (
 
 func ExampleBase() {
 	fmt.Println(path.Base("/a/b"))
-	// Output: b
+	fmt.Println(path.Base("/"))
+	fmt.Println(path.Base(""))
+	// Output:
+	// b
+	// /
+	// .
 }
 
 func ExampleClean() {
@@ -24,6 +29,7 @@ func ExampleClean() {
 		"a/c/b/..",
 		"/../a/c",
 		"/../a/b/../././/c",
+		"",
 	}
 
 	for _, p := range paths {
@@ -37,16 +43,33 @@ func ExampleClean() {
 	// Clean("a/c/b/..") = "a/c"
 	// Clean("/../a/c") = "/a/c"
 	// Clean("/../a/b/../././/c") = "/a/c"
+	// Clean("") = "."
 }
 
 func ExampleDir() {
 	fmt.Println(path.Dir("/a/b/c"))
-	// Output: /a/b
+	fmt.Println(path.Dir("a/b/c"))
+	fmt.Println(path.Dir("/a/"))
+	fmt.Println(path.Dir("a/"))
+	fmt.Println(path.Dir("/"))
+	fmt.Println(path.Dir(""))
+	// Output:
+	// /a/b
+	// a/b
+	// /a
+	// a
+	// /
+	// .
 }
 
 func ExampleExt() {
 	fmt.Println(path.Ext("/a/b/c/bar.css"))
-	// Output: .css
+	fmt.Println(path.Ext("/"))
+	fmt.Println(path.Ext(""))
+	// Output:
+	// .css
+	//
+	//
 }
 
 func ExampleIsAbs() {
@@ -56,12 +79,36 @@ func ExampleIsAbs() {
 
 func ExampleJoin() {
 	fmt.Println(path.Join("a", "b", "c"))
-	// Output: a/b/c
+	fmt.Println(path.Join("a", "b/c"))
+	fmt.Println(path.Join("a/b", "c"))
+	fmt.Println(path.Join("", ""))
+	fmt.Println(path.Join("a", ""))
+	fmt.Println(path.Join("", "a"))
+	// Output:
+	// a/b/c
+	// a/b/c
+	// a/b/c
+	//
+	// a
+	// a
+}
+
+func ExampleMatch() {
+	fmt.Println(path.Match("abc", "abc"))
+	fmt.Println(path.Match("a*", "abc"))
+	fmt.Println(path.Match("a*/b", "a/c/b"))
+	// Output:
+	// true <nil>
+	// true <nil>
+	// false <nil>
 }
 
 func ExampleSplit() {
 	fmt.Println(path.Split("static/myfile.css"))
-	// Output: static/ myfile.css
+	fmt.Println(path.Split("myfile.css"))
+	fmt.Println(path.Split(""))
+	// Output:
+	// static/ myfile.css
+	//  myfile.css
+	//
 }
-
-*/

@@ -1,8 +1,8 @@
 /* { dg-do run { target { powerpc*-*-linux* } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
-/* { dg-skip-if "" { powerpc*-*-*spe* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
+/* { dg-skip-if "" { powerpc*-*-*spe* } } */
 /* { dg-require-effective-target vsx_hw } */
-/* { dg-options "-O1 -mcpu=power7" } */
+/* { dg-options "-O1 -mdejagnu-cpu=power7" } */
 
 extern void abort (void);
 

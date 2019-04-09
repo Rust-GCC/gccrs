@@ -1,4 +1,3 @@
-AC_PREREQ(2.64)
 AC_INIT([LTO plugin for ld], 0.1,,[lto-plugin])
 AC_CANONICAL_SYSTEM
 GCC_TOPLEV_SUBDIRS
@@ -9,6 +8,7 @@ AC_ARG_WITH(libiberty,
     [specify the directory where to find libiberty [../libiberty]])],
   [], with_libiberty=../libiberty)
 AC_SUBST(with_libiberty)
+AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_CC
 AC_SYS_LARGEFILE
 ACX_PROG_CC_WARNING_OPTS([-Wall], [ac_lto_plugin_warn_cflags])
@@ -17,8 +17,8 @@ ACX_PROG_CC_WARNING_OPTS([-Wall], [ac_lto_plugin_warn_cflags])
 saved_LDFLAGS="$LDFLAGS"
 LDFLAGS="$LDFLAGS -static-libgcc"
 AC_MSG_CHECKING([for -static-libgcc])
-AC_LINK_IFELSE([
-  int main() {}], [have_static_libgcc=yes], [have_static_libgcc=no])
+AC_LINK_IFELSE([AC_LANG_SOURCE([
+  int main() {}])], [have_static_libgcc=yes], [have_static_libgcc=no])
 AC_MSG_RESULT($have_static_libgcc); 
 LDFLAGS="$saved_LDFLAGS"
 # Need -Wc to get it through libtool.
@@ -33,6 +33,19 @@ else
    gcc_build_dir=../../$host_subdir/gcc
 fi
 AC_SUBST(gcc_build_dir)
+
+# Used for constructing correct paths for offload compilers.
+accel_dir_suffix=
+real_target_noncanonical=${target_noncanonical}
+if test x"$enable_as_accelerator_for" != x; then
+  accel_dir_suffix=/accel/${target_noncanonical}
+  real_target_noncanonical=${enable_as_accelerator_for}
+fi
+AC_SUBST(accel_dir_suffix)
+AC_SUBST(real_target_noncanonical)
+
+# Determine what GCC version number to use in filesystem paths.
+GCC_BASE_VER
 
 AM_PROG_LIBTOOL
 ACX_LT_HOST_FLAGS

@@ -1,4 +1,4 @@
-# Copyright (C) 2001-2014 Free Software Foundation, Inc.
+# Copyright (C) 2001-2019 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ load_lib gcc-dg.exp
 global PROFOPT_OPTIONS perf_delta
 
 # The including .exp file must define these.
-global tool profile_option feedback_option prof_ext
+global tool profile_option feedback_option prof_ext profile_wrapper
 if ![info exists tool] {
     error "Tools is not specified."
 }
@@ -76,6 +76,30 @@ proc profopt-cleanup { testcase extlist } {
 	set files [glob -nocomplain $base.$ext]
 	if { $files != "" } {
 	    eval "remote_file build delete $files"
+	}
+    }
+}
+
+#
+# profopt-target-cleanup -- remove profiling result files.
+#
+# DIR is the name of the directory
+# TESTCASE is the name of the test
+# EXT is the extensions of files to remove
+#
+proc profopt-target-cleanup { dir testcase ext } {
+    global additional_sources_used
+    set basename [file tail $testcase]
+    set base [file rootname $basename]
+    set file "$dir/$base.$ext"
+    eval "remote_file target delete $file"
+
+    if [info exists additional_sources_used] {
+	foreach srcfile $additional_sources_used {
+	    set basename [file tail $srcfile]
+	    set base [file rootname $basename]
+	    set file "$dir/$base.$ext"
+	    eval "remote_file target delete $file"
 	}
     }
 }
@@ -147,6 +171,47 @@ proc dg-final-use { args } {
 }
 
 #
+# dg-final-use-not-autofdo -- process code to run after the profile-use step
+# but only if not running autofdo
+# ARGS is the line number of the directive followed by the commands.
+#
+proc dg-final-use-not-autofdo { args } {
+    global use_final_code
+    global run_autofdo
+
+    if { [llength $args] > 2 } {
+	error "[lindex $args 0]: too many arguments"
+	return
+    }
+
+    if { $run_autofdo == 1 } {
+        return
+    }
+    append use_final_code "[lindex $args 1]\n"
+}
+
+#
+# dg-final-use-autofdo -- process code to run after the profile-use step
+# but only if running autofdo
+# ARGS is the line number of the directive followed by the commands.
+#
+
+proc dg-final-use-autofdo { args } {
+    global use_final_code
+    global run_autofdo
+
+    if { [llength $args] > 2 } {
+	error "[lindex $args 0]: too many arguments"
+	return
+    }
+
+    if { $run_autofdo != 1 } {
+        return
+    }
+    append use_final_code "[lindex $args 1]\n"
+}
+
+#
 # profopt-final-code -- run final code
 #
 # WHICH is "generate" or "use".
@@ -183,9 +248,13 @@ proc profopt-get-options { src } {
     foreach op $tmp {
 	set cmd [lindex $op 0]
 	if { ![string compare "dg-options" $cmd] \
+	     || ![string compare "dg-additional-options" $cmd] \
+	     || ![string compare "dg-add-options" $cmd] \
 	     || ![string compare "dg-skip-if" $cmd] \
 	     || ![string compare "dg-final-generate" $cmd] \
 	     || ![string compare "dg-final-use" $cmd] \
+	     || ![string compare "dg-final-use-not-autofdo" $cmd] \
+	     || ![string compare "dg-final-use-autofdo" $cmd] \
              || ![string compare "dg-additional-sources" $cmd] \
 	     || [string match "dg-require-*" $cmd]  } {
 	    set status [catch "$op" errmsg]
@@ -205,6 +274,31 @@ proc profopt-get-options { src } {
     return ${dg-extra-tool-flags}
 }
 
+# auto-profopt-execute -- Compile for auto profiling and then feedback,
+# then normal. SRC is the full path name of the testcase.
+proc auto-profopt-execute { src } {
+    global profile_wrapper
+    global profile_option
+    global feedback_option
+    global run_autofdo
+    global srcdir
+
+    if { ! [check_profiling_available "-fauto-profile"] } {
+        regsub "(?q)$srcdir/" $src "" testcase
+        unsupported "$testcase -fauto-profile"
+        return
+    }
+    set profile_wrapper [profopt-perf-wrapper]
+    set profile_option "-g"
+    set feedback_option "-fauto-profile"
+    set run_autofdo 1
+    profopt-execute $src
+    unset profile_wrapper
+    unset profile_option
+    unset feedback_option
+    unset run_autofdo
+}
+
 #
 # c-prof-execute -- compile for profiling and then feedback, then normal
 #
@@ -214,6 +308,7 @@ proc profopt-execute { src } {
     global srcdir tmpdir
     global PROFOPT_OPTIONS
     global tool profile_option feedback_option prof_ext perf_ext perf_delta
+    global profile_wrapper run_autofdo ld_library_path
     global generate_final_code use_final_code
     global verbose
     global testname_with_flags
@@ -223,6 +318,12 @@ proc profopt-execute { src } {
     }
     if ![info exists feedback_option] {
         error "No feedback option specified for second compile."
+    }
+    if ![info exists profile_wrapper] {
+	set profile_wrapper ""
+    }
+    if ![info exists run_autofdo] {
+	set run_autofdo ""
     }
 
     # Use the default option list or one defined for a set of tests.
@@ -262,10 +363,7 @@ proc profopt-execute { src } {
 	remote_file build delete $execname3
 	verbose "Testing $testcase, $option" 1
 
-	# Remove old profiling and performance data files.
-	foreach ext $prof_ext {
-	    remote_file target delete $tmpdir/$base.$ext
-	}
+	# Remove old performance data files.
 	if [info exists perf_ext] {
 	    profopt-cleanup $testcase $perf_ext
 	}
@@ -283,7 +381,17 @@ proc profopt-execute { src } {
 	    return
 	}
 
+	# schedule removal of dump files et al
+	# Do this before the call below destroys additional_sources..
+	append use_final_code [schedule-cleanups "$option $extra_flags"]
         set extra_options [dg-additional-files-options "" "$src"]
+
+	# Remove old profiling data files.  Make sure additional_sources_used is
+	# valid, by running it after dg-additional-files-options.
+	foreach ext $prof_ext {
+	    profopt-target-cleanup $tmpdir $base $ext
+	    profopt-target-cleanup $tmpdir $base "perf.data"
+	}
 
 	# Tree profiling requires TLS runtime support, which may need
 	# additional flags.
@@ -305,19 +413,59 @@ proc profopt-execute { src } {
 	}
 
 	# Run the profiled test.
+	if { $run_autofdo == 1 } {
+	    if { ![info exists ld_library_path]} {
+		set ld_library_path ""
+	    }
+	    set orig_ld_library_path "[getenv LD_LIBRARY_PATH]"
+	    setenv LD_LIBRARY_PATH "$ld_library_path:$orig_ld_library_path"
+	    verbose -log "Running $profile_wrapper -o $tmpdir/$base.perf.data $execname1"
+	    set id [remote_spawn "" "$profile_wrapper -o $tmpdir/$base.perf.data $execname1" "readonly"]
+	    setenv LD_LIBRARY_PATH $orig_ld_library_path
+	    if { $id < 0 } {
+		warning "Failed to run profiler"
+		set status "fail"
+	    } else {
+		set result [remote_wait "" 300]
+		set status [lindex $result 0]
+		verbose "perf result $result"
+		if { $status == 0 } {
+		    set status "pass"
+		} else {
+		    set status "fail"
+		}
+	    }
+	} else {
+	    set result [${tool}_load $execname1 "" ""]
+	    set status [lindex $result 0]
+	}
 
-	set result [${tool}_load $execname1 "" ""]
-	set status [lindex $result 0]
 	set missing_file 0
+        set bprefix ""
 	# Make sure the profile data was generated, and fail if not.
 	if { $status == "pass" } {
+	    # convert profile
+	    if { $run_autofdo == 1 } {
+                set bprefix "afdo."
+		set cmd "create_gcov --binary $execname1 --profile=$tmpdir/$base.perf.data -gcov_version=1 --gcov=$tmpdir/$bprefix$base.$ext"
+		verbose "Running $cmd"
+		set id [remote_spawn "" $cmd]
+		if { $id < 0 } {
+		    unsupported "$testcase -fauto-profile: cannot run create_gcov"
+		    set status "fail"
+		    return
+		}
+		set status [remote_wait "" 300]
+		set status "pass"
+	    }
+
 	    foreach ext $prof_ext {
-		remote_upload target $tmpdir/$base.$ext
-		set files [glob -nocomplain $base.$ext]
+		remote_upload target $tmpdir/$bprefix$base.$ext
+		set files [glob -nocomplain $bprefix$base.$ext]
 		if { $files == "" } {
 		    set status "fail"
 		    set missing_file 1
-		    fail "$testcase execution: file $base.$ext does not exist, $option $profile_option"
+		    fail "$testcase execution: file $bprefix$base.$ext does not exist, $option $profile_option"
 		}
 	    }
 	}
@@ -345,6 +493,10 @@ proc profopt-execute { src } {
 	set options "$extra_options"
 	lappend options "additional_flags=$option $extra_flags $feedback_option"
 	set optstr "$option $feedback_option"
+	if { [string first "-fauto-profile" $options] >= 0} {
+	    set options [regsub -- "-fauto-profile" $options "-fauto-profile=$tmpdir/$bprefix$base.$ext"]
+	}
+
 	set comp_output [${tool}_target_compile "$src" "$execname2" "executable" $options]
 
 	# Prune warnings we know are unwanted.
@@ -368,7 +520,9 @@ proc profopt-execute { src } {
 
 	# Remove the profiling data files.
 	foreach ext $prof_ext {
-	    remote_file target delete $tmpdir/$base.$ext
+	    profopt-target-cleanup $tmpdir "$bprefix$base" $ext
+	    profopt-target-cleanup $tmpdir $base "perf.data"
+	    profopt-target-cleanup $tmpdir $base "gcda.imports"
 	}
 
 	if { $status != "pass" } {

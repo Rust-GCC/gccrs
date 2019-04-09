@@ -1,5 +1,5 @@
 /* Subroutines for the gcc driver.
-   Copyright (C) 2007-2014 Free Software Foundation, Inc.
+   Copyright (C) 2007-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -17,10 +17,14 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#define IN_TARGET_CODE 1
+
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "diagnostic.h"
+#include "opts.h"
 #include <stdlib.h>
 
 #ifdef _AIX
@@ -34,6 +38,44 @@ along with GCC; see the file COPYING3.  If not see
 #if defined (__APPLE__) || (__FreeBSD__)
 # include <sys/types.h>
 # include <sys/sysctl.h>
+#endif
+
+#ifdef __linux__
+/* Canonical GCC cpu name table.  */
+static const char *rs6000_supported_cpu_names[] =
+{
+#define RS6000_CPU(NAME, CPU, FLAGS) NAME,
+#include "rs6000-cpus.def"
+#undef RS6000_CPU
+};
+
+/* This table holds a list of cpus where their Linux AT_PLATFORM name differs
+   from their GCC canonical name.  The first column in a row contains the GCC
+   canonical cpu name and the other columns in that row contain AT_PLATFORM
+   names that should be mapped to the canonical name.  */
+
+static const char *linux_cpu_translation_table[][4] = {
+  { "403", "ppc403", NULL },
+  { "405", "ppc405", NULL },
+  { "440", "ppc440", "ppc440gp", NULL },
+  { "476", "ppc470", NULL },
+  { "601", "ppc601", NULL },
+  { "603", "ppc603", NULL },
+  { "604", "ppc604", NULL },
+  { "7400", "ppc7400", NULL },
+  { "7450", "ppc7450", NULL },
+  { "750", "ppc750", NULL },
+  { "823", "ppc823", NULL },
+  { "8540", "ppc8540", NULL },
+  { "8548", "ppc8548", NULL },
+  { "970", "ppc970", NULL },
+  { "cell", "ppc-cell-be", NULL },
+  { "e500mc", "ppce500mc", NULL },
+  { "e5500", "ppce5500", NULL },
+  { "e6500", "ppce6500", NULL },
+  { "power7", "power7+", NULL },
+  { NULL } /* End of table sentinel.  */
+};
 #endif
 
 const char *host_detect_local_cpu (int argc, const char **argv);
@@ -156,14 +198,19 @@ detect_processor_freebsd (void)
 
 #ifdef __linux__
 
-/* Returns AT_PLATFORM if present, otherwise generic PowerPC.  */
+/* Returns the canonical AT_PLATFORM if present, otherwise NULL.  */
 
 static const char *
 elf_platform (void)
 {
-  int fd;
+  /* Used to cache the result we determine below.  */
+  static const char *cpu = NULL;
 
-  fd = open ("/proc/self/auxv", O_RDONLY);
+  /* Use the cached AT_PLATFORM cpu name if we've already determined it.  */
+  if (cpu != NULL)
+    return cpu;
+
+  int fd = open ("/proc/self/auxv", O_RDONLY);
 
   if (fd != -1)
     {
@@ -177,14 +224,51 @@ elf_platform (void)
       if (n > 0)
 	{
 	  for (av = (ElfW(auxv_t) *) buf; av->a_type != AT_NULL; ++av)
-	    switch (av->a_type)
+	    if (av->a_type == AT_PLATFORM)
 	      {
-	      case AT_PLATFORM:
-		return (const char *) av->a_un.a_val;
-
-	      default:
+		/* Cache the result.  */
+		cpu = (const char *) av->a_un.a_val;
 		break;
 	      }
+	}
+
+      /* Verify that CPU is either a valid -mcpu=<cpu> option name, or is a
+	 valid alternative name.  If it is a valid alternative name, then use
+	 the canonical name.  */
+      if (cpu != NULL)
+	{
+	  size_t i, j;
+	  char *s;
+
+	  /* Check if AT_PLATFORM is a GCC canonical cpu name.  */
+	  for (i = 0; i < ARRAY_SIZE (rs6000_supported_cpu_names); i++)
+	    if (!strcmp (cpu, rs6000_supported_cpu_names[i]))
+	      return cpu;
+
+	  /* Check if AT_PLATFORM can be translated to a canonical cpu name.  */
+	  for (i = 0; linux_cpu_translation_table[i][0] != NULL; i++)
+	    {
+	      const char *canonical = linux_cpu_translation_table[i][0];
+	      for (j = 1; linux_cpu_translation_table[i][j] != NULL; j++)
+		if (!strcmp (cpu, linux_cpu_translation_table[i][j]))
+		  {
+		    /* Cache the result.  */
+		    cpu = canonical;
+		    return cpu;
+		  }
+	    }
+
+	  /* The kernel returned an AT_PLATFORM name we do not support.  */
+	  auto_vec <const char *> candidates;
+	  for (i = 0; i < ARRAY_SIZE (rs6000_supported_cpu_names); i++)
+	    candidates.safe_push (rs6000_supported_cpu_names[i]);
+	  candidates_list_and_hint (cpu, s, candidates);
+	  fatal_error (
+	    input_location,
+	    "Unsupported cpu name returned from kernel for "
+	    "%<-mcpu=native%>: %s\n"
+	    "Please use an explicit cpu name.  Valid cpu names are: %s",
+	    cpu, s);
 	}
     }
   return NULL;
@@ -327,6 +411,15 @@ detect_processor_aix (void)
     case 0x4000:
       return "power6";
 
+    case 0x8000:
+      return "power7";
+
+    case 0x10000:
+      return "power8";
+
+    case 0x20000:
+      return "power9";
+
     default:
       return "powerpc";
     }
@@ -355,8 +448,9 @@ static const struct asm_name asm_names[] = {
   { "power6x",	"-mpwr6" },
   { "power7",	"-mpwr7" },
   { "power8",	"-mpwr8" },
+  { "power9",	"-mpwr9" },
   { "powerpc",	"-mppc" },
-  { "rs64a",	"-mppc" },
+  { "rs64",	"-mppc" },
   { "603",	"-m603" },
   { "603e",	"-m603" },
   { "604",	"-m604" },
@@ -366,23 +460,27 @@ static const struct asm_name asm_names[] = {
   { "970",	"-m970" },
   { "G5",	"-m970" },
   { NULL,	"\
-%{!maix64: \
-%{mpowerpc64: -mppc64} \
-%{maltivec: -m970} \
-%{!maltivec: %{!mpowerpc64: %(asm_default)}}}" },
+  %{mvsx: -mpwr6; \
+    maltivec: -m970; \
+    maix64|mpowerpc64: -mppc64; \
+    : %(asm_default)}" },
 
 #else
   { "cell",	"-mcell" },
   { "power3",	"-mppc64" },
   { "power4",	"-mpower4" },
-  { "power5",	"%(asm_cpu_power5)" },
-  { "power5+",	"%(asm_cpu_power5)" },
-  { "power6",	"%(asm_cpu_power6) -maltivec" },
-  { "power6x",	"%(asm_cpu_power6) -maltivec" },
-  { "power7",	"%(asm_cpu_power7)" },
-  { "power8",	"%(asm_cpu_power8)" },
+  { "power5",	"-mpower5" },
+  { "power5+",	"-mpower5" },
+  { "power6",	"-mpower6 %{!mvsx:%{!maltivec:-maltivec}}" },
+  { "power6x",	"-mpower6 %{!mvsx:%{!maltivec:-maltivec}}" },
+  { "power7",	"-mpower7" },
+  { "power8",	"%{mpower9-vector:-mpower9;:-mpower8}" },
+  { "power9",	"-mpower9" },
+  { "a2",	"-ma2" },
   { "powerpc",	"-mppc" },
-  { "rs64a",	"-mppc64" },
+  { "powerpc64", "-mppc64" },
+  { "powerpc64le", "%{mpower9-vector:-mpower9;:-mpower8}" },
+  { "rs64",	"-mppc64" },
   { "401",	"-mppc" },
   { "403",	"-m403" },
   { "405",	"-m405" },
@@ -391,6 +489,8 @@ static const struct asm_name asm_names[] = {
   { "440fp",	"-m440" },
   { "464",	"-m440" },
   { "464fp",	"-m440" },
+  { "476",	"-m476" },
+  { "476fp",	"-m476" },
   { "505",	"-mppc" },
   { "601",	"-m601" },
   { "602",	"-mppc" },
@@ -404,23 +504,30 @@ static const struct asm_name asm_names[] = {
   { "740",	"-mppc" },
   { "750",	"-mppc" },
   { "G3",	"-mppc" },
-  { "7400",	"-mppc -maltivec" },
-  { "7450",	"-mppc -maltivec" },
-  { "G4",	"-mppc -maltivec" },
+  { "7400",	"-mppc %{!mvsx:%{!maltivec:-maltivec}}" },
+  { "7450",	"-mppc %{!mvsx:%{!maltivec:-maltivec}}" },
+  { "G4",	"-mppc %{!mvsx:%{!maltivec:-maltivec}}" },
   { "801",	"-mppc" },
   { "821",	"-mppc" },
   { "823",	"-mppc" },
   { "860",	"-mppc" },
-  { "970",	"-mpower4 -maltivec" },
-  { "G5",	"-mpower4 -maltivec" },
+  { "970",	"-mpower4 %{!mvsx:%{!maltivec:-maltivec}}" },
+  { "G5",	"-mpower4 %{!mvsx:%{!maltivec:-maltivec}}" },
   { "8540",	"-me500" },
   { "8548",	"-me500" },
   { "e300c2",	"-me300" },
   { "e300c3",	"-me300" },
   { "e500mc",	"-me500mc" },
+  { "e500mc64",	"-me500mc64" },
+  { "e5500",	"-me5500" },
+  { "e6500",	"-me6500" },
+  { "titan",	"-mtitan" },
   { NULL,	"\
-%{mpowerpc64*: -mppc64} \
-%{!mpowerpc64*: %(asm_default)}" },
+%{mpower9-vector: -mpower9; \
+  mpower8-vector|mcrypto|mdirect-move|mhtm: -mpower8; \
+  mvsx: -mpower7; \
+  mpowerpc64: -mppc64; \
+  : %(asm_default)}" },
 #endif
 };
 

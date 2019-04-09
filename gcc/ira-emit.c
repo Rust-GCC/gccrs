@@ -1,5 +1,5 @@
 /* Integrated Register Allocator.  Changing code and generating moves.
-   Copyright (C) 2006-2014 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -68,22 +68,21 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "regs.h"
+#include "backend.h"
 #include "rtl.h"
-#include "tm_p.h"
-#include "target.h"
-#include "flags.h"
-#include "obstack.h"
-#include "bitmap.h"
-#include "hard-reg-set.h"
-#include "basic-block.h"
-#include "expr.h"
-#include "recog.h"
-#include "params.h"
-#include "reload.h"
+#include "tree.h"
+#include "predict.h"
 #include "df.h"
+#include "insn-config.h"
+#include "regs.h"
+#include "memmodel.h"
+#include "ira.h"
 #include "ira-int.h"
+#include "cfgrtl.h"
+#include "cfgbuild.h"
+#include "expr.h"
+#include "reload.h"
+#include "cfgloop.h"
 
 
 /* Data used to emit live range split insns and to flattening IR.  */
@@ -620,7 +619,10 @@ change_loop (ira_loop_tree_node_t node)
 		  /* don't create copies because reload can spill an
 		     allocno set by copy although the allocno will not
 		     get memory slot.  */
-		  || ira_equiv_no_lvalue_p (regno)))
+		  || ira_equiv_no_lvalue_p (regno)
+		  || (pic_offset_table_rtx != NULL
+		      && (ALLOCNO_REGNO (allocno)
+			  == (int) REGNO (pic_offset_table_rtx)))))
 	    continue;
 	  original_reg = allocno_emit_reg (allocno);
 	  if (parent_allocno == NULL
@@ -774,14 +776,14 @@ modify_move_list (move_t list)
 
   if (list == NULL)
     return NULL;
-  /* Creat move deps.  */
+  /* Create move deps.  */
   curr_tick++;
   for (move = list; move != NULL; move = move->next)
     {
       to = move->to;
       if ((hard_regno = ALLOCNO_HARD_REGNO (to)) < 0)
 	continue;
-      nregs = hard_regno_nregs[hard_regno][ALLOCNO_MODE (to)];
+      nregs = hard_regno_nregs (hard_regno, ALLOCNO_MODE (to));
       for (i = 0; i < nregs; i++)
 	{
 	  hard_regno_last_set[hard_regno + i] = move;
@@ -794,7 +796,7 @@ modify_move_list (move_t list)
       to = move->to;
       if ((hard_regno = ALLOCNO_HARD_REGNO (from)) >= 0)
 	{
-	  nregs = hard_regno_nregs[hard_regno][ALLOCNO_MODE (from)];
+	  nregs = hard_regno_nregs (hard_regno, ALLOCNO_MODE (from));
 	  for (n = i = 0; i < nregs; i++)
 	    if (hard_regno_last_set_check[hard_regno + i] == curr_tick
 		&& (ALLOCNO_REGNO (hard_regno_last_set[hard_regno + i]->to)
@@ -809,7 +811,7 @@ modify_move_list (move_t list)
 	  move->deps_num = n;
 	}
     }
-  /* Toplogical sorting:  */
+  /* Topological sorting:  */
   move_vec.truncate (0);
   for (move = list; move != NULL; move = move->next)
     traverse_moves (move);
@@ -832,7 +834,7 @@ modify_move_list (move_t list)
       to = move->to;
       if ((hard_regno = ALLOCNO_HARD_REGNO (from)) >= 0)
 	{
-	  nregs = hard_regno_nregs[hard_regno][ALLOCNO_MODE (from)];
+	  nregs = hard_regno_nregs (hard_regno, ALLOCNO_MODE (from));
 	  for (i = 0; i < nregs; i++)
 	    if (hard_regno_last_set_check[hard_regno + i] == curr_tick
 		&& ALLOCNO_HARD_REGNO
@@ -884,7 +886,7 @@ modify_move_list (move_t list)
 	}
       if ((hard_regno = ALLOCNO_HARD_REGNO (to)) < 0)
 	continue;
-      nregs = hard_regno_nregs[hard_regno][ALLOCNO_MODE (to)];
+      nregs = hard_regno_nregs (hard_regno, ALLOCNO_MODE (to));
       for (i = 0; i < nregs; i++)
 	{
 	  hard_regno_last_set[hard_regno + i] = move;
@@ -910,7 +912,7 @@ emit_move_list (move_t list, int freq)
   int to_regno, from_regno, cost, regno;
   rtx_insn *result, *insn;
   rtx set;
-  enum machine_mode mode;
+  machine_mode mode;
   enum reg_class aclass;
 
   grow_reg_equivs ();

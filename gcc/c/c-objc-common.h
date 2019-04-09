@@ -1,5 +1,5 @@
 /* Language hooks common to C and ObjC front ends.
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2019 Free Software Foundation, Inc.
    Contributed by Ziemowit Laski  <zlaski@apple.com>
 
 This file is part of GCC.
@@ -43,7 +43,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef LANG_HOOKS_POST_OPTIONS
 #define LANG_HOOKS_POST_OPTIONS c_common_post_options
 #undef LANG_HOOKS_GET_ALIAS_SET
-#define LANG_HOOKS_GET_ALIAS_SET c_common_get_alias_set
+#define LANG_HOOKS_GET_ALIAS_SET c_get_alias_set
 #undef LANG_HOOKS_PARSE_FILE
 #define LANG_HOOKS_PARSE_FILE c_common_parse_file
 #undef LANG_HOOKS_FINISH_INCOMPLETE_DECL
@@ -60,6 +60,8 @@ along with GCC; see the file COPYING3.  If not see
 #define LANG_HOOKS_BUILTIN_FUNCTION c_builtin_function
 #undef  LANG_HOOKS_BUILTIN_FUNCTION_EXT_SCOPE
 #define LANG_HOOKS_BUILTIN_FUNCTION_EXT_SCOPE c_builtin_function_ext_scope
+#undef LANG_HOOKS_EMITS_BEGIN_STMT
+#define LANG_HOOKS_EMITS_BEGIN_STMT true
 
 /* Attribute hooks.  */
 #undef LANG_HOOKS_COMMON_ATTRIBUTE_TABLE
@@ -91,9 +93,7 @@ along with GCC; see the file COPYING3.  If not see
    This means it must also provide its own write_globals.  */
 
 #undef LANG_HOOKS_GETDECLS
-#define LANG_HOOKS_GETDECLS lhd_return_null_tree_v
-#undef LANG_HOOKS_WRITE_GLOBALS
-#define LANG_HOOKS_WRITE_GLOBALS c_write_global_declarations
+#define LANG_HOOKS_GETDECLS hook_tree_void_null
 
 /* Hooks for tree gimplification.  */
 #undef LANG_HOOKS_GIMPLIFY_EXPR
@@ -101,6 +101,12 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef LANG_HOOKS_OMP_PREDETERMINED_SHARING
 #define LANG_HOOKS_OMP_PREDETERMINED_SHARING c_omp_predetermined_sharing
+
+#undef LANG_HOOKS_OMP_CLAUSE_COPY_CTOR
+#define LANG_HOOKS_OMP_CLAUSE_COPY_CTOR c_omp_clause_copy_ctor
+
+#undef LANG_HOOKS_OMP_CLAUSE_ASSIGN_OP
+#define LANG_HOOKS_OMP_CLAUSE_ASSIGN_OP c_omp_clause_copy_ctor
 
 #undef LANG_HOOKS_TREE_INLINING_VAR_MOD_TYPE_P
 #define LANG_HOOKS_TREE_INLINING_VAR_MOD_TYPE_P c_vla_unspec_p

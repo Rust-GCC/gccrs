@@ -1,5 +1,5 @@
 /* Definitions for SH running Linux-based GNU systems using ELF
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
    Contributed by Kazumoto Kojima <kkojima@rr.iij4u.or.jp>
 
 This file is part of GCC.
@@ -43,10 +43,32 @@ along with GCC; see the file COPYING3.  If not see
 
 #define TARGET_ASM_FILE_END file_end_indicate_exec_stack
 
+#if TARGET_ENDIAN_DEFAULT == MASK_LITTLE_ENDIAN
+#define MUSL_DYNAMIC_LINKER_E "%{mb:eb}"
+#else
+#define MUSL_DYNAMIC_LINKER_E "%{!ml:eb}"
+#endif
+
+#if TARGET_CPU_DEFAULT & (MASK_HARD_SH2A_DOUBLE | MASK_SH4)
+/* "-nofpu" if any nofpu option is specified.  */
+#define MUSL_DYNAMIC_LINKER_FP \
+  "%{m1|m2|m2a-nofpu|m3|m4-nofpu|m4-100-nofpu|m4-200-nofpu|m4-300-nofpu|" \
+  "m4-340|m4-400|m4-500|m4al:-nofpu}"
+#else
+/* "-nofpu" if none of the hard fpu options are specified.  */
+#define MUSL_DYNAMIC_LINKER_FP "%{m2a|m4|m4-100|m4-200|m4-300|m4a:;:-nofpu}"
+#endif
+
+#undef MUSL_DYNAMIC_LINKER
+#define MUSL_DYNAMIC_LINKER \
+  "/lib/ld-musl-sh" MUSL_DYNAMIC_LINKER_E MUSL_DYNAMIC_LINKER_FP \
+  "%{mfdpic:-fdpic}.so.1"
+
 #define GLIBC_DYNAMIC_LINKER "/lib/ld-linux.so.2"
 
 #undef SUBTARGET_LINK_EMUL_SUFFIX
-#define SUBTARGET_LINK_EMUL_SUFFIX "_linux"
+#define SUBTARGET_LINK_EMUL_SUFFIX "%{mfdpic:_fd;:_linux}"
+
 #undef SUBTARGET_LINK_SPEC
 #define SUBTARGET_LINK_SPEC \
   "%{shared:-shared} \
@@ -59,32 +81,6 @@ along with GCC; see the file COPYING3.  If not see
 #undef FUNCTION_PROFILER
 #define FUNCTION_PROFILER(STREAM,LABELNO)				\
   do {									\
-    if (TARGET_SHMEDIA)							\
-      {									\
-	fprintf (STREAM, "\tpt\t1f,tr1\n");				\
-	fprintf (STREAM, "\taddi.l\tr15,-8,r15\n");			\
-	fprintf (STREAM, "\tst.l\tr15,0,r18\n");			\
-	if (flag_pic)							\
-	  {								\
-	    const char *gofs = "(datalabel _GLOBAL_OFFSET_TABLE_-(0f-.))"; \
-	    fprintf (STREAM, "\tmovi\t((%s>>16)&0xffff),r21\n", gofs);	\
-	    fprintf (STREAM, "\tshori\t(%s & 0xffff),r21\n", gofs);	\
-	    fprintf (STREAM, "0:\tptrel/u\tr21,tr0\n");			\
-	    fprintf (STREAM, "\tmovi\t((mcount@GOTPLT)&0xffff),r22\n");	\
-	    fprintf (STREAM, "\tgettr\ttr0,r21\n");			\
-	    fprintf (STREAM, "\tadd.l\tr21,r22,r21\n");			\
-	    fprintf (STREAM, "\tld.l\tr21,0,r21\n");			\
-	    fprintf (STREAM, "\tptabs\tr21,tr0\n");			\
-	  }								\
-	else								\
-	  fprintf (STREAM, "\tpt\tmcount,tr0\n");			\
-	fprintf (STREAM, "\tgettr\ttr1,r18\n");				\
-	fprintf (STREAM, "\tblink\ttr0,r63\n");				\
-	fprintf (STREAM, "1:\tld.l\tr15,0,r18\n");			\
-	fprintf (STREAM, "\taddi.l\tr15,8,r15\n");			\
-      }									\
-    else								\
-      {									\
 	if (flag_pic)							\
 	  {								\
 	    fprintf (STREAM, "\tmov.l\t3f,r1\n");			\
@@ -108,7 +104,6 @@ along with GCC; see the file COPYING3.  If not see
 	else								\
 	  fprintf (STREAM, "1:\t.long\tmcount\n");			\
 	fprintf (STREAM, "2:\tlds.l\t@r15+,pr\n");			\
-      }									\
   } while (0)
 
 /* For SH3 and SH4, we use a slot of the unwind frame which correspond
@@ -120,14 +115,7 @@ along with GCC; see the file COPYING3.  If not see
    so as to return itself for 16.  */
 #undef DBX_REGISTER_NUMBER
 #define DBX_REGISTER_NUMBER(REGNO) \
-  ((! TARGET_SH5 && (REGNO) == 16) ? 16 : SH_DBX_REGISTER_NUMBER (REGNO))
-
-/* Since libgcc is compiled with -fpic for this target, we can't use
-   __sdivsi3_1 as the division strategy for -O0 and -Os.  */
-#undef SH_DIV_STRATEGY_DEFAULT
-#define SH_DIV_STRATEGY_DEFAULT SH_DIV_CALL2
-#undef SH_DIV_STR_FOR_SIZE
-#define SH_DIV_STR_FOR_SIZE "call2"
+  (((REGNO) == 16) ? 16 : SH_DBX_REGISTER_NUMBER (REGNO))
 
 /* Install the __sync libcalls.  */
 #undef TARGET_INIT_LIBFUNCS

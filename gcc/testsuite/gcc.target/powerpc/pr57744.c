@@ -1,7 +1,7 @@
 /* { dg-do run { target { powerpc*-*-* && lp64 } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
 /* { dg-require-effective-target powerpc_p8vector_ok } */
-/* { dg-options "-mcpu=power8 -O3" } */
+/* { dg-options "-mdejagnu-cpu=power8 -O3" } */
 
 void abort (void);
 

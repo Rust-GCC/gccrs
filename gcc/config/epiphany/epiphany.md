@@ -1,5 +1,5 @@
 ;; Machine description of the Adaptiva epiphany cpu for GNU C compiler
-;; Copyright (C) 1994-2014 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2019 Free Software Foundation, Inc.
 ;; Contributed by Embecosm on behalf of Adapteva, Inc.
 
 ;; This file is part of GCC.
@@ -982,7 +982,7 @@
       rtx cmp = gen_rtx_LT (VOIDmode, cc1, CONST0_RTX (SFmode));
 
       real_2expN (&offset, 31, SFmode);
-      limit = CONST_DOUBLE_FROM_REAL_VALUE (offset, SFmode);
+      limit = const_double_from_real_value (offset, SFmode);
       limit = force_reg (SFmode, limit);
       emit_insn (gen_fix_truncsfsi2 (operands[0], operands[1]));
       emit_insn (gen_subsf3_f (tmp, operands[1], limit));
@@ -1039,7 +1039,7 @@
 ; use next_active_insn to look at the 'following' insn.  That should
 ; exist, because peephole2 runs after reload, and there has to be
 ; a return after an fp_int insn.
-; ??? However, we can not even ordinarily match the preceding insn;
+; ??? However, we cannot even ordinarily match the preceding insn;
 ; there is some bug in the generators such that then it leaves out
 ; the check for PARALLEL before the length check for the then-second
 ; main insn.  Observed when compiling compatibility-atomic-c++0x.cc
@@ -1438,7 +1438,7 @@
   [(set_attr "type" "flow")])
 
 ; Floating point instructions require manipulating the control register.
-; Manipulating the control register needs aritmetic.
+; Manipulating the control register needs arithmetic.
 ; Arithmetic clobbers flags.
 ; The flags are in the status register, which also contains the alternate
 ; flag and the interrupt enable/disable bits.
@@ -1870,7 +1870,7 @@
     {
       if (operands[3] != const0_rtx)
 	operands[2] = gen_rtx_MINUS (SImode, operands[2], operands[3]);
-      operands[2] = gen_rtx_SET (VOIDmode, operands[0], operands[2]);
+      operands[2] = gen_rtx_SET (operands[0], operands[2]);
       operands[3] = operands[0];
     }
   operands[4] = gen_rtx_fmt_ee (cmp_code, SImode,
@@ -1946,7 +1946,7 @@
 {
   rtx cmp_op0 = XEXP (operands[1], 0);
   rtx cmp_op1 = XEXP (operands[1], 1);
-  enum machine_mode cmp_in_mode;
+  machine_mode cmp_in_mode;
   enum rtx_code code = GET_CODE (operands[1]);
 
   cmp_in_mode = GET_MODE (cmp_op0);
@@ -1960,7 +1960,7 @@
       && !rtx_equal_p (operands[0], operands[3]))
     {
       rtx tmp = operands[2]; operands[2] = operands[3]; operands[3] = tmp;
-      code = (FLOAT_MODE_P (GET_MODE (cmp_op0))
+      code = (FLOAT_MODE_P (GET_MODE (cmp_op0)) && !flag_finite_math_only
 	      ? reverse_condition_maybe_unordered (code)
 	      : reverse_condition (code));
     }
@@ -2026,8 +2026,8 @@
 {
   operands[10] = simplify_gen_subreg (<WMODE:MODE>mode, operands[3],
 				      <WMODE2:MODE>mode, 0);
-  replace_rtx (operands[2], operands[9], operands[3]);
-  replace_rtx (operands[2], operands[0], operands[10]);
+  replace_rtx (operands[2], operands[9], operands[3], true);
+  replace_rtx (operands[2], operands[0], operands[10], true);
   gcc_assert (!reg_overlap_mentioned_p (operands[0], operands[2]));
 })
 
@@ -2269,7 +2269,7 @@
 	(gen_rtx_PARALLEL
 	  (VOIDmode,
 	   gen_rtvec (2, gen_rtx_SET
-			   (VOIDmode, operands[0],
+			   (operands[0],
 			    gen_rtx_CALL (VOIDmode, operands[1], operands[2])),
 			 gen_rtx_CLOBBER (VOIDmode,
 					  gen_rtx_REG (SImode, GPR_LR)))));
@@ -2312,7 +2312,7 @@
 	(gen_rtx_PARALLEL
 	  (VOIDmode,
 	   gen_rtvec (2, gen_rtx_SET
-			   (VOIDmode, operands[0],
+			   (operands[0],
 			    gen_rtx_CALL (VOIDmode, operands[1], operands[2])),
 			 ret_rtx)));
       emit_insn (target_uninterruptible ? gen_gie (): gen_gid ());
@@ -2628,7 +2628,7 @@
 	(VOIDmode,
 	 gen_rtvec
 	  (4,
-	   gen_rtx_SET (VOIDmode, operands[5],
+	   gen_rtx_SET (operands[5],
 			gen_rtx_MULT (SImode, operands[6], operands[4])),
 	   gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CC_FPmode, CCFP_REGNUM)),
 	   operands[9], operands[10])));
@@ -2640,7 +2640,7 @@
 	(VOIDmode,
 	 gen_rtvec
 	  (4,
-	   gen_rtx_SET (VOIDmode, operands[7],
+	   gen_rtx_SET (operands[7],
 			gen_rtx_MULT (SImode, operands[8], operands[4])),
 	   gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CC_FPmode, CCFP_REGNUM)),
 	   operands[9], operands[10])));

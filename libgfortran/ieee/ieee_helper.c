@@ -1,5 +1,5 @@
 /* Helper functions in C for IEEE modules
-   Copyright (C) 2013 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
    Contributed by Francois-Xavier Coudert <fxcoudert@gcc.gnu.org>
 
 This file is part of the GNU Fortran runtime library (libgfortran).
@@ -33,6 +33,16 @@ internal_proto(ieee_class_helper_4);
 extern int ieee_class_helper_8 (GFC_REAL_8 *);
 internal_proto(ieee_class_helper_8);
 
+#ifdef HAVE_GFC_REAL_10
+extern int ieee_class_helper_10 (GFC_REAL_10 *);
+internal_proto(ieee_class_helper_10);
+#endif
+
+#ifdef HAVE_GFC_REAL_16
+extern int ieee_class_helper_16 (GFC_REAL_16 *);
+internal_proto(ieee_class_helper_16);
+#endif
+
 /* Enumeration of the possible floating-point types. These values
    correspond to the hidden arguments of the IEEE_CLASS_TYPE
    derived-type of IEEE_ARITHMETIC.  */
@@ -40,7 +50,8 @@ internal_proto(ieee_class_helper_8);
 enum { IEEE_OTHER_VALUE = 0, IEEE_SIGNALING_NAN, IEEE_QUIET_NAN,
   IEEE_NEGATIVE_INF, IEEE_NEGATIVE_NORMAL, IEEE_NEGATIVE_DENORMAL,
   IEEE_NEGATIVE_ZERO, IEEE_POSITIVE_ZERO, IEEE_POSITIVE_DENORMAL,
-  IEEE_POSITIVE_NORMAL, IEEE_POSITIVE_INF };
+  IEEE_POSITIVE_NORMAL, IEEE_POSITIVE_INF, IEEE_SUBNORMAL,
+  IEEE_NEGATIVE_SUBNORMAL, IEEE_POSITIVE_SUBNORMAL };
 
 #define CLASSMACRO(TYPE) \
   int ieee_class_helper_ ## TYPE (GFC_REAL_ ## TYPE *value) \
@@ -73,6 +84,14 @@ enum { IEEE_OTHER_VALUE = 0, IEEE_SIGNALING_NAN, IEEE_QUIET_NAN,
 
 CLASSMACRO(4)
 CLASSMACRO(8)
+
+#ifdef HAVE_GFC_REAL_10
+CLASSMACRO(10)
+#endif
+
+#ifdef HAVE_GFC_REAL_16
+CLASSMACRO(16)
+#endif
 
 
 #define GFC_FPE_ALL (GFC_FPE_INVALID | GFC_FPE_DENORMAL | \

@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -42,8 +42,6 @@ struct unsized_allocator
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
-
   typedef std::allocator_traits<maxsize_allocator<X>> traits_type;
   traits_type::allocator_type a;
   auto size = a.max_size();
@@ -52,16 +50,23 @@ void test01()
 
 void test02()
 {
-  bool test __attribute__((unused)) = true;
-
   typedef std::allocator_traits<unsized_allocator<X>> traits_type;
   traits_type::allocator_type a;
   auto size = std::numeric_limits<traits_type::size_type>::max();
-  VERIFY( traits_type::max_size(a) == size );
+  VERIFY( traits_type::max_size(a) == size / sizeof(X) );
+}
+
+void test03()
+{
+  typedef std::allocator_traits<unsized_allocator<int>> traits_type;
+  traits_type::allocator_type a;
+  auto size = std::numeric_limits<traits_type::size_type>::max();
+  VERIFY( traits_type::max_size(a) == size / sizeof(int) );
 }
 
 int main()
 {
   test01();
   test02();
+  test03();
 }

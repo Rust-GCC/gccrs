@@ -1,5 +1,5 @@
 # Top level -*- makefile -*- fragment for GNU C++.
-#   Copyright (C) 1994-2014 Free Software Foundation, Inc.
+#   Copyright (C) 1994-2019 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -39,7 +39,7 @@ CXX_INSTALL_NAME := $(shell echo c++|sed '$(program_transform_name)')
 GXX_INSTALL_NAME := $(shell echo g++|sed '$(program_transform_name)')
 CXX_TARGET_INSTALL_NAME := $(target_noncanonical)-$(shell echo c++|sed '$(program_transform_name)')
 GXX_TARGET_INSTALL_NAME := $(target_noncanonical)-$(shell echo g++|sed '$(program_transform_name)')
-CP_PLUGIN_HEADERS := cp-tree.h cxx-pretty-print.h name-lookup.h type-utils.h
+CP_PLUGIN_HEADERS := cp-tree.h cxx-pretty-print.h name-lookup.h type-utils.h operators.def
 
 #
 # Define the names for selecting c++ in LANGUAGES.
@@ -71,14 +71,28 @@ CXX_C_OBJS = attribs.o incpath.o \
 	$(C_COMMON_OBJS) $(CXX_TARGET_OBJS)
 
 # Language-specific object files for C++ and Objective C++.
-CXX_AND_OBJCXX_OBJS = cp/call.o cp/decl.o cp/expr.o cp/pt.o cp/typeck2.o \
- cp/class.o cp/decl2.o cp/error.o cp/lex.o cp/parser.o cp/ptree.o cp/rtti.o \
- cp/typeck.o cp/cvt.o cp/except.o cp/friend.o cp/init.o cp/method.o \
- cp/search.o cp/semantics.o cp/tree.o cp/repo.o cp/dump.o cp/optimize.o \
- cp/mangle.o cp/cp-objcp-common.o cp/name-lookup.o cp/cxx-pretty-print.o \
- cp/cp-cilkplus.o \
- cp/cp-gimplify.o cp/cp-array-notation.o cp/lambda.o \
- cp/vtable-class-hierarchy.o $(CXX_C_OBJS)
+CXX_AND_OBJCXX_OBJS = \
+	cp/call.o cp/class.o cp/constexpr.o cp/constraint.o \
+	cp/cp-gimplify.o \
+	cp/cp-objcp-common.o cp/cp-ubsan.o \
+	cp/cvt.o cp/cxx-pretty-print.o \
+	cp/decl.o cp/decl2.o cp/dump.o \
+	cp/error.o cp/except.o cp/expr.o \
+	cp/friend.o cp/init.o \
+	cp/lambda.o cp/lex.o cp/logic.o \
+	cp/mangle.o cp/method.o \
+	cp/name-lookup.o cp/optimize.o \
+	cp/parser.o cp/pt.o cp/ptree.o \
+	cp/repo.o cp/rtti.o \
+	cp/search.o cp/semantics.o \
+	cp/tree.o cp/typeck.o cp/typeck2.o \
+	cp/vtable-class-hierarchy.o $(CXX_C_OBJS)
+
+ifeq ($(if $(wildcard ../stage_current),$(shell cat \
+  ../stage_current)),stageautofeedback)
+$(CXX_AND_OBJCXX_OBJS): CFLAGS += -fauto-profile=cc1plus.fda
+$(CXX_AND_OBJCXX_OBJS): cc1plus.fda
+endif
 
 # Language-specific object files for C++.
 CXX_OBJS = cp/cp-lang.o c-family/stub-objc.o $(CXX_AND_OBJCXX_OBJS)
@@ -89,11 +103,18 @@ c++_OBJS = $(CXX_OBJS) cc1plus-checksum.o cp/g++spec.o
 cp-warn = $(STRICT_WARN)
 
 # compute checksum over all object files and the options
+# re-use the checksum from the prev-final stage so it passes
+# the bootstrap comparison and allows comparing of the cc1 binary
 cc1plus-checksum.c : build/genchecksum$(build_exeext) checksum-options \
 	$(CXX_OBJS) $(BACKEND) $(LIBDEPS) 
-	build/genchecksum$(build_exeext) $(CXX_OBJS) $(BACKEND) $(LIBDEPS) \
+	if [ -f ../stage_final ] \
+	   && cmp -s ../stage_current ../stage_final; then \
+	   cp ../prev-gcc/cc1plus-checksum.c cc1plus-checksum.c; \
+	else \
+	  build/genchecksum$(build_exeext) $(CXX_OBJS) $(BACKEND) $(LIBDEPS) \
                      checksum-options > cc1plus-checksum.c.tmp &&	   \
-	$(srcdir)/../move-if-change cc1plus-checksum.c.tmp cc1plus-checksum.c
+	  $(srcdir)/../move-if-change cc1plus-checksum.c.tmp cc1plus-checksum.c; \
+	fi
 
 cc1plus$(exeext): $(CXX_OBJS) cc1plus-checksum.o $(BACKEND) $(LIBDEPS)
 	+$(LLINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
@@ -111,8 +132,11 @@ else
 # deleting the $(srcdir)/cp/cfns.h file.
 $(srcdir)/cp/cfns.h:
 endif
-	gperf -o -C -E -k '1-6,$$' -j1 -D -N 'libc_name_p' -L ANSI-C \
+	gperf -o -C -E -k '1-6,$$' -j1 -D -N 'libc_name_p' -L C++ \
 		$(srcdir)/cp/cfns.gperf --output-file $(srcdir)/cp/cfns.h
+
+cc1plus.fda: ../stage1-gcc/cc1plus$(exeext) ../prev-gcc/$(PERF_DATA)
+	$(CREATE_GCOV) -binary ../stage1-gcc/cc1plus$(exeext) -gcov cc1plus.fda -profile ../prev-gcc/$(PERF_DATA) -gcov_version 1
 
 #
 # Build hooks:
@@ -131,7 +155,7 @@ c++.srcinfo:
 c++.srcextra:
 
 c++.tags: force
-	cd $(srcdir)/cp; etags -o TAGS.sub *.c *.h --language=none \
+	cd $(srcdir)/cp; etags -o TAGS.sub *.c *.cc *.h --language=none \
 	  --regex='/DEFTREECODE [(]\([A-Z_]+\)/\1/' cp-tree.def; \
 	etags --include TAGS.sub --include ../TAGS.sub
 
@@ -140,13 +164,46 @@ c++.man: doc/g++.1
 c++.srcman: doc/g++.1
 	-cp -p $^ $(srcdir)/doc
 
+# C++ selftests
+
+# If C++ is enabled, require the selftests to be run for it
+# at each stage of the build:
+selftest-c++: s-selftest-c++
+
+CPP_SELFTEST_DEPS = cc1plus$(exeext) $(SELFTEST_DEPS)
+CPP_SELFTEST_FLAGS = -xc++ $(SELFTEST_FLAGS)
+
+# Run the C++ selftests
+s-selftest-c++: $(CPP_SELFTEST_DEPS)
+	$(GCC_FOR_TARGET) $(CPP_SELFTEST_FLAGS)
+	$(STAMP) $@
+
+# Convenience method for running C++ selftests under gdb:
+.PHONY: selftest-c++-gdb
+selftest-c++-gdb: $(CPP_SELFTEST_DEPS)
+	$(GCC_FOR_TARGET) $(CPP_SELFTEST_FLAGS) \
+	  -wrapper gdb,--args
+
+# Convenience method for running C++ selftests under valgrind:
+.PHONY: selftest-c++-valgrind
+selftest-c++-valgrind: $(CPP_SELFTEST_DEPS)
+	$(GCC_FOR_TARGET) $(CPP_SELFTEST_FLAGS) \
+	  -wrapper valgrind,--leak-check=full
+
 # 'make check' in gcc/ looks for check-c++, as do all toplevel C++-related
 # check targets.  However, our DejaGNU framework requires 'check-g++' as its
 # entry point.  We feed the former to the latter here.
 check-c++ : check-g++
-# Run the testsute in C++0x mode.
-check-c++0x:
-	@echo Normal 'make check' now runs the testsuite in C++11 mode as well as C++98.
+
+# Run the testsuite in C++17 mode.
+check-c++1z: check-c++17
+check-c++17:
+	$(MAKE) RUNTESTFLAGS="$(RUNTESTFLAGS)" GXX_TESTSUITE_STDS=17 check-g++
+
+# Run the testsuite in all standard conformance levels.
+check-c++-all:
+	$(MAKE) RUNTESTFLAGS="$(RUNTESTFLAGS) --stds=98,11,14,17,2a,concepts" check-g++
+
 # Run the testsuite with garbage collection at every opportunity.
 check-g++-strict-gc:
 	$(MAKE) RUNTESTFLAGS="$(RUNTESTFLAGS) --extra_opts,--param,ggc-min-heapsize=0,--param,ggc-min-expand=0" \
@@ -155,7 +212,7 @@ check-c++-subtargets : check-g++-subtargets
 # List of targets that can use the generic check- rule and its // variant.
 lang_checks += check-g++
 lang_checks_parallelized += check-g++
-# For description see comment above check_gcc_parallelize in gcc/Makefile.in.
+# For description see the check_$lang_parallelize comment in gcc/Makefile.in.
 check_g++_parallelize = 10000
 #
 # Install hooks:
@@ -164,21 +221,23 @@ check_g++_parallelize = 10000
 # Install the driver program as $(target)-g++ and $(target)-c++, and
 # also as g++ and c++ if native.
 c++.install-common: installdirs
-	-rm -f $(DESTDIR)$(bindir)/$(GXX_INSTALL_NAME)$(exeext)
-	-$(INSTALL_PROGRAM) xg++$(exeext) $(DESTDIR)$(bindir)/$(GXX_INSTALL_NAME)$(exeext)
-	-chmod a+x $(DESTDIR)$(bindir)/$(GXX_INSTALL_NAME)$(exeext)
-	-rm -f $(DESTDIR)$(bindir)/$(CXX_INSTALL_NAME)$(exeext)
-	-( cd $(DESTDIR)$(bindir) && \
-	      $(LN) $(GXX_INSTALL_NAME)$(exeext) $(CXX_INSTALL_NAME)$(exeext) )
-	-if [ -f cc1plus$(exeext) ] ; then \
-	  if [ ! -f g++-cross$(exeext) ] ; then \
-	    rm -f $(DESTDIR)$(bindir)/$(GXX_TARGET_INSTALL_NAME)$(exeext); \
-	    ( cd $(DESTDIR)$(bindir) && \
-	      $(LN) $(GXX_INSTALL_NAME)$(exeext) $(GXX_TARGET_INSTALL_NAME)$(exeext) ); \
-	    rm -f $(DESTDIR)$(bindir)/$(CXX_TARGET_INSTALL_NAME)$(exeext); \
-	    ( cd $(DESTDIR)$(bindir) && \
-	      $(LN) $(CXX_INSTALL_NAME)$(exeext) $(CXX_TARGET_INSTALL_NAME)$(exeext) ); \
-	  fi ; \
+	-if test "$(enable_as_accelerator)" != "yes" ; then \
+	  rm -f $(DESTDIR)$(bindir)/$(GXX_INSTALL_NAME)$(exeext); \
+	  $(INSTALL_PROGRAM) xg++$(exeext) $(DESTDIR)$(bindir)/$(GXX_INSTALL_NAME)$(exeext); \
+	  chmod a+x $(DESTDIR)$(bindir)/$(GXX_INSTALL_NAME)$(exeext); \
+	  rm -f $(DESTDIR)$(bindir)/$(CXX_INSTALL_NAME)$(exeext); \
+	  ( cd $(DESTDIR)$(bindir) && \
+	    $(LN) $(GXX_INSTALL_NAME)$(exeext) $(CXX_INSTALL_NAME)$(exeext) ); \
+	  if [ -f cc1plus$(exeext) ] ; then \
+	    if [ ! -f g++-cross$(exeext) ] ; then \
+	      rm -f $(DESTDIR)$(bindir)/$(GXX_TARGET_INSTALL_NAME)$(exeext); \
+	      ( cd $(DESTDIR)$(bindir) && \
+		$(LN) $(GXX_INSTALL_NAME)$(exeext) $(GXX_TARGET_INSTALL_NAME)$(exeext) ); \
+	      rm -f $(DESTDIR)$(bindir)/$(CXX_TARGET_INSTALL_NAME)$(exeext); \
+	      ( cd $(DESTDIR)$(bindir) && \
+		$(LN) $(CXX_INSTALL_NAME)$(exeext) $(CXX_TARGET_INSTALL_NAME)$(exeext) ); \
+	    fi ; \
+	  fi; \
 	fi
 
 # We can't use links because not everyone supports them.  So just copy the
@@ -205,6 +264,11 @@ c++.install-plugin: installdirs
 	  $(mkinstalldirs) $(DESTDIR)$$dir; \
 	  $(INSTALL_DATA) $$path $(DESTDIR)$$dest; \
 	done
+# Install import library.
+ifeq ($(plugin_implib),yes)
+	$(mkinstalldirs) $(DESTDIR)$(plugin_resourcesdir)
+	$(INSTALL_DATA) cc1plus$(exeext).a $(DESTDIR)/$(plugin_resourcesdir)/cc1plus$(exeext).a
+endif
 
 c++.uninstall:
 	-rm -rf $(DESTDIR)$(bindir)/$(CXX_INSTALL_NAME)$(exeext)
@@ -219,6 +283,7 @@ c++.mostlyclean:
 	-rm -f doc/g++.1
 	-rm -f cp/*$(objext)
 	-rm -f cp/*$(coverageexts)
+	-rm -f xg++$(exeext) g++-cross$(exeext) cc1plus$(exeext) cc1plus.fda
 c++.clean:
 c++.distclean:
 	-rm -f cp/config.status cp/Makefile
@@ -240,3 +305,7 @@ c++.stageprofile: stageprofile-start
 	-mv cp/*$(objext) stageprofile/cp
 c++.stagefeedback: stagefeedback-start
 	-mv cp/*$(objext) stagefeedback/cp
+c++.autostageprofile: stageprofile-start
+	-mv cp/*$(objext) autostageprofile/cp
+c++.autostagefeedback: stagefeedback-start
+	-mv cp/*$(objext) autostagefeedback/cp

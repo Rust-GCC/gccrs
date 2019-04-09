@@ -6,6 +6,7 @@
 
 #include "go-system.h"
 
+#include "go-diagnostics.h"
 #include "import.h"
 
 #ifndef O_BINARY
@@ -24,7 +25,32 @@ static const char armagt[] =
   '!', '<', 't', 'h', 'i', 'n', '>', '\n'
 };
 
+static const char armagb[] =
+{
+  '<', 'b', 'i', 'g', 'a', 'f', '>', '\n'
+};
+
 static const char arfmag[2] = { '`', '\n' };
+
+// Archive fixed length header for AIX big format.
+
+struct Archive_fl_header
+{
+  // Archive magic string.
+  char fl_magic[8];
+  // Offset to member table.
+  char fl_memoff[20];
+  // Offset to global symbol table.
+  char fl_gstoff[20];
+  // Offset to global symbol table for 64-bit objects.
+  char fl_gst64off[20];
+  // Offset to first archive member.
+  char fl_fstmoff[20];
+  // Offset to last archive member.
+  char fl_lstmoff[20];
+  // Offset to first member on free list.
+  char fl_freeoff[20];
+};
 
 // The header of an entry in an archive.  This is all readable text,
 // padded with spaces where necesary.
@@ -47,6 +73,29 @@ struct Archive_header
   char ar_fmag[2];
 };
 
+// The header of an entry in an AIX big archive.
+// This is followed by ar_namlen bytes + 2 bytes for arfmag.
+
+struct Archive_big_header
+{
+  // The file size in decimal.
+  char ar_size[20];
+  // The next member offset in decimal.
+  char ar_nxtmem[20];
+  // The previous member offset in decimal.
+  char ar_prvmem[20];
+  // The file modification time in decimal.
+  char ar_date[12];
+  // The user's UID in decimal.
+  char ar_uid[12];
+  // The user's GID in decimal.
+  char ar_gid[12];
+  // The file mode in octal.
+  char ar_mode[12];
+  // The file name length in decimal.
+  char ar_namlen[4];
+};
+
 // The functions in this file extract Go export data from an archive.
 
 const int Import::archive_magic_len;
@@ -58,7 +107,8 @@ bool
 Import::is_archive_magic(const char* bytes)
 {
   return (memcmp(bytes, armag, Import::archive_magic_len) == 0
-	  || memcmp(bytes, armagt, Import::archive_magic_len) == 0);
+	  || memcmp(bytes, armagt, Import::archive_magic_len) == 0
+	  || memcmp(bytes, armagb, Import::archive_magic_len) == 0);
 }
 
 // An object used to read an archive file.
@@ -67,8 +117,9 @@ class Archive_file
 {
  public:
   Archive_file(const std::string& filename, int fd, Location location)
-    : filename_(filename), fd_(fd), filesize_(-1), extended_names_(),
-      is_thin_archive_(false), location_(location), nested_archives_()
+    : filename_(filename), fd_(fd), filesize_(-1), first_member_offset_(0),
+      extended_names_(), is_thin_archive_(false), is_big_archive_(false),
+      location_(location), nested_archives_()
   { }
 
   // Initialize.
@@ -85,10 +136,20 @@ class Archive_file
   filesize() const
   { return this->filesize_; }
 
+  // Return the offset of the first member.
+  off_t
+  first_member_offset() const
+  { return this->first_member_offset_; }
+
   // Return whether this is a thin archive.
   bool
   is_thin_archive() const
   { return this->is_thin_archive_; }
+
+  // Return whether this is a big archive.
+  bool
+  is_big_archive() const
+  { return this->is_big_archive_; }
 
   // Return the location of the import statement.
   Location
@@ -99,10 +160,15 @@ class Archive_file
   bool
   read(off_t offset, off_t size, char*);
 
-  // Read the archive header at OFF, setting *PNAME, *SIZE, and
-  // *NESTED_OFF.
+  // Parse a decimal in readable text.
   bool
-  read_header(off_t off, std::string* pname, off_t* size, off_t* nested_off);
+  parse_decimal(const char* str, off_t size, long* res) const;
+
+  // Read the archive header at OFF, setting *PNAME, *SIZE,
+  // *NESTED_OFF and *NEXT_OFF.
+  bool
+  read_header(off_t off, std::string* pname, off_t* size, off_t* nested_off,
+              off_t* next_off);
 
   // Interpret the header of HDR, the header of the archive member at
   // file offset OFF.  Return whether it succeeded.  Set *SIZE to the
@@ -119,6 +185,25 @@ class Archive_file
 		      std::string* memname);
 
  private:
+  // Initialize a big archive (AIX)
+  bool
+  initialize_big_archive();
+
+  // Initialize a normal archive
+  bool
+  initialize_archive();
+
+  // Read the big archive header at OFF, setting *PNAME, *SIZE and *NEXT_OFF.
+  bool
+  read_big_archive_header(off_t off, std::string* pname,
+                          off_t* size, off_t* next_off);
+
+  // Read the normal archive header at OFF, setting *PNAME, *SIZE,
+  // *NESTED_OFF and *NEXT_OFF.
+  bool
+  read_archive_header(off_t off, std::string* pname, off_t* size,
+                      off_t* nested_off, off_t* next_off);
+
   // For keeping track of open nested archives in a thin archive file.
   typedef std::map<std::string, Archive_file*> Nested_archive_table;
 
@@ -128,10 +213,14 @@ class Archive_file
   int fd_;
   // The file size;
   off_t filesize_;
+  // The first member offset;
+  off_t first_member_offset_;
   // The extended name table.
   std::string extended_names_;
   // Whether this is a thin archive.
   bool is_thin_archive_;
+  // Whether this is a big archive.
+  bool is_big_archive_;
   // The location of the import statements.
   Location location_;
   // Table of nested archives.
@@ -144,7 +233,7 @@ Archive_file::initialize()
   struct stat st;
   if (fstat(this->fd_, &st) < 0)
     {
-      error_at(this->location_, "%s: %m", this->filename_.c_str());
+      go_error_at(this->location_, "%s: %m", this->filename_.c_str());
       return false;
     }
   this->filesize_ = st.st_size;
@@ -153,12 +242,63 @@ Archive_file::initialize()
   if (::lseek(this->fd_, 0, SEEK_SET) < 0
       || ::read(this->fd_, buf, sizeof(armagt)) != sizeof(armagt))
     {
-      error_at(this->location_, "%s: %m", this->filename_.c_str());
+      go_error_at(this->location_, "%s: %m", this->filename_.c_str());
       return false;
     }
-  this->is_thin_archive_ = memcmp(buf, armagt, sizeof(armagt)) == 0;
+  if (memcmp(buf, armagt, sizeof(armagt)) == 0)
+    this->is_thin_archive_ = true;
+  else if (memcmp(buf, armagb, sizeof(armagb)) == 0)
+    this->is_big_archive_ = true;
 
-  if (this->filesize_ == sizeof(armag))
+  if (this->is_big_archive_)
+    return this->initialize_big_archive();
+  else
+    return this->initialize_archive();
+}
+
+// Initialize a big archive (AIX).
+
+bool
+Archive_file::initialize_big_archive()
+{
+  Archive_fl_header flhdr;
+
+  // Read the fixed length header.
+  if (::lseek(this->fd_, 0, SEEK_SET) < 0
+      || ::read(this->fd_, &flhdr, sizeof(flhdr)) != sizeof(flhdr))
+    {
+      go_error_at(this->location_, "%s: could not read archive header",
+                  this->filename_.c_str());
+      return false;
+    }
+
+  // Parse offset of the first member.
+  long off;
+  if (!this->parse_decimal(flhdr.fl_fstmoff, sizeof(flhdr.fl_fstmoff), &off))
+    {
+      char* buf = new char[sizeof(flhdr.fl_fstmoff) + 1];
+      memcpy(buf, flhdr.fl_fstmoff, sizeof(flhdr.fl_fstmoff));
+      go_error_at(this->location_,
+                  ("%s: malformed first member offset in archive header"
+                   " (expected decimal, got %s)"),
+                  this->filename_.c_str(), buf);
+      delete[] buf;
+      return false;
+    }
+  if (off == 0) // Empty archive.
+    this->first_member_offset_ = this->filesize_;
+  else
+    this->first_member_offset_ = off;
+  return true;
+}
+
+// Initialize a normal archive.
+
+bool
+Archive_file::initialize_archive()
+{
+  this->first_member_offset_ = sizeof(armag);
+  if (this->first_member_offset_ == this->filesize_)
     {
       // Empty archive.
       return true;
@@ -167,15 +307,14 @@ Archive_file::initialize()
   // Look for the extended name table.
   std::string filename;
   off_t size;
-  if (!this->read_header(sizeof(armagt), &filename, &size, NULL))
+  off_t next_off;
+  if (!this->read_header(this->first_member_offset_, &filename,
+                         &size, NULL, &next_off))
     return false;
   if (filename.empty())
     {
       // We found the symbol table.
-      off_t off = sizeof(armagt) + sizeof(Archive_header) + size;
-      if ((off & 1) != 0)
-	++off;
-      if (!this->read_header(off, &filename, &size, NULL))
+      if (!this->read_header(next_off, &filename, &size, NULL, NULL))
 	filename.clear();
     }
   if (filename == "/")
@@ -183,7 +322,7 @@ Archive_file::initialize()
       char* rdbuf = new char[size];
       if (::read(this->fd_, rdbuf, size) != size)
 	{
-	  error_at(this->location_, "%s: could not read extended names",
+	  go_error_at(this->location_, "%s: could not read extended names",
 		   filename.c_str());
 	  delete[] rdbuf;
 	  return false;
@@ -203,42 +342,176 @@ Archive_file::read(off_t offset, off_t size, char* buf)
   if (::lseek(this->fd_, offset, SEEK_SET) < 0
       || ::read(this->fd_, buf, size) != size)
     {
-      error_at(this->location_, "%s: %m", this->filename_.c_str());
+      go_error_at(this->location_, "%s: %m", this->filename_.c_str());
       return false;
     }
   return true;
 }
 
+// Parse a decimal in readable text.
+
+bool
+Archive_file::parse_decimal(const char* str, off_t size, long* res) const
+{
+  char* buf = new char[size + 1];
+  memcpy(buf, str, size);
+  char* ps = buf + size;
+  while (ps > buf && ps[-1] == ' ')
+    --ps;
+  *ps = '\0';
+
+  errno = 0;
+  char* end;
+  *res = strtol(buf, &end, 10);
+  if (*end != '\0'
+      || *res < 0
+      || (*res == LONG_MAX && errno == ERANGE))
+    {
+      delete[] buf;
+      return false;
+    }
+  delete[] buf;
+  return true;
+}
+
 // Read the header at OFF.  Set *PNAME to the name, *SIZE to the size,
-// and *NESTED_OFF to the nested offset.
+// *NESTED_OFF to the nested offset, and *NEXT_OFF to the next member offset.
 
 bool
 Archive_file::read_header(off_t off, std::string* pname, off_t* size,
-			  off_t* nested_off)
+			  off_t* nested_off, off_t* next_off)
 {
-  Archive_header hdr;
   if (::lseek(this->fd_, off, SEEK_SET) < 0)
     {
-      error_at(this->location_, "%s: %m", this->filename_.c_str());
+      go_error_at(this->location_, "%s: %m", this->filename_.c_str());
       return false;
     }
+  if (this->is_big_archive_)
+    return this->read_big_archive_header(off, pname, size, next_off);
+  else
+    return this->read_archive_header(off, pname, size, nested_off, next_off);
+}
+
+// Read the big archive header at OFF, setting *PNAME, *SIZE and *NEXT_OFF.
+
+bool
+Archive_file::read_big_archive_header(off_t off, std::string* pname,
+                                      off_t* size, off_t* next_off)
+{
+  Archive_big_header hdr;
+  ssize_t got;
+
+  got = ::read(this->fd_, &hdr, sizeof hdr);
+  if (got != sizeof hdr)
+    {
+      if (got < 0)
+        go_error_at(this->location_, "%s: %m", this->filename_.c_str());
+      else if (got > 0)
+        go_error_at(this->location_, "%s: short entry header at %ld",
+                    this->filename_.c_str(), static_cast<long>(off));
+      else
+        go_error_at(this->location_, "%s: unexpected EOF at %ld",
+                    this->filename_.c_str(), static_cast<long>(off));
+    }
+
+  long local_size;
+  if (!this->parse_decimal(hdr.ar_size, sizeof(hdr.ar_size), &local_size))
+    {
+      char* buf = new char[sizeof(hdr.ar_size) + 1];
+      memcpy(buf, hdr.ar_size, sizeof(hdr.ar_size));
+      go_error_at(this->location_,
+                  ("%s: malformed ar_size in entry header at %ld"
+                   " (expected decimal, got %s)"),
+                  this->filename_.c_str(), static_cast<long>(off), buf);
+      delete[] buf;
+      return false;
+    }
+  *size = local_size;
+
+  long namlen;
+  if (!this->parse_decimal(hdr.ar_namlen, sizeof(hdr.ar_namlen), &namlen))
+    {
+      char* buf = new char[sizeof(hdr.ar_namlen) + 1];
+      memcpy(buf, hdr.ar_namlen, sizeof(hdr.ar_namlen));
+      go_error_at(this->location_,
+                  ("%s: malformed ar_namlen in entry header at %ld"
+                   " (expected decimal, got %s)"),
+                  this->filename_.c_str(), static_cast<long>(off), buf);
+      delete[] buf;
+      return false;
+    }
+  // Read member name following member header.
+  char* rdbuf = new char[namlen];
+  got = ::read(this->fd_, rdbuf, namlen);
+  if (got != namlen)
+    {
+      go_error_at(this->location_,
+                  "%s: malformed member name in entry header at %ld",
+                  this->filename_.c_str(), static_cast<long>(off));
+      delete[] rdbuf;
+      return false;
+    }
+  pname->assign(rdbuf, namlen);
+  delete[] rdbuf;
+
+  long local_next_off;
+  if (!this->parse_decimal(hdr.ar_nxtmem, sizeof(hdr.ar_nxtmem), &local_next_off))
+    {
+      char* buf = new char[sizeof(hdr.ar_nxtmem) + 1];
+      memcpy(buf, hdr.ar_nxtmem, sizeof(hdr.ar_nxtmem));
+      go_error_at(this->location_,
+                  ("%s: malformed ar_nxtmem in entry header at %ld"
+                   " (expected decimal, got %s)"),
+                  this->filename_.c_str(), static_cast<long>(off), buf);
+      delete[] buf;
+      return false;
+    }
+  if (next_off != NULL)
+    {
+      if (local_next_off == 0) // Last member.
+        *next_off = this->filesize_;
+      else
+        *next_off = local_next_off;
+    }
+  return true;
+}
+
+// Read the normal archive header at OFF, setting *PNAME, *SIZE,
+// *NESTED_OFF and *NEXT_OFF.
+
+bool
+Archive_file::read_archive_header(off_t off, std::string* pname, off_t* size,
+                                  off_t* nested_off, off_t* next_off)
+{
+  Archive_header hdr;
   ssize_t got = ::read(this->fd_, &hdr, sizeof hdr);
   if (got != sizeof hdr)
     {
       if (got < 0)
-	error_at(this->location_, "%s: %m", this->filename_.c_str());
+	go_error_at(this->location_, "%s: %m", this->filename_.c_str());
       else if (got > 0)
-	error_at(this->location_, "%s: short archive header at %ld",
-		 this->filename_.c_str(), static_cast<long>(off));
+	go_error_at(this->location_, "%s: short archive header at %ld",
+		    this->filename_.c_str(), static_cast<long>(off));
       else
-	error_at(this->location_, "%s: unexpected EOF at %ld",
-		 this->filename_.c_str(), static_cast<long>(off));
+	go_error_at(this->location_, "%s: unexpected EOF at %ld",
+		    this->filename_.c_str(), static_cast<long>(off));
     }
   off_t local_nested_off;
   if (!this->interpret_header(&hdr, off, pname, size, &local_nested_off))
     return false;
   if (nested_off != NULL)
     *nested_off = local_nested_off;
+
+  off_t local_next_off;
+  local_next_off = off + sizeof(Archive_header);
+  if (!this->is_thin_archive_ || pname->empty() || *pname == "/")
+    local_next_off += *size;
+  if ((local_next_off & 1) != 0)
+    ++local_next_off;
+  if (local_next_off > this->filesize_) // Last member.
+    local_next_off = this->filesize_;
+  if (next_off != NULL)
+    *next_off = local_next_off;
   return true;
 }
 
@@ -252,30 +525,19 @@ Archive_file::interpret_header(const Archive_header* hdr, off_t off,
 {
   if (memcmp(hdr->ar_fmag, arfmag, sizeof arfmag) != 0)
     {
-      error_at(this->location_, "%s: malformed archive header at %lu",
-	       this->filename_.c_str(), static_cast<unsigned long>(off));
+      go_error_at(this->location_, "%s: malformed archive header at %lu",
+		  this->filename_.c_str(), static_cast<unsigned long>(off));
       return false;
     }
 
-  const int size_string_size = sizeof hdr->ar_size;
-  char size_string[size_string_size + 1];
-  memcpy(size_string, hdr->ar_size, size_string_size);
-  char* ps = size_string + size_string_size;
-  while (ps > size_string && ps[-1] == ' ')
-    --ps;
-  *ps = '\0';
-
-  errno = 0;
-  char* end;
-  *size = strtol(size_string, &end, 10);
-  if (*end != '\0'
-      || *size < 0
-      || (*size == LONG_MAX && errno == ERANGE))
+  long local_size;
+  if (!this->parse_decimal(hdr->ar_size, sizeof hdr->ar_size, &local_size))
     {
-      error_at(this->location_, "%s: malformed archive header size at %lu",
-	       this->filename_.c_str(), static_cast<unsigned long>(off));
+      go_error_at(this->location_, "%s: malformed archive header size at %lu",
+		  this->filename_.c_str(), static_cast<unsigned long>(off));
       return false;
     }
+  *size = local_size;
 
   *nested_off = 0;
   if (hdr->ar_name[0] != '/')
@@ -284,8 +546,9 @@ Archive_file::interpret_header(const Archive_header* hdr, off_t off,
       if (name_end == NULL
 	  || name_end - hdr->ar_name >= static_cast<int>(sizeof hdr->ar_name))
 	{
-	  error_at(this->location_, "%s: malformed archive header name at %lu",
-		   this->filename_.c_str(), static_cast<unsigned long>(off));
+	  go_error_at(this->location_,
+		      "%s: malformed archive header name at %lu",
+		      this->filename_.c_str(), static_cast<unsigned long>(off));
 	  return false;
 	}
       pname->assign(hdr->ar_name, name_end - hdr->ar_name);
@@ -311,6 +574,7 @@ Archive_file::interpret_header(const Archive_header* hdr, off_t off,
     }
   else
     {
+      char* end;
       errno = 0;
       long x = strtol(hdr->ar_name + 1, &end, 10);
       long y = 0;
@@ -321,8 +585,8 @@ Archive_file::interpret_header(const Archive_header* hdr, off_t off,
 	  || (x == LONG_MAX && errno == ERANGE)
 	  || static_cast<size_t>(x) >= this->extended_names_.size())
 	{
-	  error_at(this->location_, "%s: bad extended name index at %lu",
-		   this->filename_.c_str(), static_cast<unsigned long>(off));
+	  go_error_at(this->location_, "%s: bad extended name index at %lu",
+		      this->filename_.c_str(), static_cast<unsigned long>(off));
 	  return false;
 	}
 
@@ -331,8 +595,9 @@ Archive_file::interpret_header(const Archive_header* hdr, off_t off,
       if (static_cast<size_t>(name_end - name) > this->extended_names_.size()
 	  || name_end[-1] != '/')
 	{
-	  error_at(this->location_, "%s: bad extended name entry at header %lu",
-		   this->filename_.c_str(), static_cast<unsigned long>(off));
+	  go_error_at(this->location_,
+		      "%s: bad extended name entry at header %lu",
+		      this->filename_.c_str(), static_cast<unsigned long>(off));
 	  return false;
 	}
       pname->assign(name, name_end - 1 - name);
@@ -349,7 +614,17 @@ Archive_file::get_file_and_offset(off_t off, const std::string& hdrname,
 				  off_t nested_off, int* memfd, off_t* memoff,
 				  std::string* memname)
 {
-  if (!this->is_thin_archive_)
+  if (this->is_big_archive_)
+    {
+      *memfd = this->fd_;
+      *memoff = (off + sizeof(Archive_big_header) + hdrname.length()
+                 + sizeof(arfmag));
+      if ((*memoff & 1) != 0)
+        ++*memoff;
+      *memname = this->filename_ + '(' + hdrname + ')';
+      return true;
+    }
+  else if (!this->is_thin_archive_)
     {
       *memfd = this->fd_;
       *memoff = off + sizeof(Archive_header);
@@ -380,8 +655,8 @@ Archive_file::get_file_and_offset(off_t off, const std::string& hdrname,
 	  int nfd = open(filename.c_str(), O_RDONLY | O_BINARY);
 	  if (nfd < 0)
 	    {
-	      error_at(this->location_, "%s: can't open nested archive %s",
-		       this->filename_.c_str(), filename.c_str());
+	      go_error_at(this->location_, "%s: can't open nested archive %s",
+			  this->filename_.c_str(), filename.c_str());
 	      return false;
 	    }
 	  nfile = new Archive_file(filename, nfd, this->location_);
@@ -396,7 +671,7 @@ Archive_file::get_file_and_offset(off_t off, const std::string& hdrname,
       std::string nname;
       off_t nsize;
       off_t nnested_off;
-      if (!nfile->read_header(nested_off, &nname, &nsize, &nnested_off))
+      if (!nfile->read_header(nested_off, &nname, &nsize, &nnested_off, NULL))
 	return false;
       return nfile->get_file_and_offset(nested_off, nname, nnested_off,
 					memfd, memoff, memname);
@@ -406,7 +681,7 @@ Archive_file::get_file_and_offset(off_t off, const std::string& hdrname,
   *memfd = open(filename.c_str(), O_RDONLY | O_BINARY);
   if (*memfd < 0)
     {
-      error_at(this->location_, "%s: %m", filename.c_str());
+      go_error_at(this->location_, "%s: %m", filename.c_str());
       return false;
     }
   *memoff = 0;
@@ -450,11 +725,7 @@ class Archive_iterator
   {
     if (this->off_ == this->afile_->filesize())
       return *this;
-    this->off_ += sizeof(Archive_header);
-    if (!this->afile_->is_thin_archive())
-      this->off_ += this->header_.size;
-    if ((this->off_ & 1) != 0)
-      ++this->off_;
+    this->off_ = this->next_off_;
     this->read_next_header();
     return *this;
   }
@@ -468,11 +739,11 @@ class Archive_iterator
   }
 
   bool
-  operator==(const Archive_iterator p) const
+  operator==(const Archive_iterator& p) const
   { return this->off_ == p->off; }
 
   bool
-  operator!=(const Archive_iterator p) const
+  operator!=(const Archive_iterator& p) const
   { return this->off_ != p->off; }
 
  private:
@@ -483,6 +754,8 @@ class Archive_iterator
   Archive_file* afile_;
   // The current offset in the file.
   off_t off_;
+  // The offset of the next member.
+  off_t next_off_;
   // The current archive header.
   Header header_;
 };
@@ -495,33 +768,19 @@ Archive_iterator::read_next_header()
   off_t filesize = this->afile_->filesize();
   while (true)
     {
-      if (filesize - this->off_ < static_cast<off_t>(sizeof(Archive_header)))
-	{
-	  if (filesize != this->off_)
-	    {
-	      error_at(this->afile_->location(),
-		       "%s: short archive header at %lu",
-		       this->afile_->filename().c_str(),
-		       static_cast<unsigned long>(this->off_));
-	      this->off_ = filesize;
-	    }
-	  this->header_.off = filesize;
-	  return;
-	}
-
-      char buf[sizeof(Archive_header)];
-      if (!this->afile_->read(this->off_, sizeof(Archive_header), buf))
+      if (this->off_ == filesize)
 	{
 	  this->header_.off = filesize;
 	  return;
 	}
 
-      const Archive_header* hdr = reinterpret_cast<const Archive_header*>(buf);
-      if (!this->afile_->interpret_header(hdr, this->off_, &this->header_.name,
-					  &this->header_.size,
-					  &this->header_.nested_off))
+      if (!this->afile_->read_header(this->off_, &this->header_.name,
+                                     &this->header_.size,
+                                     &this->header_.nested_off,
+                                     &this->next_off_))
 	{
 	  this->header_.off = filesize;
+	  this->off_ = filesize;
 	  return;
 	}
       this->header_.off = this->off_;
@@ -530,9 +789,7 @@ Archive_iterator::read_next_header()
       if (!this->header_.name.empty() && this->header_.name != "/")
 	return;
 
-      this->off_ += sizeof(Archive_header) + this->header_.size;
-      if ((this->off_ & 1) != 0)
-	++this->off_;
+      this->off_ = this->next_off_;
     }
 }
 
@@ -541,7 +798,7 @@ Archive_iterator::read_next_header()
 Archive_iterator
 archive_begin(Archive_file* afile)
 {
-  return Archive_iterator(afile, sizeof(armag));
+  return Archive_iterator(afile, afile->first_member_offset());
 }
 
 // Final iterator.

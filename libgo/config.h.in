@@ -21,6 +21,9 @@
 /* Define if your assembler supports unwind section type. */
 #undef HAVE_AS_X86_64_UNWIND_SECTION_TYPE
 
+/* Define if your assembler supports AES instructions. */
+#undef HAVE_AS_X86_AES
+
 /* Define if your assembler supports PC relative relocs. */
 #undef HAVE_AS_X86_PCREL
 
@@ -111,6 +114,9 @@
 /* Define to 1 if you have the <linux/netlink.h> header file. */
 #undef HAVE_LINUX_NETLINK_H
 
+/* Define to 1 if you have the <linux/ptrace.h> header file. */
+#undef HAVE_LINUX_PTRACE_H
+
 /* Define to 1 if you have the <linux/reboot.h> header file. */
 #undef HAVE_LINUX_REBOOT_H
 
@@ -134,6 +140,9 @@
 
 /* Define to 1 if you have the `matherr' function. */
 #undef HAVE_MATHERR
+
+/* Define to 1 if you have the `memmem' function. */
+#undef HAVE_MEMMEM
 
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
@@ -186,6 +195,9 @@
 /* Define to 1 if you have the `pipe2' function. */
 #undef HAVE_PIPE2
 
+/* Define to 1 if you have the <port.h> header file. */
+#undef HAVE_PORT_H
+
 /* Define to 1 if you have the `removexattr' function. */
 #undef HAVE_REMOVEXATTR
 
@@ -194,6 +206,9 @@
 
 /* Define to 1 if you have the <sched.h> header file. */
 #undef HAVE_SCHED_H
+
+/* Define to 1 if you have the <semaphore.h> header file. */
+#undef HAVE_SEMAPHORE_H
 
 /* Define to 1 if you have the `sem_timedwait' function. */
 #undef HAVE_SEM_TIMEDWAIT
@@ -231,30 +246,20 @@
 /* Define to 1 if <math.h> defines struct exception */
 #undef HAVE_STRUCT_EXCEPTION
 
-/* Define to 1 if the compiler provides the __sync_add_and_fetch function for
-   uint64 */
-#undef HAVE_SYNC_ADD_AND_FETCH_8
-
-/* Define to 1 if the compiler provides the __sync_bool_compare_and_swap
-   function for uint32 */
-#undef HAVE_SYNC_BOOL_COMPARE_AND_SWAP_4
-
-/* Define to 1 if the compiler provides the __sync_bool_compare_and_swap
-   function for uint64 */
-#undef HAVE_SYNC_BOOL_COMPARE_AND_SWAP_8
-
-/* Define to 1 if the compiler provides the __sync_fetch_and_add function for
-   uint32 */
-#undef HAVE_SYNC_FETCH_AND_ADD_4
-
 /* Define to 1 if you have the `sync_file_range' function. */
 #undef HAVE_SYNC_FILE_RANGE
+
+/* Define to 1 if you have the `syscall' function. */
+#undef HAVE_SYSCALL
 
 /* Define to 1 if you have the <syscall.h> header file. */
 #undef HAVE_SYSCALL_H
 
 /* Define to 1 if you have the <sys/epoll.h> header file. */
 #undef HAVE_SYS_EPOLL_H
+
+/* Define to 1 if you have the <sys/event.h> header file. */
+#undef HAVE_SYS_EVENT_H
 
 /* Define to 1 if you have the <sys/file.h> header file. */
 #undef HAVE_SYS_FILE_H
@@ -319,11 +324,11 @@
 /* Define to 1 if you have the `unlinkat' function. */
 #undef HAVE_UNLINKAT
 
+/* Define to 1 if you have the `unsetenv' function. */
+#undef HAVE_UNSETENV
+
 /* Define to 1 if you have the `unshare' function. */
 #undef HAVE_UNSHARE
-
-/* Define to 1 if you have the <ustat.h> header file and it works. */
-#undef HAVE_USTAT_H
 
 /* Define to 1 if you have the `utimensat' function. */
 #undef HAVE_UTIMENSAT
@@ -333,9 +338,6 @@
 
 /* Define to 1 if you have the `wait4' function. */
 #undef HAVE_WAIT4
-
-/* Define if the C++ compiler is configured for setjmp/longjmp exceptions. */
-#undef LIBGO_SJLJ_EXCEPTIONS
 
 /* Define if the linker support split stack adjustments */
 #undef LINKER_SUPPORTS_SPLIT_STACK

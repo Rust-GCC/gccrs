@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -81,11 +81,11 @@ package Checks is
 
    function Overflow_Check_Mode return Overflow_Mode_Type;
    --  Returns current overflow checking mode, taking into account whether
-   --  we are inside an assertion expression.
+   --  we are inside an assertion expression and the assertion policy.
 
-   ------------------------------------------
-   --  Control of Alignment Check Warnings --
-   ------------------------------------------
+   -----------------------------------------
+   -- Control of Alignment Check Warnings --
+   -----------------------------------------
 
    --  When we have address clauses, there is an issue of whether the address
    --  specified is appropriate to the alignment. In the general case where the
@@ -242,7 +242,7 @@ package Checks is
    --  flags Do_Division_Check or Do_Overflow_Check is set, then this routine
    --  ensures that the appropriate checks are made. Note that overflow can
    --  occur in the signed case for the case of the largest negative number
-   --  divided by minus one.
+   --  divided by minus one. This procedure only applies to Integer types.
 
    procedure Apply_Parameter_Aliasing_Checks
      (Call : Node_Id;
@@ -255,9 +255,14 @@ package Checks is
    --  verify the proper initialization of scalars in parameters and function
    --  results.
 
-   procedure Apply_Predicate_Check (N : Node_Id; Typ : Entity_Id);
-   --  N is an expression to which a predicate check may need to be applied
-   --  for Typ, if Typ has a predicate function.
+   procedure Apply_Predicate_Check
+     (N   : Node_Id;
+      Typ : Entity_Id;
+      Fun : Entity_Id := Empty);
+   --  N is an expression to which a predicate check may need to be applied for
+   --  Typ, if Typ has a predicate function. When N is an actual in a call, Fun
+   --  is the function being called, which is used to generate a better warning
+   --  if the call leads to an infinite recursion.
 
    procedure Apply_Type_Conversion_Checks (N : Node_Id);
    --  N is an N_Type_Conversion node. A type conversion actually involves
@@ -305,14 +310,16 @@ package Checks is
    --  then OK is True on return, and Lo and Hi are set to a conservative
    --  estimate of the possible range of values of N. Thus if OK is True on
    --  return, the value of the subexpression N is known to lie in the range
-   --  Lo .. Hi (inclusive). If the expression is not of a discrete type, or
-   --  some kind of error condition is detected, then OK is False on exit, and
-   --  Lo/Hi are set to No_Uint. Thus the significance of OK being False on
-   --  return is that no useful information is available on the range of the
-   --  expression. Assume_Valid determines whether the processing is allowed to
-   --  assume that values are in range of their subtypes. If it is set to True,
-   --  then this assumption is valid, if False, then processing is done using
-   --  base types to allow invalid values.
+   --  Lo .. Hi (inclusive). For enumeration and character literals the values
+   --  returned are the Pos value in the relevant enumeration type. If the
+   --  expression is not of a discrete type, or some kind of error condition
+   --  is detected, then OK is False on exit, and Lo/Hi are set to No_Uint.
+   --  Thus the significance of OK being False on return is that no useful
+   --  information is available on the range of the expression. Assume_Valid
+   --  determines whether the processing is allowed to assume that values are
+   --  in range of their subtypes. If it is set to True, then this assumption
+   --  is valid, if False, then processing is done using base types to allow
+   --  invalid values.
 
    procedure Determine_Range_R
      (N            : Node_Id;
@@ -331,6 +338,12 @@ package Checks is
    procedure Install_Null_Excluding_Check (N : Node_Id);
    --  Determines whether an access node requires a runtime access check and
    --  if so inserts the appropriate run-time check.
+
+   procedure Install_Primitive_Elaboration_Check (Subp_Body : Node_Id);
+   --  Insert a check which ensures that subprogram body Subp_Body has been
+   --  properly elaborated. The check is installed only when Subp_Body is the
+   --  body of a nonabstract library-level primitive of a tagged type. Further
+   --  restrictions may apply, see the body for details.
 
    function Make_Bignum_Block (Loc : Source_Ptr) return Node_Id;
    --  This function is used by top level overflow checking routines to do a
@@ -573,7 +586,7 @@ package Checks is
    --  For scalar types, constructs a range check action that first tests that
    --  the expression is contained in the Target_Typ range. The difference
    --  between this and Apply_Scalar_Range_Check is that the latter generates
-   --  the actual checking code in gigi against the Etype of the expression.
+   --  the actual checking code against the Etype of the expression.
    --
    --  For constrained array types, construct series of range check actions
    --  to check that each Expr range is properly contained in the range of
@@ -849,7 +862,12 @@ package Checks is
    --  13.9.1(9-11)) such assignments are not permitted to result in erroneous
    --  behavior in the case of invalid subscript values.
 
-   procedure Ensure_Valid (Expr : Node_Id; Holes_OK : Boolean := False);
+   procedure Ensure_Valid
+     (Expr          : Node_Id;
+      Holes_OK      : Boolean   := False;
+      Related_Id    : Entity_Id := Empty;
+      Is_Low_Bound  : Boolean   := False;
+      Is_High_Bound : Boolean   := False);
    --  Ensure that Expr represents a valid value of its type. If this type
    --  is not a scalar type, then the call has no effect, since validity
    --  is only an issue for scalar types. The effect of this call is to
@@ -865,6 +883,13 @@ package Checks is
    --  will make a separate check for this case anyway). If Holes_OK is False,
    --  then this case is checked, and code is inserted to ensure that Expr is
    --  valid, raising Constraint_Error if the value is not valid.
+   --
+   --  Related_Id denotes the entity of the context where Expr appears. Flags
+   --  Is_Low_Bound and Is_High_Bound specify whether the expression to check
+   --  is the low or the high bound of a range. These three optional arguments
+   --  signal Remove_Side_Effects to create an external symbol of the form
+   --  Chars (Related_Id)_FIRST/_LAST. For suggested use of these parameters
+   --  see the warning in the body of Sem_Ch3.Process_Range_Expr_In_Decl.
 
    function Expr_Known_Valid (Expr : Node_Id) return Boolean;
    --  This function tests it the value of Expr is known to be valid in the
@@ -876,22 +901,46 @@ package Checks is
    --  it can be determined that the value is Valid. Otherwise False is
    --  returned.
 
-   procedure Insert_Valid_Check (Expr : Node_Id);
-   --  Inserts code that will check for the value of Expr being valid, in
-   --  the sense of the 'Valid attribute returning True. Constraint_Error
-   --  will be raised if the value is not valid.
+   procedure Insert_Valid_Check
+     (Expr          : Node_Id;
+      Related_Id    : Entity_Id := Empty;
+      Is_Low_Bound  : Boolean   := False;
+      Is_High_Bound : Boolean   := False);
+   --  Inserts code that will check for the value of Expr being valid, in the
+   --  sense of the 'Valid attribute returning True. Constraint_Error will be
+   --  raised if the value is not valid.
+   --
+   --  Related_Id denotes the entity of the context where Expr appears. Flags
+   --  Is_Low_Bound and Is_High_Bound specify whether the expression to check
+   --  is the low or the high bound of a range. These three optional arguments
+   --  signal Remove_Side_Effects to create an external symbol of the form
+   --  Chars (Related_Id)_FIRST/_LAST. For suggested use of these parameters
+   --  see the warning in the body of Sem_Ch3.Process_Range_Expr_In_Decl.
 
-   procedure Null_Exclusion_Static_Checks (N : Node_Id);
-   --  Ada 2005 (AI-231): Check bad usages of the null-exclusion issue
+   procedure Null_Exclusion_Static_Checks
+     (N          : Node_Id;
+      Comp       : Node_Id := Empty;
+      Array_Comp : Boolean := False);
+   --  Ada 2005 (AI-231): Test for and warn on null-excluding objects or
+   --  components that will raise an exception due to initialization by null.
+   --
+   --  When a value for Comp is supplied (as in the case of an uninitialized
+   --  null-excluding component within a composite object), a reported warning
+   --  will indicate the offending component instead of the object itself.
+   --  Array_Comp being True indicates an array object with null-excluding
+   --  components, and any reported warning will indicate that.
 
    procedure Remove_Checks (Expr : Node_Id);
    --  Remove all checks from Expr except those that are only executed
    --  conditionally (on the right side of And Then/Or Else. This call
    --  removes only embedded checks (Do_Range_Check, Do_Overflow_Check).
 
-   procedure Validity_Check_Range (N : Node_Id);
-   --  If N is an N_Range node, then Ensure_Valid is called on its bounds,
-   --  if validity checking of operands is enabled.
+   procedure Validity_Check_Range
+     (N          : Node_Id;
+      Related_Id : Entity_Id := Empty);
+   --  If N is an N_Range node, then Ensure_Valid is called on its bounds, if
+   --  validity checking of operands is enabled. Related_Id denotes the entity
+   --  of the context where N appears.
 
    -----------------------------
    -- Handling of Check Names --
@@ -923,7 +972,7 @@ private
    --
    --    For the static case the result is one or two nodes that should cause
    --    a Constraint_Error. Typically these will include Expr itself or the
-   --    direct descendents of Expr, such as Low/High_Bound (Expr)). It is the
+   --    direct descendants of Expr, such as Low/High_Bound (Expr)). It is the
    --    responsibility of the caller to rewrite and substitute the nodes with
    --    N_Raise_Constraint_Error nodes.
    --

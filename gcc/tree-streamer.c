@@ -1,7 +1,7 @@
 /* Miscellaneous utilities for tree streaming.  Things that are used
    in both input and output are here.
 
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -23,16 +23,19 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "backend.h"
 #include "tree.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "hash-map.h"
-#include "is-a.h"
 #include "gimple.h"
-#include "streamer-hooks.h"
 #include "tree-streamer.h"
+#include "cgraph.h"
+
+/* Table indexed by machine_mode, used for 2 different purposes.
+   During streaming out we record there non-zero value for all modes
+   that were streamed out.
+   During streaming in, we translate the on the disk mode using this
+   table.  For normal LTO it is set to identity, for ACCEL_COMPILER
+   depending on the mode_table content.  */
+unsigned char streamer_mode_table[1 << 8];
 
 /* Check that all the TS_* structures handled by the streamer_write_* and
    streamer_read_* routines are exactly ALL the structures defined in
@@ -52,6 +55,7 @@ streamer_check_handled_ts_structures (void)
   handled_p[TS_TYPED] = true;
   handled_p[TS_COMMON] = true;
   handled_p[TS_INT_CST] = true;
+  handled_p[TS_POLY_INT_CST] = true;
   handled_p[TS_REAL_CST] = true;
   handled_p[TS_FIXED_CST] = true;
   handled_p[TS_VECTOR] = true;
@@ -245,6 +249,32 @@ streamer_tree_cache_lookup (struct streamer_tree_cache_d *cache, tree t,
 }
 
 
+/* Verify that NODE is in CACHE.  */
+
+static void
+verify_common_node_recorded (struct streamer_tree_cache_d *cache, tree node)
+{
+  /* Restrict this to flag_checking only because in general violating it is
+     harmless plus we never know what happens on all targets/frontend/flag(!)
+     combinations.  */
+  if (!flag_checking)
+    return;
+
+  if (cache->node_map)
+    gcc_assert (streamer_tree_cache_lookup (cache, node, NULL));
+  else
+    {
+      bool found = false;
+      gcc_assert (cache->nodes.exists ());
+      /* Linear search...  */
+      for (unsigned i = 0; !found && i < cache->nodes.length (); ++i)
+	if (cache->nodes[i] == node)
+	  found = true;
+      gcc_assert (found);
+    }
+}
+
+
 /* Record NODE in CACHE.  */
 
 static void
@@ -274,12 +304,31 @@ record_common_node (struct streamer_tree_cache_d *cache, tree node)
      in the cache as hash value.  */
   streamer_tree_cache_append (cache, node, cache->nodes.length ());
 
-  if (POINTER_TYPE_P (node)
-      || TREE_CODE (node) == COMPLEX_TYPE
-      || TREE_CODE (node) == ARRAY_TYPE)
-    record_common_node (cache, TREE_TYPE (node));
-  else if (TREE_CODE (node) == RECORD_TYPE)
+  switch (TREE_CODE (node))
     {
+    case ERROR_MARK:
+    case FIELD_DECL:
+    case FIXED_POINT_TYPE:
+    case IDENTIFIER_NODE:
+    case INTEGER_CST:
+    case INTEGER_TYPE:
+    case REAL_TYPE:
+    case TREE_LIST:
+    case VOID_CST:
+    case VOID_TYPE:
+      /* No recursive trees.  */
+      break;
+    case ARRAY_TYPE:
+    case POINTER_TYPE:
+    case REFERENCE_TYPE:
+      record_common_node (cache, TREE_TYPE (node));
+      break;
+    case COMPLEX_TYPE:
+      /* Verify that a complex type's component type (node_type) has been
+	 handled already (and we thus don't need to recurse here).  */
+      verify_common_node_recorded (cache, TREE_TYPE (node));
+      break;
+    case RECORD_TYPE:
       /* The FIELD_DECLs of structures should be shared, so that every
 	 COMPONENT_REF uses the same tree node when referencing a field.
 	 Pointer equality between FIELD_DECLs is used by the alias
@@ -288,6 +337,10 @@ record_common_node (struct streamer_tree_cache_d *cache, tree node)
 	 nonoverlapping_component_refs_of_decl_p).  */
       for (tree f = TYPE_FIELDS (node); f; f = TREE_CHAIN (f))
 	record_common_node (cache, f);
+      break;
+    default:
+      /* Unexpected tree code.  */
+      gcc_unreachable ();
     }
 }
 
@@ -312,7 +365,25 @@ preload_common_nodes (struct streamer_tree_cache_d *cache)
     /* Skip boolean type and constants, they are frontend dependent.  */
     if (i != TI_BOOLEAN_TYPE
 	&& i != TI_BOOLEAN_FALSE
-	&& i != TI_BOOLEAN_TRUE)
+	&& i != TI_BOOLEAN_TRUE
+	/* MAIN_IDENTIFIER is not always initialized by Fortran FE.  */
+	&& i != TI_MAIN_IDENTIFIER
+	/* PID_TYPE is initialized only by C family front-ends.  */
+	&& i != TI_PID_TYPE
+	/* Skip optimization and target option nodes; they depend on flags.  */
+	&& i != TI_OPTIMIZATION_DEFAULT
+	&& i != TI_OPTIMIZATION_CURRENT
+	&& i != TI_TARGET_OPTION_DEFAULT
+	&& i != TI_TARGET_OPTION_CURRENT
+	&& i != TI_CURRENT_TARGET_PRAGMA
+	&& i != TI_CURRENT_OPTIMIZE_PRAGMA
+	/* Skip va_list* related nodes if offloading.  For native LTO
+	   we want them to be merged for the stdarg pass, for offloading
+	   they might not be identical between host and offloading target.  */
+	&& (!lto_stream_offload_p
+	    || (i != TI_VA_LIST_TYPE
+		&& i != TI_VA_LIST_GPR_COUNTER_FIELD
+		&& i != TI_VA_LIST_FPR_COUNTER_FIELD)))
       record_common_node (cache, global_trees[i]);
 }
 

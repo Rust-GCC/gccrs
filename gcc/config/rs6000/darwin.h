@@ -1,5 +1,5 @@
 /* Target definitions for PowerPC running Darwin (Mac OS X).
-   Copyright (C) 1997-2014 Free Software Foundation, Inc.
+   Copyright (C) 1997-2019 Free Software Foundation, Inc.
    Contributed by Apple Computer Inc.
 
    This file is part of GCC.
@@ -93,7 +93,6 @@ extern int darwin_emit_branch_islands;
   %(cc1_cpu) \
   %{g: %{!fno-eliminate-unused-debug-symbols: -feliminate-unused-debug-symbols }} \
   %{static: %{Zdynamic: %e conflicting code gen style switches are used}}\
-  %{!mmacosx-version-min=*:-mmacosx-version-min=%(darwin_minversion)} \
   %{!mkernel:%{!static:%{!mdynamic-no-pic:-fPIC}}} \
   %{faltivec:-maltivec -include altivec.h} %{fno-altivec:-mno-altivec} \
   %<faltivec %<fno-altivec " \
@@ -120,20 +119,16 @@ extern int darwin_emit_branch_islands;
    mcpu=G5:ppc970;				\
    :ppc}}"
 
+/* We need to jam the crt to 10.5 for 10.6 (Rosetta) use.  */
+#undef DARWIN_CRT1_SPEC
+#define DARWIN_CRT1_SPEC						\
+  "%:version-compare(!> 10.5 mmacosx-version-min= -lcrt1.o)		\
+   %:version-compare(>< 10.5 10.7 mmacosx-version-min= -lcrt1.10.5.o)	\
+   %{fgnu-tm: -lcrttms.o}"
+
 /* crt2.o is at least partially required for 10.3.x and earlier.  */
 #define DARWIN_CRT2_SPEC \
   "%{!m64:%:version-compare(!> 10.4 mmacosx-version-min= crt2.o%s)}"
-
-/* Determine a minimum version based on compiler options.  */
-#define DARWIN_MINVERSION_SPEC					\
-  "%{m64:%{fgnu-runtime:10.4;					\
-	   ,objective-c|,objc-cpp-output:10.5;			\
-	   ,objective-c-header:10.5;				\
-	   ,objective-c++|,objective-c++-cpp-output:10.5;	\
-	   ,objective-c++-header|,objc++-cpp-output:10.5;	\
-	   :10.4};						\
-     shared-libgcc:10.3;					\
-     :10.1}"
 
 #undef SUBTARGET_EXTRA_SPECS
 #define SUBTARGET_EXTRA_SPECS			\
@@ -141,6 +136,12 @@ extern int darwin_emit_branch_islands;
   { "darwin_arch", DARWIN_ARCH_SPEC },		\
   { "darwin_crt2", DARWIN_CRT2_SPEC },		\
   { "darwin_subarch", DARWIN_SUBARCH_SPEC },
+
+/* We need to jam the dylib crt to 10.5 for 10.6 (Rosetta) use.  */
+#undef DARWIN_DYLIB1_SPEC
+#define DARWIN_DYLIB1_SPEC						\
+  "%:version-compare(!> 10.5 mmacosx-version-min= -ldylib1.o)		\
+   %:version-compare(>< 10.5 10.7 mmacosx-version-min= -ldylib1.10.5.o)"
 
 /* Output a .machine directive.  */
 #undef TARGET_ASM_FILE_START
@@ -158,19 +159,45 @@ extern int darwin_emit_branch_islands;
 #undef  RS6000_PIC_OFFSET_TABLE_REGNUM
 #define RS6000_PIC_OFFSET_TABLE_REGNUM 31
 
-/* Pad the outgoing args area to 16 bytes instead of the usual 8.  */
+/* Darwin's stack must remain 16-byte aligned for both 32 and 64 bit
+   ABIs.  */
 
-#undef STARTING_FRAME_OFFSET
-#define STARTING_FRAME_OFFSET						\
-  (FRAME_GROWS_DOWNWARD							\
-   ? 0									\
-   : (RS6000_ALIGN (crtl->outgoing_args_size, 16)		\
-      + RS6000_SAVE_AREA))
+#undef  STACK_BOUNDARY
+#define STACK_BOUNDARY 128
+
+/* Offset within stack frame to start allocating local variables at.
+   For supported Darwin versions, FRAME_GROWS_DOWNWARD is true, therefore
+   this value is the offset to the END of the first local allocated.
+
+   On the RS/6000, the frame pointer is the same as the stack pointer,
+   except for dynamic allocations.  So we start after the fixed area and
+   outgoing parameter area.
+
+   If the function uses dynamic stack space (CALLS_ALLOCA is set), that
+   space needs to be aligned to STACK_BOUNDARY, i.e. the sum of the
+   sizes of the fixed area and the parameter area must be a multiple of
+   STACK_BOUNDARY.  */
+
+#undef RS6000_STARTING_FRAME_OFFSET
+#define RS6000_STARTING_FRAME_OFFSET					\
+  (cfun->calls_alloca							\
+   ? RS6000_ALIGN (crtl->outgoing_args_size + RS6000_SAVE_AREA, 16)	\
+   : (RS6000_ALIGN (crtl->outgoing_args_size, 16) + RS6000_SAVE_AREA))
+
+/* Offset from the stack pointer register to an item dynamically
+   allocated on the stack, e.g., by `alloca'.
+
+   The default value for this macro is `STACK_POINTER_OFFSET' plus the
+   length of the outgoing arguments.  The default is correct for most
+   machines.  See `function.c' for details.
+
+   This value must be a multiple of STACK_BOUNDARY (hard coded in
+   `emit-rtl.c').  */
 
 #undef STACK_DYNAMIC_OFFSET
 #define STACK_DYNAMIC_OFFSET(FUNDECL)					\
-  (RS6000_ALIGN (crtl->outgoing_args_size, 16)		\
-   + (STACK_POINTER_OFFSET))
+  RS6000_ALIGN (crtl->outgoing_args_size.to_constant()			\
+		+ STACK_POINTER_OFFSET, 16)
 
 /* Darwin uses a function call if everything needs to be saved/restored.  */
 
@@ -204,7 +231,6 @@ extern int darwin_emit_branch_islands;
     "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23",             \
     "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31",             \
     "vrsave", "vscr",							\
-    "spe_acc", "spefscr",                                               \
     "sfp",								\
     "tfhar", "tfiar", "texasr"						\
 }
@@ -287,6 +313,9 @@ extern int darwin_emit_branch_islands;
 #undef  TARGET_IEEEQUAD
 #define TARGET_IEEEQUAD 0
 
+#undef  TARGET_IEEEQUAD_DEFAULT
+#define TARGET_IEEEQUAD_DEFAULT 0
+
 /* Since Darwin doesn't do TOCs, stub this out.  */
 
 #define ASM_OUTPUT_SPECIAL_POOL_ENTRY_P(X, MODE)  ((void)X, (void)MODE, 0)
@@ -313,11 +342,11 @@ extern int darwin_emit_branch_islands;
   ((CONSTANT_P (X)						\
     && reg_classes_intersect_p ((CLASS), FLOAT_REGS))		\
    ? NO_REGS							\
-   : ((GET_CODE (X) == SYMBOL_REF || GET_CODE (X) == HIGH)	\
+   : ((SYMBOL_REF_P (X) || GET_CODE (X) == HIGH)		\
       && reg_class_subset_p (BASE_REGS, (CLASS)))		\
    ? BASE_REGS							\
    : (GET_MODE_CLASS (GET_MODE (X)) == MODE_INT			\
-      && (CLASS) == NON_SPECIAL_REGS)				\
+      && (CLASS) == GEN_OR_FLOAT_REGS)				\
    ? GENERAL_REGS						\
    : (CLASS))
 
@@ -327,7 +356,7 @@ extern int darwin_emit_branch_islands;
    suppressed for vector and long double items (both 128 in size).
    There is a dummy use of the FIELD argument to avoid an unused variable
    warning (see PR59496).  */
-#define ADJUST_FIELD_ALIGN(FIELD, COMPUTED)			\
+#define ADJUST_FIELD_ALIGN(FIELD, TYPE, COMPUTED)		\
   ((void) (FIELD),						\
     (TARGET_ALIGN_NATURAL					\
      ? (COMPUTED)						\
@@ -352,7 +381,7 @@ extern int darwin_emit_branch_islands;
    registers and memory.  FIRST is nonzero if this is the only
    element.  */
 #define BLOCK_REG_PADDING(MODE, TYPE, FIRST) \
-  (!(FIRST) ? upward : FUNCTION_ARG_PADDING (MODE, TYPE))
+  (!(FIRST) ? PAD_UPWARD : targetm.calls.function_arg_padding (MODE, TYPE))
 
 #define DOUBLE_INT_ASM_OP "\t.quad\t"
 
@@ -424,3 +453,7 @@ do {									\
 /* So far, there is no rs6000_fold_builtin, if one is introduced, then
    this will need to be modified similar to the x86 case.  */
 #define TARGET_FOLD_BUILTIN SUBTARGET_FOLD_BUILTIN
+
+/* Use standard DWARF numbering for DWARF debugging information.  */
+#define RS6000_USE_DWARF_NUMBERING
+

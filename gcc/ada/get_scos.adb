@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2009-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 2009-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -302,9 +302,8 @@ begin
                      From       => SCO_Table.Last + 1,
                      To         => 0));
 
-                     when others =>
-                        raise Program_Error;
-
+               when others =>
+                  raise Program_Error;
             end case;
 
          --  Statement entry

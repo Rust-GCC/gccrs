@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -38,7 +38,6 @@ with Set_Targ; use Set_Targ;
 with Targparm; use Targparm;
 with Tbuild;   use Tbuild;
 with Ttypes;   use Ttypes;
-with Scn;
 with Sem_Mech; use Sem_Mech;
 with Sem_Util; use Sem_Util;
 with Sinfo;    use Sinfo;
@@ -63,15 +62,22 @@ package body CStand is
    -----------------------
 
    procedure Build_Float_Type
-     (E    : Entity_Id;
-      Siz  : Int;
-      Rep  : Float_Rep_Kind;
-      Digs : Int);
+     (E     : Entity_Id;
+      Digs  : Int;
+      Rep   : Float_Rep_Kind;
+      Siz   : Int;
+      Align : Int);
    --  Procedure to build standard predefined float base type. The first
-   --  parameter is the entity for the type, and the second parameter is the
-   --  size in bits. The third parameter indicates the kind of representation
-   --  to be used. The fourth parameter is the digits value. Each type
+   --  parameter is the entity for the type. The second parameter is the
+   --  digits value. The third parameter indicates the representation to
+   --  be used for the type. The fourth parameter is the size in bits.
+   --  The fifth parameter is the alignment in storage units. Each type
    --  is added to the list of predefined floating point types.
+   --
+   --  Note that both RM_Size and Esize are set to the specified size, i.e.
+   --  we do not set the RM_Size to the precision passed by the back end.
+   --  This is consistent with the semantics of 'Size specified in the RM
+   --  because we cannot pack components of the type tighter than this size.
 
    procedure Build_Signed_Integer_Type (E : Entity_Id; Siz : Nat);
    --  Procedure to build standard predefined signed integer subtype. The
@@ -190,10 +196,11 @@ package body CStand is
    ----------------------
 
    procedure Build_Float_Type
-     (E    : Entity_Id;
-      Siz  : Int;
-      Rep  : Float_Rep_Kind;
-      Digs : Int)
+     (E     : Entity_Id;
+      Digs  : Int;
+      Rep   : Float_Rep_Kind;
+      Siz   : Int;
+      Align : Int)
    is
    begin
       Set_Type_Definition (Parent (E),
@@ -202,10 +209,10 @@ package body CStand is
 
       Set_Ekind                      (E, E_Floating_Point_Type);
       Set_Etype                      (E, E);
-      Set_Float_Rep (E, Rep);
-      Init_Size                      (E, Siz);
-      Set_Elem_Alignment             (E);
       Init_Digits_Value              (E, Digs);
+      Set_Float_Rep                  (E, Rep);
+      Init_Size                      (E, Siz);
+      Set_Elem_Alignment             (E, Align);
       Set_Float_Bounds               (E);
       Set_Is_Frozen                  (E);
       Set_Is_Public                  (E);
@@ -296,8 +303,9 @@ package body CStand is
 
    procedure Copy_Float_Type (To : Entity_Id; From : Entity_Id) is
    begin
-      Build_Float_Type (To, UI_To_Int (Esize (From)), Float_Rep (From),
-                        UI_To_Int (Digits_Value (From)));
+      Build_Float_Type
+        (To, UI_To_Int (Digits_Value (From)), Float_Rep (From),
+         UI_To_Int (Esize (From)), UI_To_Int (Alignment (From)));
    end Copy_Float_Type;
 
    ----------------------
@@ -504,45 +512,26 @@ package body CStand is
 
          Copy_Float_Type
            (Standard_Short_Float,
-            Find_Back_End_Float_Type ("float"));
+            Find_Back_End_Float_Type (C_Type_For (S_Short_Float)));
          Set_Is_Implementation_Defined (Standard_Short_Float);
 
          Copy_Float_Type (Standard_Float, Standard_Short_Float);
 
-         Copy_Float_Type (Standard_Long_Float,
-           Find_Back_End_Float_Type ("double"));
+         Copy_Float_Type
+           (Standard_Long_Float,
+            Find_Back_End_Float_Type (C_Type_For (S_Long_Float)));
+
+         Copy_Float_Type
+           (Standard_Long_Long_Float,
+            Find_Back_End_Float_Type (C_Type_For (S_Long_Long_Float)));
+         Set_Is_Implementation_Defined (Standard_Long_Long_Float);
 
          Predefined_Float_Types := New_Elmt_List;
+
          Append_Elmt (Standard_Short_Float, Predefined_Float_Types);
          Append_Elmt (Standard_Float, Predefined_Float_Types);
          Append_Elmt (Standard_Long_Float, Predefined_Float_Types);
-
-         --  ??? For now, we don't have a good way to tell the widest float
-         --  type with hardware support. Basically, GCC knows the size of that
-         --  type, but on x86-64 there often are two or three 128-bit types,
-         --  one double extended that has 18 decimal digits, a 128-bit quad
-         --  precision type with 33 digits and possibly a 128-bit decimal float
-         --  type with 34 digits. As a workaround, we define Long_Long_Float as
-         --  C's "long double" if that type exists and has at most 18 digits,
-         --  or otherwise the same as Long_Float.
-
-         declare
-            Max_HW_Digs : constant := 18;
-            --  Maximum hardware digits supported
-
-            LLF : Entity_Id := Find_Back_End_Float_Type ("long double");
-            --  Entity for long double type
-
-         begin
-            if No (LLF) or else Digits_Value (LLF) > Max_HW_Digs then
-               LLF := Standard_Long_Float;
-            end if;
-
-            Set_Is_Implementation_Defined (Standard_Long_Long_Float);
-            Copy_Float_Type (Standard_Long_Long_Float, LLF);
-
-            Append_Elmt (Standard_Long_Long_Float, Predefined_Float_Types);
-         end;
+         Append_Elmt (Standard_Long_Long_Float, Predefined_Float_Types);
 
          --  Any other back end types are appended at the end of the list of
          --  predefined float types, and will only be selected if the none of
@@ -601,10 +590,6 @@ package body CStand is
    --  Start of processing for Create_Standard
 
    begin
-      --  Initialize scanner for internal scans of literals
-
-      Scn.Initialize_Scanner (No_Unit, Internal_Source_File);
-
       --  First step is to create defining identifiers for each entity
 
       for S in Standard_Entity_Type loop
@@ -735,6 +720,7 @@ package body CStand is
 
       Build_Signed_Integer_Type
         (Standard_Short_Integer, Standard_Short_Integer_Size);
+      Set_Is_Implementation_Defined (Standard_Short_Integer);
 
       Build_Signed_Integer_Type
         (Standard_Integer, Standard_Integer_Size);
@@ -1199,7 +1185,7 @@ package body CStand is
       --  Any_Integer is given reasonable and consistent type and size values)
 
       Any_Type := New_Standard_Entity ("any type");
-      Decl := New_Node (N_Full_Type_Declaration, Stloc);
+      Decl     := New_Node (N_Full_Type_Declaration, Stloc);
       Set_Defining_Identifier (Decl, Any_Type);
       Set_Scope (Any_Type, Standard_Standard);
       Build_Signed_Integer_Type (Any_Type, Standard_Integer_Size);
@@ -1217,6 +1203,8 @@ package body CStand is
       Set_Etype             (Any_Access, Any_Access);
       Init_Size             (Any_Access, System_Address_Size);
       Set_Elem_Alignment    (Any_Access);
+      Set_Directly_Designated_Type
+                            (Any_Access, Any_Type);
 
       Any_Character := New_Standard_Entity ("a character type");
       Set_Ekind             (Any_Character, E_Enumeration_Type);
@@ -1443,8 +1431,8 @@ package body CStand is
             Dhi := Intval (Type_High_Bound (Standard_Integer_32));
             Delta_Val := UR_From_Components (UI_From_Int (20), Uint_3, 10);
 
-         --  In standard 64-bit mode, the size is 64-bits and the delta and
-         --  small values are set to nanoseconds (1.0*(10.0**(-9))
+         --  In 64-bit mode, the size is 64-bits and the delta and
+         --  small values are set to nanoseconds (1.0*(10.0**(-9)).
 
          else
             Dlo := Intval (Type_Low_Bound (Standard_Integer_64));
@@ -2051,13 +2039,13 @@ package body CStand is
 
       if Duration_32_Bits_On_Target then
          P ("   type Duration is delta 0.020");
-         P ("     range -((2 ** 31 - 1) * 0.020) ..");
+         P ("     range -((2 ** 31)     * 0.020) ..");
          P ("           +((2 ** 31 - 1) * 0.020);");
          P ("   for Duration'Small use 0.020;");
 
       else
          P ("   type Duration is delta 0.000000001");
-         P ("     range -((2 ** 63 - 1) * 0.000000001) ..");
+         P ("     range -((2 ** 63)     * 0.000000001) ..");
          P ("           +((2 ** 63 - 1) * 0.000000001);");
          P ("   for Duration'Small use 0.000000001;");
       end if;
@@ -2086,15 +2074,17 @@ package body CStand is
       Size      : Positive;
       Alignment : Natural)
    is
+      pragma Unreferenced (Precision);
+      --  See Build_Float_Type for the rationale
+
       Ent : constant Entity_Id := New_Standard_Entity;
 
    begin
       Set_Defining_Identifier (New_Node (N_Full_Type_Declaration, Stloc), Ent);
       Make_Name (Ent, Name);
       Set_Scope (Ent, Standard_Standard);
-      Build_Float_Type (Ent, Int (Size), Float_Rep, Pos (Digs));
-      Set_RM_Size (Ent, UI_From_Int (Int (Precision)));
-      Set_Alignment (Ent, UI_From_Int (Int (Alignment / 8)));
+      Build_Float_Type
+        (Ent, Pos (Digs), Float_Rep, Int (Size), Int (Alignment / 8));
 
       if No (Back_End_Float_Types) then
          Back_End_Float_Types := New_Elmt_List;

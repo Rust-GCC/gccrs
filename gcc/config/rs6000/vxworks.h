@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler.  Vxworks PowerPC version.
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
    Contributed by CodeSourcery, LLC.
 
 This file is part of GCC.
@@ -60,12 +60,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #define SUBTARGET_EXTRA_SPECS /* none needed */
 
-/* VxWorks and VxWorksAE (aka 653) expect different CPU values to designate
-   SPE on 8548.  We define a dedicated macro for the base VxWorks here, which
-   the AE configuration will override.  */
-
-#define VXCPU_FOR_8548 "PPC85XX"
-
 /* FIXME: The only reason we allow no -mcpu switch at all is because
    config-ml.in insists on a "." multilib. */
 #define CPP_SPEC \
@@ -79,7 +73,7 @@ along with GCC; see the file COPYING3.  If not see
      mcpu=604 : -DCPU=PPC604  ; \
      mcpu=860 : -DCPU=PPC860  ; \
      mcpu=8540: -DCPU=PPC85XX ; \
-     mcpu=8548: -DCPU=" VXCPU_FOR_8548 "; \
+     mcpu=8548: -DCPU=PPC85XX ; \
               : -DCPU=PPC604  }}" \
 VXWORKS_ADDITIONAL_CPP_SPEC
 
@@ -90,12 +84,19 @@ VXWORKS_ADDITIONAL_CPP_SPEC
 #define ASM_SPEC \
 "%(asm_cpu) \
  %{,assembler|,assembler-with-cpp: %{mregnames} %{mno-regnames}} \
- %{mrelocatable} %{mrelocatable-lib} %{fpic:-K PIC} %{fPIC:-K PIC} -mbig"
+ %{mrelocatable} %{mrelocatable-lib} %{" FPIC_SPEC ":-K PIC} -mbig"
 
 #undef  LIB_SPEC
 #define LIB_SPEC VXWORKS_LIB_SPEC
+
+/* For RTPs, leverage linker relaxation.  This helps programs referring
+   to, typically, kernel services too far away for short calls.  This is more
+   precise than -mlongcall and can be overriden with -Wl,--no-relax.  */
+#define VXWORKS_RELAX_LINK_SPEC "%{mrtp:--relax}"
+
 #undef  LINK_SPEC
-#define LINK_SPEC VXWORKS_LINK_SPEC
+#define LINK_SPEC VXWORKS_LINK_SPEC " " VXWORKS_RELAX_LINK_SPEC
+
 #undef  STARTFILE_SPEC
 #define STARTFILE_SPEC VXWORKS_STARTFILE_SPEC
 #undef  ENDFILE_SPEC
@@ -115,7 +116,7 @@ VXWORKS_ADDITIONAL_CPP_SPEC
 #undef SDATA_DEFAULT_SIZE
 #define SDATA_DEFAULT_SIZE (TARGET_VXWORKS_RTP ? 8 : 0)
 
-/* Enforce 16bytes alignment for the stack pointer, to permit general
+/* Enforce 16-byte alignment for the stack pointer, to permit general
    compliance with e.g. Altivec instructions requirements.  Make sure
    this isn't overruled by the EABI constraints.  */
 
@@ -126,6 +127,17 @@ VXWORKS_ADDITIONAL_CPP_SPEC
 #define PREFERRED_STACK_BOUNDARY STACK_BOUNDARY
 
 #undef  ABI_STACK_BOUNDARY
+
+#undef RS6000_STARTING_FRAME_OFFSET
+#define RS6000_STARTING_FRAME_OFFSET					\
+  (cfun->calls_alloca							\
+   ? RS6000_ALIGN (crtl->outgoing_args_size + RS6000_SAVE_AREA, 16)	\
+   : (RS6000_ALIGN (crtl->outgoing_args_size, 16) + RS6000_SAVE_AREA))
+
+#undef STACK_DYNAMIC_OFFSET
+#define STACK_DYNAMIC_OFFSET(FUNDECL)					\
+   RS6000_ALIGN (crtl->outgoing_args_size.to_constant ()		\
+		 + STACK_POINTER_OFFSET, 16)
 
 #undef SUBSUBTARGET_OVERRIDE_OPTIONS
 #define SUBSUBTARGET_OVERRIDE_OPTIONS		\
@@ -138,3 +150,10 @@ VXWORKS_ADDITIONAL_CPP_SPEC
 /* No _mcount profiling on VxWorks.  */
 #undef FUNCTION_PROFILER
 #define FUNCTION_PROFILER(FILE,LABELNO) VXWORKS_FUNCTION_PROFILER(FILE,LABELNO)
+
+/* Define this to be nonzero if static stack checking is supported.  */
+#define STACK_CHECK_STATIC_BUILTIN 1
+
+/* This platform supports the probing method of stack checking (RTP mode).
+   8K is reserved in the stack to propagate exceptions in case of overflow.  */
+#define STACK_CHECK_PROTECT 8192

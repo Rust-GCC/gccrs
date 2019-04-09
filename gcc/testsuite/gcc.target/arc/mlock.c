@@ -1,6 +1,6 @@
-/* { dg-do compile } */
 /* { dg-options "-mlock" } */
 /* { dg-do assemble } */
+/* { dg-skip-if "" { arc6xx } } */
 
 int f (void *p)
 {

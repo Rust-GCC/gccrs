@@ -1,6 +1,6 @@
 // 1999-07-01 bkoz
 
-// Copyright (C) 1999-2014 Free Software Foundation, Inc.
+// Copyright (C) 1999-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -23,6 +23,8 @@
 // working, not to mention other major details like char_traits, and
 // all of the string class.
 
+// { dg-require-fileio "" }
+
 #include <string>
 #include <fstream>
 #include <iostream>
@@ -33,7 +35,7 @@
 // mode == out
 void test05(std::size_t size)
 {
-  bool test __attribute__((unused)) = true;
+  bool test = true;
   const char filename[] = "inserters_extractors-1.txt";
   const wchar_t fillc = L'f';
   std::wofstream ofs(filename);

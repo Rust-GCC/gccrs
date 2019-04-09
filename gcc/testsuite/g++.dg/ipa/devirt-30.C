@@ -1,4 +1,5 @@
 // PR c++/58678
+// { dg-do compile }
 // { dg-options "-O3 -fdump-ipa-devirt" }
 
 // We shouldn't speculatively devirtualize to ~B because B is an abstract
@@ -22,4 +23,3 @@ void f(B* b)
 }
 
 // { dg-final { scan-ipa-dump-not "Speculatively devirtualizing" "devirt" } }
-// { dg-final { cleanup-ipa-dump "devirt" } }

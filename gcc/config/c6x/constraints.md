@@ -1,5 +1,5 @@
 ;; Constraint definitions for TI C6X.
-;; Copyright (C) 2010-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2019 Free Software Foundation, Inc.
 ;; Contributed by Andrew Jenner <andrew@codesourcery.com>
 ;; Contributed by Bernd Schmidt <bernds@codesourcery.com>
 ;; Contributed by CodeSourcery.
@@ -159,6 +159,11 @@ not C64X or higher).")
   "@internal
    Any SYMBOL_REF or LABEL_REF."
   (ior (match_code "symbol_ref") (match_code "label_ref")))
+
+(define_constraint "S3"
+  "Matches a symbolic integer constant, even if invalid for PIC."
+  (and (match_test "CONSTANT_P (op)")
+       (match_test "!CONST_SCALAR_INT_P (op)")))
 
 (define_constraint "Si"
   "@internal

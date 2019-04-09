@@ -1,6 +1,6 @@
-/* Test that IPA-CP is able to figure out that poth parameters a are constant 7
+/* Test that IPA-CP is able to figure out that both parameters a are constant 7
    even though f and h recursively call each other and specialize them
-   accordinly.  */
+   accordingly.  */
 
 /* { dg-do compile } */
 /* { dg-options "-O3 -fipa-cp -fipa-cp-clone -fdump-ipa-cp -fno-early-inlining"  } */
@@ -47,6 +47,5 @@ main (int argc, char *argv[])
 
 /* { dg-final { scan-ipa-dump "Creating a specialized node of f.*for all known contexts" "cp" } } */
 /* { dg-final { scan-ipa-dump "replacing param .0 a with const 7" "cp"  } } */
-/* { dg-final { cleanup-ipa-dump "cp" } } */
 
 

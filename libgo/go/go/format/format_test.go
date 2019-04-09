@@ -72,6 +72,7 @@ func TestSource(t *testing.T) {
 }
 
 // Test cases that are expected to fail are marked by the prefix "ERROR".
+// The formatted result must look the same as the input for successful tests.
 var tests = []string{
 	// declaration lists
 	`import "go/format"`,
@@ -87,7 +88,27 @@ var tests = []string{
 	"\tx := 0\n\tgo f()\n\n\n",
 	"\n\t\t\n\n\tx := 0\n\tgo f()\n\n\n",
 	"\n\t\t\n\n\t\t\tx := 0\n\t\t\tgo f()\n\n\n",
-	"\n\t\t\n\n\t\t\tx := 0\n\t\t\tconst s = `\nfoo\n`\n\n\n", // no indentation inside raw strings
+	"\n\t\t\n\n\t\t\tx := 0\n\t\t\tconst s = `\nfoo\n`\n\n\n",     // no indentation added inside raw strings
+	"\n\t\t\n\n\t\t\tx := 0\n\t\t\tconst s = `\n\t\tfoo\n`\n\n\n", // no indentation removed inside raw strings
+
+	// comments
+	"/* Comment */",
+	"\t/* Comment */ ",
+	"\n/* Comment */ ",
+	"i := 5 /* Comment */",         // issue #5551
+	"\ta()\n//line :1",             // issue #11276
+	"\t//xxx\n\ta()\n//line :2",    // issue #11276
+	"\ta() //line :1\n\tb()\n",     // issue #11276
+	"x := 0\n//line :1\n//line :2", // issue #11276
+
+	// whitespace
+	"",     // issue #11275
+	" ",    // issue #11275
+	"\t",   // issue #11275
+	"\t\t", // issue #11275
+	"\n",   // issue #11275
+	"\n\n", // issue #11275
+	"\t\n", // issue #11275
 
 	// erroneous programs
 	"ERROR1 + 2 +",

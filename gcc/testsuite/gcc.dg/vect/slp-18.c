@@ -1,4 +1,5 @@
 /* { dg-require-effective-target vect_int } */
+/* { dg-require-effective-target vect_float } */
 /* { dg-require-effective-target vect_intfloat_cvt } */
 
 #include <stdarg.h>
@@ -93,5 +94,4 @@ int main (void)
 
 /* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" { target vect_strided8 } } } */
 /* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 2 "vect" { target vect_strided8 } } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */
   

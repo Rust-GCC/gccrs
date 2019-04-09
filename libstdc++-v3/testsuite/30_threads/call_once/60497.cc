@@ -1,11 +1,10 @@
-// { dg-do compile { target *-*-freebsd* *-*-dragonfly* *-*-netbsd* *-*-linux* *-*-gnu* *-*-solaris* *-*-cygwin *-*-darwin* powerpc-ibm-aix* } }
-// { dg-options " -std=gnu++11 -pthread" { target *-*-freebsd* *-*-dragonfly* *-*-netbsd* *-*-linux* *-*-gnu* powerpc-ibm-aix* } }
-// { dg-options " -std=gnu++11 -pthreads" { target *-*-solaris* } }
-// { dg-options " -std=gnu++11 " { target *-*-cygwin *-*-darwin* } }
-// { dg-require-cstdint "" }
+// { dg-do compile }
+// { dg-options "-pthread"  }
+// { dg-require-effective-target c++11 }
+// { dg-require-effective-target pthread }
 // { dg-require-gthreads "" }
 
-// Copyright (C) 2014 Free Software Foundation, Inc.
+// Copyright (C) 2014-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,6 +25,7 @@
 
 #include <mutex>
 #include <memory>
+#include <functional>
 
 struct A;
 template<typename T> struct B { T t; };

@@ -1,5 +1,5 @@
 /* Common hooks for IBM RS/6000.
-   Copyright (C) 1991-2014 Free Software Foundation, Inc.
+   Copyright (C) 1991-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -31,7 +31,8 @@
 /* Implement TARGET_OPTION_OPTIMIZATION_TABLE.  */
 static const struct default_options rs6000_option_optimization_table[] =
   {
-    { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
+    /* Enable -fsched-pressure for first pass instruction scheduling.  */
+    { OPT_LEVELS_1_PLUS, OPT_fsched_pressure, NULL, 1 },
     { OPT_LEVELS_NONE, 0, NULL, 0 }
   };
 
@@ -48,6 +49,15 @@ rs6000_option_init_struct (struct gcc_options *opts)
   /* Enable section anchors by default.  */
   if (!TARGET_MACHO)
     opts->x_flag_section_anchors = 1;
+
+  /* By default, always emit DWARF-2 unwind info.  This allows debugging
+     without maintaining a stack frame back-chain.  It also allows the
+     debugger to find out where on-entry register values are stored at any
+     point in a function, without having to analyze the executable code (which
+     isn't even possible to do in the general case).  */
+#ifdef OBJECT_FORMAT_ELF
+  opts->x_flag_asynchronous_unwind_tables = 1;
+#endif
 }
 
 /* Implement TARGET_OPTION_DEFAULT_PARAMS.  */
@@ -73,7 +83,6 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
 		      const struct cl_decoded_option *decoded,
 		      location_t loc)
 {
-  enum fpu_type_t fpu_type = FPU_NONE;
   char *p, *q;
   size_t code = decoded->opt_index;
   const char *arg = decoded->arg;
@@ -169,7 +178,7 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
 	  else if (! strcmp (q, "builtin"))
 	    mask = MASK_DEBUG_BUILTIN;
 	  else
-	    error_at (loc, "unknown -mdebug-%s switch", q);
+	    error_at (loc, "unknown %<-mdebug-%s%> switch", q);
 
 	  if (invert)
 	    opts->x_rs6000_debug &= ~mask;
@@ -205,79 +214,13 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
       break;
 #endif
 
-    case OPT_mabi_altivec:
-      /* Enabling the AltiVec ABI turns off the SPE ABI.  */
-      opts->x_rs6000_spe_abi = 0;
-      break;
-
-    case OPT_mabi_spe:
-      opts->x_rs6000_altivec_abi = 0;
-      break;
-
     case OPT_mlong_double_:
       if (value != 64 && value != 128)
 	{
-	  error_at (loc, "unknown switch -mlong-double-%s", arg);
+	  error_at (loc, "unknown switch %<-mlong-double-%s%>", arg);
 	  opts->x_rs6000_long_double_type_size
 	    = RS6000_DEFAULT_LONG_DOUBLE_SIZE;
 	  return false;
-	}
-      break;
-
-    case OPT_msingle_float:
-      if (!TARGET_SINGLE_FPU) 
-	warning_at (loc, 0,
-		    "-msingle-float option equivalent to -mhard-float");
-      /* -msingle-float implies -mno-double-float and TARGET_HARD_FLOAT. */
-      opts->x_rs6000_double_float = 0;
-      opts->x_rs6000_isa_flags &= ~OPTION_MASK_SOFT_FLOAT;
-      opts_set->x_rs6000_isa_flags |= OPTION_MASK_SOFT_FLOAT;
-      break;
-
-    case OPT_mdouble_float:
-      /* -mdouble-float implies -msingle-float and TARGET_HARD_FLOAT. */
-      opts->x_rs6000_single_float = 1;
-      opts->x_rs6000_isa_flags &= ~OPTION_MASK_SOFT_FLOAT;
-      opts_set->x_rs6000_isa_flags |= OPTION_MASK_SOFT_FLOAT;
-      break;
-
-    case OPT_msimple_fpu:
-      if (!TARGET_SINGLE_FPU) 
-	warning_at (loc, 0, "-msimple-fpu option ignored");
-      break;
-
-    case OPT_mhard_float:
-      /* -mhard_float implies -msingle-float and -mdouble-float. */
-      opts->x_rs6000_single_float = opts->x_rs6000_double_float = 1;
-      break;
-
-    case OPT_msoft_float:
-      /* -msoft_float implies -mnosingle-float and -mnodouble-float. */
-      opts->x_rs6000_single_float = opts->x_rs6000_double_float = 0;
-      break;
-
-    case OPT_mfpu_:
-      fpu_type = (enum fpu_type_t) value;
-      if (fpu_type != FPU_NONE)
-	{
-	  /* If -mfpu is not none, then turn off SOFT_FLOAT, turn on
-	     HARD_FLOAT. */
-	  opts->x_rs6000_isa_flags &= ~OPTION_MASK_SOFT_FLOAT;
-	  opts_set->x_rs6000_isa_flags |= OPTION_MASK_SOFT_FLOAT;
-	  opts->x_rs6000_xilinx_fpu = 1;
-	  if (fpu_type == FPU_SF_LITE || fpu_type == FPU_SF_FULL) 
-	    opts->x_rs6000_single_float = 1;
-	  if (fpu_type == FPU_DF_LITE || fpu_type == FPU_DF_FULL) 
-	    opts->x_rs6000_single_float = opts->x_rs6000_double_float = 1;
-	  if (fpu_type == FPU_SF_LITE || fpu_type == FPU_DF_LITE) 
-	    opts->x_rs6000_simple_fpu = 1;
-	}
-      else
-	{
-	  /* -mfpu=none is equivalent to -msoft-float.  */
-	  opts->x_rs6000_isa_flags |= OPTION_MASK_SOFT_FLOAT;
-	  opts_set->x_rs6000_isa_flags |= OPTION_MASK_SOFT_FLOAT;
-	  opts->x_rs6000_single_float = opts->x_rs6000_double_float = 0;
 	}
       break;
 
@@ -286,6 +229,31 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
       break;
     }
   return true;
+}
+
+/* -fsplit-stack uses a field in the TCB, available with glibc-2.19.
+   We also allow 2.18 because alignment padding guarantees that the
+   space is available there too.  */
+
+static bool
+rs6000_supports_split_stack (bool report,
+			     struct gcc_options *opts ATTRIBUTE_UNUSED)
+{
+#ifndef TARGET_GLIBC_MAJOR
+#define TARGET_GLIBC_MAJOR 0
+#endif
+#ifndef TARGET_GLIBC_MINOR
+#define TARGET_GLIBC_MINOR 0
+#endif
+  /* Note: Can't test DEFAULT_ABI here, it isn't set until later.  */
+  if (TARGET_GLIBC_MAJOR * 1000 + TARGET_GLIBC_MINOR >= 2018
+      && TARGET_64BIT
+      && TARGET_ELF)
+    return true;
+
+  if (report)
+    error ("%<-fsplit-stack%> currently only supported on PowerPC64 GNU/Linux with glibc-2.18 or later");
+  return false;
 }
 
 #undef TARGET_HANDLE_OPTION
@@ -299,5 +267,8 @@ rs6000_handle_option (struct gcc_options *opts, struct gcc_options *opts_set,
 
 #undef TARGET_OPTION_OPTIMIZATION_TABLE
 #define TARGET_OPTION_OPTIMIZATION_TABLE rs6000_option_optimization_table
+
+#undef TARGET_SUPPORTS_SPLIT_STACK
+#define TARGET_SUPPORTS_SPLIT_STACK rs6000_supports_split_stack
 
 struct gcc_targetm_common targetm_common = TARGETM_COMMON_INITIALIZER;

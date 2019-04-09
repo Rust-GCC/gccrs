@@ -1,5 +1,5 @@
 /* Definitions for VAX running Linux-based GNU systems with ELF format.
-   Copyright (C) 2007-2014 Free Software Foundation, Inc.
+   Copyright (C) 2007-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -32,7 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #define CPP_SPEC "%{posix:-D_POSIX_SOURCE} %{pthread:-D_REENTRANT}"
 
 #undef ASM_SPEC
-#define ASM_SPEC "%{fpic|fPIC:-k}"
+#define ASM_SPEC "%{" FPIC_SPEC ":-k}"
 
 #undef LINK_SPEC
 #define LINK_SPEC \

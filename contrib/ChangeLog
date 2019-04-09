@@ -1,3 +1,749 @@
+2019-04-05  Martin Liska  <mliska@suse.cz>
+
+	PR translation/89936
+	* check-internal-format-escaping.py: Properly detect wrong
+	apostrophes.
+
+2019-03-11  Martin Liska  <mliska@suse.cz>
+
+	* check-internal-format-escaping.py: Uncomment apostrophes
+	check.
+
+2019-03-11  Martin Liska  <mliska@suse.cz>
+
+	* check-internal-format-escaping.py: New file.
+
+2019-03-10  Tommy Nguyen  <remyabel@gmail.com>
+
+	PR contrib/82704
+	* download_prerequisites: Use -c instead of --check for sha512sum.
+
+2019-03-06  Martin Liska  <mliska@suse.cz>
+
+	* check-params-in-docs.py: Ignore a param.
+
+2019-03-05  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	contrib/
+	* dg-extract-results.py: Handle case where a WARNING happens with
+	the first test of a harness.
+
+2019-03-05  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	contrib/
+	* dg-extract-results.sh: Fix order of WARNING and following test
+	result.
+
+2019-02-04  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	contrib/
+	* dg-extract-results.py: Keep timeout warnings next to their
+	matching test.
+	* dg-extract-results.sh: Likewise.
+
+2019-01-01  Jakub Jelinek  <jakub@redhat.com>
+
+	* update-copyright.py: Add Gerard Jungman as external author.
+
+2018-11-26  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* update-copyright.py (TestsuiteFilter): Skip .d tests.
+	(LibPhobosFilter): Add filter for upstream D sources.
+	(GCCCopyright): Add D Language Foundation as external author.
+	(GCCCmdLine): Add libphobos.
+
+2018-11-19  Martin Liska  <mliska@suse.cz>
+
+	* check_GNU_style_lib.py: Detect mixed usage
+	of spaces and tabs.
+
+2018-11-14  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc_update (files_and_dependencies): Handle libphobos.
+
+2018-10-25  Thomas Preud'homme  <thomas.preudhomme@linaro.org>
+
+	* dg-cmp-results.sh: Print NA-FAIL and NA->UNRESOLVED changes at
+	default verbosity.
+
+2018-10-16  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config-list.mk (LIST): Switch to i686-solaris2.11,
+	sparc64-sun-solaris2.11.
+
+2018-10-04  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	* unused_functions.py: Handle archive files.
+
+2018-10-04  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	* unused_functions.py: New file.
+
+2018-09-25  Martin Liska  <mliska@suse.cz>
+
+	* filter-rtags-warnings.py: New file.
+
+2018-09-25  Martin Liska  <mliska@suse.cz>
+
+	PR middle-end/86078
+	* check-params-in-docs.py: New file.
+
+2018-08-17  Jojo  <jijie_rong@c-sky.com>
+	    Huibin Wang  <huibin_wang@c-sky.com>
+	    Sandra Loosemore  <sandra@codesourcery.com>
+	    Chung-Lin Tang  <cltang@codesourcery.com>
+	    Andrew Jenner  <andrew@codesourcery.com>
+
+	C-SKY port: Configury
+
+	* config-list.mk (LIST): Add csky-elf and csky-linux-gnu.
+
+2018-07-13  Tom de Vries  <tdevries@suse.de>
+
+	* maintainers-verify.sh: New file.
+
+2018-07-12  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* compare_tests: Print number of tests in each category.
+
+2018-06-19  Alexander Monakov  <amonakov@ispras.ru>
+
+	* vim-gcc-dev/README: New file.
+	* vim-gcc-dev/ftdetect/gcc-dev.vim: New file.
+	* vim-gcc-dev/syntax/gcc-match.vim: New file.
+	* gimple.vim: Move under vim-gcc-dev/syntax/.
+	* gcc-rtl.vim: Likewise.
+
+2018-06-19  Martin Liska  <mliska@suse.cz>
+
+	* gcc-rtl.vim: New file.
+
+2018-06-12  Jeff Law  <law@redhat.com>
+
+	* config-list.mk (LIST): Remove alpha-freebsd6.
+
+2018-05-08  Richard Biener  <rguenther@suse.de>
+
+	PR bootstrap/85571
+	* compare-lto: New script derived from compare-debug.
+
+2018-05-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* gennews (files): Add files for GCC 8.
+
+2018-05-01  Jim Wilson  <jimw@sifive.com>
+
+	* gcc_update: Check for .git as a file.
+
+2018-03-21  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* test_summary: Match possible single quotes in configure path.
+
+2018-03-02  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* update-copyright.py: Remove "libcilkrts" reference.
+
+2018-02-19  Yury Gribov  <tetra2005@gmail.com>
+
+	* compare_tests: Use TMPDIR when set.
+	* dg-cmp-results.sh: Ditto.
+	* warn_summary: Ditto.
+
+2018-01-29  Jonathan Wakely  <jwakely@redhat.com>
+
+	* download_prerequisites: Use shasum for FreeBSD and DragonFly.
+
+2018-01-19  Martin Liska  <mliska@suse.cz>
+
+	* analyze_brprob.py: Support new format that can be easily
+	parsed. Add new column to report.
+
+2018-01-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* update-copyright.py: Skip pdt-5.f03 in gfortran.dg subdir.
+
+2017-11-28  Julia Koval  <julia.koval@intel.com>
+	    Sebastian Peryt  <sebastian.peryt@intel.com>
+
+	* contrib/gcc_update: Ditto.
+
+2017-11-08  Martin Liska  <mliska@suse.cz>
+
+	* analyze_brprob.py: Fix abbreviations for SI units.
+
+2017-10-02  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* gcc_update (files_and_dependencies): Handle libbacktrace.
+
+2017-09-18  Richard Biener  <rguenther@suse.de>
+
+	* download_prerequisites (isl): Bump version to 0.18.
+
+2017-08-02  Yury Gribov  <tetra2005@gmail.com>
+
+	* mklog: Added new implementation.
+
+2017-08-02  Yury Gribov  <tetra2005@gmail.com>
+
+	* mklog: Rename to ...
+	* mklog.pl: this.
+
+2017-07-17  Yury Gribov  <tetra2005@gmail.com>
+
+	* mklog: Fix extraction of changed file name.
+
+2017-07-17  Georg-Johann Lay  <avr@gjlay.de>
+
+	* gcc_update (files_and_dependencies)
+	[gcc/config/avr/avr-tables.opt]: Remove dead entry.
+
+2017-06-28  Martin Liska  <mliska@suse.cz>
+
+	* gcc.doxy: Add default location for filters and output folder.
+	* filter_gcc_for_doxygen_new: Rename to filter_gcc_for_doxygen.
+	* filter_params.pl: Remove.
+
+2017-06-21  Thomas Preud'homme  <thomas.preudhomme@arm.com>
+
+	* dg-cmp-results.sh: Restore filtering on target variant.
+
+2017-06-20  Thomas Preud'homme  <thomas.preudhomme@arm.com>
+
+	* dg-cmp-results.sh: Keep test result lines rather than throwing
+	header and summary to support sum files with multiple tools.
+
+2017-05-31  Martin Liska  <mliska@suse.cz>
+
+	* filter_params.py:
+	Transform ENUM_BITFIELD and comments starting with '/**'
+
+2017-05-31  David Malcolm  <dmalcolm@redhat.com>
+	    Martin Liska  <mliska@suse.cz>
+
+	* filter_params.py: New, porting the perl script to python,
+	adding a test suite.
+	* filter_gcc_for_doxygen_new: New file.
+
+2017-05-30  Martin Liska  <mliska@suse.cz>
+
+	* analyze_brprob.py: Add new argument to parse and modify
+	predict.def file.
+	* analyze_brprob_spec.py: Likewise.
+
+2017-05-29  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style_lib.py (TrailingWhitespaceCheck.check): Assert no
+	trailing eol.
+	(TrailingWhitespaceTest): New unit test.
+	(check_GNU_style_file): Remove eol before checking.
+
+2017-05-29  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style_lib.py (check_GNU_style_file): Treat file argument as
+	file handle.  Add and handle file_encoding argument.
+	* check_GNU_style.py (main): Handle '-' file argument.  Call
+	check_GNU_style_file with file handle as argument.
+
+2017-05-29  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style_lib.py: Use import_pip3 to import pip3 packages.
+	(import_pip3): New function.
+
+2017-05-24  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style_lib.py: New file, factored out of ...
+	* check_GNU_style.py: ... here.  Call main unconditionally.
+
+2017-05-19  Martin Liska  <mliska@suse.cz>
+
+	* check_GNU_style.py: New file.
+
+2007-05-03  Jeff Law  <law@redhat.com>
+
+	* config-list.mk (am33_2.0-linux): Remove from list of targets
+	to build.
+
+2017-05-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* gennews (files): Add files for GCC 7.
+
+2017-04-26  Tom de Vries  <tom@codesourcery.com>
+
+	* gen_autofdo_event.py: Fix comment.
+
+2017-04-11  Damian Rouson  <damian@sourceryinstitute.org>
+
+	* download_prerequisites (md5_check): New function emulates Linux
+	'md5 --check' on macOS.  Modified script for macOS compatibility.
+
+2017-02-06  Palmer Dabbelt  <palmer@dabbelt.com>
+
+	* config-list.mki (LIST): Add riscv32-unknown-linux-gun and
+	riscv64-unknown-linux-gnu.
+
+2017-01-31  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	* update-copyright.py (Copyright.process_file): Retain original
+	file mode.
+
+2017-01-29  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* update-copyright.py: Fix the name of this script in examples.
+
+2017-01-26  Jakub Jelinek  <jakub@redhat.com>
+
+	* update-copyright.py: Add libhsail-rt to self.default_dirs
+	and call self.add_dir on it.  Add Intel Corporation to external
+	authors.
+
+2017-01-25  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* gcc_update (files_and_dependencies): Care for "libhsail-rt".
+
+2017-01-23  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* patch_tester.sh (TESTLOGS): Remove
+	$TARGET/libjava/testsuite/libjava.sum.
+
+2017-01-22  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* warn_summary: Remove the -java option.
+
+2017-01-20  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* update-copyright.py (LibJavaFilter): Remove.
+
+2017-01-17  Gerald Pfeifer  <gerald@pfeifer.com>	
+	
+	* gcc_update: Remove entries related to GCJ and libgcj.
+	Complete copyright years and adjust my e-mail address.
+
+2017-01-11  Richard Earnshaw  <rearnsha@arm.com>
+
+	* gcc_update: Adjust touch list for ARM.
+
+2017-01-08  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* download_ecj: Remove.
+
+2017-01-05  Martin Liska  <mliska@suse.cz>
+
+	* vimrc: Update indentation definition.
+
+2017-01-04  Jakub Jelinek  <jakub@redhat.com>
+
+	* update-copyright.py (GCCCmdLine): Add include, libcc1, libiberty,
+	libssp, libvtv and lto-plugin to default_dirs.
+
+2017-01-01  Jakub Jelinek  <jakub@redhat.com>
+
+	* update-copyright.py (TestsuiteFilter): Skip params/README.
+	(GCCCmdLine): Remove libjava and libjava/testsuite add_dir.
+
+2016-12-14  Martin Liska  <mliska@suse.cz>
+
+	* analyze_brprob.py: Add new column to output and new sorting
+	option. Fix coding style to not exceed 80 characters.
+	* analyze_brprob_spec.py: Add new sorting
+	option. Fix coding style to not exceed 80 characters.
+
+2016-10-24  Moritz Klammler  <moritz@glammler.eu>
+
+	PR other/61439
+	* download_prerequisites: Conditionally verify checksums of
+	downloaded pacakges.  Add help text.  
+	* prerequisites.md5: New file.
+	* prerequisites.sha512: New file.
+
+2016-10-24  Kyrylo Tkachov  <kyrylo.tkachov@arm.com>
+
+	* check_GNU_style.sh (remove_testsuite): New function.
+	Use it to remove testsuite from the diff.
+
+2016-09-23  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* dg-extract-results.sh: Revert bogus change.
+
+2016-09-20  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* dg-extract-results.py: Report DejaGnu error in the final
+	summary.
+	* dg-extract-results.sh: Likewise.
+
+2016-09-20  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* compare_tests: Take ERROR messages into account when
+	  comparing.
+
+2016-08-17  Martin Liska  <mliska@suse.cz>
+
+	* mark_spam.py: Mark as spam all comments done by a creator.
+
+2016-08-15  Martin Liska  <mliska@suse.cz>
+
+	* mark_spam.py: Add error handling and reset
+	another properties of attachments and bugs.
+
+2016-08-11  Martin Liska  <mliska@suse.cz>
+
+	* mark_spam.py: Mark attachments as obsolete and rename them.
+
+2016-08-03  Eric Gallager  <egall@gwmail.gwu.edu>
+
+	* download_prerequisites: Explicitly remove existing symlinks
+	before trying to create new ones.
+
+2016-07-28  Martin Liska  <mliska@suse.cz>
+
+	* mark_spam.py: New file.
+
+2016-07-21  Martin Liska  <mliska@suse.cz>
+
+	* analyze_brprob.py: If there's no loop, do not calculate
+	average number of loop iterations.
+
+2016-06-24  Martin Liska  <mliska@suse.cz>
+
+	* analyze_brprob.py: Parse and display average number
+	of loop iterations.
+
+2016-06-23  Andi Kleen  <ak@linux.intel.com>
+
+	* gen_autofdo_event.py: New file to regenerate
+	gcc-auto-profile.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config-list.mk: Stop testing mep-elf.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config-list.mk: Stop testing avr-rtems.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config-list.mk: Stop testing m32r-rtems.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config-list.mk: Remove h8300-rtems support.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config-list.mk: stop testing knetbsd.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config-list.mk: Stop testing openbsd3.0.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config-list.mk: Remove interix target.
+
+2016-06-21  David Edelsohn  <dje.gcc@gmail.com>
+
+	* config-list.mk: Remove rs6000-ibm-aix4.3, rs6000-ibm-aix5.1,
+	rs6000-ibm-aix5.2.
+	Rename rs6000-ibm-aix6.0 as rs6000-ibm-aix6.1.
+	Add rs6000-ibm-aix7.1.
+
+2016-06-17  Martin Liska  <mliska@suse.cz>
+
+	* analyze_brprob.py: Fix columns of script output.
+
+2016-06-13  Richard Biener  <rguenther@suse.de>
+
+	* download_prerequisites (ISL): Bump version to 0.16.1
+
+2016-06-10  Alan Hayward  <alan.hayward@arm.com>
+
+	* check_GNU_style.sh: Fix paste args for BSD
+
+2016-06-09  David Malcolm  <dmalcolm@redhat.com>
+
+	* config-list.mk (LIST): Add OPT-enable-obsolete to avr-rtems,
+	h8300-rtems, m32r-rtems, mep-elf.
+
+2016-06-09  David Malcolm  <dmalcolm@redhat.com>
+
+	* config-list.mk (GCC_SRC_DIR): New variable.
+	(make-log-dir): Use GCC_SRC_DIR.
+	($(LIST)): Likewise.
+
+2016-06-09  Martin Liska  <mliska@suse.cz>
+
+	* analyze_brprob_spec.py: New file.
+
+2016-06-09  Martin Liska  <mliska@suse.cz>
+
+	* analyze_brprob.py: Add new argument --sorting.
+
+2016-06-09  Martin Liska  <mliska@suse.cz>
+
+	* analyze_brprob.py: Cover new dump output format.
+
+2016-06-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* update-copyright.py (LibMudflapFilter): Remove.
+	(GCCCmdLine.__init__): Add gotools, libcc1.
+	Remove libmudflap.
+	List unhandled intl, libcilkrts, libgo, liboffloadmic,
+	maintainer-scripts.
+
+2016-05-02  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	* download_prerequisites: Adjust gmp/mpfr/mpc versions.
+
+2016-04-30  Oleg Endo  <olegendo@gcc.gnu.org>
+
+	* compare-all-tests: Remove SH5 support.
+	* config-list.mk: Likewise.
+
+2016-04-28  Martin Liska  <mliska@suse.cz>
+
+	* analyze_brprob: Remove.
+	* analyze_brprob.py: New file.
+
+2016-04-27  Jakub Jelinek  <jakub@redhat.com>
+
+	* gennews (files): Add files for GCC 6.
+
+2016-04-17  Jan Hubicka  <jh@suse.cz>
+
+	* analyze_brprob: Update comment.
+
+2016-04-13  Martin Sebor  <msebor@redhat.com>
+
+	* check_GNU_style.sh: Avoid false posivies in trailing operator
+	checks.
+
+2016-03-07  Martin Sebor  <msebor@redhat.com>
+
+	* check_GNU_style.sh (color): New global variable.
+	Add checks for trailing operators and spaces before left brackets.
+	Tightened up a check for a trailing left curly brace.
+	(g, ag, vg): Use color.
+	(col): Don't complain about excessively long lines with DejaGnu
+	directives.
+
+2016-03-06  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* mklog: Look for the ChangeLog file in $cwd.
+
+2016-02-26  Joel Sherrill <joel@rtems.org>
+
+	* config-list.mk: Add aarch64-rtems and x86_64-rtems
+
+2016-01-19  Jonathan Wakely  <jwakely@redhat.com>
+
+	* uninclude: Fix third argument to gensub.
+
+2016-01-04  Jakub Jelinek  <jakub@redhat.com>
+
+	* update-copyright.py (GCCCopyright): Add NVIDIA Corporation
+	as external author.
+
+2015-12-17  Jan-Benedict Glaw  <jbglaw@lug-owl.de>
+
+	* config-list.mk (LIST): Add --enable-obsolete to recently obsoleted
+	targets x86_64-knetbsd-gnu, i686-knetbsd-gnu and i686-openbsd3.0 .
+
+2015-12-06  Tobias Burnus  <burnus@net-b.de>
+
+	* download_prerequisites: Download ISL 0.15 instead of 0.14.
+
+2015-11-20  Martin Liska  <mliska@suse.cz>
+
+	* clang-format: Split content of a list to multiple
+	lines.
+
+2015-11-19  Martin Liska  <mliska@suse.cz>
+
+	* clang-format: Enhance list of FOR_EACH macros.
+
+2015-11-19  Martin Liska  <mliska@suse.cz>
+
+	* clang-format: New file.
+
+2015-11-11  Andrew MacLeod  <amacleod@redhat.com>
+
+	* header-tools: New.  Directory containing a set of tools for
+	manipulating header files.
+
+2015-10-30  Nathan Sidwell  <nathan@acm.org>
+
+	* config-list.mk (nvptx-none): Add it.
+
+2015-09-11  Markus Trippelsdorf  <markus@trippelsdorf.de>
+
+	* download_prerequisites: Make sure that script is run from
+	top level source directory.
+
+2015-08-27  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* update-copyright.py (GCCCmdLine): Add libvtv.
+
+2015-08-04  Uros Bizjak  <ubizjak@gmail.com>
+
+	* texi2pod.pl: Escape braces in regexp involving @strong{...}.
+
+2015-07-15  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style.sh (cat_with_prefix): Fix quoting.
+
+2015-06-02  Steve Ellcey  <sellcey@imgtec.com>
+
+	* test_installed (--target=): New option.
+
+2015-05-30  Mikhail Maltsev  <maltsevm@gmail.com>
+
+	* gimple.vim: New file.
+
+2015-05-18  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style.sh: Add temp files tmp2 and tmp3.
+	(cat_with_prefix): New function, using global variable prefix.
+	(col): Make prefix a global variable. Rewrite to process file at a time
+	rather than line at a time.  Print part longer than 80 chars in red.
+
+2015-05-18  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style.sh (g, ag, vg): Don't cat empty file.
+
+2015-05-18  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style.sh (g, ag, vg, col): Declare local vars with local.
+
+2015-05-18  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style.sh: Improve readability function calls.
+
+2015-05-16  James Bowman  <james.bowman@ftdichip.com>
+
+	* config-list.mk: Add FT32.
+
+2015-05-12  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style.sh (col): Fix tab size.
+
+2015-05-12  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style.sh: Put stdin into a temp file.
+
+2015-05-12  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style.sh: Read either from stdin, or from files.
+
+2015-05-12  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style.sh: Check if files exists.
+
+2015-05-12  Tom de Vries  <tom@codesourcery.com>
+
+	* check_GNU_style.sh: Don't use a filename prefix if we're only
+	processing one patch file.
+
+2015-05-12  Yury Gribov  <y.gribov@samsung.com>
+
+	* mklog: Ignore preprocessor directives.
+
+2015-04-22  Jakub Jelinek  <jakub@redhat.com>
+
+	* gennews (files): Add files for GCC 5.
+
+2015-03-06  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	* dg-extract-results.sh: Check that the necessary python modules exist.
+
+2015-02-05  Ilya Verbin  <ilya.verbin@intel.com>
+
+	* gcc_update (files_and_dependencies): Add rules for liboffloadmic and
+	liboffloadmic/plugin.
+
+2015-01-15  Richard Sandiford  <richard.sandiford@arm.com>
+
+	* update-copyright.py (Copyright.__init__): Add a regexp for
+	"copyright = u'".
+	(Copyright.update_copyright): Don't add a space before the year
+	in that case.
+
+2015-01-15  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* gcc_update (files_and_dependencies): Update rules for new
+	libgomp/plugin/Makefrag.am and libgomp/plugin/configfrag.ac files.
+
+2015-01-12  Yury Gribov  <y.gribov@samsung.com>
+
+	* check_GNU_style.sh: Support patches coming from stdin.
+	Check that spaces are converted to tabs.
+	Make double-space-after-dot check more precice.
+
+2015-01-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* config-list.mk (LIST): Add visium-elf.
+
+2015-01-05  Jan-Benedict Glaw  <jbglaw@lug-owl.de>
+
+	* config-list.mk: Use shortest match for OPT to find the actual
+	target name.
+
+2014-12-17  Sergio Durigan Junior  <sergiodj@redhat.com>
+
+	* dg-extract-results.sh: Use --text with grep to avoid issues with
+	binary files.  Fall back to cat -v, if that doesn't work.
+
+2014-12-12  Chung-Ju Wu  <jasonwucj@gmail.com>
+
+	* download_prerequisites: Modify the comment for GRAPHITE_LOOP_OPT.
+
+2014-12-09  Laurynas Biveinis  <laurynas.biveinis@gmail.com>
+	    Yury Gribov  <y.gribov@samsung.com>
+
+	* vimrc: New file.
+
+2014-12-04  Thomas Preud'homme  <thomas.preudhomme@arm.com>
+
+	* check_GNU_style.sh: Warn for incorrect number of spaces in function
+	call only if 0 or 2+ spaces found.
+
+2014-12-02  Tobias Burnus  <burnus@net-b.de>
+
+	* download_prerequisites: Download ISL 0.14 instead of 0.12.2.
+
+2014-11-25  Tom de Vries  <tom@codesourcery.com>
+	    Peter Bergner  <bergner@vnet.ibm.com>
+
+	* mklog: Handle .mklog.  Use git setting independent of presence .git
+	directory.
+
+2014-11-14  Tom de Vries  <tom@codesourcery.com>
+
+	* mklog: Move reading of .diff file up and add comment.  Copy diff_lines
+	to orig_diff_lines.  Use orig_diff_lines when appending patch.
+
+2014-11-11  David Malcolm  <dmalcolm@redhat.com>
+
+	* ChangeLog.jit: New.
+	* jit-coverage-report.py: New file: a script to print crude
+	code-coverage information for the libgccjit API.
+
+2014-11-11  Marat Zakirov  <m.zakirov@samsung.com>
+
+	* mklog: Symbol '}' stops search for changes.
+
+2014-11-11  Tobias Burnus  <burnus@net-b.de>
+
+	* download_prerequisites: Stop downloading CLooG.
+
+2014-11-07  Marat Zakirov  <m.zakirov@samsung.com>
+
+	* mklog: Always doubt in functions.
+	Add EOF protection.
+
+2014-10-31  Jan-Benedict Glaw  <jbglaw@lug-owl.de>
+
+	* config-list.mk: Don't build Go for certain targets.
+
 2014-10-04  Trevor Saunders  <tsaunders@mozilla.com>
 
 	* compare-all-tests: Don't test score-*.
@@ -397,7 +1143,7 @@
 
 2012-05-31  Marek Polacek  <polacek@redhat.com>
 
-       * mklog: Prevent printing three spaces after the date.
+	* mklog: Prevent printing three spaces after the date.
 
 2012-06-04   Diego Novillo  <dnovillo@google.com>
 
@@ -664,8 +1410,8 @@
 
 2010-07-02  Iain Sandoe  <iains@gcc.gnu.org>
 
-       * compare-debug (Darwin): Remove '-x' flag from ld-based object
-       stripping.  Add a comment as to why we do it this way.
+	* compare-debug (Darwin): Remove '-x' flag from ld-based object
+	stripping.  Add a comment as to why we do it this way.
 
 2010-06-20  Alexandre Oliva  <aoliva@redhat.com>
 

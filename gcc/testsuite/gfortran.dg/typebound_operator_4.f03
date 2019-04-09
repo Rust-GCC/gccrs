@@ -34,7 +34,7 @@ CONTAINS
     add_int = myint (a%value + b)
   END FUNCTION add_int
 
-  PURE SUBROUTINE assign_int (dest, from)
+  SUBROUTINE assign_int (dest, from)
     CLASS(myint), INTENT(OUT) :: dest
     INTEGER, INTENT(IN) :: from
     dest%value = from
@@ -54,7 +54,7 @@ CONTAINS
 
   SUBROUTINE in_module ()
     TYPE(myint) :: x
-    x = 0 ! { dg-bogus "Can't convert" }
+    x = 0 ! { dg-bogus "Cannot convert" }
     x = x + 42 ! { dg-bogus "Operands of" }
     x = x .PLUS. 5 ! { dg-bogus "Unknown operator" }
   END SUBROUTINE in_module
@@ -62,9 +62,8 @@ CONTAINS
   PURE SUBROUTINE iampure ()
     TYPE(myint) :: x
 
-    x = 0 ! { dg-bogus "is not PURE" }
-    x = x + 42 ! { dg-bogus "to a non-PURE procedure" }
-    x = x .PLUS. 5 ! { dg-bogus "to a non-PURE procedure" }
+    x = x + 42 ! { dg-bogus "to a impure procedure" }
+    x = x .PLUS. 5 ! { dg-bogus "to a impure procedure" }
   END SUBROUTINE iampure
 
 END MODULE m
@@ -75,8 +74,8 @@ PURE SUBROUTINE iampure2 ()
   TYPE(myreal) :: x
 
   x = 0.0 ! { dg-error "is not PURE" }
-  x = x + 42.0 ! { dg-error "to a non-PURE procedure" }
-  x = x .PLUS. 5.0 ! { dg-error "to a non-PURE procedure" }
+  x = x + 42.0 ! { dg-error "impure function" }
+  x = x .PLUS. 5.0 ! { dg-error "impure function" }
 END SUBROUTINE iampure2
 
 PROGRAM main
@@ -84,7 +83,7 @@ PROGRAM main
   IMPLICIT NONE
   TYPE(myint) :: x
 
-  x = 0 ! { dg-error "Can't convert" }
-  x = x + 42 ! { dg-error "Operands of" }
+  x = 0 ! { dg-error "Cannot convert" }
+  x = x + 42 ! { dg-error "binary intrinsic numeric operator" }
   x = x .PLUS. 5 ! { dg-error "Unknown operator" }
 END PROGRAM main

@@ -1,4 +1,4 @@
-/* { dg-options "-O2 -fgraphite-identity -fdump-tree-graphite-all  -fgraphite-code-generator=isl" } */
+/* { dg-options "-O2 -fgraphite-identity -fdump-tree-graphite-all" } */
 
 int a[100];
 
@@ -39,4 +39,3 @@ foo (int bar, int n, int k)
 */
 
 /* { dg-final { scan-tree-dump-times "for\[^\n\]+\n\[^\n\]+if" 0 "graphite" } } */
-/* { dg-final { cleanup-tree-dump "graphite" } } */

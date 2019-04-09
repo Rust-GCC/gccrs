@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2002-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 2002-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -120,9 +120,9 @@ package body Prep is
    String_False : String_Id;
    --  "false", as a string_id
 
-   ---------------
-   -- Behaviour --
-   ---------------
+   --------------
+   -- Behavior --
+   --------------
 
    --  Accesses to procedure specified by procedure Initialize
 
@@ -211,8 +211,14 @@ package body Prep is
    begin
       if New_Name /= No_Name then
          case Token is
-            when Tok_If  | Tok_Else | Tok_Elsif | Tok_End |
-                 Tok_And | Tok_Or   | Tok_Then =>
+            when Tok_And
+               | Tok_Else
+               | Tok_Elsif
+               | Tok_End
+               | Tok_If
+               | Tok_Or
+               | Tok_Then
+            =>
                if All_Keywords then
                   Token := Tok_Identifier;
                   Token_Name := New_Name;
@@ -458,12 +464,11 @@ package body Prep is
 
                --  Handle relational operator
 
-               elsif
-                 Token = Tok_Equal      or else
-                 Token = Tok_Less       or else
-                 Token = Tok_Less_Equal or else
-                 Token = Tok_Greater    or else
-                 Token = Tok_Greater_Equal
+               elsif     Token = Tok_Equal
+                 or else Token = Tok_Less
+                 or else Token = Tok_Less_Equal
+                 or else Token = Tok_Greater
+                 or else Token = Tok_Greater_Equal
                then
                   Relop := Token;
                   Scan.all;
@@ -1562,11 +1567,8 @@ package body Prep is
          --  so we have to deduct Start_Of_Processing from the token pointer.
 
          if Token = Tok_End_Of_Line then
-            if (Sinput.Source (Token_Ptr) = ASCII.CR
-                  and then Sinput.Source (Token_Ptr + 1) = ASCII.LF)
-              or else
-               (Sinput.Source (Token_Ptr) = ASCII.CR
-                  and then Sinput.Source (Token_Ptr + 1) = ASCII.LF)
+            if Sinput.Source (Token_Ptr) = ASCII.CR
+              and then Sinput.Source (Token_Ptr + 1) = ASCII.LF
             then
                Start_Of_Processing := Token_Ptr + 2;
             else

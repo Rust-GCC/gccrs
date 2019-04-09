@@ -4,7 +4,10 @@ struct B
   virtual void f() final {}
   virtual void g() {}
   virtual void x() const {}
+  virtual void y() final;
 };
+
+void B::y() {} // { dg-message "overridden" }
 
 struct B2
 {
@@ -13,7 +16,8 @@ struct B2
 
 struct D : B
 {
-  virtual void g() override final {} // { dg-error "overriding" }
+  virtual void g() override final {} // { dg-message "overridden" }
+  virtual void y() override final {} // { dg-error "virtual" }
 };
 
 template <class T> struct D2 : T

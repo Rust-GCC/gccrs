@@ -1,5 +1,5 @@
 ;; GCC machine description for i386 synchronization instructions.
-;; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -21,7 +21,14 @@
   UNSPEC_LFENCE
   UNSPEC_SFENCE
   UNSPEC_MFENCE
-  UNSPEC_MOVA	; For __atomic support
+
+  UNSPEC_FILD_ATOMIC
+  UNSPEC_FIST_ATOMIC
+
+  UNSPEC_LDX_ATOMIC
+  UNSPEC_STX_ATOMIC
+
+  ;; __atomic support
   UNSPEC_LDA
   UNSPEC_STA
 ])
@@ -101,11 +108,11 @@
   [(match_operand:SI 0 "const_int_operand")]		;; model
   ""
 {
-  enum memmodel model = (enum memmodel) (INTVAL (operands[0]) & MEMMODEL_MASK);
+  enum memmodel model = memmodel_from_int (INTVAL (operands[0]));
 
   /* Unless this is a SEQ_CST fence, the i386 memory model is strong
      enough not to require barriers of any kind.  */
-  if (model == MEMMODEL_SEQ_CST)
+  if (is_mm_seq_cst (model))
     {
       rtx (*mfence_insn)(rtx);
       rtx mem;
@@ -140,10 +147,10 @@
    ])
 
 (define_expand "atomic_load<mode>"
-  [(set (match_operand:ATOMIC 0 "register_operand")
+  [(set (match_operand:ATOMIC 0 "nonimmediate_operand")
 	(unspec:ATOMIC [(match_operand:ATOMIC 1 "memory_operand")
 			(match_operand:SI 2 "const_int_operand")]
-		       UNSPEC_MOVA))]
+		       UNSPEC_LDA))]
   ""
 {
   /* For DImode on 32-bit, we can use the FPU to perform the load.  */
@@ -152,14 +159,25 @@
 	       (operands[0], operands[1],
 	        assign_386_stack_local (DImode, SLOT_TEMP)));
   else
-    emit_move_insn (operands[0], operands[1]);
+    {
+      rtx dst = operands[0];
+
+      if (MEM_P (dst))
+	dst = gen_reg_rtx (<MODE>mode);
+
+      emit_move_insn (dst, operands[1]);
+
+      /* Fix up the destination if needed.  */
+      if (dst != operands[0])
+	emit_move_insn (operands[0], dst);
+    }
   DONE;
 })
 
 (define_insn_and_split "atomic_loaddi_fpu"
   [(set (match_operand:DI 0 "nonimmediate_operand" "=x,m,?r")
 	(unspec:DI [(match_operand:DI 1 "memory_operand" "m,m,m")]
-		   UNSPEC_MOVA))
+		   UNSPEC_LDA))
    (clobber (match_operand:DI 2 "memory_operand" "=X,X,m"))
    (clobber (match_scratch:DF 3 "=X,xf,xf"))]
   "!TARGET_64BIT && (TARGET_80387 || TARGET_SSE)"
@@ -184,9 +202,8 @@
 	}
       else
 	{
-	  adjust_reg_mode (tmp, DImode);
-	  emit_move_insn (tmp, src);
-	  emit_move_insn (mem, tmp);
+	  emit_insn (gen_loaddi_via_sse (tmp, src));
+	  emit_insn (gen_storedi_via_sse (mem, tmp));
 	}
 
       if (mem != dst)
@@ -195,14 +212,86 @@
   DONE;
 })
 
+(define_peephole2
+  [(set (match_operand:DF 0 "fp_register_operand")
+	(unspec:DF [(match_operand:DI 1 "memory_operand")]
+		   UNSPEC_FILD_ATOMIC))
+   (set (match_operand:DI 2 "memory_operand")
+	(unspec:DI [(match_dup 0)]
+		   UNSPEC_FIST_ATOMIC))
+   (set (match_operand:DF 3 "any_fp_register_operand")
+	(match_operand:DF 4 "memory_operand"))]
+  "!TARGET_64BIT
+   && peep2_reg_dead_p (2, operands[0])
+   && rtx_equal_p (XEXP (operands[4], 0), XEXP (operands[2], 0))"
+  [(set (match_dup 3) (match_dup 5))]
+  "operands[5] = gen_lowpart (DFmode, operands[1]);")
+
+(define_peephole2
+  [(set (match_operand:DF 0 "fp_register_operand")
+	(unspec:DF [(match_operand:DI 1 "memory_operand")]
+		   UNSPEC_FILD_ATOMIC))
+   (set (match_operand:DI 2 "memory_operand")
+	(unspec:DI [(match_dup 0)]
+		   UNSPEC_FIST_ATOMIC))
+   (set (mem:BLK (scratch:SI))
+	(unspec:BLK [(mem:BLK (scratch:SI))] UNSPEC_MEMORY_BLOCKAGE))
+   (set (match_operand:DF 3 "any_fp_register_operand")
+	(match_operand:DF 4 "memory_operand"))]
+  "!TARGET_64BIT
+   && peep2_reg_dead_p (2, operands[0])
+   && rtx_equal_p (XEXP (operands[4], 0), XEXP (operands[2], 0))"
+  [(const_int 0)]
+{
+  emit_move_insn (operands[3], gen_lowpart (DFmode, operands[1]));
+  emit_insn (gen_memory_blockage ());
+  DONE;
+})
+
+(define_peephole2
+  [(set (match_operand:DF 0 "sse_reg_operand")
+	(unspec:DF [(match_operand:DI 1 "memory_operand")]
+		   UNSPEC_LDX_ATOMIC))
+   (set (match_operand:DI 2 "memory_operand")
+	(unspec:DI [(match_dup 0)]
+		   UNSPEC_STX_ATOMIC))
+   (set (match_operand:DF 3 "any_fp_register_operand")
+	(match_operand:DF 4 "memory_operand"))]
+  "!TARGET_64BIT
+   && peep2_reg_dead_p (2, operands[0])
+   && rtx_equal_p (XEXP (operands[4], 0), XEXP (operands[2], 0))"
+  [(set (match_dup 3) (match_dup 5))]
+  "operands[5] = gen_lowpart (DFmode, operands[1]);")
+
+(define_peephole2
+  [(set (match_operand:DF 0 "sse_reg_operand")
+	(unspec:DF [(match_operand:DI 1 "memory_operand")]
+		   UNSPEC_LDX_ATOMIC))
+   (set (match_operand:DI 2 "memory_operand")
+	(unspec:DI [(match_dup 0)]
+		   UNSPEC_STX_ATOMIC))
+   (set (mem:BLK (scratch:SI))
+	(unspec:BLK [(mem:BLK (scratch:SI))] UNSPEC_MEMORY_BLOCKAGE))
+   (set (match_operand:DF 3 "any_fp_register_operand")
+	(match_operand:DF 4 "memory_operand"))]
+  "!TARGET_64BIT
+   && peep2_reg_dead_p (2, operands[0])
+   && rtx_equal_p (XEXP (operands[4], 0), XEXP (operands[2], 0))"
+  [(const_int 0)]
+{
+  emit_move_insn (operands[3], gen_lowpart (DFmode, operands[1]));
+  emit_insn (gen_memory_blockage ());
+  DONE;
+})
+
 (define_expand "atomic_store<mode>"
   [(set (match_operand:ATOMIC 0 "memory_operand")
-	(unspec:ATOMIC [(match_operand:ATOMIC 1 "register_operand")
+	(unspec:ATOMIC [(match_operand:ATOMIC 1 "nonimmediate_operand")
 			(match_operand:SI 2 "const_int_operand")]
-		       UNSPEC_MOVA))]
+		       UNSPEC_STA))]
   ""
 {
-  enum memmodel model = (enum memmodel) (INTVAL (operands[2]) & MEMMODEL_MASK);
+  enum memmodel model = memmodel_from_int (INTVAL (operands[2]));
 
   if (<MODE>mode == DImode && !TARGET_64BIT)
     {
@@ -215,8 +304,10 @@
     }
   else
     {
+      operands[1] = force_reg (<MODE>mode, operands[1]);
+
       /* For seq-cst stores, when we lack MFENCE, use XCHG.  */
-      if (model == MEMMODEL_SEQ_CST && !(TARGET_64BIT || TARGET_SSE2))
+      if (is_mm_seq_cst (model) && !(TARGET_64BIT || TARGET_SSE2))
 	{
 	  emit_insn (gen_atomic_exchange<mode> (gen_reg_rtx (<MODE>mode),
 						operands[0], operands[1],
@@ -229,7 +320,7 @@
 					   operands[2]));
     }
   /* ... followed by an MFENCE, if required.  */
-  if (model == MEMMODEL_SEQ_CST)
+  if (is_mm_seq_cst (model))
     emit_insn (gen_mem_thread_fence (operands[2]));
   DONE;
 })
@@ -238,14 +329,14 @@
   [(set (match_operand:SWI 0 "memory_operand" "=m")
 	(unspec:SWI [(match_operand:SWI 1 "<nonmemory_operand>" "<r><i>")
 		     (match_operand:SI 2 "const_int_operand")]
-		    UNSPEC_MOVA))]
+		    UNSPEC_STA))]
   ""
   "%K2mov{<imodesuffix>}\t{%1, %0|%0, %1}")
 
 (define_insn_and_split "atomic_storedi_fpu"
   [(set (match_operand:DI 0 "memory_operand" "=m,m,m")
-	(unspec:DI [(match_operand:DI 1 "register_operand" "x,m,?r")]
-		   UNSPEC_MOVA))
+	(unspec:DI [(match_operand:DI 1 "nonimmediate_operand" "x,m,?r")]
+		   UNSPEC_STA))
    (clobber (match_operand:DI 2 "memory_operand" "=X,X,m"))
    (clobber (match_scratch:DF 3 "=X,xf,xf"))]
   "!TARGET_64BIT && (TARGET_80387 || TARGET_SSE)"
@@ -256,7 +347,9 @@
   rtx dst = operands[0], src = operands[1];
   rtx mem = operands[2], tmp = operands[3];
 
-  if (!SSE_REG_P (src))
+  if (SSE_REG_P (src))
+    emit_move_insn (dst, src);
+  else
     {
       if (REG_P (src))
 	{
@@ -268,16 +361,85 @@
 	{
 	  emit_insn (gen_loaddi_via_fpu (tmp, src));
 	  emit_insn (gen_storedi_via_fpu (dst, tmp));
-	  DONE;
 	}
       else
 	{
-	  adjust_reg_mode (tmp, DImode);
-	  emit_move_insn (tmp, mem);
-	  src = tmp;
+	  emit_insn (gen_loaddi_via_sse (tmp, src));
+	  emit_insn (gen_storedi_via_sse (dst, tmp));
 	}
     }
-  emit_move_insn (dst, src);
+  DONE;
+})
+
+(define_peephole2
+  [(set (match_operand:DF 0 "memory_operand")
+	(match_operand:DF 1 "any_fp_register_operand"))
+   (set (match_operand:DF 2 "fp_register_operand")
+	(unspec:DF [(match_operand:DI 3 "memory_operand")]
+		   UNSPEC_FILD_ATOMIC))
+   (set (match_operand:DI 4 "memory_operand")
+	(unspec:DI [(match_dup 2)]
+		   UNSPEC_FIST_ATOMIC))]
+  "!TARGET_64BIT
+   && peep2_reg_dead_p (3, operands[2])
+   && rtx_equal_p (XEXP (operands[0], 0), XEXP (operands[3], 0))"
+  [(set (match_dup 5) (match_dup 1))]
+  "operands[5] = gen_lowpart (DFmode, operands[4]);")
+
+(define_peephole2
+  [(set (match_operand:DF 0 "memory_operand")
+	(match_operand:DF 1 "any_fp_register_operand"))
+   (set (mem:BLK (scratch:SI))
+	(unspec:BLK [(mem:BLK (scratch:SI))] UNSPEC_MEMORY_BLOCKAGE))
+   (set (match_operand:DF 2 "fp_register_operand")
+	(unspec:DF [(match_operand:DI 3 "memory_operand")]
+		   UNSPEC_FILD_ATOMIC))
+   (set (match_operand:DI 4 "memory_operand")
+	(unspec:DI [(match_dup 2)]
+		   UNSPEC_FIST_ATOMIC))]
+  "!TARGET_64BIT
+   && peep2_reg_dead_p (4, operands[2])
+   && rtx_equal_p (XEXP (operands[0], 0), XEXP (operands[3], 0))"
+  [(const_int 0)]
+{
+  emit_insn (gen_memory_blockage ());
+  emit_move_insn (gen_lowpart (DFmode, operands[4]), operands[1]);
+  DONE;
+})
+
+(define_peephole2
+  [(set (match_operand:DF 0 "memory_operand")
+	(match_operand:DF 1 "any_fp_register_operand"))
+   (set (match_operand:DF 2 "sse_reg_operand")
+	(unspec:DF [(match_operand:DI 3 "memory_operand")]
+		   UNSPEC_LDX_ATOMIC))
+   (set (match_operand:DI 4 "memory_operand")
+	(unspec:DI [(match_dup 2)]
+		   UNSPEC_STX_ATOMIC))]
+  "!TARGET_64BIT
+   && peep2_reg_dead_p (3, operands[2])
+   && rtx_equal_p (XEXP (operands[0], 0), XEXP (operands[3], 0))"
+  [(set (match_dup 5) (match_dup 1))]
+  "operands[5] = gen_lowpart (DFmode, operands[4]);")
+
+(define_peephole2
+  [(set (match_operand:DF 0 "memory_operand")
+	(match_operand:DF 1 "any_fp_register_operand"))
+   (set (mem:BLK (scratch:SI))
+	(unspec:BLK [(mem:BLK (scratch:SI))] UNSPEC_MEMORY_BLOCKAGE))
+   (set (match_operand:DF 2 "sse_reg_operand")
+	(unspec:DF [(match_operand:DI 3 "memory_operand")]
+		   UNSPEC_LDX_ATOMIC))
+   (set (match_operand:DI 4 "memory_operand")
+	(unspec:DI [(match_dup 2)]
+		   UNSPEC_STX_ATOMIC))]
+  "!TARGET_64BIT
+   && peep2_reg_dead_p (4, operands[2])
+   && rtx_equal_p (XEXP (operands[0], 0), XEXP (operands[3], 0))"
+  [(const_int 0)]
+{
+  emit_insn (gen_memory_blockage ());
+  emit_move_insn (gen_lowpart (DFmode, operands[4]), operands[1]);
   DONE;
 })
 
@@ -288,7 +450,8 @@
 
 (define_insn "loaddi_via_fpu"
   [(set (match_operand:DF 0 "register_operand" "=f")
-	(unspec:DF [(match_operand:DI 1 "memory_operand" "m")] UNSPEC_LDA))]
+	(unspec:DF [(match_operand:DI 1 "memory_operand" "m")]
+		   UNSPEC_FILD_ATOMIC))]
   "TARGET_80387"
   "fild%Z1\t%1"
   [(set_attr "type" "fmov")
@@ -297,7 +460,8 @@
 
 (define_insn "storedi_via_fpu"
   [(set (match_operand:DI 0 "memory_operand" "=m")
-	(unspec:DI [(match_operand:DF 1 "register_operand" "f")] UNSPEC_STA))]
+	(unspec:DI [(match_operand:DF 1 "register_operand" "f")]
+		   UNSPEC_FIST_ATOMIC))]
   "TARGET_80387"
 {
   gcc_assert (find_regno_note (insn, REG_DEAD, FIRST_STACK_REG) != NULL_RTX);
@@ -305,6 +469,32 @@
   return "fistp%Z0\t%0";
 }
   [(set_attr "type" "fmov")
+   (set_attr "mode" "DI")])
+
+(define_insn "loaddi_via_sse"
+  [(set (match_operand:DF 0 "register_operand" "=x")
+	(unspec:DF [(match_operand:DI 1 "memory_operand" "m")]
+		   UNSPEC_LDX_ATOMIC))]
+  "TARGET_SSE"
+{
+  if (TARGET_SSE2)
+    return "%vmovq\t{%1, %0|%0, %1}";
+  return "movlps\t{%1, %0|%0, %1}";
+}
+  [(set_attr "type" "ssemov")
+   (set_attr "mode" "DI")])
+
+(define_insn "storedi_via_sse"
+  [(set (match_operand:DI 0 "memory_operand" "=m")
+	(unspec:DI [(match_operand:DF 1 "register_operand" "x")]
+		   UNSPEC_STX_ATOMIC))]
+  "TARGET_SSE"
+{
+  if (TARGET_SSE2)
+    return "%vmovq\t{%1, %0|%0, %1}";
+  return "movlps\t{%1, %0|%0, %1}";
+}
+  [(set_attr "type" "ssemov")
    (set_attr "mode" "DI")])
 
 (define_expand "atomic_compare_and_swap<mode>"
@@ -350,32 +540,41 @@
     }
   else
     {
-      enum machine_mode hmode = <CASHMODE>mode;
-      rtx lo_o, lo_e, lo_n, hi_o, hi_e, hi_n, mem;
-
-      lo_o = operands[1];
-      mem  = operands[2];
-      lo_e = operands[3];
-      lo_n = operands[4];
-      hi_o = gen_highpart (hmode, lo_o);
-      hi_e = gen_highpart (hmode, lo_e);
-      hi_n = gen_highpart (hmode, lo_n);
-      lo_o = gen_lowpart (hmode, lo_o);
-      lo_e = gen_lowpart (hmode, lo_e);
-      lo_n = gen_lowpart (hmode, lo_n);
-
-      if (!cmpxchg8b_pic_memory_operand (mem, <MODE>mode))
- 	mem = replace_equiv_address (mem, force_reg (Pmode, XEXP (mem, 0)));
+      machine_mode hmode = <CASHMODE>mode;
 
       emit_insn
        (gen_atomic_compare_and_swap<mode>_doubleword
-        (lo_o, hi_o, mem, lo_e, hi_e, lo_n, hi_n, operands[6]));
+        (operands[1], operands[2], operands[3],
+	 gen_lowpart (hmode, operands[4]), gen_highpart (hmode, operands[4]),
+	 operands[6]));
     }
 
   ix86_expand_setcc (operands[0], EQ, gen_rtx_REG (CCZmode, FLAGS_REG),
 		     const0_rtx);
   DONE;
 })
+
+;; For double-word compare and swap, we are obliged to play tricks with
+;; the input newval (op3:op4) because the Intel register numbering does
+;; not match the gcc register numbering, so the pair must be CX:BX.
+
+(define_mode_attr doublemodesuffix [(SI "8") (DI "16")])
+
+(define_insn "atomic_compare_and_swap<dwi>_doubleword"
+  [(set (match_operand:<DWI> 0 "register_operand" "=A")
+	(unspec_volatile:<DWI>
+	  [(match_operand:<DWI> 1 "memory_operand" "+m")
+	   (match_operand:<DWI> 2 "register_operand" "0")
+	   (match_operand:DWIH 3 "register_operand" "b")
+	   (match_operand:DWIH 4 "register_operand" "c")
+	   (match_operand:SI 5 "const_int_operand")]
+	  UNSPECV_CMPXCHG))
+   (set (match_dup 1)
+	(unspec_volatile:<DWI> [(const_int 0)] UNSPECV_CMPXCHG))
+   (set (reg:CCZ FLAGS_REG)
+        (unspec_volatile:CCZ [(const_int 0)] UNSPECV_CMPXCHG))]
+  "TARGET_CMPXCHG<doublemodesuffix>B"
+  "lock{%;} %K5cmpxchg<doublemodesuffix>b\t%1")
 
 (define_insn "atomic_compare_and_swap<mode>_1"
   [(set (match_operand:SWI 0 "register_operand" "=a")
@@ -391,63 +590,6 @@
         (unspec_volatile:CCZ [(const_int 0)] UNSPECV_CMPXCHG))]
   "TARGET_CMPXCHG"
   "lock{%;} %K4cmpxchg{<imodesuffix>}\t{%3, %1|%1, %3}")
-
-;; For double-word compare and swap, we are obliged to play tricks with
-;; the input newval (op5:op6) because the Intel register numbering does
-;; not match the gcc register numbering, so the pair must be CX:BX.
-;; That said, in order to take advantage of possible lower-subreg opts,
-;; treat all of the integral operands in the same way.
-
-;; Operands 5 and 6 really need to be different registers, which in
-;; this case means op5 must not be ecx.  If op5 and op6 are the same
-;; (like when the input is -1LL) GCC might chose to allocate op5 to ecx,
-;; like op6.  This breaks, as the xchg will move the PIC register
-;; contents to %ecx then --> boom.
-
-(define_mode_attr doublemodesuffix [(SI "8") (DI "16")])
-(define_mode_attr regprefix [(SI "e") (DI "r")])
-
-(define_insn "atomic_compare_and_swap<dwi>_doubleword"
-  [(set (match_operand:DWIH 0 "register_operand" "=a,a")
-	(unspec_volatile:DWIH
-	  [(match_operand:<DWI> 2 "cmpxchg8b_pic_memory_operand" "+m,m")
-	   (match_operand:DWIH 3 "register_operand" "0,0")
-	   (match_operand:DWIH 4 "register_operand" "1,1")
-	   (match_operand:DWIH 5 "register_operand" "b,!*r")
-	   (match_operand:DWIH 6 "register_operand" "c,c")
-	   (match_operand:SI 7 "const_int_operand")]
-	  UNSPECV_CMPXCHG))
-   (set (match_operand:DWIH 1 "register_operand" "=d,d")
-	(unspec_volatile:DWIH [(const_int 0)] UNSPECV_CMPXCHG))
-   (set (match_dup 2)
-	(unspec_volatile:<DWI> [(const_int 0)] UNSPECV_CMPXCHG))
-   (set (reg:CCZ FLAGS_REG)
-        (unspec_volatile:CCZ [(const_int 0)] UNSPECV_CMPXCHG))
-   (clobber (match_scratch:DWIH 8 "=X,&5"))]
-  "TARGET_CMPXCHG<doublemodesuffix>B"
-{
-  bool swap = REGNO (operands[5]) != BX_REG;
-  const char *xchg = "xchg{<imodesuffix>}\t%%<regprefix>bx, %5";
-
-  if (swap)
-    {
-      output_asm_insn (xchg, operands);
-      if (ix86_emit_cfi ())
-	{
-	  output_asm_insn (".cfi_remember_state", operands);
-	  output_asm_insn (".cfi_register\t%%<regprefix>bx, %5", operands);
-	}
-    }
-  output_asm_insn ("lock{%;} %K7cmpxchg<doublemodesuffix>b\t%2", operands);
-  if (swap)
-    {
-      output_asm_insn (xchg, operands);
-      if (ix86_emit_cfi ())
-	output_asm_insn (".cfi_restore_state", operands);
-    }
-
-  return "";
-})
 
 ;; For operand 2 nonmemory_operand predicate is used instead of
 ;; register_operand to allow combiner to better optimize atomic
@@ -471,6 +613,36 @@
 (define_peephole2
   [(set (match_operand:SWI 0 "register_operand")
 	(match_operand:SWI 2 "const_int_operand"))
+   (parallel [(set (match_dup 0)
+		   (unspec_volatile:SWI
+		     [(match_operand:SWI 1 "memory_operand")
+		      (match_operand:SI 4 "const_int_operand")]
+		     UNSPECV_XCHG))
+	      (set (match_dup 1)
+		   (plus:SWI (match_dup 1)
+			     (match_dup 0)))
+	      (clobber (reg:CC FLAGS_REG))])
+   (set (reg:CCZ FLAGS_REG)
+	(compare:CCZ (match_dup 0)
+		     (match_operand:SWI 3 "const_int_operand")))]
+  "peep2_reg_dead_p (3, operands[0])
+   && (unsigned HOST_WIDE_INT) INTVAL (operands[2])
+      == -(unsigned HOST_WIDE_INT) INTVAL (operands[3])
+   && !reg_overlap_mentioned_p (operands[0], operands[1])"
+  [(parallel [(set (reg:CCZ FLAGS_REG)
+		   (compare:CCZ
+		     (unspec_volatile:SWI [(match_dup 1) (match_dup 4)]
+					  UNSPECV_XCHG)
+		     (match_dup 3)))
+	      (set (match_dup 1)
+		   (plus:SWI (match_dup 1)
+			     (match_dup 2)))])])
+
+;; Likewise, but for the -Os special case of *mov<mode>_or.
+(define_peephole2
+  [(parallel [(set (match_operand:SWI 0 "register_operand")
+		   (match_operand:SWI 2 "constm1_operand"))
+	      (clobber (reg:CC FLAGS_REG))])
    (parallel [(set (match_dup 0)
 		   (unspec_volatile:SWI
 		     [(match_operand:SWI 1 "memory_operand")
@@ -604,3 +776,114 @@
    (clobber (reg:CC FLAGS_REG))]
   ""
   "lock{%;} %K2<logic>{<imodesuffix>}\t{%1, %0|%0, %1}")
+
+(define_expand "atomic_bit_test_and_set<mode>"
+  [(match_operand:SWI248 0 "register_operand")
+   (match_operand:SWI248 1 "memory_operand")
+   (match_operand:SWI248 2 "nonmemory_operand")
+   (match_operand:SI 3 "const_int_operand") ;; model
+   (match_operand:SI 4 "const_int_operand")]
+  ""
+{
+  emit_insn (gen_atomic_bit_test_and_set<mode>_1 (operands[1], operands[2],
+						  operands[3]));
+  rtx tem = gen_reg_rtx (QImode);
+  ix86_expand_setcc (tem, EQ, gen_rtx_REG (CCCmode, FLAGS_REG), const0_rtx);
+  rtx result = convert_modes (<MODE>mode, QImode, tem, 1);
+  if (operands[4] == const0_rtx)
+    result = expand_simple_binop (<MODE>mode, ASHIFT, result,
+				  operands[2], operands[0], 0, OPTAB_DIRECT);
+  if (result != operands[0])
+    emit_move_insn (operands[0], result);
+  DONE;
+})
+
+(define_insn "atomic_bit_test_and_set<mode>_1"
+  [(set (reg:CCC FLAGS_REG)
+	(compare:CCC
+	  (unspec_volatile:SWI248
+	    [(match_operand:SWI248 0 "memory_operand" "+m")
+	     (match_operand:SI 2 "const_int_operand")]		;; model
+	    UNSPECV_XCHG)
+	  (const_int 0)))
+   (set (zero_extract:SWI248 (match_dup 0)
+			     (const_int 1)
+			     (match_operand:SWI248 1 "nonmemory_operand" "rN"))
+	(const_int 1))]
+  ""
+  "lock{%;} %K2bts{<imodesuffix>}\t{%1, %0|%0, %1}")
+
+(define_expand "atomic_bit_test_and_complement<mode>"
+  [(match_operand:SWI248 0 "register_operand")
+   (match_operand:SWI248 1 "memory_operand")
+   (match_operand:SWI248 2 "nonmemory_operand")
+   (match_operand:SI 3 "const_int_operand") ;; model
+   (match_operand:SI 4 "const_int_operand")]
+  ""
+{
+  emit_insn (gen_atomic_bit_test_and_complement<mode>_1 (operands[1],
+							 operands[2],
+							 operands[3]));
+  rtx tem = gen_reg_rtx (QImode);
+  ix86_expand_setcc (tem, EQ, gen_rtx_REG (CCCmode, FLAGS_REG), const0_rtx);
+  rtx result = convert_modes (<MODE>mode, QImode, tem, 1);
+  if (operands[4] == const0_rtx)
+    result = expand_simple_binop (<MODE>mode, ASHIFT, result,
+				  operands[2], operands[0], 0, OPTAB_DIRECT);
+  if (result != operands[0])
+    emit_move_insn (operands[0], result);
+  DONE;
+})
+
+(define_insn "atomic_bit_test_and_complement<mode>_1"
+  [(set (reg:CCC FLAGS_REG)
+	(compare:CCC
+	  (unspec_volatile:SWI248
+	    [(match_operand:SWI248 0 "memory_operand" "+m")
+	     (match_operand:SI 2 "const_int_operand")]		;; model
+	    UNSPECV_XCHG)
+	  (const_int 0)))
+   (set (zero_extract:SWI248 (match_dup 0)
+			     (const_int 1)
+			     (match_operand:SWI248 1 "nonmemory_operand" "rN"))
+	(not:SWI248 (zero_extract:SWI248 (match_dup 0)
+					 (const_int 1)
+					 (match_dup 1))))]
+  ""
+  "lock{%;} %K2btc{<imodesuffix>}\t{%1, %0|%0, %1}")
+
+(define_expand "atomic_bit_test_and_reset<mode>"
+  [(match_operand:SWI248 0 "register_operand")
+   (match_operand:SWI248 1 "memory_operand")
+   (match_operand:SWI248 2 "nonmemory_operand")
+   (match_operand:SI 3 "const_int_operand") ;; model
+   (match_operand:SI 4 "const_int_operand")]
+  ""
+{
+  emit_insn (gen_atomic_bit_test_and_reset<mode>_1 (operands[1], operands[2],
+						    operands[3]));
+  rtx tem = gen_reg_rtx (QImode);
+  ix86_expand_setcc (tem, EQ, gen_rtx_REG (CCCmode, FLAGS_REG), const0_rtx);
+  rtx result = convert_modes (<MODE>mode, QImode, tem, 1);
+  if (operands[4] == const0_rtx)
+    result = expand_simple_binop (<MODE>mode, ASHIFT, result,
+				  operands[2], operands[0], 0, OPTAB_DIRECT);
+  if (result != operands[0])
+    emit_move_insn (operands[0], result);
+  DONE;
+})
+
+(define_insn "atomic_bit_test_and_reset<mode>_1"
+  [(set (reg:CCC FLAGS_REG)
+	(compare:CCC
+	  (unspec_volatile:SWI248
+	    [(match_operand:SWI248 0 "memory_operand" "+m")
+	     (match_operand:SI 2 "const_int_operand")]		;; model
+	    UNSPECV_XCHG)
+	  (const_int 0)))
+   (set (zero_extract:SWI248 (match_dup 0)
+			     (const_int 1)
+			     (match_operand:SWI248 1 "nonmemory_operand" "rN"))
+	(const_int 0))]
+  ""
+  "lock{%;} %K2btr{<imodesuffix>}\t{%1, %0|%0, %1}")

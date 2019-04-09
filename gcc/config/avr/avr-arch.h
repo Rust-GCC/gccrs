@@ -1,6 +1,6 @@
 /* Definitions of types that are used to store AVR architecture and
    device information.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Georg-Johann Lay (avr@gjlay.de)
 
 This file is part of GCC.
@@ -22,9 +22,11 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef AVR_ARCH_H
 #define AVR_ARCH_H
 
+#define AVR_MMCU_DEFAULT "avr2"
+
 /* This enum supplies indices into the avr_arch_types[] table below. */
 
-enum avr_arch
+enum avr_arch_id
 {
   ARCH_UNKNOWN,
   ARCH_AVR1,
@@ -37,7 +39,9 @@ enum avr_arch
   ARCH_AVR5,
   ARCH_AVR51,
   ARCH_AVR6,
+  ARCH_AVRTINY,
   ARCH_AVRXMEGA2,
+  ARCH_AVRXMEGA3,
   ARCH_AVRXMEGA4,
   ARCH_AVRXMEGA5,
   ARCH_AVRXMEGA6,
@@ -77,8 +81,14 @@ typedef struct
      and thus also the RAMPX, RAMPY and RAMPZ registers.  */
   int have_rampd;
 
+  /* This is a TINY core. */
+  int tiny_p;
+
   /* Default start of data section address for architecture.  */
   int default_data_section_start;
+
+  /* Offset where flash memory is seen in RAM address range or 0.  */
+  int flash_pm_offset;
 
   /* Offset between SFR address and RAM address:
      SFR-address = RAM-address - sfr_offset  */
@@ -88,7 +98,7 @@ typedef struct
   const char *const macro;
 
   /* Architecture name.  */
-  const char *const arch_name;
+  const char *const name;
 } avr_arch_t;
 
 
@@ -100,7 +110,7 @@ typedef struct
   const char *const name;
 
   /* Index in avr_arch_types[].  */
-  enum avr_arch arch;
+  enum avr_arch_id arch_id;
 
   /* device specific feature */
   int dev_attribute;
@@ -114,11 +124,8 @@ typedef struct
   /* Start of text section. */
   int text_section_start;
 
-  /* Number of 64k segments in the flash.  */
-  int n_flash;
-
-  /* Old name of device library.  */
-  const char *const library_name;
+  /* Flash size in bytes.  */
+  int flash_size;
 } avr_mcu_t;
 
 /* AVR device specific features.
@@ -147,14 +154,27 @@ AVR_ERRATA_SKIP
 
      For information please refer the following respective errata links
        http://www.atmel.com/dyn/resources/prod_documents/doc2494.pdf
-       http://www.atmel.com/dyn/resources/prod_documents/doc1436.pdf  */
+       http://www.atmel.com/dyn/resources/prod_documents/doc1436.pdf
+
+AVR_ISA_RCALL
+  Always use RJMP / RCALL and assume JMP / CALL are not available.
+  This affects multilib selection via specs generation and -mshort-calls.
+  Even if a device like ATtiny417 from avrxmega3 supports JMP / CALL, we
+  assume these instructions are not available and we set the built-in
+  macro __AVR_HAVE_JMP_CALL__ accordingly.  This macro is used to
+  determine a rough estimate of flash size in libgcc, and AVR-LibC uses
+  this macro to determine vector sizes.  */
 
 enum avr_device_specific_features
 {
   AVR_ISA_NONE,
   AVR_ISA_RMW     = 0x1, /* device has RMW instructions. */
   AVR_SHORT_SP    = 0x2, /* Stack Pointer has 8 bits width. */
-  AVR_ERRATA_SKIP = 0x4  /* device has a core erratum. */
+  AVR_ERRATA_SKIP = 0x4, /* device has a core erratum. */
+  AVR_ISA_LDS     = 0x8, /* whether LDS / STS is valid for all data in static
+                            storage.  Only useful for reduced Tiny.  */
+  AVR_ISA_RCALL   = 0x10 /* Use RJMP / RCALL even though JMP / CALL
+                            are available (-mshort-calls).  */
 };
 
 /* Map architecture to its texinfo string.  */
@@ -162,18 +182,19 @@ enum avr_device_specific_features
 typedef struct
 {
   /* Architecture ID.  */
-  enum avr_arch arch;
+  enum avr_arch_id arch_id;
 
-  /* textinfo source to describe the archtiecture.  */
+  /* textinfo source to describe the architecture.  */
   const char *texinfo;
 } avr_arch_info_t;
 
 /* Preprocessor macros to define depending on MCU type.  */
 
 extern const avr_arch_t avr_arch_types[];
-extern const avr_arch_t *avr_current_arch;
+extern const avr_arch_t *avr_arch;
 
 extern const avr_mcu_t avr_mcu_types[];
-extern const avr_mcu_t *avr_current_device;
+
+extern void avr_inform_core_architectures (void);
 
 #endif /* AVR_ARCH_H */

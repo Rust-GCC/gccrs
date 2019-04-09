@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -464,9 +464,9 @@ package body Ch3 is
 
       loop
          case Token is
-
-            when Tok_Access |
-                 Tok_Not    => --  Ada 2005 (AI-231)
+            when Tok_Access
+               | Tok_Not  --  Ada 2005 (AI-231)
+            =>
                Typedef_Node := P_Access_Type_Definition;
                exit;
 
@@ -777,10 +777,10 @@ package body Ch3 is
             --  Ada 2005 (AI-345): Protected, synchronized or task interface
             --  or Ada 2005 (AI-443): Synchronized private extension.
 
-            when Tok_Protected    |
-                 Tok_Synchronized |
-                 Tok_Task         =>
-
+            when Tok_Protected
+               | Tok_Synchronized
+               | Tok_Task
+            =>
                declare
                   Saved_Token : constant Token_Type := Token;
 
@@ -864,7 +864,6 @@ package body Ch3 is
                   Error_Msg_AP ("type definition expected");
                   raise Error_Resync;
                end if;
-
          end case;
       end loop;
 
@@ -1455,6 +1454,16 @@ package body Ch3 is
 
          else
             Restore_Scan_State (Scan_State);
+
+            --  Reset Token_Node, because it already got changed from an
+            --  Identifier to a Defining_Identifier, and we don't want that
+            --  for a statement!
+
+            Token_Node :=
+              Make_Identifier (Sloc (Token_Node), Chars (Token_Node));
+
+            --  And now scan out one or more statements
+
             Statement_When_Declaration_Expected (Decls, Done, In_Spec);
             return;
          end if;
@@ -1504,14 +1513,34 @@ package body Ch3 is
             return;
 
          --  Otherwise we definitely have an ordinary identifier with a junk
-         --  token after it. Just complain that we expect a declaration, and
-         --  skip to a semicolon
+         --  token after it.
 
          else
-            Set_Declaration_Expected;
-            Resync_Past_Semicolon;
-            Done := False;
-            return;
+            --  If in -gnatd.2 mode, try for statements
+
+            if Debug_Flag_Dot_2 then
+               Restore_Scan_State (Scan_State);
+
+               --  Reset Token_Node, because it already got changed from an
+               --  Identifier to a Defining_Identifier, and we don't want that
+               --  for a statement!
+
+               Token_Node :=
+                 Make_Identifier (Sloc (Token_Node), Chars (Token_Node));
+
+               --  And now scan out one or more statements
+
+               Statement_When_Declaration_Expected (Decls, Done, In_Spec);
+               return;
+
+            --  Normal case, just complain and skip to semicolon
+
+            else
+               Set_Declaration_Expected;
+               Resync_Past_Semicolon;
+               Done := False;
+               return;
+            end if;
          end if;
       end if;
 
@@ -1858,7 +1887,31 @@ package body Ch3 is
          end if;
 
          Set_Defining_Identifier (Decl_Node, Idents (Ident));
-         P_Aspect_Specifications (Decl_Node);
+         P_Aspect_Specifications (Decl_Node, Semicolon => False);
+
+         --  Allow initialization expression to follow aspects (note that in
+         --  this case P_Aspect_Specifications already issued an error msg).
+
+         if Token = Tok_Colon_Equal then
+            if Is_Non_Empty_List (Aspect_Specifications (Decl_Node)) then
+               Error_Msg
+                 ("aspect specifications must come after initialization "
+                  & "expression",
+                  Sloc (First (Aspect_Specifications (Decl_Node))));
+
+            else
+               --  In any case, the assignment symbol doesn't belong.
+
+               Error_Msg ("misplaced assignment symbol", Scan_Ptr);
+            end if;
+
+            Set_Expression (Decl_Node, Init_Expr_Opt);
+            Set_Has_Init_Expression (Decl_Node);
+         end if;
+
+         --  Now scan out the semicolon, which we deferred above
+
+         T_Semicolon;
 
          if List_OK then
             if Ident < Num_Idents then
@@ -2981,8 +3034,23 @@ package body Ch3 is
                   Set_Discriminant_Type
                     (Specification_Node,
                      P_Access_Definition (Not_Null_Present));
-               else
 
+               --  Catch ouf-of-order keywords
+
+               elsif Token = Tok_Constant then
+                  Scan;
+
+                  if Token = Tok_Access then
+                     Error_Msg_SC ("CONSTANT must appear after ACCESS");
+                     Set_Discriminant_Type
+                       (Specification_Node,
+                        P_Access_Definition (Not_Null_Present));
+
+                  else
+                     Error_Msg_SC ("misplaced CONSTANT");
+                  end if;
+
+               else
                   Set_Discriminant_Type
                     (Specification_Node, P_Subtype_Mark);
                   No_Constraint;
@@ -3426,7 +3494,7 @@ package body Ch3 is
    procedure P_Component_Items (Decls : List_Id) is
       Aliased_Present  : Boolean := False;
       CompDef_Node     : Node_Id;
-      Decl_Node        : Node_Id;
+      Decl_Node        : Node_Id := Empty;  -- initialize to prevent warning
       Scan_State       : Saved_Scan_State;
       Not_Null_Present : Boolean := False;
       Num_Idents       : Nat;
@@ -3446,6 +3514,7 @@ package body Ch3 is
       end if;
 
       Ident_Sloc := Token_Ptr;
+      Check_Bad_Layout;
       Idents (1) := P_Defining_Identifier (C_Comma_Colon);
       Num_Idents := 1;
 
@@ -3685,7 +3754,7 @@ package body Ch3 is
 
    function P_Discrete_Choice_List return List_Id is
       Choices     : List_Id;
-      Expr_Node   : Node_Id;
+      Expr_Node   : Node_Id := Empty;  -- initialize to prevent warning
       Choice_Node : Node_Id;
 
    begin
@@ -3787,6 +3856,10 @@ package body Ch3 is
          end if;
 
          if Token = Tok_Comma then
+            if Nkind (Expr_Node) = N_Iterated_Component_Association then
+               return Choices;
+            end if;
+
             Scan; -- past comma
 
             if Token = Tok_Vertical_Bar then
@@ -4241,16 +4314,20 @@ package body Ch3 is
       Scan_State : Saved_Scan_State;
 
    begin
+      Done := False;
+
       if Style_Check then
          Style.Check_Indentation;
       end if;
 
       case Token is
-
-         when Tok_Function =>
+         when Tok_Function
+            | Tok_Not
+            | Tok_Overriding
+            | Tok_Procedure
+         =>
             Check_Bad_Layout;
             Append (P_Subprogram (Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp), Decls);
-            Done := False;
 
          when Tok_For =>
             Check_Bad_Layout;
@@ -4274,12 +4351,10 @@ package body Ch3 is
 
             Restore_Scan_State (Scan_State);
             Append (P_Representation_Clause, Decls);
-            Done := False;
 
          when Tok_Generic =>
             Check_Bad_Layout;
             Append (P_Generic, Decls);
-            Done := False;
 
          when Tok_Identifier =>
             Check_Bad_Layout;
@@ -4294,7 +4369,6 @@ package body Ch3 is
 
                Token := Tok_Overriding;
                Append (P_Subprogram (Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp), Decls);
-               Done := False;
 
             --  Normal case, no overriding, or overriding followed by colon
 
@@ -4302,60 +4376,34 @@ package body Ch3 is
                P_Identifier_Declarations (Decls, Done, In_Spec);
             end if;
 
-         --  Ada 2005: A subprogram declaration can start with "not" or
-         --  "overriding". In older versions, "overriding" is handled
-         --  like an identifier, with the appropriate messages.
-
-         when Tok_Not =>
-            Check_Bad_Layout;
-            Append (P_Subprogram (Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp), Decls);
-            Done := False;
-
-         when Tok_Overriding =>
-            Check_Bad_Layout;
-            Append (P_Subprogram (Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp), Decls);
-            Done := False;
-
          when Tok_Package =>
             Check_Bad_Layout;
             Append (P_Package (Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp), Decls);
-            Done := False;
 
          when Tok_Pragma =>
             Append (P_Pragma, Decls);
-            Done := False;
-
-         when Tok_Procedure =>
-            Check_Bad_Layout;
-            Append (P_Subprogram (Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp), Decls);
-            Done := False;
 
          when Tok_Protected =>
             Check_Bad_Layout;
             Scan; -- past PROTECTED
             Append (P_Protected, Decls);
-            Done := False;
 
          when Tok_Subtype =>
             Check_Bad_Layout;
             Append (P_Subtype_Declaration, Decls);
-            Done := False;
 
          when Tok_Task =>
             Check_Bad_Layout;
             Scan; -- past TASK
             Append (P_Task, Decls);
-            Done := False;
 
          when Tok_Type =>
             Check_Bad_Layout;
             Append (P_Type_Declaration, Decls);
-            Done := False;
 
          when Tok_Use =>
             Check_Bad_Layout;
-            Append (P_Use_Clause, Decls);
-            Done := False;
+            P_Use_Clause (Decls);
 
          when Tok_With =>
             Check_Bad_Layout;
@@ -4377,6 +4425,10 @@ package body Ch3 is
                else
                   Error_Msg_SC ("aspect specifications not allowed here");
                end if;
+
+               --  Assume that this is a misplaced aspect specification within
+               --  a declarative list. After discarding the misplaced aspects
+               --  we can continue the scan.
 
                declare
                   Dummy_Node : constant Node_Id :=
@@ -4470,8 +4522,6 @@ package body Ch3 is
                   End_Statements (Handled_Statement_Sequence (Body_Node));
                end;
 
-               Done := False;
-
             else
                Done := True;
             end if;
@@ -4489,6 +4539,10 @@ package body Ch3 is
                Scan; -- past RECORD
                TF_Semicolon;
 
+               --  This might happen because of misplaced aspect specification.
+               --  After discarding the misplaced aspects we can continue the
+               --  scan.
+
             else
                Restore_Scan_State (Scan_State); -- to END
                Done := True;
@@ -4500,19 +4554,19 @@ package body Ch3 is
          --  judgment, because it is a real mess to go into statement mode
          --  prematurely in response to a junk declaration.
 
-         when Tok_Abort     |
-              Tok_Accept    |
-              Tok_Declare   |
-              Tok_Delay     |
-              Tok_Exit      |
-              Tok_Goto      |
-              Tok_If        |
-              Tok_Loop      |
-              Tok_Null      |
-              Tok_Requeue   |
-              Tok_Select    |
-              Tok_While     =>
-
+         when Tok_Abort
+            | Tok_Accept
+            | Tok_Declare
+            | Tok_Delay
+            | Tok_Exit
+            | Tok_Goto
+            | Tok_If
+            | Tok_Loop
+            | Tok_Null
+            | Tok_Requeue
+            | Tok_Select
+            | Tok_While
+         =>
             --  But before we decide that it's a statement, let's check for
             --  a reserved word misused as an identifier.
 
@@ -4603,7 +4657,6 @@ package body Ch3 is
    exception
       when Error_Resync =>
          Resync_Past_Semicolon;
-         Done := False;
    end P_Declarative_Items;
 
    ----------------------------------
@@ -4758,6 +4811,12 @@ package body Ch3 is
          if In_Spec then
             null;
 
+         --  Just ignore it if we are in -gnatd.2 (allow statements to appear
+         --  in declaration sequences) mode.
+
+         elsif Debug_Flag_Dot_2 then
+            null;
+
          --  In the declarative part case, take a second statement as a sure
          --  sign that we really have a missing BEGIN, and end the declarative
          --  part now. Note that the caller will fix up the first message to
@@ -4771,26 +4830,32 @@ package body Ch3 is
       --  Case of first occurrence of unexpected statement
 
       else
-         --  If we are in a package spec, then give message of statement
-         --  not allowed in package spec. This message never gets changed.
+         --  Do not give error message if we are operating in -gnatd.2 mode
+         --  (alllow statements to appear in declarative parts).
 
-         if In_Spec then
-            Error_Msg_SC ("statement not allowed in package spec");
+         if not Debug_Flag_Dot_2 then
 
-         --  If in declarative part, then we give the message complaining
-         --  about finding a statement when a declaration is expected. This
-         --  gets changed to a complaint about a missing BEGIN if we later
-         --  find that no BEGIN is present.
+            --  If we are in a package spec, then give message of statement
+            --  not allowed in package spec. This message never gets changed.
 
-         else
-            Error_Msg_SC ("statement not allowed in declarative part");
+            if In_Spec then
+               Error_Msg_SC ("statement not allowed in package spec");
+
+            --  If in declarative part, then we give the message complaining
+            --  about finding a statement when a declaration is expected. This
+            --  gets changed to a complaint about a missing BEGIN if we later
+            --  find that no BEGIN is present.
+
+            else
+               Error_Msg_SC ("statement not allowed in declarative part");
+            end if;
+
+            --  Capture message Id. This is used for two purposes, first to
+            --  stop multiple messages, see test above, and second, to allow
+            --  the replacement of the message in the declarative part case.
+
+            Missing_Begin_Msg := Get_Msg_Id;
          end if;
-
-         --  Capture message Id. This is used for two purposes, first to
-         --  stop multiple messages, see test above, and second, to allow
-         --  the replacement of the message in the declarative part case.
-
-         Missing_Begin_Msg := Get_Msg_Id;
       end if;
 
       --  In all cases except the case in which we decided to terminate the

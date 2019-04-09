@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,9 +28,9 @@
 with Atree;    use Atree;
 with Einfo;    use Einfo;
 with Errout;   use Errout;
-with Fname;    use Fname;
 with Lib;      use Lib;
 with Namet;    use Namet;
+with Opt;      use Opt;
 with Sem_Aux;  use Sem_Aux;
 with Sem_Eval; use Sem_Eval;
 with Sem_Util; use Sem_Util;
@@ -59,13 +59,16 @@ package body Sem_Intr is
    procedure Check_Shift (E : Entity_Id; N : Node_Id);
    --  Check intrinsic shift subprogram, the two arguments are the same
    --  as for Check_Intrinsic_Subprogram (i.e. the entity of the subprogram
-   --  declaration, and the node for the pragma argument, used for messages)
+   --  declaration, and the node for the pragma argument, used for messages).
 
-   procedure Errint (Msg : String; S : Node_Id; N : Node_Id);
+   procedure Errint
+     (Msg : String; S : Node_Id; N : Node_Id; Relaxed : Boolean := False);
    --  Post error message for bad intrinsic, the message itself is posted
    --  on the appropriate spec node and another message is placed on the
    --  pragma itself, referring to the spec. S is the node in the spec on
    --  which the message is to be placed, and N is the pragma argument node.
+   --  Relaxed is True if the message should not be emitted in
+   --  Relaxed_RM_Semantics mode.
 
    ------------------------------
    -- Check_Exception_Function --
@@ -98,7 +101,7 @@ package body Sem_Intr is
       Nam  : constant Entity_Id := Entity (Name (N));
       Arg1 : constant Node_Id   := First_Actual (N);
       Typ  : Entity_Id;
-      Rtyp : Entity_Id;
+      Rtyp : Entity_Id := Empty;
       Cnam : Name_Id;
       Unam : Node_Id;
 
@@ -335,12 +338,11 @@ package body Sem_Intr is
 
       elsif not Comes_From_Source (E)
         or else not Comes_From_Source (N)
-        or else Is_Predefined_File_Name
-                  (Unit_File_Name (Get_Source_Unit (N)))
+        or else In_Predefined_Unit (N)
       then
          null;
 
-      --  Exception  functions
+      --  Exception functions
 
       elsif Nam_In (Nam, Name_Exception_Information,
                          Name_Exception_Message,
@@ -359,6 +361,7 @@ package body Sem_Intr is
                          Name_Line,
                          Name_Source_Location,
                          Name_Enclosing_Entity,
+                         Name_Compilation_ISO_Date,
                          Name_Compilation_Date,
                          Name_Compilation_Time)
       then
@@ -430,12 +433,25 @@ package body Sem_Intr is
       then
          Errint
            ("first argument for shift must have size 8, 16, 32 or 64",
-             Ptyp1, N);
+            Ptyp1, N, Relaxed => True);
          return;
 
       elsif Non_Binary_Modulus (Typ1) then
+         Errint ("shifts not allowed for nonbinary modular types", Ptyp1, N);
+
+      --  For modular type, modulus must be 2**8, 2**16, 2**32, or 2**64.
+      --  Don't apply to generic types, since we may not have a modulus value.
+
+      elsif Is_Modular_Integer_Type (Typ1)
+        and then not Is_Generic_Type (Typ1)
+        and then Modulus (Typ1) /= Uint_2 ** 8
+        and then Modulus (Typ1) /= Uint_2 ** 16
+        and then Modulus (Typ1) /= Uint_2 ** 32
+        and then Modulus (Typ1) /= Uint_2 ** 64
+      then
          Errint
-           ("shifts not allowed for non-binary modular types", Ptyp1, N);
+           ("modular type for shift must have modulus of 2'*'*8, "
+            & "2'*'*16, 2'*'*32, or 2'*'*64", Ptyp1, N, Relaxed => True);
 
       elsif Etype (Arg1) /= Etype (E) then
          Errint
@@ -450,10 +466,16 @@ package body Sem_Intr is
    -- Errint --
    ------------
 
-   procedure Errint (Msg : String; S : Node_Id; N : Node_Id) is
+   procedure Errint
+     (Msg : String; S : Node_Id; N : Node_Id; Relaxed : Boolean := False) is
    begin
-      Error_Msg_N (Msg, S);
-      Error_Msg_N ("incorrect intrinsic subprogram, see spec", N);
+      --  Ignore errors on Intrinsic in Relaxed_RM_Semantics mode where we can
+      --  be more liberal.
+
+      if not (Relaxed and Relaxed_RM_Semantics) then
+         Error_Msg_N (Msg, S);
+         Error_Msg_N ("incorrect intrinsic subprogram, see spec", N);
+      end if;
    end Errint;
 
 end Sem_Intr;

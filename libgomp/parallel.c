@@ -1,7 +1,8 @@
-/* Copyright (C) 2005-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
-   This file is part of the GNU OpenMP Library (libgomp).
+   This file is part of the GNU Offloading and Multi Processing Library
+   (libgomp).
 
    Libgomp is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by
@@ -84,7 +85,7 @@ gomp_resolve_num_threads (unsigned specified, unsigned count)
      nested parallel, so there is just one thread in the
      contention group as well, no need to handle it atomically.  */
   pool = thr->thread_pool;
-  if (thr->ts.team == NULL)
+  if (thr->ts.team == NULL || pool == NULL)
     {
       num_threads = max_num_threads;
       if (num_threads > icv->thread_limit_var)
@@ -122,7 +123,8 @@ void
 GOMP_parallel_start (void (*fn) (void *), void *data, unsigned num_threads)
 {
   num_threads = gomp_resolve_num_threads (num_threads, 0);
-  gomp_team_start (fn, data, num_threads, 0, gomp_new_team (num_threads));
+  gomp_team_start (fn, data, num_threads, 0, gomp_new_team (num_threads),
+		   NULL);
 }
 
 void
@@ -160,12 +162,31 @@ GOMP_parallel_end (void)
 ialias (GOMP_parallel_end)
 
 void
-GOMP_parallel (void (*fn) (void *), void *data, unsigned num_threads, unsigned int flags)
+GOMP_parallel (void (*fn) (void *), void *data, unsigned num_threads,
+	       unsigned int flags)
 {
   num_threads = gomp_resolve_num_threads (num_threads, 0);
-  gomp_team_start (fn, data, num_threads, flags, gomp_new_team (num_threads));
+  gomp_team_start (fn, data, num_threads, flags, gomp_new_team (num_threads),
+		   NULL);
   fn (data);
   ialias_call (GOMP_parallel_end) ();
+}
+
+unsigned
+GOMP_parallel_reductions (void (*fn) (void *), void *data,
+			  unsigned num_threads, unsigned int flags)
+{
+  struct gomp_taskgroup *taskgroup;
+  num_threads = gomp_resolve_num_threads (num_threads, 0);
+  uintptr_t *rdata = *(uintptr_t **)data;
+  taskgroup = gomp_parallel_reduction_register (rdata, num_threads);
+  gomp_team_start (fn, data, num_threads, flags, gomp_new_team (num_threads),
+		   taskgroup);
+  fn (data);
+  ialias_call (GOMP_parallel_end) ();
+  gomp_sem_destroy (&taskgroup->taskgroup_sem);
+  free (taskgroup);
+  return num_threads;
 }
 
 bool
@@ -184,8 +205,15 @@ GOMP_cancellation_point (int which)
     }
   else if (which & GOMP_CANCEL_TASKGROUP)
     {
-      if (thr->task->taskgroup && thr->task->taskgroup->cancelled)
-	return true;
+      if (thr->task->taskgroup)
+	{
+	  if (thr->task->taskgroup->cancelled)
+	    return true;
+	  if (thr->task->taskgroup->workshare
+	      && thr->task->taskgroup->prev
+	      && thr->task->taskgroup->prev->cancelled)
+	    return true;
+	}
       /* FALLTHRU into the GOMP_CANCEL_PARALLEL case,
 	 as #pragma omp cancel parallel also cancels all explicit
 	 tasks.  */
@@ -217,11 +245,17 @@ GOMP_cancel (int which, bool do_cancel)
     }
   else if (which & GOMP_CANCEL_TASKGROUP)
     {
-      if (thr->task->taskgroup && !thr->task->taskgroup->cancelled)
+      if (thr->task->taskgroup)
 	{
-	  gomp_mutex_lock (&team->task_lock);
-	  thr->task->taskgroup->cancelled = true;
-	  gomp_mutex_unlock (&team->task_lock);
+	  struct gomp_taskgroup *taskgroup = thr->task->taskgroup;
+	  if (taskgroup->workshare && taskgroup->prev)
+	    taskgroup = taskgroup->prev;
+	  if (!taskgroup->cancelled)
+	    {
+	      gomp_mutex_lock (&team->task_lock);
+	      taskgroup->cancelled = true;
+	      gomp_mutex_unlock (&team->task_lock);
+	    }
 	}
       return true;
     }

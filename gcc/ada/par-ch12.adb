@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -167,7 +167,7 @@ package body Ch12 is
          end if;
 
          if Token = Tok_Use then
-            Append (P_Use_Clause, Decls);
+            P_Use_Clause (Decls);
 
          else
             --  Parse a generic parameter declaration
@@ -726,7 +726,7 @@ package body Ch12 is
 
          when Tok_Not =>
             if P_Null_Exclusion then
-               Typedef_Node :=  P_Access_Type_Definition;
+               Typedef_Node := P_Access_Type_Definition;
                Set_Null_Exclusion_Present (Typedef_Node);
                return Typedef_Node;
 
@@ -736,10 +736,10 @@ package body Ch12 is
                return Error;
             end if;
 
-         when Tok_Private  =>
+         when Tok_Private =>
             return P_Formal_Private_Type_Definition;
 
-         when  Tok_Tagged  =>
+         when Tok_Tagged =>
             if Next_Token_Is (Tok_Semicolon) then
                Typedef_Node :=
                  New_Node (N_Formal_Incomplete_Type_Definition, Token_Ptr);
@@ -763,10 +763,10 @@ package body Ch12 is
          --  Ada 2005 (AI-345): Task, Protected or Synchronized interface or
          --  (AI-443): Synchronized formal derived type declaration.
 
-         when Tok_Protected    |
-              Tok_Synchronized |
-              Tok_Task         =>
-
+         when Tok_Protected
+            | Tok_Synchronized
+            | Tok_Task
+         =>
             declare
                Saved_Token : constant Token_Type := Token;
 
@@ -812,7 +812,6 @@ package body Ch12 is
             Error_Msg_BC ("expecting generic type definition here");
             Resync_Past_Semicolon;
             return Error;
-
       end case;
    end P_Formal_Type_Definition;
 

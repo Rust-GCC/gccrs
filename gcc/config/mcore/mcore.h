@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for Motorola M*CORE Processor.
-   Copyright (C) 1993-2014 Free Software Foundation, Inc.
+   Copyright (C) 1993-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -148,12 +148,6 @@ extern char * mcore_current_function_name;
    is GET_MODE_SIZE(DImode).  */
 #define MAX_FIXED_MODE_SIZE 32
 
-/* Make strings word-aligned so strcpy from constants will be faster.  */
-#define CONSTANT_ALIGNMENT(EXP, ALIGN)  \
-  ((TREE_CODE (EXP) == STRING_CST	\
-    && (ALIGN) < FASTEST_ALIGNMENT)	\
-   ? FASTEST_ALIGNMENT : (ALIGN))
-
 /* Make arrays of chars word-aligned for the same reasons.  */
 #define DATA_ALIGNMENT(TYPE, ALIGN)		\
   (TREE_CODE (TYPE) == ARRAY_TYPE		\
@@ -238,27 +232,6 @@ extern char * mcore_current_function_name;
 #define REG_ALLOC_ORDER  \
  /* r7  r6  r5  r4  r3  r2  r15 r14 r13 r12 r11 r10  r9  r8  r1  r0  ap  c   fp x19*/ \
   {  7,  6,  5,  4,  3,  2,  15, 14, 13, 12, 11, 10,  9,  8,  1,  0, 16, 17, 18, 19}
-
-/* Return number of consecutive hard regs needed starting at reg REGNO
-   to hold something of mode MODE.
-   This is ordinarily the length in words of a value of mode MODE
-   but can be less for certain modes in special long registers.
-
-   On the MCore regs are UNITS_PER_WORD bits wide; */
-#define HARD_REGNO_NREGS(REGNO, MODE)  \
-   (((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD))
-
-/* Value is 1 if hard register REGNO can hold a value of machine-mode MODE.
-   We may keep double values in even registers.  */
-#define HARD_REGNO_MODE_OK(REGNO, MODE)  \
-  ((TARGET_8ALIGN && GET_MODE_SIZE (MODE) > UNITS_PER_WORD) ? (((REGNO) & 1) == 0) : (REGNO < 18))
-
-/* Value is 1 if it is a good idea to tie two pseudo registers
-   when one has mode MODE1 and one has mode MODE2.
-   If HARD_REGNO_MODE_OK could produce different values for MODE1 and MODE2,
-   for any hard reg, then this must be 0 for correct output.  */
-#define MODES_TIEABLE_P(MODE1, MODE2) \
-  ((MODE1) == (MODE2) || GET_MODE_CLASS (MODE1) == GET_MODE_CLASS (MODE2))
 
 /* Definitions for register eliminations.
 
@@ -415,13 +388,7 @@ extern const enum reg_class regno_reg_class[FIRST_PSEUDO_REGISTER];
 
 /* Define this if pushing a word on the stack
    makes the stack pointer a smaller address.  */
-#define STACK_GROWS_DOWNWARD  
-
-/* Offset within stack frame to start allocating local variables at.
-   If FRAME_GROWS_DOWNWARD, this is the offset to the END of the
-   first local allocated.  Otherwise, it is the offset to the BEGINNING
-   of the first local allocated.  */
-#define STARTING_FRAME_OFFSET  0
+#define STACK_GROWS_DOWNWARD 1
 
 /* If defined, the maximum amount of space required for outgoing arguments
    will be computed and placed into the variable
@@ -529,91 +496,6 @@ extern const enum reg_class regno_reg_class[FIRST_PSEUDO_REGISTER];
 /* Recognize any constant value that is a valid address.  */
 #define CONSTANT_ADDRESS_P(X) 	 (GET_CODE (X) == LABEL_REF)
 
-/* The macros REG_OK_FOR..._P assume that the arg is a REG rtx
-   and check its validity for a certain class.
-   We have two alternate definitions for each of them.
-   The usual definition accepts all pseudo regs; the other rejects
-   them unless they have been allocated suitable hard regs.
-   The symbol REG_OK_STRICT causes the latter definition to be used.  */
-#ifndef REG_OK_STRICT
-
-/* Nonzero if X is a hard reg that can be used as a base reg
-   or if it is a pseudo reg.  */
-#define REG_OK_FOR_BASE_P(X) \
-    	(REGNO (X) <= 16 || REGNO (X) >= FIRST_PSEUDO_REGISTER)
-
-/* Nonzero if X is a hard reg that can be used as an index
-   or if it is a pseudo reg.  */
-#define REG_OK_FOR_INDEX_P(X)	0
-
-#else
-
-/* Nonzero if X is a hard reg that can be used as a base reg.  */
-#define REG_OK_FOR_BASE_P(X)	\
-	REGNO_OK_FOR_BASE_P (REGNO (X))
-
-/* Nonzero if X is a hard reg that can be used as an index.  */
-#define REG_OK_FOR_INDEX_P(X)	0
-
-#endif
-/* GO_IF_LEGITIMATE_ADDRESS recognizes an RTL expression
-   that is a valid memory address for an instruction.
-   The MODE argument is the machine mode for the MEM expression
-   that wants to use this address.
-
-   The other macros defined here are used only in GO_IF_LEGITIMATE_ADDRESS.  */
-#define BASE_REGISTER_RTX_P(X)  \
-  (GET_CODE (X) == REG && REG_OK_FOR_BASE_P (X))
-
-#define INDEX_REGISTER_RTX_P(X)  \
-  (GET_CODE (X) == REG && REG_OK_FOR_INDEX_P (X))
-
-
-/* Jump to LABEL if X is a valid address RTX.  This must also take
-   REG_OK_STRICT into account when deciding about valid registers, but it uses
-   the above macros so we are in luck.  
- 
-   Allow  REG
-	  REG+disp 
-
-   A legitimate index for a QI is 0..15, for HI is 0..30, for SI is 0..60,
-   and for DI is 0..56 because we use two SI loads, etc.  */
-#define GO_IF_LEGITIMATE_INDEX(MODE, REGNO, OP, LABEL)			\
-  do									\
-    {									\
-      if (GET_CODE (OP) == CONST_INT) 					\
-        {								\
-	  if (GET_MODE_SIZE (MODE) >= 4					\
-	      && (((unsigned HOST_WIDE_INT) INTVAL (OP)) % 4) == 0	\
-	      &&  ((unsigned HOST_WIDE_INT) INTVAL (OP))		\
-	      <= (unsigned HOST_WIDE_INT) 64 - GET_MODE_SIZE (MODE))	\
-	    goto LABEL;							\
-	  if (GET_MODE_SIZE (MODE) == 2 				\
-	      && (((unsigned HOST_WIDE_INT) INTVAL (OP)) % 2) == 0	\
-	      &&  ((unsigned HOST_WIDE_INT) INTVAL (OP)) <= 30)		\
-	    goto LABEL;							\
-	  if (GET_MODE_SIZE (MODE) == 1 				\
-	      && ((unsigned HOST_WIDE_INT) INTVAL (OP)) <= 15)		\
-	    goto LABEL;							\
-        }								\
-    }									\
-  while (0)
-
-#define GO_IF_LEGITIMATE_ADDRESS(MODE, X, LABEL)                  \
-{ 								  \
-  if (BASE_REGISTER_RTX_P (X))					  \
-    goto LABEL;							  \
-  else if (GET_CODE (X) == PLUS || GET_CODE (X) == LO_SUM) 	  \
-    {								  \
-      rtx xop0 = XEXP (X,0);					  \
-      rtx xop1 = XEXP (X,1);					  \
-      if (BASE_REGISTER_RTX_P (xop0))				  \
-	GO_IF_LEGITIMATE_INDEX (MODE, REGNO (xop0), xop1, LABEL); \
-      if (BASE_REGISTER_RTX_P (xop1))				  \
-	GO_IF_LEGITIMATE_INDEX (MODE, REGNO (xop1), xop0, LABEL); \
-    }								  \
-}								   
-
 /* Specify the machine mode that this machine uses
    for the index in the tablejump instruction.  */
 #define CASE_VECTOR_MODE SImode
@@ -639,7 +521,7 @@ extern const enum reg_class regno_reg_class[FIRST_PSEUDO_REGISTER];
 
 /* Define if operations between registers always perform the operation
    on the full register even if a narrower mode is specified.  */
-#define WORD_REGISTER_OPERATIONS
+#define WORD_REGISTER_OPERATIONS 1
 
 /* Define if loading in MODE, an integral mode narrower than BITS_PER_WORD
    will either zero-extend or sign-extend.  The value of this macro should
@@ -651,12 +533,9 @@ extern const enum reg_class regno_reg_class[FIRST_PSEUDO_REGISTER];
 #define SLOW_BYTE_ACCESS TARGET_SLOW_BYTES
 
 /* Shift counts are truncated to 6-bits (0 to 63) instead of the expected
-   5-bits, so we can not define SHIFT_COUNT_TRUNCATED to true for this
+   5-bits, so we cannot define SHIFT_COUNT_TRUNCATED to true for this
    target.  */
 #define SHIFT_COUNT_TRUNCATED 0
-
-/* All integers have the same format so truncation is easy.  */
-#define TRULY_NOOP_TRUNCATION(OUTPREC,INPREC)  1
 
 /* Define this if addresses of constant functions
    shouldn't be put through pseudo regs where they can be cse'd.
@@ -672,8 +551,6 @@ extern const enum reg_class regno_reg_class[FIRST_PSEUDO_REGISTER];
 /* Compute extra cost of moving data between one register class
    and another.  All register moves are cheap.  */
 #define REGISTER_MOVE_COST(MODE, SRCCLASS, DSTCLASS) 2
-
-#define WORD_REGISTER_OPERATIONS
 
 /* Assembler output control.  */
 #define ASM_COMMENT_START "\t//"
@@ -805,7 +682,7 @@ extern long mcore_current_compilation_timestamp;
   do								\
     {								\
       if (mcore_dllexport_name_p (NAME))			\
-	MCORE_EXPORT_NAME (FILE, NAME)				\
+	MCORE_EXPORT_NAME (FILE, NAME);				\
       if (! mcore_dllimport_name_p (NAME))			\
         {							\
           fputs ("\t.comm\t", FILE);				\

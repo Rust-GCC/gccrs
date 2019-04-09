@@ -1,6 +1,6 @@
 // 1999-06-03 bkoz
 
-// Copyright (C) 1999-2014 Free Software Foundation, Inc.
+// Copyright (C) 1999-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -19,20 +19,26 @@
 
 // 21.3.5.4 basic_string::insert
 
-#include <string>
 #include <stdexcept>
 #include <testsuite_hooks.h>
 
-int test01(void)
+#ifdef _GLIBCXX_DEBUG
+#include <debug/string>
+using namespace __gnu_debug;
+#else
+#include <string>
+using namespace std;
+#endif
+
+void test01(void)
 {
-  bool test __attribute__((unused)) = true;
-  typedef std::string::size_type csize_type;
-  typedef std::string::iterator citerator;
+  typedef string::size_type csize_type;
+  typedef string::iterator citerator;
   csize_type csz01, csz02;
 
-  const std::string str01("rodeo beach, marin");
-  const std::string str02("baker beach, san francisco");
-  std::string str03;
+  const string str01("rodeo beach, marin");
+  const string str02("baker beach, san francisco");
+  string str03;
 
   // string& insert(size_type p1, const string& str, size_type p2, size_type n)
   // requires:
@@ -77,7 +83,7 @@ int test01(void)
 
   csz01 = str01.max_size();
   try {
-    std::string str04(csz01, 'b'); 
+    string str04(csz01, 'b');
     str03 = str04; 
     csz02 = str02.size();
     try {
@@ -178,7 +184,6 @@ int test01(void)
   csz01 = str03.size();
   str03.insert(str03.end(), str01.begin(), str01.end()); 
   VERIFY( str03 == "baker beach, san franciscorodeo beach, marin" );
-  return test;
 }
 
 int main()

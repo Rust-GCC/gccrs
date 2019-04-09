@@ -1,4 +1,5 @@
-/* { dg-do compile { target arm*-*-* avr-*-* mcore-*-* rx-*-* spu-*-* } } */
+/* { dg-do compile } */
+/* { dg-require-effective-target naked_functions } */
 /* { dg-options "-O2 -fdump-tree-optimized" } */
 
 static unsigned long __attribute__((naked))
@@ -21,4 +22,3 @@ bar (void)
 }
 
 /* { dg-final { scan-tree-dump "foo \\\(long unsigned int base\\\)" "optimized" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

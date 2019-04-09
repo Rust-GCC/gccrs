@@ -1,8 +1,8 @@
 /* { dg-do compile { target { powerpc*-*-* } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
-/* { dg-skip-if "" { powerpc*le-*-* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
+/* { dg-skip-if "" { powerpc*le-*-* } } */
 /* { dg-require-effective-target powerpc_vsx_ok } */
-/* { dg-options "-O2 -mcpu=power7" } */
+/* { dg-options "-O2 -mdejagnu-cpu=power7" } */
 
 /* Make sure that vec_mergel and vec_mergeh are supported for V2DF/V2DI types.  */
 /* { dg-final { scan-assembler-times "xxpermdi" 4 } } */

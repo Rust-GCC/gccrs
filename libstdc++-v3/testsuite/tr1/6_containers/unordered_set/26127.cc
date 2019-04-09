@@ -1,6 +1,6 @@
 // { dg-do compile }
 
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,7 +28,7 @@ void test01()
 
   s.bucket(42);
   s.key_eq();
-  s.max_load_factor();  
+  s.max_load_factor();
 }
 
 int main()

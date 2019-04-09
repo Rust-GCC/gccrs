@@ -1,5 +1,5 @@
 /* Create and destroy argument vectors (argv's)
-   Copyright (C) 1992, 2001, 2010, 2012 Free Software Foundation, Inc.
+   Copyright (C) 1992-2019 Free Software Foundation, Inc.
    Written by Fred Fish @ Cygnus Support
 
 This file is part of the libiberty library.
@@ -35,6 +35,13 @@ Boston, MA 02110-1301, USA.  */
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/types.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#if HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
 
 #ifndef NULL
 #define NULL 0
@@ -49,7 +56,7 @@ Boston, MA 02110-1301, USA.  */
 
 /*
 
-@deftypefn Extension char** dupargv (char **@var{vector})
+@deftypefn Extension char** dupargv (char * const *@var{vector})
 
 Duplicate an argument vector.  Simply scans through @var{vector},
 duplicating each argument until the terminating @code{NULL} is found.
@@ -62,7 +69,7 @@ argument vector.
 */
 
 char **
-dupargv (char **argv)
+dupargv (char * const *argv)
 {
   int argc;
   char **copy;
@@ -76,11 +83,7 @@ dupargv (char **argv)
 
   /* the strings */
   for (argc = 0; argv[argc] != NULL; argc++)
-    {
-      int len = strlen (argv[argc]);
-      copy[argc] = (char *) xmalloc (len + 1);
-      strcpy (copy[argc], argv[argc]);
-    }
+    copy[argc] = xstrdup (argv[argc]);
   copy[argc] = NULL;
   return copy;
 }
@@ -283,7 +286,7 @@ char **buildargv (const char *input)
 
 /*
 
-@deftypefn Extension int writeargv (const char **@var{argv}, FILE *@var{file})
+@deftypefn Extension int writeargv (char * const *@var{argv}, FILE *@var{file})
 
 Write each member of ARGV, handling all necessary quoting, to the file
 named by FILE, separated by whitespace.  Return 0 on success, non-zero
@@ -294,7 +297,7 @@ if an error occurred while writing to FILE.
 */
 
 int
-writeargv (char **argv, FILE *f)
+writeargv (char * const *argv, FILE *f)
 {
   int status = 0;
 
@@ -364,8 +367,8 @@ expandargv (int *argcp, char ***argvp)
 {
   /* The argument we are currently processing.  */
   int i = 0;
-  /* Non-zero if ***argvp has been dynamically allocated.  */
-  int argv_dynamic = 0;
+  /* To check if ***argvp has been dynamically allocated.  */
+  char ** const original_argv = *argvp;
   /* Limit the number of response files that we parse in order
      to prevent infinite recursion.  */
   unsigned int iteration_limit = 2000;
@@ -391,6 +394,9 @@ expandargv (int *argcp, char ***argvp)
       char **file_argv;
       /* The number of options read from the response file, if any.  */
       size_t file_argc;
+#ifdef S_ISDIR
+      struct stat sb;
+#endif
       /* We are only interested in options of the form "@file".  */
       filename = (*argvp)[i];
       if (filename[0] != '@')
@@ -401,6 +407,15 @@ expandargv (int *argcp, char ***argvp)
 	  fprintf (stderr, "%s: error: too many @-files encountered\n", (*argvp)[0]);
 	  xexit (1);
 	}
+#ifdef S_ISDIR
+      if (stat (filename+1, &sb) < 0)
+	continue;
+      if (S_ISDIR(sb.st_mode))
+	{
+	  fprintf (stderr, "%s: error: @-file refers to a directory\n", (*argvp)[0]);
+	  xexit (1);
+	}
+#endif
       /* Read the contents of the file.  */
       f = fopen (++filename, "r");
       if (!f)
@@ -434,12 +449,14 @@ expandargv (int *argcp, char ***argvp)
 	/* Parse the string.  */
 	file_argv = buildargv (buffer);
       /* If *ARGVP is not already dynamically allocated, copy it.  */
-      if (!argv_dynamic)
+      if (*argvp == original_argv)
 	*argvp = dupargv (*argvp);
       /* Count the number of arguments.  */
       file_argc = 0;
       while (file_argv[file_argc])
 	++file_argc;
+      /* Free the original option's memory.  */
+      free ((*argvp)[i]);
       /* Now, insert FILE_ARGV into ARGV.  The "+1" below handles the
 	 NULL terminator at the end of ARGV.  */ 
       *argvp = ((char **) 
@@ -467,7 +484,7 @@ expandargv (int *argcp, char ***argvp)
 
 /*
 
-@deftypefn Extension int countargv (char **@var{argv})
+@deftypefn Extension int countargv (char * const *@var{argv})
 
 Return the number of elements in @var{argv}.
 Returns zero if @var{argv} is NULL.
@@ -477,7 +494,7 @@ Returns zero if @var{argv} is NULL.
 */
 
 int
-countargv (char **argv)
+countargv (char * const *argv)
 {
   int argc;
 

@@ -1,11 +1,12 @@
 /* { dg-do compile { target { powerpc*-*-* } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
 /* { dg-require-effective-target powerpc_vsx_ok } */
-/* { dg-options "-O3 -mcpu=power6 -ffast-math" } */
-/* { dg-final { scan-assembler-times "fctiwz" 2 } } */
-/* { dg-final { scan-assembler-not "fctiwuz" } } */
-/* { dg-final { scan-assembler-times "fctidz" 8 } } */
-/* { dg-final { scan-assembler-not "fctiduz" } } */
+/* { dg-options "-O3 -mdejagnu-cpu=power6 -ffast-math" } */
+/* { dg-final { scan-assembler-times "fctiwz " 2 } } */
+/* { dg-final { scan-assembler-not "fctiwuz " } } */
+/* { dg-final { scan-assembler-times "fctidz " 8 } } */
+/* { dg-final { scan-assembler-not "fctiduz " } } */
+/* { dg-final { scan-assembler-not "fctidu " } } */
 /* { dg-final { scan-assembler-not "xscvdpsxds" } } */
 /* { dg-final { scan-assembler-not "xscvdpuxds" } } */
 

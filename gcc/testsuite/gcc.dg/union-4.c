@@ -19,5 +19,4 @@ void foo(void)
     abort ();
 }
 
-/* { dg-final { scan-rtl-dump-not "abort" "cse1" { target i?86-*-* } } } */
-/* { dg-final { cleanup-rtl-dump "cse1" } } */
+/* { dg-final { scan-rtl-dump-not "abort" "cse1" { target i?86-*-* x86_64-*-* } } } */

@@ -35,7 +35,7 @@ main (void)
   *p = 7;
   s = 6;
   l = 0;
-#pragma omp parallel for /* { dg-error "enclosing parallel" } */ \
+#pragma omp parallel for /* { dg-error "enclosing 'parallel'" } */ \
   default (none) private (p) shared (s) 
   for (i = 0; i < 64; i++)
     {
@@ -44,7 +44,7 @@ main (void)
       thrglobalvar++;	/* Predetermined - threadprivate.  */
       thrlocvar++;	/* Predetermined - threadprivate.  */
       foo (i);		/* Predetermined - private (omp for loop variable).  */
-      foo (constvar);	/* Predetermined - shared (const qualified type).  */
+      foo (constvar);	/* { dg-error "not specified in" } */
       foo (*p);		/* *p predetermined - shared (heap allocated */
       (*p)++;		/* storage).  */
       bar (p);		/* Explicitly determined - private.  */

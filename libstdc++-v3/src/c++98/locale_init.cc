@@ -1,4 +1,4 @@
-// Copyright (C) 1997-2014 Free Software Foundation, Inc.
+// Copyright (C) 1997-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -20,16 +20,46 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#define _GLIBCXX_USE_CXX11_ABI 1
 #include <clocale>
 #include <cstring>
-#include <cstdlib>     // For getenv, free.
+#include <cstdlib>     // For free.
 #include <cctype>
 #include <cwctype>     // For towupper, etc.
 #include <locale>
 #include <ext/concurrence.h>
 
-namespace 
+#if _GLIBCXX_USE_DUAL_ABI
+// This file is compiled with the new std::string ABI so std::numpunct<char>
+// refers to std::__cxx11::numpunct<char>. These declarations let us refer
+// to the other facets instantiated with the old ABI.
+# define _GLIBCXX_LOC_ID(mangled) extern std::locale::id mangled
+_GLIBCXX_LOC_ID(_ZNSt8numpunctIcE2idE);
+_GLIBCXX_LOC_ID(_ZNSt7collateIcE2idE);
+_GLIBCXX_LOC_ID(_ZNSt8time_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE);
+_GLIBCXX_LOC_ID(_ZNSt9money_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE);
+_GLIBCXX_LOC_ID(_ZNSt9money_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEE2idE);
+_GLIBCXX_LOC_ID(_ZNSt10moneypunctIcLb0EE2idE);
+_GLIBCXX_LOC_ID(_ZNSt10moneypunctIcLb1EE2idE);
+_GLIBCXX_LOC_ID(_ZNSt8messagesIcE2idE);
+# ifdef _GLIBCXX_USE_WCHAR_T
+_GLIBCXX_LOC_ID(_ZNSt8numpunctIwE2idE);
+_GLIBCXX_LOC_ID(_ZNSt7collateIwE2idE);
+_GLIBCXX_LOC_ID(_ZNSt8time_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEE2idE);
+_GLIBCXX_LOC_ID(_ZNSt9money_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEE2idE);
+_GLIBCXX_LOC_ID(_ZNSt9money_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE2idE);
+_GLIBCXX_LOC_ID(_ZNSt10moneypunctIwLb0EE2idE);
+_GLIBCXX_LOC_ID(_ZNSt10moneypunctIwLb1EE2idE);
+_GLIBCXX_LOC_ID(_ZNSt8messagesIwE2idE);
+# endif
+#endif
+
+
+namespace
 {
+  const int num_facets = _GLIBCXX_NUM_FACETS + _GLIBCXX_NUM_UNICODE_FACETS
+    + (_GLIBCXX_USE_DUAL_ABI ? _GLIBCXX_NUM_CXX11_FACETS : 0);
+
   __gnu_cxx::__mutex&
   get_locale_mutex()
   {
@@ -57,11 +87,11 @@ namespace
 
   typedef char fake_facet_vec[sizeof(locale::facet*)]
   __attribute__ ((aligned(__alignof__(locale::facet*))));
-  fake_facet_vec facet_vec[_GLIBCXX_NUM_FACETS];
+  fake_facet_vec facet_vec[num_facets];
 
   typedef char fake_cache_vec[sizeof(locale::facet*)]
   __attribute__ ((aligned(__alignof__(locale::facet*))));
-  fake_cache_vec cache_vec[_GLIBCXX_NUM_FACETS];
+  fake_cache_vec cache_vec[num_facets];
 
   typedef char fake_ctype_c[sizeof(std::ctype<char>)]
   __attribute__ ((aligned(__alignof__(std::ctype<char>))));
@@ -95,7 +125,7 @@ namespace
   typedef char fake_money_get_c[sizeof(money_get<char>)]
   __attribute__ ((aligned(__alignof__(money_get<char>))));
   fake_money_get_c money_get_c;
-  
+
   typedef char fake_money_put_c[sizeof(money_put<char>)]
   __attribute__ ((aligned(__alignof__(money_put<char>))));
   fake_money_put_c money_put_c;
@@ -149,7 +179,7 @@ namespace
   typedef char fake_money_get_w[sizeof(money_get<wchar_t>)]
   __attribute__ ((aligned(__alignof__(money_get<wchar_t>))));
   fake_money_get_w money_get_w;
-  
+
   typedef char fake_money_put_w[sizeof(money_put<wchar_t>)]
   __attribute__ ((aligned(__alignof__(money_put<wchar_t>))));
   fake_money_put_w money_put_w;
@@ -169,6 +199,24 @@ namespace
   typedef char fake_messages_w[sizeof(messages<wchar_t>)]
   __attribute__ ((aligned(__alignof__(messages<wchar_t>))));
   fake_messages_w messages_w;
+#endif
+
+  typedef char fake_codecvt_c16[sizeof(codecvt<char16_t, char, mbstate_t>)]
+  __attribute__ ((aligned(__alignof__(codecvt<char16_t, char, mbstate_t>))));
+  fake_codecvt_c16 codecvt_c16;
+
+  typedef char fake_codecvt_c32[sizeof(codecvt<char32_t, char, mbstate_t>)]
+  __attribute__ ((aligned(__alignof__(codecvt<char32_t, char, mbstate_t>))));
+  fake_codecvt_c32 codecvt_c32;
+
+#ifdef _GLIBCXX_USE_CHAR8_T
+  typedef char fake_codecvt_c16_c8[sizeof(codecvt<char16_t, char8_t, mbstate_t>)]
+  __attribute__ ((aligned(__alignof__(codecvt<char16_t, char8_t, mbstate_t>))));
+  fake_codecvt_c16_c8 codecvt_c16_c8;
+
+  typedef char fake_codecvt_c32_c8[sizeof(codecvt<char32_t, char8_t, mbstate_t>)]
+  __attribute__ ((aligned(__alignof__(codecvt<char32_t, char8_t, mbstate_t>))));
+  fake_codecvt_c32_c8 codecvt_c32_c8;
 #endif
 
   // Storage for "C" locale caches.
@@ -206,7 +254,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   locale::locale() throw() : _M_impl(0)
-  { 
+  {
     _S_initialize();
 
     // Checked locking to optimize the common case where _S_global
@@ -219,9 +267,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     //   fall back to lock protected access to both _S_global and
     //   its reference count.
     _M_impl = _S_global;
-    if (_M_impl == _S_classic)
-      _M_impl->_M_add_reference();
-    else
+    if (_M_impl != _S_classic)
       {
         __gnu_cxx::__scoped_lock sentry(get_locale_mutex());
         _S_global->_M_add_reference();
@@ -237,7 +283,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       __gnu_cxx::__scoped_lock sentry(get_locale_mutex());
       __old = _S_global;
-      __other._M_impl->_M_add_reference();
+      if (__other._M_impl != _S_classic)
+	__other._M_impl->_M_add_reference();
       _S_global = __other._M_impl;
       const string __other_name = __other.name();
       if (__other_name != "*")
@@ -246,7 +293,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     // Reference count sanity check: one reference removed for the
     // subsition of __other locale, one added by return-by-value. Net
-    // difference: zero. When the returned locale object's destrutor
+    // difference: zero. When the returned locale object's destructor
     // is called, then the reference count is decremented and possibly
     // destroyed.
     return locale(__old);
@@ -254,7 +301,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   const locale&
   locale::classic()
-  { 
+  {
     _S_initialize();
     return *(new (&c_locale) locale(_S_classic));
   }
@@ -265,10 +312,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     // 2 references.
     // One reference for _S_classic, one for _S_global
     _S_classic = new (&c_locale_impl) _Impl(2);
-    _S_global = _S_classic; 	    
+    _S_global = _S_classic;
   }
 
-  void  
+  void
   locale::_S_initialize()
   {
 #ifdef __GTHREADS
@@ -283,11 +330,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   const locale::id* const
   locale::_Impl::_S_id_ctype[] =
   {
-    &std::ctype<char>::id, 
+    &std::ctype<char>::id,
     &codecvt<char, char, mbstate_t>::id,
 #ifdef _GLIBCXX_USE_WCHAR_T
     &std::ctype<wchar_t>::id,
     &codecvt<wchar_t, char, mbstate_t>::id,
+#endif
+#if _GLIBCXX_NUM_UNICODE_FACETS != 0
+    &codecvt<char16_t, char, mbstate_t>::id,
+    &codecvt<char32_t, char, mbstate_t>::id,
+#ifdef _GLIBCXX_USE_CHAR8_T
+    &codecvt<char16_t, char8_t, mbstate_t>::id,
+    &codecvt<char32_t, char8_t, mbstate_t>::id,
+#endif
 #endif
     0
   };
@@ -295,9 +350,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   const locale::id* const
   locale::_Impl::_S_id_numeric[] =
   {
-    &num_get<char>::id,  
-    &num_put<char>::id,  
-    &numpunct<char>::id, 
+    &num_get<char>::id,
+    &num_put<char>::id,
+    &numpunct<char>::id,
 #ifdef _GLIBCXX_USE_WCHAR_T
     &num_get<wchar_t>::id,
     &num_put<wchar_t>::id,
@@ -305,7 +360,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
     0
   };
-  
+
   const locale::id* const
   locale::_Impl::_S_id_collate[] =
   {
@@ -319,24 +374,24 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   const locale::id* const
   locale::_Impl::_S_id_time[] =
   {
-    &__timepunct<char>::id, 
-    &time_get<char>::id, 
-    &time_put<char>::id, 
+    &__timepunct<char>::id,
+    &time_get<char>::id,
+    &time_put<char>::id,
 #ifdef _GLIBCXX_USE_WCHAR_T
-    &__timepunct<wchar_t>::id, 
+    &__timepunct<wchar_t>::id,
     &time_get<wchar_t>::id,
     &time_put<wchar_t>::id,
 #endif
     0
   };
-  
+
   const locale::id* const
   locale::_Impl::_S_id_monetary[] =
   {
-    &money_get<char>::id,        
-    &money_put<char>::id,        
-    &moneypunct<char, false>::id, 
-    &moneypunct<char, true >::id, 
+    &money_get<char>::id,
+    &money_put<char>::id,
+    &moneypunct<char, false>::id,
+    &moneypunct<char, true >::id,
 #ifdef _GLIBCXX_USE_WCHAR_T
     &money_get<wchar_t>::id,
     &money_put<wchar_t>::id,
@@ -349,13 +404,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   const locale::id* const
   locale::_Impl::_S_id_messages[] =
   {
-    &std::messages<char>::id, 
+    &std::messages<char>::id,
 #ifdef _GLIBCXX_USE_WCHAR_T
     &std::messages<wchar_t>::id,
 #endif
     0
   };
-  
+
   const locale::id* const* const
   locale::_Impl::_S_facet_categories[] =
   {
@@ -369,23 +424,61 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     0
   };
 
+#if _GLIBCXX_USE_DUAL_ABI
+  // Facets that are instantiated for both the COW and SSO std::string ABIs.
+  // The COW ABI version must come first, followed by its SSO twin.
+  const locale::id* const locale::_S_twinned_facets[] = {
+    &::_ZNSt8numpunctIcE2idE,
+    &numpunct<char>::id,
+    &::_ZNSt7collateIcE2idE,
+    &std::collate<char>::id,
+    &::_ZNSt8time_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE,
+    &time_get<char>::id,
+    &::_ZNSt9money_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE,
+    &money_get<char>::id,
+    &::_ZNSt9money_putIcSt19ostreambuf_iteratorIcSt11char_traitsIcEEE2idE,
+    &money_put<char>::id,
+    &::_ZNSt10moneypunctIcLb0EE2idE,
+    &moneypunct<char, false>::id,
+    &::_ZNSt10moneypunctIcLb1EE2idE,
+    &moneypunct<char, true >::id,
+    &::_ZNSt8messagesIcE2idE,
+    &std::messages<char>::id,
+# ifdef _GLIBCXX_USE_WCHAR_T
+    &::_ZNSt8numpunctIwE2idE,
+    &numpunct<wchar_t>::id,
+    &::_ZNSt7collateIwE2idE,
+    &std::collate<wchar_t>::id,
+    &::_ZNSt8time_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEE2idE,
+    &time_get<wchar_t>::id,
+    &::_ZNSt9money_getIwSt19istreambuf_iteratorIwSt11char_traitsIwEEE2idE,
+    &money_get<wchar_t>::id,
+    &::_ZNSt9money_putIwSt19ostreambuf_iteratorIwSt11char_traitsIwEEE2idE,
+    &money_put<wchar_t>::id,
+    &::_ZNSt10moneypunctIwLb0EE2idE,
+    &moneypunct<wchar_t, false>::id,
+    &::_ZNSt10moneypunctIwLb1EE2idE,
+    &moneypunct<wchar_t, true >::id,
+    &::_ZNSt8messagesIwE2idE,
+    &std::messages<wchar_t>::id,
+# endif
+    0, 0
+  };
+#endif
+
   // Construct "C" _Impl.
   locale::_Impl::
-  _Impl(size_t __refs) throw() 
-  : _M_refcount(__refs), _M_facets(0), _M_facets_size(_GLIBCXX_NUM_FACETS),
-  _M_caches(0), _M_names(0)    
+  _Impl(size_t __refs) throw()
+  : _M_refcount(__refs), _M_facets(0), _M_facets_size(num_facets),
+  _M_caches(0), _M_names(0)
   {
-    _M_facets = new (&facet_vec) const facet*[_M_facets_size];
-    _M_caches = new (&cache_vec) const facet*[_M_facets_size];
-    for (size_t __i = 0; __i < _M_facets_size; ++__i)
-      _M_facets[__i] = _M_caches[__i] = 0;
+    _M_facets = new (&facet_vec) const facet*[_M_facets_size]();
+    _M_caches = new (&cache_vec) const facet*[_M_facets_size]();
 
     // Name the categories.
-    _M_names = new (&name_vec) char*[_S_categories_size];
+    _M_names = new (&name_vec) char*[_S_categories_size]();
     _M_names[0] = new (&name_c[0]) char[2];
     std::memcpy(_M_names[0], locale::facet::_S_get_c_name(), 2);
-    for (size_t __j = 1; __j < _S_categories_size; ++__j)
-      _M_names[__j] = 0;
 
     // This is needed as presently the C++ version of "C" locales
     // != data in the underlying locale model for __timepunct,
@@ -421,7 +514,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     _M_init_facet(new (&time_get_c) time_get<char>(1));
     _M_init_facet(new (&time_put_c) time_put<char>(1));
-    _M_init_facet(new (&messages_c) std::messages<char>(1));	
+    _M_init_facet(new (&messages_c) std::messages<char>(1));
 
 #ifdef  _GLIBCXX_USE_WCHAR_T
     _M_init_facet(new (&ctype_w) std::ctype<wchar_t>(1));
@@ -452,8 +545,29 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     _M_init_facet(new (&time_get_w) time_get<wchar_t>(1));
     _M_init_facet(new (&time_put_w) time_put<wchar_t>(1));
     _M_init_facet(new (&messages_w) std::messages<wchar_t>(1));
-#endif 
-     
+#endif
+
+#if _GLIBCXX_NUM_UNICODE_FACETS != 0
+    _M_init_facet(new (&codecvt_c16) codecvt<char16_t, char, mbstate_t>(1));
+    _M_init_facet(new (&codecvt_c32) codecvt<char32_t, char, mbstate_t>(1));
+
+#ifdef _GLIBCXX_USE_CHAR8_T
+    _M_init_facet(new (&codecvt_c16_c8) codecvt<char16_t, char8_t, mbstate_t>(1));
+    _M_init_facet(new (&codecvt_c32_c8) codecvt<char32_t, char8_t, mbstate_t>(1));
+#endif
+
+#endif
+
+#if _GLIBCXX_USE_DUAL_ABI
+    facet* extra[] = { __npc, __mpcf, __mpct
+# ifdef  _GLIBCXX_USE_WCHAR_T
+        , __npw, __mpwf, __mpwt
+# endif
+    };
+
+    _M_init_extra(extra);
+#endif
+
     // This locale is safe to pre-cache, after all the facets have
     // been created and installed.
     _M_caches[numpunct<char>::id._M_id()] = __npc;

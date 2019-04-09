@@ -1,5 +1,5 @@
 /* GNU Objective C Runtime message lookup 
-   Copyright (C) 1993-2014 Free Software Foundation, Inc.
+   Copyright (C) 1993-2019 Free Software Foundation, Inc.
    Contributed by Kresten Krab Thorup
 
 This file is part of GCC.
@@ -26,7 +26,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    only while debugging the runtime.  */
 /* #define DEBUG 1 */
 
-/* FIXME: This file has no business including tm.h.  */
 /* FIXME: This should be using libffi instead of __builtin_apply
    and friends.  */
 
@@ -34,7 +33,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "objc-private/error.h"
 #include "tconfig.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "objc/runtime.h"
 #include "objc/message.h"          /* For objc_msg_lookup(), objc_msg_lookup_super().  */
 #include "objc/thr.h"
@@ -47,19 +45,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include <assert.h> /* For assert */
 #include <string.h> /* For strlen */
 
-/* This is how we hack STRUCT_VALUE to be 1 or 0.   */
-#define gen_rtx(args...) 1
-#define gen_rtx_MEM(args...) 1
-#define gen_rtx_REG(args...) 1
-/* Already defined in gcc/coretypes.h. So prevent double definition warning.  */
-#undef rtx
-#define rtx int
-
-#if ! defined (STRUCT_VALUE) || STRUCT_VALUE == 0
 #define INVISIBLE_STRUCT_RETURN 1
-#else
-#define INVISIBLE_STRUCT_RETURN 0
-#endif
 
 /* The uninstalled dispatch table.  If a class' dispatch table points
    to __objc_uninstalled_dtable then that means it needs its dispatch
@@ -103,6 +89,10 @@ __objc_block_forward (id, SEL, ...);
 static struct objc_method * search_for_method_in_hierarchy (Class class, SEL sel);
 struct objc_method * search_for_method_in_list (struct objc_method_list * list, SEL op);
 id nil_method (id, SEL);
+
+/* Make sure this inline function is exported regardless of GNU89 or C99
+   inlining semantics as it is part of the libobjc ABI.  */
+extern IMP __objc_get_forward_imp (id, SEL);
 
 /* Given a selector, return the proper forwarding implementation.  */
 inline
@@ -319,6 +309,10 @@ get_implementation (id receiver, Class class, SEL sel)
     }
   return res;
 }
+
+/* Make sure this inline function is exported regardless of GNU89 or C99
+   inlining semantics as it is part of the libobjc ABI.  */
+extern IMP get_imp (Class, SEL);
 
 inline
 IMP
@@ -1051,7 +1045,7 @@ __objc_prepare_dtable_for_class (Class cls)
   struct sarray *dtable;
   struct sarray *super_dtable;
 
-  /* This table could be initialized in init.c.  We can not use the
+  /* This table could be initialized in init.c.  We cannot use the
      class name since the class maintains the instance methods and the
      meta class maintains the the class methods yet both share the
      same name.  Classes should be unique in any program.  */

@@ -1,5 +1,5 @@
 // Origin: PR debug/46101
-// { dg-options "-g -feliminate-dwarf2-dups" }
+// { dg-options "-gdwarf-2" }
 // { dg-do compile }
 
 typedef struct
@@ -8,3 +8,4 @@ typedef struct
 } A;
 
 A a;
+

@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, NetBSD/arm ELF version.
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by Wasabi Systems, Inc.
 
    This file is part of GCC.
@@ -55,7 +55,7 @@
 
 #undef SUBTARGET_EXTRA_ASM_SPEC
 #define SUBTARGET_EXTRA_ASM_SPEC	\
-  "-matpcs %{fpic|fpie:-k} %{fPIC|fPIE:-k}"
+  "-matpcs %{" FPIE_OR_FPIC_SPEC ":-k}"
 
 /* Default to full VFP if -mfloat-abi=hard is specified.  */
 #undef SUBTARGET_ASM_FLOAT_SPEC
@@ -153,7 +153,3 @@ do									\
     (void) sysarch (0, &s);						\
   }									\
 while (0)
-
-#undef FPUTYPE_DEFAULT
-#define FPUTYPE_DEFAULT "vfp"
-

@@ -1,4 +1,4 @@
-#   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+#   Copyright (C) 2004-2019 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,7 +26,15 @@ proc gfortran-dg-test { prog do_what extra_tool_flags } {
     set comp_output [lindex $result 0]
     set output_file [lindex $result 1]
 
-    # gfortran error messages look like this:
+    # gcc's default is to print the caret and source code, but
+    # most test cases implicitly use the flag -fno-diagnostics-show-caret
+    # to disable caret (and source code) printing.
+    #
+    # However, a few test cases override this back to the default by
+    # explicily supplying "-fdiagnostics-show-caret", so that we can have
+    # test coverage for caret/source code printing.
+    #
+    # gfortran error messages with caret-printing look like this:
     #     [name]:[locus]:
     #
     #        some code
@@ -49,34 +57,60 @@ proc gfortran-dg-test { prog do_what extra_tool_flags } {
     #              1       2
     #     Error: Some error at (1) and (2)
     #
-    # Where [locus] is either [line] or [line].[columns] .
+    # If this is such a test case, skip the rest of this function, so
+    # that the test case can explicitly verify the output that it expects.
+    if {[string first "-fdiagnostics-show-caret" $extra_tool_flags] >= 0} {
+	return [list $comp_output $output_file]
+    }
+
+    # Otherwise, caret-printing is disabled.
+    # gfortran errors with caret-printing disabled look like this:
+    #     [name]:[locus]: Error: Some error
+    # or
+    #     [name]:[locus]: Error: (1)
+    #     [name]:[locus2]: Error: Some error at (1) and (2)
+    #
+    # Where [locus] is either [line] or [line].[column] or
+    # [line].[column]-[column] .
     #
     # We collapse these to look like:
     #  [name]:[line]:[column]: Error: Some error at (1) and (2)
     # or
     #  [name]:[line]:[column]: Error: Some error at (1) and (2)
     #  [name]:[line2]:[column]: Error: Some error at (1) and (2)
-    # We proceed in two steps: first we deal with the form with two
-    # different locus lines, then with the form with only one locus line.
     #
     # Note that these regexps only make sense in the combinations used below.
     # Note also that is imperative that we first deal with the form with
     # two loci.
-    set locus_regexp "(\[^\n\]*):(\[0-9\]+)\[\.:\](\[0-9\]*)(-\[0-9\]*)?:\n\n\[^\n\]*\n\[^\n\]*\n"
-    set diag_regexp "(\[^\n\]*)\n"
+    set locus_regexp "(\[^\n\]+:\[0-9\]+)\[\.:\](\[0-9\]+)(-\[0-9\]+)?:\n\n\[^\n\]+\n\[^\n\]+\n"
+    set diag_regexp "(\[^\n\]+)\n"
 
-    # Add column number if none exists
-    set colnum_regexp "(Warning: |Error: )?(\[^\n\]*):(\[0-9\]+):(\[ \n\])"
-    regsub -all $colnum_regexp $comp_output "\\2:\\3:0:\\4\\1" comp_output
+    # We proceed in steps:
 
-    set two_loci "$locus_regexp$locus_regexp$diag_regexp"
-    set single_locus "$locus_regexp$diag_regexp"
-    regsub -all $two_loci $comp_output "\\1:\\2:\\3: \\9\n\\5:\\6:\\7: \\9\n" comp_output
-    regsub -all $single_locus $comp_output "\\1:\\2:\\3: \\5\n" comp_output
+    # 1. We add first a column number if none exists.
+    # (Some Fortran diagnostics have the locus after Warning|Error)
+    set colnum_regexp "(^|\n)(Warning: |Error: )?(\[^:\n\]+:\[0-9\]+):(\[ \n\])"
+    regsub -all $colnum_regexp $comp_output "\\1\\3:0:\\4\\2" comp_output
+    verbose "comput_output0:\n$comp_output"
 
-    # Add a line number if none exists
+    # 2. We deal with the form with two different locus lines,
+    set two_loci "(^|\n)$locus_regexp$locus_regexp$diag_regexp"
+    regsub -all $two_loci $comp_output "\\1\\2:\\3: \\8\n\\5\:\\6: \\8\n" comp_output
+    verbose "comput_output1:\n$comp_output"
+
+    set locus_prefix "(\[^:\n\]+:\[0-9\]+:\[0-9\]+: )(Warning: |Error: )"
+    set two_loci2 "(^|\n)$locus_prefix\\(1\\)\n$locus_prefix$diag_regexp"
+    regsub -all $two_loci2 $comp_output "\\1\\2\\3\\6\n\\4\\5\\6\n" comp_output
+    verbose "comput_output2:\n$comp_output"
+
+    # 3. then with the form with only one locus line.
+    set single_locus "(^|\n)$locus_regexp$diag_regexp"
+    regsub -all $single_locus $comp_output "\\1\\2:\\3: \\5\n" comp_output
+    verbose "comput_output3:\n$comp_output"
+
+    # 4. Add a line number if none exists
     regsub -all "(^|\n)(Warning: |Error: )" $comp_output "\\1:0:0: \\2" comp_output
-
+    verbose "comput_output4:\n$comp_output"
     return [list $comp_output $output_file]
 }
 
@@ -90,10 +124,16 @@ proc gfortran-dg-prune { system text } {
 # as c-torture does.
 proc gfortran-dg-runtest { testcases flags default-extra-flags } {
     global runtests
-    global DG_TORTURE_OPTIONS torture_with_loops
+    global torture_with_loops
 
-    torture-init
-    set-torture-options $DG_TORTURE_OPTIONS
+    # Some callers set torture options themselves; don't override those.
+    set existing_torture_options [torture-options-exist]
+    if { $existing_torture_options == 0 } {
+	global DG_TORTURE_OPTIONS
+	torture-init
+	set-torture-options $DG_TORTURE_OPTIONS
+    }
+    dump-torture-options
 
     foreach test $testcases {
 	# If we're only testing specific files and this isn't one of
@@ -120,7 +160,9 @@ proc gfortran-dg-runtest { testcases flags default-extra-flags } {
 	}
     }
 
-    torture-finish
+    if { $existing_torture_options == 0 } {
+	torture-finish
+    }
 }
 
 proc gfortran-dg-debug-runtest { target_compile trivial opt_opts testcases } {
@@ -128,7 +170,7 @@ proc gfortran-dg-debug-runtest { target_compile trivial opt_opts testcases } {
 
     if ![info exists DEBUG_TORTURE_OPTIONS] {
        set DEBUG_TORTURE_OPTIONS ""
-       set type_list [list "-gstabs" "-gstabs+" "-gxcoff" "-gxcoff+" "-gcoff" "-gdwarf-2" ]
+       set type_list [list "-gstabs" "-gstabs+" "-gxcoff" "-gxcoff+" "-gdwarf-2" ]
        foreach type $type_list {
            set comp_output [$target_compile \
                    "$srcdir/$subdir/$trivial" "trivial.S" assembly \

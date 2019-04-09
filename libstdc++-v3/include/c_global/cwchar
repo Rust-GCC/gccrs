@@ -1,6 +1,6 @@
 // -*- C++ -*- forwarding header.
 
-// Copyright (C) 1997-2014 Free Software Foundation, Inc.
+// Copyright (C) 1997-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -132,6 +132,8 @@ namespace std
 
 #if _GLIBCXX_USE_WCHAR_T
 
+extern "C++"
+{
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -231,8 +233,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
+} // extern "C++"
 
-#if _GLIBCXX_USE_C99
+#if _GLIBCXX_USE_C99_WCHAR
 
 #undef wcstold
 #undef wcstoll
@@ -289,7 +292,7 @@ namespace std
   using std::vwscanf;
 #endif
 
-#if _GLIBCXX_USE_C99
+#if _GLIBCXX_USE_C99_WCHAR
   using std::wcstold;
   using std::wcstoll;
   using std::wcstoull;

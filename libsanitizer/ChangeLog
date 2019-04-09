@@ -1,3 +1,1046 @@
+2019-04-08  Martin Liska  <mliska@suse.cz>
+
+	* LOCAL_PATCHES: Add revision.
+
+2019-04-08  Martin Liska  <mliska@suse.cz>
+
+	PR sanitizer/89941
+	* sanitizer_common/sanitizer_platform_limits_linux.cc (defined):
+	Reapply patch from r259664.
+	* sanitizer_common/sanitizer_platform_limits_posix.h (defined):
+	Likewise.
+
+2019-03-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR sanitizer/80953
+	Merge from LLVM revision 355980
+	* asan/asan_allocator.h (kAllocatorSpace): Define for SPARC.
+	(kAllocatorSize): Likewise.
+	(DefaultSizeClassMap): Likewise.
+	* asan/asan_mapping.h (kSPARC64_ShadowOffset64): Define.
+	(SHADOW_OFFSET): Define for SPARC.
+	Include asan_mapping_sparc64.h for SPARC 64-bit.
+	* asan/asan_mapping_sparc64.h: New file.
+
+2019-03-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR sanitizer/80953
+	Merge from LLVM revision 355979
+	* asan/asan_globals.c (GetGlobalsForAddress): Use internal_memcpy to
+	copy Global objects for SPARC with GCC.
+
+2019-03-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR sanitizer/80953
+	Merge from LLVM revision 355978
+	* sanitizer_common/sanitizer_allocator_primary32.h
+	(class SizeClassAllocator32): Assert that kSpaceSize is power of 2 if
+	SANITIZER_SIGN_EXTENDED_ADDRESSES is set.
+	(PointerIsMine): Deal with SANITIZER_SIGN_EXTENDED_ADDRESSES.
+	(ComputeRegionId): Likewise.
+	* sanitizer_common/sanitizer_linux.cc (GetMaxVirtualAddress): Return
+	appropriate value for SPARC 64-bit.
+	* sanitizer_common/sanitizer_platform.h (SANITIZER_MMAP_RANGE_SIZE):
+	Define for SPARC.
+	(SANITIZER_SIGN_EXTENDED_ADDRESSES): Define to 1 for SPARC 64-bit.
+
+2019-03-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR sanitizer/80953
+	Merge from LLVM revision 355965
+	* sanitizer_common/sanitizer_linux.cc (GetWriteFlag): Implement for
+	SPARC/Linux.
+	(GetPcSpBp): Likewise.
+	* sanitizer_common/sanitizer_stacktrace.cc (GetNextInstructionPc):
+	Adjust for SPARC.
+	* sanitizer_common/sanitizer_stacktrace.h (SANITIZER_CAN_FAST_UNWIND):
+	Define to 1 for SPARC.
+	* sanitizer_common/sanitizer_stacktrace_sparc.cc: Rewrite.
+	* sanitizer_common/sanitizer_unwind_linux_libcdep.cc (SlowUnwindStack):
+	Adjust the PC address for SPARC with GCC.
+
+2019-03-06  Martin Liska  <mliska@suse.cz>
+
+	PR sanitizer/88684
+	* sanitizer_common/sanitizer_platform.h (defined): Cherry pick.
+	(SANITIZER_NON_UNIQUE_TYPEINFO): Likewise.
+	* ubsan/ubsan_type_hash_itanium.cc (isDerivedFromAtOffset):
+	Likewise.
+
+2019-02-20  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR sanitizer/89409
+	* sanitizer_common/sanitizer_linux.cc (internal_readlink):
+	Cherry-pick compiler-rt r354451.
+
+2019-01-23  Jonny Grant  <jg@jguk.org>
+
+	PR sanitizer/89010
+	* libsanitizer/README.gcc: Update to current https URLs.
+
+2018-12-27  Martin Liska  <mliska@suse.cz>
+
+	PR sanitizer/86229
+	* asan/asan_errors.cc (ErrorAllocTypeMismatch::Print): Cherry
+	pick rL350085.
+	* asan/asan_errors.h (struct ErrorAllocTypeMismatch): Likewise.
+
+2018-11-09  Martin Liska  <mliska@suse.cz>
+
+	* LOCAL_PATCHES: Include one local patch.
+
+2018-11-09  Martin Liska  <mliska@suse.cz>
+
+	PR sanitizer/87892
+	* sanitizer_common/sanitizer_linux_libcdep.cc (defined): Return
+	1 when CPU_COUNT macro is not defined.
+
+2018-11-08  Bill Seurer  <seurer@linux.vnet.ibm.com>
+
+	* libsanitizer/sanitizer_common/sanitizer_linux.cc (CheckASLR):
+	Disable ASLR for powerpc64 when using sanitizers.
+
+2018-11-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR sanitizer/80953
+	* configure.tgt (sparc*-*-solaris2.11*): Enable.
+	(x86_64-*-solaris2.11* | i?86-*-solaris2.11*): Enable.
+
+2018-11-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR sanitizer/80953
+	* sanitizer_common/sanitizer_internal_defs.h,
+	sanitizer_common/sanitizer_platform_limits_solaris.h,
+	sanitizer_common/sanitizer_procmaps_solaris.cc,
+	sanitizer_common/sanitizer_solaris.cc: Cherry-pick compiler-rt
+	revision 346153.
+	* sanitizer_common/sanitizer_stacktrace.h,
+	sanitizer_common/sanitizer_stacktrace_sparc.cc: Cherry-pick
+	compiler-rt revision 346155.
+
+2018-11-05  Segher Boessenkool  <segher@kernel.crashing.org>
+
+	* LOCAL_PATCHES: Add r258525.
+	* sanitizer_common/sanitizer_stacktrace.cc
+	(BufferedStackTrace::FastUnwindStack): Use the correct frame offset
+	for PowerPC SYSV ABI.
+
+2018-11-05  Martin Liska  <mliska@suse.cz>
+
+	PR sanitizer/87860
+	* sanitizer_common/sanitizer_linux.cc:  Cherry-pick upstream
+	r346129.
+
+2018-10-31  Joseph Myers  <joseph@codesourcery.com>
+
+	PR bootstrap/82856
+	* Makefile.am: Include multilib.am.
+	* configure.ac: Remove AC_PREREQ.  Use AC_LANG_SOURCE.
+	* Makefile.in, aclocal.m4, asan/Makefile.in, configure,
+	interception/Makefile.in, libbacktrace/Makefile.in,
+	lsan/Makefile.in, sanitizer_common/Makefile.in, tsan/Makefile.in,
+	ubsan/Makefile.in: Regenerate.
+
+2018-10-31  Martin Liska  <mliska@suse.cz>
+
+	* LOCAL_PATCHES: Update to installed revisions.
+
+2018-10-31  Martin Liska  <mliska@suse.cz>
+
+	* ubsan/ubsan_platform.h: Add ifndef as we define it with
+	-DCAN_SANITIZE_UB CFLAGS.
+
+2018-10-31  Martin Liska  <mliska@suse.cz>
+
+	* asan/asan_mapping.h: Revert shadow memory offset to 1 << 41.
+
+2018-10-31  Martin Liska  <mliska@suse.cz>
+
+	* LOCAL_PATCHES: Update patch list.
+	* asan/asan_globals.cc (CheckODRViolationViaIndicator): Apply
+	patches from GCC's trunk.
+	(CheckODRViolationViaPoisoning): Likewise.
+	(RegisterGlobal): Likewise.
+	* sanitizer_common/sanitizer_mac.cc (defined): Likewise.
+	* sanitizer_common/sanitizer_stacktrace.cc (GetCanonicFrame): Likewise.
+	* ubsan/ubsan_handlers.cc (__ubsan::__ubsan_handle_cfi_bad_icall): Likewise.
+	(__ubsan::__ubsan_handle_cfi_bad_icall_abort): Likewise.
+	* ubsan/ubsan_handlers.h (struct CFIBadIcallData): Likewise.
+	(struct CFICheckFailData): Likewise.
+	(RECOVERABLE): Likewise.
+
+2018-10-31  Martin Liska  <mliska@suse.cz>
+
+	* config.h.in: Regenerate.
+	* configure: Likewise.
+	* sanitizer_common/Makefile.am: Include new files, remove old
+	files.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* ubsan/Makefile.am: Include new files, remove old
+	files.
+	* ubsan/Makefile.in: Likewise.
+	* asan/Makefile.am: Include new files.
+	* asan/Makefile.in: Regenerate.
+
+2018-10-31  Martin Liska  <mliska@suse.cz>
+
+	* All source files: Merge from upstream 345033.
+
+2018-10-31  Martin Liska  <mliska@suse.cz>
+
+	* HOWTO_MERGE: Enhance documentation.
+	* merge.sh: Add support for git as well.
+
+2018-08-02  Martin Liska  <mliska@suse.cz>
+
+	PR sanitizer/86022
+	* sanitizer_common/sanitizer_linux_libcdep.cc (ThreadDescriptorSize):
+	Cherry-pick compiler-rt revision 338606.
+
+2018-08-01  Marek Polacek  <polacek@redhat.com>
+
+	PR sanitizer/86759
+	* tsan/tsan_platform.h: Cherry-pick compiler-rt revision 318044.
+	* tsan/tsan_platform_linux.cc: Cherry-pick compiler-rt revision
+	319180.
+
+2018-07-25  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR target/86560
+	* asan/asan_interceptors.cc (swapcontext) Cherry-pick
+	compiler-rt revision 337603.
+	* sanitizer_common/sanitizer_internal_defs.h (__has_attribute):
+	Likewise.
+
+2018-07-05  Jakub Jelinek  <jakub@redhat.com>
+
+	Revert
+	2018-07-04  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	PR sanitizer/84250
+	* Makefile.am: Reorder libs.
+	* Makefile.in: Regenerate.
+	* asan/Makefile.am: Define DCAN_SANITIZE_UB=1, add dependancy from
+	libsanitizer_ubsan.la.
+	* asan/Makefile.in: Regenerate.
+	* ubsan/Makefile.am: Define new libsanitizer_ubsan.la library.
+	* ubsan/Makefile.in: Regenerate.
+
+2018-07-04  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	PR sanitizer/84250
+	* Makefile.am: Reorder libs.
+	* Makefile.in: Regenerate.
+	* asan/Makefile.am: Define DCAN_SANITIZE_UB=1, add dependancy from
+	libsanitizer_ubsan.la.
+	* asan/Makefile.in: Regenerate.
+	* ubsan/Makefile.am: Define new libsanitizer_ubsan.la library.
+	* ubsan/Makefile.in: Regenerate.
+
+2018-06-13  Denis Khalikov  <d.khalikov@partner.samsung.com>
+
+	PR sanitizer/86090
+	* configure.ac: Check for lstat and readlink.
+	* configure, config.h.in: Rebuild.
+
+2018-05-31  Matthias Klose  <doko@ubuntu.com>
+
+	PR sanitizer/86012
+	* sanitizer_common/sanitizer_platform_limits_posix.cc: Define
+	SIZEOF_STRUCT_USTAT for 32bit sparc.
+
+2018-05-24  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR sanitizer/85835
+	* sanitizer_common/sanitizer_platform_limits_posix.cc: Don't
+	include <sys/ustat.h> for Linux.
+	(SIZEOF_STRUCT_USTAT): New.
+	(struct_ustat_sz): Use SIZEOF_STRUCT_USTAT for Linux.
+
+2018-04-26  Hans-Peter Nilsson  <hp@axis.com>
+
+	* configure.tgt <mips*-*-linux*>: Enable build, excluding
+	mips*64*-*-linux*.
+
+	* sanitizer_common/sanitizer_platform_limits_linux.cc: Do not
+	take the shortcut to #include <sys/stat.h> for MIPS instead of
+	the kernel <asm/stat.h>.  Explain why sys/stat.h is misleading
+	or wrong to get the kernel struct stat.
+	* sanitizer_common/sanitizer_platform_limits_posix.h [__mips__]:
+	Correct the value for 32-bit non-android struct_kernel_stat_sz.
+
+	* sanitizer_common/sanitizer_atomic_clang_other.h [_MIPS_SIM
+	&& _MIPS_SIM == _ABIO32] (lock): Add initializer for .pad member.
+
+2018-04-24  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* configure: Regenerated.
+
+2018-04-19  Jakub Jelinek  <jakub@redhat.com>
+
+	* configure: Regenerated.
+
+2018-04-18  David Malcolm  <dmalcolm@redhat.com>
+
+	PR jit/85384
+	* configure: Regenerate.
+
+2018-04-18  Bill Seurer  <seurer@linux.vnet.ibm.com>
+
+	PR sanitizer/85389
+	* asan/asan_allocator.h (kAllocatorSpace): For __powerpc64__ change
+	from 0xa0000000000ULL to ~(uptr)0.
+
+2018-03-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/84761
+	* sanitizer_common/sanitizer_linux_libcdep.cc (__GLIBC_PREREQ):
+	Define if not defined.
+	(DL_INTERNAL_FUNCTION): Don't define.
+	(InitTlsSize): For __i386__ if not compiled against glibc 2.27+
+	determine at runtime whether to use regparm(3), stdcall calling
+	convention for older glibcs or normal calling convention for
+	newer glibcs for call to _dl_get_tls_static_info.
+
+2018-03-14  Segher Boessenkool  <segher@kernel.crashing.org>
+
+	* sanitizer_common/sanitizer_stacktrace.cc
+	(BufferedStackTrace::FastUnwindStack): Use the correct frame offset
+	for PowerPC SYSV ABI.
+
+2018-02-14  Igor Tsimbalist  <igor.v.tsimbalist@intel.com>
+
+	PR target/84148
+	* configure: Regenerate.
+
+2018-02-05  Martin Liska  <mliska@suse.cz>
+
+	* asan/asan_flags.inc: Cherry-pick upstream r323995.
+	* asan/asan_report.cc (CheckForInvalidPointerPair):
+	Cherry-pick upstream r323995.
+
+2018-01-17  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR sanitizer/82825
+	* sanitizer_common/sanitizer_internal_defs.h: Cherry-pick upstream
+	r324284.
+
+2018-01-13  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR sanitizer/82824
+	* lsan/lsan_common_mac.cc: Cherry-pick upstream r322437.
+
+2017-12-05  Martin Liska  <mliska@suse.cz>
+	    Jakub Jelinek  <jakub@redhat.com>
+
+	* asan/asan_descriptions.cc: Cherry-pick upstream r319668.
+	* asan/asan_descriptions.h: Likewise.
+	* asan/asan_report.cc: Likewise.
+	* asan/asan_thread.cc: Likewise.
+	* asan/asan_thread.h: Likewise.
+
+2017-11-17  Igor Tsimbalist  <igor.v.tsimbalist@intel.com>
+
+	* acinclude.m4: Add enable.m4 and cet.m4.
+	* Makefile.in: Regenerate.
+	* asan/Makefile.am: Update AM_CXXFLAGS.
+	* asan/Makefile.in: Regenerate.
+	* configure: Likewise.
+	* configure.ac: Set CET_FLAGS. Update EXTRA_CFLAGS,
+	EXTRA_CXXFLAGS, EXTRA_ASFLAGS.
+	* interception/Makefile.am: Update AM_CXXFLAGS.
+	* interception/Makefile.in: Regenerate.
+	* libbacktrace/Makefile.am: Update AM_CFLAGS, AM_CXXFLAGS.
+	* libbacktrace/Makefile.in: Regenerate.
+	* lsan/Makefile.am: Update AM_CXXFLAGS.
+	* lsan/Makefile.in: Regenerate.
+	* sanitizer_common/Makefile.am: Update AM_CXXFLAGS,
+	AM_CCASFLAGS.
+	* sanitizer_common/sanitizer_linux_x86_64.S: Include cet.h.
+	Add _CET_ENDBR macro.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* tsan/Makefile.am: Update AM_CXXFLAGS.
+	* tsan/Makefile.in: Regenerate.
+	* tsan/tsan_rtl_amd64.S Include cet.h. Add _CET_ENDBR macro.
+	* ubsan/Makefile.am: Update AM_CXXFLAGS.
+	* ubsan/Makefile.in: Regenerate.
+
+2017-11-08  Jakub Jelinek  <jakub@redhat.com>
+
+	PR bootstrap/82670
+	* ubsan/Makefile.am (ubsan_files): Remove ubsan_init_standalone.cc
+	and ubsan_signals_standalone.cc.
+	* ubsan/Makefile.in: Regenerated.
+
+2017-11-05  Tom de Vries  <tom@codesourcery.com>
+
+	PR other/82784
+	* asan/asan_poisoning.cc (CHECK_SMALL_REGION): Remove semicolon after
+	"do {} while (0)".
+	* lsan/lsan_common.cc (LOG_POINTERS, LOG_THREADS): Same.
+
+2017-10-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/82595
+	* lsan/lsan.h (__lsan_init): Add SANITIZER_INTERFACE_ATTRIBUTE.
+	* lsan/Makefile.am (nodist_toolexeclib_HEADERS): Add
+	liblsan_preinit.o.
+	(lsan_files): Remove lsan_preinit.cc.
+	(liblsan_preinit.o): New rule.
+	* lsan/Makefile.in: Regenerated.
+
+2017-10-19  Jakub Jelinek  <jakub@redhat.com>
+
+	* All source files: Merge from upstream 315899.
+	* asan/Makefile.am (nodist_saninclude_HEADERS): Add
+	include/sanitizer/tsan_interface.h.
+	* asan/libtool-version: Bump the libasan SONAME.
+	* lsan/Makefile.am (sanitizer_lsan_files): Add lsan_common_mac.cc.
+	(lsan_files): Add lsan_linux.cc, lsan_mac.cc and lsan_malloc_mac.cc.
+	* sanitizer_common/Makefile.am (sanitizer_common_files): Add
+	sancov_flags.cc, sanitizer_allocator_checks.cc,
+	sanitizer_coverage_libcdep_new.cc, sanitizer_errno.cc,
+	sanitizer_file.cc, sanitizer_mac_libcdep.cc and
+	sanitizer_stoptheworld_mac.cc.  Remove sanitizer_coverage_libcdep.cc
+	and sanitizer_coverage_mapping_libcdep.cc.
+	* tsan/Makefile.am (tsan_files): Add tsan_external.cc.
+	* ubsan/Makefile.am (DEFS): Add -DUBSAN_CAN_USE_CXXABI=1.
+	(ubsan_files): Add ubsan_init_standalone.cc and
+	ubsan_signals_standalone.cc.
+	* ubsan/libtool-version: Bump the libubsan SONAME.
+	* asan/Makefile.in: Regenerate.
+	* lsan/Makefile.in: Regenerate.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* tsan/Makefile.in: Regenerate.
+	* ubsan/Makefile.in: Regenerate.
+
+2017-10-05  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR sanitizer/82379
+	* configure.tgt (SANITIZER_COMMON_TARGET_DEPENDENT_OBJECTS): Set
+	to sanitizer_linux_x86_64.lo if __x86_64__ is defined by $CC.
+
+2017-10-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* libbacktrace/backtrace-rename.h (backtrace_uncompress_zdebug):
+	Define.
+
+2017-08-07  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/system/sys/ptrace.h: New file.
+
+2017-07-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/80998
+	* ubsan/ubsan_handlers.cc: Cherry-pick upstream r304461.
+	* ubsan/ubsan_checks.inc: Likewise.
+	* ubsan/ubsan_handlers.h: Likewise.
+
+2017-07-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/81066
+	* sanitizer_common/sanitizer_linux.h: Cherry-pick upstream r307969.
+	* sanitizer_common/sanitizer_linux.cc: Likewise.
+	* sanitizer_common/sanitizer_stoptheworld_linux_libcdep.cc: Likewise.
+	* tsan/tsan_platform_linux.cc: Likewise.
+
+2017-04-06  Martin Liska  <mliska@suse.cz>
+
+	PR sanitizer/80166
+	* sanitizer_common/sanitizer_common_interceptors.inc (INTERCEPTOR):
+	Cherry-pick upstream r299036.
+
+2017-03-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/78158
+	* tsan/tsan_interface_atomic.cc: Cherry-pick upstream r298378.
+
+2017-02-16  Andreas Tobler  <andreast@gcc.gnu.org>
+
+	PR sanitizer/79562
+	* sanitizer_common/sanitizer_platform_limits_posix.cc: Cherry-pick
+	upstream r294806.
+
+2017-02-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/79341
+	* configure.tgt (s390*-*-linux*): Don't disable libsanitizer on
+	s390-linux 31-bit.
+	* sanitizer_common/sanitizer_internal_defs.h: Cherry-pick upstream
+	r294793.
+	* sanitizer_common/sanitizer_common_interceptors.inc: Cherry-pick
+	upstream r294790.
+	* sanitizer_common/sanitizer_linux_s390.cc: Cherry-pick upstream
+	r294799.
+
+2017-02-03  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	PR sanitizer/78663
+	* sanitizer_common/sanitizer_mac.cc: Cherry-pick upstream r293992.
+	* sanitizer_common/sanitizer_platform_interceptors.h: Likewise.
+
+2017-01-31  Jakub Jelinek  <jakub@redhat.com>
+
+	* configure.tgt: Enable asan and ubsan on 64-bit s390*-*-linux*.
+
+2017-01-24  Jakub Jelinek  <jakub@redhat.com>
+
+	* configure.tgt: Enable tsan and lsan on powerpc64{,le}-*-linux*.
+
+	PR sanitizer/79168
+	* merge.sh (change_comment_headers): Don't remove 2nd and 3rd line
+	if the 3rd line doesn't contain 'The LLVM Compiler Infrastructure'
+	text.
+	* sanitizer_common/sanitizer_linux_mips64.S: Regenerated.
+	* sanitizer_common/sanitizer_linux_x86_64.S: Likewise.
+	* tsan/tsan_ppc_regs.h: Likewise.
+	* tsan/tsan_rtl_aarch64.S: Likewise.
+	* tsan/tsan_rtl_mips64.S: Likewise.
+	* tsan/tsan_rtl_ppc64.S: Likewise.
+
+2017-01-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/79046
+	* interception/Makefile.am (gcc_version): Use @get_gcc_base_ver@
+	instead of cat to get version from BASE-VER file.
+	* asan/Makefile.am (gcc_version): Likewise.
+	* ubsan/Makefile.am (gcc_version): Likewise.
+	* sanitizer_common/Makefile.am (gcc_version): Likewise.
+	* lsan/Makefile.am (gcc_version): Likewise.
+	* tsan/Makefile.am (gcc_version): Likewise.
+	* interception/Makefile.in: Regenerated.
+	* asan/Makefile.in: Regenerated.
+	* ubsan/Makefile.in: Regenerated.
+	* sanitizer_common/Makefile.in: Regenerated.
+	* lsan/Makefile.in: Regenerated.
+	* tsan/Makefile.in: Regenerated.
+
+2017-01-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/79046
+	* configure.ac: Add GCC_BASE_VER.
+	* Makefile.am (gcc_version): Use @get_gcc_base_ver@ instead of cat to
+	get version from BASE-VER file.
+	* libbacktrace/Makefile.in: Regenerated.
+	* interception/Makefile.in: Regenerated.
+	* asan/Makefile.in: Regenerated.
+	* ubsan/Makefile.in: Regenerated.
+	* configure: Regenerated.
+	* sanitizer_common/Makefile.in: Regenerated.
+	* lsan/Makefile.in: Regenerated.
+	* Makefile.in: Regenerated.
+	* tsan/Makefile.in: Regenerated.
+
+2017-01-10  James Clarke  <jrtc27@jrtc27.com>
+
+	PR sanitizer/78992
+	* sanitizer_common/sanitizer_platform_limits_posix.h
+	(struct __sanitizer_sigaction): Cherry-pick upstream r291561.
+
+2016-11-30  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	* LOCAL_PATCHES: Add revision.
+
+2016-11-30  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	PR sanitizer/78532
+	* sanitizer_common/sanitizer_platform_limits_posix.h
+	(__sanitizer_sigaction): Adjust for sparc targets and various Glibc
+	versions.
+
+2016-11-29  Markus Trippelsdorf  <markus@trippelsdorf.de>
+
+	* LOCAL_PATCHES: Remove r242480.
+
+2016-11-20  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* LOCAL_PATCHES: Add revision.
+
+2016-11-20  Jack Howarth  <howarth.at.gcc@gmail.com>
+
+	PR sanitizer/78267
+	* sanitizer_common/sanitizer_mac.cc: Include <os/trace.h> only if
+	compiler supports blocks extension.
+
+2016-11-16  Markus Trippelsdorf  <markus@trippelsdorf.de>
+
+	* LOCAL_PATCHES: Add revision.
+
+2016-11-16  Markus Trippelsdorf  <markus@trippelsdorf.de>
+
+	PR sanitizer/78294
+	* tsan/tsan_rtl.cc: Add missing attribute.
+
+2016-11-16  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	* LOCAL_PATCHES: New file.
+
+2016-11-16  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	PR sanitizer/78307
+	* ubsan/ubsan_handlers.cc (__ubsan_handle_cfi_bad_icall): New function.
+	( __ubsan_handle_cfi_bad_icall_abort): Likewise. 
+	* ubsan/ubsan_handlers.h (struct CFIBadIcallData): New type.
+	* ubsan/ubsan_handlers_cxx.cc (__ubsan_handle_cfi_bad_type): New
+	function.
+	(__ubsan_handle_cfi_bad_type_abort): Likewise.
+	* ubsan/ubsan_handlers_cxx.h (struct CFIBadTypeData): New type.
+	(__ubsan_handle_cfi_bad_type): Export function.
+	(__ubsan_handle_cfi_bad_type_abort): Likewise.
+	* HOWTO_MERGE: Update documentation.
+
+2016-11-15  Matthias Klose  <doko@ubuntu.com>
+
+	* configure: Regenerate.
+
+2016-11-09  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	* asan/asan_globals.cc (RegisterGlobal): Do not call
+	CheckODRViolationViaPoisoning.
+	(CheckODRViolationViaPoisoning): Remove.
+
+2016-11-09  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	* sanitizer_common/sanitizer_stacktrace.cc (GetCanonicFrame): Assume we
+	compiled code with GCC when extracting the caller PC for ARM if no
+	valid frame pointer is available.
+
+2016-11-09  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	PR sanitizer/63958
+	Reapply:
+	2014-10-14  David S. Miller  <davem@davemloft.net>
+
+	* sanitizer_common/sanitizer_platform_limits_linux.cc (time_t):
+	Define at __kernel_time_t, as needed for sparc.
+	(struct __old_kernel_stat): Don't check if __sparc__ is defined.
+	* libsanitizer/sanitizer_common/sanitizer_platform_limits_posix.h
+	(__sanitizer): Define struct___old_kernel_stat_sz,
+	struct_kernel_stat_sz, and struct_kernel_stat64_sz for sparc.
+	(__sanitizer_ipc_perm): Adjust for sparc targets.
+	(__sanitizer_shmid_ds): Likewsie.
+	(__sanitizer_sigaction): Likewise.
+	(IOC_SIZE): Likewsie.
+
+2016-11-09  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	* All source files: Merge from upstream 285547.
+	* configure.tgt (SANITIZER_COMMON_TARGET_DEPENDENT_OBJECTS): New
+	variable.
+	* configure.ac (SANITIZER_COMMON_TARGET_DEPENDENT_OBJECTS): Handle it.
+	* asan/Makefile.am (asan_files): Add new files.
+	* asan/Makefile.in: Regenerate.
+	* ubsan/Makefile.in: Likewise.
+	* lsan/Makefile.in: Likewise.
+	* tsan/Makefile.am (tsan_files): Add new files.
+	* tsan/Makefile.in: Regenerate.
+	* sanitizer_common/Makefile.am (sanitizer_common_files): Add new files.
+	(EXTRA_libsanitizer_common_la_SOURCES): Define.
+	(libsanitizer_common_la_LIBADD): Likewise.
+	(libsanitizer_common_la_DEPENDENCIES): Likewise.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* interception/Makefile.in: Likewise.
+	* libbacktace/Makefile.in: Likewise.
+	* Makefile.in: Likewise.
+	* configure: Likewise.
+	* merge.sh: Handle builtins/assembly.h merging.
+	* builtins/assembly.h: New file.
+	* asan/libtool-version: Bump the libasan SONAME.
+
+2016-09-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/77567
+	* asan/asan_new_delete.cc: Cherry-pick upstream r282019.
+
+2016-09-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/77396
+	* asan/asan_globals.cc: Cherry-pick upstream r280657.
+
+2016-08-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/71042
+	* tsan/tsan_platform_linux.cc: Cherry-pick upstream r278292.
+	* tsan/tsan_rtl_aarch64.S: Likewise.
+
+2016-07-23  Alan Modra  <amodra@gmail.com>
+
+	Revert 2015-11-09  Alan Modra  <amodra@gmail.com>
+	* configure.ac: Don't substitute OBSTACK_DEFS.
+	* asan/Makefile.am: Remove OBSTACK_DEFS from DEFS.
+	* tsan/Makefile.am: Likewise.
+	* configure: Regenerate.
+	* Makefile.in: Regenerate.
+	* asan/Makefile.in: Regenerate.
+	* interception/Makefile.in: Regenerate.
+	* libbacktrace/Makefile.in: Regenerate.
+	* lsan/Makefile.in: Regenerate.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* tsan/Makefile.in: Regenerate.
+	* ubsan/Makefile.in: Regenerate.
+
+2016-05-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/71160
+	* asan/asan_malloc_linux.cc: Cherry pick upstream r254395
+	and r269633.
+
+2016-04-21  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	PR sanitizer/70624
+	* asan/asan_mac.cc: Cherry pick upstream r266868.
+
+2016-01-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/68824
+	* tsan/tsan_interceptors.cc (NEED_TLS_GET_ADDR, __tls_get_addr,
+	InitializeInterceptors): Cherry pick upstream r258119.
+
+2016-01-14  Andreas Tobler  <andreast@gcc.gnu.org>
+
+	* configure.ac: Replace the hard-coded -ldl requirement for
+	link_sanitizer_common with a configure time check for -ldl.
+	* configure: Regenerate.
+
+2015-11-24  Maxim Ostapenko  <m.ostapenko@partner.samsung.com>
+
+	* include/system/linux/asm/ptrace.h: Move to ...
+	* include/system/asm/ptrace.h: ... this.
+
+2015-11-24  Maxim Ostapenko  <m.ostapenko@partner.samsung.com>
+
+	* include/system/linux/asm/ptrace.h: New header.
+
+2015-11-23  Maxim Ostapenko  <m.ostapenko@partner.samsung.com>
+
+	* All source files: Merge from upstream r253555.
+	* configure.tgt: Enable LSan on aarch64-*-linux* targets. Add new
+	dependences for TSan for aarch64-*-linux* targets.
+	* tsan/Makefile.am: Add new source files.
+	* configure: Regenerate.
+	* tsan/Makefile.in: Likewise.
+
+2015-11-09  Alan Modra  <amodra@gmail.com>
+
+	* sanitizer_common/sanitizer_common_interceptors.inc: Update size
+	params for _obstack_begin_1, _obstack_begin, _obstack_newchunk
+	interceptors.
+	* configure.ac: Substitute OBSTACK_DEFS.
+	* asan/Makefile.am: Add OBSTACK_DEFS to DEFS.
+	* tsan/Makefile.am: Likewise.
+	* configure: Regenerate.
+	* Makefile.in: Regenerate.
+	* asan/Makefile.in: Regenerate.
+	* interception/Makefile.in: Regenerate.
+	* libbacktrace/Makefile.in: Regenerate.
+	* lsan/Makefile.in: Regenerate.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* tsan/Makefile.in: Regenerate.
+	* ubsan/Makefile.in: Regenerate.
+
+2015-10-22  Maxim Ostapenko  <m.ostapenko@partner.samsung.com>
+
+	PR bootstrap/68041
+	* configure.ac (link_sanitizer_common): Link against librt only if it
+	contains shm_open, required by sanitizers.
+	(CXX_ABI_NEEDED): Remove variable.
+	* configure: Regenerate.
+	* ubsan/Makefile.am (libubsan_la_LIBADD): Do not add -lc++abi anymore.
+	* ubsan/Makefile.in: Regenerate.
+
+2015-10-21  Maxim Ostapenko  <m.ostapenko@partner.samsung.com>
+
+	* HOWTO_MERGE: New file.
+
+2015-10-21  Maxim Ostapenko  <m.ostapenko@partner.samsung.com>
+
+	* sanitizer_common/sanitizer_stacktrace.cc (GetCanonicFrame): Assume we
+	compiled code with GCC when extracting the caller PC for ARM if no
+	valid frame pointer is available.
+
+2015-10-21  Maxim Ostapenko  <m.ostapenko@partner.samsung.com>
+
+	PR bootstrap/63888
+	Reapply:
+	2015-02-20  Jakub Jelinek  <jakub@redhat.com>
+
+	* asan/asan_globals.cc (RegisterGlobal): Disable detect_odr_violation
+	support until it is rewritten upstream.
+
+	* c-c++-common/asan/pr63888.c: New test.
+
+2015-10-21  Maxim Ostapenko  <m.ostapenko@partner.samsung.com>
+
+	PR sanitizer/63958
+	Reapply:
+	2014-10-14  David S. Miller  <davem@davemloft.net>
+
+	* sanitizer_common/sanitizer_platform_limits_linux.cc (time_t):
+	Define at __kernel_time_t, as needed for sparc.
+	(struct __old_kernel_stat): Don't check if __sparc__ is defined.
+	* libsanitizer/sanitizer_common/sanitizer_platform_limits_posix.h
+	(__sanitizer): Define struct___old_kernel_stat_sz,
+	struct_kernel_stat_sz, and struct_kernel_stat64_sz for sparc.
+	(__sanitizer_ipc_perm): Adjust for sparc targets.
+	(__sanitizer_shmid_ds): Likewsie.
+	(__sanitizer_sigaction): Likewise.
+	(IOC_SIZE): Likewsie.
+
+2015-10-21  Maxim Ostapenko  <m.ostapenko@partner.samsung.com>
+
+	* All source files: Merge from upstream r250806.
+	* configure.ac (link_sanitizer_common): Add -lrt flag.
+	* configure.tgt: Enable TSAN and LSAN for aarch64-linux targets.
+	Set USE_CXX_ABI_FLAG=true for darwin.
+	* asan/Makefile.am (asan_files): Add new files.
+	(DEFS): Add DCAN_SANITIZE_UB=0 and remove unused and legacy
+	DASAN_FLEXIBLE_MAPPING_AND_OFFSET=0.
+	* asan/Makefile.in: Regenerate.
+	* ubsan/Makefile.am (ubsan_files): Add new files.
+	(DEFS): Add DCAN_SANITIZE_UB=1.
+	(libubsan_la_LIBADD): Add -lc++abi if USE_CXX_ABI_FLAG is true.
+	* ubsan/Makefile.in: Regenerate.
+	* tsan/Makefile.am (tsan_files): Add new files.
+	(DEFS): Add DCAN_SANITIZE_UB=0.
+	* tsan/Makefile.in: Regenerate.
+	* sanitizer_common/Makefile.am (sanitizer_common_files): Add new files.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* asan/libtool-version: Bump the libasan SONAME.
+
+2015-09-09  Markus Trippelsdorf  <markus@trippelsdorf.de>
+
+	PR sanitizer/67258
+	* ubsan/ubsan_type_hash.cc: Cherry pick upstream r244101.
+
+2015-07-29  Markus Trippelsdorf  <markus@trippelsdorf.de>
+
+	PR sanitizer/63927
+	* sanitizer_common/sanitizer_stacktrace.h: Use fast unwinder
+	for PowerPC.
+
+2015-07-28  Bill Schmidt  <wschmidt@linux.vnet.ibm.com>
+
+	PR sanitizer/63927
+	* sanitizer_common/sanitizer_stacktrace.cc
+	(BufferedStackTrace::FastUnwindStack): Fix code for PowerPC to
+	find the link register at an offset of 16 from the base of the
+	caller's stack frame.
+
+2015-05-13  Michael Haubenwallner  <michael.haubenwallner@ssi-schaefer.com>
+
+	* Makefile.in: Regenerated with automake-1.11.6.
+	* aclocal.m4: Likewise.
+	* asan/Makefile.in: Likewise.
+	* configure: Likewise.
+	* interception/Makefile.in: Likewise.
+	* libbacktrace/Makefile.in: Likewise.
+	* lsan/Makefile.in: Likewise.
+	* sanitizer_common/Makefile.in: Likewise.
+	* tsan/Makefile.in: Likewise.
+	* ubsan/Makefile.in: Likewise.
+
+2015-04-13  Yury Gribov  <y.gribov@samsung.com>
+
+	PR sanitizer/64839
+	* sanitizer_common/sanitizer_platform.h: Cherry pick
+	upstream r234470.
+	* sanitizer_common/sanitizer_platform_limits_posix.cc: Ditto.
+	* configure.ac (RPC_DEFS): Check for precense of RPC headers.
+	* sanitizer_common/Makefile.am (DEFS): Pass info to compiler.
+	* Makefile.in: Regenerate.
+	* asan/Makefile.in: Regenerate.
+	* config.h.in: Regenerate.
+	* configure: Regenerate.
+	* interception/Makefile.in: Regenerate.
+	* libbacktrace/Makefile.in: Regenerate.
+	* lsan/Makefile.in: Regenerate.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* tsan/Makefile.in: Regenerate.
+	* ubsan/Makefile.in: Regenerate.
+
+
+2015-03-23  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	PR sanitizer/59009
+	* sanitizer_common/sanitizer_platform_limits_posix.cc: Cherry pick
+	upstream r230324.
+	* sanitizer_common/sanitizer_platform.h: Likewise.
+	* sanitizer_common/sanitizer_common_syscalls.inc: Likewise.
+
+2015-03-11  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	* tsan/tsan_rtl_report.cc (ScopedReport::AddThread): Cherry pick
+	upstream 224508 and 224755.
+
+2015-03-09  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/63958
+	Reapply:
+	2014-10-14  David S. Miller  <davem@davemloft.net>
+
+	* sanitizer_common/sanitizer_platform_limits_linux.cc (time_t):
+	Define at __kernel_time_t, as needed for sparc.
+	(struct __old_kernel_stat): Don't check if __sparc__ is defined.
+	* libsanitizer/sanitizer_common/sanitizer_platform_limits_posix.h
+	(__sanitizer): Define struct___old_kernel_stat_sz,
+	struct_kernel_stat_sz, and struct_kernel_stat64_sz for sparc.
+	(__sanitizer_ipc_perm): Adjust for sparc targets.
+	(__sanitizer_shmid_ds): Likewsie.
+	(__sanitizer_sigaction): Likewise.
+	(IOC_SIZE): Likewsie.
+
+2015-02-27  Peter Bergner  <bergner@vnet.ibm.com>
+
+	* configure.tgt: Enable build on powerpc*le-*-linux.
+
+2015-02-23  Jakub Jelinek  <jakub@redhat.com>
+
+	PR bootstrap/63888
+	* asan/asan_globals.cc (RegisterGlobal): Disable detect_odr_violation
+	support until it is rewritten upstream.
+
+2015-01-26  Matthias Klose  <doko@ubuntu.com>
+
+	* configure.ac: Move AM_ENABLE_MULTILIB before AC_PROG_CC.
+	* configure: Regenerate.
+
+2015-01-25  Venkataramanan Kumar  <venkataramanan.kumar@linaro.org>
+
+	* configure.ac (TSAN_TARGET_DEPENDENT_OBJECTS): Undefine.
+	* configure: Regenerate.
+	* configure.tgt (TSAN_TARGET_DEPENDENT_OBJECTS): Define.
+
+2015-01-25  Venkataramanan Kumar  <venkataramanan.kumar@linaro.org>
+
+	* configure.ac (TSAN_TARGET_DEPENDENT_OBJECTS): Define.
+	* configure: Regenerate.
+	* tsan/Makefile.am (EXTRA_libtsan_la_SOURCES): Define.
+	(libtsan_la_DEPENDENCIES): Likewise.
+	* Makefile.in: Regenerate.
+	* asan/Makefile.in: Regenerate.
+	* interception/Makefile.in: Regenerate.
+	* libbacktrace/Makefile.in: Regenerate.
+	* lsan/Makefile.in: Regenerate.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* tsan/Makefile.in: Regenerate.
+	* ubsan/Makefile.in: Regenerate.
+
+2015-01-22  Jakub Jelinek  <jakub@redhat.com>
+
+	* tsan/tsan_rtl.h: Cherry pick upstream r226829.
+
+2015-01-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/64435
+	* sanitizer_common/sanitizer_platform_limits_posix.h: Cherry pick
+	upstream r226637.
+	* sanitizer_common/sanitizer_platform_limits_posix.cc: Likewise.
+	* sanitizer_common/sanitizer_posix.cc: Cherry pick upstream r226639.
+
+2015-01-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/64632
+	* ubsan/ubsan_type_hash.cc: Cherry pick upstream r224972.
+
+2015-01-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/64435
+	* sanitizer_common/sanitizer_platform_limits_posix.cc: Cherry pick
+	upstream r223925.
+
+2015-01-13  Jakub Jelinek  <jakub@redhat.com>
+
+	* sanitizer_common/sanitizer_deadlock_detector.h: Cherry pick
+	upstream r224518 and r224519.
+	* tsan/tsan_rtl_thread.cc: Cherry pick upstream r224702 and
+	r224834.
+
+2014-12-16  Jakub Jelinek  <jakub@redhat.com>
+
+	* sanitizer_common/sanitizer_symbolizer_libbacktrace.cc,
+	sanitizer_common/sanitizer_symbolizer_libbacktrace.h,
+	sanitizer_common/sanitizer_symbolizer_posix_libcdep.cc: Cherry pick
+	upstream r224308.
+
+2014-11-21  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR bootstrap/63784
+	* configure: Regenerated.
+
+2014-11-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/61137
+	* config/ia64/ia64.c (ia64_attribute_takes_identifier_p): New function.
+	(TARGET_ATTRIBUTE_TAKES_IDENTIFIER_P): Redefine to it.
+
+2014-11-14  Uros Bizjak  <ubizjak@gmail.com>
+
+	* sanitizer_common/Makefile.am (AM_CXXFLAGS): Use -std=gnu++11.
+	* asan/Makefile.am (AM_CXXFLAGS): Ditto.
+	* lsan/Makefile.am (AM_CXXFLAGS): Ditto.
+	* interception/Makefile.am (AM_CXXFLAGS): Ditto.
+	* tsan/Makefile.am (AM_CXXFLAGS): Ditto.
+	* libbacktrace/Makefile.am (AM_CXXFLAGS): Ditto.
+	* ubsan/Makefile.am (AM_CXXFLAGS): Ditto.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* asan/Makefile.in: Ditto.
+	* lsan/Makefile.in: Ditto.
+	* interception/Makefile.in: Ditto.
+	* tsan/Makefile.in: Ditto.
+	* libbacktrace/Makefile.in: Ditto.
+	* ubsan/Makefile.in: Ditto.
+
+2014-11-13  Kostya Serebryany  <kcc@google.com>
+
+	* All source files: Merge from upstream r221802.
+	* sanitizer_common/sanitizer_symbolizer_libbacktrace.cc
+	(LibbacktraceSymbolizer::SymbolizeData): Replace 'address'
+	with 'start' to follow the new interface.
+	* asan/Makefile.am (AM_CXXFLAGS): Added -std=c++11.
+	* interception/Makefile.am (AM_CXXFLAGS): Added -std=c++11.
+	* libbacktrace/Makefile.am (AM_CXXFLAGS): Added -std=c++11.
+	* lsan/Makefile.am (AM_CXXFLAGS): Added -std=c++11.
+	* sanitizer_common/Makefile.am (sanitizer_common_files): Added new
+	files.
+	(AM_CXXFLAGS): Added -std=c++11.
+	* tsan/Makefile.am (AM_CXXFLAGS): Added -std=c++11.
+	* ubsan/Makefile.am (AM_CXXFLAGS): Added -std=c++11.
+	* asan/Makefile.in: Regenerate.
+	* interception/Makefile.in: Regenerate.
+	* libbacktrace/Makefile.in: Regenerate.
+	* lsan/Makefile.in: Regenerate.
+	* sanitizer_common/Makefile.in: Regenerate.
+	* tsan/Makefile.in: Regenerate.
+	* ubsan/Makefile.in: Regenerate.
+
+2014-11-11  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	PR target/63610
+	* configure: Regenerate.
+
+2014-10-16  Martin Liska  <mliska@suse.cz>
+
+	* asan/Makefile.am: IPA ICF pass is disabled.
+	* asan/Makefile.in: Likewise.
+
+2014-10-14  David S. Miller  <davem@davemloft.net>
+
+	* sanitizer_common/sanitizer_platform_limits_linux.cc (time_t):
+	Define at __kernel_time_t, as needed for sparc.
+	(struct __old_kernel_stat): Don't check if __sparc__ is defined.
+	* libsanitizer/sanitizer_common/sanitizer_platform_limits_posix.h
+	(__sanitizer): Define struct___old_kernel_stat_sz,
+	struct_kernel_stat_sz, and struct_kernel_stat64_sz for sparc.
+	(__sanitizer_ipc_perm): Adjust for sparc targets.
+	(__sanitizer_shmid_ds): Likewsie.
+	(__sanitizer_sigaction): Likewsie.
+	(IOC_SIZE): Likewsie.
+
+2014-10-14  Jakub Jelinek  <jakub@redhat.com>
+
+	* ubsan/Makefile.am (DEFS): Add -DPIC.
+	* ubsan/Makefile.in: Regenerated.
+
 2014-09-26  Christophe Lyon  <christophe.lyon@linaro.org>
 
 	* configure.tgt: Enable build on aarch64*-linux.
@@ -179,7 +1222,7 @@
 
 2013-12-19  Kostya Serebryany  <kcc@google.com>
 
-        * sanitizer_common/sanitizer_platform_limits_posix.cc:
+	* sanitizer_common/sanitizer_platform_limits_posix.cc:
 	workaround for missing definition of EOWNERDEAD, backport
 	from upstream r196779.
 
@@ -282,10 +1325,10 @@
 2013-11-15  Kostya Serebryany  <kcc@google.com>
 
 	PR sanitizer/58994
-        Backport from upstream revision 194573
-        * asan/asan_interceptors.cc (COMMON_INTERCEPTOR_ENTER): Fall
-        back to the original functions in the common libsanitizer
-        interceptors and the __cxa_atexit() interceptor on Darwin.
+	Backport from upstream revision 194573
+	* asan/asan_interceptors.cc (COMMON_INTERCEPTOR_ENTER): Fall
+	back to the original functions in the common libsanitizer
+	interceptors and the __cxa_atexit() interceptor on Darwin.
 
 2013-11-13  Peter Bergner  <bergner@vnet.ibm.com>
 

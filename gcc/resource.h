@@ -1,5 +1,5 @@
 /* Definitions for computing resource usage of specific insns.
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -19,9 +19,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #ifndef GCC_RESOURCE_H
 #define GCC_RESOURCE_H
-
-#include "hard-reg-set.h"
-#include "df.h"
 
 /* Macro to clear all resources.  */
 #define CLEAR_RESOURCE(RES)	\

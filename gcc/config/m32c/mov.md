@@ -1,5 +1,5 @@
 ;; Machine Descriptions for R8C/M16C/M32C
-;; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;; Contributed by Red Hat.
 ;;
 ;; This file is part of GCC.
@@ -162,9 +162,9 @@
 ; immediate double data to a memory location.
 (define_peephole2
   [(set (match_operand:HI 0 "memory_operand" "")
-        (match_operand 1 "const_int_operand" ""))
+        (match_operand:HI 1 "const_int_operand" ""))
    (set (match_operand:HI 2 "memory_operand" "")
-        (match_operand 3 "const_int_operand" ""))]
+        (match_operand:HI 3 "const_int_operand" ""))]
    "TARGET_A24 && m32c_immd_dbl_mov (operands, HImode)"
    [(set (match_dup 4) (match_dup 5))]
    ""
@@ -213,7 +213,7 @@
 ; don't match.
 (define_insn "push_a01_l"
   [(set (mem:SI (pre_dec:PSI (reg:PSI SP_REGNO)))
-	(match_operand 0 "a_operand" "Raa"))]
+	(match_operand:SI 0 "a_operand" "Raa"))]
   ""
   "push.l\t%0"
   [(set_attr "flags" "n")]

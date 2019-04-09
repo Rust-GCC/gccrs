@@ -1,6 +1,6 @@
 // Specific definitions for generic platforms  -*- C++ -*-
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -93,10 +93,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       no_lock_available = 			ENOLCK,
 
 #ifdef _GLIBCXX_HAVE_ENODATA
-      no_message_available = 			ENODATA, 
+      no_message_available = 			ENODATA,
 #endif
 
-      no_message = 				ENOMSG, 
+      no_message = 				ENOMSG,
       no_protocol_option = 			ENOPROTOOPT,
       no_space_on_device = 			ENOSPC,
 

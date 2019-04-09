@@ -1,6 +1,6 @@
 // Compatibility symbols for previous versions, C++0x bits -*- C++ -*-
 
-// Copyright (C) 2009-2014 Free Software Foundation, Inc.
+// Copyright (C) 2009-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,6 +29,7 @@
 
 #include <future>
 #include <mutex>
+#include <functional>
 
 #if __cplusplus < 201103L
 # error "compatibility-thread-c++0x.cc must be compiled with -std=gnu++0x"
@@ -108,7 +109,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   protected:
     ~_Async_state_common();
     virtual void _M_run_deferred() { _M_join(); }
-    void _M_join() { std::call_once(_M_once, &thread::join, ref(_M_thread)); }
+    void _M_join() { std::call_once(_M_once, &thread::join, &_M_thread); }
     thread _M_thread;
     once_flag _M_once;
   };
@@ -116,9 +117,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // Replaced with inline definition in gcc-4.8.0
   __future_base::_Async_state_common::~_Async_state_common() { _M_join(); }
 
-  // Explicit instantiation due to -fno-implicit-instantiation.
-  template void call_once(once_flag&, void (thread::*&&)(), reference_wrapper<thread>&&);
-  template _Bind_simple_helper<void (thread::*)(), reference_wrapper<thread>>::__type __bind_simple(void (thread::*&&)(), reference_wrapper<thread>&&);
+  // Explicit instantiation due to -fno-implicit-templates.
+  template void call_once(once_flag&, void (thread::*&&)(), thread*&&);
 #endif // _GLIBCXX_HAVE_TLS
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std

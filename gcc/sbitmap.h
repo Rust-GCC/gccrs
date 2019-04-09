@@ -1,5 +1,5 @@
 /* Simple bitmaps.
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -51,8 +51,9 @@ along with GCC; see the file COPYING3.  If not see
      * set_difference		: bitmap_and_compl
      * set_disjuction		: (not implemented)
      * set_compare		: bitmap_equal_p
+     * bit_in_range_p		: bitmap_bit_in_range_p
 
-   Some operations on 3 sets that occur frequently in in data flow problems
+   Some operations on 3 sets that occur frequently in data flow problems
    are also implemented:
 
       * A | (B & C)		: bitmap_or_and
@@ -84,7 +85,6 @@ along with GCC; see the file COPYING3.  If not see
 
 struct simple_bitmap_def
 {
-  unsigned char *popcount;      /* Population count.  */
   unsigned int n_bits;		/* Number of bits.  */
   unsigned int size;		/* Size in elements.  */
   SBITMAP_ELT_TYPE elms[1];	/* The elements.  */
@@ -96,10 +96,29 @@ struct simple_bitmap_def
 /* Return the number of bits in BITMAP.  */
 #define SBITMAP_SIZE(BITMAP) ((BITMAP)->n_bits)
 
+/* Verify that access at INDEX in bitmap MAP is valid.  */ 
+
+static inline void
+bitmap_check_index (const_sbitmap map, int index)
+{
+  gcc_checking_assert (index >= 0);
+  gcc_checking_assert ((unsigned int)index < map->n_bits);
+}
+
+/* Verify that bitmaps A and B have same size.  */ 
+
+static inline void
+bitmap_check_sizes (const_sbitmap a, const_sbitmap b)
+{
+  gcc_checking_assert (a->n_bits == b->n_bits);
+}
+
 /* Test if bit number bitno in the bitmap is set.  */
 static inline SBITMAP_ELT_TYPE
 bitmap_bit_p (const_sbitmap map, int bitno)
 {
+  bitmap_check_index (map, bitno);
+
   size_t i = bitno / SBITMAP_ELT_BITS;
   unsigned int s = bitno % SBITMAP_ELT_BITS;
   return (map->elms[i] >> s) & (SBITMAP_ELT_TYPE) 1;
@@ -110,7 +129,8 @@ bitmap_bit_p (const_sbitmap map, int bitno)
 static inline void
 bitmap_set_bit (sbitmap map, int bitno)
 {
-  gcc_checking_assert (! map->popcount);
+  bitmap_check_index (map, bitno);
+
   map->elms[bitno / SBITMAP_ELT_BITS]
     |= (SBITMAP_ELT_TYPE) 1 << (bitno) % SBITMAP_ELT_BITS;
 }
@@ -120,7 +140,8 @@ bitmap_set_bit (sbitmap map, int bitno)
 static inline void
 bitmap_clear_bit (sbitmap map, int bitno)
 {
-  gcc_checking_assert (! map->popcount);
+  bitmap_check_index (map, bitno);
+
   map->elms[bitno / SBITMAP_ELT_BITS]
     &= ~((SBITMAP_ELT_TYPE) 1 << (bitno) % SBITMAP_ELT_BITS);
 }
@@ -213,7 +234,6 @@ bmp_iter_next (sbitmap_iterator *i, unsigned *bit_no ATTRIBUTE_UNUSED)
 
 inline void sbitmap_free (sbitmap map)
 {
-  free (map->popcount);
   free (map);
 }
 
@@ -231,13 +251,15 @@ extern void debug (const simple_bitmap_def *ptr);
 extern void dump_bitmap_vector (FILE *, const char *, const char *, sbitmap *,
 				 int);
 extern sbitmap sbitmap_alloc (unsigned int);
-extern sbitmap sbitmap_alloc_with_popcount (unsigned int);
 extern sbitmap *sbitmap_vector_alloc (unsigned int, unsigned int);
 extern sbitmap sbitmap_resize (sbitmap, unsigned int, int);
 extern void bitmap_copy (sbitmap, const_sbitmap);
 extern int bitmap_equal_p (const_sbitmap, const_sbitmap);
+extern unsigned int bitmap_count_bits (const_sbitmap);
 extern bool bitmap_empty_p (const_sbitmap);
 extern void bitmap_clear (sbitmap);
+extern void bitmap_clear_range (sbitmap, unsigned, unsigned);
+extern void bitmap_set_range (sbitmap, unsigned, unsigned);
 extern void bitmap_ones (sbitmap);
 extern void bitmap_vector_clear (sbitmap *, unsigned int);
 extern void bitmap_vector_ones (sbitmap *, unsigned int);
@@ -255,11 +277,36 @@ extern bool bitmap_and (sbitmap, const_sbitmap, const_sbitmap);
 extern bool bitmap_ior (sbitmap, const_sbitmap, const_sbitmap);
 extern bool bitmap_xor (sbitmap, const_sbitmap, const_sbitmap);
 extern bool bitmap_subset_p (const_sbitmap, const_sbitmap);
+extern bool bitmap_bit_in_range_p (const_sbitmap, unsigned int, unsigned int);
 
 extern int bitmap_first_set_bit (const_sbitmap);
 extern int bitmap_last_set_bit (const_sbitmap);
 
 extern void debug_bitmap (const_sbitmap);
 extern sbitmap sbitmap_realloc (sbitmap, unsigned int);
-extern unsigned long sbitmap_popcount (const_sbitmap, unsigned long);
+
+/* a class that ties the lifetime of a sbitmap to its scope.  */
+class auto_sbitmap
+{
+public:
+  explicit auto_sbitmap (unsigned int size) :
+    m_bitmap (sbitmap_alloc (size)) {}
+  ~auto_sbitmap () { sbitmap_free (m_bitmap); }
+
+  /* Allow calling sbitmap functions on our bitmap.  */
+  operator sbitmap () { return m_bitmap; }
+
+private:
+  /* Prevent making a copy that refers to our sbitmap.  */
+  auto_sbitmap (const auto_sbitmap &);
+  auto_sbitmap &operator = (const auto_sbitmap &);
+#if __cplusplus >= 201103L
+  auto_sbitmap (auto_sbitmap &&);
+  auto_sbitmap &operator = (auto_sbitmap &&);
+#endif
+
+  /* The bitmap we are managing.  */
+  sbitmap m_bitmap;
+};
+
 #endif /* ! GCC_SBITMAP_H */

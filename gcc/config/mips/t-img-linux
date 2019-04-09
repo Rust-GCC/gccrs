@@ -1,0 +1,38 @@
+# Copyright (C) 2014-2019 Free Software Foundation, Inc.
+#
+# This file is part of GCC.
+#
+# GCC is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3, or (at your option)
+# any later version.
+#
+# GCC is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with GCC; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
+
+# The default build is mips32r6, hard-float big-endian.  Add mips64r6,
+# 64-bit ABI and little-endian variations.
+
+MULTILIB_OPTIONS = mips64r6 mabi=64 EL
+MULTILIB_DIRNAMES = mips64r6 64 el
+MULTILIB_MATCHES = EL=mel EB=meb
+
+MULTILIB_REQUIRED =
+MULTILIB_OSDIRNAMES = .=mips-r6-hard/lib
+MULTILIB_REQUIRED += mips64r6
+MULTILIB_OSDIRNAMES += mips64r6=!mips-r6-hard/lib32
+MULTILIB_REQUIRED += mips64r6/mabi=64
+MULTILIB_OSDIRNAMES += mips64r6/mabi.64=!mips-r6-hard/lib64
+
+MULTILIB_REQUIRED += EL
+MULTILIB_OSDIRNAMES += EL=!mipsel-r6-hard/lib
+MULTILIB_REQUIRED += mips64r6/EL
+MULTILIB_OSDIRNAMES += mips64r6/EL=!mipsel-r6-hard/lib32
+MULTILIB_REQUIRED += mips64r6/mabi=64/EL
+MULTILIB_OSDIRNAMES += mips64r6/mabi.64/EL=!mipsel-r6-hard/lib64

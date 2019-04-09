@@ -1,7 +1,7 @@
 /* { dg-do compile { target { powerpc*-*-* && lp64 } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
 /* { dg-require-effective-target powerpc_vsx_ok } */
-/* { dg-options "-O2 -mcpu=power6x -mmfpgpr" } */
+/* { dg-options "-O2 -mdejagnu-cpu=power6x -mmfpgpr" } */
 /* { dg-final { scan-assembler "mffgpr" } } */
 /* { dg-final { scan-assembler "mftgpr" } } */
 

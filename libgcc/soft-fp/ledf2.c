@@ -1,6 +1,6 @@
 /* Software floating-point emulation.
    Return 0 iff a == b, 1 iff a > b, 2 iff a ? b, -1 iff a < b
-   Copyright (C) 1997-2014 Free Software Foundation, Inc.
+   Copyright (C) 1997-2018 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
    Contributed by Richard Henderson (rth@cygnus.com) and
 		  Jakub Jelinek (jj@ultra.linux.cz).
@@ -42,9 +42,7 @@ __ledf2 (DFtype a, DFtype b)
   FP_INIT_EXCEPTIONS;
   FP_UNPACK_RAW_D (A, a);
   FP_UNPACK_RAW_D (B, b);
-  FP_CMP_D (r, A, B, 2);
-  if (r == 2)
-    FP_SET_EXCEPTION (FP_EX_INVALID);
+  FP_CMP_D (r, A, B, 2, 2);
   FP_HANDLE_EXCEPTIONS;
 
   return r;

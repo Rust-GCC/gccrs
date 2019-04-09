@@ -2,7 +2,7 @@
 
 // 2003-10-07  Petur Runolfsson  <peturr02@ru.is>
 //
-// Copyright (C) 2003-2014 Free Software Foundation, Inc.
+// Copyright (C) 2003-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -35,7 +35,6 @@ void test01()
   typedef wfilebuf::int_type int_type;
   typedef vector<pair<pos_type, size_t> > vec_type;
 
-  bool test __attribute__((unused)) = true;
   const char name[] = "tmp_seekpos-9874.tst";
   const int_type eof = wfilebuf::traits_type::eof();
 
@@ -59,11 +58,7 @@ void test01()
     "\xa0\x95\xe0\xa0\x96\xe0\xa0\x97\x1\x2\x4\x8\x10\x20@\xc2\x80"
     "\xc4\x80\xc8\x80\xd0\x80\xe0\xa0\x80\xe1\x80\x80\xe2\x80\x80"
     "\xe4\x80\x80\xe8\x80\x80\xf0\x90\x80\x80\xf0\xa0\x80\x80\xf1"
-    "\x80\x80\x80\xf2\x80\x80\x80\xf4\x80\x80\x80\xf8\x88\x80\x80"
-    "\x80\xf8\x90\x80\x80\x80\xf8\xa0\x80\x80\x80\xf9\x80\x80\x80"
-    "\x80\xfa\x80\x80\x80\x80\xfc\x84\x80\x80\x80\x80\xfc\x88\x80"
-    "\x80\x80\x80\xfc\x90\x80\x80\x80\x80\xfc\xa0\x80\x80\x80\x80"
-    "\xfd\x80\x80\x80\x80\x80";
+    "\x80\x80\x80\xf2\x80\x80\x80\xf4\x80\x80\x80";
 
   const wchar_t wstr[] = {
     0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc,
@@ -84,9 +79,7 @@ void test01()
     0x80c, 0x80d, 0x80e, 0x80f, 0x810, 0x811, 0x812, 0x813, 0x814,
     0x815, 0x816, 0x817, 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, L'@',
     0x80, 0x100, 0x200, 0x400, 0x800, 0x1000, 0x2000, 0x4000, 0x8000,
-    0x10000, 0x20000, 0x40000, 0x80000, 0x100000, 0x200000, 0x400000,
-    0x800000, 0x1000000, 0x2000000, 0x4000000, 0x8000000, 0x10000000,
-    0x20000000, 0x40000000, 0x0
+    0x10000, 0x20000, 0x40000, 0x80000, 0x100000, 0x0
   };
 
   const size_t clen = sizeof(cstr) / sizeof(cstr[0]);

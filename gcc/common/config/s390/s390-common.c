@@ -1,5 +1,5 @@
 /* Common hooks for IBM S/390 and zSeries.
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -29,20 +29,27 @@ along with GCC; see the file COPYING3.  If not see
 
 EXPORTED_CONST int processor_flags_table[] =
   {
-    /* g5 */     PF_IEEE_FLOAT,
-    /* g6 */     PF_IEEE_FLOAT,
     /* z900 */   PF_IEEE_FLOAT | PF_ZARCH,
     /* z990 */   PF_IEEE_FLOAT | PF_ZARCH | PF_LONG_DISPLACEMENT,
     /* z9-109 */ PF_IEEE_FLOAT | PF_ZARCH | PF_LONG_DISPLACEMENT
-                 | PF_EXTIMM,
+		 | PF_EXTIMM,
     /* z9-ec */  PF_IEEE_FLOAT | PF_ZARCH | PF_LONG_DISPLACEMENT
-                 | PF_EXTIMM | PF_DFP,
+		 | PF_EXTIMM | PF_DFP,
     /* z10 */    PF_IEEE_FLOAT | PF_ZARCH | PF_LONG_DISPLACEMENT
-                 | PF_EXTIMM | PF_DFP | PF_Z10,
+		 | PF_EXTIMM | PF_DFP | PF_Z10,
     /* z196 */   PF_IEEE_FLOAT | PF_ZARCH | PF_LONG_DISPLACEMENT
-                 | PF_EXTIMM | PF_DFP | PF_Z10 | PF_Z196,
+		 | PF_EXTIMM | PF_DFP | PF_Z10 | PF_Z196,
     /* zEC12 */  PF_IEEE_FLOAT | PF_ZARCH | PF_LONG_DISPLACEMENT
-                 | PF_EXTIMM | PF_DFP | PF_Z10 | PF_Z196 | PF_ZEC12 | PF_TX
+		 | PF_EXTIMM | PF_DFP | PF_Z10 | PF_Z196 | PF_ZEC12 | PF_TX,
+    /* z13 */    PF_IEEE_FLOAT | PF_ZARCH | PF_LONG_DISPLACEMENT
+		 | PF_EXTIMM | PF_DFP | PF_Z10 | PF_Z196 | PF_ZEC12 | PF_TX
+		 | PF_Z13 | PF_VX,
+    /* z14 */    PF_IEEE_FLOAT | PF_ZARCH | PF_LONG_DISPLACEMENT
+		 | PF_EXTIMM | PF_DFP | PF_Z10 | PF_Z196 | PF_ZEC12 | PF_TX
+		 | PF_Z13 | PF_VX | PF_VXE | PF_Z14,
+    /* arch13 */ PF_IEEE_FLOAT | PF_ZARCH | PF_LONG_DISPLACEMENT
+		 | PF_EXTIMM | PF_DFP | PF_Z10 | PF_Z196 | PF_ZEC12 | PF_TX
+		 | PF_Z13 | PF_VX | PF_VXE | PF_Z14 | PF_VXE2 | PF_ARCH13
   };
 
 /* Change optimizations to be performed, depending on the
@@ -50,8 +57,6 @@ EXPORTED_CONST int processor_flags_table[] =
 
 static const struct default_options s390_option_optimization_table[] =
   {
-    { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
-
     /* Enable -fsched-pressure by default when optimizing.  */
     { OPT_LEVELS_1_PLUS, OPT_fsched_pressure, NULL, 1 },
 
@@ -72,48 +77,48 @@ s390_option_init_struct (struct gcc_options *opts)
   /* By default, always emit DWARF-2 unwind info.  This allows debugging
      without maintaining a stack frame back-chain.  */
   opts->x_flag_asynchronous_unwind_tables = 1;
+
+  /* Enable section anchors by default.  */
+  opts->x_flag_section_anchors = 1;
 }
 
 /* Implement TARGET_HANDLE_OPTION.  */
 
-static bool
-s390_handle_option (struct gcc_options *opts,
+bool
+s390_handle_option (struct gcc_options *opts ATTRIBUTE_UNUSED,
 		    struct gcc_options *opts_set ATTRIBUTE_UNUSED,
   		    const struct cl_decoded_option *decoded,
 		    location_t loc)
 {
   size_t code = decoded->opt_index;
-  const char *arg = decoded->arg;
   int value = decoded->value;
 
   switch (code)
     {
-    case OPT_march_:
-      opts->x_s390_arch_flags = processor_flags_table[value];
-      opts->x_s390_arch_string = arg;
-      return true;
-
     case OPT_mstack_guard_:
-      if (exact_log2 (value) == -1)
+      if (value != 0 && exact_log2 (value) == -1)
 	error_at (loc, "stack guard value must be an exact power of 2");
       return true;
 
     case OPT_mstack_size_:
-      if (exact_log2 (value) == -1)
+      if (value != 0 && exact_log2 (value) == -1)
 	error_at (loc, "stack size must be an exact power of 2");
       return true;
-
-    case OPT_mtune_:
-      opts->x_s390_tune_flags = processor_flags_table[value];
-      return true;
-
-    case OPT_mwarn_framesize_:
-      return sscanf (arg, HOST_WIDE_INT_PRINT_DEC,
-		     &opts->x_s390_warn_framesize) == 1;
 
     default:
       return true;
     }
+}
+
+/* -fsplit-stack uses a field in the TCB, available with glibc-2.23.
+   We don't verify it, since earlier versions just have padding at
+   its place, which works just as well.  */
+
+static bool
+s390_supports_split_stack (bool report ATTRIBUTE_UNUSED,
+			   struct gcc_options *opts ATTRIBUTE_UNUSED)
+{
+  return true;
 }
 
 #undef TARGET_DEFAULT_TARGET_FLAGS
@@ -127,5 +132,8 @@ s390_handle_option (struct gcc_options *opts,
 
 #undef TARGET_OPTION_INIT_STRUCT
 #define TARGET_OPTION_INIT_STRUCT s390_option_init_struct
+
+#undef TARGET_SUPPORTS_SPLIT_STACK
+#define TARGET_SUPPORTS_SPLIT_STACK s390_supports_split_stack
 
 struct gcc_targetm_common targetm_common = TARGETM_COMMON_INITIALIZER;

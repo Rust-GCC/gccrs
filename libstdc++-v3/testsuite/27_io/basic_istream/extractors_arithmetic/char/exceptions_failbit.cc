@@ -1,4 +1,4 @@
-// Copyright (C) 2003-2014 Free Software Foundation, Inc.
+// Copyright (C) 2003-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,7 +15,6 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-
 #include <sstream>
 #include <testsuite_hooks.h>
 
@@ -24,24 +23,23 @@ template<typename T>
 void test_failbit()
 {
   using namespace std;
-  bool test __attribute__((unused)) = true;
 
   istringstream stream("jaylib - champion sound");
   stream.exceptions(ios_base::failbit);
-  
+
   try
     {
       T i;
       stream >> i;
       VERIFY( false );
     }
-  catch (const ios_base::failure&)
-    { 
+  catch (const std::ios_base::failure&)
+    {
       // stream should set failbit and throw ios_base::failure.
       VERIFY( stream.fail() );
       VERIFY( !stream.bad() );
       VERIFY( !stream.eof() );
-    }  
+    }
   catch(...)
     { VERIFY( false ); }
 }

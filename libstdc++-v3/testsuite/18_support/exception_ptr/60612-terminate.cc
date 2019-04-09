@@ -1,7 +1,6 @@
-// { dg-options "-std=gnu++11" }
-// { dg-require-atomic-builtins "" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2014 Free Software Foundation, Inc.
+// Copyright (C) 2014-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -23,7 +22,7 @@
 #include <exception>
 #include <stdlib.h>
 
-#ifdef _GLIBCXX_USE_C99
+#if _GLIBCXX_USE_C99_STDLIB
 void terminate() { _Exit(0); }
 
 void f() noexcept
@@ -39,7 +38,7 @@ void f() noexcept
 
 int main()
 {
-#ifdef _GLIBCXX_USE_C99
+#if _GLIBCXX_USE_C99_STDLIB
   f();
 #endif
   return 0;

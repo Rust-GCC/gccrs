@@ -9,8 +9,8 @@
 
 char src[N], dst[N];
 
-void foo (char * __restrict__ dst, char * __restrict__ src, int h,
-          int stride, int dummy)
+void __attribute__((noinline,noclone))
+foo (char * __restrict__ dst, char * __restrict__ src, int h, int stride)
 {
   int i;
   h /= 16;
@@ -26,8 +26,7 @@ void foo (char * __restrict__ dst, char * __restrict__ src, int h,
       dst[7] += A*src[7] + src[7+stride];
       dst += 8;
       src += 8;
-      if (dummy == 32)
-        abort ();
+      asm volatile ("" ::: "memory");
    }
 }
 
@@ -44,7 +43,7 @@ int main (void)
        src[i] = i/8;
     }
 
-  foo (dst, src, N, 8, 0);
+  foo (dst, src, N, 8);
 
   for (i = 0; i < N/2; i++)
     {
@@ -55,7 +54,5 @@ int main (void)
   return 0;
 }
 
-/* { dg-final { scan-tree-dump-times "basic block vectorized" 1 "slp1" { target vect64 } } } */
-/* { dg-final { cleanup-tree-dump "slp1" } } */
-/* { dg-final { cleanup-tree-dump "slp2" } } */
+/* { dg-final { scan-tree-dump-times "basic block vectorized" 1 "slp1" { target { vect64 && vect_hw_misalign } } } } */
 

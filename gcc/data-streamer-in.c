@@ -1,7 +1,7 @@
 /* Routines for restoring various data types from a file stream.  This deals
    with various data types like strings, integers, enums, etc.
 
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -23,14 +23,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "diagnostic.h"
+#include "backend.h"
 #include "tree.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "is-a.h"
 #include "gimple.h"
+#include "cgraph.h"
 #include "data-streamer.h"
 
 /* Read a string from the string table in DATA_IN using input block
@@ -49,7 +45,7 @@ string_for_index (struct data_in *data_in, unsigned int loc, unsigned int *rlen)
     }
 
   /* Get the string stored at location LOC in DATA_IN->STRINGS.  */
-  lto_input_block str_tab (data_in->strings, loc - 1, data_in->strings_len);
+  lto_input_block str_tab (data_in->strings, loc - 1, data_in->strings_len, NULL);
   len = streamer_read_uhwi (&str_tab);
   *rlen = len;
 
@@ -185,6 +181,36 @@ gcov_type
 streamer_read_gcov_count (struct lto_input_block *ib)
 {
   gcov_type ret = streamer_read_hwi (ib);
-  gcc_assert (ret >= 0);
   return ret;
 }
+
+/* Read the physical representation of a wide_int val from
+   input block IB.  */
+
+wide_int
+streamer_read_wide_int (struct lto_input_block *ib)
+{
+  HOST_WIDE_INT a[WIDE_INT_MAX_ELTS];
+  int i;
+  int prec = streamer_read_uhwi (ib);
+  int len = streamer_read_uhwi (ib);
+  for (i = 0; i < len; i++)
+    a[i] = streamer_read_hwi (ib);
+  return wide_int::from_array (a, len, prec);
+}
+
+/* Read the physical representation of a widest_int val from
+   input block IB.  */
+
+widest_int
+streamer_read_widest_int (struct lto_input_block *ib)
+{
+  HOST_WIDE_INT a[WIDE_INT_MAX_ELTS];
+  int i;
+  int prec ATTRIBUTE_UNUSED = streamer_read_uhwi (ib);
+  int len = streamer_read_uhwi (ib);
+  for (i = 0; i < len; i++)
+    a[i] = streamer_read_hwi (ib);
+  return widest_int::from_array (a, len);
+}
+

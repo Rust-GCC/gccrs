@@ -1,5 +1,5 @@
 /* { dg-do run } */
-/* { dg-options "-O2 -fipa-pta -fdump-ipa-pta-details" } */
+/* { dg-options "-O2 -fipa-pta -fdump-ipa-pta2-details" } */
 
 int **x;
 
@@ -23,4 +23,3 @@ int main()
   return 0;
 }
 
-/* { dg-final { cleanup-ipa-dump "pta" } } */

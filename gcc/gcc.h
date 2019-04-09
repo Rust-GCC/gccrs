@@ -1,5 +1,5 @@
 /* Header file for modules that link with gcc.c
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -23,6 +23,43 @@ along with GCC; see the file COPYING3.  If not see
 #include "version.h"
 #include "diagnostic-core.h"
 
+/* The top-level "main" within the driver would be ~1000 lines long.
+   This class breaks it up into smaller functions and contains some
+   state shared by them.  */
+
+class driver
+{
+ public:
+  driver (bool can_finalize, bool debug);
+  ~driver ();
+  int main (int argc, char **argv);
+  void finalize ();
+
+ private:
+  void set_progname (const char *argv0) const;
+  void expand_at_files (int *argc, char ***argv) const;
+  void decode_argv (int argc, const char **argv);
+  void global_initializations ();
+  void build_multilib_strings () const;
+  void set_up_specs () const;
+  void putenv_COLLECT_GCC (const char *argv0) const;
+  void maybe_putenv_COLLECT_LTO_WRAPPER () const;
+  void maybe_putenv_OFFLOAD_TARGETS () const;
+  void handle_unrecognized_options ();
+  int maybe_print_and_exit () const;
+  bool prepare_infiles ();
+  void do_spec_on_infiles () const;
+  void maybe_run_linker (const char *argv0) const;
+  void final_actions () const;
+  int get_exit_code () const;
+
+ private:
+  char *explicit_link_files;
+  struct cl_decoded_option *decoded_options;
+  unsigned int decoded_options_count;
+  option_proposer m_option_proposer;
+};
+
 /* The mapping of a spec function name to the C function that
    implements it.  */
 struct spec_function
@@ -34,7 +71,6 @@ struct spec_function
 /* These are exported by gcc.c.  */
 extern int do_spec (const char *);
 extern void record_temp_file (const char *, int, int);
-extern void pfatal_with_name (const char *) ATTRIBUTE_NORETURN;
 extern void set_input (const char *);
 
 /* Spec files linked with gcc.c must provide definitions for these.  */
@@ -54,5 +90,10 @@ extern int lang_specific_extra_outfiles;
 /* A vector of corresponding output files is made up later.  */
 
 extern const char **outfiles;
+
+extern void
+driver_get_configure_time_options (void (*cb)(const char *option,
+					      void *user_data),
+				   void *user_data);
 
 #endif /* ! GCC_GCC_H */

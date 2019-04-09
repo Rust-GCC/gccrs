@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -89,6 +89,18 @@ package Uintp is
    Uint_Minus_63  : constant Uint;
    Uint_Minus_80  : constant Uint;
    Uint_Minus_128 : constant Uint;
+
+   type UI_Vector is array (Pos range <>) of Int;
+   --  Vector containing the integer values of a Uint value
+
+   --  Note: An earlier version of this package used pointers of arrays of Ints
+   --  (dynamically allocated) for the Uint type. The change leads to a few
+   --  less natural idioms used throughout this code, but eliminates all uses
+   --  of the heap except for the table package itself. For example, Uint
+   --  parameters are often converted to UI_Vectors for internal manipulation.
+   --  This is done by creating the local UI_Vector using the function N_Digits
+   --  on the Uint to find the size needed for the vector, and then calling
+   --  Init_Operand to copy the values out of the table into the vector.
 
    -----------------
    -- Subprograms --
@@ -226,7 +238,7 @@ package Uintp is
      (B      : Uint;
       E      : Uint;
       Modulo : Uint) return Uint;
-   --  Efficiently compute (B ** E) rem Modulo
+   --  Efficiently compute (B**E) rem Modulo
 
    function UI_Modular_Inverse (N : Uint; Modulo : Uint) return Uint;
    --  Compute the multiplicative inverse of N in modular arithmetics with the
@@ -236,21 +248,44 @@ package Uintp is
    function UI_From_Int (Input : Int) return Uint;
    --  Converts Int value to universal integer form
 
+   generic
+      type In_T is range <>;
+   function UI_From_Integral (Input : In_T) return Uint;
+   --  Likewise, but converts from any integer type.
+   --  Must not be applied to biased types (instantiation will provide
+   --  a warning if actual is a biased type).
+
    function UI_From_CC (Input : Char_Code) return Uint;
    --  Converts Char_Code value to universal integer form
 
    function UI_To_Int (Input : Uint) return Int;
-   --  Converts universal integer value to Int. Fatal error if value is not in
-   --  appropriate range.
+   --  Converts universal integer value to Int. Constraint_Error if value is
+   --  not in appropriate range.
 
    function UI_To_CC (Input : Uint) return Char_Code;
-   --  Converts universal integer value to Char_Code. Fatal error if value is
-   --  not in Char_Code range.
+   --  Converts universal integer value to Char_Code. Constraint_Error if value
+   --  is not in Char_Code range.
 
    function Num_Bits (Input : Uint) return Nat;
    --  Approximate number of binary bits in given universal integer. This
    --  function is used for capacity checks, and it can be one bit off
    --  without affecting its usage.
+
+   function Vector_To_Uint
+     (In_Vec   : UI_Vector;
+      Negative : Boolean) return Uint;
+   --  Functions that calculate values in UI_Vectors, call this function to
+   --  create and return the Uint value. In_Vec contains the multiple precision
+   --  (Base) representation of a non-negative value. Leading zeroes are
+   --  permitted. Negative is set if the desired result is the negative of the
+   --  given value. The result will be either the appropriate directly
+   --  represented value, or a table entry in the proper canonical format is
+   --  created and returned.
+   --
+   --  Note that Init_Operand puts a signed value in the result vector, but
+   --  Vector_To_Uint is always presented with a non-negative value. The
+   --  processing of signs is something that is done by the caller before
+   --  calling Vector_To_Uint.
 
    ---------------------
    -- Output Routines --
@@ -271,10 +306,15 @@ package Uintp is
    --  followed by the value in UI_Image_Buffer. The form of the value is an
    --  integer literal in either decimal (no base) or hexadecimal (base 16)
    --  format. If Hex is True on entry, then hex mode is forced, otherwise
-   --  UI_Image makes a guess at which output format is more convenient.
-   --  The value must fit in UI_Image_Buffer. If necessary, the result is an
-   --  approximation of the proper value, using an exponential format. The
-   --  image of No_Uint is output as a single question mark.
+   --  UI_Image makes a guess at which output format is more convenient. The
+   --  value must fit in UI_Image_Buffer. The actual length of the result is
+   --  returned in UI_Image_Length. If necessary to meet this requirement, the
+   --  result is an approximation of the proper value, using an exponential
+   --  format. The image of No_Uint is output as a single question mark.
+
+   function UI_Image (Input : Uint; Format : UI_Format := Auto) return String;
+   --  Functional form, in which the result is returned as a string. This call
+   --  also leaves the result in UI_Image_Buffer/Length as described above.
 
    procedure UI_Write (Input : Uint; Format : UI_Format := Auto);
    --  Writes a representation of Uint, consisting of a possible minus sign,
@@ -398,14 +438,14 @@ private
 
    --  Base is defined to allow efficient execution of the primitive operations
    --  (a0, b0, c0) defined in the section "The Classical Algorithms"
-   --  (sec. 4.3.1) of Donald Knuth's "The Art of Computer  Programming",
+   --  (sec. 4.3.1) of Donald Knuth's "The Art of Computer Programming",
    --  Vol. 2. These algorithms are used in this package. In particular,
    --  the product of two single digits in this base fits in a 32-bit integer.
 
    Base_Bits : constant := 15;
    --  Number of bits in base value
 
-   Base : constant Int := 2 ** Base_Bits;
+   Base : constant Int := 2**Base_Bits;
 
    --  Values in the range -(Base-1) .. Max_Direct are encoded directly as
    --  Uint values by adding a bias value. The value of Max_Direct is chosen
@@ -421,13 +461,13 @@ private
    --  avoid accidental use of Uint arithmetic on these values, which is never
    --  correct.
 
-   type Ctrl is range Int'First .. Int'Last;
+   type Ctrl is new Int;
 
    Uint_Direct_Bias  : constant Ctrl := Ctrl (Uint_Low_Bound) + Ctrl (Base);
    Uint_Direct_First : constant Ctrl := Uint_Direct_Bias + Ctrl (Min_Direct);
    Uint_Direct_Last  : constant Ctrl := Uint_Direct_Bias + Ctrl (Max_Direct);
 
-   Uint_0   : constant Uint := Uint (Uint_Direct_Bias);
+   Uint_0   : constant Uint := Uint (Uint_Direct_Bias + 0);
    Uint_1   : constant Uint := Uint (Uint_Direct_Bias + 1);
    Uint_2   : constant Uint := Uint (Uint_Direct_Bias + 2);
    Uint_3   : constant Uint := Uint (Uint_Direct_Bias + 3);
@@ -466,7 +506,7 @@ private
    Uint_Minus_80  : constant Uint := Uint (Uint_Direct_Bias - 80);
    Uint_Minus_128 : constant Uint := Uint (Uint_Direct_Bias - 128);
 
-   Uint_Max_Simple_Mul : constant := Uint_Direct_Bias + 2 ** 15;
+   Uint_Max_Simple_Mul : constant := Uint_Direct_Bias + 2**15;
    --  If two values are directly represented and less than or equal to this
    --  value, then we know the product fits in a 32-bit integer. This allows
    --  UI_Mul to efficiently compute the product in this case.
@@ -493,18 +533,6 @@ private
    --  defined arrays of the digits of the Universal Integers. The type
    --  UI_Vector is defined for this purpose and some internal subprograms
    --  used for converting from one to the other are defined.
-
-   type UI_Vector is array (Pos range <>) of Int;
-   --  Vector containing the integer values of a Uint value
-
-   --  Note: An earlier version of this package used pointers of arrays of Ints
-   --  (dynamically allocated) for the Uint type. The change leads to a few
-   --  less natural idioms used throughout this code, but eliminates all uses
-   --  of the heap except for the table package itself. For example, Uint
-   --  parameters are often converted to UI_Vectors for internal manipulation.
-   --  This is done by creating the local UI_Vector using the function N_Digits
-   --  on the Uint to find the size needed for the vector, and then calling
-   --  Init_Operand to copy the values out of the table into the vector.
 
    type Uint_Entry is record
       Length : Pos;

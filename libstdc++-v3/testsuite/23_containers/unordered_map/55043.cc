@@ -1,7 +1,6 @@
-// { dg-options "-std=gnu++0x" }
-// { dg-do compile }
+// { dg-do compile { target c++11 } }
 
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,15 +28,9 @@ struct MoveOnly
   MoveOnly(MoveOnly&&) = default;
 };
 
-using hash = std::hash<int>;
-using equal = std::equal_to<int>;
-
-template<typename Alloc>
-  using test_type = std::unordered_map<int, MoveOnly, hash, equal, Alloc>;
-
 void test01()
 {
-  typedef test_type<std::allocator<MoveOnly>> uim;
+  typedef std::unordered_map<int, MoveOnly> uim;
   std::vector<uim> v;
   v.emplace_back(uim());
 }

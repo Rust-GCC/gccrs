@@ -7,6 +7,10 @@
 
 #define EPS 1.0e-15
 
+#define INHIB_OPT(x) asm volatile ("mov %d0, %1.d[0]"   \
+                                   : "=w"(x)           \
+                                   : "w"(x)            \
+                                   : /* No clobbers. */);
 
 extern void abort (void);
 
@@ -24,6 +28,10 @@ main (void)
   arg2 = vcreate_f64 (0x3fe6b78680fa29ceULL);
   arg3 = vcreate_f64 (0x3feea3cbf921fbe0ULL);
 
+  INHIB_OPT (arg1);
+  INHIB_OPT (arg2);
+  INHIB_OPT (arg3);
+
   expected = 4.4964705746355915e-2;
   actual = vget_lane_f64 (vfms_f64 (arg1, arg2, arg3), 0);
 
@@ -34,4 +42,3 @@ main (void)
 }
 
 /* { dg-final { scan-assembler-times "fmsub\[ \t\]+\[dD\]\[0-9\]+, ?\[dD\]\[0-9\]+, ?\[dD\]\[0-9\]+, ?\[dD\]\[0-9\]+\n" 1 } } */
-/* { dg-final { cleanup-saved-temps } } */

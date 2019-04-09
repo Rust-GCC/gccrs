@@ -1,6 +1,6 @@
 // TR1 complex -*- C++ -*-
 
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -35,10 +35,10 @@
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
-namespace tr1
-{
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
+namespace tr1
+{
   /**
    * @addtogroup complex_numbers
    * @{
@@ -48,17 +48,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   using std::acos;
   using std::asin;
   using std::atan;
+  using std::acosh;
+  using std::asinh;
+  using std::atanh;
 #else
   template<typename _Tp> std::complex<_Tp> acos(const std::complex<_Tp>&);
   template<typename _Tp> std::complex<_Tp> asin(const std::complex<_Tp>&);
   template<typename _Tp> std::complex<_Tp> atan(const std::complex<_Tp>&);
-#endif
-
   template<typename _Tp> std::complex<_Tp> acosh(const std::complex<_Tp>&);
   template<typename _Tp> std::complex<_Tp> asinh(const std::complex<_Tp>&);
   template<typename _Tp> std::complex<_Tp> atanh(const std::complex<_Tp>&);
+#endif
 
-  // The std::fabs return type in C++0x mode is different (just _Tp).
+  // The std::fabs return type in C++11 mode is different (just _Tp).
   template<typename _Tp> std::complex<_Tp> fabs(const std::complex<_Tp>&);
 
 #if __cplusplus < 201103L
@@ -177,8 +179,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     atan(const std::complex<_Tp>& __z)
     { return __complex_atan(__z); }
 #endif
-
-#endif // C++11
 
   template<typename _Tp>
     std::complex<_Tp>
@@ -299,6 +299,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     { return __complex_atanh(__z); }
 #endif
 
+#endif // C++11
+
   template<typename _Tp>
     inline std::complex<_Tp>
     /// fabs(__z) [8.1.8].
@@ -373,7 +375,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Tp>
     inline std::complex<_Tp>
     conj(const std::complex<_Tp>& __z)
-    { return std::conj(__z); }  
+    { return std::conj(__z); }
 
   template<typename _Tp>
     inline std::complex<typename __gnu_cxx::__promote<_Tp>::__type>
@@ -410,9 +412,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     { return std::pow(__x, __y); }
 
 // @} group complex_numbers
+}
 
 _GLIBCXX_END_NAMESPACE_VERSION
-}
 }
 
 #endif // _GLIBCXX_TR1_COMPLEX

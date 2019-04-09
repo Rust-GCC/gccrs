@@ -1,4 +1,4 @@
-# Copyright (C) 1992-2014 Free Software Foundation, Inc.
+# Copyright (C) 1992-2019 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -126,9 +126,7 @@ if [info exists TORTURE_OPTIONS] {
 	" -O0 " \
 	" -O1 " \
 	" -O2 " \
-	" -O3 -fomit-frame-pointer " \
-	" -O3 -fomit-frame-pointer -funroll-loops " \
-	" -O3 -fomit-frame-pointer -funroll-all-loops -finline-functions " \
+	" -O3 -fomit-frame-pointer -funroll-loops -fpeel-loops -ftracer -finline-functions " \
 	" -O3 -g " \
 	" -Os " ]
 }

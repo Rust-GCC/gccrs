@@ -1,5 +1,6 @@
 ! { dg-do compile } 
 ! { dg-require-effective-target vect_float } 
+! { dg-require-visibility "" }
 
 module solv_cap
 
@@ -91,4 +92,3 @@ end module solv_cap
 
 
 ! { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" { target vect_intfloat_cvt } } }
-! { dg-final { cleanup-tree-dump "vect" } } 

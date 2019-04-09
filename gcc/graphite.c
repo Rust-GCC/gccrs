@@ -1,5 +1,5 @@
 /* Gimple Represented as Polyhedra.
-   Copyright (C) 2006-2014 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <sebastian.pop@inria.fr>.
 
 This file is part of GCC.
@@ -25,64 +25,40 @@ along with GCC; see the file COPYING3.  If not see
    An early description of this pass can be found in the GCC Summit'06
    paper "GRAPHITE: Polyhedral Analyses and Optimizations for GCC".
    The wiki page http://gcc.gnu.org/wiki/Graphite contains pointers to
-   the related work.
+   the related work.  */
 
-   One important document to read is CLooG's internal manual:
-   http://repo.or.cz/w/cloog-ppl.git?a=blob_plain;f=doc/cloog.texi;hb=HEAD
-   that describes the data structure of loops used in this file, and
-   the functions that are used for transforming the code.  */
+#define USES_ISL
 
 #include "config.h"
-
-#ifdef HAVE_isl
-#include <isl/set.h>
-#include <isl/map.h>
-#include <isl/options.h>
-#include <isl/union_map.h>
-#ifdef HAVE_cloog
-#include <cloog/cloog.h>
-#include <cloog/isl/domain.h>
-#include <cloog/isl/cloog.h>
-#endif
-#endif
-
 #include "system.h"
 #include "coretypes.h"
+#include "backend.h"
 #include "diagnostic-core.h"
+#include "cfgloop.h"
+#include "tree-pass.h"
+#include "params.h"
+#include "pretty-print.h"
+#include "cfganal.h"
+
+#ifdef HAVE_isl
+#include "cfghooks.h"
 #include "tree.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "is-a.h"
 #include "gimple.h"
+#include "ssa.h"
+#include "fold-const.h"
 #include "gimple-iterator.h"
 #include "tree-cfg.h"
 #include "tree-ssa-loop.h"
-#include "tree-dump.h"
-#include "cfgloop.h"
-#include "tree-chrec.h"
 #include "tree-data-ref.h"
 #include "tree-scalar-evolution.h"
-#include "sese.h"
 #include "dbgcnt.h"
 #include "tree-parloops.h"
-#include "tree-pass.h"
 #include "tree-cfgcleanup.h"
-
-#ifdef HAVE_isl
-
-#include "graphite-poly.h"
-#include "graphite-scop-detection.h"
-#include "graphite-isl-ast-to-gimple.h"
-#include "graphite-sese-to-poly.h"
-#include "graphite-htab.h"
-
-#ifdef HAVE_cloog
-#include "graphite-clast-to-gimple.h"
-
-CloogState *cloog_state;
-#endif
+#include "tree-vectorizer.h"
+#include "tree-ssa-loop-manip.h"
+#include "tree-ssa.h"
+#include "tree-into-ssa.h"
+#include "graphite.h"
 
 /* Print global statistics to FILE.  */
 
@@ -93,10 +69,10 @@ print_global_statistics (FILE* file)
   long n_loops = 0;
   long n_stmts = 0;
   long n_conditions = 0;
-  long n_p_bbs = 0;
-  long n_p_loops = 0;
-  long n_p_stmts = 0;
-  long n_p_conditions = 0;
+  profile_count n_p_bbs = profile_count::zero ();
+  profile_count n_p_loops = profile_count::zero ();
+  profile_count n_p_stmts = profile_count::zero ();
+  profile_count n_p_conditions = profile_count::zero ();
 
   basic_block bb;
 
@@ -105,7 +81,8 @@ print_global_statistics (FILE* file)
       gimple_stmt_iterator psi;
 
       n_bbs++;
-      n_p_bbs += bb->count;
+      if (bb->count.initialized_p ())
+        n_p_bbs += bb->count;
 
       /* Ignore artificial surrounding loop.  */
       if (bb == bb->loop_father->header
@@ -118,13 +95,15 @@ print_global_statistics (FILE* file)
       if (EDGE_COUNT (bb->succs) > 1)
 	{
 	  n_conditions++;
-	  n_p_conditions += bb->count;
+	  if (bb->count.initialized_p ())
+	    n_p_conditions += bb->count;
 	}
 
       for (psi = gsi_start_bb (bb); !gsi_end_p (psi); gsi_next (&psi))
 	{
 	  n_stmts++;
-	  n_p_stmts += bb->count;
+	  if (bb->count.initialized_p ())
+	    n_p_stmts += bb->count;
 	}
     }
 
@@ -133,11 +112,16 @@ print_global_statistics (FILE* file)
   fprintf (file, "LOOPS:%ld, ", n_loops);
   fprintf (file, "CONDITIONS:%ld, ", n_conditions);
   fprintf (file, "STMTS:%ld)\n", n_stmts);
-  fprintf (file, "\nGlobal profiling statistics (");
-  fprintf (file, "BBS:%ld, ", n_p_bbs);
-  fprintf (file, "LOOPS:%ld, ", n_p_loops);
-  fprintf (file, "CONDITIONS:%ld, ", n_p_conditions);
-  fprintf (file, "STMTS:%ld)\n", n_p_stmts);
+  fprintf (file, "Global profiling statistics (");
+  fprintf (file, "BBS:");
+  n_p_bbs.dump (file);
+  fprintf (file, ", LOOPS:");
+  n_p_loops.dump (file);
+  fprintf (file, ", CONDITIONS:");
+  n_p_conditions.dump (file);
+  fprintf (file, ", STMTS:");
+  n_p_stmts.dump (file);
+  fprintf (file, ")\n\n");
 }
 
 /* Print statistics for SCOP to FILE.  */
@@ -149,10 +133,10 @@ print_graphite_scop_statistics (FILE* file, scop_p scop)
   long n_loops = 0;
   long n_stmts = 0;
   long n_conditions = 0;
-  long n_p_bbs = 0;
-  long n_p_loops = 0;
-  long n_p_stmts = 0;
-  long n_p_conditions = 0;
+  profile_count n_p_bbs = profile_count::zero ();
+  profile_count n_p_loops = profile_count::zero ();
+  profile_count n_p_stmts = profile_count::zero ();
+  profile_count n_p_conditions = profile_count::zero ();
 
   basic_block bb;
 
@@ -161,11 +145,12 @@ print_graphite_scop_statistics (FILE* file, scop_p scop)
       gimple_stmt_iterator psi;
       loop_p loop = bb->loop_father;
 
-      if (!bb_in_sese_p (bb, SCOP_REGION (scop)))
+      if (!bb_in_sese_p (bb, scop->scop_info->region))
 	continue;
 
       n_bbs++;
-      n_p_bbs += bb->count;
+      if (bb->count.initialized_p ())
+        n_p_bbs += bb->count;
 
       if (EDGE_COUNT (bb->succs) > 1)
 	{
@@ -179,23 +164,38 @@ print_graphite_scop_statistics (FILE* file, scop_p scop)
 	  n_p_stmts += bb->count;
 	}
 
-      if (loop->header == bb && loop_in_sese_p (loop, SCOP_REGION (scop)))
+      if (loop->header == bb && loop_in_sese_p (loop, scop->scop_info->region))
 	{
 	  n_loops++;
 	  n_p_loops += bb->count;
 	}
     }
 
+  fprintf (file, "\nFunction Name: %s\n", current_function_name ());
+
+  edge scop_begin = scop->scop_info->region.entry;
+  edge scop_end = scop->scop_info->region.exit;
+
+  fprintf (file, "\nSCoP (entry_edge (bb_%d, bb_%d), ",
+	   scop_begin->src->index, scop_begin->dest->index);
+  fprintf (file, "exit_edge (bb_%d, bb_%d))",
+	   scop_end->src->index, scop_end->dest->index);
+
   fprintf (file, "\nSCoP statistics (");
   fprintf (file, "BBS:%ld, ", n_bbs);
   fprintf (file, "LOOPS:%ld, ", n_loops);
   fprintf (file, "CONDITIONS:%ld, ", n_conditions);
   fprintf (file, "STMTS:%ld)\n", n_stmts);
-  fprintf (file, "\nSCoP profiling statistics (");
-  fprintf (file, "BBS:%ld, ", n_p_bbs);
-  fprintf (file, "LOOPS:%ld, ", n_p_loops);
-  fprintf (file, "CONDITIONS:%ld, ", n_p_conditions);
-  fprintf (file, "STMTS:%ld)\n", n_p_stmts);
+  fprintf (file, "SCoP profiling statistics (");
+  fprintf (file, "BBS:");
+  n_p_bbs.dump (file);
+  fprintf (file, ", LOOPS:");
+  n_p_loops.dump (file);
+  fprintf (file, ", CONDITIONS:");
+  n_p_conditions.dump (file);
+  fprintf (file, ", STMTS:");
+  n_p_stmts.dump (file);
+  fprintf (file, ")\n\n");
 }
 
 /* Print statistics for SCOPS to FILE.  */
@@ -204,67 +204,203 @@ static void
 print_graphite_statistics (FILE* file, vec<scop_p> scops)
 {
   int i;
-
   scop_p scop;
 
   FOR_EACH_VEC_ELT (scops, i, scop)
     print_graphite_scop_statistics (file, scop);
 }
 
-/* Initialize graphite: when there are no loops returns false.  */
-
-static bool
-graphite_initialize (isl_ctx *ctx)
+struct seir_cache_key
 {
-  if (number_of_loops (cfun) <= 1
-      /* FIXME: This limit on the number of basic blocks of a function
-	 should be removed when the SCOP detection is faster.  */
-      || (n_basic_blocks_for_fn (cfun) >
-	  PARAM_VALUE (PARAM_GRAPHITE_MAX_BBS_PER_FUNCTION)))
-    {
-      if (dump_file && (dump_flags & TDF_DETAILS))
-	print_global_statistics (dump_file);
+  hashval_t hash;
+  int entry_dest;
+  int exit_src;
+  int loop_num;
+  tree expr;
+};
 
-      isl_ctx_free (ctx);
-      return false;
-    }
+struct sese_scev_hash : typed_noop_remove <seir_cache_key>
+{
+  typedef seir_cache_key value_type;
+  typedef seir_cache_key compare_type;
+  static hashval_t hash (const seir_cache_key &key) { return key.hash; }
+  static bool
+  equal (const seir_cache_key &key1, const seir_cache_key &key2)
+  {
+    return (key1.hash == key2.hash
+	    && key1.entry_dest == key2.entry_dest
+	    && key1.exit_src == key2.exit_src
+	    && key1.loop_num == key2.loop_num
+	    && operand_equal_p (key1.expr, key2.expr, 0));
+  }
+  static void mark_deleted (seir_cache_key &key) { key.expr = NULL_TREE; }
+  static void mark_empty (seir_cache_key &key) { key.entry_dest = 0; }
+  static bool is_deleted (const seir_cache_key &key) { return !key.expr; }
+  static bool is_empty (const seir_cache_key &key) { return key.entry_dest == 0; }
+};
 
-  scev_reset ();
-  recompute_all_dominators ();
-  initialize_original_copy_tables ();
+static hash_map<sese_scev_hash, tree> *seir_cache;
 
-#ifdef HAVE_cloog
-  cloog_state = cloog_isl_state_malloc (ctx);
-#endif
+/* Same as scalar_evolution_in_region but caches results so we avoid
+   re-computing evolutions during transform phase.  */
 
-  if (dump_file && dump_flags)
-    dump_function_to_file (current_function_decl, dump_file, dump_flags);
-
-  return true;
+tree
+cached_scalar_evolution_in_region (const sese_l &region, loop_p loop,
+				   tree expr)
+{
+  seir_cache_key key;
+  key.entry_dest = region.entry->dest->index;
+  key.exit_src = region.exit->src->index;
+  key.loop_num = loop->num;
+  key.expr = expr;
+  inchash::hash hstate (0);
+  hstate.add_int (key.entry_dest);
+  hstate.add_int (key.exit_src);
+  hstate.add_int (key.loop_num);
+  inchash::add_expr (key.expr, hstate);
+  key.hash = hstate.end ();
+  
+  bool existed;
+  tree &chrec = seir_cache->get_or_insert (key, &existed);
+  if (!existed)
+    chrec = scalar_evolution_in_region (region, loop, expr);
+  return chrec;
 }
 
-/* Finalize graphite: perform CFG cleanup when NEED_CFG_CLEANUP_P is
-   true.  */
+/* Deletes all scops in SCOPS.  */
 
 static void
-graphite_finalize (bool need_cfg_cleanup_p)
+free_scops (vec<scop_p> scops)
 {
-  if (need_cfg_cleanup_p)
+  int i;
+  scop_p scop;
+
+  FOR_EACH_VEC_ELT (scops, i, scop)
+    free_scop (scop);
+
+  scops.release ();
+}
+
+/* Transforms LOOP to the canonical loop closed SSA form.  */
+
+static void
+canonicalize_loop_closed_ssa (loop_p loop, edge e)
+{
+  basic_block bb;
+  gphi_iterator psi;
+
+  bb = e->dest;
+
+  /* Make the loop-close PHI node BB contain only PHIs and have a
+     single predecessor.  */
+  if (single_pred_p (bb))
     {
-      scev_reset ();
-      cleanup_tree_cfg ();
-      profile_status_for_fn (cfun) = PROFILE_ABSENT;
-      release_recorded_exits ();
-      tree_estimate_probability ();
+      e = split_block_after_labels (bb);
+      bb = e->src;
+    }
+  else
+    {
+      basic_block close = split_edge (e);
+      e = single_succ_edge (close);
+      for (psi = gsi_start_phis (bb); !gsi_end_p (psi); gsi_next (&psi))
+	{
+	  gphi *phi = psi.phi ();
+	  use_operand_p use_p = PHI_ARG_DEF_PTR_FROM_EDGE (phi, e);
+	  tree arg = USE_FROM_PTR (use_p);
+
+	  /* Only add close phi nodes for SSA_NAMEs defined in LOOP.  */
+	  if (TREE_CODE (arg) != SSA_NAME
+	      || SSA_NAME_IS_DEFAULT_DEF (arg)
+	      || ! flow_bb_inside_loop_p (loop,
+					  gimple_bb (SSA_NAME_DEF_STMT (arg))))
+	    continue;
+
+	  tree res = copy_ssa_name (arg);
+	  gphi *close_phi = create_phi_node (res, close);
+	  add_phi_arg (close_phi, arg, gimple_phi_arg_edge (close_phi, 0),
+		       UNKNOWN_LOCATION);
+	  SET_USE (use_p, res);
+	}
+      bb = close;
     }
 
-#ifdef HAVE_cloog
-  cloog_state_free (cloog_state);
-#endif
-  free_original_copy_tables ();
+  /* Eliminate duplicates.  This relies on processing loops from
+     innermost to outer.  */
+  for (psi = gsi_start_phis (bb); !gsi_end_p (psi); gsi_next (&psi))
+    {
+      gphi_iterator gsi = psi;
+      gphi *phi = psi.phi ();
 
-  if (dump_file && dump_flags)
-    print_loops (dump_file, 3);
+      /* At this point, PHI should be a close phi in normal form.  */
+      gcc_assert (gimple_phi_num_args (phi) == 1);
+
+      /* Iterate over the next phis and remove duplicates.  */
+      gsi_next (&gsi);
+      while (!gsi_end_p (gsi))
+	if (gimple_phi_arg_def (phi, 0) == gimple_phi_arg_def (gsi.phi (), 0))
+	  {
+	    replace_uses_by (gimple_phi_result (gsi.phi ()),
+			     gimple_phi_result (phi));
+	    remove_phi_node (&gsi, true);
+	  }
+	else
+	  gsi_next (&gsi);
+    }
+}
+
+/* Converts the current loop closed SSA form to a canonical form
+   expected by the Graphite code generation.
+
+   The loop closed SSA form has the following invariant: a variable
+   defined in a loop that is used outside the loop appears only in the
+   phi nodes in the destination of the loop exit.  These phi nodes are
+   called close phi nodes.
+
+   The canonical loop closed SSA form contains the extra invariants:
+
+   - when the loop contains only one exit, the close phi nodes contain
+   only one argument.  That implies that the basic block that contains
+   the close phi nodes has only one predecessor, that is a basic block
+   in the loop.
+
+   - the basic block containing the close phi nodes does not contain
+   other statements.
+
+   - there exist only one phi node per definition in the loop.
+
+   In addition to that we also make sure that loop exit edges are
+   first in the successor edge vector.  This is to make RPO order
+   as computed by pre_and_rev_post_order_compute be consistent with
+   what initial schedule generation expects.
+*/
+
+static void
+canonicalize_loop_form (void)
+{
+  loop_p loop;
+  FOR_EACH_LOOP (loop, LI_FROM_INNERMOST)
+    {
+      edge e = single_exit (loop);
+      if (!e || (e->flags & (EDGE_COMPLEX|EDGE_FAKE)))
+	continue;
+
+      canonicalize_loop_closed_ssa (loop, e);
+
+      /* If the exit is not first in the edge vector make it so.  */
+      if (e != EDGE_SUCC (e->src, 0))
+	{
+	  unsigned ei;
+	  for (ei = 0; EDGE_SUCC (e->src, ei) != e; ++ei)
+	    ;
+	  std::swap (EDGE_SUCC (e->src, ei), EDGE_SUCC (e->src, 0));
+	}
+    }
+
+  /* We can end up releasing duplicate exit PHIs and also introduce
+     additional copies so the cached information isn't correct anymore.  */
+  scev_reset ();
+
+  checking_verify_loop_closed_ssa (true);
 }
 
 isl_ctx *the_isl_ctx;
@@ -277,7 +413,7 @@ graphite_transform_loops (void)
 {
   int i;
   scop_p scop;
-  bool need_cfg_cleanup_p = false;
+  bool changed = false;
   vec<scop_p> scops = vNULL;
   isl_ctx *ctx;
 
@@ -286,13 +422,35 @@ graphite_transform_loops (void)
   if (parallelized_function_p (cfun->decl))
     return;
 
+  calculate_dominance_info (CDI_DOMINATORS);
+
+  /* We rely on post-dominators during merging of SESE regions so those
+     have to be meaningful.  */
+  connect_infinite_loops_to_exit ();
+
   ctx = isl_ctx_alloc ();
   isl_options_set_on_error (ctx, ISL_ON_ERROR_ABORT);
-  if (!graphite_initialize (ctx))
-    return;
-
   the_isl_ctx = ctx;
+
+  sort_sibling_loops (cfun);
+  canonicalize_loop_form ();
+
+  /* Print the loop structure.  */
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    {
+      print_loops (dump_file, 2);
+      print_loops (dump_file, 3);
+    }
+
+  seir_cache = new hash_map<sese_scev_hash, tree>;
+
+  calculate_dominance_info (CDI_POST_DOMINATORS);
   build_scops (&scops);
+  free_dominance_info (CDI_POST_DOMINATORS);
+
+  /* Remove the fake exits before transform given they are not reflected
+     in loop structures we end up verifying.  */
+  remove_fake_exit_edges ();
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
@@ -300,52 +458,72 @@ graphite_transform_loops (void)
       print_global_statistics (dump_file);
     }
 
-  bb_pbb_htab_type bb_pbb_mapping (10);
-
-#ifndef HAVE_cloog
-  if(flag_graphite_code_gen == FGRAPHITE_CODE_GEN_CLOOG)
-    {
-      flag_graphite_code_gen = FGRAPHITE_CODE_GEN_ISL;
-      printf ("The CLooG code generator cannot be used (CLooG is not "
-	      "available). The ISL code generator was chosen.\n");
-    }
-#endif
-
   FOR_EACH_VEC_ELT (scops, i, scop)
     if (dbg_cnt (graphite_scop))
       {
-	scop->ctx = ctx;
-	build_poly_scop (scop);
+	scop->isl_context = ctx;
+	if (!build_poly_scop (scop))
+	  continue;
 
-#ifdef HAVE_cloog
-	if (POLY_SCOP_P (scop)
-	    && apply_poly_transforms (scop)
-	    && (((flag_graphite_code_gen == FGRAPHITE_CODE_GEN_ISL)
-	    && graphite_regenerate_ast_isl (scop))
-	    || ((flag_graphite_code_gen == FGRAPHITE_CODE_GEN_CLOOG)
-	    && graphite_regenerate_ast_cloog (scop, &bb_pbb_mapping))))
-	  need_cfg_cleanup_p = true;
-#else
-	if (POLY_SCOP_P (scop)
-	    && apply_poly_transforms (scop)
-	    && graphite_regenerate_ast_isl (scop))
-	  need_cfg_cleanup_p = true;
-#endif
+	if (!apply_poly_transforms (scop))
+	  continue;
 
+	changed = true;
+	if (graphite_regenerate_ast_isl (scop)
+	    && dump_enabled_p ())
+	  {
+	    dump_user_location_t loc = find_loop_location
+	      (scops[i]->scop_info->region.entry->dest->loop_father);
+	    dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, loc,
+			     "loop nest optimized\n");
+	  }
       }
 
+  delete seir_cache;
+  seir_cache = NULL;
+
+  if (changed)
+    {
+      mark_virtual_operands_for_renaming (cfun);
+      update_ssa (TODO_update_ssa);
+      checking_verify_ssa (true, true);
+      rewrite_into_loop_closed_ssa (NULL, 0);
+      scev_reset ();
+      checking_verify_loop_structure ();
+    }
+
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    {
+      loop_p loop;
+      int num_no_dependency = 0;
+
+      FOR_EACH_LOOP (loop, 0)
+	if (loop->can_be_parallel)
+	  num_no_dependency++;
+
+      fprintf (dump_file, "%d loops carried no dependency.\n",
+	       num_no_dependency);
+    }
+
   free_scops (scops);
-  graphite_finalize (need_cfg_cleanup_p);
   the_isl_ctx = NULL;
   isl_ctx_free (ctx);
+
+  if (changed)
+    {
+      cleanup_tree_cfg ();
+      profile_status_for_fn (cfun) = PROFILE_ABSENT;
+      release_recorded_exits (cfun);
+      tree_estimate_probability (false);
+    }
 }
 
-#else /* If ISL is not available: #ifndef HAVE_isl.  */
+#else /* If isl is not available: #ifndef HAVE_isl.  */
 
 static void
 graphite_transform_loops (void)
 {
-  sorry ("Graphite loop optimizations cannot be used (ISL is not available).");
+  sorry ("Graphite loop optimizations cannot be used (isl is not available).");
 }
 
 #endif
@@ -367,12 +545,9 @@ gate_graphite_transforms (void)
 {
   /* Enable -fgraphite pass if any one of the graphite optimization flags
      is turned on.  */
-  if (flag_loop_block
-      || flag_loop_interchange
-      || flag_loop_strip_mine
-      || flag_graphite_identity
+  if (flag_graphite_identity
       || flag_loop_parallelize_all
-      || flag_loop_optimize_isl)
+      || flag_loop_nest_optimize)
     flag_graphite = 1;
 
   return flag_graphite != 0;

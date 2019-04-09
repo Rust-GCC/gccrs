@@ -1,5 +1,5 @@
 /* Definitions of target machine for GCC, for SPARC running Solaris 2
-   Copyright (C) 1992-2014 Free Software Foundation, Inc.
+   Copyright (C) 1992-2019 Free Software Foundation, Inc.
    Contributed by Ron Guilmette (rfg@netcom.com).
    Additional changes by David V. Henkel-Wallace (gumby@cygnus.com).
 
@@ -165,13 +165,31 @@ along with GCC; see the file COPYING3.  If not see
 #define ASM_CPU64_DEFAULT_SPEC AS_SPARC64_FLAG AS_NIAGARA4_FLAG
 #endif
 
+#if TARGET_CPU_DEFAULT == TARGET_CPU_niagara7
+#undef CPP_CPU64_DEFAULT_SPEC
+#define CPP_CPU64_DEFAULT_SPEC ""
+#undef ASM_CPU32_DEFAULT_SPEC
+#define ASM_CPU32_DEFAULT_SPEC AS_SPARC32_FLAG AS_NIAGARA7_FLAG
+#undef ASM_CPU64_DEFAULT_SPEC
+#define ASM_CPU64_DEFAULT_SPEC AS_SPARC64_FLAG AS_NIAGARA7_FLAG
+#endif
+
+#if TARGET_CPU_DEFAULT == TARGET_CPU_m8
+#undef CPP_CPU64_DEFAULT_SPEC
+#define CPP_CPU64_DEFAULT_SPEC ""
+#undef ASM_CPU32_DEFAULT_SPEC
+#define ASM_CPU32_DEFAULT_SPEC AS_SPARC32_FLAG AS_M8_FLAG
+#undef ASM_CPU64_DEFAULT_SPEC
+#define ASM_CPU64_DEFAULT_SPEC AS_SPARC64_FLAG AS_M8_FLAG
+#endif
+
 #undef CPP_CPU_SPEC
 #define CPP_CPU_SPEC "\
 %{mcpu=sparclet|mcpu=tsc701:-D__sparclet__} \
 %{mcpu=sparclite|mcpu-f930|mcpu=f934:-D__sparclite__} \
 %{mcpu=v8:" DEF_ARCH32_SPEC("-D__sparcv8") "} \
 %{mcpu=supersparc:-D__supersparc__ " DEF_ARCH32_SPEC("-D__sparcv8") "} \
-%{mcpu=v9|mcpu=ultrasparc|mcpu=ultrasparc3|mcpu=niagara|mcpu=niagara2|mcpu=niagara3|mcpu=niagara4:" DEF_ARCH32_SPEC("-D__sparcv8") "} \
+%{mcpu=v9|mcpu=ultrasparc|mcpu=ultrasparc3|mcpu=niagara|mcpu=niagara2|mcpu=niagara3|mcpu=niagara4|mcpu=niagara7|mcpu=m8:" DEF_ARCH32_SPEC("-D__sparcv8") "} \
 %{!mcpu*:%(cpp_cpu_default)} \
 "
 
@@ -219,7 +237,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 %{m64:%{m32:%emay not use both -m32 and -m64}} \
 %{m64:-mptr64 -mstack-bias -mno-v8plus \
   %{!mcpu*:-%{!mv8plus:mcpu=v9}}} \
-"
+" ASAN_CC1_SPEC
 #else
 #define CC1_SPEC "\
 %{m32:%{m64:%emay not use both -m32 and -m64}} \
@@ -227,26 +245,46 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
   %{!mcpu*:%{!mv8plus:-mcpu=v9}}} \
 %{mv8plus:-m32 -mptr32 -mno-stack-bias \
   %{!mcpu*:-mcpu=v9}} \
-"
+" ASAN_CC1_SPEC
 #endif
 
 /* Support for a compile-time default CPU, et cetera.  The rules are:
-   --with-cpu is ignored if -mcpu is specified.
-   --with-tune is ignored if -mtune is specified.
+   --with-cpu is ignored if -mcpu is specified; likewise --with-cpu-32
+     and --with-cpu-64.
+   --with-tune is ignored if -mtune is specified; likewise --with-tune-32
+     and --with-tune-64.
    --with-float is ignored if -mhard-float, -msoft-float, -mfpu, or -mno-fpu
      are specified.
    In the SPARC_BI_ARCH compiler we cannot pass %{!mcpu=*:-mcpu=%(VALUE)}
    here, otherwise say -mcpu=v7 would be passed even when -m64.
-   CC1_SPEC above takes care of this instead.  */
+   CC1_SPEC above takes care of this instead.
+
+   Note that the order of the cpu* and tune* options matters: the
+   config.gcc file always sets with_cpu to some value, even if the
+   user didn't use --with-cpu when invoking the configure script.
+   This value is based on the target name.  Therefore we have to make
+   sure that --with-cpu-32 takes precedence to --with-cpu in < v9
+   systems, and that --with-cpu-64 takes precedence to --with-cpu in
+   >= v9 systems.  As for the tune* options, in some platforms
+   config.gcc also sets a default value for it if the user didn't use
+   --with-tune when invoking the configure script.  */
 #undef OPTION_DEFAULT_SPECS
 #if DEFAULT_ARCH32_P
 #define OPTION_DEFAULT_SPECS \
+  {"cpu_32", "%{!m64:%{!mcpu=*:-mcpu=%(VALUE)}}" }, \
+  {"cpu_64", "%{m64:%{!mcpu=*:-mcpu=%(VALUE)}}" }, \
   {"cpu", "%{!m64:%{!mcpu=*:-mcpu=%(VALUE)}}" }, \
+  {"tune_32", "%{!m64:%{!mtune=*:-mtune=%(VALUE)}}" }, \
+  {"tune_64", "%{m64:%{!mtune=*:-mtune=%(VALUE)}}" }, \
   {"tune", "%{!mtune=*:-mtune=%(VALUE)}" }, \
   {"float", "%{!msoft-float:%{!mhard-float:%{!mfpu:%{!mno-fpu:-m%(VALUE)-float}}}}" }
 #else
 #define OPTION_DEFAULT_SPECS \
+  {"cpu_32", "%{m32:%{!mcpu=*:-mcpu=%(VALUE)}}" }, \
+  {"cpu_64", "%{!m32:%{!mcpu=*:-mcpu=%(VALUE)}}" }, \
   {"cpu", "%{!m32:%{!mcpu=*:-mcpu=%(VALUE)}}" }, \
+  {"tune_32", "%{m32:%{!mtune=*:-mtune=%(VALUE)}}" },	\
+  {"tune_64", "%{!m32:%{!mtune=*:-mtune=%(VALUE)}}" },	\
   {"tune", "%{!mtune=*:-mtune=%(VALUE)}" }, \
   {"float", "%{!msoft-float:%{!mhard-float:%{!mfpu:%{!mno-fpu:-m%(VALUE)-float}}}}" }
 #endif
@@ -260,7 +298,9 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 %{mcpu=niagara2:" DEF_ARCH32_SPEC("-xarch=v8plusb") DEF_ARCH64_SPEC("-xarch=v9b") "} \
 %{mcpu=niagara3:" DEF_ARCH32_SPEC("-xarch=v8plus" AS_NIAGARA3_FLAG) DEF_ARCH64_SPEC("-xarch=v9" AS_NIAGARA3_FLAG) "} \
 %{mcpu=niagara4:" DEF_ARCH32_SPEC(AS_SPARC32_FLAG AS_NIAGARA4_FLAG) DEF_ARCH64_SPEC(AS_SPARC64_FLAG AS_NIAGARA4_FLAG) "} \
-%{!mcpu=niagara4:%{!mcpu=niagara3:%{!mcpu=niagara2:%{!mcpu=niagara:%{!mcpu=ultrasparc3:%{!mcpu=ultrasparc:%{!mcpu=v9:%{mcpu*:" DEF_ARCH32_SPEC("-xarch=v8") DEF_ARCH64_SPEC("-xarch=v9") "}}}}}}}} \
+%{mcpu=niagara7:" DEF_ARCH32_SPEC(AS_SPARC32_FLAG AS_NIAGARA7_FLAG) DEF_ARCH64_SPEC(AS_SPARC64_FLAG AS_NIAGARA7_FLAG) "} \
+%{mcpu=m8:" DEF_ARCH32_SPEC(AS_SPARC32_FLAG AS_M8_FLAG) DEF_ARCH64_SPEC(AS_SPARC64_FLAG AS_M8_FLAG) "} \
+%{!mcpu=m8:%{!mcpu=niagara7:%{!mcpu=niagara4:%{!mcpu=niagara3:%{!mcpu=niagara2:%{!mcpu=niagara:%{!mcpu=ultrasparc3:%{!mcpu=ultrasparc:%{!mcpu=v9:%{mcpu*:" DEF_ARCH32_SPEC("-xarch=v8") DEF_ARCH64_SPEC("-xarch=v9") "}}}}}}}}}} \
 %{!mcpu*:%(asm_cpu_default)} \
 "
 
@@ -280,6 +320,11 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 
 #define SUBTARGET_CPU_EXTRA_SPECS
 
+#define ENDFILE_ARCH_SPEC ""
+
+/* -fsanitize=address is currently only supported for 32-bit.  */
+#define ASAN_REJECT_SPEC \
+  DEF_ARCH64_SPEC("%e-fsanitize=address is not supported in this configuration")
 
 
 /* Register the Solaris-specific #pragma directives.  */
@@ -359,7 +404,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 	switch_to_section (bss_section);				\
       fprintf ((FILE), "%s", COMMON_ASM_OP);				\
       assemble_name ((FILE), (NAME));					\
-      fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n",		\
+      fprintf ((FILE), "," HOST_WIDE_INT_PRINT_UNSIGNED",%u\n",		\
 	       (SIZE), (ALIGN) / BITS_PER_UNIT);			\
     }									\
   while (0)
@@ -371,7 +416,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
    with GNU as. */
 #define ASM_OUTPUT_ALIGN_WITH_NOP(FILE,LOG)   \
   if ((LOG) != 0)                             \
-    fprintf (FILE, "\t.align %d,0x1000000\n", (1<<(LOG)))
+    fprintf (FILE, "\t.align %d,0x1000000\n", (1 << (LOG)))
 
 /* Use Solaris ELF section syntax with Sun as.  */
 #undef TARGET_ASM_NAMED_SECTION

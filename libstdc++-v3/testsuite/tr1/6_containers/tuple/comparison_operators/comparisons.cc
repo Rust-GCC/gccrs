@@ -1,6 +1,6 @@
 // 2004-09-23 Chris Jefferson <chris@bubblescope.net>
 
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -24,8 +24,6 @@
 
 using namespace std::tr1;
 
-bool test __attribute__((unused)) = true;
-
 #define TEST1(x) VERIFY( x == x && !(x != x) && x <= x && !(x < x) )
 
 int
@@ -45,6 +43,6 @@ main()
   VERIFY(!(a > a) && !(b > b));
   VERIFY(a >= a && b >= b);
   VERIFY(a < b && !(b < a) && a <= b && !(b <= a));
-  VERIFY(b > a && !(a > b) && b >= a && !(a >= b));  
+  VERIFY(b > a && !(a > b) && b >= a && !(a >= b));
 }
 

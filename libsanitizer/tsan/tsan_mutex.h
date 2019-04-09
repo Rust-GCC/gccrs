@@ -30,6 +30,9 @@ enum MutexType {
   MutexTypeMBlock,
   MutexTypeJavaMBlock,
   MutexTypeDDetector,
+  MutexTypeFired,
+  MutexTypeRacy,
+  MutexTypeGlobalProc,
 
   // This must be the last.
   MutexTypeCount
@@ -50,7 +53,7 @@ class Mutex {
 
  private:
   atomic_uintptr_t state_;
-#if TSAN_DEBUG
+#if SANITIZER_DEBUG
   MutexType type_;
 #endif
 #if TSAN_COLLECT_STATS

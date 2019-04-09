@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fno-tree-ccp -fdump-tree-vrp1" } */
+/* { dg-options "-O2 -fno-tree-ccp -fno-tree-forwprop -fdump-tree-vrp1" } */
 
 int f(int x)
 {
@@ -32,4 +32,3 @@ int h(int x)
 }
 
 /* { dg-final { scan-tree-dump-not " & 3;" "vrp1" } } */
-/* { dg-final { cleanup-tree-dump "vrp1" } } */

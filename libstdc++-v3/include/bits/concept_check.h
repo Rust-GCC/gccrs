@@ -1,6 +1,6 @@
 // Concept-checking control -*- C++ -*-
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -41,8 +41,9 @@
 
 // Concept-checking code is off by default unless users turn it on via
 // configure options or editing c++config.h.
+// It is not supported for freestanding implementations.
 
-#ifndef _GLIBCXX_CONCEPT_CHECKS
+#if !defined(_GLIBCXX_CONCEPT_CHECKS) || !_GLIBCXX_HOSTED
 
 #define __glibcxx_function_requires(...)
 #define __glibcxx_class_requires(_a,_b)

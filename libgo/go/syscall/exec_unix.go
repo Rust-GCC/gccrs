@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build darwin dragonfly freebsd linux netbsd openbsd solaris
+// +build aix darwin dragonfly freebsd hurd linux netbsd openbsd solaris
 
 // Fork, exec, wait, etc.
 
@@ -16,6 +16,12 @@ import (
 
 //sysnb	raw_fork() (pid Pid_t, err Errno)
 //fork() Pid_t
+
+//sysnb	raw_getpid() (pid Pid_t)
+//getpid() Pid_t
+
+//sysnb	raw_getppid() (pid Pid_t)
+//getppid() Pid_t
 
 //sysnb raw_setsid() (err Errno)
 //setsid() Pid_t
@@ -35,8 +41,11 @@ import (
 //sysnb	raw_close(fd int) (err Errno)
 //close(fd _C_int) _C_int
 
-//sysnb	raw_ioctl(fd int, cmd int, val int) (rval int, err Errno)
-//ioctl(fd _C_int, cmd _C_int, val _C_int) _C_int
+//sysnb	raw_ioctl(fd int, cmd uintptr, val int) (rval int, err Errno)
+//__go_ioctl(fd _C_int, cmd _C_int, val _C_int) _C_int
+
+//sysnb raw_ioctl_ptr(fd int, cmd uintptr, val unsafe.Pointer) (rval int, err Errno)
+//__go_ioctl_ptr(fd _C_int, cmd _C_int, val unsafe.Pointer) _C_int
 
 //sysnb	raw_execve(argv0 *byte, argv **byte, envv **byte) (err Errno)
 //execve(argv0 *byte, argv **byte, envv **byte) _C_int
@@ -50,34 +59,40 @@ import (
 //sysnb raw_dup2(oldfd int, newfd int) (err Errno)
 //dup2(oldfd _C_int, newfd _C_int) _C_int
 
+//sysnb raw_kill(pid Pid_t, sig Signal) (err Errno)
+//kill(pid Pid_t, sig _C_int) _C_int
+
+//sysnb raw_setgroups(size int, list unsafe.Pointer) (err Errno)
+//setgroups(size Size_t, list *Gid_t) _C_int
+
 // Lock synchronizing creation of new file descriptors with fork.
 //
 // We want the child in a fork/exec sequence to inherit only the
-// file descriptors we intend.  To do that, we mark all file
+// file descriptors we intend. To do that, we mark all file
 // descriptors close-on-exec and then, in the child, explicitly
 // unmark the ones we want the exec'ed program to keep.
 // Unix doesn't make this easy: there is, in general, no way to
-// allocate a new file descriptor close-on-exec.  Instead you
+// allocate a new file descriptor close-on-exec. Instead you
 // have to allocate the descriptor and then mark it close-on-exec.
 // If a fork happens between those two events, the child's exec
 // will inherit an unwanted file descriptor.
 //
 // This lock solves that race: the create new fd/mark close-on-exec
 // operation is done holding ForkLock for reading, and the fork itself
-// is done holding ForkLock for writing.  At least, that's the idea.
+// is done holding ForkLock for writing. At least, that's the idea.
 // There are some complications.
 //
 // Some system calls that create new file descriptors can block
 // for arbitrarily long times: open on a hung NFS server or named
-// pipe, accept on a socket, and so on.  We can't reasonably grab
+// pipe, accept on a socket, and so on. We can't reasonably grab
 // the lock across those operations.
 //
 // It is worse to inherit some file descriptors than others.
 // If a non-malicious child accidentally inherits an open ordinary file,
-// that's not a big deal.  On the other hand, if a long-lived child
+// that's not a big deal. On the other hand, if a long-lived child
 // accidentally inherits the write end of a pipe, then the reader
 // of that pipe will not see EOF until that child exits, potentially
-// causing the parent program to hang.  This is a common problem
+// causing the parent program to hang. This is a common problem
 // in threaded C programs that use popen.
 //
 // Luckily, the file descriptors that are most important not to
@@ -87,21 +102,23 @@ import (
 // The rules for which file descriptor-creating operations use the
 // ForkLock are as follows:
 //
-// 1) Pipe.    Does not block.  Use the ForkLock.
-// 2) Socket.  Does not block.  Use the ForkLock.
-// 3) Accept.  If using non-blocking mode, use the ForkLock.
+// 1) Pipe. Does not block. Use the ForkLock.
+// 2) Socket. Does not block. Use the ForkLock.
+// 3) Accept. If using non-blocking mode, use the ForkLock.
 //             Otherwise, live with the race.
-// 4) Open.    Can block.  Use O_CLOEXEC if available (GNU/Linux).
+// 4) Open. Can block. Use O_CLOEXEC if available (GNU/Linux).
 //             Otherwise, live with the race.
-// 5) Dup.     Does not block.  Use the ForkLock.
+// 5) Dup. Does not block. Use the ForkLock.
 //             On GNU/Linux, could use fcntl F_DUPFD_CLOEXEC
 //             instead of the ForkLock, but only for dup(fd, -1).
 
 var ForkLock sync.RWMutex
 
-// StringSlicePtr is deprecated. Use SlicePtrFromStrings instead.
-// If any string contains a NUL byte this function panics instead
-// of returning an error.
+// StringSlicePtr converts a slice of strings to a slice of pointers
+// to NUL-terminated byte arrays. If any string contains a NUL byte
+// this function panics instead of returning an error.
+//
+// Deprecated: Use SlicePtrFromStrings instead.
 func StringSlicePtr(ss []string) []*byte {
 	bb := make([]*byte, len(ss)+1)
 	for i := 0; i < len(ss); i++ {
@@ -112,7 +129,7 @@ func StringSlicePtr(ss []string) []*byte {
 }
 
 // SlicePtrFromStrings converts a slice of strings to a slice of
-// pointers to NUL-terminated byte slices. If any string contains
+// pointers to NUL-terminated byte arrays. If any string contains
 // a NUL byte, it returns (nil, EINVAL).
 func SlicePtrFromStrings(ss []string) ([]*byte, error) {
 	var err error
@@ -137,7 +154,7 @@ func SetNonblock(fd int, nonblocking bool) (err error) {
 	if nonblocking {
 		flag |= O_NONBLOCK
 	} else {
-		flag &= ^O_NONBLOCK
+		flag &^= O_NONBLOCK
 	}
 	_, err = fcntl(fd, F_SETFL, flag)
 	return err
@@ -146,9 +163,10 @@ func SetNonblock(fd int, nonblocking bool) (err error) {
 // Credential holds user and group identities to be assumed
 // by a child process started by StartProcess.
 type Credential struct {
-	Uid    uint32   // User ID.
-	Gid    uint32   // Group ID.
-	Groups []uint32 // Supplementary group IDs.
+	Uid         uint32   // User ID.
+	Gid         uint32   // Group ID.
+	Groups      []uint32 // Supplementary group IDs.
+	NoSetGroups bool     // If true, don't set supplementary groups
 }
 
 // ProcAttr holds attributes that will be applied to a new process started
@@ -226,6 +244,7 @@ func forkExec(argv0 string, argv []string, attr *ProcAttr) (pid int, err error) 
 	// Kick off child.
 	pid, err1 = forkAndExecInChild(argv0p, argvp, envvp, chroot, dir, attr, sys, p[1])
 	if err1 != 0 {
+		err = Errno(err1)
 		goto error
 	}
 	ForkLock.Unlock()
@@ -274,7 +293,15 @@ func StartProcess(argv0 string, argv []string, attr *ProcAttr) (pid int, handle 
 	return pid, 0, err
 }
 
-// Ordinary exec.
+// Implemented in runtime package.
+func runtime_BeforeExec()
+func runtime_AfterExec()
+
+// execveLibc is non-nil on OS using libc syscall, set to execve in exec_libc.go; this
+// avoids a build dependency for other platforms.
+var execveDarwin func(path *byte, argv **byte, envp **byte) error
+
+// Exec invokes the execve(2) system call.
 func Exec(argv0 string, argv []string, envv []string) (err error) {
 	argv0p, err := BytePtrFromString(argv0)
 	if err != nil {
@@ -288,6 +315,21 @@ func Exec(argv0 string, argv []string, envv []string) (err error) {
 	if err != nil {
 		return err
 	}
-	err1 := raw_execve(argv0p, &argvp[0], &envvp[0])
-	return Errno(err1)
+	runtime_BeforeExec()
+
+	var err1 error
+	if runtime.GOOS == "solaris" || runtime.GOOS == "aix" || runtime.GOOS == "hurd" {
+		// RawSyscall should never be used on Solaris or AIX.
+		err1 = raw_execve(argv0p, &argvp[0], &envvp[0])
+	} else if runtime.GOOS == "darwin" {
+		// Similarly on Darwin.
+		err1 = execveDarwin(argv0p, &argvp[0], &envvp[0])
+	} else {
+		_, _, err1 = RawSyscall(SYS_EXECVE,
+			uintptr(unsafe.Pointer(argv0p)),
+			uintptr(unsafe.Pointer(&argvp[0])),
+			uintptr(unsafe.Pointer(&envvp[0])))
+	}
+	runtime_AfterExec()
+	return err1
 }

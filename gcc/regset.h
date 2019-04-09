@@ -1,5 +1,5 @@
 /* Define regsets.
-   Copyright (C) 1987-2014 Free Software Foundation, Inc.
+   Copyright (C) 1987-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -30,8 +30,6 @@ along with GCC; see the file COPYING3.  If not see
    the latter option, a good start would be to change everything allocated
    on the reg_obstack to regset.  */
 
-#include "bitmap.h"		/* For bitmap_iterator.  */
-#include "hard-reg-set.h"
 
 /* Head of register set linked list.  */
 typedef bitmap_head regset_head;

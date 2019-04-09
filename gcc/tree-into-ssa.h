@@ -1,5 +1,5 @@
 /* Header file for normal form into SSA.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -23,10 +23,10 @@ along with GCC; see the file COPYING3.  If not see
 extern tree get_current_def (tree);
 extern void set_current_def (tree, tree);
 void delete_update_ssa (void);
-tree create_new_def_for (tree, gimple, def_operand_p);
+tree create_new_def_for (tree, gimple *, def_operand_p);
 void mark_virtual_operands_for_renaming (struct function *);
 void mark_virtual_operand_for_renaming (tree);
-void mark_virtual_phi_result_for_renaming (gimple);
+void mark_virtual_phi_result_for_renaming (gphi *);
 bool need_ssa_update_p (struct function *);
 bool name_registered_for_update_p (tree);
 void release_ssa_name_after_update_ssa (tree);
@@ -48,5 +48,6 @@ extern void dump_names_replaced_by (FILE *, tree);
 extern void debug_names_replaced_by (tree);
 extern void dump_update_ssa (FILE *);
 extern void debug_update_ssa (void);
+extern bitmap names_to_release;
 
 #endif /* GCC_TREE_INTO_SSA_H */

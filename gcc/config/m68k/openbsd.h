@@ -1,5 +1,5 @@
 /* Configuration file for an m68k OpenBSD target.
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -34,7 +34,8 @@ along with GCC; see the file COPYING3.  If not see
 #define CPP_SPEC "%{!msoft-float:-D__HAVE_68881__ -D__HAVE_FPU__} %{posix:-D_POSIX_SOURCE} %{pthread:-D_POSIX_THREADS}"
 
 #undef ASM_SPEC
-#define ASM_SPEC "%(asm_cpu_spec) %{fpic|fpie:-k} %{fPIC|fPIE:-k -K}"
+#define ASM_SPEC \
+  "%(asm_cpu_spec) %{" FPIE1_OR_FPIC1_SPEC ":-k} %{" FPIE2_OR_FPIC2_SPEC ":-k -K}"
 
 /* Layout of source language data types.  */
 

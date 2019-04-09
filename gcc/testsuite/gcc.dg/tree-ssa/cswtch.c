@@ -1,4 +1,3 @@
-/* { dg-do compile } */
 /* { dg-options "-O2 -fdump-tree-switchconv" } */
 /* { dg-do run } */
 
@@ -78,4 +77,3 @@ int main ()
 }
 
 /* { dg-final { scan-tree-dump "Switch converted" "switchconv" } } */
-/* { dg-final { cleanup-tree-dump "switchconv" } } */

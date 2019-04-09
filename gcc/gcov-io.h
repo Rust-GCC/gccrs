@@ -1,5 +1,5 @@
 /* File format for coverage information
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
    Contributed by Bob Manson <manson@cygnus.com>.
    Completely remangled by Nathan Sidwell <nathan@codesourcery.com>.
 
@@ -48,7 +48,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 	padding: | char:0 | char:0 char:0 | char:0 char:0 char:0
 	item: int32 | int64 | string
 
-   The basic format of the files is
+   The basic format of the notes file is
+
+	file : int32:magic int32:version int32:stamp int32:support_unexecuted_blocks record*
+
+   The basic format of the data file is
 
    	file : int32:magic int32:version int32:stamp record*
 
@@ -63,19 +67,19 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
    Although the ident and version are formally 32 bit numbers, they
    are derived from 4 character ASCII strings.  The version number
-   consists of the single character major version number, a two
-   character minor version number (leading zero for versions less than
-   10), and a single character indicating the status of the release.
+   consists of a two character major version number
+   (first digit starts from 'A' letter to not to clash with the older
+   numbering scheme), the single character minor version number,
+   and a single character indicating the status of the release.
    That will be 'e' experimental, 'p' prerelease and 'r' for release.
    Because, by good fortune, these are in alphabetical order, string
    collating can be used to compare version strings.  Be aware that
    the 'e' designation will (naturally) be unstable and might be
-   incompatible with itself.  For gcc 3.4 experimental, it would be
-   '304e' (0x33303465).  When the major version reaches 10, the
-   letters A-Z will be used.  Assuming minor increments releases every
-   6 months, we have to make a major increment every 50 years.
-   Assuming major increments releases every 5 years, we're ok for the
-   next 155 years -- good enough for me.
+   incompatible with itself.  For gcc 17.0 experimental, it would be
+   'B70e' (0x42373065).  As we currently do not release more than 5 minor
+   releases, the single character should be always fine.  Major number
+   is currently changed roughly every year, which gives us space
+   for next 250 years (maximum allowed number would be 259.9).
 
    A record has a tag, length and variable amount of data.
 
@@ -104,7 +108,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 	function-graph: announce_function basic_blocks {arcs | lines}*
 	announce_function: header int32:ident
 		int32:lineno_checksum int32:cfg_checksum
-		string:name string:source int32:lineno
+		string:name string:source int32:start_lineno int32:start_column int32:end_lineno
 	basic_block: header int32:flags*
 	arcs: header int32:block_no arc*
 	arc:  int32:dest_block int32:flags
@@ -129,18 +133,14 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    blocks they are for.
 
    The data file contains the following records.
-        data: {unit summary:object summary:program* function-data*}*
+	data: {unit summary:object function-data*}*
 	unit: header int32:checksum
-        function-data:	announce_function present counts
+	function-data:	announce_function present counts
 	announce_function: header int32:ident
 		int32:lineno_checksum int32:cfg_checksum
 	present: header int32:present
 	counts: header int64:count*
-	summary: int32:checksum {count-summary}GCOV_COUNTERS_SUMMABLE
-	count-summary:	int32:num int32:runs int64:sum
-			int64:max int64:sum_max histogram
-        histogram: {int32:bitvector}8 histogram-buckets*
-        histogram-buckets: int32:num int64:min int64:sum
+	summary: int32:checksum int32:runs int32:sum_max
 
    The ANNOUNCE_FUNCTION record is the same as that in the note file,
    but without the source location.  The COUNTS gives the
@@ -177,8 +177,6 @@ typedef uint64_t gcov_type_unsigned;
 #if IN_GCOV > 0
 #include <sys/types.h>
 #endif
-#else /*!IN_GCOV */
-#define GCOV_TYPE_SIZE (LONG_LONG_TYPE_SIZE > 32 ? 64 : 32)
 #endif
 
 #if defined (HOST_HAS_F_SETLKW)
@@ -189,7 +187,7 @@ typedef uint64_t gcov_type_unsigned;
 
 #define ATTRIBUTE_HIDDEN
 
-#endif /* !IN_LIBGOCV */
+#endif /* !IN_LIBGCOV */
 
 #ifndef GCOV_LINKAGE
 #define GCOV_LINKAGE extern
@@ -199,7 +197,7 @@ typedef uint64_t gcov_type_unsigned;
 #define gcov_nonruntime_assert(EXPR) ((void)(0 && (EXPR)))
 #else
 #define gcov_nonruntime_assert(EXPR) gcc_assert (EXPR)
-#define gcov_error(...) fatal_error (__VA_ARGS__)
+#define gcov_error(...) fatal_error (input_location, __VA_ARGS__)
 #endif
 
 /* File suffixes.  */
@@ -232,7 +230,6 @@ typedef uint64_t gcov_type_unsigned;
 #define GCOV_TAG_FUNCTION_LENGTH (3)
 #define GCOV_TAG_BLOCKS		 ((gcov_unsigned_t)0x01410000)
 #define GCOV_TAG_BLOCKS_LENGTH(NUM) (NUM)
-#define GCOV_TAG_BLOCKS_NUM(LENGTH) (LENGTH)
 #define GCOV_TAG_ARCS		 ((gcov_unsigned_t)0x01430000)
 #define GCOV_TAG_ARCS_LENGTH(NUM)  (1 + (NUM) * 2)
 #define GCOV_TAG_ARCS_NUM(LENGTH)  (((LENGTH) - 1) / 2)
@@ -240,10 +237,12 @@ typedef uint64_t gcov_type_unsigned;
 #define GCOV_TAG_COUNTER_BASE 	 ((gcov_unsigned_t)0x01a10000)
 #define GCOV_TAG_COUNTER_LENGTH(NUM) ((NUM) * 2)
 #define GCOV_TAG_COUNTER_NUM(LENGTH) ((LENGTH) / 2)
-#define GCOV_TAG_OBJECT_SUMMARY  ((gcov_unsigned_t)0xa1000000) /* Obsolete */
-#define GCOV_TAG_PROGRAM_SUMMARY ((gcov_unsigned_t)0xa3000000)
-#define GCOV_TAG_SUMMARY_LENGTH(NUM)  \
-        (1 + GCOV_COUNTERS_SUMMABLE * (10 + 3 * 2) + (NUM) * 5)
+#define GCOV_TAG_OBJECT_SUMMARY  ((gcov_unsigned_t)0xa1000000)
+#define GCOV_TAG_PROGRAM_SUMMARY ((gcov_unsigned_t)0xa3000000) /* Obsolete */
+#define GCOV_TAG_SUMMARY_LENGTH (2)
+#define GCOV_TAG_AFDO_FILE_NAMES ((gcov_unsigned_t)0xaa000000)
+#define GCOV_TAG_AFDO_FUNCTION ((gcov_unsigned_t)0xac000000)
+#define GCOV_TAG_AFDO_WORKING_SET ((gcov_unsigned_t)0xaf000000)
 
 
 /* Counters that are collected.  */
@@ -255,13 +254,10 @@ GCOV_COUNTERS
 };
 #undef DEF_GCOV_COUNTER
 
-/* Counters which can be summaried.  */
-#define GCOV_COUNTERS_SUMMABLE	(GCOV_COUNTER_ARCS + 1)
-
 /* The first of counters used for value profiling.  They must form a
    consecutive interval and their order must match the order of
    HIST_TYPEs in value-prof.h.  */
-#define GCOV_FIRST_VALUE_COUNTER GCOV_COUNTERS_SUMMABLE
+#define GCOV_FIRST_VALUE_COUNTER GCOV_COUNTER_V_INTERVAL
 
 /* The last of counters used for value profiling.  */
 #define GCOV_LAST_VALUE_COUNTER (GCOV_COUNTERS - 1)
@@ -308,48 +304,12 @@ GCOV_COUNTERS
 #define GCOV_ARC_FAKE		(1 << 1)
 #define GCOV_ARC_FALLTHROUGH	(1 << 2)
 
-/* Structured records.  */
-
-/* Structure used for each bucket of the log2 histogram of counter values.  */
-typedef struct
-{
-  /* Number of counters whose profile count falls within the bucket.  */
-  gcov_unsigned_t num_counters;
-  /* Smallest profile count included in this bucket.  */
-  gcov_type min_value;
-  /* Cumulative value of the profile counts in this bucket.  */
-  gcov_type cum_value;
-} gcov_bucket_type;
-
-/* For a log2 scale histogram with each range split into 4
-   linear sub-ranges, there will be at most 64 (max gcov_type bit size) - 1 log2
-   ranges since the lowest 2 log2 values share the lowest 4 linear
-   sub-range (values 0 - 3).  This is 252 total entries (63*4).  */
-
-#define GCOV_HISTOGRAM_SIZE 252
-
-/* How many unsigned ints are required to hold a bit vector of non-zero
-   histogram entries when the histogram is written to the gcov file.
-   This is essentially a ceiling divide by 32 bits.  */
-#define GCOV_HISTOGRAM_BITVECTOR_SIZE (GCOV_HISTOGRAM_SIZE + 31) / 32
-
-/* Cumulative counter data.  */
-struct gcov_ctr_summary
-{
-  gcov_unsigned_t num;		/* number of counters.  */
-  gcov_unsigned_t runs;		/* number of program runs */
-  gcov_type sum_all;		/* sum of all counters accumulated.  */
-  gcov_type run_max;		/* maximum value on a single run.  */
-  gcov_type sum_max;    	/* sum of individual run max values.  */
-  gcov_bucket_type histogram[GCOV_HISTOGRAM_SIZE]; /* histogram of
-                                                      counter values.  */
-};
-
 /* Object & program summary record.  */
+
 struct gcov_summary
 {
-  gcov_unsigned_t checksum;	/* checksum of program */
-  struct gcov_ctr_summary ctrs[GCOV_COUNTERS_SUMMABLE];
+  gcov_unsigned_t runs;		/* Number of program runs.  */
+  gcov_type sum_max;    	/* Sum of individual run max values.  */
 };
 
 #if !defined(inhibit_libc)
@@ -377,6 +337,7 @@ GCOV_LINKAGE void gcov_read_summary (struct gcov_summary *) ATTRIBUTE_HIDDEN;
 GCOV_LINKAGE const char *gcov_read_string (void);
 GCOV_LINKAGE void gcov_sync (gcov_position_t /*base*/,
 			     gcov_unsigned_t /*length */);
+char *mangle_path (char const *base);
 
 #if !IN_GCOV
 /* Available outside gcov */
@@ -385,32 +346,10 @@ GCOV_LINKAGE void gcov_write_unsigned (gcov_unsigned_t) ATTRIBUTE_HIDDEN;
 
 #if !IN_GCOV && !IN_LIBGCOV
 /* Available only in compiler */
-GCOV_LINKAGE unsigned gcov_histo_index (gcov_type value);
 GCOV_LINKAGE void gcov_write_string (const char *);
+GCOV_LINKAGE void gcov_write_filename (const char *);
 GCOV_LINKAGE gcov_position_t gcov_write_tag (gcov_unsigned_t);
 GCOV_LINKAGE void gcov_write_length (gcov_position_t /*position*/);
-#endif
-
-#if IN_GCOV <= 0 && !IN_LIBGCOV
-/* Available in gcov-dump and the compiler.  */
-
-/* Number of data points in the working set summary array. Using 128
-   provides information for at least every 1% increment of the total
-   profile size. The last entry is hardwired to 99.9% of the total.  */
-#define NUM_GCOV_WORKING_SETS 128
-
-/* Working set size statistics for a given percentage of the entire
-   profile (sum_all from the counter summary).  */
-typedef struct gcov_working_set_info
-{
-  /* Number of hot counters included in this working set.  */
-  unsigned num_counters;
-  /* Smallest counter included in this working set.  */
-  gcov_type min_counter;
-} gcov_working_set_t;
-
-GCOV_LINKAGE void compute_working_sets (const struct gcov_ctr_summary *summary,
-                                        gcov_working_set_t *gcov_working_sets);
 #endif
 
 #if IN_GCOV > 0

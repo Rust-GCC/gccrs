@@ -12,5 +12,4 @@ foo (int i)
   return (i * 100) / 10;
 }
 
-/* { dg-final { scan-tree-dump-not "100" "optimized" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */
+/* { dg-final { scan-tree-dump-not "\\\* 100" "optimized" } } */

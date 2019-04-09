@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O3 -fno-ipa-sra -fdump-ipa-cp-details -fdump-tree-optimized-slim"  } */
+/* { dg-options "-O3 -fno-ipa-sra -fdump-ipa-cp-details -fdump-tree-optimized-slim -fno-ipa-icf"  } */
 /* { dg-add-options bind_pic_locally } */
 
 struct S
@@ -70,6 +70,4 @@ entry2 (int c)
 /* { dg-final { scan-ipa-dump-times "Creating a specialized node of bar/\[0-9\]*\\." 2 "cp" } } */
 /* { dg-final { scan-ipa-dump "Creating a specialized node of bar_2.*for all known contexts" "cp" } } */
 /* { dg-final { scan-ipa-dump-times "Aggregate replacements:" 10 "cp" } } */
-/* { dg-final { cleanup-ipa-dump "cp" } } */
 /* { dg-final { scan-tree-dump-not "->c;" "optimized" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

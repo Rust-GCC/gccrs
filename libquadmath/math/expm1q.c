@@ -1,15 +1,15 @@
-/*							expm1l.c
+/*							expm1q.c
  *
  *	Exponential function, minus 1
- *      128-bit __float128 precision
+ *      128-bit long double precision
  *
  *
  *
  * SYNOPSIS:
  *
- * __float128 x, y, expm1l();
+ * long double x, y, expm1q();
  *
- * y = expm1l( x );
+ * y = expm1q( x );
  *
  *
  *
@@ -35,7 +35,7 @@
  *
  */
 
-/* Copyright 2001 by Stephen L. Moshier 
+/* Copyright 2001 by Stephen L. Moshier
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -48,12 +48,9 @@
     Lesser General Public License for more details.
 
     You should have received a copy of the GNU Lesser General Public
-    License along with this library; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307  USA */
+    License along with this library; if not, see
+    <http://www.gnu.org/licenses/>.  */
 
-
-
-#include <errno.h>
 #include "quadmath-imp.h"
 
 /* exp(x) - 1 = x + 0.5 x^2 + x^3 P(x)/Q(x)
@@ -82,10 +79,8 @@ static const __float128
 
   C1 = 6.93145751953125E-1Q,
   C2 = 1.428606820309417232121458176568075500134E-6Q,
-/* ln (2^16384 * (1 - 2^-113)) */
-  maxlog = 1.1356523406294143949491931077970764891253E4Q,
 /* ln 2^-114 */
-  minarg = -7.9018778583833765273564461846232128760607E1Q;
+  minarg = -7.9018778583833765273564461846232128760607E1Q, big = 1e4932Q;
 
 
 __float128
@@ -108,32 +103,29 @@ expm1q (__float128 x)
     }
   if (ix >= 0x7fff0000)
     {
-      /* Infinity. */
+      /* Infinity (which must be negative infinity). */
       if (((ix & 0xffff) | u.words32.w1 | u.words32.w2 | u.words32.w3) == 0)
-	{
-	  if (sign)
-	    return -1.0Q;
-	  else
-	    return x;
-	}
-      /* NaN. No invalid exception. */
-      return x;
+	return -1;
+      /* NaN.  Invalid exception if signaling.  */
+      return x + x;
     }
 
   /* expm1(+- 0) = +- 0.  */
   if ((ix == 0) && (u.words32.w1 | u.words32.w2 | u.words32.w3) == 0)
     return x;
 
-  /* Overflow.  */
-  if (x > maxlog)
-    {
-      errno = ERANGE;
-      return (HUGE_VALQ * HUGE_VALQ);
-    }
-
   /* Minimum value.  */
   if (x < minarg)
-    return (4.0/HUGE_VALQ - 1.0Q);
+    return (4.0/big - 1);
+
+  /* Avoid internal underflow when result does not underflow, while
+     ensuring underflow (without returning a zero of the wrong sign)
+     when the result does underflow.  */
+  if (fabsq (x) < 0x1p-113Q)
+    {
+      math_check_force_underflow (x);
+      return x;
+    }
 
   /* Express x = ln 2 (k + remainder), remainder not exceeding 1/2. */
   xx = C1 + C2;			/* ln 2. */
@@ -161,7 +153,7 @@ expm1q (__float128 x)
   exp(x) - 1 = 2^k (qx + 1) - 1
              = 2^k qx + 2^k - 1.  */
 
-  px = ldexpq (1.0Q, k);
+  px = ldexpq (1, k);
   x = px * qx + (px - 1.0);
   return x;
 }

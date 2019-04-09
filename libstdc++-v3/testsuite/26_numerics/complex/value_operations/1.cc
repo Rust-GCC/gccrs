@@ -3,7 +3,7 @@
 // 2000-11-20
 // Benjamin Kosnik bkoz@redhat.com
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,7 +26,6 @@
 void test01()
 {
  using namespace std;
- bool test __attribute__((unused)) = true;
  typedef complex<double> complex_type;
  const double cd1 = -11.451;
  const double cd2 = -442.1533;
@@ -53,7 +52,7 @@ void test01()
 
  complex_type e __attribute__((unused)) = conj(c);
  
- complex_type f = polar(c.imag(), 0.0);
+ complex_type f = polar(std::abs(c.imag()), 0.0);
  VERIFY( f.real() != 0 );
 }
 

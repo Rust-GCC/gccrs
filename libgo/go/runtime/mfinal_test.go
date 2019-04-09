@@ -24,6 +24,9 @@ func TestFinalizerType(t *testing.T) {
 	if runtime.GOARCH != "amd64" {
 		t.Skipf("Skipping on non-amd64 machine")
 	}
+	if runtime.Compiler == "gccgo" {
+		t.Skip("skipping for gccgo")
+	}
 
 	ch := make(chan bool, 10)
 	finalize := func(x *int) {
@@ -44,10 +47,17 @@ func TestFinalizerType(t *testing.T) {
 		{func(x *int) interface{} { return (*Tint)(x) }, func(v Tinter) { finalize((*int)(v.(*Tint))) }},
 	}
 
-	for _, tt := range finalizerTests {
+	for i, tt := range finalizerTests {
 		done := make(chan bool, 1)
 		go func() {
-			v := new(int)
+			// allocate struct with pointer to avoid hitting tinyalloc.
+			// Otherwise we can't be sure when the allocation will
+			// be freed.
+			type T struct {
+				v int
+				p unsafe.Pointer
+			}
+			v := &new(T).v
 			*v = 97531
 			runtime.SetFinalizer(tt.convert(v), tt.finalizer)
 			v = nil
@@ -58,7 +68,7 @@ func TestFinalizerType(t *testing.T) {
 		select {
 		case <-ch:
 		case <-time.After(time.Second * 4):
-			t.Errorf("finalizer for type %T didn't run", tt.finalizer)
+			t.Errorf("#%d: finalizer for type %T didn't run", i, tt.finalizer)
 		}
 	}
 }
@@ -72,6 +82,9 @@ type bigValue struct {
 func TestFinalizerInterfaceBig(t *testing.T) {
 	if runtime.GOARCH != "amd64" {
 		t.Skipf("Skipping on non-amd64 machine")
+	}
+	if runtime.Compiler == "gccgo" {
+		t.Skip("skipping for gccgo")
 	}
 	ch := make(chan bool)
 	done := make(chan bool, 1)
@@ -164,8 +177,8 @@ func adjChunks() (*objtype, *objtype) {
 
 // Make sure an empty slice on the stack doesn't pin the next object in memory.
 func TestEmptySlice(t *testing.T) {
-	if true { // disable until bug 7564 is fixed.
-		return
+	if runtime.Compiler == "gccgo" {
+		t.Skip("skipping for gccgo")
 	}
 	x, y := adjChunks()
 
@@ -241,3 +254,24 @@ var (
 	Foo2 = &Object2{}
 	Foo1 = &Object1{}
 )
+
+func TestDeferKeepAlive(t *testing.T) {
+	if *flagQuick {
+		t.Skip("-quick")
+	}
+
+	// See issue 21402.
+	t.Parallel()
+	type T *int // needs to be a pointer base type to avoid tinyalloc and its never-finalized behavior.
+	x := new(T)
+	finRun := false
+	runtime.SetFinalizer(x, func(x *T) {
+		finRun = true
+	})
+	defer runtime.KeepAlive(x)
+	runtime.GC()
+	time.Sleep(time.Second)
+	if finRun {
+		t.Errorf("finalizer ran prematurely")
+	}
+}

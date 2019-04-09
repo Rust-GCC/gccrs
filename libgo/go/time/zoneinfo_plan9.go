@@ -7,10 +7,13 @@
 package time
 
 import (
-	"errors"
 	"runtime"
 	"syscall"
 )
+
+var zoneSources = []string{
+	runtime.GOROOT() + "/lib/time/zoneinfo.zip",
+}
 
 func isSpace(r rune) bool {
 	return r == ' ' || r == '\t' || r == '\n'
@@ -96,7 +99,7 @@ func loadZoneDataPlan9(s string) (l *Location, err error) {
 
 	// Fill in the cache with information about right now,
 	// since that will be the most common lookup.
-	sec, _ := now()
+	sec, _, _ := now()
 	for i := range tx {
 		if tx[i].when <= sec && (i+1 == len(tx) || sec < tx[i+1].when) {
 			l.cacheStart = tx[i].when
@@ -119,15 +122,6 @@ func loadZoneFilePlan9(name string) (*Location, error) {
 	return loadZoneDataPlan9(string(b))
 }
 
-func initTestingZone() {
-	z, err := loadLocation("America/Los_Angeles")
-	if err != nil {
-		panic("cannot load America/Los_Angeles for testing: " + err.Error())
-	}
-	z.name = "Local"
-	localLoc = *z
-}
-
 func initLocal() {
 	t, ok := syscall.Getenv("timezone")
 	if ok {
@@ -145,16 +139,4 @@ func initLocal() {
 
 	// Fall back to UTC.
 	localLoc.name = "UTC"
-}
-
-func loadLocation(name string) (*Location, error) {
-	if z, err := loadZoneFile(runtime.GOROOT()+"/lib/time/zoneinfo.zip", name); err == nil {
-		z.name = name
-		return z, nil
-	}
-	return nil, errors.New("unknown time zone " + name)
-}
-
-func forceZipFileForTesting(zipOnly bool) {
-	// We only use the zip file anyway.
 }

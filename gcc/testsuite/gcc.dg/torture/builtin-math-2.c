@@ -6,6 +6,7 @@
    Origin: Kaveh R. Ghazi,  October 22, 2006.  */
 
 /* { dg-do compile } */
+/* { dg-require-effective-target inf } */
 /* { dg-options "-fdump-tree-original" } */
 
 extern void foof (float);
@@ -382,4 +383,3 @@ void bar()
 /* { dg-final { scan-tree-dump-times "_gamma_r " 6 "original" } } */
 /* { dg-final { scan-tree-dump-times "_gammaf_r" 6 "original" } } */
 /* { dg-final { scan-tree-dump-times "_gammal_r" 6 "original" } } */
-/* { dg-final { cleanup-tree-dump "original" } } */

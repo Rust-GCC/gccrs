@@ -1,9 +1,9 @@
-@c Copyright (C) 2001-2014 Free Software Foundation, Inc.
+@c Copyright (C) 2001-2019 Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 
 @node C Implementation
-@chapter C Implementation-defined behavior
+@chapter C Implementation-Defined Behavior
 @cindex implementation-defined behavior, C language
 
 A conforming implementation of ISO C is required to document its
@@ -266,9 +266,11 @@ both the sign and value bits, where the sign bit is considered
 immediately above the highest-value value bit.  Signed @samp{>>} acts
 on negative numbers by sign extension.
 
-GCC does not use the latitude given in C99 and C11 only to treat certain
-aspects of signed @samp{<<} as undefined, but this is subject to
-change.
+As an extension to the C language, GCC does not use the latitude given in
+C99 and C11 only to treat certain aspects of signed @samp{<<} as undefined.
+However, @option{-fsanitize=shift} (and @option{-fsanitize=undefined}) will
+diagnose such cases.  They are also diagnosed where constant
+expressions are required.
 
 @item
 @cite{The sign of the remainder on integer division (C90 6.3.5).}
@@ -279,7 +281,7 @@ truncated towards zero.
 @end itemize
 
 @node Floating point implementation
-@section Floating point
+@section Floating Point
 
 @itemize @bullet
 @item
@@ -375,7 +377,7 @@ defined by GCC itself.
 @end itemize
 
 @node Arrays and pointers implementation
-@section Arrays and pointers
+@section Arrays and Pointers
 
 @itemize @bullet
 @item
@@ -427,7 +429,7 @@ The @code{register} specifier affects code generation only in these ways:
 @itemize @bullet
 @item
 When used as part of the register variable extension, see
-@ref{Explicit Reg Vars}.
+@ref{Explicit Register Variables}.
 
 @item
 When @option{-O0} is in use, the compiler allocates distinct stack
@@ -455,7 +457,7 @@ used to determine if a function has not been inlined and why not.
 @end itemize
 
 @node Structures unions enumerations and bit-fields implementation
-@section Structures, unions, enumerations, and bit-fields
+@section Structures, Unions, Enumerations, and Bit-Fields
 
 @itemize @bullet
 @item
@@ -563,16 +565,16 @@ volatile int *src = @var{somevalue};
 @end smallexample
 
 According to the C standard, such an expression is an rvalue whose type
-is the unqualified version of its original type, i.e. @code{int}.  Whether
+is the unqualified version of its original type, i.e.@: @code{int}.  Whether
 GCC interprets this as a read of the volatile object being pointed to or
-only as a request to evaluate the expression for its side-effects depends
+only as a request to evaluate the expression for its side effects depends
 on this type.
 
 If it is a scalar type, or on most targets an aggregate type whose only
 member object is of a scalar type, or a union type whose member objects
 are of scalar types, the expression is interpreted by GCC as a read of
 the volatile object; in the other cases, the expression is only evaluated
-for its side-effects.
+for its side effects.
 
 @end itemize
 
@@ -601,7 +603,7 @@ GCC is only limited by available memory.
 @end itemize
 
 @node Preprocessing directives implementation
-@section Preprocessing directives
+@section Preprocessing Directives
 
 @xref{Implementation-defined behavior, , Implementation-defined
 behavior, cpp, The C Preprocessor}, for details of these aspects of
@@ -665,7 +667,7 @@ respectively, the date and time of translation are not available (C90
 @end itemize
 
 @node Library functions implementation
-@section Library functions
+@section Library Functions
 
 The behavior of most of these points are dependent on the implementation
 of the C library, and are not defined by GCC itself.
@@ -732,7 +734,7 @@ Determined by ABI@.
 @end itemize
 
 @node Locale-specific behavior implementation
-@section Locale-specific behavior
+@section Locale-Specific Behavior
 
 The behavior of these points are dependent on the implementation
 of the C library, and are not defined by GCC itself.

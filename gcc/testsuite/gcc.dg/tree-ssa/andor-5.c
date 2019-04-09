@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-optimized" } */
+/* { dg-options "-O2 -fno-ipa-icf -fdump-tree-optimized" } */
 
 int f(int y, int x)
 {
@@ -47,4 +47,3 @@ int f7(int y, int x)
 /* { dg-final { scan-tree-dump-times "\\\|" 0 "optimized" } } */
 /* { dg-final { scan-tree-dump-times "\&" 0 "optimized" } } */
 /* { dg-final { scan-tree-dump-times "return x_..D.;" 8 "optimized" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

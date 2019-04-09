@@ -1,9 +1,9 @@
-// { dg-require-namedlocale "de_DE@euro" }
-// { dg-require-namedlocale "en_HK" }
+// { dg-require-namedlocale "de_DE.ISO8859-15" }
+// { dg-require-namedlocale "en_HK.ISO8859-1" }
 
 // 2004-03-02  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,14 +30,13 @@
 void test01()
 {
   using namespace std;
-  bool test __attribute__((unused)) = true;
 
   typedef istreambuf_iterator<char> iterator_type;
 
   // basic construction
   locale loc_c = locale::classic();
-  locale loc_de = locale("de_DE@euro");
-  locale loc_hk = locale("en_HK");
+  locale loc_de = locale(ISO_8859(15,de_DE));
+  locale loc_hk = locale(ISO_8859(1,en_HK));
   VERIFY( loc_hk != loc_de );
   VERIFY( loc_c != loc_hk );
 

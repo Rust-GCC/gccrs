@@ -10,33 +10,20 @@
 //===----------------------------------------------------------------------===//
 
 #include "sanitizer_common.h"
+#include "sanitizer_allocator_interface.h"
+#include "sanitizer_allocator_internal.h"
+#include "sanitizer_atomic.h"
 #include "sanitizer_flags.h"
 #include "sanitizer_libc.h"
+#include "sanitizer_placement_new.h"
 
 namespace __sanitizer {
 
 const char *SanitizerToolName = "SanitizerTool";
 
-uptr GetPageSizeCached() {
-  static uptr PageSize;
-  if (!PageSize)
-    PageSize = GetPageSize();
-  return PageSize;
-}
-
-
-// By default, dump to stderr. If |log_to_file| is true and |report_fd_pid|
-// isn't equal to the current PID, try to obtain file descriptor by opening
-// file "report_path_prefix.<PID>".
-fd_t report_fd = kStderrFd;
-
-// Set via __sanitizer_set_report_path.
-bool log_to_file = false;
-char report_path_prefix[sizeof(report_path_prefix)];
-
-// PID of process that opened |report_fd|. If a fork() occurs, the PID of the
-// child thread will be different from |report_fd_pid|.
-uptr report_fd_pid = 0;
+atomic_uint32_t current_verbosity;
+uptr PageSizeCached;
+u32 NumberOfCPUsCached;
 
 // PID of the tracer task in StopTheWorld. It shares the address space with the
 // main process, but has a different PID and thus requires special handling.
@@ -45,185 +32,146 @@ uptr stoptheworld_tracer_pid = 0;
 // writing to the same log file.
 uptr stoptheworld_tracer_ppid = 0;
 
-static DieCallbackType DieCallback;
-void SetDieCallback(DieCallbackType callback) {
-  DieCallback = callback;
-}
-
-DieCallbackType GetDieCallback() {
-  return DieCallback;
-}
-
-void NORETURN Die() {
-  if (DieCallback) {
-    DieCallback();
+void NORETURN ReportMmapFailureAndDie(uptr size, const char *mem_type,
+                                      const char *mmap_type, error_t err,
+                                      bool raw_report) {
+  static int recursion_count;
+  if (SANITIZER_RTEMS || raw_report || recursion_count) {
+    // If we are on RTEMS or raw report is requested or we went into recursion,
+    // just die.  The Report() and CHECK calls below may call mmap recursively
+    // and fail.
+    RawWrite("ERROR: Failed to mmap\n");
+    Die();
   }
-  internal__exit(1);
-}
-
-static CheckFailedCallbackType CheckFailedCallback;
-void SetCheckFailedCallback(CheckFailedCallbackType callback) {
-  CheckFailedCallback = callback;
-}
-
-void NORETURN CheckFailed(const char *file, int line, const char *cond,
-                          u64 v1, u64 v2) {
-  if (CheckFailedCallback) {
-    CheckFailedCallback(file, line, cond, v1, v2);
-  }
-  Report("Sanitizer CHECK failed: %s:%d %s (%lld, %lld)\n", file, line, cond,
-                                                            v1, v2);
-  Die();
-}
-
-uptr ReadFileToBuffer(const char *file_name, char **buff,
-                      uptr *buff_size, uptr max_len) {
-  uptr PageSize = GetPageSizeCached();
-  uptr kMinFileLen = PageSize;
-  uptr read_len = 0;
-  *buff = 0;
-  *buff_size = 0;
-  // The files we usually open are not seekable, so try different buffer sizes.
-  for (uptr size = kMinFileLen; size <= max_len; size *= 2) {
-    uptr openrv = OpenFile(file_name, /*write*/ false);
-    if (internal_iserror(openrv)) return 0;
-    fd_t fd = openrv;
-    UnmapOrDie(*buff, *buff_size);
-    *buff = (char*)MmapOrDie(size, __func__);
-    *buff_size = size;
-    // Read up to one page at a time.
-    read_len = 0;
-    bool reached_eof = false;
-    while (read_len + PageSize <= size) {
-      uptr just_read = internal_read(fd, *buff + read_len, PageSize);
-      if (just_read == 0) {
-        reached_eof = true;
-        break;
-      }
-      read_len += just_read;
-    }
-    internal_close(fd);
-    if (reached_eof)  // We've read the whole file.
-      break;
-  }
-  return read_len;
+  recursion_count++;
+  Report("ERROR: %s failed to "
+         "%s 0x%zx (%zd) bytes of %s (error code: %d)\n",
+         SanitizerToolName, mmap_type, size, size, mem_type, err);
+#if !SANITIZER_GO
+  DumpProcessMap();
+#endif
+  UNREACHABLE("unable to mmap");
 }
 
 typedef bool UptrComparisonFunction(const uptr &a, const uptr &b);
-
-template<class T>
-static inline bool CompareLess(const T &a, const T &b) {
-  return a < b;
-}
-
-void SortArray(uptr *array, uptr size) {
-  InternalSort<uptr*, UptrComparisonFunction>(&array, size, CompareLess);
-}
-
-// We want to map a chunk of address space aligned to 'alignment'.
-// We do it by maping a bit more and then unmaping redundant pieces.
-// We probably can do it with fewer syscalls in some OS-dependent way.
-void *MmapAlignedOrDie(uptr size, uptr alignment, const char *mem_type) {
-// uptr PageSize = GetPageSizeCached();
-  CHECK(IsPowerOfTwo(size));
-  CHECK(IsPowerOfTwo(alignment));
-  uptr map_size = size + alignment;
-  uptr map_res = (uptr)MmapOrDie(map_size, mem_type);
-  uptr map_end = map_res + map_size;
-  uptr res = map_res;
-  if (res & (alignment - 1))  // Not aligned.
-    res = (map_res + alignment) & ~(alignment - 1);
-  uptr end = res + size;
-  if (res != map_res)
-    UnmapOrDie((void*)map_res, res - map_res);
-  if (end != map_end)
-    UnmapOrDie((void*)end, map_end - end);
-  return (void*)res;
-}
+typedef bool U32ComparisonFunction(const u32 &a, const u32 &b);
 
 const char *StripPathPrefix(const char *filepath,
                             const char *strip_path_prefix) {
-  if (filepath == 0) return 0;
-  if (strip_path_prefix == 0) return filepath;
-  const char *pos = internal_strstr(filepath, strip_path_prefix);
-  if (pos == 0) return filepath;
-  pos += internal_strlen(strip_path_prefix);
-  if (pos[0] == '.' && pos[1] == '/')
-    pos += 2;
-  return pos;
+  if (!filepath) return nullptr;
+  if (!strip_path_prefix) return filepath;
+  const char *res = filepath;
+  if (const char *pos = internal_strstr(filepath, strip_path_prefix))
+    res = pos + internal_strlen(strip_path_prefix);
+  if (res[0] == '.' && res[1] == '/')
+    res += 2;
+  return res;
 }
 
-void PrintSourceLocation(InternalScopedString *buffer, const char *file,
-                         int line, int column) {
-  CHECK(file);
-  buffer->append("%s",
-                 StripPathPrefix(file, common_flags()->strip_path_prefix));
-  if (line > 0) {
-    buffer->append(":%d", line);
-    if (column > 0)
-      buffer->append(":%d", column);
+const char *StripModuleName(const char *module) {
+  if (!module)
+    return nullptr;
+  if (SANITIZER_WINDOWS) {
+    // On Windows, both slash and backslash are possible.
+    // Pick the one that goes last.
+    if (const char *bslash_pos = internal_strrchr(module, '\\'))
+      return StripModuleName(bslash_pos + 1);
   }
+  if (const char *slash_pos = internal_strrchr(module, '/')) {
+    return slash_pos + 1;
+  }
+  return module;
 }
 
-void PrintModuleAndOffset(InternalScopedString *buffer, const char *module,
-                          uptr offset) {
-  buffer->append("(%s+0x%zx)",
-                 StripPathPrefix(module, common_flags()->strip_path_prefix),
-                 offset);
-}
-
-void ReportErrorSummary(const char *error_message) {
+void ReportErrorSummary(const char *error_message, const char *alt_tool_name) {
   if (!common_flags()->print_summary)
     return;
-  InternalScopedBuffer<char> buff(kMaxSummaryLength);
-  internal_snprintf(buff.data(), buff.size(),
-                    "SUMMARY: %s: %s", SanitizerToolName, error_message);
+  InternalScopedString buff(kMaxSummaryLength);
+  buff.append("SUMMARY: %s: %s",
+              alt_tool_name ? alt_tool_name : SanitizerToolName, error_message);
   __sanitizer_report_error_summary(buff.data());
 }
 
-void ReportErrorSummary(const char *error_type, const char *file,
-                        int line, const char *function) {
-  if (!common_flags()->print_summary)
+// Removes the ANSI escape sequences from the input string (in-place).
+void RemoveANSIEscapeSequencesFromString(char *str) {
+  if (!str)
     return;
-  InternalScopedBuffer<char> buff(kMaxSummaryLength);
-  internal_snprintf(
-      buff.data(), buff.size(), "%s %s:%d %s", error_type,
-      file ? StripPathPrefix(file, common_flags()->strip_path_prefix) : "??",
-      line, function ? function : "??");
-  ReportErrorSummary(buff.data());
+
+  // We are going to remove the escape sequences in place.
+  char *s = str;
+  char *z = str;
+  while (*s != '\0') {
+    CHECK_GE(s, z);
+    // Skip over ANSI escape sequences with pointer 's'.
+    if (*s == '\033' && *(s + 1) == '[') {
+      s = internal_strchrnul(s, 'm');
+      if (*s == '\0') {
+        break;
+      }
+      s++;
+      continue;
+    }
+    // 's' now points at a character we want to keep. Copy over the buffer
+    // content if the escape sequence has been perviously skipped andadvance
+    // both pointers.
+    if (s != z)
+      *z = *s;
+
+    // If we have not seen an escape sequence, just advance both pointers.
+    z++;
+    s++;
+  }
+
+  // Null terminate the string.
+  *z = '\0';
 }
 
-LoadedModule::LoadedModule(const char *module_name, uptr base_address) {
+void LoadedModule::set(const char *module_name, uptr base_address) {
+  clear();
   full_name_ = internal_strdup(module_name);
   base_address_ = base_address;
-  n_ranges_ = 0;
 }
 
-void LoadedModule::addAddressRange(uptr beg, uptr end, bool executable) {
-  CHECK_LT(n_ranges_, kMaxNumberOfAddressRanges);
-  ranges_[n_ranges_].beg = beg;
-  ranges_[n_ranges_].end = end;
-  exec_[n_ranges_] = executable;
-  n_ranges_++;
+void LoadedModule::set(const char *module_name, uptr base_address,
+                       ModuleArch arch, u8 uuid[kModuleUUIDSize],
+                       bool instrumented) {
+  set(module_name, base_address);
+  arch_ = arch;
+  internal_memcpy(uuid_, uuid, sizeof(uuid_));
+  instrumented_ = instrumented;
+}
+
+void LoadedModule::clear() {
+  InternalFree(full_name_);
+  base_address_ = 0;
+  max_executable_address_ = 0;
+  full_name_ = nullptr;
+  arch_ = kModuleArchUnknown;
+  internal_memset(uuid_, 0, kModuleUUIDSize);
+  instrumented_ = false;
+  while (!ranges_.empty()) {
+    AddressRange *r = ranges_.front();
+    ranges_.pop_front();
+    InternalFree(r);
+  }
+}
+
+void LoadedModule::addAddressRange(uptr beg, uptr end, bool executable,
+                                   bool writable, const char *name) {
+  void *mem = InternalAlloc(sizeof(AddressRange));
+  AddressRange *r =
+      new(mem) AddressRange(beg, end, executable, writable, name);
+  ranges_.push_back(r);
+  if (executable && end > max_executable_address_)
+    max_executable_address_ = end;
 }
 
 bool LoadedModule::containsAddress(uptr address) const {
-  for (uptr i = 0; i < n_ranges_; i++) {
-    if (ranges_[i].beg <= address && address < ranges_[i].end)
+  for (const AddressRange &r : ranges()) {
+    if (r.beg <= address && address < r.end)
       return true;
   }
   return false;
-}
-
-char *StripModuleName(const char *module) {
-  if (module == 0)
-    return 0;
-  const char *short_module_name = internal_strrchr(module, '/');
-  if (short_module_name)
-    short_module_name += 1;
-  else
-    short_module_name = module;
-  return internal_strdup(short_module_name);
 }
 
 static atomic_uintptr_t g_total_mmaped;
@@ -232,12 +180,9 @@ void IncreaseTotalMmap(uptr size) {
   if (!common_flags()->mmap_limit_mb) return;
   uptr total_mmaped =
       atomic_fetch_add(&g_total_mmaped, size, memory_order_relaxed) + size;
-  if ((total_mmaped >> 20) > common_flags()->mmap_limit_mb) {
-    // Since for now mmap_limit_mb is not a user-facing flag, just CHECK.
-    uptr mmap_limit_mb = common_flags()->mmap_limit_mb;
-    common_flags()->mmap_limit_mb = 0;  // Allow mmap in CHECK.
-    RAW_CHECK(total_mmaped >> 20 < mmap_limit_mb);
-  }
+  // Since for now mmap_limit_mb is not a user-facing flag, just kill
+  // a program. Use RAW_CHECK to avoid extra mmaps in reporting.
+  RAW_CHECK((total_mmaped >> 20) < common_flags()->mmap_limit_mb);
 }
 
 void DecreaseTotalMmap(uptr size) {
@@ -245,39 +190,156 @@ void DecreaseTotalMmap(uptr size) {
   atomic_fetch_sub(&g_total_mmaped, size, memory_order_relaxed);
 }
 
-}  // namespace __sanitizer
+bool TemplateMatch(const char *templ, const char *str) {
+  if ((!str) || str[0] == 0)
+    return false;
+  bool start = false;
+  if (templ && templ[0] == '^') {
+    start = true;
+    templ++;
+  }
+  bool asterisk = false;
+  while (templ && templ[0]) {
+    if (templ[0] == '*') {
+      templ++;
+      start = false;
+      asterisk = true;
+      continue;
+    }
+    if (templ[0] == '$')
+      return str[0] == 0 || asterisk;
+    if (str[0] == 0)
+      return false;
+    char *tpos = (char*)internal_strchr(templ, '*');
+    char *tpos1 = (char*)internal_strchr(templ, '$');
+    if ((!tpos) || (tpos1 && tpos1 < tpos))
+      tpos = tpos1;
+    if (tpos)
+      tpos[0] = 0;
+    const char *str0 = str;
+    const char *spos = internal_strstr(str, templ);
+    str = spos + internal_strlen(templ);
+    templ = tpos;
+    if (tpos)
+      tpos[0] = tpos == tpos1 ? '$' : '*';
+    if (!spos)
+      return false;
+    if (start && spos != str0)
+      return false;
+    start = false;
+    asterisk = false;
+  }
+  return true;
+}
+
+static char binary_name_cache_str[kMaxPathLength];
+static char process_name_cache_str[kMaxPathLength];
+
+const char *GetProcessName() {
+  return process_name_cache_str;
+}
+
+static uptr ReadProcessName(/*out*/ char *buf, uptr buf_len) {
+  ReadLongProcessName(buf, buf_len);
+  char *s = const_cast<char *>(StripModuleName(buf));
+  uptr len = internal_strlen(s);
+  if (s != buf) {
+    internal_memmove(buf, s, len);
+    buf[len] = '\0';
+  }
+  return len;
+}
+
+void UpdateProcessName() {
+  ReadProcessName(process_name_cache_str, sizeof(process_name_cache_str));
+}
+
+// Call once to make sure that binary_name_cache_str is initialized
+void CacheBinaryName() {
+  if (binary_name_cache_str[0] != '\0')
+    return;
+  ReadBinaryName(binary_name_cache_str, sizeof(binary_name_cache_str));
+  ReadProcessName(process_name_cache_str, sizeof(process_name_cache_str));
+}
+
+uptr ReadBinaryNameCached(/*out*/char *buf, uptr buf_len) {
+  CacheBinaryName();
+  uptr name_len = internal_strlen(binary_name_cache_str);
+  name_len = (name_len < buf_len - 1) ? name_len : buf_len - 1;
+  if (buf_len == 0)
+    return 0;
+  internal_memcpy(buf, binary_name_cache_str, name_len);
+  buf[name_len] = '\0';
+  return name_len;
+}
+
+void PrintCmdline() {
+  char **argv = GetArgv();
+  if (!argv) return;
+  Printf("\nCommand: ");
+  for (uptr i = 0; argv[i]; ++i)
+    Printf("%s ", argv[i]);
+  Printf("\n\n");
+}
+
+// Malloc hooks.
+static const int kMaxMallocFreeHooks = 5;
+struct MallocFreeHook {
+  void (*malloc_hook)(const void *, uptr);
+  void (*free_hook)(const void *);
+};
+
+static MallocFreeHook MFHooks[kMaxMallocFreeHooks];
+
+void RunMallocHooks(const void *ptr, uptr size) {
+  for (int i = 0; i < kMaxMallocFreeHooks; i++) {
+    auto hook = MFHooks[i].malloc_hook;
+    if (!hook) return;
+    hook(ptr, size);
+  }
+}
+
+void RunFreeHooks(const void *ptr) {
+  for (int i = 0; i < kMaxMallocFreeHooks; i++) {
+    auto hook = MFHooks[i].free_hook;
+    if (!hook) return;
+    hook(ptr);
+  }
+}
+
+static int InstallMallocFreeHooks(void (*malloc_hook)(const void *, uptr),
+                                  void (*free_hook)(const void *)) {
+  if (!malloc_hook || !free_hook) return 0;
+  for (int i = 0; i < kMaxMallocFreeHooks; i++) {
+    if (MFHooks[i].malloc_hook == nullptr) {
+      MFHooks[i].malloc_hook = malloc_hook;
+      MFHooks[i].free_hook = free_hook;
+      return i + 1;
+    }
+  }
+  return 0;
+}
+
+} // namespace __sanitizer
 
 using namespace __sanitizer;  // NOLINT
 
 extern "C" {
-void __sanitizer_set_report_path(const char *path) {
-  if (!path)
-    return;
-  uptr len = internal_strlen(path);
-  if (len > sizeof(report_path_prefix) - 100) {
-    Report("ERROR: Path is too long: %c%c%c%c%c%c%c%c...\n",
-           path[0], path[1], path[2], path[3],
-           path[4], path[5], path[6], path[7]);
-    Die();
-  }
-  if (report_fd != kStdoutFd &&
-      report_fd != kStderrFd &&
-      report_fd != kInvalidFd)
-    internal_close(report_fd);
-  report_fd = kInvalidFd;
-  log_to_file = false;
-  if (internal_strcmp(path, "stdout") == 0) {
-    report_fd = kStdoutFd;
-  } else if (internal_strcmp(path, "stderr") == 0) {
-    report_fd = kStderrFd;
-  } else {
-    internal_strncpy(report_path_prefix, path, sizeof(report_path_prefix));
-    report_path_prefix[len] = '\0';
-    log_to_file = true;
-  }
-}
-
-void __sanitizer_report_error_summary(const char *error_summary) {
+SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_report_error_summary,
+                             const char *error_summary) {
   Printf("%s\n", error_summary);
 }
-}  // extern "C"
+
+SANITIZER_INTERFACE_ATTRIBUTE
+int __sanitizer_acquire_crash_state() {
+  static atomic_uint8_t in_crash_state = {};
+  return !atomic_exchange(&in_crash_state, 1, memory_order_relaxed);
+}
+
+SANITIZER_INTERFACE_ATTRIBUTE
+int __sanitizer_install_malloc_and_free_hooks(void (*malloc_hook)(const void *,
+                                                                  uptr),
+                                              void (*free_hook)(const void *)) {
+  return InstallMallocFreeHooks(malloc_hook, free_hook);
+}
+} // extern "C"

@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -537,7 +537,7 @@ namespace __gnu_pbds
 	  __gnu_pbds::null_type,
 	  Eq_Fn,
 	  Comb_Hash_Fn,
-	  typename one_resize_policy_selector<typename Comb_Hash_Fn::comb_fn>::type, 
+	  typename one_resize_policy_selector<typename Comb_Hash_Fn::comb_fn>::type,
 	  false, _Alloc>
 	type;
       };

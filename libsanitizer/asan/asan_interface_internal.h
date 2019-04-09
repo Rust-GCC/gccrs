@@ -7,8 +7,11 @@
 //
 // This file is a part of AddressSanitizer, an address sanity checker.
 //
-// This header can be included by the instrumented program to fetch
-// data (mostly allocator statistics) from ASan runtime library.
+// This header declares the AddressSanitizer runtime interface functions.
+// The runtime library has to define these functions so the instrumented program
+// could call them.
+//
+// See also include/sanitizer/asan_interface.h
 //===----------------------------------------------------------------------===//
 #ifndef ASAN_INTERFACE_INTERNAL_H
 #define ASAN_INTERFACE_INTERNAL_H
@@ -18,13 +21,19 @@
 #include "asan_init_version.h"
 
 using __sanitizer::uptr;
+using __sanitizer::u64;
+using __sanitizer::u32;
 
 extern "C" {
   // This function should be called at the very beginning of the process,
   // before any instrumented code is executed and before any call to malloc.
-  // Please note that __asan_init is a macro that is replaced with
-  // __asan_init_vXXX at compile-time.
   SANITIZER_INTERFACE_ATTRIBUTE void __asan_init();
+
+  // This function exists purely to get a linker/loader error when using
+  // incompatible versions of instrumentation and runtime library. Please note
+  // that __asan_version_mismatch_check is a macro that is replaced with
+  // __asan_version_mismatch_check_vXXX at compile-time.
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_version_mismatch_check();
 
   // This structure is used to describe the source location of a place where
   // global was defined.
@@ -45,7 +54,21 @@ extern "C" {
     uptr has_dynamic_init;   // Non-zero if the global has dynamic initializer.
     __asan_global_source_location *location;  // Source location of a global,
                                               // or NULL if it is unknown.
+    uptr odr_indicator;      // The address of the ODR indicator symbol.
   };
+
+  // These functions can be called on some platforms to find globals in the same
+  // loaded image as `flag' and apply __asan_(un)register_globals to them,
+  // filtering out redundant calls.
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_register_image_globals(uptr *flag);
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_unregister_image_globals(uptr *flag);
+
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_register_elf_globals(uptr *flag, void *start, void *stop);
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_unregister_elf_globals(uptr *flag, void *start, void *stop);
 
   // These two functions should be called by the instrumented code.
   // 'globals' is an array of structures describing 'n' globals.
@@ -60,6 +83,20 @@ extern "C" {
   void __asan_before_dynamic_init(const char *module_name);
   SANITIZER_INTERFACE_ATTRIBUTE
   void __asan_after_dynamic_init();
+
+  // Sets bytes of the given range of the shadow memory into specific value.
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_set_shadow_00(uptr addr, uptr size);
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_set_shadow_f1(uptr addr, uptr size);
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_set_shadow_f2(uptr addr, uptr size);
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_set_shadow_f3(uptr addr, uptr size);
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_set_shadow_f5(uptr addr, uptr size);
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_set_shadow_f8(uptr addr, uptr size);
 
   // These two functions are used by instrumented code in the
   // use-after-scope mode. They mark memory for local variables as
@@ -89,6 +126,28 @@ extern "C" {
   void __asan_describe_address(uptr addr);
 
   SANITIZER_INTERFACE_ATTRIBUTE
+  int __asan_report_present();
+
+  SANITIZER_INTERFACE_ATTRIBUTE
+  uptr __asan_get_report_pc();
+  SANITIZER_INTERFACE_ATTRIBUTE
+  uptr __asan_get_report_bp();
+  SANITIZER_INTERFACE_ATTRIBUTE
+  uptr __asan_get_report_sp();
+  SANITIZER_INTERFACE_ATTRIBUTE
+  uptr __asan_get_report_address();
+  SANITIZER_INTERFACE_ATTRIBUTE
+  int __asan_get_report_access_type();
+  SANITIZER_INTERFACE_ATTRIBUTE
+  uptr __asan_get_report_access_size();
+  SANITIZER_INTERFACE_ATTRIBUTE
+  const char * __asan_get_report_description();
+
+  SANITIZER_INTERFACE_ATTRIBUTE
+  const char * __asan_locate_address(uptr addr, char *name, uptr name_size,
+                                     uptr *region_address, uptr *region_size);
+
+  SANITIZER_INTERFACE_ATTRIBUTE
   uptr __asan_get_alloc_stack(uptr addr, uptr *trace, uptr size,
                               u32 *thread_id);
 
@@ -101,22 +160,23 @@ extern "C" {
 
   SANITIZER_INTERFACE_ATTRIBUTE
   void __asan_report_error(uptr pc, uptr bp, uptr sp,
-                           uptr addr, int is_write, uptr access_size);
+                           uptr addr, int is_write, uptr access_size, u32 exp);
 
-  SANITIZER_INTERFACE_ATTRIBUTE
-  int __asan_set_error_exit_code(int exit_code);
   SANITIZER_INTERFACE_ATTRIBUTE
   void __asan_set_death_callback(void (*callback)(void));
   SANITIZER_INTERFACE_ATTRIBUTE
   void __asan_set_error_report_callback(void (*callback)(const char*));
 
   SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE
-  /* OPTIONAL */ void __asan_on_error();
+  void __asan_on_error();
 
   SANITIZER_INTERFACE_ATTRIBUTE void __asan_print_accumulated_stats();
 
   SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE
-  /* OPTIONAL */ const char* __asan_default_options();
+  const char* __asan_default_options();
+
+  SANITIZER_INTERFACE_ATTRIBUTE
+  extern uptr __asan_shadow_memory_dynamic_address;
 
   // Global flag, copy of ASAN_OPTIONS=detect_stack_use_after_return
   SANITIZER_INTERFACE_ATTRIBUTE
@@ -138,6 +198,34 @@ extern "C" {
   SANITIZER_INTERFACE_ATTRIBUTE void __asan_loadN(uptr p, uptr size);
   SANITIZER_INTERFACE_ATTRIBUTE void __asan_storeN(uptr p, uptr size);
 
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_load1_noabort(uptr p);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_load2_noabort(uptr p);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_load4_noabort(uptr p);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_load8_noabort(uptr p);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_load16_noabort(uptr p);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_store1_noabort(uptr p);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_store2_noabort(uptr p);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_store4_noabort(uptr p);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_store8_noabort(uptr p);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_store16_noabort(uptr p);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_loadN_noabort(uptr p, uptr size);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_storeN_noabort(uptr p, uptr size);
+
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_exp_load1(uptr p, u32 exp);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_exp_load2(uptr p, u32 exp);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_exp_load4(uptr p, u32 exp);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_exp_load8(uptr p, u32 exp);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_exp_load16(uptr p, u32 exp);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_exp_store1(uptr p, u32 exp);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_exp_store2(uptr p, u32 exp);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_exp_store4(uptr p, u32 exp);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_exp_store8(uptr p, u32 exp);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_exp_store16(uptr p, u32 exp);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_exp_loadN(uptr p, uptr size,
+                                                      u32 exp);
+  SANITIZER_INTERFACE_ATTRIBUTE void __asan_exp_storeN(uptr p, uptr size,
+                                                       u32 exp);
+
   SANITIZER_INTERFACE_ATTRIBUTE
       void* __asan_memcpy(void *dst, const void *src, uptr size);
   SANITIZER_INTERFACE_ATTRIBUTE
@@ -149,6 +237,17 @@ extern "C" {
   void __asan_poison_cxx_array_cookie(uptr p);
   SANITIZER_INTERFACE_ATTRIBUTE
   uptr __asan_load_cxx_array_cookie(uptr *p);
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_poison_intra_object_redzone(uptr p, uptr size);
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_unpoison_intra_object_redzone(uptr p, uptr size);
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_alloca_poison(uptr addr, uptr size);
+  SANITIZER_INTERFACE_ATTRIBUTE
+  void __asan_allocas_unpoison(uptr top, uptr bottom);
+
+  SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE
+  const char* __asan_default_suppressions();
 }  // extern "C"
 
 #endif  // ASAN_INTERFACE_INTERNAL_H

@@ -1,9 +1,9 @@
-// { dg-options "-std=c++11" }
+// { dg-do run { target c++11 } }
 // { dg-require-cstdint "" }
 //
 // 2012-10-12  Edward M. Smith-Rowland <3dw4rd@verizon.net>
 //
-// Copyright (C) 2012-2014 Free Software Foundation, Inc.
+// Copyright (C) 2012-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,12 +22,11 @@
 
 #include <ext/random>
 #include <testsuite_hooks.h>
+#include <testsuite_common_types.h>
 
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
-
   __gnu_cxx::arcsine_distribution<> u;
   VERIFY( u.a() == 0.0 );
   VERIFY( u.b() == 1.0 );
@@ -35,9 +34,17 @@ test01()
   VERIFY( u.max() == 1.0 );
 }
 
+void
+test02()
+{
+  __gnu_test::implicitly_default_constructible test;
+  test.operator()<__gnu_cxx::arcsine_distribution<>>();
+  test.operator()<__gnu_cxx::arcsine_distribution<>::param_type>();
+}
+
 int
 main()
 {
   test01();
-  return 0;
+  test02();
 }

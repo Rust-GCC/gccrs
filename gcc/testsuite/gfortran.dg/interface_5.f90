@@ -42,14 +42,14 @@ subroutine i_am_ok
   USE f77_blas_generic
   character(6) :: chr
   chr = ""
-  if (chr /= "recopy") call abort ()  
+  if (chr /= "recopy") STOP 1  
 end subroutine i_am_ok
 
 program main
-  USE f77_blas_extra ! { dg-error "Ambiguous interfaces" }
-  USE f77_blas_generic
+  USE f77_blas_extra   ! { dg-error "Ambiguous interfaces" }
+  USE f77_blas_generic ! { dg-error "Ambiguous interfaces" }
   character(6) :: chr
   chr = ""
   call bl_copy(1.0, chr)
-  if (chr /= "recopy") call abort ()  
+  if (chr /= "recopy") STOP 2  
 end program main

@@ -1,7 +1,7 @@
 /* The loop rolls too little, hence the prefetching would not be useful.  */
 
-/* { dg-do compile { target { { i?86-*-* x86_64-*-* } && ia32 } } } */
-/* { dg-options "-O2 -fprefetch-loop-arrays -march=athlon -fdump-tree-optimized" } */
+/* { dg-do compile { target { i?86-*-* x86_64-*-* } } } */
+/* { dg-options "-O2 -fprefetch-loop-arrays -march=amdfam10 -fdump-tree-optimized" } */
 
 int xxx[20];
 
@@ -14,4 +14,3 @@ void foo (int n)
 }
 
 /* { dg-final { scan-tree-dump-times "prefetch" 0 "optimized" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

@@ -1,5 +1,5 @@
 /* GCC option-handling definitions for the Renesas RL78 processor.
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -23,8 +23,17 @@
 enum rl78_mul_types
 {
   MUL_NONE,
-  MUL_RL78,
-  MUL_G13
+  MUL_G13,
+  MUL_G14,
+  MUL_UNINIT
+};
+
+enum rl78_cpu_types
+{
+  CPU_G10,
+  CPU_G13,
+  CPU_G14,
+  CPU_UNINIT
 };
 
 #endif

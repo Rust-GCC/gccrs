@@ -1,5 +1,6 @@
 // { dg-do compile { target c++98_only } }
-// { dg-options "-ansi" }
+
+//  C++11 features:
 
 #ifndef __cpp_runtime_arrays
 #  error "__cpp_runtime_arrays" // { dg-error "error" }
@@ -41,21 +42,41 @@
 #  error "__cpp_attributes" // { dg-error "error" }
 #endif
 
-#ifndef __cpp_rvalue_reference
-#  error "__cpp_rvalue_reference" // { dg-error "error" }
+#ifndef __cpp_rvalue_references
+#  error "__cpp_rvalue_references" // { dg-error "error" }
 #endif
 
 #ifndef __cpp_variadic_templates
 #  error "__cpp_variadic_templates" // { dg-error "error" }
 #endif
 
+#ifndef __cpp_initializer_lists
+#  error "__cpp_initializer_lists" // { dg-error "error" }
+#endif
+
+#ifndef __cpp_delegating_constructors
+#  error "__cpp_delegating_constructors" // { dg-error "error" }
+#endif
+
+#ifndef __cpp_nsdmi
+#  error "__cpp_nsdmi" // { dg-error "error" }
+#endif
+
+#ifndef __cpp_inheriting_constructors
+#  error "__cpp_inheriting_constructors" // { dg-error "error" }
+#endif
+
+#ifndef __cpp_ref_qualifiers
+#  error "__cpp_ref_qualifiers" // { dg-error "error" }
+#endif
+
 #ifndef __cpp_alias_templates
 #  error "__cpp_alias_templates" // { dg-error "error" }
 #endif
 
-// C++14
+// C++14 features:
 
-// C++98 gets binary literals.
+// C++98 gets binary literals in non-ANSI modes.
 //#ifndef __cpp_binary_literals
 //#  error "__cpp_binary_literals"
 //#endif
@@ -76,10 +97,9 @@
 #  error "__cpp_return_type_deduction" // { dg-error "error" }
 #endif
 
-//  Aggregate initializers not in yet.
-//#ifdef __cpp_aggregate_nsdmi
-//#  error "__cpp_aggregate_nsdmi"
-//#endif
+#ifndef __cpp_aggregate_nsdmi
+#  error "__cpp_aggregate_nsdmi" // { dg-error "error" }
+#endif
 
 #ifndef __cpp_variable_templates
 #  error "__cpp_variable_templates" // { dg-error "error" }
@@ -89,11 +109,46 @@
 #  error "__cpp_digit_separators" // { dg-error "error" }
 #endif
 
-#ifndef __cpp_attribute_deprecated
-#  error "__cpp_attribute_deprecated" // { dg-error "error" }
+#ifndef __cpp_sized_deallocation
+#  error "__cpp_sized_deallocation" // { dg-error "error" }
 #endif
 
-//  Sized deallocation not in yet.
-//#ifdef __cpp_sized_deallocation
-//#  error "__cpp_sized_deallocation"
+// C++17 features:
+
+#ifndef __cpp_namespace_attributes
+#  error "__cpp_namespace_attributes" // { dg-error "error" }
+#endif
+
+#ifndef __cpp_nested_namespace_definitions
+#  error "__cpp_nested_namespace_definitions" // { dg-error "error" }
+#endif
+
+//  C++11 attributes:
+
+#ifdef __has_cpp_attribute
+#  if __has_cpp_attribute(noreturn) == 200809
+#    error "__has_cpp_attribute(noreturn) == 200809" // { dg-error "error" }
+#  endif
+#else
+#  error "__has_cpp_attribute"
+#endif
+
+//  Attribute carries_dependency not in yet.
+//#ifdef __has_cpp_attribute
+//#  if __has_cpp_attribute(carries_dependency) == 200809
+//#    error "__has_cpp_attribute(carries_dependency) == 200809" // {  }
+//#  endif
+//#else
+//#  error "__has_cpp_attribute"
+//#endif
+
+//  C++14 attributes:
+
+//  Attribute [[deprecated]] is allowed in C++11 as an extension.
+//#ifdef __has_cpp_attribute
+//#  if __has_cpp_attribute(deprecated) == 201309
+//#    error "__has_cpp_attribute(deprecated)" // {  }
+//#  endif
+//#else
+//#  error "__has_cpp_attribute"
 //#endif

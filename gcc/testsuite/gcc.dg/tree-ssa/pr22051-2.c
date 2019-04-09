@@ -1,14 +1,10 @@
 /* { dg-do compile }  */
 /* { dg-options "-O2 -fdump-tree-optimized -w" }  */
 
-
-
-
 void *arf ();
 int
-foo()
+foo(void (*q)(void))
 {
-  void (*q)(void);
   int r = q;
 
   if (r != 0)
@@ -21,5 +17,4 @@ foo()
    so that we do not try to canonicalize a function pointer for the
    comparison when no such canonicalization is wanted.  */
 /* { dg-final { scan-tree-dump-times "r_. = \\(int\\) q" 1 "optimized" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */
 

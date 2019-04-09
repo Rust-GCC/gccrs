@@ -1,7 +1,7 @@
-// { dg-require-namedlocale "de_DE" }
-// { dg-require-namedlocale "es_ES" }
+// { dg-require-namedlocale "de_DE.ISO8859-15" }
+// { dg-require-namedlocale "es_ES.ISO8859-15" }
 
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,9 +26,8 @@ int main()
 {
   using namespace std;
 
-  bool test __attribute__((unused)) = true;
-  locale l1 = locale("de_DE");
-  locale l2 = locale("es_ES");
+  locale l1 = locale(ISO_8859(15,de_DE));
+  locale l2 = locale(ISO_8859(15,es_ES));
   
   const time_put<char> &tp = use_facet<time_put<char> >(l1);  
   ostringstream oss;
@@ -104,7 +103,7 @@ The problems with the first approach, as above, are numerous.
 
 /*
 With GCC/libstdc++, the output of the program with the arguments
-of de_DE es_ES is:
+of de_DE.ISO8859-15 es_ES is:
      domingo
      lunes
      martes

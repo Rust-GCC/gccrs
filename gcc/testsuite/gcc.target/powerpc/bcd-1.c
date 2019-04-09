@@ -1,8 +1,8 @@
 /* { dg-do compile { target { powerpc*-*-linux* } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
-/* { dg-skip-if "" { powerpc*-*-*spe* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
+/* { dg-skip-if "" { powerpc*-*-*spe* } } */
 /* { dg-require-effective-target powerpc_vsx_ok } */
-/* { dg-options "-mcpu=power7 -O2" } */
+/* { dg-options "-mdejagnu-cpu=power7 -O2" } */
 /* { dg-final { scan-assembler-times "cdtbcd " 1 } } */
 /* { dg-final { scan-assembler-times "cbcdtd " 1 } } */
 /* { dg-final { scan-assembler-times "addg6s " 1 } } */

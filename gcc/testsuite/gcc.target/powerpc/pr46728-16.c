@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -ffast-math -mcpu=power6" } */
+/* { dg-options "-O2 -ffast-math -mdejagnu-cpu=power6" } */
 
 double foo (double x, double y)
 {

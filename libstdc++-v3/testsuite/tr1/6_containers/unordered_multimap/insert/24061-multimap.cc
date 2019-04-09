@@ -1,6 +1,6 @@
-// 2005-10-08  Paolo Carlini  <pcarlini@suse.de> 
+// 2005-10-08  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,20 +26,18 @@
 // libstdc++/24061
 void test01()
 {
-  bool test __attribute__((unused)) = true;
-  
   typedef std::tr1::unordered_multimap<std::string, int> Mmap;
   typedef Mmap::iterator       iterator;
   typedef Mmap::const_iterator const_iterator;
   typedef Mmap::value_type     value_type;
 
   Mmap mm1;
-  
+
   iterator it1 = mm1.insert(mm1.begin(),
 			    value_type("all the love in the world", 1));
   VERIFY( mm1.size() == 1 );
   VERIFY( *it1 == value_type("all the love in the world", 1) );
-  
+
   const_iterator cit1(it1);
   const_iterator cit2 = mm1.insert(cit1,
 				   value_type("you know what you are?", 2));
@@ -52,7 +50,7 @@ void test01()
   VERIFY( it2 != it1 );
   VERIFY( *it2 == value_type("all the love in the world", 3) );
 }
-  
+
 int main()
 {
   test01();

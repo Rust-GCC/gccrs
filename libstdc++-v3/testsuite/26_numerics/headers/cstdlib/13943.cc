@@ -1,4 +1,4 @@
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -19,12 +19,11 @@
 #include <cstdlib>
 #include <testsuite_hooks.h>
 
-#if _GLIBCXX_USE_C99
+#if _GLIBCXX_USE_C99_STDLIB
 // libstdc++/13943
 void test01()
 {
   using namespace std;
-  bool test __attribute__((unused)) = true;
 
   VERIFY( llabs(-3) == 3 );
   
@@ -36,7 +35,7 @@ void test01()
 
 int main()
 {
-#if _GLIBCXX_USE_C99
+#if _GLIBCXX_USE_C99_STDLIB
   test01();
 #endif
   return 0;

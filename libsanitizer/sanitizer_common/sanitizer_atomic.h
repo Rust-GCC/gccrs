@@ -35,6 +35,11 @@ struct atomic_uint16_t {
   volatile Type val_dont_use;
 };
 
+struct atomic_sint32_t {
+  typedef s32 Type;
+  volatile Type val_dont_use;
+};
+
 struct atomic_uint32_t {
   typedef u32 Type;
   volatile Type val_dont_use;
@@ -53,12 +58,28 @@ struct atomic_uintptr_t {
 
 }  // namespace __sanitizer
 
-#if defined(__GNUC__)
+#if defined(__clang__) || defined(__GNUC__)
 # include "sanitizer_atomic_clang.h"
 #elif defined(_MSC_VER)
 # include "sanitizer_atomic_msvc.h"
 #else
 # error "Unsupported compiler"
 #endif
+
+namespace __sanitizer {
+
+// Clutter-reducing helpers.
+
+template<typename T>
+INLINE typename T::Type atomic_load_relaxed(const volatile T *a) {
+  return atomic_load(a, memory_order_relaxed);
+}
+
+template<typename T>
+INLINE void atomic_store_relaxed(volatile T *a, typename T::Type v) {
+  atomic_store(a, v, memory_order_relaxed);
+}
+
+}  // namespace __sanitizer
 
 #endif  // SANITIZER_ATOMIC_H

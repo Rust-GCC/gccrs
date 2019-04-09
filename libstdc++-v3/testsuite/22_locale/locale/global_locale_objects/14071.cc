@@ -1,9 +1,9 @@
-// { dg-require-namedlocale "is_IS" }
-// { dg-require-namedlocale "en_US" }
+// { dg-require-namedlocale "is_IS.ISO8859-1" }
+// { dg-require-namedlocale "en_US.ISO8859-1" }
 
 // 2004-02-09  Petur Runolfsson  <peturr02@ru.is>
 
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,10 +30,9 @@
 void test01()
 {
   using namespace std;
-  bool test __attribute__((unused)) = true;
 
-  const locale loc_is = locale("is_IS");
-  const locale loc_en = locale("en_US");
+  const locale loc_is = locale(ISO_8859(1,is_IS));
+  const locale loc_en = locale(ISO_8859(1,en_US));
 
   const locale loc(loc_is, loc_en, locale::monetary);
 

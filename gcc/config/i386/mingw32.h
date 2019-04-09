@@ -1,6 +1,6 @@
 /* Operating system specific defines to be used when targeting GCC for
    hosting on Windows32, using GNU tools and the Windows32 API Library.
-   Copyright (C) 1997-2014 Free Software Foundation, Inc.
+   Copyright (C) 1997-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -91,6 +91,8 @@ along with GCC; see the file COPYING3.  If not see
 #define LIB_SPEC "%{pg:-lgmon} %{" SPEC_PTHREAD1 ":-lpthread} " \
 		 "%{" SPEC_PTHREAD2 ": } " \
 		 "%{mwindows:-lgdi32 -lcomdlg32} " \
+     "%{fvtable-verify=preinit:-lvtv -lpsapi; \
+        fvtable-verify=std:-lvtv -lpsapi} " \
                  "-ladvapi32 -lshell32 -luser32 -lkernel32"
 
 /* Weak symbols do not get resolved if using a Windows dll import lib.
@@ -98,10 +100,12 @@ along with GCC; see the file COPYING3.  If not see
 #if DWARF2_UNWIND_INFO
 /* DW2-unwind is just available for 32-bit mode.  */
 #if TARGET_64BIT_DEFAULT
-#error DW2 unwind is not available for 64-bit.
-#endif
+#define SHARED_LIBGCC_UNDEFS_SPEC \
+  "%{m32: %{shared-libgcc: -u ___register_frame_info -u ___deregister_frame_info}}"
+#else
 #define SHARED_LIBGCC_UNDEFS_SPEC \
  "%{shared-libgcc: -u ___register_frame_info -u ___deregister_frame_info}"
+#endif
 #else
 #define SHARED_LIBGCC_UNDEFS_SPEC ""
 #endif
@@ -110,12 +114,35 @@ along with GCC; see the file COPYING3.  If not see
 #define SUBTARGET_EXTRA_SPECS						\
   { "shared_libgcc_undefs", SHARED_LIBGCC_UNDEFS_SPEC }
 
+#if ! MINGW_DEFAULT_LARGE_ADDR_AWARE
+/* This is used without --enable-large-address-aware.  */
+# define LINK_SPEC_LARGE_ADDR_AWARE ""
+#elif ! TARGET_BI_ARCH
+/* This is used on i686-pc-mingw32 with --enable-large-address-aware.  */
+# define LINK_SPEC_LARGE_ADDR_AWARE \
+  "%{!shared:%{!mdll:--large-address-aware}}"
+#elif TARGET_64BIT_DEFAULT
+/* This is used on x86_64-pc-mingw32 with --enable-large-address-aware.
+   ??? It probably doesn't work, because the linker emulation defaults
+   to i386pep, the 64-bit mode that does not support
+   --large-address-aware, and x86_64-pc-mingw32 does not override the
+   emulation to i386pe for -m32, unlike x86_64-w64-mingw32.  */
+# define LINK_SPEC_LARGE_ADDR_AWARE \
+  "%{!shared:%{!mdll:%{m32:--large-address-aware}}}"
+#else
+/* This would only be used if someone introduced a biarch
+   configuration that defaulted to 32-bit.  */
+# define LINK_SPEC_LARGE_ADDR_AWARE \
+  "%{!shared:%{!mdll:%{!m64:--large-address-aware}}}"
+#endif
+
 #define LINK_SPEC "%{mwindows:--subsystem windows} \
   %{mconsole:--subsystem console} \
   %{shared: %{mdll: %eshared and mdll are not compatible}} \
   %{shared: --shared} %{mdll:--dll} \
   %{static:-Bstatic} %{!static:-Bdynamic} \
   %{shared|mdll: " SUB_LINK_ENTRY " --enable-auto-image-base} \
+  " LINK_SPEC_LARGE_ADDR_AWARE "\
   %(shared_libgcc_undefs)"
 
 /* Include in the mingw32 libraries with libgcc */
@@ -137,18 +164,24 @@ along with GCC; see the file COPYING3.  If not see
 #undef REAL_LIBGCC_SPEC
 #define REAL_LIBGCC_SPEC \
   "%{mthreads:-lmingwthrd} -lmingw32 \
-   "SHARED_LIBGCC_SPEC" \
+   " SHARED_LIBGCC_SPEC " \
    -lmoldname -lmingwex -lmsvcrt"
 
 #undef STARTFILE_SPEC
 #define STARTFILE_SPEC "%{shared|mdll:dllcrt2%O%s} \
   %{!shared:%{!mdll:crt2%O%s}} %{pg:gcrt2%O%s} \
-  crtbegin.o%s"
+  crtbegin.o%s \
+  %{fvtable-verify=none:%s; \
+    fvtable-verify=preinit:vtv_start.o%s; \
+    fvtable-verify=std:vtv_start.o%s}"
 
 #undef ENDFILE_SPEC
 #define ENDFILE_SPEC \
   "%{Ofast|ffast-math|funsafe-math-optimizations:crtfastmath.o%s} \
    %{!shared:%:if-exists(default-manifest.o%s)}\
+   %{fvtable-verify=none:%s; \
+    fvtable-verify=preinit:vtv_end.o%s; \
+    fvtable-verify=std:vtv_end.o%s} \
   crtend.o%s"
 
 /* Override startfile prefix defaults.  */
@@ -199,7 +232,7 @@ do {						         \
 
 /* mingw32 uses the  -mthreads option to enable thread support.  */
 #undef GOMP_SELF_SPECS
-#define GOMP_SELF_SPECS "%{fopenmp|ftree-parallelize-loops=*: " \
+#define GOMP_SELF_SPECS "%{fopenacc|fopenmp|%:gt(%{ftree-parallelize-loops=*:%*} 1): " \
 			"-mthreads -pthread}"
 #undef GTM_SELF_SPECS
 #define GTM_SELF_SPECS "%{fgnu-tm:-mthreads -pthread}"
@@ -229,9 +262,6 @@ do {						         \
 #undef TARGET_N_FORMAT_TYPES
 #define TARGET_N_FORMAT_TYPES 3
 
-/* Let defaults.h definition of TARGET_USE_JCR_SECTION apply. */
-#undef TARGET_USE_JCR_SECTION
-
 #define HAVE_ENABLE_EXECUTE_STACK
 #undef  CHECK_EXECUTE_STACK_ENABLED
 #define CHECK_EXECUTE_STACK_ENABLED flag_setstackexecutable
@@ -245,5 +275,3 @@ do {						         \
 #endif
 #define LIBGCC_SONAME "libgcc_s" LIBGCC_EH_EXTN "-1.dll"
 
-/* We should find a way to not have to update this manually.  */
-#define LIBGCJ_SONAME "libgcj" /*LIBGCC_EH_EXTN*/ "-13.dll"

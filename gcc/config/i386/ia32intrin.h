@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -49,6 +49,8 @@ __bswapd (int __X)
   return __builtin_bswap32 (__X);
 }
 
+#ifndef __iamcu__
+
 #ifndef __SSE4_2__
 #pragma GCC push_options
 #pragma GCC target("sse4.2")
@@ -82,6 +84,8 @@ __crc32d (unsigned int __C, unsigned int __V)
 #pragma GCC pop_options
 #endif /* __DISABLE_SSE4_2__ */
 
+#endif /* __iamcu__ */
+
 /* 32bit popcnt */
 extern __inline int
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
@@ -89,6 +93,8 @@ __popcntd (unsigned int __X)
 {
   return __builtin_popcount (__X);
 }
+
+#ifndef __iamcu__
 
 /* rdpmc */
 extern __inline unsigned long long
@@ -98,6 +104,8 @@ __rdpmc (int __S)
   return __builtin_ia32_rdpmc (__S);
 }
 
+#endif /* __iamcu__ */
+
 /* rdtsc */
 extern __inline unsigned long long
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
@@ -106,6 +114,8 @@ __rdtsc (void)
   return __builtin_ia32_rdtsc ();
 }
 
+#ifndef __iamcu__
+
 /* rdtscp */
 extern __inline unsigned long long
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
@@ -113,6 +123,8 @@ __rdtscp (unsigned int *__A)
 {
   return __builtin_ia32_rdtscp (__A);
 }
+
+#endif /* __iamcu__ */
 
 /* 8bit rol */
 extern __inline unsigned char
@@ -135,7 +147,8 @@ extern __inline unsigned int
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __rold (unsigned int __X, int __C)
 {
-  return (__X << __C) | (__X >> (32 - __C));
+  __C &= 31;
+  return (__X << __C) | (__X >> (-__C & 31));
 }
 
 /* 8bit ror */
@@ -159,7 +172,8 @@ extern __inline unsigned int
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __rord (unsigned int __X, int __C)
 {
-  return (__X >> __C) | (__X << (32 - __C));
+  __C &= 31;
+  return (__X >> __C) | (__X << (-__C & 31));
 }
 
 /* Pause */
@@ -227,7 +241,8 @@ extern __inline unsigned long long
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __rolq (unsigned long long __X, int __C)
 {
-  return (__X << __C) | (__X >> (64 - __C));
+  __C &= 63;
+  return (__X << __C) | (__X >> (-__C & 63));
 }
 
 /* 64bit ror */
@@ -235,7 +250,8 @@ extern __inline unsigned long long
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 __rorq (unsigned long long __X, int __C)
 {
-  return (__X >> __C) | (__X << (64 - __C));
+  __C &= 63;
+  return (__X >> __C) | (__X << (-__C & 63));
 }
 
 /* Read flags register */
@@ -249,9 +265,9 @@ __readeflags (void)
 /* Write flags register */
 extern __inline void
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
-__writeeflags (unsigned long long X)
+__writeeflags (unsigned long long __X)
 {
-  __builtin_ia32_writeeflags_u64 (X);
+  __builtin_ia32_writeeflags_u64 (__X);
 }
 
 #define _bswap64(a)		__bswapq(a)
@@ -269,9 +285,9 @@ __readeflags (void)
 /* Write flags register */
 extern __inline void
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
-__writeeflags (unsigned int X)
+__writeeflags (unsigned int __X)
 {
-  __builtin_ia32_writeeflags_u32 (X);
+  __builtin_ia32_writeeflags_u32 (__X);
 }
 
 #endif
@@ -290,9 +306,11 @@ __writeeflags (unsigned int X)
 #define _bit_scan_reverse(a)	__bsrd(a)
 #define _bswap(a)		__bswapd(a)
 #define _popcnt32(a)		__popcntd(a)
+#ifndef __iamcu__
 #define _rdpmc(a)		__rdpmc(a)
-#define _rdtsc()		__rdtsc()
 #define _rdtscp(a)		__rdtscp(a)
+#endif /* __iamcu__ */
+#define _rdtsc()		__rdtsc()
 #define _rotwl(a,b)		__rolw((a), (b))
 #define _rotwr(a,b)		__rorw((a), (b))
 #define _rotl(a,b)		__rold((a), (b))

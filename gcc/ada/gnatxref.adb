@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1998-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1998-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,11 +27,11 @@ with Opt;
 with Osint;    use Osint;
 with Types;    use Types;
 with Switch;   use Switch;
-with Xr_Tabls; use Xr_Tabls;
+with Xr_Tabls;
 with Xref_Lib; use Xref_Lib;
 
 with Ada.Command_Line;  use Ada.Command_Line;
-with Ada.Strings.Fixed; use Ada.Strings.Fixed;
+with Ada.Strings.Fixed;
 with Ada.Text_IO;       use Ada.Text_IO;
 
 with GNAT.Command_Line; use GNAT.Command_Line;
@@ -63,6 +63,7 @@ procedure Gnatxref is
    --  Display the usage
 
    procedure Write_Usage;
+   pragma No_Return (Write_Usage);
    --  Print a small help page for program usage
 
    --------------------
@@ -176,16 +177,17 @@ procedure Gnatxref is
                      elsif Src_Path_Name = null
                        and then Lib_Path_Name = null
                      then
-                        Osint.Fail ("RTS path not valid: missing " &
-                                    "adainclude and adalib directories");
+                        Osint.Fail
+                          ("RTS path not valid: missing adainclude and "
+                           & "adalib directories");
 
                      elsif Src_Path_Name = null then
-                        Osint.Fail ("RTS path not valid: missing " &
-                                    "adainclude directory");
+                        Osint.Fail
+                          ("RTS path not valid: missing adainclude directory");
 
-                     elsif  Lib_Path_Name = null then
-                        Osint.Fail ("RTS path not valid: missing " &
-                                    "adalib directory");
+                     elsif Lib_Path_Name = null then
+                        Osint.Fail
+                          ("RTS path not valid: missing adalib directory");
                      end if;
                   end;
 
@@ -200,8 +202,7 @@ procedure Gnatxref is
                      Osint.Fail ("--ext cannot be specified multiple times");
                   end if;
 
-                  if EXT_Specified'Length
-                    = Osint.ALI_Default_Suffix'Length
+                  if EXT_Specified'Length = Osint.ALI_Default_Suffix'Length
                   then
                      Osint.ALI_Suffix := EXT_Specified.all'Access;
                   else
@@ -278,7 +279,7 @@ procedure Gnatxref is
       Put_Line ("   --ext=xxx Specify alternate ali file extension");
       Put_Line ("   --RTS=dir specify the default source and object search"
                 & " path");
-      Put_Line ("   -p file   Use file as the default project file");
+      Put_Line ("   -p file   Use file as the configuration file");
       Put_Line ("   -u        List unused entities");
       Put_Line ("   -v        Print a 'tags' file for vi");
       New_Line;

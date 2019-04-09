@@ -1,10 +1,7 @@
 /* Setting LOGICAL_OP_NON_SHORT_CIRCUIT to 0 inhibits the setcc
    optimizations that expose the VRP opportunity.  */
-/* Skip on S/390.  Lower values in BRANCH_COST lead to two conditional
-   jumps when evaluating an && condition.  VRP is not able to optimize
-   this.  */
-/* { dg-do compile { target { ! { logical_op_short_circuit || { s390*-*-* mn10300-*-* hppa*-*-* } } } } } */
-/* { dg-options "-O2 -fdump-tree-vrp1 -fdump-tree-dom1 -fdump-tree-vrp2" } */
+/* { dg-do compile } */
+/* { dg-options "-O2 -fdump-tree-vrp1 -fdump-tree-dom2 -fdump-tree-vrp2 --param logical-op-non-short-circuit=1" } */
 /* { dg-additional-options "-march=i586" { target { { i?86-*-* x86_64-*-* } && ia32 } } } */
 
 int h(int x, int y)
@@ -44,6 +41,3 @@ int f(int x)
    either 0 or 1.  */
 /* { dg-final { scan-tree-dump-times " & 1;" 0 "vrp2" } } */
 
-/* { dg-final { cleanup-tree-dump "vrp1" } } */
-/* { dg-final { cleanup-tree-dump "dom1" } } */
-/* { dg-final { cleanup-tree-dump "vrp2" } } */

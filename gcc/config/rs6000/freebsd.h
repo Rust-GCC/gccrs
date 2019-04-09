@@ -1,5 +1,5 @@
 /* Definitions for PowerPC running FreeBSD using the ELF format
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2019 Free Software Foundation, Inc.
    Contributed by David E. O'Brien <obrien@FreeBSD.org> and BSDi.
 
    This file is part of GCC.
@@ -17,6 +17,10 @@
    You should have received a copy of the GNU General Public License
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
+
+/* Undef gnu-user.h macros we don't want.  */
+#undef CPLUSPLUS_CPP_SPEC
+#undef LINK_GCC_C_SEQUENCE_SPEC
 
 /* Override the defaults, which exist to force the proper definition.  */
 
@@ -59,20 +63,13 @@
 #undef  WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE 32
 
-/* Override rs6000.h definition.  */
-#undef  ASM_APP_ON
-#define ASM_APP_ON "#APP\n"
-
-/* Override rs6000.h definition.  */
-#undef  ASM_APP_OFF
-#define ASM_APP_OFF "#NO_APP\n"
-
 /* We don't need to generate entries in .fixup, except when
    -mrelocatable or -mrelocatable-lib is given.  */
 #undef RELOCATABLE_NEEDS_FIXUP
 #define RELOCATABLE_NEEDS_FIXUP \
   (rs6000_isa_flags & rs6000_isa_flags_explicit & OPTION_MASK_RELOCATABLE)
 
-#define DBX_REGISTER_NUMBER(REGNO) rs6000_dbx_register_number (REGNO)
+/* Use standard DWARF numbering for DWARF debugging information.  */
+#define RS6000_USE_DWARF_NUMBERING
 
 #define POWERPC_FREEBSD

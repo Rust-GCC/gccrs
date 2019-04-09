@@ -1,6 +1,6 @@
 // Control various target specific ABI tweaks.  Generic version.
 
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,7 +33,7 @@
 #ifdef __cplusplus
 namespace __cxxabiv1
 {
-  extern "C" 
+  extern "C"
   {
 #endif
 
@@ -56,4 +56,4 @@ namespace __cxxabiv1
 } // namespace __cxxabiv1
 #endif
 
-#endif 
+#endif

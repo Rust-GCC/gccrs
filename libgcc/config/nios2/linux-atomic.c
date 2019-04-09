@@ -1,5 +1,5 @@
 /* Linux-specific atomic operations for Nios II Linux.
-   Copyright (C) 2008-2014 Free Software Foundation, Inc.
+   Copyright (C) 2008-2019 Free Software Foundation, Inc.
 
 This file is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -19,11 +19,6 @@ You should have received a copy of the GNU General Public License and
 a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
-
-#include <asm/unistd.h>
-#define EFAULT  14
-#define EBUSY   16
-#define ENOSYS  38
 
 /* We implement byte, short and int versions of each atomic operation
    using the kernel helper defined below.  There is no support for

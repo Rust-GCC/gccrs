@@ -1,9 +1,9 @@
-// { dg-require-namedlocale "en_HK" }
-// { dg-require-namedlocale "de_DE" }
+// { dg-require-namedlocale "en_HK.ISO8859-1" }
+// { dg-require-namedlocale "de_DE.ISO8859-15" }
 
 // 2001-09-21 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,14 +29,13 @@
 void test02()
 {
   using namespace std;
-  bool test __attribute__((unused)) = true;
 
   typedef istreambuf_iterator<char> iterator_type;
 
   // basic construction and sanity checks.
   locale loc_c = locale::classic();
-  locale loc_hk = locale("en_HK");
-  locale loc_de = locale("de_DE");
+  locale loc_hk = locale(ISO_8859(1,en_HK));
+  locale loc_de = locale(ISO_8859(15,de_DE));
   VERIFY( loc_hk != loc_c );
   VERIFY( loc_hk != loc_de );
 
@@ -54,7 +53,7 @@ void test02()
   iss.imbue(loc_de);
   const time_get<char>& tim_get = use_facet<time_get<char> >(iss.getloc()); 
 
-  // inspection of named locales, de_DE
+  // inspection of named locales, de_DE.ISO8859-15
   iss.str("April");
   iterator_type is_it10(iss);
   tm time10;

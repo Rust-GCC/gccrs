@@ -1,9 +1,9 @@
 /* { dg-do compile { target { powerpc*-*-* } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
 /* { dg-require-effective-target powerpc_vsx_ok } */
 /* { dg-options "-O -mvsx -mno-altivec" } */
 
-/* { dg-warning "-mvsx and -mno-altivec are incompatible" "" { target *-*-* } 1 } */
+/* { dg-warning "'-mvsx' and '-mno-altivec' are incompatible" "" { target *-*-* } 0 } */
 
 double
 foo (double *x, double *y)

@@ -13,7 +13,7 @@
     Type(t),Target :: x
     Call sub(x)
     Print *,x%c
-    if (x%c /= 3) call abort ()
+    if (x%c /= 3) STOP 1
   Contains
     Subroutine sub(p)
       Class(t),Pointer,Intent(In) :: p
@@ -22,4 +22,3 @@
   End Program
 
 ! { dg-final { scan-tree-dump-times "sub \\(&class" 1 "original" } }
-! { dg-final { cleanup-tree-dump "original" } }

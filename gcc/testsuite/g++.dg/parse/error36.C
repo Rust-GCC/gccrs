@@ -12,7 +12,7 @@ void f(T t)
 {
   typedef A<T>::foo type;	// { dg-error "typename" }
   A<T>::bar b;			// { dg-error "typename" "typename" }
-} // { dg-error "expected ';'" "expected" { target *-*-* } 14 }
+} // { dg-error "expected ';'" "expected" { target *-*-* } .-1 }
 
 // PR c++/36353
 template <class T> struct B
@@ -20,12 +20,12 @@ template <class T> struct B
   void f()
   {
     A<T>::baz z;		// { dg-error "typename" "typename" }
-  } // { dg-error "expected ';'" "expected" { target *-*-* } 22 }
+  } // { dg-error "expected ';'" "expected" { target *-*-* } .-1 }
 };
 
 // PR c++/40738
 template <class T>
-void g(const A<T>::type &t);	// { dg-error "typename" "typename" }
+void g(const A<T>::type &t);	// { dg-error "typename" }
 
 // PR c++/18451
-template <class T> A<T>::B A<T>::b; // { dg-error "typename" }
+template <class T> A<T>::B A<T>::b; // { dg-error "typename" "" { target c++17_down } }

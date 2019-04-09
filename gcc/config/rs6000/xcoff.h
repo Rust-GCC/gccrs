@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for some generic XCOFF file format
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -75,18 +75,21 @@
 
 #define ASM_OUTPUT_SPECIAL_POOL_ENTRY_P(X, MODE)			\
   (TARGET_TOC								\
-   && (GET_CODE (X) == SYMBOL_REF					\
+   && (SYMBOL_REF_P (X)							\
        || (GET_CODE (X) == CONST && GET_CODE (XEXP (X, 0)) == PLUS	\
-	   && GET_CODE (XEXP (XEXP (X, 0), 0)) == SYMBOL_REF)		\
+	   && SYMBOL_REF_P (XEXP (XEXP (X, 0), 0)))			\
        || GET_CODE (X) == LABEL_REF					\
-       || (GET_CODE (X) == CONST_INT 					\
+       || (CONST_INT_P (X)						\
 	   && GET_MODE_BITSIZE (MODE) <= GET_MODE_BITSIZE (Pmode))	\
-       || (GET_CODE (X) == CONST_DOUBLE					\
+       || (CONST_DOUBLE_P (X)						\
 	   && (TARGET_MINIMAL_TOC					\
 	       || (SCALAR_FLOAT_MODE_P (GET_MODE (X))			\
 		   && ! TARGET_NO_FP_IN_TOC)))))
 
+#undef TARGET_DEBUG_UNWIND_INFO
+#define TARGET_DEBUG_UNWIND_INFO  rs6000_xcoff_debug_unwind_info
 #define TARGET_ASM_OUTPUT_ANCHOR  rs6000_xcoff_asm_output_anchor
+#define TARGET_ASM_GLOBALIZE_DECL_NAME  rs6000_xcoff_asm_globalize_decl_name
 #define TARGET_ASM_GLOBALIZE_LABEL  rs6000_xcoff_asm_globalize_label
 #define TARGET_ASM_INIT_SECTIONS  rs6000_xcoff_asm_init_sections
 #define TARGET_ASM_RELOC_RW_MASK  rs6000_xcoff_reloc_rw_mask
@@ -100,6 +103,7 @@
 #ifdef HAVE_AS_TLS
 #define TARGET_ENCODE_SECTION_INFO rs6000_xcoff_encode_section_info
 #endif
+#define ASM_OUTPUT_ALIGNED_DECL_COMMON  rs6000_xcoff_asm_output_aligned_decl_common
 
 /* FP save and restore routines.  */
 #define	SAVE_FP_PREFIX "._savef"
@@ -155,7 +159,6 @@
 #define ASM_OUTPUT_EXTERNAL(FILE, DECL, NAME)				\
 { char *buffer = (char *) alloca (strlen (NAME) + 1);			\
   char *p;								\
-  rtx _symref = XEXP (DECL_RTL (DECL), 0);				\
   int dollar_inside = 0;						\
   strcpy (buffer, NAME);						\
   p = strchr (buffer, '$');						\
@@ -168,16 +171,7 @@
       fputs ("\t.extern .", FILE);					\
       RS6000_OUTPUT_BASENAME (FILE, buffer);				\
       putc ('\n', FILE);						\
-      fprintf(FILE, "\t.rename .%s,\".%s\"\n", buffer, NAME);		\
-    }									\
-  if ((TREE_CODE (DECL) == VAR_DECL					\
-       || TREE_CODE (DECL) == FUNCTION_DECL)				\
-      && (NAME)[strlen (NAME) - 1] != ']')				\
-    {									\
-      XSTR (_symref, 0) = concat (XSTR (_symref, 0),			\
-				  (TREE_CODE (DECL) == FUNCTION_DECL	\
-				   ? "[DS]" : "[RW]"),			\
-				  NULL);				\
+      fprintf (FILE, "\t.rename .%s,\".%s\"\n", buffer, NAME);		\
     }									\
 }
 
@@ -185,7 +179,7 @@
    `assemble_name' uses this.  */
 
 #define ASM_OUTPUT_LABELREF(FILE,NAME)	\
-  asm_fprintf ((FILE), "%U%s", rs6000_xcoff_strip_dollar (NAME));
+  asm_fprintf ((FILE), "%U%s", rs6000_xcoff_strip_dollar (NAME))
 
 /* This is how to output an internal label prefix.  rs6000.c uses this
    when generating traceback tables.  */
@@ -218,24 +212,12 @@
 #define SKIP_ASM_OP "\t.space "
 
 #define ASM_OUTPUT_SKIP(FILE,SIZE)  \
-  fprintf (FILE, "%s"HOST_WIDE_INT_PRINT_UNSIGNED"\n", SKIP_ASM_OP, (SIZE))
+  fprintf (FILE, "%s" HOST_WIDE_INT_PRINT_UNSIGNED"\n", SKIP_ASM_OP, (SIZE))
 
 /* This says how to output an assembler line
    to define a global common symbol.  */
 
 #define COMMON_ASM_OP "\t.comm "
-
-#define ASM_OUTPUT_ALIGNED_COMMON(FILE, NAME, SIZE, ALIGN)	\
-  do { fputs (COMMON_ASM_OP, (FILE));			\
-       RS6000_OUTPUT_BASENAME ((FILE), (NAME));		\
-       if ((ALIGN) > 32)				\
-	 fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n", (SIZE), \
-		  floor_log2 ((ALIGN) / BITS_PER_UNIT)); \
-       else if ((SIZE) > 4)				\
-         fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",3\n", (SIZE)); \
-       else						\
-	 fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE)); \
-  } while (0)
 
 /* This says how to output an assembler line
    to define a local common symbol.
@@ -251,14 +233,15 @@
   do { fputs (LOCAL_COMMON_ASM_OP, (FILE));			\
        RS6000_OUTPUT_BASENAME ((FILE), (NAME));			\
        if ((ALIGN) > 32)					\
-	 fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%s,%u\n",	\
+	 fprintf ((FILE), "," HOST_WIDE_INT_PRINT_UNSIGNED",%s%u_,%u\n",	\
 		  (SIZE), xcoff_bss_section_name,			\
+		  floor_log2 ((ALIGN) / BITS_PER_UNIT),			\
 		  floor_log2 ((ALIGN) / BITS_PER_UNIT));		\
        else if ((SIZE) > 4)					\
-	 fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%s,3\n",	\
+	 fprintf ((FILE), "," HOST_WIDE_INT_PRINT_UNSIGNED",%s3_,3\n",	\
 		  (SIZE), xcoff_bss_section_name);		\
        else							\
-	 fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%s\n",	\
+	 fprintf ((FILE), "," HOST_WIDE_INT_PRINT_UNSIGNED",%s,2\n",	\
 		  (SIZE), xcoff_bss_section_name);		\
      } while (0)
 #endif
@@ -266,16 +249,16 @@
 #define ASM_OUTPUT_LOCAL(FILE, NAME, SIZE, ROUNDED)	\
   do { fputs (LOCAL_COMMON_ASM_OP, (FILE));		\
        RS6000_OUTPUT_BASENAME ((FILE), (NAME));		\
-       fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%s\n", \
+       fprintf ((FILE), "," HOST_WIDE_INT_PRINT_UNSIGNED",%s\n", \
 		(TARGET_32BIT ? (SIZE) : (ROUNDED)),	\
 		xcoff_bss_section_name);		\
      } while (0)
 
 #ifdef HAVE_AS_TLS
 #define ASM_OUTPUT_TLS_COMMON(FILE, DECL, NAME, SIZE)	\
-  do { fputs(COMMON_ASM_OP, (FILE));			\
+  do { fputs (COMMON_ASM_OP, (FILE));			\
        RS6000_OUTPUT_BASENAME ((FILE), (NAME));		\
-       fprintf ((FILE), "[UL],"HOST_WIDE_INT_PRINT_UNSIGNED"\n", \
+       fprintf ((FILE), "[UL]," HOST_WIDE_INT_PRINT_UNSIGNED"\n", \
        (SIZE));						\
   } while (0)
 #endif
@@ -305,10 +288,29 @@
   "\t.csect .data[RW]," XCOFF_CSECT_DEFAULT_ALIGNMENT_STR
 
 
-/* Define to prevent DWARF2 unwind info in the data section rather
-   than in the .eh_frame section.  We do this because the AIX linker
-   would otherwise garbage collect these sections.  */
-#define EH_FRAME_IN_DATA_SECTION 1
+/* The eh_frames are put in the read-only text segment.
+   Local code labels/function will also be in the local text segment so use
+   PC relative addressing.
+   Global symbols must be in the data segment to allow loader relocations.
+   So use DW_EH_PE_indirect to allocate a slot in the local data segment.
+   There is no constant offset to this data segment from the text segment,
+   so use addressing relative to the data segment.
+ */
+#define ASM_PREFERRED_EH_DATA_FORMAT(CODE,GLOBAL) \
+  (((GLOBAL) ? DW_EH_PE_indirect | DW_EH_PE_datarel : DW_EH_PE_pcrel) \
+   | (TARGET_64BIT ? DW_EH_PE_sdata8 : DW_EH_PE_sdata4))
+
+#define EH_FRAME_THROUGH_COLLECT2 1
+#define EH_TABLES_CAN_BE_READ_ONLY 1
+
+/* AIX Assembler implicitly assumes DWARF 64 bit extension in 64 bit mode.  */
+#define DWARF_OFFSET_SIZE PTR_SIZE
+
+#define ASM_OUTPUT_DWARF_PCREL(FILE,SIZE,LABEL) \
+  rs6000_asm_output_dwarf_pcrel ((FILE), (SIZE), (LABEL));
+
+#define ASM_OUTPUT_DWARF_DATAREL(FILE,SIZE,LABEL) \
+  rs6000_asm_output_dwarf_datarel ((FILE), (SIZE), (LABEL));
 
 #define MAKE_DECL_ONE_ONLY(DECL) (DECL_WEAK (DECL) = 1)
 

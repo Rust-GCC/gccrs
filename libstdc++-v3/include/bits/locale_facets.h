@@ -1,6 +1,6 @@
 // Locale support -*- C++ -*-
 
-// Copyright (C) 1997-2014 Free Software Foundation, Inc.
+// Copyright (C) 1997-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -54,8 +54,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // NB: Don't instantiate required wchar_t facets if no wchar_t support.
 #ifdef _GLIBCXX_USE_WCHAR_T
 # define  _GLIBCXX_NUM_FACETS 28
+# define  _GLIBCXX_NUM_CXX11_FACETS 16
 #else
 # define  _GLIBCXX_NUM_FACETS 14
+# define  _GLIBCXX_NUM_CXX11_FACETS 8
+#endif
+#ifdef _GLIBCXX_USE_CHAR8_T
+# define _GLIBCXX_NUM_UNICODE_FACETS 4
+#else
+# define _GLIBCXX_NUM_UNICODE_FACETS 2
 #endif
 
   // Convert string to numeric value of type _Tp and store results.
@@ -893,7 +900,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       {
 	if (_M_widen_ok == 1)
 	  {
-	    __builtin_memcpy(__to, __lo, __hi - __lo);
+	    if (__builtin_expect(__hi != __lo, true))
+	      __builtin_memcpy(__to, __lo, __hi - __lo);
 	    return __hi;
 	  }
 	if (!_M_widen_ok)
@@ -958,7 +966,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       {
 	if (__builtin_expect(_M_narrow_ok == 1, true))
 	  {
-	    __builtin_memcpy(__to, __lo, __hi - __lo);
+	    if (__builtin_expect(__hi != __lo, true))
+	      __builtin_memcpy(__to, __lo, __hi - __lo);
 	    return __hi;
 	  }
 	if (!_M_narrow_ok)
@@ -1097,7 +1106,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       virtual const char*
       do_widen(const char* __lo, const char* __hi, char_type* __to) const
       {
-	__builtin_memcpy(__to, __lo, __hi - __lo);
+	if (__builtin_expect(__hi != __lo, true))
+	  __builtin_memcpy(__to, __lo, __hi - __lo);
 	return __hi;
       }
 
@@ -1121,7 +1131,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        *  @return  The converted char.
       */
       virtual char
-      do_narrow(char_type __c, char __dfault) const
+      do_narrow(char_type __c, char __dfault __attribute__((__unused__))) const
       { return __c; }
 
       /**
@@ -1148,9 +1158,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       */
       virtual const char_type*
       do_narrow(const char_type* __lo, const char_type* __hi,
-		char __dfault, char* __to) const
+		char __dfault __attribute__((__unused__)), char* __to) const
       {
-	__builtin_memcpy(__to, __lo, __hi - __lo);
+	if (__builtin_expect(__hi != __lo, true))
+	  __builtin_memcpy(__to, __lo, __hi - __lo);
 	return __hi;
       }
 
@@ -1472,9 +1483,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       explicit
       ctype_byname(const char* __s, size_t __refs = 0);
 
+#if __cplusplus >= 201103L
+      explicit
+      ctype_byname(const string& __s, size_t __refs = 0)
+      : ctype_byname(__s.c_str(), __refs) { }
+#endif
+
     protected:
       virtual
-      ~ctype_byname() { };
+      ~ctype_byname() { }
     };
 
   /// 22.2.1.4  Class ctype_byname specializations.
@@ -1484,6 +1501,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     public:
       explicit
       ctype_byname(const char* __s, size_t __refs = 0);
+
+#if __cplusplus >= 201103L
+      explicit
+      ctype_byname(const string& __s, size_t __refs = 0);
+#endif
 
     protected:
       virtual
@@ -1497,6 +1519,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     public:
       explicit
       ctype_byname(const char* __s, size_t __refs = 0);
+
+#if __cplusplus >= 201103L
+      explicit
+      ctype_byname(const string& __s, size_t __refs = 0);
+#endif
 
     protected:
       virtual
@@ -1622,6 +1649,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  delete [] _M_falsename;
 	}
     }
+
+_GLIBCXX_BEGIN_NAMESPACE_CXX11
 
   /**
    *  @brief  Primary class template numpunct.
@@ -1891,10 +1920,18 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  }
       }
 
+#if __cplusplus >= 201103L
+      explicit
+      numpunct_byname(const string& __s, size_t __refs = 0)
+      : numpunct_byname(__s.c_str(), __refs) { }
+#endif
+
     protected:
       virtual
       ~numpunct_byname() { }
     };
+
+_GLIBCXX_END_NAMESPACE_CXX11
 
 _GLIBCXX_BEGIN_NAMESPACE_LDBL
 
@@ -2107,11 +2144,13 @@ _GLIBCXX_BEGIN_NAMESPACE_LDBL
       /// Destructor.
       virtual ~num_get() { }
 
+      _GLIBCXX_DEFAULT_ABI_TAG
       iter_type
       _M_extract_float(iter_type, iter_type, ios_base&, ios_base::iostate&,
 		       string&) const;
 
       template<typename _ValueT>
+	_GLIBCXX_DEFAULT_ABI_TAG
 	iter_type
 	_M_extract_int(iter_type, iter_type, ios_base&, ios_base::iostate&,
 		       _ValueT&) const;
@@ -2451,7 +2490,7 @@ _GLIBCXX_BEGIN_NAMESPACE_LDBL
 
       /// Destructor.
       virtual
-      ~num_put() { };
+      ~num_put() { }
 
       //@{
       /**
@@ -2589,6 +2628,14 @@ _GLIBCXX_END_NAMESPACE_LDBL
     inline bool
     isgraph(_CharT __c, const locale& __loc)
     { return use_facet<ctype<_CharT> >(__loc).is(ctype_base::graph, __c); }
+
+#if __cplusplus >= 201103L
+  /// Convenience interface to ctype.is(ctype_base::blank, __c).
+  template<typename _CharT>
+    inline bool
+    isblank(_CharT __c, const locale& __loc)
+    { return use_facet<ctype<_CharT> >(__loc).is(ctype_base::blank, __c); }
+#endif
 
   /// Convenience interface to ctype.toupper(__c).
   template<typename _CharT>

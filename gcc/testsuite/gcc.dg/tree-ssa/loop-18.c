@@ -3,7 +3,7 @@
    i is first extended to 64-bit type).  */
 
 /* { dg-options "-O2 -fdump-tree-optimized" } */
-/* { dg-do compile { target x86_64-*-* } } */
+/* { dg-do compile { target i?86-*-* x86_64-*-* } } */
 
 unsigned bar(void);
 
@@ -21,4 +21,3 @@ void foo(unsigned *p, unsigned n)
 /* { dg-final { scan-tree-dump-times "MEM" 1 "optimized" } } */
 /* { dg-final { scan-tree-dump-times "\[^\\n\\r\]*= \\* " 0 "optimized" } } */
 
-/* { dg-final { cleanup-tree-dump "optimized" } } */

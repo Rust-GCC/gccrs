@@ -1,4 +1,4 @@
-/* Copyright (C) 1999-2014 Free Software Foundation, Inc.
+/* Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -70,7 +70,7 @@ VXWORKS_LINK_SPEC
 #define FUNCTION_PROFILER VXWORKS_FUNCTION_PROFILER
 
 #undef SUBTARGET_ASM_SPEC
-#define SUBTARGET_ASM_SPEC "%{mrtp:%{fPIC|fpic:-mvxworks-pic}}"
+#define SUBTARGET_ASM_SPEC "%{mrtp:%{" FPIC_SPEC ":-mvxworks-pic}}"
 
 #undef SUBTARGET_OVERRIDE_OPTIONS
 #define SUBTARGET_OVERRIDE_OPTIONS VXWORKS_OVERRIDE_OPTIONS

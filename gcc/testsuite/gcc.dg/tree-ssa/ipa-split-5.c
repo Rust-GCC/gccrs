@@ -20,6 +20,23 @@ struct a split_me (int a)
       retval = make_me_big (a);
       retval = make_me_big (a);
       retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
+      retval = make_me_big (a);
       return retval;
     }
 }
@@ -33,6 +50,4 @@ test()
   split_me (val);
 }
 /* { dg-final { scan-tree-dump-times "Splitting function" 1 "fnsplit"} } */
-/* { dg-final { cleanup-tree-dump "fnsplit" } } */
 /* { dg-final { scan-tree-dump "part" "optimized"} } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

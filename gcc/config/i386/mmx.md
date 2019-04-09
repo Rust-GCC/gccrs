@@ -1,5 +1,5 @@
 ;; GCC machine description for MMX and 3dNOW! instructions
-;; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -78,9 +78,9 @@
 
 (define_insn "*mov<mode>_internal"
   [(set (match_operand:MMXMODE 0 "nonimmediate_operand"
-    "=r ,o ,r,r ,m ,?!y,!y,?!y,m  ,r   ,?!Ym,v,v,v,m,*x,*x,*x,m ,r ,Yi,!Ym,*Yi")
-	(match_operand:MMXMODE 1 "vector_move_operand"
-    "rCo,rC,C,rm,rC,C  ,!y,m  ,?!y,?!Yn,r   ,C,v,m,v,C ,*x,m ,*x,Yj,r ,*Yj,!Yn"))]
+    "=r ,o ,r,r ,m ,?!y,!y,?!y,m  ,r  ,?!y,v,v,v,m,r,v,!y,*x")
+	(match_operand:MMXMODE 1 "nonimm_or_0_operand"
+    "rCo,rC,C,rm,rC,C  ,!y,m  ,?!y,?!y,r  ,C,v,m,v,v,r,*x,!y"))]
   "TARGET_MMX
    && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
 {
@@ -112,7 +112,7 @@
 	return "movdq2q\t{%1, %0|%0, %1}";
 
     case TYPE_SSELOG1:
-      return standard_sse_constant_opcode (insn, operands[1]);
+      return standard_sse_constant_opcode (insn, operands);
 
     case TYPE_SSEMOV:
       switch (get_attr_mode (insn))
@@ -146,8 +146,12 @@
   [(set (attr "isa")
      (cond [(eq_attr "alternative" "0,1")
 	      (const_string "nox64")
-	    (eq_attr "alternative" "2,3,4,9,10,11,12,13,14,19,20")
+	    (eq_attr "alternative" "2,3,4,9,10")
 	      (const_string "x64")
+	    (eq_attr "alternative" "15,16")
+	      (const_string "x64_sse2")
+	    (eq_attr "alternative" "17,18")
+	      (const_string "sse2")
 	   ]
 	   (const_string "*")))
    (set (attr "type")
@@ -159,14 +163,14 @@
 	      (const_string "mmx")
 	    (eq_attr "alternative" "6,7,8,9,10")
 	      (const_string "mmxmov")
-	    (eq_attr "alternative" "11,15")
+	    (eq_attr "alternative" "11")
 	      (const_string "sselog1")
-	    (eq_attr "alternative" "21,22")
+	    (eq_attr "alternative" "17,18")
 	      (const_string "ssecvt")
 	   ]
 	   (const_string "ssemov")))
    (set (attr "prefix_rex")
-     (if_then_else (eq_attr "alternative" "9,10,19,20")
+     (if_then_else (eq_attr "alternative" "9,10,15,16")
        (const_string "1")
        (const_string "*")))
    (set (attr "prefix")
@@ -181,7 +185,7 @@
    (set (attr "mode")
      (cond [(eq_attr "alternative" "2")
 	      (const_string "SI")
-	    (eq_attr "alternative" "11,12,15,16")
+	    (eq_attr "alternative" "11,12")
 	      (cond [(ior (match_operand 0 "ext_sse_reg_operand")
 			  (match_operand 1 "ext_sse_reg_operand"))
 			(const_string "XI")
@@ -197,19 +201,31 @@
 		    ]
 		    (const_string "TI"))
 
-	    (and (eq_attr "alternative" "13,14,17,18")
+	    (and (eq_attr "alternative" "13,14")
 	    	 (ior (match_test "<MODE>mode == V2SFmode")
 		      (not (match_test "TARGET_SSE2"))))
 	      (const_string "V2SF")
 	   ]
-	   (const_string "DI")))])
+	   (const_string "DI")))
+   (set (attr "preferred_for_speed")
+     (cond [(eq_attr "alternative" "9,15")
+	      (symbol_ref "TARGET_INTER_UNIT_MOVES_FROM_VEC")
+	    (eq_attr "alternative" "10,16")
+	      (symbol_ref "TARGET_INTER_UNIT_MOVES_TO_VEC")
+	   ]
+	   (symbol_ref "true")))])
 
 (define_split
-  [(set (match_operand:MMXMODE 0 "nonimmediate_operand")
-        (match_operand:MMXMODE 1 "general_operand"))]
-  "!TARGET_64BIT && reload_completed
-   && !(MMX_REG_P (operands[0]) || SSE_REG_P (operands[0]))
-   && !(MMX_REG_P (operands[1]) || SSE_REG_P (operands[1]))"
+  [(set (match_operand:MMXMODE 0 "nonimmediate_gr_operand")
+        (match_operand:MMXMODE 1 "nonimmediate_gr_operand"))]
+  "!TARGET_64BIT && reload_completed"
+  [(const_int 0)]
+  "ix86_split_long_move (operands); DONE;")
+
+(define_split
+  [(set (match_operand:MMXMODE 0 "nonimmediate_gr_operand")
+        (match_operand:MMXMODE 1 "const0_operand"))]
+  "!TARGET_64BIT && reload_completed"
   [(const_int 0)]
   "ix86_split_long_move (operands); DONE;")
 
@@ -296,10 +312,6 @@
    (set_attr "prefix_extra" "1")
    (set_attr "mode" "V2SF")])
 
-;; ??? For !flag_finite_math_only, the representation with SMIN/SMAX
-;; isn't really correct, as those rtl operators aren't defined when
-;; applied to NaNs.  Hopefully the optimizers won't get too smart on us.
-
 (define_expand "mmx_<code>v2sf3"
   [(set (match_operand:V2SF 0 "register_operand")
         (smaxmin:V2SF
@@ -307,30 +319,47 @@
 	  (match_operand:V2SF 2 "nonimmediate_operand")))]
   "TARGET_3DNOW"
 {
-  if (!flag_finite_math_only)
-    operands[1] = force_reg (V2SFmode, operands[1]);
-  ix86_fixup_binary_operands_no_copy (<CODE>, V2SFmode, operands);
+  if (!flag_finite_math_only || flag_signed_zeros)
+    {
+      operands[1] = force_reg (V2SFmode, operands[1]);
+      emit_insn (gen_mmx_ieee_<maxmin_float>v2sf3
+		 (operands[0], operands[1], operands[2]));
+      DONE;
+    }
+  else
+    ix86_fixup_binary_operands_no_copy (<CODE>, V2SFmode, operands);
 })
 
-(define_insn "*mmx_<code>v2sf3_finite"
+;; These versions of the min/max patterns are intentionally ignorant of
+;; their behavior wrt -0.0 and NaN (via the commutative operand mark).
+;; Since both the tree-level MAX_EXPR and the rtl-level SMAX operator
+;; are undefined in this condition, we're certain this is correct.
+
+(define_insn "*mmx_<code>v2sf3"
   [(set (match_operand:V2SF 0 "register_operand" "=y")
         (smaxmin:V2SF
 	  (match_operand:V2SF 1 "nonimmediate_operand" "%0")
 	  (match_operand:V2SF 2 "nonimmediate_operand" "ym")))]
-  "TARGET_3DNOW && flag_finite_math_only
-   && ix86_binary_operator_ok (<CODE>, V2SFmode, operands)"
+  "TARGET_3DNOW && ix86_binary_operator_ok (<CODE>, V2SFmode, operands)"
   "pf<maxmin_float>\t{%2, %0|%0, %2}"
   [(set_attr "type" "mmxadd")
    (set_attr "prefix_extra" "1")
    (set_attr "mode" "V2SF")])
 
-(define_insn "*mmx_<code>v2sf3"
+;; These versions of the min/max patterns implement exactly the operations
+;;   min = (op1 < op2 ? op1 : op2)
+;;   max = (!(op1 < op2) ? op1 : op2)
+;; Their operands are not commutative, and thus they may be used in the
+;; presence of -0.0 and NaN.
+
+(define_insn "mmx_ieee_<ieee_maxmin>v2sf3"
   [(set (match_operand:V2SF 0 "register_operand" "=y")
-        (smaxmin:V2SF
-	  (match_operand:V2SF 1 "register_operand" "0")
-	  (match_operand:V2SF 2 "nonimmediate_operand" "ym")))]
+        (unspec:V2SF
+	  [(match_operand:V2SF 1 "register_operand" "0")
+	   (match_operand:V2SF 2 "nonimmediate_operand" "ym")]
+	  IEEE_MAXMIN))]
   "TARGET_3DNOW"
-  "pf<maxmin_float>\t{%2, %0|%0, %2}"
+  "pf<ieee_maxmin>\t{%2, %0|%0, %2}"
   [(set_attr "type" "mmxadd")
    (set_attr "prefix_extra" "1")
    (set_attr "mode" "V2SF")])
@@ -560,7 +589,7 @@
   [(set (match_operand:V2SF 0 "register_operand"     "=y,y")
 	(vec_concat:V2SF
 	  (match_operand:SF 1 "nonimmediate_operand" " 0,rm")
-	  (match_operand:SF 2 "vector_move_operand"  "ym,C")))]
+	  (match_operand:SF 2 "nonimm_or_0_operand"  "ym,C")))]
   "TARGET_MMX && !TARGET_SSE"
   "@
    punpckldq\t{%2, %0|%0, %2}
@@ -590,30 +619,36 @@
   "#"
   "&& reload_completed"
   [(set (match_dup 0) (match_dup 1))]
-{
-  if (REG_P (operands[1]))
-    operands[1] = gen_rtx_REG (SFmode, REGNO (operands[1]));
-  else
-    operands[1] = adjust_address (operands[1], SFmode, 0);
-})
+  "operands[1] = gen_lowpart (SFmode, operands[1]);")
 
 ;; Avoid combining registers from different units in a single alternative,
 ;; see comment above inline_secondary_memory_needed function in i386.c
 (define_insn "*vec_extractv2sf_1"
-  [(set (match_operand:SF 0 "nonimmediate_operand"     "=y,x,y,x,f,r")
+  [(set (match_operand:SF 0 "nonimmediate_operand"     "=y,x,x,y,x,f,r")
 	(vec_select:SF
-	  (match_operand:V2SF 1 "nonimmediate_operand" " 0,0,o,o,o,o")
+	  (match_operand:V2SF 1 "nonimmediate_operand" " 0,x,x,o,o,o,o")
 	  (parallel [(const_int 1)])))]
   "TARGET_MMX && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
    punpckhdq\t%0, %0
-   unpckhps\t%0, %0
+   %vmovshdup\t{%1, %0|%0, %1}
+   shufps\t{$0xe5, %1, %0|%0, %1, 0xe5}
    #
    #
    #
    #"
-  [(set_attr "type" "mmxcvt,sselog1,mmxmov,ssemov,fmov,imov")
-   (set_attr "mode" "DI,V4SF,SF,SF,SF,SF")])
+  [(set_attr "isa" "*,sse3,noavx,*,*,*,*")
+   (set_attr "type" "mmxcvt,sse,sseshuf1,mmxmov,ssemov,fmov,imov")
+   (set (attr "length_immediate")
+     (if_then_else (eq_attr "alternative" "2")
+		   (const_string "1")
+		   (const_string "*")))
+   (set (attr "prefix_rep")
+     (if_then_else (eq_attr "alternative" "1")
+		   (const_string "1")
+		   (const_string "*")))
+   (set_attr "prefix" "orig,maybe_vex,orig,orig,orig,orig,orig")
+   (set_attr "mode" "DI,V4SF,V4SF,SF,SF,SF,SF")])
 
 (define_split
   [(set (match_operand:SF 0 "register_operand")
@@ -624,7 +659,7 @@
   [(set (match_dup 0) (match_dup 1))]
   "operands[1] = adjust_address (operands[1], SFmode, 4);")
 
-(define_expand "vec_extractv2sf"
+(define_expand "vec_extractv2sfsf"
   [(match_operand:SF 0 "register_operand")
    (match_operand:V2SF 1 "register_operand")
    (match_operand 2 "const_int_operand")]
@@ -635,7 +670,7 @@
   DONE;
 })
 
-(define_expand "vec_initv2sf"
+(define_expand "vec_initv2sfsf"
   [(match_operand:V2SF 0 "register_operand")
    (match_operand 1)]
   "TARGET_SSE"
@@ -913,7 +948,7 @@
   [(set (match_operand:MMXMODE24 0 "register_operand" "=y")
         (ashiftrt:MMXMODE24
 	  (match_operand:MMXMODE24 1 "register_operand" "0")
-	  (match_operand:SI 2 "nonmemory_operand" "yN")))]
+	  (match_operand:DI 2 "nonmemory_operand" "yN")))]
   "TARGET_MMX"
   "psra<mmxvecsize>\t{%2, %0|%0, %2}"
   [(set_attr "type" "mmxshft")
@@ -927,7 +962,7 @@
   [(set (match_operand:MMXMODE248 0 "register_operand" "=y")
         (any_lshift:MMXMODE248
 	  (match_operand:MMXMODE248 1 "register_operand" "0")
-	  (match_operand:SI 2 "nonmemory_operand" "yN")))]
+	  (match_operand:DI 2 "nonmemory_operand" "yN")))]
   "TARGET_MMX"
   "p<vshift><mmxvecsize>\t{%2, %0|%0, %2}"
   [(set_attr "type" "mmxshft")
@@ -1248,7 +1283,7 @@
   [(set (match_operand:V2SI 0 "register_operand"     "=y,y")
 	(vec_concat:V2SI
 	  (match_operand:SI 1 "nonimmediate_operand" " 0,rm")
-	  (match_operand:SI 2 "vector_move_operand"  "ym,C")))]
+	  (match_operand:SI 2 "nonimm_or_0_operand"  "ym,C")))]
   "TARGET_MMX && !TARGET_SSE"
   "@
    punpckldq\t{%2, %0|%0, %2}
@@ -1278,36 +1313,31 @@
   "#"
   "&& reload_completed"
   [(set (match_dup 0) (match_dup 1))]
-{
-  if (REG_P (operands[1]))
-    operands[1] = gen_rtx_REG (SImode, REGNO (operands[1]));
-  else
-    operands[1] = adjust_address (operands[1], SImode, 0);
-})
+  "operands[1] = gen_lowpart (SImode, operands[1]);")
 
 ;; Avoid combining registers from different units in a single alternative,
 ;; see comment above inline_secondary_memory_needed function in i386.c
 (define_insn "*vec_extractv2si_1"
-  [(set (match_operand:SI 0 "nonimmediate_operand"     "=y,x,x,x,y,x,r")
+  [(set (match_operand:SI 0 "nonimmediate_operand"     "=y,x,x,y,x,r")
 	(vec_select:SI
-	  (match_operand:V2SI 1 "nonimmediate_operand" " 0,0,x,0,o,o,o")
+	  (match_operand:V2SI 1 "nonimmediate_operand" " 0,x,x,o,o,o")
 	  (parallel [(const_int 1)])))]
   "TARGET_MMX && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
    punpckhdq\t%0, %0
-   punpckhdq\t%0, %0
-   pshufd\t{$85, %1, %0|%0, %1, 85}
-   unpckhps\t%0, %0
+   %vpshufd\t{$0xe5, %1, %0|%0, %1, 0xe5}
+   shufps\t{$0xe5, %1, %0|%0, %1, 0xe5}
    #
    #
    #"
-  [(set (attr "isa")
+  [(set_attr "isa" "*,sse2,noavx,*,*,*")
+   (set_attr "type" "mmxcvt,sseshuf1,sseshuf1,mmxmov,ssemov,imov")
+   (set (attr "length_immediate")
      (if_then_else (eq_attr "alternative" "1,2")
-       (const_string "sse2")
-       (const_string "*")))
-   (set_attr "type" "mmxcvt,sselog1,sselog1,sselog1,mmxmov,ssemov,imov")
-   (set_attr "length_immediate" "*,*,1,*,*,*,*")
-   (set_attr "mode" "DI,TI,TI,V4SF,SI,SI,SI")])
+		   (const_string "1")
+		   (const_string "*")))
+   (set_attr "prefix" "orig,maybe_vex,orig,orig,orig,orig")
+   (set_attr "mode" "DI,TI,V4SF,SI,SI,SI")])
 
 (define_split
   [(set (match_operand:SI 0 "register_operand")
@@ -1324,15 +1354,16 @@
 	  (vec_select:SI
 	    (match_operand:V2SI 1 "memory_operand" "o,o,o")
 	    (parallel [(match_operand:SI 2 "const_0_to_1_operand")]))))]
-  "TARGET_64BIT && TARGET_MMX"
+  "TARGET_64BIT"
   "#"
   "&& reload_completed"
   [(set (match_dup 0) (zero_extend:DI (match_dup 1)))]
 {
   operands[1] = adjust_address (operands[1], SImode, INTVAL (operands[2]) * 4);
-})
+}
+  [(set_attr "isa" "*,sse2,*")])
 
-(define_expand "vec_extractv2si"
+(define_expand "vec_extractv2sisi"
   [(match_operand:SI 0 "register_operand")
    (match_operand:V2SI 1 "register_operand")
    (match_operand 2 "const_int_operand")]
@@ -1343,7 +1374,7 @@
   DONE;
 })
 
-(define_expand "vec_initv2si"
+(define_expand "vec_initv2sisi"
   [(match_operand:V2SI 0 "register_operand")
    (match_operand 1)]
   "TARGET_SSE"
@@ -1363,7 +1394,7 @@
   DONE;
 })
 
-(define_expand "vec_extractv4hi"
+(define_expand "vec_extractv4hihi"
   [(match_operand:HI 0 "register_operand")
    (match_operand:V4HI 1 "register_operand")
    (match_operand 2 "const_int_operand")]
@@ -1374,7 +1405,7 @@
   DONE;
 })
 
-(define_expand "vec_initv4hi"
+(define_expand "vec_initv4hihi"
   [(match_operand:V4HI 0 "register_operand")
    (match_operand 1)]
   "TARGET_SSE"
@@ -1394,7 +1425,7 @@
   DONE;
 })
 
-(define_expand "vec_extractv8qi"
+(define_expand "vec_extractv8qiqi"
   [(match_operand:QI 0 "register_operand")
    (match_operand:V8QI 1 "register_operand")
    (match_operand 2 "const_int_operand")]
@@ -1405,7 +1436,7 @@
   DONE;
 })
 
-(define_expand "vec_initv8qi"
+(define_expand "vec_initv8qiqi"
   [(match_operand:V8QI 0 "register_operand")
    (match_operand 1)]
   "TARGET_SSE"
@@ -1544,70 +1575,37 @@
   ;; @@@ check ordering of operands in intel/nonintel syntax
   "maskmovq\t{%2, %1|%1, %2}"
   [(set_attr "type" "mmxcvt")
+   (set_attr "znver1_decode" "vector")
    (set_attr "mode" "DI")])
 
-(define_expand "mmx_emms"
-  [(match_par_dup 0 [(const_int 0)])]
-  "TARGET_MMX"
-{
-  int regno;
+(define_int_iterator EMMS
+  [(UNSPECV_EMMS "TARGET_MMX")
+   (UNSPECV_FEMMS "TARGET_3DNOW")])
 
-  operands[0] = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (17));
+(define_int_attr emms
+  [(UNSPECV_EMMS "emms")
+   (UNSPECV_FEMMS "femms")])
 
-  XVECEXP (operands[0], 0, 0)
-    = gen_rtx_UNSPEC_VOLATILE (VOIDmode, gen_rtvec (1, const0_rtx),
-			       UNSPECV_EMMS);
-
-  for (regno = 0; regno < 8; regno++)
-    {
-      XVECEXP (operands[0], 0, regno + 1)
-	= gen_rtx_CLOBBER (VOIDmode,
-			   gen_rtx_REG (XFmode, FIRST_STACK_REG + regno));
-
-      XVECEXP (operands[0], 0, regno + 9)
-	= gen_rtx_CLOBBER (VOIDmode,
-			   gen_rtx_REG (DImode, FIRST_MMX_REG + regno));
-    }
-})
-
-(define_insn "*mmx_emms"
-  [(match_parallel 0 "emms_operation"
-    [(unspec_volatile [(const_int 0)] UNSPECV_EMMS)])]
-  "TARGET_MMX"
-  "emms"
-  [(set_attr "type" "mmx")
-   (set_attr "modrm" "0")
-   (set_attr "memory" "none")])
-
-(define_expand "mmx_femms"
-  [(match_par_dup 0 [(const_int 0)])]
-  "TARGET_3DNOW"
-{
-  int regno;
-
-  operands[0] = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (17));
-
-  XVECEXP (operands[0], 0, 0)
-    = gen_rtx_UNSPEC_VOLATILE (VOIDmode, gen_rtvec (1, const0_rtx),
-			       UNSPECV_FEMMS);
-
-  for (regno = 0; regno < 8; regno++)
-    {
-      XVECEXP (operands[0], 0, regno + 1)
-	= gen_rtx_CLOBBER (VOIDmode,
-			   gen_rtx_REG (XFmode, FIRST_STACK_REG + regno));
-
-      XVECEXP (operands[0], 0, regno + 9)
-	= gen_rtx_CLOBBER (VOIDmode,
-			   gen_rtx_REG (DImode, FIRST_MMX_REG + regno));
-    }
-})
-
-(define_insn "*mmx_femms"
-  [(match_parallel 0 "emms_operation"
-    [(unspec_volatile [(const_int 0)] UNSPECV_FEMMS)])]
-  "TARGET_3DNOW"
-  "femms"
+(define_insn "mmx_<emms>"
+  [(unspec_volatile [(const_int 0)] EMMS)
+   (clobber (reg:XF ST0_REG))
+   (clobber (reg:XF ST1_REG))
+   (clobber (reg:XF ST2_REG))
+   (clobber (reg:XF ST3_REG))
+   (clobber (reg:XF ST4_REG))
+   (clobber (reg:XF ST5_REG))
+   (clobber (reg:XF ST6_REG))
+   (clobber (reg:XF ST7_REG))
+   (clobber (reg:DI MM0_REG))
+   (clobber (reg:DI MM1_REG))
+   (clobber (reg:DI MM2_REG))
+   (clobber (reg:DI MM3_REG))
+   (clobber (reg:DI MM4_REG))
+   (clobber (reg:DI MM5_REG))
+   (clobber (reg:DI MM6_REG))
+   (clobber (reg:DI MM7_REG))]
+  ""
+  "<emms>"
   [(set_attr "type" "mmx")
    (set_attr "modrm" "0")
    (set_attr "memory" "none")])

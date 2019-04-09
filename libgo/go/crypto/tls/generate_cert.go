@@ -10,6 +10,8 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -26,12 +28,40 @@ import (
 )
 
 var (
-	host      = flag.String("host", "", "Comma-separated hostnames and IPs to generate a certificate for")
-	validFrom = flag.String("start-date", "", "Creation date formatted as Jan 1 15:04:05 2011")
-	validFor  = flag.Duration("duration", 365*24*time.Hour, "Duration that certificate is valid for")
-	isCA      = flag.Bool("ca", false, "whether this cert should be its own Certificate Authority")
-	rsaBits   = flag.Int("rsa-bits", 2048, "Size of RSA key to generate")
+	host       = flag.String("host", "", "Comma-separated hostnames and IPs to generate a certificate for")
+	validFrom  = flag.String("start-date", "", "Creation date formatted as Jan 1 15:04:05 2011")
+	validFor   = flag.Duration("duration", 365*24*time.Hour, "Duration that certificate is valid for")
+	isCA       = flag.Bool("ca", false, "whether this cert should be its own Certificate Authority")
+	rsaBits    = flag.Int("rsa-bits", 2048, "Size of RSA key to generate. Ignored if --ecdsa-curve is set")
+	ecdsaCurve = flag.String("ecdsa-curve", "", "ECDSA curve to use to generate a key. Valid values are P224, P256 (recommended), P384, P521")
 )
+
+func publicKey(priv interface{}) interface{} {
+	switch k := priv.(type) {
+	case *rsa.PrivateKey:
+		return &k.PublicKey
+	case *ecdsa.PrivateKey:
+		return &k.PublicKey
+	default:
+		return nil
+	}
+}
+
+func pemBlockForKey(priv interface{}) *pem.Block {
+	switch k := priv.(type) {
+	case *rsa.PrivateKey:
+		return &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(k)}
+	case *ecdsa.PrivateKey:
+		b, err := x509.MarshalECPrivateKey(k)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to marshal ECDSA private key: %v", err)
+			os.Exit(2)
+		}
+		return &pem.Block{Type: "EC PRIVATE KEY", Bytes: b}
+	default:
+		return nil
+	}
+}
 
 func main() {
 	flag.Parse()
@@ -40,7 +70,23 @@ func main() {
 		log.Fatalf("Missing required --host parameter")
 	}
 
-	priv, err := rsa.GenerateKey(rand.Reader, *rsaBits)
+	var priv interface{}
+	var err error
+	switch *ecdsaCurve {
+	case "":
+		priv, err = rsa.GenerateKey(rand.Reader, *rsaBits)
+	case "P224":
+		priv, err = ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+	case "P256":
+		priv, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	case "P384":
+		priv, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	case "P521":
+		priv, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+	default:
+		fmt.Fprintf(os.Stderr, "Unrecognized elliptic curve: %q", *ecdsaCurve)
+		os.Exit(1)
+	}
 	if err != nil {
 		log.Fatalf("failed to generate private key: %s", err)
 	}
@@ -91,7 +137,7 @@ func main() {
 		template.KeyUsage |= x509.KeyUsageCertSign
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, publicKey(priv), priv)
 	if err != nil {
 		log.Fatalf("Failed to create certificate: %s", err)
 	}
@@ -100,16 +146,24 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to open cert.pem for writing: %s", err)
 	}
-	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	certOut.Close()
-	log.Print("written cert.pem\n")
+	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		log.Fatalf("failed to write data to cert.pem: %s", err)
+	}
+	if err := certOut.Close(); err != nil {
+		log.Fatalf("error closing cert.pem: %s", err)
+	}
+	log.Print("wrote cert.pem\n")
 
 	keyOut, err := os.OpenFile("key.pem", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		log.Print("failed to open key.pem for writing:", err)
 		return
 	}
-	pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
-	keyOut.Close()
-	log.Print("written key.pem\n")
+	if err := pem.Encode(keyOut, pemBlockForKey(priv)); err != nil {
+		log.Fatalf("failed to write data to key.pem: %s", err)
+	}
+	if err := keyOut.Close(); err != nil {
+		log.Fatalf("error closing key.pem: %s", err)
+	}
+	log.Print("wrote key.pem\n")
 }

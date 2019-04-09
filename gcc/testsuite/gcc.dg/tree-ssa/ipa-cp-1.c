@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O3 -fdump-tree-optimized -fno-inline" } */
+/* { dg-options "-O3 -fdump-tree-optimized -fno-inline --param ipa-cp-eval-threshold=100" } */
 /* { dg-add-options bind_pic_locally } */
 
 int
@@ -18,4 +18,3 @@ blah ()
 }
 /* One appearance for dump, one self recursive call and one call from main.  */
 /* { dg-final { scan-tree-dump-times "very_long_function.constprop \\(\\)" 3 "optimized"} } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

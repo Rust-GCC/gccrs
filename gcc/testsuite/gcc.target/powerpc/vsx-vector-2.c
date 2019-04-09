@@ -1,14 +1,14 @@
 /* { dg-do compile { target { powerpc*-*-* && lp64 } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
 /* { dg-require-effective-target powerpc_vsx_ok } */
-/* { dg-options "-O2 -ftree-vectorize -mcpu=power7 -ffast-math" } */
+/* { dg-options "-O2 -ftree-vectorize -mdejagnu-cpu=power7 -ffast-math" } */
 /* { dg-final { scan-assembler "xvaddsp" } } */
 /* { dg-final { scan-assembler "xvsubsp" } } */
 /* { dg-final { scan-assembler "xvmulsp" } } */
 /* { dg-final { scan-assembler "xvdivsp" } } */
-/* { dg-final { scan-assembler "xvmadd" } } */
+/* { dg-final { scan-assembler "vmadd" } } */
 /* { dg-final { scan-assembler "xvmsub" } } */
-/* { dg-final { scan-assembler "xvsqrtsp" } } */
+/* { dg-final { scan-assembler "xvrsqrtesp" } } */
 /* { dg-final { scan-assembler "xvcpsgnsp" } } */
 /* { dg-final { scan-assembler "xvrspim" } } */
 /* { dg-final { scan-assembler "xvrspip" } } */

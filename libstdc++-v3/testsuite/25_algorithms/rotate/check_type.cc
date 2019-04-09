@@ -1,4 +1,4 @@
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,19 +26,19 @@ struct X { };
 
 bool operator<(X,X) { return true;}
 
-void
+__gnu_test::forward_iterator_wrapper<X>
 test1(__gnu_test::forward_iterator_wrapper<X>& begin,
       __gnu_test::forward_iterator_wrapper<X>& middle,
       __gnu_test::forward_iterator_wrapper<X>& end)
 { return std::rotate(begin,middle,end); }
 
-void
+__gnu_test::bidirectional_iterator_wrapper<X>
 test1(__gnu_test::bidirectional_iterator_wrapper<X>& begin,
       __gnu_test::bidirectional_iterator_wrapper<X>& middle,
       __gnu_test::bidirectional_iterator_wrapper<X>& end)
 { return std::rotate(begin,middle,end); }
 
-void
+__gnu_test::random_access_iterator_wrapper<X>
 test1(__gnu_test::random_access_iterator_wrapper<X>& begin,
       __gnu_test::random_access_iterator_wrapper<X>& middle,
       __gnu_test::random_access_iterator_wrapper<X>& end)

@@ -1,6 +1,6 @@
 // MT-optimized allocator -*- C++ -*-
 
-// Copyright (C) 2003-2014 Free Software Foundation, Inc.
+// Copyright (C) 2003-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -355,7 +355,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
 
       // XXX GLIBCXX_ABI Deprecated
-      _GLIBCXX_CONST void 
+      void
       _M_destroy_thread_key(void*) throw ();
 
       size_t 
@@ -665,7 +665,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       ~__mt_alloc() _GLIBCXX_USE_NOEXCEPT { }
 
-      pointer
+      _GLIBCXX_NODISCARD pointer
       allocate(size_type __n, const void* = 0);
 
       void
@@ -684,12 +684,21 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     };
 
   template<typename _Tp, typename _Poolp>
-    typename __mt_alloc<_Tp, _Poolp>::pointer
+    _GLIBCXX_NODISCARD typename __mt_alloc<_Tp, _Poolp>::pointer
     __mt_alloc<_Tp, _Poolp>::
     allocate(size_type __n, const void*)
     {
       if (__n > this->max_size())
 	std::__throw_bad_alloc();
+
+#if __cpp_aligned_new
+      // Types with extended alignment are handled by operator new/delete.
+      if (alignof(_Tp) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)
+	{
+	  std::align_val_t __al = std::align_val_t(alignof(_Tp));
+	  return static_cast<_Tp*>(::operator new(__n * sizeof(_Tp), __al));
+	}
+#endif
 
       __policy_type::_S_initialize_once();
 
@@ -737,6 +746,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       if (__builtin_expect(__p != 0, true))
 	{
+#if __cpp_aligned_new
+	  // Types with extended alignment are handled by operator new/delete.
+	  if (alignof(_Tp) > __STDCPP_DEFAULT_NEW_ALIGNMENT__)
+	    {
+	      ::operator delete(__p, std::align_val_t(alignof(_Tp)));
+	      return;
+	    }
+#endif
+
 	  // Requests larger than _M_max_bytes are handled by
 	  // operators new/delete directly.
 	  __pool_type& __pool = __policy_type::_S_get_pool();

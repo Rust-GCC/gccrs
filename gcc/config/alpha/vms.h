@@ -1,5 +1,5 @@
 /* Output variables, constants and external declarations, for GNU compiler.
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -219,7 +219,7 @@ typedef struct {int num_args; enum avms_arg_type atypes[6];} avms_arg_info;
 /* This is how to advance the location counter by SIZE bytes.  */
 
 #define ASM_OUTPUT_SKIP(FILE,SIZE)  \
-  fprintf (FILE, "\t.space "HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE))
+  fprintf (FILE, "\t.space " HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE))
 
 /* This says how to output an assembler line
    to define a global common symbol.  */
@@ -227,7 +227,7 @@ typedef struct {int num_args; enum avms_arg_type atypes[6];} avms_arg_info;
 #define ASM_OUTPUT_LOCAL(FILE, NAME, SIZE,ROUNDED)	\
 ( fputs ("\t.lcomm ", (FILE)),				\
   assemble_name ((FILE), (NAME)),			\
-  fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE)))
+  fprintf ((FILE), "," HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE)))
 
 /* Switch into a generic section.  */
 #define TARGET_ASM_NAMED_SECTION vms_asm_named_section

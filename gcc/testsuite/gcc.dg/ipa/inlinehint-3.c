@@ -1,4 +1,6 @@
 /* { dg-options "-O3 -c -fdump-ipa-inline-details -fno-early-inlining -fno-ipa-cp"  } */
+/* { dg-add-options bind_pic_locally } */
+
 void abort (void);
 int scc_entry (int);
 int sum;
@@ -36,4 +38,3 @@ main()
 /* { dg-final { scan-ipa-dump "same_scc"  "inline"  } } */
 /* Main is not in scc, the two functions are.  */
 /* { dg-final { scan-ipa-dump-times "In SCC" 2 "inline"  } } */
-/* { dg-final { cleanup-ipa-dump "inline" } } */

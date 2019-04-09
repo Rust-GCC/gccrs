@@ -1,5 +1,5 @@
 # -*- shell-script -*-
-#  Copyright (C) 2012-2014 Free Software Foundation, Inc.
+#  Copyright (C) 2012-2019 Free Software Foundation, Inc.
 #  Contributed by Richard Henderson <rth@redhat.com>.
 #
 #  This file is part of the GNU Atomic Library (libatomic).
@@ -26,6 +26,10 @@
 # Map the target cpu to an ARCH sub-directory.  At the same time,
 # work out any special compilation flags as necessary.
 
+# Give operating systems the opportunity to discard XCFLAGS modifications based
+# on ${target_cpu}.  For example to allow proper use of multilibs.
+configure_tgt_pre_target_cpu_XCFLAGS="${XCFLAGS}"
+
 case "${target_cpu}" in
   alpha*)
 	# fenv.c needs this option to generate inexact exceptions.
@@ -33,14 +37,30 @@ case "${target_cpu}" in
 	ARCH=alpha
 	;;
   rs6000 | powerpc*)	ARCH=powerpc ;;
+  riscv*)		ARCH=riscv ;;
   sh*)			ARCH=sh ;;
 
+  aarch64*)
+	ARCH=aarch64
+	case "${target}" in
+	    aarch64*-*-linux*)
+		if test -n "$enable_aarch64_lse"; then
+		    try_ifunc=yes
+		fi
+		;;
+	esac
+	;;
   arm*)
 	ARCH=arm
-	# ??? Detect when -march=armv7 is already enabled.
-	try_ifunc=yes
-	;;
-
+	case "${target}" in
+            arm*-*-freebsd*)
+                ;;
+            *)
+                # ??? Detect when -march=armv7 is already enabled.
+                try_ifunc=yes
+                ;;
+        esac
+        ;;
   sparc)
 	case " ${CC} ${CFLAGS} " in
 	  *" -m64 "*)
@@ -99,13 +119,23 @@ fi
 
 # Other system configury
 case "${target}" in
+  aarch64*-*-linux*)
+	# OS support for atomic primitives.
+	config_path="${config_path} linux/aarch64 posix"
+	;;
+
   arm*-*-linux*)
 	# OS support for atomic primitives.
 	config_path="${config_path} linux/arm posix"
 	;;
 
+  s390*-*-linux*)
+	# OS support for atomic primitives.
+	config_path="${config_path} s390 posix"
+	;;
+
   *-*-linux* | *-*-gnu* | *-*-k*bsd*-gnu \
-  | *-*-netbsd* | *-*-freebsd* | *-*-openbsd* \
+  | *-*-netbsd* | *-*-freebsd* | *-*-openbsd* | *-*-dragonfly* \
   | *-*-solaris2* | *-*-sysv4* | *-*-irix6* | *-*-osf* | *-*-hpux11* \
   | *-*-darwin* | *-*-aix* | *-*-cygwin*)
 	# POSIX system.  The OS is supported.
@@ -123,6 +153,12 @@ case "${target}" in
             ;;
         esac
 	;;
+
+  *-*-rtems*)
+	XCFLAGS="${configure_tgt_pre_target_cpu_XCFLAGS}"
+	config_path="rtems"
+	;;
+
   *-*-elf*)
 	# ??? No target OS.  We could be targeting bare-metal kernel-mode,
 	# or user-mode for some custom OS.  If the target supports TAS,
@@ -135,5 +171,16 @@ case "${target}" in
   *)
 	# Who are you?
 	UNSUPPORTED=1
+	;;
+esac
+
+# glibc will pass hwcap to ifunc resolver functions as an argument.
+# The type may be different on different architectures.
+case "${target}" in
+  aarch64*-*-*)
+	IFUNC_RESOLVER_ARGS="uint64_t hwcap"
+	;;
+  *)
+	IFUNC_RESOLVER_ARGS="void"
 	;;
 esac

@@ -6,28 +6,9 @@
 
 package syscall
 
-import "unsafe"
-
-//sys	Openat(dirfd int, path string, flags int, mode uint32) (fd int, err error)
-//__go_openat(dirfd _C_int, path *byte, flags _C_int, mode Mode_t) _C_int
-
-//sys	futimesat(dirfd int, path *byte, times *[2]Timeval) (err error)
-//futimesat(dirfd _C_int, path *byte, times *[2]Timeval) _C_int
-func Futimesat(dirfd int, path string, tv []Timeval) (err error) {
-	if len(tv) != 2 {
-		return EINVAL
-	}
-	return futimesat(dirfd, StringBytePtr(path), (*[2]Timeval)(unsafe.Pointer(&tv[0])))
-}
-
-func Futimes(fd int, tv []Timeval) (err error) {
-	// Believe it or not, this is the best we can do on GNU/Linux
-	// (and is what glibc does).
-	return Utimes("/proc/self/fd/"+itoa(fd), tv)
-}
-
-//sys	ptrace(request int, pid int, addr uintptr, data uintptr) (err error)
-//ptrace(request _C_int, pid Pid_t, addr *byte, data *byte) _C_long
+import (
+	"unsafe"
+)
 
 //sysnb raw_ptrace(request int, pid int, addr *byte, data *byte) (err Errno)
 //ptrace(request _C_int, pid Pid_t, addr *byte, data *byte) _C_long
@@ -166,109 +147,18 @@ func Reboot(cmd int) (err error) {
 	return reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, cmd, "")
 }
 
-//sys	accept4(fd int, sa *RawSockaddrAny, len *Socklen_t, flags int) (nfd int, err error)
-//accept4(fd _C_int, sa *RawSockaddrAny, len *Socklen_t, flags _C_int) _C_int
-
-func Accept4(fd int, flags int) (nfd int, sa Sockaddr, err error) {
-	var rsa RawSockaddrAny
-	var len Socklen_t = SizeofSockaddrAny
-	nfd, err = accept4(fd, &rsa, &len, flags)
-	if err != nil {
-		return -1, nil, err
-	}
-	sa, err = anyToSockaddr(&rsa)
-	if err != nil {
-		Close(nfd)
-		return -1, nil, err
-	}
-	return nfd, sa, nil
-}
-
 //sys	Acct(path string) (err error)
 //acct(path *byte) _C_int
 
 //sys	Adjtimex(buf *Timex) (state int, err error)
 //adjtimex(buf *Timex) _C_int
 
-//sysnb	Dup3(oldfd int, newfd int, flags int) (err error)
-//dup3(oldfd _C_int, newfd _C_int, flags _C_int) _C_int
-
-//sys	Faccessat(dirfd int, path string, mode uint32, flags int) (err error)
-//faccessat(dirfd _C_int, pathname *byte, mode _C_int, flags _C_int) _C_int
-
-//sys	Fallocate(fd int, mode uint32, off int64, len int64) (err error)
-//fallocate(fd _C_int, mode _C_int, offset Offset_t, len Offset_t) _C_int
-
-//sys	Fchmodat(dirfd int, path string, mode uint32, flags int) (err error)
-//fchmodat(dirfd _C_int, pathname *byte, mode Mode_t, flags _C_int) _C_int
-
-//sys	Fchownat(dirfd int, path string, uid int, gid int, flags int) (err error)
-//fchownat(dirfd _C_int, path *byte, owner Uid_t, group Gid_t, flags _C_int) _C_int
-
-//sys	Flock(fd int, how int) (err error)
-//flock(fd _C_int, how _C_int) _C_int
-
 //sys	Fstatfs(fd int, buf *Statfs_t) (err error)
-//fstatfs(fd _C_int, buf *Statfs_t) _C_int
+//fstatfs64(fd _C_int, buf *Statfs_t) _C_int
 
 func Gettid() (tid int) {
 	r1, _, _ := Syscall(SYS_GETTID, 0, 0, 0)
 	return int(r1)
-}
-
-func Getdents(fd int, buf []byte) (n int, err error) {
-	var p *byte
-	if len(buf) > 0 {
-		p = &buf[0]
-	} else {
-		p = (*byte)(unsafe.Pointer(&_zero))
-	}
-	Entersyscall()
-	s := SYS_GETDENTS64
-	if s == 0 {
-		s = SYS_GETDENTS
-	}
-	r1, _, errno := Syscall(uintptr(s), uintptr(fd), uintptr(unsafe.Pointer(p)), uintptr(len(buf)))
-	n = int(r1)
-	if n < 0 {
-		err = errno
-	}
-	Exitsyscall()
-	return
-}
-
-func clen(n []byte) int {
-	for i := 0; i < len(n); i++ {
-		if n[i] == 0 {
-			return i
-		}
-	}
-	return len(n)
-}
-
-func ReadDirent(fd int, buf []byte) (n int, err error) {
-	return Getdents(fd, buf)
-}
-
-func ParseDirent(buf []byte, max int, names []string) (consumed int, count int, newnames []string) {
-	origlen := len(buf)
-	count = 0
-	for max != 0 && len(buf) > 0 {
-		dirent := (*Dirent)(unsafe.Pointer(&buf[0]))
-		buf = buf[dirent.Reclen:]
-		if dirent.Ino == 0 { // File absent in directory.
-			continue
-		}
-		bytes := (*[10000]byte)(unsafe.Pointer(&dirent.Name[0]))
-		var name = string(bytes[0:clen(bytes[:])])
-		if name == "." || name == ".." { // Useless names
-			continue
-		}
-		max--
-		count++
-		names = append(names, name)
-	}
-	return origlen - len(buf), count, names
 }
 
 //sys	Getxattr(path string, attr string, dest []byte) (sz int, err error)
@@ -292,25 +182,6 @@ func ParseDirent(buf []byte, max int, names []string) (consumed int, count int, 
 //sys	Listxattr(path string, dest []byte) (sz int, err error)
 //listxattr(path *byte, list *byte, size Size_t) Ssize_t
 
-//sys	Mkdirat(dirfd int, path string, mode uint32) (err error)
-//mkdirat(dirfd _C_int, path *byte, mode Mode_t) _C_int
-
-//sys	Mknodat(dirfd int, path string, mode uint32, dev int) (err error)
-//mknodat(dirfd _C_int, path *byte, mode Mode_t, dev _dev_t) _C_int
-
-//sysnb	pipe2(p *[2]_C_int, flags int) (err error)
-//pipe2(p *[2]_C_int, flags _C_int) _C_int
-func Pipe2(p []int, flags int) (err error) {
-	if len(p) != 2 {
-		return EINVAL
-	}
-	var pp [2]_C_int
-	err = pipe2(&pp, flags)
-	p[0] = int(pp[0])
-	p[1] = int(pp[1])
-	return
-}
-
 //sys	PivotRoot(newroot string, putold string) (err error)
 //pivot_root(newroot *byte, putold *byte) _C_int
 
@@ -319,24 +190,6 @@ func Pipe2(p []int, flags int) (err error) {
 
 //sys	Renameat(olddirfd int, oldpath string, newdirfd int, newpath string) (err error)
 //renameat(olddirfd _C_int, oldpath *byte, newdirfd _C_int, newpath *byte) _C_int
-
-//sys	sendfile(outfd int, infd int, offset *Offset_t, count int) (written int, err error)
-//sendfile64(outfd _C_int, infd _C_int, offset *Offset_t, count Size_t) Ssize_t
-func Sendfile(outfd int, infd int, offset *int64, count int) (written int, err error) {
-	if raceenabled {
-		raceReleaseMerge(unsafe.Pointer(&ioSync))
-	}
-	var soff Offset_t
-	var psoff *Offset_t
-	if offset != nil {
-		psoff = &soff
-	}
-	written, err = sendfile(outfd, infd, psoff, count)
-	if offset != nil {
-		*offset = int64(soff)
-	}
-	return
-}
 
 //sys	Setfsgid(gid int) (err error)
 //setfsgid(gid Gid_t) _C_int
@@ -379,10 +232,7 @@ func Splice(rfd int, roff *int64, wfd int, woff *int64, len int, flags int) (n i
 }
 
 //sys	Statfs(path string, buf *Statfs_t) (err error)
-//statfs(path *byte, buf *Statfs_t) _C_int
-
-//sys	SyncFileRange(fd int, off int64, n int64, flags int) (err error)
-//sync_file_range(fd _C_int, off Offset_t, n Offset_t, flags _C_uint) _C_int
+//statfs64(path *byte, buf *Statfs_t) _C_int
 
 //sysnb	Sysinfo(info *Sysinfo_t) (err error)
 //sysinfo(info *Sysinfo_t) _C_int
@@ -410,6 +260,3 @@ func Unlinkat(dirfd int, path string) (err error) {
 
 //sys	Unshare(flags int) (err error)
 //unshare(flags _C_int) _C_int
-
-//sys	Ustat(dev int, ubuf *Ustat_t) (err error)
-//ustat(dev _dev_t, ubuf *Ustat_t) _C_int

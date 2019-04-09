@@ -1,10 +1,12 @@
 /* { dg-options "-O -fgraphite-identity" } */
+/* { dg-require-effective-target nonlocal_goto } */
 
 #include <setjmp.h>
 
 struct x;
 
 typedef struct x **(*a)(struct x *);
+void d (const char *);
 
 struct x {
     union {

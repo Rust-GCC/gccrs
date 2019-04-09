@@ -1,5 +1,5 @@
 ;;- Predicate definitions for the pdp11 for GNU C compiler
-;; Copyright (C) 1994-2014 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2019 Free Software Foundation, Inc.
 ;; Contributed by Michael K. Gschwind (mike@vlsivie.tuwien.ac.at).
 
 ;; This file is part of GCC.
@@ -23,17 +23,20 @@
   (ior (match_operand 0 "register_operand")
        (match_test "op == CONST0_RTX (GET_MODE (op))")))
 
-;; Accept integer arguments in the range -4..-2 and 2..4, which are the
+;; Accept integer arguments in the range 1..3, which are the
 ;; shift counts for which we unroll a shift.  This matches the rule for
 ;; the "O" constraint.
 (define_predicate "expand_shift_operand"
-  (match_code "const_int")
-{
-  int sh;
+  (and (match_code "const_int")
+       (match_test "(unsigned) INTVAL (op) < 4")))
 
-  sh = INTVAL (op);
-  return (abs (sh) > 1 && abs (sh) <= 4);
-})
+;; Accept integer arguments +1 and -1, for which add and sub can be
+;; done as inc or dec instructions.  This matches the rule for the
+;; L and M constraints.
+(define_predicate "incdec_operand"
+  (and (match_code "const_int")
+       (ior (match_test "INTVAL (op) == -1")
+	    (match_test "INTVAL (op) == 1"))))
 
 ;; Accept anything general_operand accepts, except that registers must
 ;; be FPU registers.
@@ -52,3 +55,7 @@
 		 (match_test "REGNO_REG_CLASS (REGNO (op)) == LOAD_FPU_REGS")
 		 (match_test "REGNO_REG_CLASS (REGNO (op)) == NO_LOAD_FPU_REGS"))
 		(match_operand 0 "nonimmediate_operand")))
+
+;; Accept any comparison valid for CCNZmode
+(define_predicate "ccnz_operator"
+  (match_code "eq,ne,ge,lt"))

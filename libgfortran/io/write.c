@@ -1,4 +1,4 @@
-/* Copyright (C) 2002-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by Andy Vaught
    Namelist output contributed by Paul Thomas
    F2003 I/O support contributed by Jerry DeLisle
@@ -25,13 +25,13 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
 #include "io.h"
+#include "fbuf.h"
 #include "format.h"
 #include "unix.h"
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
-#include <stdlib.h>
-#include <errno.h>
+
 #define star_fill(p, n) memset(p, '*', n)
 
 typedef unsigned char uchar;
@@ -43,7 +43,7 @@ static void
 memcpy4 (gfc_char4_t *dest, const char *source, int k)
 {
   int j;
-  
+
   const char *p = source;
   for (j = 0; j < k; j++)
     *dest++ = (gfc_char4_t) *p++;
@@ -62,7 +62,7 @@ write_default_char4 (st_parameter_dt *dtp, const gfc_char4_t *source,
   int j, k = 0;
   gfc_char4_t c;
   uchar d;
-      
+
   /* Take care of preceding blanks.  */
   if (w_len > src_len)
     {
@@ -152,7 +152,7 @@ write_utf8_char4 (st_parameter_dt *dtp, gfc_char4_t *source,
   static const uchar masks[6] =  { 0x00, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC };
   static const uchar limits[6] = { 0x80, 0xE0, 0xF0, 0xF8, 0xFC, 0xFE };
   int nbytes;
-  uchar buf[6], d, *q; 
+  uchar buf[6], d, *q;
 
   /* Take care of preceding blanks.  */
   if (w_len > src_len)
@@ -227,15 +227,148 @@ write_utf8_char4 (st_parameter_dt *dtp, gfc_char4_t *source,
 }
 
 
-void
-write_a (st_parameter_dt *dtp, const fnode *f, const char *source, int len)
+/* Check the first character in source if we are using CC_FORTRAN
+   and set the cc.type appropriately.   The cc.type is used later by write_cc
+   to determine the output start-of-record, and next_record_cc to determine the
+   output end-of-record.
+   This function is called before the output buffer is allocated, so alloc_len
+   is set to the appropriate size to allocate.  */
+
+static void
+write_check_cc (st_parameter_dt *dtp, const char **source, size_t *alloc_len)
 {
-  int wlen;
+  /* Only valid for CARRIAGECONTROL=FORTRAN.  */
+  if (dtp->u.p.current_unit->flags.cc != CC_FORTRAN
+      || alloc_len == NULL || source == NULL)
+    return;
+
+  /* Peek at the first character.  */
+  int c = (*alloc_len > 0) ? (*source)[0] : EOF;
+  if (c != EOF)
+    {
+      /* The start-of-record character which will be printed.  */
+      dtp->u.p.cc.u.start = '\n';
+      /* The number of characters to print at the start-of-record.
+	 len  > 1 means copy the SOR character multiple times.
+	 len == 0 means no SOR will be output.  */
+      dtp->u.p.cc.len = 1;
+
+      switch (c)
+	{
+	case '+':
+	  dtp->u.p.cc.type = CCF_OVERPRINT;
+	  dtp->u.p.cc.len = 0;
+	  break;
+	case '-':
+	  dtp->u.p.cc.type = CCF_ONE_LF;
+	  dtp->u.p.cc.len = 1;
+	  break;
+	case '0':
+	  dtp->u.p.cc.type = CCF_TWO_LF;
+	  dtp->u.p.cc.len = 2;
+	  break;
+	case '1':
+	  dtp->u.p.cc.type = CCF_PAGE_FEED;
+	  dtp->u.p.cc.len = 1;
+	  dtp->u.p.cc.u.start = '\f';
+	  break;
+	case '$':
+	  dtp->u.p.cc.type = CCF_PROMPT;
+	  dtp->u.p.cc.len = 1;
+	  break;
+	case '\0':
+	  dtp->u.p.cc.type = CCF_OVERPRINT_NOA;
+	  dtp->u.p.cc.len = 0;
+	  break;
+	default:
+	  /* In the default case we copy ONE_LF.  */
+	  dtp->u.p.cc.type = CCF_DEFAULT;
+	  dtp->u.p.cc.len = 1;
+	  break;
+      }
+
+      /* We add n-1 to alloc_len so our write buffer is the right size.
+	 We are replacing the first character, and possibly prepending some
+	 additional characters.  Note for n==0, we actually subtract one from
+	 alloc_len, which is correct, since that character is skipped.  */
+      if (*alloc_len > 0)
+	{
+	  *source += 1;
+	  *alloc_len += dtp->u.p.cc.len - 1;
+	}
+      /* If we have no input, there is no first character to replace.  Make
+	 sure we still allocate enough space for the start-of-record string.  */
+      else
+	*alloc_len = dtp->u.p.cc.len;
+    }
+}
+
+
+/* Write the start-of-record character(s) for CC_FORTRAN.
+   Also adjusts the 'cc' struct to contain the end-of-record character
+   for next_record_cc.
+   The source_len is set to the remaining length to copy from the source,
+   after the start-of-record string was inserted.  */
+
+static char *
+write_cc (st_parameter_dt *dtp, char *p, size_t *source_len)
+{
+  /* Only valid for CARRIAGECONTROL=FORTRAN.  */
+  if (dtp->u.p.current_unit->flags.cc != CC_FORTRAN || source_len == NULL)
+    return p;
+
+  /* Write the start-of-record string to the output buffer.  Note that len is
+     never more than 2.  */
+  if (dtp->u.p.cc.len > 0)
+    {
+      *(p++) = dtp->u.p.cc.u.start;
+      if (dtp->u.p.cc.len > 1)
+	  *(p++) = dtp->u.p.cc.u.start;
+
+      /* source_len comes from write_check_cc where it is set to the full
+	 allocated length of the output buffer. Therefore we subtract off the
+	 length of the SOR string to obtain the remaining source length.  */
+      *source_len -= dtp->u.p.cc.len;
+    }
+
+  /* Common case.  */
+  dtp->u.p.cc.len = 1;
+  dtp->u.p.cc.u.end = '\r';
+
+  /* Update end-of-record character for next_record_w.  */
+  switch (dtp->u.p.cc.type)
+    {
+    case CCF_PROMPT:
+    case CCF_OVERPRINT_NOA:
+      /* No end-of-record.  */
+      dtp->u.p.cc.len = 0;
+      dtp->u.p.cc.u.end = '\0';
+      break;
+    case CCF_OVERPRINT:
+    case CCF_ONE_LF:
+    case CCF_TWO_LF:
+    case CCF_PAGE_FEED:
+    case CCF_DEFAULT:
+    default:
+      /* Carriage return.  */
+      dtp->u.p.cc.len = 1;
+      dtp->u.p.cc.u.end = '\r';
+      break;
+    }
+
+  return p;
+}
+
+void
+
+write_a (st_parameter_dt *dtp, const fnode *f, const char *source, size_t len)
+{
+  size_t wlen;
   char *p;
 
   wlen = f->u.string.length < 0
 	 || (f->format == FMT_G && f->u.string.length == 0)
-	 ? len : f->u.string.length;
+    ? len : (size_t) f->u.string.length;
 
 #ifdef HAVE_CRLF
   /* If this is formatted STREAM IO convert any embedded line feed characters
@@ -244,7 +377,7 @@ write_a (st_parameter_dt *dtp, const fnode *f, const char *source, int len)
   if (is_stream_io (dtp))
     {
       const char crlf[] = "\r\n";
-      int i, q, bytes;
+      size_t q, bytes;
       q = bytes = 0;
 
       /* Write out any padding if needed.  */
@@ -257,7 +390,7 @@ write_a (st_parameter_dt *dtp, const fnode *f, const char *source, int len)
 	}
 
       /* Scan the source string looking for '\n' and convert it if found.  */
-      for (i = 0; i < wlen; i++)
+      for (size_t i = 0; i < wlen; i++)
 	{
 	  if (source[i] == '\n')
 	    {
@@ -272,7 +405,7 @@ write_a (st_parameter_dt *dtp, const fnode *f, const char *source, int len)
 		  bytes = 0;
 		}
 
-	      /* Write out the CR_LF sequence.  */ 
+	      /* Write out the CR_LF sequence.  */
 	      q++;
 	      p = write_block (dtp, 2);
               if (p == NULL)
@@ -295,9 +428,15 @@ write_a (st_parameter_dt *dtp, const fnode *f, const char *source, int len)
   else
     {
 #endif
+      if (dtp->u.p.current_unit->flags.cc == CC_FORTRAN)
+	write_check_cc (dtp, &source, &wlen);
+
       p = write_block (dtp, wlen);
       if (p == NULL)
 	return;
+
+      if (dtp->u.p.current_unit->flags.cc == CC_FORTRAN)
+	p = write_cc (dtp, p, &wlen);
 
       if (unlikely (is_char4_unit (dtp)))
 	{
@@ -333,14 +472,14 @@ write_a (st_parameter_dt *dtp, const fnode *f, const char *source, int len)
    to the UTF-8 encoded string before writing out.  */
 
 void
-write_a_char4 (st_parameter_dt *dtp, const fnode *f, const char *source, int len)
+write_a_char4 (st_parameter_dt *dtp, const fnode *f, const char *source, size_t len)
 {
-  int wlen;
+  size_t wlen;
   gfc_char4_t *q;
 
   wlen = f->u.string.length < 0
 	 || (f->format == FMT_G && f->u.string.length == 0)
-	 ? len : f->u.string.length;
+    ? len : (size_t) f->u.string.length;
 
   q = (gfc_char4_t *) source;
 #ifdef HAVE_CRLF
@@ -350,7 +489,7 @@ write_a_char4 (st_parameter_dt *dtp, const fnode *f, const char *source, int len
   if (is_stream_io (dtp))
     {
       const gfc_char4_t crlf[] = {0x000d,0x000a};
-      int i, bytes;
+      size_t bytes;
       gfc_char4_t *qq;
       bytes = 0;
 
@@ -366,7 +505,7 @@ write_a_char4 (st_parameter_dt *dtp, const fnode *f, const char *source, int len
 
       /* Scan the source string looking for '\n' and convert it if found.  */
       qq = (gfc_char4_t *) source;
-      for (i = 0; i < wlen; i++)
+      for (size_t i = 0; i < wlen; i++)
 	{
 	  if (qq[i] == '\n')
 	    {
@@ -380,7 +519,7 @@ write_a_char4 (st_parameter_dt *dtp, const fnode *f, const char *source, int len
 		  bytes = 0;
 		}
 
-	      /* Write out the CR_LF sequence.  */ 
+	      /* Write out the CR_LF sequence.  */
 	      write_default_char4 (dtp, crlf, 2, 0);
 	    }
 	  else
@@ -527,7 +666,7 @@ write_l (st_parameter_dt *dtp, const fnode *f, char *source, int len)
   GFC_INTEGER_LARGEST n;
 
   wlen = (f->format == FMT_G && f->u.w == 0) ? 1 : f->u.w;
-  
+
   p = write_block (dtp, wlen);
   if (p == NULL)
     return;
@@ -693,7 +832,7 @@ write_decimal (st_parameter_dt *dtp, const fnode *f, const char *source,
   if (n < 0)
     n = -n;
   nsign = sign == S_NONE ? 0 : 1;
-  
+
   /* conv calls itoa which sets the negative sign needed
      by write_integer. The sign '+' or '-' is set below based on sign
      calculated above, so we just point past the sign in the string
@@ -725,15 +864,18 @@ write_decimal (st_parameter_dt *dtp, const fnode *f, const char *source,
 
   if (unlikely (is_char4_unit (dtp)))
     {
-      gfc_char4_t * p4 = (gfc_char4_t *) p;
+      gfc_char4_t *p4 = (gfc_char4_t *)p;
       if (nblank < 0)
 	{
 	  memset4 (p4, '*', w);
 	  goto done;
 	}
 
-      memset4 (p4, ' ', nblank);
-      p4 += nblank;
+      if (!dtp->u.p.namelist_mode)
+	{
+	  memset4 (p4, ' ', nblank);
+	  p4 += nblank;
+	}
 
       switch (sign)
 	{
@@ -752,6 +894,12 @@ write_decimal (st_parameter_dt *dtp, const fnode *f, const char *source,
 
       memcpy4 (p4, q, digits);
       return;
+
+      if (dtp->u.p.namelist_mode)
+	{
+	  p4 += digits;
+	  memset4 (p4, ' ', nblank);
+	}
     }
 
   if (nblank < 0)
@@ -760,8 +908,11 @@ write_decimal (st_parameter_dt *dtp, const fnode *f, const char *source,
       goto done;
     }
 
-  memset (p, ' ', nblank);
-  p += nblank;
+  if (!dtp->u.p.namelist_mode)
+    {
+      memset (p, ' ', nblank);
+      p += nblank;
+    }
 
   switch (sign)
     {
@@ -779,6 +930,12 @@ write_decimal (st_parameter_dt *dtp, const fnode *f, const char *source,
   p += nzero;
 
   memcpy (p, q, digits);
+
+  if (dtp->u.p.namelist_mode)
+    {
+      p += digits;
+      memset (p, ' ', nblank);
+    }
 
  done:
   return;
@@ -846,9 +1003,9 @@ btoa_big (const char *s, char *buffer, int len, GFC_UINTEGER_LARGEST *n)
 {
   char *q;
   int i, j;
-  
+
   q = buffer;
-  if (big_endian)
+  if (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
     {
       const char *p = s;
       for (i = 0; i < len; i++)
@@ -892,7 +1049,7 @@ btoa_big (const char *s, char *buffer, int len, GFC_UINTEGER_LARGEST *n)
   if (*n == 0)
     return "0";
 
-  /* Move past any leading zeros.  */  
+  /* Move past any leading zeros.  */
   while (*buffer == '0')
     buffer++;
 
@@ -913,7 +1070,7 @@ otoa_big (const char *s, char *buffer, int len, GFC_UINTEGER_LARGEST *n)
   *q = '\0';
   i = k = octet = 0;
 
-  if (big_endian)
+  if (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
     {
       const char *p = s + len - 1;
       char c = *p;
@@ -967,7 +1124,7 @@ otoa_big (const char *s, char *buffer, int len, GFC_UINTEGER_LARGEST *n)
   if (*n == 0)
     return "0";
 
-  /* Move past any leading zeros.  */  
+  /* Move past any leading zeros.  */
   while (*q == '0')
     q++;
 
@@ -985,10 +1142,10 @@ ztoa_big (const char *s, char *buffer, int len, GFC_UINTEGER_LARGEST *n)
   char *q;
   uint8_t h, l;
   int i;
-  
+
   q = buffer;
-  
-  if (big_endian)
+
+  if (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
     {
       const char *p = s;
       for (i = 0; i < len; i++)
@@ -1020,56 +1177,15 @@ ztoa_big (const char *s, char *buffer, int len, GFC_UINTEGER_LARGEST *n)
     }
 
   *q = '\0';
-  
+
   if (*n == 0)
     return "0";
-    
-  /* Move past any leading zeros.  */  
+
+  /* Move past any leading zeros.  */
   while (*buffer == '0')
     buffer++;
 
   return buffer;
-}
-
-/* gfc_itoa()-- Integer to decimal conversion.
-   The itoa function is a widespread non-standard extension to standard
-   C, often declared in <stdlib.h>.  Even though the itoa defined here
-   is a static function we take care not to conflict with any prior
-   non-static declaration.  Hence the 'gfc_' prefix, which is normally
-   reserved for functions with external linkage.  */
-
-static const char *
-gfc_itoa (GFC_INTEGER_LARGEST n, char *buffer, size_t len)
-{
-  int negative;
-  char *p;
-  GFC_UINTEGER_LARGEST t;
-
-  assert (len >= GFC_ITOA_BUF_SIZE);
-
-  if (n == 0)
-    return "0";
-
-  negative = 0;
-  t = n;
-  if (n < 0)
-    {
-      negative = 1;
-      t = -n; /*must use unsigned to protect from overflow*/
-    }
-
-  p = buffer + GFC_ITOA_BUF_SIZE - 1;
-  *p = '\0';
-
-  while (t != 0)
-    {
-      *--p = '0' + (t % 10);
-      t /= 10;
-    }
-
-  if (negative)
-    *--p = '-';
-  return p;
 }
 
 
@@ -1107,7 +1223,7 @@ write_o (st_parameter_dt *dtp, const fnode *f, const char *source, int len)
   const char *p;
   char itoa_buf[GFC_OTOA_BUF_SIZE];
   GFC_UINTEGER_LARGEST n = 0;
-  
+
   if (len > (int) sizeof (GFC_UINTEGER_LARGEST))
     {
       p = otoa_big (source, itoa_buf, len, &n);
@@ -1140,42 +1256,6 @@ write_z (st_parameter_dt *dtp, const fnode *f, const char *source, int len)
       write_boz (dtp, f, p, n);
     }
 }
-
-
-void
-write_d (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
-{
-  write_float (dtp, f, p, len, 0);
-}
-
-
-void
-write_e (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
-{
-  write_float (dtp, f, p, len, 0);
-}
-
-
-void
-write_f (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
-{
-  write_float (dtp, f, p, len, 0);
-}
-
-
-void
-write_en (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
-{
-  write_float (dtp, f, p, len, 0);
-}
-
-
-void
-write_es (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
-{
-  write_float (dtp, f, p, len, 0);
-}
-
 
 /* Take care of the X/TR descriptor.  */
 
@@ -1239,17 +1319,12 @@ write_logical (st_parameter_dt *dtp, const char *source, int length)
 /* Write a list-directed integer value.  */
 
 static void
-write_integer (st_parameter_dt *dtp, const char *source, int length)
+write_integer (st_parameter_dt *dtp, const char *source, int kind)
 {
-  char *p;
-  const char *q;
-  int digits;
   int width;
-  char itoa_buf[GFC_ITOA_BUF_SIZE];
+  fnode f;
 
-  q = gfc_itoa (extract_int (source, length), itoa_buf, sizeof (itoa_buf));
-
-  switch (length)
+  switch (kind)
     {
     case 1:
       width = 4;
@@ -1267,45 +1342,18 @@ write_integer (st_parameter_dt *dtp, const char *source, int length)
       width = 20;
       break;
 
+    case 16:
+      width = 40;
+      break;
+
     default:
       width = 0;
       break;
     }
-
-  digits = strlen (q);
-
-  if (width < digits)
-    width = digits;
-  p = write_block (dtp, width);
-  if (p == NULL)
-    return;
-
-  if (unlikely (is_char4_unit (dtp)))
-    {
-      gfc_char4_t *p4 = (gfc_char4_t *) p;
-      if (dtp->u.p.no_leading_blank)
-	{
-	  memcpy4 (p4, q, digits);
-	  memset4 (p4 + digits, ' ', width - digits);
-	}
-      else
-	{
-	  memset4 (p4, ' ', width - digits);
-	  memcpy4 (p4 + width - digits, q, digits);
-	}
-      return;
-    }
-
-  if (dtp->u.p.no_leading_blank)
-    {
-      memcpy (p, q, digits);
-      memset (p + digits, ' ', width - digits);
-    }
-  else
-    {
-      memset (p, ' ', width - digits);
-      memcpy (p + width - digits, q, digits);
-    }
+  f.u.integer.w = width;
+  f.u.integer.m = -1;
+  f.format = FMT_NONE;
+  write_decimal (dtp, &f, source, kind, (void *) gfc_itoa);
 }
 
 
@@ -1316,9 +1364,9 @@ write_integer (st_parameter_dt *dtp, const char *source, int length)
 #define NODELIM 0
 
 static void
-write_character (st_parameter_dt *dtp, const char *source, int kind, int length, int mode)
+write_character (st_parameter_dt *dtp, const char *source, int kind, size_t length, int mode)
 {
-  int i, extra;
+  size_t extra;
   char *p, d;
 
   if (mode == DELIM)
@@ -1347,7 +1395,7 @@ write_character (st_parameter_dt *dtp, const char *source, int kind, int length,
 	{
 	  extra = 2;
 
-	  for (i = 0; i < length; i++)
+	  for (size_t i = 0; i < length; i++)
 	    if (source[i] == d)
 	      extra++;
 	}
@@ -1367,7 +1415,7 @@ write_character (st_parameter_dt *dtp, const char *source, int kind, int length,
 	    {
 	      *p4++ = d4;
 
-	      for (i = 0; i < length; i++)
+	      for (size_t i = 0; i < length; i++)
 		{
 		  *p4++ = (gfc_char4_t) source[i];
 		  if (source[i] == d)
@@ -1385,7 +1433,7 @@ write_character (st_parameter_dt *dtp, const char *source, int kind, int length,
 	{
 	  *p++ = d;
 
-	  for (i = 0; i < length; i++)
+	  for (size_t i = 0; i < length; i++)
             {
               *p++ = source[i];
               if (source[i] == d)
@@ -1420,6 +1468,163 @@ write_character (st_parameter_dt *dtp, const char *source, int kind, int length,
     }
 }
 
+/* Floating point helper functions.  */
+
+#define BUF_STACK_SZ 384
+
+static int
+get_precision (st_parameter_dt *dtp, const fnode *f, const char *source, int kind)
+{
+  if (f->format != FMT_EN)
+    return determine_precision (dtp, f, kind);
+  else
+    return determine_en_precision (dtp, f, source, kind);
+}
+
+/* 4932 is the maximum exponent of long double and quad precision, 3
+   extra characters for the sign, the decimal point, and the
+   trailing null.  Extra digits are added by the calling functions for
+   requested precision. Likewise for float and double.  F0 editing produces
+   full precision output.  */
+static int
+size_from_kind (st_parameter_dt *dtp, const fnode *f, int kind)
+{
+  int size;
+
+  if (f->format == FMT_F && f->u.real.w == 0)
+    {
+      switch (kind)
+      {
+	case 4:
+	  size = 38 + 3; /* These constants shown for clarity.  */
+	  break;
+	case 8:
+	  size = 308 + 3;
+	  break;
+	case 10:
+	  size = 4932 + 3;
+	  break;
+	case 16:
+	  size = 4932 + 3;
+	  break;
+	default:
+	  internal_error (&dtp->common, "bad real kind");
+	  break;
+      }
+    }
+  else
+    size = f->u.real.w + 1; /* One byte for a NULL character.  */
+
+  return size;
+}
+
+static char *
+select_buffer (st_parameter_dt *dtp, const fnode *f, int precision,
+	       char *buf, size_t *size, int kind)
+{
+  char *result;
+  
+  /* The buffer needs at least one more byte to allow room for
+     normalizing and 1 to hold null terminator.  */
+  *size = size_from_kind (dtp, f, kind) + precision + 1 + 1;
+
+  if (*size > BUF_STACK_SZ)
+     result = xmalloc (*size);
+  else
+     result = buf;
+  return result;
+}
+
+static char *
+select_string (st_parameter_dt *dtp, const fnode *f, char *buf, size_t *size,
+	       int kind)
+{
+  char *result;
+  *size = size_from_kind (dtp, f, kind) + f->u.real.d + 1;
+  if (*size > BUF_STACK_SZ)
+     result = xmalloc (*size);
+  else
+     result = buf;
+  return result;
+}
+
+static void
+write_float_string (st_parameter_dt *dtp, char *fstr, size_t len)
+{
+  char *p = write_block (dtp, len);
+  if (p == NULL)
+    return;
+
+  if (unlikely (is_char4_unit (dtp)))
+    {
+      gfc_char4_t *p4 = (gfc_char4_t *) p;
+      memcpy4 (p4, fstr, len);
+      return;
+    }
+  memcpy (p, fstr, len);
+}
+
+
+static void
+write_float_0 (st_parameter_dt *dtp, const fnode *f, const char *source, int kind)
+{
+  char buf_stack[BUF_STACK_SZ];
+  char str_buf[BUF_STACK_SZ];
+  char *buffer, *result;
+  size_t buf_size, res_len, flt_str_len;
+
+  /* Precision for snprintf call.  */
+  int precision = get_precision (dtp, f, source, kind);
+
+  /* String buffer to hold final result.  */
+  result = select_string (dtp, f, str_buf, &res_len, kind);
+
+  buffer = select_buffer (dtp, f, precision, buf_stack, &buf_size, kind);
+
+  get_float_string (dtp, f, source , kind, 0, buffer,
+                           precision, buf_size, result, &flt_str_len);
+  write_float_string (dtp, result, flt_str_len);
+
+  if (buf_size > BUF_STACK_SZ)
+    free (buffer);
+  if (res_len > BUF_STACK_SZ)
+    free (result);
+}
+
+void
+write_d (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
+{
+  write_float_0 (dtp, f, p, len);
+}
+
+
+void
+write_e (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
+{
+  write_float_0 (dtp, f, p, len);
+}
+
+
+void
+write_f (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
+{
+  write_float_0 (dtp, f, p, len);
+}
+
+
+void
+write_en (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
+{
+  write_float_0 (dtp, f, p, len);
+}
+
+
+void
+write_es (st_parameter_dt *dtp, const fnode *f, const char *p, int len)
+{
+  write_float_0 (dtp, f, p, len);
+}
+
 
 /* Set an fnode to default format.  */
 
@@ -1445,9 +1650,16 @@ set_fnode_default (st_parameter_dt *dtp, fnode *f, int length)
       f->u.real.e = 4;
       break;
     case 16:
+      /* Adjust decimal precision depending on binary precision, 106 or 113.  */
+#if GFC_REAL_16_DIGITS == 113
       f->u.real.w = 45;
       f->u.real.d = 36;
       f->u.real.e = 4;
+#else
+      f->u.real.w = 41;
+      f->u.real.d = 32;
+      f->u.real.e = 4;
+#endif
       break;
     default:
       internal_error (&dtp->common, "bad real kind");
@@ -1455,12 +1667,12 @@ set_fnode_default (st_parameter_dt *dtp, fnode *f, int length)
     }
 }
 
-/* Output a real number with default format.  To guarantee that a
-   binary -> decimal -> binary roundtrip conversion recovers the
-   original value, IEEE 754-2008 requires 9, 17, 21 and 36 significant
-   digits for REAL kinds 4, 8, 10, and 16, respectively. Thus, we use
-   1PG16.9E2 for REAL(4), 1PG25.17E3 for REAL(8), 1PG30.21E4 for
-   REAL(10) and 1PG45.36E4 for REAL(16). The exception is that the
+/* Output a real number with default format.
+   To guarantee that a binary -> decimal -> binary roundtrip conversion
+   recovers the original value, IEEE 754-2008 requires 9, 17, 21 and 36
+   significant digits for REAL kinds 4, 8, 10, and 16, respectively.
+   Thus, we use 1PG16.9E2 for REAL(4), 1PG25.17E3 for REAL(8), 1PG30.21E4
+   for REAL(10) and 1PG45.36E4 for REAL(16). The exception is that the
    Fortran standard requires outputting an extra digit when the scale
    factor is 1 and when the magnitude of the value is such that E
    editing is used. However, gfortran compensates for this, and thus
@@ -1468,25 +1680,51 @@ set_fnode_default (st_parameter_dt *dtp, fnode *f, int length)
    generated both when using F and E editing.  */
 
 void
-write_real (st_parameter_dt *dtp, const char *source, int length)
+write_real (st_parameter_dt *dtp, const char *source, int kind)
 {
   fnode f ;
-  int org_scale = dtp->u.p.scale_factor;
+  char buf_stack[BUF_STACK_SZ];
+  char str_buf[BUF_STACK_SZ];
+  char *buffer, *result;
+  size_t buf_size, res_len, flt_str_len;
+  int orig_scale = dtp->u.p.scale_factor;
   dtp->u.p.scale_factor = 1;
-  set_fnode_default (dtp, &f, length);
-  write_float (dtp, &f, source , length, 1);
-  dtp->u.p.scale_factor = org_scale;
+  set_fnode_default (dtp, &f, kind);
+
+  /* Precision for snprintf call.  */
+  int precision = get_precision (dtp, &f, source, kind);
+
+  /* String buffer to hold final result.  */
+  result = select_string (dtp, &f, str_buf, &res_len, kind);
+
+  /* Scratch buffer to hold final result.  */
+  buffer = select_buffer (dtp, &f, precision, buf_stack, &buf_size, kind);
+  
+  get_float_string (dtp, &f, source , kind, 1, buffer,
+                           precision, buf_size, result, &flt_str_len);
+  write_float_string (dtp, result, flt_str_len);
+
+  dtp->u.p.scale_factor = orig_scale;
+  if (buf_size > BUF_STACK_SZ)
+    free (buffer);
+  if (res_len > BUF_STACK_SZ)
+    free (result);
 }
 
 /* Similar to list formatted REAL output, for kPG0 where k > 0 we
    compensate for the extra digit.  */
 
 void
-write_real_g0 (st_parameter_dt *dtp, const char *source, int length, int d)
+write_real_g0 (st_parameter_dt *dtp, const char *source, int kind, int d)
 {
   fnode f;
-  int comp_d; 
-  set_fnode_default (dtp, &f, length);
+  char buf_stack[BUF_STACK_SZ];
+  char str_buf[BUF_STACK_SZ];
+  char *buffer, *result;
+  size_t buf_size, res_len, flt_str_len;
+  int comp_d;
+  set_fnode_default (dtp, &f, kind);
+
   if (d > 0)
     f.u.real.d = d;
 
@@ -1497,8 +1735,24 @@ write_real_g0 (st_parameter_dt *dtp, const char *source, int length, int d)
   else
     comp_d = 0;
   dtp->u.p.g0_no_blanks = 1;
-  write_float (dtp, &f, source , length, comp_d);
+
+  /* Precision for snprintf call.  */
+  int precision = get_precision (dtp, &f, source, kind);
+
+  /* String buffer to hold final result.  */
+  result = select_string (dtp, &f, str_buf, &res_len, kind);
+
+  buffer = select_buffer (dtp, &f, precision, buf_stack, &buf_size, kind);
+
+  get_float_string (dtp, &f, source , kind, comp_d, buffer,
+                           precision, buf_size, result, &flt_str_len);
+  write_float_string (dtp, result, flt_str_len);
+
   dtp->u.p.g0_no_blanks = 0;
+  if (buf_size > BUF_STACK_SZ)
+    free (buffer);
+  if (res_len > BUF_STACK_SZ)
+    free (result);
 }
 
 
@@ -1508,15 +1762,60 @@ write_complex (st_parameter_dt *dtp, const char *source, int kind, size_t size)
   char semi_comma =
 	dtp->u.p.current_unit->decimal_status == DECIMAL_POINT ? ',' : ';';
 
-  if (write_char (dtp, '('))
-    return;
-  write_real (dtp, source, kind);
+  /* Set for no blanks so we get a string result with no leading
+     blanks.  We will pad left later.  */
+  dtp->u.p.g0_no_blanks = 1;
 
-  if (write_char (dtp, semi_comma))
-    return;
-  write_real (dtp, source + size / 2, kind);
+  fnode f ;
+  char buf_stack[BUF_STACK_SZ];
+  char str1_buf[BUF_STACK_SZ];
+  char str2_buf[BUF_STACK_SZ];
+  char *buffer, *result1, *result2;
+  size_t buf_size, res_len1, res_len2, flt_str_len1, flt_str_len2;
+  int width, lblanks, orig_scale = dtp->u.p.scale_factor;
 
+  dtp->u.p.scale_factor = 1;
+  set_fnode_default (dtp, &f, kind);
+
+  /* Set width for two values, parenthesis, and comma.  */
+  width = 2 * f.u.real.w + 3;
+
+  /* Set for no blanks so we get a string result with no leading
+     blanks.  We will pad left later.  */
+  dtp->u.p.g0_no_blanks = 1;
+
+  /* Precision for snprintf call.  */
+  int precision = get_precision (dtp, &f, source, kind);
+
+  /* String buffers to hold final result.  */
+  result1 = select_string (dtp, &f, str1_buf, &res_len1, kind);
+  result2 = select_string (dtp, &f, str2_buf, &res_len2, kind);
+
+  buffer = select_buffer (dtp, &f, precision, buf_stack, &buf_size, kind);
+
+  get_float_string (dtp, &f, source , kind, 0, buffer,
+                           precision, buf_size, result1, &flt_str_len1);
+  get_float_string (dtp, &f, source + size / 2 , kind, 0, buffer,
+                           precision, buf_size, result2, &flt_str_len2);
+  if (!dtp->u.p.namelist_mode)
+    {
+      lblanks = width - flt_str_len1 - flt_str_len2 - 3;
+      write_x (dtp, lblanks, lblanks);
+    }
+  write_char (dtp, '(');
+  write_float_string (dtp, result1, flt_str_len1);
+  write_char (dtp, semi_comma);
+  write_float_string (dtp, result2, flt_str_len2);
   write_char (dtp, ')');
+
+  dtp->u.p.scale_factor = orig_scale;
+  dtp->u.p.g0_no_blanks = 0;
+  if (buf_size > BUF_STACK_SZ)
+    free (buffer);
+  if (res_len1 > BUF_STACK_SZ)
+    free (result1);
+  if (res_len2 > BUF_STACK_SZ)
+    free (result2);
 }
 
 
@@ -1554,7 +1853,8 @@ list_formatted_write_scalar (st_parameter_dt *dtp, bt type, void *p, int kind,
   if (dtp->u.p.first_item)
     {
       dtp->u.p.first_item = 0;
-      write_char (dtp, ' ');
+      if (dtp->u.p.current_unit->flags.cc != CC_FORTRAN)
+	write_char (dtp, ' ');
     }
   else
     {
@@ -1581,10 +1881,51 @@ list_formatted_write_scalar (st_parameter_dt *dtp, bt type, void *p, int kind,
     case BT_COMPLEX:
       write_complex (dtp, p, kind, size);
       break;
+    case BT_CLASS:
+      {
+	  int unit = dtp->u.p.current_unit->unit_number;
+	  char iotype[] = "LISTDIRECTED";
+	  gfc_charlen_type iotype_len = 12;
+	  char tmp_iomsg[IOMSG_LEN] = "";
+	  char *child_iomsg;
+	  gfc_charlen_type child_iomsg_len;
+	  int noiostat;
+	  int *child_iostat = NULL;
+	  gfc_full_array_i4 vlist;
+
+	  GFC_DESCRIPTOR_DATA(&vlist) = NULL;
+	  GFC_DIMENSION_SET(vlist.dim[0],1, 0, 0);
+
+	  /* Set iostat, intent(out).  */
+	  noiostat = 0;
+	  child_iostat = (dtp->common.flags & IOPARM_HAS_IOSTAT) ?
+			  dtp->common.iostat : &noiostat;
+
+	  /* Set iomsge, intent(inout).  */
+	  if (dtp->common.flags & IOPARM_HAS_IOMSG)
+	    {
+	      child_iomsg = dtp->common.iomsg;
+	      child_iomsg_len = dtp->common.iomsg_len;
+	    }
+	  else
+	    {
+	      child_iomsg = tmp_iomsg;
+	      child_iomsg_len = IOMSG_LEN;
+	    }
+
+	  /* Call the user defined formatted WRITE procedure.  */
+	  dtp->u.p.current_unit->child_dtio++;
+	  dtp->u.p.fdtio_ptr (p, &unit, iotype, &vlist,
+			      child_iostat, child_iomsg,
+			      iotype_len, child_iomsg_len);
+	  dtp->u.p.current_unit->child_dtio--;
+      }
+      break;
     default:
       internal_error (&dtp->common, "list_formatted_write(): Bad type");
     }
 
+  fbuf_flush_list (dtp->u.p.current_unit, LIST_WRITING);
   dtp->u.p.char_flag = (type == BT_CHARACTER);
 }
 
@@ -1689,8 +2030,8 @@ namelist_write_newline (st_parameter_dt *dtp)
 
 
 static namelist_info *
-nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
-	       namelist_info * base, char * base_name)
+nml_write_obj (st_parameter_dt *dtp, namelist_info *obj, index_type offset,
+	       namelist_info *base, char *base_name)
 {
   int rep_ctr;
   int num;
@@ -1702,18 +2043,19 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
   size_t clen;
   index_type elem_ctr;
   size_t obj_name_len;
-  void * p ;
+  void *p;
   char cup;
-  char * obj_name;
-  char * ext_name;
+  char *obj_name;
+  char *ext_name;
+  char *q;
   size_t ext_name_len;
   char rep_buff[NML_DIGITS];
-  namelist_info * cmp;
-  namelist_info * retval = obj->next;
+  namelist_info *cmp;
+  namelist_info *retval = obj->next;
   size_t base_name_len;
   size_t base_var_name_len;
   size_t tot_len;
-  
+
   /* Set the character to be used to separate values
      to a comma or semi-colon.  */
 
@@ -1723,7 +2065,7 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
   /* Write namelist variable names in upper case. If a derived type,
      nothing is output.  If a component, base and base_name are set.  */
 
-  if (obj->type != BT_DERIVED)
+  if (obj->type != BT_DERIVED || obj->dtio_sub != NULL)
     {
       namelist_write_newline (dtp);
       write_character (dtp, " ", 1, 1, NODELIM);
@@ -1743,6 +2085,8 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
       for (dim_i = len; dim_i < clen; dim_i++)
 	{
 	  cup = toupper ((int) obj->var_name[dim_i]);
+	  if (cup == '+')
+	    cup = '%';
 	  write_character (dtp, &cup, 1, 1, NODELIM);
 	}
       write_character (dtp, "=", 1, 1, NODELIM);
@@ -1770,7 +2114,7 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
       break;
 
     default:
-      obj_size = len;      
+      obj_size = len;
     }
 
   if (obj->var_rank)
@@ -1802,7 +2146,7 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
 
       if ((elem_ctr < (nelem - 1)) &&
 	  (obj->type != BT_DERIVED) &&
-	  !memcmp (p, (void*)(p + obj_size ), obj_size ))
+	  !memcmp (p, (void *)(p + obj_size ), obj_size ))
 	{
 	  rep_ctr++;
 	}
@@ -1852,7 +2196,7 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
               break;
 
 	    case BT_DERIVED:
-
+	    case BT_CLASS:
 	      /* To treat a derived type, we need to build two strings:
 		 ext_name = the name, including qualifiers that prepends
 			    component names in the output - passed to
@@ -1862,18 +2206,74 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
 			    components.  */
 
 	      /* First ext_name => get length of all possible components  */
+	      if (obj->dtio_sub != NULL)
+		{
+		  int unit = dtp->u.p.current_unit->unit_number;
+		  char iotype[] = "NAMELIST";
+		  gfc_charlen_type iotype_len = 8;
+		  char tmp_iomsg[IOMSG_LEN] = "";
+		  char *child_iomsg;
+		  gfc_charlen_type child_iomsg_len;
+		  int noiostat;
+		  int *child_iostat = NULL;
+		  gfc_full_array_i4 vlist;
+		  formatted_dtio dtio_ptr = (formatted_dtio)obj->dtio_sub;
+
+		  GFC_DIMENSION_SET(vlist.dim[0],1, 0, 0);
+
+		  /* Set iostat, intent(out).  */
+		  noiostat = 0;
+		  child_iostat = (dtp->common.flags & IOPARM_HAS_IOSTAT) ?
+				  dtp->common.iostat : &noiostat;
+
+		  /* Set iomsg, intent(inout).  */
+		  if (dtp->common.flags & IOPARM_HAS_IOMSG)
+		    {
+		      child_iomsg = dtp->common.iomsg;
+		      child_iomsg_len = dtp->common.iomsg_len;
+		    }
+		  else
+		    {
+		      child_iomsg = tmp_iomsg;
+		      child_iomsg_len = IOMSG_LEN;
+		    }
+
+		  /* Call the user defined formatted WRITE procedure.  */
+		  dtp->u.p.current_unit->child_dtio++;
+		  if (obj->type == BT_DERIVED)
+		    {
+		      /* Build a class container.  */
+		      gfc_class list_obj;
+		      list_obj.data = p;
+		      list_obj.vptr = obj->vtable;
+		      list_obj.len = 0;
+		      dtio_ptr ((void *)&list_obj, &unit, iotype, &vlist,
+				child_iostat, child_iomsg,
+				iotype_len, child_iomsg_len);
+		    }
+		  else
+		    {
+		      dtio_ptr (p, &unit, iotype, &vlist,
+				child_iostat, child_iomsg,
+				iotype_len, child_iomsg_len);
+		    }
+		  dtp->u.p.current_unit->child_dtio--;
+
+		  goto obj_loop;
+		}
 
 	      base_name_len = base_name ? strlen (base_name) : 0;
 	      base_var_name_len = base ? strlen (base->var_name) : 0;
-	      ext_name_len = base_name_len + base_var_name_len 
+	      ext_name_len = base_name_len + base_var_name_len
 		+ strlen (obj->var_name) + obj->var_rank * NML_DIGITS + 1;
 	      ext_name = xmalloc (ext_name_len);
 
-	      memcpy (ext_name, base_name, base_name_len);
+	      if (base_name)
+		memcpy (ext_name, base_name, base_name_len);
 	      clen = strlen (obj->var_name + base_var_name_len);
-	      memcpy (ext_name + base_name_len, 
+	      memcpy (ext_name + base_name_len,
 		      obj->var_name + base_var_name_len, clen);
-	      
+
 	      /* Append the qualifier.  */
 
 	      tot_len = base_name_len + clen;
@@ -1884,7 +2284,7 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
 		      ext_name[tot_len] = '(';
 		      tot_len++;
 		    }
-		  snprintf (ext_name + tot_len, ext_name_len - tot_len, "%d", 
+		  snprintf (ext_name + tot_len, ext_name_len - tot_len, "%d",
 			    (int) obj->ls[dim_i].idx);
 		  tot_len += strlen (ext_name + tot_len);
 		  ext_name[tot_len] = ((int) dim_i == obj->var_rank - 1) ? ')' : ',';
@@ -1892,6 +2292,9 @@ nml_write_obj (st_parameter_dt *dtp, namelist_info * obj, index_type offset,
 		}
 
 	      ext_name[tot_len] = '\0';
+	      for (q = ext_name; *q; q++)
+		if (*q == '+')
+		  *q = '%';
 
 	      /* Now obj_name.  */
 
@@ -1975,11 +2378,10 @@ obj_loop:
 void
 namelist_write (st_parameter_dt *dtp)
 {
-  namelist_info * t1, *t2, *dummy = NULL;
-  index_type i;
+  namelist_info *t1, *t2, *dummy = NULL;
   index_type dummy_offset = 0;
   char c;
-  char * dummy_name = NULL;
+  char *dummy_name = NULL;
 
   /* Set the delimiter for namelist output.  */
   switch (dtp->u.p.current_unit->delim_status)
@@ -1998,7 +2400,7 @@ namelist_write (st_parameter_dt *dtp)
   write_character (dtp, "&", 1, 1, NODELIM);
 
   /* Write namelist name in upper case - f95 std.  */
-  for (i = 0 ;i < dtp->namelist_name_len ;i++ )
+  for (gfc_charlen_type i = 0; i < dtp->namelist_name_len; i++ )
     {
       c = toupper ((int) dtp->namelist_name[i]);
       write_character (dtp, &c, 1 ,1, NODELIM);

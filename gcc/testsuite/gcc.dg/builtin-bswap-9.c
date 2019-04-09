@@ -1,4 +1,4 @@
-/* { dg-do compile { target arm*-*-* alpha*-*-* ia64*-*-* x86_64-*-* s390x-*-* powerpc*-*-* rs6000-*-* } } */
+/* { dg-do compile { target arm*-*-* alpha*-*-* ia64*-*-* i?86-*-* x86_64-*-* s390x-*-* powerpc*-*-* rs6000-*-* } } */
 /* { dg-require-effective-target stdint_types } */
 /* { dg-require-effective-target lp64 } */
 /* { dg-options "-O2 -fdump-rtl-combine" } */
@@ -43,4 +43,3 @@ uint64_t foo7 (uint64_t a, uint64_t b)
 }
 
 /* { dg-final { scan-rtl-dump-not "bswapdi" "combine" } } */
-/* { dg-final { cleanup-rtl-dump "combine" } } */

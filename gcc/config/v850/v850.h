@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler. NEC V850 series
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
    Contributed by Jeff Law (law@cygnus.com).
 
    This file is part of GCC.
@@ -25,9 +25,6 @@
 
 #ifndef GCC_V850_H
 #define GCC_V850_H
-
-extern GTY(()) rtx v850_compare_op0;
-extern GTY(()) rtx v850_compare_op1;
 
 #undef LIB_SPEC
 #define LIB_SPEC "%{!shared:%{!symbolic:--start-group -lc -lgcc --end-group}}"
@@ -111,6 +108,8 @@ extern GTY(()) rtx v850_compare_op1;
 #define ASM_SPEC "%{m850es:-mv850e1}%{!mv850es:%{mv*:-mv%*}} \
 %{mrelax:-mrelax} \
 %{m8byte-align:-m8byte-align} \
+%{msoft-float:-msoft-float} \
+%{mhard-float:-mhard-float} \
 %{mgcc-abi:-mgcc-abi}"
 
 #define LINK_SPEC "%{mgcc-abi:-m v850}"
@@ -289,28 +288,6 @@ extern GTY(()) rtx v850_compare_op1;
   34, 35								\
 }
 
-/* Return number of consecutive hard regs needed starting at reg REGNO
-   to hold something of mode MODE.
-
-   This is ordinarily the length in words of a value of mode MODE
-   but can be less for certain modes in special long registers.  */
-
-#define HARD_REGNO_NREGS(REGNO, MODE)   \
-  ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
-
-/* Value is 1 if hard register REGNO can hold a value of machine-mode
-   MODE.  */
-
-#define HARD_REGNO_MODE_OK(REGNO, MODE) \
- ((GET_MODE_SIZE (MODE) <= 4) || (((REGNO) & 1) == 0 && (REGNO) != 0))
-
-/* Value is 1 if it is a good idea to tie two pseudo registers
-   when one has mode MODE1 and one has mode MODE2.
-   If HARD_REGNO_MODE_OK could produce different values for MODE1 and MODE2,
-   for any hard reg, then this must be 0 for correct output.  */
-#define MODES_TIEABLE_P(MODE1, MODE2) \
-  (MODE1 == MODE2 || (GET_MODE_SIZE (MODE1) <= 4 && GET_MODE_SIZE (MODE2) <= 4))
-
 
 /* Define the classes of registers for register constraints in the
    machine description.  Also define ranges of constants.
@@ -409,7 +386,7 @@ enum reg_class
 /* Define this if pushing a word on the stack
    makes the stack pointer a smaller address.  */
 
-#define STACK_GROWS_DOWNWARD
+#define STACK_GROWS_DOWNWARD 1
 
 /* Define this to nonzero if the nominal address of the stack frame
    is at the high-address end of the local variables;
@@ -417,13 +394,6 @@ enum reg_class
    goes at a more negative offset in the frame.  */
 
 #define FRAME_GROWS_DOWNWARD 1
-
-/* Offset within stack frame to start allocating local variables at.
-   If FRAME_GROWS_DOWNWARD, this is the offset to the END of the
-   first local allocated.  Otherwise, it is the offset to the BEGINNING
-   of the first local allocated.  */
-
-#define STARTING_FRAME_OFFSET 0
 
 /* Offset of first parameter from the argument pointer register value.  */
 /* Is equal to the size of the saved fp + pc, even if an fp isn't
@@ -503,10 +473,8 @@ enum reg_class
  { ARG_POINTER_REGNUM,	 STACK_POINTER_REGNUM },			\
  { ARG_POINTER_REGNUM,   HARD_FRAME_POINTER_REGNUM }}			\
 
-/* This macro is similar to `INITIAL_FRAME_POINTER_OFFSET'.  It
-   specifies the initial difference between the specified pair of
-   registers.  This macro must be defined if `ELIMINABLE_REGS' is
-   defined.  */
+/* This macro returns the initial difference between the specified pair
+   of registers.  */
 
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET)			\
 {									\
@@ -547,12 +515,6 @@ struct cum_arg { int nbytes; };
 
 #define FUNCTION_ARG_REGNO_P(N) (N >= 6 && N <= 9)
 
-/* Define how to find the value returned by a library function
-   assuming the value has mode MODE.  */
-
-#define LIBCALL_VALUE(MODE) \
-  gen_rtx_REG (MODE, 10)
-
 #define DEFAULT_PCC_STRUCT_RETURN 0
 
 /* EXIT_IGNORE_STACK should be nonzero if, when returning from a function,
@@ -590,88 +552,6 @@ struct cum_arg { int nbytes; };
 /* Maximum number of registers that can appear in a valid memory address.  */
 
 #define MAX_REGS_PER_ADDRESS 1
-
-/* The macros REG_OK_FOR..._P assume that the arg is a REG rtx
-   and check its validity for a certain class.
-   We have two alternate definitions for each of them.
-   The usual definition accepts all pseudo regs; the other rejects
-   them unless they have been allocated suitable hard regs.
-   The symbol REG_OK_STRICT causes the latter definition to be used.
-
-   Most source files want to accept pseudo regs in the hope that
-   they will get allocated to the class that the insn wants them to be in.
-   Source files for reload pass need to be strict.
-   After reload, it makes no difference, since pseudo regs have
-   been eliminated by then.  */
-
-#ifndef REG_OK_STRICT
-
-/* Nonzero if X is a hard reg that can be used as an index
-   or if it is a pseudo reg.  */
-#define REG_OK_FOR_INDEX_P(X) 0
-/* Nonzero if X is a hard reg that can be used as a base reg
-   or if it is a pseudo reg.  */
-#define REG_OK_FOR_BASE_P(X) 1
-#define REG_OK_FOR_INDEX_P_STRICT(X) 0
-#define REG_OK_FOR_BASE_P_STRICT(X) REGNO_OK_FOR_BASE_P (REGNO (X))
-#define STRICT 0
-
-#else
-
-/* Nonzero if X is a hard reg that can be used as an index.  */
-#define REG_OK_FOR_INDEX_P(X) 0
-/* Nonzero if X is a hard reg that can be used as a base reg.  */
-#define REG_OK_FOR_BASE_P(X) REGNO_OK_FOR_BASE_P (REGNO (X))
-#define STRICT 1
-
-#endif
-
-
-/* GO_IF_LEGITIMATE_ADDRESS recognizes an RTL expression
-   that is a valid memory address for an instruction.
-   The MODE argument is the machine mode for the MEM expression
-   that wants to use this address.
-
-   The other macros defined here are used only in GO_IF_LEGITIMATE_ADDRESS,
-   except for CONSTANT_ADDRESS_P which is actually
-   machine-independent.  */
-
-/* Accept either REG or SUBREG where a register is valid.  */
-  
-#define RTX_OK_FOR_BASE_P(X)						\
-  ((REG_P (X) && REG_OK_FOR_BASE_P (X))					\
-   || (GET_CODE (X) == SUBREG && REG_P (SUBREG_REG (X))			\
-       && REG_OK_FOR_BASE_P (SUBREG_REG (X))))
-
-#define GO_IF_LEGITIMATE_ADDRESS(MODE, X, ADDR)				\
-do {									\
-  if (RTX_OK_FOR_BASE_P (X)) 						\
-    goto ADDR;								\
-  if (CONSTANT_ADDRESS_P (X)						\
-      && (MODE == QImode || INTVAL (X) % 2 == 0)			\
-      && (GET_MODE_SIZE (MODE) <= 4 || INTVAL (X) % 4 == 0))		\
-    goto ADDR;								\
-  if (GET_CODE (X) == LO_SUM						\
-      && REG_P (XEXP (X, 0))						\
-      && REG_OK_FOR_BASE_P (XEXP (X, 0))				\
-      && CONSTANT_P (XEXP (X, 1))					\
-      && (GET_CODE (XEXP (X, 1)) != CONST_INT				\
-	  || ((MODE == QImode || INTVAL (XEXP (X, 1)) % 2 == 0)		\
-	      && CONST_OK_FOR_K (INTVAL (XEXP (X, 1)))))		\
-      && GET_MODE_SIZE (MODE) <= GET_MODE_SIZE (word_mode))		\
-    goto ADDR;								\
-  if (special_symbolref_operand (X, MODE)				\
-      && (GET_MODE_SIZE (MODE) <= GET_MODE_SIZE (word_mode)))		\
-     goto ADDR;								\
-  if (GET_CODE (X) == PLUS						\
-      && RTX_OK_FOR_BASE_P (XEXP (X, 0)) 				\
-      && constraint_satisfied_p (XEXP (X,1), CONSTRAINT_K)		\
-      && ((MODE == QImode || INTVAL (XEXP (X, 1)) % 2 == 0)		\
-	   && CONST_OK_FOR_K (INTVAL (XEXP (X, 1)) 			\
-                              + (GET_MODE_NUNITS (MODE) * UNITS_PER_WORD)))) \
-    goto ADDR;			\
-} while (0)
-
 
 /* Given a comparison code (EQ, NE, etc.) and the first operand of a COMPARE,
    return the mode to be used for the comparison.
@@ -684,20 +564,6 @@ do {									\
 
 #define SELECT_CC_MODE(OP, X, Y)       v850_select_cc_mode (OP, X, Y)
 
-/* Tell final.c how to eliminate redundant test instructions.  */
-
-/* Here we define machine-dependent flags and fields in cc_status
-   (see `conditions.h').  No extra ones are needed for the VAX.  */
-
-/* Store in cc_status the expressions
-   that the condition codes will describe
-   after execution of an instruction whose pattern is EXP.
-   Do not alter them if the instruction would not alter the cc's.  */
-
-#define CC_OVERFLOW_UNUSABLE 0x200
-#define CC_NO_CARRY CC_NO_OVERFLOW
-#define NOTICE_UPDATE_CC(EXP, INSN) notice_update_cc(EXP, INSN)
-
 /* Nonzero if access to memory by bytes or half words is no faster
    than accessing full words.  */
 #define SLOW_BYTE_ACCESS 1
@@ -708,7 +574,7 @@ do {									\
 
 /* Indirect calls are expensive, never turn a direct call
    into an indirect call.  */
-#define NO_FUNCTION_CSE
+#define NO_FUNCTION_CSE 1
 
 /* The four different data regions on the v850.  */
 typedef enum 
@@ -860,9 +726,9 @@ typedef enum
 
 #undef ASM_OUTPUT_BEFORE_CASE_LABEL
 #define ASM_OUTPUT_BEFORE_CASE_LABEL(FILE,PREFIX,NUM,TABLE) \
-  ASM_OUTPUT_ALIGN ((FILE), (TARGET_BIG_SWITCH ? 2 : 1));
+  ASM_OUTPUT_ALIGN ((FILE), (TARGET_BIG_SWITCH ? 2 : 1))
 
-#define WORD_REGISTER_OPERATIONS
+#define WORD_REGISTER_OPERATIONS 1
 
 /* Byte and short loads sign extend the value to a word.  */
 #define LOAD_EXTEND_OP(MODE) SIGN_EXTEND
@@ -875,10 +741,6 @@ typedef enum
    which implies one can omit a sign-extension or zero-extension
    of a shift count.  */
 #define SHIFT_COUNT_TRUNCATED 1
-
-/* Value is 1 if truncating an integer of INPREC bits to OUTPREC bits
-   is done just by pretending it is already truncated.  */
-#define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC) 1
 
 /* Specify the machine mode that pointers have.
    After generation of rtl, the compiler makes no further distinction
@@ -971,12 +833,6 @@ extern const char * GHS_current_section_names [(int) COUNT_OF_GHS_SECTION_KINDS]
 #define SYMBOL_REF_SDA_P(X)	((SYMBOL_REF_FLAGS (X) & SYMBOL_FLAG_SDA) != 0)
 
 #define TARGET_ASM_INIT_SECTIONS v850_asm_init_sections
-
-/* Define this so that the cc1plus will not think that system header files
-   need an implicit 'extern "C" { ... }' assumed.  This breaks testing C++
-   in a build directory where the libstdc++ header files are found via a
-   -isystem <path-to-build-dir>.  */
-#define NO_IMPLICIT_EXTERN_C
 
 #define ADJUST_INSN_LENGTH(INSN, LENGTH) \
   ((LENGTH) = v850_adjust_insn_length ((INSN), (LENGTH)))

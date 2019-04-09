@@ -6,11 +6,13 @@ package regexp
 
 import (
 	"reflect"
+	"regexp/syntax"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
-var good_re = []string{
+var goodRe = []string{
 	``,
 	`.`,
 	`^.$`,
@@ -35,7 +37,7 @@ type stringError struct {
 	err string
 }
 
-var bad_re = []stringError{
+var badRe = []stringError{
 	{`*`, "missing argument to repetition operator: `*`"},
 	{`+`, "missing argument to repetition operator: `+`"},
 	{`?`, "missing argument to repetition operator: `?`"},
@@ -63,14 +65,14 @@ func compileTest(t *testing.T, expr string, error string) *Regexp {
 }
 
 func TestGoodCompile(t *testing.T) {
-	for i := 0; i < len(good_re); i++ {
-		compileTest(t, good_re[i], "")
+	for i := 0; i < len(goodRe); i++ {
+		compileTest(t, goodRe[i], "")
 	}
 }
 
 func TestBadCompile(t *testing.T) {
-	for i := 0; i < len(bad_re); i++ {
-		compileTest(t, bad_re[i].re, bad_re[i].err)
+	for i := 0; i < len(badRe); i++ {
+		compileTest(t, badRe[i].re, badRe[i].err)
 	}
 }
 
@@ -109,6 +111,25 @@ func matchFunctionTest(t *testing.T, test *FindTest) {
 func TestMatchFunction(t *testing.T) {
 	for _, test := range findTests {
 		matchFunctionTest(t, &test)
+	}
+}
+
+func copyMatchTest(t *testing.T, test *FindTest) {
+	re := compileTest(t, test.pat, "")
+	if re == nil {
+		return
+	}
+	m1 := re.MatchString(test.text)
+	m2 := re.Copy().MatchString(test.text)
+	if m1 != m2 {
+		t.Errorf("Copied Regexp match failure on %s: original gave %t; copy gave %t; should be %t",
+			test, m1, m2, len(test.matches) > 0)
+	}
+}
+
+func TestCopyMatch(t *testing.T) {
+	for _, test := range findTests {
+		copyMatchTest(t, &test)
 	}
 }
 
@@ -200,6 +221,12 @@ var replaceTests = []ReplaceTest{
 	// Substitution when subexpression isn't found
 	{"(x)?", "$1", "123", "123"},
 	{"abc", "$1", "123", "123"},
+
+	// Substitutions involving a (x){0}
+	{"(a)(b){0}(c)", ".$1|$3.", "xacxacx", "x.a|c.x.a|c.x"},
+	{"(a)(((b))){0}c", ".$1.", "xacxacx", "x.a.x.a.x"},
+	{"((a(b){0}){3}){5}(h)", "y caramb$2", "say aaaaaaaaaaaaaaaah", "say ay caramba"},
+	{"((a(b){0}){3}){5}h", "y caramb$2", "say aaaaaaaaaaaaaaaah", "say ay caramba"},
 }
 
 var replaceLiteralTests = []ReplaceTest{
@@ -328,9 +355,23 @@ type MetaTest struct {
 var metaTests = []MetaTest{
 	{``, ``, ``, true},
 	{`foo`, `foo`, `foo`, true},
+	{`日本語+`, `日本語\+`, `日本語`, false},
 	{`foo\.\$`, `foo\\\.\\\$`, `foo.$`, true}, // has meta but no operator
 	{`foo.\$`, `foo\.\\\$`, `foo`, false},     // has escaped operators and real operators
 	{`!@#$%^&*()_+-=[{]}\|,<.>/?~`, `!@#\$%\^&\*\(\)_\+-=\[\{\]\}\\\|,<\.>/\?~`, `!@#`, false},
+}
+
+var literalPrefixTests = []MetaTest{
+	// See golang.org/issue/11175.
+	// output is unused.
+	{`^0^0$`, ``, `0`, false},
+	{`^0^`, ``, ``, false},
+	{`^0$`, ``, `0`, true},
+	{`$0^`, ``, ``, false},
+	{`$0$`, ``, ``, false},
+	{`^^0$$`, ``, ``, false},
+	{`^$^$`, ``, ``, false},
+	{`$$0^^`, ``, ``, false},
 }
 
 func TestQuoteMeta(t *testing.T) {
@@ -364,7 +405,7 @@ func TestQuoteMeta(t *testing.T) {
 }
 
 func TestLiteralPrefix(t *testing.T) {
-	for _, tc := range metaTests {
+	for _, tc := range append(metaTests, literalPrefixTests...) {
 		// Literal method needs to scan the pattern.
 		re := MustCompile(tc.pattern)
 		str, complete := re.LiteralPrefix()
@@ -473,9 +514,135 @@ func TestSplit(t *testing.T) {
 	}
 }
 
-// This ran out of stack before issue 7608 was fixed.
+// The following sequence of Match calls used to panic. See issue #12980.
+func TestParseAndCompile(t *testing.T) {
+	expr := "a$"
+	s := "a\nb"
+
+	for i, tc := range []struct {
+		reFlags  syntax.Flags
+		expMatch bool
+	}{
+		{syntax.Perl | syntax.OneLine, false},
+		{syntax.Perl &^ syntax.OneLine, true},
+	} {
+		parsed, err := syntax.Parse(expr, tc.reFlags)
+		if err != nil {
+			t.Fatalf("%d: parse: %v", i, err)
+		}
+		re, err := Compile(parsed.String())
+		if err != nil {
+			t.Fatalf("%d: compile: %v", i, err)
+		}
+		if match := re.MatchString(s); match != tc.expMatch {
+			t.Errorf("%d: %q.MatchString(%q)=%t; expected=%t", i, re, s, match, tc.expMatch)
+		}
+	}
+}
+
+// Check that one-pass cutoff does trigger.
 func TestOnePassCutoff(t *testing.T) {
-	MustCompile(`^(?:x{1,1000}){1,1000}$`)
+	re, err := syntax.Parse(`^x{1,1000}y{1,1000}$`, syntax.Perl)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	p, err := syntax.Compile(re.Simplify())
+	if err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+	if compileOnePass(p) != nil {
+		t.Fatalf("makeOnePass succeeded; wanted nil")
+	}
+}
+
+// Check that the same machine can be used with the standard matcher
+// and then the backtracker when there are no captures.
+func TestSwitchBacktrack(t *testing.T) {
+	re := MustCompile(`a|b`)
+	long := make([]byte, maxBacktrackVector+1)
+
+	// The following sequence of Match calls used to panic. See issue #10319.
+	re.Match(long)     // triggers standard matcher
+	re.Match(long[:1]) // triggers backtracker
+}
+
+func BenchmarkFind(b *testing.B) {
+	b.StopTimer()
+	re := MustCompile("a+b+")
+	wantSubs := "aaabb"
+	s := []byte("acbb" + wantSubs + "dd")
+	b.StartTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		subs := re.Find(s)
+		if string(subs) != wantSubs {
+			b.Fatalf("Find(%q) = %q; want %q", s, subs, wantSubs)
+		}
+	}
+}
+
+func BenchmarkFindAllNoMatches(b *testing.B) {
+	re := MustCompile("a+b+")
+	s := []byte("acddee")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		all := re.FindAll(s, -1)
+		if all != nil {
+			b.Fatalf("FindAll(%q) = %q; want nil", s, all)
+		}
+	}
+}
+
+func BenchmarkFindString(b *testing.B) {
+	b.StopTimer()
+	re := MustCompile("a+b+")
+	wantSubs := "aaabb"
+	s := "acbb" + wantSubs + "dd"
+	b.StartTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		subs := re.FindString(s)
+		if subs != wantSubs {
+			b.Fatalf("FindString(%q) = %q; want %q", s, subs, wantSubs)
+		}
+	}
+}
+
+func BenchmarkFindSubmatch(b *testing.B) {
+	b.StopTimer()
+	re := MustCompile("a(a+b+)b")
+	wantSubs := "aaabb"
+	s := []byte("acbb" + wantSubs + "dd")
+	b.StartTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		subs := re.FindSubmatch(s)
+		if string(subs[0]) != wantSubs {
+			b.Fatalf("FindSubmatch(%q)[0] = %q; want %q", s, subs[0], wantSubs)
+		}
+		if string(subs[1]) != "aab" {
+			b.Fatalf("FindSubmatch(%q)[1] = %q; want %q", s, subs[1], "aab")
+		}
+	}
+}
+
+func BenchmarkFindStringSubmatch(b *testing.B) {
+	b.StopTimer()
+	re := MustCompile("a(a+b+)b")
+	wantSubs := "aaabb"
+	s := "acbb" + wantSubs + "dd"
+	b.StartTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		subs := re.FindStringSubmatch(s)
+		if subs[0] != wantSubs {
+			b.Fatalf("FindStringSubmatch(%q)[0] = %q; want %q", s, subs[0], wantSubs)
+		}
+		if subs[1] != "aab" {
+			b.Fatalf("FindStringSubmatch(%q)[1] = %q; want %q", s, subs[1], "aab")
+		}
+	}
 }
 
 func BenchmarkLiteral(b *testing.B) {
@@ -641,5 +808,77 @@ func BenchmarkOnePassLongNotPrefix(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		re.Match(x)
+	}
+}
+
+func BenchmarkMatchParallelShared(b *testing.B) {
+	x := []byte("this is a long line that contains foo bar baz")
+	re := MustCompile("foo (ba+r)? baz")
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			re.Match(x)
+		}
+	})
+}
+
+func BenchmarkMatchParallelCopied(b *testing.B) {
+	x := []byte("this is a long line that contains foo bar baz")
+	re := MustCompile("foo (ba+r)? baz")
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		re := re.Copy()
+		for pb.Next() {
+			re.Match(x)
+		}
+	})
+}
+
+var sink string
+
+func BenchmarkQuoteMetaAll(b *testing.B) {
+	specials := make([]byte, 0)
+	for i := byte(0); i < utf8.RuneSelf; i++ {
+		if special(i) {
+			specials = append(specials, i)
+		}
+	}
+	s := string(specials)
+	b.SetBytes(int64(len(s)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sink = QuoteMeta(s)
+	}
+}
+
+func BenchmarkQuoteMetaNone(b *testing.B) {
+	s := "abcdefghijklmnopqrstuvwxyz"
+	b.SetBytes(int64(len(s)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sink = QuoteMeta(s)
+	}
+}
+
+func TestDeepEqual(t *testing.T) {
+	re1 := MustCompile("a.*b.*c.*d")
+	re2 := MustCompile("a.*b.*c.*d")
+	if !reflect.DeepEqual(re1, re2) { // has always been true, since Go 1.
+		t.Errorf("DeepEqual(re1, re2) = false, want true")
+	}
+
+	re1.MatchString("abcdefghijklmn")
+	if !reflect.DeepEqual(re1, re2) {
+		t.Errorf("DeepEqual(re1, re2) = false, want true")
+	}
+
+	re2.MatchString("abcdefghijklmn")
+	if !reflect.DeepEqual(re1, re2) {
+		t.Errorf("DeepEqual(re1, re2) = false, want true")
+	}
+
+	re2.MatchString(strings.Repeat("abcdefghijklmn", 100))
+	if !reflect.DeepEqual(re1, re2) {
+		t.Errorf("DeepEqual(re1, re2) = false, want true")
 	}
 }

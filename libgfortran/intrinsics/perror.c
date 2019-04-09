@@ -1,5 +1,5 @@
 /* Implementation of the PERROR intrinsic.
-   Copyright (C) 2005-2014 Free Software Foundation, Inc.
+   Copyright (C) 2005-2019 Free Software Foundation, Inc.
    Contributed by François-Xavier Coudert <coudert@clipper.ens.fr>
 
 This file is part of the GNU Fortran runtime library (libgfortran).
@@ -26,7 +26,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "libgfortran.h"
 
 #include <errno.h>
-#include <string.h>
 
 /* SUBROUTINE PERROR(STRING)
    CHARACTER(len=*), INTENT(IN) :: STRING   */
@@ -37,17 +36,8 @@ iexport_proto(perror_sub);
 void
 perror_sub (char *string, gfc_charlen_type string_len)
 {
-  char * str;
-
-  /* Trim trailing spaces from paths.  */
-  while (string_len > 0 && string[string_len - 1] == ' ')
-    string_len--;
-
-  /* Make a null terminated copy of the strings.  */
-  str = gfc_alloca (string_len + 1);
-  memcpy (str, string, string_len);
-  str[string_len] = '\0';
-
+  char *str = fc_strdup (string, string_len);
   perror (str);
+  free (str);
 }
 iexport(perror_sub);

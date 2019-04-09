@@ -2,28 +2,30 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build darwin dragonfly freebsd linux nacl netbsd openbsd solaris windows
+// +build darwin dragonfly freebsd hurd linux nacl netbsd openbsd solaris windows
 
 #include "runtime.h"
 #include "array.h"
 #include "arch.h"
-#include "malloc.h"
 
-extern Slice syscall_Envs __asm__ (GOSYM_PREFIX "syscall.Envs");
+extern Slice runtime_get_envs(void);
 
-const byte*
+String
 runtime_getenv(const char *s)
 {
 	int32 i, j;
 	intgo len;
 	const byte *v, *bs;
+	Slice envs;
 	String* envv;
 	int32 envc;
+	String ret;
 
 	bs = (const byte*)s;
 	len = runtime_findnull(bs);
-	envv = (String*)syscall_Envs.__values;
-	envc = syscall_Envs.__count;
+	envs = runtime_get_envs();
+	envv = (String*)envs.__values;
+	envc = envs.__count;
 	for(i=0; i<envc; i++){
 		if(envv[i].len <= len)
 			continue;
@@ -33,8 +35,12 @@ runtime_getenv(const char *s)
 				goto nomatch;
 		if(v[len] != '=')
 			goto nomatch;
-		return v+len+1;
+		ret.str = v+len+1;
+		ret.len = envv[i].len-len-1;
+		return ret;
 	nomatch:;
 	}
-	return nil;
+	ret.str = nil;
+	ret.len = 0;
+	return ret;
 }

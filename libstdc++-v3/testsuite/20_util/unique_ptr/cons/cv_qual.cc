@@ -1,7 +1,6 @@
-// { dg-options "-std=gnu++11" }
-// { dg-do compile }
+// { dg-do compile { target c++11 } }
 
-// Copyright (C) 2012-2014 Free Software Foundation, Inc.
+// Copyright (C) 2012-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -88,28 +87,16 @@ void
 test07()
 {
   // Allow conversions from user-defined pointer-like types
+  // for the single-object version
   A_pointer p;
-  std::unique_ptr<A[]> upA(p);
-  std::unique_ptr<const A[]> cA(p);
-  std::unique_ptr<volatile A[]> vA(p);
-  std::unique_ptr<const volatile A[]> cvA(p);
-}
-
-template<typename T>
-struct deleter
-{
-  deleter() = default;
-  template<typename U>
-    deleter(const deleter<U>) { }
-  typedef T pointer;
-  void operator()(T) const { }
-};
-
-void
-test08()
-{
+  std::unique_ptr<A> upA(p);
+  std::unique_ptr<const A> cA(p);
+  std::unique_ptr<volatile A> vA(p);
+  std::unique_ptr<const volatile A> cvA(p);
   // Allow conversions from user-defined pointer-like types
-  std::unique_ptr<B[], deleter<A_pointer>> p;
-  std::unique_ptr<A[], deleter<A*>> upA(std::move(p));
+  // for the array version when the type is converted explicitly
+  std::unique_ptr<A[]> upA2((A*)p);
+  std::unique_ptr<const A[]> cA2((A*)p);
+  std::unique_ptr<volatile A[]> vA2((A*)p);
+  std::unique_ptr<const volatile A[]> cvA2((A*)p);
 }
-

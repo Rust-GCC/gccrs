@@ -1,7 +1,7 @@
 /* Verify that simple indirect calls are inlined even without early
    inlining..  */
 /* { dg-do compile } */
-/* { dg-options "-O3 -fdump-ipa-inline -fno-early-inlining"  } */
+/* { dg-options "-O3 -fdump-ipa-inline -fno-early-inlining -fno-ipa-icf"  } */
 
 struct S
 {
@@ -218,4 +218,3 @@ int test7 (void)
 /* { dg-final { scan-ipa-dump "hooray5\[^\\n\]*inline copy in test5"  "inline"  } } */
 /* { dg-final { scan-ipa-dump "hooray6\[^\\n\]*inline copy in test6"  "inline"  } } */
 /* { dg-final { scan-ipa-dump "hooray7\[^\\n\]*inline copy in test7"  "inline"  } } */
-/* { dg-final { cleanup-ipa-dump "inline" } } */

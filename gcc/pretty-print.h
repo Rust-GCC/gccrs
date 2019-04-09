@@ -1,5 +1,5 @@
 /* Various declarations for language-independent pretty-print subroutines.
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by Gabriel Dos Reis <gdr@integrable-solutions.net>
 
 This file is part of GCC.
@@ -22,8 +22,6 @@ along with GCC; see the file COPYING3.  If not see
 #define GCC_PRETTY_PRINT_H
 
 #include "obstack.h"
-#include "input.h"
-#include "wide-int-print.h"
 
 /* Maximum number of format string arguments.  */
 #define PP_NL_ARGMAX   30
@@ -35,8 +33,12 @@ struct text_info
   const char *format_spec;
   va_list *args_ptr;
   int err_no;  /* for %m */
-  location_t *locus;
   void **x_data;
+  rich_location *m_richloc;
+
+  void set_location (unsigned int idx, location_t loc,
+		     enum range_display_kind range_display_kind);
+  location_t get_location (unsigned int index_of_location) const;
 };
 
 /* How often diagnostics are prefixed by their locations:
@@ -100,7 +102,49 @@ struct output_buffer
   /* This must be large enough to hold any printed integer or
      floating-point value.  */
   char digit_buffer[128];
+
+  /* Nonzero means that text should be flushed when
+     appropriate. Otherwise, text is buffered until either
+     pp_really_flush or pp_clear_output_area are called.  */
+  bool flush_p;
 };
+
+/* Finishes constructing a NULL-terminated character string representing
+   the buffered text.  */
+static inline const char *
+output_buffer_formatted_text (output_buffer *buff)
+{
+  obstack_1grow (buff->obstack, '\0');
+  return (const char *) obstack_base (buff->obstack);
+}
+
+/* Append to the output buffer a string specified by its
+   STARTing character and LENGTH.  */
+static inline void
+output_buffer_append_r (output_buffer *buff, const char *start, int length)
+{
+  gcc_checking_assert (start);
+  obstack_grow (buff->obstack, start, length);
+  for (int i = 0; i < length; i++)
+    if (start[i] == '\n')
+      buff->line_length = 0;
+    else
+      buff->line_length++;
+}
+
+/*  Return a pointer to the last character emitted in the
+    output_buffer.  A NULL pointer means no character available.  */
+static inline const char *
+output_buffer_last_position_in_text (const output_buffer *buff)
+{
+  const char *p = NULL;
+  struct obstack *text = buff->obstack;
+
+  if (obstack_base (text) != obstack_next_free (text))
+    p = ((const char *) obstack_next_free (text)) - 1;
+  return p;
+}
+
 
 /* The type of pretty-printer flags passed to clients.  */
 typedef unsigned int pp_flags;
@@ -132,14 +176,23 @@ struct pp_wrapping_mode_t
 /* Get or set the wrapping mode as a single entity.  */
 #define pp_wrapping_mode(PP) (PP)->wrapping
 
-/* The type of a hook that formats client-specific data onto a pretty_pinter.
+/* The type of a hook that formats client-specific data onto a pretty_printer.
    A client-supplied formatter returns true if everything goes well,
    otherwise it returns false.  */
 typedef bool (*printer_fn) (pretty_printer *, text_info *, const char *,
-			    int, bool, bool, bool);
+			    int, bool, bool, bool, bool *, const char **);
 
 /* Client supplied function used to decode formats.  */
 #define pp_format_decoder(PP) (PP)->format_decoder
+
+/* Base class for an optional client-supplied object for doing additional
+   processing between stages 2 and 3 of formatted printing.  */
+class format_postprocessor
+{
+ public:
+  virtual ~format_postprocessor () {}
+  virtual void handle (pretty_printer *) = 0;
+};
 
 /* TRUE if a newline character needs to be added before further
    formatting.  */
@@ -163,17 +216,18 @@ typedef bool (*printer_fn) (pretty_printer *, text_info *, const char *,
    and add additional fields they need.  */
 struct pretty_printer
 {
-  // Default construct a pretty printer with specified prefix
-  // and a maximum line length cut off limit.
-  explicit pretty_printer (const char* = NULL, int = 0);
+  /* Default construct a pretty printer with specified
+     maximum line length cut off limit.  */
+  explicit pretty_printer (int = 0);
 
   virtual ~pretty_printer ();
 
   /* Where we print external representation of ENTITY.  */
   output_buffer *buffer;
 
-  /* The prefix for each new line.  */
-  const char *prefix;
+  /* The prefix for each new line.  If non-NULL, this is "owned" by the
+     pretty_printer, and will eventually be free-ed.  */
+  char *prefix;
 
   /* Where to put whitespace around the entity being formatted.  */
   pp_padding padding;
@@ -195,8 +249,15 @@ struct pretty_printer
      If the BUFFER needs additional characters from the format string, it
      should advance the TEXT->format_spec as it goes.  When FORMAT_DECODER
      returns, TEXT->format_spec should point to the last character processed.
-  */
+     The QUOTE and BUFFER_PTR are passed in, to allow for deferring-handling
+     of format codes (e.g. %H and %I in the C++ frontend).  */
   printer_fn format_decoder;
+
+  /* If non-NULL, this is called by pp_format once after all format codes
+     have been processed, to allow for client-specific postprocessing.
+     This is used by the C++ frontend for handling the %H and %I
+     format codes (which interract with each other).  */
+  format_postprocessor *m_format_postprocessor;
 
   /* Nonzero if current PREFIX was emitted at least once.  */
   bool emitted_prefix;
@@ -269,8 +330,7 @@ pp_get_prefix (const pretty_printer *pp) { return pp->prefix; }
       pp_string (PP, pp_buffer (PP)->digit_buffer);		\
     }								\
   while (0)
-#define pp_wide_integer(PP, I) \
-   pp_scalar (PP, HOST_WIDE_INT_PRINT_DEC, (HOST_WIDE_INT) I)
+#define pp_double(PP, F)       pp_scalar (PP, "%f", F)
 #define pp_pointer(PP, P)      pp_scalar (PP, "%p", P)
 
 #define pp_identifier(PP, ID)  pp_string (PP, (pp_translate_identifiers (PP) \
@@ -281,7 +341,8 @@ pp_get_prefix (const pretty_printer *pp) { return pp->prefix; }
 #define pp_buffer(PP) (PP)->buffer
 
 extern void pp_set_line_maximum_length (pretty_printer *, int);
-extern void pp_set_prefix (pretty_printer *, const char *);
+extern void pp_set_prefix (pretty_printer *, char *);
+extern char *pp_take_prefix (pretty_printer *);
 extern void pp_destroy_prefix (pretty_printer *);
 extern int pp_remaining_character_count_for_line (pretty_printer *);
 extern void pp_clear_output_area (pretty_printer *);
@@ -314,6 +375,7 @@ extern void pp_printf (pretty_printer *, const char *, ...)
 extern void pp_verbatim (pretty_printer *, const char *, ...)
      ATTRIBUTE_GCC_PPDIAG(2,3);
 extern void pp_flush (pretty_printer *);
+extern void pp_really_flush (pretty_printer *);
 extern void pp_format (pretty_printer *, text_info *);
 extern void pp_output_formatted_text (pretty_printer *);
 extern void pp_format_verbatim (pretty_printer *, text_info *);
@@ -325,6 +387,9 @@ extern void pp_string (pretty_printer *, const char *);
 extern void pp_write_text_to_stream (pretty_printer *);
 extern void pp_write_text_as_dot_label_to_stream (pretty_printer *, bool);
 extern void pp_maybe_space (pretty_printer *);
+
+extern void pp_begin_quote (pretty_printer *, bool);
+extern void pp_end_quote (pretty_printer *, bool);
 
 /* Switch into verbatim mode and return the old mode.  */
 static inline pp_wrapping_mode_t
@@ -340,5 +405,16 @@ pp_set_verbatim_wrapping_ (pretty_printer *pp)
 extern const char *identifier_to_locale (const char *);
 extern void *(*identifier_to_locale_alloc) (size_t);
 extern void (*identifier_to_locale_free) (void *);
+
+/* Print I to PP in decimal.  */
+
+inline void
+pp_wide_integer (pretty_printer *pp, HOST_WIDE_INT i)
+{
+  pp_scalar (pp, HOST_WIDE_INT_PRINT_DEC, i);
+}
+
+template<unsigned int N, typename T>
+void pp_wide_integer (pretty_printer *pp, const poly_int_pod<N, T> &);
 
 #endif /* GCC_PRETTY_PRINT_H */

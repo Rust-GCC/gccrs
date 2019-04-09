@@ -1,6 +1,6 @@
 // Safe sequence implementation  -*- C++ -*-
 
-// Copyright (C) 2003-2014 Free Software Foundation, Inc.
+// Copyright (C) 2003-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,16 +29,13 @@
 #ifndef _GLIBCXX_DEBUG_SAFE_SEQUENCE_H
 #define _GLIBCXX_DEBUG_SAFE_SEQUENCE_H 1
 
-#include <debug/debug.h>
+#include <debug/assertions.h>
 #include <debug/macros.h>
 #include <debug/functions.h>
 #include <debug/safe_base.h>
 
 namespace __gnu_debug
 {
-  template<typename _Iterator, typename _Sequence>
-    class _Safe_iterator;
-
   /** A simple function object that returns true if the passed-in
    *  value is not equal to the stored value. It saves typing over
    *  using both bind1st and not_equal.

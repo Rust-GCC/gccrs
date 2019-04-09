@@ -1,7 +1,7 @@
 ; -*- buffer-read-only: t -*-
 ; Generated automatically by genopt.sh from rs6000-cpus.def.
 
-; Copyright (C) 2011-2014 Free Software Foundation, Inc.
+; Copyright (C) 2011-2019 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -180,11 +180,17 @@ EnumValue
 Enum(rs6000_cpu_opt_value) String(power8) Value(50)
 
 EnumValue
-Enum(rs6000_cpu_opt_value) String(powerpc) Value(51)
+Enum(rs6000_cpu_opt_value) String(power9) Value(51)
 
 EnumValue
-Enum(rs6000_cpu_opt_value) String(powerpc64) Value(52)
+Enum(rs6000_cpu_opt_value) String(powerpc) Value(52)
 
 EnumValue
-Enum(rs6000_cpu_opt_value) String(rs64) Value(53)
+Enum(rs6000_cpu_opt_value) String(powerpc64) Value(53)
+
+EnumValue
+Enum(rs6000_cpu_opt_value) String(powerpc64le) Value(54)
+
+EnumValue
+Enum(rs6000_cpu_opt_value) String(rs64) Value(55)
 

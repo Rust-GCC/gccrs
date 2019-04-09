@@ -1,6 +1,6 @@
 /* PR rtl-optimization/46865 */
 /* { dg-do compile } */
-/* { dg-options "-O2 -save-temps" } */
+/* { dg-options "-O2" } */
 
 extern unsigned long f;
 
@@ -29,4 +29,3 @@ bar (void)
 }
 
 /* { dg-final { scan-assembler-times "asmnop" 2 } } */
-/* { dg-final { cleanup-saved-temps } } */

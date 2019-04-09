@@ -6,7 +6,7 @@
  *                                                                          *
  *                              C Header File                               *
  *                                                                          *
- *           Copyright (C) 1992-2012, Free Software Foundation, Inc.        *
+ *           Copyright (C) 1992-2018, Free Software Foundation, Inc.        *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -35,13 +35,14 @@
  gnat1 %{I*} %{k8:-gnatk8} %{Wall:-gnatwa} %{w:-gnatws} %{!Q:-quiet}\
     %{nostdinc*} %{nostdlib*}\
     -dumpbase %{.adb:%b.adb}%{.ads:%b.ads}%{!.adb:%{!.ads:%b.ada}}\
-    %{c|S:%{o*:-auxbase-strip %*}%{!o*:-auxbase %b}}%{!c:%{!S:-auxbase %b}} \
-    %{O*} %{W*} %{w} %{p} %{pg:-p} %{d*} %{f*}\
+    %{fcompare-debug-second:%:compare-debug-auxbase-opt(%b) -gnatd_A} \
+    %{!fcompare-debug-second:%{c|S:%{o*:-auxbase-strip %*}%{!o*:-auxbase %b}}%{!c:%{!S:-auxbase %b}}} \
+    %{O*} %{W*} %{w} %{p} %{pg:-p} %{d*} \
     %{coverage:-fprofile-arcs -ftest-coverage} "
-   "%{gnatea:-gnatez} %{g*&m*} "
 #if defined(TARGET_VXWORKS_RTP)
-   "%{fRTS=rtp:-mrtp} %{fRTS=rtp-smp:-mrtp} %{fRTS=ravenscar-cert-rtp:-mrtp}"
+   "%{fRTS=rtp|fRTS=rtp-smp|fRTS=ravenscar-cert-rtp:-mrtp} "
 #endif
+   "%{gnatea:-gnatez} %{g*&m*&f*} "
    "%1 %{!S:%{o*:%w%*-gnatO}} \
     %i %{S:%W{o*}%{!o*:-o %b.s}} \
     %{gnatc*|gnats*: -o %j} %{-param*} \
@@ -54,8 +55,8 @@
     %{nostdinc*} %{nostdlib*}\
     -dumpbase %{.adb:%b.adb}%{.ads:%b.ads}%{!.adb:%{!.ads:%b.ada}}\
     %{o*:-auxbase-strip %*}%{!o*:-auxbase %b} \
-    %{a} %{d*} %{f*} \
-    %{gnatea:-gnatez} %{g*&m*} \
+    %{a} %{d*} \
+    %{gnatea:-gnatez} %{g*&m*&f*} \
     %1 %{o*:%w%*-gnatO} \
     %i \
     %{gnatc*|gnats*: -o %j} %{-param*} ", 0, 0, 0},
@@ -67,8 +68,8 @@
     %{nostdinc*} %{nostdlib*}\
     -dumpbase %{.adb:%b.adb}%{.ads:%b.ads}%{!.adb:%{!.ads:%b.ada}}\
     %{o*:-auxbase-strip %*}%{!o*:-auxbase %b} \
-    %{a} %{d*} %{f*} \
-    %{gnatea:-gnatez} %{g*&m*} \
+    %{a} %{d*} \
+    %{gnatea:-gnatez} %{g*&m*&f*} \
     %1 %{o*:%w%*-gnatO} \
     %i \
     %{gnatc*|gnats*: -o %j} %{-param*} ", 0, 0, 0},

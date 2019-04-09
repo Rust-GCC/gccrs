@@ -1,4 +1,4 @@
-// Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package http
 
 import (
 	"bytes"
+	"internal/race"
 	"runtime"
 	"testing"
 	"time"
@@ -196,7 +197,7 @@ func TestHeaderWriteSubsetAllocs(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping alloc test in short mode")
 	}
-	if raceEnabled {
+	if race.Enabled {
 		t.Skip("skipping test under race detector")
 	}
 	t.Skip("Skipping alloc count test on gccgo")

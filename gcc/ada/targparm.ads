@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1999-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -53,7 +53,7 @@
 --     1. Configuration pragmas, that must appear at the start of the file.
 --        Any such pragmas automatically apply to any unit compiled in the
 --        presence of this system file. Only a limited set of such pragmas
---        may appear as documented in the corresponding section below,
+--        may appear as documented in the corresponding section below.
 
 --     2. Target parameters. These are boolean constants that are defined
 --        in the private part of the package giving fixed information
@@ -107,7 +107,7 @@ package Targparm is
    --  If a pragma Detect_Blocking appears, then the flag Opt.Detect_Blocking
    --  is set to True.
 
-   --  if a pragma Suppress_Exception_Locations appears, then the flag
+   --  If a pragma Suppress_Exception_Locations appears, then the flag
    --  Opt.Exception_Locations_Suppressed is set to True.
 
    --  If a pragma Profile with a valid profile argument appears, then
@@ -192,24 +192,6 @@ package Targparm is
    --  Get_Target_Parameters routine which reads the values from a provided
    --  text buffer containing the source of the system package.
 
-   ----------------------------
-   -- Special Target Control --
-   ----------------------------
-
-   --  The great majority of GNAT ports are based on GCC. The switches in
-   --  this section indicate the use of some non-standard target back end
-   --  or other special targetting requirements.
-
-   AAMP_On_Target : Boolean := False;
-   --  Set to True if target is AAMP
-
-   type Virtual_Machine_Kind is (No_VM, JVM_Target, CLI_Target);
-   VM_Target : Virtual_Machine_Kind := No_VM;
-   --  Kind of virtual machine targetted
-   --  No_VM: no virtual machine, default case of a standard processor
-   --  JVM_Target: Java Virtual Machine
-   --  CLI_Target: CLI/.NET Virtual Machine
-
    -------------------------------
    -- Backend Arithmetic Checks --
    -------------------------------
@@ -241,66 +223,51 @@ package Targparm is
    --      This approach uses longjmp/setjmp to handle exceptions. It
    --      uses less storage, and can often propagate exceptions faster,
    --      at the expense of (sometimes considerable) overhead in setting
-   --      up an exception handler. This approach is available on all
-   --      targets, and is the default where it is the only approach.
+   --      up an exception handler.
 
    --      The generation of the setjmp and longjmp calls is handled by
    --      the front end of the compiler (this includes gigi in the case
    --      of the standard GCC back end). It does not use any back end
    --      support (such as the GCC3 exception handling mechanism). When
    --      this approach is used, the compiler generates special exception
-   --      handlers for handling cleanups when an exception is raised.
-
-   --    Front-End Zero Cost Exceptions
-
-   --      This approach uses separate exception tables. These use extra
-   --      storage, and exception propagation can be quite slow, but there
-   --      is no overhead in setting up an exception handler (it is to this
-   --      latter operation that the phrase zero-cost refers). This approach
-   --      is only available on some targets, and is the default where it is
-   --      available.
-
-   --      The generation of the exception tables is handled by the front
-   --      end of the compiler. It does not use any back end support (such
-   --      as the GCC3 exception handling mechanism). When this approach
-   --      is used, the compiler generates special exception handlers for
-   --      handling cleanups when an exception is raised.
+   --      handlers for handling cleanups (AT-END actions) when an exception
+   --      is raised.
 
    --    Back-End Zero Cost Exceptions
 
    --      With this approach, the back end handles the generation and
    --      handling of exceptions. For example, the GCC3 exception handling
    --      mechanisms are used in this mode. The front end simply generates
-   --      code for explicit exception handlers, and AT END cleanup handlers
+   --      code for explicit exception handlers, and AT-END cleanup handlers
    --      are simply passed unchanged to the backend for generating cleanups
    --      both in the exceptional and non-exceptional cases.
 
-   --      As the name implies, this approach generally uses a zero-cost
-   --      mechanism with tables, but the tables are generated by the back
-   --      end. However, since the back-end is entirely responsible for the
-   --      handling of exceptions, another mechanism might be used. In the
-   --      case of GCC3 for instance, it might be the case that the compiler
-   --      is configured for setjmp/longjmp handling, then everything will
-   --      work correctly. However, it is definitely preferred that the
-   --      back end provide zero cost exception handling.
+   --      As the name implies, this approach uses a table-based mechanism,
+   --      which incurs no setup when entering a region covered by handlers
+   --      but requires complex unwinding to walk up the call chain and search
+   --      for handlers at propagation time.
 
-   --    Controlling the selection of methods
+   --    Back-End Setjmp/Longjmp Exceptions
 
-   --      On most implementations, back-end zero-cost exceptions are used.
-   --      Otherwise, Front-End Longjmp/Setjmp approach is used.
-   --      Note that there is a requirement that all Ada units in a partition
-   --      be compiled with the same exception model.
+   --      With this approach, the back end also handles the generation and
+   --      handling of exceptions, using setjmp/longjmp to set up receivers and
+   --      propagate. AT-END actions on exceptional paths are also taken care
+   --      of by the back end and the front end doesn't need to generate
+   --      explicit exception handlers for these.
 
    --    Control of Available Methods and Defaults
 
-   --      The following switches specify whether ZCX is available, and
-   --      whether it is enabled by default.
+   --      The following switches specify whether we're using a front-end or a
+   --      back-end mechanism and whether this is a zero-cost or a sjlj scheme.
+
+   --      The per-switch default values correspond to the default value of
+   --      Opt.Exception_Mechanism.
 
    ZCX_By_Default_On_Target : Boolean := False;
-   --  Indicates if zero cost exceptions are active by default. If this
-   --  variable is False, then the only possible exception method is the
-   --  front-end setjmp/longjmp approach, and this is the default. If
-   --  this variable is True, then GCC ZCX is used.
+   --  Indicates if zero cost scheme for exceptions
+
+   Frontend_Exceptions_On_Target : Boolean := True;
+   --  Indicates if we're using a front-end scheme for exceptions
 
    ------------------------------------
    -- Run-Time Library Configuration --
@@ -349,8 +316,6 @@ package Targparm is
    --    The calls to __gnat_initialize and __gnat_finalize are omitted
    --
    --    All finalization and initialization (controlled types) is omitted
-   --
-   --    The routine __gnat_handler_installed is not imported
 
    Preallocated_Stacks_On_Target : Boolean := False;
    --  If this flag is True, then the expander preallocates all task stacks
@@ -364,13 +329,13 @@ package Targparm is
    ---------------------
 
    --  By default, type Duration is a 64-bit fixed-point type with a delta
-   --  and small of 10**(-9) (i.e. it is a count in nanoseconds. This flag
+   --  and small of 10**(-9) (i.e. it is a count in nanoseconds). This flag
    --  allows that standard format to be modified.
 
    Duration_32_Bits_On_Target : Boolean := False;
    --  If True, then Duration is represented in 32 bits and the delta and
    --  small values are set to 20.0*(10**(-3)) (i.e. it is a count in units
-   --  of 20 milliseconds.
+   --  of 20 milliseconds).
 
    ------------------------------------
    -- Back-End Code Generation Flags --
@@ -585,18 +550,6 @@ package Targparm is
    --  value less than 1.0.
 
    -----------------
-   -- Data Layout --
-   -----------------
-
-   --  Normally when using the GCC backend, Gigi and GCC perform much of the
-   --  data layout using the standard layout capabilities of GCC. If the
-   --  parameter Backend_Layout is set to False, then the front end must
-   --  perform all data layout. For further details see the package Layout.
-
-   Frontend_Layout_On_Target : Boolean := False;
-   --  Set True if front end does layout
-
-   -----------------
    -- Subprograms --
    -----------------
 
@@ -617,9 +570,24 @@ package Targparm is
    --  selected component with Sloc value System_Location and given Prefix
    --  (Pre) and Selector (Sel) values.
 
-   type Set_RND_Type is access procedure (Unit : Node_Id);
+   type Set_NOD_Type is access procedure (Unit : Node_Id);
    --  Parameter type for Get_Target_Parameters that records a Restriction
    --  No_Dependence for the given unit (identifier or selected component).
+
+   type Set_NSA_Type is access procedure (Asp : Name_Id; OK : out Boolean);
+   --  Parameter type for Get_Target_Parameters that records a Restriction
+   --  No_Specification_Of_Aspect. Asp is the aspect name. OK is set True
+   --  if this is an OK aspect name, and False if it is not an aspect name.
+
+   type Set_NUA_Type is access procedure (Attr : Name_Id; OK : out Boolean);
+   --  Parameter type for Get_Target_Parameters that records a Restriction
+   --  No_Use_Of_Attribute. Attr is the attribute name. OK is set True if
+   --  this is an OK attribute name, and False if it is not an attribute name.
+
+   type Set_NUP_Type is access procedure (Prag : Name_Id; OK : out Boolean);
+   --  Parameter type for Get_Target_Parameters that records a Restriction
+   --  No_Use_Of_Pragma. Prag is the pragma name. OK is set True if this is
+   --  an OK pragma name, and False if it is not a recognized pragma name.
 
    procedure Get_Target_Parameters
      (System_Text  : Source_Buffer_Ptr;
@@ -627,18 +595,28 @@ package Targparm is
       Source_Last  : Source_Ptr;
       Make_Id      : Make_Id_Type := null;
       Make_SC      : Make_SC_Type := null;
-      Set_RND      : Set_RND_Type := null);
-   --  Called at the start of execution to obtain target parameters from
-   --  the source of package System. The parameters provide the source
-   --  text to be scanned (in System_Text (Source_First .. Source_Last)).
-   --  if the three subprograms are left at their default value of null,
-   --  Get_Target_Parameters will ignore pragma Restrictions No_Dependence
-   --  lines, otherwise it will use these three subprograms to record them.
+      Set_NOD      : Set_NOD_Type := null;
+      Set_NSA      : Set_NSA_Type := null;
+      Set_NUA      : Set_NUA_Type := null;
+      Set_NUP      : Set_NUP_Type := null);
+   --  Called at the start of execution to obtain target parameters from the
+   --  source of package System. The parameters provide the source text to be
+   --  scanned (in System_Text (Source_First .. Source_Last)). If the three
+   --  subprograms Make_Id, Make_SC, and Set_NOD are left at their default
+   --  value of null, Get_Target_Parameters will ignore pragma Restrictions
+   --  (No_Dependence) lines; otherwise it will use these three subprograms to
+   --  record them. Similarly, if Set_NUP is left at its default value of null,
+   --  then any occurrences of pragma Restrictions (No_Use_Of_Pragma => XXX)
+   --  will be ignored; otherwise it will use this procedure to record the
+   --  pragma. Similarly for the NSA and NUA cases.
 
    procedure Get_Target_Parameters
      (Make_Id : Make_Id_Type := null;
       Make_SC : Make_SC_Type := null;
-      Set_RND : Set_RND_Type := null);
+      Set_NOD : Set_NOD_Type := null;
+      Set_NSA : Set_NSA_Type := null;
+      Set_NUA : Set_NUA_Type := null;
+      Set_NUP : Set_NUP_Type := null);
    --  This version reads in system.ads using Osint. The idea is that the
    --  caller uses the first version if they have to read system.ads anyway
    --  (e.g. the compiler) and uses this simpler interface if system.ads is

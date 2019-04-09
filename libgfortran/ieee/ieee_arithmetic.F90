@@ -1,5 +1,5 @@
 !    Implementation of the IEEE_ARITHMETIC standard intrinsic module
-!    Copyright (C) 2013 Free Software Foundation, Inc.
+!    Copyright (C) 2013-2019 Free Software Foundation, Inc.
 !    Contributed by Francois-Xavier Coudert <fxcoudert@gcc.gnu.org>
 ! 
 ! This file is part of the GNU Fortran runtime library (libgfortran).
@@ -55,9 +55,11 @@ module IEEE_ARITHMETIC
     IEEE_NEGATIVE_INF      = IEEE_CLASS_TYPE(3), &
     IEEE_NEGATIVE_NORMAL   = IEEE_CLASS_TYPE(4), &
     IEEE_NEGATIVE_DENORMAL = IEEE_CLASS_TYPE(5), &
+    IEEE_NEGATIVE_SUBNORMAL= IEEE_CLASS_TYPE(5), &
     IEEE_NEGATIVE_ZERO     = IEEE_CLASS_TYPE(6), &
     IEEE_POSITIVE_ZERO     = IEEE_CLASS_TYPE(7), &
     IEEE_POSITIVE_DENORMAL = IEEE_CLASS_TYPE(8), &
+    IEEE_POSITIVE_SUBNORMAL= IEEE_CLASS_TYPE(8), &
     IEEE_POSITIVE_NORMAL   = IEEE_CLASS_TYPE(9), &
     IEEE_POSITIVE_INF      = IEEE_CLASS_TYPE(10)
 
@@ -95,10 +97,27 @@ module IEEE_ARITHMETIC
     elemental logical function _gfortran_ieee_is_finite_8(X)
       real(kind=8), intent(in) :: X
     end function
+#ifdef HAVE_GFC_REAL_10
+    elemental logical function _gfortran_ieee_is_finite_10(X)
+      real(kind=10), intent(in) :: X
+    end function
+#endif
+#ifdef HAVE_GFC_REAL_16
+    elemental logical function _gfortran_ieee_is_finite_16(X)
+      real(kind=16), intent(in) :: X
+    end function
+#endif
   end interface
 
   interface IEEE_IS_FINITE
-    procedure _gfortran_ieee_is_finite_4, _gfortran_ieee_is_finite_8
+    procedure &
+#ifdef HAVE_GFC_REAL_16
+      _gfortran_ieee_is_finite_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+      _gfortran_ieee_is_finite_10, &
+#endif
+      _gfortran_ieee_is_finite_8, _gfortran_ieee_is_finite_4
   end interface
   public :: IEEE_IS_FINITE
 
@@ -111,10 +130,27 @@ module IEEE_ARITHMETIC
     elemental logical function _gfortran_ieee_is_nan_8(X)
       real(kind=8), intent(in) :: X
     end function
+#ifdef HAVE_GFC_REAL_10
+    elemental logical function _gfortran_ieee_is_nan_10(X)
+      real(kind=10), intent(in) :: X
+    end function
+#endif
+#ifdef HAVE_GFC_REAL_16
+    elemental logical function _gfortran_ieee_is_nan_16(X)
+      real(kind=16), intent(in) :: X
+    end function
+#endif
   end interface
 
   interface IEEE_IS_NAN
-    procedure _gfortran_ieee_is_nan_4, _gfortran_ieee_is_nan_8
+    procedure &
+#ifdef HAVE_GFC_REAL_16
+      _gfortran_ieee_is_nan_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+      _gfortran_ieee_is_nan_10, &
+#endif
+      _gfortran_ieee_is_nan_8, _gfortran_ieee_is_nan_4
   end interface
   public :: IEEE_IS_NAN
 
@@ -127,10 +163,27 @@ module IEEE_ARITHMETIC
     elemental logical function _gfortran_ieee_is_negative_8(X)
       real(kind=8), intent(in) :: X
     end function
+#ifdef HAVE_GFC_REAL_10
+    elemental logical function _gfortran_ieee_is_negative_10(X)
+      real(kind=10), intent(in) :: X
+    end function
+#endif
+#ifdef HAVE_GFC_REAL_16
+    elemental logical function _gfortran_ieee_is_negative_16(X)
+      real(kind=16), intent(in) :: X
+    end function
+#endif
   end interface
 
   interface IEEE_IS_NEGATIVE
-    procedure _gfortran_ieee_is_negative_4, _gfortran_ieee_is_negative_8
+    procedure &
+#ifdef HAVE_GFC_REAL_16
+      _gfortran_ieee_is_negative_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+      _gfortran_ieee_is_negative_10, &
+#endif
+      _gfortran_ieee_is_negative_8, _gfortran_ieee_is_negative_4
   end interface
   public :: IEEE_IS_NEGATIVE
 
@@ -143,64 +196,149 @@ module IEEE_ARITHMETIC
     elemental logical function _gfortran_ieee_is_normal_8(X)
       real(kind=8), intent(in) :: X
     end function
+#ifdef HAVE_GFC_REAL_10
+    elemental logical function _gfortran_ieee_is_normal_10(X)
+      real(kind=10), intent(in) :: X
+    end function
+#endif
+#ifdef HAVE_GFC_REAL_16
+    elemental logical function _gfortran_ieee_is_normal_16(X)
+      real(kind=16), intent(in) :: X
+    end function
+#endif
   end interface
 
   interface IEEE_IS_NORMAL
-    procedure _gfortran_ieee_is_normal_4, _gfortran_ieee_is_normal_8
+    procedure &
+#ifdef HAVE_GFC_REAL_16
+      _gfortran_ieee_is_normal_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+      _gfortran_ieee_is_normal_10, &
+#endif
+      _gfortran_ieee_is_normal_8, _gfortran_ieee_is_normal_4
   end interface
   public :: IEEE_IS_NORMAL
 
   ! IEEE_COPY_SIGN
 
+#define COPYSIGN_MACRO(A,B) \
+  elemental real(kind = A) function \
+    _gfortran_ieee_copy_sign_/**/A/**/_/**/B (X,Y) ; \
+      real(kind = A), intent(in) :: X ; \
+      real(kind = B), intent(in) :: Y ; \
+  end function
+
   interface
-    elemental real(kind=4) function _gfortran_ieee_copy_sign_4_4 (X,Y)
-      real(kind=4), intent(in) :: X
-      real(kind=4), intent(in) :: Y
-    end function
-    elemental real(kind=4) function _gfortran_ieee_copy_sign_4_8 (X,Y)
-      real(kind=4), intent(in) :: X
-      real(kind=8), intent(in) :: Y
-    end function
-    elemental real(kind=8) function _gfortran_ieee_copy_sign_8_4 (X,Y)
-      real(kind=8), intent(in) :: X
-      real(kind=4), intent(in) :: Y
-    end function
-    elemental real(kind=8) function _gfortran_ieee_copy_sign_8_8 (X,Y)
-      real(kind=8), intent(in) :: X
-      real(kind=8), intent(in) :: Y
-    end function
+#ifdef HAVE_GFC_REAL_16
+COPYSIGN_MACRO(16,16)
+#ifdef HAVE_GFC_REAL_10
+COPYSIGN_MACRO(16,10)
+COPYSIGN_MACRO(10,16)
+#endif
+COPYSIGN_MACRO(16,8)
+COPYSIGN_MACRO(16,4)
+COPYSIGN_MACRO(8,16)
+COPYSIGN_MACRO(4,16)
+#endif
+#ifdef HAVE_GFC_REAL_10
+COPYSIGN_MACRO(10,10)
+COPYSIGN_MACRO(10,8)
+COPYSIGN_MACRO(10,4)
+COPYSIGN_MACRO(8,10)
+COPYSIGN_MACRO(4,10)
+#endif
+COPYSIGN_MACRO(8,8)
+COPYSIGN_MACRO(8,4)
+COPYSIGN_MACRO(4,8)
+COPYSIGN_MACRO(4,4)
   end interface
 
   interface IEEE_COPY_SIGN
-    procedure _gfortran_ieee_copy_sign_4_4, _gfortran_ieee_copy_sign_4_8, &
-              _gfortran_ieee_copy_sign_8_4, _gfortran_ieee_copy_sign_8_8
+    procedure &
+#ifdef HAVE_GFC_REAL_16
+              _gfortran_ieee_copy_sign_16_16, &
+#ifdef HAVE_GFC_REAL_10
+              _gfortran_ieee_copy_sign_16_10, &
+              _gfortran_ieee_copy_sign_10_16, &
+#endif
+              _gfortran_ieee_copy_sign_16_8, &
+              _gfortran_ieee_copy_sign_16_4, &
+              _gfortran_ieee_copy_sign_8_16, &
+              _gfortran_ieee_copy_sign_4_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+              _gfortran_ieee_copy_sign_10_10, &
+              _gfortran_ieee_copy_sign_10_8, &
+              _gfortran_ieee_copy_sign_10_4, &
+              _gfortran_ieee_copy_sign_8_10, &
+              _gfortran_ieee_copy_sign_4_10, &
+#endif
+              _gfortran_ieee_copy_sign_8_8, &
+              _gfortran_ieee_copy_sign_8_4, &
+              _gfortran_ieee_copy_sign_4_8, &
+              _gfortran_ieee_copy_sign_4_4
   end interface
   public :: IEEE_COPY_SIGN
 
   ! IEEE_UNORDERED
 
+#define UNORDERED_MACRO(A,B) \
+  elemental logical function \
+    _gfortran_ieee_unordered_/**/A/**/_/**/B (X,Y) ; \
+      real(kind = A), intent(in) :: X ; \
+      real(kind = B), intent(in) :: Y ; \
+  end function
+
   interface
-    elemental logical function _gfortran_ieee_unordered_4_4 (X,Y)
-      real(kind=4), intent(in) :: X
-      real(kind=4), intent(in) :: Y
-    end function
-    elemental logical function _gfortran_ieee_unordered_4_8 (X,Y)
-      real(kind=4), intent(in) :: X
-      real(kind=8), intent(in) :: Y
-    end function
-    elemental logical function _gfortran_ieee_unordered_8_4 (X,Y)
-      real(kind=8), intent(in) :: X
-      real(kind=4), intent(in) :: Y
-    end function
-    elemental logical function _gfortran_ieee_unordered_8_8 (X,Y)
-      real(kind=8), intent(in) :: X
-      real(kind=8), intent(in) :: Y
-    end function
+#ifdef HAVE_GFC_REAL_16
+UNORDERED_MACRO(16,16)
+#ifdef HAVE_GFC_REAL_10
+UNORDERED_MACRO(16,10)
+UNORDERED_MACRO(10,16)
+#endif
+UNORDERED_MACRO(16,8)
+UNORDERED_MACRO(16,4)
+UNORDERED_MACRO(8,16)
+UNORDERED_MACRO(4,16)
+#endif
+#ifdef HAVE_GFC_REAL_10
+UNORDERED_MACRO(10,10)
+UNORDERED_MACRO(10,8)
+UNORDERED_MACRO(10,4)
+UNORDERED_MACRO(8,10)
+UNORDERED_MACRO(4,10)
+#endif
+UNORDERED_MACRO(8,8)
+UNORDERED_MACRO(8,4)
+UNORDERED_MACRO(4,8)
+UNORDERED_MACRO(4,4)
   end interface
 
   interface IEEE_UNORDERED
-    procedure _gfortran_ieee_unordered_4_4, _gfortran_ieee_unordered_4_8, &
-              _gfortran_ieee_unordered_8_4, _gfortran_ieee_unordered_8_8
+    procedure &
+#ifdef HAVE_GFC_REAL_16
+              _gfortran_ieee_unordered_16_16, &
+#ifdef HAVE_GFC_REAL_10
+              _gfortran_ieee_unordered_16_10, &
+              _gfortran_ieee_unordered_10_16, &
+#endif
+              _gfortran_ieee_unordered_16_8, &
+              _gfortran_ieee_unordered_16_4, &
+              _gfortran_ieee_unordered_8_16, &
+              _gfortran_ieee_unordered_4_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+              _gfortran_ieee_unordered_10_10, &
+              _gfortran_ieee_unordered_10_8, &
+              _gfortran_ieee_unordered_10_4, &
+              _gfortran_ieee_unordered_8_10, &
+              _gfortran_ieee_unordered_4_10, &
+#endif
+              _gfortran_ieee_unordered_8_8, &
+              _gfortran_ieee_unordered_8_4, &
+              _gfortran_ieee_unordered_4_8, &
+              _gfortran_ieee_unordered_4_4
   end interface
   public :: IEEE_UNORDERED
 
@@ -213,64 +351,150 @@ module IEEE_ARITHMETIC
     elemental real(kind=8) function _gfortran_ieee_logb_8 (X)
       real(kind=8), intent(in) :: X
     end function
+#ifdef HAVE_GFC_REAL_10
+    elemental real(kind=10) function _gfortran_ieee_logb_10 (X)
+      real(kind=10), intent(in) :: X
+    end function
+#endif
+#ifdef HAVE_GFC_REAL_16
+    elemental real(kind=16) function _gfortran_ieee_logb_16 (X)
+      real(kind=16), intent(in) :: X
+    end function
+#endif
   end interface
 
   interface IEEE_LOGB
-    procedure _gfortran_ieee_logb_4, _gfortran_ieee_logb_8
+    procedure &
+#ifdef HAVE_GFC_REAL_16
+      _gfortran_ieee_logb_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+      _gfortran_ieee_logb_10, &
+#endif
+      _gfortran_ieee_logb_8, &
+      _gfortran_ieee_logb_4
   end interface
   public :: IEEE_LOGB
 
   ! IEEE_NEXT_AFTER
 
+#define NEXT_AFTER_MACRO(A,B) \
+  elemental real(kind = A) function \
+    _gfortran_ieee_next_after_/**/A/**/_/**/B (X,Y) ; \
+      real(kind = A), intent(in) :: X ; \
+      real(kind = B), intent(in) :: Y ; \
+  end function
+
   interface
-    elemental real(kind=4) function _gfortran_ieee_next_after_4_4 (X, Y)
-      real(kind=4), intent(in) :: X
-      real(kind=4), intent(in) :: Y
-    end function
-    elemental real(kind=4) function _gfortran_ieee_next_after_4_8 (X, Y)
-      real(kind=4), intent(in) :: X
-      real(kind=8), intent(in) :: Y
-    end function
-    elemental real(kind=8) function _gfortran_ieee_next_after_8_4 (X, Y)
-      real(kind=8), intent(in) :: X
-      real(kind=4), intent(in) :: Y
-    end function
-    elemental real(kind=8) function _gfortran_ieee_next_after_8_8 (X, Y)
-      real(kind=8), intent(in) :: X
-      real(kind=8), intent(in) :: Y
-    end function
+#ifdef HAVE_GFC_REAL_16
+NEXT_AFTER_MACRO(16,16)
+#ifdef HAVE_GFC_REAL_10
+NEXT_AFTER_MACRO(16,10)
+NEXT_AFTER_MACRO(10,16)
+#endif
+NEXT_AFTER_MACRO(16,8)
+NEXT_AFTER_MACRO(16,4)
+NEXT_AFTER_MACRO(8,16)
+NEXT_AFTER_MACRO(4,16)
+#endif
+#ifdef HAVE_GFC_REAL_10
+NEXT_AFTER_MACRO(10,10)
+NEXT_AFTER_MACRO(10,8)
+NEXT_AFTER_MACRO(10,4)
+NEXT_AFTER_MACRO(8,10)
+NEXT_AFTER_MACRO(4,10)
+#endif
+NEXT_AFTER_MACRO(8,8)
+NEXT_AFTER_MACRO(8,4)
+NEXT_AFTER_MACRO(4,8)
+NEXT_AFTER_MACRO(4,4)
   end interface
 
   interface IEEE_NEXT_AFTER
-    procedure _gfortran_ieee_next_after_4_4, _gfortran_ieee_next_after_4_8, &
-              _gfortran_ieee_next_after_8_4, _gfortran_ieee_next_after_8_8
+    procedure &
+#ifdef HAVE_GFC_REAL_16
+      _gfortran_ieee_next_after_16_16, &
+#ifdef HAVE_GFC_REAL_10
+      _gfortran_ieee_next_after_16_10, &
+      _gfortran_ieee_next_after_10_16, &
+#endif
+      _gfortran_ieee_next_after_16_8, &
+      _gfortran_ieee_next_after_16_4, &
+      _gfortran_ieee_next_after_8_16, &
+      _gfortran_ieee_next_after_4_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+      _gfortran_ieee_next_after_10_10, &
+      _gfortran_ieee_next_after_10_8, &
+      _gfortran_ieee_next_after_10_4, &
+      _gfortran_ieee_next_after_8_10, &
+      _gfortran_ieee_next_after_4_10, &
+#endif
+      _gfortran_ieee_next_after_8_8, &
+      _gfortran_ieee_next_after_8_4, &
+      _gfortran_ieee_next_after_4_8, &
+      _gfortran_ieee_next_after_4_4
   end interface
   public :: IEEE_NEXT_AFTER
 
   ! IEEE_REM
 
+#define REM_MACRO(RES,A,B) \
+  elemental real(kind = RES) function \
+    _gfortran_ieee_rem_/**/A/**/_/**/B (X,Y) ; \
+      real(kind = A), intent(in) :: X ; \
+      real(kind = B), intent(in) :: Y ; \
+  end function
+
   interface
-    elemental real(kind=4) function _gfortran_ieee_rem_4_4 (X, Y)
-      real(kind=4), intent(in) :: X
-      real(kind=4), intent(in) :: Y
-    end function
-    elemental real(kind=8) function _gfortran_ieee_rem_4_8 (X, Y)
-      real(kind=4), intent(in) :: X
-      real(kind=8), intent(in) :: Y
-    end function
-    elemental real(kind=8) function _gfortran_ieee_rem_8_4 (X, Y)
-      real(kind=8), intent(in) :: X
-      real(kind=4), intent(in) :: Y
-    end function
-    elemental real(kind=8) function _gfortran_ieee_rem_8_8 (X, Y)
-      real(kind=8), intent(in) :: X
-      real(kind=8), intent(in) :: Y
-    end function
+#ifdef HAVE_GFC_REAL_16
+REM_MACRO(16,16,16)
+#ifdef HAVE_GFC_REAL_10
+REM_MACRO(16,16,10)
+REM_MACRO(16,10,16)
+#endif
+REM_MACRO(16,16,8)
+REM_MACRO(16,16,4)
+REM_MACRO(16,8,16)
+REM_MACRO(16,4,16)
+#endif
+#ifdef HAVE_GFC_REAL_10
+REM_MACRO(10,10,10)
+REM_MACRO(10,10,8)
+REM_MACRO(10,10,4)
+REM_MACRO(10,8,10)
+REM_MACRO(10,4,10)
+#endif
+REM_MACRO(8,8,8)
+REM_MACRO(8,8,4)
+REM_MACRO(8,4,8)
+REM_MACRO(4,4,4)
   end interface
 
   interface IEEE_REM
-    procedure _gfortran_ieee_rem_4_4, _gfortran_ieee_rem_4_8, &
-              _gfortran_ieee_rem_8_4, _gfortran_ieee_rem_8_8
+    procedure &
+#ifdef HAVE_GFC_REAL_16
+      _gfortran_ieee_rem_16_16, &
+#ifdef HAVE_GFC_REAL_10
+      _gfortran_ieee_rem_16_10, &
+      _gfortran_ieee_rem_10_16, &
+#endif
+      _gfortran_ieee_rem_16_8, &
+      _gfortran_ieee_rem_16_4, &
+      _gfortran_ieee_rem_8_16, &
+      _gfortran_ieee_rem_4_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+      _gfortran_ieee_rem_10_10, &
+      _gfortran_ieee_rem_10_8, &
+      _gfortran_ieee_rem_10_4, &
+      _gfortran_ieee_rem_8_10, &
+      _gfortran_ieee_rem_4_10, &
+#endif
+      _gfortran_ieee_rem_8_8, &
+      _gfortran_ieee_rem_8_4, &
+      _gfortran_ieee_rem_4_8, &
+      _gfortran_ieee_rem_4_4
   end interface
   public :: IEEE_REM
 
@@ -283,42 +507,225 @@ module IEEE_ARITHMETIC
     elemental real(kind=8) function _gfortran_ieee_rint_8 (X)
       real(kind=8), intent(in) :: X
     end function
+#ifdef HAVE_GFC_REAL_10
+    elemental real(kind=10) function _gfortran_ieee_rint_10 (X)
+      real(kind=10), intent(in) :: X
+    end function
+#endif
+#ifdef HAVE_GFC_REAL_16
+    elemental real(kind=16) function _gfortran_ieee_rint_16 (X)
+      real(kind=16), intent(in) :: X
+    end function
+#endif
   end interface
 
   interface IEEE_RINT
-    procedure _gfortran_ieee_rint_4, _gfortran_ieee_rint_8
+    procedure &
+#ifdef HAVE_GFC_REAL_16
+      _gfortran_ieee_rint_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+      _gfortran_ieee_rint_10, &
+#endif
+      _gfortran_ieee_rint_8, _gfortran_ieee_rint_4
   end interface
   public :: IEEE_RINT
 
   ! IEEE_SCALB
 
   interface
-    elemental real(kind=4) function _gfortran_ieee_scalb_4 (X, I)
+#ifdef HAVE_GFC_INTEGER_16
+#ifdef HAVE_GFC_REAL_16
+    elemental real(kind=16) function _gfortran_ieee_scalb_16_16 (X, I)
+      real(kind=16), intent(in) :: X
+      integer(kind=16), intent(in) :: I
+    end function
+#endif
+#ifdef HAVE_GFC_REAL_10
+    elemental real(kind=10) function _gfortran_ieee_scalb_10_16 (X, I)
+      real(kind=10), intent(in) :: X
+      integer(kind=16), intent(in) :: I
+    end function
+#endif
+    elemental real(kind=8) function _gfortran_ieee_scalb_8_16 (X, I)
+      real(kind=8), intent(in) :: X
+      integer(kind=16), intent(in) :: I
+    end function
+    elemental real(kind=4) function _gfortran_ieee_scalb_4_16 (X, I)
       real(kind=4), intent(in) :: X
+      integer(kind=16), intent(in) :: I
+    end function
+#endif
+
+#ifdef HAVE_GFC_INTEGER_8
+#ifdef HAVE_GFC_REAL_16
+    elemental real(kind=16) function _gfortran_ieee_scalb_16_8 (X, I)
+      real(kind=16), intent(in) :: X
+      integer(kind=8), intent(in) :: I
+    end function
+#endif
+#ifdef HAVE_GFC_REAL_10
+    elemental real(kind=10) function _gfortran_ieee_scalb_10_8 (X, I)
+      real(kind=10), intent(in) :: X
+      integer(kind=8), intent(in) :: I
+    end function
+#endif
+    elemental real(kind=8) function _gfortran_ieee_scalb_8_8 (X, I)
+      real(kind=8), intent(in) :: X
+      integer(kind=8), intent(in) :: I
+    end function
+    elemental real(kind=4) function _gfortran_ieee_scalb_4_8 (X, I)
+      real(kind=4), intent(in) :: X
+      integer(kind=8), intent(in) :: I
+    end function
+#endif
+
+#ifdef HAVE_GFC_INTEGER_2
+#ifdef HAVE_GFC_REAL_16
+    elemental real(kind=16) function _gfortran_ieee_scalb_16_2 (X, I)
+      real(kind=16), intent(in) :: X
+      integer(kind=2), intent(in) :: I
+    end function
+#endif
+#ifdef HAVE_GFC_REAL_10
+    elemental real(kind=10) function _gfortran_ieee_scalb_10_2 (X, I)
+      real(kind=10), intent(in) :: X
+      integer(kind=2), intent(in) :: I
+    end function
+#endif
+    elemental real(kind=8) function _gfortran_ieee_scalb_8_2 (X, I)
+      real(kind=8), intent(in) :: X
+      integer(kind=2), intent(in) :: I
+    end function
+    elemental real(kind=4) function _gfortran_ieee_scalb_4_2 (X, I)
+      real(kind=4), intent(in) :: X
+      integer(kind=2), intent(in) :: I
+    end function
+#endif
+
+#ifdef HAVE_GFC_INTEGER_1
+#ifdef HAVE_GFC_REAL_16
+    elemental real(kind=16) function _gfortran_ieee_scalb_16_1 (X, I)
+      real(kind=16), intent(in) :: X
+      integer(kind=1), intent(in) :: I
+    end function
+#endif
+#ifdef HAVE_GFC_REAL_10
+    elemental real(kind=10) function _gfortran_ieee_scalb_10_1 (X, I)
+      real(kind=10), intent(in) :: X
+      integer(kind=1), intent(in) :: I
+    end function
+#endif
+    elemental real(kind=8) function _gfortran_ieee_scalb_8_1 (X, I)
+      real(kind=8), intent(in) :: X
+      integer(kind=1), intent(in) :: I
+    end function
+    elemental real(kind=4) function _gfortran_ieee_scalb_4_1 (X, I)
+      real(kind=4), intent(in) :: X
+      integer(kind=1), intent(in) :: I
+    end function
+#endif
+
+#ifdef HAVE_GFC_REAL_16
+    elemental real(kind=16) function _gfortran_ieee_scalb_16_4 (X, I)
+      real(kind=16), intent(in) :: X
       integer, intent(in) :: I
     end function
-    elemental real(kind=8) function _gfortran_ieee_scalb_8 (X, I)
+#endif
+#ifdef HAVE_GFC_REAL_10
+    elemental real(kind=10) function _gfortran_ieee_scalb_10_4 (X, I)
+      real(kind=10), intent(in) :: X
+      integer, intent(in) :: I
+    end function
+#endif
+    elemental real(kind=8) function _gfortran_ieee_scalb_8_4 (X, I)
       real(kind=8), intent(in) :: X
+      integer, intent(in) :: I
+    end function
+    elemental real(kind=4) function _gfortran_ieee_scalb_4_4 (X, I)
+      real(kind=4), intent(in) :: X
       integer, intent(in) :: I
     end function
   end interface
 
   interface IEEE_SCALB
-    procedure _gfortran_ieee_scalb_4, _gfortran_ieee_scalb_8
+    procedure &
+#ifdef HAVE_GFC_INTEGER_16
+#ifdef HAVE_GFC_REAL_16
+    _gfortran_ieee_scalb_16_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+    _gfortran_ieee_scalb_10_16, &
+#endif
+    _gfortran_ieee_scalb_8_16, &
+    _gfortran_ieee_scalb_4_16, &
+#endif
+#ifdef HAVE_GFC_INTEGER_8
+#ifdef HAVE_GFC_REAL_16
+    _gfortran_ieee_scalb_16_8, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+    _gfortran_ieee_scalb_10_8, &
+#endif
+    _gfortran_ieee_scalb_8_8, &
+    _gfortran_ieee_scalb_4_8, &
+#endif
+#ifdef HAVE_GFC_INTEGER_2
+#ifdef HAVE_GFC_REAL_16
+    _gfortran_ieee_scalb_16_2, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+    _gfortran_ieee_scalb_10_2, &
+#endif
+    _gfortran_ieee_scalb_8_2, &
+    _gfortran_ieee_scalb_4_2, &
+#endif
+#ifdef HAVE_GFC_INTEGER_1
+#ifdef HAVE_GFC_REAL_16
+    _gfortran_ieee_scalb_16_1, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+    _gfortran_ieee_scalb_10_1, &
+#endif
+    _gfortran_ieee_scalb_8_1, &
+    _gfortran_ieee_scalb_4_1, &
+#endif
+#ifdef HAVE_GFC_REAL_16
+    _gfortran_ieee_scalb_16_4, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+    _gfortran_ieee_scalb_10_4, &
+#endif
+      _gfortran_ieee_scalb_8_4, &
+      _gfortran_ieee_scalb_4_4
   end interface
   public :: IEEE_SCALB
 
   ! IEEE_VALUE
 
   interface IEEE_VALUE
-    module procedure IEEE_VALUE_4, IEEE_VALUE_8
+    module procedure &
+#ifdef HAVE_GFC_REAL_16
+      IEEE_VALUE_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+      IEEE_VALUE_10, &
+#endif
+      IEEE_VALUE_8, IEEE_VALUE_4
   end interface
   public :: IEEE_VALUE
 
   ! IEEE_CLASS
 
   interface IEEE_CLASS
-    module procedure IEEE_CLASS_4, IEEE_CLASS_8
+    module procedure &
+#ifdef HAVE_GFC_REAL_16
+      IEEE_CLASS_16, &
+#endif
+#ifdef HAVE_GFC_REAL_10
+      IEEE_CLASS_10, &
+#endif
+      IEEE_CLASS_8, IEEE_CLASS_4
   end interface
   public :: IEEE_CLASS
 
@@ -390,6 +797,7 @@ module IEEE_ARITHMETIC
 
 SUPPORTGENERIC(IEEE_SUPPORT_DATATYPE)
 SUPPORTGENERIC(IEEE_SUPPORT_DENORMAL)
+SUPPORTGENERIC(IEEE_SUPPORT_SUBNORMAL)
 SUPPORTGENERIC(IEEE_SUPPORT_DIVIDE)
 SUPPORTGENERIC(IEEE_SUPPORT_INF)
 SUPPORTGENERIC(IEEE_SUPPORT_IO)
@@ -424,47 +832,19 @@ contains
     res = (X%hidden /= Y%hidden)
   end function
 
+
   ! IEEE_SELECTED_REAL_KIND
+
   integer function IEEE_SELECTED_REAL_KIND (P, R, RADIX) result(res)
     implicit none
     integer, intent(in), optional :: P, R, RADIX
-    integer :: p2, r2
 
-    p2 = 0 ; r2 = 0
-    if (present(p)) p2 = p
-    if (present(r)) r2 = r
+    ! Currently, if IEEE is supported and this module is built, it means
+    ! all our floating-point types conform to IEEE. Hence, we simply call
+    ! SELECTED_REAL_KIND.
 
-    ! The only IEEE types we support right now are binary
-    if (present(radix)) then
-      if (radix /= 2) then
-        res = -5
-        return
-      endif
-    endif
+    res = SELECTED_REAL_KIND (P, R, RADIX)
 
-    ! Does IEEE float fit?
-    if (precision(0.) >= p2 .and. range(0.) >= r2) then
-      res = kind(0.)
-      return
-    endif
-
-    ! Does IEEE double fit?
-    if (precision(0.d0) >= p2 .and. range(0.d0) >= r2) then
-      res = kind(0.d0)
-      return
-    endif
-
-    if (precision(0.d0) < p2 .and. range(0.d0) < r2) then
-      res = -3
-      return
-    endif
-
-    if (precision(0.d0) < p2) then
-      res = -1
-      return
-    endif
-
-   res = -2
   end function
 
 
@@ -498,23 +878,78 @@ contains
     res = IEEE_CLASS_TYPE(_gfortrani_ieee_class_helper_8(X))
   end function
 
+#ifdef HAVE_GFC_REAL_10
+  elemental function IEEE_CLASS_10 (X) result(res)
+    implicit none
+    real(kind=10), intent(in) :: X
+    type(IEEE_CLASS_TYPE) :: res
+
+    interface
+      pure integer function _gfortrani_ieee_class_helper_10(val)
+        real(kind=10), intent(in) :: val
+      end function
+    end interface
+
+    res = IEEE_CLASS_TYPE(_gfortrani_ieee_class_helper_10(X))
+  end function
+#endif
+
+#ifdef HAVE_GFC_REAL_16
+  elemental function IEEE_CLASS_16 (X) result(res)
+    implicit none
+    real(kind=16), intent(in) :: X
+    type(IEEE_CLASS_TYPE) :: res
+
+    interface
+      pure integer function _gfortrani_ieee_class_helper_16(val)
+        real(kind=16), intent(in) :: val
+      end function
+    end interface
+
+    res = IEEE_CLASS_TYPE(_gfortrani_ieee_class_helper_16(X))
+  end function
+#endif
+
+
   ! IEEE_VALUE
 
-  elemental real(kind=4) function IEEE_VALUE_4(X, C) result(res)
-    implicit none
+  elemental real(kind=4) function IEEE_VALUE_4(X, CLASS) result(res)
+
     real(kind=4), intent(in) :: X
-    type(IEEE_CLASS_TYPE), intent(in) :: C
+    type(IEEE_CLASS_TYPE), intent(in) :: CLASS
+    logical flag
 
-    select case (C%hidden)
+    select case (CLASS%hidden)
       case (1)     ! IEEE_SIGNALING_NAN
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_get_halting_mode(ieee_invalid, flag)
+           call ieee_set_halting_mode(ieee_invalid, .false.)
+        end if
         res = -1
         res = sqrt(res)
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_set_halting_mode(ieee_invalid, flag)
+        end if
       case (2)     ! IEEE_QUIET_NAN
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_get_halting_mode(ieee_invalid, flag)
+           call ieee_set_halting_mode(ieee_invalid, .false.)
+        end if
         res = -1
         res = sqrt(res)
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_set_halting_mode(ieee_invalid, flag)
+        end if
       case (3)     ! IEEE_NEGATIVE_INF
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_get_halting_mode(ieee_overflow, flag)
+           call ieee_set_halting_mode(ieee_overflow, .false.)
+        end if
         res = huge(res)
         res = (-res) * res
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_set_halting_mode(ieee_overflow, flag)
+        end if
       case (4)     ! IEEE_NEGATIVE_NORMAL
         res = -42
       case (5)     ! IEEE_NEGATIVE_DENORMAL
@@ -531,28 +966,57 @@ contains
       case (9)     ! IEEE_POSITIVE_NORMAL
         res = 42
       case (10)    ! IEEE_POSITIVE_INF
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_get_halting_mode(ieee_overflow, flag)
+           call ieee_set_halting_mode(ieee_overflow, .false.)
+        end if
         res = huge(res)
         res = res * res
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_set_halting_mode(ieee_overflow, flag)
+        end if
       case default ! IEEE_OTHER_VALUE, should not happen
         res = 0
      end select
   end function
 
-  elemental real(kind=8) function IEEE_VALUE_8(X, C) result(res)
-    implicit none
+  elemental real(kind=8) function IEEE_VALUE_8(X, CLASS) result(res)
+
     real(kind=8), intent(in) :: X
-    type(IEEE_CLASS_TYPE), intent(in) :: C
+    type(IEEE_CLASS_TYPE), intent(in) :: CLASS
+    logical flag
 
-    select case (C%hidden)
+    select case (CLASS%hidden)
       case (1)     ! IEEE_SIGNALING_NAN
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_get_halting_mode(ieee_invalid, flag)
+           call ieee_set_halting_mode(ieee_invalid, .false.)
+        end if
         res = -1
         res = sqrt(res)
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_set_halting_mode(ieee_invalid, flag)
+        end if
       case (2)     ! IEEE_QUIET_NAN
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_get_halting_mode(ieee_invalid, flag)
+           call ieee_set_halting_mode(ieee_invalid, .false.)
+        end if
         res = -1
         res = sqrt(res)
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_set_halting_mode(ieee_invalid, flag)
+        end if
       case (3)     ! IEEE_NEGATIVE_INF
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_get_halting_mode(ieee_overflow, flag)
+           call ieee_set_halting_mode(ieee_overflow, .false.)
+        end if
         res = huge(res)
         res = (-res) * res
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_set_halting_mode(ieee_overflow, flag)
+        end if
       case (4)     ! IEEE_NEGATIVE_NORMAL
         res = -42
       case (5)     ! IEEE_NEGATIVE_DENORMAL
@@ -569,12 +1033,158 @@ contains
       case (9)     ! IEEE_POSITIVE_NORMAL
         res = 42
       case (10)    ! IEEE_POSITIVE_INF
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_get_halting_mode(ieee_overflow, flag)
+           call ieee_set_halting_mode(ieee_overflow, .false.)
+        end if
         res = huge(res)
         res = res * res
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_set_halting_mode(ieee_overflow, flag)
+        end if
       case default ! IEEE_OTHER_VALUE, should not happen
         res = 0
      end select
   end function
+
+#ifdef HAVE_GFC_REAL_10
+  elemental real(kind=10) function IEEE_VALUE_10(X, CLASS) result(res)
+
+    real(kind=10), intent(in) :: X
+    type(IEEE_CLASS_TYPE), intent(in) :: CLASS
+    logical flag
+
+    select case (CLASS%hidden)
+      case (1)     ! IEEE_SIGNALING_NAN
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_get_halting_mode(ieee_invalid, flag)
+           call ieee_set_halting_mode(ieee_invalid, .false.)
+        end if
+        res = -1
+        res = sqrt(res)
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_set_halting_mode(ieee_invalid, flag)
+        end if
+      case (2)     ! IEEE_QUIET_NAN
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_get_halting_mode(ieee_invalid, flag)
+           call ieee_set_halting_mode(ieee_invalid, .false.)
+        end if
+        res = -1
+        res = sqrt(res)
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_set_halting_mode(ieee_invalid, flag)
+        end if
+     case (3)     ! IEEE_NEGATIVE_INF
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_get_halting_mode(ieee_overflow, flag)
+           call ieee_set_halting_mode(ieee_overflow, .false.)
+        end if
+        res = huge(res)
+        res = (-res) * res
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_set_halting_mode(ieee_overflow, flag)
+        end if
+      case (4)     ! IEEE_NEGATIVE_NORMAL
+        res = -42
+      case (5)     ! IEEE_NEGATIVE_DENORMAL
+        res = -tiny(res)
+        res = res / 2
+      case (6)     ! IEEE_NEGATIVE_ZERO
+        res = 0
+        res = -res
+      case (7)     ! IEEE_POSITIVE_ZERO
+        res = 0
+      case (8)     ! IEEE_POSITIVE_DENORMAL
+        res = tiny(res)
+        res = res / 2
+      case (9)     ! IEEE_POSITIVE_NORMAL
+        res = 42
+      case (10)    ! IEEE_POSITIVE_INF
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_get_halting_mode(ieee_overflow, flag)
+           call ieee_set_halting_mode(ieee_overflow, .false.)
+        end if
+        res = huge(res)
+        res = res * res
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_set_halting_mode(ieee_overflow, flag)
+        end if
+      case default ! IEEE_OTHER_VALUE, should not happen
+        res = 0
+     end select
+  end function
+
+#endif
+
+#ifdef HAVE_GFC_REAL_16
+  elemental real(kind=16) function IEEE_VALUE_16(X, CLASS) result(res)
+
+    real(kind=16), intent(in) :: X
+    type(IEEE_CLASS_TYPE), intent(in) :: CLASS
+    logical flag
+
+    select case (CLASS%hidden)
+      case (1)     ! IEEE_SIGNALING_NAN
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_get_halting_mode(ieee_invalid, flag)
+           call ieee_set_halting_mode(ieee_invalid, .false.)
+        end if
+        res = -1
+        res = sqrt(res)
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_set_halting_mode(ieee_invalid, flag)
+        end if
+      case (2)     ! IEEE_QUIET_NAN
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_get_halting_mode(ieee_invalid, flag)
+           call ieee_set_halting_mode(ieee_invalid, .false.)
+        end if
+        res = -1
+        res = sqrt(res)
+        if (ieee_support_halting(ieee_invalid)) then
+           call ieee_set_halting_mode(ieee_invalid, flag)
+        end if
+      case (3)     ! IEEE_NEGATIVE_INF
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_get_halting_mode(ieee_overflow, flag)
+           call ieee_set_halting_mode(ieee_overflow, .false.)
+        end if
+        res = huge(res)
+        res = (-res) * res
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_set_halting_mode(ieee_overflow, flag)
+        end if
+      case (4)     ! IEEE_NEGATIVE_NORMAL
+        res = -42
+      case (5)     ! IEEE_NEGATIVE_DENORMAL
+        res = -tiny(res)
+        res = res / 2
+      case (6)     ! IEEE_NEGATIVE_ZERO
+        res = 0
+        res = -res
+      case (7)     ! IEEE_POSITIVE_ZERO
+        res = 0
+      case (8)     ! IEEE_POSITIVE_DENORMAL
+        res = tiny(res)
+        res = res / 2
+      case (9)     ! IEEE_POSITIVE_NORMAL
+        res = 42
+      case (10)    ! IEEE_POSITIVE_INF
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_get_halting_mode(ieee_overflow, flag)
+           call ieee_set_halting_mode(ieee_overflow, .false.)
+        end if
+        res = huge(res)
+        res = res * res
+        if (ieee_support_halting(ieee_overflow)) then
+           call ieee_set_halting_mode(ieee_overflow, flag)
+        end if
+      case default ! IEEE_OTHER_VALUE, should not happen
+        res = 0
+     end select
+  end function
+#endif
 
 
   ! IEEE_GET_ROUNDING_MODE
@@ -663,7 +1273,7 @@ contains
     implicit none
     real(kind=10), intent(in) :: X
     type(IEEE_ROUND_TYPE), intent(in) :: ROUND_VALUE
-    res = .false.
+    res = (support_rounding_helper(ROUND_VALUE%hidden) /= 0)
   end function
 #endif
 
@@ -672,18 +1282,14 @@ contains
     implicit none
     real(kind=16), intent(in) :: X
     type(IEEE_ROUND_TYPE), intent(in) :: ROUND_VALUE
-    res = .false.
+    res = (support_rounding_helper(ROUND_VALUE%hidden) /= 0)
   end function
 #endif
 
   pure logical function IEEE_SUPPORT_ROUNDING_NOARG (ROUND_VALUE) result(res)
     implicit none
     type(IEEE_ROUND_TYPE), intent(in) :: ROUND_VALUE
-#if defined(HAVE_GFC_REAL_10) || defined(HAVE_GFC_REAL_16)
-    res = .false.
-#else
     res = (support_rounding_helper(ROUND_VALUE%hidden) /= 0)
-#endif
   end function
 
 ! IEEE_SUPPORT_UNDERFLOW_CONTROL
@@ -704,7 +1310,7 @@ contains
   pure logical function IEEE_SUPPORT_UNDERFLOW_CONTROL_10 (X) result(res)
     implicit none
     real(kind=10), intent(in) :: X
-    res = .false.
+    res = (support_underflow_control_helper(10) /= 0)
   end function
 #endif
 
@@ -712,18 +1318,21 @@ contains
   pure logical function IEEE_SUPPORT_UNDERFLOW_CONTROL_16 (X) result(res)
     implicit none
     real(kind=16), intent(in) :: X
-    res = .false.
+    res = (support_underflow_control_helper(16) /= 0)
   end function
 #endif
 
   pure logical function IEEE_SUPPORT_UNDERFLOW_CONTROL_NOARG () result(res)
     implicit none
-#if defined(HAVE_GFC_REAL_10) || defined(HAVE_GFC_REAL_16)
-    res = .false.
-#else
     res = (support_underflow_control_helper(4) /= 0 &
-           .and. support_underflow_control_helper(8) /= 0)
+           .and. support_underflow_control_helper(8) /= 0 &
+#ifdef HAVE_GFC_REAL_10
+           .and. support_underflow_control_helper(10) /= 0 &
 #endif
+#ifdef HAVE_GFC_REAL_16
+           .and. support_underflow_control_helper(16) /= 0 &
+#endif
+          )
   end function
 
 ! IEEE_SUPPORT_* functions
@@ -746,127 +1355,105 @@ contains
 SUPPORTMACRO(IEEE_SUPPORT_DATATYPE,4,.true.)
 SUPPORTMACRO(IEEE_SUPPORT_DATATYPE,8,.true.)
 #ifdef HAVE_GFC_REAL_10
-SUPPORTMACRO(IEEE_SUPPORT_DATATYPE,10,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_DATATYPE,10,.true.)
 #endif
 #ifdef HAVE_GFC_REAL_16
-SUPPORTMACRO(IEEE_SUPPORT_DATATYPE,16,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_DATATYPE,16,.true.)
 #endif
-#if defined(HAVE_GFC_REAL_10) || defined(HAVE_GFC_REAL_16)
-SUPPORTMACRO_NOARG(IEEE_SUPPORT_DATATYPE,.false.)
-#else
 SUPPORTMACRO_NOARG(IEEE_SUPPORT_DATATYPE,.true.)
-#endif
 
-! IEEE_SUPPORT_DENORMAL
+! IEEE_SUPPORT_DENORMAL and IEEE_SUPPORT_SUBNORMAL
 
 SUPPORTMACRO(IEEE_SUPPORT_DENORMAL,4,.true.)
 SUPPORTMACRO(IEEE_SUPPORT_DENORMAL,8,.true.)
 #ifdef HAVE_GFC_REAL_10
-SUPPORTMACRO(IEEE_SUPPORT_DENORMAL,10,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_DENORMAL,10,.true.)
 #endif
 #ifdef HAVE_GFC_REAL_16
-SUPPORTMACRO(IEEE_SUPPORT_DENORMAL,16,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_DENORMAL,16,.true.)
 #endif
-#if defined(HAVE_GFC_REAL_10) || defined(HAVE_GFC_REAL_16)
-SUPPORTMACRO_NOARG(IEEE_SUPPORT_DENORMAL,.false.)
-#else
 SUPPORTMACRO_NOARG(IEEE_SUPPORT_DENORMAL,.true.)
+
+SUPPORTMACRO(IEEE_SUPPORT_SUBNORMAL,4,.true.)
+SUPPORTMACRO(IEEE_SUPPORT_SUBNORMAL,8,.true.)
+#ifdef HAVE_GFC_REAL_10
+SUPPORTMACRO(IEEE_SUPPORT_SUBNORMAL,10,.true.)
 #endif
+#ifdef HAVE_GFC_REAL_16
+SUPPORTMACRO(IEEE_SUPPORT_SUBNORMAL,16,.true.)
+#endif
+SUPPORTMACRO_NOARG(IEEE_SUPPORT_SUBNORMAL,.true.)
 
 ! IEEE_SUPPORT_DIVIDE
 
 SUPPORTMACRO(IEEE_SUPPORT_DIVIDE,4,.true.)
 SUPPORTMACRO(IEEE_SUPPORT_DIVIDE,8,.true.)
 #ifdef HAVE_GFC_REAL_10
-SUPPORTMACRO(IEEE_SUPPORT_DIVIDE,10,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_DIVIDE,10,.true.)
 #endif
 #ifdef HAVE_GFC_REAL_16
-SUPPORTMACRO(IEEE_SUPPORT_DIVIDE,16,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_DIVIDE,16,.true.)
 #endif
-#if defined(HAVE_GFC_REAL_10) || defined(HAVE_GFC_REAL_16)
-SUPPORTMACRO_NOARG(IEEE_SUPPORT_DIVIDE,.false.)
-#else
 SUPPORTMACRO_NOARG(IEEE_SUPPORT_DIVIDE,.true.)
-#endif
 
 ! IEEE_SUPPORT_INF
 
 SUPPORTMACRO(IEEE_SUPPORT_INF,4,.true.)
 SUPPORTMACRO(IEEE_SUPPORT_INF,8,.true.)
 #ifdef HAVE_GFC_REAL_10
-SUPPORTMACRO(IEEE_SUPPORT_INF,10,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_INF,10,.true.)
 #endif
 #ifdef HAVE_GFC_REAL_16
-SUPPORTMACRO(IEEE_SUPPORT_INF,16,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_INF,16,.true.)
 #endif
-#if defined(HAVE_GFC_REAL_10) || defined(HAVE_GFC_REAL_16)
-SUPPORTMACRO_NOARG(IEEE_SUPPORT_INF,.false.)
-#else
 SUPPORTMACRO_NOARG(IEEE_SUPPORT_INF,.true.)
-#endif
 
 ! IEEE_SUPPORT_IO
 
 SUPPORTMACRO(IEEE_SUPPORT_IO,4,.true.)
 SUPPORTMACRO(IEEE_SUPPORT_IO,8,.true.)
 #ifdef HAVE_GFC_REAL_10
-SUPPORTMACRO(IEEE_SUPPORT_IO,10,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_IO,10,.true.)
 #endif
 #ifdef HAVE_GFC_REAL_16
-SUPPORTMACRO(IEEE_SUPPORT_IO,16,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_IO,16,.true.)
 #endif
-#if defined(HAVE_GFC_REAL_10) || defined(HAVE_GFC_REAL_16)
-SUPPORTMACRO_NOARG(IEEE_SUPPORT_IO,.false.)
-#else
 SUPPORTMACRO_NOARG(IEEE_SUPPORT_IO,.true.)
-#endif
 
 ! IEEE_SUPPORT_NAN
 
 SUPPORTMACRO(IEEE_SUPPORT_NAN,4,.true.)
 SUPPORTMACRO(IEEE_SUPPORT_NAN,8,.true.)
 #ifdef HAVE_GFC_REAL_10
-SUPPORTMACRO(IEEE_SUPPORT_NAN,10,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_NAN,10,.true.)
 #endif
 #ifdef HAVE_GFC_REAL_16
-SUPPORTMACRO(IEEE_SUPPORT_NAN,16,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_NAN,16,.true.)
 #endif
-#if defined(HAVE_GFC_REAL_10) || defined(HAVE_GFC_REAL_16)
-SUPPORTMACRO_NOARG(IEEE_SUPPORT_NAN,.false.)
-#else
 SUPPORTMACRO_NOARG(IEEE_SUPPORT_NAN,.true.)
-#endif
 
 ! IEEE_SUPPORT_SQRT
 
 SUPPORTMACRO(IEEE_SUPPORT_SQRT,4,.true.)
 SUPPORTMACRO(IEEE_SUPPORT_SQRT,8,.true.)
 #ifdef HAVE_GFC_REAL_10
-SUPPORTMACRO(IEEE_SUPPORT_SQRT,10,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_SQRT,10,.true.)
 #endif
 #ifdef HAVE_GFC_REAL_16
-SUPPORTMACRO(IEEE_SUPPORT_SQRT,16,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_SQRT,16,.true.)
 #endif
-#if defined(HAVE_GFC_REAL_10) || defined(HAVE_GFC_REAL_16)
-SUPPORTMACRO_NOARG(IEEE_SUPPORT_SQRT,.false.)
-#else
 SUPPORTMACRO_NOARG(IEEE_SUPPORT_SQRT,.true.)
-#endif
 
 ! IEEE_SUPPORT_STANDARD
 
 SUPPORTMACRO(IEEE_SUPPORT_STANDARD,4,.true.)
 SUPPORTMACRO(IEEE_SUPPORT_STANDARD,8,.true.)
 #ifdef HAVE_GFC_REAL_10
-SUPPORTMACRO(IEEE_SUPPORT_STANDARD,10,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_STANDARD,10,.true.)
 #endif
 #ifdef HAVE_GFC_REAL_16
-SUPPORTMACRO(IEEE_SUPPORT_STANDARD,16,.false.)
+SUPPORTMACRO(IEEE_SUPPORT_STANDARD,16,.true.)
 #endif
-#if defined(HAVE_GFC_REAL_10) || defined(HAVE_GFC_REAL_16)
-SUPPORTMACRO_NOARG(IEEE_SUPPORT_STANDARD,.false.)
-#else
 SUPPORTMACRO_NOARG(IEEE_SUPPORT_STANDARD,.true.)
-#endif
 
 end module IEEE_ARITHMETIC

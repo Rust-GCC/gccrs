@@ -1,5 +1,5 @@
 /* Definitions for CPP library.
-   Copyright (C) 1995-2014 Free Software Foundation, Inc.
+   Copyright (C) 1995-2019 Free Software Foundation, Inc.
    Written by Per Bothner, 1994-95.
 
 This program is free software; you can redistribute it and/or modify it
@@ -36,7 +36,6 @@ typedef struct cpp_macro cpp_macro;
 typedef struct cpp_callbacks cpp_callbacks;
 typedef struct cpp_dir cpp_dir;
 
-struct answer;
 struct _cpp_file;
 
 /* The first three groups, apart from '=', can appear in preprocessor
@@ -119,6 +118,7 @@ struct _cpp_file;
   TK(WCHAR,		LITERAL) /* L'char' */				\
   TK(CHAR16,		LITERAL) /* u'char' */				\
   TK(CHAR32,		LITERAL) /* U'char' */				\
+  TK(UTF8CHAR,		LITERAL) /* u8'char' */				\
   TK(OTHER,		LITERAL) /* stray punctuation */		\
 									\
   TK(STRING,		LITERAL) /* "string" */				\
@@ -133,6 +133,7 @@ struct _cpp_file;
   TK(WCHAR_USERDEF,	LITERAL) /* L'char'_suffix - C++-0x */		\
   TK(CHAR16_USERDEF,	LITERAL) /* u'char'_suffix - C++-0x */		\
   TK(CHAR32_USERDEF,	LITERAL) /* U'char'_suffix - C++-0x */		\
+  TK(UTF8CHAR_USERDEF,	LITERAL) /* u8'char'_suffix - C++-0x */		\
   TK(STRING_USERDEF,	LITERAL) /* "string"_suffix - C++-0x */		\
   TK(WSTRING_USERDEF,	LITERAL) /* L"string"_suffix - C++-0x */	\
   TK(STRING16_USERDEF,	LITERAL) /* u"string"_suffix - C++-0x */	\
@@ -166,10 +167,12 @@ enum cpp_ttype
 #undef TK
 
 /* C language kind, used when calling cpp_create_reader.  */
-enum c_lang {CLK_GNUC89 = 0, CLK_GNUC99, CLK_GNUC11,
-	     CLK_STDC89, CLK_STDC94, CLK_STDC99, CLK_STDC11,
+enum c_lang {CLK_GNUC89 = 0, CLK_GNUC99, CLK_GNUC11, CLK_GNUC17, CLK_GNUC2X,
+	     CLK_STDC89, CLK_STDC94, CLK_STDC99, CLK_STDC11, CLK_STDC17,
+	     CLK_STDC2X,
 	     CLK_GNUCXX, CLK_CXX98, CLK_GNUCXX11, CLK_CXX11,
-	     CLK_GNUCXX14, CLK_CXX14, CLK_GNUCXX1Z, CLK_CXX1Z, CLK_ASM};
+	     CLK_GNUCXX14, CLK_CXX14, CLK_GNUCXX17, CLK_CXX17,
+	     CLK_GNUCXX2A, CLK_CXX2A, CLK_ASM};
 
 /* Payload of a NUMBER, STRING, CHAR or COMMENT token.  */
 struct GTY(()) cpp_string {
@@ -183,7 +186,8 @@ struct GTY(()) cpp_string {
 #define STRINGIFY_ARG	(1 << 2) /* If macro argument to be stringified.  */
 #define PASTE_LEFT	(1 << 3) /* If on LHS of a ## operator.  */
 #define NAMED_OP	(1 << 4) /* C++ named operators.  */
-#define NO_EXPAND	(1 << 5) /* Do not macro-expand this token.  */
+#define PREV_FALLTHROUGH (1 << 5) /* On a token preceeded by FALLTHROUGH
+				     comment.  */
 #define BOL		(1 << 6) /* Token at beginning of line.  */
 #define PURE_ZERO	(1 << 7) /* Single 0 digit, used by the C++ frontend,
 				    set in c-lex.c.  */
@@ -191,6 +195,7 @@ struct GTY(()) cpp_string {
 #define SP_PREV_WHITE	(1 << 9) /* If whitespace before a ##
 				    operator, or before this token
 				    after a # operator.  */
+#define NO_EXPAND	(1 << 10) /* Do not macro-expand this token.  */
 
 /* Specify which field, if any, of the cpp_token union is used.  */
 
@@ -208,6 +213,12 @@ enum cpp_token_fld_kind {
 struct GTY(()) cpp_macro_arg {
   /* Argument number.  */
   unsigned int arg_no;
+  /* The original spelling of the macro argument token.  */
+  cpp_hashnode *
+    GTY ((nested_ptr (union tree_node,
+		"%h ? CPP_HASHNODE (GCC_IDENT_TO_HT_IDENT (%h)) : NULL",
+			"%h ? HT_IDENT_TO_GCC_IDENT (HT_NODE (%h)) : NULL")))
+       spelling;
 };
 
 /* An identifier in the cpp_token union.  */
@@ -218,12 +229,21 @@ struct GTY(()) cpp_identifier {
 		"%h ? CPP_HASHNODE (GCC_IDENT_TO_HT_IDENT (%h)) : NULL",
 			"%h ? HT_IDENT_TO_GCC_IDENT (HT_NODE (%h)) : NULL")))
        node;
+  /* The original spelling of the identifier.  */
+  cpp_hashnode *
+    GTY ((nested_ptr (union tree_node,
+		"%h ? CPP_HASHNODE (GCC_IDENT_TO_HT_IDENT (%h)) : NULL",
+			"%h ? HT_IDENT_TO_GCC_IDENT (HT_NODE (%h)) : NULL")))
+       spelling;
 };
 
 /* A preprocessing token.  This has been carefully packed and should
    occupy 16 bytes on 32-bit hosts and 24 bytes on 64-bit hosts.  */
 struct GTY(()) cpp_token {
-  source_location src_loc;	/* Location of first char of token.  */
+
+  /* Location of first char of token, together with range of full token.  */
+  location_t src_loc;
+
   ENUM_BITFIELD(cpp_ttype) type : CHAR_BIT;  /* token type */
   unsigned short flags;		/* flags - see above */
 
@@ -238,7 +258,7 @@ struct GTY(()) cpp_token {
     /* A string, or number.  */
     struct cpp_string GTY ((tag ("CPP_TOKEN_FLD_STR"))) str;
 
-    /* Argument no. for a CPP_MACRO_ARG.  */
+    /* Argument no. (and original spelling) for a CPP_MACRO_ARG.  */
     struct cpp_macro_arg GTY ((tag ("CPP_TOKEN_FLD_ARG_NO"))) macro_arg;
 
     /* Original token no. for a CPP_PASTE (from a sequence of
@@ -327,6 +347,9 @@ struct cpp_options
   /* Nonzero means process u/U prefix literals (UTF-16/32).  */
   unsigned char uliterals;
 
+  /* Nonzero means process u8 prefixed character literals (UTF-8).  */
+  unsigned char utf8_char_literals;
+
   /* Nonzero means process r/R raw strings.  If this is set, uliterals
      must be set as well.  */
   unsigned char rliterals;
@@ -375,6 +398,9 @@ struct cpp_options
      explicitly undefined.  */
   unsigned char warn_builtin_macro_redefined;
 
+  /* Different -Wimplicit-fallthrough= levels.  */
+  unsigned char cpp_warn_implicit_fallthrough;
+
   /* Nonzero means we should look for header.gcc files that remap file
      names.  */
   unsigned char remap;
@@ -391,6 +417,10 @@ struct cpp_options
 
   /* Nonzero means warn if undefined identifiers are evaluated in an #if.  */
   unsigned char warn_undef;
+
+  /* Nonzero means warn if "defined" is encountered in a place other than
+     an #if.  */
+  unsigned char warn_expansion_to_defined;
 
   /* Nonzero means warn of unused macros from the main file.  */
   unsigned char warn_unused_macros;
@@ -450,6 +480,9 @@ struct cpp_options
   /* Nonzero for C++ 2014 Standard digit separators.  */
   unsigned char digit_separators;
 
+  /* Nonzero for C++2a __VA_OPT__ feature.  */
+  unsigned char va_opt;
+
   /* Holds the name of the target (execution) character set.  */
   const char *narrow_charset;
 
@@ -471,6 +504,9 @@ struct cpp_options
 
   /* True if warn about differences between C90 and C99.  */
   signed char cpp_warn_c90_c99_compat;
+
+  /* True if warn about differences between C++98 and C++11.  */
+  bool cpp_warn_cxx11_compat;
 
   /* Dependency generation.  */
   struct
@@ -516,6 +552,59 @@ struct cpp_options
   bool canonical_system_headers;
 };
 
+/* Diagnostic levels.  To get a diagnostic without associating a
+   position in the translation unit with it, use cpp_error_with_line
+   with a line number of zero.  */
+
+enum cpp_diagnostic_level {
+  /* Warning, an error with -Werror.  */
+  CPP_DL_WARNING = 0,
+  /* Same as CPP_DL_WARNING, except it is not suppressed in system headers.  */
+  CPP_DL_WARNING_SYSHDR,
+  /* Warning, an error with -pedantic-errors or -Werror.  */
+  CPP_DL_PEDWARN,
+  /* An error.  */
+  CPP_DL_ERROR,
+  /* An internal consistency check failed.  Prints "internal error: ",
+     otherwise the same as CPP_DL_ERROR.  */
+  CPP_DL_ICE,
+  /* An informative note following a warning.  */
+  CPP_DL_NOTE,
+  /* A fatal error.  */
+  CPP_DL_FATAL
+};
+
+/* Warning reason codes. Use a reason code of CPP_W_NONE for unclassified
+   warnings and diagnostics that are not warnings.  */
+
+enum cpp_warning_reason {
+  CPP_W_NONE = 0,
+  CPP_W_DEPRECATED,
+  CPP_W_COMMENTS,
+  CPP_W_MISSING_INCLUDE_DIRS,
+  CPP_W_TRIGRAPHS,
+  CPP_W_MULTICHAR,
+  CPP_W_TRADITIONAL,
+  CPP_W_LONG_LONG,
+  CPP_W_ENDIF_LABELS,
+  CPP_W_NUM_SIGN_CHANGE,
+  CPP_W_VARIADIC_MACROS,
+  CPP_W_BUILTIN_MACRO_REDEFINED,
+  CPP_W_DOLLARS,
+  CPP_W_UNDEF,
+  CPP_W_UNUSED_MACROS,
+  CPP_W_CXX_OPERATOR_NAMES,
+  CPP_W_NORMALIZE,
+  CPP_W_INVALID_PCH,
+  CPP_W_WARNING_DIRECTIVE,
+  CPP_W_LITERAL_SUFFIX,
+  CPP_W_DATE_TIME,
+  CPP_W_PEDANTIC,
+  CPP_W_C90_C99_COMPAT,
+  CPP_W_CXX11_COMPAT,
+  CPP_W_EXPANSION_TO_DEFINED
+};
+
 /* Callback for header lookup for HEADER, which is the name of a
    source file.  It is used as a method of last resort to find headers
    that are not otherwise found during the normal include processing.
@@ -534,15 +623,15 @@ struct cpp_callbacks
      The line_map is for the new file.  It is NULL if there is no new file.
      (In C this happens when done with <built-in>+<command line> and also
      when done with a main file.)  This can be used for resource cleanup.  */
-  void (*file_change) (cpp_reader *, const struct line_map *);
+  void (*file_change) (cpp_reader *, const line_map_ordinary *);
 
   void (*dir_change) (cpp_reader *, const char *);
-  void (*include) (cpp_reader *, source_location, const unsigned char *,
+  void (*include) (cpp_reader *, location_t, const unsigned char *,
 		   const char *, int, const cpp_token **);
-  void (*define) (cpp_reader *, source_location, cpp_hashnode *);
-  void (*undef) (cpp_reader *, source_location, cpp_hashnode *);
-  void (*ident) (cpp_reader *, source_location, const cpp_string *);
-  void (*def_pragma) (cpp_reader *, source_location);
+  void (*define) (cpp_reader *, location_t, cpp_hashnode *);
+  void (*undef) (cpp_reader *, location_t, cpp_hashnode *);
+  void (*ident) (cpp_reader *, location_t, const cpp_string *);
+  void (*def_pragma) (cpp_reader *, location_t);
   int (*valid_pch) (cpp_reader *, const char *, int);
   void (*read_pch) (cpp_reader *, const char *, int, const char *);
   missing_header_cb missing_header;
@@ -553,23 +642,48 @@ struct cpp_callbacks
 
   /* Called to emit a diagnostic.  This callback receives the
      translated message.  */
-  bool (*error) (cpp_reader *, int, int, source_location, unsigned int,
-		 const char *, va_list *)
-       ATTRIBUTE_FPTR_PRINTF(6,0);
+  bool (*diagnostic) (cpp_reader *,
+		      enum cpp_diagnostic_level,
+		      enum cpp_warning_reason,
+		      rich_location *,
+		      const char *, va_list *)
+       ATTRIBUTE_FPTR_PRINTF(5,0);
 
   /* Callbacks for when a macro is expanded, or tested (whether
      defined or not at the time) in #ifdef, #ifndef or "defined".  */
-  void (*used_define) (cpp_reader *, source_location, cpp_hashnode *);
-  void (*used_undef) (cpp_reader *, source_location, cpp_hashnode *);
+  void (*used_define) (cpp_reader *, location_t, cpp_hashnode *);
+  void (*used_undef) (cpp_reader *, location_t, cpp_hashnode *);
   /* Called before #define and #undef or other macro definition
      changes are processed.  */
   void (*before_define) (cpp_reader *);
   /* Called whenever a macro is expanded or tested.
      Second argument is the location of the start of the current expansion.  */
-  void (*used) (cpp_reader *, source_location, cpp_hashnode *);
+  void (*used) (cpp_reader *, location_t, cpp_hashnode *);
 
-  /* Callback that can change a user builtin into normal macro.  */
-  bool (*user_builtin_macro) (cpp_reader *, cpp_hashnode *);
+  /* Callback to identify whether an attribute exists.  */
+  int (*has_attribute) (cpp_reader *);
+
+  /* Callback that can change a user lazy into normal macro.  */
+  void (*user_lazy_macro) (cpp_reader *, cpp_macro *, unsigned);
+
+  /* Callback to parse SOURCE_DATE_EPOCH from environment.  */
+  time_t (*get_source_date_epoch) (cpp_reader *);
+
+  /* Callback for providing suggestions for misspelled directives.  */
+  const char *(*get_suggestion) (cpp_reader *, const char *, const char *const *);
+
+  /* Callback for when a comment is encountered, giving the location
+     of the opening slash, a pointer to the content (which is not
+     necessarily 0-terminated), and the length of the content.
+     The content contains the opening slash-star (or slash-slash),
+     and for C-style comments contains the closing star-slash.  For
+     C++-style comments it does not include the terminating newline.  */
+  void (*comment) (cpp_reader *, location_t, const unsigned char *,
+		   size_t);
+
+  /* Callback for filename remapping in __FILE__ and __BASE_FILE__ macro
+     expansions.  */
+  const char *(*remap_filename) (const char*);
 };
 
 #ifdef VMS
@@ -615,14 +729,81 @@ struct cpp_dir
   dev_t dev;
 };
 
-/* The structure of a node in the hash table.  The hash table has
-   entries for all identifiers: either macros defined by #define
-   commands (type NT_MACRO), assertions created with #assert
-   (NT_ASSERTION), or neither of the above (NT_VOID).  Builtin macros
-   like __LINE__ are flagged NODE_BUILTIN.  Poisoned identifiers are
-   flagged NODE_POISONED.  NODE_OPERATOR (C++ only) indicates an
-   identifier that behaves like an operator such as "xor".
-   NODE_DIAGNOSTIC is for speed in lex_token: it indicates a
+/* The kind of the cpp_macro.  */
+enum cpp_macro_kind {
+  cmk_macro,	/* An ISO macro (token expansion).  */
+  cmk_assert,   /* An assertion.  */
+  cmk_traditional	/* A traditional macro (text expansion).  */
+};
+
+/* Each macro definition is recorded in a cpp_macro structure.
+   Variadic macros cannot occur with traditional cpp.  */
+struct GTY(()) cpp_macro {
+  union cpp_parm_u 
+  {
+    /* Parameters, if any.  If parameter names use extended identifiers,
+       the original spelling of those identifiers, not the canonical
+       UTF-8 spelling, goes here.  */
+    cpp_hashnode ** GTY ((tag ("false"),
+			  nested_ptr (union tree_node,
+	"%h ? CPP_HASHNODE (GCC_IDENT_TO_HT_IDENT (%h)) : NULL",
+	"%h ? HT_IDENT_TO_GCC_IDENT (HT_NODE (%h)) : NULL"),
+			  length ("%1.paramc"))) params;
+
+    /* If this is an assertion, the next one in the chain.  */
+    cpp_macro *GTY ((tag ("true"))) next;
+  } GTY ((desc ("%1.kind == cmk_assert"))) parm;
+
+  /* Definition line number.  */
+  location_t line;
+
+  /* Number of tokens in body, or bytes for traditional macros.  */
+  /* Do we really need 2^32-1 range here?  */
+  unsigned int count;
+
+  /* Number of parameters.  */
+  unsigned short paramc;
+
+  /* Non-zero if this is a user-lazy macro, value provided by user.  */
+  unsigned char lazy;
+
+  /* The kind of this macro (ISO, trad or assert) */
+  unsigned kind : 2;
+
+  /* If a function-like macro.  */
+  unsigned int fun_like : 1;
+
+  /* If a variadic macro.  */
+  unsigned int variadic : 1;
+
+  /* If macro defined in system header.  */
+  unsigned int syshdr   : 1;
+
+  /* Nonzero if it has been expanded or had its existence tested.  */
+  unsigned int used     : 1;
+
+  /* Indicate whether the tokens include extra CPP_PASTE tokens at the
+     end to track invalid redefinitions with consecutive CPP_PASTE
+     tokens.  */
+  unsigned int extra_tokens : 1;
+
+  /* 1 bits spare (32-bit). 33 on 64-bit target.  */
+
+  union cpp_exp_u
+  {
+    /* Trailing array of replacement tokens (ISO), or assertion body value.  */
+    cpp_token GTY ((tag ("false"), length ("%1.count"))) tokens[1];
+
+    /* Pointer to replacement text (traditional).  See comment at top
+       of cpptrad.c for how traditional function-like macros are
+       encoded.  */
+    const unsigned char *GTY ((tag ("true"))) text;
+  } GTY ((desc ("%1.kind == cmk_traditional"))) exp;
+};
+
+/* Poisoned identifiers are flagged NODE_POISONED.  NODE_OPERATOR (C++
+   only) indicates an identifier that behaves like an operator such as
+   "xor".  NODE_DIAGNOSTIC is for speed in lex_token: it indicates a
    diagnostic may be required for this node.  Currently this only
    applies to __VA_ARGS__, poisoned identifiers, and -Wc++-compat
    warnings about NODE_OPERATOR.  */
@@ -630,21 +811,21 @@ struct cpp_dir
 /* Hash node flags.  */
 #define NODE_OPERATOR	(1 << 0)	/* C++ named operator.  */
 #define NODE_POISONED	(1 << 1)	/* Poisoned identifier.  */
-#define NODE_BUILTIN	(1 << 2)	/* Builtin macro.  */
-#define NODE_DIAGNOSTIC (1 << 3)	/* Possible diagnostic when lexed.  */
-#define NODE_WARN	(1 << 4)	/* Warn if redefined or undefined.  */
-#define NODE_DISABLED	(1 << 5)	/* A disabled macro.  */
-#define NODE_MACRO_ARG	(1 << 6)	/* Used during #define processing.  */
-#define NODE_USED	(1 << 7)	/* Dumped with -dU.  */
-#define NODE_CONDITIONAL (1 << 8)	/* Conditional macro */
-#define NODE_WARN_OPERATOR (1 << 9)	/* Warn about C++ named operator.  */
+#define NODE_DIAGNOSTIC (1 << 2)	/* Possible diagnostic when lexed.  */
+#define NODE_WARN	(1 << 3)	/* Warn if redefined or undefined.  */
+#define NODE_DISABLED	(1 << 4)	/* A disabled macro.  */
+#define NODE_USED	(1 << 5)	/* Dumped with -dU.  */
+#define NODE_CONDITIONAL (1 << 6)	/* Conditional macro */
+#define NODE_WARN_OPERATOR (1 << 7)	/* Warn about C++ named operator.  */
 
 /* Different flavors of hash node.  */
 enum node_type
 {
-  NT_VOID = 0,	   /* No definition yet.  */
-  NT_MACRO,	   /* A macro of some form.  */
-  NT_ASSERTION	   /* Predicate for #assert.  */
+  NT_VOID = 0,	   /* Maybe an assert?  */
+  NT_MACRO_ARG,	   /* A macro arg.  */
+  NT_USER_MACRO,   /* A user macro.  */
+  NT_BUILTIN_MACRO, /* A builtin macro.  */
+  NT_MACRO_MASK = NT_USER_MACRO  /* Mask for either macro kind.  */
 };
 
 /* Different flavors of builtin macro.  _Pragma is an operator, but we
@@ -661,45 +842,27 @@ enum cpp_builtin_type
   BT_PRAGMA,			/* `_Pragma' operator */
   BT_TIMESTAMP,			/* `__TIMESTAMP__' */
   BT_COUNTER,			/* `__COUNTER__' */
-  BT_FIRST_USER,		/* User defined builtin macros.  */
-  BT_LAST_USER = BT_FIRST_USER + 31
+  BT_HAS_ATTRIBUTE		/* `__has_attribute__(x)' */
 };
 
 #define CPP_HASHNODE(HNODE)	((cpp_hashnode *) (HNODE))
-#define HT_NODE(NODE)		((ht_identifier *) (NODE))
-#define NODE_LEN(NODE)		HT_LEN (&(NODE)->ident)
-#define NODE_NAME(NODE)		HT_STR (&(NODE)->ident)
-
-/* Specify which field, if any, of the union is used.  */
-
-enum {
-  NTV_MACRO,
-  NTV_ANSWER,
-  NTV_BUILTIN,
-  NTV_ARGUMENT,
-  NTV_NONE
-};
-
-#define CPP_HASHNODE_VALUE_IDX(HNODE)				\
-  ((HNODE.flags & NODE_MACRO_ARG) ? NTV_ARGUMENT		\
-   : HNODE.type == NT_MACRO ? ((HNODE.flags & NODE_BUILTIN) 	\
-			       ? NTV_BUILTIN : NTV_MACRO)	\
-   : HNODE.type == NT_ASSERTION ? NTV_ANSWER			\
-   : NTV_NONE)
+#define HT_NODE(NODE)		(&(NODE)->ident)
+#define NODE_LEN(NODE)		HT_LEN (HT_NODE (NODE))
+#define NODE_NAME(NODE)		HT_STR (HT_NODE (NODE))
 
 /* The common part of an identifier node shared amongst all 3 C front
    ends.  Also used to store CPP identifiers, which are a superset of
    identifiers in the grammatical sense.  */
 
 union GTY(()) _cpp_hashnode_value {
-  /* If a macro.  */
-  cpp_macro * GTY((tag ("NTV_MACRO"))) macro;
-  /* Answers to an assertion.  */
-  struct answer * GTY ((tag ("NTV_ANSWER"))) answers;
+  /* Assert (maybe NULL) */
+  cpp_macro * GTY((tag ("NT_VOID"))) answers;
+  /* Macro (never NULL) */
+  cpp_macro * GTY((tag ("NT_USER_MACRO"))) macro;
   /* Code for a builtin macro.  */
-  enum cpp_builtin_type GTY ((tag ("NTV_BUILTIN"))) builtin;
+  enum cpp_builtin_type GTY ((tag ("NT_BUILTIN_MACRO"))) builtin;
   /* Macro argument index.  */
-  unsigned short GTY ((tag ("NTV_ARGUMENT"))) arg_index;
+  unsigned short GTY ((tag ("NT_MACRO_ARG"))) arg_index;
 };
 
 struct GTY(()) cpp_hashnode {
@@ -709,10 +872,57 @@ struct GTY(()) cpp_hashnode {
 					   then index into directive table.
 					   Otherwise, a NODE_OPERATOR.  */
   unsigned char rid_code;		/* Rid code - for front ends.  */
-  ENUM_BITFIELD(node_type) type : 6;	/* CPP node type.  */
-  unsigned int flags : 10;		/* CPP flags.  */
+  ENUM_BITFIELD(node_type) type : 2;	/* CPP node type.  */
+  unsigned int flags : 8;		/* CPP flags.  */
 
-  union _cpp_hashnode_value GTY ((desc ("CPP_HASHNODE_VALUE_IDX (%1)"))) value;
+  /* 6 bits spare (plus another 32 on 64-bit hosts).  */
+
+  union _cpp_hashnode_value GTY ((desc ("%1.type"))) value;
+};
+
+/* A class for iterating through the source locations within a
+   string token (before escapes are interpreted, and before
+   concatenation).  */
+
+class cpp_string_location_reader {
+ public:
+  cpp_string_location_reader (location_t src_loc,
+			      line_maps *line_table);
+
+  source_range get_next ();
+
+ private:
+  location_t m_loc;
+  int m_offset_per_column;
+  line_maps *m_line_table;
+};
+
+/* A class for storing the source ranges of all of the characters within
+   a string literal, after escapes are interpreted, and after
+   concatenation.
+
+   This is not GTY-marked, as instances are intended to be temporary.  */
+
+class cpp_substring_ranges
+{
+ public:
+  cpp_substring_ranges ();
+  ~cpp_substring_ranges ();
+
+  int get_num_ranges () const { return m_num_ranges; }
+  source_range get_range (int idx) const
+  {
+    linemap_assert (idx < m_num_ranges);
+    return m_ranges[idx];
+  }
+
+  void add_range (source_range range);
+  void add_n_ranges (int num, cpp_string_location_reader &loc_reader);
+
+ private:
+  source_range *m_ranges;
+  int m_num_ranges;
+  int m_alloc_ranges;
 };
 
 /* Call this first to get a handle to pass to other functions.
@@ -787,9 +997,32 @@ extern int cpp_avoid_paste (cpp_reader *, const cpp_token *,
 			    const cpp_token *);
 extern const cpp_token *cpp_get_token (cpp_reader *);
 extern const cpp_token *cpp_get_token_with_location (cpp_reader *,
-						     source_location *);
+						     location_t *);
+inline bool cpp_user_macro_p (const cpp_hashnode *node)
+{
+  return node->type == NT_USER_MACRO;
+}
+inline bool cpp_builtin_macro_p (const cpp_hashnode *node)
+{
+  return node->type == NT_BUILTIN_MACRO;
+}
+inline bool cpp_macro_p (const cpp_hashnode *node)
+{
+  return node->type & NT_MACRO_MASK;
+}
+
+/* Returns true if NODE is a function-like user macro.  */
+inline bool cpp_fun_like_macro_p (cpp_hashnode *node)
+{
+  return cpp_user_macro_p (node) && node->value.macro->fun_like;
+}
+
 extern const unsigned char *cpp_macro_definition (cpp_reader *,
 						  cpp_hashnode *);
+inline location_t cpp_macro_definition_location (cpp_hashnode *node)
+{
+  return node->value.macro->line;
+}
 extern void _cpp_backup_tokens (cpp_reader *, unsigned int);
 extern const cpp_token *cpp_peek_token (cpp_reader *, int);
 
@@ -800,6 +1033,12 @@ extern cppchar_t cpp_interpret_charconst (cpp_reader *, const cpp_token *,
 extern bool cpp_interpret_string (cpp_reader *,
 				  const cpp_string *, size_t,
 				  cpp_string *, enum cpp_ttype);
+extern const char *cpp_interpret_string_ranges (cpp_reader *pfile,
+						const cpp_string *from,
+						cpp_string_location_reader *,
+						size_t count,
+						cpp_substring_ranges *out,
+						enum cpp_ttype type);
 extern bool cpp_interpret_string_notranslate (cpp_reader *,
 					      const cpp_string *, size_t,
 					      cpp_string *, enum cpp_ttype);
@@ -815,6 +1054,9 @@ extern void cpp_define_formatted (cpp_reader *pfile,
 extern void cpp_assert (cpp_reader *, const char *);
 extern void cpp_undef (cpp_reader *, const char *);
 extern void cpp_unassert (cpp_reader *, const char *);
+
+/* Mark a node as a lazily defined macro.  */
+extern void cpp_define_lazily (cpp_reader *, cpp_hashnode *node, unsigned N);
 
 /* Undefine all macros and assertions.  */
 extern void cpp_undef_all (cpp_reader *);
@@ -851,7 +1093,7 @@ struct cpp_num
 #define CPP_N_FLOATING	0x0002
 
 #define CPP_N_WIDTH	0x00F0
-#define CPP_N_SMALL	0x0010	/* int, float, shrot _Fract/Accum  */
+#define CPP_N_SMALL	0x0010	/* int, float, short _Fract/Accum  */
 #define CPP_N_MEDIUM	0x0020	/* long, double, long _Fract/_Accum.  */
 #define CPP_N_LARGE	0x0040	/* long long, long double,
 				   long long _Fract/Accum.  */
@@ -873,13 +1115,20 @@ struct cpp_num
 
 #define CPP_N_FRACT	0x100000 /* Fract types.  */
 #define CPP_N_ACCUM	0x200000 /* Accum types.  */
+#define CPP_N_FLOATN	0x400000 /* _FloatN types.  */
+#define CPP_N_FLOATNX	0x800000 /* _FloatNx types.  */
 
 #define CPP_N_USERDEF	0x1000000 /* C++0x user-defined literal.  */
+
+#define CPP_N_WIDTH_FLOATN_NX	0xF0000000 /* _FloatN / _FloatNx value
+					      of N, divided by 16.  */
+#define CPP_FLOATN_SHIFT	24
+#define CPP_FLOATN_MAX	0xF0
 
 /* Classify a CPP_NUMBER token.  The return value is a combination of
    the flags from the above sets.  */
 extern unsigned cpp_classify_number (cpp_reader *, const cpp_token *,
-				     const char **, source_location);
+				     const char **, location_t);
 
 /* Return the classification flags for a float suffix.  */
 extern unsigned int cpp_interpret_float_suffix (cpp_reader *, const char *,
@@ -897,85 +1146,56 @@ extern cpp_num cpp_interpret_integer (cpp_reader *, const cpp_token *,
    others assumed clear, to fill out a cpp_num structure.  */
 cpp_num cpp_num_sign_extend (cpp_num, size_t);
 
-/* Diagnostic levels.  To get a diagnostic without associating a
-   position in the translation unit with it, use cpp_error_with_line
-   with a line number of zero.  */
-
-enum {
-  /* Warning, an error with -Werror.  */
-  CPP_DL_WARNING = 0,
-  /* Same as CPP_DL_WARNING, except it is not suppressed in system headers.  */
-  CPP_DL_WARNING_SYSHDR,
-  /* Warning, an error with -pedantic-errors or -Werror.  */
-  CPP_DL_PEDWARN,
-  /* An error.  */
-  CPP_DL_ERROR,
-  /* An internal consistency check failed.  Prints "internal error: ",
-     otherwise the same as CPP_DL_ERROR.  */
-  CPP_DL_ICE,
-  /* An informative note following a warning.  */
-  CPP_DL_NOTE,
-  /* A fatal error.  */
-  CPP_DL_FATAL
-};
-
-/* Warning reason codes. Use a reason code of zero for unclassified warnings
-   and errors that are not warnings.  */
-enum {
-  CPP_W_NONE = 0,
-  CPP_W_DEPRECATED,
-  CPP_W_COMMENTS,
-  CPP_W_MISSING_INCLUDE_DIRS,
-  CPP_W_TRIGRAPHS,
-  CPP_W_MULTICHAR,
-  CPP_W_TRADITIONAL,
-  CPP_W_LONG_LONG,
-  CPP_W_ENDIF_LABELS,
-  CPP_W_NUM_SIGN_CHANGE,
-  CPP_W_VARIADIC_MACROS,
-  CPP_W_BUILTIN_MACRO_REDEFINED,
-  CPP_W_DOLLARS,
-  CPP_W_UNDEF,
-  CPP_W_UNUSED_MACROS,
-  CPP_W_CXX_OPERATOR_NAMES,
-  CPP_W_NORMALIZE,
-  CPP_W_INVALID_PCH,
-  CPP_W_WARNING_DIRECTIVE,
-  CPP_W_LITERAL_SUFFIX,
-  CPP_W_DATE_TIME,
-  CPP_W_PEDANTIC,
-  CPP_W_C90_C99_COMPAT
-};
-
 /* Output a diagnostic of some kind.  */
-extern bool cpp_error (cpp_reader *, int, const char *msgid, ...)
+extern bool cpp_error (cpp_reader *, enum cpp_diagnostic_level,
+		       const char *msgid, ...)
   ATTRIBUTE_PRINTF_3;
-extern bool cpp_warning (cpp_reader *, int, const char *msgid, ...)
+extern bool cpp_warning (cpp_reader *, enum cpp_warning_reason,
+			 const char *msgid, ...)
   ATTRIBUTE_PRINTF_3;
-extern bool cpp_pedwarning (cpp_reader *, int, const char *msgid, ...)
+extern bool cpp_pedwarning (cpp_reader *, enum cpp_warning_reason,
+			    const char *msgid, ...)
   ATTRIBUTE_PRINTF_3;
-extern bool cpp_warning_syshdr (cpp_reader *, int, const char *msgid, ...)
+extern bool cpp_warning_syshdr (cpp_reader *, enum cpp_warning_reason reason,
+				const char *msgid, ...)
   ATTRIBUTE_PRINTF_3;
 
 /* Output a diagnostic with "MSGID: " preceding the
    error string of errno.  No location is printed.  */
-extern bool cpp_errno (cpp_reader *, int, const char *msgid);
+extern bool cpp_errno (cpp_reader *, enum cpp_diagnostic_level,
+		       const char *msgid);
+/* Similarly, but with "FILENAME: " instead of "MSGID: ", where
+   the filename is not localized.  */
+extern bool cpp_errno_filename (cpp_reader *, enum cpp_diagnostic_level,
+				const char *filename, location_t loc);
 
 /* Same as cpp_error, except additionally specifies a position as a
    (translation unit) physical line and physical column.  If the line is
    zero, then no location is printed.  */
-extern bool cpp_error_with_line (cpp_reader *, int, source_location,
-                                 unsigned, const char *msgid, ...)
+extern bool cpp_error_with_line (cpp_reader *, enum cpp_diagnostic_level,
+				 location_t, unsigned,
+				 const char *msgid, ...)
   ATTRIBUTE_PRINTF_5;
-extern bool cpp_warning_with_line (cpp_reader *, int, source_location,
-                                   unsigned, const char *msgid, ...)
+extern bool cpp_warning_with_line (cpp_reader *, enum cpp_warning_reason,
+				   location_t, unsigned,
+				   const char *msgid, ...)
   ATTRIBUTE_PRINTF_5;
-extern bool cpp_pedwarning_with_line (cpp_reader *, int, source_location,
-                                      unsigned, const char *msgid, ...)
+extern bool cpp_pedwarning_with_line (cpp_reader *, enum cpp_warning_reason,
+				      location_t, unsigned,
+				      const char *msgid, ...)
   ATTRIBUTE_PRINTF_5;
-extern bool cpp_warning_with_line_syshdr (cpp_reader *, int, source_location,
-                                          unsigned, const char *msgid, ...)
+extern bool cpp_warning_with_line_syshdr (cpp_reader *, enum cpp_warning_reason,
+					  location_t, unsigned,
+					  const char *msgid, ...)
   ATTRIBUTE_PRINTF_5;
+
+extern bool cpp_error_at (cpp_reader * pfile, enum cpp_diagnostic_level,
+			  location_t src_loc, const char *msgid, ...)
+  ATTRIBUTE_PRINTF_4;
+
+extern bool cpp_error_at (cpp_reader * pfile, enum cpp_diagnostic_level,
+			  rich_location *richloc, const char *msgid, ...)
+  ATTRIBUTE_PRINTF_4;
 
 /* In lex.c */
 extern int cpp_ideq (const cpp_token *, const char *);
@@ -1001,7 +1221,7 @@ typedef struct
   char *comment;
 
   /* source location for the given comment.  */
-  source_location sloc;
+  location_t sloc;
 } cpp_comment;
 
 /* Structure holding all comments for a given cpp_reader.  */
@@ -1040,7 +1260,7 @@ extern unsigned char *cpp_quote_string (unsigned char *, const unsigned char *,
 
 /* In files.c */
 extern bool cpp_included (cpp_reader *, const char *);
-extern bool cpp_included_before (cpp_reader *, const char *, source_location);
+extern bool cpp_included_before (cpp_reader *, const char *, location_t);
 extern void cpp_make_system_header (cpp_reader *, int, int);
 extern bool cpp_push_include (cpp_reader *, const char *);
 extern bool cpp_push_default_include (cpp_reader *, const char *);
@@ -1063,7 +1283,7 @@ extern int cpp_read_state (cpp_reader *, const char *, FILE *,
 			   struct save_macro_data *);
 
 /* In lex.c */
-extern void cpp_force_token_locations (cpp_reader *, source_location *);
+extern void cpp_force_token_locations (cpp_reader *, location_t);
 extern void cpp_stop_forcing_token_locations (cpp_reader *);
 
 /* In expr.c */

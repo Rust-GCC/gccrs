@@ -1,5 +1,5 @@
 // { dg-do compile }
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,8 +22,8 @@
 // http://gcc.gnu.org/ml/libstdc++/2000-06/msg00316.html
 struct foo { };
 
-bool operator== (const foo&, const foo&) { return true; };
-bool operator< (const foo&, const foo&) { return true; };
+bool operator== (const foo&, const foo&) { return true; }
+bool operator< (const foo&, const foo&) { return true; }
 
 void bar(foo* a, foo* b, foo& x)
 {

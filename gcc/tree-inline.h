@@ -1,5 +1,5 @@
 /* Tree inlining hooks and declarations.
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2019 Free Software Foundation, Inc.
    Contributed by Alexandre Oliva  <aoliva@redhat.com>
 
 This file is part of GCC.
@@ -21,8 +21,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_TREE_INLINE_H
 #define GCC_TREE_INLINE_H
 
-#include "hash-map.h"
-#include "hash-set.h"
 
 struct cgraph_edge;
 
@@ -36,6 +34,8 @@ enum copy_body_cge_which
   CB_CGE_MOVE,
   CB_CGE_MOVE_CLONES
 };
+
+typedef int_hash <unsigned short, 0> dependence_hash;
 
 /* Data required for function body duplication.  */
 
@@ -75,7 +75,10 @@ struct copy_body_data
 
   /* GIMPLE_CALL if va arg parameter packs should be expanded or NULL
      is not.  */
-  gimple gimple_call;
+  gcall *call_stmt;
+
+  /* > 0 if we are remapping a type currently.  */
+  int remapping_type_depth;
 
   /* Exception landing pad the inlined call lies in.  */
   int eh_lp_nr;
@@ -107,17 +110,31 @@ struct copy_body_data
   /* True if this statement will need to be regimplified.  */
   bool regimplify;
 
-  /* True if trees should not be unshared.  */
+  /* True if trees may not be unshared.  */
   bool do_not_unshare;
 
-  /* > 0 if we are remapping a type currently.  */
-  int remapping_type_depth;
+  /* True if new declarations may not be created during type remapping.  */
+  bool prevent_decl_creation_for_types;
+
+  /* True if the location information will need to be reset.  */
+  bool reset_location;
+
+  /* Replace error_mark_node as upper bound of array types with
+     an uninitialized VAR_DECL temporary.  */
+  bool adjust_array_error_bounds;
+
+  /* Usually copy_decl callback always creates new decls, in that case
+     we want to remap all variably_modified_type_p types.  If this flag
+     is set, remap_type will do further checks to see if remap_decl
+     of any decls mentioned in the type will remap to anything but itself
+     and only in that case will actually remap the type.  */
+  bool dont_remap_vla_if_no_change;
 
   /* A function to be called when duplicating BLOCK nodes.  */
   void (*transform_lang_insert_block) (tree);
 
   /* Statements that might be possibly folded.  */
-  hash_set<gimple> *statements_to_fold;
+  hash_set<gimple *> *statements_to_fold;
 
   /* Entry basic block to currently copied body.  */
   basic_block entry_bb;
@@ -127,22 +144,32 @@ struct copy_body_data
   bitmap blocks_to_copy;
 
   /* Debug statements that need processing.  */
-  vec<gimple> debug_stmts;
+  vec<gdebug *> debug_stmts;
 
   /* A map from local declarations in the inlined function to
      equivalents in the function into which it is being inlined, where
      the originals have been mapped to a value rather than to a
      variable.  */
   hash_map<tree, tree> *debug_map;
- 
-  /* Cilk keywords currently need to replace some variables that
-     ordinary nested functions do not.  */ 
-  bool remap_var_for_cilk;
+
+  /* A map from the inlined functions dependence info cliques to
+     equivalents in the function into which it is being inlined.  */
+  hash_map<dependence_hash, unsigned short> *dependence_map;
+
+  /* A list of addressable local variables remapped into the caller
+     when inlining a call within an OpenMP SIMD-on-SIMT loop.  */
+  vec<tree> *dst_simt_vars;
+
+  /* If clobbers for local variables from the inline function
+     that need to live in memory should be added to EH landing pads
+     outside of the inlined function, this should be the number
+     of basic blocks in the caller before inlining.  Zero otherwise.  */
+  int add_clobbers_to_eh_landing_pads;
 };
 
 /* Weights of constructions for estimate_num_insns.  */
 
-typedef struct eni_weights_d
+struct eni_weights
 {
   /* Cost per call.  */
   unsigned call_cost;
@@ -169,7 +196,7 @@ typedef struct eni_weights_d
      cost of a switch statement is logarithmic rather than linear in number
      of cases.  */
   bool time_based;
-} eni_weights;
+};
 
 /* Weights that estimate_num_insns uses for heuristics in inlining.  */
 
@@ -195,14 +222,17 @@ bool tree_inlinable_function_p (tree);
 tree copy_tree_r (tree *, int *, void *);
 tree copy_decl_no_change (tree decl, copy_body_data *id);
 int estimate_move_cost (tree type, bool);
-int estimate_num_insns (gimple, eni_weights *);
+int estimate_num_insns (gimple *, eni_weights *);
 int estimate_num_insns_fn (tree, eni_weights *);
-int count_insns_seq (gimple_seq, eni_weights *);
+int estimate_num_insns_seq (gimple_seq, eni_weights *);
 bool tree_versionable_function_p (tree);
 extern tree remap_decl (tree decl, copy_body_data *id);
 extern tree remap_type (tree type, copy_body_data *id);
 extern gimple_seq copy_gimple_seq_and_replace_locals (gimple_seq seq);
 extern bool debug_find_tree (tree, tree);
+extern tree copy_fn (tree, tree&, tree&);
+extern const char *copy_forbidden (struct function *fun);
+extern tree copy_decl_for_dup_finish (copy_body_data *id, tree decl, tree copy);
 
 /* This is in tree-inline.c since the routine uses
    data structures from the inliner.  */

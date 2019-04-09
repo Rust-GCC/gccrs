@@ -1,6 +1,6 @@
 // std::__detail definitions -*- C++ -*-
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -34,32 +34,49 @@
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
 #include "../shared/hashtable-aux.cc"
 
 namespace __detail
 {
-  _GLIBCXX_BEGIN_NAMESPACE_VERSION
-
   // Return a prime no smaller than n.
   std::size_t
   _Prime_rehash_policy::_M_next_bkt(std::size_t __n) const
   {
     // Optimize lookups involving the first elements of __prime_list.
     // (useful to speed-up, eg, constructors)
-    static const unsigned char __fast_bkt[12]
-      = { 2, 2, 2, 3, 5, 5, 7, 7, 11, 11, 11, 11 };
+    static const unsigned char __fast_bkt[]
+      = { 2, 2, 2, 3, 5, 5, 7, 7, 11, 11, 11, 11, 13, 13 };
 
-    if (__n <= 11)
+    if (__n < sizeof(__fast_bkt))
       {
 	_M_next_resize =
-	  __builtin_ceil(__fast_bkt[__n] * (long double)_M_max_load_factor);
+	  __builtin_floor(__fast_bkt[__n] * (long double)_M_max_load_factor);
 	return __fast_bkt[__n];
       }
 
+    // Number of primes (without sentinel).
+    constexpr auto __n_primes
+      = sizeof(__prime_list) / sizeof(unsigned long) - 1;
+
+    // Don't include the last prime in the search, so that anything
+    // higher than the second-to-last prime returns a past-the-end
+    // iterator that can be dereferenced to get the last prime.
+    constexpr auto __last_prime = __prime_list + __n_primes - 1;
+
     const unsigned long* __next_bkt =
-      std::lower_bound(__prime_list + 5, __prime_list + _S_n_primes, __n);
-    _M_next_resize =
-      __builtin_ceil(*__next_bkt * (long double)_M_max_load_factor);
+      std::lower_bound(__prime_list + 6, __last_prime, __n);
+
+    if (__next_bkt == __last_prime)
+      // Set next resize to the max value so that we never try to rehash again
+      // as we already reach the biggest possible bucket number.
+      // Note that it might result in max_load_factor not being respected.
+      _M_next_resize = std::size_t(-1);
+    else
+      _M_next_resize =
+	__builtin_floor(*__next_bkt * (long double)_M_max_load_factor);
+
     return *__next_bkt;
   }
 
@@ -77,7 +94,7 @@ namespace __detail
   _M_need_rehash(std::size_t __n_bkt, std::size_t __n_elt,
 		 std::size_t __n_ins) const
   {
-    if (__n_elt + __n_ins >= _M_next_resize)
+    if (__n_elt + __n_ins > _M_next_resize)
       {
 	long double __min_bkts = (__n_elt + __n_ins)
 				   / (long double)_M_max_load_factor;
@@ -93,7 +110,7 @@ namespace __detail
     else
       return std::make_pair(false, 0);
   }
+} // namespace __detail
 
 _GLIBCXX_END_NAMESPACE_VERSION
-} // namespace __detail
 } // namespace std

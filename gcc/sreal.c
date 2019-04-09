@@ -1,5 +1,5 @@
-/* Simple data type for positive real numbers for the GNU compiler.
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+/* Simple data type for real numbers for the GNU compiler.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -17,7 +17,7 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-/* This library supports positive real numbers and 0;
+/* This library supports real numbers;
    inf and nan are NOT supported.
    It is written to be simple and fast.
 
@@ -28,12 +28,10 @@ along with GCC; see the file COPYING3.  If not see
 	  (for < 64-bit machines sig = sig_lo + sig_hi * 2 ^ SREAL_PART_BITS)
 	exp = exponent
 
-   One HOST_WIDE_INT is used for the significant on 64-bit (and more than
-   64-bit) machines,
-   otherwise two HOST_WIDE_INTs are used for the significant.
+   One uint64_t is used for the significant.
    Only a half of significant bits is used (in normalized sreals) so that we do
    not have problems with overflow, for example when c->sig = a->sig * b->sig.
-   So the precision for 64-bit and 32-bit machines is 32-bit.
+   So the precision is 32-bit.
 
    Invariant: The numbers are normalized before and after each call of sreal_*.
 
@@ -51,35 +49,32 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #include "system.h"
+#include <math.h>
 #include "coretypes.h"
 #include "sreal.h"
-
-static inline void copy (sreal *, sreal *);
-static inline void shift_right (sreal *, int);
-static void normalize (sreal *);
+#include "selftest.h"
+#include "backend.h"
+#include "tree.h"
+#include "gimple.h"
+#include "cgraph.h"
+#include "data-streamer.h"
 
 /* Print the content of struct sreal.  */
 
 void
-dump_sreal (FILE *file, sreal *x)
+sreal::dump (FILE *file) const
 {
-#if SREAL_PART_BITS < 32
-  fprintf (file, "((" HOST_WIDE_INT_PRINT_UNSIGNED " * 2^16 + "
-	   HOST_WIDE_INT_PRINT_UNSIGNED ") * 2^%d)",
-	   x->sig_hi, x->sig_lo, x->exp);
-#else
-  fprintf (file, "(" HOST_WIDE_INT_PRINT_UNSIGNED " * 2^%d)", x->sig, x->exp);
-#endif
+  fprintf (file, "(%" PRIi64 " * 2^%d)", (int64_t)m_sig, m_exp);
 }
 
 DEBUG_FUNCTION void
-debug (sreal &ref)
+debug (const sreal &ref)
 {
-  dump_sreal (stderr, &ref);
+  ref.dump (stderr);
 }
 
 DEBUG_FUNCTION void
-debug (sreal *ptr)
+debug (const sreal *ptr)
 {
   if (ptr)
     debug (*ptr);
@@ -87,472 +82,310 @@ debug (sreal *ptr)
     fprintf (stderr, "<nil>\n");
 }
 
+/* Shift this right by S bits.  Needed: 0 < S <= SREAL_BITS.
+   When the most significant bit shifted out is 1, add 1 to this (rounding).
+   */
 
-/* Copy the sreal number.  */
-
-static inline void
-copy (sreal *r, sreal *a)
+void
+sreal::shift_right (int s)
 {
-#if SREAL_PART_BITS < 32
-  r->sig_lo = a->sig_lo;
-  r->sig_hi = a->sig_hi;
-#else
-  r->sig = a->sig;
-#endif
-  r->exp = a->exp;
-}
-
-/* Shift X right by S bits.  Needed: 0 < S <= SREAL_BITS.
-   When the most significant bit shifted out is 1, add 1 to X (rounding).  */
-
-static inline void
-shift_right (sreal *x, int s)
-{
-  gcc_assert (s > 0);
-  gcc_assert (s <= SREAL_BITS);
+  gcc_checking_assert (s > 0);
+  gcc_checking_assert (s <= SREAL_BITS);
   /* Exponent should never be so large because shift_right is used only by
      sreal_add and sreal_sub ant thus the number cannot be shifted out from
      exponent range.  */
-  gcc_assert (x->exp + s <= SREAL_MAX_EXP);
+  gcc_checking_assert (m_exp + s <= SREAL_MAX_EXP);
 
-  x->exp += s;
+  m_exp += s;
 
-#if SREAL_PART_BITS < 32
-  if (s > SREAL_PART_BITS)
-    {
-      s -= SREAL_PART_BITS;
-      x->sig_hi += (uhwi) 1 << (s - 1);
-      x->sig_lo = x->sig_hi >> s;
-      x->sig_hi = 0;
-    }
-  else
-    {
-      x->sig_lo += (uhwi) 1 << (s - 1);
-      if (x->sig_lo & ((uhwi) 1 << SREAL_PART_BITS))
-	{
-	  x->sig_hi++;
-	  x->sig_lo -= (uhwi) 1 << SREAL_PART_BITS;
-	}
-      x->sig_lo >>= s;
-      x->sig_lo |= (x->sig_hi & (((uhwi) 1 << s) - 1)) << (SREAL_PART_BITS - s);
-      x->sig_hi >>= s;
-    }
-#else
-  x->sig += (uhwi) 1 << (s - 1);
-  x->sig >>= s;
-#endif
+  m_sig += (int64_t) 1 << (s - 1);
+  m_sig >>= s;
 }
 
-/* Normalize *X.  */
+/* Return integer value of *this.  */
+
+int64_t
+sreal::to_int () const
+{
+  int64_t sign = SREAL_SIGN (m_sig);
+
+  if (m_exp <= -SREAL_BITS)
+    return 0;
+  if (m_exp >= SREAL_PART_BITS)
+    return sign * INTTYPE_MAXIMUM (int64_t);
+  if (m_exp > 0)
+    return sign * (SREAL_ABS ((int64_t)m_sig) << m_exp);
+  if (m_exp < 0)
+    return m_sig >> -m_exp;
+  return m_sig;
+}
+
+/* Return value of *this as double.
+   This should be used for debug output only.  */
+
+double
+sreal::to_double () const
+{
+  double val = m_sig;
+  if (m_exp)
+    val = ldexp (val, m_exp);
+  return val;
+}
+
+/* Return *this + other.  */
+
+sreal
+sreal::operator+ (const sreal &other) const
+{
+  int dexp;
+  sreal tmp;
+  int64_t r_sig, r_exp;
+
+  const sreal *a_p = this, *b_p = &other, *bb;
+
+  if (a_p->m_exp < b_p->m_exp)
+    std::swap (a_p, b_p);
+
+  dexp = a_p->m_exp - b_p->m_exp;
+  r_exp = a_p->m_exp;
+  if (dexp > SREAL_BITS)
+    {
+      r_sig = a_p->m_sig;
+
+      sreal r;
+      r.m_sig = r_sig;
+      r.m_exp = r_exp;
+      return r;
+    }
+
+  if (dexp == 0)
+    bb = b_p;
+  else
+    {
+      tmp = *b_p;
+      tmp.shift_right (dexp);
+      bb = &tmp;
+    }
+
+  r_sig = a_p->m_sig + (int64_t)bb->m_sig;
+  sreal r (r_sig, r_exp);
+  return r;
+}
+
+
+/* Return *this - other.  */
+
+sreal
+sreal::operator- (const sreal &other) const
+{
+  int dexp;
+  sreal tmp;
+  int64_t r_sig, r_exp;
+  const sreal *bb;
+  const sreal *a_p = this, *b_p = &other;
+
+  int64_t sign = 1;
+  if (a_p->m_exp < b_p->m_exp)
+    {
+      sign = -1;
+      std::swap (a_p, b_p);
+    }
+
+  dexp = a_p->m_exp - b_p->m_exp;
+  r_exp = a_p->m_exp;
+  if (dexp > SREAL_BITS)
+    {
+      r_sig = sign * a_p->m_sig;
+
+      sreal r;
+      r.m_sig = r_sig;
+      r.m_exp = r_exp;
+      return r;
+    }
+  if (dexp == 0)
+    bb = b_p;
+  else
+    {
+      tmp = *b_p;
+      tmp.shift_right (dexp);
+      bb = &tmp;
+    }
+
+  r_sig = sign * ((int64_t) a_p->m_sig - (int64_t)bb->m_sig);
+  sreal r (r_sig, r_exp);
+  return r;
+}
+
+/* Return *this * other.  */
+
+sreal
+sreal::operator* (const sreal &other) const
+{
+  sreal r;
+  if (absu_hwi (m_sig) < SREAL_MIN_SIG
+      || absu_hwi (other.m_sig) < SREAL_MIN_SIG)
+    {
+      r.m_sig = 0;
+      r.m_exp = -SREAL_MAX_EXP;
+    }
+  else
+    r.normalize (m_sig * (int64_t) other.m_sig, m_exp + other.m_exp);
+
+  return r;
+}
+
+/* Return *this / other.  */
+
+sreal
+sreal::operator/ (const sreal &other) const
+{
+  gcc_checking_assert (other.m_sig != 0);
+  sreal r (SREAL_SIGN (m_sig)
+	   * ((int64_t)SREAL_ABS (m_sig) << SREAL_PART_BITS) / other.m_sig,
+	   m_exp - other.m_exp - SREAL_PART_BITS);
+  return r;
+}
+
+/* Stream sreal value to OB.  */
+
+void
+sreal::stream_out (struct output_block *ob)
+{
+  streamer_write_hwi (ob, m_sig);
+  streamer_write_hwi (ob, m_exp);
+}
+
+/* Read sreal value from IB.  */
+
+sreal
+sreal::stream_in (struct lto_input_block *ib)
+{
+  sreal val;
+  val.m_sig = streamer_read_hwi (ib);
+  val.m_exp = streamer_read_hwi (ib);
+  return val;
+}
+
+#if CHECKING_P
+
+namespace selftest {
+
+/* Selftests for sreals.  */
+
+/* Verify basic sreal operations.  */
 
 static void
-normalize (sreal *x)
+sreal_verify_basics (void)
 {
-#if SREAL_PART_BITS < 32
-  int shift;
-  HOST_WIDE_INT mask;
+  sreal minimum = INT_MIN/2;
+  sreal maximum = INT_MAX/2;
 
-  if (x->sig_lo == 0 && x->sig_hi == 0)
-    {
-      x->exp = -SREAL_MAX_EXP;
-    }
-  else if (x->sig_hi < SREAL_MIN_SIG)
-    {
-      if (x->sig_hi == 0)
-	{
-	  /* Move lower part of significant to higher part.  */
-	  x->sig_hi = x->sig_lo;
-	  x->sig_lo = 0;
-	  x->exp -= SREAL_PART_BITS;
-	}
-      shift = 0;
-      while (x->sig_hi < SREAL_MIN_SIG)
-	{
-	  x->sig_hi <<= 1;
-	  x->exp--;
-	  shift++;
-	}
-      /* Check underflow.  */
-      if (x->exp < -SREAL_MAX_EXP)
-	{
-	  x->exp = -SREAL_MAX_EXP;
-	  x->sig_hi = 0;
-	  x->sig_lo = 0;
-	}
-      else if (shift)
-	{
-	  mask = (1 << SREAL_PART_BITS) - (1 << (SREAL_PART_BITS - shift));
-	  x->sig_hi |= (x->sig_lo & mask) >> (SREAL_PART_BITS - shift);
-	  x->sig_lo = (x->sig_lo << shift) & (((uhwi) 1 << SREAL_PART_BITS) - 1);
-	}
-    }
-  else if (x->sig_hi > SREAL_MAX_SIG)
-    {
-      unsigned HOST_WIDE_INT tmp = x->sig_hi;
+  sreal seven = 7;
+  sreal minus_two = -2;
+  sreal minus_nine = -9;
 
-      /* Find out how many bits will be shifted.  */
-      shift = 0;
-      do
-	{
-	  tmp >>= 1;
-	  shift++;
-	}
-      while (tmp > SREAL_MAX_SIG);
+  ASSERT_EQ (INT_MIN/2, minimum.to_int ());
+  ASSERT_EQ (INT_MAX/2, maximum.to_int ());
 
-      /* Round the number.  */
-      x->sig_lo += (uhwi) 1 << (shift - 1);
-
-      x->sig_lo >>= shift;
-      x->sig_lo += ((x->sig_hi & (((uhwi) 1 << shift) - 1))
-		    << (SREAL_PART_BITS - shift));
-      x->sig_hi >>= shift;
-      x->exp += shift;
-      if (x->sig_lo & ((uhwi) 1 << SREAL_PART_BITS))
-	{
-	  x->sig_lo -= (uhwi) 1 << SREAL_PART_BITS;
-	  x->sig_hi++;
-	  if (x->sig_hi > SREAL_MAX_SIG)
-	    {
-	      /* x->sig_hi was SREAL_MAX_SIG before increment
-		 so now last bit is zero.  */
-	      x->sig_hi >>= 1;
-	      x->sig_lo >>= 1;
-	      x->exp++;
-	    }
-	}
-
-      /* Check overflow.  */
-      if (x->exp > SREAL_MAX_EXP)
-	{
-	  x->exp = SREAL_MAX_EXP;
-	  x->sig_hi = SREAL_MAX_SIG;
-	  x->sig_lo = SREAL_MAX_SIG;
-	}
-    }
-#else
-  if (x->sig == 0)
-    {
-      x->exp = -SREAL_MAX_EXP;
-    }
-  else if (x->sig < SREAL_MIN_SIG)
-    {
-      do
-	{
-	  x->sig <<= 1;
-	  x->exp--;
-	}
-      while (x->sig < SREAL_MIN_SIG);
-
-      /* Check underflow.  */
-      if (x->exp < -SREAL_MAX_EXP)
-	{
-	  x->exp = -SREAL_MAX_EXP;
-	  x->sig = 0;
-	}
-    }
-  else if (x->sig > SREAL_MAX_SIG)
-    {
-      int last_bit;
-      do
-	{
-	  last_bit = x->sig & 1;
-	  x->sig >>= 1;
-	  x->exp++;
-	}
-      while (x->sig > SREAL_MAX_SIG);
-
-      /* Round the number.  */
-      x->sig += last_bit;
-      if (x->sig > SREAL_MAX_SIG)
-	{
-	  x->sig >>= 1;
-	  x->exp++;
-	}
-
-      /* Check overflow.  */
-      if (x->exp > SREAL_MAX_EXP)
-	{
-	  x->exp = SREAL_MAX_EXP;
-	  x->sig = SREAL_MAX_SIG;
-	}
-    }
-#endif
+  ASSERT_FALSE (minus_two < minus_two);
+  ASSERT_FALSE (seven < seven);
+  ASSERT_TRUE (seven > minus_two);
+  ASSERT_TRUE (minus_two < seven);
+  ASSERT_TRUE (minus_two != seven);
+  ASSERT_EQ (minus_two, -2);
+  ASSERT_EQ (seven, 7);
+  ASSERT_EQ ((seven << 10) >> 10, 7);
+  ASSERT_EQ (seven + minus_nine, -2);
 }
 
-/* Set *R to SIG * 2 ^ EXP.  Return R.  */
+/* Helper function that performs basic arithmetics and comparison
+   of given arguments A and B.  */
 
-sreal *
-sreal_init (sreal *r, unsigned HOST_WIDE_INT sig, signed int exp)
+static void
+verify_aritmetics (int64_t a, int64_t b)
 {
-#if SREAL_PART_BITS < 32
-  r->sig_lo = 0;
-  r->sig_hi = sig;
-  r->exp = exp - 16;
-#else
-  r->sig = sig;
-  r->exp = exp;
-#endif
-  normalize (r);
-  return r;
+  ASSERT_EQ (a, -(-(sreal (a))).to_int ());
+  ASSERT_EQ (a < b, sreal (a) < sreal (b));
+  ASSERT_EQ (a <= b, sreal (a) <= sreal (b));
+  ASSERT_EQ (a == b, sreal (a) == sreal (b));
+  ASSERT_EQ (a != b, sreal (a) != sreal (b));
+  ASSERT_EQ (a > b, sreal (a) > sreal (b));
+  ASSERT_EQ (a >= b, sreal (a) >= sreal (b));
+  ASSERT_EQ (a + b, (sreal (a) + sreal (b)).to_int ());
+  ASSERT_EQ (a - b, (sreal (a) - sreal (b)).to_int ());
+  ASSERT_EQ (b + a, (sreal (b) + sreal (a)).to_int ());
+  ASSERT_EQ (b - a, (sreal (b) - sreal (a)).to_int ());
 }
 
-/* Return integer value of *R.  */
+/* Verify arithmetics for interesting numbers.  */
 
-HOST_WIDE_INT
-sreal_to_int (sreal *r)
+static void
+sreal_verify_arithmetics (void)
 {
-#if SREAL_PART_BITS < 32
-  if (r->exp <= -SREAL_BITS)
-    return 0;
-  if (r->exp >= 0)
-    return MAX_HOST_WIDE_INT;
-  return ((r->sig_hi << SREAL_PART_BITS) + r->sig_lo) >> -r->exp;
-#else
-  if (r->exp <= -SREAL_BITS)
-    return 0;
-  if (r->exp >= SREAL_PART_BITS)
-    return MAX_HOST_WIDE_INT;
-  if (r->exp > 0)
-    return r->sig << r->exp;
-  if (r->exp < 0)
-    return r->sig >> -r->exp;
-  return r->sig;
-#endif
+  int values[] = {-14123413, -7777, -17, -10, -2, 0, 17, 139, 1234123};
+  unsigned c = sizeof (values) / sizeof (int);
+
+  for (unsigned i = 0; i < c; i++)
+    for (unsigned j = 0; j < c; j++)
+      {
+	int a = values[i];
+	int b = values[j];
+
+	verify_aritmetics (a, b);
+      }
 }
 
-/* Compare *A and *B. Return -1 if *A < *B, 1 if *A > *B and 0 if *A == *B.  */
+/* Helper function that performs various shifting test of a given
+   argument A.  */
 
-int
-sreal_compare (sreal *a, sreal *b)
+static void
+verify_shifting (int64_t a)
 {
-  if (a->exp > b->exp)
-    return 1;
-  if (a->exp < b->exp)
-    return -1;
-#if SREAL_PART_BITS < 32
-  if (a->sig_hi > b->sig_hi)
-    return 1;
-  if (a->sig_hi < b->sig_hi)
-    return -1;
-  if (a->sig_lo > b->sig_lo)
-    return 1;
-  if (a->sig_lo < b->sig_lo)
-    return -1;
-#else
-  if (a->sig > b->sig)
-    return 1;
-  if (a->sig < b->sig)
-    return -1;
-#endif
-  return 0;
+  sreal v = a;
+
+  for (unsigned i = 0; i < 16; i++)
+    ASSERT_EQ (a << i, (v << i).to_int());
+
+  a = a << 16;
+  v = v << 16;
+
+  for (unsigned i = 0; i < 16; i++)
+    ASSERT_EQ (a >> i, (v >> i).to_int());
 }
 
-/* *R = *A + *B.  Return R.  */
+/* Verify shifting for interesting numbers.  */
 
-sreal *
-sreal_add (sreal *r, sreal *a, sreal *b)
+static void
+sreal_verify_shifting (void)
 {
-  int dexp;
-  sreal tmp;
-  sreal *bb;
+  int values[] = {0, 17, 32, 139, 1024, 55555, 1234123};
+  unsigned c = sizeof (values) / sizeof (int);
 
-  if (sreal_compare (a, b) < 0)
-    {
-      sreal *swap;
-      swap = a;
-      a = b;
-      b = swap;
-    }
-
-  dexp = a->exp - b->exp;
-  r->exp = a->exp;
-  if (dexp > SREAL_BITS)
-    {
-#if SREAL_PART_BITS < 32
-      r->sig_hi = a->sig_hi;
-      r->sig_lo = a->sig_lo;
-#else
-      r->sig = a->sig;
-#endif
-      return r;
-    }
-
-  if (dexp == 0)
-    bb = b;
-  else
-    {
-      copy (&tmp, b);
-      shift_right (&tmp, dexp);
-      bb = &tmp;
-    }
-
-#if SREAL_PART_BITS < 32
-  r->sig_hi = a->sig_hi + bb->sig_hi;
-  r->sig_lo = a->sig_lo + bb->sig_lo;
-  if (r->sig_lo & ((uhwi) 1 << SREAL_PART_BITS))
-    {
-      r->sig_hi++;
-      r->sig_lo -= (uhwi) 1 << SREAL_PART_BITS;
-    }
-#else
-  r->sig = a->sig + bb->sig;
-#endif
-  normalize (r);
-  return r;
+  for (unsigned i = 0; i < c; i++)
+    verify_shifting (values[i]);
 }
 
-/* *R = *A - *B.  Return R.  */
+/* Verify division by (of) a negative value.  */
 
-sreal *
-sreal_sub (sreal *r, sreal *a, sreal *b)
+static void
+sreal_verify_negative_division (void)
 {
-  int dexp;
-  sreal tmp;
-  sreal *bb;
-
-  gcc_assert (sreal_compare (a, b) >= 0);
-
-  dexp = a->exp - b->exp;
-  r->exp = a->exp;
-  if (dexp > SREAL_BITS)
-    {
-#if SREAL_PART_BITS < 32
-      r->sig_hi = a->sig_hi;
-      r->sig_lo = a->sig_lo;
-#else
-      r->sig = a->sig;
-#endif
-      return r;
-    }
-  if (dexp == 0)
-    bb = b;
-  else
-    {
-      copy (&tmp, b);
-      shift_right (&tmp, dexp);
-      bb = &tmp;
-    }
-
-#if SREAL_PART_BITS < 32
-  if (a->sig_lo < bb->sig_lo)
-    {
-      r->sig_hi = a->sig_hi - bb->sig_hi - 1;
-      r->sig_lo = a->sig_lo + ((uhwi) 1 << SREAL_PART_BITS) - bb->sig_lo;
-    }
-  else
-    {
-      r->sig_hi = a->sig_hi - bb->sig_hi;
-      r->sig_lo = a->sig_lo - bb->sig_lo;
-    }
-#else
-  r->sig = a->sig - bb->sig;
-#endif
-  normalize (r);
-  return r;
+  ASSERT_EQ (sreal (1) / sreal (1), sreal (1));
+  ASSERT_EQ (sreal (-1) / sreal (-1), sreal (1));
+  ASSERT_EQ (sreal (-1234567) / sreal (-1234567), sreal (1));
+  ASSERT_EQ (sreal (-1234567) / sreal (1234567), sreal (-1));
+  ASSERT_EQ (sreal (1234567) / sreal (-1234567), sreal (-1));
 }
 
-/* *R = *A * *B.  Return R.  */
+/* Run all of the selftests within this file.  */
 
-sreal *
-sreal_mul (sreal *r, sreal *a, sreal *b)
+void sreal_c_tests ()
 {
-#if SREAL_PART_BITS < 32
-  if (a->sig_hi < SREAL_MIN_SIG || b->sig_hi < SREAL_MIN_SIG)
-    {
-      r->sig_lo = 0;
-      r->sig_hi = 0;
-      r->exp = -SREAL_MAX_EXP;
-    }
-  else
-    {
-      unsigned HOST_WIDE_INT tmp1, tmp2, tmp3;
-      if (sreal_compare (a, b) < 0)
-	{
-	  sreal *swap;
-	  swap = a;
-	  a = b;
-	  b = swap;
-	}
-
-      r->exp = a->exp + b->exp + SREAL_PART_BITS;
-
-      tmp1 = a->sig_lo * b->sig_lo;
-      tmp2 = a->sig_lo * b->sig_hi;
-      tmp3 = a->sig_hi * b->sig_lo + (tmp1 >> SREAL_PART_BITS);
-
-      r->sig_hi = a->sig_hi * b->sig_hi;
-      r->sig_hi += (tmp2 >> SREAL_PART_BITS) + (tmp3 >> SREAL_PART_BITS);
-      tmp2 &= ((uhwi) 1 << SREAL_PART_BITS) - 1;
-      tmp3 &= ((uhwi) 1 << SREAL_PART_BITS) - 1;
-      tmp1 = tmp2 + tmp3;
-
-      r->sig_lo = tmp1 & (((uhwi) 1 << SREAL_PART_BITS) - 1);
-      r->sig_hi += tmp1 >> SREAL_PART_BITS;
-
-      normalize (r);
-    }
-#else
-  if (a->sig < SREAL_MIN_SIG || b->sig < SREAL_MIN_SIG)
-    {
-      r->sig = 0;
-      r->exp = -SREAL_MAX_EXP;
-    }
-  else
-    {
-      r->sig = a->sig * b->sig;
-      r->exp = a->exp + b->exp;
-      normalize (r);
-    }
-#endif
-  return r;
+  sreal_verify_basics ();
+  sreal_verify_arithmetics ();
+  sreal_verify_shifting ();
+  sreal_verify_negative_division ();
 }
 
-/* *R = *A / *B.  Return R.  */
-
-sreal *
-sreal_div (sreal *r, sreal *a, sreal *b)
-{
-#if SREAL_PART_BITS < 32
-  unsigned HOST_WIDE_INT tmp, tmp1, tmp2;
-
-  gcc_assert (b->sig_hi >= SREAL_MIN_SIG);
-  if (a->sig_hi < SREAL_MIN_SIG)
-    {
-      r->sig_hi = 0;
-      r->sig_lo = 0;
-      r->exp = -SREAL_MAX_EXP;
-    }
-  else
-    {
-      /* Since division by the whole number is pretty ugly to write
-	 we are dividing by first 3/4 of bits of number.  */
-
-      tmp1 = (a->sig_hi << SREAL_PART_BITS) + a->sig_lo;
-      tmp2 = ((b->sig_hi << (SREAL_PART_BITS / 2))
-	      + (b->sig_lo >> (SREAL_PART_BITS / 2)));
-      if (b->sig_lo & ((uhwi) 1 << ((SREAL_PART_BITS / 2) - 1)))
-	tmp2++;
-
-      r->sig_lo = 0;
-      tmp = tmp1 / tmp2;
-      tmp1 = (tmp1 % tmp2) << (SREAL_PART_BITS / 2);
-      r->sig_hi = tmp << SREAL_PART_BITS;
-
-      tmp = tmp1 / tmp2;
-      tmp1 = (tmp1 % tmp2) << (SREAL_PART_BITS / 2);
-      r->sig_hi += tmp << (SREAL_PART_BITS / 2);
-
-      tmp = tmp1 / tmp2;
-      r->sig_hi += tmp;
-
-      r->exp = a->exp - b->exp - SREAL_BITS - SREAL_PART_BITS / 2;
-      normalize (r);
-    }
-#else
-  gcc_assert (b->sig != 0);
-  r->sig = (a->sig << SREAL_PART_BITS) / b->sig;
-  r->exp = a->exp - b->exp - SREAL_PART_BITS;
-  normalize (r);
-#endif
-  return r;
-}
+} // namespace selftest
+#endif /* CHECKING_P */

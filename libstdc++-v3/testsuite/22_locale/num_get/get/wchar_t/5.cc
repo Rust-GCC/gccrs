@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "de_DE" }
+// { dg-require-namedlocale "de_DE.ISO8859-15" }
 
 // 2001-11-21 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,14 +30,12 @@ void test05()
 {
   using namespace std;
 
-  bool test __attribute__((unused)) = true;
- 
   unsigned long ul;
 
   wistringstream iss;
 
   // A locale that expects grouping  
-  locale loc_de = locale("de_DE");
+  locale loc_de = locale(ISO_8859(15,de_DE));
   iss.imbue(loc_de);
 
   const num_get<wchar_t>& ng = use_facet<num_get<wchar_t> >(iss.getloc()); 

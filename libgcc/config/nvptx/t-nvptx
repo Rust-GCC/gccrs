@@ -1,0 +1,13 @@
+LIB2ADD=$(srcdir)/config/nvptx/reduction.c \
+	$(srcdir)/config/nvptx/mgomp.c
+
+LIB2ADDEH=
+LIB2FUNCS_EXCLUDE=__main
+
+crt0.o: $(srcdir)/config/nvptx/crt0.c
+	$(crt_compile) -c $<
+
+# Prevent building "advanced" stuff (for example, gcov support).  We don't
+# support it, and it may cause the build to fail, because of alloca usage, for
+# example.
+INHIBIT_LIBC_CFLAGS = -Dinhibit_libc

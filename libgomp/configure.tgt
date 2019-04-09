@@ -18,7 +18,11 @@ if test $gcc_cv_have_tls = yes ; then
 	;;
 
     *-*-linux* | *-*-gnu*)
-	XCFLAGS="${XCFLAGS} -ftls-model=initial-exec"
+	XCFLAGS="${XCFLAGS} -ftls-model=initial-exec -DUSING_INITIAL_EXEC_TLS"
+	;;
+
+    *-*-rtems*)
+	XCFLAGS="${XCFLAGS} -ftls-model=local-exec"
 	;;
   esac
 fi
@@ -27,7 +31,7 @@ fi
 config_path="posix"
 
 # Check for futex enabled all at once.
-if test $enable_linux_futex = yes; then
+if test x$enable_linux_futex = xyes; then
   case "${target}" in
 
     aarch64*-*-linux*)
@@ -82,7 +86,7 @@ if test $enable_linux_futex = yes; then
 	config_path="linux/x86 linux posix"
 	case " ${CC} ${CFLAGS} " in
 	  *" -m32 "*)
-	    XCFLAGS="${XCFLAGS} -march=i486 -mtune=i686"
+	    XCFLAGS="${XCFLAGS} -march=i486 -mtune=generic"
 	    ;;
 	esac
 	;;
@@ -113,6 +117,7 @@ fi
 case "${target}" in
 
   *-*-hpux*)
+	config_path="hpux posix"
 	case "${target}" in
 	  *-*-hpux11*)
 	     # HPUX v11.x requires -lrt to resolve sem_init in libgomp.la
@@ -132,12 +137,31 @@ case "${target}" in
 	;;
 
   *-*-darwin*)
-	config_path="bsd posix"
+	config_path="bsd darwin posix"
 	;;
 
   *-*-freebsd*)
 	# Need to link with -lpthread so libgomp.so is self-contained.
 	XLDFLAGS="${XLDFLAGS} -lpthread"
+	;;
+
+  *-*-aix*)
+	config_path="posix"
+	# Need to link with -lpthread so libgomp.so is self-contained.
+	XLDFLAGS="${XLDFLAGS} -lpthread"
+	# AIX needs -frandom-seed for bootstrap compare.
+	XCFLAGS="${XCFLAGS} -frandom-seed=\$@"
+	;;
+
+  nvptx*-*-*)
+	config_path="nvptx"
+	;;
+
+  *-*-rtems*)
+	# Use self-contained synchronization objects if provided by Newlib
+	if test "x$ac_cv_type_struct__Mutex_Control" = xyes ; then
+	    config_path="rtems posix"
+	fi
 	;;
 
   *)

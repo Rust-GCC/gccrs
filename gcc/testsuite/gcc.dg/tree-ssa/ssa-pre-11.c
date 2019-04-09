@@ -1,5 +1,5 @@
 /* { dg-do compile } */ 
-/* { dg-options "-O2 -fdump-tree-pre-stats" } */
+/* { dg-options "-O2 -fno-code-hoisting -fdump-tree-pre-stats" } */
 double cos (double);
 double f(double a)
 {
@@ -18,4 +18,3 @@ double f(double a)
 }
 
 /* { dg-final { scan-tree-dump-times "Eliminated: 1" 1 "pre"} } */
-/* { dg-final { cleanup-tree-dump "pre" } } */

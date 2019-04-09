@@ -1,5 +1,5 @@
 # x86/x86_64 support for -fsplit-stack.
-# Copyright (C) 2009-2014 Free Software Foundation, Inc.
+# Copyright (C) 2009-2019 Free Software Foundation, Inc.
 # Contributed by Ian Lance Taylor <iant@google.com>.
 
 # This file is part of GCC.
@@ -90,6 +90,8 @@
 # code.  When the linker sees this case, it converts the call to
 # __morestack to call __morestack_non_split instead.  We just bump the
 # requested stack space by 16K.
+
+#include <cet.h>
 
 	.global __morestack_non_split
 	.hidden	__morestack_non_split
@@ -701,6 +703,7 @@ DW.ref.__gcc_personality_v0:
 __morestack_large_model:
 
 	.cfi_startproc
+	_CET_ENDBR
 
 	movq	%r10, %r11
 	andl	$0xffffffff, %r10d
@@ -727,11 +730,13 @@ __morestack_large_model:
 #endif
 
 __stack_split_initialize:
+	_CET_ENDBR
 
 #ifndef __x86_64__
 
 	leal	-16000(%esp),%eax	# We should have at least 16K.
 	movl	%eax,%gs:0x30
+	subl	$4,%esp			# Align stack.
 	pushl	$16000
 	pushl	%esp
 #ifdef __PIC__
@@ -739,13 +744,14 @@ __stack_split_initialize:
 #else
 	call	__generic_morestack_set_initial_sp
 #endif
-	addl	$8,%esp
+	addl	$12,%esp
 	ret
 
 #else /* defined(__x86_64__) */
 
 	leaq	-16000(%rsp),%rax	# We should have at least 16K.
 	X86_64_SAVE_NEW_STACK_BOUNDARY (ax)
+	subq	$8,%rsp			# Align stack.
 	movq	%rsp,%rdi
 	movq	$16000,%rsi
 #ifdef __PIC__
@@ -753,6 +759,7 @@ __stack_split_initialize:
 #else
 	call	__generic_morestack_set_initial_sp
 #endif
+	addq	$8,%rsp
 	ret
 
 #endif /* defined(__x86_64__) */

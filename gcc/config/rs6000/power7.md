@@ -1,5 +1,5 @@
 ;; Scheduling description for IBM POWER7 processor.
-;; Copyright (C) 2009-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2019 Free Software Foundation, Inc.
 ;;
 ;; Contributed by Pat Haugen (pthaugen@us.ibm.com).
 
@@ -203,13 +203,12 @@
   "DU_power7,FXU_power7")
 
 (define_insn_reservation "power7-compare" 2
-  (and (ior (eq_attr "type" "compare")
-	    (and (eq_attr "type" "shift,exts")
-		 (eq_attr "dot" "yes")))
+  (and (eq_attr "type" "shift,exts")
+       (eq_attr "dot" "yes")
        (eq_attr "cpu" "power7"))
   "DU2F_power7,FXU_power7,FXU_power7")
 
-(define_bypass 3 "power7-cmp,power7-compare" "power7-crlogical,power7-delayedcr")
+(define_bypass 3 "power7-cmp,power7-compare" "power7-crlogical")
 
 (define_insn_reservation "power7-mul" 4
   (and (eq_attr "type" "mul")
@@ -257,11 +256,6 @@
        (eq_attr "cpu" "power7"))
   "du1_power7,cru_power7")
 
-(define_insn_reservation "power7-delayedcr" 3
-  (and (eq_attr "type" "delayed_cr")
-       (eq_attr "cpu" "power7"))
-  "du1_power7,cru_power7")
-
 (define_insn_reservation "power7-mfcr" 6
   (and (eq_attr "type" "mfcr")
        (eq_attr "cpu" "power7"))
@@ -293,7 +287,7 @@
 
 ; VS Unit (includes FP/VSX/VMX/DFP)
 (define_insn_reservation "power7-fp" 6
-  (and (eq_attr "type" "fp,dmul")
+  (and (eq_attr "type" "fp,fpsimple,dmul,dfp")
        (eq_attr "cpu" "power7"))
   "DU_power7,VSU_power7")
 
@@ -325,7 +319,7 @@
   "DU_power7,VSU_power7")
 
 (define_insn_reservation "power7-vecsimple" 2
-  (and (eq_attr "type" "vecsimple,veccmp")
+  (and (eq_attr "type" "vecsimple,veclogical,vecmove,veccmp,veccmpfx")
        (eq_attr "cpu" "power7"))
   "DU_power7,vsu1_power7")
 

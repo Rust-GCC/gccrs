@@ -1,7 +1,6 @@
-// { dg-do compile }
-// { dg-options "-std=gnu++0x" }
+// { dg-do compile { target c++11 } }
 
-// Copyright (C) 2012-2014 Free Software Foundation, Inc.
+// Copyright (C) 2012-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,8 +28,6 @@ struct simple
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
-
   constexpr simple s { 5 };
   constexpr auto s2  __attribute__((unused)) = std::move_if_noexcept(s);
 }

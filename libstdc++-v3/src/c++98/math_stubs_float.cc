@@ -1,6 +1,6 @@
 // Stub definitions for float math.
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,7 +28,7 @@
 // we use the following crude approximations. We keep saying that we'll do
 // better later, but never do.
 
-extern "C" 
+extern "C"
 {
 #ifndef _GLIBCXX_HAVE_FABSF
   float

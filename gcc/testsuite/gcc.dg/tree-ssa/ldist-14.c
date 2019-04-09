@@ -21,7 +21,5 @@ float foo (int n)
   return tmp;
 }
 
-/* We should apply loop distribution.  */
-
-/* { dg-final { scan-tree-dump "Loop 1 distributed: split to 2 loops" "ldist" } } */
-/* { dg-final { cleanup-tree-dump "ldist" } } */
+/* Distributing the loop doesn't expose more parallelism.  */
+/* { dg-final { scan-tree-dump-not "Loop 1 distributed: split to 2 loops" "ldist" } } */

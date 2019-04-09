@@ -1,4 +1,4 @@
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,7 +15,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 
 #include <vector>
 #include <memory>
@@ -30,13 +30,12 @@ template class std::vector<T, SimpleAllocator<T>>;
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   typedef SimpleAllocator<T> alloc_type;
   typedef std::allocator_traits<alloc_type> traits_type;
   typedef std::vector<T, alloc_type> test_type;
   test_type v(alloc_type{});
   v.push_back(T());
-  VERIFY( v.max_size() == traits_type::max_size(v.get_allocator()) );
+  VERIFY( v.max_size() <= traits_type::max_size(v.get_allocator()) );
 }
 
 int main()

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -44,24 +44,6 @@ package Sem_Ch6 is
    procedure Analyze_Simple_Return_Statement         (N : Node_Id);
    procedure Analyze_Subprogram_Declaration          (N : Node_Id);
    procedure Analyze_Subprogram_Body                 (N : Node_Id);
-
-   procedure Analyze_Subprogram_Body_Contract (Body_Id : Entity_Id);
-   --  Analyze all delayed aspects chained on the contract of subprogram body
-   --  Body_Id as if they appeared at the end of a declarative region. The
-   --  aspects in question are:
-   --    Refined_Depends
-   --    Refined_Global
-
-   procedure Analyze_Subprogram_Contract (Subp : Entity_Id);
-   --  Analyze all delayed aspects chained on the contract of subprogram Subp
-   --  as if they appeared at the end of a declarative region. The aspects in
-   --  question are:
-   --    Contract_Cases
-   --    Depends
-   --    Global
-   --    Postcondition
-   --    Precondition
-   --    Test_Case
 
    function Analyze_Subprogram_Specification (N : Node_Id) return Entity_Id;
    --  Analyze subprogram specification in both subprogram declarations
@@ -140,6 +122,15 @@ package Sem_Ch6 is
    --  formal access-to-subprogram type, indicating that mapping of types
    --  is needed.
 
+   procedure Check_Synchronized_Overriding
+     (Def_Id          : Entity_Id;
+      Overridden_Subp : out Entity_Id);
+   --  First determine if Def_Id is an entry or a subprogram either defined in
+   --  the scope of a task or protected type, or that is a primitive of such
+   --  a type. Check whether Def_Id overrides a subprogram of an interface
+   --  implemented by the synchronized type, returning the overridden entity
+   --  or Empty.
+
    procedure Check_Type_Conformant
      (New_Id  : Entity_Id;
       Old_Id  : Entity_Id;
@@ -181,7 +172,8 @@ package Sem_Ch6 is
 
    function Fully_Conformant_Expressions
      (Given_E1 : Node_Id;
-      Given_E2 : Node_Id) return Boolean;
+      Given_E2 : Node_Id;
+      Report   : Boolean := False) return Boolean;
    --  Determines if two (non-empty) expressions are fully conformant
    --  as defined by (RM 6.3.1(18-21))
 

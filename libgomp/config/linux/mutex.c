@@ -1,7 +1,8 @@
-/* Copyright (C) 2005-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
-   This file is part of the GNU OpenMP Library (libgomp).
+   This file is part of the GNU Offloading and Multi Processing Library
+   (libgomp).
 
    Libgomp is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by
@@ -28,8 +29,8 @@
 
 #include "wait.h"
 
-long int gomp_futex_wake = FUTEX_WAKE | FUTEX_PRIVATE_FLAG;
-long int gomp_futex_wait = FUTEX_WAIT | FUTEX_PRIVATE_FLAG;
+int gomp_futex_wake = FUTEX_WAKE | FUTEX_PRIVATE_FLAG;
+int gomp_futex_wait = FUTEX_WAIT | FUTEX_PRIVATE_FLAG;
 
 void
 gomp_mutex_lock_slow (gomp_mutex_t *mutex, int oldval)

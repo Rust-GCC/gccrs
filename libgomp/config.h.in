@@ -1,5 +1,8 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Define to 1 if you have the `aligned_alloc' function. */
+#undef HAVE_ALIGNED_ALLOC
+
 /* Define to 1 if the target assembler supports .symver directive. */
 #undef HAVE_AS_SYMVER_DIRECTIVE
 
@@ -24,17 +27,50 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
+/* Define to 1 if you have the `getegid' function. */
+#undef HAVE_GETEGID
+
+/* Define to 1 if you have the `geteuid' function. */
+#undef HAVE_GETEUID
+
+/* Define to 1 if you have the `getgid' function. */
+#undef HAVE_GETGID
+
+/* Define if gethostname is supported. */
+#undef HAVE_GETHOSTNAME
+
 /* Define to 1 if you have the `getloadavg' function. */
 #undef HAVE_GETLOADAVG
+
+/* Define if getpid is supported. */
+#undef HAVE_GETPID
+
+/* Define to 1 if you have the `getuid' function. */
+#undef HAVE_GETUID
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
+/* Define to 1 if you have the `dl' library (-ldl). */
+#undef HAVE_LIBDL
+
+/* Define to 1 if you have the `memalign' function. */
+#undef HAVE_MEMALIGN
+
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
 
+/* Define to 1 if you have the `posix_memalign' function. */
+#undef HAVE_POSIX_MEMALIGN
+
 /* Define if pthread_{,attr_}{g,s}etaffinity_np is supported. */
 #undef HAVE_PTHREAD_AFFINITY_NP
+
+/* Define to 1 if you have the <pthread.h> header file. */
+#undef HAVE_PTHREAD_H
+
+/* Define to 1 if you have the `secure_getenv' function. */
+#undef HAVE_SECURE_GETENV
 
 /* Define to 1 if you have the <semaphore.h> header file. */
 #undef HAVE_SEMAPHORE_H
@@ -54,6 +90,9 @@
 /* Define to 1 if you have the `strtoull' function. */
 #undef HAVE_STRTOULL
 
+/* Define to 1 if the system has the type `struct _Mutex_Control'. */
+#undef HAVE_STRUCT__MUTEX_CONTROL
+
 /* Define to 1 if the target runtime linker supports binding the same symbol
    to different versions. */
 #undef HAVE_SYMVER_SYMBOL_RENAMING_RUNTIME_SUPPORT
@@ -67,6 +106,9 @@
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #undef HAVE_SYS_STAT_H
 
+/* Define to 1 if you have the <sys/sysctl.h> header file. */
+#undef HAVE_SYS_SYSCTL_H
+
 /* Define to 1 if you have the <sys/time.h> header file. */
 #undef HAVE_SYS_TIME_H
 
@@ -76,15 +118,36 @@
 /* Define to 1 if the target supports thread-local storage. */
 #undef HAVE_TLS
 
+/* Define if uname is supported and struct utsname has nodename field. */
+#undef HAVE_UNAME
+
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
+
+/* Define to 1 if you have the `_aligned_malloc' function. */
+#undef HAVE__ALIGNED_MALLOC
+
+/* Define to 1 if you have the `__secure_getenv' function. */
+#undef HAVE___SECURE_GETENV
+
+/* Define path to HSA runtime. */
+#undef HSA_RUNTIME_LIB
 
 /* Define to 1 if GNU symbol versioning is used for libgomp. */
 #undef LIBGOMP_GNU_SYMBOL_VERSIONING
 
+/* Define to 1 if building libgomp for an accelerator-only target. */
+#undef LIBGOMP_OFFLOADED_ONLY
+
+/* Define to 1 if libgomp should use POSIX threads. */
+#undef LIBGOMP_USE_PTHREADS
+
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR
+
+/* Define to offload plugins, separated by commas. */
+#undef OFFLOAD_PLUGINS
 
 /* Name of package */
 #undef PACKAGE
@@ -106,6 +169,19 @@
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
+
+/* Define to 1 if the HSA plugin is built, 0 if not. */
+#undef PLUGIN_HSA
+
+/* Define to 1 if the NVIDIA plugin is built, 0 if not. */
+#undef PLUGIN_NVPTX
+
+/* Define to 1 if the NVIDIA plugin should dlopen libcuda.so.1, 0 if it should
+   be linked against it. */
+#undef PLUGIN_NVPTX_DYNAMIC
+
+/* Define if all infrastructure, needed for plugins, is supported. */
+#undef PLUGIN_SUPPORT
 
 /* The size of `char', as computed by sizeof. */
 #undef SIZEOF_CHAR
@@ -130,6 +206,9 @@
 
 /* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
 #undef TIME_WITH_SYS_TIME
+
+/* Define to 1 if the target use emutls for thread-local storage. */
+#undef USE_EMUTLS
 
 /* Version number of package */
 #undef VERSION

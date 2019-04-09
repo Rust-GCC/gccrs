@@ -1,4 +1,4 @@
-# Copyright (C) 2005-2014 Free Software Foundation, Inc.
+# Copyright (C) 2005-2019 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -30,7 +30,7 @@ dg-init
 
 # Main loop.
 gfortran-dg-runtest [lsort \
-       [find $srcdir/$subdir *.\[fF\]{,90,95,03,08} ] ] "" "-fopenmp"
+       [find $srcdir/$subdir *.\[fF\]{,90,95,03,08} ] ] "" "-fopenmp -Wno-hsa"
 
 # All done.
 dg-finish

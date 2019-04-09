@@ -1,5 +1,5 @@
 /* Header file for Nested function decomposition for GIMPLE.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,7 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_TREE_NESTED_H
 #define GCC_TREE_NESTED_H
 
-extern tree build_addr (tree, tree);
+extern tree build_addr (tree);
 extern void insert_field_into_struct (tree, tree);
 extern void lower_nested_functions (tree);
 

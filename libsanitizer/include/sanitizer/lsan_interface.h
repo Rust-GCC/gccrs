@@ -19,8 +19,8 @@ extern "C" {
 #endif
   // Allocations made between calls to __lsan_disable() and __lsan_enable() will
   // be treated as non-leaks. Disable/enable pairs may be nested.
-  void __lsan_disable();
-  void __lsan_enable();
+  void __lsan_disable(void);
+  void __lsan_enable(void);
 
   // The heap object into which p points will be treated as a non-leak.
   void __lsan_ignore_object(const void *p);
@@ -39,23 +39,40 @@ extern "C" {
   void __lsan_register_root_region(const void *p, size_t size);
   void __lsan_unregister_root_region(const void *p, size_t size);
 
-  // Calling this function makes LSan enter the leak checking phase immediately.
-  // Use this if normal end-of-process leak checking happens too late (e.g. if
-  // you have intentional memory leaks in your shutdown code). Calling this
-  // function overrides end-of-process leak checking; it must be called at
-  // most once per process. This function will terminate the process if there
-  // are memory leaks and the exit_code flag is non-zero.
-  void __lsan_do_leak_check();
+  // Check for leaks now. This function behaves identically to the default
+  // end-of-process leak check. In particular, it will terminate the process if
+  // leaks are found and the exitcode runtime flag is non-zero.
+  // Subsequent calls to this function will have no effect and end-of-process
+  // leak check will not run. Effectively, end-of-process leak check is moved to
+  // the time of first invocation of this function.
+  // By calling this function early during process shutdown, you can instruct
+  // LSan to ignore shutdown-only leaks which happen later on.
+  void __lsan_do_leak_check(void);
+
+  // Check for leaks now. Returns zero if no leaks have been found or if leak
+  // detection is disabled, non-zero otherwise.
+  // This function may be called repeatedly, e.g. to periodically check a
+  // long-running process. It prints a leak report if appropriate, but does not
+  // terminate the process. It does not affect the behavior of
+  // __lsan_do_leak_check() or the end-of-process leak check, and is not
+  // affected by them.
+  int __lsan_do_recoverable_leak_check(void);
 
   // The user may optionally provide this function to disallow leak checking
   // for the program it is linked into (if the return value is non-zero). This
   // function must be defined as returning a constant value; any behavior beyond
   // that is unsupported.
-  int __lsan_is_turned_off();
+  // To avoid dead stripping, you may need to define this function with
+  // __attribute__((used))
+  int __lsan_is_turned_off(void);
+
+  // This function may be optionally provided by user and should return
+  // a string containing LSan runtime options. See lsan_flags.inc for details.
+  const char *__lsan_default_options(void);
 
   // This function may be optionally provided by the user and should return
   // a string containing LSan suppressions.
-  const char *__lsan_default_suppressions();
+  const char *__lsan_default_suppressions(void);
 #ifdef __cplusplus
 }  // extern "C"
 

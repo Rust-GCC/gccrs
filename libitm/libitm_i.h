@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2008-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU Transactional Memory Library (libitm).
@@ -36,7 +36,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unwind.h>
-#include "local_type_traits"
 #include "local_atomic"
 
 /* Don't require libgcc_s.so for exceptions.  */
@@ -48,13 +47,6 @@ extern void _Unwind_DeleteException (_Unwind_Exception*) __attribute__((weak));
 namespace GTM HIDDEN {
 
 using namespace std;
-
-// A helper template for accessing an unsigned integral of SIZE bytes.
-template<size_t SIZE> struct sized_integral { };
-template<> struct sized_integral<1> { typedef uint8_t type; };
-template<> struct sized_integral<2> { typedef uint16_t type; };
-template<> struct sized_integral<4> { typedef uint32_t type; };
-template<> struct sized_integral<8> { typedef uint64_t type; };
 
 typedef unsigned int gtm_word __attribute__((mode (word)));
 
@@ -82,8 +74,6 @@ enum gtm_restart_reason
 #include "target.h"
 #include "rwlock.h"
 #include "aatree.h"
-#include "cacheline.h"
-#include "stmlock.h"
 #include "dispatch.h"
 #include "containers.h"
 
@@ -97,11 +87,23 @@ enum gtm_restart_reason
 
 namespace GTM HIDDEN {
 
+// A log of (de)allocation actions.  We defer handling of some actions until
+// a commit of the outermost transaction.  We also rely on potentially having
+// both an allocation and a deallocation for the same piece of memory in the
+// log; the order in which such entries are processed does not matter because
+// the actions are not in conflict (see below).
 // This type is private to alloc.c, but needs to be defined so that
 // the template used inside gtm_thread can instantiate.
 struct gtm_alloc_action
 {
+  // Iff free_fn_sz is nonzero, it must be used instead of free_fn, and vice
+  // versa.
   void (*free_fn)(void *);
+  void (*free_fn_sz)(void *, size_t);
+  size_t sz;
+  // If true, this is an allocation; we discard the log entry on outermost
+  // commit, and deallocate on abort.  If false, this is a deallocation and
+  // we deallocate on outermost commit and discard the log entry on abort.
   bool allocated;
 };
 
@@ -118,7 +120,7 @@ struct gtm_transaction_cp
   _ITM_transactionId_t id;
   uint32_t prop;
   uint32_t cxa_catch_count;
-  void *cxa_unthrown;
+  unsigned int cxa_uncaught_count;
   // We might want to use a different but compatible dispatch method for
   // a nested transaction.
   abi_dispatch *disp;
@@ -228,7 +230,9 @@ struct gtm_thread
 
   // Data used by eh_cpp.c for managing exceptions within the transaction.
   uint32_t cxa_catch_count;
-  void *cxa_unthrown;
+  // If cxa_uncaught_count_ptr is 0, we don't need to roll back exceptions.
+  unsigned int *cxa_uncaught_count_ptr;
+  unsigned int cxa_uncaught_count;
   void *eh_in_flight;
 
   // Checkpoints for closed nesting.
@@ -254,7 +258,7 @@ struct gtm_thread
   atomic<gtm_word> shared_state;
 
   // The lock that provides access to serial mode.  Non-serialized
-  // transactions acquire read locks; a serialized transaction aquires
+  // transactions acquire read locks; a serialized transaction acquires
   // a write lock.
   // Accessed from assembly language, thus the "asm" specifier on
   // the name, avoiding complex name mangling.
@@ -269,9 +273,10 @@ struct gtm_thread
   void commit_allocations (bool, aa_tree<uintptr_t, gtm_alloc_action>*);
   void record_allocation (void *, void (*)(void *));
   void forget_allocation (void *, void (*)(void *));
-  void drop_references_allocations (const void *ptr)
+  void forget_allocation (void *, size_t, void (*)(void *, size_t));
+  void discard_allocation (const void *ptr)
   {
-    this->alloc_actions.erase((uintptr_t) ptr);
+    alloc_actions.erase((uintptr_t) ptr);
   }
 
   // In beginend.cc
@@ -291,6 +296,7 @@ struct gtm_thread
   static uint32_t begin_transaction(uint32_t, const gtm_jmpbuf *)
 	__asm__(UPFX "GTM_begin_transaction") ITM_REGPARM;
   // In eh_cpp.cc
+  void init_cpp_exceptions ();
   void revert_cpp_exceptions (gtm_transaction_cp *cp = 0);
 
   // In retry.cc
@@ -338,13 +344,6 @@ extern abi_dispatch *dispatch_gl_wt();
 extern abi_dispatch *dispatch_ml_wt();
 extern abi_dispatch *dispatch_htm();
 
-extern gtm_cacheline_mask gtm_mask_stack(gtm_cacheline *, gtm_cacheline_mask);
-
-// Control variable for the HTM fastpath that uses serial mode as fallback.
-// Non-zero if the HTM fastpath is enabled. See gtm_thread::begin_transaction.
-// Accessed from assembly language, thus the "asm" specifier on
-// the name, avoiding complex name mangling.
-extern uint32_t htm_fastpath __asm__(UPFX "gtm_htm_fastpath");
 
 } // namespace GTM
 

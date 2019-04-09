@@ -1,5 +1,5 @@
 /* Header for dependency analysis
-   Copyright (C) 2000-2014 Free Software Foundation, Inc.
+   Copyright (C) 2000-2019 Free Software Foundation, Inc.
    Contributed by Paul Brook
 
 This file is part of GCC.
@@ -19,14 +19,13 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 /****************************** Enums *********************************/
-typedef enum
+enum gfc_dep_check
 {
   NOT_ELEMENTAL,        /* Not elemental case: normal dependency check.  */
   ELEM_CHECK_VARIABLE,  /* Test whether variables overlap.  */
   ELEM_DONT_CHECK_VARIABLE  /* Test whether variables overlap only if used 
 			       in an expression.  */
-}
-gfc_dep_check;
+};
 
 /*********************** Functions prototypes **************************/
 
@@ -40,3 +39,5 @@ int gfc_expr_is_one (gfc_expr *, int);
 
 int gfc_dep_resolver(gfc_ref *, gfc_ref *, gfc_reverse *);
 int gfc_are_equivalenced_arrays (gfc_expr *, gfc_expr *);
+
+gfc_expr * gfc_discard_nops (gfc_expr *);

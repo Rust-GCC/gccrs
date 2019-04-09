@@ -1,6 +1,6 @@
 // Explicit instantiation file.
 
-// Copyright (C) 1997-2014 Free Software Foundation, Inc.
+// Copyright (C) 1997-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -50,7 +50,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template istream& operator>>(istream&, _Setw);
 
   template istream& istream::_M_extract(unsigned short&);
-  template istream& istream::_M_extract(unsigned int&);  
+  template istream& istream::_M_extract(unsigned int&);
   template istream& istream::_M_extract(long&);
   template istream& istream::_M_extract(unsigned long&);
   template istream& istream::_M_extract(bool&);
@@ -77,7 +77,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template wistream& operator>>(wistream&, _Setw);
 
   template wistream& wistream::_M_extract(unsigned short&);
-  template wistream& wistream::_M_extract(unsigned int&);  
+  template wistream& wistream::_M_extract(unsigned int&);
   template wistream& wistream::_M_extract(long&);
   template wistream& wistream::_M_extract(unsigned long&);
   template wistream& wistream::_M_extract(bool&);
@@ -96,6 +96,8 @@ _GLIBCXX_END_NAMESPACE_VERSION
 
 // XXX GLIBCXX_ABI Deprecated
 #ifdef _GLIBCXX_LONG_DOUBLE_COMPAT
+
+#pragma GCC diagnostic ignored "-Wattribute-alias"
 
 #define _GLIBCXX_LDBL_COMPAT(dbl, ldbl) \
   extern "C" void ldbl (void) __attribute__ ((alias (#dbl), weak))

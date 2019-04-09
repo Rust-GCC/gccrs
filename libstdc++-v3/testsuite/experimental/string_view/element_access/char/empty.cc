@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++1y" }
+// { dg-do run { target c++14 } }
 
-// Copyright (C) 3 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -24,8 +24,6 @@
 int
 main()
 {
-  bool test [[gnu::unused]] = true;
-
   {
     std::experimental::string_view empty;
     VERIFY( empty.empty() );

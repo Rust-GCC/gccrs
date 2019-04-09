@@ -9,6 +9,8 @@ package syscall_test
 import (
 	"flag"
 	"fmt"
+	"internal/testenv"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -44,11 +46,13 @@ func _() {
 	// fcntl file locking structure and constants
 	var (
 		_ = syscall.Flock_t{
-			Type:   int16(0),
-			Whence: int16(0),
-			Start:  int64(0),
-			Len:    int64(0),
-			Pid:    int32(0),
+			// Comment out the Type and Whence tests because
+			// on the Hurd they are int32, not int16.
+			// Type:   int16(0),
+			// Whence: int16(0),
+			Start: int64(0),
+			Len:   int64(0),
+			Pid:   int32(0),
 		}
 	)
 	const (
@@ -60,20 +64,62 @@ func _() {
 
 // TestFcntlFlock tests whether the file locking structure matches
 // the calling convention of each kernel.
+// On some Linux systems, glibc uses another set of values for the
+// commands and translates them to the correct value that the kernel
+// expects just before the actual fcntl syscall. As Go uses raw
+// syscalls directly, it must use the real value, not the glibc value.
+// Thus this test also verifies that the Flock_t structure can be
+// roundtripped with F_SETLK and F_GETLK.
 func TestFcntlFlock(t *testing.T) {
-	name := filepath.Join(os.TempDir(), "TestFcntlFlock")
-	fd, err := syscall.Open(name, syscall.O_CREAT|syscall.O_RDWR|syscall.O_CLOEXEC, 0)
-	if err != nil {
-		t.Fatalf("Open failed: %v", err)
+	if runtime.GOOS == "darwin" && (runtime.GOARCH == "arm" || runtime.GOARCH == "arm64") {
+		t.Skip("skipping; no child processes allowed on iOS")
 	}
-	defer syscall.Unlink(name)
-	defer syscall.Close(fd)
 	flock := syscall.Flock_t{
-		Type:  syscall.F_RDLCK,
-		Start: 0, Len: 0, Whence: 1,
+		Type:  syscall.F_WRLCK,
+		Start: 31415, Len: 271828, Whence: 1,
 	}
-	if err := syscall.FcntlFlock(uintptr(fd), syscall.F_GETLK, &flock); err != nil {
-		t.Fatalf("FcntlFlock failed: %v", err)
+	if os.Getenv("GO_WANT_HELPER_PROCESS") == "" {
+		// parent
+		tempDir, err := ioutil.TempDir("", "TestFcntlFlock")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		name := filepath.Join(tempDir, "TestFcntlFlock")
+		fd, err := syscall.Open(name, syscall.O_CREAT|syscall.O_RDWR|syscall.O_CLOEXEC, 0)
+		if err != nil {
+			t.Fatalf("Open failed: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+		defer syscall.Close(fd)
+		if err := syscall.Ftruncate(fd, 1<<20); err != nil {
+			t.Fatalf("Ftruncate(1<<20) failed: %v", err)
+		}
+		if err := syscall.FcntlFlock(uintptr(fd), syscall.F_SETLK, &flock); err != nil {
+			t.Fatalf("FcntlFlock(F_SETLK) failed: %v", err)
+		}
+		cmd := exec.Command(os.Args[0], "-test.run=^TestFcntlFlock$")
+		cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
+		cmd.ExtraFiles = []*os.File{os.NewFile(uintptr(fd), name)}
+		out, err := cmd.CombinedOutput()
+		if len(out) > 0 || err != nil {
+			t.Fatalf("child process: %q, %v", out, err)
+		}
+	} else {
+		// child
+		got := flock
+		// make sure the child lock is conflicting with the parent lock
+		got.Start--
+		got.Len++
+		if err := syscall.FcntlFlock(3, syscall.F_GETLK, &got); err != nil {
+			t.Fatalf("FcntlFlock(F_GETLK) failed: %v", err)
+		}
+		flock.Pid = int32(syscall.Getppid())
+		// Linux kernel always set Whence to 0
+		flock.Whence = 0
+		if got.Type == flock.Type && got.Start == flock.Start && got.Len == flock.Len && got.Pid == flock.Pid && got.Whence == flock.Whence {
+			os.Exit(0)
+		}
+		t.Fatalf("FcntlFlock got %v, want %v", got, flock)
 	}
 }
 
@@ -85,14 +131,8 @@ func TestFcntlFlock(t *testing.T) {
 // "-test.run=^TestPassFD$" and an environment variable used to signal
 // that the test should become the child process instead.
 func TestPassFD(t *testing.T) {
-	switch runtime.GOOS {
-	case "dragonfly":
-		// TODO(jsing): Figure out why sendmsg is returning EINVAL.
-		t.Skip("skipping test on dragonfly")
-	case "solaris":
-		// TODO(aram): Figure out why ReadMsgUnix is returning empty message.
-		t.Skip("skipping test on solaris, see issue 7402")
-	}
+	testenv.MustHaveExec(t)
+
 	if os.Getenv("GO_WANT_HELPER_PROCESS") == "1" {
 		passFDChild()
 		return
@@ -116,11 +156,7 @@ func TestPassFD(t *testing.T) {
 	defer readFile.Close()
 
 	cmd := exec.Command(os.Args[0], "-test.run=^TestPassFD$", "--", tempDir)
-	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
-	path := os.Getenv("LD_LIBRARY_PATH")
-	if path != "" {
-		cmd.Env = append(cmd.Env, "LD_LIBRARY_PATH="+path)
-	}
+	cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
 	cmd.ExtraFiles = []*os.File{writeFile}
 
 	out, err := cmd.CombinedOutput()
@@ -146,6 +182,9 @@ func TestPassFD(t *testing.T) {
 		uc.Close()
 	})
 	_, oobn, _, _, err := uc.ReadMsgUnix(buf, oob)
+	if err != nil {
+		t.Fatalf("ReadMsgUnix: %v", err)
+	}
 	closeUnix.Stop()
 
 	scms, err := syscall.ParseSocketControlMessage(oob[:oobn])
@@ -179,7 +218,7 @@ func passFDChild() {
 	defer os.Exit(0)
 
 	// Look for our fd. It should be fd 3, but we work around an fd leak
-	// bug here (http://golang.org/issue/2603) to let it be elsewhere.
+	// bug here (https://golang.org/issue/2603) to let it be elsewhere.
 	var uc *net.UnixConn
 	for fd := uintptr(3); fd <= 10; fd++ {
 		f := os.NewFile(fd, "unix-conn")
@@ -206,7 +245,7 @@ func passFDChild() {
 	}
 
 	f.Write([]byte("Hello from child process!\n"))
-	f.Seek(0, 0)
+	f.Seek(0, io.SeekStart)
 
 	rights := syscall.UnixRights(int(f.Fd()))
 	dummyByte := []byte("x")
@@ -278,6 +317,12 @@ func TestRlimit(t *testing.T) {
 	}
 	set := rlimit
 	set.Cur = set.Max - 1
+	if runtime.GOOS == "darwin" && set.Cur > 10240 {
+		// The max file limit is 10240, even though
+		// the max returned by Getrlimit is 1<<63-1.
+		// This is OPEN_MAX in sys/syslimits.h.
+		set.Cur = 10240
+	}
 	err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &set)
 	if err != nil {
 		t.Fatalf("Setrlimit: set failed: %#v %v", set, err)
@@ -289,15 +334,11 @@ func TestRlimit(t *testing.T) {
 	}
 	set = rlimit
 	set.Cur = set.Max - 1
+	if runtime.GOOS == "darwin" && set.Cur > 10240 {
+		set.Cur = 10240
+	}
 	if set != get {
-		// Seems like Darwin requires some privilege to
-		// increase the soft limit of rlimit sandbox, though
-		// Setrlimit never reports an error.
-		switch runtime.GOOS {
-		case "darwin":
-		default:
-			t.Fatalf("Rlimit: change failed: wanted %#v got %#v", set, get)
-		}
+		t.Fatalf("Rlimit: change failed: wanted %#v got %#v", set, get)
 	}
 	err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlimit)
 	if err != nil {
@@ -306,7 +347,7 @@ func TestRlimit(t *testing.T) {
 }
 
 func TestSeekFailure(t *testing.T) {
-	_, err := syscall.Seek(-1, 0, 0)
+	_, err := syscall.Seek(-1, 0, io.SeekStart)
 	if err == nil {
 		t.Fatalf("Seek(-1, 0, 0) did not fail")
 	}

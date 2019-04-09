@@ -1,11 +1,11 @@
 /* Target-dependent costs for lower-subreg.c.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 3, or (at your option; any later
+Software Foundation; either version 3, or (at your option) any later
 version.
 
 GCC is distributed in the hope that it will be useful, but WITHOUT ANY
@@ -43,7 +43,7 @@ struct lower_subreg_choices {
 /* Target-specific information for the subreg lowering pass.  */
 struct target_lower_subreg {
   /* An integer mode that is twice as wide as word_mode.  */
-  enum machine_mode x_twice_word_mode;
+  scalar_int_mode_pod x_twice_word_mode;
 
   /* What we have decided to do when optimizing for size (index 0)
      and speed (index 1).  */

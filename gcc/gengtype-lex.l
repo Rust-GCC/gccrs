@@ -1,6 +1,6 @@
 /* -*- indented-text -*- */
 /* Process source files and output type information.
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,10 +21,11 @@ along with GCC; see the file COPYING3.  If not see
 %option noinput
 
 %{
-#ifdef GENERATOR_FILE
-#include "bconfig.h"
-#else
+#ifdef HOST_GENERATOR_FILE
 #include "config.h"
+#define GENERATOR_FILE 1
+#else
+#include "bconfig.h"
 #endif
 #include "system.h"
 
@@ -125,10 +126,6 @@ CXX_KEYWORD inline|public:|private:|protected:|template|operator|friend|static
 "nested_ptr"/{EOID}		{ return NESTED_PTR; }
 "user"/{EOID}			{ return USER_GTY; }
 [0-9]+				{ return NUM; }
-"param"[0-9]*"_is"/{EOID}		{
-  *yylval = XDUPVAR (const char, yytext, yyleng, yyleng+1);
-  return PARAM_IS;
-}
 
 {IWORD}({WS}{IWORD})*/{EOID}		|
 "ENUM_BITFIELD"{WS}?"("{WS}?{ID}{WS}?")"	{
@@ -162,7 +159,7 @@ CXX_KEYWORD inline|public:|private:|protected:|template|operator|friend|static
 }
 
 "..."				{ return ELLIPSIS; }
-[(){},*:<>;=%|+\!\?\.-]		{ return yytext[0]; }
+[(){},*:<>;=%/|+\!\?\.-]	{ return yytext[0]; }
 
    /* ignore pp-directives */
 ^{HWS}"#"{HWS}[a-z_]+[^\n]*\n   {lexer_line.line++;}

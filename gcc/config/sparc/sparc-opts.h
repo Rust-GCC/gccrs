@@ -1,5 +1,5 @@
 /* Definitions for option handling for SPARC.
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,10 +20,10 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef SPARC_OPTS_H
 #define SPARC_OPTS_H
 
-/* Processor type.
+/* SPARC processor type.
    These must match the values for the cpu attribute in sparc.md and
    the table in sparc_option_override.  */
-enum processor_type {
+enum sparc_processor_type {
   PROCESSOR_V7,
   PROCESSOR_CYPRESS,
   PROCESSOR_V8,
@@ -31,6 +31,7 @@ enum processor_type {
   PROCESSOR_HYPERSPARC,
   PROCESSOR_LEON,
   PROCESSOR_LEON3,
+  PROCESSOR_LEON3V7,
   PROCESSOR_SPARCLITE,
   PROCESSOR_F930,
   PROCESSOR_F934,
@@ -44,13 +45,24 @@ enum processor_type {
   PROCESSOR_NIAGARA2,
   PROCESSOR_NIAGARA3,
   PROCESSOR_NIAGARA4,
+  PROCESSOR_NIAGARA7,
+  PROCESSOR_M8,
   PROCESSOR_NATIVE
 };
 
-/* Sparc system memory model.  See Appendix D in the Sparc V9 manual
-   for formal specification, and Appendix J for more discussion.  */
+/* SPARC-V9 code model type.  See sparc.h for the full description.  */
+enum sparc_code_model_type {
+  CM_32,	/* 32-bit address space.  */
+  CM_MEDLOW,	/* 32-bit address space.  */
+  CM_MEDMID,	/* 44-bit address space.  */
+  CM_MEDANY,	/* 64-bit address space.  */
+  CM_EMBMEDANY	/* 64-bit address space.  */
+};
+
+/* SPARC memory model type.  See Appendix D in the SPARC-V9 manual
+   for formal specification and Appendix J for more discussion.  */
 enum sparc_memory_model_type {
-  SMM_DEFAULT,	/* Uninitialized.  */
+  SMM_DEFAULT,	/* Processor default.  */
   SMM_RMO,	/* Relaxed Memory Order.  */
   SMM_PSO,	/* Partial Store Order.  */
   SMM_TSO,	/* Total Store Order.  */

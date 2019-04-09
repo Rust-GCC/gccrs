@@ -1,4 +1,4 @@
-# Copyright (C) 2006-2014 Free Software Foundation, Inc.
+# Copyright (C) 2006-2019 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -31,7 +31,7 @@ dg-init
 # Main loop.
 dg-runtest [lsort [concat \
 	[find $srcdir/$subdir *.c] \
-	[find $srcdir/c-c++-common/gomp *.c]]] "" "-fopenmp"
+	[find $srcdir/c-c++-common/gomp *.c]]] "" "-fopenmp -Wno-hsa"
 
 # All done.
 dg-finish

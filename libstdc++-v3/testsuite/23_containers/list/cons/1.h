@@ -1,4 +1,4 @@
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -40,7 +40,6 @@ template<typename _Tp>
 void
 cons01()
 {
-  bool test __attribute__((unused)) = true;
   typedef _Tp list_type;
 
   list_type list0101;

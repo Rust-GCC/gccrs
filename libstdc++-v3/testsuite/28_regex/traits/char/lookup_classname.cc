@@ -1,10 +1,9 @@
-// { dg-do run }
-// { dg-options "-std=c++0x" }
+// { dg-do run { target c++11 } }
 
 //
 // 2010-06-23  Stephen M. Webb <stephen.webb@bregmasoft.ca>
 //
-// Copyright (C) 2010-2014 Free Software Foundation, Inc.
+// Copyright (C) 2010-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,29 +25,50 @@
 // 28.7(9) Class template regex_traits [re.traits]
 
 #include <regex>
+#include <forward_list>
 #include <testsuite_hooks.h>
 
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
   typedef char CharT;
   typedef std::regex_traits<CharT> traits;
 
-	char n1[] = "lower";
-	char n2[] = "alpha";
-	traits t;
+  char n1[] = "lower";
+  char n2[] = "alpha";
+  traits t;
 
   traits::char_class_type c1 = t.lookup_classname(n1, n1+sizeof(n1)-1);
   VERIFY( c1 != 0 );
 
   traits::char_class_type c2 = t.lookup_classname(n1, n1+sizeof(n1)-1, true);
   traits::char_class_type c3 = t.lookup_classname(n2, n2+sizeof(n2)-1, true);
-	VERIFY( c2 == c3 );
+  VERIFY( c2 == c3 );
+}
+
+// Test forward iterator
+void
+test02()
+{
+  const char strlit[] = "upper";
+  std::forward_list<char> s(strlit, strlit + strlen(strlit));
+  std::regex_traits<char> traits;
+  VERIFY(traits.isctype('C', traits.lookup_classname(s.begin(), s.end(), false)));
+}
+
+// icase
+void
+test03()
+{
+  std::string s("lower");
+  std::regex_traits<char> traits;
+  VERIFY(traits.isctype('C', traits.lookup_classname(s.begin(), s.end(), true)));
 }
 
 int main()
 {
 	test01();
+	test02();
+	test03();
 	return 0;
 }

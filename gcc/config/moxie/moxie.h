@@ -1,5 +1,5 @@
 /* Target Definitions for moxie.
-   Copyright (C) 2008-2014 Free Software Foundation, Inc.
+   Copyright (C) 2008-2019 Free Software Foundation, Inc.
    Contributed by Anthony Green.
 
    This file is part of GCC.
@@ -171,27 +171,10 @@ enum reg_class
 /* We can't copy to or from our CC register. */
 #define AVOID_CCMODE_COPIES 1
 
-/* A C expression that is nonzero if it is permissible to store a
-   value of mode MODE in hard register number REGNO (or in several
-   registers starting with that one).  All gstore registers are 
-   equivalent, so we can set this to 1.  */
-#define HARD_REGNO_MODE_OK(R,M) 1
-
 /* A C expression whose value is a register class containing hard
    register REGNO.  */
 #define REGNO_REG_CLASS(R) ((R < MOXIE_PC) ? GENERAL_REGS :		\
                             (R == MOXIE_CC ? CC_REGS : SPECIAL_REGS))
-
-/* A C expression for the number of consecutive hard registers,
-   starting at register number REGNO, required to hold a value of mode
-   MODE.  */
-#define HARD_REGNO_NREGS(REGNO, MODE)			   \
-  ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1)		   \
-   / UNITS_PER_WORD)
-
-/* A C expression that is nonzero if a value of mode MODE1 is
-   accessible in mode MODE2 without copying.  */
-#define MODES_TIEABLE_P(MODE1, MODE2) 1
 
 /* The Overall Framework of an Assembler File */
 
@@ -211,12 +194,6 @@ enum reg_class
 
 #define ASM_OUTPUT_ALIGN(STREAM,POWER) \
 	fprintf (STREAM, "\t.p2align\t%d\n", POWER);
-
-/* A C compound statement to output to stdio stream STREAM the
-   assembler syntax for an instruction operand X.  */
-#define PRINT_OPERAND(STREAM, X, CODE) moxie_print_operand (STREAM, X, CODE)
-
-#define PRINT_OPERAND_ADDRESS(STREAM ,X) moxie_print_operand_address (STREAM, X)
 
 /* Output and Generation of Labels */
 
@@ -247,13 +224,7 @@ enum reg_class
 
 /* Define this macro if pushing a word onto the stack moves the stack
    pointer to a smaller address.  */
-#define STACK_GROWS_DOWNWARD
-
-#define INITIAL_FRAME_POINTER_OFFSET(DEPTH) (DEPTH) = 0
-
-/* Offset from the frame pointer to the first local variable slot to
-   be allocated.  */
-#define STARTING_FRAME_OFFSET 0
+#define STACK_GROWS_DOWNWARD 1
 
 /* Define this if the above stack space is to be considered part of the
    space allocated by the caller.  */
@@ -342,12 +313,6 @@ enum reg_class
    is GET_MODE_SIZE(DImode).  */
 #define MAX_FIXED_MODE_SIZE 32
 
-/* Make strings word-aligned so strcpy from constants will be faster.  */
-#define CONSTANT_ALIGNMENT(EXP, ALIGN)  \
-  ((TREE_CODE (EXP) == STRING_CST	\
-    && (ALIGN) < FASTEST_ALIGNMENT)	\
-   ? FASTEST_ALIGNMENT : (ALIGN))
-
 /* Make arrays of chars word-aligned for the same reasons.  */
 #define DATA_ALIGNMENT(TYPE, ALIGN)		\
   (TREE_CODE (TYPE) == ARRAY_TYPE		\
@@ -362,7 +327,7 @@ enum reg_class
 #define FUNCTION_PROFILER(FILE,LABELNO) (abort (), 0)
 
 /* Trampolines for Nested Functions.  */
-#define TRAMPOLINE_SIZE (2 + 6 + 6 + 2 + 2 + 6)
+#define TRAMPOLINE_SIZE (2 + 6 + 4 + 2 + 6)
 
 /* Alignment required for trampolines, in bits.  */
 #define TRAMPOLINE_ALIGNMENT 32
@@ -392,10 +357,8 @@ enum reg_class
 {{ FRAME_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM },			\
  { ARG_POINTER_REGNUM,   HARD_FRAME_POINTER_REGNUM }}			
 
-/* This macro is similar to `INITIAL_FRAME_POINTER_OFFSET'.  It
-   specifies the initial difference between the specified pair of
-   registers.  This macro must be defined if `ELIMINABLE_REGS' is
-   defined.  */
+/* This macro returns the initial difference between the specified pair
+   of registers.  */
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET)			\
   do {									\
     (OFFSET) = moxie_initial_elimination_offset ((FROM), (TO));		\
@@ -436,7 +399,6 @@ enum reg_class
    quickly between memory and registers or between two memory
    locations.  */
 #define MOVE_MAX 4
-#define TRULY_NOOP_TRUNCATION(op,ip) 1
 
 /* All load operations zero extend.  */
 #define LOAD_EXTEND_OP(MEM) ZERO_EXTEND
@@ -445,34 +407,9 @@ enum reg_class
    valid memory address.  */
 #define MAX_REGS_PER_ADDRESS 1
 
-#define TRULY_NOOP_TRUNCATION(op,ip) 1
-
 /* An alias for a machine mode name.  This is the machine mode that
    elements of a jump-table should have.  */
 #define CASE_VECTOR_MODE SImode
-
-/* A C compound statement with a conditional `goto LABEL;' executed
-   if X (an RTX) is a legitimate memory address on the target machine
-   for a memory operand of mode MODE.  */
-#define GO_IF_LEGITIMATE_ADDRESS(MODE,X,LABEL)		\
-  do {                                                  \
-    if (GET_CODE(X) == PLUS)				\
-      {							\
-	rtx op1,op2;					\
-	op1 = XEXP(X,0);				\
-	op2 = XEXP(X,1);				\
-	if (GET_CODE(op1) == REG			\
-	    && CONSTANT_ADDRESS_P(op2)			\
-	    && REGNO_OK_FOR_BASE_P(REGNO(op1)))		\
-	  goto LABEL;					\
-      }							\
-    if (REG_P (X) && REGNO_OK_FOR_BASE_P (REGNO (X)))	\
-      goto LABEL;					\
-    if (GET_CODE (X) == SYMBOL_REF			\
-	|| GET_CODE (X) == LABEL_REF			\
-	|| GET_CODE (X) == CONST)			\
-      goto LABEL;					\
-  } while (0)
 
 /* Run-time Target Specification */
 

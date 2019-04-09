@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Free Software Foundation, Inc.
+// Copyright (C) 2014-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,7 +15,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-options "-std=gnu++11" }
+// { dg-do run { target c++11 } }
 
 #include <deque>
 #include <testsuite_hooks.h>
@@ -27,7 +27,6 @@ using __gnu_test::uneq_allocator;
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   typedef uneq_allocator<T> alloc_type;
   typedef std::deque<T, alloc_type> test_type;
   test_type v1(1, alloc_type(1));
@@ -36,17 +35,26 @@ void test01()
   VERIFY(1 == v1.get_allocator().get_personality());
   VERIFY(1 == v2.get_allocator().get_personality());
   VERIFY( it == v2.begin() );
+
+  // PR libstdc++/67707
+  VERIFY( v1.size() == 0 );
+  v1 = test_type();
+  VERIFY( v1.size() == 0 );
 }
 
 void test02()
 {
-  bool test __attribute__((unused)) = true;
   typedef uneq_allocator<T> alloc_type;
   typedef std::deque<T, alloc_type> test_type;
   test_type v1(1, alloc_type(1));
   test_type v2(std::move(v1), alloc_type(2));
   VERIFY(1 == v1.get_allocator().get_personality());
   VERIFY(2 == v2.get_allocator().get_personality());
+
+  // PR libstdc++/67707
+  VERIFY( v1.size() == 0 );
+  v1 = test_type();
+  VERIFY( v1.size() == 0 );
 }
 
 int main()

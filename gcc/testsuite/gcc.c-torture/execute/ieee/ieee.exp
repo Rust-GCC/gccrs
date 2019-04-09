@@ -1,6 +1,6 @@
 #
 # Expect driver script for GCC Regression Tests
-#   Copyright (C) 1993-2014 Free Software Foundation, Inc.
+#   Copyright (C) 1993-2019 Free Software Foundation, Inc.
 #
 # This file is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -41,10 +41,8 @@ set additional_flags "-fno-inline"
 
 # We must use -ffloat-store/-mieee to ensure that excess precision on some
 # machines does not cause problems
-if [istarget "i\[34567\]86-*-*"] then {
-  lappend additional_flags "-ffloat-store"
-}
-if { [istarget "x86_64-*-*"] && [check_effective_target_ia32] } then {
+if { ([istarget "i?86-*-*"] || [istarget "x86_64-*-*"])
+     && [check_effective_target_ia32] } then {
   lappend additional_flags "-ffloat-store"
 }
 if [istarget "m68k-*-*"] then {
@@ -53,6 +51,10 @@ if [istarget "m68k-*-*"] then {
 if { [istarget "alpha*-*-*"] 
      || [istarget "sh*-*-*"] } then {
   lappend additional_flags "-mieee"
+}
+
+if { ![check_effective_target_signal] } {
+    lappend additional_flags "-DSIGNAL_SUPPRESS"
 }
 
 # load support procs

@@ -15,7 +15,7 @@ program streamio_6
   &    72, 81, 59, 24, 37, 43, 21, 54, 68, 31, 19, 79, 63, 41,&
   &    42, 12, 10, 62, 43, 9, 30, 9, 54, 35, 4, 5, 55, 3, 94 /
 
-  open(unit=15,file="teststream",access="stream",form="unformatted")
+  open(unit=15,file="teststream_streamio_6",access="stream",form="unformatted")
   do i=1,100
     k = a(i)
     write(unit=15, pos=k) achar(k)
@@ -23,9 +23,9 @@ program streamio_6
   do j=1,100
     read(unit=15, pos=a(j), iostat=ier) c
     if (ier.ne.0) then
-      call abort
+      STOP 1
     else
-      if (achar(a(j)) /= c) call abort
+      if (achar(a(j)) /= c) STOP 2
     endif
   enddo
   close(unit=15, status="delete")

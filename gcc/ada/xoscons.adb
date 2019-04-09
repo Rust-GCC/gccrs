@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2008-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 2008-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -26,7 +26,7 @@
 --  The base name of the template file is given by Argument (1). This program
 --  generates the spec for this specified unit (let's call it UNIT_NAME).
 
---  It works in conjunction with a C template file which must be pre-processed
+--  It works in conjunction with a C template file which must be preprocessed
 --  and compiled using the cross compiler. Two input files are used:
 --    - the preprocessed C file: UNIT_NAME-tmplt.i
 --    - the generated assembly file: UNIT_NAME-tmplt.s
@@ -47,6 +47,7 @@ pragma Warnings (Off);
 with System.Unsigned_Types;   use System.Unsigned_Types;
 pragma Warnings (On);
 
+with GNAT.OS_Lib;
 with GNAT.String_Split; use GNAT.String_Split;
 with GNAT.Table;
 
@@ -151,8 +152,8 @@ procedure XOSCons is
    --  True if S contains Tmpl_Name, possibly with different casing
 
    function Spaces (Count : Integer) return String;
-   --  If Count is positive, return a string of Count spaces, else return an
-   --  empty string.
+   --  If Count is positive, return a string of Count spaces, else return
+   --  an empty string.
 
    ---------
    -- ">" --
@@ -165,7 +166,7 @@ procedure XOSCons is
       A2 : Long_Unsigned renames V2.Abs_Value;
    begin
       return (P1 and then not P2)
-        or else (P1 and then P2 and then A1 > A2)
+        or else (P1 and then A1 > A2)
         or else (not P1 and then not P2 and then A1 < A2);
    end ">";
 
@@ -353,7 +354,12 @@ procedure XOSCons is
            Integer (Parse_Int (Line (Index1 .. Index2 - 1), CNU).Abs_Value);
 
          case Info.Kind is
-            when CND | CNU | CNS | C | SUB =>
+            when C
+               | CND
+               | CNS
+               | CNU
+               | SUB
+            =>
                Index1 := Index2 + 1;
                Find_Colon (Index2);
 
@@ -700,6 +706,7 @@ begin
    Close (Tmpl_File);
 
 exception
-   when others =>
-      Put_Line ("xoscons <base_name>");
+   when E : others =>
+      Put_Line ("raised " & Ada.Exceptions.Exception_Information (E));
+      GNAT.OS_Lib.OS_Exit (1);
 end XOSCons;

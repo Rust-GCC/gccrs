@@ -1,4 +1,4 @@
-// Copyright 2012 The Go Authors.  All rights reserved.
+// Copyright 2012 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -7,7 +7,7 @@ package elliptic
 // This is a constant-time, 32-bit implementation of P224. See FIPS 186-3,
 // section D.2.2.
 //
-// See http://www.imperialviolet.org/2010/12/04/ecc.html ([1]) for background.
+// See https://www.imperialviolet.org/2010/12/04/ecc.html ([1]) for background.
 
 import (
 	"math/big"
@@ -22,7 +22,7 @@ type p224Curve struct {
 
 func initP224() {
 	// See FIPS 186-3, section D.2.2
-	p224.CurveParams = new(CurveParams)
+	p224.CurveParams = &CurveParams{Name: "P-224"}
 	p224.P, _ = new(big.Int).SetString("26959946667150639794667015087019630673557916260026308143510066298881", 10)
 	p224.N, _ = new(big.Int).SetString("26959946667150639794667015087019625940457807714424391721682722368061", 10)
 	p224.B, _ = new(big.Int).SetString("b4050a850c04b3abf54132565044b0b7d7bfd8ba270b39432355ffb4", 16)
@@ -35,7 +35,9 @@ func initP224() {
 	p224FromBig(&p224.b, p224.B)
 }
 
-// P224 returns a Curve which implements P-224 (see FIPS 186-3, section D.2.2)
+// P224 returns a Curve which implements P-224 (see FIPS 186-3, section D.2.2).
+//
+// The cryptographic operations are implemented using constant-time algorithms.
 func P224() Curve {
 	initonce.Do(initAll)
 	return p224
@@ -501,7 +503,7 @@ func p224Contract(out, in *p224FieldElement) {
 
 // p224AddJacobian computes *out = a+b where a != b.
 func p224AddJacobian(x3, y3, z3, x1, y1, z1, x2, y2, z2 *p224FieldElement) {
-	// See http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html#addition-p224Add-2007-bl
+	// See https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html#addition-p224Add-2007-bl
 	var z1z1, z2z2, u1, u2, s1, s2, h, i, j, r, v p224FieldElement
 	var c p224LargeFieldElement
 

@@ -1,7 +1,7 @@
 /* { dg-do compile { target { powerpc*-*-* } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
 /* { dg-require-effective-target ilp32 } */
-/* { dg-options "-O2 -mcpu=power5 -std=c99 -msoft-float" } */
+/* { dg-options "-O2 -mdejagnu-cpu=power5 -std=c99 -msoft-float" } */
 /* { dg-final { scan-assembler-not "fmadd" } } */
 /* { dg-final { scan-assembler-not "xsfmadd" } } */
 

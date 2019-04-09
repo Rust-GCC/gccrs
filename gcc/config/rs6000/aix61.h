@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for IBM RS/6000 POWER running AIX V6.1.
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by David Edelsohn (edelsohn@gnu.org).
 
    This file is part of GCC.
@@ -27,7 +27,7 @@ do {									\
   if (TARGET_64BIT && ! TARGET_POWERPC64)				\
     {									\
       rs6000_isa_flags |= OPTION_MASK_POWERPC64;			\
-      warning (0, "-maix64 requires PowerPC64 architecture remain enabled"); \
+      warning (0, "%<-maix64%> requires PowerPC64 architecture remain enabled"); \
     }									\
   if (TARGET_SOFT_FLOAT && TARGET_LONG_DOUBLE_128)			\
     {									\
@@ -37,14 +37,14 @@ do {									\
     }									\
   if (TARGET_POWERPC64 && ! TARGET_64BIT)				\
     {									\
-      error ("-maix64 required: 64-bit computation with 32-bit addressing not yet supported"); \
+      error ("%<-maix64%> required: 64-bit computation with 32-bit addressing not yet supported"); \
     }									\
   if ((rs6000_isa_flags_explicit					\
        & OPTION_MASK_MINIMAL_TOC) != 0)					\
     {									\
       if (global_options_set.x_rs6000_current_cmodel			\
 	  && rs6000_current_cmodel != CMODEL_SMALL)			\
-	error ("-mcmodel incompatible with other toc options"); 	\
+	error ("%<-mcmodel%> incompatible with other toc options"); 	\
       SET_CMODEL (CMODEL_SMALL);					\
     }									\
   if (rs6000_current_cmodel != CMODEL_SMALL)				\
@@ -56,7 +56,7 @@ do {									\
     {									\
       rs6000_current_cmodel = CMODEL_LARGE;				\
     }									\
-} while (0);
+} while (0)
 
 #undef ASM_SPEC
 #define ASM_SPEC "-u %{maix64:-a64 %{!mcpu*:-mppc64}} %(asm_cpu)"
@@ -80,6 +80,7 @@ do {									\
 %{mcpu=power6x: -mpwr6} \
 %{mcpu=power7: -mpwr7} \
 %{mcpu=power8: -mpwr8} \
+%{mcpu=power9: -mpwr9} \
 %{mcpu=powerpc: -mppc} \
 %{mcpu=rs64a: -mppc} \
 %{mcpu=603: -m603} \
@@ -167,7 +168,7 @@ do {									\
    %{!maix64:\
      %{pthread:%{pg:gcrt0_r%O%s}%{!pg:%{p:mcrt0_r%O%s}%{!p:crt0_r%O%s}}}\
      %{!pthread:%{pg:gcrt0%O%s}%{!pg:%{p:mcrt0%O%s}%{!p:crt0%O%s}}}}}\
-   %{shared:crtcxa_s%O%s;:crtcxa%O%s}"
+   %{shared:crtcxa_s%O%s;:crtcxa%O%s} crtdbase%O%s"
 
 /* AIX V5 typedefs ptrdiff_t as "long" while earlier releases used "int".  */
 
@@ -208,7 +209,5 @@ extern long long int    atoll(const char *);
 
 /* This target defines SUPPORTS_WEAK and TARGET_ASM_NAMED_SECTION,
    but does not have crtbegin/end.  */
-
-#define TARGET_USE_JCR_SECTION 0
 
 #define TARGET_AIX_VERSION 61

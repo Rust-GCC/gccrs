@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -30,6 +30,17 @@
 ------------------------------------------------------------------------------
 
 package body Output is
+
+   Buffer : String (1 .. Buffer_Max + 1) := (others => '*');
+   for Buffer'Alignment use 4;
+   --  Buffer used to build output line. We do line buffering because it is
+   --  needed for the support of the debug-generated-code option (-gnatD). Note
+   --  any attempt to write more output to a line than can fit in the buffer
+   --  will be silently ignored. The alignment clause improves the efficiency
+   --  of the save/restore procedures.
+
+   Next_Col : Positive range 1 .. Buffer'Length + 1 := 1;
+   --  Column about to be written
 
    Current_FD : File_Descriptor := Standout;
    --  File descriptor for current output
@@ -350,6 +361,7 @@ package body Output is
 
    procedure Write_Char (C : Character) is
    begin
+      pragma Assert (Next_Col in Buffer'Range);
       if Next_Col = Buffer'Length then
          Write_Eol;
       end if;
@@ -406,17 +418,29 @@ package body Output is
    ---------------
 
    procedure Write_Int (Val : Int) is
+      --  Type Int has one extra negative number (i.e. two's complement), so we
+      --  work with negative numbers here. Otherwise, negating Int'First will
+      --  overflow.
+
+      subtype Nonpositive is Int range Int'First .. 0;
+      procedure Write_Abs (Val : Nonpositive);
+      --  Write out the absolute value of Val
+
+      procedure Write_Abs (Val : Nonpositive) is
+      begin
+         if Val < -9 then
+            Write_Abs (Val / 10); -- Recursively write higher digits
+         end if;
+
+         Write_Char (Character'Val (-(Val rem 10) + Character'Pos ('0')));
+      end Write_Abs;
+
    begin
       if Val < 0 then
          Write_Char ('-');
-         Write_Int (-Val);
-
+         Write_Abs (Val);
       else
-         if Val > 9 then
-            Write_Int (Val / 10);
-         end if;
-
-         Write_Char (Character'Val ((Val mod 10) + Character'Pos ('0')));
+         Write_Abs (-Val);
       end if;
    end Write_Int;
 

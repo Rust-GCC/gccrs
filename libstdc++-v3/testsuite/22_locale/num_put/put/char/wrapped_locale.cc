@@ -1,11 +1,11 @@
-// { dg-require-namedlocale "ja_JP.eucjp" }
-// { dg-require-namedlocale "de_DE" }
-// { dg-require-namedlocale "en_HK" }
-// { dg-require-namedlocale "es_ES" }
+// { dg-require-namedlocale "ja_JP.eucJP" }
+// { dg-require-namedlocale "de_DE.ISO8859-15" }
+// { dg-require-namedlocale "en_HK.ISO8859-1" }
+// { dg-require-namedlocale "es_ES.ISO8859-15" }
 
 // 2001-08-15 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -55,6 +55,6 @@ int main()
   two.push_back(&test03);
   two.push_back(&test04);
   two.push_back(&test05);
-  run_tests_wrapped_locale("ja_JP.eucjp", two);
+  run_tests_wrapped_locale("ja_JP.eucJP", two);
   return 0;
 }

@@ -2,7 +2,7 @@
 
 // 2006-01-10  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -39,7 +39,7 @@ template<typename T>
     ans = std::tr1::atanh(cmplx_type(1.0, 1.0));
     ans = std::tr1::fabs(cmplx_type(1.0, 1.0));
   }
-    
+
 void test01()
 {
   test01_do<float>();

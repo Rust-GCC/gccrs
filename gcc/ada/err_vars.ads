@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -39,10 +39,11 @@ package Err_Vars is
    --  from invalid values in such cases.
 
    --  Note on error counts (Serious_Errors_Detected, Total_Errors_Detected,
-   --  Warnings_Detected, Info_Messages). These counts might more logically
-   --  appear in this unit, but we place them instead in atree.ads, because of
-   --  licensing issues. We need to be able to access these counts from units
-   --  that have the more general licensing conditions.
+   --  Warnings_Detected, Warning_Info_Messages, Report_Info_Messages). These
+   --  counts might more logically appear in this unit, but we place them
+   --  instead in atree.ads, because of licensing issues. We need to be able
+   --  to access these counts from units that have the more general licensing
+   --  conditions.
 
    ----------------------------------
    -- Error Message Mode Variables --
@@ -54,10 +55,10 @@ package Err_Vars is
    --  variables are not reset by calls to the error message routines, so the
    --  caller is responsible for resetting the default behavior after use.
 
-   Error_Msg_Qual_Level : Int := 0;
+   Error_Msg_Qual_Level : Nat := 0;
    --  Number of levels of qualification required for type name (see the
    --  description of the } insertion character. Note that this value does
-   --  note get reset by any Error_Msg call, so the caller is responsible
+   --  not get reset by any Error_Msg call, so the caller is responsible
    --  for resetting it.
 
    Warn_On_Instance : Boolean := False;
@@ -80,7 +81,7 @@ package Err_Vars is
    Error_Msg_Exception : exception;
    --  Exception raised if Raise_Exception_On_Error is true
 
-   Current_Error_Source_File : Source_File_Index := Internal_Source_File;
+   Current_Error_Source_File : Source_File_Index := No_Source_File;
    --  Id of current messages. Used to post file name when unit changes. This
    --  is initialized to Main_Source_File at the start of a compilation, which
    --  means that no file names will be output unless there are errors in units

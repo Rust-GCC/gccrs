@@ -30,5 +30,4 @@ int main ()
 }
 
 
-/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" { target { ! avr-*-* } } } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */
+/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" { target { ! { avr-*-* msp430-*-* } } } } } */

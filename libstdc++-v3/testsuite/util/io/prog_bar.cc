@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -41,7 +41,7 @@ namespace __gnu_pbds
   namespace test
   {
     prog_bar::
-    prog_bar(size_t max, std::ostream& r_os, bool display/*= true*/) :
+    prog_bar(std::size_t max, std::ostream& r_os, bool display/*= true*/) :
       m_cur(0),
       m_max(max),
       m_cur_disp(0),

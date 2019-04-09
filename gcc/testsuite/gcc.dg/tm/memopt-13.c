@@ -12,5 +12,4 @@ void f()
   }
 }
 
-/* { dg-final { scan-tree-dump-times "memmoveRtWt \\\(&large_global," 1 "tmmark" } } */
-/* { dg-final { cleanup-tree-dump "tmmark" } } */
+/* { dg-final { scan-tree-dump-times "memcpyRnWt \\\(&large_global," 1 "tmmark" } } */

@@ -10,13 +10,29 @@
 #include <unistd.h>
 
 #include "unwind.h"
-#define NO_SIZE_OF_ENCODED_VALUE
-#include "unwind-pe.h"
 
 #include "runtime.h"
-#include "go-alloc.h"
-#include "go-defer.h"
-#include "go-panic.h"
+
+/* These constants are documented here:
+   https://refspecs.linuxfoundation.org/LSB_3.0.0/LSB-PDA/LSB-PDA/dwarfext.html
+ */
+
+#define DW_EH_PE_omit     0xff
+#define DW_EH_PE_absptr   0x00
+#define DW_EH_PE_uleb128  0x01
+#define DW_EH_PE_udata2   0x02
+#define DW_EH_PE_udata4   0x03
+#define DW_EH_PE_udata8   0x04
+#define DW_EH_PE_sleb128  0x09
+#define DW_EH_PE_sdata2   0x0A
+#define DW_EH_PE_sdata4   0x0B
+#define DW_EH_PE_sdata8   0x0C
+#define DW_EH_PE_pcrel    0x10
+#define DW_EH_PE_textrel  0x20
+#define DW_EH_PE_datarel  0x30
+#define DW_EH_PE_funcrel  0x40
+#define DW_EH_PE_aligned  0x50
+#define DW_EH_PE_indirect 0x80
 
 /* The code for a Go exception.  */
 
@@ -35,113 +51,18 @@ static const _Unwind_Exception_Class __go_exception_class =
    << 8 | (_Unwind_Exception_Class) '\0');
 #endif
 
+/* Rethrow an exception.  */
 
-/* This function is called by exception handlers used when unwinding
-   the stack after a recovered panic.  The exception handler looks
-   like this:
-     __go_check_defer (frame);
-     return;
-   If we have not yet reached the frame we are looking for, we
-   continue unwinding.  */
+void rethrowException (void) __asm__(GOSYM_PREFIX "runtime.rethrowException");
 
 void
-__go_check_defer (_Bool *frame)
+rethrowException ()
 {
-  G *g;
   struct _Unwind_Exception *hdr;
 
-  g = runtime_g ();
+  hdr = (struct _Unwind_Exception *) runtime_g()->exception;
 
-  if (g == NULL)
-    {
-      /* Some other language has thrown an exception.  We know there
-	 are no defer handlers, so there is nothing to do.  */
-    }
-  else if (g->is_foreign)
-    {
-      struct __go_panic_stack *n;
-      _Bool was_recovered;
-
-      /* Some other language has thrown an exception.  We need to run
-	 the local defer handlers.  If they call recover, we stop
-	 unwinding the stack here.  */
-
-      n = ((struct __go_panic_stack *)
-	   __go_alloc (sizeof (struct __go_panic_stack)));
-
-      n->__arg.__type_descriptor = NULL;
-      n->__arg.__object = NULL;
-      n->__was_recovered = 0;
-      n->__is_foreign = 1;
-      n->__next = g->panic;
-      g->panic = n;
-
-      while (1)
-	{
-	  struct __go_defer_stack *d;
-	  void (*pfn) (void *);
-
-	  d = g->defer;
-	  if (d == NULL || d->__frame != frame || d->__pfn == NULL)
-	    break;
-
-	  pfn = d->__pfn;
-	  g->defer = d->__next;
-
-	  (*pfn) (d->__arg);
-
-	  if (runtime_m () != NULL)
-	    runtime_freedefer (d);
-
-	  if (n->__was_recovered)
-	    {
-	      /* The recover function caught the panic thrown by some
-		 other language.  */
-	      break;
-	    }
-	}
-
-      was_recovered = n->__was_recovered;
-      g->panic = n->__next;
-      __go_free (n);
-
-      if (was_recovered)
-	{
-	  /* Just return and continue executing Go code.  */
-	  *frame = 1;
-	  return;
-	}
-
-      /* We are panicing through this function.  */
-      *frame = 0;
-    }
-  else if (g->defer != NULL
-	   && g->defer->__pfn == NULL
-	   && g->defer->__frame == frame)
-    {
-      struct __go_defer_stack *d;
-
-      /* This is the defer function which called recover.  Simply
-	 return to stop the stack unwind, and let the Go code continue
-	 to execute.  */
-      d = g->defer;
-      g->defer = d->__next;
-
-      if (runtime_m () != NULL)
-	runtime_freedefer (d);
-
-      /* We are returning from this function.  */
-      *frame = 1;
-
-      return;
-    }
-
-  /* This is some other defer function.  It was already run by the
-     call to panic, or just above.  Rethrow the exception.  */
-
-  hdr = (struct _Unwind_Exception *) g->exception;
-
-#ifdef LIBGO_SJLJ_EXCEPTIONS
+#ifdef __USING_SJLJ_EXCEPTIONS__
   _Unwind_SjLj_Resume_or_Rethrow (hdr);
 #else
 #if defined(_LIBUNWIND_STD_ABI)
@@ -155,22 +76,47 @@ __go_check_defer (_Bool *frame)
   abort();
 }
 
-/* Unwind function calls until we reach the one which used a defer
-   function which called recover.  Each function which uses a defer
-   statement will have an exception handler, as shown above.  */
+/* Return the size of the type that holds an exception header, so that
+   it can be allocated by Go code.  */
+
+uintptr unwindExceptionSize(void)
+  __asm__ (GOSYM_PREFIX "runtime.unwindExceptionSize");
+
+uintptr
+unwindExceptionSize ()
+{
+  uintptr ret, align;
+
+  ret = sizeof (struct _Unwind_Exception);
+  /* Adjust the size fo make sure that we can get an aligned value.  */
+  align = __alignof__ (struct _Unwind_Exception);
+  if (align > __alignof__ (uintptr))
+    ret += align - __alignof__ (uintptr);
+  return ret;
+}
+
+/* Throw an exception.  This is called with g->exception pointing to
+   an uninitialized _Unwind_Exception instance.  */
+
+void throwException (void) __asm__(GOSYM_PREFIX "runtime.throwException");
 
 void
-__go_unwind_stack ()
+throwException ()
 {
   struct _Unwind_Exception *hdr;
+  uintptr align;
 
+  hdr = (struct _Unwind_Exception *)runtime_g ()->exception;
+
+  /* Make sure the value is correctly aligned.  It will be large
+     enough, because of unwindExceptionSize.  */
+  align = __alignof__ (struct _Unwind_Exception);
   hdr = ((struct _Unwind_Exception *)
-	 __go_alloc (sizeof (struct _Unwind_Exception)));
+	 (((uintptr) hdr + align - 1) &~ (align - 1)));
+
   __builtin_memcpy (&hdr->exception_class, &__go_exception_class,
 		    sizeof hdr->exception_class);
   hdr->exception_cleanup = NULL;
-
-  runtime_g ()->exception = hdr;
 
 #ifdef __USING_SJLJ_EXCEPTIONS__
   _Unwind_SjLj_RaiseException (hdr);
@@ -179,6 +125,204 @@ __go_unwind_stack ()
 #endif
 
   /* Raising an exception should not return.  */
+  abort ();
+}
+
+static inline _Unwind_Ptr
+encoded_value_base (uint8_t encoding, struct _Unwind_Context *context)
+{
+  if (encoding == DW_EH_PE_omit)
+    return 0;
+  switch (encoding & 0x70)
+    {
+      case DW_EH_PE_absptr:
+      case DW_EH_PE_pcrel:
+      case DW_EH_PE_aligned:
+        return 0;
+      case DW_EH_PE_textrel:
+        return _Unwind_GetTextRelBase(context);
+      case DW_EH_PE_datarel:
+        return _Unwind_GetDataRelBase(context);
+      case DW_EH_PE_funcrel:
+        return _Unwind_GetRegionStart(context);
+    }
+  abort ();
+}
+
+/* Read an unsigned leb128 value.  */
+
+static inline const uint8_t *
+read_uleb128 (const uint8_t *p, _uleb128_t *val)
+{
+  unsigned int shift = 0;
+  _uleb128_t result = 0;
+  uint8_t byte;
+
+  do
+    {
+      byte = *p++;
+      result |= ((_uleb128_t)byte & 0x7f) << shift;
+      shift += 7;
+    }
+  while (byte & 0x80);
+
+  *val = result;
+  return p;
+}
+
+/* Similar, but read a signed leb128 value.  */
+
+static inline const uint8_t *
+read_sleb128 (const uint8_t *p, _sleb128_t *val)
+{
+  unsigned int shift = 0;
+  _uleb128_t result = 0;
+  uint8_t byte;
+
+  do
+    {
+      byte = *p++;
+      result |= ((_uleb128_t)byte & 0x7f) << shift;
+      shift += 7;
+    }
+  while (byte & 0x80);
+
+  /* sign extension */
+  if (shift < (8 * sizeof(result)) && (byte & 0x40) != 0)
+    result |= (((_uleb128_t)~0) << shift);
+
+  *val = (_sleb128_t)result;
+  return p;
+}
+
+#define ROUND_UP_TO_PVB(x) (x + sizeof(void *) - 1) &- sizeof(void *)
+
+static inline const uint8_t *
+read_encoded_value (struct _Unwind_Context *context, uint8_t encoding,
+                    const uint8_t *p, _Unwind_Ptr *val)
+{
+  _Unwind_Ptr base = encoded_value_base (encoding, context);
+  _Unwind_Internal_Ptr decoded = 0;
+  const uint8_t *origp = p;
+
+  if (encoding == DW_EH_PE_aligned)
+    {
+      _Unwind_Internal_Ptr uip = (_Unwind_Internal_Ptr)p;
+      uip = ROUND_UP_TO_PVB (uip);
+      decoded = *(_Unwind_Internal_Ptr *)uip;
+      p = (const uint8_t *)(uip + sizeof(void *));
+    }
+  else
+    {
+      switch (encoding & 0x0f)
+        {
+          case DW_EH_PE_sdata2:
+            {
+              int16_t result;
+              __builtin_memcpy (&result, p, sizeof(int16_t));
+              decoded = result;
+              p += sizeof(int16_t);
+              break;
+            }
+          case DW_EH_PE_udata2:
+            {
+              uint16_t result;
+              __builtin_memcpy (&result, p, sizeof(uint16_t));
+              decoded = result;
+              p += sizeof(uint16_t);
+              break;
+            }
+          case DW_EH_PE_sdata4:
+            {
+              int32_t result;
+              __builtin_memcpy (&result, p, sizeof(int32_t));
+              decoded = result;
+              p += sizeof(int32_t);
+              break;
+            }
+          case DW_EH_PE_udata4:
+            {
+              uint32_t result;
+              __builtin_memcpy (&result, p, sizeof(uint32_t));
+              decoded = result;
+              p += sizeof(uint32_t);
+              break;
+            }
+          case DW_EH_PE_sdata8:
+            {
+              int64_t result;
+              __builtin_memcpy (&result, p, sizeof(int64_t));
+              decoded = result;
+              p += sizeof(int64_t);
+              break;
+            }
+          case DW_EH_PE_udata8:
+            {
+              uint64_t result;
+              __builtin_memcpy (&result, p, sizeof(uint64_t));
+              decoded = result;
+              p += sizeof(uint64_t);
+              break;
+            }
+          case DW_EH_PE_uleb128:
+            {
+              _uleb128_t value;
+              p = read_uleb128 (p, &value);
+              decoded = (_Unwind_Internal_Ptr)value;
+              break;
+            }
+          case DW_EH_PE_sleb128:
+            {
+              _sleb128_t value;
+              p = read_sleb128 (p, &value);
+              decoded = (_Unwind_Internal_Ptr)value;
+              break;
+            }
+          case DW_EH_PE_absptr:
+            __builtin_memcpy (&decoded, (const void *)p, sizeof(const void*));
+            p += sizeof(void *);
+            break;
+          default:
+            abort ();
+        }
+
+      if (decoded == 0)
+        {
+          *val = decoded;
+          return p;
+        }
+
+      if ((encoding & 0x70) == DW_EH_PE_pcrel)
+        decoded += ((_Unwind_Internal_Ptr)origp);
+      else
+        decoded += base;
+
+      if ((encoding & DW_EH_PE_indirect) != 0)
+        decoded = *(_Unwind_Internal_Ptr *)decoded;
+    }
+  *val = decoded;
+  return p;
+}
+
+static inline int
+value_size (uint8_t encoding)
+{
+  switch (encoding & 0x0f)
+    {
+      case DW_EH_PE_sdata2:
+      case DW_EH_PE_udata2:
+        return 2;
+      case DW_EH_PE_sdata4:
+      case DW_EH_PE_udata4:
+        return 4;
+      case DW_EH_PE_sdata8:
+      case DW_EH_PE_udata8:
+        return 8;
+      case DW_EH_PE_absptr:
+        return sizeof(uintptr);
+      default:
+        break;
+    }
   abort ();
 }
 
@@ -250,6 +394,12 @@ parse_lsda_header (struct _Unwind_Context *context, const unsigned char *p,
 #define CONTINUE_UNWINDING return _URC_CONTINUE_UNWIND
 #endif
 
+#ifdef __ARM_EABI_UNWINDER__
+#define STOP_UNWINDING _URC_FAILURE
+#else
+#define STOP_UNWINDING _URC_NORMAL_STOP
+#endif
+
 #ifdef __USING_SJLJ_EXCEPTIONS__
 #define PERSONALITY_FUNCTION    __gccgo_personality_sj0
 #define __builtin_eh_return_data_regno(x) x
@@ -294,6 +444,9 @@ PERSONALITY_FUNCTION (int version,
   switch (state & _US_ACTION_MASK)
     {
     case _US_VIRTUAL_UNWIND_FRAME:
+      if (state & _UA_FORCE_UNWIND)
+        /* We are called from _Unwind_Backtrace.  No handler to run.  */
+        CONTINUE_UNWINDING;
       actions = _UA_SEARCH_PHASE;
       break;
 
@@ -432,7 +585,7 @@ PERSONALITY_FUNCTION (int version,
   else
     {
       g->exception = ue_header;
-      g->is_foreign = is_foreign;
+      g->isforeign = is_foreign;
     }
 
   _Unwind_SetGR (context, __builtin_eh_return_data_regno (0),
@@ -440,4 +593,275 @@ PERSONALITY_FUNCTION (int version,
   _Unwind_SetGR (context, __builtin_eh_return_data_regno (1), 0);
   _Unwind_SetIP (context, landing_pad);
   return _URC_INSTALL_CONTEXT;
+}
+
+// A dummy personality function, which doesn't capture any exception
+// and simply passes by. This is used for functions that don't
+// capture exceptions but need LSDA for stack maps.
+_Unwind_Reason_Code
+__gccgo_personality_dummy (int, _Unwind_Action, _Unwind_Exception_Class,
+		      struct _Unwind_Exception *, struct _Unwind_Context *)
+  __attribute__ ((no_split_stack));
+
+_Unwind_Reason_Code
+__gccgo_personality_dummy (int version __attribute__ ((unused)),
+		      _Unwind_Action actions __attribute__ ((unused)),
+		      _Unwind_Exception_Class exception_class __attribute__ ((unused)),
+		      struct _Unwind_Exception *ue_header __attribute__ ((unused)),
+		      struct _Unwind_Context *context __attribute__ ((unused)))
+{
+  CONTINUE_UNWINDING;
+}
+
+// A sentinel value for Go functions.
+// A function is a Go function if it has LSDA, which has type info,
+// and the first (dummy) landing pad's type info is a pointer to
+// this value.
+#define GO_FUNC_SENTINEL ((uint64)'G' | ((uint64)'O'<<8) | \
+                          ((uint64)'.'<<16) | ((uint64)'.'<<24) | \
+                          ((uint64)'F'<<32) | ((uint64)'U'<<40) | \
+                          ((uint64)'N'<<48) | ((uint64)'C'<<56))
+
+struct _stackmap {
+  uint32 len;
+  uint8 data[1]; // variabe length
+};
+
+extern void
+  runtime_scanstackblockwithmap (uintptr ip, uintptr sp, uintptr size, uint8 *ptrmask, void* gcw)
+  __asm__ (GOSYM_PREFIX "runtime.scanstackblockwithmap");
+
+#define FOUND        0
+#define NOTFOUND_OK  1
+#define NOTFOUND_BAD 2
+
+// Helper function to search for stack maps in the unwinding records of a frame.
+// If found, populate ip, sp, and stackmap. Returns the #define'd values above.
+static int
+findstackmaps (struct _Unwind_Context *context, _Unwind_Ptr *ip, _Unwind_Ptr *sp, struct _stackmap **stackmap)
+{
+  lsda_header_info info;
+  const unsigned char *language_specific_data, *p, *action_record;
+  bool first;
+  struct _stackmap *stackmap1;
+  _Unwind_Ptr ip1;
+  int ip_before_insn = 0;
+  _sleb128_t index;
+  int size;
+
+#ifdef HAVE_GETIPINFO
+  ip1 = _Unwind_GetIPInfo (context, &ip_before_insn);
+#else
+  ip1 = _Unwind_GetIP (context);
+#endif
+  if (! ip_before_insn)
+    --ip1;
+
+  if (ip != NULL)
+    *ip = ip1;
+  if (sp != NULL)
+    *sp = _Unwind_GetCFA (context);
+
+#ifdef __ARM_EABI_UNWINDER__
+  {
+    _Unwind_Control_Block *ucbp;
+    ucbp = (_Unwind_Control_Block *) _Unwind_GetGR (context, 12);
+    if (*ucbp->pr_cache.ehtp & (1u << 31))
+      // The "compact" model is used, with one of the predefined
+      // personality functions. It doesn't have standard LSDA.
+      return NOTFOUND_OK;
+  }
+#endif
+
+  language_specific_data = (const unsigned char *)
+    _Unwind_GetLanguageSpecificData (context);
+
+  /* If no LSDA, then there is no stack maps.  */
+  if (! language_specific_data)
+    return NOTFOUND_OK;
+
+  p = parse_lsda_header (context, language_specific_data, &info);
+
+  if (info.TType == NULL)
+    return NOTFOUND_OK;
+
+  size = value_size (info.ttype_encoding);
+
+  action_record = NULL;
+  first = true;
+
+  /* Search the call-site table for the action associated with this IP.  */
+  while (p < info.action_table)
+    {
+      _Unwind_Ptr cs_start, cs_len, cs_lp;
+      _uleb128_t cs_action;
+
+      /* Note that all call-site encodings are "absolute" displacements.  */
+      p = read_encoded_value (0, info.call_site_encoding, p, &cs_start);
+      p = read_encoded_value (0, info.call_site_encoding, p, &cs_len);
+      p = read_encoded_value (0, info.call_site_encoding, p, &cs_lp);
+      p = read_uleb128 (p, &cs_action);
+
+      if (first)
+        {
+          // For a Go function, the first entry points to the sentinel value.
+          // Check this here.
+          const unsigned char *p1, *action1;
+          uint64 *x;
+
+          if (!cs_action)
+            return NOTFOUND_OK;
+
+          action1 = info.action_table + cs_action - 1;
+          read_sleb128 (action1, &index);
+          p1 = info.TType - index*size;
+          read_encoded_value (context, info.ttype_encoding, p1, (_Unwind_Ptr*)&x);
+          if (x == NULL || *x != GO_FUNC_SENTINEL)
+            return NOTFOUND_OK;
+
+          first = false;
+          continue;
+        }
+
+      /* The table is sorted, so if we've passed the ip, stop.  */
+      if (ip1 < info.Start + cs_start)
+        return NOTFOUND_BAD;
+      else if (ip1 < info.Start + cs_start + cs_len)
+        {
+          if (cs_action)
+            action_record = info.action_table + cs_action - 1;
+          break;
+        }
+    }
+
+  if (action_record == NULL)
+    return NOTFOUND_BAD;
+
+  read_sleb128 (action_record, &index);
+  p = info.TType - index*size;
+  read_encoded_value (context, info.ttype_encoding, p, (_Unwind_Ptr*)&stackmap1);
+  if (stackmap1 == NULL)
+    return NOTFOUND_BAD;
+
+  if (stackmap != NULL)
+    *stackmap = stackmap1;
+  return FOUND;
+}
+
+struct scanstate {
+  void* gcw;      // the GC worker, passed into scanstackwithmap_callback
+  uintptr lastsp; // the last (outermost) SP of Go function seen in a traceback, set by the callback
+};
+
+// Callback function to scan a stack frame with stack maps.
+// It skips non-Go functions.
+static _Unwind_Reason_Code
+scanstackwithmap_callback (struct _Unwind_Context *context, void *arg)
+{
+  struct _stackmap *stackmap;
+  _Unwind_Ptr ip, sp;
+  G* gp;
+  struct scanstate* state = (struct scanstate*) arg;
+  void *gcw;
+
+  gp = runtime_g ();
+  gcw = state->gcw;
+
+  switch (findstackmaps (context, &ip, &sp, &stackmap))
+    {
+      case NOTFOUND_OK:
+        // Not a Go function. Skip this frame.
+        return _URC_NO_REASON;
+      case NOTFOUND_BAD:
+        {
+          // No stack map found.
+          // If we're scanning from the signal stack, the goroutine
+          // may be not stopped at a safepoint. Allow this case.
+          if (gp != gp->m->gsignal)
+            {
+              // TODO: print gp, pc, sp
+              runtime_throw ("no stack map");
+            }
+          return STOP_UNWINDING;
+        }
+      case FOUND:
+        break;
+      default:
+        abort ();
+    }
+
+  state->lastsp = sp;
+  runtime_scanstackblockwithmap (ip, sp, (uintptr)(stackmap->len) * sizeof(uintptr), stackmap->data, gcw);
+
+  return _URC_NO_REASON;
+}
+
+// Scan the stack with stack maps. Return whether the scan
+// succeeded.
+bool
+scanstackwithmap (void *gcw)
+{
+  _Unwind_Reason_Code code;
+  bool ret;
+  struct scanstate state;
+  G* gp;
+  G* curg;
+
+  state.gcw = gcw;
+  state.lastsp = 0;
+  gp = runtime_g ();
+  curg = gp->m->curg;
+
+  runtime_xadd (&__go_runtime_in_callers, 1);
+  code = _Unwind_Backtrace (scanstackwithmap_callback, (void*)&state);
+  runtime_xadd (&__go_runtime_in_callers, -1);
+  ret = (code == _URC_END_OF_STACK);
+  if (ret && gp == gp->m->gsignal)
+    {
+      // For signal-triggered scan, the unwinder may not be able to unwind
+      // the whole stack while it still reports _URC_END_OF_STACK (e.g.
+      // signal is delivered in vdso). Check that we actually reached the
+      // the end of the stack, that is, the SP on entry.
+      if (state.lastsp != curg->entrysp)
+        ret = false;
+    }
+  return ret;
+}
+
+// Returns whether stack map is enabled.
+bool
+usestackmaps ()
+{
+  return runtime_usestackmaps;
+}
+
+// Callback function to probe if a stack frame has stack maps.
+static _Unwind_Reason_Code
+probestackmaps_callback (struct _Unwind_Context *context,
+                         void *arg __attribute__ ((unused)))
+{
+  switch (findstackmaps (context, NULL, NULL, NULL))
+    {
+      case NOTFOUND_OK:
+      case NOTFOUND_BAD:
+        return _URC_NO_REASON;
+      case FOUND:
+        break;
+      default:
+        abort ();
+    }
+
+  // Found a stack map. No need to keep unwinding.
+  runtime_usestackmaps = true;
+  return STOP_UNWINDING;
+}
+
+// Try to find a stack map, store the result in global variable runtime_usestackmaps.
+// Called in start-up time from Go code, so there is a Go frame on the stack.
+bool
+probestackmaps ()
+{
+  runtime_usestackmaps = false;
+  _Unwind_Backtrace (probestackmaps_callback, NULL);
+  return runtime_usestackmaps;
 }

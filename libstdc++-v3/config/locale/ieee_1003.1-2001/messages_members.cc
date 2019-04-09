@@ -1,6 +1,6 @@
 // std::messages implementation details, IEEE 1003.1-200x version -*- C++ -*-
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -35,11 +35,11 @@ namespace std _GLIBCXX_VISIBILITY(default)
   // Specializations
   template<>
     string
-    messages<char>::do_get(catalog __c, int __setid, int __msgid, 
+    messages<char>::do_get(catalog __c, int __setid, int __msgid,
 			   const string& __dfault) const
     {
       nl_catd __nlc = reinterpret_cast<nl_catd>(__c);
-      return string(catgets(__nlc, __setid, __msgid, __dfault.c_str())); 
+      return string(catgets(__nlc, __setid, __msgid, __dfault.c_str()));
     }
 
 #ifdef _GLIBCXX_USE_WCHAR_T
@@ -48,7 +48,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
     messages<wchar_t>::do_get(catalog, int, int, const wstring& __dfault) const
     {
       nl_catd __nlc = reinterpret_cast<nl_catd>(__c);
-      char* __msg = catgets(__nlc, __setid, __msgid, 
+      char* __msg = catgets(__nlc, __setid, __msgid,
 			    _M_convert_to_char(__dfault));
       return _M_convert_from_char(__msg);
     }

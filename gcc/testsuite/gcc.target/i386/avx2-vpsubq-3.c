@@ -1,5 +1,5 @@
 /* { dg-do run } */
-/* { dg-options "-mavx2 -mno-prefer-avx128 -O2 -ftree-vectorize -save-temps" } */
+/* { dg-options "-mavx2 -mno-prefer-avx128 -O2 -ftree-vectorize -mtune=generic -save-temps" } */
 /* { dg-require-effective-target avx2 } */
 
 
@@ -9,4 +9,3 @@
 #include "avx2-vpop-check.h"
 
 /* { dg-final { scan-assembler-times "vpsubq\[ \\t\]+\[^\n\]*%ymm\[0-9\]" 1 } } */
-/* { dg-final { cleanup-saved-temps } } */

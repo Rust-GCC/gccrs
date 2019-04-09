@@ -1,6 +1,6 @@
 // 2003-05-01 Petur Runolfsson <peturr02@ru.is>
 
-// Copyright (C) 2003-2014 Free Software Foundation, Inc.
+// Copyright (C) 2003-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -17,6 +17,8 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+// { dg-require-fileio "" }
+
 #include <ext/stdio_sync_filebuf.h>
 #include <cstring>
 #include <testsuite_hooks.h>
@@ -26,7 +28,6 @@ void test01()
   using namespace std;
   typedef char_traits<wchar_t> traits_type;
 
-  bool test __attribute__((unused)) = true;
   const char* c_lit = "black pearl jasmine tea";
   const wchar_t* w_lit = L"black pearl jasmine tea";
   unsigned size = strlen(c_lit);

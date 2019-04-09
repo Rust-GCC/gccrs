@@ -74,6 +74,16 @@ func TestFormat(t *testing.T) {
 	}
 }
 
+// issue 12440.
+func TestFormatSingleDigits(t *testing.T) {
+	time := Date(2001, 2, 3, 4, 5, 6, 700000000, UTC)
+	test := FormatTest{"single digit format", "3:4:5", "4:5:6"}
+	result := time.Format(test.format)
+	if result != test.result {
+		t.Errorf("%s expected %q got %q", test.name, test.result, result)
+	}
+}
+
 func TestFormatShortYear(t *testing.T) {
 	years := []int{
 		-100001, -100000, -99999,
@@ -183,39 +193,118 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func TestParseInSydney(t *testing.T) {
-	loc, err := LoadLocation("Australia/Sydney")
+// All parsed with ANSIC.
+var dayOutOfRangeTests = []struct {
+	date string
+	ok   bool
+}{
+	{"Thu Jan 99 21:00:57 2010", false},
+	{"Thu Jan 31 21:00:57 2010", true},
+	{"Thu Jan 32 21:00:57 2010", false},
+	{"Thu Feb 28 21:00:57 2012", true},
+	{"Thu Feb 29 21:00:57 2012", true},
+	{"Thu Feb 29 21:00:57 2010", false},
+	{"Thu Mar 31 21:00:57 2010", true},
+	{"Thu Mar 32 21:00:57 2010", false},
+	{"Thu Apr 30 21:00:57 2010", true},
+	{"Thu Apr 31 21:00:57 2010", false},
+	{"Thu May 31 21:00:57 2010", true},
+	{"Thu May 32 21:00:57 2010", false},
+	{"Thu Jun 30 21:00:57 2010", true},
+	{"Thu Jun 31 21:00:57 2010", false},
+	{"Thu Jul 31 21:00:57 2010", true},
+	{"Thu Jul 32 21:00:57 2010", false},
+	{"Thu Aug 31 21:00:57 2010", true},
+	{"Thu Aug 32 21:00:57 2010", false},
+	{"Thu Sep 30 21:00:57 2010", true},
+	{"Thu Sep 31 21:00:57 2010", false},
+	{"Thu Oct 31 21:00:57 2010", true},
+	{"Thu Oct 32 21:00:57 2010", false},
+	{"Thu Nov 30 21:00:57 2010", true},
+	{"Thu Nov 31 21:00:57 2010", false},
+	{"Thu Dec 31 21:00:57 2010", true},
+	{"Thu Dec 32 21:00:57 2010", false},
+	{"Thu Dec 00 21:00:57 2010", false},
+}
+
+func TestParseDayOutOfRange(t *testing.T) {
+	for _, test := range dayOutOfRangeTests {
+		_, err := Parse(ANSIC, test.date)
+		switch {
+		case test.ok && err == nil:
+			// OK
+		case !test.ok && err != nil:
+			if !strings.Contains(err.Error(), "day out of range") {
+				t.Errorf("%q: expected 'day' error, got %v", test.date, err)
+			}
+		case test.ok && err != nil:
+			t.Errorf("%q: unexpected error: %v", test.date, err)
+		case !test.ok && err == nil:
+			t.Errorf("%q: expected 'day' error, got none", test.date)
+		}
+	}
+}
+
+// TestParseInLocation checks that the Parse and ParseInLocation
+// functions do not get confused by the fact that AST (Arabia Standard
+// Time) and AST (Atlantic Standard Time) are different time zones,
+// even though they have the same abbreviation.
+//
+// ICANN has been slowly phasing out invented abbreviation in favor of
+// numeric time zones (for example, the Asia/Baghdad time zone
+// abbreviation got changed from AST to +03 in the 2017a tzdata
+// release); but we still want to make sure that the time package does
+// not get confused on systems with slightly older tzdata packages.
+func TestParseInLocation(t *testing.T) {
+
+	baghdad, err := LoadLocation("Asia/Baghdad")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Check that Parse (and ParseInLocation) understand
-	// that Feb EST and Aug EST are different time zones in Sydney
-	// even though both are called EST.
-	t1, err := ParseInLocation("Jan 02 2006 MST", "Feb 01 2013 EST", loc)
+	var t1, t2 Time
+
+	t1, err = ParseInLocation("Jan 02 2006 MST", "Feb 01 2013 AST", baghdad)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t2 := Date(2013, February, 1, 00, 00, 00, 0, loc)
-	if t1 != t2 {
-		t.Fatalf("ParseInLocation(Feb 01 2013 EST, Sydney) = %v, want %v", t1, t2)
-	}
+
 	_, offset := t1.Zone()
-	if offset != 11*60*60 {
-		t.Fatalf("ParseInLocation(Feb 01 2013 EST, Sydney).Zone = _, %d, want _, %d", offset, 11*60*60)
+
+	// A zero offset means that ParseInLocation did not recognize the
+	// 'AST' abbreviation as matching the current location (Baghdad,
+	// where we'd expect a +03 hrs offset); likely because we're using
+	// a recent tzdata release (2017a or newer).
+	// If it happens, skip the Baghdad test.
+	if offset != 0 {
+		t2 = Date(2013, February, 1, 00, 00, 00, 0, baghdad)
+		if t1 != t2 {
+			t.Fatalf("ParseInLocation(Feb 01 2013 AST, Baghdad) = %v, want %v", t1, t2)
+		}
+		if offset != 3*60*60 {
+			t.Fatalf("ParseInLocation(Feb 01 2013 AST, Baghdad).Zone = _, %d, want _, %d", offset, 3*60*60)
+		}
 	}
 
-	t1, err = ParseInLocation("Jan 02 2006 MST", "Aug 01 2013 EST", loc)
+	blancSablon, err := LoadLocation("America/Blanc-Sablon")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t2 = Date(2013, August, 1, 00, 00, 00, 0, loc)
+
+	// In this case 'AST' means 'Atlantic Standard Time', and we
+	// expect the abbreviation to correctly match the american
+	// location.
+	t1, err = ParseInLocation("Jan 02 2006 MST", "Feb 01 2013 AST", blancSablon)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t2 = Date(2013, February, 1, 00, 00, 00, 0, blancSablon)
 	if t1 != t2 {
-		t.Fatalf("ParseInLocation(Aug 01 2013 EST, Sydney) = %v, want %v", t1, t2)
+		t.Fatalf("ParseInLocation(Feb 01 2013 AST, Blanc-Sablon) = %v, want %v", t1, t2)
 	}
 	_, offset = t1.Zone()
-	if offset != 10*60*60 {
-		t.Fatalf("ParseInLocation(Aug 01 2013 EST, Sydney).Zone = _, %d, want _, %d", offset, 10*60*60)
+	if offset != -4*60*60 {
+		t.Fatalf("ParseInLocation(Feb 01 2013 AST, Blanc-Sablon).Zone = _, %d, want _, %d", offset, -4*60*60)
 	}
 }
 
@@ -291,8 +380,8 @@ func checkTime(time Time, test *ParseTest, t *testing.T) {
 func TestFormatAndParse(t *testing.T) {
 	const fmt = "Mon MST " + RFC3339 // all fields
 	f := func(sec int64) bool {
-		t1 := Unix(sec, 0)
-		if t1.Year() < 1000 || t1.Year() > 9999 {
+		t1 := Unix(sec/2, 0)
+		if t1.Year() < 1000 || t1.Year() > 9999 || t1.Unix() != sec {
 			// not required to work
 			return true
 		}
@@ -329,7 +418,11 @@ var parseTimeZoneTests = []ParseTimeZoneTest{
 	{"gmt hi there", 0, false},
 	{"GMT hi there", 3, true},
 	{"GMT+12 hi there", 6, true},
-	{"GMT+00 hi there", 3, true}, // 0 or 00 is not a legal offset.
+	{"GMT+00 hi there", 6, true},
+	{"GMT+", 3, true},
+	{"GMT+3", 5, true},
+	{"GMT+a", 3, true},
+	{"GMT+3a", 5, true},
 	{"GMT-5 hi there", 5, true},
 	{"GMT-51 hi there", 3, true},
 	{"ChST hi there", 4, true},
@@ -339,6 +432,20 @@ var parseTimeZoneTests = []ParseTimeZoneTest{
 	{"ESAST hi", 5, true},
 	{"ESASTT hi", 0, false}, // run of upper-case letters too long.
 	{"ESATY hi", 0, false},  // five letters must end in T.
+	{"WITA hi", 4, true},    // Issue #18251
+	// Issue #24071
+	{"+03 hi", 3, true},
+	{"-04 hi", 3, true},
+	// Issue #26032
+	{"+00", 3, true},
+	{"-11", 3, true},
+	{"-12", 3, true},
+	{"-23", 3, true},
+	{"-24", 0, false},
+	{"+13", 3, true},
+	{"+14", 3, true},
+	{"+23", 3, true},
+	{"+24", 0, false},
 }
 
 func TestParseTimeZone(t *testing.T) {
@@ -375,6 +482,11 @@ var parseErrorTests = []ParseErrorTest{
 	{RFC3339, "2006-01-02T15:04_abc", `parsing time "2006-01-02T15:04_abc" as "2006-01-02T15:04:05Z07:00": cannot parse "_abc" as ":"`},
 	{RFC3339, "2006-01-02T15:04:05_abc", `parsing time "2006-01-02T15:04:05_abc" as "2006-01-02T15:04:05Z07:00": cannot parse "_abc" as "Z07:00"`},
 	{RFC3339, "2006-01-02T15:04:05Z_abc", `parsing time "2006-01-02T15:04:05Z_abc": extra text: _abc`},
+	// invalid second followed by optional fractional seconds
+	{RFC3339, "2010-02-04T21:00:67.012345678-08:00", "second out of range"},
+	// issue 21113
+	{"_2 Jan 06 15:04 MST", "4 --- 00 00:00 GMT", "cannot parse"},
+	{"_2 January 06 15:04 MST", "4 --- 00 00:00 GMT", "cannot parse"},
 }
 
 func TestParseErrors(t *testing.T) {
@@ -382,7 +494,7 @@ func TestParseErrors(t *testing.T) {
 		_, err := Parse(test.format, test.value)
 		if err == nil {
 			t.Errorf("expected error for %q %q", test.format, test.value)
-		} else if strings.Index(err.Error(), test.expect) < 0 {
+		} else if !strings.Contains(err.Error(), test.expect) {
 			t.Errorf("expected error with %q for %q %q; got %s", test.expect, test.format, test.value, err)
 		}
 	}
@@ -487,6 +599,9 @@ var secondsTimeZoneOffsetTests = []SecondsTimeZoneOffsetTest{
 	{"2006-01-02T15:04:05-07:00:00", "1871-01-01T05:33:02+00:34:08", 34*60 + 8},
 	{"2006-01-02T15:04:05Z070000", "1871-01-01T05:33:02-003408", -(34*60 + 8)},
 	{"2006-01-02T15:04:05Z07:00:00", "1871-01-01T05:33:02+00:34:08", 34*60 + 8},
+	{"2006-01-02T15:04:05-07", "1871-01-01T05:33:02+01", 1 * 60 * 60},
+	{"2006-01-02T15:04:05-07", "1871-01-01T05:33:02-02", -2 * 60 * 60},
+	{"2006-01-02T15:04:05Z07", "1871-01-01T05:33:02-02", -2 * 60 * 60},
 }
 
 func TestParseSecondsInTimeZone(t *testing.T) {
@@ -504,10 +619,30 @@ func TestParseSecondsInTimeZone(t *testing.T) {
 }
 
 func TestFormatSecondsInTimeZone(t *testing.T) {
-	d := Date(1871, 9, 17, 20, 4, 26, 0, FixedZone("LMT", -(34*60+8)))
-	timestr := d.Format("2006-01-02T15:04:05Z070000")
-	expected := "1871-09-17T20:04:26-003408"
-	if timestr != expected {
-		t.Errorf("Got %s, want %s", timestr, expected)
+	for _, test := range secondsTimeZoneOffsetTests {
+		d := Date(1871, 1, 1, 5, 33, 2, 0, FixedZone("LMT", test.expectedoffset))
+		timestr := d.Format(test.format)
+		if timestr != test.value {
+			t.Errorf("Format = %s, want %s", timestr, test.value)
+		}
+	}
+}
+
+// Issue 11334.
+func TestUnderscoreTwoThousand(t *testing.T) {
+	format := "15:04_20060102"
+	input := "14:38_20150618"
+	time, err := Parse(format, input)
+	if err != nil {
+		t.Error(err)
+	}
+	if y, m, d := time.Date(); y != 2015 || m != 6 || d != 18 {
+		t.Errorf("Incorrect y/m/d, got %d/%d/%d", y, m, d)
+	}
+	if h := time.Hour(); h != 14 {
+		t.Errorf("Incorrect hour, got %d", h)
+	}
+	if m := time.Minute(); m != 38 {
+		t.Errorf("Incorrect minute, got %d", m)
 	}
 }

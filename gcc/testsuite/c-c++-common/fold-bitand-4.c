@@ -1,4 +1,4 @@
-/* { dg-do compile } */
+/* { dg-do compile { target { c } } } */
 /* { dg-options "-fdump-tree-original" } */
 /* { dg-additional-options "-fno-common" { target hppa*-*-hpux* } } */
 
@@ -42,4 +42,3 @@ int f5 (int i)
 /* { dg-final { scan-tree-dump-times "\& 15" 1 "original" } } */
 /* { dg-final { scan-tree-dump-times "return \[^\n0-9\]*0;" 2 "original" } } */
 /* { dg-final { scan-tree-dump-times "\& 7" 1 "original" } } */
-/* { dg-final { cleanup-tree-dump "original" } } */

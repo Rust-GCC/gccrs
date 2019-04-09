@@ -8,8 +8,11 @@ import (
 	"bytes"
 	. "flag"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -251,6 +254,16 @@ func TestUserDefined(t *testing.T) {
 	}
 }
 
+func TestUserDefinedForCommandLine(t *testing.T) {
+	const help = "HELP"
+	var result string
+	ResetForTesting(func() { result = help })
+	Usage()
+	if result != help {
+		t.Fatalf("got %q; expected %q", result, help)
+	}
+}
+
 // Declare a user-defined boolean flag type.
 type boolFlagVar struct {
 	count int
@@ -365,5 +378,169 @@ func TestHelp(t *testing.T) {
 	}
 	if helpCalled {
 		t.Fatal("help was called; should not have been for defined help flag")
+	}
+}
+
+const defaultOutput = `  -A	for bootstrapping, allow 'any' type
+  -Alongflagname
+    	disable bounds checking
+  -C	a boolean defaulting to true (default true)
+  -D path
+    	set relative path for local imports
+  -E string
+    	issue 23543 (default "0")
+  -F number
+    	a non-zero number (default 2.7)
+  -G float
+    	a float that defaults to zero
+  -M string
+    	a multiline
+    	help
+    	string
+  -N int
+    	a non-zero int (default 27)
+  -O	a flag
+    	multiline help string (default true)
+  -Z int
+    	an int that defaults to zero
+  -maxT timeout
+    	set timeout for dial
+`
+
+func TestPrintDefaults(t *testing.T) {
+	fs := NewFlagSet("print defaults test", ContinueOnError)
+	var buf bytes.Buffer
+	fs.SetOutput(&buf)
+	fs.Bool("A", false, "for bootstrapping, allow 'any' type")
+	fs.Bool("Alongflagname", false, "disable bounds checking")
+	fs.Bool("C", true, "a boolean defaulting to true")
+	fs.String("D", "", "set relative `path` for local imports")
+	fs.String("E", "0", "issue 23543")
+	fs.Float64("F", 2.7, "a non-zero `number`")
+	fs.Float64("G", 0, "a float that defaults to zero")
+	fs.String("M", "", "a multiline\nhelp\nstring")
+	fs.Int("N", 27, "a non-zero int")
+	fs.Bool("O", true, "a flag\nmultiline help string")
+	fs.Int("Z", 0, "an int that defaults to zero")
+	fs.Duration("maxT", 0, "set `timeout` for dial")
+	fs.PrintDefaults()
+	got := buf.String()
+	if got != defaultOutput {
+		t.Errorf("got %q want %q\n", got, defaultOutput)
+	}
+}
+
+// Issue 19230: validate range of Int and Uint flag values.
+func TestIntFlagOverflow(t *testing.T) {
+	if strconv.IntSize != 32 {
+		return
+	}
+	ResetForTesting(nil)
+	Int("i", 0, "")
+	Uint("u", 0, "")
+	if err := Set("i", "2147483648"); err == nil {
+		t.Error("unexpected success setting Int")
+	}
+	if err := Set("u", "4294967296"); err == nil {
+		t.Error("unexpected success setting Uint")
+	}
+}
+
+// Issue 20998: Usage should respect CommandLine.output.
+func TestUsageOutput(t *testing.T) {
+	ResetForTesting(DefaultUsage)
+	var buf bytes.Buffer
+	CommandLine.SetOutput(&buf)
+	defer func(old []string) { os.Args = old }(os.Args)
+	os.Args = []string{"app", "-i=1", "-unknown"}
+	Parse()
+	const want = "flag provided but not defined: -i\nUsage of app:\n"
+	if got := buf.String(); got != want {
+		t.Errorf("output = %q; want %q", got, want)
+	}
+}
+
+func TestGetters(t *testing.T) {
+	expectedName := "flag set"
+	expectedErrorHandling := ContinueOnError
+	expectedOutput := io.Writer(os.Stderr)
+	fs := NewFlagSet(expectedName, expectedErrorHandling)
+
+	if fs.Name() != expectedName {
+		t.Errorf("unexpected name: got %s, expected %s", fs.Name(), expectedName)
+	}
+	if fs.ErrorHandling() != expectedErrorHandling {
+		t.Errorf("unexpected ErrorHandling: got %d, expected %d", fs.ErrorHandling(), expectedErrorHandling)
+	}
+	if fs.Output() != expectedOutput {
+		t.Errorf("unexpected output: got %#v, expected %#v", fs.Output(), expectedOutput)
+	}
+
+	expectedName = "gopher"
+	expectedErrorHandling = ExitOnError
+	expectedOutput = os.Stdout
+	fs.Init(expectedName, expectedErrorHandling)
+	fs.SetOutput(expectedOutput)
+
+	if fs.Name() != expectedName {
+		t.Errorf("unexpected name: got %s, expected %s", fs.Name(), expectedName)
+	}
+	if fs.ErrorHandling() != expectedErrorHandling {
+		t.Errorf("unexpected ErrorHandling: got %d, expected %d", fs.ErrorHandling(), expectedErrorHandling)
+	}
+	if fs.Output() != expectedOutput {
+		t.Errorf("unexpected output: got %v, expected %v", fs.Output(), expectedOutput)
+	}
+}
+
+func TestParseError(t *testing.T) {
+	for _, typ := range []string{"bool", "int", "int64", "uint", "uint64", "float64", "duration"} {
+		fs := NewFlagSet("parse error test", ContinueOnError)
+		fs.SetOutput(ioutil.Discard)
+		_ = fs.Bool("bool", false, "")
+		_ = fs.Int("int", 0, "")
+		_ = fs.Int64("int64", 0, "")
+		_ = fs.Uint("uint", 0, "")
+		_ = fs.Uint64("uint64", 0, "")
+		_ = fs.Float64("float64", 0, "")
+		_ = fs.Duration("duration", 0, "")
+		// Strings cannot give errors.
+		args := []string{"-" + typ + "=x"}
+		err := fs.Parse(args) // x is not a valid setting for any flag.
+		if err == nil {
+			t.Errorf("Parse(%q)=%v; expected parse error", args, err)
+			continue
+		}
+		if !strings.Contains(err.Error(), "invalid") || !strings.Contains(err.Error(), "parse error") {
+			t.Errorf("Parse(%q)=%v; expected parse error", args, err)
+		}
+	}
+}
+
+func TestRangeError(t *testing.T) {
+	bad := []string{
+		"-int=123456789012345678901",
+		"-int64=123456789012345678901",
+		"-uint=123456789012345678901",
+		"-uint64=123456789012345678901",
+		"-float64=1e1000",
+	}
+	for _, arg := range bad {
+		fs := NewFlagSet("parse error test", ContinueOnError)
+		fs.SetOutput(ioutil.Discard)
+		_ = fs.Int("int", 0, "")
+		_ = fs.Int64("int64", 0, "")
+		_ = fs.Uint("uint", 0, "")
+		_ = fs.Uint64("uint64", 0, "")
+		_ = fs.Float64("float64", 0, "")
+		// Strings cannot give errors, and bools and durations do not return strconv.NumError.
+		err := fs.Parse([]string{arg})
+		if err == nil {
+			t.Errorf("Parse(%q)=%v; expected range error", arg, err)
+			continue
+		}
+		if !strings.Contains(err.Error(), "invalid") || !strings.Contains(err.Error(), "value out of range") {
+			t.Errorf("Parse(%q)=%v; expected range error", arg, err)
+		}
 	}
 }

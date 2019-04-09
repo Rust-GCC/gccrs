@@ -1,5 +1,5 @@
 ;;  Machine Description for TI MSP43* processors
-;;  Copyright (C) 2013-2014 Free Software Foundation, Inc.
+;;  Copyright (C) 2013-2019 Free Software Foundation, Inc.
 ;;  Contributed by Red Hat.
 
 ;; This file is part of GCC.
@@ -82,3 +82,7 @@
   (and (match_code "const_int")
        (match_test ("   INTVAL (op) >= 0
 		     && INTVAL (op) <= 15 "))))
+
+(define_predicate "msp430_symbol_operand"
+  (match_code "symbol_ref")
+)

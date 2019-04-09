@@ -1,6 +1,6 @@
 /* { dg-do run { target powerpc*-*-* } } */
 /* { dg-require-effective-target powerpc64 } */
-/* { dg-options "-mcpu=G5" } */
+/* { dg-options "-mdejagnu-cpu=G5" } */
 
 #include <stdlib.h>
 

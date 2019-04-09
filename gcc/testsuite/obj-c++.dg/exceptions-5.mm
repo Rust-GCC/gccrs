@@ -10,7 +10,7 @@
 @interface MyObject
 {
   Class isa;
-}
+} /* { dg-line interface_MyObject } */
 @end
 
 @implementation MyObject
@@ -51,7 +51,7 @@ int test (id object)
     }
 
   @try { @throw object; }
-  @catch (id <MyProtocol>) /* { dg-error "@catch parameter can not be protocol-qualified" } */
+  @catch (id <MyProtocol>) /* { dg-error "@catch parameter cannot be protocol-qualified" } */
     {
       dummy++;
     }
@@ -63,16 +63,16 @@ int test (id object)
     }
 
   @try { @throw object; }
-  @catch (MyObject <MyProtocol> *)  /* { dg-error "@catch parameter can not be protocol-qualified" } */
+  @catch (MyObject <MyProtocol> *)  /* { dg-error "@catch parameter cannot be protocol-qualified" } */
     {
       dummy++;
     }
 
   @try { @throw object; }
   @catch (MyObject)     /* { dg-error "@catch parameter is not a known Objective-C class type" } */
-    {                     /* { dg-error "no matching function" "" { target *-*-* } 72 } */
-      dummy++;            /* { dg-message "MyObject" "" { target *-*-* } 13 } */
-    }                     /* { dg-message "candidate" "" { target *-*-* } 13 } */
+    {                     /* { dg-error "no matching function" "" { target *-*-* } .-1 } */
+      dummy++;            /* { dg-message "MyObject" "" { target *-*-* } interface_MyObject } */
+    }                     /* { dg-message "candidate" "" { target *-*-* } interface_MyObject } */
 
   @try { @throw object; }
   @catch (static MyObject *) /* { dg-error "storage class" } */
@@ -87,7 +87,7 @@ int test (id object)
     }
 
   @try { @throw object; }
-  @catch (MyObjectTypedef <MyProtocol> *) /* { dg-error "@catch parameter can not be protocol-qualified" } */
+  @catch (MyObjectTypedef <MyProtocol> *) /* { dg-error "@catch parameter cannot be protocol-qualified" } */
     {
       dummy++;
     }

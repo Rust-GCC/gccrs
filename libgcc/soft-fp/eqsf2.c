@@ -1,6 +1,6 @@
 /* Software floating-point emulation.
    Return 0 iff a == b, 1 otherwise
-   Copyright (C) 1997-2014 Free Software Foundation, Inc.
+   Copyright (C) 1997-2018 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
    Contributed by Richard Henderson (rth@cygnus.com) and
 		  Jakub Jelinek (jj@ultra.linux.cz).
@@ -42,9 +42,7 @@ __eqsf2 (SFtype a, SFtype b)
   FP_INIT_EXCEPTIONS;
   FP_UNPACK_RAW_S (A, a);
   FP_UNPACK_RAW_S (B, b);
-  FP_CMP_EQ_S (r, A, B);
-  if (r && (FP_ISSIGNAN_S (A) || FP_ISSIGNAN_S (B)))
-    FP_SET_EXCEPTION (FP_EX_INVALID);
+  FP_CMP_EQ_S (r, A, B, 1);
   FP_HANDLE_EXCEPTIONS;
 
   return r;

@@ -3,6 +3,9 @@
 /* Define if building universal (internal helper macro) */
 #undef AC_APPLE_UNIVERSAL_BUILD
 
+/* Define to 1 if you want more run-time sanity checks. */
+#undef CHECKING_P
+
 /* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
    systems. This function is required for `alloca.c' support on those systems.
    */
@@ -11,15 +14,18 @@
 /* Define to 1 if using `alloca.c'. */
 #undef C_ALLOCA
 
+/* Define if you want assertions enabled. This is a cheap check. */
+#undef ENABLE_ASSERT_CHECKING
+
 /* Define to enable system headers canonicalization. */
 #undef ENABLE_CANONICAL_SYSTEM_HEADERS
-
-/* Define if you want more run-time sanity checks. */
-#undef ENABLE_CHECKING
 
 /* Define to 1 if translation of program messages to the user's native
    language is requested. */
 #undef ENABLE_NLS
+
+/* Define to get calls to the valgrind runtime enabled. */
+#undef ENABLE_VALGRIND_ANNOTATIONS
 
 /* Define if you want to workaround valgrind (a memory checker) warnings about
    possible memory leaks because of libcpp use of interior pointers. */
@@ -310,6 +316,11 @@
 # ifndef WORDS_BIGENDIAN
 #  undef WORDS_BIGENDIAN
 # endif
+#endif
+
+/* Enable large inode numbers on Mac OS X 10.5.  */
+#ifndef _DARWIN_USE_64_BIT_INODE
+# define _DARWIN_USE_64_BIT_INODE 1
 #endif
 
 /* Number of bits in a file offset, on hosts where this is settable. */

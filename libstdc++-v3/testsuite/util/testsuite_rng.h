@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -48,7 +48,7 @@ namespace __gnu_pbds
     class twister_rand_gen
     {
     public:
-      twister_rand_gen(unsigned int seed = 
+      twister_rand_gen(unsigned int seed =
 		       static_cast<unsigned int>(std::time(0)))
       : m_base_generator(seed)
       {
@@ -64,7 +64,7 @@ namespace __gnu_pbds
       { return(static_cast<unsigned int>(std::time(0))); }
 
       unsigned long
-      get_unsigned_long(unsigned long min = 0, 
+      get_unsigned_long(unsigned long min = 0,
 			unsigned long max = UINT_MAX - 1)
       {
 	_GLIBCXX_DEBUG_ASSERT(max >= min);
@@ -79,8 +79,8 @@ namespace __gnu_pbds
       {
 	const double min = m_base_generator.min();
 	const double max = m_base_generator.max();
-	const double range = static_cast<const double>(max - min);
-	const double res = static_cast<const double>(m_base_generator() - min);
+	const double range = static_cast<double>(max - min);
+	const double res = static_cast<double>(m_base_generator() - min);
 	const double ret = res / range;
 	_GLIBCXX_DEBUG_ASSERT(ret >= 0 && ret <= 1);
 	return ret;

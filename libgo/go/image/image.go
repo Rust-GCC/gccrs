@@ -18,7 +18,7 @@
 // initialization side effects.
 //
 // See "The Go image package" for more details:
-// http://golang.org/doc/articles/image_package.html
+// https://golang.org/doc/articles/image_package.html
 package image
 
 import (
@@ -46,9 +46,9 @@ type Image interface {
 }
 
 // PalettedImage is an image whose colors may come from a limited palette.
-// If m is a PalettedImage and m.ColorModel() returns a PalettedColorModel p,
+// If m is a PalettedImage and m.ColorModel() returns a color.Palette p,
 // then m.At(x, y) should be equivalent to p[m.ColorIndexAt(x, y)]. If m's
-// color model is not a PalettedColorModel, then ColorIndexAt's behavior is
+// color model is not a color.Palette, then ColorIndexAt's behavior is
 // undefined.
 type PalettedImage interface {
 	// ColorIndexAt returns the palette index of the pixel at (x, y).
@@ -72,11 +72,16 @@ func (p *RGBA) ColorModel() color.Model { return color.RGBAModel }
 func (p *RGBA) Bounds() Rectangle { return p.Rect }
 
 func (p *RGBA) At(x, y int) color.Color {
+	return p.RGBAAt(x, y)
+}
+
+func (p *RGBA) RGBAAt(x, y int) color.RGBA {
 	if !(Point{x, y}.In(p.Rect)) {
 		return color.RGBA{}
 	}
 	i := p.PixOffset(x, y)
-	return color.RGBA{p.Pix[i+0], p.Pix[i+1], p.Pix[i+2], p.Pix[i+3]}
+	s := p.Pix[i : i+4 : i+4] // Small cap improves performance, see https://golang.org/issue/27857
+	return color.RGBA{s[0], s[1], s[2], s[3]}
 }
 
 // PixOffset returns the index of the first element of Pix that corresponds to
@@ -91,10 +96,11 @@ func (p *RGBA) Set(x, y int, c color.Color) {
 	}
 	i := p.PixOffset(x, y)
 	c1 := color.RGBAModel.Convert(c).(color.RGBA)
-	p.Pix[i+0] = c1.R
-	p.Pix[i+1] = c1.G
-	p.Pix[i+2] = c1.B
-	p.Pix[i+3] = c1.A
+	s := p.Pix[i : i+4 : i+4] // Small cap improves performance, see https://golang.org/issue/27857
+	s[0] = c1.R
+	s[1] = c1.G
+	s[2] = c1.B
+	s[3] = c1.A
 }
 
 func (p *RGBA) SetRGBA(x, y int, c color.RGBA) {
@@ -102,10 +108,11 @@ func (p *RGBA) SetRGBA(x, y int, c color.RGBA) {
 		return
 	}
 	i := p.PixOffset(x, y)
-	p.Pix[i+0] = c.R
-	p.Pix[i+1] = c.G
-	p.Pix[i+2] = c.B
-	p.Pix[i+3] = c.A
+	s := p.Pix[i : i+4 : i+4] // Small cap improves performance, see https://golang.org/issue/27857
+	s[0] = c.R
+	s[1] = c.G
+	s[2] = c.B
+	s[3] = c.A
 }
 
 // SubImage returns an image representing the portion of the image p visible
@@ -144,7 +151,7 @@ func (p *RGBA) Opaque() bool {
 	return true
 }
 
-// NewRGBA returns a new RGBA with the given bounds.
+// NewRGBA returns a new RGBA image with the given bounds.
 func NewRGBA(r Rectangle) *RGBA {
 	w, h := r.Dx(), r.Dy()
 	buf := make([]uint8, 4*w*h)
@@ -167,15 +174,20 @@ func (p *RGBA64) ColorModel() color.Model { return color.RGBA64Model }
 func (p *RGBA64) Bounds() Rectangle { return p.Rect }
 
 func (p *RGBA64) At(x, y int) color.Color {
+	return p.RGBA64At(x, y)
+}
+
+func (p *RGBA64) RGBA64At(x, y int) color.RGBA64 {
 	if !(Point{x, y}.In(p.Rect)) {
 		return color.RGBA64{}
 	}
 	i := p.PixOffset(x, y)
+	s := p.Pix[i : i+8 : i+8] // Small cap improves performance, see https://golang.org/issue/27857
 	return color.RGBA64{
-		uint16(p.Pix[i+0])<<8 | uint16(p.Pix[i+1]),
-		uint16(p.Pix[i+2])<<8 | uint16(p.Pix[i+3]),
-		uint16(p.Pix[i+4])<<8 | uint16(p.Pix[i+5]),
-		uint16(p.Pix[i+6])<<8 | uint16(p.Pix[i+7]),
+		uint16(s[0])<<8 | uint16(s[1]),
+		uint16(s[2])<<8 | uint16(s[3]),
+		uint16(s[4])<<8 | uint16(s[5]),
+		uint16(s[6])<<8 | uint16(s[7]),
 	}
 }
 
@@ -191,14 +203,15 @@ func (p *RGBA64) Set(x, y int, c color.Color) {
 	}
 	i := p.PixOffset(x, y)
 	c1 := color.RGBA64Model.Convert(c).(color.RGBA64)
-	p.Pix[i+0] = uint8(c1.R >> 8)
-	p.Pix[i+1] = uint8(c1.R)
-	p.Pix[i+2] = uint8(c1.G >> 8)
-	p.Pix[i+3] = uint8(c1.G)
-	p.Pix[i+4] = uint8(c1.B >> 8)
-	p.Pix[i+5] = uint8(c1.B)
-	p.Pix[i+6] = uint8(c1.A >> 8)
-	p.Pix[i+7] = uint8(c1.A)
+	s := p.Pix[i : i+8 : i+8] // Small cap improves performance, see https://golang.org/issue/27857
+	s[0] = uint8(c1.R >> 8)
+	s[1] = uint8(c1.R)
+	s[2] = uint8(c1.G >> 8)
+	s[3] = uint8(c1.G)
+	s[4] = uint8(c1.B >> 8)
+	s[5] = uint8(c1.B)
+	s[6] = uint8(c1.A >> 8)
+	s[7] = uint8(c1.A)
 }
 
 func (p *RGBA64) SetRGBA64(x, y int, c color.RGBA64) {
@@ -206,14 +219,15 @@ func (p *RGBA64) SetRGBA64(x, y int, c color.RGBA64) {
 		return
 	}
 	i := p.PixOffset(x, y)
-	p.Pix[i+0] = uint8(c.R >> 8)
-	p.Pix[i+1] = uint8(c.R)
-	p.Pix[i+2] = uint8(c.G >> 8)
-	p.Pix[i+3] = uint8(c.G)
-	p.Pix[i+4] = uint8(c.B >> 8)
-	p.Pix[i+5] = uint8(c.B)
-	p.Pix[i+6] = uint8(c.A >> 8)
-	p.Pix[i+7] = uint8(c.A)
+	s := p.Pix[i : i+8 : i+8] // Small cap improves performance, see https://golang.org/issue/27857
+	s[0] = uint8(c.R >> 8)
+	s[1] = uint8(c.R)
+	s[2] = uint8(c.G >> 8)
+	s[3] = uint8(c.G)
+	s[4] = uint8(c.B >> 8)
+	s[5] = uint8(c.B)
+	s[6] = uint8(c.A >> 8)
+	s[7] = uint8(c.A)
 }
 
 // SubImage returns an image representing the portion of the image p visible
@@ -252,7 +266,7 @@ func (p *RGBA64) Opaque() bool {
 	return true
 }
 
-// NewRGBA64 returns a new RGBA64 with the given bounds.
+// NewRGBA64 returns a new RGBA64 image with the given bounds.
 func NewRGBA64(r Rectangle) *RGBA64 {
 	w, h := r.Dx(), r.Dy()
 	pix := make([]uint8, 8*w*h)
@@ -275,11 +289,16 @@ func (p *NRGBA) ColorModel() color.Model { return color.NRGBAModel }
 func (p *NRGBA) Bounds() Rectangle { return p.Rect }
 
 func (p *NRGBA) At(x, y int) color.Color {
+	return p.NRGBAAt(x, y)
+}
+
+func (p *NRGBA) NRGBAAt(x, y int) color.NRGBA {
 	if !(Point{x, y}.In(p.Rect)) {
 		return color.NRGBA{}
 	}
 	i := p.PixOffset(x, y)
-	return color.NRGBA{p.Pix[i+0], p.Pix[i+1], p.Pix[i+2], p.Pix[i+3]}
+	s := p.Pix[i : i+4 : i+4] // Small cap improves performance, see https://golang.org/issue/27857
+	return color.NRGBA{s[0], s[1], s[2], s[3]}
 }
 
 // PixOffset returns the index of the first element of Pix that corresponds to
@@ -294,10 +313,11 @@ func (p *NRGBA) Set(x, y int, c color.Color) {
 	}
 	i := p.PixOffset(x, y)
 	c1 := color.NRGBAModel.Convert(c).(color.NRGBA)
-	p.Pix[i+0] = c1.R
-	p.Pix[i+1] = c1.G
-	p.Pix[i+2] = c1.B
-	p.Pix[i+3] = c1.A
+	s := p.Pix[i : i+4 : i+4] // Small cap improves performance, see https://golang.org/issue/27857
+	s[0] = c1.R
+	s[1] = c1.G
+	s[2] = c1.B
+	s[3] = c1.A
 }
 
 func (p *NRGBA) SetNRGBA(x, y int, c color.NRGBA) {
@@ -305,10 +325,11 @@ func (p *NRGBA) SetNRGBA(x, y int, c color.NRGBA) {
 		return
 	}
 	i := p.PixOffset(x, y)
-	p.Pix[i+0] = c.R
-	p.Pix[i+1] = c.G
-	p.Pix[i+2] = c.B
-	p.Pix[i+3] = c.A
+	s := p.Pix[i : i+4 : i+4] // Small cap improves performance, see https://golang.org/issue/27857
+	s[0] = c.R
+	s[1] = c.G
+	s[2] = c.B
+	s[3] = c.A
 }
 
 // SubImage returns an image representing the portion of the image p visible
@@ -347,7 +368,7 @@ func (p *NRGBA) Opaque() bool {
 	return true
 }
 
-// NewNRGBA returns a new NRGBA with the given bounds.
+// NewNRGBA returns a new NRGBA image with the given bounds.
 func NewNRGBA(r Rectangle) *NRGBA {
 	w, h := r.Dx(), r.Dy()
 	pix := make([]uint8, 4*w*h)
@@ -370,15 +391,20 @@ func (p *NRGBA64) ColorModel() color.Model { return color.NRGBA64Model }
 func (p *NRGBA64) Bounds() Rectangle { return p.Rect }
 
 func (p *NRGBA64) At(x, y int) color.Color {
+	return p.NRGBA64At(x, y)
+}
+
+func (p *NRGBA64) NRGBA64At(x, y int) color.NRGBA64 {
 	if !(Point{x, y}.In(p.Rect)) {
 		return color.NRGBA64{}
 	}
 	i := p.PixOffset(x, y)
+	s := p.Pix[i : i+8 : i+8] // Small cap improves performance, see https://golang.org/issue/27857
 	return color.NRGBA64{
-		uint16(p.Pix[i+0])<<8 | uint16(p.Pix[i+1]),
-		uint16(p.Pix[i+2])<<8 | uint16(p.Pix[i+3]),
-		uint16(p.Pix[i+4])<<8 | uint16(p.Pix[i+5]),
-		uint16(p.Pix[i+6])<<8 | uint16(p.Pix[i+7]),
+		uint16(s[0])<<8 | uint16(s[1]),
+		uint16(s[2])<<8 | uint16(s[3]),
+		uint16(s[4])<<8 | uint16(s[5]),
+		uint16(s[6])<<8 | uint16(s[7]),
 	}
 }
 
@@ -394,14 +420,15 @@ func (p *NRGBA64) Set(x, y int, c color.Color) {
 	}
 	i := p.PixOffset(x, y)
 	c1 := color.NRGBA64Model.Convert(c).(color.NRGBA64)
-	p.Pix[i+0] = uint8(c1.R >> 8)
-	p.Pix[i+1] = uint8(c1.R)
-	p.Pix[i+2] = uint8(c1.G >> 8)
-	p.Pix[i+3] = uint8(c1.G)
-	p.Pix[i+4] = uint8(c1.B >> 8)
-	p.Pix[i+5] = uint8(c1.B)
-	p.Pix[i+6] = uint8(c1.A >> 8)
-	p.Pix[i+7] = uint8(c1.A)
+	s := p.Pix[i : i+8 : i+8] // Small cap improves performance, see https://golang.org/issue/27857
+	s[0] = uint8(c1.R >> 8)
+	s[1] = uint8(c1.R)
+	s[2] = uint8(c1.G >> 8)
+	s[3] = uint8(c1.G)
+	s[4] = uint8(c1.B >> 8)
+	s[5] = uint8(c1.B)
+	s[6] = uint8(c1.A >> 8)
+	s[7] = uint8(c1.A)
 }
 
 func (p *NRGBA64) SetNRGBA64(x, y int, c color.NRGBA64) {
@@ -409,14 +436,15 @@ func (p *NRGBA64) SetNRGBA64(x, y int, c color.NRGBA64) {
 		return
 	}
 	i := p.PixOffset(x, y)
-	p.Pix[i+0] = uint8(c.R >> 8)
-	p.Pix[i+1] = uint8(c.R)
-	p.Pix[i+2] = uint8(c.G >> 8)
-	p.Pix[i+3] = uint8(c.G)
-	p.Pix[i+4] = uint8(c.B >> 8)
-	p.Pix[i+5] = uint8(c.B)
-	p.Pix[i+6] = uint8(c.A >> 8)
-	p.Pix[i+7] = uint8(c.A)
+	s := p.Pix[i : i+8 : i+8] // Small cap improves performance, see https://golang.org/issue/27857
+	s[0] = uint8(c.R >> 8)
+	s[1] = uint8(c.R)
+	s[2] = uint8(c.G >> 8)
+	s[3] = uint8(c.G)
+	s[4] = uint8(c.B >> 8)
+	s[5] = uint8(c.B)
+	s[6] = uint8(c.A >> 8)
+	s[7] = uint8(c.A)
 }
 
 // SubImage returns an image representing the portion of the image p visible
@@ -455,7 +483,7 @@ func (p *NRGBA64) Opaque() bool {
 	return true
 }
 
-// NewNRGBA64 returns a new NRGBA64 with the given bounds.
+// NewNRGBA64 returns a new NRGBA64 image with the given bounds.
 func NewNRGBA64(r Rectangle) *NRGBA64 {
 	w, h := r.Dx(), r.Dy()
 	pix := make([]uint8, 8*w*h)
@@ -478,6 +506,10 @@ func (p *Alpha) ColorModel() color.Model { return color.AlphaModel }
 func (p *Alpha) Bounds() Rectangle { return p.Rect }
 
 func (p *Alpha) At(x, y int) color.Color {
+	return p.AlphaAt(x, y)
+}
+
+func (p *Alpha) AlphaAt(x, y int) color.Alpha {
 	if !(Point{x, y}.In(p.Rect)) {
 		return color.Alpha{}
 	}
@@ -543,14 +575,14 @@ func (p *Alpha) Opaque() bool {
 	return true
 }
 
-// NewAlpha returns a new Alpha with the given bounds.
+// NewAlpha returns a new Alpha image with the given bounds.
 func NewAlpha(r Rectangle) *Alpha {
 	w, h := r.Dx(), r.Dy()
 	pix := make([]uint8, 1*w*h)
 	return &Alpha{pix, 1 * w, r}
 }
 
-// Alpha16 is an in-memory image whose At method returns color.Alpha64 values.
+// Alpha16 is an in-memory image whose At method returns color.Alpha16 values.
 type Alpha16 struct {
 	// Pix holds the image's pixels, as alpha values in big-endian format. The pixel at
 	// (x, y) starts at Pix[(y-Rect.Min.Y)*Stride + (x-Rect.Min.X)*2].
@@ -566,6 +598,10 @@ func (p *Alpha16) ColorModel() color.Model { return color.Alpha16Model }
 func (p *Alpha16) Bounds() Rectangle { return p.Rect }
 
 func (p *Alpha16) At(x, y int) color.Color {
+	return p.Alpha16At(x, y)
+}
+
+func (p *Alpha16) Alpha16At(x, y int) color.Alpha16 {
 	if !(Point{x, y}.In(p.Rect)) {
 		return color.Alpha16{}
 	}
@@ -634,7 +670,7 @@ func (p *Alpha16) Opaque() bool {
 	return true
 }
 
-// NewAlpha16 returns a new Alpha16 with the given bounds.
+// NewAlpha16 returns a new Alpha16 image with the given bounds.
 func NewAlpha16(r Rectangle) *Alpha16 {
 	w, h := r.Dx(), r.Dy()
 	pix := make([]uint8, 2*w*h)
@@ -657,6 +693,10 @@ func (p *Gray) ColorModel() color.Model { return color.GrayModel }
 func (p *Gray) Bounds() Rectangle { return p.Rect }
 
 func (p *Gray) At(x, y int) color.Color {
+	return p.GrayAt(x, y)
+}
+
+func (p *Gray) GrayAt(x, y int) color.Gray {
 	if !(Point{x, y}.In(p.Rect)) {
 		return color.Gray{}
 	}
@@ -709,7 +749,7 @@ func (p *Gray) Opaque() bool {
 	return true
 }
 
-// NewGray returns a new Gray with the given bounds.
+// NewGray returns a new Gray image with the given bounds.
 func NewGray(r Rectangle) *Gray {
 	w, h := r.Dx(), r.Dy()
 	pix := make([]uint8, 1*w*h)
@@ -732,6 +772,10 @@ func (p *Gray16) ColorModel() color.Model { return color.Gray16Model }
 func (p *Gray16) Bounds() Rectangle { return p.Rect }
 
 func (p *Gray16) At(x, y int) color.Color {
+	return p.Gray16At(x, y)
+}
+
+func (p *Gray16) Gray16At(x, y int) color.Gray16 {
 	if !(Point{x, y}.In(p.Rect)) {
 		return color.Gray16{}
 	}
@@ -787,11 +831,100 @@ func (p *Gray16) Opaque() bool {
 	return true
 }
 
-// NewGray16 returns a new Gray16 with the given bounds.
+// NewGray16 returns a new Gray16 image with the given bounds.
 func NewGray16(r Rectangle) *Gray16 {
 	w, h := r.Dx(), r.Dy()
 	pix := make([]uint8, 2*w*h)
 	return &Gray16{pix, 2 * w, r}
+}
+
+// CMYK is an in-memory image whose At method returns color.CMYK values.
+type CMYK struct {
+	// Pix holds the image's pixels, in C, M, Y, K order. The pixel at
+	// (x, y) starts at Pix[(y-Rect.Min.Y)*Stride + (x-Rect.Min.X)*4].
+	Pix []uint8
+	// Stride is the Pix stride (in bytes) between vertically adjacent pixels.
+	Stride int
+	// Rect is the image's bounds.
+	Rect Rectangle
+}
+
+func (p *CMYK) ColorModel() color.Model { return color.CMYKModel }
+
+func (p *CMYK) Bounds() Rectangle { return p.Rect }
+
+func (p *CMYK) At(x, y int) color.Color {
+	return p.CMYKAt(x, y)
+}
+
+func (p *CMYK) CMYKAt(x, y int) color.CMYK {
+	if !(Point{x, y}.In(p.Rect)) {
+		return color.CMYK{}
+	}
+	i := p.PixOffset(x, y)
+	s := p.Pix[i : i+4 : i+4] // Small cap improves performance, see https://golang.org/issue/27857
+	return color.CMYK{s[0], s[1], s[2], s[3]}
+}
+
+// PixOffset returns the index of the first element of Pix that corresponds to
+// the pixel at (x, y).
+func (p *CMYK) PixOffset(x, y int) int {
+	return (y-p.Rect.Min.Y)*p.Stride + (x-p.Rect.Min.X)*4
+}
+
+func (p *CMYK) Set(x, y int, c color.Color) {
+	if !(Point{x, y}.In(p.Rect)) {
+		return
+	}
+	i := p.PixOffset(x, y)
+	c1 := color.CMYKModel.Convert(c).(color.CMYK)
+	s := p.Pix[i : i+4 : i+4] // Small cap improves performance, see https://golang.org/issue/27857
+	s[0] = c1.C
+	s[1] = c1.M
+	s[2] = c1.Y
+	s[3] = c1.K
+}
+
+func (p *CMYK) SetCMYK(x, y int, c color.CMYK) {
+	if !(Point{x, y}.In(p.Rect)) {
+		return
+	}
+	i := p.PixOffset(x, y)
+	s := p.Pix[i : i+4 : i+4] // Small cap improves performance, see https://golang.org/issue/27857
+	s[0] = c.C
+	s[1] = c.M
+	s[2] = c.Y
+	s[3] = c.K
+}
+
+// SubImage returns an image representing the portion of the image p visible
+// through r. The returned value shares pixels with the original image.
+func (p *CMYK) SubImage(r Rectangle) Image {
+	r = r.Intersect(p.Rect)
+	// If r1 and r2 are Rectangles, r1.Intersect(r2) is not guaranteed to be inside
+	// either r1 or r2 if the intersection is empty. Without explicitly checking for
+	// this, the Pix[i:] expression below can panic.
+	if r.Empty() {
+		return &CMYK{}
+	}
+	i := p.PixOffset(r.Min.X, r.Min.Y)
+	return &CMYK{
+		Pix:    p.Pix[i:],
+		Stride: p.Stride,
+		Rect:   r,
+	}
+}
+
+// Opaque scans the entire image and reports whether it is fully opaque.
+func (p *CMYK) Opaque() bool {
+	return true
+}
+
+// NewCMYK returns a new CMYK image with the given bounds.
+func NewCMYK(r Rectangle) *CMYK {
+	w, h := r.Dx(), r.Dy()
+	buf := make([]uint8, 4*w*h)
+	return &CMYK{buf, 4 * w, r}
 }
 
 // Paletted is an in-memory image of uint8 indices into a given palette.
@@ -896,7 +1029,8 @@ func (p *Paletted) Opaque() bool {
 	return true
 }
 
-// NewPaletted returns a new Paletted with the given width, height and palette.
+// NewPaletted returns a new Paletted image with the given width, height and
+// palette.
 func NewPaletted(r Rectangle, p color.Palette) *Paletted {
 	w, h := r.Dx(), r.Dy()
 	pix := make([]uint8, 1*w*h)

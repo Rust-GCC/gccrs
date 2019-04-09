@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for Alpha Linux-based GNU systems.
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson.
 
 This file is part of GCC.
@@ -61,10 +61,14 @@ along with GCC; see the file COPYING3.  If not see
 #define OPTION_GLIBC  (DEFAULT_LIBC == LIBC_GLIBC)
 #define OPTION_UCLIBC (DEFAULT_LIBC == LIBC_UCLIBC)
 #define OPTION_BIONIC (DEFAULT_LIBC == LIBC_BIONIC)
+#undef OPTION_MUSL
+#define OPTION_MUSL   (DEFAULT_LIBC == LIBC_MUSL)
 #else
 #define OPTION_GLIBC  (linux_libc == LIBC_GLIBC)
 #define OPTION_UCLIBC (linux_libc == LIBC_UCLIBC)
 #define OPTION_BIONIC (linux_libc == LIBC_BIONIC)
+#undef OPTION_MUSL
+#define OPTION_MUSL   (linux_libc == LIBC_MUSL)
 #endif
 
 /* Determine what functions are present at the runtime;
@@ -74,8 +78,35 @@ along with GCC; see the file COPYING3.  If not see
 
 #define TARGET_POSIX_IO
 
+/* Provide a STARTFILE_SPEC appropriate for ELF.  Here we add the
+   (even more) magical crtbegin.o file which provides part of the
+   support for getting C++ file-scope static object constructed
+   before entering `main'.  */
+
+#undef	STARTFILE_SPEC
+#ifdef HAVE_LD_PIE
+#define STARTFILE_SPEC \
+  "%{!shared: %{pg|p:gcrt1.o%s;pie:Scrt1.o%s;:crt1.o%s}}\
+   crti.o%s %{static:crtbeginT.o%s;shared|pie:crtbeginS.o%s;:crtbegin.o%s}"
+#else
+#define STARTFILE_SPEC \
+  "%{!shared: %{pg|p:gcrt1.o%s;:crt1.o%s}}\
+   crti.o%s %{static:crtbeginT.o%s;shared|pie:crtbeginS.o%s;:crtbegin.o%s}"
+#endif
+
+/* Provide a ENDFILE_SPEC appropriate for ELF.  Here we tack on the
+   magical crtend.o file which provides part of the support for
+   getting C++ file-scope static object constructed before entering
+   `main', followed by a normal ELF "finalizer" file, `crtn.o'.  */
+
+#undef	ENDFILE_SPEC
+#define ENDFILE_SPEC \
+  "%{Ofast|ffast-math|funsafe-math-optimizations:crtfastmath.o%s} \
+   %{shared|pie:crtendS.o%s;:crtend.o%s} crtn.o%s"
+
 #define LINK_GCC_C_SEQUENCE_SPEC \
-  "%{static:--start-group} %G %L %{static:--end-group}%{!static:%G}"
+  "%{static|static-pie:--start-group} %G %{!nolibc:%L} \
+   %{static|static-pie:--end-group}%{!static:%{!static-pie:%G}}"
 
 /* Use --as-needed -lgcc_s for eh support.  */
 #ifdef HAVE_LD_AS_NEEDED

@@ -37,12 +37,12 @@ int foo (int a = (**bar) (s))
 
 int foo2 (int (*a)(int) = &foo)
 {
-   undef4 (1); // { dg-error "" } implicit declaration
+   undef4 (1); // { dg-error "4:'undef4' was not declared" } implicit declaration
   return 1;
 }
 
 class X{
-  class Y{};			// { dg-error "" } private
+  class Y{};			// { dg-message "" } private
 };
 
 typedef int const * bart ();
@@ -55,7 +55,7 @@ bar2 baz (X::Y y)	        // { dg-error "" } in this context
   X::Y f;			// { dg-error "" } in this context
   bar2 wa [5];
   wa[0] = baz(f);
-  undef2 (1); // { dg-error "" } implicit declaration
+  undef2 (1); // { dg-error "3:'undef2' was not declared" } implicit declaration
 }				// { dg-warning "no return statement" }
 
 int ninny ()
@@ -70,8 +70,5 @@ int ninny ()
 
 int darg (char X::*p)
 {
-   undef3 (1); // { dg-error "" } implicit declaration
+   undef3 (1); // { dg-error "4:'undef3' was not declared" } implicit declaration
 }				// { dg-warning "no return statement" }
-
-// { dg-message "warning: control reaches end of non-void function" "" { target *-*-* } 36 }
-// { dg-message "warning: control reaches end of non-void function" "" { target *-*-* } 65 }

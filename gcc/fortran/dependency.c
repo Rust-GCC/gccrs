@@ -1,5 +1,5 @@
 /* Dependency analysis
-   Copyright (C) 2000-2014 Free Software Foundation, Inc.
+   Copyright (C) 2000-2019 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
 
 This file is part of GCC.
@@ -36,7 +36,7 @@ along with GCC; see the file COPYING3.  If not see
 enum range {LHS, RHS, MID};
 
 /* Dependency types.  These must be in reverse order of priority.  */
-typedef enum
+enum gfc_dependency
 {
   GFC_DEP_ERROR,
   GFC_DEP_EQUAL,	/* Identical Ranges.  */
@@ -44,8 +44,7 @@ typedef enum
   GFC_DEP_BACKWARD,	/* e.g. a(2:4) = a(1:3).  */
   GFC_DEP_OVERLAP,	/* May overlap in some other way.  */
   GFC_DEP_NODEP		/* Distinct ranges.  */
-}
-gfc_dependency;
+};
 
 /* Macros */
 #define IS_ARRAY_EXPLICIT(as) ((as->type == AS_EXPLICIT ? 1 : 0))
@@ -102,7 +101,9 @@ identical_array_ref (gfc_array_ref *a1, gfc_array_ref *a2)
 
   if (a1->type == AR_ELEMENT && a2->type == AR_ELEMENT)
     {
-      gcc_assert (a1->dimen == a2->dimen);
+      if (a1->dimen != a2->dimen)
+	gfc_internal_error ("identical_array_ref(): inconsistent dimensions");
+
       for (i = 0; i < a1->dimen; i++)
 	{
 	  if (gfc_dep_compare_expr (a1->start[i], a2->start[i]) != 0)
@@ -188,6 +189,11 @@ are_identical_variables (gfc_expr *e1, gfc_expr *e2)
 
 	  break;
 
+	case REF_INQUIRY:
+	  if (r1->u.i != r2->u.i)
+	    return false;
+	  break;
+
 	default:
 	  gfc_internal_error ("are_identical_variables: Bad type");
 	}
@@ -227,9 +233,26 @@ gfc_dep_compare_functions (gfc_expr *e1, gfc_expr *e2, bool impure_ok)
 	  if ((args1->expr == NULL) ^ (args2->expr == NULL))
 	    return -2;
 
-	  if (args1->expr != NULL && args2->expr != NULL
-	      && gfc_dep_compare_expr (args1->expr, args2->expr) != 0)
-	    return -2;
+	  if (args1->expr != NULL && args2->expr != NULL)
+	    {
+	      gfc_expr *e1, *e2;
+	      e1 = args1->expr;
+	      e2 = args2->expr;
+
+	      if (gfc_dep_compare_expr (e1, e2) != 0)
+		return -2;
+
+	      /* Special case: String arguments which compare equal can have
+		 different lengths, which makes them different in calls to
+		 procedures.  */
+
+	      if (e1->expr_type == EXPR_CONSTANT
+		  && e1->ts.type == BT_CHARACTER
+		  && e2->expr_type == EXPR_CONSTANT
+		  && e2->ts.type == BT_CHARACTER
+		  && e1->value.character.length != e2->value.character.length)
+		return -2;
+	    }
 
 	  args1 = args1->next;
 	  args2 = args2->next;
@@ -243,8 +266,8 @@ gfc_dep_compare_functions (gfc_expr *e1, gfc_expr *e2, bool impure_ok)
 /* Helper function to look through parens, unary plus and widening
    integer conversions.  */
 
-static gfc_expr*
-discard_nops (gfc_expr *e)
+gfc_expr *
+gfc_discard_nops (gfc_expr *e)
 {
   gfc_actual_arglist *arglist;
 
@@ -297,8 +320,8 @@ gfc_dep_compare_expr (gfc_expr *e1, gfc_expr *e2)
   if (e1 == NULL && e2 == NULL)
     return 0;
 
-  e1 = discard_nops (e1);
-  e2 = discard_nops (e2);
+  e1 = gfc_discard_nops (e1);
+  e2 = gfc_discard_nops (e2);
 
   if (e1->expr_type == EXPR_OP && e1->value.op.op == INTRINSIC_PLUS)
     {
@@ -487,7 +510,6 @@ gfc_dep_compare_expr (gfc_expr *e1, gfc_expr *e2)
 
     case EXPR_FUNCTION:
       return gfc_dep_compare_functions (e1, e2, false);
-      break;
 
     default:
       return -2;
@@ -515,8 +537,8 @@ gfc_dep_difference (gfc_expr *e1, gfc_expr *e2, mpz_t *result)
   if (e1->ts.type != BT_INTEGER || e2->ts.type != BT_INTEGER)
     return false;
 
-  e1 = discard_nops (e1);
-  e2 = discard_nops (e2);
+  e1 = gfc_discard_nops (e1);
+  e2 = gfc_discard_nops (e2);
 
   /* Inizialize tentatively, clear if we don't return anything.  */
   mpz_init (*result);
@@ -531,8 +553,8 @@ gfc_dep_difference (gfc_expr *e1, gfc_expr *e2, mpz_t *result)
 
   if (e1->expr_type == EXPR_OP && e1->value.op.op == INTRINSIC_PLUS)
     {
-      e1_op1 = discard_nops (e1->value.op.op1);
-      e1_op2 = discard_nops (e1->value.op.op2);
+      e1_op1 = gfc_discard_nops (e1->value.op.op1);
+      e1_op2 = gfc_discard_nops (e1->value.op.op2);
 
       /* Case 2: (X + c1) - X = c1.  */
       if (e1_op2->expr_type == EXPR_CONSTANT
@@ -552,8 +574,8 @@ gfc_dep_difference (gfc_expr *e1, gfc_expr *e2, mpz_t *result)
 
       if (e2->expr_type == EXPR_OP && e2->value.op.op == INTRINSIC_PLUS)
 	{
-	  e2_op1 = discard_nops (e2->value.op.op1);
-	  e2_op2 = discard_nops (e2->value.op.op2);
+	  e2_op1 = gfc_discard_nops (e2->value.op.op1);
+	  e2_op2 = gfc_discard_nops (e2->value.op.op2);
 
 	  if (e1_op2->expr_type == EXPR_CONSTANT)
 	    {
@@ -597,8 +619,8 @@ gfc_dep_difference (gfc_expr *e1, gfc_expr *e2, mpz_t *result)
 
       if (e2->expr_type == EXPR_OP && e2->value.op.op == INTRINSIC_MINUS)
 	{
-	  e2_op1 = discard_nops (e2->value.op.op1);
-	  e2_op2 = discard_nops (e2->value.op.op2);
+	  e2_op1 = gfc_discard_nops (e2->value.op.op1);
+	  e2_op2 = gfc_discard_nops (e2->value.op.op2);
 
 	  if (e1_op2->expr_type == EXPR_CONSTANT)
 	    {
@@ -627,8 +649,8 @@ gfc_dep_difference (gfc_expr *e1, gfc_expr *e2, mpz_t *result)
 
   if (e1->expr_type == EXPR_OP && e1->value.op.op == INTRINSIC_MINUS)
     {
-      e1_op1 = discard_nops (e1->value.op.op1);
-      e1_op2 = discard_nops (e1->value.op.op2);
+      e1_op1 = gfc_discard_nops (e1->value.op.op1);
+      e1_op2 = gfc_discard_nops (e1->value.op.op2);
 
       if (e1_op2->expr_type == EXPR_CONSTANT)
 	{
@@ -642,8 +664,8 @@ gfc_dep_difference (gfc_expr *e1, gfc_expr *e2, mpz_t *result)
 
 	  if (e2->expr_type == EXPR_OP && e2->value.op.op == INTRINSIC_PLUS)
 	    {
-	      e2_op1 = discard_nops (e2->value.op.op1);
-	      e2_op2 = discard_nops (e2->value.op.op2);
+	      e2_op1 = gfc_discard_nops (e2->value.op.op1);
+	      e2_op2 = gfc_discard_nops (e2->value.op.op2);
 
 	      /* Case 11: (X - c1) - (X + c2) = -( c1 + c2).  */
 	      if (e2_op2->expr_type == EXPR_CONSTANT
@@ -668,8 +690,8 @@ gfc_dep_difference (gfc_expr *e1, gfc_expr *e2, mpz_t *result)
 
 	  if (e2->expr_type == EXPR_OP && e2->value.op.op == INTRINSIC_MINUS)
 	    {
-	      e2_op1 = discard_nops (e2->value.op.op1);
-	      e2_op2 = discard_nops (e2->value.op.op2);
+	      e2_op1 = gfc_discard_nops (e2->value.op.op1);
+	      e2_op2 = gfc_discard_nops (e2->value.op.op2);
 
 	      /* Case 13: (X - c1) - (X - c2) = c2 - c1.  */
 	      if (e2_op2->expr_type == EXPR_CONSTANT
@@ -685,8 +707,8 @@ gfc_dep_difference (gfc_expr *e1, gfc_expr *e2, mpz_t *result)
 	{
 	  if (e2->expr_type == EXPR_OP && e2->value.op.op == INTRINSIC_MINUS)
 	    {
-	      e2_op1 = discard_nops (e2->value.op.op1);
-	      e2_op2 = discard_nops (e2->value.op.op2);
+	      e2_op1 = gfc_discard_nops (e2->value.op.op1);
+	      e2_op2 = gfc_discard_nops (e2->value.op.op2);
 
 	      /* Case 14: (c1 - X) - (c2 - X) == c1 - c2.  */
 	      if (gfc_dep_compare_expr (e1_op2, e2_op2) == 0)
@@ -702,8 +724,8 @@ gfc_dep_difference (gfc_expr *e1, gfc_expr *e2, mpz_t *result)
 
   if (e2->expr_type == EXPR_OP && e2->value.op.op == INTRINSIC_PLUS)
     {
-      e2_op1 = discard_nops (e2->value.op.op1);
-      e2_op2 = discard_nops (e2->value.op.op2);
+      e2_op1 = gfc_discard_nops (e2->value.op.op1);
+      e2_op2 = gfc_discard_nops (e2->value.op.op2);
 
       /* Case 15: X - (X + c2) = -c2.  */
       if (e2_op2->expr_type == EXPR_CONSTANT
@@ -723,8 +745,8 @@ gfc_dep_difference (gfc_expr *e1, gfc_expr *e2, mpz_t *result)
 
   if (e2->expr_type == EXPR_OP && e2->value.op.op == INTRINSIC_MINUS)
     {
-      e2_op1 = discard_nops (e2->value.op.op1);
-      e2_op2 = discard_nops (e2->value.op.op2);
+      e2_op1 = gfc_discard_nops (e2->value.op.op1);
+      e2_op2 = gfc_discard_nops (e2->value.op.op2);
 
       /* Case 17: X - (X - c2) = c2.  */
       if (e2_op2->expr_type == EXPR_CONSTANT
@@ -888,6 +910,7 @@ gfc_ref_needs_temporary_p (gfc_ref *ref)
 	return subarray_p;
 
       case REF_COMPONENT:
+      case REF_INQUIRY:
 	break;
       }
 
@@ -956,7 +979,7 @@ gfc_check_argument_var_dependency (gfc_expr *var, sym_intent intent,
 		     If a dependency is found in the case
 		     elemental == ELEM_CHECK_VARIABLE, we will generate
 		     a temporary, so we don't need to bother the user.  */
-		  gfc_warning ("INTENT(%s) actual argument at %L might "
+		  gfc_warning (0, "INTENT(%s) actual argument at %L might "
 			       "interfere with actual argument at %L.",
 		   	       intent == INTENT_OUT ? "OUT" : "INOUT",
 		   	       &var->where, &expr->where);
@@ -1253,7 +1276,14 @@ gfc_check_dependency (gfc_expr *expr1, gfc_expr *expr2, bool identical)
   gfc_constructor *c;
   int n;
 
-  gcc_assert (expr1->expr_type == EXPR_VARIABLE);
+  /* -fcoarray=lib can end up here with expr1->expr_type set to EXPR_FUNCTION
+     and a reference to _F.caf_get, so skip the assert.  */
+  if (expr1->expr_type == EXPR_FUNCTION
+      && strcmp (expr1->value.function.name, "_F.caf_get") == 0)
+    return 0;
+
+  if (expr1->expr_type != EXPR_VARIABLE)
+    gfc_internal_error ("gfc_check_dependency: expecting an EXPR_VARIABLE");
 
   switch (expr2->expr_type)
     {
@@ -1407,17 +1437,17 @@ check_section_vs_section (gfc_array_ref *l_ar, gfc_array_ref *r_ar, int n)
   r_stride = r_ar->stride[n];
 
   /* If l_start is NULL take it from array specifier.  */
-  if (NULL == l_start && IS_ARRAY_EXPLICIT (l_ar->as))
+  if (l_start == NULL && IS_ARRAY_EXPLICIT (l_ar->as))
     l_start = l_ar->as->lower[n];
   /* If l_end is NULL take it from array specifier.  */
-  if (NULL == l_end && IS_ARRAY_EXPLICIT (l_ar->as))
+  if (l_end == NULL && IS_ARRAY_EXPLICIT (l_ar->as))
     l_end = l_ar->as->upper[n];
 
   /* If r_start is NULL take it from array specifier.  */
-  if (NULL == r_start && IS_ARRAY_EXPLICIT (r_ar->as))
+  if (r_start == NULL && IS_ARRAY_EXPLICIT (r_ar->as))
     r_start = r_ar->as->lower[n];
   /* If r_end is NULL take it from array specifier.  */
-  if (NULL == r_end && IS_ARRAY_EXPLICIT (r_ar->as))
+  if (r_end == NULL && IS_ARRAY_EXPLICIT (r_ar->as))
     r_end = r_ar->as->upper[n];
 
   /* Determine whether the l_stride is positive or negative.  */
@@ -1853,11 +1883,40 @@ gfc_check_element_vs_element (gfc_ref *lref, gfc_ref *rref, int n)
   return GFC_DEP_EQUAL;
 }
 
+/* Callback function for checking if an expression depends on a
+   dummy variable which is any other than INTENT(IN).  */
+
+static int
+callback_dummy_intent_not_in (gfc_expr **ep,
+			      int *walk_subtrees ATTRIBUTE_UNUSED,
+			      void *data ATTRIBUTE_UNUSED)
+{
+  gfc_expr *e = *ep;
+
+  if (e->expr_type == EXPR_VARIABLE && e->symtree
+      && e->symtree->n.sym->attr.dummy)
+    return e->symtree->n.sym->attr.intent != INTENT_IN;
+  else
+    return 0;
+}
+
+/* Auxiliary function to check if subexpressions have dummy variables which
+   are not intent(in).
+*/
+
+static bool
+dummy_intent_not_in (gfc_expr **ep)
+{
+  return gfc_expr_walker (ep, callback_dummy_intent_not_in, NULL);
+}
 
 /* Determine if an array ref, usually an array section specifies the
    entire array.  In addition, if the second, pointer argument is
    provided, the function will return true if the reference is
-   contiguous; eg. (:, 1) gives true but (1,:) gives false.  */
+   contiguous; eg. (:, 1) gives true but (1,:) gives false.
+   If one of the bounds depends on a dummy variable which is
+   not INTENT(IN), also return false, because the user may
+   have changed the variable.  */
 
 bool
 gfc_full_array_ref_p (gfc_ref *ref, bool *contiguous)
@@ -1921,14 +1980,16 @@ gfc_full_array_ref_p (gfc_ref *ref, bool *contiguous)
 	  && (!ref->u.ar.as
 	      || !ref->u.ar.as->lower[i]
 	      || gfc_dep_compare_expr (ref->u.ar.start[i],
-				       ref->u.ar.as->lower[i])))
+				       ref->u.ar.as->lower[i])
+	      || dummy_intent_not_in (&ref->u.ar.start[i])))
 	lbound_OK = false;
       /* Check the upper bound.  */
       if (ref->u.ar.end[i]
 	  && (!ref->u.ar.as
 	      || !ref->u.ar.as->upper[i]
 	      || gfc_dep_compare_expr (ref->u.ar.end[i],
-				       ref->u.ar.as->upper[i])))
+				       ref->u.ar.as->upper[i])
+	      || dummy_intent_not_in (&ref->u.ar.end[i])))
 	ubound_OK = false;
       /* Check the stride.  */
       if (ref->u.ar.stride[i]

@@ -2,7 +2,7 @@
 
 // 2007-03-12  Stephen M. Webb  <stephen.webb@bregmasoft.com>
 //
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -24,14 +24,14 @@
 #include <tr1/regex>
 #include <testsuite_hooks.h>
 
-// Tests default constructor of the basic_regex class.  
+// Tests default constructor of the basic_regex class.
 void test01()
 {
   typedef std::tr1::basic_regex<wchar_t> test_type;
 
   // default constructor
   test_type re;
-  
+
   // Check for required typedefs
   typedef test_type::value_type  value_type;
   typedef test_type::flag_type   flag_type;
@@ -40,7 +40,7 @@ void test01()
 
 int
 main()
-{ 
+{
   test01();
   return 0;
 }

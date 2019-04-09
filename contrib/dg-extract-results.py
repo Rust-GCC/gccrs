@@ -134,6 +134,7 @@ class Prog:
         self.end_line = None
         # Known summary types.
         self.count_names = [
+            '# of DejaGnu errors\t\t',
             '# of expected passes\t\t',
             '# of unexpected failures\t',
             '# of unexpected successes\t',
@@ -238,12 +239,17 @@ class Prog:
         harness = None
         segment = None
         final_using = 0
+        has_warning = 0
 
         # If this is the first run for this variation, add any text before
         # the first harness to the header.
         if not variation.header:
             segment = Segment (filename, file.tell())
             variation.header = segment
+
+        # Parse the rest of the summary (the '# of ' lines).
+        if len (variation.counts) == 0:
+            variation.counts = self.zero_counts()
 
         # Parse up until the first line of the summary.
         if num_variations == 1:
@@ -287,10 +293,27 @@ class Prog:
                 # Ugly hack to get the right order for gfortran.
                 if name.startswith ('gfortran.dg/g77/'):
                     name = 'h' + name
-                key = (name, len (harness.results))
-                harness.results.append ((key, line))
-                if not first_key and sort_logs:
-                    first_key = key
+                # If we have a time out warning, make sure it appears
+                # before the following testcase diagnostic: we insert
+                # the testname before 'program' so that sort faces a
+                # list of testhanes.
+                if line.startswith ('WARNING: program timed out'):
+                  has_warning = 1
+                else:
+                  if has_warning == 1:
+                      key = (name, len (harness.results))
+                      myline = 'WARNING: %s program timed out.\n' % name
+                      harness.results.append ((key, myline))
+                      has_warning = 0
+                  key = (name, len (harness.results))
+                  harness.results.append ((key, line))
+                  if not first_key and sort_logs:
+                      first_key = key
+                if line.startswith ('ERROR: (DejaGnu)'):
+                    for i in range (len (self.count_names)):
+                        if 'DejaGnu errors' in self.count_names[i]:
+                            variation.counts[i] += 1
+                            break
 
             # 'Using ...' lines are only interesting in a header.  Splitting
             # the test up into parallel runs leads to more 'Using ...' lines
@@ -309,9 +332,6 @@ class Prog:
             segment.lines -= final_using
             harness.add_segment (first_key, segment)
 
-        # Parse the rest of the summary (the '# of ' lines).
-        if len (variation.counts) == 0:
-            variation.counts = self.zero_counts()
         while True:
             before = file.tell()
             line = file.readline()

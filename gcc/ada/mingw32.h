@@ -6,7 +6,7 @@
  *                                                                          *
  *                              C Header File                               *
  *                                                                          *
- *          Copyright (C) 2002-2014, Free Software Foundation, Inc.         *
+ *          Copyright (C) 2002-2019, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -49,7 +49,14 @@
 #define _WIN32_WINNT 0x0501
 #endif
 
+#ifndef __CYGWIN__
 #include <tchar.h>
+#endif
+#if defined (__CYGWIN__) && !defined (__CYGWIN32__) && !defined (IN_RTS)
+/* Note: windows.h on cygwin-64 includes x86intrin.h which uses malloc.
+   That fails to compile, if malloc is poisoned, i.e. if !IN_RTS.  */
+#define _X86INTRIN_H_INCLUDED
+#endif
 #include <windows.h>
 
 /* After including this file it is possible to use the character t as prefix
@@ -61,14 +68,15 @@
 
 #ifdef GNAT_UNICODE_SUPPORT
 
-extern UINT CurrentCodePage;
-extern UINT CurrentCCSEncoding;
+extern UINT __gnat_current_codepage;
+extern UINT __gnat_current_ccs_encoding;
 
-/*  Macros to convert to/from the code page specified in CurrentCodePage.  */
+/*  Macros to convert to/from the code page specified in
+    __gnat_current_codepage.  */
 #define S2WSC(wstr,str,len) \
-   MultiByteToWideChar (CurrentCodePage,0,str,-1,wstr,len)
+   MultiByteToWideChar (__gnat_current_codepage,0,str,-1,wstr,len)
 #define WS2SC(str,wstr,len) \
-   WideCharToMultiByte (CurrentCodePage,0,wstr,-1,str,len,NULL,NULL)
+   WideCharToMultiByte (__gnat_current_codepage,0,wstr,-1,str,len,NULL,NULL)
 
 /*  Macros to convert to/from UTF-8 code page.  */
 #define S2WSU(wstr,str,len) \

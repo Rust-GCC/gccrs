@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-O3 -ffast-math -fdump-tree-reassoc1 --param max-completely-peeled-insns=400" }
+! { dg-options "-O3 -ffast-math -fdump-tree-reassoc1 --param max-completely-peeled-insns=200" }
 ! { dg-additional-options "--param max-completely-peel-times=16" { target spu-*-* } }
       subroutine anisonl(w,vo,anisox,s,ii1,jj1,weight)
       integer ii1,jj1,i1,iii1,j1,jjj1,k1,l1,m1,n1
@@ -41,4 +41,3 @@
 ! unrolled loops.
 
 ! { dg-final { scan-tree-dump-times "\[0-9\] \\\* " 22 "reassoc1" } }
-! { dg-final { cleanup-tree-dump "reassoc1" } }

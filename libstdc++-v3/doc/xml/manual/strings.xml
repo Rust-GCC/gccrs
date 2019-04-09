@@ -88,7 +88,8 @@
    <programlisting>
    char toLower (char c)
    {
-      return std::tolower(c);
+      // std::tolower(c) is undefined if c &lt; 0 so cast to unsigned char.
+      return std::tolower((unsigned char)c);
    } </programlisting>
    <para>(Thanks to James Kanze for assistance and suggestions on all of this.)
    </para>
@@ -353,7 +354,7 @@ stringtok(Container &amp;container, string const &amp;in,
       a <code>vector</code>'s memory usage
       (see <link linkend="faq.size_equals_capacity">this FAQ
       entry</link>) but the regular copy constructor cannot be used
-      because libstdc++'s <code>string</code> is Copy-On-Write.
+      because libstdc++'s <code>string</code> is Copy-On-Write in GCC 3.
    </para>
    <para>In <link linkend="status.iso.2011">C++11</link> mode you can call
       <code>s.shrink_to_fit()</code> to achieve the same effect as

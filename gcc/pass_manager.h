@@ -1,5 +1,5 @@
 /* pass_manager.h - The pipeline of optimization passes
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -29,6 +29,7 @@ struct register_pass_info;
   DEF_PASS_LIST (all_lowering_passes) \
   DEF_PASS_LIST (all_small_ipa_passes) \
   DEF_PASS_LIST (all_regular_ipa_passes) \
+  DEF_PASS_LIST (all_late_ipa_passes) \
   DEF_PASS_LIST (all_passes)
 
 #define DEF_PASS_LIST(LIST) PASS_LIST_NO_##LIST,
@@ -46,9 +47,8 @@ class context;
 class pass_manager
 {
 public:
-  void *operator new (size_t sz);
-
   pass_manager (context *ctxt);
+  ~pass_manager ();
 
   void register_pass (struct register_pass_info *pass_info);
   void register_one_dump_file (opt_pass *pass);
@@ -75,6 +75,16 @@ public:
   opt_pass *get_pass_peephole2 () const { return pass_peephole2_1; }
   opt_pass *get_pass_profile () const { return pass_profile_1; }
 
+  void register_pass_name (opt_pass *pass, const char *name);
+
+  opt_pass *get_pass_by_name (const char *name);
+
+  opt_pass *get_rest_of_compilation () const
+  {
+    return pass_rest_of_compilation_1;
+  }
+  opt_pass *get_clean_slate () const { return pass_clean_state_1; }
+
 public:
   /* The root of the compilation pass tree, once constructed.  */
   opt_pass *all_passes;
@@ -92,9 +102,11 @@ public:
 private:
   void set_pass_for_id (int id, opt_pass *pass);
   void register_dump_files (opt_pass *pass);
+  void create_pass_tab () const;
 
 private:
   context *m_ctxt;
+  hash_map<nofree_string_hash, opt_pass *> *m_name_to_pass_map;
 
   /* References to all of the individual passes.
      These fields are generated via macro expansion.
@@ -117,7 +129,8 @@ private:
 #define PUSH_INSERT_PASSES_WITHIN(PASS)
 #define POP_INSERT_PASSES()
 #define NEXT_PASS(PASS, NUM) opt_pass *PASS ## _ ## NUM
-#define TERMINATE_PASS_LIST()
+#define NEXT_PASS_WITH_ARG(PASS, NUM, ARG) NEXT_PASS (PASS, NUM)
+#define TERMINATE_PASS_LIST(PASS)
 
 #include "pass-instances.def"
 
@@ -125,6 +138,7 @@ private:
 #undef PUSH_INSERT_PASSES_WITHIN
 #undef POP_INSERT_PASSES
 #undef NEXT_PASS
+#undef NEXT_PASS_WITH_ARG
 #undef TERMINATE_PASS_LIST
 
 }; // class pass_manager

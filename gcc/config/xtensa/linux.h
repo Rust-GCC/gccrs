@@ -1,6 +1,6 @@
 /* Xtensa Linux configuration.
    Derived from the configuration for GCC for Intel i386 running Linux.
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -42,7 +42,9 @@ along with GCC; see the file COPYING3.  If not see
   %{mtarget-align:--target-align} \
   %{mno-target-align:--no-target-align} \
   %{mlongcalls:--longcalls} \
-  %{mno-longcalls:--no-longcalls}"
+  %{mno-longcalls:--no-longcalls} \
+  %{mauto-litpools:--auto-litpools} \
+  %{mno-auto-litpools:--no-auto-litpools}"
 
 #define GLIBC_DYNAMIC_LINKER "/lib/ld.so.1"
 

@@ -1,6 +1,6 @@
 /* Data structures and functions for streaming GIMPLE.
 
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -22,9 +22,7 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_GIMPLE_STREAMER_H
 #define GCC_GIMPLE_STREAMER_H
 
-#include "basic-block.h"
-#include "function.h"
-#include "lto-streamer.h"
+#include "tree-streamer.h"
 
 /* In gimple-streamer-in.c  */
 void input_bb (struct lto_input_block *, enum LTO_tags, struct data_in *,

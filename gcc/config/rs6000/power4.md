@@ -1,5 +1,5 @@
 ;; Scheduling description for IBM Power4 and PowerPC 970 processors.
-;;   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+;;   Copyright (C) 2003-2019 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -257,9 +257,8 @@
   "iq_power4")
 
 (define_insn_reservation "power4-compare" 2
-  (and (ior (eq_attr "type" "compare")
-	    (and (eq_attr "type" "shift,exts")
-		 (eq_attr "dot" "yes")))
+  (and (eq_attr "type" "shift,exts")
+       (eq_attr "dot" "yes")
        (eq_attr "cpu" "power4"))
   "(du1_power4+du2_power4|du2_power4+du3_power4|du3_power4+du4_power4),\
    ((iu1_power4,iu2_power4)\
@@ -352,11 +351,13 @@
 ; Condition Register logical ops are split if non-destructive (RT != RB)
 (define_insn_reservation "power4-crlogical" 2
   (and (eq_attr "type" "cr_logical")
+       (eq_attr "cr_logical_3op" "no")
        (eq_attr "cpu" "power4"))
   "du1_power4,cru_power4")
 
 (define_insn_reservation "power4-delayedcr" 4
-  (and (eq_attr "type" "delayed_cr")
+  (and (eq_attr "type" "cr_logical")
+       (eq_attr "cr_logical_3op" "yes")
        (eq_attr "cpu" "power4"))
   "du1_power4+du2_power4,cru_power4,cru_power4")
 
@@ -382,7 +383,7 @@
 
 ; Basic FP latency is 6 cycles
 (define_insn_reservation "power4-fp" 6
-  (and (eq_attr "type" "fp,dmul")
+  (and (eq_attr "type" "fp,fpsimple,dmul")
        (eq_attr "cpu" "power4"))
   "fpq_power4")
 
@@ -411,7 +412,7 @@
 
 ; VMX
 (define_insn_reservation "power4-vecsimple" 2
-  (and (eq_attr "type" "vecsimple")
+  (and (eq_attr "type" "vecsimple,veclogical,vecmove")
        (eq_attr "cpu" "power4"))
   "vq_power4")
 
@@ -422,7 +423,7 @@
 
 ; vecfp compare
 (define_insn_reservation "power4-veccmp" 8
-  (and (eq_attr "type" "veccmp")
+  (and (eq_attr "type" "veccmp,veccmpfx")
        (eq_attr "cpu" "power4"))
   "vq_power4")
 

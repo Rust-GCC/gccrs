@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU Atomic Library (libatomic).
@@ -112,9 +112,9 @@ SIZE(C2(libat_fetch_,NAME)) (UTYPE *mptr, UTYPE opval, int smodel)
 
   pre_barrier (smodel);
 
-  wptr = (UWORD *)mptr;
-  shift = 0;
-  mask = -1;
+  wptr = (UWORD *)((uintptr_t)mptr & -WORDSIZE);
+  shift = (((uintptr_t)mptr % WORDSIZE) * CHAR_BIT) ^ SIZE(INVERT_MASK);
+  mask = SIZE(MASK) << shift;
 
   wopval = (UWORD)opval << shift;
   woldval = __atomic_load_n (wptr, __ATOMIC_RELAXED);
@@ -136,9 +136,9 @@ SIZE(C3(libat_,NAME,_fetch)) (UTYPE *mptr, UTYPE opval, int smodel)
 
   pre_barrier (smodel);
 
-  wptr = (UWORD *)mptr;
-  shift = 0;
-  mask = -1;
+  wptr = (UWORD *)((uintptr_t)mptr & -WORDSIZE);
+  shift = (((uintptr_t)mptr % WORDSIZE) * CHAR_BIT) ^ SIZE(INVERT_MASK);
+  mask = SIZE(MASK) << shift;
 
   wopval = (UWORD)opval << shift;
   woldval = __atomic_load_n (wptr, __ATOMIC_RELAXED);

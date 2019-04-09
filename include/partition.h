@@ -1,5 +1,5 @@
 /* List implementation of a partition of consecutive integers.
-   Copyright (C) 2000, 2001, 2002 Free Software Foundation, Inc.
+   Copyright (C) 2000-2019 Free Software Foundation, Inc.
    Contributed by CodeSourcery, LLC.
 
    This file is part of GCC.
@@ -45,12 +45,12 @@ extern "C" {
 
 struct partition_elem
 {
-  /* The canonical element that represents the class containing this
-     element.  */
-  int class_element;
   /* The next element in this class.  Elements in each class form a
      circular list.  */
   struct partition_elem* next;
+  /* The canonical element that represents the class containing this
+     element.  */
+  int class_element;
   /* The number of elements in this class.  Valid only if this is the
      canonical element for its class.  */
   unsigned class_count;

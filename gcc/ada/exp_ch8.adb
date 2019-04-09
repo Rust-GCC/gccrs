@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -25,6 +25,7 @@
 
 with Atree;    use Atree;
 with Einfo;    use Einfo;
+with Exp_Ch3;  use Exp_Ch3;
 with Exp_Ch4;  use Exp_Ch4;
 with Exp_Ch6;  use Exp_Ch6;
 with Exp_Dbug; use Exp_Dbug;
@@ -35,6 +36,7 @@ with Nmake;    use Nmake;
 with Nlists;   use Nlists;
 with Opt;      use Opt;
 with Sem;      use Sem;
+with Sem_Aux;  use Sem_Aux;
 with Sem_Ch8;  use Sem_Ch8;
 with Sem_Util; use Sem_Util;
 with Sinfo;    use Sinfo;
@@ -49,8 +51,11 @@ package body Exp_Ch8 is
    ---------------------------------------------
 
    procedure Expand_N_Exception_Renaming_Declaration (N : Node_Id) is
-      Decl : constant Node_Id := Debug_Renaming_Declaration (N);
+      Decl : Node_Id;
+
    begin
+      Decl := Debug_Renaming_Declaration (N);
+
       if Present (Decl) then
          Insert_Action (N, Decl);
       end if;
@@ -101,6 +106,8 @@ package body Exp_Ch8 is
       --  interested in these operations if they occur as part of the name
       --  itself, subscripts are just values that are computed as part of the
       --  evaluation, so their form is unimportant.
+      --  In addition, always return True for Modify_Tree_For_C since the
+      --  code generator doesn't know how to handle renamings.
 
       -------------------------
       -- Evaluation_Required --
@@ -108,7 +115,10 @@ package body Exp_Ch8 is
 
       function Evaluation_Required (Nam : Node_Id) return Boolean is
       begin
-         if Nkind_In (Nam, N_Indexed_Component, N_Slice) then
+         if Modify_Tree_For_C then
+            return True;
+
+         elsif Nkind_In (Nam, N_Indexed_Component, N_Slice) then
             if Is_Packed (Etype (Prefix (Nam))) then
                return True;
             else
@@ -168,18 +178,26 @@ package body Exp_Ch8 is
 
       --  Ada 2005 (AI-318-02): If the renamed object is a call to a build-in-
       --  place function, then a temporary return object needs to be created
-      --  and access to it must be passed to the function. Currently we limit
-      --  such functions to those with inherently limited result subtypes, but
-      --  eventually we plan to expand the functions that are treated as
-      --  build-in-place to include other composite result types.
+      --  and access to it must be passed to the function.
 
-      if Ada_Version >= Ada_2005
-        and then Is_Build_In_Place_Function_Call (Nam)
-      then
+      if Is_Build_In_Place_Function_Call (Nam) then
          Make_Build_In_Place_Call_In_Anonymous_Context (Nam);
+
+      --  Ada 2005 (AI-318-02): Specialization of previous case for renaming
+      --  containing build-in-place function calls whose returned object covers
+      --  interface types.
+
+      elsif Present (Unqual_BIP_Iface_Function_Call (Nam)) then
+         Make_Build_In_Place_Iface_Call_In_Anonymous_Context (Nam);
       end if;
 
-      --  Create renaming entry for debug information
+      --  Create renaming entry for debug information. Mark the entity as
+      --  needing debug info if it comes from sources because the current
+      --  setting in Freeze_Entity occurs too late. ???
+
+      if Comes_From_Source (Defining_Identifier (N)) then
+         Set_Debug_Info_Needed (Defining_Identifier (N));
+      end if;
 
       Decl := Debug_Renaming_Declaration (N);
 
@@ -193,9 +211,11 @@ package body Exp_Ch8 is
    -------------------------------------------
 
    procedure Expand_N_Package_Renaming_Declaration (N : Node_Id) is
-      Decl : constant Node_Id := Debug_Renaming_Declaration (N);
+      Decl : Node_Id;
 
    begin
+      Decl := Debug_Renaming_Declaration (N);
+
       if Present (Decl) then
 
          --  If we are in a compilation unit, then this is an outer
@@ -242,15 +262,17 @@ package body Exp_Ch8 is
       Loc : constant Source_Ptr := Sloc (N);
       Id  : constant Entity_Id  := Defining_Entity (N);
 
-      function Build_Body_For_Renaming return Node_Id;
+      function Build_Body_For_Renaming (Typ : Entity_Id) return Node_Id;
       --  Build and return the body for the renaming declaration of an equality
-      --  or inequality operator.
+      --  or inequality operator of type Typ.
 
       -----------------------------
       -- Build_Body_For_Renaming --
       -----------------------------
 
-      function Build_Body_For_Renaming return Node_Id is
+      function Build_Body_For_Renaming (Typ : Entity_Id) return Node_Id is
+         Left    : constant Entity_Id := First_Formal (Id);
+         Right   : constant Entity_Id := Next_Formal (Left);
          Body_Id : Entity_Id;
          Decl    : Node_Id;
 
@@ -265,16 +287,44 @@ package body Exp_Ch8 is
          Body_Id := Make_Defining_Identifier (Sloc (N), Chars (Id));
          Set_Debug_Info_Needed (Body_Id);
 
-         Decl :=
-           Make_Subprogram_Body (Loc,
-             Specification              =>
-               Make_Function_Specification (Loc,
-                 Defining_Unit_Name       => Body_Id,
-                 Parameter_Specifications => Copy_Parameter_List (Id),
-                 Result_Definition        =>
-                   New_Occurrence_Of (Standard_Boolean, Loc)),
-             Declarations               => Empty_List,
-             Handled_Statement_Sequence => Empty);
+         if Has_Variant_Part (Typ) then
+            Decl :=
+              Build_Variant_Record_Equality
+                (Typ         => Typ,
+                 Body_Id     => Body_Id,
+                 Param_Specs => Copy_Parameter_List (Id));
+
+         --  Build body for renamed equality, to capture its current meaning.
+         --  It may be redefined later, but the renaming is elaborated where
+         --  it occurs. This is technically known as Squirreling semantics.
+         --  Renaming is rewritten as a subprogram declaration, and the
+         --  generated body is inserted into the freeze actions for the
+         --  subprogram.
+
+         else
+            Decl :=
+              Make_Subprogram_Body (Loc,
+                Specification              =>
+                  Make_Function_Specification (Loc,
+                    Defining_Unit_Name       => Body_Id,
+                    Parameter_Specifications => Copy_Parameter_List (Id),
+                    Result_Definition        =>
+                      New_Occurrence_Of (Standard_Boolean, Loc)),
+                Declarations               => Empty_List,
+                Handled_Statement_Sequence => Empty);
+
+            Set_Handled_Statement_Sequence (Decl,
+              Make_Handled_Sequence_Of_Statements (Loc,
+                Statements => New_List (
+                  Make_Simple_Return_Statement (Loc,
+                    Expression =>
+                      Expand_Record_Equality
+                        (Id,
+                         Typ    => Typ,
+                         Lhs    => Make_Identifier (Loc, Chars (Left)),
+                         Rhs    => Make_Identifier (Loc, Chars (Right)),
+                         Bodies => Declarations (Decl))))));
+         end if;
 
          return Decl;
       end Build_Body_For_Renaming;
@@ -310,10 +360,7 @@ package body Exp_Ch8 is
         and then Scope (Entity (Nam)) = Standard_Standard
       then
          declare
-            Left  : constant Entity_Id := First_Formal (Id);
-            Right : constant Entity_Id := Next_Formal (Left);
-            Typ   : constant Entity_Id := Etype (Left);
-            Decl  : Node_Id;
+            Typ  : constant Entity_Id := Etype (First_Formal (Id));
 
          begin
             --  Check whether this is a renaming of a predefined equality on an
@@ -324,28 +371,7 @@ package body Exp_Ch8 is
               and then not Is_Tagged_Type (Typ)
               and then not Is_Frozen (Typ)
             then
-               --  Build body for renamed equality, to capture its current
-               --  meaning. It may be redefined later, but the renaming is
-               --  elaborated where it occurs. This is technically known as
-               --  Squirreling semantics. Renaming is rewritten as a subprogram
-               --  declaration, and the generated  body is inserted into the
-               --  freeze actions for the subprogram.
-
-               Decl := Build_Body_For_Renaming;
-
-               Set_Handled_Statement_Sequence (Decl,
-                 Make_Handled_Sequence_Of_Statements (Loc,
-                   Statements => New_List (
-                     Make_Simple_Return_Statement (Loc,
-                       Expression =>
-                         Expand_Record_Equality
-                           (Id,
-                            Typ    => Typ,
-                            Lhs    => Make_Identifier (Loc, Chars (Left)),
-                            Rhs    => Make_Identifier (Loc, Chars (Right)),
-                            Bodies => Declarations (Decl))))));
-
-               Append_Freeze_Action (Id, Decl);
+               Append_Freeze_Action (Id, Build_Body_For_Renaming (Typ));
             end if;
          end;
       end if;

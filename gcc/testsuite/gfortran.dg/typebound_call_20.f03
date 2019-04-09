@@ -1,4 +1,5 @@
 ! { dg-do run }
+! { dg-require-visibility "" }
 !
 ! PR 47565: [4.6 Regression][OOP] Segfault with TBP
 !
@@ -29,11 +30,11 @@ program p
   this%ppc => find_y
   ! (1) ordinary procedure
   y = find_y()
-  if (y/=1) call abort()
+  if (y/=1) STOP 1
   ! (2) procedure pointer component
   y = this%ppc()
-  if (y/=2) call abort()
+  if (y/=2) STOP 2
   ! (3) type-bound procedure
   y = this%find_y()
-  if (y/=3) call abort()
+  if (y/=3) STOP 3
 end 

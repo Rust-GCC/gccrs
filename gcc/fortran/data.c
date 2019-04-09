@@ -1,5 +1,5 @@
 /* Supporting functions for resolving DATA statement.
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by Lifang Zeng <zlf605@hotmail.com>
 
 This file is part of GCC.
@@ -104,11 +104,14 @@ static gfc_expr *
 create_character_initializer (gfc_expr *init, gfc_typespec *ts,
 			      gfc_ref *ref, gfc_expr *rvalue)
 {
-  int len, start, end;
+  HOST_WIDE_INT len, start, end, tlen;
   gfc_char_t *dest;
   bool alloced_init = false;
-	    
-  gfc_extract_int (ts->u.cl->length, &len);
+
+  if (init && init->ts.type != BT_CHARACTER)
+    return NULL;
+
+  gfc_extract_hwi (ts->u.cl->length, &len);
 
   if (init == NULL)
     {
@@ -143,10 +146,10 @@ create_character_initializer (gfc_expr *init, gfc_typespec *ts,
 	  return NULL;
 	}
 
-      gfc_extract_int (start_expr, &start);
+      gfc_extract_hwi (start_expr, &start);
       gfc_free_expr (start_expr);
       start--;
-      gfc_extract_int (end_expr, &end);
+      gfc_extract_hwi (end_expr, &end);
       gfc_free_expr (end_expr);
     }
   else
@@ -162,18 +165,27 @@ create_character_initializer (gfc_expr *init, gfc_typespec *ts,
   else
     len = rvalue->value.character.length;
 
-  if (len > end - start)
+  tlen = end - start;
+  if (len > tlen)
     {
-      gfc_warning_now ("Initialization string starting at %L was "
-		       "truncated to fit the variable (%d/%d)",
-		       &rvalue->where, end - start, len);
-      len = end - start;
+      if (tlen < 0)
+	{
+	  gfc_warning_now (0, "Unused initialization string at %L because "
+			   "variable has zero length", &rvalue->where);
+	  len = 0;
+	}
+      else
+	{
+	  gfc_warning_now (0, "Initialization string at %L was truncated to "
+			   "fit the variable (%ld/%ld)", &rvalue->where,
+			   (long) tlen, (long) len);
+	  len = tlen;
+	}
     }
 
   if (rvalue->ts.type == BT_HOLLERITH)
     {
-      int i;
-      for (i = 0; i < len; i++)
+      for (size_t i = 0; i < (size_t) len; i++)
 	dest[start+i] = rvalue->representation.string[i];
     }
   else
@@ -181,7 +193,7 @@ create_character_initializer (gfc_expr *init, gfc_typespec *ts,
 	    len * sizeof (gfc_char_t));
 
   /* Pad with spaces.  Substrings will already be blanked.  */
-  if (len < end - start && ref == NULL)
+  if (len < tlen && ref == NULL)
     gfc_wide_memset (&dest[start + len], ' ', end - (start + len));
 
   if (rvalue->ts.type == BT_HOLLERITH)
@@ -253,7 +265,7 @@ gfc_assign_data_value (gfc_expr *lvalue, gfc_expr *rvalue, mpz_t index,
 
 	  if (init && expr->expr_type != EXPR_ARRAY)
 	    {
-	      gfc_error ("'%s' at %L already is initialized at %L",
+	      gfc_error ("%qs at %L already is initialized at %L",
 			 lvalue->symtree->n.sym->name, &lvalue->where,
 			 &init->where);
 	      goto abort;
@@ -324,7 +336,7 @@ gfc_assign_data_value (gfc_expr *lvalue, gfc_expr *rvalue, mpz_t index,
 			   > LOCATION_LINE (rvalue->where.lb->location))
 			  ? con->expr : rvalue;
 		  if (gfc_notify_std (GFC_STD_GNU,
-				      "re-initialization of '%s' at %L",
+				      "re-initialization of %qs at %L",
 				      symbol->name, &exprd->where) == false)
 		    return false;
 		}
@@ -471,28 +483,39 @@ gfc_assign_data_value (gfc_expr *lvalue, gfc_expr *rvalue, mpz_t index,
   mpz_clear (offset);
   gcc_assert (repeat == NULL);
 
+  /* Overwriting an existing initializer is non-standard but usually only
+     provokes a warning from other compilers.  */
+  if (init != NULL && init->where.lb && rvalue->where.lb)
+    {
+      /* Order in which the expressions arrive here depends on whether
+	 they are from data statements or F95 style declarations.
+	 Therefore, check which is the most recent.  */
+      expr = (LOCATION_LINE (init->where.lb->location)
+	      > LOCATION_LINE (rvalue->where.lb->location))
+	   ? init : rvalue;
+      if (gfc_notify_std (GFC_STD_GNU, "re-initialization of %qs at %L",
+			  symbol->name, &expr->where) == false)
+	return false;
+    }
+
   if (ref || last_ts->type == BT_CHARACTER)
     {
-      if (lvalue->ts.u.cl->length == NULL && !(ref && ref->u.ss.length != NULL))
+      /* An initializer has to be constant.  */
+      if (rvalue->expr_type != EXPR_CONSTANT
+	  || (lvalue->ts.u.cl->length == NULL
+	      && !(ref && ref->u.ss.length != NULL)))
 	return false;
       expr = create_character_initializer (init, last_ts, ref, rvalue);
     }
   else
     {
-      /* Overwriting an existing initializer is non-standard but usually only
-	 provokes a warning from other compilers.  */
-      if (init != NULL)
+      if (lvalue->ts.type == BT_DERIVED
+	  && gfc_has_default_initializer (lvalue->ts.u.derived))
 	{
-	  /* Order in which the expressions arrive here depends on whether
-	     they are from data statements or F95 style declarations.
-	     Therefore, check which is the most recent.  */
-	  expr = (LOCATION_LINE (init->where.lb->location)
-		  > LOCATION_LINE (rvalue->where.lb->location))
-	       ? init : rvalue;
-	  if (gfc_notify_std (GFC_STD_GNU,
-			      "re-initialization of '%s' at %L",
-			      symbol->name, &expr->where) == false)
-	    return false;
+	  gfc_error ("Nonpointer object %qs with default initialization "
+		     "shall not appear in a DATA statement at %L", 
+		     symbol->name, &lvalue->where);
+	  return false;
 	}
 
       expr = gfc_copy_expr (rvalue);
@@ -526,6 +549,7 @@ gfc_advance_section (mpz_t *section_index, gfc_array_ref *ar,
   mpz_t tmp; 
   bool forwards;
   int cmp;
+  gfc_expr *start, *end, *stride;
 
   for (i = 0; i < ar->dimen; i++)
     {
@@ -534,12 +558,16 @@ gfc_advance_section (mpz_t *section_index, gfc_array_ref *ar,
 
       if (ar->stride[i])
 	{
+	  stride = gfc_copy_expr(ar->stride[i]);
+	  if(!gfc_simplify_expr(stride, 1))
+	    gfc_internal_error("Simplification error");
 	  mpz_add (section_index[i], section_index[i],
-		   ar->stride[i]->value.integer);
-	if (mpz_cmp_si (ar->stride[i]->value.integer, 0) >= 0)
-	  forwards = true;
-	else
-	  forwards = false;
+		   stride->value.integer);
+	  if (mpz_cmp_si (stride->value.integer, 0) >= 0)
+	    forwards = true;
+	  else
+	    forwards = false;
+	  gfc_free_expr(stride);	
 	}
       else
 	{
@@ -548,7 +576,13 @@ gfc_advance_section (mpz_t *section_index, gfc_array_ref *ar,
 	}
       
       if (ar->end[i])
-	cmp = mpz_cmp (section_index[i], ar->end[i]->value.integer);
+        {
+	  end = gfc_copy_expr(ar->end[i]);
+	  if(!gfc_simplify_expr(end, 1))
+	    gfc_internal_error("Simplification error");
+	  cmp = mpz_cmp (section_index[i], end->value.integer);
+	  gfc_free_expr(end);	
+	}
       else
 	cmp = mpz_cmp (section_index[i], ar->as->upper[i]->value.integer);
 
@@ -556,7 +590,13 @@ gfc_advance_section (mpz_t *section_index, gfc_array_ref *ar,
 	{
 	  /* Reset index to start, then loop to advance the next index.  */
 	  if (ar->start[i])
-	    mpz_set (section_index[i], ar->start[i]->value.integer);
+	    {
+	      start = gfc_copy_expr(ar->start[i]);
+	      if(!gfc_simplify_expr(start, 1))
+	        gfc_internal_error("Simplification error");
+	      mpz_set (section_index[i], start->value.integer);
+	      gfc_free_expr(start); 
+	    }
 	  else
 	    mpz_set (section_index[i], ar->as->lower[i]->value.integer);
 	}
@@ -666,6 +706,7 @@ gfc_get_section_index (gfc_array_ref *ar, mpz_t *section_index, mpz_t *offset)
   int i;
   mpz_t delta;
   mpz_t tmp;
+  gfc_expr *start;
 
   mpz_set_si (*offset, 0);
   mpz_init (tmp);
@@ -679,11 +720,15 @@ gfc_get_section_index (gfc_array_ref *ar, mpz_t *section_index, mpz_t *offset)
 	case DIMEN_RANGE:
 	  if (ar->start[i])
 	    {
-	      mpz_sub (tmp, ar->start[i]->value.integer,
+	      start = gfc_copy_expr(ar->start[i]);
+	      if(!gfc_simplify_expr(start, 1))
+	        gfc_internal_error("Simplification error");
+	      mpz_sub (tmp, start->value.integer,
 		       ar->as->lower[i]->value.integer);
 	      mpz_mul (tmp, tmp, delta);
 	      mpz_add (*offset, tmp, *offset);
-	      mpz_set (section_index[i], ar->start[i]->value.integer);
+	      mpz_set (section_index[i], start->value.integer);
+	      gfc_free_expr(start);
 	    }
 	  else
 	      mpz_set (section_index[i], ar->as->lower[i]->value.integer);

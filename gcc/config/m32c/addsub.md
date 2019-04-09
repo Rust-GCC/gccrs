@@ -1,5 +1,5 @@
 ;; Machine Descriptions for R8C/M16C/M32C
-;; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;; Contributed by Red Hat.
 ;;
 ;; This file is part of GCC.
@@ -81,7 +81,7 @@
 (define_insn "addsi3_1"
   [(set (match_operand:SI 0 "mra_operand" "=RsiSd,??Rmm,RsiSd,RsiSd,??Rmm,??Rmm,??Rmm,RsiSd")
         (plus:SI (match_operand:SI 1 "mra_operand" "%0,0,0,0,0,0,0,0")
-                 (match_operand 2 "mrai_operand" "IU2,IU2,i,?Rmm,i,RsiSd,?Rmm,RsiSd")))]
+                 (match_operand:SI 2 "mrai_operand" "IU2,IU2,i,?Rmm,i,RsiSd,?Rmm,RsiSd")))]
   "TARGET_A16"
   "*
   

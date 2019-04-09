@@ -1,5 +1,5 @@
 /* Support routines for the various generation passes.
-   Copyright (C) 2000-2014 Free Software Foundation, Inc.
+   Copyright (C) 2000-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -24,9 +24,9 @@
 #include "rtl.h"
 #include "obstack.h"
 #include "errors.h"
-#include "hashtab.h"
 #include "read-md.h"
 #include "gensupport.h"
+#include "vec.h"
 
 #define MAX_OPERANDS 40
 
@@ -43,11 +43,14 @@ int insn_elision = 1;
 static struct obstack obstack;
 struct obstack *rtl_obstack = &obstack;
 
-/* Counter for patterns that generate code: define_insn, define_expand,
-   define_split, define_peephole, and define_peephole2.  See read_md_rtx().
-   Any define_insn_and_splits are already in separate queues so that the
-   insn and the splitter get a unique number also.  */
-static int sequence_num;
+/* Counter for named patterns and INSN_CODEs.  */
+static int insn_sequence_num;
+
+/* Counter for define_splits.  */
+static int split_sequence_num;
+
+/* Counter for define_peephole2s.  */
+static int peephole2_sequence_num;
 
 static int predicable_default;
 static const char *predicable_true;
@@ -65,8 +68,7 @@ static htab_t condition_table;
 struct queue_elem
 {
   rtx data;
-  const char *filename;
-  int lineno;
+  file_location loc;
   struct queue_elem *next;
   /* In a DEFINE_INSN that came from a DEFINE_INSN_AND_SPLIT, SPLIT
      points to the generated DEFINE_SPLIT.  */
@@ -91,17 +93,15 @@ static struct queue_elem **other_tail = &other_queue;
 static struct queue_elem *define_subst_attr_queue;
 static struct queue_elem **define_subst_attr_tail = &define_subst_attr_queue;
 
-static struct queue_elem *queue_pattern (rtx, struct queue_elem ***,
-					 const char *, int);
+/* Mapping from DEFINE_* rtxes to their location in the source file.  */
+static hash_map <rtx, file_location> *rtx_locs;
 
 static void remove_constraints (rtx);
-static void process_rtx (rtx, int);
 
 static int is_predicable (struct queue_elem *);
 static void identify_predicable_attribute (void);
 static int n_alternatives (const char *);
 static void collect_insn_data (rtx, int *, int *);
-static rtx alter_predicate_for_insn (rtx, int, int, int);
 static const char *alter_test_for_insn (struct queue_elem *,
 					struct queue_elem *);
 static char *shift_output_template (char *, const char *, int);
@@ -114,8 +114,6 @@ static void init_predicate_table (void);
 static void record_insn_name (int, const char *);
 
 static bool has_subst_attribute (struct queue_elem *, struct queue_elem *);
-static bool subst_pattern_match (rtx, rtx, int);
-static int get_alternatives_number (rtx, int *, int);
 static const char * alter_output_for_subst_insn (rtx, int);
 static void alter_attrs_for_subst_insn (struct queue_elem *, int);
 static void process_substs_on_one_elem (struct queue_elem *,
@@ -135,13 +133,29 @@ static rtx replace_duplicating_operands_in_pattern (rtx);
    the gensupport programs.  */
 
 rtx
-gen_rtx_CONST_INT (enum machine_mode ARG_UNUSED (mode),
+gen_rtx_CONST_INT (machine_mode ARG_UNUSED (mode),
 		   HOST_WIDE_INT arg)
 {
   rtx rt = rtx_alloc (CONST_INT);
 
   XWINT (rt, 0) = arg;
   return rt;
+}
+
+/* Return the rtx pattern specified by the list of rtxes in a
+   define_insn or define_split.  */
+
+rtx
+add_implicit_parallel (rtvec vec)
+{
+  if (GET_NUM_ELEM (vec) == 1)
+    return RTVEC_ELT (vec, 0);
+  else
+    {
+      rtx pattern = rtx_alloc (PARALLEL);
+      XVEC (pattern, 0) = vec;
+      return pattern;
+    }
 }
 
 /* Predicate handling.
@@ -201,11 +215,11 @@ gen_rtx_CONST_INT (enum machine_mode ARG_UNUSED (mode),
 static char did_you_mean_codes[NUM_RTX_CODE];
 
 /* Recursively calculate the set of rtx codes accepted by the
-   predicate expression EXP, writing the result to CODES.  LINENO is
-   the line number on which the directive containing EXP appeared.  */
+   predicate expression EXP, writing the result to CODES.  LOC is
+   the .md file location of the directive containing EXP.  */
 
-static void
-compute_predicate_codes (rtx exp, int lineno, char codes[NUM_RTX_CODE])
+void
+compute_test_codes (rtx exp, file_location loc, char *codes)
 {
   char op0_codes[NUM_RTX_CODE];
   char op1_codes[NUM_RTX_CODE];
@@ -215,29 +229,29 @@ compute_predicate_codes (rtx exp, int lineno, char codes[NUM_RTX_CODE])
   switch (GET_CODE (exp))
     {
     case AND:
-      compute_predicate_codes (XEXP (exp, 0), lineno, op0_codes);
-      compute_predicate_codes (XEXP (exp, 1), lineno, op1_codes);
+      compute_test_codes (XEXP (exp, 0), loc, op0_codes);
+      compute_test_codes (XEXP (exp, 1), loc, op1_codes);
       for (i = 0; i < NUM_RTX_CODE; i++)
 	codes[i] = TRISTATE_AND (op0_codes[i], op1_codes[i]);
       break;
 
     case IOR:
-      compute_predicate_codes (XEXP (exp, 0), lineno, op0_codes);
-      compute_predicate_codes (XEXP (exp, 1), lineno, op1_codes);
+      compute_test_codes (XEXP (exp, 0), loc, op0_codes);
+      compute_test_codes (XEXP (exp, 1), loc, op1_codes);
       for (i = 0; i < NUM_RTX_CODE; i++)
 	codes[i] = TRISTATE_OR (op0_codes[i], op1_codes[i]);
       break;
     case NOT:
-      compute_predicate_codes (XEXP (exp, 0), lineno, op0_codes);
+      compute_test_codes (XEXP (exp, 0), loc, op0_codes);
       for (i = 0; i < NUM_RTX_CODE; i++)
 	codes[i] = TRISTATE_NOT (op0_codes[i]);
       break;
 
     case IF_THEN_ELSE:
       /* a ? b : c  accepts the same codes as (a & b) | (!a & c).  */
-      compute_predicate_codes (XEXP (exp, 0), lineno, op0_codes);
-      compute_predicate_codes (XEXP (exp, 1), lineno, op1_codes);
-      compute_predicate_codes (XEXP (exp, 2), lineno, op2_codes);
+      compute_test_codes (XEXP (exp, 0), loc, op0_codes);
+      compute_test_codes (XEXP (exp, 1), loc, op1_codes);
+      compute_test_codes (XEXP (exp, 2), loc, op2_codes);
       for (i = 0; i < NUM_RTX_CODE; i++)
 	codes[i] = TRISTATE_OR (TRISTATE_AND (op0_codes[i], op1_codes[i]),
 				TRISTATE_AND (TRISTATE_NOT (op0_codes[i]),
@@ -261,7 +275,7 @@ compute_predicate_codes (rtx exp, int lineno, char codes[NUM_RTX_CODE])
 
 	if (*next_code == '\0')
 	  {
-	    error_with_line (lineno, "empty match_code expression");
+	    error_at (loc, "empty match_code expression");
 	    break;
 	  }
 
@@ -280,17 +294,16 @@ compute_predicate_codes (rtx exp, int lineno, char codes[NUM_RTX_CODE])
 		}
 	    if (!found_it)
 	      {
-		error_with_line (lineno,
-				 "match_code \"%.*s\" matches nothing",
-				 (int) n, code);
+		error_at (loc, "match_code \"%.*s\" matches nothing",
+			  (int) n, code);
 		for (i = 0; i < NUM_RTX_CODE; i++)
 		  if (!strncasecmp (code, GET_RTX_NAME (i), n)
 		      && GET_RTX_NAME (i)[n] == '\0'
 		      && !did_you_mean_codes[i])
 		    {
 		      did_you_mean_codes[i] = 1;
-		      message_with_line (lineno, "(did you mean \"%s\"?)",
-					 GET_RTX_NAME (i));
+		      message_at (loc, "(did you mean \"%s\"?)",
+				  GET_RTX_NAME (i));
 		    }
 	      }
 	  }
@@ -304,8 +317,8 @@ compute_predicate_codes (rtx exp, int lineno, char codes[NUM_RTX_CODE])
 	struct pred_data *p = lookup_predicate (XSTR (exp, 1));
 	if (!p)
 	  {
-	    error_with_line (lineno, "reference to unknown predicate '%s'",
-			     XSTR (exp, 1));
+	    error_at (loc, "reference to unknown predicate '%s'",
+		      XSTR (exp, 1));
 	    break;
 	  }
 	for (i = 0; i < NUM_RTX_CODE; i++)
@@ -320,9 +333,8 @@ compute_predicate_codes (rtx exp, int lineno, char codes[NUM_RTX_CODE])
       break;
 
     default:
-      error_with_line (lineno,
-		       "'%s' cannot be used in a define_predicate expression",
-		       GET_RTX_NAME (GET_CODE (exp)));
+      error_at (loc, "'%s' cannot be used in predicates or constraints",
+		GET_RTX_NAME (GET_CODE (exp)));
       memset (codes, I, NUM_RTX_CODE);
       break;
     }
@@ -347,12 +359,12 @@ valid_predicate_name_p (const char *name)
   return true;
 }
 
-/* Process define_predicate directive DESC, which appears on line number
-   LINENO.  Compute the set of codes that can be matched, and record this
-   as a known predicate.  */
+/* Process define_predicate directive DESC, which appears at location LOC.
+   Compute the set of codes that can be matched, and record this as a known
+   predicate.  */
 
 static void
-process_define_predicate (rtx desc, int lineno)
+process_define_predicate (rtx desc, file_location loc)
 {
   struct pred_data *pred;
   char codes[NUM_RTX_CODE];
@@ -360,9 +372,8 @@ process_define_predicate (rtx desc, int lineno)
 
   if (!valid_predicate_name_p (XSTR (desc, 0)))
     {
-      error_with_line (lineno,
-		       "%s: predicate name must be a valid C function name",
-		       XSTR (desc, 0));
+      error_at (loc, "%s: predicate name must be a valid C function name",
+		XSTR (desc, 0));
       return;
     }
 
@@ -373,7 +384,7 @@ process_define_predicate (rtx desc, int lineno)
   if (GET_CODE (desc) == DEFINE_SPECIAL_PREDICATE)
     pred->special = true;
 
-  compute_predicate_codes (XEXP (desc, 1), lineno, codes);
+  compute_test_codes (XEXP (desc, 1), loc, codes);
 
   for (i = 0; i < NUM_RTX_CODE; i++)
     if (codes[i] != N)
@@ -390,12 +401,11 @@ process_define_predicate (rtx desc, int lineno)
 
 static struct queue_elem *
 queue_pattern (rtx pattern, struct queue_elem ***list_tail,
-	       const char *filename, int lineno)
+	       file_location loc)
 {
   struct queue_elem *e = XNEW (struct queue_elem);
   e->data = pattern;
-  e->filename = filename;
-  e->lineno = lineno;
+  e->loc = loc;
   e->next = NULL;
   e->split = NULL;
   **list_tail = e;
@@ -436,8 +446,7 @@ add_define_attr (const char *name)
   XEXP (t1, 2) = rtx_alloc (CONST_STRING);
   XSTR (XEXP (t1, 2), 0) = "yes";
   e->data = t1;
-  e->filename = "built-in";
-  e->lineno = -1;
+  e->loc = file_location ("built-in", -1, -1);
   e->next = define_attr_queue;
   define_attr_queue = e;
 
@@ -479,41 +488,42 @@ remove_constraints (rtx part)
 /* Process a top level rtx in some way, queuing as appropriate.  */
 
 static void
-process_rtx (rtx desc, int lineno)
+process_rtx (rtx desc, file_location loc)
 {
   switch (GET_CODE (desc))
     {
     case DEFINE_INSN:
-      queue_pattern (desc, &define_insn_tail, read_md_filename, lineno);
+      queue_pattern (desc, &define_insn_tail, loc);
       break;
 
     case DEFINE_COND_EXEC:
-      queue_pattern (desc, &define_cond_exec_tail, read_md_filename, lineno);
+      queue_pattern (desc, &define_cond_exec_tail, loc);
       break;
 
     case DEFINE_SUBST:
-      queue_pattern (desc, &define_subst_tail, read_md_filename, lineno);
+      queue_pattern (desc, &define_subst_tail, loc);
       break;
 
     case DEFINE_SUBST_ATTR:
-      queue_pattern (desc, &define_subst_attr_tail, read_md_filename, lineno);
+      queue_pattern (desc, &define_subst_attr_tail, loc);
       break;
 
     case DEFINE_ATTR:
     case DEFINE_ENUM_ATTR:
-      queue_pattern (desc, &define_attr_tail, read_md_filename, lineno);
+      queue_pattern (desc, &define_attr_tail, loc);
       break;
 
     case DEFINE_PREDICATE:
     case DEFINE_SPECIAL_PREDICATE:
-      process_define_predicate (desc, lineno);
+      process_define_predicate (desc, loc);
       /* Fall through.  */
 
     case DEFINE_CONSTRAINT:
     case DEFINE_REGISTER_CONSTRAINT:
     case DEFINE_MEMORY_CONSTRAINT:
+    case DEFINE_SPECIAL_MEMORY_CONSTRAINT:
     case DEFINE_ADDRESS_CONSTRAINT:
-      queue_pattern (desc, &define_pred_tail, read_md_filename, lineno);
+      queue_pattern (desc, &define_pred_tail, loc);
       break;
 
     case DEFINE_INSN_AND_SPLIT:
@@ -541,8 +551,9 @@ process_rtx (rtx desc, int lineno)
 	split_cond = XSTR (desc, 4);
 	if (split_cond[0] == '&' && split_cond[1] == '&')
 	  {
-	    copy_md_ptr_loc (split_cond + 2, split_cond);
-	    split_cond = join_c_conditions (XSTR (desc, 2), split_cond + 2);
+	    rtx_reader_ptr->copy_md_ptr_loc (split_cond + 2, split_cond);
+	    split_cond = rtx_reader_ptr->join_c_conditions (XSTR (desc, 2),
+							    split_cond + 2);
 	  }
 	XSTR (split, 1) = split_cond;
 	XVEC (split, 2) = XVEC (desc, 5);
@@ -554,17 +565,14 @@ process_rtx (rtx desc, int lineno)
 	XVEC (desc, 4) = attr;
 
 	/* Queue them.  */
-	insn_elem
-	  = queue_pattern (desc, &define_insn_tail, read_md_filename,
-			   lineno);
-	split_elem
-	  = queue_pattern (split, &other_tail, read_md_filename, lineno);
+	insn_elem = queue_pattern (desc, &define_insn_tail, loc);
+	split_elem = queue_pattern (split, &other_tail, loc);
 	insn_elem->split = split_elem;
 	break;
       }
 
     default:
-      queue_pattern (desc, &other_tail, read_md_filename, lineno);
+      queue_pattern (desc, &other_tail, loc);
       break;
     }
 }
@@ -598,8 +606,7 @@ is_predicable (struct queue_elem *elem)
 	case SET_ATTR_ALTERNATIVE:
 	  if (strcmp (XSTR (sub, 0), "predicable") == 0)
 	    {
-	      error_with_line (elem->lineno,
-			       "multiple alternatives for `predicable'");
+	      error_at (elem->loc, "multiple alternatives for `predicable'");
 	      return 0;
 	    }
 	  break;
@@ -618,8 +625,7 @@ is_predicable (struct queue_elem *elem)
 	  /* ??? It would be possible to handle this if we really tried.
 	     It's not easy though, and I'm not going to bother until it
 	     really proves necessary.  */
-	  error_with_line (elem->lineno,
-			   "non-constant value for `predicable'");
+	  error_at (elem->loc, "non-constant value for `predicable'");
 	  return 0;
 
 	default:
@@ -639,8 +645,7 @@ is_predicable (struct queue_elem *elem)
   if (strcmp (value, predicable_false) == 0)
     return 0;
 
-  error_with_line (elem->lineno,
-		   "unknown value `%s' for `predicable' attribute", value);
+  error_at (elem->loc, "unknown value `%s' for `predicable' attribute", value);
   return 0;
 }
 
@@ -674,7 +679,7 @@ change_subst_attribute (struct queue_elem *elem,
    represented by SUBST_ELEM and this attribute has value SUBST_TRUE.
    DEFINE_SUBST isn't applied to patterns without such attribute.  In other
    words, we suppose the default value of the attribute to be 'no' since it is
-   always generated automaticaly in read-rtl.c.  */
+   always generated automatically in read-rtl.c.  */
 static bool
 has_subst_attribute (struct queue_elem *elem, struct queue_elem *subst_elem)
 {
@@ -712,15 +717,13 @@ has_subst_attribute (struct queue_elem *elem, struct queue_elem *subst_elem)
 	  /* Only (set_attr "subst" "yes/no") and
 		  (set (attr "subst" (const_string "yes/no")))
 	     are currently allowed.  */
-	  error_with_line (elem->lineno,
-			   "unsupported value for `%s'", subst_name);
+	  error_at (elem->loc, "unsupported value for `%s'", subst_name);
 	  return false;
 
 	case SET_ATTR_ALTERNATIVE:
-	  error_with_line (elem->lineno,
-			   "%s: `set_attr_alternative' is unsupported by "
-			   "`define_subst'",
-			   XSTR (elem->data, 0));
+	  error_at (elem->loc,
+		    "%s: `set_attr_alternative' is unsupported by "
+		    "`define_subst'", XSTR (elem->data, 0));
 	  return false;
 
 
@@ -737,8 +740,8 @@ has_subst_attribute (struct queue_elem *elem, struct queue_elem *subst_elem)
   if (strcmp (value, subst_false) == 0)
     return false;
 
-  error_with_line (elem->lineno,
-		   "unknown value `%s' for `%s' attribute", value, subst_name);
+  error_at (elem->loc, "unknown value `%s' for `%s' attribute",
+	    value, subst_name);
   return false;
 }
 
@@ -746,7 +749,7 @@ has_subst_attribute (struct queue_elem *elem, struct queue_elem *subst_elem)
    define_subst PT.  Return 1 if the templates match, 0 otherwise.
    During the comparison, the routine also fills global_array OPERAND_DATA.  */
 static bool
-subst_pattern_match (rtx x, rtx pt, int lineno)
+subst_pattern_match (rtx x, rtx pt, file_location loc)
 {
   RTX_CODE code, code_pt;
   int i, j, len;
@@ -821,7 +824,7 @@ subst_pattern_match (rtx x, rtx pt, int lineno)
 	    return false;
 	  for (j = 0; j < XVECLEN (pt, 2); j++)
 	    if (!subst_pattern_match (XVECEXP (x, x_vecexp_pos, j),
-				      XVECEXP (pt, 2, j), lineno))
+				      XVECEXP (pt, 2, j), loc))
 	      return false;
 	}
 
@@ -835,7 +838,7 @@ subst_pattern_match (rtx x, rtx pt, int lineno)
 	  if (GET_RTX_LENGTH (code) != XVECLEN (pt, 2))
 	    return false;
 	  for (j = 0; j < XVECLEN (pt, 2); j++)
-	    if (!subst_pattern_match (XEXP (x, j), XVECEXP (pt, 2, j), lineno))
+	    if (!subst_pattern_match (XEXP (x, j), XVECEXP (pt, 2, j), loc))
 	      return false;
 	}
 
@@ -854,8 +857,8 @@ subst_pattern_match (rtx x, rtx pt, int lineno)
       /* Currently interface for these constructions isn't defined -
 	 probably they aren't needed in input template of define_subst at all.
 	 So, for now their usage in define_subst is forbidden.  */
-      error_with_line (lineno, "%s cannot be used in define_subst",
-		       GET_RTX_NAME (code_pt));
+      error_at (loc, "%s cannot be used in define_subst",
+		GET_RTX_NAME (code_pt));
     }
 
   gcc_assert (code != MATCH_PAR_DUP
@@ -880,11 +883,11 @@ subst_pattern_match (rtx x, rtx pt, int lineno)
 
       switch (fmt[i])
 	{
-	case 'i': case 'w': case 's':
+	case 'r': case 'p': case 'i': case 'w': case 's':
 	  continue;
 
 	case 'e': case 'u':
-	  if (!subst_pattern_match (XEXP (x, i), XEXP (pt, i), lineno))
+	  if (!subst_pattern_match (XEXP (x, i), XEXP (pt, i), loc))
 	    return false;
 	  break;
 	case 'E':
@@ -892,8 +895,8 @@ subst_pattern_match (rtx x, rtx pt, int lineno)
 	    if (XVECLEN (x, i) != XVECLEN (pt, i))
 	      return false;
 	    for (j = 0; j < XVECLEN (pt, i); j++)
-	      if (!subst_pattern_match (XVECEXP (x, i, j), XVECEXP (pt, i, j),
-					lineno))
+	      if (!subst_pattern_match (XVECEXP (x, i, j),
+					XVECEXP (pt, i, j), loc))
 		return false;
 	    break;
 	  }
@@ -920,8 +923,8 @@ identify_predicable_attribute (void)
     if (strcmp (XSTR (elem->data, 0), "predicable") == 0)
       goto found;
 
-  error_with_line (define_cond_exec_queue->lineno,
-		   "attribute `predicable' not defined");
+  error_at (define_cond_exec_queue->loc,
+	    "attribute `predicable' not defined");
   return;
 
  found:
@@ -930,7 +933,7 @@ identify_predicable_attribute (void)
   p_true = strchr (p_false, ',');
   if (p_true == NULL || strchr (++p_true, ',') != NULL)
     {
-      error_with_line (elem->lineno, "attribute `predicable' is not a boolean");
+      error_at (elem->loc, "attribute `predicable' is not a boolean");
       free (p_false);
       return;
     }
@@ -946,13 +949,13 @@ identify_predicable_attribute (void)
       break;
 
     case CONST:
-      error_with_line (elem->lineno, "attribute `predicable' cannot be const");
+      error_at (elem->loc, "attribute `predicable' cannot be const");
       free (p_false);
       return;
 
     default:
-      error_with_line (elem->lineno,
-		       "attribute `predicable' must have a constant default");
+      error_at (elem->loc,
+		"attribute `predicable' must have a constant default");
       free (p_false);
       return;
     }
@@ -963,8 +966,8 @@ identify_predicable_attribute (void)
     predicable_default = 0;
   else
     {
-      error_with_line (elem->lineno,
-		       "unknown value `%s' for `predicable' attribute", value);
+      error_at (elem->loc, "unknown value `%s' for `predicable' attribute",
+		value);
       free (p_false);
     }
 }
@@ -988,9 +991,9 @@ n_alternatives (const char *s)
    with different number of alternatives, error is emitted, and the
    routine returns 0.  If all match_operands in PATTERN have the same
    number of alternatives, it's stored in N_ALT, and the routine returns 1.
-   Argument LINENO is used in when the error is emitted.  */
+   LOC is the location of PATTERN, for error reporting.  */
 static int
-get_alternatives_number (rtx pattern, int *n_alt, int lineno)
+get_alternatives_number (rtx pattern, int *n_alt, file_location loc)
 {
   const char *fmt;
   enum rtx_code code;
@@ -1013,9 +1016,8 @@ get_alternatives_number (rtx pattern, int *n_alt, int lineno)
 
       else if (i && i != *n_alt)
 	{
-	  error_with_line (lineno,
-			   "wrong number of alternatives in operand %d",
-			   XINT (pattern, 0));
+	  error_at (loc, "wrong number of alternatives in operand %d",
+		    XINT (pattern, 0));
 	  return 0;
 	}
 
@@ -1030,22 +1032,23 @@ get_alternatives_number (rtx pattern, int *n_alt, int lineno)
       switch (fmt[i])
 	{
 	case 'e': case 'u':
-	  if (!get_alternatives_number (XEXP (pattern, i), n_alt, lineno))
-		return 0;
+	  if (!get_alternatives_number (XEXP (pattern, i), n_alt, loc))
+	    return 0;
 	  break;
 
 	case 'V':
 	  if (XVEC (pattern, i) == NULL)
 	    break;
+	  /* FALLTHRU */
 
 	case 'E':
 	  for (j = XVECLEN (pattern, i) - 1; j >= 0; --j)
-	    if (!get_alternatives_number (XVECEXP (pattern, i, j),
-					  n_alt, lineno))
-		return 0;
+	    if (!get_alternatives_number (XVECEXP (pattern, i, j), n_alt, loc))
+	      return 0;
 	  break;
 
-	case 'i': case 'w': case '0': case 's': case 'S': case 'T':
+	case 'r': case 'p': case 'i': case 'w':
+	case '0': case 's': case 'S': case 'T':
 	  break;
 
 	default:
@@ -1069,12 +1072,12 @@ collect_insn_data (rtx pattern, int *palt, int *pmax)
   switch (code)
     {
     case MATCH_OPERAND:
-      i = n_alternatives (XSTR (pattern, 2));
+    case MATCH_SCRATCH:
+      i = n_alternatives (XSTR (pattern, code == MATCH_SCRATCH ? 1 : 2));
       *palt = (i > *palt ? i : *palt);
       /* Fall through.  */
 
     case MATCH_OPERATOR:
-    case MATCH_SCRATCH:
     case MATCH_PARALLEL:
       i = XINT (pattern, 0);
       if (i > *pmax)
@@ -1104,7 +1107,8 @@ collect_insn_data (rtx pattern, int *palt, int *pmax)
 	    collect_insn_data (XVECEXP (pattern, i, j), palt, pmax);
 	  break;
 
-	case 'i': case 'w': case '0': case 's': case 'S': case 'T':
+	case 'r': case 'p': case 'i': case 'w':
+	case '0': case 's': case 'S': case 'T':
 	  break;
 
 	default:
@@ -1114,7 +1118,8 @@ collect_insn_data (rtx pattern, int *palt, int *pmax)
 }
 
 static rtx
-alter_predicate_for_insn (rtx pattern, int alt, int max_op, int lineno)
+alter_predicate_for_insn (rtx pattern, int alt, int max_op,
+			  file_location loc)
 {
   const char *fmt;
   enum rtx_code code;
@@ -1129,8 +1134,8 @@ alter_predicate_for_insn (rtx pattern, int alt, int max_op, int lineno)
 
 	if (n_alternatives (c) != 1)
 	  {
-	    error_with_line (lineno, "too many alternatives for operand %d",
-			     XINT (pattern, 0));
+	    error_at (loc, "too many alternatives for operand %d",
+		      XINT (pattern, 0));
 	    return NULL;
 	  }
 
@@ -1172,8 +1177,7 @@ alter_predicate_for_insn (rtx pattern, int alt, int max_op, int lineno)
       switch (fmt[i])
 	{
 	case 'e': case 'u':
-	  r = alter_predicate_for_insn (XEXP (pattern, i), alt,
-					max_op, lineno);
+	  r = alter_predicate_for_insn (XEXP (pattern, i), alt, max_op, loc);
 	  if (r == NULL)
 	    return r;
 	  break;
@@ -1182,13 +1186,13 @@ alter_predicate_for_insn (rtx pattern, int alt, int max_op, int lineno)
 	  for (j = XVECLEN (pattern, i) - 1; j >= 0; --j)
 	    {
 	      r = alter_predicate_for_insn (XVECEXP (pattern, i, j),
-					    alt, max_op, lineno);
+					    alt, max_op, loc);
 	      if (r == NULL)
 		return r;
 	    }
 	  break;
 
-	case 'i': case 'w': case '0': case 's':
+	case 'r': case 'p': case 'i': case 'w': case '0': case 's':
 	  break;
 
 	default:
@@ -1246,7 +1250,7 @@ alter_constraints (rtx pattern, int n_dup, constraints_handler_t alter)
 	    }
 	  break;
 
-	case 'i': case 'w': case '0': case 's':
+	case 'r': case 'p': case 'i': case 'w': case '0': case 's':
 	  break;
 
 	default:
@@ -1261,8 +1265,8 @@ static const char *
 alter_test_for_insn (struct queue_elem *ce_elem,
 		     struct queue_elem *insn_elem)
 {
-  return join_c_conditions (XSTR (ce_elem->data, 1),
-			    XSTR (insn_elem->data, 2));
+  return rtx_reader_ptr->join_c_conditions (XSTR (ce_elem->data, 1),
+					    XSTR (insn_elem->data, 2));
 }
 
 /* Modify VAL, which is an attribute expression for the "enabled" attribute,
@@ -1433,10 +1437,10 @@ alter_attrs_for_subst_insn (struct queue_elem * elem, int n_dup)
 
 	case SET_ATTR_ALTERNATIVE:
 	case SET:
-	  error_with_line (elem->lineno,
-			   "%s: `define_subst' does not support attributes "
-			   "assigned by `set' and `set_attr_alternative'",
-			   XSTR (elem->data, 0));
+	  error_at (elem->loc,
+		    "%s: `define_subst' does not support attributes "
+		    "assigned by `set' and `set_attr_alternative'",
+		    XSTR (elem->data, 0));
 	  return;
 
 	default:
@@ -1631,33 +1635,30 @@ duplicate_each_alternative (const char * str, int n_dup)
 static const char *
 alter_output_for_subst_insn (rtx insn, int alt)
 {
-  const char *insn_out, *sp ;
-  char *old_out, *new_out, *cp;
-  int i, j, new_len;
+  const char *insn_out, *old_out;
+  char *new_out, *cp;
+  size_t old_len, new_len;
+  int j;
 
   insn_out = XTMPL (insn, 3);
 
-  if (alt < 2 || *insn_out == '*' || *insn_out != '@')
+  if (alt < 2 || *insn_out != '@')
     return insn_out;
 
-  old_out = XNEWVEC (char, strlen (insn_out)),
-  sp = insn_out;
+  old_out = insn_out + 1;
+  while (ISSPACE (*old_out))
+    old_out++;
+  old_len = strlen (old_out);
 
-  while (ISSPACE (*sp) || *sp == '@')
-    sp++;
-
-  for (i = 0; *sp;)
-    old_out[i++] = *sp++;
-
-  new_len = alt * (i + 1) + 1;
+  new_len = alt * (old_len + 1) + 1;
 
   new_out = XNEWVEC (char, new_len);
   new_out[0] = '@';
 
-  for (j = 0, cp = new_out + 1; j < alt; j++, cp += i + 1)
+  for (j = 0, cp = new_out + 1; j < alt; j++, cp += old_len + 1)
     {
-      memcpy (cp, old_out, i);
-      *(cp+i) = (j == alt - 1) ? '\0' : '\n';
+      memcpy (cp, old_out, old_len);
+      cp[old_len] = (j == alt - 1) ? '\0' : '\n';
     }
 
   return new_out;
@@ -1686,13 +1687,13 @@ process_one_cond_exec (struct queue_elem *ce_elem)
 
       if (XVECLEN (ce_elem->data, 0) != 1)
 	{
-	  error_with_line (ce_elem->lineno, "too many patterns in predicate");
+	  error_at (ce_elem->loc, "too many patterns in predicate");
 	  return;
 	}
 
       pred = copy_rtx (XVECEXP (ce_elem->data, 0, 0));
       pred = alter_predicate_for_insn (pred, alternatives, max_operand,
-				       ce_elem->lineno);
+				       ce_elem->loc);
       if (pred == NULL)
 	return;
 
@@ -1703,19 +1704,9 @@ process_one_cond_exec (struct queue_elem *ce_elem)
       XSTR (insn, 0) = new_name;
       pattern = rtx_alloc (COND_EXEC);
       XEXP (pattern, 0) = pred;
-      if (XVECLEN (insn, 1) == 1)
-	{
-	  XEXP (pattern, 1) = XVECEXP (insn, 1, 0);
-	  XVECEXP (insn, 1, 0) = pattern;
-	  PUT_NUM_ELEM (XVEC (insn, 1), 1);
-	}
-      else
-	{
-	  XEXP (pattern, 1) = rtx_alloc (PARALLEL);
-	  XVEC (XEXP (pattern, 1), 0) = XVEC (insn, 1);
-	  XVEC (insn, 1) = rtvec_alloc (1);
-	  XVECEXP (insn, 1, 0) = pattern;
-	}
+      XEXP (pattern, 1) = add_implicit_parallel (XVEC (insn, 1));
+      XVEC (insn, 1) = rtvec_alloc (1);
+      XVECEXP (insn, 1, 0) = pattern;
 
        if (XVEC (ce_elem->data, 3) != NULL)
 	{
@@ -1748,8 +1739,7 @@ process_one_cond_exec (struct queue_elem *ce_elem)
 	 patterns into the define_insn chain just after their generator
 	 is something we'll have to experiment with.  */
 
-      queue_pattern (insn, &other_tail, insn_elem->filename,
-		     insn_elem->lineno);
+      queue_pattern (insn, &other_tail, insn_elem->loc);
 
       if (!insn_elem->split)
 	continue;
@@ -1760,19 +1750,10 @@ process_one_cond_exec (struct queue_elem *ce_elem)
       /* Predicate the pattern matched by the split.  */
       pattern = rtx_alloc (COND_EXEC);
       XEXP (pattern, 0) = pred;
-      if (XVECLEN (split, 0) == 1)
-	{
-	  XEXP (pattern, 1) = XVECEXP (split, 0, 0);
-	  XVECEXP (split, 0, 0) = pattern;
-	  PUT_NUM_ELEM (XVEC (split, 0), 1);
-	}
-      else
-	{
-	  XEXP (pattern, 1) = rtx_alloc (PARALLEL);
-	  XVEC (XEXP (pattern, 1), 0) = XVEC (split, 0);
-	  XVEC (split, 0) = rtvec_alloc (1);
-	  XVECEXP (split, 0, 0) = pattern;
-	}
+      XEXP (pattern, 1) = add_implicit_parallel (XVEC (split, 0));
+      XVEC (split, 0) = rtvec_alloc (1);
+      XVECEXP (split, 0, 0) = pattern;
+
       /* Predicate all of the insns generated by the split.  */
       for (i = 0; i < XVECLEN (split, 2); i++)
 	{
@@ -1782,8 +1763,7 @@ process_one_cond_exec (struct queue_elem *ce_elem)
 	  XVECEXP (split, 2, i) = pattern;
 	}
       /* Add the new split to the queue.  */
-      queue_pattern (split, &other_tail, read_md_filename,
-		     insn_elem->split->lineno);
+      queue_pattern (split, &other_tail, insn_elem->split->loc);
     }
 }
 
@@ -1822,14 +1802,14 @@ process_substs_on_one_elem (struct queue_elem *elem,
 	{
 	  if (!subst_pattern_match (XVECEXP (elem->data, 1, j),
 				    XVECEXP (subst_elem->data, 1, j),
-				    subst_elem->lineno))
+				    subst_elem->loc))
 	    {
 	      patterns_match = 0;
 	      break;
 	    }
 
 	  if (!get_alternatives_number (XVECEXP (elem->data, 1, j),
-					&alternatives, subst_elem->lineno))
+					&alternatives, subst_elem->loc))
 	    {
 	      patterns_match = 0;
 	      break;
@@ -1842,7 +1822,7 @@ process_substs_on_one_elem (struct queue_elem *elem,
 	{
 	  if (!get_alternatives_number (XVECEXP (subst_elem->data, 3, j),
 					&alternatives_subst,
-					subst_elem->lineno))
+					subst_elem->loc))
 	    {
 	      patterns_match = 0;
 	      break;
@@ -1894,8 +1874,9 @@ process_substs_on_one_elem (struct queue_elem *elem,
 
       /* Recalculate condition, joining conditions from original and
 	 DEFINE_SUBST input patterns.  */
-      XSTR (elem->data, 2) = join_c_conditions (XSTR (subst_elem->data, 2),
-						XSTR (elem->data, 2));
+      XSTR (elem->data, 2)
+	= rtx_reader_ptr->join_c_conditions (XSTR (subst_elem->data, 2),
+					     XSTR (elem->data, 2));
       /* Mark that subst was applied by changing attribute from "yes"
 	 to "no".  */
       change_subst_attribute (elem, subst_elem, subst_false);
@@ -2177,6 +2158,7 @@ subst_dup (rtx pattern, int n_alt, int n_subst_alt)
 	case 'V':
 	  if (XVEC (pattern, i) == NULL)
 	    break;
+	  /* FALLTHRU */
 	case 'E':
 	  if (code != MATCH_DUP && code != MATCH_OP_DUP)
 	    for (j = XVECLEN (pattern, i) - 1; j >= 0; --j)
@@ -2184,7 +2166,8 @@ subst_dup (rtx pattern, int n_alt, int n_subst_alt)
 						   n_alt, n_subst_alt);
 	  break;
 
-	case 'i': case 'w': case '0': case 's': case 'S': case 'T':
+	case 'r': case 'p': case 'i': case 'w':
+	case '0': case 's': case 'S': case 'T':
 	  break;
 
 	default:
@@ -2227,11 +2210,12 @@ process_define_subst (void)
 	if (strcmp (XSTR (elem->data, 0), XSTR (elem_attr->data, 1)) == 0)
 	    goto found;
 
-	error_with_line (elem->lineno,
-			 "%s: `define_subst' must have at least one "
-			 "corresponding `define_subst_attr'",
-			 XSTR (elem->data, 0));
-	return;
+      error_at (elem->loc,
+		"%s: `define_subst' must have at least one "
+		"corresponding `define_subst_attr'",
+		XSTR (elem->data, 0));
+      return;
+
       found:
 	continue;
     }
@@ -2246,16 +2230,27 @@ process_define_subst (void)
     }
 }
 
-/* A read_md_files callback for reading an rtx.  */
+/* A subclass of rtx_reader which reads .md files and calls process_rtx on
+   the top-level elements.  */
 
-static void
-rtx_handle_directive (int lineno, const char *rtx_name)
+class gen_reader : public rtx_reader
 {
-  rtx queue, x;
+ public:
+  gen_reader () : rtx_reader (false) {}
+  void handle_unknown_directive (file_location, const char *);
+};
 
-  if (read_rtx (rtx_name, &queue))
-    for (x = queue; x; x = XEXP (x, 1))
-      process_rtx (XEXP (x, 0), lineno);
+void
+gen_reader::handle_unknown_directive (file_location loc, const char *rtx_name)
+{
+  auto_vec<rtx, 32> subrtxs;
+  if (!read_rtx (rtx_name, &subrtxs))
+    return;
+
+  rtx x;
+  unsigned int i;
+  FOR_EACH_VEC_ELT (subrtxs, i, x)
+    process_rtx (x, loc);
 }
 
 /* Comparison function for the mnemonic hash table.  */
@@ -2267,11 +2262,11 @@ htab_eq_string (const void *s1, const void *s2)
 }
 
 /* Add mnemonic STR with length LEN to the mnemonic hash table
-   MNEMONIC_HTAB.  A trailing zero end character is appendend to STR
+   MNEMONIC_HTAB.  A trailing zero end character is appended to STR
    and a permanent heap copy of STR is created.  */
 
 static void
-add_mnemonic_string (htab_t mnemonic_htab, const char *str, int len)
+add_mnemonic_string (htab_t mnemonic_htab, const char *str, size_t len)
 {
   char *new_str;
   void **slot;
@@ -2309,6 +2304,7 @@ gen_mnemonic_setattr (htab_t mnemonic_htab, rtx insn)
   rtx set_attr;
   char *attr_name;
   rtvec new_vec;
+  struct obstack *string_obstack = rtx_reader_ptr->get_string_obstack ();
 
   template_code = XTMPL (insn, 3);
 
@@ -2324,7 +2320,7 @@ gen_mnemonic_setattr (htab_t mnemonic_htab, rtx insn)
   for (i = 0; *cp; )
     {
       const char *ep, *sp;
-      int size = 0;
+      size_t size = 0;
 
       while (ISSPACE (*cp))
 	cp++;
@@ -2334,13 +2330,13 @@ gen_mnemonic_setattr (htab_t mnemonic_htab, rtx insn)
 	  sp = ep + 1;
 
       if (i > 0)
-	obstack_1grow (&string_obstack, ',');
+	obstack_1grow (string_obstack, ',');
 
       while (cp < sp && ((*cp >= '0' && *cp <= '9')
 			 || (*cp >= 'a' && *cp <= 'z')))
 
 	{
-	  obstack_1grow (&string_obstack, *cp);
+	  obstack_1grow (string_obstack, *cp);
 	  cp++;
 	  size++;
 	}
@@ -2351,8 +2347,7 @@ gen_mnemonic_setattr (htab_t mnemonic_htab, rtx insn)
 	    {
 	      /* Don't set a value if there are more than one
 		 instruction in the string.  */
-	      obstack_next_free (&string_obstack) =
-		obstack_next_free (&string_obstack) - size;
+	      obstack_blank_fast (string_obstack, -size);
 	      size = 0;
 
 	      cp = sp;
@@ -2361,22 +2356,22 @@ gen_mnemonic_setattr (htab_t mnemonic_htab, rtx insn)
 	  cp++;
 	}
       if (size == 0)
-	obstack_1grow (&string_obstack, '*');
+	obstack_1grow (string_obstack, '*');
       else
 	add_mnemonic_string (mnemonic_htab,
-			     obstack_next_free (&string_obstack) - size,
+			     (char *) obstack_next_free (string_obstack) - size,
 			     size);
       i++;
     }
 
   /* An insn definition might emit an empty string.  */
-  if (obstack_object_size (&string_obstack) == 0)
+  if (obstack_object_size (string_obstack) == 0)
     return;
 
-  obstack_1grow (&string_obstack, '\0');
+  obstack_1grow (string_obstack, '\0');
 
   set_attr = rtx_alloc (SET_ATTR);
-  XSTR (set_attr, 1) = XOBFINISH (&string_obstack, char *);
+  XSTR (set_attr, 1) = XOBFINISH (string_obstack, char *);
   attr_name = XNEWVAR (char, strlen (MNEMONIC_ATTR_NAME) + 1);
   strcpy (attr_name, MNEMONIC_ATTR_NAME);
   XSTR (set_attr, 0) = attr_name;
@@ -2399,8 +2394,10 @@ gen_mnemonic_setattr (htab_t mnemonic_htab, rtx insn)
 static int
 mnemonic_htab_callback (void **slot, void *info ATTRIBUTE_UNUSED)
 {
-  obstack_grow (&string_obstack, (char*)*slot, strlen ((char*)*slot));
-  obstack_1grow (&string_obstack, ',');
+  struct obstack *string_obstack = rtx_reader_ptr->get_string_obstack ();
+
+  obstack_grow (string_obstack, (char*) *slot, strlen ((char*) *slot));
+  obstack_1grow (string_obstack, ',');
   return 1;
 }
 
@@ -2418,6 +2415,7 @@ gen_mnemonic_attr (void)
   htab_t mnemonic_htab;
   const char *str, *p;
   int i;
+  struct obstack *string_obstack = rtx_reader_ptr->get_string_obstack ();
 
   if (have_error)
     return;
@@ -2481,8 +2479,8 @@ gen_mnemonic_attr (void)
   htab_traverse (mnemonic_htab, mnemonic_htab_callback, NULL);
 
   /* Replace the last ',' with the zero end character.  */
-  *((char *)obstack_next_free (&string_obstack) - 1) = '\0';
-  XSTR (mnemonic_attr, 1) = XOBFINISH (&string_obstack, char *);
+  *((char *) obstack_next_free (string_obstack) - 1) = '\0';
+  XSTR (mnemonic_attr, 1) = XOBFINISH (string_obstack, char *);
 }
 
 /* Check if there are DEFINE_ATTRs with the same name.  */
@@ -2505,8 +2503,7 @@ check_define_attr_duplicates ()
       /* Duplicate.  */
       if (*slot)
 	{
-	  error_with_line (elem->lineno, "redefinition of attribute '%s'",
-			   attr_name);
+	  error_at (elem->loc, "redefinition of attribute '%s'", attr_name);
 	  htab_delete (attr_htab);
 	  return;
 	}
@@ -2519,8 +2516,8 @@ check_define_attr_duplicates ()
 
 /* The entry point for initializing the reader.  */
 
-bool
-init_rtx_reader_args_cb (int argc, char **argv,
+rtx_reader *
+init_rtx_reader_args_cb (int argc, const char **argv,
 			 bool (*parse_opt) (const char *))
 {
   /* Prepare to read input.  */
@@ -2529,9 +2526,14 @@ init_rtx_reader_args_cb (int argc, char **argv,
   obstack_init (rtl_obstack);
 
   /* Start at 1, to make 0 available for CODE_FOR_nothing.  */
-  sequence_num = 1;
+  insn_sequence_num = 1;
 
-  read_md_files (argc, argv, parse_opt, rtx_handle_directive);
+  /* These sequences are not used as indices, so can start at 1 also.  */
+  split_sequence_num = 1;
+  peephole2_sequence_num = 1;
+
+  gen_reader *reader = new gen_reader ();
+  reader->read_md_files (argc, argv, parse_opt);
 
   if (define_attr_queue != NULL)
     check_define_attr_duplicates ();
@@ -2547,51 +2549,31 @@ init_rtx_reader_args_cb (int argc, char **argv,
   if (define_attr_queue != NULL)
     gen_mnemonic_attr ();
 
-  return !have_error;
+  if (have_error)
+    {
+      delete reader;
+      return NULL;
+    }
+
+  return reader;
 }
 
 /* Programs that don't have their own options can use this entry point
    instead.  */
-bool
-init_rtx_reader_args (int argc, char **argv)
+rtx_reader *
+init_rtx_reader_args (int argc, const char **argv)
 {
   return init_rtx_reader_args_cb (argc, argv, 0);
 }
 
-/* The entry point for reading a single rtx from an md file.  Return
-   the rtx, or NULL if the md file has been fully processed.
-   Return the line where the rtx was found in LINENO.
-   Return the number of code generating rtx'en read since the start
-   of the md file in SEQNR.  */
+/* Try to read a single rtx from the file.  Return true on success,
+   describing it in *INFO.  */
 
-rtx
-read_md_rtx (int *lineno, int *seqnr)
+bool
+read_md_rtx (md_rtx_info *info)
 {
-  struct queue_elem **queue, *elem;
-  rtx desc;
-
- discard:
-
-  /* Read all patterns from a given queue before moving on to the next.  */
-  if (define_attr_queue != NULL)
-    queue = &define_attr_queue;
-  else if (define_pred_queue != NULL)
-    queue = &define_pred_queue;
-  else if (define_insn_queue != NULL)
-    queue = &define_insn_queue;
-  else if (other_queue != NULL)
-    queue = &other_queue;
-  else
-    return NULL_RTX;
-
-  elem = *queue;
-  *queue = elem->next;
-  desc = elem->data;
-  read_md_filename = elem->filename;
-  *lineno = elem->lineno;
-  *seqnr = sequence_num;
-
-  free (elem);
+  int truth, *counter;
+  rtx def;
 
   /* Discard insn patterns which we know can never match (because
      their C test is provably always false).  If insn_elision is
@@ -2599,35 +2581,117 @@ read_md_rtx (int *lineno, int *seqnr)
      elided patterns are never counted by the sequence numbering; it
      is the caller's responsibility, when insn_elision is false, not
      to use elided pattern numbers for anything.  */
-  switch (GET_CODE (desc))
+  do
+    {
+      struct queue_elem **queue, *elem;
+
+      /* Read all patterns from a given queue before moving on to the next.  */
+      if (define_attr_queue != NULL)
+	queue = &define_attr_queue;
+      else if (define_pred_queue != NULL)
+	queue = &define_pred_queue;
+      else if (define_insn_queue != NULL)
+	queue = &define_insn_queue;
+      else if (other_queue != NULL)
+	queue = &other_queue;
+      else
+	return false;
+
+      elem = *queue;
+      *queue = elem->next;
+      def = elem->data;
+      info->def = def;
+      info->loc = elem->loc;
+      free (elem);
+
+      truth = maybe_eval_c_test (get_c_test (def));
+    }
+  while (truth == 0 && insn_elision);
+
+  /* Perform code-specific processing and pick the appropriate sequence
+     number counter.  */
+  switch (GET_CODE (def))
+    {
+    case DEFINE_INSN:
+    case DEFINE_EXPAND:
+      /* insn_sequence_num is used here so the name table will match caller's
+	 idea of insn numbering, whether or not elision is active.  */
+      record_insn_name (insn_sequence_num, XSTR (def, 0));
+
+      /* Fall through.  */
+    case DEFINE_PEEPHOLE:
+      counter = &insn_sequence_num;
+      break;
+
+    case DEFINE_SPLIT:
+      counter = &split_sequence_num;
+      break;
+
+    case DEFINE_PEEPHOLE2:
+      counter = &peephole2_sequence_num;
+      break;
+
+    default:
+      counter = NULL;
+      break;
+    }
+
+  if (counter)
+    {
+      info->index = *counter;
+      if (truth != 0)
+	*counter += 1;
+    }
+  else
+    info->index = -1;
+
+  if (!rtx_locs)
+    rtx_locs = new hash_map <rtx, file_location>;
+  rtx_locs->put (info->def, info->loc);
+
+  return true;
+}
+
+/* Return the file location of DEFINE_* rtx X, which was previously
+   returned by read_md_rtx.  */
+file_location
+get_file_location (rtx x)
+{
+  gcc_assert (rtx_locs);
+  file_location *entry = rtx_locs->get (x);
+  gcc_assert (entry);
+  return *entry;
+}
+
+/* Return the number of possible INSN_CODEs.  Only meaningful once the
+   whole file has been processed.  */
+unsigned int
+get_num_insn_codes ()
+{
+  return insn_sequence_num;
+}
+
+/* Return the C test that says whether definition rtx DEF can be used,
+   or "" if it can be used unconditionally.  */
+
+const char *
+get_c_test (rtx x)
+{
+  switch (GET_CODE (x))
     {
     case DEFINE_INSN:
     case DEFINE_EXPAND:
     case DEFINE_SUBST:
-      if (maybe_eval_c_test (XSTR (desc, 2)) != 0)
-	sequence_num++;
-      else if (insn_elision)
-	goto discard;
-
-      /* *seqnr is used here so the name table will match caller's
-	 idea of insn numbering, whether or not elision is active.  */
-      record_insn_name (*seqnr, XSTR (desc, 0));
-      break;
+      return XSTR (x, 2);
 
     case DEFINE_SPLIT:
     case DEFINE_PEEPHOLE:
     case DEFINE_PEEPHOLE2:
-      if (maybe_eval_c_test (XSTR (desc, 1)) != 0)
-	sequence_num++;
-      else if (insn_elision)
-	    goto discard;
-      break;
+      return XSTR (x, 1);
 
     default:
-      break;
+      return "";
     }
-
-  return desc;
 }
 
 /* Helper functions for insn elision.  */
@@ -2763,6 +2827,7 @@ add_predicate_code (struct pred_data *pred, enum rtx_code code)
 	  && code != CONCAT
 	  && code != PARALLEL
 	  && code != STRICT_LOW_PART
+	  && code != ZERO_EXTRACT
 	  && code != SCRATCH)
 	pred->allows_non_lvalue = true;
 
@@ -2800,7 +2865,8 @@ struct std_pred_table
 
 static const struct std_pred_table std_preds[] = {
   {"general_operand", false, true, {SUBREG, REG, MEM}},
-  {"address_operand", true, true, {SUBREG, REG, MEM, PLUS, MINUS, MULT}},
+  {"address_operand", true, true, {SUBREG, REG, MEM, PLUS, MINUS, MULT,
+				   ZERO_EXTEND, SIGN_EXTEND, AND}},
   {"register_operand", false, false, {SUBREG, REG}},
   {"pmode_register_operand", true, false, {SUBREG, REG}},
   {"scratch_operand", false, false, {SCRATCH, REG}},
@@ -2938,6 +3004,10 @@ get_pattern_stats_1 (struct pattern_stats *stats, rtx x)
       break;
 
     case MATCH_SCRATCH:
+      if (stats->min_scratch_opno == -1)
+	stats->min_scratch_opno = XINT (x, 0);
+      else
+	stats->min_scratch_opno = MIN (stats->min_scratch_opno, XINT (x, 0));
       stats->max_scratch_opno = MAX (stats->max_scratch_opno, XINT (x, 0));
       break;
 
@@ -2970,6 +3040,7 @@ get_pattern_stats (struct pattern_stats *stats, rtvec pattern)
 
   stats->max_opno = -1;
   stats->max_dup_opno = -1;
+  stats->min_scratch_opno = -1;
   stats->max_scratch_opno = -1;
   stats->num_dups = 0;
 
@@ -2983,4 +3054,198 @@ get_pattern_stats (struct pattern_stats *stats, rtvec pattern)
   stats->num_operand_vars = MAX (stats->max_opno,
 				  MAX (stats->max_dup_opno,
 				       stats->max_scratch_opno)) + 1;
+}
+
+/* Return the emit_* function that should be used for pattern X, or NULL
+   if we can't pick a particular type at compile time and should instead
+   fall back to "emit".  */
+
+const char *
+get_emit_function (rtx x)
+{
+  switch (classify_insn (x))
+    {
+    case INSN:
+      return "emit_insn";
+
+    case CALL_INSN:
+      return "emit_call_insn";
+
+    case JUMP_INSN:
+      return "emit_jump_insn";
+
+    case UNKNOWN:
+      return NULL;
+
+    default:
+      gcc_unreachable ();
+    }
+}
+
+/* Return true if we must emit a barrier after pattern X.  */
+
+bool
+needs_barrier_p (rtx x)
+{
+  return (GET_CODE (x) == SET
+	  && GET_CODE (SET_DEST (x)) == PC
+	  && GET_CODE (SET_SRC (x)) == LABEL_REF);
+}
+
+#define NS "NULL"
+#define ZS "'\\0'"
+#define OPTAB_CL(o, p, c, b, l)    { #o, p, #b, ZS, #l, o, c, UNKNOWN, 1 },
+#define OPTAB_CX(o, p) { #o, p, NULL, NULL, NULL, o, UNKNOWN, UNKNOWN, 1 },
+#define OPTAB_CD(o, p) { #o, p, NS, ZS, NS, o, UNKNOWN, UNKNOWN, 2 },
+#define OPTAB_NL(o, p, c, b, s, l) { #o, p, #b, #s, #l, o, c, c, 3 },
+#define OPTAB_NC(o, p, c)          { #o, p, NS, ZS, NS, o, c, c, 3 },
+#define OPTAB_NX(o, p) { #o, p, NULL, NULL, NULL, o, UNKNOWN, UNKNOWN, 3 },
+#define OPTAB_VL(o, p, c, b, s, l) { #o, p, #b, #s, #l, o, c, UNKNOWN, 3 },
+#define OPTAB_VC(o, p, c)          { #o, p, NS, ZS, NS, o, c, UNKNOWN, 3 },
+#define OPTAB_VX(o, p) { #o, p, NULL, NULL, NULL, o, UNKNOWN, UNKNOWN, 3 },
+#define OPTAB_DC(o, p, c)          { #o, p, NS, ZS, NS, o, c, c, 4 },
+#define OPTAB_D(o, p)  { #o, p, NS, ZS, NS, o, UNKNOWN, UNKNOWN, 4 },
+
+/* An array of all optabs.  Note that the same optab can appear more
+   than once, with a different pattern.  */
+optab_def optabs[] = {
+  { "unknown_optab", NULL, NS, ZS, NS, unknown_optab, UNKNOWN, UNKNOWN, 0 },
+#include "optabs.def"
+};
+
+/* The number of entries in optabs[].  */
+unsigned int num_optabs = ARRAY_SIZE (optabs);
+
+#undef OPTAB_CL
+#undef OPTAB_CX
+#undef OPTAB_CD
+#undef OPTAB_NL
+#undef OPTAB_NC
+#undef OPTAB_NX
+#undef OPTAB_VL
+#undef OPTAB_VC
+#undef OPTAB_VX
+#undef OPTAB_DC
+#undef OPTAB_D
+
+/* Return true if instruction NAME matches pattern PAT, storing information
+   about the match in P if so.  */
+
+static bool
+match_pattern (optab_pattern *p, const char *name, const char *pat)
+{
+  bool force_float = false;
+  bool force_int = false;
+  bool force_partial_int = false;
+  bool force_fixed = false;
+
+  if (pat == NULL)
+    return false;
+  for (; ; ++pat)
+    {
+      if (*pat != '$')
+	{
+	  if (*pat != *name++)
+	    return false;
+	  if (*pat == '\0')
+	    return true;
+	  continue;
+	}
+      switch (*++pat)
+	{
+	case 'I':
+	  force_int = 1;
+	  break;
+	case 'P':
+	  force_partial_int = 1;
+	  break;
+	case 'F':
+	  force_float = 1;
+	  break;
+	case 'Q':
+	  force_fixed = 1;
+	  break;
+
+	case 'a':
+	case 'b':
+	  {
+	    int i;
+
+	    /* This loop will stop at the first prefix match, so
+	       look through the modes in reverse order, in case
+	       there are extra CC modes and CC is a prefix of the
+	       CC modes (as it should be).  */
+	    for (i = (MAX_MACHINE_MODE) - 1; i >= 0; i--)
+	      {
+		const char *p, *q;
+		for (p = GET_MODE_NAME (i), q = name; *p; p++, q++)
+		  if (TOLOWER (*p) != *q)
+		    break;
+		if (*p == 0
+		    && (! force_int || mode_class[i] == MODE_INT
+			|| mode_class[i] == MODE_VECTOR_INT)
+		    && (! force_partial_int
+			|| mode_class[i] == MODE_INT
+			|| mode_class[i] == MODE_PARTIAL_INT
+			|| mode_class[i] == MODE_VECTOR_INT)
+		    && (! force_float
+			|| mode_class[i] == MODE_FLOAT
+			|| mode_class[i] == MODE_DECIMAL_FLOAT
+			|| mode_class[i] == MODE_COMPLEX_FLOAT
+			|| mode_class[i] == MODE_VECTOR_FLOAT)
+		    && (! force_fixed
+			|| mode_class[i] == MODE_FRACT
+			|| mode_class[i] == MODE_UFRACT
+			|| mode_class[i] == MODE_ACCUM
+			|| mode_class[i] == MODE_UACCUM
+			|| mode_class[i] == MODE_VECTOR_FRACT
+			|| mode_class[i] == MODE_VECTOR_UFRACT
+			|| mode_class[i] == MODE_VECTOR_ACCUM
+			|| mode_class[i] == MODE_VECTOR_UACCUM))
+		  break;
+	      }
+
+	    if (i < 0)
+	      return false;
+	    name += strlen (GET_MODE_NAME (i));
+	    if (*pat == 'a')
+	      p->m1 = i;
+	    else
+	      p->m2 = i;
+
+	    force_int = false;
+	    force_partial_int = false;
+	    force_float = false;
+	    force_fixed = false;
+	  }
+	  break;
+
+	default:
+	  gcc_unreachable ();
+	}
+    }
+}
+
+/* Return true if NAME is the name of an optab, describing it in P if so.  */
+
+bool
+find_optab (optab_pattern *p, const char *name)
+{
+  if (*name == 0 || *name == '*')
+    return false;
+
+  /* See if NAME matches one of the patterns we have for the optabs
+     we know about.  */
+  for (unsigned int pindex = 0; pindex < ARRAY_SIZE (optabs); pindex++)
+    {
+      p->m1 = p->m2 = 0;
+      if (match_pattern (p, name, optabs[pindex].pattern))
+	{
+	  p->name = name;
+	  p->op = optabs[pindex].op;
+	  p->sort_num = (p->op << 16) | (p->m2 << 8) | p->m1;
+	  return true;
+	}
+    }
+  return false;
 }

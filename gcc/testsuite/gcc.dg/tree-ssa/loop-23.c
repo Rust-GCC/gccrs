@@ -7,7 +7,7 @@ int bla(int);
 int foo(void)
 {
   int i;
-  int sum;
+  int sum = 0;
 
   /* This loop used to appear to be too large for unrolling.  */
   for (i = 0; i < 4; i++)
@@ -24,6 +24,4 @@ int foo(void)
   return sum;
 }
 
-/* { dg-final { scan-tree-dump-times "loop with 4 iterations completely unrolled" 1 "cunroll" } } */
-
-/* { dg-final { cleanup-tree-dump "cunroll" } } */
+/* { dg-final { scan-tree-dump-times "loop with 3 iterations completely unrolled" 1 "cunroll" } } */

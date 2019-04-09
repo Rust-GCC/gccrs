@@ -1,11 +1,10 @@
-// { dg-do run { target *-*-freebsd* *-*-dragonfly* *-*-netbsd* *-*-linux* *-*-gnu* *-*-solaris* *-*-cygwin *-*-darwin* } }
-// { dg-options " -std=gnu++0x -pthread" { target *-*-freebsd* *-*-dragonfly* *-*-netbsd* *-*-linux* *-*-gnu* } }
-// { dg-options " -std=gnu++0x -pthreads" { target *-*-solaris* } }
-// { dg-options " -std=gnu++0x " { target *-*-cygwin *-*-darwin* } }
-// { dg-require-cstdint "" }
+// { dg-do run }
+// { dg-options "-pthread"  }
+// { dg-require-effective-target c++11 }
+// { dg-require-effective-target pthread }
 // { dg-require-gthreads "" }
 // { dg-require-debug-mode "" }
-// Copyright (C) 2010-2014 Free Software Foundation, Inc.
+// Copyright (C) 2010-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -47,7 +46,6 @@ get_index(std::vector<int>& v)
 void test01()
 {
   using namespace std;
-  bool test __attribute__((unused)) = true;
   vector<int> v1, v2;
   vector<shared_ptr<vector<int> > > vs;
   vector<int> *pv3 = 0, *pv4 = 0;

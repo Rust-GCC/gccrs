@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,6 +27,7 @@
 --  dispatching expansion.
 
 with Types; use Types;
+with Uintp; use Uintp;
 
 package Exp_Disp is
 
@@ -173,6 +174,11 @@ package Exp_Disp is
    pragma Inline (Building_Static_DT);
    --  Returns true when building statically allocated dispatch tables
 
+   function Building_Static_Secondary_DT (Typ : Entity_Id) return Boolean;
+   pragma Inline (Building_Static_Secondary_DT);
+   --  Returns true when building statically allocated secondary dispatch
+   --  tables
+
    procedure Build_Static_Dispatch_Tables (N : Node_Id);
    --  N is a library level package declaration or package body. Build the
    --  static dispatch table of the tagged types defined at library level. In
@@ -213,6 +219,12 @@ package Exp_Disp is
    --  Return the number of primitives of the C++ part of the dispatch table.
    --  For types that are not derivations of CPP types return 0.
 
+   function Elab_Flag_Needed (Typ : Entity_Id) return Boolean;
+   --  Return True if the elaboration of the tagged type Typ is completed at
+   --  run time by the execution of code located in the IP routine and the
+   --  expander must generate an extra elaboration flag to avoid performing
+   --  such elaboration twice.
+
    procedure Expand_Dispatching_Call (Call_Node : Node_Id);
    --  Expand the call to the operation through the dispatch table and perform
    --  the required tag checks when appropriate. For CPP types tag checks are
@@ -245,18 +257,6 @@ package Exp_Disp is
 
    function Is_Expanded_Dispatching_Call (N : Node_Id) return Boolean;
    --  Returns true if N is the expanded code of a dispatching call
-
-   function Is_Predefined_Dispatching_Operation (E : Entity_Id) return Boolean;
-   --  Ada 2005 (AI-251): Determines if E is a predefined primitive operation
-
-   function Is_Predefined_Internal_Operation (E : Entity_Id) return Boolean;
-   --  Similar to the previous one, but excludes stream operations, because
-   --  these may be overridden, and need extra formals, like user-defined
-   --  operations.
-
-   function Is_Predefined_Interface_Primitive (E : Entity_Id) return Boolean;
-   --  Ada 2005 (AI-345): Returns True if E is one of the predefined primitives
-   --  required to implement interfaces.
 
    function Make_DT (Typ : Entity_Id; N : Node_Id := Empty) return List_Id;
    --  Expand the declarations for the Dispatch Table. The node N is the
@@ -345,10 +345,6 @@ package Exp_Disp is
    --  tagged types this routine imports the forward declaration of the tag
    --  entity, that will be declared and exported by Make_DT.
 
-   function Make_VM_TSD (Typ : Entity_Id) return List_Id;
-   --  Build the Type Specific Data record associated with tagged type Typ.
-   --  Invoked only when generating code for VM targets.
-
    function Register_Primitive
      (Loc     : Source_Ptr;
       Prim    : Entity_Id) return List_Id;
@@ -379,11 +375,14 @@ package Exp_Disp is
    --  target object in its first argument; such implicit argument is explicit
    --  in the IP procedures built here.
 
-   procedure Set_DTC_Entity_Value
-     (Tagged_Type : Entity_Id;
-      Prim        : Entity_Id);
+   procedure Set_DT_Position_Value (Prim  : Entity_Id; Value : Uint);
+   --  Set the position of a dispatching primitive its dispatch table. For
+   --  subprogram wrappers propagate the value to the wrapped subprogram.
+
+   procedure Set_DTC_Entity_Value (Tagged_Type : Entity_Id; Prim : Entity_Id);
    --  Set the definite value of the DTC_Entity value associated with a given
-   --  primitive of a tagged type.
+   --  primitive of a tagged type. For subprogram wrappers, propagate the value
+   --  to the wrapped subprogram.
 
    procedure Write_DT (Typ : Entity_Id);
    pragma Export (Ada, Write_DT);

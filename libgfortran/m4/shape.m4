@@ -1,5 +1,5 @@
 `/* Implementation of the SHAPE intrinsic
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
 
 This file is part of the GNU Fortran runtime library (libgfortran).
@@ -23,28 +23,24 @@ a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
-#include "libgfortran.h"
-#include <stdlib.h>
-#include <assert.h>'
+#include "libgfortran.h"'
 
 include(iparm.m4)dnl
 
 `#if defined (HAVE_'rtype_name`)
 
 extern void shape_'rtype_kind` ('rtype` * const restrict ret, 
-	const 'rtype` * const restrict array);
+	const array_t * const restrict array);
 export_proto(shape_'rtype_kind`);
 
 void
 shape_'rtype_kind` ('rtype` * const restrict ret, 
-	const 'rtype` * const restrict array)
+	const array_t * const restrict array)
 {
-  int n;
   index_type stride;
   index_type extent;
-  int rank;
 
-  rank = GFC_DESCRIPTOR_RANK (array);
+  int rank = GFC_DESCRIPTOR_RANK (array);
 
   if (ret->base_addr == NULL)
     {
@@ -58,7 +54,7 @@ shape_'rtype_kind` ('rtype` * const restrict ret,
   if (GFC_DESCRIPTOR_EXTENT(ret,0) < 1)
     return;
 
-  for (n = 0; n < rank; n++)
+  for (index_type n = 0; n < rank; n++)
     {
       extent = GFC_DESCRIPTOR_EXTENT(array,n);
       ret->base_addr[n * stride] = extent > 0 ? extent : 0 ;

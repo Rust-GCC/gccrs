@@ -1,9 +1,9 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 // { dg-require-string-conversions "" }
 
 // 2007-10-16  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,7 +26,6 @@
 void test01()
 {
   using namespace std;
-  bool test __attribute__((unused)) = true;
 
   __gnu_cxx::__vstring str("ramifications");
   const __gnu_cxx::__vstring cstr("melodien");

@@ -1,5 +1,5 @@
 ; Command line options for the Renesas RX port of GCC.
-; Copyright (C) 2008-2014 Free Software Foundation, Inc.
+; Copyright (C) 2008-2019 Free Software Foundation, Inc.
 ; Contributed by Red Hat.
 ;
 ; This file is part of GCC.
@@ -34,7 +34,7 @@ Stores doubles in 32 bits.  This is the default.
 
 nofpu
 Target RejectNegative Alias(mnofpu)
-Disable the use of RX FPU instructions.  
+Disable the use of RX FPU instructions.
 
 mnofpu
 Target RejectNegative Mask(NO_USE_FPU) Report Undocumented
@@ -128,6 +128,8 @@ mwarn-multiple-fast-interrupts
 Target Report Var(rx_warn_multiple_fast_interrupts) Init(1) Warning
 Warn when multiple, different, fast interrupt handlers are in the compilation unit.
 
+;---------------------------------------------------
+
 mgcc-abi
 Target RejectNegative Report Mask(GCC_ABI)
 Enable the use of the old, broken, ABI where all stacked function arguments are aligned to 32-bits.
@@ -136,6 +138,20 @@ mrx-abi
 Target RejectNegative Report InverseMask(GCC_ABI)
 Enable the use the standard RX ABI where all stacked function arguments are naturally aligned.  This is the default.
 
+;---------------------------------------------------
+
 mlra
 Target Report Mask(ENABLE_LRA)
 Enable the use of the LRA register allocator.
+
+;---------------------------------------------------
+
+mallow-string-insns
+Target Report Var(rx_allow_string_insns) Init(1)
+Enables or disables the use of the SMOVF, SMOVB, SMOVU, SUNTIL, SWHILE and RMPA instructions.  Enabled by default.
+
+;---------------------------------------------------
+
+mjsr
+Target Report Mask(JSR)
+Always use JSR, never BSR, for calls.

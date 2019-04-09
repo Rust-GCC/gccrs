@@ -1,5 +1,5 @@
 /* { dg-do run } */
-/* { dg-options "-O2 -fdump-tree-pre-stats" } */
+/* { dg-options "-O2 -fno-code-hoisting -fdump-tree-pre-stats" } */
 
 struct A
 {
@@ -39,4 +39,3 @@ main ()
 }
 
 /* { dg-final { scan-tree-dump "Eliminated: 1" "pre" } } */
-/* { dg-final { cleanup-tree-dump "pre" } } */

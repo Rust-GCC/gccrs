@@ -2,7 +2,7 @@
 
 // 2007-09-20 Benjamin Kosnik <bkoz@redhat.com>
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,5 +30,5 @@ namespace std
   typedef NonDefaultConstructible 		value_type;
   typedef value_type* 		iterator_type;
 
-  template void rotate(iterator_type, iterator_type, iterator_type);
+  template iterator_type rotate(iterator_type, iterator_type, iterator_type);
 } 

@@ -1,4 +1,4 @@
-// Copyright 2009 The Go Authors.  All rights reserved.
+// Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -86,35 +86,13 @@ type OptionalHeader64 struct {
 	DataDirectory               [16]DataDirectory
 }
 
-type SectionHeader32 struct {
-	Name                 [8]uint8
-	VirtualSize          uint32
-	VirtualAddress       uint32
-	SizeOfRawData        uint32
-	PointerToRawData     uint32
-	PointerToRelocations uint32
-	PointerToLineNumbers uint32
-	NumberOfRelocations  uint16
-	NumberOfLineNumbers  uint16
-	Characteristics      uint32
-}
-
-const COFFSymbolSize = 18
-
-type COFFSymbol struct {
-	Name               [8]uint8
-	Value              uint32
-	SectionNumber      int16
-	Type               uint16
-	StorageClass       uint8
-	NumberOfAuxSymbols uint8
-}
-
 const (
 	IMAGE_FILE_MACHINE_UNKNOWN   = 0x0
 	IMAGE_FILE_MACHINE_AM33      = 0x1d3
 	IMAGE_FILE_MACHINE_AMD64     = 0x8664
 	IMAGE_FILE_MACHINE_ARM       = 0x1c0
+	IMAGE_FILE_MACHINE_ARMNT     = 0x1c4
+	IMAGE_FILE_MACHINE_ARM64     = 0xaa64
 	IMAGE_FILE_MACHINE_EBC       = 0xebc
 	IMAGE_FILE_MACHINE_I386      = 0x14c
 	IMAGE_FILE_MACHINE_IA64      = 0x200
@@ -131,4 +109,23 @@ const (
 	IMAGE_FILE_MACHINE_SH5       = 0x1a8
 	IMAGE_FILE_MACHINE_THUMB     = 0x1c2
 	IMAGE_FILE_MACHINE_WCEMIPSV2 = 0x169
+)
+
+// IMAGE_DIRECTORY_ENTRY constants
+const (
+	IMAGE_DIRECTORY_ENTRY_EXPORT         = 0
+	IMAGE_DIRECTORY_ENTRY_IMPORT         = 1
+	IMAGE_DIRECTORY_ENTRY_RESOURCE       = 2
+	IMAGE_DIRECTORY_ENTRY_EXCEPTION      = 3
+	IMAGE_DIRECTORY_ENTRY_SECURITY       = 4
+	IMAGE_DIRECTORY_ENTRY_BASERELOC      = 5
+	IMAGE_DIRECTORY_ENTRY_DEBUG          = 6
+	IMAGE_DIRECTORY_ENTRY_ARCHITECTURE   = 7
+	IMAGE_DIRECTORY_ENTRY_GLOBALPTR      = 8
+	IMAGE_DIRECTORY_ENTRY_TLS            = 9
+	IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG    = 10
+	IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT   = 11
+	IMAGE_DIRECTORY_ENTRY_IAT            = 12
+	IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT   = 13
+	IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR = 14
 )

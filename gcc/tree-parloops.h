@@ -1,5 +1,5 @@
 /* Header file for loop autoparallelization.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,6 +21,5 @@ along with GCC; see the file COPYING3.  If not see
 #define GCC_TREE_PARLOOPS_H
 
 extern bool parallelized_function_p (tree);
-extern bool parallelize_loops (void);
 
 #endif /* GCC_TREE_PARLOOPS_H */

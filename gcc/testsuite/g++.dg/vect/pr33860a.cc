@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-Wno-psabi" { target { { i?86-*-* x86_64-*-* } && ilp32 } } } */
+/* { dg-additional-options "-Wno-psabi" { target { { i?86-*-* x86_64-*-* } && ilp32 } } } */
 
 /* Testcase by Martin Michlmayr <tbm@cyrius.com> */
 
@@ -24,4 +24,3 @@ Matrix Matrix::operator* (const Matrix matrix) const
   return ret;
 }
 
-/* { dg-final { cleanup-tree-dump "vect" } } */

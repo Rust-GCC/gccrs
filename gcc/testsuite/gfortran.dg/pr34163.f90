@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-O2 -fpredictive-commoning -fdump-tree-pcom-details" }
+! { dg-options "-O2 -fno-tree-pre -fpredictive-commoning -fdump-tree-pcom-details" }
 subroutine trisolve2(x,i1,i2,nxyz)
 integer :: nxyz
 real,dimension(nxyz):: au1
@@ -13,4 +13,3 @@ do i = i1+1 , i2
 enddo
 end subroutine trisolve2
 ! { dg-final { scan-tree-dump "Executing predictive commoning" "pcom" } }
-! { dg-final { cleanup-tree-dump "pcom" } }

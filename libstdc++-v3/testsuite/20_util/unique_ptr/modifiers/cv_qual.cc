@@ -1,7 +1,6 @@
-// { dg-options "-std=gnu++11" }
-// { dg-do compile }
+// { dg-do compile { target c++11 } }
 
-// Copyright (C) 2012-2014 Free Software Foundation, Inc.
+// Copyright (C) 2012-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -66,14 +65,25 @@ struct A_pointer { operator A*() const { return nullptr; } };
 void
 test07()
 {
-  // Allow conversions from user-defined pointer-like types
   A_pointer p;
-  std::unique_ptr<A[]> upA;
+  // Allow conversions from user-defined pointer-like types
+  // for the single-object version
+  std::unique_ptr<A> upA;
   upA.reset(p);
-  std::unique_ptr<const A[]> cA;
+  std::unique_ptr<const A> cA;
   cA.reset(p);
-  std::unique_ptr<volatile A[]> vA;
+  std::unique_ptr<volatile A> vA;
   vA.reset(p);
-  std::unique_ptr<const volatile A[]> cvA;
+  std::unique_ptr<const volatile A> cvA;
   cvA.reset(p);
+  // Allow conversions from user-defined pointer-like types
+  // for the array version when the type is converted explicitly
+  std::unique_ptr<A[]> upA2;
+  upA2.reset((A*)p);
+  std::unique_ptr<const A[]> cA2;
+  cA2.reset((A*)p);
+  std::unique_ptr<volatile A[]> vA2;
+  vA2.reset((A*)p);
+  std::unique_ptr<const volatile A[]> cvA2;
+  cvA2.reset((A*)p);
 }

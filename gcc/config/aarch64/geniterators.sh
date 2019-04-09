@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (C) 2014 Free Software Foundation, Inc.
+# Copyright (C) 2014-2019 Free Software Foundation, Inc.
 # Contributed by ARM Ltd.
 #
 # This file is part of GCC.
@@ -22,24 +22,61 @@
 # Generate aarch64-builtin-iterators.h, a file containing a series of
 # BUILTIN_<ITERATOR> macros, which expand to VAR<N> Macros covering the
 # same set of modes as the iterator in iterators.md
+#
+# Find the <ITERATOR> definitions (may span several lines).
+LC_ALL=C awk '
+BEGIN {
+	print "/* -*- buffer-read-only: t -*- */"
+	print "/* Generated automatically by geniterators.sh from iterators.md.  */"
+	print "#ifndef GCC_AARCH64_ITERATORS_H"
+	print "#define GCC_AARCH64_ITERATORS_H"
+}
 
-echo "/* -*- buffer-read-only: t -*- */"
-echo "/* Generated automatically by geniterators.sh from iterators.md.  */"
-echo "#ifndef GCC_AARCH64_ITERATORS_H"
-echo "#define GCC_AARCH64_ITERATORS_H"
+{
+	sub(/;.*/, "")
+}
 
-# Strip newlines, create records marked ITERATOR, and strip junk (anything
-# which does not have a matching brace because it contains characters we
-# don't want to or can't handle (e.g P, PTR iterators change depending on
-# Pmode and ptr_mode).
-cat $1 | tr "\n" " " \
-       | sed 's/(define_mode_iterator \([A-Za-z0-9_]*\) \([]\[A-Z0-9 \t]*\)/\n#define BUILTIN_\1(T, N, MAP) \\ \2\n/g' \
-       | grep '#define [A-Z0-9_(), \\]* \[[A-Z0-9[:space:]]*]' \
-       | sed 's/\t//g' \
-       | sed 's/  \+/ /g' \
-       | sed 's/ \[\([A-Z0-9 ]*\)]/\n\L\1/' \
-       | awk ' BEGIN { FS = " " ; OFS = ", "} \
-	       /#/ { print } \
-               ! /#/ { $1 = $1 ; printf "  VAR%d (T, N, MAP, %s)\n", NF, $0 }'
+iterdef {
+	s = s " " $0
+}
 
-echo "#endif /* GCC_AARCH64_ITERATORS_H  */"
+!iterdef && /\(define_mode_iterator/ {
+	iterdef = 1
+	s = $0
+	sub(/.*\(define_mode_iterator/, "", s)
+}
+
+iterdef {
+	# Count the parentheses, the iterator definition ends
+	# if there are more closing ones than opening ones.
+	nopen = gsub(/\(/, "(", s)
+	nclose = gsub(/\)/, ")", s)
+	if (nopen >= nclose)
+		next
+
+	iterdef = 0
+
+	gsub(/[ \t]+/, " ", s)
+	sub(/ *\)[^)]*$/, "", s)
+	sub(/^ /, "", s)
+
+	# Drop the conditions.
+	gsub(/ *"[^"]*" *\)/, "", s)
+	gsub(/\( */, "", s)
+
+	if (s !~ /^[A-Za-z0-9_]+ \[[A-Z0-9 ]*\]$/)
+		next
+	sub(/\[ */, "", s)
+	sub(/ *\]/, "", s)
+
+	n = split(s, a)
+	printf "#define BUILTIN_" a[1] "(T, N, MAP) \\\n"
+	printf "  VAR" (n-1) " (T, N, MAP"
+	for (i = 2; i <= n; i++)
+		printf ", "  tolower(a[i])
+	printf ")\n"
+}
+
+END {
+	print "#endif /* GCC_AARCH64_ITERATORS_H  */"
+}' $1

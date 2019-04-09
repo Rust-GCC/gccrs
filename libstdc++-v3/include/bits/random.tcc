@@ -1,6 +1,6 @@
 // random number generation (out of line) -*- C++ -*-
 
-// Copyright (C) 2009-2014 Free Software Foundation, Inc.
+// Copyright (C) 2009-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -34,13 +34,13 @@
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
   /*
    * (Further) implementation-space details.
    */
   namespace __detail
   {
-  _GLIBCXX_BEGIN_NAMESPACE_VERSION
-
     // General case for x = (ax + c) mod m -- use Schrage's algorithm
     // to avoid integer overflow.
     //
@@ -89,10 +89,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
 	return __result;
       }
 
-  _GLIBCXX_END_NAMESPACE_VERSION
   } // namespace __detail
-
-_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _UIntType, _UIntType __a, _UIntType __c, _UIntType __m>
     constexpr _UIntType
@@ -131,9 +128,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    */
   template<typename _UIntType, _UIntType __a, _UIntType __c, _UIntType __m>
     template<typename _Sseq>
-      typename std::enable_if<std::is_class<_Sseq>::value>::type
+      auto
       linear_congruential_engine<_UIntType, __a, __c, __m>::
       seed(_Sseq& __q)
+      -> _If_seed_seq<_Sseq>
       {
 	const _UIntType __k0 = __m == 0 ? std::numeric_limits<_UIntType>::digits
 	                                : std::__lg(__m);
@@ -349,10 +347,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	   _UIntType __b, size_t __t, _UIntType __c, size_t __l,
 	   _UIntType __f>
     template<typename _Sseq>
-      typename std::enable_if<std::is_class<_Sseq>::value>::type
+      auto
       mersenne_twister_engine<_UIntType, __w, __n, __m, __r, __a, __u, __d,
 			      __s, __b, __t, __c, __l, __f>::
       seed(_Sseq& __q)
+      -> _If_seed_seq<_Sseq>
       {
 	const _UIntType __upper_mask = (~_UIntType()) << __r;
 	const size_t __k = (__w + 31) / 32;
@@ -567,9 +566,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _UIntType, size_t __w, size_t __s, size_t __r>
     template<typename _Sseq>
-      typename std::enable_if<std::is_class<_Sseq>::value>::type
+      auto
       subtract_with_carry_engine<_UIntType, __w, __s, __r>::
       seed(_Sseq& __q)
+      -> _If_seed_seq<_Sseq>
       {
 	const size_t __k = (__w + 31) / 32;
 	uint_least32_t __arr[__r * __k];
@@ -871,158 +871,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       return __is;
     }
 
-
-  template<typename _IntType>
-    template<typename _UniformRandomNumberGenerator>
-      typename uniform_int_distribution<_IntType>::result_type
-      uniform_int_distribution<_IntType>::
-      operator()(_UniformRandomNumberGenerator& __urng,
-		 const param_type& __param)
-      {
-	typedef typename _UniformRandomNumberGenerator::result_type
-	  _Gresult_type;
-	typedef typename std::make_unsigned<result_type>::type __utype;
-	typedef typename std::common_type<_Gresult_type, __utype>::type
-	  __uctype;
-
-	const __uctype __urngmin = __urng.min();
-	const __uctype __urngmax = __urng.max();
-	const __uctype __urngrange = __urngmax - __urngmin;
-	const __uctype __urange
-	  = __uctype(__param.b()) - __uctype(__param.a());
-
-	__uctype __ret;
-
-	if (__urngrange > __urange)
-	  {
-	    // downscaling
-	    const __uctype __uerange = __urange + 1; // __urange can be zero
-	    const __uctype __scaling = __urngrange / __uerange;
-	    const __uctype __past = __uerange * __scaling;
-	    do
-	      __ret = __uctype(__urng()) - __urngmin;
-	    while (__ret >= __past);
-	    __ret /= __scaling;
-	  }
-	else if (__urngrange < __urange)
-	  {
-	    // upscaling
-	    /*
-	      Note that every value in [0, urange]
-	      can be written uniquely as
-
-	      (urngrange + 1) * high + low
-
-	      where
-
-	      high in [0, urange / (urngrange + 1)]
-
-	      and
-	
-	      low in [0, urngrange].
-	    */
-	    __uctype __tmp; // wraparound control
-	    do
-	      {
-		const __uctype __uerngrange = __urngrange + 1;
-		__tmp = (__uerngrange * operator()
-			 (__urng, param_type(0, __urange / __uerngrange)));
-		__ret = __tmp + (__uctype(__urng()) - __urngmin);
-	      }
-	    while (__ret > __urange || __ret < __tmp);
-	  }
-	else
-	  __ret = __uctype(__urng()) - __urngmin;
-
-	return __ret + __param.a();
-      }
-
-
-  template<typename _IntType>
-    template<typename _ForwardIterator,
-	     typename _UniformRandomNumberGenerator>
-      void
-      uniform_int_distribution<_IntType>::
-      __generate_impl(_ForwardIterator __f, _ForwardIterator __t,
-		      _UniformRandomNumberGenerator& __urng,
-		      const param_type& __param)
-      {
-	__glibcxx_function_requires(_ForwardIteratorConcept<_ForwardIterator>)
-	typedef typename _UniformRandomNumberGenerator::result_type
-	  _Gresult_type;
-	typedef typename std::make_unsigned<result_type>::type __utype;
-	typedef typename std::common_type<_Gresult_type, __utype>::type
-	  __uctype;
-
-	const __uctype __urngmin = __urng.min();
-	const __uctype __urngmax = __urng.max();
-	const __uctype __urngrange = __urngmax - __urngmin;
-	const __uctype __urange
-	  = __uctype(__param.b()) - __uctype(__param.a());
-
-	__uctype __ret;
-
-	if (__urngrange > __urange)
-	  {
-	    if (__detail::_Power_of_2(__urngrange + 1)
-		&& __detail::_Power_of_2(__urange + 1))
-	      {
-		while (__f != __t)
-		  {
-		    __ret = __uctype(__urng()) - __urngmin;
-		    *__f++ = (__ret & __urange) + __param.a();
-		  }
-	      }
-	    else
-	      {
-		// downscaling
-		const __uctype __uerange = __urange + 1; // __urange can be zero
-		const __uctype __scaling = __urngrange / __uerange;
-		const __uctype __past = __uerange * __scaling;
-		while (__f != __t)
-		  {
-		    do
-		      __ret = __uctype(__urng()) - __urngmin;
-		    while (__ret >= __past);
-		    *__f++ = __ret / __scaling + __param.a();
-		  }
-	      }
-	  }
-	else if (__urngrange < __urange)
-	  {
-	    // upscaling
-	    /*
-	      Note that every value in [0, urange]
-	      can be written uniquely as
-
-	      (urngrange + 1) * high + low
-
-	      where
-
-	      high in [0, urange / (urngrange + 1)]
-
-	      and
-
-	      low in [0, urngrange].
-	    */
-	    __uctype __tmp; // wraparound control
-	    while (__f != __t)
-	      {
-		do
-		  {
-		    const __uctype __uerngrange = __urngrange + 1;
-		    __tmp = (__uerngrange * operator()
-			     (__urng, param_type(0, __urange / __uerngrange)));
-		    __ret = __tmp + (__uctype(__urng()) - __urngmin);
-		  }
-		while (__ret > __urange || __ret < __tmp);
-		*__f++ = __ret;
-	      }
-	  }
-	else
-	  while (__f != __t)
-	    *__f++ = __uctype(__urng()) - __urngmin + __param.a();
-      }
 
   template<typename _IntType, typename _CharT, typename _Traits>
     std::basic_ostream<_CharT, _Traits>&
@@ -1405,7 +1253,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  const double __pi_4 = 0.7853981633974483096156608458198757L;
 	  const double __dx = std::sqrt(2 * __m * std::log(32 * __m
 							      / __pi_4));
-	  _M_d = std::round(std::max(6.0, std::min(__m, __dx)));
+	  _M_d = std::round(std::max<double>(6.0, std::min(__m, __dx)));
 	  const double __cx = 2 * __m + _M_d;
 	  _M_scx = std::sqrt(__cx / 2);
 	  _M_1cx = 1 / __cx;
@@ -1456,6 +1304,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    const double __c2 = __param._M_c2b + __c1;
 	    const double __c3 = __c2 + 1;
 	    const double __c4 = __c3 + 1;
+	    // 1 / 78
+	    const double __178 = 0.0128205128205128205128205128205128L;
 	    // e^(1 / 78)
 	    const double __e178 = 1.0129030479320018583185514777512983L;
 	    const double __c5 = __c4 + __e178;
@@ -1495,7 +1345,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		else if (__u <= __c4)
 		  __x = 0;
 		else if (__u <= __c5)
-		  __x = 1;
+		  {
+		    __x = 1;
+		    // Only in the Errata, see libstdc++/83237.
+		    __w = __178;
+		  }
 		else
 		  {
 		    const double __v = -std::log(1.0 - __aurng());
@@ -1613,11 +1467,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  const double __d1x =
 	    std::sqrt(__np * __1p * std::log(32 * __np
 					     / (81 * __pi_4 * __1p)));
-	  _M_d1 = std::round(std::max(1.0, __d1x));
+	  _M_d1 = std::round(std::max<double>(1.0, __d1x));
 	  const double __d2x =
 	    std::sqrt(__np * __1p * std::log(32 * _M_t * __1p
 					     / (__pi_4 * __pa)));
-	  _M_d2 = std::round(std::max(1.0, __d2x));
+	  _M_d2 = std::round(std::max<double>(1.0, __d2x));
 
 	  // sqrt(pi / 2)
 	  const double __spi_2 = 1.2533141373155002512078826424055226L;
@@ -2508,7 +2362,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    __v = __v * __v * __v;
 	    __u = __aurng();
 	  }
-	while (__u > result_type(1.0) - 0.331 * __n * __n * __n * __n
+	while (__u > result_type(1.0) - 0.0331 * __n * __n * __n * __n
 	       && (std::log(__u) > (0.5 * __n * __n + __a1
 				    * (1.0 - __v + std::log(__v)))));
 
@@ -2557,7 +2411,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		  __v = __v * __v * __v;
 		  __u = __aurng();
 		}
-	      while (__u > result_type(1.0) - 0.331 * __n * __n * __n * __n
+	      while (__u > result_type(1.0) - 0.0331 * __n * __n * __n * __n
 		     && (std::log(__u) > (0.5 * __n * __n + __a1
 					  * (1.0 - __v + std::log(__v)))));
 
@@ -2578,7 +2432,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		  __v = __v * __v * __v;
 		  __u = __aurng();
 		}
-	      while (__u > result_type(1.0) - 0.331 * __n * __n * __n * __n
+	      while (__u > result_type(1.0) - 0.0331 * __n * __n * __n * __n
 		     && (std::log(__u) > (0.5 * __n * __n + __a1
 					  * (1.0 - __v + std::log(__v)))));
 
@@ -3464,7 +3318,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     generate_canonical(_UniformRandomNumberGenerator& __urng)
     {
       static_assert(std::is_floating_point<_RealType>::value,
-		    "template argument not a floating point type");
+		    "template argument must be a floating point type");
 
       const size_t __b
 	= std::min(static_cast<size_t>(std::numeric_limits<_RealType>::digits),
@@ -3472,15 +3326,27 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       const long double __r = static_cast<long double>(__urng.max())
 			    - static_cast<long double>(__urng.min()) + 1.0L;
       const size_t __log2r = std::log(__r) / std::log(2.0L);
-      size_t __k = std::max<size_t>(1UL, (__b + __log2r - 1UL) / __log2r);
+      const size_t __m = std::max<size_t>(1UL,
+					  (__b + __log2r - 1UL) / __log2r);
+      _RealType __ret;
       _RealType __sum = _RealType(0);
       _RealType __tmp = _RealType(1);
-      for (; __k != 0; --__k)
+      for (size_t __k = __m; __k != 0; --__k)
 	{
 	  __sum += _RealType(__urng() - __urng.min()) * __tmp;
 	  __tmp *= __r;
 	}
-      return __sum / __tmp;
+      __ret = __sum / __tmp;
+      if (__builtin_expect(__ret >= _RealType(1), 0))
+	{
+#if _GLIBCXX_USE_C99_MATH_TR1
+	  __ret = std::nextafter(_RealType(1), _RealType(0));
+#else
+	  __ret = _RealType(1)
+	    - std::numeric_limits<_RealType>::epsilon() / _RealType(2);
+#endif
+	}
+      return __ret;
     }
 
 _GLIBCXX_END_NAMESPACE_VERSION

@@ -1,5 +1,5 @@
 /* Constant multiply table for TILE-Gx.
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by Walter Lee (walt@tilera.com)
 
    This file is part of GCC.
@@ -18,11 +18,17 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
+/* Note this file is auto-generated from gen-mul-tables.cc.
+   Make any required changes there.  */
+
+#define IN_TARGET_CODE 1
+
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "expr.h"
-#include "optabs.h"
+#include "backend.h"
+#include "rtl.h"
+#include "expmed.h"
 #include "tilegx-multiply.h"
 
 const enum insn_code tilegx_multiply_insn_seq_decode_opcode[] = {

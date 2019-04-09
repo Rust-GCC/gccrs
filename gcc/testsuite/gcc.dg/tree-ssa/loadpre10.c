@@ -1,5 +1,5 @@
 /* { dg-do compile } */ 
-/* { dg-options "-O2 -fdump-tree-pre-stats" } */
+/* { dg-options "-O2 -fdump-tree-pre-stats -fno-tree-loop-im" } */
 struct tree_common 
 { 
   int code; 
@@ -45,5 +45,4 @@ L23:
   return expr; 
 } 
 /* { dg-final { scan-tree-dump-times "Eliminated: 1" 1 "pre"} } */
-/* { dg-final { cleanup-tree-dump "pre" } } */
 

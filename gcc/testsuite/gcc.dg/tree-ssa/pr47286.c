@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-skip-if "" { ! { i?86-*-* x86_64-*-* } } { "*" } { "" } } */
+/* { dg-skip-if "" { ! { i?86-*-* x86_64-*-* } } } */
 /* { dg-options "-O2 -fdump-tree-optimized" } */
 
 struct thread_info { int preempt_count; };
@@ -17,4 +17,3 @@ void testcase(void)
    to globals and thus the store not optimized away.  */
 
 /* { dg-final { scan-tree-dump "->preempt_count =" "optimized" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

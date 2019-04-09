@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2008-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -38,6 +38,16 @@
 
 #include <wmmintrin.h>
 
+#include <fxsrintrin.h>
+
+#include <xsaveintrin.h>
+
+#include <xsaveoptintrin.h>
+
+#include <xsavesintrin.h>
+
+#include <xsavecintrin.h>
+
 #include <avxintrin.h>
 
 #include <avx2intrin.h>
@@ -49,6 +59,42 @@
 #include <avx512pfintrin.h>
 
 #include <avx512cdintrin.h>
+
+#include <avx512vlintrin.h>
+
+#include <avx512bwintrin.h>
+
+#include <avx512dqintrin.h>
+
+#include <avx512vlbwintrin.h>
+
+#include <avx512vldqintrin.h>
+
+#include <avx512ifmaintrin.h>
+
+#include <avx512ifmavlintrin.h>
+
+#include <avx512vbmiintrin.h>
+
+#include <avx512vbmivlintrin.h>
+
+#include <avx5124fmapsintrin.h>
+
+#include <avx5124vnniwintrin.h>
+
+#include <avx512vpopcntdqintrin.h>
+
+#include <avx512vbmi2intrin.h>
+
+#include <avx512vbmi2vlintrin.h>
+
+#include <avx512vnniintrin.h>
+
+#include <avx512vnnivlintrin.h>
+
+#include <avx512vpopcntdqvlintrin.h>
+
+#include <avx512bitalgintrin.h>
 
 #include <shaintrin.h>
 
@@ -65,6 +111,45 @@
 #include <rtmintrin.h>
 
 #include <xtestintrin.h>
+
+#include <cetintrin.h>
+
+#include <gfniintrin.h>
+
+#include <vaesintrin.h>
+
+#include <vpclmulqdqintrin.h>
+
+#include <movdirintrin.h>
+
+#include <sgxintrin.h>
+
+#include <pconfigintrin.h>
+
+#include <waitpkgintrin.h>
+
+#include <cldemoteintrin.h>
+
+#include <rdseedintrin.h>
+
+#include <prfchwintrin.h>
+
+#include <adxintrin.h>
+
+#include <clwbintrin.h>
+
+#include <clflushoptintrin.h>
+
+#include <wbnoinvdintrin.h>
+
+#include <pkuintrin.h>
+
+extern __inline void
+__attribute__((__gnu_inline__, __always_inline__, __artificial__))
+_wbinvd (void)
+{
+  __builtin_ia32_wbinvd ();
+}
 
 #ifndef __RDRND__
 #pragma GCC push_options
@@ -88,6 +173,22 @@ _rdrand32_step (unsigned int *__P)
 #undef __DISABLE_RDRND__
 #pragma GCC pop_options
 #endif /* __DISABLE_RDRND__ */
+
+#ifndef __RDPID__
+#pragma GCC push_options
+#pragma GCC target("rdpid")
+#define __DISABLE_RDPID__
+#endif /* __RDPID__ */
+extern __inline unsigned int
+__attribute__((__gnu_inline__, __always_inline__, __artificial__))
+_rdpid_u32 (void)
+{
+  return __builtin_ia32_rdpid ();
+}
+#ifdef __DISABLE_RDPID__
+#undef __DISABLE_RDPID__
+#pragma GCC pop_options
+#endif /* __DISABLE_RDPID__ */
 
 #ifdef  __x86_64__
 
@@ -173,5 +274,31 @@ _rdrand64_step (unsigned long long *__P)
 #endif /* __DISABLE_RDRND__ */
 
 #endif /* __x86_64__  */
+
+#ifndef __PTWRITE__
+#pragma GCC push_options
+#pragma GCC target("ptwrite")
+#define __DISABLE_PTWRITE__
+#endif
+
+#ifdef __x86_64__
+extern __inline void
+__attribute__((__gnu_inline__, __always_inline__, __artificial__))
+_ptwrite64 (unsigned long long __B)
+{
+  __builtin_ia32_ptwrite64 (__B);
+}
+#endif /* __x86_64__ */
+
+extern __inline void
+__attribute__((__gnu_inline__, __always_inline__, __artificial__))
+_ptwrite32 (unsigned __B)
+{
+  __builtin_ia32_ptwrite32 (__B);
+}
+#ifdef __DISABLE_PTWRITE__
+#undef __DISABLE_PTWRITE__
+#pragma GCC pop_options
+#endif /* __DISABLE_PTWRITE__ */
 
 #endif /* _IMMINTRIN_H_INCLUDED */

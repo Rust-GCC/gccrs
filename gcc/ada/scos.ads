@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2009-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 2009-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,9 +29,8 @@
 --  is used in the ALI file.
 
 with Namet; use Namet;
+with Table;
 with Types; use Types;
-
-with GNAT.Table;
 
 package SCOs is
 
@@ -152,6 +151,7 @@ package SCOs is
    --      o        object declaration
    --      r        renaming declaration
    --      i        generic instantiation
+   --      d        any other kind of declaration
    --      A        ACCEPT statement (from ACCEPT to end of parameter profile)
    --      C        CASE statement (from CASE to end of expression)
    --      E        EXIT statement
@@ -360,7 +360,8 @@ package SCOs is
       Col  : Column_Number;
    end record;
 
-   No_Source_Location : Source_Location := (No_Line_Number, No_Column_Number);
+   No_Source_Location : constant Source_Location :=
+                          (No_Line_Number, No_Column_Number);
 
    type SCO_Table_Entry is record
       From : Source_Location := No_Source_Location;
@@ -381,12 +382,13 @@ package SCOs is
       --  For the SCO for a pragma/aspect, gives the pragma/apsect name
    end record;
 
-   package SCO_Table is new GNAT.Table (
+   package SCO_Table is new Table.Table (
      Table_Component_Type => SCO_Table_Entry,
      Table_Index_Type     => Nat,
      Table_Low_Bound      => 1,
      Table_Initial        => 500,
-     Table_Increment      => 300);
+     Table_Increment      => 300,
+     Table_Name           => "Table");
 
    Is_Decision : constant array (Character) of Boolean :=
      ('E' | 'G' | 'I' | 'P' | 'a' | 'A' | 'W' | 'X' => True,
@@ -443,8 +445,8 @@ package SCOs is
    --    SCO contexts, the only pragmas with decisions are Assert, Check,
    --    dyadic Debug, Precondition and Postcondition). These entries will
    --    be omitted in output if the pragma is disabled (see comments for
-   --    statement entries). This is achieved by setting C1 to NUL for all
-   --    SCO entries of the decision.
+   --    statement entries): this filtering is achieved during the second pass
+   --    of SCO generation (Par_SCO.SCO_Record_Filtered).
 
    --    Decision (ASPECT)
    --      C1   = 'A'
@@ -467,7 +469,7 @@ package SCOs is
 
    --    Operator
    --      C1   = '!', '&', '|'
-   --      C2   = ' '
+   --      C2   = ' '/'?'/ (Logical operator/Putative one)
    --      From = location of NOT/AND/OR token
    --      To   = No_Source_Location
    --      Last = False
@@ -496,6 +498,11 @@ package SCOs is
    --  Used to index values in this table. Values start at 1 and are assigned
    --  sequentially as entries are constructed.
 
+   Missing_Dep_Num : constant Nat := 0;
+   --  Represents a dependency number for a dependency that is ignored. SCO
+   --  information consumers use this to strip units that must be kept out of
+   --  the coverage analysis.
+
    type SCO_Unit_Table_Entry is record
       File_Name : String_Ptr;
       --  Pointer to file name in ALI file
@@ -504,21 +511,32 @@ package SCOs is
       --  Index for the source file
 
       Dep_Num : Nat;
-      --  Dependency number in ALI file
+      --  Dependency number in ALI file. This is a positive number when the
+      --  dependency is actually available in the context, it is
+      --  Missing_Dep_Num otherwise.
 
       From : Nat;
       --  Starting index in SCO_Table of SCO information for this unit
 
       To : Nat;
       --  Ending index in SCO_Table of SCO information for this unit
+
+      --  Warning: SCOs generation (in Par_SCO) is done in two passes, which
+      --  communicate through an intermediate table (Par_SCO.SCO_Raw_Table).
+      --  Before the second pass executes, From and To actually reference index
+      --  in the internal table: SCO_Table is empty. Then, at the end of the
+      --  second pass, these indexes are updated in order to reference indexes
+      --  in SCO_Table.
+
    end record;
 
-   package SCO_Unit_Table is new GNAT.Table (
+   package SCO_Unit_Table is new Table.Table (
      Table_Component_Type => SCO_Unit_Table_Entry,
      Table_Index_Type     => SCO_Unit_Index,
      Table_Low_Bound      => 0, -- see note above on sorting
      Table_Initial        => 20,
-     Table_Increment      => 200);
+     Table_Increment      => 200,
+     Table_Name           => "Unit_Table");
 
    -----------------------
    -- Generic instances --
@@ -534,12 +552,13 @@ package SCOs is
       Enclosing_Instance : SCO_Instance_Index;
    end record;
 
-   package SCO_Instance_Table is new GNAT.Table (
+   package SCO_Instance_Table is new Table.Table (
      Table_Component_Type => SCO_Instance_Table_Entry,
      Table_Index_Type     => SCO_Instance_Index,
      Table_Low_Bound      => 1,
      Table_Initial        => 20,
-     Table_Increment      => 200);
+     Table_Increment      => 200,
+     Table_Name           => "Instance_Table");
 
    -----------------
    -- Subprograms --

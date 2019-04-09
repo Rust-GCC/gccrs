@@ -1,6 +1,6 @@
 // 2001-02-26 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,11 +33,16 @@ public:
 
 void test03()
 {
-  bool test __attribute__((unused)) = true;
   try
     { throw fuzzy_logic(); }
   catch(const fuzzy_logic& obj)
-    { VERIFY( std::strcmp("whoa", obj.what()) == 0 ); }
+    {
+#if _GLIBCXX_USE_CXX11_ABI
+      VERIFY( std::strstr(obj.what(), "whoa") != NULL );
+#else
+      VERIFY( std::strcmp("whoa", obj.what()) == 0 );
+#endif
+    }
   catch(...)
     { VERIFY( false ); }
 }

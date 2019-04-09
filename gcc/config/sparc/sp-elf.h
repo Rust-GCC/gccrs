@@ -1,6 +1,6 @@
 /* Definitions of target machine for GCC,
    for SPARC running in an embedded environment using the ELF file format.
-   Copyright (C) 2005-2014 Free Software Foundation, Inc.
+   Copyright (C) 2005-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -18,14 +18,11 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-/* Don't assume anything about the header files.  */
-#define NO_IMPLICIT_EXTERN_C
-
 /* It's safe to pass -s always, even if -g is not used.  */
 #undef ASM_SPEC
 #define ASM_SPEC \
   "-s \
-   %{fpic|fpie|fPIC|fPIE:-K PIC} %(asm_cpu)"
+   %{" FPIE_OR_FPIC_SPEC ":-K PIC} %(asm_cpu)"
 
 /* Use the default.  */
 #undef LINK_SPEC
@@ -53,6 +50,10 @@ along with GCC; see the file COPYING3.  If not see
 #undef  ASM_GENERATE_INTERNAL_LABEL
 #define ASM_GENERATE_INTERNAL_LABEL(LABEL,PREFIX,NUM)	\
   sprintf ((LABEL), "*.L%s%ld", (PREFIX), (long)(NUM))
+
+/* We use GNU ld so undefine this so that attribute((init_priority)) works.  */
+#undef CTORS_SECTION_ASM_OP
+#undef DTORS_SECTION_ASM_OP
 
 /* ??? Inherited from sol2.h.  Probably wrong.  */
 #undef WCHAR_TYPE

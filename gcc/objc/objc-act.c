@@ -1,5 +1,5 @@
 /* Implement classes and message passing for Objective C.
-   Copyright (C) 1992-2014 Free Software Foundation, Inc.
+   Copyright (C) 1992-2019 Free Software Foundation, Inc.
    Contributed by Steve Naroff.
 
 This file is part of GCC.
@@ -34,33 +34,23 @@ along with GCC; see the file COPYING3.  If not see
 #include "c/c-lang.h"
 #endif
 
-#include "c-family/c-common.h"
 #include "c-family/c-objc.h"
-#include "c-family/c-pragma.h"
-#include "c-family/c-format.h"
-#include "flags.h"
 #include "langhooks.h"
 #include "objc-act.h"
 #include "objc-map.h"
-#include "input.h"
 #include "function.h"
 #include "toplev.h"
 #include "debug.h"
 #include "c-family/c-target.h"
-#include "diagnostic-core.h"
 #include "intl.h"
 #include "cgraph.h"
 #include "tree-iterator.h"
-#include "hash-table.h"
-#include "wide-int.h"
-#include "langhooks-def.h"
 /* Different initialization, code gen and meta data generation for each
    runtime.  */
 #include "objc-runtime-hooks.h"
 /* Routines used mainly by the runtimes.  */
 #include "objc-runtime-shared-support.h"
 /* For default_tree_printer ().  */
-#include "tree-pretty-print.h"
 
 /* For enum gimplify_status */
 #include "gimple-expr.h"
@@ -253,7 +243,7 @@ vec<tree, va_gc> *local_variables_to_volatilize = NULL;
 /* Store all constructed constant strings in a hash table so that
    they get uniqued properly.  */
 
-struct GTY(()) string_descriptor {
+struct GTY((for_user)) string_descriptor {
   /* The literal argument .  */
   tree literal;
 
@@ -261,7 +251,13 @@ struct GTY(()) string_descriptor {
   tree constructor;
 };
 
-static GTY((param_is (struct string_descriptor))) htab_t string_htab;
+struct objc_string_hasher : ggc_ptr_hash<string_descriptor>
+{
+  static hashval_t hash (string_descriptor *);
+  static bool equal (string_descriptor *, string_descriptor *);
+};
+
+static GTY(()) hash_table<objc_string_hasher> *string_htab;
 
 FILE *gen_declaration_file;
 
@@ -417,8 +413,7 @@ objc_init (void)
   return true;
 }
 
-/* This is called automatically (at the very end of compilation) by
-   c_write_global_declarations and cp_write_global_declarations.  */
+/* This is called at the end of parsing by the C/C++ parsers.  */
 void
 objc_write_global_declarations (void)
 {
@@ -463,7 +458,7 @@ objc_write_global_declarations (void)
 	  char * const dumpname = concat (dump_base_name, ".decl", NULL);
 	  gen_declaration_file = fopen (dumpname, "w");
 	  if (gen_declaration_file == 0)
-	    fatal_error ("can%'t open %s: %m", dumpname);
+	    fatal_error (input_location, "can%'t open %s: %m", dumpname);
 	  free (dumpname);
 	}
 
@@ -912,7 +907,7 @@ objc_add_property_declaration (location_t location, tree decl,
 
   if (TREE_CODE (TREE_TYPE (decl)) == ARRAY_TYPE)
     {
-      error_at (location, "property can not be an array");
+      error_at (location, "property cannot be an array");
       return;
     }
 
@@ -927,10 +922,10 @@ objc_add_property_declaration (location_t location, tree decl,
 	 describe a pair of accessor methods, so its type (which is
 	 the type of the return value of the getter and the first
 	 argument of the setter) can't be a bitfield (as return values
-	 and arguments of functions can not be bitfields).  The
+	 and arguments of functions cannot be bitfields).  The
 	 underlying instance variable could be a bitfield, but that is
 	 a different matter.  */
-      error_at (location, "property can not be a bit-field");
+      error_at (location, "property cannot be a bit-field");
       return;
     }
 #endif
@@ -1095,7 +1090,8 @@ objc_add_property_declaration (location_t location, tree decl,
       if (PROPERTY_NONATOMIC (x) != parsed_property_nonatomic)
 	{
 	  warning_at (location, 0,
-		      "'nonatomic' attribute of property %qD conflicts with previous declaration", decl);
+		      "%<nonatomic%> attribute of property %qD conflicts with "
+		      "previous declaration", decl);
 
 	  if (original_location != UNKNOWN_LOCATION)
 	    inform (original_location, "originally specified here");
@@ -1105,7 +1101,8 @@ objc_add_property_declaration (location_t location, tree decl,
       if (PROPERTY_GETTER_NAME (x) != parsed_property_getter_ident)
 	{
 	  warning_at (location, 0,
-		      "'getter' attribute of property %qD conflicts with previous declaration", decl);
+		      "%<getter%> attribute of property %qD conflicts with "
+		      "previous declaration", decl);
 
 	  if (original_location != UNKNOWN_LOCATION)
 	    inform (original_location, "originally specified here");
@@ -1118,7 +1115,8 @@ objc_add_property_declaration (location_t location, tree decl,
 	  if (PROPERTY_SETTER_NAME (x) != parsed_property_setter_ident)
 	    {
 	      warning_at (location, 0,
-			  "'setter' attribute of property %qD conflicts with previous declaration", decl);
+			  "%<setter%> attribute of property %qD conflicts with "
+			  "previous declaration", decl);
 
 	      if (original_location != UNKNOWN_LOCATION)
 		inform (original_location, "originally specified here");
@@ -1140,7 +1138,8 @@ objc_add_property_declaration (location_t location, tree decl,
       if (PROPERTY_READONLY (x) == 0  &&  property_readonly == 1)
 	{
 	  warning_at (location, 0,
-		      "'readonly' attribute of property %qD conflicts with previous declaration", decl);
+		      "%<readonly%> attribute of property %qD conflicts with "
+		      "previous declaration", decl);
 
 	  if (original_location != UNKNOWN_LOCATION)
 	    inform (original_location, "originally specified here");
@@ -1460,6 +1459,8 @@ objc_maybe_build_component_ref (tree object, tree property_ident)
 		 || TREE_CODE (t) == COMPONENT_REF)
 	    t = TREE_OPERAND (t, 0);
 
+	  STRIP_ANY_LOCATION_WRAPPER (t);
+
 	  if (t == UOBJC_SUPER_decl)
 	    interface_type = lookup_interface (CLASS_SUPER_NAME (implementation_template));
 	  else if (t == self_decl)
@@ -1746,7 +1747,7 @@ objc_build_setter_call (tree lhs, tree rhs)
 
   if (PROPERTY_READONLY (property_decl))
     {
-      error ("readonly property can not be set");
+      error ("readonly property cannot be set");
       return error_mark_node;
     }
   else
@@ -2016,7 +2017,8 @@ objc_add_method_declaration (bool is_class_method, tree decl, tree attributes)
 	 impossible to get here.  But it's good to have the check in
 	 case the parser changes.
       */
-      fatal_error ("method declaration not in @interface context");
+      fatal_error (input_location,
+		   "method declaration not in @interface context");
     }
 
   if (flag_objc1_only && attributes)
@@ -2055,7 +2057,7 @@ objc_start_method_definition (bool is_class_method, tree decl, tree attributes,
 #endif
 
   if (attributes)
-    warning_at (input_location, 0, "method attributes can not be specified in @implementation context");
+    warning_at (input_location, 0, "method attributes cannot be specified in @implementation context");
   else
     objc_decl_method_attributes (&decl, attributes, 0);
 
@@ -2119,7 +2121,7 @@ objc_build_struct (tree klass, tree fields, tree super_name)
 	= size_binop (FLOOR_DIV_EXPR, convert (sizetype, DECL_SIZE (base)),
 		      size_int (BITS_PER_UNIT));
       DECL_ARTIFICIAL (base) = 1;
-      DECL_ALIGN (base) = 1;
+      SET_DECL_ALIGN (base, 1);
       DECL_FIELD_CONTEXT (base) = s;
 #ifdef OBJCPLUS
       DECL_FIELD_IS_BASE (base) = 1;
@@ -2658,7 +2660,8 @@ objc_build_component_ref (tree datum, tree component)
   return finish_class_member_access_expr (datum, component, false,
                                           tf_warning_or_error);
 #else
-  return build_component_ref (input_location, datum, component);
+  return build_component_ref (input_location, datum, component,
+			      UNKNOWN_LOCATION);
 #endif
 }
 
@@ -2841,7 +2844,7 @@ check_protocol_recursively (tree proto, tree list)
 			      /* definition_required */ false);
 
       if (pp == proto)
-	fatal_error ("protocol %qE has circular dependency",
+	fatal_error (input_location, "protocol %qE has circular dependency",
 		     PROTOCOL_NAME (pp));
       if (pp)
 	check_protocol_recursively (proto, PROTOCOL_LIST (pp));
@@ -3107,10 +3110,10 @@ my_build_string_pointer (int len, const char *str)
   return build1 (ADDR_EXPR, ptrtype, string);
 }
 
-static hashval_t
-string_hash (const void *ptr)
+hashval_t
+objc_string_hasher::hash (string_descriptor *ptr)
 {
-  const_tree const str = ((const struct string_descriptor *)ptr)->literal;
+  const_tree const str = ptr->literal;
   const unsigned char *p = (const unsigned char *) TREE_STRING_POINTER (str);
   int i, len = TREE_STRING_LENGTH (str);
   hashval_t h = len;
@@ -3121,11 +3124,11 @@ string_hash (const void *ptr)
   return h;
 }
 
-static int
-string_eq (const void *ptr1, const void *ptr2)
+bool
+objc_string_hasher::equal (string_descriptor *ptr1, string_descriptor *ptr2)
 {
-  const_tree const str1 = ((const struct string_descriptor *)ptr1)->literal;
-  const_tree const str2 = ((const struct string_descriptor *)ptr2)->literal;
+  const_tree const str1 = ptr1->literal;
+  const_tree const str2 = ptr2->literal;
   int len1 = TREE_STRING_LENGTH (str1);
 
   return (len1 == TREE_STRING_LENGTH (str2)
@@ -3147,7 +3150,6 @@ objc_build_string_object (tree string)
   int length;
   tree addr;
   struct string_descriptor *desc, key;
-  void **loc;
 
   /* We should be passed a STRING_CST.  */
   gcc_checking_assert (TREE_CODE (string) == STRING_CST);
@@ -3198,8 +3200,8 @@ objc_build_string_object (tree string)
 
   /* Perhaps we already constructed a constant string just like this one? */
   key.literal = string;
-  loc = htab_find_slot (string_htab, &key, INSERT);
-  desc = (struct string_descriptor *) *loc;
+  string_descriptor **loc = string_htab->find_slot (&key, INSERT);
+  desc = *loc;
 
   if (!desc)
     {
@@ -3847,22 +3849,20 @@ objc_get_class_ivars (tree class_name)
    more like a set).  So, we store the DECLs, but define equality as
    DECLs having the same name, and hash as the hash of the name.  */
 
-struct decl_name_hash : typed_noop_remove <tree_node>
+struct decl_name_hash : nofree_ptr_hash <tree_node>
 {
-  typedef tree_node value_type;
-  typedef tree_node compare_type;
-  static inline hashval_t hash (const value_type *);
-  static inline bool equal (const value_type *, const compare_type *);
+  static inline hashval_t hash (const tree_node *);
+  static inline bool equal (const tree_node *, const tree_node *);
 };
 
 inline hashval_t
-decl_name_hash::hash (const value_type *q)
+decl_name_hash::hash (const tree_node *q)
 {
   return (hashval_t) ((intptr_t)(DECL_NAME (q)) >> 3);
 }
 
 inline bool
-decl_name_hash::equal (const value_type *a, const compare_type *b)
+decl_name_hash::equal (const tree_node *a, const tree_node *b)
 {
   return DECL_NAME (a) == DECL_NAME (b);
 }
@@ -4214,7 +4214,7 @@ objc_begin_catch_clause (tree decl)
   else if (TYPE_HAS_OBJC_INFO (TREE_TYPE (type))
 	   && TYPE_OBJC_PROTOCOL_LIST (TREE_TYPE (type)))
     {
-      error ("@catch parameter can not be protocol-qualified");
+      error ("@catch parameter cannot be protocol-qualified");
       type = error_mark_node;
     }
   else if (POINTER_TYPE_P (type) && objc_is_object_id (TREE_TYPE (type)))
@@ -4608,8 +4608,14 @@ check_ivars (tree inter, tree imp)
       t1 = TREE_TYPE (intdecls); t2 = TREE_TYPE (impdecls);
 
       if (!comptypes (t1, t2)
+#ifdef OBJCPLUS
+	  || !tree_int_cst_equal (DECL_BIT_FIELD_REPRESENTATIVE (intdecls),
+				  DECL_BIT_FIELD_REPRESENTATIVE (impdecls))
+#else
 	  || !tree_int_cst_equal (DECL_INITIAL (intdecls),
-				  DECL_INITIAL (impdecls)))
+				  DECL_INITIAL (impdecls))
+#endif
+	 )
 	{
 	  if (DECL_NAME (intdecls) == DECL_NAME (impdecls))
 	    {
@@ -4675,7 +4681,7 @@ adjust_type_for_id_default (tree type)
     TREE_VALUE (type) = objc_object_type;
   else if (TREE_CODE (TREE_VALUE (type)) == RECORD_TYPE
 	   && TYPED_OBJECT (TREE_VALUE (type)))
-    error ("can not use an object as parameter to a method");
+    error ("cannot use an object as parameter to a method");
 
   return type;
 }
@@ -4900,10 +4906,10 @@ objc_decl_method_attributes (tree *node, tree attributes, int flags)
 		  number = TREE_VALUE (second_argument);
 		  if (number
 		      && TREE_CODE (number) == INTEGER_CST
-		      && !wi::eq_p (number, 0))
+		      && wi::to_wide (number) != 0)
 		    TREE_VALUE (second_argument)
 		      = wide_int_to_tree (TREE_TYPE (number),
-					  wi::add (number, 2));
+					  wi::to_wide (number) + 2);
 
 		  /* This is the third argument, the "first-to-check",
 		     which specifies the index of the first argument to
@@ -4913,10 +4919,10 @@ objc_decl_method_attributes (tree *node, tree attributes, int flags)
 		  number = TREE_VALUE (third_argument);
 		  if (number
 		      && TREE_CODE (number) == INTEGER_CST
-		      && !wi::eq_p (number, 0))
+		      && wi::to_wide (number) != 0)
 		    TREE_VALUE (third_argument)
 		      = wide_int_to_tree (TREE_TYPE (number),
-					  wi::add (number, 2));
+					  wi::to_wide (number) + 2);
 		}
 	      filtered_attributes = chainon (filtered_attributes,
 					     new_attribute);
@@ -4949,10 +4955,10 @@ objc_decl_method_attributes (tree *node, tree attributes, int flags)
 		  /* Get the value of the argument and add 2.  */
 		  tree number = TREE_VALUE (argument);
 		  if (number && TREE_CODE (number) == INTEGER_CST
-		      && !wi::eq_p (number, 0))
+		      && wi::to_wide (number) != 0)
 		    TREE_VALUE (argument)
 		      = wide_int_to_tree (TREE_TYPE (number),
-					  wi::add (number, 2));
+					  wi::to_wide (number) + 2);
 		  argument = TREE_CHAIN (argument);
 		}
 
@@ -5175,7 +5181,7 @@ receiver_is_class_object (tree receiver, int self, int super)
      (due to the code below) and so will know that +alloc is called on
      the 'NSObject' class, and can perform the corresponding checks.
 
-     Programmers can disable this behaviour by casting the results of
+     Programmers can disable this behavior by casting the results of
      objc_getClass() to 'Class' (this may seem weird because
      objc_getClass() is already declared to return 'Class', but the
      compiler treats it as a special function).  This may be useful if
@@ -5338,6 +5344,8 @@ objc_finish_message_expr (tree receiver, tree sel_name, tree method_params,
   tree method_prototype = NULL_TREE, rprotos = NULL_TREE, rtype;
   tree retval, class_tree;
   int self, super, have_cast;
+
+  STRIP_ANY_LOCATION_WRAPPER (receiver);
 
   /* We have used the receiver, so mark it as read.  */
   mark_exp_read (receiver);
@@ -5776,8 +5784,7 @@ hash_init (void)
   alias_name_map = objc_map_alloc_ggc (200);
 
   /* Initialize the hash table used to hold the constant string objects.  */
-  string_htab = htab_create_ggc (31, string_hash,
-				   string_eq, NULL);
+  string_htab = hash_table<objc_string_hasher>::create_ggc (31);
 }
 
 /* Use the following to add a method to class_method_map or
@@ -5888,7 +5895,7 @@ lookup_method (tree mchain, tree method)
    OBJC_LOOKUP_NO_SUPER is clear, and no suitable class method could
    be found in INTERFACE or any of its superclasses, look for an
    _instance_ method of the same name in the root class as a last
-   resort.  This behaviour can be turned off by using
+   resort.  This behavior can be turned off by using
    OBJC_LOOKUP_NO_INSTANCE_METHODS_OF_ROOT_CLASS.
 
    If a suitable method cannot be found, return NULL_TREE.  */
@@ -7061,7 +7068,6 @@ continue_class (tree klass)
 #endif /* OBJCPLUS */
 
 	return get_class_ivars (implementation_template, true);
-	break;
       }
     case CLASS_INTERFACE_TYPE:
       {
@@ -7077,7 +7083,6 @@ continue_class (tree klass)
 	pop_lang_context ();
 #endif /* OBJCPLUS */
 	return NULL_TREE;
-	break;
       }
     default:
       return error_mark_node;
@@ -7224,7 +7229,7 @@ objc_synthesize_getter (tree klass, tree class_methods ATTRIBUTE_UNUSED, tree pr
 	  {
 	    /* This should never happen.  */
 	    error_at (location,
-		      "can not find instance variable associated with property");
+		      "cannot find instance variable associated with property");
 	    ret_val = error_mark_node;
 	    break;
 	  }
@@ -7420,7 +7425,7 @@ objc_synthesize_setter (tree klass, tree class_methods ATTRIBUTE_UNUSED, tree pr
 	if (!ivar || is_private (ivar))
 	  {
 	    error_at (location,
-		      "can not find instance variable associated with property");
+		      "cannot find instance variable associated with property");
 	    statement = error_mark_node;
 	    break;
 	  }
@@ -7637,7 +7642,8 @@ objc_add_synthesize_declaration_for_property (location_t location, tree interfac
 	  {
 	    location_t original_location = DECL_SOURCE_LOCATION (ivar);
 
-	    error_at (location, "'assign' property %qs is using bit-field instance variable %qs",
+	    error_at (location, "%<assign%> property %qs is using bit-field "
+		      "instance variable %qs",
 		      IDENTIFIER_POINTER (property_name),
 		      IDENTIFIER_POINTER (ivar_name));
 
@@ -7650,7 +7656,8 @@ objc_add_synthesize_declaration_for_property (location_t location, tree interfac
 	  {
 	    location_t original_location = DECL_SOURCE_LOCATION (ivar);
 
-	    error_at (location, "'atomic' property %qs is using bit-field instance variable %qs",
+	    error_at (location, "%<atomic%> property %qs is using bit-field "
+		      "instance variable %qs",
 		      IDENTIFIER_POINTER (property_name),
 		      IDENTIFIER_POINTER (ivar_name));
 
@@ -7726,7 +7733,7 @@ objc_add_synthesize_declaration (location_t location, tree property_and_ivar_lis
 
   if (TREE_CODE (objc_implementation_context) == CATEGORY_IMPLEMENTATION_TYPE)
     {
-      error_at (location, "%<@synthesize%> can not be used in categories");
+      error_at (location, "%<@synthesize%> cannot be used in categories");
       return;
     }
 
@@ -8006,7 +8013,7 @@ finish_class (tree klass)
 		    char *setter_name = (char *) alloca (length);
 		    tree ret_type, selector, arg_type, arg_name;
 
-		    strcpy (setter_name, full_setter_name);
+		    memcpy (setter_name, full_setter_name, length - 1);
 		    setter_name[length - 1] = '\0';
 		    ret_type = build_tree_list (NULL_TREE, void_type_node);
 		    arg_type = build_tree_list (NULL_TREE, TREE_TYPE (x));
@@ -8904,10 +8911,18 @@ gen_declaration (tree decl)
 	  strcat (errbuf, IDENTIFIER_POINTER (DECL_NAME (decl)));
 	}
 
-      if (DECL_INITIAL (decl)
-	  && TREE_CODE (DECL_INITIAL (decl)) == INTEGER_CST)
-	sprintf (errbuf + strlen (errbuf), ": " HOST_WIDE_INT_PRINT_DEC,
-		 TREE_INT_CST_LOW (DECL_INITIAL (decl)));
+#ifdef OBJCPLUS
+      tree w = DECL_BIT_FIELD_REPRESENTATIVE (decl);
+#else
+      tree w = DECL_INITIAL (decl);
+#endif
+      if (w)
+	{
+	  STRIP_ANY_LOCATION_WRAPPER (w);
+	  if (TREE_CODE (w) == INTEGER_CST)
+	    sprintf (errbuf + strlen (errbuf), ": " HOST_WIDE_INT_PRINT_DEC,
+		     TREE_INT_CST_LOW (w));
+	}
     }
 
   return errbuf;
@@ -9286,7 +9301,6 @@ objc_maybe_printable_name (tree decl, int v ATTRIBUTE_UNUSED)
     {
     case FUNCTION_DECL:
       return objc_demangle (IDENTIFIER_POINTER (DECL_NAME (decl)));
-      break;
 
       /* The following happens when we are printing a deprecation
 	 warning for a method.  The warn_deprecation() will end up
@@ -9301,17 +9315,14 @@ objc_maybe_printable_name (tree decl, int v ATTRIBUTE_UNUSED)
     case INSTANCE_METHOD_DECL:
     case CLASS_METHOD_DECL:
       return IDENTIFIER_POINTER (DECL_NAME (decl));
-      break;
       /* This happens when printing a deprecation warning for a
 	 property.  We may want to consider some sort of pretty
 	 printing (eg, include the class name where it was declared
 	 ?).  */
     case PROPERTY_DECL:
       return IDENTIFIER_POINTER (PROPERTY_NAME (decl));
-      break;
     default:
       return NULL;
-      break;
     }
 }
 
@@ -10121,11 +10132,14 @@ objc_common_tree_size (enum tree_code code)
     case CLASS_METHOD_DECL:
     case INSTANCE_METHOD_DECL:
     case KEYWORD_DECL:
-    case PROPERTY_DECL:
-      return sizeof (struct tree_decl_non_common);
+    case PROPERTY_DECL:			return sizeof (tree_decl_non_common);
+    case CLASS_INTERFACE_TYPE:
+    case CLASS_IMPLEMENTATION_TYPE:
+    case CATEGORY_INTERFACE_TYPE:
+    case CATEGORY_IMPLEMENTATION_TYPE:
+    case PROTOCOL_INTERFACE_TYPE:	return sizeof (tree_type_non_common);
     default:
       gcc_unreachable ();
-  
     }
 }
 

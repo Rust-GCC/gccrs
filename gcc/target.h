@@ -1,5 +1,5 @@
 /* Data structure definitions for a generic GCC target.
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2019 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by the
@@ -48,27 +48,25 @@
 #ifndef GCC_TARGET_H
 #define GCC_TARGET_H
 
-#include "insn-modes.h"
 #include "insn-codes.h"
-#include "wide-int.h"
 #include "tm.h"
 #include "hard-reg-set.h"
 
-#ifdef ENABLE_CHECKING
+#if CHECKING_P
 
 struct cumulative_args_t { void *magic; void *p; };
 
-#else /* !ENABLE_CHECKING */
+#else /* !CHECKING_P */
 
 /* When using a GCC build compiler, we could use
    __attribute__((transparent_union)) to get cumulative_args_t function
    arguments passed like scalars where the ABI would mandate a less
    efficient way of argument passing otherwise.  However, that would come
-   at the cost of less type-safe !ENABLE_CHECKING compilation.  */
+   at the cost of less type-safe !CHECKING_P compilation.  */
 
 union cumulative_args_t { void *p; };
 
-#endif /* !ENABLE_CHECKING */
+#endif /* !CHECKING_P */
 
 /* Types used by the record_gcc_switches() target function.  */
 enum print_switch_type
@@ -80,6 +78,24 @@ enum print_switch_type
   SWITCH_TYPE_LINE_END		/* Please emit a line terminator.  */
 };
 
+/* Types of memory operation understood by the "by_pieces" infrastructure.
+   Used by the TARGET_USE_BY_PIECES_INFRASTRUCTURE_P target hook and
+   internally by the functions in expr.c.  */
+
+enum by_pieces_operation
+{
+  CLEAR_BY_PIECES,
+  MOVE_BY_PIECES,
+  SET_BY_PIECES,
+  STORE_BY_PIECES,
+  COMPARE_BY_PIECES
+};
+
+extern unsigned HOST_WIDE_INT by_pieces_ninsns (unsigned HOST_WIDE_INT,
+						unsigned int,
+						unsigned int,
+						by_pieces_operation);
+
 typedef int (* print_switch_fn_type) (print_switch_type, const char *);
 
 /* An example implementation for ELF targets.  Defined in varasm.c  */
@@ -90,6 +106,10 @@ extern int elf_record_gcc_switches (print_switch_type type, const char *);
    the target actually supports multiple different modes.  For now,
    we disable such optimizations on such targets, using this function.  */
 extern bool target_default_pointer_address_modes_p (void);
+
+/* For hooks which use the MOVE_RATIO macro, this gives the legacy default
+   behavior.  */
+extern unsigned int get_move_ratio (bool);
 
 struct stdarg_info;
 struct spec_info_def;
@@ -120,6 +140,9 @@ struct ddg;
 /* This is defined in cfgloop.h .  */
 struct loop;
 
+/* This is defined in ifcvt.h.  */
+struct noce_if_info;
+
 /* This is defined in tree-ssa-alias.h.  */
 struct ao_ref;
 
@@ -135,8 +158,11 @@ extern bool stmt_in_inner_loop_p (struct _stmt_vec_info *);
 struct asm_int_op
 {
   const char *hi;
+  const char *psi;
   const char *si;
+  const char *pdi;
   const char *di;
+  const char *pti;
   const char *ti;
 };
 
@@ -148,9 +174,11 @@ enum vect_cost_for_stmt
   scalar_store,
   vector_stmt,
   vector_load,
+  vector_gather_load,
   unaligned_load,
   unaligned_store,
   vector_store,
+  vector_scatter_store,
   vec_to_scalar,
   scalar_to_vec,
   cond_branch_not_taken,
@@ -168,6 +196,15 @@ enum vect_cost_model_location {
   vect_epilogue = 2
 };
 
+class vec_perm_indices;
+
+/* The type to use for lists of vector sizes.  */
+typedef vec<poly_uint64> vector_sizes;
+
+/* Same, but can be used to construct local lists that are
+   automatically freed.  */
+typedef auto_vec<poly_uint64, 8> auto_vector_sizes;
+
 /* The target structure.  This holds all the backend hooks.  */
 #define DEFHOOKPOD(NAME, DOC, TYPE, INIT) TYPE NAME;
 #define DEFHOOK(NAME, DOC, TYPE, PARAMS, INIT) TYPE (* NAME) PARAMS;
@@ -178,6 +215,21 @@ enum vect_cost_model_location {
 
 extern struct gcc_target targetm;
 
+/* Return an estimate of the runtime value of X, for use in things
+   like cost calculations or profiling frequencies.  Note that this
+   function should never be used in situations where the actual
+   runtime value is needed for correctness, since the function only
+   provides a rough guess.  */
+
+static inline HOST_WIDE_INT
+estimated_poly_value (poly_int64 x)
+{
+  if (NUM_POLY_INT_COEFFS == 1)
+    return x.coeffs[0];
+  else
+    return targetm.estimated_poly_value (x);
+}
+
 #ifdef GCC_TM_H
 
 #ifndef CUMULATIVE_ARGS_MAGIC
@@ -187,9 +239,9 @@ extern struct gcc_target targetm;
 static inline CUMULATIVE_ARGS *
 get_cumulative_args (cumulative_args_t arg)
 {
-#ifdef ENABLE_CHECKING
+#if CHECKING_P
   gcc_assert (arg.magic == CUMULATIVE_ARGS_MAGIC);
-#endif /* ENABLE_CHECKING */
+#endif /* CHECKING_P */
   return (CUMULATIVE_ARGS *) arg.p;
 }
 
@@ -198,9 +250,9 @@ pack_cumulative_args (CUMULATIVE_ARGS *arg)
 {
   cumulative_args_t ret;
 
-#ifdef ENABLE_CHECKING
+#if CHECKING_P
   ret.magic = CUMULATIVE_ARGS_MAGIC;
-#endif /* ENABLE_CHECKING */
+#endif /* CHECKING_P */
   ret.p = (void *) arg;
   return ret;
 }

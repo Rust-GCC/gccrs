@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -16,6 +16,8 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+// { dg-options "-Wno-deprecated" }
+
 #include <ext/array_allocator.h>
 
 // libstdc++/26875
@@ -31,8 +33,8 @@ int main()
 
   try
     {
-      Allocator1.allocate(1);
-      Allocator2.allocate(1);
+      (void) Allocator1.allocate(1);
+      (void) Allocator2.allocate(1);
     }
   catch (std::bad_alloc& ex)
     {

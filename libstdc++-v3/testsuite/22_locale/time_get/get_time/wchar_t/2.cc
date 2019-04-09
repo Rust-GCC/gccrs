@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "en_HK" }
+// { dg-require-namedlocale "en_HK.ISO8859-1" }
 
 // 2001-09-21 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,13 +28,12 @@
 void test02()
 {
   using namespace std;
-  bool test __attribute__((unused)) = true;
 
   typedef istreambuf_iterator<wchar_t> iterator_type;
 
   // basic construction and sanity check
   locale loc_c = locale::classic();
-  locale loc_hk = locale("en_HK");
+  locale loc_hk = locale(ISO_8859(1,en_HK));
   VERIFY( loc_hk != loc_c );
 
   const wstring empty;

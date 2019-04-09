@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -102,7 +102,6 @@ struct UsesWithoutTag
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using std::allocator_arg;
   using std::tuple;
   using std::make_tuple;
@@ -162,8 +161,43 @@ void test01()
 
 }
 
+void test02()
+{
+  using std::allocator_arg;
+  using std::tuple;
+  using std::make_tuple;
+
+  typedef tuple<> test_type;
+
+  MyAlloc a;
+
+  // default construction
+  test_type t1(allocator_arg, a);
+  // copy construction
+  test_type t2(allocator_arg, a, t1);
+  // move construction
+  test_type t3(allocator_arg, a, std::move(t1));
+  // make_tuple
+  test_type empty = make_tuple();
+}
+
+void test03()
+{
+  struct dr2586
+  {
+    using allocator_type = std::allocator<int>;
+    dr2586(std::allocator_arg_t, allocator_type&&) { }
+    dr2586(const allocator_type&) { }
+  };
+
+  const dr2586::allocator_type a;
+  std::tuple<dr2586> t{std::allocator_arg, a};
+}
+
 int main()
 {
   test01();
+  test02();
+  test03();
   return 0;
 }

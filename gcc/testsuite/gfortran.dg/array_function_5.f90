@@ -1,4 +1,4 @@
-! {  dg-do run }
+! { dg-do run }
 ! PR41278 internal compiler error related to matmul and transpose
 ! Test case prepared by Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 ! Original test case by Chris <cmklaij@hetnet.nl>
@@ -13,5 +13,5 @@ program bug
   matB=matmul(transpose(0.5*matA),matA)
   matC = transpose(0.5*matA)
   matC = matmul(matC, matA)
-  if (any(matB.ne.matC)) call abort()
+  if (any(matB.ne.matC)) STOP 1
 end program bug

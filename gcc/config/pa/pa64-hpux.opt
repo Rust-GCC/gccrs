@@ -1,6 +1,6 @@
 ; Options for the HP PA-RISC port of the compiler.
 
-; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -20,8 +20,8 @@
 
 mgnu-ld
 Target RejectNegative Mask(GNU_LD)
-Assume code will be linked by GNU ld
+Assume code will be linked by GNU ld.
 
 mhp-ld
 Target RejectNegative InverseMask(GNU_LD)
-Assume code will be linked by HP ld
+Assume code will be linked by HP ld.

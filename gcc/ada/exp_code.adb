@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1996-2008, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -26,7 +26,6 @@
 with Atree;    use Atree;
 with Einfo;    use Einfo;
 with Errout;   use Errout;
-with Fname;    use Fname;
 with Lib;      use Lib;
 with Namet;    use Namet;
 with Nlists;   use Nlists;
@@ -188,7 +187,7 @@ package body Exp_Code is
    --  and not modified by Clobber_Get_Next. Empty if clobber string was in
    --  error (resulting in no clobber arguments being returned).
 
-   Clobber_Ptr : Nat;
+   Clobber_Ptr : Pos;
    --  Pointer to current character of string. Initialized to 1 by the call
    --  to Clobber_Setup, and then updated by Clobber_Get_Next.
 
@@ -274,9 +273,7 @@ package body Exp_Code is
          --  referenced entity is in a runtime routine.
 
          if Is_Entity_Name (N)
-           and then
-             Is_Predefined_File_Name (Unit_File_Name
-                                       (Get_Source_Unit (Entity (N))))
+           and then Is_Predefined_Unit (Get_Source_Unit (Entity (N)))
          then
             return;
 

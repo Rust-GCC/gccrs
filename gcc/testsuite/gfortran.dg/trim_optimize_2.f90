@@ -10,8 +10,8 @@ contains
     b = 'abcd'
     a = trim(b)
     c = trim(trim(a))
-    if (a /= 'abc') call abort
-    if (c /= 'abc') call abort
+    if (a /= 'abc') STOP 1
+    if (c /= 'abc') STOP 2
   end subroutine bar
 end module faz
 
@@ -27,11 +27,10 @@ contains
     b = 'abcd'
     a = trim(b)
     c = trim(trim(a))
-    if (a /= 'abc') call abort
-    if (c /= 'abc') call abort
+    if (a /= 'abc') STOP 3
+    if (c /= 'abc') STOP 4
   end subroutine foo
 end program main
 
 ! { dg-final { scan-tree-dump-times "memmove" 6 "original" } }
 ! { dg-final { scan-tree-dump-times "string_trim" 0 "original" } }
-! { dg-final { cleanup-tree-dump "original" } }

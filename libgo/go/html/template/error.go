@@ -6,12 +6,16 @@ package template
 
 import (
 	"fmt"
+	"text/template/parse"
 )
 
 // Error describes a problem encountered during template Escaping.
 type Error struct {
 	// ErrorCode describes the kind of error.
 	ErrorCode ErrorCode
+	// Node is the node that caused the problem, if known.
+	// If not nil, it overrides Name and Line.
+	Node parse.Node
 	// Name is the name of the template in which the error was encountered.
 	Name string
 	// Line is the line number of the error in the template source or 0.
@@ -40,7 +44,7 @@ const (
 	// OK indicates the lack of an error.
 	OK ErrorCode = iota
 
-	// ErrAmbigContext: "... appears in an ambiguous URL context"
+	// ErrAmbigContext: "... appears in an ambiguous context within a URL"
 	// Example:
 	//   <a href="
 	//      {{if .C}}
@@ -160,7 +164,7 @@ const (
 	//   different context than an earlier pass, there is no single context.
 	//   In the example, there is missing a quote, so it is not clear
 	//   whether {{.}} is meant to be inside a JS string or in a JS value
-	//   context.  The second iteration would produce something like
+	//   context. The second iteration would produce something like
 	//
 	//     <script>var x = ['firstValue,'secondValue]</script>
 	ErrRangeLoopReentry
@@ -179,12 +183,44 @@ const (
 	//   Look for missing semicolons inside branches, and maybe add
 	//   parentheses to make it clear which interpretation you intend.
 	ErrSlashAmbig
+
+	// ErrPredefinedEscaper: "predefined escaper ... disallowed in template"
+	// Example:
+	//   <div class={{. | html}}>Hello<div>
+	// Discussion:
+	//   Package html/template already contextually escapes all pipelines to
+	//   produce HTML output safe against code injection. Manually escaping
+	//   pipeline output using the predefined escapers "html" or "urlquery" is
+	//   unnecessary, and may affect the correctness or safety of the escaped
+	//   pipeline output in Go 1.8 and earlier.
+	//
+	//   In most cases, such as the given example, this error can be resolved by
+	//   simply removing the predefined escaper from the pipeline and letting the
+	//   contextual autoescaper handle the escaping of the pipeline. In other
+	//   instances, where the predefined escaper occurs in the middle of a
+	//   pipeline where subsequent commands expect escaped input, e.g.
+	//     {{.X | html | makeALink}}
+	//   where makeALink does
+	//     return `<a href="`+input+`">link</a>`
+	//   consider refactoring the surrounding template to make use of the
+	//   contextual autoescaper, i.e.
+	//     <a href="{{.X}}">link</a>
+	//
+	//   To ease migration to Go 1.9 and beyond, "html" and "urlquery" will
+	//   continue to be allowed as the last command in a pipeline. However, if the
+	//   pipeline occurs in an unquoted attribute value context, "html" is
+	//   disallowed. Avoid using "html" and "urlquery" entirely in new templates.
+	ErrPredefinedEscaper
 )
 
 func (e *Error) Error() string {
-	if e.Line != 0 {
+	switch {
+	case e.Node != nil:
+		loc, _ := (*parse.Tree)(nil).ErrorContext(e.Node)
+		return fmt.Sprintf("html/template:%s: %s", loc, e.Description)
+	case e.Line != 0:
 		return fmt.Sprintf("html/template:%s:%d: %s", e.Name, e.Line, e.Description)
-	} else if e.Name != "" {
+	case e.Name != "":
 		return fmt.Sprintf("html/template:%s: %s", e.Name, e.Description)
 	}
 	return "html/template: " + e.Description
@@ -192,6 +228,6 @@ func (e *Error) Error() string {
 
 // errorf creates an error given a format string f and args.
 // The template Name still needs to be supplied.
-func errorf(k ErrorCode, line int, f string, args ...interface{}) *Error {
-	return &Error{k, "", line, fmt.Sprintf(f, args...)}
+func errorf(k ErrorCode, node parse.Node, line int, f string, args ...interface{}) *Error {
+	return &Error{k, node, "", line, fmt.Sprintf(f, args...)}
 }

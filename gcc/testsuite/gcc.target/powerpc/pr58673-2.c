@@ -1,7 +1,7 @@
 /* { dg-do compile { target { powerpc*-*-* && lp64 } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
 /* { dg-require-effective-target powerpc_p8vector_ok } */
-/* { dg-options "-mcpu=power8 -O3 -m64 -funroll-loops" } */
+/* { dg-options "-mdejagnu-cpu=power8 -O3 -funroll-loops" } */
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -90,6 +90,9 @@ typedef struct
   t_coupl_LJ *tcLJ;
 }
 t_coupl_rec;
+void xvgr_legend ();
+real calc_deviation ();
+void pr_dev ();
 static void
 pr_ff (t_coupl_rec * tcr, real time, t_idef * idef, t_commrec * cr, int nfile,
        t_filenm fnm[])
@@ -136,7 +139,7 @@ pr_ff (t_coupl_rec * tcr, real time, t_idef * idef, t_commrec * cr, int nfile,
 									   malloc
 									   (__len);
 									   __retval;}
-	    )):	    __strdup (eoNames[i])));
+	    )):	    strdup (eoNames[i])));
 	      raleg[j++] =
 		(__extension__
 		 (__builtin_constant_p (buf)
@@ -161,7 +164,7 @@ pr_ff (t_coupl_rec * tcr, real time, t_idef * idef, t_commrec * cr, int nfile,
 									   malloc
 									   (__len);
 									   __retval;}
-	    )):	    __strdup (buf)));
+	    )):	    strdup (buf)));
 	    }
 	}
       if (tcr->nLJ)

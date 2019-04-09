@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2008-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU Transactional Memory Library (libitm).
@@ -29,7 +29,7 @@
 #endif
 
 static inline long
-sys_futex0 (std::atomic<int> *addr, long op, long val)
+sys_futex0 (std::atomic<int> *addr, int op, int val)
 {
   register long sc_0 __asm__("$0");
   register long sc_16 __asm__("$16");

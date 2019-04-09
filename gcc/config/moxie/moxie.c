@@ -1,5 +1,5 @@
 /* Target Code for moxie
-   Copyright (C) 2008-2014 Free Software Foundation, Inc.
+   Copyright (C) 2008-2019 Free Software Foundation, Inc.
    Contributed by Anthony Green.
 
    This file is part of GCC.
@@ -18,38 +18,31 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
+#define IN_TARGET_CODE 1
+
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "backend.h"
+#include "target.h"
 #include "rtl.h"
-#include "regs.h"
-#include "hard-reg-set.h"
-#include "insn-config.h"
-#include "conditions.h"
-#include "insn-flags.h"
-#include "output.h"
-#include "insn-attr.h"
-#include "flags.h"
-#include "recog.h"
-#include "reload.h"
-#include "diagnostic-core.h"
-#include "obstack.h"
 #include "tree.h"
+#include "stringpool.h"
+#include "attribs.h"
+#include "df.h"
+#include "regs.h"
+#include "memmodel.h"
+#include "emit-rtl.h"
+#include "diagnostic-core.h"
+#include "output.h"
 #include "stor-layout.h"
 #include "varasm.h"
 #include "calls.h"
 #include "expr.h"
-#include "optabs.h"
-#include "except.h"
-#include "function.h"
-#include "ggc.h"
-#include "target.h"
-#include "target-def.h"
-#include "tm_p.h"
-#include "langhooks.h"
-#include "df.h"
 #include "builtins.h"
+
+/* This file should be included last.  */
+#include "target-def.h"
 
 #define LOSE_AND_RETURN(msgid, x)		\
   do						\
@@ -87,7 +80,7 @@ moxie_function_value (const_tree valtype,
    We always return values in register $r0 for moxie.  */
 
 static rtx
-moxie_libcall_value (enum machine_mode mode,
+moxie_libcall_value (machine_mode mode,
                      const_rtx fun ATTRIBUTE_UNUSED)
 {
   return gen_rtx_REG (mode, MOXIE_R0);
@@ -117,8 +110,8 @@ moxie_operand_lossage (const char *msgid, rtx op)
 
 /* The PRINT_OPERAND_ADDRESS worker.  */
 
-void
-moxie_print_operand_address (FILE *file, rtx x)
+static void
+moxie_print_operand_address (FILE *file, machine_mode, rtx x)
 {
   switch (GET_CODE (x))
     {
@@ -164,7 +157,7 @@ moxie_print_operand_address (FILE *file, rtx x)
 
 /* The PRINT_OPERAND worker.  */
 
-void
+static void
 moxie_print_operand (FILE *file, rtx x, int code)
 {
   rtx operand = x;
@@ -195,7 +188,7 @@ moxie_print_operand (FILE *file, rtx x, int code)
       return;
 
     case MEM:
-      output_address (XEXP (operand, 0));
+      output_address (GET_MODE (XEXP (operand, 0)), XEXP (operand, 0));
       return;
 
     default:
@@ -234,13 +227,16 @@ moxie_init_machine_status (void)
 }
 
 
-/* The TARGET_OPTION_OVERRIDE worker.
-   All this curently does is set init_machine_status.  */
+/* The TARGET_OPTION_OVERRIDE worker.  */
 static void
 moxie_option_override (void)
 {
   /* Set the per-function-data initializer.  */
   init_machine_status = moxie_init_machine_status;
+
+#ifdef TARGET_MOXIEBOX  
+  target_flags |= MASK_HAS_MULX;
+#endif
 }
 
 /* Compute the size of the local area and the size to be adjusted by the
@@ -274,7 +270,8 @@ moxie_compute_frame (void)
   cfun->machine->size_for_adjusting_sp = 
     crtl->args.pretend_args_size
     + cfun->machine->local_vars_size 
-    + (ACCUMULATE_OUTGOING_ARGS ? crtl->outgoing_args_size : 0);
+    + (ACCUMULATE_OUTGOING_ARGS
+       ? (HOST_WIDE_INT) crtl->outgoing_args_size : 0);
 }
 
 void
@@ -388,7 +385,7 @@ moxie_initial_elimination_offset (int from, int to)
 
 static void
 moxie_setup_incoming_varargs (cumulative_args_t cum_v,
-			      enum machine_mode mode ATTRIBUTE_UNUSED,
+			      machine_mode mode ATTRIBUTE_UNUSED,
 			      tree type ATTRIBUTE_UNUSED,
 			      int *pretend_size, int no_rtl)
 {
@@ -427,7 +424,7 @@ moxie_fixed_condition_code_regs (unsigned int *p1, unsigned int *p2)
    NULL_RTX if there's no more space.  */
 
 static rtx
-moxie_function_arg (cumulative_args_t cum_v, enum machine_mode mode,
+moxie_function_arg (cumulative_args_t cum_v, machine_mode mode,
 		    const_tree type ATTRIBUTE_UNUSED,
 		    bool named ATTRIBUTE_UNUSED)
 {
@@ -444,7 +441,7 @@ moxie_function_arg (cumulative_args_t cum_v, enum machine_mode mode,
    : (unsigned) int_size_in_bytes (TYPE))
 
 static void
-moxie_function_arg_advance (cumulative_args_t cum_v, enum machine_mode mode,
+moxie_function_arg_advance (cumulative_args_t cum_v, machine_mode mode,
 			    const_tree type, bool named ATTRIBUTE_UNUSED)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
@@ -459,7 +456,7 @@ moxie_function_arg_advance (cumulative_args_t cum_v, enum machine_mode mode,
 
 static bool
 moxie_pass_by_reference (cumulative_args_t cum ATTRIBUTE_UNUSED,
-			 enum machine_mode mode, const_tree type,
+			 machine_mode mode, const_tree type,
 			 bool named ATTRIBUTE_UNUSED)
 {
   unsigned HOST_WIDE_INT size;
@@ -482,7 +479,7 @@ moxie_pass_by_reference (cumulative_args_t cum ATTRIBUTE_UNUSED,
 
 static int
 moxie_arg_partial_bytes (cumulative_args_t cum_v,
-			 enum machine_mode mode,
+			 machine_mode mode,
 			 tree type, bool named)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
@@ -513,12 +510,9 @@ moxie_arg_partial_bytes (cumulative_args_t cum_v,
 /* Worker function for TARGET_STATIC_CHAIN.  */
 
 static rtx
-moxie_static_chain (const_tree fndecl, bool incoming_p)
+moxie_static_chain (const_tree ARG_UNUSED (fndecl_or_type), bool incoming_p)
 {
   rtx addr, mem;
-
-  if (!DECL_STATIC_CHAIN (fndecl))
-    return NULL;
 
   if (incoming_p)
     addr = plus_constant (Pmode, arg_pointer_rtx, 2 * UNITS_PER_WORD);
@@ -540,7 +534,6 @@ moxie_asm_trampoline_template (FILE *f)
   fprintf (f, "\tldi.l $r0, 0x0\n");
   fprintf (f, "\tsto.l 0x8($fp), $r0\n");
   fprintf (f, "\tpop   $sp, $r0\n");
-  fprintf (f, "\tnop\n");
   fprintf (f, "\tjmpa  0x0\n");
 }
 
@@ -556,8 +549,65 @@ moxie_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
 
   mem = adjust_address (m_tramp, SImode, 4);
   emit_move_insn (mem, chain_value);
-  mem = adjust_address (m_tramp, SImode, 20);
+  mem = adjust_address (m_tramp, SImode, 16);
   emit_move_insn (mem, fnaddr);
+}
+
+/* Return true for memory offset addresses between -32768 and 32767.  */
+bool
+moxie_offset_address_p (rtx x)
+{
+  x = XEXP (x, 0);
+
+  if (GET_CODE (x) == PLUS)
+    {
+      x = XEXP (x, 1);
+      if (GET_CODE (x) == CONST_INT)
+	{
+	  unsigned int v = INTVAL (x) & 0xFFFF8000;
+	  return (v == 0xFFFF8000 || v == 0x00000000);
+	}
+    }
+  return 0;
+}
+
+/* Helper function for `moxie_legitimate_address_p'.  */
+
+static bool
+moxie_reg_ok_for_base_p (const_rtx reg, bool strict_p)
+{
+  int regno = REGNO (reg);
+
+  if (strict_p)
+    return HARD_REGNO_OK_FOR_BASE_P (regno)
+	   || HARD_REGNO_OK_FOR_BASE_P (reg_renumber[regno]);
+  else    
+    return !HARD_REGISTER_NUM_P (regno)
+	   || HARD_REGNO_OK_FOR_BASE_P (regno);
+}
+
+/* Worker function for TARGET_LEGITIMATE_ADDRESS_P.  */
+
+static bool
+moxie_legitimate_address_p (machine_mode mode ATTRIBUTE_UNUSED,
+			    rtx x, bool strict_p,
+			    addr_space_t as)
+{
+  gcc_assert (ADDR_SPACE_GENERIC_P (as));
+
+  if (GET_CODE(x) == PLUS
+      && REG_P (XEXP (x, 0))
+      && moxie_reg_ok_for_base_p (XEXP (x, 0), strict_p)
+      && CONST_INT_P (XEXP (x, 1))
+      && IN_RANGE (INTVAL (XEXP (x, 1)), -32768, 32767))
+    return true;
+  if (REG_P (x) && moxie_reg_ok_for_base_p (x, strict_p))
+    return true;
+  if (GET_CODE (x) == SYMBOL_REF
+      || GET_CODE (x) == LABEL_REF
+      || GET_CODE (x) == CONST)
+    return true;
+  return false;
 }
 
 /* The Global `targetm' Variable.  */
@@ -580,6 +630,11 @@ moxie_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
 #undef  TARGET_FUNCTION_ARG_ADVANCE
 #define TARGET_FUNCTION_ARG_ADVANCE	moxie_function_arg_advance
 
+#undef TARGET_LRA_P
+#define TARGET_LRA_P hook_bool_void_false
+
+#undef  TARGET_ADDR_SPACE_LEGITIMATE_ADDRESS_P
+#define TARGET_ADDR_SPACE_LEGITIMATE_ADDRESS_P	moxie_legitimate_address_p
 
 #undef  TARGET_SETUP_INCOMING_VARARGS
 #define TARGET_SETUP_INCOMING_VARARGS 	moxie_setup_incoming_varargs
@@ -589,7 +644,7 @@ moxie_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
 
 /* Define this to return an RTX representing the place where a
    function returns or receives a value of data type RET_TYPE, a tree
-   node node representing a data type.  */
+   node representing a data type.  */
 #undef TARGET_FUNCTION_VALUE
 #define TARGET_FUNCTION_VALUE moxie_function_value
 #undef TARGET_LIBCALL_VALUE
@@ -609,6 +664,14 @@ moxie_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
 
 #undef TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE moxie_option_override
+
+#undef  TARGET_PRINT_OPERAND
+#define TARGET_PRINT_OPERAND moxie_print_operand
+#undef  TARGET_PRINT_OPERAND_ADDRESS
+#define TARGET_PRINT_OPERAND_ADDRESS moxie_print_operand_address
+
+#undef  TARGET_CONSTANT_ALIGNMENT
+#define TARGET_CONSTANT_ALIGNMENT constant_alignment_word_strings
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

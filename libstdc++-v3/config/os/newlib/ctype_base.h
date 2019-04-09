@@ -1,6 +1,6 @@
 // Locale support -*- C++ -*-
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,11 +25,9 @@
 //
 // ISO C++ 14882: 22.1  Locales
 //
-  
-// Information as gleaned from /usr/include/ctype.h, for solaris2.5.1
 
-// Support for Solaris 2.5.1
-  
+// Information as gleaned from /usr/include/ctype.h
+
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -54,6 +52,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     static const mask cntrl 	= _C;
     static const mask punct 	= _P;
     static const mask alnum 	= _U | _L | _N;
+#if __cplusplus >= 201103L
+    static const mask blank 	= space;
+#endif
   };
 
 _GLIBCXX_END_NAMESPACE_VERSION

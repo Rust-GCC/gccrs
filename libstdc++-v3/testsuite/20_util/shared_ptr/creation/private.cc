@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -37,8 +37,17 @@ public:
 };
 
 template<typename T>
-struct MyAlloc : std::allocator<Private>
+struct MyAlloc : std::allocator<T>
 {
+  template<typename U>
+    struct rebind { typedef MyAlloc<U> other; };
+
+  MyAlloc() = default;
+  MyAlloc(const MyAlloc&) = default;
+
+  template<typename U>
+    MyAlloc(const MyAlloc<U>&) { }
+
   void construct(T* p) { ::new((void*)p) T(); }
   void destroy(T* p) { p->~T(); }
 };
@@ -49,4 +58,3 @@ int main()
   auto p = std::allocate_shared<Private>(a);
   return p->get();
 }
-

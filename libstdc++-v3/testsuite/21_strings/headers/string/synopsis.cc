@@ -1,6 +1,7 @@
 // { dg-do compile }
+// { dg-require-normal-namespace "" }
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,9 +27,11 @@ namespace std {
   template <> struct char_traits<char>;
   template <> struct char_traits<wchar_t>;
 
+_GLIBCXX_BEGIN_NAMESPACE_CXX11
   //  lib.basic.string, basic_string:
   template<class charT, class traits, class Allocator >
   class basic_string;
+_GLIBCXX_END_NAMESPACE_CXX11
 
   template<class charT, class traits, class Allocator>
   basic_string<charT,traits,Allocator>

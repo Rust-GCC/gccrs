@@ -1,5 +1,5 @@
 // { dg-do compile { target c++11 } }
-// { dg-options "-O -fdump-ipa-inline" }
+// { dg-options "-O -fdump-ipa-inline-all" }
 
 class Foo
 {
@@ -19,4 +19,3 @@ int main()
 }
 
 // { dg-final { scan-ipa-dump "Inlined 1 calls, eliminated 1 functions" "inline" } }
-// { dg-final { cleanup-ipa-dump "inline" } }

@@ -1,9 +1,8 @@
-// { dg-do compile }
-// { dg-options "-std=gnu++0x" }
+// { dg-do compile { target c++11 } }
 
 // 2011-05-16  Paolo Carlini  <paolo.carlini@oracle.com>
 //
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,4 +27,9 @@ void test01()
 
   int&& aone __attribute__((unused)) = std::get<0>(std::move(a));
   int&& atwo __attribute__((unused)) = std::get<1>(std::move(a));
+
+  const std::array<int, 2> ca{};
+
+  const int&& caone __attribute__((unused)) = std::get<0>(std::move(ca));
+  const int&& catwo __attribute__((unused)) = std::get<1>(std::move(ca));
 }

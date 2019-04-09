@@ -6,8 +6,6 @@
 #define N 128
 signed char data_ch[N];
 
-volatile int y = 0;
-
 __attribute__ ((noinline)) int
 foo ()
 {
@@ -19,9 +17,7 @@ foo ()
     {
       data_ch[i] = i*2;
       check_intsum += data_ch[i];
-      /* Avoid vectorization.  */
-      if (y)
-	abort ();
+      asm volatile ("" ::: "memory");
     }
 
   /* widenning sum: sum chars into int.  */
@@ -47,4 +43,3 @@ main (void)
 /* { dg-final { scan-tree-dump-times "vect_recog_widen_sum_pattern: detected" 1 "vect" } } */
 /* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" { target { vect_widen_sum_qi_to_si && vect_unpack } } } } */
 /* { dg-final { scan-tree-dump-times "vectorized 1 loops" 0 "vect" { target { { ! vect_widen_sum_qi_to_si } && { ! vect_unpack } } } } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */

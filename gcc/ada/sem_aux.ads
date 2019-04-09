@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -38,7 +38,7 @@
 --  content of entities in the tree, so this package is used for routines that
 --  require more than minimal semantic knowledge.
 
-with Alloc; use Alloc;
+with Alloc;
 with Namet; use Namet;
 with Table;
 with Types; use Types;
@@ -119,6 +119,9 @@ package Sem_Aux is
    --  First_Entity. The exception arises for tagged types, where the tag
    --  itself is prepended to the front of the entity chain, so the
    --  First_Discriminant function steps past the tag if it is present.
+   --  The caller is responsible for checking that the type has discriminants.
+   --  When called on a private type with unknown discriminants, the function
+   --  always returns Empty.
 
    function First_Stored_Discriminant (Typ : Entity_Id) return Entity_Id;
    --  Typ is a type with discriminants. Gives the first discriminant stored
@@ -157,6 +160,13 @@ package Sem_Aux is
    --  the Nkind value that would be used to construct a binary operator node
    --  referencing this entity. It is an error to call this function if Ekind
    --  (Op) /= E_Operator.
+
+   function Get_Called_Entity (Call : Node_Id) return Entity_Id;
+   --  Obtain the entity of the entry, operator, or subprogram being invoked
+   --  by call Call.
+
+   function Get_Low_Bound (E : Entity_Id) return Node_Id;
+   --  For an index subtype or string literal subtype, returns its low bound
 
    function Get_Unary_Nkind (Op : Entity_Id) return Node_Kind;
    --  Op must be an entity with an Ekind of E_Operator. This function returns
@@ -240,6 +250,10 @@ package Sem_Aux is
    --  not inherited from its parents, if any). If found then True is returned,
    --  otherwise False indicates that no matching entry was found.
 
+   function Has_Rep_Item (E : Entity_Id; N : Node_Id) return Boolean;
+   --  Determine whether the Rep_Item chain of arbitrary entity E contains item
+   --  N. N must denote a valid rep item.
+
    function Has_Rep_Pragma
      (E             : Entity_Id;
       Nam           : Name_Id;
@@ -303,6 +317,14 @@ package Sem_Aux is
    --  Ent is any entity. Returns True if Ent is a type entity where the type
    --  is required to be passed by reference, as defined in (RM 6.2(4-9)).
 
+   function Is_Definite_Subtype (T : Entity_Id) return Boolean;
+   --  T is a type entity. Returns True if T is a definite subtype.
+   --  Indefinite subtypes are unconstrained arrays, unconstrained
+   --  discriminated types without defaulted discriminants, class-wide types,
+   --  and types with unknown discriminants. Definite subtypes are all others
+   --  (elementary, constrained composites (including the case of records
+   --  without discriminants), and types with defaulted discriminants).
+
    function Is_Derived_Type (Ent : Entity_Id) return Boolean;
    --  Determines if the given entity Ent is a derived type. Result is always
    --  false if argument is not a type.
@@ -311,12 +333,6 @@ package Sem_Aux is
    --  Determine whether E is a generic formal parameter. In particular this is
    --  used to set the visibility of generic formals of a generic package
    --  declared with a box or with partial parameterization.
-
-   function Is_Indefinite_Subtype (Ent : Entity_Id) return Boolean;
-   --  Ent is any entity. Determines if given entity is an unconstrained array
-   --  type or subtype, a discriminated record type or subtype with no initial
-   --  discriminant values or a class wide type or subtype and returns True if
-   --  so. False for other type entities, or any entities that are not types.
 
    function Is_Immutably_Limited_Type (Ent : Entity_Id) return Boolean;
    --  Implements definition in Ada 2012 RM-7.5 (8.1/3). This differs from the
@@ -369,6 +385,10 @@ package Sem_Aux is
    --  The result returned is the next _Tag field in this record, or Empty
    --  if this is the last such field.
 
+   function Number_Components (Typ : Entity_Id) return Nat;
+   --  Typ is a record type, yields number of components (including
+   --  discriminants) in type.
+
    function Number_Discriminants (Typ : Entity_Id) return Pos;
    --  Typ is a type with discriminants, yields number of discriminants in type
 
@@ -381,6 +401,37 @@ package Sem_Aux is
    --  derived type, and the subtype is not an unconstrained array subtype
    --  (RM 3.3(23.10/3)).
 
+   function Package_Body (E : Entity_Id) return Node_Id;
+   --  Given an entity for a package (spec or body), return the corresponding
+   --  package body if any, or else Empty.
+
+   function Package_Spec (E : Entity_Id) return Node_Id;
+   --  Given an entity for a package spec, return the corresponding package
+   --  spec if any, or else Empty.
+
+   function Package_Specification (E : Entity_Id) return Node_Id;
+   --  Given an entity for a package, return the corresponding package
+   --  specification.
+
+   function Subprogram_Body (E : Entity_Id) return Node_Id;
+   --  Given an entity for a subprogram (spec or body), return the
+   --  corresponding subprogram body if any, or else Empty.
+
+   function Subprogram_Body_Entity (E : Entity_Id) return Entity_Id;
+   --  Given an entity for a subprogram (spec or body), return the entity
+   --  corresponding to the subprogram body, which may be the same as E or
+   --  Empty if no body is available.
+
+   function Subprogram_Spec (E : Entity_Id) return Node_Id;
+   --  Given an entity for a subprogram spec, return the corresponding
+   --  subprogram spec if any, or else Empty.
+
+   function Subprogram_Specification (E : Entity_Id) return Node_Id;
+   --  Given an entity for a subprogram, return the corresponding subprogram
+   --  specification. If the entity is an inherited subprogram without
+   --  specification itself, return the specification of the inherited
+   --  subprogram.
+
    function Ultimate_Alias (Prim : Entity_Id) return Entity_Id;
    pragma Inline (Ultimate_Alias);
    --  Return the last entity in the chain of aliased entities of Prim. If Prim
@@ -392,10 +443,5 @@ package Sem_Aux is
    --  body entities for subprograms, tasks and protected units, in which case
    --  it returns the subprogram, task or protected body node for it. The unit
    --  may be a child unit with any number of ancestors.
-
-   function Package_Specification (Pack_Id : Entity_Id) return Node_Id;
-   --  Given an entity for a package or generic package, return corresponding
-   --  package specification. Simplifies handling of child units, and better
-   --  than the old idiom: Specification (Unit_Declaration_Node (Pack_Id)).
 
 end Sem_Aux;

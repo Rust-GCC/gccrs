@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "fr_FR" }
+// { dg-require-namedlocale "fr_FR.ISO8859-15" }
 
 // 2000-09-13 Benjamin Kosnik <bkoz@redhat.com>
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -46,7 +46,6 @@ std::locale::id gnu_facet::id;
 void test01()
 {
   using namespace std;
-  bool test __attribute__((unused)) = true;
 
   // construct a locale object with the C facet
   const locale	loc01 = locale::classic();
@@ -87,10 +86,10 @@ void test01()
 
   // 3
   // explicit locale(const char* std_name)
-  locale loc06 = locale("fr_FR");
+  locale loc06 = locale(ISO_8859(15,fr_FR));
   VERIFY( loc06 != loc01 );  
   VERIFY( loc06 != loc02 );  
-  VERIFY( loc06.name() == "fr_FR");
+  VERIFY( loc06.name() == ISO_8859(15,fr_FR));
   locale loc07("");
   VERIFY( loc07 != loc02 );  
   VERIFY( loc07.name() != "" );
@@ -113,7 +112,7 @@ void test01()
   {
     // This is the same as 5 only use "C" for loc("C")
     locale loc09(loc06, "C", locale::ctype);
-    VERIFY( loc09.name() != "fr_FR" );
+    VERIFY( loc09.name() != ISO_8859(15,fr_FR) );
     VERIFY( loc09.name() != "C" );
     VERIFY( loc09.name() != "*" );
     VERIFY( loc09 != loc01 );  
@@ -143,11 +142,11 @@ void test01()
       { VERIFY( false ); }
 
     locale loc14(loc06, "C", locale::none);
-    VERIFY( loc14.name() == "fr_FR" );
+    VERIFY( loc14.name() == ISO_8859(15,fr_FR) );
     VERIFY( loc14 == loc06 );
 
     locale loc15(loc06, "C", locale::collate );
-    VERIFY( loc15.name() != "fr_FR" );
+    VERIFY( loc15.name() != ISO_8859(15,fr_FR) );
     VERIFY( loc15.name() != "C" );
     VERIFY( loc15.name() != "*" );
     VERIFY( loc15.name() != loc09.name() );
@@ -161,7 +160,7 @@ void test01()
   {
     // This is the exact same as 4, with locale("C") for "C"
     locale loc09(loc06, loc01, locale::ctype);
-    VERIFY( loc09.name() != "fr_FR" );
+    VERIFY( loc09.name() != ISO_8859(15,fr_FR) );
     VERIFY( loc09.name() != "C" );
     VERIFY( loc09.name() != "*" );
     VERIFY( loc09 != loc01 );
@@ -191,11 +190,11 @@ void test01()
       { VERIFY( false ); }
 
     locale loc14(loc06, loc01, locale::none);
-    VERIFY( loc14.name() == "fr_FR" );
+    VERIFY( loc14.name() == ISO_8859(15,fr_FR) );
     VERIFY( loc14 == loc06 );
 
     locale loc15(loc06, loc01, locale::collate);
-    VERIFY( loc15.name() != "fr_FR" );
+    VERIFY( loc15.name() != ISO_8859(15,fr_FR) );
     VERIFY( loc15.name() != "C" );
     VERIFY( loc15.name() != "*" );
     VERIFY( loc15.name() != loc09.name() );

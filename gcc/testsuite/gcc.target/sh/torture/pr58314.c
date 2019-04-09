@@ -1,13 +1,15 @@
+/* { dg-additional-options "-std=gnu99" }  */
 /* { dg-do compile }  */
-/* { dg-options "-Os" } */
 
 typedef unsigned short __u16;
 typedef unsigned int __u32;
-
 typedef signed short s16;
 
 
-static inline __attribute__((always_inline)) __attribute__((__const__)) __u16 __arch_swab16(__u16 x)
+static inline 
+__attribute__((always_inline))
+__attribute__((__const__))
+__u16 __arch_swab16(__u16 x)
 {
  __asm__(
   "swap.b		%1, %0"
@@ -51,6 +53,8 @@ typedef struct xfs_attr_leafblock {
  xfs_attr_leaf_hdr_t hdr;
  xfs_attr_leaf_entry_t entries[1];
 } xfs_attr_leafblock_t;
+
+int xfs_attr_leaf_entsize (xfs_attr_leafblock_t*, int);
 
 int
 xfs_attr_leaf_remove(xfs_attr_leafblock_t *leaf, xfs_da_args_t *args)

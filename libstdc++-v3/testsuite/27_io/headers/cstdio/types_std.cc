@@ -1,6 +1,6 @@
 // { dg-do compile }
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -23,5 +23,5 @@ namespace gnu
 {
   std::size_t s;
   std::FILE f;
-  std::FILE fpos_t;
+  std::fpos_t p;
 }

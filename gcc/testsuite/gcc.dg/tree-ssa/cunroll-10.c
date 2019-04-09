@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O3 -Warray-bounds -fdump-tree-cunroll-details" } */
+/* { dg-options "-O3 -Warray-bounds -fno-tree-vectorize -fdump-tree-cunroll-details" } */
 int a[3];
 int b[4];
 int
@@ -11,4 +11,3 @@ foo (int n)
      a[i]++;
 }
 /* { dg-final { scan-tree-dump-times "Forced statement unreachable" 2 "cunroll" } } */
-/* { dg-final { cleanup-tree-dump "cunroll" } } */

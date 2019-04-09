@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-pre" } */
+/* { dg-options "-O2 -ftree-tail-merge -fdump-tree-pre" } */
 
 int z;
 
@@ -13,4 +13,3 @@ foo (int y)
 }
 
 /* { dg-final { scan-tree-dump-times "z = 5" 1 "pre"} } */
-/* { dg-final { cleanup-tree-dump "pre" } } */

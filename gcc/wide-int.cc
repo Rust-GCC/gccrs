@@ -1,5 +1,5 @@
 /* Operations with very long integers.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Kenneth Zadeck <zadeck@naturalbridge.com>
 
 This file is part of GCC.
@@ -22,10 +22,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include "hwint.h"
-#include "wide-int.h"
 #include "tree.h"
-#include "dumpfile.h"
+#include "selftest.h"
 
 
 #define HOST_BITS_PER_HALF_WIDE_INT 32
@@ -61,7 +59,7 @@ static const HOST_WIDE_INT zeros[WIDE_INT_MAX_ELTS] = {};
 
 /* Quantities to deal with values that hold half of a wide int.  Used
    in multiply and divide.  */
-#define HALF_INT_MASK (((HOST_WIDE_INT) 1 << HOST_BITS_PER_HALF_WIDE_INT) - 1)
+#define HALF_INT_MASK ((HOST_WIDE_INT_1 << HOST_BITS_PER_HALF_WIDE_INT) - 1)
 
 #define BLOCK_OF(TARGET) ((TARGET) / HOST_BITS_PER_WIDE_INT)
 #define BLOCKS_NEEDED(PREC) \
@@ -74,7 +72,7 @@ static const HOST_WIDE_INT zeros[WIDE_INT_MAX_ELTS] = {};
 static unsigned HOST_WIDE_INT
 safe_uhwi (const HOST_WIDE_INT *val, unsigned int len, unsigned int i)
 {
-  return i < len ? val[i] : val[len - 1] < 0 ? (HOST_WIDE_INT) -1 : 0;
+  return i < len ? val[i] : val[len - 1] < 0 ? HOST_WIDE_INT_M1 : 0;
 }
 
 /* Convert the integer in VAL to canonical form, returning its new length.
@@ -121,6 +119,20 @@ canonize (HOST_WIDE_INT *val, unsigned int len, unsigned int precision)
   return 1;
 }
 
+/* VAL[0] is the unsigned result of an operation.  Canonize it by adding
+   another 0 block if needed, and return number of blocks needed.  */
+
+static inline unsigned int
+canonize_uhwi (HOST_WIDE_INT *val, unsigned int precision)
+{
+  if (val[0] < 0 && precision > HOST_BITS_PER_WIDE_INT)
+    {
+      val[1] = 0;
+      return 2;
+    }
+  return 1;
+}
+
 /*
  * Conversion routines in and out of wide_int.
  */
@@ -138,7 +150,7 @@ wi::from_array (HOST_WIDE_INT *val, const HOST_WIDE_INT *xval,
 }
 
 /* Construct a wide int from a buffer of length LEN.  BUFFER will be
-   read according to byte endianess and word endianess of the target.
+   read according to byte endianness and word endianness of the target.
    Only the lower BUFFER_LEN bytes of the result are set; the remaining
    high bytes are cleared.  */
 wide_int
@@ -229,7 +241,7 @@ wide_int
 wi::from_mpz (const_tree type, mpz_t x, bool wrap)
 {
   size_t count, numb;
-  int prec = TYPE_PRECISION (type);
+  unsigned int prec = TYPE_PRECISION (type);
   wide_int res = wide_int::create (prec);
 
   if (!wrap)
@@ -250,18 +262,37 @@ wi::from_mpz (const_tree type, mpz_t x, bool wrap)
     }
 
   /* Determine the number of unsigned HOST_WIDE_INTs that are required
-     for representing the value.  The code to calculate count is
+     for representing the absolute value.  The code to calculate count is
      extracted from the GMP manual, section "Integer Import and Export":
      http://gmplib.org/manual/Integer-Import-and-Export.html  */
-  numb = 8 * sizeof(HOST_WIDE_INT);
+  numb = CHAR_BIT * sizeof (HOST_WIDE_INT);
   count = (mpz_sizeinbase (x, 2) + numb - 1) / numb;
   HOST_WIDE_INT *val = res.write_val ();
-  mpz_export (val, &count, -1, sizeof (HOST_WIDE_INT), 0, 0, x);
+  /* Read the absolute value.
+
+     Write directly to the wide_int storage if possible, otherwise leave
+     GMP to allocate the memory for us.  It might be slightly more efficient
+     to use mpz_tdiv_r_2exp for the latter case, but the situation is
+     pathological and it seems safer to operate on the original mpz value
+     in all cases.  */
+  void *valres = mpz_export (count <= WIDE_INT_MAX_ELTS ? val : 0,
+			     &count, -1, sizeof (HOST_WIDE_INT), 0, 0, x);
   if (count < 1)
     {
       val[0] = 0;
       count = 1;
     }
+  count = MIN (count, BLOCKS_NEEDED (prec));
+  if (valres != val)
+    {
+      memcpy (val, valres, count * sizeof (HOST_WIDE_INT));
+      free (valres);
+    }
+  /* Zero-extend the absolute value to PREC bits.  */
+  if (count < BLOCKS_NEEDED (prec) && val[count - 1] < 0)
+    val[count++] = 0;
+  else
+    count = canonize (val, count, prec);
   res.set_len (count);
 
   if (mpz_sgn (x) < 0)
@@ -666,7 +697,7 @@ wi::set_bit_large (HOST_WIDE_INT *val, const HOST_WIDE_INT *xval,
       unsigned int len = block + 1;
       for (unsigned int i = 0; i < len; i++)
 	val[i] = safe_uhwi (xval, xlen, i);
-      val[block] |= (unsigned HOST_WIDE_INT) 1 << subbit;
+      val[block] |= HOST_WIDE_INT_1U << subbit;
 
       /* If the bit we just set is at the msb of the block, make sure
 	 that any higher bits are zeros.  */
@@ -678,7 +709,7 @@ wi::set_bit_large (HOST_WIDE_INT *val, const HOST_WIDE_INT *xval,
     {
       for (unsigned int i = 0; i < xlen; i++)
 	val[i] = xval[i];
-      val[block] |= (unsigned HOST_WIDE_INT) 1 << subbit;
+      val[block] |= HOST_WIDE_INT_1U << subbit;
       return canonize (val, xlen, precision);
     }
 }
@@ -747,7 +778,7 @@ wi::mask (HOST_WIDE_INT *val, unsigned int width, bool negate,
   unsigned int shift = width & (HOST_BITS_PER_WIDE_INT - 1);
   if (shift != 0)
     {
-      HOST_WIDE_INT last = ((unsigned HOST_WIDE_INT) 1 << shift) - 1;
+      HOST_WIDE_INT last = (HOST_WIDE_INT_1U << shift) - 1;
       val[i++] = negate ? ~last : last;
     }
   else
@@ -780,12 +811,12 @@ wi::shifted_mask (HOST_WIDE_INT *val, unsigned int start, unsigned int width,
   unsigned int shift = start & (HOST_BITS_PER_WIDE_INT - 1);
   if (shift)
     {
-      HOST_WIDE_INT block = ((unsigned HOST_WIDE_INT) 1 << shift) - 1;
+      HOST_WIDE_INT block = (HOST_WIDE_INT_1U << shift) - 1;
       shift += width;
       if (shift < HOST_BITS_PER_WIDE_INT)
 	{
 	  /* case 000111000 */
-	  block = ((unsigned HOST_WIDE_INT) 1 << shift) - block - 1;
+	  block = (HOST_WIDE_INT_1U << shift) - block - 1;
 	  val[i++] = negate ? ~block : block;
 	  return i;
 	}
@@ -802,7 +833,7 @@ wi::shifted_mask (HOST_WIDE_INT *val, unsigned int start, unsigned int width,
   if (shift != 0)
     {
       /* 000011111 */
-      HOST_WIDE_INT block = ((unsigned HOST_WIDE_INT) 1 << shift) - 1;
+      HOST_WIDE_INT block = (HOST_WIDE_INT_1U << shift) - 1;
       val[i++] = negate ? ~block : block;
     }
   else if (end < prec)
@@ -1097,7 +1128,7 @@ unsigned int
 wi::add_large (HOST_WIDE_INT *val, const HOST_WIDE_INT *op0,
 	       unsigned int op0len, const HOST_WIDE_INT *op1,
 	       unsigned int op1len, unsigned int prec,
-	       signop sgn, bool *overflow)
+	       signop sgn, wi::overflow_type *overflow)
 {
   unsigned HOST_WIDE_INT o0 = 0;
   unsigned HOST_WIDE_INT o1 = 0;
@@ -1127,7 +1158,8 @@ wi::add_large (HOST_WIDE_INT *val, const HOST_WIDE_INT *op0,
       val[len] = mask0 + mask1 + carry;
       len++;
       if (overflow)
-	*overflow = false;
+	*overflow
+	  = (sgn == UNSIGNED && carry) ? wi::OVF_OVERFLOW : wi::OVF_NONE;
     }
   else if (overflow)
     {
@@ -1135,7 +1167,17 @@ wi::add_large (HOST_WIDE_INT *val, const HOST_WIDE_INT *op0,
       if (sgn == SIGNED)
 	{
 	  unsigned HOST_WIDE_INT x = (val[len - 1] ^ o0) & (val[len - 1] ^ o1);
-	  *overflow = (HOST_WIDE_INT) (x << shift) < 0;
+	  if ((HOST_WIDE_INT) (x << shift) < 0)
+	    {
+	      if (o0 > (unsigned HOST_WIDE_INT) val[len - 1])
+		*overflow = wi::OVF_UNDERFLOW;
+	      else if (o0 < (unsigned HOST_WIDE_INT) val[len - 1])
+		*overflow = wi::OVF_OVERFLOW;
+	      else
+		*overflow = wi::OVF_NONE;
+	    }
+	  else
+	    *overflow = wi::OVF_NONE;
 	}
       else
 	{
@@ -1143,9 +1185,9 @@ wi::add_large (HOST_WIDE_INT *val, const HOST_WIDE_INT *op0,
 	  x <<= shift;
 	  o0 <<= shift;
 	  if (old_carry)
-	    *overflow = (x <= o0);
+	    *overflow = (x <= o0) ? wi::OVF_OVERFLOW : wi::OVF_NONE;
 	  else
-	    *overflow = (x < o0);
+	    *overflow = (x < o0) ? wi::OVF_OVERFLOW : wi::OVF_NONE;
 	}
     }
 
@@ -1198,30 +1240,32 @@ wi_unpack (unsigned HOST_HALF_WIDE_INT *result, const HOST_WIDE_INT *input,
     result[j++] = mask;
 }
 
-/* The inverse of wi_unpack.  IN_LEN is the the number of input
-   blocks.  The number of output blocks will be half this amount.  */
-static void
-wi_pack (unsigned HOST_WIDE_INT *result,
+/* The inverse of wi_unpack.  IN_LEN is the number of input
+   blocks and PRECISION is the precision of the result.  Return the
+   number of blocks in the canonicalized result.  */
+static unsigned int
+wi_pack (HOST_WIDE_INT *result,
 	 const unsigned HOST_HALF_WIDE_INT *input,
-	 unsigned int in_len)
+	 unsigned int in_len, unsigned int precision)
 {
   unsigned int i = 0;
   unsigned int j = 0;
+  unsigned int blocks_needed = BLOCKS_NEEDED (precision);
 
-  while (i + 2 < in_len)
+  while (i + 1 < in_len)
     {
-      result[j++] = (unsigned HOST_WIDE_INT)input[i]
-	| ((unsigned HOST_WIDE_INT)input[i + 1]
-	   << HOST_BITS_PER_HALF_WIDE_INT);
+      result[j++] = ((unsigned HOST_WIDE_INT) input[i]
+		     | ((unsigned HOST_WIDE_INT) input[i + 1]
+			<< HOST_BITS_PER_HALF_WIDE_INT));
       i += 2;
     }
 
   /* Handle the case where in_len is odd.   For this we zero extend.  */
   if (in_len & 1)
-    result[j++] = (unsigned HOST_WIDE_INT)input[i];
-  else
-    result[j++] = (unsigned HOST_WIDE_INT)input[i]
-      | ((unsigned HOST_WIDE_INT)input[i + 1] << HOST_BITS_PER_HALF_WIDE_INT);
+    result[j++] = (unsigned HOST_WIDE_INT) input[i];
+  else if (j < blocks_needed)
+    result[j++] = 0;
+  return canonize (result, j, precision);
 }
 
 /* Multiply Op1 by Op2.  If HIGH is set, only the upper half of the
@@ -1231,12 +1275,14 @@ wi_pack (unsigned HOST_WIDE_INT *result,
    made to see if it overflows.  Unfortunately there is no better way
    to check for overflow than to do this.  If OVERFLOW is nonnull,
    record in *OVERFLOW whether the result overflowed.  SGN controls
-   the signedness and is used to check overflow or if HIGH is set.  */
+   the signedness and is used to check overflow or if HIGH is set.
+
+   NOTE: Overflow type for signed overflow is not yet implemented.  */
 unsigned int
 wi::mul_internal (HOST_WIDE_INT *val, const HOST_WIDE_INT *op1val,
 		  unsigned int op1len, const HOST_WIDE_INT *op2val,
 		  unsigned int op2len, unsigned int prec, signop sgn,
-		  bool *overflow, bool high)
+		  wi::overflow_type *overflow, bool high)
 {
   unsigned HOST_WIDE_INT o0, o1, k, t;
   unsigned int i;
@@ -1261,7 +1307,7 @@ wi::mul_internal (HOST_WIDE_INT *val, const HOST_WIDE_INT *op1val,
      just make sure that we never attempt to set it.  */
   bool needs_overflow = (overflow != 0);
   if (needs_overflow)
-    *overflow = false;
+    *overflow = wi::OVF_NONE;
 
   wide_int_ref op1 = wi::storage_ref (op1val, op1len, prec);
   wide_int_ref op2 = wi::storage_ref (op2val, op2len, prec);
@@ -1289,6 +1335,11 @@ wi::mul_internal (HOST_WIDE_INT *val, const HOST_WIDE_INT *op1val,
 	      return 1;
 	    }
 	  umul_ppmm (val[1], val[0], op1.ulow (), op2.ulow ());
+	  if (val[1] < 0 && prec > HOST_BITS_PER_WIDE_INT * 2)
+	    {
+	      val[2] = 0;
+	      return 3;
+	    }
 	  return 1 + (val[1] != 0 || val[0] < 0);
 	}
       /* Likewise if the output is a full single HWI, except that the
@@ -1299,7 +1350,8 @@ wi::mul_internal (HOST_WIDE_INT *val, const HOST_WIDE_INT *op1val,
 	  unsigned HOST_WIDE_INT upper;
 	  umul_ppmm (upper, val[0], op1.ulow (), op2.ulow ());
 	  if (needs_overflow)
-	    *overflow = (upper != 0);
+	    /* Unsigned overflow can only be +OVERFLOW.  */
+	    *overflow = (upper != 0) ? wi::OVF_OVERFLOW : wi::OVF_NONE;
 	  if (high)
 	    val[0] = upper;
 	  return 1;
@@ -1356,12 +1408,14 @@ wi::mul_internal (HOST_WIDE_INT *val, const HOST_WIDE_INT *op1val,
 	  if (sgn == SIGNED)
 	    {
 	      if ((HOST_WIDE_INT) r != sext_hwi (r, prec))
-		*overflow = true;
+		/* FIXME: Signed overflow type is not implemented yet.  */
+		*overflow = OVF_UNKNOWN;
 	    }
 	  else
 	    {
 	      if ((r >> prec) != 0)
-		*overflow = true;
+		/* Unsigned overflow can only be +OVERFLOW.  */
+		*overflow = OVF_OVERFLOW;
 	    }
 	}
       val[0] = high ? r >> prec : r;
@@ -1436,22 +1490,12 @@ wi::mul_internal (HOST_WIDE_INT *val, const HOST_WIDE_INT *op1val,
 
       for (i = half_blocks_needed; i < half_blocks_needed * 2; i++)
 	if (((HOST_WIDE_INT)(r[i] & mask)) != top)
-	  *overflow = true;
+	  /* FIXME: Signed overflow type is not implemented yet.  */
+	  *overflow = (sgn == UNSIGNED) ? wi::OVF_OVERFLOW : wi::OVF_UNKNOWN;
     }
 
-  if (high)
-    {
-      /* compute [prec] <- ([prec] * [prec]) >> [prec] */
-      wi_pack ((unsigned HOST_WIDE_INT *) val,
-	       &r[half_blocks_needed], half_blocks_needed);
-      return canonize (val, blocks_needed, prec);
-    }
-  else
-    {
-      /* compute [prec] <- ([prec] * [prec]) && ((1 << [prec]) - 1) */
-      wi_pack ((unsigned HOST_WIDE_INT *) val, r, half_blocks_needed);
-      return canonize (val, blocks_needed, prec);
-    }
+  int r_offset = high ? half_blocks_needed : 0;
+  return wi_pack (val, &r[r_offset], half_blocks_needed, prec);
 }
 
 /* Compute the population count of X.  */
@@ -1491,7 +1535,7 @@ unsigned int
 wi::sub_large (HOST_WIDE_INT *val, const HOST_WIDE_INT *op0,
 	       unsigned int op0len, const HOST_WIDE_INT *op1,
 	       unsigned int op1len, unsigned int prec,
-	       signop sgn, bool *overflow)
+	       signop sgn, wi::overflow_type *overflow)
 {
   unsigned HOST_WIDE_INT o0 = 0;
   unsigned HOST_WIDE_INT o1 = 0;
@@ -1525,7 +1569,7 @@ wi::sub_large (HOST_WIDE_INT *val, const HOST_WIDE_INT *op0,
       val[len] = mask0 - mask1 - borrow;
       len++;
       if (overflow)
-	*overflow = false;
+	*overflow = (sgn == UNSIGNED && borrow) ? OVF_UNDERFLOW : OVF_NONE;
     }
   else if (overflow)
     {
@@ -1533,7 +1577,17 @@ wi::sub_large (HOST_WIDE_INT *val, const HOST_WIDE_INT *op0,
       if (sgn == SIGNED)
 	{
 	  unsigned HOST_WIDE_INT x = (o0 ^ o1) & (val[len - 1] ^ o0);
-	  *overflow = (HOST_WIDE_INT) (x << shift) < 0;
+	  if ((HOST_WIDE_INT) (x << shift) < 0)
+	    {
+	      if (o0 > o1)
+		*overflow = OVF_UNDERFLOW;
+	      else if (o0 < o1)
+		*overflow = OVF_OVERFLOW;
+	      else
+		*overflow = OVF_NONE;
+	    }
+	  else
+	    *overflow = OVF_NONE;
 	}
       else
 	{
@@ -1541,9 +1595,9 @@ wi::sub_large (HOST_WIDE_INT *val, const HOST_WIDE_INT *op0,
 	  x <<= shift;
 	  o0 <<= shift;
 	  if (old_borrow)
-	    *overflow = (x >= o0);
+	    *overflow = (x >= o0) ? OVF_UNDERFLOW : OVF_NONE;
 	  else
-	    *overflow = (x > o0);
+	    *overflow = (x > o0) ? OVF_UNDERFLOW : OVF_NONE;
 	}
     }
 
@@ -1679,7 +1733,7 @@ wi::divmod_internal (HOST_WIDE_INT *quotient, unsigned int *remainder_len,
 		     unsigned int dividend_len, unsigned int dividend_prec,
 		     const HOST_WIDE_INT *divisor_val, unsigned int divisor_len,
 		     unsigned int divisor_prec, signop sgn,
-		     bool *oflow)
+		     wi::overflow_type *oflow)
 {
   unsigned int dividend_blocks_needed = 2 * BLOCKS_NEEDED (dividend_prec);
   unsigned int divisor_blocks_needed = 2 * BLOCKS_NEEDED (divisor_prec);
@@ -1723,8 +1777,8 @@ wi::divmod_internal (HOST_WIDE_INT *quotient, unsigned int *remainder_len,
 	  *remainder_len = 1;
 	  remainder[0] = 0;
 	}
-      if (oflow != 0)
-	*oflow = true;
+      if (oflow)
+	*oflow = OVF_OVERFLOW;
       if (quotient)
 	for (unsigned int i = 0; i < dividend_len; ++i)
 	  quotient[i] = dividend_val[i];
@@ -1732,7 +1786,7 @@ wi::divmod_internal (HOST_WIDE_INT *quotient, unsigned int *remainder_len,
     }
 
   if (oflow)
-    *oflow = false;
+    *oflow = OVF_NONE;
 
   /* Do it on the host if you can.  */
   if (sgn == SIGNED
@@ -1776,15 +1830,19 @@ wi::divmod_internal (HOST_WIDE_INT *quotient, unsigned int *remainder_len,
     {
       unsigned HOST_WIDE_INT o0 = dividend.to_uhwi ();
       unsigned HOST_WIDE_INT o1 = divisor.to_uhwi ();
+      unsigned int quotient_len = 1;
 
       if (quotient)
-	quotient[0] = o0 / o1;
+	{
+	  quotient[0] = o0 / o1;
+	  quotient_len = canonize_uhwi (quotient, dividend_prec);
+	}
       if (remainder)
 	{
 	  remainder[0] = o0 % o1;
-	  *remainder_len = 1;
+	  *remainder_len = canonize_uhwi (remainder, dividend_prec);
 	}
-      return 1;
+      return quotient_len;
     }
 
   /* Make the divisor and dividend positive and remember what we
@@ -1811,6 +1869,7 @@ wi::divmod_internal (HOST_WIDE_INT *quotient, unsigned int *remainder_len,
 	     divisor_blocks_needed, divisor_prec, sgn);
 
   m = dividend_blocks_needed;
+  b_dividend[m] = 0;
   while (m > 1 && b_dividend[m - 1] == 0)
     m--;
 
@@ -1825,8 +1884,7 @@ wi::divmod_internal (HOST_WIDE_INT *quotient, unsigned int *remainder_len,
   unsigned int quotient_len = 0;
   if (quotient)
     {
-      wi_pack ((unsigned HOST_WIDE_INT *) quotient, b_quotient, m);
-      quotient_len = canonize (quotient, (m + 1) / 2, dividend_prec);
+      quotient_len = wi_pack (quotient, b_quotient, m, dividend_prec);
       /* The quotient is neg if exactly one of the divisor or dividend is
 	 neg.  */
       if (dividend_neg != divisor_neg)
@@ -1837,8 +1895,7 @@ wi::divmod_internal (HOST_WIDE_INT *quotient, unsigned int *remainder_len,
 
   if (remainder)
     {
-      wi_pack ((unsigned HOST_WIDE_INT *) remainder, b_remainder, n);
-      *remainder_len = canonize (remainder, (n + 1) / 2, dividend_prec);
+      *remainder_len = wi_pack (remainder, b_remainder, n, dividend_prec);
       /* The remainder is always the same sign as the dividend.  */
       if (dividend_neg)
 	*remainder_len = wi::sub_large (remainder, zeros, 1, remainder,
@@ -2102,6 +2159,70 @@ wi::only_sign_bit_p (const wide_int_ref &x)
   return only_sign_bit_p (x, x.precision);
 }
 
+/* Return VAL if VAL has no bits set outside MASK.  Otherwise round VAL
+   down to the previous value that has no bits set outside MASK.
+   This rounding wraps for signed values if VAL is negative and
+   the top bit of MASK is clear.
+
+   For example, round_down_for_mask (6, 0xf1) would give 1 and
+   round_down_for_mask (24, 0xf1) would give 17.  */
+
+wide_int
+wi::round_down_for_mask (const wide_int &val, const wide_int &mask)
+{
+  /* Get the bits in VAL that are outside the mask.  */
+  wide_int extra_bits = wi::bit_and_not (val, mask);
+  if (extra_bits == 0)
+    return val;
+
+  /* Get a mask that includes the top bit in EXTRA_BITS and is all 1s
+     below that bit.  */
+  unsigned int precision = val.get_precision ();
+  wide_int lower_mask = wi::mask (precision - wi::clz (extra_bits),
+				  false, precision);
+
+  /* Clear the bits that aren't in MASK, but ensure that all bits
+     in MASK below the top cleared bit are set.  */
+  return (val & mask) | (mask & lower_mask);
+}
+
+/* Return VAL if VAL has no bits set outside MASK.  Otherwise round VAL
+   up to the next value that has no bits set outside MASK.  The rounding
+   wraps if there are no suitable values greater than VAL.
+
+   For example, round_up_for_mask (6, 0xf1) would give 16 and
+   round_up_for_mask (24, 0xf1) would give 32.  */
+
+wide_int
+wi::round_up_for_mask (const wide_int &val, const wide_int &mask)
+{
+  /* Get the bits in VAL that are outside the mask.  */
+  wide_int extra_bits = wi::bit_and_not (val, mask);
+  if (extra_bits == 0)
+    return val;
+
+  /* Get a mask that is all 1s above the top bit in EXTRA_BITS.  */
+  unsigned int precision = val.get_precision ();
+  wide_int upper_mask = wi::mask (precision - wi::clz (extra_bits),
+				  true, precision);
+
+  /* Get the bits of the mask that are above the top bit in EXTRA_BITS.  */
+  upper_mask &= mask;
+
+  /* Conceptually we need to:
+
+     - clear bits of VAL outside UPPER_MASK
+     - add the lowest bit in UPPER_MASK to VAL (or add 0 if UPPER_MASK is 0)
+     - propagate the carry through the bits of VAL in UPPER_MASK
+
+     If (~VAL & UPPER_MASK) is nonzero, the carry eventually
+     reaches that bit and the process leaves all lower bits clear.
+     If (~VAL & UPPER_MASK) is zero then the result is also zero.  */
+  wide_int tmp = wi::bit_and_not (upper_mask, val);
+
+  return (val | tmp) & -tmp;
+}
+
 /*
  * Private utilities.
  */
@@ -2115,3 +2236,303 @@ template void generic_wide_int <wide_int_ref_storage <false> >::dump () const;
 template void generic_wide_int <wide_int_ref_storage <true> >::dump () const;
 template void offset_int::dump () const;
 template void widest_int::dump () const;
+
+/* We could add all the above ::dump variants here, but wide_int and
+   widest_int should handle the common cases.  Besides, you can always
+   call the dump method directly.  */
+
+DEBUG_FUNCTION void
+debug (const wide_int &ref)
+{
+  ref.dump ();
+}
+
+DEBUG_FUNCTION void
+debug (const wide_int *ptr)
+{
+  if (ptr)
+    debug (*ptr);
+  else
+    fprintf (stderr, "<nil>\n");
+}
+
+DEBUG_FUNCTION void
+debug (const widest_int &ref)
+{
+  ref.dump ();
+}
+
+DEBUG_FUNCTION void
+debug (const widest_int *ptr)
+{
+  if (ptr)
+    debug (*ptr);
+  else
+    fprintf (stderr, "<nil>\n");
+}
+
+#if CHECKING_P
+
+namespace selftest {
+
+/* Selftests for wide ints.  We run these multiple times, once per type.  */
+
+/* Helper function for building a test value.  */
+
+template <class VALUE_TYPE>
+static VALUE_TYPE
+from_int (int i);
+
+/* Specializations of the fixture for each wide-int type.  */
+
+/* Specialization for VALUE_TYPE == wide_int.  */
+
+template <>
+wide_int
+from_int (int i)
+{
+  return wi::shwi (i, 32);
+}
+
+/* Specialization for VALUE_TYPE == offset_int.  */
+
+template <>
+offset_int
+from_int (int i)
+{
+  return offset_int (i);
+}
+
+/* Specialization for VALUE_TYPE == widest_int.  */
+
+template <>
+widest_int
+from_int (int i)
+{
+  return widest_int (i);
+}
+
+/* Verify that print_dec (WI, ..., SGN) gives the expected string
+   representation (using base 10).  */
+
+static void
+assert_deceq (const char *expected, const wide_int_ref &wi, signop sgn)
+{
+  char buf[WIDE_INT_PRINT_BUFFER_SIZE];
+  print_dec (wi, buf, sgn);
+  ASSERT_STREQ (expected, buf);
+}
+
+/* Likewise for base 16.  */
+
+static void
+assert_hexeq (const char *expected, const wide_int_ref &wi)
+{
+  char buf[WIDE_INT_PRINT_BUFFER_SIZE];
+  print_hex (wi, buf);
+  ASSERT_STREQ (expected, buf);
+}
+
+/* Test cases.  */
+
+/* Verify that print_dec and print_hex work for VALUE_TYPE.  */
+
+template <class VALUE_TYPE>
+static void
+test_printing ()
+{
+  VALUE_TYPE a = from_int<VALUE_TYPE> (42);
+  assert_deceq ("42", a, SIGNED);
+  assert_hexeq ("0x2a", a);
+  assert_hexeq ("0x1fffffffffffffffff", wi::shwi (-1, 69));
+  assert_hexeq ("0xffffffffffffffff", wi::mask (64, false, 69));
+  assert_hexeq ("0xffffffffffffffff", wi::mask <widest_int> (64, false));
+  if (WIDE_INT_MAX_PRECISION > 128)
+    {
+      assert_hexeq ("0x20000000000000000fffffffffffffffe",
+		    wi::lshift (1, 129) + wi::lshift (1, 64) - 2);
+      assert_hexeq ("0x200000000000004000123456789abcdef",
+		    wi::lshift (1, 129) + wi::lshift (1, 74)
+		    + wi::lshift (0x1234567, 32) + 0x89abcdef);
+    }
+}
+
+/* Verify that various operations work correctly for VALUE_TYPE,
+   unary and binary, using both function syntax, and
+   overloaded-operators.  */
+
+template <class VALUE_TYPE>
+static void
+test_ops ()
+{
+  VALUE_TYPE a = from_int<VALUE_TYPE> (7);
+  VALUE_TYPE b = from_int<VALUE_TYPE> (3);
+
+  /* Using functions.  */
+  assert_deceq ("-7", wi::neg (a), SIGNED);
+  assert_deceq ("10", wi::add (a, b), SIGNED);
+  assert_deceq ("4", wi::sub (a, b), SIGNED);
+  assert_deceq ("-4", wi::sub (b, a), SIGNED);
+  assert_deceq ("21", wi::mul (a, b), SIGNED);
+
+  /* Using operators.  */
+  assert_deceq ("-7", -a, SIGNED);
+  assert_deceq ("10", a + b, SIGNED);
+  assert_deceq ("4", a - b, SIGNED);
+  assert_deceq ("-4", b - a, SIGNED);
+  assert_deceq ("21", a * b, SIGNED);
+}
+
+/* Verify that various comparisons work correctly for VALUE_TYPE.  */
+
+template <class VALUE_TYPE>
+static void
+test_comparisons ()
+{
+  VALUE_TYPE a = from_int<VALUE_TYPE> (7);
+  VALUE_TYPE b = from_int<VALUE_TYPE> (3);
+
+  /* == */
+  ASSERT_TRUE (wi::eq_p (a, a));
+  ASSERT_FALSE (wi::eq_p (a, b));
+
+  /* != */
+  ASSERT_TRUE (wi::ne_p (a, b));
+  ASSERT_FALSE (wi::ne_p (a, a));
+
+  /* < */
+  ASSERT_FALSE (wi::lts_p (a, a));
+  ASSERT_FALSE (wi::lts_p (a, b));
+  ASSERT_TRUE (wi::lts_p (b, a));
+
+  /* <= */
+  ASSERT_TRUE (wi::les_p (a, a));
+  ASSERT_FALSE (wi::les_p (a, b));
+  ASSERT_TRUE (wi::les_p (b, a));
+
+  /* > */
+  ASSERT_FALSE (wi::gts_p (a, a));
+  ASSERT_TRUE (wi::gts_p (a, b));
+  ASSERT_FALSE (wi::gts_p (b, a));
+
+  /* >= */
+  ASSERT_TRUE (wi::ges_p (a, a));
+  ASSERT_TRUE (wi::ges_p (a, b));
+  ASSERT_FALSE (wi::ges_p (b, a));
+
+  /* comparison */
+  ASSERT_EQ (-1, wi::cmps (b, a));
+  ASSERT_EQ (0, wi::cmps (a, a));
+  ASSERT_EQ (1, wi::cmps (a, b));
+}
+
+/* Run all of the selftests, using the given VALUE_TYPE.  */
+
+template <class VALUE_TYPE>
+static void run_all_wide_int_tests ()
+{
+  test_printing <VALUE_TYPE> ();
+  test_ops <VALUE_TYPE> ();
+  test_comparisons <VALUE_TYPE> ();
+}
+
+/* Test overflow conditions.  */
+
+static void
+test_overflow ()
+{
+  static int precs[] = { 31, 32, 33, 63, 64, 65, 127, 128 };
+  static int offsets[] = { 16, 1, 0 };
+  for (unsigned int i = 0; i < ARRAY_SIZE (precs); ++i)
+    for (unsigned int j = 0; j < ARRAY_SIZE (offsets); ++j)
+      {
+	int prec = precs[i];
+	int offset = offsets[j];
+	wi::overflow_type overflow;
+	wide_int sum, diff;
+
+	sum = wi::add (wi::max_value (prec, UNSIGNED) - offset, 1,
+		       UNSIGNED, &overflow);
+	ASSERT_EQ (sum, -offset);
+	ASSERT_EQ (overflow != wi::OVF_NONE, offset == 0);
+
+	sum = wi::add (1, wi::max_value (prec, UNSIGNED) - offset,
+		       UNSIGNED, &overflow);
+	ASSERT_EQ (sum, -offset);
+	ASSERT_EQ (overflow != wi::OVF_NONE, offset == 0);
+
+	diff = wi::sub (wi::max_value (prec, UNSIGNED) - offset,
+			wi::max_value (prec, UNSIGNED),
+			UNSIGNED, &overflow);
+	ASSERT_EQ (diff, -offset);
+	ASSERT_EQ (overflow != wi::OVF_NONE, offset != 0);
+
+	diff = wi::sub (wi::max_value (prec, UNSIGNED) - offset,
+			wi::max_value (prec, UNSIGNED) - 1,
+			UNSIGNED, &overflow);
+	ASSERT_EQ (diff, 1 - offset);
+	ASSERT_EQ (overflow != wi::OVF_NONE, offset > 1);
+    }
+}
+
+/* Test the round_{down,up}_for_mask functions.  */
+
+static void
+test_round_for_mask ()
+{
+  unsigned int prec = 18;
+  ASSERT_EQ (17, wi::round_down_for_mask (wi::shwi (17, prec),
+					  wi::shwi (0xf1, prec)));
+  ASSERT_EQ (17, wi::round_up_for_mask (wi::shwi (17, prec),
+					wi::shwi (0xf1, prec)));
+
+  ASSERT_EQ (1, wi::round_down_for_mask (wi::shwi (6, prec),
+					 wi::shwi (0xf1, prec)));
+  ASSERT_EQ (16, wi::round_up_for_mask (wi::shwi (6, prec),
+					wi::shwi (0xf1, prec)));
+
+  ASSERT_EQ (17, wi::round_down_for_mask (wi::shwi (24, prec),
+					  wi::shwi (0xf1, prec)));
+  ASSERT_EQ (32, wi::round_up_for_mask (wi::shwi (24, prec),
+					wi::shwi (0xf1, prec)));
+
+  ASSERT_EQ (0x011, wi::round_down_for_mask (wi::shwi (0x22, prec),
+					     wi::shwi (0x111, prec)));
+  ASSERT_EQ (0x100, wi::round_up_for_mask (wi::shwi (0x22, prec),
+					   wi::shwi (0x111, prec)));
+
+  ASSERT_EQ (100, wi::round_down_for_mask (wi::shwi (101, prec),
+					   wi::shwi (0xfc, prec)));
+  ASSERT_EQ (104, wi::round_up_for_mask (wi::shwi (101, prec),
+					 wi::shwi (0xfc, prec)));
+
+  ASSERT_EQ (0x2bc, wi::round_down_for_mask (wi::shwi (0x2c2, prec),
+					     wi::shwi (0xabc, prec)));
+  ASSERT_EQ (0x800, wi::round_up_for_mask (wi::shwi (0x2c2, prec),
+					   wi::shwi (0xabc, prec)));
+
+  ASSERT_EQ (0xabc, wi::round_down_for_mask (wi::shwi (0xabd, prec),
+					     wi::shwi (0xabc, prec)));
+  ASSERT_EQ (0, wi::round_up_for_mask (wi::shwi (0xabd, prec),
+				       wi::shwi (0xabc, prec)));
+
+  ASSERT_EQ (0xabc, wi::round_down_for_mask (wi::shwi (0x1000, prec),
+					     wi::shwi (0xabc, prec)));
+  ASSERT_EQ (0, wi::round_up_for_mask (wi::shwi (0x1000, prec),
+				       wi::shwi (0xabc, prec)));
+}
+
+/* Run all of the selftests within this file, for all value types.  */
+
+void
+wide_int_cc_tests ()
+{
+  run_all_wide_int_tests <wide_int> ();
+  run_all_wide_int_tests <offset_int> ();
+  run_all_wide_int_tests <widest_int> ();
+  test_overflow ();
+  test_round_for_mask ();
+}
+
+} // namespace selftest
+#endif /* CHECKING_P */

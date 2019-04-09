@@ -1,7 +1,20 @@
-// { dg-do compile { target c++14 } }
-// { dg-options "-I${srcdir}/g++.dg/cpp1y -I${srcdir}/g++.dg/cpp1y/testinc" }
+// { dg-options "-std=c++14 -I${srcdir}/g++.dg/cpp1y -I${srcdir}/g++.dg/cpp1y/testinc" }
 
-// Begin C++11 tests.
+//  C++98 features:
+
+#ifndef __cpp_rtti
+#  error "__cpp_rtti"
+#elif  __cpp_rtti != 199711
+#  error "__cpp_rtti != 199711"
+#endif
+
+#ifndef __cpp_exceptions
+#  error "__cpp_exceptions"
+#elif  __cpp_exceptions != 199711
+#  error "__cpp_exceptions != 199711"
+#endif
+
+//  C++11 features:
 
 #ifndef __cpp_unicode_characters
 #  error "__cpp_unicode_characters"
@@ -33,10 +46,10 @@
 #  error "__cpp_lambdas != 200907"
 #endif
 
-#ifndef __cpp_constexpr
-#  error "__cpp_constexpr"
-#elif __cpp_constexpr != 200704
-#  error "__cpp_constexpr != 200704"
+#ifndef __cpp_range_based_for
+#  error "__cpp_range_based_for"
+#elif __cpp_range_based_for < 200907
+#  error "__cpp_range_based_for < 200907"
 #endif
 
 #ifndef __cpp_static_assert
@@ -57,10 +70,10 @@
 #  error "__cpp_attributes != 200809"
 #endif
 
-#ifndef __cpp_rvalue_reference
-#  error "__cpp_rvalue_reference"
-#elif __cpp_rvalue_reference != 200610
-#  error "__cpp_rvalue_reference != 200610"
+#ifndef __cpp_rvalue_references
+#  error "__cpp_rvalue_references"
+#elif __cpp_rvalue_references != 200610
+#  error "__cpp_rvalue_references != 200610"
 #endif
 
 #ifndef __cpp_variadic_templates
@@ -69,13 +82,49 @@
 #  error "__cpp_variadic_templates != 200704"
 #endif
 
+#ifndef __cpp_initializer_lists
+#  error "__cpp_initializer_lists"
+#elif __cpp_initializer_lists != 200806
+#  error "__cpp_initializer_lists != 200806"
+#endif
+
+#ifndef __cpp_delegating_constructors
+#  error "__cpp_delegating_constructors"
+#elif __cpp_delegating_constructors != 200604
+#  error "__cpp_delegating_constructors != 200604"
+#endif
+
+#ifndef __cpp_nsdmi
+#  error "__cpp_nsdmi"
+#elif __cpp_nsdmi != 200809
+#  error "__cpp_nsdmi != 200809"
+#endif
+
+#ifndef __cpp_inheriting_constructors
+#  error "__cpp_inheriting_constructors"
+#elif  __cpp_inheriting_constructors!= 201511
+#  error "__cpp_inheriting_constructors != 201511"
+#endif
+
+#ifndef __cpp_ref_qualifiers
+#  error "__cpp_ref_qualifiers"
+#elif __cpp_ref_qualifiers != 200710
+#  error "__cpp_ref_qualifiers != 200710"
+#endif
+
 #ifndef __cpp_alias_templates
 #  error "__cpp_alias_templates"
 #elif __cpp_alias_templates != 200704
 #  error "__cpp_alias_templates != 200704"
 #endif
 
-// Begin C++14 tests.
+#ifndef __cpp_threadsafe_static_init
+#  error "__cpp_threadsafe_static_init"
+#elif __cpp_threadsafe_static_init != 200806
+#  error "__cpp_threadsafe_static_init != 200806"
+#endif
+
+//  C++14 features:
 
 #ifndef __cpp_binary_literals
 #  error "__cpp_binary_literals"
@@ -95,11 +144,10 @@
 #  error "__cpp_generic_lambdas != 201304"
 #endif
 
-//  TODO: Change 200704 to 201304 when C++14 constexpr goes in.
 #ifndef __cpp_constexpr
 #  error "__cpp_constexpr"
-#elif __cpp_constexpr != 200704
-#  error "__cpp_constexpr != 200704"
+#elif __cpp_constexpr != 201304
+#  error "__cpp_constexpr != 201304"
 #endif
 
 #ifndef __cpp_decltype_auto
@@ -114,15 +162,10 @@
 #  error "__cpp_return_type_deduction != 201304"
 #endif
 
-#ifndef __cpp_runtime_arrays
-#  error "__cpp_runtime_arrays"
-#elif __cpp_runtime_arrays != 201304
-#  error "__cpp_runtime_arrays != 201304"
-#endif
-
-//  Aggregate initializers not in yet.
-#ifdef __cpp_aggregate_nsdmi
+#ifndef __cpp_aggregate_nsdmi
 #  error "__cpp_aggregate_nsdmi"
+#elif __cpp_aggregate_nsdmi != 201304
+#  error "__cpp_aggregate_nsdmi != 201304"
 #endif
 
 #ifndef __cpp_variable_templates
@@ -137,18 +180,56 @@
 #  error "__cpp_digit_separators != 201309"
 #endif
 
-#ifndef __cpp_attribute_deprecated
-#  error "__cpp_attribute_deprecated"
-#elif __cpp_attribute_deprecated != 201309
-#  error "__cpp_attribute_deprecated != 201309"
-#endif
-
-//  Sized deallocation not in yet.
-#ifdef __cpp_sized_deallocation
+#ifndef __cpp_sized_deallocation
 #  error "__cpp_sized_deallocation"
+#elif __cpp_sized_deallocation != 201309
+#  error "__cpp_sized_deallocation != 201309"
 #endif
 
-// Begin include checks.
+//  GNU VLA support:
+
+#ifndef __cpp_runtime_arrays
+#  error "__cpp_runtime_arrays"
+#elif __cpp_runtime_arrays != 198712
+#  error "__cpp_runtime_arrays != 198712"
+#endif
+
+//  C++11 attributes:
+
+#ifdef __has_cpp_attribute
+#  if ! __has_cpp_attribute(noreturn)
+#    error "__has_cpp_attribute(noreturn)"
+#  elif __has_cpp_attribute(noreturn) != 200809
+#    error "__has_cpp_attribute(noreturn) != 200809"
+#  endif
+#else
+#  error "__has_cpp_attribute"
+#endif
+
+//  Attribute carries_dependency not in yet.
+//#ifdef __has_cpp_attribute
+//#  if ! __has_cpp_attribute(carries_dependency)
+//#    error "__has_cpp_attribute(carries_dependency)"
+//#  elif __has_cpp_attribute(carries_dependency) != 200809
+//#    error "__has_cpp_attribute(carries_dependency) != 200809"
+//#  endif
+//#else
+//#  error "__has_cpp_attribute"
+//#endif
+
+//  C++14 attributes:
+
+#ifdef __has_cpp_attribute
+#  if ! __has_cpp_attribute(deprecated)
+#    error "__has_cpp_attribute(deprecated)"
+#  elif __has_cpp_attribute(deprecated) != 201309
+#    error "__has_cpp_attribute(deprecated) != 201309"
+#  endif
+#else
+#  error "__has_cpp_attribute"
+#endif
+
+//  Include checks:
 
 //  Check for __has_include macro.
 #ifndef __has_include

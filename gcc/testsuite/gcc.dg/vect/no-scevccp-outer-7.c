@@ -1,9 +1,14 @@
 /* { dg-require-effective-target vect_int } */
+/* { dg-additional-options "--param max-completely-peel-times=1" } */
 
 #include <stdarg.h>
 #include "tree-vect.h"
 
+#if VECTOR_BITS > 256
+#define N (VECTOR_BITS / 16)
+#else
 #define N 16
+#endif
 
 unsigned short in[N];
 unsigned short coef[N];
@@ -72,4 +77,3 @@ int main (void)
 
 /* { dg-final { scan-tree-dump-times "OUTER LOOP VECTORIZED." 1 "vect" { target vect_widen_mult_hi_to_si } } } */
 /* { dg-final { scan-tree-dump-times "vect_recog_widen_mult_pattern: detected" 1 "vect" } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */

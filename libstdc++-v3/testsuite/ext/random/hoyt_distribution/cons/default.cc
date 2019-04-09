@@ -1,9 +1,9 @@
-// { dg-options "-std=c++11" }
+// { dg-do run { target c++11 } }
 // { dg-require-cstdint "" }
 //
 // 2012-10-12  Edward M. Smith-Rowland <3dw4rd@verizon.net>
 //
-// Copyright (C) 2012-2014 Free Software Foundation, Inc.
+// Copyright (C) 2012-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,12 +22,11 @@
 
 #include <ext/random>
 #include <testsuite_hooks.h>
+#include <testsuite_common_types.h>
 
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
-
   __gnu_cxx::hoyt_distribution<> u;
   VERIFY( u.q() == 0.5 );
   VERIFY( u.omega() == 1.0 );
@@ -36,9 +35,17 @@ test01()
   VERIFY( u.max() == std::numeric_limits<result_type>::max() );
 }
 
+void
+test02()
+{
+  __gnu_test::implicitly_default_constructible test;
+  test.operator()<__gnu_cxx::hoyt_distribution<>>();
+  test.operator()<__gnu_cxx::hoyt_distribution<>::param_type>();
+}
+
 int
 main()
 {
   test01();
-  return 0;
+  test02();
 }

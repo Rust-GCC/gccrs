@@ -13,10 +13,15 @@ package math
 //	Ldexp(NaN, exp) = NaN
 
 //extern ldexp
-func libc_ldexp(float64, int) float64
+func libc_ldexp(float64, int32) float64
 
 func Ldexp(frac float64, exp int) float64 {
-	r := libc_ldexp(frac, exp)
+	if exp > MaxInt32 {
+		exp = MaxInt32
+	} else if exp < MinInt32 {
+		exp = MinInt32
+	}
+	r := libc_ldexp(frac, int32(exp))
 	return r
 }
 
@@ -32,7 +37,7 @@ func ldexp(frac float64, exp int) float64 {
 	exp += e
 	x := Float64bits(frac)
 	exp += int(x>>shift)&mask - bias
-	if exp < -1074 {
+	if exp < -1075 {
 		return Copysign(0, frac) // underflow
 	}
 	if exp > 1023 { // overflow
@@ -43,8 +48,8 @@ func ldexp(frac float64, exp int) float64 {
 	}
 	var m float64 = 1
 	if exp < -1022 { // denormal
-		exp += 52
-		m = 1.0 / (1 << 52) // 2**-52
+		exp += 53
+		m = 1.0 / (1 << 53) // 2**-53
 	}
 	x &^= mask << shift
 	x |= uint64(exp+bias) << shift

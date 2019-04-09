@@ -1,3 +1,67 @@
+2018-11-19  Alexandre Oliva <oliva@adacore.com>
+
+	PR ada/81878
+	* configure.ac (default_gnattools_target): Do not mistake
+	just-built host tools as native in cross-back toolchains.
+	* configure: Rebuilt.
+
+2018-11-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/81878
+	Revert
+	2018-10-29  Tamar Christina  <tamar.christina@arm.com>
+
+	PR ada/81878
+	* Makefile.in (TOOLS_FLAGS_TO_PASS_NATIVE): Add -B ../../.
+
+	2017-08-17  Richard Biener  <rguenther@suse.de>
+
+	PR ada/81878
+	* Makefile.in (CXX_LFLAGS): Remove.
+	(TOOLS_FLAGS_TO_PASS_NATIVE): Pass $(CXX) as CXX.
+	(TOOLS_FLAGS_TO_PASS_RE): Likewise.
+
+2018-10-31  Joseph Myers  <joseph@codesourcery.com>
+
+	PR bootstrap/82856
+	* configure.ac: Remove AC_PREREQ.
+	* configure: Regenerate.
+
+2018-10-29  Tamar Christina  <tamar.christina@arm.com>
+
+	PR ada/81878
+	* Makefile.in (TOOLS_FLAGS_TO_PASS_NATIVE): Add -B ../../.
+
+2017-08-17  Richard Biener  <rguenther@suse.de>
+
+	PR ada/81878
+	* Makefile.in (CXX_LFLAGS): Remove.
+	(TOOLS_FLAGS_TO_PASS_NATIVE): Pass $(CXX) as CXX.
+	(TOOLS_FLAGS_TO_PASS_RE): Likewise.
+
+2016-05-16  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* configure.ac: Add ACX_NONCANONICAL_HOST.
+	* configure: Regenerate.
+	* Makefile.in: Replace host_alias with host_noncanonical.
+	(gnattools-cross): Do not rename the tools.
+
+2016-04-04  Segher Boessenkool  <segher@kernel.crashing.org>
+
+	PR bootstrap/70173
+	* Makefile.in (distclean): Also delete config.cache .
+
+2015-12-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/50048
+	* Makefile.in (ftop_srcdir): New variable.
+	(INCLUDES_FOR_SUBDIR): Use -iquote and $(ftop_srcdir).
+
+2015-06-08  John Marino  <gnugcc@marino.st>
+
+	* configure.ac (*-*-dragonfly*): New configuration.
+	* configure: Regenerate.
+
 2014-02-23  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* Makefile.in (TOOLS_FLAGS_TO_PASS_CROSS): Robustify.
@@ -253,7 +317,7 @@
 	* configure: Regenerate.
 	* New directory, cloned from libada.
 
-Copyright 2004, 2005 Free Software Foundation, Inc.
+Copyright 2004-2018 Free Software Foundation, Inc.
 
 This ChangeLog is free software; the Free Software Foundation gives
 unlimited permission to copy, distribute, and modify it.

@@ -1,5 +1,5 @@
 ;;- Machine description for Blackfin for GNU compiler
-;;  Copyright (C) 2005-2014 Free Software Foundation, Inc.
+;;  Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;;  Contributed by Analog Devices.
 
 ;; This file is part of GCC.
@@ -557,6 +557,7 @@
    %0 = %x1; %0 = %w1;
    %w0 = %1; %x0 = %1;"
   [(set_attr "type" "move,mcst,mcld")
+   (set_attr "length" "4,*,*")
    (set_attr "seq_insns" "*,multi,multi")])
 
 (define_insn "load_accumulator"
@@ -848,12 +849,10 @@
    (set (match_dup 2) (lo_sum:SI (match_dup 2) (match_dup 3)))]
 {
   long values;
-  REAL_VALUE_TYPE value;
 
   gcc_assert (GET_CODE (operands[1]) == CONST_DOUBLE);
 
-  REAL_VALUE_FROM_CONST_DOUBLE (value, operands[1]);
-  REAL_VALUE_TO_TARGET_SINGLE (value, values);
+  REAL_VALUE_TO_TARGET_SINGLE (*CONST_DOUBLE_REAL_VALUE (operands[1]), values);
 
   operands[2] = gen_rtx_REG (SImode, true_regnum (operands[0]));
   operands[3] = GEN_INT (trunc_int_for_mode (values, SImode));
@@ -1580,7 +1579,7 @@
 
       emit_library_call_value (umulsi3_highpart_libfunc,
 			       operands[0], LCT_NORMAL, SImode,
-			       2, operands[1], SImode, operands[2], SImode);
+			       operands[1], SImode, operands[2], SImode);
     }
   DONE;
 })
@@ -1630,7 +1629,7 @@
 
       emit_library_call_value (smulsi3_highpart_libfunc,
 			       operands[0], LCT_NORMAL, SImode,
-			       2, operands[1], SImode, operands[2], SImode);
+			       operands[1], SImode, operands[2], SImode);
     }
   DONE;
 })

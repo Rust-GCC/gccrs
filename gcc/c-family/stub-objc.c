@@ -1,7 +1,7 @@
 /* Stub functions for Objective-C and Objective-C++ routines
    that are called from within the C and C++ front-ends,
    respectively.
-   Copyright (C) 1991-2014 Free Software Foundation, Inc.
+   Copyright (C) 1991-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -23,7 +23,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
-#include "c-common.h"
 #include "c-objc.h"
 
 tree

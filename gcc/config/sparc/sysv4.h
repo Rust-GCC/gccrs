@@ -1,5 +1,5 @@
 /* Target definitions for GNU compiler for SPARC running System V.4
-   Copyright (C) 1991-2014 Free Software Foundation, Inc.
+   Copyright (C) 1991-2019 Free Software Foundation, Inc.
    Contributed by Ron Guilmette (rfg@monkeys.com).
 
 This file is part of GCC.
@@ -41,7 +41,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef ASM_SPEC
 #define ASM_SPEC \
   "%{v:-V} %{Qy:} %{!Qn:-Qy} %{Ym,*} \
-   %{fpic|fPIC|fpie|fPIE:-K PIC} %(asm_cpu)"
+   %{" FPIE_OR_FPIC_SPEC ":-K PIC} %(asm_cpu)"
 
 /* Define the names of various pseudo-op used by the SPARC/svr4 assembler.
    Note that many of these are different from the typical pseudo-ops used

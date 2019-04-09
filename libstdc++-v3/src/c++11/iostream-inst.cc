@@ -1,6 +1,6 @@
 // Explicit instantiation file.
 
-// Copyright (C) 1997-2014 Free Software Foundation, Inc.
+// Copyright (C) 1997-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -40,7 +40,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #ifdef _GLIBCXX_USE_WCHAR_T
   template class _Setfill<wchar_t>;
   template _Setfill<wchar_t> setfill(wchar_t);
-  template class basic_iostream<wchar_t>; 
+  template class basic_iostream<wchar_t>;
 #endif
 
 _GLIBCXX_END_NAMESPACE_VERSION

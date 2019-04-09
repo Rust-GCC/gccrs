@@ -1,5 +1,5 @@
 /* Callgraph clones
-   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+   Copyright (C) 2003-2019 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -67,58 +67,31 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "backend.h"
+#include "target.h"
 #include "rtl.h"
 #include "tree.h"
-#include "stringpool.h"
-#include "function.h"
-#include "emit-rtl.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "tree-eh.h"
-#include "gimple-expr.h"
-#include "is-a.h"
 #include "gimple.h"
-#include "bitmap.h"
+#include "stringpool.h"
+#include "cgraph.h"
+#include "lto-streamer.h"
+#include "tree-eh.h"
 #include "tree-cfg.h"
 #include "tree-inline.h"
-#include "langhooks.h"
-#include "toplev.h"
-#include "flags.h"
-#include "debug.h"
-#include "target.h"
-#include "diagnostic.h"
-#include "params.h"
-#include "intl.h"
-#include "function.h"
-#include "ipa-prop.h"
-#include "tree-iterator.h"
-#include "tree-dump.h"
+#include "dumpfile.h"
 #include "gimple-pretty-print.h"
-#include "coverage.h"
-#include "ipa-inline.h"
-#include "ipa-utils.h"
-#include "lto-streamer.h"
-#include "except.h"
 
 /* Create clone of edge in the node N represented by CALL_EXPR
    the callgraph.  */
 
 cgraph_edge *
-cgraph_edge::clone (cgraph_node *n, gimple call_stmt, unsigned stmt_uid,
-		    gcov_type count_scale, int freq_scale, bool update_original)
+cgraph_edge::clone (cgraph_node *n, gcall *call_stmt, unsigned stmt_uid,
+		    profile_count num, profile_count den,
+		    bool update_original)
 {
   cgraph_edge *new_edge;
-  gcov_type gcov_count = apply_probability (count, count_scale);
-  gcov_type freq;
-
-  /* We do not want to ignore loop nest after frequency drops to 0.  */
-  if (!freq_scale)
-    freq_scale = 1;
-  freq = frequency * (gcov_type) freq_scale / CGRAPH_FREQ_BASE;
-  if (freq > CGRAPH_FREQ_MAX)
-    freq = CGRAPH_FREQ_MAX;
+  profile_count::adjust_for_ipa_scaling (&num, &den);
+  profile_count prof_count = count.apply_scale (num, den);
 
   if (indirect_unknown_callee)
     {
@@ -131,19 +104,19 @@ cgraph_edge::clone (cgraph_node *n, gimple call_stmt, unsigned stmt_uid,
 	{
 	  cgraph_node *callee = cgraph_node::get (decl);
 	  gcc_checking_assert (callee);
-	  new_edge = n->create_edge (callee, call_stmt, gcov_count, freq);
+	  new_edge = n->create_edge (callee, call_stmt, prof_count);
 	}
       else
 	{
 	  new_edge = n->create_indirect_edge (call_stmt,
 					      indirect_info->ecf_flags,
-					      count, freq, false);
+					      prof_count, false);
 	  *new_edge->indirect_info = *indirect_info;
 	}
     }
   else
     {
-      new_edge = n->create_edge (callee, call_stmt, gcov_count, freq);
+      new_edge = n->create_edge (callee, call_stmt, prof_count);
       if (indirect_info)
 	{
 	  new_edge->indirect_info
@@ -160,12 +133,11 @@ cgraph_edge::clone (cgraph_node *n, gimple call_stmt, unsigned stmt_uid,
   new_edge->call_stmt_cannot_inline_p = call_stmt_cannot_inline_p;
   new_edge->speculative = speculative;
   new_edge->in_polymorphic_cdtor = in_polymorphic_cdtor;
+
+  /* Update IPA profile.  Local profiles need no updating in original.  */
   if (update_original)
-    {
-      count -= new_edge->count;
-      if (count < 0)
-	count = 0;
-    }
+    count = count.combine_with_ipa_count (count.ipa () 
+					  - new_edge->count.ipa ());
   symtab->call_edge_duplication_hooks (this, new_edge);
   return new_edge;
 }
@@ -173,9 +145,9 @@ cgraph_edge::clone (cgraph_node *n, gimple call_stmt, unsigned stmt_uid,
 /* Build variant of function type ORIG_TYPE skipping ARGS_TO_SKIP and the
    return value if SKIP_RETURN is true.  */
 
-static tree
-build_function_type_skip_args (tree orig_type, bitmap args_to_skip,
-			       bool skip_return)
+tree
+cgraph_build_function_type_skip_args (tree orig_type, bitmap args_to_skip,
+				      bool skip_return)
 {
   tree new_type = NULL;
   tree args, new_args = NULL;
@@ -240,7 +212,8 @@ build_function_decl_skip_args (tree orig_decl, bitmap args_to_skip,
   if (prototype_p (new_type)
       || (skip_return && !VOID_TYPE_P (TREE_TYPE (new_type))))
     new_type
-      = build_function_type_skip_args (new_type, args_to_skip, skip_return);
+      = cgraph_build_function_type_skip_args (new_type, args_to_skip,
+					      skip_return);
   TREE_TYPE (new_decl) = new_type;
 
   /* For declarations setting DECL_VINDEX (i.e. methods)
@@ -249,7 +222,7 @@ build_function_decl_skip_args (tree orig_decl, bitmap args_to_skip,
     DECL_VINDEX (new_decl) = NULL_TREE;
 
   /* When signature changes, we need to clear builtin info.  */
-  if (DECL_BUILT_IN (new_decl)
+  if (fndecl_built_in_p (new_decl)
       && args_to_skip
       && !bitmap_empty_p (args_to_skip))
     {
@@ -295,13 +268,17 @@ duplicate_thunk_for_node (cgraph_node *thunk, cgraph_node *node)
   if (thunk_of->thunk.thunk_p)
     node = duplicate_thunk_for_node (thunk_of, node);
 
+  if (!DECL_ARGUMENTS (thunk->decl))
+    thunk->get_untransformed_body ();
+
   cgraph_edge *cs;
   for (cs = node->callers; cs; cs = cs->next_caller)
     if (cs->caller->thunk.thunk_p
-	&& cs->caller->thunk.this_adjusting == thunk->thunk.this_adjusting
 	&& cs->caller->thunk.fixed_offset == thunk->thunk.fixed_offset
-	&& cs->caller->thunk.virtual_offset_p == thunk->thunk.virtual_offset_p
-	&& cs->caller->thunk.virtual_value == thunk->thunk.virtual_value)
+	&& cs->caller->thunk.virtual_value == thunk->thunk.virtual_value
+	&& cs->caller->thunk.indirect_offset == thunk->thunk.indirect_offset
+	&& cs->caller->thunk.this_adjusting == thunk->thunk.this_adjusting
+	&& cs->caller->thunk.virtual_offset_p == thunk->thunk.virtual_offset_p)
       return cs->caller;
 
   tree new_decl;
@@ -340,44 +317,89 @@ duplicate_thunk_for_node (cgraph_node *thunk, cgraph_node *node)
   gcc_checking_assert (!DECL_RESULT (new_decl));
   gcc_checking_assert (!DECL_RTL_SET_P (new_decl));
 
-  DECL_NAME (new_decl) = clone_function_name (thunk->decl, "artificial_thunk");
+  DECL_NAME (new_decl) = clone_function_name_numbered (thunk->decl,
+						       "artificial_thunk");
   SET_DECL_ASSEMBLER_NAME (new_decl, DECL_NAME (new_decl));
+
+  /* We need to force DECL_IGNORED_P because the new thunk is created after
+     early debug was run.  */
+  DECL_IGNORED_P (new_decl) = 1;
 
   new_thunk = cgraph_node::create (new_decl);
   set_new_clone_decl_and_node_flags (new_thunk);
   new_thunk->definition = true;
+  new_thunk->local.can_change_signature = node->local.can_change_signature;
   new_thunk->thunk = thunk->thunk;
   new_thunk->unique_name = in_lto_p;
   new_thunk->former_clone_of = thunk->decl;
   new_thunk->clone.args_to_skip = node->clone.args_to_skip;
   new_thunk->clone.combined_args_to_skip = node->clone.combined_args_to_skip;
 
-  cgraph_edge *e = new_thunk->create_edge (node, NULL, 0,
-						  CGRAPH_FREQ_BASE);
-  e->call_stmt_cannot_inline_p = true;
+  cgraph_edge *e = new_thunk->create_edge (node, NULL, new_thunk->count);
   symtab->call_edge_duplication_hooks (thunk->callees, e);
-  if (new_thunk->expand_thunk (false, false))
-    {
-      new_thunk->thunk.thunk_p = false;
-      new_thunk->analyze ();
-    }
-
   symtab->call_cgraph_duplication_hooks (thunk, new_thunk);
   return new_thunk;
 }
 
 /* If E does not lead to a thunk, simply redirect it to N.  Otherwise create
    one or more equivalent thunks for N and redirect E to the first in the
-   chain.  */
+   chain.  Note that it is then necessary to call
+   n->expand_all_artificial_thunks once all callers are redirected.  */
 
 void
-redirect_edge_duplicating_thunks (cgraph_edge *e, cgraph_node *n)
+cgraph_edge::redirect_callee_duplicating_thunks (cgraph_node *n)
 {
-  cgraph_node *orig_to = e->callee->ultimate_alias_target ();
+  cgraph_node *orig_to = callee->ultimate_alias_target ();
   if (orig_to->thunk.thunk_p)
     n = duplicate_thunk_for_node (orig_to, n);
 
-  e->redirect_callee (n);
+  redirect_callee (n);
+}
+
+/* Call expand_thunk on all callers that are thunks and if analyze those nodes
+   that were expanded.  */
+
+void
+cgraph_node::expand_all_artificial_thunks ()
+{
+  cgraph_edge *e;
+  for (e = callers; e;)
+    if (e->caller->thunk.thunk_p)
+      {
+	cgraph_node *thunk = e->caller;
+
+	e = e->next_caller;
+	if (thunk->expand_thunk (false, false))
+	  {
+	    thunk->thunk.thunk_p = false;
+	    thunk->analyze ();
+	  }
+	thunk->expand_all_artificial_thunks ();
+      }
+    else
+      e = e->next_caller;
+}
+
+void
+dump_callgraph_transformation (const cgraph_node *original,
+			       const cgraph_node *clone,
+			       const char *suffix)
+{
+  if (symtab->ipa_clones_dump_file)
+    {
+      fprintf (symtab->ipa_clones_dump_file,
+	       "Callgraph clone;%s;%d;%s;%d;%d;%s;%d;%s;%d;%d;%s\n",
+	       original->asm_name (), original->order,
+	       DECL_SOURCE_FILE (original->decl),
+	       DECL_SOURCE_LINE (original->decl),
+	       DECL_SOURCE_COLUMN (original->decl), clone->asm_name (),
+	       clone->order, DECL_SOURCE_FILE (clone->decl),
+	       DECL_SOURCE_LINE (clone->decl), DECL_SOURCE_COLUMN (clone->decl),
+	       suffix);
+
+      symtab->cloned_nodes.add (original);
+      symtab->cloned_nodes.add (clone);
+    }
 }
 
 /* Create node representing clone of N executed COUNT times.  Decrease
@@ -397,19 +419,31 @@ redirect_edge_duplicating_thunks (cgraph_edge *e, cgraph_node *n)
    node is not inlined.  */
 
 cgraph_node *
-cgraph_node::create_clone (tree decl, gcov_type gcov_count, int freq,
+cgraph_node::create_clone (tree new_decl, profile_count prof_count,
 			   bool update_original,
 			   vec<cgraph_edge *> redirect_callers,
 			   bool call_duplication_hook,
 			   cgraph_node *new_inlined_to,
-			   bitmap args_to_skip)
+			   bitmap args_to_skip, const char *suffix)
 {
   cgraph_node *new_node = symtab->create_empty ();
   cgraph_edge *e;
-  gcov_type count_scale;
   unsigned i;
+  profile_count old_count = count;
 
-  new_node->decl = decl;
+  if (new_inlined_to)
+    dump_callgraph_transformation (this, new_inlined_to, "inlining to");
+
+  /* When inlining we scale precisely to prof_count, when cloning we can
+     preserve local profile.  */
+  if (!new_inlined_to)
+    prof_count = count.combine_with_ipa_count (prof_count);
+  new_node->count = prof_count;
+
+  /* Update IPA profile.  Local profiles need no updating in original.  */
+  if (update_original)
+    count = count.combine_with_ipa_count (count.ipa () - prof_count.ipa ());
+  new_node->decl = new_decl;
   new_node->register_symbol ();
   new_node->origin = origin;
   new_node->lto_file_data = lto_file_data;
@@ -427,13 +461,16 @@ cgraph_node::create_clone (tree decl, gcov_type gcov_count, int freq,
   new_node->global = global;
   new_node->global.inlined_to = new_inlined_to;
   new_node->rtl = rtl;
-  new_node->count = count;
   new_node->frequency = frequency;
   new_node->tp_first_run = tp_first_run;
   new_node->tm_clone = tm_clone;
+  new_node->icf_merged = icf_merged;
+  new_node->merged_comdat = merged_comdat;
+  new_node->thunk = thunk;
 
   new_node->clone.tree_map = NULL;
   new_node->clone.args_to_skip = args_to_skip;
+  new_node->split_part = split_part;
   if (!args_to_skip)
     new_node->clone.combined_args_to_skip = clone.combined_args_to_skip;
   else if (clone.combined_args_to_skip)
@@ -445,40 +482,24 @@ cgraph_node::create_clone (tree decl, gcov_type gcov_count, int freq,
   else
     new_node->clone.combined_args_to_skip = args_to_skip;
 
-  if (count)
-    {
-      if (new_node->count > count)
-        count_scale = REG_BR_PROB_BASE;
-      else
-	count_scale = GCOV_COMPUTE_SCALE (new_node->count, count);
-    }
-  else
-    count_scale = 0;
-  if (update_original)
-    {
-      count -= gcov_count;
-      if (count < 0)
-	count = 0;
-    }
-
   FOR_EACH_VEC_ELT (redirect_callers, i, e)
     {
       /* Redirect calls to the old version node to point to its new
 	 version.  The only exception is when the edge was proved to
 	 be unreachable during the clonning procedure.  */
       if (!e->callee
-	  || DECL_BUILT_IN_CLASS (e->callee->decl) != BUILT_IN_NORMAL
-	  || DECL_FUNCTION_CODE (e->callee->decl) != BUILT_IN_UNREACHABLE)
-        redirect_edge_duplicating_thunks (e, new_node);
+	  || !fndecl_built_in_p (e->callee->decl, BUILT_IN_UNREACHABLE))
+        e->redirect_callee_duplicating_thunks (new_node);
     }
+  new_node->expand_all_artificial_thunks ();
 
   for (e = callees;e; e=e->next_callee)
-    e->clone (new_node, e->call_stmt, e->lto_stmt_uid, count_scale,
-	      freq, update_original);
+    e->clone (new_node, e->call_stmt, e->lto_stmt_uid, new_node->count, old_count,
+	      update_original);
 
   for (e = indirect_calls; e; e = e->next_callee)
     e->clone (new_node, e->call_stmt, e->lto_stmt_uid,
-	      count_scale, freq, update_original);
+	      new_node->count, old_count, update_original);
   new_node->clone_references (this);
 
   new_node->next_sibling_clone = clones;
@@ -489,36 +510,111 @@ cgraph_node::create_clone (tree decl, gcov_type gcov_count, int freq,
 
   if (call_duplication_hook)
     symtab->call_cgraph_duplication_hooks (this, new_node);
+
+  if (!new_inlined_to)
+    dump_callgraph_transformation (this, new_node, suffix);
+
   return new_node;
 }
 
-/* Return a new assembler name for a clone of DECL with SUFFIX.  */
+static GTY(()) hash_map<const char *, unsigned> *clone_fn_ids;
 
-static GTY(()) unsigned int clone_fn_id_num;
+/* Return a new assembler name for a clone of decl named NAME.  Apart
+   from the string SUFFIX, the new name will end with a unique (for
+   each NAME) unspecified number.  If clone numbering is not needed
+   then the two argument clone_function_name should be used instead.
+   Should not be called directly except for by
+   lto-partition.c:privatize_symbol_name_1.  */
+
+tree
+clone_function_name_numbered (const char *name, const char *suffix)
+{
+  /* Initialize the function->counter mapping the first time it's
+     needed.  */
+  if (!clone_fn_ids)
+    clone_fn_ids = hash_map<const char *, unsigned int>::create_ggc (64);
+  unsigned int &suffix_counter = clone_fn_ids->get_or_insert (
+				   IDENTIFIER_POINTER (get_identifier (name)));
+  return clone_function_name (name, suffix, suffix_counter++);
+}
+
+/* Return a new assembler name for a clone of DECL.  Apart from string
+   SUFFIX, the new name will end with a unique (for each DECL
+   assembler name) unspecified number.  If clone numbering is not
+   needed then the two argument clone_function_name should be used
+   instead.  */
+
+tree
+clone_function_name_numbered (tree decl, const char *suffix)
+{
+  tree name = DECL_ASSEMBLER_NAME (decl);
+  return clone_function_name_numbered (IDENTIFIER_POINTER (name),
+				       suffix);
+}
+
+/* Return a new assembler name for a clone of decl named NAME.  Apart
+   from the string SUFFIX, the new name will end with the specified
+   NUMBER.  If clone numbering is not needed then the two argument
+   clone_function_name should be used instead.  */
+
+tree
+clone_function_name (const char *name, const char *suffix,
+		     unsigned long number)
+{
+  size_t len = strlen (name);
+  char *tmp_name, *prefix;
+
+  prefix = XALLOCAVEC (char, len + strlen (suffix) + 2);
+  memcpy (prefix, name, len);
+  strcpy (prefix + len + 1, suffix);
+  prefix[len] = symbol_table::symbol_suffix_separator ();
+  ASM_FORMAT_PRIVATE_NAME (tmp_name, prefix, number);
+  return get_identifier (tmp_name);
+}
+
+/* Return a new assembler name for a clone of DECL.  Apart from the
+   string SUFFIX, the new name will end with the specified NUMBER.  If
+   clone numbering is not needed then the two argument
+   clone_function_name should be used instead.  */
+
+tree
+clone_function_name (tree decl, const char *suffix,
+		     unsigned long number)
+{
+  return clone_function_name (
+	   IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (decl)), suffix, number);
+}
+
+/* Return a new assembler name ending with the string SUFFIX for a
+   clone of DECL.  */
 
 tree
 clone_function_name (tree decl, const char *suffix)
 {
-  tree name = DECL_ASSEMBLER_NAME (decl);
-  size_t len = IDENTIFIER_LENGTH (name);
-  char *tmp_name, *prefix;
-
-  prefix = XALLOCAVEC (char, len + strlen (suffix) + 2);
-  memcpy (prefix, IDENTIFIER_POINTER (name), len);
-  strcpy (prefix + len + 1, suffix);
-#ifndef NO_DOT_IN_LABEL
-  prefix[len] = '.';
-#elif !defined NO_DOLLAR_IN_LABEL
-  prefix[len] = '$';
+  tree identifier = DECL_ASSEMBLER_NAME (decl);
+  /* For consistency this needs to behave the same way as
+     ASM_FORMAT_PRIVATE_NAME does, but without the final number
+     suffix.  */
+  char *separator = XALLOCAVEC (char, 2);
+  separator[0] = symbol_table::symbol_suffix_separator ();
+  separator[1] = 0;
+#if defined (NO_DOT_IN_LABEL) && defined (NO_DOLLAR_IN_LABEL)
+  const char *prefix = "__";
 #else
-  prefix[len] = '_';
+  const char *prefix = "";
 #endif
-  ASM_FORMAT_PRIVATE_NAME (tmp_name, prefix, clone_fn_id_num++);
-  return get_identifier (tmp_name);
+  char *result = ACONCAT ((prefix,
+			   IDENTIFIER_POINTER (identifier),
+			   separator,
+			   suffix,
+			   (char*)0));
+  return get_identifier (result);
 }
 
-/* Create callgraph node clone with new declaration.  The actual body will
-   be copied later at compilation stage.
+
+/* Create callgraph node clone with new declaration.  The actual body will be
+   copied later at compilation stage.  The name of the new clone will be
+   constructed from the name of the original node, SUFFIX and NUM_SUFFIX.
 
    TODO: after merging in ipa-sra use function call notes instead of args_to_skip
    bitmap interface.
@@ -526,7 +622,8 @@ clone_function_name (tree decl, const char *suffix)
 cgraph_node *
 cgraph_node::create_virtual_clone (vec<cgraph_edge *> redirect_callers,
 				   vec<ipa_replace_map *, va_gc> *tree_map,
-				   bitmap args_to_skip, const char * suffix)
+				   bitmap args_to_skip, const char * suffix,
+				   unsigned num_suffix)
 {
   tree old_decl = decl;
   cgraph_node *new_node = NULL;
@@ -535,9 +632,7 @@ cgraph_node::create_virtual_clone (vec<cgraph_edge *> redirect_callers,
   ipa_replace_map *map;
   char *name;
 
-  if (!in_lto_p)
-    gcc_checking_assert  (tree_versionable_function_p (old_decl));
-
+  gcc_checking_assert (local.versionable);
   gcc_assert (local.can_change_signature || !args_to_skip);
 
   /* Make a new FUNCTION_DECL tree node */
@@ -553,7 +648,7 @@ cgraph_node::create_virtual_clone (vec<cgraph_edge *> redirect_callers,
   DECL_ARGUMENTS (new_decl) = NULL;
   DECL_INITIAL (new_decl) = NULL;
   DECL_RESULT (new_decl) = NULL; 
-  /* We can not do DECL_RESULT (new_decl) = NULL; here because of LTO partitioning
+  /* We cannot do DECL_RESULT (new_decl) = NULL; here because of LTO partitioning
      sometimes storing only clone decl instead of original.  */
 
   /* Generate a new name for the new version. */
@@ -563,11 +658,12 @@ cgraph_node::create_virtual_clone (vec<cgraph_edge *> redirect_callers,
   strcpy (name + len + 1, suffix);
   name[len] = '.';
   DECL_NAME (new_decl) = get_identifier (name);
-  SET_DECL_ASSEMBLER_NAME (new_decl, clone_function_name (old_decl, suffix));
+  SET_DECL_ASSEMBLER_NAME (new_decl,
+			   clone_function_name (old_decl, suffix, num_suffix));
   SET_DECL_RTL (new_decl, NULL);
 
-  new_node = create_clone (new_decl, count, CGRAPH_FREQ_BASE, false,
-			   redirect_callers, false, NULL, args_to_skip);
+  new_node = create_clone (new_decl, count, false,
+			   redirect_callers, false, NULL, args_to_skip, suffix);
 
   /* Update the properties.
      Make clone visible only within this translation unit.  Make sure
@@ -576,6 +672,8 @@ cgraph_node::create_virtual_clone (vec<cgraph_edge *> redirect_callers,
      ABI support for this.  */
   set_new_clone_decl_and_node_flags (new_node);
   new_node->clone.tree_map = tree_map;
+  if (!implicit_section)
+    new_node->set_section (get_section ());
 
   /* Clones of global symbols or symbols with unique names are unique.  */
   if ((TREE_PUBLIC (old_decl)
@@ -585,7 +683,7 @@ cgraph_node::create_virtual_clone (vec<cgraph_edge *> redirect_callers,
       || in_lto_p)
     new_node->unique_name = true;
   FOR_EACH_VEC_SAFE_ELT (tree_map, i, map)
-    new_node->maybe_create_reference (map->new_tree, IPA_REF_ADDR, NULL);
+    new_node->maybe_create_reference (map->new_tree, NULL);
 
   if (ipa_transforms_to_apply.exists ())
     new_node->ipa_transforms_to_apply
@@ -688,7 +786,8 @@ cgraph_node::find_replacement (void)
    call.  */
 
 void
-cgraph_node::set_call_stmt_including_clones (gimple old_stmt, gimple new_stmt,
+cgraph_node::set_call_stmt_including_clones (gimple *old_stmt,
+					     gcall *new_stmt,
 					     bool update_speculative)
 {
   cgraph_node *node;
@@ -743,9 +842,8 @@ cgraph_node::set_call_stmt_including_clones (gimple old_stmt, gimple new_stmt,
 
 void
 cgraph_node::create_edge_including_clones (cgraph_node *callee,
-					   gimple old_stmt, gimple stmt,
-					   gcov_type count,
-					   int freq,
+					   gimple *old_stmt, gcall *stmt,
+					   profile_count count,
 					   cgraph_inline_failed_t reason)
 {
   cgraph_node *node;
@@ -753,40 +851,42 @@ cgraph_node::create_edge_including_clones (cgraph_node *callee,
 
   if (!get_edge (stmt))
     {
-      edge = create_edge (callee, stmt, count, freq);
+      edge = create_edge (callee, stmt, count);
       edge->inline_failed = reason;
     }
 
   node = clones;
   if (node)
     while (node != this)
-      {
-	cgraph_edge *edge = node->get_edge (old_stmt);
+      /* Thunk clones do not get updated while copying inline function body.  */
+      if (!node->thunk.thunk_p)
+	{
+	  cgraph_edge *edge = node->get_edge (old_stmt);
 
-        /* It is possible that clones already contain the edge while
-	   master didn't.  Either we promoted indirect call into direct
-	   call in the clone or we are processing clones of unreachable
-	   master where edges has been removed.  */
-	if (edge)
-	  edge->set_call_stmt (stmt);
-	else if (! node->get_edge (stmt))
-	  {
-	    edge = node->create_edge (callee, stmt, count, freq);
-	    edge->inline_failed = reason;
-	  }
+	  /* It is possible that clones already contain the edge while
+	     master didn't.  Either we promoted indirect call into direct
+	     call in the clone or we are processing clones of unreachable
+	     master where edges has been removed.  */
+	  if (edge)
+	    edge->set_call_stmt (stmt);
+	  else if (! node->get_edge (stmt))
+	    {
+	      edge = node->create_edge (callee, stmt, count);
+	      edge->inline_failed = reason;
+	    }
 
-	if (node->clones)
-	  node = node->clones;
-	else if (node->next_sibling_clone)
-	  node = node->next_sibling_clone;
-	else
-	  {
-	    while (node != this && !node->next_sibling_clone)
-	      node = node->clone_of;
-	    if (node != this)
-	      node = node->next_sibling_clone;
-	  }
-      }
+	  if (node->clones)
+	    node = node->clones;
+	  else if (node->next_sibling_clone)
+	    node = node->next_sibling_clone;
+	  else
+	    {
+	      while (node != this && !node->next_sibling_clone)
+		node = node->clone_of;
+	      if (node != this)
+		node = node->next_sibling_clone;
+	    }
+	}
 }
 
 /* Remove the node from cgraph and all inline clones inlined into it.
@@ -850,7 +950,8 @@ update_call_expr (cgraph_node *new_version)
 cgraph_node *
 cgraph_node::create_version_clone (tree new_decl,
 				  vec<cgraph_edge *> redirect_callers,
-				  bitmap bbs_to_copy)
+				  bitmap bbs_to_copy,
+				  const char *suffix)
  {
    cgraph_node *new_version;
    cgraph_edge *e;
@@ -872,15 +973,13 @@ cgraph_node::create_version_clone (tree new_decl,
      if (!bbs_to_copy
 	 || bitmap_bit_p (bbs_to_copy, gimple_bb (e->call_stmt)->index))
        e->clone (new_version, e->call_stmt,
-		 e->lto_stmt_uid, REG_BR_PROB_BASE,
-		 CGRAPH_FREQ_BASE,
+		 e->lto_stmt_uid, count, count,
 		 true);
    for (e = indirect_calls; e; e=e->next_callee)
      if (!bbs_to_copy
 	 || bitmap_bit_p (bbs_to_copy, gimple_bb (e->call_stmt)->index))
        e->clone (new_version, e->call_stmt,
-		 e->lto_stmt_uid, REG_BR_PROB_BASE,
-		 CGRAPH_FREQ_BASE,
+		 e->lto_stmt_uid, count, count,
 		 true);
    FOR_EACH_VEC_ELT (redirect_callers, i, e)
      {
@@ -890,6 +989,8 @@ cgraph_node::create_version_clone (tree new_decl,
      }
 
    symtab->call_cgraph_duplication_hooks (this, new_version);
+
+   dump_callgraph_transformation (this, new_version, suffix);
 
    return new_version;
  }
@@ -911,6 +1012,11 @@ cgraph_node::create_version_clone (tree new_decl,
    If non-NULL BLOCK_TO_COPY determine what basic blocks to copy.
    If non_NULL NEW_ENTRY determine new entry BB of the clone.
 
+   If TARGET_ATTRIBUTES is non-null, when creating a new declaration,
+   add the attributes to DECL_ATTRIBUTES.  And call valid_attribute_p
+   that will promote value of the attribute DECL_FUNCTION_SPECIFIC_TARGET
+   of the declaration.
+
    Return the new version's cgraph node.  */
 
 cgraph_node *
@@ -918,7 +1024,7 @@ cgraph_node::create_version_clone_with_body
   (vec<cgraph_edge *> redirect_callers,
    vec<ipa_replace_map *, va_gc> *tree_map, bitmap args_to_skip,
    bool skip_return, bitmap bbs_to_copy, basic_block new_entry_block,
-   const char *clone_name)
+   const char *suffix, tree target_attributes)
 {
   tree old_decl = decl;
   cgraph_node *new_version_node = NULL;
@@ -937,9 +1043,24 @@ cgraph_node::create_version_clone_with_body
       = build_function_decl_skip_args (old_decl, args_to_skip, skip_return);
 
   /* Generate a new name for the new version. */
-  DECL_NAME (new_decl) = clone_function_name (old_decl, clone_name);
+  DECL_NAME (new_decl) = clone_function_name_numbered (old_decl, suffix);
   SET_DECL_ASSEMBLER_NAME (new_decl, DECL_NAME (new_decl));
   SET_DECL_RTL (new_decl, NULL);
+
+  DECL_VIRTUAL_P (new_decl) = 0;
+
+  if (target_attributes)
+    {
+      DECL_ATTRIBUTES (new_decl) = target_attributes;
+
+      location_t saved_loc = input_location;
+      tree v = TREE_VALUE (target_attributes);
+      input_location = DECL_SOURCE_LOCATION (new_decl);
+      bool r = targetm.target_option.valid_attribute_p (new_decl, NULL, v, 0);
+      input_location = saved_loc;
+      if (!r)
+	return NULL;
+    }
 
   /* When the old decl was a con-/destructor make sure the clone isn't.  */
   DECL_STATIC_CONSTRUCTOR (new_decl) = 0;
@@ -948,7 +1069,7 @@ cgraph_node::create_version_clone_with_body
   /* Create the new version's call-graph node.
      and update the edges of the new node. */
   new_version_node = create_version_clone (new_decl, redirect_callers,
-					  bbs_to_copy);
+					  bbs_to_copy, suffix);
 
   if (ipa_transforms_to_apply.exists ())
     new_version_node->ipa_transforms_to_apply
@@ -967,6 +1088,8 @@ cgraph_node::create_version_clone_with_body
   new_version_node->externally_visible = 0;
   new_version_node->local.local = 1;
   new_version_node->lowered = true;
+  if (!implicit_section)
+    new_version_node->set_section (get_section ());
   /* Clones of global symbols or symbols with unique names are unique.  */
   if ((TREE_PUBLIC (old_decl)
        && !DECL_EXTERNAL (old_decl)
@@ -978,7 +1101,7 @@ cgraph_node::create_version_clone_with_body
   /* Update the call_expr on the edges to call the new version node. */
   update_call_expr (new_version_node);
 
-  symtab->call_cgraph_insertion_hooks (this);
+  symtab->call_cgraph_insertion_hooks (new_version_node);
   return new_version_node;
 }
 
@@ -1025,7 +1148,7 @@ cgraph_materialize_clone (cgraph_node *node)
 /* Once all functions from compilation unit are in memory, produce all clones
    and update all calls.  We might also do this on demand if we don't want to
    bring all functions to memory prior compilation, but current WHOPR
-   implementation does that and it is is bit easier to keep everything right in
+   implementation does that and it is a bit easier to keep everything right in
    this order.  */
 
 void
@@ -1037,9 +1160,8 @@ symbol_table::materialize_all_clones (void)
 
   if (symtab->dump_file)
     fprintf (symtab->dump_file, "Materializing clones\n");
-#ifdef ENABLE_CHECKING
-  cgraph_node::verify_cgraph_nodes ();
-#endif
+
+  cgraph_node::checking_verify_cgraph_nodes ();
 
   /* We can also do topological order, but number of iterations should be
      bounded by number of IPA passes since single IPA pass is probably not
@@ -1053,14 +1175,14 @@ symbol_table::materialize_all_clones (void)
 	      && !gimple_has_body_p (node->decl))
 	    {
 	      if (!node->clone_of->clone_of)
-		node->clone_of->get_body ();
+		node->clone_of->get_untransformed_body ();
 	      if (gimple_has_body_p (node->clone_of->decl))
 	        {
 		  if (symtab->dump_file)
 		    {
 		      fprintf (symtab->dump_file, "cloning %s to %s\n",
-			       xstrdup (node->clone_of->name ()),
-			       xstrdup (node->name ()));
+			       xstrdup_for_dump (node->clone_of->name ()),
+			       xstrdup_for_dump (node->name ()));
 		      if (node->clone.tree_map)
 		        {
 			  unsigned int i;
@@ -1071,9 +1193,11 @@ symbol_table::materialize_all_clones (void)
 			    {
 			      ipa_replace_map *replace_info;
 			      replace_info = (*node->clone.tree_map)[i];
-			      print_generic_expr (symtab->dump_file, replace_info->old_tree, 0);
+			      print_generic_expr (symtab->dump_file,
+						  replace_info->old_tree);
 			      fprintf (symtab->dump_file, " -> ");
-			      print_generic_expr (symtab->dump_file, replace_info->new_tree, 0);
+			      print_generic_expr (symtab->dump_file,
+						  replace_info->new_tree);
 			      fprintf (symtab->dump_file, "%s%s;",
 			      	       replace_info->replace_p ? "(replace)":"",
 				       replace_info->ref_p ? "(ref)":"");
@@ -1108,10 +1232,10 @@ symbol_table::materialize_all_clones (void)
       node->clear_stmts_in_references ();
   if (symtab->dump_file)
     fprintf (symtab->dump_file, "Materialization Call site updates done.\n");
-#ifdef ENABLE_CHECKING
-  cgraph_node::verify_cgraph_nodes ();
-#endif
-  symtab->remove_unreachable_nodes (false, symtab->dump_file);
+
+  cgraph_node::checking_verify_cgraph_nodes ();
+
+  symtab->remove_unreachable_nodes (symtab->dump_file);
 }
 
 #include "gt-cgraphclones.h"

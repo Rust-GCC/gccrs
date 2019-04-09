@@ -1,5 +1,5 @@
 /* memory allocation routines with error checking.
-   Copyright 1989, 90, 91, 92, 93, 94 Free Software Foundation, Inc.
+   Copyright (C) 1989-2019 Free Software Foundation, Inc.
    
 This file is part of the libiberty library.
 Libiberty is free software; you can redistribute it and/or
@@ -65,6 +65,7 @@ function will be called to print an error message and terminate execution.
 #endif
 #include "ansidecl.h"
 #include "libiberty.h"
+#include "environ.h"
 
 #include <stdio.h>
 
@@ -117,7 +118,6 @@ void
 xmalloc_failed (size_t size)
 {
 #ifdef HAVE_SBRK
-  extern char **environ;
   size_t allocated;
 
   if (first_break != NULL)

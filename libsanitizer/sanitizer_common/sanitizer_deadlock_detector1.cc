@@ -38,19 +38,20 @@ struct DD : public DDetector {
 
   explicit DD(const DDFlags *flags);
 
-  DDPhysicalThread* CreatePhysicalThread();
-  void DestroyPhysicalThread(DDPhysicalThread *pt);
+  DDPhysicalThread *CreatePhysicalThread() override;
+  void DestroyPhysicalThread(DDPhysicalThread *pt) override;
 
-  DDLogicalThread* CreateLogicalThread(u64 ctx);
-  void DestroyLogicalThread(DDLogicalThread *lt);
+  DDLogicalThread *CreateLogicalThread(u64 ctx) override;
+  void DestroyLogicalThread(DDLogicalThread *lt) override;
 
-  void MutexInit(DDCallback *cb, DDMutex *m);
-  void MutexBeforeLock(DDCallback *cb, DDMutex *m, bool wlock);
-  void MutexAfterLock(DDCallback *cb, DDMutex *m, bool wlock, bool trylock);
-  void MutexBeforeUnlock(DDCallback *cb, DDMutex *m, bool wlock);
-  void MutexDestroy(DDCallback *cb, DDMutex *m);
+  void MutexInit(DDCallback *cb, DDMutex *m) override;
+  void MutexBeforeLock(DDCallback *cb, DDMutex *m, bool wlock) override;
+  void MutexAfterLock(DDCallback *cb, DDMutex *m, bool wlock,
+                      bool trylock) override;
+  void MutexBeforeUnlock(DDCallback *cb, DDMutex *m, bool wlock) override;
+  void MutexDestroy(DDCallback *cb, DDMutex *m) override;
 
-  DDReport *GetReport(DDCallback *cb);
+  DDReport *GetReport(DDCallback *cb) override;
 
   void MutexEnsureID(DDLogicalThread *lt, DDMutex *m);
   void ReportDeadlock(DDCallback *cb, DDMutex *m);
@@ -68,7 +69,7 @@ DD::DD(const DDFlags *flags)
 }
 
 DDPhysicalThread* DD::CreatePhysicalThread() {
-  return 0;
+  return nullptr;
 }
 
 void DD::DestroyPhysicalThread(DDPhysicalThread *pt) {
@@ -116,11 +117,16 @@ void DD::MutexBeforeLock(DDCallback *cb,
 
 void DD::ReportDeadlock(DDCallback *cb, DDMutex *m) {
   DDLogicalThread *lt = cb->lt;
-  uptr path[10];
+  uptr path[20];
   uptr len = dd.findPathToLock(&lt->dd, m->id, path, ARRAY_SIZE(path));
-  CHECK_GT(len, 0U);  // Hm.. cycle of 10 locks? I'd like to see that.
+  if (len == 0U) {
+    // A cycle of 20+ locks? Well, that's a bit odd...
+    Printf("WARNING: too long mutex cycle found\n");
+    return;
+  }
   CHECK_EQ(m->id, path[0]);
   lt->report_pending = true;
+  len = Min<uptr>(len, DDReport::kMaxLoopSize);
   DDReport *rep = &lt->rep;
   rep->n = len;
   for (uptr i = 0; i < len; i++) {
@@ -178,10 +184,10 @@ void DD::MutexDestroy(DDCallback *cb,
 
 DDReport *DD::GetReport(DDCallback *cb) {
   if (!cb->lt->report_pending)
-    return 0;
+    return nullptr;
   cb->lt->report_pending = false;
   return &cb->lt->rep;
 }
 
-}  // namespace __sanitizer
-#endif  // #if SANITIZER_DEADLOCK_DETECTOR_VERSION == 1
+} // namespace __sanitizer
+#endif // #if SANITIZER_DEADLOCK_DETECTOR_VERSION == 1

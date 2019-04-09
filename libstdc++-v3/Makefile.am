@@ -1,6 +1,6 @@
 ## Makefile for the toplevel directory of the GNU C++ Standard library.
 ##
-## Copyright (C) 1997-2014 Free Software Foundation, Inc.
+## Copyright (C) 1997-2019 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ## Process this file with automake to produce Makefile.in.
@@ -23,12 +23,12 @@
 include $(top_srcdir)/fragment.am
 
 if GLIBCXX_HOSTED
-  hosted_source = src doc po testsuite
+## Note that python must come after src.
+  hosted_source = src doc po testsuite python
 endif
 
 ## Keep this list sync'd with acinclude.m4:GLIBCXX_CONFIGURE.
-## Note that python must come after src.
-SUBDIRS = include libsupc++ $(hosted_source) python
+SUBDIRS = include libsupc++ $(hosted_source)
 
 ACLOCAL_AMFLAGS = -I . -I .. -I ../config
 
@@ -172,3 +172,5 @@ AM_MAKEFLAGS = \
 
 # Subdir rules rely on $(FLAGS_TO_PASS)
 FLAGS_TO_PASS = $(AM_MAKEFLAGS)
+
+include $(top_srcdir)/../multilib.am

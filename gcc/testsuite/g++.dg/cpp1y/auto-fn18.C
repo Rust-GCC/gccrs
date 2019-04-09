@@ -2,8 +2,8 @@
 
 struct A
 {
-  virtual int f() { return 1; }	 // { dg-message "overriding" }
-  virtual auto g() { return 1; } // { dg-error "virtual" }
+  virtual int f() { return 1; }	 // { dg-message "overridden" }
+  virtual auto g() { return 1; } // { dg-error "11:virtual" }
 };
 
 struct B: A

@@ -1,5 +1,5 @@
 /* Definitions of ELF target support for Altera Nios II.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Jonah Graham (jgraham@altera.com), 
    Will Reece (wreece@altera.com), and Jeff DaSilva (jdasilva@altera.com).
    Contributed by Mentor Graphics, Inc.
@@ -50,3 +50,12 @@
 /* The ELF target doesn't support the Nios II Linux ABI.  */
 #define TARGET_LINUX_ABI 0
 
+/* Default -fdelete-null-pointer-checks to off, to prevent the compiler
+   from treating accesses to address zero as traps.  On bare-metal Nios II
+   targets address zero may legitimately be mapped to memory (e.g., the
+   hardware description may specify this as the address of the interrupt
+   vector).  Users can override this on the command line to get the
+   additional optimizations it enables.  */
+#define SUBTARGET_OVERRIDE_OPTIONS 		\
+  if (flag_delete_null_pointer_checks < 0)	\
+    flag_delete_null_pointer_checks = 0

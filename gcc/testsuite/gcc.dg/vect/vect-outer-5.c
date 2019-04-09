@@ -1,7 +1,6 @@
 /* { dg-require-effective-target vect_float } */
 
 #include <stdarg.h>
-#include <signal.h>
 #include "tree-vect.h"
 
 #define N 64
@@ -78,5 +77,4 @@ int main ()
    is known.  */
 /* { dg-final { scan-tree-dump-times "not vectorized: possible dependence between data-refs" 1 "vect" { xfail *-*-* } } } */
 /* { dg-final { scan-tree-dump-times "OUTER LOOP VECTORIZED" 1 "vect" } } */
-/* { dg-final { scan-tree-dump "zero step in outer loop." "vect" { xfail vect_no_align } } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */
+/* { dg-final { scan-tree-dump "zero step in outer loop." "vect" { xfail { vect_no_align && { ! vect_hw_misalign } } } } } */

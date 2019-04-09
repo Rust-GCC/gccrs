@@ -1,6 +1,6 @@
 /* Web construction code for GNU compiler.
    Contributed by Jan Hubicka.
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -22,10 +22,6 @@ along with GCC; see the file COPYING3.  If not see
    increasing effectiveness of other optimizations.  The optimization can
    serve as an example of use for the dataflow module.
 
-   We don't split registers with REG_USERVAR set unless -fmessy-debugging
-   is specified, because debugging information about such split variables
-   is almost unusable.
-
    TODO
     - We may use profile information and ignore infrequent use for the
       purpose of web unifying, inserting the compensation code later to
@@ -36,18 +32,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "diagnostic-core.h"
-
+#include "backend.h"
 #include "rtl.h"
-#include "hard-reg-set.h"
-#include "flags.h"
-#include "obstack.h"
-#include "basic-block.h"
 #include "df.h"
-#include "function.h"
 #include "insn-config.h"
 #include "recog.h"
+
 #include "tree-pass.h"
 
 

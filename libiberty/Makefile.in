@@ -1,9 +1,7 @@
 # Makefile for the libiberty library.
 # Originally written by K. Richard Pixley <rich@cygnus.com>.
 #
-# Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-# 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011,
-# 2012, 2014 Free Software Foundation
+# Copyright (C) 1990-2019 Free Software Foundation, Inc.
 #
 # This file is part of the libiberty library.
 # Libiberty is free software; you can redistribute it and/or
@@ -113,7 +111,8 @@ installcheck: installcheck-subdir
 
 INCDIR=$(srcdir)/$(MULTISRCTOP)../include
 
-COMPILE.c = $(CC) -c @DEFS@ $(CFLAGS) $(CPPFLAGS) -I. -I$(INCDIR) $(HDEFINES) @ac_libiberty_warn_cflags@
+COMPILE.c = $(CC) -c @DEFS@ $(CFLAGS) $(CPPFLAGS) -I. -I$(INCDIR) \
+               $(HDEFINES) @ac_libiberty_warn_cflags@ -D_GNU_SOURCE
 
 # Just to make sure we don't use a built-in rule with VPATH
 .c.$(objext):
@@ -145,6 +144,7 @@ CFILES = alloca.c argv.c asprintf.c atexit.c				\
 	 pex-unix.c pex-win32.c						\
          physmem.c putenv.c						\
 	random.c regex.c rename.c rindex.c				\
+	rust-demangle.c							\
 	safe-ctype.c setenv.c setproctitle.c sha1.c sigsetmask.c        \
 	 simple-object.c simple-object-coff.c simple-object-elf.c	\
 	 simple-object-mach-o.c simple-object-xcoff.c			\
@@ -152,13 +152,14 @@ CFILES = alloca.c argv.c asprintf.c atexit.c				\
 	 spaces.c splay-tree.c stack-limit.c stpcpy.c stpncpy.c		\
 	 strcasecmp.c strchr.c strdup.c strerror.c strncasecmp.c	\
 	 strncmp.c strrchr.c strsignal.c strstr.c strtod.c strtol.c	\
-	 strtoul.c strndup.c strnlen.c strverscmp.c			\
-	timeval-utils.c tmpnam.c					\
+	 strtoll.c strtoul.c strtoull.c strndup.c strnlen.c             \
+	 strverscmp.c timeval-utils.c tmpnam.c				\
 	unlink-if-ordinary.c						\
-	vasprintf.c vfork.c vfprintf.c vprintf.c vsnprintf.c vsprintf.c	\
+	vasprintf.c vfork.c vfprintf.c vprintf.c vprintf-support.c	\
+	 vsnprintf.c vsprintf.c						\
 	waitpid.c							\
-	xatexit.c xexit.c xmalloc.c xmemdup.c xstrdup.c xstrerror.c	\
-	 xstrndup.c
+	xasprintf.c xatexit.c xexit.c xmalloc.c xmemdup.c xstrdup.c	\
+	 xstrerror.c xstrndup.c xvasprintf.c
 
 # These are always included in the library.  The first four are listed
 # first and by compile time to optimize parallel builds.
@@ -180,7 +181,8 @@ REQUIRED_OFILES =							\
 	./obstack.$(objext)						\
 	./partition.$(objext) ./pexecute.$(objext) ./physmem.$(objext)	\
 	./pex-common.$(objext) ./pex-one.$(objext)			\
-	./@pexecute@.$(objext)						\
+	./@pexecute@.$(objext) ./vprintf-support.$(objext)		\
+	./rust-demangle.$(objext)					\
 	./safe-ctype.$(objext)						\
 	./simple-object.$(objext) ./simple-object-coff.$(objext)	\
 	./simple-object-elf.$(objext) ./simple-object-mach-o.$(objext)	\
@@ -189,9 +191,10 @@ REQUIRED_OFILES =							\
 	./splay-tree.$(objext) ./stack-limit.$(objext)			\
 	./strerror.$(objext) ./strsignal.$(objext)			\
 	./timeval-utils.$(objext) ./unlink-if-ordinary.$(objext)	\
-	./xatexit.$(objext) ./xexit.$(objext) ./xmalloc.$(objext)	\
-	./xmemdup.$(objext) ./xstrdup.$(objext) ./xstrerror.$(objext)	\
-	./xstrndup.$(objext)
+	./xasprintf.$(objext) ./xatexit.$(objext) ./xexit.$(objext)	\
+	./xmalloc.$(objext) ./xmemdup.$(objext) ./xstrdup.$(objext)	\
+	./xstrerror.$(objext) ./xstrndup.$(objext)			\
+	./xvasprintf.$(objext)
 
 # These are all the objects that configure may add to the library via
 # $funcs or EXTRA_OFILES.  This list exists here only for "make
@@ -219,8 +222,8 @@ CONFIGURED_OFILES = ./asprintf.$(objext) ./atexit.$(objext)		\
 	 ./strchr.$(objext) ./strdup.$(objext) ./strncasecmp.$(objext)	\
 	 ./strncmp.$(objext) ./strndup.$(objext) ./strnlen.$(objext)	\
 	 ./strrchr.$(objext) ./strstr.$(objext) ./strtod.$(objext)	\
-	 ./strtol.$(objext) ./strtoul.$(objext) ./strverscmp.$(objext)	\
-	./tmpnam.$(objext)						\
+	 ./strtol.$(objext) ./strtoul.$(objext) strtoll.$(objext)	\
+	./strtoull.$(objext) ./tmpnam.$(objext) ./strverscmp.$(objext)	\
 	./vasprintf.$(objext) ./vfork.$(objext) ./vfprintf.$(objext)	\
 	 ./vprintf.$(objext) ./vsnprintf.$(objext) ./vsprintf.$(objext)	\
 	./waitpid.$(objext)
@@ -403,12 +406,10 @@ stamp-noasandir:
 	else true; fi
 	touch stamp-noasandir
 
-.PHONY: all etags tags ls clean stage1 stage2
+.PHONY: all etags tags TAGS ls clean stage1 stage2
 
-etags tags: TAGS etags-subdir
-
-TAGS: $(CFILES)
-	etags `for i in $(CFILES); do echo $(srcdir)/$$i ; done`
+etags tags TAGS: etags-subdir
+	cd $(srcdir) && etags $(CFILES)
 
 # The standalone demangler (c++filt) has been moved to binutils.
 # But make this target work anyway for demangler hacking.
@@ -481,7 +482,8 @@ configure_deps = $(srcdir)/aclocal.m4 \
 	$(srcdir)/../config/acx.m4 \
 	$(srcdir)/../config/no-executables.m4 \
 	$(srcdir)/../config/override.m4 \
-	$(srcdir)/../config/warnings.m4 \
+	$(srcdir)/../config/picflag.m4 \
+	$(srcdir)/../config/warnings.m4
 
 $(srcdir)/configure: @MAINT@ $(srcdir)/configure.ac $(configure_deps)
 	cd $(srcdir) && $(AUTOCONF)
@@ -694,6 +696,17 @@ $(CONFIGURED_OFILES): stamp-picdir stamp-noasandir
 	else true; fi
 	$(COMPILE.c) $(srcdir)/crc32.c $(OUTPUT_OPTION)
 
+./d-demangle.$(objext): $(srcdir)/d-demangle.c config.h $(INCDIR)/ansidecl.h \
+	$(INCDIR)/demangle.h $(INCDIR)/libiberty.h \
+	$(INCDIR)/safe-ctype.h
+	if [ x"$(PICFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(srcdir)/d-demangle.c -o pic/$@; \
+	else true; fi
+	if [ x"$(NOASANFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/d-demangle.c -o noasan/$@; \
+	else true; fi
+	$(COMPILE.c) $(srcdir)/d-demangle.c $(OUTPUT_OPTION)
+
 ./dwarfnames.$(objext): $(srcdir)/dwarfnames.c $(INCDIR)/dwarf2.def \
 	$(INCDIR)/dwarf2.h
 	if [ x"$(PICFLAG)" != x ]; then \
@@ -713,14 +726,6 @@ $(CONFIGURED_OFILES): stamp-picdir stamp-noasandir
 	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/dyn-string.c -o noasan/$@; \
 	else true; fi
 	$(COMPILE.c) $(srcdir)/dyn-string.c $(OUTPUT_OPTION)
-
-./d-demangle.$(objext): $(srcdir)/d-demangle.c config.h $(INCDIR)/ansidecl.h \
-	$(srcdir)/cp-demangle.h $(INCDIR)/demangle.h \
-	$(INCDIR)/dyn-string.h $(INCDIR)/getopt.h $(INCDIR)/libiberty.h
-	if [ x"$(PICFLAG)" != x ]; then \
-	  $(COMPILE.c) $(PICFLAG) $(srcdir)/d-demangle.c -o pic/$@; \
-	else true; fi
-	$(COMPILE.c) $(srcdir)/d-demangle.c $(OUTPUT_OPTION)
 
 ./fdmatch.$(objext): $(srcdir)/fdmatch.c config.h $(INCDIR)/ansidecl.h \
 	$(INCDIR)/libiberty.h
@@ -1184,6 +1189,17 @@ $(CONFIGURED_OFILES): stamp-picdir stamp-noasandir
 	else true; fi
 	$(COMPILE.c) $(srcdir)/rindex.c $(OUTPUT_OPTION)
 
+./rust-demangle.$(objext): $(srcdir)/rust-demangle.c config.h \
+	$(INCDIR)/ansidecl.h $(INCDIR)/demangle.h $(INCDIR)/libiberty.h \
+	$(INCDIR)/safe-ctype.h
+	if [ x"$(PICFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(srcdir)/rust-demangle.c -o pic/$@; \
+	else true; fi
+	if [ x"$(NOASANFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/rust-demangle.c -o noasan/$@; \
+	else true; fi
+	$(COMPILE.c) $(srcdir)/rust-demangle.c $(OUTPUT_OPTION)
+
 ./safe-ctype.$(objext): $(srcdir)/safe-ctype.c $(INCDIR)/ansidecl.h \
 	$(INCDIR)/safe-ctype.h
 	if [ x"$(PICFLAG)" != x ]; then \
@@ -1471,6 +1487,15 @@ $(CONFIGURED_OFILES): stamp-picdir stamp-noasandir
 	else true; fi
 	$(COMPILE.c) $(srcdir)/strtol.c $(OUTPUT_OPTION)
 
+./strtoll.$(objext): $(srcdir)/strtoll.c config.h $(INCDIR)/safe-ctype.h
+	if [ x"$(PICFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(srcdir)/strtoll.c -o pic/$@; \
+	else true; fi
+	if [ x"$(NOASANFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/strtoll.c -o noasan/$@; \
+	else true; fi
+	$(COMPILE.c) $(srcdir)/strtoll.c $(OUTPUT_OPTION)
+
 ./strtoul.$(objext): $(srcdir)/strtoul.c config.h $(INCDIR)/ansidecl.h \
 	$(INCDIR)/safe-ctype.h
 	if [ x"$(PICFLAG)" != x ]; then \
@@ -1480,6 +1505,16 @@ $(CONFIGURED_OFILES): stamp-picdir stamp-noasandir
 	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/strtoul.c -o noasan/$@; \
 	else true; fi
 	$(COMPILE.c) $(srcdir)/strtoul.c $(OUTPUT_OPTION)
+
+./strtoull.$(objext): $(srcdir)/strtoull.c config.h $(INCDIR)/ansidecl.h \
+	$(INCDIR)/safe-ctype.h
+	if [ x"$(PICFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(srcdir)/strtoull.c -o pic/$@; \
+	else true; fi
+	if [ x"$(NOASANFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/strtoull.c -o noasan/$@; \
+	else true; fi
+	$(COMPILE.c) $(srcdir)/strtoull.c $(OUTPUT_OPTION)
 
 ./strverscmp.$(objext): $(srcdir)/strverscmp.c $(INCDIR)/ansidecl.h \
 	$(INCDIR)/libiberty.h $(INCDIR)/safe-ctype.h
@@ -1521,7 +1556,7 @@ $(CONFIGURED_OFILES): stamp-picdir stamp-noasandir
 	$(COMPILE.c) $(srcdir)/unlink-if-ordinary.c $(OUTPUT_OPTION)
 
 ./vasprintf.$(objext): $(srcdir)/vasprintf.c config.h $(INCDIR)/ansidecl.h \
-	$(INCDIR)/libiberty.h
+	$(INCDIR)/libiberty.h $(srcdir)/vprintf-support.h
 	if [ x"$(PICFLAG)" != x ]; then \
 	  $(COMPILE.c) $(PICFLAG) $(srcdir)/vasprintf.c -o pic/$@; \
 	else true; fi
@@ -1547,6 +1582,16 @@ $(CONFIGURED_OFILES): stamp-picdir stamp-noasandir
 	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/vfprintf.c -o noasan/$@; \
 	else true; fi
 	$(COMPILE.c) $(srcdir)/vfprintf.c $(OUTPUT_OPTION)
+
+./vprintf-support.$(objext): $(srcdir)/vprintf-support.c config.h \
+	$(INCDIR)/ansidecl.h $(INCDIR)/libiberty.h
+	if [ x"$(PICFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(srcdir)/vprintf-support.c -o pic/$@; \
+	else true; fi
+	if [ x"$(NOASANFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/vprintf-support.c -o noasan/$@; \
+	else true; fi
+	$(COMPILE.c) $(srcdir)/vprintf-support.c $(OUTPUT_OPTION)
 
 ./vprintf.$(objext): $(srcdir)/vprintf.c $(INCDIR)/ansidecl.h
 	if [ x"$(PICFLAG)" != x ]; then \
@@ -1584,6 +1629,16 @@ $(CONFIGURED_OFILES): stamp-picdir stamp-noasandir
 	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/waitpid.c -o noasan/$@; \
 	else true; fi
 	$(COMPILE.c) $(srcdir)/waitpid.c $(OUTPUT_OPTION)
+
+./xasprintf.$(objext): $(srcdir)/xasprintf.c config.h $(INCDIR)/ansidecl.h \
+	$(INCDIR)/libiberty.h
+	if [ x"$(PICFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(srcdir)/xasprintf.c -o pic/$@; \
+	else true; fi
+	if [ x"$(NOASANFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/xasprintf.c -o noasan/$@; \
+	else true; fi
+	$(COMPILE.c) $(srcdir)/xasprintf.c $(OUTPUT_OPTION)
 
 ./xatexit.$(objext): $(srcdir)/xatexit.c config.h $(INCDIR)/ansidecl.h \
 	$(INCDIR)/libiberty.h
@@ -1655,3 +1710,12 @@ $(CONFIGURED_OFILES): stamp-picdir stamp-noasandir
 	else true; fi
 	$(COMPILE.c) $(srcdir)/xstrndup.c $(OUTPUT_OPTION)
 
+./xvasprintf.$(objext): $(srcdir)/xvasprintf.c config.h $(INCDIR)/ansidecl.h \
+	$(INCDIR)/libiberty.h $(srcdir)/vprintf-support.h
+	if [ x"$(PICFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(srcdir)/xvasprintf.c -o pic/$@; \
+	else true; fi
+	if [ x"$(NOASANFLAG)" != x ]; then \
+	  $(COMPILE.c) $(PICFLAG) $(NOASANFLAG) $(srcdir)/xvasprintf.c -o noasan/$@; \
+	else true; fi
+	$(COMPILE.c) $(srcdir)/xvasprintf.c $(OUTPUT_OPTION)

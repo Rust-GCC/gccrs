@@ -1,6 +1,6 @@
 // 2006-11-25  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -24,11 +24,11 @@
 // A few tests for equal_range, in the occasion of libstdc++/29385.
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using namespace std;
 
   map<int, int> m0;
   typedef map<int, int>::iterator iterator;
+  typedef map<int, int>::const_iterator const_iterator;
   typedef pair<iterator, bool> insert_return_type;
   pair<iterator, iterator> pp0;
   typedef map<int, int>::value_type value_type;
@@ -47,7 +47,7 @@ void test01()
   VERIFY( *pp0.first == value_type(2, 2) );
   VERIFY( *pp0.second == value_type(3, 3) );
   VERIFY( pp0.first == irt1.first );
-  VERIFY( --pp0.first == irt0.first );  
+  VERIFY( --pp0.first == irt0.first );
   VERIFY( pp0.second == irt2.first );
 
   m0.insert(value_type(3, 4));
@@ -59,7 +59,7 @@ void test01()
   VERIFY( *pp0.first == value_type(3, 3) );
   VERIFY( *pp0.second == value_type(4, 6) );
   VERIFY( pp0.first == irt2.first );
-  VERIFY( --pp0.first == irt1.first );  
+  VERIFY( --pp0.first == irt1.first );
   VERIFY( pp0.second == irt4.first );
 
   insert_return_type irt5 = m0.insert(value_type(0, 7));
@@ -72,7 +72,7 @@ void test01()
   VERIFY( *pp0.first == value_type(1, 1) );
   VERIFY( *pp0.second == value_type(2, 2) );
   VERIFY( pp0.first == irt0.first );
-  VERIFY( --pp0.first == irt5.first );  
+  VERIFY( --pp0.first == irt5.first );
   VERIFY( pp0.second == irt1.first );
 
   insert_return_type irt6 = m0.insert(value_type(5, 11));
@@ -83,7 +83,7 @@ void test01()
   VERIFY( m0.count(5) == 1 );
   VERIFY( *pp0.first == value_type(5, 11) );
   VERIFY( pp0.first == irt6.first );
-  VERIFY( --pp0.first == irt4.first );  
+  VERIFY( --pp0.first == irt4.first );
   VERIFY( pp0.second == m0.end() );
 
   m0.insert(value_type(4, 14));
@@ -91,11 +91,11 @@ void test01()
   m0.insert(value_type(4, 16));
 
   pp0 = m0.equal_range(4);
-  VERIFY( m0.count(4) == 1 );  
+  VERIFY( m0.count(4) == 1 );
   VERIFY( *pp0.first == value_type(4, 6) );
-  VERIFY( *pp0.second == value_type(5, 11) );  
+  VERIFY( *pp0.second == value_type(5, 11) );
   VERIFY( pp0.first == irt4.first );
-  VERIFY( --pp0.first == irt3.first );  
+  VERIFY( --pp0.first == irt3.first );
   VERIFY( pp0.second == irt6.first );
 
   m0.insert(value_type(0, 17));
@@ -103,20 +103,21 @@ void test01()
   m0.insert(value_type(1, 19));
 
   pp0 = m0.equal_range(0);
-  VERIFY( m0.count(0) == 1 );  
+  VERIFY( m0.count(0) == 1 );
   VERIFY( *pp0.first == value_type(0, 7) );
-  VERIFY( *pp0.second == value_type(1, 1) );  
+  VERIFY( *pp0.second == value_type(1, 1) );
   VERIFY( pp0.first == irt5.first );
   VERIFY( pp0.first == m0.begin() );
   VERIFY( pp0.second == irt0.first );
 
-  pp0 = m0.equal_range(1);
-  VERIFY( m0.count(1) == 1 );  
-  VERIFY( *pp0.first == value_type(1, 1) );
-  VERIFY( *pp0.second == value_type(2, 2) );  
-  VERIFY( pp0.first == irt0.first );
-  VERIFY( --pp0.first == irt7.first);
-  VERIFY( pp0.second == irt1.first );
+  const map<int, int>& m1 = m0;
+  pair<const_iterator, const_iterator> pp1 = m1.equal_range(1);
+  VERIFY( m1.count(1) == 1 );
+  VERIFY( *pp1.first == value_type(1, 1) );
+  VERIFY( *pp1.second == value_type(2, 2) );
+  VERIFY( pp1.first == irt0.first );
+  VERIFY( --pp1.first == irt7.first);
+  VERIFY( pp1.second == irt1.first );
 }
 
 int

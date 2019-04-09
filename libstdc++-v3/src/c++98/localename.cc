@@ -1,4 +1,4 @@
-// Copyright (C) 1997-2014 Free Software Foundation, Inc.
+// Copyright (C) 1997-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -20,6 +20,7 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#define _GLIBCXX_USE_CXX11_ABI 1
 #include <clocale>
 #include <cstring>
 #include <cstdlib>
@@ -35,7 +36,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   {
     if (__s)
       {
-	_S_initialize(); 
+	_S_initialize();
 	if (std::strcmp(__s, "C") == 0 || std::strcmp(__s, "POSIX") == 0)
 	  (_M_impl = _S_classic)->_M_add_reference();
 	else if (std::strcmp(__s, "") != 0)
@@ -47,7 +48,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    // If LC_ALL is set we are done.
 	    if (__env && std::strcmp(__env, "") != 0)
 	      {
-		if (std::strcmp(__env, "C") == 0 
+		if (std::strcmp(__env, "C") == 0
 		    || std::strcmp(__env, "POSIX") == 0)
 		  (_M_impl = _S_classic)->_M_add_reference();
 		else
@@ -58,13 +59,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		// LANG may set a default different from "C".
 		string __lang;
 		__env = std::getenv("LANG");
-		if (!__env || std::strcmp(__env, "") == 0 
-		    || std::strcmp(__env, "C") == 0 
+		if (!__env || std::strcmp(__env, "") == 0
+		    || std::strcmp(__env, "C") == 0
 		    || std::strcmp(__env, "POSIX") == 0)
 		  __lang = "C";
-		else 
+		else
 		  __lang = __env;
-		
+
 		// Scan the categories looking for the first one
 		// different from LANG.
 		size_t __i = 0;
@@ -72,8 +73,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		  for (; __i < _S_categories_size; ++__i)
 		    {
 		      __env = std::getenv(_S_categories[__i]);
-		      if (__env && std::strcmp(__env, "") != 0 
-			  && std::strcmp(__env, "C") != 0 
+		      if (__env && std::strcmp(__env, "") != 0
+			  && std::strcmp(__env, "C") != 0
 			  && std::strcmp(__env, "POSIX") != 0)
 			break;
 		    }
@@ -85,7 +86,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 			  && __lang != __env)
 			break;
 		    }
-	
+
 		// If one is found, build the complete string of
 		// the form LC_CTYPE=xxx;LC_NUMERIC=yyy; and so on...
 		if (__i < _S_categories_size)
@@ -142,7 +143,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   locale::locale(const locale& __base, const char* __s, category __cat)
   : _M_impl(0)
-  { 
+  {
     // NB: There are complicated, yet more efficient ways to do
     // this. Building up locales on a per-category way is tedious, so
     // let's do it this way until people complain.
@@ -155,25 +156,28 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   { _M_coalesce(__base, __add, __cat); }
 
   void
-  locale::_M_coalesce(const locale& __base, const locale& __add, 
+  locale::_M_coalesce(const locale& __base, const locale& __add,
 		      category __cat)
   {
-    __cat = _S_normalize_category(__cat);  
-    _M_impl = new _Impl(*__base._M_impl, 1);  
+    __cat = _S_normalize_category(__cat);
+    _M_impl = new _Impl(*__base._M_impl, 1);
 
-    __try 
+    __try
       { _M_impl->_M_replace_categories(__add._M_impl, __cat); }
-    __catch(...) 
-      { 
-	_M_impl->_M_remove_reference(); 
+    __catch(...)
+      {
+	_M_impl->_M_remove_reference();
 	__throw_exception_again;
       }
   }
 
+const int num_facets = _GLIBCXX_NUM_FACETS + _GLIBCXX_NUM_UNICODE_FACETS
+  + (_GLIBCXX_USE_DUAL_ABI ? _GLIBCXX_NUM_CXX11_FACETS : 0);
+
   // Construct named _Impl.
   locale::_Impl::
   _Impl(const char* __s, size_t __refs)
-  : _M_refcount(__refs), _M_facets(0), _M_facets_size(_GLIBCXX_NUM_FACETS),
+  : _M_refcount(__refs), _M_facets(0), _M_facets_size(num_facets),
     _M_caches(0), _M_names(0)
   {
     // Initialize the underlying locale model, which also checks to
@@ -184,15 +188,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     __try
       {
-	_M_facets = new const facet*[_M_facets_size];
-	for (size_t __i = 0; __i < _M_facets_size; ++__i)
-	  _M_facets[__i] = 0;
-	_M_caches = new const facet*[_M_facets_size];
-	for (size_t __j = 0; __j < _M_facets_size; ++__j)
-	  _M_caches[__j] = 0;
-	_M_names = new char*[_S_categories_size];
-	for (size_t __k = 0; __k < _S_categories_size; ++__k)
-	  _M_names[__k] = 0;
+	_M_facets = new const facet*[_M_facets_size]();
+	_M_caches = new const facet*[_M_facets_size]();
+	_M_names = new char*[_S_categories_size]();
 
 	// Name the categories.
 	const char* __smon = __s;
@@ -237,7 +235,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 							      __smon);
 	      }
 	  }
- 
+
 	// Construct all standard facets and add them to _M_facets.
 	_M_init_facet(new std::ctype<char>(__cloc, 0, false));
 	_M_init_facet(new codecvt<char, char, mbstate_t>(__cloc));
@@ -253,7 +251,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_M_init_facet(new time_get<char>);
 	_M_init_facet(new time_put<char>);
 	_M_init_facet(new std::messages<char>(__cloc, __s));
-	
+
 #ifdef  _GLIBCXX_USE_WCHAR_T
 	_M_init_facet(new std::ctype<wchar_t>(__cloc));
 	_M_init_facet(new codecvt<wchar_t, char, mbstate_t>(__cloc));
@@ -269,7 +267,23 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_M_init_facet(new time_get<wchar_t>);
 	_M_init_facet(new time_put<wchar_t>);
 	_M_init_facet(new std::messages<wchar_t>(__cloc, __s));
-#endif	  
+#endif
+
+#if _GLIBCXX_NUM_UNICODE_FACETS != 0
+        _M_init_facet(new codecvt<char16_t, char, mbstate_t>);
+        _M_init_facet(new codecvt<char32_t, char, mbstate_t>);
+
+#ifdef _GLIBCXX_USE_CHAR8_T
+        _M_init_facet(new codecvt<char16_t, char8_t, mbstate_t>);
+        _M_init_facet(new codecvt<char32_t, char8_t, mbstate_t>);
+#endif
+
+#endif
+
+#if _GLIBCXX_USE_DUAL_ABI
+        _M_init_extra(&__cloc, &__clocm, __s, __smon);
+#endif
+
 	locale::facet::_S_destroy_c_locale(__cloc);
 	if (__clocm != __cloc)
 	  locale::facet::_S_destroy_c_locale(__clocm);
@@ -281,7 +295,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  locale::facet::_S_destroy_c_locale(__clocm);
 	this->~_Impl();
 	__throw_exception_again;
-      }	
+      }
   }
 
   void

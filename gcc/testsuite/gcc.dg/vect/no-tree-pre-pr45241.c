@@ -1,6 +1,5 @@
 /* PR tree-optimization/45241 */
 /* { dg-do compile } */
-/* { dg-options "-ftree-vectorize" } */
 
 int
 foo (short x)
@@ -17,4 +16,3 @@ foo (short x)
   return sum;
 }
 
-/* { dg-final { cleanup-tree-dump "vect" } } */

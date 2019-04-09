@@ -1,7 +1,6 @@
-// { dg-options "-std=gnu++0x" }
-// { dg-require-cstdint "" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,7 +24,6 @@
 // libstdc++/47913
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using namespace std;
 
   const intmax_t m1 = (intmax_t)1 << (4 * sizeof(intmax_t) - 1);

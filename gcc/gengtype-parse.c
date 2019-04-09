@@ -1,5 +1,5 @@
 /* Process source files and output type information.
-   Copyright (C) 2006-2014 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -17,10 +17,11 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
-#ifdef GENERATOR_FILE
-#include "bconfig.h"
-#else
+#ifdef HOST_GENERATOR_FILE
 #include "config.h"
+#define GENERATOR_FILE 1
+#else
+#include "bconfig.h"
 #endif
 #include "system.h"
 #include "gengtype.h"
@@ -273,15 +274,11 @@ require_template_declaration (const char *tmpl_name)
 	  str = concat (str, "enum ", (char *) 0);
 	  continue;
 	}
-      if (token () == NUM)
+      if (token () == NUM
+	  || token () == ':'
+	  || token () == '+')
 	{
 	  str = concat (str, advance (), (char *) 0);
-	  continue;
-	}
-      if (token () == ':')
-	{
-	  advance ();
-	  str = concat (str, ":", (char *) 0);
 	  continue;
 	}
       if (token () == '<')
@@ -537,7 +534,6 @@ nestedptr_optvalue (options_p prev)
 /* One GTY(()) option:
    ID str_optvalue_opt
    | PTR_ALIAS type_optvalue
-   | PARAM_IS type_optvalue
    | NESTED_PTR nestedptr_optvalue
 */
 static options_p
@@ -551,9 +547,6 @@ option (options_p prev)
     case PTR_ALIAS:
       advance ();
       return type_optvalue (prev, "ptr_alias");
-
-    case PARAM_IS:
-      return type_optvalue (prev, advance ());
 
     case NESTED_PTR:
       advance ();
@@ -955,9 +948,9 @@ type (options_p *optsp, bool nested)
 		advance ();
 		const char *basename = require (ID);
 		/* This may be either an access specifier, or the base name.  */
-		if (0 == strcmp (basename, "public")
-		    || 0 == strcmp (basename, "protected")
-		    || 0 == strcmp (basename, "private"))
+		if (strcmp (basename, "public") == 0
+		    || strcmp (basename, "protected") == 0
+		    || strcmp (basename, "private") == 0)
 		  basename = require (ID);
 		base_class = find_structure (basename, TYPE_STRUCT);
 		if (!base_class)

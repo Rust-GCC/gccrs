@@ -1,5 +1,5 @@
 /* Implementation of the CHDIR intrinsic.
-   Copyright (C) 2005-2014 Free Software Foundation, Inc.
+   Copyright (C) 2005-2019 Free Software Foundation, Inc.
    Contributed by François-Xavier Coudert <coudert@clipper.ens.fr>
 
 This file is part of the GNU Fortran 95 runtime library (libgfortran).
@@ -26,7 +26,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "libgfortran.h"
 
 #include <errno.h>
-#include <string.h>
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -44,18 +43,10 @@ void
 chdir_i4_sub (char *dir, GFC_INTEGER_4 *status, gfc_charlen_type dir_len)
 {
   int val;
-  char *str;
-
-  /* Trim trailing spaces from paths.  */
-  while (dir_len > 0 && dir[dir_len - 1] == ' ')
-    dir_len--;
-
-  /* Make a null terminated copy of the strings.  */
-  str = gfc_alloca (dir_len + 1);
-  memcpy (str, dir, dir_len);
-  str[dir_len] = '\0';
+  char *str = fc_strdup (dir, dir_len);
 
   val = chdir (str);
+  free (str);
 
   if (status != NULL)
     *status = (val == 0) ? 0 : errno;
@@ -69,18 +60,10 @@ void
 chdir_i8_sub (char *dir, GFC_INTEGER_8 *status, gfc_charlen_type dir_len)
 {
   int val;
-  char *str;
-
-  /* Trim trailing spaces from paths.  */
-  while (dir_len > 0 && dir[dir_len - 1] == ' ')
-    dir_len--;
-
-  /* Make a null terminated copy of the strings.  */
-  str = gfc_alloca (dir_len + 1);
-  memcpy (str, dir, dir_len);
-  str[dir_len] = '\0';
+  char *str = fc_strdup (dir, dir_len);
 
   val = chdir (str);
+  free (str);
 
   if (status != NULL)
     *status = (val == 0) ? 0 : errno;

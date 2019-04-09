@@ -1,5 +1,5 @@
 /* Language independent return value optimizations
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,26 +20,15 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "backend.h"
 #include "tree.h"
-#include "function.h"
-#include "basic-block.h"
-#include "tree-pretty-print.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "is-a.h"
 #include "gimple.h"
+#include "tree-pass.h"
+#include "ssa.h"
+#include "tree-pretty-print.h"
 #include "gimple-iterator.h"
 #include "gimple-walk.h"
-#include "gimple-ssa.h"
-#include "stringpool.h"
-#include "tree-ssanames.h"
-#include "tree-pass.h"
-#include "langhooks.h"
-#include "flags.h"	/* For "optimize" in gate_pass_return_slot.
-			   FIXME: That should be up to the pass manager,
-			   but pass_nrv is not in pass_all_optimizations.  */
+#include "internal-fn.h"
 
 /* This file implements return value optimizations for functions which
    return aggregate types.
@@ -177,15 +166,15 @@ pass_nrv::execute (function *fun)
     {
       for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
-	  gimple stmt = gsi_stmt (gsi);
+	  gimple *stmt = gsi_stmt (gsi);
 	  tree ret_val;
 
-	  if (gimple_code (stmt) == GIMPLE_RETURN)
+	  if (greturn *return_stmt = dyn_cast <greturn *> (stmt))
 	    {
 	      /* In a function with an aggregate return value, the
 		 gimplifier has changed all non-empty RETURN_EXPRs to
 		 return the RESULT_DECL.  */
-	      ret_val = gimple_return_retval (stmt);
+	      ret_val = gimple_return_retval (return_stmt);
 	      if (ret_val)
 		gcc_assert (ret_val == result);
 	    }
@@ -204,7 +193,7 @@ pass_nrv::execute (function *fun)
 	      if (found != NULL)
 		{
 		  /* If we found a return statement using a different variable
-		     than previous return statements, then we can not perform
+		     than previous return statements, then we cannot perform
 		     NRV optimizations.  */
 		  if (found != rhs)
 		    return 0;
@@ -214,7 +203,7 @@ pass_nrv::execute (function *fun)
 
 	      /* The returned value must be a local automatic variable of the
 		 same type and alignment as the function's result.  */
-	      if (TREE_CODE (found) != VAR_DECL
+	      if (!VAR_P (found)
 		  || TREE_THIS_VOLATILE (found)
 		  || !auto_var_in_fn_p (found, current_function_decl)
 		  || TREE_ADDRESSABLE (found)
@@ -270,7 +259,7 @@ pass_nrv::execute (function *fun)
     {
       for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); )
 	{
-	  gimple stmt = gsi_stmt (gsi);
+	  gimple *stmt = gsi_stmt (gsi);
 	  /* If this is a copy from VAR to RESULT, remove it.  */
 	  if (gimple_assign_copy_p (stmt)
 	      && gimple_assign_lhs (stmt) == result
@@ -315,7 +304,7 @@ make_pass_nrv (gcc::context *ctxt)
    DEST is available if it is not clobbered or used by the call.  */
 
 static bool
-dest_safe_for_nrv_p (gimple call)
+dest_safe_for_nrv_p (gcall *call)
 {
   tree dest = gimple_call_lhs (call);
 
@@ -382,12 +371,19 @@ pass_return_slot::execute (function *fun)
       gimple_stmt_iterator gsi;
       for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
-	  gimple stmt = gsi_stmt (gsi);
+	  gcall *stmt;
 	  bool slot_opt_p;
 
-	  if (is_gimple_call (stmt)
+	  stmt = dyn_cast <gcall *> (gsi_stmt (gsi));
+	  if (stmt
 	      && gimple_call_lhs (stmt)
 	      && !gimple_call_return_slot_opt_p (stmt)
+	      /* Ignore internal functions without direct optabs,
+		 those are expanded specially and aggregate_value_p
+		 on their result might result in undesirable warnings
+		 with some backends.  */
+	      && (!gimple_call_internal_p (stmt)
+		  || direct_internal_fn_p (gimple_call_internal_fn (stmt)))
 	      && aggregate_value_p (TREE_TYPE (gimple_call_lhs (stmt)),
 				    gimple_call_fndecl (stmt)))
 	    {

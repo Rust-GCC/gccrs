@@ -1,7 +1,8 @@
-/* Copyright (C) 2005-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
-   This file is part of the GNU OpenMP Library (libgomp).
+   This file is part of the GNU Offloading and Multi Processing Library
+   (libgomp).
 
    Libgomp is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by
@@ -30,8 +31,9 @@
    to do better and streamline the locking as well as reduce the size
    of the types exported.  */
 
-/* We need Unix98 extensions to get recursive locks.  */
-#define _XOPEN_SOURCE 500
+/* We need UNIX98/XPG5 extensions to get recursive locks.  Request XPG6 since
+   Solaris requires this for C99 and later.  */
+#define _XOPEN_SOURCE 600
 
 #include "libgomp.h"
 

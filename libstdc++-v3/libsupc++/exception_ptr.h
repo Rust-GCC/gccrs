@@ -1,6 +1,6 @@
 // Exception Handling support header (exception_ptr class) for -*- C++ -*-
 
-// Copyright (C) 2008-2014 Free Software Foundation, Inc.
+// Copyright (C) 2008-2019 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -35,10 +35,9 @@
 
 #include <bits/c++config.h>
 #include <bits/exception_defines.h>
-
-#if ATOMIC_INT_LOCK_FREE < 2
-#  error This platform does not support exception propagation.
-#endif
+#include <bits/cxxabi_init_exception.h>
+#include <typeinfo>
+#include <new>
 
 extern "C++" {
 
@@ -63,11 +62,16 @@ namespace std
    */
   exception_ptr current_exception() _GLIBCXX_USE_NOEXCEPT;
 
+  template<typename _Ex>
+  exception_ptr make_exception_ptr(_Ex) _GLIBCXX_USE_NOEXCEPT;
+
   /// Throw the object pointed to by the exception_ptr.
   void rethrow_exception(exception_ptr) __attribute__ ((__noreturn__));
 
   namespace __exception_ptr
   {
+    using std::rethrow_exception;
+
     /**
      *  @brief An opaque pointer to an arbitrary exception.
      *  @ingroup exceptions
@@ -85,6 +89,8 @@ namespace std
 
       friend exception_ptr std::current_exception() _GLIBCXX_USE_NOEXCEPT;
       friend void std::rethrow_exception(exception_ptr);
+      template<typename _Ex>
+      friend exception_ptr std::make_exception_ptr(_Ex) _GLIBCXX_USE_NOEXCEPT;
 
     public:
       exception_ptr() _GLIBCXX_USE_NOEXCEPT;
@@ -160,38 +166,46 @@ namespace std
     swap(exception_ptr& __lhs, exception_ptr& __rhs)
     { __lhs.swap(__rhs); }
 
-  } // namespace __exception_ptr
+    template<typename _Ex>
+      inline void
+      __dest_thunk(void* __x)
+      { static_cast<_Ex*>(__x)->~_Ex(); }
 
+  } // namespace __exception_ptr
 
   /// Obtain an exception_ptr pointing to a copy of the supplied object.
   template<typename _Ex>
     exception_ptr 
     make_exception_ptr(_Ex __ex) _GLIBCXX_USE_NOEXCEPT
     {
-      __try
+#if __cpp_exceptions && __cpp_rtti && !_GLIBCXX_HAVE_CDTOR_CALLABI
+      void* __e = __cxxabiv1::__cxa_allocate_exception(sizeof(_Ex));
+      (void) __cxxabiv1::__cxa_init_primary_exception(
+	  __e, const_cast<std::type_info*>(&typeid(__ex)),
+	  __exception_ptr::__dest_thunk<_Ex>);
+      try
 	{
-#ifdef __EXCEPTIONS
-	  throw __ex;
-#endif
+          ::new (__e) _Ex(__ex);
+          return exception_ptr(__e);
 	}
-      __catch(...)
+      catch(...)
+	{
+	  __cxxabiv1::__cxa_free_exception(__e);
+	  return current_exception();
+	}
+#elif __cpp_exceptions
+      try
+	{
+          throw __ex;
+	}
+      catch(...)
 	{
 	  return current_exception();
 	}
+#else // no RTTI and no exceptions
+      return exception_ptr();
+#endif
     }
-
-  // _GLIBCXX_RESOLVE_LIB_DEFECTS
-  // 1130. copy_exception name misleading
-  /// Obtain an exception_ptr pointing to a copy of the supplied object.
-  /// This function is deprecated, use std::make_exception_ptr instead.
-  template<typename _Ex>
-    exception_ptr
-    copy_exception(_Ex __ex) _GLIBCXX_USE_NOEXCEPT _GLIBCXX_DEPRECATED;
-
-  template<typename _Ex>
-    exception_ptr
-    copy_exception(_Ex __ex) _GLIBCXX_USE_NOEXCEPT
-    { return std::make_exception_ptr<_Ex>(__ex); }
 
   // @} group exceptions
 } // namespace std

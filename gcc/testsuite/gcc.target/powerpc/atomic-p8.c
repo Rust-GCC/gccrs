@@ -1,7 +1,7 @@
 /* { dg-do compile { target { powerpc*-*-* && lp64 } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
 /* { dg-require-effective-target powerpc_p8vector_ok } */
-/* { dg-options "-mcpu=power8 -O2" } */
+/* { dg-options "-mdejagnu-cpu=power8 -O2" } */
 /* { dg-final { scan-assembler-times "lbarx" 7 } } */
 /* { dg-final { scan-assembler-times "lharx" 7 } } */
 /* { dg-final { scan-assembler-times "lwarx" 7 } } */
@@ -13,7 +13,9 @@
 /* { dg-final { scan-assembler-times "stdcx" 7 } } */
 /* { dg-final { scan-assembler-times "stqcx" 7 } } */
 /* { dg-final { scan-assembler-not "bl __atomic" } } */
-/* { dg-final { scan-assembler-times "isync" 20 } } */
+/* As since PR59448 GCC promotes consume to acquire, the expected isync count
+   is 25 rather than 20.  */
+/* { dg-final { scan-assembler-times "isync" 25 } } */
 /* { dg-final { scan-assembler-times "lwsync" 10 } } */
 /* { dg-final { scan-assembler-not "mtvsrd" } } */
 /* { dg-final { scan-assembler-not "mtvsrwa" } } */

@@ -1,4 +1,4 @@
-##  Copyright (C) 2012-2014 Free Software Foundation, Inc.
+##  Copyright (C) 2012-2019 Free Software Foundation, Inc.
 ##  Contributed by Richard Henderson <rth@redhat.com>.
 ##
 ##  This file is part of the GNU Atomic Library (libatomic).
@@ -26,7 +26,7 @@ ACLOCAL_AMFLAGS = -I .. -I ../config
 SUBDIRS = testsuite
 
 ## May be used by toolexeclibdir.
-gcc_version := $(shell cat $(top_srcdir)/../gcc/BASE-VER)
+gcc_version := $(shell @get_gcc_base_ver@ $(top_srcdir)/../gcc/BASE-VER)
 
 config_path= @config_path@
 search_path = $(addprefix $(top_srcdir)/config/, $(config_path)) \
@@ -68,7 +68,7 @@ libatomic_version_info = -version-info $(libtool_VERSION)
 
 libatomic_la_LDFLAGS = $(libatomic_version_info) $(libatomic_version_script) $(lt_host_flags)
 libatomic_la_SOURCES = gload.c gstore.c gcas.c gexch.c glfree.c lock.c init.c \
-	fenv.c
+	fenv.c fence.c flag.c
 
 SIZEOBJS = load store cas exch fadd fsub fand fior fxor fnand tas
 SIZES = @SIZES@
@@ -122,8 +122,12 @@ libatomic_la_LIBADD = $(foreach s,$(SIZES),$(addsuffix _$(s)_.lo,$(SIZEOBJS)))
 
 ## On a target-specific basis, include alternates to be selected by IFUNC.
 if HAVE_IFUNC
+if ARCH_AARCH64_LINUX
+IFUNC_OPTIONS	     = -march=armv8-a+lse
+libatomic_la_LIBADD += $(foreach s,$(SIZES),$(addsuffix _$(s)_1_.lo,$(SIZEOBJS)))
+endif
 if ARCH_ARM_LINUX
-IFUNC_OPTIONS	     = -march=armv7-a -DHAVE_KERNEL64
+IFUNC_OPTIONS	     = -march=armv7-a+fp -DHAVE_KERNEL64
 libatomic_la_LIBADD += $(foreach s,$(SIZES),$(addsuffix _$(s)_1_.lo,$(SIZEOBJS)))
 libatomic_la_LIBADD += $(addsuffix _8_2_.lo,$(SIZEOBJS))
 endif
@@ -139,3 +143,12 @@ endif
 
 libatomic_convenience_la_SOURCES = $(libatomic_la_SOURCES)
 libatomic_convenience_la_LIBADD = $(libatomic_la_LIBADD)
+
+# Override the automake generated all-multi rule to guarantee that all-multi
+# is not run in parallel with the %_.lo rules which generate $(DEPDIR)/*.Ppo
+# makefile fragments to avoid broken *.Ppo getting included into the Makefile
+# when it is reloaded during the build of all-multi.
+all-multi: $(libatomic_la_LIBADD)
+	$(MULTIDO) $(AM_MAKEFLAGS) DO=all multi-do # $(MAKE)
+
+include $(top_srcdir)/../multilib.am

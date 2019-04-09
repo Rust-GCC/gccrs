@@ -1,5 +1,5 @@
 /* Definitions for GCC.  Part of the machine description for CRIS.
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2019 Free Software Foundation, Inc.
    Contributed by Axis Communications.  Written by Hans-Peter Nilsson.
 
 This file is part of GCC.
@@ -79,13 +79,13 @@ along with GCC; see the file COPYING3.  If not see
  "--em=criself \
   %{!march=*:%{!mcpu=*:--march=v32}} \
   %{!fleading-underscore:--no-underscore}\
-  %{fPIC|fpic|fPIE|fpie: --pic}"
+  %{" FPIE_OR_FPIC_SPEC ": --pic}"
 #else
 # define CRIS_ASM_SUBTARGET_SPEC \
  "--em=criself \
   %{!march=*:%{!mcpu=*:--march=v10}} \
   %{!fleading-underscore:--no-underscore}\
-  %{fPIC|fpic|fPIE|fpie: --pic}"
+  %{" FPIE_OR_FPIC_SPEC ": --pic}"
 #endif
 
 /* Previously controlled by target_flags.  */

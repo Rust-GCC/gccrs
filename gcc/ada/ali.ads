@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -42,32 +42,28 @@ package ALI is
    -- Id Types --
    --------------
 
-   --  The various entries are stored in tables with distinct subscript ranges.
-   --  The following type definitions show the ranges used for the subscripts
-   --  (Id values) for the various tables.
-
-   type ALI_Id is range 0 .. 999_999;
+   type ALI_Id is range 0 .. 99_999_999;
    --  Id values used for ALIs table entries
 
-   type Unit_Id is range 1_000_000 .. 1_999_999;
+   type Unit_Id is range 0 .. 99_999_999;
    --  Id values used for Unit table entries
 
-   type With_Id is range 2_000_000 .. 2_999_999;
+   type With_Id is range 0 .. 99_999_999;
    --  Id values used for Withs table entries
 
-   type Arg_Id is range 3_000_000 .. 3_999_999;
+   type Arg_Id is range 0 .. 99_999_999;
    --  Id values used for argument table entries
 
-   type Sdep_Id is range 4_000_000 .. 4_999_999;
+   type Sdep_Id is range 0 .. 99_999_999;
    --  Id values used for Sdep table entries
 
-   type Source_Id is range 5_000_000 .. 5_999_999;
+   type Source_Id is range 0 .. 99_999_999;
    --  Id values used for Source table entries
 
-   type Interrupt_State_Id is range 6_000_000 .. 6_999_999;
+   type Interrupt_State_Id is range 0 .. 99_999_999;
    --  Id values used for Interrupt_State table entries
 
-   type Priority_Specific_Dispatching_Id is range 7_000_000 .. 7_999_999;
+   type Priority_Specific_Dispatching_Id is range 0 .. 99_999_999;
    --  Id values used for Priority_Specific_Dispatching table entries
 
    --------------------
@@ -86,7 +82,6 @@ package ALI is
    --  Indicator of whether unit can be used as main program
 
    type ALIs_Record is record
-
       Afile : File_Name_Type;
       --  Name of ALI file
 
@@ -176,6 +171,16 @@ package ALI is
       --  always be set as well in this case. Not set if 'P' appears in
       --  Ignore_Lines.
 
+      GNATprove_Mode : Boolean;
+      --  Set to True if ALI and object file produced in GNATprove_Mode as
+      --  signalled by GP appearing on the P line. Not set if 'P' appears in
+      --  Ignore_Lines.
+
+      No_Component_Reordering : Boolean;
+      --  Set to True if file was compiled with a configuration pragma file
+      --  containing pragma No_Component_Reordering.  Not set if 'P' appears
+      --  in Ignore_Lines.
+
       No_Object : Boolean;
       --  Set to True if no object file generated. Not set if 'P' appears in
       --  Ignore_Lines.
@@ -193,6 +198,10 @@ package ALI is
       Unit_Exception_Table : Boolean;
       --  Set to True if unit exception table pointer generated. Not set if 'P'
       --  appears in Ignore_Lines.
+
+      Frontend_Exceptions : Boolean;
+      --  Set to True if file was compiled with front-end exceptions. Not set
+      --  if 'P' appears in Ignore_Lines.
 
       Zero_Cost_Exceptions : Boolean;
       --  Set to True if file was compiled with zero cost exceptions. Not set
@@ -216,7 +225,6 @@ package ALI is
       --  Last_Specific_Dispatching = First_Specific_Dispatching - 1. That
       --  is why the 'Base reference is there, it can be one less than the
       --  lower bound of the subtype. Not set if 'S' appears in Ignore_Lines.
-
    end record;
 
    No_Main_Priority : constant Int := -1;
@@ -255,7 +263,6 @@ package ALI is
    --  Version string, taken from unit record
 
    type Unit_Record is record
-
       My_ALI : ALI_Id;
       --  Corresponding ALI entry
 
@@ -296,6 +303,10 @@ package ALI is
       Remote_Types : Boolean;
       --  Indicates presence of RT parameter for a package which has a
       --  pragma Remote_Types.
+
+      Serious_Errors : Boolean;
+      --  Indicates presence of SE parameter indicating that compilation of
+      --  the unit encountered as serious error.
 
       Shared_Passive : Boolean;
       --  Indicates presence of SP parameter for a package which has a pragma
@@ -347,7 +358,7 @@ package ALI is
       --  used for informational output, and also for constructing the main
       --  unit if it is being built in Ada.
 
-      Elab_Position : aliased Natural;
+      Elab_Position : Nat;
       --  Initialized to zero. Set non-zero when a unit is chosen and
       --  placed in the elaboration order. The value represents the
       --  ordinal position in the elaboration order.
@@ -374,11 +385,19 @@ package ALI is
       --  together as possible.
 
       Optimize_Alignment : Character;
-      --  Optimize_Alignment setting. Set to L/S/T/O for OL/OS/OT/OO present
+      --  Optimize_Alignment setting. Set to L/S/T/O for OL/OS/OT/OO present.
 
       Has_Finalizer : Boolean;
       --  Indicates whether a package body or a spec has a library-level
       --  finalization routine.
+
+      Primary_Stack_Count : Int;
+      --  Indicates the number of task objects declared in this unit that have
+      --  default sized primary stacks.
+
+      Sec_Stack_Count : Int;
+      --  Indicates the number of task objects declared in this unit that have
+      --  default sized secondary stacks.
    end record;
 
    package Units is new Table.Table (
@@ -465,6 +484,13 @@ package ALI is
    --  Set to False by Initialize_ALI. Set to True if Scan_ALI reads
    --  a unit for which dynamic elaboration checking is enabled.
 
+   Frontend_Exceptions_Specified : Boolean := False;
+   --  Set to False by Initialize_ALI. Set to True if an ali file is read that
+   --  has a P line specifying the generation of front-end exceptions.
+
+   GNATprove_Mode_Specified : Boolean := False;
+   --  Set to True if an ali file was produced in GNATprove mode.
+
    Initialize_Scalars_Used : Boolean := False;
    --  Set True if an ali file contains the Initialize_Scalars flag
 
@@ -475,6 +501,10 @@ package ALI is
    No_Normalize_Scalars_Specified : Boolean := False;
    --  Set to False by Initialize_ALI. Set to True if an ali file indicates
    --  that the file was compiled without normalize scalars.
+
+   No_Component_Reordering_Specified : Boolean := False;
+   --  Set to False by Initialize_ALI. Set to True if an ali file contains
+   --  the No_Component_Reordering flag.
 
    No_Object_Specified : Boolean := False;
    --  Set to False by Initialize_ALI. Set to True if an ali file contains
@@ -507,11 +537,6 @@ package ALI is
    --  Set to True if at least one ALI file contains '-fstack-check' in its
    --  argument list.
 
-   Static_Elaboration_Model_Used : Boolean := False;
-   --  Set to False by Initialize_ALI. Set to True if any ALI file for a
-   --  non-internal unit compiled with the static elaboration model is
-   --  encountered.
-
    Task_Dispatching_Policy_Specified : Character := ' ';
    --  Set to blank by Initialize_ALI. Set to the appropriate task dispatching
    --  policy character if an ali file contains a P line setting the
@@ -540,7 +565,6 @@ package ALI is
    --  Id of first actual entry in table
 
    type With_Record is record
-
       Uname : Unit_Name_Type;
       --  Name of Unit
 
@@ -559,17 +583,17 @@ package ALI is
       Elab_All_Desirable : Boolean;
       --  Indicates presence of AD parameter
 
-      Elab_Desirable     : Boolean;
+      Elab_Desirable : Boolean;
       --  Indicates presence of ED parameter
 
       SAL_Interface : Boolean := False;
       --  True if the Unit is an Interface of a Stand-Alone Library
 
-      Limited_With : Boolean := False;
-      --  True if unit is named in a limited_with_clause
+      Implicit_With : Boolean := False;
+      --  True if this is an implicit with generated by the compiler
 
-      Implicit_With_From_Instantiation : Boolean := False;
-      --  True if this is an implicit with from a generic instantiation
+      Limited_With : Boolean := False;
+      --  True if this is a limited_with_clause
    end record;
 
    package Withs is new Table.Table (
@@ -750,7 +774,6 @@ package ALI is
    --  successive ALI files are scanned.
 
    type Sdep_Record is record
-
       Sfile : File_Name_Type;
       --  Name of source file
 

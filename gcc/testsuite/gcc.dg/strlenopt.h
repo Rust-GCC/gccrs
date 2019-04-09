@@ -9,7 +9,9 @@ void *malloc (size_t);
 void free (void *);
 char *strdup (const char *);
 size_t strlen (const char *);
+size_t strnlen (const char *, size_t);
 void *memcpy (void *__restrict, const void *__restrict, size_t);
+void *memmove (void *, const void *, size_t);
 char *strcpy (char *__restrict, const char *__restrict);
 char *strcat (char *__restrict, const char *__restrict);
 char *strchr (const char *, int);
@@ -29,6 +31,12 @@ extern inline __attribute__((gnu_inline, always_inline, artificial)) void *
 memcpy (void *__restrict dest, const void *__restrict src, size_t len)
 {
   return __builtin___memcpy_chk (dest, src, len, bos0 (dest));
+}
+
+extern inline __attribute__((gnu_inline, always_inline, artificial)) void *
+memmove (void *dest, const void *src, size_t len)
+{
+  return __builtin___memmove_chk (dest, src, len, bos0 (dest));
 }
 
 extern inline __attribute__((gnu_inline, always_inline, artificial)) char *

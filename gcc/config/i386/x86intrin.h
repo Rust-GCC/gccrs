@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2008-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -26,21 +26,7 @@
 
 #include <ia32intrin.h>
 
-#include <mmintrin.h>
-
-#include <xmmintrin.h>
-
-#include <emmintrin.h>
-
-#include <pmmintrin.h>
-
-#include <tmmintrin.h>
-
-#include <ammintrin.h>
-
-#include <smmintrin.h>
-
-#include <wmmintrin.h>
+#ifndef __iamcu__
 
 /* For including AVX instructions */
 #include <immintrin.h>
@@ -53,32 +39,14 @@
 
 #include <lwpintrin.h>
 
-#include <bmiintrin.h>
-
-#include <bmi2intrin.h>
-
 #include <tbmintrin.h>
-
-#include <lzcntintrin.h>
 
 #include <popcntintrin.h>
 
-#include <rdseedintrin.h>
+#include <mwaitxintrin.h>
 
-#include <prfchwintrin.h>
+#include <clzerointrin.h>
 
-#include <fxsrintrin.h>
-
-#include <xsaveintrin.h>
-
-#include <xsaveoptintrin.h>
-
-#include <adxintrin.h>
-
-#include <clflushoptintrin.h>
-
-#include <xsavesintrin.h>
-
-#include <xsavecintrin.h>
+#endif /* __iamcu__ */
 
 #endif /* _X86INTRIN_H_INCLUDED */

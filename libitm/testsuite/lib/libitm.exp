@@ -28,19 +28,24 @@ load_lib dg.exp
 # loaded until ${tool}_target_compile is defined since it uses that
 # to determine default LTO options.
 
+load_gcc_lib multiline.exp
 load_gcc_lib prune.exp
 load_gcc_lib target-libpath.exp
 load_gcc_lib wrapper.exp
+load_gcc_lib target-supports.exp
+load_gcc_lib target-utils.exp
 load_gcc_lib gcc-defs.exp
 load_gcc_lib timeout.exp
-load_gcc_lib target-supports.exp
 load_gcc_lib file-format.exp
 load_gcc_lib target-supports-dg.exp
 load_gcc_lib scanasm.exp
 load_gcc_lib scandump.exp
+load_gcc_lib scanlang.exp
 load_gcc_lib scanrtl.exp
 load_gcc_lib scantree.exp
+load_gcc_lib scanltranstree.exp
 load_gcc_lib scanipa.exp
+load_gcc_lib scanwpaipa.exp
 load_gcc_lib timeout-dg.exp
 load_gcc_lib torture-options.exp
 load_gcc_lib fortran-modules.exp

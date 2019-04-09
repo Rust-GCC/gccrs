@@ -1,6 +1,6 @@
 // <tr1/shared_ptr.h> -*- C++ -*-
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -51,10 +51,10 @@
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
-namespace tr1
-{
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
+namespace tr1
+{
  /**
    *  @brief  Exception possibly thrown by @c shared_ptr.
    *  @ingroup exceptions
@@ -145,8 +145,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    // See http://gcc.gnu.org/ml/libstdc++/2005-11/msg00136.html
 	    if (_Mutex_base<_Lp>::_S_need_barriers)
 	      {
-	        _GLIBCXX_READ_MEM_BARRIER;
-	        _GLIBCXX_WRITE_MEM_BARRIER;
+		__atomic_thread_fence (__ATOMIC_ACQ_REL);
 	      }
 
             // Be race-detector-friendly.  For more info see bits/c++config.
@@ -176,8 +175,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      {
 	        // See _M_release(),
 	        // destroy() must observe results of dispose()
-	        _GLIBCXX_READ_MEM_BARRIER;
-	        _GLIBCXX_WRITE_MEM_BARRIER;
+		__atomic_thread_fence (__ATOMIC_ACQ_REL);
 	      }
 	    _M_destroy();
 	  }
@@ -259,7 +257,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       virtual void*
       _M_get_deleter(const std::type_info& __ti)
       {
-#ifdef __GXX_RTTI
+#if __cpp_rtti
         return __ti == typeid(_Deleter) ? &_M_del : 0;
 #else
         return 0;
@@ -788,7 +786,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     inline _Del*
     get_deleter(const __shared_ptr<_Tp, _Lp>& __p)
     {
-#ifdef __GXX_RTTI
+#if __cpp_rtti
       return static_cast<_Del*>(__p._M_get_deleter(typeid(_Del)));
 #else
       return 0;
@@ -1164,9 +1162,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       mutable weak_ptr<_Tp>  _M_weak_this;
     };
+}
 
 _GLIBCXX_END_NAMESPACE_VERSION
-}
 }
 
 #endif // _TR1_SHARED_PTR_H

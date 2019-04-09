@@ -1,6 +1,6 @@
 /* This file contains the definitions of the GIMPLE IR tuples used in GCC.
 
-   Copyright (C) 2007-2014 Free Software Foundation, Inc.
+   Copyright (C) 2007-2019 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>
 
 This file is part of GCC.
@@ -243,6 +243,9 @@ DEFGSCODE(GIMPLE_OMP_CRITICAL, "gimple_omp_critical", GSS_OMP_CRITICAL)
    for (INDEX = INITIAL; INDEX COND FINAL; INDEX {+=,-=} INCR)
    BODY
 
+   Likewise for:
+   #pragma acc loop [clause1 ... clauseN]
+
    BODY is the loop body.
 
    CLAUSES is the list of clauses.
@@ -269,20 +272,17 @@ DEFGSCODE(GIMPLE_OMP_CRITICAL, "gimple_omp_critical", GSS_OMP_CRITICAL)
    INITIAL, FINAL and INCR are required to be loop invariant integer
    expressions that are evaluated without any synchronization.
    The evaluation order, frequency of evaluation and side-effects are
-   unspecified by the standard.  */
+   unspecified by the standards.  */
 DEFGSCODE(GIMPLE_OMP_FOR, "gimple_omp_for", GSS_OMP_FOR)
 
 /* GIMPLE_OMP_MASTER <BODY> represents #pragma omp master.
    BODY is the sequence of statements to execute in the master section.  */
 DEFGSCODE(GIMPLE_OMP_MASTER, "gimple_omp_master", GSS_OMP)
 
-/* GIMPLE_OMP_TASKGROUP <BODY> represents #pragma omp taskgroup.
-   BODY is the sequence of statements to execute in the taskgroup section.  */
-DEFGSCODE(GIMPLE_OMP_TASKGROUP, "gimple_omp_taskgroup", GSS_OMP)
-
-/* GIMPLE_OMP_ORDERED <BODY> represents #pragma omp ordered.
-   BODY is the sequence of statements to execute in the ordered section.  */
-DEFGSCODE(GIMPLE_OMP_ORDERED, "gimple_omp_ordered", GSS_OMP)
+/* GIMPLE_OMP_TASKGROUP <BODY, CLAUSES> represents #pragma omp taskgroup.
+   BODY is the sequence of statements inside the taskgroup section.
+   CLAUSES is an OMP_CLAUSE chain holding the associated clauses.  */
+DEFGSCODE(GIMPLE_OMP_TASKGROUP, "gimple_omp_taskgroup", GSS_OMP_SINGLE_LAYOUT)
 
 /* GIMPLE_OMP_PARALLEL <BODY, CLAUSES, CHILD_FN, DATA_ARG> represents
 
@@ -354,11 +354,12 @@ DEFGSCODE(GIMPLE_OMP_SECTIONS_SWITCH, "gimple_omp_sections_switch", GSS_BASE)
 DEFGSCODE(GIMPLE_OMP_SINGLE, "gimple_omp_single", GSS_OMP_SINGLE_LAYOUT)
 
 /* GIMPLE_OMP_TARGET <BODY, CLAUSES, CHILD_FN> represents
+   #pragma acc {kernels,parallel,data,enter data,exit data,update}
    #pragma omp target {,data,update}
-   BODY is the sequence of statements inside the target construct
-   (NULL for target update).
+   BODY is the sequence of statements inside the construct
+   (NULL for some variants).
    CLAUSES is an OMP_CLAUSE chain holding the associated clauses.
-   CHILD_FN is set when outlining the body of the target region.
+   CHILD_FN is set when outlining the body of the offloaded region.
    All the statements in BODY are moved into this newly created
    function when converting OMP constructs into low-GIMPLE.
    DATA_ARG is a vec of 3 local variables in the parent function
@@ -366,10 +367,21 @@ DEFGSCODE(GIMPLE_OMP_SINGLE, "gimple_omp_single", GSS_OMP_SINGLE_LAYOUT)
    implement the MAP clauses.  */
 DEFGSCODE(GIMPLE_OMP_TARGET, "gimple_omp_target", GSS_OMP_PARALLEL_LAYOUT)
 
-/* GIMPLE_OMP_TEAMS <BODY, CLAUSES> represents #pragma omp teams
+/* GIMPLE_OMP_TEAMS <BODY, CLAUSES, CHILD_FN, DATA_ARG> represents
+   #pragma omp teams
    BODY is the sequence of statements inside the single section.
+   CLAUSES is an OMP_CLAUSE chain holding the associated clauses.
+   CHILD_FN and DATA_ARG like for GIMPLE_OMP_PARALLEL.  */
+DEFGSCODE(GIMPLE_OMP_TEAMS, "gimple_omp_teams", GSS_OMP_PARALLEL_LAYOUT)
+
+/* GIMPLE_OMP_ORDERED <BODY, CLAUSES> represents #pragma omp ordered.
+   BODY is the sequence of statements to execute in the ordered section.
    CLAUSES is an OMP_CLAUSE chain holding the associated clauses.  */
-DEFGSCODE(GIMPLE_OMP_TEAMS, "gimple_omp_teams", GSS_OMP_SINGLE_LAYOUT)
+DEFGSCODE(GIMPLE_OMP_ORDERED, "gimple_omp_ordered", GSS_OMP_SINGLE_LAYOUT)
+
+/* GIMPLE_OMP_GRID_BODY <BODY> represents a parallel loop lowered for execution
+   on a GPU.  It is an artificial statement created by omp lowering.  */
+DEFGSCODE(GIMPLE_OMP_GRID_BODY, "gimple_omp_gpukernel", GSS_OMP)
 
 /* GIMPLE_PREDICT <PREDICT, OUTCOME> specifies a hint for branch prediction.
 

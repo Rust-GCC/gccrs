@@ -1,5 +1,5 @@
 -- { dg-do compile { target i?86-*-* x86_64-*-* } }
--- { dg-options "-O3 -msse2 -fdump-tree-vect-details" }
+-- { dg-options "-O3 -msse2 -fno-vect-cost-model -fdump-tree-vect-details" }
 
 package body Vect6 is
 
@@ -125,4 +125,3 @@ package body Vect6 is
 end Vect6;
 
 -- { dg-final { scan-tree-dump-times "vectorized 1 loops" 15 "vect"  } }
--- { dg-final { cleanup-tree-dump "vect" } }

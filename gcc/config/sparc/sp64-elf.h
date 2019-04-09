@@ -1,5 +1,5 @@
 /* Definitions of target machine for GCC, for SPARC64, ELF.
-   Copyright (C) 1994-2014 Free Software Foundation, Inc.
+   Copyright (C) 1994-2019 Free Software Foundation, Inc.
    Contributed by Doug Evans, dje@cygnus.com.
 
 This file is part of GCC.
@@ -27,12 +27,9 @@ along with GCC; see the file COPYING3.  If not see
 #undef SPARC_DEFAULT_CMODEL
 #define SPARC_DEFAULT_CMODEL CM_EMBMEDANY
 
-/* Don't assume anything about the header files.  */
-#define NO_IMPLICIT_EXTERN_C
-
 #undef ASM_SPEC
 #define ASM_SPEC "\
--s %{fpic|fPIC|fpie|fPIE:-K PIC} \
+-s %{" FPIE_OR_FPIC_SPEC ":-K PIC} \
 %(asm_cpu) %(asm_arch) \
 "
 

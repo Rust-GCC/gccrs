@@ -25,9 +25,12 @@
 
 // With old kernels (and even new kernels on powerpc) asm/stat.h uses types that
 // are not defined anywhere in userspace headers. Fake them. This seems to work
-// fine with newer headers, too.
-#include <asm/posix_types.h>
-#if defined(__x86_64__) ||  defined(__mips__)
+// fine with newer headers, too.  Beware that with <sys/stat.h>, struct stat
+// takes the form of struct stat64 on 32-bit platforms if _FILE_OFFSET_BITS=64.
+// Also, for some platforms (e.g. mips) there are additional members in the
+// <sys/stat.h> struct stat:s.
+#include <linux/posix_types.h>
+#if defined(__x86_64__)
 #include <sys/stat.h>
 #else
 #define ino_t __kernel_ino_t
@@ -36,6 +39,7 @@
 #define uid_t __kernel_uid_t
 #define gid_t __kernel_gid_t
 #define off_t __kernel_off_t
+#define time_t __kernel_time_t
 // This header seems to contain the definitions of _kernel_ stat* structs.
 #include <asm/stat.h>
 #undef ino_t
@@ -53,6 +57,8 @@
 #include <linux/perf_event.h>
 #endif
 
+using namespace __sanitizer;
+
 namespace __sanitizer {
 #if !SANITIZER_ANDROID
   unsigned struct_statfs64_sz = sizeof(struct statfs64);
@@ -60,7 +66,8 @@ namespace __sanitizer {
 }  // namespace __sanitizer
 
 #if !defined(__powerpc64__) && !defined(__x86_64__) && !defined(__aarch64__)\
-                            && !defined(__mips__)
+                            && !defined(__mips__) && !defined(__s390__)\
+                            && !defined(__sparc__)
 COMPILER_CHECK(struct___old_kernel_stat_sz == sizeof(struct __old_kernel_stat));
 #endif
 

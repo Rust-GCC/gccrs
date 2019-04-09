@@ -4,7 +4,7 @@ PROGRAM test
   REAL(8) :: f,dist(2)
   dist = [1.0_8, 0.5_8]
   if( f(1.0_8, dist) /= MINVAL(dist)) then
-    call abort ()
+    STOP 1
   endif
 END PROGRAM test
 
@@ -14,4 +14,3 @@ FUNCTION f( x, dist ) RESULT(s)
   IF( x < 0 ) s = -s
 END FUNCTION f
 
-! { dg-final { cleanup-tree-dump "vect" } }

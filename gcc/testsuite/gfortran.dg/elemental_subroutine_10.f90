@@ -15,7 +15,7 @@ module m_assertion_character
     procedure :: write => assertion_array_write
   end type t_assertion_character
 contains
-  elemental subroutine assertion_character( ast, name )
+  impure elemental subroutine assertion_character( ast, name )
     class(t_assertion_character), intent(out) :: ast
     character(len=*), intent(in) :: name
     ast%name = name
@@ -37,7 +37,7 @@ module m_assertion_array_character
     procedure :: write => assertion_array_character_write
   end type t_assertion_array_character
 contains
-  pure subroutine assertion_array_character( ast, name, nast )
+  subroutine assertion_array_character( ast, name, nast )
     class(t_assertion_array_character), intent(out) :: ast
     character(len=*), intent(in) :: name
     integer, intent(in) :: nast
@@ -64,5 +64,5 @@ program main
   name = 'test'
   call ast%assertion_array_character ( name, 5 )
   call ast%write (line)
-  if (line(2:len (line)) .ne. "testtesttesttesttest") call abort
+  if (line(2:len (line)) .ne. "testtesttesttesttest") STOP 1
 end program main

@@ -1,4 +1,4 @@
-// Copyright (C) 2014 Free Software Foundation, Inc.
+// Copyright (C) 2014-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,7 +15,11 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-options "-std=gnu++11" }
+// { dg-do run { target c++11 } }
+// { dg-require-normal-mode "" }
+// { dg-require-cmath "" }
+// { dg-require-cstdint "" }
+// { dg-require-effective-target random_device }
 
 #include <cmath>
 #include <random>
@@ -44,7 +48,7 @@ void test01()
 
   std::push_heap(values.begin(), values.end());
 
-  VERIFY( counter_type::less_compare_count <= std::log(values.size()) );
+  VERIFY( counter_type::less_compare_count <= std::log2(values.size()) );
 }
 
 int main()

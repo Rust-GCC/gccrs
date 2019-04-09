@@ -1,8 +1,8 @@
 /* Implementation of the UNLINK intrinsic.
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2019 Free Software Foundation, Inc.
    Contributed by Steven G. Kargl <kargls@comcast.net>.
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
@@ -25,7 +25,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #include "libgfortran.h"
 
-#include <string.h>
 #include <errno.h>
 
 #ifdef HAVE_UNISTD_H
@@ -46,16 +45,12 @@ unlink_i4_sub (char *name, GFC_INTEGER_4 *status, gfc_charlen_type name_len)
   char *str;
   GFC_INTEGER_4 stat;
 
-  /* Trim trailing spaces from name.  */
-  while (name_len > 0 && name[name_len - 1] == ' ')
-    name_len--;
-
   /* Make a null terminated copy of the string.  */
-  str = gfc_alloca (name_len + 1);
-  memcpy (str, name, name_len);
-  str[name_len] = '\0';
+  str = fc_strdup (name, name_len);
 
   stat = unlink (str);
+
+  free (str);
 
   if (status != NULL)
     *status = (stat == 0) ? stat : errno;

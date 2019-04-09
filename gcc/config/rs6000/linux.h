@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for PowerPC machines running Linux.
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
    Contributed by Michael Meissner (meissner@cygnus.com).
 
    This file is part of GCC.
@@ -30,10 +30,14 @@
 #define OPTION_GLIBC  (DEFAULT_LIBC == LIBC_GLIBC)
 #define OPTION_UCLIBC (DEFAULT_LIBC == LIBC_UCLIBC)
 #define OPTION_BIONIC (DEFAULT_LIBC == LIBC_BIONIC)
+#undef OPTION_MUSL
+#define OPTION_MUSL   (DEFAULT_LIBC == LIBC_MUSL)
 #else
 #define OPTION_GLIBC  (linux_libc == LIBC_GLIBC)
 #define OPTION_UCLIBC (linux_libc == LIBC_UCLIBC)
 #define OPTION_BIONIC (linux_libc == LIBC_BIONIC)
+#undef OPTION_MUSL
+#define OPTION_MUSL   (linux_libc == LIBC_MUSL)
 #endif
 
 /* Determine what functions are present at the runtime;
@@ -42,22 +46,38 @@
 #define TARGET_LIBC_HAS_FUNCTION linux_libc_has_function
 
 #undef  TARGET_OS_CPP_BUILTINS
-#define TARGET_OS_CPP_BUILTINS()		\
-  do						\
-    {						\
-      builtin_define_std ("PPC");		\
-      builtin_define_std ("powerpc");		\
-      builtin_assert ("cpu=powerpc");		\
-      builtin_assert ("machine=powerpc");	\
-      TARGET_OS_SYSV_CPP_BUILTINS ();		\
-    }						\
+#define TARGET_OS_CPP_BUILTINS()			\
+  do							\
+    {							\
+      if (strcmp (rs6000_abi_name, "linux") == 0)	\
+	GNU_USER_TARGET_OS_CPP_BUILTINS();		\
+      builtin_define_std ("PPC");			\
+      builtin_define_std ("powerpc");			\
+      builtin_assert ("cpu=powerpc");			\
+      builtin_assert ("machine=powerpc");		\
+      TARGET_OS_SYSV_CPP_BUILTINS ();			\
+    }							\
   while (0)
+
+#define GNU_USER_TARGET_D_OS_VERSIONS()		\
+    do {					\
+	builtin_version ("linux");		\
+	if (OPTION_GLIBC)			\
+	  builtin_version ("CRuntime_Glibc");	\
+	else if (OPTION_UCLIBC)			\
+	  builtin_version ("CRuntime_UClibc");	\
+	else if (OPTION_BIONIC)			\
+	  builtin_version ("CRuntime_Bionic");	\
+	else if (OPTION_MUSL)			\
+	  builtin_version ("CRuntime_Musl");	\
+    } while (0)
 
 #undef	CPP_OS_DEFAULT_SPEC
 #define CPP_OS_DEFAULT_SPEC "%(cpp_os_linux)"
 
 #undef  LINK_SHLIB_SPEC
-#define LINK_SHLIB_SPEC "%{shared:-shared} %{!shared: %{static:-static}}"
+#define LINK_SHLIB_SPEC "%{shared:-shared} %{!shared: %{static:-static}} \
+  %{static-pie:-static -pie --no-dynamic-linker -z text}"
 
 #undef	LIB_DEFAULT_SPEC
 #define LIB_DEFAULT_SPEC "%(lib_linux)"
@@ -89,8 +109,9 @@
 
 #undef LINK_OS_LINUX_SPEC
 #define LINK_OS_LINUX_SPEC LINK_OS_LINUX_EMUL " %{!shared: %{!static: \
-  %{rdynamic:-export-dynamic} \
-  -dynamic-linker " GNU_USER_DYNAMIC_LINKER "}}"
+  %{!static-pie: \
+    %{rdynamic:-export-dynamic} \
+    -dynamic-linker " GNU_USER_DYNAMIC_LINKER "}}}"
 
 /* For backward compatibility, we must continue to use the AIX
    structure return convention.  */
@@ -106,6 +127,9 @@
 #undef RELOCATABLE_NEEDS_FIXUP
 #define RELOCATABLE_NEEDS_FIXUP \
   (rs6000_isa_flags & rs6000_isa_flags_explicit & OPTION_MASK_RELOCATABLE)
+
+#undef	RS6000_ABI_NAME
+#define	RS6000_ABI_NAME "linux"
 
 #ifdef TARGET_LIBC_PROVIDES_SSP
 /* ppc32 glibc provides __stack_chk_guard in -0x7008(2).  */
@@ -127,3 +151,10 @@
 #undef TARGET_FLOAT_EXCEPTIONS_ROUNDING_SUPPORTED_P
 #define TARGET_FLOAT_EXCEPTIONS_ROUNDING_SUPPORTED_P \
   rs6000_linux_float_exceptions_rounding_supported_p
+
+/* Support for TARGET_ATOMIC_ASSIGN_EXPAND_FENV without FPRs depends
+   on glibc 2.19 or greater.  */
+#if TARGET_GLIBC_MAJOR > 2 \
+  || (TARGET_GLIBC_MAJOR == 2 && TARGET_GLIBC_MINOR >= 19)
+#define RS6000_GLIBC_ATOMIC_FENV 1
+#endif

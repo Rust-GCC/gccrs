@@ -6,7 +6,7 @@
  *                                                                          *
  *              Auxiliary C functions for Interfaces.C.Streams              *
  *                                                                          *
- *          Copyright (C) 1992-2014, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2019, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -39,6 +39,8 @@
 
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #ifdef _AIX
 /* needed to avoid conflicting declarations */
@@ -65,11 +67,7 @@
 extern "C" {
 #endif
 
-#ifdef VMS
-#include <unixlib.h>
-#endif
-
-#ifdef linux
+#ifdef __linux__
 /* Don't use macros on GNU/Linux since they cause incompatible changes between
    glibc 2.0 and 2.1 */
 
@@ -192,7 +190,7 @@ __gnat_full_name (char *nam, char *buffer)
 	  *p = '\\';
     }
 
-#elif defined (__FreeBSD__)
+#elif defined (__FreeBSD__) || defined (__DragonFly__) || defined (__OpenBSD__)
 
   /* Use realpath function which resolves links and references to . and ..
      on those Unix systems that support it. Note that GNU/Linux provides it but
@@ -200,21 +198,17 @@ __gnat_full_name (char *nam, char *buffer)
      getcwd approach instead. */
   realpath (nam, buffer);
 
-#elif defined (VMS)
-  strncpy (buffer, __gnat_to_canonical_file_spec (nam), __gnat_max_path_len);
+#elif defined (__QNX__)
 
-  if (buffer[0] == '/' || strchr (buffer, '!'))  /* '!' means decnet node */
-    strncpy (buffer, __gnat_to_host_file_spec (buffer), __gnat_max_path_len);
+  int length;
+
+  if (__gnat_is_absolute_path (nam, strlen (nam)))
+    realpath (nam, buffer);
   else
     {
-      char *nambuffer = alloca (__gnat_max_path_len);
-
-      strncpy (nambuffer, buffer, __gnat_max_path_len);
-      strncpy
-	(buffer, getcwd (buffer, __gnat_max_path_len, 0), __gnat_max_path_len);
-      strncat (buffer, "/", __gnat_max_path_len);
-      strncat (buffer, nambuffer, __gnat_max_path_len);
-      strncpy (buffer, __gnat_to_host_file_spec (buffer), __gnat_max_path_len);
+      length = __gnat_max_path_len;
+      __gnat_get_current_dir (buffer, &length);
+      strncat (buffer, nam, __gnat_max_path_len - length - 1);
     }
 
 #elif defined (__vxworks)
@@ -277,8 +271,8 @@ __gnat_fseek64 (FILE *stream, __int64 offset, int origin)
   return _fseeki64 (stream, offset, origin);
 }
 
-#elif defined(linux) || defined(sun) \
-  || defined (__FreeBSD__) || defined(__APPLE__)
+#elif defined (__linux__) || defined (__sun__) || defined (__FreeBSD__) \
+  || defined (__APPLE__)
 /* section for platforms having ftello/fseeko */
 
 __int64
@@ -319,6 +313,24 @@ __gnat_fseek64 (FILE *stream, __int64 offset, int origin)
     return -1;
 }
 #endif
+
+/* Returns true if the path names a fifo (i.e. a named pipe). */
+int
+__gnat_is_fifo (const char* path)
+{
+/* Posix defines S_ISFIFO as a macro. If the macro doesn't exist, we return
+   false. */
+#ifdef S_ISFIFO
+  struct stat buf;
+  const int status = stat(path, &buf);
+  if (status == 0)
+    return S_ISFIFO(buf.st_mode);
+#endif
+
+  /* S_ISFIFO is not available, or stat got an error (probably
+     file not found). */
+  return 0;
+}
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,11 @@
 /* config.in.  Generated from configure.ac by autoheader.  */
 
+/* Define if this compiler should be built as the offload target compiler. */
+#ifndef USED_FOR_TARGET
+#undef ACCEL_COMPILER
+#endif
+
+
 /* Define if building universal (internal helper macro) */
 #ifndef USED_FOR_TARGET
 #undef AC_APPLE_UNIVERSAL_BUILD
@@ -24,6 +30,13 @@
 #endif
 
 
+/* Define to 0/1 if you want more run-time sanity checks. This one gets a grab
+   bag of miscellaneous but relatively cheap checks. */
+#ifndef USED_FOR_TARGET
+#undef CHECKING_P
+#endif
+
+
 /* Define 0/1 to force the choice for exception handling model. */
 #ifndef USED_FOR_TARGET
 #undef CONFIG_SJLJ_EXCEPTIONS
@@ -42,6 +55,12 @@
 #endif
 
 
+/* Define to larger than zero set the default stack clash protector size. */
+#ifndef USED_FOR_TARGET
+#undef DEFAULT_STK_CLASH_GUARD_SIZE
+#endif
+
+
 /* Define if you want to use __cxa_atexit, rather than atexit, to register C++
    destructors for local statics and global objects. This is essential for
    fully standards-compliant handling of destructors, but requires
@@ -51,16 +70,15 @@
 #endif
 
 
-/* Define if you want assertions enabled. This is a cheap check. */
+/* The default for -fdiagnostics-color option */
 #ifndef USED_FOR_TARGET
-#undef ENABLE_ASSERT_CHECKING
+#undef DIAGNOSTICS_COLOR_DEFAULT
 #endif
 
 
-/* Define if you want more run-time sanity checks. This one gets a grab bag of
-   miscellaneous but relatively cheap checks. */
+/* Define if you want assertions enabled. This is a cheap check. */
 #ifndef USED_FOR_TARGET
-#undef ENABLE_CHECKING
+#undef ENABLE_ASSERT_CHECKING
 #endif
 
 
@@ -77,9 +95,29 @@
 #endif
 
 
+/* Define if your target supports default PIE and it is enabled. */
+#ifndef USED_FOR_TARGET
+#undef ENABLE_DEFAULT_PIE
+#endif
+
+
+/* Define if your target supports default stack protector and it is enabled.
+   */
+#ifndef USED_FOR_TARGET
+#undef ENABLE_DEFAULT_SSP
+#endif
+
+
 /* Define if you want more run-time sanity checks for dataflow. */
 #ifndef USED_FOR_TARGET
 #undef ENABLE_DF_CHECKING
+#endif
+
+
+/* Define to 0/1 if you want extra run-time checking that might affect code
+   generation. */
+#ifndef USED_FOR_TARGET
+#undef ENABLE_EXTRA_CHECKING
 #endif
 
 
@@ -119,6 +157,12 @@
 #endif
 
 
+/* Define this to enable support for generating HSAIL. */
+#ifndef USED_FOR_TARGET
+#undef ENABLE_HSA
+#endif
+
+
 /* Define if gcc should always pass --build-id to linker. */
 #ifndef USED_FOR_TARGET
 #undef ENABLE_LD_BUILDID
@@ -141,6 +185,12 @@
    language is requested. */
 #ifndef USED_FOR_TARGET
 #undef ENABLE_NLS
+#endif
+
+
+/* Define this to enable support for offloading. */
+#ifndef USED_FOR_TARGET
+#undef ENABLE_OFFLOADING
 #endif
 
 
@@ -170,8 +220,7 @@
 
 /* Define if you want all operations on trees (the basic data structure of the
    front ends) to be checked for dynamic type safety at runtime. This is
-   moderately expensive. The tree browser debugging routines will also be
-   enabled by this option. */
+   moderately expensive. */
 #ifndef USED_FOR_TARGET
 #undef ENABLE_TREE_CHECKING
 #endif
@@ -194,6 +243,12 @@
    valgrind (a memory checker). This is extremely expensive. */
 #ifndef USED_FOR_TARGET
 #undef ENABLE_VALGRIND_CHECKING
+#endif
+
+
+/* Define 0/1 if vtable verification feature is enabled. */
+#ifndef USED_FOR_TARGET
+#undef ENABLE_VTABLE_VERIFY
 #endif
 
 
@@ -229,9 +284,27 @@
 #endif
 
 
-/* Define if your assembler supports cmpb. */
+/* Define if your assembler supports architecture modifiers. */
 #ifndef USED_FOR_TARGET
-#undef HAVE_AS_CMPB
+#undef HAVE_AS_ARCHITECTURE_MODIFIERS
+#endif
+
+
+/* Define if your avr assembler supports -mgcc-isr option. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_AVR_MGCCISR_OPTION
+#endif
+
+
+/* Define if your avr assembler supports --mlink-relax option. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_AVR_MLINK_RELAX_OPTION
+#endif
+
+
+/* Define if your avr assembler supports -mrmw option. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_AVR_MRMW_OPTION
 #endif
 
 
@@ -242,21 +315,15 @@
 #endif
 
 
-/* Define if your assembler supports the DCI/ICI instructions. */
-#ifndef USED_FOR_TARGET
-#undef HAVE_AS_DCI
-#endif
-
-
 /* Define if your assembler supports the --debug-prefix-map option. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_AS_DEBUG_PREFIX_MAP
 #endif
 
 
-/* Define if your assembler supports DFP instructions. */
+/* Define if your assembler supports .module. */
 #ifndef USED_FOR_TARGET
-#undef HAVE_AS_DFP
+#undef HAVE_AS_DOT_MODULE
 #endif
 
 
@@ -279,6 +346,18 @@
 #endif
 
 
+/* Define if your assembler supports views in dwarf2 .loc directives. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_DWARF2_DEBUG_VIEW
+#endif
+
+
+/* Define if your assembler supports the R_PPC64_ENTRY relocation. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_ENTRY_MARKERS
+#endif
+
+
 /* Define if your assembler supports explicit relocations. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_AS_EXPLICIT_RELOCS
@@ -288,12 +367,6 @@
 /* Define if your assembler supports FMAF, HPC, and VIS 3.0 instructions. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_AS_FMAF_HPC_VIS3
-#endif
-
-
-/* Define if your assembler supports fprnd. */
-#ifndef USED_FOR_TARGET
-#undef HAVE_AS_FPRND
 #endif
 
 
@@ -352,6 +425,12 @@
 #endif
 
 
+/* Define 0/1 if your assembler and linker support @GOT. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_IX86_GOT32X
+#endif
+
+
 /* Define if your assembler supports HLE prefixes. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_AS_IX86_HLE
@@ -406,6 +485,13 @@
 #endif
 
 
+/* Define 0/1 if your assembler and linker support calling ___tls_get_addr via
+   GOT. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_IX86_TLS_GET_ADDR_GOT
+#endif
+
+
 /* Define if your assembler supports the 'ud2' mnemonic. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_AS_IX86_UD2
@@ -442,15 +528,15 @@
 #endif
 
 
-/* Define if your assembler supports LWSYNC instructions. */
-#ifndef USED_FOR_TARGET
-#undef HAVE_AS_LWSYNC
-#endif
-
-
 /* Define if your assembler supports the -mabi option. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_AS_MABI_OPTION
+#endif
+
+
+/* Define if your assembler supports .machine and .machinemode. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_MACHINE_MACHINEMODE
 #endif
 
 
@@ -460,9 +546,10 @@
 #endif
 
 
-/* Define if your assembler supports mffgpr and mftgpr. */
+/* Define if your Mac OS X assembler supports the -mmacos-version-min option.
+   */
 #ifndef USED_FOR_TARGET
-#undef HAVE_AS_MFPGPR
+#undef HAVE_AS_MMACOSX_VERSION_MIN_OPTION
 #endif
 
 
@@ -490,33 +577,15 @@
 #endif
 
 
-/* Define if your assembler supports popcntb field. */
+/* Define if your assembler supports R_PPC*_PLTSEQ relocations. */
 #ifndef USED_FOR_TARGET
-#undef HAVE_AS_POPCNTB
-#endif
-
-
-/* Define if your assembler supports POPCNTD instructions. */
-#ifndef USED_FOR_TARGET
-#undef HAVE_AS_POPCNTD
-#endif
-
-
-/* Define if your assembler supports POWER8 instructions. */
-#ifndef USED_FOR_TARGET
-#undef HAVE_AS_POWER8
+#undef HAVE_AS_PLTSEQ
 #endif
 
 
 /* Define if your assembler supports .ref */
 #ifndef USED_FOR_TARGET
 #undef HAVE_AS_REF
-#endif
-
-
-/* Define if your assembler supports .register. */
-#ifndef USED_FOR_TARGET
-#undef HAVE_AS_REGISTER_PSEUDO_OP
 #endif
 
 
@@ -532,21 +601,39 @@
 #endif
 
 
+/* Define if your assembler supports .attribute. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_RISCV_ATTRIBUTE
+#endif
+
+
+/* Define if your assembler supports relocs needed by -fpic. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_SMALL_PIC_RELOCS
+#endif
+
+
 /* Define if your assembler supports SPARC4 instructions. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_AS_SPARC4
 #endif
 
 
-/* Define if your assembler and linker support GOTDATA_OP relocs. */
+/* Define if your assembler supports SPARC5 and VIS 4.0 instructions. */
 #ifndef USED_FOR_TARGET
-#undef HAVE_AS_SPARC_GOTDATA_OP
+#undef HAVE_AS_SPARC5_VIS4
 #endif
 
 
-/* Define to 1 if your assembler supports #nobits, 0 otherwise. */
+/* Define if your assembler supports SPARC6 instructions. */
 #ifndef USED_FOR_TARGET
-#undef HAVE_AS_SPARC_NOBITS
+#undef HAVE_AS_SPARC6
+#endif
+
+
+/* Define if your assembler and linker support GOTDATA_OP relocs. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_SPARC_GOTDATA_OP
 #endif
 
 
@@ -564,6 +651,12 @@
 #endif
 
 
+/* Define if your assembler supports .stabs. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_STABS_DIRECTIVE
+#endif
+
+
 /* Define if your assembler and linker support thread-local storage. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_AS_TLS
@@ -576,15 +669,22 @@
 #endif
 
 
+/* Define if your assembler supports vl/vst/vlm/vstm with an optional
+   alignment hint argument. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_AS_VECTOR_LOADSTORE_ALIGNMENT_HINTS
+#endif
+
+
 /* Define if your assembler supports VSX instructions. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_AS_VSX
 #endif
 
 
-/* Define to 1 if you have the `atoll' function. */
+/* Define if your assembler supports -xbrace_comment option. */
 #ifndef USED_FOR_TARGET
-#undef HAVE_ATOLL
+#undef HAVE_AS_XBRACE_COMMENT_OPTION
 #endif
 
 
@@ -644,8 +744,15 @@
 #endif
 
 
-/* Define to 1 if we found a declaration for 'basename', otherwise define to
-   0. */
+/* Define to 1 if we found a declaration for 'atoll', otherwise define to 0.
+   */
+#ifndef USED_FOR_TARGET
+#undef HAVE_DECL_ATOLL
+#endif
+
+
+/* Define to 1 if you have the declaration of `basename(const char*)', and to
+   0 if you don't. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_DECL_BASENAME
 #endif
@@ -879,6 +986,13 @@
 #endif
 
 
+/* Define to 1 if we found a declaration for 'setenv', otherwise define to 0.
+   */
+#ifndef USED_FOR_TARGET
+#undef HAVE_DECL_SETENV
+#endif
+
+
 /* Define to 1 if we found a declaration for 'setrlimit', otherwise define to
    0. */
 #ifndef USED_FOR_TARGET
@@ -921,10 +1035,38 @@
 #endif
 
 
-/* Define to 1 if we found a declaration for 'strstr', otherwise define to 0.
-   */
+/* Define to 1 if you have the declaration of `strstr(const char*,const
+   char*)', and to 0 if you don't. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_DECL_STRSTR
+#endif
+
+
+/* Define to 1 if we found a declaration for 'strtol', otherwise define to 0.
+   */
+#ifndef USED_FOR_TARGET
+#undef HAVE_DECL_STRTOL
+#endif
+
+
+/* Define to 1 if we found a declaration for 'strtoll', otherwise define to 0.
+   */
+#ifndef USED_FOR_TARGET
+#undef HAVE_DECL_STRTOLL
+#endif
+
+
+/* Define to 1 if we found a declaration for 'strtoul', otherwise define to 0.
+   */
+#ifndef USED_FOR_TARGET
+#undef HAVE_DECL_STRTOUL
+#endif
+
+
+/* Define to 1 if we found a declaration for 'strtoull', otherwise define to
+   0. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_DECL_STRTOULL
 #endif
 
 
@@ -939,6 +1081,13 @@
    */
 #ifndef USED_FOR_TARGET
 #undef HAVE_DECL_TIMES
+#endif
+
+
+/* Define to 1 if we found a declaration for 'unsetenv', otherwise define to
+   0. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_DECL_UNSETENV
 #endif
 
 
@@ -1046,6 +1195,12 @@
 #endif
 
 
+/* Define to 1 if you have the <ftw.h> header file. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_FTW_H
+#endif
+
+
 /* Define to 1 if you have the `fwrite_unlocked' function. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_FWRITE_UNLOCKED
@@ -1101,6 +1256,12 @@
 #endif
 
 
+/* Define if your assembler supports the .loc is_stmt sub-directive. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_GAS_LOC_STMT
+#endif
+
+
 /* Define if your assembler supports specifying the maximum number of bytes to
    skip when using the GAS .p2align command. */
 #ifndef USED_FOR_TARGET
@@ -1127,7 +1288,7 @@
 #endif
 
 
-/* Define if your assembler supports specifying the section flag e. */
+/* Define if your assembler supports specifying the exclude section flag. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_GAS_SECTION_EXCLUDE
 #endif
@@ -1207,6 +1368,13 @@
 #endif
 
 
+/* Define if the gold linker supports split stack and is available as a
+   non-default */
+#ifndef USED_FOR_TARGET
+#undef HAVE_GOLD_NON_DEFAULT_SPLIT_STACK
+#endif
+
+
 /* Define if you have the iconv() function. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_ICONV
@@ -1219,7 +1387,8 @@
 #endif
 
 
-/* Define .init_array/.fini_array sections are available and working. */
+/* Define 0/1 if .init_array/.fini_array sections are available and working.
+   */
 #ifndef USED_FOR_TARGET
 #undef HAVE_INITFINI_ARRAY_SUPPORT
 #endif
@@ -1273,10 +1442,30 @@
 #endif
 
 
+/* Define 0/1 if your linker supports the SHF_MERGE flag with section
+   alignment > 1. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_LD_ALIGNED_SHF_MERGE
+#endif
+
+
 /* Define if your linker supports --as-needed/--no-as-needed or equivalent
    options. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_LD_AS_NEEDED
+#endif
+
+
+/* Define if your default avr linker script for avrxmega3 leaves .rodata in
+   flash. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_LD_AVR_AVRXMEGA3_RODATA_IN_FLASH
+#endif
+
+
+/* Define if your linker supports -z bndplt */
+#ifndef USED_FOR_TARGET
+#undef HAVE_LD_BNDPLT_SUPPORT
 #endif
 
 
@@ -1347,9 +1536,27 @@
 #endif
 
 
-/* Define if your linker supports -pie option. */
+/* Define if your linker supports PIE option. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_LD_PIE
+#endif
+
+
+/* Define 0/1 if your linker supports -pie option with copy reloc. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_LD_PIE_COPYRELOC
+#endif
+
+
+/* Define if your PowerPC linker has .gnu.attributes long double support. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_LD_PPC_GNU_ATTR_LONG_DOUBLE
+#endif
+
+
+/* Define if your linker supports --push-state/--pop-state */
+#ifndef USED_FOR_TARGET
+#undef HAVE_LD_PUSHPOPSTATE_SUPPORT
 #endif
 
 
@@ -1498,6 +1705,12 @@
 #endif
 
 
+/* Define if the system-provided CRTs are present on Solaris. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_SOLARIS_CRTS
+#endif
+
+
 /* Define to 1 if you have the <stddef.h> header file. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_STDDEF_H
@@ -1537,6 +1750,12 @@
 /* Define if <sys/times.h> defines struct tms. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_STRUCT_TMS
+#endif
+
+
+/* Define if <utility> defines std::swap. */
+#ifndef USED_FOR_TARGET
+#undef HAVE_SWAP_IN_UTILITY
 #endif
 
 
@@ -1699,15 +1918,19 @@
 #undef HAVE_WORKING_VFORK
 #endif
 
+
+/* Define if your assembler supports AIX debug frame section label reference.
+   */
+#ifndef USED_FOR_TARGET
+#undef HAVE_XCOFF_DWARF_EXTRAS
+#endif
+
+
 /* Define if isl is in use. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_isl
 #endif
 
-/* Define if cloog is in use. */
-#ifndef USED_FOR_TARGET
-#undef HAVE_cloog
-#endif
 
 /* Define if F_SETLKW supported by fcntl. */
 #ifndef USED_FOR_TARGET
@@ -1724,6 +1947,18 @@
 /* Define if int64_t uses long as underlying type. */
 #ifndef USED_FOR_TARGET
 #undef INT64_T_IS_LONG
+#endif
+
+
+/* Define to 1 if ld64 supports '-export_dynamic'. */
+#ifndef USED_FOR_TARGET
+#undef LD64_HAS_EXPORT_DYNAMIC
+#endif
+
+
+/* Define to ld64 version. */
+#ifndef USED_FOR_TARGET
+#undef LD64_VERSION
 #endif
 
 
@@ -1777,9 +2012,27 @@
 #endif
 
 
+/* Define if we should link mingw executables with --large-address-aware */
+#ifndef USED_FOR_TARGET
+#undef MINGW_DEFAULT_LARGE_ADDR_AWARE
+#endif
+
+
+/* Value to set mingw's _dowildcard to. */
+#ifndef USED_FOR_TARGET
+#undef MINGW_DOWILDCARD
+#endif
+
+
 /* Define if host mkdir takes a single argument. */
 #ifndef USED_FOR_TARGET
 #undef MKDIR_TAKES_ONE_ARG
+#endif
+
+
+/* Define to offload targets, separated by commas. */
+#ifndef USED_FOR_TARGET
+#undef OFFLOAD_TARGETS
 #endif
 
 
@@ -1822,6 +2075,12 @@
 /* Specify plugin linker */
 #ifndef USED_FOR_TARGET
 #undef PLUGIN_LD_SUFFIX
+#endif
+
+
+/* Define to .TOC. alignment forced by your linker. */
+#ifndef USED_FOR_TARGET
+#undef POWERPC64_TOC_POINTER_ALIGNMENT
 #endif
 
 
@@ -1882,6 +2141,24 @@
 /* Define if your target C library provides the `dl_iterate_phdr' function. */
 #undef TARGET_DL_ITERATE_PHDR
 
+/* GNU C Library major version number used on the target, or 0. */
+#ifndef USED_FOR_TARGET
+#undef TARGET_GLIBC_MAJOR
+#endif
+
+
+/* GNU C Library minor version number used on the target, or 0. */
+#ifndef USED_FOR_TARGET
+#undef TARGET_GLIBC_MINOR
+#endif
+
+
+/* Define if your target C Library provides the AT_HWCAP value in the TCB */
+#ifndef USED_FOR_TARGET
+#undef TARGET_LIBC_PROVIDES_HWCAP_IN_TCB
+#endif
+
+
 /* Define if your target C library provides stack protector support */
 #ifndef USED_FOR_TARGET
 #undef TARGET_LIBC_PROVIDES_SSP
@@ -1911,6 +2188,12 @@
    DLL exports wrappers to support libstdc++ function replacement. */
 #ifndef USED_FOR_TARGET
 #undef USE_CYGWIN_LIBSTDCXX_WRAPPERS
+#endif
+
+
+/* Define 0/1 if your linker supports hidden thunks in linkonce sections. */
+#ifndef USED_FOR_TARGET
+#undef USE_HIDDEN_LINKONCE
 #endif
 
 
@@ -1968,6 +2251,11 @@
 # ifndef WORDS_BIGENDIAN
 #  undef WORDS_BIGENDIAN
 # endif
+#endif
+
+/* Enable large inode numbers on Mac OS X 10.5.  */
+#ifndef _DARWIN_USE_64_BIT_INODE
+# define _DARWIN_USE_64_BIT_INODE 1
 #endif
 
 /* Number of bits in a file offset, on hosts where this is settable. */

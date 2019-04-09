@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -45,6 +45,67 @@ package body Ch13 is
       Scan_State : Saved_Scan_State;
       Result     : Boolean;
 
+      function Possible_Misspelled_Aspect return Boolean;
+      --  Returns True, if Token_Name is a misspelling of some aspect name
+
+      function With_Present return Boolean;
+      --  Returns True if WITH is present, indicating presence of aspect
+      --  specifications. Also allows incorrect use of WHEN in place of WITH.
+
+      --------------------------------
+      -- Possible_Misspelled_Aspect --
+      --------------------------------
+
+      function Possible_Misspelled_Aspect return Boolean is
+      begin
+         for J in Aspect_Id_Exclude_No_Aspect loop
+            if Is_Bad_Spelling_Of (Token_Name, Aspect_Names (J)) then
+               return True;
+            end if;
+         end loop;
+
+         return False;
+      end Possible_Misspelled_Aspect;
+
+      ------------------
+      -- With_Present --
+      ------------------
+
+      function With_Present return Boolean is
+      begin
+         if Token = Tok_With then
+            return True;
+
+         --  Check for WHEN used in place of WITH
+
+         elsif Token = Tok_When then
+            declare
+               Scan_State : Saved_Scan_State;
+
+            begin
+               Save_Scan_State (Scan_State);
+               Scan; -- past WHEN
+
+               if Token = Tok_Identifier
+                 and then Get_Aspect_Id (Token_Name) /= No_Aspect
+               then
+                  Error_Msg_SC ("WHEN should be WITH");
+                  Restore_Scan_State (Scan_State);
+                  return True;
+
+               else
+                  Restore_Scan_State (Scan_State);
+                  return False;
+               end if;
+            end;
+
+         else
+            return False;
+         end if;
+      end With_Present;
+
+   --  Start of processing for Aspect_Specifications_Present
+
    begin
       --  Definitely must have WITH to consider aspect specs to be present
 
@@ -59,14 +120,15 @@ package body Ch13 is
       --  be too expensive. Instead we pick up the aspect specifications later
       --  as a bogus declaration, and diagnose the semicolon at that point.
 
-      if Token /= Tok_With then
+      if not With_Present then
          return False;
       end if;
 
-      --  Have a WITH, see if it looks like an aspect specification
+      --  Have a WITH or some token that we accept as a legitimate bad attempt
+      --  at writing WITH. See if it looks like an aspect specification
 
       Save_Scan_State (Scan_State);
-      Scan; -- past WITH
+      Scan; -- past WITH (or WHEN or other bad keyword)
 
       --  If no identifier, then consider that we definitely do not have an
       --  aspect specification.
@@ -74,17 +136,20 @@ package body Ch13 is
       if Token /= Tok_Identifier then
          Result := False;
 
-      --  This is where we pay attention to the Strict mode. Normally when we
-      --  are in Ada 2012 mode, Strict is False, and we consider that we have
-      --  an aspect specification if the identifier is an aspect name (even if
-      --  not followed by =>) or the identifier is not an aspect name but is
-      --  followed by =>, by a comma, or by a semicolon. The last two cases
-      --  correspond to (misspelled) Boolean aspects with a defaulted value of
-      --  True. P_Aspect_Specifications will generate messages if the aspect
+      --  This is where we pay attention to the Strict mode. Normally when
+      --  we are in Ada 2012 mode, Strict is False, and we consider that we
+      --  have an aspect specification if the identifier is an aspect name
+      --  or a likely misspelling of one (even if not followed by =>) or
+      --  the identifier is not an aspect name but is followed by =>, by
+      --  a comma, or by a semicolon. The last two cases correspond to
+      --  (misspelled) Boolean aspects with a defaulted value of True.
+      --  P_Aspect_Specifications will generate messages if the aspect
       --  specification is ill-formed.
 
       elsif not Strict then
-         if Get_Aspect_Id (Token_Name) /= No_Aspect then
+         if Get_Aspect_Id (Token_Name) /= No_Aspect
+           or else Possible_Misspelled_Aspect
+         then
             Result := True;
          else
             Scan; -- past identifier
@@ -170,7 +235,7 @@ package body Ch13 is
          return Aspects;
       end if;
 
-      Scan; -- past WITH
+      Scan; -- past WITH (or possible WHEN after error)
       Aspects := Empty_List;
 
       --  Loop to scan aspects
@@ -455,9 +520,11 @@ package body Ch13 is
                   end if;
                end if;
 
-               --  Note if inside Depends aspect
+               --  Note if inside Depends or Refined_Depends aspect
 
-               if A_Id = Aspect_Depends then
+               if A_Id = Aspect_Depends
+                 or else A_Id = Aspect_Refined_Depends
+               then
                   Inside_Depends := True;
                end if;
 
@@ -545,8 +612,7 @@ package body Ch13 is
                then
                   Scan; -- past identifier
 
-                  --  Attempt to detect ' or => following a potential aspect
-                  --  mark.
+                  --  Attempt to detect ' or => following potential aspect mark
 
                   if Token = Tok_Apostrophe or else Token = Tok_Arrow then
                      Restore_Scan_State (Scan_State);
@@ -557,14 +623,13 @@ package body Ch13 is
                   end if;
                end if;
 
-               --  The construct following the current aspect is not an
-               --  aspect.
+               --  Construct following the current aspect is not an aspect
 
                Restore_Scan_State (Scan_State);
             end;
          end if;
 
-         --  Must be terminator character
+         --  Require semicolon if caller expects to scan this out
 
          if Semicolon then
             T_Semicolon;
@@ -705,14 +770,23 @@ package body Ch13 is
                end if;
             end if;
 
-            --  We come here with an OK attribute scanned, and the
-            --  corresponding Attribute identifier node stored in Ident_Node.
+            --  Here we have an OK attribute scanned, and the corresponding
+            --  Attribute identifier node is stored in Ident_Node.
 
             Prefix_Node := Name_Node;
             Name_Node := New_Node (N_Attribute_Reference, Prev_Token_Ptr);
             Set_Prefix (Name_Node, Prefix_Node);
             Set_Attribute_Name (Name_Node, Attr_Name);
             Scan;
+
+            --  Check for Address clause which needs to be marked for use in
+            --  optimizing performance of Exp_Util.Following_Address_Clause.
+
+            if Attr_Name = Name_Address
+              and then Nkind (Prefix_Node) = N_Identifier
+            then
+               Set_Name_Table_Boolean1 (Chars (Prefix_Node), True);
+            end if;
          end loop;
 
          Rep_Clause_Node := New_Node (N_Attribute_Definition_Clause, For_Loc);
@@ -737,6 +811,11 @@ package body Ch13 is
             Expr_Node := P_Expression_No_Right_Paren;
             Check_Simple_Expression_In_Ada_83 (Expr_Node);
             Set_Expression (Rep_Clause_Node, Expr_Node);
+
+            --  Mark occurrence of address clause (used to optimize performance
+            --  of Exp_Util.Following_Address_Clause).
+
+            Set_Name_Table_Boolean1 (Chars (Identifier_Node), True);
 
          --  RECORD follows USE (Record Representation Clause)
 

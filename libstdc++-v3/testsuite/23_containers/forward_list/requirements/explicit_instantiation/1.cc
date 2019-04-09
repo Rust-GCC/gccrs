@@ -1,6 +1,5 @@
-// { dg-options "-std=gnu++0x" }
 
-// Copyright (C) 2008-2014 Free Software Foundation, Inc.
+// Copyright (C) 2008-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,6 +21,6 @@
 
 #include <forward_list>
 
-// { dg-do compile }
+// { dg-do compile { target c++11 } }
 
 template class std::forward_list<int>;

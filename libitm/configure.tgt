@@ -1,5 +1,5 @@
 # -*- shell-script -*-
-#   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+#   Copyright (C) 2011-2019 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -102,7 +102,7 @@ case "${target_cpu}" in
   x86_64)
 	case " ${CC} ${CFLAGS} " in
 	  *" -m32 "*)
-	    XCFLAGS="${XCFLAGS} -march=i486 -mtune=i686"
+	    XCFLAGS="${XCFLAGS} -march=i486 -mtune=generic"
 	    XCFLAGS="${XCFLAGS} -fomit-frame-pointer"
 	    ;;
 	esac

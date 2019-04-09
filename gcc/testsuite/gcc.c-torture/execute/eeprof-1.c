@@ -1,5 +1,6 @@
+/* { dg-require-effective-target return_address } */
 /* { dg-options "-finstrument-functions" } */
-/* { dg-xfail-if "" { powerpc-ibm-aix* } "*" "" } */
+/* { dg-xfail-run-if "" { powerpc-ibm-aix* } } */
 
 extern void abort (void);
 
@@ -61,18 +62,18 @@ int main ()
   return 0;
 }
 
-void __cyg_profile_func_enter (void (*fn)(), void (*parent)()) NOCHK;
-void __cyg_profile_func_exit (void (*fn)(), void (*parent)()) NOCHK;
+void __cyg_profile_func_enter (void*, void*) NOCHK;
+void __cyg_profile_func_exit (void*, void*) NOCHK;
 
 __attribute__ ((noinline))
-void __cyg_profile_func_enter (void (*fn)(), void (*parent)())
+void __cyg_profile_func_enter (void *fn, void *parent)
 {
   entry_calls++;
-  last_fn_entered = fn;
+  last_fn_entered = (void (*)())fn;
 }
 __attribute__ ((noinline))
-void __cyg_profile_func_exit (void (*fn)(), void (*parent)())
+void __cyg_profile_func_exit (void *fn, void *parent)
 {
   exit_calls++;
-  last_fn_exited = fn;
+  last_fn_exited = (void (*)())fn;
 }

@@ -1,5 +1,5 @@
 /* IEEE-754 double-precision functions for Xtensa
-   Copyright (C) 2006-2014 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
    Contributed by Bob Wilson (bwilson@tensilica.com) at Tensilica.
 
    This file is part of GCC.
@@ -55,6 +55,7 @@ __negdf2:
 
 #ifdef L_addsubdf3
 
+	.literal_position
 	/* Addition */
 __adddf3_aux:
 	
@@ -64,17 +65,26 @@ __adddf3_aux:
 
 .Ladd_xnan_or_inf:
 	/* If y is neither Infinity nor NaN, return x.  */
-	bnall	yh, a6, 1f
+	bnall	yh, a6, .Ladd_return_nan_or_inf
 	/* If x is a NaN, return it.  Otherwise, return y.  */
 	slli	a7, xh, 12
 	or	a7, a7, xl
-	beqz	a7, .Ladd_ynan_or_inf
-1:	leaf_return
+	bnez	a7, .Ladd_return_nan
 
 .Ladd_ynan_or_inf:
 	/* Return y.  */
 	mov	xh, yh
 	mov	xl, yl
+
+.Ladd_return_nan_or_inf:
+	slli	a7, xh, 12
+	or	a7, a7, xl
+	bnez	a7, .Ladd_return_nan
+	leaf_return
+
+.Ladd_return_nan:
+	movi	a4, 0x80000	/* make it a quiet NaN */
+	or	xh, xh, a4
 	leaf_return
 
 .Ladd_opposite_signs:
@@ -319,17 +329,24 @@ __subdf3_aux:
 
 .Lsub_xnan_or_inf:
 	/* If y is neither Infinity nor NaN, return x.  */
-	bnall	yh, a6, 1f
+	bnall	yh, a6, .Lsub_return_nan_or_inf
+
+.Lsub_return_nan:
 	/* Both x and y are either NaN or Inf, so the result is NaN.  */
 	movi	a4, 0x80000	/* make it a quiet NaN */
 	or	xh, xh, a4
-1:	leaf_return
+	leaf_return
 
 .Lsub_ynan_or_inf:
 	/* Negate y and return it.  */
 	slli	a7, a6, 11
 	xor	xh, yh, a7
 	mov	xl, yl
+
+.Lsub_return_nan_or_inf:
+	slli	a7, xh, 12
+	or	a7, a7, xl
+	bnez	a7, .Lsub_return_nan
 	leaf_return
 
 .Lsub_opposite_signs:
@@ -606,6 +623,7 @@ __subdf3:
 #define XCHAL_NO_MUL 1
 #endif
 
+	.literal_position
 __muldf3_aux:
 
 	/* Handle unusual cases (zeros, subnormals, NaNs and Infinities).
@@ -691,10 +709,7 @@ __muldf3_aux:
 	/* If y is zero, return NaN.  */
 	bnez	yl, 1f
 	slli	a8, yh, 1
-	bnez	a8, 1f
-	movi	a4, 0x80000	/* make it a quiet NaN */
-	or	xh, xh, a4
-	j	.Lmul_done
+	beqz	a8, .Lmul_return_nan
 1:
 	/* If y is NaN, return y.  */
 	bnall	yh, a6, .Lmul_returnx
@@ -707,6 +722,9 @@ __muldf3_aux:
 	mov	xl, yl
 
 .Lmul_returnx:
+	slli	a8, xh, 12
+	or	a8, a8, xl
+	bnez	a8, .Lmul_return_nan
 	/* Set the sign bit and return.  */
 	extui	a7, a7, 31, 1
 	slli	xh, xh, 1
@@ -719,8 +737,11 @@ __muldf3_aux:
 	bnez	xl, .Lmul_returny
 	slli	a8, xh, 1
 	bnez	a8, .Lmul_returny
-	movi	a7, 0x80000	/* make it a quiet NaN */
-	or	xh, yh, a7
+	mov	xh, yh
+
+.Lmul_return_nan:
+	movi	a4, 0x80000	/* make it a quiet NaN */
+	or	xh, xh, a4
 	j	.Lmul_done
 
 	.align	4
@@ -1217,6 +1238,57 @@ __muldf3:
 #ifdef L_divdf3
 
 	/* Division */
+
+#if XCHAL_HAVE_DFP_DIV
+
+        .text
+        .align 4
+        .global __divdf3
+        .type	__divdf3, @function
+__divdf3:
+	leaf_entry	sp, 16
+
+	wfrd		f1, xh, xl
+	wfrd		f2, yh, yl
+
+	div0.d		f3, f2
+	nexp01.d	f4, f2
+	const.d		f0, 1
+	maddn.d		f0, f4, f3
+	const.d		f5, 0
+	mov.d		f7, f2
+	mkdadj.d	f7, f1
+	maddn.d		f3, f0, f3
+	maddn.d		f5, f0, f0
+	nexp01.d	f1, f1
+	div0.d		f2, f2
+	maddn.d		f3, f5, f3
+	const.d		f5, 1
+	const.d		f0, 0
+	neg.d		f6, f1
+	maddn.d		f5, f4, f3
+	maddn.d		f0, f6, f2
+	maddn.d		f3, f5, f3
+	maddn.d		f6, f4, f0
+	const.d		f2, 1
+	maddn.d		f2, f4, f3
+	maddn.d		f0, f6, f3
+	neg.d		f1, f1
+	maddn.d		f3, f2, f3
+	maddn.d		f1, f4, f0
+	addexpm.d	f0, f7
+	addexp.d	f3, f7
+	divn.d		f0, f1, f3
+
+	rfr		xl, f0
+	rfrd		xh, f0
+
+	leaf_return
+
+#else
+
+	.literal_position
+
 __divdf3_aux:
 
 	/* Handle unusual cases (zeros, subnormals, NaNs and Infinities).
@@ -1318,10 +1390,11 @@ __divdf3_aux:
 	slli	a7, a7, 31
 	xor	xh, xh, a7
 	/* If y is NaN or Inf, return NaN.  */
-	bnall	yh, a6, 1f
-	movi	a4, 0x80000	/* make it a quiet NaN */
-	or	xh, xh, a4
-1:	leaf_return
+	ball	yh, a6, .Ldiv_return_nan
+	slli	a8, xh, 12
+	or	a8, a8, xl
+	bnez	a8, .Ldiv_return_nan
+	leaf_return
 
 .Ldiv_ynan_or_inf:
 	/* If y is Infinity, return zero.  */
@@ -1331,6 +1404,10 @@ __divdf3_aux:
 	/* y is NaN; return it.  */
 	mov	xh, yh
 	mov	xl, yl
+
+.Ldiv_return_nan:
+	movi	a4, 0x80000	/* make it a quiet NaN */
+	or	xh, xh, a4
 	leaf_return
 
 .Ldiv_highequal1:
@@ -1534,6 +1611,8 @@ __divdf3:
 	slli	xh, xh, 31
 	movi	xl, 0
 	leaf_return
+
+#endif /* XCHAL_HAVE_DFP_DIV */
 
 #endif /* L_divdf3 */
 
@@ -2386,3 +2465,127 @@ __extendsfdf2:
 #endif /* L_extendsfdf2 */
 
 
+#if XCHAL_HAVE_DFP_SQRT
+#ifdef L_sqrt
+
+        .text
+        .align 4
+        .global __ieee754_sqrt
+        .type	__ieee754_sqrt, @function
+__ieee754_sqrt:
+	leaf_entry	sp, 16
+
+	wfrd		f1, xh, xl
+
+	sqrt0.d		f2, f1
+	const.d		f4, 0
+	maddn.d		f4, f2, f2
+	nexp01.d	f3, f1
+	const.d		f0, 3
+	addexp.d	f3, f0
+	maddn.d		f0, f4, f3
+	nexp01.d	f4, f1
+	maddn.d		f2, f0, f2
+	const.d		f5, 0
+	maddn.d		f5, f2, f3
+	const.d		f0, 3
+	maddn.d		f0, f5, f2
+	neg.d		f6, f4
+	maddn.d		f2, f0, f2
+	const.d		f0, 0
+	const.d		f5, 0
+	const.d		f7, 0
+	maddn.d		f0, f6, f2
+	maddn.d		f5, f2, f3
+	const.d		f3, 3
+	maddn.d		f7, f3, f2
+	maddn.d		f4, f0, f0
+	maddn.d		f3, f5, f2
+	neg.d		f2, f7
+	maddn.d		f0, f4, f2
+	maddn.d		f7, f3, f7
+	mksadj.d	f2, f1
+	nexp01.d	f1, f1
+	maddn.d		f1, f0, f0
+	neg.d		f3, f7
+	addexpm.d	f0, f2
+	addexp.d	f3, f2
+	divn.d		f0, f1, f3
+
+	rfr		xl, f0
+	rfrd		xh, f0
+
+	leaf_return
+
+#endif /* L_sqrt */
+#endif /* XCHAL_HAVE_DFP_SQRT */
+
+#if XCHAL_HAVE_DFP_RECIP
+#ifdef L_recipdf2
+	/* Reciprocal */
+
+	.align	4
+	.global	__recipdf2
+	.type	__recipdf2, @function
+__recipdf2:
+	leaf_entry	sp, 16
+
+	wfrd		f1, xh, xl
+
+	recip0.d	f0, f1
+	const.d		f2, 2
+	msub.d		f2, f1, f0
+	mul.d		f3, f1, f0
+	const.d		f4, 2
+	mul.d		f5, f0, f2
+	msub.d		f4, f3, f2
+	const.d		f2, 1
+	mul.d		f0, f5, f4
+	msub.d		f2, f1, f0
+	maddn.d		f0, f0, f2
+
+	rfr		xl, f0
+	rfrd		xh, f0
+
+	leaf_return
+
+#endif /* L_recipdf2 */
+#endif /* XCHAL_HAVE_DFP_RECIP */
+
+#if XCHAL_HAVE_DFP_RSQRT
+#ifdef L_rsqrtdf2
+	/* Reciprocal square root */
+
+	.align	4
+	.global	__rsqrtdf2
+	.type	__rsqrtdf2, @function
+__rsqrtdf2:
+	leaf_entry	sp, 16
+
+	wfrd		f1, xh, xl
+
+	rsqrt0.d	f0, f1
+	mul.d		f2, f1, f0
+	const.d		f3, 3
+	mul.d		f4, f3, f0
+	const.d		f5, 1
+	msub.d		f5, f2, f0
+	maddn.d		f0, f4, f5
+	const.d		f2, 1
+	mul.d		f4, f1, f0
+	mul.d		f5, f3, f0
+	msub.d		f2, f4, f0
+	maddn.d		f0, f5, f2
+	const.d		f2, 1
+	mul.d		f1, f1, f0
+	mul.d		f3, f3, f0
+	msub.d		f2, f1, f0
+	maddn.d		f0, f3, f2
+
+	rfr		xl, f0
+	rfrd		xh, f0
+
+	leaf_return
+
+#endif /* L_rsqrtdf2 */
+#endif /* XCHAL_HAVE_DFP_RSQRT */

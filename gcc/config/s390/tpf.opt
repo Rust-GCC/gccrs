@@ -1,6 +1,6 @@
 ; Options for the TPF-OS port of the compiler.
 
-; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -20,8 +20,8 @@
 
 mtpf-trace
 Target Report Mask(TPF_PROFILING)
-Enable TPF-OS tracing code
+Enable TPF-OS tracing code.
 
 mmain
 Target Report
-Specify main object for TPF-OS
+Specify main object for TPF-OS.

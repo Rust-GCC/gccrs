@@ -1,6 +1,6 @@
 // Stream iterators
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -66,13 +66,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       ///  Construct start of input stream iterator.
       istream_iterator(istream_type& __s)
-      : _M_stream(&__s)
+      : _M_stream(std::__addressof(__s))
       { _M_read(); }
 
       istream_iterator(const istream_iterator& __obj)
       : _M_stream(__obj._M_stream), _M_value(__obj._M_value),
         _M_ok(__obj._M_ok)
       { }
+
+#if __cplusplus >= 201103L
+      istream_iterator& operator=(const istream_iterator&) = default;
+#endif
 
       const _Tp&
       operator*() const
@@ -84,7 +88,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
 
       const _Tp*
-      operator->() const { return &(operator*()); }
+      operator->() const { return std::__addressof((operator*())); }
 
       istream_iterator&
       operator++()
@@ -168,7 +172,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     public:
       /// Construct from an ostream.
-      ostream_iterator(ostream_type& __s) : _M_stream(&__s), _M_string(0) {}
+      ostream_iterator(ostream_type& __s)
+      : _M_stream(std::__addressof(__s)), _M_string(0) {}
 
       /**
        *  Construct from an ostream.
@@ -186,6 +191,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       /// Copy constructor.
       ostream_iterator(const ostream_iterator& __obj)
       : _M_stream(__obj._M_stream), _M_string(__obj._M_string)  { }
+
+#if __cplusplus >= 201103L
+      ostream_iterator& operator=(const ostream_iterator&) = default;
+#endif
 
       /// Writes @a value to underlying ostream using operator<<.  If
       /// constructed with delimiter string, writes delimiter to ostream.

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -25,9 +25,19 @@
 
 --  Processing for expanding intrinsic subprogram calls
 
+with Namet; use Namet;
 with Types; use Types;
 
 package Exp_Intr is
+
+   procedure Add_Source_Info
+     (Buf : in out Bounded_String;
+      Loc : Source_Ptr;
+      Nam : Name_Id);
+   --  Append a string to Buf depending on Nam, which is the name of one of the
+   --  intrinsics declared in GNAT.Source_Info; see g-souinf.ads for
+   --  documentation of these intrinsics. Loc is passed to provide location
+   --  information where it is needed.
 
    procedure Expand_Intrinsic_Call (N : Node_Id; E : Entity_Id);
    --  N is either a function call node, a procedure call statement node, or

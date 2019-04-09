@@ -1,0 +1,889 @@
+# Test code for libgccjit.so
+#
+# We will compile each of jit.dg/test-*.c into an executable
+# dynamically linked against libgccjit.so, and then run each
+# such executable.
+#
+# These executables call into the libgccjit.so API to create
+# code, compile it, and run it, verifying that the results
+# are as expected.  See harness.h for shared code used by all
+# such executables.
+#
+# The executables call into DejaGnu's unit testing C API to
+# report PASS/FAIL results, which this script gathers back
+# up into the Tcl world, reporting a summary of all results
+# across all of the executables.
+
+# Kludge alert:
+# We need g++_init so that it can find the stdlib include path.
+#
+# g++_init (in lib/g++.exp) uses g++_maybe_build_wrapper,
+# which normally comes from the definition of
+# ${tool}_maybe_build_wrapper within lib/wrapper.exp.
+#
+# However, for us, ${tool} is "jit".
+# Hence we load wrapper.exp with tool == "g++", so that
+# g++_maybe_build_wrapper is defined.
+set tool g++
+load_lib wrapper.exp
+set tool jit
+
+load_lib dg.exp
+load_lib prune.exp
+load_lib target-supports.exp
+load_lib gcc-defs.exp
+load_lib timeout.exp
+load_lib target-libpath.exp
+load_lib gcc.exp
+load_lib g++.exp
+load_lib dejagnu.exp
+
+# Look for lines of the form:
+#   definitely lost: 11,316 bytes in 235 blocks
+#   indirectly lost: 352 bytes in 4 blocks
+# Ideally these would report zero bytes lost (which is a PASS);
+# for now, report non-zero leaks as XFAILs.
+proc report_leak {kind name logfile line} {
+    set match [regexp "$kind lost: .*" $line result]
+    if $match {
+	verbose "Saw \"$result\" within \"$line\"" 4
+	# Extract bytes and blocks.
+	# These can contain commas as well as numerals,
+	# but we only care about whether we have zero.
+	regexp "$kind lost: (.+) bytes in (.+) blocks" \
+	    $result -> bytes blocks
+	verbose "bytes: '$bytes'" 4
+	verbose "blocks: '$blocks'" 4
+	if { $bytes == 0 } {
+	    pass "$name: $logfile: $result"
+	} else {
+	    xfail "$name: $logfile: $result"
+	}
+    }
+}
+
+proc parse_valgrind_logfile {name logfile} {
+    verbose "parse_valgrind_logfile: $logfile" 2
+    if [catch {set f [open $logfile]}] {
+	fail "$name: unable to read $logfile"
+	return
+    }
+
+    while { [gets $f line] >= 0 } {
+	# Strip off the PID prefix e.g. ==7675==
+	set line [regsub "==\[0-9\]*== " $line ""]
+	verbose $line 2
+
+	report_leak "definitely" $name $logfile $line
+	report_leak "indirectly" $name $logfile $line
+    }
+    close $f
+}
+
+# Given WRES, the result from "wait", issue a PASS
+# if the spawnee exited cleanly, or a FAIL for various kinds of
+# unexpected exits.
+
+proc verify_exit_status { executable wres } {
+    lassign $wres pid spawnid os_error_flag value
+    verbose "pid: $pid" 3
+    verbose "spawnid: $spawnid" 3
+    verbose "os_error_flag: $os_error_flag" 3
+    verbose "value: $value" 3
+
+    # Detect segfaults etc:
+    if { [llength $wres] > 4 } {
+	if { [lindex $wres 4] == "CHILDKILLED" } {
+	    fail "$executable killed: $wres"
+	    return
+	}
+    }
+    if { $os_error_flag != 0 } {
+	fail "$executable: OS error: $wres"
+	return
+    }
+    if { $value != 0 } {
+	fail "$executable: non-zero exit code: $wres"
+	return
+    }
+    pass "$executable exited cleanly"
+}
+
+# This is host_execute from dejagnu.exp commit
+#   126a089777158a7891ff975473939f08c0e31a1c
+# with the following patch applied, and renaming to "fixed_host_execute".
+# See the discussion at
+#  http://lists.gnu.org/archive/html/dejagnu/2014-10/msg00000.html
+#
+#  --- /usr/share/dejagnu/dejagnu.exp.old  2014-10-08 13:38:57.274068541 -0400
+#  +++ /usr/share/dejagnu/dejagnu.exp      2014-10-10 12:27:51.113813659 -0400
+#  @@ -113,8 +113,6 @@ proc host_execute {args} {
+#       set timetol 0
+#       set arguments ""
+#   
+#  -    expect_before buffer_full { perror "Buffer full" }
+#  -
+#       if { [llength $args] == 0} {
+#          set executable $args
+#       } else {
+
+
+# Execute the executable file, and anaylyse the output for the
+# test state keywords.
+#    Returns:
+#	A "" (empty) string if everything worked, or an error message
+#	if there was a problem.
+#
+proc fixed_host_execute {args} {
+    global env
+    global text
+    global spawn_id
+
+    verbose "fixed_host_execute: $args"
+
+    set timeoutmsg "Timed out: Never got started, "
+    set timeout 100
+    set file all
+    set timetol 0
+    set arguments ""
+
+    if { [llength $args] == 0} {
+	set executable $args
+    } else {
+	set executable [lindex $args 0]
+	set params [lindex $args 1]
+    }
+
+    verbose "The executable is $executable" 2
+    if {![file exists ${executable}]} {
+	perror "The executable, \"$executable\" is missing" 0
+	return "No source file found"
+    }
+
+    verbose "params: $params" 2
+
+    # spawn the executable and look for the DejaGnu output messages from the
+    # test case.
+    # spawn -noecho -open [open "|./${executable}" "r"]
+
+    # Run under valgrind if RUN_UNDER_VALGRIND is present in the environment.
+    # Note that it's best to configure gcc with --enable-valgrind-annotations
+    # when testing under valgrind.
+    set run_under_valgrind [info exists env(RUN_UNDER_VALGRIND)]
+    if $run_under_valgrind {
+	set valgrind_logfile "${executable}.valgrind.txt"
+	set valgrind_params {"valgrind"}
+	lappend valgrind_params "--leak-check=full"
+	lappend valgrind_params "--log-file=${valgrind_logfile}"
+    } else {
+	set valgrind_params {}
+    }
+    verbose "valgrind_params: $valgrind_params" 2
+
+    set args ${valgrind_params}
+    lappend args "./${executable}"
+    set args [concat $args ${params}]
+    verbose "args: $args" 2
+
+    eval spawn -noecho $args
+
+    expect_after full_buffer {	error "got full_buffer" }
+
+    set prefix "\[^\r\n\]*"
+    expect {
+	-re "^$prefix\[0-9\]\[0-9\]:..:..:${text}*\r\n" {
+	    regsub "\[\n\r\t\]*NOTE: $text\r\n" $expect_out(0,string) "" output
+	    verbose "$output" 3
+	    set timetol 0
+	    exp_continue
+	}
+	-re "^$prefix\tNOTE:${text}*" {
+	    regsub "\[\n\r\t\]*NOTE: $text\r\n" $expect_out(0,string) "" output
+	    set output [string range $output 6 end]
+	    verbose "$output" 2
+	    set timetol 0
+	    exp_continue
+	}
+	-re "^$prefix\tPASSED:${text}*" {
+	    regsub "\[\n\r\t\]*PASSED: $text\r\n" $expect_out(0,string) "" output
+	    set output [string range $output 8 end]
+	    pass "$output"
+	    set timetol 0
+	    exp_continue
+	}
+	-re "^$prefix\tFAILED:${text}*" {
+	    regsub "\[\n\r\t\]*FAILED: $text\r\n" $expect_out(0,string) "" output
+	    set output [string range $output 8 end]
+	    fail "$output"
+	    set timetol 0
+	    exp_continue
+	}
+	-re "^$prefix\tUNTESTED:${text}*" {
+	    regsub "\[\n\r\t\]*TESTED: $text\r\n" $expect_out(0,string) "" output
+	    set output [string range $output 8 end]
+	    untested "$output"
+	    set timetol 0
+	    exp_continue
+	}
+	-re "^$prefix\tUNRESOLVED:${text}*" {
+	    regsub "\[\n\r\t\]*UNRESOLVED: $text\r\n" $expect_out(0,string) "" output
+	    set output [string range $output 8 end]
+	    unresolved "$output"
+	    set timetol 0
+	    exp_continue
+	}
+	-re "^Totals" {
+	    verbose "All done" 2
+	}
+	eof {
+	    #	    unresolved "${executable} died prematurely"
+	    #	    catch close
+	    #	    return "${executable} died prematurely"
+	}
+	timeout {
+	    warning "Timed out executing test case"
+	    if { $timetol <= 2 } {
+		incr timetol
+		exp_continue
+	    } else {
+		catch close
+		return "Timed out executing test case"
+	    }
+	}
+	-re "^$prefix\r\n" {
+	    exp_continue
+	}
+    }
+
+    # Use "wait" before "close": valgrind might not have finished
+    # writing the log out before we parse it, so we need to wait for
+    # the spawnee to finish.
+
+    catch wait wres
+    verbose "wres: $wres" 2
+    verify_exit_status $executable $wres
+
+    if $run_under_valgrind {
+	upvar 2 name name
+	parse_valgrind_logfile $name $valgrind_logfile
+    }
+
+    # force a close of the executable to be safe.
+    catch close
+
+    return ""
+}
+
+# (end of code from dejagnu.exp)
+
+# GCC_UNDER_TEST is needed by gcc_target_compile
+global GCC_UNDER_TEST
+if ![info exists GCC_UNDER_TEST] {
+    set GCC_UNDER_TEST "[find_gcc]"
+}
+
+g++_init
+
+# Initialize dg.
+dg-init
+
+# Gather a list of all tests.
+
+# C tests within the testsuite: gcc/testsuite/jit.dg/test-*.c
+set tests [find $srcdir/$subdir test-*.c]
+
+# C++ tests within the testsuite: gcc/testsuite/jit.dg/test-*.cc
+set tests [concat $tests [find $srcdir/$subdir test-*.cc]]
+
+# We also test the examples within the documentation, to ensure that
+# they compile:
+set tests [concat $tests [find $srcdir/../jit/docs/examples *.c]]
+set tests [concat $tests [find $srcdir/../jit/docs/examples *.cc]]
+
+set tests [lsort $tests]
+
+verbose "tests: $tests"
+
+# Is testcase NAME meant to generate a reproducer?
+proc is_testcase_meant_to_generate_a_reproducer {name} {
+    # We expect most testcases to generate a reproducer.
+    # The exceptions are the tutorials (which don't have a "test-"
+    # prefix), and test-threads.c and test-benchmark.c (which are each
+    # unique).
+    verbose "is_testcase_meant_to_generate_a_reproducer: $name"
+    if { [string match "*test-*" $name] } {
+	if { [string match "*test-threads.c" $name] } {
+	    return 0
+	}
+	if { [string match "*test-benchmark.c" $name] } {
+	    return 0
+	}
+	return 1
+    }
+    return 0
+}
+
+# libgloss has found the driver (as "xgcc" or "gcc) and stored
+# its full path as GCC_UNDER_TEST.
+proc get_path_of_driver {} {
+    global GCC_UNDER_TEST
+
+    verbose "GCC_UNDER_TEST: $GCC_UNDER_TEST"
+    set binary [lindex $GCC_UNDER_TEST 0]
+    verbose "binary: $binary"
+
+    return [file dirname $binary]
+}
+
+# Expand "SRCDIR" within ARG to the location of the top-level
+# src directory
+
+proc jit-expand-vars {arg} {
+    verbose "jit-expand-vars: $arg"
+    global srcdir
+    verbose " srcdir: $srcdir"
+    # "srcdir" is that of the gcc/testsuite directory, so
+    # we need to go up two levels.
+    set arg [string map [list "SRCDIR" $srcdir/../..] $arg]
+    verbose " new arg: $arg"
+    return $arg
+}
+
+# Parameters used when invoking the executables built from the test cases.
+
+global jit-exe-params
+set jit-exe-params {}
+
+# Set "jit-exe-params", expanding "SRCDIR" in each arg to the location of
+# the top-level srcdir.
+
+proc dg-jit-set-exe-params { args } {
+    verbose "dg-jit-set-exe-params: $args"
+
+    global jit-exe-params
+    set jit-exe-params {}
+    # Skip initial arg (line number)
+    foreach arg [lrange $args 1 [llength $args] ] {
+	lappend jit-exe-params [jit-expand-vars $arg]
+    }
+}
+
+proc jit-dg-test { prog do_what extra_tool_flags } {
+    verbose "within jit-dg-test..."
+    verbose "  prog: $prog"
+    verbose "  do_what: $do_what"
+    verbose "  extra_tool_flags: $extra_tool_flags"
+
+    # test-threads.c needs to be linked against pthreads
+    if {[string match "*test-threads.c" $prog]} {
+	append extra_tool_flags " -lpthread"
+    }
+
+    # test-add-driver-options.c needs a shared library built from
+    # add-driver-options-testlib.c
+    if {[string match "*test-add-driver-options.c" $prog]} {
+	global srcdir
+	global subdir
+
+	set comp_output [gcc_target_compile \
+			     $srcdir/$subdir/add-driver-options-testlib.c \
+			     "libadd-driver-options-testlib.so" \
+			     "executable" \
+			     "additional_flags=-fPIC additional_flags=-shared"]
+    }
+
+    # Any test case that uses jit-verify-output-file-was-created
+    # needs to call jit-setup-compile-to-file here.
+    # (is there a better way to handle setup/finish pairs in dg?)
+    set tmp [grep $prog "jit-verify-output-file-was-created"]
+    if {![string match "" $tmp]} {
+	jit-setup-compile-to-file $prog
+    }
+
+    # Determine what to name the built executable.
+    #
+    # We simply append .exe to the filename, e.g.
+    #  "test-foo.c.exe"
+    # since some testcases exist in both
+    #  "test-foo.c" and
+    #  "test-foo.cc"
+    # variants, and we don't want them to clobber each other's
+    # executables.
+    #
+    # This also ensures that the source name makes it into the
+    # pass/fail output, so that we can distinguish e.g. which test-foo
+    # is failing.
+    set output_file "[file tail $prog].exe"
+    verbose "output_file: $output_file"
+
+    # Create the test executable:
+    set extension [file extension $prog]
+    if {$extension == ".cc"} {
+	set compilation_function "g++_target_compile"
+	set options "{additional_flags=$extra_tool_flags}"
+    } else {
+	set compilation_function "gcc_target_compile"
+	# Until recently, <dejagnu.h> assumed -fgnu89-inline
+	# Ideally we should fixincludes it (PR other/63613), but
+	# for now add -fgnu89-inline when compiling C JIT testcases.
+	# See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=63613
+	# and http://lists.gnu.org/archive/html/dejagnu/2014-10/msg00011.html
+	set options "{additional_flags=$extra_tool_flags -fgnu89-inline}"
+    }
+    verbose "compilation_function=$compilation_function"
+    verbose "options=$options"
+
+    set comp_output [$compilation_function $prog $output_file \
+			 "executable" $options]
+    upvar 1 name name
+    if ![jit_check_compile "$name" "initial compilation" \
+	    $output_file $comp_output] then {
+      return
+    }
+
+    # Most of the test cases use gcc_jit_context_dump_reproducer_to_file
+    # as they run to write out a .c file that reproduces their behavior,
+    # exercising that API.
+    set generated_reproducer "${output_file}.reproducer.c"
+
+    # Delete any such generated .c file from a previous run.
+    catch "exec rm -f $generated_reproducer"
+
+    # Run the test executable, capturing the PASS/FAIL textual output
+    # from the C API, converting it into the Tcl API.
+
+    # We need to set LD_LIBRARY_PATH so that the test files can find
+    # libgccjit.so
+    # Do this using set_ld_library_path_env_vars from target-libpath.exp
+    # We will restore the old value later using
+    # restore_ld_library_path_env_vars.
+
+    # Unfortunately this API only supports a single saved value, rather
+    # than a stack, and g++_init has already called into this API,
+    # injecting the appropriate value for LD_LIBRARY_PATH for finding
+    # the built copy of libstdc++.
+    # Hence the call to restore_ld_library_path_env_vars would restore
+    # the *initial* value of LD_LIBRARY_PATH, and attempts to run
+    # a C++ testcase after running any prior testcases would thus look
+    # in the wrong place for libstdc++.  This led to failures at startup
+    # of the form:
+    #   ./tut01-hello-world.cc.exe: /lib64/libstdc++.so.6: version `GLIBCXX_3.4.21' not found (required by ./tut01-hello-world.cc.exe)
+    # when the built libstdc++ is more recent that the system libstdc++.
+    #
+    # As a workaround, reset the variable "orig_environment_saved" within
+    # target-libpath.exp, so that the {set|restore}_ld_library_path_env_vars
+    # API saves/restores the current value of LD_LIBRARY_PATH (as set up
+    # by g++_init).
+    global orig_environment_saved
+    set orig_environment_saved 0
+
+    global ld_library_path
+    global base_dir
+    set ld_library_path "$base_dir/../../"
+    set_ld_library_path_env_vars
+
+    # libgccjit uses the driver to convert .s files to .so libraries
+    # via its *installed* name, FULL_DRIVER_NAME
+    #   ${target_noncanonical}-gcc-${gcc_BASEVER}${exeext}
+    # e.g. "x86_64-unknown-linux-gnu-gcc-5.0.0"
+    # looking for it on PATH.  Hence we need to prepend the location of
+    # that executable to PATH when running the tests
+    set dir_containing_driver [get_path_of_driver ]
+    verbose "dir_containing_driver: $dir_containing_driver"
+    global env
+    set old_path $env(PATH)
+    setenv "PATH" $dir_containing_driver:$old_path
+    verbose -log "PATH=[getenv PATH]"
+
+    # We have:
+    #   test-executables
+    #     linked to -> libgccjit.so
+    #                    -> invokes driver:
+    #                         -> invokes the assembler
+    #                         -> invokes the linker
+    # We want to be able to run this from the builddir without installing
+    # but the linker needs to be able to locate various libraries, or we
+    # get:
+    #   ld: cannot find crtbeginS.o: No such file or directory
+    #   ld: cannot find -lgcc
+    #   ld: cannot find -lgcc_s
+    # These can be found in the "gcc" subdir of the build.
+    # Hence to be able to run the testsuite without installing, we need
+    # to set or prepend the "gcc" subdir of the build to LIBRARY_PATH:
+    if { [info exists env(LIBRARY_PATH) ] } {
+	set old_library_path $env(LIBRARY_PATH)
+	setenv "LIBRARY_PATH" $dir_containing_driver:$old_library_path
+    } else {
+	setenv "LIBRARY_PATH" $dir_containing_driver
+    }
+    verbose -log "LIBRARY_PATH=[getenv LIBRARY_PATH]"
+
+    # dejagnu.exp's host_execute has code to scrape out test results
+    # from the DejaGnu C API and bring back into the tcl world, so we
+    # use that to invoke the built code.
+    # However, it appears to be buggy; see:
+    #  http://lists.gnu.org/archive/html/dejagnu/2014-10/msg00000.html
+    # We instead call a patched local copy, "fixed_host_execute", defined
+    # above.
+
+    global jit-exe-params
+    set args ${jit-exe-params}
+    set jit-exe-params {}
+
+    set result [fixed_host_execute $output_file $args ]
+    verbose "result: $result"
+
+    # Restore PATH
+    setenv "PATH" $old_path
+
+    # Restore LIBRARY_PATH
+    if { [info exists old_library_path] } {
+	setenv "LIBRARY_PATH" $old_library_path
+    } else {
+	unsetenv "LIBRARY_PATH"
+    }
+
+    restore_ld_library_path_env_vars
+
+    # Most of the test cases use gcc_jit_context_dump_reproducer_to_file
+    # as they run to write out a .c file that reproduces their behavior,
+    # exercising that API.
+
+    if { [is_testcase_meant_to_generate_a_reproducer $name] } {
+	verbose "$name is meant to generate a reproducer"
+	# Verify that a reproducer was generated
+	if { [file exists $generated_reproducer] == 1} {
+	    pass "found generated reproducer: $generated_reproducer"
+	    set output_file "${generated_reproducer}.exe"
+	    # (this overwrites output_file)
+
+	    # Try to compile the generated reproducer
+	    verbose "compilation_function=$compilation_function"
+
+	    # The .c file written by gcc_jit_context_dump_reproducer_to_file
+	    # assigns the result of each API call to a unique variable, and not
+	    # all are necessarily used, so we need -Wno-unused-variable.
+	    set options \
+		"{additional_flags=$extra_tool_flags -Wno-unused-variable}"
+	    verbose "options=$options"
+
+	    set comp_output2 [$compilation_function $generated_reproducer \
+				  $output_file "executable" $options]
+	    if ![jit_check_compile "generated reproducer from $name" "initial compilation" \
+		     $output_file $comp_output2] then {
+			 return
+		     }
+
+	    # The caller, dg-test, will verify comp_output, which contains
+	    # the output from compiling the testcase and will issue a fail
+	    # if it's non-empty (e.g. containing warnings, the
+	    # "test for excess errors").
+	    #
+	    # Append the output from compiling the reproducer, so that this is also
+	    # verified:
+	    append comp_output $comp_output2
+
+	    # TODO: we should try to run the built executable
+	    # It's not quite a quine, since it embeds ptrs which could change
+	    # from run to run.
+	} else {
+	    fail "did not find a generated reproducer: $generated_reproducer"
+	}
+    } else {
+	verbose "$name is not meant to generate a reproducer"
+    }
+
+    # Normally we would return $comp_output and $output_file to the
+    # caller, which would delete $output_file, the generated executable.
+    # If we need to debug, it's handy to be able to suppress this behavior,
+    # keeping the executable around.
+    set preserve_executables [info exists env(PRESERVE_EXECUTABLES)]
+    if $preserve_executables {
+	set output_file ""
+    }
+    
+    return [list $comp_output $output_file]
+}
+
+# Given source file PROG, scrape out the value of
+#   #define OUTPUT_FILENAME
+# failing if it's not found.
+
+proc jit-get-output-filename {prog} {
+    set tmp [grep $prog "#define OUTPUT_FILENAME (.*)"]
+    if {![string match "" $tmp]} {
+	foreach i $tmp {
+	    verbose "i: $i"
+	    if {[regexp "^\#define OUTPUT_FILENAME\[ \t\]\+\"(.*)\"$" $i i group] } {
+		verbose "group: '$group'"
+		return $group
+	    } else {
+		fail "Unable to parse line: $i"
+	    }
+	}
+    }
+    fail "Unable to locate OUTPUT_FILENAME"
+    return ""
+}
+
+# For testcases that use jit-verify-output-file-was-created
+# delete OUTPUT_FILENAME beforehand, to ensure that the
+# testcase is indeed creating it.
+
+proc jit-setup-compile-to-file { prog } {
+    verbose "jit-setup-compile-to-file: $prog"
+    set output_filename [jit-get-output-filename $prog]
+    verbose "  output_filename: $output_filename"
+    if {![string match "" $output_filename]} {
+	verbose "  deleting any $output_filename"
+	catch "exec rm -f $output_filename"
+    }
+}
+
+proc jit-verify-output-file-was-created { args } {
+    verbose "jit-verify-output-file-was-created: $args"
+
+    upvar 2 prog prog
+    verbose "prog: $prog"
+    set output_filename [jit-get-output-filename $prog]
+    verbose "  output_filename: $output_filename"
+
+    # Verify that the expected file was written out
+    if { [file exists $output_filename] == 1} {
+	pass "$output_filename exists"
+    } else {
+	fail "$output_filename does not exist"
+    }
+}
+
+# Verify that the given file exists, and is executable.
+# Attempt to execute it, and verify that its stdout matches
+# the given regex.
+
+proc jit-run-executable { args } {
+    verbose "jit-run-executable: $args"
+
+    set executable-name [lindex $args 0]
+    verbose "executable-name: ${executable-name}"
+
+    set dg-output-text [lindex $args 1]
+    verbose "dg-output-text: ${dg-output-text}"
+
+    if { [file executable ${executable-name}] } {
+	pass "${executable-name} has executable bit set"
+    } else {
+	fail "${executable-name} does not have executable bit set"
+    }
+
+    # Attempt to run the executable; adapted from dg.exp's dg-test
+    set status -1
+    set result [jit_load ./${executable-name}]
+    set status [lindex $result 0]
+    set output [lindex $result 1]
+    verbose "  status: $status"
+    verbose "  output: $output"
+    # send_user "After exec, status: $status\n"
+    if { "$status" == "pass" } {
+	pass "${executable-name} execution test"
+	verbose "Exec succeeded." 3
+	set texttmp ${dg-output-text}
+	if { ![regexp $texttmp ${output}] } {
+	    fail "${executable-name} output pattern test, is ${output}, should match $texttmp"
+	    verbose "Failed test for output pattern $texttmp" 3
+	} else {
+	    pass "${executable-name} output pattern test, $texttmp"
+	    verbose "Passed test for output pattern $texttmp" 3
+	}
+	unset texttmp
+    } elseif { "$status" == "fail" } {
+	# It would be nice to get some info out of errorCode.
+	if {[info exists errorCode]} {
+	    verbose "Exec failed, errorCode: $errorCode" 3
+	} else {
+	    verbose "Exec failed, errorCode not defined!" 3
+	}
+	fail "${executable-name} execution test"
+    } else {
+	$status "${executable-name} execution test"
+    }
+}
+
+# Assuming that a .s file has been written out named
+# OUTPUT_FILENAME, invoke the driver to try to turn it into
+# an executable, and try to run the result.
+# For use by the test-compile-to-assembler.c testcase.
+proc jit-verify-assembler { args } {
+    verbose "jit-verify-assembler: $args"
+
+    set dg-output-text [lindex $args 0]
+    verbose "dg-output-text: ${dg-output-text}"
+
+    upvar 2 name name
+    verbose "name: $name"
+
+    upvar 2 prog prog
+    verbose "prog: $prog"
+    set asm_filename [jit-get-output-filename $prog]
+    verbose "  asm_filename: ${asm_filename}"
+
+    # Name the built executable as OUTPUT_FILENAME with
+    # ".exe" appended.
+    set executable_from_asm ${asm_filename}.exe
+    verbose "  executable_from_asm: ${executable_from_asm}"
+
+    # Invoke the driver to assemble/link the .s file to the .exe
+    set comp_output [gcc_target_compile \
+			 ${asm_filename} \
+			 ${executable_from_asm} \
+			 "executable" \
+			 "{}"]
+    if ![jit_check_compile \
+	     "$name" \
+	     "assemble/link of ${asm_filename}" \
+	     ${executable_from_asm} \
+	     $comp_output] then {
+      return
+    }
+
+    # Verify that the executable was created.
+    if { [file exists $executable_from_asm] == 1} {
+	pass "$executable_from_asm exists"
+    } else {
+	fail "$executable_from_asm does not exist"
+    }
+
+    # Run it and verify that the output matches the regex.
+    jit-run-executable ${executable_from_asm} ${dg-output-text}
+}
+
+# Assuming that a .o file has been written out named
+# OUTPUT_FILENAME, invoke the driver to try to turn it into
+# an executable, and try to run the result.
+# For use by the test-compile-to-object.c testcase.
+proc jit-verify-object { args } {
+    verbose "jit-verify-object: $args"
+
+    set dg-output-text [lindex $args 0]
+    verbose "dg-output-text: ${dg-output-text}"
+
+    upvar 2 name name
+    verbose "name: $name"
+
+    upvar 2 prog prog
+    verbose "prog: $prog"
+    set obj_filename [jit-get-output-filename $prog]
+    verbose "  obj_filename: ${obj_filename}"
+
+    # Name the linked executable as OUTPUT_FILENAME with
+    # ".exe" appended.
+    set executable_from_obj ${obj_filename}.exe
+    verbose "  executable_from_obj: ${executable_from_obj}"
+
+    # Invoke the driver to link the .o file to the .exe
+    set comp_output [gcc_target_compile \
+			 ${obj_filename} \
+			 ${executable_from_obj} \
+			 "executable" \
+			 "{}"]
+    if ![jit_check_compile \
+	     "$name" \
+	     "link of ${obj_filename}" \
+	     ${executable_from_obj} \
+	     $comp_output] then {
+      return
+    }
+
+    # Verify that the executable was created.
+    if { [file exists $executable_from_obj] == 1} {
+	pass "$executable_from_obj exists"
+    } else {
+	fail "$executable_from_obj does not exist"
+    }
+
+    # Run it and verify that the output matches the regex.
+    jit-run-executable ${executable_from_obj} ${dg-output-text}
+}
+
+# Assuming that a .so file has been written out named
+# OUTPUT_FILENAME, build a test executable to use it,
+# and try to run the result.
+# For use by the test-compile-to-dynamic-library.c testcase.
+proc jit-verify-dynamic-library { args } {
+    verbose "jit-verify-object: $args"
+
+    global srcdir
+    global subdir
+
+    set dg-output-text [lindex $args 0]
+    verbose "dg-output-text: ${dg-output-text}"
+
+    upvar 2 name name
+    verbose "name: $name"
+
+    upvar 2 prog prog
+    verbose "prog: $prog"
+    set obj_filename [jit-get-output-filename $prog]
+    verbose "  obj_filename: ${obj_filename}"
+
+    # Build a test executable from
+    # verify-dynamic-library.c
+    set test_src "verify-dynamic-library.c"
+    set test_executable ${test_src}.exe
+    verbose "  test_executable: ${test_executable}"
+
+    # Invoke the driver to build the test executable
+    set comp_output [gcc_target_compile \
+			 $srcdir/$subdir/${test_src} \
+			 ${test_executable} \
+			 "executable" \
+			 "{additional_flags=-ldl}"]
+    if ![jit_check_compile \
+	     "$name" \
+	     "build of ${test_executable}" \
+	     ${test_executable} \
+	     $comp_output] then {
+      return
+    }
+
+    # Verify that the test executable was created.
+    if { [file exists $test_executable] == 1} {
+	pass "$test_executable exists"
+    } else {
+	fail "$test_executable does not exist"
+    }
+
+    # Run it and verify that the output matches the regex.
+    jit-run-executable ${test_executable} ${dg-output-text}
+}
+
+# A way to invoke "jit-run-executable" with the given regex,
+# using OUTPUT_FILENAME within the testcase to determine
+# the name of the executable to run.
+# For use by the test-compile-to-executable.c testcase.
+
+proc jit-verify-executable { args } {
+    verbose "jit-verify-executable: $args"
+
+    set dg-output-text [lindex $args 0]
+    verbose "dg-output-text: ${dg-output-text}"
+
+    upvar 2 name name
+    verbose "name: $name"
+
+    upvar 2 prog prog
+    verbose "prog: $prog"
+    set output_filename [jit-get-output-filename $prog]
+    verbose "  output_filename: $output_filename"
+
+    jit-run-executable $output_filename ${dg-output-text}
+}
+
+# We need to link with --export-dynamic for test-calling-external-function.c
+# so that the JIT-built code can call into functions from the main program.
+set DEFAULT_CFLAGS "-I$srcdir/../jit -lgccjit -g -Wall -Werror -Wl,--export-dynamic"
+
+# Main loop.  This will invoke jig-dg-test on each test-*.c file.
+dg-runtest $tests "" $DEFAULT_CFLAGS
+
+# All done.
+dg-finish

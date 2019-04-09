@@ -16,5 +16,5 @@ struct cookie
   cookie ( foo * x) { v=x; }
 };
 
-cookie cat(&foo("apabepa"));// { dg-warning "deprecated conversion" "dep" }
-// { dg-warning "taking address of temporary" "add" { target *-*-* } 19 }
+cookie cat(&foo("apabepa"));// { dg-warning "deprecated conversion|forbids converting a string constant" "dep" }
+// { dg-warning "taking address of rvalue" "add" { target *-*-* } .-1 }

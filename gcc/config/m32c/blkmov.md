@@ -1,5 +1,5 @@
 ;; Machine Descriptions for R8C/M16C/M32C
-;; Copyright (C) 2006-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2019 Free Software Foundation, Inc.
 ;; Contributed by Red Hat.
 ;;
 ;; This file is part of GCC.
@@ -178,10 +178,10 @@
 ;; 3 = alignment
 
 (define_expand "cmpstrsi"
-  [(match_operand:HI 0 "" "")
-   (match_operand 1 "ap_operand" "")
-   (match_operand 2 "ap_operand" "")
-   (match_operand 3 "" "")
+  [(match_operand:HI 0 "register_operand" "")
+   (match_operand 1 "memory_operand" "")
+   (match_operand 2 "memory_operand" "")
+   (match_operand 3 "const_int_operand" "")
    ]
   "TARGET_A24"
   "if (m32c_expand_cmpstr(operands)) DONE; FAIL;"

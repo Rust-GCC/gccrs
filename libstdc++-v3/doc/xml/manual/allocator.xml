@@ -138,7 +138,6 @@
 
 
   <section xml:id="allocator.interface"><info><title>Interface Design</title></info>
-    
 
    <para>
      The only allocator interface that
@@ -162,7 +161,6 @@
   </section>
 
   <section xml:id="allocator.default"><info><title>Selecting Default Allocation Policy</title></info>
-    
 
    <para>
      It's difficult to pick an allocation strategy that will provide
@@ -185,8 +183,8 @@
        Over multiple iterations, various STL container
      objects have elements inserted to some maximum amount. A variety
      of allocators are tested.
-     Test source for <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/viewcvs/trunk/libstdc%2B%2B-v3/testsuite/performance/23_containers/insert/sequence.cc?view=markup">sequence</link>
-     and <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/viewcvs/trunk/libstdc%2B%2B-v3/testsuite/performance/23_containers/insert/associative.cc?view=markup">associative</link>
+     Test source for <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/viewcvs/gcc/trunk/libstdc%2B%2B-v3/testsuite/performance/23_containers/insert/sequence.cc?view=markup">sequence</link>
+     and <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/viewcvs/gcc/trunk/libstdc%2B%2B-v3/testsuite/performance/23_containers/insert/associative.cc?view=markup">associative</link>
      containers.
        </para>
 
@@ -201,7 +199,7 @@
      on a per-thread basis, as well as measuring thread contention
      for memory resources.
      Test source
-    <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/viewcvs/trunk/libstdc%2B%2B-v3/testsuite/performance/23_containers/insert_erase/associative.cc?view=markup">here</link>.
+    <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/viewcvs/gcc/trunk/libstdc%2B%2B-v3/testsuite/performance/23_containers/insert_erase/associative.cc?view=markup">here</link>.
        </para>
      </listitem>
 
@@ -211,9 +209,9 @@
        </para>
        <para>
        Test source for
-     <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/viewcvs/trunk/libstdc++-v3/testsuite/performance/23_containers/producer_consumer/sequence.cc?view=markup">sequence</link>
+     <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/viewcvs/gcc/trunk/libstdc++-v3/testsuite/performance/23_containers/producer_consumer/sequence.cc?view=markup">sequence</link>
      and
-     <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/viewcvs/trunk/libstdc++-v3/testsuite/performance/23_containers/producer_consumer/associative.cc?view=markup">associative</link>
+     <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/viewcvs/gcc/trunk/libstdc++-v3/testsuite/performance/23_containers/producer_consumer/associative.cc?view=markup">associative</link>
      containers.
      </para>
      </listitem>
@@ -228,7 +226,6 @@
   </section>
 
   <section xml:id="allocator.caching"><info><title>Disabling Memory Caching</title></info>
-    
 
     <para>
       In use, <classname>allocator</classname> may allocate and
@@ -328,8 +325,8 @@
     names have changed, but in all cases, functionality is
     equivalent. Starting with gcc-3.4, all extension allocators are
     standard style. Before this point, SGI style was the norm. Because of
-    this, the number of template arguments also changed. Here's a simple
-    chart to track the changes.
+    this, the number of template arguments also changed.
+    <xref linkend="table.extension_allocators"/> tracks the changes.
   </para>
 
   <para>
@@ -468,7 +465,7 @@
        <para>
 	 A high-performance fixed-size allocator with
 	 exponentially-increasing allocations. It has its own
-	 <link linkend="manual.ext.allocator.mt">chapter</link> 
+	 <link linkend="manual.ext.allocator.mt">chapter</link>
          in the documentation.
        </para>
      </listitem>
@@ -520,7 +517,7 @@
   <biblioentry>
       <title>
 	<link xmlns:xlink="http://www.w3.org/1999/xlink"
-	      xlink:href="http://www.hoard.org/">
+	      xlink:href="https://www.hoard.org">
       The Hoard Memory Allocator
 	</link>
       </title>
@@ -531,7 +528,7 @@
   <biblioentry>
       <title>
 	<link xmlns:xlink="http://www.w3.org/1999/xlink"
-	      xlink:href="http://people.cs.umass.edu/~emery/pubs/berger-oopsla2002.pdf">
+	      xlink:href="https://people.cs.umass.edu/~emery/pubs/berger-oopsla2002.pdf">
       Reconsidering Custom Memory Allocation
 	</link>
       </title>

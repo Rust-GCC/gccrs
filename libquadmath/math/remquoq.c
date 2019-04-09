@@ -1,5 +1,5 @@
 /* Compute remainder and a congruent to the quotient.
-   Copyright (C) 1997, 1999, 2002 Free Software Foundation, Inc.
+   Copyright (C) 1997-2018 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
    Contributed by Ulrich Drepper <drepper@cygnus.com>, 1997 and
 		  Jakub Jelinek <jj@ultra.linux.cz>, 1999.
@@ -15,12 +15,10 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-   02111-1307 USA.  */
+   License along with the GNU C Library; if not, see
+   <http://www.gnu.org/licenses/>.  */
 
 #include "quadmath-imp.h"
-
 
 static const __float128 zero = 0.0;
 
@@ -49,7 +47,7 @@ remquoq (__float128 x, __float128 y, int *quo)
 
   if (hy <= 0x7ffbffffffffffffLL)
     x = fmodq (x, 8 * y);              /* now x < 8y */
-      
+
   if (((hx - hy) | (lx - ly)) == 0)
     {
       *quo = qs ? -1 : 1;
@@ -60,12 +58,12 @@ remquoq (__float128 x, __float128 y, int *quo)
   y  = fabsq (y);
   cquo = 0;
 
-  if (x >= 4 * y)
+  if (hy <= 0x7ffcffffffffffffLL && x >= 4 * y)
     {
       x -= 4 * y;
       cquo += 4;
     }
-  if (x >= 2 * y)
+  if (hy <= 0x7ffdffffffffffffLL && x >= 2 * y)
     {
       x -= 2 * y;
       cquo += 2;
@@ -101,6 +99,9 @@ remquoq (__float128 x, __float128 y, int *quo)
 
   *quo = qs ? -cquo : cquo;
 
+  /* Ensure correct sign of zero result in round-downward mode.  */
+  if (x == 0)
+    x = 0;
   if (sx)
     x = -x;
   return x;

@@ -3,7 +3,7 @@
 // Test overload resolution among reference types
 
 // { dg-do compile { target c++11 } }
-// { dg-options "" }
+// { dg-options "-fno-ipa-icf" }
 
 template <bool> struct sa;
 template <> struct sa<true> {};
@@ -124,6 +124,7 @@ int test3_128()
 
     sink_3_128(va);		// { dg-error "" }
     sink_3_128(cva);		// { dg-error "" }
+    return 0;
 }
 
 one   sink_3_134(               A&);

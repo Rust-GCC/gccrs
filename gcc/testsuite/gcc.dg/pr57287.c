@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-options "-O2 -Wall" } */
+/* { dg-require-effective-target indirect_jumps } */
 
 #include <setjmp.h>
 
@@ -17,7 +18,7 @@ void enumerate_locals (int indent)
       if (local_indent != 8)
 	{
 	  setjmp (buf);
-	  bar (local_indent);  /* { dg-bogus "may be used uninitialized" "" } */
+	  bar (local_indent);  /* { dg-bogus "may be used uninitialized" } */
 	}
     }
   foo (1);

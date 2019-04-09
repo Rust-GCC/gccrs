@@ -1,6 +1,6 @@
 // { dg-do compile }
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,7 +25,7 @@ void test01()
   typedef long value_type;
   typedef std::tr1::hash<value_type> test_type;
   typedef std::unary_function<value_type, std::size_t> base_type;
-  
+
   test_type b;
   const test_type& obj = b;
   const base_type* base __attribute__((unused)) = &obj;

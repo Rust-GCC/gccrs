@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2012-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -21,9 +21,9 @@
    see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    <http://www.gnu.org/licenses/>.  */
 
-/* #if !defined _X86INTRIN_H_INCLUDED && !defined _IMMINTRIN_H_INCLUDED */
-/* # error "Never use <xsaveintrin.h> directly; include <x86intrin.h> instead." */
-/* #endif */
+#if !defined _IMMINTRIN_H_INCLUDED
+# error "Never use <xsaveintrin.h> directly; include <immintrin.h> instead."
+#endif
 
 #ifndef _XSAVEINTRIN_H_INCLUDED
 #define _XSAVEINTRIN_H_INCLUDED
@@ -38,14 +38,28 @@ extern __inline void
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _xsave (void *__P, long long __M)
 {
-  return __builtin_ia32_xsave (__P, __M);
+  __builtin_ia32_xsave (__P, __M);
 }
 
 extern __inline void
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _xrstor (void *__P, long long __M)
 {
-  return __builtin_ia32_xrstor (__P, __M);
+  __builtin_ia32_xrstor (__P, __M);
+}
+
+extern __inline void
+__attribute__((__gnu_inline__, __always_inline__, __artificial__))
+_xsetbv (unsigned int __A, long long __V)
+{
+  __builtin_ia32_xsetbv (__A, __V);
+}
+
+extern __inline long long
+__attribute__((__gnu_inline__, __always_inline__, __artificial__))
+_xgetbv (unsigned int __A)
+{
+  return __builtin_ia32_xgetbv (__A);
 }
 
 #ifdef __x86_64__
@@ -53,14 +67,14 @@ extern __inline void
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _xsave64 (void *__P, long long __M)
 {
-  return __builtin_ia32_xsave64 (__P, __M);
+  __builtin_ia32_xsave64 (__P, __M);
 }
 
 extern __inline void
 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _xrstor64 (void *__P, long long __M)
 {
-  return __builtin_ia32_xrstor64 (__P, __M);
+  __builtin_ia32_xrstor64 (__P, __M);
 }
 #endif
 

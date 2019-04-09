@@ -1,4 +1,4 @@
-// Copyright 2014 The Go Authors.  All rights reserved.
+// Copyright 2014 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -15,10 +15,12 @@ import (
 
 // A FileHeader represents a Plan 9 a.out file header.
 type FileHeader struct {
-	Magic   uint32
-	Bss     uint32
-	Entry   uint64
-	PtrSize int
+	Magic       uint32
+	Bss         uint32
+	Entry       uint64
+	PtrSize     int
+	LoadAddress uint64
+	HdrSize     uint64
 }
 
 // A File represents an open Plan 9 a.out file.
@@ -148,20 +150,21 @@ func NewFile(r io.ReaderAt) (*File, error) {
 	}
 
 	f := &File{FileHeader: FileHeader{
-		Magic:   ph.Magic,
-		Bss:     ph.Bss,
-		Entry:   uint64(ph.Entry),
-		PtrSize: 4,
+		Magic:       ph.Magic,
+		Bss:         ph.Bss,
+		Entry:       uint64(ph.Entry),
+		PtrSize:     4,
+		LoadAddress: 0x1000,
+		HdrSize:     4 * 8,
 	}}
-
-	hdrSize := 4 * 8
 
 	if ph.Magic&Magic64 != 0 {
 		if err := binary.Read(sr, binary.BigEndian, &f.Entry); err != nil {
 			return nil, err
 		}
 		f.PtrSize = 8
-		hdrSize += 8
+		f.LoadAddress = 0x200000
+		f.HdrSize += 8
 	}
 
 	var sects = []struct {
@@ -177,7 +180,7 @@ func NewFile(r io.ReaderAt) (*File, error) {
 
 	f.Sections = make([]*Section, 5)
 
-	off := uint32(hdrSize)
+	off := uint32(f.HdrSize)
 
 	for i, sect := range sects {
 		s := new(Section)
@@ -271,7 +274,7 @@ func newTable(symtab []byte, ptrsz int) ([]Sym, error) {
 		ts.Value = s.value
 		switch s.typ {
 		default:
-			ts.Name = string(s.name[:])
+			ts.Name = string(s.name)
 		case 'z', 'Z':
 			for i := 0; i < len(s.name); i += 2 {
 				eltIdx := binary.BigEndian.Uint16(s.name[i : i+2])

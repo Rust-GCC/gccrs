@@ -1,5 +1,5 @@
 /* Implementation of the SYSTEM intrinsic.
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2019 Free Software Foundation, Inc.
    Contributed by Tobias Schlüter.
 
 This file is part of the GNU Fortran runtime library (libgfortran).
@@ -24,8 +24,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
 #include "libgfortran.h"
-#include <string.h>
-#include <stdlib.h>
 
 extern void system_sub (const char *fcmd, GFC_INTEGER_4 * status,
 			gfc_charlen_type cmd_len);
@@ -34,16 +32,14 @@ iexport_proto(system_sub);
 void
 system_sub (const char *fcmd, GFC_INTEGER_4 *status, gfc_charlen_type cmd_len)
 {
-  char cmd[cmd_len + 1];
+  char *cmd = fc_strdup (fcmd, cmd_len);
   int stat;
 
   /* Flush all I/O units before executing the command.  */
   flush_all_units();
 
-  memcpy (cmd, fcmd, cmd_len);
-  cmd[cmd_len] = '\0';
-
   stat = system (cmd);
+  free (cmd);
   if (status)
     *status = stat;
 }

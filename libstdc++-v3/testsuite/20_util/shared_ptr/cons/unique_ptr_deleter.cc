@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2008-2014 Free Software Foundation, Inc.
+// Copyright (C) 2008-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -34,11 +34,9 @@ int D::count = 0;
 // 20.7.12.2.1 shared_ptr constructors [util.smartptr.shared.const]
 
 // Construction from unique_ptr
-int
+void
 test01()
 {
-  bool test __attribute__((unused)) = true;
-
   std::unique_ptr<A, D> up(new A, D());
   {
       std::shared_ptr<A> sp(std::move(up));
@@ -47,13 +45,23 @@ test01()
       VERIFY( sp.use_count() == 1 );
   }
   VERIFY( D::count == 1 );
+}
 
-  return 0;
+void
+test02()
+{
+  D::count = 0;
+  std::unique_ptr<A, D> up;
+  {
+    std::shared_ptr<A> sp = std::move(up);
+  }
+  VERIFY( D::count == 0 ); // LWG 2415
 }
 
 int
 main()
 {
   test01();
+  test02();
   return 0;
 }

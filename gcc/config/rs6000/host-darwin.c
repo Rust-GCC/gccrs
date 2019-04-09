@@ -1,5 +1,5 @@
 /* Darwin/powerpc host-specific hook definitions.
-   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+   Copyright (C) 2003-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -17,13 +17,15 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
+#define IN_TARGET_CODE 1
+
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "diagnostic.h"
 #include <sys/ucontext.h>
 #include "hosthooks.h"
 #include "hosthooks-def.h"
-#include "diagnostic.h"
 #include "config/host-darwin.h"
 
 static void segv_crash_handler (int);
@@ -140,13 +142,13 @@ darwin_rs6000_extra_signals (void)
   sigstk.ss_size = SIGSTKSZ;
   sigstk.ss_flags = 0;
   if (sigaltstack (&sigstk, NULL) < 0)
-    fatal_error ("While setting up signal stack: %m");
+    fatal_error (input_location, "While setting up signal stack: %m");
 
   sigemptyset(&sact.sa_mask);
   sact.sa_flags = SA_ONSTACK | SA_SIGINFO;
   sact.sa_sigaction = segv_handler;
   if (sigaction (SIGSEGV, &sact, 0) < 0) 
-    fatal_error ("While setting up signal handler: %m");
+    fatal_error (input_location, "While setting up signal handler: %m");
 }
 
 

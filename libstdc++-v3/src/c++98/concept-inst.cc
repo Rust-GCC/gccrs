@@ -1,6 +1,6 @@
 // Concept checking instantiations -*- C++ -*-
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,6 +29,7 @@
 // explicitly instantiate the initial set of symbols; compiling this file
 // with -fimplicit-templates will take care of the rest for us.
 
+#define _GLIBCXX_USE_CXX11_ABI 0
 #include <bits/concept_check.h>
 
 #ifdef _GLIBCXX_CONCEPT_CHECKS

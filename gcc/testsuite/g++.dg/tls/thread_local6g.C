@@ -2,6 +2,7 @@
 
 // { dg-do run { target c++11 } }
 // { dg-add-options tls }
+// { dg-require-effective-target unwrapped }
 // { dg-require-effective-target tls_runtime }
 // { dg-require-cxa-atexit "" }
 
@@ -19,6 +20,7 @@ thread_local A a;
 void *thread_main(void *)
 {
   A* ap = &a;
+  return 0;
 }
 
 int main()

@@ -1,5 +1,5 @@
 ;; Scheduling description for cell processor.
-;; Copyright (C) 2001-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2019 Free Software Foundation, Inc.
 ;; Contributed by Sony Computer Entertainment, Inc.,
 
 
@@ -201,17 +201,15 @@
 
 ;; add, addo, sub, subo, alter cr0, rldcli, rlwinm 
 (define_insn_reservation "cell-fast-cmp" 2
-  (and (ior (eq_attr "type" "compare")
-	    (and (eq_attr "type" "add,logical,shift,exts")
-		 (eq_attr "dot" "yes")))
+  (and (eq_attr "type" "add,logical,shift,exts")
+       (eq_attr "dot" "yes")
        (eq_attr "cpu" "cell")
        (eq_attr "cell_micro" "not"))
   "slot01,fxu_cell")
 
 (define_insn_reservation "cell-cmp-microcoded" 9
-  (and (ior (eq_attr "type" "compare")
-	    (and (eq_attr "type" "add,logical,shift,exts")
-		 (eq_attr "dot" "yes")))
+  (and (eq_attr "type" "add,logical,shift,exts")
+       (eq_attr "dot" "yes")
        (eq_attr "cpu" "cell")
        (eq_attr "cell_micro" "always"))
   "slot0+slot1,fxu_cell,fxu_cell*7")
@@ -290,7 +288,7 @@
 ;; page 90, special cases for CR hazard, only one instr can access cr per cycle
 ;; if insn reads CR following a stwcx, pipeline stall till stwcx finish
 (define_insn_reservation "cell-crlogical" 1
-  (and (eq_attr "type" "cr_logical,delayed_cr")
+  (and (eq_attr "type" "cr_logical")
        (eq_attr "cpu" "cell"))
   "bru_cell+slot01")
 
@@ -308,7 +306,7 @@
 
 ; Basic FP latency is 10 cycles, thoughput is 1/cycle
 (define_insn_reservation "cell-fp" 10
-  (and (eq_attr "type" "fp,dmul")
+  (and (eq_attr "type" "fp,fpsimple,dmul")
        (eq_attr "cpu" "cell"))
   "slot01,vsu1_cell,vsu1_cell*8")
 
@@ -331,7 +329,7 @@
 
 ; VMX
 (define_insn_reservation "cell-vecsimple" 4
-  (and (eq_attr "type" "vecsimple")
+  (and (eq_attr "type" "vecsimple,veclogical,vecmove")
        (eq_attr "cpu" "cell"))
   "slot01,vsu1_cell,vsu1_cell*2")
 
@@ -343,7 +341,7 @@
 
 ;; TODO: add support for recording instructions
 (define_insn_reservation "cell-veccmp" 4
-  (and (eq_attr "type" "veccmp")
+  (and (eq_attr "type" "veccmp,veccmpfx")
        (eq_attr "cpu" "cell"))
   "slot01,vsu1_cell,vsu1_cell*2")
 

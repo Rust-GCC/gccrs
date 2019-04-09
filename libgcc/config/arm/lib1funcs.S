@@ -1,7 +1,7 @@
 @ libgcc routines for ARM cpu.
 @ Division routines, written by Richard Earnshaw, (rearnsha@armltd.co.uk)
 
-/* Copyright (C) 1995-2014 Free Software Foundation, Inc.
+/* Copyright (C) 1995-2019 Free Software Foundation, Inc.
 
 This file is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -74,48 +74,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 /* Function end macros.  Variants for interworking.  */
 
-#if defined(__ARM_ARCH_2__)
-# define __ARM_ARCH__ 2
-#endif
-
-#if defined(__ARM_ARCH_3__)
-# define __ARM_ARCH__ 3
-#endif
-
-#if defined(__ARM_ARCH_3M__) || defined(__ARM_ARCH_4__) \
-	|| defined(__ARM_ARCH_4T__)
-/* We use __ARM_ARCH__ set to 4 here, but in reality it's any processor with
-   long multiply instructions.  That includes v3M.  */
-# define __ARM_ARCH__ 4
-#endif
-	
-#if defined(__ARM_ARCH_5__) || defined(__ARM_ARCH_5T__) \
-	|| defined(__ARM_ARCH_5E__) || defined(__ARM_ARCH_5TE__) \
-	|| defined(__ARM_ARCH_5TEJ__)
-# define __ARM_ARCH__ 5
-#endif
-
-#if defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) \
-	|| defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) \
-	|| defined(__ARM_ARCH_6ZK__) || defined(__ARM_ARCH_6T2__) \
-	|| defined(__ARM_ARCH_6M__)
-# define __ARM_ARCH__ 6
-#endif
-
-#if defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) \
-	|| defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) \
-	|| defined(__ARM_ARCH_7EM__)
-# define __ARM_ARCH__ 7
-#endif
-
-#if defined(__ARM_ARCH_8A__)
-# define __ARM_ARCH__ 8
-#endif
-
-#ifndef __ARM_ARCH__
-#error Unable to determine architecture.
-#endif
-
 /* There are times when we might prefer Thumb1 code even if ARM code is
    permitted, for example, the code might be smaller, or there might be
    interworking problems with switching to ARM state if interworking is
@@ -124,19 +82,23 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
      && !defined(__thumb2__)		\
      && (!defined(__THUMB_INTERWORK__)	\
 	 || defined (__OPTIMIZE_SIZE__)	\
-	 || defined(__ARM_ARCH_6M__)))
+	 || !__ARM_ARCH_ISA_ARM))
 # define __prefer_thumb__
+#endif
+
+#if !__ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1
+#define NOT_ISA_TARGET_32BIT 1
 #endif
 
 /* How to return from a function call depends on the architecture variant.  */
 
-#if (__ARM_ARCH__ > 4) || defined(__ARM_ARCH_4T__)
+#if (__ARM_ARCH > 4) || defined(__ARM_ARCH_4T__)
 
 # define RET		bx	lr
 # define RETc(x)	bx##x	lr
 
 /* Special precautions for interworking on armv4t.  */
-# if (__ARM_ARCH__ == 4)
+# if (__ARM_ARCH == 4)
 
 /* Always use bx, not ldr pc.  */
 #  if (defined(__thumb__) || defined(__THUMB_INTERWORK__))
@@ -305,35 +267,14 @@ LSYM(Lend_fde):
 
 #ifdef __ARM_EABI__
 .macro THUMB_LDIV0 name signed
-#if defined(__ARM_ARCH_6M__)
-	.ifc \signed, unsigned
-	cmp	r0, #0
-	beq	1f
+#ifdef NOT_ISA_TARGET_32BIT
+
+	push	{r0, lr}
 	mov	r0, #0
-	mvn	r0, r0		@ 0xffffffff
-1:
-	.else
-	cmp	r0, #0
-	beq	2f
-	blt	3f
-	mov	r0, #0
-	mvn	r0, r0
-	lsr	r0, r0, #1	@ 0x7fffffff
-	b	2f
-3:	mov	r0, #0x80
-	lsl	r0, r0, #24	@ 0x80000000
-2:
-	.endif
-	push	{r0, r1, r2}
-	ldr	r0, 4f
-	adr	r1, 4f
-	add	r0, r1
-	str	r0, [sp, #8]
+	bl	SYM(__aeabi_idiv0)
 	@ We know we are not on armv4t, so pop pc is safe.
-	pop	{r0, r1, pc}
-	.align	2
-4:
-	.word	__aeabi_idiv0 - 4b
+	pop	{r1, pc}
+
 #elif defined(__thumb2__)
 	.syntax unified
 	.ifc \signed, unsigned
@@ -429,6 +370,16 @@ SYM (\name):
 SYM (__\name):
 .endm
 
+.macro ARM_SYM_START name
+       TYPE (\name)
+       .align 0
+SYM (\name):
+.endm
+
+.macro SYM_END name
+       SIZE (\name)
+.endm
+
 /* Special function that will always be coded in ARM assembly, even if
    in Thumb-only compilation.  */
 
@@ -464,7 +415,7 @@ _L__\name:
 
 #else /* !(__INTERWORKING_STUBS__ || __thumb2__) */
 
-#ifdef __ARM_ARCH_6M__
+#ifdef NOT_ISA_TARGET_32BIT
 #define EQUIV .thumb_set
 #else
 .macro	ARM_FUNC_START name
@@ -492,7 +443,7 @@ SYM (__\name):
 #endif
 .endm
 
-#ifndef __ARM_ARCH_6M__
+#ifndef NOT_ISA_TARGET_32BIT
 .macro	ARM_FUNC_ALIAS new old
 	.globl	SYM (__\new)
 	EQUIV	SYM (__\new), SYM (__\old)
@@ -542,7 +493,7 @@ pc		.req	r15
 /* ------------------------------------------------------------------------ */	
 .macro ARM_DIV_BODY dividend, divisor, result, curbit
 
-#if __ARM_ARCH__ >= 5 && ! defined (__OPTIMIZE_SIZE__)
+#if defined (__ARM_FEATURE_CLZ) && ! defined (__OPTIMIZE_SIZE__)
 
 #if defined (__thumb2__)
 	clz	\curbit, \dividend
@@ -582,8 +533,8 @@ pc		.req	r15
 	.endr
 #endif
 
-#else /* __ARM_ARCH__ < 5 || defined (__OPTIMIZE_SIZE__) */
-#if __ARM_ARCH__ >= 5
+#else /* !defined (__ARM_FEATURE_CLZ) || defined (__OPTIMIZE_SIZE__) */
+#if defined (__ARM_FEATURE_CLZ)
 
 	clz	\curbit, \divisor
 	clz	\result, \dividend
@@ -593,7 +544,7 @@ pc		.req	r15
 	mov	\curbit, \curbit, lsl \result
 	mov	\result, #0
 	
-#else /* __ARM_ARCH__ < 5 */
+#else /* !defined (__ARM_FEATURE_CLZ) */
 
 	@ Initially shift the divisor left 3 bits if possible,
 	@ set curbit accordingly.  This allows for curbit to be located
@@ -624,7 +575,7 @@ pc		.req	r15
 
 	mov	\result, #0
 
-#endif /* __ARM_ARCH__ < 5 */
+#endif /* !defined (__ARM_FEATURE_CLZ) */
 
 	@ Division loop
 1:	cmp	\dividend, \divisor
@@ -649,13 +600,13 @@ pc		.req	r15
 	movne	\divisor,  \divisor, lsr #4
 	bne	1b
 
-#endif /* __ARM_ARCH__ < 5 || defined (__OPTIMIZE_SIZE__) */
+#endif /* !defined (__ARM_FEATURE_CLZ) || defined (__OPTIMIZE_SIZE__) */
 
 .endm
 /* ------------------------------------------------------------------------ */	
 .macro ARM_DIV2_ORDER divisor, order
 
-#if __ARM_ARCH__ >= 5
+#if defined (__ARM_FEATURE_CLZ)
 
 	clz	\order, \divisor
 	rsb	\order, \order, #31
@@ -685,7 +636,7 @@ pc		.req	r15
 /* ------------------------------------------------------------------------ */
 .macro ARM_MOD_BODY dividend, divisor, order, spare
 
-#if __ARM_ARCH__ >= 5 && ! defined (__OPTIMIZE_SIZE__)
+#if defined(__ARM_FEATURE_CLZ) && ! defined (__OPTIMIZE_SIZE__)
 
 	clz	\order, \divisor
 	clz	\spare, \dividend
@@ -700,15 +651,15 @@ pc		.req	r15
 	subcs	\dividend, \dividend, \divisor, lsl #shift
 	.endr
 
-#else /* __ARM_ARCH__ < 5 || defined (__OPTIMIZE_SIZE__) */
-#if __ARM_ARCH__ >= 5
+#else /* !defined (__ARM_FEATURE_CLZ) || defined (__OPTIMIZE_SIZE__) */
+#if defined (__ARM_FEATURE_CLZ)
 
 	clz	\order, \divisor
 	clz	\spare, \dividend
 	sub	\order, \order, \spare
 	mov	\divisor, \divisor, lsl \order
 	
-#else /* __ARM_ARCH__ < 5 */
+#else /* !defined (__ARM_FEATURE_CLZ) */
 
 	mov	\order, #0
 
@@ -730,7 +681,7 @@ pc		.req	r15
 	addlo	\order, \order, #1
 	blo	1b
 
-#endif /* __ARM_ARCH__ < 5 */
+#endif /* !defined (__ARM_FEATURE_CLZ) */
 
 	@ Perform all needed substractions to keep only the reminder.
 	@ Do comparisons in batch of 4 first.
@@ -768,7 +719,7 @@ pc		.req	r15
 	subhs	\dividend, \dividend, \divisor
 5:
 
-#endif /* __ARM_ARCH__ < 5 || defined (__OPTIMIZE_SIZE__) */
+#endif /* !defined (__ARM_FEATURE_CLZ) || defined (__OPTIMIZE_SIZE__) */
 
 .endm
 /* ------------------------------------------------------------------------ */
@@ -927,7 +878,170 @@ LSYM(Lover7):
 	add	dividend, work
   .endif
 LSYM(Lgot_result):
-.endm	
+.endm
+
+/* If performance is preferred, the following functions are provided.  */
+#if defined(__prefer_thumb__) && !defined(__OPTIMIZE_SIZE__)
+
+/* Branch to div(n), and jump to label if curbit is lo than divisior.  */
+.macro BranchToDiv n, label
+	lsr	curbit, dividend, \n
+	cmp	curbit, divisor
+	blo	\label
+.endm
+
+/* Body of div(n).  Shift the divisor in n bits and compare the divisor
+   and dividend.  Update the dividend as the substruction result.  */
+.macro DoDiv n
+	lsr	curbit, dividend, \n
+	cmp	curbit, divisor
+	bcc	1f
+	lsl	curbit, divisor, \n
+	sub	dividend, dividend, curbit
+
+1:	adc	result, result
+.endm
+
+/* The body of division with positive divisor.  Unless the divisor is very
+   big, shift it up in multiples of four bits, since this is the amount of
+   unwinding in the main division loop.  Continue shifting until the divisor
+   is larger than the dividend.  */
+.macro THUMB1_Div_Positive
+	mov	result, #0
+	BranchToDiv #1, LSYM(Lthumb1_div1)
+	BranchToDiv #4, LSYM(Lthumb1_div4)
+	BranchToDiv #8, LSYM(Lthumb1_div8)
+	BranchToDiv #12, LSYM(Lthumb1_div12)
+	BranchToDiv #16, LSYM(Lthumb1_div16)
+LSYM(Lthumb1_div_large_positive):
+	mov	result, #0xff
+	lsl	divisor, divisor, #8
+	rev	result, result
+	lsr	curbit, dividend, #16
+	cmp	curbit, divisor
+	blo	1f
+	asr	result, #8
+	lsl	divisor, divisor, #8
+	beq	LSYM(Ldivbyzero_waypoint)
+
+1:	lsr	curbit, dividend, #12
+	cmp	curbit, divisor
+	blo	LSYM(Lthumb1_div12)
+	b	LSYM(Lthumb1_div16)
+LSYM(Lthumb1_div_loop):
+	lsr	divisor, divisor, #8
+LSYM(Lthumb1_div16):
+	Dodiv	#15
+	Dodiv	#14
+	Dodiv	#13
+	Dodiv	#12
+LSYM(Lthumb1_div12):
+	Dodiv	#11
+	Dodiv	#10
+	Dodiv	#9
+	Dodiv	#8
+	bcs	LSYM(Lthumb1_div_loop)
+LSYM(Lthumb1_div8):
+	Dodiv	#7
+	Dodiv	#6
+	Dodiv	#5
+LSYM(Lthumb1_div5):
+	Dodiv	#4
+LSYM(Lthumb1_div4):
+	Dodiv	#3
+LSYM(Lthumb1_div3):
+	Dodiv	#2
+LSYM(Lthumb1_div2):
+	Dodiv	#1
+LSYM(Lthumb1_div1):
+	sub	divisor, dividend, divisor
+	bcs	1f
+	cpy	divisor, dividend
+
+1:	adc	result, result
+	cpy	dividend, result
+	RET
+
+LSYM(Ldivbyzero_waypoint):
+	b	LSYM(Ldiv0)
+.endm
+
+/* The body of division with negative divisor.  Similar with
+   THUMB1_Div_Positive except that the shift steps are in multiples
+   of six bits.  */
+.macro THUMB1_Div_Negative
+	lsr	result, divisor, #31
+	beq	1f
+	neg	divisor, divisor
+
+1:	asr	curbit, dividend, #32
+	bcc	2f
+	neg	dividend, dividend
+
+2:	eor	curbit, result
+	mov	result, #0
+	cpy	ip, curbit
+	BranchToDiv #4, LSYM(Lthumb1_div_negative4)
+	BranchToDiv #8, LSYM(Lthumb1_div_negative8)
+LSYM(Lthumb1_div_large):
+	mov	result, #0xfc
+	lsl	divisor, divisor, #6
+	rev	result, result
+	lsr	curbit, dividend, #8
+	cmp	curbit, divisor
+	blo	LSYM(Lthumb1_div_negative8)
+
+	lsl	divisor, divisor, #6
+	asr	result, result, #6
+	cmp	curbit, divisor
+	blo	LSYM(Lthumb1_div_negative8)
+
+	lsl	divisor, divisor, #6
+	asr	result, result, #6
+	cmp	curbit, divisor
+	blo	LSYM(Lthumb1_div_negative8)
+
+	lsl	divisor, divisor, #6
+	beq	LSYM(Ldivbyzero_negative)
+	asr	result, result, #6
+	b	LSYM(Lthumb1_div_negative8)
+LSYM(Lthumb1_div_negative_loop):
+	lsr	divisor, divisor, #6
+LSYM(Lthumb1_div_negative8):
+	DoDiv	#7
+	DoDiv	#6
+	DoDiv	#5
+	DoDiv	#4
+LSYM(Lthumb1_div_negative4):
+	DoDiv	#3
+	DoDiv	#2
+	bcs	LSYM(Lthumb1_div_negative_loop)
+	DoDiv	#1
+	sub	divisor, dividend, divisor
+	bcs	1f
+	cpy	divisor, dividend
+
+1:	cpy	curbit, ip
+	adc	result, result
+	asr	curbit, curbit, #1
+	cpy	dividend, result
+	bcc	2f
+	neg	dividend, dividend
+	cmp	curbit, #0
+
+2:	bpl	3f
+	neg	divisor, divisor
+
+3:	RET
+
+LSYM(Ldivbyzero_negative):
+	cpy	curbit, ip
+	asr	curbit, curbit, #1
+	bcc	LSYM(Ldiv0)
+	neg	dividend, dividend
+.endm
+#endif /* ARM Thumb version.  */
+
 /* ------------------------------------------------------------------------ */
 /*		Start of the Real Functions				    */
 /* ------------------------------------------------------------------------ */
@@ -937,6 +1051,7 @@ LSYM(Lgot_result):
 
 	FUNC_START udivsi3
 	FUNC_ALIAS aeabi_uidiv udivsi3
+#if defined(__OPTIMIZE_SIZE__)
 
 	cmp	divisor, #0
 	beq	LSYM(Ldiv0)
@@ -953,6 +1068,14 @@ LSYM(udivsi3_skip_div0_test):
 	mov	r0, result
 	pop	{ work }
 	RET
+
+/* Implementation of aeabi_uidiv for ARMv6m.  This version is only
+   used in ARMv6-M when we need an efficient implementation.  */
+#else
+LSYM(udivsi3_skip_div0_test):
+	THUMB1_Div_Positive
+
+#endif /* __OPTIMIZE_SIZE__ */
 
 #elif defined(__ARM_ARCH_EXT_IDIV__)
 
@@ -1005,12 +1128,21 @@ LSYM(udivsi3_skip_div0_test):
 FUNC_START aeabi_uidivmod
 	cmp	r1, #0
 	beq	LSYM(Ldiv0)
+# if defined(__OPTIMIZE_SIZE__)
 	push	{r0, r1, lr}
 	bl	LSYM(udivsi3_skip_div0_test)
 	POP	{r1, r2, r3}
 	mul	r2, r0
 	sub	r1, r1, r2
 	bx	r3
+# else
+	/* Both the quotient and remainder are calculated simultaneously
+	   in THUMB1_Div_Positive.  There is no need to calculate the
+	   remainder again here.  */
+	b	LSYM(udivsi3_skip_div0_test)
+	RET
+# endif /* __OPTIMIZE_SIZE__ */
+
 #elif defined(__ARM_ARCH_EXT_IDIV__)
 ARM_FUNC_START aeabi_uidivmod
 	cmp	r1, #0
@@ -1036,7 +1168,7 @@ ARM_FUNC_START aeabi_uidivmod
 /* ------------------------------------------------------------------------ */
 #ifdef L_umodsi3
 
-#ifdef __ARM_ARCH_EXT_IDIV__
+#if defined(__ARM_ARCH_EXT_IDIV__) && __ARM_ARCH_ISA_THUMB != 1
 
 	ARM_FUNC_START umodsi3
 
@@ -1066,7 +1198,7 @@ LSYM(Lover10):
 	RET
 	
 #else  /* ARM version.  */
-	
+
 	FUNC_START umodsi3
 
 	subs	r2, r1, #1			@ compare divisor with 1
@@ -1091,8 +1223,9 @@ LSYM(Lover10):
 
 #if defined(__prefer_thumb__)
 
-	FUNC_START divsi3	
+	FUNC_START divsi3
 	FUNC_ALIAS aeabi_idiv divsi3
+#if defined(__OPTIMIZE_SIZE__)
 
 	cmp	divisor, #0
 	beq	LSYM(Ldiv0)
@@ -1115,7 +1248,7 @@ LSYM(Lover11):
 	blo	LSYM(Lgot_result)
 
 	THUMB_DIV_MOD_BODY 0
-	
+
 	mov	r0, result
 	mov	work, ip
 	cmp	work, #0
@@ -1124,6 +1257,22 @@ LSYM(Lover11):
 LSYM(Lover12):
 	pop	{ work }
 	RET
+
+/* Implementation of aeabi_idiv for ARMv6m.  This version is only
+   used in ARMv6-M when we need an efficient implementation.  */
+#else
+LSYM(divsi3_skip_div0_test):
+	cpy	curbit, dividend
+	orr	curbit, divisor
+	bmi	LSYM(Lthumb1_div_negative)
+
+LSYM(Lthumb1_div_positive):
+	THUMB1_Div_Positive
+
+LSYM(Lthumb1_div_negative):
+	THUMB1_Div_Negative
+
+#endif /* __OPTIMIZE_SIZE__ */
 
 #elif defined(__ARM_ARCH_EXT_IDIV__)
 
@@ -1136,8 +1285,8 @@ LSYM(Lover12):
 	RET
 
 #else /* ARM/Thumb-2 version.  */
-	
-	ARM_FUNC_START divsi3	
+
+	ARM_FUNC_START divsi3
 	ARM_FUNC_ALIAS aeabi_idiv divsi3
 
 	cmp	r1, #0
@@ -1191,12 +1340,21 @@ LSYM(divsi3_skip_div0_test):
 FUNC_START aeabi_idivmod
 	cmp	r1, #0
 	beq	LSYM(Ldiv0)
+# if defined(__OPTIMIZE_SIZE__)
 	push	{r0, r1, lr}
 	bl	LSYM(divsi3_skip_div0_test)
 	POP	{r1, r2, r3}
 	mul	r2, r0
 	sub	r1, r1, r2
 	bx	r3
+# else
+	/* Both the quotient and remainder are calculated simultaneously
+	   in THUMB1_Div_Positive and THUMB1_Div_Negative.  There is no
+	   need to calculate the remainder again here.  */
+	b	LSYM(divsi3_skip_div0_test)
+	RET
+# endif /* __OPTIMIZE_SIZE__ */
+
 #elif defined(__ARM_ARCH_EXT_IDIV__)
 ARM_FUNC_START aeabi_idivmod
 	cmp 	r1, #0
@@ -1222,7 +1380,7 @@ ARM_FUNC_START aeabi_idivmod
 /* ------------------------------------------------------------------------ */
 #ifdef L_modsi3
 
-#if defined(__ARM_ARCH_EXT_IDIV__)
+#if defined(__ARM_ARCH_EXT_IDIV__) && __ARM_ARCH_ISA_THUMB != 1
 
 	ARM_FUNC_START modsi3
 
@@ -1318,23 +1476,30 @@ LSYM(Lover12):
 #define SIGFPE	8
 
 #ifdef __ARM_EABI__
+	cfi_start	__aeabi_ldiv0, LSYM(Lend_aeabi_ldiv0)
 	WEAK aeabi_idiv0
 	WEAK aeabi_ldiv0
 	ARM_FUNC_START aeabi_idiv0
 	ARM_FUNC_START aeabi_ldiv0
+	do_push	{r1, lr}
+98:	cfi_push 98b - __aeabi_ldiv0, 0xe, -0x4, 0x8
 #else
+	cfi_start	__div0, LSYM(Lend_div0)
 	ARM_FUNC_START div0
+	do_push	{r1, lr}
+98:	cfi_push 98b - __div0, 0xe, -0x4, 0x8
 #endif
 
-	do_push	{r1, lr}
 	mov	r0, #SIGFPE
 	bl	SYM(raise) __PLT__
-	RETLDM	r1
+	RETLDM	r1 unwind=98b
 
 #ifdef __ARM_EABI__
+	cfi_end	LSYM(Lend_aeabi_ldiv0)
 	FUNC_END aeabi_ldiv0
 	FUNC_END aeabi_idiv0
 #else
+	cfi_end	LSYM(Lend_div0)
 	FUNC_END div0
 #endif
 	
@@ -1344,7 +1509,7 @@ LSYM(Lover12):
 @ EABI GNU/Linux call to cacheflush syscall.
 	ARM_FUNC_START clear_cache
 	do_push	{r7}
-#if __ARM_ARCH__ >= 7 || defined(__ARM_ARCH_6T2__)
+#if __ARM_ARCH >= 7 || defined(__ARM_ARCH_6T2__)
 	movw	r7, #2
 	movt	r7, #0xf
 #else
@@ -1360,6 +1525,50 @@ LSYM(Lover12):
 #error "This is only for ARM EABI GNU/Linux"
 #endif
 #endif /* L_clear_cache */
+
+#ifdef L_speculation_barrier
+	FUNC_START speculation_barrier
+#if __ARM_ARCH >= 7
+	isb
+	dsb sy
+#elif defined __ARM_EABI__ && defined __linux__
+	/* We don't have a speculation barrier directly for this
+	   platform/architecture variant.  But we can use a kernel
+	   clear_cache service routine which will emit such instructions
+	   if run on a later version of the architecture.  We don't
+	   really want to flush the cache, but we must give it a valid
+	   address, so just clear pc..pc+1.  */
+#if defined __thumb__ && !defined __thumb2__
+	push	{r7}
+	mov	r7, #0xf
+	lsl	r7, #16
+	add	r7, #2
+	adr	r0, . + 4
+	add	r1, r0, #1
+	mov	r2, #0
+	svc	0
+	pop	{r7}
+#else
+	do_push	{r7}
+#ifdef __ARM_ARCH_6T2__
+	movw	r7, #2
+	movt	r7, #0xf
+#else
+	mov	r7, #0xf0000
+	add	r7, r7, #2
+#endif
+	add	r0, pc, #0	/* ADR.  */
+	add	r1, r0, #1
+	mov	r2, #0
+	svc	0
+	do_pop	{r7}
+#endif /* Thumb1 only */
+#else
+#warning "No speculation barrier defined for this platform"
+#endif
+	RET
+	FUNC_END speculation_barrier
+#endif
 /* ------------------------------------------------------------------------ */
 /* Dword shift operations.  */
 /* All the following Dword shift variants rely on the fact that
@@ -1483,14 +1692,8 @@ LSYM(Lover12):
 
 #endif /* __symbian__ */
 
-#if ((__ARM_ARCH__ > 5) && !defined(__ARM_ARCH_6M__)) \
-    || defined(__ARM_ARCH_5E__) || defined(__ARM_ARCH_5TE__) \
-    || defined(__ARM_ARCH_5TEJ__)
-#define HAVE_ARM_CLZ 1
-#endif
-
 #ifdef L_clzsi2
-#if defined(__ARM_ARCH_6M__)
+#ifdef NOT_ISA_TARGET_32BIT
 FUNC_START clzsi2
 	mov	r1, #28
 	mov	r3, #1
@@ -1519,7 +1722,7 @@ FUNC_START clzsi2
 	FUNC_END clzsi2
 #else
 ARM_FUNC_START clzsi2
-# if defined(HAVE_ARM_CLZ)
+# if defined (__ARM_FEATURE_CLZ)
 	clz	r0, r0
 	RET
 # else
@@ -1543,15 +1746,15 @@ ARM_FUNC_START clzsi2
 .align 2
 1:
 .byte 4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0
-# endif /* !HAVE_ARM_CLZ */
+# endif /* !defined (__ARM_FEATURE_CLZ) */
 	FUNC_END clzsi2
 #endif
 #endif /* L_clzsi2 */
 
 #ifdef L_clzdi2
-#if !defined(HAVE_ARM_CLZ)
+#if !defined (__ARM_FEATURE_CLZ)
 
-# if defined(__ARM_ARCH_6M__)
+# ifdef NOT_ISA_TARGET_32BIT
 FUNC_START clzdi2
 	push	{r4, lr}
 # else
@@ -1576,14 +1779,14 @@ ARM_FUNC_START clzdi2
 	bl	__clzsi2
 # endif
 2:
-# if defined(__ARM_ARCH_6M__)
+# ifdef NOT_ISA_TARGET_32BIT
 	pop	{r4, pc}
 # else
 	RETLDM	r4
 # endif
 	FUNC_END clzdi2
 
-#else /* HAVE_ARM_CLZ */
+#else /* defined (__ARM_FEATURE_CLZ) */
 
 ARM_FUNC_START clzdi2
 	cmp	xxh, #0
@@ -1598,7 +1801,7 @@ ARM_FUNC_START clzdi2
 #endif /* L_clzdi2 */
 
 #ifdef L_ctzsi2
-#if defined(__ARM_ARCH_6M__)
+#ifdef NOT_ISA_TARGET_32BIT
 FUNC_START ctzsi2
 	neg	r1, r0
 	and	r0, r0, r1
@@ -1631,7 +1834,7 @@ FUNC_START ctzsi2
 ARM_FUNC_START ctzsi2
 	rsb	r1, r0, #0
 	and	r0, r0, r1
-# if defined(HAVE_ARM_CLZ)
+# if defined (__ARM_FEATURE_CLZ)
 	clz	r0, r0
 	rsb	r0, r0, #31
 	RET
@@ -1656,7 +1859,7 @@ ARM_FUNC_START ctzsi2
 .align 2
 1:
 .byte	27, 28, 29, 29, 30, 30, 30, 30, 31, 31, 31, 31, 31, 31, 31, 31
-# endif /* !HAVE_ARM_CLZ */
+# endif /* !defined (__ARM_FEATURE_CLZ) */
 	FUNC_END ctzsi2
 #endif
 #endif /* L_clzsi2 */
@@ -1670,7 +1873,7 @@ ARM_FUNC_START ctzsi2
    not support Thumb instructions.  (This can be a multilib option).  */
 #if defined __ARM_ARCH_4T__ || defined __ARM_ARCH_5T__\
       || defined __ARM_ARCH_5TE__ || defined __ARM_ARCH_5TEJ__ \
-      || __ARM_ARCH__ >= 6
+      || __ARM_ARCH >= 6
 
 #if defined L_call_via_rX
 
@@ -1713,7 +1916,7 @@ ARM_FUNC_START ctzsi2
 
 /* Don't bother with the old interworking routines for Thumb-2.  */
 /* ??? Maybe only omit these on "m" variants.  */
-#if !defined(__thumb2__) && !defined(__ARM_ARCH_6M__)
+#if !defined(__thumb2__) && __ARM_ARCH_ISA_ARM
 
 #if defined L_interwork_call_via_rX
 
@@ -1947,12 +2150,24 @@ LSYM(Lchange_\register):
 
 #endif /* Arch supports thumb.  */
 
+.macro CFI_START_FUNCTION
+	.cfi_startproc
+	.cfi_remember_state
+.endm
+
+.macro CFI_END_FUNCTION
+	.cfi_restore_state
+	.cfi_endproc
+.endm
+
 #ifndef __symbian__
-#ifndef __ARM_ARCH_6M__
+/* The condition here must match the one in gcc/config/arm/elf.h and
+   libgcc/config/arm/t-elf.  */
+#ifndef NOT_ISA_TARGET_32BIT
 #include "ieee754-df.S"
 #include "ieee754-sf.S"
 #include "bpabi.S"
-#else /* __ARM_ARCH_6M__ */
+#else /* NOT_ISA_TARGET_32BIT */
 #include "bpabi-v6m.S"
-#endif /* __ARM_ARCH_6M__ */
+#endif /* NOT_ISA_TARGET_32BIT */
 #endif /* !__symbian__ */

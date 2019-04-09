@@ -4,13 +4,12 @@
 
 #include "runtime.h"
 #include "go-type.h"
-#include "go-panic.h"
 
 #ifdef USE_LIBFFI
 
-#include "go-ffi.h"
+#include "ffi.h"
 
-#if FFI_CLOSURES
+#if FFI_GO_CLOSURES
 #define USE_LIBFFI_CLOSURES
 #endif
 
@@ -18,36 +17,34 @@
 
 /* Declare C functions with the names used to call from Go.  */
 
-struct ffi_ret {
-  void *code;
-  void *data;
-  void *cif;
-};
-
-struct ffi_ret ffi(const struct __go_func_type *ftyp, FuncVal *callback)
-  __asm__ (GOSYM_PREFIX "reflect.ffi");
-
-void ffiFree(void *data)
-  __asm__ (GOSYM_PREFIX "reflect.ffiFree");
+void makeFuncFFI(void *cif, void *impl)
+  __asm__ (GOSYM_PREFIX "reflect.makeFuncFFI");
 
 #ifdef USE_LIBFFI_CLOSURES
 
-/* The function that we pass to ffi_prep_closure_loc.  This calls the
-   Go callback function (passed in user_data) with the pointer to the
-   arguments and the results area.  */
+/* The function that we pass to ffi_prep_closure_loc.  This calls the Go
+   function ffiCall with the pointer to the arguments, the results area,
+   and the closure structure.  */
+
+extern void FFICallbackGo(void *result, void **args, ffi_go_closure *closure)
+  __asm__ (GOSYM_PREFIX "reflect.FFICallbackGo");
+
+extern void makefuncfficanrecover(Slice)
+  __asm__ (GOSYM_PREFIX "runtime.makefuncfficanrecover");
+
+extern void makefuncreturning(void)
+  __asm__ (GOSYM_PREFIX "runtime.makefuncreturning");
 
 static void ffi_callback (ffi_cif *, void *, void **, void *)
   __asm__ ("reflect.ffi_callback");
 
 static void
 ffi_callback (ffi_cif* cif __attribute__ ((unused)), void *results,
-	      void **args, void *user_data)
+	      void **args, void *closure)
 {
   Location locs[8];
   int n;
   int i;
-  FuncVal *fv;
-  void (*f) (void *, void *);
 
   /* This function is called from some series of FFI closure functions
      called by a Go function.  We want to see whether the caller of
@@ -67,59 +64,34 @@ ffi_callback (ffi_cif* cif __attribute__ ((unused)), void *results,
 	break;
     }
   if (i < n)
-    __go_makefunc_ffi_can_recover (locs + i, n - i);
+    {
+      Slice s;
 
-  fv = (FuncVal *) user_data;
-  __go_set_closure (fv);
-  f = (void *) fv->fn;
-  f (args, results);
+      s.__values = (void *) &locs[i];
+      s.__count = n - i;
+      s.__capacity = n - i;
+      makefuncfficanrecover (s);
+    }
+
+  FFICallbackGo(results, args, closure);
 
   if (i < n)
-    __go_makefunc_returning ();
+    makefuncreturning ();
 }
 
 /* Allocate an FFI closure and arrange to call ffi_callback.  */
 
-struct ffi_ret
-ffi (const struct __go_func_type *ftyp, FuncVal *callback)
-{
-  ffi_cif *cif;
-  void *code;
-  void *data;
-  struct ffi_ret ret;
-
-  cif = (ffi_cif *) __go_alloc (sizeof (ffi_cif));
-  __go_func_to_cif (ftyp, 0, 0, cif);
-  data = ffi_closure_alloc (sizeof (ffi_closure), &code);
-  if (data == NULL)
-    runtime_panicstring ("ffi_closure_alloc failed");
-  if (ffi_prep_closure_loc (data, cif, ffi_callback, callback, code)
-      != FFI_OK)
-    runtime_panicstring ("ffi_prep_closure_loc failed");
-  ret.code = code;
-  ret.data = data;
-  ret.cif = cif;
-  return ret;
-}
-
-/* Free the FFI closure.  */
-
 void
-ffiFree (void *data)
+makeFuncFFI(void *cif, void *impl)
 {
-  ffi_closure_free (data);
+  ffi_prep_go_closure(impl, (ffi_cif*)cif, ffi_callback);
 }
 
 #else /* !defined(USE_LIBFFI_CLOSURES) */
 
-struct ffi_ret
-ffi(const struct __go_func_type *ftyp, FuncVal *callback)
-{
-  runtime_panicstring ("libgo built without FFI does not support "
-		       "reflect.MakeFunc");
-}
-
-void ffiFree(void *data)
+void
+makeFuncFFI(void *cif __attribute__ ((unused)),
+	    void *impl __attribute__ ((unused)))
 {
   runtime_panicstring ("libgo built without FFI does not support "
 		       "reflect.MakeFunc");

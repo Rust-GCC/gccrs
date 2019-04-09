@@ -1,5 +1,5 @@
 /* Definitions for Intel 386 systems using GNU userspace.
-   Copyright (C) 1994-2014 Free Software Foundation, Inc.
+   Copyright (C) 1994-2019 Free Software Foundation, Inc.
    Contributed by Eric Youngdale.
    Modified for stabs-in-ELF by H.J. Lu.
 
@@ -67,7 +67,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef  ASM_SPEC
 #define ASM_SPEC \
-  "--32 %{!mno-sse2avx:%{mavx:-msse2avx}} %{msse2avx:%{!mavx:-msse2avx}}"
+  "--32 %{msse2avx:%{!mavx:-msse2avx}}"
 
 #undef  SUBTARGET_EXTRA_SPECS
 #define SUBTARGET_EXTRA_SPECS \
@@ -77,9 +77,10 @@ along with GCC; see the file COPYING3.  If not see
 #define GNU_USER_TARGET_LINK_SPEC "-m %(link_emulation) %{shared:-shared} \
   %{!shared: \
     %{!static: \
-      %{rdynamic:-export-dynamic} \
-      -dynamic-linker %(dynamic_linker)} \
-      %{static:-static}}"
+      %{!static-pie: \
+	%{rdynamic:-export-dynamic} \
+	-dynamic-linker %(dynamic_linker)}} \
+    %{static:-static} %{static-pie:-static -pie --no-dynamic-linker -z text}}"
 
 #undef	LINK_SPEC
 #define LINK_SPEC GNU_USER_TARGET_LINK_SPEC
@@ -94,24 +95,18 @@ along with GCC; see the file COPYING3.  If not see
 
 /* A C statement to output to the stdio stream FILE an assembler
    command to advance the location counter to a multiple of 1<<LOG
-   bytes if it is within MAX_SKIP bytes.
+   bytes if it is within MAX_SKIP bytes.  */
 
-   This is used to align code labels according to Intel recommendations.  */
+#define SUBALIGN_LOG 3
 
 #ifdef HAVE_GAS_MAX_SKIP_P2ALIGN
 #define ASM_OUTPUT_MAX_SKIP_ALIGN(FILE,LOG,MAX_SKIP)			\
   do {									\
     if ((LOG) != 0) {							\
-      if ((MAX_SKIP) == 0) fprintf ((FILE), "\t.p2align %d\n", (LOG));	\
-      else {								\
+      if ((MAX_SKIP) == 0 || (MAX_SKIP) >= (1 << (LOG)) - 1)		\
+	fprintf ((FILE), "\t.p2align %d\n", (LOG));			\
+      else								\
 	fprintf ((FILE), "\t.p2align %d,,%d\n", (LOG), (MAX_SKIP));	\
-	/* Make sure that we have at least 8 byte alignment if > 8 byte \
-	   alignment is preferred.  */					\
-	if ((LOG) > 3							\
-	    && (1 << (LOG)) > ((MAX_SKIP) + 1)				\
-	    && (MAX_SKIP) >= 7)						\
-	  fputs ("\t.p2align 3\n", (FILE));				\
-      }									\
     }									\
   } while (0)
 #endif
@@ -129,36 +124,10 @@ along with GCC; see the file COPYING3.  If not see
       }									\
   } while (0)
 
-/* Used by crtstuff.c to initialize the base of data-relative relocations.
-   These are GOT relative on x86, so return the pic register.  */
-#ifdef __PIC__
-#define CRT_GET_RFIB_DATA(BASE)			\
-  {						\
-    register void *ebx_ __asm__("ebx");		\
-    BASE = ebx_;				\
-  }
-#else
-#define CRT_GET_RFIB_DATA(BASE)						\
-  __asm__ ("call\t.LPR%=\n"						\
-	   ".LPR%=:\n\t"						\
-	   "pop{l}\t%0\n\t"						\
-	   /* Due to a GAS bug, this cannot use EAX.  That encodes	\
-	      smaller than the traditional EBX, which results in the	\
-	      offset being off by one.  */				\
-	   "add{l}\t{$_GLOBAL_OFFSET_TABLE_+[.-.LPR%=],%0"		\
-		   "|%0,_GLOBAL_OFFSET_TABLE_+(.-.LPR%=)}"		\
-	   : "=d"(BASE))
-#endif
-
 #ifdef TARGET_LIBC_PROVIDES_SSP
 /* i386 glibc provides __stack_chk_guard in %gs:0x14.  */
 #define TARGET_THREAD_SSP_OFFSET	0x14
 
-/* We only build the -fsplit-stack support in libgcc if the
-   assembler has full support for the CFI directives.  */
-#if HAVE_GAS_CFI_PERSONALITY_DIRECTIVE
-#define TARGET_CAN_SPLIT_STACK
-#endif
-/* We steal the last transactional memory word.  */
+/* i386 glibc provides __private_ss in %gs:0x30.  */
 #define TARGET_THREAD_SPLIT_STACK_OFFSET 0x30
 #endif

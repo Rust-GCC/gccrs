@@ -1,6 +1,6 @@
 // 1999-06-03 bkoz
 
-// Copyright (C) 1999-2014 Free Software Foundation, Inc.
+// Copyright (C) 1999-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -19,18 +19,23 @@
 
 // 21.3.5.4 basic_string::insert
 
-#include <string>
 #include <testsuite_hooks.h>
+
+#ifdef _GLIBCXX_DEBUG
+#include <debug/string>
+using namespace __gnu_debug;
+#else
+#include <string>
+using namespace std;
+#endif
 
 // More
 //   string& insert(size_type __p, const char* s, size_type n);
 //   string& insert(size_type __p, const char* s);
 // but now s points inside the _Rep
-int test02(void)
+void test02(void)
 {
-  bool test __attribute__((unused)) = true;
-
-  std::string str01;
+  string str01;
   const char* title = "Everything was beautiful, and nothing hurt";
   // Increasing size: str01 is reallocated every time.
   str01 = title;
@@ -72,7 +77,6 @@ int test02(void)
   str01.insert(0, str01.c_str());
   VERIFY( str01 == "Everything was beautiful, and nothing hurt"
 	  "Everything was beautiful, and nothing hurt");
-  return test;
 }
 
 int main()

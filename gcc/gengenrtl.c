@@ -1,5 +1,5 @@
 /* Generate code to allocate RTL structures.
-   Copyright (C) 1997-2014 Free Software Foundation, Inc.
+   Copyright (C) 1997-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -53,6 +53,9 @@ type_from_format (int c)
 
     case 'w':
       return "HOST_WIDE_INT ";
+
+    case 'p':
+      return "poly_uint16 ";
 
     case 's':
       return "const char *";
@@ -113,7 +116,16 @@ special_format (const char *fmt)
   return (strchr (fmt, '*') != 0
 	  || strchr (fmt, 'V') != 0
 	  || strchr (fmt, 'S') != 0
-	  || strchr (fmt, 'n') != 0);
+	  || strchr (fmt, 'n') != 0
+	  || strchr (fmt, 'r') != 0);
+}
+
+/* Return true if CODE always has VOIDmode.  */
+
+static inline bool
+always_void_p (int idx)
+{
+  return strcmp (defs[idx].enumname, "SET") == 0;
 }
 
 /* Return nonzero if the RTL code given by index IDX is one that we should
@@ -147,6 +159,7 @@ excluded_rtx (int idx)
   return (strcmp (defs[idx].enumname, "VAR_LOCATION") == 0
 	  || strcmp (defs[idx].enumname, "CONST_DOUBLE") == 0
 	  || strcmp (defs[idx].enumname, "CONST_WIDE_INT") == 0
+	  || strcmp (defs[idx].enumname, "CONST_POLY_INT") == 0
 	  || strcmp (defs[idx].enumname, "CONST_FIXED") == 0);
 }
 
@@ -181,6 +194,7 @@ static void
 genmacro (int idx)
 {
   const char *p;
+  const char *sep = "";
   int i;
 
   /* We write a macro that defines gen_rtx_RTLCODE to be an equivalent to
@@ -190,15 +204,25 @@ genmacro (int idx)
     /* Don't define a macro for this code.  */
     return;
 
-  printf ("#define gen_rtx_%s%s(MODE",
+  bool has_mode_p = !always_void_p (idx);
+  printf ("#define gen_rtx_%s%s(",
 	   special_rtx (idx) ? "raw_" : "", defs[idx].enumname);
+  if (has_mode_p)
+    {
+      printf ("MODE");
+      sep = ", ";
+    }
 
   for (p = defs[idx].format, i = 0; *p != 0; p++)
     if (*p != '0')
-      printf (", ARG%d", i++);
+      {
+	printf ("%sARG%d", sep, i++);
+	sep = ", ";
+      }
 
-  printf (") \\\n  gen_rtx_fmt_%s (%s, (MODE)",
-	  defs[idx].format, defs[idx].enumname);
+  printf (") \\\n  gen_rtx_fmt_%s (%s, %s",
+	  defs[idx].format, defs[idx].enumname,
+	  has_mode_p ? "(MODE)" : "VOIDmode");
 
   for (p = defs[idx].format, i = 0; *p != 0; p++)
     if (*p != '0')
@@ -219,7 +243,7 @@ gendef (const char *format)
   /* Start by writing the definition of the function name and the types
      of the arguments.  */
 
-  printf ("static inline rtx\ngen_rtx_fmt_%s_stat (RTX_CODE code, enum machine_mode mode", format);
+  printf ("static inline rtx\ngen_rtx_fmt_%s_stat (RTX_CODE code, machine_mode mode", format);
   for (p = format, i = 0; *p != 0; p++)
     if (*p != '0')
       printf (",\n\t%sarg%d", type_from_format (*p), i++);
@@ -230,15 +254,17 @@ gendef (const char *format)
      the memory and initializes it.  */
   puts ("{");
   puts ("  rtx rt;");
-  puts ("  rt = rtx_alloc_stat (code PASS_MEM_STAT);\n");
+  puts ("  rt = rtx_alloc (code PASS_MEM_STAT);\n");
 
-  puts ("  PUT_MODE (rt, mode);");
+  puts ("  PUT_MODE_RAW (rt, mode);");
 
   for (p = format, i = j = 0; *p ; ++p, ++i)
-    if (*p != '0')
-      printf ("  %s (rt, %d) = arg%d;\n", accessor_from_format (*p), i, j++);
-    else
+    if (*p == '0')
       printf ("  X0EXP (rt, %d) = NULL_RTX;\n", i);
+    else if (*p == 'p')
+      printf ("  SUBREG_BYTE (rt) = arg%d;\n", j++);
+    else
+      printf ("  %s (rt, %d) = arg%d;\n", accessor_from_format (*p), i, j++);
 
   puts ("\n  return rt;\n}\n");
   printf ("#define gen_rtx_fmt_%s(c, m", format);

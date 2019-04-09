@@ -1,4 +1,4 @@
-# Copyright (C) 2001-2014 Free Software Foundation, Inc.
+# Copyright (C) 2001-2019 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,6 +17,8 @@
 load_lib target-libpath.exp
 
 load_lib wrapper.exp
+
+load_lib target-utils.exp
 
 #
 # ${tool}_check_compile -- Reports and returns pass/fail for a compilation
@@ -54,12 +56,17 @@ proc ${tool}_check_compile {testcase option objname gcc_output} {
     if { [info proc ${tool}-dg-prune] != "" } {
 	global target_triplet
 	set gcc_output [${tool}-dg-prune $target_triplet $gcc_output]
-    }
-
-    set unsupported_message [${tool}_check_unsupported_p $gcc_output]
-    if { $unsupported_message != "" } {
-	unsupported "$testcase: $unsupported_message"
-	return 0
+	if [string match "*::unsupported::*" $gcc_output] then {
+	    regsub -- "::unsupported::" $gcc_output "" gcc_output
+	    unsupported "$testcase: $gcc_output"
+	    return 0
+	}
+    } else {
+	set unsupported_message [${tool}_check_unsupported_p $gcc_output]
+	if { $unsupported_message != "" } {
+	    unsupported "$testcase: $unsupported_message"
+	    return 0
+	}
     }
 
     # remove any leftover LF/CR to make sure any output is legit
@@ -139,34 +146,6 @@ proc ${tool}_exit { } {
 	file_on_build delete $gluefile
 	unset gluefile
     }
-}
-    
-#
-# ${tool}_check_unsupported_p -- Check the compiler(/assembler/linker) output 
-#	for text indicating that the testcase should be marked as "unsupported"
-#
-# Utility used by mike-gcc.exp and c-torture.exp.
-# When dealing with a large number of tests, it's difficult to weed out the
-# ones that are too big for a particular cpu (eg: 16 bit with a small amount
-# of memory).  There are various ways to deal with this.  Here's one.
-# Fortunately, all of the cases where this is likely to happen will be using
-# gld so we can tell what the error text will look like.
-#
-
-proc ${tool}_check_unsupported_p { output } {
-    if [regexp "(^|\n)\[^\n\]*: region \[^\n\]* is full" $output] {
-	return "memory full"
-    }
-    if { [regexp "(^|\n)\[^\n\]*: relocation truncated to fit" $output]
-          && [check_effective_target_tiny] } {
-        return "memory full"
-     }
-
-    if { [istarget spu-*-*] && \
-	     [string match "*exceeds local store*" $output] } {
-	return "memory full"
-    }
-    return ""
 }
 
 #
@@ -289,6 +268,7 @@ proc dg-additional-options { args } {
 # main source file.
 
 set additional_sources ""
+set additional_sources_used ""
 
 proc dg-additional-sources { args } {
     global additional_sources
@@ -311,6 +291,7 @@ proc dg-additional-files { args } {
 
 proc dg-additional-files-options { options source } {
     global additional_sources
+    global additional_sources_used
     global additional_files
     set to_download [list]
     if { $additional_sources != "" } then {
@@ -322,6 +303,7 @@ proc dg-additional-files-options { options source } {
 	    lappend options "additional_flags=$additional_sources"
 	}
 	set to_download [concat $to_download $additional_sources]
+	set additional_sources_used "$additional_sources"
 	set additional_sources ""
     }
     if { $additional_files != "" } then { 
@@ -369,4 +351,55 @@ proc gcc-set-multilib-library-path { compiler } {
     }
 
     return $libpath
+}
+
+# A list of all uses of dg-regexp, each entry of the form:
+#   line-number regexp
+# This is cleared at the end of each test by gcc-dg.exp's wrapper for dg-test.
+set freeform_regexps []
+
+# Directive for looking for a regexp, without any line numbers or other
+# prefixes.
+
+proc dg-regexp { args } {
+    verbose "dg-regexp: args: $args" 2
+
+    global freeform_regexps
+    lappend freeform_regexps $args
+}
+
+# Hook to be called by prune.exp's prune_gcc_output to
+# look for the expected dg-regexp expressions, pruning them,
+# reporting PASS for those that are found, and FAIL for
+# those that weren't found.
+#
+# It returns a pruned version of its output.
+
+proc handle-dg-regexps { text } {
+    global freeform_regexps
+    global testname_with_flags
+
+    foreach entry $freeform_regexps {
+	verbose "  entry: $entry" 3
+
+	set linenum [lindex $entry 0]
+	set rexp [lindex $entry 1]
+
+	# Escape newlines in $rexp so that we can print them in
+	# pass/fail results.
+	set escaped_regex [string map {"\n" "\\n"} $rexp]
+	verbose "escaped_regex: ${escaped_regex}" 4
+
+	set title "$testname_with_flags dg-regexp $linenum"
+
+	# Use "regsub" to attempt to prune the pattern from $text
+	if {[regsub -line $rexp $text "" text]} {
+	    # Success; the multiline pattern was pruned.
+	    pass "$title was found: \"$escaped_regex\""
+	} else {
+	    fail "$title not found: \"$escaped_regex\""
+	}
+    }
+
+    return $text
 }

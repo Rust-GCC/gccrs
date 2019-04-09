@@ -1,4 +1,4 @@
-# Copyright (C) 2009-2014 Free Software Foundation, Inc.
+# Copyright (C) 2009-2019 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -94,4 +94,8 @@ GCC_4.4.0 {
   __trunctfsf2
   __trunctfxf2
   __unordtf2
+}
+
+GCC_7.0.0 {
+  __signbittf2
 }

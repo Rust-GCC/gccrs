@@ -1,15 +1,19 @@
 /* Check that the SH specific sh_treg_combine RTL optimization pass works as
-   expected.  On SH2A the expected insns are slightly different, see
-   pr51244-21.c.  */
+   expected.  */
 /* { dg-do compile }  */
 /* { dg-options "-O2" } */
-/* { dg-skip-if "" { "sh*-*-*" } { "-m5*" "-m2a*" } { "" } } */
-/* { dg-final { scan-assembler-times "tst" 6 } } */
-/* { dg-final { scan-assembler-times "movt" 1 } } */
+
+/* { dg-final { scan-assembler-not "not\t" } } */
 /* { dg-final { scan-assembler-times "cmp/eq" 2 } } */
 /* { dg-final { scan-assembler-times "cmp/hi" 4 } } */
 /* { dg-final { scan-assembler-times "cmp/gt" 2 } } */
-/* { dg-final { scan-assembler-times "not\t" 1 } } */
+
+/* { dg-final { scan-assembler-times "tst" 7 { target { ! sh2a } } } } */
+/* { dg-final { scan-assembler-times "movt" 2 { target { ! sh2a } } } } */
+
+/* { dg-final { scan-assembler-times "tst" 6 { target { sh2a } } } } */
+/* { dg-final { scan-assembler-not "movt" { target { sh2a } } } } */
+/* { dg-final { scan-assembler-times "nott" 2 { target { sh2a } } } } */
 
 
 /* non-SH2A: 2x tst, 1x movt, 2x cmp/eq, 1x cmp/hi
@@ -81,7 +85,7 @@ get_request_2 (int* q, int rw)
 }
 
 
-/* 2x tst, 1x cmp/hi, 1x not  */
+/* 3x tst, 1x movt, 1x cmp/hi, 1x not  */
 static inline int
 blk_oversized_queue_5 (int* q)
 {

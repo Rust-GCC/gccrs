@@ -1,3 +1,4 @@
+/* { dg-do compile } */
 /* { dg-options "-O2 -fdump-ipa-devirt-details -fdump-tree-fre1-details"  } */
 struct A {virtual int t(void) {return 1;}};
 struct B:A {B(); virtual int t(void) {return 2;}};
@@ -20,6 +21,4 @@ m(struct B *b)
 /* { dg-final { scan-tree-dump "converting indirect call to function virtual int B::t"  "fre1"  } } */
 /* { dg-final { scan-ipa-dump "to virtual int B::t"  "devirt"  } } */
 /* { dg-final { scan-ipa-dump "1 speculatively devirtualized"  "devirt"  } } */
-/* { dg-final { cleanup-ipa-dump "devirt" } } */
-/* { dg-final { cleanup-tree-dump "fre1" } } */
 

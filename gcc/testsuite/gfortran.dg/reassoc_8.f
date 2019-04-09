@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-O3 -ffast-math -fdump-tree-optimized" }
+! { dg-options "-O3 -ffast-math -ffp-contract=off -fdump-tree-optimized" }
 
       SUBROUTINE S55199(P,Dvdph)
       implicit none
@@ -14,4 +14,3 @@
 ! and power expansion.
 
 ! { dg-final { scan-tree-dump-times " \\\* " 3 "optimized" } }
-! { dg-final { cleanup-tree-dump "optimized" } }

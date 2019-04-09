@@ -1,7 +1,6 @@
-// { dg-options "-std=gnu++0x" }
-// { dg-require-cstdint "" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,7 +25,6 @@
 // DR 2020
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using namespace std::chrono;
 
   constexpr duration<int> d0(12);

@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-options "-O3 -fdump-ipa-cp" } */
+/* { dg-add-options bind_pic_locally } */
 
 struct data {
     data(int);
@@ -31,4 +32,3 @@ void test(top& t)
 }
 
 /* { dg-final { scan-ipa-dump "Type inconsistent devirtualization" "cp" } } */
-/* { dg-final { cleanup-ipa-dump "cp" } } */

@@ -10,6 +10,9 @@ typedef float vf4_t __attribute__((vector_size (16)));
 /* 128-bit vector of 4 ints.  */
 typedef int vi4_t __attribute__((vector_size (16)));
 
+/* 128-bit vector of 1 quad precision float.  */
+typedef long double vlf1_t __attribute__((vector_size (16)));
+
 /* signed quad-word (in an union for the convenience of initialization).  */
 union int128_t
 {
@@ -39,6 +42,24 @@ struct hfa_fx3_t
   float a;
   float b;
   float c;
+};
+
+struct hfa_f16x1_t
+{
+  __fp16 a;
+};
+
+struct hfa_f16x2_t
+{
+  __fp16 a;
+  __fp16 b;
+};
+
+struct hfa_f16x3_t
+{
+  __fp16 a;
+  __fp16 b;
+  __fp16 c;
 };
 
 struct hfa_dx2_t

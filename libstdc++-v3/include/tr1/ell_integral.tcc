@@ -1,6 +1,6 @@
 // Special functions -*- C++ -*-
 
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -44,15 +44,20 @@
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+#if _GLIBCXX_USE_STD_SPEC_FUNCS
+#elif defined(_GLIBCXX_TR1_CMATH)
 namespace tr1
 {
+#else
+# error do not include this header directly, use <cmath> or <tr1/cmath>
+#endif
   // [5.2] Special functions
 
   // Implementation-space details.
   namespace __detail
   {
-  _GLIBCXX_BEGIN_NAMESPACE_VERSION
-
     /**
      *   @brief Return the Carlson elliptic function @f$ R_F(x,y,z) @f$
      *          of the first kind.
@@ -680,8 +685,8 @@ namespace tr1
           const _Tp __kk = __k * __k;
 
           return __ellint_rf(_Tp(0), _Tp(1) - __kk, _Tp(1))
-               - __nu
-               * __ellint_rj(_Tp(0), _Tp(1) - __kk, _Tp(1), _Tp(1) + __nu)
+               + __nu
+               * __ellint_rj(_Tp(0), _Tp(1) - __kk, _Tp(1), _Tp(1) - __nu)
                / _Tp(3);
         }
     }
@@ -730,9 +735,9 @@ namespace tr1
 
           const _Tp __Pi = __s
                          * __ellint_rf(__cc, _Tp(1) - __kk * __ss, _Tp(1))
-                         - __nu * __sss
+                         + __nu * __sss
                          * __ellint_rj(__cc, _Tp(1) - __kk * __ss, _Tp(1),
-                                       _Tp(1) + __nu * __ss) / _Tp(3);
+                                       _Tp(1) - __nu * __ss) / _Tp(3);
 
           if (__n == 0)
             return __Pi;
@@ -740,10 +745,12 @@ namespace tr1
             return __Pi + _Tp(2) * __n * __comp_ellint_3(__k, __nu);
         }
     }
+  } // namespace __detail
+#if ! _GLIBCXX_USE_STD_SPEC_FUNCS && defined(_GLIBCXX_TR1_CMATH)
+} // namespace tr1
+#endif
 
-  _GLIBCXX_END_NAMESPACE_VERSION
-  } // namespace std::tr1::__detail
-}
+_GLIBCXX_END_NAMESPACE_VERSION
 }
 
 #endif // _GLIBCXX_TR1_ELL_INTEGRAL_TCC

@@ -1,9 +1,9 @@
-// { dg-require-namedlocale "en_PH" }
-// { dg-require-namedlocale "es_MX" }
+// { dg-require-namedlocale "en_PH.ISO8859-1" }
+// { dg-require-namedlocale "es_MX.ISO8859-1" }
 
 // 2000-09-13 Benjamin Kosnik <bkoz@redhat.com>
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,10 +30,9 @@
 void test02()
 {
   using namespace std;
-  bool test __attribute__((unused)) = true;
   
-  const string ph("en_PH");
-  const string mx("es_MX");
+  const string ph(ISO_8859(1,en_PH));
+  const string mx(ISO_8859(1,es_MX));
   const char* orig = setlocale(LC_ALL, 0);
   const char* testph = setlocale(LC_ALL, ph.c_str());
   const char* testmx = setlocale(LC_ALL, mx.c_str());

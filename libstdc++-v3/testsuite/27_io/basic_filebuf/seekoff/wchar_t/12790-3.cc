@@ -1,4 +1,4 @@
-// Copyright (C) 2003-2014 Free Software Foundation, Inc.
+// Copyright (C) 2003-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -16,6 +16,8 @@
 // <http://www.gnu.org/licenses/>.
 
 // 27.8.1.4 Overridden virtual functions
+
+// { dg-require-fileio "" }
 
 #include <locale>
 #include <fstream>
@@ -55,7 +57,6 @@ void test01()
 {
   using namespace std;
 
-  bool test __attribute__((unused)) = true;
   const char* name = "tmp_seekoff_12790";
 
   Cvt* cvt = new Cvt;

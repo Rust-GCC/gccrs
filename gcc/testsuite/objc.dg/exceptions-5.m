@@ -51,7 +51,7 @@ int test (id object)
     }
 
   @try { @throw object; }
-  @catch (id <MyProtocol>) /* { dg-error "@catch parameter can not be protocol-qualified" } */
+  @catch (id <MyProtocol>) /* { dg-error "@catch parameter cannot be protocol-qualified" } */
     {
       dummy++;
     }
@@ -63,14 +63,14 @@ int test (id object)
     }
 
   @try { @throw object; }
-  @catch (MyObject <MyProtocol> *)  /* { dg-error "@catch parameter can not be protocol-qualified" } */
+  @catch (MyObject <MyProtocol> *)  /* { dg-error "@catch parameter cannot be protocol-qualified" } */
     {
       dummy++;
     }
 
   @try { @throw object; }
   @catch (MyObject)     /* { dg-error "@catch parameter is not a known Objective-C class type" } */
-    {                     /* { dg-error "conversion to non-scalar type requested" "" { target *-*-* } 72 } */
+    {                     /* { dg-error "conversion to non-scalar type requested" "" { target *-*-* } .-1 } */
       dummy++;
     }
 
@@ -87,7 +87,7 @@ int test (id object)
     }
 
   @try { @throw object; }
-  @catch (MyObjectTypedef <MyProtocol> *) /* { dg-error "@catch parameter can not be protocol-qualified" } */
+  @catch (MyObjectTypedef <MyProtocol> *) /* { dg-error "@catch parameter cannot be protocol-qualified" } */
     {
       dummy++;
     }

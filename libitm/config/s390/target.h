@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2013-2019 Free Software Foundation, Inc.
    Contributed by Andreas Krebbel <krebbel@linux.vnet.ibm.com>.
 
    This file is part of the GNU Transactional Memory Library (libitm).
@@ -69,6 +69,9 @@ cpu_relax (void)
 /* Number of retries for transient failures.  */
 #define _HTM_ITM_RETRIES 10
 #define USE_HTM_FASTPATH
+#define TARGET_BEGIN_TRANSACTION_ATTRIBUTE \
+  __attribute__ ((target("soft-float")))
+
 
 static inline bool
 htm_available ()

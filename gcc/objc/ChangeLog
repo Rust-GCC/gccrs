@@ -1,3 +1,312 @@
+2019-04-05  Martin Liska  <mliska@suse.cz>
+
+	PR translation/89936
+	* objc-act.c (objc_add_property_declaration): Use %< and %>, or %qs in
+	order to wrap keywords or arguments.
+	(objc_add_synthesize_declaration_for_property): Likewise.
+
+2019-01-09  Sandra Loosemore  <sandra@codesourcery.com>
+
+	PR other/16615
+
+	* objc-act.c: Mechanically replace "can not" with "cannot".
+
+2019-01-01  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2018-12-19  David Malcolm  <dmalcolm@redhat.com>
+
+	PR c++/43064
+	PR c++/43486
+	* objc-act.c (objc_maybe_build_component_ref): Strip any location
+	wrapper before checking for UOBJC_SUPER_decl and self_decl.
+	(objc_finish_message_expr): Strip any location wrapper.
+	(gen_declaration): Strip location wrappers from "w".
+
+2018-10-17  David Malcolm  <dmalcolm@redhat.com>
+
+	* Make-lang.in (selftest-objc): New.
+
+2018-04-20  Martin Liska  <mliska@suse.cz>
+
+	PR objc/85476
+	* objc-act.c (finish_class): Do not overflow string buffer.
+
+2018-01-03  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2017-11-30  Jakub Jelinek  <jakub@redhat.com>
+
+	* objc-next-runtime-abi-01.c (generate_dispatch_table): Use ; instead
+	of ;;.
+
+2017-11-10  Martin Sebor  <msebor@redhat.com>
+
+	PR c/81117
+	* objc-encoding.c (encode_type): Use memcpy instead of strncpy.
+
+2017-10-31  David Malcolm  <dmalcolm@redhat.com>
+
+	* objc-gnu-runtime-abi-01.c (objc_gnu_runtime_abi_01_init): Use
+	UNKNOWN_LOCATION rather than 0.
+
+2017-10-17  Nathan Sidwell  <nathan@acm.org>
+
+	* objc-act.c (objc_common_tree_size): Return size of TYPE nodes.
+
+2017-10-10  Richard Sandiford  <richard.sandiford@linaro.org>
+
+	* objc-act.c (objc_decl_method_attributes): Use wi::to_wide when
+	operating on trees as wide_ints.
+
+2017-09-29  Jakub Jelinek  <jakub@redhat.com>
+
+	* objc-act.c (check_ivars, gen_declaration): For OBJCPLUS look at
+	DECL_BIT_FIELD_REPRESENTATIVE rather than DECL_INITIAL.
+
+2017-08-30  Richard Sandiford  <richard.sandiford@linaro.org>
+	    Alan Hayward  <alan.hayward@arm.com>
+	    David Sherwood  <david.sherwood@arm.com>
+
+	* objc-encoding.c (encode_type): Use SCALAR_INT_TYPE_MODE.
+
+2017-08-30  Richard Sandiford  <richard.sandiford@linaro.org>
+	    Alan Hayward  <alan.hayward@arm.com>
+	    David Sherwood  <david.sherwood@arm.com>
+
+	* objc-encoding.c (encode_type): Use SCALAR_FLOAT_TYPE_MODE
+	instead of TYPE_MODE.
+
+2017-08-30  Richard Sandiford  <richard.sandiford@linaro.org>
+	    Alan Hayward  <alan.hayward@arm.com>
+	    David Sherwood  <david.sherwood@arm.com>
+
+	* objc-encoding.c (encode_gnu_bitfield): Prefix mode names with E_ in
+	case statements.
+
+2017-08-09  Marek Polacek  <polacek@redhat.com>
+
+	PR c/81417
+	* objc-next-runtime-abi-02.c (build_v2_build_objc_method_call): Update
+	a call to build_conditional_expr.
+
+2017-08-08  Martin Liska  <mliska@suse.cz>
+
+	* objc-gnu-runtime-abi-01.c: Include header files.
+	* objc-next-runtime-abi-01.c: Likewise.
+	* objc-next-runtime-abi-02.c: Likewise.
+
+2017-07-20  Nathan Sidwell  <nathan@acm.org>
+
+	Remove TYPE_METHODS.
+	* objc-runtime-shared-support.c (build_ivar_list_initializer):
+	Don't presume first item is a FIELD_DECL.
+
+2017-07-19  Nathan Sidwell  <nathan@acm.org>
+
+	* objc-act.h (CLASS_NST_METHODS, CLASS_CLS_METHODS): Use
+	TYPE_{MIN,MAX}_VALUE_RAW.
+
+2017-05-16  Sylvestre Ledru  <sylvestre@debian.org>
+
+	* objc-runtime-shared-support.c (build_module_descriptor):
+	Remove unnecessary conditional when building instance of
+	objc_module. CID 1406758
+
+2017-05-09  Nathan Sidwell  <nathan@acm.org>
+
+	* objc-gnu-runtime-abi-01.c (objc_add_static_instance): Use
+	pushdecl lang_hook.
+
+2017-05-04  Martin Sebor  <msebor@redhat.com>
+
+	PR translation/80280
+	* objc-gnu-runtime-abi-01.c (objc_eh_runtime_type): Add missing
+	quoting to directives.
+	* objc-next-runtime-abi-01.c (objc_eh_runtime_type): Ditto.
+	* objc-next-runtime-abi-02.c (next_runtime_02_eh_type): Ditto.
+
+2017-01-01  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2016-11-14  Prasad Ghangal  <prasad.ghangal@gmail.com>
+	    Richard Biener  <rguenther@suse.de>
+
+	* config-lang.in (gtfiles): Add c/c-parser.h.
+
+2016-09-27  Jakub Jelinek  <jakub@redhat.com>
+
+	* objc-act.c (continue_class): Remove break after return.
+	(objc_maybe_printable_name): Likewise.
+
+2016-08-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c/7652
+	* objc-encoding.c (encode_type): Add FALLTHRU.
+
+2016-06-07  David Malcolm  <dmalcolm@redhat.com>
+
+	* objc-act.c (objc_build_component_ref): Update call
+	to build_component_ref for added param, passing UNKNOWN_LOCATION.
+
+2016-04-18  Michael Matz  <matz@suse.de>
+
+	* objc-act.c (objc_build_struct): Use SET_DECL_ALIGN.
+
+2016-02-12  Jakub Jelinek  <jakub@redhat.com>
+
+	* objc-act.c: Spelling fixes - behaviour -> behavior and
+	neighbour -> neighbor.
+	* objc-map.h: Likewise.
+
+2016-01-04  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2015-11-11  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objc-act.c: Remove unused header files.
+	* objc-encoding.c: Likewise.
+	* objc-gnu-runtime-abi-01.c: Likewise.
+	* objc-lang.c: Likewise.
+	* objc-map.c: Likewise.
+	* objc-next-runtime-abi-01.c: Likewise.
+	* objc-next-runtime-abi-02.c: Likewise.
+	* objc-runtime-shared-support.c: Likewise.
+
+2015-11-09  Alan Modra  <amodra@gmail.com>
+
+	* objc-encoding.c (encode_aggregate_within): Cast obstack_next_free
+	return value.
+
+2015-10-29  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objc-lang.c: Reorder #include's and remove duplicates.
+	* objc-map.c: Likewise.
+
+2015-08-18  Trevor Saunders  <tbsaunde@tbsaunde.org>
+
+	* objc-act.h, objc-next-runtime-abi-02.c, objc-runtime-hooks.h:
+	Remove useless typedefs.
+
+2015-07-12  Aldy Hernandez  <aldyh@redhat.com>
+
+	* objc-map.h: Fix double word typos.
+
+2015-07-07  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objc-act.c: Adjust includes.
+	* objc-encoding.c: Likewise.
+	* objc-gnu-runtime-abi-01.c: Likewise.
+	* objc-lang.c: Likewise.
+	* objc-map.c: Likewise.
+	* objc-next-runtime-abi-01.c: Likewise.
+	* objc-next-runtime-abi-02.c: Likewise.
+	* objc-runtime-shared-support.c: Likewise.
+
+2015-06-25  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objc-act.c: Remove ipa-ref.h and plugin-api.h from include list.
+
+2015-06-25  Richard Sandiford  <richard.sandiford@arm.com>
+
+	* objc-act.c (objc_string_hasher): Inherit from ggc_ptr_hash
+	rather than ggc_hasher.
+
+2015-06-25  Richard Sandiford  <richard.sandiford@arm.com>
+
+	* objc-act.c (decl_name_hash): Inherit from nofree_ptr_hash rather
+	than typed_noop_remove.  Remove redudant typedefs.
+
+2015-06-17  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objc-act.c: Do not include input.h, line-map.h or is-a.h.
+	* objc-encoding.c: Likewise.
+	* objc-gnu-runtime-abi-01.c: Likewise.
+	* objc-lang.c: Likewise.
+	* objc-map.c: Likewise.
+	* objc-next-runtime-abi-01.c: Likewise.
+	* objc-next-runtime-abi-02.c: Likewise.
+	* objc-runtime-shared-support.c: Likewise.
+
+2015-06-08  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objc-act.c : Adjust include files.
+	* objc-encoding.c : Likewise.
+	* objc-gnu-runtime-abi-01.c : Likewise.
+	* objc-lang.c : Likewise.
+	* objc-map.c : Likewise.
+	* objc-next-runtime-abi-01.c : Likewise.
+	* objc-next-runtime-abi-02.c : Likewise.
+	* objc-runtime-shared-support.c : Likewise.
+
+2015-06-08  Aldy Hernandez  <aldyh@redhat.com>
+
+	* objc-runtime-shared-support.c (build_module_descriptor): Set
+	TREE_USED on UOBJC_MODULES_decl.
+
+2015-06-05  Aldy Hernandez  <aldyh@redhat.com>
+
+	* objc-act.c (objc_write_global_declarations): Adjust comment.
+	* objc-gnu-runtime-abi-01.c (build_selector_table_decl): Set
+	TREE_USED bit.
+
+2015-06-04  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objc-act.c: Adjust includes for restructured coretypes.h.
+	* objc-encoding.c: Likewise.
+	* objc-gnu-runtime-abi-01.c: Likewise.
+	* objc-lang.c: Likewise.
+	* objc-map.c: Likewise.
+	* objc-next-runtime-abi-01.c: Likewise.
+	* objc-next-runtime-abi-02.c: Likewise.
+	* objc-runtime-shared-support.c: Likewise.
+
+2015-04-27  Jim Wilson  <jim.wilson@linaro.org>
+
+	* Make-lang.in (objc.mostlyclean): Remove cc1obj.
+
+2015-04-18  Trevor Saunders  <tsaunders@mozilla.com>
+
+	* objc-act.c: Adjust for hash_table changes.
+
+2015-01-09  Michael Collison  <michael.collison@linaro.org>
+
+	* objc-act.c: Include hash-set.h, machmode.h, vec.h, double-int.h,
+	input.h, alias.h, symtab.h, options, fold-const.h,
+	wide-int.h, and inchash.h due to flattening of tree.h.
+	* objc-encoding.c: Ditto.
+	* objc-gnu-runtime-abi-01.c: Ditto.
+	* objc-lang.c: Ditto.
+	* objc-map.c: Ditto.
+	* objc-next-runtime-abi-01.c: Ditto.
+	* objc-next-runtime-abi-02.c: Ditto.
+	* objc-runtime-shared-support.c: Ditto.
+
+2015-01-05  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2014-10-28  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objc-act.c: Adjust include files.
+
+2014-10-22  Alan Modra  <amodra@gmail.com>
+
+	* objc-encoding.c (encode_array): Cast result of obstack_base.
+	(encode_type): Likewise.
+
+2014-10-16  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objc-act.c: Adjust include files.
+
+2014-10-12  Trevor Saunders  <tsaunders@mozilla.com>
+
+	* objc-act.c: use hash_table instead of hashtab.
+
 2014-09-15  Jakub Jelinek  <jakub@redhat.com>
 
 	* Make-lang.in (check_objc_parallelize): Change to just an upper
@@ -10,7 +319,7 @@
 	checking.
 	(INSTANCE_METHOD_OR_CLASS_METHOD_DECL_CHECK): New macro.
 	(METHOD_SEL_NAME, METHOD_SEL_ARGS, METHOD_ADD_ARGS,
- 	METHOD_ADD_ARGS_ELLIPSIS_P, METHOD_DEFINITION, METHOD_ENCODING,
+	METHOD_ADD_ARGS_ELLIPSIS_P, METHOD_DEFINITION, METHOD_ENCODING,
 	METHOD_TYPE_ATTRIBUTES, METHOD_PROPERTY_CONTEXT): Add type checking.
 	(METHOD_SEL_ARGS): Use decl_common.size instead of
 	decl_non_common.result.
@@ -250,7 +559,7 @@
 2011-10-14  Nicola Pero  <nicola.pero@meta-innovation.com>
 
 	* objc-map.h: New file.
-	* objc-map.c: New file.	
+	* objc-map.c: New file.
 	* config-lang.in (gtfiles): Added objc-map.h.
 	* Make-lang.in (OBJC_OBJS): Added objc-map.o.
 	(objc/objc-map.o): New rule.
@@ -341,7 +650,7 @@
 	(objc/objc-next-runtime-abi-01.o): Likewise.
 	(objc/objc-next-runtime-abi-02.o): Likewise.
 	(objc/objc-act.o): Likewise.
-	
+
 2011-07-04  Nicola Pero  <nicola.pero@meta-innovation.com>
 
 	Refactored encoding code into objc-encoding.h and objc-encoding.c.
@@ -362,13 +671,13 @@
 	OBJC_ENCODE_DONT_INLINE_DEFS): Moved to objc-encoding.h.
 	* objc-runtime-shared-support.h (objc_v2_encode_property_attr,
 	encode_method_prototype, encode_field_decl,
-	generating_instance_variables): Moved to objc-encoding.h.	
+	generating_instance_variables): Moved to objc-encoding.h.
 	(objc_build_property_setter_name): Declare.
 	* objc-encoding.c: New.
 	* objc-encoding.h: New.
 	* objc-gnu-runtime-abi-01.c: Include objc-encoding.h.
 	* objc-next-runtime-abi-01.c: Likewise.
-	* objc-next-runtime-abi-02.c: Likewise.	
+	* objc-next-runtime-abi-02.c: Likewise.
 	* objc-runtime-shared-support.c: Likewise.
 	* Make-lang.in (OBJC_OBJS): Added objc-encoding.o.
 	(objc/objc-lang.o): Reordered dependencies.
@@ -385,7 +694,7 @@
 	* objc-encoding.c (encode_type): Use "%<%T%>" format when printing
 	warning "unknown type %<%T%> found during Objective-C encoding"
 	instead of using gen_type_name.
-	
+
 2011-06-05  Nicola Pero  <nicola.pero@meta-innovation.com>
 
 	* objc-act.c (receiver_is_class_object): Expanded comment.
@@ -1486,7 +1795,7 @@
 	to gcc_alloc_xxx calls in hash_init and hash_class_name_enter to
 	get it to compile in the current trunk.
 
-	2006-01-27 Fariborz Jahanian <fjahanian@apple.com>
+	2006-01-27 Fariborz Jahanian  <fjahanian@apple.com>
 
 	Radar 4345837
 	* objc/objc-act.c (hash_class_name_enter): New.
@@ -1525,26 +1834,26 @@
 
 	Merge from 'apple/trunk' branch on FSF servers.
 
-	2006-03-10  Fariborz Jahanian <fjahanian@apple.com>
+	2006-03-10  Fariborz Jahanian  <fjahanian@apple.com>
 
-        Radar 4407151
+	Radar 4407151
 	* objc/objc-act.c (objc_is_class_name): template parameter is not
-        an objective class name.
-        (objc_generate_cxx_cdtors): Check for the null
-        objc_implementation_context.
+	an objective class name.
+	(objc_generate_cxx_cdtors): Check for the null
+	objc_implementation_context.
 
 2010-10-18  Nicola Pero  <nicola.pero@meta-innovation.com>
 
 	Merge from 'apple/trunk' branch on FSF servers.
 
-	2005-11-08  Fariborz Jahanian <fjahanian@apple.com>
+	2005-11-08  Fariborz Jahanian  <fjahanian@apple.com>
 
 	Radar 4330422
 	* objc/objc-act.c (objc_non_volatilized_type): New
 
-	2005-10-07  Fariborz Jahanian <fjahanian@apple.com>
+	2005-10-07  Fariborz Jahanian  <fjahanian@apple.com>
 
-        Radar 4204796
+	Radar 4204796
 	* objc-act.c (objc_build_volatilized_type): Build 'volatilzed'
 	types with proper attribute set and correctly.
 	(objc_volatilize_decl): Remove unneeded code.
@@ -1556,7 +1865,7 @@
 
 	Merge from 'apple/trunk' branch on FSF servers.
 
-	2006-03-27 Fariborz Jahanian <fjahanian@apple.com>
+	2006-03-27 Fariborz Jahanian  <fjahanian@apple.com>
 
 	Radar 4133425
 	* objc-act.c (objc_diagnose_private_ivar): New.
@@ -1576,7 +1885,7 @@
 2010-10-14  Iain Sandoe  <iains@gcc.gnu.org>
 
 	merge from FSF apple 'trunk' branch.
-	2006 Fariborz Jahanian <fjahanian@apple.com>
+	2006 Fariborz Jahanian  <fjahanian@apple.com>
 
 	Radars 4436866, 4505126, 4506903, 4517826
 	* objc-act.c (CALL_EXPR_OBJC_PROPERTY_GETTER): New.
@@ -1627,7 +1936,7 @@
 
 	merge from FSF apple 'trunk' branch.
 
-	2006-04-26 Fariborz Jahanian <fjahanian@apple.com>
+	2006-04-26 Fariborz Jahanian  <fjahanian@apple.com>
 	Radar 3803157 (method attributes)
 	* objc/objc-act.h (METHOD_TYPE_ATTRIBUTES): New macro.
 	* objc/objc-act.c (objc_decl_method_attributes): New.
@@ -1642,7 +1951,7 @@
 
 	* Make-lang.in (cc1obj-dummy): Remove.
 	(cc1obj-checksum): Change to run checksum over object files
-        and options only.
+	and options only.
 
 2010-10-07  Nicola Pero  <nicola.pero@meta-innovation.com>
 
@@ -1685,9 +1994,9 @@
 
 	Merge from 'apple/trunk' branch on FSF servers.
 
-	2006-04-12 Fariborz Jahanian <fjahanian@apple.com>
+	2006-04-12 Fariborz Jahanian  <fjahanian@apple.com>
 
-        Radar 4507230
+	Radar 4507230
 	* objc-act.c (objc_type_valid_for_messaging): New routine to check
 	for valid objc object types.
 	(objc_finish_foreach_loop): Check for invalid objc objects in
@@ -1697,38 +2006,38 @@
 
 	Merge from 'apple/trunk' branch on FSF servers.
 
-	2005-10-17  Fariborz Jahanian <fjahanian@apple.com>
+	2005-10-17  Fariborz Jahanian  <fjahanian@apple.com>
 
-        Radar 4290840
+	Radar 4290840
 	* objc-act.c (objc_start_method_definition): Check for
 	error_mark_node for the selector name and make a quick exit.
 
-2010-10-04  Andi Kleen <ak@linux.intel.com>
+2010-10-04  Andi Kleen  <ak@linux.intel.com>
 
 	* Make-lang.in (cc1obj-dummy, cc1obj): Add + to build rule.
 
 2010-09-30  Iain Sandoe  <iains@gcc.gnu.org>
 
 	merge from FSF 'apple/trunk' branch.
-	2006-01-30  Fariborz Jahanian <fjahanian@apple.com>
+	2006-01-30  Fariborz Jahanian  <fjahanian@apple.com>
 
-       Radar 4386773
-       * objc/objc-act.c (objc_set_method_opt): New function.
-       (objc_start_protocol, objc_finish_interface): Reset
-       objc_method_optional_flag flag.
-       (objc_add_method_declaration): Pass on the new
-       flag to objc_add_method.
-       (objc_add_method): Add optional methods to new chain in
-       the protocol class.
-       * objc/objc-act.h (CLASS_OPTIONAL_CLS_METHODS,
-       CLASS_OPTIONAL_NST_METHODS): New macros accessing a protocol
-       class's optional method chains.
+	Radar 4386773
+	* objc/objc-act.c (objc_set_method_opt): New function.
+	(objc_start_protocol, objc_finish_interface): Reset
+	objc_method_optional_flag flag.
+	(objc_add_method_declaration): Pass on the new
+	flag to objc_add_method.
+	(objc_add_method): Add optional methods to new chain in
+	the protocol class.
+	* objc/objc-act.h (CLASS_OPTIONAL_CLS_METHODS)
+	(CLASS_OPTIONAL_NST_METHODS): New macros accessing a protocol
+	class's optional method chains.
 
 2010-09-30  Nicola Pero  <nicola.pero@meta-innovation.com>
 
 	Merge from 'apple/trunk' branch on FSF servers.
 
-	2005-10-04  Fariborz Jahanian <fjahanian@apple.com>
+	2005-10-04  Fariborz Jahanian  <fjahanian@apple.com>
 
 	Radar 4278236
 	* objc-act.c (objc_declare_class): Pick the right
@@ -1738,7 +2047,7 @@
 
 	Merge from 'apple/trunk' branch on FSF servers.
 
-	2005-10-04  Fariborz Jahanian <fjahanian@apple.com>
+	2005-10-04  Fariborz Jahanian  <fjahanian@apple.com>
 
 	Radar 4281748
 	* objc-act.c (objc_check_global_decl): New
@@ -1769,8 +2078,8 @@
 
 	Merge from 'apple/trunk' branch on FSF servers.
 
-	2005-08-23  Stuart Hastings <stuart@apple.com>
-	            Ziemowit Laski  <zlaski@apple.com>
+	2005-08-23  Stuart Hastings  <stuart@apple.com>
+		    Ziemowit Laski  <zlaski@apple.com>
 
 	Radar 4209854
 	* objc-act.c (objc_decay_parm_type): New function.
@@ -1836,9 +2145,9 @@
 	Merge from 'apple/trunk' branch on FSF servers.  I modified the
 	changes to be used only when compiling for the NeXT runtime.
 
-	2005-10-10  Fariborz Jahanian <fjahanian@apple.com>
+	2005-10-10  Fariborz Jahanian  <fjahanian@apple.com>
 
-        Radar 4301047
+	Radar 4301047
 
 	* objc-act.c (encode_type): Remove the hack.
 
@@ -1853,7 +2162,7 @@
 
 	Merge from 'apple/trunk' branch on FSF servers.
 
-	2005-12-15  Fariborz Jahanian <fjahanian@apple.com>
+	2005-12-15  Fariborz Jahanian  <fjahanian@apple.com>
 
 	Radar 4229905
 	* objc-act.c (objc_have_common_types): New function.
@@ -1891,13 +2200,13 @@
 
 	Merge from 'apple/trunk' branch on FSF servers.
 
-	2006-03-09 Fariborz Jahanian <fjahanian@apple.com>
+	2006-03-09 Fariborz Jahanian  <fjahanian@apple.com>
 
-        Radar 4457381
+	Radar 4457381
 	* objc/objc-act.c (objc_finish_message_expr): Look for message in
 	@class's protocol list.
 
-	2006-02-07  Fariborz Jahanian <fjahanian@apple.com>
+	2006-02-07  Fariborz Jahanian  <fjahanian@apple.com>
 
 	Radar 4219590
 	* objc/objc-act.c (objc_start_method_definition): Initialize
@@ -2086,19 +2395,19 @@
 	really_start_method, get_super_receiver, handle_class_ref): Set
 	DECL_READ_P in addition to TREE_USED.
 
-2010-04-07  Iain Sandoe <iains@gcc.gnu.org>
+2010-04-07  Iain Sandoe  <iains@gcc.gnu.org>
 
 	PR objc/35996
 	* objc-act.c (objc_init): Warn that -fobjc-gc is ignored for
 	-fgnu-runtime and set flag_objc_gc to zero.
 
-2010-04-07  Iain Sandoe <iains@gcc.gnu.org>
+2010-04-07  Iain Sandoe  <iains@gcc.gnu.org>
 
 	PR objc++/23716
 	* objc-act.c (build_module_initializer_routine): Make the argument
 	to objc_start_function NULL_TREE when compiling ObjC++.
 
-2010-02-18  Iain Sandoe <iain.sandoe@sandoe-acoustics.co.uk>
+2010-02-18  Iain Sandoe  <iain.sandoe@sandoe-acoustics.co.uk>
 	    Mike Stump  <mikestump@comcast.net>
 
 	PR objc/43061
@@ -2311,7 +2620,7 @@
 	* objc-act.c (get_super_receiver): Update calls to
 	build_modify_expr to pass new argument.
 
-2009-04-21  Taras Glek <tglek@mozilla.com>
+2009-04-21  Taras Glek  <tglek@mozilla.com>
 
 	* objc-act.c: Update GTY annotations to new syntax
 	* objc-act.h: Likewise
@@ -2455,8 +2764,8 @@
 
 2008-05-12  Tomas Bily  <tbily@suse.cz>
 
-        * objc-act.c (objc_generate_write_barrier, objc_finish_message_expr):
-        Use CONVERT_EXPR_P.
+	* objc-act.c (objc_generate_write_barrier, objc_finish_message_expr):
+	Use CONVERT_EXPR_P.
 
 2008-04-23  Paolo Bonzini  <bonzini@gnu.org>
 
@@ -2616,13 +2925,14 @@
 	PR objc/27240
 	* objc-act.c (objc_is_public): Return early on invalid type.
 
-2006-03-02 Fariborz Jahanian <fjahanian@apple.com>
+2006-03-02 Fariborz Jahanian  <fjahanian@apple.com>
 
 	* objc-act.c (init_module_descriptor): Remove file name from
 	module descriptor.
 	(gen_type_name_0): Fix ICE when issuing warning.
 
-2006-02-20 Rafael Ávila de Espíndola <rafael.espindola@gmail.com>
+2006-02-20  Rafael Ávila de Espíndola  <rafael.espindola@gmail.com>
+
 	* Make-lang.in (OBJC): Remove
 	(OBJECTIVE-C): Remove
 	(objective-c): Remove
@@ -3515,7 +3825,7 @@
 	Move to c-objc-common.h.
 
 
-Copyright (C) 2004-2014 Free Software Foundation, Inc.
+Copyright (C) 2004-2019 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

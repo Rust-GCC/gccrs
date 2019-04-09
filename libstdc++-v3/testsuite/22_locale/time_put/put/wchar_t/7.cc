@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "en_HK" }
+// { dg-require-namedlocale "en_HK.ISO8859-1" }
 
 // 2001-09-17 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -31,8 +31,6 @@ void test07()
   typedef ostreambuf_iterator<wchar_t> iterator_type;
   typedef char_traits<wchar_t> traits;
 
-  bool test __attribute__((unused)) = true;
-
   // create "C" time objects
   const tm time1 = __gnu_test::test_tm(0, 0, 12, 4, 3, 71, 0, 93, 0);
   const wchar_t* date = L"%A, the second of %B";
@@ -40,7 +38,7 @@ void test07()
 
   // basic construction and sanity check
   locale loc_c = locale::classic();
-  locale loc_hk = locale("en_HK");
+  locale loc_hk = locale(ISO_8859(1,en_HK));
   VERIFY( loc_hk != loc_c );
 
   // create an ostream-derived object, cache the time_put facet

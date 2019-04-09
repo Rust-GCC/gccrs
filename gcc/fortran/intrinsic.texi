@@ -1,5 +1,5 @@
 @ignore
-Copyright (C) 2005-2014 Free Software Foundation, Inc.
+Copyright (C) 2005-2019 Free Software Foundation, Inc.
 This is part of the GNU Fortran manual.   
 For copying conditions, see the file gfortran.texi.
 
@@ -23,12 +23,16 @@ Some basic guidelines for editing this document:
 @end ignore
 
 @tex
+\gdef\acosd{\mathop{\rm acosd}\nolimits}
+\gdef\asind{\mathop{\rm asind}\nolimits}
+\gdef\atand{\mathop{\rm atand}\nolimits}
 \gdef\acos{\mathop{\rm acos}\nolimits}
 \gdef\asin{\mathop{\rm asin}\nolimits}
 \gdef\atan{\mathop{\rm atan}\nolimits}
 \gdef\acosh{\mathop{\rm acosh}\nolimits}
 \gdef\asinh{\mathop{\rm asinh}\nolimits}
 \gdef\atanh{\mathop{\rm atanh}\nolimits}
+\gdef\cosd{\mathop{\rm cosd}\nolimits}
 @end tex
 
 
@@ -43,6 +47,7 @@ Some basic guidelines for editing this document:
 * @code{ACCESS}:        ACCESS,    Checks file access modes
 * @code{ACHAR}:         ACHAR,     Character in @acronym{ASCII} collating sequence
 * @code{ACOS}:          ACOS,      Arccosine function
+* @code{ACOSD}:         ACOSD,     Arccosine function, degrees
 * @code{ACOSH}:         ACOSH,     Inverse hyperbolic cosine function
 * @code{ADJUSTL}:       ADJUSTL,   Left adjust a string
 * @code{ADJUSTR}:       ADJUSTR,   Right adjust a string
@@ -55,10 +60,13 @@ Some basic guidelines for editing this document:
 * @code{ANINT}:         ANINT,     Nearest whole number
 * @code{ANY}:           ANY,       Determine if any values are true
 * @code{ASIN}:          ASIN,      Arcsine function
+* @code{ASIND}:         ASIND,     Arcsine function, degrees
 * @code{ASINH}:         ASINH,     Inverse hyperbolic sine function
 * @code{ASSOCIATED}:    ASSOCIATED, Status of a pointer or pointer/target pair
 * @code{ATAN}:          ATAN,      Arctangent function
+* @code{ATAND}:         ATAND,     Arctangent function, degrees
 * @code{ATAN2}:         ATAN2,     Arctangent function
+* @code{ATAN2D}:        ATAN2D,    Arctangent function, degrees
 * @code{ATANH}:         ATANH,     Inverse hyperbolic tangent function
 * @code{ATOMIC_ADD}:    ATOMIC_ADD, Atomic ADD operation
 * @code{ATOMIC_AND}:    ATOMIC_AND, Atomic bitwise AND operation
@@ -98,6 +106,7 @@ Some basic guidelines for editing this document:
 * @code{CO_BROADCAST}:  CO_BROADCAST, Copy a value to all images the current set of images
 * @code{CO_MAX}:        CO_MAX,    Maximal value on the current set of images
 * @code{CO_MIN}:        CO_MIN,    Minimal value on the current set of images
+* @code{CO_REDUCE}:     CO_REDUCE, Reduction of values on the current set of images
 * @code{CO_SUM}:        CO_SUM,    Sum of values on the current set of images
 * @code{COMMAND_ARGUMENT_COUNT}: COMMAND_ARGUMENT_COUNT, Get number of command line arguments
 * @code{COMPILER_OPTIONS}: COMPILER_OPTIONS, Options passed to the compiler
@@ -105,7 +114,10 @@ Some basic guidelines for editing this document:
 * @code{COMPLEX}:       COMPLEX,   Complex conversion function
 * @code{CONJG}:         CONJG,     Complex conjugate function
 * @code{COS}:           COS,       Cosine function
+* @code{COSD}:          COSD,      Cosine function, degrees
 * @code{COSH}:          COSH,      Hyperbolic cosine function
+* @code{COTAN}:         COTAN,     Cotangent function
+* @code{COTAND}:        COTAND,    Cotangent function, degrees
 * @code{COUNT}:         COUNT,     Count occurrences of TRUE in an array
 * @code{CPU_TIME}:      CPU_TIME,  CPU time subroutine
 * @code{CSHIFT}:        CSHIFT,    Circular shift elements of an array
@@ -127,6 +139,7 @@ Some basic guidelines for editing this document:
 * @code{ERFC}:          ERFC,      Complementary error function
 * @code{ERFC_SCALED}:   ERFC_SCALED, Exponentially-scaled complementary error function
 * @code{ETIME}:         ETIME,     Execution time subroutine (or function)
+* @code{EVENT_QUERY}: EVENT_QUERY, Query whether a coarray event has occurred
 * @code{EXECUTE_COMMAND_LINE}: EXECUTE_COMMAND_LINE, Execute a shell command
 * @code{EXIT}:          EXIT,      Exit the program with status.
 * @code{EXP}:           EXP,       Exponential function
@@ -135,6 +148,7 @@ Some basic guidelines for editing this document:
 * @code{FDATE}:         FDATE,     Subroutine (or function) to get the current time as a string
 * @code{FGET}:          FGET,      Read a single character in stream mode from stdin
 * @code{FGETC}:         FGETC,     Read a single character in stream mode
+* @code{FINDLOC}:       FINDLOC,   Search an array for a value
 * @code{FLOOR}:         FLOOR,     Integer floor function
 * @code{FLUSH}:         FLUSH,     Flush I/O unit(s)
 * @code{FNUM}:          FNUM,      File number function
@@ -181,6 +195,7 @@ Some basic guidelines for editing this document:
 * @code{IOR}:           IOR,       Bitwise logical or
 * @code{IPARITY}:       IPARITY,   Bitwise XOR of array elements
 * @code{IRAND}:         IRAND,     Integer pseudo-random number
+* @code{IS_CONTIGUOUS}:  IS_CONTIGUOUS, Test whether an array is contiguous
 * @code{IS_IOSTAT_END}:  IS_IOSTAT_END, Test for end-of-file value
 * @code{IS_IOSTAT_EOR}:  IS_IOSTAT_EOR, Test for end-of-record value
 * @code{ISATTY}:        ISATTY,    Whether a unit is a terminal device
@@ -249,6 +264,7 @@ Some basic guidelines for editing this document:
 * @code{RADIX}:         RADIX,     Base of a data model
 * @code{RAN}:           RAN,       Real pseudo-random number
 * @code{RAND}:          RAND,      Real pseudo-random number
+* @code{RANDOM_INIT}:   RANDOM_INIT, Initialize pseudo-random number generator
 * @code{RANDOM_NUMBER}: RANDOM_NUMBER, Pseudo-random number
 * @code{RANDOM_SEED}:   RANDOM_SEED, Initialize a pseudo-random number sequence
 * @code{RANGE}:         RANGE,     Decimal exponent range
@@ -275,6 +291,7 @@ Some basic guidelines for editing this document:
 * @code{SIGN}:          SIGN,      Sign copying function
 * @code{SIGNAL}:        SIGNAL,    Signal handling subroutine (or function)
 * @code{SIN}:           SIN,       Sine function
+* @code{SIND}:          SIND,      Sine function, degrees
 * @code{SINH}:          SINH,      Hyperbolic sine function
 * @code{SIZE}:          SIZE,      Function to determine the size of an array
 * @code{SIZEOF}:        SIZEOF,    Determine the size in bytes of an expression
@@ -290,6 +307,7 @@ Some basic guidelines for editing this document:
 * @code{SYSTEM}:        SYSTEM,    Execute a shell command
 * @code{SYSTEM_CLOCK}:  SYSTEM_CLOCK, Time function
 * @code{TAN}:           TAN,       Tangent function
+* @code{TAND}:          TAND,      Tangent function, degrees
 * @code{TANH}:          TANH,      Hyperbolic tangent function
 * @code{THIS_IMAGE}:    THIS_IMAGE, Cosubscript index of this image
 * @code{TIME}:          TIME,      Time function
@@ -399,6 +417,10 @@ end program test_abort
 @fnindex IABS
 @fnindex ZABS
 @fnindex CDABS
+@fnindex BABS
+@fnindex IIABS
+@fnindex JIABS
+@fnindex KIABS
 @cindex absolute value
 
 @table @asis
@@ -444,6 +466,10 @@ end program test_abs
 @item @code{CABS(A)}  @tab @code{COMPLEX(4) A} @tab @code{REAL(4)}    @tab Fortran 77 and later
 @item @code{DABS(A)}  @tab @code{REAL(8) A}    @tab @code{REAL(8)}    @tab Fortran 77 and later
 @item @code{IABS(A)}  @tab @code{INTEGER(4) A} @tab @code{INTEGER(4)} @tab Fortran 77 and later
+@item @code{BABS(A)} @tab @code{INTEGER(1) A} @tab @code{INTEGER(1)} @tab GNU extension
+@item @code{IIABS(A)} @tab @code{INTEGER(2) A} @tab @code{INTEGER(2)} @tab GNU extension
+@item @code{JIABS(A)} @tab @code{INTEGER(4) A} @tab @code{INTEGER(4)} @tab GNU extension
+@item @code{KIABS(A)} @tab @code{INTEGER(8) A} @tab @code{INTEGER(8)} @tab GNU extension
 @item @code{ZABS(A)}  @tab @code{COMPLEX(8) A} @tab @code{COMPLEX(8)} @tab GNU extension
 @item @code{CDABS(A)} @tab @code{COMPLEX(8) A} @tab @code{COMPLEX(8)} @tab GNU extension
 @end multitable
@@ -609,6 +635,65 @@ end program test_acos
 
 @item @emph{See also}:
 Inverse function: @ref{COS}
+Degrees function: @ref{ACOSD}
+
+@end table
+
+
+
+@node ACOSD
+@section @code{ACOSD} --- Arccosine function, degrees
+@fnindex ACOSD
+@fnindex DACOSD
+@cindex trigonometric function, cosine, inverse, degrees
+@cindex cosine, inverse, degrees
+
+@table @asis
+@item @emph{Description}:
+@code{ACOSD(X)} computes the arccosine of @var{X} in degrees (inverse of
+@code{COSD(X)}).
+
+This function is for compatibility only and should be avoided in favor of
+standard constructs wherever possible.
+
+@item @emph{Standard}:
+GNU Extension, enabled with @option{-fdec-math}
+
+@item @emph{Class}:
+Elemental function
+
+@item @emph{Syntax}:
+@code{RESULT = ACOSD(X)}
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{X} @tab The type shall either be @code{REAL} with a magnitude that is
+less than or equal to one - or the type shall be @code{COMPLEX}.
+@end multitable
+
+@item @emph{Return value}:
+The return value is of the same type and kind as @var{X}.
+The real part of the result is in degrees and lies in the range
+@math{0 \leq \Re \acos(x) \leq 180}.
+
+@item @emph{Example}:
+@smallexample
+program test_acosd
+  real(8) :: x = 0.866_8
+  x = acosd(x)
+end program test_acosd
+@end smallexample
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument         @tab Return type     @tab Standard
+@item @code{ACOSD(X)}  @tab @code{REAL(4) X} @tab @code{REAL(4)}  @tab GNU Extension
+@item @code{DACOSD(X)} @tab @code{REAL(8) X} @tab @code{REAL(8)}  @tab GNU Extension
+@end multitable
+
+@item @emph{See also}:
+Inverse function: @ref{COSD}
+Radians function: @ref{ACOS}
 
 @end table
 
@@ -1060,15 +1145,20 @@ Function
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
 @item @var{I} @tab The type shall be either a scalar @code{INTEGER}
-type or a scalar @code{LOGICAL} type.
-@item @var{J} @tab The type shall be the same as the type of @var{I}.
+type or a scalar @code{LOGICAL} type or a boz-literal-constant.
+@item @var{J} @tab The type shall be the same as the type of @var{I} or
+a boz-literal-constant. @var{I} and @var{J} shall not both be
+boz-literal-constants.  If either @var{I} or @var{J} is a
+boz-literal-constant, then the other argument must be a scalar @code{INTEGER}.
 @end multitable
 
 @item @emph{Return value}:
 The return type is either a scalar @code{INTEGER} or a scalar
 @code{LOGICAL}.  If the kind type parameters differ, then the
 smaller kind type is implicitly converted to larger kind, and the 
-return has the larger kind.
+return has the larger kind.  A boz-literal-constant is 
+converted to an @code{INTEGER} with the kind type parameter of
+the other argument as-if a call to @ref{INT} occurred.
 
 @item @emph{Example}:
 @smallexample
@@ -1259,6 +1349,65 @@ end program test_asin
 
 @item @emph{See also}:
 Inverse function: @ref{SIN}
+Degrees function: @ref{ASIND}
+
+@end table
+
+
+
+@node ASIND
+@section @code{ASIND} --- Arcsine function, degrees
+@fnindex ASIND
+@fnindex DASIND
+@cindex trigonometric function, sine, inverse, degrees
+@cindex sine, inverse, degrees
+
+@table @asis
+@item @emph{Description}:
+@code{ASIND(X)} computes the arcsine of its @var{X} in degrees (inverse of
+@code{SIND(X)}).
+
+This function is for compatibility only and should be avoided in favor of
+standard constructs wherever possible.
+
+@item @emph{Standard}:
+GNU Extension, enabled with @option{-fdec-math}.
+
+@item @emph{Class}:
+Elemental function
+
+@item @emph{Syntax}:
+@code{RESULT = ASIND(X)}
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{X} @tab The type shall be either @code{REAL} and a magnitude that is
+less than or equal to one - or be @code{COMPLEX}.
+@end multitable
+
+@item @emph{Return value}:
+The return value is of the same type and kind as @var{X}.
+The real part of the result is in degrees and lies in the range
+@math{-90 \leq \Re \asin(x) \leq 90}.
+
+@item @emph{Example}:
+@smallexample
+program test_asind
+  real(8) :: x = 0.866_8
+  x = asind(x)
+end program test_asind
+@end smallexample
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument          @tab Return type       @tab Standard
+@item @code{ASIND(X)}  @tab @code{REAL(4) X}  @tab @code{REAL(4)}    @tab GNU Extension
+@item @code{DASIND(X)} @tab @code{REAL(8) X}  @tab @code{REAL(8)}    @tab GNU Extension
+@end multitable
+
+@item @emph{See also}:
+Inverse function: @ref{SIND}
+Radians function: @ref{ASIN}
 
 @end table
 
@@ -1448,6 +1597,71 @@ end program test_atan
 
 @item @emph{See also}:
 Inverse function: @ref{TAN}
+Degrees function: @ref{ATAND}
+
+@end table
+
+
+
+@node ATAND
+@section @code{ATAND} --- Arctangent function, degrees
+@fnindex ATAND
+@fnindex DATAND
+@cindex trigonometric function, tangent, inverse, degrees
+@cindex tangent, inverse, degrees
+
+@table @asis
+@item @emph{Description}:
+@code{ATAND(X)} computes the arctangent of @var{X} in degrees (inverse of
+@ref{TAND}).
+
+This function is for compatibility only and should be avoided in favor of
+standard constructs wherever possible.
+
+@item @emph{Standard}:
+GNU Extension, enabled with @option{-fdec-math}.
+
+@item @emph{Class}:
+Elemental function
+
+@item @emph{Syntax}:
+@multitable @columnfractions .80
+@item @code{RESULT = ATAND(X)}
+@item @code{RESULT = ATAND(Y, X)}
+@end multitable
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{X} @tab The type shall be @code{REAL} or @code{COMPLEX};
+if @var{Y} is present, @var{X} shall be REAL.
+@item @var{Y} shall be of the same type and kind as @var{X}.
+@end multitable
+
+@item @emph{Return value}:
+The return value is of the same type and kind as @var{X}.
+If @var{Y} is present, the result is identical to @code{ATAND2(Y,X)}.
+Otherwise, it is the arcus tangent of @var{X}, where the real part of
+the result is in degrees and lies in the range
+@math{-90 \leq \Re \atand(x) \leq 90}.
+
+@item @emph{Example}:
+@smallexample
+program test_atand
+  real(8) :: x = 2.866_8
+  x = atand(x)
+end program test_atand
+@end smallexample
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument          @tab Return type       @tab Standard
+@item @code{ATAND(X)}  @tab @code{REAL(4) X}  @tab @code{REAL(4)}    @tab GNU Extension
+@item @code{DATAND(X)} @tab @code{REAL(8) X}  @tab @code{REAL(8)}    @tab GNU Extension
+@end multitable
+
+@item @emph{See also}:
+Inverse function: @ref{TAND}
+Radians function: @ref{ATAN}
 
 @end table
 
@@ -1463,7 +1677,7 @@ Inverse function: @ref{TAN}
 @table @asis
 @item @emph{Description}:
 @code{ATAN2(Y, X)} computes the principal value of the argument
-function of the complex number @math{X + i Y}. This function can
+function of the complex number @math{X + i Y}.  This function can
 be used to transform from Cartesian into polar coordinates and
 allows to determine the angle in the correct quadrant.
 
@@ -1508,6 +1722,78 @@ end program test_atan2
 @item @code{ATAN2(X, Y)}  @tab @code{REAL(4) X, Y} @tab @code{REAL(4)} @tab Fortran 77 and later
 @item @code{DATAN2(X, Y)} @tab @code{REAL(8) X, Y} @tab @code{REAL(8)} @tab Fortran 77 and later
 @end multitable
+
+@item @emph{See also}:
+Alias: @ref{ATAN}
+Degrees function: @ref{ATAN2D}
+
+@end table
+
+
+
+@node ATAN2D
+@section @code{ATAN2D} --- Arctangent function, degrees
+@fnindex ATAN2D
+@fnindex DATAN2D
+@cindex trigonometric function, tangent, inverse, degrees
+@cindex tangent, inverse, degrees
+
+@table @asis
+@item @emph{Description}:
+@code{ATAN2D(Y, X)} computes the principal value of the argument
+function of the complex number @math{X + i Y} in degrees.  This function can
+be used to transform from Cartesian into polar coordinates and
+allows to determine the angle in the correct quadrant.
+
+This function is for compatibility only and should be avoided in favor of
+standard constructs wherever possible.
+
+@item @emph{Standard}:
+GNU Extension, enabled with @option{-fdec-math}.
+
+@item @emph{Class}:
+Elemental function
+
+@item @emph{Syntax}:
+@code{RESULT = ATAN2D(Y, X)}
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{Y} @tab The type shall be @code{REAL}.
+@item @var{X} @tab The type and kind type parameter shall be the same as @var{Y}.
+If @var{Y} is zero, then @var{X} must be nonzero.
+@end multitable
+
+@item @emph{Return value}:
+The return value has the same type and kind type parameter as @var{Y}. It
+is the principal value of the complex number @math{X + i Y}.  If @var{X}
+is nonzero, then it lies in the range @math{-180 \le \atan (x) \leq 180}.
+The sign is positive if @var{Y} is positive.  If @var{Y} is zero, then
+the return value is zero if @var{X} is strictly positive, @math{180} if
+@var{X} is negative and @var{Y} is positive zero (or the processor does
+not handle signed zeros), and @math{-180} if @var{X} is negative and
+@var{Y} is negative zero.  Finally, if @var{X} is zero, then the
+magnitude of the result is @math{90}.
+
+@item @emph{Example}:
+@smallexample
+program test_atan2d
+  real(4) :: x = 1.e0_4, y = 0.5e0_4
+  x = atan2d(y,x)
+end program test_atan2d
+@end smallexample
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name                @tab Argument            @tab Return type    @tab Standard
+@item @code{ATAN2D(X, Y)}  @tab @code{REAL(4) X, Y} @tab @code{REAL(4)} @tab GNU Extension
+@item @code{DATAN2D(X, Y)} @tab @code{REAL(8) X, Y} @tab @code{REAL(8)} @tab GNU Extension
+@end multitable
+
+@item @emph{See also}:
+Alias: @ref{ATAND}
+Radians function: @ref{ATAN2}
+
 @end table
 
 
@@ -1572,8 +1858,8 @@ Inverse function: @ref{TANH}
 @table @asis
 @item @emph{Description}:
 @code{ATOMIC_ADD(ATOM, VALUE)} atomically adds the value of @var{VAR} to the
-variable @var{ATOM}. When @var{STAT} is present and the invokation was
-successful, it is assigned the value 0. If it is present and the invokation
+variable @var{ATOM}. When @var{STAT} is present and the invocation was
+successful, it is assigned the value 0. If it is present and the invocation
 has failed, it is assigned a positive value; in particular, for a coindexed
 @var{ATOM}, if the remote image has stopped, it is assigned the value of
 @code{ISO_FORTRAN_ENV}'s @code{STAT_STOPPED_IMAGE} and if the remote image has
@@ -1623,8 +1909,8 @@ end program atomic
 @item @emph{Description}:
 @code{ATOMIC_AND(ATOM, VALUE)} atomically defines @var{ATOM} with the bitwise
 AND between the values of @var{ATOM} and @var{VALUE}. When @var{STAT} is present
-and the invokation was successful, it is assigned the value 0. If it is present
-and the invokation has failed, it is assigned a positive value; in particular,
+and the invocation was successful, it is assigned the value 0. If it is present
+and the invocation has failed, it is assigned a positive value; in particular,
 for a coindexed @var{ATOM}, if the remote image has stopped, it is assigned the
 value of @code{ISO_FORTRAN_ENV}'s @code{STAT_STOPPED_IMAGE} and if the remote
 image has failed, the value @code{STAT_FAILED_IMAGE}.
@@ -1673,8 +1959,8 @@ end program atomic
 @code{ATOMIC_CAS} compares the variable @var{ATOM} with the value of
 @var{COMPARE}; if the value is the same, @var{ATOM} is set to the value
 of @var{NEW}. Additionally, @var{OLD} is set to the value of @var{ATOM}
-that was used for the comparison.  When @var{STAT} is present and the invokation
-was successful, it is assigned the value 0. If it is present and the invokation
+that was used for the comparison.  When @var{STAT} is present and the invocation
+was successful, it is assigned the value 0. If it is present and the invocation
 has failed, it is assigned a positive value; in particular, for a coindexed
 @var{ATOM}, if the remote image has stopped, it is assigned the value of
 @code{ISO_FORTRAN_ENV}'s @code{STAT_STOPPED_IMAGE} and if the remote image has
@@ -1725,8 +2011,8 @@ end program atomic
 @table @asis
 @item @emph{Description}:
 @code{ATOMIC_DEFINE(ATOM, VALUE)} defines the variable @var{ATOM} with the value
-@var{VALUE} atomically. When @var{STAT} is present and the invokation was
-successful, it is assigned the value 0. If it is present and the invokation
+@var{VALUE} atomically. When @var{STAT} is present and the invocation was
+successful, it is assigned the value 0. If it is present and the invocation
 has failed, it is assigned a positive value; in particular, for a coindexed
 @var{ATOM}, if the remote image has stopped, it is assigned the value of
 @code{ISO_FORTRAN_ENV}'s @code{STAT_STOPPED_IMAGE} and if the remote image has
@@ -1777,8 +2063,8 @@ end program atomic
 @item @emph{Description}:
 @code{ATOMIC_FETCH_ADD(ATOM, VALUE, OLD)} atomically stores the value of
 @var{ATOM} in @var{OLD} and adds the value of @var{VAR} to the
-variable @var{ATOM}. When @var{STAT} is present and the invokation was
-successful, it is assigned the value 0. If it is present and the invokation
+variable @var{ATOM}. When @var{STAT} is present and the invocation was
+successful, it is assigned the value 0. If it is present and the invocation
 has failed, it is assigned a positive value; in particular, for a coindexed
 @var{ATOM}, if the remote image has stopped, it is assigned the value of
 @code{ISO_FORTRAN_ENV}'s @code{STAT_STOPPED_IMAGE} and if the remote image has
@@ -1830,8 +2116,8 @@ end program atomic
 @item @emph{Description}:
 @code{ATOMIC_AND(ATOM, VALUE)} atomically stores the value of @var{ATOM} in
 @var{OLD} and defines @var{ATOM} with the bitwise AND between the values of
-@var{ATOM} and @var{VALUE}. When @var{STAT} is present and the invokation was
-successful, it is assigned the value 0. If it is present and the invokation has
+@var{ATOM} and @var{VALUE}. When @var{STAT} is present and the invocation was
+successful, it is assigned the value 0. If it is present and the invocation has
 failed, it is assigned a positive value; in particular, for a coindexed
 @var{ATOM}, if the remote image has stopped, it is assigned the value of
 @code{ISO_FORTRAN_ENV}'s @code{STAT_STOPPED_IMAGE} and if the remote image has
@@ -1881,8 +2167,8 @@ end program atomic
 @item @emph{Description}:
 @code{ATOMIC_OR(ATOM, VALUE)} atomically stores the value of @var{ATOM} in
 @var{OLD} and defines @var{ATOM} with the bitwise OR between the values of
-@var{ATOM} and @var{VALUE}. When @var{STAT} is present and the invokation was
-successful, it is assigned the value 0. If it is present and the invokation has
+@var{ATOM} and @var{VALUE}. When @var{STAT} is present and the invocation was
+successful, it is assigned the value 0. If it is present and the invocation has
 failed, it is assigned a positive value; in particular, for a coindexed
 @var{ATOM}, if the remote image has stopped, it is assigned the value of
 @code{ISO_FORTRAN_ENV}'s @code{STAT_STOPPED_IMAGE} and if the remote image has
@@ -1932,8 +2218,8 @@ end program atomic
 @item @emph{Description}:
 @code{ATOMIC_XOR(ATOM, VALUE)} atomically stores the value of @var{ATOM} in
 @var{OLD} and defines @var{ATOM} with the bitwise XOR between the values of
-@var{ATOM} and @var{VALUE}. When @var{STAT} is present and the invokation was
-successful, it is assigned the value 0. If it is present and the invokation has
+@var{ATOM} and @var{VALUE}. When @var{STAT} is present and the invocation was
+successful, it is assigned the value 0. If it is present and the invocation has
 failed, it is assigned a positive value; in particular, for a coindexed
 @var{ATOM}, if the remote image has stopped, it is assigned the value of
 @code{ISO_FORTRAN_ENV}'s @code{STAT_STOPPED_IMAGE} and if the remote image has
@@ -1983,8 +2269,8 @@ end program atomic
 @item @emph{Description}:
 @code{ATOMIC_OR(ATOM, VALUE)} atomically defines @var{ATOM} with the bitwise
 AND between the values of @var{ATOM} and @var{VALUE}. When @var{STAT} is present
-and the invokation was successful, it is assigned the value 0. If it is present
-and the invokation has failed, it is assigned a positive value; in particular,
+and the invocation was successful, it is assigned the value 0. If it is present
+and the invocation has failed, it is assigned a positive value; in particular,
 for a coindexed @var{ATOM}, if the remote image has stopped, it is assigned the
 value of @code{ISO_FORTRAN_ENV}'s @code{STAT_STOPPED_IMAGE} and if the remote
 image has failed, the value @code{STAT_FAILED_IMAGE}.
@@ -2032,8 +2318,8 @@ end program atomic
 @item @emph{Description}:
 @code{ATOMIC_DEFINE(ATOM, VALUE)} atomically assigns the value of the
 variable @var{ATOM} to @var{VALUE}. When @var{STAT} is present and the
-invokation was successful, it is assigned the value 0. If it is present and the
-invokation has failed, it is assigned a positive value; in particular, for a
+invocation was successful, it is assigned the value 0. If it is present and the
+invocation has failed, it is assigned a positive value; in particular, for a
 coindexed @var{ATOM}, if the remote image has stopped, it is assigned the value
 of @code{ISO_FORTRAN_ENV}'s @code{STAT_STOPPED_IMAGE} and if the remote image
 has failed, the value @code{STAT_FAILED_IMAGE}.
@@ -2089,8 +2375,8 @@ end program atomic
 @item @emph{Description}:
 @code{ATOMIC_AND(ATOM, VALUE)} atomically defines @var{ATOM} with the bitwise
 XOR between the values of @var{ATOM} and @var{VALUE}. When @var{STAT} is present
-and the invokation was successful, it is assigned the value 0. If it is present
-and the invokation has failed, it is assigned a positive value; in particular,
+and the invocation was successful, it is assigned the value 0. If it is present
+and the invocation has failed, it is assigned a positive value; in particular,
 for a coindexed @var{ATOM}, if the remote image has stopped, it is assigned the
 value of @code{ISO_FORTRAN_ENV}'s @code{STAT_STOPPED_IMAGE} and if the remote
 image has failed, the value @code{STAT_FAILED_IMAGE}.
@@ -2664,6 +2950,10 @@ The return value is of type @code{LOGICAL} and of the default kind.
 @node BTEST
 @section @code{BTEST} --- Bit test function
 @fnindex BTEST
+@fnindex BBTEST
+@fnindex BITEST
+@fnindex BJTEST
+@fnindex BKTEST
 @cindex bits, testing
 
 @table @asis
@@ -2672,7 +2962,7 @@ The return value is of type @code{LOGICAL} and of the default kind.
 in @var{I} is set.  The counting of the bits starts at 0.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later, has overloads that are GNU extensions
 
 @item @emph{Class}:
 Elemental function
@@ -2701,8 +2991,17 @@ program test_btest
     end do
 end program test_btest
 @end smallexample
-@end table
 
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name           @tab Argument         @tab Return type             @tab Standard
+@item @code{BTEST(I,POS)} @tab @code{INTEGER I,POS} @tab @code{LOGICAL} @tab F95 and later
+@item @code{BBTEST(I,POS)} @tab @code{INTEGER(1) I,POS} @tab @code{LOGICAL(1)} @tab GNU extension
+@item @code{BITEST(I,POS)} @tab @code{INTEGER(2) I,POS} @tab @code{LOGICAL(2)} @tab GNU extension
+@item @code{BJTEST(I,POS)} @tab @code{INTEGER(4) I,POS} @tab @code{LOGICAL(4)} @tab GNU extension
+@item @code{BKTEST(I,POS)} @tab @code{INTEGER(8) I,POS} @tab @code{LOGICAL(8)} @tab GNU extension
+@end multitable
+@end table
 
 @node C_ASSOCIATED
 @section @code{C_ASSOCIATED} --- Status of a C pointer
@@ -2712,7 +3011,7 @@ end program test_btest
 
 @table @asis
 @item @emph{Description}:
-@code{C_ASSOCIATED(c_prt_1[, c_ptr_2])} determines the status of the C pointer
+@code{C_ASSOCIATED(c_ptr_1[, c_ptr_2])} determines the status of the C pointer
 @var{c_ptr_1} or if @var{c_ptr_1} is associated with the target @var{c_ptr_2}.
 
 @item @emph{Standard}:
@@ -2722,7 +3021,7 @@ Fortran 2003 and later
 Inquiry function
 
 @item @emph{Syntax}:
-@code{RESULT = C_ASSOCIATED(c_prt_1[, c_ptr_2])}
+@code{RESULT = C_ASSOCIATED(c_ptr_1[, c_ptr_2])}
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
@@ -3320,7 +3619,7 @@ Collective subroutine
 @item @var{A}            @tab INTENT(INOUT) argument; shall have the same
 dynamic type and type paramters on all images of the current team. If it
 is an array, it shall have the same shape on all images.
-@item @var{SOURCE_IMAGE} @tab (optional) a scalar integer expression.
+@item @var{SOURCE_IMAGE} @tab a scalar integer expression.
 It shall have the same the same value on all images and refer to an
 image of the current team.
 @item @var{STAT}         @tab (optional) a scalar integer variable
@@ -3340,7 +3639,7 @@ end program test
 @end smallexample
 
 @item @emph{See also}:
-@ref{CO_MAX}, @ref{CO_MIN}, @ref{CO_SUM}
+@ref{CO_MAX}, @ref{CO_MIN}, @ref{CO_SUM}, @ref{CO_REDUCE}
 @end table
 
 
@@ -3354,7 +3653,7 @@ end program test
 @item @emph{Description}:
 @code{CO_MAX} determines element-wise the maximal value of @var{A} on all
 images of the current team.  If @var{RESULT_IMAGE} is present, the maximum
-values are returned on in @var{A} on the specified image only and the value
+values are returned in @var{A} on the specified image only and the value
 of @var{A} on the other images become undefined.  If @var{RESULT_IMAGE} is
 not present, the value is returned on all images.  If the execution was
 successful and @var{STAT} is present, it is assigned the value zero.  If the
@@ -3394,7 +3693,7 @@ end program test
 @end smallexample
 
 @item @emph{See also}:
-@ref{CO_MIN}, @ref{CO_SUM}, @ref{CO_BROADCAST}
+@ref{CO_MIN}, @ref{CO_SUM}, @ref{CO_REDUCE}, @ref{CO_BROADCAST}
 @end table
 
 
@@ -3408,7 +3707,7 @@ end program test
 @item @emph{Description}:
 @code{CO_MIN} determines element-wise the minimal value of @var{A} on all
 images of the current team.  If @var{RESULT_IMAGE} is present, the minimal
-values are returned on in @var{A} on the specified image only and the value
+values are returned in @var{A} on the specified image only and the value
 of @var{A} on the other images become undefined.  If @var{RESULT_IMAGE} is
 not present, the value is returned on all images.  If the execution was
 successful and @var{STAT} is present, it is assigned the value zero.  If the
@@ -3448,7 +3747,87 @@ end program test
 @end smallexample
 
 @item @emph{See also}:
-@ref{CO_MAX}, @ref{CO_SUM}, @ref{CO_BROADCAST}
+@ref{CO_MAX}, @ref{CO_SUM}, @ref{CO_REDUCE}, @ref{CO_BROADCAST}
+@end table
+
+
+
+@node CO_REDUCE
+@section @code{CO_REDUCE} --- Reduction of values on the current set of images
+@fnindex CO_REDUCE
+@cindex Collectives, generic reduction
+
+@table @asis
+@item @emph{Description}:
+@code{CO_REDUCE} determines element-wise the reduction of the value of @var{A}
+on all images of the current team.  The pure function passed as @var{OPERATOR}
+is used to pairwise reduce the values of @var{A} by passing either the value
+of @var{A} of different images or the result values of such a reduction as
+argument.  If @var{A} is an array, the deduction is done element wise. If
+@var{RESULT_IMAGE} is present, the result values are returned in @var{A} on
+the specified image only and the value of @var{A} on the other images become
+undefined.  If @var{RESULT_IMAGE} is not present, the value is returned on all
+images.  If the execution was successful and @var{STAT} is present, it is
+assigned the value zero.  If the execution failed, @var{STAT} gets assigned
+a nonzero value and, if present, @var{ERRMSG} gets assigned a value describing
+the occurred error.
+
+@item @emph{Standard}:
+Technical Specification (TS) 18508 or later
+
+@item @emph{Class}:
+Collective subroutine
+
+@item @emph{Syntax}:
+@code{CALL CO_REDUCE(A, OPERATOR, [, RESULT_IMAGE, STAT, ERRMSG])}
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{A}            @tab is an @code{INTENT(INOUT)} argument and shall be
+nonpolymorphic. If it is allocatable, it shall be allocated; if it is a pointer,
+it shall be associated.  @var{A} shall have the same type and type parameters on
+all images of the team; if it is an array, it shall have the same shape on all
+images.
+@item @var{OPERATOR}     @tab pure function with two scalar nonallocatable
+arguments, which shall be nonpolymorphic and have the same type and type
+parameters as @var{A}.  The function shall return a nonallocatable scalar of
+the same type and type parameters as @var{A}.  The function shall be the same on
+all images and with regards to the arguments mathematically commutative and
+associative.  Note that @var{OPERATOR} may not be an elemental function, unless
+it is an intrisic function.
+@item @var{RESULT_IMAGE} @tab (optional) a scalar integer expression; if
+present, it shall have the same the same value on all images and refer to an
+image of the current team.
+@item @var{STAT}         @tab (optional) a scalar integer variable
+@item @var{ERRMSG}       @tab (optional) a scalar character variable
+@end multitable
+
+@item @emph{Example}:
+@smallexample
+program test
+  integer :: val
+  val = this_image ()
+  call co_reduce (val, result_image=1, operator=myprod)
+  if (this_image() == 1) then
+    write(*,*) "Product value", val  ! prints num_images() factorial
+  end if
+contains
+  pure function myprod(a, b)
+    integer, value :: a, b
+    integer :: myprod
+    myprod = a * b
+  end function myprod
+end program test
+@end smallexample
+
+@item @emph{Note}:
+While the rules permit in principle an intrinsic function, none of the
+intrinsics in the standard fulfill the criteria of having a specific
+function, which takes two arguments of the same type and returning that
+type as result.
+
+@item @emph{See also}:
+@ref{CO_MIN}, @ref{CO_MAX}, @ref{CO_SUM}, @ref{CO_BROADCAST}
 @end table
 
 
@@ -3462,7 +3841,7 @@ end program test
 @item @emph{Description}:
 @code{CO_SUM} sums up the values of each element of @var{A} on all
 images of the current team.  If @var{RESULT_IMAGE} is present, the summed-up
-values are returned on in @var{A} on the specified image only and the value
+values are returned in @var{A} on the specified image only and the value
 of @var{A} on the other images become undefined.  If @var{RESULT_IMAGE} is
 not present, the value is returned on all images.  If the execution was
 successful and @var{STAT} is present, it is assigned the value zero.  If the
@@ -3502,7 +3881,7 @@ end program test
 @end smallexample
 
 @item @emph{See also}:
-@ref{CO_MAX}, @ref{CO_MIN}, @ref{CO_BROADCAST}
+@ref{CO_MAX}, @ref{CO_MIN}, @ref{CO_REDUCE}, @ref{CO_BROADCAST}
 @end table
 
 
@@ -3671,7 +4050,7 @@ value is of default @code{COMPLEX} type.
 If @var{X} and @var{Y} are of @code{REAL} type, or one is of @code{REAL}
 type and one is of @code{INTEGER} type, then the return value is of
 @code{COMPLEX} type with a kind equal to that of the @code{REAL}
-argument with the highest precision.  
+argument with the highest precision.
 
 @item @emph{Example}:
 @smallexample
@@ -3689,7 +4068,7 @@ end program test_complex
 
 
 @node CONJG
-@section @code{CONJG} --- Complex conjugate function 
+@section @code{CONJG} --- Complex conjugate function
 @fnindex CONJG
 @fnindex DCONJG
 @cindex complex conjugate
@@ -3739,7 +4118,7 @@ end program test_conjg
 
 
 @node COS
-@section @code{COS} --- Cosine function 
+@section @code{COS} --- Cosine function
 @fnindex COS
 @fnindex DCOS
 @fnindex CCOS
@@ -3792,13 +4171,77 @@ end program test_cos
 
 @item @emph{See also}:
 Inverse function: @ref{ACOS}
+Degrees function: @ref{COSD}
+
+@end table
+
+
+
+@node COSD
+@section @code{COSD} --- Cosine function, degrees
+@fnindex COSD
+@fnindex DCOSD
+@fnindex CCOSD
+@fnindex ZCOSD
+@fnindex CDCOSD
+@cindex trigonometric function, cosine, degrees
+@cindex cosine, degrees
+
+@table @asis
+@item @emph{Description}:
+@code{COSD(X)} computes the cosine of @var{X} in degrees.
+
+This function is for compatibility only and should be avoided in favor of
+standard constructs wherever possible.
+
+@item @emph{Standard}:
+GNU Extension, enabled with @option{-fdec-math}.
+
+@item @emph{Class}:
+Elemental function
+
+@item @emph{Syntax}:
+@code{RESULT = COSD(X)}
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{X} @tab The type shall be @code{REAL} or
+@code{COMPLEX}.
+@end multitable
+
+@item @emph{Return value}:
+The return value is of the same type and kind as @var{X}. The real part
+of the result is in degrees.  If @var{X} is of the type @code{REAL},
+the return value lies in the range @math{ -1 \leq \cosd (x) \leq 1}.
+
+@item @emph{Example}:
+@smallexample
+program test_cosd
+  real :: x = 0.0
+  x = cosd(x)
+end program test_cosd
+@end smallexample
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument            @tab Return type       @tab Standard
+@item @code{COSD(X)}   @tab @code{REAL(4) X}    @tab @code{REAL(4)}    @tab GNU Extension
+@item @code{DCOSD(X)}  @tab @code{REAL(8) X}    @tab @code{REAL(8)}    @tab GNU Extension
+@item @code{CCOSD(X)}  @tab @code{COMPLEX(4) X} @tab @code{COMPLEX(4)} @tab GNU Extension
+@item @code{ZCOSD(X)}  @tab @code{COMPLEX(8) X} @tab @code{COMPLEX(8)} @tab GNU extension
+@item @code{CDCOSD(X)} @tab @code{COMPLEX(8) X} @tab @code{COMPLEX(8)} @tab GNU extension
+@end multitable
+
+@item @emph{See also}:
+Inverse function: @ref{ACOSD}
+Radians function: @ref{COS}
 
 @end table
 
 
 
 @node COSH
-@section @code{COSH} --- Hyperbolic cosine function 
+@section @code{COSH} --- Hyperbolic cosine function
 @fnindex COSH
 @fnindex DCOSH
 @cindex hyperbolic cosine
@@ -3846,6 +4289,115 @@ end program test_cosh
 
 @item @emph{See also}:
 Inverse function: @ref{ACOSH}
+
+@end table
+
+
+
+@node COTAN
+@section @code{COTAN} --- Cotangent function
+@fnindex COTAN
+@fnindex DCOTAN
+@cindex trigonometric function, cotangent
+@cindex cotangent
+
+@table @asis
+@item @emph{Description}:
+@code{COTAN(X)} computes the cotangent of @var{X}. Equivalent to @code{COS(x)}
+divided by @code{SIN(x)}, or @code{1 / TAN(x)}.
+
+This function is for compatibility only and should be avoided in favor of
+standard constructs wherever possible.
+
+@item @emph{Standard}:
+GNU Extension, enabled with @option{-fdec-math}.
+
+@item @emph{Class}:
+Elemental function
+
+@item @emph{Syntax}:
+@code{RESULT = COTAN(X)}
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{X} @tab The type shall be @code{REAL} or @code{COMPLEX}.
+@end multitable
+
+@item @emph{Return value}:
+The return value has same type and kind as @var{X}, and its value is in radians.
+
+@item @emph{Example}:
+@smallexample
+program test_cotan
+  real(8) :: x = 0.165_8
+  x = cotan(x)
+end program test_cotan
+@end smallexample
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument          @tab Return type     @tab Standard
+@item @code{COTAN(X)}   @tab @code{REAL(4) X}  @tab @code{REAL(4)}  @tab GNU Extension
+@item @code{DCOTAN(X)}  @tab @code{REAL(8) X}  @tab @code{REAL(8)}  @tab GNU Extension
+@end multitable
+
+@item @emph{See also}:
+Converse function: @ref{TAN}
+Degrees function: @ref{COTAND}
+@end table
+
+
+
+@node COTAND
+@section @code{COTAND} --- Cotangent function, degrees
+@fnindex COTAND
+@fnindex DCOTAND
+@cindex trigonometric function, cotangent, degrees
+@cindex cotangent, degrees
+
+@table @asis
+@item @emph{Description}:
+@code{COTAND(X)} computes the cotangent of @var{X} in degrees.  Equivalent to
+@code{COSD(x)} divided by @code{SIND(x)}, or @code{1 / TAND(x)}.
+
+@item @emph{Standard}:
+GNU Extension, enabled with @option{-fdec-math}.
+
+This function is for compatibility only and should be avoided in favor of
+standard constructs wherever possible.
+
+@item @emph{Class}:
+Elemental function
+
+@item @emph{Syntax}:
+@code{RESULT = COTAND(X)}
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{X} @tab The type shall be @code{REAL} or @code{COMPLEX}.
+@end multitable
+
+@item @emph{Return value}:
+The return value has same type and kind as @var{X}, and its value is in degrees.
+
+@item @emph{Example}:
+@smallexample
+program test_cotand
+  real(8) :: x = 0.165_8
+  x = cotand(x)
+end program test_cotand
+@end smallexample
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument          @tab Return type     @tab Standard
+@item @code{COTAND(X)}   @tab @code{REAL(4) X}  @tab @code{REAL(4)}  @tab GNU Extension
+@item @code{DCOTAND(X)}  @tab @code{REAL(8) X}  @tab @code{REAL(8)}  @tab GNU Extension
+@end multitable
+
+@item @emph{See also}:
+Converse function: @ref{TAND}
+Radians function: @ref{COTAN}
 
 @end table
 
@@ -4039,7 +4591,7 @@ end program test_cshift
 @table @asis
 @item @emph{Description}:
 @code{CTIME} converts a system time value, such as returned by
-@code{TIME8}, to a string. The output will be of the form @samp{Sat
+@ref{TIME8}, to a string. The output will be of the form @samp{Sat
 Aug 19 18:13:14 1995}.
 
 This intrinsic is provided in both subroutine and function forms; however,
@@ -4166,7 +4718,7 @@ end program test_time_and_date
 
 
 @node DBLE
-@section @code{DBLE} --- Double conversion function 
+@section @code{DBLE} --- Double conversion function
 @fnindex DBLE
 @cindex conversion, to real
 
@@ -4448,7 +5000,7 @@ end program test_dprod
 @item @emph{Specific names}:
 @multitable @columnfractions .20 .20 .20 .25
 @item Name              @tab Argument               @tab Return type       @tab Standard
-@item @code{DPROD(X,Y)} @tab @code{REAL(4) X, Y}    @tab @code{REAL(4)}    @tab Fortran 77 and later
+@item @code{DPROD(X,Y)} @tab @code{REAL(4) X, Y}    @tab @code{REAL(8)}    @tab Fortran 77 and later
 @end multitable
 
 @end table
@@ -4982,6 +5534,57 @@ end program test_etime
 
 
 
+@node EVENT_QUERY
+@section @code{EVENT_QUERY} --- Query whether a coarray event has occurred
+@fnindex EVENT_QUERY
+@cindex Events, EVENT_QUERY
+
+@table @asis
+@item @emph{Description}:
+@code{EVENT_QUERY} assignes the number of events to @var{COUNT} which have been
+posted to the @var{EVENT} variable and not yet been removed by calling
+@code{EVENT WAIT}. When @var{STAT} is present and the invocation was successful,
+it is assigned the value 0. If it is present and the invocation has failed,
+it is assigned a positive value and @var{COUNT} is assigned the value @math{-1}.
+
+@item @emph{Standard}:
+TS 18508 or later
+
+@item @emph{Class}:
+ subroutine
+
+@item @emph{Syntax}:
+@code{CALL EVENT_QUERY (EVENT, COUNT [, STAT])}
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{EVENT}  @tab (intent(IN)) Scalar of type @code{EVENT_TYPE},
+defined in @code{ISO_FORTRAN_ENV}; shall not be coindexed.
+@item @var{COUNT}  @tab (intent(out))Scalar integer with at least the
+precision of default integer.
+@item @var{STAT}   @tab (optional) Scalar default-kind integer variable.
+@end multitable
+
+@item @emph{Example}:
+@smallexample
+program atomic
+  use iso_fortran_env
+  implicit none
+  type(event_type) :: event_value_has_been_set[*]
+  integer :: cnt
+  if (this_image() == 1) then
+    call event_query (event_value_has_been_set, cnt)
+    if (cnt > 0) write(*,*) "Value has been set"
+  elseif (this_image() == 2) then
+    event post (event_value_has_been_set[1])
+  end if
+end program atomic
+@end smallexample
+
+@end table
+
+
+
 @node EXECUTE_COMMAND_LINE
 @section @code{EXECUTE_COMMAND_LINE} --- Execute a shell command
 @fnindex EXECUTE_COMMAND_LINE
@@ -5248,7 +5851,7 @@ the dynamic type of A is an extension type of the dynamic type of MOLD.
 @table @asis
 @item @emph{Description}:
 @code{FDATE(DATE)} returns the current date (using the same format as
-@code{CTIME}) in @var{DATE}. It is equivalent to @code{CALL CTIME(DATE,
+@ref{CTIME}) in @var{DATE}. It is equivalent to @code{CALL CTIME(DATE,
 TIME())}.
 
 This intrinsic is provided in both subroutine and function forms; however,
@@ -5425,7 +6028,67 @@ END PROGRAM
 @ref{FGET}, @ref{FPUT}, @ref{FPUTC}
 @end table
 
+@node FINDLOC
+@section @code{FINDLOC} --- Search an array for a value
+@fnindex FINDLOC
+@cindex findloc
 
+@table @asis
+@item @emph{Description}:
+Determines the location of the element in the array with the value
+given in the @var{VALUE} argument, or, if the @var{DIM} argument is
+supplied, determines the locations of the maximum element along each
+row of the array in the @var{DIM} direction.  If @var{MASK} is
+present, only the elements for which @var{MASK} is @code{.TRUE.} are
+considered.  If more than one element in the array has the value
+@var{VALUE}, the location returned is that of the first such element
+in array element order if the @var{BACK} is not present or if it is
+@code{.FALSE.}. If @var{BACK} is true, the location returned is that
+of the last such element. If the array has zero size, or all of the
+elements of @var{MASK} are @code{.FALSE.}, then the result is an array
+of zeroes.  Similarly, if @var{DIM} is supplied and all of the
+elements of @var{MASK} along a given row are zero, the result value
+for that row is zero.
+
+@item @emph{Standard}:
+Fortran 2008 and later.
+
+@item @emph{Class}:
+Transformational function
+
+@item @emph{Syntax}:
+@multitable @columnfractions .80
+@item @code{RESULT = FINDLOC(ARRAY, VALUE, DIM [, MASK] [,KIND] [,BACK])}
+@item @code{RESULT = FINDLOC(ARRAY, VALUE, [, MASK] [,KIND] [,BACK])}
+@end multitable
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{ARRAY} @tab Shall be an array of intrinsic type.
+@item @var{VALUE} @tab A scalar of intrinsic type which is in type
+conformance with @var{ARRAY}.
+@item @var{DIM} @tab (Optional) Shall be a scalar of type
+@code{INTEGER}, with a value between one and the rank of @var{ARRAY},
+inclusive.  It may not be an optional dummy argument.
+@item @var{KIND} @tab (Optional) An @code{INTEGER} initialization
+expression indicating the kind parameter of the result.
+@item @var{BACK} @tab (Optional) A scalar of type @code{LOGICAL}.
+@end multitable
+
+@item @emph{Return value}:
+If @var{DIM} is absent, the result is a rank-one array with a length
+equal to the rank of @var{ARRAY}.  If @var{DIM} is present, the result
+is an array with a rank one less than the rank of @var{ARRAY}, and a
+size corresponding to the size of @var{ARRAY} with the @var{DIM}
+dimension removed.  If @var{DIM} is present and @var{ARRAY} has a rank
+of one, the result is a scalar.  If the optional argument @var{KIND}
+is present, the result is an integer of kind @var{KIND}, otherwise it
+is of default kind.
+
+@item @emph{See also}:
+@ref{MAXLOC}, @ref{MINLOC}
+
+@end table
 
 @node FLOOR
 @section @code{FLOOR} --- Integer floor function
@@ -6099,7 +6762,7 @@ kind.
 
 @item @emph{Return value}:
 After @code{GETARG} returns, the @var{VALUE} argument holds the
-@var{POS}th command line argument. If @var{VALUE} can not hold the
+@var{POS}th command line argument. If @var{VALUE} cannot hold the
 argument, it is truncated to fit the length of @var{VALUE}. If there are
 less than @var{POS} arguments specified at the command line, @var{VALUE}
 will be filled with blanks. If @math{@var{POS} = 0}, @var{VALUE} is set
@@ -6212,7 +6875,7 @@ and of default kind.
 
 @item @emph{Return value}:
 After @code{GET_COMMAND_ARGUMENT} returns, the @var{VALUE} argument holds the 
-@var{NUMBER}-th command line argument. If @var{VALUE} can not hold the argument, it is 
+@var{NUMBER}-th command line argument. If @var{VALUE} cannot hold the argument, it is 
 truncated to fit the length of @var{VALUE}. If there are less than @var{NUMBER}
 arguments specified at the command line, @var{VALUE} will be filled with blanks. 
 If @math{@var{NUMBER} = 0}, @var{VALUE} is set to the name of the program (on
@@ -6562,10 +7225,15 @@ See @code{GETPID} for an example.
 
 @table @asis
 @item @emph{Description}:
-Given a system time value @var{TIME} (as provided by the @code{TIME8}
+Given a system time value @var{TIME} (as provided by the @ref{TIME}
 intrinsic), fills @var{VALUES} with values extracted from it appropriate
 to the UTC time zone (Universal Coordinated Time, also known in some
 countries as GMT, Greenwich Mean Time), using @code{gmtime(3)}.
+
+This intrinsic routine is provided for backwards compatibility with 
+GNU Fortran 77.  In new code, programmers should consider the use of 
+the @ref{DATE_AND_TIME} intrinsic defined by the Fortran 95
+standard.
 
 @item @emph{Standard}:
 GNU extension
@@ -6591,17 +7259,17 @@ The elements of @var{VALUES} are assigned as follows:
 seconds
 @item Minutes after the hour, range 0--59
 @item Hours past midnight, range 0--23
-@item Day of month, range 0--31
-@item Number of months since January, range 0--12
+@item Day of month, range 1--31
+@item Number of months since January, range 0--11
 @item Years since 1900
 @item Number of days since Sunday, range 0--6
-@item Days since January 1
+@item Days since January 1, range 0--365
 @item Daylight savings indicator: positive if daylight savings is in
 effect, zero if not, and negative if the information is not available.
 @end enumerate
 
 @item @emph{See also}:
-@ref{CTIME}, @ref{LTIME}, @ref{TIME}, @ref{TIME8}
+@ref{DATE_AND_TIME}, @ref{CTIME}, @ref{LTIME}, @ref{TIME}, @ref{TIME8}
 
 @end table
 
@@ -6839,6 +7507,10 @@ END PROGRAM
 @node IAND
 @section @code{IAND} --- Bitwise logical and
 @fnindex IAND
+@fnindex BIAND
+@fnindex IIAND
+@fnindex JIAND
+@fnindex KIAND
 @cindex bitwise logical and
 @cindex logical and, bitwise
 
@@ -6847,7 +7519,7 @@ END PROGRAM
 Bitwise logical @code{AND}.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later, has overloads that are GNU extensions
 
 @item @emph{Class}:
 Elemental function
@@ -6857,16 +7529,17 @@ Elemental function
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
-@item @var{I} @tab The type shall be @code{INTEGER}.
-@item @var{J} @tab The type shall be @code{INTEGER}, of the same
-kind as @var{I}.  (As a GNU extension, different kinds are also 
-permitted.)
+@item @var{I} @tab The type shall be @code{INTEGER} or a boz-literal-constant.
+@item @var{J} @tab The type shall be @code{INTEGER} with the same
+kind type parameter as @var{I} or a boz-literal-constant.
+@var{I} and @var{J} shall not both be boz-literal-constants.
 @end multitable
 
 @item @emph{Return value}:
-The return type is @code{INTEGER}, of the same kind as the
-arguments.  (If the argument kinds differ, it is of the same kind as
-the larger argument.)
+The return type is @code{INTEGER} with the kind type parameter of the
+arguments.
+A boz-literal-constant is converted to an @code{INTEGER} with the kind
+type parameter of the other argument as-if a call to @ref{INT} occurred.
 
 @item @emph{Example}:
 @smallexample
@@ -6876,6 +7549,16 @@ PROGRAM test_iand
   WRITE (*,*) IAND(a, b)
 END PROGRAM
 @end smallexample
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument            @tab Return type       @tab Standard
+@item @code{IAND(A)}   @tab @code{INTEGER A}    @tab @code{INTEGER}    @tab Fortran 95 and later
+@item @code{BIAND(A)} @tab @code{INTEGER(1) A} @tab @code{INTEGER(1)} @tab GNU extension
+@item @code{IIAND(A)} @tab @code{INTEGER(2) A} @tab @code{INTEGER(2)} @tab GNU extension
+@item @code{JIAND(A)} @tab @code{INTEGER(4) A} @tab @code{INTEGER(4)} @tab GNU extension
+@item @code{KIAND(A)} @tab @code{INTEGER(8) A} @tab @code{INTEGER(8)} @tab GNU extension
+@end multitable
 
 @item @emph{See also}:
 @ref{IOR}, @ref{IEOR}, @ref{IBITS}, @ref{IBSET}, @ref{IBCLR}, @ref{NOT}
@@ -6991,6 +7674,10 @@ Fortran 2003 functions and subroutines: @ref{GET_COMMAND},
 @node IBCLR
 @section @code{IBCLR} --- Clear bit
 @fnindex IBCLR
+@fnindex BBCLR
+@fnindex IIBCLR
+@fnindex JIBCLR
+@fnindex KIBCLR
 @cindex bits, unset
 @cindex bits, clear
 
@@ -7000,7 +7687,7 @@ Fortran 2003 functions and subroutines: @ref{GET_COMMAND},
 @var{POS} set to zero.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later, has overloads that are GNU extensions
 
 @item @emph{Class}:
 Elemental function
@@ -7018,6 +7705,16 @@ Elemental function
 The return value is of type @code{INTEGER} and of the same kind as
 @var{I}.
 
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument            @tab Return type       @tab Standard
+@item @code{IBCLR(A)}   @tab @code{INTEGER A}    @tab @code{INTEGER}    @tab Fortran 95 and later
+@item @code{BBCLR(A)} @tab @code{INTEGER(1) A} @tab @code{INTEGER(1)} @tab GNU extension
+@item @code{IIBCLR(A)} @tab @code{INTEGER(2) A} @tab @code{INTEGER(2)} @tab GNU extension
+@item @code{JIBCLR(A)} @tab @code{INTEGER(4) A} @tab @code{INTEGER(4)} @tab GNU extension
+@item @code{KIBCLR(A)} @tab @code{INTEGER(8) A} @tab @code{INTEGER(8)} @tab GNU extension
+@end multitable
+
 @item @emph{See also}:
 @ref{IBITS}, @ref{IBSET}, @ref{IAND}, @ref{IOR}, @ref{IEOR}, @ref{MVBITS}
 
@@ -7028,6 +7725,10 @@ The return value is of type @code{INTEGER} and of the same kind as
 @node IBITS
 @section @code{IBITS} --- Bit extraction
 @fnindex IBITS
+@fnindex BBITS
+@fnindex IIBITS
+@fnindex JIBITS
+@fnindex KIBITS
 @cindex bits, get
 @cindex bits, extract
 
@@ -7040,7 +7741,7 @@ zeroed.  The value of @code{POS+LEN} must be less than or equal to the
 value @code{BIT_SIZE(I)}.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later, has overloads that are GNU extensions
 
 @item @emph{Class}:
 Elemental function
@@ -7059,6 +7760,16 @@ Elemental function
 The return value is of type @code{INTEGER} and of the same kind as
 @var{I}.
 
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument            @tab Return type       @tab Standard
+@item @code{IBITS(A)}   @tab @code{INTEGER A}    @tab @code{INTEGER}    @tab Fortran 95 and later
+@item @code{BBITS(A)} @tab @code{INTEGER(1) A} @tab @code{INTEGER(1)} @tab GNU extension
+@item @code{IIBITS(A)} @tab @code{INTEGER(2) A} @tab @code{INTEGER(2)} @tab GNU extension
+@item @code{JIBITS(A)} @tab @code{INTEGER(4) A} @tab @code{INTEGER(4)} @tab GNU extension
+@item @code{KIBITS(A)} @tab @code{INTEGER(8) A} @tab @code{INTEGER(8)} @tab GNU extension
+@end multitable
+
 @item @emph{See also}:
 @ref{BIT_SIZE}, @ref{IBCLR}, @ref{IBSET}, @ref{IAND}, @ref{IOR}, @ref{IEOR}
 @end table
@@ -7068,6 +7779,10 @@ The return value is of type @code{INTEGER} and of the same kind as
 @node IBSET
 @section @code{IBSET} --- Set bit
 @fnindex IBSET
+@fnindex BBSET
+@fnindex IIBSET
+@fnindex JIBSET
+@fnindex KIBSET
 @cindex bits, set
 
 @table @asis
@@ -7076,7 +7791,7 @@ The return value is of type @code{INTEGER} and of the same kind as
 @var{POS} set to one.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later, has overloads that are GNU extensions
 
 @item @emph{Class}:
 Elemental function
@@ -7093,6 +7808,16 @@ Elemental function
 @item @emph{Return value}:
 The return value is of type @code{INTEGER} and of the same kind as
 @var{I}.
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument            @tab Return type       @tab Standard
+@item @code{IBSET(A)}   @tab @code{INTEGER A}    @tab @code{INTEGER}    @tab Fortran 95 and later
+@item @code{BBSET(A)} @tab @code{INTEGER(1) A} @tab @code{INTEGER(1)} @tab GNU extension
+@item @code{IIBSET(A)} @tab @code{INTEGER(2) A} @tab @code{INTEGER(2)} @tab GNU extension
+@item @code{JIBSET(A)} @tab @code{INTEGER(4) A} @tab @code{INTEGER(4)} @tab GNU extension
+@item @code{KIBSET(A)} @tab @code{INTEGER(8) A} @tab @code{INTEGER(8)} @tab GNU extension
+@end multitable
 
 @item @emph{See also}:
 @ref{IBCLR}, @ref{IBITS}, @ref{IAND}, @ref{IOR}, @ref{IEOR}, @ref{MVBITS}
@@ -7190,6 +7915,11 @@ current local time. The day (in the range 1-31), month (in the range 1-12),
 and year appear in elements 1, 2, and 3 of @var{VALUES}, respectively. 
 The year has four significant digits.
 
+This intrinsic routine is provided for backwards compatibility with 
+GNU Fortran 77.  In new code, programmers should consider the use of 
+the @ref{DATE_AND_TIME} intrinsic defined by the Fortran 95
+standard.
+
 @item @emph{Standard}:
 GNU extension
 
@@ -7218,13 +7948,19 @@ program test_idate
   print *, tarray(3)
 end program test_idate
 @end smallexample
-@end table
 
+@item @emph{See also}:
+@ref{DATE_AND_TIME}
+@end table
 
 
 @node IEOR
 @section @code{IEOR} --- Bitwise logical exclusive or
 @fnindex IEOR
+@fnindex BIEOR
+@fnindex IIEOR
+@fnindex JIEOR
+@fnindex KIEOR
 @cindex bitwise logical exclusive or
 @cindex logical exclusive or, bitwise
 
@@ -7234,7 +7970,7 @@ end program test_idate
 @var{J}.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later, has overloads that are GNU extensions
 
 @item @emph{Class}:
 Elemental function
@@ -7244,16 +7980,27 @@ Elemental function
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
-@item @var{I} @tab The type shall be @code{INTEGER}.
-@item @var{J} @tab The type shall be @code{INTEGER}, of the same
-kind as @var{I}.  (As a GNU extension, different kinds are also 
-permitted.)
+@item @var{I} @tab The type shall be @code{INTEGER} or a boz-literal-constant.
+@item @var{J} @tab The type shall be @code{INTEGER} with the same
+kind type parameter as @var{I} or a boz-literal-constant.
+@var{I} and @var{J} shall not both be boz-literal-constants.
 @end multitable
 
 @item @emph{Return value}:
-The return type is @code{INTEGER}, of the same kind as the
-arguments.  (If the argument kinds differ, it is of the same kind as
-the larger argument.)
+The return type is @code{INTEGER} with the kind type parameter of the
+arguments.
+A boz-literal-constant is converted to an @code{INTEGER} with the kind
+type parameter of the other argument as-if a call to @ref{INT} occurred.
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument            @tab Return type       @tab Standard
+@item @code{IEOR(A)}   @tab @code{INTEGER A}    @tab @code{INTEGER}    @tab Fortran 95 and later
+@item @code{BIEOR(A)} @tab @code{INTEGER(1) A} @tab @code{INTEGER(1)} @tab GNU extension
+@item @code{IIEOR(A)} @tab @code{INTEGER(2) A} @tab @code{INTEGER(2)} @tab GNU extension
+@item @code{JIEOR(A)} @tab @code{INTEGER(4) A} @tab @code{INTEGER(4)} @tab GNU extension
+@item @code{KIEOR(A)} @tab @code{INTEGER(8) A} @tab @code{INTEGER(8)} @tab GNU extension
+@end multitable
 
 @item @emph{See also}:
 @ref{IOR}, @ref{IAND}, @ref{IBITS}, @ref{IBSET}, @ref{IBCLR}, @ref{NOT}
@@ -7529,6 +8276,10 @@ The return value is a @code{INTEGER(8)} variable.
 @node IOR
 @section @code{IOR} --- Bitwise logical or
 @fnindex IOR
+@fnindex BIOR
+@fnindex IIOR
+@fnindex JIOR
+@fnindex KIOR
 @cindex bitwise logical or
 @cindex logical or, bitwise
 
@@ -7538,7 +8289,7 @@ The return value is a @code{INTEGER(8)} variable.
 @var{J}.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later, has overloads that are GNU extensions
 
 @item @emph{Class}:
 Elemental function
@@ -7548,16 +8299,27 @@ Elemental function
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
-@item @var{I} @tab The type shall be @code{INTEGER}.
-@item @var{J} @tab The type shall be @code{INTEGER}, of the same
-kind as @var{I}.  (As a GNU extension, different kinds are also 
-permitted.)
+@item @var{I} @tab The type shall be @code{INTEGER} or a boz-literal-constant.
+@item @var{J} @tab The type shall be @code{INTEGER} with the same
+kind type parameter as @var{I} or a boz-literal-constant.
+@var{I} and @var{J} shall not both be boz-literal-constants.
 @end multitable
 
 @item @emph{Return value}:
-The return type is @code{INTEGER}, of the same kind as the
-arguments.  (If the argument kinds differ, it is of the same kind as
-the larger argument.)
+The return type is @code{INTEGER} with the kind type parameter of the
+arguments.
+A boz-literal-constant is converted to an @code{INTEGER} with the kind
+type parameter of the other argument as-if a call to @ref{INT} occurred.
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument            @tab Return type       @tab Standard
+@item @code{IOR(A)}   @tab @code{INTEGER A}    @tab @code{INTEGER}    @tab Fortran 95 and later
+@item @code{BIOR(A)} @tab @code{INTEGER(1) A} @tab @code{INTEGER(1)} @tab GNU extension
+@item @code{IIOR(A)} @tab @code{INTEGER(2) A} @tab @code{INTEGER(2)} @tab GNU extension
+@item @code{JIOR(A)} @tab @code{INTEGER(4) A} @tab @code{INTEGER(4)} @tab GNU extension
+@item @code{KIOR(A)} @tab @code{INTEGER(8) A} @tab @code{INTEGER(8)} @tab GNU extension
+@end multitable
 
 @item @emph{See also}:
 @ref{IEOR}, @ref{IAND}, @ref{IBITS}, @ref{IBSET}, @ref{IBCLR}, @ref{NOT}
@@ -7677,6 +8439,55 @@ end program test_irand
 
 
 
+@node IS_CONTIGUOUS
+@section @code{IS_CONTIGUOUS} --- Test whether an array is contiguous
+@fnindex IS_IOSTAT_EOR
+@cindex array, contiguity
+
+@table @asis
+@item @emph{Description}:
+@code{IS_CONTIGUOUS} tests whether an array is contiguous.
+
+@item @emph{Standard}:
+Fortran 2008 and later
+
+@item @emph{Class}:
+Inquiry function
+
+@item @emph{Syntax}:
+@code{RESULT = IS_CONTIGUOUS(ARRAY)}
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{ARRAY} @tab Shall be an array of any type.
+@end multitable
+
+@item @emph{Return value}:
+Returns a @code{LOGICAL} of the default kind, which @code{.TRUE.} if
+@var{ARRAY} is contiguous and false otherwise.
+
+@item @emph{Example}:
+@smallexample
+program test
+  integer :: a(10)
+  a = [1,2,3,4,5,6,7,8,9,10]
+  call sub (a)      ! every element, is contiguous
+  call sub (a(::2)) ! every other element, is noncontiguous
+contains
+  subroutine sub (x)
+    integer :: x(:)
+    if (is_contiguous (x)) then
+      write (*,*) 'X is contiguous'
+    else
+      write (*,*) 'X is not contiguous'
+    end if
+  end subroutine sub
+end program test
+@end smallexample
+@end table
+
+
+
 @node IS_IOSTAT_END
 @section @code{IS_IOSTAT_END} --- Test for end-of-file value
 @fnindex IS_IOSTAT_END
@@ -7766,7 +8577,6 @@ END PROGRAM
 @end table
 
 
-
 @node ISATTY
 @section @code{ISATTY} --- Whether a unit is a terminal device.
 @fnindex ISATTY
@@ -7812,6 +8622,10 @@ END PROGRAM
 @node ISHFT
 @section @code{ISHFT} --- Shift bits
 @fnindex ISHFT
+@fnindex BSHFT
+@fnindex IISHFT
+@fnindex JISHFT
+@fnindex KISHFT
 @cindex bits, shift
 
 @table @asis
@@ -7825,7 +8639,7 @@ value is undefined.  Bits shifted out from the left end or right end are
 lost; zeros are shifted in from the opposite end.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later, has overloads that are GNU extensions
 
 @item @emph{Class}:
 Elemental function
@@ -7843,6 +8657,16 @@ Elemental function
 The return value is of type @code{INTEGER} and of the same kind as
 @var{I}.
 
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument            @tab Return type       @tab Standard
+@item @code{ISHFT(A)}   @tab @code{INTEGER A}    @tab @code{INTEGER}    @tab Fortran 95 and later
+@item @code{BSHFT(A)} @tab @code{INTEGER(1) A} @tab @code{INTEGER(1)} @tab GNU extension
+@item @code{IISHFT(A)} @tab @code{INTEGER(2) A} @tab @code{INTEGER(2)} @tab GNU extension
+@item @code{JISHFT(A)} @tab @code{INTEGER(4) A} @tab @code{INTEGER(4)} @tab GNU extension
+@item @code{KISHFT(A)} @tab @code{INTEGER(8) A} @tab @code{INTEGER(8)} @tab GNU extension
+@end multitable
+
 @item @emph{See also}:
 @ref{ISHFTC}
 @end table
@@ -7852,6 +8676,10 @@ The return value is of type @code{INTEGER} and of the same kind as
 @node ISHFTC
 @section @code{ISHFTC} --- Shift bits circularly
 @fnindex ISHFTC
+@fnindex BSHFTC
+@fnindex IISHFTC
+@fnindex JISHFTC
+@fnindex KISHFTC
 @cindex bits, shift circular
 
 @table @asis
@@ -7866,7 +8694,7 @@ a right shift.  The absolute value of @var{SHIFT} must be less than
 equivalent to @code{BIT_SIZE(I)}.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later, has overloads that are GNU extensions
 
 @item @emph{Class}:
 Elemental function
@@ -7886,6 +8714,16 @@ the value must be greater than zero and less than or equal to
 @item @emph{Return value}:
 The return value is of type @code{INTEGER} and of the same kind as
 @var{I}.
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument            @tab Return type       @tab Standard
+@item @code{ISHFTC(A)}   @tab @code{INTEGER A}    @tab @code{INTEGER}    @tab Fortran 95 and later
+@item @code{BSHFTC(A)} @tab @code{INTEGER(1) A} @tab @code{INTEGER(1)} @tab GNU extension
+@item @code{IISHFTC(A)} @tab @code{INTEGER(2) A} @tab @code{INTEGER(2)} @tab GNU extension
+@item @code{JISHFTC(A)} @tab @code{INTEGER(4) A} @tab @code{INTEGER(4)} @tab GNU extension
+@item @code{KISHFTC(A)} @tab @code{INTEGER(8) A} @tab @code{INTEGER(8)} @tab GNU extension
+@end multitable
 
 @item @emph{See also}:
 @ref{ISHFT}
@@ -7943,10 +8781,15 @@ end program test_nan
 
 @table @asis
 @item @emph{Description}:
-@code{IDATE(VALUES)} Fills @var{VALUES} with the numerical values at the  
+@code{ITIME(VALUES)} Fills @var{VALUES} with the numerical values at the  
 current local time. The hour (in the range 1-24), minute (in the range 1-60), 
 and seconds (in the range 1-60) appear in elements 1, 2, and 3 of @var{VALUES}, 
 respectively.
+
+This intrinsic routine is provided for backwards compatibility with 
+GNU Fortran 77.  In new code, programmers should consider the use of 
+the @ref{DATE_AND_TIME} intrinsic defined by the Fortran 95
+standard.
 
 @item @emph{Standard}:
 GNU extension
@@ -7977,6 +8820,9 @@ program test_itime
   print *, tarray(3)
 end program test_itime
 @end smallexample
+
+@item @emph{See also}:
+@ref{DATE_AND_TIME}
 @end table
 
 
@@ -7988,36 +8834,36 @@ end program test_itime
 @table @asis
 @item @emph{Description}:
 @item @emph{Standard}:
-Sends the signal specified by @var{SIGNAL} to the process @var{PID}.
+Sends the signal specified by @var{SIG} to the process @var{PID}.
 See @code{kill(2)}.
 
-This intrinsic is provided in both subroutine and function forms; however,
-only one form can be used in any given program unit.
+This intrinsic is provided in both subroutine and function forms;
+however, only one form can be used in any given program unit.
 
 @item @emph{Class}:
 Subroutine, function
 
 @item @emph{Syntax}:
 @multitable @columnfractions .80
-@item @code{CALL KILL(C, VALUE [, STATUS])}
-@item @code{STATUS = KILL(C, VALUE)}
+@item @code{CALL KILL(PID, SIG [, STATUS])}
+@item @code{STATUS = KILL(PID, SIG)}
 @end multitable
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
-@item @var{C} @tab Shall be a scalar @code{INTEGER}, with
-@code{INTENT(IN)}
-@item @var{VALUE} @tab Shall be a scalar @code{INTEGER}, with
-@code{INTENT(IN)}
-@item @var{STATUS} @tab (Optional) status flag of type @code{INTEGER(4)} or
-@code{INTEGER(8)}. Returns 0 on success, or a system-specific error code
-otherwise.
+@item @var{PID} @tab Shall be a scalar @code{INTEGER} with @code{INTENT(IN)}.
+@item @var{SIG} @tab Shall be a scalar @code{INTEGER} with @code{INTENT(IN)}.
+@item @var{STATUS} @tab [Subroutine](Optional)
+Shall be a scalar @code{INTEGER}.
+Returns 0 on success; otherwise a system-specific error code is returned.
+@item @var{STATUS} @tab [Function] The kind type parameter is that of
+@code{pid}.
+Returns 0 on success; otherwise a system-specific error code is returned.
 @end multitable
 
 @item @emph{See also}:
 @ref{ABORT}, @ref{EXIT}
 @end table
-
 
 
 @node KIND
@@ -8631,7 +9477,7 @@ Elemental function
 The return value is of type @code{REAL} or @code{COMPLEX}.
 The kind type parameter is the same as @var{X}.
 If @var{X} is @code{COMPLEX}, the imaginary part @math{\omega} is in the range
-@math{-\pi \leq \omega \leq \pi}.
+@math{-\pi < \omega \leq \pi}.
 
 @item @emph{Example}:
 @smallexample
@@ -8928,9 +9774,14 @@ To stat an open file: @ref{FSTAT}, to stat a file: @ref{STAT}
 
 @table @asis
 @item @emph{Description}:
-Given a system time value @var{TIME} (as provided by the @code{TIME8}
+Given a system time value @var{TIME} (as provided by the @ref{TIME}
 intrinsic), fills @var{VALUES} with values extracted from it appropriate
 to the local time zone using @code{localtime(3)}.
+
+This intrinsic routine is provided for backwards compatibility with 
+GNU Fortran 77.  In new code, programmers should consider the use of 
+the @ref{DATE_AND_TIME} intrinsic defined by the Fortran 95
+standard.
 
 @item @emph{Standard}:
 GNU extension
@@ -8956,17 +9807,17 @@ The elements of @var{VALUES} are assigned as follows:
 seconds
 @item Minutes after the hour, range 0--59
 @item Hours past midnight, range 0--23
-@item Day of month, range 0--31
-@item Number of months since January, range 0--12
+@item Day of month, range 1--31
+@item Number of months since January, range 0--11
 @item Years since 1900
 @item Number of days since Sunday, range 0--6
-@item Days since January 1
+@item Days since January 1, range 0--365
 @item Daylight savings indicator: positive if daylight savings is in
 effect, zero if not, and negative if the information is not available.
 @end enumerate
 
 @item @emph{See also}:
-@ref{CTIME}, @ref{GMTIME}, @ref{TIME}, @ref{TIME8}
+@ref{DATE_AND_TIME}, @ref{CTIME}, @ref{GMTIME}, @ref{TIME}, @ref{TIME8}
 
 @end table
 
@@ -9138,6 +9989,7 @@ one or two.
 type; otherwise, an array of @code{LOGICAL} type. The rank shall be one
 or two, and the first (or only) dimension of @var{MATRIX_B} shall be
 equal to the last (or only) dimension of @var{MATRIX_A}.
+@var{MATRIX_A} and @var{MATRIX_B} shall not both be rank one arrays.
 @end multitable
 
 @item @emph{Return value}:
@@ -9258,22 +10110,26 @@ locations of the maximum element along each row of the array in the
 @var{DIM} direction.  If @var{MASK} is present, only the elements for
 which @var{MASK} is @code{.TRUE.} are considered.  If more than one
 element in the array has the maximum value, the location returned is
-that of the first such element in array element order.  If the array has
-zero size, or all of the elements of @var{MASK} are @code{.FALSE.}, then
+that of the first such element in array element order if the
+@var{BACK} is not present, or is false; if @var{BACK} is true, the location
+returned is that of the last such element. If the array has zero
+size, or all of the elements of @var{MASK} are @code{.FALSE.}, then
 the result is an array of zeroes.  Similarly, if @var{DIM} is supplied
 and all of the elements of @var{MASK} along a given row are zero, the
 result value for that row is zero.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later; @var{ARRAY} of @code{CHARACTER} and the
+@var{KIND} argument are available in Fortran 2003 and later.
+The @var{BACK} argument is available in Fortran 2008 and later.
 
 @item @emph{Class}:
 Transformational function
 
 @item @emph{Syntax}:
 @multitable @columnfractions .80
-@item @code{RESULT = MAXLOC(ARRAY, DIM [, MASK])}
-@item @code{RESULT = MAXLOC(ARRAY [, MASK])}
+@item @code{RESULT = MAXLOC(ARRAY, DIM [, MASK] [,KIND] [,BACK])}
+@item @code{RESULT = MAXLOC(ARRAY [, MASK] [,KIND] [,BACK])}
 @end multitable
 
 @item @emph{Arguments}:
@@ -9285,6 +10141,9 @@ Transformational function
 inclusive.  It may not be an optional dummy argument.
 @item @var{MASK}  @tab Shall be an array of type @code{LOGICAL},
 and conformable with @var{ARRAY}.
+@item @var{KIND} @tab (Optional) An @code{INTEGER} initialization
+expression indicating the kind parameter of the result.
+@item @var{BACK} @tab (Optional) A scalar of type @code{LOGICAL}.
 @end multitable
 
 @item @emph{Return value}:
@@ -9293,11 +10152,12 @@ equal to the rank of @var{ARRAY}.  If @var{DIM} is present, the result
 is an array with a rank one less than the rank of @var{ARRAY}, and a
 size corresponding to the size of @var{ARRAY} with the @var{DIM}
 dimension removed.  If @var{DIM} is present and @var{ARRAY} has a rank
-of one, the result is a scalar.  In all cases, the result is of default
-@code{INTEGER} type.
+of one, the result is a scalar.   If the optional argument @var{KIND}
+is present, the result is an integer of kind @var{KIND}, otherwise it
+is of default kind.
 
 @item @emph{See also}:
-@ref{MAX}, @ref{MAXVAL}
+@ref{FINDLOC}, @ref{MAX}, @ref{MAXVAL}
 
 @end table
 
@@ -9493,11 +10353,12 @@ Elemental function
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
-@item @var{I}    @tab Shall be of type @code{INTEGER}.
-@item @var{J}    @tab Shall be of type @code{INTEGER} and of the same
-kind as @var{I}.
-@item @var{MASK} @tab Shall be of type @code{INTEGER} and of the same
-kind as @var{I}.
+@item @var{I} @tab Shall be of type @code{INTEGER} or a boz-literal-constant.
+@item @var{J} @tab Shall be of type @code{INTEGER} with the same
+kind type parameter as @var{I} or a boz-literal-constant.
+@var{I} and @var{J} shall not both be boz-literal-constants.
+@item @var{MASK} @tab Shall be of type @code{INTEGER} or a boz-literal-constant
+and of the same kind as @var{I}.
 @end multitable
 
 @item @emph{Return value}:
@@ -9606,33 +10467,40 @@ locations of the minimum element along each row of the array in the
 @var{DIM} direction.  If @var{MASK} is present, only the elements for
 which @var{MASK} is @code{.TRUE.} are considered.  If more than one
 element in the array has the minimum value, the location returned is
-that of the first such element in array element order.  If the array has
+that of the first such element in array element order if the
+@var{BACK} is not present, or is false; if @var{BACK} is true, the location
+returned is that of the last such element.  If the array has
 zero size, or all of the elements of @var{MASK} are @code{.FALSE.}, then
 the result is an array of zeroes.  Similarly, if @var{DIM} is supplied
 and all of the elements of @var{MASK} along a given row are zero, the
 result value for that row is zero.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later; @var{ARRAY} of @code{CHARACTER} and the
+@var{KIND} argument are available in Fortran 2003 and later.
+The @var{BACK} argument is available in Fortran 2008 and later.
 
 @item @emph{Class}:
 Transformational function
 
 @item @emph{Syntax}:
 @multitable @columnfractions .80
-@item @code{RESULT = MINLOC(ARRAY, DIM [, MASK])}
-@item @code{RESULT = MINLOC(ARRAY [, MASK])}
+@item @code{RESULT = MINLOC(ARRAY, DIM [, MASK] [,KIND] [,BACK])}
+@item @code{RESULT = MINLOC(ARRAY [, MASK], [,KIND] [,BACK])}
 @end multitable
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
-@item @var{ARRAY} @tab Shall be an array of type @code{INTEGER} or
-@code{REAL}.
+@item @var{ARRAY} @tab Shall be an array of type @code{INTEGER},
+@code{REAL} or @code{CHARACTER}.
 @item @var{DIM}   @tab (Optional) Shall be a scalar of type
 @code{INTEGER}, with a value between one and the rank of @var{ARRAY},
 inclusive.  It may not be an optional dummy argument.
 @item @var{MASK}  @tab Shall be an array of type @code{LOGICAL},
 and conformable with @var{ARRAY}.
+@item @var{KIND} @tab (Optional) An @code{INTEGER} initialization
+expression indicating the kind parameter of the result.
+@item @var{BACK} @tab (Optional) A scalar of type @code{LOGICAL}.
 @end multitable
 
 @item @emph{Return value}:
@@ -9641,11 +10509,12 @@ equal to the rank of @var{ARRAY}.  If @var{DIM} is present, the result
 is an array with a rank one less than the rank of @var{ARRAY}, and a
 size corresponding to the size of @var{ARRAY} with the @var{DIM}
 dimension removed.  If @var{DIM} is present and @var{ARRAY} has a rank
-of one, the result is a scalar.  In all cases, the result is of default
-@code{INTEGER} type.
+of one, the result is a scalar.  If the optional argument @var{KIND}
+is present, the result is an integer of kind @var{KIND}, otherwise it
+is of default kind.
 
 @item @emph{See also}:
-@ref{MIN}, @ref{MINVAL}
+@ref{FINDLOC}, @ref{MIN}, @ref{MINVAL}
 
 @end table
 
@@ -9710,6 +10579,10 @@ cases, the result is of the same type and kind as @var{ARRAY}.
 @fnindex MOD
 @fnindex AMOD
 @fnindex DMOD
+@fnindex BMOD
+@fnindex IMOD
+@fnindex JMOD
+@fnindex KMOD
 @cindex remainder
 @cindex division, remainder
 
@@ -9718,7 +10591,7 @@ cases, the result is of the same type and kind as @var{ARRAY}.
 @code{MOD(A,P)} computes the remainder of the division of A by P@. 
 
 @item @emph{Standard}:
-Fortran 77 and later
+Fortran 77 and later, has overloads that are GNU extensions
 
 @item @emph{Class}:
 Elemental function
@@ -9765,6 +10638,10 @@ end program test_mod
 @item @code{MOD(A,P)}  @tab @code{INTEGER A,P} @tab @code{INTEGER} @tab Fortran 95 and later
 @item @code{AMOD(A,P)} @tab @code{REAL(4) A,P} @tab @code{REAL(4)} @tab Fortran 95 and later
 @item @code{DMOD(A,P)} @tab @code{REAL(8) A,P} @tab @code{REAL(8)} @tab Fortran 95 and later
+@item @code{BMOD(A,P)}  @tab @code{INTEGER(1) A,P} @tab @code{INTEGER(1)} @tab GNU extension
+@item @code{IMOD(A,P)}  @tab @code{INTEGER(2) A,P} @tab @code{INTEGER(2)} @tab GNU extension
+@item @code{JMOD(A,P)}  @tab @code{INTEGER(4) A,P} @tab @code{INTEGER(4)} @tab GNU extension
+@item @code{KMOD(A,P)}  @tab @code{INTEGER(8) A,P} @tab @code{INTEGER(8)} @tab GNU extension
 @end multitable
 
 @item @emph{See also}:
@@ -9884,6 +10761,10 @@ end program test_move_alloc
 @node MVBITS
 @section @code{MVBITS} --- Move bits from one integer to another
 @fnindex MVBITS
+@fnindex BMVBITS
+@fnindex IMVBITS
+@fnindex JMVBITS
+@fnindex KMVBITS
 @cindex bits, move
 
 @table @asis
@@ -9896,7 +10777,7 @@ affected by the movement of bits is unchanged. The values of
 @code{BIT_SIZE(FROM)}.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later, has overloads that are GNU extensions
 
 @item @emph{Class}:
 Elemental subroutine
@@ -9912,6 +10793,16 @@ Elemental subroutine
 @item @var{TO}      @tab The type shall be @code{INTEGER}, of the
 same kind as @var{FROM}.
 @item @var{TOPOS}   @tab The type shall be @code{INTEGER}.
+@end multitable
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument            @tab Return type       @tab Standard
+@item @code{MVBITS(A)}   @tab @code{INTEGER A}    @tab @code{INTEGER}    @tab Fortran 95 and later
+@item @code{BMVBITS(A)} @tab @code{INTEGER(1) A} @tab @code{INTEGER(1)} @tab GNU extension
+@item @code{IMVBITS(A)} @tab @code{INTEGER(2) A} @tab @code{INTEGER(2)} @tab GNU extension
+@item @code{JMVBITS(A)} @tab @code{INTEGER(4) A} @tab @code{INTEGER(4)} @tab GNU extension
+@item @code{KMVBITS(A)} @tab @code{INTEGER(8) A} @tab @code{INTEGER(8)} @tab GNU extension
 @end multitable
 
 @item @emph{See also}:
@@ -10117,6 +11008,10 @@ END PROGRAM
 @node NOT
 @section @code{NOT} --- Logical negation
 @fnindex NOT
+@fnindex BNOT
+@fnindex INOT
+@fnindex JNOT
+@fnindex KNOT
 @cindex bits, negate
 @cindex bitwise logical not
 @cindex logical not, bitwise
@@ -10126,7 +11021,7 @@ END PROGRAM
 @code{NOT} returns the bitwise Boolean inverse of @var{I}.
 
 @item @emph{Standard}:
-Fortran 95 and later
+Fortran 95 and later, has overloads that are GNU extensions
 
 @item @emph{Class}:
 Elemental function
@@ -10142,6 +11037,16 @@ Elemental function
 @item @emph{Return value}:
 The return type is @code{INTEGER}, of the same kind as the
 argument.
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument            @tab Return type       @tab Standard
+@item @code{NOT(A)}   @tab @code{INTEGER A}    @tab @code{INTEGER}    @tab Fortran 95 and later
+@item @code{BNOT(A)} @tab @code{INTEGER(1) A} @tab @code{INTEGER(1)} @tab GNU extension
+@item @code{INOT(A)} @tab @code{INTEGER(2) A} @tab @code{INTEGER(2)} @tab GNU extension
+@item @code{JNOT(A)} @tab @code{INTEGER(4) A} @tab @code{INTEGER(4)} @tab GNU extension
+@item @code{KNOT(A)} @tab @code{INTEGER(8) A} @tab @code{INTEGER(8)} @tab GNU extension
+@end multitable
 
 @item @emph{See also}:
 @ref{IAND}, @ref{IEOR}, @ref{IOR}, @ref{IBITS}, @ref{IBSET}, @ref{IBCLR}
@@ -10278,15 +11183,20 @@ Function
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
 @item @var{I} @tab The type shall be either a scalar @code{INTEGER}
-type or a scalar @code{LOGICAL} type.
-@item @var{J} @tab The type shall be the same as the type of @var{J}.
+type or a scalar @code{LOGICAL} type or a boz-literal-constant.
+@item @var{J} @tab The type shall be the same as the type of @var{I} or
+a boz-literal-constant. @var{I} and @var{J} shall not both be
+boz-literal-constants.  If either @var{I} and @var{J} is a
+boz-literal-constant, then the other argument must be a scalar @code{INTEGER}.
 @end multitable
 
 @item @emph{Return value}:
 The return type is either a scalar @code{INTEGER} or a scalar
 @code{LOGICAL}.  If the kind type parameters differ, then the
 smaller kind type is implicitly converted to larger kind, and the 
-return has the larger kind.
+return has the larger kind.  A boz-literal-constant is 
+converted to an @code{INTEGER} with the kind type parameter of
+the other argument as-if a call to @ref{INT} occurred.
 
 @item @emph{Example}:
 @smallexample
@@ -10813,6 +11723,60 @@ end program test_rand
 @end table
 
 
+@node RANDOM_INIT
+@section @code{RANDOM_INIT} --- Initialize a pseudo-random number generator
+@fnindex RANDOM_INIT
+@cindex random number generation, initialization
+
+@table @asis
+@item @emph{Description}:
+Initializes the state of the pseudorandom number generator used by 
+@code{RANDOM_NUMBER}.
+
+@item @emph{Standard}:
+Fortran 2018
+
+@item @emph{Class}:
+Subroutine
+
+@item @emph{Syntax}:
+@code{CALL RANDOM_INIT(REPEATABLE, IMAGE_DISTINCT)}
+
+@item @emph{Arguments}:
+@multitable @columnfractions .20 .75
+@item @var{REPEATABLE} @tab Shall be a scalar with a @code{LOGICAL} type,
+and it is @code{INTENT(IN)}.  If it is @code{.true.}, the seed is set to
+a processor-dependent value that is the same each time @code{RANDOM_INIT}
+is called from the same image.  The term ``same image'' means a single
+instance of program execution.  The sequence of random numbers is different
+for repeated execution of the program.  If it is @code{.false.}, the seed
+is set to a processor-dependent value.
+@item @var{IMAGE_DISTINCT} @tab Shall be a scalar with a
+@code{LOGICAL} type, and it is @code{INTENT(IN)}.  If it is @code{.true.},
+the seed is set to a processor-dependent value that is distinct from th
+seed set by a call to @code{RANDOM_INIT} in another image.  If it is
+@code{.false.}, the seed is set value that does depend which image called
+@code{RANDOM_INIT}.
+@end multitable
+
+@item @emph{Example}:
+@smallexample
+program test_random_seed
+  implicit none
+  real x(3), y(3)
+  call random_init(.true., .true.)
+  call random_number(x)
+  call random_init(.true., .true.)
+  call random_number(y)
+  ! x and y are the same sequence
+  if (any(x /= y)) call abort
+end program test_random_seed
+@end smallexample
+
+@item @emph{See also}:
+@ref{RANDOM_NUMBER}, @ref{RANDOM_SEED}
+@end table
+
 
 @node RANDOM_NUMBER
 @section @code{RANDOM_NUMBER} --- Pseudo-random number
@@ -10824,23 +11788,16 @@ end program test_rand
 Returns a single pseudorandom number or an array of pseudorandom numbers
 from the uniform distribution over the range @math{ 0 \leq x < 1}.
 
-The runtime-library implements George Marsaglia's KISS (Keep It Simple 
-Stupid) random number generator (RNG). This RNG combines:
-@enumerate
-@item The congruential generator @math{x(n) = 69069 \cdot x(n-1) + 1327217885}
-with a period of @math{2^{32}},
-@item A 3-shift shift-register generator with a period of @math{2^{32} - 1},
-@item  Two 16-bit multiply-with-carry generators with a period of
-@math{597273182964842497 > 2^{59}}.
-@end enumerate
-The overall period exceeds @math{2^{123}}.
+The runtime-library implements the xorshift1024* random number
+generator (RNG). This generator has a period of @math{2^{1024} - 1},
+and when using multiple threads up to @math{2^{512}} threads can each
+generate @math{2^{512}} random numbers before any aliasing occurs.
 
-Please note, this RNG is thread safe if used within OpenMP directives,
-i.e., its state will be consistent while called from multiple threads.
-However, the KISS generator does not create random numbers in parallel 
-from multiple sources, but in sequence from a single source. If an
-OpenMP-enabled application heavily relies on random numbers, one should 
-consider employing a dedicated parallel random number generator instead.
+Note that in a multi-threaded program (e.g. using OpenMP directives),
+each thread will have its own random number state. For details of the
+seeding procedure, see the documentation for the @code{RANDOM_SEED}
+intrinsic.
+
 
 @item @emph{Standard}:
 Fortran 95 and later
@@ -10860,13 +11817,12 @@ Subroutine
 @smallexample
 program test_random_number
   REAL :: r(5,5)
-  CALL init_random_seed()         ! see example of RANDOM_SEED
   CALL RANDOM_NUMBER(r)
 end program
 @end smallexample
 
 @item @emph{See also}:
-@ref{RANDOM_SEED}
+@ref{RANDOM_SEED}, @ref{RANDOM_INIT}
 @end table
 
 
@@ -10882,12 +11838,20 @@ end program
 Restarts or queries the state of the pseudorandom number generator used by 
 @code{RANDOM_NUMBER}.
 
-If @code{RANDOM_SEED} is called without arguments, it is initialized
-to a default state. The example below shows how to initialize the
-random seed with a varying seed in order to ensure a different random
-number sequence for each invocation of the program. Note that setting
-any of the seed values to zero should be avoided as it can result in
-poor quality random numbers being generated.
+If @code{RANDOM_SEED} is called without arguments, it is seeded with
+random data retrieved from the operating system.
+
+As an extension to the Fortran standard, the GFortran
+@code{RANDOM_NUMBER} supports multiple threads. Each thread in a
+multi-threaded program has its own seed.  When @code{RANDOM_SEED} is
+called either without arguments or with the @var{PUT} argument, the
+given seed is copied into a master seed as well as the seed of the
+current thread. When a new thread uses @code{RANDOM_NUMBER} for the
+first time, the seed is copied from the master seed, and forwarded
+@math{N * 2^{512}} steps to guarantee that the random stream does not
+alias any other stream in the system, where @var{N} is the number of
+threads that have used @code{RANDOM_NUMBER} so far during the program
+execution.
 
 @item @emph{Standard}:
 Fortran 95 and later
@@ -10915,61 +11879,20 @@ the @var{SIZE} argument.
 
 @item @emph{Example}:
 @smallexample
-subroutine init_random_seed()
-  use iso_fortran_env, only: int64
+program test_random_seed
   implicit none
   integer, allocatable :: seed(:)
-  integer :: i, n, un, istat, dt(8), pid
-  integer(int64) :: t
+  integer :: n
 
   call random_seed(size = n)
   allocate(seed(n))
-  ! First try if the OS provides a random number generator
-  open(newunit=un, file="/dev/urandom", access="stream", &
-       form="unformatted", action="read", status="old", iostat=istat)
-  if (istat == 0) then
-     read(un) seed
-     close(un)
-  else
-     ! Fallback to XOR:ing the current time and pid. The PID is
-     ! useful in case one launches multiple instances of the same
-     ! program in parallel.
-     call system_clock(t)
-     if (t == 0) then
-        call date_and_time(values=dt)
-        t = (dt(1) - 1970) * 365_int64 * 24 * 60 * 60 * 1000 &
-             + dt(2) * 31_int64 * 24 * 60 * 60 * 1000 &
-             + dt(3) * 24_int64 * 60 * 60 * 1000 &
-             + dt(5) * 60 * 60 * 1000 &
-             + dt(6) * 60 * 1000 + dt(7) * 1000 &
-             + dt(8)
-     end if
-     pid = getpid()
-     t = ieor(t, int(pid, kind(t)))
-     do i = 1, n
-        seed(i) = lcg(t)
-     end do
-  end if
-  call random_seed(put=seed)
-contains
-  ! This simple PRNG might not be good enough for real work, but is
-  ! sufficient for seeding a better PRNG.
-  function lcg(s)
-    integer :: lcg
-    integer(int64) :: s
-    if (s == 0) then
-       s = 104729
-    else
-       s = mod(s, 4294967296_int64)
-    end if
-    s = mod(s * 279470273_int64, 4294967291_int64)
-    lcg = int(mod(s, int(huge(0), int64)), kind(0))
-  end function lcg
-end subroutine init_random_seed
+  call random_seed(get=seed)
+  write (*, *) seed
+end program test_random_seed
 @end smallexample
 
 @item @emph{See also}:
-@ref{RANDOM_NUMBER}
+@ref{RANDOM_NUMBER}, @ref{RANDOM_INIT}
 @end table
 
 
@@ -11059,6 +11982,9 @@ end program test_rank
 @fnindex REALPART
 @fnindex FLOAT
 @fnindex DFLOAT
+@fnindex FLOATI
+@fnindex FLOATJ
+@fnindex FLOATK
 @fnindex SNGL
 @cindex conversion, to real
 @cindex complex numbers, real part
@@ -11119,6 +12045,9 @@ end program test_real
 @item Name             @tab Argument           @tab Return type     @tab Standard
 @item @code{FLOAT(A)}  @tab @code{INTEGER(4)}  @tab @code{REAL(4)}  @tab Fortran 77 and later
 @item @code{DFLOAT(A)} @tab @code{INTEGER(4)}  @tab @code{REAL(8)}  @tab GNU extension
+@item @code{FLOATI(A)} @tab @code{INTEGER(2)}  @tab @code{REAL(4)}  @tab GNU extension
+@item @code{FLOATJ(A)} @tab @code{INTEGER(4)}  @tab @code{REAL(4)}  @tab GNU extension
+@item @code{FLOATK(A)} @tab @code{INTEGER(8)}  @tab @code{REAL(4)}  @tab GNU extension
 @item @code{SNGL(A)}   @tab @code{INTEGER(8)}  @tab @code{REAL(4)}  @tab Fortran 77 and later
 @end multitable
 
@@ -12123,7 +13052,69 @@ end program test_sin
 @end multitable
 
 @item @emph{See also}:
-@ref{ASIN}
+Inverse function: @ref{ASIN}
+Degrees function: @ref{SIND}
+@end table
+
+
+
+@node SIND
+@section @code{SIND} --- Sine function, degrees
+@fnindex SIND
+@fnindex DSIND
+@fnindex CSIND
+@fnindex ZSIND
+@fnindex CDSIND
+@cindex trigonometric function, sine, degrees
+@cindex sine, degrees
+
+@table @asis
+@item @emph{Description}:
+@code{SIND(X)} computes the sine of @var{X} in degrees.
+
+This function is for compatibility only and should be avoided in favor of
+standard constructs wherever possible.
+
+@item @emph{Standard}:
+GNU Extension, enabled with @option{-fdec-math}.
+
+@item @emph{Class}:
+Elemental function
+
+@item @emph{Syntax}:
+@code{RESULT = SIND(X)}
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{X} @tab The type shall be @code{REAL} or
+@code{COMPLEX}.
+@end multitable
+
+@item @emph{Return value}:
+The return value has same type and kind as @var{X}, and its value is in degrees.
+
+@item @emph{Example}:
+@smallexample
+program test_sind
+  real :: x = 0.0
+  x = sind(x)
+end program test_sind
+@end smallexample
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument             @tab Return type       @tab Standard
+@item @code{SIND(X)}   @tab @code{REAL(4) X}     @tab @code{REAL(4)}    @tab GNU Extension
+@item @code{DSIND(X)}  @tab @code{REAL(8) X}     @tab @code{REAL(8)}    @tab GNU Extension
+@item @code{CSIND(X)}  @tab @code{COMPLEX(4) X}  @tab @code{COMPLEX(4)} @tab GNU Extension
+@item @code{ZSIND(X)}  @tab @code{COMPLEX(8) X}  @tab @code{COMPLEX(8)} @tab GNU Extension
+@item @code{CDSIND(X)} @tab @code{COMPLEX(8) X}  @tab @code{COMPLEX(8)} @tab GNU Extension
+@end multitable
+
+@item @emph{See also}:
+Inverse function: @ref{ASIND}
+Radians function: @ref{SIN}
+
 @end table
 
 
@@ -12495,10 +13486,12 @@ Does not return anything.
 See @code{RAND} and @code{IRAND} for examples.
 
 @item @emph{Notes}:
-The Fortran 2003 standard specifies the intrinsic @code{RANDOM_SEED} to
-initialize the pseudo-random numbers generator and @code{RANDOM_NUMBER}
-to generate pseudo-random numbers. Please note that in
-GNU Fortran, these two sets of intrinsics (@code{RAND},
+The Fortran standard specifies the intrinsic subroutines
+@code{RANDOM_SEED} to initialize the pseudo-random number
+generator and @code{RANDOM_NUMBER} to generate pseudo-random numbers.
+These subroutines should be used in new codes.
+
+Please note that in GNU Fortran, these two sets of intrinsics (@code{RAND},
 @code{IRAND} and @code{SRAND} on the one hand, @code{RANDOM_NUMBER} and
 @code{RANDOM_SEED} on the other hand) access two independent
 pseudo-random number generators.
@@ -12882,7 +13875,7 @@ Elemental function
 @end multitable
 
 @item @emph{Return value}:
-The return value has same type and kind as @var{X}.
+The return value has same type and kind as @var{X}, and its value is in radians.
 
 @item @emph{Example}:
 @smallexample
@@ -12900,7 +13893,61 @@ end program test_tan
 @end multitable
 
 @item @emph{See also}:
-@ref{ATAN}
+Inverse function: @ref{ATAN}
+Degrees function: @ref{TAND}
+@end table
+
+
+
+@node TAND
+@section @code{TAND} --- Tangent function, degrees
+@fnindex TAND
+@fnindex DTAND
+@cindex trigonometric function, tangent, degrees
+@cindex tangent, degrees
+
+@table @asis
+@item @emph{Description}:
+@code{TAND(X)} computes the tangent of @var{X} in degrees.
+
+This function is for compatibility only and should be avoided in favor of
+standard constructs wherever possible.
+
+@item @emph{Standard}:
+GNU Extension, enabled with @option{-fdec-math}.
+
+@item @emph{Class}:
+Elemental function
+
+@item @emph{Syntax}:
+@code{RESULT = TAND(X)}
+
+@item @emph{Arguments}:
+@multitable @columnfractions .15 .70
+@item @var{X} @tab The type shall be @code{REAL} or @code{COMPLEX}.
+@end multitable
+
+@item @emph{Return value}:
+The return value has same type and kind as @var{X}, and its value is in degrees.
+
+@item @emph{Example}:
+@smallexample
+program test_tand
+  real(8) :: x = 0.165_8
+  x = tand(x)
+end program test_tand
+@end smallexample
+
+@item @emph{Specific names}:
+@multitable @columnfractions .20 .20 .20 .25
+@item Name            @tab Argument          @tab Return type     @tab Standard
+@item @code{TAND(X)}   @tab @code{REAL(4) X}  @tab @code{REAL(4)}  @tab GNU Extension
+@item @code{DTAND(X)}  @tab @code{REAL(8) X}  @tab @code{REAL(8)}  @tab GNU Extension
+@end multitable
+
+@item @emph{See also}:
+Inverse function: @ref{ATAND}
+Radians function: @ref{TAN}
 @end table
 
 
@@ -13039,7 +14086,7 @@ IF (THIS_IMAGE(HUGE(1)) /= THIS_IMAGE())
 @item @emph{Description}:
 Returns the current time encoded as an integer (in the manner of the
 function @code{time(3)} in the C standard library). This value is
-suitable for passing to @code{CTIME}, @code{GMTIME}, and @code{LTIME}.
+suitable for passing to @ref{CTIME}, @ref{GMTIME}, and @ref{LTIME}.
 
 This intrinsic is not fully portable, such as to systems with 32-bit
 @code{INTEGER} types but supporting times wider than 32 bits. Therefore,
@@ -13064,7 +14111,7 @@ Function
 The return value is a scalar of type @code{INTEGER(4)}.
 
 @item @emph{See also}:
-@ref{CTIME}, @ref{GMTIME}, @ref{LTIME}, @ref{MCLOCK}, @ref{TIME8}
+@ref{DATE_AND_TIME}, @ref{CTIME}, @ref{GMTIME}, @ref{LTIME}, @ref{MCLOCK}, @ref{TIME8}
 
 @end table
 
@@ -13080,7 +14127,7 @@ The return value is a scalar of type @code{INTEGER(4)}.
 @item @emph{Description}:
 Returns the current time encoded as an integer (in the manner of the
 function @code{time(3)} in the C standard library). This value is
-suitable for passing to @code{CTIME}, @code{GMTIME}, and @code{LTIME}.
+suitable for passing to @ref{CTIME}, @ref{GMTIME}, and @ref{LTIME}.
 
 @emph{Warning:} this intrinsic does not increase the range of the timing
 values over that returned by @code{time(3)}. On a system with a 32-bit
@@ -13103,7 +14150,7 @@ Function
 The return value is a scalar of type @code{INTEGER(8)}.
 
 @item @emph{See also}:
-@ref{CTIME}, @ref{GMTIME}, @ref{LTIME}, @ref{MCLOCK8}, @ref{TIME}
+@ref{DATE_AND_TIME}, @ref{CTIME}, @ref{GMTIME}, @ref{LTIME}, @ref{MCLOCK8}, @ref{TIME}
 
 @end table
 
@@ -13655,16 +14702,21 @@ Function
 
 @item @emph{Arguments}:
 @multitable @columnfractions .15 .70
-@item @var{I} @tab The type shall be either  a scalar @code{INTEGER}
-type or a scalar @code{LOGICAL} type.
-@item @var{J} @tab The type shall be the same as the type of @var{I}.
+@item @var{I} @tab The type shall be either a scalar @code{INTEGER}
+type or a scalar @code{LOGICAL} type or a boz-literal-constant.
+@item @var{J} @tab The type shall be the same as the type of @var{I} or
+a boz-literal-constant. @var{I} and @var{J} shall not both be
+boz-literal-constants.  If either @var{I} and @var{J} is a
+boz-literal-constant, then the other argument must be a scalar @code{INTEGER}.
 @end multitable
 
 @item @emph{Return value}:
 The return type is either a scalar @code{INTEGER} or a scalar
 @code{LOGICAL}.  If the kind type parameters differ, then the
 smaller kind type is implicitly converted to larger kind, and the 
-return has the larger kind.
+return has the larger kind.  A boz-literal-constant is 
+converted to an @code{INTEGER} with the kind type parameter of
+the other argument as-if a call to @ref{INT} occurred.
 
 @item @emph{Example}:
 @smallexample
@@ -13693,6 +14745,7 @@ Fortran 95 elemental function: @ref{IEOR}
 * ISO_C_BINDING::
 * IEEE modules::
 * OpenMP Modules OMP_LIB and OMP_LIB_KINDS::
+* OpenACC Module OPENACC::
 @end menu
 
 @node ISO_FORTRAN_ENV
@@ -13870,7 +14923,7 @@ Furthermore, if @code{__float128} is supported in C, the named constants
 @item @code{INTEGER}@tab @code{C_INT_FAST128_T} @tab @code{int_fast128_t}                 @tab Ext.
 @item @code{INTEGER}@tab @code{C_INTMAX_T}      @tab @code{intmax_t}
 @item @code{INTEGER}@tab @code{C_INTPTR_T}      @tab @code{intptr_t}
-@item @code{INTEGER}@tab @code{C_PTRDIFF_T}     @tab @code{intptr_t}                      @tab TS 29113
+@item @code{INTEGER}@tab @code{C_PTRDIFF_T}     @tab @code{ptrdiff_t}                     @tab TS 29113
 @item @code{REAL}   @tab @code{C_FLOAT}         @tab @code{float}
 @item @code{REAL}   @tab @code{C_DOUBLE}        @tab @code{double}
 @item @code{REAL}   @tab @code{C_LONG_DOUBLE}   @tab @code{long double}
@@ -13937,11 +14990,12 @@ with the following options: @code{-fno-unsafe-math-optimizations
 -frounding-math -fsignaling-nans}.
 
 
+
 @node OpenMP Modules OMP_LIB and OMP_LIB_KINDS
 @section OpenMP Modules @code{OMP_LIB} and @code{OMP_LIB_KINDS}
 @table @asis
 @item @emph{Standard}:
-OpenMP Application Program Interface v4.0
+OpenMP Application Program Interface v4.5
 @end table
 
 
@@ -13949,13 +15003,14 @@ The OpenMP Fortran runtime library routines are provided both in
 a form of two Fortran 90 modules, named @code{OMP_LIB} and 
 @code{OMP_LIB_KINDS}, and in a form of a Fortran @code{include} file named
 @file{omp_lib.h}. The procedures provided by @code{OMP_LIB} can be found
-in the @ref{Top,,Introduction,libgomp,GNU OpenMP runtime library} manual,
+in the @ref{Top,,Introduction,libgomp,GNU Offloading and Multi
+Processing Runtime Library} manual,
 the named constants defined in the modules are listed
 below.
 
 For details refer to the actual
-@uref{http://www.openmp.org/mp-documents/OpenMP4.0.0.pdf,
-OpenMP Application Program Interface v4.0}.
+@uref{http://www.openmp.org/wp-content/uploads/openmp-4.5.pdf,
+OpenMP Application Program Interface v4.5}.
 
 @code{OMP_LIB_KINDS} provides the following scalar default-integer
 named constants:
@@ -13970,7 +15025,7 @@ named constants:
 @code{OMP_LIB} provides the scalar default-integer
 named constant @code{openmp_version} with a value of the form
 @var{yyyymm}, where @code{yyyy} is the year and @var{mm} the month
-of the OpenMP version; for OpenMP v4.0 the value is @code{201307}.
+of the OpenMP version; for OpenMP v4.5 the value is @code{201511}.
 
 The following scalar integer named constants of the
 kind @code{omp_sched_kind}:
@@ -13992,3 +15047,30 @@ kind @code{omp_proc_bind_kind}:
 @item @code{omp_proc_bind_close}
 @item @code{omp_proc_bind_spread}
 @end table
+
+
+
+@node OpenACC Module OPENACC
+@section OpenACC Module @code{OPENACC}
+@table @asis
+@item @emph{Standard}:
+OpenACC Application Programming Interface v2.0
+@end table
+
+
+The OpenACC Fortran runtime library routines are provided both in a
+form of a Fortran 90 module, named @code{OPENACC}, and in form of a
+Fortran @code{include} file named @file{openacc_lib.h}.  The
+procedures provided by @code{OPENACC} can be found in the
+@ref{Top,,Introduction,libgomp,GNU Offloading and Multi Processing
+Runtime Library} manual, the named constants defined in the modules
+are listed below.
+
+For details refer to the actual
+@uref{http://www.openacc.org/,
+OpenACC Application Programming Interface v2.0}.
+
+@code{OPENACC} provides the scalar default-integer
+named constant @code{openacc_version} with a value of the form
+@var{yyyymm}, where @code{yyyy} is the year and @var{mm} the month
+of the OpenACC version; for OpenACC v2.0 the value is @code{201306}.

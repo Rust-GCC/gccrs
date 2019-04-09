@@ -1,4 +1,4 @@
-// Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -64,9 +64,10 @@ func NetlinkRIB(proto, family int) ([]byte, error) {
 		return nil, err
 	}
 	var tab []byte
+	rbNew := make([]byte, Getpagesize())
 done:
 	for {
-		rb := make([]byte, Getpagesize())
+		rb := rbNew
 		nr, _, err := Recvfrom(s, rb, 0)
 		if err != nil {
 			return nil, err
@@ -128,10 +129,11 @@ func ParseNetlinkMessage(b []byte) ([]NetlinkMessage, error) {
 
 func netlinkMessageHeaderAndData(b []byte) (*NlMsghdr, []byte, int, error) {
 	h := (*NlMsghdr)(unsafe.Pointer(&b[0]))
-	if int(h.Len) < NLMSG_HDRLEN || int(h.Len) > len(b) {
+	l := nlmAlignOf(int(h.Len))
+	if int(h.Len) < NLMSG_HDRLEN || l > len(b) {
 		return nil, nil, 0, EINVAL
 	}
-	return h, b[NLMSG_HDRLEN:], nlmAlignOf(int(h.Len)), nil
+	return h, b[NLMSG_HDRLEN:], l, nil
 }
 
 // NetlinkRouteAttr represents a netlink route attribute.

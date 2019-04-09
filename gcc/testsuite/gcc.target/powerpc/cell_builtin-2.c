@@ -1,7 +1,6 @@
 /* { dg-do compile { target { powerpc*-*-* } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
-/* { dg-require-effective-target powerpc_altivec_ok } */
-/* { dg-options "-O2 -maltivec -mcpu=cell" } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
+/* { dg-options "-O2 -maltivec -mdejagnu-cpu=cell" } */
 /* { dg-final { scan-assembler-times "lvlxl" 19 } } */
 
 #include <altivec.h>

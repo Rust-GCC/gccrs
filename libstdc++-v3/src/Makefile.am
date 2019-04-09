@@ -1,6 +1,6 @@
 ## Makefile for the C++11 sources of the GNU C++ Standard library.
 ##
-## Copyright (C) 1997-2014 Free Software Foundation, Inc.
+## Copyright (C) 1997-2019 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ## Process this file with automake to produce Makefile.in.
@@ -22,13 +22,47 @@
 
 include $(top_srcdir)/fragment.am
 
-SUBDIRS = c++98 c++11
+if ENABLE_FILESYSTEM_TS
+filesystem_dir = filesystem
+else
+filesystem_dir =
+endif
+
+## Keep this list sync'd with acinclude.m4:GLIBCXX_CONFIGURE.
+SUBDIRS = c++98 c++11 c++17 $(filesystem_dir)
 
 # Cross compiler support.
+if VTV_CYGMIN
+toolexeclib_LTLIBRARIES = libvtv.la libstdc++.la
+else
 toolexeclib_LTLIBRARIES = libstdc++.la
+endif
+
+if VTV_CYGMIN
+vtv_stubs.cc:
+	rm -f $@
+	$(LN_S) $(toplevel_srcdir)/libstdc++-v3/libsupc++/vtv_stubs.cc $@
+
+libvtv_la_SOURCES = vtv_stubs.cc
+libvtv_la_LDFLAGS = $(lt_host_flags)
+
+libvtv_la_AM_CXXFLAGS = \
+	$(glibcxx_compiler_pic_flag) \
+	$(XTEMPLATE_FLAGS) \
+	-Wl,-u_vtable_map_vars_start,-u_vtable_map_vars_end \
+	$(WARN_CXXFLAGS) $(OPTIMIZE_CXXFLAGS) $(CONFIG_CXXFLAGS)
+
+libvtv_la_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(libvtv_la_AM_CXXFLAGS) \
+	$(CXXFLAGS) $(libvtv_la_LDFLAGS) $(LDFLAGS) -o $@
+endif
 
 vpath % $(top_srcdir)/src/c++98
 vpath % $(top_srcdir)/src/c++11
+vpath % $(top_srcdir)/src/c++17
+if ENABLE_FILESYSTEM_TS
+vpath % $(top_srcdir)/src/filesystem
+endif
 
 if GLIBCXX_LDBL_COMPAT
 ldbl_compat_sources = compatibility-ldbl.cc
@@ -45,7 +79,7 @@ cxx98_sources = \
 	compatibility.cc \
 	compatibility-debug_list.cc \
 	compatibility-debug_list-2.cc \
-	${ldbl_compat_sources} 
+	${ldbl_compat_sources}
 
 cxx11_sources = \
 	compatibility-c++0x.cc \
@@ -60,13 +94,15 @@ libstdc___la_LIBADD = \
 	$(GLIBCXX_LIBS) \
 	$(top_builddir)/libsupc++/libsupc++convenience.la \
 	$(top_builddir)/src/c++98/libc++98convenience.la \
-	$(top_builddir)/src/c++11/libc++11convenience.la
+	$(top_builddir)/src/c++11/libc++11convenience.la \
+	$(top_builddir)/src/c++17/libc++17convenience.la
 
 libstdc___la_DEPENDENCIES = \
 	${version_dep} \
 	$(top_builddir)/libsupc++/libsupc++convenience.la \
 	$(top_builddir)/src/c++98/libc++98convenience.la \
-	$(top_builddir)/src/c++11/libc++11convenience.la
+	$(top_builddir)/src/c++11/libc++11convenience.la \
+	$(top_builddir)/src/c++17/libc++17convenience.la
 
 libstdc___la_LDFLAGS = \
 	-version-info $(libtool_VERSION) ${version_arg} -lm
@@ -77,9 +113,9 @@ libstdc___la_LINK = $(CXXLINK) $(libstdc___la_LDFLAGS)
 # pass -mlong-double-64.
 if GLIBCXX_LDBL_COMPAT
 compatibility-ldbl.lo: compatibility-ldbl.cc
-	$(LTCXXCOMPILE) -mlong-double-64 -c $<
+	$(LTCXXCOMPILE) $(LONG_DOUBLE_COMPAT_FLAGS) -c $<
 compatibility-ldbl.o: compatibility-ldbl.cc
-	$(CXXCOMPILE) -mlong-double-64 -c $<
+	$(CXXCOMPILE) $(LONG_DOUBLE_COMPAT_FLAGS) -c $<
 endif
 
 # Use special rules for C++11 files/objects.
@@ -109,16 +145,16 @@ compatibility-condvar.o: compatibility-condvar.cc
 	$(CXXCOMPILE) -std=gnu++11 -c $<
 
 # A note on compatibility and static libraries.
-# 
+#
 # static lib == linked against only this version, should not need compat
 # shared lib == linked against potentially all compat versions
 #
 # Thus, the shared libs have more compat symbols, which can be found
 # segregated in the sources with -D_GLIBCXX_SHARED.
 #
-# In the sub-directories of libsupc++, src/c++98, src/c++11, only
-# -prefer-pic objects are generated for the convenience libraries.
-# 
+# In the sub-directories of libsupc++, src/c++98, src/c++11, src/c++17,
+# only -prefer-pic objects are generated for the convenience libraries.
+#
 # In the main src directory, make shared and static objects just for
 # the compat libraries. Shared objects are compiled with -prefer-pic
 # -D_GLIBCXX_SHARED and in the .libs sub-directory, static objects are
@@ -136,6 +172,7 @@ compatibility-condvar.o: compatibility-condvar.cc
 # OPTIMIZE_CXXFLAGS on the compile line so that -O2 can be overridden
 # as the occasion calls for it.
 AM_CXXFLAGS = \
+	-std=gnu++98 \
 	$(glibcxx_compiler_pic_flag) \
 	$(XTEMPLATE_FLAGS) $(VTV_CXXFLAGS) \
 	$(WARN_CXXFLAGS) $(OPTIMIZE_CXXFLAGS) $(CONFIG_CXXFLAGS)
@@ -154,7 +191,7 @@ AM_CXXFLAGS = \
 # correct solution is to add `--tag CXX' to LTCXXCOMPILE and maybe
 # CXXLINK, just after $(LIBTOOL), so that libtool doesn't have to
 # attempt to infer which configuration to use.
-# 
+#
 # The second tag argument, `--tag disable-shared` means that libtool
 # only compiles each source once, for static objects. In actuality,
 # glibcxx_lt_pic_flag and glibcxx_compiler_shared_flag are added to
@@ -195,7 +232,7 @@ libstdc++-symbols.ver:  ${glibcxx_srcdir}/$(SYMVER_FILE) \
 	chmod +w $@.tmp
 	if test "x$(port_specific_symbol_files)" != x; then \
 	  if grep '^# Appended to version file.' \
-	       $(port_specific_symbol_files) /dev/null > /dev/null 2>&1; then \
+	       $(port_specific_symbol_files) > /dev/null 2>&1; then \
 	    cat $(port_specific_symbol_files) >> $@.tmp; \
 	  else \
 	    sed -n '1,/DO NOT DELETE/p' $@.tmp > tmp.top; \

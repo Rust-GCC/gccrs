@@ -1,6 +1,6 @@
 /* Definitions for ELF systems with .init_array/.fini_array section
    support.
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -23,7 +23,7 @@
    see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    <http://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_INITFINI_ARRAY_SUPPORT
+#if HAVE_INITFINI_ARRAY_SUPPORT
 
 #define USE_INITFINI_ARRAY
 

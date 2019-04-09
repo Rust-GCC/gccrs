@@ -1,6 +1,6 @@
 /* Code to analyze doloop loops in order for targets to perform late
    optimizations converting doloops to other forms of hardware loops.
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,22 +21,17 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "backend.h"
 #include "rtl.h"
-#include "flags.h"
-#include "expr.h"
-#include "hard-reg-set.h"
-#include "regs.h"
-#include "basic-block.h"
-#include "tm_p.h"
 #include "df.h"
-#include "cfgloop.h"
+#include "insn-config.h"
+#include "regs.h"
+#include "memmodel.h"
+#include "emit-rtl.h"
 #include "recog.h"
-#include "target.h"
+#include "cfgrtl.h"
 #include "hw-doloop.h"
 #include "dumpfile.h"
-
-#ifdef HAVE_doloop_end
 
 /* Dump information collected in LOOPS.  */
 static void
@@ -639,7 +634,7 @@ reorg_loops (bool do_reorder, struct hw_doloop_hooks *hooks)
 
   /* We can't enter cfglayout mode anymore if basic block partitioning
      already happened.  */
-  if (do_reorder && !flag_reorder_blocks_and_partition)
+  if (do_reorder && !crtl->has_bb_partition)
     {
       reorder_loops (loops);
       free_loops (loops);
@@ -669,4 +664,3 @@ reorg_loops (bool do_reorder, struct hw_doloop_hooks *hooks)
   if (dump_file)
     print_rtl (dump_file, get_insns ());
 }
-#endif

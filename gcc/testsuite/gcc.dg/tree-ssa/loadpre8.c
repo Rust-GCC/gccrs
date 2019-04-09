@@ -1,5 +1,5 @@
 /* { dg-do compile } */ 
-/* { dg-options "-O2 -fdump-tree-pre-stats -std=gnu89" } */
+/* { dg-options "-O2 -fdump-tree-pre-stats -std=gnu89 -fno-tree-loop-im" } */
 typedef union tree_node *tree;
 struct tree_common
 {
@@ -94,4 +94,3 @@ rewrite_add_phi_arguments (basic_block bb)
     }
 }
 /* { dg-final { scan-tree-dump-times "Eliminated: 1" 1 "pre" } } */
-/* { dg-final { cleanup-tree-dump "pre" } } */

@@ -1,5 +1,5 @@
-/* { dg-do compile { target { { i?86-*-* x86_64-*-* } && ia32 } } } */
-/* { dg-options "-O1 -fprefetch-loop-arrays -march=athlon -fdump-tree-aprefetch-blocks" } */
+/* { dg-do compile { target { i?86-*-* x86_64-*-* } } } */
+/* { dg-options "-O1 -fprefetch-loop-arrays -march=amdfam10 -fdump-tree-aprefetch-blocks" } */
 
 int a[10000];
 
@@ -18,4 +18,3 @@ int foo(unsigned n)
 
 /* { dg-final { scan-tree-dump-not "Invalid sum" "aprefetch"} } */
 /* { dg-final { scan-tree-dump-not "SUCC: 7 .100.0%" "aprefetch"} } */
-/* { dg-final { cleanup-tree-dump "aprefetch" } } */

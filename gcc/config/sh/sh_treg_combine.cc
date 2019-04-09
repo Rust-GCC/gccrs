@@ -1,6 +1,6 @@
 /* An SH specific RTL pass that tries to combine comparisons and redundant
    condition code register stores across multiple basic blocks.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -18,24 +18,25 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#define IN_TARGET_CODE 1
+
 #include "config.h"
+#define INCLUDE_ALGORITHM
+#define INCLUDE_LIST
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
-#include "machmode.h"
-#include "basic-block.h"
-#include "df.h"
+#include "backend.h"
+#include "target.h"
 #include "rtl.h"
-#include "insn-config.h"
-#include "insn-codes.h"
+#include "tree.h"
+#include "memmodel.h"
+#include "optabs.h"
 #include "emit-rtl.h"
 #include "recog.h"
+#include "cfgrtl.h"
 #include "tree-pass.h"
-#include "target.h"
 #include "expr.h"
-
-#include <algorithm>
-#include <list>
-#include <vector>
 
 /*
 This pass tries to optimize for example this:
@@ -78,14 +79,17 @@ Example 1)
 
 In [bb 4] elimination of the comparison would require inversion of the branch
 condition and compensation of other BBs.
-Instead an inverting reg-move can be used:
+Instead the comparison in [bb 3] can be replaced with the comparison in [bb 5]
+by using a reg-reg move.  In [bb 4] a logical not is used to compensate the
+inverted condition.
 
 [bb 3]
 (set (reg:SI 167) (reg:SI 173))
 -> bb 5
 
 [BB 4]
-(set (reg:SI 167) (not:SI (reg:SI 177)))
+(set (reg:SI 147 t) (eq:SI (reg:SI 177) (const_int 0)))
+(set (reg:SI 167) (reg:SI 147 t))
 -> bb 5
 
 [bb 5]
@@ -214,9 +218,9 @@ In order to handle cases such as above the RTL pass does the following:
       and replace the comparisons in the BBs with reg-reg copies to get the
       operands in place (create new pseudo regs).
 
-    - If the cstores differ, try to apply the special case
-        (eq (reg) (const_int 0)) -> inverted = (not (reg)).
-      for the subordinate cstore types and eliminate the dominating ones.
+    - If the cstores differ and the comparison is a test against zero,
+      use reg-reg copies for the dominating cstores and logical not cstores
+      for the subordinate cstores.
 
 - If the comparison types in the BBs are not the same, or the first approach
   doesn't work out for some reason, try to eliminate the comparison before the
@@ -289,7 +293,7 @@ find_set_of_reg_bb (rtx reg, rtx_insn *insn)
     return result;
 
   for (result.insn = insn; result.insn != NULL;
-       result.insn = prev_nonnote_insn_bb (result.insn))
+       result.insn = prev_nonnote_nondebug_insn_bb (result.insn))
     {
       if (BARRIER_P (result.insn))
 	return result;
@@ -412,6 +416,16 @@ trace_reg_uses (rtx reg, rtx_insn *start_insn, rtx abort_at_insn)
   return count;
 }
 
+static bool
+is_conditional_insn (rtx_insn* i)
+{
+  if (! (INSN_P (i) && NONDEBUG_INSN_P (i)))
+    return false;
+
+  rtx p = PATTERN (i);
+  return GET_CODE (p) == SET && GET_CODE (XEXP (p, 1)) == IF_THEN_ELSE;
+}
+
 // FIXME: Remove dependency on SH predicate function somehow.
 extern int t_reg_operand (rtx, machine_mode);
 extern int negt_reg_operand (rtx, machine_mode);
@@ -464,6 +478,7 @@ private:
   struct cbranch_trace
   {
     rtx_insn *cbranch_insn;
+    rtx* condition_rtx_in_insn;
     branch_condition_type_t cbranch_type;
 
     // The comparison against zero right before the conditional branch.
@@ -475,9 +490,14 @@ private:
 
     cbranch_trace (rtx_insn *insn)
     : cbranch_insn (insn),
+      condition_rtx_in_insn (NULL),
       cbranch_type (unknown_branch_condition),
       setcc ()
     {
+      if (is_conditional_insn (cbranch_insn))
+	condition_rtx_in_insn = &XEXP (XEXP (PATTERN (cbranch_insn), 1), 0);
+      else if (rtx x = pc_set (cbranch_insn))
+	condition_rtx_in_insn = &XEXP (XEXP (x, 1), 0);
     }
 
     basic_block bb (void) const { return BLOCK_FOR_INSN (cbranch_insn); }
@@ -485,8 +505,16 @@ private:
     rtx
     branch_condition_rtx (void) const
     {
-      rtx x = pc_set (cbranch_insn);
-      return x == NULL_RTX ? NULL_RTX : XEXP (XEXP (x, 1), 0);
+      return condition_rtx_in_insn != NULL ? *condition_rtx_in_insn : NULL;
+    }
+    rtx&
+    branch_condition_rtx_ref (void) const
+    {
+      // Before anything gets to invoke this function, there are other checks
+      // in place to make sure that we have a known branch condition and thus
+      // the ref to the rtx in the insn.
+      gcc_assert (condition_rtx_in_insn != NULL);
+      return *condition_rtx_in_insn;
     }
 
     bool
@@ -559,7 +587,8 @@ private:
   bool can_extend_ccreg_usage (const bb_entry& e,
 			       const cbranch_trace& trace) const;
 
-  // Create an insn rtx that is a negating reg move (not operation).
+  // Create an insn rtx that performs a logical not (test != 0) on the src_reg
+  // and stores the result in dst_reg.
   rtx make_not_reg_insn (rtx dst_reg, rtx src_reg) const;
 
   // Create an insn rtx that inverts the ccreg.
@@ -721,9 +750,8 @@ sh_treg_combine::record_set_of_reg (rtx reg, rtx_insn *start_insn,
       // Now see how the ccreg was set.
       // For now it must be in the same BB.
       log_msg ("tracing ccreg\n");
-      new_entry.setcc =
-	  find_set_of_reg_bb (m_ccreg,
-			      prev_nonnote_insn_bb (new_entry.cstore.insn));
+      new_entry.setcc = find_set_of_reg_bb
+	(m_ccreg, prev_nonnote_nondebug_insn_bb (new_entry.cstore.insn));
 
       // If cstore was found but setcc was not found continue anyway, as
       // for some of the optimization types the setcc is irrelevant.
@@ -890,12 +918,32 @@ sh_treg_combine::can_remove_comparison (const bb_entry& e,
 rtx
 sh_treg_combine::make_not_reg_insn (rtx dst_reg, rtx src_reg) const
 {
-  // This will to go through expanders and may output multiple insns
-  // for multi-word regs.
+  // On SH we can do only SImode and DImode comparisons.
+  if (! (GET_MODE (src_reg) == SImode || GET_MODE (src_reg) == DImode))
+    return NULL;
+
+  // On SH we can store the ccreg into an SImode or DImode reg only.
+  if (! (GET_MODE (dst_reg) == SImode || GET_MODE (dst_reg) == DImode))
+    return NULL;
+
   start_sequence ();
-  expand_simple_unop (GET_MODE (dst_reg), NOT, src_reg, dst_reg, 0);
+
+  emit_insn (gen_rtx_SET (m_ccreg, gen_rtx_fmt_ee (EQ, SImode,
+						   src_reg, const0_rtx)));
+
+  if (GET_MODE (dst_reg) == SImode)
+    emit_move_insn (dst_reg, m_ccreg);
+  else if (GET_MODE (dst_reg) == DImode)
+    {
+      emit_move_insn (gen_lowpart (SImode, dst_reg), m_ccreg);
+      emit_move_insn (gen_highpart (SImode, dst_reg), const0_rtx);
+    }
+  else
+    gcc_unreachable ();
+
   rtx i = get_insns ();
   end_sequence ();
+
   return i;
 }
 
@@ -903,7 +951,7 @@ rtx_insn *
 sh_treg_combine::make_inv_ccreg_insn (void) const
 {
   start_sequence ();
-  rtx_insn *i = emit_insn (gen_rtx_SET (VOIDmode, m_ccreg,
+  rtx_insn *i = emit_insn (gen_rtx_SET (m_ccreg,
                                         gen_rtx_fmt_ee (XOR, GET_MODE (m_ccreg),
                                                         m_ccreg, const1_rtx)));
   end_sequence ();
@@ -992,8 +1040,18 @@ sh_treg_combine::try_invert_branch_condition (cbranch_trace& trace)
 {
   log_msg ("inverting branch condition\n");
 
-  if (!invert_jump_1 (trace.cbranch_insn, JUMP_LABEL (trace.cbranch_insn)))
-    log_return (false, "invert_jump_1 failed\n");
+  rtx& comp = trace.branch_condition_rtx_ref ();
+
+  rtx_code rev_cmp_code = reversed_comparison_code (comp, trace.cbranch_insn);
+
+  if (rev_cmp_code == UNKNOWN)
+    log_return (false, "reversed_comparison_code = UNKNOWN\n");
+
+  validate_change (trace.cbranch_insn, &comp,
+		   gen_rtx_fmt_ee (rev_cmp_code,
+				   GET_MODE (comp), XEXP (comp, 0),
+				   XEXP (comp, 1)),
+		   1);
 
   if (verify_changes (num_validated_changes ()))
     confirm_change_group ();
@@ -1078,7 +1136,12 @@ sh_treg_combine::try_combine_comparisons (cbranch_trace& trace,
   // There is one special case though, where an integer comparison
   //     (eq (reg) (const_int 0))
   // can be inverted with a sequence
-  //     (eq (not (reg)) (const_int 0))
+  //     (set (t) (eq (reg) (const_int 0))
+  //     (set (reg) (t))
+  //     (eq (reg) (const_int 0))
+  //
+  // FIXME: On SH2A it might be better to use the nott insn in this case,
+  // i.e. do the try_eliminate_cstores approach instead.
   if (inv_cstore_count != 0 && cstore_count != 0)
     {
       if (make_not_reg_insn (comp_op0, comp_op0) == NULL_RTX)
@@ -1291,10 +1354,19 @@ sh_treg_combine::try_optimize_cbranch (rtx_insn *insn)
   //   (set (reg ccreg) (eq (reg) (const_int 0)))
   // The testing insn could also be outside of the current basic block, but
   // for now we limit the search to the current basic block.
-  trace.setcc = find_set_of_reg_bb (m_ccreg, prev_nonnote_insn_bb (insn));
+  trace.setcc = find_set_of_reg_bb
+    (m_ccreg, prev_nonnote_nondebug_insn_bb (insn));
 
-  if (!is_cmp_eq_zero (trace.setcc.set_src ()))
+  if (trace.setcc.set_src () == NULL_RTX)
     log_return_void ("could not find set of ccreg in current BB\n");
+
+  if (!is_cmp_eq_zero (trace.setcc.set_src ())
+      && !is_inverted_ccreg (trace.setcc.set_src ()))
+    {
+      log_msg ("unsupported set of ccreg in current BB: ");
+      log_rtx (trace.setcc.set_src ());
+      log_return_void ("\n");
+    }
 
   rtx trace_reg = XEXP (trace.setcc.set_src (), 0);
 
@@ -1310,6 +1382,19 @@ sh_treg_combine::try_optimize_cbranch (rtx_insn *insn)
       log_msg ("can't remove insn\n");
       log_insn (trace.setcc.insn);
       log_return_void ("\nbecause it's volatile\n");
+    }
+
+  // If the ccreg is inverted before cbranch try inverting the branch
+  // condition.
+  if (is_inverted_ccreg (trace.setcc.set_src ()))
+    {
+      if (!trace.can_invert_condition ())
+	log_return_void ("branch condition can't be inverted - aborting\n");
+
+      if (try_invert_branch_condition (trace))
+	delete_insn (trace.setcc.insn);
+
+      return;
     }
 
   // Now that we have an insn which tests some reg and sets the condition
@@ -1329,9 +1414,9 @@ sh_treg_combine::try_optimize_cbranch (rtx_insn *insn)
   // If we find it here there's no point in checking other BBs.
   trace.bb_entries.push_front (bb_entry (trace.bb ()));
 
-  record_return_t res =
-      record_set_of_reg (trace_reg, prev_nonnote_insn_bb (trace.setcc.insn),
-			 trace.bb_entries.front ());
+  record_return_t res = record_set_of_reg
+    (trace_reg, prev_nonnote_nondebug_insn_bb (trace.setcc.insn),
+     trace.bb_entries.front ());
 
   if (res == other_set_found)
     log_return_void ("other set found - aborting trace\n");
@@ -1464,14 +1549,26 @@ sh_treg_combine::execute (function *fun)
   log_rtx (m_ccreg);
   log_msg ("  STORE_FLAG_VALUE = %d\n", STORE_FLAG_VALUE);
 
-  // Look for basic blocks that end with a conditional branch and try to
-  // optimize them.
+  // Look for basic blocks that end with a conditional branch or for
+  // conditional insns and try to optimize them.
   basic_block bb;
   FOR_EACH_BB_FN (bb, fun)
     {
-      rtx_insn *i = BB_END (bb);
+      rtx_insn* i = BB_END (bb);
+      if (i == NULL || i == PREV_INSN (BB_HEAD (bb)))
+	continue;
+
+      // A conditional branch is always the last insn of a basic block.
       if (any_condjump_p (i) && onlyjump_p (i))
-	try_optimize_cbranch (i);
+	{
+	  try_optimize_cbranch (i);
+	  i = PREV_INSN (i);
+	}
+
+      // Check all insns in block for conditional insns.
+      for (; i != NULL && i != PREV_INSN (BB_HEAD (bb)); i = PREV_INSN (i))
+	if (is_conditional_insn (i))
+	  try_optimize_cbranch (i);
     }
 
   log_msg ("\n\n");
@@ -1489,7 +1586,7 @@ sh_treg_combine::execute (function *fun)
 	log_msg ("trying to split insn:\n");
 	log_insn (*i);
 	log_msg ("\n");
-	try_split (PATTERN (*i), *i, 0);
+	try_split (PATTERN (*i), safe_as_a <rtx_insn *> (*i), 0);
       }
 
   m_touched_insns.clear ();

@@ -1,4 +1,4 @@
-// Copyright (C) 2012-2014 Free Software Foundation, Inc.
+// Copyright (C) 2012-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -16,13 +16,11 @@
 // <http://www.gnu.org/licenses/>.
 //
 
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 
 #include <set>
 #include <unordered_map>
 #include <testsuite_hooks.h>
-
-bool test __attribute__((unused)) = true;
 
 struct A
 {

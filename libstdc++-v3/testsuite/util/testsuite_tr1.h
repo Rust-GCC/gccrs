@@ -1,7 +1,7 @@
 // -*- C++ -*-
 // Testing utilities for the tr1 testsuite.
 //
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -23,6 +23,7 @@
 #define _GLIBCXX_TESTSUITE_TR1_H
 
 #include <ext/type_traits.h>
+#include <testsuite_hooks.h>
 
 namespace __gnu_test
 {
@@ -42,17 +43,6 @@ namespace __gnu_test
 	      && Category<const Type>::type::value == value
 	      && Category<volatile Type>::type::value == value
 	      && Category<const volatile Type>::type::value == value);
-    }
-
-  template<template<typename> class Property, typename Type>
-#if __cplusplus >= 201103L
-    constexpr
-#endif
-    bool
-    test_property(typename Property<Type>::value_type value)
-    {
-      return (Property<Type>::value == value
-	      && Property<Type>::type::value == value);
     }
 
   // For testing tr1/type_traits/extent, which has a second template
@@ -77,6 +67,14 @@ namespace __gnu_test
     {
       return (Property<Type1, Types...>::value == value
 	      && Property<Type1, Types...>::type::value == value);
+    }
+#else
+  template<template<typename> class Property, typename Type>
+    bool
+    test_property(typename Property<Type>::value_type value)
+    {
+      return (Property<Type>::value == value
+	      && Property<Type>::type::value == value);
     }
 #endif
 
@@ -146,25 +144,25 @@ namespace __gnu_test
 
   struct ThrowExplicitClass
   {
-    ThrowExplicitClass(double&) throw(int);
-    explicit ThrowExplicitClass(int&) throw(int);
-    ThrowExplicitClass(double&, int&, double&) throw(int);
+    ThrowExplicitClass(double&) THROW(int);
+    explicit ThrowExplicitClass(int&) THROW(int);
+    ThrowExplicitClass(double&, int&, double&) THROW(int);
   };
 
   struct ThrowDefaultClass
   {
-    ThrowDefaultClass() throw(int);
+    ThrowDefaultClass() THROW(int);
   };
 
   struct ThrowCopyConsClass
   {
-    ThrowCopyConsClass(const ThrowCopyConsClass&) throw(int);
+    ThrowCopyConsClass(const ThrowCopyConsClass&) THROW(int);
   };
 
 #if __cplusplus >= 201103L
   struct ThrowMoveConsClass
   {
-    ThrowMoveConsClass(ThrowMoveConsClass&&) throw(int);
+    ThrowMoveConsClass(ThrowMoveConsClass&&) noexcept(false);
   };
 
   struct NoexceptExplicitClass
@@ -535,67 +533,67 @@ namespace __gnu_test
   {
     struct E
     {};
-    
+
     struct NTD1
     {
       ~NTD1() = default;
     };
-    
+
     struct NTD2
     {
       ~NTD2();
     };
-    
+
     struct NTD3
     {
       ~NTD3() throw();
     };
-    
+
     struct TD1
     {
       ~TD1() noexcept(false);
     };
-    
+
     struct TD2
     {
-      ~TD2() throw(int);
+      ~TD2() THROW(int);
     };
-    
+
     struct Aggr
     {
       int i;
       bool b;
       E e;
     };
-    
+
     struct Aggr2
     {
       int i;
       bool b;
       TD1 r;
     };
-    
+
     struct Del
     {
       ~Del() = delete;
     };
-    
+
     struct Del2
     {
       ~Del2() noexcept = delete;
     };
-    
+
     struct Del3
     {
       ~Del3() noexcept(false) = delete;
     };
-    
+
     struct Der : Aggr
     {};
-    
+
     struct Der2 : Aggr2
     {};
-    
+
     union U1
     {
       int i;
@@ -603,7 +601,7 @@ namespace __gnu_test
       void* p;
       TD1* pt;
     };
-    
+
     union Ut
     {
       int i;
@@ -611,7 +609,7 @@ namespace __gnu_test
       void* p;
       TD1 pt;
     };
-    
+
     enum class En { a, b, c, d };
     enum En2 { En2a, En2b, En2c, En2d };
 
@@ -622,7 +620,7 @@ namespace __gnu_test
     {
       virtual ~Abstract1() = 0;
     };
-    
+
     struct AbstractDelDtor
     {
       ~AbstractDelDtor() = delete;
@@ -633,7 +631,7 @@ namespace __gnu_test
     {
       virtual ~Abstract2() noexcept(false) = 0;
     };
-    
+
     struct Abstract3
     {
       ~Abstract3() noexcept(false);
@@ -679,7 +677,7 @@ namespace __gnu_test
       DelCopy(const DelCopy&) = delete;
     };
   }
-  
+
   namespace assign
   {
     struct Empty {};

@@ -9,7 +9,7 @@ program streamtest
   integer        :: i,j,k
   integer, parameter :: lines = 5231
    
-  open(10, file="teststream", access="stream", form="formatted")
+  open(10, file="teststream_streamio_4", access="stream", form="formatted")
   
   do i=1,lines
     do j=0,9
@@ -19,7 +19,7 @@ program streamtest
   
   close(10)
   
-  open(10, file="teststream", access="stream",&
+  open(10, file="teststream_streamio_4", access="stream",&
   &form="formatted", position="append")
   do i=1,lines
     do j=0,9
@@ -30,7 +30,7 @@ program streamtest
   do i=1,lines
     do j=0,9
       read(10,"(i5)") k
-      if (k.ne.j) call abort()
+      if (k.ne.j) STOP 1
     end do
   end do
 

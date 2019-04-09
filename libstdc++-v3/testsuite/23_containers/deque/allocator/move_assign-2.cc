@@ -1,4 +1,4 @@
-// Copyright (C) 2012-2014 Free Software Foundation, Inc.
+// Copyright (C) 2012-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,8 +15,8 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-do compile }
-// { dg-options "-std=gnu++11 -fno-access-control" }
+// { dg-do compile { target c++11 } }
+// { dg-options "-fno-access-control" }
 
 // libstdc++/52591
 
@@ -25,9 +25,9 @@
 #include <type_traits>
 
 
-// As an extension we allow move-assignment of std::deque when the element
-// type is not MoveAssignable, as long as the allocator type propagates or
-// is known to always compare equal.
+// Move-assignment of std::deque<T> is allowed for non-MoveAssignable T when
+// the allocator type propagates. As an extension we also allow it if the
+// allocator type is known to always compare equal.
 
 struct C
 {
@@ -43,6 +43,7 @@ struct A1 : std::allocator<T>
   template<typename U> A1(const A1<U>&) { }
 
   using propagate_on_container_move_assignment = std::true_type;
+  using is_always_equal = std::false_type;
 };
 
 void test01()
@@ -61,14 +62,9 @@ struct A2 : std::allocator<T>
   template<typename U> A2(const A2<U>&) { }
 
   using propagate_on_container_move_assignment = std::false_type;
-};
 
-namespace __gnu_cxx
-{
-  template<typename T>
-    struct __allocator_always_compares_equal<A2<T>> : std::true_type
-    { };
-}
+  using is_always_equal = std::true_type;
+};
 
 void test02()
 {

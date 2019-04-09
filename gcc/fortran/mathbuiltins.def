@@ -1,4 +1,4 @@
-/* Copyright (C) 2004-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2004-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -42,10 +42,10 @@ DEFINE_MATH_BUILTIN_C (TAN,   "tan",    0)
 DEFINE_MATH_BUILTIN_C (TANH,  "tanh",   0)
 DEFINE_MATH_BUILTIN   (J0,    "j0",     0)
 DEFINE_MATH_BUILTIN   (J1,    "j1",     0)
-DEFINE_MATH_BUILTIN   (JN,    "jn",     2)
+DEFINE_MATH_BUILTIN   (JN,    "jn",     5)
 DEFINE_MATH_BUILTIN   (Y0,    "y0",     0)
 DEFINE_MATH_BUILTIN   (Y1,    "y1",     0)
-DEFINE_MATH_BUILTIN   (YN,    "yn",     2)
+DEFINE_MATH_BUILTIN   (YN,    "yn",     5)
 DEFINE_MATH_BUILTIN   (ERF,   "erf",    0)
 DEFINE_MATH_BUILTIN   (ERFC,  "erfc",   0)
 DEFINE_MATH_BUILTIN   (TGAMMA,"tgamma", 0)
@@ -72,5 +72,4 @@ OTHER_BUILTIN (REMAINDER, "remainder", 2,       true)
 OTHER_BUILTIN (RINT,      "rint",      1,       true)
 OTHER_BUILTIN (ROUND,     "round",     1,       true)
 OTHER_BUILTIN (SCALBN,    "scalbn",    scalbn,  true)
-OTHER_BUILTIN (SIGNBIT,   "signbit",   iround,  true)
 OTHER_BUILTIN (TRUNC,     "trunc",     1,       true)

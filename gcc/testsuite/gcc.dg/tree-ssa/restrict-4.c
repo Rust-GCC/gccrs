@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-optimized" } */
+/* { dg-options "-O2 -fdump-tree-optimized -fno-ipa-icf" } */
 
 int
 foo (int *x, int y)
@@ -23,4 +23,3 @@ bar (int *x, int y)
 }
 
 /* { dg-final { scan-tree-dump-times "return 1;" 2 "optimized" { xfail *-*-* } } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

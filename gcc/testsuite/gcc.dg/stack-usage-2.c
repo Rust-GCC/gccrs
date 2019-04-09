@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-options "-Wstack-usage=512" } */
+/* { dg-require-effective-target untyped_assembly } */
 
 int foo1 (void)  /* { dg-bogus "stack usage" } */
 {
@@ -15,7 +16,9 @@ int foo2 (void)  /* { dg-warning "stack usage is \[0-9\]* bytes" } */
   return 0;
 }
 
-int foo3 (void) /* { dg-warning "stack usage might be \[0-9\]* bytes" } */
+/* The actual warning depends on whether stack space is allocated dynamically
+   or statically.  */
+int foo3 (void) /* { dg-warning "stack usage (might be)|(is) \[0-9\]* bytes" } */
 {
   char arr[1024] __attribute__((aligned (512)));
   arr[0] = 1;

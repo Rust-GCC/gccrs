@@ -1,4 +1,4 @@
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,22 +15,12 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-do compile }
-// { dg-options "-std=gnu++0x" }
+// { dg-do compile { target c++11 } }
 
 #include <vector>
 #include <testsuite_allocator.h>
  
 struct T { int i; };
-
-namespace __gnu_test
-{
-  template<typename U>
-    inline void
-    swap(propagating_allocator<U, true>& l, propagating_allocator<U, true>& r)
-    noexcept(false)
-    { }
-}
 
 using __gnu_test::propagating_allocator;
 
@@ -62,5 +52,5 @@ void test03()
   test_type v1(alloc_type(1));
   test_type v2(alloc_type(2));
   static_assert( noexcept( v1 = std::move(v2) ), "Move assign cannot throw" );
-  static_assert( !noexcept( v1.swap(v2) ), "Swap can throw" );
+  static_assert( noexcept( v1.swap(v2) ), "Swap cannot throw" );
 }

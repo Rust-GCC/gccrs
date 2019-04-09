@@ -1,5 +1,7 @@
-#include <stdlib.h>
+extern void abort (void);
+
 #include <stdarg.h>
+#include "tree-vect.h"
 
 static int a[1000];
 
@@ -17,10 +19,11 @@ foo (void)
 int
 main (void)
 {
-  int res = foo ();
+  int res;
+  check_vect ();
+  res = foo ();
   if (res != 1999)
     abort ();
   return 0;
 }
 
-/* { dg-final { cleanup-tree-dump "vect" } } */

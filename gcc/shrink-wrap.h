@@ -1,5 +1,5 @@
 /* Shrink-wrapping related functions.
-   Copyright (C) 1989-2014 Free Software Foundation, Inc.
+   Copyright (C) 1989-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,37 +20,14 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_SHRINK_WRAP_H
 #define GCC_SHRINK_WRAP_H
 
-#include "hashtab.h"
-#include "vec.h"
-#include "machmode.h"
-
-#ifdef HAVE_simple_return
-/* In function.c.  */
-extern void emit_return_into_block (bool simple_p, basic_block bb);
-extern bool active_insn_between (rtx_insn *head, rtx_insn *tail);
-extern vec<edge> convert_jumps_to_returns (basic_block last_bb, bool simple_p,
-					   vec<edge> unconverted);
-extern basic_block emit_return_for_exit (edge exit_fallthru_edge,
-					 bool simple_p);
+#include "function.h"
 
 /* In shrink-wrap.c.  */
 extern bool requires_stack_frame_p (rtx_insn *, HARD_REG_SET, HARD_REG_SET);
-extern void prepare_shrink_wrap (basic_block entry_block);
-extern void dup_block_and_redirect (basic_block bb, basic_block copy_bb,
-				    rtx_insn *before,
-				    bitmap_head *need_prologue);
-extern void try_shrink_wrapping (edge *entry_edge, edge orig_entry_edge,
-				 bitmap_head *bb_flags, rtx_insn *prologue_seq);
-extern edge get_unconverted_simple_return (edge, bitmap_head,
-					   vec<edge> *, rtx_insn **);
-extern void convert_to_simple_return (edge entry_edge, edge orig_entry_edge,
-				      bitmap_head bb_flags,
-				      rtx_insn *returnjump,
-				      vec<edge> unconverted_simple_returns);
-#define SHRINK_WRAPPING_ENABLED (flag_shrink_wrap && HAVE_simple_return)
-#else
-#define SHRINK_WRAPPING_ENABLED false
-#endif
+extern void try_shrink_wrapping (edge *entry_edge, rtx_insn *prologue_seq);
+extern void try_shrink_wrapping_separate (basic_block first_bb);
+#define SHRINK_WRAPPING_ENABLED \
+  (flag_shrink_wrap && targetm.have_simple_return ())
 
 #endif  /* GCC_SHRINK_WRAP_H  */
 

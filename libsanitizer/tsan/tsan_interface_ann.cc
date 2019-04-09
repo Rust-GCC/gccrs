@@ -12,6 +12,7 @@
 #include "sanitizer_common/sanitizer_internal_defs.h"
 #include "sanitizer_common/sanitizer_placement_new.h"
 #include "sanitizer_common/sanitizer_stacktrace.h"
+#include "sanitizer_common/sanitizer_vector.h"
 #include "tsan_interface_ann.h"
 #include "tsan_mutex.h"
 #include "tsan_report.h"
@@ -19,7 +20,6 @@
 #include "tsan_mman.h"
 #include "tsan_flags.h"
 #include "tsan_platform.h"
-#include "tsan_vector.h"
 
 #define CALLERPC ((uptr)__builtin_return_address(0))
 
@@ -29,11 +29,10 @@ namespace __tsan {
 
 class ScopedAnnotation {
  public:
-  ScopedAnnotation(ThreadState *thr, const char *aname, const char *f, int l,
-                   uptr pc)
+  ScopedAnnotation(ThreadState *thr, const char *aname, uptr pc)
       : thr_(thr) {
     FuncEntry(thr_, pc);
-    DPrintf("#%d: annotation %s() %s:%d\n", thr_->tid, aname, f, l);
+    DPrintf("#%d: annotation %s()\n", thr_->tid, aname);
   }
 
   ~ScopedAnnotation() {
@@ -44,25 +43,27 @@ class ScopedAnnotation {
   ThreadState *const thr_;
 };
 
-#define SCOPED_ANNOTATION(typ) \
+#define SCOPED_ANNOTATION_RET(typ, ret) \
     if (!flags()->enable_annotations) \
-      return; \
+      return ret; \
     ThreadState *thr = cur_thread(); \
     const uptr caller_pc = (uptr)__builtin_return_address(0); \
     StatInc(thr, StatAnnotation); \
     StatInc(thr, Stat##typ); \
-    ScopedAnnotation sa(thr, __func__, f, l, caller_pc); \
-    const uptr pc = __sanitizer::StackTrace::GetCurrentPc(); \
+    ScopedAnnotation sa(thr, __func__, caller_pc); \
+    const uptr pc = StackTrace::GetCurrentPc(); \
     (void)pc; \
 /**/
+
+#define SCOPED_ANNOTATION(typ) SCOPED_ANNOTATION_RET(typ, )
 
 static const int kMaxDescLen = 128;
 
 struct ExpectRace {
   ExpectRace *next;
   ExpectRace *prev;
-  int hitcount;
-  int addcount;
+  atomic_uintptr_t hitcount;
+  atomic_uintptr_t addcount;
   uptr addr;
   uptr size;
   char *file;
@@ -88,7 +89,8 @@ static void AddExpectRace(ExpectRace *list,
   ExpectRace *race = list->next;
   for (; race != list; race = race->next) {
     if (race->addr == addr && race->size == size) {
-      race->addcount++;
+      atomic_store_relaxed(&race->addcount,
+          atomic_load_relaxed(&race->addcount) + 1);
       return;
     }
   }
@@ -98,8 +100,8 @@ static void AddExpectRace(ExpectRace *list,
   race->file = f;
   race->line = l;
   race->desc[0] = 0;
-  race->hitcount = 0;
-  race->addcount = 1;
+  atomic_store_relaxed(&race->hitcount, 0);
+  atomic_store_relaxed(&race->addcount, 1);
   if (desc) {
     int i = 0;
     for (; i < kMaxDescLen - 1 && desc[i]; i++)
@@ -128,7 +130,7 @@ static bool CheckContains(ExpectRace *list, uptr addr, uptr size) {
     return false;
   DPrintf("Hit expected/benign race: %s addr=%zx:%d %s:%d\n",
       race->desc, race->addr, (int)race->size, race->file, race->line);
-  race->hitcount++;
+  atomic_fetch_add(&race->hitcount, 1, memory_order_relaxed);
   return true;
 }
 
@@ -144,7 +146,7 @@ void InitializeDynamicAnnotations() {
 }
 
 bool IsExpectedReport(uptr addr, uptr size) {
-  Lock lock(&dyn_ann_ctx->mtx);
+  ReadLock lock(&dyn_ann_ctx->mtx);
   if (CheckContains(&dyn_ann_ctx->expect, addr, size))
     return true;
   if (CheckContains(&dyn_ann_ctx->benign, addr, size))
@@ -153,20 +155,21 @@ bool IsExpectedReport(uptr addr, uptr size) {
 }
 
 static void CollectMatchedBenignRaces(Vector<ExpectRace> *matched,
-    int *unique_count, int *hit_count, int ExpectRace::*counter) {
+    int *unique_count, int *hit_count, atomic_uintptr_t ExpectRace::*counter) {
   ExpectRace *list = &dyn_ann_ctx->benign;
   for (ExpectRace *race = list->next; race != list; race = race->next) {
     (*unique_count)++;
-    if (race->*counter == 0)
+    const uptr cnt = atomic_load_relaxed(&(race->*counter));
+    if (cnt == 0)
       continue;
-    (*hit_count) += race->*counter;
+    *hit_count += cnt;
     uptr i = 0;
     for (; i < matched->Size(); i++) {
       ExpectRace *race0 = &(*matched)[i];
       if (race->line == race0->line
           && internal_strcmp(race->file, race0->file) == 0
           && internal_strcmp(race->desc, race0->desc) == 0) {
-        race0->*counter += race->*counter;
+        atomic_fetch_add(&(race0->*counter), cnt, memory_order_relaxed);
         break;
       }
     }
@@ -180,10 +183,10 @@ void PrintMatchedBenignRaces() {
   int unique_count = 0;
   int hit_count = 0;
   int add_count = 0;
-  Vector<ExpectRace> hit_matched(MBlockScopedBuf);
+  Vector<ExpectRace> hit_matched;
   CollectMatchedBenignRaces(&hit_matched, &unique_count, &hit_count,
       &ExpectRace::hitcount);
-  Vector<ExpectRace> add_matched(MBlockScopedBuf);
+  Vector<ExpectRace> add_matched;
   CollectMatchedBenignRaces(&add_matched, &unique_count, &add_count,
       &ExpectRace::addcount);
   if (hit_matched.Size()) {
@@ -191,8 +194,8 @@ void PrintMatchedBenignRaces() {
         hit_count, (int)internal_getpid());
     for (uptr i = 0; i < hit_matched.Size(); i++) {
       Printf("%d %s:%d %s\n",
-          hit_matched[i].hitcount, hit_matched[i].file,
-          hit_matched[i].line, hit_matched[i].desc);
+          atomic_load_relaxed(&hit_matched[i].hitcount),
+          hit_matched[i].file, hit_matched[i].line, hit_matched[i].desc);
     }
   }
   if (hit_matched.Size()) {
@@ -201,8 +204,8 @@ void PrintMatchedBenignRaces() {
         add_count, unique_count, (int)internal_getpid());
     for (uptr i = 0; i < add_matched.Size(); i++) {
       Printf("%d %s:%d %s\n",
-          add_matched[i].addcount, add_matched[i].file,
-          add_matched[i].line, add_matched[i].desc);
+          atomic_load_relaxed(&add_matched[i].addcount),
+          add_matched[i].file, add_matched[i].line, add_matched[i].desc);
     }
   }
 }
@@ -248,12 +251,12 @@ void INTERFACE_ATTRIBUTE AnnotateCondVarWait(char *f, int l, uptr cv,
 
 void INTERFACE_ATTRIBUTE AnnotateRWLockCreate(char *f, int l, uptr m) {
   SCOPED_ANNOTATION(AnnotateRWLockCreate);
-  MutexCreate(thr, pc, m, true, true, false);
+  MutexCreate(thr, pc, m, MutexFlagWriteReentrant);
 }
 
 void INTERFACE_ATTRIBUTE AnnotateRWLockCreateStatic(char *f, int l, uptr m) {
   SCOPED_ANNOTATION(AnnotateRWLockCreateStatic);
-  MutexCreate(thr, pc, m, true, true, true);
+  MutexCreate(thr, pc, m, MutexFlagWriteReentrant | MutexFlagLinkerInit);
 }
 
 void INTERFACE_ATTRIBUTE AnnotateRWLockDestroy(char *f, int l, uptr m) {
@@ -265,9 +268,9 @@ void INTERFACE_ATTRIBUTE AnnotateRWLockAcquired(char *f, int l, uptr m,
                                                 uptr is_w) {
   SCOPED_ANNOTATION(AnnotateRWLockAcquired);
   if (is_w)
-    MutexLock(thr, pc, m);
+    MutexPostLock(thr, pc, m, MutexFlagDoPreLockOnPostLock);
   else
-    MutexReadLock(thr, pc, m);
+    MutexPostReadLock(thr, pc, m, MutexFlagDoPreLockOnPostLock);
 }
 
 void INTERFACE_ATTRIBUTE AnnotateRWLockReleased(char *f, int l, uptr m,
@@ -301,7 +304,7 @@ void INTERFACE_ATTRIBUTE AnnotateFlushExpectedRaces(char *f, int l) {
   Lock lock(&dyn_ann_ctx->mtx);
   while (dyn_ann_ctx->expect.next != &dyn_ann_ctx->expect) {
     ExpectRace *race = dyn_ann_ctx->expect.next;
-    if (race->hitcount == 0) {
+    if (atomic_load_relaxed(&race->hitcount) == 0) {
       ctx->nmissed_expected++;
       ReportMissedExpectedRace(race);
     }
@@ -452,4 +455,97 @@ const char INTERFACE_ATTRIBUTE* ThreadSanitizerQuery(const char *query) {
 
 void INTERFACE_ATTRIBUTE
 AnnotateMemoryIsInitialized(char *f, int l, uptr mem, uptr sz) {}
+void INTERFACE_ATTRIBUTE
+AnnotateMemoryIsUninitialized(char *f, int l, uptr mem, uptr sz) {}
+
+// Note: the parameter is called flagz, because flags is already taken
+// by the global function that returns flags.
+INTERFACE_ATTRIBUTE
+void __tsan_mutex_create(void *m, unsigned flagz) {
+  SCOPED_ANNOTATION(__tsan_mutex_create);
+  MutexCreate(thr, pc, (uptr)m, flagz & MutexCreationFlagMask);
+}
+
+INTERFACE_ATTRIBUTE
+void __tsan_mutex_destroy(void *m, unsigned flagz) {
+  SCOPED_ANNOTATION(__tsan_mutex_destroy);
+  MutexDestroy(thr, pc, (uptr)m, flagz);
+}
+
+INTERFACE_ATTRIBUTE
+void __tsan_mutex_pre_lock(void *m, unsigned flagz) {
+  SCOPED_ANNOTATION(__tsan_mutex_pre_lock);
+  if (!(flagz & MutexFlagTryLock)) {
+    if (flagz & MutexFlagReadLock)
+      MutexPreReadLock(thr, pc, (uptr)m);
+    else
+      MutexPreLock(thr, pc, (uptr)m);
+  }
+  ThreadIgnoreBegin(thr, pc, /*save_stack=*/false);
+  ThreadIgnoreSyncBegin(thr, pc, /*save_stack=*/false);
+}
+
+INTERFACE_ATTRIBUTE
+void __tsan_mutex_post_lock(void *m, unsigned flagz, int rec) {
+  SCOPED_ANNOTATION(__tsan_mutex_post_lock);
+  ThreadIgnoreSyncEnd(thr, pc);
+  ThreadIgnoreEnd(thr, pc);
+  if (!(flagz & MutexFlagTryLockFailed)) {
+    if (flagz & MutexFlagReadLock)
+      MutexPostReadLock(thr, pc, (uptr)m, flagz);
+    else
+      MutexPostLock(thr, pc, (uptr)m, flagz, rec);
+  }
+}
+
+INTERFACE_ATTRIBUTE
+int __tsan_mutex_pre_unlock(void *m, unsigned flagz) {
+  SCOPED_ANNOTATION_RET(__tsan_mutex_pre_unlock, 0);
+  int ret = 0;
+  if (flagz & MutexFlagReadLock) {
+    CHECK(!(flagz & MutexFlagRecursiveUnlock));
+    MutexReadUnlock(thr, pc, (uptr)m);
+  } else {
+    ret = MutexUnlock(thr, pc, (uptr)m, flagz);
+  }
+  ThreadIgnoreBegin(thr, pc, /*save_stack=*/false);
+  ThreadIgnoreSyncBegin(thr, pc, /*save_stack=*/false);
+  return ret;
+}
+
+INTERFACE_ATTRIBUTE
+void __tsan_mutex_post_unlock(void *m, unsigned flagz) {
+  SCOPED_ANNOTATION(__tsan_mutex_post_unlock);
+  ThreadIgnoreSyncEnd(thr, pc);
+  ThreadIgnoreEnd(thr, pc);
+}
+
+INTERFACE_ATTRIBUTE
+void __tsan_mutex_pre_signal(void *addr, unsigned flagz) {
+  SCOPED_ANNOTATION(__tsan_mutex_pre_signal);
+  ThreadIgnoreBegin(thr, pc, /*save_stack=*/false);
+  ThreadIgnoreSyncBegin(thr, pc, /*save_stack=*/false);
+}
+
+INTERFACE_ATTRIBUTE
+void __tsan_mutex_post_signal(void *addr, unsigned flagz) {
+  SCOPED_ANNOTATION(__tsan_mutex_post_signal);
+  ThreadIgnoreSyncEnd(thr, pc);
+  ThreadIgnoreEnd(thr, pc);
+}
+
+INTERFACE_ATTRIBUTE
+void __tsan_mutex_pre_divert(void *addr, unsigned flagz) {
+  SCOPED_ANNOTATION(__tsan_mutex_pre_divert);
+  // Exit from ignore region started in __tsan_mutex_pre_lock/unlock/signal.
+  ThreadIgnoreSyncEnd(thr, pc);
+  ThreadIgnoreEnd(thr, pc);
+}
+
+INTERFACE_ATTRIBUTE
+void __tsan_mutex_post_divert(void *addr, unsigned flagz) {
+  SCOPED_ANNOTATION(__tsan_mutex_post_divert);
+  ThreadIgnoreBegin(thr, pc, /*save_stack=*/false);
+  ThreadIgnoreSyncBegin(thr, pc, /*save_stack=*/false);
+}
 }  // extern "C"

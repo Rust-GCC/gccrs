@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -22,6 +22,8 @@
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
+
+--  This is the version of the Back_End package for GCC back ends
 
 with Atree;    use Atree;
 with Debug;    use Debug;
@@ -208,6 +210,9 @@ package body Back_End is
       Next_Arg : Positive;
       --  Next argument to be scanned
 
+      Arg_Count : constant Natural := Natural (save_argc - 1);
+      Args      : Argument_List (1 .. Arg_Count);
+
       Output_File_Name_Seen : Boolean := False;
       --  Set to True after having scanned file_name for switch "-gnatO file"
 
@@ -239,6 +244,19 @@ package body Back_End is
          then
             Next_Arg := Next_Arg + 1;
 
+         --  Store -G xxx as -Gxxx and go directly to the next argument
+
+         elsif Switch_Chars (First .. Last) = "G" then
+            Next_Arg := Next_Arg + 1;
+
+            --  Should never get there with -G not followed by an argument,
+            --  but use defensive code nonetheless. Store as -Gxxx to avoid
+            --  storing parameters in ALI files that might create confusion.
+
+            if Next_Arg <= Args'Last then
+               Store_Compilation_Switch (Switch_Chars & Args (Next_Arg).all);
+            end if;
+
          --  Do not record -quiet switch
 
          elsif Switch_Chars (First .. Last) = "quiet" then
@@ -250,11 +268,12 @@ package body Back_End is
          else
             Store_Compilation_Switch (Switch_Chars);
 
-            --  Back end switch -fno-inline also sets the Suppress_All_Inlining
-            --  front end flag to entirely inhibit all inlining.
+            --  For gcc back ends, -fno-inline disables Inline pragmas only,
+            --  not Inline_Always to remain consistent with the always_inline
+            --  attribute behavior.
 
             if Switch_Chars (First .. Last) = "fno-inline" then
-               Opt.Suppress_All_Inlining := True;
+               Opt.Disable_FE_Inline := True;
 
             --  Back end switch -fpreserve-control-flow also sets the front end
             --  flag that inhibits improper control flow transformations.
@@ -268,14 +287,27 @@ package body Back_End is
             elsif Switch_Chars (First .. Last) = "fdump-scos" then
                Opt.Generate_SCO := True;
                Opt.Generate_SCO_Instance_Table := True;
+
+            elsif Switch_Chars (First) = 'g' then
+               Debugger_Level := 2;
+
+               if First < Last then
+                  case Switch_Chars (First + 1) is
+                     when '0' =>
+                        Debugger_Level := 0;
+                     when '1' =>
+                        Debugger_Level := 1;
+                     when '2' =>
+                        Debugger_Level := 2;
+                     when '3' =>
+                        Debugger_Level := 3;
+                     when others =>
+                        null;
+                  end case;
+               end if;
             end if;
          end if;
       end Scan_Back_End_Switches;
-
-      --  Local variables
-
-      Arg_Count : constant Natural := Natural (save_argc - 1);
-      Args      : Argument_List (1 .. Arg_Count);
 
    --  Start of processing for Scan_Compiler_Arguments
 
@@ -352,6 +384,9 @@ package body Back_End is
 
             elsif Is_Front_End_Switch (Argv) then
                Scan_Front_End_Switches (Argv, Args, Next_Arg);
+
+            elsif Argv (Argv'First + 1 .. Argv'Last) = "fopenacc" then
+               Opt.OpenAcc_Enabled := True;
 
             --  All non-front-end switches are back-end switches
 

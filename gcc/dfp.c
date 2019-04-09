@@ -1,5 +1,5 @@
 /* Decimal floating point support.
-   Copyright (C) 2005-2014 Free Software Foundation, Inc.
+   Copyright (C) 2005-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -22,18 +22,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "tm_p.h"
 #include "dfp.h"
-#include "wide-int.h"
 
 /* The order of the following headers is important for making sure
    decNumber structure is large enough to hold decimal128 digits.  */
 
 #include "decimal128.h"
-#include "decimal128Local.h"
 #include "decimal64.h"
 #include "decimal32.h"
-#include "decNumber.h"
 
 #ifndef WORDS_BIGENDIAN
 #define WORDS_BIGENDIAN 0
@@ -343,13 +339,13 @@ decode_decimal128 (const struct real_format *fmt ATTRIBUTE_UNUSED,
 
 static void
 decimal_to_binary (REAL_VALUE_TYPE *to, const REAL_VALUE_TYPE *from,
-		   enum machine_mode mode)
+		   const real_format *fmt)
 {
   char string[256];
   const decimal128 *const d128 = (const decimal128 *) from->sig;
 
   decimal128ToString (d128, string);
-  real_from_string3 (to, string, mode);
+  real_from_string3 (to, string, fmt);
 }
 
 
@@ -459,15 +455,13 @@ decimal_round_for_format (const struct real_format *fmt, REAL_VALUE_TYPE *r)
    binary and decimal types.  */
 
 void
-decimal_real_convert (REAL_VALUE_TYPE *r, enum machine_mode mode,
+decimal_real_convert (REAL_VALUE_TYPE *r, const real_format *fmt,
 		      const REAL_VALUE_TYPE *a)
 {
-  const struct real_format *fmt = REAL_MODE_FORMAT (mode);
-
   if (a->decimal && fmt->b == 10)
     return;
   if (a->decimal)
-      decimal_to_binary (r, a, mode);
+      decimal_to_binary (r, a, fmt);
   else
       decimal_from_binary (r, a);
 }
@@ -720,19 +714,19 @@ decimal_real_arithmetic (REAL_VALUE_TYPE *r, enum tree_code code,
    If SIGN is nonzero, R is set to the most negative finite value.  */
 
 void
-decimal_real_maxval (REAL_VALUE_TYPE *r, int sign, enum machine_mode mode)
+decimal_real_maxval (REAL_VALUE_TYPE *r, int sign, machine_mode mode)
 {
   const char *max;
 
   switch (mode)
     {
-    case SDmode:
+    case E_SDmode:
       max = "9.999999E96";
       break;
-    case DDmode:
+    case E_DDmode:
       max = "9.999999999999999E384";
       break;
-    case TDmode:
+    case E_TDmode:
       max = "9.999999999999999999999999999999999E6144";
       break;
     default:

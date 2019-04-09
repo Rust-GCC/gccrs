@@ -39,9 +39,12 @@ proc load_gcc_lib { filename } {
     set loaded_libs($filename) ""
 }
 
+load_gcc_lib multiline.exp
 load_gcc_lib prune.exp
 load_gcc_lib target-libpath.exp
 load_gcc_lib wrapper.exp
+load_gcc_lib target-supports.exp
+load_gcc_lib target-utils.exp
 load_gcc_lib gcc-defs.exp
 load_gcc_lib timeout.exp
 load_gcc_lib go.exp

@@ -1,17 +1,14 @@
 /* This file is used to reduce a number of runtime tests for AVX512F
-   instructions.  Idea is to create one file per instruction -
+   and AVX512VL instructions.  Idea is to create one file per instruction -
    avx512f-insn-2.c - using defines from this file instead of intrinsic
    name, vector length etc.  Then dg-options are set with appropriate
    -Dwhatever options in that .c file producing tests for specific
    length.  */
 
-#if defined (AVX512F)
-#include "avx512f-check.h"
-#elif defined (AVX512ER)
-#include "avx512er-check.h"
-#elif defined (AVX512CD)
-#include "avx512cd-check.h"
-#endif
+#ifndef AVX512F_HELPER_INCLUDED
+#define AVX512F_HELPER_INCLUDED
+
+#include "avx512-check.h"
 
 /* Macros expansion.  */
 #define CONCAT(a,b,c) a ## b ## c
@@ -20,7 +17,9 @@
 /* Value to be written into destination.
    We have one value for all types so it must be small enough
    to fit into signed char.  */
+#ifndef DEFAULT_VALUE
 #define DEFAULT_VALUE 117
+#endif
 
 #define MAKE_MASK_MERGE(NAME, TYPE)				      \
 static void							      \
@@ -73,8 +72,7 @@ MAKE_MASK_ZERO(i_uq, unsigned long long)
 
 #define MASK_ZERO(TYPE) zero_masking_##TYPE
 
-/* Intrinsic being tested.  */
-#define INTRINSIC(NAME) EVAL(_mm, AVX512F_LEN, NAME)
+
 /* Unions used for testing (for example union512d, union256d etc.).  */
 #define UNION_TYPE(SIZE, NAME) EVAL(union, SIZE, NAME)
 /* Corresponding union check.  */
@@ -89,18 +87,22 @@ MAKE_MASK_ZERO(i_uq, unsigned long long)
 /* Function which calculates result.  */
 #define CALC EVAL(calc_, AVX512F_LEN,)
 
+#ifndef AVX512VL
 #define AVX512F_LEN 512
 #define AVX512F_LEN_HALF 256
+#endif
 
-void test_512 ();
+#endif /* AVX512F_HELPER_INCLUDED */
 
-#if defined (AVX512F)
-void
-avx512f_test (void) { test_512 (); }
-#elif defined (AVX512CD)
-void
-avx512cd_test (void) { test_512 (); }
-#elif defined (AVX512ER)
-void
-avx512er_test (void) { test_512 (); }
+/* Intrinsic being tested. It has different deffinitions,
+   depending on AVX512F_LEN, so it's outside include guards
+   and in undefed away to silence warnings.  */
+#if defined INTRINSIC
+#undef INTRINSIC
+#endif
+
+#if AVX512F_LEN != 128
+#define INTRINSIC(NAME) EVAL(_mm, AVX512F_LEN, NAME)
+#else
+#define INTRINSIC(NAME) _mm ## NAME
 #endif

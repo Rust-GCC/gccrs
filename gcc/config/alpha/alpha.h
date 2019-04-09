@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for DEC Alpha.
-   Copyright (C) 1992-2014 Free Software Foundation, Inc.
+   Copyright (C) 1992-2019 Free Software Foundation, Inc.
    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
 
 This file is part of GCC.
@@ -289,7 +289,6 @@ extern enum alpha_fp_trap_mode alpha_fptm;
 /* ??? Only if block-move stuff knows about different source/destination
    alignment.  */
 #if 0
-#define CONSTANT_ALIGNMENT(EXP, ALIGN) MAX ((ALIGN), BITS_PER_WORD)
 #define DATA_ALIGNMENT(EXP, ALIGN) MAX ((ALIGN), BITS_PER_WORD)
 #endif
 
@@ -299,12 +298,6 @@ extern enum alpha_fp_trap_mode alpha_fptm;
    Since we get an error message when we do one, call them invalid.  */
 
 #define STRICT_ALIGNMENT 1
-
-/* Set this nonzero if unaligned move instructions are extremely slow.
-
-   On the Alpha, they trap.  */
-
-#define SLOW_UNALIGNED_ACCESS(MODE, ALIGN) 1
 
 /* Standard register usage.  */
 
@@ -376,35 +369,6 @@ extern enum alpha_fp_trap_mode alpha_fptm;
 									\
    29, 30, 31, 63		/* gp, sp, ap, sfp */			\
 }
-
-/* Return number of consecutive hard regs needed starting at reg REGNO
-   to hold something of mode MODE.
-   This is ordinarily the length in words of a value of mode MODE
-   but can be less for certain modes in special long registers.  */
-
-#define HARD_REGNO_NREGS(REGNO, MODE)   \
-  ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
-
-/* Value is 1 if hard register REGNO can hold a value of machine-mode MODE.
-   On Alpha, the integer registers can hold any mode.  The floating-point
-   registers can hold 64-bit integers as well, but not smaller values.  */
-
-#define HARD_REGNO_MODE_OK(REGNO, MODE) 				\
-  (IN_RANGE ((REGNO), 32, 62)						\
-   ? (MODE) == SFmode || (MODE) == DFmode || (MODE) == DImode		\
-     || (MODE) == SCmode || (MODE) == DCmode				\
-   : 1)
-
-/* A C expression that is nonzero if a value of mode
-   MODE1 is accessible in mode MODE2 without copying.
-
-   This asymmetric test is true when MODE1 could be put
-   in an FP register but MODE2 could not.  */
-
-#define MODES_TIEABLE_P(MODE1, MODE2) 				\
-  (HARD_REGNO_MODE_OK (32, (MODE1))				\
-   ? HARD_REGNO_MODE_OK (32, (MODE2))				\
-   : 1)
 
 /* Specify the registers used for certain standard purposes.
    The values of these macros are register numbers.  */
@@ -514,49 +478,6 @@ enum reg_class {
 
 #define PREFERRED_RELOAD_CLASS  alpha_preferred_reload_class
 
-/* If we are copying between general and FP registers, we need a memory
-   location unless the FIX extension is available.  */
-
-#define SECONDARY_MEMORY_NEEDED(CLASS1,CLASS2,MODE) \
- (! TARGET_FIX && (((CLASS1) == FLOAT_REGS && (CLASS2) != FLOAT_REGS) \
-                   || ((CLASS2) == FLOAT_REGS && (CLASS1) != FLOAT_REGS)))
-
-/* Specify the mode to be used for memory when a secondary memory
-   location is needed.  If MODE is floating-point, use it.  Otherwise,
-   widen to a word like the default.  This is needed because we always
-   store integers in FP registers in quadword format.  This whole
-   area is very tricky! */
-#define SECONDARY_MEMORY_NEEDED_MODE(MODE)		\
-  (GET_MODE_CLASS (MODE) == MODE_FLOAT ? (MODE)		\
-   : GET_MODE_SIZE (MODE) >= 4 ? (MODE)			\
-   : mode_for_size (BITS_PER_WORD, GET_MODE_CLASS (MODE), 0))
-
-/* Return the class of registers that cannot change mode from FROM to TO.  */
-
-#define CANNOT_CHANGE_MODE_CLASS(FROM, TO, CLASS)		\
-  (GET_MODE_SIZE (FROM) != GET_MODE_SIZE (TO)			\
-   ? reg_classes_intersect_p (FLOAT_REGS, CLASS) : 0)
-
-/* Define the cost of moving between registers of various classes.  Moving
-   between FLOAT_REGS and anything else except float regs is expensive.
-   In fact, we make it quite expensive because we really don't want to
-   do these moves unless it is clearly worth it.  Optimizations may
-   reduce the impact of not being able to allocate a pseudo to a
-   hard register.  */
-
-#define REGISTER_MOVE_COST(MODE, CLASS1, CLASS2)		\
-  (((CLASS1) == FLOAT_REGS) == ((CLASS2) == FLOAT_REGS)	? 2	\
-   : TARGET_FIX ? ((CLASS1) == FLOAT_REGS ? 6 : 8)		\
-   : 4+2*alpha_memory_latency)
-
-/* A C expressions returning the cost of moving data of MODE from a register to
-   or from memory.
-
-   On the Alpha, bump this up a bit.  */
-
-extern int alpha_memory_latency;
-#define MEMORY_MOVE_COST(MODE,CLASS,IN)  (2*alpha_memory_latency)
-
 /* Provide the cost of a branch.  Exact meaning under development.  */
 #define BRANCH_COST(speed_p, predictable_p) 5
 
@@ -564,20 +485,13 @@ extern int alpha_memory_latency;
 
 /* Define this if pushing a word on the stack
    makes the stack pointer a smaller address.  */
-#define STACK_GROWS_DOWNWARD
+#define STACK_GROWS_DOWNWARD 1
 
 /* Define this to nonzero if the nominal address of the stack frame
    is at the high-address end of the local variables;
    that is, each additional local variable allocated
    goes at a more negative offset in the frame.  */
 /* #define FRAME_GROWS_DOWNWARD 0 */
-
-/* Offset within stack frame to start allocating local variables at.
-   If FRAME_GROWS_DOWNWARD, this is the offset to the END of the
-   first local allocated.  Otherwise, it is the offset to the BEGINNING
-   of the first local allocated.  */
-
-#define STARTING_FRAME_OFFSET 0
 
 /* If we generate an insn to push BYTES bytes,
    this says how many the stack pointer really advances by.
@@ -615,7 +529,7 @@ extern int alpha_memory_latency;
  { FRAME_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM}}
 
 /* Round up to a multiple of 16 bytes.  */
-#define ALPHA_ROUND(X) (((X) + 15) & ~ 15)
+#define ALPHA_ROUND(X) ROUND_UP ((X), 16)
 
 /* Define the offset between two registers, one to be eliminated, and the other
    its replacement, at the start of a routine.  */
@@ -625,29 +539,6 @@ extern int alpha_memory_latency;
 /* Define this if stack space is still allocated for a parameter passed
    in a register.  */
 /* #define REG_PARM_STACK_SPACE */
-
-/* Define how to find the value returned by a function.
-   VALTYPE is the data type of the value (as a tree).
-   If the precise function being called is known, FUNC is its FUNCTION_DECL;
-   otherwise, FUNC is 0.
-
-   On Alpha the value is found in $0 for integer functions and
-   $f0 for floating-point functions.  */
-
-#define FUNCTION_VALUE(VALTYPE, FUNC) \
-  function_value (VALTYPE, FUNC, VOIDmode)
-
-/* Define how to find the value returned by a library function
-   assuming the value has mode MODE.  */
-
-#define LIBCALL_VALUE(MODE) \
-  function_value (NULL, NULL, MODE)
-
-/* 1 if N is a possible register number for a function value
-   as seen by the caller.  */
-
-#define FUNCTION_VALUE_REGNO_P(N)  \
-  ((N) == 0 || (N) == 1 || (N) == 32 || (N) == 33)
 
 /* 1 if N is a possible register number for function argument passing.
    On Alpha, these are $16-$21 and $f16-$f21.  */
@@ -674,13 +565,15 @@ extern int alpha_memory_latency;
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, INDIRECT, N_NAMED_ARGS) \
   (CUM) = 0
 
-/* Define intermediate macro to compute the size (in registers) of an argument
-   for the Alpha.  */
+/* Define intermediate macro to compute
+   the size (in registers) of an argument.  */
 
-#define ALPHA_ARG_SIZE(MODE, TYPE, NAMED)				\
+#define ALPHA_ARG_SIZE(MODE, TYPE)					\
   ((MODE) == TFmode || (MODE) == TCmode ? 1				\
-   : (((MODE) == BLKmode ? int_size_in_bytes (TYPE) : GET_MODE_SIZE (MODE)) \
-      + (UNITS_PER_WORD - 1)) / UNITS_PER_WORD)
+   : CEIL (((MODE) == BLKmode						\
+	    ? int_size_in_bytes (TYPE)					\
+	    : GET_MODE_SIZE (MODE)),					\
+	   UNITS_PER_WORD))
 
 /* Make (or fake) .linkage entry for function call.
    IS_LOCAL is 0 if name is used in call, 1 if name is used in definition.  */
@@ -785,7 +678,7 @@ extern int alpha_memory_latency;
 
 #define CONSTANT_ADDRESS_P(X)   \
   (CONST_INT_P (X)		\
-   && (unsigned HOST_WIDE_INT) (INTVAL (X) + 0x8000) < 0x10000)
+   && (UINTVAL (X) + 0x8000) < 0x10000)
 
 /* The macros REG_OK_FOR..._P assume that the arg is a REG rtx
    and check its validity for a certain class.
@@ -888,7 +781,7 @@ do {									     \
 
 /* Define if operations between registers always perform the operation
    on the full register even if a narrower mode is specified.  */
-#define WORD_REGISTER_OPERATIONS
+#define WORD_REGISTER_OPERATIONS 1
 
 /* Define if loading in MODE, an integral mode narrower than BITS_PER_WORD
    will either zero-extend or sign-extend.  The value of this macro should
@@ -897,11 +790,7 @@ do {									     \
 #define LOAD_EXTEND_OP(MODE) ((MODE) == SImode ? SIGN_EXTEND : ZERO_EXTEND)
 
 /* Define if loading short immediate values into registers sign extends.  */
-#define SHORT_IMMEDIATES_SIGN_EXTEND
-
-/* Value is 1 if truncating an integer of INPREC bits to OUTPREC bits
-   is done just by pretending it is already truncated.  */
-#define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC) 1
+#define SHORT_IMMEDIATES_SIGN_EXTEND 1
 
 /* The CIX ctlz and cttz instructions return 64 for zero.  */
 #define CLZ_DEFINED_VALUE_AT_ZERO(MODE, VALUE)  ((VALUE) = 64, \
@@ -933,7 +822,7 @@ do {									     \
    then copy it into a register, thus actually letting the address be
    cse'ed.  */
 
-#define NO_FUNCTION_CSE
+#define NO_FUNCTION_CSE 1
 
 /* Define this to be nonzero if shift instructions ignore all but the low-order
    few bits.  */
@@ -1003,37 +892,6 @@ do {						\
 #define ASM_OUTPUT_ADDR_DIFF_ELT(FILE, BODY, VALUE, REL) \
   fprintf (FILE, "\t.gprel32 $L%d\n", (VALUE))
 
-
-/* Print operand X (an rtx) in assembler syntax to file FILE.
-   CODE is a letter or dot (`z' in `%z0') or 0 if no letter was specified.
-   For `%' followed by punctuation, CODE is the punctuation and X is null.  */
-
-#define PRINT_OPERAND(FILE, X, CODE)  print_operand (FILE, X, CODE)
-
-/* Determine which codes are valid without a following integer.  These must
-   not be alphabetic.
-
-   ~    Generates the name of the current function.
-
-   /	Generates the instruction suffix.  The TRAP_SUFFIX and ROUND_SUFFIX
-	attributes are examined to determine what is appropriate.
-
-   ,    Generates single precision suffix for floating point
-	instructions (s for IEEE, f for VAX)
-
-   -	Generates double precision suffix for floating point
-	instructions (t for IEEE, g for VAX)
-   */
-
-#define PRINT_OPERAND_PUNCT_VALID_P(CODE) \
-  ((CODE) == '/' || (CODE) == ',' || (CODE) == '-' || (CODE) == '~' \
-   || (CODE) == '#' || (CODE) == '*' || (CODE) == '&')
-
-/* Print a memory address as an operand to reference that memory location.  */
-
-#define PRINT_OPERAND_ADDRESS(FILE, ADDR) \
-  print_operand_address((FILE), (ADDR))
-
 /* If we use NM, pass -g to it so it only lists globals.  */
 #define NM_FLAGS "-pg"
 
@@ -1064,5 +922,4 @@ extern long alpha_auto_offset;
 /* By default, turn on GDB extensions.  */
 #define DEFAULT_GDB_EXTENSIONS 1
 
-/* The system headers under Alpha systems are generally C++-aware.  */
-#define NO_IMPLICIT_EXTERN_C
+#define TARGET_SUPPORTS_WIDE_INT 1

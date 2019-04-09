@@ -1,5 +1,5 @@
 /* Functions for high level gimple building routines.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,14 +20,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "backend.h"
 #include "tree.h"
-#include "stringpool.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "is-a.h"
 #include "gimple.h"
+#include "stringpool.h"
+#include "tree-vrp.h"
 #include "tree-ssanames.h"
 
 
@@ -51,17 +48,17 @@ get_expr_type (enum tree_code code, tree op)
    the expression code for the RHS.  OP1 is the first operand and VAL
    is an integer value to be used as the second operand.  */
 
-gimple
+gassign *
 build_assign (enum tree_code code, tree op1, int val, tree lhs)
 {
   tree op2 = build_int_cst (TREE_TYPE (op1), val);
   if (lhs == NULL_TREE)
-    lhs = make_ssa_name (get_expr_type (code, op1), NULL);
-  return gimple_build_assign_with_ops (code, lhs, op1, op2);
+    lhs = make_ssa_name (get_expr_type (code, op1));
+  return gimple_build_assign (lhs, code, op1, op2);
 }
 
-gimple
-build_assign (enum tree_code code, gimple g, int val, tree lhs )
+gassign *
+build_assign (enum tree_code code, gimple *g, int val, tree lhs )
 {
   return build_assign (code, gimple_assign_lhs (g), val, lhs);
 }
@@ -75,28 +72,28 @@ build_assign (enum tree_code code, gimple g, int val, tree lhs )
    in normal form depending on the type of builder invoking this
    function.  */
 
-gimple
+gassign *
 build_assign (enum tree_code code, tree op1, tree op2, tree lhs)
 {
   if (lhs == NULL_TREE)
-    lhs = make_ssa_name (get_expr_type (code, op1), NULL);
-  return gimple_build_assign_with_ops (code, lhs, op1, op2);
+    lhs = make_ssa_name (get_expr_type (code, op1));
+  return gimple_build_assign (lhs, code, op1, op2);
 }
 
-gimple
-build_assign (enum tree_code code, gimple op1, tree op2, tree lhs)
+gassign *
+build_assign (enum tree_code code, gimple *op1, tree op2, tree lhs)
 {
   return build_assign (code, gimple_assign_lhs (op1), op2, lhs);
 }
 
-gimple
-build_assign (enum tree_code code, tree op1, gimple op2, tree lhs)
+gassign *
+build_assign (enum tree_code code, tree op1, gimple *op2, tree lhs)
 {
   return build_assign (code, op1, gimple_assign_lhs (op2), lhs);
 }
 
-gimple
-build_assign (enum tree_code code, gimple op1, gimple op2, tree lhs)
+gassign *
+build_assign (enum tree_code code, gimple *op1, gimple *op2, tree lhs)
 {
   return build_assign (code, gimple_assign_lhs (op1), gimple_assign_lhs (op2),
                        lhs);
@@ -106,16 +103,16 @@ build_assign (enum tree_code code, gimple op1, gimple op2, tree lhs)
 /* Create and return a type cast assignment. This creates a NOP_EXPR
    that converts OP to TO_TYPE.  */
 
-gimple
+gassign *
 build_type_cast (tree to_type, tree op, tree lhs)
 {
   if (lhs == NULL_TREE)
-    lhs = make_ssa_name (to_type, NULL);
-  return gimple_build_assign_with_ops (NOP_EXPR, lhs, op, NULL_TREE);
+    lhs = make_ssa_name (to_type);
+  return gimple_build_assign (lhs, NOP_EXPR, op);
 }
 
-gimple
-build_type_cast (tree to_type, gimple op, tree lhs)
+gassign *
+build_type_cast (tree to_type, gimple *op, tree lhs)
 {
   return build_type_cast (to_type, gimple_assign_lhs (op), lhs);
 }

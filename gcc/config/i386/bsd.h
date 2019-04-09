@@ -1,7 +1,7 @@
 /* Definitions for BSD assembler syntax for Intel 386
    (actually AT&T syntax for insns and operands,
    adapted to BSD conventions for symbol names and debugging.)
-   Copyright (C) 1988-2014 Free Software Foundation, Inc.
+   Copyright (C) 1988-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -46,7 +46,7 @@ along with GCC; see the file COPYING3.  If not see
    that says to advance the location counter by SIZE bytes.  */
 
 #define ASM_OUTPUT_SKIP(FILE,SIZE)  \
-  fprintf (FILE, "\t.space "HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE))
+  fprintf (FILE, "\t.space " HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE))
 
 /* Define the syntax of labels and symbol definitions/declarations.  */
 

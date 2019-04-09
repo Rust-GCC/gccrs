@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-vrp1" } */
+/* { dg-options "-O2 -fdisable-tree-evrp -fdump-tree-vrp1" } */
 
 struct A
 {
@@ -33,4 +33,3 @@ foo (struct A *p, struct A *q)
 
 /* { dg-final { scan-tree-dump-times "Folding predicate q_.*to 1" 1 "vrp1" } } */
 /* { dg-final { scan-tree-dump-times "Folding predicate r_.*to 1" 1 "vrp1" } } */
-/* { dg-final { cleanup-tree-dump "vrp1" } } */

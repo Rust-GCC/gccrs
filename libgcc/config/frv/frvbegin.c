@@ -1,5 +1,5 @@
 /* Frv initialization file linked before all user modules
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
     Contributed by Red Hat, Inc.
   
    This file is part of GCC.
@@ -26,7 +26,6 @@
    This file was originally taken from the file crtstuff.c in the
    main compiler directory, and simplified.  */
 
-#include "defaults.h"
 #include <stddef.h>
 #include "../libgcc/unwind-dw2-fde.h"
 #include "gbl-ctors.h"

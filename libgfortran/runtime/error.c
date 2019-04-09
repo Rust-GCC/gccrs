@@ -1,4 +1,4 @@
-/* Copyright (C) 2002-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of the GNU Fortran runtime library (libgfortran).
@@ -24,6 +24,9 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 
 #include "libgfortran.h"
+#include "io.h"
+#include "async.h"
+
 #include <assert.h>
 #include <string.h>
 #include <errno.h>
@@ -33,8 +36,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include <unistd.h>
 #endif
 
-#include <stdlib.h>
-
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
@@ -43,6 +44,13 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    around PR 30518; otherwise, MacOS 10.3.9 headers are just broken.  */
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
+#endif
+
+
+#include <locale.h>
+
+#ifdef HAVE_XLOCALE_H
+#include <xlocale.h>
 #endif
 
 
@@ -67,15 +75,17 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
    2.3.5 also explains how co-images synchronize during termination.
 
-   In libgfortran we have two ways of ending a program. exit(code) is
-   a normal exit; calling exit() also causes open units to be
-   closed. No backtrace or core dump is needed here. When something
-   goes wrong, we have sys_abort() which tries to print the backtrace
-   if -fbacktrace is enabled, and then dumps core; whether a core file
-   is generated is system dependent. When aborting, we don't flush and
-   close open units, as program memory might be corrupted and we'd
-   rather risk losing dirty data in the buffers rather than corrupting
-   files on disk.
+   In libgfortran we have three ways of ending a program. exit(code)
+   is a normal exit; calling exit() also causes open units to be
+   closed. No backtrace or core dump is needed here.  For error
+   termination, we have exit_error(status), which prints a backtrace
+   if backtracing is enabled, then exits.  Finally, when something
+   goes terribly wrong, we have sys_abort() which tries to print the
+   backtrace if -fbacktrace is enabled, and then dumps core; whether a
+   core file is generated is system dependent. When aborting, we don't
+   flush and close open units, as program memory might be corrupted
+   and we'd rather risk losing dirty data in the buffers rather than
+   corrupting files on disk.
 
 */
 
@@ -104,52 +114,71 @@ estr_write (const char *str)
 }
 
 
-/* st_vprintf()-- vsnprintf-like function for error output.  We use a
-   stack allocated buffer for formatting; since this function might be
-   called from within a signal handler, printing directly to stderr
-   with vfprintf is not safe since the stderr locking might lead to a
-   deadlock.  */
+/* Write a vector of strings to standard error.  This function is
+   async-signal-safe.  */
 
-#define ST_VPRINTF_SIZE 512
+ssize_t
+estr_writev (const struct iovec *iov, int iovcnt)
+{
+#ifdef HAVE_WRITEV
+  return writev (STDERR_FILENO, iov, iovcnt);
+#else
+  ssize_t w = 0;
+  for (int i = 0; i < iovcnt; i++)
+    {
+      ssize_t r = write (STDERR_FILENO, iov[i].iov_base, iov[i].iov_len);
+      if (r == -1)
+	return r;
+      w += r;
+    }
+  return w;
+#endif
+}
 
-int
-st_vprintf (const char *format, va_list ap)
+
+#ifndef HAVE_VSNPRINTF
+static int
+gf_vsnprintf (char *str, size_t size, const char *format, va_list ap)
 {
   int written;
-  char buffer[ST_VPRINTF_SIZE];
 
-#ifdef HAVE_VSNPRINTF
-  written = vsnprintf(buffer, ST_VPRINTF_SIZE, format, ap);
-#else
   written = vsprintf(buffer, format, ap);
 
-  if (written >= ST_VPRINTF_SIZE - 1)
+  if (written >= size - 1)
     {
       /* The error message was longer than our buffer.  Ouch.  Because
 	 we may have messed up things badly, report the error and
 	 quit.  */
-#define ERROR_MESSAGE "Internal error: buffer overrun in st_vprintf()\n"
-      write (STDERR_FILENO, buffer, ST_VPRINTF_SIZE - 1);
-      write (STDERR_FILENO, ERROR_MESSAGE, strlen(ERROR_MESSAGE));
+#define ERROR_MESSAGE "Internal error: buffer overrun in gf_vsnprintf()\n"
+      write (STDERR_FILENO, buffer, size - 1);
+      write (STDERR_FILENO, ERROR_MESSAGE, strlen (ERROR_MESSAGE));
       sys_abort ();
 #undef ERROR_MESSAGE
 
     }
-#endif
-
-  written = write (STDERR_FILENO, buffer, written);
   return written;
 }
 
+#define vsnprintf gf_vsnprintf
+#endif
+
+
+/* printf() like function for for printing to stderr.  Uses a stack
+   allocated buffer and doesn't lock stderr, so it should be safe to
+   use from within a signal handler.  */
+
+#define ST_ERRBUF_SIZE 512
 
 int
 st_printf (const char * format, ...)
 {
+  char buffer[ST_ERRBUF_SIZE];
   int written;
   va_list ap;
   va_start (ap, format);
-  written = st_vprintf (format, ap);
+  written = vsnprintf (buffer, ST_ERRBUF_SIZE, format, ap);
   va_end (ap);
+  written = write (STDERR_FILENO, buffer, written);
   return written;
 }
 
@@ -166,12 +195,29 @@ sys_abort (void)
       || (options.backtrace == -1 && compile_options.backtrace == 1))
     {
       estr_write ("\nProgram aborted. Backtrace:\n");
-      backtrace ();
+      show_backtrace (false);
       signal (SIGABRT, SIG_DFL);
     }
 
   abort();
 }
+
+
+/* Exit in case of error termination. If backtracing is enabled, print
+   backtrace, then exit.  */
+
+void
+exit_error (int status)
+{
+  if (options.backtrace == 1
+      || (options.backtrace == -1 && compile_options.backtrace == 1))
+    {
+      estr_write ("\nError termination. Backtrace:\n");
+      show_backtrace (false);
+    }
+  exit (status);
+}
+
 
 
 /* gfc_xtoa()-- Integer to hexadecimal conversion.  */
@@ -204,14 +250,34 @@ gfc_xtoa (GFC_UINTEGER_LARGEST n, char *buffer, size_t len)
 }
 
 
-/* Hopefully thread-safe wrapper for a strerror_r() style function.  */
+/* Hopefully thread-safe wrapper for a strerror() style function.  */
 
 char *
 gf_strerror (int errnum, 
              char * buf __attribute__((unused)), 
 	     size_t buflen __attribute__((unused)))
 {
-#ifdef HAVE_STRERROR_R
+#ifdef HAVE_STRERROR_L
+  locale_t myloc = newlocale (LC_CTYPE_MASK | LC_MESSAGES_MASK, "",
+			      (locale_t) 0);
+  char *p;
+  if (myloc)
+    {
+      p = strerror_l (errnum, myloc);
+      freelocale (myloc);
+    }
+  else
+    /* newlocale might fail e.g. due to running out of memory, fall
+       back to the simpler strerror.  */
+    p = strerror (errnum);
+  return p;
+#elif defined(HAVE_STRERROR_R)
+#ifdef HAVE_USELOCALE
+  /* Some targets (Darwin at least) have the POSIX 2008 extended
+     locale functions, but not strerror_l.  So reset the per-thread
+     locale here.  */
+  uselocale (LC_GLOBAL_LOCALE);
+#endif
   /* POSIX returns an "int", GNU a "char*".  */
   return
     __builtin_choose_expr (__builtin_classify_type (strerror_r (0, buf, 0))
@@ -266,21 +332,50 @@ show_locus (st_parameter_common *cmp)
 
 /* recursion_check()-- It's possible for additional errors to occur
  * during fatal error processing.  We detect this condition here and
- * exit with code 4 immediately. */
+ * abort immediately. */
 
-#define MAGIC 0x20DE8101
+static __gthread_key_t recursion_key;
 
 static void
 recursion_check (void)
 {
-  static int magic = 0;
-
-  /* Don't even try to print something at this point */
-  if (magic == MAGIC)
-    sys_abort ();
-
-  magic = MAGIC;
+  if (__gthread_active_p ())
+    {
+      bool* p = __gthread_getspecific (recursion_key);
+      if (!p)
+        {
+          p = xcalloc (1, sizeof (bool));
+          __gthread_setspecific (recursion_key, p);
+        }
+      if (*p)
+	sys_abort ();
+      *p = true;
+    }
+  else
+    {
+      static bool recur;
+      if (recur)
+	sys_abort ();
+      recur = true;
+    }
 }
+
+#ifdef __GTHREADS
+static void __attribute__((constructor))
+constructor_recursion_check (void)
+{
+  if (__gthread_active_p ())
+    __gthread_key_create (&recursion_key, &free);
+}
+
+static void __attribute__((destructor))
+destructor_recursion_check (void)
+{
+  if (__gthread_active_p ())
+    __gthread_key_delete (recursion_key);
+}
+#endif
+
 
 
 #define STRERR_MAXSZ 256
@@ -293,13 +388,20 @@ void
 os_error (const char *message)
 {
   char errmsg[STRERR_MAXSZ];
+  struct iovec iov[5];
   recursion_check ();
-  estr_write ("Operating system error: ");
-  estr_write (gf_strerror (errno, errmsg, STRERR_MAXSZ));
-  estr_write ("\n");
-  estr_write (message);
-  estr_write ("\n");
-  exit (1);
+  iov[0].iov_base = (char*) "Operating system error: ";
+  iov[0].iov_len = strlen (iov[0].iov_base);
+  iov[1].iov_base = gf_strerror (errno, errmsg, STRERR_MAXSZ);
+  iov[1].iov_len = strlen (iov[1].iov_base);
+  iov[2].iov_base = (char*) "\n";
+  iov[2].iov_len = 1;
+  iov[3].iov_base = (char*) message;
+  iov[3].iov_len = strlen (message);
+  iov[4].iov_base = (char*) "\n";
+  iov[4].iov_len = 1;
+  estr_writev (iov, 5);
+  exit_error (1);
 }
 iexport(os_error);
 
@@ -310,15 +412,26 @@ iexport(os_error);
 void
 runtime_error (const char *message, ...)
 {
+  char buffer[ST_ERRBUF_SIZE];
+  struct iovec iov[3];
   va_list ap;
+  int written;
 
   recursion_check ();
-  estr_write ("Fortran runtime error: ");
+  iov[0].iov_base = (char*) "Fortran runtime error: ";
+  iov[0].iov_len = strlen (iov[0].iov_base);
   va_start (ap, message);
-  st_vprintf (message, ap);
+  written = vsnprintf (buffer, ST_ERRBUF_SIZE, message, ap);
   va_end (ap);
-  estr_write ("\n");
-  exit (2);
+  if (written >= 0)
+    {
+      iov[1].iov_base = buffer;
+      iov[1].iov_len = written;
+      iov[2].iov_base = (char*) "\n";
+      iov[2].iov_len = 1;
+      estr_writev (iov, 3);
+    }
+  exit_error (2);
 }
 iexport(runtime_error);
 
@@ -328,16 +441,28 @@ iexport(runtime_error);
 void
 runtime_error_at (const char *where, const char *message, ...)
 {
+  char buffer[ST_ERRBUF_SIZE];
   va_list ap;
+  struct iovec iov[4];
+  int written;
 
   recursion_check ();
-  estr_write (where);
-  estr_write ("\nFortran runtime error: ");
+  iov[0].iov_base = (char*) where;
+  iov[0].iov_len = strlen (where);
+  iov[1].iov_base = (char*) "\nFortran runtime error: ";
+  iov[1].iov_len = strlen (iov[1].iov_base);
   va_start (ap, message);
-  st_vprintf (message, ap);
+  written = vsnprintf (buffer, ST_ERRBUF_SIZE, message, ap);
   va_end (ap);
-  estr_write ("\n");
-  exit (2);
+  if (written >= 0)
+    {
+      iov[2].iov_base = buffer;
+      iov[2].iov_len = written;
+      iov[3].iov_base = (char*) "\n";
+      iov[3].iov_len = 1;
+      estr_writev (iov, 4);
+    }
+  exit_error (2);
 }
 iexport(runtime_error_at);
 
@@ -345,14 +470,26 @@ iexport(runtime_error_at);
 void
 runtime_warning_at (const char *where, const char *message, ...)
 {
+  char buffer[ST_ERRBUF_SIZE];
   va_list ap;
+  struct iovec iov[4];
+  int written;
 
-  estr_write (where);
-  estr_write ("\nFortran runtime warning: ");
+  iov[0].iov_base = (char*) where;
+  iov[0].iov_len = strlen (where);
+  iov[1].iov_base = (char*) "\nFortran runtime warning: ";
+  iov[1].iov_len = strlen (iov[1].iov_base);
   va_start (ap, message);
-  st_vprintf (message, ap);
+  written = vsnprintf (buffer, ST_ERRBUF_SIZE, message, ap);
   va_end (ap);
-  estr_write ("\n");
+  if (written >= 0)
+    {
+      iov[2].iov_base = buffer;
+      iov[2].iov_len = written;
+      iov[3].iov_base = (char*) "\n";
+      iov[3].iov_len = 1;
+      estr_writev (iov, 4);
+    }
 }
 iexport(runtime_warning_at);
 
@@ -363,11 +500,17 @@ iexport(runtime_warning_at);
 void
 internal_error (st_parameter_common *cmp, const char *message)
 {
+  struct iovec iov[3];
+
   recursion_check ();
   show_locus (cmp);
-  estr_write ("Internal Error: ");
-  estr_write (message);
-  estr_write ("\n");
+  iov[0].iov_base = (char*) "Internal Error: ";
+  iov[0].iov_len = strlen (iov[0].iov_base);
+  iov[1].iov_base = (char*) message;
+  iov[1].iov_len = strlen (message);
+  iov[2].iov_base = (char*) "\n";
+  iov[2].iov_len = 1;
+  estr_writev (iov, 3);
 
   /* This function call is here to get the main.o object file included
      when linking statically. This works because error.o is supposed to
@@ -375,7 +518,7 @@ internal_error (st_parameter_common *cmp, const char *message)
      because hopefully it doesn't happen too often).  */
   stupid_function_name_for_static_linking();
 
-  exit (3);
+ exit_error (3);
 }
 
 
@@ -469,6 +612,10 @@ translate_error (int code)
       p = "Unformatted file structure has been corrupted";
       break;
 
+    case LIBERROR_INQUIRE_INTERNAL_UNIT:
+      p = "Inquire statement identifies an internal file";
+      break;
+
     default:
       p = "Unknown error code";
       break;
@@ -478,24 +625,41 @@ translate_error (int code)
 }
 
 
-/* generate_error()-- Come here when an error happens.  This
- * subroutine is called if it is possible to continue on after the error.
- * If an IOSTAT or IOMSG variable exists, we set it.  If IOSTAT or
- * ERR labels are present, we return, otherwise we terminate the program
- * after printing a message.  The error code is always required but the
- * message parameter can be NULL, in which case a string describing
- * the most recent operating system error is used. */
+/* Worker function for generate_error and generate_error_async.  Return true
+   if a straight return is to be done, zero if the program should abort. */
 
-void
-generate_error (st_parameter_common *cmp, int family, const char *message)
+bool
+generate_error_common (st_parameter_common *cmp, int family, const char *message)
 {
   char errmsg[STRERR_MAXSZ];
+
+#if ASYNC_IO
+  gfc_unit *u;
+
+  NOTE ("Entering generate_error_common");
+
+  u = thread_unit;
+  if (u && u->au)
+    {
+      if (u->au->error.has_error)
+	return true;
+
+      if (__gthread_equal (u->au->thread, __gthread_self ()))
+	{
+	  u->au->error.has_error = 1;
+	  u->au->error.cmp = cmp;
+	  u->au->error.family = family;
+	  u->au->error.message = message;
+	  return true;
+	}
+    }
+#endif
 
   /* If there was a previous error, don't mask it with another
      error message, EOF or EOR condition.  */
 
   if ((cmp->flags & IOPARM_LIBRETURN_MASK) == IOPARM_LIBRETURN_ERROR)
-    return;
+    return true;
 
   /* Set the error status.  */
   if ((cmp->flags & IOPARM_HAS_IOSTAT))
@@ -514,36 +678,61 @@ generate_error (st_parameter_common *cmp, int family, const char *message)
   switch (family)
     {
     case LIBERROR_EOR:
-      cmp->flags |= IOPARM_LIBRETURN_EOR;
+      cmp->flags |= IOPARM_LIBRETURN_EOR;  NOTE("EOR");
       if ((cmp->flags & IOPARM_EOR))
-	return;
+	return true;
       break;
 
     case LIBERROR_END:
-      cmp->flags |= IOPARM_LIBRETURN_END;
+      cmp->flags |= IOPARM_LIBRETURN_END; NOTE("END");
       if ((cmp->flags & IOPARM_END))
-	return;
+	return true;
       break;
 
     default:
-      cmp->flags |= IOPARM_LIBRETURN_ERROR;
+      cmp->flags |= IOPARM_LIBRETURN_ERROR; NOTE("ERROR");
       if ((cmp->flags & IOPARM_ERR))
-	return;
+	return true;
       break;
     }
 
   /* Return if the user supplied an iostat variable.  */
   if ((cmp->flags & IOPARM_HAS_IOSTAT))
-    return;
+    return true;
 
-  /* Terminate the program */
+  /* Return code, caller is responsible for terminating
+   the program if necessary.  */
 
   recursion_check ();
   show_locus (cmp);
-  estr_write ("Fortran runtime error: ");
-  estr_write (message);
-  estr_write ("\n");
-  exit (2);
+  struct iovec iov[3];
+  iov[0].iov_base = (char*) "Fortran runtime error: ";
+  iov[0].iov_len = strlen (iov[0].iov_base);
+  iov[1].iov_base = (char*) message;
+  iov[1].iov_len = strlen (message);
+  iov[2].iov_base = (char*) "\n";
+  iov[2].iov_len = 1;
+  estr_writev (iov, 3);
+  return false;
+}
+
+/* generate_error()-- Come here when an error happens.  This
+ * subroutine is called if it is possible to continue on after the error.
+ * If an IOSTAT or IOMSG variable exists, we set it.  If IOSTAT or
+ * ERR labels are present, we return, otherwise we terminate the program
+ * after printing a message.  The error code is always required but the
+ * message parameter can be NULL, in which case a string describing
+ * the most recent operating system error is used.
+ * If the error is for an asynchronous unit and if the program is currently
+ * executing the asynchronous thread, just mark the error and return.  */
+
+void
+generate_error (st_parameter_common *cmp, int family, const char *message)
+{
+  if (generate_error_common (cmp, family, message))
+    return;
+
+  exit_error(2);
 }
 iexport(generate_error);
 
@@ -557,9 +746,14 @@ generate_warning (st_parameter_common *cmp, const char *message)
     message = " ";
 
   show_locus (cmp);
-  estr_write ("Fortran runtime warning: ");
-  estr_write (message);
-  estr_write ("\n");
+  struct iovec iov[3];
+  iov[0].iov_base = (char*) "Fortran runtime warning: ";
+  iov[0].iov_len = strlen (iov[0].iov_base);
+  iov[1].iov_base = (char*) message;
+  iov[1].iov_len = strlen (message);
+  iov[2].iov_base = (char*) "\n";
+  iov[2].iov_len = 1;
+  estr_writev (iov, 3);
 }
 
 
@@ -590,6 +784,7 @@ bool
 notify_std (st_parameter_common *cmp, int std, const char * message)
 {
   int warning;
+  struct iovec iov[3];
 
   if (!compile_options.pedantic)
     return true;
@@ -602,17 +797,25 @@ notify_std (st_parameter_common *cmp, int std, const char * message)
     {
       recursion_check ();
       show_locus (cmp);
-      estr_write ("Fortran runtime error: ");
-      estr_write (message);
-      estr_write ("\n");
-      exit (2);
+      iov[0].iov_base = (char*) "Fortran runtime error: ";
+      iov[0].iov_len = strlen (iov[0].iov_base);
+      iov[1].iov_base = (char*) message;
+      iov[1].iov_len = strlen (message);
+      iov[2].iov_base = (char*) "\n";
+      iov[2].iov_len = 1;
+      estr_writev (iov, 3);
+      exit_error (2);
     }
   else
     {
       show_locus (cmp);
-      estr_write ("Fortran runtime warning: ");
-      estr_write (message);
-      estr_write ("\n");
+      iov[0].iov_base = (char*) "Fortran runtime warning: ";
+      iov[0].iov_len = strlen (iov[0].iov_base);
+      iov[1].iov_base = (char*) message;
+      iov[1].iov_len = strlen (message);
+      iov[2].iov_base = (char*) "\n";
+      iov[2].iov_len = 1;
+      estr_writev (iov, 3);
     }
   return false;
 }

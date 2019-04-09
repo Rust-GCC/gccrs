@@ -308,23 +308,41 @@ func TestReplacer(t *testing.T) {
 	}
 }
 
+var algorithmTestCases = []struct {
+	r    *Replacer
+	want string
+}{
+	{capitalLetters, "*strings.byteReplacer"},
+	{htmlEscaper, "*strings.byteStringReplacer"},
+	{NewReplacer("12", "123"), "*strings.singleStringReplacer"},
+	{NewReplacer("1", "12"), "*strings.byteStringReplacer"},
+	{NewReplacer("", "X"), "*strings.genericReplacer"},
+	{NewReplacer("a", "1", "b", "12", "cde", "123"), "*strings.genericReplacer"},
+}
+
 // TestPickAlgorithm tests that NewReplacer picks the correct algorithm.
 func TestPickAlgorithm(t *testing.T) {
-	testCases := []struct {
-		r    *Replacer
-		want string
-	}{
-		{capitalLetters, "*strings.byteReplacer"},
-		{htmlEscaper, "*strings.byteStringReplacer"},
-		{NewReplacer("12", "123"), "*strings.singleStringReplacer"},
-		{NewReplacer("1", "12"), "*strings.byteStringReplacer"},
-		{NewReplacer("", "X"), "*strings.genericReplacer"},
-		{NewReplacer("a", "1", "b", "12", "cde", "123"), "*strings.genericReplacer"},
-	}
-	for i, tc := range testCases {
+	for i, tc := range algorithmTestCases {
 		got := fmt.Sprintf("%T", tc.r.Replacer())
 		if got != tc.want {
 			t.Errorf("%d. algorithm = %s, want %s", i, got, tc.want)
+		}
+	}
+}
+
+type errWriter struct{}
+
+func (errWriter) Write(p []byte) (n int, err error) {
+	return 0, fmt.Errorf("unwritable")
+}
+
+// TestWriteStringError tests that WriteString returns an error
+// received from the underlying io.Writer.
+func TestWriteStringError(t *testing.T) {
+	for i, tc := range algorithmTestCases {
+		n, err := tc.r.WriteString(errWriter{}, "abc")
+		if n != 0 || err == nil || err.Error() != "unwritable" {
+			t.Errorf("%d. WriteStringError = %d, %v, want 0, unwritable", i, n, err)
 		}
 	}
 }
@@ -480,6 +498,24 @@ func BenchmarkHTMLEscapeOld(b *testing.B) {
 	}
 }
 
+func BenchmarkByteStringReplacerWriteString(b *testing.B) {
+	str := Repeat("I <3 to escape HTML & other text too.", 100)
+	buf := new(bytes.Buffer)
+	for i := 0; i < b.N; i++ {
+		htmlEscaper.WriteString(buf, str)
+		buf.Reset()
+	}
+}
+
+func BenchmarkByteReplacerWriteString(b *testing.B) {
+	str := Repeat("abcdefghijklmnopqrstuvwxyz", 100)
+	buf := new(bytes.Buffer)
+	for i := 0; i < b.N; i++ {
+		capitalLetters.WriteString(buf, str)
+		buf.Reset()
+	}
+}
+
 // BenchmarkByteByteReplaces compares byteByteImpl against multiple Replaces.
 func BenchmarkByteByteReplaces(b *testing.B) {
 	str := Repeat("a", 100) + Repeat("b", 100)
@@ -503,4 +539,45 @@ func BenchmarkByteByteMap(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		Map(fn, str)
 	}
+}
+
+var mapdata = []struct{ name, data string }{
+	{"ASCII", "a b c d e f g h i j k l m n o p q r s t u v w x y z"},
+	{"Greek", "α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ ς σ τ υ φ χ ψ ω"},
+}
+
+func BenchmarkMap(b *testing.B) {
+	mapidentity := func(r rune) rune {
+		return r
+	}
+
+	b.Run("identity", func(b *testing.B) {
+		for _, md := range mapdata {
+			b.Run(md.name, func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					Map(mapidentity, md.data)
+				}
+			})
+		}
+	})
+
+	mapchange := func(r rune) rune {
+		if 'a' <= r && r <= 'z' {
+			return r + 'A' - 'a'
+		}
+		if 'α' <= r && r <= 'ω' {
+			return r + 'Α' - 'α'
+		}
+		return r
+	}
+
+	b.Run("change", func(b *testing.B) {
+		for _, md := range mapdata {
+			b.Run(md.name, func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					Map(mapchange, md.data)
+				}
+			})
+		}
+	})
 }

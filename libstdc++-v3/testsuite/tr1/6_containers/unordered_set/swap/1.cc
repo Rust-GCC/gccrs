@@ -1,6 +1,6 @@
 // 2005-12-20  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,7 +28,6 @@
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
   using namespace std::tr1;
   using std::equal_to;
   using std::set;
@@ -60,7 +59,7 @@ test01()
   size01 = uset01.size();
   my_uset uset02(10, hash<char>(), equal_to<char>(), alloc01);
   size02 = uset02.size();
-  
+
   uset01.swap(uset02);
   VERIFY( uset01.size() == size02 );
   VERIFY( uset01.empty() );
@@ -72,20 +71,20 @@ test01()
   my_uset uset04(set02_ref.begin(), set02_ref.end(), 10, hash<char>(),
 		 equal_to<char>(), alloc01);
   size02 = uset04.size();
-  
+
   uset03.swap(uset04);
   VERIFY( uset03.size() == size02 );
   VERIFY( my_set(uset03.begin(), uset03.end()) == set02_ref );
   VERIFY( uset04.size() == size01 );
   VERIFY( uset04.empty() );
-  
+
   my_uset uset05(set01_ref.begin(), set01_ref.end(), 10, hash<char>(),
 		 equal_to<char>(), alloc01);
   size01 = uset05.size();
   my_uset uset06(set02_ref.begin(), set02_ref.end(), 10, hash<char>(),
 		 equal_to<char>(), alloc01);
   size02 = uset06.size();
-  
+
   uset05.swap(uset06);
   VERIFY( uset05.size() == size02 );
   VERIFY( my_set(uset05.begin(), uset05.end()) == set02_ref );
@@ -146,7 +145,7 @@ test01()
 }
 
 int main()
-{ 
+{
   test01();
   return 0;
 }

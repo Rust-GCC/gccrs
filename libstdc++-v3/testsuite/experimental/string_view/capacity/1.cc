@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++1y" }
+// { dg-do run { target c++14 } }
 
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -126,14 +126,12 @@ namespace std
 void
 test01()
 {
-  bool test [[gnu::unused]] = true;
-
   std::experimental::basic_string_view<A<B>> str02;
   typedef std::experimental::basic_string_view< A<B> >::size_type size_type_o;
   size_type_o sz03;
   size_type_o sz04;
 
-  // non-POD types: size, length, max_size, clear(), empty()
+  // non-POD types: size, length, max_size, empty()
   bool b01 = str02.empty();  
   VERIFY( b01 == true );
   sz03 = str02.size();
@@ -148,7 +146,7 @@ test01()
   VERIFY( sz03 >= sz04 );
 
   sz03 = str02.size();
-  str02.clear();  
+  str02 = {};
   b01 = str02.empty(); 
   VERIFY( b01 == true );
   sz04 = str02.size();  

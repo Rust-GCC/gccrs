@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -64,7 +64,7 @@ namespace __gnu_pbds
       {
 	std::cout << detail::make_xml_name_start_tag("cntnr");
 	std::cout << detail::make_xml_attrib_val("name", name);
-	std::cout << detail::make_xml_name_start_tag_end_delimiter();	
+	std::cout << detail::make_xml_name_start_tag_end_delimiter();
 	std::cout << make_xml_tag("desc", desc);
       }
 

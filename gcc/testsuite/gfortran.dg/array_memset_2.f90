@@ -25,13 +25,12 @@ program test
   d(:,1) = 0.    ! This can't be otimized to a memset.
   call bar(e)
 
-  if (any(a /= reshape((/ 0.0, 1.0, 0.0, 1.0/), shape(a)))) call abort
-  if (any(b /= 0.)) call abort
-  if (any(c /= 0.)) call abort
-  if (any(d /= reshape((/ 0.0, 0.0, 1.0, 1.0/), shape(d)))) call abort
-  if (any(e /= reshape((/ 0.0, 1.0, 0.0, 1.0/), shape(e)))) call abort
+  if (any(a /= reshape((/ 0.0, 1.0, 0.0, 1.0/), shape(a)))) STOP 1
+  if (any(b /= 0.)) STOP 2
+  if (any(c /= 0.)) STOP 3
+  if (any(d /= reshape((/ 0.0, 0.0, 1.0, 1.0/), shape(d)))) STOP 4
+  if (any(e /= reshape((/ 0.0, 1.0, 0.0, 1.0/), shape(e)))) STOP 5
 
 end program
 
 ! { dg-final { scan-tree-dump-times "= {}" 2 "original" } }
-! { dg-final { cleanup-tree-dump "original" } }

@@ -1,5 +1,5 @@
 /* GCC option-handling definitions for the TI MSP430
-   Copyright (C) 2014 Free Software Foundation, Inc.
+   Copyright (C) 2014-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -22,11 +22,19 @@
 
 enum msp430_hwmult_types
 {
-  NONE,
-  AUTO,
-  SMALL,
-  LARGE,
-  F5SERIES
+  MSP430_HWMULT_NONE,
+  MSP430_HWMULT_AUTO,
+  MSP430_HWMULT_SMALL,
+  MSP430_HWMULT_LARGE,
+  MSP430_HWMULT_F5SERIES
+};
+
+enum msp430_regions
+{
+  MSP430_REGION_ANY,
+  MSP430_REGION_EITHER,
+  MSP430_REGION_LOWER,
+  MSP430_REGION_UPPER
 };
 
 #endif

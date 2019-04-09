@@ -1,5 +1,4 @@
 // PR c++/29106
-// { dg-do run } 
 
 int i;
 
@@ -10,7 +9,7 @@ void f(__SIZE_TYPE__) {
 
 int main()
 {
-  int* const savepos = sizeof(*savepos) ? 0 : 0;
+  int* const savepos = sizeof(*savepos) ? 0 : 0;  /* { dg-error "invalid conversion" "convert" { target c++11 }  } */
 
   f (sizeof (*savepos));
 

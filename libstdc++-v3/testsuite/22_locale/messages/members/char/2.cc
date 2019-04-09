@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "fr_FR" }
+// { dg-require-namedlocale "fr_FR.ISO8859-15" }
 
 // 2001-07-17 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,14 +30,12 @@ void test02()
   typedef std::messages<char>::catalog catalog;
   typedef std::messages<char>::string_type string_type;
 
-  bool test __attribute__((unused)) = true;
   // This is defined through CXXFLAGS in scripts/testsuite_flags[.in].
   const char* dir = LOCALEDIR;
 
   // basic construction
-  locale loc_c = locale::classic();
-  locale loc_fr = locale("fr_FR");
-  VERIFY( loc_c != loc_fr );
+  locale loc_fr = locale(ISO_8859(15,fr_FR));
+  VERIFY( locale::classic() != loc_fr );
 
   // cache the messages facets
   const messages<char>& mssg_fr = use_facet<messages<char> >(loc_fr); 
@@ -47,7 +45,7 @@ void test02()
   // void close(catalog) const;
 
   // Check French (fr_FR) locale.
-  catalog cat_fr = mssg_fr.open("libstdc++", loc_c, dir);
+  catalog cat_fr = mssg_fr.open("libstdc++", loc_fr, dir);
   string s01 = mssg_fr.get(cat_fr, 0, 0, "please");
   string s02 = mssg_fr.get(cat_fr, 0, 0, "thank you");
   VERIFY ( s01 == "s'il vous plaît" );

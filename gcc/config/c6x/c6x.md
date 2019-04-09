@@ -1,5 +1,5 @@
 ;; Machine description for TI C6X.
-;; Copyright (C) 2010-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2019 Free Software Foundation, Inc.
 ;; Contributed by Andrew Jenner <andrew@codesourcery.com>
 ;; Contributed by Bernd Schmidt <bernds@codesourcery.com>
 ;; Contributed by CodeSourcery.
@@ -469,7 +469,7 @@
   [(set (match_dup 2) (match_dup 3))]
 {
   unsigned HOST_WIDE_INT mask, val;
-  enum machine_mode inner_mode = GET_MODE_INNER (<MODE>mode);
+  machine_mode inner_mode = GET_MODE_INNER (<MODE>mode);
   int i;
 
   val = 0;
@@ -505,7 +505,7 @@
   unsigned HOST_WIDE_INT mask;
   unsigned HOST_WIDE_INT val[2];
   rtx lo_half, hi_half;
-  enum machine_mode inner_mode = GET_MODE_INNER (<MODE>mode);
+  machine_mode inner_mode = GET_MODE_INNER (<MODE>mode);
   int i, j;
 
   split_di (operands, 1, &lo_half, &hi_half);
@@ -549,12 +549,10 @@
 			      (ashift:SI (match_dup 4) (const_int 16))))]
 {
   long values;
-  REAL_VALUE_TYPE value;
 
   gcc_assert (GET_CODE (operands[1]) == CONST_DOUBLE);
 
-  REAL_VALUE_FROM_CONST_DOUBLE (value, operands[1]);
-  REAL_VALUE_TO_TARGET_SINGLE (value, values);
+  REAL_VALUE_TO_TARGET_SINGLE (*CONST_DOUBLE_REAL_VALUE (operands[1]), values);
 
   operands[2] = gen_rtx_REG (SImode, true_regnum (operands[0]));
   operands[3] = GEN_INT (trunc_int_for_mode (values, HImode));
@@ -775,7 +773,7 @@
 		       UNSPEC_MISALIGNED_ACCESS))]
   "TARGET_INSNS_64"
 {
-  if (memory_operand (operands[0], <MODE>mode))
+  if (MEM_P (operands[0]))
     {
       emit_insn (gen_movmisalign<mode>_store (operands[0], operands[1]));
       DONE;
@@ -1224,7 +1222,7 @@
       rtx tmpreg = gen_reg_rtx (SImode);
       rtx t = gen_rtx_fmt_ee (reverse_condition (GET_CODE (operands[1])),
 			      SImode, operands[2], operands[3]);
-      emit_insn (gen_rtx_SET (VOIDmode, tmpreg, t));
+      emit_insn (gen_rtx_SET (tmpreg, t));
       emit_insn (gen_scmpsi_insn (operands[0],
 				  gen_rtx_fmt_ee (EQ, SImode, tmpreg, const0_rtx),
 				  tmpreg, const0_rtx));
@@ -1519,7 +1517,7 @@
 ;; -------------------------------------------------------------------------
 
 (define_insn "real_jump"
-  [(unspec [(match_operand 0 "c6x_jump_operand" "a,b,s") (const_int 0)]
+  [(unspec [(match_operand 0 "c6x_jump_operand" "a,b,S3") (const_int 0)]
 	   UNSPEC_REAL_JUMP)]
   ""
 {
@@ -2811,7 +2809,7 @@
   "TARGET_FP && flag_reciprocal_math"
 {
   operands[3] = force_reg (SFmode,
-			   CONST_DOUBLE_FROM_REAL_VALUE (dconst2, SFmode));
+			   const_double_from_real_value (dconst2, SFmode));
   operands[4] = gen_reg_rtx (SFmode);
   operands[5] = gen_reg_rtx (SFmode);
   operands[6] = gen_reg_rtx (SFmode);
@@ -2836,7 +2834,7 @@
   "TARGET_FP && flag_reciprocal_math"
 {
   operands[3] = force_reg (DFmode,
-			   CONST_DOUBLE_FROM_REAL_VALUE (dconst2, DFmode));
+			   const_double_from_real_value (dconst2, DFmode));
   operands[4] = gen_reg_rtx (DFmode);
   operands[5] = gen_reg_rtx (DFmode);
   operands[6] = gen_reg_rtx (DFmode);

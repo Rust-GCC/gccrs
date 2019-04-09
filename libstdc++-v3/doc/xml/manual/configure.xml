@@ -45,15 +45,6 @@
      </para>
  </listitem></varlistentry>
 
- <varlistentry><term><code>--enable-sjlj-exceptions</code></term>
- <listitem><para>Forces old, set-jump/long-jump exception handling model.  If
-	at all possible, the new, frame unwinding exception handling routines
-	should be used instead, as they significantly reduce both
-	runtime memory usage and executable size. This option can
-	change the library ABI.
-     </para>
- </listitem></varlistentry>
-
  <varlistentry><term><code>--enable-version-specific-runtime-libs</code></term>
  <listitem><para>Specify that run-time libraries should be installed in the
 	compiler-specific subdirectory (i.e.,
@@ -297,10 +288,12 @@
 
  <varlistentry><term><code>--enable-concept-checks</code></term>
  <listitem><para>This turns on additional compile-time checks for instantiated
-	library templates, in the form of specialized templates,
-	<link linkend="std.diagnostics.concept_checking">described here</link>.  They
+	library templates, in the form of specialized templates described in
+        the <link linkend="std.diagnostics.concept_checking">Concept
+        Checking</link> section.  They
 	can help users discover when they break the rules of the STL, before
-	their programs run.
+	their programs run. These checks are based on C++03 rules and some of
+	them are not compatible with correct C++11 code.
      </para>
  </listitem></varlistentry>
 
@@ -382,6 +375,52 @@
    </para>
  </listitem></varlistentry>
 
+<varlistentry><term><code>--disable-libstdcxx-dual-abi</code></term>
+ <listitem>
+   <para>
+     Disable support for the new, C++11-conforming implementations of
+     <code>std::string</code>, <code>std::list</code> etc. so that the
+     library only provides definitions of types using the old ABI
+     (see <xref linkend="manual.intro.using.abi"/>).
+     This option changes the library ABI.
+   </para>
+ </listitem></varlistentry>
+
+<varlistentry><term><code>--with-default-libstdcxx-abi=</code><replaceable>OPTION</replaceable></term>
+ <listitem>
+   <para>
+     Set the default value for the <symbol>_GLIBCXX_USE_CXX11_ABI</symbol>
+     macro (see <xref linkend="manual.intro.using.macros"/>).
+     The default is <option>OPTION=new</option> which sets the macro to
+     <literal>1</literal>,
+     use <option>OPTION=gcc4-compatible</option> to set it to
+     <literal>0</literal>.
+     This option does not change the library ABI.
+   </para>
+ </listitem></varlistentry>
+
+ <varlistentry><term><code>--with-libstdcxx-lock-policy=OPTION</code></term>
+ <listitem><para>Sets the lock policy that controls how
+        <classname>shared_ptr</classname> reference counting is
+        synchronized.
+        The choice OPTION=atomic enables use of atomics for updates to
+        <classname>shared_ptr</classname> reference counts.
+        The choice OPTION=mutex enables use of a mutex to synchronize updates
+        to <classname>shared_ptr</classname> reference counts.
+        If the compiler's thread model is "single" then this option has no
+        effect, as no synchronization is used for the reference counts.
+	The default is OPTION=auto, which checks for the availability of
+        compiler built-ins for 2-byte and 4-byte atomic compare-and-swap,
+        and uses OPTION=atomic if they're available, OPTION=mutex otherwise.
+        This option can change the library ABI.
+        If the library is configured to use atomics and user programs are
+        compiled using a target that doesn't natively support the atomic
+        operations (e.g. the library is configured for armv7 and then code
+        is compiled with <option>-march=armv5t</option>) then the program
+        might rely on support in libgcc to provide the atomics.
+    </para>
+ </listitem></varlistentry>
+
  <varlistentry><term><code>--enable-vtable-verify</code>[default]</term>
  <listitem>
     <para>Use <code>-fvtable-verify=std</code> to compile the C++
@@ -392,6 +431,15 @@
     the C++ runtime is compiled without support for vtable
     verification. By default, this option is off.
      </para>
+ </listitem></varlistentry>
+
+ <varlistentry><term><code>--enable-libstdcxx-filesystem-ts</code>[default]</term>
+ <listitem>
+    <para>Build <filename class="libraryfile">libstdc++fs.a</filename> as well
+      as the usual libstdc++ and libsupc++ libraries. This is enabled by
+      default on select POSIX targets where it is known to work and disabled
+      otherwise.
+    </para>
  </listitem></varlistentry>
 
 </variablelist>

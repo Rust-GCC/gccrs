@@ -1,5 +1,5 @@
 /* Loop optimizer initialization routines and RTL loop optimization passes.
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,18 +20,19 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "backend.h"
+#include "target.h"
 #include "rtl.h"
 #include "tree.h"
+#include "cfghooks.h"
+#include "df.h"
 #include "regs.h"
-#include "obstack.h"
-#include "basic-block.h"
+#include "cfgcleanup.h"
 #include "cfgloop.h"
 #include "tree-pass.h"
-#include "flags.h"
-#include "df.h"
-#include "ggc.h"
 #include "tree-ssa-loop-niter.h"
+#include "loop-unroll.h"
+#include "tree-scalar-evolution.h"
 
 
 /* Apply FLAGS to the loop state.  */
@@ -101,14 +102,12 @@ loop_optimizer_init (unsigned flags)
       /* Ensure that the dominators are computed, like flow_loops_find does.  */
       calculate_dominance_info (CDI_DOMINATORS);
 
-#ifdef ENABLE_CHECKING
       if (!needs_fixup)
-	verify_loop_structure ();
-#endif
+	checking_verify_loop_structure ();
 
       /* Clear all flags.  */
       if (recorded_exits)
-	release_recorded_exits ();
+	release_recorded_exits (cfun);
       loops_state_clear (~0U);
 
       if (needs_fixup)
@@ -126,9 +125,7 @@ loop_optimizer_init (unsigned flags)
   /* Dump loops.  */
   flow_loops_dump (dump_file, NULL, 1);
 
-#ifdef ENABLE_CHECKING
-  verify_loop_structure ();
-#endif
+  checking_verify_loop_structure ();
 
   timevar_pop (TV_LOOP_INIT);
 }
@@ -136,43 +133,41 @@ loop_optimizer_init (unsigned flags)
 /* Finalize loop structures.  */
 
 void
-loop_optimizer_finalize (void)
+loop_optimizer_finalize (struct function *fn)
 {
   struct loop *loop;
   basic_block bb;
 
   timevar_push (TV_LOOP_FINI);
 
-  if (loops_state_satisfies_p (LOOPS_HAVE_RECORDED_EXITS))
-    release_recorded_exits ();
+  if (loops_state_satisfies_p (fn, LOOPS_HAVE_RECORDED_EXITS))
+    release_recorded_exits (fn);
 
-  free_numbers_of_iterations_estimates ();
+  free_numbers_of_iterations_estimates (fn);
 
   /* If we should preserve loop structure, do not free it but clear
      flags that advanced properties are there as we are not preserving
      that in full.  */
-  if (cfun->curr_properties & PROP_loops)
+  if (fn->curr_properties & PROP_loops)
     {
-      loops_state_clear (LOOP_CLOSED_SSA
+      loops_state_clear (fn, LOOP_CLOSED_SSA
 			 | LOOPS_HAVE_MARKED_IRREDUCIBLE_REGIONS
 			 | LOOPS_HAVE_PREHEADERS
 			 | LOOPS_HAVE_SIMPLE_LATCHES
 			 | LOOPS_HAVE_FALLTHRU_PREHEADERS);
-      loops_state_set (LOOPS_MAY_HAVE_MULTIPLE_LATCHES);
+      loops_state_set (fn, LOOPS_MAY_HAVE_MULTIPLE_LATCHES);
       goto loop_fini_done;
     }
 
-  gcc_assert (current_loops != NULL);
-
-  FOR_EACH_LOOP (loop, 0)
+  FOR_EACH_LOOP_FN (fn, loop, 0)
     free_simple_loop_desc (loop);
 
   /* Clean up.  */
-  flow_loops_free (current_loops);
-  ggc_free (current_loops);
-  current_loops = NULL;
+  flow_loops_free (loops_for_fn (fn));
+  ggc_free (loops_for_fn (fn));
+  set_loops_for_fn (fn, NULL);
 
-  FOR_ALL_BB_FN (bb, cfun)
+  FOR_ALL_BB_FN (bb, fn)
     {
       bb->loop_father = NULL;
     }
@@ -204,12 +199,15 @@ fix_loop_structure (bitmap changed_bbs)
 
   timevar_push (TV_LOOP_INIT);
 
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    fprintf (dump_file, "fix_loop_structure: fixing up loops for function\n");
+
   /* We need exact and fast dominance info to be available.  */
   gcc_assert (dom_info_state (CDI_DOMINATORS) == DOM_OK);
 
   if (loops_state_satisfies_p (LOOPS_HAVE_RECORDED_EXITS))
     {
-      release_recorded_exits ();
+      release_recorded_exits (cfun);
       record_exits = LOOPS_HAVE_RECORDED_EXITS;
     }
 
@@ -273,6 +271,7 @@ fix_loop_structure (bitmap changed_bbs)
     }
 
   /* Finally free deleted loops.  */
+  bool any_deleted = false;
   FOR_EACH_VEC_ELT (*get_loops (cfun), i, loop)
     if (loop && loop->header == NULL)
       {
@@ -305,16 +304,20 @@ fix_loop_structure (bitmap changed_bbs)
 	  }
 	(*get_loops (cfun))[i] = NULL;
 	flow_loop_free (loop);
+	any_deleted = true;
       }
+
+  /* If we deleted loops then the cached scalar evolutions refering to
+     those loops become invalid.  */
+  if (any_deleted && scev_initialized_p ())
+    scev_reset_htab ();
 
   loops_state_clear (LOOPS_NEED_FIXUP);
 
   /* Apply flags to loops.  */
   apply_loop_flags (current_loops->state | record_exits);
 
-#ifdef ENABLE_CHECKING
-  verify_loop_structure ();
-#endif
+  checking_verify_loop_structure ();
 
   timevar_pop (TV_LOOP_INIT);
 
@@ -357,12 +360,9 @@ pass_loop2::gate (function *fun)
   if (optimize > 0
       && (flag_move_loop_invariants
 	  || flag_unswitch_loops
-	  || flag_peel_loops
 	  || flag_unroll_loops
-#ifdef HAVE_doloop_end
-	  || (flag_branch_on_count_reg && HAVE_doloop_end)
-#endif
-      ))
+	  || (flag_branch_on_count_reg && targetm.have_doloop_end ())
+	  || cfun->has_unroll))
     return true;
   else
     {
@@ -395,7 +395,7 @@ rtl_loop_init (void)
       dump_flow_info (dump_file, dump_flags);
     }
 
-  loop_optimizer_init (LOOPS_NORMAL);
+  loop_optimizer_init (LOOPS_NORMAL | LOOPS_HAVE_RECORDED_EXITS);
   return 0;
 }
 
@@ -537,7 +537,7 @@ make_pass_rtl_move_loop_invariants (gcc::context *ctxt)
 
 namespace {
 
-const pass_data pass_data_rtl_unroll_and_peel_loops =
+const pass_data pass_data_rtl_unroll_loops =
 {
   RTL_PASS, /* type */
   "loop2_unroll", /* name */
@@ -550,25 +550,25 @@ const pass_data pass_data_rtl_unroll_and_peel_loops =
   0, /* todo_flags_finish */
 };
 
-class pass_rtl_unroll_and_peel_loops : public rtl_opt_pass
+class pass_rtl_unroll_loops : public rtl_opt_pass
 {
 public:
-  pass_rtl_unroll_and_peel_loops (gcc::context *ctxt)
-    : rtl_opt_pass (pass_data_rtl_unroll_and_peel_loops, ctxt)
+  pass_rtl_unroll_loops (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_rtl_unroll_loops, ctxt)
   {}
 
   /* opt_pass methods: */
   virtual bool gate (function *)
     {
-      return (flag_peel_loops || flag_unroll_loops || flag_unroll_all_loops);
+      return (flag_unroll_loops || flag_unroll_all_loops || cfun->has_unroll);
     }
 
   virtual unsigned int execute (function *);
 
-}; // class pass_rtl_unroll_and_peel_loops
+}; // class pass_rtl_unroll_loops
 
 unsigned int
-pass_rtl_unroll_and_peel_loops::execute (function *fun)
+pass_rtl_unroll_loops::execute (function *fun)
 {
   if (number_of_loops (fun) > 1)
     {
@@ -576,14 +576,12 @@ pass_rtl_unroll_and_peel_loops::execute (function *fun)
       if (dump_file)
 	df_dump (dump_file);
 
-      if (flag_peel_loops)
-	flags |= UAP_PEEL;
       if (flag_unroll_loops)
 	flags |= UAP_UNROLL;
       if (flag_unroll_all_loops)
 	flags |= UAP_UNROLL_ALL;
 
-      unroll_and_peel_loops (flags);
+      unroll_loops (flags);
     }
   return 0;
 }
@@ -591,9 +589,9 @@ pass_rtl_unroll_and_peel_loops::execute (function *fun)
 } // anon namespace
 
 rtl_opt_pass *
-make_pass_rtl_unroll_and_peel_loops (gcc::context *ctxt)
+make_pass_rtl_unroll_loops (gcc::context *ctxt)
 {
-  return new pass_rtl_unroll_and_peel_loops (ctxt);
+  return new pass_rtl_unroll_loops (ctxt);
 }
 
 
@@ -628,20 +626,14 @@ public:
 bool
 pass_rtl_doloop::gate (function *)
 {
-#ifdef HAVE_doloop_end
-  return (flag_branch_on_count_reg && HAVE_doloop_end);
-#else
-  return false;
-#endif
+  return (flag_branch_on_count_reg && targetm.have_doloop_end ());
 }
 
 unsigned int
-pass_rtl_doloop::execute (function *fun ATTRIBUTE_UNUSED)
+pass_rtl_doloop::execute (function *fun)
 {
-#ifdef HAVE_doloop_end
   if (number_of_loops (fun) > 1)
     doloop_optimize_loops ();
-#endif
   return 0;
 }
 

@@ -1,5 +1,5 @@
 /* Exception Handling interface routines.
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
    Contributed by Mike Stump <mrs@cygnus.com>.
 
 This file is part of GCC.
@@ -24,8 +24,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_EXCEPT_H
 #define GCC_EXCEPT_H
 
-#include "hash-map.h"
-#include "hashtab.h"
 
 struct function;
 struct eh_region_d;
@@ -203,7 +201,7 @@ struct GTY(()) eh_status
 
   /* At the gimple level, a mapping from gimple statement to landing pad
      or must-not-throw region.  See record_stmt_eh_region.  */
-  hash_map<gimple, int> *GTY(()) throw_stmt_table;
+  hash_map<gimple *, int> *GTY(()) throw_stmt_table;
 
   /* All of the runtime type data used by the function.  These objects
      are emitted to the lang-specific-data-area for the function.  */
@@ -231,7 +229,7 @@ extern void remove_eh_handler (eh_region);
 extern void remove_unreachable_eh_regions (sbitmap);
 
 extern bool current_function_has_exception_handlers (void);
-extern void output_function_exception_table (const char *);
+extern void output_function_exception_table (int);
 
 extern rtx expand_builtin_eh_pointer (tree);
 extern rtx expand_builtin_eh_filter (tree);
@@ -245,13 +243,13 @@ extern rtx expand_builtin_dwarf_sp_column (void);
 extern void expand_builtin_eh_return (tree, tree);
 extern void expand_eh_return (void);
 extern rtx expand_builtin_extend_pointer (tree);
-extern void expand_dw2_landing_pad_for_region (eh_region);
 
 typedef tree (*duplicate_eh_regions_map) (tree, void *);
 extern hash_map<void *, void *> *duplicate_eh_regions
   (struct function *, eh_region, int, duplicate_eh_regions_map, void *);
 
 extern void sjlj_emit_function_exit_after (rtx_insn *);
+extern void update_sjlj_context (void);
 
 extern eh_region gen_eh_region_cleanup (eh_region);
 extern eh_region gen_eh_region_try (eh_region);
@@ -270,8 +268,8 @@ extern eh_region get_eh_region_from_lp_number (int);
 
 extern eh_region eh_region_outermost (struct function *, eh_region, eh_region);
 
-extern void make_reg_eh_region_note (rtx insn, int ecf_flags, int lp_nr);
-extern void make_reg_eh_region_note_nothrow_nononlocal (rtx);
+extern void make_reg_eh_region_note (rtx_insn *insn, int ecf_flags, int lp_nr);
+extern void make_reg_eh_region_note_nothrow_nononlocal (rtx_insn *);
 
 extern void verify_eh_tree (struct function *);
 extern void dump_eh_tree (FILE *, struct function *);
@@ -286,12 +284,12 @@ extern eh_landing_pad get_eh_landing_pad_from_rtx (const_rtx);
 extern void finish_eh_generation (void);
 
 struct GTY(()) throw_stmt_node {
-  gimple stmt;
+  gimple *stmt;
   int lp_nr;
 };
 
-extern hash_map<gimple, int> *get_eh_throw_stmt_table (struct function *);
-extern void set_eh_throw_stmt_table (function *, hash_map<gimple, int> *);
+extern hash_map<gimple *, int> *get_eh_throw_stmt_table (struct function *);
+extern void set_eh_throw_stmt_table (function *, hash_map<gimple *, int> *);
 
 enum eh_personality_kind {
   eh_personality_none,

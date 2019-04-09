@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-pre" } */
+/* { dg-options "-O2 -ftree-tail-merge -fdump-tree-pre" } */
 
 struct S {
   int i;
@@ -29,4 +29,3 @@ int bar (int c) {
 
 /* { dg-final { scan-tree-dump-times "foo \\(" 1 "pre"} } */
 /* { dg-final { scan-tree-dump-times "foo2 \\(" 1 "pre"} } */
-/* { dg-final { cleanup-tree-dump "pre" } } */

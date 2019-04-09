@@ -1,6 +1,6 @@
 // nonstandard construct and destroy functions -*- C++ -*-
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -84,6 +84,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     }
 #endif
 
+  template<typename _T1>
+    inline void
+    _Construct_novalue(_T1* __p)
+    { ::new(static_cast<void*>(__p)) _T1; }
+
   /**
    * Destroy the object pointed to by a pointer type.
    */
@@ -123,8 +128,58 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       typedef typename iterator_traits<_ForwardIterator>::value_type
                        _Value_type;
+#if __cplusplus >= 201103L
+      // A deleted destructor is trivial, this ensures we reject such types:
+      static_assert(is_destructible<_Value_type>::value,
+		    "value type is destructible");
+#endif
       std::_Destroy_aux<__has_trivial_destructor(_Value_type)>::
 	__destroy(__first, __last);
+    }
+
+  template<bool>
+    struct _Destroy_n_aux
+    {
+      template<typename _ForwardIterator, typename _Size>
+        static _ForwardIterator
+        __destroy_n(_ForwardIterator __first, _Size __count)
+	{
+	  for (; __count > 0; (void)++__first, --__count)
+	    std::_Destroy(std::__addressof(*__first));
+	  return __first;
+	}
+    };
+
+  template<>
+    struct _Destroy_n_aux<true>
+    {
+      template<typename _ForwardIterator, typename _Size>
+        static _ForwardIterator
+        __destroy_n(_ForwardIterator __first, _Size __count)
+	{
+	  std::advance(__first, __count);
+	  return __first;
+	}
+    };
+
+  /**
+   * Destroy a range of objects.  If the value_type of the object has
+   * a trivial destructor, the compiler should optimize all of this
+   * away, otherwise the objects' destructors must be invoked.
+   */
+  template<typename _ForwardIterator, typename _Size>
+    inline _ForwardIterator
+    _Destroy_n(_ForwardIterator __first, _Size __count)
+    {
+      typedef typename iterator_traits<_ForwardIterator>::value_type
+                       _Value_type;
+#if __cplusplus >= 201103L
+      // A deleted destructor is trivial, this ensures we reject such types:
+      static_assert(is_destructible<_Value_type>::value,
+		    "value type is destructible");
+#endif
+      return std::_Destroy_n_aux<__has_trivial_destructor(_Value_type)>::
+	__destroy_n(__first, __count);
     }
 
   /**
@@ -150,6 +205,29 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       _Destroy(__first, __last);
     }
+
+#if __cplusplus > 201402L
+  template <typename _Tp>
+    inline void
+    destroy_at(_Tp* __location)
+    {
+      std::_Destroy(__location);
+    }
+
+  template <typename _ForwardIterator>
+    inline void
+    destroy(_ForwardIterator __first, _ForwardIterator __last)
+    {
+      std::_Destroy(__first, __last);
+    }
+
+  template <typename _ForwardIterator, typename _Size>
+    inline _ForwardIterator
+    destroy_n(_ForwardIterator __first, _Size __count)
+    {
+      return std::_Destroy_n(__first, __count);
+    }
+#endif
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std

@@ -1,6 +1,6 @@
 /* Generic streaming support for various data types.
 
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -22,7 +22,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_DATA_STREAMER_H
 #define GCC_DATA_STREAMER_H
 
-#include "vec.h"
 #include "lto-streamer.h"
 
 /* Data structures used to pack values and bitflags into a vector of
@@ -70,6 +69,8 @@ void streamer_write_hwi_stream (struct lto_output_stream *, HOST_WIDE_INT);
 void streamer_write_gcov_count_stream (struct lto_output_stream *, gcov_type);
 void streamer_write_data_stream (struct lto_output_stream *, const void *,
 				 size_t);
+void streamer_write_wide_int (struct output_block *, const wide_int &);
+void streamer_write_widest_int (struct output_block *, const widest_int &);
 
 /* In data-streamer-in.c  */
 const char *streamer_read_string (struct data_in *, struct lto_input_block *);
@@ -82,6 +83,8 @@ const char *bp_unpack_string (struct data_in *, struct bitpack_d *);
 unsigned HOST_WIDE_INT streamer_read_uhwi (struct lto_input_block *);
 HOST_WIDE_INT streamer_read_hwi (struct lto_input_block *);
 gcov_type streamer_read_gcov_count (struct lto_input_block *);
+wide_int streamer_read_wide_int (struct lto_input_block *);
+widest_int streamer_read_widest_int (struct lto_input_block *);
 
 /* Returns a new bit-packing context for bit-packing into S.  */
 static inline struct bitpack_d
@@ -121,6 +124,17 @@ bp_pack_value (struct bitpack_d *bp, bitpack_word_t val, unsigned nbits)
     }
   bp->word = word;
   bp->pos = pos;
+}
+
+/* Pack VAL into the bit-packing context BP, using NBITS for each
+   coefficient.  */
+static inline void
+bp_pack_poly_value (struct bitpack_d *bp,
+		    const poly_int<NUM_POLY_INT_COEFFS, bitpack_word_t> &val,
+		    unsigned nbits)
+{
+  for (int i = 0; i < NUM_POLY_INT_COEFFS; ++i)
+    bp_pack_value (bp, val.coeffs[i], nbits);
 }
 
 /* Finishes bit-packing of BP.  */
@@ -169,6 +183,17 @@ bp_unpack_value (struct bitpack_d *bp, unsigned nbits)
   bp->pos = pos + nbits;
 
   return val & mask;
+}
+
+/* Unpacks a polynomial value from the bit-packing context BP in which each
+   coefficient has NBITS bits.  */
+static inline poly_int<NUM_POLY_INT_COEFFS, bitpack_word_t>
+bp_unpack_poly_value (struct bitpack_d *bp, unsigned nbits)
+{
+  poly_int_pod<NUM_POLY_INT_COEFFS, bitpack_word_t> x;
+  for (int i = 0; i < NUM_POLY_INT_COEFFS; ++i)
+    x.coeffs[i] = bp_unpack_value (bp, nbits);
+  return x;
 }
 
 

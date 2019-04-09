@@ -1,4 +1,4 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 /* testing the gcc instrumented */
 
 #include <unordered_map>

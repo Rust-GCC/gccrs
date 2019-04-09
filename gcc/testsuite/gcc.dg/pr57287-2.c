@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-options "-O2 -Wall" } */
+/* { dg-require-effective-target indirect_jumps } */
 
 #include <setjmp.h>
 
@@ -25,7 +26,7 @@ int baz (void)
       if (!varseen)
 	varseen = 1;
 
-      jmp_buf *buf = bar ();  /* { dg-bogus "may be used uninitialized" "" } */
+      jmp_buf *buf = bar ();  /* { dg-bogus "may be used uninitialized" } */
       setjmp (*buf);
     }
 

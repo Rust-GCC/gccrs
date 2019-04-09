@@ -1,5 +1,5 @@
 /* { dg-require-effective-target stdint_types } */
-/* { dg-options "-O2 -mcpu=power5" } */
+/* { dg-options "-O2 -mdejagnu-cpu=power5" } */
 
 #include <stdint.h>
 

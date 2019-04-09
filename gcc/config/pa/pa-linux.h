@@ -1,5 +1,5 @@
 /* Definitions for PA_RISC with ELF format
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -28,7 +28,7 @@ along with GCC; see the file COPYING3.  If not see
   while (0)
 
 #undef CPP_SPEC
-#define CPP_SPEC "%{posix:-D_POSIX_SOURCE}"
+#define CPP_SPEC "%{posix:-D_POSIX_SOURCE} %{pthread:-D_REENTRANT}"
 
 #undef ASM_SPEC
 #define ASM_SPEC \
@@ -140,3 +140,10 @@ along with GCC; see the file COPYING3.  If not see
 #define HAVE_sync_compare_and_swapqi 1
 #define HAVE_sync_compare_and_swaphi 1
 #define HAVE_sync_compare_and_swapsi 1
+#define HAVE_sync_compare_and_swapdi 1
+
+/* It's not possible to enable GNU_stack notes since the kernel needs
+   an executable stack for signal returns and syscall restarts.  */
+
+#undef NEED_INDICATE_EXEC_STACK
+#define NEED_INDICATE_EXEC_STACK 0

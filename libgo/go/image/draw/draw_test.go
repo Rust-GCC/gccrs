@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"os"
 	"testing"
+	"testing/quick"
 )
 
 func eq(c0, c1 color.Color) bool {
@@ -69,6 +70,26 @@ func vgradCr() image.Image {
 	for y := 0; y < 16; y++ {
 		for x := 0; x < 16; x++ {
 			m.Cr[y*m.CStride+x] = uint8(y * 0x11)
+		}
+	}
+	return m
+}
+
+func vgradGray() image.Image {
+	m := image.NewGray(image.Rect(0, 0, 16, 16))
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			m.Set(x, y, color.Gray{uint8(y * 0x11)})
+		}
+	}
+	return m
+}
+
+func vgradMagenta() image.Image {
+	m := image.NewCMYK(image.Rect(0, 0, 16, 16))
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			m.Set(x, y, color.CMYK{0, uint8(y * 0x11), 0, 0x3f})
 		}
 	}
 	return m
@@ -147,6 +168,26 @@ var drawTests = []drawTest{
 	{"ycbcrAlphaSrc", vgradCr(), fillAlpha(192), Src, color.RGBA{8, 28, 0, 192}},
 	{"ycbcrNil", vgradCr(), nil, Over, color.RGBA{11, 38, 0, 255}},
 	{"ycbcrNilSrc", vgradCr(), nil, Src, color.RGBA{11, 38, 0, 255}},
+	// Uniform mask (100%, 75%, nil) and variable Gray source.
+	// At (x, y) == (8, 8):
+	// The destination pixel is {136, 0, 0, 255}.
+	// The source pixel is {136} in Gray-space, which is {136, 136, 136, 255} in RGBA-space.
+	{"gray", vgradGray(), fillAlpha(255), Over, color.RGBA{136, 136, 136, 255}},
+	{"graySrc", vgradGray(), fillAlpha(255), Src, color.RGBA{136, 136, 136, 255}},
+	{"grayAlpha", vgradGray(), fillAlpha(192), Over, color.RGBA{136, 102, 102, 255}},
+	{"grayAlphaSrc", vgradGray(), fillAlpha(192), Src, color.RGBA{102, 102, 102, 192}},
+	{"grayNil", vgradGray(), nil, Over, color.RGBA{136, 136, 136, 255}},
+	{"grayNilSrc", vgradGray(), nil, Src, color.RGBA{136, 136, 136, 255}},
+	// Uniform mask (100%, 75%, nil) and variable CMYK source.
+	// At (x, y) == (8, 8):
+	// The destination pixel is {136, 0, 0, 255}.
+	// The source pixel is {0, 136, 0, 63} in CMYK-space, which is {192, 89, 192} in RGB-space.
+	{"cmyk", vgradMagenta(), fillAlpha(255), Over, color.RGBA{192, 89, 192, 255}},
+	{"cmykSrc", vgradMagenta(), fillAlpha(255), Src, color.RGBA{192, 89, 192, 255}},
+	{"cmykAlpha", vgradMagenta(), fillAlpha(192), Over, color.RGBA{178, 67, 145, 255}},
+	{"cmykAlphaSrc", vgradMagenta(), fillAlpha(192), Src, color.RGBA{145, 67, 145, 192}},
+	{"cmykNil", vgradMagenta(), nil, Over, color.RGBA{192, 89, 192, 255}},
+	{"cmykNilSrc", vgradMagenta(), nil, Src, color.RGBA{192, 89, 192, 255}},
 	// Variable mask and variable source.
 	// At (x, y) == (8, 8):
 	// The destination pixel is {136, 0, 0, 255}.
@@ -425,5 +466,49 @@ loop:
 				}
 			}
 		}
+	}
+}
+
+func TestSqDiff(t *testing.T) {
+	// This test is similar to the one from the image/color package, but
+	// sqDiff in this package accepts int32 instead of uint32, so test it
+	// for appropriate input.
+
+	// canonical sqDiff implementation
+	orig := func(x, y int32) uint32 {
+		var d uint32
+		if x > y {
+			d = uint32(x - y)
+		} else {
+			d = uint32(y - x)
+		}
+		return (d * d) >> 2
+	}
+	testCases := []int32{
+		0,
+		1,
+		2,
+		0x0fffd,
+		0x0fffe,
+		0x0ffff,
+		0x10000,
+		0x10001,
+		0x10002,
+		0x7ffffffd,
+		0x7ffffffe,
+		0x7fffffff,
+		-0x7ffffffd,
+		-0x7ffffffe,
+		-0x80000000,
+	}
+	for _, x := range testCases {
+		for _, y := range testCases {
+			if got, want := sqDiff(x, y), orig(x, y); got != want {
+				t.Fatalf("sqDiff(%#x, %#x): got %d, want %d", x, y, got, want)
+			}
+		}
+	}
+	if err := quick.CheckEqual(orig, sqDiff, &quick.Config{MaxCountScale: 10}); err != nil {
+		t.Fatal(err)
 	}
 }

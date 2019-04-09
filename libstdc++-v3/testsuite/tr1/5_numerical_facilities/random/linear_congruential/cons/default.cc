@@ -1,6 +1,6 @@
 // 2006-06-04  Stephen M. Webb <stephen.webb@bregmasoft.com>
 //
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -24,11 +24,10 @@
 #include <testsuite_hooks.h>
 
 void
-test01() 
+test01()
 {
-  bool test __attribute__((unused)) = true;
   using namespace std::tr1;
-  
+
   linear_congruential<unsigned long, 48271, 0, 2147483647> x;
   VERIFY( x.min() == 1 );
   VERIFY( x.max() == 2147483647-1 );

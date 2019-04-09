@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -100,7 +100,7 @@ namespace __gnu_pbds
 	    {
 	      Cntnr cntnr;
 	      for (It fnd_it = m_fnd_it_b; fnd_it != m_fnd_it_e; ++fnd_it)
-                if (m_r_container.find(const_reference(*fnd_it)) 
+                if (m_r_container.find(const_reference(*fnd_it))
 		    == m_r_container.end())
 		  ++not_found_count;
 	    }
@@ -118,7 +118,7 @@ namespace __gnu_pbds
 
 
     template<typename It, bool Native>
-    class multimap_find_test 
+    class multimap_find_test
     : private __gnu_pbds::test::detail::timing_test_base
     {
     public:
@@ -187,5 +187,5 @@ namespace __gnu_pbds
   } // namespace test
 } // namespace __gnu_pbds
 
-#endif 
+#endif
 

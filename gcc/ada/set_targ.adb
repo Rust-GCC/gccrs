@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2013-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 2013-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -159,8 +159,68 @@ package body Set_Targ is
    --  floating-point type, and Precision, Size and Alignment are the precision
    --  size and alignment in bits.
    --
-   --  So to summarize, the only types that are actually registered have Digs
-   --  non-zero, Complex zero (false), and Count zero (not a vector).
+   --  The only types that are actually registered have Digs non-zero, Complex
+   --  zero (false), and Count zero (not a vector). The Long_Double_Index
+   --  variable below is updated to indicate the index at which a "long double"
+   --  type can be found if it gets registered at all.
+
+   Long_Double_Index : Integer := -1;
+   --  Once all the floating point types have been registered, the index in
+   --  FPT_Mode_Table at which "long double" can be found, if anywhere. A
+   --  negative value means that no "long double" has been registered. This
+   --  is useful to know whether we have a "long double" available at all and
+   --  get at it's characteristics without having to search the FPT_Mode_Table
+   --  when we need to decide which C type should be used as the basis for
+   --  Long_Long_Float in Ada.
+
+   function FPT_Mode_Index_For (Name : String) return Natural;
+   --  Return the index in FPT_Mode_Table that designates the entry
+   --  corresponding to the C type named Name. Raise Program_Error if
+   --  there is no such entry.
+
+   function FPT_Mode_Index_For (T : S_Float_Types) return Natural;
+   --  Return the index in FPT_Mode_Table that designates the entry for
+   --  a back-end type suitable as a basis to construct the standard Ada
+   --  floating point type identified by T.
+
+   ----------------
+   -- C_Type_For --
+   ----------------
+
+   function C_Type_For (T : S_Float_Types) return String is
+
+      --  ??? For now, we don't have a good way to tell the widest float
+      --  type with hardware support. Basically, GCC knows the size of that
+      --  type, but on x86-64 there often are two or three 128-bit types,
+      --  one double extended that has 18 decimal digits, a 128-bit quad
+      --  precision type with 33 digits and possibly a 128-bit decimal float
+      --  type with 34 digits. As a workaround, we define Long_Long_Float as
+      --  C's "long double" if that type exists and has at most 18 digits,
+      --  or otherwise the same as Long_Float.
+
+      Max_HW_Digs : constant := 18;
+      --  Maximum hardware digits supported
+
+   begin
+      case T is
+         when S_Float
+            | S_Short_Float
+         =>
+            return "float";
+
+         when S_Long_Float =>
+            return "double";
+
+         when S_Long_Long_Float =>
+            if Long_Double_Index >= 0
+              and then FPT_Mode_Table (Long_Double_Index).DIGS <= Max_HW_Digs
+            then
+               return "long double";
+            else
+               return "double";
+            end if;
+      end case;
+   end C_Type_For;
 
    ----------
    -- Fail --
@@ -169,11 +229,32 @@ package body Set_Targ is
    procedure Fail (E : String) is
       E_Fatal : constant := 4;
       --  Code for fatal error
+
    begin
       Write_Str (E);
       Write_Eol;
       OS_Exit (E_Fatal);
    end Fail;
+
+   ------------------------
+   -- FPT_Mode_Index_For --
+   ------------------------
+
+   function FPT_Mode_Index_For (Name : String) return Natural is
+   begin
+      for J in FPT_Mode_Table'First .. Num_FPT_Modes loop
+         if FPT_Mode_Table (J).NAME.all = Name then
+            return J;
+         end if;
+      end loop;
+
+      raise Program_Error;
+   end FPT_Mode_Index_For;
+
+   function FPT_Mode_Index_For (T : S_Float_Types) return Natural is
+   begin
+      return FPT_Mode_Index_For (C_Type_For (T));
+   end FPT_Mode_Index_For;
 
    -------------------------
    -- Register_Float_Type --
@@ -225,8 +306,8 @@ package body Set_Targ is
             Write_Str ("pragma Float_Representation (");
 
             case Float_Rep is
-               when IEEE_Binary => Write_Str ("IEEE");
                when AAMP        => Write_Str ("AAMP");
+               when IEEE_Binary => Write_Str ("IEEE");
             end case;
 
             Write_Line (", " & T (1 .. Last) & ");");
@@ -281,14 +362,23 @@ package body Set_Targ is
       --  Acquire entry if non-vector non-complex fpt type (digits non-zero)
 
       if Digs > 0 and then not Complex and then Count = 0 then
-         Num_FPT_Modes := Num_FPT_Modes + 1;
-         FPT_Mode_Table (Num_FPT_Modes) :=
-           (NAME      => new String'(T (1 .. Last)),
-            DIGS      => Digs,
-            FLOAT_REP => Float_Rep,
-            PRECISION => Precision,
-            SIZE      => Size,
-            ALIGNMENT => Alignment);
+
+         declare
+            This_Name : constant String := T (1 .. Last);
+         begin
+            Num_FPT_Modes := Num_FPT_Modes + 1;
+            FPT_Mode_Table (Num_FPT_Modes) :=
+              (NAME      => new String'(This_Name),
+               DIGS      => Digs,
+               FLOAT_REP => Float_Rep,
+               PRECISION => Precision,
+               SIZE      => Size,
+               ALIGNMENT => Alignment);
+
+            if Long_Double_Index < 0 and then This_Name = "long double" then
+               Long_Double_Index := Num_FPT_Modes;
+            end if;
+         end;
       end if;
    end Register_Float_Type;
 
@@ -370,7 +460,7 @@ package body Set_Targ is
          AddC (ASCII.LF);
 
          if Buflen /= Write (Fdesc, Buffer'Address, Buflen) then
-            Delete_File (Target_Dependent_Info_Write_Name'Address, OK);
+            Delete_File (Target_Dependent_Info_Write_Name.all, OK);
             Fail ("disk full writing file "
                   & Target_Dependent_Info_Write_Name.all);
          end if;
@@ -382,7 +472,7 @@ package body Set_Targ is
 
    begin
       Fdesc :=
-        Create_File (Target_Dependent_Info_Write_Name.all'Address, Text);
+        Create_File (Target_Dependent_Info_Write_Name.all, Text);
 
       if Fdesc = Invalid_FD then
          Fail ("cannot create file " & Target_Dependent_Info_Write_Name.all);
@@ -439,10 +529,8 @@ package body Set_Targ is
             AddC (' ');
 
             case E.FLOAT_REP is
-               when IEEE_Binary =>
-                  AddC ('I');
-               when AAMP        =>
-                  AddC ('A');
+               when AAMP        => AddC ('A');
+               when IEEE_Binary => AddC ('I');
             end case;
 
             AddC (' ');
@@ -492,6 +580,7 @@ package body Set_Targ is
       --  Checks that we have one or more spaces and skips them
 
       procedure FailN (S : String);
+      pragma No_Return (FailN);
       --  Calls Fail adding " name in file xxx", where name is the currently
       --  gathered name in Nam_Buf, surrounded by quotes, and xxx is the
       --  name of the file.
@@ -612,6 +701,8 @@ package body Set_Targ is
 
       Buflen := Read (File_Desc, Buffer'Address, Buffer'Length);
 
+      Close (File_Desc);
+
       if Buflen = Buffer'Length then
          Fail ("file is too long: " & File_Name);
       end if;
@@ -683,14 +774,20 @@ package body Set_Targ is
          begin
             E.NAME := new String'(Nam_Buf (1 .. Nam_Len));
 
+            if Long_Double_Index < 0 and then E.NAME.all = "long double" then
+               Long_Double_Index := Num_FPT_Modes;
+            end if;
+
             E.DIGS := Get_Nat;
             Check_Spaces;
 
             case Buffer (N) is
                when 'I'    =>
                   E.FLOAT_REP := IEEE_Binary;
+
                when 'A'    =>
                   E.FLOAT_REP := AAMP;
+
                when others =>
                   FailN ("bad float rep field for");
             end case;
@@ -723,7 +820,7 @@ package body Set_Targ is
 
 begin
    --  First step: see if the -gnateT switch is present. As we have noted,
-   --  this has to be done very early, so can not depend on the normal circuit
+   --  this has to be done very early, so cannot depend on the normal circuit
    --  for reading switches and setting switches in Opt. The following code
    --  will set Opt.Target_Dependent_Info_Read_Name if the switch -gnateT=name
    --  is present in the options string.
@@ -820,6 +917,9 @@ begin
            Get_Back_End_Config_File;
       begin
          if Back_End_Config_File /= null then
+            pragma Gnat_Annotate
+              (CodePeer, Intentional, "test always false",
+               "some variant body will return non null");
             Read_Target_Dependent_Values (Back_End_Config_File.all);
 
          --  Otherwise we get all values from the back end directly
@@ -832,11 +932,8 @@ begin
             Char_Size                  := Get_Char_Size;
             Double_Float_Alignment     := Get_Double_Float_Alignment;
             Double_Scalar_Alignment    := Get_Double_Scalar_Alignment;
-            Double_Size                := Get_Double_Size;
-            Float_Size                 := Get_Float_Size;
             Float_Words_BE             := Get_Float_Words_BE;
             Int_Size                   := Get_Int_Size;
-            Long_Double_Size           := Get_Long_Double_Size;
             Long_Long_Size             := Get_Long_Long_Size;
             Long_Size                  := Get_Long_Size;
             Maximum_Alignment          := Get_Maximum_Alignment;
@@ -849,9 +946,33 @@ begin
             Wchar_T_Size               := Get_Wchar_T_Size;
             Words_BE                   := Get_Words_BE;
 
-            --  Register floating-point types from the back end
+            --  Let the back-end register its floating point types and compute
+            --  the sizes of our standard types from there:
 
+            Num_FPT_Modes := 0;
             Register_Back_End_Types (Register_Float_Type'Access);
+
+            declare
+               T : FPT_Mode_Entry renames
+                 FPT_Mode_Table (FPT_Mode_Index_For (S_Float));
+            begin
+               Float_Size := Pos (T.SIZE);
+            end;
+
+            declare
+               T : FPT_Mode_Entry renames
+                 FPT_Mode_Table (FPT_Mode_Index_For (S_Long_Float));
+            begin
+               Double_Size := Pos (T.SIZE);
+            end;
+
+            declare
+               T : FPT_Mode_Entry renames
+                 FPT_Mode_Table (FPT_Mode_Index_For (S_Long_Long_Float));
+            begin
+               Long_Double_Size := Pos (T.SIZE);
+            end;
+
          end if;
       end;
    end if;

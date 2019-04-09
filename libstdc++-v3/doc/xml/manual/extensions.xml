@@ -82,7 +82,8 @@ extensions, be aware of two things:
       They can be enabled at configure time with
       <link linkend="manual.intro.setup.configure"><literal>--enable-concept-checks</literal></link>.
       You can enable them on a per-translation-unit basis with
-      <code>#define _GLIBCXX_CONCEPT_CHECKS</code> for GCC 3.4 and higher
+      <link linkend="manual.intro.using.macros"><code>#define
+      _GLIBCXX_CONCEPT_CHECKS</code></link> for GCC 3.4 and higher
       (or with <code>#define _GLIBCPP_CONCEPT_CHECKS</code> for versions
       3.1, 3.2 and 3.3).
    </para>
@@ -226,12 +227,12 @@ extensions, be aware of two things:
    </para>
    <para>Each of the associative containers map, multimap, set, and multiset
       have a counterpart which uses a
-      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.sgi.com/tech/stl/HashFunction.html">hashing
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/HashFunction.html">hashing
       function</link> to do the arranging, instead of a strict weak ordering
       function.  The classes take as one of their template parameters a
       function object that will return the hash value; by default, an
       instantiation of
-      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.sgi.com/tech/stl/hash.html">hash</link>.
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/hash.html">hash</link>.
       You should specialize this functor for your class, or define your own,
       before trying to use one of the hashing classes.
    </para>
@@ -393,7 +394,7 @@ get_temporary_buffer(5, (int*)0);
 </para>
 <para>The <code>iota</code> function wins the award for Extension With the
    Coolest Name (the name comes from Ken Iverson's APL language.)  As
-   described in the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.sgi.com/tech/stl/iota.html">SGI
+   described in the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/iota.html">SGI
    documentation</link>, it "assigns sequentially increasing values to a range.
    That is, it assigns <code>value</code> to <code>*first</code>,
    <code>value + 1</code> to<code> *(first + 1)</code> and so on."
@@ -478,11 +479,13 @@ get_temporary_buffer(5, (int*)0);
 	 so if you perform any I/O directly, don't expect the library to be
 	 aware of it.
      </para></listitem>
-     <listitem><para>Beginning with 3.1, the extra <code>filebuf</code> constructor and
+     <listitem><para>Beginning with 3.1, the extra
+	 <classname>basic_filebuf</classname> constructor and
 	 the <code>fd()</code> function were removed from the standard
-	 filebuf.  Instead, <code>&lt;ext/stdio_filebuf.h&gt;</code> contains
-	 a derived class called
-	 <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/a00074.html"><code>__gnu_cxx::stdio_filebuf</code></link>.
+	 filebuf.  Instead,
+	 <filename class="headerfile">&lt;ext/stdio_filebuf.h&gt;</filename>
+	 contains a derived class template called
+	 <classname>__gnu_cxx::stdio_filebuf</classname>.
 	 This class can be constructed from a C <code>FILE*</code> or a file
 	 descriptor, and provides the <code>fd()</code> function.
      </para></listitem>
@@ -501,7 +504,7 @@ get_temporary_buffer(5, (int*)0);
     <quote>demangling.</quote>
   </para>
   <para>
-    If you have read the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/a01115.html">source
+    If you have read the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/namespaces.html">source
     documentation for <code>namespace abi</code></link> then you are
     aware of the cross-vendor C++ ABI in use by GCC.  One of the
     exposed functions is used for demangling,

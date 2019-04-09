@@ -1,5 +1,5 @@
 /* mmap.c -- Memory allocation with mmap.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Written by Ian Lance Taylor, Google.
 
 Redistribution and use in source and binary forms, with or without
@@ -7,13 +7,13 @@ modification, are permitted provided that the following conditions are
 met:
 
     (1) Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer. 
+    notice, this list of conditions and the following disclaimer.
 
     (2) Redistributions in binary form must reproduce the above copyright
     notice, this list of conditions and the following disclaimer in
     the documentation and/or other materials provided with the
-    distribution.  
-    
+    distribution.
+
     (3) The name of the author may not be used to
     endorse or promote products derived from this software without
     specific prior written permission.
@@ -50,6 +50,10 @@ POSSIBILITY OF SUCH DAMAGE.  */
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
+#ifndef MAP_FAILED
+#define MAP_FAILED ((void *)-1)
+#endif
+
 /* A list of free memory blocks.  */
 
 struct backtrace_freelist_struct
@@ -65,10 +69,32 @@ struct backtrace_freelist_struct
 static void
 backtrace_free_locked (struct backtrace_state *state, void *addr, size_t size)
 {
-  /* Just leak small blocks.  We don't have to be perfect.  */
+  /* Just leak small blocks.  We don't have to be perfect.  Don't put
+     more than 16 entries on the free list, to avoid wasting time
+     searching when allocating a block.  If we have more than 16
+     entries, leak the smallest entry.  */
+
   if (size >= sizeof (struct backtrace_freelist_struct))
     {
+      size_t c;
+      struct backtrace_freelist_struct **ppsmall;
+      struct backtrace_freelist_struct **pp;
       struct backtrace_freelist_struct *p;
+
+      c = 0;
+      ppsmall = NULL;
+      for (pp = &state->freelist; *pp != NULL; pp = &(*pp)->next)
+	{
+	  if (ppsmall == NULL || (*pp)->size < (*ppsmall)->size)
+	    ppsmall = pp;
+	  ++c;
+	}
+      if (c >= 16)
+	{
+	  if (size <= (*ppsmall)->size)
+	    return;
+	  *ppsmall = (*ppsmall)->next;
+	}
 
       p = (struct backtrace_freelist_struct *) addr;
       p->next = state->freelist;
@@ -77,7 +103,8 @@ backtrace_free_locked (struct backtrace_state *state, void *addr, size_t size)
     }
 }
 
-/* Allocate memory like malloc.  */
+/* Allocate memory like malloc.  If ERROR_CALLBACK is NULL, don't
+   report an error.  */
 
 void *
 backtrace_alloc (struct backtrace_state *state,
@@ -139,8 +166,11 @@ backtrace_alloc (struct backtrace_state *state,
       asksize = (size + pagesize - 1) & ~ (pagesize - 1);
       page = mmap (NULL, asksize, PROT_READ | PROT_WRITE,
 		   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-      if (page == NULL)
-	error_callback (data, "mmap", errno);
+      if (page == MAP_FAILED)
+	{
+	  if (error_callback)
+	    error_callback (data, "mmap", errno);
+	}
       else
 	{
 	  size = (size + 7) & ~ (size_t) 7;
@@ -291,5 +321,7 @@ backtrace_vector_release (struct backtrace_state *state,
   backtrace_free (state, (char *) vec->base + aligned, alc,
 		  error_callback, data);
   vec->alc = 0;
+  if (vec->size == 0)
+    vec->base = NULL;
   return 1;
 }

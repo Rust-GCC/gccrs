@@ -1,5 +1,5 @@
-/* { dg-do compile { target { { i?86-*-* x86_64-*-* } && ia32 } } } */
-/* { dg-options "-O2 --param min-insn-to-prefetch-ratio=5 -fprefetch-loop-arrays -march=athlon -fdump-tree-aprefetch-details" } */
+/* { dg-do compile { target { i?86-*-* x86_64-*-* } } } */
+/* { dg-options "-O2 -fprefetch-loop-arrays -march=amdfam10 --param min-insn-to-prefetch-ratio=5 -fdump-tree-aprefetch-details" } */
 
 /* These are common idioms for writing variable-length arrays at the end
    of structures.  We should not deduce anything about the number of iterations
@@ -54,6 +54,7 @@ int loop5 (int n, struct tail5 *x)
   return s;
 }
 
-/* { dg-final { scan-tree-dump-times "Issued prefetch" 2 "aprefetch" } } */
-/* { dg-final { scan-tree-dump-times "Not prefetching" 1 "aprefetch" } } */
-/* { dg-final { cleanup-tree-dump "aprefetch" } } */
+/* Until we are able to track likely upper bounds, we can't really work out that
+   small trailing arrays should not be prefetched.  */
+/* { dg-final { scan-tree-dump-times "Issued prefetch" 2 "aprefetch"  } } */
+/* { dg-final { scan-tree-dump-times "Not prefetching" 1 "aprefetch"  } } */

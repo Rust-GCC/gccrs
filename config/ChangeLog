@@ -1,3 +1,280 @@
+2019-04-09  Martin Liska  <mliska@suse.cz>
+
+	* bootstrap-lto-lean.mk: New file.
+
+2019-03-02  Johannes Pfau  <johannespfau@gmail.com>
+
+	* mh-mingw: Also set __USE_MINGW_ACCESS flag for C++ code.
+
+2018-10-31  Joseph Myers  <joseph@codesourcery.com>
+
+	PR bootstrap/82856
+	* math.m4, tls.m4: Use AC_LANG_SOURCE.
+
+	Merge from binutils-gdb:
+	2018-06-19  Simon Marchi  <simon.marchi@ericsson.com>
+
+	* override.m4 (_GCC_AUTOCONF_VERSION): Bump from 2.64 to 2.69.
+
+2018-10-28  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* multi.m4: Set GDC.
+
+2018-07-05  James Clarke  <jrtc27@jrtc27.com>
+
+	* dfp.m4 (enable_decimal_float): Enable for x86_64*-*-gnu* to
+	catch x86_64 kFreeBSD and Hurd.
+
+2018-06-08  Martin Liska  <mliska@suse.cz>
+
+	* bootstrap-mpx.mk: Remove.
+
+2018-05-10  Martin Liska  <mliska@suse.cz>
+
+	PR bootstrap/64914
+	* bootstrap-ubsan.mk: Define UBSAN_BOOTSTRAP.
+
+2018-05-09  Joshua Watt <jpewhacker@gmail.com>
+
+	* ax_pthread.m4: Add file.
+
+2018-05-08  Richard Biener  <rguenther@suse.de>
+
+	PR bootstrap/85571
+	* bootstrap-lto-noplugin.mk: Disable compare.
+	* bootstrap-lto.mk: Supply contrib/compare-lto for do-compare.
+
+2018-04-24  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR bootstrap/85490
+	* bootstrap-cet.mk (STAGE4_CFLAGS): New.
+
+2018-04-24  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR target/85485
+	* bootstrap-cet.mk (STAGE2_CFLAGS): Remove -mcet.
+	(STAGE3_CFLAGS): Likewise.
+
+2018-04-24  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR target/85485
+	* cet.m4 (GCC_CET_FLAGS): Replace -mcet with -mshstk.
+
+2018-04-19  Jakub Jelinek  <jakub@redhat.com>
+
+	* cet.m4 (GCC_CET_FLAGS): Default to --disable-cet, replace
+	--enable-cet=default with --enable-cet=auto.
+
+2018-04-18  David Malcolm  <dmalcolm@redhat.com>
+
+	PR jit/85384
+	* acx.m4 (GCC_BASE_VER): Remove \$\$ from sed expression.
+
+2018-04-05  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR gas/22318
+	* plugins.m4 (AC_PLUGINS): Use dlsym to check if libdl is needed.
+
+2018-02-14  Igor Tsimbalist  <igor.v.tsimbalist@intel.com>
+
+	PR target/84148
+	* cet.m4: Check if target support multi-byte NOPS (SSE).
+
+2018-02-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-plugin.m4 (GCC_ENABLE_PLUGINS): Remove -q option passed to grep.
+
+2017-11-14 Boris Kolpackov  <boris@codesynthesis.com>
+
+	* gcc-plugin.m4: Add support for MinGW.
+
+2017-11-17  Igor Tsimbalist  <igor.v.tsimbalist@intel.com>
+
+	* cet.m4: New file.
+
+2017-11-15  Alexandre Oliva <aoliva@redhat.com>
+
+	* bootstrap-debug-lean.mk (do-compare): Use the
+	contrib/compare-debug script.
+
+2017-10-24  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* bootstrap-cet.mk: New file.
+
+2017-06-19  Martin Liska  <mliska@suse.cz>
+
+	* bootstrap-lto-noplugin.mk: Enable -flto in all PGO stages.
+	* bootstrap-lto.mk: Likewise.
+
+2017-06-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* mt-android: New file.
+
+2017-02-13  Richard Biener  <rguenther@suse.de>
+
+	* isl.m4: Remove support for ISL 0.14.
+
+2017-01-19  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/78478
+	* ax_check_define.m4: New file.
+
+2017-01-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/79046
+	* acx.m4 (GCC_BASE_VER): New m4 function.
+	(ACX_TOOL_DIRS): Require GCC_BASE_VER, for
+	--with-gcc-major-version-only use just major number from BASE-VER.
+
+2017-01-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR go/78978
+	* hwcaps.m4 (GCC_CHECK_ASSEMBLER_HWCAP): New macro.
+
+2017-01-04  Alan Modra  <amodra@gmail.com>
+
+	* picflag.m4: Remove stray \xA0 in comment.
+
+2016-12-12  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* hwcaps.m4: New file.
+
+2016-12-08  Alan Modra  <amodra@gmail.com>
+
+	* elf.m4: Revert 2016-06-21 change.
+	* picflag.m4: Likewise.  Revert 2016-04-30 change too.
+	* override.m4 (AC_PROG_LEX): Import 2016-01-18 binutils fix
+	for PR binutils/19481.
+
+2016-12-02  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	* bootstrap-asan.mk: Replace LSAN_OPTIONS=detect_leaks=0 with
+	ASAN_OPTIONS=detect_leaks=0:use_odr_indicator=1.
+
+2016-12-01  Ma Jiang  <ma.jiang@zte.com.cn>
+
+	* acx.m4: Change "tail +16c" to "tail -c +17".
+
+2016-12-01  Matthias Klose  <doko@ubuntu.com>
+
+	* pkg.m4: Remove.
+
+2016-11-30  Matthias Klose  <doko@ubuntu.com>
+
+	* pkg.m4: New file.
+
+2016-11-15  Matthias Klose  <doko@ubuntu.com>
+
+	multi.m4: Don't set GCJ.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* elf.m4: Remove interix support.
+	* picflag.m4: Likewise.
+
+2016-04-30  Oleg Endo  <olegendo@gcc.gnu.org>
+
+	* picflag.m4:  Remove SH5 support.
+
+2015-10-21  Maxim Ostapenko  <m.ostapenko@partner.samsung.com>
+
+	* bootstrap-asan.mk: Replace ASAN_OPTIONS=detect_leaks with
+	LSAN_OPTIONS=detect_leaks.
+
+2015-08-24  Yaakov Selkowitz  <yselkowi@redhat.com>
+
+	* iconv.m4 (AM_ICONV_LINK): Use in-tree libiconv when present.
+
+2015-07-24  Micahel Darling  <darlingm@gmail.com>
+
+	PR other/66259
+	* gettext.m4: Reflects renaming of configure.in to configure.ac
+	* po.m4: Likewise
+	* stdint.m4: Likewise
+	* tcl.m4: Likewise
+
+2015-07-14  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* zlib.m4: Sync with binutils-gdb.
+
+2015-06-30  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* dfp.m4 (enable_decimal_float): Also set to yes for
+	i?86*-*-elfiamcu target.
+
+2015-05-27  Jason Merrill  <jason@redhat.com>
+
+	PR bootstrap/66304
+	* warnings.m4 (ACX_PROG_CXX_WARNING_OPTS)
+	(ACX_PROG_CXX_WARNINGS_ARE_ERRORS)
+	(ACX_PROG_CXX_WARNING_ALMOST_PEDANTIC): New.
+	(ACX_PROG_CC_WARNING_OPTS, ACX_PROG_CC_WARNING_ALMOST_PEDANTIC)
+	(ACX_PROG_CC_WARNINGS_ARE_ERRORS): Push into C language context.
+
+2015-05-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sjlj.m4: New file.
+
+2015-05-04  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* bitfields.m4: Change int to long long, and use bitfields of
+	width 1 instead of 0.
+
+2015-05-01  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* bitfields.m4: New file.
+
+2015-04-14  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* bootstrap-mpx.mk: New file.
+
+2015-04-10  Jakub Jelinek  <jakub@redhat.com>
+	    Iain Sandoe  <iain@codesourcery.com>
+
+	PR target/65351
+	* mh-darwin: Only apply -mdynamic-no-pic for m32 Darwin when the
+	compiler in use supports -mno-dynamic-no-pic.
+	* picflag.m4: Only append -mno-dynamic-no-pic for Darwin when
+	-mdynamic-no-pic is present in CFLAGS.
+
+2015-04-07  Jakub Jelinek  <jakub@redhat.com>
+	    Iain Sandoe  <iain@codesourcery.com>
+
+	PR target/65351
+	* picflag.m4: Append -mno-dynamic-no-pic for Darwin.
+
+2015-03-25  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR bootstrap/65537
+	* bootstrap-lto-noplugin.mk: New build configuration.
+
+2015-02-18  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* elf.m4 (ACX_ELF_TARGET_IFELSE): nvptx-*-none isn't ELF.
+
+2014-11-17  Bob Dunlop  <bob.dunlop@xyzzy.org.uk>
+
+	* mt-ospace (CFLAGS_FOR_TARGET): Append -g -Os rather than
+	overwriting.
+	(CXXFLAGS_FOR_TARGET): Similarly.
+
+2014-11-17  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR bootstrap/63888
+	* bootstrap-asan.mk (ASAN_OPTIONS): Export "detect_leaks=0".
+
+2014-11-13  Kirill Yukhin  <kirill.yukhin@intel.com>
+
+	* target-posix: New file.
+
+2014-11-11  Tobias Burnus  <burnus@net-b.de>
+
+	* cloog.m4: Remove.
+
+2014-10-27  Tom Tromey  <tromey@redhat.com>
+
+	* gcc-plugin.m4: New file.
+
 2014-09-01  Andi Kleen  <ak@linux.intel.com>
 
 	* bootstrap-lto.mk: Implement slim bootstrap.
@@ -7,10 +284,21 @@
 	* isl.m4 (ISL_CHECK_VERSION): Check link of isl library
 	for cross_compiling.
 
+2014-08-19  Alan Modra  <amodra@gmail.com>
+
+	* plugins.m4 (AC_PLUGINS): If plugins are enabled, add -ldl to
+	LIBS via AC_SEARCH_LIBS.
+
 2014-08-18 Roman Gareev  <gareevroman@gmail.com>
 
 	* cloog.m4: Remove the path to isllibs from clooglibs.
 	* isl.m4: Add paths to islinc, isllibs.
+
+2014-08-14  Alan Modra  <amodra@gmail.com>
+
+	* plugins.m4: Test for dlfcn.h or windows.h here to set default
+	for --enable-plugins.  Report error if someone tries to enable
+	plugins on a host we don't support.
 
 2014-07-26  Uros Bizjak  <ubizjak@gmail.com>
 
@@ -25,6 +313,10 @@
 
 	PR target/43538
 	* mt-gnu: Don't reset CXXFLAGS_FOR_TARGET.
+
+2013-12-07  Mike Frysinger  <vapier@gentoo.org>
+
+	* acinclude.m4: Remove +x file mode.
 
 2013-11-29  Marek Polacek  <polacek@redhat.com>
 
@@ -181,7 +473,7 @@
 
 	* config/mh-interix: Remove as unneeded.
 	* config/picflag.m4 (i[[34567]]86-*-interix3*):
-        Change triplet to i[[34567]]86-*-interix[[3-9]]*.
+	Change triplet to i[[34567]]86-*-interix[[3-9]]*.
 
 2012-01-04  Andreas Krebbel  <Andreas.Krebbel@de.ibm.com>
 

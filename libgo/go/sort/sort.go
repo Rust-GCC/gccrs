@@ -2,12 +2,14 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+//go:generate go run genzfunc.go
+
 // Package sort provides primitives for sorting slices and user-defined
 // collections.
 package sort
 
 // A type, typically a collection, that satisfies sort.Interface can be
-// sorted by the routines in this package.  The methods require that the
+// sorted by the routines in this package. The methods require that the
 // elements of the collection be enumerated by an integer index.
 type Interface interface {
 	// Len is the number of elements in the collection.
@@ -17,13 +19,6 @@ type Interface interface {
 	Less(i, j int) bool
 	// Swap swaps the elements with indexes i and j.
 	Swap(i, j int)
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // Insertion sort
@@ -72,23 +67,22 @@ func heapSort(data Interface, a, b int) {
 	}
 }
 
-// Quicksort, following Bentley and McIlroy,
+// Quicksort, loosely following Bentley and McIlroy,
 // ``Engineering a Sort Function,'' SP&E November 1993.
 
-// medianOfThree moves the median of the three values data[a], data[b], data[c] into data[a].
-func medianOfThree(data Interface, a, b, c int) {
-	m0 := b
-	m1 := a
-	m2 := c
-	// bubble sort on 3 elements
+// medianOfThree moves the median of the three values data[m0], data[m1], data[m2] into data[m1].
+func medianOfThree(data Interface, m1, m0, m2 int) {
+	// sort 3 elements
 	if data.Less(m1, m0) {
 		data.Swap(m1, m0)
 	}
+	// data[m0] <= data[m1]
 	if data.Less(m2, m1) {
 		data.Swap(m2, m1)
-	}
-	if data.Less(m1, m0) {
-		data.Swap(m1, m0)
+		// data[m0] <= data[m2] && data[m1] < data[m2]
+		if data.Less(m1, m0) {
+			data.Swap(m1, m0)
+		}
 	}
 	// now data[m0] <= data[m1] <= data[m2]
 }
@@ -100,7 +94,7 @@ func swapRange(data Interface, a, b, n int) {
 }
 
 func doPivot(data Interface, lo, hi int) (midlo, midhi int) {
-	m := lo + (hi-lo)/2 // Written like this to avoid integer overflow.
+	m := int(uint(lo+hi) >> 1) // Written like this to avoid integer overflow.
 	if hi-lo > 40 {
 		// Tukey's ``Ninther,'' median of three medians of three.
 		s := (hi - lo) / 8
@@ -112,59 +106,82 @@ func doPivot(data Interface, lo, hi int) (midlo, midhi int) {
 
 	// Invariants are:
 	//	data[lo] = pivot (set up by ChoosePivot)
-	//	data[lo <= i < a] = pivot
-	//	data[a <= i < b] < pivot
-	//	data[b <= i < c] is unexamined
-	//	data[c <= i < d] > pivot
-	//	data[d <= i < hi] = pivot
-	//
-	// Once b meets c, can swap the "= pivot" sections
-	// into the middle of the slice.
+	//	data[lo < i < a] < pivot
+	//	data[a <= i < b] <= pivot
+	//	data[b <= i < c] unexamined
+	//	data[c <= i < hi-1] > pivot
+	//	data[hi-1] >= pivot
 	pivot := lo
-	a, b, c, d := lo+1, lo+1, hi, hi
+	a, c := lo+1, hi-1
+
+	for ; a < c && data.Less(a, pivot); a++ {
+	}
+	b := a
 	for {
-		for b < c {
-			if data.Less(b, pivot) { // data[b] < pivot
-				b++
-			} else if !data.Less(pivot, b) { // data[b] = pivot
-				data.Swap(a, b)
-				a++
-				b++
-			} else {
-				break
-			}
+		for ; b < c && !data.Less(pivot, b); b++ { // data[b] <= pivot
 		}
-		for b < c {
-			if data.Less(pivot, c-1) { // data[c-1] > pivot
-				c--
-			} else if !data.Less(c-1, pivot) { // data[c-1] = pivot
-				data.Swap(c-1, d-1)
-				c--
-				d--
-			} else {
-				break
-			}
+		for ; b < c && data.Less(pivot, c-1); c-- { // data[c-1] > pivot
 		}
 		if b >= c {
 			break
 		}
-		// data[b] > pivot; data[c-1] < pivot
+		// data[b] > pivot; data[c-1] <= pivot
 		data.Swap(b, c-1)
 		b++
 		c--
 	}
-
-	n := min(b-a, a-lo)
-	swapRange(data, lo, b-n, n)
-
-	n = min(hi-d, d-c)
-	swapRange(data, c, hi-n, n)
-
-	return lo + b - a, hi - (d - c)
+	// If hi-c<3 then there are duplicates (by property of median of nine).
+	// Let's be a bit more conservative, and set border to 5.
+	protect := hi-c < 5
+	if !protect && hi-c < (hi-lo)/4 {
+		// Lets test some points for equality to pivot
+		dups := 0
+		if !data.Less(pivot, hi-1) { // data[hi-1] = pivot
+			data.Swap(c, hi-1)
+			c++
+			dups++
+		}
+		if !data.Less(b-1, pivot) { // data[b-1] = pivot
+			b--
+			dups++
+		}
+		// m-lo = (hi-lo)/2 > 6
+		// b-lo > (hi-lo)*3/4-1 > 8
+		// ==> m < b ==> data[m] <= pivot
+		if !data.Less(m, pivot) { // data[m] = pivot
+			data.Swap(m, b-1)
+			b--
+			dups++
+		}
+		// if at least 2 points are equal to pivot, assume skewed distribution
+		protect = dups > 1
+	}
+	if protect {
+		// Protect against a lot of duplicates
+		// Add invariant:
+		//	data[a <= i < b] unexamined
+		//	data[b <= i < c] = pivot
+		for {
+			for ; a < b && !data.Less(b-1, pivot); b-- { // data[b] == pivot
+			}
+			for ; a < b && data.Less(a, pivot); a++ { // data[a] < pivot
+			}
+			if a >= b {
+				break
+			}
+			// data[a] == pivot; data[b-1] < pivot
+			data.Swap(a, b-1)
+			a++
+			b--
+		}
+	}
+	// Swap pivot into middle
+	data.Swap(pivot, b-1)
+	return b - 1, c
 }
 
 func quickSort(data Interface, a, b, maxDepth int) {
-	for b-a > 7 {
+	for b-a > 12 { // Use ShellSort for slices <= 12 elements
 		if maxDepth == 0 {
 			heapSort(data, a, b)
 			return
@@ -182,6 +199,13 @@ func quickSort(data Interface, a, b, maxDepth int) {
 		}
 	}
 	if b-a > 1 {
+		// Do ShellSort pass with gap 6
+		// It could be written in this simplified form cause b-a <= 12
+		for i := a + 6; i < b; i++ {
+			if data.Less(i, i-6) {
+				data.Swap(i, i-6)
+			}
+		}
 		insertionSort(data, a, b)
 	}
 }
@@ -190,14 +214,26 @@ func quickSort(data Interface, a, b, maxDepth int) {
 // It makes one call to data.Len to determine n, and O(n*log(n)) calls to
 // data.Less and data.Swap. The sort is not guaranteed to be stable.
 func Sort(data Interface) {
-	// Switch to heapsort if depth of 2*ceil(lg(n+1)) is reached.
 	n := data.Len()
-	maxDepth := 0
+	quickSort(data, 0, n, maxDepth(n))
+}
+
+// maxDepth returns a threshold at which quicksort should switch
+// to heapsort. It returns 2*ceil(lg(n+1)).
+func maxDepth(n int) int {
+	var depth int
 	for i := n; i > 0; i >>= 1 {
-		maxDepth++
+		depth++
 	}
-	maxDepth *= 2
-	quickSort(data, 0, n, maxDepth)
+	return depth * 2
+}
+
+// lessSwap is a pair of Less and Swap function for use with the
+// auto-generated func-optimized variant of sort.go in
+// zfuncversion.go.
+type lessSwap struct {
+	Less func(i, j int) bool
+	Swap func(i, j int)
 }
 
 type reverse struct {
@@ -239,7 +275,8 @@ func (p IntSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // Sort is a convenience method.
 func (p IntSlice) Sort() { Sort(p) }
 
-// Float64Slice attaches the methods of Interface to []float64, sorting in increasing order.
+// Float64Slice attaches the methods of Interface to []float64, sorting in increasing order
+// (not-a-number values are treated as less than other values).
 type Float64Slice []float64
 
 func (p Float64Slice) Len() int           { return len(p) }
@@ -269,7 +306,8 @@ func (p StringSlice) Sort() { Sort(p) }
 // Ints sorts a slice of ints in increasing order.
 func Ints(a []int) { Sort(IntSlice(a)) }
 
-// Float64s sorts a slice of float64s in increasing order.
+// Float64s sorts a slice of float64s in increasing order
+// (not-a-number values are treated as less than other values).
 func Float64s(a []float64) { Sort(Float64Slice(a)) }
 
 // Strings sorts a slice of strings in increasing order.
@@ -278,7 +316,8 @@ func Strings(a []string) { Sort(StringSlice(a)) }
 // IntsAreSorted tests whether a slice of ints is sorted in increasing order.
 func IntsAreSorted(a []int) bool { return IsSorted(IntSlice(a)) }
 
-// Float64sAreSorted tests whether a slice of float64s is sorted in increasing order.
+// Float64sAreSorted tests whether a slice of float64s is sorted in increasing order
+// (not-a-number values are treated as less than other values).
 func Float64sAreSorted(a []float64) bool { return IsSorted(Float64Slice(a)) }
 
 // StringsAreSorted tests whether a slice of strings is sorted in increasing order.
@@ -286,7 +325,7 @@ func StringsAreSorted(a []string) bool { return IsSorted(StringSlice(a)) }
 
 // Notes on stable sorting:
 // The used algorithms are simple and provable correct on all input and use
-// only logarithmic additional stack space.  They perform well if compared
+// only logarithmic additional stack space. They perform well if compared
 // experimentally to other stable in-place sorting algorithms.
 //
 // Remarks on other algorithms evaluated:
@@ -297,16 +336,16 @@ func StringsAreSorted(a []string) bool { return IsSorted(StringSlice(a)) }
 //    and Jukka Teuhola; Nordic Journal of Computing 3,1 (1996), 27-40:
 //    The given algorithms are in-place, number of Swap and Assignments
 //    grow as n log n but the algorithm is not stable.
-//  - "Fast Stable In-Plcae Sorting with O(n) Data Moves" J.I. Munro and
+//  - "Fast Stable In-Place Sorting with O(n) Data Moves" J.I. Munro and
 //    V. Raman in Algorithmica (1996) 16, 115-160:
 //    This algorithm either needs additional 2n bits or works only if there
 //    are enough different elements available to encode some permutations
-//    which have to be undone later (so not stable an any input).
+//    which have to be undone later (so not stable on any input).
 //  - All the optimal in-place sorting/merging algorithms I found are either
 //    unstable or rely on enough different elements in each step to encode the
 //    performed block rearrangements. See also "In-Place Merging Algorithms",
 //    Denham Coates-Evely, Department of Computer Science, Kings College,
-//    January 2004 and the reverences in there.
+//    January 2004 and the references in there.
 //  - Often "optimal" algorithms are optimal in the number of assignments
 //    but Interface has only Swap as operation.
 
@@ -315,8 +354,11 @@ func StringsAreSorted(a []string) bool { return IsSorted(StringSlice(a)) }
 // It makes one call to data.Len to determine n, O(n*log(n)) calls to
 // data.Less and O(n*log(n)*log(n)) calls to data.Swap.
 func Stable(data Interface) {
-	n := data.Len()
-	blockSize := 20
+	stable(data, data.Len())
+}
+
+func stable(data Interface, n int) {
+	blockSize := 20 // must be > 0
 	a, b := 0, blockSize
 	for b <= n {
 		insertionSort(data, a, b)
@@ -332,7 +374,9 @@ func Stable(data Interface) {
 			a = b
 			b += 2 * blockSize
 		}
-		symMerge(data, a, a+blockSize, n)
+		if m := a + blockSize; m < n {
+			symMerge(data, a, m, n)
+		}
 		blockSize *= 2
 	}
 }
@@ -352,72 +396,111 @@ func Stable(data Interface) {
 // rotation algorithm which uses O(M+N+gcd(M+N)) assignments. The argumentation
 // in the paper carries through for Swap operations, especially as the block
 // swapping rotate uses only O(M+N) Swaps.
+//
+// symMerge assumes non-degenerate arguments: a < m && m < b.
+// Having the caller check this condition eliminates many leaf recursion calls,
+// which improves performance.
 func symMerge(data Interface, a, m, b int) {
-	if a >= m || m >= b {
+	// Avoid unnecessary recursions of symMerge
+	// by direct insertion of data[a] into data[m:b]
+	// if data[a:m] only contains one element.
+	if m-a == 1 {
+		// Use binary search to find the lowest index i
+		// such that data[i] >= data[a] for m <= i < b.
+		// Exit the search loop with i == b in case no such index exists.
+		i := m
+		j := b
+		for i < j {
+			h := int(uint(i+j) >> 1)
+			if data.Less(h, a) {
+				i = h + 1
+			} else {
+				j = h
+			}
+		}
+		// Swap values until data[a] reaches the position before i.
+		for k := a; k < i-1; k++ {
+			data.Swap(k, k+1)
+		}
 		return
 	}
 
-	mid := a + (b-a)/2
+	// Avoid unnecessary recursions of symMerge
+	// by direct insertion of data[m] into data[a:m]
+	// if data[m:b] only contains one element.
+	if b-m == 1 {
+		// Use binary search to find the lowest index i
+		// such that data[i] > data[m] for a <= i < m.
+		// Exit the search loop with i == m in case no such index exists.
+		i := a
+		j := m
+		for i < j {
+			h := int(uint(i+j) >> 1)
+			if !data.Less(m, h) {
+				i = h + 1
+			} else {
+				j = h
+			}
+		}
+		// Swap values until data[m] reaches the position i.
+		for k := m; k > i; k-- {
+			data.Swap(k, k-1)
+		}
+		return
+	}
+
+	mid := int(uint(a+b) >> 1)
 	n := mid + m
-	start := 0
+	var start, r int
 	if m > mid {
 		start = n - b
-		r, p := mid, n-1
-		for start < r {
-			c := start + (r-start)/2
-			if !data.Less(p-c, c) {
-				start = c + 1
-			} else {
-				r = c
-			}
-		}
+		r = mid
 	} else {
 		start = a
-		r, p := m, n-1
-		for start < r {
-			c := start + (r-start)/2
-			if !data.Less(p-c, c) {
-				start = c + 1
-			} else {
-				r = c
-			}
+		r = m
+	}
+	p := n - 1
+
+	for start < r {
+		c := int(uint(start+r) >> 1)
+		if !data.Less(p-c, c) {
+			start = c + 1
+		} else {
+			r = c
 		}
 	}
+
 	end := n - start
-	rotate(data, start, m, end)
-	symMerge(data, a, start, mid)
-	symMerge(data, mid, end, b)
+	if start < m && m < end {
+		rotate(data, start, m, end)
+	}
+	if a < start && start < mid {
+		symMerge(data, a, start, mid)
+	}
+	if mid < end && end < b {
+		symMerge(data, mid, end, b)
+	}
 }
 
-// Rotate two consecutives blocks u = data[a:m] and v = data[m:b] in data:
+// Rotate two consecutive blocks u = data[a:m] and v = data[m:b] in data:
 // Data of the form 'x u v y' is changed to 'x v u y'.
 // Rotate performs at most b-a many calls to data.Swap.
+// Rotate assumes non-degenerate arguments: a < m && m < b.
 func rotate(data Interface, a, m, b int) {
 	i := m - a
-	if i == 0 {
-		return
-	}
 	j := b - m
-	if j == 0 {
-		return
-	}
 
-	if i == j {
-		swapRange(data, a, m, i)
-		return
-	}
-
-	p := a + i
 	for i != j {
 		if i > j {
-			swapRange(data, p-i, p, j)
+			swapRange(data, m-i, m, j)
 			i -= j
 		} else {
-			swapRange(data, p-i, p+j-i, i)
+			swapRange(data, m-i, m+j-i, i)
 			j -= i
 		}
 	}
-	swapRange(data, p-i, p, i)
+	// i == j
+	swapRange(data, m-i, m, i)
 }
 
 /*

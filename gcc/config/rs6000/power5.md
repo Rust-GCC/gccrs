@@ -1,5 +1,5 @@
 ;; Scheduling description for IBM POWER5 processor.
-;;   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+;;   Copyright (C) 2003-2019 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -210,9 +210,8 @@
   "iq_power5")
 
 (define_insn_reservation "power5-compare" 2
-  (and (ior (eq_attr "type" "compare")
-	    (and (eq_attr "type" "shift,exts")
-		 (eq_attr "dot" "yes")))
+  (and (eq_attr "type" "shift,exts")
+       (eq_attr "dot" "yes")
        (eq_attr "cpu" "power5"))
   "du1_power5+du2_power5,iu1_power5,iu2_power5")
 
@@ -293,11 +292,13 @@
 ; Condition Register logical ops are split if non-destructive (RT != RB)
 (define_insn_reservation "power5-crlogical" 2
   (and (eq_attr "type" "cr_logical")
+       (eq_attr "cr_logical_3op" "no")
        (eq_attr "cpu" "power5"))
   "du1_power5,cru_power5")
 
 (define_insn_reservation "power5-delayedcr" 4
-  (and (eq_attr "type" "delayed_cr")
+  (and (eq_attr "type" "cr_logical")
+       (eq_attr "cr_logical_3op" "yes")
        (eq_attr "cpu" "power5"))
   "du1_power5+du2_power5,cru_power5,cru_power5")
 
@@ -323,7 +324,7 @@
 
 ; Basic FP latency is 6 cycles
 (define_insn_reservation "power5-fp" 6
-  (and (eq_attr "type" "fp,dmul")
+  (and (eq_attr "type" "fp,fpsimple,dmul")
        (eq_attr "cpu" "power5"))
   "fpq_power5")
 

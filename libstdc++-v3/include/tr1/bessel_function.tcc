@@ -1,6 +1,6 @@
 // Special functions -*- C++ -*-
 
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -27,6 +27,10 @@
  *  Do not attempt to use it directly. @headername{tr1/cmath}
  */
 
+/* __cyl_bessel_jn_asymp adapted from GNU GSL version 2.4 specfunc/bessel_j.c
+ * Copyright (C) 1996-2003 Gerard Jungman
+ */
+
 //
 // ISO C++ 14882 TR1: 5.2  Special functions
 //
@@ -46,19 +50,26 @@
 #ifndef _GLIBCXX_TR1_BESSEL_FUNCTION_TCC
 #define _GLIBCXX_TR1_BESSEL_FUNCTION_TCC 1
 
-#include "special_function_util.h"
+#include <tr1/special_function_util.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+#if _GLIBCXX_USE_STD_SPEC_FUNCS
+# define _GLIBCXX_MATH_NS ::std
+#elif defined(_GLIBCXX_TR1_CMATH)
 namespace tr1
 {
+# define _GLIBCXX_MATH_NS ::std::tr1
+#else
+# error do not include this header directly, use <cmath> or <tr1/cmath>
+#endif
   // [5.2] Special functions
 
   // Implementation-space details.
   namespace __detail
   {
-  _GLIBCXX_BEGIN_NAMESPACE_VERSION
-
     /**
      *   @brief Compute the gamma functions required by the Temme series
      *          expansions of @f$ N_\nu(x) @f$ and @f$ K_\nu(x) @f$.
@@ -90,8 +101,8 @@ namespace tr1
                   _Tp & __gam1, _Tp & __gam2, _Tp & __gampl, _Tp & __gammi)
     {
 #if _GLIBCXX_USE_C99_MATH_TR1
-      __gampl = _Tp(1) / std::tr1::tgamma(_Tp(1) + __mu);
-      __gammi = _Tp(1) / std::tr1::tgamma(_Tp(1) - __mu);
+      __gampl = _Tp(1) / _GLIBCXX_MATH_NS::tgamma(_Tp(1) + __mu);
+      __gammi = _Tp(1) / _GLIBCXX_MATH_NS::tgamma(_Tp(1) - __mu);
 #else
       __gampl = _Tp(1) / __gamma(_Tp(1) + __mu);
       __gammi = _Tp(1) / __gamma(_Tp(1) - __mu);
@@ -306,7 +317,7 @@ namespace tr1
           const _Tp __gam = (__p - __f) / __q;
           __Jmu = std::sqrt(__w / ((__p - __f) * __gam + __q));
 #if _GLIBCXX_USE_C99_MATH_TR1
-          __Jmu = std::tr1::copysign(__Jmu, __Jnul);
+          __Jmu = _GLIBCXX_MATH_NS::copysign(__Jmu, __Jnul);
 #else
           if (__Jmu * __Jnul < _Tp(0))
             __Jmu = -__Jmu;
@@ -351,24 +362,51 @@ namespace tr1
     void
     __cyl_bessel_jn_asymp(_Tp __nu, _Tp __x, _Tp & __Jnu, _Tp & __Nnu)
     {
-      const _Tp __mu   = _Tp(4) * __nu * __nu;
-      const _Tp __mum1 = __mu - _Tp(1);
-      const _Tp __mum9 = __mu - _Tp(9);
-      const _Tp __mum25 = __mu - _Tp(25);
-      const _Tp __mum49 = __mu - _Tp(49);
-      const _Tp __xx = _Tp(64) * __x * __x;
-      const _Tp __P = _Tp(1) - __mum1 * __mum9 / (_Tp(2) * __xx)
-                    * (_Tp(1) - __mum25 * __mum49 / (_Tp(12) * __xx));
-      const _Tp __Q = __mum1 / (_Tp(8) * __x)
-                    * (_Tp(1) - __mum9 * __mum25 / (_Tp(6) * __xx));
+      const _Tp __mu = _Tp(4) * __nu * __nu;
+      const _Tp __8x = _Tp(8) * __x;
+
+      _Tp __P = _Tp(0);
+      _Tp __Q = _Tp(0);
+
+      _Tp __k = _Tp(0);
+      _Tp __term = _Tp(1);
+
+      int __epsP = 0;
+      int __epsQ = 0;
+
+      _Tp __eps = std::numeric_limits<_Tp>::epsilon();
+
+      do
+        {
+          __term *= (__k == 0
+                     ? _Tp(1)
+                     : -(__mu - (2 * __k - 1) * (2 * __k - 1)) / (__k * __8x));
+
+          __epsP = std::abs(__term) < __eps * std::abs(__P);
+          __P += __term;
+
+          __k++;
+
+          __term *= (__mu - (2 * __k - 1) * (2 * __k - 1)) / (__k * __8x);
+          __epsQ = std::abs(__term) < __eps * std::abs(__Q);
+          __Q += __term;
+
+          if (__epsP && __epsQ && __k > (__nu / 2.))
+            break;
+
+          __k++;
+        }
+      while (__k < 1000);
 
       const _Tp __chi = __x - (__nu + _Tp(0.5L))
-                            * __numeric_constants<_Tp>::__pi_2();
+                             * __numeric_constants<_Tp>::__pi_2();
+
       const _Tp __c = std::cos(__chi);
       const _Tp __s = std::sin(__chi);
 
       const _Tp __coef = std::sqrt(_Tp(2)
                              / (__numeric_constants<_Tp>::__pi() * __x));
+
       __Jnu = __coef * (__c * __P - __s * __Q);
       __Nnu = __coef * (__s * __P + __c * __Q);
 
@@ -414,7 +452,7 @@ namespace tr1
       const _Tp __x2 = __x / _Tp(2);
       _Tp __fact = __nu * std::log(__x2);
 #if _GLIBCXX_USE_C99_MATH_TR1
-      __fact -= std::tr1::lgamma(__nu + _Tp(1));
+      __fact -= _GLIBCXX_MATH_NS::lgamma(__nu + _Tp(1));
 #else
       __fact -= __log_gamma(__nu + _Tp(1));
 #endif
@@ -619,10 +657,13 @@ namespace tr1
           return __n_n;
         }
     }
+  } // namespace __detail
+#undef _GLIBCXX_MATH_NS
+#if ! _GLIBCXX_USE_STD_SPEC_FUNCS && defined(_GLIBCXX_TR1_CMATH)
+} // namespace tr1
+#endif
 
-  _GLIBCXX_END_NAMESPACE_VERSION
-  } // namespace std::tr1::__detail
-}
+_GLIBCXX_END_NAMESPACE_VERSION
 }
 
 #endif // _GLIBCXX_TR1_BESSEL_FUNCTION_TCC

@@ -1,6 +1,6 @@
 // class template regex -*- C++ -*-
 
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,19 +28,12 @@
  *  Do not attempt to use it directly. @headername{regex}
  */
 
-// A non-standard switch to let the user pick the matching algorithm.
-// If _GLIBCXX_REGEX_USE_THOMPSON_NFA is defined, the thompson NFA
-// algorithm will be used. This algorithm is not enabled by default,
-// and cannot be used if the regex contains back-references, but has better
-// (polynomial instead of exponential) worst case performance.
-// See __regex_algo_impl below.
-
 namespace std _GLIBCXX_VISIBILITY(default)
-{
-namespace __detail
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
+namespace __detail
+{
   // Result of merging regex_match and regex_search.
   //
   // __policy now can be _S_auto (auto dispatch) and _S_alternate (use
@@ -62,20 +55,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	return false;
 
       typename match_results<_BiIter, _Alloc>::_Base_type& __res = __m;
-      __res.resize(__re._M_automaton->_M_sub_count() + 2);
+      __m._M_begin = __s;
+      __m._M_resize(__re._M_automaton->_M_sub_count());
       for (auto& __it : __res)
 	__it.matched = false;
 
-      // __policy is used by testsuites so that they can use Thompson NFA
-      // without defining a macro. Users should define
-      // _GLIBCXX_REGEX_USE_THOMPSON_NFA if they need to use this approach.
       bool __ret;
-      if (!__re._M_automaton->_M_has_backref
-	  && !(__re._M_flags & regex_constants::ECMAScript)
-#ifndef _GLIBCXX_REGEX_USE_THOMPSON_NFA
-	  && __policy == _RegexExecutorPolicy::_S_alternate
-#endif
-	  )
+      if ((__re.flags() & regex_constants::__polynomial)
+	  || (__policy == _RegexExecutorPolicy::_S_alternate
+	      && !__re._M_automaton->_M_has_backref))
 	{
 	  _Executor<_BiIter, _Alloc, _TraitsT, false>
 	    __executor(__s, __e, __m, __re, __flags);
@@ -95,11 +83,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
       if (__ret)
 	{
-	  for (auto __it : __res)
+	  for (auto& __it : __res)
 	    if (!__it.matched)
 	      __it.first = __it.second = __e;
-	  auto& __pre = __res[__res.size()-2];
-	  auto& __suf = __res[__res.size()-1];
+	  auto& __pre = __m._M_prefix();
+	  auto& __suf = __m._M_suffix();
 	  if (__match_mode)
 	    {
 	      __pre.matched = false;
@@ -119,13 +107,18 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      __suf.matched = (__suf.first != __suf.second);
 	    }
 	}
+      else
+	{
+	  __m._M_resize(0);
+	  for (auto& __it : __res)
+	    {
+	      __it.matched = false;
+	      __it.first = __it.second = __e;
+	    }
+	}
       return __ret;
     }
-
-_GLIBCXX_END_NAMESPACE_VERSION
 }
-
-_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _Ch_type>
   template<typename _Fwd_iter>
@@ -266,53 +259,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  "right-curly-bracket",
 	  "tilde",
 	  "DEL",
-	  ""
 	};
 
-      // same as boost
-      //static const char* __digraphs[] =
-      //  {
-      //    "ae",
-      //    "Ae",
-      //    "AE",
-      //    "ch",
-      //    "Ch",
-      //    "CH",
-      //    "ll",
-      //    "Ll",
-      //    "LL",
-      //    "ss",
-      //    "Ss",
-      //    "SS",
-      //    "nj",
-      //    "Nj",
-      //    "NJ",
-      //    "dz",
-      //    "Dz",
-      //    "DZ",
-      //    "lj",
-      //    "Lj",
-      //    "LJ",
-      //    ""
-      //  };
+      string __s;
+      for (; __first != __last; ++__first)
+	__s += __fctyp.narrow(*__first, 0);
 
-      std::string __s(__last - __first, '?');
-      __fctyp.narrow(__first, __last, '?', &*__s.begin());
+      for (const auto& __it : __collatenames)
+	if (__s == __it)
+	  return string_type(1, __fctyp.widen(
+	    static_cast<char>(&__it - __collatenames)));
 
-      for (unsigned int __i = 0; *__collatenames[__i]; __i++)
-	if (__s == __collatenames[__i])
-	  return string_type(1, __fctyp.widen(static_cast<char>(__i)));
+      // TODO Add digraph support:
+      // http://boost.sourceforge.net/libs/regex/doc/collating_names.html
 
-      //for (unsigned int __i = 0; *__digraphs[__i]; __i++)
-      //  {
-      //    const char* __now = __digraphs[__i];
-      //    if (__s == __now)
-      //      {
-      //	string_type ret(__s.size(), __fctyp.widen('?'));
-      //	__fctyp.widen(__now, __now + 2/* ouch */, &*ret.begin());
-      //	return ret;
-      //      }
-      //  }
       return string_type();
     }
 
@@ -323,19 +283,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     lookup_classname(_Fwd_iter __first, _Fwd_iter __last, bool __icase) const
     {
       typedef std::ctype<char_type> __ctype_type;
-      typedef std::ctype<char> __cctype_type;
-      typedef const pair<const char*, char_class_type> _ClassnameEntry;
       const __ctype_type& __fctyp(use_facet<__ctype_type>(_M_locale));
-      const __cctype_type& __cctyp(use_facet<__cctype_type>(_M_locale));
 
-      static _ClassnameEntry __classnames[] =
+      // Mappings from class name to class mask.
+      static const pair<const char*, char_class_type> __classnames[] =
       {
 	{"d", ctype_base::digit},
 	{"w", {ctype_base::alnum, _RegexMask::_S_under}},
 	{"s", ctype_base::space},
 	{"alnum", ctype_base::alnum},
 	{"alpha", ctype_base::alpha},
-	{"blank", {0, _RegexMask::_S_blank}},
+	{"blank", ctype_base::blank},
 	{"cntrl", ctype_base::cntrl},
 	{"digit", ctype_base::digit},
 	{"graph", ctype_base::graph},
@@ -347,22 +305,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	{"xdigit", ctype_base::xdigit},
       };
 
-      std::string __s(__last - __first, '?');
-      __fctyp.narrow(__first, __last, '?', &__s[0]);
-      __cctyp.tolower(&*__s.begin(), &*__s.begin() + __s.size());
-      for (_ClassnameEntry* __it = __classnames;
-	   __it < *(&__classnames + 1);
-	   ++__it)
-	{
-	  if (__s == __it->first)
-	    {
-	      if (__icase
-		  && ((__it->second
-		       & (ctype_base::lower | ctype_base::upper)) != 0))
-		return ctype_base::alpha;
-	      return __it->second;
-	    }
-	}
+      string __s;
+      for (; __first != __last; ++__first)
+	__s += __fctyp.narrow(__fctyp.tolower(*__first), 0);
+
+      for (const auto& __it : __classnames)
+	if (__s == __it.first)
+	  {
+	    if (__icase
+		&& ((__it.second
+		     & (ctype_base::lower | ctype_base::upper)) != 0))
+	      return ctype_base::alpha;
+	    return __it.second;
+	  }
       return 0;
     }
 
@@ -377,11 +332,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       return __fctyp.is(__f._M_base, __c)
 	// [[:w:]]
 	|| ((__f._M_extended & _RegexMask::_S_under)
-	    && __c == __fctyp.widen('_'))
-	// [[:blank:]]
-	|| ((__f._M_extended & _RegexMask::_S_blank)
-	    && (__c == __fctyp.widen(' ')
-		|| __c == __fctyp.widen('\t')));
+	    && __c == __fctyp.widen('_'));
     }
 
   template<typename _Ch_type>
@@ -407,7 +358,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	   const match_results<_Bi_iter, _Alloc>::char_type* __fmt_last,
 	   match_flag_type __flags) const
     {
-      _GLIBCXX_DEBUG_ASSERT( ready() );
+      __glibcxx_assert( ready() );
       regex_traits<char_type> __traits;
       typedef std::ctype<char_type> __ctype_type;
       const __ctype_type&
@@ -415,29 +366,39 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       auto __output = [&](size_t __idx)
 	{
-	  auto& __sub = _Base_type::operator[](__idx);
+	  auto& __sub = (*this)[__idx];
 	  if (__sub.matched)
 	    __out = std::copy(__sub.first, __sub.second, __out);
 	};
 
       if (__flags & regex_constants::format_sed)
 	{
-	  for (; __fmt_first != __fmt_last;)
-	    if (*__fmt_first == '&')
-	      {
-		__output(0);
-		++__fmt_first;
-	      }
-	    else if (*__fmt_first == '\\')
-	      {
-		if (++__fmt_first != __fmt_last
-		    && __fctyp.is(__ctype_type::digit, *__fmt_first))
-		  __output(__traits.value(*__fmt_first++, 10));
-		else
-		  *__out++ = '\\';
-	      }
-	    else
-	      *__out++ = *__fmt_first++;
+	  bool __escaping = false;
+	  for (; __fmt_first != __fmt_last; __fmt_first++)
+	    {
+	      if (__escaping)
+		{
+		  __escaping = false;
+		  if (__fctyp.is(__ctype_type::digit, *__fmt_first))
+		    __output(__traits.value(*__fmt_first, 10));
+		  else
+		    *__out++ = *__fmt_first;
+		  continue;
+		}
+	      if (*__fmt_first == '\\')
+		{
+		  __escaping = true;
+		  continue;
+		}
+	      if (*__fmt_first == '&')
+		{
+		  __output(0);
+		  continue;
+		}
+	      *__out++ = *__fmt_first;
+	    }
+	  if (__escaping)
+	    *__out++ = '\\';
 	}
       else
 	{
@@ -466,9 +427,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      else if (__eat('&'))
 		__output(0);
 	      else if (__eat('`'))
-		__output(_Base_type::size()-2);
+		{
+		  auto& __sub = _M_prefix();
+		  if (__sub.matched)
+		    __out = std::copy(__sub.first, __sub.second, __out);
+		}
 	      else if (__eat('\''))
-		__output(_Base_type::size()-1);
+		{
+		  auto& __sub = _M_suffix();
+		  if (__sub.matched)
+		    __out = std::copy(__sub.first, __sub.second, __out);
+		}
 	      else if (__fctyp.is(__ctype_type::digit, *__next))
 		{
 		  long __num = __traits.value(*__next, 10);
@@ -531,14 +500,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	   typename _Rx_traits>
     bool
     regex_iterator<_Bi_iter, _Ch_type, _Rx_traits>::
-    operator==(const regex_iterator& __rhs) const
+    operator==(const regex_iterator& __rhs) const noexcept
     {
-      return (_M_match.empty() && __rhs._M_match.empty())
-	|| (_M_begin == __rhs._M_begin
-	    && _M_end == __rhs._M_end
-	    && _M_pregex == __rhs._M_pregex
-	    && _M_flags == __rhs._M_flags
-	    && _M_match[0] == __rhs._M_match[0]);
+      if (_M_pregex == nullptr && __rhs._M_pregex == nullptr)
+	return true;
+      return _M_pregex == __rhs._M_pregex
+	  && _M_begin == __rhs._M_begin
+	  && _M_end == __rhs._M_end
+	  && _M_flags == __rhs._M_flags
+	  && _M_match[0] == __rhs._M_match[0];
     }
 
   template<typename _Bi_iter,
@@ -562,7 +532,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    {
 	      if (__start == _M_end)
 		{
-		  _M_match = value_type();
+		  _M_pregex = nullptr;
 		  return *this;
 		}
 	      else
@@ -572,9 +542,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 				   | regex_constants::match_not_null
 				   | regex_constants::match_continuous))
 		    {
-		      _GLIBCXX_DEBUG_ASSERT(_M_match[0].matched);
-		      _M_match.at(_M_match.size()).first = __prefix_first;
-		      _M_match._M_in_iterator = true;
+		      __glibcxx_assert(_M_match[0].matched);
+		      auto& __prefix = _M_match._M_prefix();
+		      __prefix.first = __prefix_first;
+		      __prefix.matched = __prefix.first != __prefix.second;
+		      // [28.12.1.4.5]
 		      _M_match._M_begin = _M_begin;
 		      return *this;
 		    }
@@ -585,13 +557,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  _M_flags |= regex_constants::match_prev_avail;
 	  if (regex_search(__start, _M_end, _M_match, *_M_pregex, _M_flags))
 	    {
-	      _GLIBCXX_DEBUG_ASSERT(_M_match[0].matched);
-	      _M_match.at(_M_match.size()).first = __prefix_first;
-	      _M_match._M_in_iterator = true;
+	      __glibcxx_assert(_M_match[0].matched);
+	      auto& __prefix = _M_match._M_prefix();
+	      __prefix.first = __prefix_first;
+	      __prefix.matched = __prefix.first != __prefix.second;
+	      // [28.12.1.4.5]
 	      _M_match._M_begin = _M_begin;
 	    }
 	  else
-	    _M_match = value_type();
+	    _M_pregex = nullptr;
 	}
       return *this;
     }
@@ -606,11 +580,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _M_position = __rhs._M_position;
       _M_subs = __rhs._M_subs;
       _M_n = __rhs._M_n;
-      _M_result = __rhs._M_result;
       _M_suffix = __rhs._M_suffix;
       _M_has_m1 = __rhs._M_has_m1;
-      if (__rhs._M_result == &__rhs._M_suffix)
-	_M_result = &_M_suffix;
+      _M_normalize_result();
       return *this;
     }
 
@@ -697,4 +669,3 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
-

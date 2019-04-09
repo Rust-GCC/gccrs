@@ -1,6 +1,6 @@
 // Optimizations for random number functions, x86 version -*- C++ -*-
 
-// Copyright (C) 2012-2014 Free Software Foundation, Inc.
+// Copyright (C) 2012-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,9 @@
 #ifndef _BITS_OPT_RANDOM_H
 #define _BITS_OPT_RANDOM_H 1
 
-#include <x86intrin.h>
+#ifdef __SSE3__
+#include <pmmintrin.h>
+#endif
 
 
 #pragma GCC system_header
@@ -168,7 +170,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 			  }
 		      }
 		    while (__v2 > __maskval || __v2 < __tmp);
-		    
+
 		    __v.__i = _mm_set_epi64x(__v1, __v2);
 		  }
 

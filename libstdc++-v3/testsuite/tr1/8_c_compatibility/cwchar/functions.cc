@@ -2,7 +2,7 @@
 
 // 2006-02-03  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -67,7 +67,7 @@ void test01(int dummy, ...)
   ret3 = ret3; // Suppress unused warning.
 #endif
 
-#if _GLIBCXX_USE_C99
+#if _GLIBCXX_USE_C99_WCHAR
 
   const wchar_t* nptr2 = 0;
   wchar_t** endptr2 = 0;

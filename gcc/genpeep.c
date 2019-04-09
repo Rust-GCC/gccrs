@@ -1,5 +1,5 @@
 /* Generate code from machine description to perform peephole optimizations.
-   Copyright (C) 1987-2014 Free Software Foundation, Inc.
+   Copyright (C) 1987-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -46,14 +46,14 @@ static int max_opno;
 
 static int n_operands;
 
-static void gen_peephole (rtx, int);
 static void match_rtx (rtx, struct link *, int);
 static void print_path (struct link *);
 static void print_code (RTX_CODE);
 
 static void
-gen_peephole (rtx peep, int insn_code_number)
+gen_peephole (md_rtx_info *info)
 {
+  rtx peep = info->def;
   int ninsns = XVECLEN (peep, 0);
   int i;
 
@@ -66,16 +66,14 @@ gen_peephole (rtx peep, int insn_code_number)
       if (i > 0)
 	{
 	  printf ("  do { insn = NEXT_INSN (insn);\n");
-	  printf ("       if (insn == 0) goto L%d; }\n",
-		  insn_code_number);
+	  printf ("       if (insn == 0) goto L%d; }\n", info->index);
 	  printf ("  while (NOTE_P (insn)\n");
 	  printf ("\t || (NONJUMP_INSN_P (insn)\n");
 	  printf ("\t     && (GET_CODE (PATTERN (insn)) == USE\n");
 	  printf ("\t\t || GET_CODE (PATTERN (insn)) == CLOBBER)));\n");
 
 	  printf ("  if (LABEL_P (insn)\n\
-      || BARRIER_P (insn))\n    goto L%d;\n",
-		  insn_code_number);
+      || BARRIER_P (insn))\n    goto L%d;\n", info->index);
 	}
 
       printf ("  pat = PATTERN (insn);\n");
@@ -83,7 +81,7 @@ gen_peephole (rtx peep, int insn_code_number)
       /* Walk the insn's pattern, remembering at all times the path
 	 down to the walking point.  */
 
-      match_rtx (XVECEXP (peep, 0, i), NULL, insn_code_number);
+      match_rtx (XVECEXP (peep, 0, i), NULL, info->index);
     }
 
   /* We get this far if the pattern matches.
@@ -91,7 +89,7 @@ gen_peephole (rtx peep, int insn_code_number)
 
   if (XSTR (peep, 1) && XSTR (peep, 1)[0])
     printf ("  if (! (%s)) goto L%d;\n",
-	    XSTR (peep, 1), insn_code_number);
+	    XSTR (peep, 1), info->index);
 
   /* If that matches, construct new pattern and put it in the first insn.
      This new pattern will never be matched.
@@ -103,8 +101,7 @@ gen_peephole (rtx peep, int insn_code_number)
 
   /* Record this define_peephole's insn code in the insn,
      as if it had been recognized to match this.  */
-  printf ("  INSN_CODE (ins1) = %d;\n",
-	  insn_code_number);
+  printf ("  INSN_CODE (ins1) = %d;\n", info->index);
 
   /* Delete the remaining insns.  */
   if (ninsns > 1)
@@ -114,7 +111,7 @@ gen_peephole (rtx peep, int insn_code_number)
      cannot be zero.  */
   printf ("  return NEXT_INSN (insn);\n");
 
-  printf (" L%d:\n\n", insn_code_number);
+  printf (" L%d:\n\n", info->index);
 }
 
 static void
@@ -276,6 +273,12 @@ match_rtx (rtx x, struct link *path, int fail_label)
 	  printf ("  if (XINT (x, %d) != %d) goto L%d;\n",
 		  i, XINT (x, i), fail_label);
 	}
+      else if (fmt[i] == 'r')
+	{
+	  gcc_assert (i == 0);
+	  printf ("  if (REGNO (x) != %d) goto L%d;\n",
+		  REGNO (x), fail_label);
+	}
       else if (fmt[i] == 'w')
 	{
 	  /* Make sure that at run time `x' is the RTX we want to test.  */
@@ -303,6 +306,9 @@ match_rtx (rtx x, struct link *path, int fail_label)
 	  printf ("  if (strcmp (XSTR (x, %d), \"%s\")) goto L%d;\n",
 		  i, XSTR (x, i), fail_label);
 	}
+      else if (fmt[i] == 'p')
+	/* Not going to support subregs for legacy define_peeholes.  */
+	gcc_unreachable ();
     }
 }
 
@@ -337,13 +343,11 @@ print_code (RTX_CODE code)
     putchar (TOUPPER (*p1));
 }
 
-extern int main (int, char **);
+extern int main (int, const char **);
 
 int
-main (int argc, char **argv)
+main (int argc, const char **argv)
 {
-  rtx desc;
-
   max_opno = -1;
 
   progname = "genpeep";
@@ -354,27 +358,28 @@ main (int argc, char **argv)
   printf ("/* Generated automatically by the program `genpeep'\n\
 from the machine description file `md'.  */\n\n");
 
+  printf ("#define IN_TARGET_CODE 1\n");
   printf ("#include \"config.h\"\n");
   printf ("#include \"system.h\"\n");
   printf ("#include \"coretypes.h\"\n");
-  printf ("#include \"tm.h\"\n");
-  printf ("#include \"insn-config.h\"\n");
+  printf ("#include \"backend.h\"\n");
   printf ("#include \"tree.h\"\n");
+  printf ("#include \"rtl.h\"\n");
+  printf ("#include \"insn-config.h\"\n");
+  printf ("#include \"alias.h\"\n");
   printf ("#include \"varasm.h\"\n");
   printf ("#include \"stor-layout.h\"\n");
   printf ("#include \"calls.h\"\n");
-  printf ("#include \"rtl.h\"\n");
+  printf ("#include \"memmodel.h\"\n");
   printf ("#include \"tm_p.h\"\n");
   printf ("#include \"regs.h\"\n");
   printf ("#include \"output.h\"\n");
   printf ("#include \"recog.h\"\n");
   printf ("#include \"except.h\"\n");
-  printf ("#include \"function.h\"\n");
   printf ("#include \"diagnostic-core.h\"\n");
   printf ("#include \"flags.h\"\n");
   printf ("#include \"tm-constrs.h\"\n\n");
 
-  printf ("#ifdef HAVE_peephole\n");
   printf ("extern rtx peep_operand[];\n\n");
   printf ("#define operands peep_operand\n\n");
 
@@ -389,18 +394,17 @@ from the machine description file `md'.  */\n\n");
 
   /* Read the machine description.  */
 
-  while (1)
-    {
-      int line_no;
-      int insn_code_number;
-
-      desc = read_md_rtx (&line_no, &insn_code_number);
-      if (desc == NULL)
+  md_rtx_info info;
+  while (read_md_rtx (&info))
+    switch (GET_CODE (info.def))
+      {
+      case DEFINE_PEEPHOLE:
+	gen_peephole (&info);
 	break;
 
-      if (GET_CODE (desc) == DEFINE_PEEPHOLE)
-	gen_peephole (desc, insn_code_number);
-    }
+      default:
+	break;
+      }
 
   printf ("  return 0;\n}\n\n");
 
@@ -408,7 +412,6 @@ from the machine description file `md'.  */\n\n");
     max_opno = 1;
 
   printf ("rtx peep_operand[%d];\n", max_opno + 1);
-  printf ("#endif\n");
 
   fflush (stdout);
   return (ferror (stdout) != 0 ? FATAL_EXIT_CODE : SUCCESS_EXIT_CODE);

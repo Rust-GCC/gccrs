@@ -6,6 +6,7 @@
    Origin: Kaveh R. Ghazi,  January 28, 2009.  */
 
 /* { dg-do compile } */
+/* { dg-require-effective-target inf } */
 /* { dg-options "-fdump-tree-original" } */
 
 extern void foof (_Complex float);
@@ -120,4 +121,3 @@ void bar()
 /* { dg-final { scan-tree-dump-times "cpowf" 12 "original" { target { spu*-*-* } } } } */
 /* { dg-final { scan-tree-dump-times "cpow " 18 "original" } } */
 /* { dg-final { scan-tree-dump-times "cpowl" 18 "original" } } */
-/* { dg-final { cleanup-tree-dump "original" } } */

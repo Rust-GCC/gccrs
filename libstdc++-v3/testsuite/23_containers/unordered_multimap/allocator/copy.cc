@@ -1,4 +1,4 @@
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,7 +15,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-options "-std=c++11" }
+// { dg-do run { target c++11 } }
 
 #include <unordered_map>
 #include <testsuite_hooks.h>
@@ -39,8 +39,7 @@ using __gnu_test::propagating_allocator;
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
-  typedef propagating_allocator<T, false> alloc_type;
+  typedef propagating_allocator<std::pair<const T, T>, false> alloc_type;
   typedef std::unordered_multimap<T, T, hash, equal_to, alloc_type> test_type;
   test_type v1(alloc_type(1));
   v1.emplace(std::piecewise_construct,
@@ -52,8 +51,7 @@ void test01()
 
 void test02()
 {
-  bool test __attribute__((unused)) = true;
-  typedef propagating_allocator<T, true> alloc_type;
+  typedef propagating_allocator<std::pair<const T, T>, true> alloc_type;
   typedef std::unordered_multimap<T, T, hash, equal_to, alloc_type> test_type;
   test_type v1(alloc_type(1));
   v1.emplace(std::piecewise_construct,
@@ -65,8 +63,7 @@ void test02()
 
 void test03()
 {
-  bool test __attribute__((unused)) = true;
-  typedef propagating_allocator<T, true> alloc_type;
+  typedef propagating_allocator<std::pair<const T, T>, true> alloc_type;
   typedef std::unordered_multimap<T, T, hash, equal_to, alloc_type> test_type;
   test_type v1(alloc_type(1));
   v1.emplace(std::piecewise_construct,

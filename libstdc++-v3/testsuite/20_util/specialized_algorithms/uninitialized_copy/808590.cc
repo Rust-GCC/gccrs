@@ -1,4 +1,4 @@
-// Copyright (C) 2012-2014 Free Software Foundation, Inc.
+// Copyright (C) 2012-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,11 +15,13 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+// { dg-options "-std=gnu++98" }
+
 #include <vector>
 #include <stdexcept>
 
 // 4.4.x only
-struct c 
+struct c
 {
   void *m;
 
@@ -30,12 +32,12 @@ struct c
     explicit c(T &o) : m((void*)0xdeadbeef) { }
 };
 
-int main() 
+int main()
 {
   std::vector<c> cbs;
   const c cb((void*)0xcafebabe);
 
-  for (int fd = 62; fd < 67; ++fd) 
+  for (int fd = 62; fd < 67; ++fd)
     {
       cbs.resize(fd + 1);
       cbs[fd] = cb;

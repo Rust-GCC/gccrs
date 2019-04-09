@@ -1,3 +1,277 @@
+2018-10-31  Joseph Myers  <joseph@codesourcery.com>
+
+	PR bootstrap/82856
+	* Makefile.am: Include multilib.am.
+	(AUTOMAKE_OPTIONS): Add info-in-builddir.
+	(CLEANFILES): Remove doc/libffi.info.
+	* configure.ac: Remove AC_PREREQ.
+	* Makefile.in, aclocal.m4, configure, fficonfig.h.in,
+	include/Makefile.in, man/Makefile.in, testsuite/Makefile.in:
+	Regenerate.
+
+2018-08-15  Andreas Schwab  <schwab@suse.de>
+
+	Backport of RISC-V support for libffi go closures
+	* src/riscv/ffi.c (ffi_call_go, ffi_prep_go_closure): New
+	functions.
+	(ffi_call_int): Renamed from ffi_call.
+	(ffi_call_asm, ffi_closure_inner): Adjust interface.
+	* src/riscv/ffitarget.h (FFI_GO_CLOSURES): Define.
+	* src/riscv/sysv.S (ffi_go_closure_asm): New function.
+	(ffi_closure_asm, ffi_call_asm): Update for adjusted interfaces.
+
+2018-05-08  Andreas Schwab  <schwab@suse.de>
+
+	Backport of RISC-V support for libffi
+	* configure.host: Add RISC-V support.
+	* Makefile.am: Likewise.
+	* Makefile.in: Regenerate.
+	* src/riscv/ffi.c, src/riscv/ffitarget.h, src/riscv/sysv.S: New
+	files.
+
+2018-05-04  Alan Modra  <amodra@gmail.com>
+
+	Import from upstream
+	* src/powerpc/ffi_linux64.c (discover_homogeneous_aggregate):
+	Compile for ELFv1 too, handling single element aggregates.
+	(ffi_prep_cif_linux64_core): Call discover_homogeneous_aggregate
+	for ELFv1.  Set FLAG_RETURNS_64BITS for FFI_TYPE_POINTER return.
+	(ffi_prep_args64): Call discover_homogeneous_aggregate for ELFv1,
+	and handle single element structs containing float or double
+	as if the element wasn't wrapped in a struct.  Store floats in
+	second word of doubleword slot when big-endian.
+	(ffi_closure_helper_LINUX64): Similarly.
+
+2018-04-18  David Malcolm  <dmalcolm@redhat.com>
+
+	PR jit/85384
+	* configure: Regenerate.
+
+2017-08-31  Tony Reix  <tony.reix@atos.net>
+
+	* src/powerpc/aix.S (ffi_call_AIX): Add debugging pseudo-op and
+	labels for EH.
+	(ffi_call_go_AIX): New function.
+	(_GLOBAL__F_libffi_src_powerpc_aix): New EH frame.
+	* src/powerpc/aix_closure.S (ffi_closure_ASM): Add debugging
+	pseudo-op and labels for EH.
+	(ffi_go_closure_ASM): New function.
+	(_GLOBAL__F_libffi_src_powerpc_aix_closure): New EH frame.
+	* src/powrpc/ffi_darwin.c (ffi_call_go): New function.
+	(ffi_prep_go_closure): New function.
+	(ffi_closure_helper_common): Rename from ffi_closure_helper_DARWIN.
+	(ffi_closure_helper_DARWIN): Call ffi_closure_helper_common.
+	(ffi_go_closure_helper_DARWIN): Call ffi_closure_helper_common.
+	* src/powerpc/ffitarget.h (FFI_GO_CLOSURES): Define.
+
+2017-01-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/79046
+	* configure.ac: Add GCC_BASE_VER.
+	* include/Makefile.am (gcc_version): Use @get_gcc_base_ver@ instead
+	of cat to get version from BASE-VER file.
+	* configure: Regenerated.
+	* testsuite/Makefile.in: Regenerated.
+	* include/Makefile.in: Regenerated.
+	* Makefile.in: Regenerated.
+	* man/Makefile.in: Regenerated.
+
+2016-11-15  Matthias Klose  <doko@ubuntu.com>
+
+	* configure: Regenerate.
+
+2016-09-04  John David Anglin  <danglin@gcc.gnu.org>
+
+	* src/pa/ffi.c (ffi_struct_type): Put type declaration on separate line.
+	(ffi_prep_args_pa32): Likewise.
+	(ffi_size_stack_pa32): Likewise.
+	(ffi_prep_cif_machdep): Likewise.
+	(ffi_call): Likewise.  Rename to ffi_call_int.  Add closure argument
+	and update call to ffi_call_pa32.
+	(ffi_call, ffi_call_go, ffi_prep_go_closure): New.
+	(ffi_closure_inner_pa32): Update to handle go closures.
+	* src/pa/ffitarget.h (FFI_GO_CLOSURES): Define.
+	* src/pa/hpux32.S (ffi_call_pa32): Pass go closure argument in static
+	chain register (%ret1).
+	(ffi_closure_pa32): Set closure type argument to zero.
+	(ffi_go_closure_pa32): New function.  Add unwind data for it.
+	* src/pa/linux.S: Likewise.  Use cfi directives for unwind data.
+	* testsuite/libffi.go/static-chain.h (STATIC_CHAIN_REG): Define for
+	hppa.
+
+2016-05-23  Thomas Schwinge  <thomas@codesourcery.com>
+
+	PR libffi/65567
+	* testsuite/lib/libffi.exp (libffi_feature_test): Fix, and simply.
+
+2016-03-17  Andreas Schwab  <schwab@suse.de>
+
+	* src/aarch64/ffitarget.h (FFI_SIZEOF_JAVA_RAW) [__ILP32__]:
+	Define.
+
+2016-03-02  Richard Henderson  <rth@redhat.com>
+
+	* libtool-version: Increase to 7:0:0.
+	* libffi.map.in: Increase version numbers to 7.0.
+
+2016-03-03  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.am (libffi.map-sun): Properly convert
+	$(libffi_la_OBJECTS) to object names.
+	* Makefile.in: Regenerate.
+
+2016-03-03  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.am (libffi.map-sun): Tabify:
+	* Makefile.in: Regenerate.
+
+2016-03-02  Richard Henderson  <rth@redhat.com>
+
+	PR libffi/70024
+	* Makefile.am (libffi_version_script): New.
+	(libffi_version_dep): New.
+	(libffi_version_info): New.
+	(libffi_la_LDFLAGS): Include libffi_version_info, libffi_version_script.
+	(libffi_la_DEPENDENCIES): Include libffi_version_dep.
+	* acinclude.m4 (LIBAT_ENABLE, LIBAT_CHECK_LINKER_FEATURES): New.
+	(LIBAT_ENABLE_SYMVERS, LIBAT_BUILD_VERSIONED_SHLIB): New.
+	(LIBAT_BUILD_VERSIONED_SHLIB_GNU): New.
+	(LIBAT_BUILD_VERSIONED_SHLIB_SUN): New.
+	* configure.ac: Invoke LIBAT_ENABLE_SYMVERS.
+	* libffi.map: New file.
+	* libtool-version: Increase to 5.0.0.
+	* Makefile.in, configure: Rebuild.
+	* man/Makefile.in, testsuite/Makefile.in: Rebuild.
+
+	* Makefile.am (libffi_version_script): Look in cwd for libffi.map.
+	(libffi_version_dep, libffi.map-sun): Likewise.
+	(libffi.map): New target.
+	* libffi.map.in: Rename from libffi.map.  Add required defines,
+	includes, and conditionals.
+
+2015-10-26  John David Anglin  <danglin@gcc.gnu.org>
+
+	PR libffi/65441
+	* testsuite/lib/libffi.exp: Load target-supports-dg.exp.
+	* testsuite/libffi.call/float2.c: Don't run on hppa*-*-hpux*.
+
+2015-10-01  Alan Modra  <amodra@gmail.com>
+
+	* src/powerpc/ffi_sysv.c (ffi_prep_cif_sysv_core): Count fprs,
+	gprs, and stack words separately.
+	(ffi_prep_args_SYSV): Similarly.
+
+2015-05-13  Michael Haubenwallner  <michael.haubenwallner@ssi-schaefer.com>
+
+	* Makefile.in: Regenerated with automake-1.11.6.
+	* aclocal.m4: Likewise.
+	* configure: Likewise.
+	* fficonfig.h.in: Likewise.
+	* include/Makefile.in: Likewise.
+	* man/Makefile.in: Likewise.
+	* testsuite/Makefile.in: Likewise.
+
+2015-03-29  John David Anglin  <danglin@gcc.gnu.org>
+
+	PR libffi/65567
+	* testsuite/lib/libffi.exp (libffi_feature_test): Use split to ensure
+	lindex is applied to a list.
+
+2015-02-10  Andrew Pinski  <apinski@cavium.com>
+
+	* src/aarch64/ffitarget.h (ffi_arg): Use unsigned long long for ILP32.
+	(FFI_SIZEOF_ARG): Define to 64 for ILP32.
+	(ffi_sarg): Use signed long long for ILP32.
+
+	* src/aarch64/sysv.S (PTR_REG): New macro.
+	(PTR_SIZE): New macro.
+	(ffi_closure_SYSV): Load cif, fn and user_data using PTR_REG.
+	(ffi_go_closure_SYSV): Load cif and fn using PTR_REG.
+
+2015-01-29  Jack Howarth  <howarth.at.gcc@gmail.com>
+
+	PR libffi/64855
+	* testsuite/lib/libffi.exp: Don't set targetabis on darwin.
+
+2015-01-28  Richard Henderson  <rth@redhat.com>
+
+	PR libffi/64779
+	PR libffi/64799
+	* Merge to upstream commit db1b34b7e1f5e473d17557e454a29933dfecd1af.
+
+2015-01-27  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* testsuite/lib/libffi.exp: Load target-supports.exp.
+	(run-many-tests): Only set targetabis for ia32.
+
+2015-01-19  Richard Henderson  <rth@redhat.com>
+
+	PR libffi/64581
+	* testsuite/lib/libffi.exp (libffi_target_compile): Don't switch
+	to C++ mode when compiling C++ source code.
+
+2015-01-19  Richard Henderson  <rth@redhat.com>
+
+	* Merge to upstream commit 3ac1610aa33c887ea9b14935208943925714a33e.
+
+2015-01-19  Richard Henderson  <rth@redhat.com>
+
+	PR libffi/64607
+	* testsuite/lib/libffi.exp (libffi-init): Append -L for the
+	just built libstdc++.
+
+2015-01-15  Dominique d'Humieres  <dominiq@lps.ens.fr>
+	    Richard Henderson  <rth@redhat.com>
+
+	PR libffi/64607
+	* Makefile.am (AM_MAKEFLAGS): Use double quotes on subvariables.
+	* Makefile.in: Rebuilt.
+
+2015-01-15  Richard Henderson  <rth@redhat.com>
+
+	PR libffi/64572
+	* include/ffi.h.in (FFI_TYPE_LAST): Set to COMPLEX only if complex
+	numbers are supported by the backend.
+
+2015-01-13  Kaz Kojima  <kkojima@gcc.gnu.org>
+
+	* configure.host: Remove extra brackets for sh.
+
+2015-01-13  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR bootstrap/64575
+	* configure.host (TARGET): Set to X86_64 if __x86_64__ is defined.
+
+2015-01-12  Richard Henderson  <rth@redhat.com>
+
+	PR libffi/64572
+	* src/x86/ffitarget.h (FFI_GO_CLOSURES): Do not define for darwin.
+	(FFI_TARGET_HAS_COMPLEX_TYPE): Likewise.
+
+2015-01-12  Richard Henderson  <rth@redhat.com>
+
+	* src/x86/ffi.c (ffi_raw_call): Fill in frame.
+
+2015-01-12  Richard Henderson  <rth@redhat.com>
+
+	Merge to upstream commit c82cc159426d8d4402375fa1ae3f045b9cf82e16.
+
+2014-11-21  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR bootstrap/63784
+	* configure: Regenerated.
+
+2014-11-11  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	PR target/63610
+	* configure: Regenerate.
+
+2014-10-15  Ian Lance Taylor  <iant@google.com>
+
+	* configure.ac: If the compiler supports -Qunused-arguments, use
+	it when running the compiler on .s files.
+	* configure: Regenerated.
+
 2014-09-11  Jakub Jelinek  <jakub@redhat.com>
 
 	* src/powerpc/linux64.S: Emit .note.GNU-stack even when
@@ -199,7 +473,7 @@
 	* configure: Rebuild.
 
 2012-10-30  James Greenhalgh  <james.greenhalgh at arm.com>
-            Marcus Shawcroft  <marcus.shawcroft at arm.com>
+	    Marcus Shawcroft  <marcus.shawcroft at arm.com>
 
 	* README: Add details of aarch64 port.
 	* src/aarch64/ffi.c: New.
@@ -210,7 +484,7 @@
 	* Makefile.in, configure: Rebuilt.
 
 2012-10-30  James Greenhalgh  <james.greenhalgh at arm.com>
-            Marcus Shawcroft  <marcus.shawcroft at arm.com>
+	    Marcus Shawcroft  <marcus.shawcroft at arm.com>
 
 	* testsuite/lib/libffi.exp: Add support for aarch64.
 	* testsuite/libffi.call/cls_struct_va1.c: New.

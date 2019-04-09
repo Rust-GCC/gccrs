@@ -1,5 +1,5 @@
 /* Tree based alias analysis and alias oracle.
-   Copyright (C) 2008-2014 Free Software Foundation, Inc.
+   Copyright (C) 2008-2019 Free Software Foundation, Inc.
    Contributed by Richard Guenther  <rguenther@suse.de>
 
    This file is part of GCC.
@@ -47,7 +47,6 @@ struct GTY(()) pt_solution
      includes memory at address NULL.  */
   unsigned int null : 1;
 
-
   /* Nonzero if the vars bitmap includes a variable included in 'nonlocal'.  */
   unsigned int vars_contains_nonlocal : 1;
   /* Nonzero if the vars bitmap includes a variable included in 'escaped'.  */
@@ -55,6 +54,11 @@ struct GTY(()) pt_solution
   /* Nonzero if the vars bitmap includes a anonymous heap variable that
      escaped the function and thus became global.  */
   unsigned int vars_contains_escaped_heap : 1;
+  /* Nonzero if the vars bitmap includes a anonymous variable used to
+     represent storage pointed to by a restrict qualified pointer.  */
+  unsigned int vars_contains_restrict : 1;
+  /* Nonzero if the vars bitmap includes an interposable variable.  */
+  unsigned int vars_contains_interposable : 1;
 
   /* Set of variables that this pointer may point to.  */
   bitmap vars;
@@ -76,11 +80,11 @@ struct ao_ref
      the following fields are not yet computed.  */
   tree base;
   /* The offset relative to the base.  */
-  HOST_WIDE_INT offset;
+  poly_int64 offset;
   /* The size of the access.  */
-  HOST_WIDE_INT size;
+  poly_int64 size;
   /* The maximum possible extent of the access or -1 if unconstrained.  */
-  HOST_WIDE_INT max_size;
+  poly_int64 max_size;
 
   /* The alias set of the access or -1 if not yet computed.  */
   alias_set_type ref_alias_set;
@@ -90,8 +94,18 @@ struct ao_ref
 
   /* Whether the memory is considered a volatile access.  */
   bool volatile_p;
+
+  bool max_size_known_p () const;
 };
 
+/* Return true if the maximum size is known, rather than the special -1
+   marker.  */
+
+inline bool
+ao_ref::max_size_known_p () const
+{
+  return known_size_p (max_size);
+}
 
 /* In tree-ssa-alias.c  */
 extern void ao_ref_init (ao_ref *, tree);
@@ -101,34 +115,37 @@ extern alias_set_type ao_ref_alias_set (ao_ref *);
 extern alias_set_type ao_ref_base_alias_set (ao_ref *);
 extern bool ptr_deref_may_alias_global_p (tree);
 extern bool ptr_derefs_may_alias_p (tree, tree);
+extern bool ptrs_compare_unequal (tree, tree);
 extern bool ref_may_alias_global_p (tree);
 extern bool ref_may_alias_global_p (ao_ref *);
-extern bool refs_may_alias_p (tree, tree);
+extern bool refs_may_alias_p (tree, tree, bool = true);
 extern bool refs_may_alias_p_1 (ao_ref *, ao_ref *, bool);
 extern bool refs_anti_dependent_p (tree, tree);
 extern bool refs_output_dependent_p (tree, tree);
-extern bool ref_maybe_used_by_stmt_p (gimple, tree);
-extern bool ref_maybe_used_by_stmt_p (gimple, ao_ref *);
-extern bool stmt_may_clobber_global_p (gimple);
-extern bool stmt_may_clobber_ref_p (gimple, tree);
-extern bool stmt_may_clobber_ref_p_1 (gimple, ao_ref *);
-extern bool call_may_clobber_ref_p (gimple, tree);
-extern bool call_may_clobber_ref_p_1 (gimple, ao_ref *);
-extern bool stmt_kills_ref_p (gimple, tree);
-extern bool stmt_kills_ref_p (gimple, ao_ref *);
-extern tree get_continuation_for_phi (gimple, ao_ref *,
+extern bool ref_maybe_used_by_stmt_p (gimple *, tree, bool = true);
+extern bool ref_maybe_used_by_stmt_p (gimple *, ao_ref *, bool = true);
+extern bool stmt_may_clobber_global_p (gimple *);
+extern bool stmt_may_clobber_ref_p (gimple *, tree, bool = true);
+extern bool stmt_may_clobber_ref_p_1 (gimple *, ao_ref *, bool = true);
+extern bool call_may_clobber_ref_p (gcall *, tree);
+extern bool call_may_clobber_ref_p_1 (gcall *, ao_ref *);
+extern bool stmt_kills_ref_p (gimple *, tree);
+extern bool stmt_kills_ref_p (gimple *, ao_ref *);
+extern tree get_continuation_for_phi (gimple *, ao_ref *,
 				      unsigned int *, bitmap *, bool,
-				      void *(*)(ao_ref *, tree, void *, bool),
+				      void *(*)(ao_ref *, tree, void *, bool *),
 				      void *);
 extern void *walk_non_aliased_vuses (ao_ref *, tree,
 				     void *(*)(ao_ref *, tree,
 					       unsigned int, void *),
-				     void *(*)(ao_ref *, tree, void *, bool),
+				     void *(*)(ao_ref *, tree, void *, bool *),
+				     tree (*)(tree),
 				     void *);
-extern unsigned int walk_aliased_vdefs (ao_ref *, tree,
-					bool (*)(ao_ref *, tree, void *),
-					void *, bitmap *,
-					bool *function_entry_reached = NULL);
+extern int walk_aliased_vdefs (ao_ref *, tree,
+			       bool (*)(ao_ref *, tree, void *),
+			       void *, bitmap *,
+			       bool *function_entry_reached = NULL,
+			       unsigned int limit = 0);
 extern void dump_alias_info (FILE *);
 extern void debug_alias_info (void);
 extern void dump_points_to_solution (FILE *, struct pt_solution *);
@@ -142,7 +159,7 @@ extern void dump_alias_stats (FILE *);
 /* In tree-ssa-structalias.c  */
 extern unsigned int compute_may_aliases (void);
 extern bool pt_solution_empty_p (struct pt_solution *);
-extern bool pt_solution_singleton_p (struct pt_solution *, unsigned *);
+extern bool pt_solution_singleton_or_null_p (struct pt_solution *, unsigned *);
 extern bool pt_solution_includes_global (struct pt_solution *);
 extern bool pt_solution_includes (struct pt_solution *, const_tree);
 extern bool pt_solutions_intersect (struct pt_solution *, struct pt_solution *);
@@ -164,6 +181,8 @@ ranges_overlap_p (HOST_WIDE_INT pos1,
 		  HOST_WIDE_INT pos2,
 		  unsigned HOST_WIDE_INT size2)
 {
+  if (size1 == 0 || size2 == 0)
+    return false;
   if (pos1 >= pos2
       && (size2 == (unsigned HOST_WIDE_INT)-1
 	  || pos1 < (pos2 + (HOST_WIDE_INT) size2)))

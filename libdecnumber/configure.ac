@@ -1,7 +1,7 @@
 # configure.ac for libdecnumber			-*- Autoconf -*-
 # Process this file with autoconf to generate a configuration script.
 
-# Copyright (C) 2005-2014 Free Software Foundation, Inc.
+# Copyright (C) 2005-2019 Free Software Foundation, Inc.
 
 # This file is part of GCC.
 
@@ -19,7 +19,6 @@
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
 
-AC_PREREQ(2.64)
 AC_INIT(libdecnumber, [ ], gcc-bugs@gcc.gnu.org, libdecnumber)
 AC_CONFIG_SRCDIR(decNumber.h)
 AC_CONFIG_MACRO_DIR(../config)
@@ -42,6 +41,8 @@ ACX_PROG_CC_WARNING_OPTS([-W -Wall -Wwrite-strings -Wstrict-prototypes \
 			  -Wmissing-prototypes -Wold-style-definition \
 			  -Wmissing-format-attribute -Wcast-qual])
 ACX_PROG_CC_WARNING_ALMOST_PEDANTIC([-Wno-long-long])
+
+ACX_PROG_CC_WARNING_OPTS([-fno-lto], [nolto_flags])
 
 # Only enable with --enable-werror-always until existing warnings are
 # corrected.

@@ -11,7 +11,7 @@
 # existing files are listed in "testsuite_files" in the output
 # directory.  Subsequent runs pull the list from that file, allowing
 # users to trim the list down to problematic tests, or just run
-# paticular directories or sub-directories of tests.
+# particular directories or sub-directories of tests.
 #
 # Selecting individual tests can also be done with RUNTESTFLAGS, but
 # that doesn't really do all that we are trying to accomplish here.
@@ -31,8 +31,10 @@ tests_file_perf="$outdir/testsuite_files_performance"
 cd $srcdir
 # This is the ugly version of "everything but the current directory".  It's
 # what has to happen when find(1) doesn't support -mindepth, or -xtype.
+# The directories here should be consistent with libstdc++-dg/conformance.exp
 dlist=`echo [0-9][0-9]*`
 dlist="$dlist abi backward ext performance tr1 tr2 decimal experimental"
+dlist="$dlist special_functions"
 find $dlist "(" -type f -o -type l ")" -name "*.cc" -print > $tmp.01
 find $dlist "(" -type f -o -type l ")" -name "*.c" -print > $tmp.02
 cat  $tmp.01 $tmp.02 | sort > $tmp.1

@@ -1,6 +1,6 @@
 // Locale support (codecvt) -*- C++ -*-
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -42,6 +42,7 @@
 namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
+_GLIBCXX_BEGIN_NAMESPACE_CXX11
 
   /// Extension to use iconv for dealing with character encodings.
   // This includes conversions and comparisons between various character
@@ -207,12 +208,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // associated fpos<encoding_state> for the position type, all other
   // bits equivalent to the required char_traits instantiations.
   template<typename _CharT>
-    struct encoding_char_traits : public std::char_traits<_CharT>
+    struct encoding_char_traits
+    : public std::char_traits<_CharT>
     {
       typedef encoding_state				state_type;
       typedef typename std::fpos<state_type>		pos_type;
     };
 
+_GLIBCXX_END_NAMESPACE_CXX11
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
 

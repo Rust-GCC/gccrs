@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-pre-details" } */
+/* { dg-options "-O2 -fdump-tree-pre-details -fno-tree-loop-im" } */
 
 struct Bar { int a; int b; };
 struct Foo { int x; struct Bar y; };
@@ -18,4 +18,3 @@ int bar (int b)
 }
 
 /* { dg-final { scan-tree-dump "Replaced foo \\(f.y\\)" "pre" } } */
-/* { dg-final { cleanup-tree-dump "pre" } } */

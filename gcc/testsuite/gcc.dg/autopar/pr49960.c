@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -ftree-parallelize-loops=4 -fdump-tree-parloops-details -fdump-tree-optimized -fno-partial-inlining" } */
+/* { dg-options "-O2 -ftree-parallelize-loops=4 -fdump-tree-parloops2-details -fdump-tree-optimized -fno-partial-inlining" } */
 
 #include <stdio.h>
 #define MB 100
@@ -7,7 +7,8 @@
 #define MA 400
 
 int T[MA][MB],A[MA][NA],B[MB][NA];
-void MRTRBR(int MA_1, int NA_1, int MB_1)
+void __attribute__((noinline))
+MRTRBR(int MA_1, int NA_1, int MB_1)
 {
   int i,j, t,k;
 
@@ -21,7 +22,7 @@ void MRTRBR(int MA_1, int NA_1, int MB_1)
   /* The outer most loop is not parallel because for different k's there
      is write-write dependency for T[i][j].  */
   
-  /* The two inner loops don't get parallelized due to low number of 
+  /* The innermost loop doesn't get parallelized due to low number of 
      iterations.  */
 
   for (k = 3; k < NA_1; k++)
@@ -38,7 +39,10 @@ void main ()
   
   for (i = 3; i < MA; i++)
     for (j = 3; j < MB; j++)
-      T[i][j] = (i>j?i:j);
+      {
+	__asm__ volatile ("" : : : "memory");
+	T[i][j] = (i>j?i:j);
+      }
   
   MRTRBR (MA,NA,MB);
   
@@ -48,9 +52,7 @@ void main ()
 }
 
 
-/* Check that the outer most loop doesn't get parallelized (thus no loop gets parallelized)  */
+/* Check that the outer most loop doesn't get parallelized.  */
 
-/* { dg-final { scan-tree-dump-times "SUCCESS: may be parallelized" 0 "parloops" } } */
-/* { dg-final { scan-tree-dump-times "loopfn" 0 "optimized" } } */
-/* { dg-final { cleanup-tree-dump "parloops" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */
+/* { dg-final { scan-tree-dump-times "SUCCESS: may be parallelized" 1 "parloops2" } } */
+/* { dg-final { scan-tree-dump-times "__builtin_GOMP_parallel" 1 "optimized" } } */

@@ -1,7 +1,6 @@
-// { dg-options "-std=gnu++14" }
-// { dg-do compile }
+// { dg-do compile { target c++14 } }
 
-// Copyright (C) 2014 Free Software Foundation, Inc.
+// Copyright (C) 2014-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -20,6 +19,12 @@
 
 #include <tuple>
 
+#ifndef __cpp_lib_tuple_element_t
+# error "Feature-test macro for tuple_element_t missing"
+#elif __cpp_lib_tuple_element_t != 201402
+# error "Feature-test macro for tuple_element_t has wrong value"
+#endif
+
 using namespace std;
 
 struct foo
@@ -33,4 +38,10 @@ main()
   foo q1;
   tuple_element_t<0,tuple<foo,void,int> > q2(q1);
   tuple_element_t<2,tuple<void,int,foo> > q3(q1);
+  tuple_element_t<0,const tuple<foo,void,int> > q4(q1);
+  tuple_element_t<2,const tuple<void,int,foo> > q5(q1);
+  tuple_element_t<0,volatile tuple<foo,void,int> > q6(q1);
+  tuple_element_t<2,volatile tuple<void,int,foo> > q7(q1);
+  tuple_element_t<0,const volatile tuple<foo,void,int> > q8(q1);
+  tuple_element_t<2,const volatile tuple<void,int,foo> > q9(q1);
 }

@@ -1,5 +1,5 @@
 /* Routines for expanding from SSA form to RTL.
-   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -39,9 +39,13 @@ struct ssaexpand
      a pseudos REG).  */
   rtx *partition_to_pseudo;
 
-  /* If partition I contains an SSA name that has a default def,
+  /* If partition I contains an SSA name that has a default def for a
+     parameter, bit I will be set in this bitmap.  */
+  bitmap partitions_for_parm_default_defs;
+
+  /* If partition I contains an SSA name that has an undefined value,
      bit I will be set in this bitmap.  */
-  bitmap partition_has_default_def;
+  bitmap partitions_for_undefined_values;
 };
 
 /* This is the singleton described above.  */
@@ -61,7 +65,7 @@ get_rtx_for_ssa_name (tree exp)
 
 /* If TER decided to forward the definition of SSA name EXP this function
    returns the defining statement, otherwise NULL.  */
-static inline gimple
+static inline gimple *
 get_gimple_for_ssa_name (tree exp)
 {
   int v = SSA_NAME_VERSION (exp);
@@ -70,7 +74,7 @@ get_gimple_for_ssa_name (tree exp)
   return NULL;
 }
 
-extern bool ssa_is_replaceable_p (gimple stmt);
+extern bool ssa_is_replaceable_p (gimple *stmt);
 extern void finish_out_of_ssa (struct ssaexpand *sa);
 extern unsigned int rewrite_out_of_ssa (struct ssaexpand *sa);
 extern void expand_phi_nodes (struct ssaexpand *sa);

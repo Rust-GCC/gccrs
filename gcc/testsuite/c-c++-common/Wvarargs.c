@@ -23,7 +23,7 @@ foo0 (int a, int b, ...)
 }
 
 void
-foo1 (int a, register int b, ...)
+foo1 (int a, register int b, ...)	// { dg-warning "ISO C\\+\\+17 does not allow 'register' storage class specifier" "" { target c++17 } }
 {
     va_list vp;
     /* 'b' is declared with register storage, but don't warn
@@ -45,10 +45,10 @@ foo2 (int a, int b, ...)
 }
 
 void
-foo3 (int a, register int b, ...)
+foo3 (int a, register int b, ...)	// { dg-warning "ISO C\\+\\+17 does not allow 'register' storage class specifier" "" { target c++17 } }
 {
     va_list vp;
     /* 'b' is declared with register storage, so warn.  */
-    va_start (vp, b); /* { dg-warning "undefined behaviour" } */
+    va_start (vp, b); /* { dg-warning "undefined behavior" } */
     va_end (vp);
 }

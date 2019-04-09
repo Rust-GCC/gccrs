@@ -1,5 +1,5 @@
 /* Precompiled header implementation for the C languages.
-   Copyright (C) 2000-2014 Free Software Foundation, Inc.
+   Copyright (C) 2000-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,19 +20,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "version.h"
-#include "cpplib.h"
-#include "tree.h"
-#include "flags.h"
+#include "target.h"
 #include "c-common.h"
+#include "timevar.h"
+#include "flags.h"
 #include "debug.h"
 #include "c-pragma.h"
-#include "ggc.h"
 #include "langhooks.h"
 #include "hosthooks.h"
-#include "target.h"
-#include "opts.h"
-#include "timevar.h"
 
 /* This is a list of flag variables that must match exactly, and their
    names for the error message.  The possible values for *flag_var must
@@ -49,10 +44,6 @@ static const struct c_pch_matching
 enum {
   MATCH_SIZE = ARRAY_SIZE (pch_matching)
 };
-
-/* The value of the checksum in the dummy compiler that is actually
-   checksummed.  That compiler should never be run.  */
-static const char no_checksum[16] = { 0 };
 
 /* Information about flags and suchlike that affect PCH validity.
 
@@ -112,10 +103,9 @@ pch_init (void)
 
   f = fopen (pch_file, "w+b");
   if (f == NULL)
-    fatal_error ("can%'t create precompiled header %s: %m", pch_file);
+    fatal_error (input_location, "can%'t create precompiled header %s: %m",
+		 pch_file);
   pch_outfile = f;
-
-  gcc_assert (memcmp (executable_checksum, no_checksum, 16) != 0);
 
   memset (&v, '\0', sizeof (v));
   v.debug_info_type = write_symbols;
@@ -134,7 +124,7 @@ pch_init (void)
       || fwrite (executable_checksum, 16, 1, f) != 1
       || fwrite (&v, sizeof (v), 1, f) != 1
       || fwrite (target_validity, v.target_data_length, 1, f) != 1)
-    fatal_error ("can%'t write to %s: %m", pch_file);
+    fatal_error (input_location, "can%'t write to %s: %m", pch_file);
 
   /* Let the debugging format deal with the PCHness.  */
   (*debug_hooks->handle_pch) (0);
@@ -192,7 +182,7 @@ c_common_write_pch (void)
 
   if (fseek (pch_outfile, 0, SEEK_SET) != 0
       || fwrite (get_ident (), IDENT_LENGTH, 1, pch_outfile) != 1)
-    fatal_error ("can%'t write %s: %m", pch_file);
+    fatal_error (input_location, "can%'t write %s: %m", pch_file);
 
   fclose (pch_outfile);
 
@@ -216,11 +206,9 @@ c_common_valid_pch (cpp_reader *pfile, const char *name, int fd)
   /* Perform a quick test of whether this is a valid
      precompiled header for the current language.  */
 
-  gcc_assert (memcmp (executable_checksum, no_checksum, 16) != 0);
-
   sizeread = read (fd, ident, IDENT_LENGTH + 16);
   if (sizeread == -1)
-    fatal_error ("can%'t read %s: %m", name);
+    fatal_error (input_location, "can%'t read %s: %m", name);
   else if (sizeread != IDENT_LENGTH + 16)
     {
       if (cpp_get_options (pfile)->warn_invalid_pch)
@@ -261,7 +249,7 @@ c_common_valid_pch (cpp_reader *pfile, const char *name, int fd)
      executable, so it ought to be long enough that we can read a
      c_pch_validity structure.  */
   if (read (fd, &v, sizeof (v)) != sizeof (v))
-    fatal_error ("can%'t read %s: %m", name);
+    fatal_error (input_location, "can%'t read %s: %m", name);
 
   /* The allowable debug info combinations are that either the PCH file
      was built with the same as is being used now, or the PCH file was
@@ -312,7 +300,7 @@ c_common_valid_pch (cpp_reader *pfile, const char *name, int fd)
 
     if ((size_t) read (fd, this_file_data, v.target_data_length)
 	!= v.target_data_length)
-      fatal_error ("can%'t read %s: %m", name);
+      fatal_error (input_location, "can%'t read %s: %m", name);
     msg = targetm.pch_valid_p (this_file_data, v.target_data_length);
     free (this_file_data);
     if (msg != NULL)
@@ -418,20 +406,21 @@ c_common_pch_pragma (cpp_reader *pfile, const char *name)
 
   if (!cpp_get_options (pfile)->preprocessed)
     {
-      error ("pch_preprocess pragma should only be used with -fpreprocessed");
+      error ("pch_preprocess pragma should only be used "
+	     "with %<-fpreprocessed%>");
       inform (input_location, "use #include instead");
       return;
     }
 
   fd = open (name, O_RDONLY | O_BINARY, 0666);
   if (fd == -1)
-    fatal_error ("%s: couldn%'t open PCH file: %m", name);
+    fatal_error (input_location, "%s: couldn%'t open PCH file: %m", name);
 
   if (c_common_valid_pch (pfile, name, fd) != 1)
     {
       if (!cpp_get_options (pfile)->warn_invalid_pch)
-	inform (input_location, "use -Winvalid-pch for more information");
-      fatal_error ("%s: PCH file was invalid", name);
+	inform (input_location, "use %<-Winvalid-pch%> for more information");
+      fatal_error (input_location, "%s: PCH file was invalid", name);
     }
 
   c_common_read_pch (pfile, name, fd, name);

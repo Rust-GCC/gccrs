@@ -1,11 +1,12 @@
 -- { dg-do run }
--- { dg-options "-gnatp" }
 
 -- This test requires architecture- and OS-specific support code for unwinding
 -- through signal frames (typically located in *-unwind.h) to pass.  Feel free
 -- to disable it if this code hasn't been implemented yet.
 
 procedure Null_Pointer_Deref2 is
+
+   pragma Suppress (All_Checks);
 
    task T;
 
@@ -20,7 +21,7 @@ procedure Null_Pointer_Deref2 is
    begin
       Data.all := 1;
    exception
-      when Constraint_Error | Storage_Error => null;
+      when others => null;
    end T;
 
 begin

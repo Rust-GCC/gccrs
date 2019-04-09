@@ -1,5 +1,5 @@
 /* Functions for Linux Android as target machine for GNU C compiler.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,20 +21,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "tree.h"
 #include "linux-protos.h"
-
-/* Android does not support GNU indirect functions.  */
-
-bool
-linux_has_ifunc_p (void)
-{
-  return OPTION_BIONIC ? false : HAVE_GNU_INDIRECT_FUNCTION;
-}
 
 bool
 linux_libc_has_function (enum function_class fn_class)
 {
-  if (OPTION_GLIBC)
+  if (OPTION_GLIBC || OPTION_MUSL)
     return true;
   if (OPTION_BIONIC)
     if (fn_class == function_c94

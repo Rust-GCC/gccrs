@@ -1,5 +1,5 @@
 /* Main parser.
-   Copyright (C) 2000-2014 Free Software Foundation, Inc.
+   Copyright (C) 2000-2019 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -20,12 +20,12 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #include "system.h"
-#include <setjmp.h>
 #include "coretypes.h"
+#include "options.h"
 #include "gfortran.h"
+#include <setjmp.h>
 #include "match.h"
 #include "parse.h"
-#include "debug.h"
 
 /* Current statement label.  Zero means no statement label.  Because new_st
    can get wiped during statement matching, we have to keep it separate.  */
@@ -107,17 +107,17 @@ match_word_omp_simd (const char *str, match (*subr) (void), locus *old_locus,
 static void
 use_modules (void)
 {
-  gfc_error_buf old_error;
+  gfc_error_buffer old_error;
 
   gfc_push_error (&old_error);
-  gfc_buffer_error (0);
+  gfc_buffer_error (false);
   gfc_use_modules ();
-  gfc_buffer_error (1);
+  gfc_buffer_error (true);
   gfc_pop_error (&old_error);
   gfc_commit_symbols ();
   gfc_warning_check ();
-  gfc_current_ns->old_cl_list = gfc_current_ns->cl_list;
   gfc_current_ns->old_equiv = gfc_current_ns->equiv;
+  gfc_current_ns->old_data = gfc_current_ns->data;
   last_was_use_stmt = false;
 }
 
@@ -132,14 +132,14 @@ use_modules (void)
 	return st;						\
       else							\
 	undo_new_statement ();				  	\
-    } while (0);
+    } while (0)
 
 
 /* This is a specialist version of decode_statement that is used
    for the specification statements in a function, whose
    characteristics are deferred into the specification statements.
    eg.:  INTEGER (king = mykind) foo ()
-	 USE mymodule, ONLY mykind..... 
+	 USE mymodule, ONLY mykind.....
    The KIND parameter needs a return after USE or IMPORT, whereas
    derived type declarations can occur anywhere, up the executable
    block.  ST_GET_FCN_CHARACTERISTICS is returned when we have run
@@ -190,6 +190,7 @@ decode_specification_statement (void)
 	     ST_INTERFACE);
       match ("allocatable", gfc_match_allocatable, ST_ATTR_DECL);
       match ("asynchronous", gfc_match_asynchronous, ST_ATTR_DECL);
+      match ("automatic", gfc_match_automatic, ST_ATTR_DECL);
       break;
 
     case 'b':
@@ -255,6 +256,8 @@ decode_specification_statement (void)
 
     case 's':
       match ("save", gfc_match_save, ST_ATTR_DECL);
+      match ("static", gfc_match_static, ST_ATTR_DECL);
+      match ("structure", gfc_match_structure_decl, ST_STRUCTURE_DECL);
       break;
 
     case 't':
@@ -279,21 +282,21 @@ decode_specification_statement (void)
 
 end_of_block:
   gfc_clear_error ();
-  gfc_buffer_error (0);
+  gfc_buffer_error (false);
   gfc_current_locus = old_locus;
 
   return ST_GET_FCN_CHARACTERISTICS;
 }
 
+static bool in_specification_block;
 
 /* This is the primary 'decode_statement'.  */
 static gfc_statement
 decode_statement (void)
 {
-  gfc_namespace *ns;
   gfc_statement st;
   locus old_locus;
-  match m;
+  match m = MATCH_NO;
   char c;
 
   gfc_enforce_clean_symbol_state ();
@@ -342,19 +345,33 @@ decode_statement (void)
 	return ST_FUNCTION;
       else if (m == MATCH_ERROR)
 	reject_statement ();
-      else 
+      else
 	gfc_undo_symbols ();
       gfc_current_locus = old_locus;
     }
   gfc_matching_function = false;
 
+  /* Legacy parameter statements are ambiguous with assignments so try parameter
+     first.  */
+  match ("parameter", gfc_match_parameter, ST_PARAMETER);
 
   /* Match statements whose error messages are meant to be overwritten
      by something better.  */
 
   match (NULL, gfc_match_assignment, ST_ASSIGNMENT);
   match (NULL, gfc_match_pointer_assignment, ST_POINTER_ASSIGNMENT);
-  match (NULL, gfc_match_st_function, ST_STATEMENT_FUNCTION);
+
+  if (in_specification_block)
+    {
+      m = match_word (NULL, gfc_match_st_function, &old_locus);
+      if (m == MATCH_YES)
+	return ST_STATEMENT_FUNCTION;
+    }
+
+  if (!(in_specification_block && m == MATCH_ERROR))
+    {
+      match (NULL, gfc_match_ptr_fcn_assign, ST_ASSIGNMENT);
+    }
 
   match (NULL, gfc_match_data_decl, ST_DATA_DECL);
   match (NULL, gfc_match_enumerator_def, ST_ENUMERATOR);
@@ -364,6 +381,16 @@ decode_statement (void)
 
   if (gfc_match_subroutine () == MATCH_YES)
     return ST_SUBROUTINE;
+  gfc_undo_symbols ();
+  gfc_current_locus = old_locus;
+
+  if (gfc_match_submod_proc () == MATCH_YES)
+    {
+      if (gfc_new_block->attr.subroutine)
+	return ST_SUBROUTINE;
+      else if (gfc_new_block->attr.function)
+	return ST_FUNCTION;
+    }
   gfc_undo_symbols ();
   gfc_current_locus = old_locus;
 
@@ -387,17 +414,18 @@ decode_statement (void)
   gfc_undo_symbols ();
   gfc_current_locus = old_locus;
 
+  /* Try to match TYPE as an alias for PRINT.  */
+  if (gfc_match_type (&st) == MATCH_YES)
+    return st;
+  gfc_undo_symbols ();
+  gfc_current_locus = old_locus;
+
   match (NULL, gfc_match_do, ST_DO);
   match (NULL, gfc_match_block, ST_BLOCK);
   match (NULL, gfc_match_associate, ST_ASSOCIATE);
   match (NULL, gfc_match_critical, ST_CRITICAL);
   match (NULL, gfc_match_select, ST_SELECT_CASE);
-
-  gfc_current_ns = gfc_build_block_ns (gfc_current_ns);
   match (NULL, gfc_match_select_type, ST_SELECT_TYPE);
-  ns = gfc_current_ns;
-  gfc_current_ns = gfc_current_ns->parent;
-  gfc_free_namespace (ns);
 
   /* General statement matching: Instead of testing every possible
      statement, we eliminate most possibilities by peeking at the
@@ -412,6 +440,7 @@ decode_statement (void)
       match ("allocatable", gfc_match_allocatable, ST_ATTR_DECL);
       match ("assign", gfc_match_assign, ST_LABEL_ASSIGNMENT);
       match ("asynchronous", gfc_match_asynchronous, ST_ATTR_DECL);
+      match ("automatic", gfc_match_automatic, ST_ATTR_DECL);
       break;
 
     case 'b':
@@ -422,6 +451,7 @@ decode_statement (void)
 
     case 'c':
       match ("call", gfc_match_call, ST_CALL);
+      match ("change team", gfc_match_change_team, ST_CHANGE_TEAM);
       match ("close", gfc_match_close, ST_CLOSE);
       match ("continue", gfc_match_continue, ST_CONTINUE);
       match ("contiguous", gfc_match_contiguous, ST_ATTR_DECL);
@@ -441,6 +471,7 @@ decode_statement (void)
 
     case 'e':
       match ("end file", gfc_match_endfile, ST_END_FILE);
+      match ("end team", gfc_match_end_team, ST_END_TEAM);
       match ("exit", gfc_match_exit, ST_EXIT);
       match ("else", gfc_match_else, ST_ELSE);
       match ("else where", gfc_match_elsewhere, ST_ELSEWHERE);
@@ -454,11 +485,15 @@ decode_statement (void)
       match ("entry% ", gfc_match_entry, ST_ENTRY);
       match ("equivalence", gfc_match_equivalence, ST_EQUIVALENCE);
       match ("external", gfc_match_external, ST_ATTR_DECL);
+      match ("event post", gfc_match_event_post, ST_EVENT_POST);
+      match ("event wait", gfc_match_event_wait, ST_EVENT_WAIT);
       break;
 
     case 'f':
+      match ("fail image", gfc_match_fail_image, ST_FAIL_IMAGE);
       match ("final", gfc_match_final_decl, ST_FINAL);
       match ("flush", gfc_match_flush, ST_FLUSH);
+      match ("form team", gfc_match_form_team, ST_FORM_TEAM);
       match ("format", gfc_match_format, ST_FORMAT);
       break;
 
@@ -482,6 +517,7 @@ decode_statement (void)
       break;
 
     case 'm':
+      match ("map", gfc_match_map, ST_MAP);
       match ("module% procedure", gfc_match_modproc, ST_MODULE_PROC);
       match ("module", gfc_match_module, ST_MODULE);
       break;
@@ -498,7 +534,6 @@ decode_statement (void)
 
     case 'p':
       match ("print", gfc_match_print, ST_WRITE);
-      match ("parameter", gfc_match_parameter, ST_PARAMETER);
       match ("pause", gfc_match_pause, ST_PAUSE);
       match ("pointer", gfc_match_pointer, ST_ATTR_DECL);
       if (gfc_match_private (&st) == MATCH_YES)
@@ -517,12 +552,16 @@ decode_statement (void)
       break;
 
     case 's':
+      match ("structure", gfc_match_structure_decl, ST_STRUCTURE_DECL);
       match ("sequence", gfc_match_eos, ST_SEQUENCE);
       match ("stop", gfc_match_stop, ST_STOP);
       match ("save", gfc_match_save, ST_ATTR_DECL);
+      match ("static", gfc_match_static, ST_ATTR_DECL);
+      match ("submodule", gfc_match_submodule, ST_SUBMODULE);
       match ("sync all", gfc_match_sync_all, ST_SYNC_ALL);
       match ("sync images", gfc_match_sync_images, ST_SYNC_IMAGES);
       match ("sync memory", gfc_match_sync_memory, ST_SYNC_MEMORY);
+      match ("sync team", gfc_match_sync_team, ST_SYNC_TEAM);
       break;
 
     case 't':
@@ -532,6 +571,7 @@ decode_statement (void)
       break;
 
     case 'u':
+      match ("union", gfc_match_union, ST_UNION);
       match ("unlock", gfc_match_unlock, ST_UNLOCK);
       break;
 
@@ -547,10 +587,16 @@ decode_statement (void)
     }
 
   /* All else has failed, so give up.  See if any of the matchers has
-     stored an error message of some sort.  */
-
-  if (gfc_error_check () == 0)
-    gfc_error_now ("Unclassifiable statement at %C");
+     stored an error message of some sort.  Suppress the "Unclassifiable
+     statement" if a previous error message was emitted, e.g., by
+     gfc_error_now ().  */
+  if (!gfc_error_check ())
+    {
+      int ecnt;
+      gfc_get_errors (NULL, &ecnt);
+      if (ecnt <= 0)
+        gfc_error_now ("Unclassifiable statement at %C");
+    }
 
   reject_statement ();
 
@@ -559,27 +605,188 @@ decode_statement (void)
   return ST_NONE;
 }
 
-/* Like match, but set a flag simd_matched if keyword matched.  */
-#define matchs(keyword, subr, st)				\
+/* Like match and if spec_only, goto do_spec_only without actually
+   matching.  */
+#define matcha(keyword, subr, st)				\
     do {							\
-      if (match_word_omp_simd (keyword, subr, &old_locus,	\
-			       &simd_matched) == MATCH_YES)	\
-	return st;						\
-      else							\
-	undo_new_statement ();				  	\
-    } while (0);
-
-/* Like match, but don't match anything if not -fopenmp.  */
-#define matcho(keyword, subr, st)				\
-    do {							\
-      if (!gfc_option.gfc_flag_openmp)				\
-	;							\
+      if (spec_only && gfc_match (keyword) == MATCH_YES)	\
+	goto do_spec_only;					\
       else if (match_word (keyword, subr, &old_locus)		\
 	       == MATCH_YES)					\
 	return st;						\
       else							\
 	undo_new_statement ();				  	\
-    } while (0);
+    } while (0)
+
+static gfc_statement
+decode_oacc_directive (void)
+{
+  locus old_locus;
+  char c;
+  bool spec_only = false;
+
+  gfc_enforce_clean_symbol_state ();
+
+  gfc_clear_error ();   /* Clear any pending errors.  */
+  gfc_clear_warning (); /* Clear any pending warnings.  */
+
+  gfc_matching_function = false;
+
+  if (gfc_pure (NULL))
+    {
+      gfc_error_now ("OpenACC directives at %C may not appear in PURE "
+		     "procedures");
+      gfc_error_recovery ();
+      return ST_NONE;
+    }
+
+  if (gfc_current_state () == COMP_FUNCTION
+      && gfc_current_block ()->result->ts.kind == -1)
+    spec_only = true;
+
+  gfc_unset_implicit_pure (NULL);
+
+  old_locus = gfc_current_locus;
+
+  /* General OpenACC directive matching: Instead of testing every possible
+     statement, we eliminate most possibilities by peeking at the
+     first character.  */
+
+  c = gfc_peek_ascii_char ();
+
+  switch (c)
+    {
+    case 'a':
+      matcha ("atomic", gfc_match_oacc_atomic, ST_OACC_ATOMIC);
+      break;
+    case 'c':
+      matcha ("cache", gfc_match_oacc_cache, ST_OACC_CACHE);
+      break;
+    case 'd':
+      matcha ("data", gfc_match_oacc_data, ST_OACC_DATA);
+      match ("declare", gfc_match_oacc_declare, ST_OACC_DECLARE);
+      break;
+    case 'e':
+      matcha ("end atomic", gfc_match_omp_eos, ST_OACC_END_ATOMIC);
+      matcha ("end data", gfc_match_omp_eos, ST_OACC_END_DATA);
+      matcha ("end host_data", gfc_match_omp_eos, ST_OACC_END_HOST_DATA);
+      matcha ("end kernels loop", gfc_match_omp_eos, ST_OACC_END_KERNELS_LOOP);
+      matcha ("end kernels", gfc_match_omp_eos, ST_OACC_END_KERNELS);
+      matcha ("end loop", gfc_match_omp_eos, ST_OACC_END_LOOP);
+      matcha ("end parallel loop", gfc_match_omp_eos,
+	      ST_OACC_END_PARALLEL_LOOP);
+      matcha ("end parallel", gfc_match_omp_eos, ST_OACC_END_PARALLEL);
+      matcha ("enter data", gfc_match_oacc_enter_data, ST_OACC_ENTER_DATA);
+      matcha ("exit data", gfc_match_oacc_exit_data, ST_OACC_EXIT_DATA);
+      break;
+    case 'h':
+      matcha ("host_data", gfc_match_oacc_host_data, ST_OACC_HOST_DATA);
+      break;
+    case 'p':
+      matcha ("parallel loop", gfc_match_oacc_parallel_loop,
+	      ST_OACC_PARALLEL_LOOP);
+      matcha ("parallel", gfc_match_oacc_parallel, ST_OACC_PARALLEL);
+      break;
+    case 'k':
+      matcha ("kernels loop", gfc_match_oacc_kernels_loop,
+	      ST_OACC_KERNELS_LOOP);
+      matcha ("kernels", gfc_match_oacc_kernels, ST_OACC_KERNELS);
+      break;
+    case 'l':
+      matcha ("loop", gfc_match_oacc_loop, ST_OACC_LOOP);
+      break;
+    case 'r':
+      match ("routine", gfc_match_oacc_routine, ST_OACC_ROUTINE);
+      break;
+    case 'u':
+      matcha ("update", gfc_match_oacc_update, ST_OACC_UPDATE);
+      break;
+    case 'w':
+      matcha ("wait", gfc_match_oacc_wait, ST_OACC_WAIT);
+      break;
+    }
+
+  /* Directive not found or stored an error message.
+     Check and give up.  */
+
+  if (gfc_error_check () == 0)
+    gfc_error_now ("Unclassifiable OpenACC directive at %C");
+
+  reject_statement ();
+
+  gfc_error_recovery ();
+
+  return ST_NONE;
+
+ do_spec_only:
+  reject_statement ();
+  gfc_clear_error ();
+  gfc_buffer_error (false);
+  gfc_current_locus = old_locus;
+  return ST_GET_FCN_CHARACTERISTICS;
+}
+
+/* Like match, but set a flag simd_matched if keyword matched
+   and if spec_only, goto do_spec_only without actually matching.  */
+#define matchs(keyword, subr, st)				\
+    do {							\
+      if (spec_only && gfc_match (keyword) == MATCH_YES)	\
+	goto do_spec_only;					\
+      if (match_word_omp_simd (keyword, subr, &old_locus,	\
+			       &simd_matched) == MATCH_YES)	\
+	{							\
+	  ret = st;						\
+	  goto finish;						\
+	}							\
+      else							\
+	undo_new_statement ();				  	\
+    } while (0)
+
+/* Like match, but don't match anything if not -fopenmp
+   and if spec_only, goto do_spec_only without actually matching.  */
+#define matcho(keyword, subr, st)				\
+    do {							\
+      if (!flag_openmp)						\
+	;							\
+      else if (spec_only && gfc_match (keyword) == MATCH_YES)	\
+	goto do_spec_only;					\
+      else if (match_word (keyword, subr, &old_locus)		\
+	       == MATCH_YES)					\
+	{							\
+	  ret = st;						\
+	  goto finish;						\
+	}							\
+      else							\
+	undo_new_statement ();				  	\
+    } while (0)
+
+/* Like match, but set a flag simd_matched if keyword matched.  */
+#define matchds(keyword, subr, st)				\
+    do {							\
+      if (match_word_omp_simd (keyword, subr, &old_locus,	\
+			       &simd_matched) == MATCH_YES)	\
+	{							\
+	  ret = st;						\
+	  goto finish;						\
+	}							\
+      else							\
+	undo_new_statement ();				  	\
+    } while (0)
+
+/* Like match, but don't match anything if not -fopenmp.  */
+#define matchdo(keyword, subr, st)				\
+    do {							\
+      if (!flag_openmp)						\
+	;							\
+      else if (match_word (keyword, subr, &old_locus)		\
+	       == MATCH_YES)					\
+	{							\
+	  ret = st;						\
+	  goto finish;						\
+	}							\
+      else							\
+	undo_new_statement ();				  	\
+    } while (0)
 
 static gfc_statement
 decode_omp_directive (void)
@@ -587,21 +794,20 @@ decode_omp_directive (void)
   locus old_locus;
   char c;
   bool simd_matched = false;
+  bool spec_only = false;
+  gfc_statement ret = ST_NONE;
+  bool pure_ok = true;
 
   gfc_enforce_clean_symbol_state ();
 
   gfc_clear_error ();	/* Clear any pending errors.  */
   gfc_clear_warning ();	/* Clear any pending warnings.  */
 
-  if (gfc_pure (NULL))
-    {
-      gfc_error_now ("OpenMP directives at %C may not appear in PURE "
-		     "or ELEMENTAL procedures");
-      gfc_error_recovery ();
-      return ST_NONE;
-    }
+  gfc_matching_function = false;
 
-  gfc_unset_implicit_pure (NULL);
+  if (gfc_current_state () == COMP_FUNCTION
+      && gfc_current_block ()->result->ts.kind == -1)
+    spec_only = true;
 
   old_locus = gfc_current_locus;
 
@@ -610,6 +816,33 @@ decode_omp_directive (void)
      first character.  */
 
   c = gfc_peek_ascii_char ();
+
+  /* match is for directives that should be recognized only if
+     -fopenmp, matchs for directives that should be recognized
+     if either -fopenmp or -fopenmp-simd.
+     Handle only the directives allowed in PURE/ELEMENTAL procedures
+     first (those also shall not turn off implicit pure).  */
+  switch (c)
+    {
+    case 'd':
+      matchds ("declare simd", gfc_match_omp_declare_simd,
+	       ST_OMP_DECLARE_SIMD);
+      matchdo ("declare target", gfc_match_omp_declare_target,
+	       ST_OMP_DECLARE_TARGET);
+      break;
+    case 's':
+      matchs ("simd", gfc_match_omp_simd, ST_OMP_SIMD);
+      break;
+    }
+
+  pure_ok = false;
+  if (flag_openmp && gfc_pure (NULL))
+    {
+      gfc_error_now ("OpenMP directives other than SIMD or DECLARE TARGET "
+		     "at %C may not appear in PURE or ELEMENTAL procedures");
+      gfc_error_recovery ();
+      return ST_NONE;
+    }
 
   /* match is for directives that should be recognized only if
      -fopenmp, matchs for directives that should be recognized
@@ -629,12 +862,8 @@ decode_omp_directive (void)
       matcho ("critical", gfc_match_omp_critical, ST_OMP_CRITICAL);
       break;
     case 'd':
-      matchs ("declare reduction", gfc_match_omp_declare_reduction,
-	      ST_OMP_DECLARE_REDUCTION);
-      matchs ("declare simd", gfc_match_omp_declare_simd,
-	      ST_OMP_DECLARE_SIMD);
-      matcho ("declare target", gfc_match_omp_declare_target,
-	      ST_OMP_DECLARE_TARGET);
+      matchds ("declare reduction", gfc_match_omp_declare_reduction,
+	       ST_OMP_DECLARE_REDUCTION);
       matchs ("distribute parallel do simd",
 	      gfc_match_omp_distribute_parallel_do_simd,
 	      ST_OMP_DISTRIBUTE_PARALLEL_DO_SIMD);
@@ -648,7 +877,7 @@ decode_omp_directive (void)
       break;
     case 'e':
       matcho ("end atomic", gfc_match_omp_eos, ST_OMP_END_ATOMIC);
-      matcho ("end critical", gfc_match_omp_critical, ST_OMP_END_CRITICAL);
+      matcho ("end critical", gfc_match_omp_end_critical, ST_OMP_END_CRITICAL);
       matchs ("end distribute parallel do simd", gfc_match_omp_eos,
 	      ST_OMP_END_DISTRIBUTE_PARALLEL_DO_SIMD);
       matcho ("end distribute parallel do", gfc_match_omp_eos,
@@ -660,7 +889,7 @@ decode_omp_directive (void)
       matcho ("end do", gfc_match_omp_end_nowait, ST_OMP_END_DO);
       matchs ("end simd", gfc_match_omp_eos, ST_OMP_END_SIMD);
       matcho ("end master", gfc_match_omp_eos, ST_OMP_END_MASTER);
-      matcho ("end ordered", gfc_match_omp_eos, ST_OMP_END_ORDERED);
+      matchs ("end ordered", gfc_match_omp_eos, ST_OMP_END_ORDERED);
       matchs ("end parallel do simd", gfc_match_omp_eos,
 	      ST_OMP_END_PARALLEL_DO_SIMD);
       matcho ("end parallel do", gfc_match_omp_eos, ST_OMP_END_PARALLEL_DO);
@@ -672,6 +901,13 @@ decode_omp_directive (void)
       matcho ("end sections", gfc_match_omp_end_nowait, ST_OMP_END_SECTIONS);
       matcho ("end single", gfc_match_omp_end_single, ST_OMP_END_SINGLE);
       matcho ("end target data", gfc_match_omp_eos, ST_OMP_END_TARGET_DATA);
+      matchs ("end target parallel do simd", gfc_match_omp_eos,
+	      ST_OMP_END_TARGET_PARALLEL_DO_SIMD);
+      matcho ("end target parallel do", gfc_match_omp_eos,
+	      ST_OMP_END_TARGET_PARALLEL_DO);
+      matcho ("end target parallel", gfc_match_omp_eos,
+	      ST_OMP_END_TARGET_PARALLEL);
+      matchs ("end target simd", gfc_match_omp_eos, ST_OMP_END_TARGET_SIMD);
       matchs ("end target teams distribute parallel do simd",
 	      gfc_match_omp_eos,
 	      ST_OMP_END_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD);
@@ -684,6 +920,9 @@ decode_omp_directive (void)
       matcho ("end target teams", gfc_match_omp_eos, ST_OMP_END_TARGET_TEAMS);
       matcho ("end target", gfc_match_omp_eos, ST_OMP_END_TARGET);
       matcho ("end taskgroup", gfc_match_omp_eos, ST_OMP_END_TASKGROUP);
+      matchs ("end taskloop simd", gfc_match_omp_eos,
+	      ST_OMP_END_TASKLOOP_SIMD);
+      matcho ("end taskloop", gfc_match_omp_eos, ST_OMP_END_TASKLOOP);
       matcho ("end task", gfc_match_omp_eos, ST_OMP_END_TASK);
       matchs ("end teams distribute parallel do simd", gfc_match_omp_eos,
 	      ST_OMP_END_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD);
@@ -704,7 +943,16 @@ decode_omp_directive (void)
       matcho ("master", gfc_match_omp_master, ST_OMP_MASTER);
       break;
     case 'o':
-      matcho ("ordered", gfc_match_omp_ordered, ST_OMP_ORDERED);
+      if (gfc_match ("ordered depend (") == MATCH_YES)
+	{
+	  gfc_current_locus = old_locus;
+	  if (!flag_openmp)
+	    break;
+	  matcho ("ordered", gfc_match_omp_ordered_depend,
+		  ST_OMP_ORDERED_DEPEND);
+	}
+      else
+	matchs ("ordered", gfc_match_omp_ordered, ST_OMP_ORDERED);
       break;
     case 'p':
       matchs ("parallel do simd", gfc_match_omp_parallel_do_simd,
@@ -719,11 +967,21 @@ decode_omp_directive (void)
     case 's':
       matcho ("sections", gfc_match_omp_sections, ST_OMP_SECTIONS);
       matcho ("section", gfc_match_omp_eos, ST_OMP_SECTION);
-      matchs ("simd", gfc_match_omp_simd, ST_OMP_SIMD);
       matcho ("single", gfc_match_omp_single, ST_OMP_SINGLE);
       break;
     case 't':
       matcho ("target data", gfc_match_omp_target_data, ST_OMP_TARGET_DATA);
+      matcho ("target enter data", gfc_match_omp_target_enter_data,
+	      ST_OMP_TARGET_ENTER_DATA);
+      matcho ("target exit data", gfc_match_omp_target_exit_data,
+	      ST_OMP_TARGET_EXIT_DATA);
+      matchs ("target parallel do simd", gfc_match_omp_target_parallel_do_simd,
+	      ST_OMP_TARGET_PARALLEL_DO_SIMD);
+      matcho ("target parallel do", gfc_match_omp_target_parallel_do,
+	      ST_OMP_TARGET_PARALLEL_DO);
+      matcho ("target parallel", gfc_match_omp_target_parallel,
+	      ST_OMP_TARGET_PARALLEL);
+      matchs ("target simd", gfc_match_omp_target_simd, ST_OMP_TARGET_SIMD);
       matchs ("target teams distribute parallel do simd",
 	      gfc_match_omp_target_teams_distribute_parallel_do_simd,
 	      ST_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD);
@@ -740,6 +998,9 @@ decode_omp_directive (void)
 	      ST_OMP_TARGET_UPDATE);
       matcho ("target", gfc_match_omp_target, ST_OMP_TARGET);
       matcho ("taskgroup", gfc_match_omp_taskgroup, ST_OMP_TASKGROUP);
+      matchs ("taskloop simd", gfc_match_omp_taskloop_simd,
+	      ST_OMP_TASKLOOP_SIMD);
+      matcho ("taskloop", gfc_match_omp_taskloop, ST_OMP_TASKLOOP);
       matcho ("taskwait", gfc_match_omp_taskwait, ST_OMP_TASKWAIT);
       matcho ("taskyield", gfc_match_omp_taskyield, ST_OMP_TASKYIELD);
       matcho ("task", gfc_match_omp_task, ST_OMP_TASK);
@@ -754,8 +1015,8 @@ decode_omp_directive (void)
       matcho ("teams distribute", gfc_match_omp_teams_distribute,
 	      ST_OMP_TEAMS_DISTRIBUTE);
       matcho ("teams", gfc_match_omp_teams, ST_OMP_TEAMS);
-      matcho ("threadprivate", gfc_match_omp_threadprivate,
-	      ST_OMP_THREADPRIVATE);
+      matchdo ("threadprivate", gfc_match_omp_threadprivate,
+	       ST_OMP_THREADPRIVATE);
       break;
     case 'w':
       matcho ("workshare", gfc_match_omp_workshare, ST_OMP_WORKSHARE);
@@ -767,9 +1028,9 @@ decode_omp_directive (void)
      not -fopenmp and simd_matched is false, i.e. if a directive other
      than one marked with match has been seen.  */
 
-  if (gfc_option.gfc_flag_openmp || simd_matched)
+  if (flag_openmp || simd_matched)
     {
-      if (gfc_error_check () == 0)
+      if (!gfc_error_check ())
 	gfc_error_now ("Unclassifiable OpenMP directive at %C");
     }
 
@@ -778,6 +1039,30 @@ decode_omp_directive (void)
   gfc_error_recovery ();
 
   return ST_NONE;
+
+ finish:
+  if (!pure_ok)
+    {
+      gfc_unset_implicit_pure (NULL);
+
+      if (!flag_openmp && gfc_pure (NULL))
+	{
+	  gfc_error_now ("OpenMP directives other than SIMD or DECLARE TARGET "
+			 "at %C may not appear in PURE or ELEMENTAL "
+			 "procedures");
+	  reject_statement ();
+	  gfc_error_recovery ();
+	  return ST_NONE;
+	}
+    }
+  return ret;
+
+ do_spec_only:
+  reject_statement ();
+  gfc_clear_error ();
+  gfc_buffer_error (false);
+  gfc_current_locus = old_locus;
+  return ST_GET_FCN_CHARACTERISTICS;
 }
 
 static gfc_statement
@@ -792,11 +1077,13 @@ decode_gcc_attribute (void)
   old_locus = gfc_current_locus;
 
   match ("attributes", gfc_match_gcc_attributes, ST_ATTR_DECL);
+  match ("unroll", gfc_match_gcc_unroll, ST_NONE);
+  match ("builtin", gfc_match_gcc_builtin, ST_NONE);
 
   /* All else has failed, so give up.  See if any of the matchers has
      stored an error message of some sort.  */
 
-  if (gfc_error_check () == 0)
+  if (!gfc_error_check ())
     gfc_error_now ("Unclassifiable GCC directive at %C");
 
   reject_statement ();
@@ -808,6 +1095,23 @@ decode_gcc_attribute (void)
 
 #undef match
 
+/* Assert next length characters to be equal to token in free form.  */
+
+static void
+verify_token_free (const char* token, int length, bool last_was_use_stmt)
+{
+  int i;
+  char c;
+
+  c = gfc_next_ascii_char ();
+  for (i = 0; i < length; i++, c = gfc_next_ascii_char ())
+    gcc_assert (c == token[i]);
+
+  gcc_assert (gfc_is_whitespace(c));
+  gfc_gobble_whitespace ();
+  if (last_was_use_stmt)
+    use_modules ();
+}
 
 /* Get the next statement in free form source.  */
 
@@ -865,19 +1169,14 @@ next_free (void)
 	    }
 
 	  if (gfc_match_eos () == MATCH_YES)
-	    {
-	      gfc_warning_now ("Ignoring statement label in empty statement "
-			       "at %L", &label_locus);
-	      gfc_free_st_label (gfc_statement_label);
-	      gfc_statement_label = NULL;
-	      return ST_NONE;
-	    }
+	    gfc_error_now ("Statement label without statement at %L",
+			   &label_locus);
 	}
     }
   else if (c == '!')
     {
       /* Comments have already been skipped by the time we get here,
-	 except for GCC attributes and OpenMP directives.  */
+	 except for GCC attributes and OpenMP/OpenACC directives.  */
 
       gfc_next_ascii_char (); /* Eat up the exclamation sign.  */
       c = gfc_peek_ascii_char ();
@@ -894,26 +1193,42 @@ next_free (void)
 	  return decode_gcc_attribute ();
 
 	}
-      else if (c == '$'
-	       && (gfc_option.gfc_flag_openmp
-		   || gfc_option.gfc_flag_openmp_simd))
+      else if (c == '$')
 	{
-	  int i;
+	  /* Since both OpenMP and OpenACC directives starts with
+	     !$ character sequence, we must check all flags combinations */
+	  if ((flag_openmp || flag_openmp_simd)
+	      && !flag_openacc)
+	    {
+	      verify_token_free ("$omp", 4, last_was_use_stmt);
+	      return decode_omp_directive ();
+	    }
+	  else if ((flag_openmp || flag_openmp_simd)
+		   && flag_openacc)
+	    {
+	      gfc_next_ascii_char (); /* Eat up dollar character */
+	      c = gfc_peek_ascii_char ();
 
-	  c = gfc_next_ascii_char ();
-	  for (i = 0; i < 4; i++, c = gfc_next_ascii_char ())
-	    gcc_assert (c == "$omp"[i]);
-
-	  gcc_assert (c == ' ' || c == '\t');
-	  gfc_gobble_whitespace ();
-	  if (last_was_use_stmt)
-	    use_modules ();
-	  return decode_omp_directive ();
+	      if (c == 'o')
+		{
+		  verify_token_free ("omp", 3, last_was_use_stmt);
+		  return decode_omp_directive ();
+		}
+	      else if (c == 'a')
+		{
+		  verify_token_free ("acc", 3, last_was_use_stmt);
+		  return decode_oacc_directive ();
+		}
+	    }
+	  else if (flag_openacc)
+	    {
+	      verify_token_free ("$acc", 4, last_was_use_stmt);
+	      return decode_oacc_directive ();
+	    }
 	}
-
-      gcc_unreachable (); 
+      gcc_unreachable ();
     }
- 
+
   if (at_bol && c == ';')
     {
       if (!(gfc_option.allow_std & GFC_STD_F2008))
@@ -926,6 +1241,28 @@ next_free (void)
   return decode_statement ();
 }
 
+/* Assert next length characters to be equal to token in fixed form.  */
+
+static bool
+verify_token_fixed (const char *token, int length, bool last_was_use_stmt)
+{
+  int i;
+  char c = gfc_next_char_literal (NONSTRING);
+
+  for (i = 0; i < length; i++, c = gfc_next_char_literal (NONSTRING))
+    gcc_assert ((char) gfc_wide_tolower (c) == token[i]);
+
+  if (c != ' ' && c != '0')
+    {
+      gfc_buffer_error (false);
+      gfc_error ("Bad continuation line at %C");
+      return false;
+    }
+  if (last_was_use_stmt)
+    use_modules ();
+
+  return true;
+}
 
 /* Get the next statement in fixed-form source.  */
 
@@ -977,7 +1314,7 @@ next_fixed (void)
 
 	case '*':
 	  c = gfc_next_char_literal (NONSTRING);
-	  
+
 	  if (TOLOWER (c) == 'g')
 	    {
 	      for (i = 0; i < 4; i++, c = gfc_next_char_literal (NONSTRING))
@@ -985,30 +1322,46 @@ next_fixed (void)
 
 	      return decode_gcc_attribute ();
 	    }
-	  else if (c == '$'
-		   && (gfc_option.gfc_flag_openmp
-		       || gfc_option.gfc_flag_openmp_simd))
+	  else if (c == '$')
 	    {
-	      for (i = 0; i < 4; i++, c = gfc_next_char_literal (NONSTRING))
-		gcc_assert ((char) gfc_wide_tolower (c) == "$omp"[i]);
-
-	      if (c != ' ' && c != '0')
+	      if ((flag_openmp || flag_openmp_simd)
+		  && !flag_openacc)
 		{
-		  gfc_buffer_error (0);
-		  gfc_error ("Bad continuation line at %C");
-		  return ST_NONE;
+		  if (!verify_token_fixed ("omp", 3, last_was_use_stmt))
+		    return ST_NONE;
+		  return decode_omp_directive ();
 		}
-	      if (last_was_use_stmt)
-		use_modules ();
-	      return decode_omp_directive ();
+	      else if ((flag_openmp || flag_openmp_simd)
+		       && flag_openacc)
+		{
+		  c = gfc_next_char_literal(NONSTRING);
+		  if (c == 'o' || c == 'O')
+		    {
+		      if (!verify_token_fixed ("mp", 2, last_was_use_stmt))
+			return ST_NONE;
+		      return decode_omp_directive ();
+		    }
+		  else if (c == 'a' || c == 'A')
+		    {
+		      if (!verify_token_fixed ("cc", 2, last_was_use_stmt))
+			return ST_NONE;
+		      return decode_oacc_directive ();
+		    }
+		}
+	      else if (flag_openacc)
+		{
+		  if (!verify_token_fixed ("acc", 3, last_was_use_stmt))
+		    return ST_NONE;
+		  return decode_oacc_directive ();
+		}
 	    }
-	  /* FALLTHROUGH */
+	  gcc_fallthrough ();
 
 	  /* Comments have already been skipped by the time we get
 	     here so don't bother checking for them.  */
 
 	default:
-	  gfc_buffer_error (0);
+	  gfc_buffer_error (false);
 	  gfc_error ("Non-numeric character in statement label at %C");
 	  return ST_NONE;
 	}
@@ -1017,7 +1370,7 @@ next_fixed (void)
   if (digit_flag)
     {
       if (label == 0)
-	gfc_warning_now ("Zero is not a valid statement label at %C");
+	gfc_warning_now (0, "Zero is not a valid statement label at %C");
       else
 	{
 	  /* We've found a valid statement label.  */
@@ -1035,7 +1388,7 @@ next_fixed (void)
 
   if (c != ' ' && c != '0')
     {
-      gfc_buffer_error (0);
+      gfc_buffer_error (false);
       gfc_error ("Bad continuation line at %C");
       return ST_NONE;
     }
@@ -1073,9 +1426,8 @@ next_fixed (void)
 
 blank_line:
   if (digit_flag)
-    gfc_warning_now ("Ignoring statement label in empty statement at %L",
-		     &label_locus);
-    
+    gfc_error_now ("Statement label without statement at %L", &label_locus);
+
   gfc_current_locus.lb->truncated = 0;
   gfc_advance_line ();
   return ST_NONE;
@@ -1095,12 +1447,12 @@ next_statement (void)
 
   gfc_new_block = NULL;
 
-  gfc_current_ns->old_cl_list = gfc_current_ns->cl_list;
   gfc_current_ns->old_equiv = gfc_current_ns->equiv;
+  gfc_current_ns->old_data = gfc_current_ns->data;
   for (;;)
     {
       gfc_statement_label = NULL;
-      gfc_buffer_error (1);
+      gfc_buffer_error (true);
 
       if (gfc_at_eol ())
 	gfc_advance_line ();
@@ -1124,12 +1476,15 @@ next_statement (void)
 	break;
     }
 
-  gfc_buffer_error (0);
+  gfc_buffer_error (false);
 
-  if (st == ST_GET_FCN_CHARACTERISTICS && gfc_statement_label != NULL)
+  if (st == ST_GET_FCN_CHARACTERISTICS)
     {
-      gfc_free_st_label (gfc_statement_label);
-      gfc_statement_label = NULL;
+      if (gfc_statement_label != NULL)
+	{
+	  gfc_free_st_label (gfc_statement_label);
+	  gfc_statement_label = NULL;
+	}
       gfc_current_locus = old_locus;
     }
 
@@ -1159,8 +1514,15 @@ next_statement (void)
   case ST_LABEL_ASSIGNMENT: case ST_FLUSH: case ST_OMP_FLUSH: \
   case ST_OMP_BARRIER: case ST_OMP_TASKWAIT: case ST_OMP_TASKYIELD: \
   case ST_OMP_CANCEL: case ST_OMP_CANCELLATION_POINT: \
-  case ST_OMP_TARGET_UPDATE: case ST_ERROR_STOP: case ST_SYNC_ALL: \
-  case ST_SYNC_IMAGES: case ST_SYNC_MEMORY: case ST_LOCK: case ST_UNLOCK
+  case ST_OMP_TARGET_UPDATE: case ST_OMP_TARGET_ENTER_DATA: \
+  case ST_OMP_TARGET_EXIT_DATA: case ST_OMP_ORDERED_DEPEND: \
+  case ST_ERROR_STOP: case ST_SYNC_ALL: \
+  case ST_SYNC_IMAGES: case ST_SYNC_MEMORY: case ST_LOCK: case ST_UNLOCK: \
+  case ST_FORM_TEAM: case ST_CHANGE_TEAM: \
+  case ST_END_TEAM: case ST_SYNC_TEAM: \
+  case ST_EVENT_POST: case ST_EVENT_WAIT: case ST_FAIL_IMAGE: \
+  case ST_OACC_UPDATE: case ST_OACC_WAIT: case ST_OACC_CACHE: \
+  case ST_OACC_ENTER_DATA: case ST_OACC_EXIT_DATA
 
 /* Statements that mark other executable statements.  */
 
@@ -1184,16 +1546,25 @@ next_statement (void)
   case ST_OMP_TEAMS_DISTRIBUTE_PARALLEL_DO: \
   case ST_OMP_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD: case ST_OMP_DISTRIBUTE: \
   case ST_OMP_DISTRIBUTE_SIMD: case ST_OMP_DISTRIBUTE_PARALLEL_DO: \
-  case ST_OMP_DISTRIBUTE_PARALLEL_DO_SIMD: \
-  case ST_CRITICAL
+  case ST_OMP_DISTRIBUTE_PARALLEL_DO_SIMD: case ST_OMP_TARGET_PARALLEL: \
+  case ST_OMP_TARGET_PARALLEL_DO: case ST_OMP_TARGET_PARALLEL_DO_SIMD: \
+  case ST_OMP_TARGET_SIMD: case ST_OMP_TASKLOOP: case ST_OMP_TASKLOOP_SIMD: \
+  case ST_CRITICAL: \
+  case ST_OACC_PARALLEL_LOOP: case ST_OACC_PARALLEL: case ST_OACC_KERNELS: \
+  case ST_OACC_DATA: case ST_OACC_HOST_DATA: case ST_OACC_LOOP: \
+  case ST_OACC_KERNELS_LOOP: case ST_OACC_ATOMIC
 
 /* Declaration statements */
 
 #define case_decl case ST_ATTR_DECL: case ST_COMMON: case ST_DATA_DECL: \
   case ST_EQUIVALENCE: case ST_NAMELIST: case ST_STATEMENT_FUNCTION: \
-  case ST_TYPE: case ST_INTERFACE: case ST_OMP_THREADPRIVATE: \
-  case ST_PROCEDURE: case ST_OMP_DECLARE_SIMD: case ST_OMP_DECLARE_REDUCTION: \
-  case ST_OMP_DECLARE_TARGET
+  case ST_TYPE: case ST_INTERFACE: case ST_PROCEDURE: case ST_OACC_ROUTINE: \
+  case ST_OACC_DECLARE
+
+/* OpenMP declaration statements.  */
+
+#define case_omp_decl case ST_OMP_THREADPRIVATE: case ST_OMP_DECLARE_SIMD: \
+  case ST_OMP_DECLARE_TARGET: case ST_OMP_DECLARE_REDUCTION
 
 /* Block end statements.  Errors associated with interchanging these
    are detected in gfc_match_end().  */
@@ -1213,6 +1584,8 @@ push_state (gfc_state_data *p, gfc_compile_state new_state, gfc_symbol *sym)
   p->sym = sym;
   p->head = p->tail = NULL;
   p->do_variable = NULL;
+  if (p->state != COMP_DO && p->state != COMP_DO_CONCURRENT)
+    p->ext.oacc_declare_clauses = NULL;
 
   /* If this the state of a construct like BLOCK, DO or IF, the corresponding
      construct statement was accepted right before pushing the state.  Thus,
@@ -1367,8 +1740,8 @@ gfc_enclosing_unit (gfc_compile_state * result)
 
   for (p = gfc_state_stack; p; p = p->previous)
     if (p->state == COMP_FUNCTION || p->state == COMP_SUBROUTINE
-	|| p->state == COMP_MODULE || p->state == COMP_BLOCK_DATA
-	|| p->state == COMP_PROGRAM)
+	|| p->state == COMP_MODULE || p->state == COMP_SUBMODULE
+	|| p->state == COMP_BLOCK_DATA || p->state == COMP_PROGRAM)
       {
 
 	if (result != NULL)
@@ -1445,6 +1818,15 @@ gfc_ascii_statement (gfc_statement st)
     case ST_DEALLOCATE:
       p = "DEALLOCATE";
       break;
+    case ST_MAP:
+      p = "MAP";
+      break;
+    case ST_UNION:
+      p = "UNION";
+      break;
+    case ST_STRUCTURE_DECL:
+      p = "STRUCTURE";
+      break;
     case ST_DERIVED_DECL:
       p = _("derived type declaration");
       break;
@@ -1459,6 +1841,27 @@ gfc_ascii_statement (gfc_statement st)
       break;
     case ST_ELSEWHERE:
       p = "ELSEWHERE";
+      break;
+    case ST_EVENT_POST:
+      p = "EVENT POST";
+      break;
+    case ST_EVENT_WAIT:
+      p = "EVENT WAIT";
+      break;
+    case ST_FAIL_IMAGE:
+      p = "FAIL IMAGE";
+      break;
+    case ST_CHANGE_TEAM:
+      p = "CHANGE TEAM";
+      break;
+    case ST_END_TEAM:
+      p = "END TEAM";
+      break;
+    case ST_FORM_TEAM:
+      p = "FORM TEAM";
+      break;
+    case ST_SYNC_TEAM:
+      p = "SYNC TEAM";
       break;
     case ST_END_ASSOCIATE:
       p = "END ASSOCIATE";
@@ -1493,6 +1896,9 @@ gfc_ascii_statement (gfc_statement st)
     case ST_END_MODULE:
       p = "END MODULE";
       break;
+    case ST_END_SUBMODULE:
+      p = "END SUBMODULE";
+      break;
     case ST_END_PROGRAM:
       p = "END PROGRAM";
       break;
@@ -1504,6 +1910,15 @@ gfc_ascii_statement (gfc_statement st)
       break;
     case ST_END_WHERE:
       p = "END WHERE";
+      break;
+    case ST_END_STRUCTURE:
+      p = "END STRUCTURE";
+      break;
+    case ST_END_UNION:
+      p = "END UNION";
+      break;
+    case ST_END_MAP:
+      p = "END MAP";
       break;
     case ST_END_TYPE:
       p = "END TYPE";
@@ -1574,6 +1989,9 @@ gfc_ascii_statement (gfc_statement st)
       break;
     case ST_MODULE:
       p = "MODULE";
+      break;
+    case ST_SUBMODULE:
+      p = "SUBMODULE";
       break;
     case ST_PAUSE:
       p = "PAUSE";
@@ -1677,6 +2095,75 @@ gfc_ascii_statement (gfc_statement st)
       break;
     case ST_END_ENUM:
       p = "END ENUM";
+      break;
+    case ST_OACC_PARALLEL_LOOP:
+      p = "!$ACC PARALLEL LOOP";
+      break;
+    case ST_OACC_END_PARALLEL_LOOP:
+      p = "!$ACC END PARALLEL LOOP";
+      break;
+    case ST_OACC_PARALLEL:
+      p = "!$ACC PARALLEL";
+      break;
+    case ST_OACC_END_PARALLEL:
+      p = "!$ACC END PARALLEL";
+      break;
+    case ST_OACC_KERNELS:
+      p = "!$ACC KERNELS";
+      break;
+    case ST_OACC_END_KERNELS:
+      p = "!$ACC END KERNELS";
+      break;
+    case ST_OACC_KERNELS_LOOP:
+      p = "!$ACC KERNELS LOOP";
+      break;
+    case ST_OACC_END_KERNELS_LOOP:
+      p = "!$ACC END KERNELS LOOP";
+      break;
+    case ST_OACC_DATA:
+      p = "!$ACC DATA";
+      break;
+    case ST_OACC_END_DATA:
+      p = "!$ACC END DATA";
+      break;
+    case ST_OACC_HOST_DATA:
+      p = "!$ACC HOST_DATA";
+      break;
+    case ST_OACC_END_HOST_DATA:
+      p = "!$ACC END HOST_DATA";
+      break;
+    case ST_OACC_LOOP:
+      p = "!$ACC LOOP";
+      break;
+    case ST_OACC_END_LOOP:
+      p = "!$ACC END LOOP";
+      break;
+    case ST_OACC_DECLARE:
+      p = "!$ACC DECLARE";
+      break;
+    case ST_OACC_UPDATE:
+      p = "!$ACC UPDATE";
+      break;
+    case ST_OACC_WAIT:
+      p = "!$ACC WAIT";
+      break;
+    case ST_OACC_CACHE:
+      p = "!$ACC CACHE";
+      break;
+    case ST_OACC_ENTER_DATA:
+      p = "!$ACC ENTER DATA";
+      break;
+    case ST_OACC_EXIT_DATA:
+      p = "!$ACC EXIT DATA";
+      break;
+    case ST_OACC_ROUTINE:
+      p = "!$ACC ROUTINE";
+      break;
+    case ST_OACC_ATOMIC:
+      p = "!$ACC ATOMIC";
+      break;
+    case ST_OACC_END_ATOMIC:
+      p = "!$ACC END ATOMIC";
       break;
     case ST_OMP_ATOMIC:
       p = "!$OMP ATOMIC";
@@ -1783,6 +2270,18 @@ gfc_ascii_statement (gfc_statement st)
     case ST_OMP_END_TARGET_DATA:
       p = "!$OMP END TARGET DATA";
       break;
+    case ST_OMP_END_TARGET_PARALLEL:
+      p = "!$OMP END TARGET PARALLEL";
+      break;
+    case ST_OMP_END_TARGET_PARALLEL_DO:
+      p = "!$OMP END TARGET PARALLEL DO";
+      break;
+    case ST_OMP_END_TARGET_PARALLEL_DO_SIMD:
+      p = "!$OMP END TARGET PARALLEL DO SIMD";
+      break;
+    case ST_OMP_END_TARGET_SIMD:
+      p = "!$OMP END TARGET SIMD";
+      break;
     case ST_OMP_END_TARGET_TEAMS:
       p = "!$OMP END TARGET TEAMS";
       break;
@@ -1800,6 +2299,12 @@ gfc_ascii_statement (gfc_statement st)
       break;
     case ST_OMP_END_TASKGROUP:
       p = "!$OMP END TASKGROUP";
+      break;
+    case ST_OMP_END_TASKLOOP:
+      p = "!$OMP END TASKLOOP";
+      break;
+    case ST_OMP_END_TASKLOOP_SIMD:
+      p = "!$OMP END TASKLOOP SIMD";
       break;
     case ST_OMP_END_TEAMS:
       p = "!$OMP END TEAMS";
@@ -1826,6 +2331,7 @@ gfc_ascii_statement (gfc_statement st)
       p = "!$OMP MASTER";
       break;
     case ST_OMP_ORDERED:
+    case ST_OMP_ORDERED_DEPEND:
       p = "!$OMP ORDERED";
       break;
     case ST_OMP_PARALLEL:
@@ -1861,6 +2367,24 @@ gfc_ascii_statement (gfc_statement st)
     case ST_OMP_TARGET_DATA:
       p = "!$OMP TARGET DATA";
       break;
+    case ST_OMP_TARGET_ENTER_DATA:
+      p = "!$OMP TARGET ENTER DATA";
+      break;
+    case ST_OMP_TARGET_EXIT_DATA:
+      p = "!$OMP TARGET EXIT DATA";
+      break;
+    case ST_OMP_TARGET_PARALLEL:
+      p = "!$OMP TARGET PARALLEL";
+      break;
+    case ST_OMP_TARGET_PARALLEL_DO:
+      p = "!$OMP TARGET PARALLEL DO";
+      break;
+    case ST_OMP_TARGET_PARALLEL_DO_SIMD:
+      p = "!$OMP TARGET PARALLEL DO SIMD";
+      break;
+    case ST_OMP_TARGET_SIMD:
+      p = "!$OMP TARGET SIMD";
+      break;
     case ST_OMP_TARGET_TEAMS:
       p = "!$OMP TARGET TEAMS";
       break;
@@ -1884,6 +2408,12 @@ gfc_ascii_statement (gfc_statement st)
       break;
     case ST_OMP_TASKGROUP:
       p = "!$OMP TASKGROUP";
+      break;
+    case ST_OMP_TASKLOOP:
+      p = "!$OMP TASKLOOP";
+      break;
+    case ST_OMP_TASKLOOP_SIMD:
+      p = "!$OMP TASKLOOP SIMD";
       break;
     case ST_OMP_TASKWAIT:
       p = "!$OMP TASKWAIT";
@@ -1921,8 +2451,8 @@ gfc_ascii_statement (gfc_statement st)
 
 
 /* Create a symbol for the main program and assign it to ns->proc_name.  */
- 
-static void 
+
+static void
 main_program_symbol (gfc_namespace *ns, const char *name)
 {
   gfc_symbol *main_program;
@@ -1956,6 +2486,7 @@ accept_statement (gfc_statement st)
     case ST_FUNCTION:
     case ST_SUBROUTINE:
     case ST_MODULE:
+    case ST_SUBMODULE:
       gfc_current_ns->proc_name = gfc_new_block;
       break;
 
@@ -2029,18 +2560,17 @@ accept_statement (gfc_statement st)
 }
 
 
-/* Undo anything tentative that has been built for the current
-   statement.  */
+/* Undo anything tentative that has been built for the current statement,
+   except if a gfc_charlen structure has been added to current namespace's
+   list of gfc_charlen structure.  */
 
 static void
 reject_statement (void)
 {
-  /* Revert to the previous charlen chain.  */
-  gfc_free_charlen (gfc_current_ns->cl_list, gfc_current_ns->old_cl_list);
-  gfc_current_ns->cl_list = gfc_current_ns->old_cl_list;
-
   gfc_free_equiv_until (gfc_current_ns->equiv, gfc_current_ns->old_equiv);
   gfc_current_ns->equiv = gfc_current_ns->old_equiv;
+
+  gfc_reject_data (gfc_current_ns);
 
   gfc_new_block = NULL;
   gfc_undo_symbols ();
@@ -2176,12 +2706,21 @@ verify_st_order (st_state *p, gfc_statement st, bool silent)
 
     case ST_PUBLIC:
     case ST_PRIVATE:
+    case ST_STRUCTURE_DECL:
     case ST_DERIVED_DECL:
     case_decl:
       if (p->state >= ORDER_EXEC)
 	goto order;
       if (p->state < ORDER_SPEC)
 	p->state = ORDER_SPEC;
+      break;
+
+    case_omp_decl:
+      /* The OpenMP directives have to be somewhere in the specification
+	 part, but there are no further requirements on their ordering.
+	 Thus don't adjust p->state, just ignore them.  */
+      if (p->state >= ORDER_EXEC)
+	goto order;
       break;
 
     case_executable:
@@ -2191,8 +2730,7 @@ verify_st_order (st_state *p, gfc_statement st, bool silent)
       break;
 
     default:
-      gfc_internal_error ("Unexpected %s statement in verify_st_order() at %C",
-			  gfc_ascii_statement (st));
+      return false;
     }
 
   /* All is well, record the statement in case we need it next time.  */
@@ -2219,7 +2757,7 @@ unexpected_eof (void)
 {
   gfc_state_data *p;
 
-  gfc_error ("Unexpected end of file in '%s'", gfc_source_file);
+  gfc_error ("Unexpected end of file in %qs", gfc_source_file);
 
   /* Memory cleanup.  Move to "second to last".  */
   for (p = gfc_state_stack; p && p->previous && p->previous->previous;
@@ -2229,6 +2767,9 @@ unexpected_eof (void)
   gfc_done_2 ();
 
   longjmp (eof_buf, 1);
+
+  /* Avoids build error on systems where longjmp is not declared noreturn.  */
+  gcc_unreachable ();
 }
 
 
@@ -2251,10 +2792,10 @@ parse_derived_contains (void)
   /* Derived-types with SEQUENCE and/or BIND(C) must not have a CONTAINS
      section.  */
   if (gfc_current_block ()->attr.sequence)
-    gfc_error ("Derived-type '%s' with SEQUENCE must not have a CONTAINS"
+    gfc_error ("Derived-type %qs with SEQUENCE must not have a CONTAINS"
 	       " section at %C", gfc_current_block ()->name);
   if (gfc_current_block ()->attr.is_bind_c)
-    gfc_error ("Derived-type '%s' with BIND(C) must not have a CONTAINS"
+    gfc_error ("Derived-type %qs with BIND(C) must not have a CONTAINS"
 	       " section at %C", gfc_current_block ()->name);
 
   accept_statement (ST_CONTAINS);
@@ -2366,6 +2907,358 @@ error:
 }
 
 
+/* Set attributes for the parent symbol based on the attributes of a component
+   and raise errors if conflicting attributes are found for the component.  */
+
+static void
+check_component (gfc_symbol *sym, gfc_component *c, gfc_component **lockp,
+    gfc_component **eventp)
+{
+  bool coarray, lock_type, event_type, allocatable, pointer;
+  coarray = lock_type = event_type = allocatable = pointer = false;
+  gfc_component *lock_comp = NULL, *event_comp = NULL;
+
+  if (lockp) lock_comp = *lockp;
+  if (eventp) event_comp = *eventp;
+
+  /* Look for allocatable components.  */
+  if (c->attr.allocatable
+      || (c->ts.type == BT_CLASS && c->attr.class_ok
+          && CLASS_DATA (c)->attr.allocatable)
+      || (c->ts.type == BT_DERIVED && !c->attr.pointer
+          && c->ts.u.derived->attr.alloc_comp))
+    {
+      allocatable = true;
+      sym->attr.alloc_comp = 1;
+    }
+
+  /* Look for pointer components.  */
+  if (c->attr.pointer
+      || (c->ts.type == BT_CLASS && c->attr.class_ok
+          && CLASS_DATA (c)->attr.class_pointer)
+      || (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.pointer_comp))
+    {
+      pointer = true;
+      sym->attr.pointer_comp = 1;
+    }
+
+  /* Look for procedure pointer components.  */
+  if (c->attr.proc_pointer
+      || (c->ts.type == BT_DERIVED
+          && c->ts.u.derived->attr.proc_pointer_comp))
+    sym->attr.proc_pointer_comp = 1;
+
+  /* Looking for coarray components.  */
+  if (c->attr.codimension
+      || (c->ts.type == BT_CLASS && c->attr.class_ok
+          && CLASS_DATA (c)->attr.codimension))
+    {
+      coarray = true;
+      sym->attr.coarray_comp = 1;
+    }
+
+  if (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.coarray_comp
+      && !c->attr.pointer)
+    {
+      coarray = true;
+      sym->attr.coarray_comp = 1;
+    }
+
+  /* Looking for lock_type components.  */
+  if ((c->ts.type == BT_DERIVED
+          && c->ts.u.derived->from_intmod == INTMOD_ISO_FORTRAN_ENV
+          && c->ts.u.derived->intmod_sym_id == ISOFORTRAN_LOCK_TYPE)
+      || (c->ts.type == BT_CLASS && c->attr.class_ok
+          && CLASS_DATA (c)->ts.u.derived->from_intmod
+             == INTMOD_ISO_FORTRAN_ENV
+          && CLASS_DATA (c)->ts.u.derived->intmod_sym_id
+             == ISOFORTRAN_LOCK_TYPE)
+      || (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.lock_comp
+          && !allocatable && !pointer))
+    {
+      lock_type = 1;
+      lock_comp = c;
+      sym->attr.lock_comp = 1;
+    }
+
+    /* Looking for event_type components.  */
+    if ((c->ts.type == BT_DERIVED
+            && c->ts.u.derived->from_intmod == INTMOD_ISO_FORTRAN_ENV
+            && c->ts.u.derived->intmod_sym_id == ISOFORTRAN_EVENT_TYPE)
+        || (c->ts.type == BT_CLASS && c->attr.class_ok
+            && CLASS_DATA (c)->ts.u.derived->from_intmod
+               == INTMOD_ISO_FORTRAN_ENV
+            && CLASS_DATA (c)->ts.u.derived->intmod_sym_id
+               == ISOFORTRAN_EVENT_TYPE)
+        || (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.event_comp
+            && !allocatable && !pointer))
+      {
+        event_type = 1;
+        event_comp = c;
+        sym->attr.event_comp = 1;
+      }
+
+  /* Check for F2008, C1302 - and recall that pointers may not be coarrays
+     (5.3.14) and that subobjects of coarray are coarray themselves (2.4.7),
+     unless there are nondirect [allocatable or pointer] components
+     involved (cf. 1.3.33.1 and 1.3.33.3).  */
+
+  if (pointer && !coarray && lock_type)
+    gfc_error ("Component %s at %L of type LOCK_TYPE must have a "
+               "codimension or be a subcomponent of a coarray, "
+               "which is not possible as the component has the "
+               "pointer attribute", c->name, &c->loc);
+  else if (pointer && !coarray && c->ts.type == BT_DERIVED
+           && c->ts.u.derived->attr.lock_comp)
+    gfc_error ("Pointer component %s at %L has a noncoarray subcomponent "
+               "of type LOCK_TYPE, which must have a codimension or be a "
+               "subcomponent of a coarray", c->name, &c->loc);
+
+  if (lock_type && allocatable && !coarray)
+    gfc_error ("Allocatable component %s at %L of type LOCK_TYPE must have "
+               "a codimension", c->name, &c->loc);
+  else if (lock_type && allocatable && c->ts.type == BT_DERIVED
+           && c->ts.u.derived->attr.lock_comp)
+    gfc_error ("Allocatable component %s at %L must have a codimension as "
+               "it has a noncoarray subcomponent of type LOCK_TYPE",
+               c->name, &c->loc);
+
+  if (sym->attr.coarray_comp && !coarray && lock_type)
+    gfc_error ("Noncoarray component %s at %L of type LOCK_TYPE or with "
+               "subcomponent of type LOCK_TYPE must have a codimension or "
+               "be a subcomponent of a coarray. (Variables of type %s may "
+               "not have a codimension as already a coarray "
+               "subcomponent exists)", c->name, &c->loc, sym->name);
+
+  if (sym->attr.lock_comp && coarray && !lock_type)
+    gfc_error ("Noncoarray component %s at %L of type LOCK_TYPE or with "
+               "subcomponent of type LOCK_TYPE must have a codimension or "
+               "be a subcomponent of a coarray. (Variables of type %s may "
+               "not have a codimension as %s at %L has a codimension or a "
+               "coarray subcomponent)", lock_comp->name, &lock_comp->loc,
+               sym->name, c->name, &c->loc);
+
+  /* Similarly for EVENT TYPE.  */
+
+  if (pointer && !coarray && event_type)
+    gfc_error ("Component %s at %L of type EVENT_TYPE must have a "
+               "codimension or be a subcomponent of a coarray, "
+               "which is not possible as the component has the "
+               "pointer attribute", c->name, &c->loc);
+  else if (pointer && !coarray && c->ts.type == BT_DERIVED
+           && c->ts.u.derived->attr.event_comp)
+    gfc_error ("Pointer component %s at %L has a noncoarray subcomponent "
+               "of type EVENT_TYPE, which must have a codimension or be a "
+               "subcomponent of a coarray", c->name, &c->loc);
+
+  if (event_type && allocatable && !coarray)
+    gfc_error ("Allocatable component %s at %L of type EVENT_TYPE must have "
+               "a codimension", c->name, &c->loc);
+  else if (event_type && allocatable && c->ts.type == BT_DERIVED
+           && c->ts.u.derived->attr.event_comp)
+    gfc_error ("Allocatable component %s at %L must have a codimension as "
+               "it has a noncoarray subcomponent of type EVENT_TYPE",
+               c->name, &c->loc);
+
+  if (sym->attr.coarray_comp && !coarray && event_type)
+    gfc_error ("Noncoarray component %s at %L of type EVENT_TYPE or with "
+               "subcomponent of type EVENT_TYPE must have a codimension or "
+               "be a subcomponent of a coarray. (Variables of type %s may "
+               "not have a codimension as already a coarray "
+               "subcomponent exists)", c->name, &c->loc, sym->name);
+
+  if (sym->attr.event_comp && coarray && !event_type)
+    gfc_error ("Noncoarray component %s at %L of type EVENT_TYPE or with "
+               "subcomponent of type EVENT_TYPE must have a codimension or "
+               "be a subcomponent of a coarray. (Variables of type %s may "
+               "not have a codimension as %s at %L has a codimension or a "
+               "coarray subcomponent)", event_comp->name, &event_comp->loc,
+               sym->name, c->name, &c->loc);
+
+  /* Look for private components.  */
+  if (sym->component_access == ACCESS_PRIVATE
+      || c->attr.access == ACCESS_PRIVATE
+      || (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.private_comp))
+    sym->attr.private_comp = 1;
+
+  if (lockp) *lockp = lock_comp;
+  if (eventp) *eventp = event_comp;
+}
+
+
+static void parse_struct_map (gfc_statement);
+
+/* Parse a union component definition within a structure definition.  */
+
+static void
+parse_union (void)
+{
+  int compiling;
+  gfc_statement st;
+  gfc_state_data s;
+  gfc_component *c, *lock_comp = NULL, *event_comp = NULL;
+  gfc_symbol *un;
+
+  accept_statement(ST_UNION);
+  push_state (&s, COMP_UNION, gfc_new_block);
+  un = gfc_new_block;
+
+  compiling = 1;
+
+  while (compiling)
+    {
+      st = next_statement ();
+      /* Only MAP declarations valid within a union. */
+      switch (st)
+        {
+        case ST_NONE:
+          unexpected_eof ();
+
+        case ST_MAP:
+          accept_statement (ST_MAP);
+          parse_struct_map (ST_MAP);
+          /* Add a component to the union for each map. */
+          if (!gfc_add_component (un, gfc_new_block->name, &c))
+            {
+              gfc_internal_error ("failed to create map component '%s'",
+                  gfc_new_block->name);
+              reject_statement ();
+              return;
+            }
+          c->ts.type = BT_DERIVED;
+          c->ts.u.derived = gfc_new_block;
+          /* Normally components get their initialization expressions when they
+             are created in decl.c (build_struct) so we can look through the
+             flat component list for initializers during resolution. Unions and
+             maps create components along with their type definitions so we
+             have to generate initializers here. */
+          c->initializer = gfc_default_initializer (&c->ts);
+          break;
+
+        case ST_END_UNION:
+          compiling = 0;
+          accept_statement (ST_END_UNION);
+          break;
+
+        default:
+          unexpected_statement (st);
+          break;
+        }
+    }
+
+  for (c = un->components; c; c = c->next)
+    check_component (un, c, &lock_comp, &event_comp);
+
+  /* Add the union as a component in its parent structure.  */
+  pop_state ();
+  if (!gfc_add_component (gfc_current_block (), un->name, &c))
+    {
+      gfc_internal_error ("failed to create union component '%s'", un->name);
+      reject_statement ();
+      return;
+    }
+  c->ts.type = BT_UNION;
+  c->ts.u.derived = un;
+  c->initializer = gfc_default_initializer (&c->ts);
+
+  un->attr.zero_comp = un->components == NULL;
+}
+
+
+/* Parse a STRUCTURE or MAP.  */
+
+static void
+parse_struct_map (gfc_statement block)
+{
+  int compiling_type;
+  gfc_statement st;
+  gfc_state_data s;
+  gfc_symbol *sym;
+  gfc_component *c, *lock_comp = NULL, *event_comp = NULL;
+  gfc_compile_state comp;
+  gfc_statement ends;
+
+  if (block == ST_STRUCTURE_DECL)
+    {
+      comp = COMP_STRUCTURE;
+      ends = ST_END_STRUCTURE;
+    }
+  else
+    {
+      gcc_assert (block == ST_MAP);
+      comp = COMP_MAP;
+      ends = ST_END_MAP;
+    }
+
+  accept_statement(block);
+  push_state (&s, comp, gfc_new_block);
+
+  gfc_new_block->component_access = ACCESS_PUBLIC;
+  compiling_type = 1;
+
+  while (compiling_type)
+    {
+      st = next_statement ();
+      switch (st)
+        {
+        case ST_NONE:
+          unexpected_eof ();
+
+        /* Nested structure declarations will be captured as ST_DATA_DECL.  */
+        case ST_STRUCTURE_DECL:
+          /* Let a more specific error make it to decode_statement().  */
+          if (gfc_error_check () == 0)
+            gfc_error ("Syntax error in nested structure declaration at %C");
+          reject_statement ();
+          /* Skip the rest of this statement.  */
+          gfc_error_recovery ();
+          break;
+
+        case ST_UNION:
+          accept_statement (ST_UNION);
+          parse_union ();
+          break;
+
+        case ST_DATA_DECL:
+          /* The data declaration was a nested/ad-hoc STRUCTURE field.  */
+          accept_statement (ST_DATA_DECL);
+          if (gfc_new_block && gfc_new_block != gfc_current_block ()
+                            && gfc_new_block->attr.flavor == FL_STRUCT)
+              parse_struct_map (ST_STRUCTURE_DECL);
+          break;
+
+        case ST_END_STRUCTURE:
+        case ST_END_MAP:
+          if (st == ends)
+            {
+              accept_statement (st);
+              compiling_type = 0;
+            }
+          else
+            unexpected_statement (st);
+          break;
+
+        default:
+          unexpected_statement (st);
+          break;
+        }
+    }
+
+  /* Validate each component.  */
+  sym = gfc_current_block ();
+  for (c = sym->components; c; c = c->next)
+    check_component (sym, c, &lock_comp, &event_comp);
+
+  sym->attr.zero_comp = (sym->components == NULL);
+
+  /* Allow parse_union to find this structure to add to its list of maps.  */
+  if (block == ST_MAP)
+    gfc_new_block = gfc_current_block ();
+
+  pop_state ();
+}
+
+
 /* Parse a derived type.  */
 
 static void
@@ -2375,7 +3268,7 @@ parse_derived (void)
   gfc_statement st;
   gfc_state_data s;
   gfc_symbol *sym;
-  gfc_component *c, *lock_comp = NULL;
+  gfc_component *c, *lock_comp = NULL, *event_comp = NULL;
 
   accept_statement (ST_DERIVED_DECL);
   push_state (&s, COMP_DERIVED, gfc_new_block);
@@ -2449,7 +3342,7 @@ endType:
 	    }
 
 	  if (gfc_current_block ()->attr.sequence)
-	    gfc_warning ("SEQUENCE attribute at %C already specified in "
+	    gfc_warning (0, "SEQUENCE attribute at %C already specified in "
 			 "TYPE statement");
 
 	  if (seen_sequence)
@@ -2458,7 +3351,7 @@ endType:
 	    }
 
 	  seen_sequence = 1;
-	  gfc_add_sequence (&gfc_current_block ()->attr, 
+	  gfc_add_sequence (&gfc_current_block ()->attr,
 			    gfc_current_block ()->name, NULL);
 	  break;
 
@@ -2482,116 +3375,7 @@ endType:
    */
   sym = gfc_current_block ();
   for (c = sym->components; c; c = c->next)
-    {
-      bool coarray, lock_type, allocatable, pointer;
-      coarray = lock_type = allocatable = pointer = false;
-
-      /* Look for allocatable components.  */
-      if (c->attr.allocatable
-	  || (c->ts.type == BT_CLASS && c->attr.class_ok
-	      && CLASS_DATA (c)->attr.allocatable)
-	  || (c->ts.type == BT_DERIVED && !c->attr.pointer
-	      && c->ts.u.derived->attr.alloc_comp))
-	{
-	  allocatable = true;
-	  sym->attr.alloc_comp = 1;
-	}
-
-      /* Look for pointer components.  */
-      if (c->attr.pointer
-	  || (c->ts.type == BT_CLASS && c->attr.class_ok
-	      && CLASS_DATA (c)->attr.class_pointer)
-	  || (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.pointer_comp))
-	{
-	  pointer = true;
-	  sym->attr.pointer_comp = 1;
-	}
-
-      /* Look for procedure pointer components.  */
-      if (c->attr.proc_pointer
-	  || (c->ts.type == BT_DERIVED
-	      && c->ts.u.derived->attr.proc_pointer_comp))
-	sym->attr.proc_pointer_comp = 1;
-
-      /* Looking for coarray components.  */
-      if (c->attr.codimension
-	  || (c->ts.type == BT_CLASS && c->attr.class_ok
-	      && CLASS_DATA (c)->attr.codimension))
-	{
-	  coarray = true;
-	  sym->attr.coarray_comp = 1;
-	}
-     
-      if (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.coarray_comp
-	  && !c->attr.pointer)
-	{
-	  coarray = true;
-	  sym->attr.coarray_comp = 1;
-	}
-
-      /* Looking for lock_type components.  */
-      if ((c->ts.type == BT_DERIVED
-	      && c->ts.u.derived->from_intmod == INTMOD_ISO_FORTRAN_ENV
-	      && c->ts.u.derived->intmod_sym_id == ISOFORTRAN_LOCK_TYPE)
-	  || (c->ts.type == BT_CLASS && c->attr.class_ok
-	      && CLASS_DATA (c)->ts.u.derived->from_intmod
-		 == INTMOD_ISO_FORTRAN_ENV
-	      && CLASS_DATA (c)->ts.u.derived->intmod_sym_id
-		 == ISOFORTRAN_LOCK_TYPE)
-	  || (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.lock_comp
-	      && !allocatable && !pointer))
-	{
-	  lock_type = 1;
-	  lock_comp = c;
-	  sym->attr.lock_comp = 1;
-	}
-
-      /* Check for F2008, C1302 - and recall that pointers may not be coarrays
-	 (5.3.14) and that subobjects of coarray are coarray themselves (2.4.7),
-	 unless there are nondirect [allocatable or pointer] components
-	 involved (cf. 1.3.33.1 and 1.3.33.3).  */
-
-      if (pointer && !coarray && lock_type)
-	gfc_error ("Component %s at %L of type LOCK_TYPE must have a "
-		   "codimension or be a subcomponent of a coarray, "
-		   "which is not possible as the component has the "
-		   "pointer attribute", c->name, &c->loc);
-      else if (pointer && !coarray && c->ts.type == BT_DERIVED
-	       && c->ts.u.derived->attr.lock_comp)
-	gfc_error ("Pointer component %s at %L has a noncoarray subcomponent "
-		   "of type LOCK_TYPE, which must have a codimension or be a "
-		   "subcomponent of a coarray", c->name, &c->loc);
-
-      if (lock_type && allocatable && !coarray)
-	gfc_error ("Allocatable component %s at %L of type LOCK_TYPE must have "
-		   "a codimension", c->name, &c->loc);
-      else if (lock_type && allocatable && c->ts.type == BT_DERIVED
-	       && c->ts.u.derived->attr.lock_comp)
-	gfc_error ("Allocatable component %s at %L must have a codimension as "
-		   "it has a noncoarray subcomponent of type LOCK_TYPE",
-		   c->name, &c->loc);
-
-      if (sym->attr.coarray_comp && !coarray && lock_type)
-	gfc_error ("Noncoarray component %s at %L of type LOCK_TYPE or with "
-		   "subcomponent of type LOCK_TYPE must have a codimension or "
-		   "be a subcomponent of a coarray. (Variables of type %s may "
-		   "not have a codimension as already a coarray "
-		   "subcomponent exists)", c->name, &c->loc, sym->name);
-
-      if (sym->attr.lock_comp && coarray && !lock_type)
-	gfc_error ("Noncoarray component %s at %L of type LOCK_TYPE or with "
-		   "subcomponent of type LOCK_TYPE must have a codimension or "
-		   "be a subcomponent of a coarray. (Variables of type %s may "
-		   "not have a codimension as %s at %L has a codimension or a "
-		   "coarray subcomponent)", lock_comp->name, &lock_comp->loc,
-		   sym->name, c->name, &c->loc);
-
-      /* Look for private components.  */
-      if (sym->component_access == ACCESS_PRIVATE
-	  || c->attr.access == ACCESS_PRIVATE
-	  || (c->ts.type == BT_DERIVED && c->ts.u.derived->attr.private_comp))
-	sym->attr.private_comp = 1;
-    }
+    check_component (sym, c, &lock_comp, &event_comp);
 
   if (!seen_component)
     sym->attr.zero_comp = 1;
@@ -2601,7 +3385,7 @@ endType:
 
 
 /* Parse an ENUM.  */
- 
+
 static void
 parse_enum (void)
 {
@@ -2692,13 +3476,17 @@ loop:
 	  gfc_new_block->attr.pointer = 0;
 	  gfc_new_block->attr.proc_pointer = 1;
 	}
-      if (!gfc_add_explicit_interface (gfc_new_block, IFSRC_IFBODY, 
+      if (!gfc_add_explicit_interface (gfc_new_block, IFSRC_IFBODY,
 				       gfc_new_block->formal, NULL))
 	{
 	  reject_statement ();
 	  gfc_free_namespace (gfc_current_ns);
 	  goto loop;
 	}
+      /* F2008 C1210 forbids the IMPORT statement in module procedure
+	 interface bodies and the flag is set to import symbols.  */
+      if (gfc_new_block->attr.module_procedure)
+        gfc_current_ns->has_import_set = 1;
       break;
 
     case ST_PROCEDURE:
@@ -2738,7 +3526,7 @@ loop:
     {
       gfc_add_abstract (&gfc_new_block->attr, &gfc_current_locus);
       if (gfc_is_intrinsic_typename (gfc_new_block->name))
-	gfc_error ("Name '%s' of ABSTRACT INTERFACE at %C "
+	gfc_error ("Name %qs of ABSTRACT INTERFACE at %C "
 		   "cannot be the same as an intrinsic type",
 		   gfc_new_block->name);
     }
@@ -2754,6 +3542,7 @@ loop:
 decl:
   /* Read data declaration statements.  */
   st = parse_spec (ST_NONE);
+  in_specification_block = true;
 
   /* Since the interface block does not permit an IMPLICIT statement,
      the default type for the function or the result must be taken
@@ -2789,7 +3578,7 @@ decl:
 	&& current_interface.ns->proc_name
 	&& strcmp (current_interface.ns->proc_name->name,
 		   prog_unit->name) == 0)
-    gfc_error ("INTERFACE procedure '%s' at %L has the same name as the "
+    gfc_error ("INTERFACE procedure %qs at %L has the same name as the "
 	       "enclosing procedure", prog_unit->name,
 	       &current_interface.ns->proc_name->declared_at);
 
@@ -2815,9 +3604,9 @@ match_deferred_characteristics (gfc_typespec * ts)
   gfc_current_locus = gfc_current_block ()->declared_at;
 
   gfc_clear_error ();
-  gfc_buffer_error (1);
+  gfc_buffer_error (true);
   m = gfc_match_prefix (ts);
-  gfc_buffer_error (0);
+  gfc_buffer_error (false);
 
   if (ts->type == BT_DERIVED)
     {
@@ -2859,15 +3648,18 @@ match_deferred_characteristics (gfc_typespec * ts)
 static void
 check_function_result_typed (void)
 {
-  gfc_typespec* ts = &gfc_current_ns->proc_name->result->ts;
+  gfc_typespec ts;
 
   gcc_assert (gfc_current_state () == COMP_FUNCTION);
-  gcc_assert (ts->type != BT_UNKNOWN);
+
+  if (!gfc_current_ns->proc_name->result) return;
+
+  ts = gfc_current_ns->proc_name->result->ts;
 
   /* Check type-parameters, at the moment only CHARACTER lengths possible.  */
   /* TODO:  Extend when KIND type parameters are implemented.  */
-  if (ts->type == BT_CHARACTER && ts->u.cl && ts->u.cl->length)
-    gfc_expr_check_typed (ts->u.cl->length, gfc_current_ns, true);
+  if (ts.type == BT_CHARACTER && ts.u.cl && ts.u.cl->length)
+    gfc_expr_check_typed (ts.u.cl->length, gfc_current_ns, true);
 }
 
 
@@ -2881,6 +3673,8 @@ parse_spec (gfc_statement st)
   bool function_result_typed = false;
   bool bad_characteristic = false;
   gfc_typespec *ts;
+
+  in_specification_block = true;
 
   verify_st_order (&ss, ST_NONE, false);
   if (st == ST_NONE)
@@ -2926,31 +3720,33 @@ loop:
     /* Fortran 2008, C1116.  */
     switch (st)
       {
-        case ST_DATA_DECL:
+	case ST_ATTR_DECL:
 	case ST_COMMON:
 	case ST_DATA:
-	case ST_TYPE:
+	case ST_DATA_DECL:
+	case ST_DERIVED_DECL:
 	case ST_END_BLOCK_DATA:
-	case ST_ATTR_DECL:
 	case ST_EQUIVALENCE:
-	case ST_PARAMETER:
 	case ST_IMPLICIT:
 	case ST_IMPLICIT_NONE:
-	case ST_DERIVED_DECL:
+	case ST_OMP_THREADPRIVATE:
+	case ST_PARAMETER:
+	case ST_STRUCTURE_DECL:
+	case ST_TYPE:
 	case ST_USE:
 	  break;
 
 	case ST_NONE:
 	  break;
-	  
+
 	default:
 	  gfc_error ("%s statement is not allowed inside of BLOCK DATA at %C",
 		     gfc_ascii_statement (st));
 	  reject_statement ();
 	  break;
       }
-  
-  /* If we find a statement that can not be followed by an IMPLICIT statement
+
+  /* If we find a statement that cannot be followed by an IMPLICIT statement
      (and thus we can expect to see none any further), type the function result
      if it has not yet been typed.  Be careful not to give the END statement
      to verify_st_order!  */
@@ -3004,8 +3800,10 @@ loop:
     case ST_PARAMETER:
     case ST_PUBLIC:
     case ST_PRIVATE:
+    case ST_STRUCTURE_DECL:
     case ST_DERIVED_DECL:
     case_decl:
+    case_omp_decl:
 declSt:
       if (!verify_st_order (&ss, st, false))
 	{
@@ -3019,6 +3817,10 @@ declSt:
 	case ST_INTERFACE:
 	  parse_interface ();
 	  break;
+
+        case ST_STRUCTURE_DECL:
+          parse_struct_map (ST_STRUCTURE_DECL);
+          break;
 
 	case ST_DERIVED_DECL:
 	  parse_derived ();
@@ -3048,7 +3850,8 @@ declSt:
 	  break;
 
 	case ST_STATEMENT_FUNCTION:
-	  if (gfc_current_state () == COMP_MODULE)
+	  if (gfc_current_state () == COMP_MODULE
+	      || gfc_current_state () == COMP_SUBMODULE)
 	    {
 	      unexpected_statement (st);
 	      break;
@@ -3087,11 +3890,11 @@ declSt:
     {
       ts = &gfc_current_block ()->result->ts;
       if (ts->type != BT_DERIVED)
-	gfc_error ("Bad kind expression for function '%s' at %L",
+	gfc_error ("Bad kind expression for function %qs at %L",
 		   gfc_current_block ()->name,
 		   &gfc_current_block ()->declared_at);
       else
-	gfc_error ("The type for function '%s' at %L is not accessible",
+	gfc_error ("The type for function %qs at %L is not accessible",
 		   gfc_current_block ()->name,
 		   &gfc_current_block ()->declared_at);
 
@@ -3100,6 +3903,8 @@ declSt:
       if (!(ts->type == BT_DERIVED && ts->u.derived))
 	ts->type = BT_UNKNOWN;
     }
+
+  in_specification_block = false;
 
   return st;
 }
@@ -3425,6 +4230,7 @@ parse_select_type_block (void)
   gfc_code *cp;
   gfc_state_data s;
 
+  gfc_current_ns = new_st.ext.block.ns;
   accept_statement (ST_SELECT_TYPE);
 
   cp = gfc_state_stack->tail;
@@ -3497,7 +4303,7 @@ done:
    context that causes it to become redefined.  If the symbol is an
    iterator, we generate an error message and return nonzero.  */
 
-int 
+int
 gfc_check_do_variable (gfc_symtree *st)
 {
   gfc_state_data *s;
@@ -3505,14 +4311,14 @@ gfc_check_do_variable (gfc_symtree *st)
   for (s=gfc_state_stack; s; s = s->previous)
     if (s->do_variable == st)
       {
-	gfc_error_now("Variable '%s' at %C cannot be redefined inside "
-		      "loop beginning at %L", st->name, &s->head->loc);
+	gfc_error_now ("Variable %qs at %C cannot be redefined inside "
+		       "loop beginning at %L", st->name, &s->head->loc);
 	return 1;
       }
 
   return 0;
 }
-  
+
 
 /* Checks to see if the current statement label closes an enddo.
    Returns 0 if not, 1 if closes an ENDDO correctly, or 2 (and issues
@@ -3568,8 +4374,14 @@ static void
 parse_critical_block (void)
 {
   gfc_code *top, *d;
-  gfc_state_data s;
+  gfc_state_data s, *sd;
   gfc_statement st;
+
+  for (sd = gfc_state_stack; sd; sd = sd->previous)
+    if (sd->state == COMP_OMP_STRUCTURED_BLOCK)
+      gfc_error_now (is_oacc (sd)
+		     ? G_("CRITICAL block inside of OpenACC region at %C")
+		     : G_("CRITICAL block inside of OpenMP region at %C"));
 
   s.ext.end_do_label = new_st.label1;
 
@@ -3661,6 +4473,7 @@ static void
 parse_block_construct (void)
 {
   gfc_namespace* my_ns;
+  gfc_namespace* my_parent;
   gfc_state_data s;
 
   gfc_notify_std (GFC_STD_F2008, "BLOCK construct at %C");
@@ -3674,10 +4487,14 @@ parse_block_construct (void)
 
   push_state (&s, COMP_BLOCK, my_ns->proc_name);
   gfc_current_ns = my_ns;
+  my_parent = my_ns->parent;
 
   parse_progunit (ST_NONE);
 
-  gfc_current_ns = gfc_current_ns->parent;
+  /* Don't depend on the value of gfc_current_ns;  it might have been
+     reset if the block had errors and was cleaned up.  */
+  gfc_current_ns = my_parent;
+
   pop_state ();
 }
 
@@ -3707,6 +4524,8 @@ parse_associate (void)
   for (a = new_st.ext.block.assoc; a; a = a->next)
     {
       gfc_symbol* sym;
+      gfc_ref *ref;
+      gfc_array_ref *array_ref;
 
       if (gfc_get_sym_tree (a->name, NULL, &a->st, false))
 	gcc_unreachable ();
@@ -3723,6 +4542,85 @@ parse_associate (void)
 	 for parsing component references on the associate-name
 	 in case of association to a derived-type.  */
       sym->ts = a->target->ts;
+
+      /* Check if the target expression is array valued.  This cannot always
+	 be done by looking at target.rank, because that might not have been
+	 set yet.  Therefore traverse the chain of refs, looking for the last
+	 array ref and evaluate that.  */
+      array_ref = NULL;
+      for (ref = a->target->ref; ref; ref = ref->next)
+	if (ref->type == REF_ARRAY)
+	  array_ref = &ref->u.ar;
+      if (array_ref || a->target->rank)
+	{
+	  gfc_array_spec *as;
+	  int dim, rank = 0;
+	  if (array_ref)
+	    {
+	      a->rankguessed = 1;
+	      /* Count the dimension, that have a non-scalar extend.  */
+	      for (dim = 0; dim < array_ref->dimen; ++dim)
+		if (array_ref->dimen_type[dim] != DIMEN_ELEMENT
+		    && !(array_ref->dimen_type[dim] == DIMEN_UNKNOWN
+			 && array_ref->end[dim] == NULL
+			 && array_ref->start[dim] != NULL))
+		  ++rank;
+	    }
+	  else
+	    rank = a->target->rank;
+	  /* When the rank is greater than zero then sym will be an array.  */
+	  if (sym->ts.type == BT_CLASS && CLASS_DATA (sym))
+	    {
+	      if ((!CLASS_DATA (sym)->as && rank != 0)
+		  || (CLASS_DATA (sym)->as
+		      && CLASS_DATA (sym)->as->rank != rank))
+		{
+		  /* Don't just (re-)set the attr and as in the sym.ts,
+		     because this modifies the target's attr and as.  Copy the
+		     data and do a build_class_symbol.  */
+		  symbol_attribute attr = CLASS_DATA (a->target)->attr;
+		  int corank = gfc_get_corank (a->target);
+		  gfc_typespec type;
+
+		  if (rank || corank)
+		    {
+		      as = gfc_get_array_spec ();
+		      as->type = AS_DEFERRED;
+		      as->rank = rank;
+		      as->corank = corank;
+		      attr.dimension = rank ? 1 : 0;
+		      attr.codimension = corank ? 1 : 0;
+		    }
+		  else
+		    {
+		      as = NULL;
+		      attr.dimension = attr.codimension = 0;
+		    }
+		  attr.class_ok = 0;
+		  type = CLASS_DATA (sym)->ts;
+		  if (!gfc_build_class_symbol (&type,
+					       &attr, &as))
+		    gcc_unreachable ();
+		  sym->ts = type;
+		  sym->ts.type = BT_CLASS;
+		  sym->attr.class_ok = 1;
+		}
+	      else
+		sym->attr.class_ok = 1;
+	    }
+	  else if ((!sym->as && rank != 0)
+		   || (sym->as && sym->as->rank != rank))
+	    {
+	      as = gfc_get_array_spec ();
+	      as->type = AS_DEFERRED;
+	      as->rank = rank;
+	      as->corank = gfc_get_corank (a->target);
+	      sym->as = as;
+	      sym->attr.dimension = 1;
+	      if (as->corank)
+		sym->attr.codimension = 1;
+	    }
+	}
     }
 
   accept_statement (ST_ASSOCIATE);
@@ -3767,7 +4665,14 @@ parse_do_block (void)
   s.ext.end_do_label = new_st.label1;
 
   if (new_st.ext.iterator != NULL)
-    stree = new_st.ext.iterator->var->symtree;
+    {
+      stree = new_st.ext.iterator->var->symtree;
+      if (directive_unroll != -1)
+	{
+	  new_st.ext.iterator->unroll = directive_unroll;
+	  directive_unroll = -1;
+	}
+    }
   else
     stree = NULL;
 
@@ -3893,6 +4798,13 @@ parse_omp_do (gfc_statement omp_st)
       omp_end_st = ST_OMP_END_PARALLEL_DO_SIMD;
       break;
     case ST_OMP_SIMD: omp_end_st = ST_OMP_END_SIMD; break;
+    case ST_OMP_TARGET_PARALLEL_DO:
+      omp_end_st = ST_OMP_END_TARGET_PARALLEL_DO;
+      break;
+    case ST_OMP_TARGET_PARALLEL_DO_SIMD:
+      omp_end_st = ST_OMP_END_TARGET_PARALLEL_DO_SIMD;
+      break;
+    case ST_OMP_TARGET_SIMD: omp_end_st = ST_OMP_END_TARGET_SIMD; break;
     case ST_OMP_TARGET_TEAMS_DISTRIBUTE:
       omp_end_st = ST_OMP_END_TARGET_TEAMS_DISTRIBUTE;
       break;
@@ -3905,6 +4817,8 @@ parse_omp_do (gfc_statement omp_st)
     case ST_OMP_TARGET_TEAMS_DISTRIBUTE_SIMD:
       omp_end_st = ST_OMP_END_TARGET_TEAMS_DISTRIBUTE_SIMD;
       break;
+    case ST_OMP_TASKLOOP: omp_end_st = ST_OMP_END_TASKLOOP; break;
+    case ST_OMP_TASKLOOP_SIMD: omp_end_st = ST_OMP_END_TASKLOOP_SIMD; break;
     case ST_OMP_TEAMS_DISTRIBUTE:
       omp_end_st = ST_OMP_END_TEAMS_DISTRIBUTE;
       break;
@@ -3937,20 +4851,31 @@ parse_omp_do (gfc_statement omp_st)
 /* Parse the statements of OpenMP atomic directive.  */
 
 static gfc_statement
-parse_omp_atomic (void)
+parse_omp_oacc_atomic (bool omp_p)
 {
-  gfc_statement st;
+  gfc_statement st, st_atomic, st_end_atomic;
   gfc_code *cp, *np;
   gfc_state_data s;
   int count;
 
-  accept_statement (ST_OMP_ATOMIC);
+  if (omp_p)
+    {
+      st_atomic = ST_OMP_ATOMIC;
+      st_end_atomic = ST_OMP_END_ATOMIC;
+    }
+  else
+    {
+      st_atomic = ST_OACC_ATOMIC;
+      st_end_atomic = ST_OACC_END_ATOMIC;
+    }
+  accept_statement (st_atomic);
 
   cp = gfc_state_stack->tail;
   push_state (&s, COMP_OMP_STRUCTURED_BLOCK, NULL);
   np = new_level (cp);
   np->op = cp->op;
   np->block = NULL;
+  np->ext.omp_atomic = cp->ext.omp_atomic;
   count = 1 + ((cp->ext.omp_atomic & GFC_OMP_ATOMIC_MASK)
 	       == GFC_OMP_ATOMIC_CAPTURE);
 
@@ -3971,7 +4896,7 @@ parse_omp_atomic (void)
   pop_state ();
 
   st = next_statement ();
-  if (st == ST_OMP_END_ATOMIC)
+  if (st == st_end_atomic)
     {
       gfc_clear_new_st ();
       gfc_commit_symbols ();
@@ -3981,6 +4906,130 @@ parse_omp_atomic (void)
   else if ((cp->ext.omp_atomic & GFC_OMP_ATOMIC_MASK)
 	   == GFC_OMP_ATOMIC_CAPTURE)
     gfc_error ("Missing !$OMP END ATOMIC after !$OMP ATOMIC CAPTURE at %C");
+  return st;
+}
+
+
+/* Parse the statements of an OpenACC structured block.  */
+
+static void
+parse_oacc_structured_block (gfc_statement acc_st)
+{
+  gfc_statement st, acc_end_st;
+  gfc_code *cp, *np;
+  gfc_state_data s, *sd;
+
+  for (sd = gfc_state_stack; sd; sd = sd->previous)
+    if (sd->state == COMP_CRITICAL)
+      gfc_error_now ("OpenACC directive inside of CRITICAL block at %C");
+
+  accept_statement (acc_st);
+
+  cp = gfc_state_stack->tail;
+  push_state (&s, COMP_OMP_STRUCTURED_BLOCK, NULL);
+  np = new_level (cp);
+  np->op = cp->op;
+  np->block = NULL;
+  switch (acc_st)
+    {
+    case ST_OACC_PARALLEL:
+      acc_end_st = ST_OACC_END_PARALLEL;
+      break;
+    case ST_OACC_KERNELS:
+      acc_end_st = ST_OACC_END_KERNELS;
+      break;
+    case ST_OACC_DATA:
+      acc_end_st = ST_OACC_END_DATA;
+      break;
+    case ST_OACC_HOST_DATA:
+      acc_end_st = ST_OACC_END_HOST_DATA;
+      break;
+    default:
+      gcc_unreachable ();
+    }
+
+  do
+    {
+      st = parse_executable (ST_NONE);
+      if (st == ST_NONE)
+	unexpected_eof ();
+      else if (st != acc_end_st)
+	{
+	  gfc_error ("Expecting %s at %C", gfc_ascii_statement (acc_end_st));
+	  reject_statement ();
+	}
+    }
+  while (st != acc_end_st);
+
+  gcc_assert (new_st.op == EXEC_NOP);
+
+  gfc_clear_new_st ();
+  gfc_commit_symbols ();
+  gfc_warning_check ();
+  pop_state ();
+}
+
+/* Parse the statements of OpenACC loop/parallel loop/kernels loop.  */
+
+static gfc_statement
+parse_oacc_loop (gfc_statement acc_st)
+{
+  gfc_statement st;
+  gfc_code *cp, *np;
+  gfc_state_data s, *sd;
+
+  for (sd = gfc_state_stack; sd; sd = sd->previous)
+    if (sd->state == COMP_CRITICAL)
+      gfc_error_now ("OpenACC directive inside of CRITICAL block at %C");
+
+  accept_statement (acc_st);
+
+  cp = gfc_state_stack->tail;
+  push_state (&s, COMP_OMP_STRUCTURED_BLOCK, NULL);
+  np = new_level (cp);
+  np->op = cp->op;
+  np->block = NULL;
+
+  for (;;)
+    {
+      st = next_statement ();
+      if (st == ST_NONE)
+	unexpected_eof ();
+      else if (st == ST_DO)
+	break;
+      else
+	{
+	  gfc_error ("Expected DO loop at %C");
+	  reject_statement ();
+	}
+    }
+
+  parse_do_block ();
+  if (gfc_statement_label != NULL
+      && gfc_state_stack->previous != NULL
+      && gfc_state_stack->previous->state == COMP_DO
+      && gfc_state_stack->previous->ext.end_do_label == gfc_statement_label)
+    {
+      pop_state ();
+      return ST_IMPLIED_ENDDO;
+    }
+
+  check_do_closure ();
+  pop_state ();
+
+  st = next_statement ();
+  if (st == ST_OACC_END_LOOP)
+    gfc_warning (0, "Redundant !$ACC END LOOP at %C");
+  if ((acc_st == ST_OACC_PARALLEL_LOOP && st == ST_OACC_END_PARALLEL_LOOP) ||
+      (acc_st == ST_OACC_KERNELS_LOOP && st == ST_OACC_END_KERNELS_LOOP) ||
+      (acc_st == ST_OACC_LOOP && st == ST_OACC_END_LOOP))
+    {
+      gcc_assert (new_st.op == EXEC_NOP);
+      gfc_clear_new_st ();
+      gfc_commit_symbols ();
+      gfc_warning_check ();
+      st = next_statement ();
+    }
   return st;
 }
 
@@ -4143,7 +5192,7 @@ parse_omp_structured_block (gfc_statement omp_st, bool workshare_stmts_only)
 		  continue;
 
 		case ST_OMP_ATOMIC:
-		  st = parse_omp_atomic ();
+		  st = parse_omp_oacc_atomic (true);
 		  continue;
 
 		default:
@@ -4179,13 +5228,15 @@ parse_omp_structured_block (gfc_statement omp_st, bool workshare_stmts_only)
     case EXEC_OMP_END_NOWAIT:
       cp->ext.omp_clauses->nowait |= new_st.ext.omp_bool;
       break;
-    case EXEC_OMP_CRITICAL:
-      if (((cp->ext.omp_name == NULL) ^ (new_st.ext.omp_name == NULL))
+    case EXEC_OMP_END_CRITICAL:
+      if (((cp->ext.omp_clauses == NULL) ^ (new_st.ext.omp_name == NULL))
 	  || (new_st.ext.omp_name != NULL
-	      && strcmp (cp->ext.omp_name, new_st.ext.omp_name) != 0))
+	      && strcmp (cp->ext.omp_clauses->critical_name,
+			 new_st.ext.omp_name) != 0))
 	gfc_error ("Name after !$omp critical and !$omp end critical does "
 		   "not match at %C");
       free (CONST_CAST (char *, new_st.ext.omp_name));
+      new_st.ext.omp_name = NULL;
       break;
     case EXEC_OMP_END_SINGLE:
       cp->ext.omp_clauses->lists[OMP_LIST_COPYPRIVATE]
@@ -4283,7 +5334,7 @@ parse_executable (gfc_statement st)
 	  break;
 
 	case ST_SELECT_TYPE:
-	  parse_select_type_block();
+	  parse_select_type_block ();
 	  break;
 
 	case ST_DO:
@@ -4304,6 +5355,21 @@ parse_executable (gfc_statement st)
 	  parse_forall_block ();
 	  break;
 
+	case ST_OACC_PARALLEL_LOOP:
+	case ST_OACC_KERNELS_LOOP:
+	case ST_OACC_LOOP:
+	  st = parse_oacc_loop (st);
+	  if (st == ST_IMPLIED_ENDDO)
+	    return st;
+	  continue;
+
+	case ST_OACC_PARALLEL:
+	case ST_OACC_KERNELS:
+	case ST_OACC_DATA:
+	case ST_OACC_HOST_DATA:
+	  parse_oacc_structured_block (st);
+	  break;
+
 	case ST_OMP_PARALLEL:
 	case ST_OMP_PARALLEL_SECTIONS:
 	case ST_OMP_SECTIONS:
@@ -4313,6 +5379,7 @@ parse_executable (gfc_statement st)
 	case ST_OMP_SINGLE:
 	case ST_OMP_TARGET:
 	case ST_OMP_TARGET_DATA:
+	case ST_OMP_TARGET_PARALLEL:
 	case ST_OMP_TARGET_TEAMS:
 	case ST_OMP_TEAMS:
 	case ST_OMP_TASK:
@@ -4334,10 +5401,14 @@ parse_executable (gfc_statement st)
 	case ST_OMP_PARALLEL_DO:
 	case ST_OMP_PARALLEL_DO_SIMD:
 	case ST_OMP_SIMD:
+	case ST_OMP_TARGET_PARALLEL_DO:
+	case ST_OMP_TARGET_PARALLEL_DO_SIMD:
 	case ST_OMP_TARGET_TEAMS_DISTRIBUTE:
 	case ST_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO:
 	case ST_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD:
 	case ST_OMP_TARGET_TEAMS_DISTRIBUTE_SIMD:
+	case ST_OMP_TASKLOOP:
+	case ST_OMP_TASKLOOP_SIMD:
 	case ST_OMP_TEAMS_DISTRIBUTE:
 	case ST_OMP_TEAMS_DISTRIBUTE_PARALLEL_DO:
 	case ST_OMP_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD:
@@ -4347,13 +5418,20 @@ parse_executable (gfc_statement st)
 	    return st;
 	  continue;
 
+	case ST_OACC_ATOMIC:
+	  st = parse_omp_oacc_atomic (false);
+	  continue;
+
 	case ST_OMP_ATOMIC:
-	  st = parse_omp_atomic ();
+	  st = parse_omp_oacc_atomic (true);
 	  continue;
 
 	default:
 	  return st;
 	}
+
+      if (directive_unroll != -1)
+	gfc_error ("%<GCC unroll%> directive does not commence a loop at %C");
 
       st = next_statement ();
     }
@@ -4428,6 +5506,7 @@ parse_contained (int module)
   gfc_statement st;
   gfc_symbol *sym;
   gfc_entry_list *el;
+  locus old_loc;
   int contains_statements = 0;
   int seen_error = 0;
 
@@ -4444,6 +5523,7 @@ parse_contained (int module)
  next:
       /* Process the next available statement.  We come here if we got an error
 	 and rejected the last statement.  */
+      old_loc = gfc_current_locus;
       st = next_statement ();
 
       switch (st)
@@ -4466,12 +5546,12 @@ parse_contained (int module)
 	  if (!module)
 	    {
 	      if (gfc_get_symbol (gfc_new_block->name, parent_ns, &sym))
-		gfc_error ("Contained procedure '%s' at %C is already "
+		gfc_error ("Contained procedure %qs at %C is already "
 			   "ambiguous", gfc_new_block->name);
 	      else
 		{
-		  if (gfc_add_procedure (&sym->attr, PROC_INTERNAL, 
-					 sym->name, 
+		  if (gfc_add_procedure (&sym->attr, PROC_INTERNAL,
+					 sym->name,
 					 &gfc_new_block->declared_at))
 		    {
 		      if (st == ST_FUNCTION)
@@ -4515,6 +5595,7 @@ parse_contained (int module)
 	/* These statements are associated with the end of the host unit.  */
 	case ST_END_FUNCTION:
 	case ST_END_MODULE:
+	case ST_END_SUBMODULE:
 	case ST_END_PROGRAM:
 	case ST_END_SUBROUTINE:
 	  accept_statement (st);
@@ -4531,7 +5612,8 @@ parse_contained (int module)
 	}
     }
   while (st != ST_END_FUNCTION && st != ST_END_SUBROUTINE
-	 && st != ST_END_MODULE && st != ST_END_PROGRAM);
+	 && st != ST_END_MODULE && st != ST_END_SUBMODULE
+	 && st != ST_END_PROGRAM);
 
   /* The first namespace in the list is guaranteed to not have
      anything (worthwhile) in it.  */
@@ -4547,7 +5629,36 @@ parse_contained (int module)
   pop_state ();
   if (!contains_statements)
     gfc_notify_std (GFC_STD_F2008, "CONTAINS statement without "
-		    "FUNCTION or SUBROUTINE statement at %C");
+		    "FUNCTION or SUBROUTINE statement at %L", &old_loc);
+}
+
+
+/* The result variable in a MODULE PROCEDURE needs to be created and
+    its characteristics copied from the interface since it is neither
+    declared in the procedure declaration nor in the specification
+    part.  */
+
+static void
+get_modproc_result (void)
+{
+  gfc_symbol *proc;
+  if (gfc_state_stack->previous
+      && gfc_state_stack->previous->state == COMP_CONTAINS
+      && gfc_state_stack->previous->previous->state == COMP_SUBMODULE)
+    {
+      proc = gfc_current_ns->proc_name ? gfc_current_ns->proc_name : NULL;
+      if (proc != NULL
+	  && proc->attr.function
+	  && proc->tlink
+	  && proc->tlink->result
+	  && proc->tlink->result != proc->tlink)
+	{
+	  gfc_copy_dummy_sym (&proc->result, proc->tlink->result, 1);
+	  gfc_set_sym_referenced (proc->result);
+	  proc->result->attr.if_source = IFSRC_DECL;
+	  gfc_commit_symbol (proc->result);
+	}
+    }
 }
 
 
@@ -4558,6 +5669,13 @@ parse_progunit (gfc_statement st)
 {
   gfc_state_data *p;
   int n;
+
+  gfc_adjust_builtins ();
+
+  if (gfc_new_block
+      && gfc_new_block->abr_modproc_decl
+      && gfc_new_block->attr.function)
+    get_modproc_result ();
 
   st = parse_spec (st);
   switch (st)
@@ -4618,7 +5736,8 @@ contains:
     if (p->state == COMP_CONTAINS)
       n++;
 
-  if (gfc_find_state (COMP_MODULE) == true)
+  if (gfc_find_state (COMP_MODULE) == true
+      || gfc_find_state (COMP_SUBMODULE) == true)
     n--;
 
   if (n > 0)
@@ -4669,16 +5788,28 @@ gfc_global_used (gfc_gsymbol *sym, locus *where)
       name = "MODULE";
       break;
     default:
-      gfc_internal_error ("gfc_global_used(): Bad type");
       name = NULL;
     }
 
-  if (sym->binding_label)
-    gfc_error ("Global binding name '%s' at %L is already being used as a %s "
-	       "at %L", sym->binding_label, where, name, &sym->where);
+  if (name)
+    {
+      if (sym->binding_label)
+	gfc_error ("Global binding name %qs at %L is already being used "
+		   "as a %s at %L", sym->binding_label, where, name,
+		   &sym->where);
+      else
+	gfc_error ("Global name %qs at %L is already being used as "
+		   "a %s at %L", sym->name, where, name, &sym->where);
+    }
   else
-    gfc_error ("Global name '%s' at %L is already being used as a %s at %L",
-	       sym->name, where, name, &sym->where);
+    {
+      if (sym->binding_label)
+	gfc_error ("Global binding name %qs at %L is already being used "
+		   "at %L", sym->binding_label, where, &sym->where);
+      else
+	gfc_error ("Global name %qs at %L is already being used at %L",
+		   sym->name, where, &sym->where);
+    }
 }
 
 
@@ -4708,7 +5839,7 @@ parse_block_data (void)
     }
   else
     {
-      s = gfc_get_gsymbol (gfc_new_block->name);
+      s = gfc_get_gsymbol (gfc_new_block->name, false);
       if (s->defined
 	  || (s->type != GSYM_UNKNOWN && s->type != GSYM_BLOCK_DATA))
        gfc_global_used (s, &gfc_new_block->declared_at);
@@ -4732,6 +5863,55 @@ parse_block_data (void)
 }
 
 
+/* Following the association of the ancestor (sub)module symbols, they
+   must be set host rather than use associated and all must be public.
+   They are flagged up by 'used_in_submodule' so that they can be set
+   DECL_EXTERNAL in trans_decl.c(gfc_finish_var_decl).  Otherwise the
+   linker chokes on multiple symbol definitions.  */
+
+static void
+set_syms_host_assoc (gfc_symbol *sym)
+{
+  gfc_component *c;
+  const char dot[2] = ".";
+  char parent1[GFC_MAX_SYMBOL_LEN + 1];
+  char parent2[GFC_MAX_SYMBOL_LEN + 1];
+
+  if (sym == NULL)
+    return;
+
+  if (sym->attr.module_procedure)
+    sym->attr.external = 0;
+
+  sym->attr.use_assoc = 0;
+  sym->attr.host_assoc = 1;
+  sym->attr.used_in_submodule =1;
+
+  if (sym->attr.flavor == FL_DERIVED)
+    {
+      /* Derived types with PRIVATE components that are declared in
+	 modules other than the parent module must not be changed to be
+	 PUBLIC. The 'use-assoc' attribute must be reset so that the
+	 test in symbol.c(gfc_find_component) works correctly. This is
+	 not necessary for PRIVATE symbols since they are not read from
+	 the module.  */
+      memset(parent1, '\0', sizeof(parent1));
+      memset(parent2, '\0', sizeof(parent2));
+      strcpy (parent1, gfc_new_block->name);
+      strcpy (parent2, sym->module);
+      if (strcmp (strtok (parent1, dot), strtok (parent2, dot)) == 0)
+	{
+	  for (c = sym->components; c; c = c->next)
+	    c->attr.access = ACCESS_PUBLIC;
+	}
+      else
+	{
+	  sym->attr.use_assoc = 1;
+	  sym->attr.host_assoc = 0;
+	}
+    }
+}
+
 /* Parse a module subprogram.  */
 
 static void
@@ -4741,7 +5921,7 @@ parse_module (void)
   gfc_gsymbol *s;
   bool error;
 
-  s = gfc_get_gsymbol (gfc_new_block->name);
+  s = gfc_get_gsymbol (gfc_new_block->name, false);
   if (s->defined || (s->type != GSYM_UNKNOWN && s->type != GSYM_MODULE))
     gfc_global_used (s, &gfc_new_block->declared_at);
   else
@@ -4749,6 +5929,15 @@ parse_module (void)
       s->type = GSYM_MODULE;
       s->where = gfc_new_block->declared_at;
       s->defined = 1;
+    }
+
+  /* Something is nulling the module_list after this point. This is good
+     since it allows us to 'USE' the parent modules that the submodule
+     inherits and to set (most) of the symbols as host associated.  */
+  if (gfc_current_state () == COMP_SUBMODULE)
+    {
+      use_modules ();
+      gfc_traverse_ns (gfc_current_ns, set_syms_host_assoc);
     }
 
   st = parse_spec (ST_NONE);
@@ -4765,6 +5954,7 @@ loop:
       break;
 
     case ST_END_MODULE:
+    case ST_END_SUBMODULE:
       accept_statement (st);
       break;
 
@@ -4795,7 +5985,7 @@ add_global_procedure (bool sub)
      name is a global identifier.  */
   if (!gfc_new_block->binding_label || gfc_notification_std (GFC_STD_F2008))
     {
-      s = gfc_get_gsymbol (gfc_new_block->name);
+      s = gfc_get_gsymbol (gfc_new_block->name, false);
 
       if (s->defined
 	  || (s->type != GSYM_UNKNOWN
@@ -4820,7 +6010,7 @@ add_global_procedure (bool sub)
       && (!gfc_notification_std (GFC_STD_F2008)
           || strcmp (gfc_new_block->name, gfc_new_block->binding_label) != 0))
     {
-      s = gfc_get_gsymbol (gfc_new_block->binding_label);
+      s = gfc_get_gsymbol (gfc_new_block->binding_label, true);
 
       if (s->defined
 	  || (s->type != GSYM_UNKNOWN
@@ -4852,7 +6042,7 @@ add_global_program (void)
 
   if (gfc_new_block == NULL)
     return;
-  s = gfc_get_gsymbol (gfc_new_block->name);
+  s = gfc_get_gsymbol (gfc_new_block->name, false);
 
   if (s->defined || (s->type != GSYM_UNKNOWN && s->type != GSYM_PROGRAM))
     gfc_global_used (s, &gfc_new_block->declared_at);
@@ -4870,7 +6060,7 @@ add_global_program (void)
 static void
 resolve_all_program_units (gfc_namespace *gfc_global_ns_list)
 {
-  gfc_free_dt_list ();
+  gfc_derived_types = NULL;
   gfc_current_ns = gfc_global_ns_list;
   for (; gfc_current_ns; gfc_current_ns = gfc_current_ns->sibling)
     {
@@ -5007,6 +6197,7 @@ gfc_parse_file (void)
   if (gfc_at_eof ())
     goto done;
 
+  in_specification_block = true;
 loop:
   gfc_init_2 ();
   st = next_statement ();
@@ -5023,12 +6214,11 @@ loop:
       prog_locus = gfc_current_locus;
 
       push_state (&s, COMP_PROGRAM, gfc_new_block);
-      main_program_symbol(gfc_current_ns, gfc_new_block->name);
+      main_program_symbol (gfc_current_ns, gfc_new_block->name);
       accept_statement (st);
       add_global_program ();
       parse_progunit (ST_NONE);
       goto prog_units;
-      break;
 
     case ST_SUBROUTINE:
       add_global_procedure (true);
@@ -5036,7 +6226,6 @@ loop:
       accept_statement (st);
       parse_progunit (ST_NONE);
       goto prog_units;
-      break;
 
     case ST_FUNCTION:
       add_global_procedure (false);
@@ -5044,7 +6233,6 @@ loop:
       accept_statement (st);
       parse_progunit (ST_NONE);
       goto prog_units;
-      break;
 
     case ST_BLOCK_DATA:
       push_state (&s, COMP_BLOCK_DATA, gfc_new_block);
@@ -5054,6 +6242,14 @@ loop:
 
     case ST_MODULE:
       push_state (&s, COMP_MODULE, gfc_new_block);
+      accept_statement (st);
+
+      gfc_get_errors (NULL, &errors_before);
+      parse_module ();
+      break;
+
+    case ST_SUBMODULE:
+      push_state (&s, COMP_SUBMODULE, gfc_new_block);
       accept_statement (st);
 
       gfc_get_errors (NULL, &errors_before);
@@ -5071,7 +6267,6 @@ loop:
       main_program_symbol (gfc_current_ns, "MAIN__");
       parse_progunit (st);
       goto prog_units;
-      break;
     }
 
   /* Handle the non-program units.  */
@@ -5080,11 +6275,14 @@ loop:
   gfc_resolve (gfc_current_ns);
 
   /* Dump the parse tree if requested.  */
-  if (gfc_option.dump_fortran_original)
+  if (flag_dump_fortran_original)
     gfc_dump_parse_tree (gfc_current_ns, stdout);
 
+  if (flag_c_prototypes)
+    gfc_dump_c_prototypes (gfc_current_ns, stdout);
+
   gfc_get_errors (NULL, &errors);
-  if (s.state == COMP_MODULE)
+  if (s.state == COMP_MODULE || s.state == COMP_SUBMODULE)
     {
       gfc_dump_module (s.sym->name, errors_before == errors);
       gfc_current_ns->derived_types = gfc_derived_types;
@@ -5120,14 +6318,12 @@ prog_units:
   pop_state ();
   goto loop;
 
-  done:
-
+done:
   /* Do the resolution.  */
   resolve_all_program_units (gfc_global_ns_list);
 
-  /* Do the parse tree dump.  */ 
-  gfc_current_ns
-	= gfc_option.dump_fortran_original ? gfc_global_ns_list : NULL;
+  /* Do the parse tree dump.  */
+  gfc_current_ns = flag_dump_fortran_original ? gfc_global_ns_list : NULL;
 
   for (; gfc_current_ns; gfc_current_ns = gfc_current_ns->sibling)
     if (!gfc_current_ns->proc_name
@@ -5151,4 +6347,31 @@ duplicate_main:
   reject_statement ();
   gfc_done_2 ();
   return true;
+}
+
+/* Return true if this state data represents an OpenACC region.  */
+bool
+is_oacc (gfc_state_data *sd)
+{
+  switch (sd->construct->op)
+    {
+    case EXEC_OACC_PARALLEL_LOOP:
+    case EXEC_OACC_PARALLEL:
+    case EXEC_OACC_KERNELS_LOOP:
+    case EXEC_OACC_KERNELS:
+    case EXEC_OACC_DATA:
+    case EXEC_OACC_HOST_DATA:
+    case EXEC_OACC_LOOP:
+    case EXEC_OACC_UPDATE:
+    case EXEC_OACC_WAIT:
+    case EXEC_OACC_CACHE:
+    case EXEC_OACC_ENTER_DATA:
+    case EXEC_OACC_EXIT_DATA:
+    case EXEC_OACC_ATOMIC:
+    case EXEC_OACC_ROUTINE:
+      return true;
+
+    default:
+      return false;
+    }
 }

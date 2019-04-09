@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2014 Free Software Foundation, Inc.
+// Copyright (C) 2009-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -16,6 +16,7 @@
 // <http://www.gnu.org/licenses/>.
 
 // { dg-require-effective-target dfp }
+// { dg-options "-Wno-pedantic" }
 
 // ISO/IEC TR 24733  3.2.5  Initialization from coefficient and exponent.
 
@@ -54,7 +55,6 @@ using namespace std::decimal;
 void
 make_decimal_32 (void)
 {
-  bool test __attribute__((unused)) = true;
   decimal32 a, b, c, d;
   float x __attribute__((mode(SD)));
   int i;
@@ -79,7 +79,6 @@ make_decimal_32 (void)
 void
 make_decimal_64 (void)
 {
-  bool test __attribute__((unused)) = true;
   decimal64 a, b, c, d;
   float x __attribute__((mode(DD)));
   int i;
@@ -104,7 +103,6 @@ make_decimal_64 (void)
 void
 make_decimal_128 (void)
 {
-  bool test __attribute__((unused)) = true;
   decimal128 a, b, c, d;
   float x __attribute__((mode(TD)));
   int i;

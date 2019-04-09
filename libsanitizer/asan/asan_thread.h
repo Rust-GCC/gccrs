@@ -9,6 +9,7 @@
 //
 // ASan-private header for asan_thread.cc.
 //===----------------------------------------------------------------------===//
+
 #ifndef ASAN_THREAD_H
 #define ASAN_THREAD_H
 
@@ -19,6 +20,10 @@
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_thread_registry.h"
+
+namespace __sanitizer {
+struct DTLS;
+}  // namespace __sanitizer
 
 namespace __asan {
 
@@ -32,19 +37,21 @@ class AsanThread;
 class AsanThreadContext : public ThreadContextBase {
  public:
   explicit AsanThreadContext(int tid)
-      : ThreadContextBase(tid),
-        announced(false),
-        destructor_iterations(kPthreadDestructorIterations),
-        stack_id(0),
-        thread(0) {
-  }
+      : ThreadContextBase(tid), announced(false),
+        destructor_iterations(GetPthreadDestructorIterations()), stack_id(0),
+        thread(nullptr) {}
   bool announced;
   u8 destructor_iterations;
   u32 stack_id;
   AsanThread *thread;
 
-  void OnCreated(void *arg);
-  void OnFinished();
+  void OnCreated(void *arg) override;
+  void OnFinished() override;
+
+  struct CreateThreadContextArgs {
+    AsanThread *thread;
+    StackTrace *stack;
+  };
 };
 
 // AsanThreadContext objects are never freed, so we need many of them.
@@ -53,43 +60,61 @@ COMPILER_CHECK(sizeof(AsanThreadContext) <= 256);
 // AsanThread are stored in TSD and destroyed when the thread dies.
 class AsanThread {
  public:
-  static AsanThread *Create(thread_callback_t start_routine, void *arg);
+  static AsanThread *Create(thread_callback_t start_routine, void *arg,
+                            u32 parent_tid, StackTrace *stack, bool detached);
   static void TSDDtor(void *tsd);
   void Destroy();
 
-  void Init();  // Should be called from the thread itself.
-  thread_return_t ThreadStart(uptr os_id);
+  struct InitOptions;
+  void Init(const InitOptions *options = nullptr);
 
-  uptr stack_top() { return stack_top_; }
-  uptr stack_bottom() { return stack_bottom_; }
-  uptr stack_size() { return stack_size_; }
+  thread_return_t ThreadStart(tid_t os_id,
+                              atomic_uintptr_t *signal_thread_is_registered);
+
+  uptr stack_top();
+  uptr stack_bottom();
+  uptr stack_size();
   uptr tls_begin() { return tls_begin_; }
   uptr tls_end() { return tls_end_; }
+  DTLS *dtls() { return dtls_; }
   u32 tid() { return context_->tid; }
   AsanThreadContext *context() { return context_; }
   void set_context(AsanThreadContext *context) { context_ = context; }
 
-  const char *GetFrameNameByAddr(uptr addr, uptr *offset, uptr *frame_pc);
+  struct StackFrameAccess {
+    uptr offset;
+    uptr frame_pc;
+    const char *frame_descr;
+  };
+  bool GetStackFrameAccessByAddr(uptr addr, StackFrameAccess *access);
 
-  bool AddrIsInStack(uptr addr) {
-    return addr >= stack_bottom_ && addr < stack_top_;
-  }
+  // Returns a pointer to the start of the stack variable's shadow memory.
+  uptr GetStackVariableShadowStart(uptr addr);
+
+  bool AddrIsInStack(uptr addr);
 
   void DeleteFakeStack(int tid) {
     if (!fake_stack_) return;
     FakeStack *t = fake_stack_;
-    fake_stack_ = 0;
-    SetTLSFakeStack(0);
+    fake_stack_ = nullptr;
+    SetTLSFakeStack(nullptr);
     t->Destroy(tid);
   }
 
+  void StartSwitchFiber(FakeStack **fake_stack_save, uptr bottom, uptr size);
+  void FinishSwitchFiber(FakeStack *fake_stack_save, uptr *bottom_old,
+                         uptr *size_old);
+
   bool has_fake_stack() {
-    return (reinterpret_cast<uptr>(fake_stack_) > 1);
+    return !atomic_load(&stack_switching_, memory_order_relaxed) &&
+           (reinterpret_cast<uptr>(fake_stack_) > 1);
   }
 
   FakeStack *fake_stack() {
     if (!__asan_option_detect_stack_use_after_return)
-      return 0;
+      return nullptr;
+    if (atomic_load(&stack_switching_, memory_order_relaxed))
+      return nullptr;
     if (!has_fake_stack())
       return AsyncSignalSafeLazyInitFakeStack();
     return fake_stack_;
@@ -107,20 +132,33 @@ class AsanThread {
  private:
   // NOTE: There is no AsanThread constructor. It is allocated
   // via mmap() and *must* be valid in zero-initialized state.
-  void SetThreadStackAndTls();
+
+  void SetThreadStackAndTls(const InitOptions *options);
+
   void ClearShadowForThreadStackAndTLS();
   FakeStack *AsyncSignalSafeLazyInitFakeStack();
+
+  struct StackBounds {
+    uptr bottom;
+    uptr top;
+  };
+  StackBounds GetStackBounds() const;
 
   AsanThreadContext *context_;
   thread_callback_t start_routine_;
   void *arg_;
+
   uptr stack_top_;
   uptr stack_bottom_;
-  // stack_size_ == stack_top_ - stack_bottom_;
-  // It needs to be set in a async-signal-safe manner.
-  uptr stack_size_;
+  // these variables are used when the thread is about to switch stack
+  uptr next_stack_top_;
+  uptr next_stack_bottom_;
+  // true if switching is in progress
+  atomic_uint8_t stack_switching_;
+
   uptr tls_begin_;
   uptr tls_end_;
+  DTLS *dtls_;
 
   FakeStack *fake_stack_;
   AsanThreadLocalMallocStorage malloc_storage_;
@@ -140,11 +178,6 @@ class ScopedUnwinding {
   AsanThread *thread;
 };
 
-struct CreateThreadContextArgs {
-  AsanThread *thread;
-  StackTrace *stack;
-};
-
 // Returns a single instance of registry.
 ThreadRegistry &asanThreadRegistry();
 
@@ -159,6 +192,6 @@ AsanThread *FindThreadByStackAddress(uptr addr);
 
 // Used to handle fork().
 void EnsureMainThreadIDIsCorrect();
-}  // namespace __asan
+} // namespace __asan
 
-#endif  // ASAN_THREAD_H
+#endif // ASAN_THREAD_H

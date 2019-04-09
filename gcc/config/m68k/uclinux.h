@@ -2,7 +2,7 @@
    using ELF objects with special linker post-processing to produce FLAT
    executables.
 
-   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+   Copyright (C) 2003-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -60,7 +60,7 @@ along with GCC; see the file COPYING3.  If not see
 
 /* -msep-data is the default PIC mode on this target.  */
 #define DRIVER_SELF_SPECS \
-  "%{fpie|fPIE|fpic|fPIC:%{!msep-data:%{!mid-shared-library: -msep-data}}}"
+  "%{" FPIE_OR_FPIC_SPEC ":%{!msep-data:%{!mid-shared-library: -msep-data}}}"
 
 /* The uclinux binary format relies on relocations against a segment being
    within that segment.  Conservatively apply this rule to individual

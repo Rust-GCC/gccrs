@@ -1,4 +1,4 @@
-@c Copyright (C) 2009-2014 Free Software Foundation, Inc.
+@c Copyright (C) 2009-2019 Free Software Foundation, Inc.
 @c Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
@@ -7,9 +7,9 @@
 @chapter Plugins
 @cindex Plugins
 
-GCC plugin is a loadable module that provides extra
-features to the compiler, which they can further pass
-around as a shareable module.
+GCC plugins are loadable modules that provide extra features to the
+compiler.  Like GCC itself they can be distributed in source and
+binary forms.
 
 GCC plugins provide developers with a rich subset of
 the GCC API to allow them to extend GCC as they see fit.
@@ -34,14 +34,17 @@ can be quite useful.
 @section Loading Plugins
 
 Plugins are supported on platforms that support @option{-ldl
--rdynamic}.  They are loaded by the compiler using @code{dlopen}
-and invoked at pre-determined locations in the compilation
-process.
+-rdynamic} as well as Windows/MinGW. They are loaded by the compiler
+using @code{dlopen} or equivalent and invoked at pre-determined
+locations in the compilation process.
 
 Plugins are loaded with
 
-@option{-fplugin=/path/to/@var{name}.so} @option{-fplugin-arg-@var{name}-@var{key1}[=@var{value1}]}
+@option{-fplugin=/path/to/@var{name}.@var{ext}} @option{-fplugin-arg-@var{name}-@var{key1}[=@var{value1}]}
 
+Where @var{name} is the plugin name and @var{ext} is the platform-specific
+dynamic library extension. It should be @code{dll} on Windows/MinGW,
+@code{dylib} on Darwin/Mac OS X, and @code{so} on all other platforms.
 The plugin arguments are parsed by GCC and passed to respective
 plugins as key-value pairs. Multiple plugins can be invoked by
 specifying multiple @option{-fplugin} arguments.
@@ -49,7 +52,7 @@ specifying multiple @option{-fplugin} arguments.
 A plugin can be simply given by its short name (no dots or
 slashes). When simply passing @option{-fplugin=@var{name}}, the plugin is
 loaded from the @file{plugin} directory, so @option{-fplugin=@var{name}} is
-the same as @option{-fplugin=`gcc -print-file-name=plugin`/@var{name}.so},
+the same as @option{-fplugin=`gcc -print-file-name=plugin`/@var{name}.@var{ext}},
 using backquote shell syntax to query the @file{plugin} directory.
 
 @node Plugin API
@@ -174,6 +177,8 @@ Callbacks can be invoked at the following pre-determined events:
 @smallexample
 enum plugin_event
 @{
+  PLUGIN_START_PARSE_FUNCTION,  /* Called before parsing the body of a function. */
+  PLUGIN_FINISH_PARSE_FUNCTION, /* After finishing parsing a function. */
   PLUGIN_PASS_MANAGER_SETUP,    /* To hook into pass manager.  */
   PLUGIN_FINISH_TYPE,           /* After finishing parsing a type.  */
   PLUGIN_FINISH_DECL,           /* After finishing parsing a declaration. */
@@ -185,7 +190,6 @@ enum plugin_event
   PLUGIN_GGC_MARKING,           /* Extend the GGC marking. */
   PLUGIN_GGC_END,               /* Called at end of GGC. */
   PLUGIN_REGISTER_GGC_ROOTS,    /* Register an extra GGC root table. */
-  PLUGIN_REGISTER_GGC_CACHES,   /* Register an extra GGC cache table. */
   PLUGIN_ATTRIBUTES,            /* Called during attribute registration */
   PLUGIN_START_UNIT,            /* Called before processing a translation unit.  */
   PLUGIN_PRAGMAS,               /* Called during pragma registration. */
@@ -233,10 +237,9 @@ the arguments:
 @item @code{void *user_data}: Pointer to plugin-specific data.
 @end itemize
 
-For the @i{PLUGIN_PASS_MANAGER_SETUP}, @i{PLUGIN_INFO},
-@i{PLUGIN_REGISTER_GGC_ROOTS} and @i{PLUGIN_REGISTER_GGC_CACHES}
-pseudo-events the @code{callback} should be null, and the
-@code{user_data} is specific.
+For the @i{PLUGIN_PASS_MANAGER_SETUP}, @i{PLUGIN_INFO}, and
+@i{PLUGIN_REGISTER_GGC_ROOTS} pseudo-events the @code{callback} should be null,
+and the @code{user_data} is specific.
 
 When the @i{PLUGIN_PRAGMAS} event is triggered (with a null pointer as
 data from GCC), plugins may register their own pragmas.  Notice that
@@ -321,21 +324,22 @@ done by registering a callback (called with a null @code{gcc_data})
 for the @code{PLUGIN_GGC_MARKING} event. Such callbacks can call the
 @code{ggc_set_mark} routine, preferably through the @code{ggc_mark} macro
 (and conversely, these routines should usually not be used in plugins
-outside of the @code{PLUGIN_GGC_MARKING} event).
+outside of the @code{PLUGIN_GGC_MARKING} event).  Plugins that wish to hold
+weak references to gc data may also use this event to drop weak references when
+the object is about to be collected.  The @code{ggc_marked_p} function can be
+used to tell if an object is marked, or is about to  be collected.  The
+@code{gt_clear_cache} overloads which some types define may also be of use in
+managing weak references.
 
-Some plugins may need to add extra GGC root tables, e.g. to handle their own
+Some plugins may need to add extra GGC root tables, e.g.@: to handle their own
 @code{GTY}-ed data. This can be done with the @code{PLUGIN_REGISTER_GGC_ROOTS}
 pseudo-event with a null callback and the extra root table (of type @code{struct
-ggc_root_tab*}) as @code{user_data}.  Plugins that want to use the
-@code{if_marked} hash table option can add the extra GGC cache tables generated
-by @code{gengtype} using the @code{PLUGIN_REGISTER_GGC_CACHES} pseudo-event with
-a null callback and the extra cache table (of type @code{struct ggc_cache_tab*})
-as @code{user_data}.  Running the @code{gengtype -p @var{source-dir}
-@var{file-list} @var{plugin*.c} ...} utility generates these extra root tables.
+ggc_root_tab*}) as @code{user_data}.  Running the
+ @code{gengtype -p @var{source-dir} @var{file-list} @var{plugin*.c} ...}
+utility generates these extra root tables.
 
 You should understand the details of memory management inside GCC
-before using @code{PLUGIN_GGC_MARKING}, @code{PLUGIN_REGISTER_GGC_ROOTS}
-or @code{PLUGIN_REGISTER_GGC_CACHES}.
+before using @code{PLUGIN_GGC_MARKING} or @code{PLUGIN_REGISTER_GGC_ROOTS}.
 
 
 @node Plugins description
@@ -377,7 +381,7 @@ handle_user_attribute (tree *node, tree name, tree args,
 
 /* Attribute definition */
 static struct attribute_spec user_attr =
-  @{ "user", 1, 1, false,  false, false, handle_user_attribute, false @};
+  @{ "user", 1, 1, false,  false, false, false, handle_user_attribute, NULL @};
 
 /* Plugin callback called during attribute registration.
 Registered with register_callback (plugin_name, PLUGIN_ATTRIBUTES, register_attributes, NULL)
@@ -467,7 +471,7 @@ When a pass is first added to one of the pass lists, the event
 @section Building GCC plugins
 
 If plugins are enabled, GCC installs the headers needed to build a
-plugin (somewhere in the installation tree, e.g. under
+plugin (somewhere in the installation tree, e.g.@: under
 @file{/usr/local}).  In particular a @file{plugin/include} directory
 is installed, containing all the header files needed to build plugins.
 
@@ -506,6 +510,48 @@ A single source file plugin may be built with @code{g++ -I`gcc
 -print-file-name=plugin`/include -fPIC -shared -fno-rtti -O2 plugin.c -o
 plugin.so}, using backquote shell syntax to query the @file{plugin}
 directory.
+
+Plugin support on Windows/MinGW has a number of limitations and
+additional requirements. When building a plugin on Windows we have to
+link an import library for the corresponding backend executable, for
+example, @file{cc1.exe}, @file{cc1plus.exe}, etc., in order to gain
+access to the symbols provided by GCC. This means that on Windows a
+plugin is language-specific, for example, for C, C++, etc. If you wish
+to use your plugin with multiple languages, then you will need to
+build multiple plugin libraries and either instruct your users on how
+to load the correct version or provide a compiler wrapper that does
+this automatically.
+
+Additionally, on Windows the plugin library has to export the
+@code{plugin_is_GPL_compatible} and @code{plugin_init} symbols. If you
+do not wish to modify the source code of your plugin, then you can use
+the @option{-Wl,--export-all-symbols} option or provide a suitable DEF
+file. Alternatively, you can export just these two symbols by decorating
+them with @code{__declspec(dllexport)}, for example:
+
+@smallexample
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+int plugin_is_GPL_compatible;
+
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+int plugin_init (plugin_name_args *, plugin_gcc_version *)
+@end smallexample
+
+The import libraries are installed into the @code{plugin} directory
+and their names are derived by appending the @code{.a} extension to
+the backend executable names, for example, @file{cc1.exe.a},
+@file{cc1plus.exe.a}, etc. The following command line shows how to
+build the single source file plugin on Windows to be used with the C++
+compiler:
+
+@smallexample
+g++ -I`gcc -print-file-name=plugin`/include -shared -Wl,--export-all-symbols \
+-o plugin.dll plugin.c `gcc -print-file-name=plugin`/cc1plus.exe.a
+@end smallexample
 
 When a plugin needs to use @command{gengtype}, be sure that both
 @file{gengtype} and @file{gtype.state} have the same version as the

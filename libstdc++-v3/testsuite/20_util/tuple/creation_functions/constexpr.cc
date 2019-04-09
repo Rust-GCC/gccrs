@@ -1,7 +1,6 @@
-// { dg-do compile }
-// { dg-options "-std=gnu++0x" }
+// { dg-do compile { target c++11 } }
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,9 +24,6 @@
 
 #include <tuple>
 
-bool test __attribute__((unused)) = true;
-
-
 // make_tuple
 void
 test_make_tuple()
@@ -45,49 +41,51 @@ test_make_tuple()
   }
 }
 
-#if 0
 // forward_as_tuple
 void
 test_forward_as_tuple()
 {
   {
-    typedef std::tuple<int, float> tuple_type;
+    static int i(22);
+    static float f(22.222);
+    typedef std::tuple<int&, float&&> tuple_type;
     constexpr tuple_type p1 __attribute__((unused))
-      = std::forward_as_tuple(22, 22.222);
+      = std::forward_as_tuple(i, std::move(f));
   }
 
   {
-    typedef std::tuple<int, float, int> tuple_type;
+    static int i(22);
+    static float f(22.222);
+    static int ii(77799);
+
+    typedef std::tuple<int&, float&, int&&> tuple_type;
     constexpr tuple_type p1 __attribute__((unused))
-      = std::forward_as_tuple(22, 22.222, 77799);
+      = std::forward_as_tuple(i, f, std::move(ii));
   }
 }
-#endif
 
-#if 0
 // tie
 void
 test_tie()
 {
   {
-    int i(22);
-    float f(22.222);
-    typedef std::tuple<int, float> tuple_type;
+    static int i(22);
+    static float f(22.222);
+    typedef std::tuple<int&, float&> tuple_type;
     constexpr tuple_type p1 __attribute__((unused))
       = std::tie(i, f);
   }
 
   {
-    int i(22);
-    float f(22.222);
-    int ii(77799);
+    static int i(22);
+    static float f(22.222);
+    static const int ii(77799);
 
-    typedef std::tuple<int, float, int> tuple_type;
+    typedef std::tuple<int&, float&, const int&> tuple_type;
     constexpr tuple_type p1 __attribute__((unused))
       = std::tie(i, f, ii);
   }
 }
-#endif
 
 // get
 void
@@ -120,12 +118,34 @@ test_tuple_cat()
   constexpr auto cat1 __attribute__((unused)) = std::tuple_cat(t1, t2);
 }
 
+namespace {
+
+template<class T>
+constexpr int zero_from_anything(T)
+{
+  return 0;
+}
+
+}
+
+// ignore, see LWG 2773
+void
+test_ignore()
+{
+  constexpr auto ign1 __attribute__((unused)) = std::ignore;
+  constexpr auto ign2 __attribute__((unused)) = std::make_tuple(std::ignore);
+  constexpr int ign3 __attribute__((unused)) = zero_from_anything(std::ignore);
+}
+
 int
 main()
 {
   test_make_tuple();
+  test_forward_as_tuple();
+  test_tie();
   test_get();
   test_tuple_cat();
+  test_ignore();
 
   return 0;
 }

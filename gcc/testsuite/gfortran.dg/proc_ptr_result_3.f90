@@ -1,4 +1,5 @@
-!{ dg-do run }
+! { dg-do run }
+! { dg-require-visibility "" }
 !
 ! PR 36704: Procedure pointer as function result
 !
@@ -38,10 +39,10 @@ program test
    integer :: k = 1
 
    call my_sub(k)
-   if (k/=3) call abort
+   if (k/=3) STOP 1
    qsub => get_sub()
    call qsub(k)
-   if (k/=9) call abort
+   if (k/=9) STOP 2
 end program test
 
 recursive subroutine my_sub(j)

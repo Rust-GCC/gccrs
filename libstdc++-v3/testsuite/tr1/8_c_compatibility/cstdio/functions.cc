@@ -2,7 +2,7 @@
 
 // 2006-02-05  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,7 @@ void test01(int dummy, ...)
   std::va_list ap;
   va_start(ap, dummy);
 
-#if _GLIBCXX_USE_C99
+#if _GLIBCXX_USE_C99_STDIO
 
   char* s = 0;
   const char* cs = 0;
@@ -43,10 +43,10 @@ void test01(int dummy, ...)
   ret = std::tr1::snprintf(s, n, format, dummy);
   ret = std::tr1::vsnprintf(s, n, format, ap);
 
-  ret = std::tr1::vfscanf(stream, format, ap); 
+  ret = std::tr1::vfscanf(stream, format, ap);
   ret = std::tr1::vscanf(format, ap);
   ret = std::tr1::vsscanf(cs, format, ap);
   ret = ret; // Suppress unused warning.
-  
+
 #endif
 }

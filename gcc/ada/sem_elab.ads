@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1997-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1997-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,100 +23,125 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  This package contains the routines used to deal with issuing warnings
---  for cases of calls that may require warnings about possible access
---  before elaboration.
+--  This package contains routines which handle access-before-elaboration
+--  run-time checks and compile-time diagnostics. See the body for details.
 
 with Types; use Types;
 
 package Sem_Elab is
 
-   -----------------------------
-   -- Description of Approach --
-   -----------------------------
+   procedure Build_Call_Marker (N : Node_Id);
+   --  Create a call marker for call or requeue statement N and record it for
+   --  later processing by the ABE mechanism.
 
-   --  Every non-static call that is encountered by Sem_Res results in
-   --  a call to Check_Elab_Call, with N being the call node, and Outer
-   --  set to its default value of True.
+   procedure Build_Variable_Reference_Marker
+     (N     : Node_Id;
+      Read  : Boolean;
+      Write : Boolean);
+   --  Create a variable reference marker for arbitrary node N if it mentions a
+   --  variable, and record it for later processing by the ABE mechanism. Flag
+   --  Read should be set when the reference denotes a read. Flag Write should
+   --  be set when the reference denotes a write.
 
-   --  The goal of Check_Elab_Call is to determine whether or not the
-   --  call in question can generate an access before elaboration
-   --  error (raising Program_Error) either by directly calling a
-   --  subprogram whose body has not yet been elaborated, or indirectly,
-   --  by calling a subprogram whose body has been elaborated, but which
-   --  contains a call to such a subprogram.
+   procedure Check_Elaboration_Scenarios;
+   --  Examine each scenario recorded during analysis/resolution and apply the
+   --  Ada or SPARK elaboration rules taking into account the model in effect.
+   --  This processing detects and diagnoses ABE issues, installs conditional
+   --  ABE checks or guaranteed ABE failures, and ensures the elaboration of
+   --  units.
 
-   --  The only calls that we need to look at at the outer level are
-   --  calls that occur in elaboration code. There are two cases. The
-   --  call can be at the outer level of elaboration code, or it can
-   --  be within another unit, e.g. the elaboration code of a subprogram.
+   --  The following type classifies the various enclosing levels used in ABE
+   --  diagnostics.
 
-   --  In the case of an elaboration call at the outer level, we must
-   --  trace all calls to outer level routines either within the current
-   --  unit or to other units that are with'ed. For calls within the
-   --  current unit, we can determine if the body has been elaborated
-   --  or not, and if it has not, then a warning is generated.
+   type Enclosing_Level_Kind is
+     (Declaration_Level,
+      --  A construct is at the "declaration level" when it appears within the
+      --  declarations of a block statement, an entry body, a subprogram body,
+      --  or a task body, ignoring enclosing packages. Example:
 
-   --  Note that there are two subcases. If the original call directly
-   --  calls a subprogram whose body has not been elaborated, then we
-   --  know that an ABE will take place, and we replace the call by
-   --  a raise of Program_Error. If the call is indirect, then we don't
-   --  know that the PE will be raised, since the call might be guarded
-   --  by a conditional. In this case we set Do_Elab_Check on the call
-   --  so that a dynamic check is generated, and output a warning.
+      --    package Pack is
+      --       procedure Proc is                 --  subprogram body
+      --          package Nested is              --  enclosing package ignored
+      --             X ...                       --  at declaration level
 
-   --  For calls to a subprogram in a with'ed unit, we require that
-   --  a pragma Elaborate_All or pragma Elaborate be present, or that
-   --  the referenced unit have a pragma Preelaborate, pragma Pure, or
-   --  pragma Elaborate_Body. If none of these conditions is met, then
-   --  a warning is generated that a pragma Elaborate_All may be needed.
+      Generic_Package_Spec,
+      Generic_Package_Body,
+      --  A construct is at the "generic library level" when it appears in a
+      --  generic package library unit, ignoring enclosing packages. Example:
 
-   --  For the case of an elaboration call at some inner level, we are
-   --  interested in tracing only calls to subprograms at the same level,
-   --  i.e. those that can be called during elaboration. Any calls to
-   --  outer level routines cannot cause ABE's as a result of the original
-   --  call (there might be an outer level call to the subprogram from
-   --  outside that causes the ABE, but that gets analyzed separately).
+      --    generic
+      --    package Pack is                      --  generic package spec
+      --       package Nested is                 --  enclosing package ignored
+      --          X ...                          --  at generic library level
 
-   --  Note that we never trace calls to inner level subprograms, since
-   --  these cannot result in ABE's unless there is an elaboration problem
-   --  at a lower level, which will be separately detected.
+      Instantiation,
+      --  A construct is at the "instantiation library level" when it appears
+      --  in a library unit which is also an instantiation. Example:
 
-   --  Note on pragma Elaborate. The checking here assumes that a pragma
-   --  Elaborate on a with'ed unit guarantees that subprograms within the
-   --  unit can be called without causing an ABE. This is not in fact the
-   --  case since pragma Elaborate does not guarantee the transitive
-   --  coverage guaranteed by Elaborate_All. However, we leave this issue
-   --  up to the binder, which has generates warnings if there are possible
-   --  problems in the use of pragma Elaborate.
+      --    package Inst is new Gen;             --  at instantiation level
 
-   --------------------------------------
-   -- Instantiation Elaboration Errors --
-   --------------------------------------
+      Package_Spec,
+      Package_Body,
+      --  A construct is at the "library level" when it appears in a package
+      --  library unit, ignoring enclosing packages. Example:
 
-   --  A special case arises when an instantiation appears in a context
-   --  that is known to be before the body is elaborated, e.g.
+      --    package body Pack is                 --  package body
+      --       package Nested is                 --  enclosing package ignored
+      --          X ...                          --  at library level
 
-   --       generic package x is ...
-   --       ...
-   --       package xx is new x;
-   --       ...
-   --       package body x is ...
+      No_Level);
+      --  This value is used to indicate that none of the levels above are in
+      --  effect.
 
-   --  In this situation it is certain that an elaboration error will
-   --  occur, and an unconditional raise Program_Error statement is
-   --  inserted before the instantiation, and a warning generated.
+   subtype Any_Library_Level is Enclosing_Level_Kind range
+     Generic_Package_Spec ..
+     Package_Body;
 
-   --  The problem is that in this case we have no place to put the
-   --  body of the instantiation. We can't put it in the normal place,
-   --  because it is too early, and will cause errors to occur as a
-   --  result of referencing entities before they are declared.
+   subtype Generic_Library_Level is Enclosing_Level_Kind range
+     Generic_Package_Spec ..
+     Generic_Package_Body;
 
-   --  Our approach in this case is simply to avoid creating the body
-   --  of the instantiation in such a case. The instantiation spec is
-   --  modified to include dummy bodies for all subprograms, so that
-   --  the resulting code does not contain subprogram specs with no
-   --  corresponding bodies.
+   subtype Library_Level is Enclosing_Level_Kind range
+     Package_Spec ..
+     Package_Body;
+
+   subtype Library_Or_Instantiation_Level is Enclosing_Level_Kind range
+     Instantiation ..
+     Package_Body;
+
+   function Find_Enclosing_Level (N : Node_Id) return Enclosing_Level_Kind;
+   --  Determine the enclosing level of arbitrary node N
+
+   procedure Initialize;
+   --  Initialize the internal structures of this unit
+
+   procedure Kill_Elaboration_Scenario (N : Node_Id);
+   --  Determine whether arbitrary node N denotes a scenario which requires
+   --  ABE diagnostics or runtime checks and eliminate it from a region with
+   --  dead code.
+
+   procedure Record_Elaboration_Scenario (N : Node_Id);
+   --  Determine whether atribtray node N denotes a scenario which requires
+   --  ABE diagnostics or runtime checks. If this is the case, store N into
+   --  a table for later processing.
+
+   ---------------------------------------------------------------------------
+   --                                                                       --
+   --  L E G A C Y    A C C E S S    B E F O R E    E L A B O R A T I O N   --
+   --                                                                       --
+   --                          M E C H A N I S M                            --
+   --                                                                       --
+   ---------------------------------------------------------------------------
+
+   --  This section contains the implementation of the pre-18.x Legacy ABE
+   --  Mechanism. The mechanism can be activated using switch -gnatH (legacy
+   --  elaboration checking mode enabled).
+
+   procedure Check_Elab_Assign (N : Node_Id);
+   --  N is either the left side of an assignment, or a procedure argument for
+   --  a mode OUT or IN OUT formal. This procedure checks for a possible case
+   --  of access to an entity from elaboration code before the entity has been
+   --  initialized, and issues appropriate warnings.
 
    procedure Check_Elab_Call
      (N            : Node_Id;
@@ -124,11 +149,21 @@ package Sem_Elab is
       In_Init_Proc : Boolean   := False);
    --  Check a call for possible elaboration problems. The node N is either an
    --  N_Function_Call or N_Procedure_Call_Statement node or an access
-   --  attribute reference whose prefix is a subprogram. The Outer_Scope
-   --  argument indicates whether this is an outer level call from Sem_Res
-   --  (Outer_Scope set to Empty), or an internal recursive call (Outer_Scope
-   --  set to entity of outermost call, see body). Flag In_Init_Proc should be
-   --  set whenever the current context is a type init proc.
+   --  attribute reference whose prefix is a subprogram.
+   --
+   --  If SPARK_Mode is On, then N can also be a variable reference, since
+   --  SPARK requires the use of Elaborate_All for references to variables
+   --  in other packages.
+
+   --  The Outer_Scope argument indicates whether this is an outer level
+   --  call from Sem_Res (Outer_Scope set to Empty), or an internal recursive
+   --  call (Outer_Scope set to entity of outermost call, see body). The flag
+   --  In_Init_Proc should be set whenever the current context is a type
+   --  init proc.
+
+   --  Note: this might better be called Check_Elab_Reference (to recognize
+   --  the SPARK case), but we prefer to keep the original name, since this
+   --  is primarily used for checking for calls that could generate an ABE).
 
    procedure Check_Elab_Calls;
    --  Not all the processing for Check_Elab_Call can be done at the time
@@ -136,12 +171,6 @@ package Sem_Elab is
    --  need to wait to complete the check until all generic bodies have been
    --  instantiated. The Check_Elab_Calls procedure cleans up these waiting
    --  checks. It is called once after the completion of instantiation.
-
-   procedure Check_Elab_Assign (N : Node_Id);
-   --  N is either the left side of an assignment, or a procedure argument for
-   --  a mode OUT or IN OUT formal. This procedure checks for a possible case
-   --  of access to an entity from elaboration code before the entity has been
-   --  initialized, and issues appropriate warnings.
 
    procedure Check_Elab_Instantiation
      (N           : Node_Id;
@@ -158,7 +187,7 @@ package Sem_Elab is
    --  not be generated (see detailed description in body).
 
    procedure Check_Task_Activation (N : Node_Id);
-   --  Tt the point at which tasks are activated in a package body, check
+   --  At the point at which tasks are activated in a package body, check
    --  that the bodies of the tasks are elaborated.
 
 end Sem_Elab;

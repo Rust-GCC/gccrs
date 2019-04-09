@@ -1,4 +1,4 @@
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -31,4 +31,4 @@ Alpha(MyPair* start, MyPair* end)
 {
   MyPair my_pair(1, 2);
   std::uninitialized_fill(start, end, my_pair);
-};
+}

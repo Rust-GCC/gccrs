@@ -2,19 +2,44 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build darwin dragonfly freebsd linux nacl netbsd openbsd solaris
+// +build aix darwin dragonfly freebsd hurd js,wasm linux nacl netbsd openbsd solaris
 
 package os
 
 import (
+	"internal/poll"
+	"internal/syscall/unix"
+	"io"
 	"runtime"
-	"sync/atomic"
 	"syscall"
 )
 
-// File represents an open file descriptor.
-type File struct {
-	*file
+// fixLongPath is a noop on non-Windows platforms.
+func fixLongPath(path string) string {
+	return path
+}
+
+func rename(oldname, newname string) error {
+	fi, err := Lstat(newname)
+	if err == nil && fi.IsDir() {
+		// There are two independent errors this function can return:
+		// one for a bad oldname, and one for a bad newname.
+		// At this point we've determined the newname is bad.
+		// But just in case oldname is also bad, prioritize returning
+		// the oldname error because that's what we did historically.
+		if _, err := Lstat(oldname); err != nil {
+			if pe, ok := err.(*PathError); ok {
+				err = pe.Err
+			}
+			return &LinkError{"rename", oldname, newname, err}
+		}
+		return &LinkError{"rename", oldname, newname, syscall.EEXIST}
+	}
+	err = syscall.Rename(oldname, newname)
+	if err != nil {
+		return &LinkError{"rename", oldname, newname, err}
+	}
+	return nil
 }
 
 // file is the real representation of *File.
@@ -22,27 +47,127 @@ type File struct {
 // can overwrite this data, which could cause the finalizer
 // to close the wrong file descriptor.
 type file struct {
-	fd      int
-	name    string
-	dirinfo *dirInfo // nil unless directory being read
-	nepipe  int32    // number of consecutive EPIPE in Write
+	pfd         poll.FD
+	name        string
+	dirinfo     *dirInfo // nil unless directory being read
+	nonblock    bool     // whether we set nonblocking mode
+	stdoutOrErr bool     // whether this is stdout or stderr
 }
 
 // Fd returns the integer Unix file descriptor referencing the open file.
+// The file descriptor is valid only until f.Close is called or f is garbage collected.
+// On Unix systems this will cause the SetDeadline methods to stop working.
 func (f *File) Fd() uintptr {
 	if f == nil {
 		return ^(uintptr(0))
 	}
-	return uintptr(f.fd)
+
+	// If we put the file descriptor into nonblocking mode,
+	// then set it to blocking mode before we return it,
+	// because historically we have always returned a descriptor
+	// opened in blocking mode. The File will continue to work,
+	// but any blocking operation will tie up a thread.
+	if f.nonblock {
+		f.pfd.SetBlocking()
+	}
+
+	return uintptr(f.pfd.Sysfd)
 }
 
-// NewFile returns a new File with the given file descriptor and name.
+// NewFile returns a new File with the given file descriptor and
+// name. The returned value will be nil if fd is not a valid file
+// descriptor. On Unix systems, if the file descriptor is in
+// non-blocking mode, NewFile will attempt to return a pollable File
+// (one for which the SetDeadline methods work).
 func NewFile(fd uintptr, name string) *File {
+	kind := kindNewFile
+	if nb, err := unix.IsNonblock(int(fd)); err == nil && nb {
+		kind = kindNonBlock
+	}
+	return newFile(fd, name, kind)
+}
+
+// newFileKind describes the kind of file to newFile.
+type newFileKind int
+
+const (
+	kindNewFile newFileKind = iota
+	kindOpenFile
+	kindPipe
+	kindNonBlock
+)
+
+// newFile is like NewFile, but if called from OpenFile or Pipe
+// (as passed in the kind parameter) it tries to add the file to
+// the runtime poller.
+func newFile(fd uintptr, name string, kind newFileKind) *File {
 	fdi := int(fd)
 	if fdi < 0 {
 		return nil
 	}
-	f := &File{&file{fd: fdi, name: name}}
+	f := &File{&file{
+		pfd: poll.FD{
+			Sysfd:         fdi,
+			IsStream:      true,
+			ZeroReadIsEOF: true,
+		},
+		name:        name,
+		stdoutOrErr: fdi == 1 || fdi == 2,
+	}}
+
+	pollable := kind == kindOpenFile || kind == kindPipe || kind == kindNonBlock
+
+	// If the caller passed a non-blocking filedes (kindNonBlock),
+	// we assume they know what they are doing so we allow it to be
+	// used with kqueue.
+	if kind == kindOpenFile {
+		var st syscall.Stat_t
+		switch runtime.GOOS {
+		case "freebsd":
+			// On FreeBSD before 10.4 it used to crash the
+			// system unpredictably while running all.bash.
+			// When we stop supporting FreeBSD 10 we can merge
+			// this into the dragonfly/netbsd/openbsd case.
+			// Issue 27619.
+			pollable = false
+
+		case "dragonfly", "netbsd", "openbsd":
+			// Don't try to use kqueue with regular files on *BSDs.
+			// On FreeBSD a regular file is always
+			// reported as ready for writing.
+			// On Dragonfly, NetBSD and OpenBSD the fd is signaled
+			// only once as ready (both read and write).
+			// Issue 19093.
+			if err := syscall.Fstat(fdi, &st); err == nil && st.Mode&syscall.S_IFMT == syscall.S_IFREG {
+				pollable = false
+			}
+
+		case "darwin":
+			// In addition to the behavior described above for regular files,
+			// on Darwin, kqueue does not work properly with fifos:
+			// closing the last writer does not cause a kqueue event
+			// for any readers. See issue #24164.
+			if err := syscall.Fstat(fdi, &st); err == nil && (st.Mode&syscall.S_IFMT == syscall.S_IFIFO || st.Mode&syscall.S_IFMT == syscall.S_IFREG) {
+				pollable = false
+			}
+		}
+	}
+
+	if err := f.pfd.Init("file", pollable); err != nil {
+		// An error here indicates a failure to register
+		// with the netpoll system. That can happen for
+		// a file descriptor that is not supported by
+		// epoll/kqueue; for example, disk files on
+		// GNU/Linux systems. We assume that any real error
+		// will show up in later I/O.
+	} else if pollable {
+		// We successfully registered with netpoll, so put
+		// the file into nonblocking mode.
+		if err := syscall.SetNonblock(fdi, true); err == nil {
+			f.nonblock = true
+		}
+	}
+
 	runtime.SetFinalizer(f.file, (*file).close)
 	return f
 }
@@ -53,13 +178,12 @@ type dirInfo struct {
 	dir *syscall.DIR // from opendir
 }
 
+// epipecheck raises SIGPIPE if we get an EPIPE error on standard
+// output or standard error. See the SIGPIPE docs in os/signal, and
+// issue 11845.
 func epipecheck(file *File, e error) {
-	if e == syscall.EPIPE {
-		if atomic.AddInt32(&file.nepipe, 1) >= 10 {
-			sigpipe()
-		}
-	} else {
-		atomic.StoreInt32(&file.nepipe, 0)
+	if e == syscall.EPIPE && file.stdoutOrErr {
+		sigpipe()
 	}
 }
 
@@ -67,28 +191,51 @@ func epipecheck(file *File, e error) {
 // On Unix-like systems, it is "/dev/null"; on Windows, "NUL".
 const DevNull = "/dev/null"
 
-// OpenFile is the generalized open call; most users will use Open
-// or Create instead.  It opens the named file with specified flag
-// (O_RDONLY etc.) and perm, (0666 etc.) if applicable.  If successful,
-// methods on the returned File can be used for I/O.
-// If there is an error, it will be of type *PathError.
-func OpenFile(name string, flag int, perm FileMode) (file *File, err error) {
-	r, e := syscall.Open(name, flag|syscall.O_CLOEXEC, syscallMode(perm))
-	if e != nil {
+// openFileNolog is the Unix implementation of OpenFile.
+// Changes here should be reflected in openFdAt, if relevant.
+func openFileNolog(name string, flag int, perm FileMode) (*File, error) {
+	setSticky := false
+	if !supportsCreateWithStickyBit && flag&O_CREATE != 0 && perm&ModeSticky != 0 {
+		if _, err := Stat(name); IsNotExist(err) {
+			setSticky = true
+		}
+	}
+
+	var r int
+	for {
+		var e error
+		r, e = syscall.Open(name, flag|syscall.O_CLOEXEC, syscallMode(perm))
+		if e == nil {
+			break
+		}
+
+		// On OS X, sigaction(2) doesn't guarantee that SA_RESTART will cause
+		// open(2) to be restarted for regular files. This is easy to reproduce on
+		// fuse file systems (see https://golang.org/issue/11180).
+		if runtime.GOOS == "darwin" && e == syscall.EINTR {
+			continue
+		}
+
 		return nil, &PathError{"open", name, e}
 	}
 
+	// open(2) itself won't handle the sticky bit on *BSD and Solaris
+	if setSticky {
+		setStickyBit(name)
+	}
+
 	// There's a race here with fork/exec, which we are
-	// content to live with.  See ../syscall/exec_unix.go.
+	// content to live with. See ../syscall/exec_unix.go.
 	if !supportsCloseOnExec {
 		syscall.CloseOnExec(r)
 	}
 
-	return NewFile(uintptr(r), name), nil
+	return newFile(uintptr(r), name, kindOpenFile), nil
 }
 
 // Close closes the File, rendering it unusable for I/O.
-// It returns an error, if any.
+// On files that support SetDeadline, any pending I/O operations will
+// be canceled and return immediately with an error.
 func (f *File) Close() error {
 	if f == nil {
 		return ErrInvalid
@@ -97,68 +244,147 @@ func (f *File) Close() error {
 }
 
 func (file *file) close() error {
-	if file == nil || file.fd < 0 {
+	if file == nil {
 		return syscall.EINVAL
 	}
 	var err error
-	if e := syscall.Close(file.fd); e != nil {
-		err = &PathError{"close", file.name, e}
-	}
-
 	if file.dirinfo != nil {
 		syscall.Entersyscall()
 		i := libc_closedir(file.dirinfo.dir)
 		errno := syscall.GetErrno()
 		syscall.Exitsyscall()
 		file.dirinfo = nil
-		if i < 0 && err == nil {
+		if i < 0 && errno != 0 {
 			err = &PathError{"closedir", file.name, errno}
 		}
+	} else {
+		if e := file.pfd.Close(); e != nil {
+			if e == poll.ErrFileClosing {
+				e = ErrClosed
+			}
+			err = &PathError{"close", file.name, e}
+		}
 	}
-
-	file.fd = -1 // so it can't be closed again
 
 	// no need for a finalizer anymore
 	runtime.SetFinalizer(file, nil)
 	return err
 }
 
-// Stat returns the FileInfo structure describing file.
-// If there is an error, it will be of type *PathError.
-func (f *File) Stat() (fi FileInfo, err error) {
-	if f == nil {
-		return nil, ErrInvalid
-	}
-	var stat syscall.Stat_t
-	err = syscall.Fstat(f.fd, &stat)
-	if err != nil {
-		return nil, &PathError{"stat", f.name, err}
-	}
-	return fileInfoFromStat(&stat, f.name), nil
+// read reads up to len(b) bytes from the File.
+// It returns the number of bytes read and an error, if any.
+func (f *File) read(b []byte) (n int, err error) {
+	n, err = f.pfd.Read(b)
+	runtime.KeepAlive(f)
+	return n, err
 }
 
-// Stat returns a FileInfo describing the named file.
-// If there is an error, it will be of type *PathError.
-func Stat(name string) (fi FileInfo, err error) {
-	var stat syscall.Stat_t
-	err = syscall.Stat(name, &stat)
-	if err != nil {
-		return nil, &PathError{"stat", name, err}
-	}
-	return fileInfoFromStat(&stat, name), nil
+// pread reads len(b) bytes from the File starting at byte offset off.
+// It returns the number of bytes read and the error, if any.
+// EOF is signaled by a zero count with err set to nil.
+func (f *File) pread(b []byte, off int64) (n int, err error) {
+	n, err = f.pfd.Pread(b, off)
+	runtime.KeepAlive(f)
+	return n, err
 }
 
-// Lstat returns a FileInfo describing the named file.
-// If the file is a symbolic link, the returned FileInfo
-// describes the symbolic link.  Lstat makes no attempt to follow the link.
+// write writes len(b) bytes to the File.
+// It returns the number of bytes written and an error, if any.
+func (f *File) write(b []byte) (n int, err error) {
+	n, err = f.pfd.Write(b)
+	runtime.KeepAlive(f)
+	return n, err
+}
+
+// pwrite writes len(b) bytes to the File starting at byte offset off.
+// It returns the number of bytes written and an error, if any.
+func (f *File) pwrite(b []byte, off int64) (n int, err error) {
+	n, err = f.pfd.Pwrite(b, off)
+	runtime.KeepAlive(f)
+	return n, err
+}
+
+// seek sets the offset for the next Read or Write on file to offset, interpreted
+// according to whence: 0 means relative to the origin of the file, 1 means
+// relative to the current offset, and 2 means relative to the end.
+// It returns the new offset and an error, if any.
+func (f *File) seek(offset int64, whence int) (ret int64, err error) {
+	ret, err = f.pfd.Seek(offset, whence)
+	runtime.KeepAlive(f)
+	return ret, err
+}
+
+// Truncate changes the size of the named file.
+// If the file is a symbolic link, it changes the size of the link's target.
 // If there is an error, it will be of type *PathError.
-func Lstat(name string) (fi FileInfo, err error) {
-	var stat syscall.Stat_t
-	err = syscall.Lstat(name, &stat)
-	if err != nil {
-		return nil, &PathError{"lstat", name, err}
+func Truncate(name string, size int64) error {
+	if e := syscall.Truncate(name, size); e != nil {
+		return &PathError{"truncate", name, e}
 	}
-	return fileInfoFromStat(&stat, name), nil
+	return nil
+}
+
+// Remove removes the named file or (empty) directory.
+// If there is an error, it will be of type *PathError.
+func Remove(name string) error {
+	// System call interface forces us to know
+	// whether name is a file or directory.
+	// Try both: it is cheaper on average than
+	// doing a Stat plus the right one.
+	e := syscall.Unlink(name)
+	if e == nil {
+		return nil
+	}
+	e1 := syscall.Rmdir(name)
+	if e1 == nil {
+		return nil
+	}
+
+	// Both failed: figure out which error to return.
+	// OS X and Linux differ on whether unlink(dir)
+	// returns EISDIR, so can't use that. However,
+	// both agree that rmdir(file) returns ENOTDIR,
+	// so we can use that to decide which error is real.
+	// Rmdir might also return ENOTDIR if given a bad
+	// file path, like /etc/passwd/foo, but in that case,
+	// both errors will be ENOTDIR, so it's okay to
+	// use the error from unlink.
+	if e1 != syscall.ENOTDIR {
+		e = e1
+	}
+	return &PathError{"remove", name, e}
+}
+
+func tempDir() string {
+	dir := Getenv("TMPDIR")
+	if dir == "" {
+		if runtime.GOOS == "android" {
+			dir = "/data/local/tmp"
+		} else {
+			dir = "/tmp"
+		}
+	}
+	return dir
+}
+
+// Link creates newname as a hard link to the oldname file.
+// If there is an error, it will be of type *LinkError.
+func Link(oldname, newname string) error {
+	e := syscall.Link(oldname, newname)
+	if e != nil {
+		return &LinkError{"link", oldname, newname, e}
+	}
+	return nil
+}
+
+// Symlink creates newname as a symbolic link to oldname.
+// If there is an error, it will be of type *LinkError.
+func Symlink(oldname, newname string) error {
+	e := syscall.Symlink(oldname, newname)
+	if e != nil {
+		return &LinkError{"symlink", oldname, newname, e}
+	}
+	return nil
 }
 
 func (f *File) readdir(n int) (fi []FileInfo, err error) {
@@ -180,146 +406,10 @@ func (f *File) readdir(n int) (fi []FileInfo, err error) {
 		}
 		fi = append(fi, fip)
 	}
+	if len(fi) == 0 && err == nil && n > 0 {
+		// Per File.Readdir, the slice must be non-empty or err
+		// must be non-nil if n > 0.
+		err = io.EOF
+	}
 	return fi, err
-}
-
-// Darwin and FreeBSD can't read or write 2GB+ at a time,
-// even on 64-bit systems. See golang.org/issue/7812.
-// Use 1GB instead of, say, 2GB-1, to keep subsequent
-// reads aligned.
-const (
-	needsMaxRW = runtime.GOOS == "darwin" || runtime.GOOS == "freebsd"
-	maxRW      = 1 << 30
-)
-
-// read reads up to len(b) bytes from the File.
-// It returns the number of bytes read and an error, if any.
-func (f *File) read(b []byte) (n int, err error) {
-	if needsMaxRW && len(b) > maxRW {
-		b = b[:maxRW]
-	}
-	return syscall.Read(f.fd, b)
-}
-
-// pread reads len(b) bytes from the File starting at byte offset off.
-// It returns the number of bytes read and the error, if any.
-// EOF is signaled by a zero count with err set to nil.
-func (f *File) pread(b []byte, off int64) (n int, err error) {
-	if needsMaxRW && len(b) > maxRW {
-		b = b[:maxRW]
-	}
-	return syscall.Pread(f.fd, b, off)
-}
-
-// write writes len(b) bytes to the File.
-// It returns the number of bytes written and an error, if any.
-func (f *File) write(b []byte) (n int, err error) {
-	for {
-		bcap := b
-		if needsMaxRW && len(bcap) > maxRW {
-			bcap = bcap[:maxRW]
-		}
-		m, err := syscall.Write(f.fd, bcap)
-		n += m
-
-		// If the syscall wrote some data but not all (short write)
-		// or it returned EINTR, then assume it stopped early for
-		// reasons that are uninteresting to the caller, and try again.
-		if 0 < m && m < len(bcap) || err == syscall.EINTR {
-			b = b[m:]
-			continue
-		}
-
-		if needsMaxRW && len(bcap) != len(b) && err == nil {
-			b = b[m:]
-			continue
-		}
-
-		return n, err
-	}
-}
-
-// pwrite writes len(b) bytes to the File starting at byte offset off.
-// It returns the number of bytes written and an error, if any.
-func (f *File) pwrite(b []byte, off int64) (n int, err error) {
-	if needsMaxRW && len(b) > maxRW {
-		b = b[:maxRW]
-	}
-	return syscall.Pwrite(f.fd, b, off)
-}
-
-// seek sets the offset for the next Read or Write on file to offset, interpreted
-// according to whence: 0 means relative to the origin of the file, 1 means
-// relative to the current offset, and 2 means relative to the end.
-// It returns the new offset and an error, if any.
-func (f *File) seek(offset int64, whence int) (ret int64, err error) {
-	return syscall.Seek(f.fd, offset, whence)
-}
-
-// Truncate changes the size of the named file.
-// If the file is a symbolic link, it changes the size of the link's target.
-// If there is an error, it will be of type *PathError.
-func Truncate(name string, size int64) error {
-	if e := syscall.Truncate(name, size); e != nil {
-		return &PathError{"truncate", name, e}
-	}
-	return nil
-}
-
-// Remove removes the named file or directory.
-// If there is an error, it will be of type *PathError.
-func Remove(name string) error {
-	// System call interface forces us to know
-	// whether name is a file or directory.
-	// Try both: it is cheaper on average than
-	// doing a Stat plus the right one.
-	e := syscall.Unlink(name)
-	if e == nil {
-		return nil
-	}
-	e1 := syscall.Rmdir(name)
-	if e1 == nil {
-		return nil
-	}
-
-	// Both failed: figure out which error to return.
-	// OS X and Linux differ on whether unlink(dir)
-	// returns EISDIR, so can't use that.  However,
-	// both agree that rmdir(file) returns ENOTDIR,
-	// so we can use that to decide which error is real.
-	// Rmdir might also return ENOTDIR if given a bad
-	// file path, like /etc/passwd/foo, but in that case,
-	// both errors will be ENOTDIR, so it's okay to
-	// use the error from unlink.
-	if e1 != syscall.ENOTDIR {
-		e = e1
-	}
-	return &PathError{"remove", name, e}
-}
-
-// basename removes trailing slashes and the leading directory name from path name
-func basename(name string) string {
-	i := len(name) - 1
-	// Remove trailing slashes
-	for ; i > 0 && name[i] == '/'; i-- {
-		name = name[:i]
-	}
-	// Remove leading directory name
-	for i--; i >= 0; i-- {
-		if name[i] == '/' {
-			name = name[i+1:]
-			break
-		}
-	}
-
-	return name
-}
-
-// TempDir returns the default directory to use for temporary files.
-func TempDir() string {
-	dir := Getenv("TMPDIR")
-	if dir == "" {
-		dir = "/tmp"
-	}
-	return dir
 }

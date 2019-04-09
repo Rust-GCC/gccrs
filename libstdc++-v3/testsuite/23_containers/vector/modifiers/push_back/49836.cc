@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -24,9 +24,9 @@
 // libstdc++/49836
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using __gnu_test::CopyConsOnlyType;
   using __gnu_test::MoveConsOnlyType;
+  using __gnu_test::assign::DelAnyAssign;
 
   std::vector<CopyConsOnlyType> v1;
   CopyConsOnlyType t1(1);
@@ -41,6 +41,14 @@ void test01()
   v2.push_back(std::move(t2));
   v2.push_back(std::move(t2));
   VERIFY( v2.size() == 3 );
+
+  std::vector<DelAnyAssign> v3;
+  DelAnyAssign t3;
+  v3.push_back(t3);
+  v3.push_back(t3);
+  v3.push_back(t3);
+  VERIFY( v3.size() == 3 );
+
 }
 
 int main()

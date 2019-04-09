@@ -1,7 +1,7 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 // { dg-require-string-conversions "" }
 
-// Copyright (C) 2010-2014 Free Software Foundation, Inc.
+// Copyright (C) 2010-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,12 +28,13 @@
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
-
   std::wstring a, b;
   a.push_back(L'1');
   b.assign(std::move(a));
   VERIFY( b.size() == 1 && b[0] == '1' && a.size() == 0 );
+
+  // True for std::allocator because is_always_equal, but not true in general:
+  static_assert(noexcept(a.assign(std::move(b))), "lwg 2063");
 }
 
 int main()

@@ -1,5 +1,5 @@
 /* GCC backend definitions for the TI MSP430 Processor
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Red Hat.
 
    This file is part of GCC.
@@ -56,23 +56,50 @@ extern bool msp430x;
   "%{mrelax=-mQ} " /* Pass the relax option on to the assembler.  */ \
   "%{mlarge:-ml} " /* Tell the assembler if we are building for the LARGE pointer model.  */ \
   "%{!msim:-md} %{msim:%{mlarge:-md}} " /* Copy data from ROM to RAM if necessary.  */ \
-  "%{ffunction-sections:-gdwarf-sections} " /* If function sections are being created then create DWARF line number sections as well.  */
+  "%{msilicon-errata=*:-msilicon-errata=%*} " /* Pass on -msilicon-errata.  */ \
+  "%{msilicon-errata-warn=*:-msilicon-errata-warn=%*} " /* Pass on -msilicon-errata-warn.  */ \
+  "%{ffunction-sections:-gdwarf-sections} " /* If function sections are being created then create DWARF line number sections as well.  */ \
+  "%{mdata-region=*:-mdata-region=%*} " /* Pass on -mdata-region.  */
 
 /* Enable linker section garbage collection by default, unless we
    are creating a relocatable binary (gc does not work) or debugging
    is enabled  (the GDB testsuite relies upon unused entities not being deleted).  */
-#define LINK_SPEC "%{mrelax:--relax} %{mlarge:%{!r:%{!g:--gc-sections}}}"
+#define LINK_SPEC "%{mrelax:--relax} %{mlarge:%{!r:%{!g:--gc-sections}}} " \
+  "%{mcode-region=*:--code-region=%*} %{mdata-region=*:--data-region=%*}"
 
+extern const char * msp430_select_hwmult_lib (int, const char **);
+# define EXTRA_SPEC_FUNCTIONS				\
+  { "msp430_hwmult_lib", msp430_select_hwmult_lib },
+
+/* Specify the libraries to include on the linker command line.
+
+   Selecting the hardware multiply library to use is quite complex.
+   If the user has specified -mhwmult=FOO then the mapping is quite
+   easy (and could be handled here in the SPEC string), unless FOO
+   is set to AUTO.  In this case the -mmcu= option must be consulted
+   instead.  If the -mhwmult= option is not specified then the -mmcu=
+   option must then be examined.  If neither -mhwmult= nor -mmcu= are
+   specified then a default hardware multiply library is used.
+
+   Examining the -mmcu=FOO option is difficult, and it is so this
+   reason that a spec function is used.  There are so many possible
+   values of FOO that a table is used to look up the name and map
+   it to a hardware multiply library.  This table (in device-msp430.c)
+   must be kept in sync with the same table in msp430.c.  */
 #undef  LIB_SPEC
 #define LIB_SPEC "					\
 --start-group						\
+%{mhwmult=auto:%{mmcu=*:%:msp430_hwmult_lib(mcu %{mmcu=*:%*});:%:msp430_hwmult_lib(default)}; \
+  mhwmult=*:%:msp430_hwmult_lib(hwmult %{mhwmult=*:%*}); \
+  mmcu=*:%:msp430_hwmult_lib(mcu %{mmcu=*:%*});		\
+  :%:msp430_hwmult_lib(default)}			\
 -lc							\
 -lgcc							\
 -lcrt							\
 %{msim:-lsim}						\
+%{!msim:-lnosys}					\
 --end-group					   	\
 %{!T*:%{!msim:%{mmcu=*:--script=%*.ld}}}		\
-%{!T*:%{!msim:%{!mmcu=*:%Tmsp430.ld}}}			\
 %{!T*:%{msim:%{mlarge:%Tmsp430xl-sim.ld}%{!mlarge:%Tmsp430-sim.ld}}} \
 "
 
@@ -127,11 +154,15 @@ extern bool msp430x;
 #define MAX_REGS_PER_ADDRESS 		1
 
 #define Pmode 				(TARGET_LARGE ? PSImode : HImode)
-/* Note: 32 is a lie.  Large pointers are actually 20-bits wide.  But gcc
-   thinks that any non-power-of-2 pointer size equates to BLKmode, which
-   causes all kinds of problems...  */
-#define POINTER_SIZE			(TARGET_LARGE ? 32 : 16)
+#define POINTER_SIZE			(TARGET_LARGE ? 20 : 16)
+/* This is just for .eh_frame, to match bfd.  */
+#define PTR_SIZE			(TARGET_LARGE ? 4 : 2)
 #define	POINTERS_EXTEND_UNSIGNED	1
+
+/* TARGET_VTABLE_ENTRY_ALIGN defaults to POINTER_SIZE, which is 20 for
+   TARGET_LARGE.  Pointer alignment is always 16 for MSP430, so set explicitly
+   here.  */
+#define TARGET_VTABLE_ENTRY_ALIGN 16
 
 #define ADDR_SPACE_NEAR	1
 #define ADDR_SPACE_FAR	2
@@ -154,9 +185,9 @@ extern bool msp430x;
 /* Layout of Source Language Data Types */
 
 #undef  SIZE_TYPE
-#define SIZE_TYPE			(TARGET_LARGE ? "long unsigned int" : "unsigned int")
+#define SIZE_TYPE			(TARGET_LARGE ? "__int20 unsigned" : "unsigned int")
 #undef  PTRDIFF_TYPE
-#define PTRDIFF_TYPE			(TARGET_LARGE ? "long int" : "int")
+#define PTRDIFF_TYPE			(TARGET_LARGE ? "__int20" : "int")
 #undef  WCHAR_TYPE
 #define WCHAR_TYPE			"long int"
 #undef  WCHAR_TYPE_SIZE
@@ -167,18 +198,15 @@ extern bool msp430x;
 #define HAS_LONG_UNCOND_BRANCH		0
 
 #define LOAD_EXTEND_OP(M)		ZERO_EXTEND
-/*#define WORD_REGISTER_OPERATIONS	1*/
+#define WORD_REGISTER_OPERATIONS	1
 
 #define MOVE_MAX 			8
-#define STARTING_FRAME_OFFSET		0
 
 #define INCOMING_RETURN_ADDR_RTX \
   msp430_incoming_return_addr_rtx ()
 
 #define RETURN_ADDR_RTX(COUNT, FA)		\
   msp430_return_addr_rtx (COUNT)
-
-#define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC)   1
 
 #define SLOW_BYTE_ACCESS		0
 
@@ -218,10 +246,15 @@ enum reg_class
   0x00000000,		   \
   0x00001000,		   \
   0x00002000,		   \
-  0x0000fff2,		   \
+  0x0000fff3,		   \
   0x0001ffff		   \
 }
 
+/* GENERAL_REGS just means that the "g" and "r" constraints can use these
+   registers.
+   Even though R0 (PC) and R1 (SP) are not "general" in that they can be used
+   for any purpose by the register allocator, they are general in that they can
+   be used by any instruction in any addressing mode.  */
 #define GENERAL_REGS			GEN_REGS
 #define BASE_REG_CLASS  		GEN_REGS
 #define INDEX_REG_CLASS			GEN_REGS
@@ -236,7 +269,9 @@ enum reg_class
 
 #define FIRST_PSEUDO_REGISTER 		17
 
-#define REGNO_REG_CLASS(REGNO)          ((REGNO) < 17 \
+#define REGNO_REG_CLASS(REGNO)		(REGNO != 2 \
+					 && REGNO != 3 \
+					 && REGNO < 17 \
 					 ? GEN_REGS : NO_REGS)
 
 #define TRAMPOLINE_SIZE			4 /* FIXME */
@@ -306,15 +341,6 @@ typedef struct
 #define FUNCTION_PROFILER(FILE, LABELNO)	\
     fprintf (FILE, "\tcall\t__mcount\n");
 
-#define HARD_REGNO_NREGS(REGNO, MODE)            \
-  msp430_hard_regno_nregs (REGNO, MODE)
-
-#define HARD_REGNO_MODE_OK(REGNO, MODE) 			\
-  msp430_hard_regno_mode_ok (REGNO, MODE)
-
-#define MODES_TIEABLE_P(MODE1, MODE2)				\
-  msp430_modes_tieable_p (MODE1, MODE2)
-
 /* Exception Handling */
 
 /* R12,R13,R14 - EH data
@@ -378,7 +404,7 @@ typedef struct
 #undef	DWARF2_ADDR_SIZE
 #define	DWARF2_ADDR_SIZE			4
 
-#define INCOMING_FRAME_SP_OFFSET		(POINTER_SIZE / BITS_PER_UNIT)
+#define INCOMING_FRAME_SP_OFFSET		(TARGET_LARGE ? 4 : 2)
 
 #undef  PREFERRED_DEBUGGING_TYPE
 #define PREFERRED_DEBUGGING_TYPE DWARF2_DEBUG
@@ -390,14 +416,6 @@ typedef struct
 #define HARD_REGNO_CALLER_SAVE_MODE(REGNO,NREGS,MODE) \
   ((TARGET_LARGE && ((NREGS) <= 2)) ? PSImode : choose_hard_reg_mode ((REGNO), (NREGS), false))
 
-/* Also stop GCC from thinking that it can eliminate (SUBREG:PSI (SI)).  */
-#define CANNOT_CHANGE_MODE_CLASS(FROM,TO,CLASS) \
-  (   ((TO) == PSImode && (FROM) == SImode)	\
-   || ((TO) == SImode  && (FROM) == PSImode)    \
-   || ((TO) == DImode  && (FROM) == PSImode)    \
-   || ((TO) == PSImode && (FROM) == DImode)     \
-      )
-
 #define ACCUMULATE_OUTGOING_ARGS 1
 
 #undef  ASM_DECLARE_FUNCTION_NAME
@@ -405,3 +423,9 @@ typedef struct
   msp430_start_function ((FILE), (NAME), (DECL))
 
 #define TARGET_HAS_NO_HW_DIVIDE (! TARGET_HWMULT)
+
+#undef  USE_SELECT_SECTION_FOR_FUNCTIONS
+#define USE_SELECT_SECTION_FOR_FUNCTIONS 1
+
+#define ASM_OUTPUT_ALIGNED_DECL_COMMON(FILE, DECL, NAME, SIZE, ALIGN)	\
+  msp430_output_aligned_decl_common ((FILE), (DECL), (NAME), (SIZE), (ALIGN))

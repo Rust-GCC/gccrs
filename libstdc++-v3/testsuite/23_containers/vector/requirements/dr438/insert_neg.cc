@@ -1,6 +1,6 @@
 // 2007-04-27  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,7 +18,7 @@
 // <http://www.gnu.org/licenses/>.
 
 // { dg-do compile }
-// { dg-error "no matching" "" { target *-*-* } 1367 }
+// { dg-prune-output "no matching function .*_M_fill_insert" }
 
 #include <vector>
 
@@ -30,5 +30,5 @@ struct A
 void f()
 {
   std::vector<A> v;
-  v.insert(v.begin(), 10, 1);
+  v.insert(v.begin(), 10, 1);	// { dg-error "here|no match" }
 }

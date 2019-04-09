@@ -1,4 +1,4 @@
-dnl Copyright (C) 2005-2014 Free Software Foundation, Inc.
+dnl Copyright (C) 2005-2019 Free Software Foundation, Inc.
 dnl
 dnl This file is part of GCC.
 dnl
@@ -277,8 +277,7 @@ fi
 fi])
 
 AC_DEFUN([gcc_AC_INITFINI_ARRAY],
-[AC_REQUIRE([gcc_SUN_LD_VERSION])dnl
-AC_ARG_ENABLE(initfini-array,
+[AC_ARG_ENABLE(initfini-array,
 	[  --enable-initfini-array	use .init_array/.fini_array sections],
 	[], [
 AC_CACHE_CHECK(for .preinit_array/.init_array/.fini_array support,
@@ -309,43 +308,96 @@ int (*fp) (void) __attribute__ ((section (".init_array"))) = foo;
 	    gcc_cv_initfini_array=yes
 	  fi
 	elif test x$gcc_cv_as != x -a x$gcc_cv_ld != x -a x$gcc_cv_objdump != x ; then
-	  cat > conftest.s <<\EOF
-.section .dtors,"a",%progbits
+	  case $target:$gas in
+	    *:yes)
+	      sh_flags='"a"'
+	      sh_type='%progbits'
+	      ;;
+	    i?86-*-solaris2*:no | x86_64-*-solaris2*:no)
+	      sh_flags='"a"'
+	      sh_type='@progbits'
+	      ;;
+	    sparc*-*-solaris2*:no)
+	      sh_flags='#alloc'
+	      sh_type='#progbits'
+	      sh_quote='"'
+	      ;;
+	  esac
+	  case "$target:$gnu_ld" in
+	    *:yes)
+	      cat > conftest.s <<EOF
+.section .dtors,$sh_flags,$sh_type
 .balign 4
 .byte 'A', 'A', 'A', 'A'
-.section .ctors,"a",%progbits
+.section .ctors,$sh_flags,$sh_type
 .balign 4
 .byte 'B', 'B', 'B', 'B'
-.section .fini_array.65530,"a",%progbits
+.section .fini_array.65530,$sh_flags,$sh_type
 .balign 4
 .byte 'C', 'C', 'C', 'C'
-.section .init_array.65530,"a",%progbits
+.section .init_array.65530,$sh_flags,$sh_type
 .balign 4
 .byte 'D', 'D', 'D', 'D'
-.section .dtors.64528,"a",%progbits
+.section .dtors.64528,$sh_flags,$sh_type
 .balign 4
 .byte 'E', 'E', 'E', 'E'
-.section .ctors.64528,"a",%progbits
+.section .ctors.64528,$sh_flags,$sh_type
 .balign 4
 .byte 'F', 'F', 'F', 'F'
-.section .fini_array.01005,"a",%progbits
+.section .fini_array.01005,$sh_flags,$sh_type
 .balign 4
 .byte 'G', 'G', 'G', 'G'
-.section .init_array.01005,"a",%progbits
+.section .init_array.01005,$sh_flags,$sh_type
 .balign 4
 .byte 'H', 'H', 'H', 'H'
 .text
 .globl _start
 _start:
 EOF
-	  if $gcc_cv_as -o conftest.o conftest.s > /dev/null 2>&1 \
-	     && $gcc_cv_ld -o conftest conftest.o > /dev/null 2>&1 \
-	     && $gcc_cv_objdump -s -j .init_array conftest \
-		| grep HHHHFFFFDDDDBBBB > /dev/null 2>&1 \
-	     && $gcc_cv_objdump -s -j .fini_array conftest \
-		| grep GGGGEEEECCCCAAAA > /dev/null 2>&1; then
-	    gcc_cv_initfini_array=yes
-	  fi
+	      if $gcc_cv_as -o conftest.o conftest.s > /dev/null 2>&1 \
+	         && $gcc_cv_ld -o conftest conftest.o > /dev/null 2>&1 \
+	         && $gcc_cv_objdump -s -j .init_array conftest \
+		    | grep HHHHFFFFDDDDBBBB > /dev/null 2>&1 \
+	         && $gcc_cv_objdump -s -j .fini_array conftest \
+		    | grep GGGGEEEECCCCAAAA > /dev/null 2>&1; then
+	        gcc_cv_initfini_array=yes
+	      fi
+	      ;;
+	    *-*-solaris2*:no)
+	      # When Solaris ld added constructor priority support, it was
+	      # decided to only handle .init_array.N/.fini_array.N since
+	      # there was no need for backwards compatibility with
+	      # .ctors.N/.dtors.N.  .ctors/.dtors remain as separate
+	      # sections with correct execution order resp. to
+	      # .init_array/.fini_array, while gld merges them into
+	      # .init_array/.fini_array.
+	      cat > conftest.s <<EOF
+.section $sh_quote.fini_array.65530$sh_quote,$sh_flags,$sh_type
+.align 4
+.byte 'C', 'C', 'C', 'C', 'C', 'C', 'C', 'C'
+.section $sh_quote.init_array.65530$sh_quote,$sh_flags,$sh_type
+.align 4
+.byte 'D', 'D', 'D', 'D', 'D', 'D', 'D', 'D'
+.section $sh_quote.fini_array.01005$sh_quote,$sh_flags,$sh_type
+.align 4
+.byte 'G', 'G', 'G', 'G', 'G', 'G', 'G', 'G'
+.section $sh_quote.init_array.01005$sh_quote,$sh_flags,$sh_type
+.align 4
+.byte 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'
+.text
+.globl _start
+_start:
+EOF
+	      if $gcc_cv_as -o conftest.o conftest.s > /dev/null 2>&1 \
+	         && $gcc_cv_ld -o conftest conftest.o > /dev/null 2>&1 \
+	         && $gcc_cv_objdump -s -j .init_array conftest \
+		    | grep HHHHHHHHDDDDDDDD > /dev/null 2>&1 \
+	         && $gcc_cv_objdump -s -j .fini_array conftest \
+		    | grep GGGGGGGGCCCCCCCC > /dev/null 2>&1; then
+	        gcc_cv_initfini_array=yes
+	      fi
+	      ;;
+	    esac
 changequote(,)dnl
 	  rm -f conftest conftest.*
 changequote([,])dnl
@@ -375,10 +427,10 @@ changequote([,])dnl
   fi])
   enable_initfini_array=$gcc_cv_initfini_array
 ])
-if test $enable_initfini_array = yes; then
-  AC_DEFINE(HAVE_INITFINI_ARRAY_SUPPORT, 1,
-    [Define .init_array/.fini_array sections are available and working.])
-fi])
+AC_DEFINE_UNQUOTED(HAVE_INITFINI_ARRAY_SUPPORT,
+  [`if test $enable_initfini_array = yes; then echo 1; else echo 0; fi`],
+  [Define 0/1 if .init_array/.fini_array sections are available and working.])
+])
 
 dnl # _gcc_COMPUTE_GAS_VERSION
 dnl # Used by gcc_GAS_VERSION_GTE_IFELSE
@@ -390,7 +442,7 @@ AC_DEFUN([_gcc_COMPUTE_GAS_VERSION],
 [gcc_cv_as_bfd_srcdir=`echo $srcdir | sed -e 's,/gcc$,,'`/bfd
 for f in $gcc_cv_as_bfd_srcdir/configure \
          $gcc_cv_as_gas_srcdir/configure \
-         $gcc_cv_as_gas_srcdir/configure.in \
+         $gcc_cv_as_gas_srcdir/configure.ac \
          $gcc_cv_as_gas_srcdir/Makefile.in ; do
   gcc_cv_gas_version=`sed -n -e 's/^[[ 	]]*VERSION=[[^0-9A-Za-z_]]*\([[0-9]]*\.[[0-9]]*.*\)/VERSION=\1/p' < $f`
   if test x$gcc_cv_gas_version != x; then
@@ -497,44 +549,11 @@ AC_CACHE_CHECK([assembler for $1], [$2],
 ifelse([$7],,,[dnl
 if test $[$2] = yes; then
   $7
+fi])
+ifelse([$8],,,[dnl
+if test $[$2] != yes; then
+  $8
 fi])])
-
-dnl gcc_SUN_LD_VERSION
-dnl
-dnl Determines Sun linker version numbers, setting gcc_cv_sun_ld_vers to
-dnl the complete version number and gcc_cv_sun_ld_vers_{major, minor} to
-dnl the corresponding fields.
-dnl
-dnl ld and ld.so.1 are guaranteed to be updated in lockstep, so ld version
-dnl numbers can be used in ld.so.1 feature checks even if a different
-dnl linker is configured.
-dnl
-AC_DEFUN([gcc_SUN_LD_VERSION],
-[changequote(,)dnl
-if test "x${build}" = "x${target}" && test "x${build}" = "x${host}"; then
-  case "${target}" in
-    *-*-solaris2*)
-      #
-      # Solaris 2 ld -V output looks like this for a regular version:
-      #
-      # ld: Software Generation Utilities - Solaris Link Editors: 5.11-1.1699
-      #
-      # but test versions add stuff at the end:
-      #
-      # ld: Software Generation Utilities - Solaris Link Editors: 5.11-1.1701:onnv-ab196087-6931056-03/25/10
-      #
-      gcc_cv_sun_ld_ver=`/usr/ccs/bin/ld -V 2>&1`
-      if echo "$gcc_cv_sun_ld_ver" | grep 'Solaris Link Editors' > /dev/null; then
-	gcc_cv_sun_ld_vers=`echo $gcc_cv_sun_ld_ver | sed -n \
-	  -e 's,^.*: 5\.[0-9][0-9]*-\([0-9]\.[0-9][0-9]*\).*$,\1,p'`
-	gcc_cv_sun_ld_vers_major=`expr "$gcc_cv_sun_ld_vers" : '\([0-9]*\)'`
-	gcc_cv_sun_ld_vers_minor=`expr "$gcc_cv_sun_ld_vers" : '[0-9]*\.\([0-9]*\)'`
-      fi
-      ;;
-  esac
-fi
-changequote([,])dnl
-])
 
 dnl GCC_TARGET_TEMPLATE(KEY)
 dnl ------------------------

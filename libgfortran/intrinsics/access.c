@@ -1,8 +1,8 @@
 /* Implementation of the ACCESS intrinsic.
-   Copyright (C) 2006-2014 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
    Contributed by François-Xavier Coudert <coudert@clipper.ens.fr>
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
@@ -26,7 +26,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "libgfortran.h"
 
 #include <errno.h>
-#include <string.h>
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -43,7 +42,6 @@ int
 access_func (char *name, char *mode, gfc_charlen_type name_len,
 	     gfc_charlen_type mode_len)
 {
-  char * file;
   gfc_charlen_type i;
   int m;
 
@@ -75,16 +73,12 @@ access_func (char *name, char *mode, gfc_charlen_type name_len,
 	  break;
       }
 
-  /* Trim trailing spaces from NAME argument.  */
-  while (name_len > 0 && name[name_len - 1] == ' ')
-    name_len--;
-
-  /* Make a null terminated copy of the string.  */
-  file = gfc_alloca (name_len + 1);
-  memcpy (file, name, name_len);
-  file[name_len] = '\0';
+  char *path = fc_strdup (name, name_len);
 
   /* And make the call to access().  */
-  return (access (file, m) == 0 ? 0 : errno);
+  int res = (access (path, m) == 0 ? 0 : errno);
+
+  free (path);
+  return res;
 }
 #endif

@@ -1,5 +1,4 @@
 /* { dg-require-effective-target vect_float } */
-/* { dg-additional-options "-fdump-rtl-combine-details" } */
 
 #include "tree-vect.h"
 
@@ -76,7 +75,3 @@ main ()
   check_vect ();
   return test ();
 }
-
-/* { dg-final { scan-rtl-dump "deleting noop move" "combine" { target aarch64*-*-* } } } */
-/* { dg-final { cleanup-rtl-dump "combine" } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */

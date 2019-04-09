@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <cstdio>
+#include <testsuite_hooks.h>
 
 namespace __gnu_test
 {
@@ -31,8 +32,8 @@ namespace __gnu_test
     bool	_M_throw;
 
     counter() : _M_count(0), _M_throw(true) { }
-    
-    ~counter()
+
+    ~counter() THROW (counter_error)
     {
       if (_M_throw && _M_count != 0)
 	throw counter_error();
@@ -45,12 +46,12 @@ namespace __gnu_test
     decrement() { get()._M_count--; }
 
     static counter&
-    get() 
+    get()
     {
       static counter g;
       return g;
     }
-  
+
     static std::size_t
     count() { return get()._M_count; }
 
@@ -59,11 +60,11 @@ namespace __gnu_test
   };
 
   template<typename Alloc, bool uses_global_new>
-    bool 
+    bool
     check_new(Alloc a = Alloc())
     {
       __gnu_test::counter::exceptions(false);
-      a.allocate(10);
+      (void) a.allocate(10);
       const bool __b((__gnu_test::counter::count() > 0) == uses_global_new);
       if (!__b)
 	throw std::logic_error("counter not incremented");
@@ -71,7 +72,7 @@ namespace __gnu_test
     }
 
   template<typename Alloc, bool uses_global_delete>
-    bool 
+    bool
     check_delete(Alloc a = Alloc())
     {
       __gnu_test::counter::exceptions(false);
@@ -86,7 +87,7 @@ namespace __gnu_test
     }
 } // namespace __gnu_test
 
-void* operator new(std::size_t size) throw(std::bad_alloc)
+void* operator new(std::size_t size) THROW(std::bad_alloc)
 {
   std::printf("operator new is called \n");
   void* p = std::malloc(size);
@@ -95,7 +96,7 @@ void* operator new(std::size_t size) throw(std::bad_alloc)
   __gnu_test::counter::increment();
   return p;
 }
- 
+
 void operator delete(void* p) throw()
 {
   std::printf("operator delete is called \n");
@@ -104,7 +105,7 @@ void operator delete(void* p) throw()
       std::free(p);
       __gnu_test::counter::decrement();
 
-      std::size_t count = __gnu_test::counter::count(); 
+      std::size_t count = __gnu_test::counter::count();
       if (count == 0)
 	std::printf("All memory released \n");
       else

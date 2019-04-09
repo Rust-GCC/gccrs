@@ -1,6 +1,6 @@
 /* PR target/56564 */
 /* { dg-do compile { target { *-*-linux* && lp64 } } } */
-/* { dg-options "-O3 -fno-pic -fdump-tree-optimized" } */
+/* { dg-options "-O3 -fno-pic -fno-ipa-icf -fdump-tree-optimized" } */
 
 struct S { long a, b; } s = { 5, 6 };
 char t[16] = { 7 };
@@ -20,6 +20,5 @@ bar (void)
 /* { dg-final { scan-tree-dump-times "&s" 0 "optimized" } } */
 /* { dg-final { scan-tree-dump-times "&t" 0 "optimized" } } */
 /* { dg-final { scan-tree-dump-times "return 0" 2 "optimized" } } */
-/* { dg-final { scan-assembler ".align\[ \t]*16\[^:]*\[\n\r]s:" { target { *-*-linux* } } } } */
-/* { dg-final { scan-assembler ".align\[ \t]*16\[^:]*\[\n\r]t:" { target { *-*-linux* } } } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */
+/* { dg-final { scan-assembler ".align\[ \t]*16\[^:]*\[\n\r]s:" { target *-*-linux* } } } */
+/* { dg-final { scan-assembler ".align\[ \t]*16\[^:]*\[\n\r]t:" { target *-*-linux* } } } */

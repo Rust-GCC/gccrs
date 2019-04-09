@@ -1,6 +1,6 @@
 // Locale support -*- C++ -*-
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,7 @@
 //
 // ISO C++ 14882: 22.1  Locales
 //
-  
+
 // Information as gleaned from target/h/ctype.h
 
 // ctype bits to be inlined go here. Non-inlinable (ie virtual do_*)
@@ -58,7 +58,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   ctype<char>::
   scan_is(mask __m, const char* __low, const char* __high) const
   {
-    while (__low < __high 
+    while (__low < __high
 	   && !(__ctype[static_cast<unsigned char>(*__low)] & __m))
       ++__low;
     return __low;

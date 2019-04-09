@@ -1,6 +1,6 @@
 ; Processor-independent options for LynxOS.
 
-; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -20,12 +20,12 @@
 
 mlegacy-threads
 Target RejectNegative
-Support legacy multi-threading
+Support legacy multi-threading.
 
 mshared
 Target RejectNegative
-Use shared libraries
+Use shared libraries.
 
 mthreads
 Target RejectNegative
-Support multi-threading
+Support multi-threading.

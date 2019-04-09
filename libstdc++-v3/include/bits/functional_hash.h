@@ -1,6 +1,6 @@
 // functional_hash.h header -*- C++ -*-
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -49,13 +49,57 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Result, typename _Arg>
     struct __hash_base
     {
-      typedef _Result     result_type;
-      typedef _Arg      argument_type;
+      typedef _Result     result_type _GLIBCXX17_DEPRECATED;
+      typedef _Arg      argument_type _GLIBCXX17_DEPRECATED;
     };
 
   /// Primary class template hash.
   template<typename _Tp>
     struct hash;
+
+  template<typename _Tp, typename = void>
+    struct __poison_hash
+    {
+      static constexpr bool __enable_hash_call = false;
+    private:
+      // Private rather than deleted to be non-trivially-copyable.
+      __poison_hash(__poison_hash&&);
+      ~__poison_hash();
+    };
+
+  template<typename _Tp>
+    struct __poison_hash<_Tp, __void_t<decltype(hash<_Tp>()(declval<_Tp>()))>>
+    {
+      static constexpr bool __enable_hash_call = true;
+    };
+
+  // Helper struct for SFINAE-poisoning non-enum types.
+  template<typename _Tp, bool = is_enum<_Tp>::value>
+    struct __hash_enum
+    {
+    private:
+      // Private rather than deleted to be non-trivially-copyable.
+      __hash_enum(__hash_enum&&);
+      ~__hash_enum();
+    };
+
+  // Helper struct for hash with enum types.
+  template<typename _Tp>
+    struct __hash_enum<_Tp, true> : public __hash_base<size_t, _Tp>
+    {
+      size_t
+      operator()(_Tp __val) const noexcept
+      {
+       using __type = typename underlying_type<_Tp>::type;
+       return hash<__type>{}(static_cast<__type>(__val));
+      }
+    };
+
+  /// Primary class template hash, usable for enum types only.
+  // Use with non-enum types still SFINAES.
+  template<typename _Tp>
+    struct hash : __hash_enum<_Tp>
+    { };
 
   /// Partial specializations for pointer types.
   template<typename _Tp>
@@ -91,6 +135,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   /// Explicit specialization for wchar_t.
   _Cxx_hashtable_define_trivial_hash(wchar_t)
 
+#ifdef _GLIBCXX_USE_CHAR8_T
+  /// Explicit specialization for char8_t.
+  _Cxx_hashtable_define_trivial_hash(char8_t)
+#endif
+
   /// Explicit specialization for char16_t.
   _Cxx_hashtable_define_trivial_hash(char16_t)
 
@@ -121,6 +170,23 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   /// Explicit specialization for unsigned long long.
   _Cxx_hashtable_define_trivial_hash(unsigned long long)
 
+#ifdef __GLIBCXX_TYPE_INT_N_0
+  _Cxx_hashtable_define_trivial_hash(__GLIBCXX_TYPE_INT_N_0)
+  _Cxx_hashtable_define_trivial_hash(__GLIBCXX_TYPE_INT_N_0 unsigned)
+#endif
+#ifdef __GLIBCXX_TYPE_INT_N_1
+  _Cxx_hashtable_define_trivial_hash(__GLIBCXX_TYPE_INT_N_1)
+  _Cxx_hashtable_define_trivial_hash(__GLIBCXX_TYPE_INT_N_1 unsigned)
+#endif
+#ifdef __GLIBCXX_TYPE_INT_N_2
+  _Cxx_hashtable_define_trivial_hash(__GLIBCXX_TYPE_INT_N_2)
+  _Cxx_hashtable_define_trivial_hash(__GLIBCXX_TYPE_INT_N_2 unsigned)
+#endif
+#ifdef __GLIBCXX_TYPE_INT_N_3
+  _Cxx_hashtable_define_trivial_hash(__GLIBCXX_TYPE_INT_N_3)
+  _Cxx_hashtable_define_trivial_hash(__GLIBCXX_TYPE_INT_N_3 unsigned)
+#endif
+
 #undef _Cxx_hashtable_define_trivial_hash
 
   struct _Hash_impl
@@ -141,6 +207,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return hash(&__val, sizeof(__val), __hash); }
   };
 
+  // A hash function similar to FNV-1a (see PR59406 for how it differs).
   struct _Fnv_hash_impl
   {
     static size_t
@@ -192,11 +259,21 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       operator()(long double __val) const noexcept;
     };
 
+#if __cplusplus >= 201703L
+  template<>
+    struct hash<nullptr_t> : public __hash_base<size_t, nullptr_t>
+    {
+      size_t
+      operator()(nullptr_t) const noexcept
+      { return 0; }
+    };
+#endif
+
   // @} group hashes
 
-  // Hint about performance of hash functor. If not fast the hash based
+  // Hint about performance of hash functor. If not fast the hash-based
   // containers will cache the hash code.
-  // Default behavior is to consider that hasher are fast unless specified
+  // Default behavior is to consider that hashers are fast unless specified
   // otherwise.
   template<typename _Hash>
     struct __is_fast_hash : public std::true_type

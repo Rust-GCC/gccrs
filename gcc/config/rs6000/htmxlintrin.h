@@ -1,5 +1,5 @@
 /* XL compiler Hardware Transactional Memory (HTM) execution intrinsics.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
    Contributed by Peter Bergner <bergner@vnet.ibm.com>.
 
    This file is free software; you can redistribute it and/or modify it under
@@ -81,7 +81,8 @@ extern __inline long
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
 __TM_end (void)
 {
-  if (__builtin_expect (__builtin_tend (0), 1))
+  unsigned char status = _HTM_STATE (__builtin_tend (0));
+  if (__builtin_expect (status, _HTM_TRANSACTIONAL))
     return 1;
   return 0;
 }

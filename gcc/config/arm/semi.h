@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler.  ARM on semi-hosted platform
-   Copyright (C) 1994-2014 Free Software Foundation, Inc.
+   Copyright (C) 1994-2019 Free Software Foundation, Inc.
    Contributed by Richard Earnshaw (richard.earnshaw@arm.com)
 
    This file is part of GCC.
@@ -58,7 +58,7 @@
    binutils can't.  */
 #ifndef ASM_SPEC
 #define ASM_SPEC "\
-%{fpic|fpie: -k} %{fPIC|fPIE: -k} \
+%{" FPIE_OR_FPIC_SPEC ": -k} \
 %{mbig-endian:-EB} \
 %(arm_cpu_spec) \
 %{mapcs-float:-mfloat} \

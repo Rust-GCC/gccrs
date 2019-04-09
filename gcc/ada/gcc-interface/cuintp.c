@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *          Copyright (C) 1992-2014, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2019, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -30,7 +30,11 @@
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "vec.h"
+#include "alias.h"
 #include "tree.h"
+#include "inchash.h"
+#include "fold-const.h"
 
 #include "ada.h"
 #include "types.h"
@@ -48,8 +52,8 @@
    the integer value itself.  The origin of the Uints_Ptr table is adjusted so
    that a Uint value of Uint_Bias indexes the first element.
 
-   First define a utility function that operates like build_int_cst_type for
-   integral types and does a conversion for floating-point types.  */
+   First define a utility function that is build_int_cst for integral types and
+   does a conversion for floating-point types.  */
 
 static tree
 build_cst_from_int (tree type, HOST_WIDE_INT low)
@@ -57,7 +61,7 @@ build_cst_from_int (tree type, HOST_WIDE_INT low)
   if (SCALAR_FLOAT_TYPE_P (type))
     return convert (type, build_int_cst (gnat_type_for_size (32, 0), low));
   else
-    return build_int_cst_type (type, low);
+    return build_int_cst (type, low);
 }
 
 /* Similar to UI_To_Int, but return a GCC INTEGER_CST or REAL_CST node,
@@ -138,13 +142,16 @@ UI_From_gnu (tree Input)
   /* UI_Base is defined so that 5 Uint digits is sufficient to hold the
      largest possible signed 64-bit value.  */
   const int Max_For_Dint = 5;
-  int v[Max_For_Dint], i;
+  int v[Max_For_Dint];
   Vector_Template temp;
   Int_Vector vec;
 
-#if HOST_BITS_PER_WIDE_INT == 64
-  /* On 64-bit hosts, tree_fits_shwi_p tells whether the input fits in a
-     signed 64-bit integer.  Then a truncation tells whether it fits
+#if HOST_BITS_PER_WIDE_INT < 64
+#error unsupported HOST_BITS_PER_WIDE_INT setting
+#endif
+
+  /* On 64-bit hosts, tree_fits_shwi_p tells whether the input fits in
+     a signed 64-bit integer.  Then a truncation tells whether it fits
      in a signed 32-bit integer.  */
   if (tree_fits_shwi_p (Input))
     {
@@ -154,24 +161,11 @@ UI_From_gnu (tree Input)
     }
   else
     return No_Uint;
-#else
-  /* On 32-bit hosts, tree_fits_shwi_p tells whether the input fits in a
-     signed 32-bit integer.  Then a sign test tells whether it fits
-     in a signed 64-bit integer.  */
-  if (tree_fits_shwi_p (Input))
-    return UI_From_Int (tree_to_shwi (Input));
-
-  gcc_assert (TYPE_PRECISION (gnu_type) <= 64);
-  if (TYPE_UNSIGNED (gnu_type)
-      && TYPE_PRECISION (gnu_type) == 64
-      && wi::neg_p (Input, SIGNED))
-    return No_Uint;
-#endif
 
   gnu_base = build_int_cst (gnu_type, UI_Base);
   gnu_temp = Input;
 
-  for (i = Max_For_Dint - 1; i >= 0; i--)
+  for (int i = Max_For_Dint - 1; i >= 0; i--)
     {
       v[i] = tree_to_shwi (fold_build1 (ABS_EXPR, gnu_type,
 					fold_build2 (TRUNC_MOD_EXPR, gnu_type,

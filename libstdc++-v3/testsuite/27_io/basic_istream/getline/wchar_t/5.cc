@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,6 +18,7 @@
 // 27.6.1.3 unformatted input functions
 
 // { dg-options "-DMAX_LENGTH=7" { target simulator } }
+// { dg-require-fileio "" }
 
 #ifndef MAX_LENGTH
 #define MAX_LENGTH 777
@@ -48,8 +49,6 @@ prepare(wstring::size_type len, unsigned nchunks, wchar_t delim)
 void
 check(wistream& stream, const wstring& str, unsigned nchunks, wchar_t delim)
 {
-  bool test __attribute__((unused)) = true;
-
   static wchar_t buf[1000000];
   wstring::size_type index = 0, index_new = 0;
   unsigned n = 0;

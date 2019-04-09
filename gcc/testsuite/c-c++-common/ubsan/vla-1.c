@@ -1,5 +1,5 @@
 /* { dg-do run } */
-/* { dg-options "-fsanitize=vla-bound -Wall -Wno-unused-variable" } */
+/* { dg-options "-fsanitize=vla-bound -Wall -Wno-unused-variable -fno-stack-clash-protection" } */
 
 typedef long int V;
 int x = -1;
@@ -116,4 +116,4 @@ main (void)
 /* { dg-output "\[^\n\r]*variable length array bound evaluates to non-positive value -1\[^\n\r]*(\n|\r\n|\r)" } */
 /* { dg-output "\[^\n\r]*variable length array bound evaluates to non-positive value -1\[^\n\r]*(\n|\r\n|\r)" } */
 /* { dg-output "\[^\n\r]*variable length array bound evaluates to non-positive value -6\[^\n\r]*(\n|\r\n|\r)" } */
-/* { dg-output "\[^\n\r]*variable length array bound evaluates to non-positive value -4\[^\n\r]*" } */
+/* { dg-output "\[^\n\r]*variable length array bound evaluates to non-positive value -4" } */

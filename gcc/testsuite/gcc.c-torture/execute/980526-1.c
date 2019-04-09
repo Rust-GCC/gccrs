@@ -1,3 +1,5 @@
+/* { dg-require-effective-target label_values } */
+
 int expect_do1 = 1, expect_do2 = 2;
  
 static int doit(int x){
@@ -29,9 +31,5 @@ static void do2(void){
 }
  
 int main(void){
-#ifndef NO_LABEL_VALUES
-  do1();
-  do2();
-#endif
   exit(0);
 }

@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O1 -ftree-vectorize -fno-vect-cost-model -fnon-call-exceptions" } */
+/* { dg-additional-options "-O1 -fnon-call-exceptions" } */
 
 template < typename _Tp > struct new_allocator
 {
@@ -49,4 +49,3 @@ struct LoadGraph
 LoadGraph::LoadGraph (int)
 {}
 
-/* { dg-final { cleanup-tree-dump "vect" } } */

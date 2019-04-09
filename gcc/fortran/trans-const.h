@@ -1,5 +1,5 @@
 /* Header for code constant translation functions
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by Paul Brook
 
 This file is part of GCC.
@@ -20,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Converts between INT_CST and GMP integer representations.  */
 tree gfc_conv_mpz_to_tree (mpz_t, int);
+tree gfc_conv_mpz_to_tree_type (mpz_t, const tree);
 void gfc_conv_tree_to_mpz (mpz_t, tree);
 
 /* Converts between REAL_CST and MPFR floating-point representations.  */
@@ -30,6 +31,10 @@ void gfc_conv_tree_to_mpfr (mpfr_ptr, tree);
    not supported for the given type.  */
 tree gfc_build_inf_or_huge (tree, int);
 
+/* Build a tree containing a NaN for the given type, with significand
+   specified by second argument.  */
+tree gfc_build_nan (tree, const char *);
+
 /* Build a tree for a constant.  Must be an EXPR_CONSTANT gfc_expr.
    For CHARACTER literal constants, the caller still has to set the
    string length as a separate operation.  */
@@ -39,8 +44,8 @@ tree gfc_conv_constant_to_tree (gfc_expr *);
    structures.  Also sets the length of CHARACTER strings in the gfc_se.  */
 void gfc_conv_constant (gfc_se *, gfc_expr *);
 
-tree gfc_build_string_const (int, const char *);
-tree gfc_build_wide_string_const (int, int, const gfc_char_t *);
+tree gfc_build_string_const (size_t, const char *);
+tree gfc_build_wide_string_const (int, size_t, const gfc_char_t *);
 tree gfc_build_cstring_const (const char *);
 tree gfc_build_localized_cstring_const (const char *);
 

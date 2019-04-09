@@ -1,9 +1,9 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 // { dg-add-options ieee }
 
 // 2010-02-25  Ed Smith-Rowland
 
-// Copyright (C) 2010-2014 Free Software Foundation, Inc.
+// Copyright (C) 2010-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,6 @@ template<typename T>
   void
   do_test(std::true_type)
   {
-    bool test __attribute__((unused)) = true;
     T limits_min = std::numeric_limits<T>::min();
     VERIFY( std::numeric_limits<T>::lowest() == limits_min );
   }
@@ -39,7 +38,6 @@ template<typename T>
   void
   do_test(std::false_type)
   {
-    bool test __attribute__((unused)) = true;
     T limits_max = std::numeric_limits<T>::max();
     VERIFY( std::numeric_limits<T>::lowest() == -limits_max );
   }
@@ -56,6 +54,9 @@ void test01()
   do_test<unsigned char>();
 #ifdef _GLIBCXX_USE_WCHAR_T
   do_test<wchar_t>();
+#endif
+#ifdef _GLIBCXX_USE_CHAR8_T
+  do_test<char8_t>();
 #endif
   do_test<char16_t>();
   do_test<char32_t>();

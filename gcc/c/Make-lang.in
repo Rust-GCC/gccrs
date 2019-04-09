@@ -1,5 +1,5 @@
 # Top level -*- makefile -*- fragment for GNU C - C language.
-# Copyright (C) 1994-2014 Free Software Foundation, Inc.
+# Copyright (C) 1994-2019 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -51,7 +51,8 @@ CFLAGS-c/gccspec.o += $(DRIVER_DEFINES)
 # Language-specific object files for C and Objective C.
 C_AND_OBJC_OBJS = attribs.o c/c-errors.o c/c-decl.o c/c-typeck.o \
   c/c-convert.o c/c-aux-info.o c/c-objc-common.o c/c-parser.o \
-  c/c-array-notation.o $(C_COMMON_OBJS) $(C_TARGET_OBJS)
+  c/c-fold.o c/gimple-parser.o \
+  $(C_COMMON_OBJS) $(C_TARGET_OBJS)
 
 # Language-specific object files for C.
 C_OBJS = c/c-lang.o c-family/stub-objc.o $(C_AND_OBJC_OBJS)
@@ -60,16 +61,33 @@ c_OBJS = $(C_OBJS) cc1-checksum.o c/gccspec.o
 # Use strict warnings for this front end.
 c-warn = $(STRICT_WARN)
 
+ifeq ($(if $(wildcard ../stage_current),$(shell cat \
+  ../stage_current)),stageautofeedback)
+$(C_OBJS): ALL_COMPILERFLAGS += -fauto-profile=cc1.fda
+$(C_OBJS): cc1.fda
+endif
+
 # compute checksum over all object files and the options
+# re-use the checksum from the prev-final stage so it passes
+# the bootstrap comparison and allows comparing of the cc1 binary
 cc1-checksum.c : build/genchecksum$(build_exeext) checksum-options \
 	$(C_OBJS) $(BACKEND) $(LIBDEPS) 
-	build/genchecksum$(build_exeext) $(C_OBJS) $(BACKEND) $(LIBDEPS) \
+	if [ -f ../stage_final ] \
+	   && cmp -s ../stage_current ../stage_final; then \
+	  cp ../prev-gcc/cc1-checksum.c cc1-checksum.c; \
+	else \
+	  build/genchecksum$(build_exeext) $(C_OBJS) $(BACKEND) $(LIBDEPS) \
                      checksum-options > cc1-checksum.c.tmp && 		 \
-	$(srcdir)/../move-if-change cc1-checksum.c.tmp cc1-checksum.c
+	  $(srcdir)/../move-if-change cc1-checksum.c.tmp cc1-checksum.c; \
+	fi
 
 cc1$(exeext): $(C_OBJS) cc1-checksum.o $(BACKEND) $(LIBDEPS)
 	+$(LLINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ $(C_OBJS) \
 	  cc1-checksum.o $(BACKEND) $(LIBS) $(BACKENDLIBS)
+
+cc1.fda: ../stage1-gcc/cc1$(exeext) ../prev-gcc/$(PERF_DATA)
+	$(CREATE_GCOV) -binary ../stage1-gcc/cc1$(exeext) -gcov cc1.fda -profile ../prev-gcc/$(PERF_DATA) -gcov_version 1
+
 #
 # Build hooks:
 
@@ -92,9 +110,43 @@ c.tags: force
 c.man:
 c.srcman:
 
+# C selftests
+
+# If C is enabled, require the selftests to be run for it
+# at each stage of the build:
+selftest-c: s-selftest-c
+
+C_SELFTEST_FLAGS = -xc $(SELFTEST_FLAGS)
+C_SELFTEST_DEPS = cc1$(exeext) $(SELFTEST_DEPS)
+
+# Run the C selftests:
+s-selftest-c: $(C_SELFTEST_DEPS)
+	$(GCC_FOR_TARGET) $(C_SELFTEST_FLAGS)
+	$(STAMP) $@
+
+# Convenience methods for running C selftests under gdb:
+.PHONY: selftest-c-gdb
+selftest-c-gdb: $(C_SELFTEST_DEPS)
+	$(GCC_FOR_TARGET) $(C_SELFTEST_FLAGS) \
+	  -wrapper gdb,--args
+
+.PHONY: selftest-gdb
+selftest-gdb: selftest-c-gdb
+
+# Convenience methods for running C selftests under valgrind:
+.PHONY: selftest-c-valgrind
+selftest-c-valgrind: $(C_SELFTEST_DEPS)
+	$(GCC_FOR_TARGET) $(C_SELFTEST_FLAGS) \
+	  -wrapper valgrind,--leak-check=full
+
+.PHONY: selftest-valgrind
+selftest-valgrind: selftest-c-valgrind
+
 # List of targets that can use the generic check- rule and its // variant.
 lang_checks += check-gcc
 lang_checks_parallelized += check-gcc
+# For description see the check_$lang_parallelize comment in gcc/Makefile.in.
+check_gcc_parallelize=10000
 
 # 'make check' in gcc/ looks for check-c.  Redirect it to check-gcc.
 check-c : check-gcc
@@ -105,7 +157,14 @@ check-c : check-gcc
 
 c.install-common:
 c.install-man:
-c.install-plugin:
+
+c.install-plugin: installdirs
+# Install import library.
+ifeq ($(plugin_implib),yes)
+	$(mkinstalldirs) $(DESTDIR)$(plugin_resourcesdir)
+	$(INSTALL_DATA) cc1$(exeext).a $(DESTDIR)/$(plugin_resourcesdir)/cc1$(exeext).a
+endif
+
 c.uninstall:
 
 #
@@ -117,6 +176,7 @@ c.mostlyclean:
 	-rm -f cc1$(exeext)
 	-rm -f c/*$(objext)
 	-rm -f c/*$(coverageexts)
+	-rm -f cc1.fda
 c.clean:
 c.distclean:
 	-rm -f c/config.status c/Makefile
@@ -137,3 +197,7 @@ c.stageprofile: stageprofile-start
 	-mv c/*$(objext) stageprofile/c
 c.stagefeedback: stagefeedback-start
 	-mv c/*$(objext) stagefeedback/c
+c.autostageprofile: autostageprofile-start
+	-mv c/*$(objext) autostageprofile/c
+c.autostagefeedback: autostagefeedback-start
+	-mv c/*$(objext) autostagefeedback/c

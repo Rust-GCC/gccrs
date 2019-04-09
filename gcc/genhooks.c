@@ -1,6 +1,6 @@
 /* Process target.def to create initialization macros definition in
    target-hooks-def.h and documentation in target-hooks.texi.
-   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -19,7 +19,6 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 #include "bconfig.h"
 #include "system.h"
-#include "hashtab.h"
 #include "errors.h"
 
 struct hook_desc { const char *doc, *type, *name, *param, *init, *docname; };
@@ -35,6 +34,7 @@ static struct hook_desc hook_array[] = {
 #include "target.def"
 #include "c-family/c-target.def"
 #include "common/common-target.def"
+#include "d/d-target.def"
 #undef DEFHOOK
 };
 
@@ -324,7 +324,7 @@ emit_init_macros (const char *docname)
 		}
 	      continue;
 	    }
-	  if (0 == print_nest)
+	  if (print_nest == 0)
 	    {
 	      /* Output default definitions of target hooks.  */
 	      printf ("#ifndef %s\n#define %s %s\n#endif\n",

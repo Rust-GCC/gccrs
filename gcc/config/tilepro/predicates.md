@@ -1,5 +1,5 @@
 ;; Predicate definitions for Tilera TILEPro chip.
-;; Copyright (C) 2011-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2019 Free Software Foundation, Inc.
 ;; Contributed by Walter Lee (walt@tilera.com)
 ;;
 ;; This file is part of GCC.
@@ -75,10 +75,8 @@
   (ior (match_operand 0 "register_operand")
        (and (match_code "const_vector")
 	    (match_test "CONST_VECTOR_NUNITS (op) == 4
-                         && satisfies_constraint_I (CONST_VECTOR_ELT (op, 0))
-                         && CONST_VECTOR_ELT (op, 0) == CONST_VECTOR_ELT (op, 1)
-                         && CONST_VECTOR_ELT (op, 0) == CONST_VECTOR_ELT (op, 2)
-                         && CONST_VECTOR_ELT (op, 0) == CONST_VECTOR_ELT (op, 3)"))))
+                         && (satisfies_constraint_I
+			     (unwrap_const_vec_duplicate (op)))"))))
 
 ;; Return 1 if OP is a 2-element vector constant with identical signed
 ;; 8-bit elements or any register.
@@ -86,8 +84,8 @@
   (ior (match_operand 0 "register_operand")
        (and (match_code "const_vector")
 	    (match_test "CONST_VECTOR_NUNITS (op) == 2
-                         && satisfies_constraint_I (CONST_VECTOR_ELT (op, 0))
-                         && CONST_VECTOR_ELT (op, 0) == CONST_VECTOR_ELT (op, 1)"))))
+                         && (satisfies_constraint_I
+			     (unwrap_const_vec_duplicate (op)))"))))
 
 ;; Return 1 if the operand is a valid second operand to an add insn.
 (define_predicate "add_operand"

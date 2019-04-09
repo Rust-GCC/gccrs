@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2009-2014 Free Software Foundation, Inc.
+// Copyright (C) 2009-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -255,6 +255,7 @@ namespace __gnu_test
 	: _F_erase_point(&_Tp::erase), _F_erase_range(&_Tp::erase) { }
       };
 
+#if _GLIBCXX_USE_CXX11_ABI == 0 || __cplusplus < 201103L
     // Specialization, old C++03 signature.
     template<typename _Tp1, typename _Tp2, typename _Tp3>
       struct erase_base<std::basic_string<_Tp1, _Tp2, _Tp3>>
@@ -269,6 +270,7 @@ namespace __gnu_test
 	: _F_erase_point(&container_type::erase),
 	  _F_erase_range(&container_type::erase) { }
       };
+#endif
 
     // Specialization, as forward_list has erase_after.
     template<typename _Tp1, typename _Tp2>
@@ -610,7 +612,7 @@ namespace __gnu_test
 
 
     template<typename _Tp, bool = traits<_Tp>::has_push_pop::value
-				  && traits<_Tp>::has_emplace::value 
+				  && traits<_Tp>::has_emplace::value
 				  && traits<_Tp>::is_reversible::value>
       struct emplace_back
       {
@@ -676,9 +678,15 @@ namespace __gnu_test
       {
 	typedef std::basic_string<_Tp1, _Tp2, _Tp3> 	container_type;
 	typedef typename container_type::iterator 	iterator;
+	typedef typename container_type::const_iterator	const_iterator;
 	typedef typename container_type::value_type 	value_type;
 
+#if _GLIBCXX_USE_CXX11_ABI == 0 || __cplusplus < 201103L
 	iterator (container_type::* _F_insert_point)(iterator, value_type);
+#else
+	iterator (container_type::* _F_insert_point)(const_iterator,
+						     value_type);
+#endif
 
 	insert_base() : _F_insert_point(&container_type::insert) { }
       };
@@ -1309,7 +1317,7 @@ namespace __gnu_test
 	  functions.push_back(function_type(iops));
 	  typename base_type::const_iterator_ops ciops;
 	  functions.push_back(function_type(ciops));
-	
+
 	  typename base_type::erase_point erasep;
 	  functions.push_back(function_type(erasep));
 	  typename base_type::erase_range eraser;
@@ -1344,7 +1352,7 @@ namespace __gnu_test
 	  typename base_type::move_assign_operator massignop;
 	  populate p4(massignop._M_other);
 	  functions.push_back(function_type(massignop));
-#endif	
+#endif
 	  // Last.
 	  typename base_type::clear clear;
 	  functions.push_back(function_type(clear));

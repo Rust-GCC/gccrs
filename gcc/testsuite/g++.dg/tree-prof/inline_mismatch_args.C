@@ -1,4 +1,4 @@
-/* { dg-options "-O2 -fdump-tree-einline" } */
+/* { dg-options "-O2 -fdump-tree-einline-all" } */
 class DocId {
  public:
  DocId() { }
@@ -33,4 +33,3 @@ int main(void)
 }
 /* { dg-final-use { scan-tree-dump "Inlining .*Super::Foo" "einline" } } */
 /* { dg-final-use { scan-tree-dump-not "mismatched arguments" "einline" } } */
-/* { dg-final-use { cleanup-tree-dump "einline" } } */

@@ -1,6 +1,5 @@
 ! { dg-do run }
 ! { dg-require-effective-target fortran_large_real }
-! { dg-xfail-if "" { "*-*-freebsd*" } { "*" }  { "" } }
 
 ! Testing erf and erfc library calls on large real kinds (larger than kind=8)
   implicit none
@@ -16,7 +15,7 @@
  y = x ;\
  x = func (x) ;\
  y = func (y) ;\
- if (abs((y - x) / y) > eps) call abort
+ if (abs((y - x) / y) > eps) STOP 1
   
  TEST_FUNCTION(erf,1.45123231)
  TEST_FUNCTION(erfc,-0.123789)

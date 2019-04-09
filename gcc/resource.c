@@ -1,5 +1,5 @@
 /* Definitions for computing resource usage of specific insns.
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,20 +20,16 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "diagnostic-core.h"
+#include "backend.h"
 #include "rtl.h"
+#include "df.h"
+#include "memmodel.h"
 #include "tm_p.h"
-#include "hard-reg-set.h"
-#include "function.h"
 #include "regs.h"
-#include "flags.h"
-#include "output.h"
+#include "emit-rtl.h"
 #include "resource.h"
-#include "except.h"
 #include "insn-attr.h"
 #include "params.h"
-#include "df.h"
 
 /* This structure is used to record liveness information at the targets or
    fallthrough insns of branches.  We will most likely need the information
@@ -106,12 +102,17 @@ update_live_status (rtx dest, const_rtx x, void *data ATTRIBUTE_UNUSED)
   else
     {
       first_regno = REGNO (dest);
-      last_regno = END_HARD_REGNO (dest);
+      last_regno = END_REGNO (dest);
     }
 
   if (GET_CODE (x) == CLOBBER)
     for (i = first_regno; i < last_regno; i++)
       CLEAR_HARD_REG_BIT (current_live_regs, i);
+  else if (GET_CODE (x) == CLOBBER_HIGH)
+    /* No current target supports both branch delay slots and CLOBBER_HIGH.
+       We'd need more elaborate liveness tracking to handle that
+       combination.  */
+    gcc_unreachable ();
   else
     for (i = first_regno; i < last_regno; i++)
       {
@@ -216,6 +217,7 @@ mark_referenced_resources (rtx x, struct resources *res,
     case PC:
     case SYMBOL_REF:
     case LABEL_REF:
+    case DEBUG_INSN:
       return;
 
     case SUBREG:
@@ -263,7 +265,7 @@ mark_referenced_resources (rtx x, struct resources *res,
       res->volatil |= MEM_VOLATILE_P (x);
 
       /* For all ASM_OPERANDS, we must traverse the vector of input operands.
-	 We can not just fall through here since then we would be confused
+	 We cannot just fall through here since then we would be confused
 	 by the ASM_INPUT rtx inside ASM_OPERANDS, which do not indicate
 	 traditional asms unlike their normal usage.  */
 
@@ -296,6 +298,7 @@ mark_referenced_resources (rtx x, struct resources *res,
       return;
 
     case CLOBBER:
+    case CLOBBER_HIGH:
       return;
 
     case CALL_INSN:
@@ -326,9 +329,8 @@ mark_referenced_resources (rtx x, struct resources *res,
 	  if (frame_pointer_needed)
 	    {
 	      SET_HARD_REG_BIT (res->regs, FRAME_POINTER_REGNUM);
-#if !HARD_FRAME_POINTER_IS_FRAME_POINTER
-	      SET_HARD_REG_BIT (res->regs, HARD_FRAME_POINTER_REGNUM);
-#endif
+	      if (!HARD_FRAME_POINTER_IS_FRAME_POINTER)
+		SET_HARD_REG_BIT (res->regs, HARD_FRAME_POINTER_REGNUM);
 	    }
 
 	  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
@@ -370,6 +372,7 @@ mark_referenced_resources (rtx x, struct resources *res,
 	}
 
       /* ... fall through to other INSN processing ...  */
+      gcc_fallthrough ();
 
     case INSN:
     case JUMP_INSN:
@@ -384,11 +387,9 @@ mark_referenced_resources (rtx x, struct resources *res,
 			  include_delayed_effects
 			  ? MARK_SRC_DEST_CALL : MARK_SRC_DEST);
 
-#ifdef INSN_REFERENCES_ARE_DELAYED
       if (! include_delayed_effects
 	  && INSN_REFERENCES_ARE_DELAYED (as_a <rtx_insn *> (x)))
 	return;
-#endif
 
       /* No special processing, just speed up.  */
       mark_referenced_resources (PATTERN (x), res, include_delayed_effects);
@@ -433,7 +434,7 @@ find_dead_or_set_registers (rtx_insn *target, struct resources *res,
 
   for (insn = target; insn; insn = next_insn)
     {
-      rtx_insn *this_jump_insn = insn;
+      rtx_insn *this_insn = insn;
 
       next_insn = NEXT_INSN (insn);
 
@@ -457,6 +458,7 @@ find_dead_or_set_registers (rtx_insn *target, struct resources *res,
 
 	case BARRIER:
 	case NOTE:
+	case DEBUG_INSN:
 	  continue;
 
 	case INSN:
@@ -481,8 +483,8 @@ find_dead_or_set_registers (rtx_insn *target, struct resources *res,
 		 of a call, so search for a JUMP_INSN in any position.  */
 	      for (i = 0; i < seq->len (); i++)
 		{
-		  this_jump_insn = seq->insn (i);
-		  if (JUMP_P (this_jump_insn))
+		  this_insn = seq->insn (i);
+		  if (JUMP_P (this_insn))
 		    break;
 		}
 	    }
@@ -491,14 +493,15 @@ find_dead_or_set_registers (rtx_insn *target, struct resources *res,
 	  break;
 	}
 
-      if (JUMP_P (this_jump_insn))
+      if (rtx_jump_insn *this_jump_insn =
+	    dyn_cast <rtx_jump_insn *> (this_insn))
 	{
 	  if (jump_count++ < 10)
 	    {
 	      if (any_uncondjump_p (this_jump_insn)
 		  || ANY_RETURN_P (PATTERN (this_jump_insn)))
 		{
-		  rtx lab_or_return = JUMP_LABEL (this_jump_insn);
+		  rtx lab_or_return = this_jump_insn->jump_label ();
 		  if (ANY_RETURN_P (lab_or_return))
 		    next_insn = NULL;
 		  else
@@ -571,10 +574,10 @@ find_dead_or_set_registers (rtx_insn *target, struct resources *res,
 		  AND_COMPL_HARD_REG_SET (scratch, needed.regs);
 		  AND_COMPL_HARD_REG_SET (fallthrough_res.regs, scratch);
 
-		  if (!ANY_RETURN_P (JUMP_LABEL (this_jump_insn)))
-		    find_dead_or_set_registers (JUMP_LABEL_AS_INSN (this_jump_insn),
-						&target_res, 0, jump_count,
-						target_set, needed);
+		  if (!ANY_RETURN_P (this_jump_insn->jump_label ()))
+		    find_dead_or_set_registers
+			  (this_jump_insn->jump_target (),
+			   &target_res, 0, jump_count, target_set, needed);
 		  find_dead_or_set_registers (next_insn,
 					      &fallthrough_res, 0, jump_count,
 					      set, needed);
@@ -644,6 +647,7 @@ mark_set_resources (rtx x, struct resources *res, int in_dest,
     case SYMBOL_REF:
     case CONST:
     case PC:
+    case DEBUG_INSN:
       /* These don't set any resources.  */
       return;
 
@@ -670,9 +674,15 @@ mark_set_resources (rtx x, struct resources *res, int in_dest,
 
 	  for (link = CALL_INSN_FUNCTION_USAGE (call_insn);
 	       link; link = XEXP (link, 1))
-	    if (GET_CODE (XEXP (link, 0)) == CLOBBER)
-	      mark_set_resources (SET_DEST (XEXP (link, 0)), res, 1,
-				  MARK_SRC_DEST);
+	    {
+	      /* We could support CLOBBER_HIGH and treat it in the same way as
+		 HARD_REGNO_CALL_PART_CLOBBERED, but no port needs that
+		 yet.  */
+	      gcc_assert (GET_CODE (XEXP (link, 0)) != CLOBBER_HIGH);
+	      if (GET_CODE (XEXP (link, 0)) == CLOBBER)
+		mark_set_resources (SET_DEST (XEXP (link, 0)), res, 1,
+				    MARK_SRC_DEST);
+	    }
 
 	  /* Check for a REG_SETJMP.  If it exists, then we must
 	     assume that this call can clobber any register.  */
@@ -681,6 +691,7 @@ mark_set_resources (rtx x, struct resources *res, int in_dest,
 	}
 
       /* ... and also what its RTL says it modifies, if anything.  */
+      gcc_fallthrough ();
 
     case JUMP_INSN:
     case INSN:
@@ -688,11 +699,9 @@ mark_set_resources (rtx x, struct resources *res, int in_dest,
 	/* An insn consisting of just a CLOBBER (or USE) is just for flow
 	   and doesn't actually do anything, so we ignore it.  */
 
-#ifdef INSN_SETS_ARE_DELAYED
       if (mark_type != MARK_SRC_DEST_CALL
 	  && INSN_SETS_ARE_DELAYED (as_a <rtx_insn *> (x)))
 	return;
-#endif
 
       x = PATTERN (x);
       if (GET_CODE (x) != USE && GET_CODE (x) != CLOBBER)
@@ -715,6 +724,12 @@ mark_set_resources (rtx x, struct resources *res, int in_dest,
     case CLOBBER:
       mark_set_resources (XEXP (x, 0), res, 1, MARK_SRC_DEST);
       return;
+
+    case CLOBBER_HIGH:
+      /* No current target supports both branch delay slots and CLOBBER_HIGH.
+	 We'd need more elaborate liveness tracking to handle that
+	 combination.  */
+      gcc_unreachable ();
 
     case SEQUENCE:
       {
@@ -802,7 +817,7 @@ mark_set_resources (rtx x, struct resources *res, int in_dest,
       res->volatil |= MEM_VOLATILE_P (x);
 
       /* For all ASM_OPERANDS, we must traverse the vector of input operands.
-	 We can not just fall through here since then we would be confused
+	 We cannot just fall through here since then we would be confused
 	 by the ASM_INPUT rtx inside ASM_OPERANDS, which do not indicate
 	 traditional asms unlike their normal usage.  */
 
@@ -890,7 +905,6 @@ mark_target_live_regs (rtx_insn *insns, rtx target_maybe_return, struct resource
   unsigned int i;
   struct target_info *tinfo = NULL;
   rtx_insn *insn;
-  rtx jump_insn = 0;
   rtx jump_target;
   HARD_REG_SET scratch;
   struct resources set, needed;
@@ -1118,8 +1132,8 @@ mark_target_live_regs (rtx_insn *insns, rtx target_maybe_return, struct resource
   CLEAR_RESOURCE (&set);
   CLEAR_RESOURCE (&needed);
 
-  jump_insn = find_dead_or_set_registers (target, res, &jump_target, 0,
-					  set, needed);
+  rtx_insn *jump_insn = find_dead_or_set_registers (target, res, &jump_target,
+						    0, set, needed);
 
   /* If we hit an unconditional branch, we have another way of finding out
      what is live: we can see what is live at the branch target and include
@@ -1132,7 +1146,7 @@ mark_target_live_regs (rtx_insn *insns, rtx target_maybe_return, struct resource
       rtx_insn *stop_insn = next_active_insn (jump_insn);
 
       if (!ANY_RETURN_P (jump_target))
-	jump_target = next_active_insn (jump_target);
+	jump_target = next_active_insn (as_a<rtx_insn *> (jump_target));
       mark_target_live_regs (insns, jump_target, &new_resources);
       CLEAR_RESOURCE (&set);
       CLEAR_RESOURCE (&needed);
@@ -1181,9 +1195,9 @@ init_resource_info (rtx_insn *epilogue_insn)
   if (frame_pointer_needed)
     {
       SET_HARD_REG_BIT (end_of_function_needs.regs, FRAME_POINTER_REGNUM);
-#if !HARD_FRAME_POINTER_IS_FRAME_POINTER
-      SET_HARD_REG_BIT (end_of_function_needs.regs, HARD_FRAME_POINTER_REGNUM);
-#endif
+      if (!HARD_FRAME_POINTER_IS_FRAME_POINTER)
+	SET_HARD_REG_BIT (end_of_function_needs.regs,
+			  HARD_FRAME_POINTER_REGNUM);
     }
   if (!(frame_pointer_needed
 	&& EXIT_IGNORE_STACK
@@ -1196,11 +1210,7 @@ init_resource_info (rtx_insn *epilogue_insn)
 			       &end_of_function_needs, true);
 
   for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-    if (global_regs[i]
-#ifdef EPILOGUE_USES
-	|| EPILOGUE_USES (i)
-#endif
-	)
+    if (global_regs[i] || EPILOGUE_USES (i))
       SET_HARD_REG_BIT (end_of_function_needs.regs, i);
 
   /* The registers required to be live at the end of the function are

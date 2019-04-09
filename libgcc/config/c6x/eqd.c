@@ -1,6 +1,6 @@
 /* Software floating-point emulation.
    Return 1 iff a == b, 0 otherwise.
-   Copyright (C) 1997-2014 Free Software Foundation, Inc.
+   Copyright (C) 1997-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson (rth@cygnus.com) and
 		  Jakub Jelinek (jj@ultra.linux.cz).
 
@@ -38,9 +38,7 @@ CMPtype __c6xabi_eqd(DFtype a, DFtype b)
 
   FP_UNPACK_RAW_D(A, a);
   FP_UNPACK_RAW_D(B, b);
-  FP_CMP_EQ_D(r, A, B);
-  if (r && (FP_ISSIGNAN_D(A) || FP_ISSIGNAN_D(B)))
-    FP_SET_EXCEPTION(FP_EX_INVALID);
+  FP_CMP_EQ_D(r, A, B, 1);
   FP_HANDLE_EXCEPTIONS;
 
   return !r;

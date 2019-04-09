@@ -1,10 +1,7 @@
-// { dg-do compile }
-// { dg-options "-std=gnu++0x" }
-// { dg-require-cstdint "" }
+// { dg-do compile { target c++11 } }
 // { dg-require-gthreads "" }
-// { dg-require-atomic-builtins "" }
 
-// Copyright (C) 2009-2014 Free Software Foundation, Inc.
+// Copyright (C) 2009-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,9 +23,8 @@
 #include <testsuite_tr1.h>
 
 using namespace __gnu_test;
-using std::packaged_task;
-template class packaged_task<int()>;
-template class packaged_task<int&()>;
-template class packaged_task<void()>;
-template class packaged_task<ClassType(int)>;
-template class packaged_task<AbstractClass&(int)>;
+template class std::packaged_task<int()>;
+template class std::packaged_task<int&()>;
+template class std::packaged_task<void()>;
+template class std::packaged_task<ClassType(int)>;
+template class std::packaged_task<AbstractClass&(int)>;

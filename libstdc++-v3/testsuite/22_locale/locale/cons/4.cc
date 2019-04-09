@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "it_IT" }
+// { dg-require-namedlocale "it_IT.ISO8859-15" }
 
 // 2000-09-13 Benjamin Kosnik <bkoz@redhat.com>
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,13 +30,12 @@
 // libstdc++/7811
 void test03()
 {
-  bool test __attribute__((unused)) = true;
 #ifdef _GLIBCXX_HAVE_SETENV 
   const char* LC_ALL_orig = getenv("LC_ALL");
-  if (!setenv("LC_ALL", "it_IT", 1))
+  if (!setenv("LC_ALL", ISO_8859(15,it_IT), 1))
     {
       std::locale loc = std::locale(""); 
-      VERIFY( loc.name() == "it_IT" );
+      VERIFY( loc.name() == ISO_8859(15,it_IT) );
       setenv("LC_ALL", LC_ALL_orig ? LC_ALL_orig : "", 1);
     }
 #endif

@@ -184,17 +184,11 @@ func FDZero(set *FdSet) {
 //sys	Close(fd int) (err error)
 //close(fd _C_int) _C_int
 
-//sys	Creat(path string, mode uint32) (fd int, err error)
-//creat(path *byte, mode Mode_t) _C_int
-
 //sysnb	Dup(oldfd int) (fd int, err error)
 //dup(oldfd _C_int) _C_int
 
 //sysnb	Dup2(oldfd int, newfd int) (err error)
 //dup2(oldfd _C_int, newfd _C_int) _C_int
-
-//sys	Exit(code int)
-//exit(code _C_int)
 
 //sys	Fchdir(fd int) (err error)
 //fchdir(fd _C_int) _C_int
@@ -225,9 +219,6 @@ func FDZero(set *FdSet) {
 
 //sysnb Getgid() (gid int)
 //getgid() Gid_t
-
-//sysnb	Getpagesize() (pagesize int)
-//getpagesize() _C_int
 
 //sysnb	Getpgid(pid int) (pgid int, err error)
 //getpgid(pid Pid_t) Pid_t
@@ -270,9 +261,6 @@ func Gettimeofday(tv *Timeval) (err error) {
 
 //sys	Mknod(path string, mode uint32, dev int) (err error)
 //mknod(path *byte, mode Mode_t, dev _dev_t) _C_int
-
-//sys	Mount(source string, target string, fstype string, flags uintptr, data string) (err error)
-//mount(source *byte, target *byte, fstype *byte, flags _C_long, data *byte) _C_int
 
 //sys	Nanosleep(time *Timespec, leftover *Timespec) (err error)
 //nanosleep(time *Timespec, leftover *Timespec) _C_int
@@ -359,9 +347,6 @@ func Settimeofday(tv *Timeval) (err error) {
 //sys	munmap(addr uintptr, length uintptr) (err error)
 //munmap(addr *byte, length Size_t) _C_int
 
-//sys Madvise(b []byte, advice int) (err error)
-//madvise(addr *byte, len Size_t, advice _C_int) _C_int
-
 //sys	Mprotect(b []byte, prot int) (err error)
 //mprotect(addr *byte, len Size_t, prot _C_int) _C_int
 
@@ -377,21 +362,12 @@ func Settimeofday(tv *Timeval) (err error) {
 //sys	Munlockall() (err error)
 //munlockall() _C_int
 
-func TimespecToNsec(ts Timespec) int64 { return int64(ts.Sec)*1e9 + int64(ts.Nsec) }
-
-func NsecToTimespec(nsec int64) (ts Timespec) {
-	ts.Sec = Timespec_sec_t(nsec / 1e9)
-	ts.Nsec = Timespec_nsec_t(nsec % 1e9)
-	return
+func setTimespec(sec, nsec int64) Timespec {
+	return Timespec{Sec: Timespec_sec_t(sec), Nsec: Timespec_nsec_t(nsec)}
 }
 
-func TimevalToNsec(tv Timeval) int64 { return int64(tv.Sec)*1e9 + int64(tv.Usec)*1e3 }
-
-func NsecToTimeval(nsec int64) (tv Timeval) {
-	nsec += 999 // round up to microsecond
-	tv.Sec = Timeval_sec_t(nsec / 1e9)
-	tv.Usec = Timeval_usec_t(nsec % 1e9 / 1e3)
-	return
+func setTimeval(sec, usec int64) Timeval {
+	return Timeval{Sec: Timeval_sec_t(sec), Usec: Timeval_usec_t(usec)}
 }
 
 //sysnb	Tcgetattr(fd int, p *Termios) (err error)
@@ -399,3 +375,17 @@ func NsecToTimeval(nsec int64) (tv Timeval) {
 
 //sys	Tcsetattr(fd int, actions int, p *Termios) (err error)
 //tcsetattr(fd _C_int, actions _C_int, p *Termios) _C_int
+
+//sys	sysconf(name int) (ret int64, err error)
+//sysconf(name _C_int) _C_long
+
+func Sysconf(name int) (ret int64, err error) {
+	// If an option is not available, sysconf returns -1 without
+	// changing errno.  Detect this case and return err == nil.
+	SetErrno(0)
+	ret, err = sysconf(name)
+	if err == Errno(0) {
+		err = nil
+	}
+	return ret, err
+}

@@ -1,6 +1,6 @@
 ; Options for the Synopsys DesignWare ARC port of the compiler
 ;
-; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -23,45 +23,123 @@ config/arc/arc-opts.h
 
 mbig-endian
 Target Report RejectNegative Mask(BIG_ENDIAN)
-Compile code for big endian mode
+Compile code for big endian mode.
 
 mlittle-endian
 Target Report RejectNegative InverseMask(BIG_ENDIAN)
-Compile code for little endian mode.  This is the default
+Compile code for little endian mode.  This is the default.
 
 mno-cond-exec
 Target Report RejectNegative Mask(NO_COND_EXEC)
-Disable ARCompact specific pass to generate conditional execution instructions
-
-mA5
-Target Report
-Generate ARCompact 32-bit code for ARCtangent-A5 processor
+Disable ARCompact specific pass to generate conditional execution instructions.
 
 mA6
 Target Report
-Generate ARCompact 32-bit code for ARC600 processor
+Generate ARCompact 32-bit code for ARC600 processor.
 
 mARC600
 Target Report
-Same as -mA6
+Same as -mA6.
 
 mARC601
 Target Report
-Generate ARCompact 32-bit code for ARC601 processor
+Generate ARCompact 32-bit code for ARC601 processor.
 
 mA7
 Target Report
-Generate ARCompact 32-bit code for ARC700 processor
+Generate ARCompact 32-bit code for ARC700 processor.
 
 mARC700
 Target Report
-Same as -mA7
+Same as -mA7.
+
+mjli-always
+Target Report Mask(JLI_ALWAYS)
+Force all calls to be made via a jli instruction.
+
+mmpy-option=
+Target RejectNegative Joined Enum(arc_mpy) Var(arc_mpy_option) Init(DEFAULT_arc_mpy_option)
+-mmpy-option=MPY Compile ARCv2 code with a multiplier design option.
+
+Enum
+Name(arc_mpy) Type(int)
+
+EnumValue
+Enum(arc_mpy) String(0) Value(0)
+
+EnumValue
+Enum(arc_mpy) String(none) Value(0) Canonical
+
+EnumValue
+Enum(arc_mpy) String(1) Value(1)
+
+EnumValue
+Enum(arc_mpy) String(w) Value(1) Canonical
+
+EnumValue
+Enum(arc_mpy) String(2) Value(2)
+
+EnumValue
+Enum(arc_mpy) String(mpy) Value(2)
+
+EnumValue
+Enum(arc_mpy) String(wlh1) Value(2) Canonical
+
+EnumValue
+Enum(arc_mpy) String(3) Value(3)
+
+EnumValue
+Enum(arc_mpy) String(wlh2) Value(3) Canonical
+
+EnumValue
+Enum(arc_mpy) String(4) Value(4)
+
+EnumValue
+Enum(arc_mpy) String(wlh3) Value(4) Canonical
+
+EnumValue
+Enum(arc_mpy) String(5) Value(5)
+
+EnumValue
+Enum(arc_mpy) String(wlh4) Value(5) Canonical
+
+EnumValue
+Enum(arc_mpy) String(6) Value(6)
+
+EnumValue
+Enum(arc_mpy) String(wlh5) Value(6) Canonical
+
+EnumValue
+Enum(arc_mpy) String(7) Value(7)
+
+EnumValue
+Enum(arc_mpy) String(plus_dmpy) Value(7) Canonical
+
+EnumValue
+Enum(arc_mpy) String(8) Value(8)
+
+EnumValue
+Enum(arc_mpy) String(plus_macd) Value(8) Canonical
+
+EnumValue
+Enum(arc_mpy) String(9) Value(9)
+
+EnumValue
+Enum(arc_mpy) String(plus_qmacw) Value(9) Canonical
+
+mdiv-rem
+Target Report Mask(DIVREM)
+Enable DIV-REM instructions for ARCv2.
+
+mcode-density
+Target Report Mask(CODE_DENSITY)
+Enable code density instructions for ARCv2.
 
 mmixed-code
 Target Report Mask(MIXED_CODE_SET)
-Tweak register allocation to help 16-bit instruction generation
+Tweak register allocation to help 16-bit instruction generation.
 ; originally this was:
-;Generate ARCompact 16-bit instructions intermixed with 32-bit instructions for ARCtangent-A5 and higher processors
+;Generate ARCompact 16-bit instructions intermixed with 32-bit instructions
 ; but we do that without -mmixed-code, too, it's just a different instruction
 ; count / size tradeoff.
 
@@ -69,43 +147,43 @@ Tweak register allocation to help 16-bit instruction generation
 ; actually interesting option, and we want that to have its own comment.
 mvolatile-cache
 Target Report RejectNegative Mask(VOLATILE_CACHE_SET)
-Use ordinarily cached memory accesses for volatile references
+Use ordinarily cached memory accesses for volatile references.
 
 mno-volatile-cache
 Target Report RejectNegative InverseMask(VOLATILE_CACHE_SET)
-Enable cache bypass for volatile references
+Enable cache bypass for volatile references.
 
 mbarrel-shifter
 Target Report Mask(BARREL_SHIFTER)
-Generate instructions supported by barrel shifter
+Generate instructions supported by barrel shifter.
 
 mnorm
 Target Report Mask(NORM_SET)
-Generate norm instruction
+Generate norm instruction.
 
 mswap
 Target Report Mask(SWAP_SET)
-Generate swap instruction
+Generate swap instruction.
 
 mmul64
 Target Report Mask(MUL64_SET)
-Generate mul64 and mulu64 instructions
+Generate mul64 and mulu64 instructions.
 
 mno-mpy
-Target Report Mask(NOMPY_SET)
-Do not generate mpy instructions for ARC700
+Target Report Mask(NOMPY_SET) Warn(%qs is deprecated)
+Do not generate mpy instructions for ARC700.
 
 mea
 Target Report Mask(EA_SET)
-Generate Extended arithmetic instructions.  Currently only divaw, adds, subs and sat16 are supported
+Generate Extended arithmetic instructions.  Currently only divaw, adds, subs and sat16 are supported.
 
 msoft-float
 Target Report Mask(0)
-Dummy flag. This is the default unless FPX switches are provided explicitly
+Dummy flag. This is the default unless FPX switches are provided explicitly.
 
 mlong-calls
 Target Report Mask(LONG_CALLS_SET)
-Generate call insns as register indirect calls
+Generate call insns as register indirect calls.
 
 mno-brcc
 Target Report Mask(NO_BRCC_SET)
@@ -115,9 +193,9 @@ msdata
 Target Report InverseMask(NO_SDATA_SET)
 Generate sdata references.  This is the default, unless you compile for PIC.
 
-mno-millicode
-Target Report Mask(NO_MILLICODE_THUNK_SET)
-Do not generate millicode thunks (needed only with -Os)
+mmillicode
+Target Report Mask(MILLICODE_THUNK_SET)
+Generate millicode thunks.
 
 mspfp
 Target Report Mask(SPFP_COMPACT_SET)
@@ -157,76 +235,68 @@ Enable generation of ARC SIMD instructions via target-specific builtins.
 
 mcpu=
 Target RejectNegative Joined Var(arc_cpu) Enum(processor_type) Init(PROCESSOR_NONE)
--mcpu=CPU	Compile code for ARC variant CPU
-
-Enum
-Name(processor_type) Type(enum processor_type)
-
-EnumValue
-Enum(processor_type) String(A5) Value(PROCESSOR_A5)
-
-EnumValue
-Enum(processor_type) String(ARC600) Value(PROCESSOR_ARC600)
-
-EnumValue
-Enum(processor_type) String(ARC601) Value(PROCESSOR_ARC601)
-
-EnumValue
-Enum(processor_type) String(ARC700) Value(PROCESSOR_ARC700)
+-mcpu=CPU	Compile code for ARC variant CPU.
 
 msize-level=
 Target RejectNegative Joined UInteger Var(arc_size_opt_level) Init(-1)
-size optimization level: 0:none 1:opportunistic 2: regalloc 3:drop align, -Os
+Size optimization level: 0:none 1:opportunistic 2: regalloc 3:drop align, -Os.
 
 misize
 Target Report PchIgnore Var(TARGET_DUMPISIZE)
-Annotate assembler instructions with estimated addresses
+Annotate assembler instructions with estimated addresses.
 
 mmultcost=
 Target RejectNegative Joined UInteger Var(arc_multcost) Init(-1)
 Cost to assume for a multiply instruction, with 4 being equal to a normal insn.
 
-mtune=ARC600
-Target RejectNegative Var(arc_tune, TUNE_ARC600)
-Tune for ARC600 cpu.
+mtune=
+Target RejectNegative ToLower Joined Var(arc_tune) Enum(arc_tune_attr) Init(ARC_TUNE_NONE)
+-mcpu=TUNE Tune code for given ARC variant.
 
-mtune=ARC601
-Target RejectNegative Var(arc_tune, TUNE_ARC600)
-Tune for ARC601 cpu.
+Enum
+Name(arc_tune_attr) Type(int)
 
-mtune=ARC700
-Target RejectNegative Var(arc_tune, TUNE_ARC700_4_2_STD)
-Tune for ARC700 R4.2 Cpu with standard multiplier block.
+EnumValue
+Enum(arc_tune_attr) String(arc600) Value(ARC_TUNE_ARC600)
 
-mtune=ARC700-xmac
-Target RejectNegative Var(arc_tune, TUNE_ARC700_4_2_XMAC)
-Tune for ARC700 R4.2 Cpu with XMAC block.
+EnumValue
+Enum(arc_tune_attr) String(arc601) Value(ARC_TUNE_ARC600)
 
-mtune=ARC725D
-Target RejectNegative Var(arc_tune, TUNE_ARC700_4_2_XMAC)
-Tune for ARC700 R4.2 Cpu with XMAC block.
+EnumValue
+Enum(arc_tune_attr) String(arc7xx) Value(ARC_TUNE_ARC7XX)
 
-mtune=ARC750D
-Target RejectNegative Var(arc_tune, TUNE_ARC700_4_2_XMAC)
-Tune for ARC700 R4.2 Cpu with XMAC block.
+EnumValue
+Enum(arc_tune_attr) String(arc700) Value(ARC_TUNE_ARC700_4_2_STD)
+
+EnumValue
+Enum(arc_tune_attr) String(arc700-xmac) Value(ARC_TUNE_ARC700_4_2_XMAC)
+
+EnumValue
+Enum(arc_tune_attr) String(arc725d) Value(ARC_TUNE_ARC700_4_2_XMAC)
+
+EnumValue
+Enum(arc_tune_attr) String(arc750d) Value(ARC_TUNE_ARC700_4_2_XMAC)
+
+EnumValue
+Enum(arc_tune_attr) String(core3) Value(ARC_TUNE_CORE_3)
 
 mindexed-loads
-Target Var(TARGET_INDEXED_LOADS)
-Enable the use of indexed loads
+Target Var(TARGET_INDEXED_LOADS) Init(TARGET_INDEXED_LOADS_DEFAULT)
+Enable the use of indexed loads.
 
 mauto-modify-reg
-Target Var(TARGET_AUTO_MODIFY_REG)
+Target Var(TARGET_AUTO_MODIFY_REG) Init(TARGET_AUTO_MODIFY_REG_DEFAULT)
 Enable the use of pre/post modify with register displacement.
 
 mmul32x16
 Target Report Mask(MULMAC_32BY16_SET)
-Generate 32x16 multiply and mac instructions
+Generate 32x16 multiply and mac instructions.
 
 ; the initializer is supposed to be: Init(REG_BR_PROB_BASE/2) ,
 ; alas, basic-block.h is not included in options.c .
 munalign-prob-threshold=
 Target RejectNegative Joined UInteger Var(arc_unalign_prob_threshold) Init(10000/2)
-Set probability threshold for unaligning branches
+Set probability threshold for unaligning branches.
 
 mmedium-calls
 Target Var(TARGET_MEDIUM_CALLS) Init(TARGET_MMEDIUM_CALLS_DEFAULT)
@@ -250,77 +320,69 @@ Enable Rcw constraint handling - ccfsm condexec mostly depends on this.
 
 mearly-cbranchsi
 Target Var(TARGET_EARLY_CBRANCHSI)
-Enable pre-reload use of cbranchsi pattern
+Enable pre-reload use of cbranchsi pattern.
 
 mbbit-peephole
 Target Var(TARGET_BBIT_PEEPHOLE)
-Enable bbit peephole2
+Enable bbit peephole2.
 
 mcase-vector-pcrel
 Target Var(TARGET_CASE_VECTOR_PC_RELATIVE)
 Use pc-relative switch case tables - this enables case table shortening.
 
 mcompact-casesi
-Target Var(TARGET_COMPACT_CASESI)
-Enable compact casesi pattern
+Target Warn(%qs is deprecated)
+Enable compact casesi pattern.
 
 mq-class
 Target Var(TARGET_Q_CLASS)
 Enable 'q' instruction alternatives.
 
 mexpand-adddi
-Target Var(TARGET_EXPAND_ADDDI)
+Target Warn(%qs is deprecated)
 Expand adddi3 and subdi3 at rtl generation time into add.f / adc etc.
 
 
 ; Flags used by the assembler, but for which we define preprocessor
 ; macro symbols as well.
 mcrc
-Target Report
-Enable variable polynomial CRC extension
+Target Report Warn(%qs is deprecated)
+Enable variable polynomial CRC extension.
 
 mdsp-packa
-Target Report
-Enable DSP 3.1 Pack A extensions
+Target Report Warn(%qs is deprecated)
+Enable DSP 3.1 Pack A extensions.
 
 mdvbf
-Target Report
-Enable dual viterbi butterfly extension
+Target Report Warn(%qs is deprecated)
+Enable dual viterbi butterfly extension.
 
 mmac-d16
-Target Report Undocumented
+Target Report Undocumented Warn(%qs is deprecated)
 
 mmac-24
-Target Report Undocumented
+Target Report Undocumented Warn(%qs is deprecated)
 
 mtelephony
-Target Report RejectNegative
-Enable Dual and Single Operand Instructions for Telephony
+Target Report RejectNegative Warn(%qs is deprecated)
+Enable Dual and Single Operand Instructions for Telephony.
 
 mxy
 Target Report
-Enable XY Memory extension (DSP version 3)
+Enable XY Memory extension (DSP version 3).
 
 ; ARC700 4.10 extension instructions
 mlock
 Target Report
-Enable Locked Load/Store Conditional extension
+Enable Locked Load/Store Conditional extension.
 
 mswape
 Target Report
-Enable swap byte ordering extension instruction
+Enable swap byte ordering extension instruction.
 
 mrtsc
-Target Report
-Enable 64-bit Time-Stamp Counter extension instruction
-
-mno-epilogue-cfi
-Target Report RejectNegative InverseMask(EPILOGUE_CFI)
-Disable generation of cfi for epilogues.
-
-mepilogue-cfi
-Target RejectNegative Mask(EPILOGUE_CFI)
-Enable generation of cfi for epilogues.
+Target Report Warn(%qs is deprecated)
+Enable 64-bit Time-Stamp Counter extension instruction.
 
 EB
 Target
@@ -331,36 +393,29 @@ Target
 Pass -EL option through to linker.
 
 marclinux
-target
+Target
 Pass -marclinux option through to linker.
 
 marclinux_prof
-target
+Target
 Pass -marclinux_prof option through to linker.
 
 ;; lra is still unproven for ARC, so allow to fall back to reload with -mno-lra.
-;Target InverseMask(NO_LRA)
-; lra still won't allow to configure libgcc; see PR rtl-optimization/55464.
-; so don't enable by default.
 mlra
-Target Mask(LRA)
-Enable lra
+Target Report Var(arc_lra_flag) Init(1) Save
+Use LRA instead of reload.
 
 mlra-priority-none
 Target RejectNegative Var(arc_lra_priority_tag, ARC_LRA_PRIORITY_NONE)
-Don't indicate any priority with TARGET_REGISTER_PRIORITY
+Don't indicate any priority with TARGET_REGISTER_PRIORITY.
 
 mlra-priority-compact
 Target RejectNegative Var(arc_lra_prioritytag, ARC_LRA_PRIORITY_COMPACT)
-Indicate priority for r0..r3 / r12..r15 with TARGET_REGISTER_PRIORITY
+Indicate priority for r0..r3 / r12..r15 with TARGET_REGISTER_PRIORITY.
 
 mlra-priority-noncompact
 Target RejectNegative Var(arc_lra_prioritytag, ARC_LRA_PRIORITY_NONCOMPACT)
-Reduce priority for r0..r3 / r12..r15 with TARGET_REGISTER_PRIORITY
-
-mucb-mcount
-Target Report Var(TARGET_UCB_MCOUNT)
-instrument with mcount calls as in the ucb code
+Reduce priority for r0..r3 / r12..r15 with TARGET_REGISTER_PRIORITY.
 
 ; backward-compatibility aliases, translated by DRIVER_SELF_SPECS
 
@@ -370,21 +425,117 @@ Target
 multcost=
 Target RejectNegative Joined
 
-; Unfortunately, listing the full option name gives us clashes
-; with OPT_opt_name being claimed for both opt_name and opt-name,
-; so we leave out the last character or more.
-mbarrel_shifte
-Target Joined
+matomic
+Target Report Mask(ATOMIC)
+Enable atomic instructions.
 
-mspfp_
-Target Joined
+mll64
+Target Report Mask(LL64)
+Enable double load/store instructions for ARC HS.
 
-mdpfp_
-Target Joined
+mfpu=
+Target RejectNegative Joined Enum(arc_fpu) Var(arc_fpu_build) Init(DEFAULT_arc_fpu_build)
+Specify the name of the target floating point configuration.
 
-mdsp_pack
-Target Joined
+Enum
+Name(arc_fpu) Type(int)
 
-mmac_
-Target Joined
+EnumValue
+Enum(arc_fpu) String(fpus) Value(FPU_FPUS)
 
+EnumValue
+Enum(arc_fpu) String(fpud) Value(FPU_FPUD)
+
+EnumValue
+Enum(arc_fpu) String(fpuda) Value(FPU_FPUDA)
+
+EnumValue
+Enum(arc_fpu) String(fpuda_div) Value(FPU_FPUDA_DIV)
+
+EnumValue
+Enum(arc_fpu) String(fpuda_fma) Value(FPU_FPUDA_FMA)
+
+EnumValue
+Enum(arc_fpu) String(fpuda_all) Value(FPU_FPUDA_ALL)
+
+EnumValue
+Enum(arc_fpu) String(fpus_div) Value(FPU_FPUS_DIV)
+
+EnumValue
+Enum(arc_fpu) String(fpud_div) Value(FPU_FPUD_DIV)
+
+EnumValue
+Enum(arc_fpu) String(fpus_fma) Value(FPU_FPUS_FMA)
+
+EnumValue
+Enum(arc_fpu) String(fpud_fma) Value(FPU_FPUD_FMA)
+
+EnumValue
+Enum(arc_fpu) String(fpus_all) Value(FPU_FPUS_ALL)
+
+EnumValue
+Enum(arc_fpu) String(fpud_all) Value(FPU_FPUD_ALL)
+
+mtp-regno=
+Target RejectNegative Joined UInteger Var(arc_tp_regno) Init(TARGET_ARC_TP_REGNO_DEFAULT)
+Specify thread pointer register number.
+
+mtp-regno=none
+Target RejectNegative Var(arc_tp_regno,-1)
+
+mbitops
+Target Report Var(TARGET_NPS_BITOPS) Init(TARGET_NPS_BITOPS_DEFAULT)
+Enable use of NPS400 bit operations.
+
+mcmem
+Target Report Var(TARGET_NPS_CMEM) Init(TARGET_NPS_CMEM_DEFAULT)
+Enable use of NPS400 xld/xst extension.
+
+munaligned-access
+Target Report Var(unaligned_access) Init(UNALIGNED_ACCESS_DEFAULT)
+Enable unaligned word and halfword accesses to packed data.
+
+mirq-ctrl-saved=
+Target RejectNegative Joined Var(arc_deferred_options) Defer
+Specifies the registers that the processor saves on an interrupt entry and exit.
+
+mrgf-banked-regs=
+Target RejectNegative Joined Var(arc_deferred_options) Defer
+Specifies the number of registers replicated in second register bank on entry to fast interrupt.
+
+mlpc-width=
+Target RejectNegative Joined Enum(arc_lpc) Var(arc_lpcwidth) Init(32)
+Sets LP_COUNT register width.  Possible values are 8, 16, 20, 24, 28, and 32.
+
+Enum
+Name(arc_lpc) Type(int)
+
+EnumValue
+Enum(arc_lpc) String(8) Value(8)
+
+EnumValue
+Enum(arc_lpc) String(16) Value(16)
+
+EnumValue
+Enum(arc_lpc) String(20) Value(20)
+
+EnumValue
+Enum(arc_lpc) String(24) Value(24)
+
+EnumValue
+Enum(arc_lpc) String(28) Value(28)
+
+EnumValue
+Enum(arc_lpc) String(32) Value(32)
+
+mrf16
+Target Report Mask(RF16)
+Enable 16-entry register file.
+
+mbranch-index
+Target Report Var(TARGET_BRANCH_INDEX) Init(DEFAULT_BRANCH_INDEX)
+Enable use of BI/BIH instructions when available.
+
+mcode-density-frame
+Target Report Var(TARGET_CODE_DENSITY_FRAME) Init(TARGET_CODE_DENSITY_FRAME_DEFAULT)
+Enable ENTER_S and LEAVE_S opcodes for ARCv2.

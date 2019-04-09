@@ -1,5 +1,5 @@
 /* HImode div/mod functions for the GCC support library for the Renesas RL78 processors.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Red Hat.
 
    This file is part of GCC.
@@ -23,11 +23,363 @@
    see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    <http://www.gnu.org/licenses/>.  */
 
-#ifndef __RL78_G10__
-
 #include "vregs.h"
 
-	.macro make_generic  which,need_result
+#if defined __RL78_MUL_G14__
+
+START_FUNC ___divhi3
+	;; r8 = 4[sp] / 6[sp]
+
+	;; Test for a negative denumerator.
+	movw	ax, [sp+6]
+	mov1	cy, a.7
+	movw	de, ax
+	bc	$__div_neg_den
+
+	;; Test for a negative numerator.
+	movw	ax, [sp+4]
+	mov1	cy, a.7
+	bc	$__div_neg_num
+
+	;; Neither are negative - we can use the unsigned divide instruction.
+__div_no_convert:	
+	push	psw
+	di
+	divhu
+	pop	psw
+	
+	movw	r8, ax
+	ret
+
+__div_neg_den:
+	;; Negate the denumerator (which is in DE)
+	clrw	ax
+	subw	ax, de
+	movw	de, ax
+	
+	;; Test for a negative numerator.
+	movw	ax, [sp+4]
+	mov1	cy, a.7
+	;; If it is not negative then we perform the division and then negate the result.
+	bnc	$__div_then_convert
+
+	;; Otherwise we negate the numerator and then go with an unsigned division.
+	movw	bc, ax
+	clrw	ax
+	subw	ax, bc
+	br	$__div_no_convert
+
+__div_neg_num:
+	;; Negate the numerator (which is in AX)
+	;; We know that the denumerator is positive.
+	movw	bc, ax
+	clrw	ax
+	subw	ax, bc
+	
+__div_then_convert:
+	push	psw
+	di
+	divhu
+	pop	psw
+	
+	;; Negate result and transfer into r8
+	movw	bc, ax
+	clrw	ax
+	subw	ax, bc
+	movw	r8, ax
+	ret
+
+END_FUNC ___divhi3
+
+;----------------------------------------------------------------------
+
+START_FUNC ___modhi3
+	;; r8 = 4[sp] % 6[sp]
+
+	;; Test for a negative denumerator.
+	movw	ax, [sp+6]
+	mov1	cy, a.7
+	movw	de, ax
+	bc	$__mod_neg_den
+
+	;; Test for a negative numerator.
+	movw	ax, [sp+4]
+	mov1	cy, a.7
+	bc	$__mod_neg_num
+
+	;; Neither are negative - we can use the unsigned divide instruction.
+__mod_no_convert:	
+	push	psw
+	di
+	divhu
+	pop	psw
+
+	movw	ax, de
+	movw	r8, ax
+	ret
+
+__mod_neg_den:	
+	;; Negate the denumerator (which is in DE)
+	clrw	ax
+	subw	ax, de
+	movw	de, ax
+	
+	;; Test for a negative numerator.
+	movw	ax, [sp+4]
+	mov1	cy, a.7
+	;; If it is not negative then we perform the modulo operation without conversion.
+	bnc	$__mod_no_convert
+
+	;; Otherwise we negate the numerator and then go with an unsigned modulo operation.
+	movw	bc, ax
+	clrw	ax
+	subw	ax, bc
+	br	$__mod_then_convert
+
+__mod_neg_num:
+	;; Negate the numerator (which is in AX)
+	;; We know that the denumerator is positive.
+	movw	bc, ax
+	clrw	ax
+	subw	ax, bc
+	
+__mod_then_convert:
+	push	psw
+	di
+	divhu
+	pop	psw
+
+	;; Negate result and transfer into r8
+	clrw	  ax
+	subw	  ax, de
+	movw	  r8, ax
+	ret
+
+END_FUNC ___modhi3
+
+;----------------------------------------------------------------------
+
+#elif defined __RL78_MUL_G13__
+
+	;; The G13 S2 core does not have a 16 bit divide peripheral.
+	;; So instead we perform a 32-bit divide and twiddle the inputs
+	;; as necessary.
+
+	;; Hardware registers.  Note - these values match the silicon, not the documentation.
+	MDAL = 0xffff0
+	MDAH = 0xffff2
+	MDBL = 0xffff6
+	MDBH = 0xffff4
+	MDCL = 0xf00e0
+	MDCH = 0xf00e2
+	MDUC = 0xf00e8
+
+.macro _Negate src, dest
+	movw	ax, !\src
+	movw	bc, ax
+	clrw	ax
+	subw	ax, bc
+	movw	\dest, ax
+.endm
+	
+;----------------------------------------------------------------------
+	
+START_FUNC ___divhi3
+	;; r8 = 4[sp] / 6[sp] (signed division)
+
+	mov	a, #0xC0	; Set DIVMODE=1 and MACMODE=1
+	mov	!MDUC, a	; This preps the peripheral for division without interrupt generation
+
+	clrw	ax     		; Clear the top 16-bits of the divisor and dividend
+	movw	MDBH, ax
+	movw	MDAH, ax
+	
+	;; Load and test for a negative denumerator.
+	movw	ax, [sp+6]
+	movw	MDBL, ax
+	mov1	cy, a.7
+	bc	$__div_neg_den
+
+	;; Load and test for a negative numerator.
+	movw	ax, [sp+4]
+	mov1	cy, a.7
+	movw	MDAL, ax
+	bc	$__div_neg_num
+
+	;; Neither are negative - we can use the unsigned divide hardware.
+__div_no_convert:	
+	mov	a, #0xC1	; Set the DIVST bit in MDUC
+	mov	!MDUC, a	; This starts the division op
+
+1:	mov	a, !MDUC	; Wait 16 clocks or until DIVST is clear
+	bt	a.0, $1b
+
+  	movw	ax, MDAL	; Read the result
+	movw	r8, ax
+	ret
+
+__div_neg_den:
+	;; Negate the denumerator (which is in MDBL)
+	_Negate MDBL MDBL
+
+	;; Load and test for a negative numerator.
+	movw	ax, [sp+4]
+	mov1	cy, a.7
+	movw	MDAL, ax
+	;; If it is not negative then we perform the division and then negate the result.
+	bnc	$__div_then_convert
+
+	;; Otherwise we negate the numerator and then go with a straightforward unsigned division.
+	_Negate MDAL MDAL
+	br	$!__div_no_convert
+
+__div_neg_num:
+	;; Negate the numerator (which is in MDAL)
+	;; We know that the denumerator is positive.
+	_Negate MDAL MDAL
+	
+__div_then_convert:
+	mov	a, #0xC1	; Set the DIVST bit in MDUC
+	mov	!MDUC, a	; This starts the division op
+
+1:	mov	a, !MDUC	; Wait 16 clocks or until DIVST is clear
+	bt	a.0, $1b
+
+	;; Negate result and transfer into r8
+	_Negate MDAL r8
+	ret
+
+END_FUNC ___divhi3
+
+;----------------------------------------------------------------------
+
+START_FUNC ___modhi3
+	;; r8 = 4[sp] % 6[sp] (signed modulus)
+
+	mov	a, #0xC0	; Set DIVMODE=1 and MACMODE=1
+	mov	!MDUC, a	; This preps the peripheral for division without interrupt generation
+
+	clrw	ax     		; Clear the top 16-bits of the divisor and dividend
+	movw	MDBH, ax
+	movw	MDAH, ax
+	
+	;; Load and test for a negative denumerator.
+	movw	ax, [sp+6]
+	movw	MDBL, ax
+	mov1	cy, a.7
+	bc	$__mod_neg_den
+
+	;; Load and test for a negative numerator.
+	movw	ax, [sp+4]
+	mov1	cy, a.7
+	movw	MDAL, ax
+	bc	$__mod_neg_num
+
+	;; Neither are negative - we can use the unsigned divide hardware
+__mod_no_convert:	
+	mov	a, #0xC1	; Set the DIVST bit in MDUC
+	mov	!MDUC, a	; This starts the division op
+
+1:	mov	a, !MDUC	; Wait 16 clocks or until DIVST is clear
+	bt	a.0, $1b
+
+  	movw	ax, !MDCL	; Read the remainder
+	movw	r8, ax
+	ret
+
+__mod_neg_den:
+	;; Negate the denumerator (which is in MDBL)
+	_Negate MDBL MDBL
+	
+	;; Load and test for a negative numerator.
+	movw	ax, [sp+4]
+	mov1	cy, a.7
+	movw	MDAL, ax
+	;; If it is not negative then we perform the modulo operation without conversion.
+	bnc	$__mod_no_convert
+
+	;; Otherwise we negate the numerator and then go with a modulo followed by negation.
+	_Negate MDAL MDAL
+	br	$!__mod_then_convert
+
+__mod_neg_num:
+	;; Negate the numerator (which is in MDAL)
+	;; We know that the denumerator is positive.
+	_Negate MDAL MDAL
+	
+__mod_then_convert:
+	mov	a, #0xC1	; Set the DIVST bit in MDUC
+	mov	!MDUC, a	; This starts the division op
+
+1:	mov	a, !MDUC	; Wait 16 clocks or until DIVST is clear
+	bt	a.0, $1b
+
+	_Negate	MDCL r8
+	ret
+
+END_FUNC ___modhi3
+
+;----------------------------------------------------------------------
+
+START_FUNC ___udivhi3
+	;; r8 = 4[sp] / 6[sp] (unsigned division)
+
+	mov	a, #0xC0	; Set DIVMODE=1 and MACMODE=1
+	mov	!MDUC, a	; This preps the peripheral for division without interrupt generation
+
+	movw	ax, [sp+4]	; Load the divisor
+	movw	MDAL, ax
+	movw	ax, [sp+6]	; Load the dividend
+	movw	MDBL, ax
+	clrw	ax
+	movw	MDAH, ax
+	movw	MDBH, ax
+	
+	mov	a, #0xC1	; Set the DIVST bit in MDUC
+	mov	!MDUC, a	; This starts the division op
+
+1:	mov	a, !MDUC	; Wait 16 clocks or until DIVST is clear
+	bt	a.0, $1b
+
+  	movw	ax, !MDAL	; Read the remainder
+	movw	r8, ax
+	ret
+
+END_FUNC   ___udivhi3
+
+;----------------------------------------------------------------------
+
+START_FUNC ___umodhi3
+	;; r8 = 4[sp] % 6[sp] (unsigned modulus)
+
+	mov	a, #0xC0	; Set DIVMODE=1 and MACMODE=1
+	mov	!MDUC, a	; This preps the peripheral for division without interrupt generation
+
+	movw	ax, [sp+4]	; Load the divisor
+	movw	MDAL, ax
+	movw	ax, [sp+6]	; Load the dividend
+	movw	MDBL, ax
+	clrw	ax
+	movw	MDAH, ax
+	movw	MDBH, ax
+	
+	mov	a, #0xC1	; Set the DIVST bit in MDUC
+	mov	!MDUC, a	; This starts the division op
+
+1:	mov	a, !MDUC	; Wait 16 clocks or until DIVST is clear
+	bt	a.0, $1b
+
+  	movw	ax, !MDCL	; Read the remainder
+	movw	r8, ax
+	ret
+	
+END_FUNC   ___umodhi3
+
+;----------------------------------------------------------------------
+	
+#elif defined __RL78_MUL_NONE__
+	
+.macro MAKE_GENERIC  which,need_result
 
 	.if \need_result
 	quot = r8
@@ -53,11 +405,11 @@
 	bitB0 = bit
 	bitB1 = bit+1
 
-#if 1
 #define bit	bc
 #define bitB0	c
 #define bitB1	b
-#endif
+
+	START_FUNC __generic_hidivmod\which
 
 num_lt_den\which:
 	.if \need_result
@@ -72,12 +424,13 @@ num_lt_den\which:
 	;; to store sign information that must remain intact
 
 	.if \need_result
-
-generic_div:
+	.global __generic_hidiv
+__generic_hidiv:
 
 	.else
 
-generic_mod:
+	.global __generic_himod
+__generic_himod:
 
 	.endif
 
@@ -101,7 +454,11 @@ generic_mod:
 	movw	ax, den
 	cmpw	ax, #0
 	bnz	$den_not_zero\which
+	.if \need_result
+	movw    quot, #0
+	.else
 	movw	num, #0
+	.endif
 	ret
 
 den_not_zero\which:
@@ -193,42 +550,40 @@ enter_main_loop\which:
 
 main_loop_done\which:	
 	ret
-	.endm
+	END_FUNC __generic_hidivmod\which
+.endm
+;----------------------------------------------------------------------
 
-	make_generic _d 1
-	make_generic _m 0
+	MAKE_GENERIC _d 1
+	MAKE_GENERIC _m 0
 
 ;----------------------------------------------------------------------
 
-	.global	___udivhi3
-	.type	___udivhi3,@function
-___udivhi3:
+START_FUNC ___udivhi3
 	;; r8 = 4[sp] / 6[sp]
-	call	$!generic_div
+	call	$!__generic_hidiv
 	ret
-	.size	___udivhi3, . - ___udivhi3
+END_FUNC ___udivhi3
 	
 
-	.global	___umodhi3
-	.type	___umodhi3,@function
-___umodhi3:
+START_FUNC ___umodhi3
 	;; r8 = 4[sp] % 6[sp]
-	call	$!generic_mod
+	call	$!__generic_himod
 	ret
-	.size	___umodhi3, . - ___umodhi3
+END_FUNC ___umodhi3
 
 ;----------------------------------------------------------------------
 
-	.macro neg_ax
+.macro NEG_AX
 	movw	hl, ax
 	movw	ax, #0
 	subw	ax, [hl]
 	movw	[hl], ax
-	.endm
+.endm
 
-	.global	___divhi3
-	.type	___divhi3,@function
-___divhi3:
+;----------------------------------------------------------------------
+
+START_FUNC ___divhi3
 	;; r8 = 4[sp] / 6[sp]
 	movw	de, #0
 	mov	a, [sp+5]
@@ -237,14 +592,14 @@ ___divhi3:
 	mov	a, [sp+7]
 	mov1	cy, a.7
 	bc	$div_signed_den
-	call	$!generic_div
+	call	$!__generic_hidiv
 	ret
 	
 div_signed_num:
 	;; neg [sp+4]
 	movw	ax, sp
 	addw	ax, #4
-	neg_ax
+	NEG_AX
 	mov	d, #1
 	mov	a, [sp+7]
 	mov1	cy, a.7
@@ -253,10 +608,10 @@ div_signed_den:
 	;; neg [sp+6]
 	movw	ax, sp
 	addw	ax, #6
-	neg_ax
+	NEG_AX
 	mov	e, #1
 div_unsigned_den:	
-	call	$!generic_div
+	call	$!__generic_hidiv
 
 	mov	a, d
 	cmp0	a
@@ -264,28 +619,26 @@ div_unsigned_den:
 	;;  We have to restore the numerator [sp+4]
 	movw	ax, sp
 	addw	ax, #4
-	neg_ax
+	NEG_AX
 	mov	a, d
 div_skip_restore_num:	
 	xor	a, e
 	bz	$div_no_neg
 	movw	ax, #r8
-	neg_ax
+	NEG_AX
 div_no_neg:
 	mov	a, e
 	cmp0	a
 	bz	$div_skip_restore_den
 	movw	ax, sp
 	addw	ax, #6
-	neg_ax
+	NEG_AX
 div_skip_restore_den:	
 	ret
-	.size	___divhi3, . - ___divhi3
+END_FUNC ___divhi3
 	
 
-	.global	___modhi3
-	.type	___modhi3,@function
-___modhi3:
+START_FUNC ___modhi3
 	;; r8 = 4[sp] % 6[sp]
 	movw	de, #0
 	mov	a, [sp+5]
@@ -294,14 +647,14 @@ ___modhi3:
 	mov	a, [sp+7]
 	mov1	cy, a.7
 	bc	$mod_signed_den
-	call	$!generic_mod
+	call	$!__generic_himod
 	ret
 	
 mod_signed_num:
 	;; neg [sp+4]
 	movw	ax, sp
 	addw	ax, #4
-	neg_ax
+	NEG_AX
 	mov	d, #1
 	mov	a, [sp+7]
 	mov1	cy, a.7
@@ -310,28 +663,34 @@ mod_signed_den:
 	;; neg [sp+6]
 	movw	ax, sp
 	addw	ax, #6
-	neg_ax
+	NEG_AX
 mod_unsigned_den:	
-	call	$!generic_mod
+	call	$!__generic_himod
 
 	mov	a, d
 	cmp0	a
 	bz	$mod_no_neg
 	movw	ax, #r8
-	neg_ax
+	NEG_AX
 	;;  Also restore numerator
 	movw 	ax, sp
 	addw	ax, #4
-	neg_ax
+	NEG_AX
 mod_no_neg:
 	mov	a, e
 	cmp0	a
 	bz	$mod_skip_restore_den
 	movw	ax, sp
 	addw	ax, #6
-	neg_ax
+	NEG_AX
 mod_skip_restore_den:	
 	ret
-	.size	___modhi3, . - ___modhi3
+END_FUNC ___modhi3
+
+;----------------------------------------------------------------------
+
+#else
+
+#error "Unknown RL78 hardware multiply/divide support"
 
 #endif

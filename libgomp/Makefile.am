@@ -1,15 +1,17 @@
 ## Process this file with automake to produce Makefile.in
 
+AUTOMAKE_OPTIONS = info-in-builddir
 ACLOCAL_AMFLAGS = -I .. -I ../config
 SUBDIRS = testsuite
 
 ## May be used by toolexeclibdir.
-gcc_version := $(shell cat $(top_srcdir)/../gcc/BASE-VER)
+gcc_version := $(shell @get_gcc_base_ver@ $(top_srcdir)/../gcc/BASE-VER)
 
 config_path = @config_path@
-search_path = $(addprefix $(top_srcdir)/config/, $(config_path)) $(top_srcdir)
+search_path = $(addprefix $(top_srcdir)/config/, $(config_path)) $(top_srcdir) \
+	      $(top_srcdir)/../include
 
-fincludedir = $(libdir)/gcc/$(target_alias)/$(gcc_version)/finclude
+fincludedir = $(libdir)/gcc/$(target_alias)/$(gcc_version)$(MULTISUBDIR)/finclude
 libsubincludedir = $(libdir)/gcc/$(target_alias)/$(gcc_version)/include
 
 vpath % $(strip $(search_path))
@@ -57,15 +59,25 @@ libgomp_la_LDFLAGS = $(libgomp_version_info) $(libgomp_version_script) \
 libgomp_la_DEPENDENCIES = $(libgomp_version_dep)
 libgomp_la_LINK = $(LINK) $(libgomp_la_LDFLAGS)
 
-libgomp_la_SOURCES = alloc.c barrier.c critical.c env.c error.c iter.c \
-	iter_ull.c loop.c loop_ull.c ordered.c parallel.c sections.c single.c \
-	task.c team.c work.c lock.c mutex.c proc.c sem.c bar.c ptrlock.c \
-	time.c fortran.c affinity.c target.c
+libgomp_la_SOURCES = alloc.c atomic.c barrier.c critical.c env.c error.c \
+	icv.c icv-device.c iter.c iter_ull.c loop.c loop_ull.c ordered.c \
+	parallel.c sections.c single.c task.c team.c work.c lock.c mutex.c \
+	proc.c sem.c bar.c ptrlock.c time.c fortran.c affinity.c target.c \
+	splay-tree.c libgomp-plugin.c oacc-parallel.c oacc-host.c oacc-init.c \
+	oacc-mem.c oacc-async.c oacc-plugin.c oacc-cuda.c priority_queue.c \
+	affinity-fmt.c teams.c
+
+include $(top_srcdir)/plugin/Makefrag.am
+
+if USE_FORTRAN
+libgomp_la_SOURCES += openacc.f90
+endif
 
 nodist_noinst_HEADERS = libgomp_f.h
-nodist_libsubinclude_HEADERS = omp.h
+nodist_libsubinclude_HEADERS = omp.h openacc.h
 if USE_FORTRAN
-nodist_finclude_HEADERS = omp_lib.h omp_lib.f90 omp_lib.mod omp_lib_kinds.mod
+nodist_finclude_HEADERS = omp_lib.h omp_lib.f90 omp_lib.mod omp_lib_kinds.mod \
+	openacc_lib.h openacc.f90 openacc.mod openacc_kinds.mod
 endif
 
 LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
@@ -75,7 +87,11 @@ LINK = $(LIBTOOL) --tag CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link \
 
 omp_lib_kinds.mod: omp_lib.mod
 	:
-omp_lib.mod: omp_lib.f90
+openacc_kinds.mod: openacc.mod
+	:
+openacc.mod: openacc.lo
+	:
+%.mod: %.f90
 	$(FC) $(FCFLAGS) -fsyntax-only $<
 fortran.lo: libgomp_f.h
 fortran.o: libgomp_f.h
@@ -122,5 +138,7 @@ stamp-build-info: libgomp.texi
 	@touch $@
 
 
-CLEANFILES = $(STAMP_GENINSRC) $(STAMP_BUILD_INFO) libgomp.info
+CLEANFILES = $(STAMP_GENINSRC) $(STAMP_BUILD_INFO)
 MAINTAINERCLEANFILES = $(srcdir)/libgomp.info
+
+include $(top_srcdir)/../multilib.am

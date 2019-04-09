@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-O3 -fwhole-file -fdump-tree-optimized" }
+! { dg-options "-O3 -fdump-tree-optimized" }
 ! { dg-add-options bind_pic_locally }
 !
 ! Check that inlining of functions declared BEFORE usage works.
@@ -17,4 +17,3 @@ PROGRAM main
 END PROGRAM
 
 ! { dg-final { scan-tree-dump-times "= f \\(\\)" 0 "optimized" } }
-! { dg-final { cleanup-tree-dump "optimized" } }

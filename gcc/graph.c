@@ -1,5 +1,5 @@
 /* Output routines for graphical representation.
-   Copyright (C) 1998-2014 Free Software Foundation, Inc.
+   Copyright (C) 1998-2019 Free Software Foundation, Inc.
    Contributed by Ulrich Drepper <drepper@cygnus.com>, 1998.
    Rewritten for DOT output by Steven Bosscher, 2012.
 
@@ -22,13 +22,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "backend.h"
+#include "cfghooks.h"
+#include "pretty-print.h"
 #include "diagnostic-core.h" /* for fatal_error */
-#include "sbitmap.h"
-#include "basic-block.h"
+#include "cfganal.h"
 #include "cfgloop.h"
 #include "graph.h"
 #include "dumpfile.h"
-#include "pretty-print.h"
 
 /* DOT files with the .dot extension are recognized as document templates
    by a well-known piece of word processing software out of Redmond, WA.
@@ -51,7 +52,7 @@ open_graph_file (const char *base, const char *mode)
 
   fp = fopen (buf, mode);
   if (fp == NULL)
-    fatal_error ("can%'t open %s: %m", buf);
+    fatal_error (input_location, "can%'t open %s: %m", buf);
 
   return fp;
 }
@@ -135,12 +136,16 @@ draw_cfg_node_succ_edges (pretty_printer *pp, int funcdef_no, basic_block bb)
 
       pp_printf (pp,
 		 "\tfn_%d_basic_block_%d:s -> fn_%d_basic_block_%d:n "
-		 "[style=%s,color=%s,weight=%d,constraint=%s, label=\"[%i%%]\"];\n",
+		 "[style=%s,color=%s,weight=%d,constraint=%s",
 		 funcdef_no, e->src->index,
 		 funcdef_no, e->dest->index,
 		 style, color, weight,
-		 (e->flags & (EDGE_FAKE | EDGE_DFS_BACK)) ? "false" : "true",
-		 e->probability * 100 / REG_BR_PROB_BASE);
+		 (e->flags & (EDGE_FAKE | EDGE_DFS_BACK)) ? "false" : "true");
+      if (e->probability.initialized_p ())
+        pp_printf (pp, ",label=\"[%i%%]\"",
+		   e->probability.to_reg_br_prob_base ()
+		   * 100 / REG_BR_PROB_BASE);
+      pp_printf (pp, "];\n");
     }
   pp_flush (pp);
 }
@@ -155,9 +160,8 @@ draw_cfg_nodes_no_loops (pretty_printer *pp, struct function *fun)
 {
   int *rpo = XNEWVEC (int, n_basic_blocks_for_fn (fun));
   int i, n;
-  sbitmap visited;
 
-  visited = sbitmap_alloc (last_basic_block_for_fn (cfun));
+  auto_sbitmap visited (last_basic_block_for_fn (cfun));
   bitmap_clear (visited);
 
   n = pre_and_rev_post_order_compute_fn (fun, NULL, rpo, true);
@@ -178,8 +182,6 @@ draw_cfg_nodes_no_loops (pretty_printer *pp, struct function *fun)
 	if (! bitmap_bit_p (visited, bb->index))
 	  draw_cfg_node (pp, fun->funcdef_no, bb);
     }
-
-  sbitmap_free (visited);
 }
 
 /* Draw all the basic blocks in LOOP.  Print the blocks in breath-first
@@ -245,18 +247,41 @@ draw_cfg_nodes (pretty_printer *pp, struct function *fun)
 }
 
 /* Draw all edges in the CFG.  Retreating edges are drawin as not
-   constraining, this makes the layout of the graph better.
-   (??? Calling mark_dfs_back may change the compiler's behavior when
-   dumping, but computing back edges here for ourselves is also not
-   desirable.)  */
+   constraining, this makes the layout of the graph better.  */
 
 static void
 draw_cfg_edges (pretty_printer *pp, struct function *fun)
 {
   basic_block bb;
+
+  /* Save EDGE_DFS_BACK flag to dfs_back.  */
+  auto_bitmap dfs_back;
+  edge e;
+  edge_iterator ei;
+  unsigned int idx = 0;
+  FOR_EACH_BB_FN (bb, cfun)
+    FOR_EACH_EDGE (e, ei, bb->succs)
+      {
+	if (e->flags & EDGE_DFS_BACK)
+	  bitmap_set_bit (dfs_back, idx);
+	idx++;
+      }
+
   mark_dfs_back_edges ();
   FOR_ALL_BB_FN (bb, cfun)
     draw_cfg_node_succ_edges (pp, fun->funcdef_no, bb);
+
+  /* Restore EDGE_DFS_BACK flag from dfs_back.  */
+  idx = 0;
+  FOR_EACH_BB_FN (bb, cfun)
+    FOR_EACH_EDGE (e, ei, bb->succs)
+      {
+	if (bitmap_bit_p (dfs_back, idx))
+	  e->flags |= EDGE_DFS_BACK;
+	else
+	  e->flags &= ~EDGE_DFS_BACK;
+	idx++;
+      }
 
   /* Add an invisible edge from ENTRY to EXIT, to improve the graph layout.  */
   pp_printf (pp,
@@ -272,22 +297,46 @@ draw_cfg_edges (pretty_printer *pp, struct function *fun)
    subgraphs right for GraphViz, which requires nodes to be defined
    before edges to cluster nodes properly.  */
 
-void
-print_graph_cfg (const char *base, struct function *fun)
+void DEBUG_FUNCTION
+print_graph_cfg (FILE *fp, struct function *fun)
 {
-  const char *funcname = function_name (fun);
-  FILE *fp = open_graph_file (base, "a");
   pretty_printer graph_slim_pp;
   graph_slim_pp.buffer->stream = fp;
   pretty_printer *const pp = &graph_slim_pp;
-  pp_printf (pp, "subgraph \"%s\" {\n"
-	         "\tcolor=\"black\";\n"
-		 "\tlabel=\"%s\";\n",
+  const char *funcname = function_name (fun);
+  pp_printf (pp, "subgraph \"cluster_%s\" {\n"
+		 "\tstyle=\"dashed\";\n"
+		 "\tcolor=\"black\";\n"
+		 "\tlabel=\"%s ()\";\n",
 		 funcname, funcname);
   draw_cfg_nodes (pp, fun);
   draw_cfg_edges (pp, fun);
   pp_printf (pp, "}\n");
   pp_flush (pp);
+}
+
+/* Overload with additional flag argument.  */
+
+void DEBUG_FUNCTION
+print_graph_cfg (FILE *fp, struct function *fun, dump_flags_t flags)
+{
+  dump_flags_t saved_dump_flags = dump_flags;
+  dump_flags = flags;
+  print_graph_cfg (fp, fun);
+  dump_flags = saved_dump_flags;
+}
+
+
+/* Print a graphical representation of the CFG of function FUN.
+   First print all basic blocks.  Draw all edges at the end to get
+   subgraphs right for GraphViz, which requires nodes to be defined
+   before edges to cluster nodes properly.  */
+
+void
+print_graph_cfg (const char *base, struct function *fun)
+{
+  FILE *fp = open_graph_file (base, "a");
+  print_graph_cfg (fp, fun);
   fclose (fp);
 }
 

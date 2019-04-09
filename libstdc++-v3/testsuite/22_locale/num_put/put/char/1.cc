@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "de_DE" }
+// { dg-require-namedlocale "de_DE.ISO8859-15" }
 
 // 2001-11-19 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,11 +30,9 @@ void test01()
   using namespace std;
   typedef ostreambuf_iterator<char> iterator_type;
 
-  bool test __attribute__((unused)) = true;
-
   // basic construction
   locale loc_c = locale::classic();
-  locale loc_de  = locale("de_DE");
+  locale loc_de  = locale(ISO_8859(15,de_DE));
   VERIFY( loc_c != loc_de );
 
   // cache the numpunct facets

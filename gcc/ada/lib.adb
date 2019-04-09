@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -36,8 +36,8 @@ pragma Style_Checks (All_Checks);
 with Atree;    use Atree;
 with Csets;    use Csets;
 with Einfo;    use Einfo;
-with Fname;    use Fname;
 with Nlists;   use Nlists;
+with Opt;      use Opt;
 with Output;   use Output;
 with Sinfo;    use Sinfo;
 with Sinput;   use Sinput;
@@ -62,15 +62,22 @@ package body Lib is
       Yes_After,  -- S1 is in same extended unit as S2, and appears after it
       No);        -- S2 is not in same extended unit as S2
 
-   function Check_Same_Extended_Unit (S1, S2 : Source_Ptr) return SEU_Result;
+   function Check_Same_Extended_Unit
+     (S1 : Source_Ptr;
+      S2 : Source_Ptr) return SEU_Result;
    --  Used by In_Same_Extended_Unit and Earlier_In_Extended_Unit. Returns
    --  value as described above.
 
    function Get_Code_Or_Source_Unit
      (S                : Source_Ptr;
-      Unwind_Instances : Boolean) return Unit_Number_Type;
-   --  Common code for Get_Code_Unit (get unit of instantiation for location)
-   --  and Get_Source_Unit (get unit of template for location).
+      Unwind_Instances : Boolean;
+      Unwind_Subunits  : Boolean) return Unit_Number_Type;
+   --  Common processing for routines Get_Code_Unit, Get_Source_Unit, and
+   --  Get_Top_Level_Code_Unit. Unwind_Instances is True when the unit for the
+   --  top-level instantiation should be returned instead of the unit for the
+   --  template, in the case of an instantiation. Unwind_Subunits is True when
+   --  the corresponding top-level unit should be returned instead of a
+   --  subunit, in the case of a subunit.
 
    --------------------------------------------
    -- Access Functions for Unit Table Fields --
@@ -106,7 +113,7 @@ package body Lib is
       return Units.Table (U).Expected_Unit;
    end Expected_Unit;
 
-   function Fatal_Error (U : Unit_Number_Type) return Boolean is
+   function Fatal_Error (U : Unit_Number_Type) return Fatal_Type is
    begin
       return Units.Table (U).Fatal_Error;
    end Fatal_Error;
@@ -120,6 +127,21 @@ package body Lib is
    begin
       return Units.Table (U).Has_RACW;
    end Has_RACW;
+
+   function Is_Predefined_Renaming (U : Unit_Number_Type) return Boolean is
+   begin
+      return Units.Table (U).Is_Predefined_Renaming;
+   end Is_Predefined_Renaming;
+
+   function Is_Internal_Unit       (U : Unit_Number_Type) return Boolean is
+   begin
+      return Units.Table (U).Is_Internal_Unit;
+   end Is_Internal_Unit;
+
+   function Is_Predefined_Unit     (U : Unit_Number_Type) return Boolean is
+   begin
+      return Units.Table (U).Is_Predefined_Unit;
+   end Is_Predefined_Unit;
 
    function Ident_String (U : Unit_Number_Type) return Node_Id is
    begin
@@ -155,6 +177,16 @@ package body Lib is
    begin
       return Units.Table (U).OA_Setting;
    end OA_Setting;
+
+   function Primary_Stack_Count (U : Unit_Number_Type) return Int is
+   begin
+      return Units.Table (U).Primary_Stack_Count;
+   end Primary_Stack_Count;
+
+   function Sec_Stack_Count  (U : Unit_Number_Type) return Int is
+   begin
+      return Units.Table (U).Sec_Stack_Count;
+   end Sec_Stack_Count;
 
    function Source_Index (U : Unit_Number_Type) return Source_File_Index is
    begin
@@ -196,9 +228,9 @@ package body Lib is
       Units.Table (U).Error_Location := W;
    end Set_Error_Location;
 
-   procedure Set_Fatal_Error (U : Unit_Number_Type; B : Boolean := True) is
+   procedure Set_Fatal_Error (U : Unit_Number_Type; V : Fatal_Type) is
    begin
-      Units.Table (U).Fatal_Error := B;
+      Units.Table (U).Fatal_Error := V;
    end Set_Fatal_Error;
 
    procedure Set_Generate_Code (U : Unit_Number_Type; B : Boolean := True) is
@@ -253,19 +285,26 @@ package body Lib is
    -- Check_Same_Extended_Unit --
    ------------------------------
 
-   function Check_Same_Extended_Unit (S1, S2 : Source_Ptr) return SEU_Result is
-      Sloc1  : Source_Ptr;
-      Sloc2  : Source_Ptr;
-      Sind1  : Source_File_Index;
-      Sind2  : Source_File_Index;
-      Inst1  : Source_Ptr;
-      Inst2  : Source_Ptr;
-      Unum1  : Unit_Number_Type;
-      Unum2  : Unit_Number_Type;
-      Unit1  : Node_Id;
-      Unit2  : Node_Id;
-      Depth1 : Nat;
-      Depth2 : Nat;
+   function Check_Same_Extended_Unit
+     (S1 : Source_Ptr;
+      S2 : Source_Ptr) return SEU_Result
+   is
+      Max_Iterations : constant Nat := Maximum_Instantiations * 2;
+      --  Limit to prevent a potential infinite loop
+
+      Counter : Nat := 0;
+      Depth1  : Nat;
+      Depth2  : Nat;
+      Inst1   : Source_Ptr;
+      Inst2   : Source_Ptr;
+      Sind1   : Source_File_Index;
+      Sind2   : Source_File_Index;
+      Sloc1   : Source_Ptr;
+      Sloc2   : Source_Ptr;
+      Unit1   : Node_Id;
+      Unit2   : Node_Id;
+      Unum1   : Unit_Number_Type;
+      Unum2   : Unit_Number_Type;
 
    begin
       if S1 = No_Location or else S2 = No_Location then
@@ -430,7 +469,21 @@ package body Lib is
          return No;
 
          <<Continue>>
-            null;
+         Counter := Counter + 1;
+
+         --  Prevent looping forever
+
+         if Counter > Max_Iterations then
+
+            --  ??? Not quite right, but return a value to be able to generate
+            --  SCIL files and hope for the best.
+
+            if CodePeer_Mode then
+               return No;
+            else
+               raise Program_Error;
+            end if;
+         end if;
       end loop;
    end Check_Same_Extended_Unit;
 
@@ -465,9 +518,20 @@ package body Lib is
    -- Earlier_In_Extended_Unit --
    ------------------------------
 
-   function Earlier_In_Extended_Unit (S1, S2 : Source_Ptr) return Boolean is
+   function Earlier_In_Extended_Unit
+     (S1 : Source_Ptr;
+      S2 : Source_Ptr) return Boolean
+   is
    begin
       return Check_Same_Extended_Unit (S1, S2) = Yes_Before;
+   end Earlier_In_Extended_Unit;
+
+   function Earlier_In_Extended_Unit
+     (N1 : Node_Or_Entity_Id;
+      N2 : Node_Or_Entity_Id) return Boolean
+   is
+   begin
+      return Earlier_In_Extended_Unit (Sloc (N1), Sloc (N2));
    end Earlier_In_Extended_Unit;
 
    -----------------------
@@ -553,7 +617,7 @@ package body Lib is
    -- Generic_May_Lack_ALI --
    --------------------------
 
-   function Generic_May_Lack_ALI (Sfile : File_Name_Type) return Boolean is
+   function Generic_May_Lack_ALI (Unum : Unit_Number_Type) return Boolean is
    begin
       --  We allow internal generic units to be used without having a
       --  corresponding ALI files to help bootstrapping with older compilers
@@ -562,9 +626,7 @@ package body Lib is
       --  is the elaboration boolean, and we are careful to elaborate all
       --  predefined units first anyway.
 
-      return Is_Internal_File_Name
-               (Fname              => Sfile,
-                Renamings_Included => True);
+      return Is_Internal_Unit (Unum);
    end Generic_May_Lack_ALI;
 
    -----------------------------
@@ -573,7 +635,8 @@ package body Lib is
 
    function Get_Code_Or_Source_Unit
      (S                : Source_Ptr;
-      Unwind_Instances : Boolean) return Unit_Number_Type
+      Unwind_Instances : Boolean;
+      Unwind_Subunits  : Boolean) return Unit_Number_Type
    is
    begin
       --  Search table unless we have No_Location, which can happen if the
@@ -584,17 +647,33 @@ package body Lib is
          declare
             Source_File : Source_File_Index;
             Source_Unit : Unit_Number_Type;
+            Unit_Node   : Node_Id;
 
          begin
             Source_File := Get_Source_File_Index (S);
 
             if Unwind_Instances then
-               while Template (Source_File) /= No_Source_File loop
+               while Template (Source_File) > No_Source_File loop
                   Source_File := Template (Source_File);
                end loop;
             end if;
 
             Source_Unit := Unit (Source_File);
+
+            if Unwind_Subunits then
+               Unit_Node := Unit (Cunit (Source_Unit));
+
+               while Nkind (Unit_Node) = N_Subunit
+                 and then Present (Corresponding_Stub (Unit_Node))
+               loop
+                  Source_Unit :=
+                    Get_Code_Or_Source_Unit
+                      (Sloc (Corresponding_Stub (Unit_Node)),
+                       Unwind_Instances => Unwind_Instances,
+                       Unwind_Subunits  => Unwind_Subunits);
+                  Unit_Node := Unit (Cunit (Source_Unit));
+               end loop;
+            end if;
 
             if Source_Unit /= No_Unit then
                return Source_Unit;
@@ -615,8 +694,11 @@ package body Lib is
 
    function Get_Code_Unit (S : Source_Ptr) return Unit_Number_Type is
    begin
-      return Get_Code_Or_Source_Unit (Top_Level_Location (S),
-        Unwind_Instances => False);
+      return
+        Get_Code_Or_Source_Unit
+          (Top_Level_Location (S),
+           Unwind_Instances => False,
+           Unwind_Subunits  => False);
    end Get_Code_Unit;
 
    function Get_Code_Unit (N : Node_Or_Entity_Id) return Unit_Number_Type is
@@ -632,7 +714,6 @@ package body Lib is
    begin
       if N <= Compilation_Switches.Last then
          return Compilation_Switches.Table (N);
-
       else
          return null;
       end if;
@@ -691,13 +772,36 @@ package body Lib is
 
    function Get_Source_Unit (S : Source_Ptr) return Unit_Number_Type is
    begin
-      return Get_Code_Or_Source_Unit (S, Unwind_Instances => True);
+      return
+        Get_Code_Or_Source_Unit
+          (S                => S,
+           Unwind_Instances => True,
+           Unwind_Subunits  => False);
    end Get_Source_Unit;
 
    function Get_Source_Unit (N : Node_Or_Entity_Id) return Unit_Number_Type is
    begin
       return Get_Source_Unit (Sloc (N));
    end Get_Source_Unit;
+
+   -----------------------------
+   -- Get_Top_Level_Code_Unit --
+   -----------------------------
+
+   function Get_Top_Level_Code_Unit (S : Source_Ptr) return Unit_Number_Type is
+   begin
+      return
+        Get_Code_Or_Source_Unit
+          (Top_Level_Location (S),
+           Unwind_Instances => False,
+           Unwind_Subunits  => True);
+   end Get_Top_Level_Code_Unit;
+
+   function Get_Top_Level_Code_Unit
+     (N : Node_Or_Entity_Id) return Unit_Number_Type is
+   begin
+      return Get_Top_Level_Code_Unit (Sloc (N));
+   end Get_Top_Level_Code_Unit;
 
    --------------------------------
    -- In_Extended_Main_Code_Unit --
@@ -732,8 +836,7 @@ package body Lib is
       --  Node may be in spec (or subunit etc) of main unit
 
       else
-         return
-           In_Same_Extended_Unit (N, Cunit (Main_Unit));
+         return In_Same_Extended_Unit (N, Cunit (Main_Unit));
       end if;
    end In_Extended_Main_Code_Unit;
 
@@ -753,8 +856,7 @@ package body Lib is
       --  Location may be in spec (or subunit etc) of main unit
 
       else
-         return
-           In_Same_Extended_Unit (Loc, Sloc (Cunit (Main_Unit)));
+         return In_Same_Extended_Unit (Loc, Sloc (Cunit (Main_Unit)));
       end if;
    end In_Extended_Main_Code_Unit;
 
@@ -830,6 +932,36 @@ package body Lib is
       end if;
    end In_Extended_Main_Source_Unit;
 
+   ----------------------
+   -- In_Internal_Unit --
+   ----------------------
+
+   function In_Internal_Unit (N : Node_Or_Entity_Id) return Boolean is
+   begin
+      return In_Internal_Unit (Sloc (N));
+   end In_Internal_Unit;
+
+   function In_Internal_Unit (S : Source_Ptr) return Boolean is
+      Unit : constant Unit_Number_Type := Get_Source_Unit (S);
+   begin
+      return Is_Internal_Unit (Unit);
+   end In_Internal_Unit;
+
+   ----------------------------
+   -- In_Predefined_Renaming --
+   ----------------------------
+
+   function In_Predefined_Renaming (N : Node_Or_Entity_Id) return Boolean is
+   begin
+      return In_Predefined_Renaming (Sloc (N));
+   end In_Predefined_Renaming;
+
+   function In_Predefined_Renaming (S : Source_Ptr) return Boolean is
+      Unit : constant Unit_Number_Type := Get_Source_Unit (S);
+   begin
+      return Is_Predefined_Renaming (Unit);
+   end In_Predefined_Renaming;
+
    ------------------------
    -- In_Predefined_Unit --
    ------------------------
@@ -841,9 +973,8 @@ package body Lib is
 
    function In_Predefined_Unit (S : Source_Ptr) return Boolean is
       Unit : constant Unit_Number_Type := Get_Source_Unit (S);
-      File : constant File_Name_Type   := Unit_File_Name (Unit);
    begin
-      return Is_Predefined_File_Name (File);
+      return Is_Predefined_Unit (Unit);
    end In_Predefined_Unit;
 
    -----------------------
@@ -906,6 +1037,26 @@ package body Lib is
       return Get_Source_Unit (N1) = Get_Source_Unit (N2);
    end In_Same_Source_Unit;
 
+   -----------------------------------
+   -- Increment_Primary_Stack_Count --
+   -----------------------------------
+
+   procedure Increment_Primary_Stack_Count (Increment : Int) is
+      PSC : Int renames Units.Table (Current_Sem_Unit).Primary_Stack_Count;
+   begin
+      PSC := PSC + Increment;
+   end Increment_Primary_Stack_Count;
+
+   -------------------------------
+   -- Increment_Sec_Stack_Count --
+   -------------------------------
+
+   procedure Increment_Sec_Stack_Count (Increment : Int) is
+      SSC : Int renames Units.Table (Current_Sem_Unit).Sec_Stack_Count;
+   begin
+      SSC := SSC + Increment;
+   end Increment_Sec_Stack_Count;
+
    -----------------------------
    -- Increment_Serial_Number --
    -----------------------------
@@ -966,12 +1117,12 @@ package body Lib is
 
    procedure Lock is
    begin
-      Linker_Option_Lines.Locked := True;
-      Load_Stack.Locked := True;
-      Units.Locked := True;
       Linker_Option_Lines.Release;
+      Linker_Option_Lines.Locked := True;
       Load_Stack.Release;
+      Load_Stack.Locked := True;
       Units.Release;
+      Units.Locked := True;
    end Lock;
 
    ---------------
@@ -1175,7 +1326,7 @@ package body Lib is
       Write_Str ("=");
       Write_Str (Node_Kind'Image (Nkind (Item)));
 
-      if Item /= Original_Node (Item) then
+      if Is_Rewrite_Substitution (Item) then
          Write_Str (", orig = ");
          Write_Int (Int (Original_Node (Item)));
          Write_Str ("=");

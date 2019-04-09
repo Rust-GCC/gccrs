@@ -1,7 +1,7 @@
-// { dg-do run }
-// { dg-options "-std=gnu++11 -g -O0" }
+// { dg-do run { target c++11 } }
+// { dg-options "-g -O0" }
 
-// Copyright (C) 2014 Free Software Foundation, Inc.
+// Copyright (C) 2014-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -20,15 +20,42 @@
 
 #include <memory>
 
+struct x_struct
+{
+  int y;
+};
+
 int
 main ()
 {
-  int *i = new int;
-  *i = 10;
+  std::unique_ptr<int> p(new int(10));
 
-  std::unique_ptr<int> p(i);
+  std::unique_ptr<x_struct> q(new x_struct{23});
+
+  std::unique_ptr<x_struct[]> r(new x_struct[2]{ {46}, {69} });
+
 // { dg-final { note-test *p 10 } }
 // { dg-final { regexp-test p.get() 0x.* } }
+
+// { dg-final { whatis-test *p int } }
+// { dg-final { whatis-test p.get() "int \*" } }
+
+// { dg-final { note-test *q {\{y = 23\}} } }
+// { dg-final { regexp-test q.get() 0x.* } }
+// { dg-final { note-test q->y 23 } }
+
+// { dg-final { whatis-test *q x_struct } }
+// { dg-final { whatis-test q.get() "x_struct \*" } }
+// { dg-final { whatis-test q->y int } }
+
+// { dg-final { note-test r\[1] {\{y = 69\}} } }
+// { dg-final { regexp-test r.get() 0x.* } }
+// { dg-final { note-test r\[1].y 69 } }
+
+// { dg-final { whatis-test r\[1] x_struct } }
+// { dg-final { whatis-test r.get() "x_struct \*" } }
+// { dg-final { whatis-test r\[1].y int } }
+
 
   return 0;  // Mark SPOT
 }

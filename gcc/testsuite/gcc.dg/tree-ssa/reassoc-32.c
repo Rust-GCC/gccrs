@@ -1,7 +1,7 @@
-/* { dg-do run { target { ! "m68k*-*-* mmix*-*-* mep*-*-* bfin*-*-* v850*-*-* moxie*-*-* cris*-*-* m32c*-*-* fr30*-*-* mcore*-*-* powerpc*-*-* xtensa*-*-*"} } } */
+/* { dg-do run { target { ! "m68k*-*-* mmix*-*-* bfin*-*-* v850*-*-* moxie*-*-* cris*-*-* m32c*-*-* fr30*-*-* mcore*-*-* powerpc*-*-* xtensa*-*-*"} } } */
 
-/* { dg-options "-O2 -fno-inline -fdump-tree-reassoc1-details" } */
-/* { dg-additional-options "-mbranch-cost=2" { target mips*-*-* avr-*-* s390*-*-* i?86-*-* x86_64-*-* } } */
+/* { dg-options "-O2 -fno-inline -fdump-tree-reassoc1-details --param logical-op-non-short-circuit=1" } */
+/* { dg-additional-options "-mbranch-cost=2" { target branch_cost } } */
 
 
 int test (int a, int b, int c)
@@ -26,4 +26,3 @@ int main ()
 }
 
 /* { dg-final { scan-tree-dump-times "Optimizing range tests .* 26" 1 "reassoc1"} }*/
-/* { dg-final { cleanup-tree-dump "reassoc1" } } */

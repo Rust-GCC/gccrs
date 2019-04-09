@@ -1,5 +1,5 @@
 /* Prototypes for pa.c functions used in the md file & elsewhere.
-   Copyright (C) 2000-2014 Free Software Foundation, Inc.
+   Copyright (C) 2000-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,9 +20,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifdef RTX_CODE
 /* Prototype function used in various macros.  */
 extern rtx pa_eh_return_handler_rtx (void);
-
-/* Used in insn-*.c.  */
-extern int pa_following_call (rtx_insn *);
 
 /* Define functions in pa.c and used in insn-output.c.  */
 
@@ -51,7 +48,7 @@ extern const char *pa_output_mod_insn (int, rtx_insn *);
 extern const char *pa_singlemove_string (rtx *);
 extern void pa_output_addr_vec (rtx, rtx);
 extern void pa_output_addr_diff_vec (rtx, rtx);
-extern void pa_output_arg_descriptor (rtx);
+extern void pa_output_arg_descriptor (rtx_insn *);
 extern void pa_output_global_address (FILE *, rtx, int);
 extern void pa_print_operand (FILE *, rtx, int);
 extern void pa_encode_label (rtx);
@@ -60,40 +57,35 @@ extern int pa_adjust_insn_length (rtx_insn *, int);
 extern int pa_fmpyaddoperands (rtx *);
 extern int pa_fmpysuboperands (rtx *);
 extern void pa_emit_bcond_fp (rtx[]);
-extern int pa_emit_move_sequence (rtx *, enum machine_mode, rtx);
+extern int pa_emit_move_sequence (rtx *, machine_mode, rtx);
 extern int pa_emit_hpdiv_const (rtx *, int);
 extern int pa_is_function_label_plus_const (rtx);
-extern int pa_jump_in_call_delay (rtx_insn *);
 extern int pa_fpstore_bypass_p (rtx_insn *, rtx_insn *);
 extern int pa_attr_length_millicode_call (rtx_insn *);
 extern int pa_attr_length_call (rtx_insn *, int);
 extern int pa_attr_length_indirect_call (rtx_insn *);
-extern rtx pa_legitimize_reload_address (rtx, enum machine_mode,
+extern rtx pa_legitimize_reload_address (rtx, machine_mode,
 					 int, int, int);
 
 /* Declare functions defined in pa.c and used in templates.  */
 
 extern rtx pa_return_addr_rtx (int, rtx);
 
-#ifdef ARGS_SIZE_RTX
-/* expr.h defines ARGS_SIZE_RTX and `enum direction' */
-#ifdef TREE_CODE
-extern enum direction pa_function_arg_padding (enum machine_mode, const_tree);
-#endif
-#endif /* ARGS_SIZE_RTX */
 extern int pa_insn_refs_are_delayed (rtx_insn *);
 extern rtx pa_get_deferred_plabel (rtx);
+extern rtx pa_maybe_emit_compare_and_swap_exchange_loop (rtx, rtx, rtx);
 #endif /* RTX_CODE */
 
 extern int pa_and_mask_p (unsigned HOST_WIDE_INT);
-extern int pa_cint_ok_for_move (HOST_WIDE_INT);
+extern int pa_cint_ok_for_move (unsigned HOST_WIDE_INT);
 extern int pa_ior_mask_p (unsigned HOST_WIDE_INT);
-extern int pa_ldil_cint_p (HOST_WIDE_INT);
+extern int pa_ldil_cint_p (unsigned HOST_WIDE_INT);
+extern int pa_mem_shadd_constant_p (int);
 extern int pa_shadd_constant_p (int);
 extern int pa_zdepi_cint_p (unsigned HOST_WIDE_INT);
 
 extern void pa_output_ascii (FILE *, const char *, int);
-extern HOST_WIDE_INT pa_compute_frame_size (HOST_WIDE_INT, int *);
+extern HOST_WIDE_INT pa_compute_frame_size (poly_int64, int *);
 extern void pa_expand_prologue (void);
 extern void pa_expand_epilogue (void);
 extern bool pa_can_use_return_insn (void);
@@ -114,9 +106,10 @@ extern void pa_asm_output_aligned_local (FILE *, const char *,
 					 unsigned HOST_WIDE_INT,
 					 unsigned int);
 extern void pa_hpux_asm_output_external (FILE *, tree, const char *);
-extern bool pa_cannot_change_mode_class (enum machine_mode, enum machine_mode,
-					 enum reg_class);
-extern bool pa_modes_tieable_p (enum machine_mode, enum machine_mode);
 extern HOST_WIDE_INT pa_initial_elimination_offset (int, int);
+extern HOST_WIDE_INT pa_function_arg_size (machine_mode, const_tree);
 
 extern const int pa_magic_milli[];
+
+/* Routines implemented in pa-d.c  */
+extern void pa_d_target_versions (void);

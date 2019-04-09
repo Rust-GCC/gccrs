@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "en_US.ISO-8859-1" }
+// { dg-require-namedlocale "en_US.ISO8859-1" }
 
 // 2003-02-06  Petur Runolfsson  <peturr02@ru.is>
 
-// Copyright (C) 2003-2014 Free Software Foundation, Inc.
+// Copyright (C) 2003-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -49,7 +49,6 @@ void test03()
   typedef char					ext_type;
   typedef char_traits<char>			ext_traits;
 
-  bool test __attribute__((unused)) = true;
   const ext_type* 	e_lit = "a";
   const int_type 	i_lit[] = { L'a', 0x20ac, 0x0 };
   const int_type*       ifrom_next;
@@ -60,7 +59,7 @@ void test03()
   memset(e_ref, 0xf0, size + 1);
   ext_type*		eto_next;
 
-  locale loc = locale("en_US.ISO-8859-1");
+  locale loc = locale(ISO_8859(1,en_US));
   locale::global(loc);
   const w_codecvt* 	cvt = &use_facet<w_codecvt>(loc); 
 

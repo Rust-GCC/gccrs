@@ -1,10 +1,9 @@
-// { dg-options "-std=gnu++11" }
-// { dg-do run }
+// { dg-do run { target c++11 } }
 
 //
 // 2014-01-07  Tim Shen <timshen91@gmail.com>
 //
-// Copyright (C) 2010-2014 Free Software Foundation, Inc.
+// Copyright (C) 2010-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -46,8 +45,6 @@ template<typename CharT>
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
-
   basic_regex<wchar_t, MyRegexTraits<wchar_t>> re(L".");
   VERIFY(!regex_match(L"\n", re));
   VERIFY(!regex_match(L"\r", re));
@@ -55,8 +52,32 @@ test01()
   VERIFY(!regex_match(L"\u2029", re));
 }
 
+struct MyCtype : std::ctype<wchar_t>
+{
+  char
+  do_narrow(wchar_t c, char dflt) const override
+  {
+    if (c >= 256)
+      return dflt;
+    return ((char)c)+1;
+  }
+};
+
+void
+test02()
+{
+  std::locale loc(std::locale(), new MyCtype);
+  std::regex_traits<wchar_t> traits;
+  traits.imbue(loc);
+  wchar_t wch = L'p';
+  VERIFY(traits.lookup_collatename(&wch, &wch+1) == L"q");
+  std::wstring ws = L"chfhs"; // chars of "digit" shifted by 1.
+  VERIFY(traits.lookup_classname(ws.begin(), ws.end()) != 0);
+}
+
 int main()
 {
   test01();
+  test02();
   return 0;
 }

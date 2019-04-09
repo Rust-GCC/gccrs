@@ -1,5 +1,5 @@
 /* Discover if the stack pointer is modified in a function.
-   Copyright (C) 2007-2014 Free Software Foundation, Inc.
+   Copyright (C) 2007-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,16 +20,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "tree.h"
+#include "backend.h"
 #include "rtl.h"
-#include "regs.h"
-#include "expr.h"
-#include "tree-pass.h"
-#include "basic-block.h"
-#include "flags.h"
-#include "output.h"
 #include "df.h"
+#include "memmodel.h"
+#include "emit-rtl.h"
+#include "tree-pass.h"
 
 /* Determine if the stack pointer is constant over the life of the function.
    Only useful before prologues have been emitted.  */

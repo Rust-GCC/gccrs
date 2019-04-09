@@ -1,6 +1,6 @@
 // class template regex -*- C++ -*-
 
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,10 +30,10 @@
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
-namespace __detail
-{
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
+namespace __detail
+{
   /**
    * @addtogroup regex-detail
    * @{
@@ -43,7 +43,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   {
   public:
     /// Token types returned from the scanner.
-    enum _TokenT
+    enum _TokenT : unsigned
     {
       _S_token_anychar,
       _S_token_ord_char,
@@ -73,7 +73,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _S_token_comma,
       _S_token_dup_count,
       _S_token_eof,
-      _S_token_unknown
+      _S_token_bracket_dash,
+      _S_token_unknown = -1u
     };
 
   protected:
@@ -95,11 +96,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		  : _M_awk_escape_tbl),
     _M_spec_char(_M_is_ecma()
 		 ? _M_ecma_spec_char
-		 : _M_is_basic()
+		 : _M_flags & regex_constants::basic
 		 ? _M_basic_spec_char
-		 : _M_extended_spec_char),
+		 : _M_flags & regex_constants::extended
+		 ? _M_extended_spec_char
+		 : _M_flags & regex_constants::grep
+		 ?  ".[\\*^$\n"
+		 : _M_flags & regex_constants::egrep
+		 ? ".[\\()*+?{|^$\n"
+		 : _M_flags & regex_constants::awk
+		 ? _M_extended_spec_char
+		 : nullptr),
     _M_at_bracket_start(false)
-    { }
+    { __glibcxx_assert(_M_spec_char); }
 
   protected:
     const char*
@@ -137,6 +146,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     { return _M_flags & regex_constants::awk; }
 
   protected:
+    // TODO: Make them static in the next abi change.
     const std::pair<char, _TokenT> _M_token_tbl[9] =
       {
 	{'^', _S_token_line_begin},
@@ -255,8 +265,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     };
 
  //@} regex-detail
-_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace __detail
+_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 
 #include <bits/regex_scanner.tcc>

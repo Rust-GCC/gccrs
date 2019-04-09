@@ -1,5 +1,5 @@
 /* Definitions for MIPS running Linux-based GNU systems with ELF format.
-   Copyright (C) 1998-2014 Free Software Foundation, Inc.
+   Copyright (C) 1998-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -37,7 +37,16 @@ along with GCC; see the file COPYING3.  If not see
 #define UCLIBC_DYNAMIC_LINKERN32 \
   "%{mnan=2008:/lib32/ld-uClibc-mipsn8.so.0;:/lib32/ld-uClibc.so.0}"
 
+#undef MUSL_DYNAMIC_LINKER32
+#define MUSL_DYNAMIC_LINKER32 \
+  "/lib/ld-musl-mips%{mips32r6|mips64r6:r6}%{EL:el}%{msoft-float:-sf}.so.1"
+#undef MUSL_DYNAMIC_LINKER64
+#define MUSL_DYNAMIC_LINKER64 \
+  "/lib/ld-musl-mips64%{mips64r6:r6}%{EL:el}%{msoft-float:-sf}.so.1"
+#define MUSL_DYNAMIC_LINKERN32 \
+  "/lib/ld-musl-mipsn32%{mips64r6:r6}%{EL:el}%{msoft-float:-sf}.so.1"
+
 #define BIONIC_DYNAMIC_LINKERN32 "/system/bin/linker32"
 #define GNU_USER_DYNAMIC_LINKERN32 \
   CHOOSE_DYNAMIC_LINKER (GLIBC_DYNAMIC_LINKERN32, UCLIBC_DYNAMIC_LINKERN32, \
-                         BIONIC_DYNAMIC_LINKERN32)
+                         BIONIC_DYNAMIC_LINKERN32, MUSL_DYNAMIC_LINKERN32)

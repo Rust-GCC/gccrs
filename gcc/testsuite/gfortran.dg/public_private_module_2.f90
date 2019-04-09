@@ -1,8 +1,9 @@
 ! { dg-do compile }
 ! { dg-options "-O2" }
+! { dg-require-visibility "" }
 !
 ! PR fortran/52751 (top, "module mod")
-! PR fortran/40973 (bottom, "module m"
+! PR fortran/40973 (bottom, "module m")
 !
 ! Ensure that (only) those module variables and procedures which are PRIVATE
 ! and have no C-binding label are optimized away.
@@ -18,12 +19,15 @@
         integer, bind(C,name='') :: qq
       end module mod
 
+! The two xfails below have appeared with the introduction of submodules. 'iii' and
+! 'mmm' now are TREE_PUBLIC but has DECL_VISIBILITY (decl) = VISIBILITY_HIDDEN set.
+
       ! { dg-final { scan-assembler "__mod_MOD_aa" } }
-      ! { dg-final { scan-assembler-not "iii" } }
+      ! { dg-final { scan-assembler-not "iii" { xfail *-*-* } } }
       ! { dg-final { scan-assembler "jj" } }
       ! { dg-final { scan-assembler "lll" } }
       ! { dg-final { scan-assembler-not "kk" } }
-      ! { dg-final { scan-assembler-not "mmmm" } }
+      ! { dg-final { scan-assembler-not "mmmm" { xfail *-*-* } } }
       ! { dg-final { scan-assembler "nnn" } }
       ! { dg-final { scan-assembler "oo" } }
       ! { dg-final { scan-assembler "__mod_MOD_qq" } }

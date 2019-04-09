@@ -29,7 +29,11 @@ extern "C" {
 
 /* Define the complex type corresponding to __float128
    ("_Complex __float128" is not allowed) */
+#if (!defined(_ARCH_PPC)) || defined(__LONG_DOUBLE_IEEE128__)
 typedef _Complex float __attribute__((mode(TC))) __complex128;
+#else
+typedef _Complex float __attribute__((mode(KC))) __complex128;
+#endif
 
 #ifdef __cplusplus
 # define __quadmath_throw throw ()
@@ -54,6 +58,7 @@ extern __float128 coshq (__float128) __quadmath_throw;
 extern __float128 cosq (__float128) __quadmath_throw;
 extern __float128 erfq (__float128) __quadmath_throw;
 extern __float128 erfcq (__float128) __quadmath_throw;
+extern __float128 exp2q (__float128) __quadmath_throw;
 extern __float128 expq (__float128) __quadmath_throw;
 extern __float128 expm1q (__float128) __quadmath_throw;
 extern __float128 fabsq (__float128) __quadmath_throw;
@@ -69,6 +74,7 @@ extern __float128 hypotq (__float128, __float128) __quadmath_throw;
 extern int isinfq (__float128) __quadmath_throw;
 extern int ilogbq (__float128) __quadmath_throw;
 extern int isnanq (__float128) __quadmath_throw;
+extern int issignalingq (__float128) __quadmath_throw;
 extern __float128 j0q (__float128) __quadmath_throw;
 extern __float128 j1q (__float128) __quadmath_throw;
 extern __float128 jnq (int, __float128) __quadmath_throw;
@@ -76,6 +82,7 @@ extern __float128 ldexpq (__float128, int) __quadmath_throw;
 extern __float128 lgammaq (__float128) __quadmath_throw;
 extern long long int llrintq (__float128) __quadmath_throw;
 extern long long int llroundq (__float128) __quadmath_throw;
+extern __float128 logbq (__float128) __quadmath_throw;
 extern __float128 logq (__float128) __quadmath_throw;
 extern __float128 log10q (__float128) __quadmath_throw;
 extern __float128 log2q (__float128) __quadmath_throw;

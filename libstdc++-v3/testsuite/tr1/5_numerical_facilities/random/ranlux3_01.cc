@@ -1,6 +1,6 @@
 // 2006-08-22  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,10 +25,8 @@
 #include <testsuite_hooks.h>
 
 void
-test01() 
+test01()
 {
-  bool test __attribute__((unused)) = true;
-
   std::tr1::ranlux3_01 a;
   for (int i = 0; i < 9999; ++i)
     a();

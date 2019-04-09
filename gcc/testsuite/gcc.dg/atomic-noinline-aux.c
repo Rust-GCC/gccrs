@@ -7,6 +7,7 @@
    the exact entry points the test file will require.  All these routines
    simply set the first parameter to 1, and the caller will test for that.  */
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
@@ -64,7 +65,8 @@ __atomic_fetch_nand_1 (unsigned char *p, unsigned char v, int i)
   return ret;
 }
 
-int __atomic_is_lock_free (int i, void *p)
+bool __atomic_is_lock_free (size_t i, void *p)
 {
-  return 10;
+  *(short *)p = 1;
+  return true;
 }

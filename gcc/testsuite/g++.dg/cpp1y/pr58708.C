@@ -1,4 +1,5 @@
 // { dg-do run { target c++14 } }
+// { dg-options -w }
 
 template<typename, typename>
   struct is_same
@@ -43,11 +44,20 @@ main()
   if (foo.chars[1] != 98) __builtin_abort();
   if (foo.chars[2] != 99) __builtin_abort();
 
-  auto wfoo = L"\x01020304\x05060708"_foo;
+#if __SIZEOF_WCHAR_T__ == 2
+    auto wfoo = L"\x0102\x0304"_foo;
+#else
+    auto wfoo = L"\x01020304\x05060708"_foo;
+#endif
   if (is_same<decltype(wfoo)::char_type, wchar_t>::value != true) __builtin_abort();
   if (sizeof(wfoo.chars)/sizeof(wchar_t) != 2) __builtin_abort();
+#if __SIZEOF_WCHAR_T__ == 2
+  if (wfoo.chars[0] != 258) __builtin_abort();
+  if (wfoo.chars[1] != 772) __builtin_abort();
+#else
   if (wfoo.chars[0] != 16909060) __builtin_abort();
   if (wfoo.chars[1] != 84281096) __builtin_abort();
+#endif
 
   auto foou = u"\x0102\x0304\x0506\x0708"_foo;
   if (is_same<decltype(foou)::char_type, char16_t>::value != true) __builtin_abort();

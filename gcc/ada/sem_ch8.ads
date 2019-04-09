@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -52,8 +52,16 @@ package Sem_Ch8 is
    procedure Analyze_Object_Renaming            (N : Node_Id);
    procedure Analyze_Package_Renaming           (N : Node_Id);
    procedure Analyze_Subprogram_Renaming        (N : Node_Id);
-   procedure Analyze_Use_Package                (N : Node_Id);
-   procedure Analyze_Use_Type                   (N : Node_Id);
+
+   procedure Analyze_Use_Package (N : Node_Id; Chain : Boolean := True);
+   --  Analyze a use package clause and control (through the Chain parameter)
+   --  whether to add N to the use clause chain for the name denoted within
+   --  use clause N in case we are reanalyzing a use clause because of stack
+   --  manipulation.
+
+   procedure Analyze_Use_Type (N : Node_Id; Chain : Boolean := True);
+   --  Similar to Analyze_Use_Package except the Chain parameter applies to the
+   --  type within N's subtype mark Current_Use_Clause.
 
    procedure End_Scope;
    --  Called at end of scope. On exit from blocks and bodies (subprogram,
@@ -74,7 +82,11 @@ package Sem_Ch8 is
    --  Subsidiaries of End_Use_Clauses. Also called directly for use clauses
    --  appearing in context clauses.
 
-   procedure Find_Direct_Name (N : Node_Id);
+   procedure Find_Direct_Name
+     (N            : Node_Id;
+      Errors_OK    : Boolean := True;
+      Marker_OK    : Boolean := True;
+      Reference_OK : Boolean := True);
    --  Given a direct name (Identifier or Operator_Symbol), this routine scans
    --  the homonym chain for the name, searching for corresponding visible
    --  entities to find the referenced entity (or in the case of overloading,
@@ -91,6 +103,11 @@ package Sem_Ch8 is
    --  entries in the current scope, and that will give all homonyms that are
    --  declared before the point of call in the current scope. This is useful
    --  for example in the processing for pragma Inline.
+   --
+   --  Flag Errors_OK should be set when error diagnostics are desired. Flag
+   --  Marker_OK should be set when a N_Variable_Reference_Marker needs to be
+   --  generated for a SPARK object in order to detect elaboration issues. Flag
+   --  Reference_OK should be set when N must generate a cross reference.
 
    procedure Find_Selected_Component (N : Node_Id);
    --  Resolve various cases of selected components, recognize expanded names
@@ -130,6 +147,10 @@ package Sem_Ch8 is
    --  parent of generic body). Force_Installation is used when called from
    --  Analyze_Subunit.Re_Install_Use_Clauses to insure that, after the
    --  analysis of the subunit, the parent's environment is again identical.
+
+   procedure Mark_Use_Clauses (Id : Node_Or_Entity_Id);
+   --  Mark a given entity or node Id's relevant use clauses as effective,
+   --  including redundant ones and ones outside of the current scope.
 
    procedure Push_Scope (S : Entity_Id);
    --  Make new scope stack entry, pushing S, the entity for a scope onto the
@@ -171,8 +192,12 @@ package Sem_Ch8 is
 
    procedure Set_Use (L : List_Id);
    --  Find use clauses that are declarative items in a package declaration
-   --  and  set the potentially use-visible flags of imported entities before
+   --  and set the potentially use-visible flags of imported entities before
    --  analyzing the corresponding package body.
+
+   procedure Update_Use_Clause_Chain;
+   --  Called at the end of a declarative region to detect unused use type
+   --  clauses and maintain the Current_Use_Clause for type entities.
 
    procedure ws;
    --  Debugging routine for use in gdb: dump all entities on scope stack

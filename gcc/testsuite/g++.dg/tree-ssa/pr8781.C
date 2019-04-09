@@ -13,7 +13,7 @@ public:
 };
 
 template<typename predicate>
-inline noop_t<predicate> noop(const predicate pred) {
+inline noop_t<predicate> noop(const predicate &pred) {
     return noop_t<predicate>(pred);
 }
 
@@ -25,4 +25,3 @@ int x()
 /* We should optimize this to a direct call.  */
 
 /* { dg-final { scan-tree-dump-times "= f \\(\\);" 1 "fre1" } } */
-/* { dg-final { cleanup-tree-dump "fre1" } } */

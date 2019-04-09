@@ -1,6 +1,6 @@
 // Locale support -*- C++ -*-
 
-// Copyright (C) 1997-2014 Free Software Foundation, Inc.
+// Copyright (C) 1997-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -150,6 +150,34 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     */
     locale(const locale& __base, const char* __s, category __cat);
 
+#if __cplusplus >= 201103L
+    /**
+     *  @brief  Named locale constructor.
+     *
+     *  Constructs a copy of the named C library locale.
+     *
+     *  @param  __s  Name of the locale to construct.
+     *  @throw  std::runtime_error if __s is an undefined locale.
+    */
+    explicit
+    locale(const std::string& __s) : locale(__s.c_str()) { }
+
+    /**
+     *  @brief  Construct locale with facets from another locale.
+     *
+     *  Constructs a copy of the locale @a base.  The facets specified by @a
+     *  cat are replaced with those from the locale named by @a s.  If base is
+     *  named, this locale instance will also be named.
+     *
+     *  @param  __base  The locale to copy.
+     *  @param  __s  Name of the locale to use facets from.
+     *  @param  __cat  Set of categories defining the facets to use from __s.
+     *  @throw  std::runtime_error if __s is an undefined locale.
+    */
+    locale(const locale& __base, const std::string& __s, category __cat)
+    : locale(__base, __s.c_str(), __cat) { }
+#endif
+
     /**
      *  @brief  Construct locale with facets from another locale.
      *
@@ -212,6 +240,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
      *  @brief  Return locale name.
      *  @return  Locale name or "*" if unnamed.
     */
+    _GLIBCXX_DEFAULT_ABI_TAG
     string
     name() const;
 
@@ -321,6 +350,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     void
     _M_coalesce(const locale& __base, const locale& __add, category __cat);
+
+#if _GLIBCXX_USE_CXX11_ABI
+    static const id* const _S_twinned_facets[];
+#endif
   };
 
 
@@ -395,6 +428,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     _GLIBCXX_CONST static const char*
     _S_get_c_name() throw();
 
+#if __cplusplus < 201103L
+  private:
+    facet(const facet&);  // Not defined.
+
+    facet&
+    operator=(const facet&);  // Not defined.
+#else
+    facet(const facet&) = delete;
+
+    facet&
+    operator=(const facet&) = delete;
+#endif
+
   private:
     void
     _M_add_reference() const throw()
@@ -415,10 +461,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
     }
 
-    facet(const facet&);  // Not defined.
+    const facet* _M_sso_shim(const id*) const;
+    const facet* _M_cow_shim(const id*) const;
 
-    facet&
-    operator=(const facet&);  // Not defined.
+  protected:
+    class __shim; // For internal use only.
   };
 
 
@@ -563,8 +610,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _M_init_facet(_Facet* __facet)
       { _M_install_facet(&_Facet::id, __facet); }
 
+    template<typename _Facet>
+      void
+      _M_init_facet_unchecked(_Facet* __facet)
+      {
+	__facet->_M_add_reference();
+	_M_facets[_Facet::id._M_id()] = __facet;
+      }
+
     void
     _M_install_cache(const facet*, size_t);
+
+    void _M_init_extra(facet**);
+    void _M_init_extra(void*, void*, const char*, const char*);
   };
 
 
@@ -581,7 +639,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  collate facet.
   */
   template<typename _CharT>
-    class collate : public locale::facet
+    class _GLIBCXX_NAMESPACE_CXX11 collate : public locale::facet
     {
     public:
       // Types:
@@ -755,7 +813,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /// class collate_byname [22.2.4.2].
   template<typename _CharT>
-    class collate_byname : public collate<_CharT>
+    class _GLIBCXX_NAMESPACE_CXX11 collate_byname : public collate<_CharT>
     {
     public:
       //@{
@@ -775,6 +833,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    this->_S_create_c_locale(this->_M_c_locale_collate, __s);
 	  }
       }
+
+#if __cplusplus >= 201103L
+      explicit
+      collate_byname(const string& __s, size_t __refs = 0)
+      : collate_byname(__s.c_str(), __refs) { }
+#endif
 
     protected:
       virtual

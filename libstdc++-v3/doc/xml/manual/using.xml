@@ -6,15 +6,18 @@
   <section xml:id="manual.intro.using.flags" xreflabel="Flags"><info><title>Command Options</title></info>
     
     <para>
-      The set of features available in the GNU C++ library is shaped
-      by
+      The set of features available in the GNU C++ library is shaped by
       several <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/gcc-4.3.2/gcc/Invoking-GCC.html">GCC
       Command Options</link>. Options that impact libstdc++ are
       enumerated and detailed in the table below.
     </para>
 
     <para>
-      By default, <command>g++</command> is equivalent to  <command>g++ -std=gnu++98</command>. The standard library also defaults to this dialect.
+      The standard library conforms to the dialect of C++ specified by the
+      <option>-std</option> option passed to the compiler.
+      By default, <command>g++</command> is equivalent to
+      <command>g++ -std=gnu++14</command> since GCC 6, and
+      <command>g++ -std=gnu++98</command> for older releases.
     </para>
 
  <table frame="all" xml:id="table.cmd_options">
@@ -33,12 +36,14 @@
 
   <tbody>
     <row>
-      <entry><literal>-std=c++98</literal></entry>
+      <entry><literal>-std=c++98</literal> or <literal>-std=c++03</literal>
+      </entry>
       <entry>Use the 1998 ISO C++ standard plus amendments.</entry>
     </row>
 
     <row>
-      <entry><literal>-std=gnu++98</literal></entry>
+      <entry><literal>-std=gnu++98</literal> or <literal>-std=gnu++03</literal>
+      </entry>
       <entry>As directly above, with GNU extensions.</entry>
     </row>
 
@@ -53,6 +58,16 @@
     </row>
 
     <row>
+      <entry><literal>-std=c++14</literal></entry>
+      <entry>Use the 2014 ISO C++ standard.</entry>
+    </row>
+
+    <row>
+      <entry><literal>-std=gnu++14</literal></entry>
+      <entry>As directly above, with GNU extensions.</entry>
+    </row>
+
+    <row>
       <entry><literal>-fexceptions</literal></entry>
       <entry>See <link linkend="intro.using.exception.no">exception-free dialect</link></entry>
     </row>
@@ -63,9 +78,29 @@
     </row>
 
     <row>
-      <entry><literal>-pthread</literal> or <literal>-pthreads</literal></entry>
-      <entry>For ISO C++11 &lt;thread&gt;, &lt;future&gt;,
-      &lt;mutex&gt;, or &lt;condition_variable&gt;.</entry>
+      <entry><literal>-pthread</literal></entry>
+      <entry>For ISO C++11
+        <filename class="headerfile">&lt;thread&gt;</filename>,
+        <filename class="headerfile">&lt;future&gt;</filename>,
+        <filename class="headerfile">&lt;mutex&gt;</filename>,
+        or <filename class="headerfile">&lt;condition_variable&gt;</filename>.
+      </entry>
+    </row>
+
+    <row>
+      <entry><literal>-latomic</literal></entry>
+      <entry>Linking to <filename class="libraryfile">libatomic</filename>
+        is required for some uses of ISO C++11
+        <filename class="headerfile">&lt;atomic&gt;</filename>.
+      </entry>
+    </row>
+
+    <row>
+      <entry><literal>-lstdc++fs</literal></entry>
+      <entry>Linking to <filename class="libraryfile">libstdc++fs</filename>
+        is required for use of the Filesystem library extensions in
+        <filename class="headerfile">&lt;experimental/filesystem&gt;</filename>.
+      </entry>
     </row>
 
     <row>
@@ -91,7 +126,7 @@
      must be available to all hosted implementations.  Actually, the
      word "files" is a misnomer, since the contents of the
      headers don't necessarily have to be in any kind of external
-     file.  The only rule is that when one <code>#include</code>'s a
+     file.  The only rule is that when one <code>#include</code>s a
      header, the contents of that header become available, no matter
      how.
    </para>
@@ -103,16 +138,24 @@
    <para>
      There are two main types of include files: header files related
      to a specific version of the ISO C++ standard (called Standard
-     Headers), and all others (TR1, C++ ABI, and Extensions).
+     Headers), and all others (TS, TR1, C++ ABI, and Extensions).
    </para>
 
    <para>
-     Two dialects of standard headers are supported, corresponding to
-     the 1998 standard as updated for 2003, and the current 2011 standard.
+     Multiple dialects of standard headers are supported, corresponding to
+     the 1998 standard as updated for 2003, the 2011 standard, the 2014
+     standard, and so on.
    </para>
 
    <para>
-     C++98/03 include files. These are available in the default compilation mode, i.e. <code>-std=c++98</code> or <code>-std=gnu++98</code>.
+     <xref linkend="table.cxx98_headers"/> and
+     <xref linkend="table.cxx98_cheaders"/> and
+     <xref linkend="table.cxx98_deprheaders"/>
+     show the C++98/03 include files.
+     These are available in the C++98 compilation mode,
+     i.e. <code>-std=c++98</code> or <code>-std=gnu++98</code>.
+     Unless specified otherwise below, they are also available in later modes
+     (C++11, C++14 etc).
    </para>
 
 <table frame="all" xml:id="table.cxx98_headers">
@@ -170,6 +213,7 @@
 <row>
 <entry><filename class="headerfile">valarray</filename></entry>
 <entry><filename class="headerfile">vector</filename></entry>
+<entry namest="c3" nameend="c5"/>
 </row>
 </tbody>
 </tgroup>
@@ -211,14 +255,38 @@
 <entry><filename class="headerfile">ctime</filename></entry>
 <entry><filename class="headerfile">cwchar</filename></entry>
 <entry><filename class="headerfile">cwctype</filename></entry>
+<entry namest="c4" nameend="c5"/>
 </row>
 </tbody>
 </tgroup>
 </table>
 
 <para>
-C++11 include files. These are only available in C++11 compilation
+  The following header is deprecated
+  and might be removed from a future C++ standard.
+</para>
+
+<table frame="all" xml:id="table.cxx98_deprheaders">
+<title>C++ 1998 Deprecated Library Header</title>
+
+<tgroup cols="1" align="left" colsep="1" rowsep="1">
+<colspec colname="c1"/>
+<tbody>
+<row>
+<entry><filename class="headerfile">strstream</filename></entry>
+</row>
+</tbody>
+</tgroup>
+</table>
+
+<para>
+<xref linkend="table.cxx11_headers"/> and
+<xref linkend="table.cxx11_cheaders"/> show the C++11 include files.
+These are available in C++11 compilation
 mode, i.e. <literal>-std=c++11</literal> or <literal>-std=gnu++11</literal>.
+Including these headers in C++98/03 mode may result in compilation errors.
+Unless specified otherwise below, they are also available in later modes
+(C++14 etc).
 </para>
 
 <para/>
@@ -234,72 +302,32 @@ mode, i.e. <literal>-std=c++11</literal> or <literal>-std=gnu++11</literal>.
 <tbody>
 
 <row>
-<entry><filename class="headerfile">algorithm</filename></entry>
 <entry><filename class="headerfile">array</filename></entry>
-<entry><filename class="headerfile">bitset</filename></entry>
+<entry><filename class="headerfile">atomic</filename></entry>
 <entry><filename class="headerfile">chrono</filename></entry>
-<entry><filename class="headerfile">complex</filename></entry>
-</row>
-<row>
+<entry><filename class="headerfile">codecvt</filename></entry>
 <entry><filename class="headerfile">condition_variable</filename></entry>
-<entry><filename class="headerfile">deque</filename></entry>
-<entry><filename class="headerfile">exception</filename></entry>
-<entry><filename class="headerfile">forward_list</filename></entry>
-<entry><filename class="headerfile">fstream</filename></entry>
 </row>
 <row>
-<entry><filename class="headerfile">functional</filename></entry>
+<entry><filename class="headerfile">forward_list</filename></entry>
 <entry><filename class="headerfile">future</filename></entry>
 <entry><filename class="headerfile">initalizer_list</filename></entry>
-<entry><filename class="headerfile">iomanip</filename></entry>
-<entry><filename class="headerfile">ios</filename></entry>
-</row>
-<row>
-<entry><filename class="headerfile">iosfwd</filename></entry>
-<entry><filename class="headerfile">iostream</filename></entry>
-<entry><filename class="headerfile">istream</filename></entry>
-<entry><filename class="headerfile">iterator</filename></entry>
-<entry><filename class="headerfile">limits</filename></entry>
-</row>
-<row>
-<entry><filename class="headerfile">list</filename></entry>
-<entry><filename class="headerfile">locale</filename></entry>
-<entry><filename class="headerfile">map</filename></entry>
-<entry><filename class="headerfile">memory</filename></entry>
 <entry><filename class="headerfile">mutex</filename></entry>
-</row>
-<row>
-<entry><filename class="headerfile">new</filename></entry>
-<entry><filename class="headerfile">numeric</filename></entry>
-<entry><filename class="headerfile">ostream</filename></entry>
-<entry><filename class="headerfile">queue</filename></entry>
 <entry><filename class="headerfile">random</filename></entry>
 </row>
 <row>
 <entry><filename class="headerfile">ratio</filename></entry>
 <entry><filename class="headerfile">regex</filename></entry>
-<entry><filename class="headerfile">set</filename></entry>
-<entry><filename class="headerfile">sstream</filename></entry>
-<entry><filename class="headerfile">stack</filename></entry>
-</row>
-<row>
-<entry><filename class="headerfile">stdexcept</filename></entry>
-<entry><filename class="headerfile">streambuf</filename></entry>
-<entry><filename class="headerfile">string</filename></entry>
+<entry><filename class="headerfile">scoped_allocator</filename></entry>
 <entry><filename class="headerfile">system_error</filename></entry>
 <entry><filename class="headerfile">thread</filename></entry>
 </row>
 <row>
 <entry><filename class="headerfile">tuple</filename></entry>
+<entry><filename class="headerfile">typeindex</filename></entry>
 <entry><filename class="headerfile">type_traits</filename></entry>
-<entry><filename class="headerfile">typeinfo</filename></entry>
 <entry><filename class="headerfile">unordered_map</filename></entry>
 <entry><filename class="headerfile">unordered_set</filename></entry>
-</row>
-<row>
-<entry><filename class="headerfile">utility</filename></entry>
-<entry><filename class="headerfile">valarray</filename></entry>
-<entry><filename class="headerfile">vector</filename></entry>
 </row>
 
 </tbody>
@@ -319,39 +347,232 @@ mode, i.e. <literal>-std=c++11</literal> or <literal>-std=gnu++11</literal>.
 <colspec colname="c5"/>
 <tbody>
 <row>
-<entry><filename class="headerfile">cassert</filename></entry>
 <entry><filename class="headerfile">ccomplex</filename></entry>
-<entry><filename class="headerfile">cctype</filename></entry>
-<entry><filename class="headerfile">cerrno</filename></entry>
 <entry><filename class="headerfile">cfenv</filename></entry>
-</row>
-<row>
-<entry><filename class="headerfile">cfloat</filename></entry>
 <entry><filename class="headerfile">cinttypes</filename></entry>
-<entry><filename class="headerfile">ciso646</filename></entry>
-<entry><filename class="headerfile">climits</filename></entry>
-<entry><filename class="headerfile">clocale</filename></entry>
-</row>
-<row>
-<entry><filename class="headerfile">cmath</filename></entry>
-<entry><filename class="headerfile">csetjmp</filename></entry>
-<entry><filename class="headerfile">csignal</filename></entry>
-<entry><filename class="headerfile">cstdarg</filename></entry>
+<entry><filename class="headerfile">cstdalign</filename></entry>
 <entry><filename class="headerfile">cstdbool</filename></entry>
 </row>
 <row>
-<entry><filename class="headerfile">cstddef</filename></entry>
 <entry><filename class="headerfile">cstdint</filename></entry>
-<entry><filename class="headerfile">cstdlib</filename></entry>
-<entry><filename class="headerfile">cstdio</filename></entry>
-<entry><filename class="headerfile">cstring</filename></entry>
+<entry><filename class="headerfile">ctgmath</filename></entry>
+<entry><filename class="headerfile">cuchar</filename></entry>
+<entry namest="c4" nameend="c5"/>
+</row>
+</tbody>
+</tgroup>
+</table>
+
+<para>
+<xref linkend="table.cxx14_headers"/> shows the C++14 include file.
+This is available in C++14 compilation
+mode, i.e. <literal>-std=c++14</literal> or <literal>-std=gnu++14</literal>.
+Including this header in C++98/03 mode or C++11 will not result in
+compilation errors, but will not define anything.
+Unless specified otherwise below, it is also available in later modes
+(C++17 etc).
+</para>
+
+<para/>
+<table frame="all" xml:id="table.cxx14_headers">
+<title>C++ 2014 Library Header</title>
+
+<tgroup cols="1" align="left" colsep="1" rowsep="1">
+<colspec colname="c1"/>
+<tbody>
+<row>
+<entry><filename class="headerfile">shared_mutex</filename></entry>
+</row>
+</tbody>
+</tgroup>
+</table>
+
+<para>
+<xref linkend="table.cxx17_headers"/> shows the C++17 include files.
+These are available in C++17 compilation
+mode, i.e. <literal>-std=c++17</literal> or <literal>-std=gnu++17</literal>.
+Including these headers in earlier modes will not result in
+compilation errors, but will not define anything.
+Unless specified otherwise below, they are also available in later modes
+(C++20 etc).
+</para>
+
+<para/>
+<table frame="all" xml:id="table.cxx17_headers">
+<title>C++ 2017 Library Headers</title>
+
+<tgroup cols="5" align="left" colsep="1" rowsep="1">
+<colspec colname="c1"/>
+<colspec colname="c2"/>
+<colspec colname="c3"/>
+<colspec colname="c4"/>
+<colspec colname="c5"/>
+<tbody>
+<row>
+<entry><filename class="headerfile">any</filename></entry>
+<entry><filename class="headerfile">charconv</filename></entry>
+<entry><filename class="headerfile">execution</filename></entry>
+<entry><filename class="headerfile">filesystem</filename></entry>
+<entry><filename class="headerfile">memory_resource</filename></entry>
 </row>
 <row>
+<entry><filename class="headerfile">optional</filename></entry>
+<entry><filename class="headerfile">string_view</filename></entry>
+<entry><filename class="headerfile">variant</filename></entry>
+<entry namest="c4" nameend="c5"/>
+</row>
+</tbody>
+</tgroup>
+</table>
+
+<para>
+<xref linkend="table.cxx20_headers"/>
+shows the C++2a include files.
+These are available in C++2a compilation
+mode, i.e. <literal>-std=c++2a</literal> or <literal>-std=gnu++2a</literal>.
+Including these headers in earlier modes will not result in
+compilation errors, but will not define anything.
+<!--
+Unless specified otherwise below, they are also available in later modes
+(C++23 etc).
+-->
+</para>
+
+<para/>
+<table frame="all" xml:id="table.cxx20_headers">
+<title>C++ 2020 Library Headers</title>
+
+<tgroup cols="2" align="left" colsep="1" rowsep="1">
+<colspec colname="c1"/>
+<colspec colname="c2"/>
+<!--
+<colspec colname="c3"/>
+<colspec colname="c4"/>
+<colspec colname="c5"/>
+-->
+<tbody>
+<row>
+<entry><filename class="headerfile">bit</filename></entry>
+<entry><filename class="headerfile">version</filename></entry>
+</row>
+<!-- TODO compare, concepts, contract, span, syncstream -->
+</tbody>
+</tgroup>
+</table>
+
+<para>
+  The following headers have been removed in the C++2a working draft.
+  They are still available when using this implementation, but in future
+  they might start to produce warnings or errors when included in C++2a mode.
+  Programs that intend to be portable should not include them.
+</para>
+
+<table frame="all" xml:id="table.cxx20_deprheaders">
+<title>C++ 2020 Obsolete Headers</title>
+
+<tgroup cols="5" align="left" colsep="1" rowsep="1">
+<colspec colname="c1"/>
+<colspec colname="c2"/>
+<colspec colname="c3"/>
+<colspec colname="c4"/>
+<colspec colname="c5"/>
+<tbody>
+<row>
+<entry><filename class="headerfile">ccomplex</filename></entry>
+<entry><filename class="headerfile">ciso646</filename></entry>
+<entry><filename class="headerfile">cstdalign</filename></entry>
+<entry><filename class="headerfile">cstdbool</filename></entry>
 <entry><filename class="headerfile">ctgmath</filename></entry>
-<entry><filename class="headerfile">ctime</filename></entry>
-<entry><filename class="headerfile">cuchar</filename></entry>
-<entry><filename class="headerfile">cwchar</filename></entry>
-<entry><filename class="headerfile">cwctype</filename></entry>
+</row>
+</tbody>
+</tgroup>
+</table>
+
+<para>
+<xref linkend="table.filesystemts_headers"/>,
+shows the additional include file define by the
+File System Technical Specification, ISO/IEC TS 18822.
+This is available in C++11 and later compilation modes.
+Including this header in earlier modes will not result in
+compilation errors, but will not define anything.
+</para>
+
+<para/>
+<table frame="all" xml:id="table.filesystemts_headers">
+<title>File System TS Header</title>
+
+<tgroup cols="1" align="left" colsep="1" rowsep="1">
+<colspec colname="c1"/>
+<tbody>
+<row>
+<entry><filename class="headerfile">experimental/filesystem</filename></entry>
+</row>
+</tbody>
+</tgroup>
+</table>
+
+
+<para>
+<xref linkend="table.libfundts_headers"/>,
+shows the additional include files define by the C++ Extensions for 
+Library Fundamentals Technical Specification, ISO/IEC TS 19568.
+These are available in C++14 and later compilation modes.
+Including these headers in earlier modes will not result in
+compilation errors, but will not define anything.
+</para>
+
+<para/>
+<table frame="all" xml:id="table.libfundts_headers">
+<title>Library Fundamentals TS Headers</title>
+
+<tgroup cols="5" align="left" colsep="1" rowsep="1">
+<colspec colname="c1"/>
+<colspec colname="c2"/>
+<colspec colname="c3"/>
+<colspec colname="c4"/>
+<colspec colname="c5"/>
+<tbody>
+<row>
+<entry><filename class="headerfile">experimental/algorithm</filename></entry>
+<entry><filename class="headerfile">experimental/any</filename></entry>
+<entry><filename class="headerfile">experimental/array</filename></entry>
+<entry><filename class="headerfile">experimental/chrono</filename></entry>
+<entry><filename class="headerfile">experimental/deque</filename></entry>
+</row>
+<row>
+<entry><filename class="headerfile">experimental/forward_list</filename></entry>
+<entry><filename class="headerfile">experimental/functional</filename></entry>
+<entry><filename class="headerfile">experimental/iterator</filename></entry>
+<entry><filename class="headerfile">experimental/list</filename></entry>
+<entry><filename class="headerfile">experimental/map</filename></entry>
+</row>
+<row>
+<entry><filename class="headerfile">experimental/memory</filename></entry>
+<entry><filename class="headerfile">experimental/memory_resource</filename></entry>
+<entry><filename class="headerfile">experimental/numeric</filename></entry>
+<entry><filename class="headerfile">experimental/optional</filename></entry>
+<entry><filename class="headerfile">experimental/propagate_const</filename></entry>
+</row>
+<row>
+<entry><filename class="headerfile">experimental/random</filename></entry>
+<entry><filename class="headerfile">experimental/ratio</filename></entry>
+<entry><filename class="headerfile">experimental/regex</filename></entry>
+<entry><filename class="headerfile">experimental/set</filename></entry>
+<entry><filename class="headerfile">experimental/source_location</filename></entry>
+</row>
+<row>
+<entry><filename class="headerfile">experimental/string</filename></entry>
+<entry><filename class="headerfile">experimental/string_view</filename></entry>
+<entry><filename class="headerfile">experimental/system_error</filename></entry>
+<entry><filename class="headerfile">experimental/tuple</filename></entry>
+<entry><filename class="headerfile">experimental/type_traits</filename></entry>
+</row>
+<row>
+<entry><filename class="headerfile">experimental/unordered_map</filename></entry>
+<entry><filename class="headerfile">experimental/unordered_set</filename></entry>
+<entry><filename class="headerfile">experimental/utility</filename></entry>
+<entry><filename class="headerfile">experimental/vector</filename></entry>
+<entry />
 </row>
 </tbody>
 </tgroup>
@@ -389,6 +610,7 @@ mode, i.e. <literal>-std=c++11</literal> or <literal>-std=gnu++11</literal>.
 </row>
 <row>
 <entry><filename class="headerfile">tr1/utility</filename></entry>
+<entry namest="c2" nameend="c5"/>
 </row>
 
 </tbody>
@@ -529,6 +751,7 @@ compiler supports scalar decimal floating-point types defined via
 </row>
 <row>
 <entry><filename class="headerfile">ext/vstring.h</filename></entry>
+<entry namest="c2" nameend="c5"/>
 </row>
 
 </tbody>
@@ -549,18 +772,22 @@ compiler supports scalar decimal floating-point types defined via
 <tbody>
 
 <row>
+<entry><filename class="headerfile">debug/array</filename></entry>
 <entry><filename class="headerfile">debug/bitset</filename></entry>
 <entry><filename class="headerfile">debug/deque</filename></entry>
+<entry><filename class="headerfile">debug/forward_list</filename></entry>
 <entry><filename class="headerfile">debug/list</filename></entry>
+</row>
+<row>
 <entry><filename class="headerfile">debug/map</filename></entry>
 <entry><filename class="headerfile">debug/set</filename></entry>
-</row>
-
-<row>
 <entry><filename class="headerfile">debug/string</filename></entry>
 <entry><filename class="headerfile">debug/unordered_map</filename></entry>
 <entry><filename class="headerfile">debug/unordered_set</filename></entry>
+</row>
+<row>
 <entry><filename class="headerfile">debug/vector</filename></entry>
+<entry namest="c2" nameend="c5"/>
 </row>
 
 </tbody>
@@ -692,7 +919,7 @@ and <code>std::sinl</code>.
 
 <para>There are three base header files that are provided. They can be
 used to precompile the standard headers and extensions into binary
-files that may the be used to speed compiles that use these headers.
+files that may then be used to speed up compilations that use these headers.
 </para>
 
 
@@ -700,7 +927,7 @@ files that may the be used to speed compiles that use these headers.
 <listitem>
   <para>stdc++.h</para>
 <para>Includes all standard headers. Actual content varies depending on
-language dialect.
+<link linkend="manual.intro.using.flags">language dialect</link>.
 </para>
 </listitem>
 
@@ -711,13 +938,14 @@ language dialect.
 </listitem>
 
 <listitem><para>extc++.h</para>
-<para>Includes all of &lt;stdtr1c++.h&gt;, and adds all the Extension headers.
+<para>Includes all of &lt;stdc++.h&gt;, and adds all the Extension headers
+(and in C++98 mode also adds all the TR1 headers by including all of
+&lt;stdtr1c++.h&gt;).
 </para></listitem>
 </itemizedlist>
 
-<para>How to construct a .gch file from one of these base header files.</para>
-
-<para>First, find the include directory for the compiler. One way to do
+<para>To construct a .gch file from one of these base header files,
+first find the include directory for the compiler. One way to do
 this is:</para>
 
 <programlisting>
@@ -779,8 +1007,9 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
       file <filename class="headerfile">c++config.h</filename>, which
       is generated during the libstdc++ configuration and build
       process. This file is then included when needed by files part of
-      the public libstdc++ API, like &lt;ios&gt;. Most of these macros
-      should not be used by consumers of libstdc++, and are reserved
+      the public libstdc++ API, like
+      <filename class="headerfile">&lt;ios&gt;</filename>. Most of these
+      macros should not be used by consumers of libstdc++, and are reserved
       for internal implementation use. <emphasis>These macros cannot
       be redefined</emphasis>.
    </para>
@@ -792,20 +1021,37 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
       general public.
    </para>
 
-   <para>Below is the macro which users may check for library version
+   <para>Below are the macros which users may check for library version
       information. </para>
 
     <variablelist>
     <varlistentry>
+      <term><code>_GLIBCXX_RELEASE</code></term>
+      <listitem>
+	<para>The major release number for libstdc++.  This macro is defined
+        to the GCC major version that the libstdc++ headers belong to,
+        as an integer constant.
+        When compiling with GCC it has the same value as GCC's pre-defined
+        macro <symbol>__GNUC__</symbol>.
+        This macro can be used when libstdc++ is used with a non-GNU
+        compiler where <symbol>__GNUC__</symbol> is not defined, or has a
+        different value that doesn't correspond to the libstdc++ version.
+        This macro first appeared in the GCC 7.1 release and is not defined
+        for GCC 6.x or older releases.
+      </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
       <term><code>__GLIBCXX__</code></term>
       <listitem>
-	<para>The current version of
-    libstdc++ in compressed ISO date format, form of an unsigned
-    long. For details on the value of this particular macro for a
-    particular release, please consult this <link linkend="appendix.porting.abi">
-    document</link>.
-    </para>
-    </listitem>
+	<para>The revision date of the libstdc++ source code,
+        in compressed ISO date format, as an unsigned
+        long. For notes about using this macro and details on the value of
+        this macro for a particular release, please consult the
+        <link linkend="abi.versioning.__GLIBCXX__">ABI History</link>
+        appendix.
+        </para>
+      </listitem>
     </varlistentry>
     </variablelist>
 
@@ -816,14 +1062,15 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
    <para><quote>Configurable</quote> (or <quote>Not configurable</quote>) means
       that the symbol is initially chosen (or not) based on
       --enable/--disable options at library build and configure time
-      (documented <link linkend="manual.intro.setup.configure">here</link>), with the
-      various --enable/--disable choices being translated to
+      (documented in
+      <link linkend="manual.intro.setup.configure">Configure</link>),
+      with the various --enable/--disable choices being translated to
       #define/#undef).
    </para>
 
    <para> <acronym>ABI</acronym> means that changing from the default value may
-  mean changing the <acronym>ABI</acronym> of compiled code. In other words, these
-  choices control code which has already been compiled (i.e., in a
+  mean changing the <acronym>ABI</acronym> of compiled code. In other words,
+  these choices control code which has already been compiled (i.e., in a
   binary such as libstdc++.a/.so).  If you explicitly #define or
   #undef these macros, the <emphasis>headers</emphasis> may see different code
   paths, but the <emphasis>libraries</emphasis> which you link against will not.
@@ -847,6 +1094,22 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
     </para>
     </listitem></varlistentry>
 
+    <varlistentry><term><code>_GLIBCXX_USE_CXX11_ABI</code></term>
+    <listitem>
+      <para>
+        Defined to the value <literal>1</literal> by default.
+        Configurable via  <code>--disable-libstdcxx-dual-abi</code>
+        and/or <code>--with-default-libstdcxx-abi</code>.
+        ABI-changing.
+        When defined to a non-zero value the library headers will use the
+        new C++11-conforming ABI introduced in GCC 5, rather than the older
+        ABI introduced in GCC 3.4. This changes the definition of several
+        class templates, including <classname>std:string</classname>,
+        <classname>std::list</classname> and some locale facets.
+        For more details see <xref linkend="manual.intro.using.abi"/>.
+    </para>
+    </listitem></varlistentry>
+
     <varlistentry><term><code>_GLIBCXX_CONCEPT_CHECKS</code></term>
     <listitem>
       <para>
@@ -854,44 +1117,206 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
 	<code>--enable-concept-checks</code>.  When defined, performs
 	compile-time checking on certain template instantiations to
 	detect violations of the requirements of the standard.  This
-	is described in more detail <link linkend="manual.ext.compile_checks">here</link>.
+	macro has no effect for freestanding implementations.
+	This is described in more detail in
+	<link linkend="manual.ext.compile_checks">Compile Time Checks</link>.
       </para>
     </listitem></varlistentry>
 
+    <varlistentry><term><code>_GLIBCXX_ASSERTIONS</code></term>
+    <listitem>
+      <para>
+	Undefined by default. When defined, enables extra error checking in
+        the form of precondition assertions, such as bounds checking in
+        strings and null pointer checks when dereferencing smart pointers.
+      </para>
+    </listitem></varlistentry>
     <varlistentry><term><code>_GLIBCXX_DEBUG</code></term>
     <listitem>
       <para>
 	Undefined by default. When defined, compiles user code using
-    the <link linkend="manual.ext.debug_mode">debug mode</link>.
+	the <link linkend="manual.ext.debug_mode">debug mode</link>.
+        When defined, <code>_GLIBCXX_ASSERTIONS</code> is defined
+        automatically, so all the assertions enabled by that macro are also
+        enabled in debug mode.
       </para>
     </listitem></varlistentry>
     <varlistentry><term><code>_GLIBCXX_DEBUG_PEDANTIC</code></term>
     <listitem>
       <para>
 	Undefined by default. When defined while compiling with
-    the <link linkend="manual.ext.debug_mode">debug mode</link>, makes
-    the debug mode extremely picky by making the use of libstdc++
-    extensions and libstdc++-specific behavior into errors.
+	the <link linkend="manual.ext.debug_mode">debug mode</link>, makes
+	the debug mode extremely picky by making the use of libstdc++
+	extensions and libstdc++-specific behavior into errors.
       </para>
     </listitem></varlistentry>
     <varlistentry><term><code>_GLIBCXX_PARALLEL</code></term>
     <listitem>
       <para>Undefined by default. When defined, compiles user code
-    using the <link linkend="manual.ext.parallel_mode">parallel
-    mode</link>.
+	using the <link linkend="manual.ext.parallel_mode">parallel
+	mode</link>.
+      </para>
+    </listitem></varlistentry>
+    <varlistentry><term><code>_GLIBCXX_PARALLEL_ASSERTIONS</code></term>
+    <listitem>
+      <para>Undefined by default, but when any parallel mode header is included
+      this macro will be defined to a non-zero value if
+      <code>_GLIBCXX_ASSERTIONS</code> has a non-zero value, otherwise to zero.
+      When defined to a non-zero value, it enables extra error checking and
+      assertions in the parallel mode.
       </para>
     </listitem></varlistentry>
 
     <varlistentry><term><code>_GLIBCXX_PROFILE</code></term>
     <listitem>
       <para>Undefined by default. When defined, compiles user code
-    using the <link linkend="manual.ext.profile_mode">profile
-    mode</link>.
+	using the <link linkend="manual.ext.profile_mode">profile
+	mode</link>.
+      </para>
+    </listitem></varlistentry>
+
+    <varlistentry><term><code>__STDCPP_WANT_MATH_SPEC_FUNCS__</code></term>
+    <listitem>
+      <para>Undefined by default. When defined to a non-zero integer constant,
+	enables support for ISO/IEC 29124 Special Math Functions.
+      </para>
+    </listitem></varlistentry>
+
+    <varlistentry><term><code>_GLIBCXX_SANITIZE_VECTOR</code></term>
+    <listitem>
+      <para>
+	Undefined by default. When defined, <classname>std::vector</classname>
+        operations will be annotated so that AddressSanitizer can detect
+        invalid accesses to the unused capacity of a
+        <classname>std::vector</classname>. These annotations are only
+        enabled for
+        <classname>std::vector&lt;T, std::allocator&lt;T&gt;&gt;</classname>
+        and only when <classname>std::allocator</classname> is derived from
+        <link linkend="allocator.ext"><classname>new_allocator</classname>
+        or <classname>malloc_allocator</classname></link>. The annotations
+        must be present on all vector operations or none, so this macro must
+        be defined to the same value for all translation units that create,
+        destroy or modify vectors.
       </para>
     </listitem></varlistentry>
     </variablelist>
 
   </section>
+
+<section xml:id="manual.intro.using.abi" xreflabel="Dual ABI">
+  <info><title>Dual ABI</title></info>
+  <?dbhtml filename="using_dual_abi.html"?>
+
+<para> In the GCC 5.1 release libstdc++ introduced a new library ABI that
+  includes new implementations of <classname>std::string</classname> and
+  <classname>std::list</classname>. These changes were necessary to conform
+  to the 2011 C++ standard which forbids Copy-On-Write strings and requires
+  lists to keep track of their size.
+</para>
+
+<para> In order to maintain backwards compatibility for existing code linked
+  to libstdc++ the library's soname has not changed and the old
+  implementations are still supported in parallel with the new ones.
+  This is achieved by defining the new implementations in an inline namespace
+  so they have different names for linkage purposes, e.g. the new version of
+  <classname>std::list&lt;int&gt;</classname> is actually defined as
+  <classname>std::__cxx11::list&lt;int&gt;</classname>. Because the symbols
+  for the new implementations have different names the definitions for both
+  versions can be present in the same library.
+</para>
+
+<para> The <symbol>_GLIBCXX_USE_CXX11_ABI</symbol> macro (see
+  <xref linkend="manual.intro.using.macros"/>) controls whether
+  the declarations in the library headers use the old or new ABI.
+  So the decision of which ABI to use can be made separately for each
+  source file being compiled.
+  Using the default configuration options for GCC the default value
+  of the macro is <literal>1</literal> which causes the new ABI to be active,
+  so to use the old ABI you must explicitly define the macro to
+  <literal>0</literal> before including any library headers.
+  (Be aware that some GNU/Linux distributions configure GCC 5 differently so
+  that the default value of the macro is <literal>0</literal> and users must
+  define it to <literal>1</literal> to enable the new ABI.)
+</para>
+
+<para> Although the changes were made for C++11 conformance, the choice of ABI
+  to use is independent of the <option>-std</option> option used to compile
+  your code, i.e. for a given GCC build the default value of the
+  <symbol>_GLIBCXX_USE_CXX11_ABI</symbol> macro is the same for all dialects.
+  This ensures that the <option>-std</option> does not change the ABI, so
+  that it is straightforward to link C++03 and C++11 code together.
+</para>
+
+<para> Because <classname>std::string</classname> is used extensively
+  throughout the library a number of other types are also defined twice,
+  including the stringstream classes and several facets used by
+  <classname>std::locale</classname>. The standard facets which are always
+  installed in a locale may be present twice, with both ABIs, to ensure that
+  code like
+  <code>std::use_facet&lt;std::time_get&lt;char&gt;&gt;(locale);</code>
+  will work correctly for both <classname>std::time_get</classname> and
+  <classname>std::__cxx11::time_get</classname> (even if a user-defined
+  facet that derives from one or other version of
+  <classname>time_get</classname> is installed in the locale).
+</para>
+
+<para> Although the standard exception types defined in
+  <filename class="headerfile">&lt;stdexcept&gt;</filename> use strings, most
+  are not defined twice, so that a <classname>std::out_of_range</classname>
+  exception thrown in one file can always be caught by a suitable handler in
+  another file, even if the two files are compiled with different ABIs.
+</para>
+
+<para> One exception type does change when using the new ABI, namely
+  <classname>std::ios_base::failure</classname>.
+  This is necessary because the 2011 standard changed its base class from
+  <classname>std::exception</classname> to
+  <classname>std::system_error</classname>, which causes its layout to change.
+  Exceptions due to iostream errors are thrown by a function inside
+  <filename class="libraryfile">libstdc++.so</filename>, so whether the thrown
+  exception uses the old <classname>std::ios_base::failure</classname> type
+  or the new one depends on the ABI that was active when
+  <filename class="libraryfile">libstdc++.so</filename> was built,
+  <emphasis>not</emphasis> the ABI active in the user code that is using
+  iostreams.
+  This means that for a given build of GCC the type thrown is fixed.
+  In current releases the library throws a special type that can be caught
+  by handlers for either the old or new type,
+  but for GCC 7.1, 7.2 and 7.3 the library throws the new
+  <classname>std::ios_base::failure</classname> type,
+  and for GCC 5.x and 6.x the library throws the old type.
+  Catch handlers of type <classname>std::ios_base::failure</classname>
+  will only catch the exceptions if using a newer release,
+  or if the handler is compiled with the same ABI as the type thrown by
+  the library.
+  Handlers for <classname>std::exception</classname> will always catch
+  iostreams exceptions, because the old and new type both inherit from
+  <classname>std::exception</classname>.
+</para>
+
+<section xml:id="manual.intro.using.abi.trouble" xreflabel="Dual ABI Troubleshooting"><info><title>Troubleshooting</title></info>
+
+<para> If you get linker errors about undefined references to symbols
+  that involve types in the <code>std::__cxx11</code> namespace or the tag
+  <code>[abi:cxx11]</code> then it probably indicates that you are trying to
+  link together object files that were compiled with different values for the
+  <symbol>_GLIBCXX_USE_CXX11_ABI</symbol> macro. This commonly happens when
+  linking to a third-party library that was compiled with an older version
+  of GCC. If the third-party library cannot be rebuilt with the new ABI then
+  you will need to recompile your code with the old ABI.
+</para>
+
+<para> Not all uses of the new ABI will cause changes in symbol names, for
+  example a class with a <classname>std::string</classname> member variable
+  will have the same mangled name whether compiled with the old or new ABI.
+  In order to detect such problems the new types and functions are
+  annotated with the <property>abi_tag</property> attribute, allowing the
+  compiler to warn about potential ABI incompatibilities in code using them.
+  Those warnings can be enabled with the <option>-Wabi-tag</option> option.
+</para>
+
+</section>
+</section>
 
   <section xml:id="manual.intro.using.namespaces" xreflabel="Namespaces"><info><title>Namespaces</title></info>
     <?dbhtml filename="using_namespaces.html"?>
@@ -909,8 +1334,8 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
   <listitem><para>std</para>
 <para>The ISO C++ standards specify that "all library entities are defined
 within namespace std." This includes namespaces nested
-within <code>namespace std</code>, such as <code>namespace
-std::tr1</code>.
+within namespace <code>std</code>, such as namespace
+<code>std::chrono</code>.
 </para>
 </listitem>
 <listitem><para>abi</para>
@@ -926,6 +1351,11 @@ include <code>__gnu_cxx</code>, <code>__gnu_debug</code>, <code>__gnu_parallel</
 and <code>__gnu_pbds</code>.
 </para></listitem>
 </itemizedlist>
+
+<para> The library uses a number of inline namespaces as implementation
+details that are not intended for users to refer to directly, these include
+<code>std::__detail</code>, <code>std::__cxx11</code> and <code>std::_V2</code>.
+</para>
 
 <para> A complete list of implementation namespaces (including namespace contents) is available in the generated source <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/namespaces.html">documentation</link>.
 </para>
@@ -1210,8 +1640,31 @@ A quick read of the relevant part of the GCC
       you.
     </para>
     </section>
-  </section>
 
+    <section xml:id="manual.intro.using.linkage.experimental" xreflabel="Library Extensions"><info><title>Experimental Library Extensions</title></info>
+
+    <para>
+      GCC 5.3 includes an implementation of the Filesystem library defined
+      by the technical specification ISO/IEC TS 18822:2015. Because this is
+      an experimental library extension, not part of the C++ standard, it
+      is implemented in a separate library,
+      <filename class="libraryfile">libstdc++fs.a</filename>, and there is
+      no shared library for it. To use the library you should include
+      <filename class="headerfile">&lt;experimental/filesystem&gt;</filename>
+      and link with <option>-lstdc++fs</option>. The library implementation
+      is incomplete on non-POSIX platforms, specifically Windows support is
+      rudimentary.
+    </para>
+
+    <para>
+      Due to the experimental nature of the Filesystem library the usual
+      guarantees about ABI stability and backwards compatibility do not apply
+      to it. There is no guarantee that the components in any
+      <filename class="headerfile">&lt;experimental/xxx&gt;</filename>
+      header will remain compatible between different GCC releases.
+    </para>
+    </section>
+  </section>
 
   <section xml:id="manual.intro.using.concurrency" xreflabel="Concurrency"><info><title>Concurrency</title></info>
     <?dbhtml filename="using_concurrency.html"?>
@@ -1248,13 +1701,16 @@ A quick read of the relevant part of the GCC
       all required macros to a compilation (if any such flags are
       required then you must provide the flag for all compilations not
       just linking) and link-library additions and/or replacements at
-      link time.  The documentation is weak.  Here is a quick summary
-      to display how ad hoc this is: On Solaris, both -pthreads and
-      -threads (with subtly different meanings) are honored.  
-      On GNU/Linux x86, -pthread is honored.  On FreeBSD,
-      -pthread is honored.  Some other ports use other switches.
-      AFAIK, none of this is properly documented anywhere other than
-      in ``gcc -dumpspecs'' (look at lib and cpp entries).
+      link time.  The documentation is weak.  On several targets (including
+      GNU/Linux, Solaris and various BSDs) -pthread is honored.
+      Some other ports use other switches.
+      This is not well documented anywhere other than
+      in "gcc -dumpspecs" (look at the 'lib' and 'cpp' entries).
+   </para>
+
+   <para>
+     Some uses of <classname>std::atomic</classname> also require linking
+     to <filename class="libraryfile">libatomic</filename>.
    </para>
 
     </section>
@@ -1270,7 +1726,7 @@ The standard places requirements on the library to ensure that no data
 races are caused by the library itself or by programs which use the
 library correctly (as described below).
 The C++11 memory model and library requirements are a more formal version
-of the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.sgi.com/tech/stl/thread_safety.html">SGI STL</link> definition of thread safety, which the library used
+of the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/thread_safety.html">SGI STL</link> definition of thread safety, which the library used
 prior to the 2011 standard.
 </para>
 
@@ -1305,14 +1761,19 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
 	 Requisite command-line flags are used for atomic operations
 	 and threading. Examples of this include <code>-pthread</code>
 	 and <code>-march=native</code>, although specifics vary
-	 depending on the host environment. See <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html">Machine
+	 depending on the host environment. See
+	 <link linkend="manual.intro.using.flags">Command Options</link> and
+	 <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html">Machine
 	 Dependent Options</link>.
        </para>
        </listitem>
        <listitem>
 	 <para>
-	   An implementation of atomicity.h functions
-	   exists for the architecture in question. See the internals documentation for more <link linkend="internals.thread_safety">details</link>.
+	   An implementation of the
+	   <filename class="headerfile">atomicity.h</filename> functions
+	   exists for the architecture in question. See the
+	   <link linkend="internals.thread_safety">internals
+	   documentation</link> for more details.
        </para>
        </listitem>
 
@@ -1417,9 +1878,9 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
       </programlisting>
 
       <para>For further details of the C++11 memory model see Hans-J. Boehm's
-      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.hpl.hp.com/personal/Hans_Boehm/c++mm/user-faq.html">Threads
-      and memory model for C++</link> pages, particularly the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.hpl.hp.com/personal/Hans_Boehm/c++mm/threadsintro.html">introduction</link> 
-      and <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.hpl.hp.com/personal/Hans_Boehm/c++mm/user-faq.html">FAQ</link>.
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://www.hboehm.info/c++mm/">Threads
+      and memory model for C++</link> pages, particularly the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.hboehm.info/c++mm/threadsintro.html">introduction</link> 
+      and <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://www.hboehm.info/c++mm/user-faq.html">FAQ</link>.
       </para>
 
   </section>
@@ -1462,10 +1923,11 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
       and efficiency.  You, the programmer, are always required to take care
       with multiple threads.
    </para>
-   <para>(As an example, the POSIX standard requires that C stdio FILE*
-       operations are atomic.  POSIX-conforming C libraries (e.g, on Solaris
-       and GNU/Linux) have an internal mutex to serialize operations on
-       FILE*s.  However, you still need to not do stupid things like calling
+   <para>(As an example, the POSIX standard requires that C stdio
+       <code>FILE*</code> operations are atomic.  POSIX-conforming C libraries
+       (e.g, on Solaris and GNU/Linux) have an internal mutex to serialize
+       operations on <code>FILE*</code>s.
+       However, you still need to not do stupid things like calling
        <code>fclose(fs)</code> in one thread followed by an access of
        <code>fs</code> in another.)
    </para>
@@ -1537,10 +1999,10 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
    </para>
    <para>Two excellent pages to read when working with the Standard C++
       containers and threads are
-      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.sgi.com/tech/stl/thread_safety.html">SGI's
-      http://www.sgi.com/tech/stl/thread_safety.html</link> and
-      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.sgi.com/tech/stl/Allocators.html">SGI's
-      http://www.sgi.com/tech/stl/Allocators.html</link>.
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/thread_safety.html">SGI's
+      https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/thread_safety.html</link> and
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/Allocators.html">SGI's
+      https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/Allocators.html</link>.
    </para>
    <para><emphasis>However, please ignore all discussions about the user-level
       configuration of the lock implementation inside the STL

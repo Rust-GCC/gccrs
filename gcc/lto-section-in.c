@@ -1,6 +1,6 @@
 /* Input functions for reading LTO sections.
 
-   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 2009-2019 Free Software Foundation, Inc.
    Contributed by Kenneth Zadeck <zadeck@naturalbridge.com>
 
 This file is part of GCC.
@@ -22,23 +22,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "backend.h"
+#include "rtl.h"
 #include "tree.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "is-a.h"
 #include "gimple.h"
-#include "expr.h"
-#include "flags.h"
-#include "params.h"
-#include "input.h"
-#include "hashtab.h"
-#include "function.h"
-#include "diagnostic-core.h"
-#include "except.h"
-#include "timevar.h"
+#include "cgraph.h"
 #include "lto-streamer.h"
 #include "lto-compress.h"
 
@@ -60,7 +48,11 @@ const char *lto_section_name[LTO_N_SECTION_TYPES] =
   "opts",
   "cgraphopt",
   "inline",
-  "ipcp_trans"
+  "ipcp_trans",
+  "icf",
+  "offload_table",
+  "mode_table",
+  "hsa"
 };
 
 
@@ -139,7 +131,7 @@ const char *
 lto_get_section_data (struct lto_file_decl_data *file_data,
 		      enum lto_section_type section_type,
 		      const char *name,
-		      size_t *len)
+		      size_t *len, bool decompress)
 {
   const char *data = (get_section_f) (file_data, section_type, name, len);
   const size_t header_length = sizeof (struct lto_data_header);
@@ -151,9 +143,10 @@ lto_get_section_data (struct lto_file_decl_data *file_data,
   if (data == NULL)
     return NULL;
 
-  /* FIXME lto: WPA mode does not write compressed sections, so for now
-     suppress uncompression if flag_ltrans.  */
-  if (!flag_ltrans)
+  /* WPA->ltrans streams are not compressed with exception of function bodies
+     and variable initializers that has been verbatim copied from earlier
+     compilations.  */
+  if (!flag_ltrans || decompress)
     {
       /* Create a mapping header containing the underlying data and length,
 	 and prepend this to the uncompression buffer.  The uncompressed data
@@ -175,10 +168,21 @@ lto_get_section_data (struct lto_file_decl_data *file_data,
     }
 
   lto_check_version (((const lto_header *)data)->major_version,
-		     ((const lto_header *)data)->minor_version);
+		     ((const lto_header *)data)->minor_version,
+		     file_data->file_name);
   return data;
 }
 
+/* Get the section data without any header parsing or uncompression.  */
+
+const char *
+lto_get_raw_section_data (struct lto_file_decl_data *file_data,
+			  enum lto_section_type section_type,
+			  const char *name,
+			  size_t *len)
+{
+  return (get_section_f) (file_data, section_type, name, len);
+}
 
 /* Free the data found from the above call.  The first three
    parameters are the same as above.  DATA is the data to be freed and
@@ -189,7 +193,7 @@ lto_free_section_data (struct lto_file_decl_data *file_data,
 		       enum lto_section_type section_type,
 		       const char *name,
 		       const char *data,
-		       size_t len)
+		       size_t len, bool decompress)
 {
   const size_t header_length = sizeof (struct lto_data_header);
   const char *real_data = data - header_length;
@@ -198,9 +202,7 @@ lto_free_section_data (struct lto_file_decl_data *file_data,
 
   gcc_assert (free_section_f);
 
-  /* FIXME lto: WPA mode does not write compressed sections, so for now
-     suppress uncompression mapping if flag_ltrans.  */
-  if (flag_ltrans)
+  if (flag_ltrans && !decompress)
     {
       (free_section_f) (file_data, section_type, name, data, len);
       return;
@@ -212,6 +214,17 @@ lto_free_section_data (struct lto_file_decl_data *file_data,
   free (CONST_CAST (char *, real_data));
 }
 
+/* Free data allocated by lto_get_raw_section_data.  */
+
+void
+lto_free_raw_section_data (struct lto_file_decl_data *file_data,
+		           enum lto_section_type section_type,
+		           const char *name,
+		           const char *data,
+		           size_t len)
+{
+  (free_section_f) (file_data, section_type, name, data, len);
+}
 
 /* Load a section of type SECTION_TYPE from FILE_DATA, parse the
    header and then return an input block pointing to the section.  The
@@ -233,7 +246,8 @@ lto_create_simple_input_block (struct lto_file_decl_data *file_data,
     return NULL;
 
   *datar = data;
-  return new lto_input_block (data + main_offset, header->main_size);
+  return new lto_input_block (data + main_offset, header->main_size,
+			      file_data->mode_table);
 }
 
 
@@ -369,33 +383,9 @@ lto_delete_in_decl_state (struct lto_in_decl_state *state)
   int i;
 
   for (i = 0; i < LTO_N_DECL_STREAMS; i++)
-    if (state->streams[i].trees)
-      ggc_free (state->streams[i].trees);
+    vec_free (state->streams[i]);
   ggc_free (state);
 }
-
-/* Hashtable helpers. lto_in_decl_states are hash by their function decls. */
-
-hashval_t
-lto_hash_in_decl_state (const void *p)
-{
-  const struct lto_in_decl_state *state = (const struct lto_in_decl_state *) p;
-  return htab_hash_pointer (state->fn_decl);
-}
-
-/* Return true if the fn_decl field of the lto_in_decl_state pointed to by
-   P1 equals to the function decl P2. */
-
-int
-lto_eq_in_decl_state (const void *p1, const void *p2)
-{
-  const struct lto_in_decl_state *state1 =
-   (const struct lto_in_decl_state *) p1;
-  const struct lto_in_decl_state *state2 =
-   (const struct lto_in_decl_state *) p2;
-  return state1->fn_decl == state2->fn_decl;
-}
-
 
 /* Search the in-decl state of a function FUNC contained in the file
    associated with FILE_DATA.  Return NULL if not found.  */
@@ -405,11 +395,11 @@ lto_get_function_in_decl_state (struct lto_file_decl_data *file_data,
 				tree func)
 {
   struct lto_in_decl_state temp;
-  void **slot;
+  lto_in_decl_state **slot;
 
   temp.fn_decl = func;
-  slot = htab_find_slot (file_data->function_decl_states, &temp, NO_INSERT);
-  return slot? ((struct lto_in_decl_state*) *slot) : NULL;
+  slot = file_data->function_decl_states->find_slot (&temp, NO_INSERT);
+  return slot? *slot : NULL;
 }
 
 /* Free decl_states.  */
@@ -419,7 +409,7 @@ lto_free_function_in_decl_state (struct lto_in_decl_state *state)
 {
   int i;
   for (i = 0; i < LTO_N_DECL_STREAMS; i++)
-    ggc_free (state->streams[i].trees);
+    vec_free (state->streams[i]);
   ggc_free (state);
 }
 
@@ -430,19 +420,18 @@ void
 lto_free_function_in_decl_state_for_node (symtab_node *node)
 {
   struct lto_in_decl_state temp;
-  void **slot;
+  lto_in_decl_state **slot;
 
   if (!node->lto_file_data)
     return;
 
   temp.fn_decl = node->decl;
-  slot = htab_find_slot (node->lto_file_data->function_decl_states,
-			 &temp, NO_INSERT);
+  slot
+    = node->lto_file_data->function_decl_states->find_slot (&temp, NO_INSERT);
   if (slot && *slot)
     {
-      lto_free_function_in_decl_state ((struct lto_in_decl_state*) *slot);
-      htab_clear_slot (node->lto_file_data->function_decl_states,
-		       slot);
+      lto_free_function_in_decl_state (*slot);
+      node->lto_file_data->function_decl_states->clear_slot (slot);
     }
   node->lto_file_data = NULL;
 }
@@ -453,7 +442,7 @@ lto_free_function_in_decl_state_for_node (symtab_node *node)
 void
 lto_section_overrun (struct lto_input_block *ib)
 {
-  fatal_error ("bytecode stream: trying to read %d bytes "
+  fatal_error (input_location, "bytecode stream: trying to read %d bytes "
 	       "after the end of the input buffer", ib->p - ib->len);
 }
 
@@ -463,6 +452,7 @@ void
 lto_value_range_error (const char *purpose, HOST_WIDE_INT val,
 		       HOST_WIDE_INT min, HOST_WIDE_INT max)
 {
-  fatal_error ("%s out of range: Range is %i to %i, value is %i",
+  fatal_error (input_location,
+	       "%s out of range: Range is %i to %i, value is %i",
 	       purpose, (int)min, (int)max, (int)val);
 }

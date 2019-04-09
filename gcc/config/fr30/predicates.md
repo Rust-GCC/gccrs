@@ -1,5 +1,5 @@
 ;; Predicate definitions for FR30.
-;; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -64,7 +64,7 @@
 ;; Returns TRUE if OP is a valid operand of a DImode operation.
 
 (define_predicate "di_operand"
-  (match_code "const_int,const_double,reg,mem")
+  (match_code "const_int,const_double,reg,subreg,mem")
 {
   if (register_operand (op, mode))
     return TRUE;
@@ -92,7 +92,7 @@
 ;; Returns TRUE if OP is a DImode register or MEM.
 
 (define_predicate "nonimmediate_di_operand"
-  (match_code "reg,mem")
+  (match_code "reg,subreg,mem")
 {
   if (register_operand (op, mode))
     return TRUE;

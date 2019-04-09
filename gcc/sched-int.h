@@ -1,6 +1,6 @@
 /* Instruction scheduling pass.  This file contains definitions used
    internally in the scheduler.
-   Copyright (C) 1992-2014 Free Software Foundation, Inc.
+   Copyright (C) 1992-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,12 +21,7 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_SCHED_INT_H
 #define GCC_SCHED_INT_H
 
-#include "insn-attr.h"
-
 #ifdef INSN_SCHEDULING
-
-#include "df.h"
-#include "basic-block.h"
 
 /* Identificator of a scheduler pass.  */
 enum sched_pass_id_t { SCHED_PASS_UNKNOWN, SCHED_RGN_PASS, SCHED_EBB_PASS,
@@ -105,7 +100,7 @@ extern int get_rgn_sched_max_insns_priority (void);
 extern void sel_add_to_insn_priority (rtx, int);
 
 /* True if during selective scheduling we need to emulate some of haifa
-   scheduler behaviour.  */
+   scheduler behavior.  */
 extern int sched_emulate_haifa_p;
 
 /* Mapping from INSN_UID to INSN_LUID.  In the end all other per insn data
@@ -245,7 +240,7 @@ struct _dep
   int cost:20;
 };
 
-#define UNKNOWN_DEP_COST (-1<<19)
+#define UNKNOWN_DEP_COST ((int) ((unsigned int) -1 << 19))
 
 typedef struct _dep dep_def;
 typedef dep_def *dep_t;
@@ -542,6 +537,17 @@ struct deps_desc
   /* The last insn bearing REG_ARGS_SIZE that we've seen.  */
   rtx_insn *last_args_size;
 
+  /* A list of all prologue insns we have seen without intervening epilogue
+     insns, and one of all epilogue insns we have seen without intervening
+     prologue insns.  This is used to prevent mixing prologue and epilogue
+     insns.  See PR78029.  */
+  rtx_insn_list *last_prologue;
+  rtx_insn_list *last_epilogue;
+
+  /* Whether the last *logue insn was an epilogue insn or a prologue insn
+     instead.  */
+  bool last_logue_was_epilogue;
+
   /* The maximum register number for the following arrays.  Before reload
      this is max_reg_num; after reload it is FIRST_PSEUDO_REGISTER.  */
   int max_reg;
@@ -794,6 +800,34 @@ struct reg_set_data
   struct reg_set_data *next_insn_set;
 };
 
+enum autopref_multipass_data_status {
+  /* Entry is irrelevant for auto-prefetcher.  */
+  AUTOPREF_MULTIPASS_DATA_IRRELEVANT = -2,
+  /* Entry is uninitialized.  */
+  AUTOPREF_MULTIPASS_DATA_UNINITIALIZED = -1,
+  /* Entry is relevant for auto-prefetcher and insn can be delayed
+     to allow another insn through.  */
+  AUTOPREF_MULTIPASS_DATA_NORMAL = 0,
+  /* Entry is relevant for auto-prefetcher, but insn should not be
+     delayed as that will break scheduling.  */
+  AUTOPREF_MULTIPASS_DATA_DONT_DELAY = 1
+};
+
+/* Data for modeling cache auto-prefetcher.  */
+struct autopref_multipass_data_
+{
+  /* Base part of memory address.  */
+  rtx base;
+
+  /* Memory offsets from the base.  */
+  int offset;
+
+  /* Entry status.  */
+  enum autopref_multipass_data_status status;
+};
+typedef struct autopref_multipass_data_ autopref_multipass_data_def;
+typedef autopref_multipass_data_def *autopref_multipass_data_t;
+
 struct _haifa_insn_data
 {
   /* We can't place 'struct _deps_list' into h_i_d instead of deps_list_t
@@ -805,6 +839,9 @@ struct _haifa_insn_data
 
   /* A priority for each insn.  */
   int priority;
+
+  /* The fusion priority for each insn.  */
+  int fusion_priority;
 
   /* The minimum clock tick at which the insn becomes ready.  This is
      used to note timing constraints for the insns in the pending list.  */
@@ -888,6 +925,16 @@ struct _haifa_insn_data
      pressure excess (between source and target).  */
   int reg_pressure_excess_cost_change;
   int model_index;
+
+  /* Original order of insns in the ready list.  */
+  int rfs_debug_orig_order;
+
+  /* The deciding reason for INSN's place in the ready list.  */
+  int last_rfs_win;
+
+  /* Two entries for cache auto-prefetcher model: one for mem reads,
+     and one for mem writes.  */
+  autopref_multipass_data_def autopref_multipass_data[2];
 };
 
 typedef struct _haifa_insn_data haifa_insn_data_def;
@@ -901,6 +948,7 @@ extern vec<haifa_insn_data_def> h_i_d;
 /* Accessor macros for h_i_d.  There are more in haifa-sched.c and
    sched-rgn.c.  */
 #define INSN_PRIORITY(INSN) (HID (INSN)->priority)
+#define INSN_FUSION_PRIORITY(INSN) (HID (INSN)->fusion_priority)
 #define INSN_REG_PRESSURE(INSN) (HID (INSN)->reg_pressure)
 #define INSN_MAX_REG_PRESSURE(INSN) (HID (INSN)->max_reg_pressure)
 #define INSN_REG_USE_LIST(INSN) (HID (INSN)->reg_use_list)
@@ -909,6 +957,8 @@ extern vec<haifa_insn_data_def> h_i_d;
   (HID (INSN)->reg_pressure_excess_cost_change)
 #define INSN_PRIORITY_STATUS(INSN) (HID (INSN)->priority_status)
 #define INSN_MODEL_INDEX(INSN) (HID (INSN)->model_index)
+#define INSN_AUTOPREF_MULTIPASS_DATA(INSN) \
+  (HID (INSN)->autopref_multipass_data)
 
 typedef struct _haifa_deps_insn_data haifa_deps_insn_data_def;
 typedef haifa_deps_insn_data_def *haifa_deps_insn_data_t;
@@ -1304,7 +1354,8 @@ extern void init_deps_global (void);
 extern void finish_deps_global (void);
 extern void deps_analyze_insn (struct deps_desc *, rtx_insn *);
 extern void remove_from_deps (struct deps_desc *, rtx_insn *);
-extern void init_insn_reg_pressure_info (rtx);
+extern void init_insn_reg_pressure_info (rtx_insn *);
+extern void get_implicit_reg_pending_clobbers (HARD_REG_SET *, rtx_insn *);
 
 extern dw_t get_dep_weak (ds_t, ds_t);
 extern ds_t set_dep_weak (ds_t, ds_t, dw_t);
@@ -1345,7 +1396,7 @@ extern void get_ebb_head_tail (basic_block, basic_block,
 			       rtx_insn **, rtx_insn **);
 extern int no_real_insns_p (const rtx_insn *, const rtx_insn *);
 
-extern int insn_cost (rtx_insn *);
+extern int insn_sched_cost (rtx_insn *);
 extern int dep_cost_1 (dep_t, dw_t);
 extern int dep_cost (dep_t);
 extern int set_priorities (rtx_insn *, rtx_insn *);
@@ -1357,7 +1408,8 @@ extern int cycle_issued_insns;
 extern int issue_rate;
 extern int dfa_lookahead;
 
-extern void ready_sort (struct ready_list *);
+extern int autopref_multipass_dfa_lookahead_guard (rtx_insn *, int);
+
 extern rtx_insn *ready_element (struct ready_list *, int);
 extern rtx_insn **ready_lastpos (struct ready_list *);
 
@@ -1450,6 +1502,9 @@ extern void compute_priorities (void);
 extern void increase_insn_priority (rtx_insn *, int);
 extern void debug_rgn_dependencies (int);
 extern void debug_dependencies (rtx_insn *, rtx_insn *);
+extern void dump_rgn_dependencies_dot (FILE *);
+extern void dump_rgn_dependencies_dot (const char *);
+
 extern void free_rgn_deps (void);
 extern int contributes_to_priority (rtx_insn *, rtx_insn *);
 extern void extend_rgns (int *, int *, sbitmap, int *);
@@ -1573,10 +1628,11 @@ sd_iterator_cond (sd_iterator_def *it_ptr, dep_t *dep_ptr)
 	      sd_next_list (it_ptr->insn,
 			    &it_ptr->types, &list, &it_ptr->resolved_p);
 
-	      it_ptr->linkp = &DEPS_LIST_FIRST (list);
-
 	      if (list)
-		continue;
+		{
+		  it_ptr->linkp = &DEPS_LIST_FIRST (list);
+		  continue;
+		}
 	    }
 
 	  *dep_ptr = NULL;
@@ -1607,8 +1663,8 @@ sd_iterator_next (sd_iterator_def *it_ptr)
 
 extern int sd_lists_size (const_rtx, sd_list_types_def);
 extern bool sd_lists_empty_p (const_rtx, sd_list_types_def);
-extern void sd_init_insn (rtx);
-extern void sd_finish_insn (rtx);
+extern void sd_init_insn (rtx_insn *);
+extern void sd_finish_insn (rtx_insn *);
 extern dep_t sd_find_dep_between (rtx, rtx, bool);
 extern void sd_add_dep (dep_t, bool);
 extern enum DEPS_ADJUST_RESULT sd_add_or_update_dep (dep_t, bool);
@@ -1617,6 +1673,10 @@ extern void sd_unresolve_dep (sd_iterator_def);
 extern void sd_copy_back_deps (rtx_insn *, rtx_insn *, bool);
 extern void sd_delete_dep (sd_iterator_def);
 extern void sd_debug_lists (rtx, sd_list_types_def);
+
+/* Macros and declarations for scheduling fusion.  */
+#define FUSION_MAX_PRIORITY (INT_MAX)
+extern bool sched_fusion;
 
 #endif /* INSN_SCHEDULING */
 

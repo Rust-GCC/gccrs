@@ -129,6 +129,5 @@ int main (void)
 }
 
 /* { dg-final { scan-tree-dump-times "vectorized 2 loops" 1 "vect"  } } */
-/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 6 "vect"  } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */
+/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 6 "vect" } } */
   

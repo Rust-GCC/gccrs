@@ -1,5 +1,5 @@
 C { dg-do compile }
-C { dg-additional-options "-fvect-cost-model=dynamic" }
+C { dg-additional-options "-fvect-cost-model=dynamic -fno-ipa-icf" }
       subroutine test2(x,y)
       real x(4),y(4)
       beta=3.141593
@@ -14,4 +14,3 @@ C { dg-additional-options "-fvect-cost-model=dynamic" }
       y=y+beta*x
       end
 C { dg-final { scan-tree-dump-times "vectorized 1 loops" 2 "vect" { target { vect_hw_misalign } } } }
-C { dg-final { cleanup-tree-dump "vect" } }

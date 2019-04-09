@@ -1,6 +1,6 @@
 /* Software floating-point emulation.
    Definitions for IEEE Double Precision
-   Copyright (C) 1997-2014 Free Software Foundation, Inc.
+   Copyright (C) 1997-2018 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
    Contributed by Richard Henderson (rth@cygnus.com),
 		  Jakub Jelinek (jj@ultra.linux.cz),
@@ -29,6 +29,9 @@
    You should have received a copy of the GNU Lesser General Public
    License along with the GNU C Library; if not, see
    <http://www.gnu.org/licenses/>.  */
+
+#ifndef SOFT_FP_DOUBLE_H
+#define SOFT_FP_DOUBLE_H	1
 
 #if _FP_W_TYPE_SIZE < 32
 # error "Here's a nickel kid.  Go buy yourself a real computer."
@@ -86,25 +89,25 @@ union _FP_UNION_D
     unsigned exp   : _FP_EXPBITS_D;
     unsigned sign  : 1;
 # endif
-  } bits __attribute__ ((packed));
+  } bits;
 };
 
 # define FP_DECL_D(X)		_FP_DECL (2, X)
-# define FP_UNPACK_RAW_D(X, val)	_FP_UNPACK_RAW_2 (D, X, val)
-# define FP_UNPACK_RAW_DP(X, val)	_FP_UNPACK_RAW_2_P (D, X, val)
-# define FP_PACK_RAW_D(val, X)	_FP_PACK_RAW_2 (D, val, X)
+# define FP_UNPACK_RAW_D(X, val)	_FP_UNPACK_RAW_2 (D, X, (val))
+# define FP_UNPACK_RAW_DP(X, val)	_FP_UNPACK_RAW_2_P (D, X, (val))
+# define FP_PACK_RAW_D(val, X)	_FP_PACK_RAW_2 (D, (val), X)
 # define FP_PACK_RAW_DP(val, X)			\
   do						\
     {						\
       if (!FP_INHIBIT_RESULTS)			\
-	_FP_PACK_RAW_2_P (D, val, X);		\
+	_FP_PACK_RAW_2_P (D, (val), X);		\
     }						\
   while (0)
 
 # define FP_UNPACK_D(X, val)			\
   do						\
     {						\
-      _FP_UNPACK_RAW_2 (D, X, val);		\
+      _FP_UNPACK_RAW_2 (D, X, (val));		\
       _FP_UNPACK_CANONICAL (D, 2, X);		\
     }						\
   while (0)
@@ -112,7 +115,7 @@ union _FP_UNION_D
 # define FP_UNPACK_DP(X, val)			\
   do						\
     {						\
-      _FP_UNPACK_RAW_2_P (D, X, val);		\
+      _FP_UNPACK_RAW_2_P (D, X, (val));		\
       _FP_UNPACK_CANONICAL (D, 2, X);		\
     }						\
   while (0)
@@ -120,7 +123,7 @@ union _FP_UNION_D
 # define FP_UNPACK_SEMIRAW_D(X, val)		\
   do						\
     {						\
-      _FP_UNPACK_RAW_2 (D, X, val);		\
+      _FP_UNPACK_RAW_2 (D, X, (val));		\
       _FP_UNPACK_SEMIRAW (D, 2, X);		\
     }						\
   while (0)
@@ -128,7 +131,7 @@ union _FP_UNION_D
 # define FP_UNPACK_SEMIRAW_DP(X, val)		\
   do						\
     {						\
-      _FP_UNPACK_RAW_2_P (D, X, val);		\
+      _FP_UNPACK_RAW_2_P (D, X, (val));		\
       _FP_UNPACK_SEMIRAW (D, 2, X);		\
     }						\
   while (0)
@@ -137,7 +140,7 @@ union _FP_UNION_D
   do						\
     {						\
       _FP_PACK_CANONICAL (D, 2, X);		\
-      _FP_PACK_RAW_2 (D, val, X);		\
+      _FP_PACK_RAW_2 (D, (val), X);		\
     }						\
   while (0)
 
@@ -146,7 +149,7 @@ union _FP_UNION_D
     {						\
       _FP_PACK_CANONICAL (D, 2, X);		\
       if (!FP_INHIBIT_RESULTS)			\
-	_FP_PACK_RAW_2_P (D, val, X);		\
+	_FP_PACK_RAW_2_P (D, (val), X);		\
     }						\
   while (0)
 
@@ -154,7 +157,7 @@ union _FP_UNION_D
   do						\
     {						\
       _FP_PACK_SEMIRAW (D, 2, X);		\
-      _FP_PACK_RAW_2 (D, val, X);		\
+      _FP_PACK_RAW_2 (D, (val), X);		\
     }						\
   while (0)
 
@@ -163,7 +166,7 @@ union _FP_UNION_D
     {						\
       _FP_PACK_SEMIRAW (D, 2, X);		\
       if (!FP_INHIBIT_RESULTS)			\
-	_FP_PACK_RAW_2_P (D, val, X);		\
+	_FP_PACK_RAW_2_P (D, (val), X);		\
     }						\
   while (0)
 
@@ -174,15 +177,17 @@ union _FP_UNION_D
 # define FP_MUL_D(R, X, Y)		_FP_MUL (D, 2, R, X, Y)
 # define FP_DIV_D(R, X, Y)		_FP_DIV (D, 2, R, X, Y)
 # define FP_SQRT_D(R, X)		_FP_SQRT (D, 2, R, X)
-# define _FP_SQRT_MEAT_D(R, S, T, X, Q)	_FP_SQRT_MEAT_2 (R, S, T, X, Q)
+# define _FP_SQRT_MEAT_D(R, S, T, X, Q)	_FP_SQRT_MEAT_2 (R, S, T, X, (Q))
 # define FP_FMA_D(R, X, Y, Z)		_FP_FMA (D, 2, 4, R, X, Y, Z)
 
-# define FP_CMP_D(r, X, Y, un)		_FP_CMP (D, 2, r, X, Y, un)
-# define FP_CMP_EQ_D(r, X, Y)		_FP_CMP_EQ (D, 2, r, X, Y)
-# define FP_CMP_UNORD_D(r, X, Y)	_FP_CMP_UNORD (D, 2, r, X, Y)
+# define FP_CMP_D(r, X, Y, un, ex)	_FP_CMP (D, 2, (r), X, Y, (un), (ex))
+# define FP_CMP_EQ_D(r, X, Y, ex)	_FP_CMP_EQ (D, 2, (r), X, Y, (ex))
+# define FP_CMP_UNORD_D(r, X, Y, ex)	_FP_CMP_UNORD (D, 2, (r), X, Y, (ex))
 
-# define FP_TO_INT_D(r, X, rsz, rsg)	_FP_TO_INT (D, 2, r, X, rsz, rsg)
-# define FP_FROM_INT_D(X, r, rs, rt)	_FP_FROM_INT (D, 2, X, r, rs, rt)
+# define FP_TO_INT_D(r, X, rsz, rsg)	_FP_TO_INT (D, 2, (r), X, (rsz), (rsg))
+# define FP_TO_INT_ROUND_D(r, X, rsz, rsg)	\
+  _FP_TO_INT_ROUND (D, 2, (r), X, (rsz), (rsg))
+# define FP_FROM_INT_D(X, r, rs, rt)	_FP_FROM_INT (D, 2, X, (r), (rs), rt)
 
 # define _FP_FRAC_HIGH_D(X)	_FP_FRAC_HIGH_2 (X)
 # define _FP_FRAC_HIGH_RAW_D(X)	_FP_FRAC_HIGH_2 (X)
@@ -205,25 +210,25 @@ union _FP_UNION_D
     unsigned exp    : _FP_EXPBITS_D;
     unsigned sign   : 1;
 # endif
-  } bits __attribute__ ((packed));
+  } bits;
 };
 
 # define FP_DECL_D(X)		_FP_DECL (1, X)
-# define FP_UNPACK_RAW_D(X, val)	_FP_UNPACK_RAW_1 (D, X, val)
-# define FP_UNPACK_RAW_DP(X, val)	_FP_UNPACK_RAW_1_P (D, X, val)
-# define FP_PACK_RAW_D(val, X)	_FP_PACK_RAW_1 (D, val, X)
+# define FP_UNPACK_RAW_D(X, val)	_FP_UNPACK_RAW_1 (D, X, (val))
+# define FP_UNPACK_RAW_DP(X, val)	_FP_UNPACK_RAW_1_P (D, X, (val))
+# define FP_PACK_RAW_D(val, X)	_FP_PACK_RAW_1 (D, (val), X)
 # define FP_PACK_RAW_DP(val, X)			\
   do						\
     {						\
       if (!FP_INHIBIT_RESULTS)			\
-	_FP_PACK_RAW_1_P (D, val, X);		\
+	_FP_PACK_RAW_1_P (D, (val), X);		\
     }						\
   while (0)
 
 # define FP_UNPACK_D(X, val)			\
   do						\
     {						\
-      _FP_UNPACK_RAW_1 (D, X, val);		\
+      _FP_UNPACK_RAW_1 (D, X, (val));		\
       _FP_UNPACK_CANONICAL (D, 1, X);		\
     }						\
   while (0)
@@ -231,7 +236,7 @@ union _FP_UNION_D
 # define FP_UNPACK_DP(X, val)			\
   do						\
     {						\
-      _FP_UNPACK_RAW_1_P (D, X, val);		\
+      _FP_UNPACK_RAW_1_P (D, X, (val));		\
       _FP_UNPACK_CANONICAL (D, 1, X);		\
     }						\
   while (0)
@@ -239,7 +244,7 @@ union _FP_UNION_D
 # define FP_UNPACK_SEMIRAW_D(X, val)		\
   do						\
     {						\
-      _FP_UNPACK_RAW_1 (D, X, val);		\
+      _FP_UNPACK_RAW_1 (D, X, (val));		\
       _FP_UNPACK_SEMIRAW (D, 1, X);		\
     }						\
   while (0)
@@ -247,7 +252,7 @@ union _FP_UNION_D
 # define FP_UNPACK_SEMIRAW_DP(X, val)		\
   do						\
     {						\
-      _FP_UNPACK_RAW_1_P (D, X, val);		\
+      _FP_UNPACK_RAW_1_P (D, X, (val));		\
       _FP_UNPACK_SEMIRAW (D, 1, X);		\
     }						\
   while (0)
@@ -256,7 +261,7 @@ union _FP_UNION_D
   do						\
     {						\
       _FP_PACK_CANONICAL (D, 1, X);		\
-      _FP_PACK_RAW_1 (D, val, X);		\
+      _FP_PACK_RAW_1 (D, (val), X);		\
     }						\
   while (0)
 
@@ -265,7 +270,7 @@ union _FP_UNION_D
     {						\
       _FP_PACK_CANONICAL (D, 1, X);		\
       if (!FP_INHIBIT_RESULTS)			\
-	_FP_PACK_RAW_1_P (D, val, X);		\
+	_FP_PACK_RAW_1_P (D, (val), X);		\
     }						\
   while (0)
 
@@ -273,7 +278,7 @@ union _FP_UNION_D
   do						\
     {						\
       _FP_PACK_SEMIRAW (D, 1, X);		\
-      _FP_PACK_RAW_1 (D, val, X);		\
+      _FP_PACK_RAW_1 (D, (val), X);		\
     }						\
   while (0)
 
@@ -282,7 +287,7 @@ union _FP_UNION_D
     {						\
       _FP_PACK_SEMIRAW (D, 1, X);		\
       if (!FP_INHIBIT_RESULTS)			\
-	_FP_PACK_RAW_1_P (D, val, X);		\
+	_FP_PACK_RAW_1_P (D, (val), X);		\
     }						\
   while (0)
 
@@ -293,18 +298,20 @@ union _FP_UNION_D
 # define FP_MUL_D(R, X, Y)		_FP_MUL (D, 1, R, X, Y)
 # define FP_DIV_D(R, X, Y)		_FP_DIV (D, 1, R, X, Y)
 # define FP_SQRT_D(R, X)		_FP_SQRT (D, 1, R, X)
-# define _FP_SQRT_MEAT_D(R, S, T, X, Q)	_FP_SQRT_MEAT_1 (R, S, T, X, Q)
+# define _FP_SQRT_MEAT_D(R, S, T, X, Q)	_FP_SQRT_MEAT_1 (R, S, T, X, (Q))
 # define FP_FMA_D(R, X, Y, Z)		_FP_FMA (D, 1, 2, R, X, Y, Z)
 
 /* The implementation of _FP_MUL_D and _FP_DIV_D should be chosen by
    the target machine.  */
 
-# define FP_CMP_D(r, X, Y, un)		_FP_CMP (D, 1, r, X, Y, un)
-# define FP_CMP_EQ_D(r, X, Y)		_FP_CMP_EQ (D, 1, r, X, Y)
-# define FP_CMP_UNORD_D(r, X, Y)	_FP_CMP_UNORD (D, 1, r, X, Y)
+# define FP_CMP_D(r, X, Y, un, ex)	_FP_CMP (D, 1, (r), X, Y, (un), (ex))
+# define FP_CMP_EQ_D(r, X, Y, ex)	_FP_CMP_EQ (D, 1, (r), X, Y, (ex))
+# define FP_CMP_UNORD_D(r, X, Y, ex)	_FP_CMP_UNORD (D, 1, (r), X, Y, (ex))
 
-# define FP_TO_INT_D(r, X, rsz, rsg)	_FP_TO_INT (D, 1, r, X, rsz, rsg)
-# define FP_FROM_INT_D(X, r, rs, rt)	_FP_FROM_INT (D, 1, X, r, rs, rt)
+# define FP_TO_INT_D(r, X, rsz, rsg)	_FP_TO_INT (D, 1, (r), X, (rsz), (rsg))
+# define FP_TO_INT_ROUND_D(r, X, rsz, rsg)	\
+  _FP_TO_INT_ROUND (D, 1, (r), X, (rsz), (rsg))
+# define FP_FROM_INT_D(X, r, rs, rt)	_FP_FROM_INT (D, 1, X, (r), (rs), rt)
 
 # define _FP_FRAC_HIGH_D(X)	_FP_FRAC_HIGH_1 (X)
 # define _FP_FRAC_HIGH_RAW_D(X)	_FP_FRAC_HIGH_1 (X)
@@ -312,3 +319,5 @@ union _FP_UNION_D
 # define _FP_FRAC_HIGH_DW_D(X)	_FP_FRAC_HIGH_2 (X)
 
 #endif /* W_TYPE_SIZE < 64 */
+
+#endif /* !SOFT_FP_DOUBLE_H */

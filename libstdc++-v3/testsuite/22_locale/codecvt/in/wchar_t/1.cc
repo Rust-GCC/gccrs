@@ -1,6 +1,6 @@
 // 2000-08-17 Benjamin Kosnik <bkoz@cygnus.com>
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,7 +25,7 @@
 
 // Need to explicitly set the state(mbstate_t) to zero.
 // How to do this is not specified by the ISO C99 standard, so we
-// might need to add some operators to make the intuiative case
+// might need to add some operators to make the intuitive case
 // work:
 //   w_codecvt::state_type state00;
 //   state00 = 0;  
@@ -49,7 +49,6 @@ void test01()
   typedef char					ext_type;
   typedef char_traits<wchar_t>			int_traits;
 
-  bool test __attribute__((unused)) = true;
   const ext_type* 	e_lit = "black pearl jasmine tea";
   const ext_type*       efrom_next;
   const int_type* 	i_lit = L"black pearl jasmine tea";

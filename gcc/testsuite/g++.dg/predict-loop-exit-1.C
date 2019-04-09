@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-profile_estimate" } */
+/* { dg-options "-O2 -fdump-tree-profile_estimate -fdisable-tree-ethread" } */
 
 int g;
 int foo();
@@ -9,5 +9,5 @@ void test() {
   return;
 }
 
-/* { dg-final { scan-tree-dump-times "loop exit heuristics:" 3 "profile_estimate"} } */
-/* { dg-final { cleanup-tree-dump "profile_estimate" } } */
+/* { dg-final { scan-tree-dump-times "extra loop exit heuristics of edge\[^:\]*:" 2 "profile_estimate"} } */
+/* { dg-final { scan-tree-dump-times "loop exit heuristics of edge\[^:\]*:" 3 "profile_estimate"} } */

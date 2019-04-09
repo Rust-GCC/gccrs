@@ -1,5 +1,5 @@
 /* RL78 C-specific support
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by Red Hat, Inc.
 
    This file is part of GCC.
@@ -18,17 +18,18 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
+#define IN_TARGET_CODE 1
+
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include "tree.h"
 #include "c-family/c-common.h"
-#include "rl78-protos.h"
 
 /* Implements REGISTER_TARGET_PRAGMAS.  */
 void
 rl78_register_pragmas (void)
 {
+  c_register_addr_space ("__near", ADDR_SPACE_NEAR);
   c_register_addr_space ("__far", ADDR_SPACE_FAR);
 }

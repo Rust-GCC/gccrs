@@ -1,6 +1,6 @@
 // Internal policy header for unordered_set and unordered_map -*- C++ -*-
 
-// Copyright (C) 2010-2014 Free Software Foundation, Inc.
+// Copyright (C) 2010-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -31,6 +31,10 @@
 #ifndef _HASHTABLE_POLICY_H
 #define _HASHTABLE_POLICY_H 1
 
+#include <tuple>		// for std::tuple, std::forward_as_tuple
+#include <limits>		// for std::numeric_limits
+#include <bits/stl_algobase.h>	// for std::min.
+
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -41,12 +45,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	   typename _RehashPolicy, typename _Traits>
     class _Hashtable;
 
-_GLIBCXX_END_NAMESPACE_VERSION
-
 namespace __detail
 {
-_GLIBCXX_BEGIN_NAMESPACE_VERSION
-
   /**
    *  @defgroup hashtable-detail Base and Implementation Classes
    *  @ingroup unordered_associative_containers
@@ -58,12 +58,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct _Hashtable_base;
 
   // Helper function: return distance(first, last) for forward
-  // iterators, or 0 for input iterators.
+  // iterators, or 0/1 for input iterators.
   template<class _Iterator>
     inline typename std::iterator_traits<_Iterator>::difference_type
     __distance_fw(_Iterator __first, _Iterator __last,
 		  std::input_iterator_tag)
-    { return 0; }
+    { return __first != __last ? 1 : 0; }
 
   template<class _Iterator>
     inline typename std::iterator_traits<_Iterator>::difference_type
@@ -74,16 +74,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<class _Iterator>
     inline typename std::iterator_traits<_Iterator>::difference_type
     __distance_fw(_Iterator __first, _Iterator __last)
-    {
-      typedef typename std::iterator_traits<_Iterator>::iterator_category _Tag;
-      return __distance_fw(__first, __last, _Tag());
-    }
-
-  // Helper type used to detect whether the hash functor is noexcept.
-  template <typename _Key, typename _Hash>
-    struct __is_noexcept_hash : std::integral_constant<bool,
-	noexcept(declval<const _Hash&>()(declval<const _Key&>()))>
-    { };
+    { return __distance_fw(__first, __last,
+			   std::__iterator_category(__first)); }
 
   struct _Identity
   {
@@ -113,9 +105,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     private:
       using __node_alloc_type = _NodeAlloc;
       using __hashtable_alloc = _Hashtable_alloc<__node_alloc_type>;
-      using __value_alloc_type = typename __hashtable_alloc::__value_alloc_type;
-      using __value_alloc_traits =
-	typename __hashtable_alloc::__value_alloc_traits;
       using __node_alloc_traits =
 	typename __hashtable_alloc::__node_alloc_traits;
       using __node_type = typename __hashtable_alloc::__node_type;
@@ -137,18 +126,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      __node_type* __node = _M_nodes;
 	      _M_nodes = _M_nodes->_M_next();
 	      __node->_M_nxt = nullptr;
-	      __value_alloc_type __a(_M_h._M_node_allocator());
-	      __value_alloc_traits::destroy(__a, __node->_M_valptr());
+	      auto& __a = _M_h._M_node_allocator();
+	      __node_alloc_traits::destroy(__a, __node->_M_valptr());
 	      __try
 		{
-		  __value_alloc_traits::construct(__a, __node->_M_valptr(),
-						  std::forward<_Arg>(__arg));
+		  __node_alloc_traits::construct(__a, __node->_M_valptr(),
+						 std::forward<_Arg>(__arg));
 		}
 	      __catch(...)
 		{
-		  __node->~__node_type();
-		  __node_alloc_traits::deallocate(_M_h._M_node_allocator(),
-						  __node, 1);
+		  _M_h._M_deallocate_node_ptr(__node);
 		  __throw_exception_again;
 		}
 	      return __node;
@@ -211,9 +198,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<bool _Cache_hash_code, bool _Constant_iterators, bool _Unique_keys>
     struct _Hashtable_traits
     {
-      template<bool _Cond>
-	using __bool_constant = integral_constant<bool, _Cond>;
-
       using __hash_cached = __bool_constant<_Cache_hash_code>;
       using __constant_iterators = __bool_constant<_Constant_iterators>;
       using __unique_keys = __bool_constant<_Unique_keys>;
@@ -460,6 +444,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   /// smallest prime that keeps the load factor small enough.
   struct _Prime_rehash_policy
   {
+    using __has_load_factor = std::true_type;
+
     _Prime_rehash_policy(float __z = 1.0) noexcept
     : _M_max_load_factor(__z), _M_next_resize(0) { }
 
@@ -498,12 +484,127 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     _M_reset(_State __state)
     { _M_next_resize = __state; }
 
-    enum { _S_n_primes = sizeof(unsigned long) != 8 ? 256 : 256 + 48 };
-
     static const std::size_t _S_growth_factor = 2;
 
     float		_M_max_load_factor;
     mutable std::size_t	_M_next_resize;
+  };
+
+  /// Range hashing function assuming that second arg is a power of 2.
+  struct _Mask_range_hashing
+  {
+    typedef std::size_t first_argument_type;
+    typedef std::size_t second_argument_type;
+    typedef std::size_t result_type;
+
+    result_type
+    operator()(first_argument_type __num,
+	       second_argument_type __den) const noexcept
+    { return __num & (__den - 1); }
+  };
+
+  /// Compute closest power of 2 not less than __n
+  inline std::size_t
+  __clp2(std::size_t __n) noexcept
+  {
+    // Equivalent to return __n ? std::ceil2(__n) : 0;
+    if (__n < 2)
+      return __n;
+    const unsigned __lz = sizeof(size_t) > sizeof(long)
+      ? __builtin_clzll(__n - 1ull)
+      : __builtin_clzl(__n - 1ul);
+    // Doing two shifts avoids undefined behaviour when __lz == 0.
+    return (size_t(1) << (numeric_limits<size_t>::digits - __lz - 1)) << 1;
+  }
+
+  /// Rehash policy providing power of 2 bucket numbers. Avoids modulo
+  /// operations.
+  struct _Power2_rehash_policy
+  {
+    using __has_load_factor = std::true_type;
+
+    _Power2_rehash_policy(float __z = 1.0) noexcept
+    : _M_max_load_factor(__z), _M_next_resize(0) { }
+
+    float
+    max_load_factor() const noexcept
+    { return _M_max_load_factor; }
+
+    // Return a bucket size no smaller than n (as long as n is not above the
+    // highest power of 2).
+    std::size_t
+    _M_next_bkt(std::size_t __n) noexcept
+    {
+      const auto __max_width = std::min<size_t>(sizeof(size_t), 8);
+      const auto __max_bkt = size_t(1) << (__max_width * __CHAR_BIT__ - 1);
+      std::size_t __res = __clp2(__n);
+
+      if (__res == __n)
+	__res <<= 1;
+
+      if (__res == 0)
+	__res = __max_bkt;
+
+      if (__res == __max_bkt)
+	// Set next resize to the max value so that we never try to rehash again
+	// as we already reach the biggest possible bucket number.
+	// Note that it might result in max_load_factor not being respected.
+	_M_next_resize = std::size_t(-1);
+      else
+	_M_next_resize
+	  = __builtin_ceil(__res * (long double)_M_max_load_factor);
+
+      return __res;
+    }
+
+    // Return a bucket count appropriate for n elements
+    std::size_t
+    _M_bkt_for_elements(std::size_t __n) const noexcept
+    { return __builtin_ceil(__n / (long double)_M_max_load_factor); }
+
+    // __n_bkt is current bucket count, __n_elt is current element count,
+    // and __n_ins is number of elements to be inserted.  Do we need to
+    // increase bucket count?  If so, return make_pair(true, n), where n
+    // is the new bucket count.  If not, return make_pair(false, 0).
+    std::pair<bool, std::size_t>
+    _M_need_rehash(std::size_t __n_bkt, std::size_t __n_elt,
+		   std::size_t __n_ins) noexcept
+    {
+      if (__n_elt + __n_ins >= _M_next_resize)
+	{
+	  long double __min_bkts = (__n_elt + __n_ins)
+					/ (long double)_M_max_load_factor;
+	  if (__min_bkts >= __n_bkt)
+	    return std::make_pair(true,
+	      _M_next_bkt(std::max<std::size_t>(__builtin_floor(__min_bkts) + 1,
+						__n_bkt * _S_growth_factor)));
+
+	  _M_next_resize
+	    = __builtin_floor(__n_bkt * (long double)_M_max_load_factor);
+	  return std::make_pair(false, 0);
+	}
+      else
+	return std::make_pair(false, 0);
+    }
+
+    typedef std::size_t _State;
+
+    _State
+    _M_state() const noexcept
+    { return _M_next_resize; }
+
+    void
+    _M_reset() noexcept
+    { _M_next_resize = 0; }
+
+    void
+    _M_reset(_State __state) noexcept
+    { _M_next_resize = __state; }
+
+    static const std::size_t _S_growth_factor = 2;
+
+    float	_M_max_load_factor;
+    std::size_t	_M_next_resize;
   };
 
   // Base classes for std::_Hashtable.  We define these base classes
@@ -584,12 +685,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Key, typename _Pair, typename _Alloc, typename _Equal,
 	   typename _H1, typename _H2, typename _Hash,
 	   typename _RehashPolicy, typename _Traits>
-    typename _Map_base<_Key, _Pair, _Alloc, _Select1st, _Equal,
-		       _H1, _H2, _Hash, _RehashPolicy, _Traits, true>
-		       ::mapped_type&
+    auto
     _Map_base<_Key, _Pair, _Alloc, _Select1st, _Equal,
 	      _H1, _H2, _Hash, _RehashPolicy, _Traits, true>::
     operator[](const key_type& __k)
+    -> mapped_type&
     {
       __hashtable* __h = static_cast<__hashtable*>(this);
       __hash_code __code = __h->_M_hash_code(__k);
@@ -610,12 +710,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Key, typename _Pair, typename _Alloc, typename _Equal,
 	   typename _H1, typename _H2, typename _Hash,
 	   typename _RehashPolicy, typename _Traits>
-    typename _Map_base<_Key, _Pair, _Alloc, _Select1st, _Equal,
-		       _H1, _H2, _Hash, _RehashPolicy, _Traits, true>
-		       ::mapped_type&
+    auto
     _Map_base<_Key, _Pair, _Alloc, _Select1st, _Equal,
 	      _H1, _H2, _Hash, _RehashPolicy, _Traits, true>::
     operator[](key_type&& __k)
+    -> mapped_type&
     {
       __hashtable* __h = static_cast<__hashtable*>(this);
       __hash_code __code = __h->_M_hash_code(__k);
@@ -636,12 +735,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Key, typename _Pair, typename _Alloc, typename _Equal,
 	   typename _H1, typename _H2, typename _Hash,
 	   typename _RehashPolicy, typename _Traits>
-    typename _Map_base<_Key, _Pair, _Alloc, _Select1st, _Equal,
-		       _H1, _H2, _Hash, _RehashPolicy, _Traits, true>
-		       ::mapped_type&
+    auto
     _Map_base<_Key, _Pair, _Alloc, _Select1st, _Equal,
 	      _H1, _H2, _Hash, _RehashPolicy, _Traits, true>::
     at(const key_type& __k)
+    -> mapped_type&
     {
       __hashtable* __h = static_cast<__hashtable*>(this);
       __hash_code __code = __h->_M_hash_code(__k);
@@ -656,12 +754,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Key, typename _Pair, typename _Alloc, typename _Equal,
 	   typename _H1, typename _H2, typename _Hash,
 	   typename _RehashPolicy, typename _Traits>
-    const typename _Map_base<_Key, _Pair, _Alloc, _Select1st,
-			     _Equal, _H1, _H2, _Hash, _RehashPolicy,
-			     _Traits, true>::mapped_type&
+    auto
     _Map_base<_Key, _Pair, _Alloc, _Select1st, _Equal,
 	      _H1, _H2, _Hash, _RehashPolicy, _Traits, true>::
     at(const key_type& __k) const
+    -> const mapped_type&
     {
       const __hashtable* __h = static_cast<const __hashtable*>(this);
       __hash_code __code = __h->_M_hash_code(__k);
@@ -676,7 +773,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   /**
    *  Primary class template _Insert_base.
    *
-   *  insert member functions appropriate to all _Hashtables.
+   *  Defines @c insert member functions appropriate to all _Hashtables.
    */
   template<typename _Key, typename _Value, typename _Alloc,
 	   typename _ExtractKey, typename _Equal,
@@ -711,7 +808,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       template<typename _InputIterator, typename _NodeGetter>
 	void
 	_M_insert_range(_InputIterator __first, _InputIterator __last,
-			const _NodeGetter&);
+			const _NodeGetter&, true_type);
+
+      template<typename _InputIterator, typename _NodeGetter>
+	void
+	_M_insert_range(_InputIterator __first, _InputIterator __last,
+			const _NodeGetter&, false_type);
 
     public:
       __ireturn_type
@@ -740,7 +842,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	{
 	  __hashtable& __h = _M_conjure_hashtable();
 	  __node_gen_type __node_gen(__h);
-	  return _M_insert_range(__first, __last, __node_gen);
+	  return _M_insert_range(__first, __last, __node_gen, __unique_keys());
 	}
     };
 
@@ -753,13 +855,41 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _Insert_base<_Key, _Value, _Alloc, _ExtractKey, _Equal, _H1, _H2, _Hash,
 		    _RehashPolicy, _Traits>::
       _M_insert_range(_InputIterator __first, _InputIterator __last,
-		      const _NodeGetter& __node_gen)
+		      const _NodeGetter& __node_gen, true_type)
+      {
+	size_type __n_elt = __detail::__distance_fw(__first, __last);
+	if (__n_elt == 0)
+	  return;
+
+	__hashtable& __h = _M_conjure_hashtable();
+	for (; __first != __last; ++__first)
+	  {
+	    if (__h._M_insert(*__first, __node_gen, __unique_keys(),
+			      __n_elt).second)
+	      __n_elt = 1;
+	    else if (__n_elt != 1)
+	      --__n_elt;
+	  }
+      }
+
+  template<typename _Key, typename _Value, typename _Alloc,
+	   typename _ExtractKey, typename _Equal,
+	   typename _H1, typename _H2, typename _Hash,
+	   typename _RehashPolicy, typename _Traits>
+    template<typename _InputIterator, typename _NodeGetter>
+      void
+      _Insert_base<_Key, _Value, _Alloc, _ExtractKey, _Equal, _H1, _H2, _Hash,
+		    _RehashPolicy, _Traits>::
+      _M_insert_range(_InputIterator __first, _InputIterator __last,
+		      const _NodeGetter& __node_gen, false_type)
       {
 	using __rehash_type = typename __hashtable::__rehash_type;
 	using __rehash_state = typename __hashtable::__rehash_state;
 	using pair_type = std::pair<bool, std::size_t>;
 
 	size_type __n_elt = __detail::__distance_fw(__first, __last);
+	if (__n_elt == 0)
+	  return;
 
 	__hashtable& __h = _M_conjure_hashtable();
 	__rehash_type& __rehash = __h._M_rehash_policy;
@@ -778,14 +908,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   /**
    *  Primary class template _Insert.
    *
-   *  Select insert member functions appropriate to _Hashtable policy choices.
+   *  Defines @c insert member functions that depend on _Hashtable policies,
+   *  via partial specializations.
    */
   template<typename _Key, typename _Value, typename _Alloc,
 	   typename _ExtractKey, typename _Equal,
 	   typename _H1, typename _H2, typename _Hash,
 	   typename _RehashPolicy, typename _Traits,
-	   bool _Constant_iterators = _Traits::__constant_iterators::value,
-	   bool _Unique_keys = _Traits::__unique_keys::value>
+	   bool _Constant_iterators = _Traits::__constant_iterators::value>
     struct _Insert;
 
   /// Specialization.
@@ -794,24 +924,30 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	   typename _H1, typename _H2, typename _Hash,
 	   typename _RehashPolicy, typename _Traits>
     struct _Insert<_Key, _Value, _Alloc, _ExtractKey, _Equal, _H1, _H2, _Hash,
-		   _RehashPolicy, _Traits, true, true>
+		   _RehashPolicy, _Traits, true>
     : public _Insert_base<_Key, _Value, _Alloc, _ExtractKey, _Equal,
 			   _H1, _H2, _Hash, _RehashPolicy, _Traits>
     {
       using __base_type = _Insert_base<_Key, _Value, _Alloc, _ExtractKey,
 					_Equal, _H1, _H2, _Hash,
 					_RehashPolicy, _Traits>;
+
+      using __hashtable_base = _Hashtable_base<_Key, _Value, _ExtractKey,
+					       _Equal, _H1, _H2, _Hash,
+					       _Traits>;
+
       using value_type = typename __base_type::value_type;
       using iterator = typename __base_type::iterator;
       using const_iterator =  typename __base_type::const_iterator;
 
       using __unique_keys = typename __base_type::__unique_keys;
+      using __ireturn_type = typename __hashtable_base::__ireturn_type;
       using __hashtable = typename __base_type::__hashtable;
       using __node_gen_type = typename __base_type::__node_gen_type;
 
       using __base_type::insert;
 
-      std::pair<iterator, bool>
+      __ireturn_type
       insert(value_type&& __v)
       {
 	__hashtable& __h = this->_M_conjure_hashtable();
@@ -835,48 +971,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	   typename _H1, typename _H2, typename _Hash,
 	   typename _RehashPolicy, typename _Traits>
     struct _Insert<_Key, _Value, _Alloc, _ExtractKey, _Equal, _H1, _H2, _Hash,
-		   _RehashPolicy, _Traits, true, false>
-    : public _Insert_base<_Key, _Value, _Alloc, _ExtractKey, _Equal,
-			   _H1, _H2, _Hash, _RehashPolicy, _Traits>
-    {
-      using __base_type = _Insert_base<_Key, _Value, _Alloc, _ExtractKey,
-					_Equal, _H1, _H2, _Hash,
-					_RehashPolicy, _Traits>;
-      using value_type = typename __base_type::value_type;
-      using iterator = typename __base_type::iterator;
-      using const_iterator =  typename __base_type::const_iterator;
-
-      using __unique_keys = typename __base_type::__unique_keys;
-      using __hashtable = typename __base_type::__hashtable;
-      using __node_gen_type = typename __base_type::__node_gen_type;
-
-      using __base_type::insert;
-
-      iterator
-      insert(value_type&& __v)
-      {
-	__hashtable& __h = this->_M_conjure_hashtable();
-	__node_gen_type __node_gen(__h);
-	return __h._M_insert(std::move(__v), __node_gen, __unique_keys());
-      }
-
-      iterator
-      insert(const_iterator __hint, value_type&& __v)
-      {
-	__hashtable& __h = this->_M_conjure_hashtable();
-	__node_gen_type __node_gen(__h);
-	return __h._M_insert(__hint, std::move(__v), __node_gen,
-			     __unique_keys());
-      }
-    };
-
-  /// Specialization.
-  template<typename _Key, typename _Value, typename _Alloc,
-	   typename _ExtractKey, typename _Equal,
-	   typename _H1, typename _H2, typename _Hash,
-	   typename _RehashPolicy, typename _Traits, bool _Unique_keys>
-    struct _Insert<_Key, _Value, _Alloc, _ExtractKey, _Equal, _H1, _H2, _Hash,
-		   _RehashPolicy, _Traits, false, _Unique_keys>
+		   _RehashPolicy, _Traits, false>
     : public _Insert_base<_Key, _Value, _Alloc, _ExtractKey, _Equal,
 			   _H1, _H2, _Hash, _RehashPolicy, _Traits>
     {
@@ -920,28 +1015,46 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
    };
 
+  template<typename _Policy>
+    using __has_load_factor = typename _Policy::__has_load_factor;
+
   /**
    *  Primary class template  _Rehash_base.
    *
    *  Give hashtable the max_load_factor functions and reserve iff the
-   *  rehash policy is _Prime_rehash_policy.
+   *  rehash policy supports it.
   */
   template<typename _Key, typename _Value, typename _Alloc,
 	   typename _ExtractKey, typename _Equal,
 	   typename _H1, typename _H2, typename _Hash,
-	   typename _RehashPolicy, typename _Traits>
+	   typename _RehashPolicy, typename _Traits,
+	   typename =
+	     __detected_or_t<std::false_type, __has_load_factor, _RehashPolicy>>
     struct _Rehash_base;
 
-  /// Specialization.
+  /// Specialization when rehash policy doesn't provide load factor management.
   template<typename _Key, typename _Value, typename _Alloc,
 	   typename _ExtractKey, typename _Equal,
-	   typename _H1, typename _H2, typename _Hash, typename _Traits>
+	   typename _H1, typename _H2, typename _Hash,
+	   typename _RehashPolicy, typename _Traits>
     struct _Rehash_base<_Key, _Value, _Alloc, _ExtractKey, _Equal,
-			_H1, _H2, _Hash, _Prime_rehash_policy, _Traits>
+		      _H1, _H2, _Hash, _RehashPolicy, _Traits,
+		      std::false_type>
+    {
+    };
+
+  /// Specialization when rehash policy provide load factor management.
+  template<typename _Key, typename _Value, typename _Alloc,
+	   typename _ExtractKey, typename _Equal,
+	   typename _H1, typename _H2, typename _Hash,
+	   typename _RehashPolicy, typename _Traits>
+    struct _Rehash_base<_Key, _Value, _Alloc, _ExtractKey, _Equal,
+			_H1, _H2, _Hash, _RehashPolicy, _Traits,
+			std::true_type>
     {
       using __hashtable = _Hashtable<_Key, _Value, _Alloc, _ExtractKey,
 				     _Equal, _H1, _H2, _Hash,
-				     _Prime_rehash_policy, _Traits>;
+				     _RehashPolicy, _Traits>;
 
       float
       max_load_factor() const noexcept
@@ -954,7 +1067,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       max_load_factor(float __z)
       {
 	__hashtable* __this = static_cast<__hashtable*>(this);
-	__this->__rehash_policy(_Prime_rehash_policy(__z));
+	__this->__rehash_policy(_RehashPolicy(__z));
       }
 
       void
@@ -1900,10 +2013,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // Use __gnu_cxx to benefit from _S_always_equal and al.
       using __node_alloc_traits = __gnu_cxx::__alloc_traits<__node_alloc_type>;
 
-      using __value_type = typename __node_type::value_type;
-      using __value_alloc_type =
-	__alloc_rebind<__node_alloc_type, __value_type>;
-      using __value_alloc_traits = std::allocator_traits<__value_alloc_type>;
+      using __value_alloc_traits = typename __node_alloc_traits::template
+	rebind_traits<typename __node_type::value_type>;
 
       using __node_base = __detail::_Hash_node_base;
       using __bucket_type = __node_base*;      
@@ -1935,6 +2046,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       void
       _M_deallocate_node(__node_type* __n);
 
+      void
+      _M_deallocate_node_ptr(__node_type* __n);
+
       // Deallocate the linked list of nodes pointed to by __n
       void
       _M_deallocate_nodes(__node_type* __n);
@@ -1954,13 +2068,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _Hashtable_alloc<_NodeAlloc>::_M_allocate_node(_Args&&... __args)
       {
 	auto __nptr = __node_alloc_traits::allocate(_M_node_allocator(), 1);
-	__node_type* __n = std::__addressof(*__nptr);
+	__node_type* __n = std::__to_address(__nptr);
 	__try
 	  {
-	    __value_alloc_type __a(_M_node_allocator());
 	    ::new ((void*)__n) __node_type;
-	    __value_alloc_traits::construct(__a, __n->_M_valptr(),
-					    std::forward<_Args>(__args)...);
+	    __node_alloc_traits::construct(_M_node_allocator(),
+					   __n->_M_valptr(),
+					   std::forward<_Args>(__args)...);
 	    return __n;
 	  }
 	__catch(...)
@@ -1974,10 +2088,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     void
     _Hashtable_alloc<_NodeAlloc>::_M_deallocate_node(__node_type* __n)
     {
+      __node_alloc_traits::destroy(_M_node_allocator(), __n->_M_valptr());
+      _M_deallocate_node_ptr(__n);
+    }
+
+  template<typename _NodeAlloc>
+    void
+    _Hashtable_alloc<_NodeAlloc>::_M_deallocate_node_ptr(__node_type* __n)
+    {
       typedef typename __node_alloc_traits::pointer _Ptr;
       auto __ptr = std::pointer_traits<_Ptr>::pointer_to(*__n);
-      __value_alloc_type __a(_M_node_allocator());
-      __value_alloc_traits::destroy(__a, __n->_M_valptr());
       __n->~__node_type();
       __node_alloc_traits::deallocate(_M_node_allocator(), __ptr, 1);
     }
@@ -2001,7 +2121,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __bucket_alloc_type __alloc(_M_node_allocator());
 
       auto __ptr = __bucket_alloc_traits::allocate(__alloc, __n);
-      __bucket_type* __p = std::__addressof(*__ptr);
+      __bucket_type* __p = std::__to_address(__ptr);
       __builtin_memset(__p, 0, __n * sizeof(__bucket_type));
       return __p;
     }
@@ -2018,8 +2138,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     }
 
  //@} hashtable-detail
-_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace __detail
+_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 
 #endif // _HASHTABLE_POLICY_H

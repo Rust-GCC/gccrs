@@ -1,6 +1,6 @@
 // Wrapper for underlying C-language localization -*- C++ -*-
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -53,7 +53,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // fall back to the unsafe vsprintf which, in general, can be dangerous
   // and should be avoided.
   inline int
-  __convert_from_v(const __c_locale&, char* __out, 
+  __convert_from_v(const __c_locale&, char* __out,
 		   const int __size __attribute__((__unused__)),
 		   const char* __fmt, ...)
   {
@@ -70,7 +70,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     __builtin_va_list __args;
     __builtin_va_start(__args, __fmt);
 
-#ifdef _GLIBCXX_USE_C99
+#if _GLIBCXX_USE_C99_STDIO && !_GLIBCXX_HAVE_BROKEN_VSNPRINTF
     const int __ret = __builtin_vsnprintf(__out, __size, __fmt, __args);
 #else
     const int __ret = __builtin_vsprintf(__out, __fmt, __args);

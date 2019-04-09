@@ -1,6 +1,6 @@
 // Iostreams base classes -*- C++ -*-
 
-// Copyright (C) 1997-2014 Free Software Foundation, Inc.
+// Copyright (C) 1997-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -40,14 +40,20 @@
 #include <bits/localefwd.h>
 #include <bits/locale_classes.h>
 
+#if __cplusplus < 201103L
+# include <stdexcept>
+#else
+# include <system_error>
+#endif
+
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // The following definitions of bitmask types are enums, not ints,
   // as permitted (but not required) in the standard, in order to provide
-  // better type safety in iostream calls.  A side effect is that
-  // expressions involving them are no longer compile-time constants.
+  // better type safety in iostream calls.  A side effect is that in C++98
+  // expressions involving them are not compile-time constants.
   enum _Ios_Fmtflags 
     { 
       _S_boolalpha 	= 1L << 0,
@@ -68,7 +74,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _S_adjustfield 	= _S_left | _S_right | _S_internal,
       _S_basefield 	= _S_dec | _S_oct | _S_hex,
       _S_floatfield 	= _S_scientific | _S_fixed,
-      _S_ios_fmtflags_end = 1L << 16 
+      _S_ios_fmtflags_end = 1L << 16,
+      _S_ios_fmtflags_max = __INT_MAX__,
+      _S_ios_fmtflags_min = ~__INT_MAX__
     };
 
   inline _GLIBCXX_CONSTEXPR _Ios_Fmtflags
@@ -108,7 +116,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _S_in 		= 1L << 3,
       _S_out 		= 1L << 4,
       _S_trunc 		= 1L << 5,
-      _S_ios_openmode_end = 1L << 16 
+      _S_ios_openmode_end = 1L << 16,
+      _S_ios_openmode_max = __INT_MAX__,
+      _S_ios_openmode_min = ~__INT_MAX__
     };
 
   inline _GLIBCXX_CONSTEXPR _Ios_Openmode
@@ -146,7 +156,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _S_badbit 		= 1L << 0,
       _S_eofbit 		= 1L << 1,
       _S_failbit		= 1L << 2,
-      _S_ios_iostate_end = 1L << 16 
+      _S_ios_iostate_end = 1L << 16,
+      _S_ios_iostate_max = __INT_MAX__,
+      _S_ios_iostate_min = ~__INT_MAX__
     };
 
   inline _GLIBCXX_CONSTEXPR _Ios_Iostate
@@ -186,6 +198,23 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _S_ios_seekdir_end = 1L << 16 
     };
 
+#if __cplusplus >= 201103L
+  /// I/O error code
+  enum class io_errc { stream = 1 };
+
+  template <> struct is_error_code_enum<io_errc> : public true_type { };
+
+  const error_category& iostream_category() noexcept;
+
+  inline error_code
+  make_error_code(io_errc __e) noexcept
+  { return error_code(static_cast<int>(__e), iostream_category()); }
+
+  inline error_condition
+  make_error_condition(io_errc __e) noexcept
+  { return error_condition(static_cast<int>(__e), iostream_category()); }
+#endif
+
   // 27.4.2  Class ios_base
   /**
    *  @brief  The base of the I/O class hierarchy.
@@ -198,6 +227,22 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   */
   class ios_base
   {
+#if _GLIBCXX_USE_CXX11_ABI
+#if __cplusplus < 201103L
+    // Type that is layout-compatible with std::system_error
+    struct system_error : std::runtime_error
+    {
+      // Type that is layout-compatible with std::error_code
+      struct error_code
+      {
+	error_code() { }
+      private:
+	int		_M_value;
+	const void*	_M_cat;
+      } _M_code;
+    };
+#endif
+#endif
   public:
 
     /** 
@@ -206,6 +251,28 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
      *
      *  27.4.2.1.1  Class ios_base::failure
      */
+#if _GLIBCXX_USE_CXX11_ABI
+    class _GLIBCXX_ABI_TAG_CXX11 failure : public system_error
+    {
+    public:
+      explicit
+      failure(const string& __str);
+
+#if __cplusplus >= 201103L
+      explicit
+      failure(const string&, const error_code&);
+
+      explicit
+      failure(const char*, const error_code& = io_errc::stream);
+#endif
+
+      virtual
+      ~failure() throw();
+
+      virtual const char*
+      what() const throw();
+    };
+#else
     class failure : public exception
     {
     public:
@@ -225,6 +292,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     private:
       string _M_msg;
     };
+#endif
 
     // 27.4.2.1.2  Type ios_base::fmtflags
     /**
@@ -401,13 +469,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     /// Request a seek relative to the current end of the sequence.
     static const seekdir end =		_S_end;
 
-    // Annex D.6
+#if __cplusplus <= 201402L
+    // Annex D.6 (removed in C++17)
     typedef int io_state;
     typedef int open_mode;
     typedef int seek_dir;
 
     typedef std::streampos streampos;
     typedef std::streamoff streamoff;
+#endif
 
     // Callbacks;
     /**
@@ -536,6 +606,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     public:
       Init();
       ~Init();
+
+#if __cplusplus >= 201103L
+      Init(const Init&) = default;
+      Init& operator=(const Init&) = default;
+#endif
 
     private:
       static _Atomic_word	_S_refcount;
@@ -740,7 +815,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     long&
     iword(int __ix)
     {
-      _Words& __word = (__ix < _M_word_size)
+      _Words& __word = ((unsigned)__ix < (unsigned)_M_word_size)
 			? _M_word[__ix] : _M_grow_words(__ix, true);
       return __word._M_iword;
     }
@@ -761,7 +836,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     void*&
     pword(int __ix)
     {
-      _Words& __word = (__ix < _M_word_size)
+      _Words& __word = ((unsigned)__ix < (unsigned)_M_word_size)
 			? _M_word[__ix] : _M_grow_words(__ix, false);
       return __word._M_pword;
     }

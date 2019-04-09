@@ -1,5 +1,5 @@
 /* Definitions for SPARC running Linux-based GNU systems with ELF.
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
    Contributed by Eddie C. Dost (ecd@skynet.be)
 
 This file is part of GCC.
@@ -54,10 +54,11 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 
 #define DRIVER_SELF_SPECS MCPU_MTUNE_NATIVE_SPECS
 
-/* This is for -profile to use -lc_p instead of -lc.  */
-#undef	CC1_SPEC
-#define	CC1_SPEC "%{profile:-p} \
-"
+#undef  ASAN_CC1_SPEC
+#define ASAN_CC1_SPEC "%{%:sanitize(address):-funwind-tables}"
+
+#undef  CC1_SPEC
+#define CC1_SPEC GNU_USER_TARGET_CC1_SPEC ASAN_CC1_SPEC
 
 #undef SIZE_TYPE
 #define SIZE_TYPE "unsigned int"
@@ -98,7 +99,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #undef ASM_SPEC
 #define ASM_SPEC "\
 -s \
-%{fpic|fPIC|fpie|fPIE:-K PIC} \
+%{" FPIE_OR_FPIC_SPEC ":-K PIC} \
 %{!.c:%{findirect-dispatch:-K PIC}} \
 %(asm_cpu) %(asm_relax)"
 
@@ -138,12 +139,6 @@ do {									\
 
 /* Static stack checking is supported by means of probes.  */
 #define STACK_CHECK_STATIC_BUILTIN 1
-
-/* Linux currently uses RMO in uniprocessor mode, which is equivalent to
-   TMO, and TMO in multiprocessor mode.  But they reserve the right to
-   change their minds.  */
-#undef SPARC_RELAXED_ORDERING
-#define SPARC_RELAXED_ORDERING true
 
 #undef NEED_INDICATE_EXEC_STACK
 #define NEED_INDICATE_EXEC_STACK 1

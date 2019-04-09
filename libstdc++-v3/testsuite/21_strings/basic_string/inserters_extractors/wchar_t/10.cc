@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,6 +18,7 @@
 // 21.3.7.9 inserters and extractors
 
 // { dg-options "-DMAX_SIZE=505" { target simulator } }
+// { dg-require-fileio "" }
 
 #ifndef MAX_SIZE
 #define MAX_SIZE 777
@@ -46,8 +47,6 @@ wstring prepare(wstring::size_type len, unsigned nchunks, wchar_t delim)
 
 void check(wistream& stream, const wstring& str, unsigned nchunks, wchar_t delim)
 {
-  bool test __attribute__((unused)) = true;
-
   wstring chunk;
   wstring::size_type index = 0, index_new = 0;
   unsigned n = 0;

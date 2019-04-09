@@ -1,8 +1,8 @@
 /* { dg-do compile { target { powerpc*-*-* } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* powerpc-ibm-aix* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* powerpc-ibm-aix* } } */
 /* { dg-require-effective-target powerpc_vsx_ok } */
 /* { dg-require-effective-target dfp } */
-/* { dg-options "-O2 -mcpu=power6 -mhard-dfp" } */
+/* { dg-options "-O2 -mdejagnu-cpu=power6 -mhard-dfp" } */
 /* { dg-final { scan-assembler-not   "lfiwzx"   } } */
 /* { dg-final { scan-assembler-times "lfd"    2 } } */
 /* { dg-final { scan-assembler-times "dctdp"  2 } } */

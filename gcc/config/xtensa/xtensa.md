@@ -1,5 +1,5 @@
 ;; GCC machine description for Tensilica's Xtensa architecture.
-;; Copyright (C) 2001-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2001-2019 Free Software Foundation, Inc.
 ;; Contributed by Bob Wilson (bwilson@tensilica.com) at Tensilica.
 
 ;; This file is part of GCC.
@@ -24,6 +24,7 @@
   (A1_REG		1)
   (A7_REG		7)
   (A8_REG		8)
+  (A9_REG		9)
 
   (UNSPEC_NOP		2)
   (UNSPEC_PLT		3)
@@ -35,6 +36,9 @@
   (UNSPEC_TLS_CALL	9)
   (UNSPEC_TP		10)
   (UNSPEC_MEMW		11)
+  (UNSPEC_LSETUP_START  12)
+  (UNSPEC_LSETUP_END    13)
+  (UNSPEC_FRAME_BLOCKAGE 14)
 
   (UNSPECV_SET_FP	1)
   (UNSPECV_ENTRY	2)
@@ -42,6 +46,7 @@
   (UNSPECV_S32C1I	5)
   (UNSPECV_EH_RETURN	6)
   (UNSPECV_SET_TP	7)
+  (UNSPECV_BLOCKAGE	8)
 ])
 
 ;; This code iterator allows signed and unsigned widening multiplications
@@ -82,7 +87,7 @@
 ;; Attributes.
 
 (define_attr "type"
-  "unknown,jump,call,load,store,move,arith,multi,nop,farith,fmadd,fdiv,fsqrt,fconv,fload,fstore,mul16,mul32,div32,mac16,rsr,wsr,entry"
+  "unknown,jump,call,load,store,move,arith,multi,nop,farith,fmadd,fconv,fload,fstore,mul16,mul32,div32,mac16,rsr,wsr,entry,trap"
   (const_string "unknown"))
 
 (define_attr "mode"
@@ -360,26 +365,6 @@
    (set_attr "mode"	"SI")
    (set_attr "length"	"3")])
 
-(define_insn "divsf3"
-  [(set (match_operand:SF 0 "register_operand" "=f")
-	(div:SF (match_operand:SF 1 "register_operand" "f")
-		(match_operand:SF 2 "register_operand" "f")))]
-  "TARGET_HARD_FLOAT_DIV"
-  "div.s\t%0, %1, %2"
-  [(set_attr "type"	"fdiv")
-   (set_attr "mode"	"SF")
-   (set_attr "length"	"3")])
-
-(define_insn "*recipsf2"
-  [(set (match_operand:SF 0 "register_operand" "=f")
-	(div:SF (match_operand:SF 1 "const_float_1_operand" "")
-		(match_operand:SF 2 "register_operand" "f")))]
-  "TARGET_HARD_FLOAT_RECIP && flag_unsafe_math_optimizations"
-  "recip.s\t%0, %2"
-  [(set_attr "type"	"fdiv")
-   (set_attr "mode"	"SF")
-   (set_attr "length"	"3")])
-
 
 ;; Remainders.
 
@@ -401,28 +386,6 @@
   "remu\t%0, %1, %2"
   [(set_attr "type"	"div32")
    (set_attr "mode"	"SI")
-   (set_attr "length"	"3")])
-
-
-;; Square roots.
-
-(define_insn "sqrtsf2"
-  [(set (match_operand:SF 0 "register_operand" "=f")
-	(sqrt:SF (match_operand:SF 1 "register_operand" "f")))]
-  "TARGET_HARD_FLOAT_SQRT"
-  "sqrt.s\t%0, %1"
-  [(set_attr "type"	"fsqrt")
-   (set_attr "mode"	"SF")
-   (set_attr "length"	"3")])
-
-(define_insn "*rsqrtsf2"
-  [(set (match_operand:SF 0 "register_operand" "=f")
-	(div:SF (match_operand:SF 1 "const_float_1_operand" "")
-		(sqrt:SF (match_operand:SF 2 "register_operand" "f"))))]
-  "TARGET_HARD_FLOAT_RSQRT && flag_unsafe_math_optimizations"
-  "rsqrt.s\t%0, %2"
-  [(set_attr "type"	"fsqrt")
-   (set_attr "mode"	"SF")
    (set_attr "length"	"3")])
 
 
@@ -799,8 +762,8 @@
 })
 
 (define_insn "movsi_internal"
-  [(set (match_operand:SI 0 "nonimmed_operand" "=D,D,D,D,R,R,a,q,a,W,a,a,U,*a,*A")
-	(match_operand:SI 1 "move_operand" "M,D,d,R,D,d,r,r,I,i,T,U,r,*A,*r"))]
+  [(set (match_operand:SI 0 "nonimmed_operand" "=D,D,D,D,R,R,a,q,a,a,W,a,a,U,*a,*A")
+	(match_operand:SI 1 "move_operand" "M,D,d,R,D,d,r,r,I,Y,i,T,U,r,*A,*r"))]
   "xtensa_valid_move (SImode, operands)"
   "@
    movi.n\t%0, %x1
@@ -812,15 +775,16 @@
    mov\t%0, %1
    movsp\t%0, %1
    movi\t%0, %x1
+   movi\t%0, %1
    const16\t%0, %t1\;const16\t%0, %b1
    %v1l32r\t%0, %1
    %v1l32i\t%0, %1
    %v0s32i\t%1, %0
    rsr\t%0, ACCLO
    wsr\t%1, ACCLO"
-  [(set_attr "type" "move,move,move,load,store,store,move,move,move,move,load,load,store,rsr,wsr")
+  [(set_attr "type" "move,move,move,load,store,store,move,move,move,move,move,load,load,store,rsr,wsr")
    (set_attr "mode"	"SI")
-   (set_attr "length"	"2,2,2,2,2,2,3,3,3,6,3,3,3,3,3")])
+   (set_attr "length"	"2,2,2,2,2,2,3,3,3,3,6,3,3,3,3,3")])
 
 ;; 16-bit Integer moves
 
@@ -834,21 +798,22 @@
 })
 
 (define_insn "movhi_internal"
-  [(set (match_operand:HI 0 "nonimmed_operand" "=D,D,a,a,a,U,*a,*A")
-	(match_operand:HI 1 "move_operand" "M,d,r,I,U,r,*A,*r"))]
+  [(set (match_operand:HI 0 "nonimmed_operand" "=D,D,a,a,a,a,U,*a,*A")
+	(match_operand:HI 1 "move_operand" "M,d,r,I,Y,U,r,*A,*r"))]
   "xtensa_valid_move (HImode, operands)"
   "@
    movi.n\t%0, %x1
    mov.n\t%0, %1
    mov\t%0, %1
    movi\t%0, %x1
+   movi\t%0, %1
    %v1l16ui\t%0, %1
    %v0s16i\t%1, %0
    rsr\t%0, ACCLO
    wsr\t%1, ACCLO"
-  [(set_attr "type"	"move,move,move,move,load,store,rsr,wsr")
+  [(set_attr "type"	"move,move,move,move,move,load,store,rsr,wsr")
    (set_attr "mode"	"HI")
-   (set_attr "length"	"2,2,3,3,3,3,3,3")])
+   (set_attr "length"	"2,2,3,3,3,3,3,3,3")])
 
 ;; 8-bit Integer moves
 
@@ -919,7 +884,7 @@
 	(match_operand:SF 1 "general_operand" ""))]
   ""
 {
-  if (!TARGET_CONST16 && CONSTANT_P (operands[1]))
+  if (!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS && CONSTANT_P (operands[1]))
     operands[1] = force_const_mem (SFmode, operands[1]);
 
   if ((!register_operand (operands[0], SFmode)
@@ -934,8 +899,8 @@
 })
 
 (define_insn "movsf_internal"
-  [(set (match_operand:SF 0 "nonimmed_operand" "=f,f,U,D,D,R,a,f,a,W,a,a,U")
-	(match_operand:SF 1 "move_operand" "f,U,f,d,R,d,r,r,f,iF,T,U,r"))]
+  [(set (match_operand:SF 0 "nonimmed_operand" "=f,f,U,D,D,R,a,f,a,a,W,a,a,U")
+	(match_operand:SF 1 "move_operand" "f,U,f,d,R,d,r,r,f,Y,iF,T,U,r"))]
   "((register_operand (operands[0], SFmode)
      || register_operand (operands[1], SFmode))
     && !(FP_REG_P (xt_true_regnum (operands[0]))
@@ -950,13 +915,14 @@
    mov\t%0, %1
    wfr\t%0, %1
    rfr\t%0, %1
+   movi\t%0, %y1
    const16\t%0, %t1\;const16\t%0, %b1
    %v1l32r\t%0, %1
    %v1l32i\t%0, %1
    %v0s32i\t%1, %0"
-  [(set_attr "type"	"farith,fload,fstore,move,load,store,move,farith,farith,move,load,load,store")
+  [(set_attr "type"	"farith,fload,fstore,move,load,store,move,farith,farith,move,move,load,load,store")
    (set_attr "mode"	"SF")
-   (set_attr "length"	"3,3,3,2,2,2,3,3,3,6,3,3,3")])
+   (set_attr "length"	"3,3,3,2,2,2,3,3,3,3,6,3,3,3")])
 
 (define_insn "*lsiu"
   [(set (match_operand:SF 0 "register_operand" "=f")
@@ -964,7 +930,7 @@
 			 (match_operand:SI 2 "fpmem_offset_operand" "i"))))
    (set (match_dup 1)
 	(plus:SI (match_dup 1) (match_dup 2)))]
-  "TARGET_HARD_FLOAT"
+  "TARGET_HARD_FLOAT && !TARGET_HARD_FLOAT_POSTINC"
 {
   if (TARGET_SERIALIZE_VOLATILE && volatile_refs_p (PATTERN (insn)))
     output_asm_insn ("memw", operands);
@@ -980,11 +946,43 @@
 	(match_operand:SF 2 "register_operand" "f"))
    (set (match_dup 0)
 	(plus:SI (match_dup 0) (match_dup 1)))]
-  "TARGET_HARD_FLOAT"
+  "TARGET_HARD_FLOAT && !TARGET_HARD_FLOAT_POSTINC"
 {
   if (TARGET_SERIALIZE_VOLATILE && volatile_refs_p (PATTERN (insn)))
     output_asm_insn ("memw", operands);
   return "ssiu\t%2, %0, %1";
+}
+  [(set_attr "type"	"fstore")
+   (set_attr "mode"	"SF")
+   (set_attr "length"	"3")])
+
+(define_insn "*lsip"
+  [(set (match_operand:SF 0 "register_operand" "=f")
+	(mem:SF (match_operand:SI 1 "register_operand" "+a")))
+   (set (match_dup 1)
+	(plus:SI (match_dup 1)
+		 (match_operand:SI 2 "fpmem_offset_operand" "i")))]
+  "TARGET_HARD_FLOAT && TARGET_HARD_FLOAT_POSTINC"
+{
+  if (TARGET_SERIALIZE_VOLATILE && volatile_refs_p (PATTERN (insn)))
+    output_asm_insn ("memw", operands);
+  return "lsip\t%0, %1, %2";
+}
+  [(set_attr "type"	"fload")
+   (set_attr "mode"	"SF")
+   (set_attr "length"	"3")])
+
+(define_insn "*ssip"
+  [(set (mem:SF (match_operand:SI 0 "register_operand" "+a"))
+	(match_operand:SF 1 "register_operand" "f"))
+   (set (match_dup 0)
+	(plus:SI (match_dup 0)
+		 (match_operand:SI 2 "fpmem_offset_operand" "i")))]
+  "TARGET_HARD_FLOAT && TARGET_HARD_FLOAT_POSTINC"
+{
+  if (TARGET_SERIALIZE_VOLATILE && volatile_refs_p (PATTERN (insn)))
+    output_asm_insn ("memw", operands);
+  return "ssip\t%1, %0, %2";
 }
   [(set_attr "type"	"fstore")
    (set_attr "mode"	"SF")
@@ -997,7 +995,7 @@
 	(match_operand:DF 1 "general_operand" ""))]
   ""
 {
-  if (CONSTANT_P (operands[1]) && !TARGET_CONST16)
+  if (CONSTANT_P (operands[1]) && !TARGET_CONST16 && !TARGET_AUTO_LITPOOLS)
     operands[1] = force_const_mem (DFmode, operands[1]);
 
   if (!register_operand (operands[0], DFmode)
@@ -1008,8 +1006,8 @@
 })
 
 (define_insn_and_split "movdf_internal"
-  [(set (match_operand:DF 0 "nonimmed_operand" "=a,W,a,a,U")
-	(match_operand:DF 1 "move_operand" "r,iF,T,U,r"))]
+  [(set (match_operand:DF 0 "nonimmed_operand" "=a,a,W,a,a,U")
+	(match_operand:DF 1 "move_operand" "r,Y,iF,T,U,r"))]
   "register_operand (operands[0], DFmode)
    || register_operand (operands[1], DFmode)"
   "#"
@@ -1289,40 +1287,119 @@
    (set_attr "length"	"3")])
 
 
+;; Zero-overhead looping support.
+
 ;; Define the loop insns used by bct optimization to represent the
-;; start and end of a zero-overhead loop (in loop.c).  This start
-;; template generates the loop insn; the end template doesn't generate
-;; any instructions since loop end is handled in hardware.
+;; start and end of a zero-overhead loop.  This start template generates
+;; the loop insn; the end template doesn't generate any instructions since
+;; loop end is handled in hardware.
 
 (define_insn "zero_cost_loop_start"
   [(set (pc)
-	(if_then_else (eq (match_operand:SI 0 "register_operand" "a")
-			  (const_int 0))
-		      (label_ref (match_operand 1 "" ""))
-		      (pc)))
-   (set (reg:SI 19)
-	(plus:SI (match_dup 0) (const_int -1)))]
-  ""
-  "loopnez\t%0, %l1"
+        (if_then_else (ne (match_operand:SI 2 "register_operand" "0")
+                          (const_int 1))
+                      (label_ref (match_operand 1 "" ""))
+                      (pc)))
+   (set (match_operand:SI 0 "register_operand" "=a")
+        (plus (match_dup 0)
+              (const_int -1)))
+   (unspec [(const_int 0)] UNSPEC_LSETUP_START)]
+  "TARGET_LOOPS && optimize"
+  "loop\t%0, %l1_LEND"
   [(set_attr "type"	"jump")
    (set_attr "mode"	"none")
    (set_attr "length"	"3")])
 
 (define_insn "zero_cost_loop_end"
   [(set (pc)
-	(if_then_else (ne (reg:SI 19) (const_int 0))
-		      (label_ref (match_operand 0 "" ""))
-		      (pc)))
-   (set (reg:SI 19)
-	(plus:SI (reg:SI 19) (const_int -1)))]
-  ""
+        (if_then_else (ne (match_operand:SI 2 "nonimmediate_operand" "0,0")
+                          (const_int 1))
+                      (label_ref (match_operand 1 "" ""))
+                      (pc)))
+   (set (match_operand:SI 0 "nonimmediate_operand" "=a,m")
+        (plus (match_dup 0)
+              (const_int -1)))
+   (unspec [(const_int 0)] UNSPEC_LSETUP_END)
+   (clobber (match_scratch:SI 3 "=X,&r"))]
+  "TARGET_LOOPS && optimize"
+  "#"
+  [(set_attr "type"	"jump")
+   (set_attr "mode"	"none")
+   (set_attr "length"	"0")])
+
+(define_insn "loop_end"
+  [(set (pc)
+        (if_then_else (ne (match_operand:SI 2 "register_operand" "0")
+                          (const_int 1))
+                      (label_ref (match_operand 1 "" ""))
+                      (pc)))
+   (set (match_operand:SI 0 "register_operand" "=a")
+        (plus (match_dup 0)
+              (const_int -1)))
+   (unspec [(const_int 0)] UNSPEC_LSETUP_END)]
+  "TARGET_LOOPS && optimize"
 {
-    xtensa_emit_loop_end (insn, operands);
-    return "";
+  xtensa_emit_loop_end (insn, operands);
+  return "";
 }
   [(set_attr "type"	"jump")
    (set_attr "mode"	"none")
    (set_attr "length"	"0")])
+
+(define_split
+  [(set (pc)
+        (if_then_else (ne (match_operand:SI 0 "nonimmediate_operand" "")
+                          (const_int 1))
+                      (label_ref (match_operand 1 "" ""))
+                      (pc)))
+   (set (match_operand:SI 2 "nonimmediate_operand" "")
+        (plus:SI (match_dup 0)
+                 (const_int -1)))
+   (unspec [(const_int 0)] UNSPEC_LSETUP_END)
+   (clobber (match_scratch 3))]
+  "TARGET_LOOPS && optimize && reload_completed"
+  [(const_int 0)]
+{
+  if (!REG_P (operands[0]))
+    {
+      rtx test;
+
+      /* Fallback into a normal conditional branch insn.  */
+      emit_move_insn (operands[3], operands[0]);
+      emit_insn (gen_addsi3 (operands[3], operands[3], constm1_rtx));
+      emit_move_insn (operands[0], operands[3]);
+      test = gen_rtx_NE (VOIDmode, operands[3], const0_rtx);
+      emit_jump_insn (gen_cbranchsi4 (test, operands[3],
+                                      const0_rtx, operands[1]));
+    }
+  else
+    {
+      emit_jump_insn (gen_loop_end (operands[0], operands[1], operands[2]));
+    }
+
+  DONE;
+})
+
+; operand 0 is the loop count pseudo register
+; operand 1 is the label to jump to at the top of the loop
+(define_expand "doloop_end"
+  [(parallel [(set (pc) (if_then_else
+                          (ne (match_operand:SI 0 "" "")
+                              (const_int 1))
+                          (label_ref (match_operand 1 "" ""))
+                          (pc)))
+              (set (match_dup 0)
+                   (plus:SI (match_dup 0)
+                            (const_int -1)))
+              (unspec [(const_int 0)] UNSPEC_LSETUP_END)
+              (clobber (match_dup 2))])] ; match_scratch
+  "TARGET_LOOPS && optimize"
+{
+  /* The loop optimizer doesn't check the predicates... */
+  if (GET_MODE (operands[0]) != SImode)
+    FAIL;
+  operands[2] = gen_rtx_SCRATCH (SImode);
+})
 
 
 ;; Setting a register from a comparison.
@@ -1587,9 +1664,11 @@
 (define_insn "return"
   [(return)
    (use (reg:SI A0_REG))]
-  "reload_completed"
+  "xtensa_use_return_instruction_p ()"
 {
-  return (TARGET_DENSITY ? "retw.n" : "retw");
+  return TARGET_WINDOWED_ABI ?
+      (TARGET_DENSITY ? "retw.n" : "retw") :
+      (TARGET_DENSITY ? "ret.n" : "ret");
 }
   [(set_attr "type"	"jump")
    (set_attr "mode"	"none")
@@ -1597,6 +1676,32 @@
 
 
 ;; Miscellaneous instructions.
+
+;; In windowed ABI stack pointer adjustment must happen before any access
+;; to the space allocated on stack is allowed, otherwise register spill
+;; area may be clobbered.  That's what frame blockage is supposed to enforce.
+
+(define_expand "allocate_stack"
+  [(set (match_operand 0 "nonimmed_operand")
+        (minus (reg A1_REG) (match_operand 1 "add_operand")))
+   (set (reg A1_REG)
+        (minus (reg A1_REG) (match_dup 1)))]
+  "TARGET_WINDOWED_ABI"
+{
+  if (CONST_INT_P (operands[1]))
+    {
+      rtx neg_op0 = GEN_INT (-INTVAL (operands[1]));
+      emit_insn (gen_addsi3 (stack_pointer_rtx, stack_pointer_rtx, neg_op0));
+    }
+  else
+    {
+      emit_insn (gen_subsi3 (stack_pointer_rtx, stack_pointer_rtx,
+			     operands[1]));
+    }
+  emit_move_insn (operands[0], virtual_stack_dynamic_rtx);
+  emit_insn (gen_frame_blockage ());
+  DONE;
+})
 
 (define_expand "prologue"
   [(const_int 0)]
@@ -1610,7 +1715,7 @@
   [(return)]
   ""
 {
-  emit_jump_insn (gen_return ());
+  xtensa_expand_epilogue ();
   DONE;
 })
 
@@ -1629,7 +1734,7 @@
    (match_operand:SI 1 "general_operand" "")
    (match_operand:SI 2 "general_operand" "")
    (match_operand:SI 3 "" "")]
-  ""
+  "TARGET_WINDOWED_ABI"
 {
   xtensa_expand_nonlocal_goto (operands);
   DONE;
@@ -1642,7 +1747,18 @@
 ;; already been applied to the handler, but the generic version doesn't
 ;; allow us to frob it quite enough, so we just frob here.
 
-(define_insn_and_split "eh_return"
+(define_expand "eh_return"
+  [(use (match_operand 0 "general_operand"))]
+  ""
+{
+  if (TARGET_WINDOWED_ABI)
+    emit_insn (gen_eh_set_a0_windowed (operands[0]));
+  else
+    emit_insn (gen_eh_set_a0_call0 (operands[0]));
+  DONE;
+})
+
+(define_insn_and_split "eh_set_a0_windowed"
   [(set (reg:SI A0_REG)
 	(unspec_volatile:SI [(match_operand:SI 0 "register_operand" "r")]
 			    UNSPECV_EH_RETURN))
@@ -1654,6 +1770,61 @@
    (set (match_dup 1) (plus:SI (match_dup 1) (const_int 2)))
    (set (reg:SI A0_REG) (rotatert:SI (match_dup 1) (const_int 2)))]
   "")
+
+(define_insn_and_split "eh_set_a0_call0"
+  [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")]
+		    UNSPECV_EH_RETURN)
+   (clobber (match_scratch:SI 1 "=r"))]
+  ""
+  "#"
+  "reload_completed"
+  [(const_int 0)]
+{
+  xtensa_set_return_address (operands[0], operands[1]);
+  DONE;
+})
+
+;; UNSPEC_VOLATILE is considered to use and clobber all hard registers and
+;; all of memory.  This blocks insns from being moved across this point.
+
+(define_insn "blockage"
+  [(unspec_volatile [(const_int 0)] UNSPECV_BLOCKAGE)]
+  ""
+  ""
+  [(set_attr "length" "0")
+   (set_attr "type" "nop")])
+
+;; Do not schedule instructions accessing memory before this point.
+
+(define_expand "frame_blockage"
+  [(set (match_dup 0)
+        (unspec:BLK [(match_dup 1)] UNSPEC_FRAME_BLOCKAGE))]
+  ""
+{
+  operands[0] = gen_rtx_MEM (BLKmode, gen_rtx_SCRATCH (Pmode));
+  MEM_VOLATILE_P (operands[0]) = 1;
+  operands[1] = stack_pointer_rtx;
+})
+
+(define_insn "*frame_blockage"
+  [(set (match_operand:BLK 0 "" "")
+        (unspec:BLK [(match_operand:SI 1 "" "")] UNSPEC_FRAME_BLOCKAGE))]
+  ""
+  ""
+  [(set_attr "length" "0")])
+
+(define_insn "trap"
+  [(trap_if (const_int 1) (const_int 0))]
+  ""
+{
+  if (TARGET_DEBUG)
+    return "break\t1, 15";
+  else
+    return (TARGET_DENSITY ? "ill.n" : "ill");
+}
+  [(set_attr "type"	"trap")
+   (set_attr "mode"	"none")
+   (set_attr "length"	"3")])
 
 ;; Setting up a frame pointer is tricky for Xtensa because GCC doesn't
 ;; know if a frame pointer is required until the reload pass, and
@@ -1758,7 +1929,12 @@
 				  UNSPEC_TLS_CALL))
 	      (match_operand 3 "" "i")))]
   "TARGET_THREADPTR && HAVE_AS_TLS"
-  "callx8.tls %1, %2@TLSCALL"
+{
+  if (TARGET_WINDOWED_ABI)
+    return "callx8.tls %1, %2@TLSCALL";
+  else
+    return "callx0.tls %1, %2@TLSCALL";
+}
   [(set_attr "type"	"call")
    (set_attr "mode"	"none")
    (set_attr "length"	"3")])

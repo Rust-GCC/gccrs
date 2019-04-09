@@ -1,6 +1,6 @@
 // 2005-02-23  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,7 +25,6 @@
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using std::tr1::is_convertible;
   using namespace __gnu_test;
 
@@ -40,7 +39,7 @@ void test01()
   VERIFY( (test_relationship<is_convertible, int*, void*>(true)) );
   VERIFY( (test_relationship<is_convertible, int[4], int*>(true)) );
   VERIFY( (test_relationship<is_convertible, float&, int>(true)) );
-  VERIFY( (test_relationship<is_convertible, int, const int&>(true)) ); 
+  VERIFY( (test_relationship<is_convertible, int, const int&>(true)) );
   VERIFY( (test_relationship<is_convertible, const int&, int>(true)) );
   VERIFY( (test_relationship<is_convertible, float, const int&>(true)) );
   VERIFY( (test_relationship<is_convertible, float, volatile float&>(true)) );
@@ -55,7 +54,7 @@ void test01()
 
   VERIFY( (test_relationship<is_convertible, void, void>(true)) );
   VERIFY( (test_relationship<is_convertible, int, void>(true)) );
-  VERIFY( (test_relationship<is_convertible, int[4], void>(true)) );  
+  VERIFY( (test_relationship<is_convertible, int[4], void>(true)) );
 
   // Negative tests.
   VERIFY( (test_relationship<is_convertible, const int*, int*>(false)) );
@@ -63,7 +62,7 @@ void test01()
   VERIFY( (test_relationship<is_convertible, const int[4], int*>(false)) );
   VERIFY( (test_relationship<is_convertible, int[4], int[4]>(false)) );
   VERIFY( (test_relationship<is_convertible, const int&, int&>(false)) );
-  VERIFY( (test_relationship<is_convertible, float&, int&>(false)) );  
+  VERIFY( (test_relationship<is_convertible, float&, int&>(false)) );
   VERIFY( (test_relationship<is_convertible, float, volatile int&>(false)) );
   VERIFY( (test_relationship<is_convertible, int(int), int(int)>(false)) );
   VERIFY( (test_relationship<is_convertible, int(int), int(*)(void)>(false)) );
@@ -75,8 +74,8 @@ void test01()
   VERIFY( (test_relationship<is_convertible, ClassType&, DerivedType&>(false)) );
 
   VERIFY( (test_relationship<is_convertible, void, int>(false)) );
-  VERIFY( (test_relationship<is_convertible, void, float>(false)) );  
-  VERIFY( (test_relationship<is_convertible, void, int(*)(int)>(false)) );  
+  VERIFY( (test_relationship<is_convertible, void, float>(false)) );
+  VERIFY( (test_relationship<is_convertible, void, int(*)(int)>(false)) );
 }
 
 int main()

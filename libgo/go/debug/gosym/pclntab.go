@@ -1,4 +1,4 @@
-// Copyright 2009 The Go Authors.  All rights reserved.
+// Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 package gosym
 
 import (
+	"bytes"
 	"encoding/binary"
 	"sync"
 )
@@ -42,6 +43,7 @@ type LineTable struct {
 	filetab  []byte
 	nfiletab uint32
 	fileMap  map[string]uint32
+	strings  map[uint32]string // interned substrings of Data, keyed by offset
 }
 
 // NOTE(rsc): This is wrong for GOARCH=arm, which uses a quantum of 4,
@@ -53,7 +55,7 @@ const oldQuantum = 1
 func (t *LineTable) parse(targetPC uint64, targetLine int) (b []byte, pc uint64, line int) {
 	// The PC/line table can be thought of as a sequence of
 	//  <pc update>* <line update>
-	// batches.  Each update batch results in a (pc, line) pair,
+	// batches. Each update batch results in a (pc, line) pair,
 	// where line applies to every PC from pc up to but not
 	// including the pc of the next pair.
 	//
@@ -120,7 +122,7 @@ func (t *LineTable) LineToPC(line int, maxpc uint64) uint64 {
 // Text must be the start address of the
 // corresponding text segment.
 func NewLineTable(data []byte, text uint64) *LineTable {
-	return &LineTable{Data: data, PC: text, Line: 0}
+	return &LineTable{Data: data, PC: text, Line: 0, strings: make(map[uint32]string)}
 }
 
 // Go 1.2 symbol table format.
@@ -167,7 +169,7 @@ func (t *LineTable) go12Init() {
 	// Check header: 4-byte magic, two zeros, pc quantum, pointer size.
 	t.go12 = -1 // not Go 1.2 until proven otherwise
 	if len(t.Data) < 16 || t.Data[4] != 0 || t.Data[5] != 0 ||
-		(t.Data[6] != 1 && t.Data[6] != 4) || // pc quantum
+		(t.Data[6] != 1 && t.Data[6] != 2 && t.Data[6] != 4) || // pc quantum
 		(t.Data[7] != 4 && t.Data[7] != 8) { // pointer size
 		return
 	}
@@ -207,8 +209,8 @@ func (t *LineTable) go12Funcs() []Func {
 	funcs := make([]Func, n)
 	for i := range funcs {
 		f := &funcs[i]
-		f.Entry = uint64(t.uintptr(t.functab[2*i*int(t.ptrsize):]))
-		f.End = uint64(t.uintptr(t.functab[(2*i+2)*int(t.ptrsize):]))
+		f.Entry = t.uintptr(t.functab[2*i*int(t.ptrsize):])
+		f.End = t.uintptr(t.functab[(2*i+2)*int(t.ptrsize):])
 		info := t.Data[t.uintptr(t.functab[(2*i+1)*int(t.ptrsize):]):]
 		f.LineTable = t
 		f.FrameSize = int(t.binary.Uint32(info[t.ptrsize+2*4:]))
@@ -266,11 +268,13 @@ func (t *LineTable) readvarint(pp *[]byte) uint32 {
 
 // string returns a Go string found at off.
 func (t *LineTable) string(off uint32) string {
-	for i := off; ; i++ {
-		if t.Data[i] == 0 {
-			return string(t.Data[off:i])
-		}
+	if s, ok := t.strings[off]; ok {
+		return s
 	}
+	i := bytes.IndexByte(t.Data[off:], 0)
+	s := string(t.Data[off : off+uint32(i)])
+	t.strings[off] = s
+	return s
 }
 
 // step advances to the next pc, value pair in the encoded table.
@@ -295,9 +299,6 @@ func (t *LineTable) step(p *[]byte, pc *uint64, val *int32, first bool) bool {
 // off is the offset to the beginning of the pc-value table,
 // and entry is the start PC for the corresponding function.
 func (t *LineTable) pcvalue(off uint32, entry, targetpc uint64) int32 {
-	if off == 0 {
-		return -1
-	}
 	p := t.Data[off:]
 
 	val := int32(-1)

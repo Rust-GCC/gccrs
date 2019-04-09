@@ -1,9 +1,9 @@
-// { dg-require-namedlocale "de_DE" }
+// { dg-require-namedlocale "de_DE.ISO8859-15" }
 
 // 1999-11-15 Kevin Ediger  <kediger@licor.com>
 // test the floating point inserters (facet num_put)
 
-// Copyright (C) 1999-2014 Free Software Foundation, Inc.
+// Copyright (C) 1999-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -31,7 +31,6 @@ void
 test02()
 {
   using namespace std;
-  bool test __attribute__((unused)) = true;
 
   // Make sure we can output a long float in fixed format
   // without seg-faulting (libstdc++/4402)
@@ -42,7 +41,7 @@ test02()
   os2.setf(ios::fixed);
 
   // Check it can be done in a locale with grouping on.
-  locale loc2 = locale("de_DE");
+  locale loc2 = locale(ISO_8859(15,de_DE));
   os2.imbue(loc2);
   os2 << fixed << setprecision(3) << val2 << endl;
   os2 << endl;

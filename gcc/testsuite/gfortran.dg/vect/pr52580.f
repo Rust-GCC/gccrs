@@ -1,4 +1,5 @@
 ! { dg-do compile }
+! { dg-additional-options "-std=legacy" }
 ! { dg-require-effective-target vect_double }
       SUBROUTINE CALC2
       IMPLICIT REAL*8	(A-H, O-Z)
@@ -30,4 +31,3 @@
       RETURN
       END
 ! { dg-final { scan-tree-dump-times "LOOP VECTORIZED" 1 "vect" } }
-! { dg-final { cleanup-tree-dump "vect" } }

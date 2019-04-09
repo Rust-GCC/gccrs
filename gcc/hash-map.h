@@ -1,5 +1,5 @@
 /* A type-safe hash map.
-   Copyright (C) 2014 Free Software Foundation, Inc.
+   Copyright (C) 2014-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,91 +21,11 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef hash_map_h
 #define hash_map_h
 
-#include <new>
-#include "hash-table.h"
-
-/* implement default behavior for traits when types allow it.  */
-
-struct default_hashmap_traits
-{
-  /* Hashes the passed in key.  */
-
-  template<typename T>
-  static hashval_t
-  hash (T *p)
-    {
-      return uintptr_t(p) >> 3;
-    }
-
-  /* If the value converts to hashval_t just use it.  */
-
-  template<typename T> static hashval_t hash (T v) { return v; }
-
-  /* Return true if the two keys passed as arguments are equal.  */
-
-  template<typename T>
-  static bool
-  equal_keys (const T &a, const T &b)
-    {
-      return a == b;
-    }
-
-  /* Called to dispose of the key and value before marking the entry as
-     deleted.  */
-
-  template<typename T> static void remove (T &v) { v.~T (); }
-
-  /* Mark the passed in entry as being deleted.  */
-
-  template<typename T>
-  static void
-  mark_deleted (T &e)
-    {
-      mark_key_deleted (e.m_key);
-    }
-
-  /* Mark the passed in entry as being empty.  */
-
-  template<typename T>
-  static void
-  mark_empty (T &e)
-    {
-      mark_key_empty (e.m_key);
-    }
-
-  /* Return true if the passed in entry is marked as deleted.  */
-
-  template<typename T>
-  static bool
-  is_deleted (T &e)
-    {
-      return e.m_key == (void *)1;
-    }
-
-  /* Return true if the passed in entry is marked as empty.  */
-
-  template<typename T> static bool is_empty (T &e) { return e.m_key == NULL; }
-
-private:
-  template<typename T>
-  static void
-  mark_key_deleted (T *&k)
-    {
-      k = reinterpret_cast<T *> (1);
-    }
-
-  template<typename T>
-  static void
-  mark_key_empty (T *&k)
-    {
-      k = static_cast<T *> (0);
-    }
-};
-
-template<typename Key, typename Value,
-	 typename Traits = default_hashmap_traits>
+template<typename KeyId, typename Value,
+	 typename Traits>
 class GTY((user)) hash_map
 {
+  typedef typename Traits::key_type Key;
   struct hash_entry
   {
     Key m_key;
@@ -113,7 +33,6 @@ class GTY((user)) hash_map
 
     typedef hash_entry value_type;
     typedef Key compare_type;
-    typedef int store_values_directly;
 
     static hashval_t hash (const hash_entry &e)
       {
@@ -143,6 +62,12 @@ class GTY((user)) hash_map
 	gt_ggc_mx (e.m_value);
       }
 
+    static void ggc_maybe_mx (hash_entry &e)
+      {
+	if (Traits::maybe_mx)
+	  ggc_mx (e);
+      }
+
     static void pch_nx (hash_entry &e)
       {
 	gt_pch_nx (e.m_key);
@@ -153,6 +78,11 @@ class GTY((user)) hash_map
       {
 	pch_nx_helper (e.m_key, op, c);
 	pch_nx_helper (e.m_value, op, c);
+      }
+
+    static int keep_cache_entry (hash_entry &e)
+      {
+	return ggc_marked_p (e.m_key);
       }
 
   private:
@@ -168,6 +98,16 @@ class GTY((user)) hash_map
 	{
 	}
 
+    static void
+      pch_nx_helper (unsigned int, gt_pointer_operator, void *)
+	{
+	}
+
+    static void
+      pch_nx_helper (bool, gt_pointer_operator, void *)
+	{
+	}
+
     template<typename T>
       static void
       pch_nx_helper (T *&x, gt_pointer_operator op, void *cookie)
@@ -177,13 +117,24 @@ class GTY((user)) hash_map
   };
 
 public:
-  explicit hash_map (size_t n = 13, bool ggc = false) : m_table (n, ggc) {}
+  explicit hash_map (size_t n = 13, bool ggc = false,
+		     bool gather_mem_stats = GATHER_STATISTICS
+		     CXX_MEM_STAT_INFO)
+    : m_table (n, ggc, gather_mem_stats, HASH_MAP_ORIGIN PASS_MEM_STAT) {}
+
+  explicit hash_map (const hash_map &h, bool ggc = false,
+		     bool gather_mem_stats = GATHER_STATISTICS
+		     CXX_MEM_STAT_INFO)
+    : m_table (h.m_table, ggc, gather_mem_stats,
+	       HASH_MAP_ORIGIN PASS_MEM_STAT) {}
 
   /* Create a hash_map in ggc memory.  */
-  static hash_map *create_ggc (size_t size)
+  static hash_map *create_ggc (size_t size,
+			       bool gather_mem_stats = GATHER_STATISTICS
+			       CXX_MEM_STAT_INFO)
     {
       hash_map *map = ggc_alloc<hash_map> ();
-      new (map) hash_map (size, true);
+      new (map) hash_map (size, true, gather_mem_stats PASS_MEM_STAT);
       return map;
     }
 
@@ -237,7 +188,8 @@ public:
   /* Call the call back on each pair of key and value with the passed in
      arg.  */
 
-  template<typename Arg, bool (*f)(const Key &, const Value &, Arg)>
+  template<typename Arg, bool (*f)(const typename Traits::key_type &,
+				   const Value &, Arg)>
   void traverse (Arg a) const
     {
       for (typename hash_table<hash_entry>::iterator iter = m_table.begin ();
@@ -245,7 +197,8 @@ public:
 	f ((*iter).m_key, (*iter).m_value, a);
     }
 
-  template<typename Arg, bool (*f)(const Key &, Value *, Arg)>
+  template<typename Arg, bool (*f)(const typename Traits::key_type &,
+				   Value *, Arg)>
   void traverse (Arg a) const
     {
       for (typename hash_table<hash_entry>::iterator iter = m_table.begin ();
@@ -254,11 +207,62 @@ public:
 	  break;
     }
 
+  size_t elements () const { return m_table.elements (); }
+
+  void empty () { m_table.empty(); }
+
+  class iterator
+  {
+  public:
+    explicit iterator (const typename hash_table<hash_entry>::iterator &iter) :
+      m_iter (iter) {}
+
+    iterator &operator++ ()
+    {
+      ++m_iter;
+      return *this;
+    }
+
+    /* Can't use std::pair here, because GCC before 4.3 don't handle
+       std::pair where template parameters are references well.
+       See PR86739.  */
+    struct reference_pair {
+      const Key &first;
+      Value &second;
+
+      reference_pair (const Key &key, Value &value) : first (key), second (value) {}
+
+      template <typename K, typename V>
+      operator std::pair<K, V> () const { return std::pair<K, V> (first, second); }
+    };
+
+    reference_pair operator* ()
+    {
+      hash_entry &e = *m_iter;
+      return reference_pair (e.m_key, e.m_value);
+    }
+
+    bool
+    operator != (const iterator &other) const
+    {
+      return m_iter != other.m_iter;
+    }
+
+  private:
+    typename hash_table<hash_entry>::iterator m_iter;
+  };
+
+  /* Standard iterator retrieval methods.  */
+
+  iterator  begin () const { return iterator (m_table.begin ()); }
+  iterator end () const { return iterator (m_table.end ()); }
+
 private:
 
   template<typename T, typename U, typename V> friend void gt_ggc_mx (hash_map<T, U, V> *);
   template<typename T, typename U, typename V> friend void gt_pch_nx (hash_map<T, U, V> *);
-      template<typename T, typename U, typename V> friend void gt_pch_nx (hash_map<T, U, V> *, gt_pointer_operator, void *);
+  template<typename T, typename U, typename V> friend void gt_pch_nx (hash_map<T, U, V> *, gt_pointer_operator, void *);
+  template<typename T, typename U, typename V> friend void gt_cleare_cache (hash_map<T, U, V> *);
 
   hash_table<hash_entry> m_table;
 };
@@ -277,6 +281,14 @@ static inline void
 gt_pch_nx (hash_map<K, V, H> *h)
 {
   gt_pch_nx (&h->m_table);
+}
+
+template<typename K, typename V, typename H>
+static inline void
+gt_cleare_cache (hash_map<K, V, H> *h)
+{
+  if (h)
+    gt_cleare_cache (&h->m_table);
 }
 
 template<typename K, typename V, typename H>

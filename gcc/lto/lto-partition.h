@@ -1,5 +1,5 @@
 /* LTO partitioning logic routines.
-   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -17,7 +17,6 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#include "hash-set.h"
 
 /* Structure describing ltrans partitions.  */
 
@@ -26,6 +25,7 @@ struct ltrans_partition_def
   lto_symtab_encoder_t encoder;
   const char * name;
   int insns;
+  int symbols;
   hash_set<symtab_node *> *initializers_visited;
 };
 
@@ -35,7 +35,7 @@ extern vec<ltrans_partition> ltrans_partitions;
 
 void lto_1_to_1_map (void);
 void lto_max_map (void);
-void lto_balanced_map (int);
+void lto_balanced_map (int, int);
 void lto_promote_cross_file_statics (void);
 void free_ltrans_partitions (void);
 void lto_promote_statics_nonwpa (void);

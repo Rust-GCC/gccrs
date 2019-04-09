@@ -1,6 +1,6 @@
 // <system_error> -*- C++ -*-
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -46,7 +46,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   class error_code;
   class error_condition;
-  class error_category;
   class system_error;
 
   /// is_error_code_enum
@@ -57,50 +56,76 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Tp>
     struct is_error_condition_enum : public false_type { };
 
-  template<> 
+  template<>
     struct is_error_condition_enum<errc>
     : public true_type { };
 
+#if __cplusplus > 201402L
+  template <typename _Tp>
+    inline constexpr bool is_error_code_enum_v =
+      is_error_code_enum<_Tp>::value;
+  template <typename _Tp>
+    inline constexpr bool is_error_condition_enum_v =
+      is_error_condition_enum<_Tp>::value;
+#endif // C++17
+  inline namespace _V2 {
 
   /// error_category
   class error_category
   {
   public:
-#ifdef _GLIBCXX_COMPATIBILITY_CXX0X
-    error_category() noexcept;
-#else
     constexpr error_category() noexcept = default;
-#endif
 
     virtual ~error_category();
 
     error_category(const error_category&) = delete;
     error_category& operator=(const error_category&) = delete;
 
-    virtual const char* 
+    virtual const char*
     name() const noexcept = 0;
 
-    virtual string 
+    // We need two different virtual functions here, one returning a
+    // COW string and one returning an SSO string. Their positions in the
+    // vtable must be consistent for dynamic dispatch to work, but which one
+    // the name "message()" finds depends on which ABI the caller is using.
+#if _GLIBCXX_USE_CXX11_ABI
+  private:
+    _GLIBCXX_DEFAULT_ABI_TAG
+    virtual __cow_string
+    _M_message(int) const;
+
+  public:
+    _GLIBCXX_DEFAULT_ABI_TAG
+    virtual string
+    message(int) const = 0;
+#else
+    virtual string
     message(int) const = 0;
 
+  private:
+    virtual __sso_string
+    _M_message(int) const;
+#endif
+
+  public:
     virtual error_condition
     default_error_condition(int __i) const noexcept;
 
-    virtual bool 
+    virtual bool
     equivalent(int __i, const error_condition& __cond) const noexcept;
 
-    virtual bool 
+    virtual bool
     equivalent(const error_code& __code, int __i) const noexcept;
 
-    bool 
+    bool
     operator<(const error_category& __other) const noexcept
     { return less<const error_category*>()(this, &__other); }
 
-    bool 
+    bool
     operator==(const error_category& __other) const noexcept
     { return this == &__other; }
 
-    bool 
+    bool
     operator!=(const error_category& __other) const noexcept
     { return this != &__other; }
   };
@@ -108,6 +133,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // DR 890.
   _GLIBCXX_CONST const error_category& system_category() noexcept;
   _GLIBCXX_CONST const error_category& generic_category() noexcept;
+
+  } // end inline namespace
 
   error_code make_error_code(errc) noexcept;
 
@@ -129,14 +156,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       error_code(_ErrorCodeEnum __e) noexcept
       { *this = make_error_code(__e); }
 
-    void 
+    void
     assign(int __v, const error_category& __cat) noexcept
     {
       _M_value = __v;
-      _M_cat = &__cat; 
+      _M_cat = &__cat;
     }
 
-    void 
+    void
     clear() noexcept
     { assign(0, system_category()); }
 
@@ -149,19 +176,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     int
     value() const noexcept { return _M_value; }
-      
-    const error_category&  
+
+    const error_category&
     category() const noexcept { return *_M_cat; }
 
-    error_condition 
+    error_condition
     default_error_condition() const noexcept;
 
-    string 
+    _GLIBCXX_DEFAULT_ABI_TAG
+    string
     message() const
     { return category().message(value()); }
 
     explicit operator bool() const noexcept
-    { return _M_value != 0 ? true : false; }
+    { return _M_value != 0; }
 
     // DR 804.
   private:
@@ -178,7 +206,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   inline bool
   operator<(const error_code& __lhs, const error_code& __rhs) noexcept
-  { 
+  {
     return (__lhs.category() < __rhs.category()
 	    || (__lhs.category() == __rhs.category()
 		&& __lhs.value() < __rhs.value()));
@@ -193,7 +221,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /// error_condition
   // Portable error identification
-  struct error_condition 
+  struct error_condition
   {
     error_condition() noexcept
     : _M_value(0), _M_cat(&generic_category()) { }
@@ -220,7 +248,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       operator=(_ErrorConditionEnum __e) noexcept
       { return *this = make_error_condition(__e); }
 
-    void 
+    void
     clear() noexcept
     { assign(0, generic_category()); }
 
@@ -231,12 +259,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     const error_category&
     category() const noexcept { return *_M_cat; }
 
-    string 
+    _GLIBCXX_DEFAULT_ABI_TAG
+    string
     message() const
     { return category().message(value()); }
 
     explicit operator bool() const noexcept
-    { return _M_value != 0 ? true : false; }
+    { return _M_value != 0; }
 
     // DR 804.
   private:
@@ -249,7 +278,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   make_error_condition(errc __e) noexcept
   { return error_condition(static_cast<int>(__e), generic_category()); }
 
-  inline bool 
+  inline bool
   operator<(const error_condition& __lhs,
 	    const error_condition& __rhs) noexcept
   {
@@ -304,7 +333,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   { return !(__lhs == __rhs); }
 
 
-  /** 
+  /**
    *  @brief Thrown to indicate error code of underlying system.
    *
    *  @ingroup exceptions
@@ -321,16 +350,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     system_error(error_code __ec, const string& __what)
     : runtime_error(__what + ": " + __ec.message()), _M_code(__ec) { }
 
-    /*
-     * TODO: Add const char* ctors to all exceptions.
-     *
-     * system_error(error_code __ec, const char* __what)
-     * : runtime_error(__what + (": " + __ec.message())), _M_code(__ec) { }
-     *
-     * system_error(int __v, const error_category& __ecat, const char* __what)
-     * : runtime_error(__what + (": " + __ec.message())),
-     *   _M_code(error_code(__v, __ecat)) { }
-     */
+    system_error(error_code __ec, const char* __what)
+    : runtime_error(__what + (": " + __ec.message())), _M_code(__ec) { }
+
+    system_error(int __v, const error_category& __ecat, const char* __what)
+    : system_error(error_code(__v, __ecat), __what) { }
 
     system_error(int __v, const error_category& __ecat)
     : runtime_error(error_code(__v, __ecat).message()),
@@ -340,16 +364,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : runtime_error(__what + ": " + error_code(__v, __ecat).message()),
       _M_code(__v, __ecat) { }
 
+#if __cplusplus >= 201103L
+    system_error (const system_error &) = default;
+    system_error &operator= (const system_error &) = default;
+#endif
+
     virtual ~system_error() noexcept;
 
-    const error_code& 
+    const error_code&
     code() const noexcept { return _M_code; }
   };
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
-
-#ifndef _GLIBCXX_COMPATIBILITY_CXX0X
 
 #include <bits/functional_hash.h>
 
@@ -357,6 +384,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
+#ifndef _GLIBCXX_COMPATIBILITY_CXX0X
   // DR 1182.
   /// std::hash specialization for error_code.
   template<>
@@ -370,11 +398,26 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	return std::_Hash_impl::__hash_combine(__e._M_cat, __tmp);
       }
     };
+#endif // _GLIBCXX_COMPATIBILITY_CXX0X
+
+#if __cplusplus > 201402L
+  // DR 2686.
+  /// std::hash specialization for error_condition.
+  template<>
+    struct hash<error_condition>
+    : public __hash_base<size_t, error_condition>
+    {
+      size_t
+      operator()(const error_condition& __e) const noexcept
+      {
+	const size_t __tmp = std::_Hash_impl::hash(__e.value());
+	return std::_Hash_impl::__hash_combine(__e.category(), __tmp);
+      }
+    };
+#endif
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
-
-#endif // _GLIBCXX_COMPATIBILITY_CXX0X
 
 #endif // C++11
 

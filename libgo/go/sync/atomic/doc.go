@@ -1,8 +1,6 @@
-// Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-
-// +build !race
 
 // Package atomic provides low-level atomic memory primitives
 // useful for implementing synchronization algorithms.
@@ -49,9 +47,10 @@ import (
 //
 // On non-Linux ARM, the 64-bit functions use instructions unavailable before the ARMv6k core.
 //
-// On both ARM and x86-32, it is the caller's responsibility to arrange for 64-bit
-// alignment of 64-bit words accessed atomically. The first word in a global
-// variable or in an allocated struct or slice can be relied upon to be
+// On ARM, x86-32, and 32-bit MIPS,
+// it is the caller's responsibility to arrange for 64-bit
+// alignment of 64-bit words accessed atomically. The first word in a
+// variable or in an allocated struct, array, or slice can be relied upon to be
 // 64-bit aligned.
 
 // SwapInt32 atomically stores new into *addr and returns the previous *addr value.

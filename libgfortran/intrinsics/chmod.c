@@ -1,5 +1,5 @@
 /* Implementation of the CHMOD intrinsic.
-   Copyright (C) 2006-2014 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
    Contributed by François-Xavier Coudert <coudert@clipper.ens.fr>
 
 This file is part of the GNU Fortran runtime library (libgfortran).
@@ -27,7 +27,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #if defined(HAVE_SYS_STAT_H)
 
-#include <string.h>	/* For memcpy. */
 #include <sys/stat.h>	/* For stat, chmod and umask.  */
 
 
@@ -61,15 +60,10 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    A return value of 0 indicates success, -1 an error of chmod() while 1
    indicates a mode parsing error.  */
 
-extern int chmod_func (char *, char *, gfc_charlen_type, gfc_charlen_type);
-export_proto(chmod_func);
 
-int
-chmod_func (char *name, char *mode, gfc_charlen_type name_len,
-	    gfc_charlen_type mode_len)
+static int
+chmod_internal (char *file, char *mode, gfc_charlen_type mode_len)
 {
-  char * file;
-  int i;
   bool ugo[3];
   bool rwxXstugo[9];
   int set_mode, part;
@@ -80,30 +74,15 @@ chmod_func (char *name, char *mode, gfc_charlen_type name_len,
   mode_t mode_mask, file_mode, new_mode;
   struct stat stat_buf;
 
-  /* Trim trailing spaces of the file name.  */
-  while (name_len > 0 && name[name_len - 1] == ' ')
-    name_len--;
-
-  /* Make a null terminated copy of the file name.  */
-  file = gfc_alloca (name_len + 1);
-  memcpy (file, name, name_len);
-  file[name_len] = '\0';
-
   if (mode_len == 0)
     return 1;
 
   if (mode[0] >= '0' && mode[0] <= '9')
     {
-#ifdef __MINGW32__
       unsigned fmode;
       if (sscanf (mode, "%o", &fmode) != 1)
 	return 1;
-      file_mode = (mode_t) fmode;
-#else
-      if (sscanf (mode, "%o", &file_mode) != 1)
-	return 1;
-#endif
-      return chmod (file, file_mode);
+      return chmod (file, (mode_t) fmode);
     }
 
   /* Read the current file mode. */
@@ -124,7 +103,7 @@ chmod_func (char *name, char *mode, gfc_charlen_type name_len,
   honor_umask = false;
 #endif
 
-  for (i = 0; i < mode_len; i++)
+  for (gfc_charlen_type i = 0; i < mode_len; i++)
     {
       if (!continue_clause)
 	{
@@ -493,6 +472,20 @@ clause_done:
   }
 
   return chmod (file, file_mode);
+}
+
+
+extern int chmod_func (char *, char *, gfc_charlen_type, gfc_charlen_type);
+export_proto(chmod_func);
+
+int
+chmod_func (char *name, char *mode, gfc_charlen_type name_len,
+	    gfc_charlen_type mode_len)
+{
+  char *cname = fc_strdup (name, name_len);
+  int ret = chmod_internal (cname, mode, mode_len);
+  free (cname);
+  return ret;
 }
 
 

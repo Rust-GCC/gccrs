@@ -1,3 +1,61 @@
+2019-01-21  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* Makefile.am (noinst_LTLIBRARIES): Rename libzgcj_convience.la to
+	libz_convenience.la.
+	* Makefile.in: Regenerate.
+	* configure.ac: Remove target_all.
+	* configure: Regenerate.
+
+2018-10-31  Joseph Myers  <joseph@codesourcery.com>
+
+	PR bootstrap/82856
+	* Makefile.am: Include multilib.am.
+
+	Merge from binutils-gdb:
+	2018-06-19  Simon Marchi  <simon.marchi@ericsson.com>
+
+	* configure.ac: Modernize AC_INIT call, remove AC_PREREQ.
+	* Makefile.am (AUTOMAKE_OPTIONS): Remove 1.8, cygnus, add foreign.
+	* Makefile.in: Re-generate.
+	* aclocal.m4: Re-generate.
+	* configure: Re-generate.
+
+2017-03-15  Yaakov Selkowitz <yselkowitz@redhat.com>
+
+	PR bootstrap/79771
+	* gzguts.h (WIDECHAR): Do not define for __CYGWIN__.
+	* zlib.h (gzopen_w): Do not declare for __CYGWIN__.
+	* win32/zlib.def: Remove gzopen_w.
+		
+2017-01-22  Matthias Klose  <doko@ubuntu.com>
+
+	* Import zlib 1.2.11.
+	* configure: Regenerate.
+
+2017-01-13  Matthias Klose  <doko@ubuntu.com>
+
+	* Import zlib 1.2.10.
+	* configure: Regenerate.
+
+2016-11-15  Matthias Klose  <doko@ubuntu.com>
+
+	* configure: Regenerate.
+
+2015-11-23  Matthias Klose  <doko@ubuntu.com>
+
+	* Imported zlib 1.2.8; merged local changes.
+
+2015-05-13  Michael Haubenwallner  <michael.haubenwallner@ssi-schaefer.com>
+
+	* Makefile.in: Regenerated with automake-1.11.6.
+	* aclocal.m4: Likewise.
+	* configure: Likewise.
+
+2014-11-11  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	PR target/63610
+	* configure: Regenerate.
+
 2013-10-15  David Malcolm  <dmalcolm@redhat.com>
 
 	* configure.ac: Add --enable-host-shared, setting up new

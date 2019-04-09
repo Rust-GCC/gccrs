@@ -9,37 +9,37 @@ module m
   implicit none
 
   type t1
-    integer :: i
+    integer :: i = 1
   contains
     final :: fini_elem
   end type t1
 
   type, extends(t1) :: t1e
-    integer :: j
+    integer :: j = 11
   contains
     final :: fini_elem2
   end type t1e
 
   type t2
-    integer :: i
+    integer :: i = 2
   contains
     final :: fini_shape
   end type t2
 
   type, extends(t2) :: t2e
-    integer :: j
+    integer :: j = 22
   contains
     final :: fini_shape2
   end type t2e
 
   type t3
-    integer :: i
+    integer :: i = 3
   contains
     final :: fini_explicit
   end type t3
 
   type, extends(t3) :: t3e
-    integer :: j
+    integer :: j = 33
   contains
     final :: fini_explicit2
   end type t3e
@@ -52,12 +52,12 @@ contains
     type(t1), intent(inout) :: x
     integer :: i, j, i2, j2
 
-    if (cnt1e /= 5*4) call abort ()
+    if (cnt1e /= 5*4) STOP 1
     j = mod (cnt1,5)+1
     i = cnt1/5 + 1
     i2 = (i-1)*3 + 1
     j2 = (j-1)*2 + 1
-    if (x%i /= j2 + 100*i2) call abort ()
+    if (x%i /= j2 + 100*i2) STOP 2
     x%i = x%i * (-13)
     cnt1 = cnt1 + 1
   end subroutine fini_elem
@@ -70,15 +70,15 @@ contains
     i = cnt1e/5 + 1
     i2 = (i-1)*3 + 1
     j2 = (j-1)*2 + 1
-    if (x%i /= j2 + 100*i2) call abort ()
-    if (x%j /= (j2 + 100*i2)*100) call abort ()
+    if (x%i /= j2 + 100*i2) STOP 3
+    if (x%j /= (j2 + 100*i2)*100) STOP 4
     x%j = x%j * (-13)
     cnt1e = cnt1e + 1
   end subroutine fini_elem2
 
   subroutine fini_shape(x)
     type(t2) :: x(:,:)
-    if (cnt2e /= 1 .or. cnt2 /= 0) call abort ()
+    if (cnt2e /= 1 .or. cnt2 /= 0) STOP 5
     call check_var_sec(x%i, 1)
     x%i = x%i * (-13)
     cnt2 = cnt2 + 1
@@ -94,7 +94,7 @@ contains
 
   subroutine fini_explicit(x)
     type(t3) :: x(5,4)
-    if (cnt3e /= 1 .or. cnt3 /= 0) call abort ()
+    if (cnt3e /= 1 .or. cnt3 /= 0) STOP 6
     call check_var_sec(x%i, 1)
     x%i = x%i * (-13)
     cnt3 = cnt3 + 1
@@ -118,7 +118,7 @@ contains
 
   subroutine fin_test_3(x)
     class(t3), intent(out) :: x(:,:)
-    if (any (shape(x) /= [5,4])) call abort ()
+    if (any (shape(x) /= [5,4])) STOP 7
   end subroutine fin_test_3
 
   subroutine check_var_sec(x, factor)
@@ -130,7 +130,7 @@ contains
       i2 = (i-1)*3 + 1
       do j = 1, 5
         j2 = (j-1)*2 + 1
-        if (x(j,i) /= (j2 + 100*i2)*factor) call abort ()
+        if (x(j,i) /= (j2 + 100*i2)*factor) STOP 8
       end do
     end do
   end subroutine check_var_sec
@@ -182,55 +182,55 @@ program test
       end do
   end select
 
-  if (cnt1 + cnt1e + cnt2 + cnt2e + cnt3 + cnt3e /= 0) call abort()
+  if (cnt1 + cnt1e + cnt2 + cnt2e + cnt3 + cnt3e /= 0) STOP 9
 
   call fin_test_1(x(::2,::3))
-  if (cnt1 /= 5*4) call abort ()
-  if (cnt1e /= 5*4) call abort ()
+  if (cnt1 /= 5*4) STOP 10
+  if (cnt1e /= 5*4) STOP 11
   cnt1 = 0; cnt1e = 0
-  if (cnt2 + cnt2e + cnt3 + cnt3e /= 0) call abort()
+  if (cnt2 + cnt2e + cnt3 + cnt3e /= 0) STOP 12
 
   call fin_test_2(y(::2,::3))
-  if (cnt2 /= 1) call abort ()
-  if (cnt2e /= 1) call abort ()
+  if (cnt2 /= 1) STOP 13
+  if (cnt2e /= 1) STOP 14
   cnt2 = 0; cnt2e = 0
-  if (cnt1 + cnt1e + cnt3 + cnt3e /= 0) call abort()
+  if (cnt1 + cnt1e + cnt3 + cnt3e /= 0) STOP 15
 
   call fin_test_3(z(::2,::3))
-  if (cnt3 /= 1) call abort ()
-  if (cnt3e /= 1) call abort ()
+  if (cnt3 /= 1) STOP 16
+  if (cnt3e /= 1) STOP 17
   cnt3 = 0; cnt3e = 0
-  if (cnt1 + cnt1e + cnt2 + cnt2e /= 0) call abort()
+  if (cnt1 + cnt1e + cnt2 + cnt2e /= 0) STOP 18
 
   select type(x)
     type is (t1e)
-      call check_val(x%i, 1)
-      call check_val(x%j, 100)
+      call check_val(x%i, 1, 1)
+      call check_val(x%j, 100, 11)
   end select
 
   select type(y)
     type is (t2e)
-      call check_val(y%i, 1)
-      call check_val(y%j, 100)
+      call check_val(y%i, 1, 2)
+      call check_val(y%j, 100, 22)
   end select
 
   select type(z)
     type is (t3e)
-      call check_val(z%i, 1)
-      call check_val(z%j, 100)
+      call check_val(z%i, 1, 3)
+      call check_val(z%j, 100, 33)
   end select
 
 contains
-  subroutine check_val(x, factor)
+  subroutine check_val(x, factor, val)
     integer :: x(:,:)
-    integer, value :: factor
+    integer, value :: factor, val
     integer :: i, j
     do i = 1, 10
       do j = 1, 10
         if (mod (j-1, 2) == 0 .and. mod (i-1, 3) == 0) then
-          if (x(j,i) /= (j + 100*i)*factor*(-13)) call abort ()
+          if (x(j,i) /= val) STOP 19
         else
-          if (x(j,i) /= (j + 100*i)*factor) call abort ()
+          if (x(j,i) /= (j + 100*i)*factor) STOP 20
         end if
       end do
     end do

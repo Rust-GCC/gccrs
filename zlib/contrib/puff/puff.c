@@ -1,8 +1,8 @@
 /*
  * puff.c
- * Copyright (C) 2002-2010 Mark Adler
+ * Copyright (C) 2002-2013 Mark Adler
  * For conditions of distribution and use, see copyright notice in puff.h
- * version 2.2, 25 Apr 2010
+ * version 2.3, 21 Jan 2013
  *
  * puff.c is a simple inflate written to be an unambiguous way to specify the
  * deflate format.  It is not written for speed but rather simplicity.  As a
@@ -17,7 +17,7 @@
  * All dynamically allocated memory comes from the stack.  The stack required
  * is less than 2K bytes.  This code is compatible with 16-bit int's and
  * assumes that long's are at least 32 bits.  puff.c uses the short data type,
- * assumed to be 16 bits, for arrays in order to to conserve memory.  The code
+ * assumed to be 16 bits, for arrays in order to conserve memory.  The code
  * works whether integers are stored big endian or little endian.
  *
  * In the comments below are "Format notes" that describe the inflate process
@@ -76,6 +76,7 @@
  *                      - Move NIL to puff.h
  *                      - Allow incomplete code only if single code length is 1
  *                      - Add full code coverage test to Makefile
+ * 2.3  21 Jan 2013     - Check for invalid code length codes in dynamic blocks
  */
 
 #include <setjmp.h>             /* for setjmp(), longjmp(), and jmp_buf */
@@ -704,6 +705,8 @@ local int dynamic(struct state *s)
         int len;                /* last length to repeat */
 
         symbol = decode(s, &lencode);
+        if (symbol < 0)
+            return symbol;          /* invalid symbol */
         if (symbol < 16)                /* length in 0..15 */
             lengths[index++] = symbol;
         else {                          /* repeat instruction */

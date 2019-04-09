@@ -19,11 +19,11 @@ struct g
   struct f f; /* { dg-warning "invalid use of structure with flexible array member" } */
 };
 
-char w1[] = L"foo"; /* { dg-error "13:char-array initialized from wide string" } */
-__WCHAR_TYPE__ w2[] = "foo"; /* { dg-error "23:wide character array initialized from non-wide string" } */
-__WCHAR_TYPE__ w3[] = U"foo"; /* { dg-error "23:wide character array initialized from incompatible wide string" } */
+char w1[] = L"foo"; /* { dg-error "13:array of .char. from a string literal with type array of" } */
+__WCHAR_TYPE__ w2[] = "foo"; /* { dg-error "23:from a string literal with type array of .char." } */
+__WCHAR_TYPE__ w3[] = U"foo"; /* { dg-error "23:from a string literal with type array of" } */
 schar a1[] = "foo"; /* { dg-error "14:array of inappropriate type initialized from string constant" } */
-int a2[] = (int[]) { 1 }; /* { dg-error "12:array initialized from non-constant array expression" } */
+int a2[] = (int[]) { 1 }; /* { dg-warning "12:initializer element is not constant" } */
 
 int a3 = e; /* { dg-error "10:initializer element is not constant" } */
 int a4 = (e, 1); /* { dg-error "10:initializer element is not constant" } */
@@ -32,7 +32,7 @@ int a6 = &a3 - &a4; /* { dg-error "10:initializer element is not" } */
 int a7[] = a7; /* { dg-error "12:invalid initializer" } */
 
 struct S s = { { 1 }, { 3 } }; /* { dg-error "23:extra brace group at end of initializer" } */
-/* { dg-warning "23:excess elements in struct initializer" "" { target *-*-* } 34 } */
+/* { dg-warning "23:excess elements in struct initializer" "" { target *-*-* } .-1 } */
 struct g g1 = { {0, { 1 } } }; /* { dg-error "21:initialization of flexible array member in a nested context" } */
 struct g g2 = { .f[0] = 1 }; /* { dg-error "20:array index in non-array initializer" } */
 

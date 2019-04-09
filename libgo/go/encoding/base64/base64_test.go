@@ -7,6 +7,7 @@ package base64
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"reflect"
@@ -45,12 +46,60 @@ var pairs = []testpair{
 	{"sure.", "c3VyZS4="},
 }
 
+// Do nothing to a reference base64 string (leave in standard format)
+func stdRef(ref string) string {
+	return ref
+}
+
+// Convert a reference string to URL-encoding
+func urlRef(ref string) string {
+	ref = strings.ReplaceAll(ref, "+", "-")
+	ref = strings.ReplaceAll(ref, "/", "_")
+	return ref
+}
+
+// Convert a reference string to raw, unpadded format
+func rawRef(ref string) string {
+	return strings.TrimRight(ref, "=")
+}
+
+// Both URL and unpadding conversions
+func rawURLRef(ref string) string {
+	return rawRef(urlRef(ref))
+}
+
+// A nonstandard encoding with a funny padding character, for testing
+var funnyEncoding = NewEncoding(encodeStd).WithPadding(rune('@'))
+
+func funnyRef(ref string) string {
+	return strings.ReplaceAll(ref, "=", "@")
+}
+
+type encodingTest struct {
+	enc  *Encoding           // Encoding to test
+	conv func(string) string // Reference string converter
+}
+
+var encodingTests = []encodingTest{
+	{StdEncoding, stdRef},
+	{URLEncoding, urlRef},
+	{RawStdEncoding, rawRef},
+	{RawURLEncoding, rawURLRef},
+	{funnyEncoding, funnyRef},
+	{StdEncoding.Strict(), stdRef},
+	{URLEncoding.Strict(), urlRef},
+	{RawStdEncoding.Strict(), rawRef},
+	{RawURLEncoding.Strict(), rawURLRef},
+	{funnyEncoding.Strict(), funnyRef},
+}
+
 var bigtest = testpair{
 	"Twas brillig, and the slithy toves",
 	"VHdhcyBicmlsbGlnLCBhbmQgdGhlIHNsaXRoeSB0b3Zlcw==",
 }
 
 func testEqual(t *testing.T, msg string, args ...interface{}) bool {
+	t.Helper()
 	if args[len(args)-2] != args[len(args)-1] {
 		t.Errorf(msg, args...)
 		return false
@@ -60,8 +109,11 @@ func testEqual(t *testing.T, msg string, args ...interface{}) bool {
 
 func TestEncode(t *testing.T) {
 	for _, p := range pairs {
-		got := StdEncoding.EncodeToString([]byte(p.decoded))
-		testEqual(t, "Encode(%q) = %q, want %q", p.decoded, got, p.encoded)
+		for _, tt := range encodingTests {
+			got := tt.enc.EncodeToString([]byte(p.decoded))
+			testEqual(t, "Encode(%q) = %q, want %q", p.decoded,
+				got, tt.conv(p.encoded))
+		}
 	}
 }
 
@@ -97,18 +149,18 @@ func TestEncoderBuffering(t *testing.T) {
 
 func TestDecode(t *testing.T) {
 	for _, p := range pairs {
-		dbuf := make([]byte, StdEncoding.DecodedLen(len(p.encoded)))
-		count, end, err := StdEncoding.decode(dbuf, []byte(p.encoded))
-		testEqual(t, "Decode(%q) = error %v, want %v", p.encoded, err, error(nil))
-		testEqual(t, "Decode(%q) = length %v, want %v", p.encoded, count, len(p.decoded))
-		if len(p.encoded) > 0 {
-			testEqual(t, "Decode(%q) = end %v, want %v", p.encoded, end, (p.encoded[len(p.encoded)-1] == '='))
-		}
-		testEqual(t, "Decode(%q) = %q, want %q", p.encoded, string(dbuf[0:count]), p.decoded)
+		for _, tt := range encodingTests {
+			encoded := tt.conv(p.encoded)
+			dbuf := make([]byte, tt.enc.DecodedLen(len(encoded)))
+			count, err := tt.enc.Decode(dbuf, []byte(encoded))
+			testEqual(t, "Decode(%q) = error %v, want %v", encoded, err, error(nil))
+			testEqual(t, "Decode(%q) = length %v, want %v", encoded, count, len(p.decoded))
+			testEqual(t, "Decode(%q) = %q, want %q", encoded, string(dbuf[0:count]), p.decoded)
 
-		dbuf, err = StdEncoding.DecodeString(p.encoded)
-		testEqual(t, "DecodeString(%q) = error %v, want %v", p.encoded, err, error(nil))
-		testEqual(t, "DecodeString(%q) = %q, want %q", string(dbuf), p.decoded)
+			dbuf, err = tt.enc.DecodeString(encoded)
+			testEqual(t, "DecodeString(%q) = error %v, want %v", encoded, err, error(nil))
+			testEqual(t, "DecodeString(%q) = %q, want %q", encoded, string(dbuf), p.decoded)
+		}
 	}
 }
 
@@ -134,10 +186,14 @@ func TestDecoderBuffering(t *testing.T) {
 		decoder := NewDecoder(StdEncoding, strings.NewReader(bigtest.encoded))
 		buf := make([]byte, len(bigtest.decoded)+12)
 		var total int
-		for total = 0; total < len(bigtest.decoded); {
-			n, err := decoder.Read(buf[total : total+bs])
-			testEqual(t, "Read from %q at pos %d = %d, %v, want _, %v", bigtest.encoded, total, n, err, error(nil))
+		var n int
+		var err error
+		for total = 0; total < len(bigtest.decoded) && err == nil; {
+			n, err = decoder.Read(buf[total : total+bs])
 			total += n
+		}
+		if err != nil && err != io.EOF {
+			t.Errorf("Read from %q at pos %d = %d, unexpected error %v", bigtest.encoded, total, n, err)
 		}
 		testEqual(t, "Decoding/%d of %q = %q, want %q", bs, bigtest.encoded, string(buf[0:total]), bigtest.decoded)
 	}
@@ -149,6 +205,9 @@ func TestDecodeCorrupt(t *testing.T) {
 		offset int // -1 means no corruption.
 	}{
 		{"", -1},
+		{"\n", -1},
+		{"AAA=\n", -1},
+		{"AAAA\n", -1},
 		{"!!!!", 0},
 		{"====", 0},
 		{"x===", 1},
@@ -167,13 +226,15 @@ func TestDecodeCorrupt(t *testing.T) {
 		{"AAAA", -1},
 		{"AAAAAA=", 7},
 		{"YWJjZA=====", 8},
+		{"A!\n", 1},
+		{"A=\n", 1},
 	}
 	for _, tc := range testCases {
 		dbuf := make([]byte, StdEncoding.DecodedLen(len(tc.input)))
 		_, err := StdEncoding.Decode(dbuf, []byte(tc.input))
 		if tc.offset == -1 {
 			if err != nil {
-				t.Error("Decoder wrongly detected coruption in", tc.input)
+				t.Error("Decoder wrongly detected corruption in", tc.input)
 			}
 			continue
 		}
@@ -182,6 +243,51 @@ func TestDecodeCorrupt(t *testing.T) {
 			testEqual(t, "Corruption in %q at offset %v, want %v", tc.input, int(err), tc.offset)
 		default:
 			t.Error("Decoder failed to detect corruption in", tc)
+		}
+	}
+}
+
+func TestEncodedLen(t *testing.T) {
+	for _, tt := range []struct {
+		enc  *Encoding
+		n    int
+		want int
+	}{
+		{RawStdEncoding, 0, 0},
+		{RawStdEncoding, 1, 2},
+		{RawStdEncoding, 2, 3},
+		{RawStdEncoding, 3, 4},
+		{RawStdEncoding, 7, 10},
+		{StdEncoding, 0, 0},
+		{StdEncoding, 1, 4},
+		{StdEncoding, 2, 4},
+		{StdEncoding, 3, 4},
+		{StdEncoding, 4, 8},
+		{StdEncoding, 7, 12},
+	} {
+		if got := tt.enc.EncodedLen(tt.n); got != tt.want {
+			t.Errorf("EncodedLen(%d): got %d, want %d", tt.n, got, tt.want)
+		}
+	}
+}
+
+func TestDecodedLen(t *testing.T) {
+	for _, tt := range []struct {
+		enc  *Encoding
+		n    int
+		want int
+	}{
+		{RawStdEncoding, 0, 0},
+		{RawStdEncoding, 2, 1},
+		{RawStdEncoding, 3, 2},
+		{RawStdEncoding, 4, 3},
+		{RawStdEncoding, 10, 7},
+		{StdEncoding, 0, 0},
+		{StdEncoding, 4, 3},
+		{StdEncoding, 8, 6},
+	} {
+		if got := tt.enc.DecodedLen(tt.n); got != tt.want {
+			t.Errorf("DecodedLen(%d): got %d, want %d", tt.n, got, tt.want)
 		}
 	}
 }
@@ -312,7 +418,7 @@ j+mSARB/17pKVXYWHXjsj7yIex0PadzXMO1zT5KHoNA3HT8ietoGhgjsfA+CSnvvqh/jJtqsrwOv
 2b6NGNzXfTYexzJ+nU7/ALkf4P8Awv6P9KvTQQ4AgyDqCF85Pho3CTB7eHwXoH+LT65uZbX9X+o2
 bqbPb06551Y4
 `
-	encodedShort := strings.Replace(encoded, "\n", "", -1)
+	encodedShort := strings.ReplaceAll(encoded, "\n", "")
 
 	dec := NewDecoder(StdEncoding, strings.NewReader(encoded))
 	res1, err := ioutil.ReadAll(dec)
@@ -340,5 +446,71 @@ func TestDecoderIssue7733(t *testing.T) {
 	}
 	if string(s) != "abcd" {
 		t.Errorf("DecodeString = %q; want abcd", s)
+	}
+}
+
+func TestDecoderIssue15656(t *testing.T) {
+	_, err := StdEncoding.Strict().DecodeString("WvLTlMrX9NpYDQlEIFlnDB==")
+	want := CorruptInputError(22)
+	if !reflect.DeepEqual(want, err) {
+		t.Errorf("Error = %v; want CorruptInputError(22)", err)
+	}
+	_, err = StdEncoding.Strict().DecodeString("WvLTlMrX9NpYDQlEIFlnDA==")
+	if err != nil {
+		t.Errorf("Error = %v; want nil", err)
+	}
+	_, err = StdEncoding.DecodeString("WvLTlMrX9NpYDQlEIFlnDB==")
+	if err != nil {
+		t.Errorf("Error = %v; want nil", err)
+	}
+}
+
+func BenchmarkEncodeToString(b *testing.B) {
+	data := make([]byte, 8192)
+	b.SetBytes(int64(len(data)))
+	for i := 0; i < b.N; i++ {
+		StdEncoding.EncodeToString(data)
+	}
+}
+
+func BenchmarkDecodeString(b *testing.B) {
+	sizes := []int{2, 4, 8, 64, 8192}
+	benchFunc := func(b *testing.B, benchSize int) {
+		data := StdEncoding.EncodeToString(make([]byte, benchSize))
+		b.SetBytes(int64(len(data)))
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			StdEncoding.DecodeString(data)
+		}
+	}
+	for _, size := range sizes {
+		b.Run(fmt.Sprintf("%d", size), func(b *testing.B) {
+			benchFunc(b, size)
+		})
+	}
+}
+
+func TestDecoderRaw(t *testing.T) {
+	source := "AAAAAA"
+	want := []byte{0, 0, 0, 0}
+
+	// Direct.
+	dec1, err := RawURLEncoding.DecodeString(source)
+	if err != nil || !bytes.Equal(dec1, want) {
+		t.Errorf("RawURLEncoding.DecodeString(%q) = %x, %v, want %x, nil", source, dec1, err, want)
+	}
+
+	// Through reader. Used to fail.
+	r := NewDecoder(RawURLEncoding, bytes.NewReader([]byte(source)))
+	dec2, err := ioutil.ReadAll(io.LimitReader(r, 100))
+	if err != nil || !bytes.Equal(dec2, want) {
+		t.Errorf("reading NewDecoder(RawURLEncoding, %q) = %x, %v, want %x, nil", source, dec2, err, want)
+	}
+
+	// Should work with padding.
+	r = NewDecoder(URLEncoding, bytes.NewReader([]byte(source+"==")))
+	dec3, err := ioutil.ReadAll(r)
+	if err != nil || !bytes.Equal(dec3, want) {
+		t.Errorf("reading NewDecoder(URLEncoding, %q) = %x, %v, want %x, nil", source+"==", dec3, err, want)
 	}
 }

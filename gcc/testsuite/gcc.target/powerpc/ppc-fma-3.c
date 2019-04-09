@@ -1,8 +1,8 @@
 /* { dg-do compile { target { powerpc*-*-* } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
 /* { dg-require-effective-target powerpc_altivec_ok } */
 /* { dg-require-effective-target powerpc_fprs } */
-/* { dg-options "-O3 -ftree-vectorize -mcpu=power6 -maltivec -ffast-math" } */
+/* { dg-options "-O3 -ftree-vectorize -mdejagnu-cpu=power6 -maltivec -ffast-math" } */
 /* { dg-final { scan-assembler-times "vmaddfp" 2 } } */
 /* { dg-final { scan-assembler-times "fmadd " 2 } } */
 /* { dg-final { scan-assembler-times "fmadds" 2 } } */

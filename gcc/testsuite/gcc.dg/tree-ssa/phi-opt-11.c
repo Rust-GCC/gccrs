@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O1 -fdump-tree-optimized" } */
+/* { dg-options "-O1 -fdump-tree-optimized --param logical-op-non-short-circuit=1" } */
 
 int f(int a, int b, int c)
 {
@@ -21,5 +21,5 @@ int h(int a, int b, int c, int d)
    return d;
  return a;
 }
-/* { dg-final { scan-tree-dump-times "if" 0 "optimized"} } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */
+
+/* { dg-final { scan-tree-dump-times "if" 0 "optimized" } } */

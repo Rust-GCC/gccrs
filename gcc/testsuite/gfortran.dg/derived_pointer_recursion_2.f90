@@ -12,7 +12,7 @@ TYPE :: atom_list
 END TYPE
 
 TYPE :: atom_private
-  TYPE(atom_list) :: neighbours
+  TYPE(atom_list) :: neighbors
   LOGICAL         :: initialized = .true.
 END TYPE
 
@@ -40,6 +40,6 @@ program pr40594
   am%dummy = 0
 
   call init(ap)
-  if (ap%initialized .neqv. .false.) call abort()
+  if (ap%initialized .neqv. .false.) STOP 1
 
 END

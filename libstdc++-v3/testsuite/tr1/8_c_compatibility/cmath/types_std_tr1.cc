@@ -2,7 +2,7 @@
 
 // 2006-03-10  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,6 +29,6 @@ void test01()
 
   typedef std::tr1::double_t  my_double_t;
   typedef std::tr1::float_t   my_float_t;
-  
+
 #endif
 }

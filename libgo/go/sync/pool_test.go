@@ -23,6 +23,10 @@ func TestPool(t *testing.T) {
 	if p.Get() != nil {
 		t.Fatal("expected empty")
 	}
+
+	// Make sure that the goroutine doesn't migrate to another P
+	// between Put and Get calls.
+	Runtime_procPin()
 	p.Put("a")
 	p.Put("b")
 	if g := p.Get(); g != "a" {
@@ -34,6 +38,7 @@ func TestPool(t *testing.T) {
 	if g := p.Get(); g != nil {
 		t.Fatalf("got %#v; want nil", g)
 	}
+	Runtime_procUnpin()
 
 	p.Put("c")
 	debug.SetGCPercent(100) // to allow following GC to actually run
@@ -60,46 +65,60 @@ func TestPoolNew(t *testing.T) {
 	if v := p.Get(); v != 2 {
 		t.Fatalf("got %v; want 2", v)
 	}
+
+	// Make sure that the goroutine doesn't migrate to another P
+	// between Put and Get calls.
+	Runtime_procPin()
 	p.Put(42)
 	if v := p.Get(); v != 42 {
 		t.Fatalf("got %v; want 42", v)
 	}
+	Runtime_procUnpin()
+
 	if v := p.Get(); v != 3 {
 		t.Fatalf("got %v; want 3", v)
 	}
 }
 
-// Test that Pool does not hold pointers to previously cached
-// resources
+// Test that Pool does not hold pointers to previously cached resources.
 func TestPoolGC(t *testing.T) {
-	var p Pool
-	var fin uint32
-	const N = 100
-	for i := 0; i < N; i++ {
-		v := new(string)
-		runtime.SetFinalizer(v, func(vv *string) {
-			atomic.AddUint32(&fin, 1)
-		})
-		p.Put(v)
-	}
-	for i := 0; i < N; i++ {
-		p.Get()
-	}
-	for i := 0; i < 5; i++ {
-		runtime.GC()
-		time.Sleep(time.Duration(i*100+10) * time.Millisecond)
-		// 1 pointer can remain on stack or elsewhere
-		if atomic.LoadUint32(&fin) >= N-1 {
-			return
-		}
+	testPool(t, true)
+}
 
-		// gccgo has a less precise heap.
-		if runtime.Compiler == "gccgo" && atomic.LoadUint32(&fin) >= N-5 {
-			return
+// Test that Pool releases resources on GC.
+func TestPoolRelease(t *testing.T) {
+	testPool(t, false)
+}
+
+func testPool(t *testing.T, drain bool) {
+	t.Skip("gccgo imprecise GC breaks this test")
+	var p Pool
+	const N = 100
+loop:
+	for try := 0; try < 3; try++ {
+		var fin, fin1 uint32
+		for i := 0; i < N; i++ {
+			v := new(string)
+			runtime.SetFinalizer(v, func(vv *string) {
+				atomic.AddUint32(&fin, 1)
+			})
+			p.Put(v)
 		}
+		if drain {
+			for i := 0; i < N; i++ {
+				p.Get()
+			}
+		}
+		for i := 0; i < 5; i++ {
+			runtime.GC()
+			time.Sleep(time.Duration(i*100+10) * time.Millisecond)
+			// 1 pointer can remain on stack or elsewhere
+			if fin1 = atomic.LoadUint32(&fin); fin1 >= N-1 {
+				continue loop
+			}
+		}
+		t.Fatalf("only %v out of %v resources are finalized on try %v", fin1, N, try)
 	}
-	t.Fatalf("only %v out of %v resources are finalized",
-		atomic.LoadUint32(&fin), N)
 }
 
 func TestPoolStress(t *testing.T) {
@@ -120,7 +139,8 @@ func TestPoolStress(t *testing.T) {
 				p.Put(v)
 				v = p.Get()
 				if v != nil && v.(int) != 0 {
-					t.Fatalf("expect 0, got %v", v)
+					t.Errorf("expect 0, got %v", v)
+					break
 				}
 			}
 			done <- true
@@ -141,7 +161,7 @@ func BenchmarkPool(b *testing.B) {
 	})
 }
 
-func BenchmarkPoolOverlflow(b *testing.B) {
+func BenchmarkPoolOverflow(b *testing.B) {
 	var p Pool
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {

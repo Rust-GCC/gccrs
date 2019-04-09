@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-require-effective-target nonlocal_goto } */
 
 int j_;
 void g (void);
@@ -8,7 +9,7 @@ int jpgDecode_convert (unsigned i)
   int j;
 
   inline void __attribute__((always_inline,leaf)) f(void)
-    {
+    {		/* { dg-warning "'leaf' attribute has no effect" } */
       g();
     }
 

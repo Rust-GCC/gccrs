@@ -1,0 +1,23 @@
+2017-07-02  Richard Sandiford  <richard.sandiford@linaro.org>
+	    Alan Hayward  <alan.hayward@arm.com>
+	    David Sherwood  <david.sherwood@arm.com>
+
+	* graph-header-logs (ignore): Update coretypes.h header list.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* README: Remove references to avr-rtems.
+	* reduce-headers: Likewise.
+
+2015-11-11  Andrew MacLeod  <amacleod@redhat.com>
+
+	* count-headers: Initial file.
+	* gcc-order-headers: Initial file.
+	* graph-header-logs: Initial file.
+	* graph-include-web: Initial file.
+	* headerutils.py: Initial file.
+	* included-by: Initial file.
+	* README: Initial file.
+	* reduce-headers: Initial file.
+	* replace-header: Initial file.
+	* show-headers: Initial file.

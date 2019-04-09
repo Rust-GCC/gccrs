@@ -1,8 +1,7 @@
-// { dg-options "-std=gnu++0x" }
-// { dg-do compile }
+// { dg-do compile { target c++11 } }
 // 2009-11-12  Paolo Carlini  <paolo.carlini@oracle.com>
 //
-// Copyright (C) 2009-2014 Free Software Foundation, Inc.
+// Copyright (C) 2009-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -19,7 +18,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-error "static assertion failed" "" { target *-*-* } 2142 }
+// { dg-error "declval.. must not be used" "" { target *-*-* } 0 }
 
 #include <utility>
 

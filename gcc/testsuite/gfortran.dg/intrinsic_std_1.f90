@@ -6,7 +6,7 @@
 !
 
 ! PR fortran/33141
-! Check for the expected behaviour when an intrinsic function/subroutine is
+! Check for the expected behavior when an intrinsic function/subroutine is
 ! called that is not available in the defined standard or that is a GNU
 ! extension:
 ! There should be a warning emitted on the call, and the reference should be
@@ -36,8 +36,8 @@ END SUBROUTINE implicit_type
 
 SUBROUTINE specification_expression
   CHARACTER(KIND=selected_char_kind("ascii")) :: x
-! { dg-error "must be an intrinsic function" "" { target "*-*-*" } 38 }
-! { dg-warning "Fortran 2003" "" { target "*-*-*" } 38 }
+! { dg-error "must be an intrinsic function" "" { target "*-*-*" } .-1 }
+! { dg-warning "Fortran 2003" "" { target "*-*-*" } .-2 }
 END SUBROUTINE specification_expression
 
 SUBROUTINE intrinsic_decl

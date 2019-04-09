@@ -1,4 +1,5 @@
 ! { dg-do compile }
+! { dg-additional-options "-std=legacy" }
 
       SUBROUTINE  SUB  (A,L,YMAX)
       DIMENSION A(L)
@@ -8,4 +9,3 @@
       CALL PROUND(YMA)
       END
 
-! { dg-final { cleanup-tree-dump "vect" } }

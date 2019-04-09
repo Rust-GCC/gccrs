@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -ftree-parallelize-loops=4 -fdump-tree-parloops-details -fdump-tree-optimized" } */
+/* { dg-options "-O2 -ftree-parallelize-loops=4 -fdump-tree-parloops2-details -fdump-tree-optimized" } */
 
 #include <stdarg.h>
 #include <stdlib.h>
@@ -38,8 +38,9 @@ void main1 (short x, short max_result, short min_result)
     abort ();
 }
 
- __attribute__((noinline))
- void init_arrays ()
+void __attribute__((noinline))
+  __attribute__((optimize ("-ftree-parallelize-loops=0")))
+init_arrays ()
  {
    int i;
 
@@ -58,9 +59,8 @@ int main (void)
   return 0;
 }
 
+/* { dg-final { scan-tree-dump-times "Detected reduction" 2 "parloops2" } } */
+/* { dg-final { scan-tree-dump-times "Detected reduction" 3 "parloops2" { xfail *-*-* } } } */
 
-/* { dg-final { scan-tree-dump-times "Detected reduction" 2 "parloops" } } */
-/* { dg-final { scan-tree-dump-times "SUCCESS: may be parallelized" 3 "parloops" } } */
-/* { dg-final { cleanup-tree-dump "parloops" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */
-
+/* { dg-final { scan-tree-dump-times "SUCCESS: may be parallelized" 2 "parloops2" } } */
+/* { dg-final { scan-tree-dump-times "SUCCESS: may be parallelized" 3 "parloops2" { xfail *-*-* } } } */

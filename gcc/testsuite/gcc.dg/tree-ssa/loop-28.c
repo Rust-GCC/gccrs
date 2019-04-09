@@ -1,5 +1,5 @@
-/* { dg-do compile { target { { i?86-*-* x86_64-*-* } && ia32 } } } */
-/* { dg-options "-O2 -fprefetch-loop-arrays -march=athlon -fdump-tree-optimized -fdump-tree-aprefetch --param max-unrolled-insns=1000" } */
+/* { dg-do compile { target { i?86-*-* x86_64-*-* } } } */
+/* { dg-options "-O2 -fprefetch-loop-arrays -march=amdfam10 -fdump-tree-optimized -fdump-tree-aprefetch --param max-unrolled-insns=1000" } */
 
 char x[100000];
 
@@ -19,5 +19,3 @@ void foo(int n)
 /* There should be no i_a = i_b assignments.  */
 /* { dg-final { scan-tree-dump-times "i_.*= i_\[0-9\]*;" 0 "aprefetch" } } */
 
-/* { dg-final { cleanup-tree-dump "optimized" } } */
-/* { dg-final { cleanup-tree-dump "aprefetch" } } */

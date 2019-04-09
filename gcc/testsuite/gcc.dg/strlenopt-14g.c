@@ -1,6 +1,8 @@
 /* This test needs runtime that provides stpcpy and mempcpy functions.  */
 /* { dg-do run { target *-*-linux* *-*-gnu* } } */
 /* { dg-options "-O2 -fdump-tree-strlen" } */
+/* Bionic targets don't have mempcpy */
+/* { dg-require-effective-target non_bionic } */
 
 #define USE_GNU
 #include "strlenopt.h"
@@ -112,4 +114,3 @@ main ()
 /* { dg-final { scan-tree-dump-times "strcat \\(" 0 "strlen" } } */
 /* { dg-final { scan-tree-dump-times "strchr \\(" 0 "strlen" } } */
 /* { dg-final { scan-tree-dump-times "stpcpy \\(" 2 "strlen" } } */
-/* { dg-final { cleanup-tree-dump "strlen" } } */

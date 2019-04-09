@@ -1,6 +1,6 @@
 // <numeric> -*- C++ -*-
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -73,5 +73,151 @@
  * (n-at-a-time) arrays, generalized numeric algorithms, and special
  * math functions.
  */
+
+#if __cplusplus >= 201402L
+#include <type_traits>
+
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+namespace __detail
+{
+  // std::abs is not constexpr and doesn't support unsigned integers.
+  template<typename _Tp>
+    constexpr
+    enable_if_t<__and_<is_integral<_Tp>, is_signed<_Tp>>::value, _Tp>
+    __abs_integral(_Tp __val)
+    { return __val < 0 ? -__val : __val; }
+
+  template<typename _Tp>
+    constexpr
+    enable_if_t<__and_<is_integral<_Tp>, is_unsigned<_Tp>>::value, _Tp>
+    __abs_integral(_Tp __val)
+    { return __val; }
+
+  void __abs_integral(bool) = delete;
+
+  template<typename _Mn, typename _Nn>
+    constexpr common_type_t<_Mn, _Nn>
+    __gcd(_Mn __m, _Nn __n)
+    {
+      return __m == 0 ? __detail::__abs_integral(__n)
+	: __n == 0 ? __detail::__abs_integral(__m)
+	: __detail::__gcd(__n, __m % __n);
+    }
+
+  /// Least common multiple
+  template<typename _Mn, typename _Nn>
+    constexpr common_type_t<_Mn, _Nn>
+    __lcm(_Mn __m, _Nn __n)
+    {
+      return (__m != 0 && __n != 0)
+	? (__detail::__abs_integral(__m) / __detail::__gcd(__m, __n))
+	  * __detail::__abs_integral(__n)
+	: 0;
+    }
+} // namespace __detail
+
+#if __cplusplus >= 201703L
+
+#define __cpp_lib_gcd_lcm 201606
+// These were used in drafts of SD-6:
+#define __cpp_lib_gcd 201606
+#define __cpp_lib_lcm 201606
+
+  /// Greatest common divisor
+  template<typename _Mn, typename _Nn>
+    constexpr common_type_t<_Mn, _Nn>
+    gcd(_Mn __m, _Nn __n)
+    {
+      static_assert(is_integral_v<_Mn>, "gcd arguments are integers");
+      static_assert(is_integral_v<_Nn>, "gcd arguments are integers");
+      static_assert(!is_same_v<remove_cv_t<_Mn>, bool>,
+		    "gcd arguments are not bools");
+      static_assert(!is_same_v<remove_cv_t<_Nn>, bool>,
+		    "gcd arguments are not bools");
+      return __detail::__gcd(__m, __n);
+    }
+
+  /// Least common multiple
+  template<typename _Mn, typename _Nn>
+    constexpr common_type_t<_Mn, _Nn>
+    lcm(_Mn __m, _Nn __n)
+    {
+      static_assert(is_integral_v<_Mn>, "lcm arguments are integers");
+      static_assert(is_integral_v<_Nn>, "lcm arguments are integers");
+      static_assert(!is_same_v<remove_cv_t<_Mn>, bool>,
+		    "lcm arguments are not bools");
+      static_assert(!is_same_v<remove_cv_t<_Nn>, bool>,
+		    "lcm arguments are not bools");
+      return __detail::__lcm(__m, __n);
+    }
+
+#endif // C++17
+
+#if __cplusplus > 201703L
+  // midpoint
+# define __cpp_lib_interpolate 201902L
+
+template<typename _Tp>
+    constexpr
+    enable_if_t<__and_<is_arithmetic<_Tp>, is_same<remove_cv_t<_Tp>, _Tp>,
+		       __not_<is_same<_Tp, bool>>>::value,
+		_Tp>
+    midpoint(_Tp __a, _Tp __b) noexcept
+    {
+      if constexpr (is_integral_v<_Tp>)
+	{
+	  using _Up = make_unsigned_t<_Tp>;
+
+	  int __k = 1;
+	  _Up __m = __a;
+	  _Up __M = __b;
+	  if (__a > __b)
+	    {
+	      __k = -1;
+	      __m = __b;
+	      __M = __a;
+	    }
+	  return __a + __k * _Tp(_Up(__M - __m) / 2);
+	}
+      else
+	{
+	  return __builtin_isnormal(__a) && __builtin_isnormal(__b)
+	    ? __a / 2 + __b / 2
+	    : (__a + __b) / 2;
+	}
+    }
+
+  template<typename _Tp>
+    constexpr
+    enable_if_t<__and_<is_object<_Tp>, bool_constant<sizeof(_Tp) != 0>>::value,
+		_Tp*>
+    midpoint(_Tp* __a, _Tp* __b) noexcept
+    {
+      return __a > __b ? __b + (__a - __b) / 2 : __a + (__b - __a) / 2;
+    }
+#endif // C++20
+
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace std
+
+#endif // C++14
+
+#if __cplusplus > 201402L
+// Parallel STL algorithms
+# if __PSTL_EXECUTION_POLICIES_DEFINED
+// If <execution> has already been included, pull in implementations
+#  include <pstl/glue_numeric_impl.h>
+# else
+// Otherwise just pull in forward declarations
+#  include <pstl/glue_numeric_defs.h>
+#  define __PSTL_NUMERIC_FORWARD_DECLARED 1
+# endif
+
+// Feature test macro for parallel algorithms
+# define __cpp_lib_parallel_algorithm 201703L
+#endif // C++17
 
 #endif /* _GLIBCXX_NUMERIC */

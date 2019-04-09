@@ -1,5 +1,5 @@
 ;; Constraint definitions for Synopsys DesignWare ARC.
-;; Copyright (C) 2007-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2019 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -21,58 +21,49 @@
 
 ; Most instructions accept arbitrary core registers for their inputs, even
 ; if the core register in question cannot be written to, like the multiply
-; result registers of the ARCtangent-A5 and ARC600 .
+; result registers of ARC600.
 ; First, define a class for core registers that can be read cheaply.  This
 ; is most or all core registers for ARC600, but only r0-r31 for ARC700
-(define_register_constraint "c" "CHEAP_CORE_REGS"
-  "core register @code{r0}-@code{r31}, @code{ap},@code{pcl}")
+(define_register_constraint "c" "GENERAL_REGS"
+  "Legacy, core register @code{r0}-@code{r31}, @code{ap},@code{pcl}")
 
 ; All core regs - e.g. for when we must have a way to reload a register.
-(define_register_constraint "Rac" "ALL_CORE_REGS"
-  "core register @code{r0}-@code{r60}, @code{ap},@code{pcl}")
+(define_register_constraint "Rac" "GENERAL_REGS"
+  "Legacy, core register @code{r0}-@code{r60}, @code{ap},@code{pcl}")
 
 ; Some core registers (.e.g lp_count) aren't general registers because they
 ; can't be used as the destination of a multi-cycle operation like
 ; load and/or multiply, yet they are still writable in the sense that
 ; register-register moves and single-cycle arithmetic (e.g "add", "and",
 ; but not "mpy") can write to them.
-(define_register_constraint "w" "WRITABLE_CORE_REGS"
-  "writable core register: @code{r0}-@code{r31}, @code{r60}, nonfixed core register")
+(define_register_constraint "w" "GENERAL_REGS"
+  "Legacy, writable core register: @code{r0}-@code{r31}, @code{r60},
+   nonfixed core register")
 
-(define_register_constraint "W" "MPY_WRITABLE_CORE_REGS"
-  "writable core register except @code{LP_COUNT} (@code{r60}): @code{r0}-@code{r31}, nonfixed core register")
+(define_register_constraint "W" "GENERAL_REGS"
+  "Legacy, writable core register except @code{LP_COUNT} (@code{r60}):
+   @code{r0}-@code{r31}, nonfixed core register")
 
-(define_register_constraint "l" "LPCOUNT_REG"
+(define_constraint "l"
   "@internal
-   Loop count register @code{r60}")
+   Loop count register @code{r60}"
+  (and (match_code "reg")
+       (match_test "REGNO (op) == LP_COUNT")))
 
 (define_register_constraint "x" "R0_REGS"
   "@code{R0} register.")
 
-(define_register_constraint "Rgp" "GP_REG"
-  "@internal
-   Global Pointer register @code{r26}")
-
-(define_register_constraint "f" "FP_REG"
-  "@internal
-   Frame Pointer register @code{r27}")
-
-(define_register_constraint "b" "SP_REGS"
-  "@internal
-   Stack Pointer register @code{r28}")
-
-(define_register_constraint "k" "LINK_REGS"
-  "@internal
-   Link Registers @code{ilink1}:@code{r29}, @code{ilink2}:@code{r30},
-   @code{blink}:@code{r31},")
-
-(define_register_constraint "q" "ARCOMPACT16_REGS"
+(define_register_constraint "q" "TARGET_Q_CLASS ? ARCOMPACT16_REGS : NO_REGS"
   "Registers usable in ARCompact 16-bit instructions: @code{r0}-@code{r3},
    @code{r12}-@code{r15}")
 
-(define_register_constraint "e" "AC16_BASE_REGS"
-  "Registers usable as base-regs of memory addresses in ARCompact 16-bit memory
-   instructions: @code{r0}-@code{r3}, @code{r12}-@code{r15}, @code{sp}")
+; NPS400 bitfield instructions require registers from the r0-r3,r12-r15
+; range, and thus we need a register class and constraint that works
+; independently of size optimization.
+(define_register_constraint
+ "Rrq" "TARGET_RRQ_CLASS ? ARCOMPACT16_REGS : NO_REGS"
+  "Registers usable in NPS400 bitfield instructions: @code{r0}-@code{r3},
+   @code{r12}-@code{r15}")
 
 (define_register_constraint "D" "DOUBLE_REGS"
   "ARC FPX (dpfp) 64-bit registers. @code{D0}, @code{D1}")
@@ -127,6 +118,12 @@
   (and (match_code "const_int")
        (match_test "UNSIGNED_INT6 (-ival)")))
 
+(define_constraint "C16"
+  "@internal
+   A 16-bit signed integer constant"
+  (and (match_code "const_int")
+       (match_test "SIGNED_INT16 (ival)")))
+
 (define_constraint "M"
   "@internal
    A 5-bit unsigned integer constant"
@@ -167,7 +164,7 @@
   "@internal
    Conditional or three-address add / sub constant"
   (and (match_code "const_int")
-       (match_test "ival == -1 << 31
+       (match_test "ival == (HOST_WIDE_INT)(HOST_WIDE_INT_M1U << 31)
 		    || (ival >= -0x1f8 && ival <= 0x1f8
 			&& ((ival >= 0 ? ival : -ival)
 			    <= 0x3f * (ival & -ival)))")))
@@ -195,7 +192,7 @@
   "@internal
    Unconditional two-address add / sub constant"
   (and (match_code "const_int")
-       (match_test "ival == -1 << 31
+       (match_test "ival == (HOST_WIDE_INT) (HOST_WIDE_INT_M1U << 31)
 		    || (ival >= -0x4000 && ival <= 0x4000
 			&& ((ival >= 0 ? ival : -ival)
 			    <= 0x7ff * (ival & -ival)))")))
@@ -212,6 +209,20 @@
   (and (match_code "const_int")
        (match_test "ival && IS_POWEROF2_P (ival + 1)")))
 
+(define_constraint "C2p"
+ "@internal
+  constant such that (~x)+1 is a power of two, and x < -1"
+  (and (match_code "const_int")
+       (match_test "TARGET_V2
+		    && (ival < -1)
+		    && IS_POWEROF2_P ((~ival) + 1)")))
+
+(define_constraint "C3p"
+ "@internal
+  constant int used to select xbfu a,b,u6 instruction.  The values accepted are 1 and 2."
+  (and (match_code "const_int")
+       (match_test "((ival == 1) || (ival == 2))")))
+
 (define_constraint "Ccp"
  "@internal
   constant such that ~x (one's Complement) is a power of two"
@@ -224,11 +235,60 @@
   (and (match_code "const_int")
        (match_test "ival == 0xff || ival == 0xffff")))
 
+(define_constraint "Chs"
+ "@internal
+  constant for a highpart that can be checked with a shift (asr.f 0,rn,m)"
+  (and (match_code "const_int")
+       (match_test "IS_POWEROF2_P (-ival)")
+       (match_test "TARGET_BARREL_SHIFTER")))
+
+(define_constraint "Clo"
+ "@internal
+  constant that fits into 16 lower bits, for movl"
+  (and (match_code "const_int")
+       (match_test "TARGET_NPS_BITOPS")
+       (match_test "(ival & ~0xffffU) == 0")))
+
+(define_constraint "Chi"
+ "@internal
+  constant that fits into 16 higher bits, for movh_i"
+  (and (match_code "const_int")
+       (match_test "TARGET_NPS_BITOPS")
+       (match_test "trunc_int_for_mode (ival >> 16, HImode) << 16 == ival")))
+
+(define_constraint "Cbf"
+ "@internal
+  a mask for a bit field, for AND using movb_i"
+  (and (match_code "const_int")
+       (match_test "TARGET_NPS_BITOPS")
+       (match_test "IS_POWEROF2_OR_0_P (ival + (ival & -ival))")))
+
+(define_constraint "Cbn"
+ "@internal
+  a constant integer, valid only if TARGET_NPS_BITOPS is true"
+  (and (match_code "const_int")
+       (match_test "TARGET_NPS_BITOPS")))
+
+(define_constraint "C18"
+ "@internal
+  1,2,4 or 8"
+  (and (match_code "const_int")
+       (match_test "ival == 1 || ival == 2 || ival == 4 || ival == 8")))
+
 (define_constraint "Crr"
  "@internal
   constant that can be loaded with ror b,u6"
   (and (match_code "const_int")
        (match_test "(ival & ~0x8000001f) == 0 && !arc_ccfsm_cond_exec_p ()")))
+
+(define_constraint "Cbi"
+ "@internal
+  constant that can be loaded with movbi.cl"
+  (and (match_code "const_int")
+       (match_test "TARGET_NPS_BITOPS")
+       (match_test "!ival
+		    || ((ival & 0xffffffffUL) >> exact_log2 (ival & -ival)
+			<= 0xff)")))
 
 ;; Floating-point constraints
 
@@ -244,12 +304,24 @@
   (and (match_code "const_double")
        (match_test "1")))
 
+(define_constraint "CfZ"
+  "@internal
+   Match a floating-point zero"
+  (and (match_code "const_double")
+       (match_test "op == CONST0_RTX (SFmode)")))
+
 ;; Memory constraints
 (define_memory_constraint "T"
   "@internal
    A valid memory operand for ARCompact load instructions"
   (and (match_code "mem")
-       (match_test "compact_load_memory_operand (op, VOIDmode)")))
+       (match_test "compact_memory_operand_p (op, mode, false, false)")))
+
+(define_memory_constraint "Uts"
+  "@internal
+   A valid memory operand for ARCompact load instructions scaled"
+  (and (match_code "mem")
+       (match_test "compact_memory_operand_p (op, mode, false, TARGET_CODE_DENSITY)")))
 
 (define_memory_constraint "S"
   "@internal
@@ -257,21 +329,28 @@
   (and (match_code "mem")
        (match_test "compact_store_memory_operand (op, VOIDmode)")))
 
-(define_memory_constraint "Usd"
+(define_memory_constraint "Uex"
   "@internal
-   A valid _small-data_ memory operand for ARCompact instructions"
+   A valid memory operand for limm-free extend instructions"
   (and (match_code "mem")
-       (match_test "compact_sda_memory_operand (op, VOIDmode)")))
+       (match_test "!cmem_address (XEXP (op, 0), SImode)")
+       (not (match_operand 0 "long_immediate_loadstore_operand"))))
 
+(define_memory_constraint "Usd"
+   "@internal
+    A valid _small-data_ memory operand for ARCompact instructions"
+   (and (match_code "mem")
+	(match_test "compact_sda_memory_operand (op, VOIDmode, true)")))
+
+; Usc constant is only used for storing long constants, hence we can
+; have only [b,s9], and [b] types of addresses.
 (define_memory_constraint "Usc"
   "@internal
    A valid memory operand for storing constants"
   (and (match_code "mem")
-       (match_test "!CONSTANT_P (XEXP (op,0))")
-;; ??? the assembler rejects stores of immediates to small data.
-       (match_test "!compact_sda_memory_operand (op, VOIDmode)")))
+       (match_test "!CONSTANT_P (XEXP (op,0))")))
 
-(define_memory_constraint "Us<"
+(define_constraint "Us<"
   "@internal
    Stack pre-decrement"
   (and (match_code "mem")
@@ -279,13 +358,19 @@
        (match_test "REG_P (XEXP (XEXP (op, 0), 0))")
        (match_test "REGNO (XEXP (XEXP (op, 0), 0)) == SP_REG")))
 
-(define_memory_constraint "Us>"
+(define_constraint "Us>"
   "@internal
    Stack post-increment"
   (and (match_code "mem")
        (match_test "GET_CODE (XEXP (op, 0)) == POST_INC")
        (match_test "REG_P (XEXP (XEXP (op, 0), 0))")
        (match_test "REGNO (XEXP (XEXP (op, 0), 0)) == SP_REG")))
+
+(define_constraint "Ucm"
+  "@internal
+  cmem access"
+  (and (match_code "mem")
+       (match_test "TARGET_NPS_CMEM && cmem_address (XEXP (op, 0), VOIDmode)")))
 
 ;; General constraints
 
@@ -301,9 +386,22 @@
 	    (match_test "arc_is_shortcall_p (op)"))
        (match_code "label_ref")))
 
+(define_constraint "Cji"
+  "JLI call"
+  (and (match_code "symbol_ref")
+       (match_test "TARGET_CODE_DENSITY")
+       (match_test "arc_is_jli_call_p (op)")))
+
+(define_constraint "Csc"
+  "Secure call"
+  (and (match_code "symbol_ref")
+       (match_test "TARGET_CODE_DENSITY")
+       (match_test "TARGET_EM")
+       (match_test "arc_is_secure_call_p (op)")))
+
 (define_constraint "Cpc"
   "pc-relative constant"
-  (match_test "arc_legitimate_pc_offset_p (op)"))
+  (match_test "arc_legitimate_pic_addr_p (op)"))
 
 (define_constraint "Clb"
   "label"
@@ -312,13 +410,19 @@
 
 (define_constraint "Cal"
   "constant for arithmetic/logical operations"
-  (match_test "immediate_operand (op, VOIDmode) && !arc_legitimate_pc_offset_p (op)"))
+  (match_test "immediate_operand (op, VOIDmode) && !arc_legitimate_pic_addr_p (op)"))
 
 (define_constraint "C32"
   "32 bit constant for arithmetic/logical operations"
   (match_test "immediate_operand (op, VOIDmode)
-	       && !arc_legitimate_pc_offset_p (op)
+	       && !arc_legitimate_pic_addr_p (op)
 	       && !satisfies_constraint_I (op)"))
+
+(define_constraint "Csz"
+  "a 32 bit constant avoided when compiling for size."
+  (match_test "immediate_operand (op, VOIDmode)
+	       && !arc_legitimate_pic_addr_p (op)
+	       && !(satisfies_constraint_I (op) && optimize_size)"))
 
 ; Note that the 'cryptic' register constraints will not make reload use the
 ; associated class to reload into, but this will not penalize reloading of any
@@ -335,7 +439,7 @@
    Cryptic q - for short insn generation while not affecting register allocation
    Registers usable in ARCompact 16-bit instructions: @code{r0}-@code{r3},
    @code{r12}-@code{r15}"
-  (and (match_code "REG")
+  (and (match_code "reg")
        (match_test "TARGET_Rcq
 		    && !arc_ccfsm_cond_exec_p ()
 		    && IN_RANGE (REGNO (op) ^ 4, 4, 11)")))
@@ -347,17 +451,17 @@
 (define_constraint "Rcw"
   "@internal
    Cryptic w - for use in early alternatives with matching constraint"
-  (and (match_code "REG")
+  (and (match_code "reg")
        (match_test
 	"TARGET_Rcw
 	 && REGNO (op) < FIRST_PSEUDO_REGISTER
-	 && TEST_HARD_REG_BIT (reg_class_contents[WRITABLE_CORE_REGS],
+	 && TEST_HARD_REG_BIT (reg_class_contents[GENERAL_REGS],
 			       REGNO (op))")))
 
 (define_constraint "Rcr"
   "@internal
    Cryptic r - for use in early alternatives with matching constraint"
-  (and (match_code "REG")
+  (and (match_code "reg")
        (match_test
 	"TARGET_Rcw
 	 && REGNO (op) < FIRST_PSEUDO_REGISTER
@@ -367,13 +471,13 @@
 (define_constraint "Rcb"
   "@internal
    Stack Pointer register @code{r28} - do not reload into its class"
-  (and (match_code "REG")
+  (and (match_code "reg")
        (match_test "REGNO (op) == 28")))
 
 (define_constraint "Rck"
   "@internal
    blink (usful for push_s / pop_s)"
-  (and (match_code "REG")
+  (and (match_code "reg")
        (match_test "REGNO (op) == 31")))
 
 (define_constraint "Rs5"
@@ -381,7 +485,7 @@
    sibcall register - only allow one of the five available 16 bit isnsn.
    Registers usable in ARCompact 16-bit instructions: @code{r0}-@code{r3},
    @code{r12}"
-  (and (match_code "REG")
+  (and (match_code "reg")
        (match_test "!arc_ccfsm_cond_exec_p ()")
        (ior (match_test "(unsigned) REGNO (op) <= 3")
 	    (match_test "REGNO (op) == 12"))))
@@ -389,7 +493,7 @@
 (define_constraint "Rcc"
   "@internal
   Condition Codes"
-  (and (match_code "REG") (match_test "cc_register (op, VOIDmode)")))
+  (and (match_code "reg") (match_test "cc_register (op, VOIDmode)")))
 
 
 (define_constraint "Q"
@@ -397,3 +501,75 @@
    Integer constant zero"
   (and (match_code "const_int")
        (match_test "IS_ZERO (ival)")))
+
+(define_constraint "Cm1"
+  "@internal
+   Integer signed constant in the interval [-1,6]"
+  (and (match_code "const_int")
+       (match_test "(ival >= -1) && (ival <=6)")
+       (match_test "TARGET_V2")))
+
+(define_constraint "Cm2"
+  "@internal
+   A signed 9-bit integer constant."
+  (and (match_code "const_int")
+       (match_test "(ival >= -256) && (ival <=255)")))
+
+(define_constraint "Cm3"
+  "@internal
+   A signed 6-bit integer constant."
+  (and (match_code "const_int")
+       (match_test "(ival >= -32) && (ival <=31)")
+       (match_test "TARGET_V2")))
+
+(define_constraint "C62"
+  "@internal
+   An unsigned 6-bit integer constant, up to 62."
+  (and (match_code "const_int")
+       (match_test "UNSIGNED_INT6 (ival - 1)")))
+
+;; Memory constraint used for atomic ops.
+(define_memory_constraint "ATO"
+  "A memory with only a base register"
+  (match_operand 0 "mem_noofs_operand"))
+
+(define_constraint "J12"
+  "@internal
+   An unsigned 12-bit integer constant."
+  (and (match_code "const_int")
+       (match_test "UNSIGNED_INT12 (ival)")))
+
+(define_constraint "J16"
+  "@internal
+   An unsigned 16-bit integer constant"
+  (and (match_code "const_int")
+       (match_test "UNSIGNED_INT16 (ival)")))
+
+; Memory addresses suited for code density load ops
+(define_memory_constraint "Ucd"
+  "@internal
+   A valid memory operand for use with code density load ops"
+  (and (match_code "mem")
+       (match_test "compact_memory_operand_p (op, mode, true, false)")
+       (match_test "TARGET_V2")))
+
+(define_register_constraint "h"
+  "TARGET_V2 ? AC16_H_REGS : NO_REGS"
+  "5-bit h register set except @code{r30} and @code{r29}:
+   @code{r0}-@code{r31}, nonfixed core register")
+
+; Code density registers
+(define_register_constraint "Rcd"
+  "TARGET_CODE_DENSITY ? R0R3_CD_REGS : NO_REGS"
+  "@internal
+   core register @code{r0}-@code{r3}")
+
+(define_register_constraint "Rsd"
+  "TARGET_CODE_DENSITY ? R0R1_CD_REGS : NO_REGS"
+  "@internal
+   core register @code{r0}-@code{r1}")
+
+(define_register_constraint "Rzd"
+  "TARGET_CODE_DENSITY ? R0_REGS : NO_REGS"
+  "@internal
+   @code{r0} register for code density instructions.")

@@ -15,6 +15,6 @@ foo (int a)
     }
 }
 
-/* { dg-final { scan-tree-dump "Folding predicate a_. > 2 to 1" "vrp1" } } */
-/* { dg-final { scan-tree-dump "Folding predicate a_. <= 5 to 1" "vrp1" } } */
-/* { dg-final { cleanup-tree-dump "vrp1" } } */
+/* Both ifs should be optimized (and switch statement will be the only if
+   in the function).  */
+/* { dg-final { scan-tree-dump-times "if \\\(" 1 "vrp1" } } */

@@ -1,5 +1,5 @@
 /* Software floating-point emulation.
-   Copyright (C) 1997-2014 Free Software Foundation, Inc.
+   Copyright (C) 1997-2018 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
    Contributed by Richard Henderson (rth@cygnus.com),
 		  Jakub Jelinek (jj@ultra.linux.cz),
@@ -30,21 +30,56 @@
    <http://www.gnu.org/licenses/>.  */
 
 #ifndef SOFT_FP_H
-#define SOFT_FP_H
+#define SOFT_FP_H	1
 
 #ifdef _LIBC
 # include <sfp-machine.h>
+#elif defined __KERNEL__
+/* The Linux kernel uses asm/ names for architecture-specific
+   files.  */
+# include <asm/sfp-machine.h>
 #else
 # include "sfp-machine.h"
 #endif
 
-/* Allow sfp-machine to have its own byte order definitions. */
+/* Allow sfp-machine to have its own byte order definitions.  */
 #ifndef __BYTE_ORDER
 # ifdef _LIBC
 #  include <endian.h>
 # else
 #  error "endianness not defined by sfp-machine.h"
 # endif
+#endif
+
+/* For unreachable default cases in switch statements over bitwise OR
+   of FP_CLS_* values.  */
+#if (defined __GNUC__							\
+     && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)))
+# define _FP_UNREACHABLE	__builtin_unreachable ()
+#else
+# define _FP_UNREACHABLE	abort ()
+#endif
+
+#if ((defined __GNUC__							\
+      && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)))	\
+     || (defined __STDC_VERSION__ && __STDC_VERSION__ >= 201112L))
+# define _FP_STATIC_ASSERT(expr, msg)		\
+  _Static_assert ((expr), msg)
+#else
+# define _FP_STATIC_ASSERT(expr, msg)					\
+  extern int (*__Static_assert_function (void))				\
+    [!!sizeof (struct { int __error_if_negative: (expr) ? 2 : -1; })]
+#endif
+
+/* In the Linux kernel, some architectures have a single function that
+   uses different kinds of unpacking and packing depending on the
+   instruction being emulated, meaning it is not readily visible to
+   the compiler that variables from _FP_DECL and _FP_FRAC_DECL_*
+   macros are only used in cases where they were initialized.  */
+#ifdef __KERNEL__
+# define _FP_ZERO_INIT		= 0
+#else
+# define _FP_ZERO_INIT
 #endif
 
 #define _FP_WORKBITS		3
@@ -63,7 +98,7 @@
 # define FP_ROUNDMODE		FP_RND_NEAREST
 #endif
 
-/* By default don't care about exceptions. */
+/* By default don't care about exceptions.  */
 #ifndef FP_EX_INVALID
 # define FP_EX_INVALID		0
 #endif
@@ -81,6 +116,44 @@
 #endif
 #ifndef FP_EX_DENORM
 # define FP_EX_DENORM		0
+#endif
+
+/* Sub-exceptions of "invalid".  */
+/* Signaling NaN operand.  */
+#ifndef FP_EX_INVALID_SNAN
+# define FP_EX_INVALID_SNAN	0
+#endif
+/* Inf * 0.  */
+#ifndef FP_EX_INVALID_IMZ
+# define FP_EX_INVALID_IMZ	0
+#endif
+/* fma (Inf, 0, c).  */
+#ifndef FP_EX_INVALID_IMZ_FMA
+# define FP_EX_INVALID_IMZ_FMA	0
+#endif
+/* Inf - Inf.  */
+#ifndef FP_EX_INVALID_ISI
+# define FP_EX_INVALID_ISI	0
+#endif
+/* 0 / 0.  */
+#ifndef FP_EX_INVALID_ZDZ
+# define FP_EX_INVALID_ZDZ	0
+#endif
+/* Inf / Inf.  */
+#ifndef FP_EX_INVALID_IDI
+# define FP_EX_INVALID_IDI	0
+#endif
+/* sqrt (negative).  */
+#ifndef FP_EX_INVALID_SQRT
+# define FP_EX_INVALID_SQRT	0
+#endif
+/* Invalid conversion to integer.  */
+#ifndef FP_EX_INVALID_CVI
+# define FP_EX_INVALID_CVI	0
+#endif
+/* Invalid comparison.  */
+#ifndef FP_EX_INVALID_VC
+# define FP_EX_INVALID_VC	0
 #endif
 
 /* _FP_STRUCT_LAYOUT may be defined as an attribute to determine the
@@ -108,29 +181,36 @@
 #endif
 
 /* Initialize any machine-specific state used in
+   FP_TRAPPING_EXCEPTIONS or FP_HANDLE_EXCEPTIONS.  */
+#ifndef FP_INIT_TRAPPING_EXCEPTIONS
+# define FP_INIT_TRAPPING_EXCEPTIONS FP_INIT_ROUNDMODE
+#endif
+
+/* Initialize any machine-specific state used in
    FP_HANDLE_EXCEPTIONS.  */
 #ifndef FP_INIT_EXCEPTIONS
-# define FP_INIT_EXCEPTIONS FP_INIT_ROUNDMODE
+# define FP_INIT_EXCEPTIONS FP_INIT_TRAPPING_EXCEPTIONS
 #endif
 
 #ifndef FP_HANDLE_EXCEPTIONS
 # define FP_HANDLE_EXCEPTIONS do {} while (0)
 #endif
 
+/* Whether to flush subnormal inputs to zero with the same sign.  */
+#ifndef FP_DENORM_ZERO
+# define FP_DENORM_ZERO 0
+#endif
+
 #ifndef FP_INHIBIT_RESULTS
 /* By default we write the results always.
- * sfp-machine may override this and e.g.
- * check if some exceptions are unmasked
- * and inhibit it in such a case.
- */
+   sfp-machine may override this and e.g.
+   check if some exceptions are unmasked
+   and inhibit it in such a case.  */
 # define FP_INHIBIT_RESULTS 0
 #endif
 
 #define FP_SET_EXCEPTION(ex)				\
   _fex |= (ex)
-
-#define FP_CLEAR_EXCEPTIONS				\
-  _fex = 0
 
 #define FP_CUR_EXCEPTIONS				\
   (_fex)
@@ -164,6 +244,16 @@
 # undef _FP_TININESS_AFTER_ROUNDING
 # define _FP_TININESS_AFTER_ROUNDING 0
 
+#endif
+
+/* A file using soft-fp may define FP_NO_EXACT_UNDERFLOW before
+   including soft-fp.h to indicate that, although a macro used there
+   could allow for the case of exact underflow requiring the underflow
+   exception to be raised if traps are enabled, for the particular
+   arguments used in that file no exact underflow can occur.  */
+#ifdef FP_NO_EXACT_UNDERFLOW
+# undef FP_TRAPPING_EXCEPTIONS
+# define FP_TRAPPING_EXCEPTIONS 0
 #endif
 
 #define _FP_ROUND_NEAREST(wc, X)				\
@@ -261,10 +351,4 @@ typedef USItype UHWtype;
 # endif
 #endif
 
-#ifdef _LIBC
-# include <stdlib.h>
-#else
-extern void abort (void);
-#endif
-
-#endif
+#endif /* !SOFT_FP_H */

@@ -1,5 +1,5 @@
 ;; Scheduling description for IBM POWER8 processor.
-;; Copyright (C) 2013-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2013-2019 Free Software Foundation, Inc.
 ;;
 ;; Contributed by Pat Haugen (pthaugen@us.ibm.com).
 
@@ -212,12 +212,10 @@
        (eq_attr "cpu" "power8"))
   "DU_any_power8,FXU_power8")
 
-; compare : rldicl./exts./etc
-; shift with dot : rlwinm./slwi./rlwnm./slw./etc
+; exts/shift with dot : rldicl./exts./rlwinm./slwi./rlwnm./slw./etc
 (define_insn_reservation "power8-compare" 2
-  (and (ior (eq_attr "type" "compare")
-	    (and (eq_attr "type" "shift,exts")
-		 (eq_attr "dot" "yes")))
+  (and (eq_attr "type" "shift,exts")
+       (eq_attr "dot" "yes")
        (eq_attr "cpu" "power8"))
   "DU_cracked_power8,FXU_power8,FXU_power8")
 
@@ -283,7 +281,7 @@
   "DU_first_power8,cru_power8+FXU_power8")
 
 (define_insn_reservation "power8-crlogical" 3
-  (and (eq_attr "type" "cr_logical,delayed_cr")
+  (and (eq_attr "type" "cr_logical")
        (eq_attr "cpu" "power8"))
   "DU_first_power8,cru_power8")
 
@@ -319,7 +317,7 @@
 
 ; VS Unit (includes FP/VSX/VMX/DFP/Crypto)
 (define_insn_reservation "power8-fp" 6
-  (and (eq_attr "type" "fp,dmul")
+  (and (eq_attr "type" "fp,fpsimple,dmul,dfp")
        (eq_attr "cpu" "power8"))
   "DU_any_power8,VSU_power8")
 
@@ -352,7 +350,8 @@
   "DU_any_power8,VSU_power8")
 
 (define_insn_reservation "power8-vecsimple" 2
-  (and (eq_attr "type" "vecperm,vecsimple,veccmp")
+  (and (eq_attr "type" "vecperm,vecsimple,veclogical,vecmove,veccmp,
+			veccmpfx")
        (eq_attr "cpu" "power8"))
   "DU_any_power8,VSU_power8")
 

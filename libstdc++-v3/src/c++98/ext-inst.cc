@@ -1,6 +1,6 @@
 // Explicit instantiation file.
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -38,7 +38,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   }
 
   template
-    const unsigned long 
+    const unsigned long
     rope<char, std::allocator<char> >::_S_min_len[min_len];
 
   template
@@ -48,7 +48,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 #ifdef _GLIBCXX_USE_WCHAR_T
   template
-    const unsigned long 
+    const unsigned long
     rope<wchar_t, std::allocator<wchar_t> >::_S_min_len[min_len];
 
   template

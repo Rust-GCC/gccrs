@@ -1,6 +1,6 @@
-/* { dg-do compile } */
 /* { dg-options "-mswape" } */
 /* { dg-do assemble } */
+/* { dg-skip-if "" { arc6xx } } */
 
 int f (int i)
 {

@@ -1,5 +1,5 @@
 ;; Machine description for Tilera TILEPro chip for GCC.
-;; Copyright (C) 2011-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2019 Free Software Foundation, Inc.
 ;; Contributed by Walter Lee (walt@tilera.com)
 ;;
 ;; This file is part of GCC.
@@ -1336,7 +1336,7 @@
      emit_move_insn (s0, gen_rtx_PLUS (SImode, s0, GEN_INT (-1)));
      bcomp = gen_rtx_NE(SImode, s0, const0_rtx);
      loc_ref = gen_rtx_LABEL_REF (VOIDmode, operands [1]);
-     emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
+     emit_jump_insn (gen_rtx_SET (pc_rtx,
                                   gen_rtx_IF_THEN_ELSE (VOIDmode, bcomp,
                                                         loc_ref, pc_rtx)));
      DONE;
@@ -1516,7 +1516,7 @@
 {
   int i;
 
-  emit_call_insn (GEN_CALL (operands[0], const0_rtx, NULL, const0_rtx));
+  emit_call_insn (gen_call (operands[0], const0_rtx));
 
   for (i = 0; i < XVECLEN (operands[2], 0); i++)
     {
@@ -1577,6 +1577,12 @@
   ""
   "nop"
   [(set_attr "type" "Y01")])
+
+(define_insn "trap"
+  [(trap_if (const_int 1) (const_int 0))]
+  ""
+  "raise; moveli zero, 6"
+  [(set_attr "type" "cannot_bundle")])
 
 
 ;;
@@ -3741,7 +3747,7 @@
   rtx ssp_addr = gen_rtx_PLUS (Pmode, tp, GEN_INT (TARGET_THREAD_SSP_OFFSET));
   rtx ssp = gen_reg_rtx (Pmode);
   
-  emit_insn (gen_rtx_SET (VOIDmode, ssp, ssp_addr));
+  emit_insn (gen_rtx_SET (ssp, ssp_addr));
 
   operands[1] = gen_rtx_MEM (Pmode, ssp);
 #endif
@@ -3776,7 +3782,7 @@
   rtx ssp_addr = gen_rtx_PLUS (Pmode, tp, GEN_INT (TARGET_THREAD_SSP_OFFSET));
   rtx ssp = gen_reg_rtx (Pmode);
   
-  emit_insn (gen_rtx_SET (VOIDmode, ssp, ssp_addr));
+  emit_insn (gen_rtx_SET (ssp, ssp_addr));
 
   operands[1] = gen_rtx_MEM (Pmode, ssp);
 #endif
@@ -3790,7 +3796,7 @@
 
   loc_ref = gen_rtx_LABEL_REF (VOIDmode, operands[2]);
 
-  emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
+  emit_jump_insn (gen_rtx_SET (pc_rtx,
 			       gen_rtx_IF_THEN_ELSE (VOIDmode, bcomp,
 						     loc_ref, pc_rtx)));
 

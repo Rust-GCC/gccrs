@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,6 +15,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+// { dg-options "-Wno-deprecated" }
 
 #include <ext/vstring.h>
 #include <ext/array_allocator.h>
@@ -28,8 +29,6 @@ array_type extern_array;
 
 void test01() 
 {
-  bool test __attribute__((unused)) = true;
-
   using __gnu_cxx::__versa_string;
   typedef __gnu_cxx::array_allocator<char_type, array_type> allocator_type;
   typedef __versa_string<char_type, traits_type, allocator_type> string_type;

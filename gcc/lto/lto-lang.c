@@ -1,5 +1,5 @@
 /* Language-dependent hooks for LTO.
-   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 2009-2019 Free Software Foundation, Inc.
    Contributed by CodeSourcery, Inc.
 
 This file is part of GCC.
@@ -21,30 +21,24 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "flags.h"
-#include "tm.h"
-#include "tree.h"
-#include "stringpool.h"
-#include "stor-layout.h"
 #include "target.h"
+#include "function.h"
+#include "basic-block.h"
+#include "tree.h"
+#include "gimple.h"
+#include "stringpool.h"
+#include "diagnostic-core.h"
+#include "stor-layout.h"
 #include "langhooks.h"
 #include "langhooks-def.h"
 #include "debug.h"
 #include "lto-tree.h"
 #include "lto.h"
-#include "tree-inline.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "is-a.h"
-#include "gimple.h"
-#include "diagnostic-core.h"
-#include "toplev.h"
-#include "lto-streamer.h"
-#include "cilk.h"
+#include "stringpool.h"
+#include "attribs.h"
 
-static tree lto_type_for_size (unsigned, int);
+/* LTO specific dumps.  */
+int lto_link_dump_id, decl_merge_dump_id, partition_dump_id;
 
 static tree handle_noreturn_attribute (tree *, tree, tree, int, bool *);
 static tree handle_leaf_attribute (tree *, tree, tree, int, bool *);
@@ -58,49 +52,90 @@ static tree handle_sentinel_attribute (tree *, tree, tree, int, bool *);
 static tree handle_type_generic_attribute (tree *, tree, tree, int, bool *);
 static tree handle_transaction_pure_attribute (tree *, tree, tree, int, bool *);
 static tree handle_returns_twice_attribute (tree *, tree, tree, int, bool *);
+static tree handle_patchable_function_entry_attribute (tree *, tree, tree,
+						       int, bool *);
 static tree ignore_attribute (tree *, tree, tree, int, bool *);
 
 static tree handle_format_attribute (tree *, tree, tree, int, bool *);
 static tree handle_fnspec_attribute (tree *, tree, tree, int, bool *);
 static tree handle_format_arg_attribute (tree *, tree, tree, int, bool *);
 
+/* Helper to define attribute exclusions.  */
+#define ATTR_EXCL(name, function, type, variable)	\
+  { name, function, type, variable }
+
+/* Define attributes that are mutually exclusive with one another.  */
+static const struct attribute_spec::exclusions attr_noreturn_exclusions[] =
+{
+  ATTR_EXCL ("noreturn", true, true, true),
+  ATTR_EXCL ("alloc_align", true, true, true),
+  ATTR_EXCL ("alloc_size", true, true, true),
+  ATTR_EXCL ("const", true, true, true),
+  ATTR_EXCL ("malloc", true, true, true),
+  ATTR_EXCL ("pure", true, true, true),
+  ATTR_EXCL ("returns_twice", true, true, true),
+  ATTR_EXCL ("warn_unused_result", true, true, true),
+  ATTR_EXCL (NULL, false, false, false),
+};
+
+static const struct attribute_spec::exclusions attr_returns_twice_exclusions[] =
+{
+  ATTR_EXCL ("noreturn", true, true, true),
+  ATTR_EXCL (NULL, false, false, false),
+};
+
+static const struct attribute_spec::exclusions attr_const_pure_exclusions[] =
+{
+  ATTR_EXCL ("const", true, true, true),
+  ATTR_EXCL ("noreturn", true, true, true),
+  ATTR_EXCL ("pure", true, true, true),
+  ATTR_EXCL (NULL, false, false, false)
+};
+
 /* Table of machine-independent attributes supported in GIMPLE.  */
 const struct attribute_spec lto_attribute_table[] =
 {
-  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler,
-       do_diagnostic } */
-  { "noreturn",               0, 0, true,  false, false,
-			      handle_noreturn_attribute, false },
-  { "leaf",		      0, 0, true,  false, false,
-			      handle_leaf_attribute, false },
+  /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
+       affects_type_identity, handler, exclude } */
+  { "noreturn",               0, 0, true,  false, false, false,
+			      handle_noreturn_attribute,
+			      attr_noreturn_exclusions },
+  { "leaf",		      0, 0, true,  false, false, false,
+			      handle_leaf_attribute, NULL },
   /* The same comments as for noreturn attributes apply to const ones.  */
-  { "const",                  0, 0, true,  false, false,
-			      handle_const_attribute, false },
-  { "malloc",                 0, 0, true,  false, false,
-			      handle_malloc_attribute, false },
-  { "pure",                   0, 0, true,  false, false,
-			      handle_pure_attribute, false },
-  { "no vops",                0, 0, true,  false, false,
-			      handle_novops_attribute, false },
-  { "nonnull",                0, -1, false, true, true,
-			      handle_nonnull_attribute, false },
-  { "nothrow",                0, 0, true,  false, false,
-			      handle_nothrow_attribute, false },
-  { "returns_twice",          0, 0, true,  false, false,
-			      handle_returns_twice_attribute, false },
-  { "sentinel",               0, 1, false, true, true,
-			      handle_sentinel_attribute, false },
-  { "type generic",           0, 0, false, true, true,
-			      handle_type_generic_attribute, false },
-  { "fn spec",	 	      1, 1, false, true, true,
-			      handle_fnspec_attribute, false },
-  { "transaction_pure",	      0, 0, false, true, true,
-			      handle_transaction_pure_attribute, false },
+  { "const",                  0, 0, true,  false, false, false,
+			      handle_const_attribute,
+			      attr_const_pure_exclusions },
+  { "malloc",                 0, 0, true,  false, false, false,
+			      handle_malloc_attribute, NULL },
+  { "pure",                   0, 0, true,  false, false, false,
+			      handle_pure_attribute,
+			      attr_const_pure_exclusions },
+  { "no vops",                0, 0, true,  false, false, false,
+			      handle_novops_attribute, NULL },
+  { "nonnull",                0, -1, false, true, true, false,
+			      handle_nonnull_attribute, NULL },
+  { "nothrow",                0, 0, true,  false, false, false,
+			      handle_nothrow_attribute, NULL },
+  { "patchable_function_entry", 1, 2, true, false, false, false,
+			      handle_patchable_function_entry_attribute,
+			      NULL },
+  { "returns_twice",          0, 0, true,  false, false, false,
+			      handle_returns_twice_attribute,
+			      attr_returns_twice_exclusions },
+  { "sentinel",               0, 1, false, true, true, false,
+			      handle_sentinel_attribute, NULL },
+  { "type generic",           0, 0, false, true, true, false,
+			      handle_type_generic_attribute, NULL },
+  { "fn spec",	 	      1, 1, false, true, true, false,
+			      handle_fnspec_attribute, NULL },
+  { "transaction_pure",	      0, 0, false, true, true, false,
+			      handle_transaction_pure_attribute, NULL },
   /* For internal use only.  The leading '*' both prevents its usage in
      source code and signals that it may be overridden by machine tables.  */
-  { "*tm regparm",            0, 0, false, true, true,
-			      ignore_attribute, false },
-  { NULL,                     0, 0, false, false, false, NULL, false }
+  { "*tm regparm",            0, 0, false, true, true, false,
+			      ignore_attribute, NULL },
+  { NULL,                     0, 0, false, false, false, false, NULL, NULL }
 };
 
 /* Give the specifications for the format attributes, used by C and all
@@ -108,13 +143,13 @@ const struct attribute_spec lto_attribute_table[] =
 
 const struct attribute_spec lto_format_attribute_table[] =
 {
-  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler,
-       affects_type_identity } */
-  { "format",                 3, 3, false, true,  true,
-			      handle_format_attribute, false },
-  { "format_arg",             1, 1, false, true,  true,
-			      handle_format_arg_attribute, false },
-  { NULL,                     0, 0, false, false, false, NULL, false }
+  /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
+       affects_type_identity, handler, exclude } */
+  { "format",                 3, 3, false, true,  true, false,
+			      handle_format_attribute, NULL },
+  { "format_arg",             1, 1, false, true,  true, false,
+			      handle_format_arg_attribute, NULL },
+  { NULL,                     0, 0, false, false, false, false, NULL, NULL }
 };
 
 enum built_in_attribute
@@ -152,13 +187,23 @@ enum lto_builtin_type
 			    ARG6, ARG7) NAME,
 #define DEF_FUNCTION_TYPE_8(NAME, RETURN, ARG1, ARG2, ARG3, ARG4, ARG5, \
 			    ARG6, ARG7, ARG8) NAME,
+#define DEF_FUNCTION_TYPE_9(NAME, RETURN, ARG1, ARG2, ARG3, ARG4, ARG5, \
+			    ARG6, ARG7, ARG8, ARG9) NAME,
+#define DEF_FUNCTION_TYPE_10(NAME, RETURN, ARG1, ARG2, ARG3, ARG4, ARG5, \
+			     ARG6, ARG7, ARG8, ARG9, ARG10) NAME,
+#define DEF_FUNCTION_TYPE_11(NAME, RETURN, ARG1, ARG2, ARG3, ARG4, ARG5, \
+			     ARG6, ARG7, ARG8, ARG9, ARG10, ARG11) NAME,
 #define DEF_FUNCTION_TYPE_VAR_0(NAME, RETURN) NAME,
 #define DEF_FUNCTION_TYPE_VAR_1(NAME, RETURN, ARG1) NAME,
 #define DEF_FUNCTION_TYPE_VAR_2(NAME, RETURN, ARG1, ARG2) NAME,
 #define DEF_FUNCTION_TYPE_VAR_3(NAME, RETURN, ARG1, ARG2, ARG3) NAME,
 #define DEF_FUNCTION_TYPE_VAR_4(NAME, RETURN, ARG1, ARG2, ARG3, ARG4) NAME,
 #define DEF_FUNCTION_TYPE_VAR_5(NAME, RETURN, ARG1, ARG2, ARG3, ARG4, ARG6) \
-  NAME,
+				NAME,
+#define DEF_FUNCTION_TYPE_VAR_6(NAME, RETURN, ARG1, ARG2, ARG3, ARG4, ARG5, \
+				 ARG6) NAME,
+#define DEF_FUNCTION_TYPE_VAR_7(NAME, RETURN, ARG1, ARG2, ARG3, ARG4, ARG5, \
+				ARG6, ARG7) NAME,
 #define DEF_POINTER_TYPE(NAME, TYPE) NAME,
 #include "builtin-types.def"
 #undef DEF_PRIMITIVE_TYPE
@@ -171,12 +216,17 @@ enum lto_builtin_type
 #undef DEF_FUNCTION_TYPE_6
 #undef DEF_FUNCTION_TYPE_7
 #undef DEF_FUNCTION_TYPE_8
+#undef DEF_FUNCTION_TYPE_9
+#undef DEF_FUNCTION_TYPE_10
+#undef DEF_FUNCTION_TYPE_11
 #undef DEF_FUNCTION_TYPE_VAR_0
 #undef DEF_FUNCTION_TYPE_VAR_1
 #undef DEF_FUNCTION_TYPE_VAR_2
 #undef DEF_FUNCTION_TYPE_VAR_3
 #undef DEF_FUNCTION_TYPE_VAR_4
 #undef DEF_FUNCTION_TYPE_VAR_5
+#undef DEF_FUNCTION_TYPE_VAR_6
+#undef DEF_FUNCTION_TYPE_VAR_7
 #undef DEF_POINTER_TYPE
   BT_LAST
 };
@@ -253,6 +303,9 @@ handle_const_attribute (tree *node, tree ARG_UNUSED (name),
 			tree ARG_UNUSED (args), int ARG_UNUSED (flags),
 			bool * ARG_UNUSED (no_add_attrs))
 {
+  if (!fndecl_built_in_p (*node))
+    inform (UNKNOWN_LOCATION, "%s:%s: %E: %E", __FILE__, __func__, *node, name);
+
   tree type = TREE_TYPE (*node);
 
   /* See FIXME comment on noreturn in c_common_attribute_table.  */
@@ -345,10 +398,15 @@ handle_nonnull_attribute (tree *node, tree ARG_UNUSED (name),
 
   /* If no arguments are specified, all pointer arguments should be
      non-null.  Verify a full prototype is given so that the arguments
-     will have the correct types when we actually check them later.  */
+     will have the correct types when we actually check them later.
+     Avoid diagnosing type-generic built-ins since those have no
+     prototype.  */
   if (!args)
     {
-      gcc_assert (prototype_p (type));
+      gcc_assert (prototype_p (type)
+		  || !TYPE_ATTRIBUTES (type)
+		  || lookup_attribute ("type generic", TYPE_ATTRIBUTES (type)));
+
       return NULL_TREE;
     }
 
@@ -463,6 +521,13 @@ handle_returns_twice_attribute (tree *node, tree ARG_UNUSED (name),
   return NULL_TREE;
 }
 
+static tree
+handle_patchable_function_entry_attribute (tree *, tree, tree, int, bool *)
+{
+  /* Nothing to be done here.  */
+  return NULL_TREE;
+}
+
 /* Ignore the given attribute.  Used when this attribute may be usefully
    overridden by the target, but is not used generically.  */
 
@@ -558,7 +623,7 @@ def_fn_type (builtin_type def, builtin_type ret, bool var, int n, ...)
 static tree
 builtin_type_for_size (int size, bool unsignedp)
 {
-  tree type = lto_type_for_size (size, unsignedp);
+  tree type = lang_hooks.types.type_for_size (size, unsignedp);
   return type ? type : error_mark_node;
 }
 
@@ -649,6 +714,18 @@ lto_define_builtins (tree va_list_ref_type_node ATTRIBUTE_UNUSED,
 			    ARG6, ARG7, ARG8)				\
   def_fn_type (ENUM, RETURN, 0, 8, ARG1, ARG2, ARG3, ARG4, ARG5, ARG6,	\
 	       ARG7, ARG8);
+#define DEF_FUNCTION_TYPE_9(ENUM, RETURN, ARG1, ARG2, ARG3, ARG4, ARG5, \
+			    ARG6, ARG7, ARG8, ARG9)			\
+  def_fn_type (ENUM, RETURN, 0, 9, ARG1, ARG2, ARG3, ARG4, ARG5, ARG6,	\
+	       ARG7, ARG8, ARG9);
+#define DEF_FUNCTION_TYPE_10(ENUM, RETURN, ARG1, ARG2, ARG3, ARG4, ARG5, \
+			     ARG6, ARG7, ARG8, ARG9, ARG10)		 \
+  def_fn_type (ENUM, RETURN, 0, 10, ARG1, ARG2, ARG3, ARG4, ARG5, ARG6,	 \
+	       ARG7, ARG8, ARG9, ARG10);
+#define DEF_FUNCTION_TYPE_11(ENUM, RETURN, ARG1, ARG2, ARG3, ARG4, ARG5, \
+			     ARG6, ARG7, ARG8, ARG9, ARG10, ARG11)	 \
+  def_fn_type (ENUM, RETURN, 0, 11, ARG1, ARG2, ARG3, ARG4, ARG5, ARG6,	 \
+	       ARG7, ARG8, ARG9, ARG10, ARG11);
 #define DEF_FUNCTION_TYPE_VAR_0(ENUM, RETURN) \
   def_fn_type (ENUM, RETURN, 1, 0);
 #define DEF_FUNCTION_TYPE_VAR_1(ENUM, RETURN, ARG1) \
@@ -661,6 +738,12 @@ lto_define_builtins (tree va_list_ref_type_node ATTRIBUTE_UNUSED,
   def_fn_type (ENUM, RETURN, 1, 4, ARG1, ARG2, ARG3, ARG4);
 #define DEF_FUNCTION_TYPE_VAR_5(ENUM, RETURN, ARG1, ARG2, ARG3, ARG4, ARG5) \
   def_fn_type (ENUM, RETURN, 1, 5, ARG1, ARG2, ARG3, ARG4, ARG5);
+#define DEF_FUNCTION_TYPE_VAR_6(ENUM, RETURN, ARG1, ARG2, ARG3, ARG4, ARG5, \
+				 ARG6)	\
+  def_fn_type (ENUM, RETURN, 1, 6, ARG1, ARG2, ARG3, ARG4, ARG5, ARG6);
+#define DEF_FUNCTION_TYPE_VAR_7(ENUM, RETURN, ARG1, ARG2, ARG3, ARG4, ARG5, \
+				ARG6, ARG7)				\
+  def_fn_type (ENUM, RETURN, 1, 7, ARG1, ARG2, ARG3, ARG4, ARG5, ARG6, ARG7);
 #define DEF_POINTER_TYPE(ENUM, TYPE) \
   builtin_types[(int) ENUM] = build_pointer_type (builtin_types[(int) TYPE]);
 
@@ -676,12 +759,17 @@ lto_define_builtins (tree va_list_ref_type_node ATTRIBUTE_UNUSED,
 #undef DEF_FUNCTION_TYPE_6
 #undef DEF_FUNCTION_TYPE_7
 #undef DEF_FUNCTION_TYPE_8
+#undef DEF_FUNCTION_TYPE_9
+#undef DEF_FUNCTION_TYPE_10
+#undef DEF_FUNCTION_TYPE_11
 #undef DEF_FUNCTION_TYPE_VAR_0
 #undef DEF_FUNCTION_TYPE_VAR_1
 #undef DEF_FUNCTION_TYPE_VAR_2
 #undef DEF_FUNCTION_TYPE_VAR_3
 #undef DEF_FUNCTION_TYPE_VAR_4
 #undef DEF_FUNCTION_TYPE_VAR_5
+#undef DEF_FUNCTION_TYPE_VAR_6
+#undef DEF_FUNCTION_TYPE_VAR_7
 #undef DEF_POINTER_TYPE
   builtin_types[(int) BT_LAST] = NULL_TREE;
 
@@ -694,7 +782,6 @@ lto_define_builtins (tree va_list_ref_type_node ATTRIBUTE_UNUSED,
 		     builtin_types[(int) LIBTYPE], BOTH_P, FALLBACK_P,	\
 		     NONANSI_P, built_in_attributes[(int) ATTRS], IMPLICIT);
 #include "builtins.def"
-#undef DEF_BUILTIN
 }
 
 static GTY(()) tree registered_builtin_types;
@@ -739,7 +826,8 @@ lto_init_options_struct (struct gcc_options *opts)
 const char *resolution_file_name;
 static bool
 lto_handle_option (size_t scode, const char *arg,
-		   int value ATTRIBUTE_UNUSED, int kind ATTRIBUTE_UNUSED,
+		   HOST_WIDE_INT value ATTRIBUTE_UNUSED,
+		   int kind ATTRIBUTE_UNUSED,
 		   location_t loc ATTRIBUTE_UNUSED,
 		   const struct cl_option_handlers *handlers ATTRIBUTE_UNUSED)
 {
@@ -776,7 +864,7 @@ lto_post_options (const char **pfilename ATTRIBUTE_UNUSED)
 {
   /* -fltrans and -fwpa are mutually exclusive.  Check for that here.  */
   if (flag_wpa && flag_ltrans)
-    error ("-fwpa and -fltrans are mutually exclusive");
+    error ("%<-fwpa%> and %<-fltrans%> are mutually exclusive");
 
   if (flag_ltrans)
     {
@@ -790,55 +878,71 @@ lto_post_options (const char **pfilename ATTRIBUTE_UNUSED)
   if (flag_wpa)
     flag_generate_lto = 1;
 
+  /* Initialize the codegen flags according to the output type.  */
+  switch (flag_lto_linker_output)
+    {
+    case LTO_LINKER_OUTPUT_REL: /* .o: incremental link producing LTO IL  */
+      /* Configure compiler same way as normal frontend would do with -flto:
+	 this way we read the trees (declarations & types), symbol table,
+	 optimization summaries and link them. Subsequently we output new LTO
+	 file.  */
+      flag_lto = "";
+      flag_incremental_link = INCREMENTAL_LINK_LTO;
+      flag_whole_program = 0;
+      flag_wpa = 0;
+      flag_generate_lto = 1;
+      /* It would be cool to produce .o file directly, but our current
+	 simple objects does not contain the lto symbol markers.  Go the slow
+	 way through the asm file.  */
+      lang_hooks.lto.begin_section = lhd_begin_section;
+      lang_hooks.lto.append_data = lhd_append_data;
+      lang_hooks.lto.end_section = lhd_end_section;
+      if (flag_ltrans)
+	error ("%<-flinker-output=rel%> and %<-fltrans%> are mutually "
+	       "exclussive");
+      break;
+
+    case LTO_LINKER_OUTPUT_NOLTOREL: /* .o: incremental link producing asm  */
+      flag_whole_program = 0;
+      flag_incremental_link = INCREMENTAL_LINK_NOLTO;
+      break;
+
+    case LTO_LINKER_OUTPUT_DYN: /* .so: PID library */
+      /* On some targets, like i386 it makes sense to build PIC library wihout
+	 -fpic for performance reasons.  So no need to adjust flags.  */
+      break;
+
+    case LTO_LINKER_OUTPUT_PIE: /* PIE binary */
+      /* If -fPIC or -fPIE was used at compile time, be sure that
+         flag_pie is 2.  */
+      flag_pie = MAX (flag_pie, flag_pic);
+      flag_pic = flag_pie;
+      flag_shlib = 0;
+      break;
+
+    case LTO_LINKER_OUTPUT_EXEC: /* Normal executable */
+      flag_pic = 0;
+      flag_pie = 0;
+      flag_shlib = 0;
+      break;
+
+    case LTO_LINKER_OUTPUT_UNKNOWN:
+      break;
+    }
+
   /* Excess precision other than "fast" requires front-end
      support.  */
   flag_excess_precision_cmdline = EXCESS_PRECISION_FAST;
 
+  /* When partitioning, we can tear appart STRING_CSTs uses from the same
+     TU into multiple partitions.  Without constant merging the constants
+     might not be equal at runtime.  See PR50199.  */
+  if (!flag_merge_constants)
+    flag_merge_constants = 1;
+
   /* Initialize the compiler back end.  */
   return false;
 }
-
-/* Return an integer type with PRECISION bits of precision,
-   that is unsigned if UNSIGNEDP is nonzero, otherwise signed.  */
-
-static tree
-lto_type_for_size (unsigned precision, int unsignedp)
-{
-  if (precision == TYPE_PRECISION (integer_type_node))
-    return unsignedp ? unsigned_type_node : integer_type_node;
-
-  if (precision == TYPE_PRECISION (signed_char_type_node))
-    return unsignedp ? unsigned_char_type_node : signed_char_type_node;
-
-  if (precision == TYPE_PRECISION (short_integer_type_node))
-    return unsignedp ? short_unsigned_type_node : short_integer_type_node;
-
-  if (precision == TYPE_PRECISION (long_integer_type_node))
-    return unsignedp ? long_unsigned_type_node : long_integer_type_node;
-
-  if (precision == TYPE_PRECISION (long_long_integer_type_node))
-    return unsignedp
-	   ? long_long_unsigned_type_node
-	   : long_long_integer_type_node;
-
-  if (precision <= TYPE_PRECISION (intQI_type_node))
-    return unsignedp ? unsigned_intQI_type_node : intQI_type_node;
-
-  if (precision <= TYPE_PRECISION (intHI_type_node))
-    return unsignedp ? unsigned_intHI_type_node : intHI_type_node;
-
-  if (precision <= TYPE_PRECISION (intSI_type_node))
-    return unsignedp ? unsigned_intSI_type_node : intSI_type_node;
-
-  if (precision <= TYPE_PRECISION (intDI_type_node))
-    return unsignedp ? unsigned_intDI_type_node : intDI_type_node;
-
-  if (precision <= TYPE_PRECISION (intTI_type_node))
-    return unsignedp ? unsigned_intTI_type_node : intTI_type_node;
-
-  return NULL_TREE;
-}
-
 
 /* Return a data type that has machine mode MODE.
    If the mode is an integer,
@@ -847,9 +951,10 @@ lto_type_for_size (unsigned precision, int unsignedp)
    then UNSIGNEDP selects between saturating and nonsaturating types.  */
 
 static tree
-lto_type_for_mode (enum machine_mode mode, int unsigned_p)
+lto_type_for_mode (machine_mode mode, int unsigned_p)
 {
   tree t;
+  int i;
 
   if (mode == TYPE_MODE (integer_type_node))
     return unsigned_p ? unsigned_type_node : integer_type_node;
@@ -865,6 +970,12 @@ lto_type_for_mode (enum machine_mode mode, int unsigned_p)
 
   if (mode == TYPE_MODE (long_long_integer_type_node))
     return unsigned_p ? long_long_unsigned_type_node : long_long_integer_type_node;
+
+  for (i = 0; i < NUM_INT_N_ENTS; i ++)
+    if (int_n_enabled_p[i]
+	&& mode == int_n_data[i].m)
+      return (unsigned_p ? int_n_trees[i].unsigned_type
+	      : int_n_trees[i].signed_type);
 
   if (mode == QImode)
     return unsigned_p ? unsigned_intQI_type_node : intQI_type_node;
@@ -895,19 +1006,19 @@ lto_type_for_mode (enum machine_mode mode, int unsigned_p)
   if (mode == TYPE_MODE (void_type_node))
     return void_type_node;
 
-  if (mode == TYPE_MODE (build_pointer_type (char_type_node)))
-    return (unsigned_p
-	    ? make_unsigned_type (GET_MODE_PRECISION (mode))
-	    : make_signed_type (GET_MODE_PRECISION (mode)));
-
-  if (mode == TYPE_MODE (build_pointer_type (integer_type_node)))
-    return (unsigned_p
-	    ? make_unsigned_type (GET_MODE_PRECISION (mode))
-	    : make_signed_type (GET_MODE_PRECISION (mode)));
+  if (mode == TYPE_MODE (build_pointer_type (char_type_node))
+      || mode == TYPE_MODE (build_pointer_type (integer_type_node)))
+    {
+      unsigned int precision
+	= GET_MODE_PRECISION (as_a <scalar_int_mode> (mode));
+      return (unsigned_p
+	      ? make_unsigned_type (precision)
+	      : make_signed_type (precision));
+    }
 
   if (COMPLEX_MODE_P (mode))
     {
-      enum machine_mode inner_mode;
+      machine_mode inner_mode;
       tree inner_type;
 
       if (mode == TYPE_MODE (complex_float_type_node))
@@ -925,9 +1036,18 @@ lto_type_for_mode (enum machine_mode mode, int unsigned_p)
       if (inner_type != NULL_TREE)
 	return build_complex_type (inner_type);
     }
-  else if (VECTOR_MODE_P (mode))
+  else if (GET_MODE_CLASS (mode) == MODE_VECTOR_BOOL
+	   && valid_vector_subparts_p (GET_MODE_NUNITS (mode)))
     {
-      enum machine_mode inner_mode = GET_MODE_INNER (mode);
+      unsigned int elem_bits = vector_element_size (GET_MODE_BITSIZE (mode),
+						    GET_MODE_NUNITS (mode));
+      tree bool_type = build_nonstandard_boolean_type (elem_bits);
+      return build_vector_type_for_mode (bool_type, mode);
+    }
+  else if (VECTOR_MODE_P (mode)
+	   && valid_vector_subparts_p (GET_MODE_NUNITS (mode)))
+    {
+      machine_mode inner_mode = GET_MODE_INNER (mode);
       tree inner_type = lto_type_for_mode (inner_mode, unsigned_p);
       if (inner_type != NULL_TREE)
 	return build_vector_type_for_mode (inner_type, mode);
@@ -1083,19 +1203,6 @@ lto_getdecls (void)
   return NULL_TREE;
 }
 
-static void
-lto_write_globals (void)
-{
-  if (flag_wpa)
-    return;
-
-  /* Output debug info for global variables.  */  
-  varpool_node *vnode;
-  FOR_EACH_DEFINED_VARIABLE (vnode)
-    if (!decl_function_context (vnode->decl))
-      debug_hooks->global_decl (vnode->decl);
-}
-
 static tree
 lto_builtin_function (tree decl)
 {
@@ -1150,7 +1257,26 @@ lto_build_c_type_nodes (void)
       signed_size_type_node = long_long_integer_type_node;
     }
   else
-    gcc_unreachable ();
+    {
+      int i;
+
+      signed_size_type_node = NULL_TREE;
+      for (i = 0; i < NUM_INT_N_ENTS; i++)
+	if (int_n_enabled_p[i])
+	  {
+	    char name[50];
+	    sprintf (name, "__int%d unsigned", int_n_data[i].bitsize);
+
+	    if (strcmp (name, SIZE_TYPE) == 0)
+	      {
+		intmax_type_node = int_n_trees[i].signed_type;
+		uintmax_type_node = int_n_trees[i].unsigned_type;
+		signed_size_type_node = int_n_trees[i].signed_type;
+	      }
+	  }
+      if (signed_size_type_node == NULL_TREE)
+	gcc_unreachable ();
+    }
 
   wint_type_node = unsigned_type_node;
   pid_type_node = integer_type_node;
@@ -1161,11 +1287,17 @@ lto_build_c_type_nodes (void)
 static bool
 lto_init (void)
 {
+  int i;
+
+  /* Initialize LTO-specific data structures.  */
+  in_lto_p = true;
+
   /* We need to generate LTO if running in WPA mode.  */
-  flag_generate_lto = (flag_wpa != NULL);
+  flag_generate_lto = (flag_incremental_link == INCREMENTAL_LINK_LTO
+		       || flag_wpa != NULL);
 
   /* Create the basic integer types.  */
-  build_common_tree_nodes (flag_signed_char, flag_short_double);
+  build_common_tree_nodes (flag_signed_char);
 
   /* The global tree for the main identifier is filled in by
      language-specific front-end initialization that is not run in the
@@ -1175,13 +1307,19 @@ lto_init (void)
     main_identifier_node = get_identifier ("main");
 
   /* In the C++ front-end, fileptr_type_node is defined as a variant
-     copy of of ptr_type_node, rather than ptr_node itself.  The
+     copy of ptr_type_node, rather than ptr_node itself.  The
      distinction should only be relevant to the front-end, so we
-     always use the C definition here in lto1.  */
-  gcc_assert (fileptr_type_node == ptr_type_node);
-  gcc_assert (TYPE_MAIN_VARIANT (fileptr_type_node) == ptr_type_node);
-
-  ptrdiff_type_node = integer_type_node;
+     always use the C definition here in lto1.
+     Likewise for const struct tm*.  */
+  for (unsigned i = 0;
+       i < sizeof (builtin_structptr_types) / sizeof (builtin_structptr_type);
+       ++i)
+    {
+      gcc_assert (builtin_structptr_types[i].node
+		  == builtin_structptr_types[i].base);
+      gcc_assert (TYPE_MAIN_VARIANT (builtin_structptr_types[i].node)
+		  == builtin_structptr_types[i].base);
+    }
 
   lto_build_c_type_nodes ();
   gcc_assert (va_list_type_node);
@@ -1196,9 +1334,6 @@ lto_init (void)
       lto_define_builtins (build_reference_type (va_list_type_node),
 			   va_list_type_node);
     }
-
-  if (flag_cilkplus)
-    cilk_init_builtins ();
 
   targetm.init_builtins ();
   build_common_builtin_nodes ();
@@ -1232,15 +1367,34 @@ lto_init (void)
   NAME_TYPE (complex_float_type_node, "complex float");
   NAME_TYPE (complex_double_type_node, "complex double");
   NAME_TYPE (complex_long_double_type_node, "complex long double");
-  if (int128_integer_type_node)
-    NAME_TYPE (int128_integer_type_node, "__int128");
+  for (i = 0; i < NUM_INT_N_ENTS; i++)
+    if (int_n_enabled_p[i])
+      {
+	char name[50];
+	sprintf (name, "__int%d", int_n_data[i].bitsize);
+	NAME_TYPE (int_n_trees[i].signed_type, name);
+      }
 #undef NAME_TYPE
-
-  /* Initialize LTO-specific data structures.  */
-  in_lto_p = true;
 
   return true;
 }
+
+/* Register c++-specific dumps.  */
+
+void
+lto_register_dumps (gcc::dump_manager *dumps)
+{
+  lto_link_dump_id = dumps->dump_register
+    (".lto-link", "ipa-lto-link", "ipa-lto-link",
+     DK_ipa, OPTGROUP_NONE, false);
+  decl_merge_dump_id = dumps->dump_register
+    (".lto-decl-merge", "ipa-lto-decl-merge", "ipa-lto-decl-merge",
+     DK_ipa, OPTGROUP_NONE, false);
+  partition_dump_id = dumps->dump_register
+    (".lto-partition", "ipa-lto-partition", "ipa-lto-partition",
+     DK_ipa, OPTGROUP_NONE, false);
+}
+
 
 /* Initialize tree structures required by the LTO front end.  */
 
@@ -1257,6 +1411,8 @@ static void lto_init_ts (void)
 #define LANG_HOOKS_COMPLAIN_WRONG_LANG_P lto_complain_wrong_lang_p
 #undef LANG_HOOKS_INIT_OPTIONS_STRUCT
 #define LANG_HOOKS_INIT_OPTIONS_STRUCT lto_init_options_struct
+#undef LANG_HOOKS_REGISTER_DUMPS
+#define LANG_HOOKS_REGISTER_DUMPS lto_register_dumps
 #undef LANG_HOOKS_HANDLE_OPTION
 #define LANG_HOOKS_HANDLE_OPTION lto_handle_option
 #undef LANG_HOOKS_POST_OPTIONS
@@ -1265,8 +1421,6 @@ static void lto_init_ts (void)
 #define LANG_HOOKS_GET_ALIAS_SET gimple_get_alias_set
 #undef LANG_HOOKS_TYPE_FOR_MODE
 #define LANG_HOOKS_TYPE_FOR_MODE lto_type_for_mode
-#undef LANG_HOOKS_TYPE_FOR_SIZE
-#define LANG_HOOKS_TYPE_FOR_SIZE lto_type_for_size
 #undef LANG_HOOKS_SET_DECL_ASSEMBLER_NAME
 #define LANG_HOOKS_SET_DECL_ASSEMBLER_NAME lto_set_decl_assembler_name
 #undef LANG_HOOKS_GLOBAL_BINDINGS_P
@@ -1275,8 +1429,6 @@ static void lto_init_ts (void)
 #define LANG_HOOKS_PUSHDECL lto_pushdecl
 #undef LANG_HOOKS_GETDECLS
 #define LANG_HOOKS_GETDECLS lto_getdecls
-#undef LANG_HOOKS_WRITE_GLOBALS
-#define LANG_HOOKS_WRITE_GLOBALS lto_write_globals
 #undef LANG_HOOKS_REGISTER_BUILTIN_TYPE
 #define LANG_HOOKS_REGISTER_BUILTIN_TYPE lto_register_builtin_type
 #undef LANG_HOOKS_BUILTIN_FUNCTION

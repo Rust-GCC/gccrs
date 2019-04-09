@@ -1,5 +1,5 @@
 /* Demangler for the D programming language
-   Copyright 2014 Free Software Foundation, Inc.
+   Copyright (C) 2014-2019 Free Software Foundation, Inc.
    Written by Iain Buclaw (ibuclaw@gdcproject.org)
 
 This file is part of the libiberty library.
@@ -26,9 +26,7 @@ You should have received a copy of the GNU Library General Public
 License along with libiberty; see the file COPYING.LIB.
 If not, see <http://www.gnu.org/licenses/>.  */
 
-/* This file exports one function; dlang_demangle.
-
-   This file imports strtol and strtold for decoding mangled literals.  */
+/* This file exports one function; dlang_demangle.  */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -42,9 +40,6 @@ If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
-#else
-extern long strtol (const char *nptr, char **endptr, int base);
-extern long double strtold (const char *nptr, char **endptr);
 #endif
 
 #include <demangle.h>
@@ -165,6 +160,21 @@ string_prepend (string *p, const char *s)
     }
 }
 
+/* What kinds of symbol we could be parsing.  */
+enum dlang_symbol_kinds
+{
+  /* Top-level symbol, needs it's type checked.  */
+  dlang_top_level,
+  /* Function symbol, needs it's type checked.   */
+  dlang_function,
+  /* Strongly typed name, such as for classes, structs and enums.  */
+  dlang_type_name,
+  /* Template identifier.  */
+  dlang_template_ident,
+  /* Template symbol parameter.  */
+  dlang_template_param
+};
+
 /* Prototypes for forward referenced functions */
 static const char *dlang_function_args (string *, const char *);
 
@@ -172,12 +182,90 @@ static const char *dlang_type (string *, const char *);
 
 static const char *dlang_value (string *, const char *, const char *, char);
 
-static const char *dlang_parse_symbol (string *, const char *);
+static const char *dlang_parse_qualified (string *, const char *,
+					  enum dlang_symbol_kinds);
+
+static const char *dlang_parse_mangle (string *, const char *,
+				       enum dlang_symbol_kinds);
 
 static const char *dlang_parse_tuple (string *, const char *);
 
 static const char *dlang_parse_template (string *, const char *, long);
 
+
+/* Extract the number from MANGLED, and assign the result to RET.
+   Return the remaining string on success or NULL on failure.  */
+static const char *
+dlang_number (const char *mangled, long *ret)
+{
+  /* Return NULL if trying to extract something that isn't a digit.  */
+  if (mangled == NULL || !ISDIGIT (*mangled))
+    return NULL;
+
+  (*ret) = 0;
+
+  while (ISDIGIT (*mangled))
+    {
+      (*ret) *= 10;
+
+      /* If an overflow occured when multiplying by ten, the result
+	 will not be a multiple of ten.  */
+      if ((*ret % 10) != 0)
+	return NULL;
+
+      (*ret) += mangled[0] - '0';
+      mangled++;
+    }
+
+  if (*mangled == '\0' || *ret < 0)
+    return NULL;
+
+  return mangled;
+}
+
+/* Extract the hex-digit from MANGLED, and assign the result to RET.
+   Return the remaining string on success or NULL on failure.  */
+static const char *
+dlang_hexdigit (const char *mangled, char *ret)
+{
+  char c;
+
+  /* Return NULL if trying to extract something that isn't a hexdigit.  */
+  if (mangled == NULL || !ISXDIGIT (mangled[0]) || !ISXDIGIT (mangled[1]))
+    return NULL;
+
+  c = mangled[0];
+  if (!ISDIGIT (c))
+    (*ret) = (c - (ISUPPER (c) ? 'A' : 'a') + 10);
+  else
+    (*ret) = (c - '0');
+
+  c = mangled[1];
+  if (!ISDIGIT (c))
+    (*ret) = (*ret << 4) | (c - (ISUPPER (c) ? 'A' : 'a') + 10);
+  else
+    (*ret) = (*ret << 4) | (c - '0');
+
+  mangled += 2;
+
+  return mangled;
+}
+
+/* Extract the function calling convention from MANGLED and
+   return 1 on success or 0 on failure.  */
+static int
+dlang_call_convention_p (const char *mangled)
+{
+  switch (*mangled)
+    {
+    case 'F': case 'U': case 'V':
+    case 'W': case 'R': case 'Y':
+      return 1;
+
+    default:
+      return 0;
+    }
+}
 
 /* Demangle the calling convention from MANGLED and append it to DECL.
    Return the remaining string on success or NULL on failure.  */
@@ -185,7 +273,7 @@ static const char *
 dlang_call_convention (string *decl, const char *mangled)
 {
   if (mangled == NULL || *mangled == '\0')
-    return mangled;
+    return NULL;
 
   switch (*mangled)
     {
@@ -208,11 +296,53 @@ dlang_call_convention (string *decl, const char *mangled)
       mangled++;
       string_append (decl, "extern(C++) ");
       break;
+    case 'Y': /* (Objective-C) */
+      mangled++;
+      string_append (decl, "extern(Objective-C) ");
+      break;
     default:
       return NULL;
     }
 
   return mangled;
+}
+
+/* Extract the type modifiers from MANGLED and append them to DECL.
+   Returns the remaining signature on success or NULL on failure.  */
+static const char *
+dlang_type_modifiers (string *decl, const char *mangled)
+{
+  if (mangled == NULL || *mangled == '\0')
+    return NULL;
+
+  switch (*mangled)
+    {
+    case 'x': /* const */
+      mangled++;
+      string_append (decl, " const");
+      return mangled;
+    case 'y': /* immutable */
+      mangled++;
+      string_append (decl, " immutable");
+      return mangled;
+    case 'O': /* shared */
+      mangled++;
+      string_append (decl, " shared");
+      return dlang_type_modifiers (decl, mangled);
+    case 'N':
+      mangled++;
+      if (*mangled == 'g') /* wild */
+	{
+	  mangled++;
+	  string_append (decl, " inout");
+	  return dlang_type_modifiers (decl, mangled);
+	}
+      else
+	return NULL;
+
+    default:
+      return mangled;
+    }
 }
 
 /* Demangle the D function attributes from MANGLED and append it to DECL.
@@ -221,7 +351,7 @@ static const char *
 dlang_attributes (string *decl, const char *mangled)
 {
   if (mangled == NULL || *mangled == '\0')
-    return mangled;
+    return NULL;
 
   while (*mangled == 'N')
     {
@@ -254,8 +384,10 @@ dlang_attributes (string *decl, const char *mangled)
 	  continue;
 	case 'g':
 	case 'h':
+	case 'k':
 	  /* inout parameter is represented as 'Ng'.
 	     vector parameter is represented as 'Nh'.
+	     return paramenter is represented as 'Nk'.
 	     If we see this, then we know we're really in the
 	     parameter list.  Rewind and break.  */
 	  mangled--;
@@ -264,6 +396,17 @@ dlang_attributes (string *decl, const char *mangled)
 	  mangled++;
 	  string_append (decl, "@nogc ");
 	  continue;
+	case 'j': /* return */
+	  mangled++;
+	  string_append (decl, "return ");
+	  continue;
+	case 'l': /* scope */
+	  mangled++;
+	  string_append (decl, "scope ");
+	  continue;
+
+	default: /* unknown attribute */
+	  return NULL;
 	}
       break;
     }
@@ -280,7 +423,7 @@ dlang_function_type (string *decl, const char *mangled)
   size_t szattr, szargs, sztype;
 
   if (mangled == NULL || *mangled == '\0')
-    return mangled;
+    return NULL;
 
   /* The order of the mangled string is:
 	CallConvention FuncAttrs Arguments ArgClose Type
@@ -337,7 +480,9 @@ dlang_function_args (string *decl, const char *mangled)
 	  return mangled;
 	case 'Y': /* (variadic T t, ...) style.  */
 	  mangled++;
-	  string_append (decl, ", ...");
+	  if (n != 0)
+	    string_append (decl, ", ");
+	  string_append (decl, "...");
 	  return mangled;
 	case 'Z': /* Normal function.  */
 	  mangled++;
@@ -351,6 +496,12 @@ dlang_function_args (string *decl, const char *mangled)
 	{
 	  mangled++;
 	  string_append (decl, "scope ");
+	}
+
+      if (mangled[0] == 'N' && mangled[1] == 'k') /* return(T) */
+	{
+	  mangled += 2;
+	  string_append (decl, "return ");
 	}
 
       switch (*mangled)
@@ -380,7 +531,7 @@ static const char *
 dlang_type (string *decl, const char *mangled)
 {
   if (mangled == NULL || *mangled == '\0')
-    return mangled;
+    return NULL;
 
   switch (*mangled)
     {
@@ -465,8 +616,22 @@ dlang_type (string *decl, const char *mangled)
     }
     case 'P': /* pointer (T*) */
       mangled++;
-      mangled = dlang_type (decl, mangled);
-      string_append (decl, "*");
+      if (!dlang_call_convention_p (mangled))
+	{
+	  mangled = dlang_type (decl, mangled);
+	  string_append (decl, "*");
+	  return mangled;
+	}
+      /* Fall through */
+    case 'F': /* function T (D) */
+    case 'U': /* function T (C) */
+    case 'W': /* function T (Windows) */
+    case 'V': /* function T (Pascal) */
+    case 'R': /* function T (C++) */
+    case 'Y': /* function T (Objective-C) */
+      /* Function pointer types don't include the trailing asterisk.  */
+      mangled = dlang_function_type (decl, mangled);
+      string_append (decl, "function");
       return mangled;
     case 'I': /* ident T */
     case 'C': /* class T */
@@ -474,22 +639,27 @@ dlang_type (string *decl, const char *mangled)
     case 'E': /* enum T */
     case 'T': /* typedef T */
       mangled++;
-      return dlang_parse_symbol (decl, mangled);
+      return dlang_parse_qualified (decl, mangled, dlang_type_name);
     case 'D': /* delegate T */
+    {
+      string mods;
+      size_t szmods;
       mangled++;
+
+      string_init (&mods);
+      mangled = dlang_type_modifiers (&mods, mangled);
+      szmods = string_length (&mods);
+
       mangled = dlang_function_type (decl, mangled);
       string_append (decl, "delegate");
+      string_appendn (decl, mods.b, szmods);
+
+      string_delete (&mods);
       return mangled;
+    }
     case 'B': /* tuple T */
       mangled++;
       return dlang_parse_tuple (decl, mangled);
-
-    /* Function types */
-    case 'F': case 'U': case 'W':
-    case 'V': case 'R':
-      mangled = dlang_function_type (decl, mangled);
-      string_append (decl, "function");
-      return mangled;
 
     /* Basic types */
     case 'n':
@@ -588,6 +758,20 @@ dlang_type (string *decl, const char *mangled)
       mangled++;
       string_append (decl, "dchar");
       return mangled;
+    case 'z':
+      mangled++;
+      switch (*mangled)
+	{
+	case 'i':
+	  mangled++;
+	  string_append (decl, "cent");
+	  return mangled;
+	case 'k':
+	  mangled++;
+	  string_append (decl, "ucent");
+	  return mangled;
+	}
+      return NULL;
 
     default: /* unhandled */
       return NULL;
@@ -597,97 +781,151 @@ dlang_type (string *decl, const char *mangled)
 /* Extract the identifier from MANGLED and append it to DECL.
    Return the remaining string on success or NULL on failure.  */
 static const char *
-dlang_identifier (string *decl, const char *mangled)
+dlang_identifier (string *decl, const char *mangled,
+		  enum dlang_symbol_kinds kind)
 {
-  if (mangled == NULL || *mangled == '\0')
-    return mangled;
+  long len;
+  const char *endptr = dlang_number (mangled, &len);
 
-  if (ISDIGIT (*mangled))
+  if (endptr == NULL || len == 0)
+    return NULL;
+
+  /* In template parameter symbols, the first character of the mangled
+     name can be a digit.  This causes ambiguity issues because the
+     digits of the two numbers are adjacent.  */
+  if (kind == dlang_template_param)
     {
-      char *endptr;
-      long i = strtol (mangled, &endptr, 10);
+      long psize = len;
+      const char *pend;
+      int saved = string_length (decl);
 
-      if (endptr == NULL || i <= 0 || strlen (endptr) < (size_t) i)
+      /* Work backwards until a match is found.  */
+      for (pend = endptr; endptr != NULL; pend--)
+	{
+	  mangled = pend;
+
+	  /* Reached the beginning of the pointer to the name length,
+	     try parsing the entire symbol.  */
+	  if (psize == 0)
+	    {
+	      psize = len;
+	      pend = endptr;
+	      endptr = NULL;
+	    }
+
+	  /* Check whether template parameter is a function with a valid
+	     return type or an untyped identifier.  */
+	  if (ISDIGIT (*mangled))
+	    mangled = dlang_parse_qualified (decl, mangled,
+					     dlang_template_ident);
+	  else if (strncmp (mangled, "_D", 2) == 0)
+	    mangled = dlang_parse_mangle (decl, mangled, dlang_function);
+
+	  /* Check for name length mismatch.  */
+	  if (mangled && (mangled - pend) == psize)
+	    return mangled;
+
+	  psize /= 10;
+	  string_setlength (decl, saved);
+	}
+
+      /* No match on any combinations.  */
+      return NULL;
+    }
+  else
+    {
+      if (strlen (endptr) < (size_t) len)
 	return NULL;
 
       mangled = endptr;
 
       /* May be a template instance.  */
-      if (i >= 5 && strncmp (mangled, "__T", 3) == 0)
-	{
-	  /* Template symbol.  */
-	  if (ISDIGIT (mangled[3]) && mangled[3] != '0')
-	    return dlang_parse_template (decl, mangled, i);
+      if (len >= 5 && mangled[0] == '_' && mangled[1] == '_'
+	  && (mangled[2] == 'T' || mangled[2] == 'U'))
+	return dlang_parse_template (decl, mangled, len);
 
-	  return NULL;
+      switch (len)
+	{
+	case 6:
+	  if (strncmp (mangled, "__ctor", len) == 0)
+	    {
+	      /* Constructor symbol for a class/struct.  */
+	      string_append (decl, "this");
+	      mangled += len;
+	      return mangled;
+	    }
+	  else if (strncmp (mangled, "__dtor", len) == 0)
+	    {
+	      /* Destructor symbol for a class/struct.  */
+	      string_append (decl, "~this");
+	      mangled += len;
+	      return mangled;
+	    }
+	  else if (strncmp (mangled, "__initZ", len+1) == 0)
+	    {
+	      /* The static initialiser for a given symbol.  */
+	      string_prepend (decl, "initializer for ");
+	      string_setlength (decl, string_length (decl) - 1);
+	      mangled += len;
+	      return mangled;
+	    }
+	  else if (strncmp (mangled, "__vtblZ", len+1) == 0)
+	    {
+	      /* The vtable symbol for a given class.  */
+	      string_prepend (decl, "vtable for ");
+	      string_setlength (decl, string_length (decl) - 1);
+	      mangled += len;
+	      return mangled;
+	    }
+	  break;
+
+	case 7:
+	  if (strncmp (mangled, "__ClassZ", len+1) == 0)
+	    {
+	      /* The classinfo symbol for a given class.  */
+	      string_prepend (decl, "ClassInfo for ");
+	      string_setlength (decl, string_length (decl) - 1);
+	      mangled += len;
+	      return mangled;
+	    }
+	  break;
+
+	case 10:
+	  if (strncmp (mangled, "__postblitMFZ", len+3) == 0)
+	    {
+	      /* Postblit symbol for a struct.  */
+	      string_append (decl, "this(this)");
+	      mangled += len + 3;
+	      return mangled;
+	    }
+	  break;
+
+	case 11:
+	  if (strncmp (mangled, "__InterfaceZ", len+1) == 0)
+	    {
+	      /* The interface symbol for a given class.  */
+	      string_prepend (decl, "Interface for ");
+	      string_setlength (decl, string_length (decl) - 1);
+	      mangled += len;
+	      return mangled;
+	    }
+	  break;
+
+	case 12:
+	  if (strncmp (mangled, "__ModuleInfoZ", len+1) == 0)
+	    {
+	      /* The ModuleInfo symbol for a given module.  */
+	      string_prepend (decl, "ModuleInfo for ");
+	      string_setlength (decl, string_length (decl) - 1);
+	      mangled += len;
+	      return mangled;
+	    }
+	  break;
 	}
 
-      if (strncmp (mangled, "__ctor", i) == 0)
-	{
-	  /* Constructor symbol for a class/struct.  */
-	  string_append (decl, "this");
-	  mangled += i;
-	  return mangled;
-	}
-      else if (strncmp (mangled, "__dtor", i) == 0)
-	{
-	  /* Destructor symbol for a class/struct.  */
-	  string_append (decl, "~this");
-	  mangled += i;
-	  return mangled;
-	}
-      else if (strncmp (mangled, "__postblit", i) == 0)
-	{
-	  /* Postblit symbol for a struct.  */
-	  string_append (decl, "this(this)");
-	  mangled += i;
-	  return mangled;
-	}
-      else if (strncmp (mangled, "__initZ", i+1) == 0)
-	{
-	  /* The static initialiser for a given symbol.  */
-	  string_append (decl, "init$");
-	  mangled += i + 1;
-	  return mangled;
-	}
-      else if (strncmp (mangled, "__ClassZ", i+1) == 0)
-	{
-	  /* The classinfo symbol for a given class.  */
-	  string_prepend (decl, "ClassInfo for ");
-	  string_setlength (decl, string_length (decl) - 1);
-	  mangled += i + 1;
-	  return mangled;
-	}
-      else if (strncmp (mangled, "__vtblZ", i+1) == 0)
-	{
-	  /* The vtable symbol for a given class.  */
-	  string_prepend (decl, "vtable for ");
-	  string_setlength (decl, string_length (decl) - 1);
-	  mangled += i + 1;
-	  return mangled;
-	}
-      else if (strncmp (mangled, "__InterfaceZ", i+1) == 0)
-	{
-	  /* The interface symbol for a given class.  */
-	  string_prepend (decl, "Interface for ");
-	  string_setlength (decl, string_length (decl) - 1);
-	  mangled += i + 1;
-	  return mangled;
-	}
-      else if (strncmp (mangled, "__ModuleInfoZ", i+1) == 0)
-	{
-	  /* The ModuleInfo symbol for a given module.  */
-	  string_prepend (decl, "ModuleInfo for ");
-	  string_setlength (decl, string_length (decl) - 1);
-	  mangled += i + 1;
-	  return mangled;
-	}
-
-      string_appendn (decl, mangled, i);
-      mangled += i;
+      string_appendn (decl, mangled, len);
+      mangled += len;
     }
-  else
-    return NULL;
 
   return mangled;
 }
@@ -704,10 +942,10 @@ dlang_parse_integer (string *decl, const char *mangled, char type)
       char value[10];
       int pos = 10;
       int width = 0;
-      char *endptr;
-      long val = strtol (mangled, &endptr, 10);
+      long val;
 
-      if (endptr == NULL || val < 0)
+      mangled = dlang_number (mangled, &val);
+      if (mangled == NULL)
 	return NULL;
 
       string_append (decl, "'");
@@ -756,25 +994,26 @@ dlang_parse_integer (string *decl, const char *mangled, char type)
 	  string_appendn (decl, &(value[pos]), 10 - pos);
 	}
       string_append (decl, "'");
-      mangled = endptr;
     }
   else if (type == 'b')
     {
       /* Parse boolean value.  */
-      char *endptr;
-      long val = strtol (mangled, &endptr, 10);
+      long val;
 
-      if (endptr == NULL || val < 0)
+      mangled = dlang_number (mangled, &val);
+      if (mangled == NULL)
 	return NULL;
 
       string_append (decl, val ? "true" : "false");
-      mangled = endptr;
     }
   else
     {
       /* Parse integer value.  */
       const char *numptr = mangled;
       size_t num = 0;
+
+      if (! ISDIGIT (*mangled))
+	return NULL;
 
       while (ISDIGIT (*mangled))
 	{
@@ -808,11 +1047,6 @@ dlang_parse_integer (string *decl, const char *mangled, char type)
 static const char *
 dlang_parse_real (string *decl, const char *mangled)
 {
-  char buffer[64];
-  int len = 0;
-  long double value;
-  char *endptr;
-
   /* Handle NAN and +-INF.  */
   if (strncmp (mangled, "NAN", 3) == 0)
     {
@@ -836,23 +1070,22 @@ dlang_parse_real (string *decl, const char *mangled)
   /* Hexadecimal prefix and leading bit.  */
   if (*mangled == 'N')
     {
-      buffer[len++] = '-';
+      string_append (decl, "-");
       mangled++;
     }
 
   if (!ISXDIGIT (*mangled))
     return NULL;
 
-  buffer[len++] = '0';
-  buffer[len++] = 'x';
-  buffer[len++] = *mangled;
-  buffer[len++] = '.';
+  string_append (decl, "0x");
+  string_appendn (decl, mangled, 1);
+  string_append (decl, ".");
   mangled++;
 
   /* Significand.  */
   while (ISXDIGIT (*mangled))
     {
-      buffer[len++] = *mangled;
+      string_appendn (decl, mangled, 1);
       mangled++;
     }
 
@@ -860,47 +1093,22 @@ dlang_parse_real (string *decl, const char *mangled)
   if (*mangled != 'P')
     return NULL;
 
-  buffer[len++] = 'p';
+  string_append (decl, "p");
   mangled++;
 
   if (*mangled == 'N')
     {
-      buffer[len++] = '-';
+      string_append (decl, "-");
       mangled++;
     }
 
   while (ISDIGIT (*mangled))
     {
-      buffer[len++] = *mangled;
+      string_appendn (decl, mangled, 1);
       mangled++;
     }
 
-  /* Convert buffer from hexadecimal to floating-point.  */
-  buffer[len] = '\0';
-  value = strtold (buffer, &endptr);
-
-  if (endptr == NULL || endptr != (buffer + len))
-    return NULL;
-
-  len = snprintf (buffer, sizeof(buffer), "%#Lg", value);
-  string_appendn (decl, buffer, len);
   return mangled;
-}
-
-/* Convert VAL from an ascii hexdigit to value.  */
-static char
-ascii2hex (char val)
-{
-  if (val >= 'a' && val <= 'f')
-    return (val - 'a' + 10);
-
-  if (val >= 'A' && val <= 'F')
-    return (val - 'A' + 10);
-
-  if (val >= '0' && val <= '9')
-    return (val - '0');
-
-  return 0;
 }
 
 /* Extract the string value from MANGLED and append it to DECL.
@@ -909,34 +1117,56 @@ static const char *
 dlang_parse_string (string *decl, const char *mangled)
 {
   char type = *mangled;
-  char *endptr;
   long len;
 
   mangled++;
-  len = strtol (mangled, &endptr, 10);
-
-  if (endptr == NULL || len < 0)
-    return NULL;
-
-  mangled = endptr;
-  if (*mangled != '_')
+  mangled = dlang_number (mangled, &len);
+  if (mangled == NULL || *mangled != '_')
     return NULL;
 
   mangled++;
   string_append (decl, "\"");
   while (len--)
     {
-      if (ISXDIGIT (mangled[0]) && ISXDIGIT (mangled[1]))
-	{
-	  char a = ascii2hex (mangled[0]);
-	  char b = ascii2hex (mangled[1]);
-	  char val = (a << 4) | b;
-	  string_appendn (decl, &val, 1);
-	}
-      else
+      char val;
+      const char *endptr = dlang_hexdigit (mangled, &val);
+
+      if (endptr == NULL)
 	return NULL;
 
-      mangled += 2;
+      /* Sanitize white and non-printable characters.  */
+      switch (val)
+	{
+	case ' ':
+	  string_append (decl, " ");
+	  break;
+	case '\t':
+	  string_append (decl, "\\t");
+	  break;
+	case '\n':
+	  string_append (decl, "\\n");
+	  break;
+	case '\r':
+	  string_append (decl, "\\r");
+	  break;
+	case '\f':
+	  string_append (decl, "\\f");
+	  break;
+	case '\v':
+	  string_append (decl, "\\v");
+	  break;
+
+	default:
+	  if (ISPRINT (val))
+	    string_appendn (decl, &val, 1);
+	  else
+	    {
+	      string_append (decl, "\\x");
+	      string_appendn (decl, mangled, 2);
+	    }
+	}
+
+      mangled = endptr;
     }
   string_append (decl, "\"");
 
@@ -951,13 +1181,12 @@ dlang_parse_string (string *decl, const char *mangled)
 static const char *
 dlang_parse_arrayliteral (string *decl, const char *mangled)
 {
-  char *endptr;
-  long elements = strtol (mangled, &endptr, 10);
+  long elements;
 
-  if (endptr == NULL || elements < 0)
+  mangled = dlang_number (mangled, &elements);
+  if (mangled == NULL)
     return NULL;
 
-  mangled = endptr;
   string_append (decl, "[");
   while (elements--)
     {
@@ -975,13 +1204,12 @@ dlang_parse_arrayliteral (string *decl, const char *mangled)
 static const char *
 dlang_parse_assocarray (string *decl, const char *mangled)
 {
-  char *endptr;
-  long elements = strtol (mangled, &endptr, 10);
+  long elements;
 
-  if (endptr == NULL || elements < 0)
+  mangled = dlang_number (mangled, &elements);
+  if (mangled == NULL)
     return NULL;
 
-  mangled = endptr;
   string_append (decl, "[");
   while (elements--)
     {
@@ -1002,13 +1230,12 @@ dlang_parse_assocarray (string *decl, const char *mangled)
 static const char *
 dlang_parse_structlit (string *decl, const char *mangled, const char *name)
 {
-  char *endptr;
-  long args = strtol (mangled, &endptr, 10);
+  long args;
 
-  if (endptr == NULL || args < 0)
+  mangled = dlang_number (mangled, &args);
+  if (mangled == NULL)
     return NULL;
 
-  mangled = endptr;
   if (name != NULL)
     string_append (decl, name);
 
@@ -1030,7 +1257,7 @@ static const char *
 dlang_value (string *decl, const char *mangled, const char *name, char type)
 {
   if (mangled == NULL || *mangled == '\0')
-    return mangled;
+    return NULL;
 
   switch (*mangled)
     {
@@ -1049,9 +1276,11 @@ dlang_value (string *decl, const char *mangled, const char *name, char type)
 
     case 'i':
       mangled++;
-      if (*mangled < '0' || *mangled > '9')
-	return NULL;
       /* Fall through */
+
+      /* There really should always be an `i' before encoded numbers, but there
+	 wasn't in early versions of D2, so this case range must remain for
+	 backwards compatibility.  */
     case '0': case '1': case '2': case '3': case '4':
     case '5': case '6': case '7': case '8': case '9':
       mangled = dlang_parse_integer (decl, mangled, type);
@@ -1104,57 +1333,133 @@ dlang_value (string *decl, const char *mangled, const char *name, char type)
   return mangled;
 }
 
-static int
-dlang_call_convention_p (const char *mangled)
-{
-  size_t i;
-
-  switch (*mangled)
-    {
-    case 'F': case 'U': case 'V':
-    case 'W': case 'R':
-      return 1;
-
-    case 'M': /* Prefix for functions needing 'this' */
-      i = 1;
-      if (mangled[i] == 'x')
-	i++;
-
-      switch (mangled[i])
-	{
-	case 'F': case 'U': case 'V':
-	case 'W': case 'R':
-	  return 1;
-	}
-
-    default:
-      return 0;
-    }
-}
-
 /* Extract and demangle the symbol in MANGLED and append it to DECL.
    Returns the remaining signature on success or NULL on failure.  */
 static const char *
-dlang_parse_symbol (string *decl, const char *mangled)
+dlang_parse_mangle (string *decl, const char *mangled,
+		    enum dlang_symbol_kinds kind)
 {
+  /* A D mangled symbol is comprised of both scope and type information.
+
+	MangleName:
+	    _D QualifiedName Type
+	    _D QualifiedName M Type
+	    _D QualifiedName Z
+	    ^
+     The caller should have guaranteed that the start pointer is at the
+     above location.
+   */
+  mangled += 2;
+
+  mangled = dlang_parse_qualified (decl, mangled, dlang_top_level);
+
+  if (mangled != NULL)
+    {
+      /* Artificial symbols end with 'Z' and have no type.  */
+      if (*mangled == 'Z')
+	mangled++;
+      else
+	{
+	  string mods;
+	  int saved;
+
+	  /* Skip over 'this' parameter.  */
+	  if (*mangled == 'M')
+	    mangled++;
+
+	  /* Save the type modifiers for appending at the end if needed.  */
+	  string_init (&mods);
+	  mangled = dlang_type_modifiers (&mods, mangled);
+
+	  if (mangled && dlang_call_convention_p (mangled))
+	    {
+	      /* Skip over calling convention and attributes.  */
+	      saved = string_length (decl);
+	      mangled = dlang_call_convention (decl, mangled);
+	      mangled = dlang_attributes (decl, mangled);
+	      string_setlength (decl, saved);
+
+	      string_append (decl, "(");
+	      mangled = dlang_function_args (decl, mangled);
+	      string_append (decl, ")");
+
+	      /* Add any const/immutable/shared modifier. */
+	      string_appendn (decl, mods.b, string_length (&mods));
+	    }
+
+	  /* Consume the decl type of symbol.  */
+	  saved = string_length (decl);
+	  mangled = dlang_type (decl, mangled);
+	  string_setlength (decl, saved);
+
+	  string_delete (&mods);
+	}
+    }
+
+  /* Check that the entire symbol was successfully demangled.  */
+  if (kind == dlang_top_level)
+    {
+      if (mangled == NULL || *mangled != '\0')
+	return NULL;
+    }
+
+  return mangled;
+}
+
+/* Extract and demangle the qualified symbol in MANGLED and append it to DECL.
+   Returns the remaining signature on success or NULL on failure.  */
+static const char *
+dlang_parse_qualified (string *decl, const char *mangled,
+		       enum dlang_symbol_kinds kind)
+{
+  /* Qualified names are identifiers separated by their encoded length.
+     Nested functions also encode their argument types without specifying
+     what they return.
+
+	QualifiedName:
+	    SymbolName
+	    SymbolName QualifiedName
+	    SymbolName TypeFunctionNoReturn QualifiedName
+	    SymbolName M TypeModifiers TypeFunctionNoReturn QualifiedName
+	    ^
+     The start pointer should be at the above location.
+   */
   size_t n = 0;
   do
     {
       if (n++)
 	string_append (decl, ".");
 
-      mangled = dlang_identifier (decl, mangled);
+      /* Skip over anonymous symbols.  */
+      while (*mangled == '0')
+	mangled++;
 
-      if (mangled && dlang_call_convention_p (mangled))
+      mangled = dlang_identifier (decl, mangled, kind);
+
+      /* Consume the encoded arguments.  However if this is not followed by the
+	 next encoded length, then this is not a continuation of a qualified
+	 name, in which case we backtrack and return the current unconsumed
+	 position of the mangled decl.  */
+      if (mangled && (*mangled == 'M' || dlang_call_convention_p (mangled)))
 	{
-	  int saved;
+	  const char *start = mangled;
+	  int saved = string_length (decl);
 
-	  /* Skip over 'this' parameter.  */
+	  /* Skip over 'this' parameter and type modifiers.  */
 	  if (*mangled == 'M')
-	    mangled += (mangled[1] == 'x') ? 2 : 1;
+	    {
+	      mangled++;
+	      mangled = dlang_type_modifiers (decl, mangled);
+	      string_setlength (decl, saved);
+	    }
 
-	  /* Skip over calling convention and attributes in qualified name.  */
-	  saved = string_length (decl);
+	  /* The rule we expect to match in the mangled string is:
+
+		TypeFunctionNoReturn:
+		    CallConvention FuncAttrs Arguments ArgClose
+
+	     The calling convention and function attributes are not included
+	     in the demangled string.  */
 	  mangled = dlang_call_convention (decl, mangled);
 	  mangled = dlang_attributes (decl, mangled);
 	  string_setlength (decl, saved);
@@ -1163,11 +1468,10 @@ dlang_parse_symbol (string *decl, const char *mangled)
 	  mangled = dlang_function_args (decl, mangled);
 	  string_append (decl, ")");
 
-	  /* Demangle the function return type as a kind of sanity test.  */
-	  if (mangled && !ISDIGIT (*mangled))
+	  if (mangled == NULL || !ISDIGIT (*mangled))
 	    {
-	      saved = string_length (decl);
-	      mangled = dlang_type (decl, mangled);
+	      /* Did not match the rule we were looking for.  */
+	      mangled = start;
 	      string_setlength (decl, saved);
 	    }
 	}
@@ -1182,13 +1486,12 @@ dlang_parse_symbol (string *decl, const char *mangled)
 static const char *
 dlang_parse_tuple (string *decl, const char *mangled)
 {
-  char *endptr;
-  long elements = strtol (mangled, &endptr, 10);
+  long elements;
 
-  if (endptr == NULL || elements < 0)
+  mangled = dlang_number (mangled, &elements);
+  if (mangled == NULL)
     return NULL;
 
-  mangled = endptr;
   string_append (decl, "Tuple!(");
 
   while (elements--)
@@ -1221,11 +1524,15 @@ dlang_template_args (string *decl, const char *mangled)
       if (n++)
 	string_append (decl, ", ");
 
+      /* Skip over specialised template prefix.  */
+      if (*mangled == 'H')
+	mangled++;
+
       switch (*mangled)
 	{
 	case 'S': /* Symbol parameter.  */
 	  mangled++;
-	  mangled = dlang_parse_symbol (decl, mangled);
+	  mangled = dlang_identifier (decl, mangled, dlang_template_param);
 	  break;
 	case 'T': /* Type parameter.  */
 	  mangled++;
@@ -1273,17 +1580,20 @@ dlang_parse_template (string *decl, const char *mangled, long len)
 
 	TemplateInstanceName:
 	    Number __T LName TemplateArgs Z
+	    Number __U LName TemplateArgs Z
 		   ^
      The start pointer should be at the above location, and LEN should be
      the value of the decoded number.
    */
-  if (strncmp (mangled, "__T", 3) != 0)
+
+  /* Template symbol.  */
+  if (!ISDIGIT (mangled[3]) || mangled[3] == '0')
     return NULL;
 
   mangled += 3;
 
   /* Template identifier.  */
-  mangled = dlang_identifier (decl, mangled);
+  mangled = dlang_identifier (decl, mangled, dlang_template_ident);
 
   /* Template arguments.  */
   string_append (decl, "!(");
@@ -1320,9 +1630,7 @@ dlang_demangle (const char *mangled, int option ATTRIBUTE_UNUSED)
     }
   else
     {
-      mangled += 2;
-
-      if (dlang_parse_symbol (&decl, mangled) == NULL)
+      if (dlang_parse_mangle (&decl, mangled, dlang_top_level) == NULL)
 	string_delete (&decl);
     }
 

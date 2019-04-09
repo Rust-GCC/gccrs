@@ -1,4 +1,4 @@
-/* Copyright (C) 2006-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2006-2019 Free Software Foundation, Inc.
 
    This file is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
@@ -61,7 +61,7 @@
 #undef TARGET_ASM_NAMED_SECTION
 #define TARGET_ASM_NAMED_SECTION  default_elf_asm_named_section
 
-#define EH_FRAME_IN_DATA_SECTION 1
+#define EH_FRAME_THROUGH_COLLECT2 1
 
 #define LINK_SPEC "%{mlarge-mem: --defsym __stack=0xfffffff0 }"
 

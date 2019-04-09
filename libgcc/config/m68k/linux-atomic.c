@@ -1,5 +1,5 @@
 /* Linux-specific atomic operations for m68k Linux.
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Based on code contributed by CodeSourcery for ARM EABI Linux.
 
 This file is part of GCC.
@@ -33,7 +33,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    using the kernel helper defined below.  There is no support for
    64-bit operations yet.  */
 
-#include <asm/unistd.h>
 #include <stdbool.h>
 
 #ifndef __NR_atomic_cmpxchg_32

@@ -1,6 +1,6 @@
-// 2005-10-08  Paolo Carlini  <pcarlini@suse.de> 
+// 2005-10-08  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,18 +26,16 @@
 // libstdc++/24061
 void test01()
 {
-  bool test __attribute__((unused)) = true;
-  
   typedef std::tr1::unordered_multiset<std::string> Mset;
   typedef Mset::iterator       iterator;
   typedef Mset::const_iterator const_iterator;
 
   Mset ms1;
-  
+
   iterator it1 = ms1.insert(ms1.begin(), "all the love in the world");
   VERIFY( ms1.size() == 1 );
   VERIFY( *it1 == "all the love in the world" );
-  
+
   const_iterator cit1(it1);
   const_iterator cit2 = ms1.insert(cit1, "you know what you are?");
   VERIFY( ms1.size() == 2 );
@@ -49,7 +47,7 @@ void test01()
   VERIFY( it2 != it1 );
   VERIFY( *it2 == "all the love in the world" );
 }
-  
+
 int main()
 {
   test01();

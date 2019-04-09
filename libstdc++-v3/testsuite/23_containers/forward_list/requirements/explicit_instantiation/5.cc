@@ -1,6 +1,5 @@
-// { dg-options "-std=gnu++0x" }
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,8 +21,10 @@
 #include <forward_list>
 #include <testsuite_allocator.h>
 
-// { dg-do compile }
+// { dg-do compile { target c++11 } }
 
 // libstdc++/50118
 template class std::forward_list<int, __gnu_test::ExplicitConsAlloc<int>>;
+#ifndef __STRICT_ANSI__
 template class std::forward_list<int, __gnu_test::ExplicitConsAlloc<char>>;
+#endif

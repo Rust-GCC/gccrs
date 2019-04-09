@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# Copyright (C) 2013 Free Software Foundation, Inc.
+# Copyright (C) 2013-2018 Free Software Foundation, Inc.
 #
 # This script is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,15 +28,15 @@
 # output has been vetted.  You can instead pass the names of individual
 # directories, including those that haven't been approved.  So:
 #
-#    update-copyright.pl --this-year
+#    update-copyright.py --this-year
 #
 # is the command that would be used at the beginning of a year to update
 # all copyright notices (and possibly at other times to check whether
 # new files have been added with old years).  On the other hand:
 #
-#    update-copyright.pl --this-year libjava
+#    update-copyright.py --this-year libitm
 #
-# would run the script on just libjava/.
+# would run the script on just libitm/.
 #
 # Note that things like --version output strings must be updated before
 # this script is run.  There's already a separate procedure for that.
@@ -183,6 +183,7 @@ class Copyright:
             '|[Cc]opyright\s+%s'
             '|[Cc]opyright\s+&copy;'
             '|[Cc]opyright\s+@copyright{}'
+            '|copyright = u\''
             '|@set\s+copyright[\w-]+)'
 
             # 2: the years.  Include the whitespace in the year, so that
@@ -363,7 +364,8 @@ class Copyright:
             return (False, orig_line, next_line)
 
         line = (line[:match.start (2)]
-                + ' ' + canon_form + self.separator
+                + ('' if intro.startswith ('copyright = ') else ' ')
+                + canon_form + self.separator
                 + line[match.end (2):])
 
         # Use the standard (C) form.
@@ -391,8 +393,10 @@ class Copyright:
         lines = []
         changed = False
         line_filter = filter.get_line_filter (dir, filename)
+        mode = None
         with open (pathname, 'r') as file:
             prev = None
+            mode = os.fstat (file.fileno()).st_mode
             for line in file:
                 while line:
                     next_line = None
@@ -419,6 +423,7 @@ class Copyright:
             with open (tmp_pathname, 'w') as file:
                 for line in lines:
                     file.write (line)
+                os.fchmod (file.fileno(), mode)
             if self.use_quilt:
                 subprocess.call (['quilt', 'add', pathname])
             os.rename (tmp_pathname, pathname)
@@ -569,6 +574,7 @@ class TestsuiteFilter (GenericFilter):
                 '.c',
                 '.C',
                 '.cc',
+                '.d',
                 '.h',
                 '.hs',
                 '.f',
@@ -583,6 +589,11 @@ class TestsuiteFilter (GenericFilter):
         # and isn't updated.
         if filename == 'README' and os.path.basename (dir) == 'g++.niklas':
             return True
+        # Similarly params/README.
+        if filename == 'README' and os.path.basename (dir) == 'params':
+            return True
+        if filename == 'pdt_5.f03' and os.path.basename (dir) == 'gfortran.dg':
+	    return True
         return GenericFilter.skip_file (self, dir, filename)
 
 class LibCppFilter (GenericFilter):
@@ -606,36 +617,23 @@ class LibGCCFilter (GenericFilter):
                 'soft-fp',
                 ])
 
-class LibJavaFilter (GenericFilter):
+class LibPhobosFilter (GenericFilter):
     def __init__ (self):
         GenericFilter.__init__ (self)
 
-        self.skip_dirs |= set ([
-                # Handled separately.
-                'testsuite',
-
-                # Not really part of the library
-                'contrib',
-
-                # Imported from upstream
-                'classpath',
-                'libltdl',
+        self.skip_files |= set ([
+                # Source module imported from upstream.
+                'object.d',
                 ])
 
-    def get_line_filter (self, dir, filename):
-        if filename == 'NameDecoder.h':
-            return re.compile ('.*NAME_COPYRIGHT')
-        if filename == 'ICC_Profile.h':
-            return re.compile ('.*icSigCopyrightTag')
-        return GenericFilter.get_line_filter (self, dir, filename)
-
-class LibMudflapFilter (GenericFilter):
-    def __init__ (self):
-        GenericFilter.__init__ (self)
-
         self.skip_dirs |= set ([
-                # Handled separately.
-                'testsuite',
+                # Contains sources imported from upstream.
+                'core',
+                'etc',
+                'gc',
+                'gcstub',
+                'rt',
+                'std',
                 ])
 
 class LibStdCxxFilter (GenericFilter):
@@ -688,12 +686,15 @@ class GCCCopyright (Copyright):
         self.add_external_author ('Cavium Networks.')
         self.add_external_author ('Faraday Technology Corp.')
         self.add_external_author ('Florida State University')
+        self.add_external_author ('Gerard Jungman')
         self.add_external_author ('Greg Colvin and Beman Dawes.')
         self.add_external_author ('Hewlett-Packard Company')
+        self.add_external_author ('Intel Corporation')
         self.add_external_author ('Information Technology Industry Council.')
         self.add_external_author ('James Theiler, Brian Gough')
         self.add_external_author ('Makoto Matsumoto and Takuji Nishimura,')
         self.add_external_author ('National Research Council of Canada.')
+        self.add_external_author ('NVIDIA Corporation')
         self.add_external_author ('Peter Dimov and Multi Media Ltd.')
         self.add_external_author ('Peter Dimov')
         self.add_external_author ('Pipeline Associates, Inc.')
@@ -702,6 +703,7 @@ class GCCCopyright (Copyright):
         self.add_external_author ('Silicon Graphics')
         self.add_external_author ('Stephen L. Moshier')
         self.add_external_author ('Sun Microsystems, Inc. All rights reserved.')
+        self.add_external_author ('The D Language Foundation, All Rights Reserved')
         self.add_external_author ('The Go Authors.  All rights reserved.')
         self.add_external_author ('The Go Authors. All rights reserved.')
         self.add_external_author ('The Go Authors.')
@@ -721,45 +723,56 @@ class GCCCmdLine (CmdLine):
         self.add_dir ('gcc', GCCFilter())
         self.add_dir (os.path.join ('gcc', 'testsuite'), TestsuiteFilter())
         self.add_dir ('gnattools')
+        self.add_dir ('gotools')
         self.add_dir ('include')
+        # intl is imported from upstream.
         self.add_dir ('libada')
         self.add_dir ('libatomic')
         self.add_dir ('libbacktrace')
+        self.add_dir ('libcc1')
         self.add_dir ('libcpp', LibCppFilter())
         self.add_dir ('libdecnumber')
         # libffi is imported from upstream.
         self.add_dir ('libgcc', LibGCCFilter())
         self.add_dir ('libgfortran')
+        # libgo is imported from upstream.
         self.add_dir ('libgomp')
+        self.add_dir ('libhsail-rt')
         self.add_dir ('libiberty')
         self.add_dir ('libitm')
-        self.add_dir ('libjava', LibJavaFilter())
-        self.add_dir (os.path.join ('libjava', 'testsuite'), TestsuiteFilter())
-        self.add_dir ('libmudflap', LibMudflapFilter())
-        self.add_dir (os.path.join ('libmudflap', 'testsuite'),
-                      TestsuiteFilter())
         self.add_dir ('libobjc')
+        # liboffloadmic is imported from upstream.
+        self.add_dir ('libphobos', LibPhobosFilter())
         self.add_dir ('libquadmath')
-        # libsanitiser is imported from upstream.
+        # libsanitizer is imported from upstream.
         self.add_dir ('libssp')
         self.add_dir ('libstdc++-v3', LibStdCxxFilter())
+        self.add_dir ('libvtv')
         self.add_dir ('lto-plugin')
+        # maintainer-scripts maintainer-scripts
         # zlib is imported from upstream.
 
         self.default_dirs = [
             'gcc',
+            'include',
             'libada',
             'libatomic',
             'libbacktrace',
+            'libcc1',
             'libcpp',
             'libdecnumber',
             'libgcc',
             'libgfortran',
             'libgomp',
+            'libhsail-rt',
+            'libiberty',
             'libitm',
-            'libmudflap',
             'libobjc',
+            'libphobos',
+            'libssp',
             'libstdc++-v3',
+            'libvtv',
+            'lto-plugin',
             ]
 
 GCCCmdLine().main()

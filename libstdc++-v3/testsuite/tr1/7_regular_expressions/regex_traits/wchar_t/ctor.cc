@@ -2,7 +2,7 @@
 
 // 2007-03-12  Stephen M. Webb  <stephen.webb@bregmasoft.com>
 //
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -32,7 +32,7 @@ void test01()
 
   // required default constructor
   test_type t;
-  
+
   // Check for required typedefs
   typedef test_type::char_type       char_type;
   typedef test_type::string_type     string_type;
@@ -42,7 +42,7 @@ void test01()
 
 int
 main()
-{ 
+{
   test01();
   return 0;
 }

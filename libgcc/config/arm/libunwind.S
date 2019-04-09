@@ -1,5 +1,5 @@
 /* Support functions for the unwinder.
-   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+   Copyright (C) 2003-2019 Free Software Foundation, Inc.
    Contributed by Paul Brook
 
    This file is free software; you can redistribute it and/or modify it
@@ -46,9 +46,9 @@
 	EQUIV SYM (\name), SYM (__\name)
 .endm
 
-#if (__ARM_ARCH__ == 4)
-/* Some coprocessors require armv5.  We know this code will never be run on
-   other cpus.  Tell gas to allow armv5, but only mark the objects as armv4.
+#if (__ARM_ARCH == 4)
+/* Some coprocessors require armv5t.  We know this code will never be run on
+   other cpus.  Tell gas to allow armv5t, but only mark the objects as armv4.
  */
 .arch armv5t
 #ifdef __ARM_ARCH_4T__
@@ -58,7 +58,7 @@
 #endif
 #endif
 
-#ifdef __ARM_ARCH_6M__
+#if !__ARM_ARCH_ISA_ARM && __ARM_ARCH_ISA_THUMB == 1
 
 /* r0 points to a 16-word block.  Upload these values to the actual core
    state.  */
@@ -169,7 +169,7 @@ FUNC_START gnu_Unwind_Save_WMMXC
 	UNPREFIX \name
 .endm
 
-#else /* !__ARM_ARCH_6M__ */
+#else /* __ARM_ARCH_ISA_ARM || __ARM_ARCH_ISA_THUMB != 1 */
 
 /* r0 points to a 16-word block.  Upload these values to the actual core
    state.  */
@@ -351,7 +351,7 @@ ARM_FUNC_START gnu_Unwind_Save_WMMXC
 	UNPREFIX \name
 .endm
 
-#endif /* !__ARM_ARCH_6M__ */
+#endif /* __ARM_ARCH_ISA_ARM || __ARM_ARCH_ISA_THUMB != 1 */
 
 UNWIND_WRAPPER _Unwind_RaiseException 1
 UNWIND_WRAPPER _Unwind_Resume 1

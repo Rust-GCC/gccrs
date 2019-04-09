@@ -18,9 +18,9 @@
 
 namespace __tsan {
 
-const int kTracePartSizeBits = 14;
+const int kTracePartSizeBits = 13;
 const int kTracePartSize = 1 << kTracePartSizeBits;
-const int kTraceParts = 4 * 1024 * 1024 / kTracePartSize;
+const int kTraceParts = 2 * 1024 * 1024 / kTracePartSize;
 const int kTraceSize = kTracePartSize * kTraceParts;
 
 // Must fit into 3 bits.
@@ -39,32 +39,30 @@ enum EventType {
 // u64 addr : 61;  // Associated pc.
 typedef u64 Event;
 
+const uptr kEventPCBits = 61;
+
 struct TraceHeader {
-  StackTrace stack0;  // Start stack for the trace.
+#if !SANITIZER_GO
+  BufferedStackTrace stack0;  // Start stack for the trace.
+#else
+  VarSizeStackTrace stack0;
+#endif
   u64        epoch0;  // Start epoch for the trace.
   MutexSet   mset0;
-#ifndef TSAN_GO
-  uptr       stack0buf[kTraceStackSize];
-#endif
 
-  TraceHeader()
-#ifndef TSAN_GO
-      : stack0(stack0buf, kTraceStackSize)
-#else
-      : stack0()
-#endif
-      , epoch0() {
-  }
+  TraceHeader() : stack0(), epoch0() {}
 };
 
 struct Trace {
-  TraceHeader headers[kTraceParts];
   Mutex mtx;
-#ifndef TSAN_GO
+#if !SANITIZER_GO
   // Must be last to catch overflow as paging fault.
   // Go shadow stack is dynamically allocated.
   uptr shadow_stack[kShadowStackSize];
 #endif
+  // Must be the last field, because we unmap the unused part in
+  // CreateThreadContext.
+  TraceHeader headers[kTraceParts];
 
   Trace()
     : mtx(MutexTypeTrace, StatMtxTrace) {

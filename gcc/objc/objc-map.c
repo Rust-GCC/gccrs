@@ -1,5 +1,5 @@
 /* objc-map.c -- Implementation of map data structures for ObjC compiler
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Written by Nicola Pero <nicola.pero@meta-innovation.com>
 
 This program is free software; you can redistribute it and/or modify it
@@ -21,7 +21,6 @@ Boston, MA 02110-1301, USA.  */
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
-#include "ggc.h"
 #include "objc-map.h"
 
 #define OUT_OF_MEMORY { fprintf (stderr, "Out of memory\n"); abort (); }

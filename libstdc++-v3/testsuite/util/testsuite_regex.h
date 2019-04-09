@@ -1,7 +1,7 @@
 // -*- C++ -*-
 // regex utils for the C++ library testsuite.
 //
-// Copyright (C) 2012-2014 Free Software Foundation, Inc.
+// Copyright (C) 2012-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -106,7 +106,7 @@ namespace __gnu_test
 
 	show_regex_error_codes();
 	cout << "regex_error::code " << regex_error_codes[e.code()] << endl;
-	
+
 	if (__error != regex_error_internal)
 	  {
 	    // Then expected error_type is __error. Check.

@@ -1,14 +1,14 @@
 /* { dg-do compile { target { powerpc*-*-* } } } */
 /* { dg-require-effective-target powerpc_fprs } */
-/* { dg-options "-O3 -ftree-vectorize -mrecip -ffast-math -mcpu=power7 -fno-unroll-loops" } */
+/* { dg-options "-O3 -ftree-vectorize -mrecip -ffast-math -mdejagnu-cpu=power7 -fno-unroll-loops" } */
 /* { dg-final { scan-assembler-times "xvrsqrtedp" 1 } } */
-/* { dg-final { scan-assembler-times "xvmsub.dp" 1 } } */
-/* { dg-final { scan-assembler-times "xvmuldp" 4 } } */
+/* { dg-final { scan-assembler-times "xvmuldp" 2 } } */
 /* { dg-final { scan-assembler-times "xvnmsub.dp" 2 } } */
+/* { dg-final { scan-assembler-times "xvmadd.dp" 3 } } */
 /* { dg-final { scan-assembler-times "xvrsqrtesp" 1 } } */
-/* { dg-final { scan-assembler-times "xvmsub.sp" 1 } } */
 /* { dg-final { scan-assembler-times "xvmulsp" 2 } } */
 /* { dg-final { scan-assembler-times "xvnmsub.sp" 1 } } */
+/* { dg-final { scan-assembler-times "xvmadd.sp" 1 } } */
 
 #define SIZE 1024
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -23,25 +23,23 @@
 // libstdc++/23465
 void test01()
 {
-  bool test __attribute__((unused)) = true;
-
   for (float lf = 0.1; lf < 101.0; lf *= 10.0)
     for (int size = 1; size <= 6561; size *= 3)
       {
 	std::tr1::unordered_set<int> us1, us2;
 	typedef std::tr1::unordered_set<int>::local_iterator local_iterator;
 	typedef std::tr1::unordered_set<int>::size_type      size_type;
-	
+
 	us1.max_load_factor(lf);
 
 	for (int i = 0; i < size; ++i)
 	  us1.insert(i);
-	
+
 	us2 = us1;
-	
+
 	VERIFY( us2.size() == us1.size() );
 	VERIFY( us2.bucket_count() == us1.bucket_count() );
-	
+
 	for (size_type b = 0; b < us1.bucket_count(); ++b)
 	  {
 	    size_type cnt = 0;

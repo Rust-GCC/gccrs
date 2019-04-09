@@ -1,5 +1,5 @@
 /* Parse C expressions for cpplib.
-   Copyright (C) 1987-2014 Free Software Foundation, Inc.
+   Copyright (C) 1987-2019 Free Software Foundation, Inc.
    Contributed by Per Bothner, 1994.
 
 This program is free software; you can redistribute it and/or modify it
@@ -30,7 +30,7 @@ struct op
 {
   const cpp_token *token;	/* The token forming op (for diagnostics).  */
   cpp_num value;		/* The value logically "right" of op.  */
-  source_location loc;          /* The location of this value.         */
+  location_t loc;          /* The location of this value.         */
   enum cpp_ttype op;
 };
 
@@ -52,13 +52,13 @@ static cpp_num num_equality_op (cpp_reader *, cpp_num, cpp_num,
 				enum cpp_ttype);
 static cpp_num num_mul (cpp_reader *, cpp_num, cpp_num);
 static cpp_num num_div_op (cpp_reader *, cpp_num, cpp_num, enum cpp_ttype,
-			   source_location);
+			   location_t);
 static cpp_num num_lshift (cpp_num, size_t, size_t);
 static cpp_num num_rshift (cpp_num, size_t, size_t);
 
 static cpp_num append_digit (cpp_num, int, int, size_t);
 static cpp_num parse_defined (cpp_reader *);
-static cpp_num eval_token (cpp_reader *, const cpp_token *, source_location);
+static cpp_num eval_token (cpp_reader *, const cpp_token *, location_t);
 static struct op *reduce (cpp_reader *, struct op *, enum cpp_ttype);
 static unsigned int interpret_float_suffix (cpp_reader *, const uchar *, size_t);
 static unsigned int interpret_int_suffix (cpp_reader *, const uchar *, size_t);
@@ -86,15 +86,54 @@ static cpp_num parse_has_include (cpp_reader *, enum include_type);
 
 /* Subroutine of cpp_classify_number.  S points to a float suffix of
    length LEN, possibly zero.  Returns 0 for an invalid suffix, or a
-   flag vector describing the suffix.  */
+   flag vector (of CPP_N_* bits) describing the suffix.  */
 static unsigned int
 interpret_float_suffix (cpp_reader *pfile, const uchar *s, size_t len)
 {
+  size_t orig_len = len;
+  const uchar *orig_s = s;
   size_t flags;
-  size_t f, d, l, w, q, i;
+  size_t f, d, l, w, q, i, fn, fnx, fn_bits;
 
   flags = 0;
-  f = d = l = w = q = i = 0;
+  f = d = l = w = q = i = fn = fnx = fn_bits = 0;
+
+  /* The following decimal float suffixes, from TR 24732:2009 and TS
+     18661-2:2015, are supported:
+
+     df, DF - _Decimal32.
+     dd, DD - _Decimal64.
+     dl, DL - _Decimal128.
+
+     The dN and DN suffixes for _DecimalN, and dNx and DNx for
+     _DecimalNx, defined in TS 18661-3:2015, are not supported.
+
+     Fixed-point suffixes, from TR 18037:2008, are supported.  They
+     consist of three parts, in order:
+
+     (i) An optional u or U, for unsigned types.
+
+     (ii) An optional h or H, for short types, or l or L, for long
+     types, or ll or LL, for long long types.  Use of ll or LL is a
+     GNU extension.
+
+     (iii) r or R, for _Fract types, or k or K, for _Accum types.
+
+     Otherwise the suffix is for a binary or standard floating-point
+     type.  Such a suffix, or the absence of a suffix, may be preceded
+     or followed by i, I, j or J, to indicate an imaginary number with
+     the corresponding complex type.  The following suffixes for
+     binary or standard floating-point types are supported:
+
+     f, F - float (ISO C and C++).
+     l, L - long double (ISO C and C++).
+     d, D - double, even with the FLOAT_CONST_DECIMAL64 pragma in
+	    operation (from TR 24732:2009; the pragma and the suffix
+	    are not included in TS 18661-2:2015).
+     w, W - machine-specific type such as __float80 (GNU extension).
+     q, Q - machine-specific type such as __float128 (GNU extension).
+     fN, FN - _FloatN (TS 18661-3:2015).
+     fNx, FNx - _FloatNx (TS 18661-3:2015).  */
 
   /* Process decimal float suffixes, which are two letters starting
      with d or D.  Order and case are significant.  */
@@ -172,24 +211,81 @@ interpret_float_suffix (cpp_reader *pfile, const uchar *s, size_t len)
 
   /* In any remaining valid suffix, the case and order don't matter.  */
   while (len--)
-    switch (s[len])
-      {
-      case 'f': case 'F': f++; break;
-      case 'd': case 'D': d++; break;
-      case 'l': case 'L': l++; break;
-      case 'w': case 'W': w++; break;
-      case 'q': case 'Q': q++; break;
-      case 'i': case 'I':
-      case 'j': case 'J': i++; break;
-      default:
+    {
+      switch (s[0])
+	{
+	case 'f': case 'F':
+	  f++;
+	  if (len > 0
+	      && !CPP_OPTION (pfile, cplusplus)
+	      && s[1] >= '1'
+	      && s[1] <= '9'
+	      && fn_bits == 0)
+	    {
+	      f--;
+	      while (len > 0
+		     && s[1] >= '0'
+		     && s[1] <= '9'
+		     && fn_bits < CPP_FLOATN_MAX)
+		{
+		  fn_bits = fn_bits * 10 + (s[1] - '0');
+		  len--;
+		  s++;
+		}
+	      if (len > 0 && s[1] == 'x')
+		{
+		  fnx++;
+		  len--;
+		  s++;
+		}
+	      else
+		fn++;
+	    }
+	  break;
+	case 'd': case 'D': d++; break;
+	case 'l': case 'L': l++; break;
+	case 'w': case 'W': w++; break;
+	case 'q': case 'Q': q++; break;
+	case 'i': case 'I':
+	case 'j': case 'J': i++; break;
+	default:
+	  return 0;
+	}
+      s++;
+    }
+
+  /* Reject any case of multiple suffixes specifying types, multiple
+     suffixes specifying an imaginary constant, _FloatN or _FloatNx
+     suffixes for invalid values of N, and _FloatN suffixes for values
+     of N larger than can be represented in the return value.  The
+     caller is responsible for rejecting _FloatN suffixes where
+     _FloatN is not supported on the chosen target.  */
+  if (f + d + l + w + q + fn + fnx > 1 || i > 1)
+    return 0;
+  if (fn_bits > CPP_FLOATN_MAX)
+    return 0;
+  if (fnx && fn_bits != 32 && fn_bits != 64 && fn_bits != 128)
+    return 0;
+  if (fn && fn_bits != 16 && fn_bits % 32 != 0)
+    return 0;
+  if (fn && fn_bits == 96)
+    return 0;
+
+  if (i)
+    {
+      if (!CPP_OPTION (pfile, ext_numeric_literals))
 	return 0;
-      }
 
-  if (f + d + l + w + q > 1 || i > 1)
-    return 0;
-
-  if (i && !CPP_OPTION (pfile, ext_numeric_literals))
-    return 0;
+      /* In C++14 and up these suffixes are in the standard library, so treat
+	 them as user-defined literals.  */
+      if (CPP_OPTION (pfile, cplusplus)
+	  && CPP_OPTION (pfile, lang) > CLK_CXX11
+	  && orig_s[0] == 'i'
+	  && (orig_len == 1
+	      || (orig_len == 2
+		  && (orig_s[1] == 'f' || orig_s[1] == 'l'))))
+	return 0;
+    }
 
   if ((w || q) && !CPP_OPTION (pfile, ext_numeric_literals))
     return 0;
@@ -199,7 +295,10 @@ interpret_float_suffix (cpp_reader *pfile, const uchar *s, size_t len)
 	     d ? CPP_N_MEDIUM :
 	     l ? CPP_N_LARGE :
 	     w ? CPP_N_MD_W :
-	     q ? CPP_N_MD_Q : CPP_N_DEFAULT));
+	     q ? CPP_N_MD_Q :
+	     fn ? CPP_N_FLOATN | (fn_bits << CPP_FLOATN_SHIFT) :
+	     fnx ? CPP_N_FLOATNX | (fn_bits << CPP_FLOATN_SHIFT) :
+	     CPP_N_DEFAULT));
 }
 
 /* Return the classification flags for a float suffix.  */
@@ -215,6 +314,7 @@ cpp_interpret_float_suffix (cpp_reader *pfile, const char *s, size_t len)
 static unsigned int
 interpret_int_suffix (cpp_reader *pfile, const uchar *s, size_t len)
 {
+  size_t orig_len = len;
   size_t u, l, i;
 
   u = l = i = 0;
@@ -237,8 +337,19 @@ interpret_int_suffix (cpp_reader *pfile, const uchar *s, size_t len)
   if (l > 2 || u > 1 || i > 1)
     return 0;
 
-  if (i && !CPP_OPTION (pfile, ext_numeric_literals))
-    return 0;
+  if (i)
+    {
+      if (!CPP_OPTION (pfile, ext_numeric_literals))
+	return 0;
+
+      /* In C++14 and up these suffixes are in the standard library, so treat
+	 them as user-defined literals.  */
+      if (CPP_OPTION (pfile, cplusplus)
+	  && CPP_OPTION (pfile, lang) > CLK_CXX11
+	  && s[0] == 'i'
+	  && (orig_len == 1 || (orig_len == 2 && s[1] == 'l')))
+	return 0;
+    }
 
   return ((i ? CPP_N_IMAGINARY : 0)
 	  | (u ? CPP_N_UNSIGNED : 0)
@@ -307,6 +418,8 @@ cpp_userdef_char_remove_type (enum cpp_ttype type)
     return CPP_CHAR16;
   else if (type == CPP_CHAR32_USERDEF)
     return CPP_CHAR32;
+  else if (type == CPP_UTF8CHAR_USERDEF)
+    return CPP_UTF8CHAR;
   else
     return type;
 }
@@ -325,6 +438,8 @@ cpp_userdef_char_add_type (enum cpp_ttype type)
     return CPP_CHAR16_USERDEF;
   else if (type == CPP_CHAR32)
     return CPP_CHAR32_USERDEF;
+  else if (type == CPP_UTF8CHAR)
+    return CPP_UTF8CHAR_USERDEF;
   else
     return type;
 }
@@ -350,7 +465,8 @@ cpp_userdef_char_p (enum cpp_ttype type)
   if (type == CPP_CHAR_USERDEF
    || type == CPP_WCHAR_USERDEF
    || type == CPP_CHAR16_USERDEF
-   || type == CPP_CHAR32_USERDEF)
+   || type == CPP_CHAR32_USERDEF
+   || type == CPP_UTF8CHAR_USERDEF)
     return true;
   else
     return false;
@@ -389,7 +505,7 @@ cpp_get_userdef_suffix (const cpp_token *tok)
    VIRTUAL_LOCATION is the virtual location for TOKEN.  */
 unsigned int
 cpp_classify_number (cpp_reader *pfile, const cpp_token *token,
-		     const char **ud_suffix, source_location virtual_location)
+		     const char **ud_suffix, location_t virtual_location)
 {
   const uchar *str = token->val.str.text;
   const uchar *limit;
@@ -547,7 +663,7 @@ cpp_classify_number (cpp_reader *pfile, const cpp_token *token,
 	{
 	  if (CPP_OPTION (pfile, cplusplus))
 	    cpp_error_with_line (pfile, CPP_DL_PEDWARN, virtual_location, 0,
-				 "use of C++11 hexadecimal floating constant");
+				 "use of C++17 hexadecimal floating constant");
 	  else
 	    cpp_error_with_line (pfile, CPP_DL_PEDWARN, virtual_location, 0,
 				 "use of C99 hexadecimal floating constant");
@@ -696,9 +812,9 @@ cpp_classify_number (cpp_reader *pfile, const cpp_token *token,
       && CPP_PEDANTIC (pfile))
     cpp_error_with_line (pfile, CPP_DL_PEDWARN, virtual_location, 0,
 			 CPP_OPTION (pfile, cplusplus)
-			 ? "binary constants are a C++14 feature "
-			   "or GCC extension"
-			 : "binary constants are a GCC extension");
+			 ? N_("binary constants are a C++14 feature "
+			      "or GCC extension")
+			 : N_("binary constants are a GCC extension"));
 
   if (radix == 10)
     result |= CPP_N_DECIMAL;
@@ -942,28 +1058,14 @@ parse_defined (cpp_reader *pfile)
 
   if (node)
     {
-      if (pfile->context != initial_context && CPP_PEDANTIC (pfile))
-	cpp_error (pfile, CPP_DL_WARNING,
-		   "this use of \"defined\" may not be portable");
+      if ((pfile->context != initial_context
+	   || initial_context != &pfile->base_context)
+	  && CPP_OPTION (pfile, warn_expansion_to_defined))
+        cpp_pedwarning (pfile, CPP_W_EXPANSION_TO_DEFINED,
+		        "this use of \"defined\" may not be portable");
 
       _cpp_mark_macro_used (node);
-      if (!(node->flags & NODE_USED))
-	{
-	  node->flags |= NODE_USED;
-	  if (node->type == NT_MACRO)
-	    {
-	      if ((node->flags & NODE_BUILTIN)
-		  && pfile->cb.user_builtin_macro)
-		pfile->cb.user_builtin_macro (pfile, node);
-	      if (pfile->cb.used_define)
-		pfile->cb.used_define (pfile, pfile->directive_line, node);
-	    }
-	  else
-	    {
-	      if (pfile->cb.used_undef)
-		pfile->cb.used_undef (pfile, pfile->directive_line, node);
-	    }
-	}
+      _cpp_maybe_notify_macro_use (pfile, node);
 
       /* A possible controlling macro of the form #if !defined ().
 	 _cpp_parse_expr checks there was no other junk on the line.  */
@@ -979,8 +1081,8 @@ parse_defined (cpp_reader *pfile)
   result.unsignedp = false;
   result.high = 0;
   result.overflow = false;
-  result.low = (node && node->type == NT_MACRO
-		&& (node->flags & NODE_CONDITIONAL) == 0);
+  result.low = (node && cpp_macro_p (node)
+		&& !(node->flags & NODE_CONDITIONAL));
   return result;
 }
 
@@ -989,7 +1091,7 @@ parse_defined (cpp_reader *pfile)
    operators).  */
 static cpp_num
 eval_token (cpp_reader *pfile, const cpp_token *token,
-	    source_location virtual_location)
+	    location_t virtual_location)
 {
   cpp_num result;
   unsigned int temp;
@@ -1029,6 +1131,7 @@ eval_token (cpp_reader *pfile, const cpp_token *token,
     case CPP_CHAR:
     case CPP_CHAR16:
     case CPP_CHAR32:
+    case CPP_UTF8CHAR:
       {
 	cppchar_t cc = cpp_interpret_charconst (pfile, token,
 						&temp, &unsignedp);
@@ -1067,7 +1170,7 @@ eval_token (cpp_reader *pfile, const cpp_token *token,
 	  result.low = 0;
 	  if (CPP_OPTION (pfile, warn_undef) && !pfile->state.skip_eval)
 	    cpp_warning_with_line (pfile, CPP_W_UNDEF, virtual_location, 0,
-				   "\"%s\" is not defined",
+				   "\"%s\" is not defined, evaluates to 0",
 				   NODE_NAME (token->val.node.node));
 	}
       break;
@@ -1185,7 +1288,7 @@ _cpp_parse_expr (cpp_reader *pfile, bool is_if)
   struct op *top = pfile->op_stack;
   unsigned int lex_count;
   bool saw_leading_not, want_value = true;
-  source_location virtual_location = 0;
+  location_t virtual_location = 0;
 
   pfile->state.skip_eval = 0;
 
@@ -1214,6 +1317,7 @@ _cpp_parse_expr (cpp_reader *pfile, bool is_if)
 	case CPP_WCHAR:
 	case CPP_CHAR16:
 	case CPP_CHAR32:
+	case CPP_UTF8CHAR:
 	case CPP_NAME:
 	case CPP_HASH:
 	  if (!want_value)
@@ -1982,7 +2086,7 @@ num_mul (cpp_reader *pfile, cpp_num lhs, cpp_num rhs)
 
 static cpp_num
 num_div_op (cpp_reader *pfile, cpp_num lhs, cpp_num rhs, enum cpp_ttype op,
-	    source_location location)
+	    location_t location)
 {
   cpp_num result, sub;
   cpp_num_part mask;
@@ -2134,7 +2238,7 @@ parse_has_include (cpp_reader *pfile, enum include_type type)
       XDELETEVEC (fname);
     }
 
-  if (paren && cpp_get_token (pfile)->type != CPP_CLOSE_PAREN)
+  if (paren && !SEEN_EOL () && cpp_get_token (pfile)->type != CPP_CLOSE_PAREN)
     cpp_error (pfile, CPP_DL_ERROR,
 	       "missing ')' after \"__has_include__\"");
 

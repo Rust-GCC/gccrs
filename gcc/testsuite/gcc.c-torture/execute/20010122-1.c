@@ -1,11 +1,12 @@
 /* { dg-skip-if "requires frame pointers" { *-*-* } "-fomit-frame-pointer" "" } */
+/* { dg-require-effective-target return_address } */
 
 extern void exit (int);
 extern void abort (void);
 extern void *alloca (__SIZE_TYPE__);
 char *dummy (void);
 
-#define NOINLINE __attribute__((noinline))
+#define NOINLINE __attribute__((noinline)) __attribute__ ((noclone))
 
 void *save_ret1[6];
 void *test4a (char *);

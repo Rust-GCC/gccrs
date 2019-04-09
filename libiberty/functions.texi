@@ -84,7 +84,7 @@ is respectively less than, matching, or greater than the array member.
 
 @end deftypefn
 
-@c argv.c:135
+@c argv.c:138
 @deftypefn Extension char** buildargv (char *@var{sp})
 
 Given a pointer to a string, parse the string extracting fields
@@ -125,7 +125,17 @@ Uses @code{malloc} to allocate storage for @var{nelem} objects of
 
 @end deftypefn
 
-@c choose-temp.c:46
+@c filename_cmp.c:201
+@deftypefn Extension int canonical_filename_eq (const char *@var{a}, const char *@var{b})
+
+Return non-zero if file names @var{a} and @var{b} are equivalent.
+This function compares the canonical versions of the filenames as returned by
+@code{lrealpath()}, so that so that different file names pointing to the same
+underlying file are treated as being identical.
+
+@end deftypefn
+
+@c choose-temp.c:45
 @deftypefn Extension char* choose_temp_base (void)
 
 Return a prefix for temporary file names or @code{NULL} if unable to
@@ -138,8 +148,8 @@ not recommended.
 
 @end deftypefn
 
-@c make-temp-file.c:96
-@deftypefn Replacement char* choose_tmpdir ()
+@c make-temp-file.c:95
+@deftypefn Replacement const char* choose_tmpdir ()
 
 Returns a pointer to a directory path suitable for creating temporary
 files in.
@@ -160,21 +170,20 @@ number of seconds used.
   @dots{}, @code{NULL})
 
 Concatenate zero or more of strings and return the result in freshly
-@code{xmalloc}ed memory.  Returns @code{NULL} if insufficient memory is
-available.  The argument list is terminated by the first @code{NULL}
-pointer encountered.  Pointers to empty strings are ignored.
+@code{xmalloc}ed memory.  The argument list is terminated by the first
+@code{NULL} pointer encountered.  Pointers to empty strings are ignored.
 
 @end deftypefn
 
-@c argv.c:470
-@deftypefn Extension int countargv (char **@var{argv})
+@c argv.c:487
+@deftypefn Extension int countargv (char * const *@var{argv})
 
 Return the number of elements in @var{argv}.
 Returns zero if @var{argv} is NULL.
 
 @end deftypefn
 
-@c crc32.c:141
+@c crc32.c:140
 @deftypefn Extension {unsigned int} crc32 (const unsigned char *@var{buf}, @
   int @var{len}, unsigned int @var{init})
 
@@ -183,10 +192,9 @@ starting value is @var{init}; this may be used to compute the CRC of
 data split across multiple buffers by passing the return value of each
 call as the @var{init} parameter of the next.
 
-This is intended to match the CRC used by the @command{gdb} remote
-protocol for the @samp{qCRC} command.  In order to get the same
-results as gdb for a block of data, you must pass the first CRC
-parameter as @code{0xffffffff}.
+This is used by the @command{gdb} remote protocol for the @samp{qCRC}
+command.  In order to get the same results as gdb for a block of data,
+you must pass the first CRC parameter as @code{0xffffffff}.
 
 This CRC can be specified as:
 
@@ -203,8 +211,8 @@ make it easy to compose the values of multiple blocks.
 
 @end deftypefn
 
-@c argv.c:52
-@deftypefn Extension char** dupargv (char **@var{vector})
+@c argv.c:59
+@deftypefn Extension char** dupargv (char * const *@var{vector})
 
 Duplicate an argument vector.  Simply scans through @var{vector},
 duplicating each argument until the terminating @code{NULL} is found.
@@ -214,7 +222,7 @@ argument vector.
 
 @end deftypefn
 
-@c strerror.c:567
+@c strerror.c:572
 @deftypefn Extension int errno_max (void)
 
 Returns the maximum @code{errno} value for which a corresponding
@@ -232,7 +240,7 @@ symbolic name or message.
 
 @end deftypefn
 
-@c argv.c:341
+@c argv.c:344
 @deftypefn Extension void expandargv (int *@var{argcp}, char ***@var{argvp})
 
 The @var{argcp} and @code{argvp} arguments are pointers to the usual
@@ -287,7 +295,7 @@ value 1).  If @var{valu} is zero, zero is returned.
 
 @end deftypefn
 
-@c filename_cmp.c:32
+@c filename_cmp.c:37
 @deftypefn Extension int filename_cmp (const char *@var{s1}, const char *@var{s2})
 
 Return zero if the two file names @var{s1} and @var{s2} are equivalent.
@@ -304,7 +312,7 @@ and backward slashes are equal.
 
 @end deftypefn
 
-@c filename_cmp.c:178
+@c filename_cmp.c:183
 @deftypefn Extension int filename_eq (const void *@var{s1}, const void *@var{s2})
 
 Return non-zero if file names @var{s1} and @var{s2} are equivalent.
@@ -312,7 +320,7 @@ This function is for use with hashtab.c hash tables.
 
 @end deftypefn
 
-@c filename_cmp.c:147
+@c filename_cmp.c:152
 @deftypefn Extension hashval_t filename_hash (const void *@var{s})
 
 Return the hash value for file name @var{s} that will be compared
@@ -321,7 +329,7 @@ This function is for use with hashtab.c hash tables.
 
 @end deftypefn
 
-@c filename_cmp.c:89
+@c filename_cmp.c:94
 @deftypefn Extension int filename_ncmp (const char *@var{s1}, const char *@var{s2}, size_t @var{n})
 
 Return zero if the two file names @var{s1} and @var{s2} are equivalent
@@ -401,7 +409,7 @@ unchanged.
 
 @end deftypefn
 
-@c argv.c:90
+@c argv.c:93
 @deftypefn Extension void freeargv (char **@var{vector})
 
 Free an argument vector that was built using @code{buildargv}.  Simply
@@ -422,7 +430,7 @@ unchanged.
 
 @end deftypefn
 
-@c getruntime.c:82
+@c getruntime.c:86
 @deftypefn Replacement long get_run_time (void)
 
 Returns the time used so far, in microseconds.  If possible, this is
@@ -506,7 +514,7 @@ systems.
 
 @end deftypefn
 
-@c safe-ctype.c:25
+@c safe-ctype.c:24
 @defvr Extension HOST_CHARSET
 This macro indicates the basic character set and encoding used by the
 host: more precisely, the encoding used for character constants in
@@ -528,7 +536,7 @@ nineteen EBCDIC varying characters is tested; exercise caution.)
 @end ftable
 @end defvr
 
-@c hashtab.c:336
+@c hashtab.c:327
 @deftypefn Supplemental htab_t htab_create_typed_alloc (size_t @var{size}, @
 htab_hash @var{hash_f}, htab_eq @var{eq_f}, htab_del @var{del_f}, @
 htab_alloc @var{alloc_tab_f}, htab_alloc @var{alloc_f}, @
@@ -577,7 +585,7 @@ struct qelem @{
 
 @end deftypefn
 
-@c safe-ctype.c:46
+@c safe-ctype.c:45
 @deffn  Extension ISALPHA  (@var{c})
 @deffnx Extension ISALNUM  (@var{c})
 @deffnx Extension ISBLANK  (@var{c})
@@ -627,7 +635,7 @@ false for characters with numeric values from 128 to 255.
 @end itemize
 @end deffn
 
-@c safe-ctype.c:95
+@c safe-ctype.c:94
 @deffn  Extension ISIDNUM         (@var{c})
 @deffnx Extension ISIDST          (@var{c})
 @deffnx Extension IS_VSPACE       (@var{c})
@@ -675,7 +683,7 @@ components will be simplified.  The returned value will be allocated using
 
 @end deftypefn
 
-@c make-relative-prefix.c:24
+@c make-relative-prefix.c:23
 @deftypefn Extension {const char*} make_relative_prefix (const char *@var{progname}, @
   const char *@var{bin_prefix}, const char *@var{prefix})
 
@@ -701,7 +709,7 @@ relative prefix can be found, return @code{NULL}.
 
 @end deftypefn
 
-@c make-temp-file.c:174
+@c make-temp-file.c:173
 @deftypefn Replacement char* make_temp_file (const char *@var{suffix})
 
 Return a temporary file name (as a string) or @code{NULL} if unable to
@@ -782,7 +790,7 @@ Sets the first @var{count} bytes of @var{s} to the constant byte
 
 @end deftypefn
 
-@c mkstemps.c:58
+@c mkstemps.c:60
 @deftypefn Replacement int mkstemps (char *@var{pattern}, int @var{suffix_len})
 
 Generate a unique temporary file name from @var{pattern}.
@@ -1163,7 +1171,7 @@ control over the state of the random number generator.
 
 @end deftypefn
 
-@c concat.c:174
+@c concat.c:160
 @deftypefn Extension char* reconcat (char *@var{optr}, const char *@var{s1}, @
   @dots{}, @code{NULL})
 
@@ -1195,7 +1203,7 @@ deprecated in new programs in favor of @code{strrchr}.
 
 @end deftypefn
 
-@c setenv.c:23
+@c setenv.c:22
 @deftypefn Supplemental int setenv (const char *@var{name}, @
   const char *@var{value}, int @var{overwrite})
 @deftypefnx Supplemental void unsetenv (const char *@var{name})
@@ -1469,7 +1477,7 @@ valid until at least the next call.
 
 @end deftypefn
 
-@c splay-tree.c:303
+@c splay-tree.c:305
 @deftypefn Supplemental splay_tree splay_tree_new_with_typed_alloc @
 (splay_tree_compare_fn @var{compare_fn}, @
 splay_tree_delete_key_fn @var{delete_key_fn}, @
@@ -1486,7 +1494,11 @@ different types need to be allocated with different allocators.
 
 The splay tree will use @var{compare_fn} to compare nodes,
 @var{delete_key_fn} to deallocate keys, and @var{delete_value_fn} to
-deallocate values.
+deallocate values.  Keys and values will be deallocated when the
+tree is deleted using splay_tree_delete or when a node is removed
+using splay_tree_remove.  splay_tree_insert will release the previously
+inserted key and value using @var{delete_key_fn} and @var{delete_value_fn}
+if the inserted key is already found in the tree.
 
 @end deftypefn
 
@@ -1540,7 +1552,7 @@ Returns a pointer to a copy of @var{s} in memory obtained from
 
 @end deftypefn
 
-@c strerror.c:670
+@c strerror.c:675
 @deftypefn Replacement {const char*} strerrno (int @var{errnum})
 
 Given an error number returned from a system call (typically returned
@@ -1560,7 +1572,7 @@ valid until the next call to @code{strerrno}.
 
 @end deftypefn
 
-@c strerror.c:603
+@c strerror.c:608
 @deftypefn Supplemental char* strerror (int @var{errnoval})
 
 Maps an @code{errno} number to an error message string, the contents
@@ -1689,7 +1701,7 @@ the location referenced by @var{endptr}.
 
 @end deftypefn
 
-@c strerror.c:729
+@c strerror.c:734
 @deftypefn Extension int strtoerrno (const char *@var{name})
 
 Given the symbolic name of a error number (e.g., @code{EACCES}), map it
@@ -1711,6 +1723,24 @@ to indicate bases 8 and 16, respectively, else default to base 10.
 When the base is 16 (either explicitly or implicitly), a prefix of
 @code{0x} is allowed.  The handling of @var{endptr} is as that of
 @code{strtod} above.  The @code{strtoul} function is the same, except
+that the converted value is unsigned.
+
+@end deftypefn
+
+@c strtoll.c:33
+@deftypefn Supplemental {long long int} strtoll (const char *@var{string}, @
+  char **@var{endptr}, int @var{base})
+@deftypefnx Supplemental {unsigned long long int} strtoul (@
+  const char *@var{string}, char **@var{endptr}, int @var{base})
+
+The @code{strtoll} function converts the string in @var{string} to a
+long long integer value according to the given @var{base}, which must be
+between 2 and 36 inclusive, or be the special value 0.  If @var{base}
+is 0, @code{strtoll} will look for the prefixes @code{0} and @code{0x}
+to indicate bases 8 and 16, respectively, else default to base 10.
+When the base is 16 (either explicitly or implicitly), a prefix of
+@code{0x} is allowed.  The handling of @var{endptr} is as that of
+@code{strtod} above.  The @code{strtoull} function is the same, except
 that the converted value is unsigned.
 
 @end deftypefn
@@ -1887,12 +1917,21 @@ does the return value.  The third argument is unused in @libib{}.
 
 @end deftypefn
 
-@c argv.c:286
-@deftypefn Extension int writeargv (const char **@var{argv}, FILE *@var{file})
+@c argv.c:289
+@deftypefn Extension int writeargv (char * const *@var{argv}, FILE *@var{file})
 
 Write each member of ARGV, handling all necessary quoting, to the file
 named by FILE, separated by whitespace.  Return 0 on success, non-zero
 if an error occurred while writing to FILE.
+
+@end deftypefn
+
+@c xasprintf.c:31
+@deftypefn Replacement char* xasprintf (const char *@var{format}, ...)
+
+Print to allocated string without fail.  If @code{xasprintf} fails,
+this will print a message to @code{stderr} (using the name set by
+@code{xmalloc_set_program_name}, if any) and then call @code{xexit}.
 
 @end deftypefn
 
@@ -1992,6 +2031,15 @@ will never return a @code{NULL} pointer.
 Returns a pointer to a copy of @var{s} with at most @var{n} characters
 without fail, using @code{xmalloc} to obtain memory.  The result is
 always NUL terminated.
+
+@end deftypefn
+
+@c xvasprintf.c:38
+@deftypefn Replacement char* xvasprintf (const char *@var{format}, va_list @var{args})
+
+Print to allocated string without fail.  If @code{xvasprintf} fails,
+this will print a message to @code{stderr} (using the name set by
+@code{xmalloc_set_program_name}, if any) and then call @code{xexit}.
 
 @end deftypefn
 

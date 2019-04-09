@@ -1,4 +1,4 @@
-/* Copyright (C) 2000-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2000-2019 Free Software Foundation, Inc.
    This file was adapted from glibc sources.
 
 This file is part of GCC.
@@ -22,6 +22,7 @@ a copy of the GCC Runtime Library Exception along with this program;
 see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
+#include "crt.h"
 
 /* The code in sections .init and .fini is supposed to be a single
    regular function.  The function in .init is called directly from
@@ -44,21 +45,8 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #else
 	.p2align 1
 #endif
-	.global	 _init
-_init:
-#if __SHMEDIA__
-	addi	r15, -16, r15
-	st.q	r15, 8, r14
-	st.q	r15, 0, r18
-	add	r15, r63, r14
-#elif __SH5__ && ! __SHMEDIA__
-	mov	r15,r0
-	add	#-8,r15
-	mov.l	r14,@-r0
-	sts.l	pr,@-r0
-	mov	r15,r14
-	nop
-#else
+	.global	 GLOBAL(_init)
+GLOBAL(_init):
 #ifdef __ELF__
 	mov.l	r12,@-r15
 	mova	0f,r0
@@ -77,7 +65,6 @@ _init:
 0:	.long	_GLOBAL_OFFSET_TABLE_
 1:
 #endif
-#endif /* __SHMEDIA__ */
 
 	.section .fini
 /* The alignment below can't be smaller, otherwise the mova below
@@ -89,21 +76,8 @@ _init:
 #else
 	.p2align 1
 #endif
-	.global  _fini
-_fini:	
-#if __SHMEDIA__
-	addi	r15, -16, r15
-	st.q	r15, 8, r14
-	st.q	r15, 0, r18
-	add	r15, r63, r14
-#elif __SH5__ && ! __SHMEDIA__
-	mov	r15,r0
-	add	#-8,r15
-	mov.l	r14,@-r0
-	sts.l	pr,@-r0
-	mov	r15,r14
-	nop
-#else
+	.global  GLOBAL(_fini)
+GLOBAL(_fini):	
 #ifdef __ELF__
 	mov.l	r12,@-r15
 	mova	0f,r0
@@ -122,4 +96,3 @@ _fini:
 0:	.long	_GLOBAL_OFFSET_TABLE_
 1:
 #endif
-#endif /* __SHMEDIA__ */

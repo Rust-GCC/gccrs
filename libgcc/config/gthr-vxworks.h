@@ -1,6 +1,6 @@
 /* Threads compatibility routines for libgcc2 and libobjc for VxWorks.  */
 /* Compile this one with gcc.  */
-/* Copyright (C) 1997-2014 Free Software Foundation, Inc.
+/* Copyright (C) 1997-2019 Free Software Foundation, Inc.
    Contributed by Mike Stump <mrs@wrs.com>.
 
 This file is part of GCC.
@@ -36,7 +36,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #ifdef __cplusplus
 #define UNUSED(x)
 #else
-#define UNUSED(x) x __attribute__((unused))
+#define UNUSED(x) x __attribute__((__unused__))
 #endif
 
 #ifdef __cplusplus
@@ -63,8 +63,9 @@ __gthread_mutex_init_function (__gthread_mutex_t *mutex)
 }
 
 static inline int
-__gthread_mutex_destroy (__gthread_mutex_t * UNUSED(mutex))
+__gthread_mutex_destroy (__gthread_mutex_t *mutex)
 {
+  semDelete(*mutex);
   return 0;
 }
 

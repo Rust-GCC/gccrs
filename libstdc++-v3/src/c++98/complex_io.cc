@@ -1,6 +1,6 @@
 // The template and inlines for the -*- C++ -*- complex number classes.
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -34,7 +34,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template
     basic_ostream<char, char_traits<char> >&
-    operator<<(basic_ostream<char, char_traits<char> >&, 
+    operator<<(basic_ostream<char, char_traits<char> >&,
 	       const complex<float>&);
 
   template
@@ -43,12 +43,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template
     basic_ostream<char, char_traits<char> >&
-    operator<<(basic_ostream<char, char_traits<char> >&, 
+    operator<<(basic_ostream<char, char_traits<char> >&,
 	       const complex<double>&);
 
   template
     basic_istream<char, char_traits<char> >&
-    operator>>(basic_istream<char, char_traits<char> >&, 
+    operator>>(basic_istream<char, char_traits<char> >&,
 	       complex<long double>&);
 
   template
@@ -95,7 +95,7 @@ _GLIBCXX_END_NAMESPACE_VERSION
 #ifdef _GLIBCXX_LONG_DOUBLE_COMPAT
 
 #define _GLIBCXX_LDBL_COMPAT(dbl, ldbl) \
-  extern "C" void ldbl (void) __attribute__ ((alias (#dbl), weak))
+  extern "C" void ldbl (...) __attribute__ ((alias (#dbl), weak))
 
 _GLIBCXX_LDBL_COMPAT (_ZStlsIdcSt11char_traitsIcEERSt13basic_ostreamIT0_T1_ES6_RKSt7complexIT_E,
 		      _ZStlsIecSt11char_traitsIcEERSt13basic_ostreamIT0_T1_ES6_RKSt7complexIT_E);

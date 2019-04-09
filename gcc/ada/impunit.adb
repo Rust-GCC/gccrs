@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---           Copyright (C) 2000-2014, Free Software Foundation, Inc.        --
+--           Copyright (C) 2000-2019, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -238,6 +238,7 @@ package body Impunit is
     ("g-alvevi", F),  -- GNAT.Altivec.Vector_Views
     ("g-arrspl", F),  -- GNAT.Array_Split
     ("g-awk   ", F),  -- GNAT.AWK
+    ("g-binenv", F),  -- GNAT.Bind_Environment
     ("g-boubuf", F),  -- GNAT.Bounded_Buffers
     ("g-boumai", F),  -- GNAT.Bounded_Mailboxes
     ("g-bubsor", F),  -- GNAT.Bubble_Sort
@@ -280,6 +281,7 @@ package body Impunit is
     ("g-htable", F),  -- GNAT.Htable
     ("g-io    ", F),  -- GNAT.IO
     ("g-io_aux", F),  -- GNAT.IO_Aux
+    ("g-lists ", F),  -- GNAT.Lists
     ("g-locfil", F),  -- GNAT.Lock_Files
     ("g-mbdira", F),  -- GNAT.MBBS_Discrete_Random
     ("g-mbflra", F),  -- GNAT.MBBS_Float_Random
@@ -296,6 +298,7 @@ package body Impunit is
     ("g-semaph", F),  -- GNAT.Semaphores
     ("g-sercom", F),  -- GNAT.Serial_Communications
     ("g-sestin", F),  -- GNAT.Secondary_Stack_Info
+    ("g-sets  ", F),  -- GNAT.Sets
     ("g-sha1  ", F),  -- GNAT.SHA1
     ("g-sha224", F),  -- GNAT.SHA224
     ("g-sha256", F),  -- GNAT.SHA256
@@ -311,6 +314,7 @@ package body Impunit is
     ("g-sptabo", F),  -- GNAT.Spitbol.Table_Boolean
     ("g-sptain", F),  -- GNAT.Spitbol.Table_Integer
     ("g-sptavs", F),  -- GNAT.Spitbol.Table_Vstring
+    ("g-strhas", F),  -- GNAT.String_Hash
     ("g-string", F),  -- GNAT.Strings
     ("g-strspl", F),  -- GNAT.String_Split
     ("g-sse   ", F),  -- GNAT.SSE
@@ -349,6 +353,7 @@ package body Impunit is
     ("i-java  ", F),  -- Interfaces.Java
     ("i-javjni", F),  -- Interfaces.Java.JNI
     ("i-pacdec", F),  -- Interfaces.Packed_Decimal
+    ("i-vxinco", F),  -- Interfaces.VxWorks.Int_Connection
     ("i-vxwoio", F),  -- Interfaces.VxWorks.IO
     ("i-vxwork", F),  -- Interfaces.VxWorks
 
@@ -367,11 +372,20 @@ package body Impunit is
    --------------------------------------
 
     ("s-addima", F),  -- System.Address_Image
+    ("s-atocou", F),  -- System.Atomic_Counters
     ("s-assert", F),  -- System.Assertions
+    ("s-dfmkio", F),  -- System.Dim.Float_Mks_IO
+    ("s-dfmopr", F),  -- System.Dim.Float_Mks.Other_Prefixes
+    ("s-dgmgop", F),  -- System.Dim.Generic_Mks.Generic_Other_Prefixes
+    ("s-dlmopr", F),  -- System.Dim.Long_Mks.Other_Prefixes
     ("s-diflio", F),  -- System.Dim.Float_IO
+    ("s-diflmk", F),  -- System.Dim.Float_Mks
+    ("s-digemk", F),  -- System.Dim.Generic_Mks
     ("s-diinio", F),  -- System.Dim.Integer_IO
+    ("s-dilomk", F),  -- System.Dim.Long_Mks
     ("s-dimkio", F),  -- System.Dim.Mks_IO
     ("s-dimmks", F),  -- System.Dim.Mks
+    ("s-dlmkio", F),  -- System.Dim.Long_Mks_IO
     ("s-dmotpr", F),  -- System.Dim.Mks.Other_Prefixes
     ("s-memory", F),  -- System.Memory
     ("s-parint", F),  -- System.Partition_Interface
@@ -426,6 +440,7 @@ package body Impunit is
     ("a-coorse", T),  -- Ada.Containers.Ordered_Sets
     ("a-coteio", T),  -- Ada.Complex_Text_IO
     ("a-direct", T),  -- Ada.Directories
+    ("a-dinopr", T),  -- Ada.Dispatching.Non_Preemptive
     ("a-diroro", T),  -- Ada.Dispatching.Round_Robin
     ("a-disedf", T),  -- Ada.Dispatching.EDF
     ("a-dispat", T),  -- Ada.Dispatching
@@ -512,6 +527,7 @@ package body Impunit is
       --  harmless (and useful) to make then available in Ada 2005 mode.
 
     ("a-cogeso", T),  -- Ada.Containers.Generic_Sort
+    ("a-dhfina", T),  -- Ada.Directories.Hierarchical_File_Names
     ("a-secain", T),  -- Ada.Strings.Equal_Case_Insensitive
     ("a-shcain", T),  -- Ada.Strings.Hash_Case_Insensitive
     ("a-slcain", T),  -- Ada.Strings.Less_Case_Insensitive
@@ -573,6 +589,7 @@ package body Impunit is
     ("a-extiin", T),  -- Ada.Execution_Time.Interrupts
     ("a-iteint", T),  -- Ada.Iterator_Interfaces
     ("a-locale", T),  -- Ada.Locales
+    ("a-stcoed", T),  -- Ada.Synchronous_Task_Control.EDF
     ("a-synbar", T),  -- Ada.Synchronous_Barriers
     ("a-undesu", T),  -- Ada.Unchecked_Deallocate_Subpool
 
@@ -580,7 +597,12 @@ package body Impunit is
    -- GNAT Defined Additions to Ada 2012 --
    ----------------------------------------
 
+    ("a-cfinve", F),  -- Ada.Containers.Formal_Indefinite_Vectors
+    ("a-coboho", F),  -- Ada.Containers.Bounded_Holders
     ("a-cofove", F),  -- Ada.Containers.Formal_Vectors
+    ("a-cofuma", F),  -- Ada.Containers.Functional_Maps
+    ("a-cofuse", F),  -- Ada.Containers.Functional_Sets
+    ("a-cofuve", F),  -- Ada.Containers.Functional_Vectors
     ("a-cfdlli", F),  -- Ada.Containers.Formal_Doubly_Linked_Lists
     ("a-cforse", F),  -- Ada.Containers.Formal_Ordered_Sets
     ("a-cforma", F),  -- Ada.Containers.Formal_Ordered_Maps
@@ -597,21 +619,21 @@ package body Impunit is
 
    type Aunit_Record is record
       Fname : String (1 .. 6);
-      Aname : String_Ptr;
+      Aname : String_Ptr_Const;
    end record;
 
    --  Array of alternative unit names
 
-   Scasuti : aliased String := "GNAT.Case_Util";
-   Scrc32  : aliased String := "GNAT.CRC32";
-   Shtable : aliased String := "GNAT.HTable";
-   Sos_lib : aliased String := "GNAT.OS_Lib";
-   Sregexp : aliased String := "GNAT.Regexp";
-   Sregpat : aliased String := "GNAT.Regpat";
-   Sstring : aliased String := "GNAT.Strings";
-   Sstusta : aliased String := "GNAT.Task_Stack_Usage";
-   Stasloc : aliased String := "GNAT.Task_Lock";
-   Sutf_32 : aliased String := "GNAT.UTF_32";
+   Scasuti : aliased constant String := "GNAT.Case_Util";
+   Scrc32  : aliased constant String := "GNAT.CRC32";
+   Shtable : aliased constant String := "GNAT.HTable";
+   Sos_lib : aliased constant String := "GNAT.OS_Lib";
+   Sregexp : aliased constant String := "GNAT.Regexp";
+   Sregpat : aliased constant String := "GNAT.Regpat";
+   Sstring : aliased constant String := "GNAT.Strings";
+   Sstusta : aliased constant String := "GNAT.Task_Stack_Usage";
+   Stasloc : aliased constant String := "GNAT.Task_Lock";
+   Sutf_32 : aliased constant String := "GNAT.UTF_32";
 
    --  Array giving mapping
 
@@ -628,23 +650,22 @@ package body Impunit is
                  ("utf_32", Sutf_32'Access));
 
    ----------------------
-   -- Get_Kind_Of_Unit --
+   -- Get_Kind_Of_File --
    ----------------------
 
-   function Get_Kind_Of_Unit (U : Unit_Number_Type) return Kind_Of_Unit is
-      Fname : constant File_Name_Type := Unit_File_Name (U);
+   function Get_Kind_Of_File (File : String) return Kind_Of_Unit is
+      pragma Assert (File'First = 1);
+
+      Buffer : String (1 .. 8);
 
    begin
       Error_Msg_Strlen := 0;
-      Get_Name_String (Fname);
 
       --  Ada/System/Interfaces are all Ada 95 units
 
-      if (Name_Len =  7 and then Name_Buffer (1 ..  7) = "ada.ads")
-           or else
-         (Name_Len = 10 and then Name_Buffer (1 .. 10) = "system.ads")
-           or else
-         (Name_Len = 12 and then Name_Buffer (1 .. 12) = "interfac.ads")
+      if File = "ada.ads"
+        or else File = "interfac.ads"
+        or else File = "system.ads"
       then
          return Ada_95_Unit;
       end if;
@@ -652,21 +673,19 @@ package body Impunit is
       --  If length of file name is greater than 12, not predefined. The value
       --  12 here is an 8 char name with extension .ads.
 
-      if Name_Len > 12 then
+      if File'Length > 12 then
          return Not_Predefined_Unit;
       end if;
 
       --  Not predefined if file name does not start with a- g- s- i-
 
-      if Name_Len < 3
-        or else Name_Buffer (2) /= '-'
-        or else (Name_Buffer (1) /= 'a'
-                   and then
-                 Name_Buffer (1) /= 'g'
-                   and then
-                 Name_Buffer (1) /= 'i'
-                   and then
-                 Name_Buffer (1) /= 's')
+      if File'Length < 3
+        or else File (2) /= '-'
+        or else
+          (File (1) /= 'a'
+            and then File (1) /= 'g'
+            and then File (1) /= 'i'
+            and then File (1) /= 's')
       then
          return Not_Predefined_Unit;
       end if;
@@ -680,25 +699,25 @@ package body Impunit is
       --  this routine to detect when a construct comes from an instance of
       --  a generic defined in a predefined unit.
 
-      if Name_Buffer (Name_Len - 3 .. Name_Len) /= ".ads"
+      if File (File'Last - 3 .. File'Last) /= ".ads"
            and then
-         Name_Buffer (Name_Len - 3 .. Name_Len) /= ".adb"
+         File (File'Last - 3 .. File'Last) /= ".adb"
       then
          return Not_Predefined_Unit;
       end if;
 
       --  Otherwise normalize file name to 8 characters
 
-      Name_Len := Name_Len - 4;
-      while Name_Len < 8 loop
-         Name_Len := Name_Len + 1;
-         Name_Buffer (Name_Len) := ' ';
+      Buffer (1 .. File'Length - 4) := File (1 .. File'Length - 4);
+
+      for J in File'Length - 3 .. 8 loop
+         Buffer (J) := ' ';
       end loop;
 
       --  See if name is in 95 list
 
       for J in Non_Imp_File_Names_95'Range loop
-         if Name_Buffer (1 .. 8) = Non_Imp_File_Names_95 (J).Fname then
+         if Buffer = Non_Imp_File_Names_95 (J).Fname then
             return Ada_95_Unit;
          end if;
       end loop;
@@ -706,7 +725,7 @@ package body Impunit is
       --  See if name is in 2005 list
 
       for J in Non_Imp_File_Names_05'Range loop
-         if Name_Buffer (1 .. 8) = Non_Imp_File_Names_05 (J).Fname then
+         if Buffer = Non_Imp_File_Names_05 (J).Fname then
             return Ada_2005_Unit;
          end if;
       end loop;
@@ -714,7 +733,7 @@ package body Impunit is
       --  See if name is in 2012 list
 
       for J in Non_Imp_File_Names_12'Range loop
-         if Name_Buffer (1 .. 8) = Non_Imp_File_Names_12 (J).Fname then
+         if Buffer = Non_Imp_File_Names_12 (J).Fname then
             return Ada_2012_Unit;
          end if;
       end loop;
@@ -722,22 +741,9 @@ package body Impunit is
       --  Only remaining special possibilities are children of System.RPC and
       --  System.Garlic and special files of the form System.Aux...
 
-      Get_Name_String (Unit_Name (U));
-
-      if Name_Len > 12
-        and then Name_Buffer (1 .. 11) = "system.rpc."
-      then
-         return Ada_95_Unit;
-      end if;
-
-      if Name_Len > 15
-        and then Name_Buffer (1 .. 14) = "system.garlic."
-      then
-         return Ada_95_Unit;
-      end if;
-
-      if Name_Len > 11
-        and then Name_Buffer (1 .. 10) = "system.aux"
+      if File (1 .. 5) = "s-aux"
+        or else File (1 .. 5) = "s-gar"
+        or else File (1 .. 5) = "s-rpc"
       then
          return Ada_95_Unit;
       end if;
@@ -745,18 +751,16 @@ package body Impunit is
       --  All tests failed, this is definitely an implementation unit. See if
       --  we have an alternative name.
 
-      Get_Name_String (Fname);
-
-      if Name_Len in 11 .. 12
-        and then Name_Buffer (1 .. 2) = "s-"
-        and then Name_Buffer (Name_Len - 3 .. Name_Len) = ".ads"
+      if File'Length in 11 .. 12
+        and then File (1 .. 2) = "s-"
+        and then File (File'Last - 3 .. File'Last) = ".ads"
       then
          for J in Map_Array'Range loop
-            if (Name_Len = 12 and then
-                 Name_Buffer (3 .. 8) = Map_Array (J).Fname)
+            if (File'Length = 12 and then
+                 File (3 .. 8) = Map_Array (J).Fname)
               or else
-               (Name_Len = 11 and then
-                 Name_Buffer (3 .. 7) = Map_Array (J).Fname (1 .. 5))
+               (File'Length = 11 and then
+                 File (3 .. 7) = Map_Array (J).Fname (1 .. 5))
             then
                Error_Msg_Strlen := Map_Array (J).Aname'Length;
                Error_Msg_String (1 .. Error_Msg_Strlen) :=
@@ -766,6 +770,16 @@ package body Impunit is
       end if;
 
       return Implementation_Unit;
+   end Get_Kind_Of_File;
+
+   ----------------------
+   -- Get_Kind_Of_Unit --
+   ----------------------
+
+   function Get_Kind_Of_Unit (U : Unit_Number_Type) return Kind_Of_Unit is
+   begin
+      Get_Name_String (Unit_File_Name (U));
+      return Get_Kind_Of_File (Name_Buffer (1 .. Name_Len));
    end Get_Kind_Of_Unit;
 
    -------------------

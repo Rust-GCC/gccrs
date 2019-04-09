@@ -1,6 +1,5 @@
 /* { dg-require-effective-target vect_int } */
 
-#include <stdlib.h>
 #include "tree-vect.h"
 
 int seeIf256ByteArrayIsConstant(
@@ -51,5 +50,4 @@ int main(int argc, char** argv)
   return seeIf256ByteArrayIsConstant(&array1[0]);
 }
 
-/* { dg-final { cleanup-tree-dump "vect" } } */
 

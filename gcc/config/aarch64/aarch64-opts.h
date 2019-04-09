@@ -1,4 +1,4 @@
-/* Copyright (C) 2011-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -25,14 +25,21 @@
 /* The various cores that implement AArch64.  */
 enum aarch64_processor
 {
-#define AARCH64_CORE(NAME, INTERNAL_IDENT, IDENT, ARCH, FLAGS, COSTS) \
+#define AARCH64_CORE(NAME, INTERNAL_IDENT, SCHED, ARCH, FLAGS, COSTS, IMP, PART, VARIANT) \
   INTERNAL_IDENT,
 #include "aarch64-cores.def"
-#undef AARCH64_CORE
   /* Used to indicate that no processor has been specified.  */
   generic,
   /* Used to mark the end of the processor table.  */
   aarch64_none
+};
+
+enum aarch64_arch
+{
+#define AARCH64_ARCH(NAME, CORE, ARCH_IDENT, ARCH_REV, FLAGS) \
+  AARCH64_ARCH_##ARCH_IDENT,
+#include "aarch64-arches.def"
+  aarch64_no_arch
 };
 
 /* TLS types.  */
@@ -56,9 +63,39 @@ enum aarch64_code_model {
   /* Static code, data and GOT/PLT fit within a 4GB region.
      The default PIC code model.  */
   AARCH64_CMODEL_SMALL_PIC,
+  /* -fpic for small memory model.
+     GOT size to 28KiB (4K*8-4K) or 3580 entries.  */
+  AARCH64_CMODEL_SMALL_SPIC,
   /* No assumptions about addresses of code and data.
      The PIC variant is not yet implemented.  */
   AARCH64_CMODEL_LARGE
+};
+
+/* Function types -msign-return-address should sign.  */
+enum aarch64_function_type {
+  /* Don't sign any function.  */
+  AARCH64_FUNCTION_NONE,
+  /* Non-leaf functions.  */
+  AARCH64_FUNCTION_NON_LEAF,
+  /* All functions.  */
+  AARCH64_FUNCTION_ALL
+};
+
+/* SVE vector register sizes.  */
+enum aarch64_sve_vector_bits_enum {
+  SVE_SCALABLE,
+  SVE_NOT_IMPLEMENTED = SVE_SCALABLE,
+  SVE_128 = 128,
+  SVE_256 = 256,
+  SVE_512 = 512,
+  SVE_1024 = 1024,
+  SVE_2048 = 2048
+};
+
+/* Where to get the canary for the stack protector.  */
+enum stack_protector_guard {
+  SSP_SYSREG,			/* per-thread canary in special system register */
+  SSP_GLOBAL			/* global canary */
 };
 
 #endif

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -127,7 +127,7 @@ procedure Load is
 begin
    --  Don't do any loads if we already had a fatal error
 
-   if Fatal_Error (Cur_Unum) then
+   if Fatal_Error (Cur_Unum) = Error_Detected then
       return;
    end if;
 
@@ -285,7 +285,7 @@ begin
             Main_Unit_Entity := Cunit_Entity (Unum);
 
             if Generate_SCO then
-               SCO_Record (Unum);
+               SCO_Record_Raw (Unum);
             end if;
          end if;
 

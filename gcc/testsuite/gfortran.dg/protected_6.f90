@@ -1,6 +1,6 @@
 ! { dg-do compile }
 ! { dg-shouldfail "Invalid Fortran 2003 code" }
-! { dg-options "-std=f2003 -fall-intrinsics" }
+! { dg-options "-std=f2003" }
 ! PR fortran/23994
 !
 ! Test PROTECTED attribute. Within the module everything is allowed.
@@ -22,7 +22,8 @@ program main
   a = 43       ! { dg-error "variable definition context" }
   ap => null() ! { dg-error "pointer association context" }
   nullify(ap)  ! { dg-error "pointer association context" }
-  ap => at     ! { dg-error "pointer association context" }
+  ap => &      ! { dg-error "pointer association context" }
+       & at    ! { dg-error "Pointer assignment target has PROTECTED attribute" }
   ap = 3       ! OK
   allocate(ap) ! { dg-error "pointer association context" }
   ap = 73      ! OK

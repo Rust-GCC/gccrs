@@ -6,7 +6,7 @@ struct Value
   double value;
   Value(double value_) : value (value_) {}
   operator double() const { return value; }
-  Value& operator=(double other) { value = other; }
+  Value& operator=(double other) { value = other; return *this; }
 };
 
 struct Ref
@@ -46,4 +46,3 @@ int main(int argc, char *argv[])
    after optimization.  */
 
 /* { dg-final { scan-tree-dump-times ".MEM_\[0-9\]*\\\(D\\\)" 2 "optimized" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

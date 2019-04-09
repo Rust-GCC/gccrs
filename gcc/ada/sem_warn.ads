@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1999-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,7 +27,7 @@
 --  about uses of uninitialized variables and unused with's. It also has
 --  some unrelated routines related to the generation of warnings.
 
-with Alloc; use Alloc;
+with Alloc;
 with Table;
 with Types; use Types;
 
@@ -168,6 +168,11 @@ package Sem_Warn is
    --  code has a test that explicitly checks P'First, then it is not operating
    --  in blind assumption mode).
 
+   procedure Warn_On_Constant_Valid_Condition (Op : Node_Id);
+   --  Determine the outcome of evaluating conditional or relational operator
+   --  Op assuming that its scalar operands are valid. Emit a warning when the
+   --  result of the evaluation is True or False.
+
    procedure Warn_On_Known_Condition (C : Node_Id);
    --  C is a node for a boolean expression resulting from a relational
    --  or membership operation. If the expression has a compile time known
@@ -214,6 +219,14 @@ package Sem_Warn is
    --  a warning is generated that the subscripting operation is possibly
    --  incorrectly assuming a lower bound of 1.
 
+   procedure Warn_On_Suspicious_Update (N : Node_Id);
+   --  N is a semantically analyzed attribute reference Prefix'Update. Issue
+   --  a warning if Warn_On_Suspicious_Contract is set, and N is the left-hand
+   --  side or right-hand side of an equality or inequality of the form:
+   --    Prefix = Prefix'Update(...)
+   --  or
+   --    Prefix'Update(...) = Prefix
+
    procedure Warn_On_Unassigned_Out_Parameter
      (Return_Node : Node_Id;
       Scope_Id    : Entity_Id);
@@ -230,7 +243,7 @@ package Sem_Warn is
    --  should only be made if at least one of the flags Warn_On_Modified_Unread
    --  or Warn_On_All_Unread_Out_Parameters is True, and if Ent is in the
    --  extended main source unit. N is Empty for the end of block call
-   --  (warning message says value unreferenced), or the it is the node for
+   --  (warning message says value unreferenced), or it is the node for
    --  an overwriting assignment (warning message points to this assignment).
 
    procedure Warn_On_Useless_Assignments (E : Entity_Id);

@@ -1,5 +1,5 @@
 /* Definitions for AMD x86-64 using GNU userspace.
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2019 Free Software Foundation, Inc.
    Contributed by Jan Hubicka <jh@suse.cz>, based on linux.h.
 
 This file is part of GCC.
@@ -50,7 +50,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define ASM_SPEC "%{" SPEC_32 ":--32} \
  %{" SPEC_64 ":--64} \
  %{" SPEC_X32 ":--x32} \
- %{!mno-sse2avx:%{mavx:-msse2avx}} %{msse2avx:%{!mavx:-msse2avx}}"
+ %{msse2avx:%{!mavx:-msse2avx}}"
 
 #define GNU_USER_TARGET_LINK_SPEC				   \
                   "%{" SPEC_64 ":-m " GNU_USER_LINK_EMULATION64 "} \
@@ -59,11 +59,12 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
   %{shared:-shared} \
   %{!shared: \
     %{!static: \
-      %{rdynamic:-export-dynamic} \
-      %{" SPEC_32 ":-dynamic-linker " GNU_USER_DYNAMIC_LINKER32 "} \
-      %{" SPEC_64 ":-dynamic-linker " GNU_USER_DYNAMIC_LINKER64 "} \
-      %{" SPEC_X32 ":-dynamic-linker " GNU_USER_DYNAMIC_LINKERX32 "}} \
-    %{static:-static}}"
+      %{!static-pie: \
+	%{rdynamic:-export-dynamic} \
+	%{" SPEC_32 ":-dynamic-linker " GNU_USER_DYNAMIC_LINKER32 "} \
+	%{" SPEC_64 ":-dynamic-linker " GNU_USER_DYNAMIC_LINKER64 "} \
+	%{" SPEC_X32 ":-dynamic-linker " GNU_USER_DYNAMIC_LINKERX32 "}}} \
+    %{static:-static} %{static-pie:-static -pie --no-dynamic-linker -z text}}"
 
 #undef	LINK_SPEC
 #define LINK_SPEC GNU_USER_TARGET_LINK_SPEC
@@ -85,12 +86,9 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define TARGET_THREAD_SSP_OFFSET \
   (TARGET_64BIT ? (TARGET_X32 ? 0x18 : 0x28) : 0x14)
 
-/* We only build the -fsplit-stack support in libgcc if the
-   assembler has full support for the CFI directives.  */
-#if HAVE_GAS_CFI_PERSONALITY_DIRECTIVE
-#define TARGET_CAN_SPLIT_STACK
-#endif
-/* We steal the last transactional memory word.  */
+/* i386 glibc provides __private_ss in %gs:0x30.
+   x32 glibc provides it in %fs:0x40.
+   x86_64 glibc provides it in %fs:0x70.  */
 #define TARGET_THREAD_SPLIT_STACK_OFFSET \
   (TARGET_64BIT ? (TARGET_X32 ? 0x40 : 0x70) : 0x30)
 #endif

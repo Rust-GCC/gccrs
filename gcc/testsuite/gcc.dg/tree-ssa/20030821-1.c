@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O1 -fdump-tree-dom1 -fdump-tree-optimized" } */
+/* { dg-options "-O1 -fdump-tree-dom2 -fdump-tree-optimized" } */
 
 void dont_remove (void);
 
@@ -26,5 +26,3 @@ y: ;
 
 /* We should have folded away the goto &x  */
 /* { dg-final { scan-tree-dump-times "goto &x" 0 "optimized"} } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */
-/* { dg-final { cleanup-tree-dump "dom1" } } */

@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-dse" } */
+/* { dg-options "-O2 -fdump-tree-dse1" } */
 
 typedef struct _s {
     int a;
@@ -22,5 +22,5 @@ void test_signed_msg_encoding(void)
     f();
 }
 
-/* { dg-final { scan-tree-dump-times "signInfo = {}" 1 "dse1" } } */
-/* { dg-final { cleanup-tree-dump "dse*" } } */
+/* { dg-final { scan-tree-dump-times "MEM\\\[\\(struct _s \\*\\)&signInfo \\+ \[0-9\]+B\\\] = {}" 1 "dse1" } } */
+

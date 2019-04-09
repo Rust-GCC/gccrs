@@ -1,7 +1,7 @@
 /* Routines for saving various data types to a file stream.  This deals
    with various data types like strings, integers, enums, etc.
 
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -23,13 +23,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "backend.h"
 #include "tree.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "is-a.h"
 #include "gimple.h"
+#include "cgraph.h"
 #include "data-streamer.h"
 
 
@@ -343,7 +340,6 @@ streamer_write_hwi_stream (struct lto_output_stream *obs, HOST_WIDE_INT work)
 void
 streamer_write_gcov_count_stream (struct lto_output_stream *obs, gcov_type work)
 {
-  gcc_assert (work >= 0);
   gcc_assert ((HOST_WIDE_INT) work == work);
   streamer_write_hwi_stream (obs, work);
 }
@@ -376,5 +372,32 @@ streamer_write_data_stream (struct lto_output_stream *obs, const void *data,
       data = (const char *) data + copy;
       len -= copy;
     }
+}
+
+/* Emit the physical representation of wide_int VAL to output block OB.  */
+
+void
+streamer_write_wide_int (struct output_block *ob, const wide_int &val)
+{
+  int len = val.get_len ();
+
+  streamer_write_uhwi (ob, val.get_precision ());
+  streamer_write_uhwi (ob, len);
+  for (int i = 0; i < len; i++)
+    streamer_write_hwi (ob, val.elt (i));
+}
+
+/* Emit the physical representation of widest_int W to output block OB.  */
+
+void
+streamer_write_widest_int (struct output_block *ob,
+			   const widest_int &w)
+{
+  int len = w.get_len ();
+
+  streamer_write_uhwi (ob, w.get_precision ());
+  streamer_write_uhwi (ob, len);
+  for (int i = 0; i < len; i++)
+    streamer_write_hwi (ob, w.elt (i));
 }
 

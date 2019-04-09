@@ -10,7 +10,7 @@ int aa (void)
   test(t);
 }
 static inline
-int bb (void) /* { dg-warning "large-stack-frame" "" } */
+int bb (void) /* { dg-warning "large-stack-frame" } */
 {
   char t[100];
   test(t);
@@ -22,5 +22,5 @@ t()
   if (a)
     aa();
   if (b)
-    bb(); 			/* { dg-warning "called from here" "" } */
+    bb(); 			/* { dg-message "called from here" } */
 }

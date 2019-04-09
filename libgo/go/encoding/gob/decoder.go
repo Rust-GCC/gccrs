@@ -6,25 +6,33 @@ package gob
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"io"
 	"reflect"
 	"sync"
 )
 
+// tooBig provides a sanity check for sizes; used in several places. Upper limit
+// of is 1GB on 32-bit systems, 8GB on 64-bit, allowing room to grow a little
+// without overflow.
+const tooBig = (1 << 30) << (^uint(0) >> 62)
+
 // A Decoder manages the receipt of type and data information read from the
-// remote side of a connection.
+// remote side of a connection.  It is safe for concurrent use by multiple
+// goroutines.
+//
+// The Decoder does only basic sanity checking on decoded input sizes,
+// and its limits are not configurable. Take caution when decoding gob data
+// from untrusted sources.
 type Decoder struct {
 	mutex        sync.Mutex                              // each item must be received atomically
 	r            io.Reader                               // source of the data
-	buf          bytes.Buffer                            // buffer for more efficient i/o from r
+	buf          decBuffer                               // buffer for more efficient i/o from r
 	wireType     map[typeId]*wireType                    // map from remote ID to local description
 	decoderCache map[reflect.Type]map[typeId]**decEngine // cache of compiled engines
 	ignorerCache map[typeId]**decEngine                  // ditto for ignored objects
 	freeList     *decoderState                           // list of free decoderStates; avoids reallocation
 	countBuf     []byte                                  // used for decoding integers while parsing messages
-	tmp          []byte                                  // temporary storage for i/o; saves reallocating
 	err          error
 }
 
@@ -48,7 +56,7 @@ func NewDecoder(r io.Reader) *Decoder {
 
 // recvType loads the definition of a type.
 func (dec *Decoder) recvType(id typeId) {
-	// Have we already seen this type?  That's an error
+	// Have we already seen this type? That's an error
 	if id < firstUserId || dec.wireType[id] != nil {
 		dec.err = errors.New("gob: duplicate type received")
 		return
@@ -75,9 +83,7 @@ func (dec *Decoder) recvMessage() bool {
 		dec.err = err
 		return false
 	}
-	// Upper limit of 1GB, allowing room to grow a little without overflow.
-	// TODO: We might want more control over this limit.
-	if nbytes >= 1<<30 {
+	if nbytes >= tooBig {
 		dec.err = errBadCount
 		return false
 	}
@@ -87,37 +93,15 @@ func (dec *Decoder) recvMessage() bool {
 
 // readMessage reads the next nbytes bytes from the input.
 func (dec *Decoder) readMessage(nbytes int) {
-	// Allocate the dec.tmp buffer, up to 10KB.
-	const maxBuf = 10 * 1024
-	nTmp := nbytes
-	if nTmp > maxBuf {
-		nTmp = maxBuf
+	if dec.buf.Len() != 0 {
+		// The buffer should always be empty now.
+		panic("non-empty decoder buffer")
 	}
-	if cap(dec.tmp) < nTmp {
-		nAlloc := nTmp + 100 // A little extra for growth.
-		if nAlloc > maxBuf {
-			nAlloc = maxBuf
-		}
-		dec.tmp = make([]byte, nAlloc)
-	}
-	dec.tmp = dec.tmp[:nTmp]
-
 	// Read the data
-	dec.buf.Grow(nbytes)
-	for nbytes > 0 {
-		if nbytes < nTmp {
-			dec.tmp = dec.tmp[:nbytes]
-		}
-		var nRead int
-		nRead, dec.err = io.ReadFull(dec.r, dec.tmp)
-		if dec.err != nil {
-			if dec.err == io.EOF {
-				dec.err = io.ErrUnexpectedEOF
-			}
-			return
-		}
-		dec.buf.Write(dec.tmp)
-		nbytes -= nRead
+	dec.buf.Size(nbytes)
+	_, dec.err = io.ReadFull(dec.r, dec.buf.Bytes())
+	if dec.err == io.EOF {
+		dec.err = io.ErrUnexpectedEOF
 	}
 }
 
@@ -149,9 +133,9 @@ func (dec *Decoder) nextUint() uint64 {
 // decodeTypeSequence parses:
 // TypeSequence
 //	(TypeDefinition DelimitedTypeDefinition*)?
-// and returns the type id of the next value.  It returns -1 at
+// and returns the type id of the next value. It returns -1 at
 // EOF.  Upon return, the remainder of dec.buf is the value to be
-// decoded.  If this is an interface value, it can be ignored by
+// decoded. If this is an interface value, it can be ignored by
 // resetting that buffer.
 func (dec *Decoder) decodeTypeSequence(isInterface bool) typeId {
 	for dec.err == nil {
@@ -169,7 +153,7 @@ func (dec *Decoder) decodeTypeSequence(isInterface bool) typeId {
 		// Type definition for (-id) follows.
 		dec.recvType(-id)
 		// When decoding an interface, after a type there may be a
-		// DelimitedValue still in the buffer.  Skip its count.
+		// DelimitedValue still in the buffer. Skip its count.
 		// (Alternatively, the buffer is empty and the byte count
 		// will be absorbed by recvMessage.)
 		if dec.buf.Len() > 0 {
@@ -196,7 +180,7 @@ func (dec *Decoder) Decode(e interface{}) error {
 	}
 	value := reflect.ValueOf(e)
 	// If e represents a value as opposed to a pointer, the answer won't
-	// get back to the caller.  Make sure it's a pointer.
+	// get back to the caller. Make sure it's a pointer.
 	if value.Type().Kind() != reflect.Ptr {
 		dec.err = errors.New("gob: attempt to decode into a non-pointer")
 		return dec.err
@@ -206,10 +190,10 @@ func (dec *Decoder) Decode(e interface{}) error {
 
 // DecodeValue reads the next value from the input stream.
 // If v is the zero reflect.Value (v.Kind() == Invalid), DecodeValue discards the value.
-// Otherwise, it stores the value into v.  In that case, v must represent
+// Otherwise, it stores the value into v. In that case, v must represent
 // a non-nil pointer to data or be an assignable reflect.Value (v.CanSet())
 // If the input is at EOF, DecodeValue returns io.EOF and
-// does not modify e.
+// does not modify v.
 func (dec *Decoder) DecodeValue(v reflect.Value) error {
 	if v.IsValid() {
 		if v.Kind() == reflect.Ptr && !v.IsNil() {

@@ -1,5 +1,5 @@
 ;;  Machine Description for TI MSP43* processors
-;;  Copyright (C) 2013-2014 Free Software Foundation, Inc.
+;;  Copyright (C) 2013-2019 Free Software Foundation, Inc.
 ;;  Contributed by Red Hat.
 
 ;; This file is part of GCC.
@@ -32,12 +32,22 @@
 (define_constraint "L"
   "Integer constant -1^20..1^19."
   (and (match_code "const_int")
-       (match_test "IN_RANGE (ival, -1 << 20, 1 << 19)")))
+       (match_test "IN_RANGE (ival, HOST_WIDE_INT_M1U << 20, 1 << 19)")))
 
 (define_constraint "M"
   "Integer constant 1-4."
   (and (match_code "const_int")
        (match_test "IN_RANGE (ival, 1, 4)")))
+
+(define_constraint "N"
+  "Integer constant 0-255."
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (ival, 0, 255)")))
+
+(define_constraint "O"
+  "Integer constant 256-65535."
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (ival, 256, 65535)")))
 
 ;; We do not allow arbitrary constants, eg symbols or labels,
 ;; because their address may be above the 16-bit address limit
@@ -58,7 +68,7 @@
        (match_code "label_ref" "0")))
 
 
-;; These are memory references that are safe to use with the X suffix,
+;; These are memory references that are safe to use without the X suffix,
 ;; because we know/assume they need not index across the 64k boundary.
 (define_constraint "Ys"
   "Memory reference, stack only."
@@ -67,7 +77,7 @@
 	(and (match_code "plus" "0")
 	     (and (match_code "reg" "00")
 		  (match_test ("CONST_INT_P (XEXP (XEXP (op, 0), 1))"))
-		  (match_test ("IN_RANGE (INTVAL (XEXP (XEXP (op, 0), 1)), -1 << 15, (1 << 15)-1)"))))
+		  (match_test ("IN_RANGE (INTVAL (XEXP (XEXP (op, 0), 1)), HOST_WIDE_INT_M1U << 15, (1 << 15)-1)"))))
 	(match_code "reg" "0")
 	)))
 

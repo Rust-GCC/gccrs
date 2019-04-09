@@ -2,7 +2,7 @@
 // 2000-05-21 Benjamin Kosnik  <bkoz@redhat.com>
 // 2001-01-17 Loren J. Rittle  <ljrittle@acm.org>
 
-// Copyright (C) 1999-2014 Free Software Foundation, Inc.
+// Copyright (C) 1999-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,12 +22,6 @@
 // 27.4.2.4 ios_base static members
 // @require@ %-*.tst
 // @diff@ %-*.tst %-*.txt
-
-// This test fails on platforms using a wrapper, because this test
-// redirects stdout to a file and so the exit status printed by the
-// wrapper is not visibile to DejaGNU.  DejaGNU then assumes that the
-// test exited with a non-zero exit status.
-// { dg-do run { xfail { ! unwrapped } } }
 
 #include <cstdio>
 #include <sstream>

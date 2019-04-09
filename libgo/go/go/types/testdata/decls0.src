@@ -6,12 +6,7 @@
 
 package decls0
 
-import (
-	"unsafe"
-	// we can have multiple blank imports (was bug)
-	_ "math"
-	_ "net/rpc"
-)
+import "unsafe"
 
 const pi = 3.1415
 
@@ -40,17 +35,33 @@ type (
 )
 
 
+// declarations of init
+const _, init /* ERROR "cannot declare init" */ , _ = 0, 1, 2
+type init /* ERROR "cannot declare init" */ struct{}
+var _, init /* ERROR "cannot declare init" */ int
+
+func init() {}
+func init /* ERROR "missing function body" */ ()
+
+func _() { const init = 0 }
+func _() { type init int }
+func _() { var init int; _ = init }
+
 // invalid array types
 type (
 	iA0 [... /* ERROR "invalid use of '...'" */ ]byte
-	iA1 [1 /* ERROR "invalid array length" */ <<100]int
+	// The error message below could be better. At the moment
+	// we believe an integer that is too large is not an integer.
+	// But at least we get an error.
+	iA1 [1 /* ERROR "must be integer" */ <<100]int
 	iA2 [- /* ERROR "invalid array length" */ 1]complex128
-	iA3 ["foo" /* ERROR "invalid array length" */ ]string
+	iA3 ["foo" /* ERROR "must be integer" */ ]string
+	iA4 [float64 /* ERROR "must be integer" */ (0)]int
 )
 
 
 type (
-	p1 pi /* ERROR "no single field or method foo" */ .foo
+	p1 pi.foo /* ERROR "no field or method foo" */
 	p2 unsafe.Pointer
 )
 
@@ -86,9 +97,8 @@ type (
 		u, v, a /* ERROR "redeclared" */ float32
 	}
 	S2 struct {
-		U // anonymous field
-		// TODO(gri) recognize double-declaration below
-		// U /* ERROR "redeclared" */ int
+		S0 // embedded field
+		S0 /* ERROR "redeclared" */ int
 	}
 	S3 struct {
 		x S2
@@ -127,7 +137,7 @@ type (
 	I2 interface {
 		m1()
 	}
-	I3 interface { /* ERROR "multiple methods named m1" */
+	I3 interface {
 		m1()
 		m1 /* ERROR "redeclared" */ ()
 	}
@@ -149,18 +159,14 @@ type (
 	I8 /* ERROR "illegal cycle" */ interface {
 		I8
 	}
-	// Use I09 (rather than I9) because it appears lexically before
-	// I10 so that we get the illegal cycle here rather then in the
-	// declaration of I10. If the implementation sorts by position
-	// rather than name, the error message will still be here.
-	I09 /* ERROR "illegal cycle" */ interface {
+	I9 /* ERROR "illegal cycle" */ interface {
 		I10
 	}
 	I10 interface {
 		I11
 	}
 	I11 interface {
-		I09
+		I9
 	}
 
 	C1 chan int
@@ -175,3 +181,30 @@ type (
 
 	Last int
 )
+
+// cycles in function/method declarations
+// (test cases for issues #5217, #25790 and variants)
+func f1(x f1 /* ERROR "not a type" */ ) {}
+func f2(x *f2 /* ERROR "not a type" */ ) {}
+func f3() (x f3 /* ERROR "not a type" */ ) { return }
+func f4() (x *f4 /* ERROR "not a type" */ ) { return }
+
+func (S0) m1 /* ERROR illegal cycle */ (x S0 /* ERROR value .* is not a type */ .m1) {}
+func (S0) m2 /* ERROR illegal cycle */ (x *S0 /* ERROR value .* is not a type */ .m2) {}
+func (S0) m3 /* ERROR illegal cycle */ () (x S0 /* ERROR value .* is not a type */ .m3) { return }
+func (S0) m4 /* ERROR illegal cycle */ () (x *S0 /* ERROR value .* is not a type */ .m4) { return }
+
+// interfaces may not have any blank methods
+type BlankI interface {
+	_ /* ERROR "invalid method name" */ ()
+	_ /* ERROR "invalid method name" */ (float32) int
+	m()
+}
+
+// non-interface types may have multiple blank methods
+type BlankT struct{}
+
+func (BlankT) _() {}
+func (BlankT) _(int) {}
+func (BlankT) _() int { return 0 }
+func (BlankT) _(int) int { return 0}

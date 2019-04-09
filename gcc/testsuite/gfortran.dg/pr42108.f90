@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-O2 -fdump-tree-fre1" }
+! { dg-options "-O2 -fdump-tree-fre1 -fdump-tree-pre-details -fno-tree-loop-im" }
 
 subroutine  eval(foo1,foo2,foo3,foo4,x,n,nnd)
   implicit real*8 (a-h,o-z)
@@ -22,6 +22,4 @@ subroutine  eval(foo1,foo2,foo3,foo4,x,n,nnd)
 end subroutine eval
 
 ! There should be only one load from n left
-
 ! { dg-final { scan-tree-dump-times "\\*n_" 1 "fre1" } }
-! { dg-final { cleanup-tree-dump "fre1" } }

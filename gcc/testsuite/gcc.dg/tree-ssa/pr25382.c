@@ -3,7 +3,7 @@
    Check that VRP now gets ranges from BIT_AND_EXPRs.  */
 
 /* { dg-do compile } */
-/* { dg-options "-O2 -fno-tree-ccp -fdump-tree-vrp1" } */
+/* { dg-options "-O2 -fno-tree-ccp -fdisable-tree-evrp -fdump-tree-vrp1" } */
 
 int
 foo (int a)
@@ -16,4 +16,3 @@ foo (int a)
 }
 
 /* { dg-final { scan-tree-dump-times "Folding predicate b_.* > 300 to 0" 1 "vrp1" } } */
-/* { dg-final { cleanup-tree-dump "vrp1" } } */

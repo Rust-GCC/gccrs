@@ -1,5 +1,5 @@
 /* { dg-do run } */
-/* { dg-options "-O2 -fipa-pta -fno-tree-fre -fno-tree-sra -fdump-ipa-pta-details" } */
+/* { dg-options "-O2 -fipa-pta -fno-tree-fre -fno-tree-sra -fdump-ipa-pta2-details -fdelete-null-pointer-checks" } */
 
 struct X {
     int i;
@@ -21,12 +21,11 @@ int main()
   void *p;
   a.p = (void *)&c;
   p = foo(&a, &a);
-  /* { dg-final { scan-ipa-dump "foo.result = { NULL a\[^ \]* c\[^ \]* }" "pta" { target { ! keeps_null_pointer_checks } } } } */
-  /* { dg-final { scan-ipa-dump "foo.result = { NONLOCAL a\[^ \]* c\[^ \]* }" "pta" { target { keeps_null_pointer_checks } } } } */
+  /* { dg-final { scan-ipa-dump "foo.result = { NULL a\[^ \]* c\[^ \]* }" "pta2" { target { ! keeps_null_pointer_checks } } } } */
+  /* { dg-final { scan-ipa-dump "foo.result = { NONLOCAL a\[^ \]* c\[^ \]* }" "pta2" { target { keeps_null_pointer_checks } } } } */
   ((struct X *)p)->p = (void *)0;
   if (a.p != (void *)0)
     abort ();
   return 0;
 }
 
-/* { dg-final { cleanup-ipa-dump "pta" } } */

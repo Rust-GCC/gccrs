@@ -1,6 +1,6 @@
 // <scoped_allocator> -*- C++ -*-
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -43,58 +43,46 @@ namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
-  template<template<typename> class _Pred, typename... _Allocs>
-    struct __any_of;
-
-  template<template<typename> class _Pred, typename _Alloc, typename... _Allocs>
-    struct __any_of<_Pred, _Alloc, _Allocs...>
-    : __or_<_Pred<_Alloc>, __any_of<_Pred, _Allocs...>>
-    { };
-
-  template<template<typename> class _Pred, typename _Alloc>
-    struct __any_of<_Pred, _Alloc>
-    : _Pred<_Alloc>
-    { };
-
   /**
    * @addtogroup allocators
    * @{
    */
 
   template<typename _Alloc>
-    struct __propagate_on_copy
-    : allocator_traits<_Alloc>::propagate_on_container_copy_assignment
-    { };
-  template<typename _Alloc>
-    struct __propagate_on_move
-    : allocator_traits<_Alloc>::propagate_on_container_move_assignment
-    { };
-  template<typename _Alloc>
-    struct __propagate_on_swap
-    : allocator_traits<_Alloc>::propagate_on_container_swap
-    { };
+    using __outer_allocator_t
+      = decltype(std::declval<_Alloc>().outer_allocator());
 
+  template<typename _Alloc, typename = void>
+    struct __outermost_type
+    {
+      using type = _Alloc;
+      static type& _S_outermost(_Alloc& __a) { return __a; }
+    };
 
   template<typename _Alloc>
-    inline auto
-    __do_outermost(_Alloc& __a, _Alloc*) -> decltype(__a.outer_allocator())
-    { return __a.outer_allocator(); }
+    struct __outermost_type<_Alloc, __void_t<__outer_allocator_t<_Alloc>>>
+    : __outermost_type<
+      typename remove_reference<__outer_allocator_t<_Alloc>>::type
+    >
+    {
+      using __base = __outermost_type<
+        typename remove_reference<__outer_allocator_t<_Alloc>>::type
+      >;
+
+      static typename __base::type&
+      _S_outermost(_Alloc& __a)
+      { return __base::_S_outermost(__a.outer_allocator()); }
+    };
 
   template<typename _Alloc>
-    inline _Alloc&
-    __do_outermost(_Alloc& __a, ...)
-    { return __a; }
-
-  // TODO: make recursive (see note in 20.12.4/1)
-  template<typename _Alloc>
-    inline auto
-    __outermost(_Alloc& __a) -> decltype(__do_outermost(__a, &__a))
-    { return __do_outermost(__a, &__a); }
+    inline typename __outermost_type<_Alloc>::type&
+    __outermost(_Alloc& __a)
+    { return __outermost_type<_Alloc>::_S_outermost(__a); }
 
   template<typename _OuterAlloc, typename... _InnerAllocs>
     class scoped_allocator_adaptor;
 
-  template<typename...> 
+  template<typename...>
     struct __inner_type_impl;
 
   template<typename _Outer>
@@ -105,25 +93,27 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __inner_type_impl() = default;
       __inner_type_impl(const __inner_type_impl&) = default;
       __inner_type_impl(__inner_type_impl&&) = default;
-      
+      __inner_type_impl& operator=(const __inner_type_impl&) = default;
+      __inner_type_impl& operator=(__inner_type_impl&&) = default;
+
       template<typename _Alloc>
       __inner_type_impl(const __inner_type_impl<_Alloc>& __other)
       { }
-      
+
       template<typename _Alloc>
       __inner_type_impl(__inner_type_impl<_Alloc>&& __other)
       { }
-      
-      __type& 
+
+      __type&
       _M_get(__type* __p) noexcept { return *__p; }
 
-      const __type& 
+      const __type&
       _M_get(const __type* __p) const noexcept { return *__p; }
-      
-      tuple<> 
+
+      tuple<>
       _M_tie() const noexcept { return tuple<>(); }
-      
-      bool 
+
+      bool
       operator==(const __inner_type_impl&) const noexcept
       { return true; }
     };
@@ -132,15 +122,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct __inner_type_impl<_Outer, _InnerHead, _InnerTail...>
     {
       typedef scoped_allocator_adaptor<_InnerHead, _InnerTail...> __type;
-      
+
       __inner_type_impl() = default;
       __inner_type_impl(const __inner_type_impl&) = default;
       __inner_type_impl(__inner_type_impl&&) = default;
-      
+      __inner_type_impl& operator=(const __inner_type_impl&) = default;
+      __inner_type_impl& operator=(__inner_type_impl&&) = default;
+
       template<typename... _Allocs>
       __inner_type_impl(const __inner_type_impl<_Allocs...>& __other)
       : _M_inner(__other._M_inner) { }
-      
+
       template<typename... _Allocs>
       __inner_type_impl(__inner_type_impl<_Allocs...>&& __other)
       : _M_inner(std::move(__other._M_inner)) { }
@@ -150,24 +142,24 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       __inner_type_impl(_Args&&... __args)
       : _M_inner(std::forward<_Args>(__args)...) { }
 
-      __type& 
+      __type&
       _M_get(void*) noexcept { return _M_inner; }
-      
-      const __type& 
+
+      const __type&
       _M_get(const void*) const noexcept { return _M_inner; }
-      
-      tuple<const _InnerHead&, const _InnerTail&...> 
+
+      tuple<const _InnerHead&, const _InnerTail&...>
       _M_tie() const noexcept
       { return _M_inner._M_tie(); }
-      
-      bool 
+
+      bool
       operator==(const __inner_type_impl& __other) const noexcept
       { return _M_inner == __other._M_inner; }
-      
+
     private:
       template<typename...> friend class __inner_type_impl;
       template<typename, typename...> friend class scoped_allocator_adaptor;
-      
+
       __type _M_inner;
     };
 
@@ -192,15 +184,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return std::tuple_cat(std::tie(outer_allocator()), _M_inner._M_tie()); }
 
       template<typename _Alloc>
-	using __outermost_type = typename
-	  std::decay<decltype(__outermost(std::declval<_Alloc&>()))>::type;
-
-      template<typename _Alloc>
 	using __outermost_alloc_traits
-	  = allocator_traits<__outermost_type<_Alloc>>;
-      
+	  = allocator_traits<typename __outermost_type<_Alloc>::type>;
+
       template<typename _Tp, typename... _Args>
-        void 
+        void
         _M_construct(__uses_alloc0, _Tp* __p, _Args&&... __args)
         {
 	  typedef __outermost_alloc_traits<scoped_allocator_adaptor> _O_traits;
@@ -212,7 +200,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       typedef __uses_alloc2<typename __inner_type::__type> __uses_alloc2_;
 
       template<typename _Tp, typename... _Args>
-        void 
+        void
         _M_construct(__uses_alloc1_, _Tp* __p, _Args&&... __args)
         {
 	  typedef __outermost_alloc_traits<scoped_allocator_adaptor> _O_traits;
@@ -222,7 +210,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         }
 
       template<typename _Tp, typename... _Args>
-        void 
+        void
         _M_construct(__uses_alloc2_, _Tp* __p, _Args&&... __args)
         {
 	  typedef __outermost_alloc_traits<scoped_allocator_adaptor> _O_traits;
@@ -247,6 +235,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
           _M_inner(_S_select_on_copy(std::get<_Indices+1>(__refs))...)
         { }
 
+      // Used to constrain constructors to disallow invalid conversions.
+      template<typename _Alloc>
+        using _Constructible = typename enable_if<
+            is_constructible<_OuterAlloc, _Alloc>::value
+          >::type;
+
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 2975. Missing case for pair construction in scoped [...] allocators
+      template<typename _Tp>
+	struct __not_pair { using type = void; };
+
+      template<typename _Tp, typename _Up>
+	struct __not_pair<pair<_Tp, _Up>> { };
+
     public:
       typedef _OuterAlloc                       outer_allocator_type;
       typedef typename __inner_type::__type     inner_allocator_type;
@@ -259,15 +261,28 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       typedef typename __traits::void_pointer           void_pointer;
       typedef typename __traits::const_void_pointer     const_void_pointer;
 
-      typedef typename conditional<
-        __any_of<__propagate_on_copy, _OuterAlloc, _InnerAllocs...>::value,
-        true_type, false_type>::type propagate_on_container_copy_assignment;
-      typedef typename conditional<
-        __any_of<__propagate_on_move, _OuterAlloc, _InnerAllocs...>::value,
-        true_type, false_type>::type propagate_on_container_move_assignment;
-      typedef typename conditional<
-        __any_of<__propagate_on_swap, _OuterAlloc, _InnerAllocs...>::value,
-        true_type, false_type>::type propagate_on_container_swap;
+      typedef typename __or_<
+	typename __traits::propagate_on_container_copy_assignment,
+	typename allocator_traits<_InnerAllocs>::
+	  propagate_on_container_copy_assignment...>::type
+	  propagate_on_container_copy_assignment;
+
+      typedef typename __or_<
+	typename __traits::propagate_on_container_move_assignment,
+	typename allocator_traits<_InnerAllocs>::
+	  propagate_on_container_move_assignment...>::type
+	  propagate_on_container_move_assignment;
+
+      typedef typename __or_<
+	typename __traits::propagate_on_container_swap,
+	typename allocator_traits<_InnerAllocs>::
+	  propagate_on_container_swap...>::type
+	  propagate_on_container_swap;
+
+      typedef typename __and_<
+	typename __traits::is_always_equal,
+	typename allocator_traits<_InnerAllocs>::is_always_equal...>::type
+	  is_always_equal;
 
       template <class _Tp>
         struct rebind
@@ -279,7 +294,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       scoped_allocator_adaptor() : _OuterAlloc(), _M_inner() { }
 
-      template<typename _Outer2>
+      template<typename _Outer2, typename = _Constructible<_Outer2>>
         scoped_allocator_adaptor(_Outer2&& __outer,
                                  const _InnerAllocs&... __inner)
         : _OuterAlloc(std::forward<_Outer2>(__outer)),
@@ -296,19 +311,25 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_M_inner(std::move(__other._M_inner))
       { }
 
-      template<typename _Outer2>
+      template<typename _Outer2, typename = _Constructible<const _Outer2&>>
         scoped_allocator_adaptor(
             const scoped_allocator_adaptor<_Outer2, _InnerAllocs...>& __other)
         : _OuterAlloc(__other.outer_allocator()),
           _M_inner(__other._M_inner)
         { }
 
-      template<typename _Outer2>
+      template<typename _Outer2, typename = _Constructible<_Outer2>>
         scoped_allocator_adaptor(
             scoped_allocator_adaptor<_Outer2, _InnerAllocs...>&& __other)
         : _OuterAlloc(std::move(__other.outer_allocator())),
           _M_inner(std::move(__other._M_inner))
         { }
+
+      scoped_allocator_adaptor&
+      operator=(const scoped_allocator_adaptor&) = default;
+
+      scoped_allocator_adaptor&
+      operator=(scoped_allocator_adaptor&&) = default;
 
       inner_allocator_type& inner_allocator() noexcept
       { return _M_inner._M_get(this); }
@@ -322,10 +343,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       const outer_allocator_type& outer_allocator() const noexcept
       { return static_cast<const _OuterAlloc&>(*this); }
 
-      pointer allocate(size_type __n)
+      _GLIBCXX_NODISCARD pointer allocate(size_type __n)
       { return __traits::allocate(outer_allocator(), __n); }
 
-      pointer allocate(size_type __n, const_void_pointer __hint)
+      _GLIBCXX_NODISCARD pointer allocate(size_type __n, const_void_pointer __hint)
       { return __traits::allocate(outer_allocator(), __n, __hint); }
 
       void deallocate(pointer __p, size_type __n)
@@ -335,13 +356,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return __traits::max_size(outer_allocator()); }
 
       template<typename _Tp, typename... _Args>
-        void construct(_Tp* __p, _Args&&... __args)
-        {
-          auto& __inner = inner_allocator();
-          auto __use_tag
-            = __use_alloc<_Tp, inner_allocator_type, _Args...>(__inner);
-          _M_construct(__use_tag, __p, std::forward<_Args>(__args)...);
-        }
+	typename __not_pair<_Tp>::type
+	construct(_Tp* __p, _Args&&... __args)
+	{
+	  auto& __inner = inner_allocator();
+	  auto __use_tag
+	    = std::__use_alloc<_Tp, inner_allocator_type, _Args...>(__inner);
+	  _M_construct(__use_tag, __p, std::forward<_Args>(__args)...);
+	}
 
       template<typename _T1, typename _T2, typename... _Args1,
 	       typename... _Args2>
@@ -353,13 +375,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  // 2203.  wrong argument types for piecewise construction
 	  auto& __inner = inner_allocator();
 	  auto __x_use_tag
-	    = __use_alloc<_T1, inner_allocator_type, _Args1...>(__inner);
+	    = std::__use_alloc<_T1, inner_allocator_type, _Args1...>(__inner);
 	  auto __y_use_tag
-	    = __use_alloc<_T2, inner_allocator_type, _Args2...>(__inner);
+	    = std::__use_alloc<_T2, inner_allocator_type, _Args2...>(__inner);
+	  typename _Build_index_tuple<sizeof...(_Args1)>::__type __x_indices;
+	  typename _Build_index_tuple<sizeof...(_Args2)>::__type __y_indices;
 	  typedef __outermost_alloc_traits<scoped_allocator_adaptor> _O_traits;
 	  _O_traits::construct(__outermost(*this), __p, piecewise_construct,
-			       _M_construct_p(__x_use_tag, __x),
-			       _M_construct_p(__y_use_tag, __y));
+			       _M_construct_p(__x_use_tag, __x_indices, __x),
+			       _M_construct_p(__y_use_tag, __y_indices, __y));
 	}
 
       template<typename _T1, typename _T2>
@@ -415,26 +439,27 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
                  const scoped_allocator_adaptor<_OutA2, _InA...>& __b) noexcept;
 
     private:
-      template<typename _Tuple>
-	_Tuple&&
-	_M_construct_p(__uses_alloc0, _Tuple& __t)
+      template<typename _Ind, typename... _Args>
+	tuple<_Args&&...>
+	_M_construct_p(__uses_alloc0, _Ind, tuple<_Args...>& __t)
 	{ return std::move(__t); }
 
-      template<typename... _Args>
-	std::tuple<allocator_arg_t, inner_allocator_type&, _Args...>
-	_M_construct_p(__uses_alloc1_, std::tuple<_Args...>& __t)
+      template<size_t... _Ind, typename... _Args>
+	tuple<allocator_arg_t, inner_allocator_type&, _Args&&...>
+	_M_construct_p(__uses_alloc1_, _Index_tuple<_Ind...>,
+		       tuple<_Args...>& __t)
 	{
-	  typedef std::tuple<allocator_arg_t, inner_allocator_type&> _Tuple;
-	  return std::tuple_cat(_Tuple(allocator_arg, inner_allocator()),
-				std::move(__t));
+	  return { allocator_arg, inner_allocator(),
+	      std::get<_Ind>(std::move(__t))...
+	  };
 	}
 
-      template<typename... _Args>
-	std::tuple<_Args..., inner_allocator_type&>
-	_M_construct_p(__uses_alloc2_, std::tuple<_Args...>& __t)
+      template<size_t... _Ind, typename... _Args>
+	tuple<_Args&&..., inner_allocator_type&>
+	_M_construct_p(__uses_alloc2_, _Index_tuple<_Ind...>,
+		       tuple<_Args...>& __t)
 	{
-	  typedef std::tuple<inner_allocator_type&> _Tuple;
-	  return std::tuple_cat(std::move(__t), _Tuple(inner_allocator()));
+	  return { std::get<_Ind>(std::move(__t))..., inner_allocator() };
 	}
     };
 

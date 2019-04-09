@@ -1,4 +1,7 @@
-// { dg-do compile }
+// Without comdat support, we don't see the body of the
+// extern template class constructor, so limit this to
+// known comdat targets.
+// { dg-do compile { target comdat_group } }
 // { dg-options "-fgnu-tm" }
 
 template<typename _Tp> class allocator
@@ -22,4 +25,5 @@ template<typename _Alloc = allocator<char> > class basic_string
 int getStringHeight()
 {
 	basic_string<> tmp;
+	return 0;
 }

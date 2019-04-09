@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "de_DE" }
+// { dg-require-namedlocale "de_DE.ISO8859-15" }
 
 // 2001-07-17 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,13 +30,12 @@ void test01()
   typedef std::messages<char>::catalog catalog;
   typedef std::messages<char>::string_type string_type;
 
-  bool test __attribute__((unused)) = true;
   // This is defined through CXXFLAGS in scripts/testsuite_flags[.in].
   const char* dir = LOCALEDIR;
 
   // basic construction
   locale loc_c = locale::classic();
-  locale loc_de = locale("de_DE");
+  locale loc_de = locale(ISO_8859(15,de_DE));
   VERIFY( loc_c != loc_de );
 
   // cache the messages facets
@@ -46,7 +45,7 @@ void test01()
   // string_type get(catalog, int, int, const string_type& ) const; 
   // void close(catalog) const;
 
-  // Check German (de_DE) locale.
+  // Check German (de_DE.ISO8859-15) locale.
   catalog cat_de = mssg_de.open("libstdc++", loc_c, dir);
   string s01 = mssg_de.get(cat_de, 0, 0, "please");
   string s02 = mssg_de.get(cat_de, 0, 0, "thank you");

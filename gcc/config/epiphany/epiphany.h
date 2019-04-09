@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, Argonaut EPIPHANY cpu.
-   Copyright (C) 1994-2014 Free Software Foundation, Inc.
+   Copyright (C) 1994-2019 Free Software Foundation, Inc.
    Contributed by Embecosm on behalf of Adapteva, Inc.
 
 This file is part of GCC.
@@ -147,12 +147,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #define MALLOC_ABI_ALIGNMENT BIGGEST_ALIGNMENT
 
-/* Make strings dword-aligned so strcpy from constants will be faster.  */
-#define CONSTANT_ALIGNMENT(EXP, ALIGN)  \
-  ((TREE_CODE (EXP) == STRING_CST	\
-    && (ALIGN) < FASTEST_ALIGNMENT)	\
-   ? FASTEST_ALIGNMENT : (ALIGN))
-
 /* Make arrays of chars dword-aligned for the same reasons.
    Also, align arrays of SImode items.  */
 #define DATA_ALIGNMENT(TYPE, ALIGN)		\
@@ -187,8 +181,8 @@ along with GCC; see the file COPYING3.  If not see
 				       (SPECIFIED_ALIGN)) \
   : MAX ((MANGLED_ALIGN), (SPECIFIED_ALIGN)))
 
-#define ADJUST_FIELD_ALIGN(FIELD, COMPUTED) \
-  epiphany_adjust_field_align((FIELD), (COMPUTED))
+#define ADJUST_FIELD_ALIGN(FIELD, TYPE, COMPUTED) \
+  epiphany_adjust_field_align((TYPE), (COMPUTED))
 
 /* Layout of source language data types.  */
 
@@ -301,28 +295,6 @@ along with GCC; see the file COPYING3.  If not see
   }
 
 #define HARD_REGNO_RENAME_OK(SRC, DST) epiphany_regno_rename_ok (SRC, DST)
-
-/* Return number of consecutive hard regs needed starting at reg REGNO
-   to hold something of mode MODE.
-   This is ordinarily the length in words of a value of mode MODE
-   but can be less for certain modes in special long registers.  */
-#define HARD_REGNO_NREGS(REGNO, MODE) \
-((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
-
-/* Value is 1 if hard register REGNO can hold a value of machine-mode MODE.  */
-extern const unsigned int epiphany_hard_regno_mode_ok[];
-extern unsigned int epiphany_mode_class[];
-#define HARD_REGNO_MODE_OK(REGNO, MODE) hard_regno_mode_ok((REGNO), (MODE))
-
-/* A C expression that is nonzero if it is desirable to choose
-   register allocation so as to avoid move instructions between a
-   value of mode MODE1 and a value of mode MODE2.
-
-   If `HARD_REGNO_MODE_OK (R, MODE1)' and `HARD_REGNO_MODE_OK (R,
-   MODE2)' are ever different for any R, then `MODES_TIEABLE_P (MODE1,
-   MODE2)' must be zero.  */
-
-#define MODES_TIEABLE_P(MODE1, MODE2) 1
 
 /* Register classes and constants.  */
 
@@ -467,19 +439,13 @@ typedef struct GTY (()) machine_function
 
 /* Define this macro if pushing a word onto the stack moves the stack
    pointer to a smaller address.  */
-#define STACK_GROWS_DOWNWARD
+#define STACK_GROWS_DOWNWARD 1
 
 /* Define this to nonzero if the nominal address of the stack frame
    is at the high-address end of the local variables;
    that is, each additional local variable allocated
    goes at a more negative offset in the frame.  */
 #define FRAME_GROWS_DOWNWARD 1
-
-/* Offset within stack frame to start allocating local variables at.
-   If FRAME_GROWS_DOWNWARD, this is the offset to the END of the
-   first local allocated.  Otherwise, it is the offset to the BEGINNING
-   of the first local allocated.  */
-#define STARTING_FRAME_OFFSET epiphany_stack_offset
 
 /* Offset from the stack pointer register to the first location at which
    outgoing arguments are placed.  */
@@ -641,7 +607,8 @@ typedef struct GTY (()) machine_function
 
 #define RTX_OK_FOR_OFFSET_P(MODE, X) \
   RTX_OK_FOR_OFFSET_1 (GET_MODE_CLASS (MODE) == MODE_VECTOR_INT \
-		       && epiphany_vect_align == 4 ? SImode : (MODE), X)
+		       && epiphany_vect_align == 4 \
+		       ? (machine_mode) SImode : (machine_mode) (MODE), X)
 #define RTX_OK_FOR_OFFSET_1(MODE, X) \
   (GET_CODE (X) == CONST_INT \
    && !(INTVAL (X) & (GET_MODE_SIZE (MODE) - 1)) \
@@ -692,7 +659,7 @@ typedef struct GTY (()) machine_function
 /* Define this macro if it is as good or better to call a constant
    function address than to call an address kept in a register.  */
 /* On the EPIPHANY, calling through registers is slow.  */
-#define NO_FUNCTION_CSE
+#define NO_FUNCTION_CSE 1
 
 /* Section selection.  */
 /* WARNING: These section names also appear in dwarf2out.c.  */
@@ -845,7 +812,7 @@ do \
 
 /* Define if operations between registers always perform the operation
    on the full register even if a narrower mode is specified.  */
-#define WORD_REGISTER_OPERATIONS
+#define WORD_REGISTER_OPERATIONS 1
 
 /* Define if loading in MODE, an integral mode narrower than BITS_PER_WORD
    will either zero-extend or sign-extend.  The value of this macro should
@@ -860,10 +827,6 @@ do \
 /* Define this to be nonzero if shift instructions ignore all but the low-order
    few bits.  */
 #define SHIFT_COUNT_TRUNCATED 1
-
-/* Value is 1 if truncating an integer of INPREC bits to OUTPREC bits
-   is done just by pretending it is already truncated.  */
-#define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC) 1
 
 /* Specify the machine mode that pointers have.
    After generation of rtl, the compiler makes no further distinction
@@ -916,7 +879,7 @@ enum
 };
 
 extern int epiphany_normal_fp_rounding;
-#ifndef IN_LIBGCC2
+#ifndef USED_FOR_TARGET
 extern rtl_opt_pass *make_pass_mode_switch_use (gcc::context *ctxt);
 extern rtl_opt_pass *make_pass_resolve_sw_modes (gcc::context *ctxt);
 #endif

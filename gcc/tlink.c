@@ -1,7 +1,7 @@
 /* Scan linker error messages for missing template instantiations and provide
    them.
 
-   Copyright (C) 1995-2014 Free Software Foundation, Inc.
+   Copyright (C) 1995-2019 Free Software Foundation, Inc.
    Contributed by Jason Merrill (jason@cygnus.com).
 
 This file is part of GCC.
@@ -26,13 +26,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "intl.h"
 #include "obstack.h"
-#include "hashtab.h"
 #include "demangle.h"
 #include "collect2.h"
 #include "collect-utils.h"
 #include "filenames.h"
 #include "diagnostic-core.h"
-#include "vec.h"
 
 /* TARGET_64BIT may be defined to use driver specific functionality. */
 #undef TARGET_64BIT
@@ -486,13 +484,13 @@ recompile_files (void)
 	 the new file name already exists.  Therefore, we explicitly
 	 remove the old file first.  */
       if (remove (f->key) == -1)
-	fatal_error ("removing .rpo file: %m");
+	fatal_error (input_location, "removing .rpo file: %m");
       if (rename (outname, f->key) == -1)
-	fatal_error ("renaming .rpo file: %m");
+	fatal_error (input_location, "renaming .rpo file: %m");
 
       if (!f->args)
 	{
-	  error ("repository file '%s' does not contain command-line "
+	  error ("repository file %qs does not contain command-line "
 		 "arguments", f->key);
 	  return 0;
 	}
@@ -618,7 +616,7 @@ start_tweaking (symbol *sym)
 {
   if (sym && sym->tweaked)
     {
-      error ("'%s' was assigned to '%s', but was not defined "
+      error ("%qs was assigned to %qs, but was not defined "
 	     "during recompilation, or vice versa",
 	     sym->key, sym->file->key);
       return 0;

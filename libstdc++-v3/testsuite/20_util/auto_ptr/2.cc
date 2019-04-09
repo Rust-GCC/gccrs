@@ -1,4 +1,4 @@
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -16,6 +16,8 @@
 // <http://www.gnu.org/licenses/>.
 
 // 20.4.5 Template class auto_ptr [lib.auto.ptr]
+
+// { dg-options "-std=c++98" }
 
 #include <memory>
 #include <testsuite_hooks.h>
@@ -57,7 +59,6 @@ int
 test02()
 {
   reset_count_struct __attribute__((unused)) reset;
-  bool test __attribute__((unused)) = true;
 
   std::auto_ptr<A> A_from_A(new A);
   std::auto_ptr<B> B_from_B(new B);

@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "en_US.ISO-8859-1" }
+// { dg-require-namedlocale "en_US.ISO8859-1" }
 
 // 2003-02-06  Petur Runolfsson  <peturr02@ru.is>
 
-// Copyright (C) 2003-2014 Free Software Foundation, Inc.
+// Copyright (C) 2003-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -41,7 +41,7 @@ zero_state(std::mbstate_t& state)
 // Required instantiation
 // codecvt<wchar_t, char, mbstate_t>
 //
-// Baseline test for ISO-8859-1. Converts entire charset.
+// Baseline test for ISO8859-1. Converts entire charset.
 void test02()
 {
   using namespace std;
@@ -51,7 +51,6 @@ void test02()
   typedef char					ext_type;
   typedef char_traits<wchar_t>			int_traits;
 
-  bool test __attribute__((unused)) = true;
   const ext_type* 	e_lit =
     "\x1\x2\x3\x4\x5\x6\x7\x8\x9\xa\xb\xc\xd\xe\xf\x10\x11\x12\x13"
     "\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f\x20!\"#$%&"
@@ -90,7 +89,7 @@ void test02()
   wmemset(i_ref, 0xdeadbeef, size + 1);
   int_type*		ito_next;
 
-  locale loc = locale("en_US.ISO-8859-1");
+  locale loc = locale(ISO_8859(1,en_US));
   locale::global(loc);
   const w_codecvt* 	cvt = &use_facet<w_codecvt>(loc); 
 

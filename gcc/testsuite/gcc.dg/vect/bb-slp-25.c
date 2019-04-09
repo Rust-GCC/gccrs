@@ -9,7 +9,8 @@
 
 short src[N], dst[N];
 
-void foo (short * __restrict__ dst, short * __restrict__ src, int h, int stride, int dummy)
+void foo (short * __restrict__ dst, short * __restrict__ src, int h,
+	  int stride)
 {
   int i;
   h /= 16;
@@ -25,8 +26,7 @@ void foo (short * __restrict__ dst, short * __restrict__ src, int h, int stride,
       dst[7] += A*src[7] + src[7+stride];
       dst += 8;
       src += 8;
-      if (dummy == 32)
-        abort ();
+      asm volatile ("" ::: "memory");
    }
 }
 
@@ -43,7 +43,7 @@ int main (void)
        src[i] = i;
     }
 
-  foo (dst, src, N, 8, 0);
+  foo (dst, src, N, 8);
 
   for (i = 0; i < N/2; i++)
     {
@@ -54,7 +54,7 @@ int main (void)
   return 0;
 }
 
-/* { dg-final { scan-tree-dump-times "basic block vectorized" 1 "slp1" { target vect_element_align } } } */
-/* { dg-final { cleanup-tree-dump "slp1" } } */
-/* { dg-final { cleanup-tree-dump "slp2" } } */
+/* Exclude POWER8 (only POWER cpu for which vect_element_align is true)
+   because loops have vectorized before SLP gets a shot.  */
+/* { dg-final { scan-tree-dump-times "basic block vectorized" 1 "slp1" { target { vect_element_align && { ! powerpc*-*-* } } } } } */
 

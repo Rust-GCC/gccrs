@@ -1,6 +1,6 @@
 /* Definitions of target machine for GCC, for ELF on NetBSD/sparc
    and NetBSD/sparc64.
-   Copyright (C) 2002-2014 Free Software Foundation, Inc.
+   Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by Matthew Green (mrg@eterna.com.au).
 
 This file is part of GCC.
@@ -67,7 +67,7 @@ along with GCC; see the file COPYING3.  If not see
 #define USER_LABEL_PREFIX ""
 
 #undef ASM_SPEC
-#define ASM_SPEC "%{fpic|fPIC|fpie|fPIE:-K PIC} \
+#define ASM_SPEC "%{" FPIE_OR_FPIC_SPEC ":-K PIC} \
 %(asm_cpu) %(asm_arch) %(asm_relax)"
 
 #undef STDC_0_IN_SYSTEM_HEADERS

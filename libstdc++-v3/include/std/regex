@@ -1,6 +1,6 @@
 // <regex> -*- C++ -*-
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -37,7 +37,6 @@
 
 #include <algorithm>
 #include <bitset>
-#include <functional>
 #ifdef _GLIBCXX_DEBUG
 # include <iosfwd>
 #endif
@@ -53,14 +52,37 @@
 #include <map>
 #include <cstring>
 
+#include <ext/aligned_buffer.h>
+#include <bits/std_function.h>
 #include <bits/regex_constants.h>
 #include <bits/regex_error.h>
 #include <bits/regex_automaton.h>
-#include <bits/regex.h>
 #include <bits/regex_scanner.h>
 #include <bits/regex_compiler.h>
+#include <bits/regex.h>
 #include <bits/regex_executor.h>
 
+#if __cplusplus >= 201703L && _GLIBCXX_USE_CXX11_ABI
+#include <memory_resource>
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+  namespace pmr {
+    template<typename _Tp> class polymorphic_allocator;
+    template<typename _BidirectionalIterator>
+      using match_results
+	= std::match_results<_BidirectionalIterator, polymorphic_allocator<
+				sub_match<_BidirectionalIterator>>>;
+    using cmatch  = match_results<const char*>;
+    using smatch  = match_results<string::const_iterator>;
+#ifdef _GLIBCXX_USE_WCHAR_T
+    using wcmatch = match_results<const wchar_t*>;
+    using wsmatch = match_results<wstring::const_iterator>;
+#endif
+  } // namespace pmr
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace std
+#endif // C++17
 #endif // C++11
 
 #endif // _GLIBCXX_REGEX

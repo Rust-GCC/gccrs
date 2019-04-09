@@ -1,9 +1,9 @@
 /* Verify diagnostics for extended identifiers refer to UCNs (in the C
    locale).  Miscellaneous diagnostics.  */
 /* { dg-do compile } */
-/* { dg-options "-std=gnu99 -fextended-identifiers -Wpacked" } */
+/* { dg-options "-std=gnu99 -Wpacked" } */
 /* { dg-require-ascii-locale "" } */
-/* { dg-skip-if "" { powerpc-ibm-aix* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc-ibm-aix* } } */
 
 int a __attribute__((\u00c0)); /* { dg-warning "'\\\\U000000c0' attribute directive ignored" } */
 

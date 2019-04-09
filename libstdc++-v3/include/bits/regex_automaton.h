@@ -1,6 +1,6 @@
 // class template regex -*- C++ -*-
 
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -35,10 +35,10 @@
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
-namespace __detail
-{
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
+namespace __detail
+{
   /**
    *  @defgroup regex-detail Base and Implementation Classes
    *  @ingroup regex
@@ -72,7 +72,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   struct _State_base
   {
+  protected:
     _Opcode      _M_opcode;           // type of outgoing transition
+
+  public:
     _StateIdT    _M_next;             // outgoing transition
     union // Since they are mutually exclusive.
     {
@@ -87,16 +90,24 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	// quantifiers (ungreedy if set true)
 	bool       _M_neg;
       };
+      // For _S_opcode_match
+      __gnu_cxx::__aligned_membuf<_Matcher<char>> _M_matcher_storage;
     };
 
+  protected:
     explicit _State_base(_Opcode __opcode)
     : _M_opcode(__opcode), _M_next(_S_invalid_state_id)
     { }
 
-  protected:
-    ~_State_base() = default;
-
   public:
+    bool
+    _M_has_alt()
+    {
+      return _M_opcode == _S_opcode_alternative
+	|| _M_opcode == _S_opcode_repeat
+	|| _M_opcode == _S_opcode_subexpr_lookahead;
+    }
+
 #ifdef _GLIBCXX_DEBUG
     std::ostream&
     _M_print(std::ostream& ostr) const;
@@ -107,14 +118,67 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
   };
 
-  template<typename _TraitsT>
+  template<typename _Char_type>
     struct _State : _State_base
     {
-      typedef _Matcher<typename _TraitsT::char_type> _MatcherT;
+      typedef _Matcher<_Char_type> _MatcherT;
+      static_assert(sizeof(_MatcherT) == sizeof(_Matcher<char>),
+		    "std::function<bool(T)> has the same size as "
+		    "std::function<bool(char)>");
+      static_assert(alignof(_MatcherT) == alignof(_Matcher<char>),
+		    "std::function<bool(T)> has the same alignment as "
+		    "std::function<bool(char)>");
 
-      _MatcherT      _M_matches;        // for _S_opcode_match
+      explicit
+      _State(_Opcode __opcode) : _State_base(__opcode)
+      {
+	if (_M_opcode() == _S_opcode_match)
+	  new (this->_M_matcher_storage._M_addr()) _MatcherT();
+      }
 
-      explicit _State(_Opcode __opcode) : _State_base(__opcode) { }
+      _State(const _State& __rhs) : _State_base(__rhs)
+      {
+	if (__rhs._M_opcode() == _S_opcode_match)
+	  new (this->_M_matcher_storage._M_addr())
+	    _MatcherT(__rhs._M_get_matcher());
+      }
+
+      _State(_State&& __rhs) : _State_base(__rhs)
+      {
+	if (__rhs._M_opcode() == _S_opcode_match)
+	  new (this->_M_matcher_storage._M_addr())
+	    _MatcherT(std::move(__rhs._M_get_matcher()));
+      }
+
+      _State&
+      operator=(const _State&) = delete;
+
+      ~_State()
+      {
+	if (_M_opcode() == _S_opcode_match)
+	  _M_get_matcher().~_MatcherT();
+      }
+
+      // Since correct ctor and dtor rely on _M_opcode, it's better not to
+      // change it over time.
+      _Opcode
+      _M_opcode() const
+      { return _State_base::_M_opcode; }
+
+      bool
+      _M_matches(_Char_type __char) const
+      { return _M_get_matcher()(__char); }
+
+      _MatcherT&
+      _M_get_matcher()
+      { return *static_cast<_MatcherT*>(this->_M_matcher_storage._M_addr()); }
+
+      const _MatcherT&
+      _M_get_matcher() const
+      {
+	return *static_cast<const _MatcherT*>(
+	    this->_M_matcher_storage._M_addr());
+      }
     };
 
   struct _NFA_base
@@ -146,7 +210,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     _M_sub_count() const
     { return _M_subexpr_count; }
 
-    std::vector<size_t>       _M_paren_stack;
+    _GLIBCXX_STD_C::vector<size_t> _M_paren_stack;
     _FlagT                    _M_flags;
     _StateIdT                 _M_start_state;
     _SizeT                    _M_subexpr_count;
@@ -155,10 +219,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _TraitsT>
     struct _NFA
-    : _NFA_base, std::vector<_State<_TraitsT>>
+    : _NFA_base, _GLIBCXX_STD_C::vector<_State<typename _TraitsT::char_type>>
     {
-      typedef _State<_TraitsT>				_StateT;
-      typedef _Matcher<typename _TraitsT::char_type>	_MatcherT;
+      typedef typename _TraitsT::char_type	_Char_type;
+      typedef _State<_Char_type>		_StateT;
+      typedef _Matcher<_Char_type>		_MatcherT;
 
       _NFA(const typename _TraitsT::locale_type& __loc, _FlagT __flags)
       : _NFA_base(__flags)
@@ -176,7 +241,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
 
       _StateIdT
-      _M_insert_alt(_StateIdT __next, _StateIdT __alt, bool __neg)
+      _M_insert_alt(_StateIdT __next, _StateIdT __alt,
+		    bool __neg __attribute__((__unused__)))
       {
 	_StateT __tmp(_S_opcode_alternative);
 	// It labels every quantifier to make greedy comparison easier in BFS
@@ -202,7 +268,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _M_insert_matcher(_MatcherT __m)
       {
 	_StateT __tmp(_S_opcode_match);
-	__tmp._M_matches = std::move(__m);
+	__tmp._M_get_matcher() = std::move(__m);
 	return _M_insert_state(std::move(__tmp));
       }
 
@@ -262,8 +328,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       {
 	this->push_back(std::move(__s));
 	if (this->size() > _GLIBCXX_REGEX_STATE_LIMIT)
-	  __throw_regex_error(regex_constants::error_space);
-	return this->size()-1;
+	  __throw_regex_error(
+	    regex_constants::error_space,
+	    "Number of NFA states exceeds limit. Please use shorter regex "
+	    "string, or use smaller brace expression, or make "
+	    "_GLIBCXX_REGEX_STATE_LIMIT larger.");
+	return this->size() - 1;
       }
 
       // Eliminate dummy node in this NFA to make it compact.
@@ -323,8 +393,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     };
 
  //@} regex-detail
-_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace __detail
+
+_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 
 #include <bits/regex_automaton.tcc>

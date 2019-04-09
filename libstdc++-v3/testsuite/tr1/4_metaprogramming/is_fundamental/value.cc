@@ -1,6 +1,6 @@
 // 2004-12-03  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,10 +25,9 @@
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using std::tr1::is_fundamental;
   using namespace __gnu_test;
-  
+
   VERIFY( (test_category<is_fundamental, void>(true)) );
   VERIFY( (test_category<is_fundamental, char>(true)) );
   VERIFY( (test_category<is_fundamental, signed char>(true)) );

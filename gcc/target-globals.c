@@ -1,5 +1,5 @@
 /* Target-dependent globals.
-   Copyright (C) 2010-2014 Free Software Foundation, Inc.
+   Copyright (C) 2010-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,29 +20,26 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "insn-config.h"
-#include "machmode.h"
+#include "backend.h"
+#include "rtl.h"
 #include "tree.h"
-#include "ggc.h"
+#include "expmed.h"
+#include "optabs-query.h"
+#include "insn-config.h"
+#include "regs.h"
+#include "memmodel.h"
+#include "ira.h"
+#include "ira-int.h"
 #include "toplev.h"
 #include "target-globals.h"
 #include "flags.h"
-#include "regs.h"
-#include "rtl.h"
-#include "hard-reg-set.h"
 #include "reload.h"
-#include "expmed.h"
-#include "expr.h"
-#include "optabs.h"
 #include "libfuncs.h"
 #include "cfgloop.h"
-#include "ira-int.h"
 #include "builtins.h"
 #include "gcse.h"
 #include "bb-reorder.h"
 #include "lower-subreg.h"
-#include "recog.h"
 
 #if SWITCHABLE_TARGET
 struct target_globals default_target_globals = {

@@ -1,4 +1,4 @@
-@c Copyright (C) 2006-2014 Free Software Foundation, Inc.
+@c Copyright (C) 2006-2019 Free Software Foundation, Inc.
 @c Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
@@ -25,7 +25,6 @@ variable analysis and number of iterations analysis).
 * loop-iv::                     Induction variables on RTL.
 * Number of iterations::        Number of iterations analysis.
 * Dependency analysis::         Data dependency analysis.
-* Omega::                       A solver for linear programming problems.
 @end menu
 
 @node Loop representation
@@ -174,8 +173,6 @@ loop structure (that are kept up-to-date at all times) are:
 loop.
 @item @code{num_nodes}: Number of basic blocks in the loop (including
 the basic blocks of the sub-loops).
-@item @code{depth}: The depth of the loop in the loops tree, i.e., the
-number of super-loops of the loop.
 @item @code{outer}, @code{inner}, @code{next}: The super-loop, the first
 sub-loop, and the sibling of the loop in the loops tree.
 @end itemize
@@ -187,6 +184,8 @@ should not be accessed directly.
 The most important functions to query loop structures are:
 
 @itemize
+@item @code{loop_depth}: The depth of the loop in the loops tree, i.e., the
+number of super-loops of the loop.
 @item @code{flow_loops_dump}: Dumps the information about loops to a
 file.
 @item @code{verify_loop_structure}: Checks consistency of the loop
@@ -259,12 +258,11 @@ one of the edges entering loop header, thus performing either loop
 unrolling or loop peeling.  @code{can_duplicate_loop_p}
 (@code{can_unroll_loop_p} on GIMPLE) must be true for the duplicated
 loop.
-@item @code{loop_version}, @code{tree_ssa_loop_version}: These function
-create a copy of a loop, and a branch before them that selects one of
-them depending on the prescribed condition.  This is useful for
-optimizations that need to verify some assumptions in runtime (one of
-the copies of the loop is usually left unchanged, while the other one is
-transformed in some way).
+@item @code{loop_version}: This function creates a copy of a loop, and
+a branch before them that selects one of them depending on the
+prescribed condition.  This is useful for optimizations that need to
+verify some assumptions in runtime (one of the copies of the loop is
+usually left unchanged, while the other one is transformed in some way).
 @item @code{tree_unroll_loop}: Unrolls the loop, including peeling the
 extra iterations to make the number of iterations divisible by unroll
 factor, updating the exit condition, and removing the exits that now
@@ -477,6 +475,32 @@ The function @code{number_of_cond_exit_executions} can be used to
 determine number of executions of the exit condition of a single-exit
 loop (i.e., the @code{number_of_latch_executions} increased by one).
 
+On GIMPLE, below constraint flags affect semantics of some APIs of number
+of iterations analyzer:
+
+@itemize
+@item @code{LOOP_C_INFINITE}: If this constraint flag is set, the loop
+is known to be infinite.  APIs like @code{number_of_iterations_exit} can
+return false directly without doing any analysis.
+@item @code{LOOP_C_FINITE}: If this constraint flag is set, the loop is
+known to be finite, in other words, loop's number of iterations can be
+computed with @code{assumptions} be true.
+@end itemize
+
+Generally, the constraint flags are set/cleared by consumers which are
+loop optimizers.  It's also the consumers' responsibility to set/clear
+constraints correctly.  Failing to do that might result in hard to track
+down bugs in scev/niter consumers.  One typical use case is vectorizer:
+it drives number of iterations analyzer by setting @code{LOOP_C_FINITE}
+and vectorizes possibly infinite loop by versioning loop with analysis
+result.  In return, constraints set by consumers can also help number of
+iterations analyzer in following optimizers.  For example, @code{niter}
+of a loop versioned under @code{assumptions} is valid unconditionally.
+
+Other constraints may be added in the future, for example, a constraint
+indicating that loops' latch must roll thus @code{may_be_zero} would be
+false unconditionally.
+
 @node Dependency analysis
 @section Data Dependency Analysis
 @cindex Data Dependency Analysis
@@ -543,7 +567,7 @@ relative to @code{p + i}. The access functions of the array are
 @code{@{i_init, + i_step@}_for1} and @code{@{j_init, +, j_step@}_for2}
 relative to @code{a}.
 
-Usually, the object the pointer refers to is either unknown, or we can't
+Usually, the object the pointer refers to is either unknown, or we cannot
 prove that the access is confined to the boundaries of a certain object.
 
 Two data references can be compared only if at least one of these two
@@ -602,33 +626,3 @@ maximum verbosity the details of a data dependence relations array,
 direction vectors for a data dependence relations array, and
 @code{dump_data_references} prints the details of the data references
 contained in a data reference array.
-
-
-@node Omega
-@section Omega a solver for linear programming problems
-@cindex Omega a solver for linear programming problems
-
-The data dependence analysis contains several solvers triggered
-sequentially from the less complex ones to the more sophisticated.
-For ensuring the consistency of the results of these solvers, a data
-dependence check pass has been implemented based on two different
-solvers.  The second method that has been integrated to GCC is based
-on the Omega dependence solver, written in the 1990's by William Pugh
-and David Wonnacott.  Data dependence tests can be formulated using a
-subset of the Presburger arithmetics that can be translated to linear
-constraint systems.  These linear constraint systems can then be
-solved using the Omega solver.
-
-The Omega solver is using Fourier-Motzkin's algorithm for variable
-elimination: a linear constraint system containing @code{n} variables
-is reduced to a linear constraint system with @code{n-1} variables.
-The Omega solver can also be used for solving other problems that can
-be expressed under the form of a system of linear equalities and
-inequalities.  The Omega solver is known to have an exponential worst
-case, also known under the name of ``omega nightmare'' in the
-literature, but in practice, the omega test is known to be efficient
-for the common data dependence tests.
-
-The interface used by the Omega solver for describing the linear
-programming problems is described in @file{omega.h}, and the solver is
-@code{omega_solve_problem}.

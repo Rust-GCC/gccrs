@@ -1,5 +1,5 @@
 /* Prototypes for exported functions defined in cr16.c
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by KPIT Cummins Infosystems Limited.
 
    This file is part of GCC.
@@ -23,7 +23,6 @@
 
 /* Register usage.  */
 extern enum reg_class cr16_regno_reg_class (int);
-extern int cr16_hard_regno_mode_ok (int regno, enum machine_mode);
 
 /* Passing function arguments.  */
 extern int cr16_function_arg_regno_p (int);
@@ -79,7 +78,7 @@ extern enum cr16_addrtype cr16_decompose_address (rtx addr,
 						  bool treat_as_const);
 extern int cr16_const_double_ok (rtx op);
 extern int legitimate_pic_operand_p (rtx);
-extern rtx legitimize_pic_address (rtx, enum machine_mode, rtx);
+extern rtx legitimize_pic_address (rtx, machine_mode, rtx);
 
 
 /* Prologue/Epilogue functions.  */
@@ -95,5 +94,6 @@ extern const char *cr16_emit_logical_di (rtx *, enum rtx_code);
 /* Handling the "interrupt" attribute.  */
 extern int cr16_interrupt_function_p (void);
 extern bool cr16_is_data_model (enum data_model_type);
+extern poly_int64 cr16_push_rounding (poly_int64);
 
 #endif /* Not GCC_CR16_PROTOS_H.  */ 

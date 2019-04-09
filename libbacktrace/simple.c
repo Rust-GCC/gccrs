@@ -1,5 +1,5 @@
 /* simple.c -- The backtrace_simple function.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Written by Ian Lance Taylor, Google.
 
 Redistribution and use in source and binary forms, with or without
@@ -7,13 +7,13 @@ modification, are permitted provided that the following conditions are
 met:
 
     (1) Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer. 
+    notice, this list of conditions and the following disclaimer.
 
     (2) Redistributions in binary form must reproduce the above copyright
     notice, this list of conditions and the following disclaimer in
     the documentation and/or other materials provided with the
-    distribution.  
-    
+    distribution.
+
     (3) The name of the author may not be used to
     endorse or promote products derived from this software without
     specific prior written permission.
@@ -90,7 +90,7 @@ simple_unwind (struct _Unwind_Context *context, void *vdata)
 
 /* Get a simple stack backtrace.  */
 
-int
+int __attribute__((noinline))
 backtrace_simple (struct backtrace_state *state, int skip,
 		  backtrace_simple_callback callback,
 		  backtrace_error_callback error_callback, void *data)

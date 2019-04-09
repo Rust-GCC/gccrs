@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-Os -mlock -mswape -mrtsc -fno-reorder-blocks" } */
+/* { dg-options "-Os -mlock -mswape -fno-reorder-blocks" } */
 
 /* This caused an ICE in arc_ifcvt when the 1->3 state change was not
    implemented for TYPE_UNCOND_BRANCH in arc_ccfsm_post_advance.  */
@@ -97,7 +97,7 @@ struct rtc_device
 extern void rtc_time_to_tm(unsigned long time, struct rtc_time *tm);
 extern struct rtc_device *rtc_class_open(const char *name);
 extern void rtc_class_close(struct rtc_device *rtc);
-
+extern int rtc_set_time (struct rtc_device *rtc, struct rtc_time *tm);
 
 int rtc_set_ntp_time(struct timespec now)
 {

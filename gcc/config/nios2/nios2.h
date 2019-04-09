@@ -1,5 +1,5 @@
 /* Definitions of target machine for Altera Nios II.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Jonah Graham (jgraham@altera.com), 
    Will Reece (wreece@altera.com), and Jeff DaSilva (jdasilva@altera.com).
    Contributed by Mentor Graphics, Inc.
@@ -23,6 +23,9 @@
 #ifndef GCC_NIOS2_H
 #define GCC_NIOS2_H
 
+/* Indicate R2 ISA level support.  */
+#define TARGET_ARCH_R2 (nios2_arch_option == ARCH_R2)
+
 /* FPU insn codes declared here.  */
 #include "config/nios2/nios2-opts.h"
 
@@ -36,7 +39,9 @@
         builtin_define_std ("nios2_big_endian");    \
       else                                          \
         builtin_define_std ("nios2_little_endian"); \
-    }                                               \
+      builtin_define_with_int_value (		    \
+        "__nios2_arch__", (int) nios2_arch_option); \
+    }						    \
   while (0)
 
 /* We're little endian, unless otherwise specified by defining
@@ -50,14 +55,17 @@
 # define TARGET_DEFAULT (MASK_HAS_MUL | TARGET_ENDIAN_DEFAULT)
 #endif
 
+#define OPTION_DEFAULT_SPECS \
+  {"arch", "%{!march=*:%{!mcpu=*:-march=%(VALUE)}}" }
+
 #define CC1_SPEC "%{G*}"
 
 #if TARGET_ENDIAN_DEFAULT == 0
-# define ASM_SPEC "%{!meb:-EL} %{meb:-EB}"
+# define ASM_SPEC "%{!meb:-EL} %{meb:-EB} %{march=*:-march=%*}"
 # define LINK_SPEC_ENDIAN "%{!meb:-EL} %{meb:-EB}"
 # define MULTILIB_DEFAULTS { "EL" }
 #else
-# define ASM_SPEC "%{!mel:-EB} %{mel:-EL}"
+# define ASM_SPEC "%{!mel:-EB} %{mel:-EL} %{march=*:-march=%*}"
 # define LINK_SPEC_ENDIAN "%{!mel:-EB} %{mel:-EL}"
 # define MULTILIB_DEFAULTS { "EB" }
 #endif
@@ -84,9 +92,7 @@
 #define PREFERRED_STACK_BOUNDARY 32
 #define MAX_FIXED_MODE_SIZE 64
 
-#define CONSTANT_ALIGNMENT(EXP, ALIGN)                          \
-  ((TREE_CODE (EXP) == STRING_CST)                              \
-   && (ALIGN) < BITS_PER_WORD ? BITS_PER_WORD : (ALIGN))
+#define LABEL_ALIGN(LABEL) nios2_label_align (LABEL)
 
 /* Layout of source language data types.  */
 
@@ -162,10 +168,19 @@
 /*  30 */  1, 1, 1, 1, 1, 1, 1, 1, 1, 1,     \
   }
 
-#define MODES_TIEABLE_P(MODE1, MODE2) 1
-#define HARD_REGNO_MODE_OK(REGNO, MODE) 1
-#define HARD_REGNO_NREGS(REGNO, MODE)            \
-  ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
+/* Order in which to allocate registers.  Each register must be
+   listed once.  This is the default ordering for R1 and non-CDX R2
+   code.  For CDX, we overwrite this in ADJUST_REG_ALLOC_ORDER.  */
+#define REG_ALLOC_ORDER							\
+  { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, \
+      20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, \
+      37, 38, 39 }
+
+#define ADJUST_REG_ALLOC_ORDER nios2_adjust_reg_alloc_order ()
+
+/* Caller-save costs can be less emphasized under R2 CDX, where we can
+   use push.n/pop.n.  */
+#define HONOR_REG_ALLOC_ORDER (TARGET_HAS_CDX)
 
 /* Register Classes.  */
 
@@ -173,6 +188,7 @@ enum reg_class
 {
   NO_REGS,
   SIB_REGS,
+  IJMP_REGS,
   GP_REGS,
   ALL_REGS,
   LIM_REG_CLASSES
@@ -183,6 +199,7 @@ enum reg_class
 #define REG_CLASS_NAMES   \
   {  "NO_REGS",		  \
      "SIB_REGS",	  \
+     "IJMP_REGS",	  \
      "GP_REGS",           \
      "ALL_REGS" }
 
@@ -190,10 +207,11 @@ enum reg_class
 
 #define REG_CLASS_CONTENTS			\
   {						\
-    /* NO_REGS  */ { 0, 0},			\
-    /* SIB_REGS */ { 0xfe0c, 0},		\
-    /* GP_REGS  */ {~0, 0},			\
-    /* ALL_REGS */ {~0,~0}			\
+    /* NO_REGS    */ { 0, 0},			\
+    /* SIB_REGS   */ { 0xfe0c, 0},		\
+    /* IJMP_REGS  */ { 0x7fffffff, 0},		\
+    /* GP_REGS    */ {~0, 0},			\
+    /* ALL_REGS   */ {~0,~0}			\
   }
 
 
@@ -202,14 +220,20 @@ enum reg_class
 #define CLASS_MAX_NREGS(CLASS, MODE)					\
   ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
 
+#define CDX_REG_P(REGNO)						\
+  ((REGNO) == 16 || (REGNO) == 17 || ((REGNO) >= 2 && (REGNO) <= 7))
+
 /* Tests for various kinds of constants used in the Nios II port.  */
 
 #define SMALL_INT(X) ((unsigned HOST_WIDE_INT)(X) + 0x8000 < 0x10000)
+#define SMALL_INT12(X) ((unsigned HOST_WIDE_INT)(X) + 0x800 < 0x1000)
 #define SMALL_INT_UNSIGNED(X) ((X) >= 0 && (X) < 0x10000)
 #define UPPER16_INT(X) (((X) & 0xffff) == 0)
 #define SHIFT_INT(X) ((X) >= 0 && (X) <= 31)
 #define RDWRCTL_INT(X) ((X) >= 0 && (X) <= 31)
 #define CUSTOM_INSN_OPCODE(X) ((X) >= 0 && (X) <= 255)
+#define ANDCLEAR_INT(X) \
+  (((X) & 0xffff) == 0xffff || (((X) >> 16) & 0xffff) == 0xffff)
 
 /* Say that the epilogue uses the return address register.  Note that
    in the case of sibcalls, the values "used by the epilogue" are
@@ -227,12 +251,12 @@ enum reg_class
 #define TRAMPOLINE_SIZE 20
 
 /* Stack layout.  */
-#define STACK_GROWS_DOWNWARD
-#define STARTING_FRAME_OFFSET 0
+#define STACK_GROWS_DOWNWARD 1
+#define FRAME_GROWS_DOWNWARD 1
 #define FIRST_PARM_OFFSET(FUNDECL) 0
 
 /* Before the prologue, RA lives in r31.  */
-#define INCOMING_RETURN_ADDR_RTX  gen_rtx_REG (VOIDmode, RA_REGNO)
+#define INCOMING_RETURN_ADDR_RTX  gen_rtx_REG (Pmode, RA_REGNO)
 #define RETURN_ADDR_RTX(C,F) nios2_get_return_address (C)
 
 #define DWARF_FRAME_RETURN_COLUMN RA_REGNO
@@ -263,11 +287,8 @@ typedef struct nios2_args
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, FNDECL, N_NAMED_ARGS) \
   do { (CUM).regs_used = 0; } while (0)
 
-#define FUNCTION_ARG_PADDING(MODE, TYPE) \
-  (nios2_function_arg_padding ((MODE), (TYPE)))
-
 #define PAD_VARARGS_DOWN \
-  (FUNCTION_ARG_PADDING (TYPE_MODE (type), type) == downward)
+  (targetm.calls.function_arg_padding (TYPE_MODE (type), type) == PAD_DOWNWARD)
 
 #define BLOCK_REG_PADDING(MODE, TYPE, FIRST) \
   (nios2_block_reg_padding ((MODE), (TYPE), (FIRST)))
@@ -306,7 +327,7 @@ typedef struct nios2_args
 
 /* It is as good to call a constant function address as to call an address
    kept in a register.  */
-#define NO_FUNCTION_CSE
+#define NO_FUNCTION_CSE 1
 
 /* Position independent code.  */
 
@@ -410,7 +431,7 @@ typedef struct nios2_args
 /* Output before 'small' uninitialized data.  */
 #define SBSS_SECTION_ASM_OP "\t.section\t.sbss"
 
-#ifndef IN_LIBGCC2
+#ifndef USED_FOR_TARGET
 /* Default the definition of "small data" to 8 bytes.  */
 extern unsigned HOST_WIDE_INT nios2_section_threshold;
 #endif
@@ -435,7 +456,7 @@ do                                                                      \
   {									\
     fprintf ((FILE), "%s", COMMON_ASM_OP);				\
     assemble_name ((FILE), (NAME));					\
-    fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n", (SIZE),	\
+    fprintf ((FILE), "," HOST_WIDE_INT_PRINT_UNSIGNED",%u\n", (SIZE),	\
 	     (ALIGN) / BITS_PER_UNIT);					\
   }									\
 while (0)
@@ -490,10 +511,8 @@ do {                                                                    \
 
 #define CASE_VECTOR_MODE Pmode
 
-#define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC) 1
-
 #define LOAD_EXTEND_OP(MODE) (ZERO_EXTEND)
 
-#define WORD_REGISTER_OPERATIONS
+#define WORD_REGISTER_OPERATIONS 1
 
 #endif /* GCC_NIOS2_H */

@@ -1,6 +1,6 @@
 // Explicit instantiation file.
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -35,27 +35,33 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // Some explicit instantiations.
   template void
      __valarray_fill(size_t* __restrict__, size_t, const size_t&);
-  
+
   template void
      __valarray_copy(const size_t* __restrict__, size_t, size_t* __restrict__);
-  
+
   template valarray<size_t>::valarray(size_t);
   template valarray<size_t>::valarray(const valarray<size_t>&);
   template valarray<size_t>::~valarray();
   template size_t valarray<size_t>::size() const;
   template size_t& valarray<size_t>::operator[](size_t);
 
+  // Compute the product of all elements in the non-empty range [__f, __l)
+  template<typename _Tp>
+    inline _Tp
+    __valarray_product(const _Tp* __f, const _Tp* __l)
+    {
+      _Tp __r = *__f++;
+      while (__f != __l)
+	__r = __r * *__f++;
+      return __r;
+    }
+
   inline size_t
   __valarray_product(const valarray<size_t>& __a)
   {
-    const size_t __n = __a.size();
-    // XXX: This ugly cast is necessary because
-    //      valarray::operator[]() const return a VALUE!
-    //      Try to get the committee to correct that gross error.
-    valarray<size_t>& __t = const_cast<valarray<size_t>&>(__a);
-    return __valarray_product(&__t[0], &__t[0] + __n);
+    return __valarray_product(&__a[0], &__a[0] + __a.size());
   }
-  
+
   // Map a gslice, described by its multidimensional LENGTHS
   // and corresponding STRIDES, to a linear array of INDEXES
   // for the purpose of indexing a flat, one-dimensional array
@@ -96,12 +102,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
           }
       }
   }
-  
+
   gslice::_Indexer::_Indexer(size_t __o, const valarray<size_t>& __l,
                              const valarray<size_t>& __s)
   : _M_count(1), _M_start(__o), _M_size(__l), _M_stride(__s),
     _M_index(__l.size() == 0 ? 0 : __valarray_product(__l))
-  { __gslice_to_index(__o, __l, __s, _M_index); }  
+  { __gslice_to_index(__o, __l, __s, _M_index); }
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace

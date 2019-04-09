@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O -finline-small-functions --param early-inlining-insns=0 -fdump-tree-einline" } */
+/* { dg-options "-O -finline-small-functions --param early-inlining-insns=0 -fdump-tree-einline-optimized" } */
 
 int foo0();
 void bar0() { foo0(); }
@@ -28,4 +28,3 @@ int bar5() { return 0; }
 int foobar5() { return bar5(); }
 
 /* { dg-final { scan-tree-dump-times "Inlining" 5 "einline" } } */
-/* { dg-final { cleanup-tree-dump "einline" } } */

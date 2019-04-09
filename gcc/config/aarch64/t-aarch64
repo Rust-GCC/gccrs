@@ -1,5 +1,5 @@
 # Machine description for AArch64 architecture.
-#  Copyright (C) 2009-2014 Free Software Foundation, Inc.
+#  Copyright (C) 2009-2019 Free Software Foundation, Inc.
 #  Contributed by ARM Ltd.
 #
 #  This file is part of GCC.
@@ -19,7 +19,10 @@
 #  <http://www.gnu.org/licenses/>.
 
 TM_H += $(srcdir)/config/aarch64/aarch64-cores.def
-OPTIONS_H_EXTRA += $(srcdir)/config/aarch64/aarch64-cores.def
+OPTIONS_H_EXTRA += $(srcdir)/config/aarch64/aarch64-cores.def \
+		   $(srcdir)/config/aarch64/aarch64-arches.def \
+		   $(srcdir)/config/aarch64/aarch64-fusion-pairs.def \
+		   $(srcdir)/config/aarch64/aarch64-tuning-flags.def
 
 $(srcdir)/config/aarch64/aarch64-tune.md: $(srcdir)/config/aarch64/gentune.sh \
 	$(srcdir)/config/aarch64/aarch64-cores.def
@@ -32,6 +35,7 @@ aarch64-builtins.o: $(srcdir)/config/aarch64/aarch64-builtins.c $(CONFIG_H) \
   $(RTL_H) $(TREE_H) expr.h $(TM_P_H) $(RECOG_H) langhooks.h \
   $(DIAGNOSTIC_CORE_H) $(OPTABS_H) \
   $(srcdir)/config/aarch64/aarch64-simd-builtins.def \
+  $(srcdir)/config/aarch64/aarch64-simd-builtin-types.def \
   aarch64-builtin-iterators.h
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 		$(srcdir)/config/aarch64/aarch64-builtins.c
@@ -46,6 +50,55 @@ aarch-common.o: $(srcdir)/config/arm/aarch-common.c $(CONFIG_H) $(SYSTEM_H) \
     coretypes.h $(TM_H) $(TM_P_H) $(RTL_H) $(TREE_H) output.h $(C_COMMON_H)
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 		$(srcdir)/config/arm/aarch-common.c
+
+aarch64-c.o: $(srcdir)/config/aarch64/aarch64-c.c $(CONFIG_H) $(SYSTEM_H) \
+    coretypes.h $(TM_H) $(TREE_H) output.h $(C_COMMON_H) $(TARGET_H)
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
+		$(srcdir)/config/aarch64/aarch64-c.c
+
+aarch64-d.o: $(srcdir)/config/aarch64/aarch64-d.c
+	$(COMPILE) $<
+	$(POSTCOMPILE)
+
+PASSES_EXTRA += $(srcdir)/config/aarch64/aarch64-passes.def
+
+cortex-a57-fma-steering.o: $(srcdir)/config/aarch64/cortex-a57-fma-steering.c \
+    $(CONFIG_H) $(SYSTEM_H) $(TM_H) $(REGS_H) insn-config.h $(RTL_BASE_H) \
+    dominance.h cfg.h cfganal.h $(BASIC_BLOCK_H) $(INSN_ATTR_H) $(RECOG_H) \
+    output.h hash-map.h $(DF_H) $(OBSTACK_H) $(TARGET_H) $(RTL_H) \
+    $(CONTEXT_H) $(TREE_PASS_H) regrename.h \
+    $(srcdir)/config/aarch64/aarch64-protos.h
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
+		$(srcdir)/config/aarch64/cortex-a57-fma-steering.c
+
+aarch64-speculation.o: $(srcdir)/config/aarch64/aarch64-speculation.cc \
+    $(CONFIG_H) \
+    $(SYSTEM_H) \
+    $(TM_H) \
+    $(TARGET_H) \
+    $(RTL_BASE_H) \
+    $(TREE_PASS_H)
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_SPPFLAGS) $(INCLUDES) \
+	  $(srcdir)/config/aarch64/aarch64-speculation.cc
+
+falkor-tag-collision-avoidance.o: \
+    $(srcdir)/config/aarch64/falkor-tag-collision-avoidance.c \
+    $(CONFIG_H) $(SYSTEM_H) $(TM_H) $(REGS_H) insn-config.h $(RTL_BASE_H) \
+    dominance.h cfg.h cfganal.h $(BASIC_BLOCK_H) $(INSN_ATTR_H) $(RECOG_H) \
+    output.h hash-map.h $(DF_H) $(OBSTACK_H) $(TARGET_H) $(RTL_H) \
+    $(CONTEXT_H) $(TREE_PASS_H) regrename.h \
+    $(srcdir)/config/aarch64/aarch64-protos.h
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
+		$(srcdir)/config/aarch64/falkor-tag-collision-avoidance.c
+
+aarch64-bti-insert.o: $(srcdir)/config/aarch64/aarch64-bti-insert.c \
+    $(CONFIG_H) $(SYSTEM_H) $(TM_H) $(REGS_H) insn-config.h $(RTL_BASE_H) \
+    dominance.h cfg.h cfganal.h $(BASIC_BLOCK_H) $(INSN_ATTR_H) $(RECOG_H) \
+    output.h hash-map.h $(DF_H) $(OBSTACK_H) $(TARGET_H) $(RTL_H) \
+    $(CONTEXT_H) $(TREE_PASS_H) regrename.h \
+    $(srcdir)/config/aarch64/aarch64-protos.h
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
+		$(srcdir)/config/aarch64/aarch64-bti-insert.c
 
 comma=,
 MULTILIB_OPTIONS    = $(subst $(comma),/, $(patsubst %, mabi=%, $(subst $(comma),$(comma)mabi=,$(TM_MULTILIB_CONFIG))))

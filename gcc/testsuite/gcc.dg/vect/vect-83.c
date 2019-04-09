@@ -1,4 +1,4 @@
-/* { dg-skip-if "powerpc and integer vectorization only" { ! { powerpc*-*-* && vect_int } } { "*" } { "" }  } */
+/* { dg-skip-if "powerpc and integer vectorization only" { ! { powerpc*-*-* && vect_int } }  } */
 
 #include <stdarg.h>
 #include "tree-vect.h"
@@ -34,4 +34,3 @@ int main (void)
 } 
 
 /* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */

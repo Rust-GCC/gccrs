@@ -1,6 +1,6 @@
 // 2006-09-24  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -41,5 +41,5 @@ int main()
 
   check_ret_type<shared_ptr<void> >(static_pointer_cast<void>(spd));
   check_ret_type<shared_ptr<int> >(const_pointer_cast<int>(spci));
-  check_ret_type<shared_ptr<MyDP> >(static_pointer_cast<MyDP>(spa));  
+  check_ret_type<shared_ptr<MyDP> >(static_pointer_cast<MyDP>(spa));
 }

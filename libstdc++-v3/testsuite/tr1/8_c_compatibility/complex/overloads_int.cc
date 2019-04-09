@@ -1,6 +1,6 @@
 // 2006-01-12  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,7 +25,6 @@
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using __gnu_test::check_ret_type;
 
   typedef std::complex<float>  cmplx_f_type;
@@ -36,7 +35,7 @@ void test01()
   const long      l1 = 1;
   const double    f1 = 1.0f;
   const double    d1 = 1.0;
-    
+
   check_ret_type<double>(std::tr1::arg(i1));
   VERIFY( std::tr1::arg(i1) == std::tr1::arg(double(i1)) );
   VERIFY( std::tr1::arg(i1) == std::tr1::arg(cmplx_d_type(double(i1))) );

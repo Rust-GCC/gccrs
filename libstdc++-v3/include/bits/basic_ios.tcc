@@ -1,6 +1,6 @@
 // basic_ios member functions -*- C++ -*-
 
-// Copyright (C) 1999-2014 Free Software Foundation, Inc.
+// Copyright (C) 1999-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -157,17 +157,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     basic_ios<_CharT, _Traits>::_M_cache_locale(const locale& __loc)
     {
       if (__builtin_expect(has_facet<__ctype_type>(__loc), true))
-	_M_ctype = &use_facet<__ctype_type>(__loc);
+	_M_ctype = std::__addressof(use_facet<__ctype_type>(__loc));
       else
 	_M_ctype = 0;
 
       if (__builtin_expect(has_facet<__num_put_type>(__loc), true))
-	_M_num_put = &use_facet<__num_put_type>(__loc);
+	_M_num_put = std::__addressof(use_facet<__num_put_type>(__loc));
       else
 	_M_num_put = 0;
 
       if (__builtin_expect(has_facet<__num_get_type>(__loc), true))
-	_M_num_get = &use_facet<__num_get_type>(__loc);
+	_M_num_get = std::__addressof(use_facet<__num_get_type>(__loc));
       else
 	_M_num_get = 0;
     }

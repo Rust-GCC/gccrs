@@ -36,5 +36,4 @@ unsigned baz (unsigned i)
   return i;
 }
 
-/* { dg-final { scan-tree-dump-times "Folding predicate" 3 "vrp1" } } */
-/* { dg-final { cleanup-tree-dump "vrp1" } } */
+/* { dg-final { scan-tree-dump-times "if" 3 "vrp1" } } */

@@ -1,6 +1,6 @@
 /* { dg-do compile } */
 
-#include <stdlib.h>
+extern void abort (void);
 
 #define N 128
 
@@ -24,4 +24,3 @@ int main1 (int res0, int res1)
   return 0;
 }
 
-/* { dg-final { cleanup-tree-dump "vect" } } */

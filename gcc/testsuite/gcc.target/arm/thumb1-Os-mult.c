@@ -1,5 +1,5 @@
-/* { dg-require-effective-target arm_thumb1_ok } */
 /* { dg-do compile } */
+/* { dg-require-effective-target arm_thumb1_ok } */
 /* { dg-options "-Os" } */
 /* { dg-skip-if "" { ! { arm_thumb1 } } } */
 
@@ -9,4 +9,4 @@ mymul3 (int x)
   return x * 0x555;
 }
 
-/* { dg-final { scan-assembler "mul\[\\t \]*r.,\[\\t \]*r." } } */
+/* { dg-final { scan-assembler "muls\[\\t \]*r.,\[\\t \]*r." } } */

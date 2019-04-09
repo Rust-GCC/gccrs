@@ -72,14 +72,26 @@
 /* Define to 1 if you have the `atanl' function. */
 #undef HAVE_ATANL
 
+/* Define to 1 if the target supports __atomic_fetch_add */
+#undef HAVE_ATOMIC_FETCH_ADD
+
 /* Define to 1 if the target supports __attribute__((alias(...))). */
 #undef HAVE_ATTRIBUTE_ALIAS
 
-/* Define to 1 if the target supports __attribute__((dllexport)). */
-#undef HAVE_ATTRIBUTE_DLLEXPORT
-
 /* Define to 1 if the target supports __attribute__((visibility(...))). */
 #undef HAVE_ATTRIBUTE_VISIBILITY
+
+/* Define if AVX instructions can be compiled. */
+#undef HAVE_AVX
+
+/* Define if -mprefer-avx128 is supported. */
+#undef HAVE_AVX128
+
+/* Define if AVX2 instructions can be compiled. */
+#undef HAVE_AVX2
+
+/* Define if AVX512f instructions can be compiled. */
+#undef HAVE_AVX512F
 
 /* Define to 1 if you have the `cabs' function. */
 #undef HAVE_CABS
@@ -219,9 +231,6 @@
 /* Define to 1 if you have the `clogl' function. */
 #undef HAVE_CLOGL
 
-/* Define to 1 if you have the `close' function. */
-#undef HAVE_CLOSE
-
 /* Define to 1 if you have the <complex.h> header file. */
 #undef HAVE_COMPLEX_H
 
@@ -315,9 +324,6 @@
 /* Define to 1 if you have the `dup' function. */
 #undef HAVE_DUP
 
-/* Define to 1 if you have the `dup2' function. */
-#undef HAVE_DUP2
-
 /* Define to 1 if you have the `erf' function. */
 #undef HAVE_ERF
 
@@ -332,15 +338,6 @@
 
 /* Define to 1 if you have the `erff' function. */
 #undef HAVE_ERFF
-
-/* Define to 1 if you have the `erfl' function. */
-#undef HAVE_ERFL
-
-/* Define to 1 if you have the `execl' function. */
-#undef HAVE_EXECL
-
-/* Define to 1 if you have the `execve' function. */
-#undef HAVE_EXECVE
 
 /* Define to 1 if you have the `exp' function. */
 #undef HAVE_EXP
@@ -383,6 +380,12 @@
 
 /* Define to 1 if you have the `floorl' function. */
 #undef HAVE_FLOORL
+
+/* Define if FMA3 instructions can be compiled. */
+#undef HAVE_FMA3
+
+/* Define if FMA4 instructions can be compiled. */
+#undef HAVE_FMA4
 
 /* Define to 1 if you have the `fmod' function. */
 #undef HAVE_FMOD
@@ -429,6 +432,9 @@
 /* fp_trap is present */
 #undef HAVE_FP_TRAP
 
+/* Define to 1 if you have the `freelocale' function. */
+#undef HAVE_FREELOCALE
+
 /* Define to 1 if you have the `frexp' function. */
 #undef HAVE_FREXP
 
@@ -450,6 +456,9 @@
 /* Define to 1 if you have the `getegid' function. */
 #undef HAVE_GETEGID
 
+/* Define to 1 if you have the `getentropy' function. */
+#undef HAVE_GETENTROPY
+
 /* Define to 1 if you have the `geteuid' function. */
 #undef HAVE_GETEUID
 
@@ -459,26 +468,17 @@
 /* Define to 1 if you have the `gethostname' function. */
 #undef HAVE_GETHOSTNAME
 
-/* Define if _Unwind_GetIPInfo is available. */
-#undef HAVE_GETIPINFO
-
 /* Define to 1 if you have the `getlogin' function. */
 #undef HAVE_GETLOGIN
 
 /* Define to 1 if you have the `getpid' function. */
 #undef HAVE_GETPID
 
-/* Define to 1 if you have the `getppid' function. */
-#undef HAVE_GETPPID
-
 /* Define to 1 if you have the `getpwuid' function. */
 #undef HAVE_GETPWUID
 
 /* Define to 1 if you have the `getpwuid_r' function. */
 #undef HAVE_GETPWUID_R
-
-/* Define to 1 if you have the `getrlimit' function. */
-#undef HAVE_GETRLIMIT
 
 /* Define to 1 if you have the `getrusage' function. */
 #undef HAVE_GETRUSAGE
@@ -516,17 +516,11 @@
 /* Define to 1 if you have the `j0f' function. */
 #undef HAVE_J0F
 
-/* Define to 1 if you have the `j0l' function. */
-#undef HAVE_J0L
-
 /* Define to 1 if you have the `j1' function. */
 #undef HAVE_J1
 
 /* Define to 1 if you have the `j1f' function. */
 #undef HAVE_J1F
-
-/* Define to 1 if you have the `j1l' function. */
-#undef HAVE_J1L
 
 /* Define to 1 if you have the `jn' function. */
 #undef HAVE_JN
@@ -554,9 +548,6 @@
 
 /* Define to 1 if you have the `lgammaf' function. */
 #undef HAVE_LGAMMAF
-
-/* Define to 1 if you have the `lgammal' function. */
-#undef HAVE_LGAMMAL
 
 /* Define to 1 if you have the `m' library (-lm). */
 #undef HAVE_LIBM
@@ -621,6 +612,9 @@
 /* Define to 1 if you have the `mkstemp' function. */
 #undef HAVE_MKSTEMP
 
+/* Define to 1 if you have the `newlocale' function. */
+#undef HAVE_NEWLOCALE
+
 /* Define to 1 if you have the `nextafter' function. */
 #undef HAVE_NEXTAFTER
 
@@ -629,9 +623,6 @@
 
 /* Define to 1 if you have the `nextafterl' function. */
 #undef HAVE_NEXTAFTERL
-
-/* Define to 1 if you have the `pipe' function. */
-#undef HAVE_PIPE
 
 /* Define to 1 if we have POSIX getpwuid_r which takes 5 arguments. */
 #undef HAVE_POSIX_GETPWUID_R
@@ -642,17 +633,11 @@
 /* Define to 1 if you have the `powf' function. */
 #undef HAVE_POWF
 
-/* Define to 1 if you have the `powl' function. */
-#undef HAVE_POWL
-
 /* Define to 1 if the system has the type `ptrdiff_t'. */
 #undef HAVE_PTRDIFF_T
 
 /* Define to 1 if you have the <pwd.h> header file. */
 #undef HAVE_PWD_H
-
-/* Define to 1 if you have the `readlink' function. */
-#undef HAVE_READLINK
 
 /* Define to 1 if you have the `round' function. */
 #undef HAVE_ROUND
@@ -720,8 +705,8 @@
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
 
-/* Define to 1 if you have the `strcasestr' function. */
-#undef HAVE_STRCASESTR
+/* Define to 1 if you have the `strerror_l' function. */
+#undef HAVE_STRERROR_L
 
 /* Define if strerror_r is available in <string.h>. */
 #undef HAVE_STRERROR_R
@@ -747,20 +732,20 @@
 /* Define to 1 if you have the `strtold' function. */
 #undef HAVE_STRTOLD
 
-/* Define to 1 if `struct stat' is a member of `st_blksize'. */
+/* Define to 1 if `st_blksize' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_BLKSIZE
 
-/* Define to 1 if `struct stat' is a member of `st_blocks'. */
+/* Define to 1 if `st_blocks' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_BLOCKS
 
-/* Define to 1 if `struct stat' is a member of `st_rdev'. */
+/* Define to 1 if `st_rdev' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_RDEV
 
 /* Define to 1 if you have the `symlink' function. */
 #undef HAVE_SYMLINK
 
-/* Define to 1 if the target supports __sync_fetch_and_add */
-#undef HAVE_SYNC_FETCH_AND_ADD
+/* Define to 1 if you have the <sys/random.h> header file. */
+#undef HAVE_SYS_RANDOM_H
 
 /* Define to 1 if you have the <sys/resource.h> header file. */
 #undef HAVE_SYS_RESOURCE_H
@@ -776,6 +761,9 @@
 
 /* Define to 1 if you have the <sys/types.h> header file. */
 #undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <sys/uio.h> header file. */
+#undef HAVE_SYS_UIO_H
 
 /* Define to 1 if you have the <sys/wait.h> header file. */
 #undef HAVE_SYS_WAIT_H
@@ -803,9 +791,6 @@
 
 /* Define to 1 if you have the `tgammaf' function. */
 #undef HAVE_TGAMMAF
-
-/* Define to 1 if you have the `tgammal' function. */
-#undef HAVE_TGAMMAL
 
 /* Define to 1 if you have the `times' function. */
 #undef HAVE_TIMES
@@ -837,14 +822,20 @@
 /* Define if target can unlink open files. */
 #undef HAVE_UNLINK_OPEN_FILE
 
+/* Define to 1 if you have the `uselocale' function. */
+#undef HAVE_USELOCALE
+
 /* Define to 1 if you have the `vsnprintf' function. */
 #undef HAVE_VSNPRINTF
 
-/* Define to 1 if you have the `wait' function. */
-#undef HAVE_WAIT
-
 /* Define if target has a reliable stat. */
 #undef HAVE_WORKING_STAT
+
+/* Define to 1 if you have the `writev' function. */
+#undef HAVE_WRITEV
+
+/* Define to 1 if you have the <xlocale.h> header file. */
+#undef HAVE_XLOCALE_H
 
 /* Define to 1 if you have the `y0' function. */
 #undef HAVE_Y0
@@ -852,17 +843,11 @@
 /* Define to 1 if you have the `y0f' function. */
 #undef HAVE_Y0F
 
-/* Define to 1 if you have the `y0l' function. */
-#undef HAVE_Y0L
-
 /* Define to 1 if you have the `y1' function. */
 #undef HAVE_Y1
 
 /* Define to 1 if you have the `y1f' function. */
 #undef HAVE_Y1F
-
-/* Define to 1 if you have the `y1l' function. */
-#undef HAVE_Y1L
 
 /* Define to 1 if you have the `yn' function. */
 #undef HAVE_YN
@@ -879,9 +864,6 @@
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR
-
-/* Define to 1 if your C compiler doesn't accept -c and -o together. */
-#undef NO_MINUS_C_MINUS_O
 
 /* Define to the address where bug reports for this package should be sent. */
 #undef PACKAGE_BUGREPORT
@@ -922,6 +904,9 @@
 /* Define to 1 if the target supports #pragma weak */
 #undef SUPPORTS_WEAK
 
+/* Define to 1 if the target supports weakref */
+#undef SUPPORTS_WEAKREF
+
 /* Enable extensions on AIX 3, Interix.  */
 #ifndef _ALL_SOURCE
 # undef _ALL_SOURCE
@@ -943,6 +928,11 @@
 # undef __EXTENSIONS__
 #endif
 
+
+/* Enable large inode numbers on Mac OS X 10.5.  */
+#ifndef _DARWIN_USE_64_BIT_INODE
+# define _DARWIN_USE_64_BIT_INODE 1
+#endif
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS

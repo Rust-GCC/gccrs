@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-cunrolli-details" } */
+/* { dg-options "-O2 -fdump-tree-cunrolli-details -fdisable-tree-evrp" } */
 void abort (void);
 int q (void);
 int a[10];
@@ -21,4 +21,3 @@ t (int n)
   return sum;
 }
 /* { dg-final { scan-tree-dump-times "Removed pointless exit:" 1 "cunrolli" } } */
-/* { dg-final { cleanup-tree-dump "cunrolli" } } */

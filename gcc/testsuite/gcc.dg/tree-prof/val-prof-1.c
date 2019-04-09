@@ -16,8 +16,7 @@ main ()
     }
   return 0;
 }
-/* { dg-final-use { scan-ipa-dump "Div.mod by constant n_\[0-9\]*=257 transformation on insn" "profile"} } */
-/* { dg-final-use { scan-tree-dump "if \\(n_\[0-9\]* != 257\\)" "optimized"} } */
+/* autofdo does not do value profiling so far */
+/* { dg-final-use-not-autofdo { scan-ipa-dump "Transformation done: div.mod by constant 257" "profile"} } */
+/* { dg-final-use-not-autofdo { scan-tree-dump "if \\(n_\[0-9\]* != 257\\)" "optimized"} } */
 /* { dg-final-use { scan-tree-dump-not "Invalid sum" "optimized"} } */
-/* { dg-final-use { cleanup-tree-dump "optimized" } } */
-/* { dg-final-use { cleanup-ipa-dump "profile" } } */

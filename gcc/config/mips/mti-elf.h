@@ -1,5 +1,5 @@
 /* Target macros for mips*-mti-elf targets.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -19,6 +19,9 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef DRIVER_SELF_SPECS
 #define DRIVER_SELF_SPECS						\
+  /* Set the ISA for the default multilib.  */				\
+  MIPS_DEFAULT_ISA_LEVEL_SPEC,						\
+									\
   /* Make sure a -mips option is present.  This helps us to pick	\
      the right multilib, and also makes the later specs easier		\
      to write.  */							\
@@ -33,6 +36,11 @@ along with GCC; see the file COPYING3.  If not see
   /* If no ABI option is specified, infer one from the ISA level	\
      or -mgp setting.  */						\
   "%{!mabi=*: %{" MIPS_32BIT_OPTION_SPEC ": -mabi=32;: -mabi=n32}}",	\
+									\
+  /* If no FP ABI option is specified, infer one from the		\
+     ABI/ISA level.  */							\
+  "%{!msoft-float: %{!msingle-float: %{!mfp*: %{!mmsa: %{mabi=32: %{"	\
+  MIPS_FPXX_OPTION_SPEC ": -mfpxx}}}}}}",				\
 									\
   /* Make sure that an endian option is always present.  This makes	\
      things like LINK_SPEC easier to write.  */				\

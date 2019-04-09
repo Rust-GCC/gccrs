@@ -1,4 +1,4 @@
-! { dg-options "-O3 -ffast-math -floop-interchange -floop-block -fdump-tree-graphite-all" }
+! { dg-options "-O3 -ffast-math -floop-nest-optimize -floop-block -fdump-tree-graphite-all" }
 
   INTEGER, PARAMETER :: N=1024
   REAL*8 :: A(N,N), B(N,N), C(N,N)
@@ -24,6 +24,4 @@ SUBROUTINE mult(A,B,C,N)
   ENDDO
 END SUBROUTINE mult
 
-! { dg-final { scan-tree-dump-times "number of SCoPs: 1" 1 "graphite" { xfail *-*-* } } }
-! { dg-final { scan-tree-dump-times "will be loop blocked" 1 "graphite" { xfail *-*-* } } }
-! { dg-final { cleanup-tree-dump "graphite" } }
+! { dg-final { scan-tree-dump "tiled by" "graphite" } }

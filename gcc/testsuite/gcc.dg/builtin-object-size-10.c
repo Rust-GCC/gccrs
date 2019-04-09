@@ -1,6 +1,6 @@
 /* { dg-do compile } */
 /* { dg-options "-O2 -fdump-tree-objsz1-details" } */
-// { dg-skip-if "packed attribute missing for drone_source_packet" { "epiphany-*-*" } { "*" } { "" } }
+// { dg-skip-if "packed attribute missing for drone_source_packet" { "epiphany-*-*" } }
 
 typedef struct {
     char sentinel[4];
@@ -24,4 +24,3 @@ foo(char *x)
 
 /* { dg-final { scan-tree-dump "maximum object size 21" "objsz1" } } */
 /* { dg-final { scan-tree-dump "maximum subobject size 16" "objsz1" } } */
-/* { dg-final { cleanup-tree-dump "objsz1" } } */

@@ -1,4 +1,4 @@
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -23,8 +23,6 @@
 // libstdc++/24064
 void test01()
 {
-  bool test __attribute__((unused)) = true;
-
   using namespace std::tr1;
   using std::allocator;
   using std::pair;
@@ -32,14 +30,14 @@ void test01()
 
   __unordered_map<int, char, hash<int>, equal_to<int>,
     allocator<pair<const int, char> >, true> m;
- 
+
   for (int i = 0; i < 1000; ++i)
     m[i] = '0' + i % 9;
-		
+
   for (int i = 0; i < 1000; ++i)
     VERIFY( ++m.find(i)->second == '1' + i % 9 );
 }
-  
+
 int main()
 {
   test01();

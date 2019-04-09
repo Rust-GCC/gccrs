@@ -1,5 +1,5 @@
 ;; microblaze.md -- Machine description for Xilinx MicroBlaze processors.
-;; Copyright (C) 2009-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 ;; Contributed by Michael Eager <eager@eagercon.com>.
 
@@ -41,8 +41,13 @@
   (UNSPEC_CMP		104)    ;; signed compare
   (UNSPEC_CMPU		105)    ;; unsigned compare
   (UNSPEC_TLS           106)    ;; jump table
+  (UNSPEC_SET_TEXT      107)    ;; set text start
+  (UNSPEC_TEXT          108)    ;; data text relative
 ])
 
+(define_c_enum "unspec" [
+  UNSPEC_IPREFETCH
+])
 
 ;;----------------------------------------------------
 ;; Instruction Attributes
@@ -119,10 +124,10 @@
      DEFINE_AUTOMATON).
 
      All define_reservations and define_cpu_units should have unique
-     names which can not be "nothing".
+     names which cannot be "nothing".
 
    o (exclusion_set string string) means that each CPU function unit
-     in the first string can not be reserved simultaneously with each
+     in the first string cannot be reserved simultaneously with each
      unit whose name is in the second string and vise versa.  CPU
      units in the string are separated by commas. For example, it is
      useful for description CPU with fully pipelined floating point
@@ -130,18 +135,18 @@
      floating point insns or only double floating point insns.
 
    o (presence_set string string) means that each CPU function unit in
-     the first string can not be reserved unless at least one of units
+     the first string cannot be reserved unless at least one of units
      whose names are in the second string is reserved.  This is an
      asymmetric relation.  CPU units in the string are separated by
      commas.  For example, it is useful for description that slot1 is
      reserved after slot0 reservation for a VLIW processor.
 
    o (absence_set string string) means that each CPU function unit in
-     the first string can not be reserved only if each unit whose name
+     the first string cannot be reserved only if each unit whose name
      is in the second string is not reserved.  This is an asymmetric
      relation (actually exclusion set is analogous to this one but it
      is symmetric).  CPU units in the string are separated by commas.
-     For example, it is useful for description that slot0 can not be
+     For example, it is useful for description that slot0 cannot be
      reserved after slot1 or slot2 reservation for a VLIW processor.
 
    o (define_bypass number out_insn_names in_insn_names) names bypass with
@@ -164,7 +169,7 @@
      case, you describe common part and use one its name (the 1st
      parameter) in regular expression in define_insn_reservation.  All
      define_reservations, define results and define_cpu_units should
-     have unique names which can not be "nothing".
+     have unique names which cannot be "nothing".
 
    o (define_insn_reservation name default_latency condition regexpr)
      describes reservation of cpu functional units (the 3nd operand)
@@ -508,6 +513,17 @@
   (set_attr "mode"	"SI")
   (set_attr "length"	"4,8")])
 
+(define_insn "iprefetch"
+  [(unspec [(match_operand:SI 0 "const_int_operand" "n")] UNSPEC_IPREFETCH)
+   (clobber (mem:BLK (scratch)))]
+   "TARGET_PREFETCH"
+  {
+    operands[2] = gen_rtx_REG (SImode, MB_ABI_ASM_TEMP_REGNUM);
+    return "mfs\t%2,rpc\n\twic\t%2,r0";
+  }
+  [(set_attr "type" "arith")
+   (set_attr "mode"  "SI")
+   (set_attr "length"    "8")])
 
 ;;----------------------------------------------------------------
 ;; Double Precision Subtraction
@@ -663,6 +679,31 @@
   (set_attr "mode"	"SI")
   (set_attr "length"	"4")])
 
+(define_peephole2
+  [(set (match_operand:SI 0 "register_operand")
+        (fix:SI (match_operand:SF 1 "register_operand")))
+   (set (pc)
+        (if_then_else (match_operator 2 "ordered_comparison_operator"
+                       [(match_operand:SI 3 "register_operand")
+                        (match_operand:SI 4 "arith_operand")])
+                      (label_ref (match_operand 5))
+                      (pc)))]
+   "TARGET_HARD_FLOAT"
+   [(set (match_dup 1) (match_dup 3))]
+
+  {
+    rtx condition;
+    rtx cmp_op0 = operands[3];
+    rtx cmp_op1 = operands[4];
+    rtx comp_reg =  gen_rtx_REG (SImode, MB_ABI_ASM_TEMP_REGNUM);
+
+    emit_insn (gen_cstoresf4 (comp_reg, operands[2],
+                              gen_rtx_REG (SFmode, REGNO (cmp_op0)),
+                              gen_rtx_REG (SFmode, REGNO (cmp_op1))));
+    condition = gen_rtx_NE (SImode, comp_reg, const0_rtx);
+    emit_jump_insn (gen_condjump (condition, operands[5]));
+  }
+)
 
 ;;----------------------------------------------------------------
 ;; Negation and one's complement
@@ -1282,7 +1323,7 @@
   [(set (match_operand:SI 0 "register_operand" "=d")
 	(ashift:SI (match_operand:SI 1 "register_operand" "d")
                    (match_operand:SI 2 "arith_operand"    "I")))] 
-  "(INTVAL (operands[2]) == 1)"
+  "(operands[2] == const1_rtx)"
   "addk\t%0,%1,%1"
   [(set_attr "type"	"arith")
    (set_attr "mode"	"SI")
@@ -1443,7 +1484,7 @@
   [(set (match_operand:SI 0 "register_operand" "=d")
 	(ashiftrt:SI (match_operand:SI 1 "register_operand" "d")
                      (match_operand:SI 2 "arith_operand"    "I")))] 
-  "(INTVAL (operands[2]) == 1)"
+  "(operands[2] == const1_rtx)"
   "sra\t%0,%1"
   [(set_attr "type"	"arith")
    (set_attr "mode"	"SI")
@@ -1532,7 +1573,7 @@
   [(set (match_operand:SI 0 "register_operand" "=d")
 	(lshiftrt:SI (match_operand:SI 1 "register_operand" "d")
                      (match_operand:SI 2 "arith_operand"    "I")))] 
-  "(INTVAL (operands[2]) == 1)"
+  "(operands[2] == const1_rtx)"
   "srl\t%0,%1"
   [(set_attr "type"	"arith")
    (set_attr "mode"	"SI")
@@ -1655,14 +1696,27 @@
 
 (define_expand "cbranchsi4"
   [(set (pc)
-	(if_then_else (match_operator 0 "ordered_comparison_operator"
-		       [(match_operand:SI 1 "register_operand")
-		        (match_operand:SI 2 "arith_operand")])
-		      (label_ref (match_operand 3 ""))
-		      (pc)))]
+        (if_then_else (match_operator 0 "ordered_comparison_operator"
+                       [(match_operand:SI 1 "register_operand")
+                        (match_operand:SI 2 "arith_operand" "I,i")])
+                      (label_ref (match_operand 3 ""))
+                      (pc)))]
   ""
 {
   microblaze_expand_conditional_branch (SImode, operands);
+  DONE;
+})
+
+(define_expand "cbranchsi4_reg"
+  [(set (pc)
+        (if_then_else (match_operator 0 "ordered_comparison_operator"
+                       [(match_operand:SI 1 "register_operand")
+                        (match_operand:SI 2 "register_operand")])
+                      (label_ref (match_operand 3 ""))
+                      (pc)))]
+  ""
+{
+  microblaze_expand_conditional_branch_reg (SImode, operands);
   DONE;
 })
 
@@ -1796,7 +1850,7 @@
   {
     gcc_assert (GET_MODE (operands[0]) == Pmode);
 
-    if (!flag_pic)
+    if (!flag_pic || TARGET_PIC_DATA_TEXT_REL)
       emit_jump_insn (gen_tablejump_internal1 (operands[0], operands[1]));
     else
       emit_jump_insn (gen_tablejump_internal3 (operands[0], operands[1]));
@@ -2001,7 +2055,8 @@
   {
     rtx addr = XEXP (operands[0], 0);
 
-    if (flag_pic == 2 && GET_CODE (addr) == SYMBOL_REF 
+    if (flag_pic == 2 && !TARGET_PIC_DATA_TEXT_REL
+    && GET_CODE (addr) == SYMBOL_REF
 	&& !SYMBOL_REF_LOCAL_P (addr)) 
       {
         rtx temp = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, addr), UNSPEC_PLT);
@@ -2104,7 +2159,8 @@
   {
     rtx addr = XEXP (operands[1], 0);
 
-    if (flag_pic == 2 && GET_CODE (addr) == SYMBOL_REF
+    if (flag_pic == 2 && !TARGET_PIC_DATA_TEXT_REL
+    && GET_CODE (addr) == SYMBOL_REF
 	&& !SYMBOL_REF_LOCAL_P (addr)) 
       {
         rtx temp = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, addr), UNSPEC_PLT);
@@ -2261,6 +2317,18 @@
   [(set_attr "type" "multi")
    (set_attr "length" "12")])
 
+;; The insn to set TEXT.
+;; The hardcoded number "8" accounts for $pc difference
+;; between "mfs" and "addik" instructions.
+(define_insn "set_text"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+    (unspec:SI[(const_int 0)] UNSPEC_SET_TEXT))]
+  ""
+  "mfs\t%0,rpc\n\taddik\t%0,%0,8@TXTPCREL"
+  [(set_attr "type" "multi")
+   (set_attr "length" "12")])
+
+
 ;; This insn gives the count of leading number of zeros for the second
 ;; operand and stores the result in first operand.
 (define_insn "clzsi2"
@@ -2271,5 +2339,15 @@
   [(set_attr "type"     "arith")
   (set_attr "mode"      "SI")
   (set_attr "length"    "4")])
+
+; This is used in compiling the unwind routines.
+(define_expand "eh_return"
+  [(use (match_operand 0 "general_operand" ""))]
+  ""
+  "
+{
+  microblaze_eh_return (operands[0]);
+  DONE;
+}")
 
 (include "sync.md")

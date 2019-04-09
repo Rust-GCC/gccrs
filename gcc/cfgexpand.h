@@ -1,5 +1,5 @@
 /* Header file for lowering trees to RTL.
-   Copyright (C) 2013-2014 Free Software Foundation, Inc.
+   Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,7 +20,9 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_CFGEXPAND_H
 #define GCC_CFGEXPAND_H
 
-extern tree gimple_assign_rhs_to_tree (gimple);
+extern tree gimple_assign_rhs_to_tree (gimple *);
 extern HOST_WIDE_INT estimated_stack_frame_size (struct cgraph_node *);
+extern void set_parm_rtl (tree, rtx);
+
 
 #endif /* GCC_CFGEXPAND_H */

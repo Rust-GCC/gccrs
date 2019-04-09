@@ -1,5 +1,5 @@
 /* Dwarf2 assembler output helper routines.
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -40,6 +40,10 @@ extern void dw2_asm_output_offset (int, const char *, section *,
 				   const char *, ...)
      ATTRIBUTE_NULL_PRINTF_4;
 
+extern void dw2_asm_output_offset (int, const char *, HOST_WIDE_INT,
+				   section *, const char *, ...)
+     ATTRIBUTE_NULL_PRINTF_5;
+
 extern void dw2_asm_output_addr (int, const char *, const char *, ...)
      ATTRIBUTE_NULL_PRINTF_3;
 
@@ -64,6 +68,10 @@ extern void dw2_asm_output_data_sleb128_raw (HOST_WIDE_INT);
 
 extern void dw2_asm_output_data_sleb128	(HOST_WIDE_INT,
 					 const char *, ...)
+     ATTRIBUTE_NULL_PRINTF_2;
+
+extern void dw2_asm_output_symname_uleb128 (const char *,
+					    const char *, ...)
      ATTRIBUTE_NULL_PRINTF_2;
 
 extern void dw2_asm_output_delta_uleb128 (const char *, const char *,

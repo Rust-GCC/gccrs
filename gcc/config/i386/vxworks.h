@@ -1,5 +1,5 @@
 /* IA32 VxWorks target definitions for GNU compiler.
-   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+   Copyright (C) 2003-2019 Free Software Foundation, Inc.
    Updated by CodeSourcery, LLC.
 
 This file is part of GCC.
@@ -18,9 +18,7 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#undef  ASM_SPEC
-#define ASM_SPEC ""
-
+#undef ASM_OUTPUT_ALIGNED_BSS
 #define ASM_OUTPUT_ALIGNED_BSS(FILE, DECL, NAME, SIZE, ALIGN) \
   asm_output_aligned_bss (FILE, DECL, NAME, SIZE, ALIGN)
 
@@ -34,7 +32,19 @@ along with GCC; see the file COPYING3.  If not see
    the SVR4 numbering.  */
 
 #undef DBX_REGISTER_NUMBER
-#define DBX_REGISTER_NUMBER(n)  svr4_dbx_register_map[n]
+#define DBX_REGISTER_NUMBER(n) \
+  (TARGET_64BIT ? dbx64_register_map[n] : svr4_dbx_register_map[n])
+
+#undef PTRDIFF_TYPE
+#define PTRDIFF_TYPE (TARGET_LP64 ? "long int" : "int")
+
+#undef SIZE_TYPE
+#define SIZE_TYPE (TARGET_LP64 ? "long unsigned int" : "unsigned int")
+
+#if TARGET_64BIT_DEFAULT
+#undef VXWORKS_SYSCALL_LIBS_RTP
+#define VXWORKS_SYSCALL_LIBS_RTP "-lsyscall"
+#endif
 
 #define TARGET_OS_CPP_BUILTINS()			\
   do							\
@@ -59,7 +69,11 @@ along with GCC; see the file COPYING3.  If not see
           builtin_define ("CPU=PENTIUM4");		\
           builtin_define ("CPU_VARIANT=PENTIUM4");	\
         }						\
-    }							\
+      else if (TARGET_64BIT)				\
+          builtin_define ("CPU=X86_64");		\
+      else						\
+          builtin_define ("CPU=I80386");		\
+    } 							\
   while (0)
 
 #undef  CPP_SPEC
@@ -87,4 +101,14 @@ along with GCC; see the file COPYING3.  If not see
    fixed gap between segments.  */
 #undef ASM_PREFERRED_EH_DATA_FORMAT
 
-#define IX86_MAYBE_NO_LIBGCC_TFMODE
+/* Define this to be nonzero if static stack checking is supported.  */
+#define STACK_CHECK_STATIC_BUILTIN 1
+
+/* This platform supports the probing method of stack checking (RTP mode).
+   8K is reserved in the stack to propagate exceptions in case of overflow. 
+   On 64-bit targets, we double that size.  */
+#if TARGET_64BIT_DEFAULT
+#define STACK_CHECK_PROTECT 16384
+#else
+#define STACK_CHECK_PROTECT 8192
+#endif

@@ -1,5 +1,5 @@
 /* Pragma handling for GCC for Renesas / SuperH SH.
-   Copyright (C) 1993-2014 Free Software Foundation, Inc.
+   Copyright (C) 1993-2019 Free Software Foundation, Inc.
    Contributed by Joern Rennecke <joern.rennecke@st.com>.
 
 This file is part of GCC.
@@ -18,17 +18,17 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#define IN_TARGET_CODE 1
+
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "tree.h"
+#include "target.h"
+#include "c-family/c-common.h"
+#include "memmodel.h"
+#include "tm_p.h"
 #include "stringpool.h"
 #include "attribs.h"
-#include "tm_p.h"
-#include "cpplib.h"
-#include "c-family/c-common.h"
-#include "target.h"
 
 /* Handle machine specific pragmas to be semi-compatible with Renesas
    compiler.  */
@@ -122,15 +122,6 @@ sh_cpu_cpp_builtins (cpp_reader* pfile)
 		      : TARGET_FPU_ANY ? "__SH4_SINGLE_ONLY__"
 		      : "__SH4_NOFPU__");
       break;
-    case PROCESSOR_SH5:
-      {
-	builtin_define_with_value ("__SH5__",
-				   TARGET_SHMEDIA64 ? "64" : "32", 0);
-	builtin_define_with_value ("__SHMEDIA__",
-				   TARGET_SHMEDIA ? "1" : "0", 0);
-	if (! TARGET_FPU_DOUBLE)
-	  builtin_define ("__SH4_NOFPU__");
-      }
     }
   if (TARGET_FPU_ANY)
     builtin_define ("__SH_FPU_ANY__");
@@ -140,6 +131,11 @@ sh_cpu_cpp_builtins (cpp_reader* pfile)
     builtin_define ("__HITACHI__");
   if (TARGET_FMOVD)
     builtin_define ("__FMOVD_ENABLED__");
+  if (TARGET_FDPIC)
+    {
+      builtin_define ("__SH_FDPIC__");
+      builtin_define ("__FDPIC__");
+    }
   builtin_define (TARGET_LITTLE_ENDIAN
 		  ? "__LITTLE_ENDIAN__" : "__BIG_ENDIAN__");
 

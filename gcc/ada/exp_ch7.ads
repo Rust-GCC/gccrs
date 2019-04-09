@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -34,6 +34,11 @@ package Exp_Ch7 is
    -----------------------------
    -- Finalization Management --
    -----------------------------
+
+   procedure Build_Anonymous_Master (Ptr_Typ : Entity_Id);
+   --  Build a finalization master for an anonymous access-to-controlled type
+   --  denoted by Ptr_Typ. The master is inserted in the declarations of the
+   --  current unit.
 
    procedure Build_Controlling_Procs (Typ : Entity_Id);
    --  Typ is a record, and array type having controlled components.
@@ -98,21 +103,24 @@ package Exp_Ch7 is
    --  exception will be saved to a global location.
 
    procedure Build_Finalization_Master
-     (Typ        : Entity_Id;
-      Ins_Node   : Node_Id := Empty;
-      Encl_Scope : Entity_Id := Empty);
+     (Typ            : Entity_Id;
+      For_Lib_Level  : Boolean   := False;
+      For_Private    : Boolean   := False;
+      Context_Scope  : Entity_Id := Empty;
+      Insertion_Node : Node_Id   := Empty);
    --  Build a finalization master for an access type. The designated type may
-   --  not necessarely be controlled or need finalization actions. The routine
-   --  creates a wrapper around a user-defined storage pool or the general
-   --  storage pool for access types. Ins_Nod and Encl_Scope are used in
-   --  conjunction with anonymous access types. Ins_Node designates the
-   --  insertion point before which the collection should be added. Encl_Scope
-   --  is the scope of the context, either the enclosing record or the scope
-   --  of the related function.
+   --  not necessarily be controlled or need finalization actions depending on
+   --  the context. Flag For_Lib_Level must be set when creating a master for a
+   --  build-in-place function call access result type. Flag For_Private must
+   --  be set when the designated type contains a private component. Parameters
+   --  Context_Scope and Insertion_Node must be used in conjunction with flag
+   --  For_Private. Context_Scope is the scope of the context where the
+   --  finalization master must be analyzed. Insertion_Node is the insertion
+   --  point before which the master is to be inserted.
 
    procedure Build_Late_Proc (Typ : Entity_Id; Nam : Name_Id);
-   --  Build one controlling procedure when a late body overrides one of
-   --  the controlling operations.
+   --  Build one controlling procedure when a late body overrides one of the
+   --  controlling operations.
 
    procedure Build_Object_Declarations
      (Data        : out Finalization_Exception_Data;
@@ -161,22 +169,11 @@ package Exp_Ch7 is
       Typ       : Entity_Id;
       Skip_Self : Boolean := False) return Node_Id;
    --  Create a call to either Adjust or Deep_Adjust depending on the structure
-   --  of type Typ. Obj_Ref is an expression with no-side effect (not required
+   --  of type Typ. Obj_Ref is an expression with no side effects (not required
    --  to have been previously analyzed) that references the object to be
    --  adjusted. Typ is the expected type of Obj_Ref. When Skip_Self is set,
-   --  only the components (if any) are adjusted.
-
-   function Make_Attach_Call
-     (Obj_Ref : Node_Id;
-      Ptr_Typ : Entity_Id) return Node_Id;
-   --  Create a call to prepend an object to a finalization collection. Obj_Ref
-   --  is the object, Ptr_Typ is the access type that owns the collection. This
-   --  is used only for .NET/JVM, that is, when VM_Target /= No_VM.
-   --  Generate the following:
-   --
-   --    Ada.Finalization.Heap_Management.Attach
-   --      (<Ptr_Typ>FC,
-   --       System.Finalization_Root.Root_Controlled_Ptr (Obj_Ref));
+   --  only the components (if any) are adjusted. Return Empty if Adjust or
+   --  Deep_Adjust is not available, possibly due to previous errors.
 
    function Make_Detach_Call (Obj_Ref : Node_Id) return Node_Id;
    --  Create a call to unhook an object from an arbitrary list. Obj_Ref is the
@@ -189,11 +186,13 @@ package Exp_Ch7 is
      (Obj_Ref   : Node_Id;
       Typ       : Entity_Id;
       Skip_Self : Boolean := False) return Node_Id;
-   --  Create a call to either Finalize or Deep_Finalize depending on the
-   --  structure of type Typ. Obj_Ref is an expression (with no-side effect
+   --  Create a call to either Finalize or Deep_Finalize, depending on the
+   --  structure of type Typ. Obj_Ref is an expression (with no side effects
    --  and is not required to have been previously analyzed) that references
    --  the object to be finalized. Typ is the expected type of Obj_Ref. When
-   --  Skip_Self is set, only the components (if any) are finalized.
+   --  Skip_Self is set, only the components (if any) are finalized. Return
+   --  Empty if Finalize or Deep_Finalize is not available, possibly due to
+   --  previous errors.
 
    procedure Make_Finalize_Address_Body (Typ : Entity_Id);
    --  Create the body of TSS routine Finalize_Address if Typ is controlled and
@@ -204,11 +203,12 @@ package Exp_Ch7 is
    function Make_Init_Call
      (Obj_Ref : Node_Id;
       Typ     : Entity_Id) return Node_Id;
-   --  Obj_Ref is an expression with no-side effect (not required to have been
-   --  previously analyzed) that references the object to be initialized. Typ
-   --  is the expected type of Obj_Ref, which is either a controlled type
-   --  (Is_Controlled) or a type with controlled components (Has_Controlled_
-   --  Components).
+   --  Create a call to either Initialize or Deep_Initialize, depending on the
+   --  structure of type Typ. Obj_Ref is an expression with no side effects
+   --  (not required to have been previously analyzed) that references the
+   --  object to be initialized. Typ is the expected type of Obj_Ref. Return
+   --  Empty if Initialize or Deep_Initialize is not available, possibly due to
+   --  previous errors.
 
    function Make_Handler_For_Ctrl_Operation (Loc : Source_Ptr) return Node_Id;
    --  Generate an implicit exception handler with an 'others' choice,
@@ -218,19 +218,16 @@ package Exp_Ch7 is
      (Typ : Entity_Id;
       Nam : Entity_Id) return Node_Id;
    --  Create a special version of Deep_Finalize with identifier Nam. The
-   --  routine has state information and can parform partial finalization.
+   --  routine has state information and can perform partial finalization.
 
    function Make_Set_Finalize_Address_Call
      (Loc     : Source_Ptr;
-      Typ     : Entity_Id;
       Ptr_Typ : Entity_Id) return Node_Id;
-   --  Generate the following call:
+   --  Associate the Finalize_Address primitive of the designated type with the
+   --  finalization master of access type Ptr_Typ. The returned call is:
    --
-   --    Set_Finalize_Address (<Ptr_Typ>FM, <Typ>FD'Unrestricted_Access);
-   --
-   --  where Finalize_Address is the corresponding TSS primitive of type Typ
-   --  and Ptr_Typ is the access type of the related allocation. Loc is the
-   --  source location of the related allocator.
+   --    Set_Finalize_Address
+   --      (<Ptr_Typ>FM, <Desig_Typ>FD'Unrestricted_Access);
 
    --------------------------------------------
    -- Task and Protected Object finalization --
@@ -264,7 +261,7 @@ package Exp_Ch7 is
    --  Check whether composite type contains a simple protected component
 
    function Is_Simple_Protected_Type (T : Entity_Id) return Boolean;
-   --  Determine whether T denotes a protected type without entires whose
+   --  Determine whether T denotes a protected type without entries whose
    --  _object field is of type System.Tasking.Protected_Objects.Protection.
    --  Something wrong here, implementation was changed to test Lock_Free
    --  but this spec does not mention that ???
@@ -279,10 +276,12 @@ package Exp_Ch7 is
    --  a "scope node" that is to say one of the following: N_Block_Statement,
    --  N_Subprogram_Body, N_Task_Body, N_Entry_Body.
 
-   procedure Establish_Transient_Scope (N : Node_Id; Sec_Stack : Boolean);
-   --  Push a new transient scope on the scope stack. N is the node responsible
-   --  for the need of a transient scope. If Sec_Stack is True then the
-   --  secondary stack is brought in, otherwise it isn't.
+   procedure Establish_Transient_Scope
+     (N                : Node_Id;
+      Manage_Sec_Stack : Boolean);
+   --  Push a new transient scope on the scope stack. N is the node which must
+   --  be serviced by the transient scope. Set Manage_Sec_Stack when the scope
+   --  must mark and release the secondary stack.
 
    function Node_To_Be_Wrapped return Node_Id;
    --  Return the node to be wrapped if the current scope is transient

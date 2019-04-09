@@ -1,5 +1,5 @@
 /* Lower TLS operations to emulation functions.
-   Copyright (C) 2006-2014 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,29 +20,21 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "backend.h"
+#include "target.h"
 #include "tree.h"
+#include "gimple.h"
+#include "tree-pass.h"
+#include "ssa.h"
+#include "cgraph.h"
+#include "fold-const.h"
 #include "stor-layout.h"
 #include "varasm.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "is-a.h"
-#include "gimple.h"
 #include "gimple-iterator.h"
 #include "gimple-walk.h"
-#include "tree-pass.h"
-#include "gimple-ssa.h"
-#include "cgraph.h"
-#include "tree-phinodes.h"
-#include "ssa-iterators.h"
-#include "stringpool.h"
-#include "tree-ssanames.h"
 #include "langhooks.h"
-#include "target.h"
-#include "targhooks.h"
 #include "tree-iterator.h"
-#include "hash-map.h"
+#include "gimplify.h"
 
 /* Whenever a target does not support thread-local storage (TLS) natively,
    we can emulate it with some run-time support in libgcc.  This will in
@@ -346,9 +338,14 @@ new_emutls_decl (tree decl, tree alias_of)
   else if (!alias_of)
     varpool_node::add (to);
   else 
-    varpool_node::create_alias (to,
-				varpool_node::get_for_asmname
-				  (DECL_ASSEMBLER_NAME (DECL_VALUE_EXPR (alias_of)))->decl);
+    {
+      varpool_node *n;
+      varpool_node *t = varpool_node::get_for_asmname
+	 (DECL_ASSEMBLER_NAME (DECL_VALUE_EXPR (alias_of)));
+
+      n = varpool_node::create_alias (to, t->decl);
+      n->resolve_alias (t);
+    }
   return to;
 }
 
@@ -387,7 +384,6 @@ struct lower_emutls_data
   struct cgraph_node *builtin_node;
   tree builtin_decl;
   basic_block bb;
-  int bb_freq;
   location_t loc;
   gimple_seq seq;
 };
@@ -406,13 +402,13 @@ gen_emutls_addr (tree decl, struct lower_emutls_data *d)
     {
       varpool_node *cvar;
       tree cdecl;
-      gimple x;
+      gcall *x;
 
       cvar = data->control_var;
       cdecl = cvar->decl;
       TREE_ADDRESSABLE (cdecl) = 1;
 
-      addr = create_tmp_var (build_pointer_type (TREE_TYPE (decl)), NULL);
+      addr = create_tmp_var (build_pointer_type (TREE_TYPE (decl)));
       x = gimple_build_call (d->builtin_decl, 1, build_fold_addr_expr (cdecl));
       gimple_set_location (x, d->loc);
 
@@ -421,7 +417,7 @@ gen_emutls_addr (tree decl, struct lower_emutls_data *d)
 
       gimple_seq_add_stmt (&d->seq, x);
 
-      d->cfun_node->create_edge (d->builtin_node, x, d->bb->count, d->bb_freq);
+      d->cfun_node->create_edge (d->builtin_node, x, d->bb->count);
 
       /* We may be adding a new reference to a new variable to the function.
          This means we have to play with the ipa-reference web.  */
@@ -432,6 +428,20 @@ gen_emutls_addr (tree decl, struct lower_emutls_data *d)
     }
 
   return addr;
+}
+
+/* Callback for lower_emutls_1, return non-NULL if there is any TLS
+   VAR_DECL in the subexpressions.  */
+
+static tree
+lower_emutls_2 (tree *ptr, int *walk_subtrees, void *)
+{
+  tree t = *ptr;
+  if (TREE_CODE (t) == VAR_DECL)
+    return DECL_THREAD_LOCAL_P (t) ? t : NULL_TREE;
+  else if (!EXPR_P (t))
+    *walk_subtrees = 0;
+  return NULL_TREE;
 }
 
 /* Callback for walk_gimple_op.  D = WI->INFO is a struct lower_emutls_data.
@@ -460,6 +470,13 @@ lower_emutls_1 (tree *ptr, int *walk_subtrees, void *cb_data)
 	{
 	  bool save_changed;
 
+	  /* Gimple invariants are shareable trees, so before changing
+	     anything in them if we will need to change anything, unshare
+	     them.  */
+	  if (is_gimple_min_invariant (t)
+	      && walk_tree (&TREE_OPERAND (t, 0), lower_emutls_2, NULL, NULL))
+	    *ptr = t = unshare_expr (t);
+
 	  /* If we're allowed more than just is_gimple_val, continue.  */
 	  if (!wi->val_only)
 	    {
@@ -478,9 +495,9 @@ lower_emutls_1 (tree *ptr, int *walk_subtrees, void *cb_data)
 	     new assignment statement, and substitute yet another SSA_NAME.  */
 	  if (wi->changed)
 	    {
-	      gimple x;
+	      gimple *x;
 
-	      addr = create_tmp_var (TREE_TYPE (t), NULL);
+	      addr = create_tmp_var (TREE_TYPE (t));
 	      x = gimple_build_assign (addr, t);
 	      gimple_set_location (x, d->loc);
 
@@ -538,7 +555,7 @@ lower_emutls_1 (tree *ptr, int *walk_subtrees, void *cb_data)
 /* Lower all of the operands of STMT.  */
 
 static void
-lower_emutls_stmt (gimple stmt, struct lower_emutls_data *d)
+lower_emutls_stmt (gimple *stmt, struct lower_emutls_data *d)
 {
   struct walk_stmt_info wi;
 
@@ -556,7 +573,8 @@ lower_emutls_stmt (gimple stmt, struct lower_emutls_data *d)
 /* Lower the I'th operand of PHI.  */
 
 static void
-lower_emutls_phi_arg (gimple phi, unsigned int i, struct lower_emutls_data *d)
+lower_emutls_phi_arg (gphi *phi, unsigned int i,
+		      struct lower_emutls_data *d)
 {
   struct walk_stmt_info wi;
   struct phi_arg_d *pd = gimple_phi_arg (phi, i);
@@ -617,7 +635,6 @@ lower_emutls_function_body (struct cgraph_node *node)
 
   FOR_EACH_BB_FN (d.bb, cfun)
     {
-      gimple_stmt_iterator gsi;
       unsigned int i, nedge;
 
       /* Lower each of the PHI nodes of the block, as we may have 
@@ -626,10 +643,6 @@ lower_emutls_function_body (struct cgraph_node *node)
 	 PHI argument for that edge.  */
       if (!gimple_seq_empty_p (phi_nodes (d.bb)))
 	{
-	  /* The calls will be inserted on the edges, and the frequencies
-	     will be computed during the commit process.  */
-	  d.bb_freq = 0;
-
 	  nedge = EDGE_COUNT (d.bb->preds);
 	  for (i = 0; i < nedge; ++i)
 	    {
@@ -639,10 +652,10 @@ lower_emutls_function_body (struct cgraph_node *node)
 	      clear_access_vars ();
 	      d.seq = NULL;
 
-	      for (gsi = gsi_start_phis (d.bb);
+	      for (gphi_iterator gsi = gsi_start_phis (d.bb);
 		   !gsi_end_p (gsi);
 		   gsi_next (&gsi))
-		lower_emutls_phi_arg (gsi_stmt (gsi), i, &d);
+		lower_emutls_phi_arg (gsi.phi (), i, &d);
 
 	      /* Insert all statements generated by all phi nodes for this
 		 particular edge all at once.  */
@@ -654,13 +667,12 @@ lower_emutls_function_body (struct cgraph_node *node)
 	    }
 	}
 
-      d.bb_freq = compute_call_stmt_bb_frequency (current_function_decl, d.bb);
-
       /* We can re-use any SSA_NAME created during this basic block.  */
       clear_access_vars ();
 
       /* Lower each of the statements of the block.  */
-      for (gsi = gsi_start_bb (d.bb); !gsi_end_p (gsi); gsi_next (&gsi))
+      for (gimple_stmt_iterator gsi = gsi_start_bb (d.bb); !gsi_end_p (gsi);
+	   gsi_next (&gsi))
 	{
           d.seq = NULL;
 	  lower_emutls_stmt (gsi_stmt (gsi), &d);
@@ -727,17 +739,19 @@ ipa_lower_emutls (void)
   cgraph_node *func;
   bool any_aliases = false;
   tree ctor_body = NULL;
-
+  hash_set <varpool_node *> visited;
   auto_vec <varpool_node *> tls_vars;
 
   /* Examine all global variables for TLS variables.  */
   FOR_EACH_VARIABLE (var)
-    if (DECL_THREAD_LOCAL_P (var->decl))
+    if (DECL_THREAD_LOCAL_P (var->decl)
+	&& !visited.add (var))
       {
 	gcc_checking_assert (TREE_STATIC (var->decl)
 			     || DECL_EXTERNAL (var->decl));
 	tls_vars.safe_push (var);
-	if (var->alias && var->definition)
+	if (var->alias && var->definition
+	    && !visited.add (var->ultimate_alias_target ()))
 	  tls_vars.safe_push (var->ultimate_alias_target ());
       }
 
@@ -759,7 +773,7 @@ ipa_lower_emutls (void)
       if (var->alias && !var->analyzed)
 	any_aliases = true;
       else if (!var->alias)
-	var->call_for_node_and_aliases (create_emultls_var, &ctor_body, true);
+	var->call_for_symbol_and_aliases (create_emultls_var, &ctor_body, true);
     }
 
   /* If there were any aliases, then frob the alias_pairs vector.  */

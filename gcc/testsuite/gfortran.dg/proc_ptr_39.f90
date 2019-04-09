@@ -1,4 +1,5 @@
 ! { dg-do compile }
+! { dg-require-visibility "" }
 !
 ! PR 52909: [F03] Procedure pointers not private to modules
 !
@@ -16,5 +17,3 @@ program Test
   use Module1
   use Module2
 end program
-
-! { dg-final { cleanup-modules "Module1 Module2" } }

@@ -4,7 +4,7 @@
 ACLOCAL_AMFLAGS = -I .. -I ../config
 
 ## May be used by toolexeclibdir.
-gcc_version := $(shell cat $(top_srcdir)/../gcc/BASE-VER)
+gcc_version := $(shell @get_gcc_base_ver@ $(top_srcdir)/../gcc/BASE-VER)
 
 ## Symbol versioning (copied from libssp).
 if LIBGFOR_USE_SYMVER
@@ -30,6 +30,9 @@ version_arg =
 version_dep =
 endif
 
+gfor_c_HEADERS = $(srcdir)/ISO_Fortran_binding.h
+gfor_cdir = $(libdir)/gcc/$(target_alias)/$(gcc_version)$(MULTISUBDIR)/include
+
 LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS)) \
 	    $(lt_host_flags)
 
@@ -37,15 +40,11 @@ toolexeclib_LTLIBRARIES = libgfortran.la
 toolexeclib_DATA = libgfortran.spec
 libgfortran_la_LINK = $(LINK) $(libgfortran_la_LDFLAGS)
 libgfortran_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
-	$(LTLDFLAGS) $(LIBQUADLIB) -lm $(extra_ldflags_libgfortran) \
+	$(LTLDFLAGS) $(LIBQUADLIB) ../libbacktrace/libbacktrace.la \
+	$(HWCAP_LDFLAGS) \
+	-lm $(extra_ldflags_libgfortran) \
 	$(version_arg) -Wc,-shared-libgcc
 libgfortran_la_DEPENDENCIES = $(version_dep) libgfortran.spec $(LIBQUADLIB_DEP)
-
-myexeclib_LTLIBRARIES = libgfortranbegin.la
-myexeclibdir = $(libdir)/gcc/$(target_alias)/$(gcc_version)$(MULTISUBDIR)
-libgfortranbegin_la_SOURCES = fmain.c
-libgfortranbegin_la_LDFLAGS = -static
-libgfortranbegin_la_LINK = $(LINK) $(libgfortranbegin_la_LDFLAGS)
 
 cafexeclib_LTLIBRARIES = libcaf_single.la
 cafexeclibdir = $(libdir)/gcc/$(target_alias)/$(gcc_version)$(MULTISUBDIR)
@@ -65,7 +64,10 @@ AM_CPPFLAGS = -iquote$(srcdir)/io -I$(srcdir)/$(MULTISRCTOP)../gcc \
 	      -I$(srcdir)/$(MULTISRCTOP)../gcc/config $(LIBQUADINCLUDE) \
 	      -I$(MULTIBUILDTOP)../../$(host_subdir)/gcc \
 	      -I$(srcdir)/$(MULTISRCTOP)../libgcc \
-	      -I$(MULTIBUILDTOP)../libgcc
+	      -I$(MULTIBUILDTOP)../libgcc \
+	      -I$(srcdir)/$(MULTISRCTOP)../libbacktrace \
+	      -I$(MULTIBUILDTOP)../libbacktrace \
+	      -I../libbacktrace
 
 # Fortran rules for complex multiplication and division
 AM_CFLAGS += -fcx-fortran-rules
@@ -77,7 +79,16 @@ AM_CFLAGS += $(SECTION_FLAGS)
 AM_CFLAGS += $(IEEE_FLAGS)
 AM_FCFLAGS += $(IEEE_FLAGS)
 
+if LIBGFOR_MINIMAL
+AM_CFLAGS += -DLIBGFOR_MINIMAL
+endif
+
 gfor_io_src= \
+io/size_from_kind.c
+
+if !LIBGFOR_MINIMAL
+
+gfor_io_src+= \
 io/close.c \
 io/file_pos.c \
 io/format.c \
@@ -87,84 +98,89 @@ io/list_read.c \
 io/lock.c \
 io/open.c \
 io/read.c \
-io/size_from_kind.c \
 io/transfer.c \
 io/transfer128.c \
 io/unit.c \
 io/unix.c \
 io/write.c \
-io/fbuf.c
+io/fbuf.c \
+io/async.c
+
+endif
 
 gfor_io_headers= \
 io/io.h \
 io/fbuf.h \
 io/format.h \
-io/unix.h
+io/unix.h \
+io/async.h
 
 gfor_helper_src= \
 intrinsics/associated.c \
 intrinsics/abort.c \
-intrinsics/access.c \
 intrinsics/args.c \
-intrinsics/bit_intrinsics.c \
+intrinsics/cshift0.c \
+intrinsics/eoshift0.c \
+intrinsics/eoshift2.c \
+intrinsics/erfc_scaled.c \
+intrinsics/extends_type_of.c \
+intrinsics/fnum.c \
+intrinsics/ierrno.c \
+intrinsics/ishftc.c \
+intrinsics/is_contiguous.c \
+intrinsics/mvbits.c \
+intrinsics/move_alloc.c \
+intrinsics/pack_generic.c \
+intrinsics/selected_char_kind.c \
+intrinsics/size.c \
+intrinsics/spread_generic.c \
+intrinsics/string_intrinsics.c \
+intrinsics/rand.c \
+intrinsics/random.c \
+intrinsics/reshape_generic.c \
+intrinsics/reshape_packed.c \
+intrinsics/selected_int_kind.f90 \
+intrinsics/selected_real_kind.f90 \
+intrinsics/unpack_generic.c \
+runtime/in_pack_generic.c \
+runtime/in_unpack_generic.c
+
+if !LIBGFOR_MINIMAL
+
+gfor_helper_src+= \
+intrinsics/access.c \
 intrinsics/c99_functions.c \
 intrinsics/chdir.c \
 intrinsics/chmod.c \
 intrinsics/clock.c \
 intrinsics/cpu_time.c \
-intrinsics/cshift0.c \
 intrinsics/ctime.c \
 intrinsics/date_and_time.c \
 intrinsics/dtime.c \
 intrinsics/env.c \
-intrinsics/eoshift0.c \
-intrinsics/eoshift2.c \
-intrinsics/erfc_scaled.c \
 intrinsics/etime.c \
 intrinsics/execute_command_line.c \
 intrinsics/exit.c \
-intrinsics/extends_type_of.c \
-intrinsics/fnum.c \
 intrinsics/gerror.c \
 intrinsics/getcwd.c \
 intrinsics/getlog.c \
 intrinsics/getXid.c \
 intrinsics/hostnm.c \
-intrinsics/ierrno.c \
-intrinsics/ishftc.c \
-intrinsics/iso_c_generated_procs.c \
-intrinsics/iso_c_binding.c \
 intrinsics/kill.c \
 intrinsics/link.c \
-intrinsics/malloc.c \
-intrinsics/mvbits.c \
-intrinsics/move_alloc.c \
-intrinsics/pack_generic.c \
 intrinsics/perror.c \
-intrinsics/selected_char_kind.c \
 intrinsics/signal.c \
-intrinsics/size.c \
 intrinsics/sleep.c \
-intrinsics/spread_generic.c \
-intrinsics/string_intrinsics.c \
 intrinsics/system.c \
-intrinsics/rand.c \
-intrinsics/random.c \
 intrinsics/rename.c \
-intrinsics/reshape_generic.c \
-intrinsics/reshape_packed.c \
-intrinsics/selected_int_kind.f90 \
-intrinsics/selected_real_kind.f90 \
 intrinsics/stat.c \
 intrinsics/symlnk.c \
 intrinsics/system_clock.c \
 intrinsics/time.c \
-intrinsics/transpose_generic.c \
 intrinsics/umask.c \
-intrinsics/unlink.c \
-intrinsics/unpack_generic.c \
-runtime/in_pack_generic.c \
-runtime/in_unpack_generic.c
+intrinsics/unlink.c
+
+endif
 
 if IEEE_SUPPORT
 
@@ -182,19 +198,29 @@ gfor_ieee_src=
 endif
 
 gfor_src= \
-runtime/backtrace.c \
 runtime/bounds.c \
 runtime/compile_options.c \
+runtime/memory.c \
+runtime/string.c \
+runtime/select.c
+
+if LIBGFOR_MINIMAL
+
+gfor_src+= runtime/minimal.c
+
+else
+
+gfor_src+= \
+runtime/backtrace.c \
 runtime/convert_char.c \
 runtime/environ.c \
 runtime/error.c \
 runtime/fpu.c \
 runtime/main.c \
-runtime/memory.c \
 runtime/pause.c \
-runtime/stop.c \
-runtime/string.c \
-runtime/select.c
+runtime/stop.c
+
+endif
 
 i_all_c= \
 $(srcdir)/generated/all_l1.c \
@@ -244,6 +270,44 @@ $(srcdir)/generated/iparity_i4.c \
 $(srcdir)/generated/iparity_i8.c \
 $(srcdir)/generated/iparity_i16.c
 
+i_findloc0_c= \
+$(srcdir)/generated/findloc0_i1.c \
+$(srcdir)/generated/findloc0_i2.c \
+$(srcdir)/generated/findloc0_i4.c \
+$(srcdir)/generated/findloc0_i8.c \
+$(srcdir)/generated/findloc0_i16.c \
+$(srcdir)/generated/findloc0_r4.c \
+$(srcdir)/generated/findloc0_r8.c \
+$(srcdir)/generated/findloc0_r16.c \
+$(srcdir)/generated/findloc0_c4.c \
+$(srcdir)/generated/findloc0_c8.c \
+$(srcdir)/generated/findloc0_c16.c
+
+i_findloc0s_c= \
+$(srcdir)/generated/findloc0_s1.c \
+$(srcdir)/generated/findloc0_s4.c
+
+i_findloc1_c= \
+$(srcdir)/generated/findloc1_i1.c \
+$(srcdir)/generated/findloc1_i2.c \
+$(srcdir)/generated/findloc1_i4.c \
+$(srcdir)/generated/findloc1_i8.c \
+$(srcdir)/generated/findloc1_i16.c \
+$(srcdir)/generated/findloc1_r4.c \
+$(srcdir)/generated/findloc1_r8.c \
+$(srcdir)/generated/findloc1_r16.c \
+$(srcdir)/generated/findloc1_c4.c \
+$(srcdir)/generated/findloc1_c8.c \
+$(srcdir)/generated/findloc1_c16.c
+
+i_findloc1s_c= \
+$(srcdir)/generated/findloc1_s1.c \
+$(srcdir)/generated/findloc1_s4.c
+
+i_findloc2s_c= \
+$(srcdir)/generated/findloc2_s1.c \
+$(srcdir)/generated/findloc2_s4.c
+
 i_maxloc0_c= \
 $(srcdir)/generated/maxloc0_4_i1.c \
 $(srcdir)/generated/maxloc0_8_i1.c \
@@ -272,6 +336,14 @@ $(srcdir)/generated/maxloc0_16_r10.c \
 $(srcdir)/generated/maxloc0_4_r16.c \
 $(srcdir)/generated/maxloc0_8_r16.c \
 $(srcdir)/generated/maxloc0_16_r16.c
+
+i_maxloc0s_c = \
+$(srcdir)/generated/maxloc0_4_s1.c \
+$(srcdir)/generated/maxloc0_4_s4.c \
+$(srcdir)/generated/maxloc0_8_s1.c \
+$(srcdir)/generated/maxloc0_8_s4.c \
+$(srcdir)/generated/maxloc0_16_s1.c \
+$(srcdir)/generated/maxloc0_16_s4.c
 
 i_maxloc1_c= \
 $(srcdir)/generated/maxloc1_4_i1.c \
@@ -302,6 +374,22 @@ $(srcdir)/generated/maxloc1_4_r16.c \
 $(srcdir)/generated/maxloc1_8_r16.c \
 $(srcdir)/generated/maxloc1_16_r16.c
 
+i_maxloc1s_c= \
+$(srcdir)/generated/maxloc1_4_s1.c \
+$(srcdir)/generated/maxloc1_4_s4.c \
+$(srcdir)/generated/maxloc1_8_s1.c \
+$(srcdir)/generated/maxloc1_8_s4.c \
+$(srcdir)/generated/maxloc1_16_s1.c \
+$(srcdir)/generated/maxloc1_16_s4.c
+
+i_maxloc2s_c= \
+$(srcdir)/generated/maxloc2_4_s1.c \
+$(srcdir)/generated/maxloc2_4_s4.c \
+$(srcdir)/generated/maxloc2_8_s1.c \
+$(srcdir)/generated/maxloc2_8_s4.c \
+$(srcdir)/generated/maxloc2_16_s1.c \
+$(srcdir)/generated/maxloc2_16_s4.c
+
 i_maxval_c= \
 $(srcdir)/generated/maxval_i1.c \
 $(srcdir)/generated/maxval_i2.c \
@@ -312,6 +400,14 @@ $(srcdir)/generated/maxval_r4.c \
 $(srcdir)/generated/maxval_r8.c \
 $(srcdir)/generated/maxval_r10.c \
 $(srcdir)/generated/maxval_r16.c
+
+i_maxval0s_c=\
+$(srcdir)/generated/maxval0_s1.c \
+$(srcdir)/generated/maxval0_s4.c
+
+i_maxval1s_c=\
+$(srcdir)/generated/maxval1_s1.c \
+$(srcdir)/generated/maxval1_s4.c
 
 i_minloc0_c= \
 $(srcdir)/generated/minloc0_4_i1.c \
@@ -342,6 +438,14 @@ $(srcdir)/generated/minloc0_4_r16.c \
 $(srcdir)/generated/minloc0_8_r16.c \
 $(srcdir)/generated/minloc0_16_r16.c
 
+i_minloc0s_c = \
+$(srcdir)/generated/minloc0_4_s1.c \
+$(srcdir)/generated/minloc0_4_s4.c \
+$(srcdir)/generated/minloc0_8_s1.c \
+$(srcdir)/generated/minloc0_8_s4.c \
+$(srcdir)/generated/minloc0_16_s1.c \
+$(srcdir)/generated/minloc0_16_s4.c
+
 i_minloc1_c= \
 $(srcdir)/generated/minloc1_4_i1.c \
 $(srcdir)/generated/minloc1_8_i1.c \
@@ -371,6 +475,22 @@ $(srcdir)/generated/minloc1_4_r16.c \
 $(srcdir)/generated/minloc1_8_r16.c \
 $(srcdir)/generated/minloc1_16_r16.c
 
+i_minloc1s_c= \
+$(srcdir)/generated/minloc1_4_s1.c \
+$(srcdir)/generated/minloc1_4_s4.c \
+$(srcdir)/generated/minloc1_8_s1.c \
+$(srcdir)/generated/minloc1_8_s4.c \
+$(srcdir)/generated/minloc1_16_s1.c \
+$(srcdir)/generated/minloc1_16_s4.c
+
+i_minloc2s_c= \
+$(srcdir)/generated/minloc2_4_s1.c \
+$(srcdir)/generated/minloc2_4_s4.c \
+$(srcdir)/generated/minloc2_8_s1.c \
+$(srcdir)/generated/minloc2_8_s4.c \
+$(srcdir)/generated/minloc2_16_s1.c \
+$(srcdir)/generated/minloc2_16_s4.c
+
 i_minval_c= \
 $(srcdir)/generated/minval_i1.c \
 $(srcdir)/generated/minval_i2.c \
@@ -381,6 +501,14 @@ $(srcdir)/generated/minval_r4.c \
 $(srcdir)/generated/minval_r8.c \
 $(srcdir)/generated/minval_r10.c \
 $(srcdir)/generated/minval_r16.c
+
+i_minval0s_c=\
+$(srcdir)/generated/minval0_s1.c \
+$(srcdir)/generated/minval0_s4.c
+
+i_minval1s_c=\
+$(srcdir)/generated/minval1_s1.c \
+$(srcdir)/generated/minval1_s4.c
 
 i_norm2_c= \
 $(srcdir)/generated/norm2_r4.c \
@@ -440,25 +568,29 @@ $(srcdir)/generated/matmul_c8.c \
 $(srcdir)/generated/matmul_c10.c \
 $(srcdir)/generated/matmul_c16.c
 
+i_matmulavx128_c= \
+$(srcdir)/generated/matmulavx128_i1.c \
+$(srcdir)/generated/matmulavx128_i2.c \
+$(srcdir)/generated/matmulavx128_i4.c \
+$(srcdir)/generated/matmulavx128_i8.c \
+$(srcdir)/generated/matmulavx128_i16.c \
+$(srcdir)/generated/matmulavx128_r4.c \
+$(srcdir)/generated/matmulavx128_r8.c \
+$(srcdir)/generated/matmulavx128_r10.c \
+$(srcdir)/generated/matmulavx128_r16.c \
+$(srcdir)/generated/matmulavx128_c4.c \
+$(srcdir)/generated/matmulavx128_c8.c \
+$(srcdir)/generated/matmulavx128_c10.c \
+$(srcdir)/generated/matmulavx128_c16.c
+
 i_matmull_c= \
 $(srcdir)/generated/matmul_l4.c \
 $(srcdir)/generated/matmul_l8.c \
 $(srcdir)/generated/matmul_l16.c
 
-i_transpose_c= \
-$(srcdir)/generated/transpose_i4.c \
-$(srcdir)/generated/transpose_i8.c \
-$(srcdir)/generated/transpose_i16.c \
-$(srcdir)/generated/transpose_r4.c \
-$(srcdir)/generated/transpose_r8.c \
-$(srcdir)/generated/transpose_r10.c \
-$(srcdir)/generated/transpose_r16.c \
-$(srcdir)/generated/transpose_c4.c \
-$(srcdir)/generated/transpose_c8.c \
-$(srcdir)/generated/transpose_c10.c \
-$(srcdir)/generated/transpose_c16.c
-
 i_shape_c= \
+$(srcdir)/generated/shape_i1.c \
+$(srcdir)/generated/shape_i2.c \
 $(srcdir)/generated/shape_i4.c \
 $(srcdir)/generated/shape_i8.c \
 $(srcdir)/generated/shape_i16.c
@@ -500,12 +632,52 @@ $(srcdir)/generated/cshift0_c4.c \
 $(srcdir)/generated/cshift0_c8.c \
 $(srcdir)/generated/cshift0_c10.c \
 $(srcdir)/generated/cshift0_c16.c
- 
 
 i_cshift1_c= \
 $(srcdir)/generated/cshift1_4.c \
 $(srcdir)/generated/cshift1_8.c \
 $(srcdir)/generated/cshift1_16.c
+
+i_cshift1a_c = \
+$(srcdir)/generated/cshift1_4_i1.c \
+$(srcdir)/generated/cshift1_4_i2.c \
+$(srcdir)/generated/cshift1_4_i4.c \
+$(srcdir)/generated/cshift1_4_i8.c \
+$(srcdir)/generated/cshift1_4_i16.c \
+$(srcdir)/generated/cshift1_4_r4.c \
+$(srcdir)/generated/cshift1_4_r8.c \
+$(srcdir)/generated/cshift1_4_r10.c \
+$(srcdir)/generated/cshift1_4_r16.c \
+$(srcdir)/generated/cshift1_4_c4.c \
+$(srcdir)/generated/cshift1_4_c8.c \
+$(srcdir)/generated/cshift1_4_c10.c \
+$(srcdir)/generated/cshift1_4_c16.c \
+$(srcdir)/generated/cshift1_8_i1.c \
+$(srcdir)/generated/cshift1_8_i2.c \
+$(srcdir)/generated/cshift1_8_i4.c \
+$(srcdir)/generated/cshift1_8_i8.c \
+$(srcdir)/generated/cshift1_8_i16.c \
+$(srcdir)/generated/cshift1_8_r4.c \
+$(srcdir)/generated/cshift1_8_r8.c \
+$(srcdir)/generated/cshift1_8_r10.c \
+$(srcdir)/generated/cshift1_8_r16.c \
+$(srcdir)/generated/cshift1_8_c4.c \
+$(srcdir)/generated/cshift1_8_c8.c \
+$(srcdir)/generated/cshift1_8_c10.c \
+$(srcdir)/generated/cshift1_8_c16.c \
+$(srcdir)/generated/cshift1_16_i1.c \
+$(srcdir)/generated/cshift1_16_i2.c \
+$(srcdir)/generated/cshift1_16_i4.c \
+$(srcdir)/generated/cshift1_16_i8.c \
+$(srcdir)/generated/cshift1_16_i16.c \
+$(srcdir)/generated/cshift1_16_r4.c \
+$(srcdir)/generated/cshift1_16_r8.c \
+$(srcdir)/generated/cshift1_16_r10.c \
+$(srcdir)/generated/cshift1_16_r16.c \
+$(srcdir)/generated/cshift1_16_c4.c \
+$(srcdir)/generated/cshift1_16_c8.c \
+$(srcdir)/generated/cshift1_16_c10.c \
+$(srcdir)/generated/cshift1_16_c16.c
 
 in_pack_c = \
 $(srcdir)/generated/in_pack_i1.c \
@@ -536,42 +708,6 @@ $(srcdir)/generated/in_unpack_c4.c \
 $(srcdir)/generated/in_unpack_c8.c \
 $(srcdir)/generated/in_unpack_c10.c \
 $(srcdir)/generated/in_unpack_c16.c
-
-i_exponent_c = \
-$(srcdir)/generated/exponent_r4.c \
-$(srcdir)/generated/exponent_r8.c \
-$(srcdir)/generated/exponent_r10.c \
-$(srcdir)/generated/exponent_r16.c
-
-i_spacing_c = \
-$(srcdir)/generated/spacing_r4.c \
-$(srcdir)/generated/spacing_r8.c \
-$(srcdir)/generated/spacing_r10.c \
-$(srcdir)/generated/spacing_r16.c
-
-i_rrspacing_c = \
-$(srcdir)/generated/rrspacing_r4.c \
-$(srcdir)/generated/rrspacing_r8.c \
-$(srcdir)/generated/rrspacing_r10.c \
-$(srcdir)/generated/rrspacing_r16.c
-
-i_fraction_c = \
-$(srcdir)/generated/fraction_r4.c \
-$(srcdir)/generated/fraction_r8.c \
-$(srcdir)/generated/fraction_r10.c \
-$(srcdir)/generated/fraction_r16.c
-
-i_nearest_c = \
-$(srcdir)/generated/nearest_r4.c \
-$(srcdir)/generated/nearest_r8.c \
-$(srcdir)/generated/nearest_r10.c \
-$(srcdir)/generated/nearest_r16.c
-
-i_set_exponent_c = \
-$(srcdir)/generated/set_exponent_r4.c \
-$(srcdir)/generated/set_exponent_r8.c \
-$(srcdir)/generated/set_exponent_r10.c \
-$(srcdir)/generated/set_exponent_r16.c
 
 i_pow_c = \
 $(srcdir)/generated/pow_i4_i4.c \
@@ -650,28 +786,37 @@ $(srcdir)/generated/spread_c8.c \
 $(srcdir)/generated/spread_c10.c \
 $(srcdir)/generated/spread_c16.c 
 
+i_isobinding_c = \
+$(srcdir)/runtime/ISO_Fortran_binding.c
+
 m4_files= m4/iparm.m4 m4/ifunction.m4 m4/iforeach.m4 m4/all.m4 \
     m4/any.m4 m4/count.m4 m4/maxloc0.m4 m4/maxloc1.m4 m4/maxval.m4 \
     m4/minloc0.m4 m4/minloc1.m4 m4/minval.m4 m4/product.m4 m4/sum.m4 \
     m4/matmul.m4 m4/matmull.m4 m4/ifunction_logical.m4 \
     m4/ctrig.m4 m4/cexp.m4 m4/chyp.m4 m4/mtype.m4 \
     m4/specific.m4 m4/specific2.m4 m4/head.m4 m4/shape.m4 m4/reshape.m4 \
-    m4/transpose.m4 m4/eoshift1.m4 m4/eoshift3.m4 m4/exponent.m4 \
-    m4/fraction.m4 m4/nearest.m4 m4/set_exponent.m4 m4/pow.m4 \
-    m4/misc_specifics.m4 m4/rrspacing.m4 m4/spacing.m4 m4/pack.m4 \
+    m4/eoshift1.m4 m4/eoshift3.m4 \
+    m4/pow.m4 \
+    m4/misc_specifics.m4 m4/pack.m4 \
     m4/unpack.m4 m4/spread.m4 m4/bessel.m4 m4/norm2.m4 m4/parity.m4 \
-    m4/iall.m4 m4/iany.m4 m4/iparity.m4
+    m4/iall.m4 m4/iany.m4 m4/iparity.m4 m4/iforeach-s.m4 m4/findloc0.m4 \
+    m4/findloc0s.m4 m4/ifindloc0.m4 m4/findloc1.m4 m4/ifindloc1.m4 \
+    m4/findloc2s.m4 m4/ifindloc2.m4
 
 gfor_built_src= $(i_all_c) $(i_any_c) $(i_count_c) $(i_maxloc0_c) \
     $(i_maxloc1_c) $(i_maxval_c) $(i_minloc0_c) $(i_minloc1_c) $(i_minval_c) \
     $(i_product_c) $(i_sum_c) $(i_bessel_c) $(i_iall_c) $(i_iany_c) \
     $(i_iparity_c) $(i_norm2_c) $(i_parity_c) \
-    $(i_matmul_c) $(i_matmull_c) $(i_transpose_c) $(i_shape_c) $(i_eoshift1_c) \
+    $(i_matmul_c) $(i_matmull_c) $(i_shape_c) $(i_eoshift1_c) \
     $(i_eoshift3_c) $(i_cshift1_c) $(i_reshape_c) $(in_pack_c) $(in_unpack_c) \
-    $(i_exponent_c) $(i_fraction_c) $(i_nearest_c) $(i_set_exponent_c) \
-    $(i_pow_c) $(i_rrspacing_c) $(i_spacing_c) $(i_pack_c) $(i_unpack_c) \
+    $(i_pow_c) $(i_pack_c) $(i_unpack_c) $(i_matmulavx128_c) \
     $(i_spread_c) selected_int_kind.inc selected_real_kind.inc kinds.h \
-    $(i_cshift0_c) kinds.inc c99_protos.inc fpu-target.h fpu-target.inc
+    $(i_cshift0_c) kinds.inc c99_protos.inc fpu-target.h fpu-target.inc \
+    $(i_cshift1a_c) $(i_maxloc0s_c) $(i_minloc0s_c) $(i_maxloc1s_c) \
+    $(i_minloc1s_c) $(i_maxloc2s_c) $(i_minloc2s_c) $(i_maxvals_c) \
+    $(i_maxval0s_c) $(i_minval0s_c) $(i_maxval1s_c) $(i_minval1s_c) \
+    $(i_findloc0_c) $(i_findloc0s_c) $(i_findloc1_c) $(i_findloc1s_c) \
+    $(i_findloc2s_c) $(i_isobinding_c)
 
 # Machine generated specifics
 gfor_built_specific_src= \
@@ -821,10 +966,16 @@ $(gfor_built_specific_src) \
 $(gfor_built_specific2_src) \
 $(gfor_misc_specifics) \
 intrinsics/dprod_r8.f90 \
-intrinsics/f2c_specifics.F90
+intrinsics/f2c_specifics.F90 \
+intrinsics/random_init.f90
 
 # Turn on vectorization and loop unrolling for matmul.
-$(patsubst %.c,%.lo,$(notdir $(i_matmul_c))): AM_CFLAGS += -ftree-vectorize -funroll-loops
+$(patsubst %.c,%.lo,$(notdir $(i_matmul_c))): AM_CFLAGS += -ffast-math -ftree-vectorize -funroll-loops --param max-unroll-times=4
+
+if HAVE_AVX128
+# Turn on AVX128 for AMD-specific matmul, but only if the compiler understands -mprefer-avx128
+$(patsubst %.c,%.lo,$(notdir $(i_matmulavx128_c))): AM_CFLAGS += -ffast-math -ftree-vectorize -funroll-loops --param max-unroll-times=4 -mprefer-avx128
+endif
 # Logical matmul doesn't vectorize.
 $(patsubst %.c,%.lo,$(notdir $(i_matmull_c))): AM_CFLAGS += -funroll-loops
 
@@ -889,6 +1040,13 @@ I_M4_DEPS=m4/iparm.m4
 I_M4_DEPS0=$(I_M4_DEPS) m4/iforeach.m4
 I_M4_DEPS1=$(I_M4_DEPS) m4/ifunction.m4
 I_M4_DEPS2=$(I_M4_DEPS) m4/ifunction_logical.m4
+I_M4_DEPS3=$(I_M4_DEPS) m4/iforeach-s.m4
+I_M4_DEPS4=$(I_M4_DEPS) m4/ifunction-s.m4
+I_M4_DEPS5=$(I_M4_DEPS) m4/iforeach-s2.m4
+I_M4_DEPS6=$(I_M4_DEPS) m4/ifunction-s2.m4
+I_M4_DEPS7=$(I_M4_DEPS) m4/ifindloc0.m4
+I_M4_DEPS8=$(I_M4_DEPS) m4/ifindloc1.m4
+I_M4_DEPS9=$(I_M4_DEPS) m4/ifindloc2.m4
 
 kinds.h: $(srcdir)/mk-kinds-h.sh
 	$(SHELL) $(srcdir)/mk-kinds-h.sh '$(FCCOMPILE)' > $@ || rm $@
@@ -928,6 +1086,21 @@ $(i_any_c): m4/any.m4 $(I_M4_DEPS2)
 $(i_count_c): m4/count.m4 $(I_M4_DEPS2)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 count.m4 > $@
 
+$(i_findloc0_c): m4/findloc0.m4 $(I_M4_DEPS7)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 findloc0.m4 > $@
+
+$(i_findloc0s_c): m4/findloc0s.m4 $(I_M4_DEPS7)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 findloc0s.m4 > $@
+
+$(i_findloc1_c): m4/findloc1.m4 $(I_M4_DEPS8)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 findloc1.m4 > $@
+
+$(i_findloc1s_c): m4/findloc1s.m4 $(I_M4_DEPS8)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 findloc1s.m4 > $@
+
+$(i_findloc2s_c): m4/findloc2s.m4 $(I_M4_DEPS9)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 findloc2s.m4 > $@
+
 $(i_iall_c): m4/iall.m4 $(I_M4_DEPS1)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 iall.m4 > $@
 
@@ -940,20 +1113,50 @@ $(i_iparity_c): m4/iparity.m4 $(I_M4_DEPS1)
 $(i_maxloc0_c): m4/maxloc0.m4 $(I_M4_DEPS0)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 maxloc0.m4 > $@
 
+$(i_maxloc0s_c) : m4/maxloc0s.m4 $(I_M4_DEPS3)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 maxloc0s.m4 > $@
+
 $(i_maxloc1_c): m4/maxloc1.m4 $(I_M4_DEPS1)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 maxloc1.m4 > $@
+
+$(i_maxloc1s_c): m4/maxloc1s.m4 $(I_M4_DEPS4)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 maxloc1s.m4 > $@
+
+$(i_maxloc2s_c): m4/maxloc2s.m4 $(I_M4_DEPS)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 maxloc2s.m4 > $@
 
 $(i_maxval_c): m4/maxval.m4 $(I_M4_DEPS1)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 maxval.m4 > $@
 
+$(i_maxval0s_c): m4/maxval0s.m4 $(I_M4_DEPS5)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 maxval0s.m4 > $@
+
+$(i_maxval1s_c): m4/maxval1s.m4 $(I_M4_DEPS6)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 maxval1s.m4 > $@
+
 $(i_minloc0_c): m4/minloc0.m4 $(I_M4_DEPS0)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 minloc0.m4 > $@
+
+$(i_minloc0s_c) : m4/minloc0s.m4 $(I_M4_DEPS3)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 minloc0s.m4 > $@
 
 $(i_minloc1_c): m4/minloc1.m4 $(I_M4_DEPS1)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 minloc1.m4 > $@
 
+$(i_minloc1s_c): m4/minloc1s.m4 $(I_M4_DEPS4)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 minloc1s.m4 > $@
+
+$(i_minloc2s_c): m4/minloc2s.m4 $(I_M4_DEPS)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 minloc2s.m4 > $@
+
 $(i_minval_c): m4/minval.m4 $(I_M4_DEPS1)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 minval.m4 > $@
+
+$(i_minval0s_c): m4/minval0s.m4 $(I_M4_DEPS5)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 minval0s.m4 > $@
+
+$(i_minval1s_c): m4/minval1s.m4 $(I_M4_DEPS6)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 minval1s.m4 > $@
 
 $(i_product_c): m4/product.m4 $(I_M4_DEPS1)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 product.m4 > $@
@@ -961,8 +1164,11 @@ $(i_product_c): m4/product.m4 $(I_M4_DEPS1)
 $(i_sum_c): m4/sum.m4 $(I_M4_DEPS1)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 sum.m4 > $@
 
-$(i_matmul_c): m4/matmul.m4 $(I_M4_DEPS)
+$(i_matmul_c): m4/matmul.m4 m4/matmul_internal.m4 $(I_M4_DEPS)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 matmul.m4 > $@
+
+$(i_matmulavx128_c): m4/matmulavx128.m4 m4/matmul_internal.m4 $(I_M4_DEPS)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 matmulavx128.m4 > $@
 
 $(i_matmull_c): m4/matmull.m4 $(I_M4_DEPS)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 matmull.m4 > $@
@@ -972,9 +1178,6 @@ $(i_norm2_c): m4/norm2.m4 $(I_M4_DEPS1)
 
 $(i_parity_c): m4/parity.m4 $(I_M4_DEPS1)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 parity.m4 > $@
-
-$(i_transpose_c): m4/transpose.m4 $(I_M4_DEPS)
-	$(M4) -Dfile=$@ -I$(srcdir)/m4 transpose.m4 > $@
 
 $(i_shape_c): m4/shape.m4 $(I_M4_DEPS)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 shape.m4 > $@
@@ -994,29 +1197,14 @@ $(i_cshift0_c): m4/cshift0.m4 $(I_M4_DEPS)
 $(i_cshift1_c): m4/cshift1.m4 $(I_M4_DEPS)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 cshift1.m4 > $@
 
+$(i_cshift1a_c): m4/cshift1a.m4 $(I_M$_DEPS)
+	$(M4) -Dfile=$@ -I$(srcdir)/m4 cshift1a.m4 > $@
+
 $(in_pack_c): m4/in_pack.m4 $(I_M4_DEPS)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 in_pack.m4 > $@
 
 $(in_unpack_c): m4/in_unpack.m4 $(I_M4_DEPS)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 in_unpack.m4 > $@
-
-$(i_exponent_c): m4/exponent.m4 m4/mtype.m4
-	$(M4) -Dfile=$@ -I$(srcdir)/m4 exponent.m4 > $@
-
-$(i_rrspacing_c): m4/rrspacing.m4 m4/mtype.m4
-	$(M4) -Dfile=$@ -I$(srcdir)/m4 rrspacing.m4 > $@
-
-$(i_spacing_c): m4/spacing.m4 m4/mtype.m4
-	$(M4) -Dfile=$@ -I$(srcdir)/m4 spacing.m4 > $@
-
-$(i_fraction_c): m4/fraction.m4 m4/mtype.m4
-	$(M4) -Dfile=$@ -I$(srcdir)/m4 fraction.m4 > $@
-
-$(i_nearest_c): m4/nearest.m4 m4/mtype.m4
-	$(M4) -Dfile=$@ -I$(srcdir)/m4 nearest.m4 > $@
-
-$(i_set_exponent_c): m4/set_exponent.m4 m4/mtype.m4
-	$(M4) -Dfile=$@ -I$(srcdir)/m4 set_exponent.m4 > $@
 
 $(i_pow_c): m4/pow.m4 $(I_M4_DEPS)
 	$(M4) -Dfile=$@ -I$(srcdir)/m4 pow.m4 > $@
@@ -1042,3 +1230,5 @@ $(gfor_misc_specifics): m4/misc_specifics.m4 m4/head.m4
 endif
 
 EXTRA_DIST = $(m4_files)
+
+include $(top_srcdir)/../multilib.am

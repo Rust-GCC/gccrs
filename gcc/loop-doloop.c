@@ -1,5 +1,5 @@
 /* Perform doloop optimizations
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2019 Free Software Foundation, Inc.
    Based on code by Michael P. Hayes (m.hayes@elec.canterbury.ac.nz)
 
 This file is part of GCC.
@@ -21,18 +21,22 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "rtl.h"
-#include "flags.h"
-#include "expr.h"
-#include "hard-reg-set.h"
-#include "basic-block.h"
-#include "diagnostic-core.h"
-#include "tm_p.h"
-#include "cfgloop.h"
-#include "params.h"
+#include "backend.h"
 #include "target.h"
+#include "rtl.h"
+#include "tree.h"
+#include "cfghooks.h"
+#include "memmodel.h"
+#include "emit-rtl.h"
+#include "dojump.h"
+#include "expr.h"
+#include "cfgloop.h"
+#include "cfgrtl.h"
+#include "params.h"
 #include "dumpfile.h"
+#include "loop-unroll.h"
+#include "regs.h"
+#include "df.h"
 
 /* This module is used to modify loops with a determinable number of
    iterations to use special low-overhead looping instructions.
@@ -63,13 +67,11 @@ along with GCC; see the file COPYING3.  If not see
    register cannot be used for anything else but doloop -- ??? detect these
    cases).  */
 
-#ifdef HAVE_doloop_end
-
 /* Return the loop termination condition for PATTERN or zero
    if it is not a decrement and branch jump insn.  */
 
 rtx
-doloop_condition_get (rtx doloop_pat)
+doloop_condition_get (rtx_insn *doloop_pat)
 {
   rtx cmp;
   rtx inc;
@@ -113,7 +115,7 @@ doloop_condition_get (rtx doloop_pat)
   if (GET_CODE (pattern) != PARALLEL)
     {
       rtx cond;
-      rtx prev_insn = prev_nondebug_insn (doloop_pat);
+      rtx_insn *prev_insn = prev_nondebug_insn (doloop_pat);
       rtx cmp_arg1, cmp_arg2;
       rtx cmp_orig;
 
@@ -151,10 +153,13 @@ doloop_condition_get (rtx doloop_pat)
 	}
       else
         inc = PATTERN (prev_insn);
-      /* We expect the condition to be of the form (reg != 0)  */
-      cond = XEXP (SET_SRC (cmp), 0);
-      if (GET_CODE (cond) != NE || XEXP (cond, 1) != const0_rtx)
-        return 0;
+      if (GET_CODE (cmp) == SET && GET_CODE (SET_SRC (cmp)) == IF_THEN_ELSE)
+	{
+	  /* We expect the condition to be of the form (reg != 0)  */
+	  cond = XEXP (SET_SRC (cmp), 0);
+	  if (GET_CODE (cond) != NE || XEXP (cond, 1) != const0_rtx)
+	    return 0;
+	}
     }
   else
     {
@@ -337,11 +342,13 @@ static bool
 add_test (rtx cond, edge *e, basic_block dest)
 {
   rtx_insn *seq, *jump;
-  rtx label;
-  enum machine_mode mode;
+  rtx_code_label *label;
+  machine_mode mode;
   rtx op0 = XEXP (cond, 0), op1 = XEXP (cond, 1);
   enum rtx_code code = GET_CODE (cond);
   basic_block bb;
+  /* The jump is supposed to handle an unlikely special case.  */
+  profile_probability prob = profile_probability::guessed_never ();
 
   mode = GET_MODE (XEXP (cond, 0));
   if (mode == VOIDmode)
@@ -351,8 +358,8 @@ add_test (rtx cond, edge *e, basic_block dest)
   op0 = force_operand (op0, NULL_RTX);
   op1 = force_operand (op1, NULL_RTX);
   label = block_label (dest);
-  do_compare_rtx_and_jump (op0, op1, code, 0, mode, NULL_RTX,
-			   NULL_RTX, label, -1);
+  do_compare_rtx_and_jump (op0, op1, code, 0, mode, NULL_RTX, NULL, label,
+			   prob);
 
   jump = get_last_insn ();
   if (!jump || !JUMP_P (jump))
@@ -363,6 +370,7 @@ add_test (rtx cond, edge *e, basic_block dest)
     }
 
   seq = get_insns ();
+  unshare_all_rtl_in_chain (seq);
   end_sequence ();
 
   /* There always is at least the jump insn in the sequence.  */
@@ -381,12 +389,12 @@ add_test (rtx cond, edge *e, basic_block dest)
 
   JUMP_LABEL (jump) = label;
 
-  /* The jump is supposed to handle an unlikely special case.  */
-  add_int_reg_note (jump, REG_BR_PROB, 0);
-
   LABEL_NUSES (label)++;
 
-  make_edge (bb, dest, (*e)->flags & ~EDGE_FALLTHRU);
+  edge e2 = make_edge (bb, dest, (*e)->flags & ~EDGE_FALLTHRU);
+  e2->probability = prob;
+  (*e)->probability = prob.invert ();
+  update_br_prob_note (e2->src);
   return true;
 }
 
@@ -398,18 +406,17 @@ add_test (rtx cond, edge *e, basic_block dest)
 
 static void
 doloop_modify (struct loop *loop, struct niter_desc *desc,
-	       rtx doloop_seq, rtx condition, rtx count)
+	       rtx_insn *doloop_seq, rtx condition, rtx count)
 {
   rtx counter_reg;
   rtx tmp, noloop = NULL_RTX;
   rtx_insn *sequence;
   rtx_insn *jump_insn;
-  rtx jump_label;
+  rtx_code_label *jump_label;
   int nonneg = 0;
   bool increment_count;
   basic_block loop_end = desc->out_edge->src;
-  enum machine_mode mode;
-  rtx true_prob_val;
+  scalar_int_mode mode;
   widest_int iterations;
 
   jump_insn = BB_END (loop_end);
@@ -418,15 +425,11 @@ doloop_modify (struct loop *loop, struct niter_desc *desc,
     {
       fprintf (dump_file, "Doloop: Inserting doloop pattern (");
       if (desc->const_iter)
-	fprintf (dump_file, "%"PRId64, desc->niter);
+	fprintf (dump_file, "%" PRId64, desc->niter);
       else
 	fputs ("runtime", dump_file);
       fputs (" iterations).\n", dump_file);
     }
-
-  /* Get the probability of the original branch. If it exists we would
-     need to update REG_BR_PROB of the new jump_insn.  */
-  true_prob_val = find_reg_note (jump_insn, REG_BR_PROB, NULL_RTX);
 
   /* Discard original jump to continue loop.  The original compare
      result may still be live, so it cannot be discarded explicitly.  */
@@ -435,7 +438,8 @@ doloop_modify (struct loop *loop, struct niter_desc *desc,
   counter_reg = XEXP (condition, 0);
   if (GET_CODE (counter_reg) == PLUS)
     counter_reg = XEXP (counter_reg, 0);
-  mode = GET_MODE (counter_reg);
+  /* These patterns must operate on integer counters.  */
+  mode = as_a <scalar_int_mode> (GET_MODE (counter_reg));
 
   increment_count = false;
   switch (GET_CODE (condition))
@@ -478,9 +482,13 @@ doloop_modify (struct loop *loop, struct niter_desc *desc,
 
   /* Insert initialization of the count register into the loop header.  */
   start_sequence ();
+  /* count has been already copied through copy_rtx.  */
+  reset_used_flags (count);
+  set_used_flags (condition);
   tmp = force_operand (count, counter_reg);
   convert_move (counter_reg, tmp, 1);
   sequence = get_insns ();
+  unshare_all_rtl_in_chain (sequence);
   end_sequence ();
   emit_insn_after (sequence, BB_END (loop_preheader_edge (loop)->src));
 
@@ -488,10 +496,8 @@ doloop_modify (struct loop *loop, struct niter_desc *desc,
     {
       rtx ass = copy_rtx (desc->noloop_assumptions);
       basic_block preheader = loop_preheader_edge (loop)->src;
-      basic_block set_zero
-	      = split_edge (loop_preheader_edge (loop));
-      basic_block new_preheader
-	      = split_edge (loop_preheader_edge (loop));
+      basic_block set_zero = split_edge (loop_preheader_edge (loop));
+      basic_block new_preheader = split_edge (loop_preheader_edge (loop));
       edge te;
 
       /* Expand the condition testing the assumptions and if it does not pass,
@@ -499,8 +505,7 @@ doloop_modify (struct loop *loop, struct niter_desc *desc,
       redirect_edge_and_branch_force (single_succ_edge (preheader), new_preheader);
       set_immediate_dominator (CDI_DOMINATORS, new_preheader, preheader);
 
-      set_zero->count = 0;
-      set_zero->frequency = 0;
+      set_zero->count = profile_count::uninitialized ();
 
       te = single_succ_edge (preheader);
       for (; ass; ass = XEXP (ass, 1))
@@ -516,7 +521,6 @@ doloop_modify (struct loop *loop, struct niter_desc *desc,
 	     also be very hard to show that it is impossible, so we must
 	     handle this case.  */
 	  set_zero->count = preheader->count;
-	  set_zero->frequency = preheader->frequency;
 	}
 
       if (EDGE_COUNT (set_zero->preds) == 0)
@@ -546,21 +550,9 @@ doloop_modify (struct loop *loop, struct niter_desc *desc,
 
   /* Some targets (eg, C4x) need to initialize special looping
      registers.  */
-#ifdef HAVE_doloop_begin
-  {
-    rtx init;
-
-    init = gen_doloop_begin (counter_reg, doloop_seq);
-    if (init)
-      {
-	start_sequence ();
-	emit_insn (init);
-	sequence = get_insns ();
-	end_sequence ();
-	emit_insn_after (sequence, BB_END (loop_preheader_edge (loop)->src));
-      }
-  }
-#endif
+  if (targetm.have_doloop_begin ())
+    if (rtx_insn *seq = targetm.gen_doloop_begin (counter_reg, doloop_seq))
+      emit_insn_after (seq, BB_END (loop_preheader_edge (loop)->src));
 
   /* Insert the new low-overhead looping insn.  */
   emit_jump_insn_after (doloop_seq, BB_END (loop_end));
@@ -580,10 +572,28 @@ doloop_modify (struct loop *loop, struct niter_desc *desc,
     add_reg_note (jump_insn, REG_NONNEG, NULL_RTX);
 
   /* Update the REG_BR_PROB note.  */
-  if (true_prob_val)
+  if (desc->in_edge->probability.initialized_p ())
+    add_reg_br_prob_note (jump_insn, desc->in_edge->probability);
+}
+
+/* Called through note_stores.  */
+
+static void
+record_reg_sets (rtx x, const_rtx pat ATTRIBUTE_UNUSED, void *data)
+{
+  bitmap mod = (bitmap)data;
+  if (REG_P (x))
     {
-      /* Seems safer to use the branch probability.  */
-      add_int_reg_note (jump_insn, REG_BR_PROB, desc->in_edge->probability);
+      unsigned int regno = REGNO (x);
+      if (HARD_REGISTER_P (x))
+	{
+	  unsigned int end_regno = end_hard_regno (GET_MODE (x), regno);
+	  do
+	    bitmap_set_bit (mod, regno);
+	  while (++regno < end_regno);
+	}
+      else
+	bitmap_set_bit (mod, regno);
     }
 }
 
@@ -595,13 +605,14 @@ doloop_modify (struct loop *loop, struct niter_desc *desc,
 static bool
 doloop_optimize (struct loop *loop)
 {
-  enum machine_mode mode;
-  rtx doloop_seq, doloop_pat, doloop_reg;
+  scalar_int_mode mode;
+  rtx doloop_reg;
   rtx count;
   widest_int iterations, iterations_max;
-  rtx start_label;
+  rtx_code_label *start_label;
   rtx condition;
-  unsigned level, est_niter;
+  unsigned level;
+  HOST_WIDE_INT est_niter;
   int max_cost;
   struct niter_desc *desc;
   unsigned word_mode_size;
@@ -626,27 +637,22 @@ doloop_optimize (struct loop *loop)
     }
   mode = desc->mode;
 
-  est_niter = 3;
-  if (desc->const_iter)
-    est_niter = desc->niter;
-  /* If the estimate on number of iterations is reliable (comes from profile
-     feedback), use it.  Do not use it normally, since the expected number
-     of iterations of an unrolled loop is 2.  */
-  if (loop->header->count)
-    est_niter = expected_loop_iterations (loop);
+  est_niter = get_estimated_loop_iterations_int (loop);
+  if (est_niter == -1)
+    est_niter = get_likely_max_loop_iterations_int (loop);
 
-  if (est_niter < 3)
+  if (est_niter >= 0 && est_niter < 3)
     {
       if (dump_file)
 	fprintf (dump_file,
 		 "Doloop: Too few iterations (%u) to be profitable.\n",
-		 est_niter);
+		 (unsigned int)est_niter);
       return false;
     }
 
   max_cost
     = COSTS_N_INSNS (PARAM_VALUE (PARAM_MAX_ITERATIONS_COMPUTATION_COST));
-  if (set_src_cost (desc->niter_expr, optimize_loop_for_speed_p (loop))
+  if (set_src_cost (desc->niter_expr, mode, optimize_loop_for_speed_p (loop))
       > max_cost)
     {
       if (dump_file)
@@ -656,7 +662,7 @@ doloop_optimize (struct loop *loop)
     }
 
   if (desc->const_iter)
-    iterations = widest_int::from (std::make_pair (desc->niter_expr, mode),
+    iterations = widest_int::from (rtx_mode_t (desc->niter_expr, mode),
 				   UNSIGNED);
   else
     iterations = 0;
@@ -679,11 +685,10 @@ doloop_optimize (struct loop *loop)
   count = copy_rtx (desc->niter_expr);
   start_label = block_label (desc->in_edge->dest);
   doloop_reg = gen_reg_rtx (mode);
-  doloop_seq = gen_doloop_end (doloop_reg, start_label);
+  rtx_insn *doloop_seq = targetm.gen_doloop_end (doloop_reg, start_label);
 
   word_mode_size = GET_MODE_PRECISION (word_mode);
-  word_mode_max
-	  = ((unsigned HOST_WIDE_INT) 1 << (word_mode_size - 1) << 1) - 1;
+  word_mode_max = (HOST_WIDE_INT_1U << (word_mode_size - 1) << 1) - 1;
   if (! doloop_seq
       && mode != word_mode
       /* Before trying mode different from the one in that # of iterations is
@@ -697,7 +702,7 @@ doloop_optimize (struct loop *loop)
       else
 	count = lowpart_subreg (word_mode, count, mode);
       PUT_MODE (doloop_reg, word_mode);
-      doloop_seq = gen_doloop_end (doloop_reg, start_label);
+      doloop_seq = targetm.gen_doloop_end (doloop_reg, start_label);
     }
   if (! doloop_seq)
     {
@@ -708,26 +713,37 @@ doloop_optimize (struct loop *loop)
     }
 
   /* If multiple instructions were created, the last must be the
-     jump instruction.  Also, a raw define_insn may yield a plain
-     pattern.  */
-  doloop_pat = doloop_seq;
-  if (INSN_P (doloop_pat))
-    {
-      rtx_insn *doloop_insn = as_a <rtx_insn *> (doloop_pat);
-      while (NEXT_INSN (doloop_insn) != NULL_RTX)
-	doloop_insn = NEXT_INSN (doloop_insn);
-      if (!JUMP_P (doloop_insn))
-	doloop_insn = NULL;
-      doloop_pat = doloop_insn;
-    }
-
-  if (! doloop_pat
-      || ! (condition = doloop_condition_get (doloop_pat)))
+     jump instruction.  */
+  rtx_insn *doloop_insn = doloop_seq;
+  while (NEXT_INSN (doloop_insn) != NULL_RTX)
+    doloop_insn = NEXT_INSN (doloop_insn);
+  if (!JUMP_P (doloop_insn)
+      || !(condition = doloop_condition_get (doloop_insn)))
     {
       if (dump_file)
 	fprintf (dump_file, "Doloop: Unrecognizable doloop pattern!\n");
       return false;
     }
+
+  /* Ensure that the new sequence doesn't clobber a register that
+     is live at the end of the block.  */
+  {
+    bitmap modified = BITMAP_ALLOC (NULL);
+
+    for (rtx_insn *i = doloop_seq; i != NULL; i = NEXT_INSN (i))
+      note_stores (PATTERN (i), record_reg_sets, modified);
+
+    basic_block loop_end = desc->out_edge->src;
+    bool fail = bitmap_intersect_p (df_get_live_out (loop_end), modified);
+    BITMAP_FREE (modified);
+
+    if (fail)
+      {
+	if (dump_file)
+	  fprintf (dump_file, "Doloop: doloop pattern clobbers live out\n");
+	return false;
+      }
+  }
 
   doloop_modify (loop, desc, doloop_seq, condition, count);
   return true;
@@ -740,16 +756,21 @@ doloop_optimize_loops (void)
 {
   struct loop *loop;
 
+  if (optimize == 1)
+    {
+      df_live_add_problem ();
+      df_live_set_all_dirty ();
+    }
+
   FOR_EACH_LOOP (loop, 0)
     {
       doloop_optimize (loop);
     }
 
+  if (optimize == 1)
+    df_remove_problem (df_live);
+
   iv_analysis_done ();
 
-#ifdef ENABLE_CHECKING
-  verify_loop_structure ();
-#endif
+  checking_verify_loop_structure ();
 }
-#endif /* HAVE_doloop_end */
-

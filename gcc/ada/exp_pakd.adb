@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -30,11 +30,11 @@ with Errout;   use Errout;
 with Exp_Dbug; use Exp_Dbug;
 with Exp_Util; use Exp_Util;
 with Layout;   use Layout;
+with Lib.Xref; use Lib.Xref;
 with Namet;    use Namet;
 with Nlists;   use Nlists;
 with Nmake;    use Nmake;
 with Opt;      use Opt;
-with Rtsfind;  use Rtsfind;
 with Sem;      use Sem;
 with Sem_Aux;  use Sem_Aux;
 with Sem_Ch3;  use Sem_Ch3;
@@ -77,365 +77,6 @@ package body Exp_Pakd is
    --  right rotate into a left rotate, avoiding the subtract, if the machine
    --  architecture provides such an instruction.
 
-   ----------------------------------------------
-   -- Entity Tables for Packed Access Routines --
-   ----------------------------------------------
-
-   --  For the cases of component size = 3,5-7,9-15,17-31,33-63 we call library
-   --  routines. This table provides the entity for the proper routine.
-
-   type E_Array is array (Int range 01 .. 63) of RE_Id;
-
-   --  Array of Bits_nn entities. Note that we do not use library routines
-   --  for the 8-bit and 16-bit cases, but we still fill in the table, using
-   --  entries from System.Unsigned, because we also use this table for
-   --  certain special unchecked conversions in the big-endian case.
-
-   Bits_Id : constant E_Array :=
-     (01 => RE_Bits_1,
-      02 => RE_Bits_2,
-      03 => RE_Bits_03,
-      04 => RE_Bits_4,
-      05 => RE_Bits_05,
-      06 => RE_Bits_06,
-      07 => RE_Bits_07,
-      08 => RE_Unsigned_8,
-      09 => RE_Bits_09,
-      10 => RE_Bits_10,
-      11 => RE_Bits_11,
-      12 => RE_Bits_12,
-      13 => RE_Bits_13,
-      14 => RE_Bits_14,
-      15 => RE_Bits_15,
-      16 => RE_Unsigned_16,
-      17 => RE_Bits_17,
-      18 => RE_Bits_18,
-      19 => RE_Bits_19,
-      20 => RE_Bits_20,
-      21 => RE_Bits_21,
-      22 => RE_Bits_22,
-      23 => RE_Bits_23,
-      24 => RE_Bits_24,
-      25 => RE_Bits_25,
-      26 => RE_Bits_26,
-      27 => RE_Bits_27,
-      28 => RE_Bits_28,
-      29 => RE_Bits_29,
-      30 => RE_Bits_30,
-      31 => RE_Bits_31,
-      32 => RE_Unsigned_32,
-      33 => RE_Bits_33,
-      34 => RE_Bits_34,
-      35 => RE_Bits_35,
-      36 => RE_Bits_36,
-      37 => RE_Bits_37,
-      38 => RE_Bits_38,
-      39 => RE_Bits_39,
-      40 => RE_Bits_40,
-      41 => RE_Bits_41,
-      42 => RE_Bits_42,
-      43 => RE_Bits_43,
-      44 => RE_Bits_44,
-      45 => RE_Bits_45,
-      46 => RE_Bits_46,
-      47 => RE_Bits_47,
-      48 => RE_Bits_48,
-      49 => RE_Bits_49,
-      50 => RE_Bits_50,
-      51 => RE_Bits_51,
-      52 => RE_Bits_52,
-      53 => RE_Bits_53,
-      54 => RE_Bits_54,
-      55 => RE_Bits_55,
-      56 => RE_Bits_56,
-      57 => RE_Bits_57,
-      58 => RE_Bits_58,
-      59 => RE_Bits_59,
-      60 => RE_Bits_60,
-      61 => RE_Bits_61,
-      62 => RE_Bits_62,
-      63 => RE_Bits_63);
-
-   --  Array of Get routine entities. These are used to obtain an element from
-   --  a packed array. The N'th entry is used to obtain elements from a packed
-   --  array whose component size is N. RE_Null is used as a null entry, for
-   --  the cases where a library routine is not used.
-
-   Get_Id : constant E_Array :=
-     (01 => RE_Null,
-      02 => RE_Null,
-      03 => RE_Get_03,
-      04 => RE_Null,
-      05 => RE_Get_05,
-      06 => RE_Get_06,
-      07 => RE_Get_07,
-      08 => RE_Null,
-      09 => RE_Get_09,
-      10 => RE_Get_10,
-      11 => RE_Get_11,
-      12 => RE_Get_12,
-      13 => RE_Get_13,
-      14 => RE_Get_14,
-      15 => RE_Get_15,
-      16 => RE_Null,
-      17 => RE_Get_17,
-      18 => RE_Get_18,
-      19 => RE_Get_19,
-      20 => RE_Get_20,
-      21 => RE_Get_21,
-      22 => RE_Get_22,
-      23 => RE_Get_23,
-      24 => RE_Get_24,
-      25 => RE_Get_25,
-      26 => RE_Get_26,
-      27 => RE_Get_27,
-      28 => RE_Get_28,
-      29 => RE_Get_29,
-      30 => RE_Get_30,
-      31 => RE_Get_31,
-      32 => RE_Null,
-      33 => RE_Get_33,
-      34 => RE_Get_34,
-      35 => RE_Get_35,
-      36 => RE_Get_36,
-      37 => RE_Get_37,
-      38 => RE_Get_38,
-      39 => RE_Get_39,
-      40 => RE_Get_40,
-      41 => RE_Get_41,
-      42 => RE_Get_42,
-      43 => RE_Get_43,
-      44 => RE_Get_44,
-      45 => RE_Get_45,
-      46 => RE_Get_46,
-      47 => RE_Get_47,
-      48 => RE_Get_48,
-      49 => RE_Get_49,
-      50 => RE_Get_50,
-      51 => RE_Get_51,
-      52 => RE_Get_52,
-      53 => RE_Get_53,
-      54 => RE_Get_54,
-      55 => RE_Get_55,
-      56 => RE_Get_56,
-      57 => RE_Get_57,
-      58 => RE_Get_58,
-      59 => RE_Get_59,
-      60 => RE_Get_60,
-      61 => RE_Get_61,
-      62 => RE_Get_62,
-      63 => RE_Get_63);
-
-   --  Array of Get routine entities to be used in the case where the packed
-   --  array is itself a component of a packed structure, and therefore may not
-   --  be fully aligned. This only affects the even sizes, since for the odd
-   --  sizes, we do not get any fixed alignment in any case.
-
-   GetU_Id : constant E_Array :=
-     (01 => RE_Null,
-      02 => RE_Null,
-      03 => RE_Get_03,
-      04 => RE_Null,
-      05 => RE_Get_05,
-      06 => RE_GetU_06,
-      07 => RE_Get_07,
-      08 => RE_Null,
-      09 => RE_Get_09,
-      10 => RE_GetU_10,
-      11 => RE_Get_11,
-      12 => RE_GetU_12,
-      13 => RE_Get_13,
-      14 => RE_GetU_14,
-      15 => RE_Get_15,
-      16 => RE_Null,
-      17 => RE_Get_17,
-      18 => RE_GetU_18,
-      19 => RE_Get_19,
-      20 => RE_GetU_20,
-      21 => RE_Get_21,
-      22 => RE_GetU_22,
-      23 => RE_Get_23,
-      24 => RE_GetU_24,
-      25 => RE_Get_25,
-      26 => RE_GetU_26,
-      27 => RE_Get_27,
-      28 => RE_GetU_28,
-      29 => RE_Get_29,
-      30 => RE_GetU_30,
-      31 => RE_Get_31,
-      32 => RE_Null,
-      33 => RE_Get_33,
-      34 => RE_GetU_34,
-      35 => RE_Get_35,
-      36 => RE_GetU_36,
-      37 => RE_Get_37,
-      38 => RE_GetU_38,
-      39 => RE_Get_39,
-      40 => RE_GetU_40,
-      41 => RE_Get_41,
-      42 => RE_GetU_42,
-      43 => RE_Get_43,
-      44 => RE_GetU_44,
-      45 => RE_Get_45,
-      46 => RE_GetU_46,
-      47 => RE_Get_47,
-      48 => RE_GetU_48,
-      49 => RE_Get_49,
-      50 => RE_GetU_50,
-      51 => RE_Get_51,
-      52 => RE_GetU_52,
-      53 => RE_Get_53,
-      54 => RE_GetU_54,
-      55 => RE_Get_55,
-      56 => RE_GetU_56,
-      57 => RE_Get_57,
-      58 => RE_GetU_58,
-      59 => RE_Get_59,
-      60 => RE_GetU_60,
-      61 => RE_Get_61,
-      62 => RE_GetU_62,
-      63 => RE_Get_63);
-
-   --  Array of Set routine entities. These are used to assign an element of a
-   --  packed array. The N'th entry is used to assign elements for a packed
-   --  array whose component size is N. RE_Null is used as a null entry, for
-   --  the cases where a library routine is not used.
-
-   Set_Id : constant E_Array :=
-     (01 => RE_Null,
-      02 => RE_Null,
-      03 => RE_Set_03,
-      04 => RE_Null,
-      05 => RE_Set_05,
-      06 => RE_Set_06,
-      07 => RE_Set_07,
-      08 => RE_Null,
-      09 => RE_Set_09,
-      10 => RE_Set_10,
-      11 => RE_Set_11,
-      12 => RE_Set_12,
-      13 => RE_Set_13,
-      14 => RE_Set_14,
-      15 => RE_Set_15,
-      16 => RE_Null,
-      17 => RE_Set_17,
-      18 => RE_Set_18,
-      19 => RE_Set_19,
-      20 => RE_Set_20,
-      21 => RE_Set_21,
-      22 => RE_Set_22,
-      23 => RE_Set_23,
-      24 => RE_Set_24,
-      25 => RE_Set_25,
-      26 => RE_Set_26,
-      27 => RE_Set_27,
-      28 => RE_Set_28,
-      29 => RE_Set_29,
-      30 => RE_Set_30,
-      31 => RE_Set_31,
-      32 => RE_Null,
-      33 => RE_Set_33,
-      34 => RE_Set_34,
-      35 => RE_Set_35,
-      36 => RE_Set_36,
-      37 => RE_Set_37,
-      38 => RE_Set_38,
-      39 => RE_Set_39,
-      40 => RE_Set_40,
-      41 => RE_Set_41,
-      42 => RE_Set_42,
-      43 => RE_Set_43,
-      44 => RE_Set_44,
-      45 => RE_Set_45,
-      46 => RE_Set_46,
-      47 => RE_Set_47,
-      48 => RE_Set_48,
-      49 => RE_Set_49,
-      50 => RE_Set_50,
-      51 => RE_Set_51,
-      52 => RE_Set_52,
-      53 => RE_Set_53,
-      54 => RE_Set_54,
-      55 => RE_Set_55,
-      56 => RE_Set_56,
-      57 => RE_Set_57,
-      58 => RE_Set_58,
-      59 => RE_Set_59,
-      60 => RE_Set_60,
-      61 => RE_Set_61,
-      62 => RE_Set_62,
-      63 => RE_Set_63);
-
-   --  Array of Set routine entities to be used in the case where the packed
-   --  array is itself a component of a packed structure, and therefore may not
-   --  be fully aligned. This only affects the even sizes, since for the odd
-   --  sizes, we do not get any fixed alignment in any case.
-
-   SetU_Id : constant E_Array :=
-     (01 => RE_Null,
-      02 => RE_Null,
-      03 => RE_Set_03,
-      04 => RE_Null,
-      05 => RE_Set_05,
-      06 => RE_SetU_06,
-      07 => RE_Set_07,
-      08 => RE_Null,
-      09 => RE_Set_09,
-      10 => RE_SetU_10,
-      11 => RE_Set_11,
-      12 => RE_SetU_12,
-      13 => RE_Set_13,
-      14 => RE_SetU_14,
-      15 => RE_Set_15,
-      16 => RE_Null,
-      17 => RE_Set_17,
-      18 => RE_SetU_18,
-      19 => RE_Set_19,
-      20 => RE_SetU_20,
-      21 => RE_Set_21,
-      22 => RE_SetU_22,
-      23 => RE_Set_23,
-      24 => RE_SetU_24,
-      25 => RE_Set_25,
-      26 => RE_SetU_26,
-      27 => RE_Set_27,
-      28 => RE_SetU_28,
-      29 => RE_Set_29,
-      30 => RE_SetU_30,
-      31 => RE_Set_31,
-      32 => RE_Null,
-      33 => RE_Set_33,
-      34 => RE_SetU_34,
-      35 => RE_Set_35,
-      36 => RE_SetU_36,
-      37 => RE_Set_37,
-      38 => RE_SetU_38,
-      39 => RE_Set_39,
-      40 => RE_SetU_40,
-      41 => RE_Set_41,
-      42 => RE_SetU_42,
-      43 => RE_Set_43,
-      44 => RE_SetU_44,
-      45 => RE_Set_45,
-      46 => RE_SetU_46,
-      47 => RE_Set_47,
-      48 => RE_SetU_48,
-      49 => RE_Set_49,
-      50 => RE_SetU_50,
-      51 => RE_Set_51,
-      52 => RE_SetU_52,
-      53 => RE_Set_53,
-      54 => RE_SetU_54,
-      55 => RE_Set_55,
-      56 => RE_SetU_56,
-      57 => RE_Set_57,
-      58 => RE_SetU_58,
-      59 => RE_Set_59,
-      60 => RE_SetU_60,
-      61 => RE_Set_61,
-      62 => RE_SetU_62,
-      63 => RE_Set_63);
-
    -----------------------
    -- Local Subprograms --
    -----------------------
@@ -448,6 +89,12 @@ package body Exp_Pakd is
    --  referencing an array object of this type, build an expression of type
    --  Standard.Integer representing the zero-based linear subscript value.
    --  This expression includes any required range checks.
+
+   function Compute_Number_Components
+      (N   : Node_Id;
+       Typ : Entity_Id) return Node_Id;
+   --  Build an expression that multiplies the length of the dimensions of the
+   --  array, used to control array equality checks.
 
    procedure Convert_To_PAT_Type (Aexp : Node_Id);
    --  Given an expression of a packed array type, builds a corresponding
@@ -755,6 +402,38 @@ package body Exp_Pakd is
       end loop;
    end Compute_Linear_Subscript;
 
+   -------------------------------
+   -- Compute_Number_Components --
+   -------------------------------
+
+   function Compute_Number_Components
+      (N   : Node_Id;
+       Typ : Entity_Id) return Node_Id
+   is
+      Loc      : constant Source_Ptr := Sloc (N);
+      Len_Expr : Node_Id;
+
+   begin
+      Len_Expr :=
+        Make_Attribute_Reference (Loc,
+          Attribute_Name => Name_Length,
+          Prefix         => New_Occurrence_Of (Typ, Loc),
+          Expressions    => New_List (Make_Integer_Literal (Loc, 1)));
+
+      for J in 2 .. Number_Dimensions (Typ) loop
+         Len_Expr :=
+           Make_Op_Multiply (Loc,
+             Left_Opnd  => Len_Expr,
+             Right_Opnd =>
+               Make_Attribute_Reference (Loc,
+                Attribute_Name => Name_Length,
+                Prefix         => New_Occurrence_Of (Typ, Loc),
+                Expressions    => New_List (Make_Integer_Literal (Loc, J))));
+      end loop;
+
+      return Len_Expr;
+   end Compute_Number_Components;
+
    -------------------------
    -- Convert_To_PAT_Type --
    -------------------------
@@ -810,7 +489,6 @@ package body Exp_Pakd is
       PASize   : Uint;
       Decl     : Node_Id;
       PAT      : Entity_Id;
-      Len_Dim  : Node_Id;
       Len_Expr : Node_Id;
       Len_Bits : Uint;
       Bits_U1  : Node_Id;
@@ -865,6 +543,7 @@ package body Exp_Pakd is
          end if;
 
          Set_Is_Itype (PAT, True);
+         Set_Is_Packed_Array_Impl_Type (PAT, True);
          Set_Packed_Array_Impl_Type (Typ, PAT);
          Analyze (Decl, Suppress => All_Checks);
 
@@ -891,8 +570,15 @@ package body Exp_Pakd is
          Init_Alignment                (PAT);
          Set_Parent                    (PAT, Empty);
          Set_Associated_Node_For_Itype (PAT, Typ);
-         Set_Is_Packed_Array_Impl_Type      (PAT, True);
          Set_Original_Array_Type       (PAT, Typ);
+
+         --  Propagate representation aspects
+
+         Set_Is_Atomic               (PAT, Is_Atomic                (Typ));
+         Set_Is_Independent          (PAT, Is_Independent           (Typ));
+         Set_Is_Volatile             (PAT, Is_Volatile              (Typ));
+         Set_Is_Volatile_Full_Access (PAT, Is_Volatile_Full_Access  (Typ));
+         Set_Treat_As_Volatile       (PAT, Treat_As_Volatile        (Typ));
 
          --  For a non-bit-packed array, propagate reverse storage order
          --  flag from original base type to packed array base type.
@@ -1015,8 +701,6 @@ package body Exp_Pakd is
            Make_Defining_Identifier (Loc,
              Chars => New_External_Name (Chars (Typ), 'P'));
 
-         Set_Packed_Array_Impl_Type (Typ, PAT);
-
          declare
             Indexes   : constant List_Id := New_List;
             Indx      : Node_Id;
@@ -1112,9 +796,6 @@ package body Exp_Pakd is
                 Type_Definition     => Typedef);
          end;
 
-         --  Set type as packed array type and install it
-
-         Set_Is_Packed_Array_Impl_Type (PAT);
          Install_PAT;
          return;
 
@@ -1122,17 +803,24 @@ package body Exp_Pakd is
       --  a subtype that is equivalent to use Packed_Bytes{1,2,4} as needed.
 
       elsif not Is_Constrained (Typ) then
+
+         --  When generating standard DWARF (i.e when GNAT_Encodings is
+         --  DWARF_GNAT_Encodings_Minimal), the ___XP suffix will be stripped
+         --  by the back-end but generate it anyway to ease compiler debugging.
+         --  This will help to distinguish implementation types from original
+         --  packed arrays.
+
          PAT :=
            Make_Defining_Identifier (Loc,
              Chars => Make_Packed_Array_Impl_Type_Name (Typ, Csize));
 
-         Set_Packed_Array_Impl_Type (Typ, PAT);
          Set_PB_Type;
 
          Decl :=
            Make_Subtype_Declaration (Loc,
              Defining_Identifier => PAT,
                Subtype_Indication => New_Occurrence_Of (PB_Type, Loc));
+
          Install_PAT;
          return;
 
@@ -1150,39 +838,10 @@ package body Exp_Pakd is
            Make_Defining_Identifier (Loc,
              Chars => Make_Packed_Array_Impl_Type_Name (Typ, Csize));
 
-         Set_Packed_Array_Impl_Type (Typ, PAT);
-
          --  Build an expression for the length of the array in bits.
          --  This is the product of the length of each of the dimensions
 
-         declare
-            J : Nat := 1;
-
-         begin
-            Len_Expr := Empty; -- suppress junk warning
-
-            loop
-               Len_Dim :=
-                 Make_Attribute_Reference (Loc,
-                   Attribute_Name => Name_Length,
-                   Prefix         => New_Occurrence_Of (Typ, Loc),
-                   Expressions    => New_List (
-                     Make_Integer_Literal (Loc, J)));
-
-               if J = 1 then
-                  Len_Expr := Len_Dim;
-
-               else
-                  Len_Expr :=
-                    Make_Op_Multiply (Loc,
-                      Left_Opnd  => Len_Expr,
-                      Right_Opnd => Len_Dim);
-               end if;
-
-               J := J + 1;
-               exit when J > Number_Dimensions (Typ);
-            end loop;
-         end;
+         Len_Expr := Compute_Number_Components (Typ, Typ);
 
          --  Temporarily attach the length expression to the tree and analyze
          --  and resolve it, so that we can test its value. We assume that the
@@ -1479,19 +1138,6 @@ package body Exp_Pakd is
          Analyze_And_Resolve (Rhs, Ctyp, Suppress => All_Checks);
       else
          Analyze_And_Resolve (Rhs, Ctyp);
-      end if;
-
-      --  For the AAMP target, indexing of certain packed array is passed
-      --  through to the back end without expansion, because the expansion
-      --  results in very inefficient code on that target. This allows the
-      --  GNAAMP back end to generate specialized macros that support more
-      --  efficient indexing of packed arrays with components having sizes
-      --  that are small powers of two.
-
-      if AAMP_On_Target
-        and then (Csiz = 1 or else Csiz = 2 or else Csiz = 4)
-      then
-         return;
       end if;
 
       --  Case of component size 1,2,4 or any component size for the modular
@@ -1860,7 +1506,7 @@ package body Exp_Pakd is
       Loc : constant Source_Ptr := Sloc (N);
       Typ : constant Entity_Id  := Etype (N);
       L   : constant Node_Id    := Relocate_Node (Left_Opnd  (N));
-      R   : constant Node_Id    := Relocate_Node (Right_Opnd (N));
+      R   :          Node_Id    := Relocate_Node (Right_Opnd (N));
 
       Ltyp : Entity_Id;
       Rtyp : Entity_Id;
@@ -1882,7 +1528,8 @@ package body Exp_Pakd is
       --  True .. True where an exception must be raised.
 
       if Nkind (N) = N_Op_Xor then
-         Silly_Boolean_Array_Xor_Test (N, Rtyp);
+         R := Duplicate_Subexpr (R);
+         Silly_Boolean_Array_Xor_Test (N, R, Rtyp);
       end if;
 
       --  Now that that silliness is taken care of, get packed array type
@@ -2042,6 +1689,16 @@ package body Exp_Pakd is
          Expand_Packed_Element_Reference (Prefix (N));
       end if;
 
+      --  The prefix may be rewritten below as a conversion. If it is a source
+      --  entity generate reference to it now, to prevent spurious warnings
+      --  about unused entities.
+
+      if Is_Entity_Name (Prefix (N))
+        and then Comes_From_Source (Prefix (N))
+      then
+         Generate_Reference (Entity (Prefix (N)), Prefix (N), 'r');
+      end if;
+
       --  If not bit packed, we have the enumeration case, which is easily
       --  dealt with (just adjust the subscripts of the indexed component)
 
@@ -2062,19 +1719,6 @@ package body Exp_Pakd is
       PAT  := Packed_Array_Impl_Type (Atyp);
       Ctyp := Component_Type (Atyp);
       Csiz := UI_To_Int (Component_Size (Atyp));
-
-      --  For the AAMP target, indexing of certain packed array is passed
-      --  through to the back end without expansion, because the expansion
-      --  results in very inefficient code on that target. This allows the
-      --  GNAAMP back end to generate specialized macros that support more
-      --  efficient indexing of packed arrays with components having sizes
-      --  that are small powers of two.
-
-      if AAMP_On_Target
-        and then (Csiz = 1 or else Csiz = 2 or else Csiz = 4)
-      then
-         return;
-      end if;
 
       --  Case of component size 1,2,4 or any component size for the modular
       --  case. These are the cases for which we can inline the code.
@@ -2206,21 +1850,13 @@ package body Exp_Pakd is
 
       LLexpr :=
         Make_Op_Multiply (Loc,
-          Left_Opnd =>
-            Make_Attribute_Reference (Loc,
-              Prefix         => New_Occurrence_Of (Ltyp, Loc),
-              Attribute_Name => Name_Length),
-          Right_Opnd =>
-            Make_Integer_Literal (Loc, Component_Size (Ltyp)));
+          Left_Opnd  => Compute_Number_Components (N, Ltyp),
+          Right_Opnd => Make_Integer_Literal (Loc, Component_Size (Ltyp)));
 
       RLexpr :=
         Make_Op_Multiply (Loc,
-          Left_Opnd =>
-            Make_Attribute_Reference (Loc,
-              Prefix         => New_Occurrence_Of (Rtyp, Loc),
-              Attribute_Name => Name_Length),
-          Right_Opnd =>
-            Make_Integer_Literal (Loc, Component_Size (Rtyp)));
+          Left_Opnd  => Compute_Number_Components (N, Rtyp),
+          Right_Opnd => Make_Integer_Literal (Loc, Component_Size (Rtyp)));
 
       --  For the modular case, we transform the comparison to:
 
@@ -2656,9 +2292,12 @@ package body Exp_Pakd is
       --  convert to a modular type of the source length, since otherwise, on
       --  a big-endian machine, we get left-justification. We do it for little-
       --  endian machines as well, because there might be junk bits that are
-      --  not cleared if the type is not numeric.
+      --  not cleared if the type is not numeric. This can be done only if the
+      --  source siz is different from 0 (i.e. known), otherwise we must trust
+      --  the type declarations (case of non-discrete components).
 
-      if Source_Siz /= Target_Siz
+      if Source_Siz /= 0
+        and then Source_Siz /= Target_Siz
         and then not Is_Discrete_Type (Source_Typ)
       then
          Src := Unchecked_Convert_To (RTE (Bits_Id (Source_Siz)), Src);

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build darwin dragonfly freebsd netbsd openbsd
+// +build aix darwin dragonfly freebsd hurd netbsd openbsd solaris
 
 package syscall
 
@@ -15,24 +15,29 @@ type SysProcAttr struct {
 	Credential *Credential // Credential.
 	Ptrace     bool        // Enable tracing.
 	Setsid     bool        // Create session.
-	Setpgid    bool        // Set process group ID to new pid (SYSV setpgrp)
-	Setctty    bool        // Set controlling terminal to fd 0
+	Setpgid    bool        // Set process group ID to Pgid, or, if Pgid == 0, to new pid.
+	Setctty    bool        // Set controlling terminal to fd Ctty
 	Noctty     bool        // Detach fd 0 from controlling terminal
+	Ctty       int         // Controlling TTY fd
+	Foreground bool        // Place child's process group in foreground. (Implies Setpgid. Uses Ctty as fd of controlling TTY)
+	Pgid       int         // Child's process group ID if Setpgid.
 }
 
 // Implemented in runtime package.
 func runtime_BeforeFork()
 func runtime_AfterFork()
+func runtime_AfterForkInChild()
 
 // Fork, dup fd onto 0..len(fd), and exec(argv0, argvv, envv) in child.
 // If a dup or exec fails, write the errno error to pipe.
 // (Pipe is close-on-exec so if exec succeeds, it will be closed.)
 // In the child, this function must not acquire any locks, because
-// they might have been locked at the time of the fork.  This means
+// they might have been locked at the time of the fork. This means
 // no rescheduling, no malloc calls, and no new stack segments.
 // For the same reason compiler does not race instrument it.
 // The calls to RawSyscall are okay because they are assembly
 // functions that do not grow the stack.
+//go:norace
 func forkAndExecInChild(argv0 *byte, argv, envv []*byte, chroot, dir *byte, attr *ProcAttr, sys *SysProcAttr, pipe int) (pid int, err Errno) {
 	// Declare all variables at top in case any
 	// declarations require heap allocation (e.g., err1).
@@ -73,6 +78,8 @@ func forkAndExecInChild(argv0 *byte, argv, envv []*byte, chroot, dir *byte, attr
 
 	// Fork succeeded, now in child.
 
+	runtime_AfterForkInChild()
+
 	// Enable tracing if requested.
 	if sys.Ptrace {
 		err1 = raw_ptrace(_PTRACE_TRACEME, 0, nil, nil)
@@ -90,8 +97,22 @@ func forkAndExecInChild(argv0 *byte, argv, envv []*byte, chroot, dir *byte, attr
 	}
 
 	// Set process group
-	if sys.Setpgid {
-		err1 = raw_setpgid(0, 0)
+	if sys.Setpgid || sys.Foreground {
+		// Place child in process group.
+		err1 = raw_setpgid(0, sys.Pgid)
+		if err1 != 0 {
+			goto childerror
+		}
+	}
+
+	if sys.Foreground {
+		pgrp := Pid_t(sys.Pgid)
+		if pgrp == 0 {
+			pgrp = raw_getpid()
+		}
+
+		// Place process group in foreground.
+		_, err1 = raw_ioctl_ptr(sys.Ctty, TIOCSPGRP, unsafe.Pointer(&pgrp))
 		if err1 != 0 {
 			goto childerror
 		}
@@ -108,27 +129,24 @@ func forkAndExecInChild(argv0 *byte, argv, envv []*byte, chroot, dir *byte, attr
 	// User and groups
 	if cred := sys.Credential; cred != nil {
 		ngroups := len(cred.Groups)
-		if ngroups == 0 {
-			err2 := setgroups(0, nil)
-			if err2 == nil {
-				err1 = 0
-			} else {
-				err1 = err2.(Errno)
-			}
-		} else {
-			groups := make([]Gid_t, ngroups)
+		var groups *Gid_t
+		if ngroups > 0 {
+			gids := make([]Gid_t, ngroups)
 			for i, v := range cred.Groups {
-				groups[i] = Gid_t(v)
+				gids[i] = Gid_t(v)
 			}
-			err2 := setgroups(ngroups, &groups[0])
+			groups = &gids[0]
+		}
+		if !cred.NoSetGroups {
+			err2 := setgroups(ngroups, groups)
 			if err2 == nil {
 				err1 = 0
 			} else {
 				err1 = err2.(Errno)
 			}
-		}
-		if err1 != 0 {
-			goto childerror
+			if err1 != 0 {
+				goto childerror
+			}
 		}
 		err2 := Setgid(int(cred.Gid))
 		if err2 != nil {
@@ -163,6 +181,9 @@ func forkAndExecInChild(argv0 *byte, argv, envv []*byte, chroot, dir *byte, attr
 	}
 	for i = 0; i < len(fd); i++ {
 		if fd[i] >= 0 && fd[i] < int(i) {
+			if nextfd == pipe { // don't stomp on pipe
+				nextfd++
+			}
 			err1 = raw_dup2(fd[i], nextfd)
 			if err1 != 0 {
 				goto childerror
@@ -170,9 +191,6 @@ func forkAndExecInChild(argv0 *byte, argv, envv []*byte, chroot, dir *byte, attr
 			raw_fcntl(nextfd, F_SETFD, FD_CLOEXEC)
 			fd[i] = nextfd
 			nextfd++
-			if nextfd == pipe { // don't stomp on pipe
-				nextfd++
-			}
 		}
 	}
 
@@ -215,9 +233,13 @@ func forkAndExecInChild(argv0 *byte, argv, envv []*byte, chroot, dir *byte, attr
 		}
 	}
 
-	// Make fd 0 the tty
+	// Set the controlling TTY to Ctty
 	if sys.Setctty {
-		_, err1 = raw_ioctl(0, TIOCSCTTY, 0)
+		if TIOCSCTTY == 0 {
+			err1 = ENOSYS
+			goto childerror
+		}
+		_, err1 = raw_ioctl(sys.Ctty, TIOCSCTTY, 0)
 		if err1 != 0 {
 			goto childerror
 		}
@@ -232,18 +254,4 @@ childerror:
 	for {
 		raw_exit(253)
 	}
-}
-
-// Try to open a pipe with O_CLOEXEC set on both file descriptors.
-func forkExecPipe(p []int) error {
-	err := Pipe(p)
-	if err != nil {
-		return err
-	}
-	_, err = fcntl(p[0], F_SETFD, FD_CLOEXEC)
-	if err != nil {
-		return err
-	}
-	_, err = fcntl(p[1], F_SETFD, FD_CLOEXEC)
-	return err
 }

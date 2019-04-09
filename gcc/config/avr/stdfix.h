@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -232,5 +232,14 @@ typedef long long unsigned int uint_uk_t;
 #define absfx     __builtin_avr_absfx
 #define roundfx   __builtin_avr_roundfx
 #define countlsfx __builtin_avr_countlsfx
+
+
+/* Hook in stuff from AVR-Libc.  */
+
+#if (defined (__WITH_AVRLIBC__)                 \
+     && defined (__has_include)                 \
+     && __has_include (<stdfix-avrlibc.h>))
+#include <stdfix-avrlibc.h>
+#endif
 
 #endif /* _AVRGCC_STDFIX_H */

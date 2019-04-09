@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -54,8 +54,8 @@ package Styleg is
 
    procedure Check_Arrow (Inside_Depends : Boolean := False);
    --  Called after scanning out an arrow to check spacing. Inside_Depends is
-   --  true if the call is from an argument of the Depends pragma (where the
-   --  allowed/required format is =>+).
+   --  True if the call is from an argument of the Depends or Refined_Depends
+   --  aspect or pragma (where the allowed/required format is =>+).
 
    procedure Check_Attribute_Name (Reserved : Boolean);
    --  The current token is an attribute designator. Check that it
@@ -109,12 +109,12 @@ package Styleg is
    procedure Check_Left_Paren;
    --  Called after scanning out a left parenthesis to check spacing
 
-   procedure Check_Line_Max_Length (Len : Int);
+   procedure Check_Line_Max_Length (Len : Nat);
    --  Called with Scan_Ptr pointing to the first line terminator character
    --  terminating the current line. Used to check for appropriate line length.
    --  The parameter Len is the length of the current line.
 
-   procedure Check_Line_Terminator (Len : Int);
+   procedure Check_Line_Terminator (Len : Nat);
    --  Called with Scan_Ptr pointing to the first line terminator terminating
    --  the current line, used to check for appropriate line terminator usage.
    --  The parameter Len is the length of the current line.
@@ -147,8 +147,9 @@ package Styleg is
 
    procedure Check_Unary_Plus_Or_Minus  (Inside_Depends : Boolean := False);
    --  Called after scanning a unary plus or minus to check spacing. The flag
-   --  Inside_Depends is set if we are scanning within a Depends pragma or
-   --  Aspect, in which case =>+ requires a following space).
+   --  Inside_Depends is set if we are scanning within a Depends or
+   --  Refined_Depends pragma or Aspect, in which case =>+ requires a
+   --  following space.
 
    procedure Check_Vertical_Bar;
    --  Called after scanning a vertical bar to check spacing

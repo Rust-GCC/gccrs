@@ -1,7 +1,7 @@
 /* { dg-do compile { target { powerpc*-*-* && lp64 } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
 /* { dg-require-effective-target powerpc_vsx_ok } */
-/* { dg-options "-mcpu=power7 -O2 -ftree-vectorize -fno-vect-cost-model -fdump-tree-vect-details" } */
+/* { dg-options "-mdejagnu-cpu=power7 -O2 -ftree-vectorize -fno-vect-cost-model -fdump-tree-vect-details" } */
 
 /* Taken from vect/vect-95.c.  */
 #include <stdlib.h>
@@ -61,4 +61,3 @@ int main (void)
 /* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 0 "vect" } } */
 /* { dg-final { scan-tree-dump-times "Alignment of access forced using versioning" 2 "vect" } } */
 /* { dg-final { scan-tree-dump-times "Vectorizing an unaligned access" 2 "vect" } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */

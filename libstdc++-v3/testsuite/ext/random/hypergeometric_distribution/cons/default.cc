@@ -1,9 +1,9 @@
-// { dg-options "-std=gnu++11" }
+// { dg-do run { target c++11 } }
 // { dg-require-cstdint "" }
 //
 // 2013-11-18  Edward M. Smith-Rowland <3dw4rd@verizon.net>
 //
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,12 +25,11 @@
 
 #include <ext/random>
 #include <testsuite_hooks.h>
+#include <testsuite_common_types.h>
 
 void
 test01()
 {
-  bool test [[gnu::unused]] = true;
-
   __gnu_cxx::hypergeometric_distribution<> u;
   VERIFY( u.total_size() == 10 );
   VERIFY( u.successful_size() == 5 );
@@ -39,9 +38,17 @@ test01()
   VERIFY( u.max() == 1 );
 }
 
+void
+test02()
+{
+  __gnu_test::implicitly_default_constructible test;
+  test.operator()<__gnu_cxx::hypergeometric_distribution<>>();
+  test.operator()<__gnu_cxx::hypergeometric_distribution<>::param_type>();
+}
+
 int
 main()
 {
   test01();
-  return 0;
+  test02();
 }

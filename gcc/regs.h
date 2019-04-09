@@ -1,5 +1,5 @@
 /* Define per-register tables for data flow info and register allocation.
-   Copyright (C) 1987-2014 Free Software Foundation, Inc.
+   Copyright (C) 1987-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -19,10 +19,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #ifndef GCC_REGS_H
 #define GCC_REGS_H
-
-#include "machmode.h"
-#include "hard-reg-set.h"
-#include "rtl.h"
 
 #define REG_BYTES(R) mode_size[(int) GET_MODE (R)]
 
@@ -109,10 +105,7 @@ struct reg_info_t
 {
   int freq;			/* # estimated frequency (REG n) is used or set */
   int deaths;			/* # of times (REG n) dies */
-  int live_length;		/* # of instructions (REG n) is live */
   int calls_crossed;		/* # of calls (REG n) is live across */
-  int freq_calls_crossed;	/* # estimated frequency (REG n) crosses call */
-  int throw_calls_crossed;	/* # of calls that may throw (REG n) is live across */
   int basic_block;		/* # of basic blocks (REG n) is used in */
 };
 
@@ -137,8 +130,10 @@ extern size_t reg_info_p_size;
    frequency.  */
 #define REG_FREQ_FROM_BB(bb) (optimize_function_for_size_p (cfun)	      \
 			      ? REG_FREQ_MAX				      \
-			      : ((bb)->frequency * REG_FREQ_MAX / BB_FREQ_MAX)\
-			      ? ((bb)->frequency * REG_FREQ_MAX / BB_FREQ_MAX)\
+			      : ((bb)->count.to_frequency (cfun)	      \
+				* REG_FREQ_MAX / BB_FREQ_MAX)		      \
+			      ? ((bb)->count.to_frequency (cfun)	      \
+				 * REG_FREQ_MAX / BB_FREQ_MAX)		      \
 			      : 1)
 
 /* Indexed by N, gives number of insns in which register N dies.
@@ -167,26 +162,6 @@ extern size_t reg_info_p_size;
 /* Indexed by N, gives number of CALL_INSNS across which (REG n) is live.  */
 
 #define REG_N_CALLS_CROSSED(N)  (reg_info_p[N].calls_crossed)
-#define REG_FREQ_CALLS_CROSSED(N)  (reg_info_p[N].freq_calls_crossed)
-
-/* Indexed by N, gives number of CALL_INSNS that may throw, across which
-   (REG n) is live.  */
-
-#define REG_N_THROWING_CALLS_CROSSED(N) (reg_info_p[N].throw_calls_crossed)
-
-/* Total number of instructions at which (REG n) is live.
-   
-   This is set in regstat.c whenever register info is requested and
-   remains valid for the rest of the compilation of the function; it is
-   used to control register allocation.  The larger this is, the less
-   priority (REG n) gets for allocation in a hard register (in IRA in
-   priority-coloring mode).
-
-   Negative values are special: -1 is used to mark a pseudo reg that
-   should not be allocated to a hard register, because it crosses a
-   setjmp call.  */
-
-#define REG_LIVE_LENGTH(N)  (reg_info_p[N].live_length)
 
 /* Indexed by n, gives number of basic block that  (REG n) is used in.
    If the value is REG_BLOCK_GLOBAL (-1),
@@ -220,12 +195,6 @@ extern int caller_save_needed;
   choose_hard_reg_mode (REGNO, NREGS, false)
 #endif
 
-/* Registers that get partially clobbered by a call in a given mode.
-   These must not be call used registers.  */
-#ifndef HARD_REGNO_CALL_PART_CLOBBERED
-#define HARD_REGNO_CALL_PART_CLOBBERED(REGNO, MODE) 0
-#endif
-
 /* Target-dependent globals.  */
 struct target_regs {
   /* For each starting hard register, the number of consecutive hard
@@ -236,7 +205,7 @@ struct target_regs {
      This will be a MODE_INT mode if the register can hold integers.  Otherwise
      it will be a MODE_FLOAT or a MODE_CC mode, whichever is valid for the
      register.  */
-  enum machine_mode x_reg_raw_mode[FIRST_PSEUDO_REGISTER];
+  machine_mode x_reg_raw_mode[FIRST_PSEUDO_REGISTER];
 
   /* Vector indexed by machine mode saying whether there are regs of
      that mode.  */
@@ -244,6 +213,10 @@ struct target_regs {
 
   /* 1 if the corresponding class contains a register of the given mode.  */
   char x_contains_reg_of_mode[N_REG_CLASSES][MAX_MACHINE_MODE];
+
+  /* 1 if the corresponding class contains a register of the given mode
+     which is not global and can therefore be allocated.  */
+  char x_contains_allocatable_reg_of_mode[N_REG_CLASSES][MAX_MACHINE_MODE];
 
   /* Record for each mode whether we can move a register directly to or
      from an object of that mode in memory.  If we can't, we won't try
@@ -261,15 +234,14 @@ extern struct target_regs *this_target_regs;
 #else
 #define this_target_regs (&default_target_regs)
 #endif
-
-#define hard_regno_nregs \
-  (this_target_regs->x_hard_regno_nregs)
 #define reg_raw_mode \
   (this_target_regs->x_reg_raw_mode)
 #define have_regs_of_mode \
   (this_target_regs->x_have_regs_of_mode)
 #define contains_reg_of_mode \
   (this_target_regs->x_contains_reg_of_mode)
+#define contains_allocatable_reg_of_mode \
+  (this_target_regs->x_contains_allocatable_reg_of_mode)
 #define direct_load \
   (this_target_regs->x_direct_load)
 #define direct_store \
@@ -277,28 +249,28 @@ extern struct target_regs *this_target_regs;
 #define float_extend_from_mem \
   (this_target_regs->x_float_extend_from_mem)
 
+/* Return the number of hard registers in (reg:MODE REGNO).  */
+
+ALWAYS_INLINE unsigned char
+hard_regno_nregs (unsigned int regno, machine_mode mode)
+{
+  return this_target_regs->x_hard_regno_nregs[regno][mode];
+}
+
 /* Return an exclusive upper bound on the registers occupied by hard
    register (reg:MODE REGNO).  */
 
 static inline unsigned int
-end_hard_regno (enum machine_mode mode, unsigned int regno)
+end_hard_regno (machine_mode mode, unsigned int regno)
 {
-  return regno + hard_regno_nregs[regno][(int) mode];
+  return regno + hard_regno_nregs (regno, mode);
 }
-
-/* Likewise for hard register X.  */
-
-#define END_HARD_REGNO(X) end_hard_regno (GET_MODE (X), REGNO (X))
-
-/* Likewise for hard or pseudo register X.  */
-
-#define END_REGNO(X) (HARD_REGISTER_P (X) ? END_HARD_REGNO (X) : REGNO (X) + 1)
 
 /* Add to REGS all the registers required to store a value of mode MODE
    in register REGNO.  */
 
 static inline void
-add_to_hard_reg_set (HARD_REG_SET *regs, enum machine_mode mode,
+add_to_hard_reg_set (HARD_REG_SET *regs, machine_mode mode,
 		     unsigned int regno)
 {
   unsigned int end_regno;
@@ -312,7 +284,7 @@ add_to_hard_reg_set (HARD_REG_SET *regs, enum machine_mode mode,
 /* Likewise, but remove the registers.  */
 
 static inline void
-remove_from_hard_reg_set (HARD_REG_SET *regs, enum machine_mode mode,
+remove_from_hard_reg_set (HARD_REG_SET *regs, machine_mode mode,
 			  unsigned int regno)
 {
   unsigned int end_regno;
@@ -326,7 +298,7 @@ remove_from_hard_reg_set (HARD_REG_SET *regs, enum machine_mode mode,
 /* Return true if REGS contains the whole of (reg:MODE REGNO).  */
 
 static inline bool
-in_hard_reg_set_p (const HARD_REG_SET regs, enum machine_mode mode,
+in_hard_reg_set_p (const HARD_REG_SET regs, machine_mode mode,
 		   unsigned int regno)
 {
   unsigned int end_regno;
@@ -351,7 +323,7 @@ in_hard_reg_set_p (const HARD_REG_SET regs, enum machine_mode mode,
 /* Return true if (reg:MODE REGNO) includes an element of REGS.  */
 
 static inline bool
-overlaps_hard_reg_set_p (const HARD_REG_SET regs, enum machine_mode mode,
+overlaps_hard_reg_set_p (const HARD_REG_SET regs, machine_mode mode,
 			 unsigned int regno)
 {
   unsigned int end_regno;

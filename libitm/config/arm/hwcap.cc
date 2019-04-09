@@ -1,4 +1,4 @@
-/* Copyright (C) 2011-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU Transactional Memory Library (libitm).
@@ -40,7 +40,7 @@ int GTM_hwcap HIDDEN = 0
 
 #ifdef __linux__
 #include <unistd.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <elf.h>
 
 static void __attribute__((constructor))

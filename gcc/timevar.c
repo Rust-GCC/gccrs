@@ -1,5 +1,5 @@
 /* Timing variables for measuring compiler performance.
-   Copyright (C) 2000-2014 Free Software Foundation, Inc.
+   Copyright (C) 2000-2019 Free Software Foundation, Inc.
    Contributed by Alex Samuel <samuel@codesourcery.com>
 
 This file is part of GCC.
@@ -20,7 +20,9 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #include "system.h"
+#include "coretypes.h"
 #include "timevar.h"
+#include "options.h"
 
 #ifndef HAVE_CLOCK_T
 typedef int clock_t;
@@ -99,10 +101,10 @@ static double clocks_to_msec;
 #define CLOCKS_TO_MSEC (1 / (double)CLOCKS_PER_SEC)
 #endif
 
-/* True if timevars should be used.  In GCC, this happens with
+/* Non-NULL if timevars should be used.  In GCC, this happens with
    the -ftime-report flag.  */
 
-bool timevar_enable;
+timer *g_timer;
 
 /* Total amount of memory allocated by garbage collector.  */
 
@@ -115,61 +117,97 @@ size_t timevar_ggc_mem_total;
 
 /* See timevar.h for an explanation of timing variables.  */
 
-/* A timing variable.  */
-
-struct timevar_def
-{
-  /* Elapsed time for this variable.  */
-  struct timevar_time_def elapsed;
-
-  /* If this variable is timed independently of the timing stack,
-     using timevar_start, this contains the start time.  */
-  struct timevar_time_def start_time;
-
-  /* The name of this timing variable.  */
-  const char *name;
-
-  /* Nonzero if this timing variable is running as a standalone
-     timer.  */
-  unsigned standalone : 1;
-
-  /* Nonzero if this timing variable was ever started or pushed onto
-     the timing stack.  */
-  unsigned used : 1;
-};
-
-/* An element on the timing stack.  Elapsed time is attributed to the
-   topmost timing variable on the stack.  */
-
-struct timevar_stack_def
-{
-  /* The timing variable at this stack level.  */
-  struct timevar_def *timevar;
-
-  /* The next lower timing variable context in the stack.  */
-  struct timevar_stack_def *next;
-};
-
-/* Declared timing variables.  Constructed from the contents of
-   timevar.def.  */
-static struct timevar_def timevars[TIMEVAR_LAST];
-
-/* The top of the timing stack.  */
-static struct timevar_stack_def *stack;
-
-/* A list of unused (i.e. allocated and subsequently popped)
-   timevar_stack_def instances.  */
-static struct timevar_stack_def *unused_stack_instances;
-
-/* The time at which the topmost element on the timing stack was
-   pushed.  Time elapsed since then is attributed to the topmost
-   element.  */
-static struct timevar_time_def start_time;
-
 static void get_time (struct timevar_time_def *);
 static void timevar_accumulate (struct timevar_time_def *,
 				struct timevar_time_def *,
 				struct timevar_time_def *);
+
+/* The implementation of timing events for jit client code, allowing
+   arbitrary named items to appear on the timing stack.  */
+
+class timer::named_items
+{
+ public:
+  named_items (timer *t);
+  ~named_items ();
+
+  void push (const char *item_name);
+  void pop ();
+  void print (FILE *fp, const timevar_time_def *total);
+
+ private:
+  /* Which timer instance does this relate to?  */
+  timer *m_timer;
+
+  /* Dictionary, mapping from item names to timevar_def.
+     Note that currently we merely store/compare the raw string
+     pointers provided by client code; we don't take a copy,
+     or use strcmp.  */
+  hash_map <const char *, timer::timevar_def> m_hash_map;
+
+  /* The order in which items were originally inserted.  */
+  auto_vec <const char *> m_names;
+};
+
+/* The constructor for class timer::named_items.  */
+
+timer::named_items::named_items (timer *t)
+: m_timer (t),
+  m_hash_map (),
+  m_names ()
+{
+}
+
+/* The destructor for class timer::named_items.  */
+
+timer::named_items::~named_items ()
+{
+}
+
+/* Push the named item onto the timer stack.  */
+
+void
+timer::named_items::push (const char *item_name)
+{
+  gcc_assert (item_name);
+
+  bool existed;
+  timer::timevar_def *def = &m_hash_map.get_or_insert (item_name, &existed);
+  if (!existed)
+    {
+      def->elapsed.user = 0;
+      def->elapsed.sys = 0;
+      def->elapsed.wall = 0;
+      def->name = item_name;
+      def->standalone = 0;
+      m_names.safe_push (item_name);
+    }
+  m_timer->push_internal (def);
+}
+
+/* Pop the top item from the timer stack.  */
+
+void
+timer::named_items::pop ()
+{
+  m_timer->pop_internal ();
+}
+
+/* Print the given client item.  Helper function for timer::print.  */
+
+void
+timer::named_items::print (FILE *fp, const timevar_time_def *total)
+{
+  unsigned int i;
+  const char *item_name;
+  fprintf (fp, "Client items:\n");
+  FOR_EACH_VEC_ELT (m_names, i, item_name)
+    {
+      timer::timevar_def *def = m_hash_map.get (item_name);
+      gcc_assert (def);
+      m_timer->print_row (fp, total, def->name, def->elapsed);
+    }
+}
 
 /* Fill the current times into TIME.  The definition of this function
    also defines any or all of the HAVE_USER_TIME, HAVE_SYS_TIME, and
@@ -182,9 +220,6 @@ get_time (struct timevar_time_def *now)
   now->sys  = 0;
   now->wall = 0;
   now->ggc_mem = timevar_ggc_mem_total;
-
-  if (!timevar_enable)
-    return;
 
   {
 #ifdef USE_TIMES
@@ -218,28 +253,64 @@ timevar_accumulate (struct timevar_time_def *timer,
   timer->ggc_mem += stop_time->ggc_mem - start_time->ggc_mem;
 }
 
-/* Initialize timing variables.  */
+/* Class timer's constructor.  */
 
-void
-timevar_init (void)
+timer::timer () :
+  m_stack (NULL),
+  m_unused_stack_instances (NULL),
+  m_start_time (),
+  m_jit_client_items (NULL)
 {
-  timevar_enable = true;
-
   /* Zero all elapsed times.  */
-  memset (timevars, 0, sizeof (timevars));
+  memset (m_timevars, 0, sizeof (m_timevars));
 
   /* Initialize the names of timing variables.  */
 #define DEFTIMEVAR(identifier__, name__) \
-  timevars[identifier__].name = name__;
+  m_timevars[identifier__].name = name__;
 #include "timevar.def"
 #undef DEFTIMEVAR
 
+  /* Initialize configuration-specific state.
+     Ideally this would be one-time initialization.  */
 #ifdef USE_TIMES
   ticks_to_msec = TICKS_TO_MSEC;
 #endif
 #ifdef USE_CLOCK
   clocks_to_msec = CLOCKS_TO_MSEC;
 #endif
+}
+
+/* Class timer's destructor.  */
+
+timer::~timer ()
+{
+  timevar_stack_def *iter, *next;
+
+  for (iter = m_stack; iter; iter = next)
+    {
+      next = iter->next;
+      free (iter);
+    }
+  for (iter = m_unused_stack_instances; iter; iter = next)
+    {
+      next = iter->next;
+      free (iter);
+    }
+  for (unsigned i = 0; i < TIMEVAR_LAST; ++i)
+    delete m_timevars[i].children;
+
+  delete m_jit_client_items;
+}
+
+/* Initialize timing variables.  */
+
+void
+timevar_init (void)
+{
+  if (g_timer)
+    return;
+
+  g_timer = new timer ();
 }
 
 /* Push TIMEVAR onto the timing stack.  No further elapsed time is
@@ -250,11 +321,22 @@ timevar_init (void)
    TIMEVAR cannot be running as a standalone timer.  */
 
 void
-timevar_push_1 (timevar_id_t timevar)
+timer::push (timevar_id_t timevar)
 {
-  struct timevar_def *tv = &timevars[timevar];
+  struct timevar_def *tv = &m_timevars[timevar];
+  push_internal (tv);
+}
+
+/* Push TV onto the timing stack, either one of the builtin ones
+   for a timevar_id_t, or one provided by client code to libgccjit.  */
+
+void
+timer::push_internal (struct timevar_def *tv)
+{
   struct timevar_stack_def *context;
   struct timevar_time_def now;
+
+  gcc_assert (tv);
 
   /* Mark this timing variable as used.  */
   tv->used = 1;
@@ -267,27 +349,27 @@ timevar_push_1 (timevar_id_t timevar)
 
   /* If the stack isn't empty, attribute the current elapsed time to
      the old topmost element.  */
-  if (stack)
-    timevar_accumulate (&stack->timevar->elapsed, &start_time, &now);
+  if (m_stack)
+    timevar_accumulate (&m_stack->timevar->elapsed, &m_start_time, &now);
 
   /* Reset the start time; from now on, time is attributed to
      TIMEVAR.  */
-  start_time = now;
+  m_start_time = now;
 
   /* See if we have a previously-allocated stack instance.  If so,
      take it off the list.  If not, malloc a new one.  */
-  if (unused_stack_instances != NULL)
+  if (m_unused_stack_instances != NULL)
     {
-      context = unused_stack_instances;
-      unused_stack_instances = unused_stack_instances->next;
+      context = m_unused_stack_instances;
+      m_unused_stack_instances = m_unused_stack_instances->next;
     }
   else
     context = XNEW (struct timevar_stack_def);
 
   /* Fill it in and put it on the stack.  */
   context->timevar = tv;
-  context->next = stack;
-  stack = context;
+  context->next = m_stack;
+  m_stack = context;
 }
 
 /* Pop the topmost timing variable element off the timing stack.  The
@@ -297,30 +379,52 @@ timevar_push_1 (timevar_id_t timevar)
    timing variable.  */
 
 void
-timevar_pop_1 (timevar_id_t timevar)
+timer::pop (timevar_id_t timevar)
+{
+  gcc_assert (&m_timevars[timevar] == m_stack->timevar);
+
+  pop_internal ();
+}
+
+/* Pop the topmost item from the stack, either one of the builtin ones
+   for a timevar_id_t, or one provided by client code to libgccjit.  */
+
+void
+timer::pop_internal ()
 {
   struct timevar_time_def now;
-  struct timevar_stack_def *popped = stack;
-
-  gcc_assert (&timevars[timevar] == stack->timevar);
+  struct timevar_stack_def *popped = m_stack;
 
   /* What time is it?  */
   get_time (&now);
 
   /* Attribute the elapsed time to the element we're popping.  */
-  timevar_accumulate (&popped->timevar->elapsed, &start_time, &now);
+  timevar_accumulate (&popped->timevar->elapsed, &m_start_time, &now);
+
+  /* Take the item off the stack.  */
+  m_stack = m_stack->next;
+
+  /* Record the elapsed sub-time to the parent as well.  */
+  if (m_stack && time_report_details)
+    {
+      if (! m_stack->timevar->children)
+	m_stack->timevar->children = new child_map_t (5);
+      bool existed_p;
+      timevar_time_def &time
+	= m_stack->timevar->children->get_or_insert (popped->timevar, &existed_p);
+      if (! existed_p)
+	memset (&time, 0, sizeof (timevar_time_def));
+      timevar_accumulate (&time, &m_start_time, &now);
+    }
 
   /* Reset the start time; from now on, time is attributed to the
      element just exposed on the stack.  */
-  start_time = now;
-
-  /* Take the item off the stack.  */
-  stack = stack->next;
+  m_start_time = now;
 
   /* Don't delete the stack element; instead, add it to the list of
      unused elements for later use.  */
-  popped->next = unused_stack_instances;
-  unused_stack_instances = popped;
+  popped->next = m_unused_stack_instances;
+  m_unused_stack_instances = popped;
 }
 
 /* Start timing TIMEVAR independently of the timing stack.  Elapsed
@@ -330,10 +434,18 @@ timevar_pop_1 (timevar_id_t timevar)
 void
 timevar_start (timevar_id_t timevar)
 {
-  struct timevar_def *tv = &timevars[timevar];
-
-  if (!timevar_enable)
+  if (!g_timer)
     return;
+
+  g_timer->start (timevar);
+}
+
+/* See timevar_start above.  */
+
+void
+timer::start (timevar_id_t timevar)
+{
+  struct timevar_def *tv = &m_timevars[timevar];
 
   /* Mark this timing variable as used.  */
   tv->used = 1;
@@ -352,11 +464,19 @@ timevar_start (timevar_id_t timevar)
 void
 timevar_stop (timevar_id_t timevar)
 {
-  struct timevar_def *tv = &timevars[timevar];
-  struct timevar_time_def now;
-
-  if (!timevar_enable)
+  if (!g_timer)
     return;
+
+  g_timer->stop (timevar);
+}
+
+/* See timevar_stop above.  */
+
+void
+timer::stop (timevar_id_t timevar)
+{
+  struct timevar_def *tv = &m_timevars[timevar];
+  struct timevar_time_def now;
 
   /* TIMEVAR must have been started via timevar_start.  */
   gcc_assert (tv->standalone);
@@ -376,10 +496,18 @@ timevar_stop (timevar_id_t timevar)
 bool
 timevar_cond_start (timevar_id_t timevar)
 {
-  struct timevar_def *tv = &timevars[timevar];
-
-  if (!timevar_enable)
+  if (!g_timer)
     return false;
+
+  return g_timer->cond_start (timevar);
+}
+
+/* See timevar_cond_start above.  */
+
+bool
+timer::cond_start (timevar_id_t timevar)
+{
+  struct timevar_def *tv = &m_timevars[timevar];
 
   /* Mark this timing variable as used.  */
   tv->used = 1;
@@ -403,13 +531,21 @@ timevar_cond_start (timevar_id_t timevar)
 void
 timevar_cond_stop (timevar_id_t timevar, bool running)
 {
+  if (!g_timer || running)
+    return;
+
+  g_timer->cond_stop (timevar);
+}
+
+/* See timevar_cond_stop above.  */
+
+void
+timer::cond_stop (timevar_id_t timevar)
+{
   struct timevar_def *tv;
   struct timevar_time_def now;
 
-  if (!timevar_enable || running)
-    return;
-
-  tv = &timevars[timevar];
+  tv = &m_timevars[timevar];
 
   /* TIMEVAR must have been started via timevar_cond_start.  */
   gcc_assert (tv->standalone);
@@ -419,14 +555,36 @@ timevar_cond_stop (timevar_id_t timevar, bool running)
   timevar_accumulate (&tv->elapsed, &tv->start_time, &now);
 }
 
+/* Push the named item onto the timing stack.  */
+
+void
+timer::push_client_item (const char *item_name)
+{
+  gcc_assert (item_name);
+
+  /* Lazily create the named_items instance.  */
+  if (!m_jit_client_items)
+    m_jit_client_items = new named_items (this);
+
+  m_jit_client_items->push (item_name);
+}
+
+/* Pop the top-most client item from the timing stack.  */
+
+void
+timer::pop_client_item ()
+{
+  gcc_assert (m_jit_client_items);
+  m_jit_client_items->pop ();
+}
 
 /* Validate that phase times are consistent.  */
 
-static void
-validate_phases (FILE *fp)
+void
+timer::validate_phases (FILE *fp) const
 {
   unsigned int /* timevar_id_t */ id;
-  struct timevar_time_def *total = &timevars[TV_TOTAL].elapsed;
+  const timevar_time_def *total = &m_timevars[TV_TOTAL].elapsed;
   double phase_user = 0.0;
   double phase_sys = 0.0;
   double phase_wall = 0.0;
@@ -436,7 +594,7 @@ validate_phases (FILE *fp)
 
   for (id = 0; id < (unsigned int) TIMEVAR_LAST; ++id)
     {
-      struct timevar_def *tv = &timevars[(timevar_id_t) id];
+      const timevar_def *tv = &m_timevars[(timevar_id_t) id];
 
       /* Don't evaluate timing variables that were never used.  */
       if (!tv->used)
@@ -471,22 +629,71 @@ validate_phases (FILE *fp)
     }
 }
 
+/* Helper function for timer::print.  */
+
+void
+timer::print_row (FILE *fp,
+		  const timevar_time_def *total,
+		  const char *name, const timevar_time_def &elapsed)
+{
+  /* The timing variable name.  */
+  fprintf (fp, " %-35s:", name);
+
+#ifdef HAVE_USER_TIME
+  /* Print user-mode time for this process.  */
+  fprintf (fp, "%7.2f (%3.0f%%)",
+	   elapsed.user,
+	   (total->user == 0 ? 0 : elapsed.user / total->user) * 100);
+#endif /* HAVE_USER_TIME */
+
+#ifdef HAVE_SYS_TIME
+  /* Print system-mode time for this process.  */
+  fprintf (fp, "%7.2f (%3.0f%%)",
+	   elapsed.sys,
+	   (total->sys == 0 ? 0 : elapsed.sys / total->sys) * 100);
+#endif /* HAVE_SYS_TIME */
+
+#ifdef HAVE_WALL_TIME
+  /* Print wall clock time elapsed.  */
+  fprintf (fp, "%7.2f (%3.0f%%)",
+	   elapsed.wall,
+	   (total->wall == 0 ? 0 : elapsed.wall / total->wall) * 100);
+#endif /* HAVE_WALL_TIME */
+
+  /* Print the amount of ggc memory allocated.  */
+  fprintf (fp, "%8u kB (%3.0f%%)",
+	   (unsigned) (elapsed.ggc_mem >> 10),
+	   (total->ggc_mem == 0
+	    ? 0
+	    : (float) elapsed.ggc_mem / total->ggc_mem) * 100);
+
+  putc ('\n', fp);
+}
+
+/* Return whether ELAPSED is all zero.  */
+
+bool
+timer::all_zero (const timevar_time_def &elapsed)
+{
+  const double tiny = 5e-3;
+  return (elapsed.user < tiny
+	  && elapsed.sys < tiny
+	  && elapsed.wall < tiny
+	  && elapsed.ggc_mem < GGC_MEM_BOUND);
+}
 
 /* Summarize timing variables to FP.  The timing variable TV_TOTAL has
    a special meaning -- it's considered to be the total elapsed time,
    for normalizing the others, and is displayed last.  */
 
 void
-timevar_print (FILE *fp)
+timer::print (FILE *fp)
 {
   /* Only print stuff if we have some sort of time information.  */
 #if defined (HAVE_USER_TIME) || defined (HAVE_SYS_TIME) || defined (HAVE_WALL_TIME)
   unsigned int /* timevar_id_t */ id;
-  struct timevar_time_def *total = &timevars[TV_TOTAL].elapsed;
+  const timevar_time_def *total = &m_timevars[TV_TOTAL].elapsed;
   struct timevar_time_def now;
-
-  if (!timevar_enable)
-    return;
 
   /* Update timing information in case we're calling this from GDB.  */
 
@@ -498,18 +705,20 @@ timevar_print (FILE *fp)
 
   /* If the stack isn't empty, attribute the current elapsed time to
      the old topmost element.  */
-  if (stack)
-    timevar_accumulate (&stack->timevar->elapsed, &start_time, &now);
+  if (m_stack)
+    timevar_accumulate (&m_stack->timevar->elapsed, &m_start_time, &now);
 
   /* Reset the start time; from now on, time is attributed to
      TIMEVAR.  */
-  start_time = now;
+  m_start_time = now;
 
-  fputs ("\nExecution times (seconds)\n", fp);
+  fprintf (fp, "\n%-35s%16s%14s%14s%18s\n", "Time variable", "usr", "sys",
+	   "wall", "GGC");
+  if (m_jit_client_items)
+    fputs ("GCC items:\n", fp);
   for (id = 0; id < (unsigned int) TIMEVAR_LAST; ++id)
     {
-      struct timevar_def *tv = &timevars[(timevar_id_t) id];
-      const double tiny = 5e-3;
+      const timevar_def *tv = &m_timevars[(timevar_id_t) id];
 
       /* Don't print the total execution time here; that goes at the
 	 end.  */
@@ -520,65 +729,59 @@ timevar_print (FILE *fp)
       if (!tv->used)
 	continue;
 
+      bool any_children_with_time = false;
+      if (tv->children)
+	for (child_map_t::iterator i = tv->children->begin ();
+	     i != tv->children->end (); ++i)
+	  if (! all_zero ((*i).second))
+	    {
+	      any_children_with_time = true;
+	      break;
+	    }
+
       /* Don't print timing variables if we're going to get a row of
-         zeroes.  */
-      if (tv->elapsed.user < tiny
-	  && tv->elapsed.sys < tiny
-	  && tv->elapsed.wall < tiny
-	  && tv->elapsed.ggc_mem < GGC_MEM_BOUND)
+         zeroes.  Unless there are children with non-zero time.  */
+      if (! any_children_with_time
+	  && all_zero (tv->elapsed))
 	continue;
 
-      /* The timing variable name.  */
-      fprintf (fp, " %-24s:", tv->name);
+      print_row (fp, total, tv->name, tv->elapsed);
 
-#ifdef HAVE_USER_TIME
-      /* Print user-mode time for this process.  */
-      fprintf (fp, "%7.2f (%2.0f%%) usr",
-	       tv->elapsed.user,
-	       (total->user == 0 ? 0 : tv->elapsed.user / total->user) * 100);
-#endif /* HAVE_USER_TIME */
-
-#ifdef HAVE_SYS_TIME
-      /* Print system-mode time for this process.  */
-      fprintf (fp, "%7.2f (%2.0f%%) sys",
-	       tv->elapsed.sys,
-	       (total->sys == 0 ? 0 : tv->elapsed.sys / total->sys) * 100);
-#endif /* HAVE_SYS_TIME */
-
-#ifdef HAVE_WALL_TIME
-      /* Print wall clock time elapsed.  */
-      fprintf (fp, "%7.2f (%2.0f%%) wall",
-	       tv->elapsed.wall,
-	       (total->wall == 0 ? 0 : tv->elapsed.wall / total->wall) * 100);
-#endif /* HAVE_WALL_TIME */
-
-      /* Print the amount of ggc memory allocated.  */
-      fprintf (fp, "%8u kB (%2.0f%%) ggc",
-	       (unsigned) (tv->elapsed.ggc_mem >> 10),
-	       (total->ggc_mem == 0
-		? 0
-		: (float) tv->elapsed.ggc_mem / total->ggc_mem) * 100);
-
-      putc ('\n', fp);
+      if (tv->children)
+	for (child_map_t::iterator i = tv->children->begin ();
+	     i != tv->children->end (); ++i)
+	  {
+	    timevar_def *tv2 = (*i).first;
+	    /* Don't print timing variables if we're going to get a row of
+	       zeroes.  */
+	    if (! all_zero ((*i).second))
+	      {
+		char lname[256];
+		snprintf (lname, 256, "`- %s", tv2->name);
+		print_row (fp, total, lname, (*i).second);
+	      }
+	  }
     }
+  if (m_jit_client_items)
+    m_jit_client_items->print (fp, total);
 
   /* Print total time.  */
-  fputs (" TOTAL                 :", fp);
+  fprintf (fp, " %-35s:", "TOTAL");
 #ifdef HAVE_USER_TIME
-  fprintf (fp, "%7.2f          ", total->user);
+  fprintf (fp, "%7.2f      ", total->user);
 #endif
 #ifdef HAVE_SYS_TIME
-  fprintf (fp, "%7.2f          ", total->sys);
+  fprintf (fp, "%8.2f      ", total->sys);
 #endif
 #ifdef HAVE_WALL_TIME
-  fprintf (fp, "%7.2f           ", total->wall);
+  fprintf (fp, "%8.2f      ", total->wall);
 #endif
-  fprintf (fp, "%8u kB\n", (unsigned) (total->ggc_mem >> 10));
+  fprintf (fp, "%9u kB\n", (unsigned) (total->ggc_mem >> 10));
 
-#ifdef ENABLE_CHECKING
-  fprintf (fp, "Extra diagnostic checks enabled; compiler may run slowly.\n");
-  fprintf (fp, "Configure with --enable-checking=release to disable checks.\n");
-#endif
+  if (CHECKING_P || flag_checking)
+    fprintf (fp, "Extra diagnostic checks enabled; compiler may run slowly.\n");
+  if (CHECKING_P)
+    fprintf (fp, "Configure with --enable-checking=release to disable checks.\n");
 #ifndef ENABLE_ASSERT_CHECKING
   fprintf (fp, "Internal checks disabled; compiler is not suited for release.\n");
   fprintf (fp, "Configure with --enable-checking=release to enable checks.\n");
@@ -588,6 +791,17 @@ timevar_print (FILE *fp)
 	  || defined (HAVE_WALL_TIME) */
 
   validate_phases (fp);
+}
+
+/* Get the name of the topmost item.  For use by jit for validating
+   inputs to gcc_jit_timer_pop.  */
+const char *
+timer::get_topmost_item_name () const
+{
+  if (m_stack)
+    return m_stack->timevar->name;
+  else
+    return NULL;
 }
 
 /* Prints a message to stderr stating that time elapsed in STR is

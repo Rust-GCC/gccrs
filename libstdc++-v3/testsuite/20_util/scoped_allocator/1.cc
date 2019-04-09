@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -44,8 +44,6 @@ struct Element
 
 void test01()
 {
-  bool test __attribute((unused)) = false;
-
   typedef std::scoped_allocator_adaptor<Element::allocator_type> alloc1_type;
 
   typedef std::vector<Element, alloc1_type> EltVec;
@@ -59,14 +57,14 @@ void test01()
 
 void test02()
 {
-  bool test __attribute((unused)) = false;
+  typedef std::scoped_allocator_adaptor<Element::allocator_type> alloc1_type;
 
-  typedef std::scoped_allocator_adaptor<Element::allocator_type> inner_alloc_type;
-
-  typedef std::vector<Element, inner_alloc_type> EltVec;
+  typedef std::vector<Element, alloc1_type> EltVec;
 
   typedef std::scoped_allocator_adaptor<Element::allocator_type,
-                                        Element::allocator_type> alloc_type;
+                                        Element::allocator_type> alloc2_type;
+
+  typedef std::allocator_traits<alloc2_type>::rebind_alloc<EltVec> alloc_type;
 
   typedef std::vector<EltVec, alloc_type> EltVecVec;
 
@@ -92,9 +90,7 @@ void test02()
   VERIFY( evv3.get_allocator().get_personality() == 3 );
   VERIFY( evv3[0].get_allocator().get_personality() == 4 );
   VERIFY( evv3[0][0].get_allocator().get_personality() == 4 );
-
 }
-
 
 int main()
 {

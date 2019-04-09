@@ -2,7 +2,7 @@
 
 // 2007-02-04  Benjamin Kosnik  <bkoz@redhat.com>
 //
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -37,10 +37,10 @@ namespace tr1 {
   template<class T> struct is_placeholder;
 
 #if 0
-  template<class F, class T1, ..., class TN> 
+  template<class F, class T1, ..., class TN>
   unspecified bind(F f, T1 t1, ..., TN tN);
 
-  template<class R, class F, class T1, ..., class Tn > 
+  template<class R, class F, class T1, ..., class Tn >
   unspecified bind(F f, T1 t1, ..., TN tN);
 
   namespace placeholders {

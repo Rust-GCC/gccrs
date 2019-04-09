@@ -1,7 +1,8 @@
-/* Copyright (C) 2005-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
-   This file is part of the GNU OpenMP Library (libgomp).
+   This file is part of the GNU Offloading and Multi Processing Library
+   (libgomp).
 
    Libgomp is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by
@@ -46,7 +47,7 @@ GOMP_single_start (void)
   return __sync_bool_compare_and_swap (&team->single_count, single_count,
 				       single_count + 1L);
 #else
-  bool ret = gomp_work_share_start (false);
+  bool ret = gomp_work_share_start (0);
   if (ret)
     gomp_work_share_init_done ();
   gomp_work_share_end_nowait ();
@@ -67,7 +68,7 @@ GOMP_single_copy_start (void)
   bool first;
   void *ret;
 
-  first = gomp_work_share_start (false);
+  first = gomp_work_share_start (0);
   
   if (first)
     {

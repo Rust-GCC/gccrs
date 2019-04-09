@@ -1,5 +1,5 @@
 /* Default to -msecure-plt.
-   Copyright (C) 2005-2014 Free Software Foundation, Inc.
+   Copyright (C) 2005-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -18,3 +18,4 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #define CC1_SECURE_PLT_DEFAULT_SPEC "-msecure-plt"
+#define LINK_SECURE_PLT_DEFAULT_SPEC "--secure-plt"

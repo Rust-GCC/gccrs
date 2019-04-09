@@ -1,6 +1,6 @@
 // std::tr1::hash definitions, long double bits -*- C++ -*-
 
-// Copyright (C) 2010-2014 Free Software Foundation, Inc.
+// Copyright (C) 2010-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,9 +22,11 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
+#pragma GCC diagnostic ignored "-Wattribute-alias"
+
 namespace std _GLIBCXX_VISIBILITY(default)
 {
-  namespace tr1 
+  namespace tr1
   {
     // For long double, careful with random padding bits (e.g., on x86,
     // 10 bytes -> 12 bytes) and resort to frexp.

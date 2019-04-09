@@ -1,6 +1,6 @@
 // 2004-03-31  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -27,9 +27,8 @@
 // Basic test for LFS support.
 void test01()
 {
-#ifdef _GLIBCXX_USE_LFS
+#if defined (_GLIBCXX_USE_LFS) && defined (_GLIBCXX_HAVE_LIMIT_FSIZE)
   using namespace std;
-  bool test __attribute__((unused)) = true;
 
   typedef filebuf::pos_type 	pos_type;
   typedef filebuf::off_type 	off_type;

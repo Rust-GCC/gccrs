@@ -1,4 +1,4 @@
-#   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+#   Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -61,6 +61,51 @@ set plugin_test_list [list \
     { one_time_plugin.c one_time-test-1.c } \
     { start_unit_plugin.c start_unit-test-1.c } \
     { finish_unit_plugin.c finish_unit-test-1.c } \
+    { wide-int_plugin.c wide-int-test-1.c } \
+    { poly-int-01_plugin.c poly-int-test-1.c } \
+    { poly-int-02_plugin.c poly-int-test-1.c } \
+    { poly-int-03_plugin.c poly-int-test-1.c } \
+    { poly-int-04_plugin.c poly-int-test-1.c } \
+    { poly-int-05_plugin.c poly-int-test-1.c } \
+    { poly-int-06_plugin.c poly-int-test-1.c } \
+    { poly-int-07_plugin.c poly-int-test-1.c } \
+    { diagnostic_group_plugin.c \
+	  diagnostic-group-test-1.c } \
+    { diagnostic_plugin_test_show_locus.c \
+	  diagnostic-test-show-locus-bw.c \
+	  diagnostic-test-show-locus-color.c \
+	  diagnostic-test-show-locus-no-labels.c \
+	  diagnostic-test-show-locus-bw-line-numbers.c \
+	  diagnostic-test-show-locus-bw-line-numbers-2.c \
+	  diagnostic-test-show-locus-color-line-numbers.c \
+	  diagnostic-test-show-locus-parseable-fixits.c \
+	  diagnostic-test-show-locus-generate-patch.c }\
+    { diagnostic_plugin_test_tree_expression_range.c \
+	  diagnostic-test-expressions-1.c } \
+    { diagnostic_plugin_show_trees.c \
+	  diagnostic-test-show-trees-1.c } \
+    { diagnostic_plugin_test_string_literals.c \
+	  diagnostic-test-string-literals-1.c \
+	  diagnostic-test-string-literals-2.c \
+	  diagnostic-test-string-literals-3.c \
+	  diagnostic-test-string-literals-4.c } \
+    { diagnostic_plugin_test_inlining.c \
+	  diagnostic-test-inlining-1.c \
+	  diagnostic-test-inlining-2.c \
+	  diagnostic-test-inlining-3.c \
+	  diagnostic-test-inlining-4.c } \
+    { location_overflow_plugin.c \
+	  location-overflow-test-1.c \
+	  location-overflow-test-2.c \
+	  location-overflow-test-pr83173.c } \
+    { must_tail_call_plugin.c \
+	  must-tail-call-1.c \
+	  must-tail-call-2.c } \
+    { expensive_selftests_plugin.c \
+	  expensive-selftests-1.c } \
+    { dump_plugin.c \
+	  dump-1.c \
+	  dump-2.c } \
 ]
 
 foreach plugin_test $plugin_test_list {
@@ -73,6 +118,12 @@ foreach plugin_test $plugin_test_list {
     # If we're only testing specific files and this isn't one of them, skip it.
     if ![runtest_file_p $runtests $plugin_src] then {
         continue
+    }
+    # Skip tail call tests on targets that do not have sibcall_epilogue.
+    if {[regexp ".*must_tail_call_plugin.c" $plugin_src]
+	&& [istarget arm*-*-*]
+	&& [check_effective_target_arm_thumb1]} then {
+	continue
     }
     set plugin_input_tests [lreplace $plugin_test 0 0]
     plugin-test-execute $plugin_src $plugin_input_tests

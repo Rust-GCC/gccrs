@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-options "-O2 -fexceptions -fdump-tree-optimized" } */
+/* { dg-require-effective-target exceptions } */
 
 void af (void *a);
 
@@ -13,4 +14,3 @@ bf (void)
 
 /* { dg-final { scan-tree-dump-not "__builtin_stack_save" "optimized"} } */
 /* { dg-final { scan-tree-dump-not "__builtin_stack_restore" "optimized"} } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

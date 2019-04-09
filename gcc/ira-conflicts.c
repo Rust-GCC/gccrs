@@ -1,5 +1,5 @@
 /* IRA conflict builder.
-   Copyright (C) 2006-2014 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -21,21 +21,18 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "regs.h"
-#include "rtl.h"
-#include "tm_p.h"
+#include "backend.h"
 #include "target.h"
-#include "flags.h"
-#include "hard-reg-set.h"
-#include "basic-block.h"
+#include "rtl.h"
+#include "predict.h"
+#include "memmodel.h"
+#include "tm_p.h"
 #include "insn-config.h"
-#include "recog.h"
-#include "diagnostic-core.h"
-#include "params.h"
-#include "df.h"
-#include "sparseset.h"
+#include "regs.h"
+#include "ira.h"
 #include "ira-int.h"
+#include "params.h"
+#include "sparseset.h"
 #include "addresses.h"
 
 /* This file contains code responsible for allocno conflict creation,
@@ -170,7 +167,6 @@ build_conflict_bit_table (void)
 	  gcc_assert (id < ira_objects_num);
 
 	  aclass = ALLOCNO_CLASS (allocno);
-	  sparseset_set_bit (objects_live, id);
 	  EXECUTE_IF_SET_IN_SPARSESET (objects_live, j)
 	    {
 	      ira_object_t live_obj = ira_object_id_map[j];
@@ -184,6 +180,7 @@ build_conflict_bit_table (void)
 		  record_object_conflict (obj, live_obj);
 		}
 	    }
+	  sparseset_set_bit (objects_live, id);
 	}
 
       for (r = ira_finish_point_ranges[i]; r != NULL; r = r->finish_next)
@@ -229,8 +226,11 @@ go_through_subreg (rtx x, int *offset)
   if (REGNO (reg) < FIRST_PSEUDO_REGISTER)
     *offset = subreg_regno_offset (REGNO (reg), GET_MODE (reg),
 				   SUBREG_BYTE (x), GET_MODE (x));
-  else
-    *offset = (SUBREG_BYTE (x) / REGMODE_NATURAL_SIZE (GET_MODE (x)));
+  else if (!can_div_trunc_p (SUBREG_BYTE (x),
+			     REGMODE_NATURAL_SIZE (GET_MODE (x)), offset))
+    /* Checked by validate_subreg.  We must know at compile time which
+       inner hard registers are being accessed.  */
+    gcc_unreachable ();
   return reg;
 }
 
@@ -250,7 +250,7 @@ process_regs_for_copy (rtx reg1, rtx reg2, bool constraint_p,
   bool only_regs_p;
   ira_allocno_t a;
   reg_class_t rclass, aclass;
-  enum machine_mode mode;
+  machine_mode mode;
   ira_copy_t cp;
 
   gcc_assert (REG_SUBREG_P (reg1) && REG_SUBREG_P (reg2));
@@ -289,7 +289,7 @@ process_regs_for_copy (rtx reg1, rtx reg2, bool constraint_p,
 
   if (! IN_RANGE (allocno_preferenced_hard_regno,
 		  0, FIRST_PSEUDO_REGISTER - 1))
-    /* Can not be tied.  */
+    /* Cannot be tied.  */
     return false;
   rclass = REGNO_REG_CLASS (allocno_preferenced_hard_regno);
   mode = ALLOCNO_MODE (a);
@@ -300,7 +300,7 @@ process_regs_for_copy (rtx reg1, rtx reg2, bool constraint_p,
     return false;
   index = ira_class_hard_reg_index[aclass][allocno_preferenced_hard_regno];
   if (index < 0)
-    /* Can not be tied.  It is not in the allocno class.  */
+    /* Cannot be tied.  It is not in the allocno class.  */
     return false;
   ira_init_register_move_cost_if_necessary (mode);
   if (HARD_REGISTER_P (reg1))
@@ -746,6 +746,7 @@ ira_build_conflicts (void)
       for (i = 0; i < n; i++)
 	{
 	  ira_object_t obj = ALLOCNO_OBJECT (a, i);
+	  machine_mode obj_mode = obj->allocno->mode;
 	  rtx allocno_reg = regno_reg_rtx [ALLOCNO_REGNO (a)];
 
 	  if ((! flag_caller_saves && ALLOCNO_CALLS_CROSSED_NUM (a) != 0)
@@ -776,9 +777,9 @@ ira_build_conflicts (void)
 
 	  /* Now we deal with paradoxical subreg cases where certain registers
 	     cannot be accessed in the widest mode.  */
-	  enum machine_mode outer_mode = ALLOCNO_WMODE (a);
-	  enum machine_mode inner_mode = ALLOCNO_MODE (a);
-	  if (GET_MODE_SIZE (outer_mode) > GET_MODE_SIZE (inner_mode))
+	  machine_mode outer_mode = ALLOCNO_WMODE (a);
+	  machine_mode inner_mode = ALLOCNO_MODE (a);
+	  if (paradoxical_subreg_p (outer_mode, inner_mode))
 	    {
 	      enum reg_class aclass = ALLOCNO_CLASS (a);
 	      for (int j = ira_class_hard_regs_num[aclass] - 1; j >= 0; --j)
@@ -790,8 +791,12 @@ ira_build_conflicts (void)
 		   if (outer_regno < 0
 		       || !in_hard_reg_set_p (reg_class_contents[aclass],
 					      outer_mode, outer_regno))
-		     SET_HARD_REG_BIT (OBJECT_CONFLICT_HARD_REGS (obj),
-				       inner_regno);
+		     {
+		       SET_HARD_REG_BIT (OBJECT_TOTAL_CONFLICT_HARD_REGS (obj),
+					 inner_regno);
+		       SET_HARD_REG_BIT (OBJECT_CONFLICT_HARD_REGS (obj),
+					 inner_regno);
+		     }
 		}
 	    }
 
@@ -803,8 +808,8 @@ ira_build_conflicts (void)
 		 regs must conflict with them.  */
 	      for (regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
 		if (!TEST_HARD_REG_BIT (call_used_reg_set, regno)
-		    && HARD_REGNO_CALL_PART_CLOBBERED (regno,
-						       obj->allocno->mode))
+		    && targetm.hard_regno_call_part_clobbered (NULL, regno,
+							       obj_mode))
 		  {
 		    SET_HARD_REG_BIT (OBJECT_CONFLICT_HARD_REGS (obj), regno);
 		    SET_HARD_REG_BIT (OBJECT_TOTAL_CONFLICT_HARD_REGS (obj),

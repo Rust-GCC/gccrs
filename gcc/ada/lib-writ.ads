@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -192,6 +192,12 @@ package Lib.Writ is
    --              the units in this file, where x is the first character
    --              (upper case) of the policy name (e.g. 'C' for Concurrent).
 
+   --         FX   Units in this file use front-end exceptions, with explicit
+   --              handlers to trigger AT-END actions on exception paths.
+
+   --         GP   Set if this compilation was done in GNATprove mode, either
+   --              from direct use of GNATprove, or from use of -gnatdF.
+
    --         Lx   A valid Locking_Policy pragma applies to all the units in
    --              this file, where x is the first character (upper case) of
    --              the policy name (e.g. 'C' for Ceiling_Locking).
@@ -200,7 +206,9 @@ package Lib.Writ is
    --              were not compiled to produce an object. This can occur as a
    --              result of the use of -gnatc, or if no object can be produced
    --              (e.g. when a package spec is compiled instead of the body,
-   --              or a subunit on its own).
+   --              or a subunit on its own). Note that in GNATprove mode, we
+   --              do produce an object. The object is not suitable for binding
+   --              and linking, but we do not set NO, instead we set GP.
 
    --         NR   No_Run_Time. Indicates that a pragma No_Run_Time applies
    --              to all units in the file.
@@ -232,12 +240,12 @@ package Lib.Writ is
    --              (upper case) of the corresponding policy name (e.g. 'F'
    --              for FIFO_Within_Priorities).
 
-   --         UA  Unreserve_All_Interrupts pragma was processed in one or
-   --             more units in this file
+   --         UA   Unreserve_All_Interrupts pragma was processed in one or
+   --              more units in this file
 
-   --         ZX  Units in this file use zero-cost exceptions and have
-   --             generated exception tables. If ZX is not present, the
-   --             longjmp/setjmp exception scheme is in use.
+   --         ZX   Units in this file use zero-cost exceptions and have
+   --              generated exception tables. If ZX is not present, the
+   --              longjmp/setjmp exception scheme is in use.
 
    --      Note that language defined units never output policy (Lx, Tx, Qx)
    --      parameters. Language defined units must correctly handle all
@@ -370,10 +378,10 @@ package Lib.Writ is
 
    --  RN
 
-   --  In named notation, the restrictions are given as a series of lines, one
-   --  per retrictions that is specified or violated (no information is present
-   --  for restrictions that are not specified or violated). In the following
-   --  name is the name of the restriction in all upper case.
+   --  In named notation, the restrictions are given as a series of lines,
+   --  one per restrictions that is specified or violated (no information is
+   --  present for restrictions that are not specified or violated). In the
+   --  following name is the name of the restriction in all upper case.
 
    --  For boolean restrictions, we have only two possibilities. A restrictions
    --  pragma is present, or a violation is detected:
@@ -562,22 +570,22 @@ package Lib.Writ is
    --             code is required. Set if N_Compilation_Unit node has flag
    --             Has_No_Elaboration_Code set.
 
-   --         OL   The units in this file are compiled with a local pragma
-   --              Optimize_Alignment, so no consistency requirement applies
-   --              to these units. All internal units have this status since
-   --              they have an automatic default of Optimize_Alignment (Off).
+   --         OL  The units in this file are compiled with a local pragma
+   --             Optimize_Alignment, so no consistency requirement applies
+   --             to these units. All internal units have this status since
+   --             they have an automatic default of Optimize_Alignment (Off).
    --
-   --         OO   Optimize_Alignment (Off) is the default setting for all
-   --              units in this file. All files in the partition that specify
-   --              a default must specify the same default.
+   --         OO  Optimize_Alignment (Off) is the default setting for all
+   --             units in this file. All files in the partition that specify
+   --             a default must specify the same default.
 
-   --         OS   Optimize_Alignment (Space) is the default setting for all
-   --              units in this file. All files in the partition that specify
-   --              a default must specify the same default.
+   --         OS  Optimize_Alignment (Space) is the default setting for all
+   --             units in this file. All files in the partition that specify
+   --             a default must specify the same default.
 
-   --         OT   Optimize_Alignment (Time) is the default setting for all
-   --              units in this file. All files in the partition that specify
-   --              a default must specify the same default.
+   --         OT  Optimize_Alignment (Time) is the default setting for all
+   --             units in this file. All files in the partition that specify
+   --             a default must specify the same default.
 
    --         PF  The unit has a library-level (package) finalizer
 
@@ -593,11 +601,15 @@ package Lib.Writ is
 
    --         RT  Unit has pragma Remote_Types
 
-   --         SP  Unit has pragma Shared_Passive.
+   --         SE  Compilation of unit encountered one or more serious errors.
+   --             Normally the generation of an ALI file is suppressed if there
+   --             is a serious error, but this can be overridden with -gnatQ.
+
+   --         SP  Unit has pragma Shared_Passive
 
    --         SU  Unit is a subprogram, rather than a package
 
-   --      The attributes may appear in any order, separated by spaces.
+   --      The attributes may appear in any order, separated by spaces
 
    --  -----------------------------
    --  -- W, Y and Z Withed Units --
@@ -612,7 +624,7 @@ package Lib.Writ is
    --    Z unit-name [source-name lib-name] [E] [EA] [ED] [AD]
 
    --      One W line is present for each unit that is mentioned in an explicit
-   --      non-limited with clause by the current unit. One Y line is present
+   --      nonlimited with clause by the current unit. One Y line is present
    --      for each unit that is mentioned in an explicit limited with clause
    --      by the current unit. One Z line is present for each unit that is
    --      only implicitly withed by the current unit. The first parameter is
@@ -658,14 +670,33 @@ package Lib.Writ is
    --      binder do the consistency check, but not include the unit in the
    --      partition closure (unless it is properly With'ed somewhere).
 
+   --  --------------------
+   --  -- T  Task Stacks --
+   --  --------------------
+
+   --  Following the W lines (if any, or the U line if not), is an optional
+   --  line that identifies the number of default-sized primary and secondary
+   --  stacks that the binder needs to create for the tasks declared within the
+   --  unit. For each compilation unit, a line is present in the form:
+
+   --    T primary-stack-quantity secondary-stack-quantity
+
+   --     The first parameter of T defines the number of task objects declared
+   --     in the unit that have no Storage_Size specified. The second parameter
+   --     defines the number of task objects declared in the unit that have no
+   --     Secondary_Stack_Size specified. These values are non-zero only if
+   --     the restrictions No_Implicit_Heap_Allocations or
+   --     No_Implicit_Task_Allocations are active.
+
    --  -----------------------
    --  -- L  Linker_Options --
    --  -----------------------
 
-   --  Following the W lines (if any, or the U line if not), are an optional
-   --  series of lines that indicates the usage of the pragma Linker_Options in
-   --  the associated unit. For each appearance of a pragma Linker_Options (or
-   --  Link_With) in the unit, a line is present with the form:
+   --  Following the T and W lines (if any, or the U line if not), are
+   --  an optional series of lines that indicates the usage of the pragma
+   --  Linker_Options in the associated unit. For each appearance of a pragma
+   --  Linker_Options (or Link_With) in the unit, a line is present with the
+   --  form:
 
    --    L "string"
 

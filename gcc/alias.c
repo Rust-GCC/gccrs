@@ -1,5 +1,5 @@
 /* Alias analysis for GNU C
-   Copyright (C) 1997-2014 Free Software Foundation, Inc.
+   Copyright (C) 1997-2019 Free Software Foundation, Inc.
    Contributed by John Carr (jfc@mit.edu).
 
 This file is part of GCC.
@@ -21,33 +21,24 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "backend.h"
+#include "target.h"
 #include "rtl.h"
 #include "tree.h"
-#include "varasm.h"
-#include "expr.h"
-#include "tm_p.h"
-#include "function.h"
-#include "alias.h"
-#include "emit-rtl.h"
-#include "regs.h"
-#include "hard-reg-set.h"
-#include "flags.h"
-#include "diagnostic-core.h"
-#include "cselib.h"
-#include "splay-tree.h"
-#include "langhooks.h"
-#include "timevar.h"
-#include "dumpfile.h"
-#include "target.h"
-#include "df.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "is-a.h"
 #include "gimple.h"
+#include "df.h"
+#include "memmodel.h"
+#include "tm_p.h"
 #include "gimple-ssa.h"
+#include "emit-rtl.h"
+#include "alias.h"
+#include "fold-const.h"
+#include "varasm.h"
+#include "cselib.h"
+#include "langhooks.h"
+#include "cfganal.h"
 #include "rtl-iter.h"
+#include "cgraph.h"
 
 /* The aliasing API provided here solves related but different problems:
 
@@ -129,13 +120,22 @@ along with GCC; see the file COPYING3.  If not see
    However, this is no actual entry for alias set zero.  It is an
    error to attempt to explicitly construct a subset of zero.  */
 
-struct GTY(()) alias_set_entry_d {
+struct alias_set_hash : int_hash <int, INT_MIN, INT_MIN + 1> {};
+
+struct GTY(()) alias_set_entry {
   /* The alias set number, as stored in MEM_ALIAS_SET.  */
   alias_set_type alias_set;
 
   /* Nonzero if would have a child of zero: this effectively makes this
      alias set the same as alias set zero.  */
-  int has_zero_child;
+  bool has_zero_child;
+  /* Nonzero if alias set corresponds to pointer type itself (i.e. not to
+     aggregate contaiing pointer.
+     This is used for a special case where we need an universal pointer type
+     compatible with all other pointer types.  */
+  bool is_pointer;
+  /* Nonzero if is_pointer or if one of childs have has_pointer set.  */
+  bool has_pointer;
 
   /* The children of the alias set.  These are not just the immediate
      children, but, in fact, all descendants.  So, if we have:
@@ -144,25 +144,37 @@ struct GTY(()) alias_set_entry_d {
 
      continuing our example above, the children here will be all of
      `int', `double', `float', and `struct S'.  */
-  splay_tree GTY((param1_is (int), param2_is (int))) children;
+  hash_map<alias_set_hash, int> *children;
 };
-typedef struct alias_set_entry_d *alias_set_entry;
 
 static int rtx_equal_for_memref_p (const_rtx, const_rtx);
-static int memrefs_conflict_p (int, rtx, int, rtx, HOST_WIDE_INT);
 static void record_set (rtx, const_rtx, void *);
-static int base_alias_check (rtx, rtx, rtx, rtx, enum machine_mode,
-			     enum machine_mode);
+static int base_alias_check (rtx, rtx, rtx, rtx, machine_mode,
+			     machine_mode);
 static rtx find_base_value (rtx);
 static int mems_in_disjoint_alias_sets_p (const_rtx, const_rtx);
-static int insert_subset_children (splay_tree_node, void*);
-static alias_set_entry get_alias_set_entry (alias_set_type);
+static alias_set_entry *get_alias_set_entry (alias_set_type);
 static tree decl_for_component_ref (tree);
 static int write_dependence_p (const_rtx,
-			       const_rtx, enum machine_mode, rtx,
+			       const_rtx, machine_mode, rtx,
 			       bool, bool, bool);
+static int compare_base_symbol_refs (const_rtx, const_rtx);
 
 static void memory_modified_1 (rtx, const_rtx, void *);
+
+/* Query statistics for the different low-level disambiguators.
+   A high-level query may trigger multiple of them.  */
+
+static struct {
+  unsigned long long num_alias_zero;
+  unsigned long long num_same_alias_set;
+  unsigned long long num_same_objects;
+  unsigned long long num_volatile;
+  unsigned long long num_dag;
+  unsigned long long num_universal;
+  unsigned long long num_disambiguated;
+} alias_stats;
+
 
 /* Set up all info needed to perform alias analysis on memory references.  */
 
@@ -263,7 +275,7 @@ static bool copying_arguments;
 
 
 /* The splay-tree used to store the various alias set entries.  */
-static GTY (()) vec<alias_set_entry, va_gc> *alias_sets;
+static GTY (()) vec<alias_set_entry *, va_gc> *alias_sets;
 
 /* Build a decomposed reference object for querying the alias-oracle
    from the MEM rtx and store it in *REF.
@@ -298,7 +310,7 @@ ao_ref_from_mem (ao_ref *ref, const_rtx mem)
   /* If this is a reference based on a partitioned decl replace the
      base with a MEM_REF of the pointer representative we
      created during stack slot partitioning.  */
-  if (TREE_CODE (base) == VAR_DECL
+  if (VAR_P (base)
       && ! is_global_var (base)
       && cfun->gimple_df->decls_to_pointers != NULL)
     {
@@ -315,34 +327,34 @@ ao_ref_from_mem (ao_ref *ref, const_rtx mem)
       || !MEM_SIZE_KNOWN_P (mem))
     return true;
 
-  /* If the base decl is a parameter we can have negative MEM_OFFSET in
-     case of promoted subregs on bigendian targets.  Trust the MEM_EXPR
-     here.  */
-  if (MEM_OFFSET (mem) < 0
-      && (MEM_SIZE (mem) + MEM_OFFSET (mem)) * BITS_PER_UNIT == ref->size)
-    return true;
+  /* If MEM_OFFSET/MEM_SIZE get us outside of ref->offset/ref->max_size
+     drop ref->ref.  */
+  if (maybe_lt (MEM_OFFSET (mem), 0)
+      || (ref->max_size_known_p ()
+	  && maybe_gt ((MEM_OFFSET (mem) + MEM_SIZE (mem)) * BITS_PER_UNIT,
+		       ref->max_size)))
+    ref->ref = NULL_TREE;
 
-  /* Otherwise continue and refine size and offset we got from analyzing
-     MEM_EXPR by using MEM_SIZE and MEM_OFFSET.  */
+  /* Refine size and offset we got from analyzing MEM_EXPR by using
+     MEM_SIZE and MEM_OFFSET.  */
 
   ref->offset += MEM_OFFSET (mem) * BITS_PER_UNIT;
   ref->size = MEM_SIZE (mem) * BITS_PER_UNIT;
 
   /* The MEM may extend into adjacent fields, so adjust max_size if
      necessary.  */
-  if (ref->max_size != -1
-      && ref->size > ref->max_size)
-    ref->max_size = ref->size;
+  if (ref->max_size_known_p ())
+    ref->max_size = upper_bound (ref->max_size, ref->size);
 
-  /* If MEM_OFFSET and MEM_SIZE get us outside of the base object of
+  /* If MEM_OFFSET and MEM_SIZE might get us outside of the base object of
      the MEM_EXPR punt.  This happens for STRICT_ALIGNMENT targets a lot.  */
   if (MEM_EXPR (mem) != get_spill_slot_decl (false)
-      && (ref->offset < 0
+      && (maybe_lt (ref->offset, 0)
 	  || (DECL_P (ref->base)
 	      && (DECL_SIZE (ref->base) == NULL_TREE
-		  || TREE_CODE (DECL_SIZE (ref->base)) != INTEGER_CST
-		  || wi::ltu_p (wi::to_offset (DECL_SIZE (ref->base)),
-				ref->offset + ref->size)))))
+		  || !poly_int_tree_p (DECL_SIZE (ref->base))
+		  || maybe_lt (wi::to_poly_offset (DECL_SIZE (ref->base)),
+			       ref->offset + ref->size)))))
     return false;
 
   return true;
@@ -370,7 +382,7 @@ rtx_refs_may_alias_p (const_rtx x, const_rtx mem, bool tbaa_p)
 /* Returns a pointer to the alias set entry for ALIAS_SET, if there is
    such an entry, or NULL otherwise.  */
 
-static inline alias_set_entry
+static inline alias_set_entry *
 get_alias_set_entry (alias_set_type alias_set)
 {
   return (*alias_sets)[alias_set];
@@ -382,28 +394,9 @@ get_alias_set_entry (alias_set_type alias_set)
 static inline int
 mems_in_disjoint_alias_sets_p (const_rtx mem1, const_rtx mem2)
 {
-/* Perform a basic sanity check.  Namely, that there are no alias sets
-   if we're not using strict aliasing.  This helps to catch bugs
-   whereby someone uses PUT_CODE, but doesn't clear MEM_ALIAS_SET, or
-   where a MEM is allocated in some way other than by the use of
-   gen_rtx_MEM, and the MEM_ALIAS_SET is not cleared.  If we begin to
-   use alias sets to indicate that spilled registers cannot alias each
-   other, we might need to remove this check.  */
-  gcc_assert (flag_strict_aliasing
-	      || (!MEM_ALIAS_SET (mem1) && !MEM_ALIAS_SET (mem2)));
-
-  return ! alias_sets_conflict_p (MEM_ALIAS_SET (mem1), MEM_ALIAS_SET (mem2));
-}
-
-/* Insert the NODE into the splay tree given by DATA.  Used by
-   record_alias_subset via splay_tree_foreach.  */
-
-static int
-insert_subset_children (splay_tree_node node, void *data)
-{
-  splay_tree_insert ((splay_tree) data, node->key, node->value);
-
-  return 0;
+  return (flag_strict_aliasing
+	  && ! alias_sets_conflict_p (MEM_ALIAS_SET (mem1),
+				      MEM_ALIAS_SET (mem2)));
 }
 
 /* Return true if the first alias set is a subset of the second.  */
@@ -411,19 +404,62 @@ insert_subset_children (splay_tree_node node, void *data)
 bool
 alias_set_subset_of (alias_set_type set1, alias_set_type set2)
 {
-  alias_set_entry ase;
+  alias_set_entry *ase2;
+
+  /* Disable TBAA oracle with !flag_strict_aliasing.  */
+  if (!flag_strict_aliasing)
+    return true;
 
   /* Everything is a subset of the "aliases everything" set.  */
   if (set2 == 0)
     return true;
 
-  /* Otherwise, check if set1 is a subset of set2.  */
-  ase = get_alias_set_entry (set2);
-  if (ase != 0
-      && (ase->has_zero_child
-	  || splay_tree_lookup (ase->children,
-			        (splay_tree_key) set1)))
+  /* Check if set1 is a subset of set2.  */
+  ase2 = get_alias_set_entry (set2);
+  if (ase2 != 0
+      && (ase2->has_zero_child
+	  || (ase2->children && ase2->children->get (set1))))
     return true;
+
+  /* As a special case we consider alias set of "void *" to be both subset
+     and superset of every alias set of a pointer.  This extra symmetry does
+     not matter for alias_sets_conflict_p but it makes aliasing_component_refs_p
+     to return true on the following testcase:
+
+     void *ptr;
+     char **ptr2=(char **)&ptr;
+     *ptr2 = ...
+
+     Additionally if a set contains universal pointer, we consider every pointer
+     to be a subset of it, but we do not represent this explicitely - doing so
+     would require us to update transitive closure each time we introduce new
+     pointer type.  This makes aliasing_component_refs_p to return true
+     on the following testcase:
+
+     struct a {void *ptr;}
+     char **ptr = (char **)&a.ptr;
+     ptr = ...
+
+     This makes void * truly universal pointer type.  See pointer handling in
+     get_alias_set for more details.  */
+  if (ase2 && ase2->has_pointer)
+    {
+      alias_set_entry *ase1 = get_alias_set_entry (set1);
+
+      if (ase1 && ase1->is_pointer)
+	{
+          alias_set_type voidptr_set = TYPE_ALIAS_SET (ptr_type_node);
+	  /* If one is ptr_type_node and other is pointer, then we consider
+ 	     them subset of each other.  */
+	  if (set1 == voidptr_set || set2 == voidptr_set)
+	    return true;
+	  /* If SET2 contains universal pointer's alias set, then we consdier
+ 	     every (non-universal) pointer.  */
+	  if (ase2->children && set1 != voidptr_set
+	      && ase2->children->get (voidptr_set))
+	    return true;
+	}
+    }
   return false;
 }
 
@@ -432,27 +468,69 @@ alias_set_subset_of (alias_set_type set1, alias_set_type set2)
 int
 alias_sets_conflict_p (alias_set_type set1, alias_set_type set2)
 {
-  alias_set_entry ase;
+  alias_set_entry *ase1;
+  alias_set_entry *ase2;
 
   /* The easy case.  */
   if (alias_sets_must_conflict_p (set1, set2))
     return 1;
 
   /* See if the first alias set is a subset of the second.  */
-  ase = get_alias_set_entry (set1);
-  if (ase != 0
-      && (ase->has_zero_child
-	  || splay_tree_lookup (ase->children,
-				(splay_tree_key) set2)))
-    return 1;
+  ase1 = get_alias_set_entry (set1);
+  if (ase1 != 0
+      && ase1->children && ase1->children->get (set2))
+    {
+      ++alias_stats.num_dag;
+      return 1;
+    }
 
   /* Now do the same, but with the alias sets reversed.  */
-  ase = get_alias_set_entry (set2);
-  if (ase != 0
-      && (ase->has_zero_child
-	  || splay_tree_lookup (ase->children,
-				(splay_tree_key) set1)))
-    return 1;
+  ase2 = get_alias_set_entry (set2);
+  if (ase2 != 0
+      && ase2->children && ase2->children->get (set1))
+    {
+      ++alias_stats.num_dag;
+      return 1;
+    }
+
+  /* We want void * to be compatible with any other pointer without
+     really dropping it to alias set 0. Doing so would make it
+     compatible with all non-pointer types too.
+
+     This is not strictly necessary by the C/C++ language
+     standards, but avoids common type punning mistakes.  In
+     addition to that, we need the existence of such universal
+     pointer to implement Fortran's C_PTR type (which is defined as
+     type compatible with all C pointers).  */
+  if (ase1 && ase2 && ase1->has_pointer && ase2->has_pointer)
+    {
+      alias_set_type voidptr_set = TYPE_ALIAS_SET (ptr_type_node);
+
+      /* If one of the sets corresponds to universal pointer,
+ 	 we consider it to conflict with anything that is
+	 or contains pointer.  */
+      if (set1 == voidptr_set || set2 == voidptr_set)
+	{
+	  ++alias_stats.num_universal;
+	  return true;
+	}
+     /* If one of sets is (non-universal) pointer and the other
+ 	contains universal pointer, we also get conflict.  */
+     if (ase1->is_pointer && set2 != voidptr_set
+	 && ase2->children && ase2->children->get (voidptr_set))
+	{
+	  ++alias_stats.num_universal;
+	  return true;
+	}
+     if (ase2->is_pointer && set1 != voidptr_set
+	 && ase1->children && ase1->children->get (voidptr_set))
+	{
+	  ++alias_stats.num_universal;
+	  return true;
+	}
+    }
+
+  ++alias_stats.num_disambiguated;
 
   /* The two alias sets are distinct and neither one is the
      child of the other.  Therefore, they cannot conflict.  */
@@ -464,8 +542,19 @@ alias_sets_conflict_p (alias_set_type set1, alias_set_type set2)
 int
 alias_sets_must_conflict_p (alias_set_type set1, alias_set_type set2)
 {
-  if (set1 == 0 || set2 == 0 || set1 == set2)
+  /* Disable TBAA oracle with !flag_strict_aliasing.  */
+  if (!flag_strict_aliasing)
     return 1;
+  if (set1 == 0 || set2 == 0)
+    {
+      ++alias_stats.num_alias_zero;
+      return 1;
+    }
+  if (set1 == set2)
+    {
+      ++alias_stats.num_same_alias_set;
+      return 1;
+    }
 
   return 0;
 }
@@ -487,10 +576,17 @@ objects_must_conflict_p (tree t1, tree t2)
     return 0;
 
   /* If they are the same type, they must conflict.  */
-  if (t1 == t2
-      /* Likewise if both are volatile.  */
-      || (t1 != 0 && TYPE_VOLATILE (t1) && t2 != 0 && TYPE_VOLATILE (t2)))
-    return 1;
+  if (t1 == t2)
+    {
+      ++alias_stats.num_same_objects;
+      return 1;
+    }
+  /* Likewise if both are volatile.  */
+  if (t1 != 0 && TYPE_VOLATILE (t1) && t2 != 0 && TYPE_VOLATILE (t2))
+    {
+      ++alias_stats.num_volatile;
+      return 1;
+    }
 
   set1 = t1 ? get_alias_set (t1) : 0;
   set2 = t2 ? get_alias_set (t2) : 0;
@@ -505,8 +601,7 @@ objects_must_conflict_p (tree t1, tree t2)
 /* Return the outermost parent of component present in the chain of
    component references handled by get_inner_reference in T with the
    following property:
-     - the component is non-addressable, or
-     - the parent has alias set zero,
+     - the component is non-addressable
    or NULL_TREE if no such parent exists.  In the former cases, the alias
    set of this parent is the alias set that must be used for T itself.  */
 
@@ -521,6 +616,14 @@ component_uses_parent_alias_set_from (const_tree t)
 	{
 	case COMPONENT_REF:
 	  if (DECL_NONADDRESSABLE_P (TREE_OPERAND (t, 1)))
+	    found = t;
+	  /* Permit type-punning when accessing a union, provided the access
+	     is directly through the union.  For example, this code does not
+	     permit taking the address of a union member and then storing
+	     through it.  Even the type-punning allowed here is a GCC
+	     extension, albeit a common and useful one; the C standard says
+	     that such accesses have implementation-defined behavior.  */
+	  else if (TREE_CODE (TREE_TYPE (TREE_OPERAND (t, 0))) == UNION_TYPE)
 	    found = t;
 	  break;
 
@@ -543,9 +646,6 @@ component_uses_parent_alias_set_from (const_tree t)
 	default:
 	  gcc_unreachable ();
 	}
-
-      if (get_alias_set (TREE_TYPE (TREE_OPERAND (t, 0))) == 0)
-	found = t;
 
       t = TREE_OPERAND (t, 0);
     }
@@ -672,6 +772,10 @@ reference_alias_ptr_type_1 (tree *t)
 tree
 reference_alias_ptr_type (tree t)
 {
+  /* If the frontend assigns this alias-set zero, preserve that.  */
+  if (lang_hooks.get_alias_set (t) == 0)
+    return ptr_type_node;
+
   tree ptype = reference_alias_ptr_type_1 (&t);
   /* If there is a given pointer type for aliasing purposes, return it.  */
   if (ptype != NULL_TREE)
@@ -704,6 +808,22 @@ alias_ptr_types_compatible_p (tree t1, tree t2)
 	  == TYPE_MAIN_VARIANT (TREE_TYPE (t2)));
 }
 
+/* Create emptry alias set entry.  */
+
+alias_set_entry *
+init_alias_set_entry (alias_set_type set)
+{
+  alias_set_entry *ase = ggc_alloc<alias_set_entry> ();
+  ase->alias_set = set;
+  ase->children = NULL;
+  ase->has_zero_child = false;
+  ase->is_pointer = false;
+  ase->has_pointer = false;
+  gcc_checking_assert (!get_alias_set_entry (set));
+  (*alias_sets)[set] = ase;
+  return ase;
+}
+
 /* Return the alias set for T, which may be either a type or an
    expression.  Call language-specific routine for help, if needed.  */
 
@@ -712,10 +832,12 @@ get_alias_set (tree t)
 {
   alias_set_type set;
 
-  /* If we're not doing any alias analysis, just assume everything
-     aliases everything else.  Also return 0 if this or its type is
-     an error.  */
-  if (! flag_strict_aliasing || t == error_mark_node
+  /* We cannot give up with -fno-strict-aliasing because we need to build
+     proper type representation for possible functions which are build with
+     -fstrict-aliasing.  */
+
+  /* return 0 if this or its type is an error.  */
+  if (t == error_mark_node
       || (! TYPE_P (t)
 	  && (TREE_TYPE (t) == 0 || TREE_TYPE (t) == error_mark_node)))
     return 0;
@@ -743,7 +865,7 @@ get_alias_set (tree t)
       /* If we've already determined the alias set for a decl, just return
 	 it.  This is necessary for C++ anonymous unions, whose component
 	 variables don't look like union members (boo!).  */
-      if (TREE_CODE (t) == VAR_DECL
+      if (VAR_P (t)
 	  && DECL_RTL_SET_P (t) && MEM_P (DECL_RTL (t)))
 	return MEM_ALIAS_SET (DECL_RTL (t));
 
@@ -755,6 +877,10 @@ get_alias_set (tree t)
      variant.  */
   t = TYPE_MAIN_VARIANT (t);
 
+  if (AGGREGATE_TYPE_P (t)
+      && TYPE_TYPELESS_STORAGE (t))
+    return 0;
+
   /* Always use the canonical type as well.  If this is a type that
      requires structural comparisons to identify compatible types
      use alias set zero.  */
@@ -765,15 +891,26 @@ get_alias_set (tree t)
       set = lang_hooks.get_alias_set (t);
       if (set != -1)
 	return set;
-      return 0;
+      /* Handle structure type equality for pointer types, arrays and vectors.
+	 This is easy to do, because the code bellow ignore canonical types on
+	 these anyway.  This is important for LTO, where TYPE_CANONICAL for
+	 pointers cannot be meaningfuly computed by the frotnend.  */
+      if (canonical_type_used_p (t))
+	{
+	  /* In LTO we set canonical types for all types where it makes
+	     sense to do so.  Double check we did not miss some type.  */
+	  gcc_checking_assert (!in_lto_p || !type_with_alias_set_p (t));
+          return 0;
+	}
+    }
+  else
+    {
+      t = TYPE_CANONICAL (t);
+      gcc_checking_assert (!TYPE_STRUCTURAL_EQUALITY_P (t));
     }
 
-  t = TYPE_CANONICAL (t);
-
-  /* The canonical type should not require structural equality checks.  */
-  gcc_checking_assert (!TYPE_STRUCTURAL_EQUALITY_P (t));
-
   /* If this is a type with a known alias set, return it.  */
+  gcc_checking_assert (t == TYPE_MAIN_VARIANT (t));
   if (TYPE_ALIAS_SET_KNOWN_P (t))
     return TYPE_ALIAS_SET (t);
 
@@ -815,7 +952,9 @@ get_alias_set (tree t)
      integer(kind=4)[4] the same alias set or not.
      Just be pragmatic here and make sure the array and its element
      type get the same alias set assigned.  */
-  else if (TREE_CODE (t) == ARRAY_TYPE && !TYPE_NONALIASED_COMPONENT (t))
+  else if (TREE_CODE (t) == ARRAY_TYPE
+	   && (!TYPE_NONALIASED_COMPONENT (t)
+	       || TYPE_STRUCTURAL_EQUALITY_P (t)))
     set = get_alias_set (TREE_TYPE (t));
 
   /* From the former common C and C++ langhook implementation:
@@ -843,36 +982,101 @@ get_alias_set (tree t)
      the pointed-to types.  This issue has been reported to the
      C++ committee.
 
-     In addition to the above canonicalization issue, with LTO
-     we should also canonicalize `T (*)[]' to `T *' avoiding
-     alias issues with pointer-to element types and pointer-to
-     array types.
+     For this reason go to canonical type of the unqalified pointer type.
+     Until GCC 6 this code set all pointers sets to have alias set of
+     ptr_type_node but that is a bad idea, because it prevents disabiguations
+     in between pointers.  For Firefox this accounts about 20% of all
+     disambiguations in the program.  */
+  else if (POINTER_TYPE_P (t) && t != ptr_type_node)
+    {
+      tree p;
+      auto_vec <bool, 8> reference;
 
-     Likewise we need to deal with the situation of incomplete
-     pointed-to types and make `*(struct X **)&a' and
-     `*(struct X {} **)&a' alias.  Otherwise we will have to
-     guarantee that all pointer-to incomplete type variants
-     will be replaced by pointer-to complete type variants if
-     they are available.
+      /* Unnest all pointers and references.
+	 We also want to make pointer to array/vector equivalent to pointer to
+	 its element (see the reasoning above). Skip all those types, too.  */
+      for (p = t; POINTER_TYPE_P (p)
+	   || (TREE_CODE (p) == ARRAY_TYPE
+	       && (!TYPE_NONALIASED_COMPONENT (p)
+		   || !COMPLETE_TYPE_P (p)
+		   || TYPE_STRUCTURAL_EQUALITY_P (p)))
+	   || TREE_CODE (p) == VECTOR_TYPE;
+	   p = TREE_TYPE (p))
+	{
+	  /* Ada supports recusive pointers.  Instead of doing recrusion check
+	     just give up once the preallocated space of 8 elements is up.
+	     In this case just punt to void * alias set.  */
+	  if (reference.length () == 8)
+	    {
+	      p = ptr_type_node;
+	      break;
+	    }
+	  if (TREE_CODE (p) == REFERENCE_TYPE)
+	    /* In LTO we want languages that use references to be compatible
+ 	       with languages that use pointers.  */
+	    reference.safe_push (true && !in_lto_p);
+	  if (TREE_CODE (p) == POINTER_TYPE)
+	    reference.safe_push (false);
+	}
+      p = TYPE_MAIN_VARIANT (p);
 
-     With LTO the convenient situation of using `void *' to
-     access and store any pointer type will also become
-     more apparent (and `void *' is just another pointer-to
-     incomplete type).  Assigning alias-set zero to `void *'
-     and all pointer-to incomplete types is a not appealing
-     solution.  Assigning an effective alias-set zero only
-     affecting pointers might be - by recording proper subset
-     relationships of all pointer alias-sets.
+      /* Make void * compatible with char * and also void **.
+	 Programs are commonly violating TBAA by this.
 
-     Pointer-to function types are another grey area which
-     needs caution.  Globbing them all into one alias-set
-     or the above effective zero set would work.
+	 We also make void * to conflict with every pointer
+	 (see record_component_aliases) and thus it is safe it to use it for
+	 pointers to types with TYPE_STRUCTURAL_EQUALITY_P.  */
+      if (TREE_CODE (p) == VOID_TYPE || TYPE_STRUCTURAL_EQUALITY_P (p))
+	set = get_alias_set (ptr_type_node);
+      else
+	{
+	  /* Rebuild pointer type starting from canonical types using
+	     unqualified pointers and references only.  This way all such
+	     pointers will have the same alias set and will conflict with
+	     each other.
 
-     For now just assign the same alias-set to all pointers.
-     That's simple and avoids all the above problems.  */
-  else if (POINTER_TYPE_P (t)
-	   && t != ptr_type_node)
-    set = get_alias_set (ptr_type_node);
+	     Most of time we already have pointers or references of a given type.
+	     If not we build new one just to be sure that if someone later
+	     (probably only middle-end can, as we should assign all alias
+	     classes only after finishing translation unit) builds the pointer
+	     type, the canonical type will match.  */
+	  p = TYPE_CANONICAL (p);
+	  while (!reference.is_empty ())
+	    {
+	      if (reference.pop ())
+		p = build_reference_type (p);
+	      else
+		p = build_pointer_type (p);
+	      gcc_checking_assert (p == TYPE_MAIN_VARIANT (p));
+	      /* build_pointer_type should always return the canonical type.
+		 For LTO TYPE_CANOINCAL may be NULL, because we do not compute
+		 them.  Be sure that frontends do not glob canonical types of
+		 pointers in unexpected way and that p == TYPE_CANONICAL (p)
+		 in all other cases.  */
+	      gcc_checking_assert (!TYPE_CANONICAL (p)
+				   || p == TYPE_CANONICAL (p));
+	    }
+
+	  /* Assign the alias set to both p and t.
+	     We cannot call get_alias_set (p) here as that would trigger
+	     infinite recursion when p == t.  In other cases it would just
+	     trigger unnecesary legwork of rebuilding the pointer again.  */
+	  gcc_checking_assert (p == TYPE_MAIN_VARIANT (p));
+	  if (TYPE_ALIAS_SET_KNOWN_P (p))
+	    set = TYPE_ALIAS_SET (p);
+	  else
+	    {
+	      set = new_alias_set ();
+	      TYPE_ALIAS_SET (p) = set;
+	    }
+	}
+    }
+  /* Alias set of ptr_type_node is special and serve as universal pointer which
+     is TBAA compatible with every other pointer type.  Be sure we have the
+     alias set built even for LTO which otherwise keeps all TYPE_CANONICAL
+     of pointer types NULL.  */
+  else if (t == ptr_type_node)
+    set = new_alias_set ();
 
   /* Otherwise make a new alias set for this type.  */
   else
@@ -893,6 +1097,16 @@ get_alias_set (tree t)
   if (AGGREGATE_TYPE_P (t) || TREE_CODE (t) == COMPLEX_TYPE)
     record_component_aliases (t);
 
+  /* We treat pointer types specially in alias_set_subset_of.  */
+  if (POINTER_TYPE_P (t) && set)
+    {
+      alias_set_entry *ase = get_alias_set_entry (set);
+      if (!ase)
+	ase = init_alias_set_entry (set);
+      ase->is_pointer = true;
+      ase->has_pointer = true;
+    }
+
   return set;
 }
 
@@ -901,15 +1115,10 @@ get_alias_set (tree t)
 alias_set_type
 new_alias_set (void)
 {
-  if (flag_strict_aliasing)
-    {
-      if (alias_sets == 0)
-	vec_safe_push (alias_sets, (alias_set_entry) 0);
-      vec_safe_push (alias_sets, (alias_set_entry) 0);
-      return alias_sets->length () - 1;
-    }
-  else
-    return 0;
+  if (alias_sets == 0)
+    vec_safe_push (alias_sets, (alias_set_entry *) NULL);
+  vec_safe_push (alias_sets, (alias_set_entry *) NULL);
+  return alias_sets->length () - 1;
 }
 
 /* Indicate that things in SUBSET can alias things in SUPERSET, but that
@@ -928,8 +1137,8 @@ new_alias_set (void)
 void
 record_alias_subset (alias_set_type superset, alias_set_type subset)
 {
-  alias_set_entry superset_entry;
-  alias_set_entry subset_entry;
+  alias_set_entry *superset_entry;
+  alias_set_entry *subset_entry;
 
   /* It is possible in complex type situations for both sets to be the same,
      in which case we can ignore this operation.  */
@@ -943,14 +1152,7 @@ record_alias_subset (alias_set_type superset, alias_set_type subset)
     {
       /* Create an entry for the SUPERSET, so that we have a place to
 	 attach the SUBSET.  */
-      superset_entry = ggc_cleared_alloc<alias_set_entry_d> ();
-      superset_entry->alias_set = superset;
-      superset_entry->children
-	= splay_tree_new_ggc (splay_tree_compare_ints,
-			      ggc_alloc_splay_tree_scalar_scalar_splay_tree_s,
-			      ggc_alloc_splay_tree_scalar_scalar_splay_tree_node_s);
-      superset_entry->has_zero_child = 0;
-      (*alias_sets)[superset] = superset_entry;
+      superset_entry = init_alias_set_entry (superset);
     }
 
   if (subset == 0)
@@ -958,20 +1160,29 @@ record_alias_subset (alias_set_type superset, alias_set_type subset)
   else
     {
       subset_entry = get_alias_set_entry (subset);
+      if (!superset_entry->children)
+	superset_entry->children
+	  = hash_map<alias_set_hash, int>::create_ggc (64);
       /* If there is an entry for the subset, enter all of its children
 	 (if they are not already present) as children of the SUPERSET.  */
       if (subset_entry)
 	{
 	  if (subset_entry->has_zero_child)
-	    superset_entry->has_zero_child = 1;
+	    superset_entry->has_zero_child = true;
+          if (subset_entry->has_pointer)
+	    superset_entry->has_pointer = true;
 
-	  splay_tree_foreach (subset_entry->children, insert_subset_children,
-			      superset_entry->children);
+	  if (subset_entry->children)
+	    {
+	      hash_map<alias_set_hash, int>::iterator iter
+		= subset_entry->children->begin ();
+	      for (; iter != subset_entry->children->end (); ++iter)
+		superset_entry->children->put ((*iter).first, (*iter).second);
+	    }
 	}
 
       /* Enter the SUBSET itself as a child of the SUPERSET.  */
-      splay_tree_insert (superset_entry->children,
-			 (splay_tree_key) subset, 0);
+      superset_entry->children->put (subset, 0);
     }
 }
 
@@ -996,7 +1207,45 @@ record_component_aliases (tree type)
     case QUAL_UNION_TYPE:
       for (field = TYPE_FIELDS (type); field != 0; field = DECL_CHAIN (field))
 	if (TREE_CODE (field) == FIELD_DECL && !DECL_NONADDRESSABLE_P (field))
-	  record_alias_subset (superset, get_alias_set (TREE_TYPE (field)));
+	  {
+	    /* LTO type merging does not make any difference between 
+	       component pointer types.  We may have
+
+	       struct foo {int *a;};
+
+	       as TYPE_CANONICAL of 
+
+	       struct bar {float *a;};
+
+	       Because accesses to int * and float * do not alias, we would get
+	       false negative when accessing the same memory location by
+	       float ** and bar *. We thus record the canonical type as:
+
+	       struct {void *a;};
+
+	       void * is special cased and works as a universal pointer type.
+	       Accesses to it conflicts with accesses to any other pointer
+	       type.  */
+	    tree t = TREE_TYPE (field);
+	    if (in_lto_p)
+	      {
+		/* VECTOR_TYPE and ARRAY_TYPE share the alias set with their
+		   element type and that type has to be normalized to void *,
+		   too, in the case it is a pointer. */
+		while (!canonical_type_used_p (t) && !POINTER_TYPE_P (t))
+		  {
+		    gcc_checking_assert (TYPE_STRUCTURAL_EQUALITY_P (t));
+		    t = TREE_TYPE (t);
+		  }
+		if (POINTER_TYPE_P (t))
+		  t = ptr_type_node;
+		else if (flag_checking)
+		  gcc_checking_assert (get_alias_set (t)
+				       == get_alias_set (TREE_TYPE (field)));
+	      }
+
+	    record_alias_subset (superset, get_alias_set (t));
+	  }
       break;
 
     case COMPLEX_TYPE:
@@ -1090,6 +1339,7 @@ static rtx
 find_base_value (rtx src)
 {
   unsigned int regno;
+  scalar_int_mode int_mode;
 
 #if defined (FIND_BASE_TERM)
   /* Try machine-dependent ways to find the base term.  */
@@ -1148,7 +1398,7 @@ find_base_value (rtx src)
       if (GET_CODE (src) != PLUS && GET_CODE (src) != MINUS)
 	break;
 
-      /* ... fall through ...  */
+      /* fall through */
 
     case PLUS:
     case MINUS:
@@ -1216,7 +1466,8 @@ find_base_value (rtx src)
 	 address modes depending on the address space.  */
       if (!target_default_pointer_address_modes_p ())
 	break;
-      if (GET_MODE_SIZE (GET_MODE (src)) < GET_MODE_SIZE (Pmode))
+      if (!is_a <scalar_int_mode> (GET_MODE (src), &int_mode)
+	  || GET_MODE_PRECISION (int_mode) < GET_MODE_PRECISION (Pmode))
 	break;
       /* Fall through.  */
     case HIGH:
@@ -1274,12 +1525,7 @@ record_set (rtx dest, const_rtx set, void *data ATTRIBUTE_UNUSED)
 
   gcc_checking_assert (regno < reg_base_value->length ());
 
-  /* If this spans multiple hard registers, then we must indicate that every
-     register has an unusable value.  */
-  if (regno < FIRST_PSEUDO_REGISTER)
-    n = hard_regno_nregs[regno][GET_MODE (dest)];
-  else
-    n = 1;
+  n = REG_NREGS (dest);
   if (n != 1)
     {
       while (--n >= 0)
@@ -1300,6 +1546,17 @@ record_set (rtx dest, const_rtx set, void *data ATTRIBUTE_UNUSED)
 	  new_reg_base_value[regno] = 0;
 	  return;
 	}
+      /* A CLOBBER_HIGH only wipes out the old value if the mode of the old
+	 value is greater than that of the clobber.  */
+      else if (GET_CODE (set) == CLOBBER_HIGH)
+	{
+	  if (new_reg_base_value[regno] != 0
+	      && reg_is_clobbered_by_clobber_high (
+		   regno, GET_MODE (new_reg_base_value[regno]), XEXP (set, 0)))
+	    new_reg_base_value[regno] = 0;
+	  return;
+	}
+
       src = SET_SRC (set);
     }
   else
@@ -1462,13 +1719,7 @@ canon_rtx (rtx x)
       rtx x1 = canon_rtx (XEXP (x, 1));
 
       if (x0 != XEXP (x, 0) || x1 != XEXP (x, 1))
-	{
-	  if (CONST_INT_P (x0))
-	    return plus_constant (GET_MODE (x), x1, INTVAL (x0));
-	  else if (CONST_INT_P (x1))
-	    return plus_constant (GET_MODE (x), x0, INTVAL (x1));
-	  return gen_rtx_PLUS (GET_MODE (x), x0, x1);
-	}
+	return simplify_gen_binary (PLUS, GET_MODE (x), x0, x1);
     }
 
   /* This gives us much better alias analysis when called from
@@ -1521,10 +1772,10 @@ rtx_equal_for_memref_p (const_rtx x, const_rtx y)
       return REGNO (x) == REGNO (y);
 
     case LABEL_REF:
-      return LABEL_REF_LABEL (x) == LABEL_REF_LABEL (y);
+      return label_ref_label (x) == label_ref_label (y);
 
     case SYMBOL_REF:
-      return XSTR (x, 0) == XSTR (y, 0);
+      return compare_base_symbol_refs (x, y) == 1;
 
     case ENTRY_VALUE:
       /* This is magic, don't go through canonicalization et al.  */
@@ -1584,6 +1835,11 @@ rtx_equal_for_memref_p (const_rtx x, const_rtx y)
 	    return 0;
 	  break;
 
+	case 'p':
+	  if (maybe_ne (SUBREG_BYTE (x), SUBREG_BYTE (y)))
+	    return 0;
+	  break;
+
 	case 'E':
 	  /* Two vectors must have the same length.  */
 	  if (XVECLEN (x, i) != XVECLEN (y, i))
@@ -1623,11 +1879,13 @@ rtx_equal_for_memref_p (const_rtx x, const_rtx y)
 }
 
 static rtx
-find_base_term (rtx x)
+find_base_term (rtx x, vec<std::pair<cselib_val *,
+				     struct elt_loc_list *> > &visited_vals)
 {
   cselib_val *val;
   struct elt_loc_list *l, *f;
   rtx ret;
+  scalar_int_mode int_mode;
 
 #if defined (FIND_BASE_TERM)
   /* Try machine-dependent ways to find the base term.  */
@@ -1645,7 +1903,8 @@ find_base_term (rtx x)
 	 address modes depending on the address space.  */
       if (!target_default_pointer_address_modes_p ())
 	return 0;
-      if (GET_MODE_SIZE (GET_MODE (x)) < GET_MODE_SIZE (Pmode))
+      if (!is_a <scalar_int_mode> (GET_MODE (x), &int_mode)
+	  || GET_MODE_PRECISION (int_mode) < GET_MODE_PRECISION (Pmode))
 	return 0;
       /* Fall through.  */
     case HIGH:
@@ -1655,7 +1914,7 @@ find_base_term (rtx x)
     case POST_DEC:
     case PRE_MODIFY:
     case POST_MODIFY:
-      return find_base_term (XEXP (x, 0));
+      return find_base_term (XEXP (x, 0), visited_vals);
 
     case ZERO_EXTEND:
     case SIGN_EXTEND:	/* Used for Alpha/NT pointers */
@@ -1666,7 +1925,7 @@ find_base_term (rtx x)
 	return 0;
 
       {
-	rtx temp = find_base_term (XEXP (x, 0));
+	rtx temp = find_base_term (XEXP (x, 0), visited_vals);
 
 	if (temp != 0 && CONSTANT_P (temp))
 	  temp = convert_memory_address (Pmode, temp);
@@ -1685,7 +1944,9 @@ find_base_term (rtx x)
 	return static_reg_base_value[STACK_POINTER_REGNUM];
 
       f = val->locs;
-      /* Temporarily reset val->locs to avoid infinite recursion.  */
+      /* Reset val->locs to avoid infinite recursion.  */
+      if (f)
+	visited_vals.safe_push (std::make_pair (val, f));
       val->locs = NULL;
 
       for (l = f; l; l = l->next)
@@ -1694,16 +1955,15 @@ find_base_term (rtx x)
 	    && !CSELIB_VAL_PTR (l->loc)->locs->next
 	    && CSELIB_VAL_PTR (l->loc)->locs->loc == x)
 	  continue;
-	else if ((ret = find_base_term (l->loc)) != 0)
+	else if ((ret = find_base_term (l->loc, visited_vals)) != 0)
 	  break;
 
-      val->locs = f;
       return ret;
 
     case LO_SUM:
       /* The standard form is (lo_sum reg sym) so look only at the
          second operand.  */
-      return find_base_term (XEXP (x, 1));
+      return find_base_term (XEXP (x, 1), visited_vals);
 
     case CONST:
       x = XEXP (x, 0);
@@ -1729,29 +1989,29 @@ find_base_term (rtx x)
 	   other operand is the base register.  */
 
 	if (tmp1 == pic_offset_table_rtx && CONSTANT_P (tmp2))
-	  return find_base_term (tmp2);
+	  return find_base_term (tmp2, visited_vals);
 
 	/* If either operand is known to be a pointer, then prefer it
 	   to determine the base term.  */
 	if (REG_P (tmp1) && REG_POINTER (tmp1))
 	  ;
 	else if (REG_P (tmp2) && REG_POINTER (tmp2))
-	  {
-	    rtx tem = tmp1;
-	    tmp1 = tmp2;
-	    tmp2 = tem;
-	  }
+	  std::swap (tmp1, tmp2);
+	/* If second argument is constant which has base term, prefer it
+	   over variable tmp1.  See PR64025.  */
+	else if (CONSTANT_P (tmp2) && !CONST_INT_P (tmp2))
+	  std::swap (tmp1, tmp2);
 
 	/* Go ahead and find the base term for both operands.  If either base
 	   term is from a pointer or is a named object or a special address
 	   (like an argument or stack reference), then use it for the
 	   base term.  */
-	rtx base = find_base_term (tmp1);
+	rtx base = find_base_term (tmp1, visited_vals);
 	if (base != NULL_RTX
 	    && ((REG_P (tmp1) && REG_POINTER (tmp1))
 		 || known_base_value_p (base)))
 	  return base;
-	base = find_base_term (tmp2);
+	base = find_base_term (tmp2, visited_vals);
 	if (base != NULL_RTX
 	    && ((REG_P (tmp2) && REG_POINTER (tmp2))
 		 || known_base_value_p (base)))
@@ -1765,7 +2025,7 @@ find_base_term (rtx x)
 
     case AND:
       if (CONST_INT_P (XEXP (x, 1)) && INTVAL (XEXP (x, 1)) != 0)
-	return find_base_term (XEXP (x, 0));
+	return find_base_term (XEXP (x, 0), visited_vals);
       return 0;
 
     case SYMBOL_REF:
@@ -1775,6 +2035,19 @@ find_base_term (rtx x)
     default:
       return 0;
     }
+}
+
+/* Wrapper around the worker above which removes locs from visited VALUEs
+   to avoid visiting them multiple times.  We unwind that changes here.  */
+
+static rtx
+find_base_term (rtx x)
+{
+  auto_vec<std::pair<cselib_val *, struct elt_loc_list *>, 32> visited_vals;
+  rtx res = find_base_term (x, visited_vals);
+  for (unsigned i = 0; i < visited_vals.length (); ++i)
+    visited_vals[i].first->locs = visited_vals[i].second;
+  return res;
 }
 
 /* Return true if accesses to address X may alias accesses based
@@ -1787,12 +2060,116 @@ may_be_sp_based_p (rtx x)
   return !base || base == static_reg_base_value[STACK_POINTER_REGNUM];
 }
 
+/* BASE1 and BASE2 are decls.  Return 1 if they refer to same object, 0
+   if they refer to different objects and -1 if we cannot decide.  */
+
+int
+compare_base_decls (tree base1, tree base2)
+{
+  int ret;
+  gcc_checking_assert (DECL_P (base1) && DECL_P (base2));
+  if (base1 == base2)
+    return 1;
+
+  /* If we have two register decls with register specification we
+     cannot decide unless their assembler names are the same.  */
+  if (DECL_REGISTER (base1)
+      && DECL_REGISTER (base2)
+      && HAS_DECL_ASSEMBLER_NAME_P (base1)
+      && HAS_DECL_ASSEMBLER_NAME_P (base2)
+      && DECL_ASSEMBLER_NAME_SET_P (base1)
+      && DECL_ASSEMBLER_NAME_SET_P (base2))
+    {
+      if (DECL_ASSEMBLER_NAME_RAW (base1) == DECL_ASSEMBLER_NAME_RAW (base2))
+	return 1;
+      return -1;
+    }
+
+  /* Declarations of non-automatic variables may have aliases.  All other
+     decls are unique.  */
+  if (!decl_in_symtab_p (base1)
+      || !decl_in_symtab_p (base2))
+    return 0;
+
+  /* Don't cause symbols to be inserted by the act of checking.  */
+  symtab_node *node1 = symtab_node::get (base1);
+  if (!node1)
+    return 0;
+  symtab_node *node2 = symtab_node::get (base2);
+  if (!node2)
+    return 0;
+  
+  ret = node1->equal_address_to (node2, true);
+  return ret;
+}
+
+/* Same as compare_base_decls but for SYMBOL_REF.  */
+
+static int
+compare_base_symbol_refs (const_rtx x_base, const_rtx y_base)
+{
+  tree x_decl = SYMBOL_REF_DECL (x_base);
+  tree y_decl = SYMBOL_REF_DECL (y_base);
+  bool binds_def = true;
+
+  if (XSTR (x_base, 0) == XSTR (y_base, 0))
+    return 1;
+  if (x_decl && y_decl)
+    return compare_base_decls (x_decl, y_decl);
+  if (x_decl || y_decl)
+    {
+      if (!x_decl)
+	{
+	  std::swap (x_decl, y_decl);
+	  std::swap (x_base, y_base);
+	}
+      /* We handle specially only section anchors and assume that other
+ 	 labels may overlap with user variables in an arbitrary way.  */
+      if (!SYMBOL_REF_HAS_BLOCK_INFO_P (y_base))
+        return -1;
+      /* Anchors contains static VAR_DECLs and CONST_DECLs.  We are safe
+	 to ignore CONST_DECLs because they are readonly.  */
+      if (!VAR_P (x_decl)
+	  || (!TREE_STATIC (x_decl) && !TREE_PUBLIC (x_decl)))
+	return 0;
+
+      symtab_node *x_node = symtab_node::get_create (x_decl)
+			    ->ultimate_alias_target ();
+      /* External variable cannot be in section anchor.  */
+      if (!x_node->definition)
+	return 0;
+      x_base = XEXP (DECL_RTL (x_node->decl), 0);
+      /* If not in anchor, we can disambiguate.  */
+      if (!SYMBOL_REF_HAS_BLOCK_INFO_P (x_base))
+	return 0;
+
+      /* We have an alias of anchored variable.  If it can be interposed;
+ 	 we must assume it may or may not alias its anchor.  */
+      binds_def = decl_binds_to_current_def_p (x_decl);
+    }
+  /* If we have variable in section anchor, we can compare by offset.  */
+  if (SYMBOL_REF_HAS_BLOCK_INFO_P (x_base)
+      && SYMBOL_REF_HAS_BLOCK_INFO_P (y_base))
+    {
+      if (SYMBOL_REF_BLOCK (x_base) != SYMBOL_REF_BLOCK (y_base))
+	return 0;
+      if (SYMBOL_REF_BLOCK_OFFSET (x_base) == SYMBOL_REF_BLOCK_OFFSET (y_base))
+	return binds_def ? 1 : -1;
+      if (SYMBOL_REF_ANCHOR_P (x_base) != SYMBOL_REF_ANCHOR_P (y_base))
+	return -1;
+      return 0;
+    }
+  /* In general we assume that memory locations pointed to by different labels
+     may overlap in undefined ways.  */
+  return -1;
+}
+
 /* Return 0 if the addresses X and Y are known to point to different
    objects, 1 if they might be pointers to the same object.  */
 
 static int
 base_alias_check (rtx x, rtx x_base, rtx y, rtx y_base,
-		  enum machine_mode x_mode, enum machine_mode y_mode)
+		  machine_mode x_mode, machine_mode y_mode)
 {
   /* If the address itself has no known base see if a known equivalent
      value has one.  If either address still has no known base, nothing
@@ -1827,7 +2204,7 @@ base_alias_check (rtx x, rtx x_base, rtx y, rtx y_base,
   /* The base addresses are different expressions.  If they are not accessed
      via AND, there is no conflict.  We can bring knowledge of object
      alignment into play here.  For example, on alpha, "char a, b;" can
-     alias one another, though "char a; long b;" cannot.  AND addesses may
+     alias one another, though "char a; long b;" cannot.  AND addresses may
      implicitly alias surrounding objects; i.e. unaligned access in DImode
      via AND address can alias all surrounding object types except those
      with aligment 8 or higher.  */
@@ -1843,6 +2220,9 @@ base_alias_check (rtx x, rtx x_base, rtx y, rtx y_base,
     return 1;
 
   /* Differing symbols not accessed via AND never alias.  */
+  if (GET_CODE (x_base) == SYMBOL_REF && GET_CODE (y_base) == SYMBOL_REF)
+    return compare_base_symbol_refs (x_base, y_base) != 0;
+
   if (GET_CODE (x_base) != ADDRESS && GET_CODE (y_base) != ADDRESS)
     return 0;
 
@@ -1853,7 +2233,7 @@ base_alias_check (rtx x, rtx x_base, rtx y, rtx y_base,
 }
 
 /* Return TRUE if EXPR refers to a VALUE whose uid is greater than
-   that of V.  */
+   (or equal to) that of V.  */
 
 static bool
 refs_newer_value_p (const_rtx expr, rtx v)
@@ -1861,14 +2241,14 @@ refs_newer_value_p (const_rtx expr, rtx v)
   int minuid = CSELIB_VAL_PTR (v)->uid;
   subrtx_iterator::array_type array;
   FOR_EACH_SUBRTX (iter, array, expr, NONCONST)
-    if (GET_CODE (*iter) == VALUE && CSELIB_VAL_PTR (*iter)->uid > minuid)
+    if (GET_CODE (*iter) == VALUE && CSELIB_VAL_PTR (*iter)->uid >= minuid)
       return true;
   return false;
 }
 
 /* Convert the address X into something we can use.  This is done by returning
-   it unchanged unless it is a value; in the latter case we call cselib to get
-   a more useful rtx.  */
+   it unchanged unless it is a VALUE or VALUE +/- constant; for VALUE
+   we call cselib to get a more useful rtx.  */
 
 rtx
 get_addr (rtx x)
@@ -1877,7 +2257,24 @@ get_addr (rtx x)
   struct elt_loc_list *l;
 
   if (GET_CODE (x) != VALUE)
-    return x;
+    {
+      if ((GET_CODE (x) == PLUS || GET_CODE (x) == MINUS)
+	  && GET_CODE (XEXP (x, 0)) == VALUE
+	  && CONST_SCALAR_INT_P (XEXP (x, 1)))
+	{
+	  rtx op0 = get_addr (XEXP (x, 0));
+	  if (op0 != XEXP (x, 0))
+	    {
+	      poly_int64 c;
+	      if (GET_CODE (x) == PLUS
+		  && poly_int_rtx_p (XEXP (x, 1), &c))
+		return plus_constant (GET_MODE (x), op0, c);
+	      return simplify_gen_binary (GET_CODE (x), GET_MODE (x),
+					  op0, XEXP (x, 1));
+	    }
+	}
+      return x;
+    }
   v = CSELIB_VAL_PTR (x);
   if (v)
     {
@@ -1918,9 +2315,9 @@ get_addr (rtx x)
     is not modified by the memory reference then ADDR is returned.  */
 
 static rtx
-addr_side_effect_eval (rtx addr, int size, int n_refs)
+addr_side_effect_eval (rtx addr, poly_int64 size, int n_refs)
 {
-  int offset = 0;
+  poly_int64 offset = 0;
 
   switch (GET_CODE (addr))
     {
@@ -1941,11 +2338,7 @@ addr_side_effect_eval (rtx addr, int size, int n_refs)
       return addr;
     }
 
-  if (offset)
-    addr = gen_rtx_PLUS (GET_MODE (addr), XEXP (addr, 0),
-			 gen_int_mode (offset, GET_MODE (addr)));
-  else
-    addr = XEXP (addr, 0);
+  addr = plus_constant (GET_MODE (addr), XEXP (addr, 0), offset);
   addr = canon_rtx (addr);
 
   return addr;
@@ -1957,12 +2350,15 @@ addr_side_effect_eval (rtx addr, int size, int n_refs)
    absolute value of the sizes as the actual sizes.  */
 
 static inline bool
-offset_overlap_p (HOST_WIDE_INT c, int xsize, int ysize)
+offset_overlap_p (poly_int64 c, poly_int64 xsize, poly_int64 ysize)
 {
-  return (xsize == 0 || ysize == 0
-	  || (c >= 0
-	      ? (abs (xsize) > c)
-	      : (abs (ysize) > -c)));
+  if (known_eq (xsize, 0) || known_eq (ysize, 0))
+    return true;
+
+  if (maybe_ge (c, 0))
+    return maybe_gt (maybe_lt (xsize, 0) ? -xsize : xsize, c);
+  else
+    return maybe_gt (maybe_lt (ysize, 0) ? -ysize : ysize, -c);
 }
 
 /* Return one if X and Y (memory addresses) reference the
@@ -1992,7 +2388,8 @@ offset_overlap_p (HOST_WIDE_INT c, int xsize, int ysize)
    If that is fixed the TBAA hack for union type-punning can be removed.  */
 
 static int
-memrefs_conflict_p (int xsize, rtx x, int ysize, rtx y, HOST_WIDE_INT c)
+memrefs_conflict_p (poly_int64 xsize, rtx x, poly_int64 ysize, rtx y,
+		    poly_int64 c)
 {
   if (GET_CODE (x) == VALUE)
     {
@@ -2037,15 +2434,35 @@ memrefs_conflict_p (int xsize, rtx x, int ysize, rtx y, HOST_WIDE_INT c)
   else if (GET_CODE (x) == LO_SUM)
     x = XEXP (x, 1);
   else
-    x = addr_side_effect_eval (x, abs (xsize), 0);
+    x = addr_side_effect_eval (x, maybe_lt (xsize, 0) ? -xsize : xsize, 0);
   if (GET_CODE (y) == HIGH)
     y = XEXP (y, 0);
   else if (GET_CODE (y) == LO_SUM)
     y = XEXP (y, 1);
   else
-    y = addr_side_effect_eval (y, abs (ysize), 0);
+    y = addr_side_effect_eval (y, maybe_lt (ysize, 0) ? -ysize : ysize, 0);
 
-  if (rtx_equal_for_memref_p (x, y))
+  if (GET_CODE (x) == SYMBOL_REF && GET_CODE (y) == SYMBOL_REF)
+    {
+      int cmp = compare_base_symbol_refs (x,y);
+
+      /* If both decls are the same, decide by offsets.  */
+      if (cmp == 1)
+        return offset_overlap_p (c, xsize, ysize);
+      /* Assume a potential overlap for symbolic addresses that went
+	 through alignment adjustments (i.e., that have negative
+	 sizes), because we can't know how far they are from each
+	 other.  */
+      if (maybe_lt (xsize, 0) || maybe_lt (ysize, 0))
+	return -1;
+      /* If decls are different or we know by offsets that there is no overlap,
+	 we win.  */
+      if (!cmp || !offset_overlap_p (c, xsize, ysize))
+	return 0;
+      /* Decls may or may not be different and offsets overlap....*/
+      return -1;
+    }
+  else if (rtx_equal_for_memref_p (x, y))
     {
       return offset_overlap_p (c, xsize, ysize);
     }
@@ -2060,6 +2477,14 @@ memrefs_conflict_p (int xsize, rtx x, int ysize, rtx y, HOST_WIDE_INT c)
       rtx x0 = XEXP (x, 0);
       rtx x1 = XEXP (x, 1);
 
+      /* However, VALUEs might end up in different positions even in
+	 canonical PLUSes.  Comparing their addresses is enough.  */
+      if (x0 == y)
+	return memrefs_conflict_p (xsize, x1, ysize, const0_rtx, c);
+      else if (x1 == y)
+	return memrefs_conflict_p (xsize, x0, ysize, const0_rtx, c);
+
+      poly_int64 cx1, cy1;
       if (GET_CODE (y) == PLUS)
 	{
 	  /* The fact that Y is canonicalized means that this
@@ -2067,26 +2492,30 @@ memrefs_conflict_p (int xsize, rtx x, int ysize, rtx y, HOST_WIDE_INT c)
 	  rtx y0 = XEXP (y, 0);
 	  rtx y1 = XEXP (y, 1);
 
+	  if (x0 == y1)
+	    return memrefs_conflict_p (xsize, x1, ysize, y0, c);
+	  if (x1 == y0)
+	    return memrefs_conflict_p (xsize, x0, ysize, y1, c);
+
 	  if (rtx_equal_for_memref_p (x1, y1))
 	    return memrefs_conflict_p (xsize, x0, ysize, y0, c);
 	  if (rtx_equal_for_memref_p (x0, y0))
 	    return memrefs_conflict_p (xsize, x1, ysize, y1, c);
-	  if (CONST_INT_P (x1))
+	  if (poly_int_rtx_p (x1, &cx1))
 	    {
-	      if (CONST_INT_P (y1))
+	      if (poly_int_rtx_p (y1, &cy1))
 		return memrefs_conflict_p (xsize, x0, ysize, y0,
-					   c - INTVAL (x1) + INTVAL (y1));
+					   c - cx1 + cy1);
 	      else
-		return memrefs_conflict_p (xsize, x0, ysize, y,
-					   c - INTVAL (x1));
+		return memrefs_conflict_p (xsize, x0, ysize, y, c - cx1);
 	    }
-	  else if (CONST_INT_P (y1))
-	    return memrefs_conflict_p (xsize, x, ysize, y0, c + INTVAL (y1));
+	  else if (poly_int_rtx_p (y1, &cy1))
+	    return memrefs_conflict_p (xsize, x, ysize, y0, c + cy1);
 
 	  return -1;
 	}
-      else if (CONST_INT_P (x1))
-	return memrefs_conflict_p (xsize, x0, ysize, y, c - INTVAL (x1));
+      else if (poly_int_rtx_p (x1, &cx1))
+	return memrefs_conflict_p (xsize, x0, ysize, y, c - cx1);
     }
   else if (GET_CODE (y) == PLUS)
     {
@@ -2095,8 +2524,14 @@ memrefs_conflict_p (int xsize, rtx x, int ysize, rtx y, HOST_WIDE_INT c)
       rtx y0 = XEXP (y, 0);
       rtx y1 = XEXP (y, 1);
 
-      if (CONST_INT_P (y1))
-	return memrefs_conflict_p (xsize, x, ysize, y0, c + INTVAL (y1));
+      if (x == y0)
+	return memrefs_conflict_p (xsize, const0_rtx, ysize, y1, c);
+      if (x == y1)
+	return memrefs_conflict_p (xsize, const0_rtx, ysize, y0, c);
+
+      poly_int64 cy1;
+      if (poly_int_rtx_p (y1, &cy1))
+	return memrefs_conflict_p (xsize, x, ysize, y0, c + cy1);
       else
 	return -1;
     }
@@ -2120,11 +2555,12 @@ memrefs_conflict_p (int xsize, rtx x, int ysize, rtx y, HOST_WIDE_INT c)
 	    return offset_overlap_p (c, xsize, ysize);
 
 	  /* Can't properly adjust our sizes.  */
-	  if (!CONST_INT_P (x1))
+	  poly_int64 c1;
+	  if (!poly_int_rtx_p (x1, &c1)
+	      || !can_div_trunc_p (xsize, c1, &xsize)
+	      || !can_div_trunc_p (ysize, c1, &ysize)
+	      || !can_div_trunc_p (c, c1, &c))
 	    return -1;
-	  xsize /= INTVAL (x1);
-	  ysize /= INTVAL (x1);
-	  c /= INTVAL (x1);
 	  return memrefs_conflict_p (xsize, x0, ysize, y0, c);
 	}
 
@@ -2143,11 +2579,11 @@ memrefs_conflict_p (int xsize, rtx x, int ysize, rtx y, HOST_WIDE_INT c)
     {
       HOST_WIDE_INT sc = INTVAL (XEXP (x, 1));
       unsigned HOST_WIDE_INT uc = sc;
-      if (sc < 0 && -uc == (uc & -uc))
+      if (sc < 0 && pow2_or_zerop (-uc))
 	{
-	  if (xsize > 0)
+	  if (maybe_gt (xsize, 0))
 	    xsize = -xsize;
-	  if (xsize)
+	  if (maybe_ne (xsize, 0))
 	    xsize += sc + 1;
 	  c -= sc + 1;
 	  return memrefs_conflict_p (xsize, canon_rtx (XEXP (x, 0)),
@@ -2158,11 +2594,11 @@ memrefs_conflict_p (int xsize, rtx x, int ysize, rtx y, HOST_WIDE_INT c)
     {
       HOST_WIDE_INT sc = INTVAL (XEXP (y, 1));
       unsigned HOST_WIDE_INT uc = sc;
-      if (sc < 0 && -uc == (uc & -uc))
+      if (sc < 0 && pow2_or_zerop (-uc))
 	{
-	  if (ysize > 0)
+	  if (maybe_gt (ysize, 0))
 	    ysize = -ysize;
-	  if (ysize)
+	  if (maybe_ne (ysize, 0))
 	    ysize += sc + 1;
 	  c += sc + 1;
 	  return memrefs_conflict_p (xsize, x,
@@ -2172,9 +2608,10 @@ memrefs_conflict_p (int xsize, rtx x, int ysize, rtx y, HOST_WIDE_INT c)
 
   if (CONSTANT_P (x))
     {
-      if (CONST_INT_P (x) && CONST_INT_P (y))
+      poly_int64 cx, cy;
+      if (poly_int_rtx_p (x, &cx) && poly_int_rtx_p (y, &cy))
 	{
-	  c += (INTVAL (y) - INTVAL (x));
+	  c += cy - cx;
 	  return offset_overlap_p (c, xsize, ysize);
 	}
 
@@ -2196,7 +2633,9 @@ memrefs_conflict_p (int xsize, rtx x, int ysize, rtx y, HOST_WIDE_INT c)
 	 sizes), because we can't know how far they are from each
 	 other.  */
       if (CONSTANT_P (y))
-	return (xsize < 0 || ysize < 0 || offset_overlap_p (c, xsize, ysize));
+	return (maybe_lt (xsize, 0)
+		|| maybe_lt (ysize, 0)
+		|| offset_overlap_p (c, xsize, ysize));
 
       return -1;
     }
@@ -2212,7 +2651,7 @@ memrefs_conflict_p (int xsize, rtx x, int ysize, rtx y, HOST_WIDE_INT c)
    ways.
 
    If both memory references are volatile, then there must always be a
-   dependence between the two references, since their order can not be
+   dependence between the two references, since their order cannot be
    changed.  A volatile and non-volatile reference can be interchanged
    though.
 
@@ -2256,7 +2695,7 @@ decl_for_component_ref (tree x)
 
 static void
 adjust_offset_for_component_ref (tree x, bool *known_p,
-				 HOST_WIDE_INT *offset)
+				 poly_int64 *offset)
 {
   if (!*known_p)
     return;
@@ -2264,22 +2703,22 @@ adjust_offset_for_component_ref (tree x, bool *known_p,
     {
       tree xoffset = component_ref_field_offset (x);
       tree field = TREE_OPERAND (x, 1);
-      if (TREE_CODE (xoffset) != INTEGER_CST)
+      if (!poly_int_tree_p (xoffset))
 	{
 	  *known_p = false;
 	  return;
 	}
 
-      offset_int woffset
-	= (wi::to_offset (xoffset)
-	   + wi::lrshift (wi::to_offset (DECL_FIELD_BIT_OFFSET (field)),
-			  LOG2_BITS_PER_UNIT));
-      if (!wi::fits_uhwi_p (woffset))
+      poly_offset_int woffset
+	= (wi::to_poly_offset (xoffset)
+	   + (wi::to_offset (DECL_FIELD_BIT_OFFSET (field))
+	      >> LOG2_BITS_PER_UNIT)
+	   + *offset);
+      if (!woffset.to_shwi (offset))
 	{
 	  *known_p = false;
 	  return;
 	}
-      *offset += woffset.to_uhwi ();
 
       x = TREE_OPERAND (x, 0);
     }
@@ -2297,8 +2736,8 @@ nonoverlapping_memrefs_p (const_rtx x, const_rtx y, bool loop_invariant)
   rtx rtlx, rtly;
   rtx basex, basey;
   bool moffsetx_known_p, moffsety_known_p;
-  HOST_WIDE_INT moffsetx = 0, moffsety = 0;
-  HOST_WIDE_INT offsetx = 0, offsety = 0, sizex, sizey, tem;
+  poly_int64 moffsetx = 0, moffsety = 0;
+  poly_int64 offsetx = 0, offsety = 0, sizex, sizey;
 
   /* Unless both have exprs, we can't tell anything.  */
   if (exprx == 0 || expry == 0)
@@ -2339,12 +2778,44 @@ nonoverlapping_memrefs_p (const_rtx x, const_rtx y, bool loop_invariant)
   if (! DECL_P (exprx) || ! DECL_P (expry))
     return 0;
 
+  /* If we refer to different gimple registers, or one gimple register
+     and one non-gimple-register, we know they can't overlap.  First,
+     gimple registers don't have their addresses taken.  Now, there
+     could be more than one stack slot for (different versions of) the
+     same gimple register, but we can presumably tell they don't
+     overlap based on offsets from stack base addresses elsewhere.
+     It's important that we don't proceed to DECL_RTL, because gimple
+     registers may not pass DECL_RTL_SET_P, and make_decl_rtl won't be
+     able to do anything about them since no SSA information will have
+     remained to guide it.  */
+  if (is_gimple_reg (exprx) || is_gimple_reg (expry))
+    return exprx != expry
+      || (moffsetx_known_p && moffsety_known_p
+	  && MEM_SIZE_KNOWN_P (x) && MEM_SIZE_KNOWN_P (y)
+	  && !offset_overlap_p (moffsety - moffsetx,
+				MEM_SIZE (x), MEM_SIZE (y)));
+
   /* With invalid code we can end up storing into the constant pool.
      Bail out to avoid ICEing when creating RTL for this.
      See gfortran.dg/lto/20091028-2_0.f90.  */
   if (TREE_CODE (exprx) == CONST_DECL
       || TREE_CODE (expry) == CONST_DECL)
     return 1;
+
+  /* If one decl is known to be a function or label in a function and
+     the other is some kind of data, they can't overlap.  */
+  if ((TREE_CODE (exprx) == FUNCTION_DECL
+       || TREE_CODE (exprx) == LABEL_DECL)
+      != (TREE_CODE (expry) == FUNCTION_DECL
+	  || TREE_CODE (expry) == LABEL_DECL))
+    return 1;
+
+  /* If either of the decls doesn't have DECL_RTL set (e.g. marked as
+     living in multiple places), we can't tell anything.  Exception
+     are FUNCTION_DECLs for which we can create DECL_RTL on demand.  */
+  if ((!DECL_RTL_SET_P (exprx) && TREE_CODE (exprx) != FUNCTION_DECL)
+      || (!DECL_RTL_SET_P (expry) && TREE_CODE (expry) != FUNCTION_DECL))
+    return 0;
 
   rtlx = DECL_RTL (exprx);
   rtly = DECL_RTL (expry);
@@ -2368,18 +2839,16 @@ nonoverlapping_memrefs_p (const_rtx x, const_rtx y, bool loop_invariant)
      we can avoid overlap is if we can deduce that they are nonoverlapping
      pieces of that decl, which is very rare.  */
   basex = MEM_P (rtlx) ? XEXP (rtlx, 0) : rtlx;
-  if (GET_CODE (basex) == PLUS && CONST_INT_P (XEXP (basex, 1)))
-    offsetx = INTVAL (XEXP (basex, 1)), basex = XEXP (basex, 0);
+  basex = strip_offset_and_add (basex, &offsetx);
 
   basey = MEM_P (rtly) ? XEXP (rtly, 0) : rtly;
-  if (GET_CODE (basey) == PLUS && CONST_INT_P (XEXP (basey, 1)))
-    offsety = INTVAL (XEXP (basey, 1)), basey = XEXP (basey, 0);
+  basey = strip_offset_and_add (basey, &offsety);
 
   /* If the bases are different, we know they do not overlap if both
      are constants or if one is a constant and the other a pointer into the
      stack frame.  Otherwise a different base means we can't tell if they
      overlap or not.  */
-  if (! rtx_equal_p (basex, basey))
+  if (compare_base_decls (exprx, expry) == 0)
     return ((CONSTANT_P (basex) && CONSTANT_P (basey))
 	    || (CONSTANT_P (basex) && REG_P (basey)
 		&& REGNO_PTR_FRAME_P (REGNO (basey)))
@@ -2388,12 +2857,16 @@ nonoverlapping_memrefs_p (const_rtx x, const_rtx y, bool loop_invariant)
 
   /* Offset based disambiguation not appropriate for loop invariant */
   if (loop_invariant)
-    return 0;              
+    return 0;
 
-  sizex = (!MEM_P (rtlx) ? (int) GET_MODE_SIZE (GET_MODE (rtlx))
+  /* Offset based disambiguation is OK even if we do not know that the
+     declarations are necessarily different
+    (i.e. compare_base_decls (exprx, expry) == -1)  */
+
+  sizex = (!MEM_P (rtlx) ? poly_int64 (GET_MODE_SIZE (GET_MODE (rtlx)))
 	   : MEM_SIZE_KNOWN_P (rtlx) ? MEM_SIZE (rtlx)
 	   : -1);
-  sizey = (!MEM_P (rtly) ? (int) GET_MODE_SIZE (GET_MODE (rtly))
+  sizey = (!MEM_P (rtly) ? poly_int64 (GET_MODE_SIZE (GET_MODE (rtly)))
 	   : MEM_SIZE_KNOWN_P (rtly) ? MEM_SIZE (rtly)
 	   : -1);
 
@@ -2412,16 +2885,7 @@ nonoverlapping_memrefs_p (const_rtx x, const_rtx y, bool loop_invariant)
   if (MEM_SIZE_KNOWN_P (y) && moffsety_known_p)
     sizey = MEM_SIZE (y);
 
-  /* Put the values of the memref with the lower offset in X's values.  */
-  if (offsetx > offsety)
-    {
-      tem = offsetx, offsetx = offsety, offsety = tem;
-      tem = sizex, sizex = sizey, sizey = tem;
-    }
-
-  /* If we don't know the size of the lower-offset value, we can't tell
-     if they conflict.  Otherwise, we do the test.  */
-  return sizex >= 0 && offsety >= offsetx + sizex;
+  return !ranges_maybe_overlap_p (offsetx, sizex, offsety, sizey);
 }
 
 /* Helper for true_dependence and canon_true_dependence.
@@ -2436,9 +2900,10 @@ nonoverlapping_memrefs_p (const_rtx x, const_rtx y, bool loop_invariant)
    Returns 1 if there is a true dependence, 0 otherwise.  */
 
 static int
-true_dependence_1 (const_rtx mem, enum machine_mode mem_mode, rtx mem_addr,
+true_dependence_1 (const_rtx mem, machine_mode mem_mode, rtx mem_addr,
 		   const_rtx x, rtx x_addr, bool mem_canonicalized)
 {
+  rtx true_mem_addr;
   rtx base;
   int ret;
 
@@ -2458,10 +2923,26 @@ true_dependence_1 (const_rtx mem, enum machine_mode mem_mode, rtx mem_addr,
       || MEM_ALIAS_SET (mem) == ALIAS_SET_MEMORY_BARRIER)
     return 1;
 
+  if (! x_addr)
+    x_addr = XEXP (x, 0);
+  x_addr = get_addr (x_addr);
+
+  if (! mem_addr)
+    {
+      mem_addr = XEXP (mem, 0);
+      if (mem_mode == VOIDmode)
+	mem_mode = GET_MODE (mem);
+    }
+  true_mem_addr = get_addr (mem_addr);
+
   /* Read-only memory is by definition never modified, and therefore can't
-     conflict with anything.  We don't expect to find read-only set on MEM,
-     but stupid user tricks can produce them, so don't die.  */
-  if (MEM_READONLY_P (x))
+     conflict with anything.  However, don't assume anything when AND
+     addresses are involved and leave to the code below to determine
+     dependence.  We don't expect to find read-only set on MEM, but
+     stupid user tricks can produce them, so don't die.  */
+  if (MEM_READONLY_P (x)
+      && GET_CODE (x_addr) != AND
+      && GET_CODE (true_mem_addr) != AND)
     return 0;
 
   /* If we have MEMs referring to different address spaces (which can
@@ -2470,43 +2951,20 @@ true_dependence_1 (const_rtx mem, enum machine_mode mem_mode, rtx mem_addr,
   if (MEM_ADDR_SPACE (mem) != MEM_ADDR_SPACE (x))
     return 1;
 
-  if (! mem_addr)
-    {
-      mem_addr = XEXP (mem, 0);
-      if (mem_mode == VOIDmode)
-	mem_mode = GET_MODE (mem);
-    }
-
-  if (! x_addr)
-    {
-      x_addr = XEXP (x, 0);
-      if (!((GET_CODE (x_addr) == VALUE
-	     && GET_CODE (mem_addr) != VALUE
-	     && reg_mentioned_p (x_addr, mem_addr))
-	    || (GET_CODE (x_addr) != VALUE
-		&& GET_CODE (mem_addr) == VALUE
-		&& reg_mentioned_p (mem_addr, x_addr))))
-	{
-	  x_addr = get_addr (x_addr);
-	  if (! mem_canonicalized)
-	    mem_addr = get_addr (mem_addr);
-	}
-    }
-
   base = find_base_term (x_addr);
   if (base && (GET_CODE (base) == LABEL_REF
 	       || (GET_CODE (base) == SYMBOL_REF
 		   && CONSTANT_POOL_ADDRESS_P (base))))
     return 0;
 
-  rtx mem_base = find_base_term (mem_addr);
-  if (! base_alias_check (x_addr, base, mem_addr, mem_base,
+  rtx mem_base = find_base_term (true_mem_addr);
+  if (! base_alias_check (x_addr, base, true_mem_addr, mem_base,
 			  GET_MODE (x), mem_mode))
     return 0;
 
   x_addr = canon_rtx (x_addr);
   if (!mem_canonicalized)
-    mem_addr = canon_rtx (mem_addr);
+    mem_addr = canon_rtx (true_mem_addr);
 
   if ((ret = memrefs_conflict_p (GET_MODE_SIZE (mem_mode), mem_addr,
 				 SIZE_FOR_MODE (x), x_addr, 0)) != -1)
@@ -2524,7 +2982,7 @@ true_dependence_1 (const_rtx mem, enum machine_mode mem_mode, rtx mem_addr,
 /* True dependence: X is read after store in MEM takes place.  */
 
 int
-true_dependence (const_rtx mem, enum machine_mode mem_mode, const_rtx x)
+true_dependence (const_rtx mem, machine_mode mem_mode, const_rtx x)
 {
   return true_dependence_1 (mem, mem_mode, NULL_RTX,
 			    x, NULL_RTX, /*mem_canonicalized=*/false);
@@ -2537,7 +2995,7 @@ true_dependence (const_rtx mem, enum machine_mode mem_mode, const_rtx x)
    this value prior to canonicalizing.  */
 
 int
-canon_true_dependence (const_rtx mem, enum machine_mode mem_mode, rtx mem_addr,
+canon_true_dependence (const_rtx mem, machine_mode mem_mode, rtx mem_addr,
 		       const_rtx x, rtx x_addr)
 {
   return true_dependence_1 (mem, mem_mode, mem_addr,
@@ -2552,15 +3010,17 @@ canon_true_dependence (const_rtx mem, enum machine_mode mem_mode, rtx mem_addr,
 
 static int
 write_dependence_p (const_rtx mem,
-		    const_rtx x, enum machine_mode x_mode, rtx x_addr,
+		    const_rtx x, machine_mode x_mode, rtx x_addr,
 		    bool mem_canonicalized, bool x_canonicalized, bool writep)
 {
   rtx mem_addr;
+  rtx true_mem_addr, true_x_addr;
   rtx base;
   int ret;
 
   gcc_checking_assert (x_canonicalized
-		       ? (x_addr != NULL_RTX && x_mode != VOIDmode)
+		       ? (x_addr != NULL_RTX
+			  && (x_mode != VOIDmode || GET_MODE (x) == VOIDmode))
 		       : (x_addr == NULL_RTX && x_mode == VOIDmode));
 
   if (MEM_VOLATILE_P (x) && MEM_VOLATILE_P (mem))
@@ -2576,8 +3036,20 @@ write_dependence_p (const_rtx mem,
       || MEM_ALIAS_SET (mem) == ALIAS_SET_MEMORY_BARRIER)
     return 1;
 
-  /* A read from read-only memory can't conflict with read-write memory.  */
-  if (!writep && MEM_READONLY_P (mem))
+  if (!x_addr)
+    x_addr = XEXP (x, 0);
+  true_x_addr = get_addr (x_addr);
+
+  mem_addr = XEXP (mem, 0);
+  true_mem_addr = get_addr (mem_addr);
+
+  /* A read from read-only memory can't conflict with read-write memory.
+     Don't assume anything when AND addresses are involved and leave to
+     the code below to determine dependence.  */
+  if (!writep
+      && MEM_READONLY_P (mem)
+      && GET_CODE (true_x_addr) != AND
+      && GET_CODE (true_mem_addr) != AND)
     return 0;
 
   /* If we have MEMs referring to different address spaces (which can
@@ -2586,24 +3058,7 @@ write_dependence_p (const_rtx mem,
   if (MEM_ADDR_SPACE (mem) != MEM_ADDR_SPACE (x))
     return 1;
 
-  mem_addr = XEXP (mem, 0);
-  if (!x_addr)
-    {
-      x_addr = XEXP (x, 0);
-      if (!((GET_CODE (x_addr) == VALUE
-	     && GET_CODE (mem_addr) != VALUE
-	     && reg_mentioned_p (x_addr, mem_addr))
-	    || (GET_CODE (x_addr) != VALUE
-		&& GET_CODE (mem_addr) == VALUE
-		&& reg_mentioned_p (mem_addr, x_addr))))
-	{
-	  x_addr = get_addr (x_addr);
-	  if (!mem_canonicalized)
-	    mem_addr = get_addr (mem_addr);
-	}
-    }
-
-  base = find_base_term (mem_addr);
+  base = find_base_term (true_mem_addr);
   if (! writep
       && base
       && (GET_CODE (base) == LABEL_REF
@@ -2611,18 +3066,18 @@ write_dependence_p (const_rtx mem,
 	      && CONSTANT_POOL_ADDRESS_P (base))))
     return 0;
 
-  rtx x_base = find_base_term (x_addr);
-  if (! base_alias_check (x_addr, x_base, mem_addr, base, GET_MODE (x),
-			  GET_MODE (mem)))
+  rtx x_base = find_base_term (true_x_addr);
+  if (! base_alias_check (true_x_addr, x_base, true_mem_addr, base,
+			  GET_MODE (x), GET_MODE (mem)))
     return 0;
 
   if (!x_canonicalized)
     {
-      x_addr = canon_rtx (x_addr);
+      x_addr = canon_rtx (true_x_addr);
       x_mode = GET_MODE (x);
     }
   if (!mem_canonicalized)
-    mem_addr = canon_rtx (mem_addr);
+    mem_addr = canon_rtx (true_mem_addr);
 
   if ((ret = memrefs_conflict_p (SIZE_FOR_MODE (mem), mem_addr,
 				 GET_MODE_SIZE (x_mode), x_addr, 0)) != -1)
@@ -2651,7 +3106,7 @@ anti_dependence (const_rtx mem, const_rtx x)
 
 int
 canon_anti_dependence (const_rtx mem, bool mem_canonicalized,
-		       const_rtx x, enum machine_mode x_mode, rtx x_addr)
+		       const_rtx x, machine_mode x_mode, rtx x_addr)
 {
   return write_dependence_p (mem, x, x_mode, x_addr,
 			     mem_canonicalized, /*x_canonicalized=*/true,
@@ -2666,6 +3121,20 @@ output_dependence (const_rtx mem, const_rtx x)
   return write_dependence_p (mem, x, VOIDmode, NULL_RTX,
 			     /*mem_canonicalized=*/false,
 			     /*x_canonicalized*/false, /*writep=*/true);
+}
+
+/* Likewise, but we already have a canonicalized MEM, and X_ADDR for X.
+   Also, consider X in X_MODE (which might be from an enclosing
+   STRICT_LOW_PART / ZERO_EXTRACT).
+   If MEM_CANONICALIZED is true, MEM is canonicalized.  */
+
+int
+canon_output_dependence (const_rtx mem, bool mem_canonicalized,
+			 const_rtx x, machine_mode x_mode, rtx x_addr)
+{
+  return write_dependence_p (mem, x, x_mode, x_addr,
+			     mem_canonicalized, /*x_canonicalized=*/true,
+			     /*writep=*/true);
 }
 
 
@@ -2690,10 +3159,20 @@ may_alias_p (const_rtx mem, const_rtx x)
       || MEM_ALIAS_SET (mem) == ALIAS_SET_MEMORY_BARRIER)
     return 1;
 
+  x_addr = XEXP (x, 0);
+  x_addr = get_addr (x_addr);
+
+  mem_addr = XEXP (mem, 0);
+  mem_addr = get_addr (mem_addr);
+
   /* Read-only memory is by definition never modified, and therefore can't
-     conflict with anything.  We don't expect to find read-only set on MEM,
-     but stupid user tricks can produce them, so don't die.  */
-  if (MEM_READONLY_P (x))
+     conflict with anything.  However, don't assume anything when AND
+     addresses are involved and leave to the code below to determine
+     dependence.  We don't expect to find read-only set on MEM, but
+     stupid user tricks can produce them, so don't die.  */
+  if (MEM_READONLY_P (x)
+      && GET_CODE (x_addr) != AND
+      && GET_CODE (mem_addr) != AND)
     return 0;
 
   /* If we have MEMs referring to different address spaces (which can
@@ -2702,27 +3181,11 @@ may_alias_p (const_rtx mem, const_rtx x)
   if (MEM_ADDR_SPACE (mem) != MEM_ADDR_SPACE (x))
     return 1;
 
-  x_addr = XEXP (x, 0);
-  mem_addr = XEXP (mem, 0);
-  if (!((GET_CODE (x_addr) == VALUE
-	 && GET_CODE (mem_addr) != VALUE
-	 && reg_mentioned_p (x_addr, mem_addr))
-	|| (GET_CODE (x_addr) != VALUE
-	    && GET_CODE (mem_addr) == VALUE
-	    && reg_mentioned_p (mem_addr, x_addr))))
-    {
-      x_addr = get_addr (x_addr);
-      mem_addr = get_addr (mem_addr);
-    }
-
   rtx x_base = find_base_term (x_addr);
   rtx mem_base = find_base_term (mem_addr);
   if (! base_alias_check (x_addr, x_base, mem_addr, mem_base,
 			  GET_MODE (x), GET_MODE (mem_addr)))
     return 0;
-
-  x_addr = canon_rtx (x_addr);
-  mem_addr = canon_rtx (mem_addr);
 
   if (nonoverlapping_memrefs_p (mem, x, true))
     return 0;
@@ -2746,19 +3209,27 @@ init_alias_target (void)
        argument.  FUNCTION_ARG_REGNO_P tests outgoing register
        numbers, so translate if necessary due to register windows.  */
     if (FUNCTION_ARG_REGNO_P (OUTGOING_REGNO (i))
-	&& HARD_REGNO_MODE_OK (i, Pmode))
+	&& targetm.hard_regno_mode_ok (i, Pmode))
       static_reg_base_value[i] = arg_base_value;
 
+  /* RTL code is required to be consistent about whether it uses the
+     stack pointer, the frame pointer or the argument pointer to
+     access a given area of the frame.  We can therefore use the
+     base address to distinguish between the different areas.  */
   static_reg_base_value[STACK_POINTER_REGNUM]
     = unique_base_value (UNIQUE_BASE_VALUE_SP);
   static_reg_base_value[ARG_POINTER_REGNUM]
     = unique_base_value (UNIQUE_BASE_VALUE_ARGP);
   static_reg_base_value[FRAME_POINTER_REGNUM]
     = unique_base_value (UNIQUE_BASE_VALUE_FP);
-#if !HARD_FRAME_POINTER_IS_FRAME_POINTER
-  static_reg_base_value[HARD_FRAME_POINTER_REGNUM]
-    = unique_base_value (UNIQUE_BASE_VALUE_HFP);
-#endif
+
+  /* The above rules extend post-reload, with eliminations applying
+     consistently to each of the three pointers.  Cope with cases in
+     which the frame pointer is eliminated to the hard frame pointer
+     rather than the stack pointer.  */
+  if (!HARD_FRAME_POINTER_IS_FRAME_POINTER)
+    static_reg_base_value[HARD_FRAME_POINTER_REGNUM]
+      = unique_base_value (UNIQUE_BASE_VALUE_HFP);
 }
 
 /* Set MEMORY_MODIFIED when X modifies DATA (that is assumed
@@ -2782,42 +3253,13 @@ memory_modified_in_insn_p (const_rtx mem, const_rtx insn)
 {
   if (!INSN_P (insn))
     return false;
+  /* Conservatively assume all non-readonly MEMs might be modified in
+     calls.  */
+  if (CALL_P (insn))
+    return true;
   memory_modified = false;
   note_stores (PATTERN (insn), memory_modified_1, CONST_CAST_RTX(mem));
   return memory_modified;
-}
-
-/* Return TRUE if the destination of a set is rtx identical to
-   ITEM.  */
-static inline bool
-set_dest_equal_p (const_rtx set, const_rtx item)
-{
-  rtx dest = SET_DEST (set);
-  return rtx_equal_p (dest, item);
-}
-
-/* Like memory_modified_in_insn_p, but return TRUE if INSN will
-   *DEFINITELY* modify the memory contents of MEM.  */
-bool
-memory_must_be_modified_in_insn_p (const_rtx mem, const_rtx insn)
-{
-  if (!INSN_P (insn))
-    return false;
-  insn = PATTERN (insn);
-  if (GET_CODE (insn) == SET)
-    return set_dest_equal_p (insn, mem);
-  else if (GET_CODE (insn) == PARALLEL)
-    {
-      int i;
-      for (i = 0; i < XVECLEN (insn, 0); i++)
-	{
-	  rtx sub = XVECEXP (insn, 0, i);
-	  if (GET_CODE (sub) == SET
-	      &&  set_dest_equal_p (sub, mem))
-	    return true;
-	}
-    }
-  return false;
 }
 
 /* Initialize the aliasing machinery.  Initialize the REG_KNOWN_VALUE
@@ -2878,6 +3320,14 @@ init_alias_analysis (void)
   rpo = XNEWVEC (int, n_basic_blocks_for_fn (cfun));
   rpo_cnt = pre_and_rev_post_order_compute (NULL, rpo, false);
 
+  /* The prologue/epilogue insns are not threaded onto the
+     insn chain until after reload has completed.  Thus,
+     there is no sense wasting time checking if INSN is in
+     the prologue/epilogue until after reload has completed.  */
+  bool could_be_prologue_epilogue = ((targetm.have_prologue ()
+				      || targetm.have_epilogue ())
+				     && reload_completed);
+
   pass = 0;
   do
     {
@@ -2900,7 +3350,14 @@ init_alias_analysis (void)
 
       /* Initialize the alias information for this pass.  */
       for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-	if (static_reg_base_value[i])
+	if (static_reg_base_value[i]
+	    /* Don't treat the hard frame pointer as special if we
+	       eliminated the frame pointer to the stack pointer instead.  */
+	    && !(i == HARD_FRAME_POINTER_REGNUM
+		 && reload_completed
+		 && !frame_pointer_needed
+		 && targetm.can_eliminate (FRAME_POINTER_REGNUM,
+					   STACK_POINTER_REGNUM)))
 	  {
 	    new_reg_base_value[i] = static_reg_base_value[i];
 	    bitmap_set_bit (reg_seen, i);
@@ -2916,15 +3373,9 @@ init_alias_analysis (void)
 		{
 		  rtx note, set;
 
-#if defined (HAVE_prologue) || defined (HAVE_epilogue)
-		  /* The prologue/epilogue insns are not threaded onto the
-		     insn chain until after reload has completed.  Thus,
-		     there is no sense wasting time checking if INSN is in
-		     the prologue/epilogue until after reload has completed.  */
-		  if (reload_completed
+		  if (could_be_prologue_epilogue
 		      && prologue_epilogue_contains (insn))
 		    continue;
-#endif
 
 		  /* If this insn has a noalias note, process it,  Otherwise,
 		     scan for sets.  A simple set will have no side effects
@@ -2952,6 +3403,7 @@ init_alias_analysis (void)
 			  && DF_REG_DEF_COUNT (regno) != 1)
 			note = NULL_RTX;
 
+		      poly_int64 offset;
 		      if (note != NULL_RTX
 			  && GET_CODE (XEXP (note, 0)) != EXPR_LIST
 			  && ! rtx_varies_p (XEXP (note, 0), 1)
@@ -2966,10 +3418,9 @@ init_alias_analysis (void)
 			       && GET_CODE (src) == PLUS
 			       && REG_P (XEXP (src, 0))
 			       && (t = get_reg_known_value (REGNO (XEXP (src, 0))))
-			       && CONST_INT_P (XEXP (src, 1)))
+			       && poly_int_rtx_p (XEXP (src, 1), &offset))
 			{
-			  t = plus_constant (GET_MODE (src), t,
-					     INTVAL (XEXP (src, 1)));
+			  t = plus_constant (GET_MODE (src), t, offset);
 			  set_reg_known_value (regno, t);
 			  set_reg_known_equiv_p (regno, false);
 			}
@@ -3037,4 +3488,23 @@ end_alias_analysis (void)
   sbitmap_free (reg_known_equiv_p);
 }
 
+void
+dump_alias_stats_in_alias_c (FILE *s)
+{
+  fprintf (s, "  TBAA oracle: %llu disambiguations %llu queries\n"
+	      "               %llu are in alias set 0\n"
+	      "               %llu queries asked about the same object\n"
+	      "               %llu queries asked about the same alias set\n"
+	      "               %llu access volatile\n"
+	      "               %llu are dependent in the DAG\n"
+	      "               %llu are aritificially in conflict with void *\n",
+	   alias_stats.num_disambiguated,
+	   alias_stats.num_alias_zero + alias_stats.num_same_alias_set
+	   + alias_stats.num_same_objects + alias_stats.num_volatile
+	   + alias_stats.num_dag + alias_stats.num_disambiguated
+	   + alias_stats.num_universal,
+	   alias_stats.num_alias_zero, alias_stats.num_same_alias_set,
+	   alias_stats.num_same_objects, alias_stats.num_volatile,
+	   alias_stats.num_dag, alias_stats.num_universal);
+}
 #include "gt-alias.h"

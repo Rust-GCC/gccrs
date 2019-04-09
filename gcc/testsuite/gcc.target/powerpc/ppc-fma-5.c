@@ -1,7 +1,7 @@
 /* { dg-do run { target { powerpc*-*-* } } } */
-/* { dg-skip-if "" { powerpc*-*-darwin* } { "*" } { "" } } */
+/* { dg-skip-if "" { powerpc*-*-darwin* } } */
 /* { dg-require-effective-target powerpc_fprs } */
-/* { dg-options "-O2 -mcpu=power5 -std=c99" } */
+/* { dg-options "-O2 -mdejagnu-cpu=power5 -std=c99" } */
 
 #ifndef __FP_FAST_FMA
 #error "__FP_FAST_FMA should be defined"

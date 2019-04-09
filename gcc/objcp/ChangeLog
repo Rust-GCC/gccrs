@@ -1,3 +1,86 @@
+2019-01-01  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2018-10-17  David Malcolm  <dmalcolm@redhat.com>
+
+	* Make-lang.in (selftest-obj-c++): New.
+
+2018-05-07  Nathan Sidwell  <nathan@acm.org>
+
+	* objcp-lang.c (objcxx_init_ts): Don't call init_shadowed_var_for_decl.
+
+2018-01-03  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2017-07-03  Nathan Sidwell  <nathan@acm.org>
+
+	* config-lang.in: Source cp/config-lang.in, sort objc++ gtfiles list.
+
+2017-06-02  Nathan Sidwell  <nathan@acm.org>
+
+	* objcp-decl.h (SIZEOF_OBJC_TYPE_LANG_SPECIFIC): Use lang_type.
+	(ALLOC_OBJC_TYPE_LANG_SPECIFIC): Use it.  Don't set
+	u.c.h.is_lang_type_class.
+
+2017-01-01  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2016-01-04  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2015-11-13  Jason Merrill  <jason@redhat.com>
+
+	* config-lang.in (gtfiles): Add cp-gimplify.c.
+
+2015-11-11  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objcp-decl.c: Remove unused header files.
+	* objcp-lang.c: Likewise.
+
+2015-10-29  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objcp-decl.c: Reorder #include's and remove duplicates.
+	* objcp-lang.c: Likewise.
+
+2015-07-07  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objcp-decl.c: Adjust includes.
+	* objcp-lang.c: Likewise.
+
+2015-06-17  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objcp-decl.c: Do not include input.h, line-map.h or is-a.h.
+	* objcp-lang.c: Likewise.
+
+2015-06-08  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objcp-decl.c : Adjust include files.
+	* objcp-lang.c : Likewise.
+
+2015-06-04  Andrew MacLeod  <amacleod@redhat.com>
+
+	* objcp-decl.c: Adjust includes for restructured coretypes.h.
+	* objcp-lang.c: Likewise.
+
+2015-04-27  Jim Wilson  <jim.wilson@linaro.org>
+
+	* Make-lang.in (obj-c++.mostlyclean): Remove cc1objplus.
+
+2015-01-09  Michael Collison  <michael.collison@linaro.org>
+
+	* objcp-decl.c: Include hash-set.h, machmode.h, vec.h, double-int.h,
+	input.h, alias.h, symtab.h, options, fold-const.h,
+	wide-int.h, and inchash.h due to flattening of tree.h.
+	* objcp-lang.c: Ditto.
+
+2014-12-31  Iain Sandoe  <iain@codesourcery.com>
+
+	* config-lang.in (gtfiles): Update list.
+
 2014-05-17  Trevor Saunders  <tsaunders@mozilla.com>
 
 	* objcp-decl.h: Adjust.
@@ -147,7 +230,7 @@
 2010-10-14  Iain Sandoe  <iains@gcc.gnu.org>
 
 	merge from FSF apple 'trunk' branch. 
-	2006 Fariborz Jahanian <fjahanian@apple.com>
+	2006 Fariborz Jahanian  <fjahanian@apple.com>
 	
 	Radars 4436866, 4505126, 4506903, 4517826
 	* objcp-lang.c (objcxx_init_ts): Update for property_decl.
@@ -166,9 +249,9 @@
 
 	* Make-lang.in (cc1objplus-dummy): Remove.
 	(cc1objplus-checksum): Change to run checksum over object files
-        and options only.
+	and options only.
 
-2010-10-04  Andi Kleen <ak@linux.intel.com>
+2010-10-04  Andi Kleen  <ak@linux.intel.com>
 
 	* Make-lang.in (cc1objplus-dummy, cc1objplus): Add + to build rule.
 
@@ -313,13 +396,13 @@
 	Revert:
 
 	2008-02-07  Andreas Tobler  <andreast-list@fgznet.ch>
-	            Douglas Gregor  <doug.gregor@gmail.com>
+		    Douglas Gregor  <doug.gregor@gmail.com>
  
 	PR bootstrap/35115
 	* objcp-decl.c (objcp_comptypes): Call cp_comptypes, not comptypes.
 
 2008-02-07  Andreas Tobler  <andreast-list@fgznet.ch>
-            Douglas Gregor  <doug.gregor@gmail.com>
+	    Douglas Gregor  <doug.gregor@gmail.com>
  
 	PR bootstrap/35115
 	* objcp-decl.c (objcp_comptypes): Call cp_comptypes, not comptypes.
@@ -373,7 +456,7 @@
 	* Make-lang.in (objcp/objcp-decl.o): Add dependency on
 	$(TARGET_H).
 
-2006-02-20 Rafael Ávila de Espíndola <rafael.espindola@gmail.com>
+2006-02-20  Rafael Ávila de Espíndola  <rafael.espindola@gmail.com>
 
 	* Make-lang.in (OBJ-C++): Remove
 	(.PHONY): Remove Obj-c++ and obj-C++. Add obj-c++
@@ -463,7 +546,7 @@
 	* objcp-lang.c: Likewise.
 
 
-Copyright (C) 2005-2014 Free Software Foundation, Inc.
+Copyright (C) 2005-2019 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

@@ -1,6 +1,6 @@
 // 2004-11-29  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -32,14 +32,16 @@
 void test01()
 {
   using namespace std;
-  bool test __attribute__((unused)) = true;
 
   typedef wstring::size_type size_type;
 
-  // Our current implementation provides exact shrink-to-size
-  // and shrink-to-fit (in the future, maybe this will change
-  // for short strings).
+#if _GLIBCXX_USE_CXX11_ABI
+  // Can't shrink below small string size.
+  const size_type minsize = wstring().capacity() + 1;
+#else
+  // Exact shrink-to-size and shrink-to-fit
   const size_type minsize = 2 << 0;
+#endif
   const size_type maxsize = 2 << MAX_SIZE;
   for (size_type i = minsize; i <= maxsize; i *= 2)
     {

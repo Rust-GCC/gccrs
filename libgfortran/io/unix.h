@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2009-2019 Free Software Foundation, Inc.
    Contributed by Janne Blomqvist
 
 This file is part of the GNU Fortran runtime library (libgfortran).
@@ -48,55 +48,55 @@ struct stream
 
 /* Inline functions for doing file I/O given a stream.  */
 static inline ssize_t
-sread (stream * s, void * buf, ssize_t nbyte)
+sread (stream *s, void *buf, ssize_t nbyte)
 {
   return s->vptr->read (s, buf, nbyte);
 }
 
 static inline ssize_t
-swrite (stream * s, const void * buf, ssize_t nbyte)
+swrite (stream *s, const void *buf, ssize_t nbyte)
 {
   return s->vptr->write (s, buf, nbyte);
 }
 
 static inline gfc_offset
-sseek (stream * s, gfc_offset offset, int whence)
+sseek (stream *s, gfc_offset offset, int whence)
 {
   return s->vptr->seek (s, offset, whence);
 }
 
 static inline gfc_offset
-stell (stream * s)
+stell (stream *s)
 {
   return s->vptr->tell (s);
 }
 
 static inline gfc_offset
-ssize (stream * s)
+ssize (stream *s)
 {
   return s->vptr->size (s);
 }
 
 static inline int
-struncate (stream * s, gfc_offset length)
+struncate (stream *s, gfc_offset length)
 {
   return s->vptr->trunc (s, length);
 }
 
 static inline int
-sflush (stream * s)
+sflush (stream *s)
 {
   return s->vptr->flush (s);
 }
 
 static inline int
-sclose (stream * s)
+sclose (stream *s)
 {
   return s->vptr->close (s);
 }
 
 static inline int
-smarkeor (stream * s)
+smarkeor (stream *s)
 {
   return s->vptr->markeor (s);
 }
@@ -108,22 +108,22 @@ internal_proto(compare_files);
 extern stream *open_external (st_parameter_open *, unit_flags *);
 internal_proto(open_external);
 
-extern stream *open_internal (char *, int, gfc_offset);
+extern stream *open_internal (char *, size_t, gfc_offset);
 internal_proto(open_internal);
 
-extern stream *open_internal4 (char *, int, gfc_offset);
+extern stream *open_internal4 (char *, size_t, gfc_offset);
 internal_proto(open_internal4);
 
-extern char * mem_alloc_w (stream *, int *);
+extern char *mem_alloc_w (stream *, size_t *);
 internal_proto(mem_alloc_w);
 
-extern char * mem_alloc_r (stream *, int *);
+extern char *mem_alloc_r (stream *, size_t *);
 internal_proto(mem_alloc_r);
 
-extern gfc_char4_t * mem_alloc_w4 (stream *, int *);
+extern gfc_char4_t *mem_alloc_w4 (stream *, size_t *);
 internal_proto(mem_alloc_w4);
 
-extern char * mem_alloc_r4 (stream *, int *);
+extern char *mem_alloc_r4 (stream *, size_t *);
 internal_proto(mem_alloc_r4);
 
 extern stream *input_stream (void);
@@ -135,14 +135,14 @@ internal_proto(output_stream);
 extern stream *error_stream (void);
 internal_proto(error_stream);
 
-extern int compare_file_filename (gfc_unit *, const char *, int);
+extern int compare_file_filename (gfc_unit *, const char *, gfc_charlen_type);
 internal_proto(compare_file_filename);
 
 extern gfc_unit *find_file (const char *file, gfc_charlen_type file_len);
 internal_proto(find_file);
 
-extern int delete_file (gfc_unit *);
-internal_proto(delete_file);
+extern int close_share (gfc_unit *);
+internal_proto(close_share);
 
 extern int file_exists (const char *file, gfc_charlen_type file_len);
 internal_proto(file_exists);
@@ -150,25 +150,25 @@ internal_proto(file_exists);
 extern GFC_IO_INT file_size (const char *file, gfc_charlen_type file_len);
 internal_proto(file_size);
 
-extern const char *inquire_sequential (const char *, int);
+extern const char *inquire_sequential (const char *, gfc_charlen_type);
 internal_proto(inquire_sequential);
 
-extern const char *inquire_direct (const char *, int);
+extern const char *inquire_direct (const char *, gfc_charlen_type);
 internal_proto(inquire_direct);
 
-extern const char *inquire_formatted (const char *, int);
+extern const char *inquire_formatted (const char *, gfc_charlen_type);
 internal_proto(inquire_formatted);
 
-extern const char *inquire_unformatted (const char *, int);
+extern const char *inquire_unformatted (const char *, gfc_charlen_type);
 internal_proto(inquire_unformatted);
 
-extern const char *inquire_read (const char *, int);
+extern const char *inquire_read (const char *, gfc_charlen_type);
 internal_proto(inquire_read);
 
-extern const char *inquire_write (const char *, int);
+extern const char *inquire_write (const char *, gfc_charlen_type);
 internal_proto(inquire_write);
 
-extern const char *inquire_readwrite (const char *, int);
+extern const char *inquire_readwrite (const char *, gfc_charlen_type);
 internal_proto(inquire_readwrite);
 
 extern void flush_if_preconnected (stream *);

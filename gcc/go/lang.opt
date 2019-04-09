@@ -1,6 +1,6 @@
 ; lang.opt -- Options for the gcc Go front end.
 
-; Copyright (C) 2009-2014 Free Software Foundation, Inc.
+; Copyright (C) 2009-2019 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -37,37 +37,53 @@ Wall
 Go
 ; Documented in c.opt
 
+fgo-c-header=
+Go Joined RejectNegative
+-fgo-c-header=<file>	Write Go struct definitions to file as C code.
+
 fgo-check-divide-zero
 Go Var(go_check_divide_zero) Init(1)
-Add explicit checks for division by zero
+Add explicit checks for division by zero.
 
 fgo-check-divide-overflow
 Go Var(go_check_divide_overflow) Init(1)
-Add explicit checks for division overflow in INT_MIN / -1
+Add explicit checks for division overflow in INT_MIN / -1.
+
+fgo-compiling-runtime
+Go Var(go_compiling_runtime) Init(0)
+Apply special rules for compiling runtime package.
 
 fgo-dump-
 Go Joined RejectNegative
--fgo-dump-<type>	Dump Go frontend internal information
+-fgo-dump-<type>	Dump Go frontend internal information.
 
 fgo-optimize-
-Go Joined RejectNegative
--fgo-optimize-<type>	Turn on optimization passes in the frontend
+Go Joined
+-fgo-optimize-<type>	Turn on optimization passes in the frontend.
 
 fgo-pkgpath=
 Go Joined RejectNegative
--fgo-pkgpath=<string>	Set Go package path
+-fgo-pkgpath=<string>	Set Go package path.
 
 fgo-prefix=
 Go Joined RejectNegative
--fgo-prefix=<string>	Set package-specific prefix for exported Go names
+-fgo-prefix=<string>	Set package-specific prefix for exported Go names.
 
 fgo-relative-import-path=
 Go Joined RejectNegative
--fgo-relative-import-path=<path> Treat a relative import as relative to path
+-fgo-relative-import-path=<path>	Treat a relative import as relative to path.
 
 frequire-return-statement
 Go Var(go_require_return_statement) Init(1) Warning
-Functions which return values must end with return statements
+Functions which return values must end with return statements.
+
+fgo-debug-escape
+Go Joined UInteger Var(go_debug_escape_level) Init(0)
+Emit debugging information related to the escape analysis pass when run with -fgo-optimize-allocs.
+
+fgo-debug-escape-hash=
+Go Joined RejectNegative Var(go_debug_escape_hash) Init(0)
+-fgo-debug-escape-hash=<string>	Hash value to debug escape analysis.
 
 o
 Go Joined Separate

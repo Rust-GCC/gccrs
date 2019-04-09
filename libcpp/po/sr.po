@@ -1,13 +1,13 @@
 # Serbian translation of cpplib.
-# Copyright (C) 2014 Free Software Foundation, Inc.
+# Copyright © 2017 Free Software Foundation, Inc.
 # This file is distributed under the same license as the gcc package.
-# Мирослав Николић <miroslavnikolic@rocketmail.com>, 2012—2014.
+# Мирослав Николић <miroslavnikolic@rocketmail.com>, 2012—2017.
 msgid ""
 msgstr ""
-"Project-Id-Version: cpplib-4.9-b20140202\n"
-"Report-Msgid-Bugs-To: http://gcc.gnu.org/bugs.html\n"
-"POT-Creation-Date: 2014-02-02 17:35+0000\n"
-"PO-Revision-Date: 2014-02-24 08:51+0200\n"
+"Project-Id-Version: cpplib-7.1-b20170101\n"
+"Report-Msgid-Bugs-To: https://gcc.gnu.org/bugs/\n"
+"POT-Creation-Date: 2019-02-01 23:01+0000\n"
+"PO-Revision-Date: 2017-01-27 07:31+0200\n"
 "Last-Translator: Мирослав Николић <miroslavnikolic@rocketmail.com>\n"
 "Language-Team: Serbian <(nothing)>\n"
 "Language: sr\n"
@@ -15,898 +15,993 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"X-Bugs: Report translation errors to the Language-Team address.\n"
 
-#: charset.c:673
+#: charset.c:674
 #, c-format
 msgid "conversion from %s to %s not supported by iconv"
 msgstr "иконв не подржава претварање из %s у %s"
 
-#: charset.c:676
+#: charset.c:677
 msgid "iconv_open"
 msgstr "иконв_отвори"
 
-#: charset.c:684
+#: charset.c:685
 #, c-format
 msgid "no iconv implementation, cannot convert from %s to %s"
 msgstr "нема иконв примене, не могу да претворим из %s у %s"
 
-#: charset.c:780
+#: charset.c:781
 #, c-format
 msgid "character 0x%lx is not in the basic source character set\n"
 msgstr "знак 0x%lx није у знаковном скупу основног извора\n"
 
-#: charset.c:797 charset.c:1447
+#: charset.c:798 charset.c:1677
 msgid "converting to execution character set"
 msgstr "претварам у знаковни скуп извршавања"
 
-#: charset.c:803
+#: charset.c:804
 #, c-format
 msgid "character 0x%lx is not unibyte in execution character set"
 msgstr "знак 0x%lx није једног бајта у знаковном скупу извршавања"
 
-#: charset.c:997
+#: charset.c:1047
 msgid "universal character names are only valid in C++ and C99"
 msgstr "називи свеопштег знака су једино исправни у Ц++ и Ц99"
 
-#: charset.c:1000
+#: charset.c:1051
+msgid "C99's universal character names are incompatible with C90"
+msgstr "називи свеопштег знака Ц99 нису сагласни са Ц90"
+
+#: charset.c:1054
 #, c-format
 msgid "the meaning of '\\%c' is different in traditional C"
 msgstr "значење „\\%c“ је другачије у уобичајеном Ц-у"
 
-#: charset.c:1009
+#: charset.c:1063
 msgid "In _cpp_valid_ucn but not a UCN"
 msgstr "У _цпп_исправан_нсз али није НСЗ"
 
-#: charset.c:1034
+#: charset.c:1096
 #, c-format
 msgid "incomplete universal character name %.*s"
 msgstr "непотпун назив свеопштег знака %.*s"
 
-#: charset.c:1049
+#: charset.c:1111
 #, c-format
 msgid "%.*s is not a valid universal character"
 msgstr "%.*s није исправан свеопшти знак"
 
-#: charset.c:1059 lex.c:1126
+#: charset.c:1121 lex.c:1333
 msgid "'$' in identifier or number"
 msgstr "„$“ у одреднику или број"
 
-#: charset.c:1069
+#: charset.c:1131
 #, c-format
 msgid "universal character %.*s is not valid in an identifier"
 msgstr "свеопшти знак %.*s није исправан у одреднику"
 
-#: charset.c:1073
+#: charset.c:1135
 #, c-format
 msgid "universal character %.*s is not valid at the start of an identifier"
 msgstr "свеопшти знак %.*s није исправан на почетку одредника"
 
-#: charset.c:1105 charset.c:1677
+#: charset.c:1181 charset.c:2002
 msgid "converting UCN to source character set"
 msgstr "претварам НСЗ у изворни знаковни скуп"
 
-#: charset.c:1109
+#: charset.c:1188
 msgid "converting UCN to execution character set"
 msgstr "претварам НСЗ у извршни знаковни скуп"
 
-#: charset.c:1181
+#: charset.c:1277
 msgid "the meaning of '\\x' is different in traditional C"
 msgstr "значење „\\x“ је другачије у уобичајеном Ц-у"
 
-#: charset.c:1198
+#: charset.c:1302
 msgid "\\x used with no following hex digits"
 msgstr "„\\x“ је коришћено са не пратећим хекса цифрама"
 
-#: charset.c:1205
+#: charset.c:1309
 msgid "hex escape sequence out of range"
 msgstr "хекс низ промене је изван опсега"
 
-#: charset.c:1243
+#: charset.c:1361
 msgid "octal escape sequence out of range"
 msgstr "октални низ промене је изван опсега"
 
-#: charset.c:1309
+#: charset.c:1443
 msgid "the meaning of '\\a' is different in traditional C"
 msgstr "значење „\\a“ је другачије у уобичајеном Ц-у"
 
-#: charset.c:1316
+#: charset.c:1450
 #, c-format
 msgid "non-ISO-standard escape sequence, '\\%c'"
 msgstr "низ промене не-ИСО-стандарда, „\\%c“"
 
-#: charset.c:1324
+#: charset.c:1458
 #, c-format
 msgid "unknown escape sequence: '\\%c'"
 msgstr "непознат низ промене: „\\%c“"
 
-#: charset.c:1332
+#: charset.c:1466
 #, c-format
 msgid "unknown escape sequence: '\\%s'"
 msgstr "непознат низ промене: „\\%s“"
 
-#: charset.c:1339
+#: charset.c:1474
 msgid "converting escape sequence to execution character set"
 msgstr "претварам низ промене у знаковни скуп извршавања"
 
-#: charset.c:1512 charset.c:1576
+#: charset.c:1614
+msgid "missing open quote"
+msgstr "недостаје отворена заграда"
+
+#: charset.c:1829 charset.c:1893
 msgid "character constant too long for its type"
 msgstr "константа знака је предуга за своју врсту"
 
-#: charset.c:1515
+#: charset.c:1832
 msgid "multi-character character constant"
 msgstr "више-знаковна константа знака"
 
-#: charset.c:1615
+#: charset.c:1933
 msgid "empty character constant"
 msgstr "празна константа знака"
 
-#: charset.c:1724
+#: charset.c:2049
 #, c-format
 msgid "failure to convert %s to %s"
 msgstr "неуспех у претварању %s у %s"
 
-#: directives.c:224 directives.c:250
+#: directives.c:229 directives.c:272
 #, c-format
 msgid "extra tokens at end of #%s directive"
 msgstr "посебни симболи на крају #%s директиве"
 
-#: directives.c:357
+#: directives.c:379
 #, c-format
 msgid "#%s is a GCC extension"
 msgstr "#%s је ГЦЦ проширење"
 
-#: directives.c:362
+#: directives.c:384
 #, c-format
 msgid "#%s is a deprecated GCC extension"
 msgstr "#%s је превазиђено ГЦЦ проширење"
 
-#: directives.c:375
+#: directives.c:397
 msgid "suggest not using #elif in traditional C"
 msgstr "саветује да се не користи „#elif“ у уобичајеном Ц-у"
 
-#: directives.c:378
+#: directives.c:400
 #, c-format
 msgid "traditional C ignores #%s with the # indented"
 msgstr "уобичајени Ц занемарује #%s са # увученим"
 
-#: directives.c:382
+#: directives.c:404
 #, c-format
 msgid "suggest hiding #%s from traditional C with an indented #"
 msgstr "саветује скривање #%s из уобичајеног Ц-а са увученим #"
 
-#: directives.c:408
+#: directives.c:430
 msgid "embedding a directive within macro arguments is not portable"
 msgstr "угнежђивање директиве унутар аргумената макроа није преносиво"
 
-#: directives.c:428
+#: directives.c:450
 msgid "style of line directive is a GCC extension"
 msgstr "стил директиве реда је ГЦЦ проширење"
 
-#: directives.c:483
+#: directives.c:531
 #, c-format
 msgid "invalid preprocessing directive #%s"
 msgstr "неисправна директива предобраде #%s"
 
-#: directives.c:551
+#: directives.c:600
 msgid "\"defined\" cannot be used as a macro name"
 msgstr "„defined“ не може бити коришћено као назив макроа"
 
-#: directives.c:557
+#: directives.c:605
+msgid "\"__has_include__\" cannot be used as a macro name"
+msgstr "„__has_include__“ не може бити коришћено као назив макроа"
+
+#: directives.c:611
 #, c-format
 msgid "\"%s\" cannot be used as a macro name as it is an operator in C++"
 msgstr "„%s“ не може бити коришћено као назив макроа јер је то оператор у Ц++-у"
 
-#: directives.c:560
+#: directives.c:614
 #, c-format
 msgid "no macro name given in #%s directive"
 msgstr "није дат назив макроа у #%s директиви"
 
-#: directives.c:563
+#: directives.c:617
 msgid "macro names must be identifiers"
 msgstr "називи макроа морају бити одредници"
 
-#: directives.c:612
+#: directives.c:666 directives.c:671
 #, c-format
 msgid "undefining \"%s\""
 msgstr "неодређујем „%s“"
 
-#: directives.c:667
+#: directives.c:727
 msgid "missing terminating > character"
 msgstr "недостаје завршни знак >"
 
-#: directives.c:726
+#: directives.c:786
 #, c-format
 msgid "#%s expects \"FILENAME\" or <FILENAME>"
 msgstr "#%s очекује „НАЗИВДАТОТЕКЕ“ или <НАЗИВДАТОТЕКЕ>"
 
-#: directives.c:772
+#: directives.c:828
 #, c-format
 msgid "empty filename in #%s"
 msgstr "празан назив датотеке у #%s"
 
-#: directives.c:782
+#: directives.c:835
 msgid "#include nested too deeply"
 msgstr "#include је угнежђено превише дубоко"
 
-#: directives.c:823
+#: directives.c:877
 msgid "#include_next in primary source file"
 msgstr "#include_next у примарној изворној датотеци"
 
-#: directives.c:849
+#: directives.c:903
 #, c-format
 msgid "invalid flag \"%s\" in line directive"
 msgstr "неисправна опција „%s“ у директиви реда"
 
-#: directives.c:909
+#: directives.c:963
 msgid "unexpected end of file after #line"
 msgstr "неочекивани крај датотеке након „#line“"
 
-#: directives.c:912
+#: directives.c:966
 #, c-format
 msgid "\"%s\" after #line is not a positive integer"
 msgstr "„%s“ након „#line“ није позитиван цео број"
 
-#: directives.c:918 directives.c:920
+#: directives.c:972 directives.c:974
 msgid "line number out of range"
 msgstr "број реда је ван опсега"
 
-#: directives.c:933 directives.c:1013
+#: directives.c:987 directives.c:1068
 #, c-format
 msgid "\"%s\" is not a valid filename"
 msgstr "„%s“ није исправан назив датотеке"
 
-#: directives.c:973
+#: directives.c:1028
 #, c-format
 msgid "\"%s\" after # is not a positive integer"
 msgstr "„%s“ након „#“ није позитиван цео број"
 
-#: directives.c:1068 directives.c:1070 directives.c:1072 directives.c:1658
+#: directives.c:1087
+#, c-format
+msgid "file \"%s\" linemarker ignored due to incorrect nesting"
+msgstr "датотека „%s“ означавач реда занемаренa због нетачног угњежђавања"
+
+#: directives.c:1147 directives.c:1149 directives.c:1151 directives.c:1737
 #, c-format
 msgid "%s"
 msgstr "%s"
 
-#: directives.c:1096
+#: directives.c:1175
 #, c-format
 msgid "invalid #%s directive"
 msgstr "неисправна #%s директива"
 
-#: directives.c:1159
+#: directives.c:1238
 #, c-format
 msgid "registering pragmas in namespace \"%s\" with mismatched name expansion"
 msgstr "бележим прагме у простору назива „%s“ са неодговарајућим ширењем назива"
 
-#: directives.c:1168
+#: directives.c:1247
 #, c-format
 msgid "registering pragma \"%s\" with name expansion and no namespace"
 msgstr "бележим прагму „%s“ са ширењем назива и без простора назива"
 
-#: directives.c:1186
+#: directives.c:1265
 #, c-format
 msgid "registering \"%s\" as both a pragma and a pragma namespace"
 msgstr "бележим „%s“ и као прагму и као простор назива прагме"
 
-#: directives.c:1189
+#: directives.c:1268
 #, c-format
 msgid "#pragma %s %s is already registered"
 msgstr "#pragma %s %s је већ забележено"
 
-#: directives.c:1192
+#: directives.c:1271
 #, c-format
 msgid "#pragma %s is already registered"
 msgstr "#pragma %s је већ забележено"
 
-#: directives.c:1222
+#: directives.c:1301
 msgid "registering pragma with NULL handler"
 msgstr "бележим прагму са НИШТАВНИМ руковаоцем"
 
-#: directives.c:1439
+#: directives.c:1518
 msgid "#pragma once in main file"
 msgstr "#pragma једном у главној датотеци"
 
-#: directives.c:1462
+#: directives.c:1541
 msgid "invalid #pragma push_macro directive"
 msgstr "неисправна „#pragma push_macro“ директива"
 
-#: directives.c:1517
+#: directives.c:1596
 msgid "invalid #pragma pop_macro directive"
 msgstr "неисправна „#pragma pop_macro“ директива"
 
-#: directives.c:1572
+#: directives.c:1651
 msgid "invalid #pragma GCC poison directive"
 msgstr "неисправна „#pragma GCC poison“ директива"
 
-#: directives.c:1581
+#: directives.c:1660
 #, c-format
 msgid "poisoning existing macro \"%s\""
 msgstr "трујем постојећи макро „%s“"
 
-#: directives.c:1600
+#: directives.c:1679
 msgid "#pragma system_header ignored outside include file"
 msgstr "„#pragma system_header“ је занемарено изван датотеке укључивања"
 
-#: directives.c:1625
+#: directives.c:1704
 #, c-format
 msgid "cannot find source file %s"
 msgstr "не могу да пронађем изворну датотеку „%s“"
 
-#: directives.c:1629
+#: directives.c:1708
 #, c-format
 msgid "current file is older than %s"
 msgstr "текућа датотека је старија од %s"
 
-#: directives.c:1653
+#: directives.c:1732
 #, c-format
 msgid "invalid \"#pragma GCC %s\" directive"
 msgstr "неисправна директива „#pragma GCC %s“"
 
-#: directives.c:1847
+#: directives.c:1933
 msgid "_Pragma takes a parenthesized string literal"
 msgstr "_Прагма узима словност ниске затворене заградом"
 
-#: directives.c:1968
+#: directives.c:2021
 msgid "#else without #if"
 msgstr "„#else“ без „#if“"
 
-#: directives.c:1973
+#: directives.c:2026
 msgid "#else after #else"
 msgstr "„#else“ након „#else“"
 
-#: directives.c:1975 directives.c:2008
+#: directives.c:2028 directives.c:2061
 msgid "the conditional began here"
 msgstr "условљеност почиње овде"
 
-#: directives.c:2001
+#: directives.c:2054
 msgid "#elif without #if"
 msgstr "„#elif“ без „#if“"
 
-#: directives.c:2006
+#: directives.c:2059
 msgid "#elif after #else"
 msgstr "„#elif“ након „#else“"
 
-#: directives.c:2044
+#: directives.c:2090
 msgid "#endif without #if"
 msgstr "„#endif“ без „#if“"
 
-#: directives.c:2124
+#: directives.c:2166
 msgid "missing '(' after predicate"
 msgstr "недостаје ( након предиката"
 
-#: directives.c:2139
+#: directives.c:2184
 msgid "missing ')' to complete answer"
 msgstr "недостаје ) да доврши одговор"
 
-#: directives.c:2159
+#: directives.c:2196
 msgid "predicate's answer is empty"
 msgstr "одговор предиката је празан"
 
-#: directives.c:2186
+#: directives.c:2226
 msgid "assertion without predicate"
 msgstr "тврдња без предиката"
 
-#: directives.c:2189
+#: directives.c:2229
 msgid "predicate must be an identifier"
 msgstr "предикат мора бити одредник"
 
-#: directives.c:2275
+#: directives.c:2311
 #, c-format
 msgid "\"%s\" re-asserted"
 msgstr "„%s“ је поново утврђен"
 
-#: directives.c:2567
+#: directives.c:2587
 #, c-format
 msgid "unterminated #%s"
 msgstr "неокончано #%s"
 
-#: directives-only.c:221 lex.c:2311 traditional.c:162
+#: directives-only.c:221 lex.c:2862 traditional.c:175
 msgid "unterminated comment"
 msgstr "неокончана напомена"
 
-#: errors.c:234
-msgid "stdout"
-msgstr "стдизлаз"
-
-#: errors.c:236
+#: errors.c:291
 #, c-format
 msgid "%s: %s"
 msgstr "%s: %s"
 
-#: expr.c:510 expr.c:620
+#: errors.c:304
+msgid "stdout"
+msgstr "стдизлаз"
+
+#: expr.c:628 expr.c:745
 msgid "fixed-point constants are a GCC extension"
 msgstr "константе сталне тачке су ГЦЦ проширења"
 
-#: expr.c:535
+#: expr.c:653
 msgid "invalid prefix \"0b\" for floating constant"
 msgstr "неисправан префикс „0b“ за покретну константу"
 
-#: expr.c:545
+#: expr.c:666
+#, fuzzy
+#| msgid "use of C++1z hexadecimal floating constant"
+msgid "use of C++17 hexadecimal floating constant"
+msgstr "употреба Ц+1z хексадецималне покретне константе"
+
+#: expr.c:669
 msgid "use of C99 hexadecimal floating constant"
 msgstr "употреба Ц99 хексадецималне покретне константе"
 
-#: expr.c:588
+#: expr.c:713
 #, c-format
 msgid "invalid suffix \"%.*s\" on floating constant"
 msgstr "неисправан суфикс „%.*s“ на покретној константи"
 
-#: expr.c:599 expr.c:659
+#: expr.c:724 expr.c:784
 #, c-format
 msgid "traditional C rejects the \"%.*s\" suffix"
 msgstr "уобичајени Ц одбацује „%.*s“ суфикс"
 
-#: expr.c:607
+#: expr.c:732
 msgid "suffix for double constant is a GCC extension"
 msgstr "суфикс за двоструку константу је ГЦЦ проширење"
 
-#: expr.c:613
+#: expr.c:738
 #, c-format
 msgid "invalid suffix \"%.*s\" with hexadecimal floating constant"
 msgstr "неисправан суфикс „%.*s“ са хексадецималном покретном константом"
 
-#: expr.c:624
+#: expr.c:749
 msgid "decimal float constants are a GCC extension"
 msgstr "децималне покретне константе су ГЦЦ проширења"
 
-#: expr.c:642
+#: expr.c:767
 #, c-format
 msgid "invalid suffix \"%.*s\" on integer constant"
 msgstr "неисправан суфикс „%.*s“ на константи целог броја"
 
-#: expr.c:667
+#: expr.c:792
 msgid "use of C++11 long long integer constant"
 msgstr "употреба Ц++11 дуге дуге константе целог броја"
 
-#: expr.c:668
+#: expr.c:793
 msgid "use of C99 long long integer constant"
 msgstr "употреба Ц99 дуге дуге константе целог броја"
 
-#: expr.c:684
+#: expr.c:809
 msgid "imaginary constants are a GCC extension"
 msgstr "имагинарне константе су ГЦЦ проширења"
 
-#: expr.c:690
-msgid "binary constants are a C++1y feature or GCC extension"
-msgstr "бинарне константе су Ц++1у функције или ГЦЦ проширења"
+#: expr.c:815
+msgid "binary constants are a C++14 feature or GCC extension"
+msgstr "бинарне константе су Ц++14 функције или ГЦЦ проширења"
 
-#: expr.c:787
+#: expr.c:817
+msgid "binary constants are a GCC extension"
+msgstr "бинарне константе су ГЦЦ проширења"
+
+#: expr.c:912
 msgid "integer constant is too large for its type"
 msgstr "константа целог броја је предуга за њену врсту"
 
-#: expr.c:818
+#: expr.c:943
 msgid "integer constant is so large that it is unsigned"
 msgstr "константа целог броја је толико велика тако да је неозначена"
 
-#: expr.c:913
+#: expr.c:1038
 msgid "missing ')' after \"defined\""
 msgstr "недостаје ( након „defined“"
 
-#: expr.c:920
+#: expr.c:1045
 msgid "operator \"defined\" requires an identifier"
 msgstr "оператор „defined“ захтева одредника"
 
-#: expr.c:928
+#: expr.c:1053
 #, c-format
 msgid "(\"%s\" is an alternative token for \"%s\" in C++)"
 msgstr "(„%s“ је резервни симбол за „%s“ у Ц++-у)"
 
-#: expr.c:938
+#: expr.c:1065
 msgid "this use of \"defined\" may not be portable"
 msgstr "ова употреба „defined“ не може бити преносива"
 
-#: expr.c:998
+#: expr.c:1109
 msgid "user-defined literal in preprocessor expression"
 msgstr "словност коју је одредио корисник у изразу претпроцесора"
 
-#: expr.c:1003
+#: expr.c:1114
 msgid "floating constant in preprocessor expression"
 msgstr "покретна константа у изразу претптоцесора"
 
-#: expr.c:1009
+#: expr.c:1120
 msgid "imaginary number in preprocessor expression"
 msgstr "имагинаран број у изразу претптоцесора"
 
-#: expr.c:1057
+#: expr.c:1173
 #, c-format
-msgid "\"%s\" is not defined"
-msgstr "„%s“ није одређено"
+msgid "\"%s\" is not defined, evaluates to 0"
+msgstr "„%s“ није одређено, процењује се на 0"
 
-#: expr.c:1070
+#: expr.c:1186
 msgid "assertions are a GCC extension"
 msgstr "тврдње су ГЦЦ проширења"
 
-#: expr.c:1073
+#: expr.c:1189
 msgid "assertions are a deprecated extension"
 msgstr "тврдње су застарела проширења"
 
-#: expr.c:1318
+#: expr.c:1435
 #, c-format
 msgid "unbalanced stack in %s"
 msgstr "неуравнотежен стек у %s"
 
-#: expr.c:1338
+#: expr.c:1455
 #, c-format
 msgid "impossible operator '%u'"
 msgstr "немогућ оператор у „%u“"
 
-#: expr.c:1439
+#: expr.c:1556
 msgid "missing ')' in expression"
 msgstr "недостаје ) у изразу"
 
-#: expr.c:1468
+#: expr.c:1585
 msgid "'?' without following ':'"
 msgstr "„?“ без пратећег „:“"
 
-#: expr.c:1478
+#: expr.c:1595
 msgid "integer overflow in preprocessor expression"
 msgstr "прекорачење целог броја у изразу претпроцесора"
 
-#: expr.c:1483
+#: expr.c:1600
 msgid "missing '(' in expression"
 msgstr "недостаје ( у изразу"
 
-#: expr.c:1515
+#: expr.c:1632
 #, c-format
 msgid "the left operand of \"%s\" changes sign when promoted"
 msgstr "леви операнд за „%s“ мења знак када је претворен"
 
-#: expr.c:1520
+#: expr.c:1637
 #, c-format
 msgid "the right operand of \"%s\" changes sign when promoted"
 msgstr "десни операнд за „%s“ мења знак када је претворен"
 
-#: expr.c:1779
+#: expr.c:1896
 msgid "traditional C rejects the unary plus operator"
 msgstr "уобичајени Ц одбацује унарни плус оператор"
 
-#: expr.c:1877
+#: expr.c:1994
 msgid "comma operator in operand of #if"
 msgstr "оператор зареза у операнду „#if“"
 
-#: expr.c:2013
+#: expr.c:2130
 msgid "division by zero in #if"
 msgstr "дељење нулом у „#if“"
 
-#: files.c:505
-msgid "NULL directory in find_file"
-msgstr "НИШТАВАН директоријум у пронађи_датотеку"
+#: expr.c:2227
+msgid "operator \"__has_include__\" requires a header string"
+msgstr "оператор „__has_include__“ захтева ниску заглавља"
 
-#: files.c:553
+#: expr.c:2243
+msgid "missing ')' after \"__has_include__\""
+msgstr "недостаје ) након „__has_include__“"
+
+#: files.c:573
 msgid "one or more PCH files were found, but they were invalid"
 msgstr "једна или више ПЦХ датотека је пронађено, али су неисправне"
 
-#: files.c:556
+#: files.c:576
 msgid "use -Winvalid-pch for more information"
 msgstr "користите „-Winvalid-pch“ за више података"
 
-#: files.c:660
-#, c-format
-msgid "%s is a block device"
-msgstr "%s је блок уређај"
-
-#: files.c:677
-#, c-format
-msgid "%s is too large"
-msgstr "%s је превелико"
-
-#: files.c:717
-#, c-format
-msgid "%s is shorter than expected"
-msgstr "%s је краће од очекиваног"
-
-#: files.c:953
+#: files.c:981
 #, c-format
 msgid "no include path in which to search for %s"
 msgstr "нема путање укључивања у којој потражити „%s“"
 
-#: files.c:1389
+#: files.c:1455
 msgid "Multiple include guards may be useful for:\n"
 msgstr "Више чувара укључивања може бити корисно за:\n"
 
-#: init.c:536
+#: init.c:569
 msgid "cppchar_t must be an unsigned type"
 msgstr "„cppchar_t“ мора бити неозначена врста"
 
-#: init.c:540
+#: init.c:573
 #, c-format
 msgid "preprocessor arithmetic has maximum precision of %lu bits; target requires %lu bits"
 msgstr "аритметика претпроцесора има највећу тачност од %lu бита; мета затева %lu бита"
 
-#: init.c:547
+#: init.c:580
 msgid "CPP arithmetic must be at least as precise as a target int"
 msgstr "ЦПП аритметика мора бити тачна барем колико и циљни цео број"
 
-#: init.c:550
+#: init.c:583
 msgid "target char is less than 8 bits wide"
 msgstr "циљни знак је дужи мање од 8 бита"
 
-#: init.c:554
+#: init.c:587
 msgid "target wchar_t is narrower than target char"
 msgstr "циљни широки знак (wchar_t) је ужи од циљног знака"
 
-#: init.c:558
+#: init.c:591
 msgid "target int is narrower than target char"
 msgstr "циљни цео број је ужи од циљног знака"
 
-#: init.c:563
+#: init.c:596
 msgid "CPP half-integer narrower than CPP character"
 msgstr "ЦПП полуцео број је ужи од ЦПП знака"
 
-#: init.c:567
+#: init.c:600
 #, c-format
 msgid "CPP on this host cannot handle wide character constants over %lu bits, but the target requires %lu bits"
 msgstr "ЦПП на овом рачунару не може да рукује дуге константе знака преко %lu бита, али мета захтева %lu бита"
 
-#: lex.c:919
+#: lex.c:1126
 msgid "backslash and newline separated by space"
 msgstr "контра коса и нови ред су раздвојени размаком"
 
-#: lex.c:924
+#: lex.c:1131
 msgid "backslash-newline at end of file"
 msgstr "контра коса-нови ред на крају датотеке"
 
-#: lex.c:940
+#: lex.c:1147
 #, c-format
 msgid "trigraph ??%c converted to %c"
 msgstr "триграф ??%c је претворен у %c"
 
-#: lex.c:948
+#: lex.c:1155
 #, c-format
 msgid "trigraph ??%c ignored, use -trigraphs to enable"
 msgstr "триграф ??%c је занемарен, користите „-trigraphs“ да укључите"
 
-#: lex.c:997
+#: lex.c:1204
 msgid "\"/*\" within comment"
 msgstr "„/*“ унутар напомене"
 
-#: lex.c:1055
+#: lex.c:1262
 #, c-format
 msgid "%s in preprocessing directive"
 msgstr "%s у директиви претпроцесора"
 
-#: lex.c:1064
+#: lex.c:1271
 msgid "null character(s) ignored"
 msgstr "ништаван знак(ци) је занемарен(и)"
 
-#: lex.c:1101
+#: lex.c:1308
 #, c-format
 msgid "`%.*s' is not in NFKC"
 msgstr "„%.*s“ није у НФКЦ-у"
 
-#: lex.c:1104
+#: lex.c:1311
 #, c-format
 msgid "`%.*s' is not in NFC"
 msgstr "„%.*s“ није у НФЦ-у"
 
-#: lex.c:1173 lex.c:1253
+#: lex.c:1365
+msgid "__VA_OPT__ is not available until C++2a"
+msgstr ""
+
+#: lex.c:1372
+#, fuzzy
+#| msgid "__VA_ARGS__ can only appear in the expansion of a C++11 variadic macro"
+msgid "__VA_OPT__ can only appear in the expansion of a C++2a variadic macro"
+msgstr "„__VA_ARGS__“ може само да се појави у ширењу вариадик макроа Ц++11"
+
+#: lex.c:1403 lex.c:1495
 #, c-format
 msgid "attempt to use poisoned \"%s\""
 msgstr "покушај коришћења отрованог „%s“"
 
-#: lex.c:1181 lex.c:1261
+#: lex.c:1413 lex.c:1505
+msgid "__VA_ARGS__ can only appear in the expansion of a C++11 variadic macro"
+msgstr "„__VA_ARGS__“ може само да се појави у ширењу вариадик макроа Ц++11"
+
+#: lex.c:1417 lex.c:1509
 msgid "__VA_ARGS__ can only appear in the expansion of a C99 variadic macro"
 msgstr "„__VA_ARGS__“ може само да се појави у ширењу вариадик макроа Ц99"
 
-#: lex.c:1187 lex.c:1267
+#: lex.c:1427 lex.c:1521
 #, c-format
 msgid "identifier \"%s\" is a special operator name in C++"
 msgstr "одредник „%s“ је назив посебног оператора у Ц++-у"
 
-#: lex.c:1554
+#: lex.c:1826
 msgid "raw string delimiter longer than 16 characters"
 msgstr "граничник сирове ниске је дужи од 16 знака"
 
-#: lex.c:1558
+#: lex.c:1830
 msgid "invalid new-line in raw string delimiter"
 msgstr "неисправан нови ред у граничнику сирове ниске"
 
-#: lex.c:1562
+#: lex.c:1834
 #, c-format
 msgid "invalid character '%c' in raw string delimiter"
 msgstr "неисправан знак „%c“ у граничнику сирове ниске"
 
-#: lex.c:1611 lex.c:1633
+#: lex.c:1883 lex.c:1905
 msgid "unterminated raw string"
 msgstr "неокончана сирова ниска"
 
-#: lex.c:1654 lex.c:1783
+#: lex.c:1925 lex.c:2054
 msgid "invalid suffix on literal; C++11 requires a space between literal and string macro"
 msgstr "неисправан суфикс у словности; Ц++11 захтева размак између словности и макроа ниске"
 
-#: lex.c:1765
+#: lex.c:2037
 msgid "null character(s) preserved in literal"
 msgstr "ништаван знак је причуван у словности"
 
-#: lex.c:1768
+#: lex.c:2040
 #, c-format
 msgid "missing terminating %c character"
 msgstr "недостаје завршни знак %c"
 
-#: lex.c:2322
+#: lex.c:2072
+msgid "C++11 requires a space between string literal and macro"
+msgstr "Ц++11 захтева размак између словности и макроа ниске"
+
+#: lex.c:2876 lex.c:2910
 msgid "C++ style comments are not allowed in ISO C90"
 msgstr "Напомене Ц++ стила нису допуштене у ИСО Ц90"
 
-#: lex.c:2324
+#: lex.c:2878 lex.c:2889 lex.c:2913
 msgid "(this will be reported only once per input file)"
 msgstr "(ово ће бити извештено само једном по улазној датотеци)"
 
-#: lex.c:2329
+#: lex.c:2887
+msgid "C++ style comments are incompatible with C90"
+msgstr "Напомене Ц++ стила нису сагласне са Ц90"
+
+#: lex.c:2919
 msgid "multi-line comment"
 msgstr "напомена више редова"
 
-#: lex.c:2660
+#: lex.c:3299
 #, c-format
 msgid "unspellable token %s"
 msgstr "неизговорљив симбол %s"
 
-#: macro.c:191
+#: macro.c:94
+#, fuzzy
+#| msgid "'##' cannot appear at either end of a macro expansion"
+msgid "'##' cannot appear at either end of __VA_OPT__"
+msgstr "„##“ не може да се појави у или на крају макро ширења"
+
+#: macro.c:354
 #, c-format
 msgid "macro \"%s\" is not used"
 msgstr "макро „%s“ није коришћен"
 
-#: macro.c:229 macro.c:433
+#: macro.c:393 macro.c:641
 #, c-format
 msgid "invalid built-in macro \"%s\""
 msgstr "неисправан макро уградње „%s“"
 
-#: macro.c:236 macro.c:333
+#: macro.c:400 macro.c:502
 #, c-format
 msgid "macro \"%s\" might prevent reproducible builds"
 msgstr "макро „%s“ може да спречи поновљиве изградње"
 
-#: macro.c:267
+#: macro.c:431
 msgid "could not determine file timestamp"
 msgstr "не могу да одредим временску ознаку датотеке"
 
-#: macro.c:368
+#: macro.c:548
 msgid "could not determine date and time"
 msgstr "не могу да одредим датум и време"
 
-#: macro.c:384
+#: macro.c:564
 msgid "__COUNTER__ expanded inside directive with -fdirectives-only"
 msgstr "„__COUNTER__“ је проширен у директиви са „-fdirectives-only“"
 
-#: macro.c:542
+#: macro.c:760
 msgid "invalid string literal, ignoring final '\\'"
 msgstr "неисправна словност ниске, занемарујем завршну \\"
 
-#: macro.c:604
+#: macro.c:822
 #, c-format
 msgid "pasting \"%s\" and \"%s\" does not give a valid preprocessing token"
 msgstr "налепљивање „%s“ и „%s“ не даје исправан симбол претпроцесора"
 
-#: macro.c:726
-msgid "ISO C99 requires rest arguments to be used"
-msgstr "ИСО Ц99 захтева да остали аргументи буду коришћени"
+#: macro.c:948
+msgid "ISO C++11 requires at least one argument for the \"...\" in a variadic macro"
+msgstr "ИСО Ц++11 захтева барем један аргумент за „...“ у вариадик макроу"
 
-#: macro.c:731
+#: macro.c:952
+msgid "ISO C99 requires at least one argument for the \"...\" in a variadic macro"
+msgstr "ИСО Ц99 захтева барем један аргумент за „...“ у вариадик макроу"
+
+#: macro.c:959
 #, c-format
 msgid "macro \"%s\" requires %u arguments, but only %u given"
 msgstr "макро „%s“ захтева %u аргумента, али само %u су дата"
 
-#: macro.c:736
+#: macro.c:964
 #, c-format
 msgid "macro \"%s\" passed %u arguments, but takes just %u"
 msgstr "макро „%s“ је проследио %u аргумента, али узима само %u"
 
-#: macro.c:930 traditional.c:680
+#: macro.c:1162 traditional.c:827
 #, c-format
 msgid "unterminated argument list invoking macro \"%s\""
 msgstr "бесконачан списак аргумената призивајући макро „%s“"
 
-#: macro.c:1081
+#: macro.c:1304
 #, c-format
 msgid "function-like macro \"%s\" must be used with arguments in traditional C"
 msgstr "макро налик функцији „%s“ мора бити коришћен са аргументима у уобичајеном Ц-у"
 
-#: macro.c:1753
+#: macro.c:2083
 #, c-format
-msgid "invoking macro %s argument %d: empty macro arguments are undefined in ISO C90 and ISO C++98"
-msgstr "призивајући макро %s аргумент %d: празни аргументи макроа нису одређени у ИСО Ц90 и ИСО Ц++98"
+msgid "invoking macro %s argument %d: empty macro arguments are undefined in ISO C++98"
+msgstr "призивајући макро %s аргумент %d: празни аргументи макроа нису одређени у ИСО Ц++98"
 
-#: macro.c:2715
+#: macro.c:2091 macro.c:2100
+#, c-format
+msgid "invoking macro %s argument %d: empty macro arguments are undefined in ISO C90"
+msgstr "призивајући макро %s аргумент %d: празни аргументи макроа нису одређени у ИСО Ц90"
+
+#: macro.c:3059
 #, c-format
 msgid "duplicate macro parameter \"%s\""
 msgstr "параметар двоструког макроа „%s“"
 
-#: macro.c:2761
+#: macro.c:3141
 #, c-format
-msgid "\"%s\" may not appear in macro parameter list"
-msgstr "„%s“ не може да се појави у списку параметара макроа"
+msgid "expected parameter name, found \"%s\""
+msgstr ""
 
-#: macro.c:2769
-msgid "macro parameters must be comma-separated"
-msgstr "параметри макроа морају бити раздвојени зарезом"
+#: macro.c:3142
+#, c-format
+msgid "expected ',' or ')', found \"%s\""
+msgstr ""
 
-#: macro.c:2786
-msgid "parameter name missing"
-msgstr "недостаје назив параметра"
+#: macro.c:3143
+msgid "expected parameter name before end of line"
+msgstr ""
 
-#: macro.c:2804
+#: macro.c:3144
+#, fuzzy
+#| msgid "unexpected end of file after #line"
+msgid "expected ')' before end of line"
+msgstr "неочекивани крај датотеке након „#line“"
+
+#: macro.c:3145
+msgid "expected ')' after \"...\""
+msgstr ""
+
+#: macro.c:3202
+msgid "anonymous variadic macros were introduced in C++11"
+msgstr "безимени вариадик макрои су уведени у Ц++11"
+
+#: macro.c:3203 macro.c:3207
 msgid "anonymous variadic macros were introduced in C99"
 msgstr "безимени вариадик макрои су уведени у Ц99"
 
-#: macro.c:2809
+#: macro.c:3213
+msgid "ISO C++ does not permit named variadic macros"
+msgstr "ИСО Ц++ не дозвољава именоване вариадик макрое"
+
+#: macro.c:3214
 msgid "ISO C does not permit named variadic macros"
 msgstr "ИСО Ц не дозвољава именоване вариадик макрое"
 
-#: macro.c:2818
-msgid "missing ')' in macro parameter list"
-msgstr "недостаје ) у списку параметара макроа"
-
-#: macro.c:2867
+#: macro.c:3260
 msgid "'##' cannot appear at either end of a macro expansion"
 msgstr "„##“ не може да се појави у или на крају макро ширења"
 
-#: macro.c:2902
+#: macro.c:3298
+msgid "ISO C++11 requires whitespace after the macro name"
+msgstr "ИСО Ц++11 захтева празнине након назива макроа"
+
+#: macro.c:3299
 msgid "ISO C99 requires whitespace after the macro name"
 msgstr "ИСО Ц99 захтева празнине након назива макроа"
 
-#: macro.c:2926
+#: macro.c:3323
 msgid "missing whitespace after the macro name"
 msgstr "недостаје празнина након назива макроа"
 
-#: macro.c:2960
+#: macro.c:3373
 msgid "'#' is not followed by a macro parameter"
 msgstr "за „#“ не следи параметар макроа"
 
-#: macro.c:3118
+#: macro.c:3524
 #, c-format
 msgid "\"%s\" redefined"
 msgstr "„%s“ је поново одређено"
 
-#: macro.c:3124
+#: macro.c:3529
 msgid "this is the location of the previous definition"
 msgstr "ово је место претходне одреднице"
 
-#: macro.c:3185
+#: macro.c:3633
 #, c-format
 msgid "macro argument \"%s\" would be stringified in traditional C"
 msgstr "макро аргумент „%s“ ће бити нискован у уобичајеном Ц-у"
 
-#: macro.c:3212
-#, c-format
-msgid "invalid hash type %d in cpp_macro_definition"
-msgstr "неисправна врста хеша %d у цпп_макро_одредници"
-
-#: pch.c:87 pch.c:345 pch.c:359 pch.c:377 pch.c:383 pch.c:392 pch.c:399
+#: pch.c:90 pch.c:342 pch.c:356 pch.c:374 pch.c:380 pch.c:389 pch.c:396
 msgid "while writing precompiled header"
 msgstr "за време уписивања претходно преведеног заглавља"
 
-#: pch.c:619
+#: pch.c:616
 #, c-format
 msgid "%s: not used because `%.*s' is poisoned"
 msgstr "%s: није употребљено зато што је „%.*s“ отровано"
 
-#: pch.c:641
+#: pch.c:638
 #, c-format
 msgid "%s: not used because `%.*s' not defined"
 msgstr "%s: није употребљено зато што „%.*s“ није одређено"
 
-#: pch.c:653
+#: pch.c:650
 #, c-format
 msgid "%s: not used because `%.*s' defined as `%s' not `%.*s'"
 msgstr "%s: није употребљено зато што „%.*s“ одређено као „%s“ није „%.*s“"
 
-#: pch.c:694
+#: pch.c:691
 #, c-format
 msgid "%s: not used because `%s' is defined"
 msgstr "%s: није употребљено зато што је „%s“ одређено"
 
-#: pch.c:714
+#: pch.c:711
 #, c-format
 msgid "%s: not used because `__COUNTER__' is invalid"
 msgstr "%s: није употребљено зато што „__COUNTER__“ није исправно"
 
-#: pch.c:723 pch.c:898
+#: pch.c:720 pch.c:878
 msgid "while reading precompiled header"
 msgstr "за време читања претходно преведеног заглавља"
 
-#: traditional.c:750
+#: traditional.c:896
 #, c-format
 msgid "detected recursion whilst expanding macro \"%s\""
 msgstr "откривено је дубачење за време ширења макроа „%s“"
 
-#: traditional.c:968
+#: traditional.c:1119
 msgid "syntax error in macro parameter list"
 msgstr "садржајна грешка у списку параметара макроа"
+
+#~ msgid "\"%s\" may not appear in macro parameter list"
+#~ msgstr "„%s“ не може да се појави у списку параметара макроа"
+
+#~ msgid "macro parameters must be comma-separated"
+#~ msgstr "параметри макроа морају бити раздвојени зарезом"
+
+#~ msgid "parameter name missing"
+#~ msgstr "недостаје назив параметра"
+
+#~ msgid "missing ')' in macro parameter list"
+#~ msgstr "недостаје ) у списку параметара макроа"
+
+#~ msgid "invalid hash type %d in cpp_macro_definition"
+#~ msgstr "неисправна врста хеша %d у цпп_макро_одредници"
+
+#~ msgid "NULL directory in find_file"
+#~ msgstr "НИШТАВАН директоријум у пронађи_датотеку"
+
+#~ msgid "%s is a block device"
+#~ msgstr "%s је блок уређај"
+
+#~ msgid "%s is too large"
+#~ msgstr "%s је превелико"
+
+#~ msgid "%s is shorter than expected"
+#~ msgstr "%s је краће од очекиваног"
 
 #~ msgid "Character %x might not be NFKC"
 #~ msgstr "Знак %x не може бити НФКЦ"

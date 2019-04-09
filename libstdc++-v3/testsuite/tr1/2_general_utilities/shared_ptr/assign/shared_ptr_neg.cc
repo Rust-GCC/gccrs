@@ -1,6 +1,6 @@
 // { dg-do compile }
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -31,8 +31,6 @@ struct B { };
 int
 test01()
 {
-  bool test __attribute__((unused)) = true;
-
   std::tr1::shared_ptr<A> a;
   std::tr1::shared_ptr<B> b;
   a = b;                      // { dg-error "here" }
@@ -40,7 +38,7 @@ test01()
   return 0;
 }
 
-int 
+int
 main()
 {
   test01();

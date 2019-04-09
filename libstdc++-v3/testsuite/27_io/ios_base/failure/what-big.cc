@@ -1,6 +1,6 @@
 // 2007-05-29 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2007-2014 Free Software Foundation, Inc.
+// Copyright (C) 2007-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -27,10 +27,13 @@ void test01()
 {
   typedef std::ios_base::failure test_type;
 
-  bool test __attribute__((unused)) = true;
   const std::string xxx(10000, 'x');
   test_type t(xxx);
+#if _GLIBCXX_USE_CXX11_ABI
+  VERIFY( std::strstr(t.what(), xxx.c_str()) != NULL );
+#else
   VERIFY( std::strcmp(t.what(), xxx.c_str()) == 0 );
+#endif
 }
 
 int main(void)

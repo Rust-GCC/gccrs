@@ -6,6 +6,7 @@
    say that &&foo was the target of the branch, and the real target would
    then be removed as dead.  */
 /* { dg-do link } */
+/* { dg-require-effective-target label_values } */
 #define NVARS 30
 #define MULTI(X) \
   X( 0), X( 1), X( 2), X( 3), X( 4), X( 5), X( 6), X( 7), X( 8), X( 9), \

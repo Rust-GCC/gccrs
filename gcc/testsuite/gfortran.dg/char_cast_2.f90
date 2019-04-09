@@ -6,7 +6,7 @@
 ! The code comes from http://www.star.le.ac.uk/~cgp/fortran.html (by Clive Page)
 ! Reported by Thomas Koenig <tkoenig@gcc.gnu.org>
 !
-  if (any (Up ("AbCdEfGhIjKlM") .ne. (/"ABCDEFGHIJKLM"/))) call abort ()
+  if (any (Up ("AbCdEfGhIjKlM") .ne. (/"ABCDEFGHIJKLM"/))) STOP 1
 contains
   Character (len=20) Function Up (string)
     Character(len=*) string
@@ -23,4 +23,3 @@ end
 ! Platform dependent variations are [S$5][1], [__S_5][1], [S___5][1]
 ! so we count the occurrences of 5][1].
 ! { dg-final { scan-tree-dump-times "5\\\]\\\[1\\\]" 2 "original" } }
-! { dg-final { cleanup-tree-dump "original" } }

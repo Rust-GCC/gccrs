@@ -9,13 +9,14 @@
 #include <stdlib.h>
 
 #include "runtime.h"
-#include "go-alloc.h"
 #include "go-assert.h"
 #include "go-type.h"
 
 #ifdef USE_LIBFFI
+#include "ffi.h"
+#endif
 
-#include "go-ffi.h"
+#if defined(USE_LIBFFI) && FFI_GO_CLOSURES
 
 /* The functions in this file are only called from reflect_call.  As
    reflect_call calls a libffi function, which will be compiled
@@ -81,6 +82,12 @@ go_results_size (const struct __go_func_type *func)
     }
 
   off = (off + maxalign - 1) & ~ (maxalign - 1);
+
+  // The libffi library doesn't understand a struct with no fields.
+  // We generate a struct with a single field of type void.  When used
+  // as a return value, libffi will think that requires a byte.
+  if (off == 0)
+    off = 1;
 
   return off;
 }
@@ -192,6 +199,11 @@ go_set_results (const struct __go_func_type *func, unsigned char *call_result,
     }
 }
 
+/* The code that converts the Go type to an FFI type is written in Go,
+   so that it can allocate Go heap memory.  */
+extern void ffiFuncToCIF(const struct __go_func_type*, _Bool, _Bool, ffi_cif*)
+  __asm__ ("runtime.ffiFuncToCIF");
+
 /* Call a function.  The type of the function is FUNC_TYPE, and the
    closure is FUNC_VAL.  PARAMS is an array of parameter addresses.
    RESULTS is an array of result addresses.
@@ -202,11 +214,7 @@ go_set_results (const struct __go_func_type *func, unsigned char *call_result,
 
    If IS_METHOD is true this is a call to a method expression.  The
    first argument is the receiver.  It is described in FUNC_TYPE, but
-   regardless of FUNC_TYPE, it is passed as a pointer.
-
-   If neither IS_INTERFACE nor IS_METHOD is true then we are calling a
-   function indirectly, and we must pass a closure pointer via
-   __go_set_closure.  The pointer to pass is simply FUNC_VAL.  */
+   regardless of FUNC_TYPE, it is passed as a pointer.  */
 
 void
 reflect_call (const struct __go_func_type *func_type, FuncVal *func_val,
@@ -217,13 +225,12 @@ reflect_call (const struct __go_func_type *func_type, FuncVal *func_val,
   unsigned char *call_result;
 
   __go_assert ((func_type->__common.__code & GO_CODE_MASK) == GO_FUNC);
-  __go_func_to_cif (func_type, is_interface, is_method, &cif);
+  ffiFuncToCIF (func_type, is_interface, is_method, &cif);
 
   call_result = (unsigned char *) malloc (go_results_size (func_type));
 
-  if (!is_interface && !is_method)
-    __go_set_closure (func_val);
-  ffi_call (&cif, func_val->fn, call_result, params);
+  ffi_call_go (&cif, (void (*)(void)) func_val->fn, call_result, params,
+	       func_val);
 
   /* Some day we may need to free result values if RESULTS is
      NULL.  */

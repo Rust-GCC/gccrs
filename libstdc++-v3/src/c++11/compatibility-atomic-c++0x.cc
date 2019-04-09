@@ -1,6 +1,6 @@
 // <atomic> compatibility -*- C++ -*-
 
-// Copyright (C) 2008-2014 Free Software Foundation, Inc.
+// Copyright (C) 2008-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -64,7 +64,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
      bool
      test_and_set(memory_order) noexcept;
-     
+
      void
      clear(memory_order) noexcept;
     };

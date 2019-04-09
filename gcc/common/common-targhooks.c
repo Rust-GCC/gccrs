@@ -1,5 +1,5 @@
 /* Default common target hook functions.
-   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+   Copyright (C) 2003-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,10 +20,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "input.h"
 #include "tm.h"
 #include "common/common-target.h"
 #include "common/common-targhooks.h"
+#include "opts.h"
 
 /* Determine the exception handling mechanism for the target.  */
 
@@ -74,6 +74,23 @@ default_target_handle_option (struct gcc_options *opts ATTRIBUTE_UNUSED,
 			      struct gcc_options *opts_set ATTRIBUTE_UNUSED,
 			      const struct cl_decoded_option *decoded ATTRIBUTE_UNUSED,
 			      location_t loc ATTRIBUTE_UNUSED)
+{
+  return true;
+}
+
+/* Default version of TARGET_GET_VALID_OPTION_VALUES.  */
+
+vec<const char *>
+default_get_valid_option_values (int, const char *)
+{
+  return vec<const char *> ();
+}
+
+/* Default version of TARGET_OPTION_VALIDATE_PARAM.  */
+
+bool
+default_option_validate_param (const int value ATTRIBUTE_UNUSED,
+			       const int param ATTRIBUTE_UNUSED)
 {
   return true;
 }

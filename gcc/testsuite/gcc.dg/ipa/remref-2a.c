@@ -1,7 +1,7 @@
 /* Verify that indirect inlining can also remove references of the functions it
    discovers calls for.  */
 /* { dg-do compile } */
-/* { dg-options "-O3 -fno-early-inlining -fno-ipa-cp -fdump-ipa-inline -fdump-tree-optimized"  } */
+/* { dg-options "-O3 -fno-early-inlining -fno-ipa-cp -fdump-ipa-inline -fdump-tree-optimized -fno-ipa-icf"  } */
 
 int global;
 
@@ -86,5 +86,3 @@ main (int argc, int *argv[])
 
 /* { dg-final { scan-ipa-dump-times "ipa-prop: Removed a reference" 2 "inline"  } } */
 /* { dg-final { scan-tree-dump-not "hooray"  "optimized"  } } */
-/* { dg-final { cleanup-ipa-dump "inline" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

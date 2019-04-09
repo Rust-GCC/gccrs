@@ -1,8 +1,9 @@
 // { dg-do compile }
+// { dg-require-cstdint "" }
 
 // 2006-01-30  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,7 +34,7 @@ void test01()
 #if defined(_GLIBCXX_USE_WCHAR_T) && _GLIBCXX_USE_C99_INTTYPES_WCHAR_T_TR1
   const wchar_t* ws = 0;
   wchar_t** wendptr = 0;
-#endif  
+#endif
 
   std::tr1::intmax_t  ret;
   std::tr1::uintmax_t uret;

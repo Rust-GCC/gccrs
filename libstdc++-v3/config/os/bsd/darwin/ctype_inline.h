@@ -1,6 +1,6 @@
 // Locale support -*- C++ -*-
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,10 +30,10 @@
 //
 // ISO C++ 14882: 22.1  Locales
 //
-  
+
 // ctype bits to be inlined go here. Non-inlinable (ie virtual do_*)
 // functions go in ctype.cc
-  
+
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -41,7 +41,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   bool
   ctype<char>::
   is(mask __m, char __c) const
-  { 
+  {
     if (_M_table)
       return _M_table[static_cast<unsigned char>(__c)] & __m;
     else
@@ -60,7 +60,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	{
 #if defined (_CTYPE_S) || defined (__istype)
 	  *__vec = __maskrune (*__low, upper | lower | alpha | digit | xdigit
-			       | space | print | graph | cntrl | punct | alnum);
+			       | space | print | graph | cntrl | punct | alnum
+			       | blank);
 #else
 	  mask __m = 0;
 	  if (this->is(upper, *__low)) __m |= upper;
@@ -75,6 +76,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  if (this->is(punct, *__low)) __m |= punct;
 	  // Do not include explicit line for alnum mask since it is a
 	  // pure composite of masks on FreeBSD.
+	  if (this->is(blank, *__low)) __m |= blank;
 	  *__vec = __m;
 #endif
 	}
@@ -109,7 +111,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     return __low;
   }
 
-#ifdef _GLIBCXX_USE_WCHAR_T  
+#ifdef _GLIBCXX_USE_WCHAR_T
   inline bool
   ctype<wchar_t>::
   do_is(mask __m, wchar_t __c) const
@@ -117,17 +119,18 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     return __istype (__c, __m);
   }
 
-  inline const wchar_t* 
+  inline const wchar_t*
   ctype<wchar_t>::
   do_is(const wchar_t* __lo, const wchar_t* __hi, mask* __vec) const
   {
     for (; __lo < __hi; ++__vec, ++__lo)
       *__vec = __maskrune (*__lo, upper | lower | alpha | digit | xdigit
-			   | space | print | graph | cntrl | punct | alnum);
+			   | space | print | graph | cntrl | punct | alnum
+			   | blank);
     return __hi;
   }
-  
-  inline const wchar_t* 
+
+  inline const wchar_t*
   ctype<wchar_t>::
   do_scan_is(mask __m, const wchar_t* __lo, const wchar_t* __hi) const
   {

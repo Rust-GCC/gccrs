@@ -1,5 +1,5 @@
 # Top level -*- makefile -*- fragment for GNU Objective-C++
-#   Copyright (C) 2005-2014 Free Software Foundation, Inc.
+#   Copyright (C) 2005-2019 Free Software Foundation, Inc.
 #   Contributed by Ziemowit Laski  <zlaski@apple.com>
 
 #This file is part of GCC.
@@ -126,6 +126,9 @@ obj-c++.tags: force
 
 lang_checks += check-obj-c++
 
+# No objc-c++-specific selftests
+selftest-obj-c++:
+
 #
 # Install hooks:
 # cc1objplus is installed elsewhere as part of $(COMPILERS).
@@ -142,6 +145,7 @@ obj-c++.uninstall:
 obj-c++.mostlyclean:
 	-rm -f objcp/*$(objext)
 	-rm -f objcp/*$(coverageexts)
+	-rm -f cc1objplus$(exeext)
 obj-c++.clean: obj-c++.mostlyclean
 obj-c++.distclean:
 	-rm -f objcp/config.status objcp/Makefile

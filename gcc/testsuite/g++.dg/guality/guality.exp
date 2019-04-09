@@ -5,7 +5,7 @@ load_lib gcc-gdb-test.exp
 
 # Disable on darwin until radr://7264615 is resolved.
 if { [istarget *-*-darwin*] } {
-  return
+    return
 }
 
 if { [istarget "powerpc-ibm-aix*"] } {
@@ -28,7 +28,7 @@ proc check_guality {args} {
       set ret [string match "*1 PASS, 0 FAIL, 0 UNRESOLVED*" $execout]
     }
     remote_file build delete $output
-    array get test_counts [array get saved_test_counts]
+    array set test_counts [array get saved_test_counts]
     return $ret
 }
 
@@ -38,11 +38,23 @@ global GDB
 if ![info exists ::env(GUALITY_GDB_NAME)] {
     if [info exists GDB] {
 	set guality_gdb_name "$GDB"
+    } elseif [file exists $rootme/../gdb/gdb] {
+	# If we're doing a combined build, and gdb is available, use it.
+	set guality_gdb_name "$rootme/../gdb/gdb"
     } else {
 	set guality_gdb_name "[transform gdb]"
     }
     setenv GUALITY_GDB_NAME "$guality_gdb_name"
 }
+report_gdb $::env(GUALITY_GDB_NAME) [info script]
+
+global DG_TORTURE_OPTIONS LTO_TORTURE_OPTIONS
+set guality_dg_torture_options [guality_minimal_options $DG_TORTURE_OPTIONS]
+torture-init
+set-torture-options \
+    $guality_dg_torture_options \
+    [list {}] \
+    $LTO_TORTURE_OPTIONS
 
 if {[check_guality "
   #include \"$srcdir/$subdir/guality.h\"
@@ -61,4 +73,5 @@ if [info exists guality_gdb_name] {
     unsetenv GUALITY_GDB_NAME
 }
 
+torture-finish
 dg-finish

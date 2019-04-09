@@ -1,0 +1,109 @@
+# This whole file adapted from libgomp.c/c.exp.
+
+if [info exists lang_library_path] then {
+    unset lang_library_path
+    unset lang_link_flags
+}
+if [info exists lang_test_file] then {
+    unset lang_test_file
+}
+if [info exists lang_include_flags] then {
+    unset lang_include_flags
+}
+
+load_lib libgomp-dg.exp
+load_gcc_lib gcc-dg.exp
+load_gcc_lib torture-options.exp
+
+proc check_effective_target_c { } {
+    return 1
+}
+proc check_effective_target_c++ { } {
+    return 0
+}
+
+# Initialize dg.
+dg-init
+torture-init
+
+# Turn on OpenACC.
+lappend ALWAYS_CFLAGS "additional_flags=-fopenacc"
+
+# Gather a list of all tests.
+set tests [lsort [concat \
+		      [find $srcdir/$subdir *.c] \
+		      [find $srcdir/$subdir/../libgomp.oacc-c-c++-common *.c]]]
+
+set ld_library_path $always_ld_library_path
+append ld_library_path [gcc-set-multilib-library-path $GCC_UNDER_TEST]
+set_ld_library_path_env_vars
+
+# Test with all available offload targets, and with offloading disabled.
+set SAVE_ALWAYS_CFLAGS "$ALWAYS_CFLAGS"
+foreach offload_target [concat [split $offload_targets ","] "disable"] {
+    set ALWAYS_CFLAGS "$SAVE_ALWAYS_CFLAGS"
+    global openacc_device_type
+    set openacc_device_type [offload_target_to_openacc_device_type $offload_target]
+    set tagopt "-DACC_DEVICE_TYPE_$openacc_device_type=1"
+
+    switch $openacc_device_type {
+	"" {
+	    unsupported "$subdir $offload_target offloading"
+	    continue
+	}
+	host {
+	    set acc_mem_shared 1
+	}
+	nvidia {
+	    if { ![check_effective_target_openacc_nvidia_accel_present] } {
+		# Don't bother; execution testing is going to FAIL.
+		untested "$subdir $offload_target offloading: supported, but hardware not accessible"
+		continue
+	    }
+
+	    # Copy ptx file (TEMPORARY)
+	    remote_download host $srcdir/libgomp.oacc-c-c++-common/subr.ptx
+
+	    # Where timer.h lives
+	    lappend ALWAYS_CFLAGS "additional_flags=-I${srcdir}/libgomp.oacc-c-c++-common"
+
+	    set acc_mem_shared 0
+	}
+	default {
+	    error "Unknown OpenACC device type: $openacc_device_type (offload target: $offload_target)"
+	}
+    }
+    set tagopt "$tagopt -DACC_MEM_SHARED=$acc_mem_shared"
+
+    # To avoid compilation overhead, and to keep simple '-foffload=[...]'
+    # handling in test cases, by default only build for the offload target
+    # that we're actually going to test.
+    set tagopt "$tagopt -foffload=$offload_target"
+    # Force usage of the corresponding OpenACC device type.
+    setenv ACC_DEVICE_TYPE $openacc_device_type
+
+    # To get better test coverage for device-specific code that is only
+    # ever used in offloading configurations, we'd like more thorough
+    # testing for test cases that deal with offloading, which most of all
+    # OpenACC test cases are.  We enable torture testing, but limit it to
+    # -O0 and -O2 only, to avoid testing times exploding too much, under
+    # the assumption that between -O0 and -O[something] there is the
+    # biggest difference in the overall structure of the generated code.
+    switch -glob $offload_target {
+	disable {
+	    set-torture-options [list \
+				     { -O2 } ]
+	}
+	default {
+	    set-torture-options [list \
+				     { -O0 } \
+				     { -O2 } ]
+	}
+    }
+
+    gcc-dg-runtest $tests "$tagopt" ""
+}
+
+# All done.
+torture-finish
+dg-finish

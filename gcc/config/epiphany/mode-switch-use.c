@@ -1,6 +1,6 @@
 /* Insert USEs in instructions that require mode switching.
    This should probably be merged into mode-switching.c .
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by Embecosm on behalf of Adapteva, Inc.
 
 This file is part of GCC.
@@ -19,19 +19,19 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#define IN_TARGET_CODE 1
+
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "backend.h"
 #include "rtl.h"
-#include "function.h"
+#include "df.h"
+#include "memmodel.h"
+#include "tm_p.h"
 #include "emit-rtl.h"
 #include "tree-pass.h"
 #include "insn-attr.h"
-#include "insn-config.h"
-#include "recog.h"
-#include "tm_p.h"
-#include "df.h"
 
 #ifndef TARGET_INSERT_MODE_SWITCH_USE
 #define TARGET_INSERT_MODE_SWITCH_USE NULL

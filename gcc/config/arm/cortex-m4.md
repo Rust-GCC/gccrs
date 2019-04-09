@@ -1,5 +1,5 @@
 ;; ARM Cortex-M4 pipeline description
-;; Copyright (C) 2010-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2019 Free Software Foundation, Inc.
 ;; Contributed by CodeSourcery.
 ;;
 ;; This file is part of GCC.
@@ -44,57 +44,57 @@
                              mvn_imm,mvn_reg,mvn_shift,mvn_shift_reg,\
                              mrs,multiple,no_insn")
 	    (ior (eq_attr "mul32" "yes")
-		 (eq_attr "mul64" "yes"))))
+		 (eq_attr "widen_mul64" "yes"))))
   "cortex_m4_ex")
 
 ;; Byte, half-word and word load is two cycles.
 (define_insn_reservation "cortex_m4_load1" 2
   (and (eq_attr "tune" "cortexm4")
-       (eq_attr "type" "load_byte,load1"))
+       (eq_attr "type" "load_byte,load_4"))
   "cortex_m4_a, cortex_m4_b")
 
 ;; str rx, [ry, #imm] is always one cycle.
 (define_insn_reservation "cortex_m4_store1_1" 1
   (and (and (eq_attr "tune" "cortexm4")
-	    (eq_attr "type" "store1"))
+	    (eq_attr "type" "store_4"))
        (match_test "arm_address_offset_is_imm (insn)"))
   "cortex_m4_a")
 
 ;; Other byte, half-word and word load is two cycles.
 (define_insn_reservation "cortex_m4_store1_2" 2
   (and (and (eq_attr "tune" "cortexm4")
-	    (eq_attr "type" "store1"))
+	    (eq_attr "type" "store_4"))
        (not (match_test "arm_address_offset_is_imm (insn)")))
   "cortex_m4_a*2")
 
 (define_insn_reservation "cortex_m4_load2" 3
   (and (eq_attr "tune" "cortexm4")
-       (eq_attr "type" "load2"))
+       (eq_attr "type" "load_8"))
   "cortex_m4_ex*3")
 
 (define_insn_reservation "cortex_m4_store2" 3
   (and (eq_attr "tune" "cortexm4")
-       (eq_attr "type" "store2"))
+       (eq_attr "type" "store_8"))
   "cortex_m4_ex*3")
 
 (define_insn_reservation "cortex_m4_load3" 4
   (and (eq_attr "tune" "cortexm4")
-       (eq_attr "type" "load3"))
+       (eq_attr "type" "load_12"))
   "cortex_m4_ex*4")
 
 (define_insn_reservation "cortex_m4_store3" 4
   (and (eq_attr "tune" "cortexm4")
-       (eq_attr "type" "store3"))
+       (eq_attr "type" "store_12"))
   "cortex_m4_ex*4")
 
 (define_insn_reservation "cortex_m4_load4" 5
   (and (eq_attr "tune" "cortexm4")
-       (eq_attr "type" "load4"))
+       (eq_attr "type" "load_16"))
   "cortex_m4_ex*5")
 
 (define_insn_reservation "cortex_m4_store4" 5
   (and (eq_attr "tune" "cortexm4")
-       (eq_attr "type" "store4"))
+       (eq_attr "type" "store_16"))
   "cortex_m4_ex*5")
 
 (define_bypass 1 "cortex_m4_load1"

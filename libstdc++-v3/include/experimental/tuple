@@ -1,6 +1,6 @@
 // <experimental/tuple> -*- C++ -*-
 
-// Copyright (C) 2014 Free Software Foundation, Inc.
+// Copyright (C) 2014-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -31,38 +31,48 @@
 
 #pragma GCC system_header
 
-#if __cplusplus <= 201103L
-# include <bits/c++14_warning.h>
-#else
+#if __cplusplus >= 201402L
 
 #include <tuple>
+#include <bits/invoke.h>
+#include <experimental/bits/lfts_config.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
 namespace experimental
 {
 inline namespace fundamentals_v1
 {
-_GLIBCXX_BEGIN_NAMESPACE_VERSION
+  // See C++14 20.4.2.5, tuple helper classes
+  template <typename _Tp>
+    constexpr size_t tuple_size_v = tuple_size<_Tp>::value;
+
+#define __cpp_lib_experimental_tuple 201402
 
   template <typename _Fn, typename _Tuple, std::size_t... _Idx>
     constexpr decltype(auto)
-    __apply_impl(_Fn&& f, _Tuple&& t, std::index_sequence<_Idx...>)
-    { return std::forward<_Fn>(f)(get<_Idx>(forward<_Tuple>(t))...); }
+    __apply_impl(_Fn&& __f, _Tuple&& __t, std::index_sequence<_Idx...>)
+    {
+      return std::__invoke(std::forward<_Fn>(__f),
+			   std::get<_Idx>(std::forward<_Tuple>(__t))...);
+    }
 
   template <typename _Fn, typename _Tuple>
     constexpr decltype(auto)
-    apply(_Fn&& f, _Tuple&& t)
+    apply(_Fn&& __f, _Tuple&& __t)
     {
       using _Indices =
-	std::make_index_sequence<std::tuple_size<std::decay_t<_Tuple>>::value>;
-      return __apply_impl(std::forward<_Fn>(f), std::forward<_Tuple>(t),
-			  _Indices{});
+	std::make_index_sequence<tuple_size_v<std::decay_t<_Tuple>>>;
+      return experimental::__apply_impl(std::forward<_Fn>(__f),
+					std::forward<_Tuple>(__t),
+					_Indices{});
     }
-
-_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace fundamentals_v1
 } // namespace experimental
+
+_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 
 #endif // C++14

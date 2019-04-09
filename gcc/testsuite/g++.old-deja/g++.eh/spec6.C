@@ -1,4 +1,5 @@
-// { dg-do assemble  }
+// { dg-do assemble { target c++14_down } }
+// { dg-additional-options "-Wno-deprecated" }
 
 // Copyright (C) 1999 Free Software Foundation, Inc.
 // Contributed by Nathan Sidwell 19 Jan 1999 <nathan@acm.org>
@@ -43,32 +44,32 @@ void baz3() throw(Int, char){}       // typedefs are the same type ...
 void baz4() throw(int, Int, char);   // ... so this is a duplicate
 void baz4() throw(Int, char){}
 
-void fna() throw(int, char);  // { dg-error "" } to previous declaration
+void fna() throw(int, char);  // { dg-message "" } to previous declaration
 void fna() throw(int const, char);  // { dg-error "" } declaration  different exceptions // ERROR - to previous declaration
 void fna() throw(int){}       // { dg-error "" } declaration  different exceptions
 
-void fnb() throw(int, char);  // { dg-error "" } to previous declaration
+void fnb() throw(int, char);  // { dg-message "" } to previous declaration
 void fnb() throw(char){}      // { dg-error "" } declaration  different exceptions
 
-void fnc() throw(int, char);  // { dg-error "" } to previous declaration
+void fnc() throw(int, char);  // { dg-message "" } to previous declaration
 void fnc() throw(char, int, float){}  // { dg-error "" } declaration  different exceptions
 
-void fnd() throw();           // { dg-error "" } to previous declaration
+void fnd() throw();           // { dg-message "" } to previous declaration
 void fnd() throw(char){}      // { dg-error "" } declaration  different exceptions
 
-void fne() throw(char);       // { dg-error "" } to previous declaration
+void fne() throw(char);       // { dg-message "" } to previous declaration
 void fne() throw(){}          // { dg-error "" } declaration  different exceptions
 
-void fnf();                   // { dg-error "" } to previous declaration
+void fnf();                   // { dg-message "" } to previous declaration
 void fnf() throw(char){}      // { dg-error "" } declaration  different exceptions
 
-void fng() throw(char);       // { dg-error "" } to previous declaration
+void fng() throw(char);       // { dg-message "" } to previous declaration
 void fng(){}                  // { dg-error "" } declaration  different exceptions
 
-void fnh() throw(int, char);  // { dg-error "" } to previous declaration
+void fnh() throw(int, char);  // { dg-message "" } to previous declaration
 void fnh() throw(int, float){}   // { dg-error "" } declaration  different exceptions
 
-void fni() throw(int, char);  // { dg-error "" } to previous declaration
+void fni() throw(int, char);  // { dg-message "" } to previous declaration
 void fni() throw(float, char){}  // { dg-error "" } declaration  different exceptions
 
 // [except.spec] 3, virtual function overriders shall throw a subset of the
@@ -80,19 +81,19 @@ struct G : public F, F1 {};
 struct H : private E {};
 struct A
 {
-  virtual void foo() throw();             // { dg-error "" } overriding 
+  virtual void foo() throw();             // { dg-message "" } overridden
   virtual void baz() throw(double, int);
   virtual void bar();
   virtual void qux() throw(E);
-  virtual void qux(int) throw(E const *); // { dg-error "" } overriding (pedantically)
-  virtual void quux() throw(F);           // { dg-error "" } overriding 
-  virtual void quux(int) throw(F *);      // { dg-error "" } overriding 
-  virtual void wibble() throw(E);         // { dg-error "" } overriding 
-  virtual void wobble() throw(E *);       // { dg-error "" } overriding 
-  virtual void wobble(int) throw(E *);    // { dg-error "" } overriding 
+  virtual void qux(int) throw(E const *); // { dg-message "" } overridden (pedantically)
+  virtual void quux() throw(F);           // { dg-message "" } overridden
+  virtual void quux(int) throw(F *);      // { dg-message "" } overridden
+  virtual void wibble() throw(E);         // { dg-message "" } overridden
+  virtual void wobble() throw(E *);       // { dg-message "" } overridden
+  virtual void wobble(int) throw(E *);    // { dg-message "" } overridden
   virtual void wabble(int) throw(E *);
   virtual void wubble(int) throw(E *, H *);
-  virtual ~A() throw();                   // { dg-error "" } overriding
+  virtual ~A() throw();                   // { dg-message "" } overriding
 };
 
 struct B : A
@@ -114,7 +115,7 @@ struct B : A
 struct A1
 {
   virtual void foo() throw(int);
-  virtual void bar() throw();       // { dg-error "" } overriding 
+  virtual void bar() throw();       // { dg-message "" } overridden
   virtual ~A1() throw(int);
 };
 

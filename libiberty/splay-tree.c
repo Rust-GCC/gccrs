@@ -1,6 +1,5 @@
 /* A splay-tree datatype.  
-   Copyright (C) 1998, 1999, 2000, 2001, 2009,
-   2010, 2011 Free Software Foundation, Inc.
+   Copyright (C) 1998-2019 Free Software Foundation, Inc.
    Contributed by Mark Mitchell (mark@markmitchell.com).
 
 This file is part of GNU CC.
@@ -31,6 +30,9 @@ Boston, MA 02110-1301, USA.  */
 
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
+#endif
+#ifdef HAVE_STRING_H
+#include <string.h>
 #endif
 
 #include <stdio.h>
@@ -316,7 +318,11 @@ different types need to be allocated with different allocators.
 
 The splay tree will use @var{compare_fn} to compare nodes,
 @var{delete_key_fn} to deallocate keys, and @var{delete_value_fn} to
-deallocate values.
+deallocate values.  Keys and values will be deallocated when the
+tree is deleted using splay_tree_delete or when a node is removed
+using splay_tree_remove.  splay_tree_insert will release the previously
+inserted key and value using @var{delete_key_fn} and @var{delete_value_fn}
+if the inserted key is already found in the tree.
 
 @end deftypefn
 
@@ -370,10 +376,13 @@ splay_tree_insert (splay_tree sp, splay_tree_key key, splay_tree_value value)
 
   if (sp->root && comparison == 0)
     {
-      /* If the root of the tree already has the indicated KEY, just
-	 replace the value with VALUE.  */
+      /* If the root of the tree already has the indicated KEY, delete
+         the old key and old value, and replace them with KEY and  VALUE.  */
+      if (sp->delete_key)
+	(*sp->delete_key) (sp->root->key);
       if (sp->delete_value)
 	(*sp->delete_value)(sp->root->value);
+      sp->root->key = key;
       sp->root->value = value;
     } 
   else 
@@ -423,6 +432,8 @@ splay_tree_remove (splay_tree sp, splay_tree_key key)
       right = sp->root->right;
 
       /* Delete the root node itself.  */
+      if (sp->delete_key)
+	(*sp->delete_key) (sp->root->key);
       if (sp->delete_value)
 	(*sp->delete_value) (sp->root->value);
       (*sp->deallocate) (sp->root, sp->allocate_data);
@@ -590,4 +601,20 @@ splay_tree_compare_pointers (splay_tree_key k1, splay_tree_key k2)
     return 1;
   else 
     return 0;
+}
+
+/* Splay-tree comparison function, treating the keys as strings.  */
+
+int
+splay_tree_compare_strings (splay_tree_key k1, splay_tree_key k2)
+{
+  return strcmp ((char *) k1, (char *) k2);
+}
+
+/* Splay-tree delete function, simply using free.  */
+
+void
+splay_tree_delete_pointers (splay_tree_value value)
+{
+  free ((void *) value);
 }

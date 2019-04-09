@@ -55,6 +55,8 @@ along with GCC; see the file COPYING3.  If not see
    so that __FILE__ and __LINE__ will be usable to identify them.
 */
 
+#define GUALITY_TEST "guality/guality.h"
+
 /* This is the type we use to pass values to guality_check.  */
 
 typedef intmax_t gualchk_t;
@@ -228,6 +230,16 @@ main (int argc, char *argv[])
 	}
     }
 
+  if (argv[0])
+    {
+      int len = strlen (guality_gdb_command) + 1 + strlen (argv[0]);
+      char *buf = (char *) __builtin_alloca (len);
+      strcpy (buf, guality_gdb_command);
+      strcat (buf, " ");
+      strcat (buf, argv[0]);
+      guality_gdb_command = buf;
+    }
+
   for (i = 1; i < argc; i++)
     if (strcmp (argv[i], "--guality-skip") == 0)
       guality_skip = 1;
@@ -242,6 +254,10 @@ main (int argc, char *argv[])
       if (!guality_gdb_input
 	  || fprintf (guality_gdb_input, "\
 set height 0\n\
+handle SIGINT pass nostop\n\
+handle SIGTERM pass nostop\n\
+handle SIGSEGV pass nostop\n\
+handle SIGBUS pass nostop\n\
 attach %i\n\
 set guality_attached = 1\n\
 b %i\n\
@@ -260,7 +276,7 @@ continue\n\
 
   i = guality_count[INCORRECT];
 
-  fprintf (stderr, "%s: %i PASS, %i FAIL, %i UNRESOLVED\n",
+  fprintf (stderr, "%s: " GUALITY_TEST  ": %i PASS, %i FAIL, %i UNRESOLVED\n",
 	   i ? "FAIL" : "PASS",
 	   guality_count[PASS], guality_count[INCORRECT],
 	   guality_count[INCOMPLETE]);
@@ -347,15 +363,18 @@ continue\n\
     switch (result)
       {
       case PASS:
-	fprintf (stderr, "PASS: %s is %lli\n", name, value);
+	fprintf (stderr, "PASS: " GUALITY_TEST ": %s is %lli\n", name,
+		 (long long int) value);
 	break;
       case INCORRECT:
-	fprintf (stderr, "FAIL: %s is %lli, not %lli\n", name, xvalue, value);
+	fprintf (stderr, "FAIL: " GUALITY_TEST ": %s is %lli, not %lli\n", name,
+		 (long long int) xvalue, (long long int) value);
 	break;
       case INCOMPLETE:
-	fprintf (stderr, "%s: %s is %s, expected %lli\n",
+	fprintf (stderr, "%s: " GUALITY_TEST ": %s is %s, expected %lli\n",
 		 unknown_ok ? "UNRESOLVED" : "FAIL", name,
-		 unavailable < 0 ? "not computable" : "optimized away", value);
+		 unavailable < 0 ? "not computable" : "optimized away",
+		 (long long int) value);
 	result = unknown_ok ? INCOMPLETE : INCORRECT;
 	break;
       default:

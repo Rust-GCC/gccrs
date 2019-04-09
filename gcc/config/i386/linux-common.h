@@ -1,5 +1,5 @@
 /* Definitions for Intel 386 running Linux-based GNU systems with ELF format.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Ilya Enkovich.
 
 This file is part of GCC.
@@ -27,6 +27,12 @@ along with GCC; see the file COPYING3.  If not see
     }                                          \
   while (0)
 
+#define EXTRA_TARGET_D_OS_VERSIONS()		\
+  ANDROID_TARGET_D_OS_VERSIONS();
+
+#define GNU_USER_TARGET_D_CRITSEC_SIZE		\
+  (TARGET_64BIT ? (POINTER_SIZE == 64 ? 40 : 32) : 24)
+
 #undef CC1_SPEC
 #define CC1_SPEC \
   LINUX_OR_ANDROID_CC (GNU_USER_TARGET_CC1_SPEC, \
@@ -53,3 +59,16 @@ along with GCC; see the file COPYING3.  If not see
 		       GNU_USER_TARGET_ENDFILE_SPEC,	 \
 		       GNU_USER_TARGET_MATHFILE_SPEC " " \
 		       ANDROID_ENDFILE_SPEC)
+
+#ifdef HAVE_LD_PUSHPOPSTATE_SUPPORT
+#define MPX_LD_AS_NEEDED_GUARD_PUSH "--push-state --no-as-needed"
+#define MPX_LD_AS_NEEDED_GUARD_POP "--pop-state"
+#else
+#define MPX_LD_AS_NEEDED_GUARD_PUSH ""
+#define MPX_LD_AS_NEEDED_GUARD_POP ""
+#endif
+
+extern void file_end_indicate_exec_stack_and_cet (void);
+
+#undef TARGET_ASM_FILE_END
+#define TARGET_ASM_FILE_END file_end_indicate_exec_stack_and_cet

@@ -1,10 +1,11 @@
 ## Process this file with automake to produce Makefile.in
 
+AUTOMAKE_OPTIONS = info-in-builddir
 ACLOCAL_AMFLAGS = -I .. -I ../config
 SUBDIRS = testsuite
 
 ## May be used by toolexeclibdir.
-gcc_version := $(shell cat $(top_srcdir)/../gcc/BASE-VER)
+gcc_version := $(shell @get_gcc_base_ver@ $(top_srcdir)/../gcc/BASE-VER)
 
 abi_version = -fabi-version=4
 
@@ -118,5 +119,7 @@ stamp-build-info: libitm.texi
 	@touch $@
 
 
-CLEANFILES = $(STAMP_GENINSRC) $(STAMP_BUILD_INFO) libitm.info
+CLEANFILES = $(STAMP_GENINSRC) $(STAMP_BUILD_INFO)
 MAINTAINERCLEANFILES = $(srcdir)/libitm.info
+
+include $(top_srcdir)/../multilib.am

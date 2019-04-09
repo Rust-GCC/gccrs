@@ -12,7 +12,7 @@
 implicit none
 real,parameter :: values(*) = [0.0, 0.5, 1.0, 0.9, 1.8,2.0,3.0,4.0,4.25,8.0,34.53, 475.78] 
 real,parameter :: myeps(size(values)) = epsilon(0.0) &
-                  * [2, 7, 5, 6, 9, 12, 12, 7, 7, 8, 92, 15 ]
+                  * [2, 7, 5, 6, 9, 12, 12, 7, 7, 8, 98, 15 ]
 ! The following is sufficient for me - the values above are a bit
 ! more tolerant
 !                  * [0, 5, 3, 4, 6, 7, 7, 5, 5, 6, 66, 4 ]
@@ -43,7 +43,7 @@ do i = 0, mymax
 !        rec(i) == lib(i), abs((rec(i)-lib(i))/rec(i)) < myeps
 if (rec(i) == lib(i)) CYCLE
 if (abs((rec(i)-lib(i))/rec(i)) > myeps) &
-  call abort()
+  STOP 1
 end do
 
 end

@@ -1,11 +1,11 @@
-# Makefile.am is used by automake 1.11 to generate Makefile.in.
+## Process this file with automake to produce Makefile.in.
 
 ACLOCAL_AMFLAGS = -I .. -I ../config
 AUTOMAKE_OPTIONS = no-dependencies
 
-gcc_version := $(shell cat $(top_srcdir)/../gcc/BASE-VER)
+gcc_version := $(shell @get_gcc_base_ver@ $(top_srcdir)/../gcc/BASE-VER)
 target_noncanonical := @target_noncanonical@
-libexecsubdir := $(libexecdir)/gcc/$(target_noncanonical)/$(gcc_version)
+libexecsubdir := $(libexecdir)/gcc/$(real_target_noncanonical)/$(gcc_version)$(accel_dir_suffix)
 
 AM_CPPFLAGS = -I$(top_srcdir)/../include $(DEFS)
 AM_CFLAGS = @ac_lto_plugin_warn_cflags@

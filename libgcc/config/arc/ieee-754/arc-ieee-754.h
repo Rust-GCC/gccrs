@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2008-2019 Free Software Foundation, Inc.
    Contributor: Joern Rennecke <joern.rennecke@embecosm.com>
 		on behalf of Synopsys Inc.
 
@@ -54,3 +54,10 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define bmsk_l bmsk
 #define bxor_l bxor
 #define bcs_s blo_s
+#if defined (__HS__) || defined (__EM__)
+#define MPYHU   mpymu
+#define MPYH    mpym
+#else
+#define MPYHU   mpyhu
+#define MPYH    mpyh
+#endif

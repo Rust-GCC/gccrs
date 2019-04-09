@@ -6,7 +6,7 @@
  *                                                                          *
  *                              C Header File                               *
  *                                                                          *
- *          Copyright (C) 1992-2014, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2018, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -33,21 +33,21 @@ union GTY((desc ("0"),
 };
 
 /* Ada uses the lang_decl and lang_type fields to hold a tree.  */
-struct GTY(()) lang_type { tree t; };
+struct GTY(()) lang_type { tree t1; tree t2; };
 struct GTY(()) lang_decl { tree t; };
 
-/* Macros to get and set the tree in TYPE_LANG_SPECIFIC.  */
-#define GET_TYPE_LANG_SPECIFIC(NODE) \
-  (TYPE_LANG_SPECIFIC (NODE) ? TYPE_LANG_SPECIFIC (NODE)->t : NULL_TREE)
+extern struct lang_type *get_lang_specific (tree node);
 
-#define SET_TYPE_LANG_SPECIFIC(NODE, X)			 \
-do {							 \
-  tree tmp = (X);					 \
-  if (!TYPE_LANG_SPECIFIC (NODE))			 \
-    TYPE_LANG_SPECIFIC (NODE)				 \
-      = ggc_alloc<struct lang_type> (); \
-  TYPE_LANG_SPECIFIC (NODE)->t = tmp;			 \
-} while (0)
+/* Macros to get and set the trees in TYPE_LANG_SPECIFIC.  */
+#define GET_TYPE_LANG_SPECIFIC(NODE) \
+  (TYPE_LANG_SPECIFIC (NODE) ? TYPE_LANG_SPECIFIC (NODE)->t1 : NULL_TREE)
+
+#define SET_TYPE_LANG_SPECIFIC(NODE, X) (get_lang_specific (NODE)->t1 = (X))
+
+#define GET_TYPE_LANG_SPECIFIC2(NODE) \
+  (TYPE_LANG_SPECIFIC (NODE) ? TYPE_LANG_SPECIFIC (NODE)->t2 : NULL_TREE)
+
+#define SET_TYPE_LANG_SPECIFIC2(NODE, X) (get_lang_specific (NODE)->t2 = (X))
 
 /* Macros to get and set the tree in DECL_LANG_SPECIFIC.  */
 #define GET_DECL_LANG_SPECIFIC(NODE) \
@@ -83,6 +83,12 @@ do {							 \
   ((TREE_CODE (NODE) == INTEGER_TYPE || TREE_CODE (NODE) == ARRAY_TYPE) \
    && TYPE_PACKED_ARRAY_TYPE_P (NODE))
 
+/* For FUNCTION_TYPE and METHOD_TYPE, nonzero if the function returns by
+   direct reference, i.e. the callee returns a pointer to a memory location
+   it has allocated and the caller only needs to dereference the pointer.  */
+#define TYPE_RETURN_BY_DIRECT_REF_P(NODE) \
+  TYPE_LANG_FLAG_0 (FUNC_OR_METHOD_CHECK (NODE))
+
 /* For INTEGER_TYPE, nonzero if this is a modular type with a modulus that
    is not equal to two to the power of its mode's size.  */
 #define TYPE_MODULAR_P(NODE) TYPE_LANG_FLAG_1 (INTEGER_TYPE_CHECK (NODE))
@@ -91,10 +97,10 @@ do {							 \
    an Ada array other than the first.  */
 #define TYPE_MULTI_ARRAY_P(NODE) TYPE_LANG_FLAG_1 (ARRAY_TYPE_CHECK (NODE))
 
-/* For FUNCTION_TYPE, nonzero if this denotes a function returning an
-   unconstrained array or record.  */
+/* For FUNCTION_TYPE and METHOD_TYPE, nonzero if function returns an
+   unconstrained array or record type.  */
 #define TYPE_RETURN_UNCONSTRAINED_P(NODE) \
-  TYPE_LANG_FLAG_1 (FUNCTION_TYPE_CHECK (NODE))
+  TYPE_LANG_FLAG_1 (FUNC_OR_METHOD_CHECK (NODE))
 
 /* For RECORD_TYPE, UNION_TYPE, and QUAL_UNION_TYPE, nonzero if this denotes
    a justified modular type (will only be true for RECORD_TYPE).  */
@@ -104,6 +110,9 @@ do {							 \
 /* Nonzero in an arithmetic subtype if this is a subtype not known to the
    front-end.  */
 #define TYPE_EXTRA_SUBTYPE_P(NODE) TYPE_LANG_FLAG_2 (INTEGER_TYPE_CHECK (NODE))
+
+#define TYPE_IS_EXTRA_SUBTYPE_P(NODE) \
+  (TREE_CODE (NODE) == INTEGER_TYPE && TYPE_EXTRA_SUBTYPE_P (NODE))
 
 /* Nonzero for an aggregate type if this is a by-reference type.  We also
    set this on an ENUMERAL_TYPE that is dummy.  */
@@ -126,6 +135,13 @@ do {							 \
 #define TYPE_CONTAINS_TEMPLATE_P(NODE) \
   TYPE_LANG_FLAG_3 (RECORD_OR_UNION_CHECK (NODE))
 
+/* For INTEGER_TYPE, nonzero if it implements a fixed-point type.  */
+#define TYPE_FIXED_POINT_P(NODE) \
+  TYPE_LANG_FLAG_3 (INTEGER_TYPE_CHECK (NODE))
+
+#define TYPE_IS_FIXED_POINT_P(NODE) \
+  (TREE_CODE (NODE) == INTEGER_TYPE && TYPE_FIXED_POINT_P (NODE))
+
 /* True if NODE is a thin pointer.  */
 #define TYPE_IS_THIN_POINTER_P(NODE)			\
   (POINTER_TYPE_P (NODE)				\
@@ -144,12 +160,6 @@ do {							 \
 /* For ARRAY_TYPEs, nonzero if the array type has Convention_Fortran.  */
 #define TYPE_CONVENTION_FORTRAN_P(NODE) \
   TYPE_LANG_FLAG_4 (ARRAY_TYPE_CHECK (NODE))
-
-/* For FUNCTION_TYPEs, nonzero if the function returns by direct reference,
-   i.e. the callee returns a pointer to a memory location it has allocated
-   and the caller only needs to dereference the pointer.  */
-#define TYPE_RETURN_BY_DIRECT_REF_P(NODE) \
-  TYPE_LANG_FLAG_4 (FUNCTION_TYPE_CHECK (NODE))
 
 /* For RECORD_TYPE, UNION_TYPE and ENUMERAL_TYPE, nonzero if this is a dummy
    type, made to correspond to a private or incomplete type.  */
@@ -173,8 +183,27 @@ do {							 \
 #define TYPE_IS_PADDING_P(NODE) \
   (TREE_CODE (NODE) == RECORD_TYPE && TYPE_PADDING_P (NODE))
 
-/* True if TYPE can alias any other types.  */
+/* True for a non-dummy type if TYPE can alias any other types.  */
 #define TYPE_UNIVERSAL_ALIASING_P(NODE) TYPE_LANG_FLAG_6 (NODE)
+
+/* True for a dummy type if TYPE appears in a profile.  */
+#define TYPE_DUMMY_IN_PROFILE_P(NODE) TYPE_LANG_FLAG_6 (NODE)
+
+/* True if objects of this type are guaranteed to be properly aligned.  */
+#define TYPE_ALIGN_OK(NODE) TYPE_LANG_FLAG_7 (NODE)
+
+/* True for types that implement a packed array and for original packed array
+   types.  */
+#define TYPE_IMPL_PACKED_ARRAY_P(NODE) \
+  ((TREE_CODE (NODE) == ARRAY_TYPE && TYPE_PACKED (NODE)) \
+   || (TREE_CODE (NODE) == INTEGER_TYPE && TYPE_PACKED_ARRAY_TYPE_P (NODE)))
+
+/* True for types that can hold a debug type.  */
+#define TYPE_CAN_HAVE_DEBUG_TYPE_P(NODE) (!TYPE_IMPL_PACKED_ARRAY_P (NODE))
+
+/* For RECORD_TYPE, UNION_TYPE, and QUAL_UNION_TYPE, this holds the maximum
+   alignment value the type ought to have.  */
+#define TYPE_MAX_ALIGN(NODE) (TYPE_PRECISION (RECORD_OR_UNION_CHECK (NODE)))
 
 /* For an UNCONSTRAINED_ARRAY_TYPE, this is the record containing both the
    template and the object.
@@ -183,28 +212,35 @@ do {							 \
    this is a conflict on the minval field, but there doesn't seem to be
    simple fix, so we'll live with this kludge for now.  */
 #define TYPE_OBJECT_RECORD_TYPE(NODE) \
-  (TYPE_MINVAL (TREE_CHECK2 ((NODE), UNCONSTRAINED_ARRAY_TYPE, ENUMERAL_TYPE)))
+  (TYPE_MIN_VALUE_RAW (TREE_CHECK2 ((NODE), UNCONSTRAINED_ARRAY_TYPE, \
+				    ENUMERAL_TYPE)))
 
 /* For numerical types, this is the GCC lower bound of the type.  The GCC
    type system is based on the invariant that an object X of a given type
    cannot hold at run time a value smaller than its lower bound; otherwise
    the behavior is undefined.  The optimizer takes advantage of this and
    considers that the assertion X >= LB is always true.  */
-#define TYPE_GCC_MIN_VALUE(NODE) (TYPE_MINVAL (NUMERICAL_TYPE_CHECK (NODE)))
+#define TYPE_GCC_MIN_VALUE(NODE) \
+  (TYPE_MIN_VALUE_RAW (NUMERICAL_TYPE_CHECK (NODE)))
 
 /* For numerical types, this is the GCC upper bound of the type.  The GCC
    type system is based on the invariant that an object X of a given type
    cannot hold at run time a value larger than its upper bound; otherwise
    the behavior is undefined.  The optimizer takes advantage of this and
    considers that the assertion X <= UB is always true.  */
-#define TYPE_GCC_MAX_VALUE(NODE) (TYPE_MAXVAL (NUMERICAL_TYPE_CHECK (NODE)))
+#define TYPE_GCC_MAX_VALUE(NODE) \
+  (TYPE_MAX_VALUE_RAW (NUMERICAL_TYPE_CHECK (NODE)))
 
-/* For a FUNCTION_TYPE, if the subprogram has parameters passed by copy in/
-   copy out, this is the list of nodes used to specify the return values of
-   the out (or in out) parameters that are passed by copy in/copy out.  For
-   a full description of the copy in/copy out parameter passing mechanism
-   refer to the routine gnat_to_gnu_entity.  */
-#define TYPE_CI_CO_LIST(NODE) TYPE_LANG_SLOT_1 (FUNCTION_TYPE_CHECK (NODE))
+/* For a FUNCTION_TYPE and METHOD_TYPE, if the function has parameters passed
+   by copy in/copy out, this is the list of nodes used to specify the return
+   values of these parameters.  For a full description of the copy in/copy out
+   parameter passing mechanism refer to the routine gnat_to_gnu_entity.  */
+#define TYPE_CI_CO_LIST(NODE) TYPE_LANG_SLOT_1 (FUNC_OR_METHOD_CHECK (NODE))
+
+/* For an ARRAY_TYPE with variable size, this is the padding type built for
+   the array type when it is itself the component type of another array.  */
+#define TYPE_PADDING_FOR_COMPONENT(NODE) \
+  TYPE_LANG_SLOT_1 (ARRAY_TYPE_CHECK (NODE))
 
 /* For a VECTOR_TYPE, this is the representative array type.  */
 #define TYPE_REPRESENTATIVE_ARRAY(NODE) \
@@ -347,6 +383,30 @@ do {						   \
 #define SET_TYPE_ADA_SIZE(NODE, X) \
   SET_TYPE_LANG_SPECIFIC (RECORD_OR_UNION_CHECK (NODE), X)
 
+/* For an INTEGER_TYPE with TYPE_IS_FIXED_POINT_P, this is the value of the
+   scale factor.  Modular types, index types (sizetype subtypes) and
+   fixed-point types are totally distinct types, so there is no problem with
+   sharing type lang specific's first slot.  */
+#define TYPE_SCALE_FACTOR(NODE) \
+  GET_TYPE_LANG_SPECIFIC (INTEGER_TYPE_CHECK (NODE))
+#define SET_TYPE_SCALE_FACTOR(NODE, X) \
+  SET_TYPE_LANG_SPECIFIC (INTEGER_TYPE_CHECK (NODE), X)
+
+/* For types with TYPE_CAN_HAVE_DEBUG_TYPE_P, this is the type to use in
+   debugging information.  */
+#define TYPE_DEBUG_TYPE(NODE) \
+  GET_TYPE_LANG_SPECIFIC2 (NODE)
+#define SET_TYPE_DEBUG_TYPE(NODE, X) \
+  SET_TYPE_LANG_SPECIFIC2 (NODE, X)
+
+/* For types with TYPE_IMPL_PACKED_ARRAY_P, this is the original packed
+   array type.  Note that this predicate is true for original packed array
+   types, so these cannot have a debug type.  */
+#define TYPE_ORIGINAL_PACKED_ARRAY(NODE) \
+  GET_TYPE_LANG_SPECIFIC2 (NODE)
+#define SET_TYPE_ORIGINAL_PACKED_ARRAY(NODE, X) \
+  SET_TYPE_LANG_SPECIFIC2 (NODE, X)
+
 
 /* Flags added to decl nodes.  */
 
@@ -369,6 +429,21 @@ do {						   \
    in the main unit, i.e. the full declaration is available.  */
 #define DECL_TAFT_TYPE_P(NODE) DECL_LANG_FLAG_0 (TYPE_DECL_CHECK (NODE))
 
+/* Nonzero in a PARM_DECL passed by reference but for which only a restricted
+   form of aliasing is allowed.  The first restriction comes explicitly from
+   the RM 6.2(12) clause: there is no read-after-write dependency between a
+   store based on such a PARM_DECL and a load not based on this PARM_DECL,
+   so stores based on such PARM_DECLs can be sunk past all loads based on
+   a distinct object.  The second restriction can be inferred from the same
+   clause: there is no write-after-write dependency between a store based
+   on such a PARM_DECL and a store based on a distinct such PARM_DECL, as
+   the compiler would be allowed to pass the parameters by copy and the
+   order of assignment to actual parameters after a call is arbitrary as
+   per the RM 6.4.1(17) clause, so stores based on distinct such PARM_DECLs
+   can be swapped.  */
+#define DECL_RESTRICTED_ALIASING_P(NODE) \
+  DECL_LANG_FLAG_0 (PARM_DECL_CHECK (NODE))
+
 /* Nonzero in a DECL if it is always used by reference, i.e. an INDIRECT_REF
    is needed to access the object.  */
 #define DECL_BY_REF_P(NODE) DECL_LANG_FLAG_1 (NODE)
@@ -390,12 +465,22 @@ do {						   \
 #define DECL_ELABORATION_PROC_P(NODE) \
   DECL_LANG_FLAG_3 (FUNCTION_DECL_CHECK (NODE))
 
-/* Nonzero in a DECL if it is made for a pointer that points to something which
-   is readonly.  */
+/* Nonzero in a CONST_DECL, VAR_DECL or PARM_DECL if it is made for a pointer
+   that points to something which is readonly.  */
 #define DECL_POINTS_TO_READONLY_P(NODE) DECL_LANG_FLAG_4 (NODE)
 
-/* Nonzero in a VAR_DECL if it is a pointer renaming a global object.  */
-#define DECL_RENAMING_GLOBAL_P(NODE) DECL_LANG_FLAG_5 (VAR_DECL_CHECK (NODE))
+/* Nonzero in a FIELD_DECL if it is invariant once set, for example if it is
+   a discriminant of a discriminated type without default expression.  */
+#define DECL_INVARIANT_P(NODE) DECL_LANG_FLAG_4 (FIELD_DECL_CHECK (NODE))
+
+/* Nonzero in a FUNCTION_DECL if this is a definition, i.e. if it was created
+   by a call to gnat_to_gnu_entity with definition set to True.  */
+#define DECL_FUNCTION_IS_DEF(NODE) \
+  DECL_LANG_FLAG_4 (FUNCTION_DECL_CHECK (NODE))
+
+/* Nonzero in a VAR_DECL if it is a temporary created to hold the return
+   value of a function call or 'reference to a function call.  */
+#define DECL_RETURN_VALUE_P(NODE) DECL_LANG_FLAG_5 (VAR_DECL_CHECK (NODE))
 
 /* In a FIELD_DECL corresponding to a discriminant, contains the
    discriminant number.  */
@@ -438,8 +523,7 @@ do {						   \
   SET_DECL_LANG_SPECIFIC (VAR_DECL_CHECK (NODE), X)
 
 /* In a VAR_DECL without the DECL_LOOP_PARM_P flag set and that is a renaming
-   pointer, points to the object being renamed, if any.  Note that this object
-   is guaranteed to be protected against multiple evaluations.  */
+   pointer, points to the object being renamed, if any.  */
 #define DECL_RENAMED_OBJECT(NODE) \
   GET_DECL_LANG_SPECIFIC (VAR_DECL_CHECK (NODE))
 #define SET_DECL_RENAMED_OBJECT(NODE, X) \

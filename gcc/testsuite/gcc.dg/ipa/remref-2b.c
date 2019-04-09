@@ -2,7 +2,7 @@
    discovers calls for, even when nodes being inlined are virtual IPA-CP
    clones.  */
 /* { dg-do compile } */
-/* { dg-options "-O3 -fno-early-inlining -fdump-ipa-cp-details -fdump-ipa-inline -fdump-tree-optimized"  } */
+/* { dg-options "-O3 -fno-early-inlining -fdump-ipa-cp-details -fdump-ipa-inline -fdump-tree-optimized -fno-ipa-icf"  } */
 
 
 int global;
@@ -89,6 +89,3 @@ main (int argc, int *argv[])
 /* { dg-final { scan-ipa-dump "ipa-prop: Removed a reference"  "inline"  } } */
 /* { dg-final { scan-ipa-dump-times "ipa-prop: Removing cloning-created reference" 2 "inline"  } } */
 /* { dg-final { scan-tree-dump-not "hooray"  "optimized"  } } */
-/* { dg-final { cleanup-ipa-dump "cp" } } */
-/* { dg-final { cleanup-ipa-dump "inline" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

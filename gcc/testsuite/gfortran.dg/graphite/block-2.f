@@ -1,3 +1,5 @@
+! { dg-do compile }
+! { dg-additional-options "-std=legacy" }
       SUBROUTINE MATRIX_MUL_UNROLLED (A, B, C, L, M, N)
       DIMENSION A(L,M), B(M,N), C(L,N)
 
@@ -16,6 +18,5 @@
       RETURN
       END
 
+! Disabled for now as it requires delinearization.
 ! { dg-final { scan-tree-dump-times "number of SCoPs: 2" 1 "graphite" { xfail *-*-* } } }
-! { dg-final { scan-tree-dump-times "will be loop blocked" 2 "graphite" { xfail *-*-* } } }
-! { dg-final { cleanup-tree-dump "graphite" } }

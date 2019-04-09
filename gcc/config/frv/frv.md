@@ -1,5 +1,5 @@
 ;; Frv Machine Description
-;; Copyright (C) 1999-2014 Free Software Foundation, Inc.
+;; Copyright (C) 1999-2019 Free Software Foundation, Inc.
 ;; Contributed by Red Hat, Inc.
 
 ;; This file is part of GCC.
@@ -1335,9 +1335,9 @@
 ;; patterns `reload_inM' or `reload_outM' to handle them.
 
 ;; The constraints on a `moveM' must permit moving any hard register to any
-;; other hard register provided that `HARD_REGNO_MODE_OK' permits mode M in
-;; both registers and `REGISTER_MOVE_COST' applied to their classes returns a
-;; value of 2.
+;; other hard register provided that `TARGET_HARD_REGNO_MODE_OK' permits
+;; mode M in both registers and `REGISTER_MOVE_COST' applied to their
+;; classes returns a value of 2.
 
 ;; It is obligatory to support floating point `moveM' instructions
 ;; into and out of any registers that can hold fixed point values,
@@ -1345,12 +1345,13 @@
 ;; `DImode') can be in those registers and they may have floating
 ;; point members.
 
-;; There may also be a need to support fixed point `moveM' instructions in and
-;; out of floating point registers.  Unfortunately, I have forgotten why this
-;; was so, and I don't know whether it is still true.  If `HARD_REGNO_MODE_OK'
-;; rejects fixed point values in floating point registers, then the constraints
-;; of the fixed point `moveM' instructions must be designed to avoid ever
-;; trying to reload into a floating point register.
+;; There may also be a need to support fixed point `moveM' instructions
+;; in and out of floating point registers.  Unfortunately, I have
+;; forgotten why this was so, and I don't know whether it is still true.
+;; If `TARGET_HARD_REGNO_MODE_OK' rejects fixed point values in floating
+;; point registers, then the constraints of the fixed point `moveM'
+;; instructions must be designed to avoid ever trying to reload into a
+;; floating point register.
 
 (define_expand "movqi"
   [(set (match_operand:QI 0 "general_operand" "")
@@ -1870,11 +1871,9 @@
 {
   rtx op0 = operands[0];
   rtx op1 = operands[1];
-  REAL_VALUE_TYPE rv;
   long l[2];
 
-  REAL_VALUE_FROM_CONST_DOUBLE (rv, op1);
-  REAL_VALUE_TO_TARGET_DOUBLE (rv, l);
+  REAL_VALUE_TO_TARGET_DOUBLE (*CONST_DOUBLE_REAL_VALUE (op1), l);
 
   operands[2] = gen_highpart (SImode, op0);
   operands[3] = gen_lowpart (SImode, op0);
@@ -1995,22 +1994,20 @@
 
   start_sequence ();
 
-  emit_insn (gen_rtx_SET (VOIDmode, icr,
-			  gen_rtx_LT (CC_CCRmode, icc, const0_rtx)));
+  emit_insn (gen_rtx_SET (icr, gen_rtx_LT (CC_CCRmode, icc, const0_rtx)));
 
   emit_insn (gen_movsi (dest, const1_rtx));
 
   emit_insn (gen_rtx_COND_EXEC (VOIDmode,
 				gen_rtx_NE (CC_CCRmode, icr, const0_rtx),
-				gen_rtx_SET (VOIDmode, dest,
+				gen_rtx_SET (dest,
 					     gen_rtx_NEG (SImode, dest))));
 
-  emit_insn (gen_rtx_SET (VOIDmode, icr,
-			  gen_rtx_EQ (CC_CCRmode, icc, const0_rtx)));
+  emit_insn (gen_rtx_SET (icr, gen_rtx_EQ (CC_CCRmode, icc, const0_rtx)));
 
   emit_insn (gen_rtx_COND_EXEC (VOIDmode,
 				gen_rtx_NE (CC_CCRmode, icr, const0_rtx),
-				gen_rtx_SET (VOIDmode, dest, const0_rtx)));
+				gen_rtx_SET (dest, const0_rtx)));
 
   operands[3] = get_insns ();
   end_sequence ();
@@ -2063,8 +2060,7 @@
 
   start_sequence ();
 
-  emit_insn (gen_rtx_SET (VOIDmode, icr,
-			  gen_rtx_GTU (CC_CCRmode, icc, const0_rtx)));
+  emit_insn (gen_rtx_SET (icr, gen_rtx_GTU (CC_CCRmode, icc, const0_rtx)));
 
   emit_insn (gen_movsi (dest, const1_rtx));
 
@@ -2072,12 +2068,11 @@
 				gen_rtx_NE (CC_CCRmode, icr, const0_rtx),
 				gen_addsi3 (dest, dest, dest)));
 
-  emit_insn (gen_rtx_SET (VOIDmode, icr,
-			  gen_rtx_LTU (CC_CCRmode, icc, const0_rtx)));
+  emit_insn (gen_rtx_SET (icr, gen_rtx_LTU (CC_CCRmode, icc, const0_rtx)));
 
   emit_insn (gen_rtx_COND_EXEC (VOIDmode,
 				gen_rtx_NE (CC_CCRmode, icr, const0_rtx),
-				gen_rtx_SET (VOIDmode, dest, const0_rtx)));
+				gen_rtx_SET (dest, const0_rtx)));
 
   operands[3] = get_insns ();
   end_sequence ();
@@ -2332,8 +2327,7 @@
 				gen_rtx_EQ (CC_CCRmode,
 					    operands[1],
 					    const0_rtx),
-				gen_rtx_SET (VOIDmode, int_op0,
-					     const0_rtx)));
+				gen_rtx_SET (int_op0, const0_rtx)));
 
   operands[2] = get_insns ();
   end_sequence ();
@@ -7354,9 +7348,8 @@
   ""
   "
 {
-  rtx insn;
-
-  insn = emit_insn (gen_symGOT2reg_i (operands[0], operands[1], operands[2], operands[3]));
+  rtx_insn *insn = emit_insn (gen_symGOT2reg_i (operands[0], operands[1],
+						operands[2], operands[3]));
 
   MEM_READONLY_P (SET_SRC (PATTERN (insn))) = 1;
 
@@ -7438,7 +7431,8 @@
   ""
   "
 {
-  rtx insn = emit_insn (gen_symGOTOFF2reg_i (operands[0], operands[1], operands[2], operands[3]));
+  rtx_insn *insn = emit_insn (gen_symGOTOFF2reg_i (operands[0], operands[1],
+						   operands[2], operands[3]));
 
   set_unique_reg_note (insn, REG_EQUAL, operands[1]);
 
@@ -7464,8 +7458,6 @@
   ""
   "
 {
-  rtx insn;
-
   if (!can_create_pseudo_p ())
     operands[4] = operands[0];
   else
@@ -7473,8 +7465,8 @@
 
   emit_insn (frv_gen_GPsym2reg (operands[4], operands[2]));
 
-  insn = emit_insn (gen_symGOTOFF2reg_i (operands[0], operands[1],
-					 operands[4], operands[3]));
+  rtx_insn *insn = emit_insn (gen_symGOTOFF2reg_i (operands[0], operands[1],
+						   operands[4], operands[3]));
 
   set_unique_reg_note (insn, REG_EQUAL, operands[1]);
 
@@ -7490,8 +7482,6 @@
   ""
   "
 {
-  rtx insn;
-
   if (!can_create_pseudo_p ())
     {
       emit_insn (gen_symGOT2reg (operands[0], operands[1], operands[2],
@@ -7503,8 +7493,8 @@
 
   emit_insn (frv_gen_GPsym2reg (operands[4], operands[2]));
 
-  insn = emit_insn (gen_symGOTOFF2reg_hilo (operands[0], operands[1],
-					    operands[4], operands[3]));
+  rtx_insn *insn = emit_insn (gen_symGOTOFF2reg_hilo (operands[0], operands[1],
+						      operands[4], operands[3]));
 
   set_unique_reg_note (insn, REG_EQUAL, operands[1]);
 

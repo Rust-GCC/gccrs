@@ -1,6 +1,6 @@
 // 2006-06-06  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -27,7 +27,6 @@
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
   using std::tr1::mersenne_twister;
 
   std::stringstream str;
@@ -36,12 +35,12 @@ test01()
     0x9908b0dful, 11, 7,
     0x9d2c5680ul, 15,
     0xefc60000ul, 18> u, v;
-  
+
   u(); // advance
   str << u;
-  
+
   VERIFY( u != v );
-  
+
   str >> v;
   VERIFY( u == v );
 }

@@ -1,5 +1,5 @@
 /* { dg-do run { target { powerpc64le-*-* } } } */
-/* { dg-options "-mcpu=power8 -O3" } */
+/* { dg-options "-mdejagnu-cpu=power8 -O3" } */
 
 void abort ();
 

@@ -1,4 +1,4 @@
-/* Copyright (C) 1991, 1992, 1996, 1998, 2004 Free Software Foundation, Inc.
+/* Copyright (C) 1991-2019 Free Software Foundation, Inc.
    This file is derived from mkstemp.c from the GNU C Library.
 
    The GNU C Library is free software; you can redistribute it and/or
@@ -35,6 +35,8 @@
 #endif
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
+#elif HAVE_TIME_H
+#include <time.h>
 #endif
 #include "ansidecl.h"
 

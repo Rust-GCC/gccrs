@@ -11,11 +11,21 @@ if [info exists lang_include_flags] then {
     unset lang_include_flags
 }
 
+# If a testcase doesn't have special options, use these.
+if ![info exists DEFAULT_CFLAGS] then {
+    set DEFAULT_CFLAGS "-O2"
+}
+
 # Initialize dg.
 dg-init
 
 # Turn on OpenMP.
 lappend ALWAYS_CFLAGS "additional_flags=-fopenmp"
+
+# Switch into C++ mode.  Otherwise, the libgomp.c-c++-common/*.c
+# files would be compiled as C files.
+set SAVE_GCC_UNDER_TEST "$GCC_UNDER_TEST"
+set GCC_UNDER_TEST "$GCC_UNDER_TEST -x c++"
 
 set blddir [lookfor_file [get_multilibs] libgomp]
 
@@ -42,7 +52,9 @@ if { $blddir != "" } {
 
 if { $lang_test_file_found } {
     # Gather a list of all tests.
-    set tests [lsort [glob -nocomplain $srcdir/$subdir/*.C]]
+    set tests [lsort [concat \
+			  [find $srcdir/$subdir *.C] \
+			  [find $srcdir/$subdir/../libgomp.c-c++-common *.c]]]
 
     if { $blddir != "" } {
         set ld_library_path "$always_ld_library_path:${blddir}/${lang_library_path}"
@@ -60,8 +72,11 @@ if { $lang_test_file_found } {
     }
 
     # Main loop.
-    dg-runtest $tests "" $libstdcxx_includes
+    dg-runtest $tests "" "$libstdcxx_includes $DEFAULT_CFLAGS"
 }
+
+# See above.
+set GCC_UNDER_TEST "$SAVE_GCC_UNDER_TEST"
 
 # All done.
 dg-finish

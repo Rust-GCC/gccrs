@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "es_ES" }
+// { dg-require-namedlocale "es_ES.ISO8859-15" }
 
 // 2001-09-17 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,15 +29,13 @@ void test04()
 {
   using namespace std;
   typedef ostreambuf_iterator<wchar_t> iterator_type;
-
-  bool test __attribute__((unused)) = true;
   
   // create "C" time objects
   const tm time1 = __gnu_test::test_tm(0, 0, 12, 4, 3, 71, 0, 93, 0);
 
   // basic construction and sanity check
   locale loc_c = locale::classic();
-  locale loc_es = locale("es_ES");
+  locale loc_es = locale(ISO_8859(15,es_ES));
   VERIFY( loc_es != loc_c );
 
   // create an ostream-derived object, cache the time_put facet

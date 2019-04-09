@@ -1,5 +1,5 @@
 /* Interprocedural reference lists.
-   Copyright (C) 2010-2014 Free Software Foundation, Inc.
+   Copyright (C) 2010-2019 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -21,11 +21,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tree.h"
-#include "ggc.h"
 #include "target.h"
+#include "tree.h"
 #include "cgraph.h"
-#include "ipa-utils.h"
 
 /* Remove reference.  */
 

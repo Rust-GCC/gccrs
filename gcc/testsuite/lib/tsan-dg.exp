@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2014 Free Software Foundation, Inc.
+# Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,12 +15,31 @@
 # <http://www.gnu.org/licenses/>.
 
 # Return 1 if compilation with -fsanitize=thread is error-free for trivial
-# code, 0 otherwise.
+# code, 0 otherwise.  Also set what to do by default here, depending on the
+# result of a runtime test.
 
 proc check_effective_target_fsanitize_thread {} {
-    return [check_no_compiler_messages fanitize_thread executable {
+    global individual_timeout
+    global dg-do-what-default
+
+    if ![check_no_compiler_messages fsanitize_thread executable {
 	int main (void) { return 0; }
-    } "-fPIE -pie -fsanitize=thread"]
+    }] {
+        return 0
+    }
+
+    # Lower timeout value in case test does not terminate properly.
+    set individual_timeout 20
+    if [check_runtime_nocache tsan_works {
+	int main () { return 0; }
+    }] {
+	set dg-do-what-default run
+    } else {
+	set dg-do-what-default link
+    }
+    unset individual_timeout
+
+    return 1
 }
 
 #
@@ -32,11 +51,13 @@ proc tsan_link_flags { paths } {
     global srcdir
     global ld_library_path
     global shlib_ext
+    global tsan_saved_library_path
 
     set gccpath ${paths}
     set flags ""
 
     set shlib_ext [get_shlib_extension]
+    set tsan_saved_library_path $ld_library_path
 
     if { $gccpath != "" } {
       if { [file exists "${gccpath}/libsanitizer/tsan/.libs/libtsan.a"]
@@ -91,29 +112,13 @@ proc tsan_init { args } {
     if [info exists ALWAYS_CXXFLAGS] {
 	set tsan_saved_ALWAYS_CXXFLAGS $ALWAYS_CXXFLAGS
 	set ALWAYS_CXXFLAGS [concat "{ldflags=$link_flags}" $ALWAYS_CXXFLAGS]
-	set ALWAYS_CXXFLAGS [concat "{additional_flags=-fPIE -pie -fsanitize=thread -g}" $ALWAYS_CXXFLAGS]
+	set ALWAYS_CXXFLAGS [concat "{additional_flags=-fsanitize=thread -g}" $ALWAYS_CXXFLAGS]
     } else {
 	if [info exists TEST_ALWAYS_FLAGS] {
-	    set TEST_ALWAYS_FLAGS "$link_flags -fPIE -pie -fsanitize=thread -g $TEST_ALWAYS_FLAGS"
+	    set TEST_ALWAYS_FLAGS "$link_flags -fsanitize=thread -g $TEST_ALWAYS_FLAGS"
 	} else {
-	    set TEST_ALWAYS_FLAGS "$link_flags -fPIE -pie -fsanitize=thread -g"
+	    set TEST_ALWAYS_FLAGS "$link_flags -fsanitize=thread -g"
 	}
-    }
-
-    set dg-do-what-default run
-    if { $link_flags != "" } {
-	global individual_timeout
-
-	# Lower timeout value in case test does not terminate properly.
-	set individual_timeout 20
-	if [check_runtime_nocache tsan_works {
-		int main () { return 0; }
-	    } "-fPIE -pie -fsanitize=thread -g"] {
-	    set dg-do-what-default run
-	} else {
-	    set dg-do-what-default compile
-	}
-	unset individual_timeout
     }
 }
 
@@ -127,6 +132,8 @@ proc tsan_finish { args } {
     global tsan_saved_ALWAYS_CXXFLAGS
     global dg-do-what-default
     global tsan_saved_dg-do-what-default
+    global tsan_saved_library_path
+    global ld_library_path
 
     if [info exists tsan_saved_ALWAYS_CXXFLAGS ] {
 	set ALWAYS_CXXFLAGS $tsan_saved_ALWAYS_CXXFLAGS
@@ -143,5 +150,7 @@ proc tsan_finish { args } {
     } else {
 	unset dg-do-what-default
     }
-    restore_ld_library_path_env_vars
+    set ld_library_path $tsan_saved_library_path
+    set_ld_library_path_env_vars
+    clear_effective_target_cache
 }

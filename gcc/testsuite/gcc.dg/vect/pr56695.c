@@ -1,6 +1,5 @@
 /* PR tree-optimization/56695 */
 /* { dg-do compile } */
-/* { dg-options "-O2 -ftree-vectorize" } */
 
 int a, b, i;
 
@@ -11,4 +10,3 @@ f (void)
     a |= !(i |= b %= 1);
 }
 
-/* { dg-final { cleanup-tree-dump "vect" } } */

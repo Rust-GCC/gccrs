@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -114,15 +114,15 @@ package Freeze is
 
    --      Are always frozen at the point of declaration
 
-   --  The flag Has_Delayed_Freeze is used for to indicate that delayed
-   --  freezing is required. Usually the associated freeze node is allocated
-   --  at the freezing point. One special exception occurs with anonymous
-   --  base types, where the freeze node is preallocated at the point of
-   --  declaration, so that the First_Subtype_Link field can be set.
+   --  The flag Has_Delayed_Freeze is used to indicate that delayed freezing
+   --  is required. Usually the associated freeze node is allocated at the
+   --  freezing point. One special exception occurs with anonymous base types,
+   --  where the freeze node is preallocated at the point of declaration, so
+   --  that the First_Subtype_Link field can be set.
 
    Freezing_Library_Level_Tagged_Type : Boolean := False;
    --  Flag used to indicate that we are freezing the primitives of a library
-   --  level tagged types. Used to disable checks on premature freezing.
+   --  level tagged type. Used to disable checks on premature freezing.
    --  More documentation needed??? why is this flag needed? what are these
    --  checks? why do they need disabling in some cases?
 
@@ -151,15 +151,15 @@ package Freeze is
    --    fact Gigi decides it is known, but the opposite situation can never
    --    occur.
    --
-   --    Size is known at compile time, but the actual value of the size is
-   --    not known to the front end or is definitely 32 or more. In this case
-   --    Size_Known_At_Compile_Time is set, but the Esize field is left set
+   --    Size is known at compile time, but the actual value of the size is not
+   --    known to the front end or is definitely greater than 64. In this case,
+   --    Size_Known_At_Compile_Time is set, but the RM_Size field is left set
    --    to zero (to be set by Gigi).
    --
    --    Size is known at compile time, and the actual value of the size is
-   --    known to the front end and is less than 32. In this case, the flag
-   --    Size_Known_At_Compile_Time is set, and in addition Esize is set to
-   --    the required size, allowing for possible front end packing of an
+   --    known to the front end and is not greater than 64. In this case, the
+   --    flag Size_Known_At_Compile_Time is set, and in addition RM_Size is set
+   --    to the required size, allowing for possible front end packing of an
    --    array using this type as a component type.
    --
    --  Note: the flag Size_Known_At_Compile_Time is used to determine if the
@@ -174,12 +174,9 @@ package Freeze is
    --  do not allow a size clause if the size would not otherwise be known at
    --  compile time in any case.
 
-   function Is_Atomic_Aggregate
-     (E   : Entity_Id;
-      Typ : Entity_Id) return Boolean;
-
-   --  If an atomic object is initialized with an aggregate or is assigned an
-   --  aggregate, we have to prevent a piecemeal access or assignment to the
+   function Is_Atomic_VFA_Aggregate (N : Node_Id) return Boolean;
+   --  If an atomic/VFA object is initialized with an aggregate or is assigned
+   --  an aggregate, we have to prevent a piecemeal access or assignment to the
    --  object, even if the aggregate is to be expanded. We create a temporary
    --  for the aggregate, and assign the temporary instead, so that the back
    --  end can generate an atomic move for it. This is only done in the context
@@ -190,13 +187,18 @@ package Freeze is
    --  If Initialization_Statements (E) is an N_Compound_Statement, insert its
    --  actions in the enclosing list and reset the attribute.
 
-   function Freeze_Entity (E : Entity_Id; N : Node_Id) return List_Id;
+   function Freeze_Entity
+     (E                 : Entity_Id;
+      N                 : Node_Id;
+      Do_Freeze_Profile : Boolean := True) return List_Id;
    --  Freeze an entity, and return Freeze nodes, to be inserted at the point
    --  of call. N is a node whose source location corresponds to the freeze
    --  point. This is used in placing warning messages in the situation where
    --  it appears that a type has been frozen too early, e.g. when a primitive
    --  operation is declared after the freezing point of its tagged type.
-   --  Returns No_List if no freeze nodes needed.
+   --  Returns No_List if no freeze nodes needed. Parameter Do_Freeze_Profile
+   --  is used when E is a subprogram, and determines whether the profile of
+   --  the subprogram should be frozen as well.
 
    procedure Freeze_All (From : Entity_Id; After : in out Node_Id);
    --  Before a non-instance body, or at the end of a declarative part,
@@ -212,8 +214,13 @@ package Freeze is
    --  in the scope. It is used to prevent a quadratic traversal over already
    --  frozen entities.
 
-   procedure Freeze_Before (N : Node_Id; T : Entity_Id);
-   --  Freeze T then Insert the generated Freeze nodes before the node N
+   procedure Freeze_Before
+     (N                 : Node_Id;
+      T                 : Entity_Id;
+      Do_Freeze_Profile : Boolean := True);
+   --  Freeze T then Insert the generated Freeze nodes before the node N. Flag
+   --  Do_Freeze_Profile is used when T is an overloadable entity and indicates
+   --  whether its profile should be frozen at the same time.
 
    procedure Freeze_Expression (N : Node_Id);
    --  Freezes the required entities when the Expression N causes freezing.
@@ -222,6 +229,17 @@ package Freeze is
    --  not really expressions, but they can appear within expressions and
    --  so need to be similarly treated. Freeze_Expression takes care of
    --  determining the proper insertion point for generated freeze actions.
+
+   procedure Freeze_Expr_Types
+     (Def_Id : Entity_Id;
+      Typ    : Entity_Id;
+      Expr   : Node_Id;
+      N      : Node_Id);
+   --  N is the body constructed for an expression function that is a
+   --  completion, and Def_Id is the function being completed.
+   --  This procedure freezes before N all the types referenced in Expr,
+   --  which is either the expression of the expression function, or
+   --  the expression in a pre/post aspect that applies to Def_Id;
 
    procedure Freeze_Fixed_Point_Type (Typ : Entity_Id);
    --  Freeze fixed point type. For fixed-point types, we have to defer

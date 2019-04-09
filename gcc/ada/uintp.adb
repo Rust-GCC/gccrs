@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -52,7 +52,7 @@ package body Uintp is
 
    UI_Power_2 : array (Int range 0 .. 64) of Uint;
    --  This table is used to memoize exponentiations by powers of 2. The Nth
-   --  entry, if set, contains the Uint value 2 ** N. Initially UI_Power_2_Set
+   --  entry, if set, contains the Uint value 2**N. Initially UI_Power_2_Set
    --  is zero and only the 0'th entry is set, the invariant being that all
    --  entries in the range 0 .. UI_Power_2_Set are initialized.
 
@@ -149,9 +149,9 @@ package body Uintp is
       Left_Hat  : out Int;
       Right_Hat : out Int);
    --  Returns leading two significant digits from the given pair of Uint's.
-   --  Mathematically: returns Left / (Base ** K) and Right / (Base ** K) where
+   --  Mathematically: returns Left / (Base**K) and Right / (Base**K) where
    --  K is as small as possible S.T. Right_Hat < Base * Base. It is required
-   --  that Left > Right for the algorithm to work.
+   --  that Left >= Right for the algorithm to work.
 
    function N_Digits (Input : Uint) return Int;
    pragma Inline (N_Digits);
@@ -170,22 +170,6 @@ package body Uintp is
    --
    --  If Discard_Quotient is True, Quotient is set to No_Uint
    --  If Discard_Remainder is True, Remainder is set to No_Uint
-
-   function Vector_To_Uint
-     (In_Vec   : UI_Vector;
-      Negative : Boolean) return Uint;
-   --  Functions that calculate values in UI_Vectors, call this function to
-   --  create and return the Uint value. In_Vec contains the multiple precision
-   --  (Base) representation of a non-negative value. Leading zeroes are
-   --  permitted. Negative is set if the desired result is the negative of the
-   --  given value. The result will be either the appropriate directly
-   --  represented value, or a table entry in the proper canonical format is
-   --  created and returned.
-   --
-   --  Note that Init_Operand puts a signed value in the result vector, but
-   --  Vector_To_Uint is always presented with a non-negative value. The
-   --  processing of signs is something that is done by the caller before
-   --  calling Vector_To_Uint.
 
    ------------
    -- Direct --
@@ -280,7 +264,7 @@ package body Uintp is
       -------------------
 
       function Better_In_Hex return Boolean is
-         T16 : constant Uint := Uint_2 ** Int'(16);
+         T16 : constant Uint := Uint_2**Int'(16);
          A   : Uint;
 
       begin
@@ -522,6 +506,7 @@ package body Uintp is
       pragma Assert (Left >= Right);
 
       if Direct (Left) then
+         pragma Assert (Direct (Right));
          Left_Hat  := Direct_Val (Left);
          Right_Hat := Direct_Val (Right);
          return;
@@ -549,7 +534,7 @@ package body Uintp is
 
       begin
          if Direct (Right) then
-            T := Direct_Val (Left);
+            T := Direct_Val (Right);
             R1 := abs (T / Base);
             R2 := T rem Base;
             Length_R := 2;
@@ -1386,7 +1371,7 @@ package body Uintp is
 
       elsif Right <= Uint_64 then
 
-         --  2 ** N for N in 2 .. 64
+         --  2**N for N in 2 .. 64
 
          if Left = Uint_2 then
             declare
@@ -1406,7 +1391,7 @@ package body Uintp is
                return UI_Power_2 (Right_Int);
             end;
 
-         --  10 ** N for N in 2 .. 64
+         --  10**N for N in 2 .. 64
 
          elsif Left = Uint_10 then
             declare
@@ -1601,20 +1586,6 @@ package body Uintp is
          else
             --  Use prior single precision steps to compute this Euclid step
 
-            --  For constructs such as:
-            --  sqrt_2: constant :=  1.41421_35623_73095_04880_16887_24209_698;
-            --  sqrt_eps: constant long_float := long_float( 1.0 / sqrt_2)
-            --    ** long_float'machine_mantissa;
-            --
-            --  we spend 80% of our time working on this step. Perhaps we need
-            --  a special case Int / Uint dot product to speed things up. ???
-
-            --  Alternatively we could increase the single precision iterations
-            --  to handle Uint's of some small size ( <5 digits?). Then we
-            --  would have more iterations on small Uint. On the code above, we
-            --  only get 5 (on average) single precision iterations per large
-            --  iteration. ???
-
             Tmp_UI := (UI_From_Int (A) * U) + (UI_From_Int (B) * V);
             V := (UI_From_Int (C) * U) + (UI_From_Int (D) * V);
             U := Tmp_UI;
@@ -1676,6 +1647,15 @@ package body Uintp is
    procedure UI_Image (Input : Uint; Format : UI_Format := Auto) is
    begin
       Image_Out (Input, True, Format);
+   end UI_Image;
+
+   function UI_Image
+     (Input  : Uint;
+      Format : UI_Format := Auto) return String
+   is
+   begin
+      Image_Out (Input, True, Format);
+      return UI_Image_Buffer (1 .. UI_Image_Length);
    end UI_Image;
 
    -------------------------
@@ -2236,9 +2216,12 @@ package body Uintp is
          begin
             --  Uints of more than one digit could be outside the range for
             --  Ints. Caller should have checked for this if not certain.
-            --  Fatal error to attempt to convert from value outside Int'Range.
+            --  Constraint_Error to attempt to convert from value outside
+            --  Int'Range.
 
-            pragma Assert (UI_Is_In_Int_Range (Input));
+            if not UI_Is_In_Int_Range (Input) then
+               raise Constraint_Error;
+            end if;
 
             --  Otherwise, proceed ahead, we are OK
 
@@ -2341,4 +2324,50 @@ package body Uintp is
       return Uint_0;
    end Vector_To_Uint;
 
+   ----------------------
+   -- UI_From_Integral --
+   ----------------------
+
+   function UI_From_Integral (Input : In_T) return Uint is
+      U : Uint;
+
+   begin
+      --  If in range of our normal conversion function, use it so we can
+      --  use direct access and our cache.
+
+      if In_T'Size <= Int'Size
+        or else Input in In_T (Int'First) .. In_T (Int'Last)
+      then
+         return UI_From_Int (Int (Input));
+
+      else
+         --  pragma Warnings (Off);
+
+         --  For values of larger magnitude, compute digits into a vector
+         --  and call Vector_To_Uint.
+
+         declare
+            Max_For_In_T : constant Int  := 3 * In_T'Size / Int'Size;
+            Our_Base     : constant In_T := In_T (Base);
+            Temp_Integer : In_T := Input;
+            --  Base is defined so that 3 Uint digits is sufficient to hold the
+            --  largest possible Int value.
+
+            V : UI_Vector (1 .. Max_For_In_T);
+
+         begin
+            for J in reverse V'Range loop
+               V (J) := Int (abs (Temp_Integer rem Our_Base));
+               Temp_Integer := Temp_Integer / Our_Base;
+            end loop;
+
+            U := Vector_To_Uint (V, Input < 0);
+            Uints_Min := Uints.Last;
+            Udigits_Min := Udigits.Last;
+            return U;
+         end;
+
+         --  pragma Warnings (On);
+      end if;
+   end UI_From_Integral;
 end Uintp;

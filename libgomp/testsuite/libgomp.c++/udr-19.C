@@ -1,4 +1,4 @@
 // { dg-do run }
-// { dg-options "-fopenmp -std=c++11" }
+// { dg-additional-options "-std=c++11" }
 
-#include "udr-9.C"
+#include "../libgomp.c-c++-common/udr-1.c"

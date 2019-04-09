@@ -17,7 +17,7 @@ f1 (void)
 void
 f2 (void)
 {
-  int i;
+  int i, j = 0;
   #pragma omp parallel
   {
     #pragma omp cancel parallel
@@ -77,12 +77,169 @@ f2 (void)
       #pragma omp cancel parallel		/* { dg-error "not closely nested inside" } */
       #pragma omp cancel for			/* { dg-error "not closely nested inside" } */
       #pragma omp cancel sections		/* { dg-error "not closely nested inside" } */
+      #pragma omp cancel taskgroup		/* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+      #pragma omp cancellation point parallel	/* { dg-error "not closely nested inside" } */
+      #pragma omp cancellation point for	/* { dg-error "not closely nested inside" } */
+      #pragma omp cancellation point sections	/* { dg-error "not closely nested inside" } */
+      #pragma omp cancellation point taskgroup	/* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+    }
+    #pragma omp taskgroup
+    #pragma omp task
+    {
+      #pragma omp cancel parallel		/* { dg-error "not closely nested inside" } */
+      #pragma omp cancel for			/* { dg-error "not closely nested inside" } */
+      #pragma omp cancel sections		/* { dg-error "not closely nested inside" } */
       #pragma omp cancel taskgroup
       #pragma omp cancellation point parallel	/* { dg-error "not closely nested inside" } */
       #pragma omp cancellation point for	/* { dg-error "not closely nested inside" } */
       #pragma omp cancellation point sections	/* { dg-error "not closely nested inside" } */
       #pragma omp cancellation point taskgroup
     }
+    #pragma omp taskloop
+    for (i = 0; i < 10; i++)
+      {
+        #pragma omp cancel parallel		/* { dg-error "not closely nested inside" } */
+        #pragma omp cancel for			/* { dg-error "not closely nested inside" } */
+        #pragma omp cancel sections		/* { dg-error "not closely nested inside" } */
+        #pragma omp cancel taskgroup
+        #pragma omp cancellation point parallel	/* { dg-error "not closely nested inside" } */
+        #pragma omp cancellation point for	/* { dg-error "not closely nested inside" } */
+        #pragma omp cancellation point sections	/* { dg-error "not closely nested inside" } */
+        #pragma omp cancellation point taskgroup
+	#pragma omp task
+	{
+	  #pragma omp cancellation point taskgroup
+	  #pragma omp cancel taskgroup
+	}
+      }
+    #pragma omp taskloop nogroup
+    for (i = 0; i < 10; i++)
+      {
+        #pragma omp cancel parallel		/* { dg-error "not closely nested inside" } */
+        #pragma omp cancel for			/* { dg-error "not closely nested inside" } */
+        #pragma omp cancel sections		/* { dg-error "not closely nested inside" } */
+        #pragma omp cancel taskgroup		/* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+        #pragma omp cancellation point parallel	/* { dg-error "not closely nested inside" } */
+        #pragma omp cancellation point for	/* { dg-error "not closely nested inside" } */
+        #pragma omp cancellation point sections	/* { dg-error "not closely nested inside" } */
+        #pragma omp cancellation point taskgroup/* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	#pragma omp task
+	{
+	  #pragma omp cancellation point taskgroup/* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	  #pragma omp cancel taskgroup		/* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	}
+      }
+    #pragma omp taskgroup
+    {
+      #pragma omp task
+      {
+	#pragma omp task
+	{
+	  #pragma omp cancellation point taskgroup
+	  #pragma omp cancel taskgroup
+	}
+      }
+      #pragma omp taskloop nogroup
+      for (i = 0; i < 10; i++)
+	{
+	  #pragma omp task
+	  {
+	    #pragma omp cancellation point taskgroup
+	    #pragma omp cancel taskgroup
+	  }
+	  #pragma omp cancellation point taskgroup
+	  #pragma omp cancel taskgroup
+	}
+    }
+    #pragma omp taskgroup
+    {
+      #pragma omp parallel
+      {
+	#pragma omp task
+	{
+	  #pragma omp cancel taskgroup		/* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	  #pragma omp cancellation point taskgroup /* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	}
+	#pragma omp taskloop
+	for (i = 0; i < 10; i++)
+	  {
+	    #pragma omp cancel taskgroup
+	    #pragma omp cancellation point taskgroup
+	  }
+	#pragma omp taskloop nogroup
+	for (i = 0; i < 10; i++)
+	  {
+	    #pragma omp cancel taskgroup	     /* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	    #pragma omp cancellation point taskgroup /* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	  }
+      }
+      #pragma omp target
+      {
+	#pragma omp task
+	{
+	  #pragma omp cancel taskgroup		/* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	  #pragma omp cancellation point taskgroup /* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	}
+      }
+      #pragma omp target
+      #pragma omp teams
+      #pragma omp distribute
+      for (i = 0; i < 10; i++)
+	{
+	  #pragma omp task
+	  {
+	    #pragma omp cancel taskgroup	/* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	    #pragma omp cancellation point taskgroup /* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	  }
+	}
+      #pragma omp target data map(i)
+      {
+	#pragma omp task
+	{
+	  #pragma omp cancel taskgroup
+	  #pragma omp cancellation point taskgroup
+	}
+      }
+    }
+    #pragma omp taskloop
+    for (i = 0; i < 10; i++)
+      {
+	#pragma omp parallel
+	{
+	  #pragma omp task
+	  {
+	    #pragma omp cancel taskgroup	     /* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	    #pragma omp cancellation point taskgroup /* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	  }
+	}
+        #pragma omp target
+	{
+	  #pragma omp task
+	  {
+	    #pragma omp cancel taskgroup	     /* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	    #pragma omp cancellation point taskgroup /* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	  }
+	}
+	#pragma omp target
+	#pragma omp teams
+	#pragma omp distribute
+	for (j = 0; j < 10; j++)
+	  {
+	    #pragma omp task
+	    {
+	      #pragma omp cancel taskgroup	/* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	      #pragma omp cancellation point taskgroup /* { dg-error "construct not closely nested inside of .taskgroup. region" } */
+	    }
+	  }
+	#pragma omp target data map(i)
+	{
+	  #pragma omp task
+	  {
+	    #pragma omp cancel taskgroup
+	    #pragma omp cancellation point taskgroup
+	  }
+	}
+      }
     #pragma omp for
     for (i = 0; i < 10; i++)
       {
@@ -132,7 +289,7 @@ f2 (void)
 	#pragma omp cancellation point taskgroup/* { dg-error "not closely nested inside" } */
       }
     }
-    #pragma omp target data
+    #pragma omp target data map(j)
     {
       #pragma omp cancel parallel		/* { dg-error "not closely nested inside" } */
       #pragma omp cancel for			/* { dg-error "not closely nested inside" } */
@@ -155,7 +312,7 @@ f2 (void)
       #pragma omp cancellation point taskgroup	/* { dg-error "not closely nested inside" } */
     }
   }
-  #pragma omp target data
+  #pragma omp target data map(j)
   {
     #pragma omp cancel parallel			/* { dg-error "not closely nested inside" } */
     #pragma omp cancel for			/* { dg-error "not closely nested inside" } */
@@ -179,14 +336,14 @@ f2 (void)
   }
   #pragma omp target teams
   {
-    #pragma omp cancel parallel			/* { dg-error "only distribute or parallel constructs are allowed to be closely nested" } */
-    #pragma omp cancel for			/* { dg-error "only distribute or parallel constructs are allowed to be closely nested" } */
-    #pragma omp cancel sections			/* { dg-error "only distribute or parallel constructs are allowed to be closely nested" } */
-    #pragma omp cancel taskgroup		/* { dg-error "only distribute or parallel constructs are allowed to be closely nested" } */
-    #pragma omp cancellation point parallel	/* { dg-error "only distribute or parallel constructs are allowed to be closely nested" } */
-    #pragma omp cancellation point for		/* { dg-error "only distribute or parallel constructs are allowed to be closely nested" } */
-    #pragma omp cancellation point sections	/* { dg-error "only distribute or parallel constructs are allowed to be closely nested" } */
-    #pragma omp cancellation point taskgroup	/* { dg-error "only distribute or parallel constructs are allowed to be closely nested" } */
+    #pragma omp cancel parallel			/* { dg-error "only .distribute. or .parallel. regions are allowed to be strictly nested" } */
+    #pragma omp cancel for			/* { dg-error "only .distribute. or .parallel. regions are allowed to be strictly nested" } */
+    #pragma omp cancel sections			/* { dg-error "only .distribute. or .parallel. regions are allowed to be strictly nested" } */
+    #pragma omp cancel taskgroup		/* { dg-error "only .distribute. or .parallel. regions are allowed to be strictly nested" } */
+    #pragma omp cancellation point parallel	/* { dg-error "only .distribute. or .parallel. regions are allowed to be strictly nested" } */
+    #pragma omp cancellation point for		/* { dg-error "only .distribute. or .parallel. regions are allowed to be strictly nested" } */
+    #pragma omp cancellation point sections	/* { dg-error "only .distribute. or .parallel. regions are allowed to be strictly nested" } */
+    #pragma omp cancellation point taskgroup	/* { dg-error "only .distribute. or .parallel. regions are allowed to be strictly nested" } */
   }
   #pragma omp target teams distribute
   for (i = 0; i < 10; i++)
@@ -214,7 +371,7 @@ f2 (void)
     }
   #pragma omp for
   for (i = 0; i < 10; i++)
-    #pragma omp target data
+    #pragma omp target data map(j)
     {
       #pragma omp cancel parallel		/* { dg-error "not closely nested inside" } */
       #pragma omp cancel for			/* { dg-error "not closely nested inside" } */
@@ -241,7 +398,7 @@ f2 (void)
   #pragma omp for ordered
   for (i = 0; i < 10; i++)
     #pragma omp ordered
-      #pragma omp target data
+      #pragma omp target data map(j)
       {
 	#pragma omp cancel parallel		/* { dg-error "not closely nested inside" } */
 	#pragma omp cancel for			/* { dg-error "not closely nested inside" } */
@@ -292,7 +449,7 @@ f2 (void)
   }
   #pragma omp sections
   {
-    #pragma omp target data
+    #pragma omp target data map(j)
     {
       #pragma omp cancel parallel		/* { dg-error "not closely nested inside" } */
       #pragma omp cancel for			/* { dg-error "not closely nested inside" } */
@@ -304,7 +461,7 @@ f2 (void)
       #pragma omp cancellation point taskgroup	/* { dg-error "not closely nested inside" } */
     }
     #pragma omp section
-    #pragma omp target data
+    #pragma omp target data map(j)
     {
       #pragma omp cancel parallel		/* { dg-error "not closely nested inside" } */
       #pragma omp cancel for			/* { dg-error "not closely nested inside" } */
@@ -393,4 +550,19 @@ f3 (void)
       {
       }
     }
+}
+
+#pragma omp cancellation point /* { dg-error "expected declaration specifiers before end of line" } */
+
+void
+f4 (void)
+{
+  if (0)
+#pragma omp cancellation EKAHI /* { dg-error "expected .point. before .EKAHI." } */
+    ;
+#pragma omp cancellation HO OKAHI /* { dg-error "expected .point. before .HO." } */
+  if (0)
+#pragma omp cancellation point /* { dg-error ".pragma omp cancellation point. may only be used in compound statements" } */
+    ;
+#pragma omp cancellation point /* { dg-error ".pragma omp cancellation point. must specify one of" } */
 }

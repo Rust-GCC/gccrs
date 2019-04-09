@@ -1,5 +1,5 @@
 // { dg-do compile }
-// { dg-options "-O2 -fdump-ipa-cp -fdump-tree-optimized" }
+// { dg-options "-O2 -fdump-ipa-cp -fno-ipa-icf -fdump-tree-optimized" }
 
 struct S { S(); virtual void xyzzy(); void otherstuff(); };
 struct R { int a; S s; R(); };
@@ -20,5 +20,3 @@ void bah() {foh(&r.s); }
 
 /* { dg-final { scan-ipa-dump "Discovered a virtual call to a known target.*S::xyzzy" "cp"  } } */
 /* { dg-final { scan-tree-dump-times "OBJ_TYPE_REF" 0 "optimized"} } */
-/* { dg-final { cleanup-ipa-dump "cp" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */

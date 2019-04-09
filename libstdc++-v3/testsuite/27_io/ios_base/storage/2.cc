@@ -1,6 +1,6 @@
 // 2000-12-19 bkoz
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,7 +26,7 @@
 // Skip test at -m64 on Darwin because RLIMITS are not being honored.
 // Radar 6467883: 10.4/10.5 setrlimits are not honored by memory allocators
 // Radar 6467884: 10.X systems are not robust when paging space is exceeded
-// { dg-skip-if "" { *-*-darwin* && lp64 } { "*" } { "" } } 
+// { dg-skip-if "" { *-*-darwin* && lp64 } }
 
 #include <sstream>
 #include <iostream>
@@ -36,7 +36,7 @@
 // libstdc++/3129
 void test02()
 {
-  bool test __attribute__((unused)) = true;
+  bool test = true;
   int max = std::numeric_limits<int>::max() - 1;
   std::stringbuf        strbuf;
   std::ios              ios(&strbuf);
@@ -49,60 +49,57 @@ void test02()
   // pword
   ios.pword(1) = v;
   VERIFY( ios.pword(1) == v );
-  
-  try 
+
+  try
     {
       v = ios.pword(max);
     }
-  catch(std::ios_base::failure& obj)
+  catch(std::ios_base::failure&)
     {
       // Ok.
       VERIFY( ios.bad() );
     }
   catch(...)
     {
-      test = false;
-      VERIFY( test );
+      VERIFY( false );
     }
   VERIFY( v == 0 );
 
   VERIFY( ios.pword(1) == v );
-  
+
   // max is different code path from max-1
   v = &test;
-  try 
+  try
     {
       v = ios.pword(std::numeric_limits<int>::max());
     }
-  catch(std::ios_base::failure& obj)
+  catch(std::ios_base::failure&)
     {
       // Ok.
       VERIFY( ios.bad() );
     }
   catch(...)
     {
-      test = false;
-      VERIFY( test );
+      VERIFY( false );
     }
   VERIFY( v == &test );
 
   // iword
   ios.iword(1) = 1;
   VERIFY( ios.iword(1) == 1 );
-  
-  try 
+
+  try
     {
       l = ios.iword(max);
     }
-  catch(std::ios_base::failure& obj)
+  catch(std::ios_base::failure&)
     {
       // Ok.
       VERIFY( ios.bad() );
     }
   catch(...)
     {
-      test = false;
-      VERIFY( test );
+      VERIFY( false );
     }
   VERIFY( l == 0 );
 
@@ -110,22 +107,20 @@ void test02()
 
   // max is different code path from max-1
   l = 1;
-  try 
+  try
     {
       l = ios.iword(std::numeric_limits<int>::max());
     }
-  catch(std::ios_base::failure& obj)
+  catch(std::ios_base::failure&)
     {
       // Ok.
       VERIFY( ios.bad() );
     }
   catch(...)
     {
-      test = false;
-      VERIFY( test );
+      VERIFY( false );
     }
   VERIFY( l == 1 );
-
 }
 
 int main(void)

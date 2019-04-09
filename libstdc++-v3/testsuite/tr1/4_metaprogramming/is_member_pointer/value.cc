@@ -1,6 +1,6 @@
 // 2004-12-24  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,7 +25,6 @@
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using std::tr1::is_member_pointer;
   using namespace __gnu_test;
 
@@ -43,7 +42,7 @@ void test01()
 	   ClassType (ClassType::*) (ClassType)>(true)) );
   VERIFY( (test_category<is_member_pointer,
 	   float (ClassType::*) (int, float, int[], int&)>(true)) );
-  
+
   // Sanity check.
   VERIFY( (test_category<is_member_pointer, ClassType>(false)) );
 }

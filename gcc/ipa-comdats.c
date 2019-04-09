@@ -1,5 +1,5 @@
 /* Localize comdats.
-   Copyright (C) 2014 Free Software Foundation, Inc.
+   Copyright (C) 2014-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -53,9 +53,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
-#include "cgraph.h"
 #include "tree-pass.h"
-#include "hash-map.h"
+#include "cgraph.h"
 
 /* Main dataflow loop propagating comdat groups across
    the symbol table.  All references to SYMBOL are examined
@@ -83,7 +82,7 @@ propagate_comdat_group (struct symtab_node *symbol,
 	  continue;
 	}
 
-      /* One COMDAT group can not hold both variables and functions at
+      /* One COMDAT group cannot hold both variables and functions at
 	 a same time.  For now we just go to BOTTOM, in future we may
 	 invent special comdat groups for this case.  */
 
@@ -126,12 +125,14 @@ propagate_comdat_group (struct symtab_node *symbol,
       {
 	struct symtab_node *symbol2 = edge->caller;
 
-	/* If we see inline clone, its comdat group actually
-	   corresponds to the comdat group of the function it is inlined
-	   to.  */
-
 	if (cgraph_node * cn = dyn_cast <cgraph_node *> (symbol2))
 	  {
+	    /* Thunks cannot call across section boundary.  */
+	    if (cn->thunk.thunk_p)
+	      newgroup = propagate_comdat_group (symbol2, newgroup, map);
+	    /* If we see inline clone, its comdat group actually
+	       corresponds to the comdat group of the function it
+	       is inlined to.  */
 	    if (cn->global.inlined_to)
 	      symbol2 = cn->global.inlined_to;
 	  }
@@ -166,6 +167,10 @@ enqueue_references (symtab_node **first,
   for (i = 0; symbol->iterate_reference (i, ref); i++)
     {
       symtab_node *node = ref->referred->ultimate_alias_target ();
+
+      /* Always keep thunks in same sections as target function.  */
+      if (is_a <cgraph_node *>(node))
+	node = dyn_cast <cgraph_node *> (node)->function_symbol ();
       if (!node->aux && node->definition)
 	{
 	   node->aux = *first;
@@ -183,6 +188,10 @@ enqueue_references (symtab_node **first,
 	else
 	  {
 	    symtab_node *node = edge->callee->ultimate_alias_target ();
+
+	    /* Always keep thunks in same sections as target function.  */
+	    if (is_a <cgraph_node *>(node))
+	      node = dyn_cast <cgraph_node *> (node)->function_symbol ();
 	    if (!node->aux && node->definition)
 	      {
 		 node->aux = *first;
@@ -193,7 +202,7 @@ enqueue_references (symtab_node **first,
 }
 
 /* Set comdat group of SYMBOL to GROUP.
-   Callback for symtab_for_node_and_aliases.  */
+   Callback for for_node_and_aliases.  */
 
 bool
 set_comdat_group (symtab_node *symbol,
@@ -202,9 +211,22 @@ set_comdat_group (symtab_node *symbol,
   symtab_node *head = (symtab_node *)head_p;
 
   gcc_assert (!symbol->get_comdat_group ());
-  symbol->set_comdat_group (head->get_comdat_group ());
-  symbol->add_to_same_comdat_group (head);
+  if (symbol->real_symbol_p ())
+    {
+      symbol->set_comdat_group (head->get_comdat_group ());
+      symbol->add_to_same_comdat_group (head);
+    }
   return false;
+}
+
+/* Set comdat group of SYMBOL to GROUP.
+   Callback for for_node_thunks_and_aliases.  */
+
+bool
+set_comdat_group_1 (cgraph_node *symbol,
+		    void *head_p)
+{
+  return set_comdat_group (symbol, head_p);
 }
 
 /* The actual pass with the main dataflow loop.  */
@@ -235,7 +257,7 @@ ipa_comdats (void)
 	/* Mark the symbol so we won't waste time visiting it for dataflow.  */
 	symbol->aux = (symtab_node *) (void *) 1;
       }
-    /* See symbols that can not be privatized to comdats; that is externally
+    /* See symbols that cannot be privatized to comdats; that is externally
        visible symbols or otherwise used ones.  We also do not want to mangle
        user section names.  */
     else if (symbol->externally_visible
@@ -247,7 +269,12 @@ ipa_comdats (void)
 		 && (DECL_STATIC_CONSTRUCTOR (symbol->decl)
 		     || DECL_STATIC_DESTRUCTOR (symbol->decl))))
       {
-	map.put (symbol->ultimate_alias_target (), error_mark_node);
+	symtab_node *target = symbol->ultimate_alias_target ();
+
+	/* Always keep thunks in same sections as target function.  */
+	if (is_a <cgraph_node *>(target))
+	  target = dyn_cast <cgraph_node *> (target)->function_symbol ();
+	map.put (target, error_mark_node);
 
 	/* Mark the symbol so we won't waste time visiting it for dataflow.  */
 	symbol->aux = (symtab_node *) (void *) 1;
@@ -312,12 +339,22 @@ ipa_comdats (void)
 
   FOR_EACH_DEFINED_SYMBOL (symbol)
     {
+      struct cgraph_node *fun;
       symbol->aux = NULL; 
       if (!symbol->get_comdat_group ()
 	  && !symbol->alias
+	  && (!(fun = dyn_cast <cgraph_node *> (symbol))
+	      || !fun->thunk.thunk_p)
 	  && symbol->real_symbol_p ())
 	{
-	  tree group = *map.get (symbol);
+	  tree *val = map.get (symbol);
+
+	  /* A NULL here means that SYMBOL is unreachable in the definition
+	     of ipa-comdats. Either ipa-comdats is wrong about this or someone
+	     forgot to cleanup and remove unreachable functions earlier.  */
+	  gcc_assert (val);
+
+	  tree group = *val;
 
 	  if (group == error_mark_node)
 	    continue;
@@ -327,9 +364,16 @@ ipa_comdats (void)
 	      symbol->dump (dump_file);
 	      fprintf (dump_file, "To group: %s\n", IDENTIFIER_POINTER (group));
 	    }
-	  symbol->call_for_symbol_and_aliases (set_comdat_group,
-					     *comdat_head_map.get (group),
-					     true);
+	  if (is_a <cgraph_node *> (symbol))
+	   dyn_cast <cgraph_node *>(symbol)->call_for_symbol_thunks_and_aliases
+		  (set_comdat_group_1,
+		   *comdat_head_map.get (group),
+		   true);
+	  else
+	   symbol->call_for_symbol_and_aliases
+		  (set_comdat_group,
+		   *comdat_head_map.get (group),
+		   true);
 	}
     }
   return 0;
@@ -375,7 +419,7 @@ public:
 bool
 pass_ipa_comdats::gate (function *)
 {
-  return optimize;
+  return HAVE_COMDAT_GROUP;
 }
 
 } // anon namespace

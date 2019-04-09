@@ -1,5 +1,5 @@
 /* Common definitions for Intel 386 and AMD x86-64 systems using
-   GNU userspace.  Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   GNU userspace.  Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Ilya Enkovich.
 
 This file is part of GCC.
@@ -64,3 +64,9 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Static stack checking is supported by means of probes.  */
 #define STACK_CHECK_STATIC_BUILTIN 1
+
+/* We only build the -fsplit-stack support in libgcc if the
+   assembler has full support for the CFI directives.  */
+#if HAVE_GAS_CFI_PERSONALITY_DIRECTIVE
+#define TARGET_CAN_SPLIT_STACK
+#endif

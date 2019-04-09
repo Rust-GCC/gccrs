@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2009-2014 Free Software Foundation, Inc.
+// Copyright (C) 2009-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,8 +25,6 @@ struct { int operator()() { return 2; } } f2;
 
 void test01()
 {
-  bool test __attribute__((unused)) = true;
-
   typedef std::function<int()> function;
 
   function fo(f1);
@@ -38,11 +36,12 @@ void test01()
   function fo2(std::move(fo));
   VERIFY( static_cast<bool>(fo2) );
   VERIFY( fo2() == 2 );
+
+  static_assert(std::is_nothrow_move_constructible<function>::value,
+		"PR libstdc++/81017");
 }
 
 int main()
 {
   test01();
-
-  return 0;
 }

@@ -19,8 +19,6 @@
 #include "sanitizer_common/sanitizer_stacktrace.h"
 #include "sanitizer_common/sanitizer_libc.h"
 
-#define ASAN_DEFAULT_FAILURE_EXITCODE 1
-
 #if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
 # error "The AddressSanitizer run-time should not be"
         " instrumented by AddressSanitizer"
@@ -36,9 +34,9 @@
 // If set, values like allocator chunk size, as well as defaults for some flags
 // will be changed towards less memory overhead.
 #ifndef ASAN_LOW_MEMORY
-#if SANITIZER_WORDSIZE == 32
+# if SANITIZER_IOS || SANITIZER_ANDROID || SANITIZER_RTEMS
 #  define ASAN_LOW_MEMORY 1
-#else
+# else
 #  define ASAN_LOW_MEMORY 0
 # endif
 #endif
@@ -62,24 +60,41 @@ using __sanitizer::StackTrace;
 
 void AsanInitFromRtl();
 
+// asan_win.cc
+void InitializePlatformExceptionHandlers();
+// Returns whether an address is a valid allocated system heap block.
+// 'addr' must point to the beginning of the block.
+bool IsSystemHeapAddress(uptr addr);
+
 // asan_rtl.cc
+void PrintAddressSpaceLayout();
 void NORETURN ShowStatsAndAbort();
+
+// asan_shadow_setup.cc
+void InitializeShadowMemory();
 
 // asan_malloc_linux.cc / asan_malloc_mac.cc
 void ReplaceSystemMalloc();
 
-// asan_linux.cc / asan_mac.cc / asan_win.cc
+// asan_linux.cc / asan_mac.cc / asan_rtems.cc / asan_win.cc
+uptr FindDynamicShadowStart();
 void *AsanDoesNotSupportStaticLinkage();
 void AsanCheckDynamicRTPrereqs();
 void AsanCheckIncompatibleRT();
 
-void GetPcSpBp(void *context, uptr *pc, uptr *sp, uptr *bp);
-void AsanOnSIGSEGV(int, void *siginfo, void *context);
+// asan_thread.cc
+AsanThread *CreateMainThread();
 
-void MaybeReexec();
-bool AsanInterceptsSignal(int signum);
+// Support function for __asan_(un)register_image_globals. Searches for the
+// loaded image containing `needle' and then enumerates all global metadata
+// structures declared in that image, applying `op' (e.g.,
+// __asan_(un)register_globals) to them.
+typedef void (*globals_op_fptr)(__asan_global *, uptr);
+void AsanApplyToGlobals(globals_op_fptr op, const void *needle);
+
+void AsanOnDeadlySignal(int, void *siginfo, void *context);
+
 void ReadContextStack(void *context, uptr *stack, uptr *ssize);
-void AsanPlatformThreadInit();
 void StopInitOrderChecking();
 
 // Wrapper for TLS/TSD.
@@ -90,25 +105,22 @@ void PlatformTSDDtor(void *tsd);
 
 void AppendToErrorMessageBuffer(const char *buffer);
 
-void ParseExtraActivationFlags();
-
 void *AsanDlSymNext(const char *sym);
 
-// Platform-specific options.
-#if SANITIZER_MAC
-bool PlatformHasDifferentMemcpyAndMemmove();
-# define PLATFORM_HAS_DIFFERENT_MEMCPY_AND_MEMMOVE \
-    (PlatformHasDifferentMemcpyAndMemmove())
-#else
-# define PLATFORM_HAS_DIFFERENT_MEMCPY_AND_MEMMOVE true
-#endif  // SANITIZER_MAC
+void ReserveShadowMemoryRange(uptr beg, uptr end, const char *name);
 
 // Add convenient macro for interface functions that may be represented as
 // weak hooks.
-#define ASAN_MALLOC_HOOK(ptr, size) \
-  if (&__sanitizer_malloc_hook) __sanitizer_malloc_hook(ptr, size)
-#define ASAN_FREE_HOOK(ptr) \
-  if (&__sanitizer_free_hook) __sanitizer_free_hook(ptr)
+#define ASAN_MALLOC_HOOK(ptr, size)                                   \
+  do {                                                                \
+    if (&__sanitizer_malloc_hook) __sanitizer_malloc_hook(ptr, size); \
+    RunMallocHooks(ptr, size);                                        \
+  } while (false)
+#define ASAN_FREE_HOOK(ptr)                                 \
+  do {                                                      \
+    if (&__sanitizer_free_hook) __sanitizer_free_hook(ptr); \
+    RunFreeHooks(ptr);                                      \
+  } while (false)
 #define ASAN_ON_ERROR() \
   if (&__asan_on_error) __asan_on_error()
 
@@ -116,15 +128,12 @@ extern int asan_inited;
 // Used to avoid infinite recursion in __asan_init().
 extern bool asan_init_is_running;
 extern void (*death_callback)(void);
-
 // These magic values are written to shadow for better error reporting.
 const int kAsanHeapLeftRedzoneMagic = 0xfa;
-const int kAsanHeapRightRedzoneMagic = 0xfb;
 const int kAsanHeapFreeMagic = 0xfd;
 const int kAsanStackLeftRedzoneMagic = 0xf1;
 const int kAsanStackMidRedzoneMagic = 0xf2;
 const int kAsanStackRightRedzoneMagic = 0xf3;
-const int kAsanStackPartialRedzoneMagic = 0xf4;
 const int kAsanStackAfterReturnMagic = 0xf5;
 const int kAsanInitializationOrderMagic = 0xf6;
 const int kAsanUserPoisonedMemoryMagic = 0xf7;
@@ -133,6 +142,12 @@ const int kAsanStackUseAfterScopeMagic = 0xf8;
 const int kAsanGlobalRedzoneMagic = 0xf9;
 const int kAsanInternalHeapMagic = 0xfe;
 const int kAsanArrayCookieMagic = 0xac;
+const int kAsanIntraObjectRedzone = 0xbb;
+const int kAsanAllocaLeftMagic = 0xca;
+const int kAsanAllocaRightMagic = 0xcb;
+// Used to populate the shadow gap for systems without memory
+// protection there (i.e. Myriad).
+const int kAsanShadowGap = 0xcc;
 
 static const uptr kCurrentStackFrameMagic = 0x41B58AB3;
 static const uptr kRetiredStackFrameMagic = 0x45E0360E;

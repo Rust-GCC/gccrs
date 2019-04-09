@@ -9,47 +9,89 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ubsan_platform.h"
+#if CAN_SANITIZE_UB
 #include "ubsan_diag.h"
 #include "ubsan_init.h"
 #include "ubsan_flags.h"
+#include "ubsan_monitor.h"
+#include "sanitizer_common/sanitizer_placement_new.h"
 #include "sanitizer_common/sanitizer_report_decorator.h"
 #include "sanitizer_common/sanitizer_stacktrace.h"
+#include "sanitizer_common/sanitizer_stacktrace_printer.h"
+#include "sanitizer_common/sanitizer_suppressions.h"
 #include "sanitizer_common/sanitizer_symbolizer.h"
 #include <stdio.h>
 
 using namespace __ubsan;
 
+void __ubsan::GetStackTrace(BufferedStackTrace *stack, uptr max_depth, uptr pc,
+                            uptr bp, void *context, bool fast) {
+  uptr top = 0;
+  uptr bottom = 0;
+  if (fast)
+    GetThreadStackTopAndBottom(false, &top, &bottom);
+  stack->Unwind(max_depth, pc, bp, context, top, bottom, fast);
+}
+
 static void MaybePrintStackTrace(uptr pc, uptr bp) {
-  // We assume that flags are already parsed: InitIfNecessary
+  // We assume that flags are already parsed, as UBSan runtime
   // will definitely be called when we print the first diagnostics message.
   if (!flags()->print_stacktrace)
     return;
-  // We can only use slow unwind, as we don't have any information about stack
-  // top/bottom.
-  // FIXME: It's better to respect "fast_unwind_on_fatal" runtime flag and
-  // fetch stack top/bottom information if we have it (e.g. if we're running
-  // under ASan).
-  if (StackTrace::WillUseFastUnwind(false))
-    return;
-  StackTrace stack;
-  stack.Unwind(kStackTraceMax, pc, bp, 0, 0, 0, false);
+
+  BufferedStackTrace stack;
+  GetStackTrace(&stack, kStackTraceMax, pc, bp, nullptr,
+                common_flags()->fast_unwind_on_fatal);
   stack.Print();
 }
 
-static void MaybeReportErrorSummary(Location Loc) {
+static const char *ConvertTypeToString(ErrorType Type) {
+  switch (Type) {
+#define UBSAN_CHECK(Name, SummaryKind, FSanitizeFlagName)                      \
+  case ErrorType::Name:                                                        \
+    return SummaryKind;
+#include "ubsan_checks.inc"
+#undef UBSAN_CHECK
+  }
+  UNREACHABLE("unknown ErrorType!");
+}
+
+static const char *ConvertTypeToFlagName(ErrorType Type) {
+  switch (Type) {
+#define UBSAN_CHECK(Name, SummaryKind, FSanitizeFlagName)                      \
+  case ErrorType::Name:                                                        \
+    return FSanitizeFlagName;
+#include "ubsan_checks.inc"
+#undef UBSAN_CHECK
+  }
+  UNREACHABLE("unknown ErrorType!");
+}
+
+static void MaybeReportErrorSummary(Location Loc, ErrorType Type) {
   if (!common_flags()->print_summary)
     return;
-  // Don't try to unwind the stack trace in UBSan summaries: just use the
-  // provided location.
+  if (!flags()->report_error_type)
+    Type = ErrorType::GenericUB;
+  const char *ErrorKind = ConvertTypeToString(Type);
   if (Loc.isSourceLocation()) {
     SourceLocation SLoc = Loc.getSourceLocation();
     if (!SLoc.isInvalid()) {
-      ReportErrorSummary("runtime-error", SLoc.getFilename(), SLoc.getLine(),
-                         "");
+      AddressInfo AI;
+      AI.file = internal_strdup(SLoc.getFilename());
+      AI.line = SLoc.getLine();
+      AI.column = SLoc.getColumn();
+      AI.function = internal_strdup("");  // Avoid printing ?? as function name.
+      ReportErrorSummary(ErrorKind, AI, GetSanititizerToolName());
+      AI.Clear();
       return;
     }
+  } else if (Loc.isSymbolizedStack()) {
+    const AddressInfo &AI = Loc.getSymbolizedStack()->info;
+    ReportErrorSummary(ErrorKind, AI, GetSanititizerToolName());
+    return;
   }
-  ReportErrorSummary("runtime-error");
+  ReportErrorSummary(ErrorKind, GetSanititizerToolName());
 }
 
 namespace {
@@ -57,37 +99,13 @@ class Decorator : public SanitizerCommonDecorator {
  public:
   Decorator() : SanitizerCommonDecorator() {}
   const char *Highlight() const { return Green(); }
-  const char *EndHighlight() const { return Default(); }
   const char *Note() const { return Black(); }
-  const char *EndNote() const { return Default(); }
 };
 }
 
-Location __ubsan::getCallerLocation(uptr CallerLoc) {
-  if (!CallerLoc)
-    return Location();
-
-  uptr Loc = StackTrace::GetPreviousInstructionPc(CallerLoc);
-  return getFunctionLocation(Loc, 0);
-}
-
-Location __ubsan::getFunctionLocation(uptr Loc, const char **FName) {
-  if (!Loc)
-    return Location();
-  InitIfNecessary();
-
-  AddressInfo Info;
-  if (!Symbolizer::GetOrInit()->SymbolizePC(Loc, &Info, 1) || !Info.module ||
-      !*Info.module)
-    return Location(Loc);
-
-  if (FName && Info.function)
-    *FName = Info.function;
-
-  if (!Info.file)
-    return ModuleLocation(Info.module, Info.module_offset);
-
-  return SourceLocation(Info.file, Info.line, Info.column);
+SymbolizedStack *__ubsan::getSymbolizedLocation(uptr PC) {
+  InitAsStandaloneIfNecessary();
+  return Symbolizer::GetOrInit()->SymbolizePC(PC);
 }
 
 Diag &Diag::operator<<(const TypeDescriptor &V) {
@@ -107,89 +125,98 @@ Diag &Diag::operator<<(const Value &V) {
 }
 
 /// Hexadecimal printing for numbers too large for Printf to handle directly.
-static void PrintHex(UIntMax Val) {
+static void RenderHex(InternalScopedString *Buffer, UIntMax Val) {
 #if HAVE_INT128_T
-  Printf("0x%08x%08x%08x%08x",
-          (unsigned int)(Val >> 96),
-          (unsigned int)(Val >> 64),
-          (unsigned int)(Val >> 32),
-          (unsigned int)(Val));
+  Buffer->append("0x%08x%08x%08x%08x", (unsigned int)(Val >> 96),
+                 (unsigned int)(Val >> 64), (unsigned int)(Val >> 32),
+                 (unsigned int)(Val));
 #else
   UNREACHABLE("long long smaller than 64 bits?");
 #endif
 }
 
-static void renderLocation(Location Loc) {
-  InternalScopedString LocBuffer(1024);
+static void RenderLocation(InternalScopedString *Buffer, Location Loc) {
   switch (Loc.getKind()) {
   case Location::LK_Source: {
     SourceLocation SLoc = Loc.getSourceLocation();
     if (SLoc.isInvalid())
-      LocBuffer.append("<unknown>");
+      Buffer->append("<unknown>");
     else
-      PrintSourceLocation(&LocBuffer, SLoc.getFilename(), SLoc.getLine(),
-                          SLoc.getColumn());
-    break;
+      RenderSourceLocation(Buffer, SLoc.getFilename(), SLoc.getLine(),
+                           SLoc.getColumn(), common_flags()->symbolize_vs_style,
+                           common_flags()->strip_path_prefix);
+    return;
   }
-  case Location::LK_Module:
-    PrintModuleAndOffset(&LocBuffer, Loc.getModuleLocation().getModuleName(),
-                         Loc.getModuleLocation().getOffset());
-    break;
   case Location::LK_Memory:
-    LocBuffer.append("%p", Loc.getMemoryLocation());
-    break;
-  case Location::LK_Null:
-    LocBuffer.append("<unknown>");
-    break;
+    Buffer->append("%p", Loc.getMemoryLocation());
+    return;
+  case Location::LK_Symbolized: {
+    const AddressInfo &Info = Loc.getSymbolizedStack()->info;
+    if (Info.file)
+      RenderSourceLocation(Buffer, Info.file, Info.line, Info.column,
+                           common_flags()->symbolize_vs_style,
+                           common_flags()->strip_path_prefix);
+    else if (Info.module)
+      RenderModuleLocation(Buffer, Info.module, Info.module_offset,
+                           Info.module_arch, common_flags()->strip_path_prefix);
+    else
+      Buffer->append("%p", Info.address);
+    return;
   }
-  Printf("%s:", LocBuffer.data());
+  case Location::LK_Null:
+    Buffer->append("<unknown>");
+    return;
+  }
 }
 
-static void renderText(const char *Message, const Diag::Arg *Args) {
+static void RenderText(InternalScopedString *Buffer, const char *Message,
+                       const Diag::Arg *Args) {
   for (const char *Msg = Message; *Msg; ++Msg) {
     if (*Msg != '%') {
-      char Buffer[64];
-      unsigned I;
-      for (I = 0; Msg[I] && Msg[I] != '%' && I != 63; ++I)
-        Buffer[I] = Msg[I];
-      Buffer[I] = '\0';
-      Printf(Buffer);
-      Msg += I - 1;
-    } else {
-      const Diag::Arg &A = Args[*++Msg - '0'];
-      switch (A.Kind) {
-      case Diag::AK_String:
-        Printf("%s", A.String);
-        break;
-      case Diag::AK_Mangled: {
-        Printf("'%s'", Symbolizer::GetOrInit()->Demangle(A.String));
-        break;
-      }
-      case Diag::AK_SInt:
-        // 'long long' is guaranteed to be at least 64 bits wide.
-        if (A.SInt >= INT64_MIN && A.SInt <= INT64_MAX)
-          Printf("%lld", (long long)A.SInt);
-        else
-          PrintHex(A.SInt);
-        break;
-      case Diag::AK_UInt:
-        if (A.UInt <= UINT64_MAX)
-          Printf("%llu", (unsigned long long)A.UInt);
-        else
-          PrintHex(A.UInt);
-        break;
-      case Diag::AK_Float: {
-        // FIXME: Support floating-point formatting in sanitizer_common's
-        //        printf, and stop using snprintf here.
-        char Buffer[32];
-        snprintf(Buffer, sizeof(Buffer), "%Lg", (long double)A.Float);
-        Printf("%s", Buffer);
-        break;
-      }
-      case Diag::AK_Pointer:
-        Printf("%p", A.Pointer);
-        break;
-      }
+      Buffer->append("%c", *Msg);
+      continue;
+    }
+    const Diag::Arg &A = Args[*++Msg - '0'];
+    switch (A.Kind) {
+    case Diag::AK_String:
+      Buffer->append("%s", A.String);
+      break;
+    case Diag::AK_TypeName: {
+      if (SANITIZER_WINDOWS)
+        // The Windows implementation demangles names early.
+        Buffer->append("'%s'", A.String);
+      else
+        Buffer->append("'%s'", Symbolizer::GetOrInit()->Demangle(A.String));
+      break;
+    }
+    case Diag::AK_SInt:
+      // 'long long' is guaranteed to be at least 64 bits wide.
+      if (A.SInt >= INT64_MIN && A.SInt <= INT64_MAX)
+        Buffer->append("%lld", (long long)A.SInt);
+      else
+        RenderHex(Buffer, A.SInt);
+      break;
+    case Diag::AK_UInt:
+      if (A.UInt <= UINT64_MAX)
+        Buffer->append("%llu", (unsigned long long)A.UInt);
+      else
+        RenderHex(Buffer, A.UInt);
+      break;
+    case Diag::AK_Float: {
+      // FIXME: Support floating-point formatting in sanitizer_common's
+      //        printf, and stop using snprintf here.
+      char FloatBuffer[32];
+#if SANITIZER_WINDOWS
+      sprintf_s(FloatBuffer, sizeof(FloatBuffer), "%Lg", (long double)A.Float);
+#else
+      snprintf(FloatBuffer, sizeof(FloatBuffer), "%Lg", (long double)A.Float);
+#endif
+      Buffer->append("%s", FloatBuffer);
+      break;
+    }
+    case Diag::AK_Pointer:
+      Buffer->append("%p", A.Pointer);
+      break;
     }
   }
 }
@@ -217,9 +244,9 @@ static inline uptr addNoOverflow(uptr LHS, uptr RHS) {
 }
 
 /// Render a snippet of the address space near a location.
-static void renderMemorySnippet(const Decorator &Decor, MemoryLocation Loc,
-                                Range *Ranges, unsigned NumRanges,
-                                const Diag::Arg *Args) {
+static void PrintMemorySnippet(const Decorator &Decor, MemoryLocation Loc,
+                               Range *Ranges, unsigned NumRanges,
+                               const Diag::Arg *Args) {
   // Show at least the 8 bytes surrounding Loc.
   const unsigned MinBytesNearLoc = 4;
   MemoryLocation Min = subtractNoOverflow(Loc, MinBytesNearLoc);
@@ -242,14 +269,15 @@ static void renderMemorySnippet(const Decorator &Decor, MemoryLocation Loc,
   }
 
   // Emit data.
+  InternalScopedString Buffer(1024);
   for (uptr P = Min; P != Max; ++P) {
     unsigned char C = *reinterpret_cast<const unsigned char*>(P);
-    Printf("%s%02x", (P % 8 == 0) ? "  " : " ", C);
+    Buffer.append("%s%02x", (P % 8 == 0) ? "  " : " ", C);
   }
-  Printf("\n");
+  Buffer.append("\n");
 
   // Emit highlights.
-  Printf(Decor.Highlight());
+  Buffer.append(Decor.Highlight());
   Range *InRange = upperBound(Min, Ranges, NumRanges);
   for (uptr P = Min; P != Max; ++P) {
     char Pad = ' ', Byte = ' ';
@@ -261,10 +289,13 @@ static void renderMemorySnippet(const Decorator &Decor, MemoryLocation Loc,
       Pad = '~';
     if (InRange && InRange->getStart().getMemoryLocation() <= P)
       Byte = '~';
-    char Buffer[] = { Pad, Pad, P == Loc ? '^' : Byte, Byte, 0 };
-    Printf((P % 8 == 0) ? Buffer : &Buffer[1]);
+    if (P % 8 == 0)
+      Buffer.append("%c", Pad);
+    Buffer.append("%c", Pad);
+    Buffer.append("%c", P == Loc ? '^' : Byte);
+    Buffer.append("%c", Byte);
   }
-  Printf("%s\n", Decor.EndHighlight());
+  Buffer.append("%s\n", Decor.Default());
 
   // Go over the line again, and print names for the ranges.
   InRange = 0;
@@ -279,9 +310,9 @@ static void renderMemorySnippet(const Decorator &Decor, MemoryLocation Loc,
 
     if (InRange && InRange->getStart().getMemoryLocation() == P) {
       while (Spaces--)
-        Printf(" ");
-      renderText(InRange->getText(), Args);
-      Printf("\n");
+        Buffer.append(" ");
+      RenderText(&Buffer, InRange->getText(), Args);
+      Buffer.append("\n");
       // FIXME: We only support naming one range for now!
       break;
     }
@@ -289,6 +320,7 @@ static void renderMemorySnippet(const Decorator &Decor, MemoryLocation Loc,
     Spaces += 2;
   }
 
+  Printf("%s", Buffer.data());
   // FIXME: Print names for anything we can identify within the line:
   //
   //  * If we can identify the memory itself as belonging to a particular
@@ -303,51 +335,100 @@ static void renderMemorySnippet(const Decorator &Decor, MemoryLocation Loc,
 
 Diag::~Diag() {
   // All diagnostics should be printed under report mutex.
-  CommonSanitizerReportMutex.CheckLocked();
+  ScopedReport::CheckLocked();
   Decorator Decor;
-  Printf(Decor.Bold());
+  InternalScopedString Buffer(1024);
 
-  renderLocation(Loc);
+  // Prepare a report that a monitor process can inspect.
+  if (Level == DL_Error) {
+    RenderText(&Buffer, Message, Args);
+    UndefinedBehaviorReport UBR{ConvertTypeToString(ET), Loc, Buffer};
+    Buffer.clear();
+  }
+
+  Buffer.append(Decor.Bold());
+  RenderLocation(&Buffer, Loc);
+  Buffer.append(":");
 
   switch (Level) {
   case DL_Error:
-    Printf("%s runtime error: %s%s",
-           Decor.Warning(), Decor.EndWarning(), Decor.Bold());
+    Buffer.append("%s runtime error: %s%s", Decor.Warning(), Decor.Default(),
+                  Decor.Bold());
     break;
 
   case DL_Note:
-    Printf("%s note: %s", Decor.Note(), Decor.EndNote());
+    Buffer.append("%s note: %s", Decor.Note(), Decor.Default());
     break;
   }
 
-  renderText(Message, Args);
+  RenderText(&Buffer, Message, Args);
 
-  Printf("%s\n", Decor.Default());
+  Buffer.append("%s\n", Decor.Default());
+  Printf("%s", Buffer.data());
 
   if (Loc.isMemoryLocation())
-    renderMemorySnippet(Decor, Loc.getMemoryLocation(), Ranges,
-                        NumRanges, Args);
+    PrintMemorySnippet(Decor, Loc.getMemoryLocation(), Ranges, NumRanges, Args);
 }
 
-ScopedReport::ScopedReport(ReportOptions Opts, Location SummaryLoc)
-    : Opts(Opts), SummaryLoc(SummaryLoc) {
-  InitIfNecessary();
-  CommonSanitizerReportMutex.Lock();
-}
+ScopedReport::Initializer::Initializer() { InitAsStandaloneIfNecessary(); }
+
+ScopedReport::ScopedReport(ReportOptions Opts, Location SummaryLoc,
+                           ErrorType Type)
+    : Opts(Opts), SummaryLoc(SummaryLoc), Type(Type) {}
 
 ScopedReport::~ScopedReport() {
   MaybePrintStackTrace(Opts.pc, Opts.bp);
-  MaybeReportErrorSummary(SummaryLoc);
-  CommonSanitizerReportMutex.Unlock();
-  if (Opts.DieAfterReport || flags()->halt_on_error)
+  MaybeReportErrorSummary(SummaryLoc, Type);
+  if (flags()->halt_on_error)
     Die();
 }
 
-bool __ubsan::MatchSuppression(const char *Str, SuppressionType Type) {
-  Suppression *s;
-  // If .preinit_array is not used, it is possible that the UBSan runtime is not
-  // initialized.
-  if (!SANITIZER_CAN_USE_PREINIT_ARRAY)
-    InitIfNecessary();
-  return SuppressionContext::Get()->Match(Str, Type, &s);
+ALIGNED(64) static char suppression_placeholder[sizeof(SuppressionContext)];
+static SuppressionContext *suppression_ctx = nullptr;
+static const char kVptrCheck[] = "vptr_check";
+static const char *kSuppressionTypes[] = {
+#define UBSAN_CHECK(Name, SummaryKind, FSanitizeFlagName) FSanitizeFlagName,
+#include "ubsan_checks.inc"
+#undef UBSAN_CHECK
+    kVptrCheck,
+};
+
+void __ubsan::InitializeSuppressions() {
+  CHECK_EQ(nullptr, suppression_ctx);
+  suppression_ctx = new (suppression_placeholder) // NOLINT
+      SuppressionContext(kSuppressionTypes, ARRAY_SIZE(kSuppressionTypes));
+  suppression_ctx->ParseFromFile(flags()->suppressions);
 }
+
+bool __ubsan::IsVptrCheckSuppressed(const char *TypeName) {
+  InitAsStandaloneIfNecessary();
+  CHECK(suppression_ctx);
+  Suppression *s;
+  return suppression_ctx->Match(TypeName, kVptrCheck, &s);
+}
+
+bool __ubsan::IsPCSuppressed(ErrorType ET, uptr PC, const char *Filename) {
+  InitAsStandaloneIfNecessary();
+  CHECK(suppression_ctx);
+  const char *SuppType = ConvertTypeToFlagName(ET);
+  // Fast path: don't symbolize PC if there is no suppressions for given UB
+  // type.
+  if (!suppression_ctx->HasSuppressionType(SuppType))
+    return false;
+  Suppression *s = nullptr;
+  // Suppress by file name known to runtime.
+  if (Filename != nullptr && suppression_ctx->Match(Filename, SuppType, &s))
+    return true;
+  // Suppress by module name.
+  if (const char *Module = Symbolizer::GetOrInit()->GetModuleNameForPc(PC)) {
+    if (suppression_ctx->Match(Module, SuppType, &s))
+      return true;
+  }
+  // Suppress by function or source file name from debug info.
+  SymbolizedStackHolder Stack(Symbolizer::GetOrInit()->SymbolizePC(PC));
+  const AddressInfo &AI = Stack.get()->info;
+  return suppression_ctx->Match(AI.function, SuppType, &s) ||
+         suppression_ctx->Match(AI.file, SuppType, &s);
+}
+
+#endif  // CAN_SANITIZE_UB

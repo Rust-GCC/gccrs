@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2008-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU Transactional Memory Library (libitm).
@@ -33,11 +33,11 @@ namespace GTM HIDDEN {
 
 #define FUTEX_WAIT		0
 #define FUTEX_WAKE		1
-#define FUTEX_PRIVATE_FLAG	128L
+#define FUTEX_PRIVATE_FLAG	128
 
 
-static long int gtm_futex_wait = FUTEX_WAIT | FUTEX_PRIVATE_FLAG;
-static long int gtm_futex_wake = FUTEX_WAKE | FUTEX_PRIVATE_FLAG;
+static int gtm_futex_wait = FUTEX_WAIT | FUTEX_PRIVATE_FLAG;
+static int gtm_futex_wake = FUTEX_WAKE | FUTEX_PRIVATE_FLAG;
 
 
 void

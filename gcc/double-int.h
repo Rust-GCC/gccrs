@@ -1,5 +1,5 @@
 /* Operations with long integers.
-   Copyright (C) 2006-2014 Free Software Foundation, Inc.
+   Copyright (C) 2006-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -19,8 +19,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #ifndef DOUBLE_INT_H
 #define DOUBLE_INT_H
-
-#include "wide-int.h"
 
 /* A large integer is currently represented as a pair of HOST_WIDE_INTs.
    It therefore represents a number with precision of
@@ -62,7 +60,7 @@ struct double_int
   static double_int from_pair (HOST_WIDE_INT high, unsigned HOST_WIDE_INT low);
 
   /* Construct from a fuffer of length LEN.  BUFFER will be read according
-     to byte endianess and word endianess.  */
+     to byte endianness and word endianness.  */
   static double_int from_buffer (const unsigned char *buffer, int len);
 
   /* No copy assignment operator or destructor to keep the type a POD.  */
@@ -367,7 +365,7 @@ double_int::operator ^ (double_int b) const
 
 void dump_double_int (FILE *, double_int, bool);
 
-#define ALL_ONES (~((unsigned HOST_WIDE_INT) 0))
+#define ALL_ONES HOST_WIDE_INT_M1U
 
 /* The operands of the following comparison functions must be processed
    with double_int_ext, if their precision is less than

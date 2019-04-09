@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -23,8 +23,6 @@
 // libstdc++/50268
 void test01()
 {
-  bool test __attribute__((unused)) = true;
-
   std::bitset<1> b1(3ULL);
   VERIFY( b1.count() == 1ULL );
 

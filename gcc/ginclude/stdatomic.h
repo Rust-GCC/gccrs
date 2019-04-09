@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -77,12 +77,10 @@ typedef _Atomic __UINTMAX_TYPE__ atomic_uintmax_t;
 
 
 #define ATOMIC_VAR_INIT(VALUE)	(VALUE)
-#define atomic_init(PTR, VAL)			\
-  do						\
-    {						\
-      *(PTR) = (VAL);				\
-    }						\
-  while (0)
+
+/* Initialize an atomic object pointed to by PTR with VAL.  */
+#define atomic_init(PTR, VAL)                           \
+  atomic_store_explicit (PTR, VAL, __ATOMIC_RELAXED)
 
 #define kill_dependency(Y)			\
   __extension__					\
@@ -91,7 +89,9 @@ typedef _Atomic __UINTMAX_TYPE__ atomic_uintmax_t;
     __kill_dependency_tmp;			\
   })
 
+extern void atomic_thread_fence (memory_order);
 #define atomic_thread_fence(MO)	__atomic_thread_fence (MO)
+extern void atomic_signal_fence (memory_order);
 #define atomic_signal_fence(MO)	__atomic_signal_fence  (MO)
 #define atomic_is_lock_free(OBJ) __atomic_is_lock_free (sizeof (*(OBJ)), (OBJ))
 
@@ -227,12 +227,17 @@ typedef _Atomic struct
 #define ATOMIC_FLAG_INIT	{ 0 }
 
 
+extern _Bool atomic_flag_test_and_set (volatile atomic_flag *);
 #define atomic_flag_test_and_set(PTR) 					\
 			__atomic_test_and_set ((PTR), __ATOMIC_SEQ_CST)
+extern _Bool atomic_flag_test_and_set_explicit (volatile atomic_flag *,
+						memory_order);
 #define atomic_flag_test_and_set_explicit(PTR, MO)			\
 			__atomic_test_and_set ((PTR), (MO))
 
+extern void atomic_flag_clear (volatile atomic_flag *);
 #define atomic_flag_clear(PTR)	__atomic_clear ((PTR), __ATOMIC_SEQ_CST)
+extern void atomic_flag_clear_explicit (volatile atomic_flag *, memory_order);
 #define atomic_flag_clear_explicit(PTR, MO)   __atomic_clear ((PTR), (MO))
 
 #endif  /* _STDATOMIC_H */

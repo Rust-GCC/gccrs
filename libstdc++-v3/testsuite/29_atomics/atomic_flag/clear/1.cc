@@ -1,6 +1,7 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
+// { dg-require-thread-fence "" }
 
-// Copyright (C) 2009-2014 Free Software Foundation, Inc.
+// Copyright (C) 2009-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,7 +23,6 @@
 
 int main()
 {
-  bool test __attribute__((unused)) = true;
   std::atomic_flag f = ATOMIC_FLAG_INIT;
 
   f.clear(); // set to false

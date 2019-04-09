@@ -1,5 +1,5 @@
 /* Definitions for the moxiebox.
-   Copyright (C) 2014 Free Software Foundation, Inc.
+   Copyright (C) 2014-2019 Free Software Foundation, Inc.
    Contributed by Anthony Green (green@moxielogic.com)
 
 This file is part of GCC.
@@ -39,9 +39,17 @@ along with GCC; see the file COPYING3.  If not see
 #undef  ASM_SPEC
 #define ASM_SPEC "-EL"
 
+#undef CC1_SPEC
+#define CC1_SPEC "-mel %{meb:%ethis target is little-endian}"
+
+#undef CC1PLUS_SPEC
+#define CC1PLUS_SPEC CC1_SPEC
+
 #undef MULTILIB_DEFAULTS
 
 #undef SIZE_TYPE
 #undef PTRDIFF_TYPE
 #undef WCHAR_TYPE
 #undef WCHAR_TYPE_SIZE
+
+#define TARGET_MOXIEBOX

@@ -1,6 +1,6 @@
 ;; Instruction Classification for ARM for GNU compiler.
 
-;; Copyright (C) 1991-2014 Free Software Foundation, Inc.
+;; Copyright (C) 1991-2019 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 
 ;; This file is part of GCC.
@@ -51,6 +51,7 @@
 ; alus_shift_imm     as alu_shift_imm, setting condition flags.
 ; alus_shift_reg     as alu_shift_reg, setting condition flags.
 ; bfm                bitfield move operation.
+; bfx                bitfield extract operation.
 ; block              blockage insn, this blocks all functional units.
 ; branch             branch.
 ; call               subroutine call.
@@ -70,6 +71,7 @@
 ; f_rint[d,s]        double/single floating point rount to integral.
 ; f_store[d,s]       double/single store to memory.  Used for VFP unit.
 ; fadd[d,s]          double/single floating-point scalar addition.
+; fccmp[d,s]         From ARMv8-A: floating-point conditional compare.
 ; fcmp[d,s]          double/single floating-point compare.
 ; fconst[d,s]        double/single load immediate.
 ; fcsel              From ARMv8-A: Floating-point conditional select.
@@ -82,11 +84,11 @@
 ; fmul[d,s]          double/single floating point multiply.
 ; fsqrt[d,s]         double/single precision floating point square root.
 ; load_acq           load-acquire.
-; load_byte          load byte(s) from memory to arm registers.
-; load1              load 1 word from memory to arm registers.
-; load2              load 2 words from memory to arm registers.
-; load3              load 3 words from memory to arm registers.
-; load4              load 4 words from memory to arm registers.
+; load_byte          load 1 byte from memory.
+; load_4             load 4 bytes from memory.
+; load_8             load 8 bytes from memory.
+; load_12            load 12 bytes from memory.
+; load_16            load 16 bytes from memory.
 ; logic_imm          any logical instruction that doesn't have a shifted
 ;                    operand and has an immediate operand.
 ; logic_reg          any logical instruction that doesn't have a shifted
@@ -120,6 +122,7 @@
 ;                    final output, thus having no impact on scheduling.
 ; rbit               reverse bits.
 ; rev                reverse bytes.
+; rotate_imm         rotate by immediate.
 ; sdiv               signed division.
 ; shift_imm          simple shift operation (LSL, LSR, ASR, ROR) with an
 ;                    immediate.
@@ -149,10 +152,10 @@
 ; smusd              signed dual multiply subtract.
 ; smusdx             signed dual multiply subtract reverse.
 ; store_rel          store-release.
-; store1             store 1 word to memory from arm registers.
-; store2             store 2 words to memory from arm registers.
-; store3             store 3 words to memory from arm registers.
-; store4             store 4 (or more) words to memory from arm registers.
+; store_4            store 4 bytes to memory.
+; store_8            store 8 bytes to memory.
+; store_12           store 12 bytes to memory.
+; store_16           store 16 bytes (or more) to memory.
 ; trap               cause a trap in the kernel.
 ; udiv               unsigned division.
 ; umaal              unsigned multiply accumulate accumulate long.
@@ -313,6 +316,8 @@
 ; neon_cls_q
 ; neon_cnt
 ; neon_cnt_q
+; neon_dot
+; neon_dot_q
 ; neon_ext
 ; neon_ext_q
 ; neon_rbit
@@ -375,6 +380,8 @@
 ; neon_from_gp
 ; neon_from_gp_q
 ; neon_ldr
+; neon_ldp
+; neon_ldp_q
 ; neon_load1_1reg
 ; neon_load1_1reg_q
 ; neon_load1_2reg
@@ -408,6 +415,8 @@
 ; neon_load4_one_lane
 ; neon_load4_one_lane_q
 ; neon_str
+; neon_stp
+; neon_stp_q
 ; neon_store1_1reg
 ; neon_store1_1reg_q
 ; neon_store1_2reg
@@ -532,6 +541,11 @@
 ; crypto_sha1_slow
 ; crypto_sha256_fast
 ; crypto_sha256_slow
+; crypto_pmull
+;
+; The classification below is for coprocessor instructions
+;
+; coproc
 
 (define_attr "type"
  "adc_imm,\
@@ -551,6 +565,7 @@
   alus_shift_imm,\
   alus_shift_reg,\
   bfm,\
+  bfx,\
   block,\
   branch,\
   call,\
@@ -577,6 +592,8 @@
   f_stores,\
   faddd,\
   fadds,\
+  fccmpd,\
+  fccmps,\
   fcmpd,\
   fcmps,\
   fconstd,\
@@ -598,10 +615,10 @@
   fsqrtd,\
   load_acq,\
   load_byte,\
-  load1,\
-  load2,\
-  load3,\
-  load4,\
+  load_4,\
+  load_8,\
+  load_12,\
+  load_16,\
   logic_imm,\
   logic_reg,\
   logic_shift_imm,\
@@ -627,6 +644,7 @@
   nop,\
   rbit,\
   rev,\
+  rotate_imm,\
   sdiv,\
   shift_imm,\
   shift_reg,\
@@ -654,10 +672,10 @@
   smusd,\
   smusdx,\
   store_rel,\
-  store1,\
-  store2,\
-  store3,\
-  store4,\
+  store_4,\
+  store_8,\
+  store_12,\
+  store_16,\
   trap,\
   udiv,\
   umaal,\
@@ -746,8 +764,13 @@
   neon_sub_halve_q,\
   neon_sub_halve_narrow_q,\
 \
+  neon_fcadd,\
+  neon_fcmla,\
+\
   neon_abs,\
   neon_abs_q,\
+  neon_dot,\
+  neon_dot_q,\
   neon_neg,\
   neon_neg_q,\
   neon_qneg,\
@@ -887,6 +910,8 @@
   neon_from_gp_q,\
 \
   neon_ldr,\
+  neon_ldp,\
+  neon_ldp_q,\
   neon_load1_1reg,\
   neon_load1_1reg_q,\
   neon_load1_2reg,\
@@ -924,6 +949,8 @@
   neon_load4_one_lane_q,\
 \
   neon_str,\
+  neon_stp,\
+  neon_stp_q,\
   neon_store1_1reg,\
   neon_store1_1reg_q,\
   neon_store1_2reg,\
@@ -1058,7 +1085,13 @@
   crypto_sha1_fast,\
   crypto_sha1_slow,\
   crypto_sha256_fast,\
-  crypto_sha256_slow"
+  crypto_sha256_slow,\
+  crypto_pmull,\
+  crypto_sha512,\
+  crypto_sha3,\
+  crypto_sm3,\
+  crypto_sm4,\
+  coproc"
    (const_string "untyped"))
 
 ; Is this an (integer side) multiply with a 32-bit (or smaller) result?
@@ -1070,8 +1103,8 @@
     (const_string "yes")
     (const_string "no")))
 
-; Is this an (integer side) multiply with a 64-bit result?
-(define_attr "mul64" "no,yes"
+; Is this an (integer side) widening multiply with a 64-bit result?
+(define_attr "widen_mul64" "no,yes"
   (if_then_else
     (eq_attr "type"
      "smlalxy,umull,umulls,umaal,umlal,umlals,smull,smulls,smlal,smlals")
@@ -1088,8 +1121,8 @@
           neon_sub, neon_sub_q, neon_sub_widen, neon_sub_long, neon_qsub,\
           neon_qsub_q, neon_sub_halve, neon_sub_halve_q,\
           neon_sub_halve_narrow_q,\
-          neon_abs, neon_abs_q, neon_neg, neon_neg_q, neon_qneg,\
-          neon_qneg_q, neon_qabs, neon_qabs_q, neon_abd, neon_abd_q,\
+	  neon_abs, neon_abs_q, neon_dot, neon_dot_q, neon_neg, neon_neg_q,\
+	  neon_qneg, neon_qneg_q, neon_qabs, neon_qabs_q, neon_abd, neon_abd_q,\
           neon_abd_long, neon_minmax, neon_minmax_q, neon_compare,\
           neon_compare_q, neon_compare_zero, neon_compare_zero_q,\
           neon_arith_acc, neon_arith_acc_q, neon_reduc_add,\
@@ -1126,7 +1159,8 @@
           neon_sat_mla_s_long, neon_sat_mla_h_scalar_long,\
           neon_sat_mla_s_scalar_long,\
           neon_to_gp, neon_to_gp_q, neon_from_gp, neon_from_gp_q,\
-          neon_ldr, neon_load1_1reg, neon_load1_1reg_q, neon_load1_2reg,\
+	   neon_ldr, neon_ldp, neon_ldp_q,\
+	   neon_load1_1reg, neon_load1_1reg_q, neon_load1_2reg,\
           neon_load1_2reg_q, neon_load1_3reg, neon_load1_3reg_q,\
           neon_load1_4reg, neon_load1_4reg_q, neon_load1_all_lanes,\
           neon_load1_all_lanes_q, neon_load1_one_lane, neon_load1_one_lane_q,\
@@ -1137,7 +1171,8 @@
           neon_load3_all_lanes_q, neon_load3_one_lane, neon_load3_one_lane_q,\
           neon_load4_4reg, neon_load4_4reg_q, neon_load4_all_lanes,\
           neon_load4_all_lanes_q, neon_load4_one_lane, neon_load4_one_lane_q,\
-          neon_str, neon_store1_1reg, neon_store1_1reg_q, neon_store1_2reg,\
+	   neon_str, neon_stp, neon_stp_q,\
+	   neon_store1_1reg, neon_store1_1reg_q, neon_store1_2reg,\
           neon_store1_2reg_q, neon_store1_3reg, neon_store1_3reg_q,\
           neon_store1_4reg, neon_store1_4reg_q, neon_store1_one_lane,\
           neon_store1_one_lane_q, neon_store2_2reg, neon_store2_2reg_q,\
@@ -1146,10 +1181,12 @@
           neon_store3_one_lane, neon_store3_one_lane_q, neon_store4_4reg,\
           neon_store4_4reg_q, neon_store4_one_lane, neon_store4_one_lane_q,\
           neon_fp_abd_s, neon_fp_abd_s_q, neon_fp_abd_d, neon_fp_abd_d_q,\
+          neon_fp_abs_s, neon_fp_abs_s_q, neon_fp_abs_d, neon_fp_abs_d_q,\
           neon_fp_addsub_s, neon_fp_addsub_s_q, neon_fp_addsub_d,\
           neon_fp_addsub_d_q, neon_fp_compare_s, neon_fp_compare_s_q,\
           neon_fp_compare_d, neon_fp_compare_d_q, neon_fp_minmax_s,\
           neon_fp_minmax_s_q, neon_fp_minmax_d, neon_fp_minmax_d_q,\
+          neon_fp_neg_s, neon_fp_neg_s_q, neon_fp_neg_d, neon_fp_neg_d_q,\
           neon_fp_reduc_add_s, neon_fp_reduc_add_s_q, neon_fp_reduc_add_d,\
           neon_fp_reduc_add_d_q, neon_fp_reduc_minmax_s,
           neon_fp_reduc_minmax_s_q, neon_fp_reduc_minmax_d,\
@@ -1157,6 +1194,8 @@
           neon_fp_cvt_narrow_s_q, neon_fp_cvt_narrow_d_q,\
           neon_fp_cvt_widen_h, neon_fp_cvt_widen_s, neon_fp_to_int_s,\
           neon_fp_to_int_s_q, neon_int_to_fp_s, neon_int_to_fp_s_q,\
+          neon_fp_to_int_d, neon_fp_to_int_d_q,\
+          neon_int_to_fp_d, neon_int_to_fp_d_q,\
           neon_fp_round_s, neon_fp_round_s_q, neon_fp_recpe_s,\
           neon_fp_recpe_s_q,\
           neon_fp_recpe_d, neon_fp_recpe_d_q, neon_fp_recps_s,\

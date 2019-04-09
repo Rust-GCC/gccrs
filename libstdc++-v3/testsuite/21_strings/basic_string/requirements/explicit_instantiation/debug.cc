@@ -1,4 +1,4 @@
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -23,5 +23,5 @@
 
 // libstdc++/21770
 namespace debug = __gnu_debug;
-template class debug::basic_string<int, std::char_traits<int>, 
+template class debug::basic_string<int, std::char_traits<int>,
 				   std::allocator<char> >;

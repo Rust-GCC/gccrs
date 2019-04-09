@@ -1,5 +1,5 @@
 /* alloc.c -- Memory allocation without mmap.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Written by Ian Lance Taylor, Google.
 
 Redistribution and use in source and binary forms, with or without
@@ -7,13 +7,13 @@ modification, are permitted provided that the following conditions are
 met:
 
     (1) Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer. 
+    notice, this list of conditions and the following disclaimer.
 
     (2) Redistributions in binary form must reproduce the above copyright
     notice, this list of conditions and the following disclaimer in
     the documentation and/or other materials provided with the
-    distribution.  
-    
+    distribution.
+
     (3) The name of the author may not be used to
     endorse or promote products derived from this software without
     specific prior written permission.
@@ -44,7 +44,8 @@ POSSIBILITY OF SUCH DAMAGE.  */
    backtrace functions may not be safely invoked from a signal
    handler.  */
 
-/* Allocate memory like malloc.  */
+/* Allocate memory like malloc.  If ERROR_CALLBACK is NULL, don't
+   report an error.  */
 
 void *
 backtrace_alloc (struct backtrace_state *state ATTRIBUTE_UNUSED,
@@ -55,7 +56,10 @@ backtrace_alloc (struct backtrace_state *state ATTRIBUTE_UNUSED,
 
   ret = malloc (size);
   if (ret == NULL)
-    error_callback (data, "malloc", errno);
+    {
+      if (error_callback)
+	error_callback (data, "malloc", errno);
+    }
   return ret;
 }
 
@@ -141,12 +145,23 @@ backtrace_vector_release (struct backtrace_state *state ATTRIBUTE_UNUSED,
 			  backtrace_error_callback error_callback,
 			  void *data)
 {
+  vec->alc = 0;
+
+  if (vec->size == 0)
+    {
+      /* As of C17, realloc with size 0 is marked as an obsolescent feature, use
+	 free instead.  */
+      free (vec->base);
+      vec->base = NULL;
+      return 1;
+    }
+
   vec->base = realloc (vec->base, vec->size);
   if (vec->base == NULL)
     {
       error_callback (data, "realloc", errno);
       return 0;
     }
-  vec->alc = 0;
+
   return 1;
 }

@@ -1,5 +1,5 @@
 /* Chains of recurrences.
-   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+   Copyright (C) 2003-2019 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <pop@cri.ensmp.fr>
 
 This file is part of GCC.
@@ -26,11 +26,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "backend.h"
 #include "tree.h"
-#include "tree-pretty-print.h"
-#include "cfgloop.h"
-#include "basic-block.h"
 #include "gimple-expr.h"
+#include "tree-pretty-print.h"
+#include "fold-const.h"
+#include "cfgloop.h"
 #include "tree-ssa-loop-ivopts.h"
 #include "tree-ssa-loop-niter.h"
 #include "tree-chrec.h"
@@ -39,53 +40,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-scalar-evolution.h"
 
 /* Extended folder for chrecs.  */
-
-/* Determines whether CST is not a constant evolution.  */
-
-static inline bool
-is_not_constant_evolution (const_tree cst)
-{
-  return (TREE_CODE (cst) == POLYNOMIAL_CHREC);
-}
-
-/* Fold CODE for a polynomial function and a constant.  */
-
-static inline tree
-chrec_fold_poly_cst (enum tree_code code,
-		     tree type,
-		     tree poly,
-		     tree cst)
-{
-  gcc_assert (poly);
-  gcc_assert (cst);
-  gcc_assert (TREE_CODE (poly) == POLYNOMIAL_CHREC);
-  gcc_assert (!is_not_constant_evolution (cst));
-  gcc_assert (type == chrec_type (poly));
-
-  switch (code)
-    {
-    case PLUS_EXPR:
-      return build_polynomial_chrec
-	(CHREC_VARIABLE (poly),
-	 chrec_fold_plus (type, CHREC_LEFT (poly), cst),
-	 CHREC_RIGHT (poly));
-
-    case MINUS_EXPR:
-      return build_polynomial_chrec
-	(CHREC_VARIABLE (poly),
-	 chrec_fold_minus (type, CHREC_LEFT (poly), cst),
-	 CHREC_RIGHT (poly));
-
-    case MULT_EXPR:
-      return build_polynomial_chrec
-	(CHREC_VARIABLE (poly),
-	 chrec_fold_multiply (type, CHREC_LEFT (poly), cst),
-	 chrec_fold_multiply (type, CHREC_RIGHT (poly), cst));
-
-    default:
-      return chrec_dont_know;
-    }
-}
 
 /* Fold the addition of two polynomial functions.  */
 
@@ -105,10 +59,11 @@ chrec_fold_plus_poly_poly (enum tree_code code,
   gcc_assert (TREE_CODE (poly0) == POLYNOMIAL_CHREC);
   gcc_assert (TREE_CODE (poly1) == POLYNOMIAL_CHREC);
   if (POINTER_TYPE_P (chrec_type (poly0)))
-    gcc_assert (ptrofftype_p (chrec_type (poly1)));
+    gcc_checking_assert (ptrofftype_p (chrec_type (poly1))
+			 && useless_type_conversion_p (type, chrec_type (poly0)));
   else
-    gcc_assert (chrec_type (poly0) == chrec_type (poly1));
-  gcc_assert (type == chrec_type (poly0));
+    gcc_checking_assert (useless_type_conversion_p (type, chrec_type (poly0))
+			 && useless_type_conversion_p (type, chrec_type (poly1)));
 
   /*
     {a, +, b}_1 + {c, +, d}_2  ->  {{a, +, b}_1 + c, +, d}_2,
@@ -147,7 +102,12 @@ chrec_fold_plus_poly_poly (enum tree_code code,
 
   /* This function should never be called for chrecs of loops that
      do not belong to the same loop nest.  */
-  gcc_assert (loop0 == loop1);
+  if (loop0 != loop1)
+    {
+      /* It still can happen if we are not in loop-closed SSA form.  */
+      gcc_assert (! loops_state_satisfies_p (LOOP_CLOSED_SSA));
+      return chrec_dont_know;
+    }
 
   if (code == PLUS_EXPR || code == POINTER_PLUS_EXPR)
     {
@@ -189,8 +149,8 @@ chrec_fold_multiply_poly_poly (tree type,
   gcc_assert (poly1);
   gcc_assert (TREE_CODE (poly0) == POLYNOMIAL_CHREC);
   gcc_assert (TREE_CODE (poly1) == POLYNOMIAL_CHREC);
-  gcc_assert (chrec_type (poly0) == chrec_type (poly1));
-  gcc_assert (type == chrec_type (poly0));
+  gcc_checking_assert (useless_type_conversion_p (type, chrec_type (poly0))
+		       && useless_type_conversion_p (type, chrec_type (poly1)));
 
   /* {a, +, b}_1 * {c, +, d}_2  ->  {c*{a, +, b}_1, +, d}_2,
      {a, +, b}_2 * {c, +, d}_1  ->  {a*{c, +, d}_1, +, b}_2,
@@ -209,7 +169,12 @@ chrec_fold_multiply_poly_poly (tree type,
        chrec_fold_multiply (type, CHREC_LEFT (poly0), poly1),
        CHREC_RIGHT (poly0));
 
-  gcc_assert (loop0 == loop1);
+  if (loop0 != loop1)
+    {
+      /* It still can happen if we are not in loop-closed SSA form.  */
+      gcc_assert (! loops_state_satisfies_p (LOOP_CLOSED_SSA));
+      return chrec_dont_know;
+    }
 
   /* poly0 and poly1 are two polynomials in the same variable,
      {a, +, b}_x * {c, +, d}_x  ->  {a*c, +, a*d + b*c + b*d, +, 2*b*d}_x.  */
@@ -283,8 +248,24 @@ chrec_fold_plus_1 (enum tree_code code, tree type,
 	  return chrec_fold_plus_poly_poly (code, type, op0, op1);
 
 	CASE_CONVERT:
-	  if (tree_contains_chrecs (op1, NULL))
-	    return chrec_dont_know;
+	  {
+	    /* We can strip sign-conversions to signed by performing the
+	       operation in unsigned.  */
+	    tree optype = TREE_TYPE (TREE_OPERAND (op1, 0));
+	    if (INTEGRAL_TYPE_P (type)
+		&& INTEGRAL_TYPE_P (optype)
+		&& tree_nop_conversion_p (type, optype)
+		&& TYPE_UNSIGNED (optype))
+	      return chrec_convert (type,
+				    chrec_fold_plus_1 (code, optype,
+						       chrec_convert (optype,
+								      op0, NULL),
+						       TREE_OPERAND (op1, 0)),
+				    NULL);
+	    if (tree_contains_chrecs (op1, NULL))
+	      return chrec_dont_know;
+	  }
+	  /* FALLTHRU */
 
 	default:
 	  if (code == PLUS_EXPR || code == POINTER_PLUS_EXPR)
@@ -300,8 +281,24 @@ chrec_fold_plus_1 (enum tree_code code, tree type,
 	}
 
     CASE_CONVERT:
-      if (tree_contains_chrecs (op0, NULL))
-	return chrec_dont_know;
+      {
+	/* We can strip sign-conversions to signed by performing the
+	   operation in unsigned.  */
+	tree optype = TREE_TYPE (TREE_OPERAND (op0, 0));
+	if (INTEGRAL_TYPE_P (type)
+	    && INTEGRAL_TYPE_P (optype)
+	    && tree_nop_conversion_p (type, optype)
+	    && TYPE_UNSIGNED (optype))
+	  return chrec_convert (type,
+				chrec_fold_plus_1 (code, optype,
+						   TREE_OPERAND (op0, 0),
+						   chrec_convert (optype,
+								  op1, NULL)),
+				NULL);
+	if (tree_contains_chrecs (op0, NULL))
+	  return chrec_dont_know;
+      }
+      /* FALLTHRU */
 
     default:
       switch (TREE_CODE (op1))
@@ -327,6 +324,7 @@ chrec_fold_plus_1 (enum tree_code code, tree type,
 	CASE_CONVERT:
 	  if (tree_contains_chrecs (op1, NULL))
 	    return chrec_dont_know;
+	  /* FALLTHRU */
 
 	default:
 	  {
@@ -421,6 +419,7 @@ chrec_fold_multiply (tree type,
 	CASE_CONVERT:
 	  if (tree_contains_chrecs (op1, NULL))
 	    return chrec_dont_know;
+	  /* FALLTHRU */
 
 	default:
 	  if (integer_onep (op1))
@@ -437,6 +436,7 @@ chrec_fold_multiply (tree type,
     CASE_CONVERT:
       if (tree_contains_chrecs (op0, NULL))
 	return chrec_dont_know;
+      /* FALLTHRU */
 
     default:
       if (integer_onep (op0))
@@ -459,6 +459,7 @@ chrec_fold_multiply (tree type,
 	CASE_CONVERT:
 	  if (tree_contains_chrecs (op1, NULL))
 	    return chrec_dont_know;
+	  /* FALLTHRU */
 
 	default:
 	  if (integer_onep (op1))
@@ -480,9 +481,8 @@ chrec_fold_multiply (tree type,
 static tree
 tree_fold_binomial (tree type, tree n, unsigned int k)
 {
-  bool overflow;
+  wi::overflow_type overflow;
   unsigned int i;
-  tree res;
 
   /* Handle the most frequent cases.  */
   if (k == 0)
@@ -490,18 +490,20 @@ tree_fold_binomial (tree type, tree n, unsigned int k)
   if (k == 1)
     return fold_convert (type, n);
 
+  widest_int num = wi::to_widest (n);
+
   /* Check that k <= n.  */
-  if (wi::ltu_p (n, k))
+  if (wi::ltu_p (num, k))
     return NULL_TREE;
 
   /* Denominator = 2.  */
-  wide_int denom = wi::two (TYPE_PRECISION (TREE_TYPE (n)));
+  widest_int denom = 2;
 
   /* Index = Numerator-1.  */
-  wide_int idx = wi::sub (n, 1);
+  widest_int idx = num - 1;
 
   /* Numerator = Numerator*Index = n*(n-1).  */
-  wide_int num = wi::smul (n, idx, &overflow);
+  num = wi::smul (num, idx, &overflow);
   if (overflow)
     return NULL_TREE;
 
@@ -520,13 +522,15 @@ tree_fold_binomial (tree type, tree n, unsigned int k)
     }
 
   /* Result = Numerator / Denominator.  */
-  wide_int di_res = wi::udiv_trunc (num, denom);
-  res = wide_int_to_tree (type, di_res);
-  return int_fits_type_p (res, type) ? res : NULL_TREE;
+  num = wi::udiv_trunc (num, denom);
+  if (! wi::fits_to_tree_p (num, type))
+    return NULL_TREE;
+  return wide_int_to_tree (type, num);
 }
 
 /* Helper function.  Use the Newton's interpolating formula for
-   evaluating the value of the evolution function.  */
+   evaluating the value of the evolution function.
+   The result may be in an unsigned type of CHREC.  */
 
 static tree
 chrec_evaluate (unsigned var, tree chrec, tree n, unsigned int k)
@@ -539,25 +543,33 @@ chrec_evaluate (unsigned var, tree chrec, tree n, unsigned int k)
 	 && flow_loop_nested_p (var_loop, get_chrec_loop (chrec)))
     chrec = CHREC_LEFT (chrec);
 
+  /* The formula associates the expression and thus we have to make
+     sure to not introduce undefined overflow.  */
+  tree ctype = type;
+  if (INTEGRAL_TYPE_P (type)
+      && ! TYPE_OVERFLOW_WRAPS (type))
+    ctype = unsigned_type_for (type);
+
   if (TREE_CODE (chrec) == POLYNOMIAL_CHREC
       && CHREC_VARIABLE (chrec) == var)
     {
       arg1 = chrec_evaluate (var, CHREC_RIGHT (chrec), n, k + 1);
       if (arg1 == chrec_dont_know)
 	return chrec_dont_know;
-      binomial_n_k = tree_fold_binomial (type, n, k);
+      binomial_n_k = tree_fold_binomial (ctype, n, k);
       if (!binomial_n_k)
 	return chrec_dont_know;
-      arg0 = fold_build2 (MULT_EXPR, type,
-			  CHREC_LEFT (chrec), binomial_n_k);
-      return chrec_fold_plus (type, arg0, arg1);
+      tree l = chrec_convert (ctype, CHREC_LEFT (chrec), NULL);
+      arg0 = fold_build2 (MULT_EXPR, ctype, l, binomial_n_k);
+      return chrec_fold_plus (ctype, arg0, arg1);
     }
 
-  binomial_n_k = tree_fold_binomial (type, n, k);
+  binomial_n_k = tree_fold_binomial (ctype, n, k);
   if (!binomial_n_k)
     return chrec_dont_know;
 
-  return fold_build2 (MULT_EXPR, type, chrec, binomial_n_k);
+  return fold_build2 (MULT_EXPR, ctype,
+		      chrec_convert (ctype, chrec, NULL), binomial_n_k);
 }
 
 /* Evaluates "CHREC (X)" when the varying variable is VAR.
@@ -613,7 +625,7 @@ chrec_apply (unsigned var,
       else if (TREE_CODE (x) == INTEGER_CST
 	       && tree_int_cst_sgn (x) == 1)
 	/* testsuite/.../ssa-chrec-38.c.  */
-	res = chrec_evaluate (var, chrec, x, 0);
+	res = chrec_convert (type, chrec_evaluate (var, chrec, x, 0), NULL);
       else
 	res = chrec_dont_know;
       break;
@@ -633,11 +645,11 @@ chrec_apply (unsigned var,
     {
       fprintf (dump_file, "  (varying_loop = %d\n", var);
       fprintf (dump_file, ")\n  (chrec = ");
-      print_generic_expr (dump_file, chrec, 0);
+      print_generic_expr (dump_file, chrec);
       fprintf (dump_file, ")\n  (x = ");
-      print_generic_expr (dump_file, x, 0);
+      print_generic_expr (dump_file, x);
       fprintf (dump_file, ")\n  (res = ");
-      print_generic_expr (dump_file, res, 0);
+      print_generic_expr (dump_file, res);
       fprintf (dump_file, "))\n");
     }
 
@@ -726,12 +738,12 @@ hide_evolution_in_other_loops_than_loop (tree chrec,
 	/* There is no evolution in this loop.  */
 	return initial_condition (chrec);
 
+      else if (flow_loop_nested_p (loop, chloop))
+	return hide_evolution_in_other_loops_than_loop (CHREC_LEFT (chrec),
+							loop_num);
+
       else
-	{
-	  gcc_assert (flow_loop_nested_p (loop, chloop));
-	  return hide_evolution_in_other_loops_than_loop (CHREC_LEFT (chrec),
-							  loop_num);
-	}
+	return chrec_dont_know;
 
     default:
       return chrec;
@@ -843,8 +855,7 @@ reset_evolution_in_loop (unsigned loop_num,
 					   new_evol);
       tree right = reset_evolution_in_loop (loop_num, CHREC_RIGHT (chrec),
 					    new_evol);
-      return build3 (POLYNOMIAL_CHREC, TREE_TYPE (left),
-		     CHREC_VAR (chrec), left, right);
+      return build_polynomial_chrec (CHREC_VARIABLE (chrec), left, right);
     }
 
   while (TREE_CODE (chrec) == POLYNOMIAL_CHREC
@@ -921,10 +932,12 @@ is_multivariate_chrec (const_tree chrec)
     return false;
 }
 
-/* Determines whether the chrec contains symbolic names or not.  */
+/* Determines whether the chrec contains symbolic names or not.  If LOOP isn't
+   NULL, we also consider chrec wrto outer loops of LOOP as symbol.  */
 
-bool
-chrec_contains_symbols (const_tree chrec)
+static bool
+chrec_contains_symbols (const_tree chrec, hash_set<const_tree> &visited,
+			struct loop *loop)
 {
   int i, n;
 
@@ -932,7 +945,8 @@ chrec_contains_symbols (const_tree chrec)
     return false;
 
   if (TREE_CODE (chrec) == SSA_NAME
-      || TREE_CODE (chrec) == VAR_DECL
+      || VAR_P (chrec)
+      || TREE_CODE (chrec) == POLY_INT_CST
       || TREE_CODE (chrec) == PARM_DECL
       || TREE_CODE (chrec) == FUNCTION_DECL
       || TREE_CODE (chrec) == LABEL_DECL
@@ -940,17 +954,34 @@ chrec_contains_symbols (const_tree chrec)
       || TREE_CODE (chrec) == FIELD_DECL)
     return true;
 
+  if (loop != NULL
+      && TREE_CODE (chrec) == POLYNOMIAL_CHREC
+      && flow_loop_nested_p (get_chrec_loop (chrec), loop))
+    return true;
+
   n = TREE_OPERAND_LENGTH (chrec);
   for (i = 0; i < n; i++)
-    if (chrec_contains_symbols (TREE_OPERAND (chrec, i)))
+    if (chrec_contains_symbols (TREE_OPERAND (chrec, i), visited, loop))
       return true;
   return false;
 }
 
-/* Determines whether the chrec contains undetermined coefficients.  */
+/* Return true if CHREC contains any symbols.  If LOOP is not NULL, check if
+   CHREC contains any chrec which is invariant wrto the loop (nest), in other
+   words, chrec defined by outer loops of loop, so from LOOP's point of view,
+   the chrec is considered as a SYMBOL.  */
 
 bool
-chrec_contains_undetermined (const_tree chrec)
+chrec_contains_symbols (const_tree chrec, struct loop* loop)
+{
+  hash_set<const_tree> visited;
+  return chrec_contains_symbols (chrec, visited, loop);
+}
+
+/* Determines whether the chrec contains undetermined coefficients.  */
+
+static bool
+chrec_contains_undetermined (const_tree chrec, hash_set<const_tree> &visited)
 {
   int i, n;
 
@@ -960,19 +991,29 @@ chrec_contains_undetermined (const_tree chrec)
   if (chrec == NULL_TREE)
     return false;
 
+  if (visited.add (chrec))
+    return false;
+
   n = TREE_OPERAND_LENGTH (chrec);
   for (i = 0; i < n; i++)
-    if (chrec_contains_undetermined (TREE_OPERAND (chrec, i)))
+    if (chrec_contains_undetermined (TREE_OPERAND (chrec, i), visited))
       return true;
   return false;
+}
+
+bool
+chrec_contains_undetermined (const_tree chrec)
+{
+  hash_set<const_tree> visited;
+  return chrec_contains_undetermined (chrec, visited);
 }
 
 /* Determines whether the tree EXPR contains chrecs, and increment
    SIZE if it is not a NULL pointer by an estimation of the depth of
    the tree.  */
 
-bool
-tree_contains_chrecs (const_tree expr, int *size)
+static bool
+tree_contains_chrecs (const_tree expr, int *size, hash_set<const_tree> &visited)
 {
   int i, n;
 
@@ -987,10 +1028,18 @@ tree_contains_chrecs (const_tree expr, int *size)
 
   n = TREE_OPERAND_LENGTH (expr);
   for (i = 0; i < n; i++)
-    if (tree_contains_chrecs (TREE_OPERAND (expr, i), size))
+    if (tree_contains_chrecs (TREE_OPERAND (expr, i), size, visited))
       return true;
   return false;
 }
+
+bool
+tree_contains_chrecs (const_tree expr, int *size)
+{
+  hash_set<const_tree> visited;
+  return tree_contains_chrecs (expr, size, visited);
+}
+
 
 /* Recursive helper function.  */
 
@@ -1024,6 +1073,7 @@ evolution_function_is_invariant_rec_p (tree chrec, int loopnum)
       if (!evolution_function_is_invariant_rec_p (TREE_OPERAND (chrec, 1),
 						  loopnum))
 	return false;
+      /* FALLTHRU */
 
     case 1:
       if (!evolution_function_is_invariant_rec_p (TREE_OPERAND (chrec, 0),
@@ -1132,6 +1182,7 @@ evolution_function_is_univariate_p (const_tree chrec)
 	    return false;
 	  break;
 	}
+      return true;
 
     default:
       return true;
@@ -1158,20 +1209,19 @@ nb_vars_in_chrec (tree chrec)
     }
 }
 
-static tree chrec_convert_1 (tree, tree, gimple, bool);
-
 /* Converts BASE and STEP of affine scev to TYPE.  LOOP is the loop whose iv
    the scev corresponds to.  AT_STMT is the statement at that the scev is
-   evaluated.  USE_OVERFLOW_SEMANTICS is true if this function should assume that
-   the rules for overflow of the given language apply (e.g., that signed
-   arithmetics in C does not overflow) -- i.e., to use them to avoid unnecessary
-   tests, but also to enforce that the result follows them.  Returns true if the
-   conversion succeeded, false otherwise.  */
+   evaluated.  USE_OVERFLOW_SEMANTICS is true if this function should assume
+   that the rules for overflow of the given language apply (e.g., that signed
+   arithmetics in C does not overflow) -- i.e., to use them to avoid
+   unnecessary tests, but also to enforce that the result follows them.
+   FROM is the source variable converted if it's not NULL.  Returns true if
+   the conversion succeeded, false otherwise.  */
 
 bool
 convert_affine_scev (struct loop *loop, tree type,
-		     tree *base, tree *step, gimple at_stmt,
-		     bool use_overflow_semantics)
+		     tree *base, tree *step, gimple *at_stmt,
+		     bool use_overflow_semantics, tree from)
 {
   tree ct = TREE_TYPE (*step);
   bool enforce_overflow_semantics;
@@ -1230,12 +1280,11 @@ convert_affine_scev (struct loop *loop, tree type,
     must_check_rslt_overflow = false;
 
   if (must_check_src_overflow
-      && scev_probably_wraps_p (*base, *step, at_stmt, loop,
+      && scev_probably_wraps_p (from, *base, *step, at_stmt, loop,
 				use_overflow_semantics))
     return false;
 
-  new_base = chrec_convert_1 (type, *base, at_stmt,
-			      use_overflow_semantics);
+  new_base = chrec_convert (type, *base, at_stmt, use_overflow_semantics);
   /* The step must be sign extended, regardless of the signedness
      of CT and TYPE.  This only needs to be handled specially when
      CT is unsigned -- to avoid e.g. unsigned char [100, +, 255]
@@ -1246,10 +1295,11 @@ convert_affine_scev (struct loop *loop, tree type,
   if (TYPE_PRECISION (step_type) > TYPE_PRECISION (ct) && TYPE_UNSIGNED (ct))
     {
       tree signed_ct = build_nonstandard_integer_type (TYPE_PRECISION (ct), 0);
-      new_step = chrec_convert_1 (signed_ct, new_step, at_stmt,
-                                  use_overflow_semantics);
+      new_step = chrec_convert (signed_ct, new_step, at_stmt,
+                                use_overflow_semantics);
     }
-  new_step = chrec_convert_1 (step_type, new_step, at_stmt, use_overflow_semantics);
+  new_step = chrec_convert (step_type, new_step, at_stmt,
+			    use_overflow_semantics);
 
   if (automatically_generated_chrec_p (new_base)
       || automatically_generated_chrec_p (new_step))
@@ -1258,7 +1308,8 @@ convert_affine_scev (struct loop *loop, tree type,
   if (must_check_rslt_overflow
       /* Note that in this case we cannot use the fact that signed variables
 	 do not overflow, as this is what we are verifying for the new iv.  */
-      && scev_probably_wraps_p (new_base, new_step, at_stmt, loop, false))
+      && scev_probably_wraps_p (NULL_TREE, new_base, new_step,
+				at_stmt, loop, false))
     return false;
 
   *base = new_base;
@@ -1271,7 +1322,7 @@ convert_affine_scev (struct loop *loop, tree type,
    The increment for a pointer type is always sizetype.  */
 
 tree
-chrec_convert_rhs (tree type, tree chrec, gimple at_stmt)
+chrec_convert_rhs (tree type, tree chrec, gimple *at_stmt)
 {
   if (POINTER_TYPE_P (type))
     type = sizetype;
@@ -1286,44 +1337,16 @@ chrec_convert_rhs (tree type, tree chrec, gimple at_stmt)
    determining a more accurate estimation of the number of iterations.
    By default AT_STMT could be safely set to NULL_TREE.
 
-   The following rule is always true: TREE_TYPE (chrec) ==
-   TREE_TYPE (CHREC_LEFT (chrec)) == TREE_TYPE (CHREC_RIGHT (chrec)).
-   An example of what could happen when adding two chrecs and the type
-   of the CHREC_RIGHT is different than CHREC_LEFT is:
-
-   {(uint) 0, +, (uchar) 10} +
-   {(uint) 0, +, (uchar) 250}
-
-   that would produce a wrong result if CHREC_RIGHT is not (uint):
-
-   {(uint) 0, +, (uchar) 4}
-
-   instead of
-
-   {(uint) 0, +, (uint) 260}
-*/
-
-tree
-chrec_convert (tree type, tree chrec, gimple at_stmt)
-{
-  return chrec_convert_1 (type, chrec, at_stmt, true);
-}
-
-/* Convert CHREC to TYPE.  When the analyzer knows the context in
-   which the CHREC is built, it sets AT_STMT to the statement that
-   contains the definition of the analyzed variable, otherwise the
-   conversion is less accurate: the information is used for
-   determining a more accurate estimation of the number of iterations.
-   By default AT_STMT could be safely set to NULL_TREE.
-
    USE_OVERFLOW_SEMANTICS is true if this function should assume that
    the rules for overflow of the given language apply (e.g., that signed
-   arithmetics in C does not overflow) -- i.e., to use them to avoid unnecessary
-   tests, but also to enforce that the result follows them.  */
+   arithmetics in C does not overflow) -- i.e., to use them to avoid
+   unnecessary tests, but also to enforce that the result follows them.
+
+   FROM is the source variable converted if it's not NULL.  */
 
 static tree
-chrec_convert_1 (tree type, tree chrec, gimple at_stmt,
-		 bool use_overflow_semantics)
+chrec_convert_1 (tree type, tree chrec, gimple *at_stmt,
+		 bool use_overflow_semantics, tree from)
 {
   tree ct, res;
   tree base, step;
@@ -1333,7 +1356,7 @@ chrec_convert_1 (tree type, tree chrec, gimple at_stmt,
     return chrec;
 
   ct = chrec_type (chrec);
-  if (ct == type)
+  if (useless_type_conversion_p (type, ct))
     return chrec;
 
   if (!evolution_function_is_affine_p (chrec))
@@ -1344,7 +1367,7 @@ chrec_convert_1 (tree type, tree chrec, gimple at_stmt,
   step = CHREC_RIGHT (chrec);
 
   if (convert_affine_scev (loop, type, &base, &step, at_stmt,
-			   use_overflow_semantics))
+			   use_overflow_semantics, from))
     return build_polynomial_chrec (loop->num, base, step);
 
   /* If we cannot propagate the cast inside the chrec, just keep the cast.  */
@@ -1377,7 +1400,7 @@ keep_cast:
 						  CHREC_LEFT (chrec)),
 				    fold_convert (utype,
 						  CHREC_RIGHT (chrec)));
-      res = chrec_convert_1 (type, res, at_stmt, use_overflow_semantics);
+      res = chrec_convert_1 (type, res, at_stmt, use_overflow_semantics, from);
     }
   else
     res = fold_convert (type, chrec);
@@ -1400,14 +1423,54 @@ keep_cast:
   return res;
 }
 
-/* Convert CHREC to TYPE, without regard to signed overflows.  Returns the new
-   chrec if something else than what chrec_convert would do happens, NULL_TREE
-   otherwise.  */
+/* Convert CHREC to TYPE.  When the analyzer knows the context in
+   which the CHREC is built, it sets AT_STMT to the statement that
+   contains the definition of the analyzed variable, otherwise the
+   conversion is less accurate: the information is used for
+   determining a more accurate estimation of the number of iterations.
+   By default AT_STMT could be safely set to NULL_TREE.
+
+   The following rule is always true: TREE_TYPE (chrec) ==
+   TREE_TYPE (CHREC_LEFT (chrec)) == TREE_TYPE (CHREC_RIGHT (chrec)).
+   An example of what could happen when adding two chrecs and the type
+   of the CHREC_RIGHT is different than CHREC_LEFT is:
+
+   {(uint) 0, +, (uchar) 10} +
+   {(uint) 0, +, (uchar) 250}
+
+   that would produce a wrong result if CHREC_RIGHT is not (uint):
+
+   {(uint) 0, +, (uchar) 4}
+
+   instead of
+
+   {(uint) 0, +, (uint) 260}
+
+   USE_OVERFLOW_SEMANTICS is true if this function should assume that
+   the rules for overflow of the given language apply (e.g., that signed
+   arithmetics in C does not overflow) -- i.e., to use them to avoid
+   unnecessary tests, but also to enforce that the result follows them.
+
+   FROM is the source variable converted if it's not NULL.  */
 
 tree
-chrec_convert_aggressive (tree type, tree chrec)
+chrec_convert (tree type, tree chrec, gimple *at_stmt,
+	       bool use_overflow_semantics, tree from)
+{
+  return chrec_convert_1 (type, chrec, at_stmt, use_overflow_semantics, from);
+}
+
+/* Convert CHREC to TYPE, without regard to signed overflows.  Returns the new
+   chrec if something else than what chrec_convert would do happens, NULL_TREE
+   otherwise.  This function set TRUE to variable pointed by FOLD_CONVERSIONS
+   if the result chrec may overflow.  */
+
+tree
+chrec_convert_aggressive (tree type, tree chrec, bool *fold_conversions)
 {
   tree inner_type, left, right, lc, rc, rtype;
+
+  gcc_assert (fold_conversions != NULL);
 
   if (automatically_generated_chrec_p (chrec)
       || TREE_CODE (chrec) != POLYNOMIAL_CHREC)
@@ -1417,16 +1480,32 @@ chrec_convert_aggressive (tree type, tree chrec)
   if (TYPE_PRECISION (type) > TYPE_PRECISION (inner_type))
     return NULL_TREE;
 
+  if (useless_type_conversion_p (type, inner_type))
+    return NULL_TREE;
+
+  if (!*fold_conversions && evolution_function_is_affine_p (chrec))
+    {
+      tree base, step;
+      struct loop *loop;
+
+      loop = get_chrec_loop (chrec);
+      base = CHREC_LEFT (chrec);
+      step = CHREC_RIGHT (chrec);
+      if (convert_affine_scev (loop, type, &base, &step, NULL, true))
+	return build_polynomial_chrec (loop->num, base, step);
+    }
   rtype = POINTER_TYPE_P (type) ? sizetype : type;
 
   left = CHREC_LEFT (chrec);
   right = CHREC_RIGHT (chrec);
-  lc = chrec_convert_aggressive (type, left);
+  lc = chrec_convert_aggressive (type, left, fold_conversions);
   if (!lc)
     lc = chrec_convert (type, left, NULL);
-  rc = chrec_convert_aggressive (rtype, right);
+  rc = chrec_convert_aggressive (rtype, right, fold_conversions);
   if (!rc)
     rc = chrec_convert (rtype, right, NULL);
+
+  *fold_conversions = true;
 
   return build_polynomial_chrec (CHREC_VARIABLE (chrec), lc, rc);
 }
@@ -1444,11 +1523,11 @@ eq_evolutions_p (const_tree chrec0, const_tree chrec1)
   if (chrec0 == chrec1)
     return true;
 
+  if (! types_compatible_p (TREE_TYPE (chrec0), TREE_TYPE (chrec1)))
+    return false;
+
   switch (TREE_CODE (chrec0))
     {
-    case INTEGER_CST:
-      return operand_equal_p (chrec0, chrec1, 0);
-
     case POLYNOMIAL_CHREC:
       return (CHREC_VARIABLE (chrec0) == CHREC_VARIABLE (chrec1)
 	      && eq_evolutions_p (CHREC_LEFT (chrec0), CHREC_LEFT (chrec1))
@@ -1463,8 +1542,12 @@ eq_evolutions_p (const_tree chrec0, const_tree chrec1)
 	  && eq_evolutions_p (TREE_OPERAND (chrec0, 1),
 			      TREE_OPERAND (chrec1, 1));
 
+    CASE_CONVERT:
+      return eq_evolutions_p (TREE_OPERAND (chrec0, 0),
+			      TREE_OPERAND (chrec1, 0));
+
     default:
-      return false;
+      return operand_equal_p (chrec0, chrec1, 0);
     }
 }
 
@@ -1499,12 +1582,15 @@ for_each_scev_op (tree *scev, bool (*cbck) (tree *, void *), void *data)
     {
     case 3:
       for_each_scev_op (&TREE_OPERAND (*scev, 2), cbck, data);
+      /* FALLTHRU */
 
     case 2:
       for_each_scev_op (&TREE_OPERAND (*scev, 1), cbck, data);
+      /* FALLTHRU */
 
     case 1:
       for_each_scev_op (&TREE_OPERAND (*scev, 0), cbck, data);
+      /* FALLTHRU */
 
     default:
       cbck (scev, data);
@@ -1545,6 +1631,9 @@ operator_is_linear (tree scev)
 bool
 scev_is_linear_expression (tree scev)
 {
+  if (evolution_function_is_constant_p (scev))
+    return true;
+
   if (scev == NULL
       || !operator_is_linear (scev))
     return false;

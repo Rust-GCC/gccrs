@@ -1,7 +1,7 @@
 /* Streamer hooks.  Support for adding streamer-specific callbacks to
    generic streaming routines.
 
-   Copyright (C) 2011-2014 Free Software Foundation, Inc.
+   Copyright (C) 2011-2019 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -52,7 +52,7 @@ struct streamer_hooks {
   tree (*read_tree) (struct lto_input_block *, struct data_in *);
 
   /* [REQ] Called by every streaming routine that needs to read a location.  */
-  location_t (*input_location) (struct bitpack_d *, struct data_in *);
+  void (*input_location) (location_t *, struct bitpack_d *, struct data_in *);
 
   /* [REQ] Called by every streaming routine that needs to write a location.  */
   void (*output_location) (struct output_block *, struct bitpack_d *, location_t);
@@ -67,8 +67,8 @@ struct streamer_hooks {
 #define stream_read_tree(IB, DATA_IN) \
     streamer_hooks.read_tree (IB, DATA_IN)
 
-#define stream_input_location(BP, DATA_IN) \
-    streamer_hooks.input_location (BP, DATA_IN)
+#define stream_input_location(LOCPTR, BP, DATA_IN) \
+    streamer_hooks.input_location (LOCPTR, BP, DATA_IN)
 
 #define stream_output_location(OB, BP, LOC) \
     streamer_hooks.output_location (OB, BP, LOC)

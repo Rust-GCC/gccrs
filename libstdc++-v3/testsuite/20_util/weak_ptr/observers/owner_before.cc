@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do run { target c++11 } }
 
-// Copyright (C) 2008-2014 Free Software Foundation, Inc.
+// Copyright (C) 2008-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -27,11 +27,9 @@ struct B { };
 
 // 20.6.6.3.5 weak_ptr observers [util.smartptr.weak.obs]
 
-int
+void
 test01()
 {
-  bool test __attribute__((unused)) = true;
-
   // test empty weak_ptrs compare equivalent
   std::weak_ptr<A> p1;
   std::weak_ptr<B> p2;
@@ -40,15 +38,16 @@ test01()
   std::shared_ptr<B> p3;
   VERIFY( !p1.owner_before(p3) && !p3.owner_before(p1) );
 
-  return 0;
+  static_assert( noexcept(p1.owner_before(p1)), "" );
+  static_assert( noexcept(p1.owner_before(p2)), "" );
+  static_assert( noexcept(p1.owner_before(p3)), "" );
+  static_assert( noexcept(p2.owner_before(p1)), "" );
 }
 
 
-int
+void
 test02()
 {
-  bool test __attribute__((unused)) = true;
-
   std::shared_ptr<A> a0;
   std::weak_ptr<A> w0(a0);
 
@@ -64,8 +63,6 @@ test02()
 
   std::shared_ptr<B> b1(new B);
   VERIFY( w1.owner_before(b1) || b1.owner_before(w1) );
-
-  return 0;
 }
 
 int 

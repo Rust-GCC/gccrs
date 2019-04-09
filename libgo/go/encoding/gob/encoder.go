@@ -5,21 +5,22 @@
 package gob
 
 import (
-	"bytes"
+	"errors"
 	"io"
 	"reflect"
 	"sync"
 )
 
 // An Encoder manages the transmission of type and data information to the
-// other side of a connection.
+// other side of a connection.  It is safe for concurrent use by multiple
+// goroutines.
 type Encoder struct {
 	mutex      sync.Mutex              // each item must be sent atomically
 	w          []io.Writer             // where to send the data
 	sent       map[reflect.Type]typeId // which types we've already sent
 	countState *encoderState           // stage for writing counts
 	freeList   *encoderState           // list of free encoderStates; avoids reallocation
-	byteBuf    bytes.Buffer            // buffer for top-level encoderState
+	byteBuf    encBuffer               // buffer for top-level encoderState
 	err        error
 }
 
@@ -34,7 +35,7 @@ func NewEncoder(w io.Writer) *Encoder {
 	enc := new(Encoder)
 	enc.w = []io.Writer{w}
 	enc.sent = make(map[reflect.Type]typeId)
-	enc.countState = enc.newEncoderState(new(bytes.Buffer))
+	enc.countState = enc.newEncoderState(new(encBuffer))
 	return enc
 }
 
@@ -60,12 +61,17 @@ func (enc *Encoder) setError(err error) {
 }
 
 // writeMessage sends the data item preceded by a unsigned count of its length.
-func (enc *Encoder) writeMessage(w io.Writer, b *bytes.Buffer) {
+func (enc *Encoder) writeMessage(w io.Writer, b *encBuffer) {
 	// Space has been reserved for the length at the head of the message.
 	// This is a little dirty: we grab the slice from the bytes.Buffer and massage
 	// it by hand.
 	message := b.Bytes()
 	messageLen := len(message) - maxLength
+	// Length cannot be bigger than the decoder can handle.
+	if messageLen >= tooBig {
+		enc.setError(errors.New("gob: encoder: message too big"))
+		return
+	}
 	// Encode the length.
 	enc.countState.b.Reset()
 	enc.countState.encodeUint(uint64(messageLen))
@@ -88,9 +94,7 @@ func (enc *Encoder) sendActualType(w io.Writer, state *encoderState, ut *userTyp
 	if _, alreadySent := enc.sent[actual]; alreadySent {
 		return false
 	}
-	typeLock.Lock()
 	info, err := getTypeInfo(ut)
-	typeLock.Unlock()
 	if err != nil {
 		enc.setError(err)
 		return
@@ -167,6 +171,7 @@ func (enc *Encoder) sendType(w io.Writer, state *encoderState, origt reflect.Typ
 
 // Encode transmits the data item represented by the empty interface value,
 // guaranteeing that all necessary type information has been transmitted first.
+// Passing a nil pointer to Encoder will panic, as they cannot be transmitted by gob.
 func (enc *Encoder) Encode(e interface{}) error {
 	return enc.EncodeValue(reflect.ValueOf(e))
 }
@@ -188,12 +193,10 @@ func (enc *Encoder) sendTypeDescriptor(w io.Writer, state *encoderState, ut *use
 			return
 		}
 		// If the type info has still not been transmitted, it means we have
-		// a singleton basic type (int, []byte etc.) at top level.  We don't
+		// a singleton basic type (int, []byte etc.) at top level. We don't
 		// need to send the type info but we do need to update enc.sent.
 		if !sent {
-			typeLock.Lock()
 			info, err := getTypeInfo(ut)
-			typeLock.Unlock()
 			if err != nil {
 				enc.setError(err)
 				return
@@ -211,9 +214,11 @@ func (enc *Encoder) sendTypeId(state *encoderState, ut *userTypeInfo) {
 
 // EncodeValue transmits the data item represented by the reflection value,
 // guaranteeing that all necessary type information has been transmitted first.
+// Passing a nil pointer to EncodeValue will panic, as they cannot be transmitted by gob.
 func (enc *Encoder) EncodeValue(value reflect.Value) error {
-	// Gobs contain values. They cannot represent nil pointers, which
-	// have no value to encode.
+	if value.Kind() == reflect.Invalid {
+		return errors.New("gob: cannot encode nil value")
+	}
 	if value.Kind() == reflect.Ptr && value.IsNil() {
 		panic("gob: cannot encode nil pointer of type " + value.Type().String())
 	}

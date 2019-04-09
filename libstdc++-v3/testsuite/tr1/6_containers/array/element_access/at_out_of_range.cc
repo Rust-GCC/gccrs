@@ -1,6 +1,6 @@
 // 2004-10-20  Benjamin Kosnik  <bkoz@redhat.com>
 //
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -24,11 +24,10 @@
 #include <testsuite_hooks.h>
 
 void
-test01() 
-{ 
+test01()
+{
   const size_t len = 5;
   typedef std::tr1::array<int, len> array_type;
-  bool test __attribute__((unused)) = true;
   array_type a = { { 0, 1, 2, 3, 4 } };
 
   try

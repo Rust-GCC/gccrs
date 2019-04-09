@@ -1,4 +1,5 @@
-// { dg-do compile { target c++11 } }
+// { dg-do compile }
+// { dg-options "-std=c++0x" }
 
 struct Iter
 {
@@ -6,7 +7,7 @@ struct Iter
   void operator++ ();
 };
 
-bool operator!= (Iter &, Iter &) { }
+bool operator!= (Iter &, Iter &) { return true; }
 
 struct Container
 {

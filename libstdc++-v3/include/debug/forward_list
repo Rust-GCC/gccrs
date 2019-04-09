@@ -1,6 +1,6 @@
 // <forward_list> -*- C++ -*-
 
-// Copyright (C) 2010-2014 Free Software Foundation, Inc.
+// Copyright (C) 2010-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -31,10 +31,22 @@
 
 #pragma GCC system_header
 
+#include <bits/c++config.h>
+namespace std _GLIBCXX_VISIBILITY(default) { namespace __debug {
+  template<typename _Tp, typename _Allocator> class forward_list;
+} } // namespace std::__debug
+
 #include <forward_list>
 #include <debug/safe_sequence.h>
 #include <debug/safe_container.h>
 #include <debug/safe_iterator.h>
+
+// Special validity check for forward_list ranges.
+#define __glibcxx_check_valid_fl_range(_First,_Last,_Dist)		\
+_GLIBCXX_DEBUG_VERIFY(_First._M_valid_range(_Last, _Dist, false),	\
+		      _M_message(__gnu_debug::__msg_valid_range)	\
+		      ._M_iterator(_First, #_First)			\
+		      ._M_iterator(_Last, #_Last))
 
 namespace __gnu_debug
 {
@@ -105,7 +117,7 @@ namespace __gnu_debug
 	      __bbegin_its = __victim_base;
 	    }
 	  else
-	    __victim_base->_M_sequence = &__lhs;
+	    __victim_base->_M_sequence = std::__addressof(__lhs);
 	}
 
       if (__bbegin_its)
@@ -186,6 +198,9 @@ namespace __debug
       typedef typename _Base::iterator		_Base_iterator;
       typedef typename _Base::const_iterator	_Base_const_iterator;
 
+      template<typename _ItT, typename _SeqT, typename _CatT>
+	friend class ::__gnu_debug::_Safe_iterator;
+
     public:
       typedef typename _Base::reference		reference;
       typedef typename _Base::const_reference	const_reference;
@@ -204,8 +219,11 @@ namespace __debug
       typedef typename _Base::const_pointer	const_pointer;
 
       // 23.2.3.1 construct/copy/destroy:
+
+      forward_list() = default;
+
       explicit
-      forward_list(const allocator_type& __al = allocator_type())
+      forward_list(const allocator_type& __al) noexcept
       : _Base(__al) { }
 
       forward_list(const forward_list& __list, const allocator_type& __al)
@@ -231,8 +249,8 @@ namespace __debug
 	       typename = std::_RequireInputIter<_InputIterator>>
 	forward_list(_InputIterator __first, _InputIterator __last,
 		     const allocator_type& __al = allocator_type())
-	: _Base(__gnu_debug::__base(__gnu_debug::__check_valid_range(__first,
-								     __last)),
+	: _Base(__gnu_debug::__base(
+		  __glibcxx_check_valid_constructor_range(__first, __last)),
 		__gnu_debug::__base(__last), __al)
 	{ }
 
@@ -266,9 +284,15 @@ namespace __debug
 	void
 	assign(_InputIterator __first, _InputIterator __last)
 	{
-	  __glibcxx_check_valid_range(__first, __last);
-	  _Base::assign(__gnu_debug::__base(__first),
-			__gnu_debug::__base(__last));
+	  typename __gnu_debug::_Distance_traits<_InputIterator>::__type __dist;
+	  __glibcxx_check_valid_range2(__first, __last, __dist);
+
+	  if (__dist.second >= __gnu_debug::__dp_sign)
+	    _Base::assign(__gnu_debug::__unsafe(__first),
+			  __gnu_debug::__unsafe(__last));
+	  else
+	    _Base::assign(__first, __last);
+
 	  this->_M_invalidate_all();
 	}
 
@@ -292,39 +316,39 @@ namespace __debug
 
       iterator
       before_begin() noexcept
-      { return iterator(_Base::before_begin(), this); }
+      { return { _Base::before_begin(), this }; }
 
       const_iterator
       before_begin() const noexcept
-      { return const_iterator(_Base::before_begin(), this); }
+      { return { _Base::before_begin(), this }; }
 
       iterator
       begin() noexcept
-      { return iterator(_Base::begin(), this); }
+      { return { _Base::begin(), this }; }
 
       const_iterator
       begin() const noexcept
-      { return const_iterator(_Base::begin(), this); }
+      { return { _Base::begin(), this }; }
 
       iterator
       end() noexcept
-      { return iterator(_Base::end(), this); }
+      { return { _Base::end(), this }; }
 
       const_iterator
       end() const noexcept
-      { return const_iterator(_Base::end(), this); }
+      { return { _Base::end(), this }; }
 
       const_iterator
       cbegin() const noexcept
-      { return const_iterator(_Base::cbegin(), this); }
+      { return { _Base::cbegin(), this }; }
 
       const_iterator
       cbefore_begin() const noexcept
-      { return const_iterator(_Base::cbefore_begin(), this); }
+      { return { _Base::cbefore_begin(), this }; }
 
       const_iterator
       cend() const noexcept
-      { return const_iterator(_Base::cend(), this); }
+      { return { _Base::cend(), this }; }
 
       using _Base::empty;
       using _Base::max_size;
@@ -345,7 +369,7 @@ namespace __debug
 	return _Base::front();
       }
 
-      // modiﬁers:
+      // modifiers:
 
       using _Base::emplace_front;
       using _Base::push_front;
@@ -364,32 +388,30 @@ namespace __debug
 	emplace_after(const_iterator __pos, _Args&&... __args)
 	{
 	  __glibcxx_check_insert_after(__pos);
-	  return iterator(_Base::emplace_after(__pos.base(),
+	  return { _Base::emplace_after(__pos.base(),
 					std::forward<_Args>(__args)...),
-			  this);
+		   this };
        	}
 
       iterator
       insert_after(const_iterator __pos, const _Tp& __val)
       {
 	__glibcxx_check_insert_after(__pos);
-	return iterator(_Base::insert_after(__pos.base(), __val), this);
+	return { _Base::insert_after(__pos.base(), __val), this };
       }
 
       iterator
       insert_after(const_iterator __pos, _Tp&& __val)
       {
 	__glibcxx_check_insert_after(__pos);
-	return iterator(_Base::insert_after(__pos.base(), std::move(__val)),
-		       	this);
+	return { _Base::insert_after(__pos.base(), std::move(__val)), this };
       }
 
       iterator
       insert_after(const_iterator __pos, size_type __n, const _Tp& __val)
       {
 	__glibcxx_check_insert_after(__pos);
-	return iterator(_Base::insert_after(__pos.base(), __n, __val),
-		       	this);
+	return { _Base::insert_after(__pos.base(), __n, __val), this };
       }
 
       template<typename _InputIterator,
@@ -398,18 +420,26 @@ namespace __debug
 	insert_after(const_iterator __pos,
 		     _InputIterator __first, _InputIterator __last)
 	{
-	  __glibcxx_check_insert_range_after(__pos, __first, __last);
-	  return iterator(_Base::insert_after(__pos.base(),
-					      __gnu_debug::__base(__first),
-					      __gnu_debug::__base(__last)),
-			  this);
+	  typename __gnu_debug::_Distance_traits<_InputIterator>::__type __dist;
+	  __glibcxx_check_insert_range_after(__pos, __first, __last, __dist);
+
+	  if (__dist.second >= __gnu_debug::__dp_sign)
+	    return
+	      {
+		_Base::insert_after(__pos.base(),
+				    __gnu_debug::__unsafe(__first),
+				    __gnu_debug::__unsafe(__last)),
+		this
+	      };
+	  else
+	    return { _Base::insert_after(__pos.base(), __first, __last), this };
 	}
 
       iterator
       insert_after(const_iterator __pos, std::initializer_list<_Tp> __il)
       {
 	__glibcxx_check_insert_after(__pos);
-	return iterator(_Base::insert_after(__pos.base(), __il), this);
+	return { _Base::insert_after(__pos.base(), __il), this };
       }
 
     private:
@@ -426,7 +456,7 @@ namespace __debug
       erase_after(const_iterator __pos)
       {
 	__glibcxx_check_erase_after(__pos);
-	return iterator(_M_erase_after(__pos.base()), this);
+	return { _M_erase_after(__pos.base()), this };
       }
 
       iterator
@@ -436,7 +466,7 @@ namespace __debug
 	for (_Base_const_iterator __victim = std::next(__pos.base());
 	    __victim != __last.base(); ++__victim)
 	  {
-	    _GLIBCXX_DEBUG_VERIFY(__victim != _Base::end(),
+	    _GLIBCXX_DEBUG_VERIFY(__victim != _Base::cend(),
 				  _M_message(__gnu_debug::__msg_valid_range2)
 				  ._M_sequence(*this, "this")
 				  ._M_iterator(__pos, "pos")
@@ -444,12 +474,13 @@ namespace __debug
 	    this->_M_invalidate_if([__victim](_Base_const_iterator __it)
 	      { return __it == __victim; });
 	  }
-	return iterator(_Base::erase_after(__pos.base(), __last.base()), this);
+
+	return { _Base::erase_after(__pos.base(), __last.base()), this };
       }
 
       void
       swap(forward_list& __list)
-	noexcept( noexcept(declval<_Base>().swap(__list)) )
+	noexcept( noexcept(declval<_Base&>().swap(__list)) )
       {
 	_Safe::_M_swap(__list);
 	_Base::swap(__list);
@@ -523,7 +554,7 @@ namespace __debug
       splice_after(const_iterator __pos, forward_list&& __list)
       {
 	__glibcxx_check_insert_after(__pos);
-	_GLIBCXX_DEBUG_VERIFY(&__list != this,
+	_GLIBCXX_DEBUG_VERIFY(std::__addressof(__list) != this,
 			      _M_message(__gnu_debug::__msg_self_splice)
 			      ._M_sequence(*this, "this"));
 	_GLIBCXX_DEBUG_VERIFY(__list.get_allocator() == this->get_allocator(),
@@ -550,7 +581,7 @@ namespace __debug
 	_GLIBCXX_DEBUG_VERIFY(__i._M_before_dereferenceable(),
 			      _M_message(__gnu_debug::__msg_splice_bad)
 			      ._M_iterator(__i, "__i"));
-	_GLIBCXX_DEBUG_VERIFY(__i._M_attached_to(&__list),
+	_GLIBCXX_DEBUG_VERIFY(__i._M_attached_to(std::__addressof(__list)),
 			      _M_message(__gnu_debug::__msg_splice_other)
 			      ._M_iterator(__i, "__i")
 			      ._M_sequence(__list, "__list"));
@@ -577,9 +608,11 @@ namespace __debug
       splice_after(const_iterator __pos, forward_list&& __list,
 		   const_iterator __before, const_iterator __last)
       {
+	typename __gnu_debug::_Distance_traits<const_iterator>::__type __dist;
+	auto __listptr = std::__addressof(__list);
 	__glibcxx_check_insert_after(__pos);
-	__glibcxx_check_valid_range(__before, __last);
-	_GLIBCXX_DEBUG_VERIFY(__before._M_attached_to(&__list),
+	__glibcxx_check_valid_fl_range(__before, __last, __dist);
+	_GLIBCXX_DEBUG_VERIFY(__before._M_attached_to(__listptr),
 			      _M_message(__gnu_debug::__msg_splice_other)
 			      ._M_sequence(__list, "list")
 			      ._M_iterator(__before, "before"));
@@ -607,7 +640,7 @@ namespace __debug
 				  ._M_sequence(__list, "list")
 				  ._M_iterator(__before, "before")
 				  ._M_iterator(__last, "last"));
-	    _GLIBCXX_DEBUG_VERIFY(&__list != this || __tmp != __pos.base(),
+	    _GLIBCXX_DEBUG_VERIFY(__listptr != this || __tmp != __pos.base(),
 				  _M_message(__gnu_debug::__msg_splice_overlap)
 				  ._M_iterator(__tmp, "position")
 				  ._M_iterator(__before, "before")
@@ -627,74 +660,117 @@ namespace __debug
 		   const_iterator __before, const_iterator __last)
       { splice_after(__pos, std::move(__list), __before, __last); }
 
-      void
+    private:
+#if __cplusplus > 201703L
+      using __remove_return_type = size_type;
+# define _GLIBCXX_FWDLIST_REMOVE_RETURN_TYPE_TAG \
+      __attribute__((__abi_tag__("__cxx20")))
+# define _GLIBCXX20_ONLY(__expr) __expr
+#else
+      using __remove_return_type = void;
+# define _GLIBCXX_FWDLIST_REMOVE_RETURN_TYPE_TAG
+# define _GLIBCXX20_ONLY(__expr)
+#endif
+
+    public:
+      _GLIBCXX_FWDLIST_REMOVE_RETURN_TYPE_TAG
+      __remove_return_type
       remove(const _Tp& __val)
       {
+	if (!this->_M_iterators && !this->_M_const_iterators)
+	  return _Base::remove(__val);
+
+	size_type __removed __attribute__((__unused__)) = 0;
 	_Base_iterator __x = _Base::before_begin();
 	_Base_iterator __old = __x++;
+	_Base_iterator __extra = _Base::end();
 	while (__x != _Base::end())
 	  {
 	    if (*__x == __val)
-	      __x = _M_erase_after(__old);
-	    else
-	      __old = __x++;
+	      {
+		if (std::__addressof(*__x) != std::__addressof(__val))
+		  {
+		    __x = _M_erase_after(__old);
+		    _GLIBCXX20_ONLY( __removed++ );
+		    continue;
+		  }
+		else
+		  __extra = __old;
+	      }
+	    __old = __x++;
 	  }
+
+	if (__extra != _Base::end())
+	  {
+	    this->_M_erase_after(__extra);
+	    _GLIBCXX20_ONLY( __removed++ );
+	  }
+
+	return _GLIBCXX20_ONLY( __removed );
       }
 
       template<typename _Pred>
-	void
+	__remove_return_type
 	remove_if(_Pred __pred)
 	{
+	  if (!this->_M_iterators && !this->_M_const_iterators)
+	    return _Base::remove_if(__pred);
+
+	  size_type __removed __attribute__((__unused__)) = 0;
 	  _Base_iterator __x = _Base::before_begin();
 	  _Base_iterator __old = __x++;
 	  while (__x != _Base::end())
-	    {
-	      if (__pred(*__x))
+	    if (__pred(*__x))
+	      {
 		__x = _M_erase_after(__old);
-	      else
-		__old = __x++;
-	    }
+		_GLIBCXX20_ONLY( __removed++ );
+	      }
+	    else
+	      __old = __x++;
+
+	  return _GLIBCXX20_ONLY( __removed );
 	}
 
-      void
+      _GLIBCXX_FWDLIST_REMOVE_RETURN_TYPE_TAG
+      __remove_return_type
       unique()
-      {
-	_Base_iterator __first = _Base::begin();
-	_Base_iterator __last = _Base::end();
-	if (__first == __last)
-	  return;
-	_Base_iterator __next = std::next(__first);
-	while (__next != __last)
-	  {
-	    if (*__first == *__next)
-	      __next = _M_erase_after(__first);
-	    else
-	      __first = __next++;
-	  }
-      }
+      { return unique(std::equal_to<_Tp>()); }
 
       template<typename _BinPred>
-	void
+	__remove_return_type
 	unique(_BinPred __binary_pred)
 	{
+	  if (!this->_M_iterators && !this->_M_const_iterators)
+	    return _Base::unique(__binary_pred);
+
 	  _Base_iterator __first = _Base::begin();
 	  _Base_iterator __last = _Base::end();
 	  if (__first == __last)
-	    return;
+	    return _GLIBCXX20_ONLY(0);
+
+	  size_type __removed __attribute__((__unused__)) = 0;
 	  _Base_iterator __next = std::next(__first);
 	  while (__next != __last)
 	    {
 	      if (__binary_pred(*__first, *__next))
-		__next = _M_erase_after(__first);
+		{
+		  __next = _M_erase_after(__first);
+		  _GLIBCXX20_ONLY( __removed++ );
+		}
 	      else
 		__first = __next++;
 	    }
+
+	  return _GLIBCXX20_ONLY( __removed );
 	}
+
+#undef _GLIBCXX_FWDLIST_REMOVE_RETURN_TYPE_TAG
+#undef _GLIBCXX20_ONLY
 
       void
       merge(forward_list&& __list)
       {
-	if (this != &__list)
+	if (this != std::__addressof(__list))
 	{
 	  __glibcxx_check_sorted(_Base::begin(), _Base::end());
 	  __glibcxx_check_sorted(__list._M_base().begin(),
@@ -716,7 +792,7 @@ namespace __debug
 	void
 	merge(forward_list&& __list, _Comp __comp)
 	{
-	  if (this != &__list)
+	  if (this != std::__addressof(__list))
 	  {
 	    __glibcxx_check_sorted_pred(_Base::begin(), _Base::end(), __comp);
 	    __glibcxx_check_sorted_pred(__list._M_base().begin(),
@@ -745,6 +821,16 @@ namespace __debug
       const _Base&
       _M_base() const noexcept { return *this; }
     };
+
+#if __cpp_deduction_guides >= 201606
+  template<typename _InputIterator, typename _ValT
+	     = typename iterator_traits<_InputIterator>::value_type,
+	   typename _Allocator = allocator<_ValT>,
+	   typename = _RequireInputIter<_InputIterator>,
+	   typename = _RequireAllocator<_Allocator>>
+    forward_list(_InputIterator, _InputIterator, _Allocator = _Allocator())
+      -> forward_list<_ValT, _Allocator>;
+#endif
 
   template<typename _Tp, typename _Alloc>
     bool
@@ -788,8 +874,8 @@ namespace __debug
   /// See std::forward_list::swap().
   template<typename _Tp, typename _Alloc>
     inline void
-    swap(forward_list<_Tp, _Alloc>& __lx,
-	 forward_list<_Tp, _Alloc>& __ly)
+    swap(forward_list<_Tp, _Alloc>& __lx, forward_list<_Tp, _Alloc>& __ly)
+    noexcept(noexcept(__lx.swap(__ly)))
     { __lx.swap(__ly); }
 
 } // namespace __debug
@@ -797,7 +883,7 @@ namespace __debug
 
 namespace __gnu_debug
 {
-  template<class _Tp, class _Alloc>
+  template<typename _Tp, typename _Alloc>
     struct _BeforeBeginHelper<std::__debug::forward_list<_Tp, _Alloc> >
     {
       typedef std::__debug::forward_list<_Tp, _Alloc> _Sequence;
@@ -814,6 +900,19 @@ namespace __gnu_debug
 	static bool
 	_S_Is_Beginnest(const _Safe_iterator<_Iterator, _Sequence>& __it)
 	{ return _S_Is(__it); }
+    };
+
+  template<typename _Tp, typename _Alloc>
+    struct _Sequence_traits<std::__debug::forward_list<_Tp, _Alloc> >
+    {
+      typedef typename std::__debug::forward_list<_Tp, _Alloc>::iterator _It;
+
+      static typename _Distance_traits<_It>::__type
+      _S_size(const std::__debug::forward_list<_Tp, _Alloc>& __seq)
+      {
+	return __seq.empty()
+	  ? std::make_pair(0, __dp_exact) : std::make_pair(1, __dp_equality);
+      }
     };
 
 #ifndef _GLIBCXX_DEBUG_PEDANTIC

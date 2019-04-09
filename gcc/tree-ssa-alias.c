@@ -1,5 +1,5 @@
 /* Alias analysis for trees.
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2019 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -21,33 +21,23 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "tree.h"
-#include "tm_p.h"
+#include "backend.h"
 #include "target.h"
-#include "basic-block.h"
-#include "timevar.h"	/* for TV_ALIAS_STMT_WALK */
-#include "langhooks.h"
-#include "flags.h"
-#include "function.h"
-#include "tree-pretty-print.h"
-#include "dumpfile.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "tree-eh.h"
-#include "gimple-expr.h"
-#include "is-a.h"
+#include "rtl.h"
+#include "tree.h"
 #include "gimple.h"
-#include "gimple-ssa.h"
-#include "stringpool.h"
-#include "tree-ssanames.h"
-#include "expr.h"
+#include "timevar.h"	/* for TV_ALIAS_STMT_WALK */
+#include "ssa.h"
+#include "cgraph.h"
+#include "tree-pretty-print.h"
+#include "alias.h"
+#include "fold-const.h"
+#include "langhooks.h"
+#include "dumpfile.h"
+#include "tree-eh.h"
 #include "tree-dfa.h"
-#include "tree-inline.h"
-#include "params.h"
-#include "alloc-pool.h"
-#include "tree-ssa-alias.h"
 #include "ipa-reference.h"
+#include "varasm.h"
 
 /* Broad overview of how alias analysis on gimple works:
 
@@ -70,12 +60,12 @@ along with GCC; see the file COPYING3.  If not see
 
    The main alias-oracle entry-points are
 
-   bool stmt_may_clobber_ref_p (gimple, tree)
+   bool stmt_may_clobber_ref_p (gimple *, tree)
 
      This function queries if a statement may invalidate (parts of)
      the memory designated by the reference tree argument.
 
-   bool ref_maybe_used_by_stmt_p (gimple, tree)
+   bool ref_maybe_used_by_stmt_p (gimple *, tree)
 
      This function queries if a statement may need (parts of) the
      memory designated by the reference tree argument.
@@ -132,6 +122,7 @@ dump_alias_stats (FILE *s)
 	   alias_stats.call_may_clobber_ref_p_no_alias,
 	   alias_stats.call_may_clobber_ref_p_no_alias
 	   + alias_stats.call_may_clobber_ref_p_may_alias);
+  dump_alias_stats_in_alias_c (s);
 }
 
 
@@ -176,7 +167,7 @@ ptr_deref_may_alias_decl_p (tree ptr, tree decl)
        && TREE_CODE (ptr) != ADDR_EXPR
        && TREE_CODE (ptr) != POINTER_PLUS_EXPR)
       || !POINTER_TYPE_P (TREE_TYPE (ptr))
-      || (TREE_CODE (decl) != VAR_DECL
+      || (!VAR_P (decl)
 	  && TREE_CODE (decl) != PARM_DECL
 	  && TREE_CODE (decl) != RESULT_DECL))
     return true;
@@ -203,7 +194,7 @@ ptr_deref_may_alias_decl_p (tree ptr, tree decl)
 	ptr = TREE_OPERAND (base, 0);
       else if (base
 	       && DECL_P (base))
-	return base == decl;
+	return compare_base_decls (base, decl) != 0;
       else if (base
 	       && CONSTANT_CLASS_P (base))
 	return false;
@@ -211,7 +202,7 @@ ptr_deref_may_alias_decl_p (tree ptr, tree decl)
 	return true;
     }
 
-  /* Non-aliased variables can not be pointed to.  */
+  /* Non-aliased variables cannot be pointed to.  */
   if (!may_be_aliased (decl))
     return false;
 
@@ -330,6 +321,81 @@ ptr_deref_may_alias_ref_p_1 (tree ptr, ao_ref *ref)
   return true;
 }
 
+/* Returns true if PTR1 and PTR2 compare unequal because of points-to.  */
+
+bool
+ptrs_compare_unequal (tree ptr1, tree ptr2)
+{
+  /* First resolve the pointers down to a SSA name pointer base or
+     a VAR_DECL, PARM_DECL or RESULT_DECL.  This explicitely does
+     not yet try to handle LABEL_DECLs, FUNCTION_DECLs, CONST_DECLs
+     or STRING_CSTs which needs points-to adjustments to track them
+     in the points-to sets.  */
+  tree obj1 = NULL_TREE;
+  tree obj2 = NULL_TREE;
+  if (TREE_CODE (ptr1) == ADDR_EXPR)
+    {
+      tree tem = get_base_address (TREE_OPERAND (ptr1, 0));
+      if (! tem)
+	return false;
+      if (VAR_P (tem)
+	  || TREE_CODE (tem) == PARM_DECL
+	  || TREE_CODE (tem) == RESULT_DECL)
+	obj1 = tem;
+      else if (TREE_CODE (tem) == MEM_REF)
+	ptr1 = TREE_OPERAND (tem, 0);
+    }
+  if (TREE_CODE (ptr2) == ADDR_EXPR)
+    {
+      tree tem = get_base_address (TREE_OPERAND (ptr2, 0));
+      if (! tem)
+	return false;
+      if (VAR_P (tem)
+	  || TREE_CODE (tem) == PARM_DECL
+	  || TREE_CODE (tem) == RESULT_DECL)
+	obj2 = tem;
+      else if (TREE_CODE (tem) == MEM_REF)
+	ptr2 = TREE_OPERAND (tem, 0);
+    }
+
+  /* Canonicalize ptr vs. object.  */
+  if (TREE_CODE (ptr1) == SSA_NAME && obj2)
+    {
+      std::swap (ptr1, ptr2);
+      std::swap (obj1, obj2);
+    }
+
+  if (obj1 && obj2)
+    /* Other code handles this correctly, no need to duplicate it here.  */;
+  else if (obj1 && TREE_CODE (ptr2) == SSA_NAME)
+    {
+      struct ptr_info_def *pi = SSA_NAME_PTR_INFO (ptr2);
+      /* We may not use restrict to optimize pointer comparisons.
+         See PR71062.  So we have to assume that restrict-pointed-to
+	 may be in fact obj1.  */
+      if (!pi
+	  || pi->pt.vars_contains_restrict
+	  || pi->pt.vars_contains_interposable)
+	return false;
+      if (VAR_P (obj1)
+	  && (TREE_STATIC (obj1) || DECL_EXTERNAL (obj1)))
+	{
+	  varpool_node *node = varpool_node::get (obj1);
+	  /* If obj1 may bind to NULL give up (see below).  */
+	  if (! node
+	      || ! node->nonzero_address ()
+	      || ! decl_binds_to_current_def_p (obj1))
+	    return false;
+	}
+      return !pt_solution_includes (&pi->pt, obj1);
+    }
+
+  /* ???  We'd like to handle ptr1 != NULL and ptr1 != ptr2
+     but those require pt.null to be conservatively correct.  */
+
+  return false;
+}
+
 /* Returns whether reference REF to BASE may refer to global memory.  */
 
 static bool
@@ -360,7 +426,7 @@ ref_may_alias_global_p (tree ref)
 /* Return true whether STMT may clobber global memory.  */
 
 bool
-stmt_may_clobber_global_p (gimple stmt)
+stmt_may_clobber_global_p (gimple *stmt)
 {
   tree lhs;
 
@@ -396,6 +462,7 @@ void
 dump_alias_info (FILE *file)
 {
   unsigned i;
+  tree ptr;
   const char *funcname
     = lang_hooks.decl_printable_name (current_function_decl, 2);
   tree var;
@@ -417,13 +484,11 @@ dump_alias_info (FILE *file)
 
   fprintf (file, "\n\nFlow-insensitive points-to information\n\n");
 
-  for (i = 1; i < num_ssa_names; i++)
+  FOR_EACH_SSA_NAME (i, ptr, cfun)
     {
-      tree ptr = ssa_name (i);
       struct ptr_info_def *pi;
 
-      if (ptr == NULL_TREE
-	  || !POINTER_TYPE_P (TREE_TYPE (ptr))
+      if (!POINTER_TYPE_P (TREE_TYPE (ptr))
 	  || SSA_NAME_IN_FREE_LIST (ptr))
 	continue;
 
@@ -470,17 +535,36 @@ dump_points_to_solution (FILE *file, struct pt_solution *pt)
       fprintf (file, ", points-to vars: ");
       dump_decl_set (file, pt->vars);
       if (pt->vars_contains_nonlocal
-	  && pt->vars_contains_escaped_heap)
-	fprintf (file, " (nonlocal, escaped heap)");
-      else if (pt->vars_contains_nonlocal
-	       && pt->vars_contains_escaped)
-	fprintf (file, " (nonlocal, escaped)");
-      else if (pt->vars_contains_nonlocal)
-	fprintf (file, " (nonlocal)");
-      else if (pt->vars_contains_escaped_heap)
-	fprintf (file, " (escaped heap)");
-      else if (pt->vars_contains_escaped)
-	fprintf (file, " (escaped)");
+	  || pt->vars_contains_escaped
+	  || pt->vars_contains_escaped_heap
+	  || pt->vars_contains_restrict)
+	{
+	  const char *comma = "";
+	  fprintf (file, " (");
+	  if (pt->vars_contains_nonlocal)
+	    {
+	      fprintf (file, "nonlocal");
+	      comma = ", ";
+	    }
+	  if (pt->vars_contains_escaped)
+	    {
+	      fprintf (file, "%sescaped", comma);
+	      comma = ", ";
+	    }
+	  if (pt->vars_contains_escaped_heap)
+	    {
+	      fprintf (file, "%sescaped heap", comma);
+	      comma = ", ";
+	    }
+	  if (pt->vars_contains_restrict)
+	    {
+	      fprintf (file, "%srestrict", comma);
+	      comma = ", ";
+	    }
+	  if (pt->vars_contains_interposable)
+	    fprintf (file, "%sinterposable", comma);
+	  fprintf (file, ")");
+	}
     }
 }
 
@@ -550,10 +634,12 @@ ao_ref_init (ao_ref *r, tree ref)
 tree
 ao_ref_base (ao_ref *ref)
 {
+  bool reverse;
+
   if (ref->base)
     return ref->base;
   ref->base = get_ref_base_and_extent (ref->ref, &ref->offset, &ref->size,
-				       &ref->max_size);
+				       &ref->max_size, &reverse);
   return ref->base;
 }
 
@@ -593,21 +679,20 @@ ao_ref_alias_set (ao_ref *ref)
 void
 ao_ref_init_from_ptr_and_size (ao_ref *ref, tree ptr, tree size)
 {
-  HOST_WIDE_INT t, size_hwi, extra_offset = 0;
+  poly_int64 t, size_hwi, extra_offset = 0;
   ref->ref = NULL_TREE;
   if (TREE_CODE (ptr) == SSA_NAME)
     {
-      gimple stmt = SSA_NAME_DEF_STMT (ptr);
+      gimple *stmt = SSA_NAME_DEF_STMT (ptr);
       if (gimple_assign_single_p (stmt)
 	  && gimple_assign_rhs_code (stmt) == ADDR_EXPR)
 	ptr = gimple_assign_rhs1 (stmt);
       else if (is_gimple_assign (stmt)
 	       && gimple_assign_rhs_code (stmt) == POINTER_PLUS_EXPR
-	       && TREE_CODE (gimple_assign_rhs2 (stmt)) == INTEGER_CST)
+	       && ptrdiff_tree_p (gimple_assign_rhs2 (stmt), &extra_offset))
 	{
 	  ptr = gimple_assign_rhs1 (stmt);
-	  extra_offset = BITS_PER_UNIT
-			 * int_cst_value (gimple_assign_rhs2 (stmt));
+	  extra_offset *= BITS_PER_UNIT;
 	}
     }
 
@@ -625,14 +710,15 @@ ao_ref_init_from_ptr_and_size (ao_ref *ref, tree ptr, tree size)
     }
   else
     {
+      gcc_assert (POINTER_TYPE_P (TREE_TYPE (ptr)));
       ref->base = build2 (MEM_REF, char_type_node,
 			  ptr, null_pointer_node);
       ref->offset = 0;
     }
   ref->offset += extra_offset;
   if (size
-      && tree_fits_shwi_p (size)
-      && (size_hwi = tree_to_shwi (size)) <= HOST_WIDE_INT_MAX / BITS_PER_UNIT)
+      && poly_int_tree_p (size, &size_hwi)
+      && coeffs_in_range_p (size_hwi, 0, HOST_WIDE_INT_MAX / BITS_PER_UNIT))
     ref->max_size = ref->size = size_hwi * BITS_PER_UNIT;
   else
     ref->max_size = ref->size = -1;
@@ -693,11 +779,11 @@ static bool
 aliasing_component_refs_p (tree ref1,
 			   alias_set_type ref1_alias_set,
 			   alias_set_type base1_alias_set,
-			   HOST_WIDE_INT offset1, HOST_WIDE_INT max_size1,
+			   poly_int64 offset1, poly_int64 max_size1,
 			   tree ref2,
 			   alias_set_type ref2_alias_set,
 			   alias_set_type base2_alias_set,
-			   HOST_WIDE_INT offset2, HOST_WIDE_INT max_size2,
+			   poly_int64 offset2, poly_int64 max_size2,
 			   bool ref2_is_decl)
 {
   /* If one reference is a component references through pointers try to find a
@@ -733,12 +819,13 @@ aliasing_component_refs_p (tree ref1,
     return true;
   else if (same_p == 1)
     {
-      HOST_WIDE_INT offadj, sztmp, msztmp;
-      get_ref_base_and_extent (*refp, &offadj, &sztmp, &msztmp);
+      poly_int64 offadj, sztmp, msztmp;
+      bool reverse;
+      get_ref_base_and_extent (*refp, &offadj, &sztmp, &msztmp, &reverse);
       offset2 -= offadj;
-      get_ref_base_and_extent (base1, &offadj, &sztmp, &msztmp);
+      get_ref_base_and_extent (base1, &offadj, &sztmp, &msztmp, &reverse);
       offset1 -= offadj;
-      return ranges_overlap_p (offset1, max_size1, offset2, max_size2);
+      return ranges_maybe_overlap_p (offset1, max_size1, offset2, max_size2);
     }
   /* If we didn't find a common base, try the other way around.  */
   refp = &ref1;
@@ -751,12 +838,13 @@ aliasing_component_refs_p (tree ref1,
     return true;
   else if (same_p == 1)
     {
-      HOST_WIDE_INT offadj, sztmp, msztmp;
-      get_ref_base_and_extent (*refp, &offadj, &sztmp, &msztmp);
+      poly_int64 offadj, sztmp, msztmp;
+      bool reverse;
+      get_ref_base_and_extent (*refp, &offadj, &sztmp, &msztmp, &reverse);
       offset1 -= offadj;
-      get_ref_base_and_extent (base2, &offadj, &sztmp, &msztmp);
+      get_ref_base_and_extent (base2, &offadj, &sztmp, &msztmp, &reverse);
       offset2 -= offadj;
-      return ranges_overlap_p (offset1, max_size1, offset2, max_size2);
+      return ranges_maybe_overlap_p (offset1, max_size1, offset2, max_size2);
     }
 
   /* If we have two type access paths B1.path1 and B2.path2 they may
@@ -793,7 +881,7 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
   if (TREE_CODE (ref1) == MEM_REF)
     {
       if (!integer_zerop (TREE_OPERAND (ref1, 1)))
-	goto may_overlap;
+	return false;
       ref1 = TREE_OPERAND (TREE_OPERAND (ref1, 0), 0);
     }
 
@@ -806,12 +894,14 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
   if (TREE_CODE (ref2) == MEM_REF)
     {
       if (!integer_zerop (TREE_OPERAND (ref2, 1)))
-	goto may_overlap;
+	return false;
       ref2 = TREE_OPERAND (TREE_OPERAND (ref2, 0), 0);
     }
 
-  /* We must have the same base DECL.  */
-  gcc_assert (ref1 == ref2);
+  /* Bases must be either same or uncomparable.  */
+  gcc_checking_assert (ref1 == ref2
+		       || (DECL_P (ref1) && DECL_P (ref2)
+			   && compare_base_decls (ref1, ref2) != 0));
 
   /* Pop the stacks in parallel and examine the COMPONENT_REFs of the same
      rank.  This is sufficient because we start from the same DECL and you
@@ -824,7 +914,7 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
       do
 	{
 	  if (component_refs1.is_empty ())
-	    goto may_overlap;
+	    return false;
 	  ref1 = component_refs1.pop ();
 	}
       while (!RECORD_OR_UNION_TYPE_P (TREE_TYPE (TREE_OPERAND (ref1, 0))));
@@ -832,7 +922,7 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
       do
 	{
 	  if (component_refs2.is_empty ())
-	     goto may_overlap;
+	     return false;
 	  ref2 = component_refs2.pop ();
 	}
       while (!RECORD_OR_UNION_TYPE_P (TREE_TYPE (TREE_OPERAND (ref2, 0))));
@@ -840,7 +930,7 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
       /* Beware of BIT_FIELD_REF.  */
       if (TREE_CODE (ref1) != COMPONENT_REF
 	  || TREE_CODE (ref2) != COMPONENT_REF)
-	goto may_overlap;
+	return false;
 
       tree field1 = TREE_OPERAND (ref1, 1);
       tree field2 = TREE_OPERAND (ref2, 1);
@@ -853,21 +943,23 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
 
       /* We cannot disambiguate fields in a union or qualified union.  */
       if (type1 != type2 || TREE_CODE (type1) != RECORD_TYPE)
-	 goto may_overlap;
+	 return false;
 
-      /* Different fields of the same record type cannot overlap.
-	 ??? Bitfields can overlap at RTL level so punt on them.  */
       if (field1 != field2)
 	{
-	  component_refs1.release ();
-	  component_refs2.release ();
-	  return !(DECL_BIT_FIELD (field1) && DECL_BIT_FIELD (field2));
+	  /* A field and its representative need to be considered the
+	     same.  */
+	  if (DECL_BIT_FIELD_REPRESENTATIVE (field1) == field2
+	      || DECL_BIT_FIELD_REPRESENTATIVE (field2) == field1)
+	    return false;
+	  /* Different fields of the same record type cannot overlap.
+	     ??? Bitfields can overlap at RTL level so punt on them.  */
+	  if (DECL_BIT_FIELD (field1) && DECL_BIT_FIELD (field2))
+	    return false;
+	  return true;
 	}
     }
 
-may_overlap:
-  component_refs1.release ();
-  component_refs2.release ();
   return false;
 }
 
@@ -934,11 +1026,7 @@ nonoverlapping_component_refs_p (const_tree x, const_tree y)
   if (fieldsx.length () == 2)
     {
       if (ncr_compar (&fieldsx[0], &fieldsx[1]) == 1)
-	{
-	  const_tree tem = fieldsx[0];
-	  fieldsx[0] = fieldsx[1];
-	  fieldsx[1] = tem;
-	}
+	std::swap (fieldsx[0], fieldsx[1]);
     }
   else
     fieldsx.qsort (ncr_compar);
@@ -946,11 +1034,7 @@ nonoverlapping_component_refs_p (const_tree x, const_tree y)
   if (fieldsy.length () == 2)
     {
       if (ncr_compar (&fieldsy[0], &fieldsy[1]) == 1)
-	{
-	  const_tree tem = fieldsy[0];
-	  fieldsy[0] = fieldsy[1];
-	  fieldsy[1] = tem;
-	}
+	std::swap (fieldsy[0], fieldsy[1]);
     }
   else
     fieldsy.qsort (ncr_compar);
@@ -965,9 +1049,20 @@ nonoverlapping_component_refs_p (const_tree x, const_tree y)
       if (typex == typey)
 	{
 	  /* We're left with accessing different fields of a structure,
-	     no possible overlap, unless they are both bitfields.  */
+	     no possible overlap.  */
 	  if (fieldx != fieldy)
-	    return !(DECL_BIT_FIELD (fieldx) && DECL_BIT_FIELD (fieldy));
+	    {
+	      /* A field and its representative need to be considered the
+		 same.  */
+	      if (DECL_BIT_FIELD_REPRESENTATIVE (fieldx) == fieldy
+		  || DECL_BIT_FIELD_REPRESENTATIVE (fieldy) == fieldx)
+		return false;
+	      /* Different fields of the same record type cannot overlap.
+		 ??? Bitfields can overlap at RTL level so punt on them.  */
+	      if (DECL_BIT_FIELD (fieldx) && DECL_BIT_FIELD (fieldy))
+		return false;
+	      return true;
+	    }
 	}
       if (TYPE_UID (typex) < TYPE_UID (typey))
 	{
@@ -995,19 +1090,19 @@ nonoverlapping_component_refs_p (const_tree x, const_tree y)
 
 static bool
 decl_refs_may_alias_p (tree ref1, tree base1,
-		       HOST_WIDE_INT offset1, HOST_WIDE_INT max_size1,
+		       poly_int64 offset1, poly_int64 max_size1,
 		       tree ref2, tree base2,
-		       HOST_WIDE_INT offset2, HOST_WIDE_INT max_size2)
+		       poly_int64 offset2, poly_int64 max_size2)
 {
   gcc_checking_assert (DECL_P (base1) && DECL_P (base2));
 
   /* If both references are based on different variables, they cannot alias.  */
-  if (base1 != base2)
+  if (compare_base_decls (base1, base2) == 0)
     return false;
 
   /* If both references are based on the same variable, they cannot alias if
      the accesses do not overlap.  */
-  if (!ranges_overlap_p (offset1, max_size1, offset2, max_size2))
+  if (!ranges_maybe_overlap_p (offset1, max_size1, offset2, max_size2))
     return false;
 
   /* For components with variable position, the above test isn't sufficient,
@@ -1029,34 +1124,23 @@ decl_refs_may_alias_p (tree ref1, tree base1,
 
 static bool
 indirect_ref_may_alias_decl_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
-			       HOST_WIDE_INT offset1,
-			       HOST_WIDE_INT max_size1 ATTRIBUTE_UNUSED,
+			       poly_int64 offset1, poly_int64 max_size1,
 			       alias_set_type ref1_alias_set,
 			       alias_set_type base1_alias_set,
 			       tree ref2 ATTRIBUTE_UNUSED, tree base2,
-			       HOST_WIDE_INT offset2, HOST_WIDE_INT max_size2,
+			       poly_int64 offset2, poly_int64 max_size2,
 			       alias_set_type ref2_alias_set,
 			       alias_set_type base2_alias_set, bool tbaa_p)
 {
   tree ptr1;
   tree ptrtype1, dbase2;
-  HOST_WIDE_INT offset1p = offset1, offset2p = offset2;
-  HOST_WIDE_INT doffset1, doffset2;
 
   gcc_checking_assert ((TREE_CODE (base1) == MEM_REF
 			|| TREE_CODE (base1) == TARGET_MEM_REF)
 		       && DECL_P (base2));
 
   ptr1 = TREE_OPERAND (base1, 0);
-
-  /* The offset embedded in MEM_REFs can be negative.  Bias them
-     so that the resulting offset adjustment is positive.  */
-  offset_int moff = mem_ref_offset (base1);
-  moff = wi::lshift (moff, LOG2_BITS_PER_UNIT);
-  if (wi::neg_p (moff))
-    offset2p += (-moff).to_short_addr ();
-  else
-    offset1p += moff.to_short_addr ();
+  poly_offset_int moff = mem_ref_offset (base1) << LOG2_BITS_PER_UNIT;
 
   /* If only one reference is based on a variable, they cannot alias if
      the pointer access is beyond the extent of the variable access.
@@ -1065,7 +1149,7 @@ indirect_ref_may_alias_decl_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
      ???  IVOPTs creates bases that do not honor this restriction,
      so do not apply this optimization for TARGET_MEM_REFs.  */
   if (TREE_CODE (base1) != TARGET_MEM_REF
-      && !ranges_overlap_p (MAX (0, offset1p), -1, offset2p, max_size2))
+      && !ranges_maybe_overlap_p (offset1 + moff, -1, offset2, max_size2))
     return false;
   /* They also cannot alias if the pointer may not point to the decl.  */
   if (!ptr_deref_may_alias_decl_p (ptr1, base2))
@@ -1078,12 +1162,8 @@ indirect_ref_may_alias_decl_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
   ptrtype1 = TREE_TYPE (TREE_OPERAND (base1, 1));
 
   /* If the alias set for a pointer access is zero all bets are off.  */
-  if (base1_alias_set == -1)
-    base1_alias_set = get_deref_alias_set (ptrtype1);
   if (base1_alias_set == 0)
     return true;
-  if (base2_alias_set == -1)
-    base2_alias_set = get_alias_set (base2);
 
   /* When we are trying to disambiguate an access with a pointer dereference
      as base versus one with a decl as base we can use both the size
@@ -1104,14 +1184,15 @@ indirect_ref_may_alias_decl_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
      is bigger than the size of the decl we can't possibly access the
      decl via that pointer.  */
   if (DECL_SIZE (base2) && COMPLETE_TYPE_P (TREE_TYPE (ptrtype1))
-      && TREE_CODE (DECL_SIZE (base2)) == INTEGER_CST
-      && TREE_CODE (TYPE_SIZE (TREE_TYPE (ptrtype1))) == INTEGER_CST
+      && poly_int_tree_p (DECL_SIZE (base2))
+      && poly_int_tree_p (TYPE_SIZE (TREE_TYPE (ptrtype1)))
       /* ???  This in turn may run afoul when a decl of type T which is
 	 a member of union type U is accessed through a pointer to
 	 type U and sizeof T is smaller than sizeof U.  */
       && TREE_CODE (TREE_TYPE (ptrtype1)) != UNION_TYPE
       && TREE_CODE (TREE_TYPE (ptrtype1)) != QUAL_UNION_TYPE
-      && tree_int_cst_lt (DECL_SIZE (base2), TYPE_SIZE (TREE_TYPE (ptrtype1))))
+      && known_lt (wi::to_poly_widest (DECL_SIZE (base2)),
+		   wi::to_poly_widest (TYPE_SIZE (TREE_TYPE (ptrtype1)))))
     return false;
 
   if (!ref2)
@@ -1122,18 +1203,11 @@ indirect_ref_may_alias_decl_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
   dbase2 = ref2;
   while (handled_component_p (dbase2))
     dbase2 = TREE_OPERAND (dbase2, 0);
-  doffset1 = offset1;
-  doffset2 = offset2;
+  poly_int64 doffset1 = offset1;
+  poly_offset_int doffset2 = offset2;
   if (TREE_CODE (dbase2) == MEM_REF
       || TREE_CODE (dbase2) == TARGET_MEM_REF)
-    {
-      offset_int moff = mem_ref_offset (dbase2);
-      moff = wi::lshift (moff, LOG2_BITS_PER_UNIT);
-      if (wi::neg_p (moff))
-	doffset1 -= (-moff).to_short_addr ();
-      else
-	doffset2 -= moff.to_short_addr ();
-    }
+    doffset2 -= mem_ref_offset (dbase2) << LOG2_BITS_PER_UNIT;
 
   /* If either reference is view-converted, give up now.  */
   if (same_type_for_tbaa (TREE_TYPE (base1), TREE_TYPE (ptrtype1)) != 1
@@ -1150,7 +1224,7 @@ indirect_ref_may_alias_decl_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
   if ((TREE_CODE (base1) != TARGET_MEM_REF
        || (!TMR_INDEX (base1) && !TMR_INDEX2 (base1)))
       && same_type_for_tbaa (TREE_TYPE (base1), TREE_TYPE (dbase2)) == 1)
-    return ranges_overlap_p (doffset1, max_size1, doffset2, max_size2);
+    return ranges_maybe_overlap_p (doffset1, max_size1, doffset2, max_size2);
 
   if (ref1 && ref2
       && nonoverlapping_component_refs_p (ref1, ref2))
@@ -1178,11 +1252,11 @@ indirect_ref_may_alias_decl_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
 
 static bool
 indirect_refs_may_alias_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
-			   HOST_WIDE_INT offset1, HOST_WIDE_INT max_size1,
+			   poly_int64 offset1, poly_int64 max_size1,
 			   alias_set_type ref1_alias_set,
 			   alias_set_type base1_alias_set,
 			   tree ref2 ATTRIBUTE_UNUSED, tree base2,
-			   HOST_WIDE_INT offset2, HOST_WIDE_INT max_size2,
+			   poly_int64 offset2, poly_int64 max_size2,
 			   alias_set_type ref2_alias_set,
 			   alias_set_type base2_alias_set, bool tbaa_p)
 {
@@ -1222,22 +1296,10 @@ indirect_refs_may_alias_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
 		      && operand_equal_p (TMR_INDEX2 (base1),
 					  TMR_INDEX2 (base2), 0))))))
     {
-      offset_int moff;
-      /* The offset embedded in MEM_REFs can be negative.  Bias them
-	 so that the resulting offset adjustment is positive.  */
-      moff = mem_ref_offset (base1);
-      moff = wi::lshift (moff, LOG2_BITS_PER_UNIT);
-      if (wi::neg_p (moff))
-	offset2 += (-moff).to_short_addr ();
-      else
-	offset1 += moff.to_shwi ();
-      moff = mem_ref_offset (base2);
-      moff = wi::lshift (moff, LOG2_BITS_PER_UNIT);
-      if (wi::neg_p (moff))
-	offset1 += (-moff).to_short_addr ();
-      else
-	offset2 += moff.to_short_addr ();
-      return ranges_overlap_p (offset1, max_size1, offset2, max_size2);
+      poly_offset_int moff1 = mem_ref_offset (base1) << LOG2_BITS_PER_UNIT;
+      poly_offset_int moff2 = mem_ref_offset (base2) << LOG2_BITS_PER_UNIT;
+      return ranges_maybe_overlap_p (offset1 + moff1, max_size1,
+				     offset2 + moff2, max_size2);
     }
   if (!ptr_derefs_may_alias_p (ptr1, ptr2))
     return false;
@@ -1250,13 +1312,8 @@ indirect_refs_may_alias_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
   ptrtype2 = TREE_TYPE (TREE_OPERAND (base2, 1));
 
   /* If the alias set for a pointer access is zero all bets are off.  */
-  if (base1_alias_set == -1)
-    base1_alias_set = get_deref_alias_set (ptrtype1);
-  if (base1_alias_set == 0)
-    return true;
-  if (base2_alias_set == -1)
-    base2_alias_set = get_deref_alias_set (ptrtype2);
-  if (base2_alias_set == 0)
+  if (base1_alias_set == 0
+      || base2_alias_set == 0)
     return true;
 
   /* If both references are through the same type, they do not alias
@@ -1269,8 +1326,11 @@ indirect_refs_may_alias_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
       && same_type_for_tbaa (TREE_TYPE (base1), TREE_TYPE (ptrtype1)) == 1
       && same_type_for_tbaa (TREE_TYPE (base2), TREE_TYPE (ptrtype2)) == 1
       && same_type_for_tbaa (TREE_TYPE (ptrtype1),
-			     TREE_TYPE (ptrtype2)) == 1)
-    return ranges_overlap_p (offset1, max_size1, offset2, max_size2);
+			     TREE_TYPE (ptrtype2)) == 1
+      /* But avoid treating arrays as "objects", instead assume they
+         can overlap by an exact multiple of their element size.  */
+      && TREE_CODE (TREE_TYPE (ptrtype1)) != ARRAY_TYPE)
+    return ranges_maybe_overlap_p (offset1, max_size1, offset2, max_size2);
 
   /* Do type-based disambiguation.  */
   if (base1_alias_set != base2_alias_set
@@ -1305,8 +1365,8 @@ bool
 refs_may_alias_p_1 (ao_ref *ref1, ao_ref *ref2, bool tbaa_p)
 {
   tree base1, base2;
-  HOST_WIDE_INT offset1 = 0, offset2 = 0;
-  HOST_WIDE_INT max_size1 = -1, max_size2 = -1;
+  poly_int64 offset1 = 0, offset2 = 0;
+  poly_int64 max_size1 = -1, max_size2 = -1;
   bool var1_p, var2_p, ind1_p, ind2_p;
 
   gcc_checking_assert ((!ref1->ref
@@ -1371,6 +1431,34 @@ refs_may_alias_p_1 (ao_ref *ref1, ao_ref *ref2, bool tbaa_p)
     return decl_refs_may_alias_p (ref1->ref, base1, offset1, max_size1,
 				  ref2->ref, base2, offset2, max_size2);
 
+  /* Handle restrict based accesses.
+     ???  ao_ref_base strips inner MEM_REF [&decl], recover from that
+     here.  */
+  tree rbase1 = base1;
+  tree rbase2 = base2;
+  if (var1_p)
+    {
+      rbase1 = ref1->ref;
+      if (rbase1)
+	while (handled_component_p (rbase1))
+	  rbase1 = TREE_OPERAND (rbase1, 0);
+    }
+  if (var2_p)
+    {
+      rbase2 = ref2->ref;
+      if (rbase2)
+	while (handled_component_p (rbase2))
+	  rbase2 = TREE_OPERAND (rbase2, 0);
+    }
+  if (rbase1 && rbase2
+      && (TREE_CODE (base1) == MEM_REF || TREE_CODE (base1) == TARGET_MEM_REF)
+      && (TREE_CODE (base2) == MEM_REF || TREE_CODE (base2) == TARGET_MEM_REF)
+      /* If the accesses are in the same restrict clique... */
+      && MR_DEPENDENCE_CLIQUE (base1) == MR_DEPENDENCE_CLIQUE (base2)
+      /* But based on different pointers they do not alias.  */
+      && MR_DEPENDENCE_BASE (base1) != MR_DEPENDENCE_BASE (base2))
+    return false;
+
   ind1_p = (TREE_CODE (base1) == MEM_REF
 	    || TREE_CODE (base1) == TARGET_MEM_REF);
   ind2_p = (TREE_CODE (base2) == MEM_REF
@@ -1379,13 +1467,10 @@ refs_may_alias_p_1 (ao_ref *ref1, ao_ref *ref2, bool tbaa_p)
   /* Canonicalize the pointer-vs-decl case.  */
   if (ind1_p && var2_p)
     {
-      HOST_WIDE_INT tmp1;
-      tree tmp2;
-      ao_ref *tmp3;
-      tmp1 = offset1; offset1 = offset2; offset2 = tmp1;
-      tmp1 = max_size1; max_size1 = max_size2; max_size2 = tmp1;
-      tmp2 = base1; base1 = base2; base2 = tmp2;
-      tmp3 = ref1; ref1 = ref2; ref2 = tmp3;
+      std::swap (offset1, offset2);
+      std::swap (max_size1, max_size2);
+      std::swap (base1, base2);
+      std::swap (ref1, ref2);
       var1_p = true;
       ind1_p = false;
       var2_p = false;
@@ -1399,11 +1484,22 @@ refs_may_alias_p_1 (ao_ref *ref1, ao_ref *ref2, bool tbaa_p)
 				 ao_ref_alias_set (ref2)))
     return false;
 
+  /* If the reference is based on a pointer that points to memory
+     that may not be written to then the other reference cannot possibly
+     clobber it.  */
+  if ((TREE_CODE (TREE_OPERAND (base2, 0)) == SSA_NAME
+       && SSA_NAME_POINTS_TO_READONLY_MEMORY (TREE_OPERAND (base2, 0)))
+      || (ind1_p
+	  && TREE_CODE (TREE_OPERAND (base1, 0)) == SSA_NAME
+	  && SSA_NAME_POINTS_TO_READONLY_MEMORY (TREE_OPERAND (base1, 0))))
+    return false;
+
   /* Dispatch to the pointer-vs-decl or pointer-vs-pointer disambiguators.  */
   if (var1_p && ind2_p)
     return indirect_ref_may_alias_decl_p (ref2->ref, base2,
 					  offset2, max_size2,
-					  ao_ref_alias_set (ref2), -1,
+					  ao_ref_alias_set (ref2),
+					  ao_ref_base_alias_set (ref2),
 					  ref1->ref, base1,
 					  offset1, max_size1,
 					  ao_ref_alias_set (ref1),
@@ -1412,36 +1508,33 @@ refs_may_alias_p_1 (ao_ref *ref1, ao_ref *ref2, bool tbaa_p)
   else if (ind1_p && ind2_p)
     return indirect_refs_may_alias_p (ref1->ref, base1,
 				      offset1, max_size1,
-				      ao_ref_alias_set (ref1), -1,
+				      ao_ref_alias_set (ref1),
+				      ao_ref_base_alias_set (ref1),
 				      ref2->ref, base2,
 				      offset2, max_size2,
-				      ao_ref_alias_set (ref2), -1,
+				      ao_ref_alias_set (ref2),
+				      ao_ref_base_alias_set (ref2),
 				      tbaa_p);
 
-  /* We really do not want to end up here, but returning true is safe.  */
-#ifdef ENABLE_CHECKING
   gcc_unreachable ();
-#else
-  return true;
-#endif
 }
 
 static bool
-refs_may_alias_p (tree ref1, ao_ref *ref2)
+refs_may_alias_p (tree ref1, ao_ref *ref2, bool tbaa_p)
 {
   ao_ref r1;
   ao_ref_init (&r1, ref1);
-  return refs_may_alias_p_1 (&r1, ref2, true);
+  return refs_may_alias_p_1 (&r1, ref2, tbaa_p);
 }
 
 bool
-refs_may_alias_p (tree ref1, tree ref2)
+refs_may_alias_p (tree ref1, tree ref2, bool tbaa_p)
 {
   ao_ref r1, r2;
   bool res;
   ao_ref_init (&r1, ref1);
   ao_ref_init (&r2, ref2);
-  res = refs_may_alias_p_1 (&r1, &r2, true);
+  res = refs_may_alias_p_1 (&r1, &r2, tbaa_p);
   if (res)
     ++alias_stats.refs_may_alias_p_may_alias;
   else
@@ -1477,7 +1570,7 @@ refs_output_dependent_p (tree store1, tree store2)
    otherwise return false.  */
 
 static bool
-ref_maybe_used_by_call_p_1 (gimple call, ao_ref *ref)
+ref_maybe_used_by_call_p_1 (gcall *call, ao_ref *ref, bool tbaa_p)
 {
   tree base, callee;
   unsigned i;
@@ -1511,7 +1604,7 @@ ref_maybe_used_by_call_p_1 (gimple call, ao_ref *ref)
      escape points.  See tree-ssa-structalias.c:find_func_aliases
      for the list of builtins we might need to handle here.  */
   if (callee != NULL_TREE
-      && DECL_BUILT_IN_CLASS (callee) == BUILT_IN_NORMAL)
+      && gimple_call_builtin_p (call, BUILT_IN_NORMAL))
     switch (DECL_FUNCTION_CODE (callee))
       {
 	/* All the following functions read memory pointed to by
@@ -1667,8 +1760,7 @@ ref_maybe_used_by_call_p_1 (gimple call, ao_ref *ref)
 	case BUILT_IN_POSIX_MEMALIGN:
 	case BUILT_IN_ALIGNED_ALLOC:
 	case BUILT_IN_CALLOC:
-	case BUILT_IN_ALLOCA:
-	case BUILT_IN_ALLOCA_WITH_ALIGN:
+	CASE_BUILT_IN_ALLOCA:
 	case BUILT_IN_STACK_SAVE:
 	case BUILT_IN_STACK_RESTORE:
 	case BUILT_IN_MEMSET:
@@ -1727,9 +1819,7 @@ ref_maybe_used_by_call_p_1 (gimple call, ao_ref *ref)
 
   /* Check if base is a global static variable that is not read
      by the function.  */
-  if (callee != NULL_TREE
-      && TREE_CODE (base) == VAR_DECL
-      && TREE_STATIC (base))
+  if (callee != NULL_TREE && VAR_P (base) && TREE_STATIC (base))
     {
       struct cgraph_node *node = cgraph_node::get (callee);
       bitmap not_read;
@@ -1739,7 +1829,7 @@ ref_maybe_used_by_call_p_1 (gimple call, ao_ref *ref)
 	 IL and remove this check instead.  */
       if (node
 	  && (not_read = ipa_reference_get_not_read_global (node))
-	  && bitmap_bit_p (not_read, DECL_UID (base)))
+	  && bitmap_bit_p (not_read, ipa_reference_var_uid (base)))
 	goto process_args;
     }
 
@@ -1781,7 +1871,7 @@ process_args:
 	{
 	  ao_ref r;
 	  ao_ref_init (&r, op);
-	  if (refs_may_alias_p_1 (&r, ref, true))
+	  if (refs_may_alias_p_1 (&r, ref, tbaa_p))
 	    return true;
 	}
     }
@@ -1790,10 +1880,10 @@ process_args:
 }
 
 static bool
-ref_maybe_used_by_call_p (gimple call, ao_ref *ref)
+ref_maybe_used_by_call_p (gcall *call, ao_ref *ref, bool tbaa_p)
 {
   bool res;
-  res = ref_maybe_used_by_call_p_1 (call, ref);
+  res = ref_maybe_used_by_call_p_1 (call, ref, tbaa_p);
   if (res)
     ++alias_stats.ref_maybe_used_by_call_p_may_alias;
   else
@@ -1806,7 +1896,7 @@ ref_maybe_used_by_call_p (gimple call, ao_ref *ref)
    true, otherwise return false.  */
 
 bool
-ref_maybe_used_by_stmt_p (gimple stmt, ao_ref *ref)
+ref_maybe_used_by_stmt_p (gimple *stmt, ao_ref *ref, bool tbaa_p)
 {
   if (is_gimple_assign (stmt))
     {
@@ -1822,17 +1912,17 @@ ref_maybe_used_by_stmt_p (gimple stmt, ao_ref *ref)
 	  || gimple_assign_rhs_code (stmt) == CONSTRUCTOR)
 	return false;
 
-      return refs_may_alias_p (rhs, ref);
+      return refs_may_alias_p (rhs, ref, tbaa_p);
     }
   else if (is_gimple_call (stmt))
-    return ref_maybe_used_by_call_p (stmt, ref);
-  else if (gimple_code (stmt) == GIMPLE_RETURN)
+    return ref_maybe_used_by_call_p (as_a <gcall *> (stmt), ref, tbaa_p);
+  else if (greturn *return_stmt = dyn_cast <greturn *> (stmt))
     {
-      tree retval = gimple_return_retval (stmt);
+      tree retval = gimple_return_retval (return_stmt);
       if (retval
 	  && TREE_CODE (retval) != SSA_NAME
 	  && !is_gimple_min_invariant (retval)
-	  && refs_may_alias_p (retval, ref))
+	  && refs_may_alias_p (retval, ref, tbaa_p))
 	return true;
       /* If ref escapes the function then the return acts as a use.  */
       tree base = ao_ref_base (ref);
@@ -1850,18 +1940,18 @@ ref_maybe_used_by_stmt_p (gimple stmt, ao_ref *ref)
 }
 
 bool
-ref_maybe_used_by_stmt_p (gimple stmt, tree ref)
+ref_maybe_used_by_stmt_p (gimple *stmt, tree ref, bool tbaa_p)
 {
   ao_ref r;
   ao_ref_init (&r, ref);
-  return ref_maybe_used_by_stmt_p (stmt, &r);
+  return ref_maybe_used_by_stmt_p (stmt, &r, tbaa_p);
 }
 
 /* If the call in statement CALL may clobber the memory reference REF
    return true, otherwise return false.  */
 
 bool
-call_may_clobber_ref_p_1 (gimple call, ao_ref *ref)
+call_may_clobber_ref_p_1 (gcall *call, ao_ref *ref)
 {
   tree base;
   tree callee;
@@ -1870,6 +1960,23 @@ call_may_clobber_ref_p_1 (gimple call, ao_ref *ref)
   if (gimple_call_flags (call)
       & (ECF_PURE|ECF_CONST|ECF_LOOPING_CONST_OR_PURE|ECF_NOVOPS))
     return false;
+  if (gimple_call_internal_p (call))
+    switch (gimple_call_internal_fn (call))
+      {
+	/* Treat these internal calls like ECF_PURE for aliasing,
+	   they don't write to any memory the program should care about.
+	   They have important other side-effects, and read memory,
+	   so can't be ECF_NOVOPS.  */
+      case IFN_UBSAN_NULL:
+      case IFN_UBSAN_BOUNDS:
+      case IFN_UBSAN_VPTR:
+      case IFN_UBSAN_OBJECT_SIZE:
+      case IFN_UBSAN_PTR:
+      case IFN_ASAN_CHECK:
+	return false;
+      default:
+	break;
+      }
 
   base = ao_ref_base (ref);
   if (!base)
@@ -1895,13 +2002,21 @@ call_may_clobber_ref_p_1 (gimple call, ao_ref *ref)
 	  || !is_global_var (base)))
     return false;
 
+  /* If the reference is based on a pointer that points to memory
+     that may not be written to then the call cannot possibly clobber it.  */
+  if ((TREE_CODE (base) == MEM_REF
+       || TREE_CODE (base) == TARGET_MEM_REF)
+      && TREE_CODE (TREE_OPERAND (base, 0)) == SSA_NAME
+      && SSA_NAME_POINTS_TO_READONLY_MEMORY (TREE_OPERAND (base, 0)))
+    return false;
+
   callee = gimple_call_fndecl (call);
 
   /* Handle those builtin functions explicitly that do not act as
      escape points.  See tree-ssa-structalias.c:find_func_aliases
      for the list of builtins we might need to handle here.  */
   if (callee != NULL_TREE
-      && DECL_BUILT_IN_CLASS (callee) == BUILT_IN_NORMAL)
+      && gimple_call_builtin_p (call, BUILT_IN_NORMAL))
     switch (DECL_FUNCTION_CODE (callee))
       {
 	/* All the following functions clobber memory pointed to by
@@ -1991,8 +2106,7 @@ call_may_clobber_ref_p_1 (gimple call, ao_ref *ref)
 	    return true;
 	  return false;
 	case BUILT_IN_STACK_SAVE:
-	case BUILT_IN_ALLOCA:
-	case BUILT_IN_ALLOCA_WITH_ALIGN:
+	CASE_BUILT_IN_ALLOCA:
 	case BUILT_IN_ASSUME_ALIGNED:
 	  return false;
 	/* But posix_memalign stores a pointer into the memory pointed to
@@ -2100,16 +2214,14 @@ call_may_clobber_ref_p_1 (gimple call, ao_ref *ref)
 
   /* Check if base is a global static variable that is not written
      by the function.  */
-  if (callee != NULL_TREE
-      && TREE_CODE (base) == VAR_DECL
-      && TREE_STATIC (base))
+  if (callee != NULL_TREE && VAR_P (base) && TREE_STATIC (base))
     {
       struct cgraph_node *node = cgraph_node::get (callee);
       bitmap not_written;
 
       if (node
 	  && (not_written = ipa_reference_get_not_written_global (node))
-	  && bitmap_bit_p (not_written, DECL_UID (base)))
+	  && bitmap_bit_p (not_written, ipa_reference_var_uid (base)))
 	return false;
     }
 
@@ -2134,7 +2246,7 @@ call_may_clobber_ref_p_1 (gimple call, ao_ref *ref)
    return true, otherwise return false.  */
 
 bool
-call_may_clobber_ref_p (gimple call, tree ref)
+call_may_clobber_ref_p (gcall *call, tree ref)
 {
   bool res;
   ao_ref r;
@@ -2152,7 +2264,7 @@ call_may_clobber_ref_p (gimple call, tree ref)
    otherwise return false.  */
 
 bool
-stmt_may_clobber_ref_p_1 (gimple stmt, ao_ref *ref)
+stmt_may_clobber_ref_p_1 (gimple *stmt, ao_ref *ref, bool tbaa_p)
 {
   if (is_gimple_call (stmt))
     {
@@ -2162,11 +2274,11 @@ stmt_may_clobber_ref_p_1 (gimple stmt, ao_ref *ref)
 	{
 	  ao_ref r;
 	  ao_ref_init (&r, lhs);
-	  if (refs_may_alias_p_1 (ref, &r, true))
+	  if (refs_may_alias_p_1 (ref, &r, tbaa_p))
 	    return true;
 	}
 
-      return call_may_clobber_ref_p_1 (stmt, ref);
+      return call_may_clobber_ref_p_1 (as_a <gcall *> (stmt), ref);
     }
   else if (gimple_assign_single_p (stmt))
     {
@@ -2175,7 +2287,7 @@ stmt_may_clobber_ref_p_1 (gimple stmt, ao_ref *ref)
 	{
 	  ao_ref r;
 	  ao_ref_init (&r, lhs);
-	  return refs_may_alias_p_1 (ref, &r, true);
+	  return refs_may_alias_p_1 (ref, &r, tbaa_p);
 	}
     }
   else if (gimple_code (stmt) == GIMPLE_ASM)
@@ -2185,18 +2297,94 @@ stmt_may_clobber_ref_p_1 (gimple stmt, ao_ref *ref)
 }
 
 bool
-stmt_may_clobber_ref_p (gimple stmt, tree ref)
+stmt_may_clobber_ref_p (gimple *stmt, tree ref, bool tbaa_p)
 {
   ao_ref r;
   ao_ref_init (&r, ref);
-  return stmt_may_clobber_ref_p_1 (stmt, &r);
+  return stmt_may_clobber_ref_p_1 (stmt, &r, tbaa_p);
+}
+
+/* Return true if store1 and store2 described by corresponding tuples
+   <BASE, OFFSET, SIZE, MAX_SIZE> have the same size and store to the same
+   address.  */
+
+static bool
+same_addr_size_stores_p (tree base1, poly_int64 offset1, poly_int64 size1,
+			 poly_int64 max_size1,
+			 tree base2, poly_int64 offset2, poly_int64 size2,
+			 poly_int64 max_size2)
+{
+  /* Offsets need to be 0.  */
+  if (maybe_ne (offset1, 0)
+      || maybe_ne (offset2, 0))
+    return false;
+
+  bool base1_obj_p = SSA_VAR_P (base1);
+  bool base2_obj_p = SSA_VAR_P (base2);
+
+  /* We need one object.  */
+  if (base1_obj_p == base2_obj_p)
+    return false;
+  tree obj = base1_obj_p ? base1 : base2;
+
+  /* And we need one MEM_REF.  */
+  bool base1_memref_p = TREE_CODE (base1) == MEM_REF;
+  bool base2_memref_p = TREE_CODE (base2) == MEM_REF;
+  if (base1_memref_p == base2_memref_p)
+    return false;
+  tree memref = base1_memref_p ? base1 : base2;
+
+  /* Sizes need to be valid.  */
+  if (!known_size_p (max_size1)
+      || !known_size_p (max_size2)
+      || !known_size_p (size1)
+      || !known_size_p (size2))
+    return false;
+
+  /* Max_size needs to match size.  */
+  if (maybe_ne (max_size1, size1)
+      || maybe_ne (max_size2, size2))
+    return false;
+
+  /* Sizes need to match.  */
+  if (maybe_ne (size1, size2))
+    return false;
+
+
+  /* Check that memref is a store to pointer with singleton points-to info.  */
+  if (!integer_zerop (TREE_OPERAND (memref, 1)))
+    return false;
+  tree ptr = TREE_OPERAND (memref, 0);
+  if (TREE_CODE (ptr) != SSA_NAME)
+    return false;
+  struct ptr_info_def *pi = SSA_NAME_PTR_INFO (ptr);
+  unsigned int pt_uid;
+  if (pi == NULL
+      || !pt_solution_singleton_or_null_p (&pi->pt, &pt_uid))
+    return false;
+
+  /* Be conservative with non-call exceptions when the address might
+     be NULL.  */
+  if (cfun->can_throw_non_call_exceptions && pi->pt.null)
+    return false;
+
+  /* Check that ptr points relative to obj.  */
+  unsigned int obj_uid = DECL_PT_UID (obj);
+  if (obj_uid != pt_uid)
+    return false;
+
+  /* Check that the object size is the same as the store size.  That ensures us
+     that ptr points to the start of obj.  */
+  return (DECL_SIZE (obj)
+	  && poly_int_tree_p (DECL_SIZE (obj))
+	  && known_eq (wi::to_poly_offset (DECL_SIZE (obj)), size1));
 }
 
 /* If STMT kills the memory reference REF return true, otherwise
    return false.  */
 
 bool
-stmt_kills_ref_p (gimple stmt, ao_ref *ref)
+stmt_kills_ref_p (gimple *stmt, ao_ref *ref)
 {
   if (!ao_ref_base (ref))
     return false;
@@ -2209,13 +2397,14 @@ stmt_kills_ref_p (gimple stmt, ao_ref *ref)
 	 ???  We only need to care about the RHS throwing.  For aggregate
 	 assignments or similar calls and non-call exceptions the LHS
 	 might throw as well.  */
-      && !stmt_can_throw_internal (stmt))
+      && !stmt_can_throw_internal (cfun, stmt))
     {
       tree lhs = gimple_get_lhs (stmt);
       /* If LHS is literally a base of the access we are done.  */
       if (ref->ref)
 	{
 	  tree base = ref->ref;
+	  tree innermost_dropped_array_ref = NULL_TREE;
 	  if (handled_component_p (base))
 	    {
 	      tree saved_lhs0 = NULL_TREE;
@@ -2235,6 +2424,11 @@ stmt_kills_ref_p (gimple stmt, ao_ref *ref)
 		  TREE_OPERAND (base, 0) = saved_base0;
 		  if (res)
 		    break;
+		  /* Remember if we drop an array-ref that we need to
+		     double-check not being at struct end.  */ 
+		  if (TREE_CODE (base) == ARRAY_REF
+		      || TREE_CODE (base) == ARRAY_RANGE_REF)
+		    innermost_dropped_array_ref = base;
 		  /* Otherwise drop handled components of the access.  */
 		  base = saved_base0;
 		}
@@ -2242,9 +2436,23 @@ stmt_kills_ref_p (gimple stmt, ao_ref *ref)
 	      if (saved_lhs0)
 		TREE_OPERAND (lhs, 0) = saved_lhs0;
 	    }
-	  /* Finally check if lhs is equal or equal to the base candidate
-	     of the access.  */
-	  if (operand_equal_p (lhs, base, 0))
+	  /* Finally check if the lhs has the same address and size as the
+	     base candidate of the access.  Watch out if we have dropped
+	     an array-ref that was at struct end, this means ref->ref may
+	     be outside of the TYPE_SIZE of its base.  */
+	  if ((! innermost_dropped_array_ref
+	       || ! array_at_struct_end_p (innermost_dropped_array_ref))
+	      && (lhs == base
+		  || (((TYPE_SIZE (TREE_TYPE (lhs))
+			== TYPE_SIZE (TREE_TYPE (base)))
+		       || (TYPE_SIZE (TREE_TYPE (lhs))
+			   && TYPE_SIZE (TREE_TYPE (base))
+			   && operand_equal_p (TYPE_SIZE (TREE_TYPE (lhs)),
+					       TYPE_SIZE (TREE_TYPE (base)),
+					       0)))
+		      && operand_equal_p (lhs, base,
+					  OEP_ADDRESS_OF
+					  | OEP_MATCH_SIDE_EFFECTS))))
 	    return true;
 	}
 
@@ -2252,14 +2460,21 @@ stmt_kills_ref_p (gimple stmt, ao_ref *ref)
          handling constant offset and size.  */
       /* For a must-alias check we need to be able to constrain
 	 the access properly.  */
-      if (ref->max_size == -1)
+      if (!ref->max_size_known_p ())
 	return false;
-      HOST_WIDE_INT size, offset, max_size, ref_offset = ref->offset;
-      tree base = get_ref_base_and_extent (lhs, &offset, &size, &max_size);
+      poly_int64 size, offset, max_size, ref_offset = ref->offset;
+      bool reverse;
+      tree base = get_ref_base_and_extent (lhs, &offset, &size, &max_size,
+					   &reverse);
       /* We can get MEM[symbol: sZ, index: D.8862_1] here,
 	 so base == ref->base does not always hold.  */
       if (base != ref->base)
 	{
+	  /* Try using points-to info.  */
+	  if (same_addr_size_stores_p (base, offset, size, max_size, ref->base,
+				       ref->offset, ref->size, ref->max_size))
+	    return true;
+
 	  /* If both base and ref->base are MEM_REFs, only compare the
 	     first operand, and if the second operand isn't equal constant,
 	     try to add the offsets into offset and ref_offset.  */
@@ -2269,18 +2484,13 @@ stmt_kills_ref_p (gimple stmt, ao_ref *ref)
 	      if (!tree_int_cst_equal (TREE_OPERAND (base, 1),
 				       TREE_OPERAND (ref->base, 1)))
 		{
-		  offset_int off1 = mem_ref_offset (base);
-		  off1 = wi::lshift (off1, LOG2_BITS_PER_UNIT);
+		  poly_offset_int off1 = mem_ref_offset (base);
+		  off1 <<= LOG2_BITS_PER_UNIT;
 		  off1 += offset;
-		  offset_int off2 = mem_ref_offset (ref->base);
-		  off2 = wi::lshift (off2, LOG2_BITS_PER_UNIT);
+		  poly_offset_int off2 = mem_ref_offset (ref->base);
+		  off2 <<= LOG2_BITS_PER_UNIT;
 		  off2 += ref_offset;
-		  if (wi::fits_shwi_p (off1) && wi::fits_shwi_p (off2))
-		    {
-		      offset = off1.to_shwi ();
-		      ref_offset = off2.to_shwi ();
-		    }
-		  else
+		  if (!off1.to_shwi (&offset) || !off2.to_shwi (&ref_offset))
 		    size = -1;
 		}
 	    }
@@ -2289,19 +2499,16 @@ stmt_kills_ref_p (gimple stmt, ao_ref *ref)
 	}
       /* For a must-alias check we need to be able to constrain
 	 the access properly.  */
-      if (size != -1 && size == max_size)
-	{
-	  if (offset <= ref_offset
-	      && offset + size >= ref_offset + ref->max_size)
-	    return true;
-	}
+      if (known_eq (size, max_size)
+	  && known_subrange_p (ref_offset, ref->max_size, offset, size))
+	return true;
     }
 
   if (is_gimple_call (stmt))
     {
       tree callee = gimple_call_fndecl (stmt);
       if (callee != NULL_TREE
-	  && DECL_BUILT_IN_CLASS (callee) == BUILT_IN_NORMAL)
+	  && gimple_call_builtin_p (stmt, BUILT_IN_NORMAL))
 	switch (DECL_FUNCTION_CODE (callee))
 	  {
 	  case BUILT_IN_FREE:
@@ -2322,40 +2529,39 @@ stmt_kills_ref_p (gimple stmt, ao_ref *ref)
 	  case BUILT_IN_MEMPCPY_CHK:
 	  case BUILT_IN_MEMMOVE_CHK:
 	  case BUILT_IN_MEMSET_CHK:
+	  case BUILT_IN_STRNCPY:
+	  case BUILT_IN_STPNCPY:
 	    {
 	      /* For a must-alias check we need to be able to constrain
 		 the access properly.  */
-	      if (ref->max_size == -1)
+	      if (!ref->max_size_known_p ())
 		return false;
 	      tree dest = gimple_call_arg (stmt, 0);
 	      tree len = gimple_call_arg (stmt, 2);
-	      if (!tree_fits_shwi_p (len))
+	      if (!poly_int_tree_p (len))
 		return false;
 	      tree rbase = ref->base;
-	      offset_int roffset = ref->offset;
+	      poly_offset_int roffset = ref->offset;
 	      ao_ref dref;
 	      ao_ref_init_from_ptr_and_size (&dref, dest, len);
 	      tree base = ao_ref_base (&dref);
-	      offset_int offset = dref.offset;
-	      if (!base || dref.size == -1)
+	      poly_offset_int offset = dref.offset;
+	      if (!base || !known_size_p (dref.size))
 		return false;
 	      if (TREE_CODE (base) == MEM_REF)
 		{
 		  if (TREE_CODE (rbase) != MEM_REF)
 		    return false;
 		  // Compare pointers.
-		  offset += wi::lshift (mem_ref_offset (base),
-					LOG2_BITS_PER_UNIT);
-		  roffset += wi::lshift (mem_ref_offset (rbase),
-					 LOG2_BITS_PER_UNIT);
+		  offset += mem_ref_offset (base) << LOG2_BITS_PER_UNIT;
+		  roffset += mem_ref_offset (rbase) << LOG2_BITS_PER_UNIT;
 		  base = TREE_OPERAND (base, 0);
 		  rbase = TREE_OPERAND (rbase, 0);
 		}
 	      if (base == rbase
-		  && wi::les_p (offset, roffset)
-		  && wi::les_p (roffset + ref->max_size,
-				offset + wi::lshift (wi::to_offset (len),
-						     LOG2_BITS_PER_UNIT)))
+		  && known_subrange_p (roffset, ref->max_size, offset,
+				       wi::to_poly_offset (len)
+				       << LOG2_BITS_PER_UNIT))
 		return true;
 	      break;
 	    }
@@ -2379,7 +2585,7 @@ stmt_kills_ref_p (gimple stmt, ao_ref *ref)
 }
 
 bool
-stmt_kills_ref_p (gimple stmt, tree ref)
+stmt_kills_ref_p (gimple *stmt, tree ref)
 {
   ao_ref r;
   ao_ref_init (&r, ref);
@@ -2392,10 +2598,10 @@ stmt_kills_ref_p (gimple stmt, tree ref)
    case false is returned.  The walk starts with VUSE, one argument of PHI.  */
 
 static bool
-maybe_skip_until (gimple phi, tree target, ao_ref *ref,
+maybe_skip_until (gimple *phi, tree target, ao_ref *ref,
 		  tree vuse, unsigned int *cnt, bitmap *visited,
 		  bool abort_on_visited,
-		  void *(*translate)(ao_ref *, tree, void *, bool),
+		  void *(*translate)(ao_ref *, tree, void *, bool *),
 		  void *data)
 {
   basic_block bb = gimple_bb (phi);
@@ -2408,7 +2614,7 @@ maybe_skip_until (gimple phi, tree target, ao_ref *ref,
   /* Walk until we hit the target.  */
   while (vuse != target)
     {
-      gimple def_stmt = SSA_NAME_DEF_STMT (vuse);
+      gimple *def_stmt = SSA_NAME_DEF_STMT (vuse);
       /* Recurse for PHI nodes.  */
       if (gimple_code (def_stmt) == GIMPLE_PHI)
 	{
@@ -2430,8 +2636,9 @@ maybe_skip_until (gimple phi, tree target, ao_ref *ref,
 	  ++*cnt;
 	  if (stmt_may_clobber_ref_p_1 (def_stmt, ref))
 	    {
+	      bool disambiguate_only = true;
 	      if (translate
-		  && (*translate) (ref, vuse, data, true) == NULL)
+		  && (*translate) (ref, vuse, data, &disambiguate_only) == NULL)
 		;
 	      else
 		return false;
@@ -2450,69 +2657,6 @@ maybe_skip_until (gimple phi, tree target, ao_ref *ref,
   return true;
 }
 
-/* For two PHI arguments ARG0 and ARG1 try to skip non-aliasing code
-   until we hit the phi argument definition that dominates the other one.
-   Return that, or NULL_TREE if there is no such definition.  */
-
-static tree
-get_continuation_for_phi_1 (gimple phi, tree arg0, tree arg1,
-			    ao_ref *ref, unsigned int *cnt,
-			    bitmap *visited, bool abort_on_visited,
-			    void *(*translate)(ao_ref *, tree, void *, bool),
-			    void *data)
-{
-  gimple def0 = SSA_NAME_DEF_STMT (arg0);
-  gimple def1 = SSA_NAME_DEF_STMT (arg1);
-  tree common_vuse;
-
-  if (arg0 == arg1)
-    return arg0;
-  else if (gimple_nop_p (def0)
-	   || (!gimple_nop_p (def1)
-	       && dominated_by_p (CDI_DOMINATORS,
-				  gimple_bb (def1), gimple_bb (def0))))
-    {
-      if (maybe_skip_until (phi, arg0, ref, arg1, cnt,
-			    visited, abort_on_visited, translate, data))
-	return arg0;
-    }
-  else if (gimple_nop_p (def1)
-	   || dominated_by_p (CDI_DOMINATORS,
-			      gimple_bb (def0), gimple_bb (def1)))
-    {
-      if (maybe_skip_until (phi, arg1, ref, arg0, cnt,
-			    visited, abort_on_visited, translate, data))
-	return arg1;
-    }
-  /* Special case of a diamond:
-       MEM_1 = ...
-       goto (cond) ? L1 : L2
-       L1: store1 = ...    #MEM_2 = vuse(MEM_1)
-	   goto L3
-       L2: store2 = ...    #MEM_3 = vuse(MEM_1)
-       L3: MEM_4 = PHI<MEM_2, MEM_3>
-     We were called with the PHI at L3, MEM_2 and MEM_3 don't
-     dominate each other, but still we can easily skip this PHI node
-     if we recognize that the vuse MEM operand is the same for both,
-     and that we can skip both statements (they don't clobber us).
-     This is still linear.  Don't use maybe_skip_until, that might
-     potentially be slow.  */
-  else if ((common_vuse = gimple_vuse (def0))
-	   && common_vuse == gimple_vuse (def1))
-    {
-      *cnt += 2;
-      if ((!stmt_may_clobber_ref_p_1 (def0, ref)
-	   || (translate
-	       && (*translate) (ref, arg0, data, true) == NULL))
-	  && (!stmt_may_clobber_ref_p_1 (def1, ref)
-	      || (translate
-		  && (*translate) (ref, arg1, data, true) == NULL)))
-	return common_vuse;
-    }
-
-  return NULL_TREE;
-}
-
 
 /* Starting from a PHI node for the virtual operand of the memory reference
    REF find a continuation virtual operand that allows to continue walking
@@ -2521,10 +2665,10 @@ get_continuation_for_phi_1 (gimple phi, tree arg0, tree arg1,
    Returns NULL_TREE if no suitable virtual operand can be found.  */
 
 tree
-get_continuation_for_phi (gimple phi, ao_ref *ref,
+get_continuation_for_phi (gimple *phi, ao_ref *ref,
 			  unsigned int *cnt, bitmap *visited,
 			  bool abort_on_visited,
-			  void *(*translate)(ao_ref *, tree, void *, bool),
+			  void *(*translate)(ao_ref *, tree, void *, bool *),
 			  void *data)
 {
   unsigned nargs = gimple_phi_num_args (phi);
@@ -2535,44 +2679,80 @@ get_continuation_for_phi (gimple phi, ao_ref *ref,
 
   /* For two or more arguments try to pairwise skip non-aliasing code
      until we hit the phi argument definition that dominates the other one.  */
-  else if (nargs >= 2)
+  basic_block phi_bb = gimple_bb (phi);
+  tree arg0, arg1;
+  unsigned i;
+
+  /* Find a candidate for the virtual operand which definition
+     dominates those of all others.  */
+  /* First look if any of the args themselves satisfy this.  */
+  for (i = 0; i < nargs; ++i)
     {
-      tree arg0, arg1;
-      unsigned i;
-
-      /* Find a candidate for the virtual operand which definition
-	 dominates those of all others.  */
-      arg0 = PHI_ARG_DEF (phi, 0);
-      if (!SSA_NAME_IS_DEFAULT_DEF (arg0))
-	for (i = 1; i < nargs; ++i)
+      arg0 = PHI_ARG_DEF (phi, i);
+      if (SSA_NAME_IS_DEFAULT_DEF (arg0))
+	break;
+      basic_block def_bb = gimple_bb (SSA_NAME_DEF_STMT (arg0));
+      if (def_bb != phi_bb
+	  && dominated_by_p (CDI_DOMINATORS, phi_bb, def_bb))
+	break;
+      arg0 = NULL_TREE;
+    }
+  /* If not, look if we can reach such candidate by walking defs
+     of a PHI arg without crossing other PHIs.  */
+  if (! arg0)
+    for (i = 0; i < nargs; ++i)
+      {
+	arg0 = PHI_ARG_DEF (phi, i);
+	gimple *def = SSA_NAME_DEF_STMT (arg0);
+	/* Backedges can't work.  */
+	if (dominated_by_p (CDI_DOMINATORS,
+			    gimple_bb (def), phi_bb))
+	  continue;
+	/* See below.  */
+	if (gimple_code (def) == GIMPLE_PHI)
+	  continue;
+	while (! dominated_by_p (CDI_DOMINATORS,
+				 phi_bb, gimple_bb (def)))
 	  {
-	    arg1 = PHI_ARG_DEF (phi, i);
-	    if (SSA_NAME_IS_DEFAULT_DEF (arg1))
+	    arg0 = gimple_vuse (def);
+	    if (SSA_NAME_IS_DEFAULT_DEF (arg0))
+	      break;
+	    def = SSA_NAME_DEF_STMT (arg0);
+	    if (gimple_code (def) == GIMPLE_PHI)
 	      {
-		arg0 = arg1;
-		break;
+		/* Do not try to look through arbitrarily complicated
+		   CFGs.  For those looking for the first VUSE starting
+		   from the end of the immediate dominator of phi_bb
+		   is likely faster.  */
+		arg0 = NULL_TREE;
+		goto next;
 	      }
-	    if (dominated_by_p (CDI_DOMINATORS,
-				gimple_bb (SSA_NAME_DEF_STMT (arg0)),
-				gimple_bb (SSA_NAME_DEF_STMT (arg1))))
-	      arg0 = arg1;
 	  }
+	break;
+next:;
+      }
+  if (! arg0)
+    return NULL_TREE;
 
-      /* Then pairwise reduce against the found candidate.  */
-      for (i = 0; i < nargs; ++i)
-	{
-	  arg1 = PHI_ARG_DEF (phi, i);
-	  arg0 = get_continuation_for_phi_1 (phi, arg0, arg1, ref,
-					     cnt, visited, abort_on_visited,
-					     translate, data);
-	  if (!arg0)
-	    return NULL_TREE;
-	}
-
-      return arg0;
+  /* Then check against the found candidate.  */
+  for (i = 0; i < nargs; ++i)
+    {
+      arg1 = PHI_ARG_DEF (phi, i);
+      if (arg1 == arg0)
+	;
+      else if (! maybe_skip_until (phi, arg0, ref, arg1, cnt, visited,
+				   abort_on_visited,
+				   /* Do not translate when walking over
+				      backedges.  */
+				   dominated_by_p
+				     (CDI_DOMINATORS,
+				      gimple_bb (SSA_NAME_DEF_STMT (arg1)),
+				      phi_bb)
+				   ? NULL : translate, data))
+	return NULL_TREE;
     }
 
-  return NULL_TREE;
+  return arg0;
 }
 
 /* Based on the memory reference REF and its virtual use VUSE call
@@ -2591,12 +2771,18 @@ get_continuation_for_phi (gimple phi, ao_ref *ref,
    If TRANSLATE returns NULL the walk continues and TRANSLATE is supposed
    to adjust REF and *DATA to make that valid.
 
+   VALUEIZE if non-NULL is called with the next VUSE that is considered
+   and return value is substituted for that.  This can be used to
+   implement optimistic value-numbering for example.  Note that the
+   VUSE argument is assumed to be valueized already.
+
    TODO: Cache the vector of equivalent vuses per ref, vuse pair.  */
 
 void *
 walk_non_aliased_vuses (ao_ref *ref, tree vuse,
 			void *(*walker)(ao_ref *, tree, unsigned int, void *),
-			void *(*translate)(ao_ref *, tree, void *, bool),
+			void *(*translate)(ao_ref *, tree, void *, bool *),
+			tree (*valueize)(tree),
 			void *data)
 {
   bitmap visited = NULL;
@@ -2608,7 +2794,7 @@ walk_non_aliased_vuses (ao_ref *ref, tree vuse,
 
   do
     {
-      gimple def_stmt;
+      gimple *def_stmt;
 
       /* ???  Do we want to account this to TV_ALIAS_STMT_WALK?  */
       res = (*walker) (ref, vuse, cnt, data);
@@ -2622,6 +2808,15 @@ walk_non_aliased_vuses (ao_ref *ref, tree vuse,
       else if (res != NULL)
 	break;
 
+      if (valueize)
+	{
+	  vuse = valueize (vuse);
+	  if (!vuse)
+	    {
+	      res = NULL;
+	      break;
+	    }
+	}
       def_stmt = SSA_NAME_DEF_STMT (vuse);
       if (gimple_nop_p (def_stmt))
 	break;
@@ -2635,7 +2830,8 @@ walk_non_aliased_vuses (ao_ref *ref, tree vuse,
 	    {
 	      if (!translate)
 		break;
-	      res = (*translate) (ref, vuse, data, false);
+	      bool disambiguate_only = false;
+	      res = (*translate) (ref, vuse, data, &disambiguate_only);
 	      /* Failed lookup and translation.  */
 	      if (res == (void *)-1)
 		{
@@ -2646,7 +2842,7 @@ walk_non_aliased_vuses (ao_ref *ref, tree vuse,
 	      else if (res != NULL)
 		break;
 	      /* Translation succeeded, continue walking.  */
-	      translated = true;
+	      translated = translated || !disambiguate_only;
 	    }
 	  vuse = gimple_vuse (def_stmt);
 	}
@@ -2676,17 +2872,19 @@ walk_non_aliased_vuses (ao_ref *ref, tree vuse,
    PHI argument (but only one walk continues on merge points), the
    return value is true if any of the walks was successful.
 
-   The function returns the number of statements walked.  */
+   The function returns the number of statements walked or -1 if
+   LIMIT stmts were walked and the walk was aborted at this point.
+   If LIMIT is zero the walk is not aborted.  */
 
-static unsigned int
+static int
 walk_aliased_vdefs_1 (ao_ref *ref, tree vdef,
 		      bool (*walker)(ao_ref *, tree, void *), void *data,
 		      bitmap *visited, unsigned int cnt,
-		      bool *function_entry_reached)
+		      bool *function_entry_reached, unsigned limit)
 {
   do
     {
-      gimple def_stmt = SSA_NAME_DEF_STMT (vdef);
+      gimple *def_stmt = SSA_NAME_DEF_STMT (vdef);
 
       if (*visited
 	  && !bitmap_set_bit (*visited, SSA_NAME_VERSION (vdef)))
@@ -2704,14 +2902,22 @@ walk_aliased_vdefs_1 (ao_ref *ref, tree vdef,
 	  if (!*visited)
 	    *visited = BITMAP_ALLOC (NULL);
 	  for (i = 0; i < gimple_phi_num_args (def_stmt); ++i)
-	    cnt += walk_aliased_vdefs_1 (ref, gimple_phi_arg_def (def_stmt, i),
-					 walker, data, visited, 0,
-					 function_entry_reached);
+	    {
+	      int res = walk_aliased_vdefs_1 (ref,
+					      gimple_phi_arg_def (def_stmt, i),
+					      walker, data, visited, cnt,
+					      function_entry_reached, limit);
+	      if (res == -1)
+		return -1;
+	      cnt = res;
+	    }
 	  return cnt;
 	}
 
       /* ???  Do we want to account this to TV_ALIAS_STMT_WALK?  */
       cnt++;
+      if (cnt == limit)
+	return -1;
       if ((!ref
 	   || stmt_may_clobber_ref_p_1 (def_stmt, ref))
 	  && (*walker) (ref, vdef, data))
@@ -2722,14 +2928,14 @@ walk_aliased_vdefs_1 (ao_ref *ref, tree vdef,
   while (1);
 }
 
-unsigned int
+int
 walk_aliased_vdefs (ao_ref *ref, tree vdef,
 		    bool (*walker)(ao_ref *, tree, void *), void *data,
 		    bitmap *visited,
-		    bool *function_entry_reached)
+		    bool *function_entry_reached, unsigned int limit)
 {
   bitmap local_visited = NULL;
-  unsigned int ret;
+  int ret;
 
   timevar_push (TV_ALIAS_STMT_WALK);
 
@@ -2738,7 +2944,7 @@ walk_aliased_vdefs (ao_ref *ref, tree vdef,
 
   ret = walk_aliased_vdefs_1 (ref, vdef, walker, data,
 			      visited ? visited : &local_visited, 0,
-			      function_entry_reached);
+			      function_entry_reached, limit);
   if (local_visited)
     BITMAP_FREE (local_visited);
 

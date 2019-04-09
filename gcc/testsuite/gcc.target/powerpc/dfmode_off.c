@@ -1,5 +1,5 @@
 /* { dg-do assemble } */
-/* { dg-options "-O2 -fno-align-functions -mtraceback=no -save-temps" } */
+/* { dg-options "-O2 -fno-align-functions -fno-asynchronous-unwind-tables -mtraceback=no -save-temps" } */
 
 void w1 (void *x, double y) { *(double *) (x + 32767) = y; }
 void w2 (void *x, double y) { *(double *) (x + 32766) = y; }
@@ -44,4 +44,3 @@ double r19 (void *x) { return *(double *) (x + 32749); }
 double r20 (void *x) { return *(double *) (x + 32748); }
 
 /* { dg-final { object-size text == 320 } } */
-/* { dg-final { cleanup-saved-temps "dfmode_off" } } */

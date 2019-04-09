@@ -1,6 +1,6 @@
 /* LTO IL options.
 
-   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 2009-2019 Free Software Foundation, Inc.
    Contributed by Simon Baldwin <simonb@google.com>
 
 This file is part of GCC.
@@ -22,21 +22,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "backend.h"
+#include "target.h"
 #include "tree.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "gimple-expr.h"
-#include "is-a.h"
 #include "gimple.h"
-#include "hashtab.h"
-#include "bitmap.h"
-#include "flags.h"
-#include "opts.h"
-#include "options.h"
-#include "common/common-target.h"
-#include "diagnostic.h"
+#include "cgraph.h"
 #include "lto-streamer.h"
+#include "opts.h"
 #include "toplev.h"
 
 /* Append the option piece OPT to the COLLECT_GCC_OPTIONS string
@@ -78,73 +70,46 @@ lto_write_options (void)
 
   obstack_init (&temporary_obstack);
 
-  /* Output options that affect GIMPLE IL semantics and are implicitly
-     enabled by the frontend.
-     This for now includes an explicit set of options that we also handle
-     explicitly in lto-wrapper.c.  In the end the effects on GIMPLE IL
-     semantics should be explicitely encoded in the IL or saved per
-     function rather than per compilation unit.  */
-  /* -fexceptions causes the EH machinery to be initialized, enabling
-     generation of unwind data so that explicit throw() calls work.  */
-  if (!global_options_set.x_flag_exceptions
-      && global_options.x_flag_exceptions)
+  if (!global_options_set.x_flag_openmp
+      && !global_options.x_flag_openmp)
     append_to_collect_gcc_options (&temporary_obstack, &first_p,
-				   "-fexceptions");
-  /* -fnon-call-exceptions changes the generation of exception
-      regions.  It is enabled implicitly by the Go frontend.  */
-  if (!global_options_set.x_flag_non_call_exceptions
-      && global_options.x_flag_non_call_exceptions)
+				   "-fno-openmp");
+  if (!global_options_set.x_flag_openacc
+      && !global_options.x_flag_openacc)
     append_to_collect_gcc_options (&temporary_obstack, &first_p,
-				   "-fnon-call-exceptions");
-  /* The default -ffp-contract changes depending on the language
-     standard.  Pass thru conservative standard settings.  */
-  if (!global_options_set.x_flag_fp_contract_mode)
-    switch (global_options.x_flag_fp_contract_mode)
-      {
-      case FP_CONTRACT_OFF:
-	append_to_collect_gcc_options (&temporary_obstack, &first_p,
-				       "-ffp-contract=off");
-	break;
-      case FP_CONTRACT_ON:
-	append_to_collect_gcc_options (&temporary_obstack, &first_p,
-				       "-ffp-contract=on");
-	break;
-      case FP_CONTRACT_FAST:
-	/* Nothing.  That merges conservatively and is the default for LTO.  */
-	break;
-      default:
-	gcc_unreachable ();
-      }
-  /* The default -fmath-errno, -fsigned-zeros and -ftrapping-math change
-     depending on the language (they can be disabled by the Ada and Java
-     front-ends).  Pass thru conservative standard settings.  */
-  if (!global_options_set.x_flag_errno_math)
-    append_to_collect_gcc_options (&temporary_obstack, &first_p,
-				   global_options.x_flag_errno_math
-				   ? "-fmath-errno"
-				   : "-fno-math-errno");
-  if (!global_options_set.x_flag_signed_zeros)
-    append_to_collect_gcc_options (&temporary_obstack, &first_p,
-				   global_options.x_flag_signed_zeros
-				   ? "-fsigned-zeros"
-				   : "-fno-signed-zeros");
-  if (!global_options_set.x_flag_trapping_math)
-    append_to_collect_gcc_options (&temporary_obstack, &first_p,
-				   global_options.x_flag_trapping_math
-				   ? "-ftrapping-math"
-				   : "-fno-trapping-math");
-  /* We need to merge -f[no-]strict-overflow, -f[no-]wrapv and -f[no-]trapv
-     conservatively, so stream out their defaults.  */
-  if (!global_options_set.x_flag_wrapv
-      && global_options.x_flag_wrapv)
-    append_to_collect_gcc_options (&temporary_obstack, &first_p, "-fwrapv");
-  if (!global_options_set.x_flag_trapv
-      && !global_options.x_flag_trapv)
-    append_to_collect_gcc_options (&temporary_obstack, &first_p, "-fno-trapv");
-  if (!global_options_set.x_flag_strict_overflow
-      && !global_options.x_flag_strict_overflow)
-    append_to_collect_gcc_options (&temporary_obstack, &first_p,
-			       "-fno-strict-overflow");
+				   "-fno-openacc");
+  /* Append PIC/PIE mode because its default depends on target and it is
+     subject of merging in lto-wrapper.  */
+  if (!global_options_set.x_flag_pic && !global_options_set.x_flag_pie)
+    {
+       append_to_collect_gcc_options (&temporary_obstack, &first_p,
+				      global_options.x_flag_pic == 2
+				      ? "-fPIC"
+				      : global_options.x_flag_pic == 1
+				      ? "-fpic"
+				      : global_options.x_flag_pie == 2
+				      ? "-fPIE"
+				      : global_options.x_flag_pie == 1
+				      ? "-fpie"
+				      : "-fno-pie");
+    }
+
+  /* Append options from target hook and store them to offload_lto section.  */
+  if (lto_stream_offload_p)
+    {
+      char *offload_opts = targetm.offload_options ();
+      char *offload_ptr = offload_opts;
+      while (offload_ptr)
+       {
+	 char *next = strchr (offload_ptr, ' ');
+	 if (next)
+	   *next++ = '\0';
+	 append_to_collect_gcc_options (&temporary_obstack, &first_p,
+					offload_ptr);
+	 offload_ptr = next;
+       }
+      free (offload_opts);
+    }
 
   /* Output explicitly passed options.  */
   for (i = 1; i < save_decoded_options_count; ++i)
@@ -157,8 +122,11 @@ lto_write_options (void)
 	case OPT_dumpbase:
 	case OPT_SPECIAL_unknown:
 	case OPT_SPECIAL_ignore:
+	case OPT_SPECIAL_deprecated:
 	case OPT_SPECIAL_program_name:
 	case OPT_SPECIAL_input_file:
+	case OPT_dumpdir:
+	case OPT_fresolution_:
 	  continue;
 
 	default:
@@ -169,15 +137,22 @@ lto_write_options (void)
       if (!(cl_options[option->opt_index].flags & (CL_COMMON|CL_TARGET|CL_LTO)))
 	continue;
 
+      /* Do not store target-specific options in offload_lto section.  */
+      if ((cl_options[option->opt_index].flags & CL_TARGET)
+	  && lto_stream_offload_p)
+       continue;
+
       /* Drop options created from the gcc driver that will be rejected
 	 when passed on to the driver again.  */
       if (cl_options[option->opt_index].cl_reject_driver)
 	continue;
 
       /* Also drop all options that are handled by the driver as well,
-         which includes things like -o and -v or -fhelp for example.
-	 We do not need those.  Also drop all diagnostic options.  */
-      if (cl_options[option->opt_index].flags & (CL_DRIVER|CL_WARNING))
+	 which includes things like -o and -v or -fhelp for example.
+	 We do not need those.  The only exception is -foffload option, if we
+	 write it in offload_lto section.  Also drop all diagnostic options.  */
+      if ((cl_options[option->opt_index].flags & (CL_DRIVER|CL_WARNING))
+	  && (!lto_stream_offload_p || option->opt_index != OPT_foffload_))
 	continue;
 
       for (j = 0; j < option->canonical_option_num_elements; ++j)

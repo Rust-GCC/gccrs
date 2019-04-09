@@ -1,6 +1,6 @@
-## Makefile for the C++03 sources of the GNU C++ Standard library.
+## Makefile for the C++11 sources of the GNU C++ Standard library.
 ##
-## Copyright (C) 1997-2014 Free Software Foundation, Inc.
+## Copyright (C) 1997-2019 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ## Process this file with automake to produce Makefile.in.
@@ -27,12 +27,40 @@ noinst_LTLIBRARIES = libc++11convenience.la
 
 headers =
 
+# Source files linked in via configuration/make substitution for a
+# particular host.
+host_sources = \
+	ctype_configure_char.cc \
+	ctype_members.cc
+
+ctype_configure_char.cc: ${glibcxx_srcdir}/$(OS_INC_SRCDIR)/ctype_configure_char.cc
+	$(LN_S) ${glibcxx_srcdir}/$(OS_INC_SRCDIR)/ctype_configure_char.cc . || true
+
+ctype_members.cc: ${glibcxx_srcdir}/$(CCTYPE_CC)
+	$(LN_S) ${glibcxx_srcdir}/$(CCTYPE_CC) . || true
+
+if ENABLE_DUAL_ABI
+cxx11_abi_sources = \
+	cow-locale_init.cc \
+	cow-shim_facets.cc \
+	cxx11-hash_tr1.cc \
+	cxx11-ios_failure.cc \
+	cxx11-shim_facets.cc \
+	cxx11-stdexcept.cc
+else
+cxx11_abi_sources =
+endif
+
 sources = \
 	chrono.cc \
+	codecvt.cc \
 	condition_variable.cc \
+	cow-stdexcept.cc \
+	ctype.cc \
 	debug.cc \
 	functexcept.cc \
 	functional.cc \
+	futex.cc \
 	future.cc \
 	hash_c++0x.cc \
 	hashtable_c++0x.cc \
@@ -45,21 +73,43 @@ sources = \
 	shared_ptr.cc \
 	snprintf_lite.cc \
 	system_error.cc \
-	thread.cc
+	thread.cc \
+	${cxx11_abi_sources} \
+	${host_sources}
+
+if ENABLE_DUAL_ABI
+extra_string_inst_sources = \
+	cow-fstream-inst.cc \
+	cow-sstream-inst.cc \
+	cow-string-inst.cc \
+	cow-string-io-inst.cc \
+	cow-wstring-inst.cc \
+	cow-wstring-io-inst.cc \
+	cxx11-locale-inst.cc \
+	cxx11-wlocale-inst.cc \
+	sso_string.cc
+else
+extra_string_inst_sources =
+endif
 
 if ENABLE_EXTERN_TEMPLATE
 # XTEMPLATE_FLAGS = -fno-implicit-templates
 inst_sources = \
+	$(extra_string_inst_sources) \
 	ext11-inst.cc \
 	fstream-inst.cc \
 	ios-inst.cc \
 	iostream-inst.cc \
 	istream-inst.cc \
+	locale-inst.cc \
 	ostream-inst.cc \
 	sstream-inst.cc \
 	streambuf-inst.cc \
 	string-inst.cc \
-	wstring-inst.cc
+	string-io-inst.cc \
+	wlocale-inst.cc \
+	wstring-inst.cc \
+	wstring-io-inst.cc
 else
 # XTEMPLATE_FLAGS =
 inst_sources =
@@ -70,11 +120,41 @@ vpath % $(top_srcdir)/src/c++11
 libc__11convenience_la_SOURCES = $(sources)  $(inst_sources)
 
 # Use special rules for the hashtable.cc file so that all
-# the generated template functions are also instantiated. 
+# the generated template functions are also instantiated.
 hashtable_c++0x.lo: hashtable_c++0x.cc
 	$(LTCXXCOMPILE) -fimplicit-templates -c $<
 hashtable_c++0x.o: hashtable_c++0x.cc
 	$(CXXCOMPILE) -fimplicit-templates -c $<
+
+# Use special rules for source files that require -fchar8_t.
+codecvt.lo: codecvt.cc
+	$(LTCXXCOMPILE) -fchar8_t -c $<
+codecvt.o: codecvt.cc
+	$(CXXCOMPILE) -fchar8_t -c $<
+limits.lo: limits.cc
+	$(LTCXXCOMPILE) -fchar8_t -c $<
+limits.o: limits.cc
+	$(CXXCOMPILE) -fchar8_t -c $<
+
+if ENABLE_DUAL_ABI
+# Rewrite the type info for __ios_failure.
+rewrite_ios_failure_typeinfo = sed -e '/^_*_ZTISt13__ios_failure:/,/_ZTVN10__cxxabiv120__si_class_type_infoE/s/_ZTVN10__cxxabiv120__si_class_type_infoE/_ZTVSt19__iosfail_type_info/'
+
+cxx11-ios_failure-lt.s: cxx11-ios_failure.cc
+	$(LTCXXCOMPILE) -S $< -o tmp-cxx11-ios_failure-lt.s
+	-test -f tmp-cxx11-ios_failure-lt.o && mv -f tmp-cxx11-ios_failure-lt.o tmp-cxx11-ios_failure-lt.s
+	$(rewrite_ios_failure_typeinfo) tmp-$@ > $@
+	-rm -f tmp-$@
+cxx11-ios_failure.s: cxx11-ios_failure.cc
+	$(CXXCOMPILE) -S $< -o tmp-$@
+	$(rewrite_ios_failure_typeinfo) tmp-$@ > $@
+	-rm -f tmp-$@
+
+cxx11-ios_failure.lo: cxx11-ios_failure-lt.s
+	$(LTCXXCOMPILE) -g0 -c $< -o $@
+cxx11-ios_failure.o: cxx11-ios_failure.s
+	$(CXXCOMPILE) -g0 -c $<
+endif
 
 # AM_CXXFLAGS needs to be in each subdirectory so that it can be
 # modified in a per-library or per-sub-library way.  Need to manually
@@ -104,7 +184,7 @@ AM_MAKEFLAGS = \
 # correct solution is to add `--tag CXX' to LTCXXCOMPILE and maybe
 # CXXLINK, just after $(LIBTOOL), so that libtool doesn't have to
 # attempt to infer which configuration to use.
-# 
+#
 # The second tag argument, `--tag disable-shared` means that libtool
 # only compiles each source once, for static objects. In actuality,
 # glibcxx_lt_pic_flag and glibcxx_compiler_shared_flag are added to

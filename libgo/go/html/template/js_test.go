@@ -138,7 +138,7 @@ func TestJSValEscaper(t *testing.T) {
 		// Newlines.
 		{"\r\n\u2028\u2029", `"\r\n\u2028\u2029"`},
 		// "\v" == "v" on IE 6 so use "\x0b" instead.
-		{"\t\x0b", `"\u0009\u000b"`},
+		{"\t\x0b", `"\t\u000b"`},
 		{struct{ X, Y int }{1, 2}, `{"X":1,"Y":2}`},
 		{[]interface{}{}, "[]"},
 		{[]interface{}{42, "foo", nil}, `[42,"foo",null]`},
@@ -149,6 +149,7 @@ func TestJSValEscaper(t *testing.T) {
 		{"]]>", `"]]\u003e"`},
 		{"</script", `"\u003c/script"`},
 		{"\U0001D11E", "\"\U0001D11E\""}, // or "\uD834\uDD1E"
+		{nil, " null "},
 	}
 
 	for _, test := range tests {
@@ -190,7 +191,7 @@ func TestJSStrEscaper(t *testing.T) {
 		{"</script>", `\x3c\/script\x3e`},
 		{"<![CDATA[", `\x3c![CDATA[`},
 		{"]]>", `]]\x3e`},
-		// http://dev.w3.org/html5/markup/aria/syntax.html#escaping-text-span
+		// https://dev.w3.org/html5/markup/aria/syntax.html#escaping-text-span
 		//   "The text in style, script, title, and textarea elements
 		//   must not have an escaping text span start that is not
 		//   followed by an escaping text span end."
@@ -202,7 +203,7 @@ func TestJSStrEscaper(t *testing.T) {
 		// injection followed by an HTML text injection.
 		{"<!--", `\x3c!--`},
 		{"-->", `--\x3e`},
-		// From http://code.google.com/p/doctype/wiki/ArticleUtf7
+		// From https://code.google.com/p/doctype/wiki/ArticleUtf7
 		{"+ADw-script+AD4-alert(1)+ADw-/script+AD4-",
 			`\x2bADw-script\x2bAD4-alert(1)\x2bADw-\/script\x2bAD4-`,
 		},
@@ -328,6 +329,26 @@ func TestEscapersOnLower7AndSelectHighCodepoints(t *testing.T) {
 		if s := buf.String(); s != test.escaped {
 			t.Errorf("%s rune-wise: want\n\t%q\ngot\n\t%q", test.name, test.escaped, s)
 			continue
+		}
+	}
+}
+
+func TestIsJsMimeType(t *testing.T) {
+	tests := []struct {
+		in  string
+		out bool
+	}{
+		{"application/javascript;version=1.8", true},
+		{"application/javascript;version=1.8;foo=bar", true},
+		{"application/javascript/version=1.8", false},
+		{"text/javascript", true},
+		{"application/json", true},
+		{"application/ld+json", true},
+	}
+
+	for _, test := range tests {
+		if isJSType(test.in) != test.out {
+			t.Errorf("isJSType(%q) = %v, want %v", test.in, !test.out, test.out)
 		}
 	}
 }

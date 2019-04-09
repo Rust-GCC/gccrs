@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++0x" }
+// { dg-do compile { target c++11 } }
 //
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -17,25 +17,34 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+// NB: Don't include any other headers in this file.
+// LWG 2212 requires <array> to define tuple_size<cv T> specializations.
 #include <array>
-#include <testsuite_hooks.h>
 
 void
 test01() 
-{ 
-  bool test __attribute__((unused)) = true;
-  using namespace std;
+{
+  using std::array;
+  using std::tuple_size;
+  // This relies on the fact that <utility> includes <type_traits>:
+  using std::is_same;
 
   {
     const size_t len = 5;
     typedef array<int, len> array_type;
-    VERIFY( tuple_size<array_type>::value == 5 );
+    static_assert(tuple_size<array_type>::value == 5, "");
+    static_assert(tuple_size<const array_type>::value == 5, "");
+    static_assert(tuple_size<volatile array_type>::value == 5, "");
+    static_assert(tuple_size<const volatile array_type>::value == 5, "");
   }
 
   {
     const size_t len = 0;
     typedef array<float, len> array_type;
-    VERIFY( tuple_size<array_type>::value == 0 );
+    static_assert(tuple_size<array_type>::value == 0, "");
+    static_assert(tuple_size<const array_type>::value == 0, "");
+    static_assert(tuple_size<volatile array_type>::value == 0, "");
+    static_assert(tuple_size<const volatile array_type>::value == 0, "");
   }
 }
 

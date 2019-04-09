@@ -1,6 +1,6 @@
 /* Get common system includes and various definitions and declarations based
    on autoconf macros.
-   Copyright (C) 1998-2014 Free Software Foundation, Inc.
+   Copyright (C) 1998-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -36,6 +36,10 @@ along with GCC; see the file COPYING3.  If not see
 #endif
 
 #include <stdio.h>
+
+#ifdef __cplusplus
+#include <new>
+#endif
 
 /* Define a generic NULL if one hasn't already been defined.  */
 #ifndef NULL
@@ -230,7 +234,7 @@ extern int errno;
 /* The outer cast is needed to work around a bug in Cray C 5.0.3.0.
    It is necessary at least when t == time_t.  */
 #define INTTYPE_MINIMUM(t) ((t) (INTTYPE_SIGNED (t) \
-                             ? ~ (t) 0 << (sizeof(t) * CHAR_BIT - 1) : (t) 0))
+			    ? (t) 1 << (sizeof (t) * CHAR_BIT - 1) : (t) 0))
 #define INTTYPE_MAXIMUM(t) ((t) (~ (t) 0 - INTTYPE_MINIMUM (t)))
 
 /* Use that infrastructure to provide a few constants.  */
@@ -375,9 +379,12 @@ extern void abort (void);
    ??? C99 designated initializers are not supported by most C++
    compilers, including G++.  -- gdr, 2005-05-18  */
 #if !defined(HAVE_DESIGNATED_INITIALIZERS)
+#ifdef __cplusplus
+#define HAVE_DESIGNATED_INITIALIZERS 0
+#else
 #define HAVE_DESIGNATED_INITIALIZERS \
-  (!defined(__cplusplus) \
-   && ((GCC_VERSION >= 2007) || (__STDC_VERSION__ >= 199901L)))
+   ((GCC_VERSION >= 2007) || (__STDC_VERSION__ >= 199901L))
+#endif
 #endif
 
 #ifndef offsetof
@@ -389,6 +396,30 @@ extern void abort (void);
    between 2.95 and 3.0.  Let's use 3.0 as the lower bound for now.  */
 #if (GCC_VERSION < 3000)
 #define __builtin_expect(a, b) (a)
+#endif
+
+/* Redefine abort to report an internal error w/o coredump, and
+   reporting the location of the error in the source file.  */
+extern void fancy_abort (const char *, int, const char *) ATTRIBUTE_NORETURN;
+#define abort() fancy_abort (__FILE__, __LINE__, __FUNCTION__)
+
+/* Use gcc_assert(EXPR) to test invariants.  */
+#if ENABLE_ASSERT_CHECKING
+#define gcc_assert(EXPR) 						\
+   ((void)(!(EXPR) ? fancy_abort (__FILE__, __LINE__, __FUNCTION__), 0 : 0))
+#elif (GCC_VERSION >= 4005)
+#define gcc_assert(EXPR) 						\
+  ((void)(__builtin_expect (!(EXPR), 0) ? __builtin_unreachable (), 0 : 0))
+#else
+/* Include EXPR, so that unused variable warnings do not occur.  */
+#define gcc_assert(EXPR) ((void)(0 && (EXPR)))
+#endif
+
+#if CHECKING_P
+#define gcc_checking_assert(EXPR) gcc_assert (EXPR)
+#else
+/* N.B.: in release build EXPR is not evaluated.  */
+#define gcc_checking_assert(EXPR) ((void)(0 && (EXPR)))
 #endif
 
 /* Provide a fake boolean type.  We make no attempt to use the

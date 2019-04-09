@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, EPIPHANY cpu.
-   Copyright (C) 2000-2014 Free Software Foundation, Inc.
+   Copyright (C) 2000-2019 Free Software Foundation, Inc.
    Contributed by Embecosm on behalf of Adapteva, Inc.
 
 This file is part of GCC.
@@ -19,11 +19,11 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #ifdef RTX_CODE
-extern enum machine_mode epiphany_select_cc_mode (enum rtx_code, rtx, rtx);
+extern machine_mode epiphany_select_cc_mode (enum rtx_code, rtx, rtx);
 
 /* Define the function that build the compare insn for scc and bcc.  */
-extern struct rtx_def *gen_compare_reg (enum machine_mode, enum rtx_code,
-					enum machine_mode, rtx, rtx);
+extern struct rtx_def *gen_compare_reg (machine_mode, enum rtx_code,
+					machine_mode, rtx, rtx);
 #endif
 
 /* Declarations for various fns used in the .md file.  */
@@ -38,7 +38,6 @@ extern void epiphany_expand_prologue (void);
 extern void epiphany_expand_epilogue (int);
 extern int epiphany_initial_elimination_offset (int, int);
 extern void epiphany_init_expanders (void);
-extern int hard_regno_mode_ok (int regno, enum machine_mode mode);
 #ifdef HARD_CONST
 extern void emit_set_fp_mode (int entity, int mode, int prev_mode,
 			      HARD_REG_SET regs_live);

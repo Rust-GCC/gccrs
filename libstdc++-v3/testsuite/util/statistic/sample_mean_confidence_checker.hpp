@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -58,8 +58,8 @@ namespace __gnu_pbds
        */
       template<typename Value_Type>
       bool
-      sample_mean_confidence_checker(Value_Type sm, Value_Type sv, 
-				     std::size_t num_samples, 
+      sample_mean_confidence_checker(Value_Type sm, Value_Type sv,
+				     std::size_t num_samples,
 				     double relative_interval)
       {
 	enum
@@ -80,5 +80,5 @@ namespace __gnu_pbds
   } // namespace test
 } // namespace __gnu_pbds
 
-#endif 
+#endif
 

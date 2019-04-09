@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2012-2019 Free Software Foundation, Inc.
    Contributed by Georg-Johann Lay (avr@gjlay.de)
 
    This file is part of GCC.
@@ -19,10 +19,10 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #define IN_GEN_AVR_MMCU_TEXI
 
-#include "avr-arch.h"
 #include "avr-devices.c"
 
 static const char*
@@ -97,11 +97,11 @@ print_mcus (size_t n_mcus)
 
 int main (void)
 {
-  enum avr_arch arch = ARCH_UNKNOWN;
+  enum avr_arch_id arch_id = ARCH_UNKNOWN;
   size_t i, n_mcus = 0;
   const avr_mcu_t *mcu;
 
-  printf ("@c Copyright (C) 2012-2014 Free Software Foundation, Inc.\n");
+  printf ("@c Copyright (C) 2012-2019 Free Software Foundation, Inc.\n");
   printf ("@c This is part of the GCC manual.\n");
   printf ("@c For copying conditions, see the file "
           "gcc/doc/include/fdl.texi.\n\n");
@@ -120,7 +120,7 @@ int main (void)
     {
       if (mcu->macro == NULL)
         {
-          arch = mcu->arch;
+          arch_id = mcu->arch_id;
 
           /* Start a new architecture:  Flush the MCUs collected so far.  */
 
@@ -128,10 +128,10 @@ int main (void)
           n_mcus = 0;
 
           for (i = 0; i < sizeof (avr_texinfo) / sizeof (*avr_texinfo); i++)
-            if (arch == avr_texinfo[i].arch)
+            if (arch_id == avr_texinfo[i].arch_id)
               printf ("@item %s\n%s\n", mcu->name, avr_texinfo[i].texinfo);
         }
-      else if (arch == (enum avr_arch) mcu->arch)
+      else if (arch_id == (enum avr_arch_id) mcu->arch_id)
         {
           mcu_name[n_mcus++] = mcu->name;
         }

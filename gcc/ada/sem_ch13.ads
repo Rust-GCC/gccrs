@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -42,29 +42,17 @@ package Sem_Ch13 is
    --  is the corresponding entity declared by the declaration node N. Callers
    --  should check that Has_Aspects (N) is True before calling this routine.
 
+   procedure Analyze_Aspects_On_Subprogram_Body_Or_Stub (N : Node_Id);
+   --  Analyze the aspect specifications of [generic] subprogram body or stub
+   --  N. Callers should check that Has_Aspects (N) is True before calling the
+   --  routine. This routine diagnoses misplaced aspects that should appear on
+   --  the initial declaration of N and offers suggestions for replacements.
+
    procedure Adjust_Record_For_Reverse_Bit_Order (R : Entity_Id);
    --  Called from Freeze where R is a record entity for which reverse bit
-   --  order is specified and there is at least one component clause. Adjusts
-   --  component positions according to either Ada 95 or Ada 2005 (AI-133).
-
-   function Build_Invariant_Procedure_Declaration
-     (Typ : Entity_Id) return Node_Id;
-   --  If a type declaration has a specified invariant aspect, build the
-   --  declaration for the procedure at once, so that calls to it can be
-   --  generated before the body of the invariant procedure is built. This
-   --  is needed in the presence of public expression functions that return
-   --  the type in question.
-
-   procedure Build_Invariant_Procedure (Typ : Entity_Id; N : Node_Id);
-   --  Typ is a private type with invariants (indicated by Has_Invariants being
-   --  set for Typ, indicating the presence of pragma Invariant entries on the
-   --  rep chain, note that Invariant aspects have already been converted to
-   --  pragma Invariant), then this procedure builds the spec and body for the
-   --  corresponding Invariant procedure, inserting them at appropriate points
-   --  in the package specification N. Invariant_Procedure is set for Typ. Note
-   --  that this procedure is called at the end of processing the declarations
-   --  in the visible part (i.e. the right point for visibility analysis of
-   --  the invariant expression).
+   --  order is specified and there is at least one component clause. Note:
+   --  component positions are normally adjusted as per AI95-0133, unless
+   --  -gnatd.p is used to restore original Ada 95 mode.
 
    procedure Check_Record_Representation_Clause (N : Node_Id);
    --  This procedure completes the analysis of a record representation clause
@@ -201,6 +189,18 @@ package Sem_Ch13 is
    --  change. A False result is possible only for array, enumeration or
    --  record types.
 
+   procedure Validate_Compile_Time_Warning_Error (N : Node_Id);
+   --  N is a pragma Compile_Time_Error or Compile_Warning_Error whose boolean
+   --  expression is not known at compile time. This procedure makes an entry
+   --  in a table. The actual checking is performed by Validate_Compile_Time_
+   --  Warning_Errors, which is invoked after calling the back end.
+
+   procedure Validate_Compile_Time_Warning_Errors;
+   --  This routine is called after calling the back end to validate pragmas
+   --  Compile_Time_Error and Compile_Time_Warning for size and alignment
+   --  appropriateness. The reason it is called that late is to take advantage
+   --  of any back-annotation of size and alignment performed by the back end.
+
    procedure Validate_Unchecked_Conversion
      (N        : Node_Id;
       Act_Unit : Entity_Id);
@@ -213,10 +213,10 @@ package Sem_Ch13 is
    --  back end as required.
 
    procedure Validate_Unchecked_Conversions;
-   --  This routine is called after calling the backend to validate unchecked
+   --  This routine is called after calling the back end to validate unchecked
    --  conversions for size and alignment appropriateness. The reason it is
    --  called that late is to take advantage of any back-annotation of size
-   --  and alignment performed by the backend.
+   --  and alignment performed by the back end.
 
    procedure Validate_Address_Clauses;
    --  This is called after the back end has been called (and thus after the
@@ -341,33 +341,23 @@ package Sem_Ch13 is
    --  Given an entity Typ that denotes a derived type or a subtype, this
    --  routine performs the inheritance of aspects at the freeze point.
 
+   procedure Resolve_Aspect_Expressions (E : Entity_Id);
+   --  Name resolution of an aspect expression happens at the end of the
+   --  current declarative part or at the freeze point for the entity,
+   --  whichever comes first. For declarations in the visible part of a
+   --  package, name resolution takes place before analysis of the private
+   --  part even though the freeze point of the entity may appear later.
+
    procedure Validate_Iterable_Aspect (Typ : Entity_Id; ASN : Node_Id);
    --  For SPARK 2014 formal containers. The expression has the form of an
    --  aggregate, and each entry must denote a function with the proper syntax
    --  for First, Next, and Has_Element. Optionally an Element primitive may
    --  also be defined.
 
-   -----------------------------------------------------------
-   --  Visibility of Discriminants in Aspect Specifications --
-   -----------------------------------------------------------
-
-   --  The discriminants of a type are visible when analyzing the aspect
-   --  specifications of a type declaration or protected type declaration,
-   --  but not when analyzing those of a subtype declaration. The following
-   --  routines enforce this distinction.
-
    procedure Install_Discriminants (E : Entity_Id);
    --  Make visible the discriminants of type entity E
 
-   procedure Push_Scope_And_Install_Discriminants (E : Entity_Id);
-   --  Push scope E and makes visible the discriminants of type entity E if E
-   --  has discriminants and is not a subtype.
-
    procedure Uninstall_Discriminants (E : Entity_Id);
    --  Remove visibility to the discriminants of type entity E
-
-   procedure Uninstall_Discriminants_And_Pop_Scope (E : Entity_Id);
-   --  Remove visibility to the discriminants of type entity E and pop the
-   --  scope stack if E has discriminants and is not a subtype.
 
 end Sem_Ch13;

@@ -1,5 +1,5 @@
 ;; Predicate definitions for Frv.
-;; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -504,7 +504,6 @@
   (match_code "const_int,const_double,symbol_ref,label_ref,const")
 {
   HOST_WIDE_INT value;
-  REAL_VALUE_TYPE rv;
   long l;
 
   switch (GET_CODE (op))
@@ -540,8 +539,7 @@
     case CONST_DOUBLE:
       if (GET_MODE (op) == SFmode)
 	{
-	  REAL_VALUE_FROM_CONST_DOUBLE (rv, op);
-	  REAL_VALUE_TO_TARGET_SINGLE (rv, l);
+	  REAL_VALUE_TO_TARGET_SINGLE (*CONST_DOUBLE_REAL_VALUE (op), l);
 	  value = l;
 	  return ! IN_RANGE (value, -32768, 32767);
 	}
@@ -1216,7 +1214,7 @@
 (define_predicate "ccr_eqne_operator"
   (match_code "eq,ne")
 {
-  enum machine_mode op_mode = GET_MODE (op);
+  machine_mode op_mode = GET_MODE (op);
   rtx op0;
   rtx op1;
   int regno;
@@ -1279,7 +1277,7 @@
 (define_predicate "condexec_si_binary_operator"
   (match_code "plus,minus,and,ior,xor,ashift,ashiftrt,lshiftrt")
 {
-  enum machine_mode op_mode = GET_MODE (op);
+  machine_mode op_mode = GET_MODE (op);
 
   if (mode != VOIDmode && op_mode != mode)
     return FALSE;
@@ -1307,7 +1305,7 @@
 (define_predicate "condexec_si_media_operator"
   (match_code "and,ior,xor")
 {
-  enum machine_mode op_mode = GET_MODE (op);
+  machine_mode op_mode = GET_MODE (op);
 
   if (mode != VOIDmode && op_mode != mode)
     return FALSE;
@@ -1330,7 +1328,7 @@
 (define_predicate "condexec_si_divide_operator"
   (match_code "div,udiv")
 {
-  enum machine_mode op_mode = GET_MODE (op);
+  machine_mode op_mode = GET_MODE (op);
 
   if (mode != VOIDmode && op_mode != mode)
     return FALSE;
@@ -1352,7 +1350,7 @@
 (define_predicate "condexec_si_unary_operator"
   (match_code "not,neg")
 {
-  enum machine_mode op_mode = GET_MODE (op);
+  machine_mode op_mode = GET_MODE (op);
 
   if (mode != VOIDmode && op_mode != mode)
     return FALSE;
@@ -1375,7 +1373,7 @@
 (define_predicate "condexec_sf_add_operator"
   (match_code "plus,minus")
 {
-  enum machine_mode op_mode = GET_MODE (op);
+  machine_mode op_mode = GET_MODE (op);
 
   if (mode != VOIDmode && op_mode != mode)
     return FALSE;
@@ -1397,7 +1395,7 @@
 (define_predicate "condexec_sf_conv_operator"
   (match_code "abs,neg")
 {
-  enum machine_mode op_mode = GET_MODE (op);
+  machine_mode op_mode = GET_MODE (op);
 
   if (mode != VOIDmode && op_mode != mode)
     return FALSE;

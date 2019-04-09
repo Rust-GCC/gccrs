@@ -1,8 +1,8 @@
 /* { dg-do compile } */
-/* { dg-options "-O3 -fno-ipa-cp -fdump-ipa-inline-details -fno-early-inlining -fdump-tree-optimized" } */
+/* { dg-options "-O3 -fno-ipa-cp -fdump-ipa-inline-details -fno-early-inlining" } */
 struct A {
   virtual int foo () {return 1;}
-  int wrapfoo () {foo();}
+  void wrapfoo () {foo();}
   A() {wrapfoo();}
 };
 inline void* operator new(__SIZE_TYPE__ s, void* buf) throw() {
@@ -29,7 +29,7 @@ test (struct A *a)
   test2(a);
 }
 
-main()
+int main()
 {
   struct B a;
   dostuff (&a);
@@ -39,4 +39,3 @@ main()
 /* One invocation is A::foo () other is B::foo () even though the type is destroyed and rebuilt in test() */
 /* { dg-final { scan-ipa-dump-times "Discovered a virtual call to a known target\[^\\n\]*A::foo" 1 "inline"  } } */
 /* { dg-final { scan-ipa-dump-times "Discovered a virtual call to a known target\[^\\n\]*B::foo" 1 "inline"  } } */
-/* { dg-final { cleanup-ipa-dump "inline" } } */

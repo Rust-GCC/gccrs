@@ -1,5 +1,5 @@
 /* Definitions of target machine for gcc for Renesas / SuperH SH using ELF.
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
    Contributed by Ian Lance Taylor <ian@cygnus.com>.
 
 This file is part of GCC.
@@ -32,7 +32,6 @@ along with GCC; see the file COPYING3.  If not see
 #define DWARF2_ASM_LINE_DEBUG_INFO 1
 
 #undef WCHAR_TYPE
-/* #define WCHAR_TYPE (TARGET_SH5 ? "int" : "long int")  */
 #define WCHAR_TYPE SH_ELF_WCHAR_TYPE
    
 #undef WCHAR_TYPE_SIZE
@@ -44,10 +43,10 @@ along with GCC; see the file COPYING3.  If not see
 #define LOCAL_LABEL_PREFIX "."
 
 #undef SIZE_TYPE
-#define SIZE_TYPE (TARGET_SH5 ? "long unsigned int" : "unsigned int")
+#define SIZE_TYPE ("unsigned int")
 
 #undef PTRDIFF_TYPE
-#define PTRDIFF_TYPE (TARGET_SH5 ? "long int" : "int")
+#define PTRDIFF_TYPE ("int")
 
 /* Pass -ml and -mrelax to the assembler and linker.  */
 #undef ASM_SPEC

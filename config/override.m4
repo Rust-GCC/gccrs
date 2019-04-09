@@ -29,7 +29,7 @@ m4_copy_force([_AC_PREREQ], [AC_PREREQ])
 
 dnl Ensure exactly this Autoconf version is used
 m4_ifndef([_GCC_AUTOCONF_VERSION],
-  [m4_define([_GCC_AUTOCONF_VERSION], [2.64])])
+  [m4_define([_GCC_AUTOCONF_VERSION], [2.69])])
 
 dnl Test for the exact version when AC_INIT is expanded.
 dnl This allows to update the tree in steps (for testing)
@@ -100,5 +100,17 @@ m4_define([_AC_CHECK_DECLS],
 [m4_ifvaln([$2$3], [AS_IF([test $ac_have_decl = 1], [$2], [$3])])])
 
 ])
+
+dnl If flex/lex are not found, the top level configure sets LEX to
+dnl "/path_to/missing flex".  When AC_PROG_LEX tries to find the flex
+dnl output file, it calls $LEX to do so, but the current lightweight
+dnl "missing" won't create a file.  This results in an error.
+dnl Avoid calling the bulk of AC_PROG_LEX when $LEX is "missing".
+AC_DEFUN_ONCE([AC_PROG_LEX],
+[AC_CHECK_PROGS(LEX, flex lex, :)
+case "$LEX" in
+  :|*"missing "*) ;;
+  *) _AC_PROG_LEX_YYTEXT_DECL ;;
+esac])
 
 ])

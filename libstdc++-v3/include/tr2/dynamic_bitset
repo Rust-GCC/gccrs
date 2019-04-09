@@ -1,6 +1,6 @@
 // TR2 <dynamic_bitset> -*- C++ -*-
 
-// Copyright (C) 2009-2014 Free Software Foundation, Inc.
+// Copyright (C) 2009-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -42,10 +42,10 @@
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
-namespace tr2
-{
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
+namespace tr2
+{
   /**
    *  @defgroup dynamic_bitset Dynamic Bitset.
    *  @ingroup extensions
@@ -593,6 +593,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        *  @param  __str  A string of '0' and '1' characters.
        *  @param  __pos  Index of the first character in @p __str to use.
        *  @param  __n    The number of characters to copy.
+       *  @param  __zero The character to use for unset bits.
+       *  @param  __one  The character to use for set bits.
+       *  @param  __alloc An allocator.
        *  @throw  std::out_of_range  If @p __pos is bigger the size of @p __str.
        *  @throw  std::invalid_argument  If a character appears in the string
        *                                 which is neither '0' nor '1'.
@@ -724,10 +727,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       void
       push_back(bool __bit)
       {
-	if (size_t __offset = this->size() % bits_per_block == 0)
-	  this->_M_do_append_block(block_type(0), this->_M_Nb);
+	if (this->size() % bits_per_block == 0)
+	  this->_M_do_append_block(block_type(__bit), this->_M_Nb);
+	else
+	  this->_M_unchecked_set(this->_M_Nb, __bit);
 	++this->_M_Nb;
-	this->_M_unchecked_set(this->_M_Nb, __bit);
       }
 
       /**
@@ -1010,7 +1014,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return this->_M_size(); }
 
       /// Returns true if the dynamic_bitset is empty.
-      bool
+      _GLIBCXX_NODISCARD bool
       empty() const noexcept
       { return (this->_M_Nb == 0); }
 
@@ -1217,9 +1221,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   /**
    *  @}
    */
+} // tr2
 
 _GLIBCXX_END_NAMESPACE_VERSION
-} // tr2
 } // std
 
 #include <tr2/dynamic_bitset.tcc>

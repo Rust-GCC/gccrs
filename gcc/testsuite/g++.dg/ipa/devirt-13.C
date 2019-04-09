@@ -11,10 +11,10 @@ public:
 };
 }
 class A a, *b=&a;
-main()
+
+int main()
 {
   return b->foo();
 }
 
 /* { dg-final { scan-tree-dump-times "OBJ_TYPE_REF" 0 "ssa"} } */
-/* { dg-final { cleanup-tree-dump "ssa" } } */

@@ -1,5 +1,5 @@
 ;;  Machine Description for Renesas RL78 processors
-;;  Copyright (C) 2011-2014 Free Software Foundation, Inc.
+;;  Copyright (C) 2011-2019 Free Software Foundation, Inc.
 ;;  Contributed by Red Hat.
 
 ;; This file is part of GCC.
@@ -110,6 +110,17 @@
    Integer constant with bit 7 set."
   (and (match_code "const_int")
        (match_test "(ival & 0x80) != 0")))
+
+(define_constraint "Ibqi"
+  "@internal
+   Integer constant with one bit in 0..7 set."
+  (and (match_code "const_int")
+       (match_test "(ival & 0xff) && (exact_log2 (ival & 0xff) >= 0)")))
+(define_constraint "IBqi"
+  "@internal
+   Integer constant with one bit in 0..7 clear."
+  (and (match_code "const_int")
+       (match_test "(~ival & 0xff) && (exact_log2 (~ival & 0xff) >= 0)")))
 
 (define_constraint "J"
   "Integer constant in the range -255 @dots{} 0"
@@ -342,20 +353,34 @@
 	(and (match_code "plus" "0")
 	     (and (and (match_code "reg" "00")
 		       (match_test "REGNO (XEXP (XEXP (op, 0), 0)) == SP_REG"))
-		       (match_test "ubyte_operand (XEXP (XEXP (op, 0), 1), VOIDmode)"))))
+		       (and (match_code "const_int" "01")
+		            (match_test "IN_RANGE (INTVAL (XEXP (XEXP (op, 0), 1)), 0, 256 - GET_MODE_SIZE (GET_MODE (op)))")))))
        )
   )
+
 (define_memory_constraint "Ws1"
   "es:word8[SP]"
   (match_test "(rl78_es_addr (op) && satisfies_constraint_Cs1 (rl78_es_base (op)))
                || satisfies_constraint_Cs1 (op)")
   )
 
-(define_memory_constraint "Wfr"
+(define_constraint "Wfr"
   "ES/CS far pointer"
   (and (match_code "mem")
        (match_test "rl78_far_p (op)"))
   )
+
+(define_memory_constraint "Wsa"
+  "any SADDR memory access"
+  (and (match_code "mem")
+       (match_test "rl78_saddr_p (op)"))
+)
+
+(define_memory_constraint "Wsf"
+  "any SFR memory access"
+  (and (match_code "mem")
+       (match_test "rl78_sfr_p (op)"))
+)
 
 (define_memory_constraint "Y"
   "any near legitimate memory access"
@@ -384,3 +409,9 @@
 (define_memory_constraint "Qsc"
   "synthetic compares"
   (match_code "gt,lt,ge,le"))
+
+(define_constraint "Qs8"
+  "Integer constant computed from (SUBREG (SYMREF))."
+  (and (match_code "subreg")
+       (match_test "GET_CODE (XEXP (op, 0)) == SYMBOL_REF"))
+)

@@ -2,7 +2,6 @@
 /* { dg-require-effective-target vect_int } */
 
 #include <stdarg.h>
-#include <signal.h>
 #include "tree-vect.h"
 
 #define N 16
@@ -33,4 +32,3 @@ int main ()
 
 
 /* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */

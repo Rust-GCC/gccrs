@@ -1,5 +1,5 @@
 /* ELF definitions for TI C6X
-   Copyright (C) 2010-2014 Free Software Foundation, Inc.
+   Copyright (C) 2010-2019 Free Software Foundation, Inc.
    Contributed by Andrew Jenner <andrew@codesourcery.com>
    Contributed by Bernd Schmidt <bernds@codesourcery.com>
 
@@ -24,8 +24,10 @@
 
 #undef ASM_SPEC
 #define ASM_SPEC "%{march=*:-march=%*} %{mbig-endian:-mbig-endian} \
- %{mdsbt:-mdsbt %{!fPIC:-mpid=near} %{fPIC:-mpid=far -mpic} %{fpic:-mpic}} \
- %{!mdsbt:%{fpic:-mpic -mpid=near} %{fPIC:-mpic -mpid=far}}"
+ %{mdsbt:-mdsbt %{" NO_FPIC2_SPEC ":-mpid=near} \
+   %{" FPIC2_SPEC ":-mpid=far -mpic} %{" FPIC1_SPEC ":-mpic}} \
+ %{!mdsbt:%{" FPIC1_SPEC ":-mpic -mpid=near} \
+   %{" FPIC2_SPEC ":-mpic -mpid=far}}"
 
 #undef DATA_SECTION_ASM_OP
 #define DATA_SECTION_ASM_OP "\t.section\t\".fardata\",\"aw\""

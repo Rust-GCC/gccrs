@@ -1,5 +1,5 @@
 /* Support for GCC plugin mechanism.
-   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -23,16 +23,25 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "hash-table.h"
-#include "diagnostic-core.h"
-#include "tree.h"
+#include "options.h"
 #include "tree-pass.h"
+#include "diagnostic-core.h"
+#include "flags.h"
 #include "intl.h"
 #include "plugin.h"
-#include "ggc.h"
 
 #ifdef ENABLE_PLUGIN
 #include "plugin-version.h"
+#endif
+
+#ifdef __MINGW32__
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #endif
 
 #define GCC_PLUGIN_STRINGIFY0(X) #X
@@ -53,18 +62,16 @@ const char **plugin_event_name = plugin_event_name_init;
 
 /* Event hashtable helpers.  */
 
-struct event_hasher : typed_noop_remove <const char *>
+struct event_hasher : nofree_ptr_hash <const char *>
 {
-  typedef const char *value_type;
-  typedef const char *compare_type;
-  static inline hashval_t hash (const value_type *);
-  static inline bool equal (const value_type *, const compare_type *);
+  static inline hashval_t hash (const char **);
+  static inline bool equal (const char **, const char **);
 };
 
 /* Helper function for the event hash table that hashes the entry V.  */
 
 inline hashval_t
-event_hasher::hash (const value_type *v)
+event_hasher::hash (const char **v)
 {
   return htab_hash_string (*v);
 }
@@ -73,7 +80,7 @@ event_hasher::hash (const value_type *v)
    existing entry (S1) with the given string (S2).  */
 
 inline bool
-event_hasher::equal (const value_type *s1, const compare_type *s2)
+event_hasher::equal (const char **s1, const char **s2)
 {
   return !strcmp (*s1, *s2);
 }
@@ -117,6 +124,16 @@ static const char *str_plugin_init_func_name = "plugin_init";
 static const char *str_license = "plugin_is_GPL_compatible";
 #endif
 
+/* Helper function for hashing the base_name of the plugin_name_args
+   structure to be inserted into the hash table.  */
+
+static hashval_t
+htab_hash_plugin (const PTR p)
+{
+  const struct plugin_name_args *plugin = (const struct plugin_name_args *) p;
+  return htab_hash_string (plugin->base_name);
+ }
+
 /* Helper function for the hash table that compares the base_name of the
    existing entry (S1) with the given string (S2).  */
 
@@ -137,7 +154,7 @@ get_plugin_base_name (const char *full_name)
   /* First get the base name part of the full-path name, i.e. NAME.so.  */
   char *base_name = xstrdup (lbasename (full_name));
 
-  /* Then get rid of '.so' part of the name.  */
+  /* Then get rid of the extension in the name, e.g., .so.  */
   strip_off_ending (base_name, strlen (base_name));
 
   return base_name;
@@ -168,15 +185,31 @@ add_new_plugin (const char* plugin_name)
   if (name_is_short)
     {
       base_name = CONST_CAST (char*, plugin_name);
-      /* FIXME: the ".so" suffix is currently builtin, since plugins
-	 only work on ELF host systems like e.g. Linux or Solaris.
-	 When plugins shall be available on non ELF systems such as
-	 Windows or MacOS, this code has to be greatly improved.  */
+
+#if defined(__MINGW32__)
+      static const char plugin_ext[] = ".dll";
+#elif defined(__APPLE__)
+      /* Mac OS has two types of libraries: dynamic libraries (.dylib) and
+         plugins (.bundle). Both can be used with dlopen()/dlsym() but the
+         former cannot be linked at build time (i.e., with the -lfoo linker
+         option). A GCC plugin is therefore probably a Mac OS plugin but their
+         use seems to be quite rare and the .bundle extension is more of a
+         recommendation rather than the rule. This raises the questions of how
+         well they are supported by tools (e.g., libtool). So to avoid
+         complications let's use the .dylib extension for now. In the future,
+         if this proves to be an issue, we can always check for both
+         extensions.  */
+      static const char plugin_ext[] = ".dylib";
+#else
+      static const char plugin_ext[] = ".so";
+#endif
+
       plugin_name = concat (default_plugin_dir_name (), "/",
-			    plugin_name, ".so", NULL);
+			    plugin_name, plugin_ext, NULL);
       if (access (plugin_name, R_OK))
 	fatal_error
-	  ("inaccessible plugin file %s expanded from short plugin name %s: %m",
+	  (input_location,
+	   "inaccessible plugin file %s expanded from short plugin name %s: %m",
 	   plugin_name, base_name);
     }
   else
@@ -185,10 +218,11 @@ add_new_plugin (const char* plugin_name)
   /* If this is the first -fplugin= option we encounter, create
      'plugin_name_args_tab' hash table.  */
   if (!plugin_name_args_tab)
-    plugin_name_args_tab = htab_create (10, htab_hash_string, htab_str_eq,
+    plugin_name_args_tab = htab_create (10, htab_hash_plugin, htab_str_eq,
                                         NULL);
 
-  slot = htab_find_slot (plugin_name_args_tab, base_name, INSERT);
+  slot = htab_find_slot_with_hash (plugin_name_args_tab, base_name,
+				   htab_hash_string (base_name), INSERT);
 
   /* If the same plugin (name) has been specified earlier, either emit an
      error or a warning message depending on if they have identical full
@@ -256,7 +290,7 @@ parse_plugin_arg_opt (const char *arg)
 
   if (!key_start)
     {
-      error ("malformed option -fplugin-arg-%s (missing -<key>[=<value>])",
+      error ("malformed option %<-fplugin-arg-%s%> (missing -<key>[=<value>])",
              arg);
       return;
     }
@@ -275,7 +309,8 @@ parse_plugin_arg_opt (const char *arg)
   /* Check if the named plugin has already been specified earlier in the
      command-line.  */
   if (plugin_name_args_tab
-      && ((slot = htab_find_slot (plugin_name_args_tab, name, NO_INSERT))
+      && ((slot = htab_find_slot_with_hash (plugin_name_args_tab, name,
+					    htab_hash_string (name), NO_INSERT))
           != NULL))
     {
       struct plugin_name_args *plugin = (struct plugin_name_args *) *slot;
@@ -318,7 +353,7 @@ parse_plugin_arg_opt (const char *arg)
       plugin->argv[plugin->argc - 1].value = value;
     }
   else
-    error ("plugin %s should be specified before -fplugin-arg-%s "
+    error ("plugin %s should be specified before %<-fplugin-arg-%s%> "
            "in the command line", name, arg);
 
   /* We don't need the plugin's name anymore. Just release it.  */
@@ -331,8 +366,17 @@ parse_plugin_arg_opt (const char *arg)
 static void
 register_plugin_info (const char* name, struct plugin_info *info)
 {
-  void **slot = htab_find_slot (plugin_name_args_tab, name, NO_INSERT);
-  struct plugin_name_args *plugin = (struct plugin_name_args *) *slot;
+  void **slot = htab_find_slot_with_hash (plugin_name_args_tab, name,
+					  htab_hash_string (name), NO_INSERT);
+  struct plugin_name_args *plugin;
+
+  if (slot == NULL)
+    {
+      error ("unable to register info for plugin %qs - plugin name not found",
+	     name);
+      return;
+    }
+  plugin = (struct plugin_name_args *) *slot;
   plugin->version = info->version;
   plugin->help = info->help;
 }
@@ -420,10 +464,6 @@ register_callback (const char *plugin_name,
 	gcc_assert (!callback);
         ggc_register_root_tab ((const struct ggc_root_tab*) user_data);
 	break;
-      case PLUGIN_REGISTER_GGC_CACHES:
-	gcc_assert (!callback);
-        ggc_register_cache_tab ((const struct ggc_cache_tab*) user_data);
-	break;
       case PLUGIN_EVENT_FIRST_DYNAMIC:
       default:
 	if (event < PLUGIN_EVENT_FIRST_DYNAMIC || event >= event_last)
@@ -433,6 +473,8 @@ register_callback (const char *plugin_name,
 	    return;
 	  }
       /* Fall through.  */
+      case PLUGIN_START_PARSE_FUNCTION:
+      case PLUGIN_FINISH_PARSE_FUNCTION:
       case PLUGIN_FINISH_TYPE:
       case PLUGIN_FINISH_DECL:
       case PLUGIN_START_UNIT:
@@ -511,6 +553,8 @@ invoke_plugin_callbacks_full (int event, void *gcc_data)
 	gcc_assert (event >= PLUGIN_EVENT_FIRST_DYNAMIC);
 	gcc_assert (event < event_last);
       /* Fall through.  */
+      case PLUGIN_START_PARSE_FUNCTION:
+      case PLUGIN_FINISH_PARSE_FUNCTION:
       case PLUGIN_FINISH_TYPE:
       case PLUGIN_FINISH_DECL:
       case PLUGIN_START_UNIT:
@@ -546,7 +590,6 @@ invoke_plugin_callbacks_full (int event, void *gcc_data)
 
       case PLUGIN_PASS_MANAGER_SETUP:
       case PLUGIN_REGISTER_GGC_ROOTS:
-      case PLUGIN_REGISTER_GGC_CACHES:
         gcc_assert (false);
     }
 
@@ -555,6 +598,85 @@ invoke_plugin_callbacks_full (int event, void *gcc_data)
 }
 
 #ifdef ENABLE_PLUGIN
+
+/* Try to initialize PLUGIN. Return true if successful. */
+
+#ifdef __MINGW32__
+
+// Return a message string for last error or NULL if unknown. Must be freed
+// with LocalFree().
+static inline char *
+win32_error_msg ()
+{
+  char *msg;
+  return FormatMessageA (FORMAT_MESSAGE_ALLOCATE_BUFFER |
+			 FORMAT_MESSAGE_FROM_SYSTEM |
+			 FORMAT_MESSAGE_IGNORE_INSERTS |
+			 FORMAT_MESSAGE_MAX_WIDTH_MASK,
+			 0,
+			 GetLastError (),
+			 MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),
+			 (char*)&msg,
+			 0,
+			 0)
+    ? msg
+    : NULL;
+}
+
+static bool
+try_init_one_plugin (struct plugin_name_args *plugin)
+{
+  HMODULE dl_handle;
+  plugin_init_func plugin_init;
+
+  dl_handle = LoadLibrary (plugin->full_name);
+  if (!dl_handle)
+    {
+      char *err = win32_error_msg ();
+      error ("cannot load plugin %s\n%s", plugin->full_name, err);
+      LocalFree (err);
+      return false;
+    }
+
+  /* Check the plugin license. Unlike the name suggests, GetProcAddress()
+     can be used for both functions and variables.  */
+  if (GetProcAddress (dl_handle, str_license) == NULL)
+    {
+      char *err = win32_error_msg ();
+      fatal_error (input_location,
+		   "plugin %s is not licensed under a GPL-compatible license\n"
+		   "%s", plugin->full_name, err);
+    }
+
+  /* Unlike dlsym(), GetProcAddress() returns a pointer to a function so we
+     can cast directly without union tricks.  */
+  plugin_init = (plugin_init_func)
+    GetProcAddress (dl_handle, str_plugin_init_func_name);
+
+  if (plugin_init == NULL)
+    {
+      char *err = win32_error_msg ();
+      FreeLibrary (dl_handle);
+      error ("cannot find %s in plugin %s\n%s", str_plugin_init_func_name,
+             plugin->full_name, err);
+      LocalFree (err);
+      return false;
+    }
+
+  /* Call the plugin-provided initialization routine with the arguments.  */
+  if ((*plugin_init) (plugin, &gcc_version))
+    {
+      FreeLibrary (dl_handle);
+      error ("fail to initialize plugin %s", plugin->full_name);
+      return false;
+    }
+  /* Leak dl_handle on purpose to ensure the plugin is loaded for the
+     entire run of the compiler. */
+  return true;
+}
+
+#else // POSIX-like with dlopen()/dlsym().
+
 /* We need a union to cast dlsym return value to a function pointer
    as ISO C forbids assignment between function pointer and 'void *'.
    Use explicit union instead of __extension__(<union_cast>) for
@@ -562,8 +684,6 @@ invoke_plugin_callbacks_full (int event, void *gcc_data)
 #define PTR_UNION_TYPE(TOTYPE) union { void *_q; TOTYPE _nq; }
 #define PTR_UNION_AS_VOID_PTR(NAME) (NAME._q)
 #define PTR_UNION_AS_CAST_PTR(NAME) (NAME._nq)
-
-/* Try to initialize PLUGIN. Return true if successful. */
 
 static bool
 try_init_one_plugin (struct plugin_name_args *plugin)
@@ -589,7 +709,8 @@ try_init_one_plugin (struct plugin_name_args *plugin)
 
   /* Check the plugin license.  */
   if (dlsym (dl_handle, str_license) == NULL)
-    fatal_error ("plugin %s is not licensed under a GPL-compatible license\n"
+    fatal_error (input_location,
+		 "plugin %s is not licensed under a GPL-compatible license\n"
 		 "%s", plugin->full_name, dlerror ());
 
   PTR_UNION_AS_VOID_PTR (plugin_init_union) =
@@ -598,6 +719,7 @@ try_init_one_plugin (struct plugin_name_args *plugin)
 
   if ((err = dlerror ()) != NULL)
     {
+      dlclose(dl_handle);
       error ("cannot find %s in plugin %s\n%s", str_plugin_init_func_name,
              plugin->full_name, err);
       return false;
@@ -606,13 +728,15 @@ try_init_one_plugin (struct plugin_name_args *plugin)
   /* Call the plugin-provided initialization routine with the arguments.  */
   if ((*plugin_init) (plugin, &gcc_version))
     {
+      dlclose(dl_handle);
       error ("fail to initialize plugin %s", plugin->full_name);
       return false;
     }
-
+  /* leak dl_handle on purpose to ensure the plugin is loaded for the
+     entire run of the compiler. */
   return true;
 }
-
+#endif
 
 /* Routine to dlopen and initialize one plugin. This function is passed to
    (and called by) the hash table traverse routine. Return 1 for the
@@ -629,7 +753,8 @@ init_one_plugin (void **slot, void * ARG_UNUSED (info))
   bool ok = try_init_one_plugin (plugin);
   if (!ok)
     {
-      htab_remove_elt (plugin_name_args_tab, plugin->base_name);
+      htab_remove_elt_with_hash (plugin_name_args_tab, plugin->base_name,
+				 htab_hash_string (plugin->base_name));
       XDELETE (plugin);
     }
   return 1;
@@ -835,16 +960,6 @@ warn_if_plugins (void)
 
 }
 
-/* Likewise, as a callback from the diagnostics code.  */
-
-void
-plugins_internal_error_function (diagnostic_context *context ATTRIBUTE_UNUSED,
-				 const char *msgid ATTRIBUTE_UNUSED,
-				 va_list *ap ATTRIBUTE_UNUSED)
-{
-  warn_if_plugins ();
-}
-
 /* The default version check. Compares every field in VERSION. */
 
 bool
@@ -887,6 +1002,7 @@ const char*
 default_plugin_dir_name (void)
 {
   if (!plugindir_string)
-    fatal_error ("-iplugindir <dir> option not passed from the gcc driver");
+    fatal_error (input_location,
+		 "%<-iplugindir%> <dir> option not passed from the gcc driver");
   return plugindir_string;
 }

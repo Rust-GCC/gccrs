@@ -12,17 +12,17 @@ const void *s1 = R"??/
 	// { dg-error "invalid new-line" "invalid" { target *-*-* } 10 }
 	// { dg-error "stray" "stray" { target *-*-* } 10 }
 	// { dg-warning "missing terminating" "missing" { target *-*-* } 10 }
-	// { dg-error "missing terminating" "missing" { target *-*-* } 10 }
+	// { dg-error "19:missing terminating" "missing" { target *-*-* } 10 }
 const void *s2 = R"abcdefghijklmn??/(a)abcdefghijklmn???";
-	// { dg-error "raw string delimiter longer" "longer" { target *-*-* } 16 }
-	// { dg-error "stray" "stray" { target *-*-* } 16 }
-	// { dg-error "expected" "expected" { target *-*-* } 16 }
+	// { dg-error "raw string delimiter longer" "longer" { target *-*-* } .-1 }
+	// { dg-error "stray" "stray" { target *-*-* } .-2 }
+	// { dg-error "expected" "expected" { target *-*-* } .-3 }
 const void *s3 = R"abcdefghijklmno??/(a)abcdefghijklmno???";
-	// { dg-error "raw string delimiter longer" "longer" { target *-*-* } 20 }
-	// { dg-error "stray" "stray" { target *-*-* } 20 }
+	// { dg-error "raw string delimiter longer" "longer" { target *-*-* } .-1 }
+	// { dg-error "stray" "stray" { target *-*-* } .-2 }
 const void *s4 = R"abcdefghijklmnop??=(a)abcdefghijklmnop??=";
-	// { dg-error "raw string delimiter longer" "longer" { target *-*-* } 23 }
-	// { dg-error "stray" "stray" { target *-*-* } 23 }
+	// { dg-error "raw string delimiter longer" "longer" { target *-*-* } .-1 }
+	// { dg-error "stray" "stray" { target *-*-* } .-2 }
 const void *s5 = R"abc\
 ()abcdef";
 	// { dg-error "invalid character" "invalid" { target *-*-* } 26 }

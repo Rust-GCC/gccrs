@@ -1,5 +1,5 @@
 /* Definitions for Intel 386 running FreeBSD with ELF format
-   Copyright (C) 1996-2014 Free Software Foundation, Inc.
+   Copyright (C) 1996-2019 Free Software Foundation, Inc.
    Contributed by Eric Youngdale.
    Modified for stabs-in-ELF by H.J. Lu.
    Adapted from GNU/Linux version by John Polstra.
@@ -59,28 +59,15 @@ along with GCC; see the file COPYING3.  If not see
 #define SUBTARGET_EXTRA_SPECS \
   { "fbsd_dynamic_linker", FBSD_DYNAMIC_LINKER }
     
-/* Provide a STARTFILE_SPEC appropriate for FreeBSD.  Here we add
-   the magical crtbegin.o file (see crtstuff.c) which provides part 
-	of the support for getting C++ file-scope static object constructed 
-	before entering `main'.  */
-   
-#undef	STARTFILE_SPEC
-#define STARTFILE_SPEC \
-  "%{!shared: \
-     %{pg:gcrt1.o%s} %{!pg:%{p:gcrt1.o%s} \
-		       %{!p:%{profile:gcrt1.o%s} \
-			 %{!profile:crt1.o%s}}}} \
-   crti.o%s %{!shared:crtbegin.o%s} %{shared:crtbeginS.o%s}"
+/* Use the STARTFILE_SPEC from config/freebsd-spec.h.  */
 
-/* Provide a ENDFILE_SPEC appropriate for FreeBSD.  Here we tack on
-   the magical crtend.o file (see crtstuff.c) which provides part of 
-	the support for getting C++ file-scope static object constructed 
-	before entering `main', followed by a normal "finalizer" file, 
-	`crtn.o'.  */
+#undef  STARTFILE_SPEC
+#define STARTFILE_SPEC FBSD_STARTFILE_SPEC
 
-#undef	ENDFILE_SPEC
-#define ENDFILE_SPEC \
-  "%{!shared:crtend.o%s} %{shared:crtendS.o%s} crtn.o%s"
+/* Use the ENDFILE_SPEC from config/freebsd-spec.h.  */
+
+#undef  ENDFILE_SPEC
+#define ENDFILE_SPEC FBSD_ENDFILE_SPEC
 
 /* Provide a LINK_SPEC appropriate for FreeBSD.  Here we provide support
    for the special GCC options -static and -shared, which allow us to
@@ -105,17 +92,21 @@ along with GCC; see the file COPYING3.  If not see
 
 /* A C statement to output to the stdio stream FILE an assembler
    command to advance the location counter to a multiple of 1<<LOG
-   bytes if it is within MAX_SKIP bytes.
+   bytes if it is within MAX_SKIP bytes.  */
 
-   This is used to align code labels according to Intel recommendations.  */
+#define SUBALIGN_LOG 3
 
 #ifdef HAVE_GAS_MAX_SKIP_P2ALIGN
 #undef  ASM_OUTPUT_MAX_SKIP_ALIGN
-#define ASM_OUTPUT_MAX_SKIP_ALIGN(FILE, LOG, MAX_SKIP)					\
-  if ((LOG) != 0) {														\
-    if ((MAX_SKIP) == 0) fprintf ((FILE), "\t.p2align %d\n", (LOG));	\
-    else fprintf ((FILE), "\t.p2align %d,,%d\n", (LOG), (MAX_SKIP));	\
-  }
+#define ASM_OUTPUT_MAX_SKIP_ALIGN(FILE,LOG,MAX_SKIP)			\
+  do {									\
+    if ((LOG) != 0) {							\
+      if ((MAX_SKIP) == 0 || (MAX_SKIP) >= (1 << (LOG)) - 1)		\
+	fprintf ((FILE), "\t.p2align %d\n", (LOG));			\
+      else								\
+	fprintf ((FILE), "\t.p2align %d,,%d\n", (LOG), (MAX_SKIP));	\
+    }									\
+  } while (0)
 #endif
 
 /* Don't default to pcc-struct-return, we want to retain compatibility with
@@ -134,10 +125,7 @@ along with GCC; see the file COPYING3.  If not see
 /* Static stack checking is supported by means of probes.  */
 #define STACK_CHECK_STATIC_BUILTIN 1
 
-/* Support for i386 has been removed from FreeBSD 6.0 onward.  */
-#if FBSD_MAJOR >= 6
-#define SUBTARGET32_DEFAULT_CPU "i486"
-#endif
+#define SUBTARGET32_DEFAULT_CPU "i586"
 
 #define TARGET_ASM_FILE_END file_end_indicate_exec_stack
 

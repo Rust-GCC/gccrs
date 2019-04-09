@@ -1,5 +1,5 @@
 /* Optimize jump instructions, for GNU compiler.
-   Copyright (C) 1987-2014 Free Software Foundation, Inc.
+   Copyright (C) 1987-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -36,24 +36,19 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "rtl.h"
-#include "tm_p.h"
-#include "flags.h"
-#include "hard-reg-set.h"
-#include "regs.h"
-#include "insn-config.h"
-#include "insn-attr.h"
-#include "recog.h"
-#include "function.h"
-#include "basic-block.h"
-#include "expr.h"
-#include "except.h"
-#include "diagnostic-core.h"
-#include "reload.h"
-#include "predict.h"
-#include "tree-pass.h"
+#include "backend.h"
 #include "target.h"
+#include "rtl.h"
+#include "tree.h"
+#include "cfghooks.h"
+#include "tree-pass.h"
+#include "memmodel.h"
+#include "tm_p.h"
+#include "insn-config.h"
+#include "regs.h"
+#include "emit-rtl.h"
+#include "recog.h"
+#include "cfgrtl.h"
 #include "rtl-iter.h"
 
 /* Optimize jump y; x: ... y: jumpif... x?
@@ -67,15 +62,13 @@ static void init_label_info (rtx_insn *);
 static void mark_all_labels (rtx_insn *);
 static void mark_jump_label_1 (rtx, rtx_insn *, bool, bool);
 static void mark_jump_label_asm (rtx, rtx_insn *);
-static void redirect_exp_1 (rtx *, rtx, rtx, rtx);
-static int invert_exp_1 (rtx, rtx);
+static void redirect_exp_1 (rtx *, rtx, rtx, rtx_insn *);
+static int invert_exp_1 (rtx, rtx_insn *);
 
 /* Worker for rebuild_jump_labels and rebuild_jump_labels_chain.  */
 static void
 rebuild_jump_labels_1 (rtx_insn *f, bool count_forced)
 {
-  rtx_insn_list *insn;
-
   timevar_push (TV_REBUILD_JUMP);
   init_label_info (f);
   mark_all_labels (f);
@@ -85,9 +78,13 @@ rebuild_jump_labels_1 (rtx_insn *f, bool count_forced)
      count doesn't drop to zero.  */
 
   if (count_forced)
-    for (insn = forced_labels; insn; insn = insn->next ())
-      if (LABEL_P (insn->insn ()))
-	LABEL_NUSES (insn->insn ())++;
+    {
+      rtx_insn *insn;
+      unsigned int i;
+      FOR_EACH_VEC_SAFE_ELT (forced_labels, i, insn)
+	if (LABEL_P (insn))
+	  LABEL_NUSES (insn)++;
+    }
   timevar_pop (TV_REBUILD_JUMP);
 }
 
@@ -126,25 +123,37 @@ cleanup_barriers (void)
     {
       if (BARRIER_P (insn))
 	{
-	  rtx_insn *prev = prev_nonnote_insn (insn);
+	  rtx_insn *prev = prev_nonnote_nondebug_insn (insn);
 	  if (!prev)
 	    continue;
-
-	  if (CALL_P (prev))
-	    {
-	      /* Make sure we do not split a call and its corresponding
-		 CALL_ARG_LOCATION note.  */
-	      rtx_insn *next = NEXT_INSN (prev);
-
-	      if (NOTE_P (next)
-		  && NOTE_KIND (next) == NOTE_INSN_CALL_ARG_LOCATION)
-		prev = next;
-	    }
 
 	  if (BARRIER_P (prev))
 	    delete_insn (insn);
 	  else if (prev != PREV_INSN (insn))
-	    reorder_insns_nobb (insn, insn, prev);
+	    {
+	      basic_block bb = BLOCK_FOR_INSN (prev);
+	      rtx_insn *end = PREV_INSN (insn);
+	      reorder_insns_nobb (insn, insn, prev);
+	      if (bb)
+		{
+		  /* If the backend called in machine reorg compute_bb_for_insn
+		     and didn't free_bb_for_insn again, preserve basic block
+		     boundaries.  Move the end of basic block to PREV since
+		     it is followed by a barrier now, and clear BLOCK_FOR_INSN
+		     on the following notes.
+		     ???  Maybe the proper solution for the targets that have
+		     cfg around after machine reorg is not to run cleanup_barriers
+		     pass at all.  */
+		  BB_END (bb) = prev;
+		  do
+		    {
+		      prev = NEXT_INSN (prev);
+		      if (prev != insn && BLOCK_FOR_INSN (prev) == bb)
+			BLOCK_FOR_INSN (prev) = NULL;
+		    }
+		  while (prev != end);
+		}
+	    }
 	}
     }
   return 0;
@@ -264,7 +273,7 @@ maybe_propagate_label_ref (rtx_insn *jump_insn, rtx_insn *prev_nonjump_insn)
 	     CODE_LABEL in the LABEL_REF of the "set".  We can
 	     conveniently use it for the marker function, which
 	     requires a LABEL_REF wrapping.  */
-	  gcc_assert (XEXP (label_note, 0) == LABEL_REF_LABEL (SET_SRC (label_set)));
+	  gcc_assert (XEXP (label_note, 0) == label_ref_label (SET_SRC (label_set)));
 
 	  mark_jump_label_1 (label_set, jump_insn, false, true);
 
@@ -341,9 +350,9 @@ mark_all_labels (rtx_insn *f)
    to help this function avoid overhead in these cases.  */
 enum rtx_code
 reversed_comparison_code_parts (enum rtx_code code, const_rtx arg0,
-				const_rtx arg1, const_rtx insn)
+				const_rtx arg1, const rtx_insn *insn)
 {
-  enum machine_mode mode;
+  machine_mode mode;
 
   /* If this is not actually a comparison, we can't reverse it.  */
   if (GET_RTX_CLASS (code) != RTX_COMPARE
@@ -359,13 +368,7 @@ reversed_comparison_code_parts (enum rtx_code code, const_rtx arg0,
      machine description to do tricks.  */
   if (GET_MODE_CLASS (mode) == MODE_CC
       && REVERSIBLE_CC_MODE (mode))
-    {
-#ifdef REVERSE_CONDITION
-      return REVERSE_CONDITION (code, mode);
-#else
-      return reverse_condition (code);
-#endif
-    }
+    return REVERSE_CONDITION (code, mode);
 
   /* Try a few special cases based on the comparison code.  */
   switch (code)
@@ -399,7 +402,6 @@ reversed_comparison_code_parts (enum rtx_code code, const_rtx arg0,
 
   if (GET_MODE_CLASS (mode) == MODE_CC || CC0_P (arg0))
     {
-      const_rtx prev;
       /* Try to search for the comparison to determine the real mode.
          This code is expensive, but with sane machine description it
          will be never used, since REVERSIBLE_CC_MODE will return true
@@ -410,9 +412,9 @@ reversed_comparison_code_parts (enum rtx_code code, const_rtx arg0,
       /* These CONST_CAST's are okay because prev_nonnote_insn just
 	 returns its argument and we assign it to a const_rtx
 	 variable.  */
-      for (prev = prev_nonnote_insn (CONST_CAST_RTX (insn));
+      for (rtx_insn *prev = prev_nonnote_insn (const_cast<rtx_insn *> (insn));
 	   prev != 0 && !LABEL_P (prev);
-	   prev = prev_nonnote_insn (CONST_CAST_RTX (prev)))
+	   prev = prev_nonnote_insn (prev))
 	{
 	  const_rtx set = set_of (arg0, prev);
 	  if (set && GET_CODE (set) == SET
@@ -458,7 +460,7 @@ reversed_comparison_code_parts (enum rtx_code code, const_rtx arg0,
 /* A wrapper around the previous function to take COMPARISON as rtx
    expression.  This simplifies many callers.  */
 enum rtx_code
-reversed_comparison_code (const_rtx comparison, const_rtx insn)
+reversed_comparison_code (const_rtx comparison, const rtx_insn *insn)
 {
   if (!COMPARISON_P (comparison))
     return UNKNOWN;
@@ -470,9 +472,9 @@ reversed_comparison_code (const_rtx comparison, const_rtx insn)
 /* Return comparison with reversed code of EXP.
    Return NULL_RTX in case we fail to do the reversal.  */
 rtx
-reversed_comparison (const_rtx exp, enum machine_mode mode)
+reversed_comparison (const_rtx exp, machine_mode mode)
 {
-  enum rtx_code reversed_code = reversed_comparison_code (exp, NULL_RTX);
+  enum rtx_code reversed_code = reversed_comparison_code (exp, NULL);
   if (reversed_code == UNKNOWN)
     return NULL_RTX;
   else
@@ -997,8 +999,6 @@ jump_to_label_p (const rtx_insn *insn)
 	  && JUMP_LABEL (insn) != NULL && !ANY_RETURN_P (JUMP_LABEL (insn)));
 }
 
-#ifdef HAVE_cc0
-
 /* Return nonzero if X is an RTX that only sets the condition codes
    and has no side effects.  */
 
@@ -1047,7 +1047,6 @@ sets_cc0_p (const_rtx x)
     }
   return 0;
 }
-#endif
 
 /* Find all CODE_LABELs referred to in X, and increment their use
    counts.  If INSN is a JUMP_INSN and there is at least one
@@ -1095,6 +1094,7 @@ mark_jump_label_1 (rtx x, rtx_insn *insn, bool in_mem, bool is_target)
     case CC0:
     case REG:
     case CLOBBER:
+    case CLOBBER_HIGH:
     case CALL:
       return;
 
@@ -1141,7 +1141,7 @@ mark_jump_label_1 (rtx x, rtx_insn *insn, bool in_mem, bool is_target)
 
     case LABEL_REF:
       {
-	rtx label = LABEL_REF_LABEL (x);
+	rtx_insn *label = label_ref_label (x);
 
 	/* Ignore remaining references to unreachable labels that
 	   have been deleted.  */
@@ -1155,7 +1155,7 @@ mark_jump_label_1 (rtx x, rtx_insn *insn, bool in_mem, bool is_target)
 	if (LABEL_REF_NONLOCAL_P (x))
 	  break;
 
-	LABEL_REF_LABEL (x) = label;
+	set_label_ref_label (x, label);
 	if (! insn || ! insn->deleted ())
 	  ++LABEL_NUSES (label);
 
@@ -1268,26 +1268,6 @@ delete_related_insns (rtx uncast_insn)
 
   if (next != 0 && BARRIER_P (next))
     delete_insn (next);
-
-  /* If this is a call, then we have to remove the var tracking note
-     for the call arguments.  */
-
-  if (CALL_P (insn)
-      || (NONJUMP_INSN_P (insn)
-	  && GET_CODE (PATTERN (insn)) == SEQUENCE
-	  && CALL_P (XVECEXP (PATTERN (insn), 0, 0))))
-    {
-      rtx_insn *p;
-
-      for (p = next && next->deleted () ? NEXT_INSN (next) : next;
-	   p && NOTE_P (p);
-	   p = NEXT_INSN (p))
-	if (NOTE_KIND (p) == NOTE_INSN_CALL_ARG_LOCATION)
-	  {
-	    remove_insn (p);
-	    break;
-	  }
-    }
 
   /* If deleting a jump, decrement the count of the label,
      and delete the label if it is now unused.  */
@@ -1447,19 +1427,19 @@ redirect_target (rtx x)
    NLABEL as a return.  Accrue modifications into the change group.  */
 
 static void
-redirect_exp_1 (rtx *loc, rtx olabel, rtx nlabel, rtx insn)
+redirect_exp_1 (rtx *loc, rtx olabel, rtx nlabel, rtx_insn *insn)
 {
   rtx x = *loc;
   RTX_CODE code = GET_CODE (x);
   int i;
   const char *fmt;
 
-  if ((code == LABEL_REF && LABEL_REF_LABEL (x) == olabel)
+  if ((code == LABEL_REF && label_ref_label (x) == olabel)
       || x == olabel)
     {
       x = redirect_target (nlabel);
       if (GET_CODE (x) == LABEL_REF && loc == &PATTERN (insn))
- 	x = gen_rtx_SET (VOIDmode, pc_rtx, x);
+ 	x = gen_rtx_SET (pc_rtx, x);
       validate_change (insn, loc, x, 1);
       return;
     }
@@ -1467,7 +1447,7 @@ redirect_exp_1 (rtx *loc, rtx olabel, rtx nlabel, rtx insn)
   if (code == SET && SET_DEST (x) == pc_rtx
       && ANY_RETURN_P (nlabel)
       && GET_CODE (SET_SRC (x)) == LABEL_REF
-      && LABEL_REF_LABEL (SET_SRC (x)) == olabel)
+      && label_ref_label (SET_SRC (x)) == olabel)
     {
       validate_change (insn, loc, nlabel, 1);
       return;
@@ -1501,7 +1481,7 @@ redirect_exp_1 (rtx *loc, rtx olabel, rtx nlabel, rtx insn)
    not see how to do that.  */
 
 int
-redirect_jump_1 (rtx jump, rtx nlabel)
+redirect_jump_1 (rtx_insn *jump, rtx nlabel)
 {
   int ochanges = num_validated_changes ();
   rtx *loc, asmop;
@@ -1536,9 +1516,9 @@ redirect_jump_1 (rtx jump, rtx nlabel)
    (this can only occur when trying to produce return insns).  */
 
 int
-redirect_jump (rtx jump, rtx nlabel, int delete_unused)
+redirect_jump (rtx_jump_insn *jump, rtx nlabel, int delete_unused)
 {
-  rtx olabel = JUMP_LABEL (jump);
+  rtx olabel = jump->jump_label ();
 
   if (!nlabel)
     {
@@ -1568,7 +1548,7 @@ redirect_jump (rtx jump, rtx nlabel, int delete_unused)
    If DELETE_UNUSED is positive, delete related insn to OLABEL if its ref
    count has dropped to zero.  */
 void
-redirect_jump_2 (rtx jump, rtx olabel, rtx nlabel, int delete_unused,
+redirect_jump_2 (rtx_jump_insn *jump, rtx olabel, rtx nlabel, int delete_unused,
 		 int invert)
 {
   rtx note;
@@ -1614,7 +1594,7 @@ redirect_jump_2 (rtx jump, rtx olabel, rtx nlabel, int delete_unused,
 /* Invert the jump condition X contained in jump insn INSN.  Accrue the
    modifications into the change group.  Return nonzero for success.  */
 static int
-invert_exp_1 (rtx x, rtx insn)
+invert_exp_1 (rtx x, rtx_insn *insn)
 {
   RTX_CODE code = GET_CODE (x);
 
@@ -1656,7 +1636,7 @@ invert_exp_1 (rtx x, rtx insn)
    inversion and redirection.  */
 
 int
-invert_jump_1 (rtx_insn *jump, rtx nlabel)
+invert_jump_1 (rtx_jump_insn *jump, rtx nlabel)
 {
   rtx x = pc_set (jump);
   int ochanges;
@@ -1680,7 +1660,7 @@ invert_jump_1 (rtx_insn *jump, rtx nlabel)
    NLABEL instead of where it jumps now.  Return true if successful.  */
 
 int
-invert_jump (rtx_insn *jump, rtx nlabel, int delete_unused)
+invert_jump (rtx_jump_insn *jump, rtx nlabel, int delete_unused)
 {
   rtx olabel = JUMP_LABEL (jump);
 
@@ -1714,7 +1694,7 @@ rtx_renumbered_equal_p (const_rtx x, const_rtx y)
 				  && REG_P (SUBREG_REG (y)))))
     {
       int reg_x = -1, reg_y = -1;
-      int byte_x = 0, byte_y = 0;
+      poly_int64 byte_x = 0, byte_y = 0;
       struct subreg_info info;
 
       if (GET_MODE (x) != GET_MODE (y))
@@ -1771,7 +1751,7 @@ rtx_renumbered_equal_p (const_rtx x, const_rtx y)
 	    reg_y = reg_renumber[reg_y];
 	}
 
-      return reg_x >= 0 && reg_x == reg_y && byte_x == byte_y;
+      return reg_x >= 0 && reg_x == reg_y && known_eq (byte_x, byte_y);
     }
 
   /* Now we have disposed of all the cases
@@ -1791,12 +1771,20 @@ rtx_renumbered_equal_p (const_rtx x, const_rtx y)
     case LABEL_REF:
       /* We can't assume nonlocal labels have their following insns yet.  */
       if (LABEL_REF_NONLOCAL_P (x) || LABEL_REF_NONLOCAL_P (y))
-	return LABEL_REF_LABEL (x) == LABEL_REF_LABEL (y);
+	return label_ref_label (x) == label_ref_label (y);
 
       /* Two label-refs are equivalent if they point at labels
 	 in the same position in the instruction stream.  */
-      return (next_real_insn (LABEL_REF_LABEL (x))
-	      == next_real_insn (LABEL_REF_LABEL (y)));
+      else
+	{
+	  rtx_insn *xi = next_nonnote_nondebug_insn (label_ref_label (x));
+	  rtx_insn *yi = next_nonnote_nondebug_insn (label_ref_label (y));
+	  while (xi && LABEL_P (xi))
+	    xi = next_nonnote_nondebug_insn (xi);
+	  while (yi && LABEL_P (yi))
+	    yi = next_nonnote_nondebug_insn (yi);
+	  return xi == yi;
+	}
 
     case SYMBOL_REF:
       return XSTR (x, 0) == XSTR (y, 0);
@@ -1853,6 +1841,11 @@ rtx_renumbered_equal_p (const_rtx x, const_rtx y)
 		break;
 	      return 0;
 	    }
+	  break;
+
+	case 'p':
+	  if (maybe_ne (SUBREG_BYTE (x), SUBREG_BYTE (y)))
+	    return 0;
 	  break;
 
 	case 't':

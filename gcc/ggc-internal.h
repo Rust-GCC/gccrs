@@ -1,7 +1,7 @@
 /* Garbage collection for the GNU compiler.  Internal definitions
    for ggc-*.c and stringpool.c.
 
-   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -22,7 +22,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_GGC_INTERNAL_H
 #define GCC_GGC_INTERNAL_H
 
-#include "ggc.h"
 
 /* Call ggc_set_mark on all the roots.  */
 extern void ggc_mark_roots (void);

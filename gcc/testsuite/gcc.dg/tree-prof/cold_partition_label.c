@@ -1,7 +1,7 @@
 /* Test case to check if function foo gets split and the cold function
    gets a label.  */
 /* { dg-require-effective-target freorder } */
-/* { dg-options "-O2 -freorder-blocks-and-partition -save-temps" } */
+/* { dg-options "-O2 -freorder-blocks-and-partition -save-temps -fdump-tree-optimized" } */
 
 #define SIZE 10000
 
@@ -29,10 +29,14 @@ foo (int path)
 int
 main (int argc, char *argv[])
 {
+  int i;
   buf_hot =  "hello";
   buf_cold = "world";
-  foo (argc);
+  for (i = 0; i < 1000000; i++)
+    foo (argc);
   return 0;
 }
 
-/* { dg-final-use { cleanup-saved-temps } } */
+/* { dg-final-use { scan-assembler "foo\[._\]+cold" { target *-*-linux* *-*-gnu* } } } */
+/* { dg-final-use { scan-assembler "size\[ \ta-zA-Z0-0\]+foo\[._\]+cold" { target *-*-linux* *-*-gnu* } } } */
+/* { dg-final-use { scan-tree-dump-not "Invalid sum" "optimized"} } */

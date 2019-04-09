@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for IBM RS/6000 POWER running AIX.
-   Copyright (C) 2000-2014 Free Software Foundation, Inc.
+   Copyright (C) 2000-2019 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -23,6 +23,9 @@
 #undef  TARGET_AIX
 #define TARGET_AIX 1
 
+/* System headers are not C++-aware.  */
+#define SYSTEM_IMPLICIT_EXTERN_C 1
+
 /* Linux64.h wants to redefine TARGET_AIX based on -m64, but it can't be used
    in the #if conditional in options-default.h, so provide another macro.  */
 #undef  TARGET_AIX_OS
@@ -40,8 +43,45 @@
 #undef  STACK_BOUNDARY
 #define STACK_BOUNDARY 128
 
+/* Offset within stack frame to start allocating local variables at.
+   If FRAME_GROWS_DOWNWARD, this is the offset to the END of the
+   first local allocated.  Otherwise, it is the offset to the BEGINNING
+   of the first local allocated.
+
+   On the RS/6000, the frame pointer is the same as the stack pointer,
+   except for dynamic allocations.  So we start after the fixed area and
+   outgoing parameter area.
+
+   If the function uses dynamic stack space (CALLS_ALLOCA is set), that
+   space needs to be aligned to STACK_BOUNDARY, i.e. the sum of the
+   sizes of the fixed area and the parameter area must be a multiple of
+   STACK_BOUNDARY.  */
+
+#undef RS6000_STARTING_FRAME_OFFSET
+#define RS6000_STARTING_FRAME_OFFSET					\
+  (cfun->calls_alloca							\
+   ? RS6000_ALIGN (crtl->outgoing_args_size + RS6000_SAVE_AREA, 16)	\
+   : (RS6000_ALIGN (crtl->outgoing_args_size, 16) + RS6000_SAVE_AREA))
+
+/* Offset from the stack pointer register to an item dynamically
+   allocated on the stack, e.g., by `alloca'.
+
+   The default value for this macro is `STACK_POINTER_OFFSET' plus the
+   length of the outgoing arguments.  The default is correct for most
+   machines.  See `function.c' for details.
+
+   This value must be a multiple of STACK_BOUNDARY (hard coded in
+   `emit-rtl.c').  */
+#undef STACK_DYNAMIC_OFFSET
+#define STACK_DYNAMIC_OFFSET(FUNDECL)					\
+   RS6000_ALIGN (crtl->outgoing_args_size.to_constant ()		\
+		 + STACK_POINTER_OFFSET, 16)
+
 #undef  TARGET_IEEEQUAD
 #define TARGET_IEEEQUAD 0
+
+#undef  TARGET_IEEEQUAD_DEFAULT
+#define TARGET_IEEEQUAD_DEFAULT 0
 
 /* The AIX linker will discard static constructors in object files before
    collect has a chance to see them, so scan the object files directly.  */
@@ -79,7 +119,7 @@
 #if HAVE_AS_REF
 /* Issue assembly directives that create a reference to the given DWARF table
    identifier label from the current function section.  This is defined to
-   ensure we drag frame frame tables associated with needed function bodies in
+   ensure we drag frame tables associated with needed function bodies in
    a link with garbage collection activated.  */
 #define ASM_OUTPUT_DWARF_TABLE_REF rs6000_aix_asm_output_dwarf_table_ref
 #endif
@@ -101,8 +141,6 @@
     {						\
       builtin_define ("_IBMR2");		\
       builtin_define ("_POWER");		\
-      builtin_define ("__powerpc__");           \
-      builtin_define ("__PPC__");               \
       builtin_define ("__unix__");              \
       builtin_define ("_AIX");			\
       builtin_define ("_AIX32");		\
@@ -112,6 +150,22 @@
         builtin_define ("__LONGDOUBLE128");	\
       builtin_assert ("system=unix");		\
       builtin_assert ("system=aix");		\
+      if (TARGET_64BIT)				\
+	{					\
+	  builtin_define ("__PPC__");		\
+	  builtin_define ("__PPC64__");		\
+	  builtin_define ("__powerpc__");	\
+	  builtin_define ("__powerpc64__");	\
+	  builtin_assert ("cpu=powerpc64");	\
+	  builtin_assert ("machine=powerpc64");	\
+	}					\
+      else					\
+	{					\
+	  builtin_define ("__PPC__");		\
+	  builtin_define ("__powerpc__");	\
+	  builtin_assert ("cpu=powerpc");	\
+	  builtin_assert ("machine=powerpc");	\
+	}					\
     }						\
   while (0)
 
@@ -169,9 +223,9 @@
 
 /* This now supports a natural alignment mode.  */
 /* AIX word-aligns FP doubles but doubleword-aligns 64-bit ints.  */
-#define ADJUST_FIELD_ALIGN(FIELD, COMPUTED) \
+#define ADJUST_FIELD_ALIGN(FIELD, TYPE, COMPUTED) \
   ((TARGET_ALIGN_NATURAL == 0						\
-    && TYPE_MODE (strip_array_types (TREE_TYPE (FIELD))) == DFmode)	\
+    && TYPE_MODE (strip_array_types (TYPE)) == DFmode)			\
    ? MIN ((COMPUTED), 32)						\
    : (COMPUTED))
 
@@ -199,7 +253,7 @@
    registers and memory.  FIRST is nonzero if this is the only
    element.  */
 #define BLOCK_REG_PADDING(MODE, TYPE, FIRST) \
-  (!(FIRST) ? upward : FUNCTION_ARG_PADDING (MODE, TYPE))
+  (!(FIRST) ? PAD_UPWARD : targetm.calls.function_arg_padding (MODE, TYPE))
 
 /* Indicate that jump tables go in the text section.  */
 
@@ -223,3 +277,7 @@
 
 /* Static stack checking is supported by means of probes.  */
 #define STACK_CHECK_STATIC_BUILTIN 1
+
+/* Use standard DWARF numbering for DWARF debugging information.  */
+#define RS6000_USE_DWARF_NUMBERING
+

@@ -1,7 +1,8 @@
-/* Copyright (C) 2005-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2019 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
-   This file is part of the GNU OpenMP Library (libgomp).
+   This file is part of the GNU Offloading and Multi Processing Library
+   (libgomp).
 
    Libgomp is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by
@@ -217,7 +218,7 @@ gomp_iter_dynamic_next (long *pstart, long *pend)
 	}
     }
 
-  start = ws->next;
+  start = __atomic_load_n (&ws->next, MEMMODEL_RELAXED);
   while (1)
     {
       long left = end - start;
@@ -300,7 +301,7 @@ gomp_iter_guided_next (long *pstart, long *pend)
   long start, end, nend, incr;
   unsigned long chunk_size;
 
-  start = ws->next;
+  start = __atomic_load_n (&ws->next, MEMMODEL_RELAXED);
   end = ws->end;
   incr = ws->incr;
   chunk_size = ws->chunk_size;

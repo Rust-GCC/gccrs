@@ -1,6 +1,6 @@
 /* PR tree-optimization/54200 */
 /* { dg-do run } */
-/* { dg-options "-g -fno-var-tracking-assignments" } */
+/* { dg-options "-g -fno-var-tracking-assignments -fno-tree-coalesce-vars" } */
 
 int o __attribute__((used));
 
@@ -17,7 +17,7 @@ foo (int z, int x, int b)
   else
     {
       int a = (x + z) + b;
-      return a; /* { dg-final { gdb-test 20 "z" "3" } } */
+      return a; /* { dg-final { gdb-test . "z" "3" } } */
     }
 }
 

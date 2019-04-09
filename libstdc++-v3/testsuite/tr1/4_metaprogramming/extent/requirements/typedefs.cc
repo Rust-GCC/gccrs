@@ -1,6 +1,6 @@
 // 2004-12-12  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -17,7 +17,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// 
+//
 // NB: This file is for testing tr1/type_traits with NO OTHER INCLUDES.
 
 #include <tr1/type_traits>

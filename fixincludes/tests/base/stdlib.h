@@ -9,6 +9,41 @@
 
 
 
+#if defined( AIX_STDLIB_MALLOC_CHECK )
+extern void *malloc(size_t) __asm__("__linux_malloc");
+#endif  /* AIX_STDLIB_MALLOC_CHECK */
+
+
+#if defined( AIX_STDLIB_REALLOC_CHECK )
+extern void *realloc(void *, size_t) __asm__("__linux_realloc");
+#endif  /* AIX_STDLIB_REALLOC_CHECK */
+
+
+#if defined( AIX_STDLIB_CALLOC_CHECK )
+extern void *calloc(size_t, size_t) __asm__("__linux_calloc");
+#endif  /* AIX_STDLIB_CALLOC_CHECK */
+
+
+#if defined( AIX_STDLIB_VALLOC_CHECK )
+extern void *valloc(size_t) __asm__("__linux_valloc");
+#endif  /* AIX_STDLIB_VALLOC_CHECK */
+
+
+#if defined( AIX_STDLIB_VEC_MALLOC_CHECK )
+extern void *malloc(size_t) __asm__("vec_malloc");
+#endif  /* AIX_STDLIB_VEC_MALLOC_CHECK */
+
+
+#if defined( AIX_STDLIB_VEC_CALLOC_CHECK )
+extern void *calloc(size_t, size_t) __asm__("vec_calloc");
+#endif  /* AIX_STDLIB_VEC_CALLOC_CHECK */
+
+
+#if defined( AIX_STRTOF_CONST_CHECK )
+extern float    strtof(const char *, char **);
+#endif  /* AIX_STRTOF_CONST_CHECK */
+
+
 #if defined( HPUX11_ABS_CHECK )
 #if !defined(_MATH_INCLUDED) || defined(__GNUG__)
 #endif  /* HPUX11_ABS_CHECK */

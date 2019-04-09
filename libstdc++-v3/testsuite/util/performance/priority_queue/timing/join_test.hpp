@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -122,9 +122,9 @@ namespace __gnu_pbds
 	typedef double_push_join_functor<It, Cntnr> psh_jn_fnct;
 
 	typedef xml_result_set_performance_formatter formatter_type;
-	formatter_type res(string_form<Cntnr>::name(), 
+	formatter_type res(string_form<Cntnr>::name(),
 			   string_form<Cntnr>::desc());
-	  
+
 	for (size_t n = 0; m_ins_vn + n*  m_ins_vs < m_ins_vm; ++n)
 	  {
 	    const size_t v = m_ins_vn + n *  m_ins_vs;
@@ -163,5 +163,5 @@ namespace __gnu_pbds
   } // namespace test
 } // namespace __gnu_pbds
 
-#endif 
+#endif
 

@@ -1,5 +1,5 @@
 /* Generate from machine description the strings for each enum.
-   Copyright (C) 2010-2014 Free Software Foundation, Inc.
+   Copyright (C) 2010-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,6 +21,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "errors.h"
+#include "statistics.h"
+#include "vec.h"
 #include "read-md.h"
 
 /* Called via traverse_enum_types.  Emit an enum definition for
@@ -45,11 +47,12 @@ print_enum_type (void **slot, void *info ATTRIBUTE_UNUSED)
 }
 
 int
-main (int argc, char **argv)
+main (int argc, const char **argv)
 {
   progname = "genenums";
 
-  if (!read_md_files (argc, argv, NULL, NULL))
+  noop_reader reader;
+  if (!reader.read_md_files (argc, argv, NULL))
     return (FATAL_EXIT_CODE);
 
   puts ("/* Generated automatically by the program `genenums'");
@@ -58,7 +61,7 @@ main (int argc, char **argv)
   puts ("#include \"system.h\"\n");
   puts ("#include \"insn-constants.h\"\n");
 
-  traverse_enum_types (print_enum_type, 0);
+  reader.traverse_enum_types (print_enum_type, 0);
 
   if (ferror (stdout) || fflush (stdout) || fclose (stdout))
     return FATAL_EXIT_CODE;

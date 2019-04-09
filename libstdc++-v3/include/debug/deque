@@ -1,6 +1,6 @@
 // Debugging deque implementation -*- C++ -*-
 
-// Copyright (C) 2003-2014 Free Software Foundation, Inc.
+// Copyright (C) 2003-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,6 +29,13 @@
 #ifndef _GLIBCXX_DEBUG_DEQUE
 #define _GLIBCXX_DEBUG_DEQUE 1
 
+#pragma GCC system_header
+
+#include <bits/c++config.h>
+namespace std _GLIBCXX_VISIBILITY(default) { namespace __debug {
+  template<typename _Tp, typename _Allocator> class deque;
+} } // namespace std::__debug
+
 #include <deque>
 #include <debug/safe_sequence.h>
 #include <debug/safe_container.h>
@@ -53,6 +60,9 @@ namespace __debug
       typedef typename _Base::const_iterator	_Base_const_iterator;
       typedef typename _Base::iterator		_Base_iterator;
       typedef __gnu_debug::_Equal_to<_Base_const_iterator> _Equal;
+
+      template<typename _ItT, typename _SeqT, typename _CatT>
+	friend class ::__gnu_debug::_Safe_iterator;
 
     public:
       typedef typename _Base::reference			reference;
@@ -128,8 +138,8 @@ namespace __debug
 #endif
 	deque(_InputIterator __first, _InputIterator __last,
 	      const _Allocator& __a = _Allocator())
-	: _Base(__gnu_debug::__base(__gnu_debug::__check_valid_range(__first,
-								     __last)),
+	: _Base(__gnu_debug::__base(
+		  __glibcxx_check_valid_constructor_range(__first, __last)),
 		__gnu_debug::__base(__last), __a)
 	{ }
 
@@ -169,9 +179,14 @@ namespace __debug
 	void
 	assign(_InputIterator __first, _InputIterator __last)
 	{
-	  __glibcxx_check_valid_range(__first, __last);
-	  _Base::assign(__gnu_debug::__base(__first),
-			__gnu_debug::__base(__last));
+	  typename __gnu_debug::_Distance_traits<_InputIterator>::__type __dist;
+	  __glibcxx_check_valid_range2(__first, __last, __dist);
+	  if (__dist.second >= __gnu_debug::__dp_sign)
+	    _Base::assign(__gnu_debug::__unsafe(__first),
+			  __gnu_debug::__unsafe(__last));
+	  else
+	    _Base::assign(__first, __last);
+
 	  this->_M_invalidate_all();
 	}
 
@@ -379,19 +394,33 @@ namespace __debug
       { emplace_back(std::move(__x)); }
 
       template<typename... _Args>
+#if __cplusplus > 201402L
+	reference
+#else
 	void
+#endif
 	emplace_front(_Args&&... __args)
 	{
 	  _Base::emplace_front(std::forward<_Args>(__args)...);
 	  this->_M_invalidate_all();
+#if __cplusplus > 201402L
+	  return front();
+#endif
 	}
 
       template<typename... _Args>
+#if __cplusplus > 201402L
+	reference
+#else
 	void
+#endif
 	emplace_back(_Args&&... __args)
 	{
 	  _Base::emplace_back(std::forward<_Args>(__args)...);
 	  this->_M_invalidate_all();
+#if __cplusplus > 201402L
+	  return back();
+#endif
 	}
 
       template<typename... _Args>
@@ -460,10 +489,16 @@ namespace __debug
 	insert(const_iterator __position,
 	       _InputIterator __first, _InputIterator __last)
 	{
-	  __glibcxx_check_insert_range(__position, __first, __last);
-	  _Base_iterator __res = _Base::insert(__position.base(),
-					       __gnu_debug::__base(__first),
-					       __gnu_debug::__base(__last));
+	  typename __gnu_debug::_Distance_traits<_InputIterator>::__type __dist;
+	  __glibcxx_check_insert_range(__position, __first, __last, __dist);
+	  _Base_iterator __res;
+	  if (__dist.second >= __gnu_debug::__dp_sign)
+	    __res = _Base::insert(__position.base(),
+				  __gnu_debug::__unsafe(__first),
+				  __gnu_debug::__unsafe(__last));
+	  else
+	    __res = _Base::insert(__position.base(), __first, __last);
+
 	  this->_M_invalidate_all();
 	  return iterator(__res, this);
 	}
@@ -473,9 +508,16 @@ namespace __debug
 	insert(iterator __position,
 	       _InputIterator __first, _InputIterator __last)
 	{
-	  __glibcxx_check_insert_range(__position, __first, __last);
-	  _Base::insert(__position.base(), __gnu_debug::__base(__first),
-					   __gnu_debug::__base(__last));
+	  typename __gnu_debug::_Distance_traits<_InputIterator>::__type __dist;
+	  __glibcxx_check_insert_range(__position, __first, __last, __dist);
+
+	  if (__dist.second >= __gnu_debug::__dp_sign)
+	    _Base::insert(__position.base(),
+			  __gnu_debug::__unsafe(__first),
+			  __gnu_debug::__unsafe(__last));
+	  else
+	    _Base::insert(__position.base(), __first, __last);
+
 	  this->_M_invalidate_all();
 	}
 #endif
@@ -570,9 +612,7 @@ namespace __debug
 
       void
       swap(deque& __x)
-#if __cplusplus >= 201103L
-	noexcept( noexcept(declval<_Base>().swap(__x)) )
-#endif
+      _GLIBCXX_NOEXCEPT_IF( noexcept(declval<_Base&>().swap(__x)) )
       {
 	_Safe::_M_swap(__x);
 	_Base::swap(__x);
@@ -591,6 +631,16 @@ namespace __debug
       const _Base&
       _M_base() const _GLIBCXX_NOEXCEPT	{ return *this; }
     };
+
+#if __cpp_deduction_guides >= 201606
+  template<typename _InputIterator, typename _ValT
+	     = typename iterator_traits<_InputIterator>::value_type,
+	   typename _Allocator = allocator<_ValT>,
+	   typename = _RequireInputIter<_InputIterator>,
+	   typename = _RequireAllocator<_Allocator>>
+    deque(_InputIterator, _InputIterator, _Allocator = _Allocator())
+      -> deque<_ValT, _Allocator>;
+#endif
 
   template<typename _Tp, typename _Alloc>
     inline bool
@@ -631,6 +681,7 @@ namespace __debug
   template<typename _Tp, typename _Alloc>
     inline void
     swap(deque<_Tp, _Alloc>& __lhs, deque<_Tp, _Alloc>& __rhs)
+    _GLIBCXX_NOEXCEPT_IF(noexcept(__lhs.swap(__rhs)))
     { __lhs.swap(__rhs); }
 
 } // namespace __debug

@@ -1,6 +1,6 @@
 // 2004-09-23 Chris Jefferson <chris@bubblescope.net>
 
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -32,8 +32,6 @@ struct foo
 void
 test_constructors()
 {
-  bool test __attribute__((unused)) = true;
-
   int x1=0,x2=0;
   const int &z1=x1;
 
@@ -61,11 +59,11 @@ test_constructors()
   tuple<int,int> tl(pair1);
   tuple<int,const int&> tm(pair1);
   tuple<int,int> tn(pair2);
-  tuple<int,const int&> to(pair2);  
+  tuple<int,const int&> to(pair2);
 }
 
-int 
-main(void) 
+int
+main(void)
 {
   //test construction
   typedef tuple<int,int,int,int,int,int,int,int,int,int> type1;
@@ -84,7 +82,7 @@ main(void)
   //tie
   {
     int i = 0;
-  tie(ignore, ignore, ignore, ignore, ignore, ignore, ignore, ignore, 
+  tie(ignore, ignore, ignore, ignore, ignore, ignore, ignore, ignore,
       ignore, i) = a;
   VERIFY(i == 1);
   }
@@ -93,15 +91,15 @@ main(void)
   a=b;
   //make_tuple
   make_tuple(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-  
+
   //tuple_size
   VERIFY(tuple_size<type3>::value == 10);
   //tuple_element
-  {  
+  {
     foo q1;
     tuple_element<0,type3>::type q2(q1);
     tuple_element<9,type3>::type q3(q1);
   }
-  
+
 }
 

@@ -1,5 +1,5 @@
 @c -*-texinfo-*-
-@c Copyright (C) 2001-2014 Free Software Foundation, Inc.
+@c Copyright (C) 2001-2019 Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 
@@ -32,7 +32,7 @@ passes pipeline, and even from @code{GIMPLE} to @code{RTL}.
 
 Often the CFG may be better viewed as integral part of instruction
 chain, than structure built on the top of it.  Updating the compiler's
-intermediate representation for instructions can not be easily done
+intermediate representation for instructions cannot be easily done
 without proper maintenance of the CFG simultaneously.
 
 @menu
@@ -147,6 +147,9 @@ Abstract containers and iterators are used to access the PHI nodes
 and statements in a basic blocks.  These iterators are called
 @dfn{GIMPLE statement iterators} (GSIs).  Grep for @code{^gsi}
 in the various @file{gimple-*} and @file{tree-*} files.
+There is a @code{gimple_stmt_iterator} type for iterating over
+all kinds of statement, and a @code{gphi_iterator} subclass for
+iterating over PHI nodes.
 The following snippet will pretty-print all PHI nodes the statements
 of the current function in the GIMPLE representation.
 
@@ -155,11 +158,12 @@ basic_block bb;
 
 FOR_EACH_BB (bb)
   @{
+   gphi_iterator pi;
    gimple_stmt_iterator si;
 
-   for (si = gsi_start_phis (bb); !gsi_end_p (si); gsi_next (&si))
+   for (pi = gsi_start_phis (bb); !gsi_end_p (pi); gsi_next (&pi))
      @{
-       gimple phi = gsi_stmt (si);
+       gphi *phi = pi.phi ();
        print_gimple_stmt (dump_file, phi, 0, TDF_SLIM);
      @}
    for (si = gsi_start_bb (bb); !gsi_end_p (si); gsi_next (&si))
@@ -281,7 +285,7 @@ is needed.  Note that this may require creation of a new basic block.
 Exception handling edges represent possible control transfers from a
 trapping instruction to an exception handler.  The definition of
 ``trapping'' varies.  In C++, only function calls can throw, but for
-Java and Ada, exceptions like division by zero or segmentation fault are
+Ada exceptions like division by zero or segmentation fault are
 defined and thus each instruction possibly throwing this kind of
 exception needs to be handled as control flow instruction.  Exception
 edges have the @code{EDGE_ABNORMAL} and @code{EDGE_EH} flags set.
@@ -539,7 +543,7 @@ When changes need to be applied to a function in its @code{GIMPLE}
 representation, @dfn{GIMPLE statement iterators} should be used.  These
 iterators provide an integrated abstraction of the flow graph and the
 instruction stream.  Block statement iterators are constructed using
-the @code{gimple_stmt_iterator} data structure and several modifier are
+the @code{gimple_stmt_iterator} data structure and several modifiers are
 available, including the following:
 
 @ftable @code
@@ -590,8 +594,7 @@ can just use @code{NEXT_INSN} and @code{PREV_INSN} instead.  @xref{Insns}.
 Usually a code manipulating pass simplifies the instruction stream and
 the flow of control, possibly eliminating some edges.  This may for
 example happen when a conditional jump is replaced with an
-unconditional jump, but also when simplifying possibly trapping
-instruction to non-trapping while compiling Java.  Updating of edges
+unconditional jump.  Updating of edges
 is not transparent and each optimization pass is required to do so
 manually.  However only few cases occur in practice.  The pass may
 call @code{purge_dead_edges} on a given basic block to remove

@@ -26,7 +26,7 @@ contains
      type(*), target, optional :: arg1
      logical :: presnt
      type(c_ptr) :: cpt
-     if (presnt .neqv. present (arg1)) call abort ()
+     if (presnt .neqv. present (arg1)) STOP 1
      cpt = c_loc (arg1)
   end subroutine sub_scalar
 
@@ -34,12 +34,12 @@ contains
      type(*), target :: arg2(:,:)
      type(c_ptr) :: cpt
      integer :: lbounds(2), ubounds(2)
-     if (any (lbound(arg2) /= lbounds)) call abort ()
-     if (any (ubound(arg2) /= ubounds)) call abort ()
-     if (any (shape(arg2) /= ubounds-lbounds+1)) call abort ()
-     if (size(arg2) /= product (ubounds-lbounds+1)) call abort ()
-     if (rank (arg2) /= 2) call abort ()
-!     if (.not. is_continuous (arg2)) call abort () !<< Not yet implemented
+     if (any (lbound(arg2) /= lbounds)) STOP 2
+     if (any (ubound(arg2) /= ubounds)) STOP 3
+     if (any (shape(arg2) /= ubounds-lbounds+1)) STOP 4
+     if (size(arg2) /= product (ubounds-lbounds+1)) STOP 5
+     if (rank (arg2) /= 2) STOP 6
+!     if (.not. is_continuous (arg2)) STOP 7 !<< Not yet implemented
 !     cpt = c_loc (arg2) ! << FIXME: Valid since TS29113
      call sub_array_assumed (arg2)
   end subroutine sub_array_shape
@@ -151,13 +151,13 @@ end
 ! { dg-final { scan-tree-dump-times "sub_scalar .&scalar_t1," 1 "original" } }
 
 ! { dg-final { scan-tree-dump-times "sub_scalar .&\\(.\\(real.kind=4..0:. . restrict\\) array_real_alloc.data" 1 "original" } }
-! { dg-final { scan-tree-dump-times "sub_scalar .&\\(.\\(character.kind=1..0:..1:1. .\\) array_char_ptr.data" 1 "original" } }
+! { dg-final { scan-tree-dump-times "sub_scalar .\\(character.kind=1..1:1. .\\) .array_char_ptr.data" 1 "original" } }
 ! { dg-final { scan-tree-dump-times "sub_scalar .&\\(.\\(struct t2.0:. . restrict\\) array_t2_alloc.data" 1 "original" } }
-! { dg-final { scan-tree-dump-times "sub_scalar .&\\(.\\(struct t3.0:. .\\) array_t3_ptr.data" 1 "original" } }
+! { dg-final { scan-tree-dump-times "sub_scalar .\\(struct t3 .\\) .array_t3_ptr.data" 1 "original" } }
 ! { dg-final { scan-tree-dump-times "sub_scalar .\\(struct t1 .\\) array_class_t1_alloc._data.data" 1 "original" } }
-! { dg-final { scan-tree-dump-times "sub_scalar .\\(struct t1 .\\) array_class_t1_ptr._data.dat" 1 "original" } }a
+! { dg-final { scan-tree-dump-times "sub_scalar .\\(struct t1 .\\) \\(array_class_t1_ptr._data.dat" 1 "original" } }
 
-! { dg-final { scan-tree-dump-times "sub_array_assumed \\(D" 3 "original" } }
+! { dg-final { scan-tree-dump-times "sub_array_assumed \\(D" 4 "original" } }
 ! { dg-final { scan-tree-dump-times " = _gfortran_internal_pack \\(&parm" 1 "original" } }
 ! { dg-final { scan-tree-dump-times "sub_array_assumed \\(&array_int\\)" 1 "original" } }
 ! { dg-final { scan-tree-dump-times "sub_array_assumed \\(\\(real\\(kind=4\\).0:. . restrict\\) array_real_alloc.data" 1 "original" } }
@@ -166,7 +166,7 @@ end
 ! { dg-final { scan-tree-dump-times "sub_array_assumed \\(\\(struct t1.0:. .\\) parm" 1 "original" } }
 ! { dg-final { scan-tree-dump-times "sub_array_assumed \\(\\(struct t2.0:. . restrict\\) array_t2_alloc.data\\);" 1 "original" } }
 ! { dg-final { scan-tree-dump-times "sub_array_assumed \\(\\(struct t1.0:. . restrict\\) array_class_t1_alloc._data.data\\);" 1 "original" } }
-! { dg-final { scan-tree-dump-times "sub_array_assumed \\(\\(struct t1.0:. .\\) array_class_t1_ptr._data.data\\);" 1 "original" } }
+! { dg-final { scan-tree-dump-times "sub_array_assumed \\(\\(struct t1.0:. .\\) array_class_t1_ptr._data.data\\);" 0 "original" } }
 
 ! { dg-final { scan-tree-dump-times "sub_array_shape \\(&array_real_alloc," 1 "original" } }
 ! { dg-final { scan-tree-dump-times "sub_array_shape \\(&array_char_ptr," 1 "original" } }
@@ -175,4 +175,3 @@ end
 ! { dg-final { scan-tree-dump-times "sub_array_shape \\(&array_class_t1_alloc._data," 1 "original" } }
 ! { dg-final { scan-tree-dump-times "sub_array_shape \\(&array_class_t1_ptr._data," 1 "original" } }
 
-! { dg-final { cleanup-tree-dump "original" } }

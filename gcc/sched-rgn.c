@@ -1,5 +1,5 @@
 /* Instruction scheduling pass.
-   Copyright (C) 1992-2014 Free Software Foundation, Inc.
+   Copyright (C) 1992-2019 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com) Enhanced by,
    and currently maintained by, Jim Wilson (wilson@cygnus.com)
 
@@ -46,24 +46,26 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "diagnostic-core.h"
+#include "backend.h"
+#include "target.h"
 #include "rtl.h"
+#include "df.h"
+#include "memmodel.h"
 #include "tm_p.h"
-#include "hard-reg-set.h"
-#include "regs.h"
-#include "function.h"
-#include "flags.h"
 #include "insn-config.h"
+#include "emit-rtl.h"
+#include "recog.h"
+#include "profile.h"
 #include "insn-attr.h"
 #include "except.h"
-#include "recog.h"
 #include "params.h"
+#include "cfganal.h"
 #include "sched-int.h"
 #include "sel-sched.h"
-#include "target.h"
 #include "tree-pass.h"
 #include "dbgcnt.h"
+#include "pretty-print.h"
+#include "print-rtl.h"
 
 #ifdef INSN_SCHEDULING
 
@@ -138,22 +140,20 @@ static state_t *bb_state = NULL;
    while other blocks in the region from which insns can be moved to the
    target are called "source" blocks.  The candidate structure holds info
    about such sources: are they valid?  Speculative?  Etc.  */
-typedef struct
+struct bblst
 {
   basic_block *first_member;
   int nr_members;
-}
-bblst;
+};
 
-typedef struct
+struct candidate
 {
   char is_valid;
   char is_speculative;
   int src_prob;
   bblst split_bbs;
   bblst update_bbs;
-}
-candidate;
+};
 
 static candidate *candidate_table;
 #define IS_VALID(src) (candidate_table[src].is_valid)
@@ -166,12 +166,11 @@ static candidate *candidate_table;
 int target_bb;
 
 /* List of edges.  */
-typedef struct
+struct edgelst
 {
   edge *first_member;
   int nr_members;
-}
-edgelst;
+};
 
 static edge *edgelst_table;
 static int edgelst_last;
@@ -229,10 +228,10 @@ static edgeset *ancestor_edges;
 static int check_live_1 (int, rtx);
 static void update_live_1 (int, rtx);
 static int is_pfree (rtx, int, int);
-static int find_conditional_protection (rtx, int);
+static int find_conditional_protection (rtx_insn *, int);
 static int is_conditionally_protected (rtx, int, int);
 static int is_prisky (rtx, int, int);
-static int is_exception_free (rtx, int, int);
+static int is_exception_free (rtx_insn *, int, int);
 
 static bool sets_likely_spilled (rtx);
 static void sets_likely_spilled_1 (rtx, const_rtx, void *);
@@ -478,7 +477,7 @@ find_single_block_region (bool ebbs_p)
 
   if (ebbs_p) {
     int probability_cutoff;
-    if (profile_info && flag_branch_probabilities)
+    if (profile_info && profile_status_for_fn (cfun) == PROFILE_READ)
       probability_cutoff = PARAM_VALUE (TRACER_MIN_BRANCH_PROBABILITY_FEEDBACK);
     else
       probability_cutoff = PARAM_VALUE (TRACER_MIN_BRANCH_PROBABILITY);
@@ -508,7 +507,8 @@ find_single_block_region (bool ebbs_p)
 	    e = find_fallthru_edge (bb->succs);
             if (! e)
               break;
-            if (e->probability <= probability_cutoff)
+            if (e->probability.initialized_p ()
+		&& e->probability.to_reg_br_prob_base () <= probability_cutoff)
               break;
           }
 
@@ -625,18 +625,6 @@ haifa_find_rgns (void)
   int too_large_failure;
   basic_block bb;
 
-  /* Note if a block is a natural loop header.  */
-  sbitmap header;
-
-  /* Note if a block is a natural inner loop header.  */
-  sbitmap inner;
-
-  /* Note if a block is in the block queue.  */
-  sbitmap in_queue;
-
-  /* Note if a block is in the block queue.  */
-  sbitmap in_stack;
-
   /* Perform a DFS traversal of the cfg.  Identify loop headers, inner loops
      and a mapping from block to its loop header (if the block is contained
      in a loop, else -1).
@@ -651,16 +639,20 @@ haifa_find_rgns (void)
   dfs_nr = XCNEWVEC (int, last_basic_block_for_fn (cfun));
   stack = XNEWVEC (edge_iterator, n_edges_for_fn (cfun));
 
-  inner = sbitmap_alloc (last_basic_block_for_fn (cfun));
+  /* Note if a block is a natural inner loop header.  */
+  auto_sbitmap inner (last_basic_block_for_fn (cfun));
   bitmap_ones (inner);
 
-  header = sbitmap_alloc (last_basic_block_for_fn (cfun));
+  /* Note if a block is a natural loop header.  */
+  auto_sbitmap header (last_basic_block_for_fn (cfun));
   bitmap_clear (header);
 
-  in_queue = sbitmap_alloc (last_basic_block_for_fn (cfun));
+  /* Note if a block is in the block queue.  */
+  auto_sbitmap in_queue (last_basic_block_for_fn (cfun));
   bitmap_clear (in_queue);
 
-  in_stack = sbitmap_alloc (last_basic_block_for_fn (cfun));
+  /* Note if a block is in the block queue.  */
+  auto_sbitmap in_stack (last_basic_block_for_fn (cfun));
   bitmap_clear (in_stack);
 
   for (i = 0; i < last_basic_block_for_fn (cfun); i++)
@@ -935,7 +927,7 @@ haifa_find_rgns (void)
 	     The algorithm in the DFS traversal may not mark B & D as part
 	     of the loop (i.e. they will not have max_hdr set to A).
 
-	     We know they can not be loop latches (else they would have
+	     We know they cannot be loop latches (else they would have
 	     had max_hdr set since they'd have a backedge to a dominator
 	     block).  So we don't need them on the initial queue.
 
@@ -1072,10 +1064,6 @@ haifa_find_rgns (void)
   free (max_hdr);
   free (degree);
   free (stack);
-  sbitmap_free (header);
-  sbitmap_free (inner);
-  sbitmap_free (in_queue);
-  sbitmap_free (in_stack);
 }
 
 
@@ -1454,7 +1442,11 @@ compute_dom_prob_ps (int bb)
       FOR_EACH_EDGE (out_edge, out_ei, in_edge->src->succs)
 	bitmap_set_bit (pot_split[bb], EDGE_TO_BIT (out_edge));
 
-      prob[bb] += combine_probabilities (prob[pred_bb], in_edge->probability);
+      prob[bb] += combine_probabilities
+		 (prob[pred_bb],
+		  in_edge->probability.initialized_p ()
+		  ? in_edge->probability.to_reg_br_prob_base ()
+		  : 0);
       // The rounding divide in combine_probabilities can result in an extra
       // probability increment propagating along 50-50 edges. Eventually when
       // the edges re-merge, the accumulated probability can go slightly above
@@ -1479,12 +1471,11 @@ compute_dom_prob_ps (int bb)
 static void
 split_edges (int bb_src, int bb_trg, edgelst *bl)
 {
-  sbitmap src = sbitmap_alloc (SBITMAP_SIZE (pot_split[bb_src]));
+  auto_sbitmap src (SBITMAP_SIZE (pot_split[bb_src]));
   bitmap_copy (src, pot_split[bb_src]);
 
   bitmap_and_compl (src, src, pot_split[bb_trg]);
   extract_edgelst (src, bl);
-  sbitmap_free (src);
 }
 
 /* Find the valid candidate-source-blocks for the target block TRG, compute
@@ -1498,7 +1489,6 @@ compute_trg_info (int trg)
   edgelst el = { NULL, 0 };
   int i, j, k, update_idx;
   basic_block block;
-  sbitmap visited;
   edge_iterator ei;
   edge e;
 
@@ -1521,7 +1511,7 @@ compute_trg_info (int trg)
   sp->is_speculative = 0;
   sp->src_prob = REG_BR_PROB_BASE;
 
-  visited = sbitmap_alloc (last_basic_block_for_fn (cfun));
+  auto_sbitmap visited (last_basic_block_for_fn (cfun));
 
   for (i = trg + 1; i < current_nr_blocks; i++)
     {
@@ -1597,8 +1587,6 @@ compute_trg_info (int trg)
 	  sp->src_prob = 0;
 	}
     }
-
-  sbitmap_free (visited);
 }
 
 /* Free the computed target info.  */
@@ -1709,7 +1697,7 @@ check_live_1 (int src, rtx x)
       if (regno < FIRST_PSEUDO_REGISTER)
 	{
 	  /* Check for hard registers.  */
-	  int j = hard_regno_nregs[regno][GET_MODE (reg)];
+	  int j = REG_NREGS (reg);
 	  while (--j >= 0)
 	    {
 	      for (i = 0; i < candidate_table[src].split_bbs.nr_members; i++)
@@ -1790,12 +1778,7 @@ update_live_1 (int src, rtx x)
       for (i = 0; i < candidate_table[src].update_bbs.nr_members; i++)
 	{
 	  basic_block b = candidate_table[src].update_bbs.first_member[i];
-
-	  if (HARD_REGISTER_NUM_P (regno))
-	    bitmap_set_range (df_get_live_in (b), regno,
-			      hard_regno_nregs[regno][GET_MODE (reg)]);
-	  else
-	    bitmap_set_bit (df_get_live_in (b), regno);
+	  bitmap_set_range (df_get_live_in (b), regno, REG_NREGS (reg));
 	}
     }
 }
@@ -1830,7 +1813,7 @@ check_live (rtx_insn *insn, int src)
    block src to trg.  */
 
 static void
-update_live (rtx insn, int src)
+update_live (rtx_insn *insn, int src)
 {
   /* Find the registers set by instruction.  */
   if (GET_CODE (PATTERN (insn)) == SET
@@ -1871,7 +1854,7 @@ set_spec_fed (rtx load_insn)
 branch depending on insn, that guards the speculative load.  */
 
 static int
-find_conditional_protection (rtx insn, int load_insn_bb)
+find_conditional_protection (rtx_insn *insn, int load_insn_bb)
 {
   sd_iterator_def sd_it;
   dep_t dep;
@@ -2031,7 +2014,7 @@ is_prisky (rtx load_insn, int bb_src, int bb_trg)
    and 0 otherwise.  */
 
 static int
-is_exception_free (rtx insn, int bb_src, int bb_trg)
+is_exception_free (rtx_insn *insn, int bb_src, int bb_trg)
 {
   int insn_class = haifa_classify_insn (insn);
 
@@ -2059,6 +2042,7 @@ is_exception_free (rtx insn, int bb_src, int bb_trg)
       if (is_pfree (insn, bb_src, bb_trg))
 	return 1;
       /* Don't 'break' here: PFREE-candidate is also PRISKY-candidate.  */
+      /* FALLTHRU */
     case PRISKY_CANDIDATE:
       if (!flag_schedule_speculative_load_dangerous
 	  || is_prisky (insn, bb_src, bb_trg))
@@ -2168,12 +2152,19 @@ static int
 can_schedule_ready_p (rtx_insn *insn)
 {
   /* An interblock motion?  */
-  if (INSN_BB (insn) != target_bb
-      && IS_SPECULATIVE_INSN (insn)
-      && !check_live (insn, INSN_BB (insn)))
-    return 0;
-  else
-    return 1;
+  if (INSN_BB (insn) != target_bb && IS_SPECULATIVE_INSN (insn))
+    {
+      /* Cannot schedule this insn unless all operands are live.  */
+      if (!check_live (insn, INSN_BB (insn)))
+	return 0;
+
+      /* Should not move expensive instructions speculatively.  */
+      if (GET_CODE (PATTERN (insn)) != CLOBBER
+	  && !targetm.sched.can_speculate_insn (insn))
+	return 0;
+    }
+
+  return 1;
 }
 
 /* Updates counter and other information.  Split from can_schedule_ready_p ()
@@ -2476,9 +2467,7 @@ add_branch_dependences (rtx_insn *head, rtx_insn *tail)
 	     && (GET_CODE (PATTERN (insn)) == USE
 		 || GET_CODE (PATTERN (insn)) == CLOBBER
 		 || can_throw_internal (insn)
-#ifdef HAVE_cc0
-		 || sets_cc0_p (PATTERN (insn))
-#endif
+		 || (HAVE_cc0 && sets_cc0_p (PATTERN (insn)))
 		 || (!reload_completed
 		     && sets_likely_spilled (PATTERN (insn)))))
 	 || NOTE_P (insn)
@@ -2507,6 +2496,11 @@ add_branch_dependences (rtx_insn *head, rtx_insn *tail)
 	insn = PREV_INSN (insn);
       while (insn != head && DEBUG_INSN_P (insn));
     }
+
+  /* Selective scheduling handles control dependencies by itself, and
+     CANT_MOVE flags ensure that other insns will be kept in place.  */
+  if (sel_sched_p ())
+    return;
 
   /* Make sure these insns are scheduled last in their block.  */
   insn = last;
@@ -2736,9 +2730,7 @@ compute_block_dependences (int bb)
 
   sched_analyze (&tmp_deps, head, tail);
 
-  /* Selective scheduling handles control dependencies by itself.  */
-  if (!sel_sched_p ())
-    add_branch_dependences (head, tail);
+  add_branch_dependences (head, tail);
 
   if (current_nr_blocks > 1)
     propagate_deps (bb, &tmp_deps);
@@ -2848,8 +2840,8 @@ void debug_dependencies (rtx_insn *head, rtx_insn *tail)
 			       : INSN_PRIORITY (insn))
 		: INSN_PRIORITY (insn)),
 	       (sel_sched_p () ? (sched_emulate_haifa_p ? -1
-			       : insn_cost (insn))
-		: insn_cost (insn)));
+			       : insn_sched_cost (insn))
+		: insn_sched_cost (insn)));
 
       if (recog_memoized (insn) < 0)
 	fprintf (sched_dump, "nothing");
@@ -2871,6 +2863,108 @@ void debug_dependencies (rtx_insn *head, rtx_insn *tail)
 
   fprintf (sched_dump, "\n");
 }
+
+/* Dump dependency graph for the current region to a file using dot syntax.  */
+
+void
+dump_rgn_dependencies_dot (FILE *file)
+{
+  rtx_insn *head, *tail, *con, *pro;
+  sd_iterator_def sd_it;
+  dep_t dep;
+  int bb;
+  pretty_printer pp;
+
+  pp.buffer->stream = file;
+  pp_printf (&pp, "digraph SchedDG {\n");
+
+  for (bb = 0; bb < current_nr_blocks; ++bb)
+    {
+      /* Begin subgraph (basic block).  */
+      pp_printf (&pp, "subgraph cluster_block_%d {\n", bb);
+      pp_printf (&pp, "\t" "color=blue;" "\n");
+      pp_printf (&pp, "\t" "style=bold;" "\n");
+      pp_printf (&pp, "\t" "label=\"BB #%d\";\n", BB_TO_BLOCK (bb));
+
+      /* Setup head and tail (no support for EBBs).  */
+      gcc_assert (EBB_FIRST_BB (bb) == EBB_LAST_BB (bb));
+      get_ebb_head_tail (EBB_FIRST_BB (bb), EBB_LAST_BB (bb), &head, &tail);
+      tail = NEXT_INSN (tail);
+
+      /* Dump all insns.  */
+      for (con = head; con != tail; con = NEXT_INSN (con))
+	{
+	  if (!INSN_P (con))
+	    continue;
+
+	  /* Pretty print the insn.  */
+	  pp_printf (&pp, "\t%d [label=\"{", INSN_UID (con));
+	  pp_write_text_to_stream (&pp);
+	  print_insn (&pp, con, /*verbose=*/false);
+	  pp_write_text_as_dot_label_to_stream (&pp, /*for_record=*/true);
+	  pp_write_text_to_stream (&pp);
+
+	  /* Dump instruction attributes.  */
+	  pp_printf (&pp, "|{ uid:%d | luid:%d | prio:%d }}\",shape=record]\n",
+		     INSN_UID (con), INSN_LUID (con), INSN_PRIORITY (con));
+
+	  /* Dump all deps.  */
+	  FOR_EACH_DEP (con, SD_LIST_BACK, sd_it, dep)
+	    {
+	      int weight = 0;
+	      const char *color;
+	      pro = DEP_PRO (dep);
+
+	      switch (DEP_TYPE (dep))
+		{
+		case REG_DEP_TRUE:
+		  color = "black";
+		  weight = 1;
+		  break;
+		case REG_DEP_OUTPUT:
+		case REG_DEP_ANTI:
+		  color = "orange";
+		  break;
+		case REG_DEP_CONTROL:
+		  color = "blue";
+		  break;
+		default:
+		  gcc_unreachable ();
+		}
+
+	      pp_printf (&pp, "\t%d -> %d [color=%s",
+			 INSN_UID (pro), INSN_UID (con), color);
+	      if (int cost = dep_cost (dep))
+		pp_printf (&pp, ",label=%d", cost);
+	      pp_printf (&pp, ",weight=%d", weight);
+	      pp_printf (&pp, "];\n");
+	    }
+	}
+      pp_printf (&pp, "}\n");
+    }
+
+  pp_printf (&pp, "}\n");
+  pp_flush (&pp);
+}
+
+/* Dump dependency graph for the current region to a file using dot syntax.  */
+
+DEBUG_FUNCTION void
+dump_rgn_dependencies_dot (const char *fname)
+{
+  FILE *fp;
+
+  fp = fopen (fname, "w");
+  if (!fp)
+    {
+      perror ("fopen");
+      return;
+    }
+
+  dump_rgn_dependencies_dot (fp);
+  fclose (fp);
+}
+
 
 /* Returns true if all the basic blocks of the current region have
    NOTE_DISABLE_SCHED_OF_BLOCK which means not to schedule that region.  */
@@ -3085,8 +3179,10 @@ schedule_region (int rgn)
 	  sched_rgn_n_insns += sched_n_insns;
 	  realloc_bb_state_array (saved_last_basic_block);
 	  f = find_fallthru_edge (last_bb->succs);
-	  if (f && f->probability * 100 / REG_BR_PROB_BASE >=
-	      PARAM_VALUE (PARAM_SCHED_STATE_EDGE_PROB_CUTOFF))
+	  if (f
+	      && (!f->probability.initialized_p ()
+		  || f->probability.to_reg_br_prob_base () * 100 / REG_BR_PROB_BASE >=
+	             PARAM_VALUE (PARAM_SCHED_STATE_EDGE_PROB_CUTOFF)))
 	    {
 	      memcpy (bb_state[f->dest->index], curr_state,
 		      dfa_state_size);
@@ -3165,10 +3261,10 @@ sched_rgn_init (bool single_blocks_p)
 	free_dominance_info (CDI_DOMINATORS);
     }
 
-  gcc_assert (0 < nr_regions && nr_regions <= n_basic_blocks_for_fn (cfun));
+  gcc_assert (nr_regions > 0 && nr_regions <= n_basic_blocks_for_fn (cfun));
 
-  RGN_BLOCKS (nr_regions) = (RGN_BLOCKS (nr_regions - 1) +
-			     RGN_NR_BLOCKS (nr_regions - 1));
+  RGN_BLOCKS (nr_regions) = (RGN_BLOCKS (nr_regions - 1)
+			     + RGN_NR_BLOCKS (nr_regions - 1));
   nr_regions_initial = nr_regions;
 }
 
@@ -3411,8 +3507,7 @@ schedule_insns (void)
   haifa_sched_init ();
   sched_rgn_init (reload_completed);
 
-  bitmap_initialize (&not_in_df, 0);
-  bitmap_clear (&not_in_df);
+  bitmap_initialize (&not_in_df, &bitmap_default_obstack);
 
   /* Schedule every region in the subroutine.  */
   for (rgn = 0; rgn < nr_regions; rgn++)
@@ -3421,7 +3516,7 @@ schedule_insns (void)
 
   /* Clean up.  */
   sched_rgn_finish ();
-  bitmap_clear (&not_in_df);
+  bitmap_release (&not_in_df);
 
   haifa_sched_finish ();
 }
@@ -3647,6 +3742,17 @@ rest_of_handle_sched2 (void)
   return 0;
 }
 
+static unsigned int
+rest_of_handle_sched_fusion (void)
+{
+#ifdef INSN_SCHEDULING
+  sched_fusion = true;
+  schedule_insns ();
+  sched_fusion = false;
+#endif
+  return 0;
+}
+
 namespace {
 
 const pass_data pass_data_live_range_shrinkage =
@@ -3788,4 +3894,56 @@ rtl_opt_pass *
 make_pass_sched2 (gcc::context *ctxt)
 {
   return new pass_sched2 (ctxt);
+}
+
+namespace {
+
+const pass_data pass_data_sched_fusion =
+{
+  RTL_PASS, /* type */
+  "sched_fusion", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_SCHED_FUSION, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  TODO_df_finish, /* todo_flags_finish */
+};
+
+class pass_sched_fusion : public rtl_opt_pass
+{
+public:
+  pass_sched_fusion (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_sched_fusion, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  virtual bool gate (function *);
+  virtual unsigned int execute (function *)
+    {
+      return rest_of_handle_sched_fusion ();
+    }
+
+}; // class pass_sched2
+
+bool
+pass_sched_fusion::gate (function *)
+{
+#ifdef INSN_SCHEDULING
+  /* Scheduling fusion relies on peephole2 to do real fusion work,
+     so only enable it if peephole2 is in effect.  */
+  return (optimize > 0 && flag_peephole2
+    && flag_schedule_fusion && targetm.sched.fusion_priority != NULL);
+#else
+  return 0;
+#endif
+}
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_sched_fusion (gcc::context *ctxt)
+{
+  return new pass_sched_fusion (ctxt);
 }

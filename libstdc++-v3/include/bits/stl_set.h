@@ -1,6 +1,6 @@
 // Set implementation -*- C++ -*-
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -63,7 +63,11 @@
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
+
+  template<typename _Key, typename _Compare, typename _Alloc>
+    class multiset;
 
   /**
    *  @brief A standard container made up of unique keys, which can be
@@ -89,12 +93,25 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	   typename _Alloc = std::allocator<_Key> >
     class set
     {
+#ifdef _GLIBCXX_CONCEPT_CHECKS
       // concept requirements
-      typedef typename _Alloc::value_type                   _Alloc_value_type;
+      typedef typename _Alloc::value_type		_Alloc_value_type;
+# if __cplusplus < 201103L
       __glibcxx_class_requires(_Key, _SGIAssignableConcept)
+# endif
       __glibcxx_class_requires4(_Compare, bool, _Key, _Key,
 				_BinaryFunctionConcept)
       __glibcxx_class_requires2(_Key, _Alloc_value_type, _SameTypeConcept)
+#endif
+
+#if __cplusplus >= 201103L
+      static_assert(is_same<typename remove_cv<_Key>::type, _Key>::value,
+	  "std::set must have a non-const, non-volatile value_type");
+# ifdef __STRICT_ANSI__
+      static_assert(is_same<typename _Alloc::value_type, _Key>::value,
+	  "std::set must have the same value_type as its allocator");
+# endif
+#endif
 
     public:
       // typedefs:
@@ -120,27 +137,35 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     public:
       //@{
       ///  Iterator-related typedefs.
-      typedef typename _Alloc_traits::pointer		    pointer;
-      typedef typename _Alloc_traits::const_pointer	    const_pointer;
-      typedef typename _Alloc_traits::reference		    reference;
-      typedef typename _Alloc_traits::const_reference	    const_reference;
+      typedef typename _Alloc_traits::pointer		 pointer;
+      typedef typename _Alloc_traits::const_pointer	 const_pointer;
+      typedef typename _Alloc_traits::reference		 reference;
+      typedef typename _Alloc_traits::const_reference	 const_reference;
       // _GLIBCXX_RESOLVE_LIB_DEFECTS
       // DR 103. set::iterator is required to be modifiable,
       // but this allows modification of keys.
-      typedef typename _Rep_type::const_iterator            iterator;
-      typedef typename _Rep_type::const_iterator            const_iterator;
-      typedef typename _Rep_type::const_reverse_iterator    reverse_iterator;
+      typedef typename _Rep_type::const_iterator	 iterator;
+      typedef typename _Rep_type::const_iterator	 const_iterator;
+      typedef typename _Rep_type::const_reverse_iterator reverse_iterator;
       typedef typename _Rep_type::const_reverse_iterator const_reverse_iterator;
-      typedef typename _Rep_type::size_type                 size_type;
-      typedef typename _Rep_type::difference_type           difference_type;
+      typedef typename _Rep_type::size_type		 size_type;
+      typedef typename _Rep_type::difference_type	 difference_type;
       //@}
+
+#if __cplusplus > 201402L
+      using node_type = typename _Rep_type::node_type;
+      using insert_return_type = typename _Rep_type::insert_return_type;
+#endif
 
       // allocation/deallocation
       /**
        *  @brief  Default constructor creates no elements.
        */
-      set()
-      : _M_t() { }
+#if __cplusplus < 201103L
+      set() : _M_t() { }
+#else
+      set() = default;
+#endif
 
       /**
        *  @brief  Creates a %set with no elements.
@@ -165,7 +190,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       template<typename _InputIterator>
 	set(_InputIterator __first, _InputIterator __last)
 	: _M_t()
-	{ _M_t._M_insert_unique(__first, __last); }
+	{ _M_t._M_insert_range_unique(__first, __last); }
 
       /**
        *  @brief  Builds a %set from a range.
@@ -184,29 +209,26 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	    const _Compare& __comp,
 	    const allocator_type& __a = allocator_type())
 	: _M_t(__comp, _Key_alloc_type(__a))
-        { _M_t._M_insert_unique(__first, __last); }
+	{ _M_t._M_insert_range_unique(__first, __last); }
 
       /**
        *  @brief  %Set copy constructor.
-       *  @param  __x  A %set of identical element and allocator types.
        *
-       *  The newly-created %set uses a copy of the allocation object used
-       *  by @a __x.
+       *  Whether the allocator is copied depends on the allocator traits.
        */
+#if __cplusplus < 201103L
       set(const set& __x)
       : _M_t(__x._M_t) { }
+#else
+      set(const set&) = default;
 
-#if __cplusplus >= 201103L
      /**
        *  @brief %Set move constructor
-       *  @param __x  A %set of identical element and allocator types.
        *
-       *  The newly-created %set contains the exact contents of @a x.
-       *  The contents of @a x are a valid, but unspecified %set.
+       *  The newly-created %set contains the exact contents of the moved
+       *  instance. The moved instance is a valid, but unspecified, %set.
        */
-      set(set&& __x)
-      noexcept(is_nothrow_copy_constructible<_Compare>::value)
-      : _M_t(std::move(__x._M_t)) { }
+      set(set&&) = default;
 
       /**
        *  @brief  Builds a %set from an initializer_list.
@@ -222,12 +244,12 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  const _Compare& __comp = _Compare(),
 	  const allocator_type& __a = allocator_type())
       : _M_t(__comp, _Key_alloc_type(__a))
-      { _M_t._M_insert_unique(__l.begin(), __l.end()); }
+      { _M_t._M_insert_range_unique(__l.begin(), __l.end()); }
 
       /// Allocator-extended default constructor.
       explicit
       set(const allocator_type& __a)
-      : _M_t(_Compare(), _Key_alloc_type(__a)) { }
+      : _M_t(_Key_alloc_type(__a)) { }
 
       /// Allocator-extended copy constructor.
       set(const set& __x, const allocator_type& __a)
@@ -241,32 +263,40 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       /// Allocator-extended initialier-list constructor.
       set(initializer_list<value_type> __l, const allocator_type& __a)
-      : _M_t(_Compare(), _Key_alloc_type(__a))
-      { _M_t._M_insert_unique(__l.begin(), __l.end()); }
+      : _M_t(_Key_alloc_type(__a))
+      { _M_t._M_insert_range_unique(__l.begin(), __l.end()); }
 
       /// Allocator-extended range constructor.
       template<typename _InputIterator>
-        set(_InputIterator __first, _InputIterator __last,
+	set(_InputIterator __first, _InputIterator __last,
 	    const allocator_type& __a)
-	: _M_t(_Compare(), _Key_alloc_type(__a))
-        { _M_t._M_insert_unique(__first, __last); }
+	: _M_t(_Key_alloc_type(__a))
+	{ _M_t._M_insert_range_unique(__first, __last); }
+
+      /**
+       *  The dtor only erases the elements, and note that if the elements
+       *  themselves are pointers, the pointed-to memory is not touched in any
+       *  way. Managing the pointer is the user's responsibility.
+       */
+      ~set() = default;
 #endif
 
       /**
        *  @brief  %Set assignment operator.
-       *  @param  __x  A %set of identical element and allocator types.
        *
-       *  All the elements of @a __x are copied, but unlike the copy
-       *  constructor, the allocator object is not copied.
+       *  Whether the allocator is copied depends on the allocator traits.
        */
+#if __cplusplus < 201103L
       set&
       operator=(const set& __x)
       {
 	_M_t = __x._M_t;
 	return *this;
       }
+#else
+      set&
+      operator=(const set&) = default;
 
-#if __cplusplus >= 201103L
       /// Move assignment operator.
       set&
       operator=(set&&) = default;
@@ -280,7 +310,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *
        *  Note that the assignment completely changes the %set and
        *  that the resulting %set's size is the same as the number
-       *  of elements assigned.  Old data may be lost.
+       *  of elements assigned.
        */
       set&
       operator=(initializer_list<value_type> __l)
@@ -380,7 +410,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 #endif
 
       ///  Returns true if the %set is empty.
-      bool
+      _GLIBCXX_NODISCARD bool
       empty() const _GLIBCXX_NOEXCEPT
       { return _M_t.empty(); }
 
@@ -404,12 +434,12 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  stateless and empty), so it should be quite fast.)  Note
        *  that the global std::swap() function is specialized such
        *  that std::swap(s1,s2) will feed to this function.
+       *
+       *  Whether the allocators are swapped depends on the allocator traits.
        */
       void
       swap(set& __x)
-#if __cplusplus >= 201103L
-      noexcept(_Alloc_traits::_S_nothrow_swap())
-#endif
+      _GLIBCXX_NOEXCEPT_IF(__is_nothrow_swappable<_Compare>::value)
       { _M_t.swap(__x._M_t); }
 
       // insert/erase
@@ -534,7 +564,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       template<typename _InputIterator>
 	void
 	insert(_InputIterator __first, _InputIterator __last)
-	{ _M_t._M_insert_unique(__first, __last); }
+	{ _M_t._M_insert_range_unique(__first, __last); }
 
 #if __cplusplus >= 201103L
       /**
@@ -548,6 +578,60 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       insert(initializer_list<value_type> __l)
       { this->insert(__l.begin(), __l.end()); }
 #endif
+
+#if __cplusplus > 201402L
+      /// Extract a node.
+      node_type
+      extract(const_iterator __pos)
+      {
+	__glibcxx_assert(__pos != end());
+	return _M_t.extract(__pos);
+      }
+
+      /// Extract a node.
+      node_type
+      extract(const key_type& __x)
+      { return _M_t.extract(__x); }
+
+      /// Re-insert an extracted node.
+      insert_return_type
+      insert(node_type&& __nh)
+      { return _M_t._M_reinsert_node_unique(std::move(__nh)); }
+
+      /// Re-insert an extracted node.
+      iterator
+      insert(const_iterator __hint, node_type&& __nh)
+      { return _M_t._M_reinsert_node_hint_unique(__hint, std::move(__nh)); }
+
+      template<typename, typename>
+	friend class std::_Rb_tree_merge_helper;
+
+      template<typename _Compare1>
+	void
+	merge(set<_Key, _Compare1, _Alloc>& __source)
+	{
+	  using _Merge_helper = _Rb_tree_merge_helper<set, _Compare1>;
+	  _M_t._M_merge_unique(_Merge_helper::_S_get_tree(__source));
+	}
+
+      template<typename _Compare1>
+	void
+	merge(set<_Key, _Compare1, _Alloc>&& __source)
+	{ merge(__source); }
+
+      template<typename _Compare1>
+	void
+	merge(multiset<_Key, _Compare1, _Alloc>& __source)
+	{
+	  using _Merge_helper = _Rb_tree_merge_helper<set, _Compare1>;
+	  _M_t._M_merge_unique(_Merge_helper::_S_get_tree(__source));
+	}
+
+      template<typename _Compare1>
+	void
+	merge(multiset<_Key, _Compare1, _Alloc>&& __source)
+	{ merge(__source); }
+#endif // C++17
 
 #if __cplusplus >= 201103L
       // _GLIBCXX_RESOLVE_LIB_DEFECTS
@@ -651,6 +735,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       // set operations:
 
+      //@{
       /**
        *  @brief  Finds the number of elements.
        *  @param  __x  Element to located.
@@ -662,6 +747,34 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       size_type
       count(const key_type& __x) const
       { return _M_t.find(__x) == _M_t.end() ? 0 : 1; }
+
+#if __cplusplus > 201103L
+      template<typename _Kt>
+	auto
+	count(const _Kt& __x) const
+	-> decltype(_M_t._M_count_tr(__x))
+	{ return _M_t._M_count_tr(__x); }
+#endif
+      //@}
+
+#if __cplusplus > 201703L
+      //@{
+      /**
+       *  @brief  Finds whether an element with the given key exists.
+       *  @param  __x  Key of elements to be located.
+       *  @return  True if there is an element with the specified key.
+       */
+      bool
+      contains(const key_type& __x) const
+      { return _M_t.find(__x) != _M_t.end(); }
+
+      template<typename _Kt>
+	auto
+	contains(const _Kt& __x) const
+	-> decltype(_M_t._M_find_tr(__x), void(), true)
+	{ return _M_t._M_find_tr(__x) != _M_t.end(); }
+      //@}
+#endif
 
       // _GLIBCXX_RESOLVE_LIB_DEFECTS
       // 214.  set::find() missing const overload
@@ -684,6 +797,20 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       const_iterator
       find(const key_type& __x) const
       { return _M_t.find(__x); }
+
+#if __cplusplus > 201103L
+      template<typename _Kt>
+	auto
+	find(const _Kt& __x)
+	-> decltype(iterator{_M_t._M_find_tr(__x)})
+	{ return iterator{_M_t._M_find_tr(__x)}; }
+
+      template<typename _Kt>
+	auto
+	find(const _Kt& __x) const
+	-> decltype(const_iterator{_M_t._M_find_tr(__x)})
+	{ return const_iterator{_M_t._M_find_tr(__x)}; }
+#endif
       //@}
 
       //@{
@@ -705,6 +832,20 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       const_iterator
       lower_bound(const key_type& __x) const
       { return _M_t.lower_bound(__x); }
+
+#if __cplusplus > 201103L
+      template<typename _Kt>
+	auto
+	lower_bound(const _Kt& __x)
+	-> decltype(iterator(_M_t._M_lower_bound_tr(__x)))
+	{ return iterator(_M_t._M_lower_bound_tr(__x)); }
+
+      template<typename _Kt>
+	auto
+	lower_bound(const _Kt& __x) const
+	-> decltype(const_iterator(_M_t._M_lower_bound_tr(__x)))
+	{ return const_iterator(_M_t._M_lower_bound_tr(__x)); }
+#endif
       //@}
 
       //@{
@@ -721,6 +862,20 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       const_iterator
       upper_bound(const key_type& __x) const
       { return _M_t.upper_bound(__x); }
+
+#if __cplusplus > 201103L
+      template<typename _Kt>
+	auto
+	upper_bound(const _Kt& __x)
+	-> decltype(iterator(_M_t._M_upper_bound_tr(__x)))
+	{ return iterator(_M_t._M_upper_bound_tr(__x)); }
+
+      template<typename _Kt>
+	auto
+	upper_bound(const _Kt& __x) const
+	-> decltype(iterator(_M_t._M_upper_bound_tr(__x)))
+	{ return const_iterator(_M_t._M_upper_bound_tr(__x)); }
+#endif
       //@}
 
       //@{
@@ -746,6 +901,20 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       std::pair<const_iterator, const_iterator>
       equal_range(const key_type& __x) const
       { return _M_t.equal_range(__x); }
+
+#if __cplusplus > 201103L
+      template<typename _Kt>
+	auto
+	equal_range(const _Kt& __x)
+	-> decltype(pair<iterator, iterator>(_M_t._M_equal_range_tr(__x)))
+	{ return pair<iterator, iterator>(_M_t._M_equal_range_tr(__x)); }
+
+      template<typename _Kt>
+	auto
+	equal_range(const _Kt& __x) const
+	-> decltype(pair<iterator, iterator>(_M_t._M_equal_range_tr(__x)))
+	{ return pair<iterator, iterator>(_M_t._M_equal_range_tr(__x)); }
+#endif
       //@}
 
       template<typename _K1, typename _C1, typename _A1>
@@ -757,6 +926,43 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	operator<(const set<_K1, _C1, _A1>&, const set<_K1, _C1, _A1>&);
     };
 
+#if __cpp_deduction_guides >= 201606
+
+  template<typename _InputIterator,
+	   typename _Compare =
+	     less<typename iterator_traits<_InputIterator>::value_type>,
+	   typename _Allocator =
+	     allocator<typename iterator_traits<_InputIterator>::value_type>,
+	   typename = _RequireInputIter<_InputIterator>,
+	   typename = _RequireNotAllocator<_Compare>,
+	   typename = _RequireAllocator<_Allocator>>
+    set(_InputIterator, _InputIterator,
+	_Compare = _Compare(), _Allocator = _Allocator())
+    -> set<typename iterator_traits<_InputIterator>::value_type,
+	  _Compare, _Allocator>;
+
+  template<typename _Key, typename _Compare = less<_Key>,
+	   typename _Allocator = allocator<_Key>,
+	   typename = _RequireNotAllocator<_Compare>,
+	   typename = _RequireAllocator<_Allocator>>
+    set(initializer_list<_Key>,
+	_Compare = _Compare(), _Allocator = _Allocator())
+    -> set<_Key, _Compare, _Allocator>;
+
+  template<typename _InputIterator, typename _Allocator,
+	   typename = _RequireInputIter<_InputIterator>,
+	   typename = _RequireAllocator<_Allocator>>
+    set(_InputIterator, _InputIterator, _Allocator)
+    -> set<typename iterator_traits<_InputIterator>::value_type,
+	   less<typename iterator_traits<_InputIterator>::value_type>,
+	   _Allocator>;
+
+  template<typename _Key, typename _Allocator,
+	   typename = _RequireAllocator<_Allocator>>
+    set(initializer_list<_Key>, _Allocator)
+    -> set<_Key, less<_Key>, _Allocator>;
+
+#endif
 
   /**
    *  @brief  Set equality comparison.
@@ -823,8 +1029,30 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
   template<typename _Key, typename _Compare, typename _Alloc>
     inline void
     swap(set<_Key, _Compare, _Alloc>& __x, set<_Key, _Compare, _Alloc>& __y)
+    _GLIBCXX_NOEXCEPT_IF(noexcept(__x.swap(__y)))
     { __x.swap(__y); }
 
 _GLIBCXX_END_NAMESPACE_CONTAINER
+
+#if __cplusplus > 201402L
+  // Allow std::set access to internals of compatible sets.
+  template<typename _Val, typename _Cmp1, typename _Alloc, typename _Cmp2>
+    struct
+    _Rb_tree_merge_helper<_GLIBCXX_STD_C::set<_Val, _Cmp1, _Alloc>, _Cmp2>
+    {
+    private:
+      friend class _GLIBCXX_STD_C::set<_Val, _Cmp1, _Alloc>;
+
+      static auto&
+      _S_get_tree(_GLIBCXX_STD_C::set<_Val, _Cmp2, _Alloc>& __set)
+      { return __set._M_t; }
+
+      static auto&
+      _S_get_tree(_GLIBCXX_STD_C::multiset<_Val, _Cmp2, _Alloc>& __set)
+      { return __set._M_t; }
+    };
+#endif // C++17
+
+_GLIBCXX_END_NAMESPACE_VERSION
 } //namespace std
 #endif /* _STL_SET_H */

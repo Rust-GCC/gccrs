@@ -1,6 +1,6 @@
 ; Options for 64-bit PowerPC Linux.
 ;
-; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ; Contributed by Aldy Hernandez <aldy@quesejoda.com>.
 ;
 ; This file is part of GCC.
@@ -21,11 +21,11 @@
 
 mprofile-kernel
 Target Report Var(profile_kernel) Save
-Call mcount for profiling before a function prologue
+Call mcount for profiling before a function prologue.
 
 mcmodel=
 Target RejectNegative Joined Enum(rs6000_cmodel) Var(rs6000_current_cmodel)
-Select code model
+Select code model.
 
 Enum
 Name(rs6000_cmodel) Type(enum rs6000_cmodel)

@@ -1,7 +1,7 @@
-// { dg-options "-std=gnu++0x" }
-// { dg-do compile }
+// { dg-do compile { target c++11 } }
+// { dg-skip-if "argument_type removed for C++20" { c++2a } }
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -46,8 +46,7 @@ struct S012 : S0, S1, S2 { };
 
 using std::true_type;
 using std::false_type;
-using std::integral_constant;
-using std::remove_cv;
+using std::__void_t;
 
 _GLIBCXX_HAS_NESTED_TYPE(argument_type)
 _GLIBCXX_HAS_NESTED_TYPE(first_argument_type)

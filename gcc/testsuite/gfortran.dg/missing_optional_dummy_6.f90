@@ -32,17 +32,17 @@ contains
   ! Called functions
   subroutine assumed_shape2 (as2)
     integer, dimension(:),optional :: as2
-    if (present (as2)) call abort()
+    if (present (as2)) STOP 1
   end subroutine assumed_shape2
 
   subroutine explicit_shape2 (es2)
     integer, dimension(5),optional :: es2
-    if (present (es2)) call abort()
+    if (present (es2)) STOP 2
   end subroutine explicit_shape2
 
   subroutine scalar2 (slr2)
     integer, optional :: slr2
-    if (present (slr2)) call abort()
+    if (present (slr2)) STOP 3
   end subroutine scalar2
 
 end program test
@@ -57,4 +57,3 @@ end program test
 ! { dg-final { scan-tree-dump-times "assumed_shape2 \\(as1" 0 "original" } }
 ! { dg-final { scan-tree-dump-times "explicit_shape2 \\(as1" 0 "original" } }
 
-! { dg-final { cleanup-tree-dump "original" } }

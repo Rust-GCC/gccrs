@@ -1,5 +1,5 @@
 /* Code to maintain a C++ template repository.
-   Copyright (C) 1995-2014 Free Software Foundation, Inc.
+   Copyright (C) 1995-2019 Free Software Foundation, Inc.
    Contributed by Jason Merrill (jason@cygnus.com)
 
 This file is part of GCC.
@@ -27,15 +27,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "tree.h"
-#include "stringpool.h"
 #include "cp-tree.h"
-#include "input.h"
-#include "obstack.h"
+#include "stringpool.h"
 #include "toplev.h"
-#include "diagnostic-core.h"
-#include "flags.h"
 
 static const char *extract_string (const char **);
 static const char *get_base_filename (const char *);
@@ -116,7 +110,7 @@ get_base_filename (const char *filename)
 
   if (p && ! compiling)
     {
-      warning (0, "-frepo must be used with -c");
+      warning (0, "%<-frepo%> must be used with %<-c%>");
       flag_use_repository = 0;
       return NULL;
     }
@@ -293,7 +287,11 @@ repo_emit_p (tree decl)
   int ret = 0;
   gcc_assert (TREE_PUBLIC (decl));
   gcc_assert (VAR_OR_FUNCTION_DECL_P (decl));
-  gcc_assert (!DECL_REALLY_EXTERN (decl));
+  gcc_assert (!DECL_REALLY_EXTERN (decl)
+	      /* A clone might not have its linkage flags updated yet
+		 because we call import_export_decl before
+		 maybe_clone_body.  */
+	      || DECL_ABSTRACT_ORIGIN (decl));
 
   /* When not using the repository, emit everything.  */
   if (!flag_use_repository)
@@ -332,8 +330,7 @@ repo_emit_p (tree decl)
   /* For constructors and destructors, the repository contains
      information about the clones -- not the original function --
      because only the clones are emitted in the object file.  */
-  if (DECL_MAYBE_IN_CHARGE_CONSTRUCTOR_P (decl)
-      || DECL_MAYBE_IN_CHARGE_DESTRUCTOR_P (decl))
+  if (DECL_MAYBE_IN_CHARGE_CDTOR_P (decl))
     {
       int emit_p = 0;
       tree clone;

@@ -10,6 +10,8 @@ t(struct B *b)
 {
   struct A *a=b;
   a->t();
+
+  return 0;
 }
 
 /* We should guess that the pointer of type B probably points to an instance
@@ -17,4 +19,3 @@ t(struct B *b)
 
 /* { dg-final { scan-ipa-dump "Speculative targets"  "devirt"  } } */
 /* { dg-final { scan-ipa-dump "1 speculatively devirtualized"  "devirt"  } } */
-/* { dg-final { cleanup-ipa-dump "devirt" } } */

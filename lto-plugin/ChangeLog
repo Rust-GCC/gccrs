@@ -1,3 +1,170 @@
+2019-02-26  Martin Liska  <mliska@suse.cz>
+
+	* lto-symtab.c: Remove.
+
+2019-01-01  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2018-10-31  Joseph Myers  <joseph@codesourcery.com>
+
+	PR bootstrap/82856
+	* configure.ac: Remove AC_PREREQ.  Use AC_LANG_SOURCE.
+	* Makefile.in, aclocal.m4, config.h.in, configure: Regenerate.
+
+2018-05-30  Jan Hubicka  <jh@suse.cz>
+
+	* lto-plugin.c: (non_claimed_files): New static var.
+	(linker_ouput_known): New static var.
+	(all_symbols_read_handler): When user specifies linker output do not
+	imply it; output warning when nonlto-rel mode is forced.
+	(claim_file_header): Record number of nonclaimed files.
+	(process_option): Remember if linker output is known
+
+2018-04-18  David Malcolm  <dmalcolm@redhat.com>
+
+	PR jit/85384
+	* configure: Regenerate.
+
+2018-01-03  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2017-07-21  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR lto/81487
+	* lto-plugin.c (claim_file_handler): Use xasprintf instead of
+	asprintf.
+	[hi!=0]: Swap hi and lo arguments supplied to xasprintf.
+
+2017-01-17  Jakub Jelinek  <jakub@redhat.com>
+
+	PR other/79046
+	* configure.ac: Add GCC_BASE_VER.
+	* Makefile.am (gcc_version): Use @get_gcc_base_ver@ instead of cat to
+	get version from BASE-VER file.
+	* configure: Regenerated.
+	* Makefile.in: Regenerated.
+
+2017-01-04  Jakub Jelinek  <jakub@redhat.com>
+
+	Update copyright years.
+
+2016-11-15  Matthias Klose  <doko@ubuntu.com>
+
+	* configure: Regenerate.
+
+2016-02-25  Ilya Verbin  <ilya.verbin@intel.com>
+
+	PR driver/68463
+	* lto-plugin.c (struct plugin_offload_file): New.
+	(offload_files): Change type.
+	(offload_files_last, offload_files_last_obj): New.
+	(offload_files_last_lto): New.
+	(free_2): Adjust accordingly.
+	(all_symbols_read_handler): Don't add offload files to lto_arg_ptr.
+	Don't call free_1 for offload_files.  Write names of object files with
+	offloading to the temporary file.  Add new option to lto_arg_ptr.
+	(claim_file_handler): Don't claim file if it contains offload sections
+	without LTO sections.  If it contains offload sections, add to the list.
+
+2016-01-15  Martin Liska  <mliska@suse.cz>
+
+	* lto-plugin.c (all_symbols_read_handler): Assign default
+	value to a string variable.
+
+2015-11-25  Jan Hubicka  <jh@suse.cz>
+
+	PR lto/67548
+	* lto-plugin.c (linker_output, linker_output_set): New statics.
+	(all_symbols_read_handler): Add -flinker-output option.
+	(onload): Record linker_output info.
+
+2015-07-02  Uros Bizjak  <ubizjak@gmail.com>
+
+	* configure.ac: Add AC_USE_SYSTEM_EXTENSIONS.
+	* configure: Regenerate.
+	* config.h.in: Ditto.
+
+2015-05-13  Michael Haubenwallner  <michael.haubenwallner@ssi-schaefer.com>
+
+	* Makefile.am: Drop 'by automake version' from top-level comment.
+	* Makefile.in: Regenerated with automake-1.11.6.
+	* aclocal.m4: Likewise.
+	* configure: Likewise.
+
+2015-02-06  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* lto-plugin.c (release_input_file): Removed.
+	(claim_file_handler): Don't call release_input_file.
+	(onload): Don't set release_input_file.
+
+2015-02-05  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* lto-plugin.c (claim_file_handler): Pass handle to
+	release_input_file.
+
+2015-02-05  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* lto-plugin.c (claim_file_handler): Call release_input_file only
+	if file is claimed.
+
+2015-01-28  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* lto-plugin.c (claim_file_handler): Call release_input_file only
+	if it is not NULL.
+
+2015-01-28  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR lto/64837
+	* lto-plugin.c (release_input_file): New.
+	(claim_file_handler): Call release_input_file.
+	(onload): Set release_input_file.
+
+2014-12-09  Ilya Verbin  <ilya.verbin@intel.com>
+
+	* lto-plugin.c (offload_files, num_offload_files): New static variables.
+	(free_1): Use arguments instead of global variables.
+	(free_2): Free offload_files.
+	(all_symbols_read_handler): Add names from offload_files to lto-wrapper
+	arguments.
+	(claim_file_handler): Do not add file to claimed_files if it contains
+	offload sections without LTO sections.  Add it to offload_files instead.
+
+2014-11-21  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR bootstrap/63784
+	* configure: Regenerated.
+
+2014-11-13  Ilya Verbin  <ilya.verbin@intel.com>
+	    Bernd Schmidt  <bernds@codesourcery.com>
+	    Andrey Turetskiy  <andrey.turetskiy@intel.com>
+	    Michael Zolotukhin  <michael.v.zolotukhin@intel.com>
+
+	* lto-plugin.c (OFFLOAD_SECTION, OFFLOAD_SECTION_LEN): Define.
+	(struct plugin_objfile): Add new field "offload".
+	(process_offload_section): New static function.
+	(claim_file_handler): Claim file if it contains offload sections.
+
+2014-11-13  Bernd Schmidt  <bernds@codesourcery.com>
+	    Thomas Schwinge  <thomas@codesourcery.com>
+	    Ilya Verbin  <ilya.verbin@intel.com>
+	    Andrey Turetskiy  <andrey.turetskiy@intel.com>
+
+	* Makefile.am (libexecsubdir): Tweak for the possibility of being
+	configured for offload compiler.
+	(accel_dir_suffix, real_target_noncanonical): New variables substituted
+	by configure.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* configure.ac (accel_dir_suffix, real_target_noncanonical): Compute new
+	variables.
+
+2014-11-11  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	PR target/63610
+	* configure: Regenerate.
+
 2014-08-26  H.J. Lu  <hongjiu.lu@intel.com>
 
 	PR bootstrap/62260
@@ -503,7 +670,7 @@
 	(onload): Don't create the temporary directory.
 
 2009-11-04  Richard Guenther  <rguenther@suse.de>
-            Rafael Avila de Espindola  <espindola@google.com>
+	    Rafael Avila de Espindola  <espindola@google.com>
 
 	* lto-plugin.c (plugin_file_info): Remove temp field.
 	(cleanup_handler): Don't delete temporary objects.
@@ -539,9 +706,9 @@
 
 2009-10-19  Rafael Avila de Espindola  <espindola@google.com>
     
-        PR40790
-        * configure: Regenerate.
-        * configure.ac: Add AC_TYPE_UINT64_T.
+	PR40790
+	* configure: Regenerate.
+	* configure.ac: Add AC_TYPE_UINT64_T.
 
 2009-10-16  Rafael Avila de Espindola  <espindola@google.com>
 
@@ -782,7 +949,7 @@
 
 2008-09-23  Rafael Espindola  <espindola@google.com>
 
-        * plugin-api.h: Moved to include.
+	* plugin-api.h: Moved to include.
 
 2008-09-23 Rafael Espindola  <espindola@google.com>
 

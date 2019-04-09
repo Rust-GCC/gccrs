@@ -1,6 +1,5 @@
 /* Internal demangler interface for g++ V3 ABI.
-   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2010
-   Free Software Foundation, Inc.
+   Copyright (C) 2003-2019 Free Software Foundation, Inc.
    Written by Ian Lance Taylor <ian@wasabisystems.com>.
 
    This file is part of the libiberty library, which is part of GCC.
@@ -112,10 +111,6 @@ struct d_info
   int next_sub;
   /* The number of available entries in the subs array.  */
   int num_subs;
-  /* The number of substitutions which we actually made from the subs
-     array, plus the number of template parameter references we
-     saw.  */
-  int did_subs;
   /* The last name we saw, for constructors and destructors.  */
   struct demangle_component *last_name;
   /* A running total of the length of large expansions from the
@@ -127,6 +122,9 @@ struct d_info
   /* Non-zero if we are parsing the type operand of a conversion
      operator, but not when in an expression.  */
   int is_conversion;
+  /* If DMGL_NO_RECURSE_LIMIT is not active then this is set to
+     the current recursion level.  */
+  unsigned int recursion_level;
 };
 
 /* To avoid running past the ending '\0', don't:
@@ -135,11 +133,36 @@ struct d_info
    - call d_check_char(di, '\0')
    Everything else is safe.  */
 #define d_peek_char(di) (*((di)->n))
-#define d_peek_next_char(di) ((di)->n[1])
-#define d_advance(di, i) ((di)->n += (i))
+#ifndef CHECK_DEMANGLER
+#  define d_peek_next_char(di) ((di)->n[1])
+#  define d_advance(di, i) ((di)->n += (i))
+#endif
 #define d_check_char(di, c) (d_peek_char(di) == c ? ((di)->n++, 1) : 0)
 #define d_next_char(di) (d_peek_char(di) == '\0' ? '\0' : *((di)->n++))
 #define d_str(di) ((di)->n)
+
+#ifdef CHECK_DEMANGLER
+static inline char
+d_peek_next_char (const struct d_info *di)
+{
+  if (!di->n[0])
+    abort ();
+  return di->n[1];
+}
+
+static inline void
+d_advance (struct d_info *di, int i)
+{
+  if (i < 0)
+    abort ();
+  while (i--)
+    {
+      if (!di->n[0])
+	abort ();
+      di->n++;
+    }
+}
+#endif
 
 /* Functions and arrays in cp-demangle.c which are referenced by
    functions in cp-demint.c.  */
@@ -153,7 +176,7 @@ struct d_info
 extern const struct demangle_operator_info cplus_demangle_operators[];
 #endif
 
-#define D_BUILTIN_TYPE_COUNT (33)
+#define D_BUILTIN_TYPE_COUNT (34)
 
 CP_STATIC_IF_GLIBCPP_V3
 const struct demangle_builtin_type_info

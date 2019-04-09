@@ -1,13 +1,13 @@
 // Wshadows was giving warnings for nested function parameters in nested class
 // or structure that we didn't want.
 // { dg-do compile }
-// { dg-options "-Wshadow" }
+// { dg-options "-Wshadow -Wno-return-type" }
 
 // PR c++/41825
 int f (int n)
 {
     int bar (int n) { return n++; } // { dg-error "a function-definition is not allowed here" }
-    return bar (n); // { dg-error "was not declared in this scope" }
+    return bar (n); // { dg-error "12:'bar' was not declared in this scope" }
 }
 
 int g (int i)

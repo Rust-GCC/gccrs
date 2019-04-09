@@ -1,7 +1,7 @@
-/* Copyright (C) 2002-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by Paul Brook
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #include "libgfortran.h"
 #include <string.h>
-#include <stdlib.h>
+#include <strings.h>
 
 
 /* Given a fortran string, return its length exclusive of the trailing
@@ -134,6 +134,20 @@ fc_strdup (const char *src, gfc_charlen_type src_len)
 }
 
 
+/* Duplicate a non-null-terminated Fortran string to a malloced
+   null-terminated C string, without getting rid of trailing
+   blanks.  */
+
+char *
+fc_strdup_notrim (const char *src, gfc_charlen_type src_len)
+{
+  char *p = strndup (src, src_len);
+  if (!p)
+    os_error ("Memory allocation failed in fc_strdup");
+  return p;
+}
+
+
 /* Given a fortran string and an array of st_option structures, search through
    the array to find a match.  If the option is not found, we generate an error
    if no default is provided.  */
@@ -152,4 +166,49 @@ find_option (st_parameter_common *cmp, const char *s1, gfc_charlen_type s1_len,
   generate_error (cmp, LIBERROR_BAD_OPTION, error_message);
 
   return -1;
+}
+
+
+/* gfc_itoa()-- Integer to decimal conversion.
+   The itoa function is a widespread non-standard extension to
+   standard C, often declared in <stdlib.h>.  Even though the itoa
+   defined here is a static function we take care not to conflict with
+   any prior non-static declaration.  Hence the 'gfc_' prefix, which
+   is normally reserved for functions with external linkage.  Notably,
+   in contrast to the *printf() family of functions, this ought to be
+   async-signal-safe.  */
+
+const char *
+gfc_itoa (GFC_INTEGER_LARGEST n, char *buffer, size_t len)
+{
+  int negative;
+  char *p;
+  GFC_UINTEGER_LARGEST t;
+
+  if (len < GFC_ITOA_BUF_SIZE)
+    sys_abort ();
+
+  if (n == 0)
+    return "0";
+
+  negative = 0;
+  t = n;
+  if (n < 0)
+    {
+      negative = 1;
+      t = -n; /*must use unsigned to protect from overflow*/
+    }
+
+  p = buffer + GFC_ITOA_BUF_SIZE - 1;
+  *p = '\0';
+
+  while (t != 0)
+    {
+      *--p = '0' + (t % 10);
+      t /= 10;
+    }
+
+  if (negative)
+    *--p = '-';
+  return p;
 }

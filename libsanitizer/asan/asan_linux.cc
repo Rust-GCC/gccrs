@@ -11,10 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "sanitizer_common/sanitizer_platform.h"
-#if SANITIZER_FREEBSD || SANITIZER_LINUX
+#if SANITIZER_FREEBSD || SANITIZER_LINUX || SANITIZER_NETBSD || \
+    SANITIZER_SOLARIS
 
 #include "asan_interceptors.h"
 #include "asan_internal.h"
+#include "asan_premap_shadow.h"
 #include "asan_thread.h"
 #include "sanitizer_common/sanitizer_flags.h"
 #include "sanitizer_common/sanitizer_freebsd.h"
@@ -28,6 +30,7 @@
 #include <sys/types.h>
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -37,9 +40,17 @@
 #include <sys/link_elf.h>
 #endif
 
-#if SANITIZER_ANDROID || SANITIZER_FREEBSD
+#if SANITIZER_SOLARIS
+#include <link.h>
+#endif
+
+#if SANITIZER_ANDROID || SANITIZER_FREEBSD || SANITIZER_SOLARIS
 #include <ucontext.h>
 extern "C" void* _DYNAMIC;
+#elif SANITIZER_NETBSD
+#include <link_elf.h>
+#include <ucontext.h>
+extern Elf_Dyn _DYNAMIC;
 #else
 #include <sys/ucontext.h>
 #include <link.h>
@@ -66,13 +77,64 @@ asan_rt_version_t  __asan_rt_version;
 
 namespace __asan {
 
-void MaybeReexec() {
-  // No need to re-exec on Linux.
-}
+void InitializePlatformInterceptors() {}
+void InitializePlatformExceptionHandlers() {}
+bool IsSystemHeapAddress (uptr addr) { return false; }
 
 void *AsanDoesNotSupportStaticLinkage() {
   // This will fail to link with -static.
   return &_DYNAMIC;  // defined in link.h
+}
+
+static void UnmapFromTo(uptr from, uptr to) {
+  CHECK(to >= from);
+  if (to == from) return;
+  uptr res = internal_munmap(reinterpret_cast<void *>(from), to - from);
+  if (UNLIKELY(internal_iserror(res))) {
+    Report(
+        "ERROR: AddresSanitizer failed to unmap 0x%zx (%zd) bytes at address "
+        "%p\n",
+        to - from, to - from, from);
+    CHECK("unable to unmap" && 0);
+  }
+}
+
+#if ASAN_PREMAP_SHADOW
+uptr FindPremappedShadowStart() {
+  uptr granularity = GetMmapGranularity();
+  uptr shadow_start = reinterpret_cast<uptr>(&__asan_shadow);
+  uptr premap_shadow_size = PremapShadowSize();
+  uptr shadow_size = RoundUpTo(kHighShadowEnd, granularity);
+  // We may have mapped too much. Release extra memory.
+  UnmapFromTo(shadow_start + shadow_size, shadow_start + premap_shadow_size);
+  return shadow_start;
+}
+#endif
+
+uptr FindDynamicShadowStart() {
+#if ASAN_PREMAP_SHADOW
+  if (!PremapShadowFailed())
+    return FindPremappedShadowStart();
+#endif
+
+  uptr granularity = GetMmapGranularity();
+  uptr alignment = granularity * 8;
+  uptr left_padding = granularity;
+  uptr shadow_size = RoundUpTo(kHighShadowEnd, granularity);
+  uptr map_size = shadow_size + left_padding + alignment;
+
+  uptr map_start = (uptr)MmapNoAccess(map_size);
+  CHECK_NE(map_start, ~(uptr)0);
+
+  uptr shadow_start = RoundUpTo(map_start + left_padding, alignment);
+  UnmapFromTo(map_start, shadow_start - left_padding);
+  UnmapFromTo(shadow_start + shadow_size, map_start + map_size);
+
+  return shadow_start;
+}
+
+void AsanApplyToGlobals(globals_op_fptr op, const void *needle) {
+  UNIMPLEMENTED();
 }
 
 #if SANITIZER_ANDROID
@@ -82,6 +144,9 @@ void AsanCheckIncompatibleRT() {}
 #else
 static int FindFirstDSOCallback(struct dl_phdr_info *info, size_t size,
                                 void *data) {
+  VReport(2, "info->dlpi_name = %s\tinfo->dlpi_addr = %p\n",
+          info->dlpi_name, info->dlpi_addr);
+
   // Continue until the first dynamic library is found
   if (!info->dlpi_name || info->dlpi_name[0] == 0)
     return 0;
@@ -89,6 +154,21 @@ static int FindFirstDSOCallback(struct dl_phdr_info *info, size_t size,
   // Ignore vDSO
   if (internal_strncmp(info->dlpi_name, "linux-", sizeof("linux-") - 1) == 0)
     return 0;
+
+#if SANITIZER_FREEBSD || SANITIZER_NETBSD
+  // Ignore first entry (the main program)
+  char **p = (char **)data;
+  if (!(*p)) {
+    *p = (char *)-1;
+    return 0;
+  }
+#endif
+
+#if SANITIZER_SOLARIS
+  // Ignore executable on Solaris
+  if (info->dlpi_addr == 0)
+    return 0;
+#endif
 
   *(const char **)data = info->dlpi_name;
   return 1;
@@ -105,8 +185,11 @@ static void ReportIncompatibleRT() {
 }
 
 void AsanCheckDynamicRTPrereqs() {
+  if (!ASAN_DYNAMIC || !flags()->verify_asan_link_order)
+    return;
+
   // Ensure that dynamic RT is the first DSO in the list
-  const char *first_dso_name = 0;
+  const char *first_dso_name = nullptr;
   dl_iterate_phdr(FindFirstDSOCallback, &first_dso_name);
   if (first_dso_name && !IsDynamicRTName(first_dso_name)) {
     Report("ASan runtime does not come first in initial library list; "
@@ -130,9 +213,10 @@ void AsanCheckIncompatibleRT() {
       // the functions in dynamic ASan runtime instead of the functions in
       // system libraries, causing crashes later in ASan initialization.
       MemoryMappingLayout proc_maps(/*cache_enabled*/true);
-      char filename[128];
-      while (proc_maps.Next(0, 0, 0, filename, sizeof(filename), 0)) {
-        if (IsDynamicRTName(filename)) {
+      char filename[PATH_MAX];
+      MemoryMappedSegment segment(filename, sizeof(filename));
+      while (proc_maps.Next(&segment)) {
+        if (IsDynamicRTName(segment.filename)) {
           Report("Your application is linked against "
                  "incompatible ASan runtimes.\n");
           Die();
@@ -144,87 +228,7 @@ void AsanCheckIncompatibleRT() {
     }
   }
 }
-#endif  // SANITIZER_ANDROID
-
-void GetPcSpBp(void *context, uptr *pc, uptr *sp, uptr *bp) {
-#if defined(__arm__)
-  ucontext_t *ucontext = (ucontext_t*)context;
-  *pc = ucontext->uc_mcontext.arm_pc;
-  *bp = ucontext->uc_mcontext.arm_fp;
-  *sp = ucontext->uc_mcontext.arm_sp;
-#elif defined(__aarch64__)
-  ucontext_t *ucontext = (ucontext_t*)context;
-  *pc = ucontext->uc_mcontext.pc;
-  *bp = ucontext->uc_mcontext.regs[29];
-  *sp = ucontext->uc_mcontext.sp;
-#elif defined(__hppa__)
-  ucontext_t *ucontext = (ucontext_t*)context;
-  *pc = ucontext->uc_mcontext.sc_iaoq[0];
-  /* GCC uses %r3 whenever a frame pointer is needed.  */
-  *bp = ucontext->uc_mcontext.sc_gr[3];
-  *sp = ucontext->uc_mcontext.sc_gr[30];
-#elif defined(__x86_64__)
-# if SANITIZER_FREEBSD
-  ucontext_t *ucontext = (ucontext_t*)context;
-  *pc = ucontext->uc_mcontext.mc_rip;
-  *bp = ucontext->uc_mcontext.mc_rbp;
-  *sp = ucontext->uc_mcontext.mc_rsp;
-# else
-  ucontext_t *ucontext = (ucontext_t*)context;
-  *pc = ucontext->uc_mcontext.gregs[REG_RIP];
-  *bp = ucontext->uc_mcontext.gregs[REG_RBP];
-  *sp = ucontext->uc_mcontext.gregs[REG_RSP];
-# endif
-#elif defined(__i386__)
-# if SANITIZER_FREEBSD
-  ucontext_t *ucontext = (ucontext_t*)context;
-  *pc = ucontext->uc_mcontext.mc_eip;
-  *bp = ucontext->uc_mcontext.mc_ebp;
-  *sp = ucontext->uc_mcontext.mc_esp;
-# else
-  ucontext_t *ucontext = (ucontext_t*)context;
-  *pc = ucontext->uc_mcontext.gregs[REG_EIP];
-  *bp = ucontext->uc_mcontext.gregs[REG_EBP];
-  *sp = ucontext->uc_mcontext.gregs[REG_ESP];
-# endif
-#elif defined(__powerpc__) || defined(__powerpc64__)
-  ucontext_t *ucontext = (ucontext_t*)context;
-  *pc = ucontext->uc_mcontext.regs->nip;
-  *sp = ucontext->uc_mcontext.regs->gpr[PT_R1];
-  // The powerpc{,64}-linux ABIs do not specify r31 as the frame
-  // pointer, but GCC always uses r31 when we need a frame pointer.
-  *bp = ucontext->uc_mcontext.regs->gpr[PT_R31];
-#elif defined(__sparc__)
-  ucontext_t *ucontext = (ucontext_t*)context;
-  uptr *stk_ptr;
-# if defined (__arch64__)
-  *pc = ucontext->uc_mcontext.mc_gregs[MC_PC];
-  *sp = ucontext->uc_mcontext.mc_gregs[MC_O6];
-  stk_ptr = (uptr *) (*sp + 2047);
-  *bp = stk_ptr[15];
-# else
-  *pc = ucontext->uc_mcontext.gregs[REG_PC];
-  *sp = ucontext->uc_mcontext.gregs[REG_O6];
-  stk_ptr = (uptr *) *sp;
-  *bp = stk_ptr[15];
-# endif
-#elif defined(__mips__)
-  ucontext_t *ucontext = (ucontext_t*)context;
-  *pc = ucontext->uc_mcontext.gregs[31];
-  *bp = ucontext->uc_mcontext.gregs[30];
-  *sp = ucontext->uc_mcontext.gregs[29];
-#else
-# error "Unsupported arch"
-#endif
-}
-
-bool AsanInterceptsSignal(int signum) {
-  return signum == SIGSEGV && common_flags()->handle_segv;
-}
-
-void AsanPlatformThreadInit() {
-  // Nothing here for now.
-}
+#endif // SANITIZER_ANDROID
 
 #if !SANITIZER_ANDROID
 void ReadContextStack(void *context, uptr *stack, uptr *ssize) {
@@ -242,6 +246,7 @@ void *AsanDlSymNext(const char *sym) {
   return dlsym(RTLD_NEXT, sym);
 }
 
-}  // namespace __asan
+} // namespace __asan
 
-#endif  // SANITIZER_FREEBSD || SANITIZER_LINUX
+#endif  // SANITIZER_FREEBSD || SANITIZER_LINUX || SANITIZER_NETBSD ||
+        // SANITIZER_SOLARIS

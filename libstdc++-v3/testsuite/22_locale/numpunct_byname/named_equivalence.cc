@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "de_DE" }
+// { dg-require-namedlocale "de_DE.ISO8859-15" }
 
 // 2001-01-24 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -27,14 +27,13 @@
 void test01()
 {
   using namespace std;
-  
-  bool test __attribute__((unused)) = true;
+
   string str;
 
-  locale loc_de = locale("de_DE");
+  locale loc_de = locale(ISO_8859(15,de_DE));
   str = loc_de.name();
 
-  locale loc_byname(locale::classic(), new numpunct_byname<char>("de_DE"));
+  locale loc_byname(locale::classic(), new numpunct_byname<char>(ISO_8859(15,de_DE)));
   str = loc_byname.name();
 
   locale loc_c = locale::classic();

@@ -1,8 +1,8 @@
-// { dg-require-namedlocale "de_DE" }
+// { dg-require-namedlocale "de_DE.ISO8859-15" }
 
 // 2001-08-23 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -31,11 +31,9 @@ void test02()
   typedef money_base::part part;
   typedef money_base::pattern pattern;
 
-  bool test __attribute__((unused)) = true;
-
   // basic construction
   locale loc_c = locale::classic();
-  locale loc_de = locale("de_DE");
+  locale loc_de = locale(ISO_8859(15,de_DE));
 
   // cache the moneypunct facets
   typedef moneypunct<wchar_t, true> __money_true;

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build darwin dragonfly freebsd linux nacl netbsd openbsd solaris windows
+// +build aix darwin dragonfly freebsd hurd js,wasm linux nacl netbsd openbsd solaris windows
 
 package os
 
@@ -10,9 +10,11 @@ import (
 	"syscall"
 )
 
-// The only signal values guaranteed to be present on all systems
-// are Interrupt (send the process an interrupt) and Kill (force
-// the process to exit).
+// The only signal values guaranteed to be present in the os package on all
+// systems are os.Interrupt (send the process an interrupt) and os.Kill (force
+// the process to exit). On Windows, sending os.Interrupt to a process with
+// os.Process.Signal is not implemented; it will return an error instead of
+// sending a signal.
 var (
 	Interrupt Signal = syscall.SIGINT
 	Kill      Signal = syscall.SIGKILL
@@ -21,7 +23,7 @@ var (
 func startProcess(name string, argv []string, attr *ProcAttr) (p *Process, err error) {
 	// If there is no SysProcAttr (ie. no Chroot or changed
 	// UID/GID), double-check existence of the directory we want
-	// to chdir into.  We can make the error clearer this way.
+	// to chdir into. We can make the error clearer this way.
 	if attr != nil && attr.Sys == nil && attr.Dir != "" {
 		if _, err := Stat(attr.Dir); err != nil {
 			pe := err.(*PathError)
@@ -81,33 +83,6 @@ func (p *ProcessState) sysUsage() interface{} {
 	return p.rusage
 }
 
-// Convert i to decimal string.
-func itod(i int) string {
-	if i == 0 {
-		return "0"
-	}
-
-	u := uint64(i)
-	if i < 0 {
-		u = -u
-	}
-
-	// Assemble decimal in reverse order.
-	var b [32]byte
-	bp := len(b)
-	for ; u > 0; u /= 10 {
-		bp--
-		b[bp] = byte(u%10) + '0'
-	}
-
-	if i < 0 {
-		bp--
-		b[bp] = '-'
-	}
-
-	return string(b[bp:])
-}
-
 func (p *ProcessState) String() string {
 	if p == nil {
 		return "<nil>"
@@ -116,13 +91,13 @@ func (p *ProcessState) String() string {
 	res := ""
 	switch {
 	case status.Exited():
-		res = "exit status " + itod(status.ExitStatus())
+		res = "exit status " + itoa(status.ExitStatus())
 	case status.Signaled():
 		res = "signal: " + status.Signal().String()
 	case status.Stopped():
 		res = "stop signal: " + status.StopSignal().String()
 		if status.StopSignal() == syscall.SIGTRAP && status.TrapCause() != 0 {
-			res += " (trap " + itod(status.TrapCause()) + ")"
+			res += " (trap " + itoa(status.TrapCause()) + ")"
 		}
 	case status.Continued():
 		res = "continued"
@@ -131,4 +106,14 @@ func (p *ProcessState) String() string {
 		res += " (core dumped)"
 	}
 	return res
+}
+
+// ExitCode returns the exit code of the exited process, or -1
+// if the process hasn't exited or was terminated by a signal.
+func (p *ProcessState) ExitCode() int {
+	// return -1 if the process hasn't started.
+	if p == nil {
+		return -1
+	}
+	return p.status.ExitStatus()
 }

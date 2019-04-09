@@ -8,12 +8,20 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	. "time"
 )
+
+// Go runtime uses different Windows timers for time.Now and sleeping.
+// These can tick at different frequencies and can arrive out of sync.
+// The effect can be seen, for example, as time.Sleep(100ms) is actually
+// shorter then 100ms when measured as difference between time.Now before and
+// after time.Sleep call. This was observed on Windows XP SP3 (windows/386).
+// windowsInaccuracy is to ignore such errors.
+const windowsInaccuracy = 17 * Millisecond
 
 func TestSleep(t *testing.T) {
 	const delay = 100 * Millisecond
@@ -23,8 +31,12 @@ func TestSleep(t *testing.T) {
 	}()
 	start := Now()
 	Sleep(delay)
+	delayadj := delay
+	if runtime.GOOS == "windows" {
+		delayadj -= windowsInaccuracy
+	}
 	duration := Now().Sub(start)
-	if duration < delay {
+	if duration < delayadj {
 		t.Fatalf("Sleep(%s) slept for only %s", delay, duration)
 	}
 }
@@ -70,21 +82,36 @@ func TestAfterStress(t *testing.T) {
 }
 
 func benchmark(b *testing.B, bench func(n int)) {
-	garbage := make([]*Timer, 1<<17)
-	for i := 0; i < len(garbage); i++ {
-		garbage[i] = AfterFunc(Hour, nil)
-	}
-	b.ResetTimer()
 
+	// Create equal number of garbage timers on each P before starting
+	// the benchmark.
+	var wg sync.WaitGroup
+	garbageAll := make([][]*Timer, runtime.GOMAXPROCS(0))
+	for i := range garbageAll {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			garbage := make([]*Timer, 1<<15)
+			for j := range garbage {
+				garbage[j] = AfterFunc(Hour, nil)
+			}
+			garbageAll[i] = garbage
+		}(i)
+	}
+	wg.Wait()
+
+	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			bench(1000)
 		}
 	})
-
 	b.StopTimer()
-	for i := 0; i < len(garbage); i++ {
-		garbage[i].Stop()
+
+	for _, garbage := range garbageAll {
+		for _, t := range garbage {
+			t.Stop()
+		}
 	}
 }
 
@@ -146,14 +173,42 @@ func BenchmarkStartStop(b *testing.B) {
 	})
 }
 
+func BenchmarkReset(b *testing.B) {
+	benchmark(b, func(n int) {
+		t := NewTimer(Hour)
+		for i := 0; i < n; i++ {
+			t.Reset(Hour)
+		}
+		t.Stop()
+	})
+}
+
+func BenchmarkSleep(b *testing.B) {
+	benchmark(b, func(n int) {
+		var wg sync.WaitGroup
+		wg.Add(n)
+		for i := 0; i < n; i++ {
+			go func() {
+				Sleep(Nanosecond)
+				wg.Done()
+			}()
+		}
+		wg.Wait()
+	})
+}
+
 func TestAfter(t *testing.T) {
 	const delay = 100 * Millisecond
 	start := Now()
 	end := <-After(delay)
-	if duration := Now().Sub(start); duration < delay {
+	delayadj := delay
+	if runtime.GOOS == "windows" {
+		delayadj -= windowsInaccuracy
+	}
+	if duration := Now().Sub(start); duration < delayadj {
 		t.Fatalf("After(%s) slept for only %d ns", delay, duration)
 	}
-	if min := start.Add(delay); end.Before(min) {
+	if min := start.Add(delayadj); end.Before(min) {
 		t.Fatalf("After(%s) expect >= %s, got %s", delay, min, end)
 	}
 }
@@ -207,10 +262,11 @@ func TestAfterStop(t *testing.T) {
 func TestAfterQueuing(t *testing.T) {
 	// This test flakes out on some systems,
 	// so we'll try it a few times before declaring it a failure.
-	const attempts = 3
+	const attempts = 5
 	err := errors.New("!=nil")
 	for i := 0; i < attempts && err != nil; i++ {
-		if err = testAfterQueuing(t); err != nil {
+		delta := Duration(20+i*50) * Millisecond
+		if err = testAfterQueuing(delta); err != nil {
 			t.Logf("attempt %v failed: %v", i, err)
 		}
 	}
@@ -231,11 +287,7 @@ func await(slot int, result chan<- afterResult, ac <-chan Time) {
 	result <- afterResult{slot, <-ac}
 }
 
-func testAfterQueuing(t *testing.T) error {
-	Delta := 100 * Millisecond
-	if testing.Short() {
-		Delta = 20 * Millisecond
-	}
+func testAfterQueuing(delta Duration) error {
 	// make the result channel buffered because we don't want
 	// to depend on channel queueing semantics that might
 	// possibly change in the future.
@@ -243,18 +295,25 @@ func testAfterQueuing(t *testing.T) error {
 
 	t0 := Now()
 	for _, slot := range slots {
-		go await(slot, result, After(Duration(slot)*Delta))
+		go await(slot, result, After(Duration(slot)*delta))
 	}
-	sort.Ints(slots)
-	for _, slot := range slots {
+	var order []int
+	var times []Time
+	for range slots {
 		r := <-result
-		if r.slot != slot {
-			return fmt.Errorf("after slot %d, expected %d", r.slot, slot)
+		order = append(order, r.slot)
+		times = append(times, r.t)
+	}
+	for i := range order {
+		if i > 0 && order[i] < order[i-1] {
+			return fmt.Errorf("After calls returned out of order: %v", order)
 		}
-		dt := r.t.Sub(t0)
-		target := Duration(slot) * Delta
-		if dt < target-Delta/2 || dt > target+Delta*10 {
-			return fmt.Errorf("After(%s) arrived at %s, expected [%s,%s]", target, dt, target-Delta/2, target+Delta*10)
+	}
+	for i, t := range times {
+		dt := t.Sub(t0)
+		target := Duration(order[i]) * delta
+		if dt < target-delta/2 || dt > target+delta*10 {
+			return fmt.Errorf("After(%s) arrived at %s, expected [%s,%s]", target, dt, target-delta/2, target+delta*10)
 		}
 	}
 	return nil
@@ -301,7 +360,7 @@ func TestSleepZeroDeadlock(t *testing.T) {
 func testReset(d Duration) error {
 	t0 := NewTimer(2 * d)
 	Sleep(d)
-	if t0.Reset(3*d) != true {
+	if !t0.Reset(3 * d) {
 		return errors.New("resetting unfired timer returned false")
 	}
 	Sleep(2 * d)
@@ -317,7 +376,7 @@ func testReset(d Duration) error {
 		return errors.New("reset timer did not fire")
 	}
 
-	if t0.Reset(50*Millisecond) != false {
+	if t0.Reset(50 * Millisecond) {
 		return errors.New("resetting expired timer returned true")
 	}
 	return nil
@@ -388,7 +447,27 @@ func TestOverflowRuntimeTimer(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode, see issue 6874")
 	}
-	if err := CheckRuntimeTimerOverflow(); err != nil {
-		t.Fatalf(err.Error())
+	// This may hang forever if timers are broken. See comment near
+	// the end of CheckRuntimeTimerOverflow in internal_test.go.
+	CheckRuntimeTimerOverflow()
+}
+
+func checkZeroPanicString(t *testing.T) {
+	e := recover()
+	s, _ := e.(string)
+	if want := "called on uninitialized Timer"; !strings.Contains(s, want) {
+		t.Errorf("panic = %v; want substring %q", e, want)
 	}
+}
+
+func TestZeroTimerResetPanics(t *testing.T) {
+	defer checkZeroPanicString(t)
+	var tr Timer
+	tr.Reset(1)
+}
+
+func TestZeroTimerStopPanics(t *testing.T) {
+	defer checkZeroPanicString(t)
+	var tr Timer
+	tr.Stop()
 }

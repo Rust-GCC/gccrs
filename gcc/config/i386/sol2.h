@@ -1,5 +1,5 @@
 /* Target definitions for GCC for Intel 80386 running Solaris 2
-   Copyright (C) 1993-2014 Free Software Foundation, Inc.
+   Copyright (C) 1993-2019 Free Software Foundation, Inc.
    Contributed by Fred Fish (fnf@cygnus.com).
 
 This file is part of GCC.
@@ -21,7 +21,12 @@ along with GCC; see the file COPYING3.  If not see
 #define SUBTARGET_OPTIMIZATION_OPTIONS				\
   { OPT_LEVELS_1_PLUS, OPT_momit_leaf_frame_pointer, NULL, 1 }
 
-/* Old versions of the Solaris assembler can not handle the difference of
+/* 32-bit Solaris/x86 only guarantees 4-byte stack alignment as required by
+   the i386 psABI, so realign it as necessary for SSE instructions.  */
+#undef STACK_REALIGN_DEFAULT
+#define STACK_REALIGN_DEFAULT (TARGET_64BIT ? 0 : 1)
+
+/* Old versions of the Solaris assembler cannot handle the difference of
    labels in different sections, so force DW_EH_PE_datarel if so.  */
 #ifndef HAVE_AS_IX86_DIFF_SECT_DELTA
 #undef ASM_PREFERRED_EH_DATA_FORMAT
@@ -46,9 +51,11 @@ along with GCC; see the file COPYING3.  If not see
 #undef TARGET_SUN_TLS
 #define TARGET_SUN_TLS 1
 
-/* Solaris 2/Intel as chokes on #line directives before Solaris 10.  */
 #undef CPP_SPEC
-#define CPP_SPEC "%{,assembler-with-cpp:-P} %(cpp_subtarget)"
+#define CPP_SPEC "%(cpp_subtarget)"
+
+#undef CC1_SPEC
+#define CC1_SPEC "%(cc1_cpu) " ASAN_CC1_SPEC
 
 /* GNU as understands --32 and --64, but the native Solaris
    assembler requires -xarch=generic or -xarch=generic64 instead.  */
@@ -60,8 +67,16 @@ along with GCC; see the file COPYING3.  If not see
 #define ASM_CPU64_DEFAULT_SPEC "-xarch=generic64"
 #endif
 
+/* Since Studio 12.6, as needs -xbrace_comment=no so its AVX512 syntax is
+   fully compatible with gas.  */
+#ifdef HAVE_AS_XBRACE_COMMENT_OPTION
+#define ASM_XBRACE_COMMENT_SPEC "-xbrace_comment=no"
+#else
+#define ASM_XBRACE_COMMENT_SPEC ""
+#endif
+
 #undef ASM_CPU_SPEC
-#define ASM_CPU_SPEC "%(asm_cpu_default)"
+#define ASM_CPU_SPEC "%(asm_cpu_default) " ASM_XBRACE_COMMENT_SPEC
 
 /* Don't include ASM_PIC_SPEC.  While the Solaris 10+ assembler accepts -K PIC,
    it gives many warnings: 
@@ -86,13 +101,10 @@ along with GCC; see the file COPYING3.  If not see
 #endif
 #endif
 
-#undef  ENDFILE_SPEC
-#define ENDFILE_SPEC \
-  "%{Ofast|ffast-math|funsafe-math-optimizations:crtfastmath.o%s} \
-   %{mpc32:crtprec32.o%s} \
+#define ENDFILE_ARCH_SPEC \
+  "%{mpc32:crtprec32.o%s} \
    %{mpc64:crtprec64.o%s} \
-   %{mpc80:crtprec80.o%s} \
-   crtend.o%s crtn.o%s"
+   %{mpc80:crtprec80.o%s}"
 
 #define SUBTARGET_CPU_EXTRA_SPECS \
   { "cpp_subtarget",	 CPP_SUBTARGET_SPEC },		\
@@ -135,8 +147,9 @@ along with GCC; see the file COPYING3.  If not see
 /* The Solaris assembler wants a .local for non-exported aliases.  */
 #define ASM_OUTPUT_DEF_FROM_DECLS(FILE, DECL, TARGET)	\
   do {							\
-    const char *declname =				\
-      IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (DECL));	\
+    tree id = DECL_ASSEMBLER_NAME (DECL);		\
+    ultimate_transparent_alias_target (&id);		\
+    const char *declname = IDENTIFIER_POINTER (id);	\
     ASM_OUTPUT_DEF ((FILE), declname,			\
 		    IDENTIFIER_POINTER (TARGET));	\
     if (! TREE_PUBLIC (DECL))				\
@@ -181,15 +194,15 @@ along with GCC; see the file COPYING3.  If not see
 
 /* As in sparc/sol2.h, override the default from i386/x86-64.h to work
    around Sun as TLS bug.  */
-#undef  ASM_OUTPUT_ALIGNED_COMMON
-#define ASM_OUTPUT_ALIGNED_COMMON(FILE, NAME, SIZE, ALIGN)		\
+#undef  ASM_OUTPUT_ALIGNED_DECL_COMMON
+#define ASM_OUTPUT_ALIGNED_DECL_COMMON(FILE, DECL, NAME, SIZE, ALIGN)	\
   do									\
     {									\
       if (TARGET_SUN_TLS						\
 	  && in_section							\
 	  && ((in_section->common.flags & SECTION_TLS) == SECTION_TLS))	\
 	switch_to_section (bss_section);				\
-      x86_elf_aligned_common (FILE, NAME, SIZE, ALIGN);			\
+      x86_elf_aligned_decl_common (FILE, DECL, NAME, SIZE, ALIGN);	\
     }									\
   while  (0)
 
@@ -206,6 +219,14 @@ along with GCC; see the file COPYING3.  If not see
 #undef TARGET_ASM_NAMED_SECTION
 #define TARGET_ASM_NAMED_SECTION i386_solaris_elf_named_section
 
+/* Sun as requires "h" flag for large sections, GNU as can do without, but
+   accepts "l".  */
+#ifdef USE_GAS
+#define MACH_DEP_SECTION_ASM_FLAG 'l'
+#else
+#define MACH_DEP_SECTION_ASM_FLAG 'h'
+#endif
+
 #ifndef USE_GAS
 /* Emit COMDAT group signature symbols for Sun as.  */
 #undef TARGET_ASM_FILE_END
@@ -219,6 +240,14 @@ along with GCC; see the file COPYING3.  If not see
 #define DTORS_SECTION_ASM_OP	"\t.section\t.dtors, \"aw\""
 #endif
 
+#ifndef USE_GAS
+#define LARGECOMM_SECTION_ASM_OP "\t.lbcomm\t"
+#endif
+
+/* -fsanitize=address is currently only supported for 32-bit.  */
+#define ASAN_REJECT_SPEC \
+  DEF_ARCH64_SPEC("%e:-fsanitize=address is not supported in this configuration")
+
 #define USE_IX86_FRAME_POINTER 1
 #define USE_X86_64_FRAME_POINTER 1
 
@@ -230,9 +259,3 @@ along with GCC; see the file COPYING3.  If not see
 /* We do not need NT_VERSION notes.  */
 #undef X86_FILE_START_VERSION_DIRECTIVE
 #define X86_FILE_START_VERSION_DIRECTIVE false
-
-/* Only recent versions of Solaris 11 ld properly support hidden .gnu.linkonce
-   sections, so don't use them.  */
-#ifndef USE_GLD
-#define USE_HIDDEN_LINKONCE 0
-#endif

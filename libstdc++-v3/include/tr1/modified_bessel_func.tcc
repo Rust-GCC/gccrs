@@ -1,6 +1,6 @@
 // Special functions -*- C++ -*-
 
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -46,19 +46,24 @@
 #ifndef _GLIBCXX_TR1_MODIFIED_BESSEL_FUNC_TCC
 #define _GLIBCXX_TR1_MODIFIED_BESSEL_FUNC_TCC 1
 
-#include "special_function_util.h"
+#include <tr1/special_function_util.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+#if _GLIBCXX_USE_STD_SPEC_FUNCS
+#elif defined(_GLIBCXX_TR1_CMATH)
 namespace tr1
 {
+#else
+# error do not include this header directly, use <cmath> or <tr1/cmath>
+#endif
   // [5.2] Special functions
 
   // Implementation-space details.
   namespace __detail
   {
-  _GLIBCXX_BEGIN_NAMESPACE_VERSION
-
     /**
      *   @brief  Compute the modified Bessel functions @f$ I_\nu(x) @f$ and
      *           @f$ K_\nu(x) @f$ and their first derivatives
@@ -372,8 +377,19 @@ namespace tr1
       const _Tp __absx = std::abs(__x);
       const _Tp __rootx = std::sqrt(__absx);
       const _Tp __z = _Tp(2) * __absx * __rootx / _Tp(3);
+      const _Tp _S_NaN = std::numeric_limits<_Tp>::quiet_NaN();
+      const _Tp _S_inf = std::numeric_limits<_Tp>::infinity();
 
-      if (__x > _Tp(0))
+      if (__isnan(__x))
+        __Bip = __Aip = __Bi = __Ai = std::numeric_limits<_Tp>::quiet_NaN();
+      else if (__z == _S_inf)
+        {
+	  __Aip = __Ai = _Tp(0);
+	  __Bip = __Bi = _S_inf;
+	}
+      else if (__z == -_S_inf)
+	__Bip = __Aip = __Bi = __Ai = _Tp(0);
+      else if (__x > _Tp(0))
         {
           _Tp __I_nu, __Ip_nu, __K_nu, __Kp_nu;
 
@@ -425,10 +441,12 @@ namespace tr1
 
       return;
     }
+  } // namespace __detail
+#if ! _GLIBCXX_USE_STD_SPEC_FUNCS && defined(_GLIBCXX_TR1_CMATH)
+} // namespace tr1
+#endif
 
-  _GLIBCXX_END_NAMESPACE_VERSION
-  } // namespace std::tr1::__detail
-}
+_GLIBCXX_END_NAMESPACE_VERSION
 }
 
 #endif // _GLIBCXX_TR1_MODIFIED_BESSEL_FUNC_TCC

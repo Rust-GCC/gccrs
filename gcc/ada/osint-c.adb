@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -45,6 +45,23 @@ package body Osint.C is
    --  output file and Suffix is the desired suffix (dg/rep/xxx for debug/
    --  repinfo/list file where xxx is specified extension.
 
+   ------------------
+   -- Close_C_File --
+   ------------------
+
+   procedure Close_C_File is
+      Status : Boolean;
+
+   begin
+      Close (Output_FD, Status);
+
+      if not Status then
+         Fail
+           ("error while closing file "
+            & Get_Name_String (Output_File_Name));
+      end if;
+   end Close_C_File;
+
    ----------------------
    -- Close_Debug_File --
    ----------------------
@@ -61,6 +78,23 @@ package body Osint.C is
             & Get_Name_String (Output_File_Name));
       end if;
    end Close_Debug_File;
+
+   ------------------
+   -- Close_H_File --
+   ------------------
+
+   procedure Close_H_File is
+      Status : Boolean;
+
+   begin
+      Close (Output_FD, Status);
+
+      if not Status then
+         Fail
+           ("error while closing file "
+            & Get_Name_String (Output_File_Name));
+      end if;
+   end Close_H_File;
 
    ---------------------
    -- Close_List_File --
@@ -157,6 +191,18 @@ package body Osint.C is
       return Result;
    end Create_Auxiliary_File;
 
+   -------------------
+   -- Create_C_File --
+   -------------------
+
+   procedure Create_C_File is
+      Dummy : Boolean;
+   begin
+      Set_File_Name ("c");
+      Delete_File (Name_Buffer (1 .. Name_Len), Dummy);
+      Create_File_And_Check (Output_FD, Text);
+   end Create_C_File;
+
    -----------------------
    -- Create_Debug_File --
    -----------------------
@@ -166,17 +212,28 @@ package body Osint.C is
       return Create_Auxiliary_File (Src, "dg");
    end Create_Debug_File;
 
+   -------------------
+   -- Create_H_File --
+   -------------------
+
+   procedure Create_H_File is
+      Dummy : Boolean;
+   begin
+      Set_File_Name ("h");
+      Delete_File (Name_Buffer (1 .. Name_Len), Dummy);
+      Create_File_And_Check (Output_FD, Text);
+   end Create_H_File;
+
    ----------------------
    -- Create_List_File --
    ----------------------
 
    procedure Create_List_File (S : String) is
-      F : File_Name_Type;
-      pragma Warnings (Off, F);
+      Dummy : File_Name_Type;
    begin
       if S (S'First) = '.' then
-         F := Create_Auxiliary_File (Current_Main, S (S'First + 1 .. S'Last));
-
+         Dummy :=
+           Create_Auxiliary_File (Current_Main, S (S'First + 1 .. S'Last));
       else
          Name_Buffer (1 .. S'Length) := S;
          Name_Len := S'Length + 1;
@@ -192,7 +249,7 @@ package body Osint.C is
    procedure Create_Output_Library_Info is
       Dummy : Boolean;
    begin
-      Set_Library_Info_Name;
+      Set_File_Name (ALI_Suffix.all);
       Delete_File (Name_Buffer (1 .. Name_Len), Dummy);
       Create_File_And_Check (Output_FD, Text);
    end Create_Output_Library_Info;
@@ -203,7 +260,7 @@ package body Osint.C is
 
    procedure Open_Output_Library_Info is
    begin
-      Set_Library_Info_Name;
+      Set_File_Name (ALI_Suffix.all);
       Open_File_To_Append_And_Check (Output_FD, Text);
    end Open_Output_Library_Info;
 
@@ -213,12 +270,14 @@ package body Osint.C is
 
    procedure Create_Repinfo_File (Src : String) is
       Discard : File_Name_Type;
-      pragma Warnings (Off, Discard);
    begin
       Name_Buffer (1 .. Src'Length) := Src;
       Name_Len := Src'Length;
-      Discard := Create_Auxiliary_File (Name_Find, "rep");
-      return;
+      if List_Representation_Info_To_JSON then
+         Discard := Create_Auxiliary_File (Name_Find, "json");
+      else
+         Discard := Create_Auxiliary_File (Name_Find, "rep");
+      end if;
    end Create_Repinfo_File;
 
    ---------------------------
@@ -235,6 +294,28 @@ package body Osint.C is
          return 2;
       end if;
    end Debug_File_Eol_Length;
+
+   -------------------
+   -- Delete_C_File --
+   -------------------
+
+   procedure Delete_C_File is
+      Dummy : Boolean;
+   begin
+      Set_File_Name ("c");
+      Delete_File (Name_Buffer (1 .. Name_Len), Dummy);
+   end Delete_C_File;
+
+   -------------------
+   -- Delete_H_File --
+   -------------------
+
+   procedure Delete_H_File is
+      Dummy : Boolean;
+   begin
+      Set_File_Name ("h");
+      Delete_File (Name_Buffer (1 .. Name_Len), Dummy);
+   end Delete_H_File;
 
    ---------------------------------
    -- Get_Output_Object_File_Name --
@@ -263,23 +344,29 @@ package body Osint.C is
    -- Read_Library_Info --
    -----------------------
 
-   --  Version with default file name
-
    procedure Read_Library_Info
      (Name : out File_Name_Type;
       Text : out Text_Buffer_Ptr)
    is
    begin
-      Set_Library_Info_Name;
+      Set_File_Name (ALI_Suffix.all);
+
+      --  Remove trailing NUL that comes from Set_File_Name above. This is
+      --  needed for consistency with names that come from Scan_ALI and thus
+      --  preventing repeated scanning of the same file.
+
+      pragma Assert (Name_Len > 1 and then Name_Buffer (Name_Len) = ASCII.NUL);
+      Name_Len := Name_Len - 1;
+
       Name := Name_Find;
       Text := Read_Library_Info (Name, Fatal_Err => False);
    end Read_Library_Info;
 
-   ---------------------------
-   -- Set_Library_Info_Name --
-   ---------------------------
+   -------------------
+   -- Set_File_Name --
+   -------------------
 
-   procedure Set_Library_Info_Name is
+   procedure Set_File_Name (Ext : String) is
       Dot_Index : Natural;
 
    begin
@@ -372,10 +459,10 @@ package body Osint.C is
       end if;
 
       Name_Buffer (Dot_Index) := '.';
-      Name_Buffer (Dot_Index + 1 .. Dot_Index + 3) := ALI_Suffix.all;
-      Name_Buffer (Dot_Index + 4) := ASCII.NUL;
-      Name_Len := Dot_Index + 3;
-   end Set_Library_Info_Name;
+      Name_Buffer (Dot_Index + 1 .. Dot_Index + Ext'Length) := Ext;
+      Name_Buffer (Dot_Index + Ext'Length + 1) := ASCII.NUL;
+      Name_Len := Dot_Index + Ext'Length + 1;
+   end Set_File_Name;
 
    ---------------------------------
    -- Set_Output_Object_File_Name --
@@ -392,7 +479,10 @@ package body Osint.C is
       if NL <= EL
          or else
           (Name (NL - EL + Name'First .. Name'Last) /= Ext
-             and then Name (NL - 2 + Name'First .. Name'Last) /= ".o")
+             and then Name (NL - 2 + Name'First .. Name'Last) /= ".o"
+             and then
+               (not Generate_C_Code
+                  or else Name (NL - 2 + Name'First .. Name'Last) /= ".c"))
       then
          Fail ("incorrect object file extension");
       end if;

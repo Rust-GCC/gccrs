@@ -1,6 +1,6 @@
 // 2005-12-20  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,7 +28,6 @@
 void
 test01()
 {
-  bool test __attribute__((unused)) = true;
   using namespace std::tr1;
   using std::equal_to;
   using std::multiset;
@@ -88,7 +87,7 @@ test01()
   VERIFY( umset04.empty() );
   VERIFY( umset03.get_allocator().get_personality() == personality02 );
   VERIFY( umset04.get_allocator().get_personality() == personality01 );
-  
+
   my_umset umset05(mset01_ref.begin(), mset01_ref.end(), 10, hash<char>(),
 		   equal_to<char>(), alloc01);
   size01 = umset05.size();
@@ -176,7 +175,7 @@ test01()
 }
 
 int main()
-{ 
+{
   test01();
   return 0;
 }

@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for ATMEL AVR at90s8515, ATmega103/103L, ATmega603/603L microcontrollers.
-   Copyright (C) 1998-2014 Free Software Foundation, Inc.
+   Copyright (C) 1998-2019 Free Software Foundation, Inc.
    Contributed by Denis Chertykov (chertykov@gmail.com)
 
 This file is part of GCC.
@@ -60,18 +60,21 @@ enum
 
 #define TARGET_CPU_CPP_BUILTINS()	avr_cpu_cpp_builtins (pfile)
 
-#define AVR_HAVE_JMP_CALL (avr_current_arch->have_jmp_call)
-#define AVR_HAVE_MUL (avr_current_arch->have_mul)
-#define AVR_HAVE_MOVW (avr_current_arch->have_movw_lpmx)
-#define AVR_HAVE_LPMX (avr_current_arch->have_movw_lpmx)
-#define AVR_HAVE_ELPM (avr_current_arch->have_elpm)
-#define AVR_HAVE_ELPMX (avr_current_arch->have_elpmx)
-#define AVR_HAVE_RAMPD (avr_current_arch->have_rampd)
-#define AVR_HAVE_RAMPX (avr_current_arch->have_rampd)
-#define AVR_HAVE_RAMPY (avr_current_arch->have_rampd)
-#define AVR_HAVE_RAMPZ (avr_current_arch->have_elpm             \
-                        || avr_current_arch->have_rampd)
-#define AVR_HAVE_EIJMP_EICALL (avr_current_arch->have_eijmp_eicall)
+#define AVR_SHORT_CALLS (TARGET_SHORT_CALLS                             \
+                         && avr_arch == &avr_arch_types[ARCH_AVRXMEGA3])
+#define AVR_HAVE_JMP_CALL (avr_arch->have_jmp_call && ! AVR_SHORT_CALLS)
+#define AVR_HAVE_MUL (avr_arch->have_mul)
+#define AVR_HAVE_MOVW (avr_arch->have_movw_lpmx)
+#define AVR_HAVE_LPM (!AVR_TINY)
+#define AVR_HAVE_LPMX (avr_arch->have_movw_lpmx)
+#define AVR_HAVE_ELPM (avr_arch->have_elpm)
+#define AVR_HAVE_ELPMX (avr_arch->have_elpmx)
+#define AVR_HAVE_RAMPD (avr_arch->have_rampd)
+#define AVR_HAVE_RAMPX (avr_arch->have_rampd)
+#define AVR_HAVE_RAMPY (avr_arch->have_rampd)
+#define AVR_HAVE_RAMPZ (avr_arch->have_elpm             \
+                        || avr_arch->have_rampd)
+#define AVR_HAVE_EIJMP_EICALL (avr_arch->have_eijmp_eicall)
 
 /* Handling of 8-bit SP versus 16-bit SP is as follows:
 
@@ -89,16 +92,16 @@ FIXME: DRIVER_SELF_SPECS has changed.
    __AVR_HAVE_8BIT_SP__ and __AVR_HAVE_16BIT_SP__.  During multilib generation
    there is always __AVR_SP8__ == __AVR_HAVE_8BIT_SP__.  */
 
-#define AVR_HAVE_8BIT_SP                                 \
-  ((avr_current_device->dev_attribute & AVR_SHORT_SP) || \
-   TARGET_TINY_STACK || avr_sp8)
+#define AVR_HAVE_8BIT_SP                        \
+  (TARGET_TINY_STACK || avr_sp8)
 
 #define AVR_HAVE_SPH (!avr_sp8)
 
 #define AVR_2_BYTE_PC (!AVR_HAVE_EIJMP_EICALL)
 #define AVR_3_BYTE_PC (AVR_HAVE_EIJMP_EICALL)
 
-#define AVR_XMEGA (avr_current_arch->xmega_p)
+#define AVR_XMEGA (avr_arch->xmega_p)
+#define AVR_TINY  (avr_arch->tiny_p)
 
 #define BITS_BIG_ENDIAN 0
 #define BYTES_BIG_ENDIAN 0
@@ -149,6 +152,9 @@ FIXME: DRIVER_SELF_SPECS has changed.
 #define WCHAR_TYPE_SIZE 16
 
 #define FIRST_PSEUDO_REGISTER 36
+
+#define GENERAL_REGNO_P(N)	IN_RANGE (N, 2, 31)
+#define GENERAL_REG_P(X)	(REG_P (X) && GENERAL_REGNO_P (REGNO (X)))
 
 #define FIXED_REGISTERS {\
   1,1,/* r0 r1 */\
@@ -205,13 +211,6 @@ FIXME: DRIVER_SELF_SPECS has changed.
 
 #define ADJUST_REG_ALLOC_ORDER avr_adjust_reg_alloc_order()
 
-
-#define HARD_REGNO_NREGS(REGNO, MODE)                                   \
-  ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
-
-#define HARD_REGNO_MODE_OK(REGNO, MODE) avr_hard_regno_mode_ok(REGNO, MODE)
-
-#define MODES_TIEABLE_P(MODE1, MODE2) 1
 
 enum reg_class {
   NO_REGS,
@@ -282,16 +281,11 @@ enum reg_class {
 
 #define REGNO_OK_FOR_INDEX_P(NUM) 0
 
-#define HARD_REGNO_CALL_PART_CLOBBERED(REGNO, MODE)     \
-  avr_hard_regno_call_part_clobbered (REGNO, MODE)
-
 #define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P hook_bool_mode_true
 
 #define STACK_PUSH_CODE POST_DEC
 
-#define STACK_GROWS_DOWNWARD
-
-#define STARTING_FRAME_OFFSET avr_starting_frame_offset()
+#define STACK_GROWS_DOWNWARD 1
 
 #define STACK_POINTER_OFFSET 1
 
@@ -305,13 +299,13 @@ enum reg_class {
 
 #define ARG_POINTER_REGNUM 34
 
-#define STATIC_CHAIN_REGNUM 2
+#define STATIC_CHAIN_REGNUM ((AVR_TINY) ? 18 :2)
 
 #define ELIMINABLE_REGS {					\
-      {ARG_POINTER_REGNUM, STACK_POINTER_REGNUM},		\
-      {ARG_POINTER_REGNUM, FRAME_POINTER_REGNUM},		\
-	{FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM}		\
-       ,{FRAME_POINTER_REGNUM+1,STACK_POINTER_REGNUM+1}}
+    { ARG_POINTER_REGNUM, STACK_POINTER_REGNUM },               \
+    { ARG_POINTER_REGNUM, FRAME_POINTER_REGNUM },               \
+    { FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM },             \
+    { FRAME_POINTER_REGNUM + 1, STACK_POINTER_REGNUM + 1 } }
 
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET)			\
   OFFSET = avr_initial_elimination_offset (FROM, TO)
@@ -357,11 +351,16 @@ typedef struct avr_args
       }                                                                 \
   } while (0)
 
-#define BRANCH_COST(speed_p, predictable_p) avr_branch_cost
+/* We increase branch costs after reload in order to keep basic-block
+   reordering from introducing out-of-line jumps and to prefer fall-through
+   edges instead.  The default branch costs are 0, mainly because otherwise
+   do_store_flag might come up with bloated code.  */
+#define BRANCH_COST(speed_p, predictable_p)     \
+  (avr_branch_cost + (reload_completed ? 4 : 0))
 
 #define SLOW_BYTE_ACCESS 0
 
-#define NO_FUNCTION_CSE
+#define NO_FUNCTION_CSE 1
 
 #define REGISTER_TARGET_PRAGMAS()                                       \
   do {                                                                  \
@@ -390,7 +389,11 @@ typedef struct avr_args
 
 #define SUPPORTS_INIT_PRIORITY 0
 
-#define JUMP_TABLES_IN_TEXT_SECTION 0
+/* We pretend jump tables are in text section because otherwise,
+   final.c will switch to .rodata before jump tables and thereby
+   triggers __do_copy_data.  As we implement ASM_OUTPUT_ADDR_VEC,
+   we still have full control over the jump tables themselves.  */
+#define JUMP_TABLES_IN_TEXT_SECTION 1
 
 #define ASM_COMMENT_START " ; "
 
@@ -439,8 +442,8 @@ typedef struct avr_args
   fprintf (STREAM, "\tpop\tr%d", REGNO);	\
 }
 
-#define ASM_OUTPUT_ADDR_VEC_ELT(STREAM, VALUE)  \
-  avr_output_addr_vec_elt (STREAM, VALUE)
+#define ASM_OUTPUT_ADDR_VEC(TLABEL, TDATA)      \
+  avr_output_addr_vec (TLABEL, TDATA)
 
 #define ASM_OUTPUT_ALIGN(STREAM, POWER)                 \
   do {                                                  \
@@ -452,9 +455,22 @@ typedef struct avr_args
 
 #undef WORD_REGISTER_OPERATIONS
 
-#define MOVE_MAX 4
+/* Can move only a single byte from memory to reg in a
+   single instruction. */
 
-#define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC) 1
+#define MOVE_MAX 1
+
+/* Allow upto two bytes moves to occur using by_pieces
+   infrastructure */
+
+#define MOVE_MAX_PIECES 2
+
+/* Set MOVE_RATIO to 3 to allow memory moves upto 4 bytes to happen
+   by pieces when optimizing for speed, like it did when MOVE_MAX_PIECES
+   was 4. When optimizing for size, allow memory moves upto 2 bytes. 
+   Also see avr_use_by_pieces_infrastructure_p. */
+
+#define MOVE_RATIO(speed) ((speed) ? 3 : 2)
 
 #define Pmode HImode
 
@@ -490,45 +506,24 @@ typedef struct avr_args
 #define ADJUST_INSN_LENGTH(INSN, LENGTH)                \
     (LENGTH = avr_adjust_insn_length (INSN, LENGTH))
 
-#define DRIVER_SELF_SPECS " %{mmcu=*:-specs=device-specs/specs-%*%s %<mmcu=*} "
-#define CPP_SPEC ""
+extern const char *avr_devicespecs_file (int, const char**);
 
-#define CC1_SPEC ""
+#define EXTRA_SPEC_FUNCTIONS                                   \
+  { "device-specs-file", avr_devicespecs_file },
 
-#define CC1PLUS_SPEC "%{!frtti:-fno-rtti} \
-    %{!fenforce-eh-specs:-fno-enforce-eh-specs} \
-    %{!fexceptions:-fno-exceptions}"
+/* Driver self specs has lmited functionality w.r.t. '%s' for dynamic specs.
+   Apply '%s' to a static string to inflate the file (directory) name which
+   is used to diagnose problems with reading the specs file.  */
 
-#define ASM_SPEC "%{march=*:-mmcu=%*}%{mrelax: --mlink-relax}"
-  
-#define LINK_SPEC "\
-%{mrelax:--relax\
-         %{mpmem-wrap-around:%{mmcu=at90usb8*:--pmem-wrap-around=8k}\
-                             %{mmcu=atmega16*:--pmem-wrap-around=16k}\
-                             %{mmcu=atmega32*|\
-                               mmcu=at90can32*:--pmem-wrap-around=32k}\
-                             %{mmcu=atmega64*|\
-                               mmcu=at90can64*|\
-                               mmcu=at90usb64*:--pmem-wrap-around=64k}}}\
-%{march=*:-m%*}\
-%{shared:%eshared is not supported}"
+#undef  DRIVER_SELF_SPECS
+#define DRIVER_SELF_SPECS                       \
+  " %:device-specs-file(device-specs%s %{mmcu=*:%*})"
 
-#define LIB_SPEC \
-  "%{!mmcu=at90s1*:%{!mmcu=attiny11:%{!mmcu=attiny12:%{!mmcu=attiny15:%{!mmcu=attiny28: -lc }}}}}"
-
-#define LIBSTDCXX "gcc"
 /* No libstdc++ for now.  Empty string doesn't work.  */
+#define LIBSTDCXX "gcc"
 
-#define LIBGCC_SPEC \
-  "%{!mmcu=at90s1*:%{!mmcu=attiny11:%{!mmcu=attiny12:%{!mmcu=attiny15:%{!mmcu=attiny28: -lgcc }}}}}"
-
-/* The actual definition will come from the device-specific spec file.  */
-#define STARTFILE_SPEC ""
-
-#define ENDFILE_SPEC ""
-
-/* This is the default without any -mmcu=* option (AT90S*).  */
-#define MULTILIB_DEFAULTS { "mmcu=avr2" }
+/* This is the default without any -mmcu=* option.  */
+#define MULTILIB_DEFAULTS { "mmcu=" AVR_MMCU_DEFAULT }
 
 #define TEST_HARD_REG_CLASS(CLASS, REGNO) \
   TEST_HARD_REG_BIT (reg_class_contents[ (int) (CLASS)], REGNO)
@@ -579,6 +574,26 @@ struct GTY(()) machine_function
   /* 'true' if the above is_foo predicates are sanity-checked to avoid
      multiple diagnose for the same function.  */
   int attributes_checked_p;
+
+  /* 'true' - if current function shall not use '__gcc_isr' pseudo
+     instructions as specified by the "no_gccisr" attribute.  */
+  int is_no_gccisr;
+
+  /* Used for `__gcc_isr' pseudo instruction handling of
+     non-naked ISR prologue / epilogue(s).  */
+  struct
+  {
+    /* 'true' if this function actually uses "*gasisr" insns. */
+    int yes;
+    /* 'true' if this function is allowed to use "*gasisr" insns. */
+    int maybe;
+    /* The register numer as printed by the Done chunk.  */
+    int regno;
+  } gasisr;
+
+  /* 'true' if this function references .L__stack_usage like with
+     __builtin_return_address.  */
+  int use_L__stack_usage;
 };
 
 /* AVR does not round pushes, but the existence of this macro is

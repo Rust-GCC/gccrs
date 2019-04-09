@@ -18,7 +18,7 @@ void test_select_fill_hyper_simple (long *offset)
   fill_iter_info iter_info;
   int i, j;
   iter_info.coords = (long *) points;
-  for (i = 0, num_points = 0; j < (int) start[1]; j++, num_points++)
+  for (j = i = 0, num_points = 0; j < (int) start[1]; j++, num_points++)
   {
     points[num_points][0] = i + start[0];
     points[num_points][1] = j + start[1];
@@ -28,5 +28,4 @@ void test_select_fill_hyper_simple (long *offset)
 
 /* Needs interleaving support.  */
 /* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" { target { vect_interleave || vect_strided2 } } } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */
 

@@ -1,6 +1,6 @@
 // 2006-11-25  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -24,11 +24,11 @@
 // A few tests for equal_range, in the occasion of libstdc++/29385.
 void test01()
 {
-  bool test __attribute__((unused)) = true;
   using namespace std;
 
   multimap<int, int> mm0;
   typedef multimap<int, int>::iterator iterator;
+  typedef multimap<int, int>::const_iterator const_iterator;
   pair<iterator, iterator> pp0;
   typedef multimap<int, int>::value_type value_type;
 
@@ -46,7 +46,7 @@ void test01()
   VERIFY( *pp0.first == value_type(2, 2) );
   VERIFY( *pp0.second == value_type(3, 3) );
   VERIFY( pp0.first == iter1 );
-  VERIFY( --pp0.first == iter0 );  
+  VERIFY( --pp0.first == iter0 );
   VERIFY( pp0.second == iter2 );
 
   mm0.insert(value_type(3, 4));
@@ -58,7 +58,7 @@ void test01()
   VERIFY( *pp0.first == value_type(3, 3) );
   VERIFY( *pp0.second == value_type(4, 6) );
   VERIFY( pp0.first == iter2 );
-  VERIFY( --pp0.first == iter1 );  
+  VERIFY( --pp0.first == iter1 );
   VERIFY( pp0.second == iter4 );
 
   iterator iter5 = mm0.insert(value_type(0, 7));
@@ -71,7 +71,7 @@ void test01()
   VERIFY( *pp0.first == value_type(1, 1) );
   VERIFY( *pp0.second == value_type(2, 2) );
   VERIFY( pp0.first == iter0 );
-  VERIFY( --pp0.first == iter5 );  
+  VERIFY( --pp0.first == iter5 );
   VERIFY( pp0.second == iter1 );
 
   iterator iter6 = mm0.insert(value_type(5, 11));
@@ -82,7 +82,7 @@ void test01()
   VERIFY( mm0.count(5) == 3 );
   VERIFY( *pp0.first == value_type(5, 11) );
   VERIFY( pp0.first == iter6 );
-  VERIFY( --pp0.first == iter4 );  
+  VERIFY( --pp0.first == iter4 );
   VERIFY( pp0.second == mm0.end() );
 
   mm0.insert(value_type(4, 14));
@@ -90,11 +90,11 @@ void test01()
   mm0.insert(value_type(4, 16));
 
   pp0 = mm0.equal_range(4);
-  VERIFY( mm0.count(4) == 4 );  
+  VERIFY( mm0.count(4) == 4 );
   VERIFY( *pp0.first == value_type(4, 6) );
-  VERIFY( *pp0.second == value_type(5, 11) );  
+  VERIFY( *pp0.second == value_type(5, 11) );
   VERIFY( pp0.first == iter4 );
-  VERIFY( --pp0.first == iter3 );  
+  VERIFY( --pp0.first == iter3 );
   VERIFY( pp0.second == iter6 );
 
   mm0.insert(value_type(0, 17));
@@ -102,20 +102,21 @@ void test01()
   mm0.insert(value_type(1, 19));
 
   pp0 = mm0.equal_range(0);
-  VERIFY( mm0.count(0) == 3 );  
+  VERIFY( mm0.count(0) == 3 );
   VERIFY( *pp0.first == value_type(0, 7) );
-  VERIFY( *pp0.second == value_type(1, 1) );  
+  VERIFY( *pp0.second == value_type(1, 1) );
   VERIFY( pp0.first == iter5 );
   VERIFY( pp0.first == mm0.begin() );
   VERIFY( pp0.second == iter0 );
 
-  pp0 = mm0.equal_range(1);
-  VERIFY( mm0.count(1) == 5 );  
-  VERIFY( *pp0.first == value_type(1, 1) );
-  VERIFY( *pp0.second == value_type(2, 2) );  
-  VERIFY( pp0.first == iter0 );
-  VERIFY( --pp0.first == iter7 );
-  VERIFY( pp0.second == iter1 );
+  const multimap<int, int>& mm1 = mm0;
+  pair<const_iterator, const_iterator> pp1 = mm1.equal_range(1);
+  VERIFY( mm1.count(1) == 5 );
+  VERIFY( *pp1.first == value_type(1, 1) );
+  VERIFY( *pp1.second == value_type(2, 2) );
+  VERIFY( pp1.first == iter0 );
+  VERIFY( --pp1.first == iter7 );
+  VERIFY( pp1.second == iter1 );
 }
 
 int

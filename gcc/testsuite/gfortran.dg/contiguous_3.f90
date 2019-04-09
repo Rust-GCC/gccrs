@@ -8,6 +8,8 @@
 
 subroutine test1(a,b)
   integer, pointer, contiguous :: test1_a(:)
+  integer, target, dimension(3) :: aa
+  test1_a => aa
   call foo(test1_a)
   call foo(test1_a(::1))
   call foo(test1_a(::2))
@@ -56,10 +58,3 @@ contains
   end subroutine bar
 end subroutine test3
 
-! Once for test1 (third call), once for test3 (second call)
-! { dg-final { scan-tree-dump-times "data = origptr" 1 "original" } }
-! { dg-final { scan-tree-dump-times "_gfortran_internal_pack .&parm" 2 "original" } }
-! { dg-final { scan-tree-dump-times "_gfortran_internal_unpack .&parm" 2 "original" } }
-
-
-! { dg-final { cleanup-tree-dump "original" } }

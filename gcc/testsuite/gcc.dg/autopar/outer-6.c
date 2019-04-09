@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -ftree-parallelize-loops=4 -fdump-tree-parloops-details -fdump-tree-optimized" } */
+/* { dg-options "-O2 -ftree-parallelize-loops=4 -fdump-tree-parloops2-details -fdump-tree-optimized" } */
 
 void abort (void);
 
@@ -24,7 +24,7 @@ void parloop (int N)
   for (i = 0; i < N; i++)
   {
     for (j = 0; j < N; j++)
-      y[i]=x[i][j];
+      y[i]+=x[i][j];
     sum += y[i];
   }
   g_sum = sum;
@@ -44,8 +44,6 @@ int main(void)
 
 
 /* Check that outer loop is parallelized.  */
-/* { dg-final { scan-tree-dump-times "parallelizing outer loop" 1 "parloops" } } */
-/* { dg-final { scan-tree-dump-times "parallelizing inner loop" 0 "parloops" } } */
-/* { dg-final { scan-tree-dump-times "loopfn" 4 "optimized" } } */
-/* { dg-final { cleanup-tree-dump "parloops" } } */
-/* { dg-final { cleanup-tree-dump "optimized" } } */
+/* { dg-final { scan-tree-dump-times "parallelizing outer loop" 1 "parloops2" { xfail *-*-* } } } */
+/* { dg-final { scan-tree-dump-times "parallelizing inner loop" 0 "parloops2" } } */
+/* { dg-final { scan-tree-dump-times "loopfn" 4 "optimized" { xfail *-*-* } } } */

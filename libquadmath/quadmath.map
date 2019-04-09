@@ -96,3 +96,14 @@ QUADMATH_1.0 {
   local:
     *;
 };
+
+QUADMATH_1.1 {
+  global:
+    logbq;
+} QUADMATH_1.0;
+
+QUADMATH_1.2 {
+  global:
+    exp2q;
+    issignalingq;
+} QUADMATH_1.1;

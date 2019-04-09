@@ -45,8 +45,7 @@ f5 (S *__restrict x, S *__restrict y)
 {
   x->p[0] = 5;
   y->p[0] = 0;
-// We might handle this some day
-// { dg-final { scan-tree-dump-times "return 5" 1 "optimized" { xfail *-*-* } } }
+// { dg-final { scan-tree-dump-times "return 5" 1 "optimized" } }
   return x->p[0];
 }
 
@@ -59,4 +58,3 @@ f6 (S *x, S *y)
   return x->p[0];
 }
 
-// { dg-final { cleanup-tree-dump "optimized" } }

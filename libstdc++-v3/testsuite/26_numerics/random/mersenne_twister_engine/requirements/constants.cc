@@ -1,10 +1,9 @@
-// { dg-do link }
-// { dg-options "-std=c++0x" }
+// { dg-do link { target c++11 } }
 // { dg-require-cstdint "" }
 //
 // 2009-09-29  Paolo Carlini <paolo.carlini@oracle.com>
 //
-// Copyright (C) 2009-2014 Free Software Foundation, Inc.
+// Copyright (C) 2009-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the

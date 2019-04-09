@@ -13,7 +13,7 @@ struct rtx_def
   unsigned int unchanging:1;
 
 };
-static rtx current_sym_addr;
+rtx current_sym_addr;
 
 int
 foo ()
@@ -36,4 +36,3 @@ foo ()
    The other one for '(EXPR)->unchanging'.  */
 /* { dg-final { scan-tree-dump-times "if " 2 "dom2"} } */
 
-/* { dg-final { cleanup-tree-dump "dom2" } } */

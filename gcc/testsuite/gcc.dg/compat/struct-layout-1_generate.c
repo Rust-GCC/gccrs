@@ -805,12 +805,7 @@ int main (void)\n\
 #define TX(n, type, attrs, fields, ops)   test##n ();\n\
 #include \"t%03d_test.h\"\n\
 #undef TX\n\
-  if (fails)\n\
-    {\n\
-      fflush (stdout);\n\
-      abort ();\n\
-    }\n\
-  exit (0);\n\
+  exit (fails != 0);\n\
 }\n", filecnt, filecnt);
   fclose (outfile);
   sprintf (destptr, "t%03d_x.c", filecnt);
@@ -1898,7 +1893,7 @@ generate_fields (enum FEATURE features, struct entry *e, struct entry *parent,
 		  || (e[n].type >= &attrib_array_types[0]
 		      && e[n].type < &attrib_array_types[NAATYPES2])
 		  || (e[n].type >= &complex_attrib_array_types[0]
-		      && e[n].type < &complex_attrib_array_types[NAATYPES2])
+		      && e[n].type < &complex_attrib_array_types[NCAATYPES2])
 		  || (e[n].type >= &aligned_bitfld_types[0]
 		      && e[n].type < &aligned_bitfld_types[n_aligned_bitfld_types])))
 	    e[n].attrib = NULL;

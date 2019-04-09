@@ -1,5 +1,11 @@
-#include <stdlib.h>
-#include <math.h>
+#include "tree-vect.h"
+
+extern double sqrt (double);
+extern double fabs (double);
+extern double ceil (double);
+extern double floor (double);
+
+extern void abort (void);
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
@@ -59,11 +65,10 @@ int main()
 {
   ufraw_data uf_data;
   ufraw_data *uf = &uf_data;
+  check_vect ();
   uf->initialWidth = 4;
   uf->initialHeight = 5;
   ufraw_test(uf);
   return 0;
 }
 
-/* { dg-final { cleanup-tree-dump "slp1" } } */
-/* { dg-final { cleanup-tree-dump "slp2" } } */

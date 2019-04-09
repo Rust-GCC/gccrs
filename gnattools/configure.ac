@@ -19,7 +19,6 @@ sinclude(../config/acx.m4)
 sinclude(../config/override.m4)
 
 AC_INIT
-AC_PREREQ([2.64])
 
 AC_CONFIG_SRCDIR([Makefile.in])
 
@@ -46,19 +45,11 @@ AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 AC_CANONICAL_TARGET
 
+ACX_NONCANONICAL_HOST
 ACX_NONCANONICAL_TARGET
 
 # Need to pass this down for now :-P
 AC_PROG_LN_S
-
-# Determine what to build for 'gnattools'
-if test $build = $target ; then
-  # Note that build=target is almost certainly the wrong test; FIXME
-  default_gnattools_target="gnattools-native"
-else
-  default_gnattools_target="gnattools-cross"
-fi
-AC_SUBST([default_gnattools_target])
 
 # Target-specific stuff (defaults)
 TOOLS_TARGET_PAIRS=
@@ -78,6 +69,11 @@ case "${target}" in
     TOOLS_TARGET_PAIRS="\
     mlib-tgt-specific.adb<mlib-tgt-specific-darwin.adb \
     indepsw.adb<indepsw-darwin.adb"
+    ;;
+  *-*-dragonfly*)
+    TOOLS_TARGET_PAIRS="\
+    mlib-tgt-specific.adb<mlib-tgt-specific-linux.adb \
+    indepsw.adb<indepsw-gnu.adb"
     ;;
   *-*-freebsd*)
     TOOLS_TARGET_PAIRS="\
@@ -130,12 +126,33 @@ esac
 # From user or toplevel makefile.
 AC_SUBST(ADA_CFLAGS)
 
+# This is testing the CC passed from the toplevel Makefile, not the
+# one we will select below.
 AC_PROG_CC
 warn_cflags=
 if test "x$GCC" = "xyes"; then
   warn_cflags='$(GCC_WARN_CFLAGS)'
 fi
 AC_SUBST(warn_cflags)
+
+# Determine what to build for 'gnattools'.  Test after the above,
+# because testing for CC sets the final value of cross_compiling, even
+# if we end up using a different CC.  We want to build
+# gnattools-native when: (a) this is a native build, i.e.,
+# cross_compiling=no, otherwise we know we cannot run binaries
+# produced by the toolchain used for the build, not even the binaries
+# created within ../gcc/; (b) build and host are the same, otherwise
+# this is to be regarded as a cross build environment even if it seems
+# that we can run host binaries; (c) host and target are the same,
+# otherwise the tools in ../gcc/ generate code for a different
+# platform.  If you change this test, be sure to adjust
+# ../gcc/ada/gcc-interface/config-lang.in as well.
+if test "x$cross_compiling/$build/$host" = "xno/$host/$target" ; then
+  default_gnattools_target="gnattools-native"
+else
+  default_gnattools_target="gnattools-cross"
+fi
+AC_SUBST([default_gnattools_target])
 
 # Output: create a Makefile.
 AC_CONFIG_FILES([Makefile])

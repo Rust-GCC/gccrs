@@ -11,13 +11,14 @@ void foo()
   bad1:				// { dg-error "jump to label" }
   #pragma omp for
   for (i = 0; i < 10; ++i)
-    goto bad1;			// { dg-error "from here|exits OpenMP" }
+    goto bad1;			// { dg-message "from here|exits OpenMP" }
 
-  goto bad2;			// { dg-error "from here" }
+  goto bad2;			// { dg-message "from here" }
   #pragma omp for
   for (i = 0; i < 10; ++i)
     {
-      bad2: ;			// { dg-error "jump|enters OpenMP" }
+      bad2: ;			// { dg-error "jump" }
+                                // { dg-message "enters OpenMP" "" { target *-*-* } .-1 }
     }
 
   #pragma omp for
@@ -31,5 +32,5 @@ void foo()
     continue;
 }
 
-// { dg-message "error: invalid branch to/from an OpenMP structured block" "" { target *-*-* } 14 }
+// { dg-message "error: invalid branch to/from OpenMP structured block" "" { target *-*-* } 14 }
 // { dg-message "error: invalid entry to OpenMP structured block" "" { target *-*-* } 16 }

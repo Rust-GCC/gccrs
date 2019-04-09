@@ -3,7 +3,7 @@
 
 // 2006-01-29  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2006-2014 Free Software Foundation, Inc.
+// Copyright (C) 2006-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,7 +33,7 @@ void test01()
   typedef std::tr1::int_fast8_t     my_int_fast8_t;
   typedef std::tr1::int_fast16_t    my_int_fast16_t;
   typedef std::tr1::int_fast32_t    my_int_fast32_t;
-  typedef std::tr1::int_fast64_t    my_int_fast64_t;	
+  typedef std::tr1::int_fast64_t    my_int_fast64_t;
   typedef std::tr1::int_least8_t    my_int_least8_t;
   typedef std::tr1::int_least16_t   my_int_least16_t;
   typedef std::tr1::int_least32_t   my_int_least32_t;
@@ -47,7 +47,7 @@ void test01()
   typedef std::tr1::uint_fast8_t    my_uint_fast8_t;
   typedef std::tr1::uint_fast16_t   my_uint_fast16_t;
   typedef std::tr1::uint_fast32_t   my_uint_fast32_t;
-  typedef std::tr1::uint_fast64_t   my_uint_fast64_t;	
+  typedef std::tr1::uint_fast64_t   my_uint_fast64_t;
   typedef std::tr1::uint_least8_t   my_uint_least8_t;
   typedef std::tr1::uint_least16_t  my_uint_least16_t;
   typedef std::tr1::uint_least32_t  my_uint_least32_t;

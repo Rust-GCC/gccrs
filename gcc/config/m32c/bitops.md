@@ -1,5 +1,5 @@
 ;; Machine Descriptions for R8C/M16C/M32C
-;; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;; Contributed by Red Hat.
 ;;
 ;; This file is part of GCC.
@@ -82,7 +82,7 @@
 (define_insn "andqi3_16"
   [(set (match_operand:QI 0 "mra_operand" "=Sp,Rqi,RhlSd,RhlSd,??Rmm,??Rmm")
 	(and:QI (match_operand:QI 1 "mra_operand" "%0,0,0,0,0,0")
-		(match_operand 2 "mrai_operand" "Imb,Imb,iRhlSd,?Rmm,iRhlSd,?Rmm")))]
+		(match_operand:QI 2 "mrai_operand" "Imb,Imb,iRhlSd,?Rmm,iRhlSd,?Rmm")))]
   "TARGET_A16"
   "@
    bclr\t%B2,%0
@@ -178,7 +178,7 @@
 (define_insn "andqi3_24"
   [(set (match_operand:QI 0 "mra_operand" "=Sd,Rqi,RhlSd,RhlSd,??Rmm,??Rmm")
 	(and:QI (match_operand:QI 1 "mra_operand" "%0,0,0,0,0,0")
-		(match_operand 2 "mrai_operand" "Imb,Imb,iRhlSd,?Rmm,iRhlSd,?Rmm")))]
+		(match_operand:QI 2 "mrai_operand" "Imb,Imb,iRhlSd,?Rmm,iRhlSd,?Rmm")))]
   "TARGET_A24"
   "@
    bclr\t%B2,%0

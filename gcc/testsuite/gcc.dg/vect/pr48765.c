@@ -1,6 +1,6 @@
 /* { dg-do compile { target { powerpc*-*-* } } } */
 /* { dg-skip-if "do not override -mcpu" { *-*-* } { "-mcpu=*" } { "-mcpu=power6" } } */
-/* { dg-options "-O3 -mcpu=power6" } */
+/* { dg-additional-options "-O3 -mcpu=power6" } */
 
 enum reg_class
 {
@@ -82,4 +82,3 @@ stupid_find_reg (call_preserved, class, mode, born_insn, dead_insn,
     }
 }
 
-/* { dg-final { cleanup-tree-dump "vect" } } */

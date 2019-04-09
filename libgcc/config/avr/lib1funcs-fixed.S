@@ -1,5 +1,5 @@
 /*  -*- Mode: Asm -*-  */
-;;    Copyright (C) 2012-2014 Free Software Foundation, Inc.
+;;    Copyright (C) 2012-2019 Free Software Foundation, Inc.
 ;;    Contributed by Sean D'Epagnier  (sean@depagnier.com)
 ;;                   Georg-Johann Lay (avr@gjlay.de)
 
@@ -31,7 +31,17 @@
 ;; Fixed point library routines for AVR
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+#if defined __AVR_TINY__
+#define __zero_reg__ r17
+#define __tmp_reg__ r16
+#else                                                                                                                                              
+#define __zero_reg__ r1
+#define __tmp_reg__ r0
+#endif
+
 .section .text.libgcc.fixed, "ax", @progbits
+
+#ifndef __AVR_TINY__
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Conversions to float
@@ -1913,3 +1923,5 @@ DEFUN __ret
     ret
 ENDF  __ret
 #endif /* L_ret */
+
+#endif /* if not __AVR_TINY__ */

@@ -1,4 +1,5 @@
 /* { dg-require-effective-target vect_int } */
+/* { dg-add-options bind_pic_locally } */
 
 #include <stdarg.h>
 #include "tree-vect.h"
@@ -50,7 +51,6 @@ int main (void)
 
 /* The initialization induction loop (with aligned access) is also vectorized.  */
 /* { dg-final { scan-tree-dump-times "vectorized 2 loops" 1 "vect" } } */
-/* { dg-final { scan-tree-dump-times "Vectorizing an unaligned access" 1 "vect" { xfail vect_no_align } } } */
+/* { dg-final { scan-tree-dump-times "Vectorizing an unaligned access" 1 "vect" { xfail { ! vect_unaligned_possible } } } } */
 /* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 0 "vect" } } */
-/* { dg-final { scan-tree-dump-times "Alignment of access forced using versioning." 1 "vect" {target vect_no_align } } } */
-/* { dg-final { cleanup-tree-dump "vect" } } */
+/* { dg-final { scan-tree-dump-times "Alignment of access forced using versioning." 1 "vect" {target { vect_no_align && { ! vect_hw_misalign } } } } } */

@@ -1,7 +1,6 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.64)
 AC_INIT(cpplib, [ ], gcc-bugs@gcc.gnu.org, cpplib)
 AC_CONFIG_SRCDIR(ucnid.h)
 AC_CONFIG_MACRO_DIR(../config)
@@ -42,7 +41,7 @@ ACX_PROG_CC_WARNINGS_ARE_ERRORS([manual])
 # Dependency checking.
 ZW_CREATE_DEPDIR
 AC_LANG_PUSH([C++])
-AC_COMPILE_IFELSE([[int i;]], [],
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([int i;])], [],
 		  [AC_MSG_ERROR([C++ compiler missing or inoperational])])
 AC_LANG_POP([C++])
 ZW_PROG_COMPILER_DEPENDENCIES([CXX])
@@ -152,9 +151,11 @@ for check in release $ac_checking_flags
 do
 	case $check in
 	# these set all the flags to specific states
-	yes|all) ac_checking=1 ; ac_valgrind_checking= ;;
-	no|none|release) ac_checking= ; ac_valgrind_checking= ;;
+	yes|all) ac_checking=1 ; ac_assert_checking=1 ; ac_valgrind_checking= ;;
+	no|none) ac_checking= ; ac_assert_checking= ; ac_valgrind_checking= ;;
+	release) ac_checking= ; ac_assert_checking=1 ; ac_valgrind_checking= ;;
 	# these enable particular checks
+	assert) ac_assert_checking=1 ;;
 	misc) ac_checking=1 ;;
 	valgrind) ac_valgrind_checking=1 ;;
 	# accept
@@ -164,8 +165,15 @@ done
 IFS="$ac_save_IFS"
                 
 if test x$ac_checking != x ; then
-  AC_DEFINE(ENABLE_CHECKING, 1,
-[Define if you want more run-time sanity checks.])
+  AC_DEFINE(CHECKING_P, 1,
+[Define to 1 if you want more run-time sanity checks.])
+else
+  AC_DEFINE(CHECKING_P, 0)
+fi
+
+if test x$ac_assert_checking != x ; then
+  AC_DEFINE(ENABLE_ASSERT_CHECKING, 1,
+[Define if you want assertions enabled.  This is a cheap check.])
 fi
 
 if test x$ac_valgrind_checking != x ; then
@@ -197,6 +205,21 @@ AC_ARG_ENABLE(host-shared,
 		[build host code as shared libraries])],
 [PICFLAG=-fPIC], [PICFLAG=])
 AC_SUBST(PICFLAG)
+
+AC_ARG_ENABLE(valgrind-annotations,
+[AS_HELP_STRING([--enable-valgrind-annotations],
+		[enable valgrind runtime interaction])], [],
+[enable_valgrind_annotations=no])
+if test x$enable_valgrind_annotations != xno \
+    || test x$ac_valgrind_checking != x; then
+  if (test $have_valgrind_h = no \
+      && test $gcc_cv_header_memcheck_h = no \
+      && test $gcc_cv_header_valgrind_memcheck_h = no); then
+    AC_MSG_ERROR([*** Can't find valgrind/memcheck.h, memcheck.h or valgrind.h])
+  fi
+  AC_DEFINE(ENABLE_VALGRIND_ANNOTATIONS, 1,
+[Define to get calls to the valgrind runtime enabled.])
+fi
 
 # Output.
 

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -35,9 +35,11 @@ package body ALI is
    use ASCII;
    --  Make control characters visible
 
-   --  The following variable records which characters currently are
-   --  used as line type markers in the ALI file. This is used in
-   --  Scan_ALI to detect (or skip) invalid lines.
+   --  The following variable records which characters currently are used as
+   --  line type markers in the ALI file. This is used in Scan_ALI to detect
+   --  (or skip) invalid lines. The following letters are still available:
+   --
+   --    B F G H J K O Q Z
 
    Known_ALI_Lines : constant array (Character range 'A' .. 'Z') of Boolean :=
      ('V'    => True,   -- version
@@ -57,7 +59,7 @@ package body ALI is
       'Y'    => True,   -- limited_with
       'Z'    => True,   -- implicit with from instantiation
       'C'    => True,   -- SCO information
-      'F'    => True,   -- SPARK cross-reference information
+      'T'    => True,   -- task stack information
       others => False);
 
    --------------------
@@ -72,11 +74,11 @@ package body ALI is
       --  These two loops are empty and harmless the first time in.
 
       for J in ALIs.First .. ALIs.Last loop
-         Set_Name_Table_Info (ALIs.Table (J).Afile, 0);
+         Set_Name_Table_Int (ALIs.Table (J).Afile, 0);
       end loop;
 
       for J in Units.First .. Units.Last loop
-         Set_Name_Table_Info (Units.Table (J).Uname, 0);
+         Set_Name_Table_Int (Units.Table (J).Uname, 0);
       end loop;
 
       --  Free argument table strings
@@ -111,13 +113,15 @@ package body ALI is
       Locking_Policy_Specified               := ' ';
       No_Normalize_Scalars_Specified         := False;
       No_Object_Specified                    := False;
+      No_Component_Reordering_Specified      := False;
+      GNATprove_Mode_Specified               := False;
       Normalize_Scalars_Specified            := False;
       Partition_Elaboration_Policy_Specified := ' ';
       Queuing_Policy_Specified               := ' ';
       SSO_Default_Specified                  := False;
-      Static_Elaboration_Model_Used          := False;
       Task_Dispatching_Policy_Specified      := ' ';
       Unreserve_All_Interrupts_Specified     := False;
+      Frontend_Exceptions_Specified          := False;
       Zero_Cost_Exceptions_Specified         := False;
    end Initialize_ALI;
 
@@ -384,7 +388,7 @@ package body ALI is
          Write_Str ("make sure you are using consistent versions " &
 
          --  Split the following line so that it can easily be transformed for
-         --  e.g. JVM/.NET back-ends where the compiler has a different name.
+         --  other back-ends where the compiler might have a different name.
 
                     "of gcc/gnatbind");
 
@@ -716,7 +720,7 @@ package body ALI is
             begin
                loop
                   case Nextc is
-                     when '['   =>
+                     when '[' =>
                         Nested_Brackets := Nested_Brackets + 1;
                      when ']' =>
                         Nested_Brackets := Nested_Brackets - 1;
@@ -840,7 +844,7 @@ package body ALI is
 
       if Read_Xref then
          Ignore :=
-           ('U' | 'W' | 'Y' | 'Z' | 'D' | 'X' => False, others => True);
+           ('T' | 'U' | 'W' | 'Y' | 'Z' | 'D' | 'X' => False, others => True);
 
       --  Read_Lines parameter given
 
@@ -866,7 +870,7 @@ package body ALI is
 
       ALIs.Increment_Last;
       Id := ALIs.Last;
-      Set_Name_Table_Info (F, Int (Id));
+      Set_Name_Table_Int (F, Int (Id));
 
       ALIs.Table (Id) := (
         Afile                        => F,
@@ -875,6 +879,7 @@ package body ALI is
         First_Sdep                   => No_Sdep_Id,
         First_Specific_Dispatching   => Specific_Dispatching.Last + 1,
         First_Unit                   => No_Unit_Id,
+        GNATprove_Mode               => False,
         Last_Interrupt_State         => Interrupt_States.Last,
         Last_Sdep                    => No_Sdep_Id,
         Last_Specific_Dispatching    => Specific_Dispatching.Last,
@@ -883,6 +888,7 @@ package body ALI is
         Main_Priority                => -1,
         Main_CPU                     => -1,
         Main_Program                 => None,
+        No_Component_Reordering      => False,
         No_Object                    => False,
         Normalize_Scalars            => False,
         Ofile_Full_Name              => Full_Object_File_Name,
@@ -898,6 +904,7 @@ package body ALI is
         Unit_Exception_Table         => False,
         Ver                          => (others => ' '),
         Ver_Len                      => 0,
+        Frontend_Exceptions          => False,
         Zero_Cost_Exceptions         => False);
 
       --  Now we acquire the input lines from the ALI file. Note that the
@@ -1089,6 +1096,25 @@ package body ALI is
                ALIs.Table (Id).Partition_Elaboration_Policy :=
                  Partition_Elaboration_Policy_Specified;
 
+            --  Processing for FX
+
+            elsif C = 'F' then
+               C := Getc;
+
+               if C = 'X' then
+                  ALIs.Table (Id).Frontend_Exceptions := True;
+                  Frontend_Exceptions_Specified := True;
+               else
+                  Fatal_Error_Ignore;
+               end if;
+
+            --  Processing for GP
+
+            elsif C = 'G' then
+               Checkc ('P');
+               GNATprove_Mode_Specified := True;
+               ALIs.Table (Id).GNATprove_Mode := True;
+
             --  Processing for Lx
 
             elsif C = 'L' then
@@ -1100,9 +1126,15 @@ package body ALI is
             elsif C = 'N' then
                C := Getc;
 
+               --  Processing for NC
+
+               if C = 'C' then
+                  ALIs.Table (Id).No_Component_Reordering := True;
+                  No_Component_Reordering_Specified := True;
+
                --  Processing for NO
 
-               if C = 'O' then
+               elsif C = 'O' then
                   ALIs.Table (Id).No_Object := True;
                   No_Object_Specified := True;
 
@@ -1441,19 +1473,19 @@ package body ALI is
                   C := Getc;
 
                   case C is
-                  when 'v' =>
-                     ALIs.Table (Id).Restrictions.Violated (R) := True;
-                     Cumulative_Restrictions.Violated (R) := True;
+                     when 'v' =>
+                        ALIs.Table (Id).Restrictions.Violated (R) := True;
+                        Cumulative_Restrictions.Violated (R) := True;
 
-                  when 'r' =>
-                     ALIs.Table (Id).Restrictions.Set (R) := True;
-                     Cumulative_Restrictions.Set (R) := True;
+                     when 'r' =>
+                        ALIs.Table (Id).Restrictions.Set (R) := True;
+                        Cumulative_Restrictions.Set (R) := True;
 
-                  when 'n' =>
-                     null;
+                     when 'n' =>
+                        null;
 
-                  when others =>
-                     raise Bad_R_Line;
+                     when others =>
+                        raise Bad_R_Line;
                   end case;
                end loop;
 
@@ -1695,6 +1727,7 @@ package body ALI is
             UL.Shared_Passive           := False;
             UL.RCI                      := False;
             UL.Remote_Types             := False;
+            UL.Serious_Errors           := False;
             UL.Has_RACW                 := False;
             UL.Init_Scalars             := False;
             UL.Is_Generic               := False;
@@ -1713,6 +1746,8 @@ package body ALI is
             UL.Elaborate_Body_Desirable := False;
             UL.Optimize_Alignment       := 'O';
             UL.Has_Finalizer            := False;
+            UL.Primary_Stack_Count      := 0;
+            UL.Sec_Stack_Count          := 0;
 
             if Debug_Flag_U then
                Write_Str (" ----> reading unit ");
@@ -1728,7 +1763,7 @@ package body ALI is
          --  Check for duplicated unit in different files
 
          declare
-            Info : constant Int := Get_Name_Table_Info
+            Info : constant Int := Get_Name_Table_Int
                                      (Units.Table (Units.Last).Uname);
          begin
             if Info /= 0
@@ -1776,7 +1811,7 @@ package body ALI is
             end if;
          end;
 
-         Set_Name_Table_Info
+         Set_Name_Table_Int
            (Units.Table (Units.Last).Uname, Int (Units.Last));
 
          --  Scan out possible version and other parameters
@@ -1947,10 +1982,14 @@ package body ALI is
 
                Check_At_End_Of_Field;
 
+            --  SE/SP/SU parameters
+
             elsif C = 'S' then
                C := Getc;
 
-               if C = 'P' then
+               if C = 'E' then
+                  Units.Table (Units.Last).Serious_Errors := True;
+               elsif C = 'P' then
                   Units.Table (Units.Last).Shared_Passive := True;
                elsif C = 'U' then
                   Units.Table (Units.Last).Unit_Kind := 's';
@@ -1967,14 +2006,6 @@ package body ALI is
          end loop;
 
          Skip_Eol;
-
-         --  Check if static elaboration model used
-
-         if not Units.Table (Units.Last).Dynamic_Elab
-           and then not Units.Table (Units.Last).Internal
-         then
-            Static_Elaboration_Model_Used := True;
-         end if;
 
          C := Getc;
 
@@ -1998,8 +2029,7 @@ package body ALI is
                Withs.Table (Withs.Last).Elab_All_Desirable := False;
                Withs.Table (Withs.Last).SAL_Interface      := False;
                Withs.Table (Withs.Last).Limited_With       := (C = 'Y');
-               Withs.Table (Withs.Last).Implicit_With_From_Instantiation
-                                                           := (C = 'Z');
+               Withs.Table (Withs.Last).Implicit_With      := (C = 'Z');
 
                --  Generic case with no object file available
 
@@ -2028,8 +2058,7 @@ package body ALI is
                         --  Store AD indication unless ignore required
 
                         if not Ignore_ED then
-                           Withs.Table (Withs.Last).Elab_All_Desirable :=
-                             True;
+                           Withs.Table (Withs.Last).Elab_All_Desirable := True;
                         end if;
 
                      elsif Nextc = 'E' then
@@ -2069,6 +2098,28 @@ package body ALI is
 
          Units.Table (Units.Last).Last_With := Withs.Last;
          Units.Table (Units.Last).Last_Arg  := Args.Last;
+
+         --  Scan out task stack information for the unit if present
+
+         Check_Unknown_Line;
+
+         if C = 'T' then
+            if Ignore ('T') then
+               Skip_Line;
+
+            else
+               Checkc (' ');
+               Skip_Space;
+
+               Units.Table (Units.Last).Primary_Stack_Count := Get_Nat;
+               Skip_Space;
+               Units.Table (Units.Last).Sec_Stack_Count := Get_Nat;
+               Skip_Space;
+               Skip_Eol;
+            end if;
+
+            C := Getc;
+         end if;
 
          --  If there are linker options lines present, scan them
 
@@ -2290,7 +2341,7 @@ package body ALI is
             --  The file/path name may be quoted
 
             Sdep.Table (Sdep.Last).Sfile :=
-              Get_File_Name (May_Be_Quoted =>  True);
+              Get_File_Name (May_Be_Quoted => True);
 
             Sdep.Table (Sdep.Last).Stamp := Get_Stamp;
             Sdep.Table (Sdep.Last).Dummy_Entry :=

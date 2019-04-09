@@ -1,7 +1,8 @@
-/* Copyright (C) 2005-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2019 Free Software Foundation, Inc.
    Contributed by Jakub Jelinek <jakub@redhat.com>.
 
-   This file is part of the GNU OpenMP Library (libgomp).
+   This file is part of the GNU Offloading and Multi Processing Library
+   (libgomp).
 
    Libgomp is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by
@@ -27,6 +28,8 @@
 #include "libgomp.h"
 #include "libgomp_f.h"
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include <limits.h>
 
 #ifdef HAVE_ATTRIBUTE_ALIAS
@@ -67,12 +70,22 @@ ialias_redirect (omp_get_active_level)
 ialias_redirect (omp_in_final)
 ialias_redirect (omp_get_cancellation)
 ialias_redirect (omp_get_proc_bind)
+ialias_redirect (omp_get_num_places)
+ialias_redirect (omp_get_place_num_procs)
+ialias_redirect (omp_get_place_proc_ids)
+ialias_redirect (omp_get_place_num)
+ialias_redirect (omp_get_partition_num_places)
+ialias_redirect (omp_get_partition_place_nums)
 ialias_redirect (omp_set_default_device)
 ialias_redirect (omp_get_default_device)
 ialias_redirect (omp_get_num_devices)
 ialias_redirect (omp_get_num_teams)
 ialias_redirect (omp_get_team_num)
 ialias_redirect (omp_is_initial_device)
+ialias_redirect (omp_get_initial_device)
+ialias_redirect (omp_get_max_task_priority)
+ialias_redirect (omp_pause_resource)
+ialias_redirect (omp_pause_resource_all)
 #endif
 
 #ifndef LIBGOMP_GNU_SYMBOL_VERSIONING
@@ -342,35 +355,38 @@ omp_get_wtime_ (void)
 }
 
 void
-omp_set_schedule_ (const int32_t *kind, const int32_t *modifier)
+omp_set_schedule_ (const int32_t *kind, const int32_t *chunk_size)
 {
-  omp_set_schedule (*kind, *modifier);
+  omp_set_schedule (*kind, *chunk_size);
 }
 
 void
-omp_set_schedule_8_ (const int32_t *kind, const int64_t *modifier)
+omp_set_schedule_8_ (const int32_t *kind, const int64_t *chunk_size)
 {
-  omp_set_schedule (*kind, TO_INT (*modifier));
+  omp_set_schedule (*kind, TO_INT (*chunk_size));
 }
 
 void
-omp_get_schedule_ (int32_t *kind, int32_t *modifier)
+omp_get_schedule_ (int32_t *kind, int32_t *chunk_size)
 {
   omp_sched_t k;
-  int m;
-  omp_get_schedule (&k, &m);
-  *kind = k;
-  *modifier = m;
+  int cs;
+  omp_get_schedule (&k, &cs);
+  /* For now mask off GFS_MONOTONIC, because OpenMP 4.5 code will not
+     expect to see it.  */
+  *kind = k & ~GFS_MONOTONIC;
+  *chunk_size = cs;
 }
 
 void
-omp_get_schedule_8_ (int32_t *kind, int64_t *modifier)
+omp_get_schedule_8_ (int32_t *kind, int64_t *chunk_size)
 {
   omp_sched_t k;
-  int m;
-  omp_get_schedule (&k, &m);
-  *kind = k;
-  *modifier = m;
+  int cs;
+  omp_get_schedule (&k, &cs);
+  /* See above.  */
+  *kind = k & ~GFS_MONOTONIC;
+  *chunk_size = cs;
 }
 
 int32_t
@@ -451,6 +467,69 @@ omp_get_proc_bind_ (void)
   return omp_get_proc_bind ();
 }
 
+int32_t
+omp_get_num_places_ (void)
+{
+  return omp_get_num_places ();
+}
+
+int32_t
+omp_get_place_num_procs_ (const int32_t *place_num)
+{
+  return omp_get_place_num_procs (*place_num);
+}
+
+int32_t
+omp_get_place_num_procs_8_ (const int64_t *place_num)
+{
+  return omp_get_place_num_procs (TO_INT (*place_num));
+}
+
+void
+omp_get_place_proc_ids_ (const int32_t *place_num, int32_t *ids)
+{
+  omp_get_place_proc_ids (*place_num, (int *) ids);
+}
+
+void
+omp_get_place_proc_ids_8_ (const int64_t *place_num, int64_t *ids)
+{
+  gomp_get_place_proc_ids_8 (TO_INT (*place_num), ids);
+}
+
+int32_t
+omp_get_place_num_ (void)
+{
+  return omp_get_place_num ();
+}
+
+int32_t
+omp_get_partition_num_places_ (void)
+{
+  return omp_get_partition_num_places ();
+}
+
+void
+omp_get_partition_place_nums_ (int32_t *place_nums)
+{
+  omp_get_partition_place_nums ((int *) place_nums);
+}
+
+void
+omp_get_partition_place_nums_8_ (int64_t *place_nums)
+{
+  if (gomp_places_list == NULL)
+    return;
+
+  struct gomp_thread *thr = gomp_thread ();
+  if (thr->place == 0)
+    gomp_init_affinity ();
+
+  unsigned int i;
+  for (i = 0; i < thr->ts.place_partition_len; i++)
+    *place_nums++ = (int64_t) thr->ts.place_partition_off + i;
+}
+
 void
 omp_set_default_device_ (const int32_t *device_num)
 {
@@ -491,4 +570,109 @@ int32_t
 omp_is_initial_device_ (void)
 {
   return omp_is_initial_device ();
+}
+
+int32_t
+omp_get_initial_device_ (void)
+{
+  return omp_get_initial_device ();
+}
+
+int32_t
+omp_get_max_task_priority_ (void)
+{
+  return omp_get_max_task_priority ();
+}
+
+void
+omp_set_affinity_format_ (const char *format, size_t format_len)
+{
+  gomp_set_affinity_format (format, format_len);
+}
+
+int32_t
+omp_get_affinity_format_ (char *buffer, size_t buffer_len)
+{
+  size_t len = strlen (gomp_affinity_format_var);
+  if (buffer_len)
+    {
+      if (len < buffer_len)
+	{
+	  memcpy (buffer, gomp_affinity_format_var, len);
+	  memset (buffer + len, ' ', buffer_len - len);
+	}
+      else
+	memcpy (buffer, gomp_affinity_format_var, buffer_len);
+    }
+  return len;
+}
+
+void
+omp_display_affinity_ (const char *format, size_t format_len)
+{
+  char *fmt = NULL, fmt_buf[256];
+  char buf[512];
+  if (format_len)
+    {
+      fmt = format_len < 256 ? fmt_buf : gomp_malloc (format_len + 1);
+      memcpy (fmt, format, format_len);
+      fmt[format_len] = '\0';
+    }
+  struct gomp_thread *thr = gomp_thread ();
+  size_t ret
+    = gomp_display_affinity (buf, sizeof buf,
+			     format_len ? fmt : gomp_affinity_format_var,
+			     gomp_thread_self (), &thr->ts, thr->place);
+  if (ret < sizeof buf)
+    {
+      buf[ret] = '\n';
+      gomp_print_string (buf, ret + 1);
+    }
+  else
+    {
+      char *b = gomp_malloc (ret + 1);
+      gomp_display_affinity (buf, sizeof buf,
+			     format_len ? fmt : gomp_affinity_format_var,
+			     gomp_thread_self (), &thr->ts, thr->place);
+      b[ret] = '\n';
+      gomp_print_string (b, ret + 1);
+      free (b);
+    }
+  if (fmt && fmt != fmt_buf)
+    free (fmt);
+}
+
+int32_t
+omp_capture_affinity_ (char *buffer, const char *format,
+		       size_t buffer_len, size_t format_len)
+{
+  char *fmt = NULL, fmt_buf[256];
+  if (format_len)
+    {
+      fmt = format_len < 256 ? fmt_buf : gomp_malloc (format_len + 1);
+      memcpy (fmt, format, format_len);
+      fmt[format_len] = '\0';
+    }
+  struct gomp_thread *thr = gomp_thread ();
+  size_t ret
+    = gomp_display_affinity (buffer, buffer_len,
+			     format_len ? fmt : gomp_affinity_format_var,
+			     gomp_thread_self (), &thr->ts, thr->place);
+  if (fmt && fmt != fmt_buf)
+    free (fmt);
+  if (ret < buffer_len)
+    memset (buffer + ret, ' ', buffer_len - ret);
+  return ret;
+}
+
+int32_t
+omp_pause_resource_ (const int32_t *kind, const int32_t *device_num)
+{
+  return omp_pause_resource (*kind, *device_num);
+}
+
+int32_t
+omp_pause_resource_all_ (const int32_t *kind)
+{
+  return omp_pause_resource_all (*kind);
 }

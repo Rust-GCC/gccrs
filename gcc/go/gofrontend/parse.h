@@ -7,7 +7,6 @@
 #ifndef GO_PARSE_H
 #define GO_PARSE_H
 
-class Set_iota_traverse;
 class Lex;
 class Gogo;
 class Named_object;
@@ -81,7 +80,8 @@ class Parse
     Expression* expr;
 
     Type_switch()
-      : found(false), name(), location(UNKNOWN_LOCATION), expr(NULL)
+        : found(false), name(), location(Linemap::unknown_location()),
+          expr(NULL)
     { }
   };
 
@@ -126,7 +126,7 @@ class Parse
   struct Enclosing_var_comparison
   {
     bool
-    operator()(const Enclosing_var&, const Enclosing_var&);
+    operator()(const Enclosing_var&, const Enclosing_var&) const;
   };
 
   // A set of Enclosing_var entries.
@@ -156,11 +156,6 @@ class Parse
   // break or continue statement with no label.
   typedef std::vector<std::pair<Statement*, Label*> > Bc_stack;
 
-  // Map from type switch variables to the variables they mask, so
-  // that a use of the type switch variable can become a use of the
-  // real variable.
-  typedef Unordered_map(Named_object*, Named_object*) Type_switch_vars;
-
   // Parser nonterminals.
   void identifier_list(Typed_identifier_list*);
   Expression_list* expression_list(Expression*, bool may_be_sink,
@@ -179,21 +174,21 @@ class Parse
   Function_type* signature(Typed_identifier*, Location);
   bool parameters(Typed_identifier_list**, bool* is_varargs);
   Typed_identifier_list* parameter_list(bool* is_varargs);
-  void parameter_decl(bool, Typed_identifier_list*, bool*, bool*);
+  void parameter_decl(bool, Typed_identifier_list*, bool*, bool*, bool*);
   bool result(Typed_identifier_list**);
   Location block();
-  Type* interface_type();
+  Type* interface_type(bool record);
   void method_spec(Typed_identifier_list*);
   void declaration();
   bool declaration_may_start_here();
-  void decl(void (Parse::*)(void*), void*);
-  void list(void (Parse::*)(void*), void*, bool);
+  void decl(void (Parse::*)(void*, unsigned int), void*, unsigned int pragmas);
+  void list(void (Parse::*)(void*, unsigned int), void*, bool);
   void const_decl();
-  void const_spec(Type**, Expression_list**);
-  void type_decl();
-  void type_spec(void*);
+  void const_spec(int, Type**, Expression_list**);
+  void type_decl(unsigned int pragmas);
+  void type_spec(void*, unsigned int pragmas);
   void var_decl();
-  void var_spec(void*);
+  void var_spec(void*, unsigned int pragmas);
   void init_vars(const Typed_identifier_list*, Type*, Expression_list*,
 		 bool is_coloneq, Location);
   bool init_vars_from_call(const Typed_identifier_list*, Type*, Expression*,
@@ -214,11 +209,11 @@ class Parse
   void simple_var_decl_or_assignment(const std::string&, Location,
 				     bool may_be_composite_lit,
 				     Range_clause*, Type_switch*);
-  void function_decl(bool saw_nointerface);
+  void function_decl(unsigned int pragmas);
   Typed_identifier* receiver();
   Expression* operand(bool may_be_sink, bool *is_parenthesized);
   Expression* enclosing_var_reference(Named_object*, Named_object*,
-				      Location);
+				      bool may_be_sink, Location);
   Expression* composite_lit(Type*, int depth, Location);
   Expression* function_lit();
   Expression* create_closure(Named_object* function, Enclosing_vars*,
@@ -245,7 +240,7 @@ class Parse
   void statement_list();
   bool statement_list_may_start_here();
   void expression_stat(Expression*);
-  void send_stmt(Expression*);
+  void send_stmt(Expression*, bool may_be_composite_lit);
   void inc_dec_stat(Expression*);
   void assignment(Expression*, bool may_be_composite_lit, Range_clause*);
   void tuple_assignment(Expression_list*, bool may_be_composite_lit,
@@ -259,7 +254,8 @@ class Parse
   void expr_case_clause(Case_clauses*, bool* saw_default);
   Expression_list* expr_switch_case(bool*);
   Statement* type_switch_body(Label*, const Type_switch&, Location);
-  void type_case_clause(Named_object*, Type_case_clauses*, bool* saw_default);
+  void type_case_clause(const std::string&, Expression*, Type_case_clauses*,
+                        bool* saw_default, std::vector<Named_object*>*);
   void type_switch_case(std::vector<Type*>*, bool*);
   void select_stat(Label*);
   void comm_clause(Select_clauses*, bool* saw_default);
@@ -281,11 +277,7 @@ class Parse
   void goto_stat();
   void package_clause();
   void import_decl();
-  void import_spec(void*);
-
-  void reset_iota();
-  int iota_value();
-  void increment_iota();
+  void import_spec(void*, unsigned int pragmas);
 
   // Skip past an error looking for a semicolon or OP.  Return true if
   // all is well, false if we found EOF.
@@ -322,13 +314,9 @@ class Parse
   Bc_stack* break_stack_;
   // A stack of statements for which continue may be used.
   Bc_stack* continue_stack_;
-  // The current iota value.
-  int iota_;
   // References from the local function to variables defined in
   // enclosing functions.
   Enclosing_vars enclosing_vars_;
-  // Map from type switch variables to real variables.
-  Type_switch_vars type_switch_vars_;
 };
 
 

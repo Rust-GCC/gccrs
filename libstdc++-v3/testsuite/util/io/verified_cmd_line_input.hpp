@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2014 Free Software Foundation, Inc.
+// Copyright (C) 2005-2019 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -45,7 +45,7 @@ namespace __gnu_pbds
   namespace test
   {
     void
-    verify_argc(size_t given, size_t required);
+    verify_argc(std::size_t given, std::size_t required);
 
     void
     verify_prob(double prob);
@@ -56,7 +56,7 @@ namespace __gnu_pbds
     double
     get_cmd_line_prob(int argc, char* a_p_argv[], int argn);
 
-    size_t
+    std::size_t
     get_cmd_line_size(int argc, char* a_p_argv[], int argn);
 
     bool

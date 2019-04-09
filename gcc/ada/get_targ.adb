@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2014, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2019, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,12 +23,12 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  Version for use with gcc
+--  Version for use with GCC
 
 package body Get_Targ is
 
-   --  Functions returning individual runtime. For the standard (GCC) back
-   --  end these come from C interface functions (one for each value).
+   --  Functions returning individual run-time values. For the standard (GCC)
+   --  back end, these come from C interface functions (one for each value).
 
    -----------------------
    -- Get_Bits_Per_Unit --
@@ -126,42 +126,6 @@ package body Get_Targ is
       return C_Get_Long_Long_Size;
    end Get_Long_Long_Size;
 
-   --------------------
-   -- Get_Float_Size --
-   --------------------
-
-   function Get_Float_Size return Pos is
-      function C_Get_Float_Size return Pos;
-      pragma Import (C, C_Get_Float_Size,
-                        "get_target_float_size");
-   begin
-      return C_Get_Float_Size;
-   end Get_Float_Size;
-
-   ---------------------
-   -- Get_Double_Size --
-   ---------------------
-
-   function Get_Double_Size return Pos is
-      function C_Get_Double_Size return Pos;
-      pragma Import (C, C_Get_Double_Size,
-                        "get_target_double_size");
-   begin
-      return C_Get_Double_Size;
-   end Get_Double_Size;
-
-   --------------------------
-   -- Get_Long_Double_Size --
-   --------------------------
-
-   function Get_Long_Double_Size return Pos is
-      function C_Get_Long_Double_Size return Pos;
-      pragma Import (C, C_Get_Long_Double_Size,
-                        "get_target_long_double_size");
-   begin
-      return C_Get_Long_Double_Size;
-   end Get_Long_Double_Size;
-
    ----------------------
    -- Get_Pointer_Size --
    ----------------------
@@ -193,7 +157,7 @@ package body Get_Targ is
    function Get_Float_Words_BE return Nat is
       function C_Get_Float_Words_BE return Nat;
       pragma Import (C, C_Get_Float_Words_BE,
-                        "get_float_words_be");
+                        "get_target_float_words_be");
    begin
       return C_Get_Float_Words_BE;
    end Get_Float_Words_BE;
@@ -205,7 +169,7 @@ package body Get_Targ is
    function Get_Words_BE return Nat is
       function C_Get_Words_BE return Nat;
       pragma Import (C, C_Get_Words_BE,
-                        "get_words_be");
+                        "get_target_words_be");
    begin
       return C_Get_Words_BE;
    end Get_Words_BE;
@@ -217,7 +181,7 @@ package body Get_Targ is
    function Get_Bytes_BE return Nat is
       function C_Get_Bytes_BE return Nat;
       pragma Import (C, C_Get_Bytes_BE,
-                        "get_bytes_be");
+                        "get_target_bytes_be");
    begin
       return C_Get_Bytes_BE;
    end Get_Bytes_BE;
@@ -229,7 +193,7 @@ package body Get_Targ is
    function Get_Bits_BE return Nat is
       function C_Get_Bits_BE return Nat;
       pragma Import (C, C_Get_Bits_BE,
-                        "get_bits_be");
+                        "get_target_bits_be");
    begin
       return C_Get_Bits_BE;
    end Get_Bits_BE;
@@ -342,7 +306,7 @@ package body Get_Targ is
    -- Width_From_Size --
    ---------------------
 
-   function Width_From_Size  (Size : Pos) return Pos is
+   function Width_From_Size (Size : Pos) return Pos is
    begin
       case Size is
          when  8     => return  4;

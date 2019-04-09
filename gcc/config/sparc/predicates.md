@@ -1,5 +1,5 @@
 ;; Predicate definitions for SPARC.
-;; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2019 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -21,37 +21,14 @@
 
 ;; Return true if OP is the zero constant for MODE.
 (define_predicate "const_zero_operand"
-  (and (match_code "const_int,const_double,const_vector")
+  (and (match_code "const_int,const_wide_int,const_double,const_vector")
        (match_test "op == CONST0_RTX (mode)")))
 
-;; Return true if the integer representation of OP is
-;; all-ones.
+;; Return true if the integer representation of OP is all ones.
 (define_predicate "const_all_ones_operand"
-  (match_code "const_int,const_double,const_vector")
-{
-  if (GET_CODE (op) == CONST_INT && INTVAL (op) == -1)
-    return true;
-#if HOST_BITS_PER_WIDE_INT == 32
-  if (GET_CODE (op) == CONST_DOUBLE
-      && GET_MODE (op) == VOIDmode
-      && CONST_DOUBLE_HIGH (op) == ~(HOST_WIDE_INT)0
-      && CONST_DOUBLE_LOW (op) == ~(HOST_WIDE_INT)0)
-    return true;
-#endif
-  if (GET_CODE (op) == CONST_VECTOR)
-    {
-      int i, num_elem = CONST_VECTOR_NUNITS (op);
-
-      for (i = 0; i < num_elem; i++)
-        {
-          rtx n = CONST_VECTOR_ELT (op, i);
-          if (! const_all_ones_operand (n, mode))
-            return false;
-        }
-      return true;
-    }
-  return false;
-})
+  (and (match_code "const_int,const_wide_int,const_double,const_vector")
+       (match_test "INTEGRAL_MODE_P (GET_MODE (op))")
+       (match_test "op == CONSTM1_RTX (GET_MODE (op))")))
 
 ;; Return true if OP is the integer constant 4096.
 (define_predicate "const_4096_operand"
@@ -69,20 +46,10 @@
 ;; instruction sign-extends immediate values just like all other SPARC
 ;; instructions, but interprets the extended result as an unsigned number.
 (define_predicate "uns_small_int_operand"
-  (match_code "const_int,const_double")
-{
-#if HOST_BITS_PER_WIDE_INT == 32
-  return ((GET_CODE (op) == CONST_INT && (unsigned) INTVAL (op) < 0x1000)
-	  || (GET_CODE (op) == CONST_DOUBLE
-	      && CONST_DOUBLE_HIGH (op) == 0
-	      && (unsigned) CONST_DOUBLE_LOW (op) - 0xFFFFF000 < 0x1000));
-#else
-  return (GET_CODE (op) == CONST_INT
-	  && ((INTVAL (op) >= 0 && INTVAL (op) < 0x1000)
-	      || (INTVAL (op) >= 0xFFFFF000
-                  && INTVAL (op) <= 0xFFFFFFFF)));
-#endif
-})
+  (and (match_code "const_int")
+       (match_test "((INTVAL (op) >= 0 && INTVAL (op) < 0x1000)
+		    || (INTVAL (op) >= 0xFFFFF000
+			&& INTVAL (op) <= 0xFFFFFFFF))")))
 
 ;; Return true if OP is a constant that can be loaded by the sethi instruction.
 ;; The first test avoids emitting sethi to load zero for example.
@@ -124,7 +91,7 @@
 (define_predicate "symbolic_operand"
   (match_code "symbol_ref,label_ref,const")
 {
-  enum machine_mode omode = GET_MODE (op);
+  machine_mode omode = GET_MODE (op);
 
   if (omode != mode && omode != VOIDmode && mode != VOIDmode)
     return false;
@@ -267,53 +234,23 @@
 
 ;; Return true if OP is a floating point condition code register.
 (define_predicate "fcc_register_operand"
-  (match_code "reg")
-{
-  if (mode != VOIDmode && mode != GET_MODE (op))
-    return false;
-  if (mode == VOIDmode
-      && (GET_MODE (op) != CCFPmode && GET_MODE (op) != CCFPEmode))
-    return false;
-
-#if 0 /* ??? 1 when %fcc0-3 are pseudos first.  See gen_compare_reg().  */
-  if (reg_renumber == 0)
-    return REGNO (op) >= FIRST_PSEUDO_REGISTER;
-  return REGNO_OK_FOR_CCFP_P (REGNO (op));
-#else
-  return ((unsigned) REGNO (op) - SPARC_FIRST_V9_FCC_REG) < 4;
-#endif
-})
+  (and (match_code "reg")
+       (match_test "((unsigned) REGNO (op) - SPARC_FIRST_V9_FCC_REG) < 4")))
 
 ;; Return true if OP is the floating point condition code register fcc0.
 (define_predicate "fcc0_register_operand"
-  (match_code "reg")
-{
-  if (mode != VOIDmode && mode != GET_MODE (op))
-    return false;
-  if (mode == VOIDmode
-      && (GET_MODE (op) != CCFPmode && GET_MODE (op) != CCFPEmode))
-    return false;
+  (and (match_code "reg")
+       (match_test "REGNO (op) == SPARC_FCC_REG")))
 
-  return REGNO (op) == SPARC_FCC_REG;
-})
+;; Return true if OP is an integer condition code register.
+(define_predicate "icc_register_operand"
+  (and (match_code "reg")
+       (match_test "REGNO (op) == SPARC_ICC_REG")))
 
 ;; Return true if OP is an integer or floating point condition code register.
 (define_predicate "icc_or_fcc_register_operand"
-  (match_code "reg")
-{
-  if (REGNO (op) == SPARC_ICC_REG)
-    {
-      if (mode != VOIDmode && mode != GET_MODE (op))
-	return false;
-      if (mode == VOIDmode
-	  && GET_MODE (op) != CCmode && GET_MODE (op) != CCXmode)
-	return false;
-
-      return true;
-    }
-
-  return fcc_register_operand (op, mode);
-})
+  (ior (match_operand 0 "icc_register_operand")
+       (match_operand 0 "fcc_register_operand")))
 
 
 ;; Predicates for arithmetic instructions.
@@ -330,7 +267,7 @@
 ;; representable by a couple of 13-bit signed fields.  This is an
 ;; acceptable operand for most 3-address splitters.
 (define_predicate "arith_double_operand"
-  (match_code "const_int,const_double,reg,subreg")
+  (match_code "const_int,reg,subreg")
 {
   bool arith_simple_operand = arith_operand (op, mode);
   HOST_WIDE_INT m1, m2;
@@ -338,17 +275,11 @@
   if (TARGET_ARCH64 || arith_simple_operand)
     return arith_simple_operand;
 
-#if HOST_BITS_PER_WIDE_INT == 32
-  if (GET_CODE (op) != CONST_DOUBLE)
-    return false;
-  m1 = CONST_DOUBLE_LOW (op);
-  m2 = CONST_DOUBLE_HIGH (op);
-#else
   if (GET_CODE (op) != CONST_INT)
     return false;
+
   m1 = trunc_int_for_mode (INTVAL (op), SImode);
   m2 = trunc_int_for_mode (INTVAL (op) >> 32, SImode);
-#endif
 
   return SPARC_SIMM13_P (m1) && SPARC_SIMM13_P (m2);
 })
@@ -360,11 +291,9 @@
 
 ;; Return true if OP is suitable as second double operand for add/sub.
 (define_predicate "arith_double_add_operand"
-  (match_code "const_int,const_double,reg,subreg")
+  (match_code "const_int,reg,subreg")
 {
-  bool _arith_double_operand = arith_double_operand (op, mode);
-
-  if (_arith_double_operand)
+  if (arith_double_operand (op, mode))
     return true;
 
   return TARGET_ARCH64 && const_4096_operand (op, mode);
@@ -399,6 +328,33 @@
        (and (match_code "const_int")
             (match_test "SPARC_SIMM5_P (INTVAL (op))"))))
 
+;; Return true if OP is a constant in the range 0..7.  This is an
+;; acceptable second operand for dictunpack instructions setting a
+;; V8QI mode in the destination register.
+(define_predicate "imm5_operand_dictunpack8"
+  (and (match_code "const_int")
+       (match_test "(INTVAL (op) >= 0 && INTVAL (op) < 8)")))
+
+;; Return true if OP is a constant in the range 7..15.  This is an
+;; acceptable second operand for dictunpack instructions setting a
+;; V4HI mode in the destination register.
+(define_predicate "imm5_operand_dictunpack16"
+  (and (match_code "const_int")
+       (match_test "(INTVAL (op) >= 8 && INTVAL (op) < 16)")))
+
+;; Return true if OP is a constant in the range 15..31.  This is an
+;; acceptable second operand for dictunpack instructions setting a
+;; V2SI mode in the destination register.
+(define_predicate "imm5_operand_dictunpack32"
+  (and (match_code "const_int")
+       (match_test "(INTVAL (op) >= 16 && INTVAL (op) < 32)")))
+
+;; Return true if OP is a constant that is representable by a 2-bit
+;; unsigned field.  This is an acceptable third operand for
+;; fpcmp*shl instructions.
+(define_predicate "imm2_operand"
+  (and (match_code "const_int")
+       (match_test "SPARC_IMM2_P (INTVAL (op))")))
 
 ;; Predicates for miscellaneous instructions.
 
@@ -417,8 +373,8 @@
 		|| (TARGET_ARCH64
 		    && mode == DImode
 		    && INTVAL (XEXP (op, 2)) > 51)));
-  else
-    return register_operand (op, mode);
+
+  return register_operand (op, mode);
 })
 
 ;; Return true if OP is a valid operand for the source of a move insn.
@@ -441,11 +397,10 @@
 
   /* If 32-bit mode and this is a DImode constant, allow it
      so that the splits can be generated.  */
-  if (TARGET_ARCH32
-      && mode == DImode
-      && (GET_CODE (op) == CONST_DOUBLE || GET_CODE (op) == CONST_INT))
+  if (TARGET_ARCH32 && mode == DImode && GET_CODE (op) == CONST_INT)
     return true;
 
+  /* Allow FP constants to be built in integer registers.  */
   if (mclass == MODE_FLOAT && GET_CODE (op) == CONST_DOUBLE)
     return true;
 
@@ -461,7 +416,14 @@
 
   /* Check for valid MEM forms.  */
   if (GET_CODE (op) == MEM)
-    return memory_address_p (mode, XEXP (op, 0));
+    {
+      /* Except when LRA is precisely working hard to make them valid
+	 and relying entirely on the constraints.  */
+      if (lra_in_progress)
+	return true;
+
+      return memory_address_p (mode, XEXP (op, 0));
+    }
 
   return false;
 })
@@ -485,46 +447,81 @@
 
 ;; Predicates for operators.
 
-;; Return true if OP is a comparison operator.  This allows the use of
-;; MATCH_OPERATOR to recognize all the branch insns.
-(define_predicate "noov_compare_operator"
-  (match_code "ne,eq,ge,gt,le,lt,geu,gtu,leu,ltu")
+;; Return true if OP is a valid comparison operator for CCNZmode.
+(define_predicate "nz_comparison_operator"
+  (match_code "eq,ne,lt,ge"))
+
+;; Return true if OP is a valid comparison operator for CCCmode.
+(define_predicate "c_comparison_operator"
+  (match_code "ltu,geu"))
+
+;; Return true if OP is a valid comparison operator for CCVmode.
+(define_predicate "v_comparison_operator"
+  (match_code "eq,ne"))
+
+;; Return true if OP is an integer comparison operator.  This allows
+;; the use of MATCH_OPERATOR to recognize all the branch insns.
+(define_predicate "icc_comparison_operator"
+  (match_operand 0 "ordered_comparison_operator")
 {
-  enum rtx_code code = GET_CODE (op);
-  if (GET_MODE (XEXP (op, 0)) == CC_NOOVmode
-      || GET_MODE (XEXP (op, 0)) == CCX_NOOVmode)
-    /* These are the only branches which work with CC_NOOVmode.  */
-    return (code == EQ || code == NE || code == GE || code == LT);
-  return true;
+  switch (GET_MODE (XEXP (op, 0)))
+    {
+    case E_CCmode:
+    case E_CCXmode:
+      return true;
+    case E_CCNZmode:
+    case E_CCXNZmode:
+      return nz_comparison_operator (op, mode);
+    case E_CCCmode:
+    case E_CCXCmode:
+      return c_comparison_operator (op, mode);
+    case E_CCVmode:
+    case E_CCXVmode:
+      return v_comparison_operator (op, mode);
+    default:
+      return false;
+    }
 })
 
-;; Return true if OP is a 64-bit comparison operator.  This allows the use of
-;; MATCH_OPERATOR to recognize all the branch insns.
-(define_predicate "noov_compare64_operator"
-  (and (match_code "ne,eq,ge,gt,le,lt,geu,gtu,leu,ltu")
-       (match_test "TARGET_V9"))
+;; Return true if OP is a FP comparison operator.
+(define_predicate "fcc_comparison_operator"
+  (match_operand 0 "comparison_operator")
 {
-  enum rtx_code code = GET_CODE (op);
-  if (GET_MODE (XEXP (op, 0)) == CCX_NOOVmode)
-    /* These are the only branches which work with CCX_NOOVmode.  */
-    return (code == EQ || code == NE || code == GE || code == LT);
-  return (GET_MODE (XEXP (op, 0)) == CCXmode);
+  switch (GET_MODE (XEXP (op, 0)))
+    {
+    case E_CCFPmode:
+    case E_CCFPEmode:
+      return true;
+    default:
+      return false;
+    }
 })
+
+;; Return true if OP is an integer or FP comparison operator.  This allows
+;; the use of MATCH_OPERATOR to recognize all the conditional move insns.
+(define_predicate "icc_or_fcc_comparison_operator"
+  (ior (match_operand 0 "icc_comparison_operator")
+       (match_operand 0 "fcc_comparison_operator")))
+
+;; Return true if OP is an integer comparison operator for V9.
+(define_predicate "v9_comparison_operator"
+  (and (match_operand 0 "ordered_comparison_operator")
+       (match_test "TARGET_V9")))
 
 ;; Return true if OP is a comparison operator suitable for use in V9
 ;; conditional move or branch on register contents instructions.
-(define_predicate "v9_register_compare_operator"
+(define_predicate "v9_register_comparison_operator"
   (match_code "eq,ne,ge,lt,le,gt"))
 
 ;; Return true if OP is an operator which can set the condition codes
-;; explicitly.  We do not include PLUS and MINUS because these
-;; require CC_NOOVmode, which we handle explicitly.
+;; explicitly.  We do not include PLUS/MINUS/NEG/ASHIFT because these
+;; require CCNZmode, which we handle explicitly.
 (define_predicate "cc_arith_operator"
   (match_code "and,ior,xor"))
 
 ;; Return true if OP is an operator which can bitwise complement its
 ;; second operand and set the condition codes explicitly.
 ;; XOR is not here because combine canonicalizes (xor (not ...) ...)
-;; and (xor ... (not ...)) to (not (xor ...)).  */
+;; and (xor ... (not ...)) to (not (xor ...)).
 (define_predicate "cc_arith_not_operator"
   (match_code "and,ior"))

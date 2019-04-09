@@ -1,5 +1,5 @@
 /* Base configuration file for all OpenBSD targets.
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -126,7 +126,7 @@ while (0)
    still uses a special flavor of gas that needs to be told when generating 
    pic code.  */
 #undef ASM_SPEC
-#define ASM_SPEC "%{fpic|fpie:-k} %{fPIC|fPIE:-k -K}"
+#define ASM_SPEC "%{" FPIE1_OR_FPIC1_SPEC ":-k} %{" FPIE2_OR_FPIC2_SPEC ":-k -K}"
 #endif
 
 /* Since we use gas, stdin -> - is a good idea.  */
@@ -136,7 +136,7 @@ while (0)
 #define LIB_SPEC OBSD_LIB_SPEC
 
 #if defined(HAVE_LD_EH_FRAME_HDR)
-#define LINK_EH_SPEC "%{!static:--eh-frame-hdr} "
+#define LINK_EH_SPEC "%{!static|static-pie:--eh-frame-hdr} "
 #endif
 
 #undef LIB_SPEC

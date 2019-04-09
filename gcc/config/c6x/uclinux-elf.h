@@ -1,5 +1,5 @@
 /* Definitions for TI C6X running ucLinux using ELF
-   Copyright (C) 2010-2014 Free Software Foundation, Inc.
+   Copyright (C) 2010-2019 Free Software Foundation, Inc.
    Contributed by Andrew Jenner <andrew@codesourcery.com>
    Contributed by Bernd Schmidt <bernds@codesourcery.com>
 
@@ -40,7 +40,7 @@
 
 #undef LINK_SPEC
 #define LINK_SPEC ENDIAN_LINK_SPEC \
-  "%{shared} %{fpie|fPIE:-pie} \
+  "%{shared} %{" FPIE_SPEC ":-pie} \
   %{!shared: %{!static: \
    %{rdynamic:-export-dynamic} \
    %{!dynamic-linker:-dynamic-linker " UCLIBC_DYNAMIC_LINKER "}} \
