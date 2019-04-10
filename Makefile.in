@@ -1215,12 +1215,9 @@ all-target: maybe-all-target-libquadmath
 all-target: maybe-all-target-libgfortran
 all-target: maybe-all-target-libobjc
 all-target: maybe-all-target-libgo
-<<<<<<< HEAD
 all-target: maybe-all-target-libgrust
-=======
 all-target: maybe-all-target-libhsail-rt
 all-target: maybe-all-target-libphobos
->>>>>>> gcc/master
 all-target: maybe-all-target-libtermcap
 all-target: maybe-all-target-winsup
 all-target: maybe-all-target-libgloss

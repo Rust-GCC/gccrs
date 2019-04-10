@@ -551,7 +551,6 @@ dependencies = { module=configure-target-libgo; on=all-target-libstdc++-v3; };
 dependencies = { module=all-target-libgo; on=all-target-libbacktrace; };
 dependencies = { module=all-target-libgo; on=all-target-libffi; };
 dependencies = { module=all-target-libgo; on=all-target-libatomic; };
-<<<<<<< HEAD
 dependencies = { module=configure-target-libgrust; on=configure-target-libffi; };
 dependencies = { module=configure-target-libgrust; on=all-target-libstdc++-v3; };
 dependencies = { module=all-target-libgrust; on=all-target-libbacktrace; };
@@ -566,13 +565,11 @@ dependencies = { module=all-target-libjava; on=all-target-boehm-gc; };
 dependencies = { module=all-target-libjava; on=all-target-libffi; };
 dependencies = { module=configure-target-libobjc; on=configure-target-boehm-gc; };
 dependencies = { module=all-target-libobjc; on=all-target-boehm-gc; };
-=======
 dependencies = { module=configure-target-libphobos; on=configure-target-libbacktrace; };
 dependencies = { module=configure-target-libphobos; on=configure-target-zlib; };
 dependencies = { module=all-target-libphobos; on=all-target-libbacktrace; };
 dependencies = { module=all-target-libphobos; on=all-target-zlib; };
 dependencies = { module=all-target-libphobos; on=all-target-libatomic; };
->>>>>>> gcc/master
 dependencies = { module=configure-target-libstdc++-v3; on=configure-target-libgomp; };
 dependencies = { module=configure-target-liboffloadmic; on=configure-target-libgomp; };
 dependencies = { module=configure-target-libsanitizer; on=all-target-libstdc++-v3; };
@@ -625,18 +622,15 @@ languages = { language=objc;	gcc-check-target=check-objc;
 				lib-check-target=check-target-libobjc; };
 languages = { language=obj-c++;	gcc-check-target=check-obj-c++; };
 languages = { language=go;	gcc-check-target=check-go;
-<<<<<<< HEAD
 				lib-check-target=check-target-libgo; };
 languages = { language=rust;	gcc-check-target=check-rust;
 				lib-check-target=check-target-libgrust; };
-=======
 				lib-check-target=check-target-libgo;
 				lib-check-target=check-gotools; };
 languages = { language=brig;	gcc-check-target=check-brig;
 				lib-check-target=check-target-libhsail-rt; };
 languages = { language=d;	gcc-check-target=check-d;
 				lib-check-target=check-target-libphobos; };
->>>>>>> gcc/master
 
 // Toplevel bootstrap
 bootstrap_stage = { id=1 ; };
