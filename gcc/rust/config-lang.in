@@ -26,5 +26,4 @@ lang_requires_boot_languages=c++
 
 target_libs="target-libgrust target-libffi target-libbacktrace"
 
-gtfiles="\$(srcdir)/rust/rs-lang.c \
-\$(srcdir)/rust/rdot-impl.h"
+# gtfiles="\$(srcdir)/rust/rs-lang.c \$(srcdir)/rust/rdot-impl.h"

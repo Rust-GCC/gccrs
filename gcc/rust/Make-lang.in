@@ -33,69 +33,9 @@ GCCRS_TARGET_INSTALL_NAME := $(target_noncanonical)-$(shell echo gccrs|sed '$(pr
 
 rust: gccrs$(exeext) grs1$(exeext)
 
-GRS_CFLAGS := -g -O2 -I${srcdir}/rust -fomit-frame-pointer -W -Wall -pedantic -DHAVE_CONFIG_H
-
-rs-lexer.o: $(srcdir)/rust/rs-lexer.l rs-parser.o
-	$(FLEX) --outfile=lex.rs.c $(srcdir)/rust/rs-lexer.l
-	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
-	$(LDFLAGS) -c -o $@ lex.rs.c
-
-rs-parser.o: $(srcdir)/rust/rs-parser.cc
-	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
-	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rs-parser.cc
-
-rs-pass-manager.o: $(srcdir)/rust/rs-pass-manager.cc $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
-  $(FLAGS_H) toplev.h $(GGC_H) $(TREE_H) $(DIAGNOSTIC_H) input.h options.h opts.h \
-  gt-rust-rs-lang.h gtype-rust.h $(srcdir)/rust/rust.h $(srcdir)/rust/rdot-impl.h
-	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
-	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rs-pass-manager.cc
-
-rdot-impl.o: $(srcdir)/rust/rdot-impl.cc $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
-  $(FLAGS_H) toplev.h $(GGC_H) $(TREE_H) $(DIAGNOSTIC_H) input.h options.h opts.h \
-  gt-rust-rs-lang.h gtype-rust.h $(srcdir)/rust/rust.h $(srcdir)/rust/rdot-impl.h
-	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
-	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rdot-impl.cc
-
-rdot-pretty-print.o: $(srcdir)/rust/rdot-pretty-print.cc $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
-  $(FLAGS_H) toplev.h $(GGC_H) $(TREE_H) $(DIAGNOSTIC_H) input.h options.h opts.h \
-  gt-rust-rs-lang.h gtype-rust.h $(srcdir)/rust/rust.h $(srcdir)/rust/rdot-impl.h
-	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
-	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rdot-pretty-print.cc
-
-rdot-dataflow.o: $(srcdir)/rust/rdot-dataflow.cc $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
-  $(FLAGS_H) toplev.h $(GGC_H) $(TREE_H) $(DIAGNOSTIC_H) input.h options.h opts.h \
-  gt-rust-rs-lang.h gtype-rust.h $(srcdir)/rust/rust.h $(srcdir)/rust/rdot-impl.h
-	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
-	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rdot-dataflow.cc
-
-rdot-generic-compiler.o: $(srcdir)/rust/rdot-generic-compiler.cc $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
-  $(FLAGS_H) toplev.h $(GGC_H) $(TREE_H) $(DIAGNOSTIC_H) input.h options.h opts.h \
-  gt-rust-rs-lang.h gtype-rust.h $(srcdir)/rust/rust.h $(srcdir)/rust/rdot-impl.h
-	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
-	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rdot-generic-compiler.cc
-
-rs-runtime-hooks.o: $(srcdir)/rust/rs-runtime-hooks.cc $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
-  $(FLAGS_H) toplev.h $(GGC_H) $(TREE_H) $(DIAGNOSTIC_H) input.h options.h opts.h \
-  gt-rust-rs-lang.h gtype-rust.h $(srcdir)/rust/rust.h $(srcdir)/rust/rdot-impl.h
-	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
-	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rs-runtime-hooks.cc
-
-rs-lang.o: $(srcdir)/rust/rs-lang.c $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
-  $(FLAGS_H) toplev.h $(GGC_H) $(TREE_H) $(DIAGNOSTIC_H) input.h options.h opts.h \
-  gt-rust-rs-lang.h gtype-rust.h
-	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
-	$(LDFLAGS) -c -o $@ $(srcdir)/rust/rs-lang.c
 
 GRS_OBJS = \
-	rs-lang.o \
-	rs-parser.o \
-	rs-lexer.o \
-	rs-pass-manager.o \
-	rs-runtime-hooks.o \
-	rdot-impl.o \
-	rdot-pretty-print.o \
-	rdot-dataflow.o \
-	rdot-generic-compiler.o
+	rustfrontend/main.cc
 
 grs1$(exeext): $(GRS_OBJS) attribs.o $(BACKEND) $(LIBDEPS)
 	$(COMPILER) $(GRS_CFLAGS) $(ALL_CFLAGS) $(LDFLAGS) -o $@ \
@@ -176,3 +116,7 @@ rust.stagefeedback: stagefeedback-start
 	-mv rust/*$(objext) stagefeedback/rust
 
 config.status: rust/config-lang.in
+
+rustfront-end/%.o: rust/rustfrontend/%.cc
+	$(COMPILE) $(GOINCLUDES) $<
+	$(POSTCOMPILE)
