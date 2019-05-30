@@ -1,4 +1,5 @@
 # Make-lang.in -- Top level -*- makefile -*- fragment for GCC Rust frontend.
+
 # Copyright (C) 2009-2013 Free Software Foundation, Inc.
 
 # This file is part of GCC.
@@ -19,24 +20,36 @@
 
 # This file provides the language dependent support in the main Makefile.
 
-# Installation name.
-
 RUST_EXES = rust
 
+# Tell GNU make to ignore files by these names if they exist.
 .phony: rust
 
 # Use strict warnings for this front end.
 rust-warn = $(STRICT_WARN)
 
+# Installation name.
 GCCRS_INSTALL_NAME := $(shell echo gccrs|sed '$(program_transform_name)')
 GCCRS_TARGET_INSTALL_NAME := $(target_noncanonical)-$(shell echo gccrs|sed '$(program_transform_name)')
 
+# Define the names for selecting rust in LANGUAGES.
 rust: gccrs$(exeext) grs1$(exeext)
 
+# removed GRS_CFLAGS from here
 
+# removed object files from here
+#rs-lexer.o: $(srcdir)/rust/rs-lexer.l rs-parser.o
+#	$(FLEX) --outfile=lex.rs.c $(srcdir)/rust/rs-lexer.l
+#	$(COMPILER) $(GRS_CFLAGS) $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
+#	$(LDFLAGS) -c -o $@ lex.rs.c
+# etc. for parser, etc.
+
+# Files for translation from the parse tree to GENERIC
 GRS_OBJS = \
 	rustfrontend/main.cc
+# removed object files from here 
 
+# The compiler itself is called grs1
 grs1$(exeext): $(GRS_OBJS) attribs.o $(BACKEND) $(LIBDEPS)
 	$(COMPILER) $(GRS_CFLAGS) $(ALL_CFLAGS) $(LDFLAGS) -o $@ \
 	$(GRS_OBJS) attribs.o $(BACKEND) $(LIBS) $(BACKENDLIBS)
@@ -47,11 +60,14 @@ rsspec.o: $(srcdir)/rust/rsspec.cc $(SYSTEM_H) coretypes.h $(TM_H) $(GCC_H) \
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(DRIVER_DEFINES) \
 		$(INCLUDES) $(srcdir)/rust/rsspec.cc)
 
+# Create the compiler driver gccrs.
 GCCRS_D_OBJS = $(GCC_OBJS) rsspec.o
 gccrs$(exeext): $(GCCRS_D_OBJS) $(EXTRA_GCC_OBJS) libcommon-target.a $(LIBDEPS)
 	$(LINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
 	  $(GCCRS_D_OBJS) $(EXTRA_GCC_OBJS) libcommon-target.a \
 	  $(EXTRA_GCC_LIBS) $(LIBS)
+
+# Build hooks.
 
 rust.srcextra: 
 rust.all.cross:
@@ -60,6 +76,8 @@ rust.start.encap:
 rust.rest.encap:
 rust.man:
 rust.srcman:
+
+# Clean hooks.
 
 rust.mostlyclean:
 	cd $(srcdir)/rust; rm -f *.o y.tab.h y.tab.c lex.yy.c
@@ -70,6 +88,8 @@ rust.tags: force
 	cd $(srcdir)/rust; etags -o TAGS.sub *.y *.l *.cc *.h; \
 	etags --include TAGS.sub --include ../TAGS.sub
 
+# Build hooks. (2?)
+
 rust.info: 
 rust.srcinfo: 
 rust.dvi: 
@@ -78,6 +98,8 @@ doc/rust.info:
 doc/rust.dvi: 
 doc/rust.pdf: 
 rust.html: 
+
+# Install hooks.
 
 rust.install-common: installdirs
 	-rm -f $(DESTDIR)$(bindir)/$(GCCRS_INSTALL_NAME)$(exeext)
@@ -100,7 +122,7 @@ rust.install-pdf:
 rust.install-man:
 
 # Stage hooks:
-# The main makefile has already created stage?/rust.
+# The toplevel makefile has already created stage?/rust at this point.
 
 rust.stage1: stage1-start
 	-mv rust/*$(objext) stage1/rust
@@ -118,5 +140,5 @@ rust.stagefeedback: stagefeedback-start
 config.status: rust/config-lang.in
 
 rustfront-end/%.o: rust/rustfrontend/%.cc
-	$(COMPILE) $(GOINCLUDES) $<
+	$(COMPILE) $(RUST_INCLUDES) $<
 	$(POSTCOMPILE)

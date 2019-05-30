@@ -18,9 +18,17 @@
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
 
+# Configure looks for the existence of this file to auto-config each language.
+# We define several parameters used by configure:
+#
+# language	- name of language as it would appear in $(LANGUAGES)
+# compilers	- value to add to $(COMPILERS)
+# diff_excludes	- files to ignore when building diffs between two versions.
+
 language="rust"
 compilers="grs1\$(exeext)"
 
+# Do not build by default.
 build_by_default="no"
 lang_requires_boot_languages=c++
 

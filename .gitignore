@@ -55,3 +55,6 @@ REVISION
 /mpc*
 /gmp*
 /isl*
+
+.vscode/*
+test.code-workspace
