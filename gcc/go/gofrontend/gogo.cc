@@ -55,6 +55,7 @@ Gogo::Gogo(Backend* backend, Linemap* linemap, int, int pointer_size)
     check_divide_overflow_(true),
     compiling_runtime_(false),
     debug_escape_level_(0),
+    debug_optimization_(false),
     nil_check_size_threshold_(4096),
     verify_types_(),
     interface_types_(),
@@ -1832,21 +1833,18 @@ Gogo::start_function(const std::string& name, Function_type* type,
       Variable* this_param = new Variable(receiver->type(), NULL, false,
 					  true, true, location);
       std::string rname = receiver->name();
-      if (rname.empty() || Gogo::is_sink_name(rname))
-	{
-	  // We need to give receivers a name since they wind up in
-	  // DECL_ARGUMENTS.  FIXME.
-	  static unsigned int count;
-	  char buf[50];
-	  snprintf(buf, sizeof buf, "r.%u", count);
-	  ++count;
-	  rname = buf;
-	}
+      unsigned rcounter = 0;
+
+      // We need to give a nameless receiver parameter a synthesized name to
+      // avoid having it clash with some other nameless param. FIXME.
+      Gogo::rename_if_empty(&rname, "r", &rcounter);
+
       block->bindings()->add_variable(rname, NULL, this_param);
     }
 
   const Typed_identifier_list* parameters = type->parameters();
   bool is_varargs = type->is_varargs();
+  unsigned pcounter = 0;
   if (parameters != NULL)
     {
       for (Typed_identifier_list::const_iterator p = parameters->begin();
@@ -1859,16 +1857,11 @@ Gogo::start_function(const std::string& name, Function_type* type,
 	    param->set_is_varargs_parameter();
 
 	  std::string pname = p->name();
-	  if (pname.empty() || Gogo::is_sink_name(pname))
-	    {
-	      // We need to give parameters a name since they wind up
-	      // in DECL_ARGUMENTS.  FIXME.
-	      static unsigned int count;
-	      char buf[50];
-	      snprintf(buf, sizeof buf, "p.%u", count);
-	      ++count;
-	      pname = buf;
-	    }
+
+          // We need to give each nameless parameter a non-empty name to avoid
+          // having it clash with some other nameless param. FIXME.
+          Gogo::rename_if_empty(&pname, "p", &pcounter);
+
 	  block->bindings()->add_variable(pname, NULL, param);
 	}
     }
@@ -2312,6 +2305,20 @@ Gogo::add_variable(const std::string& name, Variable* variable)
 
   return no;
 }
+
+void
+Gogo::rename_if_empty(std::string* pname, const char* tag, unsigned* count)
+{
+  if (pname->empty() || Gogo::is_sink_name(*pname))
+    {
+      char buf[50];
+      go_assert(strlen(tag) < 10);
+      snprintf(buf, sizeof buf, "%s.%u", tag, *count);
+      ++(*count);
+      *pname = buf;
+    }
+}
+
 
 // Add a sink--a reference to the blank identifier _.
 
@@ -2987,6 +2994,57 @@ Gogo::lower_constant(Named_object* no)
   go_assert(no->is_const());
   Lower_parse_tree lower(this, NULL);
   lower.constant(no, false);
+}
+
+// Make implicit type conversions explicit.  Currently only does for
+// interface conversions, so the escape analysis can see them and
+// optimize.
+
+class Add_conversions : public Traverse
+{
+ public:
+  Add_conversions()
+    : Traverse(traverse_statements
+               | traverse_expressions)
+  { }
+
+  int
+  statement(Block*, size_t* pindex, Statement*);
+
+  int
+  expression(Expression**);
+};
+
+// Add explicit conversions in a statement.
+
+int
+Add_conversions::statement(Block*, size_t*, Statement* sorig)
+{
+  sorig->add_conversions();
+  return TRAVERSE_CONTINUE;
+}
+
+// Add explicit conversions in an expression.
+
+int
+Add_conversions::expression(Expression** pexpr)
+{
+  (*pexpr)->add_conversions();
+  return TRAVERSE_CONTINUE;
+}
+
+void
+Gogo::add_conversions()
+{
+  Add_conversions add_conversions;
+  this->traverse(&add_conversions);
+}
+
+void
+Gogo::add_conversions_in_block(Block *b)
+{
+  Add_conversions add_conversions;
+  b->traverse(&add_conversions);
 }
 
 // Traverse the tree to create function descriptors as needed.
@@ -4508,11 +4566,6 @@ Build_recover_thunks::function(Named_object* orig_no)
 Expression*
 Build_recover_thunks::can_recover_arg(Location location)
 {
-  static Named_object* builtin_return_address;
-  if (builtin_return_address == NULL)
-    builtin_return_address =
-      Gogo::declare_builtin_rf_address("__builtin_return_address", true);
-
   Type* uintptr_type = Type::lookup_integer_type("uintptr");
   static Named_object* can_recover;
   if (can_recover == NULL)
@@ -4531,20 +4584,15 @@ Build_recover_thunks::can_recover_arg(Location location)
       can_recover->func_declaration_value()->set_asm_name("runtime.canrecover");
     }
 
-  Expression* fn = Expression::make_func_reference(builtin_return_address,
-						   NULL, location);
-
   Expression* zexpr = Expression::make_integer_ul(0, NULL, location);
-  Expression_list *args = new Expression_list();
-  args->push_back(zexpr);
-
-  Expression* call = Expression::make_call(fn, args, false, location);
+  Expression* call = Runtime::make_call(Runtime::BUILTIN_RETURN_ADDRESS,
+                                        location, 1, zexpr);
   call = Expression::make_unsafe_cast(uintptr_type, call, location);
 
-  args = new Expression_list();
+  Expression_list* args = new Expression_list();
   args->push_back(call);
 
-  fn = Expression::make_func_reference(can_recover, NULL, location);
+  Expression* fn = Expression::make_func_reference(can_recover, NULL, location);
   return Expression::make_call(fn, args, false, location);
 }
 
@@ -4562,33 +4610,6 @@ Gogo::build_recover_thunks()
 {
   Build_recover_thunks build_recover_thunks(this);
   this->traverse(&build_recover_thunks);
-}
-
-// Return a declaration for __builtin_return_address or
-// __builtin_dwarf_cfa.
-
-Named_object*
-Gogo::declare_builtin_rf_address(const char* name, bool hasarg)
-{
-  const Location bloc = Linemap::predeclared_location();
-
-  Typed_identifier_list* param_types = new Typed_identifier_list();
-  if (hasarg)
-    {
-      Type* uint32_type = Type::lookup_integer_type("uint32");
-      param_types->push_back(Typed_identifier("l", uint32_type, bloc));
-    }
-
-  Typed_identifier_list* return_types = new Typed_identifier_list();
-  Type* voidptr_type = Type::make_pointer_type(Type::make_void_type());
-  return_types->push_back(Typed_identifier("", voidptr_type, bloc));
-
-  Function_type* fntype = Type::make_function_type(NULL, param_types,
-						   return_types, bloc);
-  Named_object* ret = Named_object::make_function_declaration(name, NULL,
-							      fntype, bloc);
-  ret->func_declaration_value()->set_asm_name(name);
-  return ret;
 }
 
 // Build a call to the runtime error function.
@@ -6031,9 +6052,10 @@ Function::build(Gogo* gogo, Named_object* named_function)
 
 	  // We always pass the receiver to a method as a pointer.  If
 	  // the receiver is declared as a non-pointer type, then we
-	  // copy the value into a local variable.
+	  // copy the value into a local variable.  For direct interface
+          // type we pack the pointer into the type.
 	  if ((*p)->var_value()->is_receiver()
-	      && (*p)->var_value()->type()->points_to() == NULL)
+              && (*p)->var_value()->type()->points_to() == NULL)
 	    {
 	      std::string name = (*p)->name() + ".pointer";
 	      Type* var_type = (*p)->var_value()->type();
@@ -6045,14 +6067,19 @@ Function::build(Gogo* gogo, Named_object* named_function)
               parm_bvar = parm_no->get_backend_variable(gogo, named_function);
 
               vars.push_back(bvar);
-	      Expression* parm_ref =
+
+              Expression* parm_ref =
                   Expression::make_var_reference(parm_no, loc);
-              parm_ref =
-                  Expression::make_dereference(parm_ref,
-                                               Expression::NIL_CHECK_NEEDED,
-                                               loc);
-	      if ((*p)->var_value()->is_in_heap())
-		parm_ref = Expression::make_heap_expression(parm_ref, loc);
+              Type* recv_type = (*p)->var_value()->type();
+              if (recv_type->is_direct_iface_type())
+                parm_ref = Expression::pack_direct_iface(recv_type, parm_ref, loc);
+              else
+                parm_ref =
+                    Expression::make_dereference(parm_ref,
+                                                 Expression::NIL_CHECK_NEEDED,
+                                                 loc);
+              if ((*p)->var_value()->is_in_heap())
+                parm_ref = Expression::make_heap_expression(parm_ref, loc);
               var_inits.push_back(parm_ref->get_backend(&context));
 	    }
 	  else if ((*p)->var_value()->is_in_heap())
@@ -6904,11 +6931,20 @@ Function_declaration::import_function_body(Gogo* gogo, Named_object* no)
       const Typed_identifier* receiver = fntype->receiver();
       Variable* recv_param = new Variable(receiver->type(), NULL, false,
 					  true, true, start_loc);
-      outer->bindings()->add_variable(receiver->name(), NULL, recv_param);
+
+      std::string rname = receiver->name();
+      unsigned rcounter = 0;
+
+      // We need to give a nameless receiver a name to avoid having it
+      // clash with some other nameless param. FIXME.
+      Gogo::rename_if_empty(&rname, "r", &rcounter);
+
+      outer->bindings()->add_variable(rname, NULL, recv_param);
     }
 
   const Typed_identifier_list* params = fntype->parameters();
   bool is_varargs = fntype->is_varargs();
+  unsigned pcounter = 0;
   if (params != NULL)
     {
       for (Typed_identifier_list::const_iterator p = params->begin();
@@ -6919,7 +6955,14 @@ Function_declaration::import_function_body(Gogo* gogo, Named_object* no)
 					 start_loc);
 	  if (is_varargs && p + 1 == params->end())
 	    param->set_is_varargs_parameter();
-	  outer->bindings()->add_variable(p->name(), NULL, param);
+
+	  std::string pname = p->name();
+
+          // We need to give each nameless parameter a non-empty name to avoid
+          // having it clash with some other nameless param. FIXME.
+          Gogo::rename_if_empty(&pname, "p", &pcounter);
+
+	  outer->bindings()->add_variable(pname, NULL, param);
 	}
     }
 
@@ -7794,7 +7837,8 @@ Type_declaration::define_methods(Named_type* nt)
        p != this->methods_.end();
        ++p)
     {
-      if (!(*p)->func_value()->is_sink())
+      if ((*p)->is_function_declaration()
+	  || !(*p)->func_value()->is_sink())
 	nt->add_existing_method(*p);
     }
 }

@@ -177,7 +177,7 @@ unsigned aarch64_architecture_version;
 enum aarch64_processor aarch64_tune = cortexa53;
 
 /* Mask to specify which instruction scheduling options should be used.  */
-unsigned long aarch64_tune_flags = 0;
+uint64_t aarch64_tune_flags = 0;
 
 /* Global flag for PC relative loads.  */
 bool aarch64_pcrelative_literal_loads;
@@ -1139,7 +1139,7 @@ struct processor
   enum aarch64_processor sched_core;
   enum aarch64_arch arch;
   unsigned architecture_version;
-  const unsigned long flags;
+  const uint64_t flags;
   const struct tune_params *const tune;
 };
 
@@ -1171,6 +1171,8 @@ static const struct processor all_cores[] =
 static const struct processor *selected_arch;
 static const struct processor *selected_cpu;
 static const struct processor *selected_tune;
+
+enum aarch64_key_type aarch64_ra_sign_key = AARCH64_KEY_A;
 
 /* The current tuning set.  */
 struct tune_params aarch64_tune_params = generic_tunings;
@@ -1241,6 +1243,7 @@ static enum aarch64_parse_opt_result
 aarch64_handle_standard_branch_protection (char* str, char* rest)
 {
   aarch64_ra_sign_scope = AARCH64_FUNCTION_NON_LEAF;
+  aarch64_ra_sign_key = AARCH64_KEY_A;
   aarch64_enable_bti = 1;
   if (rest)
     {
@@ -1255,6 +1258,7 @@ aarch64_handle_pac_ret_protection (char* str ATTRIBUTE_UNUSED,
 				    char* rest ATTRIBUTE_UNUSED)
 {
   aarch64_ra_sign_scope = AARCH64_FUNCTION_NON_LEAF;
+  aarch64_ra_sign_key = AARCH64_KEY_A;
   return AARCH64_PARSE_OK;
 }
 
@@ -1263,6 +1267,14 @@ aarch64_handle_pac_ret_leaf (char* str ATTRIBUTE_UNUSED,
 			      char* rest ATTRIBUTE_UNUSED)
 {
   aarch64_ra_sign_scope = AARCH64_FUNCTION_ALL;
+  return AARCH64_PARSE_OK;
+}
+
+static enum aarch64_parse_opt_result
+aarch64_handle_pac_ret_b_key (char* str ATTRIBUTE_UNUSED,
+			      char* rest ATTRIBUTE_UNUSED)
+{
+  aarch64_ra_sign_key = AARCH64_KEY_B;
   return AARCH64_PARSE_OK;
 }
 
@@ -1276,6 +1288,7 @@ aarch64_handle_bti_protection (char* str ATTRIBUTE_UNUSED,
 
 static const struct aarch64_branch_protect_type aarch64_pac_ret_subtypes[] = {
   { "leaf", aarch64_handle_pac_ret_leaf, NULL, 0 },
+  { "b-key", aarch64_handle_pac_ret_b_key, NULL, 0 },
   { NULL, NULL, NULL, 0 }
 };
 
@@ -4852,7 +4865,7 @@ aarch64_return_address_signing_enabled (void)
   gcc_assert (cfun->machine->frame.laid_out);
 
   /* If signing scope is AARCH64_FUNCTION_NON_LEAF, we only sign a leaf function
-     if it's LR is pushed onto stack.  */
+     if its LR is pushed onto stack.  */
   return (aarch64_ra_sign_scope == AARCH64_FUNCTION_ALL
 	  || (aarch64_ra_sign_scope == AARCH64_FUNCTION_NON_LEAF
 	      && cfun->machine->frame.reg_offset[LR_REGNUM] >= 0));
@@ -5651,7 +5664,17 @@ aarch64_expand_prologue (void)
   /* Sign return address for functions.  */
   if (aarch64_return_address_signing_enabled ())
     {
-      insn = emit_insn (gen_pacisp ());
+      switch (aarch64_ra_sign_key)
+	{
+	  case AARCH64_KEY_A:
+	    insn = emit_insn (gen_paciasp ());
+	    break;
+	  case AARCH64_KEY_B:
+	    insn = emit_insn (gen_pacibsp ());
+	    break;
+	  default:
+	    gcc_unreachable ();
+	}
       add_reg_note (insn, REG_CFA_TOGGLE_RA_MANGLE, const0_rtx);
       RTX_FRAME_RELATED_P (insn) = 1;
     }
@@ -5907,13 +5930,23 @@ aarch64_expand_epilogue (bool for_sibcall)
   if (aarch64_return_address_signing_enabled ()
       && (for_sibcall || !TARGET_ARMV8_3 || crtl->calls_eh_return))
     {
-      insn = emit_insn (gen_autisp ());
+      switch (aarch64_ra_sign_key)
+	{
+	  case AARCH64_KEY_A:
+	    insn = emit_insn (gen_autiasp ());
+	    break;
+	  case AARCH64_KEY_B:
+	    insn = emit_insn (gen_autibsp ());
+	    break;
+	  default:
+	    gcc_unreachable ();
+	}
       add_reg_note (insn, REG_CFA_TOGGLE_RA_MANGLE, const0_rtx);
       RTX_FRAME_RELATED_P (insn) = 1;
     }
 
   /* Stack adjustment for exception handler.  */
-  if (crtl->calls_eh_return)
+  if (crtl->calls_eh_return && !for_sibcall)
     {
       /* We need to unwind the stack by the offset computed by
 	 EH_RETURN_STACKADJ_RTX.  We have already reset the CFA
@@ -5979,6 +6012,7 @@ aarch64_output_mi_thunk (FILE *file, tree thunk ATTRIBUTE_UNUSED,
   int this_regno = R0_REGNUM;
   rtx this_rtx, temp0, temp1, addr, funexp;
   rtx_insn *insn;
+  const char *fnname = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (thunk));
 
   if (aarch64_bti_enabled ())
     emit_insn (gen_bti_c());
@@ -6046,9 +6080,12 @@ aarch64_output_mi_thunk (FILE *file, tree thunk ATTRIBUTE_UNUSED,
 
   insn = get_insns ();
   shorten_branches (insn);
+
+  assemble_start_function (thunk, fnname);
   final_start_function (insn, file, 1);
   final (insn, file, 1);
   final_end_function ();
+  assemble_end_function (thunk, fnname);
 
   /* Stop pretending to be a post-reload pass.  */
   reload_completed = 0;
@@ -9336,6 +9373,35 @@ aarch64_mask_and_shift_for_ubfiz_p (scalar_int_mode mode, rtx mask,
 	     & ((HOST_WIDE_INT_1U << INTVAL (shft_amnt)) - 1)) == 0;
 }
 
+/* Return true if the masks and a shift amount from an RTX of the form
+   ((x & MASK1) | ((y << SHIFT_AMNT) & MASK2)) are valid to combine into
+   a BFI instruction of mode MODE.  See *arch64_bfi patterns.  */
+
+bool
+aarch64_masks_and_shift_for_bfi_p (scalar_int_mode mode,
+				   unsigned HOST_WIDE_INT mask1,
+				   unsigned HOST_WIDE_INT shft_amnt,
+				   unsigned HOST_WIDE_INT mask2)
+{
+  unsigned HOST_WIDE_INT t;
+
+  /* Verify that there is no overlap in what bits are set in the two masks.  */
+  if (mask1 != ~mask2)
+    return false;
+
+  /* Verify that mask2 is not all zeros or ones.  */
+  if (mask2 == 0 || mask2 == HOST_WIDE_INT_M1U)
+    return false;
+
+  /* The shift amount should always be less than the mode size.  */
+  gcc_assert (shft_amnt < GET_MODE_BITSIZE (mode));
+
+  /* Verify that the mask being shifted is contiguous and would be in the
+     least significant bits after shifting by shft_amnt.  */
+  t = mask2 + (HOST_WIDE_INT_1U << shft_amnt);
+  return (t == (t & -t));
+}
+
 /* Calculate the cost of calculating X, storing it in *COST.  Result
    is true if the total cost of the operation has now been calculated.  */
 static bool
@@ -11010,7 +11076,7 @@ static void initialize_aarch64_code_model (struct gcc_options *);
 
 static enum aarch64_parse_opt_result
 aarch64_parse_arch (const char *to_parse, const struct processor **res,
-		    unsigned long *isa_flags, std::string *invalid_extension)
+		    uint64_t *isa_flags, std::string *invalid_extension)
 {
   const char *ext;
   const struct processor *arch;
@@ -11033,7 +11099,7 @@ aarch64_parse_arch (const char *to_parse, const struct processor **res,
       if (strlen (arch->name) == len
 	  && strncmp (arch->name, to_parse, len) == 0)
 	{
-	  unsigned long isa_temp = arch->flags;
+	  uint64_t isa_temp = arch->flags;
 
 	  if (ext != NULL)
 	    {
@@ -11065,7 +11131,7 @@ aarch64_parse_arch (const char *to_parse, const struct processor **res,
 
 static enum aarch64_parse_opt_result
 aarch64_parse_cpu (const char *to_parse, const struct processor **res,
-		   unsigned long *isa_flags, std::string *invalid_extension)
+		   uint64_t *isa_flags, std::string *invalid_extension)
 {
   const char *ext;
   const struct processor *cpu;
@@ -11087,7 +11153,7 @@ aarch64_parse_cpu (const char *to_parse, const struct processor **res,
     {
       if (strlen (cpu->name) == len && strncmp (cpu->name, to_parse, len) == 0)
 	{
-	  unsigned long isa_temp = cpu->flags;
+	  uint64_t isa_temp = cpu->flags;
 
 
 	  if (ext != NULL)
@@ -11454,7 +11520,7 @@ aarch64_override_options_internal (struct gcc_options *opts)
   if (aarch64_stack_protector_guard == SSP_GLOBAL
       && opts->x_aarch64_stack_protector_guard_offset_str)
     {
-      error ("incompatible options %<-mstack-protector-guard=global%> and"
+      error ("incompatible options %<-mstack-protector-guard=global%> and "
 	     "%<-mstack-protector-guard-offset=%s%>",
 	     aarch64_stack_protector_guard_offset_str);
     }
@@ -11672,7 +11738,7 @@ aarch64_print_hint_for_extensions (const std::string &str)
 
 static bool
 aarch64_validate_mcpu (const char *str, const struct processor **res,
-		       unsigned long *isa_flags)
+		       uint64_t *isa_flags)
 {
   std::string invalid_extension;
   enum aarch64_parse_opt_result parse_res
@@ -11799,9 +11865,9 @@ aarch64_validate_mbranch_protection (const char *const_str)
   enum aarch64_parse_opt_result res =
     aarch64_parse_branch_protection (const_str, &str);
   if (res == AARCH64_PARSE_INVALID_ARG)
-    error ("invalid arg %<%s%> for %<-mbranch-protection=%>", str);
+    error ("invalid argument %<%s%> for %<-mbranch-protection=%>", str);
   else if (res == AARCH64_PARSE_MISSING_ARG)
-    error ("missing arg for %<-mbranch-protection=%>");
+    error ("missing argument for %<-mbranch-protection=%>");
   free (str);
   return res == AARCH64_PARSE_OK;
 }
@@ -11813,7 +11879,7 @@ aarch64_validate_mbranch_protection (const char *const_str)
 
 static bool
 aarch64_validate_march (const char *str, const struct processor **res,
-			 unsigned long *isa_flags)
+			 uint64_t *isa_flags)
 {
   std::string invalid_extension;
   enum aarch64_parse_opt_result parse_res
@@ -11928,8 +11994,8 @@ aarch64_convert_sve_vector_bits (aarch64_sve_vector_bits_enum value)
 static void
 aarch64_override_options (void)
 {
-  unsigned long cpu_isa = 0;
-  unsigned long arch_isa = 0;
+  uint64_t cpu_isa = 0;
+  uint64_t arch_isa = 0;
   aarch64_isa_flags = 0;
 
   bool valid_cpu = true;
@@ -12169,7 +12235,7 @@ aarch64_option_print (FILE *file, int indent, struct cl_target_option *ptr)
 {
   const struct processor *cpu
     = aarch64_get_tune_cpu (ptr->x_explicit_tune_core);
-  unsigned long isa_flags = ptr->x_aarch64_isa_flags;
+  uint64_t isa_flags = ptr->x_aarch64_isa_flags;
   const struct processor *arch = aarch64_get_arch (ptr->x_explicit_arch);
   std::string extension
     = aarch64_get_extension_string_for_isa_flags (isa_flags, arch->flags);
@@ -12422,7 +12488,7 @@ static bool
 aarch64_handle_attr_isa_flags (char *str)
 {
   enum aarch64_parse_opt_result parse_res;
-  unsigned long isa_flags = aarch64_isa_flags;
+  uint64_t isa_flags = aarch64_isa_flags;
 
   /* We allow "+nothing" in the beginning to clear out all architectural
      features if the user wants to handpick specific features.  */
@@ -12506,10 +12572,6 @@ aarch64_process_one_target_attr (char *arg_str)
 
   char *str_to_check = (char *) alloca (len + 1);
   strcpy (str_to_check, arg_str);
-
-  /* Skip leading whitespace.  */
-  while (*str_to_check == ' ' || *str_to_check == '\t')
-    str_to_check++;
 
   /* We have something like __attribute__ ((target ("+fp+nosimd"))).
      It is easier to detect and handle it explicitly here rather than going
@@ -14080,7 +14142,7 @@ aarch64_preferred_simd_mode (scalar_mode mode)
 /* Return a list of possible vector sizes for the vectorizer
    to iterate over.  */
 static void
-aarch64_autovectorize_vector_sizes (vector_sizes *sizes)
+aarch64_autovectorize_vector_sizes (vector_sizes *sizes, bool)
 {
   if (TARGET_SVE)
     sizes->safe_push (BYTES_PER_SVE_VECTOR);
@@ -14895,8 +14957,7 @@ aarch64_simd_vector_alignment (const_tree type)
        be set for non-predicate vectors of booleans.  Modes are the most
        direct way we have of identifying real SVE predicate types.  */
     return GET_MODE_CLASS (TYPE_MODE (type)) == MODE_VECTOR_BOOL ? 16 : 128;
-  HOST_WIDE_INT align = tree_to_shwi (TYPE_SIZE (type));
-  return MIN (align, 128);
+  return wi::umin (wi::to_wide (TYPE_SIZE (type)), 128).to_uhwi ();
 }
 
 /* Implement target hook TARGET_VECTORIZE_PREFERRED_VECTOR_ALIGNMENT.  */
@@ -15271,7 +15332,7 @@ aarch64_declare_function_name (FILE *stream, const char* name,
   const struct processor *this_arch
     = aarch64_get_arch (targ_options->x_explicit_arch);
 
-  unsigned long isa_flags = targ_options->x_aarch64_isa_flags;
+  uint64_t isa_flags = targ_options->x_aarch64_isa_flags;
   std::string extension
     = aarch64_get_extension_string_for_isa_flags (isa_flags,
 						  this_arch->flags);
@@ -15302,6 +15363,18 @@ aarch64_declare_function_name (FILE *stream, const char* name,
   ASM_OUTPUT_LABEL (stream, name);
 }
 
+/* Triggered after a .cfi_startproc directive is emitted into the assembly file.
+   Used to output the .cfi_b_key_frame directive when signing the current
+   function with the B key.  */
+
+void
+aarch64_post_cfi_startproc (FILE *f, tree ignored ATTRIBUTE_UNUSED)
+{
+  if (aarch64_return_address_signing_enabled ()
+      && aarch64_ra_sign_key == AARCH64_KEY_B)
+	asm_fprintf (f, "\t.cfi_b_key_frame\n");
+}
+
 /* Implements TARGET_ASM_FILE_START.  Output the assembly header.  */
 
 static void
@@ -15312,7 +15385,7 @@ aarch64_start_file (void)
 
   const struct processor *default_arch
     = aarch64_get_arch (default_options->x_explicit_arch);
-  unsigned long default_isa_flags = default_options->x_aarch64_isa_flags;
+  uint64_t default_isa_flags = default_options->x_aarch64_isa_flags;
   std::string extension
     = aarch64_get_extension_string_for_isa_flags (default_isa_flags,
 						  default_arch->flags);
@@ -18744,6 +18817,57 @@ aarch64_stack_protect_guard (void)
   return NULL_TREE;
 }
 
+/* Implement TARGET_ASM_FILE_END for AArch64.  This adds the AArch64 GNU NOTE
+   section at the end if needed.  */
+#define GNU_PROPERTY_AARCH64_FEATURE_1_AND	0xc0000000
+#define GNU_PROPERTY_AARCH64_FEATURE_1_BTI	(1U << 0)
+#define GNU_PROPERTY_AARCH64_FEATURE_1_PAC	(1U << 1)
+void
+aarch64_file_end_indicate_exec_stack ()
+{
+  file_end_indicate_exec_stack ();
+
+  unsigned feature_1_and = 0;
+  if (aarch64_bti_enabled ())
+    feature_1_and |= GNU_PROPERTY_AARCH64_FEATURE_1_BTI;
+
+  if (aarch64_ra_sign_scope != AARCH64_FUNCTION_NONE)
+    feature_1_and |= GNU_PROPERTY_AARCH64_FEATURE_1_PAC;
+
+  if (feature_1_and)
+    {
+      /* Generate .note.gnu.property section.  */
+      switch_to_section (get_section (".note.gnu.property",
+				      SECTION_NOTYPE, NULL));
+
+      /* PT_NOTE header: namesz, descsz, type.
+	 namesz = 4 ("GNU\0")
+	 descsz = 16 (Size of the program property array)
+		  [(12 + padding) * Number of array elements]
+	 type   = 5 (NT_GNU_PROPERTY_TYPE_0).  */
+      assemble_align (POINTER_SIZE);
+      assemble_integer (GEN_INT (4), 4, 32, 1);
+      assemble_integer (GEN_INT (ROUND_UP (12, POINTER_BYTES)), 4, 32, 1);
+      assemble_integer (GEN_INT (5), 4, 32, 1);
+
+      /* PT_NOTE name.  */
+      assemble_string ("GNU", 4);
+
+      /* PT_NOTE contents for NT_GNU_PROPERTY_TYPE_0:
+	 type   = GNU_PROPERTY_AARCH64_FEATURE_1_AND
+	 datasz = 4
+	 data   = feature_1_and.  */
+      assemble_integer (GEN_INT (GNU_PROPERTY_AARCH64_FEATURE_1_AND), 4, 32, 1);
+      assemble_integer (GEN_INT (4), 4, 32, 1);
+      assemble_integer (GEN_INT (feature_1_and), 4, 32, 1);
+
+      /* Pad the size of the note to the required alignment.  */
+      assemble_align (POINTER_SIZE);
+    }
+}
+#undef GNU_PROPERTY_AARCH64_FEATURE_1_PAC
+#undef GNU_PROPERTY_AARCH64_FEATURE_1_BTI
+#undef GNU_PROPERTY_AARCH64_FEATURE_1_AND
 
 /* Target-specific selftests.  */
 
@@ -19261,6 +19385,9 @@ aarch64_libgcc_floating_mode_supported_p
 #undef TARGET_RUN_TARGET_SELFTESTS
 #define TARGET_RUN_TARGET_SELFTESTS selftest::aarch64_run_selftests
 #endif /* #if CHECKING_P */
+
+#undef TARGET_ASM_POST_CFI_STARTPROC
+#define TARGET_ASM_POST_CFI_STARTPROC aarch64_post_cfi_startproc
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

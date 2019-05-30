@@ -6052,6 +6052,9 @@ write_module (void)
 {
   int i;
 
+  /* Initialize the column counter. */
+  module_column = 1;
+  
   /* Write the operator interfaces.  */
   mio_lparen ();
 
@@ -7144,8 +7147,12 @@ gfc_use_module (gfc_use_list *module)
   for (p = gfc_state_stack; p; p = p->previous)
     if ((p->state == COMP_MODULE || p->state == COMP_SUBMODULE)
 	 && strcmp (p->sym->name, module_name) == 0)
-      gfc_fatal_error ("Cannot USE the same %smodule we're building",
-		       p->state == COMP_SUBMODULE ? "sub" : "");
+      {
+	if (p->state == COMP_SUBMODULE)
+	  gfc_fatal_error ("Cannot USE a submodule that is currently built");
+	else
+	  gfc_fatal_error ("Cannot USE a module that is currently built");
+      }
 
   init_pi_tree ();
   init_true_name_tree ();

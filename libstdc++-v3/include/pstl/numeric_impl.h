@@ -275,7 +275,7 @@ __pattern_transform_scan(_ExecutionPolicy&& __exec, _RandomAccessIterator __firs
         return __result;
     }
     return __internal::__except_handler([&]() {
-        __par_backend::parallel_strict_scan(
+        __par_backend::__parallel_strict_scan(
             std::forward<_ExecutionPolicy>(__exec), __n, __init,
             [__first, __unary_op, __binary_op, __result, __is_vector](_DifferenceType __i, _DifferenceType __len) {
                 return __internal::__brick_transform_scan(__first + __i, __first + (__i + __len), __result + __i, __unary_op, _Tp{},
@@ -314,7 +314,7 @@ _ForwardIterator2
 __brick_adjacent_difference(_ForwardIterator1 __first, _ForwardIterator1 __last, _ForwardIterator2 __d_first,
                             BinaryOperation __op, /*is_vector=*/std::true_type) noexcept
 {
-    assert(__first != __last);
+    __PSTL_ASSERT(__first != __last);
 
     typedef typename std::iterator_traits<_ForwardIterator1>::reference _ReferenceType1;
     typedef typename std::iterator_traits<_ForwardIterator2>::reference _ReferenceType2;
@@ -344,7 +344,7 @@ __pattern_adjacent_difference(_ExecutionPolicy&& __exec, _ForwardIterator1 __fir
                               _ForwardIterator2 __d_first, _BinaryOperation __op, _IsVector __is_vector,
                               /*is_parallel=*/std::true_type)
 {
-    assert(__first != __last);
+    __PSTL_ASSERT(__first != __last);
     typedef typename std::iterator_traits<_ForwardIterator1>::reference _ReferenceType1;
     typedef typename std::iterator_traits<_ForwardIterator2>::reference _ReferenceType2;
 

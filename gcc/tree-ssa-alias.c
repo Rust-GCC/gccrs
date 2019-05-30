@@ -98,6 +98,8 @@ static struct {
   unsigned HOST_WIDE_INT ref_maybe_used_by_call_p_no_alias;
   unsigned HOST_WIDE_INT call_may_clobber_ref_p_may_alias;
   unsigned HOST_WIDE_INT call_may_clobber_ref_p_no_alias;
+  unsigned HOST_WIDE_INT aliasing_component_refs_p_may_alias;
+  unsigned HOST_WIDE_INT aliasing_component_refs_p_no_alias;
 } alias_stats;
 
 void
@@ -122,6 +124,12 @@ dump_alias_stats (FILE *s)
 	   alias_stats.call_may_clobber_ref_p_no_alias,
 	   alias_stats.call_may_clobber_ref_p_no_alias
 	   + alias_stats.call_may_clobber_ref_p_may_alias);
+  fprintf (s, "  aliasing_component_ref_p: "
+	   HOST_WIDE_INT_PRINT_DEC" disambiguations, "
+	   HOST_WIDE_INT_PRINT_DEC" queries\n",
+	   alias_stats.aliasing_component_refs_p_no_alias,
+	   alias_stats.aliasing_component_refs_p_no_alias
+	   + alias_stats.aliasing_component_refs_p_may_alias);
   dump_alias_stats_in_alias_c (s);
 }
 
@@ -727,6 +735,48 @@ ao_ref_init_from_ptr_and_size (ao_ref *ref, tree ptr, tree size)
   ref->volatile_p = false;
 }
 
+/* S1 and S2 are TYPE_SIZE or DECL_SIZE.  Compare them:
+   Return -1 if S1 < S2
+   Return 1 if S1 > S2
+   Return 0 if equal or incomparable.  */
+
+static int
+compare_sizes (tree s1, tree s2)
+{
+  if (!s1 || !s2)
+    return 0;
+
+  poly_uint64 size1;
+  poly_uint64 size2;
+
+  if (!poly_int_tree_p (s1, &size1) || !poly_int_tree_p (s2, &size2))
+    return 0;
+  if (known_lt (size1, size2))
+    return -1;
+  if (known_lt (size2, size1))
+    return 1;
+  return 0;
+}
+
+/* Compare TYPE1 and TYPE2 by its size.
+   Return -1 if size of TYPE1 < size of TYPE2
+   Return 1 if size of TYPE1 > size of TYPE2
+   Return 0 if types are of equal sizes or we can not compare them.  */
+
+static int
+compare_type_sizes (tree type1, tree type2)
+{
+  /* Be conservative for arrays and vectors.  We want to support partial
+     overlap on int[3] and int[3] as tested in gcc.dg/torture/alias-2.c.  */
+  while (TREE_CODE (type1) == ARRAY_TYPE
+	 || TREE_CODE (type1) == VECTOR_TYPE)
+    type1 = TREE_TYPE (type1);
+  while (TREE_CODE (type2) == ARRAY_TYPE
+	 || TREE_CODE (type2) == VECTOR_TYPE)
+    type2 = TREE_TYPE (type2);
+  return compare_sizes (TYPE_SIZE (type1), TYPE_SIZE (type2));
+}
+
 /* Return 1 if TYPE1 and TYPE2 are to be considered equivalent for the
    purpose of TBAA.  Return 0 if they are distinct and -1 if we cannot
    decide.  */
@@ -736,6 +786,10 @@ same_type_for_tbaa (tree type1, tree type2)
 {
   type1 = TYPE_MAIN_VARIANT (type1);
   type2 = TYPE_MAIN_VARIANT (type2);
+
+  /* Handle the most common case first.  */
+  if (type1 == type2)
+    return 1;
 
   /* If we would have to do structural comparison bail out.  */
   if (TYPE_STRUCTURAL_EQUALITY_P (type1)
@@ -795,7 +849,7 @@ aliasing_component_refs_p (tree ref1,
   tree base1, base2;
   tree type1, type2;
   tree *refp;
-  int same_p;
+  int same_p1 = 0, same_p2 = 0;
 
   /* Choose bases and base types to search for.  */
   base1 = ref1;
@@ -808,44 +862,101 @@ aliasing_component_refs_p (tree ref1,
   type2 = TREE_TYPE (base2);
 
   /* Now search for the type1 in the access path of ref2.  This
-     would be a common base for doing offset based disambiguation on.  */
-  refp = &ref2;
-  while (handled_component_p (*refp)
-	 && same_type_for_tbaa (TREE_TYPE (*refp), type1) == 0)
-    refp = &TREE_OPERAND (*refp, 0);
-  same_p = same_type_for_tbaa (TREE_TYPE (*refp), type1);
-  /* If we couldn't compare types we have to bail out.  */
-  if (same_p == -1)
-    return true;
-  else if (same_p == 1)
+     would be a common base for doing offset based disambiguation on.
+     This however only makes sense if type2 is big enough to hold type1.  */
+  int cmp_outer = compare_type_sizes (type2, type1);
+  if (cmp_outer >= 0)
     {
-      poly_int64 offadj, sztmp, msztmp;
-      bool reverse;
-      get_ref_base_and_extent (*refp, &offadj, &sztmp, &msztmp, &reverse);
-      offset2 -= offadj;
-      get_ref_base_and_extent (base1, &offadj, &sztmp, &msztmp, &reverse);
-      offset1 -= offadj;
-      return ranges_maybe_overlap_p (offset1, max_size1, offset2, max_size2);
+      refp = &ref2;
+      while (true)
+	{
+	  /* We walk from inner type to the outer types. If type we see is
+	     already too large to be part of type1, terminate the search.  */
+	  int cmp = compare_type_sizes (type1, TREE_TYPE (*refp));
+	  if (cmp < 0)
+	    break;
+	  /* If types may be of same size, see if we can decide about their
+	     equality.  */
+	  if (cmp == 0)
+	    {
+	      same_p2 = same_type_for_tbaa (TREE_TYPE (*refp), type1);
+	      if (same_p2 != 0)
+		break;
+	    }
+	  if (!handled_component_p (*refp))
+	    break;
+	  refp = &TREE_OPERAND (*refp, 0);
+	}
+      if (same_p2 == 1)
+	{
+	  poly_int64 offadj, sztmp, msztmp;
+	  bool reverse;
+	  get_ref_base_and_extent (*refp, &offadj, &sztmp, &msztmp, &reverse);
+	  offset2 -= offadj;
+	  get_ref_base_and_extent (base1, &offadj, &sztmp, &msztmp, &reverse);
+	  offset1 -= offadj;
+	  if (ranges_maybe_overlap_p (offset1, max_size1, offset2, max_size2))
+	    {
+	      ++alias_stats.aliasing_component_refs_p_may_alias;
+	      return true;
+	    }
+	  else
+	    {
+	      ++alias_stats.aliasing_component_refs_p_no_alias;
+	      return false;
+	    }
+	}
     }
+
   /* If we didn't find a common base, try the other way around.  */
-  refp = &ref1;
-  while (handled_component_p (*refp)
-	 && same_type_for_tbaa (TREE_TYPE (*refp), type2) == 0)
-    refp = &TREE_OPERAND (*refp, 0);
-  same_p = same_type_for_tbaa (TREE_TYPE (*refp), type2);
-  /* If we couldn't compare types we have to bail out.  */
-  if (same_p == -1)
-    return true;
-  else if (same_p == 1)
+  if (cmp_outer <= 0)
     {
-      poly_int64 offadj, sztmp, msztmp;
-      bool reverse;
-      get_ref_base_and_extent (*refp, &offadj, &sztmp, &msztmp, &reverse);
-      offset1 -= offadj;
-      get_ref_base_and_extent (base2, &offadj, &sztmp, &msztmp, &reverse);
-      offset2 -= offadj;
-      return ranges_maybe_overlap_p (offset1, max_size1, offset2, max_size2);
+      refp = &ref1;
+      while (true)
+	{
+	  int cmp = compare_type_sizes (type2, TREE_TYPE (*refp));
+	  if (cmp < 0)
+	    break;
+	  /* If types may be of same size, see if we can decide about their
+	     equality.  */
+	  if (cmp == 0)
+	    {
+	      same_p1 = same_type_for_tbaa (TREE_TYPE (*refp), type2);
+	      if (same_p1 != 0)
+		break;
+	    }
+	  if (!handled_component_p (*refp))
+	    break;
+	  refp = &TREE_OPERAND (*refp, 0);
+	}
+      if (same_p1 == 1)
+	{
+	  poly_int64 offadj, sztmp, msztmp;
+	  bool reverse;
+
+	  get_ref_base_and_extent (*refp, &offadj, &sztmp, &msztmp, &reverse);
+	  offset1 -= offadj;
+	  get_ref_base_and_extent (base2, &offadj, &sztmp, &msztmp, &reverse);
+	  offset2 -= offadj;
+	  if (ranges_maybe_overlap_p (offset1, max_size1, offset2, max_size2))
+	    {
+	      ++alias_stats.aliasing_component_refs_p_may_alias;
+	      return true;
+	    }
+	  else
+	    {
+	      ++alias_stats.aliasing_component_refs_p_no_alias;
+	      return false;
+	    }
+	}
     }
+
+  /* In the following code we make an assumption that the types in access
+     paths do not overlap and thus accesses alias only if one path can be
+     continuation of another.  If we was not able to decide about equivalence,
+     we need to give up.  */
+  if (same_p1 == -1 || same_p2 == -1)
+    return true;
 
   /* If we have two type access paths B1.path1 and B2.path2 they may
      only alias if either B1 is in B2.path2 or B2 is in B1.path1.
@@ -853,13 +964,23 @@ aliasing_component_refs_p (tree ref1,
      a part that we do not see.  So we can only disambiguate now
      if there is no B2 in the tail of path1 and no B1 on the
      tail of path2.  */
-  if (base1_alias_set == ref2_alias_set
-      || alias_set_subset_of (base1_alias_set, ref2_alias_set))
-    return true;
+  if (compare_type_sizes (TREE_TYPE (ref2), type1) >= 0
+      && (base1_alias_set == ref2_alias_set
+          || alias_set_subset_of (base1_alias_set, ref2_alias_set)))
+    {
+      ++alias_stats.aliasing_component_refs_p_may_alias;
+      return true;
+    }
   /* If this is ptr vs. decl then we know there is no ptr ... decl path.  */
-  if (!ref2_is_decl)
-    return (base2_alias_set == ref1_alias_set
-	    || alias_set_subset_of (base2_alias_set, ref1_alias_set));
+  if (!ref2_is_decl
+      && compare_type_sizes (TREE_TYPE (ref1), type2) >= 0
+      && (base2_alias_set == ref1_alias_set
+	  || alias_set_subset_of (base2_alias_set, ref1_alias_set)))
+    {
+      ++alias_stats.aliasing_component_refs_p_may_alias;
+      return true;
+    }
+  ++alias_stats.aliasing_component_refs_p_no_alias;
   return false;
 }
 
@@ -1183,16 +1304,13 @@ indirect_ref_may_alias_decl_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
   /* If the size of the access relevant for TBAA through the pointer
      is bigger than the size of the decl we can't possibly access the
      decl via that pointer.  */
-  if (DECL_SIZE (base2) && COMPLETE_TYPE_P (TREE_TYPE (ptrtype1))
-      && poly_int_tree_p (DECL_SIZE (base2))
-      && poly_int_tree_p (TYPE_SIZE (TREE_TYPE (ptrtype1)))
-      /* ???  This in turn may run afoul when a decl of type T which is
+  if (/* ???  This in turn may run afoul when a decl of type T which is
 	 a member of union type U is accessed through a pointer to
 	 type U and sizeof T is smaller than sizeof U.  */
-      && TREE_CODE (TREE_TYPE (ptrtype1)) != UNION_TYPE
+      TREE_CODE (TREE_TYPE (ptrtype1)) != UNION_TYPE
       && TREE_CODE (TREE_TYPE (ptrtype1)) != QUAL_UNION_TYPE
-      && known_lt (wi::to_poly_widest (DECL_SIZE (base2)),
-		   wi::to_poly_widest (TYPE_SIZE (TREE_TYPE (ptrtype1)))))
+      && compare_sizes (DECL_SIZE (base2),
+		        TYPE_SIZE (TREE_TYPE (ptrtype1))) < 0)
     return false;
 
   if (!ref2)
@@ -1361,8 +1479,8 @@ indirect_refs_may_alias_p (tree ref1 ATTRIBUTE_UNUSED, tree base1,
 
 /* Return true, if the two memory references REF1 and REF2 may alias.  */
 
-bool
-refs_may_alias_p_1 (ao_ref *ref1, ao_ref *ref2, bool tbaa_p)
+static bool
+refs_may_alias_p_2 (ao_ref *ref1, ao_ref *ref2, bool tbaa_p)
 {
   tree base1, base2;
   poly_int64 offset1 = 0, offset2 = 0;
@@ -1519,6 +1637,20 @@ refs_may_alias_p_1 (ao_ref *ref1, ao_ref *ref2, bool tbaa_p)
   gcc_unreachable ();
 }
 
+/* Return true, if the two memory references REF1 and REF2 may alias
+   and update statistics.  */
+
+bool
+refs_may_alias_p_1 (ao_ref *ref1, ao_ref *ref2, bool tbaa_p)
+{
+  bool res = refs_may_alias_p_2 (ref1, ref2, tbaa_p);
+  if (res)
+    ++alias_stats.refs_may_alias_p_may_alias;
+  else
+    ++alias_stats.refs_may_alias_p_no_alias;
+  return res;
+}
+
 static bool
 refs_may_alias_p (tree ref1, ao_ref *ref2, bool tbaa_p)
 {
@@ -1531,15 +1663,9 @@ bool
 refs_may_alias_p (tree ref1, tree ref2, bool tbaa_p)
 {
   ao_ref r1, r2;
-  bool res;
   ao_ref_init (&r1, ref1);
   ao_ref_init (&r2, ref2);
-  res = refs_may_alias_p_1 (&r1, &r2, tbaa_p);
-  if (res)
-    ++alias_stats.refs_may_alias_p_may_alias;
-  else
-    ++alias_stats.refs_may_alias_p_no_alias;
-  return res;
+  return refs_may_alias_p_1 (&r1, &r2, tbaa_p);
 }
 
 /* Returns true if there is a anti-dependence for the STORE that
@@ -2598,8 +2724,8 @@ stmt_kills_ref_p (gimple *stmt, tree ref)
    case false is returned.  The walk starts with VUSE, one argument of PHI.  */
 
 static bool
-maybe_skip_until (gimple *phi, tree target, ao_ref *ref,
-		  tree vuse, unsigned int *cnt, bitmap *visited,
+maybe_skip_until (gimple *phi, tree &target, basic_block target_bb,
+		  ao_ref *ref, tree vuse, unsigned int &limit, bitmap *visited,
 		  bool abort_on_visited,
 		  void *(*translate)(ao_ref *, tree, void *, bool *),
 		  void *data)
@@ -2615,13 +2741,26 @@ maybe_skip_until (gimple *phi, tree target, ao_ref *ref,
   while (vuse != target)
     {
       gimple *def_stmt = SSA_NAME_DEF_STMT (vuse);
+      /* If we are searching for the target VUSE by walking up to
+         TARGET_BB dominating the original PHI we are finished once
+	 we reach a default def or a definition in a block dominating
+	 that block.  Update TARGET and return.  */
+      if (!target
+	  && (gimple_nop_p (def_stmt)
+	      || dominated_by_p (CDI_DOMINATORS,
+				 target_bb, gimple_bb (def_stmt))))
+	{
+	  target = vuse;
+	  return true;
+	}
+
       /* Recurse for PHI nodes.  */
       if (gimple_code (def_stmt) == GIMPLE_PHI)
 	{
 	  /* An already visited PHI node ends the walk successfully.  */
 	  if (bitmap_bit_p (*visited, SSA_NAME_VERSION (PHI_RESULT (def_stmt))))
 	    return !abort_on_visited;
-	  vuse = get_continuation_for_phi (def_stmt, ref, cnt,
+	  vuse = get_continuation_for_phi (def_stmt, ref, limit,
 					   visited, abort_on_visited,
 					   translate, data);
 	  if (!vuse)
@@ -2633,7 +2772,9 @@ maybe_skip_until (gimple *phi, tree target, ao_ref *ref,
       else
 	{
 	  /* A clobbering statement or the end of the IL ends it failing.  */
-	  ++*cnt;
+	  if ((int)limit <= 0)
+	    return false;
+	  --limit;
 	  if (stmt_may_clobber_ref_p_1 (def_stmt, ref))
 	    {
 	      bool disambiguate_only = true;
@@ -2661,12 +2802,13 @@ maybe_skip_until (gimple *phi, tree target, ao_ref *ref,
 /* Starting from a PHI node for the virtual operand of the memory reference
    REF find a continuation virtual operand that allows to continue walking
    statements dominating PHI skipping only statements that cannot possibly
-   clobber REF.  Increments *CNT for each alias disambiguation done.
+   clobber REF.  Decrements LIMIT for each alias disambiguation done
+   and aborts the walk, returning NULL_TREE if it reaches zero.
    Returns NULL_TREE if no suitable virtual operand can be found.  */
 
 tree
 get_continuation_for_phi (gimple *phi, ao_ref *ref,
-			  unsigned int *cnt, bitmap *visited,
+			  unsigned int &limit, bitmap *visited,
 			  bool abort_on_visited,
 			  void *(*translate)(ao_ref *, tree, void *, bool *),
 			  void *data)
@@ -2698,49 +2840,17 @@ get_continuation_for_phi (gimple *phi, ao_ref *ref,
       arg0 = NULL_TREE;
     }
   /* If not, look if we can reach such candidate by walking defs
-     of a PHI arg without crossing other PHIs.  */
-  if (! arg0)
-    for (i = 0; i < nargs; ++i)
-      {
-	arg0 = PHI_ARG_DEF (phi, i);
-	gimple *def = SSA_NAME_DEF_STMT (arg0);
-	/* Backedges can't work.  */
-	if (dominated_by_p (CDI_DOMINATORS,
-			    gimple_bb (def), phi_bb))
-	  continue;
-	/* See below.  */
-	if (gimple_code (def) == GIMPLE_PHI)
-	  continue;
-	while (! dominated_by_p (CDI_DOMINATORS,
-				 phi_bb, gimple_bb (def)))
-	  {
-	    arg0 = gimple_vuse (def);
-	    if (SSA_NAME_IS_DEFAULT_DEF (arg0))
-	      break;
-	    def = SSA_NAME_DEF_STMT (arg0);
-	    if (gimple_code (def) == GIMPLE_PHI)
-	      {
-		/* Do not try to look through arbitrarily complicated
-		   CFGs.  For those looking for the first VUSE starting
-		   from the end of the immediate dominator of phi_bb
-		   is likely faster.  */
-		arg0 = NULL_TREE;
-		goto next;
-	      }
-	  }
-	break;
-next:;
-      }
-  if (! arg0)
-    return NULL_TREE;
+     until we hit the immediate dominator.  maybe_skip_until will
+     do that for us.  */
+  basic_block dom = get_immediate_dominator (CDI_DOMINATORS, phi_bb);
 
-  /* Then check against the found candidate.  */
+  /* Then check against the (to be) found candidate.  */
   for (i = 0; i < nargs; ++i)
     {
       arg1 = PHI_ARG_DEF (phi, i);
       if (arg1 == arg0)
 	;
-      else if (! maybe_skip_until (phi, arg0, ref, arg1, cnt, visited,
+      else if (! maybe_skip_until (phi, arg0, dom, ref, arg1, limit, visited,
 				   abort_on_visited,
 				   /* Do not translate when walking over
 				      backedges.  */
@@ -2776,18 +2886,22 @@ next:;
    implement optimistic value-numbering for example.  Note that the
    VUSE argument is assumed to be valueized already.
 
+   LIMIT specifies the number of alias queries we are allowed to do,
+   the walk stops when it reaches zero and NULL is returned.  LIMIT
+   is decremented by the number of alias queries (plus adjustments
+   done by the callbacks) upon return.
+
    TODO: Cache the vector of equivalent vuses per ref, vuse pair.  */
 
 void *
 walk_non_aliased_vuses (ao_ref *ref, tree vuse,
-			void *(*walker)(ao_ref *, tree, unsigned int, void *),
+			void *(*walker)(ao_ref *, tree, void *),
 			void *(*translate)(ao_ref *, tree, void *, bool *),
 			tree (*valueize)(tree),
-			void *data)
+			unsigned &limit, void *data)
 {
   bitmap visited = NULL;
   void *res;
-  unsigned int cnt = 0;
   bool translated = false;
 
   timevar_push (TV_ALIAS_STMT_WALK);
@@ -2797,7 +2911,7 @@ walk_non_aliased_vuses (ao_ref *ref, tree vuse,
       gimple *def_stmt;
 
       /* ???  Do we want to account this to TV_ALIAS_STMT_WALK?  */
-      res = (*walker) (ref, vuse, cnt, data);
+      res = (*walker) (ref, vuse, data);
       /* Abort walk.  */
       if (res == (void *)-1)
 	{
@@ -2821,11 +2935,15 @@ walk_non_aliased_vuses (ao_ref *ref, tree vuse,
       if (gimple_nop_p (def_stmt))
 	break;
       else if (gimple_code (def_stmt) == GIMPLE_PHI)
-	vuse = get_continuation_for_phi (def_stmt, ref, &cnt,
+	vuse = get_continuation_for_phi (def_stmt, ref, limit,
 					 &visited, translated, translate, data);
       else
 	{
-	  cnt++;
+	  if ((int)limit <= 0)
+	    {
+	      res = NULL;
+	      break;
+	    }
 	  if (stmt_may_clobber_ref_p_1 (def_stmt, ref))
 	    {
 	      if (!translate)

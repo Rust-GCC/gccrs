@@ -1,3 +1,19 @@
+2019-05-11  Iain Sandoe  <iain@sandoe.co.uk>
+	PR target/90379
+	PR bootstrap/89864
+	* inclhack.def (darwin_ucred__Atomic): Do not supply test_text
+	for wrap fixes.
+	* fixincl.x: Regenerated.
+
+2019-04-18  Erik Schnetter  <schnetter@gmail.com>
+	  Jakub Jelinek  <jakub@redhat.com>
+	  Iain Sandoe  <iain@sandoe.co.uk>
+
+	PR bootstrap/89864
+	* inclhack.def (darwin_ucred__Atomic): New, work around _Atomic keyword
+	use in headers included by C++.
+	* fixincl.x: Regenerated.
+
 2018-10-31  Joseph Myers  <joseph@codesourcery.com>
 
 	PR bootstrap/82856

@@ -383,9 +383,14 @@ target_to_host (char *hostr, size_t hostsz, const char *targstr)
      overlong strings just like the translated strings are.  */
   if (target_to_host_charmap['\0'] == 1)
     {
-      strncpy (hostr, targstr, hostsz - 4);
-      if (strlen (targstr) >= hostsz)
-	strcpy (hostr + hostsz - 4, "...");
+      size_t len = strlen (targstr);
+      if (len >= hostsz)
+	{
+	  memcpy (hostr, targstr, hostsz - 4);
+	  strcpy (hostr + hostsz - 4, "...");
+	}
+      else
+	memcpy (hostr, targstr, len + 1);
       return hostr;
     }
 
@@ -399,10 +404,9 @@ target_to_host (char *hostr, size_t hostsz, const char *targstr)
       if (!*targstr)
 	break;
 
-      if (size_t (ph - hostr) == hostsz - 4)
+      if (size_t (ph - hostr) == hostsz)
 	{
-	  *ph = '\0';
-	  strcat (ph, "...");
+	  strcpy (ph - 4, "...");
 	  break;
 	}
     }
@@ -3012,12 +3016,10 @@ format_directive (const sprintf_dom_walker::call_info &info,
 	     help the user figure out how big a buffer they need.  */
 
 	  if (min == max)
-	    inform (callloc,
-		    (min == 1
-		     ? G_("%qE output %wu byte into a destination of size %wu")
-		     : G_("%qE output %wu bytes into a destination of size "
-			  "%wu")),
-		    info.func, min, info.objsize);
+	    inform_n (callloc, min,
+		      "%qE output %wu byte into a destination of size %wu",
+		      "%qE output %wu bytes into a destination of size %wu",
+		      info.func, min, info.objsize);
 	  else if (max < HOST_WIDE_INT_MAX)
 	    inform (callloc,
 		    "%qE output between %wu and %wu bytes into "
@@ -3040,11 +3042,9 @@ format_directive (const sprintf_dom_walker::call_info &info,
 	     of printf with no destination size just print the computed
 	     result.  */
 	  if (min == max)
-	    inform (callloc,
-		    (min == 1
-		     ? G_("%qE output %wu byte")
-		     : G_("%qE output %wu bytes")),
-		    info.func, min);
+	    inform_n (callloc, min,
+		      "%qE output %wu byte", "%qE output %wu bytes",
+		      info.func, min);
 	  else if (max < HOST_WIDE_INT_MAX)
 	    inform (callloc,
 		    "%qE output between %wu and %wu bytes",

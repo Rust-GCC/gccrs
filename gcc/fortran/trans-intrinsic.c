@@ -2832,14 +2832,23 @@ static void
 gfc_conv_intrinsic_is_contiguous (gfc_se * se, gfc_expr * expr)
 {
   gfc_expr *arg;
+  arg = expr->value.function.actual->expr;
+  gfc_conv_is_contiguous_expr (se, arg);
+  se->expr = fold_convert (gfc_typenode_for_spec (&expr->ts), se->expr);
+}
+
+/* This function does the work for gfc_conv_intrinsic_is_contiguous,
+   plus it can be called directly.  */
+
+void
+gfc_conv_is_contiguous_expr (gfc_se *se, gfc_expr *arg)
+{
   gfc_ss *ss;
   gfc_se argse;
   tree desc, tmp, stride, extent, cond;
   int i;
   tree fncall0;
   gfc_array_spec *as;
-
-  arg = expr->value.function.actual->expr;
 
   if (arg->ts.type == BT_CLASS)
     gfc_add_class_array_ref (arg);
@@ -2878,7 +2887,7 @@ gfc_conv_intrinsic_is_contiguous (gfc_se * se, gfc_expr * expr)
       cond = fold_build2_loc (input_location, EQ_EXPR, boolean_type_node,
 			      stride, build_int_cst (TREE_TYPE (stride), 1));
 
-      for (i = 0; i < expr->value.function.actual->expr->rank - 1; i++)
+      for (i = 0; i < arg->rank - 1; i++)
 	{
 	  tmp = gfc_conv_descriptor_lbound_get (desc, gfc_rank_cst[i]);
 	  extent = gfc_conv_descriptor_ubound_get (desc, gfc_rank_cst[i]);
@@ -2896,7 +2905,7 @@ gfc_conv_intrinsic_is_contiguous (gfc_se * se, gfc_expr * expr)
 	  cond = fold_build2_loc (input_location, TRUTH_AND_EXPR,
 				  boolean_type_node, cond, tmp);
 	}
-      se->expr = convert (gfc_typenode_for_spec (&expr->ts), cond);
+      se->expr = cond;
     }
 }
 
@@ -7446,6 +7455,8 @@ gfc_conv_intrinsic_size (gfc_se * se, gfc_expr * expr)
   tree fncall0;
   tree fncall1;
   gfc_se argse;
+  gfc_expr *e;
+  gfc_symbol *sym = NULL;
 
   gfc_init_se (&argse, NULL);
   actual = expr->value.function.actual;
@@ -7453,12 +7464,31 @@ gfc_conv_intrinsic_size (gfc_se * se, gfc_expr * expr)
   if (actual->expr->ts.type == BT_CLASS)
     gfc_add_class_array_ref (actual->expr);
 
+  e = actual->expr;
+
+  /* These are emerging from the interface mapping, when a class valued
+     function appears as the rhs in a realloc on assign statement, where
+     the size of the result is that of one of the actual arguments.  */
+  if (e->expr_type == EXPR_VARIABLE
+      && e->symtree->n.sym->ns == NULL /* This is distinctive!  */
+      && e->symtree->n.sym->ts.type == BT_CLASS
+      && e->ref && e->ref->type == REF_COMPONENT
+      && strcmp (e->ref->u.c.component->name, "_data") == 0)
+    sym = e->symtree->n.sym;
+
   argse.data_not_needed = 1;
-  if (gfc_is_class_array_function (actual->expr))
+  if (gfc_is_class_array_function (e))
     {
       /* For functions that return a class array conv_expr_descriptor is not
 	 able to get the descriptor right.  Therefore this special case.  */
-      gfc_conv_expr_reference (&argse, actual->expr);
+      gfc_conv_expr_reference (&argse, e);
+      argse.expr = gfc_build_addr_expr (NULL_TREE,
+					gfc_class_data_get (argse.expr));
+    }
+  else if (sym && sym->backend_decl)
+    {
+      gcc_assert (GFC_CLASS_TYPE_P (TREE_TYPE (sym->backend_decl)));
+      argse.expr = sym->backend_decl;
       argse.expr = gfc_build_addr_expr (NULL_TREE,
 					gfc_class_data_get (argse.expr));
     }

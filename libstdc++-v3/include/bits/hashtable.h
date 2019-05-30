@@ -1351,12 +1351,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       clear();
       _M_deallocate_buckets();
-
-      static_assert(__is_invocable<const _H1&, const _Key&>{},
-	  "hash function must be invocable with an argument of key type");
-      static_assert(__is_invocable<const _Equal&, const _Key&, const _Key&>{},
-	  "key equality predicate must be invocable with two arguments of "
-	  "key type");
     }
 
   template<typename _Key, typename _Value,
@@ -2055,7 +2049,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       if (__buckets != _M_bucket_count)
 	_M_rehash(__buckets, __saved_state);
       else
-	// No rehash, restore previous state to keep a consistent state.
+	// No rehash, restore previous state to keep it consistent with
+	// container state.
 	_M_rehash_policy._M_reset(__saved_state);
     }
 

@@ -878,58 +878,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public __is_nt_destructible_safe<_Tp>::type
     { };
 
-  struct __do_is_default_constructible_impl
-  {
-    template<typename _Tp, typename = decltype(_Tp())>
-      static true_type __test(int);
-
-    template<typename>
-      static false_type __test(...);
-  };
-
-  template<typename _Tp>
-    struct __is_default_constructible_impl
-    : public __do_is_default_constructible_impl
-    {
-      typedef decltype(__test<_Tp>(0)) type;
-    };
-
-  template<typename _Tp>
-    struct __is_default_constructible_atom
-    : public __and_<__not_<is_void<_Tp>>,
-                    __is_default_constructible_impl<_Tp>>
-    { };
-
-  template<typename _Tp, bool = is_array<_Tp>::value>
-    struct __is_default_constructible_safe;
-
-  // The following technique is a workaround for a current core language
-  // restriction, which does not allow for array types to occur in
-  // functional casts of the form T().  Complete arrays can be default-
-  // constructed, if the element type is default-constructible, but
-  // arrays with unknown bounds are not.
-  template<typename _Tp>
-    struct __is_default_constructible_safe<_Tp, true>
-    : public __and_<__is_array_known_bounds<_Tp>,
-		    __is_default_constructible_atom<typename
-                      remove_all_extents<_Tp>::type>>
-    { };
-
-  template<typename _Tp>
-    struct __is_default_constructible_safe<_Tp, false>
-    : public __is_default_constructible_atom<_Tp>::type
+  /// is_constructible
+  template<typename _Tp, typename... _Args>
+    struct is_constructible
+      : public __bool_constant<__is_constructible(_Tp, _Args...)>
     { };
 
   /// is_default_constructible
   template<typename _Tp>
     struct is_default_constructible
-    : public __is_default_constructible_safe<_Tp>::type
-    { };
-
-  /// is_constructible
-  template<typename _Tp, typename... _Args>
-    struct is_constructible
-      : public __bool_constant<__is_constructible(_Tp, _Args...)>
+    : public is_constructible<_Tp>::type
     { };
 
   template<typename _Tp, bool = __is_referenceable<_Tp>::value>
@@ -1378,7 +1336,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public __is_convertible_helper<_From, _To>::type
     { };
 
-#if __cplusplus > 201703L
     template<typename _From, typename _To,
            bool = __or_<is_void<_From>, is_function<_To>,
                         is_array<_To>>::value>
@@ -1393,7 +1350,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	static void __test_aux(_To1) noexcept;
 
       template<typename _From1, typename _To1>
-	static bool_constant<noexcept(__test_aux<_To1>(std::declval<_From1>()))>
+	static
+	__bool_constant<noexcept(__test_aux<_To1>(std::declval<_From1>()))>
 	__test(int);
 
       template<typename, typename>
@@ -1404,6 +1362,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       using type = decltype(__test<_From, _To>(0));
     };
 
+  // is_nothrow_convertible for C++11
+  template<typename _From, typename _To>
+    struct __is_nothrow_convertible
+    : public __is_nt_convertible_helper<_From, _To>::type
+    { };
+
+#if __cplusplus > 201703L
   /// is_nothrow_convertible
   template<typename _From, typename _To>
     struct is_nothrow_convertible
@@ -2106,6 +2071,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct conditional<false, _Iftrue, _Iffalse>
     { typedef _Iffalse type; };
 
+  // __void_t (std::void_t for C++11)
+  template<typename...> using __void_t = void;
+
   /// common_type
   template<typename... _Tp>
     struct common_type;
@@ -2115,65 +2083,81 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   struct __do_common_type_impl
   {
     template<typename _Tp, typename _Up>
-      static __success_type<typename decay<decltype
-			    (true ? std::declval<_Tp>()
-			     : std::declval<_Up>())>::type> _S_test(int);
+      using __cond_t
+	= decltype(true ? std::declval<_Tp>() : std::declval<_Up>());
+
+    template<typename _Tp, typename _Up>
+      static __success_type<typename decay<__cond_t<_Tp, _Up>>::type>
+      _S_test(int);
 
     template<typename, typename>
-      static __failure_type _S_test(...);
+      static __failure_type
+      _S_test(...);
   };
 
-  template<typename _Tp, typename _Up>
-    struct __common_type_impl
-    : private __do_common_type_impl
-    {
-      typedef decltype(_S_test<_Tp, _Up>(0)) type;
-    };
-
-  struct __do_member_type_wrapper
-  {
-    template<typename _Tp>
-      static __success_type<typename _Tp::type> _S_test(int);
-
-    template<typename>
-      static __failure_type _S_test(...);
-  };
-
-  template<typename _Tp>
-    struct __member_type_wrapper
-    : private __do_member_type_wrapper
-    {
-      typedef decltype(_S_test<_Tp>(0)) type;
-    };
-
-  template<typename _CTp, typename... _Args>
-    struct __expanded_common_type_wrapper
-    {
-      typedef common_type<typename _CTp::type, _Args...> type;
-    };
-
-  template<typename... _Args>
-    struct __expanded_common_type_wrapper<__failure_type, _Args...>
-    { typedef __failure_type type; };
-
+  // If sizeof...(T) is zero, there shall be no member type.
   template<>
     struct common_type<>
     { };
 
-  template<typename _Tp>
-    struct common_type<_Tp>
-    : common_type<_Tp, _Tp>
+  // If sizeof...(T) is one, the same type, if any, as common_type_t<T0, T0>.
+  template<typename _Tp0>
+    struct common_type<_Tp0>
+    : public common_type<_Tp0, _Tp0>
     { };
 
-  template<typename _Tp, typename _Up>
-    struct common_type<_Tp, _Up>
-    : public __common_type_impl<_Tp, _Up>::type
+  // If sizeof...(T) is two, ...
+  template<typename _Tp1, typename _Tp2,
+	   typename _Dp1 = typename decay<_Tp1>::type,
+	   typename _Dp2 = typename decay<_Tp2>::type>
+    struct __common_type_impl
+    {
+      // If is_same_v<T1, D1> is false or is_same_v<T2, D2> is false,
+      // let C denote the same type, if any, as common_type_t<D1, D2>.
+      using type = common_type<_Dp1, _Dp2>;
+    };
+
+  template<typename _Tp1, typename _Tp2>
+    struct __common_type_impl<_Tp1, _Tp2, _Tp1, _Tp2>
+    : private __do_common_type_impl
+    {
+      // Otherwise, if decay_t<decltype(false ? declval<D1>() : declval<D2>())>
+      // denotes a valid type, let C denote that type.
+      using type = decltype(_S_test<_Tp1, _Tp2>(0));
+    };
+
+  // If sizeof...(T) is two, ...
+  template<typename _Tp1, typename _Tp2>
+    struct common_type<_Tp1, _Tp2>
+    : public __common_type_impl<_Tp1, _Tp2>::type
     { };
 
-  template<typename _Tp, typename _Up, typename... _Vp>
-    struct common_type<_Tp, _Up, _Vp...>
-    : public __expanded_common_type_wrapper<typename __member_type_wrapper<
-               common_type<_Tp, _Up>>::type, _Vp...>::type
+  template<typename...>
+    struct __common_type_pack
+    { };
+
+  template<typename, typename, typename = void>
+    struct __common_type_fold;
+
+  // If sizeof...(T) is greater than two, ...
+  template<typename _Tp1, typename _Tp2, typename... _Rp>
+    struct common_type<_Tp1, _Tp2, _Rp...>
+    : public __common_type_fold<common_type<_Tp1, _Tp2>,
+				__common_type_pack<_Rp...>>
+    { };
+
+  // Let C denote the same type, if any, as common_type_t<T1, T2>.
+  // If there is such a type C, type shall denote the same type, if any,
+  // as common_type_t<C, R...>.
+  template<typename _CTp, typename... _Rp>
+    struct __common_type_fold<_CTp, __common_type_pack<_Rp...>,
+			      __void_t<typename _CTp::type>>
+    : public common_type<typename _CTp::type, _Rp...>
+    { };
+
+  // Otherwise, there shall be no member type.
+  template<typename _CTp, typename _Rp>
+    struct __common_type_fold<_CTp, _Rp, void>
     { };
 
   template<typename _Tp, bool = is_enum<_Tp>::value>
@@ -2327,10 +2311,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Res, typename _Class, typename _Arg, typename... _Args>
     struct __result_of_memfun<_Res _Class::*, _Arg, _Args...>
     {
-      typedef __remove_cvref_t<_Arg> _Argval;
+      typedef typename remove_reference<_Arg>::type _Argval;
       typedef _Res _Class::* _MemPtr;
-      typedef typename conditional<__or_<is_same<_Argval, _Class>,
-        is_base_of<_Class, _Argval>>::value,
+      typedef typename conditional<is_base_of<_Class, _Argval>::value,
         __result_of_memfun_ref<_MemPtr, _Arg, _Args...>,
         __result_of_memfun_deref<_MemPtr, _Arg, _Args...>
       >::type::type type;
@@ -2341,7 +2324,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   //        as the object expression
 
   // Used by result_of, invoke etc. to unwrap a reference_wrapper.
-  template<typename _Tp, typename _Up = typename decay<_Tp>::type>
+  template<typename _Tp, typename _Up = __remove_cvref_t<_Tp>>
     struct __inv_unwrap
     {
       using type = _Tp;
@@ -2446,9 +2429,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // __enable_if_t (std::enable_if_t for C++11)
   template<bool _Cond, typename _Tp = void>
     using __enable_if_t = typename enable_if<_Cond, _Tp>::type;
-
-  // __void_t (std::void_t for C++11)
-  template<typename...> using __void_t = void;
 
 #if __cplusplus >= 201703L || !defined(__STRICT_ANSI__) // c++17 or gnu++11
 #define __cpp_lib_void_t 201411
@@ -2770,8 +2750,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
              __call_is_nothrow_<_Fn, _Args...>>::type
     { };
 
-  struct __nonesuch {
-    __nonesuch() = delete;
+  struct __nonesuchbase {};
+  struct __nonesuch : private __nonesuchbase {
     ~__nonesuch() = delete;
     __nonesuch(__nonesuch const&) = delete;
     void operator=(__nonesuch const&) = delete;
@@ -2816,8 +2796,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct __is_nt_invocable_impl<_Result, _Ret,
 				  __void_t<typename _Result::type>>
     : __or_<is_void<_Ret>,
-	    __and_<is_convertible<typename _Result::type, _Ret>,
-		   is_nothrow_constructible<_Ret, typename _Result::type>>>
+	    __is_nothrow_convertible<typename _Result::type, _Ret>>
     { };
 
   /// std::is_nothrow_invocable_r
@@ -2837,14 +2816,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       = is_nothrow_invocable<_Fn, _Args...>::value;
 
   /// std::is_invocable_r_v
-  template<typename _Fn, typename... _Args>
+  template<typename _Ret, typename _Fn, typename... _Args>
     inline constexpr bool is_invocable_r_v
-      = is_invocable_r<_Fn, _Args...>::value;
+      = is_invocable_r<_Ret, _Fn, _Args...>::value;
 
   /// std::is_nothrow_invocable_r_v
-  template<typename _Fn, typename... _Args>
+  template<typename _Ret, typename _Fn, typename... _Args>
     inline constexpr bool is_nothrow_invocable_r_v
-      = is_nothrow_invocable_r<_Fn, _Args...>::value;
+      = is_nothrow_invocable_r<_Ret, _Fn, _Args...>::value;
 #endif // C++17
 
 #if __cplusplus >= 201703L
@@ -3067,9 +3046,12 @@ template <typename _From, typename _To>
   template<typename _Tp>
     struct unwrap_reference<reference_wrapper<_Tp>> { using type = _Tp&; };
 
+  template<typename _Tp>
+    using unwrap_reference_t = typename unwrap_reference<_Tp>::type;
+
   /// Decay type and if it's a reference_wrapper, unwrap it
   template<typename _Tp>
-    struct unwrap_ref_decay : unwrap_reference<decay_t<_Tp>> { };
+    struct unwrap_ref_decay { using type = unwrap_reference_t<decay_t<_Tp>>; };
 
   template<typename _Tp>
     using unwrap_ref_decay_t = typename unwrap_ref_decay<_Tp>::type;

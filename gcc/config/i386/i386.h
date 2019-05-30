@@ -193,6 +193,10 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define TARGET_CLDEMOTE_P(x) TARGET_ISA_CLDEMOTE_P(x)
 #define TARGET_PTWRITE	TARGET_ISA_PTWRITE
 #define TARGET_PTWRITE_P(x)	TARGET_ISA_PTWRITE_P(x)
+#define TARGET_AVX512BF16	TARGET_ISA_AVX512BF16
+#define TARGET_AVX512BF16_P(x)	TARGET_ISA_AVX512BF16_P(x)
+#define TARGET_ENQCMD	TARGET_ISA_ENQCMD
+#define TARGET_ENQCMD_P(x) TARGET_ISA_ENQCMD_P(x)
 
 #define TARGET_LP64	TARGET_ABI_64
 #define TARGET_LP64_P(x)	TARGET_ABI_64_P(x)
@@ -200,6 +204,8 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define TARGET_X32_P(x)	TARGET_ABI_X32_P(x)
 #define TARGET_16BIT	TARGET_CODE16
 #define TARGET_16BIT_P(x)	TARGET_CODE16_P(x)
+
+#define TARGET_MMX_WITH_SSE	(TARGET_64BIT && TARGET_SSE2)
 
 #include "config/vxworks-dummy.h"
 
@@ -1943,6 +1949,10 @@ do {							\
 #define STACK_SAVEAREA_MODE(LEVEL)			\
   ((LEVEL) == SAVE_NONLOCAL ? (TARGET_64BIT ? TImode : DImode) : Pmode)
 
+/* Specify the machine_mode of the size increment
+   operand of an 'allocate_stack' named pattern.  */
+#define STACK_SIZE_MODE Pmode
+
 /* A C expression whose value is zero if pointers that need to be extended
    from being `POINTER_SIZE' bits wide to `Pmode' are sign-extended and
    greater then zero if they are zero-extended and less then zero if the
@@ -2355,6 +2365,7 @@ const wide_int_bitmask PTA_PCONFIG (0, HOST_WIDE_INT_1U << 7);
 const wide_int_bitmask PTA_WBNOINVD (0, HOST_WIDE_INT_1U << 8);
 const wide_int_bitmask PTA_WAITPKG (0, HOST_WIDE_INT_1U << 9);
 const wide_int_bitmask PTA_PTWRITE (0, HOST_WIDE_INT_1U << 10);
+const wide_int_bitmask PTA_AVX512BF16 (0, HOST_WIDE_INT_1U << 11);
 
 const wide_int_bitmask PTA_CORE2 = PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2
   | PTA_SSE3 | PTA_SSSE3 | PTA_CX16 | PTA_FXSR;
@@ -2749,6 +2760,9 @@ struct GTY(()) machine_function {
   /* If true, ENDBR is queued at function entrance.  */
   BOOL_BITFIELD endbr_queued_at_entrance : 1;
 
+  /* True if the function needs a stack frame.  */
+  BOOL_BITFIELD stack_frame_required : 1;
+
   /* The largest alignment, in bytes, of stack slot actually used.  */
   unsigned int max_used_stack_alignment;
 
@@ -2759,6 +2773,9 @@ struct GTY(()) machine_function {
   /* During SEH output, this is non-null.  */
   struct seh_frame_state * GTY((skip(""))) seh;
 };
+
+extern GTY(()) tree sysv_va_list_type_node;
+extern GTY(()) tree ms_va_list_type_node;
 #endif
 
 #define ix86_stack_locals (cfun->machine->stack_locals)
@@ -2855,6 +2872,12 @@ extern void debug_dispatch_window (int);
 #define SWITCHABLE_TARGET 1
 
 #define TARGET_SUPPORTS_WIDE_INT 1
+
+#if !defined(GENERATOR_FILE) && !defined(IN_LIBGCC2)
+extern enum attr_cpu ix86_schedule;
+
+#define NUM_X86_64_MS_CLOBBERED_REGS 12
+#endif
 
 /*
 Local variables:

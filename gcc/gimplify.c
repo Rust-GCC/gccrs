@@ -71,47 +71,50 @@ static hash_set<tree> *asan_poisoned_variables = NULL;
 
 enum gimplify_omp_var_data
 {
-  GOVD_SEEN = 1,
-  GOVD_EXPLICIT = 2,
-  GOVD_SHARED = 4,
-  GOVD_PRIVATE = 8,
-  GOVD_FIRSTPRIVATE = 16,
-  GOVD_LASTPRIVATE = 32,
-  GOVD_REDUCTION = 64,
-  GOVD_LOCAL = 128,
-  GOVD_MAP = 256,
-  GOVD_DEBUG_PRIVATE = 512,
-  GOVD_PRIVATE_OUTER_REF = 1024,
-  GOVD_LINEAR = 2048,
-  GOVD_ALIGNED = 4096,
+  GOVD_SEEN = 0x000001,
+  GOVD_EXPLICIT = 0x000002,
+  GOVD_SHARED = 0x000004,
+  GOVD_PRIVATE = 0x000008,
+  GOVD_FIRSTPRIVATE = 0x000010,
+  GOVD_LASTPRIVATE = 0x000020,
+  GOVD_REDUCTION = 0x000040,
+  GOVD_LOCAL = 0x00080,
+  GOVD_MAP = 0x000100,
+  GOVD_DEBUG_PRIVATE = 0x000200,
+  GOVD_PRIVATE_OUTER_REF = 0x000400,
+  GOVD_LINEAR = 0x000800,
+  GOVD_ALIGNED = 0x001000,
 
   /* Flag for GOVD_MAP: don't copy back.  */
-  GOVD_MAP_TO_ONLY = 8192,
+  GOVD_MAP_TO_ONLY = 0x002000,
 
   /* Flag for GOVD_LINEAR or GOVD_LASTPRIVATE: no outer reference.  */
-  GOVD_LINEAR_LASTPRIVATE_NO_OUTER = 16384,
+  GOVD_LINEAR_LASTPRIVATE_NO_OUTER = 0x004000,
 
-  GOVD_MAP_0LEN_ARRAY = 32768,
+  GOVD_MAP_0LEN_ARRAY = 0x008000,
 
   /* Flag for GOVD_MAP, if it is always, to or always, tofrom mapping.  */
-  GOVD_MAP_ALWAYS_TO = 65536,
+  GOVD_MAP_ALWAYS_TO = 0x010000,
 
   /* Flag for shared vars that are or might be stored to in the region.  */
-  GOVD_WRITTEN = 131072,
+  GOVD_WRITTEN = 0x020000,
 
   /* Flag for GOVD_MAP, if it is a forced mapping.  */
-  GOVD_MAP_FORCE = 262144,
+  GOVD_MAP_FORCE = 0x040000,
 
   /* Flag for GOVD_MAP: must be present already.  */
-  GOVD_MAP_FORCE_PRESENT = 524288,
+  GOVD_MAP_FORCE_PRESENT = 0x080000,
 
   /* Flag for GOVD_MAP: only allocate.  */
-  GOVD_MAP_ALLOC_ONLY = 1048576,
+  GOVD_MAP_ALLOC_ONLY = 0x100000,
 
   /* Flag for GOVD_MAP: only copy back.  */
-  GOVD_MAP_FROM_ONLY = 2097152,
+  GOVD_MAP_FROM_ONLY = 0x200000,
 
-  GOVD_NONTEMPORAL = 4194304,
+  GOVD_NONTEMPORAL = 0x400000,
+
+  /* Flag for GOVD_LASTPRIVATE: conditional modifier.  */
+  GOVD_LASTPRIVATE_CONDITIONAL = 0x800000,
 
   GOVD_DATA_SHARE_CLASS = (GOVD_SHARED | GOVD_PRIVATE | GOVD_FIRSTPRIVATE
 			   | GOVD_LASTPRIVATE | GOVD_REDUCTION | GOVD_LINEAR
@@ -202,6 +205,7 @@ struct gimplify_omp_ctx
   struct gimplify_omp_ctx *outer_context;
   splay_tree variables;
   hash_set<tree> *privatized_types;
+  tree clauses;
   /* Iteration variables in an OMP_FOR.  */
   vec<tree> loop_iter_var;
   location_t location;
@@ -1423,7 +1427,7 @@ gimplify_bind_expr (tree *expr_p, gimple_seq *pre_p)
 
 		  oacc_declare_returns->remove (t);
 
-		  if (oacc_declare_returns->elements () == 0)
+		  if (oacc_declare_returns->is_empty ())
 		    {
 		      delete oacc_declare_returns;
 		      oacc_declare_returns = NULL;
@@ -2418,7 +2422,7 @@ gimplify_switch_expr (tree *expr_p, gimple_seq *pre_p)
 
       if (gimplify_ctxp->live_switch_vars)
 	{
-	  gcc_assert (gimplify_ctxp->live_switch_vars->elements () == 0);
+	  gcc_assert (gimplify_ctxp->live_switch_vars->is_empty ());
 	  delete gimplify_ctxp->live_switch_vars;
 	}
       gimplify_ctxp->live_switch_vars = saved_live_switch_vars;
@@ -3296,6 +3300,10 @@ gimplify_call_expr (tree *expr_p, gimple_seq *pre_p, bool want_value)
 	    }
 	  break;
 	}
+
+      case BUILT_IN_EH_RETURN:
+	cfun->calls_eh_return = true;
+	break;
 
       default:
         ;
@@ -6177,7 +6185,7 @@ gimplify_asm_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 			    fb_lvalue | fb_mayfail);
       if (tret == GS_ERROR)
 	{
-	  error ("invalid lvalue in asm output %d", i);
+	  error ("invalid lvalue in %<asm%> output %d", i);
 	  ret = tret;
 	}
 
@@ -6662,6 +6670,7 @@ gimplify_target_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 	    }
 	  if (asan_poisoned_variables
 	      && DECL_ALIGN (temp) <= MAX_SUPPORTED_STACK_ALIGNMENT
+	      && !TREE_STATIC (temp)
 	      && dbg_cnt (asan_use_after_scope)
 	      && !gimplify_omp_ctxp)
 	    {
@@ -8046,7 +8055,7 @@ gimplify_scan_omp_clauses (tree *list_p, gimple_seq *pre_p,
   struct gimplify_omp_ctx *ctx, *outer_ctx;
   tree c;
   hash_map<tree, tree> *struct_map_to_clause = NULL;
-  tree *prev_list_p = NULL;
+  tree *prev_list_p = NULL, *orig_list_p = list_p;
   int handled_depend_iterators = -1;
   int nowait = -1;
 
@@ -8134,9 +8143,19 @@ gimplify_scan_omp_clauses (tree *list_p, gimple_seq *pre_p,
 	      OMP_CLAUSE_LASTPRIVATE_CONDITIONAL (c) = 0;
 	    }
 	  if (OMP_CLAUSE_LASTPRIVATE_CONDITIONAL (c))
-	    sorry_at (OMP_CLAUSE_LOCATION (c),
-		      "%<conditional%> modifier on %<lastprivate%> clause "
-		      "not supported yet");
+	    {
+	      if (code == OMP_FOR
+		  || code == OMP_SECTIONS
+		  || region_type == ORT_COMBINED_PARALLEL)
+		flags |= GOVD_LASTPRIVATE_CONDITIONAL;
+	      else
+		{
+		  sorry_at (OMP_CLAUSE_LOCATION (c),
+			    "%<conditional%> modifier on %<lastprivate%> "
+			    "clause not supported yet");
+		  OMP_CLAUSE_LASTPRIVATE_CONDITIONAL (c) = 0;
+		}
+	    }
 	  if (outer_ctx
 	      && (outer_ctx->region_type == ORT_COMBINED_PARALLEL
 		  || ((outer_ctx->region_type & ORT_COMBINED_TEAMS)
@@ -9296,6 +9315,7 @@ gimplify_scan_omp_clauses (tree *list_p, gimple_seq *pre_p,
 	list_p = &OMP_CLAUSE_CHAIN (c);
     }
 
+  ctx->clauses = *orig_list_p;
   gimplify_omp_ctxp = ctx;
   if (struct_map_to_clause)
     delete struct_map_to_clause;
@@ -9439,6 +9459,9 @@ gimplify_adjust_omp_clauses_1 (splay_tree_node n, void *data)
   tree clause;
   bool private_debug;
 
+  if (gimplify_omp_ctxp->region_type == ORT_COMBINED_PARALLEL
+      && (flags & GOVD_LASTPRIVATE_CONDITIONAL) != 0)
+    flags = GOVD_SHARED | GOVD_SEEN | GOVD_WRITTEN;
   if (flags & (GOVD_EXPLICIT | GOVD_LOCAL))
     return 0;
   if ((flags & GOVD_SEEN) == 0)
@@ -9681,6 +9704,34 @@ gimplify_adjust_omp_clauses (gimple_seq *pre_p, gimple_seq body, tree *list_p,
 			   omp_find_stores_op, &wi);
 	}
     }
+
+  if (ctx->region_type == ORT_WORKSHARE
+      && ctx->outer_context
+      && ctx->outer_context->region_type == ORT_COMBINED_PARALLEL)
+    {
+      for (c = ctx->outer_context->clauses; c; c = OMP_CLAUSE_CHAIN (c))
+	if (OMP_CLAUSE_CODE (c) == OMP_CLAUSE_LASTPRIVATE
+	    && OMP_CLAUSE_LASTPRIVATE_CONDITIONAL (c))
+	  {
+	    decl = OMP_CLAUSE_DECL (c);
+	    splay_tree_node n
+	      = splay_tree_lookup (ctx->outer_context->variables,
+				   (splay_tree_key) decl);
+	    gcc_checking_assert (!splay_tree_lookup (ctx->variables,
+						     (splay_tree_key) decl));
+	    omp_add_variable (ctx, decl, n->value);
+	    tree c2 = copy_node (c);
+	    OMP_CLAUSE_CHAIN (c2) = *list_p;
+	    *list_p = c2;
+	    if ((n->value & GOVD_FIRSTPRIVATE) == 0)
+	      continue;
+	    c2 = build_omp_clause (OMP_CLAUSE_LOCATION (c),
+				   OMP_CLAUSE_FIRSTPRIVATE);
+	    OMP_CLAUSE_DECL (c2) = decl;
+	    OMP_CLAUSE_CHAIN (c2) = *list_p;
+	    *list_p = c2;
+	  }
+    }
   while ((c = *list_p) != NULL)
     {
       splay_tree_node n;
@@ -9707,6 +9758,10 @@ gimplify_adjust_omp_clauses (gimple_seq *pre_p, gimple_seq body, tree *list_p,
 	  decl = OMP_CLAUSE_DECL (c);
 	  n = splay_tree_lookup (ctx->variables, (splay_tree_key) decl);
 	  remove = !(n->value & GOVD_SEEN);
+	  if ((n->value & GOVD_LASTPRIVATE_CONDITIONAL) != 0
+	      && code == OMP_PARALLEL
+	      && OMP_CLAUSE_CODE (c) == OMP_CLAUSE_FIRSTPRIVATE)
+	    remove = true;
 	  if (! remove)
 	    {
 	      bool shared = OMP_CLAUSE_CODE (c) == OMP_CLAUSE_SHARED;
@@ -9755,6 +9810,8 @@ gimplify_adjust_omp_clauses (gimple_seq *pre_p, gimple_seq body, tree *list_p,
 	      && DECL_P (decl)
 	      && omp_shared_to_firstprivate_optimizable_decl_p (decl))
 	    omp_mark_stores (gimplify_omp_ctxp->outer_context, decl);
+	  if (OMP_CLAUSE_LASTPRIVATE_CONDITIONAL (c) && code == OMP_PARALLEL)
+	    remove = true;
 	  break;
 
 	case OMP_CLAUSE_ALIGNED:
@@ -9835,7 +9892,7 @@ gimplify_adjust_omp_clauses (gimple_seq *pre_p, gimple_seq body, tree *list_p,
 		    {
 		      warning_at (OMP_CLAUSE_LOCATION (c), 0,
 				  "incompatible data clause with reduction "
-				  "on %qE; promoting to present_or_copy",
+				  "on %qE; promoting to %<present_or_copy%>",
 				  DECL_NAME (t));
 		      OMP_CLAUSE_SET_MAP_KIND (c, GOMP_MAP_TOFROM);
 		    }
@@ -10765,7 +10822,22 @@ gimplify_omp_for (tree *expr_p, gimple_seq *pre_p)
 			  1 + (TREE_VEC_LENGTH (OMP_FOR_INIT (for_stmt))
 			       != 1));
 	  if (n != NULL && (n->value & GOVD_DATA_SHARE_CLASS) != 0)
-	    omp_notice_variable (gimplify_omp_ctxp, decl, true);
+	    {
+	      omp_notice_variable (gimplify_omp_ctxp, decl, true);
+	      if (n->value & GOVD_LASTPRIVATE_CONDITIONAL)
+		for (tree c3 = omp_find_clause (OMP_FOR_CLAUSES (for_stmt),
+						OMP_CLAUSE_LASTPRIVATE);
+		     c3; c3 = omp_find_clause (OMP_CLAUSE_CHAIN (c3),
+					       OMP_CLAUSE_LASTPRIVATE))
+		  if (OMP_CLAUSE_DECL (c3) == decl)
+		    {
+		      warning_at (OMP_CLAUSE_LOCATION (c3), 0,
+				  "conditional %<lastprivate%> on loop "
+				  "iterator %qD ignored", decl);
+		      OMP_CLAUSE_LASTPRIVATE_CONDITIONAL (c3) = 0;
+		      n->value &= ~GOVD_LASTPRIVATE_CONDITIONAL;
+		    }
+	    }
 	  else if (TREE_VEC_LENGTH (OMP_FOR_INIT (for_stmt)) == 1)
 	    {
 	      c = build_omp_clause (input_location, OMP_CLAUSE_LINEAR);
@@ -11000,7 +11072,24 @@ gimplify_omp_for (tree *expr_p, gimple_seq *pre_p)
 	    }
 	}
       else if (omp_is_private (gimplify_omp_ctxp, decl, 0))
-	omp_notice_variable (gimplify_omp_ctxp, decl, true);
+	{
+	  omp_notice_variable (gimplify_omp_ctxp, decl, true);
+	  splay_tree_node n = splay_tree_lookup (gimplify_omp_ctxp->variables,
+						 (splay_tree_key) decl);
+	  if (n && (n->value & GOVD_LASTPRIVATE_CONDITIONAL))
+	    for (tree c3 = omp_find_clause (OMP_FOR_CLAUSES (for_stmt),
+					    OMP_CLAUSE_LASTPRIVATE);
+		 c3; c3 = omp_find_clause (OMP_CLAUSE_CHAIN (c3),
+					   OMP_CLAUSE_LASTPRIVATE))
+	      if (OMP_CLAUSE_DECL (c3) == decl)
+		{
+		  warning_at (OMP_CLAUSE_LOCATION (c3), 0,
+			      "conditional %<lastprivate%> on loop "
+			      "iterator %qD ignored", decl);
+		  OMP_CLAUSE_LASTPRIVATE_CONDITIONAL (c3) = 0;
+		  n->value &= ~GOVD_LASTPRIVATE_CONDITIONAL;
+		}
+	}
       else
 	omp_add_variable (gimplify_omp_ctxp, decl, GOVD_PRIVATE | GOVD_SEEN);
 
@@ -12397,7 +12486,8 @@ gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	  break;
 
 	case VIEW_CONVERT_EXPR:
-	  if (is_gimple_reg_type (TREE_TYPE (*expr_p))
+	  if ((fallback & fb_rvalue)
+	      && is_gimple_reg_type (TREE_TYPE (*expr_p))
 	      && is_gimple_reg_type (TREE_TYPE (TREE_OPERAND (*expr_p, 0))))
 	    {
 	      ret = gimplify_expr (&TREE_OPERAND (*expr_p, 0), pre_p,

@@ -1532,7 +1532,8 @@ compute_hash_table_work (struct gcse_hash_table_d *table)
 					      0, regno, hrsi)
 		record_last_reg_set_info (insn, regno);
 
-	      if (! RTL_CONST_OR_PURE_CALL_P (insn))
+	      if (! RTL_CONST_OR_PURE_CALL_P (insn)
+		  || RTL_LOOPING_CONST_OR_PURE_CALL_P (insn))
 		record_last_mem_set_info (insn);
 	    }
 
@@ -4003,7 +4004,8 @@ gcse_or_cprop_is_too_expensive (const char *pass)
   if (memory_request > MAX_GCSE_MEMORY)
     {
       warning (OPT_Wdisabled_optimization,
-	       "%s: %d basic blocks and %d registers; increase --param max-gcse-memory above %d",
+	       "%s: %d basic blocks and %d registers; "
+	       "increase %<--param max-gcse-memory%> above %d",
 	       pass, n_basic_blocks_for_fn (cfun), max_reg_num (),
 	       memory_request);
 

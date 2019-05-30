@@ -437,7 +437,7 @@ const struct attribute_spec c_common_attribute_table[] =
 			      handle_omp_declare_simd_attribute, NULL },
   { "simd",		      0, 1, true,  false, false, false,
 			      handle_simd_attribute, NULL },
-  { "omp declare target",     0, 0, true, false, false, false,
+  { "omp declare target",     0, -1, true, false, false, false,
 			      handle_omp_declare_target_attribute, NULL },
   { "omp declare target link", 0, 0, true, false, false, false,
 			      handle_omp_declare_target_attribute, NULL },
@@ -891,7 +891,7 @@ handle_no_sanitize_attribute (tree *node, tree name, tree args, int,
       tree id = TREE_VALUE (args);
       if (TREE_CODE (id) != STRING_CST)
 	{
-	  error ("no_sanitize argument not a string");
+	  error ("%qE argument not a string", name);
 	  return NULL_TREE;
 	}
 
@@ -1418,8 +1418,8 @@ handle_scalar_storage_order_attribute (tree *node, tree name, tree args,
 
   if (BYTES_BIG_ENDIAN != WORDS_BIG_ENDIAN)
     {
-      error ("scalar_storage_order is not supported because endianness "
-	    "is not uniform");
+      error ("%qE attribute is not supported because endianness is not uniform",
+	     name);
       return NULL_TREE;
     }
 
@@ -1435,8 +1435,8 @@ handle_scalar_storage_order_attribute (tree *node, tree name, tree args,
 	reverse = BYTES_BIG_ENDIAN;
       else
 	{
-	  error ("scalar_storage_order argument must be one of \"big-endian\""
-		 " or \"little-endian\"");
+	  error ("attribute %qE argument must be one of %qs or %qs",
+		 name, "big-endian", "little-endian");
 	  return NULL_TREE;
 	}
 
@@ -1759,9 +1759,9 @@ handle_mode_attribute (tree *node, tree name, tree args,
 	case MODE_VECTOR_ACCUM:
 	case MODE_VECTOR_UACCUM:
 	  warning (OPT_Wattributes, "specifying vector types with "
-		   "__attribute__ ((mode)) is deprecated");
-	  warning (OPT_Wattributes,
-		   "use __attribute__ ((vector_size)) instead");
+		   "%<__attribute__ ((mode))%> is deprecated");
+	  inform (input_location,
+		  "use %<__attribute__ ((vector_size))%> instead");
 	  valid_mode = vector_mode_valid_p (mode);
 	  break;
 
@@ -2486,7 +2486,8 @@ handle_copy_attribute (tree *node, tree name, tree args,
 	      || is_attribute_p ("noinline", atname)
 	      || is_attribute_p ("visibility", atname)
 	      || is_attribute_p ("weak", atname)
-	      || is_attribute_p ("weakref", atname))
+	      || is_attribute_p ("weakref", atname)
+	      || is_attribute_p ("target_clones", atname))
 	    continue;
 
 	  /* Attribute leaf only applies to extern functions.
@@ -2671,7 +2672,8 @@ handle_visibility_attribute (tree *node, tree name, tree args,
     vis = VISIBILITY_PROTECTED;
   else
     {
-      error ("visibility argument must be one of \"default\", \"hidden\", \"protected\" or \"internal\"");
+      error ("attribute %qE argument must be one of %qs, %qs, %qs, or %qs",
+	     name, "default", "hidden", "protected", "internal");
       vis = VISIBILITY_DEFAULT;
     }
 
@@ -2935,8 +2937,8 @@ handle_assume_aligned_attribute (tree *node, tree name, tree args, int,
 	  /* The misalignment specified by the second argument
 	     must be non-negative and less than the alignment.  */
 	  warning (OPT_Wattributes,
-		   "%qE attribute argument %E is not in the range [0, %E)",
-		   name, val, align);
+		   "%qE attribute argument %E is not in the range [0, %wu]",
+		   name, val, tree_to_uhwi (align) - 1);
 	  *no_add_attrs = true;
 	  return NULL_TREE;
 	}
@@ -3083,7 +3085,7 @@ handle_no_limit_stack_attribute (tree *node, tree name,
   else if (DECL_INITIAL (decl))
     {
       error_at (DECL_SOURCE_LOCATION (decl),
-		"can%'t set %qE attribute after definition", name);
+		"cannot set %qE attribute after definition", name);
       *no_add_attrs = true;
     }
   else
@@ -3494,19 +3496,56 @@ type_valid_for_vector_size (tree type, tree atname, tree args,
     return type;
 
   tree size = TREE_VALUE (args);
+  /* Erroneous arguments have already been diagnosed.  */
+  if (size == error_mark_node)
+    return NULL_TREE;
+
   if (size && TREE_CODE (size) != IDENTIFIER_NODE
       && TREE_CODE (size) != FUNCTION_DECL)
     size = default_conversion (size);
 
-  if (!tree_fits_uhwi_p (size))
+  if (TREE_CODE (size) != INTEGER_CST)
     {
-      /* FIXME: make the error message more informative.  */
       if (error_p)
-	warning (OPT_Wattributes, "%qE attribute ignored", atname);
+	error ("%qE attribute argument value %qE is not an integer constant",
+	       atname, size);
+      else
+	warning (OPT_Wattributes,
+		 "%qE attribute argument value %qE is not an integer constant",
+		 atname, size);
       return NULL_TREE;
     }
 
-  unsigned HOST_WIDE_INT vecsize = tree_to_uhwi (size);
+  if (!TYPE_UNSIGNED (TREE_TYPE (size))
+      && tree_int_cst_sgn (size) < 0)
+    {
+      if (error_p)
+	error ("%qE attribute argument value %qE is negative",
+	       atname, size);
+      else
+	warning (OPT_Wattributes,
+		 "%qE attribute argument value %qE is negative",
+		 atname, size);
+      return NULL_TREE;
+    }
+
+  /* The attribute argument value is constrained by the maximum bit
+     alignment representable in unsigned int on the host.  */
+  unsigned HOST_WIDE_INT vecsize;
+  unsigned HOST_WIDE_INT maxsize = tree_to_uhwi (max_object_size ());
+  if (!tree_fits_uhwi_p (size)
+      || (vecsize = tree_to_uhwi (size)) > maxsize)
+    {
+      if (error_p)
+	error ("%qE attribute argument value %qE exceeds %wu",
+	       atname, size, maxsize);
+      else
+	warning (OPT_Wattributes,
+		 "%qE attribute argument value %qE exceeds %wu",
+		 atname, size, maxsize);
+      return NULL_TREE;
+    }
+
   if (vecsize % tree_to_uhwi (TYPE_SIZE_UNIT (type)))
     {
       if (error_p)
@@ -3937,7 +3976,7 @@ handle_no_split_stack_attribute (tree *node, tree name,
   else if (DECL_INITIAL (decl))
     {
       error_at (DECL_SOURCE_LOCATION (decl),
-		"can%'t set %qE attribute after definition", name);
+		"cannot set %qE attribute after definition", name);
       *no_add_attrs = true;
     }
 
@@ -3948,13 +3987,13 @@ handle_no_split_stack_attribute (tree *node, tree name,
    struct attribute_spec.handler.  */
 
 static tree
-handle_returns_nonnull_attribute (tree *node, tree, tree, int,
+handle_returns_nonnull_attribute (tree *node, tree name, tree, int,
 				  bool *no_add_attrs)
 {
   // Even without a prototype we still have a return type we can check.
   if (TREE_CODE (TREE_TYPE (*node)) != POINTER_TYPE)
     {
-      error ("returns_nonnull attribute on a function not returning a pointer");
+      error ("%qE attribute on a function not returning a pointer", name);
       *no_add_attrs = true;
     }
   return NULL_TREE;
@@ -3988,10 +4027,29 @@ handle_fallthrough_attribute (tree *, tree name, tree, int,
   return NULL_TREE;
 }
 
+/* Handle a "patchable_function_entry" attributes; arguments as in
+   struct attribute_spec.handler.  */
+
 static tree
-handle_patchable_function_entry_attribute (tree *, tree, tree, int, bool *)
+handle_patchable_function_entry_attribute (tree *, tree name, tree args,
+					   int, bool *no_add_attrs)
 {
-  /* Nothing to be done here.  */
+  for (; args; args = TREE_CHAIN (args))
+    {
+      tree val = TREE_VALUE (args);
+      if (val && TREE_CODE (val) != IDENTIFIER_NODE
+	  && TREE_CODE (val) != FUNCTION_DECL)
+	val = default_conversion (val);
+
+      if (!tree_fits_uhwi_p (val))
+	{
+	  warning (OPT_Wattributes,
+		   "%qE attribute argument %qE is not an integer constant",
+		   name, val);
+	  *no_add_attrs = true;
+	  return NULL_TREE;
+	}
+    }
   return NULL_TREE;
 }
 
@@ -4049,8 +4107,12 @@ validate_attribute (location_t atloc, tree oper, tree attr)
 
   if (TYPE_P (oper))
     tmpdecl = build_decl (atloc, TYPE_DECL, tmpid, oper);
-  else
+  else if (DECL_P (oper))
     tmpdecl = build_decl (atloc, TREE_CODE (oper), tmpid, TREE_TYPE (oper));
+  else if (EXPR_P (oper))
+    tmpdecl = build_decl (atloc, TYPE_DECL, tmpid, TREE_TYPE (oper));
+  else
+    return false;
 
   /* Temporarily clear CURRENT_FUNCTION_DECL to make decl_attributes
      believe the DECL declared above is at file scope.  (See bug 87526.)  */
@@ -4059,7 +4121,7 @@ validate_attribute (location_t atloc, tree oper, tree attr)
   if (DECL_P (tmpdecl))
     {
       if (DECL_P (oper))
-	/* An alias cannot be a defintion so declare the symbol extern.  */
+	/* An alias cannot be a definition so declare the symbol extern.  */
 	DECL_EXTERNAL (tmpdecl) = true;
       /* Attribute visibility only applies to symbols visible from other
 	 translation units so make it "public."   */
@@ -4095,11 +4157,17 @@ has_attribute (location_t atloc, tree t, tree attr, tree (*convert)(tree))
       do
 	{
 	  /* Determine the array element/member declaration from
-	     an ARRAY/COMPONENT_REF.  */
+	     a COMPONENT_REF and an INDIRECT_REF involving a refeence.  */
 	  STRIP_NOPS (t);
 	  tree_code code = TREE_CODE (t);
-	  if (code == ARRAY_REF)
-	    t = TREE_OPERAND (t, 0);
+	  if (code == INDIRECT_REF)
+	    {
+	      tree op0 = TREE_OPERAND (t, 0);
+	      if (TREE_CODE (TREE_TYPE (op0)) == REFERENCE_TYPE)
+		t = op0;
+	      else
+		break;
+	    }
 	  else if (code == COMPONENT_REF)
 	    t = TREE_OPERAND (t, 1);
 	  else
@@ -4150,7 +4218,8 @@ has_attribute (location_t atloc, tree t, tree attr, tree (*convert)(tree))
 	}
       else
 	{
-	  atlist = TYPE_ATTRIBUTES (TREE_TYPE (expr));
+	  type = TREE_TYPE (expr);
+	  atlist = TYPE_ATTRIBUTES (type);
 	  done = true;
 	}
 
@@ -4226,9 +4295,10 @@ has_attribute (location_t atloc, tree t, tree attr, tree (*convert)(tree))
 	      if (tree arg = TREE_VALUE (attr))
 		{
 		  arg = convert (TREE_VALUE (arg));
-		  if (expr && DECL_P (expr)
-		      && DECL_USER_ALIGN (expr)
-		      && tree_fits_uhwi_p (arg))
+		  if (!tree_fits_uhwi_p (arg))
+		    /* Invalid argument.  */;
+		  else if (expr && DECL_P (expr)
+			   && DECL_USER_ALIGN (expr))
 		    found_match = DECL_ALIGN_UNIT (expr) == tree_to_uhwi (arg);
 		  else if (type && TYPE_USER_ALIGN (type))
 		    found_match = TYPE_ALIGN_UNIT (type) == tree_to_uhwi (arg);
@@ -4265,13 +4335,7 @@ has_attribute (location_t atloc, tree t, tree attr, tree (*convert)(tree))
 	    }
 	  else if (!strcmp ("vector_size", namestr))
 	    {
-	      if (!type)
-		continue;
-
-	      /* Determine the base type from arrays, pointers, and such.
-		 Fail if the base type is not a vector.  */
-	      type = type_for_vector_size (type);
-	      if (!VECTOR_TYPE_P (type))
+	      if (!type || !VECTOR_TYPE_P (type))
 		return false;
 
 	      if (tree arg = TREE_VALUE (attr))

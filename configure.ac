@@ -164,7 +164,8 @@ target_libraries="target-libgcc \
 		target-libada \
 		target-libgo \
 		target-libgrust \
-		target-libphobos"
+		target-libphobos \
+		target-zlib"
 
 # these tools are built using the target libraries, and are intended to
 # run only in the target environment
@@ -681,7 +682,7 @@ case ,${enable_languages}, in
     ;;
   *)
     case "${target}" in
-      *-*-darwin* | *-*-cygwin* | *-*-mingw*)
+      *-*-darwin*)
 	unsupported_languages="$unsupported_languages d"
 	;;
     esac
@@ -695,7 +696,7 @@ if test -d ${srcdir}/libphobos; then
 	AC_MSG_CHECKING([for libphobos support])
 	if (srcdir=${srcdir}/libphobos; \
 		. ${srcdir}/configure.tgt; \
-		test -n "$UNSUPPORTED")
+		test "$LIBPHOBOS_SUPPORTED" != "yes")
 	then
 	    AC_MSG_RESULT([no])
 	    noconfigdirs="$noconfigdirs target-libphobos"

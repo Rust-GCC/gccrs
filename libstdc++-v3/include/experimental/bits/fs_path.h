@@ -72,7 +72,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 #endif
 
   /**
-   * @ingroup filesystem-ts
+   * @addtogroup filesystem-ts
    * @{
    */
 
@@ -128,11 +128,12 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
       : decltype(__is_path_src(std::declval<_Source>(), 0))
       { };
 
-    template<typename _Tp1, typename _Tp2 = void>
+    template<typename _Tp1, typename _Tp2 = void,
+	     typename _Tp1_nocv = typename remove_cv<_Tp1>::type,
+	     typename _Tp1_noptr = typename remove_pointer<_Tp1>::type>
       using _Path = typename
-	std::enable_if<__and_<__not_<is_same<typename remove_cv<_Tp1>::type,
-					     path>>,
-			      __not_<is_void<_Tp1>>,
+	std::enable_if<__and_<__not_<is_same<_Tp1_nocv, path>>,
+			      __not_<is_void<_Tp1_noptr>>,
 			      __constructible_from<_Tp1, _Tp2>>::value,
 		       path>::type;
 
@@ -194,7 +195,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
     path(path&& __p) noexcept
     : _M_pathname(std::move(__p._M_pathname)), _M_type(__p._M_type)
     {
-      _M_split_cmpts();
+      if (_M_type == _Type::_Multi)
+	_M_split_cmpts();
       __p.clear();
     }
 
@@ -399,6 +401,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
     iterator begin() const;
     iterator end() const;
 
+    /// @cond undocumented
     // Create a basic_string by reading until a null character.
     template<typename _InputIterator,
 	     typename _Traits = std::iterator_traits<_InputIterator>,
@@ -412,6 +415,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 	  __str.push_back(__ch);
 	return __str;
       }
+    /// @endcond
 
   private:
     enum class _Type : unsigned char {
@@ -483,11 +487,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
       _S_convert_loc(_InputIterator __src, __null_terminated,
 		     const std::locale& __loc)
       {
-	std::string __s = _S_string_from_iter(__src);
+	const std::string __s = _S_string_from_iter(__src);
 	return _S_convert_loc(__s.data(), __s.data() + __s.size(), __loc);
       }
 
-    bool _S_is_dir_sep(value_type __ch)
+    static bool _S_is_dir_sep(value_type __ch)
     {
 #ifdef _GLIBCXX_FILESYSTEM_IS_WINDOWS
       return __ch == L'/' || __ch == preferred_separator;
@@ -510,8 +514,12 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
     _Type _M_type = _Type::_Multi;
   };
 
+  /// @relates std::experimental::filesystem::path @{
+
+  /// Swap overload for paths
   inline void swap(path& __lhs, path& __rhs) noexcept { __lhs.swap(__rhs); }
 
+  /// Compute a hash value for a path
   size_t hash_value(const path& __p) noexcept;
 
   /// Compare paths
@@ -571,6 +579,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
       return __is;
     }
 
+  /// Create a path from a UTF-8-encoded sequence of char
   // TODO constrain with _Path<Source> and __value_type_is_char
   template<typename _Source>
     inline path
@@ -583,6 +592,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 #endif
     }
 
+  /// Create a path from a UTF-8-encoded sequence of char
   // TODO constrain with _Path<InputIterator, InputIterator> and __value_type_is_char
   template<typename _InputIterator>
     inline path
@@ -595,6 +605,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 #endif
     }
 
+  /// @}
+
+  /// Exception type thrown by the Filesystem TS library
   class filesystem_error : public std::system_error
   {
   public:
@@ -624,6 +637,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
     std::string _M_what = _M_gen_what();
   };
 
+  /// @cond undocumented
   struct path::_Cmpt : path
   {
     _Cmpt(string_type __s, _Type __t, size_t __pos)
@@ -732,6 +746,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 		  __gnu_cxx::__normal_iterator<_Iter, _Cont> __last)
 	{ return _S_convert(__first.base(), __last.base()); }
     };
+  /// @endcond
 
   /// An iterator for the components of a path
   class path::iterator

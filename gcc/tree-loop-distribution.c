@@ -115,6 +115,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "params.h"
 #include "tree-vectorizer.h"
 #include "tree-eh.h"
+#include "gimple-fold.h"
 
 
 #define MAX_DATAREFS_NUM \
@@ -635,6 +636,7 @@ struct partition
   bitmap stmts;
   /* True if the partition defines variable which is used outside of loop.  */
   bool reduction_p;
+  location_t loc;
   enum partition_kind kind;
   enum partition_type type;
   /* Data references in the partition.  */
@@ -652,7 +654,9 @@ partition_alloc (void)
   partition *partition = XCNEW (struct partition);
   partition->stmts = BITMAP_ALLOC (NULL);
   partition->reduction_p = false;
+  partition->loc = UNKNOWN_LOCATION;
   partition->kind = PKIND_NORMAL;
+  partition->type = PTYPE_PARALLEL;
   partition->datarefs = BITMAP_ALLOC (NULL);
   return partition;
 }
@@ -1027,7 +1031,9 @@ generate_memset_builtin (struct loop *loop, partition *partition)
 
   fn = build_fold_addr_expr (builtin_decl_implicit (BUILT_IN_MEMSET));
   fn_call = gimple_build_call (fn, 3, mem, val, nb_bytes);
+  gimple_set_location (fn_call, partition->loc);
   gsi_insert_after (&gsi, fn_call, GSI_CONTINUE_LINKING);
+  fold_stmt (&gsi);
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
@@ -1070,7 +1076,9 @@ generate_memcpy_builtin (struct loop *loop, partition *partition)
 				  false, GSI_CONTINUE_LINKING);
   fn = build_fold_addr_expr (builtin_decl_implicit (kind));
   fn_call = gimple_build_call (fn, 3, dest, src, nb_bytes);
+  gimple_set_location (fn_call, partition->loc);
   gsi_insert_after (&gsi, fn_call, GSI_CONTINUE_LINKING);
+  fold_stmt (&gsi);
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
@@ -1094,12 +1102,8 @@ destroy_loop (struct loop *loop)
 
   bbs = get_loop_body_in_dom_order (loop);
 
-  redirect_edge_pred (exit, src);
-  exit->flags &= ~(EDGE_TRUE_VALUE|EDGE_FALSE_VALUE);
-  exit->flags |= EDGE_FALLTHRU;
-  cancel_loop_tree (loop);
-  rescan_loop_exit (exit, false, true);
-
+  gimple_stmt_iterator dst_gsi = gsi_after_labels (exit->dest);
+  bool safe_p = single_pred_p (exit->dest);
   i = nbbs;
   do
     {
@@ -1116,14 +1120,45 @@ destroy_loop (struct loop *loop)
 	  if (virtual_operand_p (gimple_phi_result (phi)))
 	    mark_virtual_phi_result_for_renaming (phi);
 	}
-      for (gimple_stmt_iterator gsi = gsi_start_bb (bbs[i]); !gsi_end_p (gsi);
-	   gsi_next (&gsi))
+      for (gimple_stmt_iterator gsi = gsi_start_bb (bbs[i]); !gsi_end_p (gsi);)
 	{
 	  gimple *stmt = gsi_stmt (gsi);
 	  tree vdef = gimple_vdef (stmt);
 	  if (vdef && TREE_CODE (vdef) == SSA_NAME)
 	    mark_virtual_operand_for_renaming (vdef);
+	  /* Also move and eventually reset debug stmts.  We can leave
+	     constant values in place in case the stmt dominates the exit.
+	     ???  Non-constant values from the last iteration can be
+	     replaced with final values if we can compute them.  */
+	  if (gimple_debug_bind_p (stmt))
+	    {
+	      tree val = gimple_debug_bind_get_value (stmt);
+	      gsi_move_before (&gsi, &dst_gsi);
+	      if (val
+		  && (!safe_p
+		      || !is_gimple_min_invariant (val)
+		      || !dominated_by_p (CDI_DOMINATORS, exit->src, bbs[i])))
+		{
+		  gimple_debug_bind_reset_value (stmt);
+		  update_stmt (stmt);
+		}
+	    }
+	  else
+	    gsi_next (&gsi);
 	}
+    }
+  while (i != 0);
+
+  redirect_edge_pred (exit, src);
+  exit->flags &= ~(EDGE_TRUE_VALUE|EDGE_FALSE_VALUE);
+  exit->flags |= EDGE_FALLTHRU;
+  cancel_loop_tree (loop);
+  rescan_loop_exit (exit, false, true);
+
+  i = nbbs;
+  do
+    {
+      --i;
       delete_basic_block (bbs[i]);
     }
   while (i != 0);
@@ -1675,6 +1710,8 @@ classify_partition (loop_p loop, struct graph *rdg, partition *partition,
   /* Find single load/store data references for builtin partition.  */
   if (!find_single_drs (loop, rdg, partition, &single_st, &single_ld))
     return;
+
+  partition->loc = gimple_location (DR_STMT (single_st));
 
   /* Classify the builtin kind.  */
   if (single_ld == NULL)
@@ -2742,7 +2779,8 @@ finalize_partitions (struct loop *loop, vec<struct partition *> *partitions,
 
 static int
 distribute_loop (struct loop *loop, vec<gimple *> stmts,
-		 control_dependences *cd, int *nb_calls, bool *destroy_p)
+		 control_dependences *cd, int *nb_calls, bool *destroy_p,
+		 bool only_patterns_p)
 {
   ddrs_table = new hash_table<ddr_hasher> (389);
   struct graph *rdg;
@@ -2816,7 +2854,7 @@ distribute_loop (struct loop *loop, vec<gimple *> stmts,
 
   /* If we are only distributing patterns but did not detect any,
      simply bail out.  */
-  if (!flag_tree_loop_distribution
+  if (only_patterns_p
       && !any_builtin)
     {
       nbp = 0;
@@ -2828,7 +2866,7 @@ distribute_loop (struct loop *loop, vec<gimple *> stmts,
      a loop into pieces, separated by builtin calls.  That is, we
      only want no or a single loop body remaining.  */
   struct partition *into;
-  if (!flag_tree_loop_distribution)
+  if (only_patterns_p)
     {
       for (i = 0; partitions.iterate (i, &into); ++i)
 	if (!partition_builtin_p (into))
@@ -3013,6 +3051,10 @@ find_seed_stmts_for_distribution (struct loop *loop, vec<gimple *> *work_list)
 	{
 	  gimple *stmt = gsi_stmt (gsi);
 
+	  /* Ignore clobbers, they do not have true side effects.  */
+	  if (gimple_clobber_p (stmt))
+	    continue;
+
 	  /* If there is a stmt with side-effects bail out - we
 	     cannot and should not distribute this loop.  */
 	  if (gimple_has_side_effects (stmt))
@@ -3054,7 +3096,6 @@ prepare_perfect_loop_nest (struct loop *loop)
 	 && loop_outer (outer)
 	 && outer->inner == loop && loop->next == NULL
 	 && single_exit (outer)
-	 && optimize_loop_for_speed_p (outer)
 	 && !chrec_contains_symbols_defined_in_loop (niters, outer->num)
 	 && (niters = number_of_latch_executions (outer)) != NULL_TREE
 	 && niters != chrec_dont_know)
@@ -3108,9 +3149,11 @@ pass_loop_distribution::execute (function *fun)
      walking to innermost loops.  */
   FOR_EACH_LOOP (loop, LI_ONLY_INNERMOST)
     {
-      /* Don't distribute multiple exit edges loop, or cold loop.  */
+      /* Don't distribute multiple exit edges loop, or cold loop when
+         not doing pattern detection.  */
       if (!single_exit (loop)
-	  || !optimize_loop_for_speed_p (loop))
+	  || (!flag_tree_loop_distribute_patterns
+	      && !optimize_loop_for_speed_p (loop)))
 	continue;
 
       /* Don't distribute loop if niters is unknown.  */
@@ -3138,9 +3181,10 @@ pass_loop_distribution::execute (function *fun)
 
 	  bool destroy_p;
 	  int nb_generated_loops, nb_generated_calls;
-	  nb_generated_loops = distribute_loop (loop, work_list, cd,
-						&nb_generated_calls,
-						&destroy_p);
+	  nb_generated_loops
+	    = distribute_loop (loop, work_list, cd, &nb_generated_calls,
+			       &destroy_p, (!optimize_loop_for_speed_p (loop)
+					    || !flag_tree_loop_distribution));
 	  if (destroy_p)
 	    loops_to_be_destroyed.safe_push (loop);
 

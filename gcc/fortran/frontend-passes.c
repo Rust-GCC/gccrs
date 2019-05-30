@@ -54,7 +54,6 @@ static gfc_code * create_do_loop (gfc_expr *, gfc_expr *, gfc_expr *,
 static gfc_expr* check_conjg_transpose_variable (gfc_expr *, bool *,
 						 bool *);
 static int call_external_blas (gfc_code **, int *, void *);
-static bool has_dimen_vector_ref (gfc_expr *);
 static int matmul_temp_args (gfc_code **, int *,void *data);
 static int index_interchange (gfc_code **, int*, void *);
 
@@ -2868,7 +2867,7 @@ matmul_temp_args (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
     {
       if (matrix_a->expr_type == EXPR_VARIABLE
 	  && (gfc_check_dependency (matrix_a, expr1, true)
-	      || has_dimen_vector_ref (matrix_a)))
+	      || gfc_has_dimen_vector_ref (matrix_a)))
 	a_tmp = true;
     }
   else
@@ -2881,7 +2880,7 @@ matmul_temp_args (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
     {
       if (matrix_b->expr_type == EXPR_VARIABLE
 	  && (gfc_check_dependency (matrix_b, expr1, true)
-	      || has_dimen_vector_ref (matrix_b)))
+	      || gfc_has_dimen_vector_ref (matrix_b)))
 	b_tmp = true;
     }
   else
@@ -3681,8 +3680,8 @@ scalarized_expr (gfc_expr *e_in, gfc_expr **index, int count_index)
 
 /* Helper function to check for a dimen vector as subscript.  */
 
-static bool
-has_dimen_vector_ref (gfc_expr *e)
+bool
+gfc_has_dimen_vector_ref (gfc_expr *e)
 {
   gfc_array_ref *ar;
   int i;
@@ -3743,11 +3742,14 @@ check_conjg_transpose_variable (gfc_expr *e, bool *conjg, bool *transpose)
 
 /* Macros for unified error messages.  */
 
-#define B_ERROR(n) _("Incorrect extent in argument B in MATMUL intrinsic in " \
-		     "dimension " #n ": is %ld, should be %ld")
+#define B_ERROR_1 _("Incorrect extent in argument B in MATMUL intrinsic in " \
+		     "dimension 1: is %ld, should be %ld")
 
-#define C_ERROR(n) _("Array bound mismatch for dimension " #n " of array " \
-		     "(%ld/%ld)")
+#define C_ERROR_1 _("Array bound mismatch for dimension 1 of array " \
+		    "(%ld/%ld)")
+
+#define C_ERROR_2 _("Array bound mismatch for dimension 2 of array " \
+		    "(%ld/%ld)")
 
 
 /* Inline assignments of the form c = matmul(a,b).
@@ -3835,8 +3837,8 @@ inline_matmul_assign (gfc_code **c, int *walk_subtrees,
   if (matrix_b == NULL)
     return 0;
 
-  if (has_dimen_vector_ref (expr1) || has_dimen_vector_ref (matrix_a)
-      || has_dimen_vector_ref (matrix_b))
+  if (gfc_has_dimen_vector_ref (expr1) || gfc_has_dimen_vector_ref (matrix_a)
+      || gfc_has_dimen_vector_ref (matrix_b))
     return 0;
 
   /* We do not handle data dependencies yet.  */
@@ -3976,7 +3978,7 @@ inline_matmul_assign (gfc_code **c, int *walk_subtrees,
 
 	  b1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 1);
 	  a2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 2);
-	  test = runtime_error_ne (b1, a2, B_ERROR(1));
+	  test = runtime_error_ne (b1, a2, B_ERROR_1);
 	  *next_code_point = test;
 	  next_code_point = &test->next;
 
@@ -3984,7 +3986,7 @@ inline_matmul_assign (gfc_code **c, int *walk_subtrees,
 	    {
 	      c1 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 1);
 	      a1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 1);
-	      test = runtime_error_ne (c1, a1, C_ERROR(1));
+	      test = runtime_error_ne (c1, a1, C_ERROR_1);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 	    }
@@ -3994,7 +3996,7 @@ inline_matmul_assign (gfc_code **c, int *walk_subtrees,
 
 	  b1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 1);
 	  a1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 1);
-	  test = runtime_error_ne (b1, a1, B_ERROR(1));
+	  test = runtime_error_ne (b1, a1, B_ERROR_1);
 	  *next_code_point = test;
 	  next_code_point = &test->next;
 
@@ -4002,7 +4004,7 @@ inline_matmul_assign (gfc_code **c, int *walk_subtrees,
 	    {
 	      c1 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 1);
 	      b2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 2);
-	      test = runtime_error_ne (c1, b2, C_ERROR(1));
+	      test = runtime_error_ne (c1, b2, C_ERROR_1);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 	    }
@@ -4012,7 +4014,7 @@ inline_matmul_assign (gfc_code **c, int *walk_subtrees,
 
 	  b1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 1);
 	  a2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 2);
-	  test = runtime_error_ne (b1, a2, B_ERROR(1));
+	  test = runtime_error_ne (b1, a2, B_ERROR_1);
 	  *next_code_point = test;
 	  next_code_point = &test->next;
 
@@ -4020,13 +4022,13 @@ inline_matmul_assign (gfc_code **c, int *walk_subtrees,
 	    {
 	      c1 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 1);
 	      a1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 1);
-	      test = runtime_error_ne (c1, a1, C_ERROR(1));
+	      test = runtime_error_ne (c1, a1, C_ERROR_1);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 
 	      c2 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 2);
 	      b2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 2);
-	      test = runtime_error_ne (c2, b2, C_ERROR(2));
+	      test = runtime_error_ne (c2, b2, C_ERROR_2);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 	    }
@@ -4037,7 +4039,7 @@ inline_matmul_assign (gfc_code **c, int *walk_subtrees,
 	  b2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 2);
 	  a2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 2);
 	  /* matrix_b is transposed, hence dimension 1 for the error message.  */
-	  test = runtime_error_ne (b2, a2, B_ERROR(1));
+	  test = runtime_error_ne (b2, a2, B_ERROR_1);
 	  *next_code_point = test;
 	  next_code_point = &test->next;
 
@@ -4045,13 +4047,13 @@ inline_matmul_assign (gfc_code **c, int *walk_subtrees,
 	    {
 	      c1 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 1);
 	      a1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 1);
-	      test = runtime_error_ne (c1, a1, C_ERROR(1));
+	      test = runtime_error_ne (c1, a1, C_ERROR_1);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 
 	      c2 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 2);
 	      b1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 1);
-	      test = runtime_error_ne (c2, b1, C_ERROR(2));
+	      test = runtime_error_ne (c2, b1, C_ERROR_2);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 	    }
@@ -4061,7 +4063,7 @@ inline_matmul_assign (gfc_code **c, int *walk_subtrees,
 
 	  b1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 1);
 	  a1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 1);
-	  test = runtime_error_ne (b1, a1, B_ERROR(1));
+	  test = runtime_error_ne (b1, a1, B_ERROR_1);
 	  *next_code_point = test;
 	  next_code_point = &test->next;
 
@@ -4069,13 +4071,13 @@ inline_matmul_assign (gfc_code **c, int *walk_subtrees,
 	    {
 	      c1 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 1);
 	      a2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 2);
-	      test = runtime_error_ne (c1, a2, C_ERROR(1));
+	      test = runtime_error_ne (c1, a2, C_ERROR_1);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 
 	      c2 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 2);
 	      b2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 2);
-	      test = runtime_error_ne (c2, b2, C_ERROR(2));
+	      test = runtime_error_ne (c2, b2, C_ERROR_2);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 	    }
@@ -4478,7 +4480,7 @@ call_external_blas (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
 	case A2B2:
 	  b1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 1);
 	  a2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 2);
-	  test = runtime_error_ne (b1, a2, B_ERROR(1));
+	  test = runtime_error_ne (b1, a2, B_ERROR_1);
 	  *next_code_point = test;
 	  next_code_point = &test->next;
 
@@ -4486,13 +4488,13 @@ call_external_blas (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
 	    {
 	      c1 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 1);
 	      a1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 1);
-	      test = runtime_error_ne (c1, a1, C_ERROR(1));
+	      test = runtime_error_ne (c1, a1, C_ERROR_1);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 
 	      c2 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 2);
 	      b2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 2);
-	      test = runtime_error_ne (c2, b2, C_ERROR(2));
+	      test = runtime_error_ne (c2, b2, C_ERROR_2);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 	    }
@@ -4503,7 +4505,7 @@ call_external_blas (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
 	  b2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 2);
 	  a2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 2);
 	  /* matrix_b is transposed, hence dimension 1 for the error message.  */
-	  test = runtime_error_ne (b2, a2, B_ERROR(1));
+	  test = runtime_error_ne (b2, a2, B_ERROR_1);
 	  *next_code_point = test;
 	  next_code_point = &test->next;
 
@@ -4511,13 +4513,13 @@ call_external_blas (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
 	    {
 	      c1 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 1);
 	      a1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 1);
-	      test = runtime_error_ne (c1, a1, C_ERROR(1));
+	      test = runtime_error_ne (c1, a1, C_ERROR_1);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 
 	      c2 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 2);
 	      b1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 1);
-	      test = runtime_error_ne (c2, b1, C_ERROR(2));
+	      test = runtime_error_ne (c2, b1, C_ERROR_2);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 	    }
@@ -4527,7 +4529,7 @@ call_external_blas (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
 
 	  b1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 1);
 	  a1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 1);
-	  test = runtime_error_ne (b1, a1, B_ERROR(1));
+	  test = runtime_error_ne (b1, a1, B_ERROR_1);
 	  *next_code_point = test;
 	  next_code_point = &test->next;
 
@@ -4535,13 +4537,13 @@ call_external_blas (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
 	    {
 	      c1 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 1);
 	      a2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 2);
-	      test = runtime_error_ne (c1, a2, C_ERROR(1));
+	      test = runtime_error_ne (c1, a2, C_ERROR_1);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 
 	      c2 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 2);
 	      b2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 2);
-	      test = runtime_error_ne (c2, b2, C_ERROR(2));
+	      test = runtime_error_ne (c2, b2, C_ERROR_2);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 	    }
@@ -4550,7 +4552,7 @@ call_external_blas (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
 	case A2TB2T:
 	  b2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 2);
 	  a1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 1);
-	  test = runtime_error_ne (b2, a1, B_ERROR(1));
+	  test = runtime_error_ne (b2, a1, B_ERROR_1);
 	  *next_code_point = test;
 	  next_code_point = &test->next;
 
@@ -4558,13 +4560,13 @@ call_external_blas (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
 	    {
 	      c1 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 1);
 	      a2 = get_array_inq_function (GFC_ISYM_SIZE, matrix_a, 2);
-	      test = runtime_error_ne (c1, a2, C_ERROR(1));
+	      test = runtime_error_ne (c1, a2, C_ERROR_1);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 
 	      c2 = get_array_inq_function (GFC_ISYM_SIZE, expr1, 2);
 	      b1 = get_array_inq_function (GFC_ISYM_SIZE, matrix_b, 1);
-	      test = runtime_error_ne (c2, b1, C_ERROR(2));
+	      test = runtime_error_ne (c2, b1, C_ERROR_2);
 	      *next_code_point = test;
 	      next_code_point = &test->next;
 	    }

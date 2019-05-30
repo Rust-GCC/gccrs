@@ -460,7 +460,7 @@ namespace __detail
     // Return a bucket count appropriate for n elements
     std::size_t
     _M_bkt_for_elements(std::size_t __n) const
-    { return __builtin_ceil(__n / (long double)_M_max_load_factor); }
+    { return __builtin_ceill(__n / (long double)_M_max_load_factor); }
 
     // __n_bkt is current bucket count, __n_elt is current element count,
     // and __n_ins is number of elements to be inserted.  Do we need to
@@ -535,24 +535,32 @@ namespace __detail
     std::size_t
     _M_next_bkt(std::size_t __n) noexcept
     {
+      if (__n == 0)
+	// Special case on container 1st initialization with 0 bucket count
+	// hint. We keep _M_next_resize to 0 to make sure that next time we
+	// want to add an element allocation will take place.
+	return 1;
+
       const auto __max_width = std::min<size_t>(sizeof(size_t), 8);
       const auto __max_bkt = size_t(1) << (__max_width * __CHAR_BIT__ - 1);
       std::size_t __res = __clp2(__n);
 
-      if (__res == __n)
-	__res <<= 1;
-
       if (__res == 0)
 	__res = __max_bkt;
+      else if (__res == 1)
+	// If __res is 1 we force it to 2 to make sure there will be an
+	// allocation so that nothing need to be stored in the initial
+	// single bucket
+	__res = 2;
 
       if (__res == __max_bkt)
 	// Set next resize to the max value so that we never try to rehash again
 	// as we already reach the biggest possible bucket number.
 	// Note that it might result in max_load_factor not being respected.
-	_M_next_resize = std::size_t(-1);
+	_M_next_resize = numeric_limits<size_t>::max();
       else
 	_M_next_resize
-	  = __builtin_ceil(__res * (long double)_M_max_load_factor);
+	  = __builtin_floorl(__res * (long double)_M_max_load_factor);
 
       return __res;
     }
@@ -560,7 +568,7 @@ namespace __detail
     // Return a bucket count appropriate for n elements
     std::size_t
     _M_bkt_for_elements(std::size_t __n) const noexcept
-    { return __builtin_ceil(__n / (long double)_M_max_load_factor); }
+    { return __builtin_ceill(__n / (long double)_M_max_load_factor); }
 
     // __n_bkt is current bucket count, __n_elt is current element count,
     // and __n_ins is number of elements to be inserted.  Do we need to
@@ -570,21 +578,25 @@ namespace __detail
     _M_need_rehash(std::size_t __n_bkt, std::size_t __n_elt,
 		   std::size_t __n_ins) noexcept
     {
-      if (__n_elt + __n_ins >= _M_next_resize)
+      if (__n_elt + __n_ins > _M_next_resize)
 	{
-	  long double __min_bkts = (__n_elt + __n_ins)
-					/ (long double)_M_max_load_factor;
+	  // If _M_next_resize is 0 it means that we have nothing allocated so
+	  // far and that we start inserting elements. In this case we start
+	  // with an initial bucket size of 11.
+	  long double __min_bkts
+	    = std::max<std::size_t>(__n_elt + __n_ins, _M_next_resize ? 0 : 11)
+	      / (long double)_M_max_load_factor;
 	  if (__min_bkts >= __n_bkt)
-	    return std::make_pair(true,
-	      _M_next_bkt(std::max<std::size_t>(__builtin_floor(__min_bkts) + 1,
-						__n_bkt * _S_growth_factor)));
+	    return { true,
+	      _M_next_bkt(std::max<std::size_t>(__builtin_floorl(__min_bkts) + 1,
+						__n_bkt * _S_growth_factor)) };
 
 	  _M_next_resize
-	    = __builtin_floor(__n_bkt * (long double)_M_max_load_factor);
-	  return std::make_pair(false, 0);
+	    = __builtin_floorl(__n_bkt * (long double)_M_max_load_factor);
+	  return { false, 0 };
 	}
       else
-	return std::make_pair(false, 0);
+	return { false, 0 };
     }
 
     typedef std::size_t _State;
@@ -1074,7 +1086,7 @@ namespace __detail
       reserve(std::size_t __n)
       {
 	__hashtable* __this = static_cast<__hashtable*>(this);
-	__this->rehash(__builtin_ceil(__n / max_load_factor()));
+	__this->rehash(__this->__rehash_policy()._M_bkt_for_elements(__n));
       }
     };
 
@@ -1100,13 +1112,8 @@ namespace __detail
 	  : _Tp(std::forward<_OtherTp>(__tp))
 	{ }
 
-      static const _Tp&
-      _S_cget(const _Hashtable_ebo_helper& __eboh)
-      { return static_cast<const _Tp&>(__eboh); }
-
-      static _Tp&
-      _S_get(_Hashtable_ebo_helper& __eboh)
-      { return static_cast<_Tp&>(__eboh); }
+      const _Tp& _M_cget() const { return static_cast<const _Tp&>(*this); }
+      _Tp& _M_get() { return static_cast<_Tp&>(*this); }
     };
 
   /// Specialization not using EBO.
@@ -1120,13 +1127,8 @@ namespace __detail
 	  : _M_tp(std::forward<_OtherTp>(__tp))
 	{ }
 
-      static const _Tp&
-      _S_cget(const _Hashtable_ebo_helper& __eboh)
-      { return __eboh._M_tp; }
-
-      static _Tp&
-      _S_get(_Hashtable_ebo_helper& __eboh)
-      { return __eboh._M_tp; }
+      const _Tp& _M_cget() const { return _M_tp; }
+      _Tp& _M_get() { return _M_tp; }
 
     private:
       _Tp _M_tp;
@@ -1217,21 +1219,16 @@ namespace __detail
       void
       _M_swap(_Hash_code_base& __x)
       {
-	std::swap(_M_extract(), __x._M_extract());
-	std::swap(_M_ranged_hash(), __x._M_ranged_hash());
+	std::swap(__ebo_extract_key::_M_get(),
+		  __x.__ebo_extract_key::_M_get());
+	std::swap(__ebo_hash::_M_get(), __x.__ebo_hash::_M_get());
       }
 
       const _ExtractKey&
-      _M_extract() const { return __ebo_extract_key::_S_cget(*this); }
-
-      _ExtractKey&
-      _M_extract() { return __ebo_extract_key::_S_get(*this); }
+      _M_extract() const { return __ebo_extract_key::_M_cget(); }
 
       const _Hash&
-      _M_ranged_hash() const { return __ebo_hash::_S_cget(*this); }
-
-      _Hash&
-      _M_ranged_hash() { return __ebo_hash::_S_get(*this); }
+      _M_ranged_hash() const { return __ebo_hash::_M_cget(); }
     };
 
   // No specialization for ranged hash function while caching hash codes.
@@ -1286,7 +1283,11 @@ namespace __detail
 
       __hash_code
       _M_hash_code(const _Key& __k) const
-      { return _M_h1()(__k); }
+      {
+	static_assert(__is_invocable<const _H1&, const _Key&>{},
+	    "hash function must be invocable with an argument of key type");
+	return _M_h1()(__k);
+      }
 
       std::size_t
       _M_bucket_index(const _Key&, __hash_code __c, std::size_t __n) const
@@ -1310,28 +1311,20 @@ namespace __detail
       void
       _M_swap(_Hash_code_base& __x)
       {
-	std::swap(_M_extract(), __x._M_extract());
-	std::swap(_M_h1(), __x._M_h1());
-	std::swap(_M_h2(), __x._M_h2());
+	std::swap(__ebo_extract_key::_M_get(),
+		  __x.__ebo_extract_key::_M_get());
+	std::swap(__ebo_h1::_M_get(), __x.__ebo_h1::_M_get());
+	std::swap(__ebo_h2::_M_get(), __x.__ebo_h2::_M_get());
       }
 
       const _ExtractKey&
-      _M_extract() const { return __ebo_extract_key::_S_cget(*this); }
-
-      _ExtractKey&
-      _M_extract() { return __ebo_extract_key::_S_get(*this); }
+      _M_extract() const { return __ebo_extract_key::_M_cget(); }
 
       const _H1&
-      _M_h1() const { return __ebo_h1::_S_cget(*this); }
-
-      _H1&
-      _M_h1() { return __ebo_h1::_S_get(*this); }
+      _M_h1() const { return __ebo_h1::_M_cget(); }
 
       const _H2&
-      _M_h2() const { return __ebo_h2::_S_cget(*this); }
-
-      _H2&
-      _M_h2() { return __ebo_h2::_S_get(*this); }
+      _M_h2() const { return __ebo_h2::_M_cget(); }
     };
 
   /// Specialization: hash function and range-hashing function,
@@ -1374,7 +1367,11 @@ namespace __detail
 
       __hash_code
       _M_hash_code(const _Key& __k) const
-      { return _M_h1()(__k); }
+      {
+	static_assert(__is_invocable<const _H1&, const _Key&>{},
+	    "hash function must be invocable with an argument of key type");
+	return _M_h1()(__k);
+      }
 
       std::size_t
       _M_bucket_index(const _Key&, __hash_code __c,
@@ -1398,61 +1395,21 @@ namespace __detail
       void
       _M_swap(_Hash_code_base& __x)
       {
-	std::swap(_M_extract(), __x._M_extract());
-	std::swap(_M_h1(), __x._M_h1());
-	std::swap(_M_h2(), __x._M_h2());
+	std::swap(__ebo_extract_key::_M_get(),
+		  __x.__ebo_extract_key::_M_get());
+	std::swap(__ebo_h1::_M_get(), __x.__ebo_h1::_M_get());
+	std::swap(__ebo_h2::_M_get(), __x.__ebo_h2::_M_get());
       }
 
       const _ExtractKey&
-      _M_extract() const { return __ebo_extract_key::_S_cget(*this); }
-
-      _ExtractKey&
-      _M_extract() { return __ebo_extract_key::_S_get(*this); }
+      _M_extract() const { return __ebo_extract_key::_M_cget(); }
 
       const _H1&
-      _M_h1() const { return __ebo_h1::_S_cget(*this); }
-
-      _H1&
-      _M_h1() { return __ebo_h1::_S_get(*this); }
+      _M_h1() const { return __ebo_h1::_M_cget(); }
 
       const _H2&
-      _M_h2() const { return __ebo_h2::_S_cget(*this); }
-
-      _H2&
-      _M_h2() { return __ebo_h2::_S_get(*this); }
+      _M_h2() const { return __ebo_h2::_M_cget(); }
     };
-
-  /**
-   *  Primary class template _Equal_helper.
-   *
-   */
-  template <typename _Key, typename _Value, typename _ExtractKey,
-	    typename _Equal, typename _HashCodeType,
-	    bool __cache_hash_code>
-  struct _Equal_helper;
-
-  /// Specialization.
-  template<typename _Key, typename _Value, typename _ExtractKey,
-	   typename _Equal, typename _HashCodeType>
-  struct _Equal_helper<_Key, _Value, _ExtractKey, _Equal, _HashCodeType, true>
-  {
-    static bool
-    _S_equals(const _Equal& __eq, const _ExtractKey& __extract,
-	      const _Key& __k, _HashCodeType __c, _Hash_node<_Value, true>* __n)
-    { return __c == __n->_M_hash_code && __eq(__k, __extract(__n->_M_v())); }
-  };
-
-  /// Specialization.
-  template<typename _Key, typename _Value, typename _ExtractKey,
-	   typename _Equal, typename _HashCodeType>
-  struct _Equal_helper<_Key, _Value, _ExtractKey, _Equal, _HashCodeType, false>
-  {
-    static bool
-    _S_equals(const _Equal& __eq, const _ExtractKey& __extract,
-	      const _Key& __k, _HashCodeType, _Hash_node<_Value, false>* __n)
-    { return __eq(__k, __extract(__n->_M_v())); }
-  };
-
 
   /// Partial specialization used when nodes contain a cached hash code.
   template<typename _Key, typename _Value, typename _ExtractKey,
@@ -1480,7 +1437,7 @@ namespace __detail
 	if (_M_cur)
 	  {
 	    std::size_t __bkt
-	      = __base_type::_S_get(*this)(_M_cur->_M_hash_code,
+	      = __base_type::_M_get()(_M_cur->_M_hash_code,
 					   _M_bucket_count);
 	    if (__bkt != _M_bucket)
 	      _M_cur = nullptr;
@@ -1807,8 +1764,22 @@ namespace __detail
 						     iterator>::type;
   private:
     using _EqualEBO = _Hashtable_ebo_helper<0, _Equal>;
-    using _EqualHelper =  _Equal_helper<_Key, _Value, _ExtractKey, _Equal,
-					__hash_code, __hash_cached::value>;
+
+    template<typename _NodeT>
+      struct _Equal_hash_code
+      {
+       static bool
+       _S_equals(__hash_code, const _NodeT&)
+       { return true; }
+      };
+
+    template<typename _Ptr2>
+      struct _Equal_hash_code<_Hash_node<_Ptr2, true>>
+      {
+       static bool
+       _S_equals(__hash_code __c, const _Hash_node<_Ptr2, true>& __n)
+       { return __c == __n._M_hash_code; }
+      };
 
   protected:
     _Hashtable_base() = default;
@@ -1820,22 +1791,22 @@ namespace __detail
     bool
     _M_equals(const _Key& __k, __hash_code __c, __node_type* __n) const
     {
-      return _EqualHelper::_S_equals(_M_eq(), this->_M_extract(),
-				     __k, __c, __n);
+      static_assert(__is_invocable<const _Equal&, const _Key&, const _Key&>{},
+	  "key equality predicate must be invocable with two arguments of "
+	  "key type");
+      return _Equal_hash_code<__node_type>::_S_equals(__c, *__n)
+	&& _M_eq()(__k, this->_M_extract()(__n->_M_v()));
     }
 
     void
     _M_swap(_Hashtable_base& __x)
     {
       __hash_code_base::_M_swap(__x);
-      std::swap(_M_eq(), __x._M_eq());
+      std::swap(_EqualEBO::_M_get(), __x._EqualEBO::_M_get());
     }
 
     const _Equal&
-    _M_eq() const { return _EqualEBO::_S_cget(*this); }
-
-    _Equal&
-    _M_eq() { return _EqualEBO::_S_get(*this); }
+    _M_eq() const { return _EqualEBO::_M_cget(); }
   };
 
   /**
@@ -2033,11 +2004,11 @@ namespace __detail
 
       __node_alloc_type&
       _M_node_allocator()
-      { return __ebo_node_alloc::_S_get(*this); }
+      { return __ebo_node_alloc::_M_get(); }
 
       const __node_alloc_type&
       _M_node_allocator() const
-      { return __ebo_node_alloc::_S_cget(*this); }
+      { return __ebo_node_alloc::_M_cget(); }
 
       template<typename... _Args>
 	__node_type*

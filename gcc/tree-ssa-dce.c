@@ -1237,6 +1237,7 @@ eliminate_unnecessary_stmts (void)
       bb = h.pop ();
 
       /* Remove dead statements.  */
+      auto_bitmap debug_seen;
       for (gsi = gsi_last_bb (bb); !gsi_end_p (gsi); gsi = psi)
 	{
 	  stmt = gsi_stmt (gsi);
@@ -1282,11 +1283,15 @@ eliminate_unnecessary_stmts (void)
 			}
 		    }
 		  if (!dead)
-		    continue;
+		    {
+		      bitmap_clear (debug_seen);
+		      continue;
+		    }
 		}
 	      if (!is_gimple_debug (stmt))
 		something_changed = true;
 	      remove_dead_stmt (&gsi, bb, to_remove_edges);
+	      continue;
 	    }
 	  else if (is_gimple_call (stmt))
 	    {
@@ -1323,12 +1328,16 @@ eliminate_unnecessary_stmts (void)
 		  update_stmt (stmt);
 		  release_ssa_name (name);
 
-		  /* GOMP_SIMD_LANE or ASAN_POISON without lhs is not
-		     needed.  */
+		  /* GOMP_SIMD_LANE (unless two argument) or ASAN_POISON
+		     without lhs is not needed.  */
 		  if (gimple_call_internal_p (stmt))
 		    switch (gimple_call_internal_fn (stmt))
 		      {
 		      case IFN_GOMP_SIMD_LANE:
+			if (gimple_call_num_args (stmt) >= 2
+			    && !integer_nonzerop (gimple_call_arg (stmt, 1)))
+			  break;
+			/* FALLTHRU */
 		      case IFN_ASAN_POISON:
 			remove_dead_stmt (&gsi, bb, to_remove_edges);
 			break;
@@ -1352,6 +1361,18 @@ eliminate_unnecessary_stmts (void)
 		    break;
 		  }
 	    }
+	  else if (gimple_debug_bind_p (stmt))
+	    {
+	      /* We are only keeping the last debug-bind of a
+	         non-DEBUG_EXPR_DECL variable in a series of
+		 debug-bind stmts.  */
+	      tree var = gimple_debug_bind_get_var (stmt);
+	      if (TREE_CODE (var) != DEBUG_EXPR_DECL
+		  && !bitmap_set_bit (debug_seen, DECL_UID (var)))
+		remove_dead_stmt (&gsi, bb, to_remove_edges);
+	      continue;
+	    }
+	  bitmap_clear (debug_seen);
 	}
 
       /* Remove dead PHI nodes.  */

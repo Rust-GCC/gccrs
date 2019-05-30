@@ -278,8 +278,8 @@ path::_List::operator=(const _List& other)
 	    to[i]._M_pathname.reserve(from[i]._M_pathname.length());
 	  if (newsize > oldsize)
 	    {
-	      std::uninitialized_copy_n(to + oldsize, newsize - oldsize,
-					from + oldsize);
+	      std::uninitialized_copy_n(from + oldsize, newsize - oldsize,
+					to + oldsize);
 	      impl->_M_size = newsize;
 	    }
 	  else if (newsize < oldsize)
@@ -1523,11 +1523,9 @@ path::parent_path() const
     __ret = *this;
   else if (_M_cmpts.size() >= 2)
     {
-      for (auto __it = _M_cmpts.begin(), __end = std::prev(_M_cmpts.end());
-	   __it != __end; ++__it)
-	{
-	  __ret /= *__it;
-	}
+      const auto parent = std::prev(_M_cmpts.end(), 2);
+      const auto len = parent->_M_pos + parent->_M_pathname.length();
+      __ret.assign(_M_pathname.substr(0, len));
     }
   return __ret;
 }

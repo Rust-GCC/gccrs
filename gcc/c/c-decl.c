@@ -1780,15 +1780,16 @@ diagnose_arglist_conflict (tree newdecl, tree olddecl,
       if (TREE_CHAIN (t) == NULL_TREE
 	  && TYPE_MAIN_VARIANT (type) != void_type_node)
 	{
-	  inform (input_location, "a parameter list with an ellipsis can%'t match "
-		  "an empty parameter name list declaration");
+	  inform (input_location, "a parameter list with an ellipsis "
+		  "cannot match an empty parameter name list declaration");
 	  break;
 	}
 
       if (c_type_promotes_to (type) != type)
 	{
-	  inform (input_location, "an argument type that has a default promotion can%'t match "
-		  "an empty parameter name list declaration");
+	  inform (input_location, "an argument type that has a default "
+		  "promotion cannot match an empty parameter name list "
+		  "declaration");
 	  break;
 	}
     }
@@ -2512,13 +2513,33 @@ merge_decls (tree newdecl, tree olddecl, tree newtype, tree oldtype)
       if (TYPE_NAME (TREE_TYPE (newdecl)) == newdecl)
 	{
 	  tree remove = TREE_TYPE (newdecl);
-	  for (tree t = TYPE_MAIN_VARIANT (remove); ;
-	       t = TYPE_NEXT_VARIANT (t))
-	    if (TYPE_NEXT_VARIANT (t) == remove)
-	      {
-		TYPE_NEXT_VARIANT (t) = TYPE_NEXT_VARIANT (remove);
-		break;
-	      }
+	  if (TYPE_MAIN_VARIANT (remove) == remove)
+	    {
+	      gcc_assert (TYPE_NEXT_VARIANT (remove) == NULL_TREE);
+	      /* If remove is the main variant, no need to remove that
+		 from the list.  One of the DECL_ORIGINAL_TYPE
+		 variants, e.g. created for aligned attribute, might still
+		 refer to the newdecl TYPE_DECL though, so remove that one
+		 in that case.  */
+	      if (DECL_ORIGINAL_TYPE (newdecl)
+		  && DECL_ORIGINAL_TYPE (newdecl) != remove)
+		for (tree t = TYPE_MAIN_VARIANT (DECL_ORIGINAL_TYPE (newdecl));
+		     t; t = TYPE_MAIN_VARIANT (t))
+		  if (TYPE_NAME (TYPE_NEXT_VARIANT (t)) == newdecl)
+		    {
+		      TYPE_NEXT_VARIANT (t)
+			= TYPE_NEXT_VARIANT (TYPE_NEXT_VARIANT (t));
+		      break;
+		    }
+	    }	    
+	  else
+	    for (tree t = TYPE_MAIN_VARIANT (remove); ;
+		 t = TYPE_NEXT_VARIANT (t))
+	      if (TYPE_NEXT_VARIANT (t) == remove)
+		{
+		  TYPE_NEXT_VARIANT (t) = TYPE_NEXT_VARIANT (remove);
+		  break;
+		}
 	}
     }
 
@@ -4867,7 +4888,7 @@ start_decl (struct c_declarator *declarator, struct c_declspecs *declspecs,
     switch (TREE_CODE (decl))
       {
       case TYPE_DECL:
-	error ("typedef %qD is initialized (use __typeof__ instead)", decl);
+	error ("typedef %qD is initialized (use %<__typeof__%> instead)", decl);
 	initialized = false;
 	break;
 
@@ -5262,7 +5283,7 @@ finish_decl (tree decl, location_t init_loc, tree init,
 	      && VAR_P (decl)
 	      && !C_DECL_REGISTER (decl)
 	      && !TREE_STATIC (decl))
-	    warning (0, "ignoring asm-specifier for non-static local "
+	    warning (0, "ignoring %<asm%> specifier for non-static local "
 		     "variable %q+D", decl);
 	  else
 	    set_user_assembler_name (decl, asmspec);
@@ -5705,10 +5726,10 @@ warn_variable_length_array (tree name, tree size)
       if (name)
 	pedwarn_c90 (input_location, OPT_Wvla,
 		     "ISO C90 forbids array %qE whose size "
-		     "can%'t be evaluated", name);
+		     "cannot be evaluated", name);
       else
 	pedwarn_c90 (input_location, OPT_Wvla, "ISO C90 forbids array "
-		     "whose size can%'t be evaluated");
+		     "whose size cannot be evaluated");
     }
   else
     {

@@ -73,7 +73,7 @@ create_dispatcher_calls (struct cgraph_node *node)
   if (!targetm.has_ifunc_p ())
     {
       error_at (DECL_SOURCE_LOCATION (node->decl),
-		"the call requires ifunc, which is not"
+		"the call requires %<ifunc%>, which is not"
 		" supported by this target");
       return;
     }
@@ -235,8 +235,10 @@ get_attr_str (tree arglist, char *attr_str)
 }
 
 /* Return number of attributes separated by comma and put them into ARGS.
-   If there is no DEFAULT attribute return -1.  If there is an empty
-   string in attribute return -2.  */
+   If there is no DEFAULT attribute return -1.
+   If there is an empty string in attribute return -2.
+   If there are multiple DEFAULT attributes return -3.
+   */
 
 static int
 separate_attrs (char *attr_str, char **attrs, int attrnum)
@@ -256,6 +258,8 @@ separate_attrs (char *attr_str, char **attrs, int attrnum)
     }
   if (default_count == 0)
     return -1;
+  else if (default_count > 1)
+    return -3;
   else if (i + default_count < attrnum)
     return -2;
 
@@ -347,13 +351,12 @@ expand_target_clones (struct cgraph_node *node, bool definition)
   if (attr_len == -1)
     {
       warning_at (DECL_SOURCE_LOCATION (node->decl),
-		  0,
-		  "single %<target_clones%> attribute is ignored");
+		  0, "single %<target_clones%> attribute is ignored");
       return false;
     }
 
   if (node->definition
-      && !tree_versionable_function_p (node->decl))
+      && (node->alias || !tree_versionable_function_p (node->decl)))
     {
       auto_diagnostic_group d;
       error_at (DECL_SOURCE_LOCATION (node->decl),
@@ -362,6 +365,9 @@ expand_target_clones (struct cgraph_node *node, bool definition)
       if (lookup_attribute ("noclone", DECL_ATTRIBUTES (node->decl)))
 	reason = G_("function %q+F can never be copied "
 		    "because it has %<noclone%> attribute");
+      else if (node->alias)
+	reason
+	  = "%<target_clones%> cannot be combined with %<alias%> attribute";
       else
 	reason = copy_forbidden (DECL_STRUCT_FUNCTION (node->decl));
       if (reason)
@@ -374,18 +380,26 @@ expand_target_clones (struct cgraph_node *node, bool definition)
   char **attrs = XNEWVEC (char *, attrnum);
 
   attrnum = separate_attrs (attr_str, attrs, attrnum);
-  if (attrnum == -1)
+  switch (attrnum)
     {
+    case -1:
       error_at (DECL_SOURCE_LOCATION (node->decl),
-		"default target was not set");
-      XDELETEVEC (attrs);
-      XDELETEVEC (attr_str);
-      return false;
-    }
-  else if (attrnum == -2)
-    {
+		"%<default%> target was not set");
+      break;
+    case -2:
       error_at (DECL_SOURCE_LOCATION (node->decl),
 		"an empty string cannot be in %<target_clones%> attribute");
+      break;
+    case -3:
+      error_at (DECL_SOURCE_LOCATION (node->decl),
+		"multiple %<default%> targets were set");
+      break;
+    default:
+      break;
+    }
+
+  if (attrnum < 0)
+    {
       XDELETEVEC (attrs);
       XDELETEVEC (attr_str);
       return false;

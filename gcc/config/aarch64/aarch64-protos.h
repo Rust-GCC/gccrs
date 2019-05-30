@@ -396,8 +396,17 @@ enum simd_immediate_check {
   AARCH64_CHECK_MOV  = AARCH64_CHECK_ORR | AARCH64_CHECK_BIC
 };
 
+/* The key type that -msign-return-address should use.  */
+enum aarch64_key_type {
+  AARCH64_KEY_A,
+  AARCH64_KEY_B
+};
+
+extern enum aarch64_key_type aarch64_ra_sign_key;
+
 extern struct tune_params aarch64_tune_params;
 
+void aarch64_post_cfi_startproc (void);
 poly_int64 aarch64_initial_elimination_offset (unsigned, unsigned);
 int aarch64_get_condition_code (rtx);
 bool aarch64_address_valid_for_prefetch_p (rtx, bool);
@@ -429,6 +438,9 @@ bool aarch64_label_mentioned_p (rtx);
 void aarch64_declare_function_name (FILE *, const char*, tree);
 bool aarch64_legitimate_pic_operand_p (rtx);
 bool aarch64_mask_and_shift_for_ubfiz_p (scalar_int_mode, rtx, rtx);
+bool aarch64_masks_and_shift_for_bfi_p (scalar_int_mode, unsigned HOST_WIDE_INT,
+					unsigned HOST_WIDE_INT,
+					unsigned HOST_WIDE_INT);
 bool aarch64_zero_extend_const_eq (machine_mode, rtx, machine_mode, rtx);
 bool aarch64_move_imm (HOST_WIDE_INT, machine_mode);
 opt_machine_mode aarch64_sve_pred_mode (unsigned int);
@@ -621,11 +633,10 @@ bool aarch64_handle_option (struct gcc_options *, struct gcc_options *,
 			     const struct cl_decoded_option *, location_t);
 const char *aarch64_rewrite_selected_cpu (const char *name);
 enum aarch64_parse_opt_result aarch64_parse_extension (const char *,
-						       unsigned long *,
+						       uint64_t *,
 						       std::string *);
 void aarch64_get_all_extension_candidates (auto_vec<const char *> *candidates);
-std::string aarch64_get_extension_string_for_isa_flags (unsigned long,
-							unsigned long);
+std::string aarch64_get_extension_string_for_isa_flags (uint64_t, uint64_t);
 
 /* Defined in aarch64-d.c  */
 extern void aarch64_d_target_versions (void);

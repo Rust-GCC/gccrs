@@ -1247,14 +1247,18 @@ constant_alignment_word_strings (const_tree exp, HOST_WIDE_INT align)
   return align;
 }
 
-/* Default to natural alignment for vector types.  */
+/* Default to natural alignment for vector types, bounded by
+   MAX_OFILE_ALIGNMENT.  */
+
 HOST_WIDE_INT
 default_vector_alignment (const_tree type)
 {
-  HOST_WIDE_INT align = tree_to_shwi (TYPE_SIZE (type));
-  if (align > MAX_OFILE_ALIGNMENT)
-    align = MAX_OFILE_ALIGNMENT;
-  return align;
+  unsigned HOST_WIDE_INT align = MAX_OFILE_ALIGNMENT;
+  tree size = TYPE_SIZE (type);
+  if (tree_fits_uhwi_p (size))
+    align = tree_to_uhwi (size);
+
+  return align < MAX_OFILE_ALIGNMENT ? align : MAX_OFILE_ALIGNMENT;
 }
 
 /* The default implementation of
@@ -1312,7 +1316,7 @@ default_split_reduction (machine_mode mode)
    is tried.  */
 
 void
-default_autovectorize_vector_sizes (vector_sizes *)
+default_autovectorize_vector_sizes (vector_sizes *, bool)
 {
 }
 
@@ -1596,7 +1600,7 @@ default_target_option_pragma_parse (tree ARG_UNUSED (args),
      do not have the "target" pragma.  */
   if (args)
     warning (OPT_Wpragmas,
-	     "#pragma GCC target is not supported for this machine");
+	     "%<#pragma GCC target%> is not supported for this machine");
 
   return false;
 }
@@ -1644,6 +1648,14 @@ default_libc_has_function (enum function_class fn_class)
       || fn_class == function_c99_math_complex)
     return true;
 
+  return false;
+}
+
+/* By default assume that libc has not a fast implementation.  */
+
+bool
+default_libc_has_fast_function (int fcode ATTRIBUTE_UNUSED)
+{
   return false;
 }
 
@@ -1814,7 +1826,7 @@ default_print_patchable_function_entry (FILE *file,
       ASM_GENERATE_INTERNAL_LABEL (buf, "LPFE", patch_area_number);
 
       switch_to_section (get_section ("__patchable_function_entries",
-				      0, NULL));
+				      SECTION_WRITE | SECTION_RELRO, NULL));
       fputs (asm_op, file);
       assemble_name_raw (file, buf);
       fputc ('\n', file);

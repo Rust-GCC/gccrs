@@ -142,12 +142,34 @@ follows:
 @cindex side effects, macro argument
 But this definition computes either @var{a} or @var{b} twice, with bad
 results if the operand has side effects.  In GNU C, if you know the
-type of the operands (here taken as @code{int}), you can define
-the macro safely as follows:
+type of the operands (here taken as @code{int}), you can avoid this
+problem by defining the macro as follows:
 
 @smallexample
 #define maxint(a,b) \
   (@{int _a = (a), _b = (b); _a > _b ? _a : _b; @})
+@end smallexample
+
+Note that introducing variable declarations (as we do in @code{maxint}) can
+cause variable shadowing, so while this example using the @code{max} macro
+produces correct results:
+@smallexample
+int _a = 1, _b = 2, c;
+c = max (_a, _b);
+@end smallexample
+@noindent
+this example using maxint will not:
+@smallexample
+int _a = 1, _b = 2, c;
+c = maxint (_a, _b);
+@end smallexample
+
+This problem may for instance occur when we use this pattern recursively, like
+so:
+
+@smallexample
+#define maxint3(a, b, c) \
+  (@{int _a = (a), _b = (b), _c = (c); maxint (maxint (_a, _b), _c); @})
 @end smallexample
 
 Embedded statements are not allowed in constant expressions, such as
@@ -2727,7 +2749,8 @@ or variable) must match the kind of symbol to which the argument refers.
 The @code{copy} attribute copies only syntactic and semantic attributes
 but not attributes that affect a symbol's linkage or visibility such as
 @code{alias}, @code{visibility}, or @code{weak}.  The @code{deprecated}
-attribute is also not copied.  @xref{Common Type Attributes}.
+and @code{target_clones} attribute are also not copied.
+@xref{Common Type Attributes}.
 @xref{Common Variable Attributes}.
 
 For example, the @var{StrongAlias} macro below makes use of the @code{alias}
@@ -4168,6 +4191,15 @@ into the @code{sjli} table needs to be passed as argument.
 These function attributes are supported for ARM targets:
 
 @table @code
+
+@item general-regs-only
+@cindex @code{general-regs-only} function attribute, ARM
+Indicates that no floating-point or Advanced SIMD registers should be
+used when generating code for this function.  If the function explicitly
+uses floating-point code, then the compiler gives an error.  This is
+the same behavior as that of the command-line option
+@option{-mgeneral-regs-only}.
+
 @item interrupt
 @cindex @code{interrupt} function attribute, ARM
 Use this attribute to indicate
@@ -7063,7 +7095,7 @@ causes the compiler to set the mode for @code{foo}, to be 16 bytes,
 divided into @code{int} sized units.  Assuming a 32-bit @code{int},
 @code{foo}'s type is a vector of four units of four bytes each, and
 the corresponding mode of @code{foo} is @code{V4SI}.
-@xref{Vector Extensions} for details of manipulating vector variables.
+@xref{Vector Extensions}, for details of manipulating vector variables.
 
 This attribute is only applicable to integral and floating scalars,
 although arrays, pointers, and function return values are allowed in
@@ -8147,7 +8179,7 @@ sized units.  With @code{int} having a size of 4 bytes, the type defines
 a vector of eight units, four bytes each.  The mode of variables of type
 @code{int_vec32_t} is @code{V8SI}.  @code{int_vec32_ptr_t} is then defined
 to be a pointer to such a vector type, and @code{int_vec32_arr3_t} to be
-an array of three such vectors.  @xref{Vector Extensions} for details of
+an array of three such vectors.  @xref{Vector Extensions}, for details of
 manipulating objects of vector types.
 
 This attribute is only applicable to integral and floating scalar types.
@@ -10798,7 +10830,7 @@ evaluates to the empty string.
 backward compatibility with old versions of GCC.
 
 In C, @code{__PRETTY_FUNCTION__} is yet another name for
-@code{__func__}, except that at file (or, in C++, namespace scope),
+@code{__func__}, except that at file scope (or, in C++, namespace scope),
 it evaluates to the string @code{"top level"}.  In addition, in C++,
 @code{__PRETTY_FUNCTION__} contains the signature of the function as
 well as its bare name.  For example, this program:
@@ -12601,8 +12633,11 @@ check its compatibility with @var{size}.
 The @code{__builtin_has_attribute} function evaluates to an integer constant
 expression equal to @code{true} if the symbol or type referenced by
 the @var{type-or-expression} argument has been declared with
-the @var{attribute} referenced by the second argument.  Neither argument
-is evaluated.  The @var{type-or-expression} argument is subject to the same
+the @var{attribute} referenced by the second argument.  For
+an @var{type-or-expression} argument that does not reference a symbol,
+since attributes do not apply to expressions the built-in consider
+the type of the argument.  Neither argument is evaluated.
+The @var{type-or-expression} argument is subject to the same
 restrictions as the argument to @code{typeof} (@pxref{Typeof}).  The
 @var{attribute} argument is an attribute name optionally followed by
 a comma-separated list of arguments enclosed in parentheses.  Both forms

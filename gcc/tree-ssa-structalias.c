@@ -299,6 +299,11 @@ struct variable_info
   /* Full size of the base variable, in bits.  */
   unsigned HOST_WIDE_INT fullsize;
 
+  /* In IPA mode the shadow UID in case the variable needs to be duplicated in
+     the final points-to solution because it reaches its containing
+     function recursively.  Zero if none is needed.  */
+  unsigned int shadow_var_uid;
+
   /* Name of this variable */
   const char *name;
 
@@ -397,6 +402,7 @@ new_var_info (tree t, const char *name, bool add_id)
   ret->solution = BITMAP_ALLOC (&pta_obstack);
   ret->oldsolution = NULL;
   ret->next = 0;
+  ret->shadow_var_uid = 0;
   ret->head = ret->id;
 
   stats.total_vars++;
@@ -4894,6 +4900,9 @@ find_func_aliases (struct function *fn, gimple *origt)
 	  if (code == POINTER_PLUS_EXPR)
 	    get_constraint_for_ptr_offset (gimple_assign_rhs1 (t),
 					   gimple_assign_rhs2 (t), &rhsc);
+	  else if (code == POINTER_DIFF_EXPR)
+	    /* The result is not a pointer (part).  */
+	    ;
 	  else if (code == BIT_AND_EXPR
 		   && TREE_CODE (gimple_assign_rhs2 (t)) == INTEGER_CST)
 	    {
@@ -4902,6 +4911,17 @@ find_func_aliases (struct function *fn, gimple *origt)
 	      get_constraint_for_ptr_offset (gimple_assign_rhs1 (t),
 					     NULL_TREE, &rhsc);
 	    }
+	  else if (code == TRUNC_DIV_EXPR
+		   || code == CEIL_DIV_EXPR
+		   || code == FLOOR_DIV_EXPR
+		   || code == ROUND_DIV_EXPR
+		   || code == EXACT_DIV_EXPR
+		   || code == TRUNC_MOD_EXPR
+		   || code == CEIL_MOD_EXPR
+		   || code == FLOOR_MOD_EXPR
+		   || code == ROUND_MOD_EXPR)
+	    /* Division and modulo transfer the pointer from the LHS.  */
+	    get_constraint_for_rhs (gimple_assign_rhs1 (t), &rhsc);
 	  else if ((CONVERT_EXPR_CODE_P (code)
 		    && !(POINTER_TYPE_P (gimple_expr_type (t))
 			 && !POINTER_TYPE_P (TREE_TYPE (rhsop))))
@@ -6452,6 +6472,16 @@ set_uids_in_ptset (bitmap into, bitmap from, struct pt_solution *pt,
 	      && (TREE_STATIC (vi->decl) || DECL_EXTERNAL (vi->decl))
 	      && ! decl_binds_to_current_def_p (vi->decl))
 	    pt->vars_contains_interposable = true;
+
+	  /* If this is a local variable we can have overlapping lifetime
+	     of different function invocations through recursion duplicate
+	     it with its shadow variable.  */
+	  if (in_ipa_mode
+	      && vi->shadow_var_uid != 0)
+	    {
+	      bitmap_set_bit (into, vi->shadow_var_uid);
+	      pt->vars_contains_nonlocal = true;
+	    }
 	}
 
       else if (TREE_CODE (vi->decl) == FUNCTION_DECL
@@ -7572,9 +7602,12 @@ compute_dependence_clique (void)
       EXECUTE_IF_SET_IN_BITMAP (vi->solution, 0, j, bi)
 	{
 	  varinfo_t oi = get_varinfo (j);
+	  if (oi->head != j)
+	    oi = get_varinfo (oi->head);
 	  if (oi->is_restrict_var)
 	    {
-	      if (restrict_var)
+	      if (restrict_var
+		  && restrict_var != oi)
 		{
 		  if (dump_file && (dump_flags & TDF_DETAILS))
 		    {
@@ -8075,6 +8108,62 @@ ipa_pta_execute (void)
 
   /* From the constraints compute the points-to sets.  */
   solve_constraints ();
+
+  /* Now post-process solutions to handle locals from different
+     runtime instantiations coming in through recursive invocations.  */
+  unsigned shadow_var_cnt = 0;
+  for (unsigned i = 1; i < varmap.length (); ++i)
+    {
+      varinfo_t fi = get_varinfo (i);
+      if (fi->is_fn_info
+	  && fi->decl)
+	/* Automatic variables pointed to by their containing functions
+	   parameters need this treatment.  */
+	for (varinfo_t ai = first_vi_for_offset (fi, fi_parm_base);
+	     ai; ai = vi_next (ai))
+	  {
+	    varinfo_t vi = get_varinfo (find (ai->id));
+	    bitmap_iterator bi;
+	    unsigned j;
+	    EXECUTE_IF_SET_IN_BITMAP (vi->solution, 0, j, bi)
+	      {
+		varinfo_t pt = get_varinfo (j);
+		if (pt->shadow_var_uid == 0
+		    && pt->decl
+		    && auto_var_in_fn_p (pt->decl, fi->decl))
+		  {
+		    pt->shadow_var_uid = allocate_decl_uid ();
+		    shadow_var_cnt++;
+		  }
+	      }
+	  }
+      /* As well as global variables which are another way of passing
+         arguments to recursive invocations.  */
+      else if (fi->is_global_var)
+	{
+	  for (varinfo_t ai = fi; ai; ai = vi_next (ai))
+	    {
+	      varinfo_t vi = get_varinfo (find (ai->id));
+	      bitmap_iterator bi;
+	      unsigned j;
+	      EXECUTE_IF_SET_IN_BITMAP (vi->solution, 0, j, bi)
+		{
+		  varinfo_t pt = get_varinfo (j);
+		  if (pt->shadow_var_uid == 0
+		      && pt->decl
+		      && auto_var_p (pt->decl))
+		    {
+		      pt->shadow_var_uid = allocate_decl_uid ();
+		      shadow_var_cnt++;
+		    }
+		}
+	    }
+	}
+    }
+  if (shadow_var_cnt && dump_file && (dump_flags & TDF_DETAILS))
+    fprintf (dump_file, "Allocated %u shadow variables for locals "
+	     "maybe leaking into recursive invocations of their containing "
+	     "functions\n", shadow_var_cnt);
 
   /* Compute the global points-to sets for ESCAPED.
      ???  Note that the computed escape set is not correct

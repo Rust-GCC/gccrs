@@ -2258,6 +2258,30 @@ get_group_load_store_type (stmt_vec_info stmt_info, tree vectype, bool slp,
 	      && gap < (vect_known_alignment_in_bytes (first_dr_info)
 			/ vect_get_scalar_dr_size (first_dr_info)))
 	    overrun_p = false;
+
+	  /* If the gap splits the vector in half and the target
+	     can do half-vector operations avoid the epilogue peeling
+	     by simply loading half of the vector only.  Usually
+	     the construction with an upper zero half will be elided.  */
+	  dr_alignment_support alignment_support_scheme;
+	  scalar_mode elmode = SCALAR_TYPE_MODE (TREE_TYPE (vectype));
+	  machine_mode vmode;
+	  if (overrun_p
+	      && !masked_p
+	      && (((alignment_support_scheme
+		      = vect_supportable_dr_alignment (first_dr_info, false)))
+		   == dr_aligned
+		  || alignment_support_scheme == dr_unaligned_supported)
+	      && known_eq (nunits, (group_size - gap) * 2)
+	      && known_eq (nunits, group_size)
+	      && mode_for_vector (elmode, (group_size - gap)).exists (&vmode)
+	      && VECTOR_MODE_P (vmode)
+	      && targetm.vector_mode_supported_p (vmode)
+	      && (convert_optab_handler (vec_init_optab,
+					 TYPE_MODE (vectype), vmode)
+		  != CODE_FOR_nothing))
+	    overrun_p = false;
+
 	  if (overrun_p && !can_overrun_p)
 	    {
 	      if (dump_enabled_p ())
@@ -2568,7 +2592,7 @@ vect_check_load_store_mask (stmt_vec_info stmt_info, tree mask,
     {
       if (dump_enabled_p ())
 	dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-			 "vector mask type %T",
+			 "vector mask type %T"
 			 " does not match vector data type %T.\n",
 			 mask_vectype, vectype);
 
@@ -7598,14 +7622,6 @@ vectorizable_load (stmt_vec_info stmt_info, gimple_stmt_iterator *gsi,
       if (!scalar_dest)
 	return false;
 
-      if (slp_node != NULL)
-	{
-	  if (dump_enabled_p ())
-	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-			     "SLP of masked loads not supported.\n");
-	  return false;
-	}
-
       int mask_index = internal_fn_mask_index (ifn);
       if (mask_index >= 0)
 	{
@@ -7688,6 +7704,15 @@ vectorizable_load (stmt_vec_info stmt_info, gimple_stmt_iterator *gsi,
       first_stmt_info = DR_GROUP_FIRST_ELEMENT (stmt_info);
       group_size = DR_GROUP_SIZE (first_stmt_info);
 
+      /* Refuse non-SLP vectorization of SLP-only groups.  */
+      if (!slp && STMT_VINFO_SLP_VECT_ONLY (first_stmt_info))
+	{
+	  if (dump_enabled_p ())
+	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			     "cannot vectorize load in non-SLP mode.\n");
+	  return false;
+	}
+
       if (slp && SLP_TREE_LOAD_PERMUTATION (slp_node).exists ())
 	slp_perm = true;
 
@@ -7702,19 +7727,6 @@ vectorizable_load (stmt_vec_info stmt_info, gimple_stmt_iterator *gsi,
 	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
 			     "cannot perform implicit CSE when performing "
 			     "group loads with negative dependence distance\n");
-	  return false;
-	}
-
-      /* Similarly when the stmt is a load that is both part of a SLP
-         instance and a loop vectorized stmt via the same-dr mechanism
-	 we have to give up.  */
-      if (DR_GROUP_SAME_DR_STMT (stmt_info)
-	  && (STMT_SLP_TYPE (stmt_info)
-	      != STMT_SLP_TYPE (DR_GROUP_SAME_DR_STMT (stmt_info))))
-	{
-	  if (dump_enabled_p ())
-	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-			     "conflicting SLP types for CSEd load\n");
 	  return false;
 	}
     }
@@ -8378,8 +8390,19 @@ vectorizable_load (stmt_vec_info stmt_info, gimple_stmt_iterator *gsi,
 					  simd_lane_access_p,
 					  byte_offset, bump);
 	  if (mask)
-	    vec_mask = vect_get_vec_def_for_operand (mask, stmt_info,
-						     mask_vectype);
+	    {
+	      if (slp_node)
+		{
+		  auto_vec<tree> ops (1);
+		  auto_vec<vec<tree> > vec_defs (1);
+		  ops.quick_push (mask);
+		  vect_get_slp_defs (ops, slp_node, &vec_defs);
+		  vec_mask = vec_defs[0][0];
+		}
+	      else
+		vec_mask = vect_get_vec_def_for_operand (mask, stmt_info,
+							 mask_vectype);
+	    }
 	}
       else
 	{
@@ -8529,8 +8552,25 @@ vectorizable_load (stmt_vec_info stmt_info, gimple_stmt_iterator *gsi,
 		      }
 		    else
 		      {
+			tree ltype = vectype;
+			/* If there's no peeling for gaps but we have a gap
+			   with slp loads then load the lower half of the
+			   vector only.  See get_group_load_store_type for
+			   when we apply this optimization.  */
+			if (slp
+			    && loop_vinfo
+			    && !LOOP_VINFO_PEELING_FOR_GAPS (loop_vinfo)
+			    && DR_GROUP_GAP (first_stmt_info) != 0
+			    && known_eq (nunits,
+					 (group_size
+					  - DR_GROUP_GAP (first_stmt_info)) * 2)
+			    && known_eq (nunits, group_size))
+			  ltype = build_vector_type (TREE_TYPE (vectype),
+						     (group_size
+						      - DR_GROUP_GAP
+						          (first_stmt_info)));
 			data_ref
-			  = fold_build2 (MEM_REF, vectype, dataref_ptr,
+			  = fold_build2 (MEM_REF, ltype, dataref_ptr,
 					 dataref_offset
 					 ? dataref_offset
 					 : build_int_cst (ref_type, 0));
@@ -8544,6 +8584,23 @@ vectorizable_load (stmt_vec_info stmt_info, gimple_stmt_iterator *gsi,
 			  TREE_TYPE (data_ref)
 			    = build_aligned_type (TREE_TYPE (data_ref),
 						  TYPE_ALIGN (elem_type));
+			if (ltype != vectype)
+			  {
+			    vect_copy_ref_info (data_ref, DR_REF (first_dr_info->dr));
+			    tree tem = make_ssa_name (ltype);
+			    new_stmt = gimple_build_assign (tem, data_ref);
+			    vect_finish_stmt_generation (stmt_info, new_stmt, gsi);
+			    data_ref = NULL;
+			    vec<constructor_elt, va_gc> *v;
+			    vec_alloc (v, 2);
+			    CONSTRUCTOR_APPEND_ELT (v, NULL_TREE, tem);
+			    CONSTRUCTOR_APPEND_ELT (v, NULL_TREE,
+						    build_zero_cst (ltype));
+			    new_stmt
+			      = gimple_build_assign (vec_dest,
+						     build_constructor
+						       (vectype, v));
+			  }
 		      }
 		    break;
 		  }
@@ -8819,11 +8876,12 @@ vect_is_simple_cond (tree cond, vec_info *vinfo,
 
   *comp_vectype = vectype1 ? vectype1 : vectype2;
   /* Invariant comparison.  */
-  if (! *comp_vectype && vectype)
+  if (! *comp_vectype)
     {
       tree scalar_type = TREE_TYPE (lhs);
       /* If we can widen the comparison to match vectype do so.  */
       if (INTEGRAL_TYPE_P (scalar_type)
+	  && vectype
 	  && tree_int_cst_lt (TYPE_SIZE (scalar_type),
 			      TYPE_SIZE (TREE_TYPE (vectype))))
 	scalar_type = build_nonstandard_integer_type
