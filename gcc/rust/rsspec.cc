@@ -143,14 +143,15 @@ add_arg_libgrust (bool force_static ATTRIBUTE_UNUSED)
 }
 
 /* Modeled closely of gcc/fortran/gfortranspec.c */
-
+// Presumably this is the "compiler driver", which I think runs the compiler
+// Handle calling the compiler (i.e. options, libraries to use)
 void lang_specific_driver( struct cl_decoded_option **in_decoded_options,
 			   unsigned int *in_decoded_options_count,
 			   int *in_added_libraries ATTRIBUTE_UNUSED )
 {
   unsigned int i = 0;
-  unsigned int argc = *in_decoded_options_count;
-  struct cl_decoded_option *decoded_options = *in_decoded_options;
+  unsigned int argc = *in_decoded_options_count; // argument list count
+  struct cl_decoded_option *decoded_options = *in_decoded_options; // argument list
 
   int verbose = 0;
 

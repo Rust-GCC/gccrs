@@ -412,6 +412,9 @@ Aldy Hernandez for working on the PowerPC port, SIMD support, and
 various fixes.
 
 @item
+Philip Herron for the Rust frontend.
+
+@item
 Nobuyuki Hikichi of Software Research Associates, Tokyo, contributed
 the support for the Sony NEWS machine.
 

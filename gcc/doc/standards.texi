@@ -326,6 +326,12 @@ GCC supports the D 2.0 programming language.  The D language itself is
 currently defined by its reference implementation and supporting language
 specification, described at @uref{https://dlang.org/spec/spec.html}.
 
+@section Rust language
+
+GCC supports the Rust x.y programming language. The Rust language itself is
+currently defined by its reference implementation and supporting language
+specification, described at @uref{https://doc.rust-lang.org/book/title-page.html}.
+
 @section References for Other Languages
 
 @xref{Top, GNAT Reference Manual, About This Guide, gnat_rm,

@@ -918,7 +918,8 @@ only for the listed packages.  For other packages, only static libraries
 will be built.  Package names currently recognized in the GCC tree are
 @samp{libgcc} (also known as @samp{gcc}), @samp{libstdc++} (not
 @samp{libstdc++-v3}), @samp{libffi}, @samp{zlib}, @samp{boehm-gc},
-@samp{ada}, @samp{libada}, @samp{libgo}, @samp{libobjc}, and @samp{libphobos}.
+@samp{ada}, @samp{libada}, @samp{libgo}, @samp{libobjc}, @samp{libphobos},
+and @samp{libgrust}.
 Note @samp{libiberty} does not support shared libraries at all.
 
 Use @option{--disable-shared} to build only static libraries.  Note that
@@ -1652,13 +1653,14 @@ grep ^language= */config-lang.in
 @end smallexample
 Currently, you can use any of the following:
 @code{all}, @code{default}, @code{ada}, @code{c}, @code{c++}, @code{d},
-@code{fortran}, @code{go}, @code{jit}, @code{lto}, @code{objc}, @code{obj-c++}.
+@code{fortran}, @code{go}, @code{jit}, @code{lto}, @code{objc}, @code{obj-c++},
+@code{rust}.
 Building the Ada compiler has special requirements, see below.
 If you do not pass this flag, or specify the option @code{default}, then the
 default languages available in the @file{gcc} sub-tree will be configured.
-Ada, D, Go, Jit, and Objective-C++ are not default languages.  LTO is not a
-default language, but is built by default because @option{--enable-lto} is
-enabled by default.  The other languages are default languages.  If
+Ada, D, Go, Jit, Objective-C++, and Rust are not default languages.  LTO is 
+not a default language, but is built by default because @option{--enable-lto} 
+is enabled by default.  The other languages are default languages.  If
 @code{all} is specified, then all available languages are built.  An
 exception is @code{jit} language, which requires
 @option{--enable-host-shared} to be included with @code{all}.
