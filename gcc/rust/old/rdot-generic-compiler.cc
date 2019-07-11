@@ -1,3 +1,4 @@
+// rdot-generic-compiler.cc - seems to convert rdot AST representation to GENERIC representation
 /* This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify
@@ -65,6 +66,7 @@ static tree __impl_type_decl = error_mark_node;
 static std::vector<tree> __loopContexts;
 #define dot_pass_rustToGccType(_x, _y) dot_pass_rustToGccType__ (_x, _y, false, NULL)
 
+// seems to return only the end of a string val by removing everything before the final dot
 static
 char * dot_pass_demangleImpl (const char * val)
 {
@@ -84,6 +86,7 @@ char * dot_pass_demangleImpl (const char * val)
   return buffer;
 }
 
+// Seems to "mangle" val (a string parameter) by prepending "__rust_" to it
 static
 char * dot_pass_mangle (const char * val)
 {
@@ -96,6 +99,7 @@ char * dot_pass_mangle (const char * val)
   return retval;
 }
 
+// Seems to convert "Rust type" (rdot type) to GCC GENERIC type
 static
 tree dot_pass_rustToGccType__ (rdot type, bool consty, bool rset, tree * record)
 {
@@ -148,6 +152,7 @@ tree dot_pass_rustToGccType__ (rdot type, bool consty, bool rset, tree * record)
   return retval;
 }
 
+// May build a function declaration? Add one to tree?
 static
 tree dot_pass_genFndecl_Basic (location_t loc, const char * ident, tree fntype)
 {
@@ -174,6 +179,7 @@ tree dot_pass_genFndecl_Basic (location_t loc, const char * ident, tree fntype)
   return fndecl;
 }
 
+// Creates a "tree" string from an inputted string
 static
 tree dot_pass_generateCString (const char * str)
 {
@@ -189,6 +195,7 @@ tree dot_pass_generateCString (const char * str)
   return string_val;
 }
 
+// cross-translation unit? probably not but idk what this does. looks up something in a map
 static
 tree dot_pass_lookupCTU (const char * id)
 {
@@ -208,6 +215,7 @@ tree dot_pass_lookupCTU (const char * id)
   return retval;
 }
 
+// seems to add a declaration tree thing to a map
 static
 void dot_pass_pushDecl (const char * id, tree decl)
 {
@@ -221,6 +229,7 @@ void dot_pass_pushDecl (const char * id, tree decl)
     error ("duplicate declaration of [%s]\n", id);
 }
 
+// 
 static tree
 dot_pass_rust_RR_alloc (tree size)
 {

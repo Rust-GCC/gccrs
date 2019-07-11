@@ -64,7 +64,7 @@ rsspec.o: $(srcdir)/rust/rsspec.cc $(SYSTEM_H) coretypes.h $(TM_H) $(GCC_H) \
 
 # Create the compiler driver gccrs.
 # A compiler driver is the program that interprets command argument and can be called from the command
-# line - e.g. gcc or g++
+# line - e.g. gcc or g++, and not cc1, which is the actual compiler
 GCCRS_D_OBJS = $(GCC_OBJS) rsspec.o
 gccrs$(exeext): $(GCCRS_D_OBJS) $(EXTRA_GCC_OBJS) libcommon-target.a $(LIBDEPS)
 	$(LINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
