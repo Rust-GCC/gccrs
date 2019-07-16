@@ -14,11 +14,10 @@
 
 // The data structures we build to represent the file.
 static Gorust* rustrust;
+// replace with rdot or something else?
 
 // Create the main IR data structure.
-
-RUST_EXTERN_C
-void rust_create_rustrust(const struct rust_create_rustrust_args* args) {
+RUST_EXTERN_C void rust_create_rustrust(const struct rust_create_rustrust_args* args) {
     rust_assert(::rustrust == NULL);
     ::rustrust = new Gorust(args->backend, args->linemap, args->int_type_size, args->pointer_size);
 
@@ -44,9 +43,7 @@ void rust_create_rustrust(const struct rust_create_rustrust_args* args) {
 }
 
 // Parse the input files.
-
-RUST_EXTERN_C
-void grs_parse_input_files(const char** filenames, unsigned int filename_count, 
+RUST_EXTERN_C void grs_parse_input_files(const char** filenames, unsigned int filename_count, 
     bool only_check_syntax, bool) {
     rust_assert(filename_count > 0);
 
@@ -172,15 +169,11 @@ void grs_parse_input_files(const char** filenames, unsigned int filename_count,
 }
 
 // Write out globals.
-
-RUST_EXTERN_C
-void rust_write_globals() {
+RUST_EXTERN_C void rust_write_globals() {
     return ::rustrust->write_globals();
 }
 
-// Return the global IR structure.  This is used by some of the
-// langhooks to pass to other code.
-
+// Return the global IR structure.  This is used by some of the langhooks to pass to other code.
 Rustrust* rust_get_rustrust() {
     return ::rustrust;
 }

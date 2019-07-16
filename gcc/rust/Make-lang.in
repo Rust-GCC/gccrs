@@ -28,7 +28,7 @@ RUST_EXES = rust
 # Use strict warnings for this front end.
 rust-warn = $(STRICT_WARN)
 
-# Installation name.
+# Installation name. Useful for cross compilers and used during install.
 GCCRS_INSTALL_NAME := $(shell echo gccrs|sed '$(program_transform_name)')
 GCCRS_TARGET_INSTALL_NAME := $(target_noncanonical)-$(shell echo gccrs|sed '$(program_transform_name)')
 
@@ -46,6 +46,7 @@ rust: gccrs$(exeext) grs1$(exeext)
 
 # List of host object files used by the rust language - files for translation from the parse tree 
 # to GENERIC
+# The compiler proper, not driver
 GRS_OBJS = \
 	rustfrontend/main.cc
 # removed object files from here 
@@ -81,7 +82,8 @@ rust.srcextra:
 
 rust.all.cross:
 
-rust.start.encap:
+# idk what this does but someone used it
+rust.start.encap: gccrs$(exeext)
 rust.rest.encap:
 
 # Build generated man pages for the front end from Texinfo manuals (see Man Page Generation), in the 
@@ -152,6 +154,9 @@ rust.install-plugin:
 # supported, so the hook need not do anything. 
 rust.uninstall:
 	-rm -rf $(DESTDIR)/$(bindir)/$(GCCRS_INSTALL_NAME)$(exeext)
+#	-rm -f $(GRS_OBJS)
+#	-rm -f gccrs$(exeext) grs1$(exeext)
+# ^those two are a maybe
 
 # Install info documentation for the front end, if it is present in the source directory. This target 
 # should have dependencies on info files that should be installed. 
@@ -164,6 +169,7 @@ rust.install-man:
 
 # Stage hooks:
 # The toplevel makefile has already created stage?/rust at this point.
+# Used for handling bootstrap
 
 rust.stage1: stage1-start
 	-mv rust/*$(objext) stage1/rust

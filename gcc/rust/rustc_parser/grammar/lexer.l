@@ -1,5 +1,4 @@
 %{
-/* C declarations */
 #include <stdio.h>
 #include <ctype.h>
 
@@ -9,14 +8,10 @@ static int saw_non_hash;
 
 %}
 
-/* Bison declarations */
-/* Declare all tokens used here */
-/* Higher the line number, higher the precedence */ 
-
 %option stack
 %option yylineno
 
-%x str 
+%x str
 %x rawstr
 %x rawstr_esc_begin
 %x rawstr_esc_body
@@ -35,8 +30,6 @@ static int saw_non_hash;
 %x suffix
 
 ident [a-zA-Z\x80-\xff_][a-zA-Z0-9\x80-\xff_]*
-
-/* Grammar rules */
 
 %%
 

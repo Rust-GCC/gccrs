@@ -2,6 +2,6 @@
 
 // Copyright, etc.
 
-//#include whatever
+#include "coretypes.h"
 
 static tree gccTree;

@@ -1,28 +1,17 @@
 %{
-/* C declarations */
 #include <stdio.h>
 #include <ctype.h>
-#include <iostream>
 
 static int num_hashes;
 static int end_hashes;
 static int saw_non_hash;
 
-using namespace std;
-
-extern int yylex();
-
 %}
-
-/* Bison declarations */
-/* Declare all tokens used here */
-/* Higher the line number, higher the precedence */ 
 
 %option stack
 %option yylineno
-%option noyywrap
 
-%x str 
+%x str
 %x rawstr
 %x rawstr_esc_begin
 %x rawstr_esc_body
@@ -42,8 +31,6 @@ extern int yylex();
 
 ident [a-zA-Z\x80-\xff_][a-zA-Z0-9\x80-\xff_]*
 
-/* Grammar rules */
-
 %%
 
 <suffix>{ident}            { BEGIN(INITIAL); }
@@ -62,7 +49,7 @@ ident [a-zA-Z\x80-\xff_][a-zA-Z0-9\x80-\xff_]*
 <doc_line>\n          { BEGIN(INITIAL);
                         yyleng--;
                         yytext[yyleng] = 0;
-                        return ((yytext[2] == '!') ? cout << "Found INNER_DOC_COMMENT" << endl : cout << "Found OUTER_DOC_COMMENT" << endl);
+                        return ((yytext[2] == '!') ? INNER_DOC_COMMENT : OUTER_DOC_COMMENT);
                       }
 <doc_line>[^\n]*      { yymore(); }
 
@@ -77,7 +64,7 @@ ident [a-zA-Z\x80-\xff_][a-zA-Z0-9\x80-\xff_]*
     if (yy_top_state() == doc_block) {
         yymore();
     } else {
-        return ((yytext[2] == '!') ? cout << "Found INNER_DOC_COMMENT" << endl : cout << "Found OUTER_DOC_COMMENT" << endl);
+        return ((yytext[2] == '!') ? INNER_DOC_COMMENT : OUTER_DOC_COMMENT);
     }
 }
 <doc_block>(.|\n)     { yymore(); }
@@ -87,63 +74,63 @@ ident [a-zA-Z\x80-\xff_][a-zA-Z0-9\x80-\xff_]*
 <blockcomment>\*\/    { yy_pop_state(); }
 <blockcomment>(.|\n)   { }
 
-_        { cout << "Found UNDERSCORE: " << yytext << endl; }
-abstract { cout << "Found ABSTRACT: " << yytext << endl; }
-alignof  { cout << "Found ALIGNOF: " << yytext << endl; }
-as       { cout << "Found AS: " << yytext << endl; }
-become   { cout << "Found BECOME: " << yytext << endl; }
-box      { cout << "Found BOX: " << yytext << endl; }
-break    { cout << "Found BREAK: " << yytext << endl; }
-catch    { cout << "Found CATCH: " << yytext << endl; }
-const    { cout << "Found CONST: " << yytext << endl; }
-continue { cout << "Found CONTINUE: " << yytext << endl; }
-crate    { cout << "Found CRATE: " << yytext << endl; }
-default  { cout << "Found DEFAULT: " << yytext << endl; }
-do       { cout << "Found DO: " << yytext << endl; }
-else     { cout << "Found ELSE: " << yytext << endl; }
-enum     { cout << "Found ENUM: " << yytext << endl; }
-extern   { cout << "Found EXTERN: " << yytext << endl; }
-false    { cout << "Found FALSE: " << yytext << endl; }
-final    { cout << "Found FINAL: " << yytext << endl; }
-fn       { cout << "Found FN: " << yytext << endl; }
-for      { cout << "Found FOR: " << yytext << endl; }
-if       { cout << "Found IF: " << yytext << endl; }
-impl     { cout << "Found IMPL: " << yytext << endl; }
-in       { cout << "Found IN: " << yytext << endl; }
-let      { cout << "Found LET: " << yytext << endl; }
-loop     { cout << "Found LOOP: " << yytext << endl; }
-macro    { cout << "Found MACRO: " << yytext << endl; }
-match    { cout << "Found MATCH: " << yytext << endl; }
-mod      { cout << "Found MOD: " << yytext << endl; }
-move     { cout << "Found MOVE: " << yytext << endl; }
-mut      { cout << "Found MUT: " << yytext << endl; }
-offsetof { cout << "Found OFFSETOF: " << yytext << endl; }
-override { cout << "Found OVERRIDE: " << yytext << endl; }
-priv     { cout << "Found PRIV: " << yytext << endl; }
-proc     { cout << "Found PROC: " << yytext << endl; }
-pure     { cout << "Found PURE: " << yytext << endl; }
-pub      { cout << "Found PUB: " << yytext << endl; }
-ref      { cout << "Found REF: " << yytext << endl; }
-return   { cout << "Found RETURN: " << yytext << endl; }
-self     { cout << "Found SELF: " << yytext << endl; }
-sizeof   { cout << "Found SIZEOF: " << yytext << endl; }
-static   { cout << "Found STATIC: " << yytext << endl; }
-struct   { cout << "Found STRUCT: " << yytext << endl; }
-super    { cout << "Found SUPER: " << yytext << endl; }
-trait    { cout << "Found TRAIT: " << yytext << endl; }
-true     { cout << "Found TRUE: " << yytext << endl; }
-type     { cout << "Found TYPE: " << yytext << endl; }
-typeof   { cout << "Found TYPEOF: " << yytext << endl; }
-union    { cout << "Found UNION: " << yytext << endl; }
-unsafe   { cout << "Found UNSAFE: " << yytext << endl; }
-unsized  { cout << "Found UNSIZED: " << yytext << endl; }
-use      { cout << "Found USE: " << yytext << endl; }
-virtual  { cout << "Found VIRTUAL: " << yytext << endl; }
-where    { cout << "Found WHERE: " << yytext << endl; }
-while    { cout << "Found WHILE: " << yytext << endl; }
-yield    { cout << "Found YIELD: " << yytext << endl; }
+_        { return UNDERSCORE; }
+abstract { return ABSTRACT; }
+alignof  { return ALIGNOF; }
+as       { return AS; }
+become   { return BECOME; }
+box      { return BOX; }
+break    { return BREAK; }
+catch    { return CATCH; }
+const    { return CONST; }
+continue { return CONTINUE; }
+crate    { return CRATE; }
+default  { return DEFAULT; }
+do       { return DO; }
+else     { return ELSE; }
+enum     { return ENUM; }
+extern   { return EXTERN; }
+false    { return FALSE; }
+final    { return FINAL; }
+fn       { return FN; }
+for      { return FOR; }
+if       { return IF; }
+impl     { return IMPL; }
+in       { return IN; }
+let      { return LET; }
+loop     { return LOOP; }
+macro    { return MACRO; }
+match    { return MATCH; }
+mod      { return MOD; }
+move     { return MOVE; }
+mut      { return MUT; }
+offsetof { return OFFSETOF; }
+override { return OVERRIDE; }
+priv     { return PRIV; }
+proc     { return PROC; }
+pure     { return PURE; }
+pub      { return PUB; }
+ref      { return REF; }
+return   { return RETURN; }
+self     { return SELF; }
+sizeof   { return SIZEOF; }
+static   { return STATIC; }
+struct   { return STRUCT; }
+super    { return SUPER; }
+trait    { return TRAIT; }
+true     { return TRUE; }
+type     { return TYPE; }
+typeof   { return TYPEOF; }
+union    { return UNION; }
+unsafe   { return UNSAFE; }
+unsized  { return UNSIZED; }
+use      { return USE; }
+virtual  { return VIRTUAL; }
+where    { return WHERE; }
+while    { return WHILE; }
+yield    { return YIELD; }
 
-{ident}  { cout << "Found IDENT: " << yytext << endl; }
+{ident}  { return IDENT; }
 
 0x[0-9a-fA-F_]+                                    { BEGIN(suffix); return LIT_INTEGER; }
 0o[0-7_]+                                          { BEGIN(suffix); return LIT_INTEGER; }
@@ -361,8 +348,3 @@ r/#             {
 <<EOF>> { return 0; }
 
 %%
-
-int main(int char**) {
-	// lex through output
-	while (yylex());
-}

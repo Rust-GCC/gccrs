@@ -31,20 +31,17 @@ struct GTY(()) lang_type {
 };
 
 /* Language-dependent contents of a decl.  */
-
 struct GTY(()) lang_decl {
     char dummy;
 };
 
 /* Language-dependent contents of an identifier.  This must include a
    tree_identifier.  */
-
 struct GTY(()) lang_identifier {
     struct tree_identifier common;
 };
 
 /* The resulting tree type.  */
-
 union GTY((desc("TREE_CODE (&%h.generic) == IDENTIFIER_NODE"),
            chain_next("CODE_CONTAINS_STRUCT (TREE_CODE (&%h.generic), TS_COMMON) ? ((union lang_tree_node *) TREE_CHAIN (&%h.generic)) : NULL")))
   lang_tree_node {
@@ -54,21 +51,18 @@ union GTY((desc("TREE_CODE (&%h.generic) == IDENTIFIER_NODE"),
 };
 
 /* We don't use language_function.  */
-
 struct GTY(()) language_function {
     int dummy;
 };
 
 /* Option information we need to pass to rust_create_rustrust.  */
-
 static const char* rust_pkgpath = NULL;
 static const char* rust_prefix = NULL;
 static const char* rust_relative_import_path = NULL;
 static const char* rust_c_header = NULL;
 
 /* Language hooks.  */
-
-static bool rust_langhook_init(void) {
+static bool grs_langhook_init(void) {
     build_common_tree_nodes(false);
 
     /* I don't know why this has to be done explicitly.  */
@@ -111,14 +105,12 @@ static bool rust_langhook_init(void) {
 }
 
 /* The option mask.  */
-
-static unsigned int rust_langhook_option_lang_mask(void) {
+static unsigned int grs_langhook_option_lang_mask(void) {
     return CL_Go;
 }
 
 /* Initialize the options structure.  */
-
-static void rust_langhook_init_options_struct(struct gcc_options* opts) {
+static void grs_langhook_init_options_struct(struct gcc_options* opts) {
     /* Go says that signed overflow is precisely defined.  */
     opts->x_flag_wrapv = 1;
 
@@ -151,17 +143,14 @@ static void rust_langhook_init_options_struct(struct gcc_options* opts) {
 }
 
 /* Infrastructure for a vector of char * pointers.  */
-
 typedef const char* rust_char_p;
 
 /* The list of directories to search after all the Go specific
    directories have been searched.  */
-
 static vec<rust_char_p> rust_search_dirs;
 
 /* Handle Go specific options.  Return 0 if we didn't do anything.  */
-
-static bool rust_langhook_handle_option(
+static bool grs_langhook_handle_option(
   size_t scode,
   const char* arg,
   HOST_WIDE_INT value,
@@ -246,8 +235,7 @@ static bool rust_langhook_handle_option(
 }
 
 /* Run after parsing options.  */
-
-static bool rust_langhook_post_options(const char** pfilename ATTRIBUTE_UNUSED) {
+static bool grs_langhook_post_options(const char** pfilename ATTRIBUTE_UNUSED) {
     unsigned int ix;
     const char* dir;
 
@@ -287,14 +275,19 @@ static bool rust_langhook_post_options(const char** pfilename ATTRIBUTE_UNUSED) 
     return false;
 }
 
-static void rust_langhook_parse_file(void) {
+/* Main entry point for front-end, apparently. Finds input file names in global vars in_fnames and 
+ * num_in_fnames. From this, frontend can take over and do actual parsing and initial compilation.
+ * This function must create a complete parse tree in a global var, and then return. 
+ * 
+ * Some consider this the "start of compilation". */ 
+static void grs_langhook_parse_file(void) {
     grs_parse_input_files(in_fnames, num_in_fnames, flag_syntax_only, rust_require_return_statement);
 
     /* Final processing of globals and early debug info generation.  */
     rust_write_globals();
 }
 
-static tree rust_langhook_type_for_size(unsigned int bits, int unsignedp) {
+static tree grs_langhook_type_for_size(unsigned int bits, int unsignedp) {
     tree type;
     if (unsignedp) {
         if (bits == INT_TYPE_SIZE)
@@ -326,7 +319,7 @@ static tree rust_langhook_type_for_size(unsigned int bits, int unsignedp) {
     return type;
 }
 
-static tree rust_langhook_type_for_mode(machine_mode mode, int unsignedp) {
+static tree grs_langhook_type_for_mode(machine_mode mode, int unsignedp) {
     tree type;
     /* Go has no vector types.  Build them here.  FIXME: It does not
      make sense for the middle-end to ask the frontend for a type
@@ -340,7 +333,7 @@ static tree rust_langhook_type_for_mode(machine_mode mode, int unsignedp) {
     } else if (VECTOR_MODE_P(mode) && valid_vector_subparts_p(GET_MODE_NUNITS(mode))) {
         tree inner;
 
-        inner = rust_langhook_type_for_mode(GET_MODE_INNER(mode), unsignedp);
+        inner = grs_langhook_type_for_mode(GET_MODE_INNER(mode), unsignedp);
         if (inner != NULL_TREE)
             return build_vector_type_for_mode(inner, mode);
         return NULL_TREE;
@@ -350,7 +343,7 @@ static tree rust_langhook_type_for_mode(machine_mode mode, int unsignedp) {
     scalar_float_mode fmode;
     complex_mode cmode;
     if (is_int_mode(mode, &imode))
-        return rust_langhook_type_for_size(GET_MODE_BITSIZE(imode), unsignedp);
+        return grs_langhook_type_for_size(GET_MODE_BITSIZE(imode), unsignedp);
     else if (is_float_mode(mode, &fmode)) {
         switch (GET_MODE_BITSIZE(fmode)) {
             case 32:
@@ -392,13 +385,13 @@ static tree rust_langhook_type_for_mode(machine_mode mode, int unsignedp) {
 
 /* Record a builtin function.  We just ignore builtin functions.  */
 
-static tree rust_langhook_builtin_function(tree decl) {
+static tree grs_langhook_builtin_function(tree decl) {
     return decl;
 }
 
 /* Return true if we are in the global binding level.  */
 
-static bool rust_langhook_global_bindings_p(void) {
+static bool grs_langhook_global_bindings_p(void) {
     return current_function_decl == NULL_TREE;
 }
 
@@ -409,7 +402,7 @@ static bool rust_langhook_global_bindings_p(void) {
    getdecls, and we could implement it for that purpose if
    necessary.  */
 
-static tree rust_langhook_pushdecl(tree decl ATTRIBUTE_UNUSED) {
+static tree grs_langhook_pushdecl(tree decl ATTRIBUTE_UNUSED) {
     gcc_unreachable();
 }
 
@@ -417,7 +410,7 @@ static tree rust_langhook_pushdecl(tree decl ATTRIBUTE_UNUSED) {
    We don't support that; instead we use the write_globals hook.  This
    can't simply crash because it is called by -gstabs.  */
 
-static tree rust_langhook_getdecls(void) {
+static tree grs_langhook_getdecls(void) {
     return NULL;
 }
 
@@ -425,7 +418,7 @@ static tree rust_langhook_getdecls(void) {
    CALL_EXPR_STATIC_CHAIN, because the gimplifier doesn't handle
    it.  */
 
-static int rust_langhook_gimplify_expr(tree* expr_p, gimple_seq* pre_p, gimple_seq* post_p) {
+static int grs_langhook_gimplify_expr(tree* expr_p, gimple_seq* pre_p, gimple_seq* post_p) {
     if (TREE_CODE(*expr_p) == CALL_EXPR && CALL_EXPR_STATIC_CHAIN(*expr_p) != NULL_TREE)
         gimplify_expr(&CALL_EXPR_STATIC_CHAIN(*expr_p), pre_p, post_p, is_gimple_val, fb_rvalue);
     return GS_UNHANDLED;
@@ -434,7 +427,7 @@ static int rust_langhook_gimplify_expr(tree* expr_p, gimple_seq* pre_p, gimple_s
 /* Return a decl for the exception personality function.  The function
    itself is implemented in librust/runtime/rust-unwind.c.  */
 
-static tree rust_langhook_eh_personality(void) {
+static tree grs_langhook_eh_personality(void) {
     static tree personality_decl;
     if (personality_decl == NULL_TREE) {
         personality_decl = build_personality_function("gccrust");
@@ -497,23 +490,23 @@ const char* rust_localize_identifier(const char* ident) {
 #undef LANG_HOOKS_EH_PERSONALITY
 
 #define LANG_HOOKS_NAME "GNU Rust"
-#define LANG_HOOKS_INIT rust_langhook_init
-#define LANG_HOOKS_OPTION_LANG_MASK rust_langhook_option_lang_mask
-#define LANG_HOOKS_INIT_OPTIONS_STRUCT rust_langhook_init_options_struct
-#define LANG_HOOKS_HANDLE_OPTION rust_langhook_handle_option
-#define LANG_HOOKS_POST_OPTIONS rust_langhook_post_options
-#define LANG_HOOKS_PARSE_FILE rust_langhook_parse_file
-#define LANG_HOOKS_TYPE_FOR_MODE rust_langhook_type_for_mode
-#define LANG_HOOKS_TYPE_FOR_SIZE rust_langhook_type_for_size
-#define LANG_HOOKS_BUILTIN_FUNCTION rust_langhook_builtin_function
-#define LANG_HOOKS_GLOBAL_BINDINGS_P rust_langhook_global_bindings_p
-#define LANG_HOOKS_PUSHDECL rust_langhook_pushdecl
-#define LANG_HOOKS_GETDECLS rust_langhook_getdecls
-#define LANG_HOOKS_GIMPLIFY_EXPR rust_langhook_gimplify_expr
-#define LANG_HOOKS_EH_PERSONALITY rust_langhook_eh_personality
+#define LANG_HOOKS_INIT grs_langhook_init
+#define LANG_HOOKS_OPTION_LANG_MASK grs_langhook_option_lang_mask
+#define LANG_HOOKS_INIT_OPTIONS_STRUCT grs_langhook_init_options_struct
+#define LANG_HOOKS_HANDLE_OPTION grs_langhook_handle_option
+#define LANG_HOOKS_POST_OPTIONS grs_langhook_post_options
+#define LANG_HOOKS_PARSE_FILE grs_langhook_parse_file
+#define LANG_HOOKS_TYPE_FOR_MODE grs_langhook_type_for_mode
+#define LANG_HOOKS_TYPE_FOR_SIZE grs_langhook_type_for_size
+#define LANG_HOOKS_BUILTIN_FUNCTION grs_langhook_builtin_function
+#define LANG_HOOKS_GLOBAL_BINDINGS_P grs_langhook_global_bindings_p
+#define LANG_HOOKS_PUSHDECL grs_langhook_pushdecl
+#define LANG_HOOKS_GETDECLS grs_langhook_getdecls
+#define LANG_HOOKS_GIMPLIFY_EXPR grs_langhook_gimplify_expr
+#define LANG_HOOKS_EH_PERSONALITY grs_langhook_eh_personality
 
 struct lang_hooks lang_hooks = LANG_HOOKS_INITIALIZER;
 
-//#include "gt-rust-rust-lang.h"
-//#include "gtype-rust.h"
-// TODO: something to do with this, maybe
+// These are for GCC's garbage collector to work properly or something
+#include "gt-rust-rust-lang.h"
+#include "gtype-rust.h"
