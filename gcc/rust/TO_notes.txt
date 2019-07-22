@@ -39,3 +39,10 @@ Trees:
 -For safety, useful to configure GCC with --enable-checking . All tree types are checked at runtime as a result, destroying performance but aiding debugging.
 -Many macros behave as predicates (a function used to test something about a supplied argument - e.g. lambda expression LINQ), and many, though not all, of these end in _P . Don't rely on result type of macros being of any particular type, but may rely on fact that type can be compared to 0, so statements like "int i = (TEST_P(t) != 0);" are legal. Macros that return int values now may be changed to return tree values, or other pointers in the future. Thus, should not write code like "if (TEST_P(t) == 1)".
 -
+
+
+
+Notes on basic outline:
+-rustc and mrustc appear to use a hand-written recursive-descent parser, not a bison-generated LALR parser.
+-I don't know if redbrain's original parser was bison LALR or handwritten recursive-descent - it seemed to have aspects of both. However, he mentioned using a bison-generated parser initially and then moving to a handwritten one later.
+-As such, own parser should probably be hand-written recursive-descent.

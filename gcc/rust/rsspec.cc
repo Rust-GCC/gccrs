@@ -43,41 +43,37 @@ static struct cl_decoded_option* grs_new_decoded_options;
 /* Return whether strings S1 and S2 are both NULL or both the same
    string.  */
 
-static bool
-strings_same(const char* s1, const char* s2) {
+static bool strings_same(const char* s1, const char* s2) {
     return s1 == s2 || (s1 != NULL && s2 != NULL && strcmp(s1, s2) == 0);
 }
 
 /* Return whether decoded option structures OPT1 and OPT2 are the
    same.  */
 
-static bool
-options_same(const struct cl_decoded_option* opt1,
-             const struct cl_decoded_option* opt2) {
-    return (opt1->opt_index == opt2->opt_index && strings_same(opt1->arg, opt2->arg) 
-		&& strings_same(opt1->orig_option_with_args_text, opt2->orig_option_with_args_text) 
-		&& strings_same(opt1->canonical_option[0], opt2->canonical_option[0]) 
-		&& strings_same(opt1->canonical_option[1], opt2->canonical_option[1]) 
-		&& strings_same(opt1->canonical_option[2], opt2->canonical_option[2]) 
-		&& strings_same(opt1->canonical_option[3], opt2->canonical_option[3]) 
-		&& (opt1->canonical_option_num_elements == opt2->canonical_option_num_elements) 
-		&& opt1->value == opt2->value && opt1->errors == opt2->errors);
+static bool options_same(const struct cl_decoded_option* opt1, const struct cl_decoded_option* opt2) {
+    return (opt1->opt_index == opt2->opt_index && strings_same(opt1->arg, opt2->arg)
+            && strings_same(opt1->orig_option_with_args_text, opt2->orig_option_with_args_text)
+            && strings_same(opt1->canonical_option[0], opt2->canonical_option[0])
+            && strings_same(opt1->canonical_option[1], opt2->canonical_option[1])
+            && strings_same(opt1->canonical_option[2], opt2->canonical_option[2])
+            && strings_same(opt1->canonical_option[3], opt2->canonical_option[3])
+            && (opt1->canonical_option_num_elements == opt2->canonical_option_num_elements)
+            && opt1->value == opt2->value && opt1->errors == opt2->errors);
 }
 
 /* Append another argument to the list being built.  As long as it is
    identical to the corresponding arg in the original list, just increment
    the new arg count.  Otherwise allocate a new list, etc.  */
 
-static void
-append_arg(const struct cl_decoded_option* arg) {
+static void append_arg(const struct cl_decoded_option* arg) {
     static unsigned int newargsize;
 
 #if 0
   fprintf (stderr, "`%s'\n", arg);
 #endif
 
-    if (grs_new_decoded_options == grs_x_decoded_options && grs_newargc < grs_xargc && 
-		options_same(arg, &grs_x_decoded_options[grs_newargc])) {
+    if (grs_new_decoded_options == grs_x_decoded_options && grs_newargc < grs_xargc
+        && options_same(arg, &grs_x_decoded_options[grs_newargc])) {
         ++grs_newargc;
         return; /* Nothing new here.  */
     }
@@ -94,16 +90,14 @@ append_arg(const struct cl_decoded_option* arg) {
     }
 
     if (grs_newargc == newargsize)
-        fatal_error("overflowed output arg list for %qs",
-                    arg->orig_option_with_args_text);
+        fatal_error("overflowed output arg list for %qs", arg->orig_option_with_args_text);
 
     grs_new_decoded_options[grs_newargc++] = *arg;
 }
 
 /* Append an option described by OPT_INDEX, ARG and VALUE to the list
    being built.  */
-static void
-append_option(size_t opt_index, const char* arg, int value) {
+static void append_option(size_t opt_index, const char* arg, int value) {
     struct cl_decoded_option decoded;
 
     generate_option(opt_index, arg, value, CL_DRIVER, &decoded);
@@ -113,8 +107,7 @@ append_option(size_t opt_index, const char* arg, int value) {
 /* Append a librust argument to the list being built.  If
    FORCE_STATIC, ensure the library is linked statically.  */
 
-static void
-add_arg_libgrust(bool force_static ATTRIBUTE_UNUSED) {
+static void add_arg_libgrust(bool force_static ATTRIBUTE_UNUSED) {
 #ifdef HAVE_LD_STATIC_DYNAMIC
     if (force_static)
         append_option(OPT_Wl_, "-Bstatic", 1);
@@ -130,8 +123,7 @@ add_arg_libgrust(bool force_static ATTRIBUTE_UNUSED) {
 // Presumably this is the "compiler driver", which runs the compiler
 // Handle calling the compiler (i.e. options, libraries to use)
 void lang_specific_driver(struct cl_decoded_option** in_decoded_options,
-                          unsigned int* in_decoded_options_count,
-                          int* in_added_libraries ATTRIBUTE_UNUSED) {
+  unsigned int* in_decoded_options_count, int* in_added_libraries ATTRIBUTE_UNUSED) {
     unsigned int i = 0;
     unsigned int argc = *in_decoded_options_count;                   // argument list count
     struct cl_decoded_option* decoded_options = *in_decoded_options; // argument list
@@ -189,16 +181,16 @@ void lang_specific_driver(struct cl_decoded_option** in_decoded_options,
             case OPT_fsyntax_only:
             case OPT_E:
                 /* These options disable linking entirely or linking of the
-	     standard libraries.  */
+             standard libraries.  */
                 library = 0;
                 break;
 
                 /*
-	case OPT_static_librust:
+        case OPT_static_librust:
 #ifdef HAVE_LD_STATIC_DYNAMIC
-	    static_lib = 1;
+            static_lib = 1;
 #endif
-	  break;
+          break;
 */
 
             case OPT_static:
@@ -221,8 +213,7 @@ void lang_specific_driver(struct cl_decoded_option** in_decoded_options,
 
             case OPT_version:
                 printf("GNU Rust %s%s\n", pkgversion_string, version_string);
-                printf("Copyright %s 2013 Free Software Foundation, Inc.\n\n",
-                       _("(C)"));
+                printf("Copyright %s 2013 Free Software Foundation, Inc.\n\n", _("(C)"));
                 printf(_("GNU Rust comes with NO WARRANTY, to the extent permitted by law.\n\
 You may redistribute copies of GNU Rust\n\
 under the terms of the GNU General Public License.\n\
@@ -232,7 +223,7 @@ For more information about these matters, see the file named COPYING\n\n"));
 
             case OPT__help:
                 /* Let gcc.c handle this, as it has a really
-	     cool facility for handling --help and --verbose --help.  */
+             cool facility for handling --help and --verbose --help.  */
                 return;
 
             default:
@@ -256,16 +247,16 @@ For more information about these matters, see the file named COPYING\n\n"));
             continue;
         }
 
-        if (decoded_options[i].opt_index == OPT_SPECIAL_input_file && 
-			decoded_options[i].arg[0] == '\0') {
+        if (decoded_options[i].opt_index == OPT_SPECIAL_input_file
+            && decoded_options[i].arg[0] == '\0') {
             /* Interesting.  Just append as is.  */
             append_arg(&decoded_options[i]);
             continue;
         }
 
-        if (decoded_options[i].opt_index != OPT_l && 
-			(decoded_options[i].opt_index != OPT_SPECIAL_input_file || 
-			strcmp(decoded_options[i].arg, "-") == 0)) {
+        if (decoded_options[i].opt_index != OPT_l
+            && (decoded_options[i].opt_index != OPT_SPECIAL_input_file
+                 || strcmp(decoded_options[i].arg, "-") == 0)) {
             /* Not a filename or library.  */
 
             if (saw_library == 1 && need_math) /* -l<library>.  */
@@ -292,14 +283,14 @@ For more information about these matters, see the file named COPYING\n\n"));
         if (saw_speclang)
             saw_library = 0; /* -xfoo currently active.  */
         else {               /* -lfoo or filename.  */
-            if (decoded_options[i].opt_index == OPT_l 
-				&& strcmp(decoded_options[i].arg, MATH_LIBRARY) == 0) {
+            if (decoded_options[i].opt_index == OPT_l
+                && strcmp(decoded_options[i].arg, MATH_LIBRARY) == 0) {
                 if (saw_library == 1)
                     saw_library = 2; /* -l<library> -lm.  */
                 else
                     add_arg_libgrust(static_lib && !static_linking);
-            } else if (decoded_options[i].opt_index == OPT_l 
-				&& strcmp(decoded_options[i].arg, RUST_LIBRARY) == 0) {
+            } else if (decoded_options[i].opt_index == OPT_l
+                       && strcmp(decoded_options[i].arg, RUST_LIBRARY) == 0) {
                 saw_library = 1; /* -l<library>.  */
                 add_arg_libgrust(static_lib && !static_linking);
                 continue;
@@ -335,8 +326,8 @@ For more information about these matters, see the file named COPYING\n\n"));
         unsigned int i;
 
         for (i = 1; i < grs_newargc; i++)
-            if (grs_new_decoded_options[i].opt_index == OPT_static_libgcc 
-				|| grs_new_decoded_options[i].opt_index == OPT_static)
+            if (grs_new_decoded_options[i].opt_index == OPT_static_libgcc
+                || grs_new_decoded_options[i].opt_index == OPT_static)
                 break;
 
         if (i == grs_newargc)
