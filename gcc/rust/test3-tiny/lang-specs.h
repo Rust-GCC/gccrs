@@ -22,7 +22,9 @@ along with GCC; see the file COPYING3.  If not see
 /* This is the contribution to the `default_compilers' array in gcc.c
    for the Rust language.  */
 {".rs",  "@rs", 0, 1, 0},
-{"@rs",  "grs1 %i %(cc1_options) %{I*} %{L*} %D %{!fsyntax-only:%(invoke_as)}",
+/*{"@rs",  "grs1 %i %(cc1_options) %{I*} %{L*} %D %{!fsyntax-only:%(invoke_as)}",
+    0, 1, 0},*/
+{"@rs",  "grs1 %i %{!Q:-quiet} %(cc1_options) %{!fsyntax-only:%(invoke_as)}",
     0, 1, 0},
 
 // "May take a while" to write this file - refer to other language lang-specs.h

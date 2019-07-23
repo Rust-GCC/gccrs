@@ -1,19 +1,20 @@
-#include "common/common-target.h"
 #include "config.h"
-#include "convert.h"
-#include "coretypes.h"
-#include "debug.h"
-#include "diagnostic.h"
-#include "fold-const.h"
-#include "gimple-expr.h"
-#include "gimplify.h"
-#include "langhooks-def.h"
-#include "langhooks.h"
-#include "opts.h"
-#include "stor-layout.h"
 #include "system.h"
+#include "coretypes.h"
 #include "target.h"
 #include "tree.h"
+#include "gimple-expr.h"
+#include "diagnostic.h"
+#include "opts.h"
+#include "fold-const.h"
+#include "gimplify.h"
+#include "stor-layout.h"
+#include "debug.h"
+#include "convert.h"
+#include "langhooks.h"
+#include "langhooks-def.h"
+#include "common/common-target.h"
+// note: header files must be in this order or else forward declarations don't work properly. Kinda dumb system, but have to live with it.
 
 // Language-dependent contents of a type. GTY() mark used for garbage collector.
 struct GTY(()) lang_type {
@@ -70,8 +71,36 @@ static bool grs_langhook_init(void) {
     return true;
 }
 
+// Parses a single file with filename filename.
+static void grs_parse_file(const char* filename) {
+    FILE* file = fopen(filename, "r");
+
+    if (file == NULL) {
+        fatal_error(UNKNOWN_LOCATION, "cannot open filename %s: %m", filename);
+    } 
+
+    // parse file here
+
+    fclose(file);
+}
+
+/* Actual main entry point for front-end. Called by langhook to parse files. 
+ * May move to a different compilation unit if frontend gets too big. */
+static void grs_parse_files(int num_files, const char** files) {
+    for (int i = 0; i < num_files; i++) {
+        grs_parse_file(files[i]);
+    }
+}
+
+/* Main entry point for front-end, apparently. Finds input file names in global vars in_fnames and 
+ * num_in_fnames. From this, frontend can take over and do actual parsing and initial compilation.
+ * This function must create a complete parse tree in a global var, and then return. 
+ * 
+ * Some consider this the "start of compilation". */ 
 static void grs_langhook_parse_file(void) {
     fprintf(stderr, "Nothing happens yet \n");
+
+    grs_parse_files(num_in_fnames, in_fnames);
 }
 
 static tree grs_langhook_type_for_mode(machine_mode mode, int unsignedp) {
@@ -140,6 +169,15 @@ static tree grs_langhook_pushdecl(tree decl ATTRIBUTE_UNUSED) {
 
 static tree grs_langhook_getdecls(void) {
     //gcc_unreachable();
+    return NULL;
+}
+
+/* Create an expression whose value is that of EXPR,
+   converted to type TYPE.  The TREE_TYPE of the value
+   is always TYPE.  This function implements all reasonable
+   conversions; callers should filter out those that are
+   not permitted by the language being compiled.  */
+tree convert(tree type, tree expr) { // not implemented yet - seems to be needed for compilation
     return NULL;
 }
 

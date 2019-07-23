@@ -1,4 +1,6 @@
-/* This file is part of GCC.
+/* Specific flags and argument handling of the Rust front-end.
+
+This file is part of GCC.
 
 GNU CC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -115,8 +117,8 @@ static struct cl_decoded_option* grs_new_decoded_options;*/
 // Presumably this is the "compiler driver", which runs the compiler
 // Handle calling the compiler (i.e. options, libraries to use)
 // Used to change flags before passing them to the driver
-void lang_specific_driver(struct cl_decoded_option** in_decoded_options,
-  unsigned int* in_decoded_options_count, int* in_added_libraries) {
+void lang_specific_driver(struct cl_decoded_option** /* in_decoded_options*/,
+  unsigned int* /* in_decoded_options_count*/, int* /* in_added_libraries*/) {
     /* unsigned int i = 0;
     unsigned int argc = *in_decoded_options_count;                   // argument list count
     struct cl_decoded_option* decoded_options = *in_decoded_options; // argument list
@@ -149,12 +151,12 @@ void lang_specific_driver(struct cl_decoded_option** in_decoded_options,
     // int n_infiles = 0;
     // int n_outfiles = 0;
 
-#if 0
+/* #if 0
   fprintf (stderr, "Incoming:");
   for( i=0; i<argc; ++i )
     fprintf (stderr, " %s", decoded_options[i].orig_option_with_args_text);
   fprintf (stderr, "\n");
-#endif
+#endif*/
 
     /* grs_xargc = argc;
     grs_x_decoded_options = decoded_options;
