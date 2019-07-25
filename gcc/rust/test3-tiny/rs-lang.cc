@@ -14,7 +14,12 @@
 #include "langhooks.h"
 #include "langhooks-def.h"
 #include "common/common-target.h"
-// note: header files must be in this order or else forward declarations don't work properly. Kinda dumb system, but have to live with it.
+// note: header files must be in this order or else forward declarations don't work properly. Kinda
+// dumb system, but have to live with it. clang-format seems to mess it up
+/* Order: config, system, coretypes, target, tree, gimple-expr, diagnostic, opts, fold-const, 
+ * gimplify, stor-layout, debug, convert, langhooks, langhooks-def, common-target */
+
+#include "rs-lex.h"
 
 // Language-dependent contents of a type. GTY() mark used for garbage collector.
 struct GTY(()) lang_type {
@@ -77,14 +82,36 @@ static void grs_parse_file(const char* filename) {
 
     if (file == NULL) {
         fatal_error(UNKNOWN_LOCATION, "cannot open filename %s: %m", filename);
-    } 
+    }
 
     // parse file here
+    // create lexer
+    Rust::Lexer lex(filename, file);
+
+    Rust::const_TokenPtr tok = lex.peek_token();
+    // do shit until EOF
+    while (true) {
+        bool has_text = tok->get_id() == Rust::IDENTIFIER || tok->get_id() == Rust::INT_LITERAL
+                        || tok->get_id() == Rust::FLOAT_LITERAL
+                        || tok->get_id() == Rust::STRING_LITERAL;
+
+        location_t loc = tok->get_locus();
+
+        fprintf(stderr, "<id=%s%s, %s, line=%d, col=%d>\n", tok->token_id_to_str(),
+          has_text ? (std::string(", text=") + tok->get_str()).c_str() : "", LOCATION_FILE(loc),
+          LOCATION_LINE(loc), LOCATION_COLUMN(loc));
+
+        if (tok->get_id() == Rust::END_OF_FILE)
+            break;
+
+        lex.skip_token();
+        tok = lex.peek_token();
+    }
 
     fclose(file);
 }
 
-/* Actual main entry point for front-end. Called by langhook to parse files. 
+/* Actual main entry point for front-end. Called by langhook to parse files.
  * May move to a different compilation unit if frontend gets too big. */
 static void grs_parse_files(int num_files, const char** files) {
     for (int i = 0; i < num_files; i++) {
@@ -92,11 +119,11 @@ static void grs_parse_files(int num_files, const char** files) {
     }
 }
 
-/* Main entry point for front-end, apparently. Finds input file names in global vars in_fnames and 
+/* Main entry point for front-end, apparently. Finds input file names in global vars in_fnames and
  * num_in_fnames. From this, frontend can take over and do actual parsing and initial compilation.
- * This function must create a complete parse tree in a global var, and then return. 
- * 
- * Some consider this the "start of compilation". */ 
+ * This function must create a complete parse tree in a global var, and then return.
+ *
+ * Some consider this the "start of compilation". */
 static void grs_langhook_parse_file(void) {
     fprintf(stderr, "Nothing happens yet \n");
 
@@ -145,19 +172,19 @@ static tree grs_langhook_type_for_mode(machine_mode mode, int unsignedp) {
     return NULL;
 }
 
-static tree grs_langhook_type_for_size(unsigned int bits ATTRIBUTE_UNUSED, 
-    int unsignedp ATTRIBUTE_UNUSED) {
+static tree grs_langhook_type_for_size(
+  unsigned int bits ATTRIBUTE_UNUSED, int unsignedp ATTRIBUTE_UNUSED) {
     gcc_unreachable();
     return NULL_TREE;
 }
 
-// Record a builtin function.  We just ignore builtin functions. 
+// Record a builtin function.  We just ignore builtin functions.
 static tree grs_langhook_builtin_function(tree decl ATTRIBUTE_UNUSED) {
     return decl;
 }
 
 static bool grs_langhook_global_bindings_p(void) {
-    //return current_function_decl == NULL_TREE;
+    // return current_function_decl == NULL_TREE;
     gcc_unreachable();
     return true;
 }
@@ -168,7 +195,7 @@ static tree grs_langhook_pushdecl(tree decl ATTRIBUTE_UNUSED) {
 }
 
 static tree grs_langhook_getdecls(void) {
-    //gcc_unreachable();
+    // gcc_unreachable();
     return NULL;
 }
 
@@ -210,7 +237,7 @@ tree convert(tree type, tree expr) { // not implemented yet - seems to be needed
 //#define LANG_HOOKS_POST_OPTIONS grs_langhook_post_options
 /* Main lang-hook, apparently. Finds input file names in global vars in_fnames and num_in_fnames
  * From this, frontend can take over and do actual parsing and initial compilation.
- * This hook must create a complete parse tree in a global var, and then return. */ 
+ * This hook must create a complete parse tree in a global var, and then return. */
 #define LANG_HOOKS_PARSE_FILE grs_langhook_parse_file
 #define LANG_HOOKS_TYPE_FOR_MODE grs_langhook_type_for_mode
 #define LANG_HOOKS_TYPE_FOR_SIZE grs_langhook_type_for_size
