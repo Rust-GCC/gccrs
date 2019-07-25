@@ -1,4 +1,4 @@
-/* lang-specs.h -- gcc driver specs for Go frontend.
+/* lang-specs.h -- gcc driver specs for Rust frontend.
    Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -18,8 +18,8 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 /* This is the contribution to the `default_compilers' array in gcc.c
-   for the Go language.  */
+   for the Rust language.  */
 
-{".go",  "@go", 0, 1, 0},
-{"@go",  "go1 %i %(cc1_options) %{I*} %{L*} %D %{!fsyntax-only:%(invoke_as)}",
+{".rs",  "@rs", 0, 1, 0},
+{"@rs",  "rust1 %i %(cc1_options) %{I*} %{L*} %D %{!fsyntax-only:%(invoke_as)}",
     0, 1, 0},
