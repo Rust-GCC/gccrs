@@ -54,70 +54,66 @@ namespace Rust {
     }
 
     // "Unexpected token" panic mode - flags gcc error at unexpected token
-    // "Unexpected token" panic mode - flags gcc error at unexpected token
     void Parser::unexpected_token(const_TokenPtr t) {
         error_at(t->get_locus(), "unexpected %s\n", t->get_token_description());
+    }
 
-        // Crappy "error recovery" performed after error by skipping tokens until a semi-colon is
-        // found    }
+    // Crappy "error recovery" performed after error by skipping tokens until a semi-colon is found
+    void Parser::skip_after_semicolon() {
+        const_TokenPtr t = lexer.peek_token();
 
-        // Crappy "error recovery" performed after calling error by
-        void Parser::skip_after_semicolon() {
-            const_TokenPtr t = lexer.peek_token();
-
-            while (t->get_id() != END_OF_FILE && t->get_id() != SEMICOLON) {
-                lexer.skip_token();
-                t = lexer.peek_token();
-            }
-
-            if (t->get_id() == SEMICOLON)
-
-            // Parses a variable declaration statement.            lexer.skip_token();
+        while (t->get_id() != END_OF_FILE && t->get_id() != SEMICOLON) {
+            lexer.skip_token();
+            t = lexer.peek_token();
         }
 
-        // Parses a variable declaration statement.
-        void Parser::parse_variable_declaration() {
-            if (!skip_token(VAR)) {
-                skip_after_semicolon();
-                return;
-            }
+        if (t->get_id() == SEMICOLON)
+            lexer.skip_token();
+    }
 
-            const_TokenPtr identifier = expect_token(IDENTIFIER);
-            if (identifier == NULL) {
-                skip_after_semicolon();
-                return;
-            }
-
-            if (!skip_token(COLON)) {
-                skip_after_semicolon();
-                return;
-            }
-
-            if (!parse_type()) {
-                return;
-            }
-
-            skip_token(SEMICOLON);
+    // Parses a variable declaration statement.
+    void Parser::parse_variable_declaration() {
+        if (!skip_token(VAR)) {
+            skip_after_semicolon();
+            return;
         }
 
-        /* Checks if current token has inputted id - skips it and returns true if so, diagnoses an
-         * error and returns false otherwise. */
-        bool Parser::skip_token(TokenId token_id) {
-            return expect_token(token_id) != const_TokenPtr();
+        const_TokenPtr identifier = expect_token(IDENTIFIER);
+        if (identifier == NULL) {
+            skip_after_semicolon();
+            return;
         }
 
-        /* Checks the current token - if id is same as expected, skips and returns it, otherwise
-         * diagnoses error and returns null. */
-        const_TokenPtr Parser::expect_token(TokenId token_id) {
-            const_TokenPtr t = lexer.peek_token();
-            if (t->get_id() == token_id) {
-                lexer.skip_token();
-                return t;
-            } else {
-                error_at(t->get_locus(), "expecting %s but %s found!\n",
-                  get_token_description(token_id), t->get_token_description());
-
-                return const_TokenPtr();
-            }
+        if (!skip_token(COLON)) {
+            skip_after_semicolon();
+            return;
         }
-    
+
+        if (!parse_type()) {
+            return;
+        }
+
+        skip_token(SEMICOLON);
+    }
+
+    /* Checks if current token has inputted id - skips it and returns true if so, diagnoses an error
+     * and returns false otherwise. */
+    bool Parser::skip_token(TokenId token_id) {
+        return expect_token(token_id) != const_TokenPtr();
+    }
+
+    /* Checks the current token - if id is same as expected, skips and returns it, otherwise diagnoses
+     * error and returns null. */
+    const_TokenPtr Parser::expect_token(TokenId token_id) {
+        const_TokenPtr t = lexer.peek_token();
+        if (t->get_id() == token_id) {
+            lexer.skip_token();
+            return t;
+        } else {
+            error_at(t->get_locus(), "expecting %s but %s found!\n", get_token_description(token_id),
+              t->get_token_description());
+
+            return const_TokenPtr();
+        }
+    }
+}
