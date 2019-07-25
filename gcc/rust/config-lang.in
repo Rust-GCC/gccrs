@@ -28,8 +28,7 @@ language="rust"
 compilers="rust1\$(exeext)"
 
 build_by_default="no"
-lang_requires_boot_languages=c++
 
 target_libs="target-libffi target-libbacktrace"
 
-gtfiles="\$(srcdir)/rust/rust-lang.c"
+gtfiles="\$(srcdir)/rust/rust-lang.c \$(srcdir)/rust/rust-c.h"

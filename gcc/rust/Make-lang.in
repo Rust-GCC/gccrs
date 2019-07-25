@@ -49,6 +49,8 @@ gccrust-cross$(exeext): gccrust$(exeext)
 rust-warn = $(STRICT_WARN)
 
 RUST_OBJS = \
+	rust/rust-lang.o \
+	rust/rust-backend.o \
 	rust/main.o
 
 rust_OBJS = $(RUST_OBJS) rust/rustspec.o

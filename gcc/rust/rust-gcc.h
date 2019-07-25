@@ -1,5 +1,5 @@
-/* lang-specs.h -- gcc driver specs for Go frontend.
-   Copyright (C) 2009-2019 Free Software Foundation, Inc.
+/* rust-gcc.h -- Header file for rust backend-specific interfaces.
+   Copyright (C) 2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -17,9 +17,17 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-/* This is the contribution to the `default_compilers' array in gcc.c
-   for the Go language.  */
+#ifndef RUST_RUST_GCC_BACKEND_H
+#define RUST_RUST_GCC_BACKEND_H
 
-{".go",  "@go", 0, 1, 0},
-{"@go",  "go1 %i %(cc1_options) %{I*} %{L*} %D %{!fsyntax-only:%(invoke_as)}",
-    0, 1, 0},
+class Backend;
+
+// Create and return a Backend object for use with the GCC backend.
+
+extern Backend *rust_get_backend();
+
+// Create and return a Linemap object for use with the GCC backend.
+
+extern Linemap *rust_get_linemap();
+
+#endif // !defined(RUST_GCC_BACKEND_H)

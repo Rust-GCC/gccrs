@@ -1,4 +1,4 @@
-/* go-lang.c -- Go frontend gcc interface.
+/* rust-lang.c -- Rust frontend gcc interface.
    Copyright (C) 2009-2019 Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -36,8 +36,8 @@ along with GCC; see the file COPYING3.  If not see
 
 #include <mpfr.h>
 
-#include "go-c.h"
-#include "go-gcc.h"
+#include "rust-c.h"
+#include "rust-gcc.h"
 
 #ifndef TARGET_AIX
 #define TARGET_AIX 0
@@ -83,17 +83,17 @@ struct GTY(()) language_function
   int dummy;
 };
 
-/* Option information we need to pass to go_create_gogo.  */
+/* Option information we need to pass to rust_create_rustgo.  */
 
-static const char *go_pkgpath = NULL;
-static const char *go_prefix = NULL;
-static const char *go_relative_import_path = NULL;
-static const char *go_c_header = NULL;
+static const char *rust_pkgpath = NULL;
+static const char *rust_prefix = NULL;
+static const char *rust_relative_import_path = NULL;
+static const char *rust_c_header = NULL;
 
 /* Language hooks.  */
 
 static bool
-go_langhook_init (void)
+rust_langhook_init (void)
 {
   build_common_tree_nodes (false);
 
@@ -104,23 +104,16 @@ go_langhook_init (void)
      (because Gogo::define_builtin_function_trees refers indirectly
      to, e.g., unsigned_char_type_node) but before calling
      build_common_builtin_nodes (because it calls, indirectly,
-     go_type_for_size).  */
-  struct go_create_gogo_args args;
+     rust_type_for_size).  */
+  struct rust_create_rustgo_args args;
   args.int_type_size = INT_TYPE_SIZE;
   args.pointer_size = POINTER_SIZE;
-  args.pkgpath = go_pkgpath;
-  args.prefix = go_prefix;
-  args.relative_import_path = go_relative_import_path;
-  args.c_header = go_c_header;
-  args.check_divide_by_zero = go_check_divide_zero;
-  args.check_divide_overflow = go_check_divide_overflow;
-  args.compiling_runtime = go_compiling_runtime;
-  args.debug_escape_level = go_debug_escape_level;
-  args.debug_escape_hash = go_debug_escape_hash;
-  args.nil_check_size_threshold = TARGET_AIX ? -1 : 4096;
-  args.linemap = go_get_linemap();
-  args.backend = go_get_backend();
-  go_create_gogo (&args);
+  args.pkgpath = rust_pkgpath;
+  args.prefix = rust_prefix;
+  args.relative_import_path = rust_relative_import_path;
+  args.linemap = rust_get_linemap();
+  args.backend = rust_get_backend();
+  rust_create_rustgo (&args);
 
   build_common_builtin_nodes ();
 
@@ -138,15 +131,15 @@ go_langhook_init (void)
 /* The option mask.  */
 
 static unsigned int
-go_langhook_option_lang_mask (void)
+rust_langhook_option_lang_mask (void)
 {
-  return CL_Go;
+  return CL_Rust;
 }
 
 /* Initialize the options structure.  */
 
 static void
-go_langhook_init_options_struct (struct gcc_options *opts)
+rust_langhook_init_options_struct (struct gcc_options *opts)
 {
   /* Go says that signed overflow is precisely defined.  */
   opts->x_flag_wrapv = 1;
@@ -181,17 +174,17 @@ go_langhook_init_options_struct (struct gcc_options *opts)
 
 /* Infrastructure for a vector of char * pointers.  */
 
-typedef const char *go_char_p;
+typedef const char *rust_char_p;
 
 /* The list of directories to search after all the Go specific
    directories have been searched.  */
 
-static vec<go_char_p> go_search_dirs;
+static vec<rust_char_p> rust_search_dirs;
 
 /* Handle Go specific options.  Return 0 if we didn't do anything.  */
 
 static bool
-go_langhook_handle_option (
+rust_langhook_handle_option (
     size_t scode,
     const char *arg,
     HOST_WIDE_INT value,
@@ -205,7 +198,7 @@ go_langhook_handle_option (
   switch (code)
     {
     case OPT_I:
-      go_add_search_path (arg);
+      rust_add_search_path (arg);
       break;
 
     case OPT_L:
@@ -223,51 +216,27 @@ go_langhook_handle_option (
 
 	len = strlen (arg);
 	p = XALLOCAVEC (char,
-			(len + sizeof "go" + sizeof DEFAULT_TARGET_VERSION
+			(len + sizeof "rust" + sizeof DEFAULT_TARGET_VERSION
 			 + sizeof DEFAULT_TARGET_MACHINE + 3));
 	strcpy (p, arg);
 	if (len > 0 && !IS_DIR_SEPARATOR (p[len - 1]))
 	  strcat (p, dir_separator_str);
-	strcat (p, "go");
+	strcat (p, "rust");
 	strcat (p, dir_separator_str);
 	strcat (p, DEFAULT_TARGET_VERSION);
 	if (stat (p, &st) == 0 && S_ISDIR (st.st_mode))
 	  {
-	    go_add_search_path (p);
+	    rust_add_search_path (p);
 	    strcat (p, dir_separator_str);
 	    strcat (p, DEFAULT_TARGET_MACHINE);
 	    if (stat (p, &st) == 0 && S_ISDIR (st.st_mode))
-	      go_add_search_path (p);
+	      rust_add_search_path (p);
 	  }
 
-	/* Search ARG too, but only after we've searched to Go
+	/* Search ARG too, but only after we've searched to Rust
 	   specific directories for all -L arguments.  */
-	go_search_dirs.safe_push (arg);
+	rust_search_dirs.safe_push (arg);
       }
-      break;
-
-    case OPT_fgo_dump_:
-      ret = go_enable_dump (arg) ? true : false;
-      break;
-
-    case OPT_fgo_optimize_:
-      ret = go_enable_optimize (arg, value) ? true : false;
-      break;
-
-    case OPT_fgo_pkgpath_:
-      go_pkgpath = arg;
-      break;
-
-    case OPT_fgo_prefix_:
-      go_prefix = arg;
-      break;
-
-    case OPT_fgo_relative_import_path_:
-      go_relative_import_path = arg;
-      break;
-
-    case OPT_fgo_c_header_:
-      go_c_header = arg;
       break;
 
     default:
@@ -281,16 +250,16 @@ go_langhook_handle_option (
 /* Run after parsing options.  */
 
 static bool
-go_langhook_post_options (const char **pfilename ATTRIBUTE_UNUSED)
+rust_langhook_post_options (const char **pfilename ATTRIBUTE_UNUSED)
 {
   unsigned int ix;
   const char *dir;
 
   gcc_assert (num_in_fnames > 0);
 
-  FOR_EACH_VEC_ELT (go_search_dirs, ix, dir)
-    go_add_search_path (dir);
-  go_search_dirs.release ();
+  FOR_EACH_VEC_ELT (rust_search_dirs, ix, dir)
+    rust_add_search_path (dir);
+  rust_search_dirs.release ();
 
   if (flag_excess_precision_cmdline == EXCESS_PRECISION_DEFAULT)
     flag_excess_precision_cmdline = EXCESS_PRECISION_STANDARD;
@@ -324,17 +293,16 @@ go_langhook_post_options (const char **pfilename ATTRIBUTE_UNUSED)
 }
 
 static void
-go_langhook_parse_file (void)
+rust_langhook_parse_file (void)
 {
-  go_parse_input_files (in_fnames, num_in_fnames, flag_syntax_only,
-			go_require_return_statement);
+  rust_parse_input_files (in_fnames, num_in_fnames, flag_syntax_only);
 
   /* Final processing of globals and early debug info generation.  */
-  go_write_globals ();
+  rust_write_globals ();
 }
 
 static tree
-go_langhook_type_for_size (unsigned int bits, int unsignedp)
+rust_langhook_type_for_size (unsigned int bits, int unsignedp)
 {
   tree type;
   if (unsignedp)
@@ -371,10 +339,10 @@ go_langhook_type_for_size (unsigned int bits, int unsignedp)
 }
 
 static tree
-go_langhook_type_for_mode (machine_mode mode, int unsignedp)
+rust_langhook_type_for_mode (machine_mode mode, int unsignedp)
 {
   tree type;
-  /* Go has no vector types.  Build them here.  FIXME: It does not
+  /* Rust has no vector types.  Build them here.  FIXME: It does not
      make sense for the middle-end to ask the frontend for a type
      which the frontend does not support.  However, at least for now
      it is required.  See PR 46805.  */
@@ -391,7 +359,7 @@ go_langhook_type_for_mode (machine_mode mode, int unsignedp)
     {
       tree inner;
 
-      inner = go_langhook_type_for_mode (GET_MODE_INNER (mode), unsignedp);
+      inner = rust_langhook_type_for_mode (GET_MODE_INNER (mode), unsignedp);
       if (inner != NULL_TREE)
 	return build_vector_type_for_mode (inner, mode);
       return NULL_TREE;
@@ -401,7 +369,7 @@ go_langhook_type_for_mode (machine_mode mode, int unsignedp)
   scalar_float_mode fmode;
   complex_mode cmode;
   if (is_int_mode (mode, &imode))
-    return go_langhook_type_for_size (GET_MODE_BITSIZE (imode), unsignedp);
+    return rust_langhook_type_for_size (GET_MODE_BITSIZE (imode), unsignedp);
   else if (is_float_mode (mode, &fmode))
     {
       switch (GET_MODE_BITSIZE (fmode))
@@ -450,7 +418,7 @@ go_langhook_type_for_mode (machine_mode mode, int unsignedp)
 /* Record a builtin function.  We just ignore builtin functions.  */
 
 static tree
-go_langhook_builtin_function (tree decl)
+rust_langhook_builtin_function (tree decl)
 {
   return decl;
 }
@@ -458,7 +426,7 @@ go_langhook_builtin_function (tree decl)
 /* Return true if we are in the global binding level.  */
 
 static bool
-go_langhook_global_bindings_p (void)
+rust_langhook_global_bindings_p (void)
 {
   return current_function_decl == NULL_TREE;
 }
@@ -471,7 +439,7 @@ go_langhook_global_bindings_p (void)
    necessary.  */
 
 static tree
-go_langhook_pushdecl (tree decl ATTRIBUTE_UNUSED)
+rust_langhook_pushdecl (tree decl ATTRIBUTE_UNUSED)
 {
   gcc_unreachable ();
 }
@@ -481,17 +449,17 @@ go_langhook_pushdecl (tree decl ATTRIBUTE_UNUSED)
    can't simply crash because it is called by -gstabs.  */
 
 static tree
-go_langhook_getdecls (void)
+rust_langhook_getdecls (void)
 {
   return NULL;
 }
 
-/* Go specific gimplification.  We need to gimplify
+/* Rust specific gimplification.  We need to gimplify
    CALL_EXPR_STATIC_CHAIN, because the gimplifier doesn't handle
    it.  */
 
 static int
-go_langhook_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
+rust_langhook_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 {
   if (TREE_CODE (*expr_p) == CALL_EXPR
       && CALL_EXPR_STATIC_CHAIN (*expr_p) != NULL_TREE)
@@ -501,16 +469,16 @@ go_langhook_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 }
 
 /* Return a decl for the exception personality function.  The function
-   itself is implemented in libgo/runtime/go-unwind.c.  */
+   itself is implemented in librust/runtime/rust-unwind.c.  */
 
 static tree
-go_langhook_eh_personality (void)
+rust_langhook_eh_personality (void)
 {
   static tree personality_decl;
   if (personality_decl == NULL_TREE)
     {
-      personality_decl = build_personality_function ("gccgo");
-      go_preserve_from_gc (personality_decl);
+      personality_decl = build_personality_function ("gccrust");
+      rust_preserve_from_gc (personality_decl);
     }
   return personality_decl;
 }
@@ -554,18 +522,18 @@ convert (tree type, tree expr)
 /* FIXME: This is a hack to preserve trees that we create from the
    garbage collector.  */
 
-static GTY(()) tree go_gc_root;
+static GTY(()) tree rust_gc_root;
 
 void
-go_preserve_from_gc (tree t)
+rust_preserve_from_gc (tree t)
 {
-  go_gc_root = tree_cons (NULL_TREE, t, go_gc_root);
+  rust_gc_root = tree_cons (NULL_TREE, t, rust_gc_root);
 }
 
 /* Convert an identifier for use in an error message.  */
 
 const char *
-go_localize_identifier (const char *ident)
+rust_localize_identifier (const char *ident)
 {
   return identifier_to_locale (ident);
 }
@@ -586,23 +554,23 @@ go_localize_identifier (const char *ident)
 #undef LANG_HOOKS_GIMPLIFY_EXPR
 #undef LANG_HOOKS_EH_PERSONALITY
 
-#define LANG_HOOKS_NAME			"GNU Go"
-#define LANG_HOOKS_INIT			go_langhook_init
-#define LANG_HOOKS_OPTION_LANG_MASK	go_langhook_option_lang_mask
-#define LANG_HOOKS_INIT_OPTIONS_STRUCT	go_langhook_init_options_struct
-#define LANG_HOOKS_HANDLE_OPTION	go_langhook_handle_option
-#define LANG_HOOKS_POST_OPTIONS		go_langhook_post_options
-#define LANG_HOOKS_PARSE_FILE		go_langhook_parse_file
-#define LANG_HOOKS_TYPE_FOR_MODE	go_langhook_type_for_mode
-#define LANG_HOOKS_TYPE_FOR_SIZE	go_langhook_type_for_size
-#define LANG_HOOKS_BUILTIN_FUNCTION	go_langhook_builtin_function
-#define LANG_HOOKS_GLOBAL_BINDINGS_P	go_langhook_global_bindings_p
-#define LANG_HOOKS_PUSHDECL		go_langhook_pushdecl
-#define LANG_HOOKS_GETDECLS		go_langhook_getdecls
-#define LANG_HOOKS_GIMPLIFY_EXPR	go_langhook_gimplify_expr
-#define LANG_HOOKS_EH_PERSONALITY	go_langhook_eh_personality
+#define LANG_HOOKS_NAME			"GNU Rust"
+#define LANG_HOOKS_INIT			rust_langhook_init
+#define LANG_HOOKS_OPTION_LANG_MASK	rust_langhook_option_lang_mask
+#define LANG_HOOKS_INIT_OPTIONS_STRUCT	rust_langhook_init_options_struct
+#define LANG_HOOKS_HANDLE_OPTION	rust_langhook_handle_option
+#define LANG_HOOKS_POST_OPTIONS		rust_langhook_post_options
+#define LANG_HOOKS_PARSE_FILE		rust_langhook_parse_file
+#define LANG_HOOKS_TYPE_FOR_MODE	rust_langhook_type_for_mode
+#define LANG_HOOKS_TYPE_FOR_SIZE	rust_langhook_type_for_size
+#define LANG_HOOKS_BUILTIN_FUNCTION	rust_langhook_builtin_function
+#define LANG_HOOKS_GLOBAL_BINDINGS_P	rust_langhook_global_bindings_p
+#define LANG_HOOKS_PUSHDECL		rust_langhook_pushdecl
+#define LANG_HOOKS_GETDECLS		rust_langhook_getdecls
+#define LANG_HOOKS_GIMPLIFY_EXPR	rust_langhook_gimplify_expr
+#define LANG_HOOKS_EH_PERSONALITY	rust_langhook_eh_personality
 
 struct lang_hooks lang_hooks = LANG_HOOKS_INITIALIZER;
 
-#include "gt-go-go-lang.h"
-#include "gtype-go.h"
+#include "gt-rust-rust-lang.h"
+#include "gtype-rust.h"
