@@ -37,7 +37,6 @@ along with GCC; see the file COPYING3.  If not see
 #include <mpfr.h>
 
 #include "rust-c.h"
-#include "rust-gcc.h"
 
 #ifndef TARGET_AIX
 #define TARGET_AIX 0
@@ -99,21 +98,6 @@ rust_langhook_init (void)
 
   /* I don't know why this has to be done explicitly.  */
   void_list_node = build_tree_list (NULL_TREE, void_type_node);
-
-  /* We must create the gogo IR after calling build_common_tree_nodes
-     (because Gogo::define_builtin_function_trees refers indirectly
-     to, e.g., unsigned_char_type_node) but before calling
-     build_common_builtin_nodes (because it calls, indirectly,
-     rust_type_for_size).  */
-  struct rust_create_rustgo_args args;
-  args.int_type_size = INT_TYPE_SIZE;
-  args.pointer_size = POINTER_SIZE;
-  args.pkgpath = rust_pkgpath;
-  args.prefix = rust_prefix;
-  args.relative_import_path = rust_relative_import_path;
-  args.linemap = rust_get_linemap();
-  args.backend = rust_get_backend();
-  rust_create_rustgo (&args);
 
   build_common_builtin_nodes ();
 
@@ -298,7 +282,7 @@ rust_langhook_parse_file (void)
   rust_parse_input_files (in_fnames, num_in_fnames, flag_syntax_only);
 
   /* Final processing of globals and early debug info generation.  */
-  rust_write_globals ();
+  // rust_write_globals ();
 }
 
 static tree
