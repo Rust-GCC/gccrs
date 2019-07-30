@@ -1,4 +1,4 @@
-#include "rs-lex.h"
+#include "rust-lex.h"
 
 #include "diagnostic.h" // for error_at
 

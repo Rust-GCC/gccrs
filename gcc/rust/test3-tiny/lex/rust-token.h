@@ -1,5 +1,5 @@
-#ifndef RS_TOKEN_H
-#define RS_TOKEN_H
+#ifndef RUST_TOKEN_H
+#define RUST_TOKEN_H
 
 #include "config.h"
 #include "system.h"

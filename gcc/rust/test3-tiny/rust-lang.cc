@@ -19,7 +19,7 @@
 /* Order: config, system, coretypes, target, tree, gimple-expr, diagnostic, opts, fold-const, 
  * gimplify, stor-layout, debug, convert, langhooks, langhooks-def, common-target */
 
-#include "rs-lex.h"
+#include "rust-lex.h"
 
 // Language-dependent contents of a type. GTY() mark used for garbage collector.
 struct GTY(()) lang_type {

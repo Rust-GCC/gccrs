@@ -1,5 +1,5 @@
-#ifndef RS_BUFFERED_QUEUE_H
-#define RS_BUFFERED_QUEUE_H
+#ifndef RUST_BUFFERED_QUEUE_H
+#define RUST_BUFFERED_QUEUE_H
 
 #include <vector>
 

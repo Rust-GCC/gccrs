@@ -1,4 +1,4 @@
-#include "rs-token.h"
+#include "rust-token.h"
 
 namespace Rust {
     // Hackily defined way to get token description for enum value using x-macros

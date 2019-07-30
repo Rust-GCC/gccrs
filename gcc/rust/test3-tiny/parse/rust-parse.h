@@ -1,7 +1,7 @@
-#ifndef RS_PARSE_H
-#define RS_PARSE_H
+#ifndef RUST_PARSE_H
+#define RUST_PARSE_H
 
-#include "rs-lex.h"
+#include "rust-lex.h"
 
 namespace Rust {
     // Parser implementation for gccrs.

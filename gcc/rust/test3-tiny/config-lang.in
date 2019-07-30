@@ -46,4 +46,4 @@ target_libs=""
 # collection tables and routines for this language. This excludes the files that are common to all 
 # front ends. 
 # gtfiles="\$(srcdir)/rust/rs-lang.c \$(srcdir)/rust/rdot-impl.h"
-gtfiles="\$(srcdir)/rust/rs-lang.cc"
+gtfiles="\$(srcdir)/rust/rust-lang.cc"

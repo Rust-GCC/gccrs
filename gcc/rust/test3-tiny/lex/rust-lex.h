@@ -1,8 +1,8 @@
-#ifndef RS_LEX_H
-#define RS_LEX_H
+#ifndef RUST_LEX_H
+#define RUST_LEX_H
 
-#include "rs-buffered-queue.h"
-#include "rs-token.h"
+#include "rust-buffered-queue.h"
+#include "rust-token.h"
 
 namespace Rust {
     class Lexer {

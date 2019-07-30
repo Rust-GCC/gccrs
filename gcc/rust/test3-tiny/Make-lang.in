@@ -68,10 +68,10 @@ gccrs$(exeext): $(GCCRS_D_OBJS) $(EXTRA_GCC_OBJS) libcommon-target.a $(LIBDEPS)
 # to GENERIC
 # The compiler proper, not driver
 GRS_OBJS = \
-    rust/rs-lang.o \
-    rust/rs-token.o \
-    rust/rs-lex.o \
-    rust/rs-parse.o \
+    rust/rust-lang.o \
+    rust/rust-token.o \
+    rust/rust-lex.o \
+    rust/rust-parse.o \
     $(END)
 # removed object files from here 
 
@@ -209,9 +209,9 @@ rust.stagefeedback: stagefeedback-start
 RUST_INCLUDES = -I $(srcdir)/rust -I $(srcdir)/rust/lex -I $(srcdir)/rust/parse
 
 # add files that require cross-folder includes - currently rs-lang.o, rs-lex.o
-CFLAGS-rust/rs-lang.o += $(RUST_INCLUDES)
-CFLAGS-rust/rs-lex.o += $(RUST_INCLUDES)
-CFLAGS-rust/rs-parse.o += $(RUST_INCLUDES)
+CFLAGS-rust/rust-lang.o += $(RUST_INCLUDES)
+CFLAGS-rust/rust-lex.o += $(RUST_INCLUDES)
+CFLAGS-rust/rust-parse.o += $(RUST_INCLUDES)
 
 # build all rust/lex files in rust folder, add cross-folder includes
 rust/%.o: rust/lex/%.cc
