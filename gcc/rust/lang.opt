@@ -39,8 +39,4 @@ o
 Rust Joined Separate
 ; Documented in common.opt
 
-frust-dump-dot
-Rust Var(GRS_OPT_dump_dot) Init(0)
--frust-dump-dot    Makes front-end dump the AST
-
 ; This comment is to ensure we retain the blank line above.

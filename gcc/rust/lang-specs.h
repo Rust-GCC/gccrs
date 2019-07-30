@@ -1,4 +1,7 @@
-/* This file is part of GCC.
+/* lang-specs.h -- gcc driver specs for Rust frontend.
+   Copyright (C) 2009-2019 Free Software Foundation, Inc.
+
+This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
@@ -22,7 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 /* This is the contribution to the `default_compilers' array in gcc.c
    for the Rust language.  */
 {".rs",  "@rs", 0, 1, 0},
-{"@rs",  "grs1 %i %(cc1_options) %{I*} %{L*} %D %{!fsyntax-only:%(invoke_as)}",
+{"@rs",  "rust1 %i %(cc1_options) %{I*} %{L*} %D %{!fsyntax-only:%(invoke_as)}",
     0, 1, 0},
 
 // "May take a while" to write this file - refer to other language lang-specs.h
