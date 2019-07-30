@@ -42,4 +42,4 @@ namespace Rust {
     };
 }
 
-#endif
+#endif //RUST_PARSE_H
