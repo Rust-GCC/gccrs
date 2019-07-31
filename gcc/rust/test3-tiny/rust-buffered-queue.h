@@ -5,13 +5,14 @@
 
 #include "config.h"
 #include "system.h"
+// order: config, system
 
 namespace Rust {
     // Buffered queue implementation. Items are of type T, queue source is of type Source.
     template<typename T, typename Source>
     class buffered_queue {
       public:
-        // Construct empty queue from Source& src
+        // Construct empty queue from Source& src.
         buffered_queue(Source& src) : source(src), start(0), end(0), buffer() {}
 
         // Returns token at position start + n (i.e. n tokens ahead). 

@@ -208,7 +208,7 @@ rust.stagefeedback: stagefeedback-start
 # cross-folder includes - add new folders later
 RUST_INCLUDES = -I $(srcdir)/rust -I $(srcdir)/rust/lex -I $(srcdir)/rust/parse
 
-# add files that require cross-folder includes - currently rs-lang.o, rs-lex.o
+# add files that require cross-folder includes - currently rust-lang.o, rust-lex.o
 CFLAGS-rust/rust-lang.o += $(RUST_INCLUDES)
 CFLAGS-rust/rust-lex.o += $(RUST_INCLUDES)
 CFLAGS-rust/rust-parse.o += $(RUST_INCLUDES)

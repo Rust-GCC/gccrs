@@ -253,5 +253,5 @@ tree convert(tree type, tree expr) { // not implemented yet - seems to be needed
 struct lang_hooks lang_hooks = LANG_HOOKS_INITIALIZER;
 
 // These are for GCC's garbage collector to work properly or something
-#include "gt-rust-rs-lang.h"
+#include "gt-rust-rust-lang.h"
 #include "gtype-rust.h"

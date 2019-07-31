@@ -99,9 +99,9 @@ namespace Rust {
         Token(TokenId token_id, location_t location, const std::string& paramStr) :
           token_id(token_id), locus(location), str(new std::string(paramStr)) {}
 
-        // No default initialiser
+        // No default initialiser.
         Token();
-        // Do not copy/assign tokens
+        // Do not copy/assign tokens.
         Token(const Token&);
         Token& operator=(const Token&);
 

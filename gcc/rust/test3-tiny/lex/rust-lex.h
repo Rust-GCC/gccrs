@@ -52,15 +52,18 @@ namespace Rust {
         // Line map.
         const struct line_map* line_map;
 
+        // Max column number that can be quickly allocated - higher may require allocating new linemap
         static const int max_column_hint = 80;
 
         // Input source wrapper thing.
         struct InputSource {
+            // Input source file.
             FILE* input;
 
+            // Create new input source from file.
             InputSource(FILE* input) : input(input) {}
 
-            // overload operator () to return next char from input stream
+            // Overload operator () to return next char from input stream.
             int operator()() {
                 return fgetc(input);
             }
@@ -73,10 +76,13 @@ namespace Rust {
 
         // Token source wrapper thing.
         struct TokenSource {
+            // The lexer object that will use this TokenSource.
             Lexer* lexer;
+
+            // Create a new TokenSource with given lexer.
             TokenSource(Lexer* parLexer) : lexer(parLexer) {}
 
-            // overload operator () to build token in lexer
+            // Overload operator () to build token in lexer.
             TokenPtr operator()() {
                 return lexer->build_token();
             }
