@@ -235,6 +235,62 @@ namespace Rust {
             }
 
             // identify literals
+            // int or float literals
+            if (ISDIGIT(current_char) || current_char == '.') {
+                std::string str;
+                str.reserve(16); // some sensible default
+                str += current_char;
+
+                bool is_real = (current_char == '.');
+
+                int length = 1;
+                current_char = peek_input();
+                while (ISDIGIT(current_char) || (!is_real && current_char == '.')) {
+                    length++;
+
+                    is_real = is_real || (current_char == '.');
+
+                    str += current_char;
+                    skip_input();
+                    current_char = peek_input();
+                }
+
+                current_column += length;
+
+                if (is_real) {
+                    return Token::make_float(loc, str);
+                } else {
+                    return Token::make_int(loc, str);
+                }
+            }
+
+            // string literals
+            if (current_char == '"') {
+                std::string str;
+                str.reserve(16); // some sensible default
+
+                int length = 1;
+                current_char = peek_input();
+                while (current_char != '\n' && current_char != '"') {
+                    length++;
+
+                    str += current_char;
+                    skip_input();
+                    current_char = peek_input();
+                }
+
+                current_column += length;
+
+                if (current_char == '\n') {
+                    error_at(get_current_location(), "unended string literal");
+                } else if (current_char == '"') {
+                    skip_input();
+                } else {
+                    gcc_unreachable();
+                }
+
+                return Token::make_string(loc, str);
+            }
 
             // didn't match anything so error
             error_at(loc, "unexpected character '%x'", current_char);

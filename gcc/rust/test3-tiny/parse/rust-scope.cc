@@ -1,6 +1,8 @@
 #include "rust-scope.h"
 
 namespace Rust {
+    Scope::Scope() {}
+
     void SymbolMapping::insert(SymbolPtr s) {
         gcc_assert(s != NULL);
         std::pair<Map::iterator, bool> p = map.insert(std::make_pair(s->get_name(), s));
@@ -34,6 +36,6 @@ namespace Rust {
 
     void Scope::pop_scope() {
         gcc_assert(!map_stack.empty());
-        map_stack.pop_back(); 
+        map_stack.pop_back();
     }
 }

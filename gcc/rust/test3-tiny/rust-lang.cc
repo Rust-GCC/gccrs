@@ -19,7 +19,7 @@
 /* Order: config, system, coretypes, target, tree, gimple-expr, diagnostic, opts, fold-const, 
  * gimplify, stor-layout, debug, convert, langhooks, langhooks-def, common-target */
 
-#include "rust-lex.h"
+#include "rust-parse.h"
 
 // Language-dependent contents of a type. GTY() mark used for garbage collector.
 struct GTY(()) lang_type {
@@ -87,8 +87,11 @@ static void grs_parse_file(const char* filename) {
     // parse file here
     // create lexer
     Rust::Lexer lex(filename, file);
+    Rust::Parser parser(lex);
 
-    Rust::const_TokenPtr tok = lex.peek_token();
+    parser.parse_program();
+
+    /* Rust::const_TokenPtr tok = lex.peek_token();
     // do shit until EOF
     while (true) {
         bool has_text = tok->get_id() == Rust::IDENTIFIER || tok->get_id() == Rust::INT_LITERAL
@@ -106,7 +109,7 @@ static void grs_parse_file(const char* filename) {
 
         lex.skip_token();
         tok = lex.peek_token();
-    }
+    }*/
 
     fclose(file);
 }
@@ -204,9 +207,10 @@ static tree grs_langhook_getdecls(void) {
    is always TYPE.  This function implements all reasonable
    conversions; callers should filter out those that are
    not permitted by the language being compiled.  */
-tree convert(tree type, tree expr) { // not implemented yet - seems to be needed for compilation
+/* tree convert(tree type, tree expr) { // not implemented yet - seems to be needed for compilation
     return NULL;
-}
+}*/
+// implemented in rust-misc-convert.cc
 
 /* The language hooks data structure. This is the main interface between the GCC front-end
  * and the GCC middle-end/back-end. A list of language hooks could be found in

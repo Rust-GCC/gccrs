@@ -1,7 +1,12 @@
 #ifndef RUST_SCOPE_H
 #define RUST_SCOPE_H
 
-#include "system.h" // for gcc_assert - can move to header if needed there
+#include "config.h"
+#include "system.h"
+#include "coretypes.h"
+#include "tree.h"
+// order: config, system, coretypes, tree
+// may not all be required
 
 #include <map>
 #include <string>
@@ -32,7 +37,7 @@ namespace Rust {
             decl = decl_;
         }
 
-        // Gets symbol's declaration tree.
+        // Gets tree with the location of variable declaration.
         Tree get_tree_decl() const {
             return decl;
         }

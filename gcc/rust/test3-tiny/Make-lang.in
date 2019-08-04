@@ -72,6 +72,8 @@ GRS_OBJS = \
     rust/rust-token.o \
     rust/rust-lex.o \
     rust/rust-parse.o \
+    rust/rust-scope.o \
+    rust/rust-misc-convert.o \
     $(END)
 # removed object files from here 
 

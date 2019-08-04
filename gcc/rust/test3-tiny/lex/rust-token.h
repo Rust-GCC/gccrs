@@ -130,6 +130,10 @@ namespace Rust {
             return TokenPtr(new Token(FLOAT_LITERAL, locus, str));
         }
 
+        static TokenPtr make_string(location_t locus, const std::string& str) {
+            return TokenPtr(new Token(STRING_LITERAL, locus, str));
+        }
+
         // Gets id of the token.
         TokenId get_id() const {
             return token_id;

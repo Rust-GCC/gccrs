@@ -27,7 +27,7 @@ namespace Rust {
         TokenPtr build_token();
 
       public:
-        // Construct lexer with input file and filename porovided
+        // Construct lexer with input file and filename provided
         Lexer(const char* filename, FILE* input);
         ~Lexer();
 
