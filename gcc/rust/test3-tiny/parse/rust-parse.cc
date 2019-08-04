@@ -16,9 +16,9 @@
 #include "print-tree.h"
 #include "stor-layout.h"
 #include "fold-const.h"
-// order: config, system, coretypes, target, tree, tree-iterator, input, diagnostic, stringpool,
-// cgraph, gimplify, gimple-expr, convert, print-tree, stor-layout, fold-const probably don't need all
-// these
+/* order: config, system, coretypes, target, tree, tree-iterator, input, diagnostic, stringpool,
+ * cgraph, gimplify, gimple-expr, convert, print-tree, stor-layout, fold-const  */
+// probably don't need all these
 
 /* parsing notes:
  *  kinds of "syntactic units" used:
@@ -41,7 +41,7 @@
  *      y = x + 2 */
 
 namespace Rust {
-    // Left binding powers of operations
+    // Left binding powers of operations.
     enum binding_powers {
         // Highest priority
         LBP_HIGHEST = 100,
@@ -80,6 +80,7 @@ namespace Rust {
                && TYPE_MAIN_VARIANT(TREE_TYPE(type.get_tree())) == char_type_node;
     }
 
+    // Gets left binding power for specified token.
     int Parser::left_binding_power(const_TokenPtr token) {
         switch (token->get_id()) {
             case ASTERISK:
@@ -141,6 +142,7 @@ namespace Rust {
         return (t->get_id() == END_OF_FILE);
     }
 
+    // Entry point - parse entire program (in file) from here.
     void Parser::parse_program() {
         // Built type of main "int (int, char**)"
         tree main_fndecl_type_param[]
@@ -403,7 +405,7 @@ namespace Rust {
 
     // Builds an if statement tree.
     Tree Parser::build_if_statement(Tree bool_expr, Tree then_part, Tree else_part) {
-        if (bool_type.is_error())
+        if (bool_expr.is_error())
             return bool_expr;
 
         // create then label declaration tree
@@ -468,7 +470,7 @@ namespace Rust {
         return stmt_list.get_tree();
     }
 
-    /* Builds a GENERIC tree LABEL_DECL (represents a label, as in a "goto" label). */
+    // Builds a GENERIC tree LABEL_DECL (represents a label, as in a "goto" label). 
     Tree Parser::build_label_decl(const char* name, location_t loc) {
         tree t = build_decl(loc, LABEL_DECL, get_identifier(name), void_type_node);
 
@@ -516,7 +518,7 @@ namespace Rust {
         return expr;
     }
 
-    // Entry point to parse an expression.
+    // Parse an expression with lowest left binding power.
     Tree Parser::parse_expression() {
         return parse_expression(LBP_LOWEST);
     }
@@ -536,7 +538,22 @@ namespace Rust {
         return expr;
     }
 
-    // Determines action to take when finding token at beginning of expression
+    // Parses an integer expression (basically parses expression and ensures integer result).
+    Tree Parser::parse_integer_expression() {
+        Tree expr = parse_expression();
+        if (expr.is_error())
+            return expr;
+
+        if (expr.get_type() != integer_type_node) {
+            error_at(expr.get_locus(), "expected expression of integer type but its type is %s",
+              print_type(expr.get_type()));
+            return Tree::error();
+        }
+
+        return expr;
+    }
+
+    // Determines action to take when finding token at beginning of expression.
     Tree Parser::null_denotation(const_TokenPtr tok) {
         // note: tok is previous character in input stream, not current one, as parse_expression
         // skips it before passing it in
@@ -1133,7 +1150,7 @@ namespace Rust {
         gcc_unreachable();
     }
 
-    // Something to do with blocks - enters top level scope?
+    // Enters new scope (like block scope or whatever).
     void Parser::enter_scope() {
         // push new symbol mapping
         scope.push_scope();
@@ -1148,7 +1165,7 @@ namespace Rust {
         stack_block_chain.push_back(BlockChain());
     }
 
-    // Something to do with blocks - leaves top-level scope?
+    // Leaves current scope (as defined by blocks - like block scope).
     Parser::TreeSymbolMapping Parser::leave_scope() {
         // Get current list of statements and pop them from stack of statement lists
         TreeStmtList current_stmt_list = get_current_stmt_list();
@@ -1191,7 +1208,7 @@ namespace Rust {
         return tree_scope;
     }
 
-    // Parses the "read" statement. FINISH DEFINITION
+    // Parses the "read" statement. 
     Tree Parser::parse_read_statement() {
         if (!skip_token(READ)) {
             skip_after_semicolon();
@@ -1252,7 +1269,7 @@ namespace Rust {
 
         // parse while's conditional expression
         Tree expr = parse_boolean_expression();
-        if (!skip_token(DO) {
+        if (!skip_token(DO)) {
             skip_after_end();
             return Tree::error();
         }
@@ -1271,7 +1288,7 @@ namespace Rust {
     }
 
     // Builds a while statement tree.
-    Tree build_while_statement(Tree bool_expr, Tree while_body) {
+    Tree Parser::build_while_statement(Tree bool_expr, Tree while_body) {
         if (bool_expr.is_error())
             return Tree::error();
 
@@ -1329,7 +1346,7 @@ namespace Rust {
             return Tree::error();
         }
 
-        if (!skip_token(ASSIG) {
+        if (!skip_token(ASSIG)) {
             skip_after_end();
             return Tree::error();
         }
@@ -1367,7 +1384,7 @@ namespace Rust {
     }
 
     // Builds a for statement tree (piggybacks on while statement tree building).
-    Tree build_for_statement(
+    Tree Parser::build_for_statement(
       SymbolPtr ind_var, Tree lower_bound, Tree upper_bound, Tree for_body_stmt_list) {
         if (ind_var == NULL)
             return Tree::error();
@@ -1410,15 +1427,42 @@ namespace Rust {
         return stmt_list.get_tree();
     }
 
+    /* SymbolPtr Parser::query_type(const std::string& name, location_t loc) {
+        SymbolPtr sym = scope.lookup(name);
+        if (sym == NULL) {
+            error_at(loc, "type '%s' not declared in the current scope", name.c_str());
+        } else if (sym->get_kind() != TYPENAME) {
+            error_at(loc, "name '%s' is not a type", name.c_str());
+            sym = SymbolPtr();
+        }
+        return sym;
+    }*/
+
     // Get variable of name in current scope.
     SymbolPtr Parser::query_variable(const std::string& name, location_t loc) {
         SymbolPtr sym = scope.lookup(name);
         if (sym == NULL) {
             error_at(loc, "variable '%s' not declared in the current scope", name.c_str());
-        } else if (sym->get_kind() != VARIABLE) {
+        } /* else if (sym->get_kind() != VARIABLE) {
             error_at(loc, "name '%s' is not a variable", name.c_str());
             sym = SymbolPtr();
+        }*/
+        return sym;
+    }
+
+    // Gets variable of name in current scope and ensures it has integer type.
+    SymbolPtr Parser::query_integer_variable(const std::string& name, location_t loc) {
+        SymbolPtr sym = query_variable(name, loc);
+        if (sym != NULL) {
+            Tree var_decl = sym->get_tree_decl();
+            gcc_assert(!var_decl.is_null());
+
+            if (var_decl.get_type() != integer_type_node) {
+                error_at(loc, "variable '%s' does not have integer type", name.c_str());
+                sym = SymbolPtr();
+            }
         }
+
         return sym;
     }
 
