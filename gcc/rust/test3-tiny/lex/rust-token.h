@@ -40,6 +40,8 @@ namespace Rust {
     RS_TOKEN(INT_LITERAL, "integer literal")      \
     RS_TOKEN(FLOAT_LITERAL, "float literal")      \
     RS_TOKEN(STRING_LITERAL, "string literal")    \
+    RS_TOKEN(LEFT_SQUARE, "[")                    \
+    RS_TOKEN(RIGHT_SQUARE, "]")                   \
                                                   \
     RS_TOKEN_KEYWORD(AND, "and")                  \
     RS_TOKEN_KEYWORD(DO, "do")                    \

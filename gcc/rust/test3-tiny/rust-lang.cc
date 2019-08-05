@@ -188,8 +188,9 @@ static tree grs_langhook_builtin_function(tree decl ATTRIBUTE_UNUSED) {
 
 static bool grs_langhook_global_bindings_p(void) {
     // return current_function_decl == NULL_TREE;
-    gcc_unreachable();
-    return true;
+    //gcc_unreachable();
+    //return true;
+    return false;
 }
 
 static tree grs_langhook_pushdecl(tree decl ATTRIBUTE_UNUSED) {

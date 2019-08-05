@@ -46,6 +46,8 @@ namespace Rust {
         // Highest priority
         LBP_HIGHEST = 100,
 
+        LBP_ARRAY_REF = 80,
+
         LBP_UNARY_PLUS = 50,              // Used only when the null denotation is +
         LBP_UNARY_MINUS = LBP_UNARY_PLUS, // Used only when the null denotation is -
 
@@ -80,9 +82,18 @@ namespace Rust {
                && TYPE_MAIN_VARIANT(TREE_TYPE(type.get_tree())) == char_type_node;
     }
 
+    // Checks if Tree has array type.
+    bool is_array_type(Tree type) {
+        gcc_assert(TYPE_P(type.get_tree()));
+        return type.get_tree_code() == ARRAY_TYPE;
+    }
+
     // Gets left binding power for specified token.
     int Parser::left_binding_power(const_TokenPtr token) {
         switch (token->get_id()) {
+            case LEFT_SQUARE:
+                return LBP_ARRAY_REF;
+
             case ASTERISK:
                 return LBP_MUL;
             case SLASH:
@@ -158,6 +169,8 @@ namespace Rust {
         parse_statement_seq(&Parser::done_end_of_file);
         // Append "return 0;"
         tree resdecl = build_decl(UNKNOWN_LOCATION, RESULT_DECL, NULL_TREE, integer_type_node);
+        // create decl_context of resdecl for main function (local variable of main function)
+        DECL_CONTEXT(resdecl) = main_fndecl;
         DECL_RESULT(main_fndecl) = resdecl;
         tree set_result = build2(INIT_EXPR, void_type_node, DECL_RESULT(main_fndecl),
           build_int_cst_type(integer_type_node, 0));
@@ -300,6 +313,8 @@ namespace Rust {
         // create GENERIC tree for variable declaration
         Tree decl = build_decl(identifier->get_locus(), VAR_DECL,
           get_identifier(sym->get_name().c_str()), type_tree.get_tree());
+        // set decl_context of decl to main function (make it local variable of main function)
+        DECL_CONTEXT(decl.get_tree()) = main_fndecl;
 
         // keep VAR_DECL tree in top list of stack_var_decl_chain stack for block purposes
         gcc_assert(!stack_var_decl_chain.empty());
@@ -338,19 +353,76 @@ namespace Rust {
     Tree Parser::parse_type() {
         const_TokenPtr t = lexer.peek_token();
 
+        Tree type;
+
         switch (t->get_id()) {
             case INT:
                 lexer.skip_token();
-                return integer_type_node;
+                type = integer_type_node;
                 break;
             case FLOAT:
                 lexer.skip_token();
-                return float_type_node;
+                type = float_type_node;
                 break;
             default:
                 unexpected_token(t);
                 return Tree::error();
                 break;
+        }
+
+        // start parsing index ranges: list of expression pairs (lower and upper indexes of array)
+        typedef std::vector<std::pair<Tree, Tree> > Dimensions;
+        Dimensions dimensions;
+
+        t = lexer.peek_token();
+        while (t->get_id() == LEFT_PAREN || t->get_id() == LEFT_SQUARE) {
+            lexer.skip_token();
+
+            // array bounds
+            Tree lower_bound, upper_bound;
+
+            if (t->get_id() == LEFT_SQUARE) {
+                // for array of form [e]
+                Tree size = parse_integer_expression();
+                skip_token(RIGHT_SQUARE);
+
+                lower_bound = Tree(build_int_cst_type(integer_type_node, 0), size.get_locus());
+
+                // set upper to e - 1
+                upper_bound = build_tree(MINUS_EXPR, size.get_locus(), integer_type_node, size,
+                  build_int_cst(integer_type_node, 1));
+            } else if (t->get_id() == LEFT_PAREN) {
+                // for array of form [e0:e1]
+                // parse e0
+                lower_bound = parse_integer_expression();
+                skip_token(COLON);
+
+                // parse e1
+                upper_bound = parse_integer_expression();
+                skip_token(RIGHT_PAREN);
+            } else {
+                gcc_unreachable();
+            }
+
+            dimensions.push_back(std::make_pair(lower_bound, upper_bound));
+            t = lexer.peek_token();
+
+            // start building array type
+            // transverse list in reverse order
+            for (Dimensions::reverse_iterator it = dimensions.rbegin(); it != dimensions.rend();
+                 it++) {
+                // fold lower and upper expressions (simplify expressions if possible)
+                it->first = Tree(fold(it->first.get_tree()), it->first.get_locus());
+                it->second = Tree(fold(it->second.get_tree()), it->second.get_locus());
+
+                // build GCC range type using lower and upper
+                Tree range_type
+                  = build_range_type(integer_type_node, it->first.get_tree(), it->second.get_tree());
+                // build array type
+                type = build_array_type(type.get_tree(), range_type.get_tree());
+            }
+
+            return type;
         }
     }
 
@@ -470,7 +542,7 @@ namespace Rust {
         return stmt_list.get_tree();
     }
 
-    // Builds a GENERIC tree LABEL_DECL (represents a label, as in a "goto" label). 
+    // Builds a GENERIC tree LABEL_DECL (represents a label, as in a "goto" label).
     Tree Parser::build_label_decl(const char* name, location_t loc) {
         tree t = build_decl(loc, LABEL_DECL, get_identifier(name), void_type_node);
 
@@ -944,24 +1016,35 @@ namespace Rust {
         return build_tree(TRUTH_ORIF_EXPR, tok->get_locus(), boolean_type_node, left, right);
     }
 
+    // Implementation of binary array reference ([) operator parsing;
+    Tree Parser::binary_array_ref(const_TokenPtr tok, Tree left) {
+        // parse integer expression inside square brackets (array index)
+        Tree right = parse_integer_expression();
+        if (right.is_error())
+            return Tree::error();
+
+        if (!skip_token(RIGHT_SQUARE))
+            return Tree::error();
+
+        // verify left operand has array type
+        if (!is_array_type(left.get_type())) {
+            error_at(left.get_locus(), "does not have array type");
+            return Tree::error();
+        }
+
+        // compute type of array element
+        Tree element_type = TREE_TYPE(left.get_type().get_tree());
+
+        // build GENERIC tree ARRAY_REF that represents array access
+        return build_tree(ARRAY_REF, tok->get_locus(), element_type, left, right, Tree(), Tree());
+    }
+
     // Parse variable assignment statement. This is not the same as variable declaration.
     Tree Parser::parse_assignment_statement() {
-        // get identifier at left hand side of assignment token :=
-        const_TokenPtr identifier = expect_token(IDENTIFIER);
-        if (identifier == NULL) {
-            skip_after_semicolon();
-            return Tree::error();
-        }
+        Tree variable = parse_lhs_assignment_expression();
 
-        // query in current scope the symbol associated to this identifier
-        SymbolPtr sym = query_variable(identifier->get_str(), identifier->get_locus());
-        if (sym == NULL) {
-            skip_after_semicolon();
+        if (variable.is_error())
             return Tree::error();
-        }
-
-        gcc_assert(!sym->get_tree_decl().is_null());
-        Tree var_decl = sym->get_tree_decl();
 
         const_TokenPtr assig_tok = expect_token(ASSIG);
         if (assig_tok == NULL) {
@@ -980,17 +1063,17 @@ namespace Rust {
         skip_token(SEMICOLON);
 
         // enforce rule that rhs of assignment has to have same type as declared lhs type
-        if (var_decl.get_type() != expr.get_type()) {
+        if (variable.get_type() != expr.get_type()) {
             // diagnostic
             error_at(first_of_expr->get_locus(),
-              "cannot assign value of type %s to variable '%s' of type %s",
-              print_type(expr.get_type()), sym->get_name().c_str(), print_type(var_decl.get_type()));
+              "cannot assign value of type %s to a variable of type %s",
+              print_type(expr.get_type()), print_type(variable.get_type()));
 
             return Tree::error();
         }
 
         Tree assig_expr
-          = build_tree(MODIFY_EXPR, assig_tok->get_locus(), void_type_node, var_decl, expr);
+          = build_tree(MODIFY_EXPR, assig_tok->get_locus(), void_type_node, variable, expr);
         return assig_expr;
     }
 
@@ -1208,7 +1291,7 @@ namespace Rust {
         return tree_scope;
     }
 
-    // Parses the "read" statement. 
+    // Parses the "read" statement.
     Tree Parser::parse_read_statement() {
         if (!skip_token(READ)) {
             skip_after_semicolon();
@@ -1476,5 +1559,24 @@ namespace Rust {
     bool Parser::done_end() {
         const_TokenPtr t = lexer.peek_token();
         return (t->get_id() == END || t->get_id() == END_OF_FILE);
+    }
+
+    // Parses expression and ensures it is a variable declaration or array reference.
+    Tree Parser::parse_expression_naming_variable() {
+        Tree expr = parse_expression();
+        if (expr.is_error())
+            return expr;
+
+        if (expr.get_tree_code() != VAR_DECL && expr.get_tree_code() != ARRAY_REF) {
+            error_at(expr.get_locus(), "does not designate a variable or array element");
+            return Tree::error();
+        }
+
+        return expr;
+    }
+
+    // Parses expression and ensures it is an assignment expression?
+    Tree Parser::parse_lhs_assignment_expression() {
+        return parse_expression_naming_variable();
     }
 }

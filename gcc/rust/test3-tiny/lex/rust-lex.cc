@@ -204,6 +204,13 @@ namespace Rust {
 
                     continue;
                     break;
+                
+                case '[':
+                    current_column++;
+                    return Token::make(LEFT_SQUARE, loc);
+                case ']':
+                    current_column++;
+                    return Token::make(RIGHT_SQUARE, loc);
             }
 
             // find identifiers and keywords
