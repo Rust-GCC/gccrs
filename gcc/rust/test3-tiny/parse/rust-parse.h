@@ -95,20 +95,28 @@ namespace Rust {
       private:
         // The lexer associated with the parser.
         Lexer& lexer;
+        // The current scope.
         Scope scope;
 
+        // The simulated "main" function inside which the entire program lies.
         tree main_fndecl;
 
+        // Address to function declaration of printf.
         Tree printf_fn;
+        // Address to function declaration of puts.
         Tree puts_fn;
+        // Address to function declaration of scanf.
         Tree scanf_fn;
 
+        // The statement stack.
         std::vector<TreeStmtList> stack_stmt_list;
+        // The VAR_DECL stack.
         std::vector<TreeChain> stack_var_decl_chain;
 
+        // The block stack.
         std::vector<BlockChain> stack_block_chain;
 
-// x-macro list for binary operators
+// x-macro list for binary operators - only defined here to be inside Parser class
 #define BINARY_HANDLER_LIST                         \
     BINARY_HANDLER(plus, PLUS)                      \
     BINARY_HANDLER(minus, MINUS)                    \

@@ -10,19 +10,28 @@
 
 #include <map>
 #include <string>
-#include <vector>
 #include <tr1/memory> // as shared_ptr is not available in std memory in c++03
+#include <vector>
 
 #include "rust-tree.h"
 
 // maybe split out scope into Symbol, SymbolMapping, and Scope headers
 
 namespace Rust {
+    // Kinds of symbols.
+    enum SymbolKind { INVALID, VARIABLE, TYPENAME };
+
+    // A symbol used for identifiers, etc.
     struct Symbol {
       public:
         // Constructs a new symbol of name with no declaration tree set.
-        Symbol(const std::string& name_) : name(name_), decl(error_mark_node) {
+        Symbol(SymbolKind kind, const std::string& name_) : kind(kind), name(name_), decl(error_mark_node) {
             gcc_assert(name.size() > 0);
+        }
+
+        // Gets symbol's kind.
+        SymbolKind get_kind() const {
+            return kind;
         }
 
         // Gets symbol's name.
@@ -43,6 +52,8 @@ namespace Rust {
         }
 
       private:
+        // Symbol's kind.
+        SymbolKind kind;
         // Symbol's name.
         std::string name;
         // Symbol's declaration tree.

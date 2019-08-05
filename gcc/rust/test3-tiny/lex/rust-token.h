@@ -44,9 +44,11 @@ namespace Rust {
     RS_TOKEN(RIGHT_SQUARE, "]")                   \
                                                   \
     RS_TOKEN_KEYWORD(AND, "and")                  \
+    RS_TOKEN_KEYWORD(BOOL, "bool")                \
     RS_TOKEN_KEYWORD(DO, "do")                    \
     RS_TOKEN_KEYWORD(ELSE, "else")                \
     RS_TOKEN_KEYWORD(END, "end")                  \
+    RS_TOKEN_KEYWORD(FALSE_LITERAL, "false")      \
     RS_TOKEN_KEYWORD(FLOAT, "float")              \
     RS_TOKEN_KEYWORD(FOR, "for")                  \
     RS_TOKEN_KEYWORD(IF, "if")                    \
@@ -56,6 +58,8 @@ namespace Rust {
     RS_TOKEN_KEYWORD(READ, "read")                \
     RS_TOKEN_KEYWORD(THEN, "then")                \
     RS_TOKEN_KEYWORD(TO, "to")                    \
+    RS_TOKEN_KEYWORD(TRUE_LTIERAL, "true")        \
+    RS_TOKEN_KEYWORD(TYPE, "type")                \
     RS_TOKEN_KEYWORD(VAR, "var")                  \
     RS_TOKEN_KEYWORD(WHILE, "while")              \
     RS_TOKEN_KEYWORD(WRITE, "write")              \

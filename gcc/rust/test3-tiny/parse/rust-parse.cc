@@ -220,6 +220,9 @@ namespace Rust {
             case VAR:
                 return parse_variable_declaration();
                 break;
+            case TYPE:
+                return parse_type_declaration();
+                break;
             case IF:
                 return parse_if_statement();
                 break;
@@ -300,13 +303,13 @@ namespace Rust {
         // check if current mapping of the scope already contains a mapping for identifier
         if (scope.get_current_mapping().get(identifier->get_str())) {
             // create error if this is true
-            error_at(identifier->get_locus(), "variable %s already declared in this scope",
+            error_at(identifier->get_locus(), "name %s already declared in this scope",
               identifier->get_str().c_str());
             return Tree::error();
         }
 
         // create a new symbol using the given identifier
-        SymbolPtr sym(new Symbol(identifier->get_str()));
+        SymbolPtr sym(new Symbol(VARIABLE, identifier->get_str()));
         // put new symbol into scope mapping
         scope.get_current_mapping().insert(sym);
 
@@ -364,6 +367,18 @@ namespace Rust {
                 lexer.skip_token();
                 type = float_type_node;
                 break;
+            case BOOL:
+                lexer.skip_token();
+                type = boolean_type_node;
+            case IDENTIFIER: {
+                SymbolPtr s = query_type(t->get_str(), t->get_locus());
+                lexer.skip_token();
+
+                if (s == NULL)
+                    type = Tree::error();
+                else
+                    type = TREE_TYPE(s->get_tree_decl().get_tree());
+            } break;
             default:
                 unexpected_token(t);
                 return Tree::error();
@@ -415,11 +430,13 @@ namespace Rust {
                 it->first = Tree(fold(it->first.get_tree()), it->first.get_locus());
                 it->second = Tree(fold(it->second.get_tree()), it->second.get_locus());
 
-                // build GCC range type using lower and upper
-                Tree range_type
-                  = build_range_type(integer_type_node, it->first.get_tree(), it->second.get_tree());
-                // build array type
-                type = build_array_type(type.get_tree(), range_type.get_tree());
+                if (!type.is_error()) {
+                    // build GCC range type using lower and upper
+                    Tree range_type = build_range_type(
+                      integer_type_node, it->first.get_tree(), it->second.get_tree());
+                    // build array type
+                    type = build_array_type(type.get_tree(), range_type.get_tree());
+                }
             }
 
             return type;
@@ -668,6 +685,15 @@ namespace Rust {
 
                 // use GCC's build_string_literal (with null terminator) to create tree
                 return Tree(build_string_literal(strlen(c_str) + 1, c_str), tok->get_locus());
+            }
+            case TRUE_LITERAL: {
+                // construct tree with code INTEGER_CST and value 1 but with boolean_type_node
+                return Tree(build_int_cst_type(boolean_type_node, 1), tok->get_locus());
+                break;
+            }
+            case FALSE_LITERAL: {
+                return Tree(build_int_cst_type(boolean_type_node, 0), tok->get_locus());
+                break;
             }
             case LEFT_PAREN: { // have to parse whole expression if inside brackets
                 /* recursively invoke parse_expression with lowest priority possible as it it were
@@ -1066,8 +1092,8 @@ namespace Rust {
         if (variable.get_type() != expr.get_type()) {
             // diagnostic
             error_at(first_of_expr->get_locus(),
-              "cannot assign value of type %s to a variable of type %s",
-              print_type(expr.get_type()), print_type(variable.get_type()));
+              "cannot assign value of type %s to a variable of type %s", print_type(expr.get_type()),
+              print_type(variable.get_type()));
 
             return Tree::error();
         }
@@ -1510,7 +1536,8 @@ namespace Rust {
         return stmt_list.get_tree();
     }
 
-    /* SymbolPtr Parser::query_type(const std::string& name, location_t loc) {
+    // Gets type (as in typedef) of name in current scope.
+    SymbolPtr Parser::query_type(const std::string& name, location_t loc) {
         SymbolPtr sym = scope.lookup(name);
         if (sym == NULL) {
             error_at(loc, "type '%s' not declared in the current scope", name.c_str());
@@ -1519,17 +1546,17 @@ namespace Rust {
             sym = SymbolPtr();
         }
         return sym;
-    }*/
+    }
 
     // Get variable of name in current scope.
     SymbolPtr Parser::query_variable(const std::string& name, location_t loc) {
         SymbolPtr sym = scope.lookup(name);
         if (sym == NULL) {
             error_at(loc, "variable '%s' not declared in the current scope", name.c_str());
-        } /* else if (sym->get_kind() != VARIABLE) {
+        } else if (sym->get_kind() != VARIABLE) {
             error_at(loc, "name '%s' is not a variable", name.c_str());
             sym = SymbolPtr();
-        }*/
+        }
         return sym;
     }
 
@@ -1578,5 +1605,55 @@ namespace Rust {
     // Parses expression and ensures it is an assignment expression?
     Tree Parser::parse_lhs_assignment_expression() {
         return parse_expression_naming_variable();
+    }
+
+    // Parses type (as in typedef) declaration statement.
+    Tree Parser::parse_type_declaration() {
+        // type_declaration -> "type" identifier ":" type ";"
+        if (!skip_token(TYPE)) {
+            skip_after_semicolon();
+            return Tree::error();
+        }
+
+        const_TokenPtr identifier = expect_token(IDENTIFIER);
+        if (identifier == NULL) {
+            skip_after_semicolon();
+            return Tree::error();
+        }
+
+        if (!skip_token(COLON)) {
+            skip_after_semicolon();
+            return Tree::error();
+        }
+
+        Tree type_tree = parse_type();
+
+        if (type_tree.is_error()) {
+            skip_after_semicolon();
+            return Tree::error();
+        }
+
+        skip_token(SEMICOLON);
+
+        if (scope.get_current_mapping().get(identifier->get_str())) {
+            error_at(identifier->get_locus(), "name '%s' already declared in this scope",
+              identifier->get_str().c_str());
+        }
+
+        SymbolPtr sym(new Symbol(TYPENAME, identifier->get_str()));
+        scope.get_current_mapping().insert(sym);
+
+        Tree decl = build_decl(identifier->get_locus(), TYPE_DECL,
+          get_identifier(sym->get_name().c_str()), type_tree.get_tree());
+        DECL_CONTEXT(decl.get_tree()) = main_fndecl;
+
+        gcc_assert(!stack_var_decl_chain.empty());
+        stack_var_decl_chain.back().append(decl);
+
+        sym->set_tree_decl(decl);
+
+        Tree stmt = build_tree(DECL_EXPR, identifier->get_locus(), void_type_node, decl);
+
+        return stmt;
     }
 }
