@@ -46,6 +46,8 @@ namespace Rust {
         // Highest priority
         LBP_HIGHEST = 100,
 
+        LBP_DOT = 90,
+
         LBP_ARRAY_REF = 80,
 
         LBP_UNARY_PLUS = 50,              // Used only when the null denotation is +
@@ -86,6 +88,12 @@ namespace Rust {
     bool is_array_type(Tree type) {
         gcc_assert(TYPE_P(type.get_tree()));
         return type.get_tree_code() == ARRAY_TYPE;
+    }
+
+    // Checks if Tree has record type.
+    bool is_record_type(Tree type) {
+        gcc_assert(TYPE_P(type.get_tree()));
+        return type.get_tree_code() == RECORD_TYPE;
     }
 
     // Gets left binding power for specified token.
@@ -379,6 +387,9 @@ namespace Rust {
                 else
                     type = TREE_TYPE(s->get_tree_decl().get_tree());
             } break;
+            case RECORD:
+                type = parse_record();
+                break;
             default:
                 unexpected_token(t);
                 return Tree::error();
@@ -1065,6 +1076,44 @@ namespace Rust {
         return build_tree(ARRAY_REF, tok->get_locus(), element_type, left, right, Tree(), Tree());
     }
 
+    // Parses a binary field access on a record.
+    Tree Parser::binary_field_ref(const_TokenPtr tok, Tree left) {
+        const_TokenPtr identifier = expect_token(IDENTIFIER);
+        if (identifier == NULL)
+            return Tree::error();
+
+        // ensure left expression has record type
+        if (!is_record_type(left.get_type())) {
+            error_at(left.get_locus(), "does not have record type");
+            return Tree::error();
+        }
+
+        // traverse each FIELD_DECL chaining through TREE_CHAIN
+        // list of fields in record type is available through TYPE_FIELDS
+        Tree field_decl = TYPE_FIELDS(left.get_type().get_tree());
+        while (!field_decl.is_null()) {
+            // FIELD_DECL has a DECL_NAME containing an IDENTIFIER_POINTER to get field name
+            Tree decl_name = DECL_NAME(field_decl.get_tree());
+            const char* field_name = IDENTIFIER_POINTER(decl_name.get_tree());
+
+            if (field_name == identifier->get_str())
+                break;
+
+            field_decl = TREE_CHAIN(field_decl.get_tree());
+        }
+
+        // if can't find a field with given name, this is an error
+        if (field_decl.is_null()) {
+            error_at(left.get_locus(), "record type does not have a field named '%s'",
+              identifier->get_str().c_str());
+            return Tree::error();
+        }
+
+        // build COMPONENT_REF tree using left tree (record type) and appropriate FIELD_DECL
+        return build_tree(COMPONENT_REF, tok->get_locus(), TREE_TYPE(field_decl.get_tree()), left,
+          field_decl, Tree());
+    }
+
     // Parse variable assignment statement. This is not the same as variable declaration.
     Tree Parser::parse_assignment_statement() {
         Tree variable = parse_lhs_assignment_expression();
@@ -1594,8 +1643,9 @@ namespace Rust {
         if (expr.is_error())
             return expr;
 
-        if (expr.get_tree_code() != VAR_DECL && expr.get_tree_code() != ARRAY_REF) {
-            error_at(expr.get_locus(), "does not designate a variable or array element");
+        if (expr.get_tree_code() != VAR_DECL && expr.get_tree_code() != ARRAY_REF
+            && expr.get_tree_code() != COMPONENT_REF) {
+            error_at(expr.get_locus(), "does not designate a variable, array element or field");
             return Tree::error();
         }
 
@@ -1655,5 +1705,84 @@ namespace Rust {
         Tree stmt = build_tree(DECL_EXPR, identifier->get_locus(), void_type_node, decl);
 
         return stmt;
+    }
+
+    // Parses a record type field declaration.
+    Tree Parser::parse_field_declaration(std::vector<std::string>& field_names) {
+        // identifier ':' type ';'
+        const_TokenPtr identifier = expect_token(IDENTIFIER);
+        if (identifier == NULL) {
+            skip_after_semicolon();
+            return Tree::error();
+        }
+
+        skip_token(COLON);
+
+        Tree type = parse_type();
+
+        skip_token(SEMICOLON);
+
+        if (type.is_error())
+            return Tree::error();
+
+        // pass vector of fields to avoid repeated field names - error if they exist
+        if (std::find(field_names.begin(), field_names.end(), identifier->get_str())
+            != field_names.end()) {
+            error_at(identifier->get_locus(), "repeated field name");
+            return Tree::error();
+        }
+
+        field_names.push_back(identifier->get_str());
+
+        // create GENERIC FIELD_DECL tree with name of tree and type
+        Tree field_decl = build_decl(identifier->get_locus(), FIELD_DECL,
+          get_identifier(identifier->get_str().c_str()), type.get_tree());
+        // required for read statement to work on fields
+        TREE_ADDRESSABLE(field_decl.get_tree()) = 1;
+
+        return field_decl;
+    }
+
+    // Parses a record.
+    Tree Parser::parse_record() {
+        // "record" field-decl* "end"
+        const_TokenPtr record_tok = expect_token(RECORD);
+        if (record_tok == NULL) {
+            skip_after_semicolon();
+            return Tree::error();
+        }
+
+        // create empty record type tree
+        Tree record_type = make_node(RECORD_TYPE);
+        Tree field_list, field_last;
+        std::vector<std::string> field_names;
+
+        // parse field declarations inside record until the end token is found
+        const_TokenPtr next = lexer.peek_token();
+        while (next->get_id() != END) {
+            Tree field_decl = parse_field_declaration(field_names);
+
+            if (!field_decl.is_error()) {
+                // set field declaration's decl_context to this record type
+                DECL_CONTEXT(field_decl.get_tree()) = record_type.get_tree();
+                if (field_list.is_null())
+                    field_list = field_decl;
+                if (!field_last.is_null())
+                    // chain fields in record type by using tree_chain
+                    TREE_CHAIN(field_last.get_tree()) = field_decl.get_tree();
+                field_last = field_decl;
+            }
+
+            next = lexer.peek_token();
+        }
+
+        skip_token(END);
+
+        // first field sets TYPE_FIELDS attribute of the RECORD_TYPE tree
+        TYPE_FIELDS(record_type.get_tree()) = field_list.get_tree();
+        // request GCC to layout type in memory
+        layout_type(record_type.get_tree());
+
+        return record_type;
     }
 }

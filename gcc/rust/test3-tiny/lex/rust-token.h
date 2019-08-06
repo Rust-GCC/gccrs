@@ -42,6 +42,7 @@ namespace Rust {
     RS_TOKEN(STRING_LITERAL, "string literal")    \
     RS_TOKEN(LEFT_SQUARE, "[")                    \
     RS_TOKEN(RIGHT_SQUARE, "]")                   \
+    RS_TOKEN(DOT, ".")                            \
                                                   \
     RS_TOKEN_KEYWORD(AND, "and")                  \
     RS_TOKEN_KEYWORD(BOOL, "bool")                \
@@ -56,6 +57,7 @@ namespace Rust {
     RS_TOKEN_KEYWORD(NOT, "not")                  \
     RS_TOKEN_KEYWORD(OR, "or")                    \
     RS_TOKEN_KEYWORD(READ, "read")                \
+    RS_TOKEN_KEYWORD(RECORD, "record")            \
     RS_TOKEN_KEYWORD(THEN, "then")                \
     RS_TOKEN_KEYWORD(TO, "to")                    \
     RS_TOKEN_KEYWORD(TRUE_LTIERAL, "true")        \
