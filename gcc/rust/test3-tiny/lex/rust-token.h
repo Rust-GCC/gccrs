@@ -60,7 +60,7 @@ namespace Rust {
     RS_TOKEN_KEYWORD(RECORD, "record")            \
     RS_TOKEN_KEYWORD(THEN, "then")                \
     RS_TOKEN_KEYWORD(TO, "to")                    \
-    RS_TOKEN_KEYWORD(TRUE_LTIERAL, "true")        \
+    RS_TOKEN_KEYWORD(TRUE_LITERAL, "true")        \
     RS_TOKEN_KEYWORD(TYPE, "type")                \
     RS_TOKEN_KEYWORD(VAR, "var")                  \
     RS_TOKEN_KEYWORD(WHILE, "while")              \

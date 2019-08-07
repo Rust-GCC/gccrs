@@ -20,6 +20,8 @@
  * cgraph, gimplify, gimple-expr, convert, print-tree, stor-layout, fold-const  */
 // probably don't need all these
 
+#include <algorithm> // for std::find
+
 /* parsing notes:
  *  kinds of "syntactic units" used:
  *  - statement: expresses an action to be carried out (executed), e.g.:
@@ -260,7 +262,7 @@ namespace Rust {
 
     // "Unexpected token" panic mode - flags gcc error at unexpected token
     void Parser::unexpected_token(const_TokenPtr t) {
-        error_at(t->get_locus(), "unexpected %s\n", t->get_token_description());
+        ::error_at(t->get_locus(), "unexpected %s\n", t->get_token_description());
     }
 
     // Crappy "error recovery" performed after error by skipping tokens until a semi-colon is found

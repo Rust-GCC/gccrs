@@ -1,5 +1,7 @@
 #include "rust-scope.h"
 
+#include <utility> // for std::make_pair
+
 namespace Rust {
     Scope::Scope() {}
 

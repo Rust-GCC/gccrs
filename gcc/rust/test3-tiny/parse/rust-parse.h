@@ -134,10 +134,13 @@ namespace Rust {
     BINARY_HANDLER(logical_and, AND)                \
     BINARY_HANDLER(logical_or, OR)                  \
                                                     \
-    BINARY_HANDLER(array_ref, LEFT_SQUARE)
+    BINARY_HANDLER(array_ref, LEFT_SQUARE)          \
+                                                    \
+    BINARY_HANDLER(field_ref, DOT)
 
 // create declarations for binary op handling
-#define BINARY_HANDLER(name, _) Tree binary_##name(const_TokenPtr tok, Tree left);
+#define BINARY_HANDLER(name, _) \
+        Tree binary_##name(const_TokenPtr tok, Tree left);
         BINARY_HANDLER_LIST
 #undef BINARY_HANDLER
     };

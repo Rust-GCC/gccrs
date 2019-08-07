@@ -1,6 +1,7 @@
 #include "rust-lex.h"
 
 #include "diagnostic.h" // for error_at
+#include "safe-ctype.h"
 
 namespace Rust {
     Lexer::Lexer(const char* filename, FILE* input) :

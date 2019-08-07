@@ -25,7 +25,8 @@ namespace Rust {
     struct Symbol {
       public:
         // Constructs a new symbol of name with no declaration tree set.
-        Symbol(SymbolKind kind, const std::string& name_) : kind(kind), name(name_), decl(error_mark_node) {
+        Symbol(SymbolKind kind, const std::string& name_) :
+          kind(kind), name(name_), decl(error_mark_node) {
             gcc_assert(name.size() > 0);
         }
 
@@ -41,8 +42,8 @@ namespace Rust {
 
         // Sets symbol's declaration tree.
         void set_tree_decl(Tree decl_) {
-            // Ensure declaration tree is a variable declaration.
-            gcc_assert(decl_.get_tree_code() == VAR_DECL);
+            // Ensure declaration tree is a variable or type declaration.
+            gcc_assert((decl_.get_tree_code() == VAR_DECL) || (decl_.get_tree_code() == TYPE_DECL));
             decl = decl_;
         }
 
