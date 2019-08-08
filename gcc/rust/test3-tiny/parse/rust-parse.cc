@@ -1066,6 +1066,7 @@ namespace Rust {
         if (right.is_error())
             return Tree::error();
 
+        // array close token
         if (!skip_token(RIGHT_SQUARE))
             return Tree::error();
 
@@ -1673,17 +1674,20 @@ namespace Rust {
             return Tree::error();
         }
 
+        // get identifier
         const_TokenPtr identifier = expect_token(IDENTIFIER);
         if (identifier == NULL) {
             skip_after_semicolon();
             return Tree::error();
         }
 
+        // skip colon
         if (!skip_token(COLON)) {
             skip_after_semicolon();
             return Tree::error();
         }
 
+        // get type of expression
         Tree type_tree = parse_type();
 
         if (type_tree.is_error()) {
@@ -1693,23 +1697,29 @@ namespace Rust {
 
         skip_token(SEMICOLON);
 
+        // ensure not already delcared in scope
         if (scope.get_current_mapping().get(identifier->get_str())) {
             error_at(identifier->get_locus(), "name '%s' already declared in this scope",
               identifier->get_str().c_str());
         }
 
+        // create new symbol for typedef and put in mapping for current scope
         SymbolPtr sym(new Symbol(TYPENAME, identifier->get_str()));
         scope.get_current_mapping().insert(sym);
 
+        // build typedef tree
         Tree decl = build_decl(identifier->get_locus(), TYPE_DECL,
           get_identifier(sym->get_name().c_str()), type_tree.get_tree());
         DECL_CONTEXT(decl.get_tree()) = main_fndecl;
 
+        // add type declaration to variable declaration stack
         gcc_assert(!stack_var_decl_chain.empty());
         stack_var_decl_chain.back().append(decl);
 
+        // set symbol's declaration tree to declaration tree
         sym->set_tree_decl(decl);
 
+        // build declaration statement for tree
         Tree stmt = build_tree(DECL_EXPR, identifier->get_locus(), void_type_node, decl);
 
         return stmt;
