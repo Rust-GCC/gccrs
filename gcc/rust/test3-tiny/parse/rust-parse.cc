@@ -101,6 +101,9 @@ namespace Rust {
     // Gets left binding power for specified token.
     int Parser::left_binding_power(const_TokenPtr token) {
         switch (token->get_id()) {
+            case DOT:
+                return LBP_DOT;
+
             case LEFT_SQUARE:
                 return LBP_ARRAY_REF;
 
@@ -380,14 +383,16 @@ namespace Rust {
             case BOOL:
                 lexer.skip_token();
                 type = boolean_type_node;
+                break;
             case IDENTIFIER: {
                 SymbolPtr s = query_type(t->get_str(), t->get_locus());
                 lexer.skip_token();
 
                 if (s == NULL)
                     type = Tree::error();
-                else
+                else {
                     type = TREE_TYPE(s->get_tree_decl().get_tree());
+                }
             } break;
             case RECORD:
                 type = parse_record();
@@ -434,26 +439,25 @@ namespace Rust {
 
             dimensions.push_back(std::make_pair(lower_bound, upper_bound));
             t = lexer.peek_token();
-
-            // start building array type
-            // transverse list in reverse order
-            for (Dimensions::reverse_iterator it = dimensions.rbegin(); it != dimensions.rend();
-                 it++) {
-                // fold lower and upper expressions (simplify expressions if possible)
-                it->first = Tree(fold(it->first.get_tree()), it->first.get_locus());
-                it->second = Tree(fold(it->second.get_tree()), it->second.get_locus());
-
-                if (!type.is_error()) {
-                    // build GCC range type using lower and upper
-                    Tree range_type = build_range_type(
-                      integer_type_node, it->first.get_tree(), it->second.get_tree());
-                    // build array type
-                    type = build_array_type(type.get_tree(), range_type.get_tree());
-                }
-            }
-
-            return type;
         }
+
+        // start building array type
+        // transverse list in reverse order
+        for (Dimensions::reverse_iterator it = dimensions.rbegin(); it != dimensions.rend(); it++) {
+            // fold lower and upper expressions (simplify expressions if possible)
+            it->first = Tree(fold(it->first.get_tree()), it->first.get_locus());
+            it->second = Tree(fold(it->second.get_tree()), it->second.get_locus());
+
+            if (!type.is_error()) {
+                // build GCC range type using lower and upper
+                Tree range_type
+                  = build_range_type(integer_type_node, it->first.get_tree(), it->second.get_tree());
+                // build array type
+                type = build_array_type(type.get_tree(), range_type.get_tree());
+            }
+        }
+
+        return type;
     }
 
     // Parses an if statement. Probably important to study as it seems complex.
@@ -1376,7 +1380,7 @@ namespace Rust {
         }
 
         const_TokenPtr first_of_expr = lexer.peek_token();
-        Tree expr = parse_expression();
+        Tree expr = parse_expression_naming_variable();
 
         skip_token(SEMICOLON);
 
@@ -1384,10 +1388,11 @@ namespace Rust {
             return Tree::error();
 
         // force variable name instead of manually looking up identifier token
-        if (expr.get_tree_code() != VAR_DECL) {
+        /* if (expr.get_tree_code() != VAR_DECL) {
             error_at(first_of_expr->get_locus(), "invalid expression in read statement");
             return Tree::error();
-        }
+        }*/
+        // not used anymore due to parse_expression_naming_variable
 
         // Variable must be addressable (variable needs address computed)
         TREE_ADDRESSABLE(expr.get_tree()) = 1;
@@ -1596,6 +1601,7 @@ namespace Rust {
             error_at(loc, "name '%s' is not a type", name.c_str());
             sym = SymbolPtr();
         }
+
         return sym;
     }
 
