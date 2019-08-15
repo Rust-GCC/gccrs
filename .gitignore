@@ -58,3 +58,5 @@ REVISION
 
 .vscode/*
 test.code-workspace
+
+gcc/rust/test3-tiny/*

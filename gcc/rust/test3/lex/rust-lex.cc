@@ -1,0 +1,591 @@
+#include "rust-lex.h"
+
+#include "diagnostic.h" // for error_at
+#include "safe-ctype.h"
+
+namespace Rust {
+    Lexer::Lexer(const char* filename, FILE* input) :
+      input(input), current_line(1), current_column(1), line_map(0), input_source(input),
+      input_queue(input_source), token_source(this), token_queue(token_source) {
+        // inform line_table that file is being entered and is in line 1
+        line_map
+          = ::linemap_add(::line_table, ::LC_ENTER, /* sysp */ 0, filename, /* current_line */ 1);
+    }
+
+    Lexer::~Lexer() {
+        ::linemap_add(::line_table, ::LC_LEAVE, /* sysp */ 0, /* filename */ NULL, /* to_line */ 0);
+    }
+
+    location_t Lexer::get_current_location() {
+        return ::linemap_position_for_column(::line_table, current_column);
+    }
+
+    int Lexer::peek_input(int n) {
+        return input_queue.peek(n);
+    }
+
+    int Lexer::peek_input() {
+        return peek_input(0);
+    }
+
+    void Lexer::skip_input(int n) {
+        input_queue.skip(n);
+    }
+
+    void Lexer::skip_input() {
+        skip_input(0);
+    }
+
+    const_TokenPtr Lexer::peek_token(int n) {
+        return token_queue.peek(n);
+    }
+
+    const_TokenPtr Lexer::peek_token() {
+        return peek_token(0);
+    }
+
+    void Lexer::skip_token(int n) {
+        token_queue.skip(n);
+    }
+
+    void Lexer::skip_token() {
+        skip_token(0);
+    }
+
+    /* shitty anonymous namespace that can only be accessed inside the compilation unit - used for
+     * classify_keyword
+     * Binary search in sorted array of keywords created with x-macros. */
+    namespace {
+        const std::string keyword_index[] = {
+#define RS_TOKEN(x, y)
+#define RS_TOKEN_KEYWORD(name, keyword) keyword,
+            RS_TOKEN_LIST
+#undef RS_TOKEN_KEYWORD
+#undef RS_TOKEN
+        };
+
+        TokenId keyword_keys[] = {
+#define RS_TOKEN(x, y)
+#define RS_TOKEN_KEYWORD(name, keyword) name,
+            RS_TOKEN_LIST
+#undef RS_TOKEN_KEYWORD
+#undef RS_TOKEN
+        };
+
+        const int num_keywords = sizeof(keyword_index) / sizeof(*keyword_index);
+    }
+
+    TokenId Lexer::classify_keyword(const std::string& str) {
+        const std::string* last = keyword_index + num_keywords;
+        const std::string* idx = std::lower_bound(keyword_index, last, str);
+
+        if (idx == last || str != *idx) {
+            return IDENTIFIER;
+        } else {
+            return keyword_keys[idx - keyword_index];
+        }
+    }
+
+    TokenPtr Lexer::build_token() {
+        // loop to go through multiple characters to build a single token
+        while (true) {
+            location_t loc = get_current_location();
+            int current_char = peek_input();
+            skip_input();
+
+            // return end of file token if end of file
+            if (current_char == EOF) {
+                return Token::make(END_OF_FILE, loc);
+            }
+
+            // if not end of file, start tokenising
+            switch (current_char) {
+                // ignore whitespace characters for tokens but continue updating location
+                case '\n': // newline
+                    current_line++;
+                    current_column = 1;
+                    // tell line_table that new line starts
+                    linemap_line_start(::line_table, current_line, max_column_hint);
+                    continue;
+                case ' ': // space
+                    current_column++;
+                    continue;
+                case '\t': // tab
+                    // width of a tab is not well-defined, assume 8 spaces
+                    current_column += 8;
+                    continue;
+
+                // punctuation - actual tokens
+                case '=':
+                    if (peek_input() == '>') {
+                        // match arm arrow
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(MATCH_ARROW, loc);
+                    } else if (peek_input() == '=') {
+                        // equality operator
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(EQUAL_EQUAL, loc);                   
+                    } else {
+                        // assignment operator
+                        current_column++;
+                        return Token::make(EQUAL, loc);
+                    }               
+                case '(':
+                    current_column++;
+                    return Token::make(LEFT_PAREN, loc);
+                case '-':
+                    if (peek_input() == '>') {
+                        // return type specifier
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(RETURN_TYPE, loc);
+                    } else if (peek_input() == '=') {
+                        // minus-assign
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(MINUS_EQ, loc);
+                    } else {
+                        // minus
+                        current_column++;
+                        return Token::make(MINUS, loc);
+                    }
+                case '+':
+                    if (peek_input() == '=') {
+                        // add-assign
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(PLUS_EQ, loc);
+                    } else {
+                        // add
+                        current_column++;
+                        return Token::make(PLUS, loc);
+                    }                  
+                case ')':
+                    current_column++;
+                    return Token::make(RIGHT_PAREN, loc);
+                case ';':
+                    current_column++;
+                    return Token::make(SEMICOLON, loc);
+                case '*':
+                    if (peek_input() == '=') {
+                        // multiplication-assign
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(ASTERISK_EQ, loc);
+                    } else {
+                        // multiplication
+                        current_column++;
+                        return Token::make(ASTERISK, loc);
+                    }
+                case ',':
+                    current_column++;
+                    return Token::make(COMMA, loc);
+                case '/':
+                    if (peek_input() == '=') {
+                        // division-assign
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(DIV_EQ, loc);
+                    } else if (peek_input() == '/') {
+                        // single line comment
+                        skip_input();
+                        current_column += 2;
+
+                        // basically ignore until line finishes
+                        while (current_char != '\n') {
+                            skip_input();
+                            current_column++; // not used
+                            current_char = peek_input();
+                        }   
+                        continue;
+                        break;
+                    } else if (peek_input() == '*') {
+                        // block comment
+                        skip_input();
+                        current_column += 2;
+
+                        // TODO: figure out how Rust does nested block comments
+                        // ok they do it through a "level" system in their while loop where /* 
+                        // increments the level and */ decrements it - they keep running loop until
+                        // level = 0. Would not work here without some modification due to not being
+                        // able to declare variables - maybe have a function to handle this?
+
+                        current_char = peek_input();
+
+                        int level = 1;
+                        while (level > 0) {
+                            skip_input();
+                            current_column++; // for error-handling
+                            current_char = peek_input();
+
+                            // if /* found
+                            if (current_char == '/') {
+                                if (peek_input(1) == '*') {
+                                    // skip /* characters
+                                    skip_input(1);
+
+                                    // TODO: ensure correct amount of chars are skipped
+
+                                    level += 1;
+                                }
+                            }
+
+                            // ignore until */ is found
+                            if (current_char == '*') {
+                                if (peek_input(1) == '/') {
+                                    // skip */ characters
+                                    skip_input(1);
+
+                                    // TODO: ensure correct amount of chars are skipped
+                                    // should only break inner loop here - seems to do so
+                                    //break;
+
+                                    level -= 1;
+                                }        
+                            }
+                        }
+
+                        // refresh new token
+                        continue;
+                        break;
+                    } else {
+                        // division
+                        current_column++;
+                        return Token::make(DIV, loc);
+                    }     
+                case '%':
+                    if (peek_input() == '=') {
+                        // modulo-assign
+                        current_column += 2;
+                        return Token::make(PERCENT_EQ, loc);
+                    } else {
+                        // modulo
+                        current_column++;
+                        return Token::make(PERCENT, loc);
+                    }    
+                case '^':
+                    if (peek_input() == '=') {
+                        // xor-assign?
+                        current_column += 2;
+                        return Token::make(CARET_EQ, loc);
+                    } else {
+                        // xor?
+                        current_column++;
+                        return Token::make(CARET, loc);
+                    }   
+                case '<':
+                    if (peek_input() == '<') {
+                        if (peek_input(1) == '=') {
+                            // left-shift assign
+                            skip_input(1);
+                            current_column += 3;
+
+                            return Token::make(LEFT_SHIFT_EQ);
+                        } else {
+                            // left-shift
+                            skip_input();
+                            current_column += 2;
+
+                            return Token::make(LEFT_SHIFT);
+                        }
+                    } else if (peek_input() == '=') {
+                        // smaller than or equal to
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(LESS_OR_EQUAL, loc);
+                    } else {
+                        // smaller than
+                        current_column++;
+                        return Token::make(LEFT_ANGLE, loc);
+                    }
+                    break;
+                case '>':
+                    if (peek_input() == '>') {
+                        if (peek_input(1) == '=') {
+                            // right-shift-assign
+                            skip_input(1);
+                            current_column += 3;
+
+                            return Token::make(RIGHT_SHIFT_EQ, loc);
+                        } else {
+                            // right-shift
+                            skip_input();
+                            current_column += 2;
+
+                            return Token::make(RIGHT_SHIFT, loc);
+                        }
+                    } else if (peek_input() == '=') {
+                        // larger than or equal to
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(GREATER_OR_EQUAL, loc);
+                    } else {
+                        // larger than
+                        current_column++;
+                        return Token::make(RIGHT_ANGLE, loc);
+                    }
+                case ':':
+                    if (peek_input() == ':') {
+                        // scope resolution ::
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(SCOPE_RESOLUTION, loc);
+                    } else {
+                        // single colon :
+                        current_column++;
+                        return Token::make(COLON, loc);
+                    }
+                case '!':
+                    // TODO: special handling for macros in lexer?
+                    if (peek_input() == '=') {
+                        // not equal boolean operator
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(NOT_EQUAL, loc);
+                    } else {
+                        // not equal unary operator
+                        current_column++;
+
+                        return Token::make(EXCLAM, loc);
+                    }
+                case '?':
+                    // TODO: special handling for end of expression vs ternary operator? 
+                    // does rust have a ternary operator?
+                    current_column++;
+                    return Token::make(QUESTION_MARK, loc);
+                case '#': 
+                    current_column++;
+                    return Token::make(HASH, loc);
+                case '[':
+                    current_column++;
+                    return Token::make(LEFT_SQUARE, loc);
+                case ']':
+                    current_column++;
+                    return Token::make(RIGHT_SQUARE, loc);
+                case '{':
+                    current_column++;
+                    return Token::make(LEFT_CURLY, loc);
+                case '}':
+                    current_column++;
+                    return Token::make(RIGHT_CURLY, loc);
+                case '@':
+                    // TODO: i don't know what this does, does it need special handling?
+                    current_column++;
+                    return Token::make(PATTERN_BIND, loc);
+                case '$':
+                    // TODO: i don't know what this does, does it need special handling?
+                    current_column++;
+                    return Token::make(DOLLAR_SIGN, loc);
+                case '~':
+                    // TODO: i don't know what this does, does it need special handling?
+                    current_column++;
+                    return Token::make(TILDE, loc);
+                case '\\':
+                    // TODO: i don't know what this does, does it need special handling?
+                    current_column++;
+                    return Token::make(BACKSLASH, loc);
+                case '`':
+                    // TODO: i don't know what this does, does it need special handling?
+                    current_column++;
+                    return Token::make(BACKTICK, loc);
+                case '|':
+                    if (peek_input() == '=') {
+                        // bitwise or-assign?
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(PIPE_EQ, loc);
+                    } else if (peek_input() == '|') {
+                        // logical or
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(OR, loc);
+                    } else {
+                        // bitwise or
+                        current_column++;
+
+                        return Token::make(PIPE, loc);
+                    }
+                case '&':
+                    if (peek_input() == '=') {
+                        // bitwise and-assign?
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(AMP_EQ, loc);
+                    } else if (peek_input() == '&') {
+                        // logical and
+                        skip_input();
+                        current_column += 2;
+
+                        return Token::make(LOGICAL_AND, loc);
+                    } else {
+                        // bitwise and/reference
+                        current_column++;
+
+                        return Token::make(AMP, loc);
+                    }
+                case '.':
+                    if (peek_input() == '.') {
+                        if (peek_input(1) == '.') {
+                            // ellipsis
+                            skip_input(1);
+                            current_column += 3;
+
+                            return Token::make(ELLIPSIS, loc);
+                        } else if (peek_input(1) == '=') {
+                            // ..=
+                            skip_input(1);
+                            current_column += 3;
+
+                            return Token::make(DOT_DOT_EQ, loc);
+                        } else {
+                            // ..
+                            skip_input();
+                            current_column += 2;
+
+                            return Token::make(DOT_DOT, loc);
+                        }
+                    } else if (!ISDIGIT(peek_input())) {
+                        // single dot .
+                        // Only if followed by a non-number
+                        current_column++;
+                        return Token::make(DOT, loc);
+                    }
+            }
+            // TODO: special handling of _ in the lexer? instead of being identifier
+
+            // find identifiers and keywords
+            if (ISALPHA(current_char)
+                || current_char == '_') { // is alphanumeric or _ (maybe just letters)
+                std::string str;
+                str.reserve(16); // default
+                str += current_char;
+
+                int length = 1;
+                current_char = peek_input();
+                // loop through entire name
+                while (ISALPHA(current_char) || ISDIGIT(current_char) || current_char == '_') {
+                    length++;
+
+                    str += current_char;
+                    skip_input();
+                    current_char = peek_input();
+                }
+
+                current_column += length;
+
+                TokenId keyword = classify_keyword(str);
+                if (keyword == IDENTIFIER) {
+                    return Token::make_identifier(loc, str);
+                } else {
+                    return Token::make(keyword, loc);
+                }
+            }
+
+            // identify literals
+            // int or float literals - not processed properly
+            if (ISDIGIT(current_char) || current_char == '.') {
+                std::string str;
+                str.reserve(16); // some sensible default
+                str += current_char;
+
+                bool is_real = (current_char == '.');
+
+                int length = 1;
+                current_char = peek_input();
+                while (ISDIGIT(current_char) || (!is_real && current_char == '.')) {
+                    length++;
+
+                    is_real = is_real || (current_char == '.');
+
+                    str += current_char;
+                    skip_input();
+                    current_char = peek_input();
+                }
+
+                current_column += length;
+
+                if (is_real) {
+                    // how rust spec defines float literals: an int literal, then a ., then another OR
+                    // an int literal followed by an exponent
+                    // also need to handle suffixes (f32 or f64) and underscores for readability
+
+                    return Token::make_float(loc, str);
+                } else {
+                    // int literals: also need to account for type at end (e.g. u32), hex (0x), octal 
+                    // (0o), and binary (0b) form of integer literals. Also underscores at any point
+                    // for readability.
+
+                    return Token::make_int(loc, str);
+                }
+            }
+
+            // string literals - not processed properly
+            if (current_char == '"') {
+                std::string str;
+                str.reserve(16); // some sensible default
+
+                int length = 1;
+                current_char = peek_input();
+                while (current_char != '\n' && current_char != '"') {
+                    length++;
+
+                    str += current_char;
+                    skip_input();
+                    current_char = peek_input();
+                }
+
+                current_column += length;
+
+                if (current_char == '\n') {
+                    error_at(get_current_location(), "unended string literal");
+                } else if (current_char == '"') {
+                    skip_input();
+                } else {
+                    gcc_unreachable();
+                }
+
+                return Token::make_string(loc, str);
+                // TODO: account for escapes and string continue
+                // also, in rust a string is a series of unicode characters (4 bytes)
+            }
+
+            // char literal attempt
+            if (current_char == '\'') {
+                // rust chars are 4 bytes and have some weird unicode representation thing
+                uint32_t shit;
+
+                // also need to account for escapes - quote escape \' and \"
+                // ascii escape: \x octal_digit hex_digit and \n \r \t \\ \0
+                // unicode escape: (i can't even figure out how to represent this)
+            }
+
+            // TODO: other literals: raw string literal, byte literal, byte string literal, raw byte
+            // string literal, boolean literal
+            // raw (don't process escapes): r#"hello"#
+            // byte (ascii char): b'H'
+            // byte string (ascii char array): b"hello"
+            // raw byte string (ascii char array with no escapes): br#"hello"#
+            // MAYBE boolean literals - maybe reserved word impl is enough for now but we'll see
+
+            // didn't match anything so error
+            error_at(loc, "unexpected character '%x'", current_char);
+            current_column++;
+        }
+    }
+}
