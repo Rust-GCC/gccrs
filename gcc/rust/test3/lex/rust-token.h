@@ -226,6 +226,11 @@ namespace Rust {
             return TokenPtr(new Token(STRING_LITERAL, locus, str));
         }
 
+        // Makes and returns a new TokenPtr of type BYTE_CHAR (fix).
+        static TokenPtr make_byte_char(location_t locus, char byte_char) {
+            return TokenPtr(new Token(BYTE_CHAR_LITERAL, locus, byte_char));
+        }
+
         // Gets id of the token.
         TokenId get_id() const {
             return token_id;

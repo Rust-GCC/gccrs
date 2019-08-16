@@ -469,6 +469,59 @@ namespace Rust {
             }
             // TODO: special handling of _ in the lexer? instead of being identifier
 
+            // byte and byte string test
+            if (current_char == 'b') {
+                if (peek_input() == '\'') {
+                    // byte - allows any ascii or escapes
+                    // would also have to take into account escapes: \x hex_digit hex_digit, \n, \r, 
+                    // \t, \\, \0
+
+                    // char to save
+                    char byte_char;
+
+                    // make current char the quote character
+                    current_char = peek_input();
+
+                    // detect escapes
+                    if (peek_input() == '\\') {
+                        skip_input();
+
+                        // make current_char next character (letter)
+                        current_char = peek_input();
+
+                        switch (current_char) {
+                            case 'n':
+                                byte_char = '\n';
+                                break;
+                            case 'r':
+                                byte_char = '\r';
+                                break;
+                            case 't':
+                                byte_char = '\t';
+                                break;
+                            case '\\':
+                                byte_char = '\\';
+                                break;
+                            case '0':
+                                byte_char = '\0';
+                                break;
+                            case 'x':
+                                // handle hex digit
+                                break;
+                            default:
+                                break;
+                        } 
+                    } else {
+                        // otherwise, get character from direct input character
+                        byte_char = peek_input();
+                    }
+
+                    return Token::make_byte_char(loc, byte_char);
+                } else if (peek_input() == '"') {
+                    // byte string
+                }
+            }
+
             // find identifiers and keywords
             if (ISALPHA(current_char)
                 || current_char == '_') { // is alphanumeric or _ (maybe just letters)
@@ -499,7 +552,7 @@ namespace Rust {
 
             // identify literals
             // int or float literals - not processed properly
-            if (ISDIGIT(current_char) || current_char == '.') {
+            if (ISDIGIT(current_char) || current_char == '.') { // assuming _ not allowed as first char
                 std::string str;
                 str.reserve(16); // some sensible default
                 str += current_char;
@@ -508,7 +561,15 @@ namespace Rust {
 
                 int length = 1;
                 current_char = peek_input();
-                while (ISDIGIT(current_char) || (!is_real && current_char == '.')) {
+                while (ISDIGIT(current_char) || (!is_real && current_char == '.') || current_char == '_') {
+                    if (current_char == '_') {
+                        // don't add _ to number
+                        skip_input();
+                        current_char = peek_input();
+
+                        continue;
+                    }
+
                     length++;
 
                     is_real = is_real || (current_char == '.');
@@ -577,10 +638,10 @@ namespace Rust {
 
             // TODO: other literals: raw string literal, byte literal, byte string literal, raw byte
             // string literal, boolean literal
-            // raw (don't process escapes): r#"hello"#
+            // raw (don't process escapes): r#"hello"# - same amount of hashes on either side (or none)
             // byte (ascii char): b'H'
             // byte string (ascii char array): b"hello"
-            // raw byte string (ascii char array with no escapes): br#"hello"#
+            // raw byte string (ascii char array with no escapes): br#"hello"# - also same hash number
             // MAYBE boolean literals - maybe reserved word impl is enough for now but we'll see
 
             // didn't match anything so error
