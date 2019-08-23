@@ -143,15 +143,15 @@ static tree grs_langhook_type_for_mode(machine_mode mode, int unsignedp) {
         return double_type_node;
 
     // don't know what this means but assume it has something to do with weird precisions
-    if (mode == TYPE_MODE(intQI_type_node))
+    if (mode == TYPE_MODE(intQI_type_node)) // quarter precision?
         return unsignedp ? unsigned_intQI_type_node : intQI_type_node;
-    if (mode == TYPE_MODE(intHI_type_node))
+    if (mode == TYPE_MODE(intHI_type_node)) // half precision?
         return unsignedp ? unsigned_intHI_type_node : intHI_type_node;
-    if (mode == TYPE_MODE(intSI_type_node))
+    if (mode == TYPE_MODE(intSI_type_node)) // single precision?
         return unsignedp ? unsigned_intSI_type_node : intSI_type_node;
-    if (mode == TYPE_MODE(intDI_type_node))
+    if (mode == TYPE_MODE(intDI_type_node)) // double precision?
         return unsignedp ? unsigned_intDI_type_node : intDI_type_node;
-    if (mode == TYPE_MODE(intTI_type_node))
+    if (mode == TYPE_MODE(intTI_type_node)) // triple precision?
         return unsignedp ? unsigned_intTI_type_node : intTI_type_node;
 
     if (mode == TYPE_MODE(integer_type_node))

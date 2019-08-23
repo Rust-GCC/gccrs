@@ -48,30 +48,74 @@ namespace Rust {
         // Highest priority
         LBP_HIGHEST = 100,
 
-        LBP_DOT = 90,
+        LBP_PATH = 95;
 
-        LBP_ARRAY_REF = 80,
+        LBP_METHOD_CALL = 90;
 
-        LBP_UNARY_PLUS = 50,              // Used only when the null denotation is +
+        LBP_FIELD_EXPR = 85;
+
+        //LBP_DOT = 80, /* method call and field expr have different precedence now */
+
+        LBP_FUNCTION_CALL = 80,
+        LBP_ARRAY_REF = LBP_FUNCTION_CALL,
+
+        LBP_QUESTION_MARK = 75, // unary postfix - TODO how to implement? does it count as left?
+
+        LBP_UNARY_PLUS = 70,              // Used only when the null denotation is +
         LBP_UNARY_MINUS = LBP_UNARY_PLUS, // Used only when the null denotation is -
+        LBP_UNARY_ASTERISK = LBP_UNARY_PLUS, // deref operator - unary prefix
+        LBP_UNARY_EXCLAM = LBP_UNARY_PLUS, 
+        LBP_UNARY_AMP = LBP_UNARY_PLUS,
+        LBP_UNARY_AMP_MUT = LBP_UNARY_PLUS,
 
-        LBP_MUL = 40,
+        LBP_AS = 65,
+
+        LBP_MUL = 60,
         LBP_DIV = LBP_MUL,
         LBP_MOD = LBP_MUL,
 
-        LBP_PLUS = 30,
+        LBP_PLUS = 55,
         LBP_MINUS = LBP_PLUS,
 
-        LBP_EQUAL = 20,
+        LBP_L_SHIFT = 50,
+        LBP_R_SHIFT = LBP_L_SHIFT;
+
+        LBP_AMP = 45,
+
+        LBP_CARET = 40,
+
+        LBP_PIPE = 35,
+
+        LBP_EQUAL = 30,
         LBP_DIFFERENT = LBP_EQUAL,
         LBP_SMALLER_THAN = LBP_EQUAL,
         LBP_SMALLER_EQUAL = LBP_EQUAL,
         LBP_GREATER_THAN = LBP_EQUAL,
         LBP_GREATER_EQUAL = LBP_EQUAL,
 
-        LBP_LOGICAL_AND = 10,
-        LBP_LOGICAL_OR = LBP_LOGICAL_AND,
-        LBP_LOGICAL_NOT = LBP_LOGICAL_AND,
+        LBP_LOGICAL_AND = 25,
+        
+        LBP_LOGICAL_OR = 20,
+        
+        LBP_DOT_DOT = 15,
+        LBP_DOT_DOT_EQ = LBP_DOT_DOT,
+
+        LBP_ASSIG = 10,
+        LBP_PLUS_ASSIG = LBP_ASSIG;
+        LBP_MINUS_ASSIG = LBP_ASSIG;
+        LBP_MULT_ASSIG = LBP_ASSIG;
+        LBP_DIV_ASSIG = LBP_ASSIG;
+        LBP_MOD_ASSIG = LBP_ASSIG;
+        LBP_AMP_ASSIG = LBP_ASSIG;
+        LBP_PIPE_ASSIG = LBP_ASSIG;
+        LBP_CARET_ASSIG = LBP_ASSIG;
+        LBP_L_SHIFT_ASSIG = LBP_ASSIG;
+        LBP_R_SHIFT_ASSIG = LBP_ASSIG;
+
+        // return, break, and closures as lowest priority?
+        //LBP_RETURN = 5,
+        //LBP_BREAK = LBP_RETURN,
+        //LBP_CLOSURE = LBP_RETURN,
 
         // lowest priority
         LBP_LOWEST = 0,
@@ -100,7 +144,11 @@ namespace Rust {
 
     // Gets left binding power for specified token.
     int Parser::left_binding_power(const_TokenPtr token) {
-        switch (token->get_id()) {
+        switch (token->get_id()) {          
+            /* TODO: issue here - distinguish between method calls and field access somehow? 
+                Also would have to distinguish between paths and function calls (:: operator),
+                maybe more stuff. */
+
             case DOT:
                 return LBP_DOT;
 
@@ -745,7 +793,7 @@ namespace Rust {
 
                 return Tree(expr, tok->get_locus());
             }
-            case MINUS: { // unary minus
+            case MINUS: { // unary minus - TODO: does not work on unsigned integers
                 Tree expr = parse_expression(LBP_UNARY_MINUS);
 
                 if (expr.is_error())
@@ -762,7 +810,7 @@ namespace Rust {
                 expr = build_tree(NEGATE_EXPR, tok->get_locus(), expr.get_type(), expr);
                 return expr;
             }
-            case EXCLAM: { // logical not
+            case EXCLAM: { // logical not - TODO: this could also be bitwise not
                 Tree expr = parse_expression(LBP_LOGICAL_NOT);
 
                 if (expr.is_error())
