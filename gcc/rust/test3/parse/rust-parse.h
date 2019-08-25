@@ -120,32 +120,33 @@ namespace Rust {
         std::vector<BlockChain> stack_block_chain;
 
 // x-macro list for binary operators - only defined here to be inside Parser class
-#define BINARY_HANDLER_LIST                                  \
-    BINARY_HANDLER(plus, PLUS)                               \
-    BINARY_HANDLER(minus, MINUS)                             \
-    BINARY_HANDLER(mult, ASTERISK)                           \
-    BINARY_HANDLER(div, DIV)                                 \
-    BINARY_HANDLER(mod, PERCENT)                             \
-    BINARY_HANDLER(bitwise_and, AMP)                         \
-    BINARY_HANDLER(bitwise_or, PIPE)                         \
-    BINARY_HANDLER(bitwise_xor, CARET)                       \
-    BINARY_HANDLER(left_shift, LEFT_SHIFT)                   \
-    BINARY_HANDLER(right_shift, RIGHT_SHIFT)                 \
-                                                             \
-    BINARY_HANDLER(equal, EQUAL)                             \
-    BINARY_HANDLER(not_equal, NOT_EQUAL)                     \
-    BINARY_HANDLER(smaller_than, LEFT_ANGLE)                 \
-    BINARY_HANDLER(smaller_equal, LESS_OR_EQUAL)             \
-    BINARY_HANDLER(greater_than, RIGHT_ANGLE)                \
-    BINARY_HANDLER(greater_equal, GREATER_OR_EQUAL)          \
-                                                             \
-    BINARY_HANDLER(logical_and, LOGICAL_AND)                 \
-    BINARY_HANDLER(logical_or, OR)                           \
-    \
-    BINARY_HANDLER(as_cast, AS) \
-                                                             \
-    BINARY_HANDLER(array_ref, LEFT_SQUARE)                   \
-                                                             \
+#define BINARY_HANDLER_LIST                         \
+    BINARY_HANDLER(plus, PLUS)                      \
+    BINARY_HANDLER(minus, MINUS)                    \
+    BINARY_HANDLER(mult, ASTERISK)                  \
+    BINARY_HANDLER(div, DIV)                        \
+    BINARY_HANDLER(mod, PERCENT)                    \
+    BINARY_HANDLER(bitwise_and, AMP)                \
+    BINARY_HANDLER(bitwise_or, PIPE)                \
+    BINARY_HANDLER(bitwise_xor, CARET)              \
+    BINARY_HANDLER(left_shift, LEFT_SHIFT)          \
+    BINARY_HANDLER(right_shift, RIGHT_SHIFT)        \
+                                                    \
+    BINARY_HANDLER(equal, EQUAL)                    \
+    BINARY_HANDLER(not_equal, NOT_EQUAL)            \
+    BINARY_HANDLER(smaller_than, LEFT_ANGLE)        \
+    BINARY_HANDLER(smaller_equal, LESS_OR_EQUAL)    \
+    BINARY_HANDLER(greater_than, RIGHT_ANGLE)       \
+    BINARY_HANDLER(greater_equal, GREATER_OR_EQUAL) \
+                                                    \
+    BINARY_HANDLER(logical_and, LOGICAL_AND)        \
+    BINARY_HANDLER(logical_or, OR)                  \
+                                                    \
+    /*BINARY_HANDLER(as_cast, AS)*/                 \
+    /* should this really be an operator? */        \
+                                                    \
+    BINARY_HANDLER(array_ref, LEFT_SQUARE)          \
+                                                    \
     BINARY_HANDLER(field_ref, DOT)
 
 // create declarations for binary op handling

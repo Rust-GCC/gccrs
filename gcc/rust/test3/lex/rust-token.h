@@ -73,12 +73,15 @@ namespace Rust {
     RS_TOKEN(SCOPE_RESOLUTION, "::") /* dodgy */                                              \
     RS_TOKEN(SINGLE_QUOTE, "'")      /* should i differentiate from lifetime? */              \
     RS_TOKEN(DOUBLE_QUOTE, "\"")                                                              \
-    RS_TOKEN(UNDERSCORE, "_")                                                                 \
+    RS_TOKEN(UNDERSCORE, "_") /* TODO: treat as reserved word like mrustc instead? */         \
     RS_TOKEN(IDENTIFIER, "identifier")                                                        \
     RS_TOKEN(INT_LITERAL,                                                                     \
       "integer literal") /* do different int and float types need different literal types? */ \
     RS_TOKEN(FLOAT_LITERAL, "float literal")                                                  \
     RS_TOKEN(STRING_LITERAL, "string literal") /* maybe need char and bytestring literals? */ \
+    /* Have lifetime token? mrustc has one. */                                                \
+    /* Have "interpolated" tokens (whatever that means)? identifer, path, type, pattern, */   \
+    /* expression, statement, block, meta, item in mrustc. */                                 \
     RS_TOKEN(LEFT_PAREN, "(")                                                                 \
     RS_TOKEN(RIGHT_PAREN, ")")                                                                \
     RS_TOKEN(LEFT_CURLY, "{")                                                                 \
@@ -129,7 +132,7 @@ namespace Rust {
     RS_TOKEN_KEYWORD(PUB, "pub")                                                              \
     RS_TOKEN_KEYWORD(REF, "ref")                                                              \
     RS_TOKEN_KEYWORD(RETURN, "return")                                                        \
-    RS_TOKEN_KEYWORD(SELF_ALIAS, "Self")                                                      \
+    RS_TOKEN_KEYWORD(SELF_ALIAS, "Self") /* mrustc does not treat this as a reserved word*/   \
     RS_TOKEN_KEYWORD(SELF, "self")                                                            \
     RS_TOKEN_KEYWORD(STATIC, "static")                                                        \
     RS_TOKEN_KEYWORD(STRUCT, "struct")                                                        \
