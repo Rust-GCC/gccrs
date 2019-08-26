@@ -149,6 +149,8 @@ namespace Rust {
                 Also would have to distinguish between paths and function calls (:: operator),
                 maybe more stuff. */
 
+            // TODO: handle operator overloading - have a function replace the operator?
+
             case DOT:
                 return LBP_DOT;
 

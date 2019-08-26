@@ -11,6 +11,32 @@
 #include <tr1/memory> // as shared_ptr is not available in std memory in c++03
 
 namespace Rust {
+    enum PrimitiveCoreType {
+        CORETYPE_UNKNOWN,
+        // named ones
+        CORETYPE_BOOL,
+        CORETYPE_CHAR,
+        CORETYPE_INT,
+        CORETYPE_UINT,
+        CORETYPE_STR,
+        // numbered ones
+        CORETYPE_F32,
+        CORETYPE_F64,
+        CORETYPE_I8,
+        CORETYPE_I16,
+        CORETYPE_I32,
+        CORETYPE_I64,
+        CORETYPE_I128,
+        CORETYPE_U8,
+        CORETYPE_U16,
+        CORETYPE_U32,
+        CORETYPE_U64,
+        CORETYPE_U128,
+        // ridiculous ones
+        CORETYPE_ISIZE = CORETYPE_INT,
+        CORETYPE_USIZE = CORETYPE_UINT
+    };
+
 // RS_TOKEN(name, description)
 // RS_TOKEN_KEYWORD(name, identifier)
 //
@@ -182,6 +208,8 @@ namespace Rust {
         location_t locus;
         // Associated text (if any) of token.
         std::string* str;
+        // Type hint for token based on lexer data (e.g. type suffix). Does not exist for most tokens.
+        PrimitiveCoreType type_hint;
 
         // Token constructor from token id and location. Has a null string.
         Token(TokenId token_id, location_t location) :
@@ -190,6 +218,12 @@ namespace Rust {
         // Token constructor from token id, location, and a string.
         Token(TokenId token_id, location_t location, const std::string& paramStr) :
           token_id(token_id), locus(location), str(new std::string(paramStr)) {}
+
+        // Token constructor from token id, location, a string, and type hint.
+        Token(TokenId token_id, location_t location, const std::string& paramStr,
+          PrimitiveCoreType parType) :
+          token_id(token_id),
+          locus(location), str(new std::string(paramStr), type_hint(parType)) {}
 
         // No default initialiser.
         Token();
@@ -219,14 +253,26 @@ namespace Rust {
             return TokenPtr(new Token(INT_LITERAL, locus, str));
         }
 
+        // Makes and returns a new TokenPtr of type INT_LITERAL.
+        static TokenPtr make_int(
+          location_t locus, const std::string& str, PrimitiveCoreType type_hint) {
+            return TokenPtr(new Token(INT_LITERAL, locus, str));
+        }
+
         // Makes and returns a new TokenPtr of type FLOAT_LITERAL.
         static TokenPtr make_float(location_t locus, const std::string& str) {
             return TokenPtr(new Token(FLOAT_LITERAL, locus, str));
         }
 
+        // Makes and returns a new TokenPtr of type FLOAT_LITERAL.
+        static TokenPtr make_float(
+          location_t locus, const std::string& str, PrimitiveCoreType type_hint) {
+            return TokenPtr(new Token(FLOAT_LITERAL, locus, str, type_hint));
+        }
+
         // Makes and returns a new TokenPtr of type STRING_LITERAL.
         static TokenPtr make_string(location_t locus, const std::string& str) {
-            return TokenPtr(new Token(STRING_LITERAL, locus, str));
+            return TokenPtr(new Token(STRING_LITERAL, locus, str, CORETYPE_STR));
         }
 
         // Makes and returns a new TokenPtr of type BYTE_CHAR (fix).

@@ -6,6 +6,11 @@
 #include <sstream> // for ostringstream
 
 namespace Rust {
+    // Includes all allowable float digits EXCEPT _ and . as that needs lookahead for handling.
+    bool is_float_digit(char number) {
+        return ISDIGIT(number) || number == 'E' || number == 'e';
+    }
+
     bool is_x_digit(char number) {
         // TODO: fix
         return number < 128 && ::isxdigit(number);
@@ -666,6 +671,8 @@ namespace Rust {
                         str.reserve(16); // some sensible default
                         str += current_char;
 
+                        PrimitiveCoreType type_hint = CORETYPE_UNKNOWN;
+
                         bool is_real = (current_char == '.');
 
                         int length = 1;
@@ -680,6 +687,8 @@ namespace Rust {
                                 skip_input();
                                 current_char = peek_input();
 
+                                length++;
+
                                 // add 'x' to string after 0 so it is 0xFFAA or whatever
                                 str += 'x';
 
@@ -689,6 +698,8 @@ namespace Rust {
                                         // don't add _ to number
                                         skip_input();
                                         current_char = peek_input();
+
+                                        length++;
 
                                         continue;
                                     }
@@ -720,6 +731,8 @@ namespace Rust {
                                 skip_input();
                                 current_char = peek_input();
 
+                                length++;
+
                                 // don't add any characters as C octals are just 0124 or whatever
 
                                 // loop through to add entire octal number to string
@@ -728,6 +741,8 @@ namespace Rust {
                                         // don't add _ to number
                                         skip_input();
                                         current_char = peek_input();
+
+                                        length++;
 
                                         continue;
                                     }
@@ -759,6 +774,8 @@ namespace Rust {
                                 skip_input();
                                 current_char = peek_input();
 
+                                length++;
+
                                 // don't add any characters as C binary numbers are not really
                                 // supported
 
@@ -768,6 +785,8 @@ namespace Rust {
                                         // don't add _ to number
                                         skip_input();
                                         current_char = peek_input();
+
+                                        length++;
 
                                         continue;
                                     }
@@ -800,15 +819,22 @@ namespace Rust {
 
                             current_char = peek_input();
 
-                            // only allow a single '.' char in the number
-                            while (ISDIGIT(current_char) || (!is_real && current_char == '.')
-                                   || current_char == '_') {
+                            /* only allow a single '.' char in the number - if there are multiple, it
+                             * may be a .. or ... token. Also only allow one . at all so have is_real
+                             * set after. */
+                            /*while (
+                              is_float_digit(current_char)
+                              || (!is_real && current_char == '.' && is_float_digit(peek_input(1)))) {
                                 if (current_char == '_') {
                                     // don't add _ to number
                                     skip_input();
                                     current_char = peek_input();
 
                                     continue;
+                                }
+
+                                if (current_char == 'e' || current_char == 'E') {
+                                    if
                                 }
 
                                 length++;
@@ -818,7 +844,134 @@ namespace Rust {
                                 str += current_char;
                                 skip_input();
                                 current_char = peek_input();
+                            }*/
+
+                            // parse initial decimal literal - assuming integer
+                            // TODO: test if works
+                            parse_in_decimal(current_char, str, length);
+#if 0
+                            while (ISDIGIT(current_char) || current_char == '_') {
+                                if (current_char == '_') {
+                                    // don't add _ to number
+                                    skip_input();
+                                    current_char = peek_input();
+
+                                    length++;
+
+                                    continue;
+                                }
+
+                                length++;
+
+                                str += current_char;
+                                skip_input();
+                                current_char = peek_input();
                             }
+#endif
+
+                            // detect float literal
+                            if (current_char == '.' && is_float_digit(peek_input(1))) {
+                                // float with a '.', parse another decimal into it
+
+                                is_real = true;
+
+                                // add . to str
+                                str += current_char;
+                                skip_input();
+                                current_char = peek_input();
+
+                                length++;
+
+                                // parse another decimal number for float
+                                // TODO: test if works
+                                parse_in_decimal(current_char, str, length);
+#if 0
+                                while (ISDIGIT(current_char) || current_char == '_') {
+                                    if (current_char == '_') {
+                                        // don't add _ to number
+                                        skip_input();
+                                        current_char = peek_input();
+
+                                        continue;
+                                    }
+
+                                    length++;
+
+                                    str += current_char;
+                                    skip_input();
+                                    current_char = peek_input();
+                                }
+#endif
+
+                                // parse in exponent part if it exists
+                                // test to see if this works:
+                                parse_in_exponent_part(current_char, str, length);
+#if 0
+                                if (current_char == 'E' || current_char == 'e') {
+                                    // add exponent to string as strtod works with it
+                                    str += current_char;
+                                    skip_input();
+                                    current_char = peek_input();
+
+                                    // special - and + handling
+                                    if (current_char == '-') {
+                                        str += '-';
+
+                                        skip_input();
+                                        current_char = peek_input();
+                                    } else if (current_char == '+') {
+                                        // don't add + but still skip input
+                                        skip_input();
+                                        current_char = peek_input();
+                                    }
+
+                                    // parse another decimal number for exponent
+                                    while (ISDIGIT(current_char) || current_char == '_') {
+                                        if (current_char == '_') {
+                                            // don't add _ to number
+                                            skip_input();
+                                            current_char = peek_input();
+
+                                            continue;
+                                        }
+
+                                        length++;
+
+                                        str += current_char;
+                                        skip_input();
+                                        current_char = peek_input();
+                                    }
+                                }
+#endif
+
+                                // parse in type suffix if it exists
+                                // TODO: see if works:
+                                parse_in_type_suffix(current_char, type_hint, length)
+#if 0
+                                if (current_char == 'f') {
+                                    skip_input();
+                                    current_char = peek_input();
+
+                                    // f32
+                                    if (current_char == '3' && peek_input(1) == '2') {
+                                        skip_input(1);
+                                        current_char = peek_input();
+
+                                        type_hint = CORETYPE_F32;
+                                        // f64
+                                    } else if (current_char == '6' && peek_input(1) == '4') {
+                                        skip_input(1);
+                                        current_char = peek_input();
+
+                                        type_hint = CORETYPE_F64;
+                                    }
+                                }
+#endif
+                            } /* else if (exponent exists) {
+                                // handle exponent stuff, including type suffix if it exists
+                            } else {
+                                // is an integer
+                            }*/
 
                             current_column += length;
                         }
@@ -891,85 +1044,180 @@ namespace Rust {
                     current_column++;
                 }
             }
+        }
+    }
 
-            /* Test handling for byte escape characters? For use in byte char and byte string
-             * literals. Invoke with peek_input() returning the '\' character. */
-            char Lexer::handle_byte_escape_char() {
+    /* Test handling for byte escape characters? For use in byte char and byte string
+     * literals. Invoke with peek_input() returning the '\' character. */
+    char Lexer::handle_byte_escape_char() {
+        skip_input();
+
+        // make current_char next character (letter)
+        char current_char = peek_input();
+
+        switch (current_char) {
+            case 'n':
+                return '\n';
+            case 'r':
+                return '\r';
+            case 't':
+                return '\t';
+            case '\\':
+                return '\\';
+            case '0':
+                return '\0';
+            case 'x':
+                // handle hex digit - presumably just represents ascii char
+                // sprintf? don't really know how to do this
+                {
+                    skip_input();
+                    auto hi = peek_input();
+                    hi = hi.to_digit(16); // converts to digit of base 16 (hex)
+
+                    skip_input();
+                    auto lo = peek_input();
+                    lo = lo.to_digit(16); // converts to digit of base 16 (hex)
+
+                    auto value = hi * 16 + lo;
+
+                    if (!mode.is_bytes() && !is_ascii(value)) {
+                        // make error here
+                    }
+                    unsigned char valueNu = value;
+
+                    // ok dodgy
+                    return (char)valueNu;
+                }
+                break;
+            default:
+                // didn't match anything so error
+                error_at(get_current_location(), "invalid escape '\\%x'", current_char);
+                return '\0';
+        }
+    }
+
+    // TODO: fix
+    uint32_t Lexer::parse_escape(char enclosing) {
+        auto ch = peek_input();
+        skip_input();
+
+        switch (ch) {
+            case 'x': {
+                // this does not work at all: TODO fix when figure out how to use UTF-8 in C++
+                ch = peek_input();
+                skip_input();
+                if (!ISXDIGIT(ch)) {
+                    // error_at: found invalid character
+                    return 0;
+                }
+                char tmp[3] = { static_cast<char>(ch), 0, 0 };
+
+                ch = peek_input();
                 skip_input();
 
-                // make current_char next character (letter)
-                char current_char = peek_input();
-
-                switch (current_char) {
-                    case 'n':
-                        return '\n';
-                    case 'r':
-                        return '\r';
-                    case 't':
-                        return '\t';
-                    case '\\':
-                        return '\\';
-                    case '0':
-                        return '\0';
-                    case 'x':
-                        // handle hex digit - presumably just represents ascii char
-                        // sprintf? don't really know how to do this
-                        {
-                            skip_input();
-                            auto hi = peek_input();
-                            hi = hi.to_digit(16); // converts to digit of base 16 (hex)
-
-                            skip_input();
-                            auto lo = peek_input();
-                            lo = lo.to_digit(16); // converts to digit of base 16 (hex)
-
-                            auto value = hi * 16 + lo;
-
-                            if (!mode.is_bytes() && !is_ascii(value)) {
-                                // make error here
-                            }
-                            unsigned char valueNu = value;
-
-                            // ok dodgy
-                            return (char)valueNu;
-                        }
-                        break;
-                    default:
-                        // didn't match anything so error
-                        error_at(get_current_location(), "invalid escape '\\%x'", current_char);
-                        return '\0';
+                if (!ISXDIGIT(ch)) {
+                    // error_at: found invalid character
+                    return 0;
                 }
-            }
+                tmp[1] = static_cast<char>(ch);
+                return ::std::strtol(tmp, NULL, 16);
+            } break;
+            case 'u': {
+                // Unicode (up to 6 hex digits)
+            } break;
+        }
+    }
 
-            // TODO: fix
-            uint32_t Lexer::parse_escape(char enclosing) {
-                auto ch = peek_input();
-                skip_input();
+    // Shitty pass-by-reference way of parsing in type suffix.
+    void Lexer::parse_in_type_suffix(char& current_char, PrimitiveCoreType& type_hint, int& length) {
+        if (current_char == 'f') {
+            skip_input();
+            current_char = peek_input();
+            length++;
 
-                switch (ch) {
-                    case 'x': {
-                        // this does not work at all: TODO fix when figure out how to use UTF-8 in C++
-                        ch = peek_input();
-                        skip_input();
-                        if (!ISXDIGIT(ch)) {
-                            // error_at: found invalid character
-                            return 0;
-                        }
-                        char tmp[3] = { static_cast<char>(ch), 0, 0 };
+            // f32
+            if (current_char == '3' && peek_input(1) == '2') {
+                skip_input(1);
+                current_char = peek_input();
 
-                        ch = peek_input();
-                        skip_input();
+                type_hint = CORETYPE_F32;
 
-                        if (!ISXDIGIT(ch)) {
-                            // error_at: found invalid character
-                            return 0;
-                        }
-                        tmp[1] = static_cast<char>(ch);
-                        return ::std::strtol(tmp, NULL, 16);
-                    } break;
-                    case 'u': {
-                        // Unicode (up to 6 hex digits)
-                    } break;
-                }
+                length += 2;
+                // f64
+            } else if (current_char == '6' && peek_input(1) == '4') {
+                skip_input(1);
+                current_char = peek_input();
+
+                type_hint = CORETYPE_F64;
+
+                length += 2;
             }
         }
+    }
+
+    void Lexer::parse_in_exponent_part(char& current_char, std::string& str, int& length) {
+        if (current_char == 'E' || current_char == 'e') {
+            // add exponent to string as strtod works with it
+            str += current_char;
+            skip_input();
+            current_char = peek_input();
+
+            length++;
+
+            // special - and + handling
+            if (current_char == '-') {
+                str += '-';
+
+                skip_input();
+                current_char = peek_input();
+
+                length++;
+            } else if (current_char == '+') {
+                // don't add + but still skip input
+                skip_input();
+                current_char = peek_input();
+
+                length++;
+            }
+
+            // parse another decimal number for exponent
+            while (ISDIGIT(current_char) || current_char == '_') {
+                if (current_char == '_') {
+                    // don't add _ to number
+                    skip_input();
+                    current_char = peek_input();
+
+                    length++;
+
+                    continue;
+                }
+
+                length++;
+
+                str += current_char;
+                skip_input();
+                current_char = peek_input();
+            }
+        }
+    }
+
+    void Lexer::parse_in_decimal(char& current_char, std::string& str, int& length) {
+        while (ISDIGIT(current_char) || current_char == '_') {
+            if (current_char == '_') {
+                // don't add _ to number
+                skip_input();
+                current_char = peek_input();
+
+                length++;
+
+                continue;
+            }
+
+            length++;
+
+            str += current_char;
+            skip_input();
+            current_char = peek_input();
+        }
+    }
+}
