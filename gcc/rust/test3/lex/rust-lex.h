@@ -26,6 +26,14 @@ namespace Rust {
         // Builds a token from the input queue.
         TokenPtr build_token();
 
+        // ok maybe all these may mean the lexer structure needs to be rethought
+        /* separated into functions because main method was too long, but they rely on and change
+         * state in the lexer, so variables must be passed by reference. */
+        inline void parse_in_decimal(char& current_char, std::string& str, int& length);
+        inline void parse_in_exponent_part(char& current_char, std::string& str, int& length);
+        inline bool parse_in_type_suffix(
+          char& current_char, PrimitiveCoreType& type_hint, int& length);
+
       public:
         // Construct lexer with input file and filename provided
         Lexer(const char* filename, FILE* input);

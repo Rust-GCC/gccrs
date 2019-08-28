@@ -11,15 +11,17 @@
 #include <tr1/memory> // as shared_ptr is not available in std memory in c++03
 
 namespace Rust {
+    // "Primitive core types" in Rust - the different int and float types, as well as some others
     enum PrimitiveCoreType {
         CORETYPE_UNKNOWN,
-        // named ones
+        // named primitives
         CORETYPE_BOOL,
         CORETYPE_CHAR,
+        CORETYPE_STR,
+        // okay technically int and uint are arch-dependent (pointer size)
         CORETYPE_INT,
         CORETYPE_UINT,
-        CORETYPE_STR,
-        // numbered ones
+        // numbered number primitives
         CORETYPE_F32,
         CORETYPE_F64,
         CORETYPE_I8,
@@ -32,7 +34,7 @@ namespace Rust {
         CORETYPE_U32,
         CORETYPE_U64,
         CORETYPE_U128,
-        // ridiculous ones
+        // arch-dependent pointer sizes
         CORETYPE_ISIZE = CORETYPE_INT,
         CORETYPE_USIZE = CORETYPE_UINT
     };
@@ -137,11 +139,11 @@ namespace Rust {
     RS_TOKEN_KEYWORD(DO, "do") /* unused */                                                   \
     RS_TOKEN_KEYWORD(DYN, "dyn")                                                              \
     RS_TOKEN_KEYWORD(ELSE, "else")                                                            \
-    RS_TOKEN_KEYWORD(ENUM, "enum")                                                            \
-    RS_TOKEN_KEYWORD(EXTERN, "extern")                                                        \
+    RS_TOKEN_KEYWORD(ENUM_TOK, "enum")                                                        \
+    RS_TOKEN_KEYWORD(EXTERN_TOK, "extern")                                                    \
     RS_TOKEN_KEYWORD(FALSE_LITERAL, "false")                                                  \
     RS_TOKEN_KEYWORD(FINAL_TOK, "final") /* unused */                                         \
-    RS_TOKEN_KEYWORD(FN, "fn")                                                                \
+    RS_TOKEN_KEYWORD(FN_TOK, "fn")                                                            \
     RS_TOKEN_KEYWORD(FOR, "for")                                                              \
     RS_TOKEN_KEYWORD(IF, "if")                                                                \
     RS_TOKEN_KEYWORD(IMPL, "impl")                                                            \
@@ -149,7 +151,7 @@ namespace Rust {
     RS_TOKEN_KEYWORD(LET, "let")                                                              \
     RS_TOKEN_KEYWORD(LOOP, "loop")                                                            \
     RS_TOKEN_KEYWORD(MACRO, "macro") /* unused */                                             \
-    RS_TOKEN_KEYWORD(MATCH, "match")                                                          \
+    RS_TOKEN_KEYWORD(MATCH_TOK, "match")                                                      \
     RS_TOKEN_KEYWORD(MOD, "mod")                                                              \
     RS_TOKEN_KEYWORD(MOVE, "move")                                                            \
     RS_TOKEN_KEYWORD(MUT, "mut")                                                              \
@@ -157,11 +159,11 @@ namespace Rust {
     RS_TOKEN_KEYWORD(PRIV, "priv")             /* unused */                                   \
     RS_TOKEN_KEYWORD(PUB, "pub")                                                              \
     RS_TOKEN_KEYWORD(REF, "ref")                                                              \
-    RS_TOKEN_KEYWORD(RETURN, "return")                                                        \
+    RS_TOKEN_KEYWORD(RETURN_TOK, "return")                                                    \
     RS_TOKEN_KEYWORD(SELF_ALIAS, "Self") /* mrustc does not treat this as a reserved word*/   \
     RS_TOKEN_KEYWORD(SELF, "self")                                                            \
-    RS_TOKEN_KEYWORD(STATIC, "static")                                                        \
-    RS_TOKEN_KEYWORD(STRUCT, "struct")                                                        \
+    RS_TOKEN_KEYWORD(STATIC_TOK, "static")                                                    \
+    RS_TOKEN_KEYWORD(STRUCT_TOK, "struct")                                                    \
     RS_TOKEN_KEYWORD(SUPER, "super")                                                          \
     RS_TOKEN_KEYWORD(TRAIT, "trait")                                                          \
     RS_TOKEN_KEYWORD(TRUE_LITERAL, "true")                                                    \
