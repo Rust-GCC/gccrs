@@ -107,9 +107,9 @@ namespace Rust {
       "integer literal") /* do different int and float types need different literal types? */ \
     RS_TOKEN(FLOAT_LITERAL, "float literal")                                                  \
     RS_TOKEN(STRING_LITERAL, "string literal") /* maybe need char and bytestring literals? */ \
-    /* Have lifetime token? mrustc has one. */                                                \
+    /* Have lifetime token? mrustc has one but it is not used directly in the lexer. */       \
     /* Have "interpolated" tokens (whatever that means)? identifer, path, type, pattern, */   \
-    /* expression, statement, block, meta, item in mrustc. */                                 \
+    /* expression, statement, block, meta, item in mrustc (but not directly in lexer). */     \
     RS_TOKEN(LEFT_PAREN, "(")                                                                 \
     RS_TOKEN(RIGHT_PAREN, ")")                                                                \
     RS_TOKEN(LEFT_CURLY, "{")                                                                 \
@@ -301,6 +301,11 @@ namespace Rust {
         const std::string& get_str() const {
             gcc_assert(str != NULL);
             return *str;
+        }
+
+        // Gets token's type hint info.
+        PrimitiveCoreType get_type_hint() const {
+            return type_hint;
         }
 
         // diagnostics
