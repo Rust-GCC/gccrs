@@ -1069,7 +1069,7 @@ namespace Rust {
                     if (peek_input() == '\'') {
                         // TODO: FIX - char is actually 4 bytes in Rust (uint32) due to unicode
                         return Token::make_char(loc, current_char);
-                    // parse lifetime name
+                        // parse lifetime name
                     } else if (ISDIGIT(current_char) || ISALPHA(current_char)
                                || current_char == '_') {
                         ::std::string str;
@@ -1107,6 +1107,7 @@ namespace Rust {
         }
     }
 
+#if 0
     /* Test handling for byte escape characters? For use in byte char and byte string
      * literals. Invoke with peek_input() returning the '\' character. */
     char Lexer::handle_byte_escape_char() {
@@ -1187,6 +1188,7 @@ namespace Rust {
             } break;
         }
     }
+#endif
 
     // Shitty pass-by-reference way of parsing in type suffix.
     bool Lexer::parse_in_type_suffix(char& current_char, PrimitiveCoreType& type_hint, int& length) {
@@ -1328,7 +1330,7 @@ namespace Rust {
         switch (current_char) {
             case 'x': {
                 // hex char string (null-terminated)
-                char hexNum[3] = { 0, 0, 0};
+                char hexNum[3] = { 0, 0, 0 };
 
                 // first hex char
                 skip_input();
@@ -1336,7 +1338,8 @@ namespace Rust {
                 length++;
 
                 if (!ISXDIGIT(current_char)) {
-                    error_at(get_current_location(), "invalid character '\\x%c' in \\u sequence", current_char);
+                    error_at(get_current_location(), "invalid character '\\x%c' in \\x sequence",
+                      current_char);
                 }
                 hexNum[0] = current_char;
 
@@ -1346,16 +1349,22 @@ namespace Rust {
                 length++;
 
                 if (!ISXDIGIT(current_char)) {
-                    error_at(get_current_location(), "invalid character '\\x%c' in \\u sequence", current_char);
+                    error_at(get_current_location(), "invalid character '\\x%c' in \\x sequence",
+                      current_char);
                 }
                 hexNum[1] = current_char;
 
                 long hexLong = ::std::strtol(hexNum, NULL, 16);
-                gcc_assert(hexLong < 128); // as ascii
-                char hexChar = static_cast<char> hexLong;
 
+                if (hexLong > 127)
+                    error_at(get_current_location(),
+                      "ascii \\x escape '\\x%s' out of range - allows up to '\\x7F'", hexNum);
+                // gcc_assert(hexLong < 128); // as ascii
+                char hexChar = static_cast<char>(hexLong);
+
+                // TODO: fix - does this actually give the right character?
                 output_char = hexChar;
-            } break;      
+            } break;
             case 'n':
                 output_char = '\n';
                 break;
@@ -1372,7 +1381,7 @@ namespace Rust {
                 output_char = '\0';
                 break;
             default:
-                //error_at(get_current_location(), "unknown escape sequence '\\%c'", current_char);
+                // error_at(get_current_location(), "unknown escape sequence '\\%c'", current_char);
                 // returns false if no parsing could be done
                 return false;
                 break;
@@ -1389,11 +1398,294 @@ namespace Rust {
 
         switch (current_char) {
             case '\'':
-
+                output_char = '\'';
+                break;
             case '"':
-
+                output_char = '"';
+                break;
             default:
-
+                return false;
+                break;
         }
+        return true;
+    }
+
+    bool Lexer::parse_unicode_escape(
+      char& current_char, int& length, /*char*/ uint32_t& output_char) {
+        // skip to actual letter
+        skip_input();
+        current_char = peek_input();
+        length++;
+
+        if (current_char != 'u') {
+            // not a unicode escape, but not necessarily an error
+            return false;
+        }
+
+        skip_input();
+        current_char = peek_input();
+        length++;
+
+        bool need_close_brace = false;
+
+        if (current_char == '{') {
+            need_close_brace = true;
+
+            skip_input();
+            current_char = peek_input();
+            length++;
+        }
+
+        // parse unicode escape
+        // 1-6 hex digits?
+        ::std::string num_str;
+        num_str.reserve(6);
+
+        // test adding number directly
+        uint32_t test_val;
+
+        // loop through to add entire hex number to string
+        while (is_x_digit(current_char) || current_char == '_') {
+            if (current_char == '_') {
+                // don't add _ to number
+                skip_input();
+                current_char = peek_input();
+
+                length++;
+
+                continue;
+            }
+
+            length++;
+
+            // add raw hex numbers
+            num_str += current_char;
+
+            // test adding number directly
+            char tmp[2] = { current_char, 0 };
+            test_val *= 16;
+            test_val += ::std::strtol(tmp, NULL, 16);
+
+            skip_input();
+            current_char = peek_input();
+        }
+
+        // ensure closing brace
+        if (need_close_brace && current_char != '}') {
+            // actually an error
+            error_at(get_current_location(), "expected terminating '}' in unicode escape");
+            return false;
+        }
+
+        // ensure 1-6 hex characters
+        if (num_str.length() > 6 || num_str.length() < 1) {
+            error_at(get_current_location(),
+              "unicode escape should be between 1 and 6 hex characters; it is %d", num_str.length());
+            return false;
+        }
+
+        long hex_num = ::std::strtol(num_str.c_str(), NULL, 16);
+
+        // as debug, check hex_num = test_val
+
+        // make output_char the value - UTF-8?
+        // TODO: actually make this work - output char must be 4 bytes, do I need a string for this?
+        output_char = static_cast<uint_32t>(hex_num);
+
+        return true;
+    }
+
+    bool Lexer::parse_byte_escape(char& current_char, int& length, char& output_char) {
+        // skip to actual letter
+        skip_input();
+        current_char = peek_input();
+        length++;
+
+        switch (current_char) {
+            case 'x': {
+                // hex char string (null-terminated)
+                char hexNum[3] = { 0, 0, 0 };
+
+                // first hex char
+                skip_input();
+                current_char = peek_input();
+                length++;
+
+                if (!ISXDIGIT(current_char)) {
+                    error_at(get_current_location(), "invalid character '\\x%c' in \\x sequence",
+                      current_char);
+                }
+                hexNum[0] = current_char;
+
+                // second hex char
+                skip_input();
+                current_char = peek_input();
+                length++;
+
+                if (!ISXDIGIT(current_char)) {
+                    error_at(get_current_location(), "invalid character '\\x%c' in \\x sequence",
+                      current_char);
+                }
+                hexNum[1] = current_char;
+
+                long hexLong = ::std::strtol(hexNum, NULL, 16);
+
+                if (hexLong > 255)
+                    error_at(get_current_location(),
+                      "ascii \\x escape '\\x%s' out of range - allows up to '\\xFF'", hexNum);
+                // gcc_assert(hexLong < 128); // as ascii
+                char hexChar = static_cast<char>(hexLong);
+
+                // TODO: fix - does this actually give the right character?
+                output_char = hexChar;
+            } break;
+            case 'n':
+                output_char = '\n';
+                break;
+            case 'r':
+                output_char = '\r';
+                break;
+            case 't':
+                output_char = '\t';
+                break;
+            case '\\':
+                output_char = '\\';
+                break;
+            case '0':
+                output_char = '\0';
+                break;
+            default:
+                // error_at(get_current_location(), "unknown escape sequence '\\%c'", current_char);
+                // returns false if no parsing could be done
+                return false;
+                break;
+        }
+        // returns true if parsing was successful
+        return true;
+    }
+
+    int Lexer::test_get_input_codepoint_length() {
+        uint8_t input = peek_input();
+
+        if (input < 128) {
+            // ascii -- 1 byte
+            //return input;
+            return 1;
+        } else if ((input & 0xC0) == 0x80) {
+            // invalid (continuation; can't be first char)
+            //return 0xFFFE;
+            return 0;
+        } else if ((input & 0xE0) == 0xC0) {
+            // 2 bytes
+            uint8_t input2 = peek_input(1);
+            if ((input2 & 0xC0) != 0x80)
+                //return 0xFFFE;
+                return 0;
+
+            //uint32_t output = ((input & 0x1F) << 6) | ((input2 & 0x3F) << 0);
+            //return output;
+            return 2;
+        } else if ((input & 0xF0) == 0xE0) {
+            // 3 bytes
+            uint8_t input2 = peek_input(1);
+            if ((input2 & 0xC0) != 0x80)
+                //return 0xFFFE;
+                return 0;
+
+            uint8_t input3 = peek_input(2);
+            if ((input3 & 0xC0) != 0x80)
+                //return 0xFFFE;
+                return 0;
+
+            /*uint32_t output
+              = ((input & 0x0F) << 12) | ((input2 & 0x3F) << 6) | ((input3 & 0x3F) << 0);
+            return output;*/
+            return 3;
+        } else if ((input & 0xF8) == 0xF0) {
+            // 4 bytes
+            uint8_t input2 = peek_input(1);
+            if ((input2 & 0xC0) != 0x80)
+                //return 0xFFFE;
+                return 0;
+
+            uint8_t input3 = peek_input(2);
+            if ((input3 & 0xC0) != 0x80)
+                //return 0xFFFE;
+                return 0;
+
+            uint8_t input4 = peek_input(3);
+            if ((input4 & 0xC0) != 0x80)
+                //return 0xFFFE;
+                return 0;
+
+            /*uint32_t output = ((input & 0x07) << 18) | ((input2 & 0x3F) << 12)
+                              | ((input3 & 0x3F) << 6) | ((input4 & 0x3F) << 0);
+            return output;*/
+            return 4;
+        } else {
+            error_at(get_current_location(), "invalid UTF-8 (too long)");
+            return 0;
+        }
+    }
+
+    // TODO: rewrite lexing system to use utf-8 "codepoints" rather than bytes?
+    uint32_t Lexer::test_peek_codepoint_input() {
+        uint8_t input = peek_input();
+
+        if (input < 128) {
+            // ascii -- 1 byte
+            return input;
+        } else if ((input & 0xC0) == 0x80) {
+            // invalid (continuation; can't be first char)
+            return 0xFFFE;
+        } else if ((input & 0xE0) == 0xC0) {
+            // 2 bytes
+            uint8_t input2 = peek_input(1);
+            if ((input2 & 0xC0) != 0x80)
+                return 0xFFFE;
+
+            uint32_t output = ((input & 0x1F) << 6) | ((input2 & 0x3F) << 0);
+            return output;
+        } else if ((input & 0xF0) == 0xE0) {
+            // 3 bytes
+            uint8_t input2 = peek_input(1);
+            if ((input2 & 0xC0) != 0x80)
+                return 0xFFFE;
+
+            uint8_t input3 = peek_input(2);
+            if ((input3 & 0xC0) != 0x80)
+                return 0xFFFE;
+
+            uint32_t output
+              = ((input & 0x0F) << 12) | ((input2 & 0x3F) << 6) | ((input3 & 0x3F) << 0);
+            return output;
+        } else if ((input & 0xF8) == 0xF0) {
+            // 4 bytes
+            uint8_t input2 = peek_input(1);
+            if ((input2 & 0xC0) != 0x80)
+                return 0xFFFE;
+
+            uint8_t input3 = peek_input(2);
+            if ((input3 & 0xC0) != 0x80)
+                return 0xFFFE;
+
+            uint8_t input4 = peek_input(3);
+            if ((input4 & 0xC0) != 0x80)
+                return 0xFFFE;
+
+            uint32_t output = ((input & 0x07) << 18) | ((input2 & 0x3F) << 12)
+                              | ((input3 & 0x3F) << 6) | ((input4 & 0x3F) << 0);
+            return output;
+        } else {
+            error_at(get_current_location(), "invalid UTF-8 (too long)");
+            return 0xFFFE;
+        }
+    }
+
+    void Lexer::test_skip_codepoint_input() {
+        int toSkip = test_get_input_codepoint_length();
+        gcc_assert(toSkip >= 1);
+
+        skip_input(toSkip - 1);
     }
 }
