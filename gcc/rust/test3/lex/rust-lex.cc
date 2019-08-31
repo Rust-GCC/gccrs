@@ -17,7 +17,7 @@ namespace Rust {
     }
 
     inline bool is_octal_digit(char number) {
-        return '0' <= number <= '8';
+        return number >= '0' && number <= '8';
     }
 
     inline bool is_bin_digit(char number) {
@@ -359,13 +359,13 @@ namespace Rust {
                             skip_input(1);
                             current_column += 3;
 
-                            return Token::make(LEFT_SHIFT_EQ);
+                            return Token::make(LEFT_SHIFT_EQ, loc);
                         } else {
                             // left-shift
                             skip_input();
                             current_column += 2;
 
-                            return Token::make(LEFT_SHIFT);
+                            return Token::make(LEFT_SHIFT, loc);
                         }
                     } else if (peek_input() == '=') {
                         // smaller than or equal to
@@ -675,7 +675,7 @@ namespace Rust {
             // identify literals
             // int or float literals - not processed properly
             if (ISDIGIT(current_char)
-                || current_char == '.') { // assuming _ not allowed as first char
+                || current_char == '.') { //  _ not allowed as first char
                 std::string str;
                 str.reserve(16); // some sensible default
                 str += current_char;
@@ -1060,7 +1060,7 @@ namespace Rust {
                     }
 
                     // TODO: FIX - char is actually 4 bytes in Rust (uint32) due to unicode
-                    return Token::make_char(loc, str);
+                    return Token::make_char(loc, current_char);
                 } else {
                     current_char = peek_input();
                     skip_input();
@@ -1075,6 +1075,8 @@ namespace Rust {
                         ::std::string str;
                         str += current_char;
 
+                        int length = 1;
+
                         current_char = peek_input();
 
                         while (
@@ -1085,6 +1087,8 @@ namespace Rust {
                             skip_input();
                             current_char = peek_input();
                         }
+
+                        current_column += length;
 
                         return Token::make_lifetime(loc, str);
                     } else {
@@ -1480,7 +1484,7 @@ namespace Rust {
         // ensure 1-6 hex characters
         if (num_str.length() > 6 || num_str.length() < 1) {
             error_at(get_current_location(),
-              "unicode escape should be between 1 and 6 hex characters; it is %d", num_str.length());
+              "unicode escape should be between 1 and 6 hex characters; it is %lu", num_str.length());
             return false;
         }
 
@@ -1490,7 +1494,7 @@ namespace Rust {
 
         // make output_char the value - UTF-8?
         // TODO: actually make this work - output char must be 4 bytes, do I need a string for this?
-        output_char = static_cast<uint_32t>(hex_num);
+        output_char = static_cast<uint32_t>(hex_num);
 
         return true;
     }

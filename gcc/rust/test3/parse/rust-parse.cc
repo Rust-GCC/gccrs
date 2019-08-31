@@ -48,11 +48,11 @@ namespace Rust {
         // Highest priority
         LBP_HIGHEST = 100,
 
-        LBP_PATH = 95;
+        LBP_PATH = 95,
 
-        LBP_METHOD_CALL = 90;
+        LBP_METHOD_CALL = 90,
 
-        LBP_FIELD_EXPR = 85;
+        LBP_FIELD_EXPR = 85,
 
         //LBP_DOT = 80, /* method call and field expr have different precedence now */
 
@@ -78,7 +78,7 @@ namespace Rust {
         LBP_MINUS = LBP_PLUS,
 
         LBP_L_SHIFT = 50,
-        LBP_R_SHIFT = LBP_L_SHIFT;
+        LBP_R_SHIFT = LBP_L_SHIFT,
 
         LBP_AMP = 45,
 
@@ -101,16 +101,16 @@ namespace Rust {
         LBP_DOT_DOT_EQ = LBP_DOT_DOT,
 
         LBP_ASSIG = 10,
-        LBP_PLUS_ASSIG = LBP_ASSIG;
-        LBP_MINUS_ASSIG = LBP_ASSIG;
-        LBP_MULT_ASSIG = LBP_ASSIG;
-        LBP_DIV_ASSIG = LBP_ASSIG;
-        LBP_MOD_ASSIG = LBP_ASSIG;
-        LBP_AMP_ASSIG = LBP_ASSIG;
-        LBP_PIPE_ASSIG = LBP_ASSIG;
-        LBP_CARET_ASSIG = LBP_ASSIG;
-        LBP_L_SHIFT_ASSIG = LBP_ASSIG;
-        LBP_R_SHIFT_ASSIG = LBP_ASSIG;
+        LBP_PLUS_ASSIG = LBP_ASSIG,
+        LBP_MINUS_ASSIG = LBP_ASSIG,
+        LBP_MULT_ASSIG = LBP_ASSIG,
+        LBP_DIV_ASSIG = LBP_ASSIG,
+        LBP_MOD_ASSIG = LBP_ASSIG,
+        LBP_AMP_ASSIG = LBP_ASSIG,
+        LBP_PIPE_ASSIG = LBP_ASSIG,
+        LBP_CARET_ASSIG = LBP_ASSIG,
+        LBP_L_SHIFT_ASSIG = LBP_ASSIG,
+        LBP_R_SHIFT_ASSIG = LBP_ASSIG,
 
         // return, break, and closures as lowest priority?
         //LBP_RETURN = 5,
@@ -118,7 +118,7 @@ namespace Rust {
         //LBP_CLOSURE = LBP_RETURN,
 
         // lowest priority
-        LBP_LOWEST = 0,
+        LBP_LOWEST = 0
     };
 
     // Checks if Tree has a string type (tree code pointer_type and tree variant char node).
@@ -151,8 +151,8 @@ namespace Rust {
 
             // TODO: handle operator overloading - have a function replace the operator?
 
-            case DOT:
-                return LBP_DOT;
+            /*case DOT:
+                return LBP_DOT;*/
 
             case LEFT_SQUARE:
                 return LBP_ARRAY_REF;
@@ -813,7 +813,7 @@ namespace Rust {
                 return expr;
             }
             case EXCLAM: { // logical not - TODO: this could also be bitwise not
-                Tree expr = parse_expression(LBP_LOGICAL_NOT);
+                Tree expr = parse_expression(LBP_UNARY_EXCLAM/*LOGICAL_NOT*/);
 
                 if (expr.is_error())
                     return Tree::error();
@@ -1016,7 +1016,7 @@ namespace Rust {
     }
 
     // Implementation of binary different comparison relational operator parsing.
-    Tree Parser::binary_different(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_not_equal/*different*/(const_TokenPtr tok, Tree left) {
         // parse RHS
         Tree right = parse_expression(LBP_DIFFERENT);
         if (right.is_error())

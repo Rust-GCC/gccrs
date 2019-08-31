@@ -106,8 +106,11 @@ namespace Rust {
     RS_TOKEN(INT_LITERAL,                                                                     \
       "integer literal") /* do different int and float types need different literal types? */ \
     RS_TOKEN(FLOAT_LITERAL, "float literal")                                                  \
-    RS_TOKEN(STRING_LITERAL, "string literal") /* maybe need char and bytestring literals? */ \
-    /* Have lifetime token? mrustc has one but it is not used directly in the lexer. */       \
+    RS_TOKEN(STRING_LITERAL, "string literal") \
+    RS_TOKEN(CHAR_LITERAL, "character literal")  \
+    RS_TOKEN(BYTE_STRING_LITERAL, "byte string literal") \
+    RS_TOKEN(BYTE_CHAR_LITERAL, "byte character literal") \
+    RS_TOKEN(LIFETIME, "lifetime") /* TODO: improve token type */      \
     /* Have "interpolated" tokens (whatever that means)? identifer, path, type, pattern, */   \
     /* expression, statement, block, meta, item in mrustc (but not directly in lexer). */     \
     RS_TOKEN(LEFT_PAREN, "(")                                                                 \
@@ -221,11 +224,15 @@ namespace Rust {
         Token(TokenId token_id, location_t location, const std::string& paramStr) :
           token_id(token_id), locus(location), str(new std::string(paramStr)) {}
 
+        // Token constructor from token id, location, and a char.
+        Token(TokenId token_id, location_t location, char paramChar) :
+          token_id(token_id), locus(location), str(new std::string(1, paramChar)) {}
+
         // Token constructor from token id, location, a string, and type hint.
         Token(TokenId token_id, location_t location, const std::string& paramStr,
           PrimitiveCoreType parType) :
           token_id(token_id),
-          locus(location), str(new std::string(paramStr), type_hint(parType)) {}
+          locus(location), str(new std::string(paramStr)), type_hint(parType) {}
 
         // No default initialiser.
         Token();
@@ -277,14 +284,24 @@ namespace Rust {
             return TokenPtr(new Token(STRING_LITERAL, locus, str, CORETYPE_STR));
         }
 
-        // Makes and returns a new TokenPtr of type BYTE_CHAR (fix).
+        // Makes and returns a new TokenPtr of type CHAR_LITERAL (fix).
+        static TokenPtr make_char(location_t locus, char char_lit) {
+            return TokenPtr(new Token(CHAR_LITERAL, locus, char_lit));
+        }
+
+        // Makes and returns a new TokenPtr of type BYTE_CHAR_LITERAL (fix).
         static TokenPtr make_byte_char(location_t locus, char byte_char) {
             return TokenPtr(new Token(BYTE_CHAR_LITERAL, locus, byte_char));
         }
 
-        // Makes and returns a new TokenPtr of type STRING_LITERAL.
+        // Makes and returns a new TokenPtr of type BYTE_STRING_LITERAL (fix).
         static TokenPtr make_byte_string(location_t locus, const std::string& str) {
             return TokenPtr(new Token(BYTE_STRING_LITERAL, locus, str));
+        }
+
+        // Makes and returns a new TokenPtr of type LIFETIME.
+        static TokenPtr make_lifetime(location_t locus, const std::string& str) {
+            return TokenPtr(new Token(LIFETIME, locus, str));
         }
 
         // Gets id of the token.
