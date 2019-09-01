@@ -112,7 +112,7 @@ namespace Rust {
         // loop to go through multiple characters to build a single token
         while (true) {
             location_t loc = get_current_location();
-            int current_char = peek_input();
+            /*int */current_char = peek_input();
             skip_input();
 
             // return end of file token if end of file
@@ -303,7 +303,7 @@ namespace Rust {
                                     // skip /* characters
                                     skip_input(1);
 
-                                    // TODO: ensure correct amount of chars are skipped
+                                    current_column += 2;
 
                                     level += 1;
                                 }
@@ -315,7 +315,7 @@ namespace Rust {
                                     // skip */ characters
                                     skip_input(1);
 
-                                    // TODO: ensure correct amount of chars are skipped
+                                    current_column += 2;
                                     // should only break inner loop here - seems to do so
                                     // break;
 
@@ -856,7 +856,7 @@ namespace Rust {
 
                     // parse initial decimal literal - assuming integer
                     // TODO: test if works
-                    parse_in_decimal(current_char, str, length);
+                    parse_in_decimal(/*current_char, */str, length);
 #if 0
                             while (ISDIGIT(current_char) || current_char == '_') {
                                 if (current_char == '_') {
@@ -877,7 +877,7 @@ namespace Rust {
                             }
 #endif
 
-                    // detect float literal
+                    // detect float literal - TODO: fix: "242." is not recognised as a float literal
                     if (current_char == '.' && is_float_digit(peek_input(1))) {
                         // float with a '.', parse another decimal into it
 
@@ -892,7 +892,7 @@ namespace Rust {
 
                         // parse another decimal number for float
                         // TODO: test if works
-                        parse_in_decimal(current_char, str, length);
+                        parse_in_decimal(/*current_char, */str, length);
 #if 0
                                 while (ISDIGIT(current_char) || current_char == '_') {
                                     if (current_char == '_') {
@@ -913,7 +913,7 @@ namespace Rust {
 
                         // parse in exponent part if it exists
                         // test to see if this works:
-                        parse_in_exponent_part(current_char, str, length);
+                        parse_in_exponent_part(/*current_char, */str, length);
 #if 0
                                 if (current_char == 'E' || current_char == 'e') {
                                     // add exponent to string as strtod works with it
@@ -954,7 +954,7 @@ namespace Rust {
 
                         // parse in type suffix if it exists
                         // TODO: see if works:
-                        parse_in_type_suffix(current_char, type_hint, length);
+                        parse_in_type_suffix(/*current_char, */type_hint, length);
 #if 0
                                 if (current_char == 'f') {
                                     skip_input();
@@ -979,18 +979,18 @@ namespace Rust {
                         is_real = true;
 
                         // parse exponent part
-                        parse_in_exponent_part(current_char, str, length);
+                        parse_in_exponent_part(/*current_char, */str, length);
 
                         // parse in type suffix if it exists
-                        parse_in_type_suffix(current_char, type_hint, length);
+                        parse_in_type_suffix(/*current_char, */type_hint, length);
                     } else {
                         // is an integer
 
                         // parse decimal integer
-                        parse_in_decimal(current_char, str, length);
+                        parse_in_decimal(/*current_char, */str, length);
 
                         // parse in type suffix if it exists
-                        parse_in_type_suffix(current_char, type_hint, length);
+                        parse_in_type_suffix(/*current_char, */type_hint, length);
                     }
 
                     current_column += length;
@@ -1195,7 +1195,7 @@ namespace Rust {
 #endif
 
     // Shitty pass-by-reference way of parsing in type suffix.
-    bool Lexer::parse_in_type_suffix(char& current_char, PrimitiveCoreType& type_hint, int& length) {
+    bool Lexer::parse_in_type_suffix(/*char& current_char, */PrimitiveCoreType& type_hint, int& length) {
         ::std::string suffix;
         suffix.reserve(5);
 
@@ -1218,7 +1218,10 @@ namespace Rust {
             current_char = peek_input();
         }
 
-        if (suffix == "f32") {
+        if (suffix.empty()) {
+            // no type suffix: do nothing but also no error
+            return false;
+        } else if (suffix == "f32") {
             type_hint = CORETYPE_F32;
         } else if (suffix == "f64") {
             type_hint = CORETYPE_F64;
@@ -1254,7 +1257,7 @@ namespace Rust {
         return true;
     }
 
-    void Lexer::parse_in_exponent_part(char& current_char, std::string& str, int& length) {
+    void Lexer::parse_in_exponent_part(/*char& current_char, */std::string& str, int& length) {
         if (current_char == 'E' || current_char == 'e') {
             // add exponent to string as strtod works with it
             str += current_char;
@@ -1280,7 +1283,7 @@ namespace Rust {
             }
 
             // parse another decimal number for exponent
-            parse_in_decimal(current_char, str, length);
+            parse_in_decimal(/*current_char, */str, length);
 
 #if 0
             // parse another decimal number for exponent
@@ -1305,7 +1308,7 @@ namespace Rust {
         }
     }
 
-    void Lexer::parse_in_decimal(char& current_char, std::string& str, int& length) {
+    void Lexer::parse_in_decimal(/*char& current_char, */std::string& str, int& length) {
         while (ISDIGIT(current_char) || current_char == '_') {
             if (current_char == '_') {
                 // don't add _ to number
@@ -1325,7 +1328,7 @@ namespace Rust {
         }
     }
 
-    bool Lexer::parse_ascii_escape(char& current_char, int& length, char& output_char) {
+    bool Lexer::parse_ascii_escape(/*char& current_char, */int& length, char& output_char) {
         // skip to actual letter
         skip_input();
         current_char = peek_input();
@@ -1394,7 +1397,7 @@ namespace Rust {
         return true;
     }
 
-    bool Lexer::parse_quote_escape(char& current_char, int& length, char& output_char) {
+    bool Lexer::parse_quote_escape(/*char& current_char, */int& length, char& output_char) {
         // skip to actual letter
         skip_input();
         current_char = peek_input();
@@ -1415,7 +1418,7 @@ namespace Rust {
     }
 
     bool Lexer::parse_unicode_escape(
-      char& current_char, int& length, /*char*/ uint32_t& output_char) {
+      /*char& current_char, */int& length, /*char*/ uint32_t& output_char) {
         // skip to actual letter
         skip_input();
         current_char = peek_input();
@@ -1499,7 +1502,7 @@ namespace Rust {
         return true;
     }
 
-    bool Lexer::parse_byte_escape(char& current_char, int& length, char& output_char) {
+    bool Lexer::parse_byte_escape(/*char& current_char, */int& length, char& output_char) {
         // skip to actual letter
         skip_input();
         current_char = peek_input();

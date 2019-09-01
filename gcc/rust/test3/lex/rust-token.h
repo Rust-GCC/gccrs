@@ -334,6 +334,9 @@ namespace Rust {
         const char* token_id_to_str() const {
             return Rust::token_id_to_str(token_id);
         }
+
+        // debugging
+        const char* get_type_hint_str() const;
     };
 }
 

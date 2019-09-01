@@ -54,17 +54,17 @@ namespace Rust {
 
         LBP_FIELD_EXPR = 85,
 
-        //LBP_DOT = 80, /* method call and field expr have different precedence now */
+        // LBP_DOT = 80, /* method call and field expr have different precedence now */
 
         LBP_FUNCTION_CALL = 80,
         LBP_ARRAY_REF = LBP_FUNCTION_CALL,
 
         LBP_QUESTION_MARK = 75, // unary postfix - TODO how to implement? does it count as left?
 
-        LBP_UNARY_PLUS = 70,              // Used only when the null denotation is +
-        LBP_UNARY_MINUS = LBP_UNARY_PLUS, // Used only when the null denotation is -
+        LBP_UNARY_PLUS = 70,                 // Used only when the null denotation is +
+        LBP_UNARY_MINUS = LBP_UNARY_PLUS,    // Used only when the null denotation is -
         LBP_UNARY_ASTERISK = LBP_UNARY_PLUS, // deref operator - unary prefix
-        LBP_UNARY_EXCLAM = LBP_UNARY_PLUS, 
+        LBP_UNARY_EXCLAM = LBP_UNARY_PLUS,
         LBP_UNARY_AMP = LBP_UNARY_PLUS,
         LBP_UNARY_AMP_MUT = LBP_UNARY_PLUS,
 
@@ -94,9 +94,9 @@ namespace Rust {
         LBP_GREATER_EQUAL = LBP_EQUAL,
 
         LBP_LOGICAL_AND = 25,
-        
+
         LBP_LOGICAL_OR = 20,
-        
+
         LBP_DOT_DOT = 15,
         LBP_DOT_DOT_EQ = LBP_DOT_DOT,
 
@@ -113,9 +113,9 @@ namespace Rust {
         LBP_R_SHIFT_ASSIG = LBP_ASSIG,
 
         // return, break, and closures as lowest priority?
-        //LBP_RETURN = 5,
-        //LBP_BREAK = LBP_RETURN,
-        //LBP_CLOSURE = LBP_RETURN,
+        // LBP_RETURN = 5,
+        // LBP_BREAK = LBP_RETURN,
+        // LBP_CLOSURE = LBP_RETURN,
 
         // lowest priority
         LBP_LOWEST = 0
@@ -144,15 +144,15 @@ namespace Rust {
 
     // Gets left binding power for specified token.
     int Parser::left_binding_power(const_TokenPtr token) {
-        switch (token->get_id()) {          
-            /* TODO: issue here - distinguish between method calls and field access somehow? 
-                Also would have to distinguish between paths and function calls (:: operator),
-                maybe more stuff. */
+        switch (token->get_id()) {
+                /* TODO: issue here - distinguish between method calls and field access somehow?
+                    Also would have to distinguish between paths and function calls (:: operator),
+                    maybe more stuff. */
 
-            // TODO: handle operator overloading - have a function replace the operator?
+                // TODO: handle operator overloading - have a function replace the operator?
 
-            /*case DOT:
-                return LBP_DOT;*/
+                /*case DOT:
+                    return LBP_DOT;*/
 
             case LEFT_SQUARE:
                 return LBP_ARRAY_REF;
@@ -813,7 +813,7 @@ namespace Rust {
                 return expr;
             }
             case EXCLAM: { // logical not - TODO: this could also be bitwise not
-                Tree expr = parse_expression(LBP_UNARY_EXCLAM/*LOGICAL_NOT*/);
+                Tree expr = parse_expression(LBP_UNARY_EXCLAM /*LOGICAL_NOT*/);
 
                 if (expr.is_error())
                     return Tree::error();
@@ -1016,7 +1016,7 @@ namespace Rust {
     }
 
     // Implementation of binary different comparison relational operator parsing.
-    Tree Parser::binary_not_equal/*different*/(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_not_equal /*different*/ (const_TokenPtr tok, Tree left) {
         // parse RHS
         Tree right = parse_expression(LBP_DIFFERENT);
         if (right.is_error())
@@ -1171,6 +1171,31 @@ namespace Rust {
         // build COMPONENT_REF tree using left tree (record type) and appropriate FIELD_DECL
         return build_tree(COMPONENT_REF, tok->get_locus(), TREE_TYPE(field_decl.get_tree()), left,
           field_decl, Tree());
+    }
+
+    // Method stub
+    Tree Parser::binary_bitwise_or(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_left_shift(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_bitwise_and(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_bitwise_xor(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_right_shift(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
     }
 
     // Parse variable assignment statement. This is not the same as variable declaration.
@@ -1863,15 +1888,20 @@ namespace Rust {
         Rust::const_TokenPtr tok = lexer.peek_token();
 
         while (true) {
-            bool has_text = tok->get_id() == Rust::IDENTIFIER || tok->get_id() == Rust::INT_LITERAL
-                            || tok->get_id() == Rust::FLOAT_LITERAL
-                            || tok->get_id() == Rust::STRING_LITERAL;
+            bool has_text
+              = tok->get_id() == Rust::IDENTIFIER || tok->get_id() == Rust::INT_LITERAL
+                || tok->get_id() == Rust::FLOAT_LITERAL || tok->get_id() == Rust::STRING_LITERAL
+                || tok->get_id() == Rust::CHAR_LITERAL || tok->get_id() == Rust::BYTE_STRING_LITERAL
+                || tok->get_id() == Rust::BYTE_CHAR_LITERAL;
 
             location_t loc = tok->get_locus();
 
             fprintf(stderr, "<id=%s%s, %s, line=%d, col=%d>\n", tok->token_id_to_str(),
-              has_text ? (std::string(", text=") + tok->get_str()).c_str() : "", LOCATION_FILE(loc),
-              LOCATION_LINE(loc), LOCATION_COLUMN(loc));
+              has_text ? (std::string(", text=") + tok->get_str() + std::string(", typehint=")
+                           + std::string(tok->get_type_hint_str()))
+                           .c_str()
+                       : "",
+              LOCATION_FILE(loc), LOCATION_LINE(loc), LOCATION_COLUMN(loc));
 
             if (tok->get_id() == Rust::END_OF_FILE)
                 break;

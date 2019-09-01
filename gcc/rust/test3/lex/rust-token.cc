@@ -30,4 +30,48 @@ namespace Rust {
                 gcc_unreachable();
         }
     }
+
+    const char* Token::get_type_hint_str() const {
+        switch (type_hint) {
+            case CORETYPE_BOOL:
+                return "bool";
+            case CORETYPE_CHAR:
+                return "char";
+            case CORETYPE_STR:
+                return "str";
+            //case CORETYPE_INT:
+            case CORETYPE_ISIZE:
+                return "isize";
+            //case CORETYPE_UINT:
+            case CORETYPE_USIZE:
+                return "usize";
+            case CORETYPE_F32:
+                return "f32";
+            case CORETYPE_F64:
+                return "f64";
+            case CORETYPE_I8:
+                return "i8";
+            case CORETYPE_I16:
+                return "i16";
+            case CORETYPE_I32:
+                return "i32";
+            case CORETYPE_I64:
+                return "i64";
+            case CORETYPE_I128:
+                return "i128";
+            case CORETYPE_U8:
+                return "u8";
+            case CORETYPE_U16:
+                return "u16";
+            case CORETYPE_U32:
+                return "u32";
+            case CORETYPE_U64:
+                return "u64";
+            case CORETYPE_U128:
+                return "u128";
+            case CORETYPE_UNKNOWN:
+            default:
+                return "unknown";
+        }
+    }
 }
