@@ -17,11 +17,15 @@ namespace Rust {
     }
 
     inline bool is_octal_digit(char number) {
-        return number >= '0' && number <= '8';
+        return number >= '0' && number <= '7';
     }
 
     inline bool is_bin_digit(char number) {
         return number == '0' || number == '1';
+    }
+
+    inline bool check_valid_float_dot_end(char character) {
+        return character != '.' && character != '_' && !ISALPHA(character);
     }
 
     Lexer::Lexer(const char* filename, FILE* input) :
@@ -112,7 +116,7 @@ namespace Rust {
         // loop to go through multiple characters to build a single token
         while (true) {
             location_t loc = get_current_location();
-            /*int */current_char = peek_input();
+            /*int */ current_char = peek_input();
             skip_input();
 
             // return end of file token if end of file
@@ -674,8 +678,7 @@ namespace Rust {
 
             // identify literals
             // int or float literals - not processed properly
-            if (ISDIGIT(current_char)
-                || current_char == '.') { //  _ not allowed as first char
+            if (ISDIGIT(current_char) || current_char == '.') { //  _ not allowed as first char
                 std::string str;
                 str.reserve(16); // some sensible default
                 str += current_char;
@@ -734,6 +737,15 @@ namespace Rust {
 
                         // reassign string representation to converted value
                         str = ostr.str();
+
+                        // parse in type suffix if it exists
+                        parse_in_type_suffix(/*current_char, */ type_hint, length);
+
+                        if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
+                            error_at(get_current_location(),
+                              "invalid type suffix '%s' for integer (hex) literal",
+                              get_type_hint_string(type_hint));
+                        }
                     } else if (current_char == 'o') {
                         // octal (integer only)
 
@@ -777,6 +789,15 @@ namespace Rust {
 
                         // reassign string representation to converted value
                         str = ostr.str();
+
+                        // parse in type suffix if it exists
+                        parse_in_type_suffix(/*current_char, */ type_hint, length);
+
+                        if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
+                            error_at(get_current_location(),
+                              "invalid type suffix '%s' for integer (octal) literal",
+                              get_type_hint_string(type_hint));
+                        }
                     } else if (current_char == 'b') {
                         // binary (integer only)
 
@@ -821,6 +842,15 @@ namespace Rust {
 
                         // reassign string representation to converted value
                         str = ostr.str();
+
+                        // parse in type suffix if it exists
+                        parse_in_type_suffix(/*current_char, */ type_hint, length);
+
+                        if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
+                            error_at(get_current_location(),
+                              "invalid type suffix '%s' for integer (binary) literal",
+                              get_type_hint_string(type_hint));
+                        }
                     }
                 } else {
                     // handle decimals (integer or float)
@@ -856,7 +886,7 @@ namespace Rust {
 
                     // parse initial decimal literal - assuming integer
                     // TODO: test if works
-                    parse_in_decimal(/*current_char, */str, length);
+                    parse_in_decimal(/*current_char, */ str, length);
 #if 0
                             while (ISDIGIT(current_char) || current_char == '_') {
                                 if (current_char == '_') {
@@ -892,7 +922,7 @@ namespace Rust {
 
                         // parse another decimal number for float
                         // TODO: test if works
-                        parse_in_decimal(/*current_char, */str, length);
+                        parse_in_decimal(/*current_char, */ str, length);
 #if 0
                                 while (ISDIGIT(current_char) || current_char == '_') {
                                     if (current_char == '_') {
@@ -913,7 +943,7 @@ namespace Rust {
 
                         // parse in exponent part if it exists
                         // test to see if this works:
-                        parse_in_exponent_part(/*current_char, */str, length);
+                        parse_in_exponent_part(/*current_char, */ str, length);
 #if 0
                                 if (current_char == 'E' || current_char == 'e') {
                                     // add exponent to string as strtod works with it
@@ -954,7 +984,7 @@ namespace Rust {
 
                         // parse in type suffix if it exists
                         // TODO: see if works:
-                        parse_in_type_suffix(/*current_char, */type_hint, length);
+                        parse_in_type_suffix(/*current_char, */ type_hint, length);
 #if 0
                                 if (current_char == 'f') {
                                     skip_input();
@@ -975,22 +1005,73 @@ namespace Rust {
                                     }
                                 }
 #endif
+                        if (type_hint != CORETYPE_F32 && type_hint != CORETYPE_F64
+                            && type_hint != CORETYPE_UNKNOWN) {
+                            error_at(get_current_location(),
+                              "invalid type suffix '%s' for float literal",
+                              get_type_hint_string(type_hint));
+                        }
+
+                    } else if (current_char == '.' && check_valid_float_dot_end(peek_input(1))) {
+                        is_real = true;
+
+                        // add . to str
+                        str += current_char;
+                        skip_input();
+                        current_char = peek_input();
+                        length++;
+
+                        // add a '0' after the . to stop ambiguity
+                        str += '0';
+
+                        // parse another decimal number for float
+                        // TODO: test if works
+                        parse_in_decimal(/*current_char, */ str, length);
+
+                        // parse in exponent part if it exists
+                        // test to see if this works:
+                        parse_in_exponent_part(/*current_char, */ str, length);
+
+                        // parse in type suffix if it exists
+                        // TODO: see if works:
+                        parse_in_type_suffix(/*current_char, */ type_hint, length);
+
+                        if (type_hint != CORETYPE_F32 && type_hint != CORETYPE_F64
+                            && type_hint != CORETYPE_UNKNOWN) {
+                            error_at(get_current_location(),
+                              "invalid type suffix '%s' for float literal",
+                              get_type_hint_string(type_hint));
+                        }
                     } else if (current_char == 'E' || current_char == 'e') {
                         is_real = true;
 
                         // parse exponent part
-                        parse_in_exponent_part(/*current_char, */str, length);
+                        parse_in_exponent_part(/*current_char, */ str, length);
 
                         // parse in type suffix if it exists
-                        parse_in_type_suffix(/*current_char, */type_hint, length);
+                        parse_in_type_suffix(/*current_char, */ type_hint, length);
+
+                        if (type_hint != CORETYPE_F32 && type_hint != CORETYPE_F64
+                            && type_hint != CORETYPE_UNKNOWN) {
+                            error_at(get_current_location(),
+                              "invalid type suffix '%s' for float literal",
+                              get_type_hint_string(type_hint));
+                        }
                     } else {
                         // is an integer
 
                         // parse decimal integer
-                        parse_in_decimal(/*current_char, */str, length);
+                        // TODO: integer already parsed in, this shouldn't need to be called?
+                        // parse_in_decimal(/*current_char, */str, length);
 
                         // parse in type suffix if it exists
-                        parse_in_type_suffix(/*current_char, */type_hint, length);
+                        parse_in_type_suffix(/*current_char, */ type_hint, length);
+
+                        if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
+                            error_at(get_current_location(),
+                              "invalid type suffix '%s' for integer (decimal) literal",
+                              get_type_hint_string(type_hint));
+                        }
                     }
 
                     current_column += length;
@@ -1195,7 +1276,8 @@ namespace Rust {
 #endif
 
     // Shitty pass-by-reference way of parsing in type suffix.
-    bool Lexer::parse_in_type_suffix(/*char& current_char, */PrimitiveCoreType& type_hint, int& length) {
+    bool Lexer::parse_in_type_suffix(
+      /*char& current_char, */ PrimitiveCoreType& type_hint, int& length) {
         ::std::string suffix;
         suffix.reserve(5);
 
@@ -1257,7 +1339,7 @@ namespace Rust {
         return true;
     }
 
-    void Lexer::parse_in_exponent_part(/*char& current_char, */std::string& str, int& length) {
+    void Lexer::parse_in_exponent_part(/*char& current_char, */ std::string& str, int& length) {
         if (current_char == 'E' || current_char == 'e') {
             // add exponent to string as strtod works with it
             str += current_char;
@@ -1283,7 +1365,7 @@ namespace Rust {
             }
 
             // parse another decimal number for exponent
-            parse_in_decimal(/*current_char, */str, length);
+            parse_in_decimal(/*current_char, */ str, length);
 
 #if 0
             // parse another decimal number for exponent
@@ -1308,7 +1390,7 @@ namespace Rust {
         }
     }
 
-    void Lexer::parse_in_decimal(/*char& current_char, */std::string& str, int& length) {
+    void Lexer::parse_in_decimal(/*char& current_char, */ std::string& str, int& length) {
         while (ISDIGIT(current_char) || current_char == '_') {
             if (current_char == '_') {
                 // don't add _ to number
@@ -1328,7 +1410,7 @@ namespace Rust {
         }
     }
 
-    bool Lexer::parse_ascii_escape(/*char& current_char, */int& length, char& output_char) {
+    bool Lexer::parse_ascii_escape(/*char& current_char, */ int& length, char& output_char) {
         // skip to actual letter
         skip_input();
         current_char = peek_input();
@@ -1397,7 +1479,7 @@ namespace Rust {
         return true;
     }
 
-    bool Lexer::parse_quote_escape(/*char& current_char, */int& length, char& output_char) {
+    bool Lexer::parse_quote_escape(/*char& current_char, */ int& length, char& output_char) {
         // skip to actual letter
         skip_input();
         current_char = peek_input();
@@ -1418,7 +1500,7 @@ namespace Rust {
     }
 
     bool Lexer::parse_unicode_escape(
-      /*char& current_char, */int& length, /*char*/ uint32_t& output_char) {
+      /*char& current_char, */ int& length, /*char*/ uint32_t& output_char) {
         // skip to actual letter
         skip_input();
         current_char = peek_input();
@@ -1502,7 +1584,7 @@ namespace Rust {
         return true;
     }
 
-    bool Lexer::parse_byte_escape(/*char& current_char, */int& length, char& output_char) {
+    bool Lexer::parse_byte_escape(/*char& current_char, */ int& length, char& output_char) {
         // skip to actual letter
         skip_input();
         current_char = peek_input();
@@ -1576,32 +1658,32 @@ namespace Rust {
 
         if (input < 128) {
             // ascii -- 1 byte
-            //return input;
+            // return input;
             return 1;
         } else if ((input & 0xC0) == 0x80) {
             // invalid (continuation; can't be first char)
-            //return 0xFFFE;
+            // return 0xFFFE;
             return 0;
         } else if ((input & 0xE0) == 0xC0) {
             // 2 bytes
             uint8_t input2 = peek_input(1);
             if ((input2 & 0xC0) != 0x80)
-                //return 0xFFFE;
+                // return 0xFFFE;
                 return 0;
 
-            //uint32_t output = ((input & 0x1F) << 6) | ((input2 & 0x3F) << 0);
-            //return output;
+            // uint32_t output = ((input & 0x1F) << 6) | ((input2 & 0x3F) << 0);
+            // return output;
             return 2;
         } else if ((input & 0xF0) == 0xE0) {
             // 3 bytes
             uint8_t input2 = peek_input(1);
             if ((input2 & 0xC0) != 0x80)
-                //return 0xFFFE;
+                // return 0xFFFE;
                 return 0;
 
             uint8_t input3 = peek_input(2);
             if ((input3 & 0xC0) != 0x80)
-                //return 0xFFFE;
+                // return 0xFFFE;
                 return 0;
 
             /*uint32_t output
@@ -1612,17 +1694,17 @@ namespace Rust {
             // 4 bytes
             uint8_t input2 = peek_input(1);
             if ((input2 & 0xC0) != 0x80)
-                //return 0xFFFE;
+                // return 0xFFFE;
                 return 0;
 
             uint8_t input3 = peek_input(2);
             if ((input3 & 0xC0) != 0x80)
-                //return 0xFFFE;
+                // return 0xFFFE;
                 return 0;
 
             uint8_t input4 = peek_input(3);
             if ((input4 & 0xC0) != 0x80)
-                //return 0xFFFE;
+                // return 0xFFFE;
                 return 0;
 
             /*uint32_t output = ((input & 0x07) << 18) | ((input2 & 0x3F) << 12)

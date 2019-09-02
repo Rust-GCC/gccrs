@@ -31,8 +31,8 @@ namespace Rust {
         }
     }
 
-    const char* Token::get_type_hint_str() const {
-        switch (type_hint) {
+    const char* get_type_hint_string(PrimitiveCoreType type) {
+        switch (type) {
             case CORETYPE_BOOL:
                 return "bool";
             case CORETYPE_CHAR:
@@ -73,5 +73,9 @@ namespace Rust {
             default:
                 return "unknown";
         }
+    }
+
+    const char* Token::get_type_hint_str() const {
+        return get_type_hint_string(type_hint);
     }
 }

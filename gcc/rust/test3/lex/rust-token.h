@@ -203,6 +203,8 @@ namespace Rust {
     const char* get_token_description(TokenId id);
     // Hackily defined way to get token description as a string for enum value using x-macros
     const char* token_id_to_str(TokenId id);
+    // Get type hint description as a string.
+    const char* get_type_hint_string(PrimitiveCoreType type);
 
     // Represents a single token. Create using factory static methods.
     class Token {
