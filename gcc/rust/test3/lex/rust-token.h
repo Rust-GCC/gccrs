@@ -106,11 +106,11 @@ namespace Rust {
     RS_TOKEN(INT_LITERAL,                                                                     \
       "integer literal") /* do different int and float types need different literal types? */ \
     RS_TOKEN(FLOAT_LITERAL, "float literal")                                                  \
-    RS_TOKEN(STRING_LITERAL, "string literal") \
-    RS_TOKEN(CHAR_LITERAL, "character literal")  \
-    RS_TOKEN(BYTE_STRING_LITERAL, "byte string literal") \
-    RS_TOKEN(BYTE_CHAR_LITERAL, "byte character literal") \
-    RS_TOKEN(LIFETIME, "lifetime") /* TODO: improve token type */      \
+    RS_TOKEN(STRING_LITERAL, "string literal")                                                \
+    RS_TOKEN(CHAR_LITERAL, "character literal")                                               \
+    RS_TOKEN(BYTE_STRING_LITERAL, "byte string literal")                                      \
+    RS_TOKEN(BYTE_CHAR_LITERAL, "byte character literal")                                     \
+    RS_TOKEN(LIFETIME, "lifetime") /* TODO: improve token type */                             \
     /* Have "interpolated" tokens (whatever that means)? identifer, path, type, pattern, */   \
     /* expression, statement, block, meta, item in mrustc (but not directly in lexer). */     \
     RS_TOKEN(LEFT_PAREN, "(")                                                                 \
@@ -220,15 +220,17 @@ namespace Rust {
 
         // Token constructor from token id and location. Has a null string.
         Token(TokenId token_id, location_t location) :
-          token_id(token_id), locus(location), str(NULL) {}
+          token_id(token_id), locus(location), str(NULL), type_hint(CORETYPE_UNKNOWN) {}
 
         // Token constructor from token id, location, and a string.
         Token(TokenId token_id, location_t location, const std::string& paramStr) :
-          token_id(token_id), locus(location), str(new std::string(paramStr)) {}
+          token_id(token_id), locus(location), str(new std::string(paramStr)),
+          type_hint(CORETYPE_UNKNOWN) {}
 
         // Token constructor from token id, location, and a char.
         Token(TokenId token_id, location_t location, char paramChar) :
-          token_id(token_id), locus(location), str(new std::string(1, paramChar)) {}
+          token_id(token_id), locus(location), str(new std::string(1, paramChar)),
+          type_hint(CORETYPE_UNKNOWN) {}
 
         // Token constructor from token id, location, a string, and type hint.
         Token(TokenId token_id, location_t location, const std::string& paramStr,
@@ -267,7 +269,7 @@ namespace Rust {
         // Makes and returns a new TokenPtr of type INT_LITERAL.
         static TokenPtr make_int(
           location_t locus, const std::string& str, PrimitiveCoreType type_hint) {
-            return TokenPtr(new Token(INT_LITERAL, locus, str));
+            return TokenPtr(new Token(INT_LITERAL, locus, str, type_hint));
         }
 
         // Makes and returns a new TokenPtr of type FLOAT_LITERAL.

@@ -37,6 +37,8 @@ namespace Rust {
         inline bool parse_quote_escape(/*char& current_char, */int& length, char& output_char);
         inline bool parse_unicode_escape(/*char& current_char, */int& length, uint32_t& output_char);
         inline bool parse_byte_escape(/*char& current_char, */int& length, char& output_char);
+        inline bool parse_escape(int& length, char& output_char, char opening_char);
+        inline bool parse_utf8_escape(int& length, uint32_t& output_char, char opening_char);
         inline int test_get_input_codepoint_length();
         inline int test_get_input_codepoint_n_length(int n_start_offset);
         inline uint32_t test_peek_codepoint_input();
