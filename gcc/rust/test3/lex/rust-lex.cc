@@ -557,7 +557,7 @@ namespace Rust {
                             byte_char = 0;
                         }
 
-                        skip_input();
+                        //skip_input();
                         current_char = peek_input();
                         length++;
 
@@ -649,6 +649,7 @@ namespace Rust {
                     int hash_count = 0;
 
                     // get hash count at beginnning
+                    skip_input();
                     current_char = peek_input();
                     while (current_char == '#') {
                         hash_count++;
@@ -728,9 +729,9 @@ namespace Rust {
                         bool enough_hashes = true;
 
                         for (int i = 0; i < hash_count; i++) {
-                            //if (test_peek_codepoint_input(i + 1) != '#') {
+                            // if (test_peek_codepoint_input(i + 1) != '#') {
                             // TODO: ensure this is a good enough replacement
-                            if (peek_input(i + 1) != '#') { 
+                            if (peek_input(i + 1) != '#') {
                                 enough_hashes = false; // could continue here - improve performance
                             }
                         }
@@ -1081,14 +1082,12 @@ namespace Rust {
                 int length = 1;
                 current_char32 = test_peek_codepoint_input();
 
-                // DEBUG
-                fprintf(stderr, "peeked input in string literal (ascii): '%c'\n", peek_input());
-
                 // ok initial peek_codepoint seems to work without "too long"
 
                 while (current_char32 != '\n' && current_char32 != '"') {
                     if (current_char32 < 128) {
-                        fprintf(stderr, "current char is actually a char: '%c' \n", static_cast<char>(current_char32));
+                        fprintf(stderr, "current char is actually a char: '%c' \n",
+                          static_cast<char>(current_char32));
                     } else {
                         fprintf(stderr, "current char not actually a char: '%i'\n", current_char32);
                     }
@@ -1098,7 +1097,14 @@ namespace Rust {
                         // parse escape
                         parse_utf8_escape(length, current_char32, '\'');
 
+                        // TODO: find a way to parse additional characters after the escape?
+                        // return after parsing escape?
+
                         str += current_char32;
+                        // TODO: does not seem to work properly (adding 32-bit to string - decode?)
+
+                        // required as parsing utf8 escape only changes current_char or something
+                        current_char32 = test_peek_codepoint_input();
 
                         continue;
                     }
@@ -1147,16 +1153,10 @@ namespace Rust {
                     parse_utf8_escape(length, current_char32, '\'');
 
                     // TODO - this skip may not be needed?
-                    //test_skip_codepoint_input();
+                    // test_skip_codepoint_input();
 
                     if (test_peek_codepoint_input() != '\'') {
                         error_at(get_current_location(), "unended char literal");
-
-                        // DEBUG
-                        fprintf(stderr, "result of peek codepoint: %i \n", test_peek_codepoint_input());
-                        if (test_peek_codepoint_input() < 128) {
-                            fprintf(stderr, "result of peek codepoint (ascii): '%c' \n", test_peek_codepoint_input());
-                        }
                     } else {
                         test_skip_codepoint_input();
                         current_char = test_peek_codepoint_input();
@@ -1168,7 +1168,7 @@ namespace Rust {
                     // TODO: FIX - char is actually 4 bytes in Rust (uint32) due to unicode
                     return Token::make_char(loc, current_char32);
                 } else {
-                    //current_char32 = test_peek_codepoint_input();
+                    // current_char32 = test_peek_codepoint_input();
                     test_skip_codepoint_input();
 
                     // parse normal char literal
@@ -1180,7 +1180,7 @@ namespace Rust {
                         current_char = peek_input();
 
                         // TODO fix due to different widths of utf-8 chars
-                        current_column += 3; 
+                        current_column += 3;
 
                         return Token::make_char(loc, current_char32);
                         // parse lifetime name
@@ -1538,6 +1538,11 @@ namespace Rust {
                 return false;
                 break;
         }
+        // all non-special cases (unicode, string continue) should skip their used char
+        skip_input();
+        current_char = peek_input();
+        length++;
+
         // returns true if parsing was successful
         return true;
     }
@@ -1666,7 +1671,8 @@ namespace Rust {
                         length++;
                     } else {
                         // actually an error
-                        error_at(get_current_location(), "expected terminating '}' in unicode escape");
+                        error_at(
+                          get_current_location(), "expected terminating '}' in unicode escape");
                         return false;
                     }
                 }
@@ -1993,23 +1999,14 @@ namespace Rust {
     int Lexer::test_get_input_codepoint_length() {
         uint8_t input = peek_input();
 
-        // DEBUG
-        fprintf(stderr, "length: initial input: %u \n", input);
-
         if (input < 128) {
             // ascii -- 1 byte
             // return input;
-
-            // DEBUG
-            fprintf(stderr, "ascii: '%c' \n", input);
 
             return 1;
         } else if ((input & 0xC0) == 0x80) {
             // invalid (continuation; can't be first char)
             // return 0xFFFE;
-
-            // DEBUG
-            fprintf(stderr, "invalid: continuation char \n");
 
             return 0;
         } else if ((input & 0xE0) == 0xC0) {
@@ -2017,10 +2014,7 @@ namespace Rust {
             uint8_t input2 = peek_input(1);
             if ((input2 & 0xC0) != 0x80)
                 return 0;
-                // return 0xFFFE;
-
-            // DEBUG
-            fprintf(stderr, "2 bytes: %u-%u \n", input, input2);
+            // return 0xFFFE;
 
             // uint32_t output = ((input & 0x1F) << 6) | ((input2 & 0x3F) << 0);
             // return output;
@@ -2030,15 +2024,12 @@ namespace Rust {
             uint8_t input2 = peek_input(1);
             if ((input2 & 0xC0) != 0x80)
                 return 0;
-                // return 0xFFFE;
+            // return 0xFFFE;
 
             uint8_t input3 = peek_input(2);
             if ((input3 & 0xC0) != 0x80)
                 return 0;
-                // return 0xFFFE;
-
-            // DEBUG
-            fprintf(stderr, "3 bytes: %u-%u-%u \n", input, input2, input3);
+            // return 0xFFFE;
 
             /*uint32_t output
               = ((input & 0x0F) << 12) | ((input2 & 0x3F) << 6) | ((input3 & 0x3F) << 0);
@@ -2049,20 +2040,17 @@ namespace Rust {
             uint8_t input2 = peek_input(1);
             if ((input2 & 0xC0) != 0x80)
                 return 0;
-                // return 0xFFFE;
+            // return 0xFFFE;
 
             uint8_t input3 = peek_input(2);
             if ((input3 & 0xC0) != 0x80)
                 return 0;
-                // return 0xFFFE;
+            // return 0xFFFE;
 
             uint8_t input4 = peek_input(3);
             if ((input4 & 0xC0) != 0x80)
                 return 0;
-                // return 0xFFFE;
-
-            // DEBUG
-            fprintf(stderr, "4 bytes: %u-%u-%u-%u \n", input, input2, input3, input4);
+            // return 0xFFFE;
 
             /*uint32_t output = ((input & 0x07) << 18) | ((input2 & 0x3F) << 12)
                               | ((input3 & 0x3F) << 6) | ((input4 & 0x3F) << 0);
