@@ -6,6 +6,58 @@
 #include <sstream> // for ostringstream
 
 namespace Rust {
+    // TODO: move to separate compilation unit?
+    // overload += for uint32_t to allow 32-bit encoded utf-8 to be added
+    ::std::string& operator+=(::std::string& str, Codepoint char32) {
+        if (char32.value < 0x80) {
+            str += static_cast<char>(char32.value);
+        } else if (char32.value < (0x1F + 1) << (1 * 6)) {
+            str += static_cast<char>(0xC0 | ((char32.value >> 6) & 0x1F));
+            str += static_cast<char>(0x80 | ((char32.value >> 0) & 0x3F));
+        } else if (char32.value < (0x0F + 1) << (2 * 6)) {
+            str += static_cast<char>(0xE0 | ((char32.value >> 12) & 0x0F));
+            str += static_cast<char>(0x80 | ((char32.value >> 6) & 0x3F));
+            str += static_cast<char>(0x80 | ((char32.value >> 0) & 0x3F));
+        } else if (char32.value < (0x07 + 1) << (3 * 6)) {
+            str += static_cast<char>(0xF0 | ((char32.value >> 18) & 0x07));
+            str += static_cast<char>(0x80 | ((char32.value >> 12) & 0x3F));
+            str += static_cast<char>(0x80 | ((char32.value >> 6) & 0x3F));
+            str += static_cast<char>(0x80 | ((char32.value >> 0) & 0x3F));
+        } else {
+            fprintf(stderr, "Invalid unicode codepoint found: '%u' \n", char32.value);
+            // error_at(get_current_location(), "Invalid unicode codepoint found: '%u'",
+            // char32.value);
+        }
+        return str;
+    }
+
+    ::std::string Codepoint::as_string() {
+        std::string str;
+
+        // do i need to do this? or can i just do str += value due to op overloading?
+
+        str += { value };
+
+        /*if (value < 0x80) {
+            str += static_cast<char>(value);
+        } else if (value < (0x1F + 1) << (1 * 6)) {
+            str += static_cast<char>(0xC0 | ((value >> 6) & 0x1F));
+            str += static_cast<char>(0x80 | ((value >> 0) & 0x3F));
+        } else if (value < (0x0F + 1) << (2 * 6)) {
+            str += static_cast<char>(0xE0 | ((value >> 12) & 0x0F));
+            str += static_cast<char>(0x80 | ((value >> 6) & 0x3F));
+            str += static_cast<char>(0x80 | ((value >> 0) & 0x3F));
+        } else if (value < (0x07 + 1) << (3 * 6)) {
+            str += static_cast<char>(0xF0 | ((value >> 18) & 0x07));
+            str += static_cast<char>(0x80 | ((value >> 12) & 0x3F));
+            str += static_cast<char>(0x80 | ((value >> 6) & 0x3F));
+            str += static_cast<char>(0x80 | ((value >> 0) & 0x3F));
+        } else {
+            error_at(get_current_location(), "Invalid unicode codepoint found: '%u'", value);
+        }*/
+        return str;
+    }
+
     // Includes all allowable float digits EXCEPT _ and . as that needs lookahead for handling.
     inline bool is_float_digit(char number) {
         return ISDIGIT(number) || number == 'E' || number == 'e';
@@ -257,12 +309,14 @@ namespace Rust {
 
                         return Token::make(DIV_EQ, loc);
                     } else if (peek_input() == '/') {
+                        // TODO: single-line doc comments
+
                         // single line comment
                         skip_input();
                         current_column += 2;
 
                         // basically ignore until line finishes
-                        while (current_char != '\n') {
+                        while (current_char != '\n' && current_char != EOF) {
                             skip_input();
                             current_column++; // not used
                             current_char = peek_input();
@@ -274,7 +328,7 @@ namespace Rust {
                         skip_input();
                         current_column += 2;
 
-                        // TODO: doc comments
+                        // TODO: block doc comments
 
                         current_char = peek_input();
 
@@ -557,7 +611,7 @@ namespace Rust {
                             byte_char = 0;
                         }
 
-                        //skip_input();
+                        // skip_input();
                         current_char = peek_input();
                         length++;
 
@@ -699,70 +753,117 @@ namespace Rust {
                 }
             }
 
-            // raw string literals
-            if (current_char == 'r' && (peek_input() == '#' || peek_input() == '"')) {
-                std::string str;
-                str.reserve(16); // some sensible default
+            // raw stuff
+            if (current_char == 'r') {
+                int peek = peek_input();
+                int peek1 = peek_input(1);
 
-                int length = 1;
-                int hash_count = 0;
-
-                // get hash count at beginnning
-                current_char = peek_input();
-                while (current_char == '#') {
-                    hash_count++;
-                    length++;
+                if (peek == '#' && (ISALPHA(peek1) || peek1 == '_')) {
+                    // raw identifier
+                    std::string str;
+                    str.reserve(16); // default
 
                     skip_input();
                     current_char = peek_input();
-                }
 
-                if (current_char != '"') {
-                    error_at(get_current_location(), "raw string has no opening '\"'");
-                }
+                    current_column += 2;
 
-                skip_input();
-                uint32_t current_char32 = test_peek_codepoint_input();
+                    str += current_char;
 
-                while (true) {
-                    if (current_char32 == '"') {
-                        bool enough_hashes = true;
+                    bool first_is_underscore = current_char == '_';
 
-                        for (int i = 0; i < hash_count; i++) {
-                            // if (test_peek_codepoint_input(i + 1) != '#') {
-                            // TODO: ensure this is a good enough replacement
-                            if (peek_input(i + 1) != '#') {
-                                enough_hashes = false; // could continue here - improve performance
+                    int length = 1;
+                    current_char = peek_input();
+                    // loop through entire name
+                    while (ISALPHA(current_char) || ISDIGIT(current_char) || current_char == '_') {
+                        length++;
+
+                        str += current_char;
+                        skip_input();
+                        current_char = peek_input();
+                    }
+
+                    current_column += length;
+
+                    // if just a single underscore, not an identifier
+                    if (first_is_underscore && length == 1) {
+                        error_at(get_current_location(), "'_' is not a valid raw identifier");
+                    }
+
+                    if (str == "crate" || str == "extern" || str == "self" || str == "super"
+                        || str == "Self") {
+                        error_at(
+                          get_current_location(), "'%s' is a forbidden raw identifier", str.c_str());
+                    } else {
+                        return Token::make_identifier(loc, str);
+                    }
+                } else if (peek == '"' || (peek == '#' && (ISALPHA(peek1) || peek1 == '_'))) {
+                    // raw string literals
+                    std::string str;
+                    str.reserve(16); // some sensible default
+
+                    int length = 1;
+                    int hash_count = 0;
+
+                    // get hash count at beginnning
+                    current_char = peek;
+                    while (current_char == '#') {
+                        hash_count++;
+                        length++;
+
+                        skip_input();
+                        current_char = peek_input();
+                    }
+
+                    if (current_char != '"') {
+                        error_at(get_current_location(), "raw string has no opening '\"'");
+                    }
+
+                    skip_input();
+                    Codepoint current_char32 = test_peek_codepoint_input();
+
+                    while (true) {
+                        if (current_char32.value == '"') {
+                            bool enough_hashes = true;
+
+                            for (int i = 0; i < hash_count; i++) {
+                                // if (test_peek_codepoint_input(i + 1) != '#') {
+                                // TODO: ensure this is a good enough replacement
+                                if (peek_input(i + 1) != '#') {
+                                    enough_hashes
+                                      = false; // could continue here - improve performance
+                                }
+                            }
+
+                            if (enough_hashes) {
+                                // skip enough input and peek enough input
+                                skip_input(hash_count); // is this enough?
+                                current_char = peek_input();
+                                length += hash_count + 1;
+                                break;
                             }
                         }
 
-                        if (enough_hashes) {
-                            // skip enough input and peek enough input
-                            skip_input(hash_count); // is this enough?
-                            current_char = peek_input();
-                            length += hash_count + 1;
-                            break;
-                        }
+                        length++;
+
+                        str += current_char32;
+                        test_skip_codepoint_input();
+                        current_char32 = test_peek_codepoint_input();
                     }
 
-                    length++;
+                    current_column += length;
 
-                    str += current_char32;
-                    test_skip_codepoint_input();
-                    current_char32 = test_peek_codepoint_input();
+                    return Token::make_string(loc, str); // TODO: does this work properly
                 }
-
-                current_column += length;
-
-                return Token::make_string(loc, str); // TODO: does this work properly
             }
 
             // find identifiers and keywords
-            if (ISALPHA(current_char)
-                || current_char == '_') { // is alphanumeric or _ (maybe just letters)
+            if (ISALPHA(current_char) || current_char == '_') {
                 std::string str;
                 str.reserve(16); // default
                 str += current_char;
+
+                bool first_is_underscore = current_char == '_';
 
                 int length = 1;
                 current_char = peek_input();
@@ -776,6 +877,11 @@ namespace Rust {
                 }
 
                 current_column += length;
+
+                // if just a single underscore, not an identifier
+                if (first_is_underscore && length == 1) {
+                    return Token::make(UNDERSCORE, loc);
+                }
 
                 TokenId keyword = classify_keyword(str);
                 if (keyword == IDENTIFIER) {
@@ -1047,10 +1153,6 @@ namespace Rust {
                     } else {
                         // is an integer
 
-                        // parse decimal integer
-                        // TODO: integer already parsed in, this shouldn't need to be called?
-                        // parse_in_decimal(/*current_char, */str, length);
-
                         // parse in type suffix if it exists
                         parse_in_type_suffix(/*current_char, */ type_hint, length);
 
@@ -1074,7 +1176,7 @@ namespace Rust {
 
             // string literals - not processed properly
             if (current_char == '"') {
-                uint32_t current_char32;
+                Codepoint current_char32;
 
                 std::string str;
                 str.reserve(16); // some sensible default
@@ -1084,16 +1186,9 @@ namespace Rust {
 
                 // ok initial peek_codepoint seems to work without "too long"
 
-                while (current_char32 != '\n' && current_char32 != '"') {
-                    if (current_char32 < 128) {
-                        fprintf(stderr, "current char is actually a char: '%c' \n",
-                          static_cast<char>(current_char32));
-                    } else {
-                        fprintf(stderr, "current char not actually a char: '%i'\n", current_char32);
-                    }
-
+                while (current_char32.value != '\n' && current_char32.value != '"') {
                     // TODO: handle escapes and string continue
-                    if (current_char32 == '\\') {
+                    if (current_char32.value == '\\') {
                         // parse escape
                         parse_utf8_escape(length, current_char32, '\'');
 
@@ -1101,7 +1196,6 @@ namespace Rust {
                         // return after parsing escape?
 
                         str += current_char32;
-                        // TODO: does not seem to work properly (adding 32-bit to string - decode?)
 
                         // required as parsing utf8 escape only changes current_char or something
                         current_char32 = test_peek_codepoint_input();
@@ -1119,9 +1213,9 @@ namespace Rust {
 
                 current_column += length;
 
-                if (current_char32 == '\n') {
+                if (current_char32.value == '\n') {
                     error_at(get_current_location(), "unended string literal");
-                } else if (current_char32 == '"') {
+                } else if (current_char32.value == '"') {
                     skip_input();
 
                     current_char = peek_input();
@@ -1137,29 +1231,25 @@ namespace Rust {
             // char literal attempt
             if (current_char == '\'') {
                 // rust chars are 4 bytes and have some weird unicode representation thing
-                uint32_t current_char32;
+                Codepoint current_char32;
 
                 int length = 1;
 
                 current_char32 = test_peek_codepoint_input();
 
-                // also need to account for escapes - quote escape \' and \"
-                // ascii escape: \x octal_digit hex_digit and \n \r \t \\ \0
-                // unicode escape: (i can't even figure out how to represent this)
-
                 // parse escaped char literal
-                if (current_char32 == '\\') {
+                if (current_char32.value == '\\') {
                     // parse escape
                     parse_utf8_escape(length, current_char32, '\'');
 
                     // TODO - this skip may not be needed?
                     // test_skip_codepoint_input();
 
-                    if (test_peek_codepoint_input() != '\'') {
+                    if (test_peek_codepoint_input().value != '\'') {
                         error_at(get_current_location(), "unended char literal");
                     } else {
                         test_skip_codepoint_input();
-                        current_char = test_peek_codepoint_input();
+                        current_char = peek_input();
                         length++;
                     }
 
@@ -1171,8 +1261,8 @@ namespace Rust {
                     // current_char32 = test_peek_codepoint_input();
                     test_skip_codepoint_input();
 
-                    // parse normal char literal
-                    if (test_peek_codepoint_input() == '\'') {
+                    if (test_peek_codepoint_input().value == '\'') {
+                        // parse normal char literal
                         // TODO: FIX - char is actually 4 bytes in Rust (uint32) due to unicode
 
                         // skip the ' character
@@ -1183,19 +1273,22 @@ namespace Rust {
                         current_column += 3;
 
                         return Token::make_char(loc, current_char32);
+                        
+                    } else if (ISDIGIT(current_char32.value) || ISALPHA(current_char32.value)
+                               || current_char32.value == '_') {
                         // parse lifetime name
-                    } else if (ISDIGIT(current_char32) || ISALPHA(current_char32)
-                               || current_char32 == '_') {
                         ::std::string str;
                         // TODO: does this work properly?
                         str += current_char32;
+
+                        // TODO: fix lifetime name thing - actually, why am I even using utf-8 here?
 
                         int length = 1;
 
                         current_char32 = test_peek_codepoint_input();
 
-                        while (ISDIGIT(current_char32) || ISALPHA(current_char32)
-                               || current_char32 == '_') {
+                        while (ISDIGIT(current_char32.value) || ISALPHA(current_char32.value)
+                               || current_char32.value == '_') {
                             length += test_get_input_codepoint_length();
 
                             str += current_char32;
@@ -1211,14 +1304,6 @@ namespace Rust {
                     }
                 }
             }
-
-            /* TODO: other literals: raw string literal, byte literal, byte string literal,
-             * raw byte string literal
-             * raw (don't process escapes): r#"hello"# - same amount of hashes on either side (or 0)
-             * byte (ascii char): b'H'
-             * byte string (ascii char array): b"hello"
-             * raw byte string (ascii char array with no escapes): br#"hello"# - also same hash num
-             * MAYBE boolean literals - maybe reserved word impl is enough for now but we'll see */
 
             // didn't match anything so error
             error_at(loc, "unexpected character '%x'", current_char);
@@ -1547,7 +1632,7 @@ namespace Rust {
         return true;
     }
 
-    bool Lexer::parse_utf8_escape(int& length, uint32_t& output_char, char opening_char) {
+    bool Lexer::parse_utf8_escape(int& length, Codepoint& output_char, char opening_char) {
         // skip to actual letter
         skip_input();
         current_char = peek_input();
@@ -1690,7 +1775,10 @@ namespace Rust {
                 // assert fits a uint32_t
                 gcc_assert(hex_num < 4294967296);
 
-                output_char = static_cast<uint32_t>(hex_num);
+                output_char = { static_cast<uint32_t>(hex_num) };
+
+                // TODO: what is being outputted? the escape code for the unicode char (unicode
+                // number) or the character number?
 
                 return true;
             } break;
@@ -2063,56 +2151,56 @@ namespace Rust {
     }
 
     // TODO: rewrite lexing system to use utf-8 "codepoints" rather than bytes?
-    uint32_t Lexer::test_peek_codepoint_input() {
+    Codepoint Lexer::test_peek_codepoint_input() {
         uint8_t input = peek_input();
 
         if (input < 128) {
             // ascii -- 1 byte
-            return input;
+            return { input };
         } else if ((input & 0xC0) == 0x80) {
             // invalid (continuation; can't be first char)
-            return 0xFFFE;
+            return { 0xFFFE };
         } else if ((input & 0xE0) == 0xC0) {
             // 2 bytes
             uint8_t input2 = peek_input(1);
             if ((input2 & 0xC0) != 0x80)
-                return 0xFFFE;
+                return { 0xFFFE };
 
             uint32_t output = ((input & 0x1F) << 6) | ((input2 & 0x3F) << 0);
-            return output;
+            return { output };
         } else if ((input & 0xF0) == 0xE0) {
             // 3 bytes
             uint8_t input2 = peek_input(1);
             if ((input2 & 0xC0) != 0x80)
-                return 0xFFFE;
+                return { 0xFFFE };
 
             uint8_t input3 = peek_input(2);
             if ((input3 & 0xC0) != 0x80)
-                return 0xFFFE;
+                return { 0xFFFE };
 
             uint32_t output
               = ((input & 0x0F) << 12) | ((input2 & 0x3F) << 6) | ((input3 & 0x3F) << 0);
-            return output;
+            return { output };
         } else if ((input & 0xF8) == 0xF0) {
             // 4 bytes
             uint8_t input2 = peek_input(1);
             if ((input2 & 0xC0) != 0x80)
-                return 0xFFFE;
+                return { 0xFFFE };
 
             uint8_t input3 = peek_input(2);
             if ((input3 & 0xC0) != 0x80)
-                return 0xFFFE;
+                return { 0xFFFE };
 
             uint8_t input4 = peek_input(3);
             if ((input4 & 0xC0) != 0x80)
-                return 0xFFFE;
+                return { 0xFFFE };
 
             uint32_t output = ((input & 0x07) << 18) | ((input2 & 0x3F) << 12)
                               | ((input3 & 0x3F) << 6) | ((input4 & 0x3F) << 0);
-            return output;
+            return { output };
         } else {
             error_at(get_current_location(), "invalid UTF-8 (too long)");
-            return 0xFFFE;
+            return { 0xFFFE };
         }
     }
 
@@ -2188,7 +2276,7 @@ namespace Rust {
     }
 
     // peeks the codepoint input at n codepoints ahead of current codepoint - try not to use
-    uint32_t Lexer::test_peek_codepoint_input(int n) {
+    Codepoint Lexer::test_peek_codepoint_input(int n) {
         int totalOffset = 0;
 
         // add up all offsets into total offset? does this do what I want?
@@ -2201,7 +2289,7 @@ namespace Rust {
 
         // error out of function as it is not implemented
         gcc_assert(1 == 0);
-        return 0;
+        return { 0 };
         /*
                 uint8_t input = peek_input();
 

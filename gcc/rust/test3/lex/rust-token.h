@@ -10,6 +10,8 @@
 #include <string>
 #include <tr1/memory> // as shared_ptr is not available in std memory in c++03
 
+#include "rust-codepoint.h"
+
 namespace Rust {
     // "Primitive core types" in Rust - the different int and float types, as well as some others
     enum PrimitiveCoreType {
@@ -128,7 +130,7 @@ namespace Rust {
     RS_TOKEN(BLOCK_COMMENT_START, "/*")                                                       \
     RS_TOKEN(BLOCK_COMMENT_END, "*/")                                                         \
     RS_TOKEN(INNER_BLOCK_DOC_START, "/*!")                                                    \
-    RS_TOKEN(OUTER_BLOCK_DOC_START, "/**")                                                    \
+    RS_TOKEN(OUTER_BLOCK_DOC_START, "/**")  /* have "weak" union and 'static keywords? */     \
                                                                                               \
     RS_TOKEN_KEYWORD(ABSTRACT, "abstract") /* unused */                                       \
     RS_TOKEN_KEYWORD(AS, "as")                                                                \
@@ -232,6 +234,11 @@ namespace Rust {
           token_id(token_id), locus(location), str(new std::string(1, paramChar)),
           type_hint(CORETYPE_UNKNOWN) {}
 
+        // Token constructor from token id, location, and a "codepoint".
+        Token(TokenId token_id, location_t location, Codepoint paramCodepoint) :
+          token_id(token_id), locus(location), str(new std::string(paramCodepoint.as_string())),
+          type_hint(CORETYPE_UNKNOWN) {}
+
         // Token constructor from token id, location, a string, and type hint.
         Token(TokenId token_id, location_t location, const std::string& paramStr,
           PrimitiveCoreType parType) :
@@ -248,8 +255,6 @@ namespace Rust {
         ~Token() {
             delete str;
         }
-
-        // TODO: need quick creation for char literal and byte string if tokens?
 
         // Makes and returns a new TokenPtr (with null string).
         static TokenPtr make(TokenId token_id, location_t locus) {
@@ -289,7 +294,7 @@ namespace Rust {
         }
 
         // Makes and returns a new TokenPtr of type CHAR_LITERAL (fix).
-        static TokenPtr make_char(location_t locus, char char_lit) {
+        static TokenPtr make_char(location_t locus, Codepoint char_lit) {
             return TokenPtr(new Token(CHAR_LITERAL, locus, char_lit));
         }
 
