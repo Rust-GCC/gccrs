@@ -59,7 +59,7 @@ namespace Rust {
         LBP_FUNCTION_CALL = 80,
         LBP_ARRAY_REF = LBP_FUNCTION_CALL,
 
-        LBP_QUESTION_MARK = 75, // unary postfix - TODO how to implement? does it count as left?
+        LBP_QUESTION_MARK = 75, // unary postfix - counts as left
 
         LBP_UNARY_PLUS = 70,                 // Used only when the null denotation is +
         LBP_UNARY_MINUS = LBP_UNARY_PLUS,    // Used only when the null denotation is -
@@ -87,7 +87,7 @@ namespace Rust {
         LBP_PIPE = 35,
 
         LBP_EQUAL = 30,
-        LBP_DIFFERENT = LBP_EQUAL,
+        LBP_NOT_EQUAL = LBP_EQUAL,
         LBP_SMALLER_THAN = LBP_EQUAL,
         LBP_SMALLER_EQUAL = LBP_EQUAL,
         LBP_GREATER_THAN = LBP_EQUAL,
@@ -123,6 +123,7 @@ namespace Rust {
 
     // Checks if Tree has a string type (tree code pointer_type and tree variant char node).
     bool is_string_type(Tree type) {
+        // assert node represents a type
         gcc_assert(TYPE_P(type.get_tree()));
 
         // ensure main variant of pointee is char_type_node (i.e. type is char*)
@@ -145,17 +146,34 @@ namespace Rust {
     // Gets left binding power for specified token.
     int Parser::left_binding_power(const_TokenPtr token) {
         switch (token->get_id()) {
-                /* TODO: issue here - distinguish between method calls and field access somehow?
-                    Also would have to distinguish between paths and function calls (:: operator),
-                    maybe more stuff. */
+            /* TODO: issue here - distinguish between method calls and field access somehow?
+                Also would have to distinguish between paths and function calls (:: operator),
+                maybe more stuff. */
 
-                // TODO: handle operator overloading - have a function replace the operator?
+            // TODO: handle operator overloading - have a function replace the operator?
 
-                /*case DOT:
-                    return LBP_DOT;*/
+            /*case DOT:
+                return LBP_DOT;*/
+
+            /* TODO: BIG ISSUE - scope resolution can be for "path" or "function call", which have 
+             * different precedences (and also relative precedences - method and field are between)*/
+            case SCOPE_RESOLUTION:
+                return LBP_PATH;
+
+            /* TODO: BIG ISSUE - dot can be for "method call" or "field access", which have 
+             * different precedences (though at least they have none between) */
+            case DOT:
+                return LBP_METHOD_CALL;
 
             case LEFT_SQUARE:
                 return LBP_ARRAY_REF;
+
+            // postfix question mark (i.e. error propagation expression)
+            case QUESTION_MARK:
+                return LBP_QUESTION_MARK;
+
+            case AS:
+                return LBP_AS;
 
             case ASTERISK:
                 return LBP_MUL;
@@ -169,10 +187,27 @@ namespace Rust {
             case MINUS:
                 return LBP_MINUS;
 
-            case EQUAL:
+            case LEFT_SHIFT:
+                return LBP_L_SHIFT;
+            case RIGHT_SHIFT:
+                return LBP_R_SHIFT;
+
+            // binary & operator
+            case AMP: 
+                return LBP_AMP;
+
+            // binary ^ operator
+            case CARET:
+                return LBP_CARET;
+            
+            // binary | operator
+            case PIPE:
+                return LBP_PIPE;
+
+            case EQUAL_EQUAL:
                 return LBP_EQUAL;
             case NOT_EQUAL:
-                return LBP_DIFFERENT;
+                return LBP_NOT_EQUAL;
             case RIGHT_ANGLE:
                 return LBP_GREATER_THAN;
             case GREATER_OR_EQUAL:
@@ -182,12 +217,38 @@ namespace Rust {
             case LESS_OR_EQUAL:
                 return LBP_SMALLER_EQUAL;
 
-            case OR:
-                return LBP_LOGICAL_OR;
             case LOGICAL_AND:
                 return LBP_LOGICAL_AND;
-            /*case EXCLAM:
-                return LBP_LOGICAL_NOT;*/
+
+            case OR:
+                return LBP_LOGICAL_OR;
+
+            case DOT_DOT:
+                return LBP_DOT_DOT;
+
+            case DOT_DOT_EQ:
+                return LBP_DOT_DOT_EQ;
+            
+            case EQUAL:
+                return LBP_ASSIG;
+            case PLUS_EQ:
+                return LBP_PLUS_ASSIG;
+            case MINUS_EQ:
+                return LBP_MINUS_ASSIG;
+            case ASTERISK_EQ:
+                return LBP_MULT_ASSIG;
+            case DIV_EQ:
+                return LBP_DIV_ASSIG;
+            case PERCENT_EQ:
+                return LBP_MOD_ASSIG;
+            case AMP_EQ:
+                return LBP_AMP_ASSIG;
+            case CARET_EQ:
+                return LBP_CARET_ASSIG;
+            case LEFT_SHIFT_EQ:
+                return LBP_L_SHIFT_ASSIG;
+            case RIGHT_SHIFT_EQ:
+                return LBP_R_SHIFT_ASSIG;
 
             // anything that can't appear in an infix position is given lowest priority
             default:
@@ -199,8 +260,8 @@ namespace Rust {
         return stack_stmt_list.back();
     }
 
-    // Parse statement sequence?
-    /*void Parser::parse_statement_seq(bool (Parser::*done)()) {
+    // Parse statements until done (EOF) and append to current stmt list.
+    void Parser::parse_statement_seq(bool (Parser::*done)()) {
         // Parse statements until done and append to the current stmt list
         while (!(this->*done)()) {
             // get stmt tree for parsed statement
@@ -208,7 +269,19 @@ namespace Rust {
             // append each stmt tree to current stmt list
             get_current_stmt_list().append(stmt);
         }
-    }*/
+    }
+
+    // Parse "items" until done (EOF) and append to current something list. Seems to be method taken rather than statements in rust.
+    void Parser::parse_item_seq(bool (Parser::*done)()) {
+        // Parse statements until done and append to the current stmt list
+        // TODO: fix
+        while (!(this->*done)()) {
+            // get stmt tree for parsed statement
+            Tree item = parse_item();
+            // append each stmt tree to current stmt list
+            get_current_stmt_list().append(stmt);
+        }
+    }
 
     // Returns true when current token is EOF.
     bool Parser::done_end_of_file() {
@@ -217,7 +290,15 @@ namespace Rust {
     }
 
     // Entry point - parse entire program (in file) from here.
-    /*void Parser::parse_program() {
+    void Parser::parse_program() {
+        // should be only able to parse decls at this point (scope)?
+
+        // TODO: convert to a crate-based approach? parse_crate()?
+        parse_crate();
+
+        // TODO: structural changes - strongly-typed AST instead of Trees?
+
+        // TODO: how much of this is fake main function vs actually required for any function?
         // Built type of main "int (int, char**)"
         tree main_fndecl_type_param[]
           = { integer_type_node, build_pointer_type(build_pointer_type(char_type_node)) };
@@ -225,7 +306,7 @@ namespace Rust {
           = build_function_type_array(integer_type_node, 2, main_fndecl_type_param);
         // Create function declaration "int main(int, char**)"
         main_fndecl = build_fn_decl("main", main_fndecl_type);
-
+        
         // Enter top-level scope.
         enter_scope();
         // program -> statement*
@@ -245,7 +326,7 @@ namespace Rust {
         TreeSymbolMapping main_tree_scope = leave_scope();
         Tree main_block = main_tree_scope.block;
 
-        // Finish main function
+        // Finish/finalise main function
         BLOCK_SUPERCONTEXT(main_block.get_tree()) = main_fndecl;
         DECL_INITIAL(main_fndecl) = main_block.get_tree();
         DECL_SAVED_TREE(main_fndecl) = main_tree_scope.bind_expr.get_tree();
@@ -262,32 +343,70 @@ namespace Rust {
         cgraph_node::finalize_function(main_fndecl, true);
 
         main_fndecl = NULL_TREE;
-    }*/
+    }
 
-#if 0
+    void Parser::parse_crate() {
+        AST::Crate crate;
+
+        // parse attributes
+
+        AST::Module module = parse_module();
+
+        crate.root_module = module;
+    }
+
+    AST::Module Parser::parse_module() {
+        //const_TokenPtr t = lexer.peek_token();
+        AST::Module module;
+
+        while (true) {
+            // check end of module
+            switch (lexer.peek_token()->token_id()) {
+                case RIGHT_CURLY:
+                case END_OF_FILE:
+                    return module;
+                default:
+                    break;
+            }
+
+            // parse item attributes here
+
+            parse_module_item(module, attrs);
+        }
+
+        return module;
+    }
+
     // Parses a statement. Selects how to parse based on token id.
     Tree Parser::parse_statement() {
         /*
-  statement ->  variable_declaration
-          |  assignment_statement
-          |  if_statement
-          |  while_statement
-          |  for_statement
-          |  read_statement
-          |  write_statement
+  statement ->  ;
+          |  item
+          |  let_statement
+          |  expression_statement
+          |  macro_invocation_semi
           */
         // peek current token
         const_TokenPtr t = lexer.peek_token();
 
         // call method to parse statement if recognised
         switch (t->get_id()) {
-            case VAR:
+            // is item declaration only for nested functions?
+            case FN_TOK:
+                // TODO: fix - rust reference gives nested function as an example?
+                return parse_item_declaration();
+                break;
+            /*case VAR:
                 return parse_variable_declaration();
+                break;*/
+            case LET:
+                return parse_let_statement();
                 break;
-            case TYPE:
+            // parse expression statement somehow? any expression with ending semicolon
+            /*case TYPE:
                 return parse_type_declaration();
-                break;
-            case IF:
+                break;*/
+            /*case IF:
                 return parse_if_statement();
                 break;
             case WHILE:
@@ -295,16 +414,16 @@ namespace Rust {
                 break;
             case FOR:
                 return parse_for_statement();
-                break;
-            case READ:
+                break;*/
+            /*case READ:
                 return parse_read_statement();
                 break;
             case WRITE:
                 return parse_write_statement();
-                break;
-            case IDENTIFIER:
+                break;*/
+            /*case IDENTIFIER:
                 return parse_assignment_statement();
-                break;
+                break;*/
             default:
                 // if not recognised, error with unexpected token and attempt resume
                 unexpected_token(t);
@@ -313,7 +432,6 @@ namespace Rust {
                 break;
         }
     }
-#endif
 
     // "Unexpected token" panic mode - flags gcc error at unexpected token
     void Parser::unexpected_token(const_TokenPtr t) {
@@ -333,8 +451,29 @@ namespace Rust {
             lexer.skip_token();
     }
 
+    // Parses a "let" statement (variable declaration).
+    Tree Parser::parse_let_statement() {
+        /*
+  let_statement: ->  outer_attribute* "let" pattern (":" type)? ("=" expression)? ";" */
+
+        // TODO: parse "outer attribute"?
+        // auto t = peek_token()
+        // while (t.get_id() == LEFT_SQUARE) {
+        //    OuterAttribute attributes = parse_outer_attribute();
+        //}
+        // etc.
+
+        // ensure "let" token actually exists
+        if (!skip_token(LET)) {
+            skip_after_semicolon();
+            return Tree::error();
+        }
+
+        
+    }
+
     // Parses a variable declaration statement.
-    /*Tree Parser::parse_variable_declaration() {
+    Tree Parser::parse_variable_declaration() {
         // skip initial var keyword
         if (!skip_token(VAR)) {
             skip_after_semicolon();
@@ -394,7 +533,7 @@ namespace Rust {
         Tree stmt = build_tree(DECL_EXPR, identifier->get_locus(), void_type_node, decl);
 
         return stmt;
-    }*/
+    }
 
     /* Checks if current token has inputted id - skips it and returns true if so, diagnoses an error
      * and returns false otherwise. */
@@ -418,7 +557,7 @@ namespace Rust {
     }
 
     // Parses type in variable declaration.
-    /*Tree Parser::parse_type() {
+    Tree Parser::parse_type() {
         const_TokenPtr t = lexer.peek_token();
 
         Tree type;
@@ -510,10 +649,10 @@ namespace Rust {
         }
 
         return type;
-    }*/
+    }
 
     // Parses an if statement. Probably important to study as it seems complex.
-    /*Tree Parser::parse_if_statement() {
+    Tree Parser::parse_if_statement() {
         // skip if statement token
         if (!skip_token(IF)) {
             skip_after_end();
@@ -559,7 +698,7 @@ namespace Rust {
 
         // build GENERIC if statement node.
         return build_if_statement(expr, then_stmt, else_stmt);
-    }*/
+    }
 
     // Builds an if statement tree.
     Tree Parser::build_if_statement(Tree bool_expr, Tree then_part, Tree else_part) {
@@ -639,7 +778,7 @@ namespace Rust {
     }
 
     // Skips all tokens until EOF.
-    /*void Parser::skip_after_end() {
+    void Parser::skip_after_end() {
         const_TokenPtr t = lexer.peek_token();
 
         while (t->get_id() != END_OF_FILE && t->get_id() != END) {
@@ -650,7 +789,7 @@ namespace Rust {
         if (t->get_id() == END) {
             lexer.skip_token();
         }
-    }*/
+    }
 
     // Pratt parser impl of parse_expression.
     Tree Parser::parse_expression(int right_binding_power) {
@@ -1199,7 +1338,7 @@ namespace Rust {
     }
 
     // Parse variable assignment statement. This is not the same as variable declaration.
-    /*Tree Parser::parse_assignment_statement() {
+    Tree Parser::parse_assignment_statement() {
         Tree variable = parse_lhs_assignment_expression();
 
         if (variable.is_error())
@@ -1234,7 +1373,7 @@ namespace Rust {
         Tree assig_expr
           = build_tree(MODIFY_EXPR, assig_tok->get_locus(), void_type_node, variable, expr);
         return assig_expr;
-    }*/
+    }
 
     // Print human-readable name for type.
     const char* Parser::print_type(Tree type) {
@@ -1506,7 +1645,7 @@ namespace Rust {
 #endif
 
     // Parses a while statement.
-    /*Tree Parser::parse_while_statement() {
+    Tree Parser::parse_while_statement() {
         if (!skip_token(WHILE)) {
             skip_after_end();
             return Tree::error();
@@ -1530,7 +1669,7 @@ namespace Rust {
 
         // build while statement tree
         return build_while_statement(expr, while_body_stmt);
-    }*/
+    }
 
     // Builds a while statement tree.
     Tree Parser::build_while_statement(Tree bool_expr, Tree while_body) {
@@ -1578,7 +1717,7 @@ namespace Rust {
     }
 
     // Parse a for statement.
-    /*Tree Parser::parse_for_statement() {
+    Tree Parser::parse_for_statement() {
         // for -> for <identifier> := <expression> to <expression> do <statements> end
         if (!skip_token(FOR)) {
             skip_after_end();
@@ -1626,7 +1765,7 @@ namespace Rust {
 
         // build for statement
         return build_for_statement(ind_var, lower_bound, upper_bound, for_body_stmt);
-    }*/
+    }
 
     // Builds a for statement tree (piggybacks on while statement tree building).
     Tree Parser::build_for_statement(
@@ -1714,16 +1853,16 @@ namespace Rust {
     }
 
     // Returns true if the next token is END, ELSE, or EOF;
-    /*bool Parser::done_end_or_else() {
+    bool Parser::done_end_or_else() {
         const_TokenPtr t = lexer.peek_token();
         return (t->get_id() == END || t->get_id() == ELSE || t->get_id() == END_OF_FILE);
-    }*/
+    }
 
     // Returns true if the next token is END or EOF.
-    /*bool Parser::done_end() {
+    bool Parser::done_end() {
         const_TokenPtr t = lexer.peek_token();
         return (t->get_id() == END || t->get_id() == END_OF_FILE);
-    }*/
+    }
 
     // Parses expression and ensures it is a variable declaration or array reference.
     Tree Parser::parse_expression_naming_variable() {

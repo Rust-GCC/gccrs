@@ -120,34 +120,49 @@ namespace Rust {
         std::vector<BlockChain> stack_block_chain;
 
 // x-macro list for binary operators - only defined here to be inside Parser class
-#define BINARY_HANDLER_LIST                         \
-    BINARY_HANDLER(plus, PLUS)                      \
-    BINARY_HANDLER(minus, MINUS)                    \
-    BINARY_HANDLER(mult, ASTERISK)                  \
-    BINARY_HANDLER(div, DIV)                        \
-    BINARY_HANDLER(mod, PERCENT)                    \
-    BINARY_HANDLER(bitwise_and, AMP)                \
-    BINARY_HANDLER(bitwise_or, PIPE)                \
-    BINARY_HANDLER(bitwise_xor, CARET)              \
-    BINARY_HANDLER(left_shift, LEFT_SHIFT)          \
-    BINARY_HANDLER(right_shift, RIGHT_SHIFT)        \
-                                                    \
-    BINARY_HANDLER(equal, EQUAL)                    \
-    BINARY_HANDLER(not_equal, NOT_EQUAL)            \
-    BINARY_HANDLER(smaller_than, LEFT_ANGLE)        \
-    BINARY_HANDLER(smaller_equal, LESS_OR_EQUAL)    \
-    BINARY_HANDLER(greater_than, RIGHT_ANGLE)       \
-    BINARY_HANDLER(greater_equal, GREATER_OR_EQUAL) \
-                                                    \
-    BINARY_HANDLER(logical_and, LOGICAL_AND)        \
-    BINARY_HANDLER(logical_or, OR)                  \
-                                                    \
-    /*BINARY_HANDLER(as_cast, AS)*/                 \
-    /* should this really be an operator? */        \
-                                                    \
-    BINARY_HANDLER(array_ref, LEFT_SQUARE)          \
-                                                    \
-    BINARY_HANDLER(field_ref, DOT)
+#define BINARY_HANDLER_LIST                                   \
+    BINARY_HANDLER(plus, PLUS)                                \
+    BINARY_HANDLER(minus, MINUS)                              \
+    BINARY_HANDLER(mult, ASTERISK)                            \
+    BINARY_HANDLER(div, DIV)                                  \
+    BINARY_HANDLER(mod, PERCENT)                              \
+    BINARY_HANDLER(bitwise_and, AMP)                          \
+    BINARY_HANDLER(bitwise_or, PIPE)                          \
+    BINARY_HANDLER(bitwise_xor, CARET)                        \
+    BINARY_HANDLER(left_shift, LEFT_SHIFT)                    \
+    BINARY_HANDLER(right_shift, RIGHT_SHIFT)                  \
+                                                              \
+    BINARY_HANDLER(equal, EQUAL_EQUAL)                        \
+    BINARY_HANDLER(not_equal, NOT_EQUAL)                      \
+    BINARY_HANDLER(smaller_than, LEFT_ANGLE)                  \
+    BINARY_HANDLER(smaller_equal, LESS_OR_EQUAL)              \
+    BINARY_HANDLER(greater_than, RIGHT_ANGLE)                 \
+    BINARY_HANDLER(greater_equal, GREATER_OR_EQUAL)           \
+                                                              \
+    BINARY_HANDLER(logical_and, LOGICAL_AND)                  \
+    BINARY_HANDLER(logical_or, OR)                            \
+                                                              \
+    BINARY_HANDLER(as_cast, AS)                               \
+    /* should this really be an operator? */                  \
+                                                              \
+    BINARY_HANDLER(array_ref, LEFT_SQUARE)                    \
+                                                              \
+    BINARY_HANDLER(field_ref, DOT)                            \
+    /*BINARY_HANDLER(question_mark, QUESTION_MARK)*/          \
+    /* not a binary operator, technically */                  \
+    BINARY_HANDLER(assignment_expr, EQUAL)                    \
+    /* should this really be an operator? or a binary one? */ \
+    /* if it should, also add all operation-assign below:*/   \
+    BINARY_HANDLER(plus_assig, PLUS_EQ)                       \
+    BINARY_HANDLER(minus_assig, MINUS_EQ)                     \
+    BINARY_HANDLER(mult_assig, ASTERISK_EQ)                   \
+    BINARY_HANDLER(div_assig, DIV_EQ)                         \
+    BINARY_HANDLER(mod_assig, PERCENT_EQ)                     \
+    BINARY_HANDLER(bitwise_and_assig, AMP_EQ)                 \
+    BINARY_HANDLER(bitwise_or_assig, PIPE_EQ)                 \
+    BINARY_HANDLER(bitwise_xor_assig, CARET_EQ)               \
+    BINARY_HANDLER(left_shift_assig, LEFT_SHIFT_EQ)           \
+    BINARY_HANDLER(right_shift_assig, RIGHT_SHIFT_EQ)
 
 // create declarations for binary op handling
 #define BINARY_HANDLER(name, _) Tree binary_##name(const_TokenPtr tok, Tree left);
