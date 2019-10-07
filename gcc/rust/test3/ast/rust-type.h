@@ -1,5 +1,5 @@
-#ifndef RUST_TYPE_H
-#define RUST_TYPE_H
+#ifndef RUST_AST_TYPE_H
+#define RUST_AST_TYPE_H
 
 namespace Rust {
     namespace AST {

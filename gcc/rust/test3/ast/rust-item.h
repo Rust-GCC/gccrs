@@ -1,7 +1,7 @@
-#ifndef RUST_TYPES_ITEMS_H
-#define RUST_TYPES_ITEMS_H
+#ifndef RUST_AST_ITEM_H
+#define RUST_AST_ITEM_H
 
-#include "rust-types.h"
+#include "rust-ast.h"
 
 namespace Rust {
     namespace AST {

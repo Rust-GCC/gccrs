@@ -1,8 +1,8 @@
-#ifndef RUST_PATH_H
-#define RUST_PATH_H
+#ifndef RUST_AST_PATH_H
+#define RUST_AST_PATH_H
 // "Path" (identifier within namespaces, essentially) handling
 
-#include "rust-types.h"
+#include "rust-ast.h"
 
 #include <string>
 #include <vector>
