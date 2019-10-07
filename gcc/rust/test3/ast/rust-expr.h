@@ -10,6 +10,11 @@ namespace Rust {
 
         class Expr : public Node {
             ::std::vector<Attribute> outer_attrs;
+
+          public:
+            inline ::std::vector<Attribute> get_outer_attrs() const {
+                return outer_attrs;
+            }
         };
 
         class ExprWithoutBlock : public Expr {};
@@ -31,6 +36,15 @@ namespace Rust {
                 FLOAT,
                 BOOL
             } type;
+
+          public:
+            ::std::string as_string() const {
+                return value_as_string;
+            }
+
+            inline LitType get_lit_type() const {
+                return type;
+            }
         };
 
         // Base path expression AST node
@@ -38,10 +52,20 @@ namespace Rust {
 
         class PathExprNonQual : public PathExpr {
             PathInExpression path;
+
+          public:
+            ::std::string as_string() const {
+                return path.as_string();
+            }
         };
 
         class PathExprQual : public PathExpr {
             QualifiedPathInExpression path;
+
+          public:
+            ::std::string as_string() const {
+                return path.as_string();
+            }
         };
 
         // Represents an expression using unary or binary operators as AST node. Can be overloaded.
@@ -58,13 +82,22 @@ namespace Rust {
         class BorrowExpr : public OperatorExpr {
             bool is_mut;
             bool double_borrow;
+
+          public:
+            ::std::string as_string() const;
         };
 
         // Unary prefix * deference operator
-        class DereferenceExpr : public OperatorExpr {};
+        class DereferenceExpr : public OperatorExpr {
+          public:
+            ::std::string as_string() const;
+        };
 
         // Unary postfix ? error propogation operator. Cannot be overloaded.
-        class ErrorPropogationExpr : public OperatorExpr {};
+        class ErrorPropogationExpr : public OperatorExpr {
+          public:
+            ::std::string as_string() const;
+        };
 
         // Unary prefix - or ! negation or NOT operators.
         class NegationExpr : public OperatorExpr {
@@ -72,6 +105,13 @@ namespace Rust {
             // Negation only works for signed integer and floating-point types, NOT only works for
             // boolean and integer types (via bitwise NOT)
             enum NegationType { NEGATE, NOT } negation_type;
+
+          public:
+            ::std::string as_string() const;
+
+            inline NegationType get_negation_type() const {
+                return negation_type;
+            }
         };
 
         // Infix binary operators. +, -, *, /, %, &, |, ^, <<, >>
@@ -96,6 +136,12 @@ namespace Rust {
             ~ArithmeticOrLogicalExpr() {
                 delete right_expr;
             }
+
+            ::std::string as_string() const;
+
+            inline ExprType get_expr_type() const {
+                return expr_type;
+            }
         };
 
         // Infix binary comparison operators. ==, !=, <, <=, >, >=
@@ -117,6 +163,12 @@ namespace Rust {
                 delete right_expr;
             }
 
+            ::std::string as_string() const;
+
+            inline ExprType get_expr_type() const {
+                return expr_type;
+            }
+
             // TODO: implement via a function call to std::cmp::PartialEq::eq(&op1, &op2) maybe?
         };
 
@@ -130,6 +182,12 @@ namespace Rust {
             ~LazyBooleanExpr() {
                 delete right_expr;
             }
+
+            ::std::string as_string() const;
+
+            inline ExprType get_expr_type() const {
+                return expr_type;
+            }
         };
 
         // Binary infix "as" cast expression.
@@ -137,6 +195,8 @@ namespace Rust {
             TypeNoBounds type_to_convert_to;
 
             // Note: only certain allowed, outlined in reference
+          public:
+            ::std::string as_string() const;
         };
 
         // Binary assignment expression.
@@ -147,6 +207,8 @@ namespace Rust {
             ~AssignmentExpr() {
                 delete right_expr;
             }
+
+            ::std::string as_string() const;
         };
 
         // Binary infix compound assignment (arithmetic or logic then assignment) expressions.
@@ -171,6 +233,12 @@ namespace Rust {
             ~CompoundAssignmentExpr() {
                 delete right_expr;
             }
+
+            ::std::string as_string() const;
+
+            inline ExprType get_expr_type() const {
+                return expr_type;
+            }
         };
 
         // Expression in parentheses (i.e. like literally just any 3 + (2 * 6))
@@ -182,15 +250,29 @@ namespace Rust {
             ~GroupedExpr() {
                 delete expr_in_parens;
             }
+
+            ::std::string as_string() const;
+
+            inline ::std::vector<Attribute> get_inner_attrs() const {
+                return inner_attrs;
+            }
         };
 
         // Base array initialisation internal element representation thing
         // aka ArrayElements
-        class ArrayElems {};
+        class ArrayElems {
+          public:
+            virtual ~ArrayElems() {}
+        };
 
         // Value array elements
         class ArrayElemsValues : public ArrayElems {
             ::std::vector<Expr> values;
+
+          public:
+            inline ::std::vector<Expr> get_values() const {
+                return values;
+            }
         };
 
         // Copied array element and number of copies
@@ -209,6 +291,17 @@ namespace Rust {
         class ArrayExpr : public ExprWithoutBlock {
             ::std::vector<Attribute> inner_attrs;
             ArrayElems internal_elements;
+
+          public:
+            ::std::string as_string() const;
+
+            inline ::std::vector<Attribute> get_inner_attrs() const {
+                return inner_attrs;
+            }
+
+            inline ArrayElems get_internal_elems() const {
+                return internal_elements;
+            }
         };
 
         // Aka IndexExpr (also applies to slices)
@@ -224,6 +317,8 @@ namespace Rust {
                 delete index_expr;
                 delete array_expr;
             }
+
+            ::std::string as_string() const;
         };
 
         // AST representation of a tuple
@@ -232,6 +327,17 @@ namespace Rust {
 
             ::std::vector<Expr> tuple_elems;
             // replaces (inlined version of) TupleElements
+
+          public:
+            ::std::string as_string() const;
+
+            inline ::std::vector<Attribute> get_inner_attrs() const {
+                return inner_attrs;
+            }
+
+            inline ::std::vector<Expr> get_tuple_elems() const {
+                return tuple_elems;
+            }
 
             // Note: syntactically, can disambiguate single-element tuple from parens with comma, i.e.
             // (0,) rather than (0)
@@ -250,16 +356,34 @@ namespace Rust {
             ~TupleIndexExpr() {
                 delete tuple_expr;
             }
+
+            ::std::string as_string() const;
+
+            inline TupleIndex get_tuple_index() const {
+                return tuple_index;
+            }
         };
 
         // Base struct/tuple/union value creator AST node (abstract)
         class StructExpr : public ExprWithoutBlock {
             PathInExpression struct_name;
+
+          public:
+            inline PathInExpression get_struct_name() const {
+                return struct_name;
+            }
         };
 
         // Actual AST node of the struct creator (with no fields). Not abstract!
         class StructExprStruct : public StructExpr {
             ::std::vector<Attribute> inner_attrs;
+
+          public:
+            ::std::string as_string() const;
+
+            inline ::std::vector<Attribute> get_inner_attrs() const {
+                return inner_attrs;
+            }
         };
 
         // AST node representing expression used to fill a struct's fields from another struct
@@ -267,8 +391,15 @@ namespace Rust {
             Expr* base_struct;
 
           public:
+            StructBase(Expr* base_struct_ptr) : base_struct(base_struct_ptr) {}
+
             ~StructBase() {
                 delete base_struct;
+            }
+
+            // Returns a null expr-ed StructBase - error state
+            static StructBase error() {
+                return StructBase(NULL);
             }
         };
 
@@ -306,26 +437,67 @@ namespace Rust {
 
             bool has_struct_base;
             StructBase struct_base;
+
+          public:
+            ::std::string as_string() const;
+
+            inline ::std::vector<StructExprField> get_fields() const {
+                return fields;
+            }
+
+            inline StructBase get_struct_base() const {
+                return has_struct_base ? struct_base : StructBase::error();
+            }
         };
 
         // AST node of the functional update struct creator
         class StructExprStructBase : public StructExprStruct {
             StructBase struct_base;
+
+          public:
+            ::std::string as_string() const;
+
+            inline StructBase get_struct_base() const {
+                return struct_base;
+            }
         };
 
         // AST node of a tuple struct creator
         class StructExprTuple : public StructExpr {
             ::std::vector<Attribute> inner_attrs;
             ::std::vector<Expr> exprs;
+
+          public:
+            ::std::string as_string() const;
+
+            inline ::std::vector<Attribute> get_inner_attrs() const {
+                return inner_attrs;
+            }
+
+            inline ::std::vector<Expr> get_exprs() const {
+                return exprs;
+            }
         };
 
         // AST node of a "unit" struct creator (no fields and no braces)
-        class StructExprUnit : public StructExpr {};
+        class StructExprUnit : public StructExpr {
+          public:
+            ::std::string as_string() const {
+                return get_struct_name().as_string();
+                // return struct_name.as_string();
+            }
+        };
 
         // aka EnumerationVariantExpr
         // Base AST node representing creation of an enum variant instance - abstract
         class EnumVariantExpr : public ExprWithoutBlock {
             PathInExpression enum_variant_path;
+
+          public:
+            // TODO: maybe remove and have string version gotten here directly
+            inline PathInExpression get_enum_variant_path() const {
+                return enum_variant_path;
+            }
         };
 
         // Base AST node for a single enum expression field (in enum instance creation) - abstract
@@ -359,15 +531,35 @@ namespace Rust {
         // Struct-like syntax enum variant instance creation AST node
         class EnumExprStruct : public EnumVariantExpr {
             ::std::vector<EnumExprField> fields;
+
+          public:
+            ::std::string as_string() const;
+
+            inline ::std::vector<EnumExprField> get_fields() const {
+                return fields;
+            }
         };
 
         // Tuple-like syntax enum variant instance creation AST node
         class EnumExprTuple : public EnumVariantExpr {
             ::std::vector<Expr> values;
+
+          public:
+            ::std::string as_string() const;
+
+            inline ::std::vector<Expr> get_values() const {
+                return values;
+            }
         };
 
         // No-field enum variant instance creation AST node
-        class EnumExprFieldless : public EnumVariantExpr {};
+        class EnumExprFieldless : public EnumVariantExpr {
+          public:
+            ::std::string as_string() const {
+                // return enum_variant_path.as_string();
+                return get_enum_variant_path().as_string();
+            }
+        };
 
         // TODO: inline
         struct CallParams {
@@ -383,6 +575,12 @@ namespace Rust {
             ~CallExpr() {
                 delete function;
             }
+
+            ::std::string as_string() const;
+
+            inline ::std::vector<Expr> get_params() const {
+                return params;
+            }
         };
 
         // Method call expression AST node
@@ -394,6 +592,12 @@ namespace Rust {
           public:
             ~MethodCallExpr() {
                 delete receiver;
+            }
+
+            ::std::string as_string() const;
+
+            inline ::std::vector<Expr> get_params() const {
+                return params;
             }
         };
 
@@ -407,6 +611,8 @@ namespace Rust {
             ~FieldAccessExpr() {
                 delete receiver;
             }
+
+            ::std::string as_string() const;
         };
 
         // Closure parameter data structure
@@ -432,6 +638,8 @@ namespace Rust {
             ~ClosureExprInner() {
                 delete closure_inner;
             }
+
+            ::std::string as_string() const;
         };
 
         // Represents a type-specified closure expression AST node
@@ -443,12 +651,17 @@ namespace Rust {
             ~ClosureExprInnerTyped() {
                 delete expr;
             }
+
+            ::std::string as_string() const;
         };
 
         // AST node representing continue expression within loops
         class ContinueExpr : public ExprWithoutBlock {
             bool has_label;
             Lifetime label;
+
+          public:
+            ::std::string as_string() const;
         };
         // TODO: merge "break" and "continue"? Or even merge in "return"?
 
@@ -466,6 +679,8 @@ namespace Rust {
                     delete break_expr;
                 }
             }
+
+            ::std::string as_string() const;
         };
 
         // Base range expression AST node object
@@ -482,6 +697,8 @@ namespace Rust {
                 delete from;
                 delete to;
             }
+
+            ::std::string as_string() const;
         };
 
         // Range from (inclusive) expression AST node object
@@ -493,6 +710,8 @@ namespace Rust {
             ~RangeFromExpr() {
                 delete from;
             }
+
+            ::std::string as_string() const;
         };
 
         // Range to (exclusive) expression AST node object
@@ -504,11 +723,15 @@ namespace Rust {
             ~RangeToExpr() {
                 delete to;
             }
+
+            ::std::string as_string() const;
         };
 
         // Full range expression AST node object
         // constructs a std::ops::RangeFull object
-        class RangeFullExpr : public RangeExpr {};
+        class RangeFullExpr : public RangeExpr {
+            ::std::string as_string() const;
+        };
 
         // Range from (inclusive) and to (inclusive) expression AST node object
         // aka RangeInclusiveExpr; constructs a std::ops::RangeInclusive object
@@ -521,6 +744,8 @@ namespace Rust {
                 delete from;
                 delete to;
             }
+
+            ::std::string as_string() const;
         };
 
         // Range to (inclusive) expression AST node object
@@ -532,6 +757,8 @@ namespace Rust {
             ~RangeToInclExpr() {
                 delete to;
             }
+
+            ::std::string as_string() const;
         };
 
         // Return expression AST node representation
@@ -545,10 +772,15 @@ namespace Rust {
                     delete return_expr;
                 }
             }
+
+            ::std::string as_string() const;
         };
 
         // Macro invocation expression AST node?
-        class MacroInvocation : public ExprWithoutBlock {};
+        class MacroInvocation : public ExprWithoutBlock {
+          public: // TODO: remove if meant to be abstract
+            ::std::string as_string() const;
+        };
 
         // Statement sequence used inside blocks
         // TODO: inline this into BlockExpr?
@@ -573,6 +805,9 @@ namespace Rust {
 
             bool has_statements;
             Statements statements;
+
+          public:
+            ::std::string as_string() const;
         };
 
         // An unsafe block AST node
@@ -584,12 +819,17 @@ namespace Rust {
             ~UnsafeBlockExpr() {
                 delete expr;
             }
+
+            ::std::string as_string() const;
         };
 
         // Loop label expression AST node used with break and continue expressions
         // TODO: inline?
         class LoopLabel : public Node {
             Lifetime label; // or type LIFETIME_OR_LABEL
+
+          public:
+            ::std::string as_string() const;
         };
 
         // Base loop expression AST node - aka LoopExpr
@@ -603,6 +843,8 @@ namespace Rust {
             ~BaseLoopExpr() {
                 delete loop_block;
             }
+
+            ::std::string as_string() const;
         };
 
         // 'Loop' expression (i.e. the infinite loop) AST node
@@ -616,6 +858,8 @@ namespace Rust {
             ~WhileLoopExpr() {
                 delete condition;
             }
+
+            ::std::string as_string() const;
         };
 
         // While let loop expression AST node (predicate pattern loop)
@@ -627,6 +871,8 @@ namespace Rust {
             ~WhileLetLoopExpr() {
                 delete condition;
             }
+
+            ::std::string as_string() const;
         };
 
         // For loop expression AST node (iterator loop)
@@ -638,6 +884,8 @@ namespace Rust {
             ~ForLoopExpr() {
                 delete iterator_expr;
             }
+
+            ::std::string as_string() const;
         };
 
         // forward decl for IfExpr
@@ -664,6 +912,8 @@ namespace Rust {
                 delete if_block;
             }
 
+            ::std::string as_string() const;
+
             // Note that multiple "else if"s are handled via nested ASTs rather than an array of
             // else ifs - i.e. not like a switch statement
         };
@@ -676,6 +926,8 @@ namespace Rust {
             ~IfExprConseqElse() {
                 delete else_block;
             }
+
+            ::std::string as_string() const;
         };
 
         // If expression with an ending "else if" expression AST node
@@ -686,6 +938,8 @@ namespace Rust {
             ~IfExprConseqIf() {
                 delete if_expr;
             }
+
+            ::std::string as_string() const;
         };
 
         // If expression with an ending "else if let" expression AST node
@@ -696,6 +950,8 @@ namespace Rust {
             ~IfExprIfConseqIfLet() {
                 delete if_let_expr;
             }
+
+            ::std::string as_string() const;
         };
 
         // Basic "if let" expression AST node with no else
@@ -715,6 +971,8 @@ namespace Rust {
                 delete value;
                 delete if_block;
             }
+
+            ::std::string as_string() const;
         };
 
         // AST node representing "if let" expression with an "else" expression at the end
@@ -725,6 +983,8 @@ namespace Rust {
             ~IfLetExprConseqElse() {
                 delete else_block;
             }
+
+            ::std::string as_string() const;
         };
 
         // AST node representing "if let" expression with an "else if" expression at the end
@@ -735,6 +995,8 @@ namespace Rust {
             ~IfLetExprConseqIf() {
                 delete if_expr;
             }
+
+            ::std::string as_string() const;
         };
 
         // AST node representing "if let" expression with an "else if let" expression at the end
@@ -745,6 +1007,8 @@ namespace Rust {
             ~IfLetExprConseqIfLet() {
                 delete if_let_expr;
             }
+
+            ::std::string as_string() const;
         };
 
         struct MatchArmPatterns {
@@ -820,6 +1084,8 @@ namespace Rust {
             ~MatchExpr() {
                 delete branch_value;
             }
+
+            ::std::string as_string() const;
         };
     }
 }

@@ -16,6 +16,9 @@ namespace Rust {
             // Minus prefixed to literal (if integer or floating-point)
             bool has_minus;
             // Actually, this might be a good place to use a template.
+
+          public:
+            ::std::string as_string() const;
         };
 
         // Identifier pattern AST node (bind value matched to a variable)
@@ -31,10 +34,17 @@ namespace Rust {
             ~IdentifierPattern() {
                 delete to_bind;
             }
+
+            ::std::string as_string() const;
         };
 
         // AST node for using the '_' wildcard "match any value" pattern
-        class WildcardPattern : public Pattern {};
+        class WildcardPattern : public Pattern {
+          public:
+            ::std::string as_string() const {
+                return ::std::string(1, '_');
+            }
+        };
 
         // Base range pattern bound (lower or upper limit) - abstract
         class RangePatternBound {
@@ -73,6 +83,9 @@ namespace Rust {
             RangePatternBound upper;
 
             bool has_ellipsis_synax;
+
+          public:
+            ::std::string as_string() const;
         };
 
         // AST node for pattern based on dereferencing the pointers given
@@ -85,6 +98,8 @@ namespace Rust {
             ~ReferencePattern() {
                 delete pattern;
             }
+
+            ::std::string as_string() const;
         };
 
         // aka StructPatternEtCetera; potential element in struct pattern
@@ -159,6 +174,9 @@ namespace Rust {
 
             bool has_struct_pattern_elements;
             StructPatternElements elems;
+
+          public:
+            ::std::string as_string() const;
         };
 
         // Base abstract class for patterns used in TupleStructPattern
@@ -179,6 +197,9 @@ namespace Rust {
         class TupleStructPattern : public Pattern {
             PathInExpression path;
             TupleStructItems items;
+
+          public:
+            ::std::string as_string() const;
         };
 
         // Base abstract class representing TuplePattern patterns
@@ -204,27 +225,44 @@ namespace Rust {
         class TuplePattern : public Pattern {
             bool has_tuple_pattern_items;
             TuplePatternItems items;
+
+          public:
+            ::std::string as_string() const;
         };
 
         // AST node representing a pattern in parentheses, used to control precedence
         class GroupedPattern : public Pattern {
             Pattern pattern_in_parens;
+
+          public:
+            ::std::string as_string() const;
         };
 
         // AST node representing patterns that can match slices and arrays
         class SlicePattern : public Pattern {
             ::std::vector<Pattern> items;
+
+          public:
+            ::std::string as_string() const;
         };
 
+        // forward decl PathExprSegment
+        class PathExprSegment;
+
         // AST node representing a pattern that involves a "path" - abstract base class
-        class PathPattern : public Pattern {};
+        class PathPattern : public Pattern {
+            ::std::vector<PathExprSegment> segments;
+        };
 
         // Forward decls for paths (defined in rust-path.h)
         class PathInExpression;
         class QualifiedPathInExpression;
 
         // AST node representing a macro invocation
-        class MacroInvocation : public Pattern {};
+        class MacroInvocation : public Pattern {
+          public:
+            ::std::string as_string() const;
+        };
     }
 }
 

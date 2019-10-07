@@ -63,7 +63,9 @@ namespace Rust {
         // AST node representing a path-in-expression pattern (path that allows generic arguments)
         class PathInExpression : public PathPattern {
             bool has_opening_scope_resolution;
-            ::std::vector<PathExprSegment> segments;
+
+          public:
+            ::std::string as_string() const;
         };
 
         struct QualifiedPathType {
@@ -77,7 +79,9 @@ namespace Rust {
          * trait functions) */
         class QualifiedPathInExpression : public PathPattern {
             QualifiedPathType path_type;
-            ::std::vector<PathExprSegment> segments;
+
+          public:
+            ::std::string as_string() const;
         };
 
         // Represents a qualified path in a type; used for disambiguating trait function calls

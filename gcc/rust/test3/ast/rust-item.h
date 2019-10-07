@@ -7,8 +7,8 @@ namespace Rust {
     namespace AST {
         // TODO: remove
         typedef int Type;
-        //typedef ::std::vector<int> Generics;
-        //typedef ::std::string WhereClause;
+        // typedef ::std::vector<int> Generics;
+        // typedef ::std::string WhereClause;
         typedef ::std::vector<int> TypeParamBounds;
         typedef ::std::string Lifetime;
         typedef ::std::string LifetimeBounds;
@@ -117,15 +117,9 @@ namespace Rust {
         // Visibility of item - private, public, module-only, etc. ...
         struct Visibility {
             bool is_pub;
-            
+
             // if vis is public, one of these
-            enum PublicVisType {
-                NONE,
-                CRATE,
-                SELF,
-                SUPER,
-                IN_PATH
-            } public_vis_type;
+            enum PublicVisType { NONE, CRATE, SELF, SUPER, IN_PATH } public_vis_type;
 
             // Only assigned if public_vis_type is IN_PATH
             SimplePath in_path;
@@ -145,10 +139,16 @@ namespace Rust {
             ::std::vector<Attribute> inner_attrs;
             bool has_items;
             ::std::vector<Item> items;
+
+          public:
+            ::std::string as_string() const;
         };
 
         // Module without a body, loaded from external file
-        class ModuleNoBody : public Module {};
+        class ModuleNoBody : public Module {
+          public:
+            ::std::string as_string() const;
+        };
 
         struct CrateRef {
             // either an identifier or "self"
@@ -164,18 +164,23 @@ namespace Rust {
             bool has_as_clause;
             AsClause as_clause;
 
-            /* e.g. 
+            /* e.g.
                 "extern crate foo as _"
                 "extern crate foo"
                 "extern crate std as cool_std"  */
+          public:
+            ::std::string as_string() const;
         };
 
         // Rust use decl (module)
         class UseDeclaration : public VisItem {
-            //SimplePath path;
+            // SimplePath path;
             bool has_asterisk; // glob
             // List of paths inside braces (with a common prefix) - vector?
-            //identifier in as OR _ in as
+            // identifier in as OR _ in as
+
+          public:
+            ::std::string as_string() const;
         };
 
         // Qualifiers for function, i.e. const, unsafe, etc.
@@ -199,32 +204,34 @@ namespace Rust {
         // Rust function decl
         class Function : public VisItem {
             FunctionQualifiers qualifiers;
-            
+
             Identifier function_name;
-            
+
             bool has_generics;
             Generics generic_params;
-            
+
             bool has_function_params;
             FunctionParams function_params;
-            
+
             bool has_function_return_type;
             Type return_type;
-            
+
             bool has_where_clause;
             WhereClause where_clause;
-            
+
             BlockExpr* function_body;
 
+          public:
             ~Function() {
                 delete function_body;
             }
+            ::std::string as_string() const;
         };
 
         // Rust type alias
         class TypeAlias : public VisItem {
             Identifier new_type_name;
-            
+
             bool has_generics;
             Generics generic_params;
 
@@ -232,9 +239,12 @@ namespace Rust {
             WhereClause where_clause;
 
             Type exiting_type;
+
+          public:
+            ::std::string as_string() const;
         };
 
-        // Rust base struct decl
+        // Rust base struct decl - maybe abstract?
         class Struct : public VisItem {
             Identifier struct_name;
 
@@ -249,7 +259,7 @@ namespace Rust {
         struct StructField {
             bool has_outer_attributes;
             ::std::vector<Attribute> outer_attribs;
-            
+
             bool has_visibility;
             Visibility visibility;
 
@@ -260,12 +270,15 @@ namespace Rust {
         // Rust struct with true struct type
         class StructStruct : public Struct {
             ::std::vector<StructField> fields;
+
+          public:
+            ::std::string as_string() const;
         };
 
         struct TupleField {
             bool has_outer_attributes;
             ::std::vector<Attribute> outer_attribs;
-            
+
             bool has_visibility;
             Visibility visibility;
 
@@ -275,14 +288,18 @@ namespace Rust {
         // Rust tuple declared using struct keyword
         class TupleStruct : public Struct {
             ::std::vector<TupleField> fields;
+
+          public:
+            ::std::string as_string() const;
         };
 
-        struct EnumItem {
+        class EnumItem {
             bool has_attrs;
             ::std::vector<Attribute> outer_attrs;
 
             Identifier variant_name;
 
+          public:
             virtual ~EnumItem() {}
         };
 
@@ -299,6 +316,7 @@ namespace Rust {
         class EnumItemDiscriminant : public EnumItem {
             Expr* expression;
 
+          public:
             ~EnumItemDiscriminant() {
                 delete expression;
             }
@@ -315,6 +333,9 @@ namespace Rust {
             WhereClause where_clause;
 
             ::std::vector<EnumItem> items;
+
+          public:
+            ::std::string as_string() const;
         };
 
         // Untagged union used for C compat
@@ -328,6 +349,9 @@ namespace Rust {
             WhereClause where_clause;
 
             ::std::vector<StructField> variants;
+
+          public:
+            ::std::string as_string() const;
         };
 
         class ConstantItem : public VisItem {
@@ -339,9 +363,12 @@ namespace Rust {
 
             Expr* const_expr;
 
+          public:
             ~ConstantItem() {
                 delete const_expr;
             }
+
+            ::std::string as_string() const;
         };
 
         class StaticItem : public VisItem {
@@ -353,18 +380,24 @@ namespace Rust {
 
             Expr* expr;
 
+          public:
             ~StaticItem() {
                 delete expr;
             }
+
+            ::std::string as_string() const;
         };
 
         class TraitItem {
             bool has_outer_attrs;
             ::std::vector<Attribute> outer_attrs;
+
+          public:
+            virtual ~TraitItem();
         };
 
         struct TraitFunctionDecl {
-            // TODO: delete and replace with Function decl item? 
+            // TODO: delete and replace with Function decl item?
             FunctionQualifiers qualifiers;
             Identifier function_name;
 
@@ -385,13 +418,14 @@ namespace Rust {
             TraitFunctionDecl decl;
             BlockExpr* block_expr;
 
+          public:
             ~TraitItemFunc() {
                 delete block_expr;
             }
         };
 
         struct TraitMethodDecl {
-            // TODO: delete and replace with Function decl item? 
+            // TODO: delete and replace with Function decl item?
             FunctionQualifiers qualifiers;
             Identifier function_name;
 
@@ -414,9 +448,10 @@ namespace Rust {
             TraitMethodDecl decl;
             BlockExpr* block_expr;
 
+          public:
             ~TraitItemMethod() {
                 delete block_expr;
-            } 
+            }
         };
 
         class TraitItemConst : public TraitItem {
@@ -426,6 +461,7 @@ namespace Rust {
             bool has_expression;
             Expr* expr;
 
+          public:
             ~TraitItemConst() {
                 delete expr;
             }
@@ -458,6 +494,9 @@ namespace Rust {
 
             bool has_trait_items;
             ::std::vector<TraitItem> trait_items;
+
+          public:
+            ::std::string as_string() const;
         };
 
         class Impl : public VisItem {
@@ -471,6 +510,9 @@ namespace Rust {
 
             bool has_inner_attrs;
             ::std::vector<Attribute> inner_attrs;
+
+          public:
+            ::std::string as_string() const;
         };
 
         class InherentImplItem {
@@ -523,7 +565,7 @@ namespace Rust {
             Visibility visibility;
 
             TypeAlias type_alias;
-        };  
+        };
 
         class TraitImplItemConstant : public TraitImplItem {
             bool has_visibility;
@@ -556,6 +598,9 @@ namespace Rust {
 
             bool has_impl_items;
             ::std::vector<TraitImplItem> impl_items;
+
+          public:
+            ::std::string as_string() const;
         };
 
         class ExternalItem {
@@ -613,13 +658,25 @@ namespace Rust {
 
             bool has_extern_items;
             ::std::vector<ExternalItem> extern_items;
+
+          public:
+            ::std::string as_string() const;
         };
 
-        class MacroItem : public Item {};
+        class MacroItem : public Item {
+            /*public:
+            ::std::string as_string() const;*/
+        };
 
-        class MacroInvocationSemi : public MacroItem {};
+        class MacroInvocationSemi : public MacroItem {
+          public:
+            ::std::string as_string() const;
+        };
 
-        class MacroRulesDefinition : public MacroItem {};
+        class MacroRulesDefinition : public MacroItem {
+          public:
+            ::std::string as_string() const;
+        };
     }
 }
 

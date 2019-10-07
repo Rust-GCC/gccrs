@@ -12,13 +12,21 @@ namespace Rust {
         class Statement : public Node {};
 
         // Just a semi-colon, which apparently is a statement.
-        class EmptyStatement : public Statement {};
+        class EmptyStatement : public Statement {
+          public:
+            ::std::string as_string() const {
+                return ::std::string(1, ';');
+            }
+        };
 
         /* This is syntactically identical to declaring an item inside a module BUT it has block
          * scope. Type of "declaration statement" as it introduces new name into scope */
         class ItemStatement : public Statement {
             // TODO: put in same params as regular item
             // maybe even merge data structure with module item?
+
+          public:
+            ::std::string as_string() const;
         };
 
         /* Variable assignment let statement - type of "declaration statement" as it introduces new
@@ -45,6 +53,8 @@ namespace Rust {
                     delete init_expr;
                 }
             }
+
+            ::std::string as_string() const;
         };
 
         // Abstract base class for expression statements (statements containing an expression)
@@ -54,22 +64,31 @@ namespace Rust {
         class ExpressionStatementWithoutBlock : public ExpressionStatement {
             ExprWithoutBlock* expr;
 
+          public:
             ~ExpressionStatementWithoutBlock() {
                 delete expr;
             }
+
+            ::std::string as_string() const;
         };
 
         // Statement containing an expression with a block
         class ExpressionStatementWithBlock : public ExpressionStatement {
             ExprWithBlock* expr;
 
+          public:
             ~ExpressionStatementWithBlock() {
                 delete expr;
             }
+
+            ::std::string as_string() const;
         };
 
         // Is this the same MacroInvocationSemi as the item one? Probably.
-        class MacroInvocationSemi : public Statement {};
+        class MacroInvocationSemi : public Statement {
+          public:
+            ::std::string as_string() const;
+        };
     }
 }
 

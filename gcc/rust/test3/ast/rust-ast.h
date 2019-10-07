@@ -13,7 +13,7 @@
 namespace Rust {
     // TODO: remove
     typedef int location_t;
-    //typedef ::std::string SimplePath;
+    // typedef ::std::string SimplePath;
     typedef ::std::string Identifier;
 
     namespace AST {
@@ -31,7 +31,7 @@ namespace Rust {
             }
 
             // Get node output as a string. Pure virtual.
-            virtual ::std::string as_string() = 0;
+            virtual ::std::string as_string() const = 0;
 
             virtual ~Node() {}
 
