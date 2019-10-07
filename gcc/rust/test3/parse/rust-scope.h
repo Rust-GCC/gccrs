@@ -10,7 +10,6 @@
 
 #include <map>
 #include <string>
-#include <tr1/memory> // as shared_ptr is not available in std memory in c++03
 #include <vector>
 
 #include "rust-tree.h"
@@ -56,7 +55,7 @@ namespace Rust {
         typedef std::vector<SymbolMapping> MapStack;
         // Scope's MapStack.
         MapStack map_stack;
-    };
+    }; // TODO: have multiple scopes (for modules, function, etc) at once?
 }
 
 #endif // RUST_SCOPE_H

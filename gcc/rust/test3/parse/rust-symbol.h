@@ -1,11 +1,20 @@
 #ifndef RUST_SYMBOL_H
 #define RUST_SYMBOL_H
 
+#include "config.h"
+#include "system.h"
+#include "coretypes.h"
+#include "tree.h"
+// order: config, system, coretypes, tree
+
+#include <string>
+#include <tr1/memory> // as shared_ptr is not available in std memory in c++03
+
 namespace Rust {
     // Kinds of symbols.
-    enum SymbolKind { INVALID, VARIABLE, TYPENAME };
+    enum SymbolKind { INVALID, VARIABLE, TYPENAME /*change to STRUCT*/, FUNCTION };
 
-    // A symbol used for identifiers, etc.
+    // A symbol used for identifiers, etc. - TODO: extend to support namespacing (Rust paths?)
     struct Symbol {
       public:
         // Constructs a new symbol of name with no declaration tree set.

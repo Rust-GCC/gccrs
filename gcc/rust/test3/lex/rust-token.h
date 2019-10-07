@@ -9,6 +9,7 @@
 
 #include <string>
 #include <tr1/memory> // as shared_ptr is not available in std memory in c++03
+// can't fix intellisense issues with tr1 memory thing
 
 #include "rust-codepoint.h"
 

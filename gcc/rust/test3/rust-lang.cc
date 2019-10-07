@@ -85,7 +85,7 @@ static void grs_parse_file(const char* filename) {
     }
 
     // parse file here
-    // create lexer
+    // create lexer and parser
     Rust::Lexer lex(filename, file);
     Rust::Parser parser(lex);
 
@@ -130,7 +130,7 @@ static void grs_parse_files(int num_files, const char** files) {
  *
  * Some consider this the "start of compilation". */
 static void grs_langhook_parse_file(void) {
-    fprintf(stderr, "Nothing happens yet \n");
+    fprintf(stderr, "Preparing to parse files. \n");
 
     grs_parse_files(num_in_fnames, in_fnames);
 }

@@ -208,7 +208,7 @@ rust.stagefeedback: stagefeedback-start
 #	-DDEFAULT_TARGET_MACHINE=\"$(target_noncanonical)\"
 
 # cross-folder includes - add new folders later
-RUST_INCLUDES = -I $(srcdir)/rust -I $(srcdir)/rust/lex -I $(srcdir)/rust/parse
+RUST_INCLUDES = -I $(srcdir)/rust -I $(srcdir)/rust/lex -I $(srcdir)/rust/parse -I $(srcdir)/rust/ast
 
 # add files that require cross-folder includes - currently rust-lang.o, rust-lex.o
 CFLAGS-rust/rust-lang.o += $(RUST_INCLUDES)

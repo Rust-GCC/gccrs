@@ -100,6 +100,7 @@ namespace Rust {
         LBP_DOT_DOT = 15,
         LBP_DOT_DOT_EQ = LBP_DOT_DOT,
 
+        // TODO: note all these assig operators are RIGHT associative!
         LBP_ASSIG = 10,
         LBP_PLUS_ASSIG = LBP_ASSIG,
         LBP_MINUS_ASSIG = LBP_ASSIG,
@@ -155,12 +156,12 @@ namespace Rust {
             /*case DOT:
                 return LBP_DOT;*/
 
-            /* TODO: BIG ISSUE - scope resolution can be for "path" or "function call", which have 
+            /* TODO: BIG ISSUE - scope resolution can be for "path" or "function call", which have
              * different precedences (and also relative precedences - method and field are between)*/
             case SCOPE_RESOLUTION:
                 return LBP_PATH;
 
-            /* TODO: BIG ISSUE - dot can be for "method call" or "field access", which have 
+            /* TODO: BIG ISSUE - dot can be for "method call" or "field access", which have
              * different precedences (though at least they have none between) */
             case DOT:
                 return LBP_METHOD_CALL;
@@ -193,13 +194,13 @@ namespace Rust {
                 return LBP_R_SHIFT;
 
             // binary & operator
-            case AMP: 
+            case AMP:
                 return LBP_AMP;
 
             // binary ^ operator
             case CARET:
                 return LBP_CARET;
-            
+
             // binary | operator
             case PIPE:
                 return LBP_PIPE;
@@ -228,7 +229,7 @@ namespace Rust {
 
             case DOT_DOT_EQ:
                 return LBP_DOT_DOT_EQ;
-            
+
             case EQUAL:
                 return LBP_ASSIG;
             case PLUS_EQ:
@@ -271,8 +272,9 @@ namespace Rust {
         }
     }
 
-    // Parse "items" until done (EOF) and append to current something list. Seems to be method taken rather than statements in rust.
-    void Parser::parse_item_seq(bool (Parser::*done)()) {
+    // Parse "items" until done (EOF) and append to current something list. Seems to be method taken
+    // rather than statements in rust.
+    /*void Parser::parse_item_seq(bool (Parser::*done)()) {
         // Parse statements until done and append to the current stmt list
         // TODO: fix
         while (!(this->*done)()) {
@@ -281,7 +283,7 @@ namespace Rust {
             // append each stmt tree to current stmt list
             get_current_stmt_list().append(stmt);
         }
-    }
+    }*/
 
     // Returns true when current token is EOF.
     bool Parser::done_end_of_file() {
@@ -306,7 +308,7 @@ namespace Rust {
           = build_function_type_array(integer_type_node, 2, main_fndecl_type_param);
         // Create function declaration "int main(int, char**)"
         main_fndecl = build_fn_decl("main", main_fndecl_type);
-        
+
         // Enter top-level scope.
         enter_scope();
         // program -> statement*
@@ -348,20 +350,23 @@ namespace Rust {
     void Parser::parse_crate() {
         AST::Crate crate;
 
-        // parse attributes
+        // parse attributes for crate
+        AST::AttributeList attrs;
 
         AST::Module module = parse_module();
 
         crate.root_module = module;
+        // crate.attrs = attrs;
     }
 
+    // TODO: rename to "parse_module_body"?
     AST::Module Parser::parse_module() {
-        //const_TokenPtr t = lexer.peek_token();
+        // const_TokenPtr t = lexer.peek_token();
         AST::Module module;
 
         while (true) {
             // check end of module
-            switch (lexer.peek_token()->token_id()) {
+            switch (lexer.peek_token()->get_id()) {
                 case RIGHT_CURLY:
                 case END_OF_FILE:
                     return module;
@@ -370,11 +375,69 @@ namespace Rust {
             }
 
             // parse item attributes here
+            AST::AttributeList attrs;
 
             parse_module_item(module, attrs);
         }
 
         return module;
+    }
+
+    void Parser::parse_module_item(
+      AST::Module module_for_items, AST::AttributeList item_outer_attrs) {
+        AST::Visibility visibility = parse_visibility();
+
+        switch (lexer.peek_token()->get_id()) {
+            case MOD: {
+                // TODO: function call to eventually move all this stuff into:
+                // parse_module();
+                // Note that this is not the current "parse_module" function.
+
+                // skip "mod" token
+                lexer.skip_token();
+
+                // next token should be module name
+                const_TokenPtr identifier = expect_token(IDENTIFIER);
+
+                switch (lexer.peek_token()->get_id()) {
+                    case SEMICOLON:
+                        // parse module without body - from referenced file
+                    case LEFT_CURLY:
+                        // parse module with body
+                    default:
+                        error_at(identifier->get_locus(),
+                          "invalid module definition syntax; unexpected token '%s'",
+                          lexer.peek_token()->get_str().c_str());
+                        skip_after_end();
+                }
+            } break;
+            case USE:
+                // TODO: parse "use" declaration
+                break;
+            case EXTERN_TOK:
+                // TODO: parse "extern" statement - extern crate and extern block
+                break;
+            case FN_TOK:
+                // TODO: parse function declaration
+                break;
+            case STRUCT_TOK:
+                // TODO: parse function declaration
+                break;
+            case IMPL:
+                // TODO: parse struct impl
+                break;
+            // TODO: type alias?
+            case ENUM_TOK:
+                // TODO: parse enum
+                break;
+            case TRAIT:
+                // TODO: parse trait decl
+                break;
+                // TODO: parse "union"? This is the context-aware one, I think
+                // TODO: parse "constant item"
+                // TODO: parse "static item"
+                // etc: add more - all module-level allowed constructs should be represented here
+        }
     }
 
     // Parses a statement. Selects how to parse based on token id.
@@ -394,13 +457,13 @@ namespace Rust {
             // is item declaration only for nested functions?
             case FN_TOK:
                 // TODO: fix - rust reference gives nested function as an example?
-                return parse_item_declaration();
+                // return parse_item_declaration();
                 break;
             /*case VAR:
                 return parse_variable_declaration();
                 break;*/
             case LET:
-                return parse_let_statement();
+                // return parse_let_statement();
                 break;
             // parse expression statement somehow? any expression with ending semicolon
             /*case TYPE:
@@ -451,6 +514,7 @@ namespace Rust {
             lexer.skip_token();
     }
 
+#if 0
     // Parses a "let" statement (variable declaration).
     Tree Parser::parse_let_statement() {
         /*
@@ -471,11 +535,12 @@ namespace Rust {
 
         
     }
+#endif
 
     // Parses a variable declaration statement.
     Tree Parser::parse_variable_declaration() {
-        // skip initial var keyword
-        if (!skip_token(VAR)) {
+        // skip initial var keyword - TODO: fix
+        if (!skip_token(/*VAR*/ COLON)) {
             skip_after_semicolon();
             return Tree::error();
         }
@@ -563,15 +628,16 @@ namespace Rust {
         Tree type;
 
         switch (t->get_id()) {
-            case INT:
+            // TODO: fix
+            case /*INT*/ COLON:
                 lexer.skip_token();
                 type = integer_type_node;
                 break;
-            case FLOAT:
+            case /*FLOAT*/ ELLIPSIS:
                 lexer.skip_token();
                 type = float_type_node;
                 break;
-            case BOOL:
+            case /*BOOL*/ BREAK:
                 lexer.skip_token();
                 type = boolean_type_node;
                 break;
@@ -585,7 +651,7 @@ namespace Rust {
                     type = TREE_TYPE(s->get_tree_decl().get_tree());
                 }
             } break;
-            case RECORD:
+            case /*RECORD*/ DOT:
                 type = parse_record();
                 break;
             default:
@@ -663,7 +729,7 @@ namespace Rust {
         Tree expr = parse_boolean_expression();
 
         // skip the "THEN" after expression
-        skip_token(THEN);
+        skip_token(LEFT_CURLY);
 
         // enter new block scope
         enter_scope();
@@ -687,10 +753,10 @@ namespace Rust {
             else_stmt = else_tree_scope.bind_expr;
 
             // Consume 'end'
-            skip_token(END);
-        } else if (tok->get_id() == END) {
+            skip_token(RIGHT_CURLY);
+        } else if (tok->get_id() == RIGHT_CURLY) {
             // Consume 'end'
-            skip_token(END);
+            skip_token(RIGHT_CURLY);
         } else {
             unexpected_token(tok);
             return Tree::error();
@@ -777,18 +843,52 @@ namespace Rust {
         return t;
     }
 
-    // Skips all tokens until EOF.
+    // Skips all tokens until EOF or }.
     void Parser::skip_after_end() {
         const_TokenPtr t = lexer.peek_token();
 
-        while (t->get_id() != END_OF_FILE && t->get_id() != END) {
+        while (t->get_id() != END_OF_FILE && t->get_id() != RIGHT_CURLY) {
             lexer.skip_token();
             t = lexer.peek_token();
         }
 
-        if (t->get_id() == END) {
+        if (t->get_id() == RIGHT_CURLY) {
             lexer.skip_token();
         }
+    }
+
+    /* A slightly more aware error-handler that skips all tokens until it reaches the end of the
+     * block scope (i.e. when left curly brackets = right curly brackets).  */
+    void Parser::skip_after_end_block() {
+        const_TokenPtr t = lexer.peek_token();
+        int curly_count = 0;
+
+        // initial loop before any curly braces
+        while (t->get_id() != END_OF_FILE && t->get_id() != LEFT_CURLY) {
+            lexer.skip_token();
+            t = lexer.peek_token();
+        }
+
+        // start curly_count thing if curly braces found
+        if (t->get_id() == LEFT_CURLY) {
+            lexer.skip_token();
+            curly_count++;
+        }
+
+        // repeat until curly_count = 0
+        while (t->get_id() != END_OF_FILE && /*t->get_id() != RIGHT_CURLY*/ curly_count > 0) {
+            if (t->get_id() == LEFT_CURLY)
+                curly_count++;
+            if (t->get_id() == RIGHT_CURLY)
+                curly_count--;
+
+            lexer.skip_token();
+            t = lexer.peek_token();
+        }
+
+        /*if (t->get_id() == RIGHT_CURLY) {
+            lexer.skip_token();
+        }*/
     }
 
     // Pratt parser impl of parse_expression.
@@ -856,7 +956,8 @@ namespace Rust {
         // skips it before passing it in
 
         /* as a Pratt parser (which works by decomposing expressions into a null denotation and then a
-         * left denotation), null denotations handle primaries and unary operands */
+         * left denotation), null denotations handle primaries and unary operands (but only prefix
+         * unary operands?)*/
 
         switch (tok->get_id()) {
             case IDENTIFIER: {
@@ -967,6 +1068,25 @@ namespace Rust {
                 // create TRUTH_NOT_EXPR tree, which computes logical negation of operand
                 expr = build_tree(TRUTH_NOT_EXPR, tok->get_locus(), boolean_type_node, expr);
                 return expr;
+            }
+            case ASTERISK: {
+                // TODO: fix: this is pointer dereference only, I think
+                Tree expr = parse_expression(LBP_UNARY_ASTERISK);
+                return expr;
+            }
+            case AMP: {
+                // TODO: fix: this is reference only, I think
+                Tree expr = NULL_TREE;
+
+                if (lexer.peek_token()->get_id() == MUT)
+                    expr = parse_expression(LBP_UNARY_AMP_MUT);
+                else
+                    expr = parse_expression(LBP_UNARY_AMP);
+
+                return expr;
+            }
+            case SCOPE_RESOLUTION: {
+                // TODO: fix: this is for global paths, i.e. ::std::string::whatever
             }
             default:
                 unexpected_token(tok);
@@ -1157,7 +1277,7 @@ namespace Rust {
     // Implementation of binary different comparison relational operator parsing.
     Tree Parser::binary_not_equal /*different*/ (const_TokenPtr tok, Tree left) {
         // parse RHS
-        Tree right = parse_expression(LBP_DIFFERENT);
+        Tree right = parse_expression(LBP_NOT_EQUAL);
         if (right.is_error())
             return Tree::error();
 
@@ -1344,7 +1464,8 @@ namespace Rust {
         if (variable.is_error())
             return Tree::error();
 
-        const_TokenPtr assig_tok = expect_token(ASSIG);
+        // TODO: fix
+        const_TokenPtr assig_tok = expect_token(/*ASSIG*/ COLON);
         if (assig_tok == NULL) {
             skip_after_semicolon();
             return Tree::error();
@@ -1665,7 +1786,7 @@ namespace Rust {
 
         Tree while_body_stmt = while_body_tree_scope.bind_expr;
 
-        skip_token(END);
+        skip_token(RIGHT_CURLY);
 
         // build while statement tree
         return build_while_statement(expr, while_body_stmt);
@@ -1730,7 +1851,8 @@ namespace Rust {
             return Tree::error();
         }
 
-        if (!skip_token(ASSIG)) {
+        // TODO
+        if (!skip_token(/*ASSIG*/ COLON)) {
             skip_after_end();
             return Tree::error();
         }
@@ -1738,7 +1860,8 @@ namespace Rust {
         // parse lower bound expression
         Tree lower_bound = parse_integer_expression();
 
-        if (!skip_token(TO)) {
+        // TODO
+        if (!skip_token(/*TO*/ DOT)) {
             skip_after_end();
             return Tree::error();
         }
@@ -1758,7 +1881,7 @@ namespace Rust {
         TreeSymbolMapping for_body_tree_scope = leave_scope();
         Tree for_body_stmt = for_body_tree_scope.bind_expr;
 
-        skip_token(END);
+        skip_token(RIGHT_CURLY);
 
         // Induction variable ("loop counter" variable) handling
         SymbolPtr ind_var = query_integer_variable(identifier->get_str(), identifier->get_locus());
@@ -1855,13 +1978,13 @@ namespace Rust {
     // Returns true if the next token is END, ELSE, or EOF;
     bool Parser::done_end_or_else() {
         const_TokenPtr t = lexer.peek_token();
-        return (t->get_id() == END || t->get_id() == ELSE || t->get_id() == END_OF_FILE);
+        return (t->get_id() == RIGHT_CURLY || t->get_id() == ELSE || t->get_id() == END_OF_FILE);
     }
 
     // Returns true if the next token is END or EOF.
     bool Parser::done_end() {
         const_TokenPtr t = lexer.peek_token();
-        return (t->get_id() == END || t->get_id() == END_OF_FILE);
+        return (t->get_id() == RIGHT_CURLY || t->get_id() == END_OF_FILE);
     }
 
     // Parses expression and ensures it is a variable declaration or array reference.

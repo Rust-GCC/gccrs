@@ -1,4 +1,5 @@
 #ifndef RUST_CODEPOINT_H
+#define RUST_CODEPOINT_H
 
 #include "config.h"
 #include "system.h"

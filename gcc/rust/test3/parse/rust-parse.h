@@ -5,12 +5,16 @@
 //#include "rust-tree.h"
 #include "rust-scope.h"
 
+// TODO: fix
+#include "rust-ast-containers.h"
+
 namespace Rust {
     // Parser implementation for gccrs.
     class Parser {
       private:
         void skip_after_semicolon();
         void skip_after_end();
+        void skip_after_end_block();
 
         bool skip_token(TokenId t);
         const_TokenPtr expect_token(TokenId t);
@@ -55,6 +59,11 @@ namespace Rust {
         SymbolPtr query_integer_variable(const std::string& name, location_t loc);
 
         void parse_statement_seq(bool (Parser::*done)());
+
+        void parse_crate();
+        AST::Module parse_module();
+        void parse_module_item(AST::Module module_for_items, AST::AttributeList item_outer_attributes);
+        AST::Visibility parse_visibility();
 
         bool done_end();
         bool done_end_or_else();

@@ -36,7 +36,8 @@ namespace Rust {
 
         // do i need to do this? or can i just do str += value due to op overloading?
 
-        str += { value };
+        // ok can't figure out how to just convert to codepoint or use "this" so create new one
+        str += Codepoint(value);
 
         /*if (value < 0x80) {
             str += static_cast<char>(value);
@@ -1273,7 +1274,6 @@ namespace Rust {
                         current_column += 3;
 
                         return Token::make_char(loc, current_char32);
-                        
                     } else if (ISDIGIT(current_char32.value) || ISALPHA(current_char32.value)
                                || current_char32.value == '_') {
                         // parse lifetime name
@@ -1775,7 +1775,9 @@ namespace Rust {
                 // assert fits a uint32_t
                 gcc_assert(hex_num < 4294967296);
 
-                output_char = { static_cast<uint32_t>(hex_num) };
+                // ok can't figure out how to just convert to codepoint or use "this" so create new
+                // one
+                output_char = Codepoint(static_cast<uint32_t>(hex_num));
 
                 // TODO: what is being outputted? the escape code for the unicode char (unicode
                 // number) or the character number?

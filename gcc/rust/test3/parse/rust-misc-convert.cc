@@ -6,7 +6,7 @@
 #include "convert.h"
 // order: config, system, coretypes, tree, fold-const, convert
 
-// Required by some generic routines. Converts expression of value expr to type type.
+// Required by some GENERIC routines. Converts expression of value expr to type type.
 tree convert(tree type, tree expr) {
     if (type == error_mark_node || expr == error_mark_node || TREE_TYPE(expr) == error_mark_node)
         return error_mark_node;
