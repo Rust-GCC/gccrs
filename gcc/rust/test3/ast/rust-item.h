@@ -5,23 +5,41 @@
 
 namespace Rust {
     namespace AST {
-        // TODO: remove
-        typedef int Type;
-        // typedef ::std::vector<int> Generics;
-        // typedef ::std::string WhereClause;
-        typedef ::std::vector<int> TypeParamBounds;
-        typedef ::std::string Lifetime;
-        typedef ::std::string LifetimeBounds;
-        typedef ::std::string LifetimeParams;
-        typedef Type FunctionReturnType;
-        typedef Identifier AbiName;
+        // forward decls
+        struct Lifetime;
+        struct LifetimeBounds;
+        struct TypeParamBounds;
         class BlockExpr;
         class Expr;
-        typedef Type TypePath;
+        class Type;
+
+        // TODO: remove
+        //typedef int Type;
+        // typedef ::std::vector<int> Generics;
+        // typedef ::std::string WhereClause;
+        //typedef ::std::vector<int> TypeParamBounds;
+        //typedef ::std::string Lifetime;
+        //typedef ::std::string LifetimeBounds;
+        //typedef ::std::string LifetimeParams;
+        //typedef Type FunctionReturnType;
+        //typedef Identifier AbiName;
+        //typedef Type TypePath;
+
+        // TODO: inline
+        struct FunctionReturnType {
+            Type return_type;
+        };
+
+        // TODO: inline
+        struct AbiName {
+            ::std::string abi_name;
+            // Technically is meant to be STRING_LITERAL or RAW_STRING_LITERAL
+        };
 
         // Base generic parameter in AST. Abstract - can be represented by a Lifetime or Type param
         class GenericParam {};
 
+        // A lifetime generic parameter (as opposed to a type generic parameter)
         class LifetimeParam : public GenericParam {
             bool has_outer_attribute;
             Attribute outer_attr;
@@ -32,6 +50,11 @@ namespace Rust {
             LifetimeBounds lifetime_bounds;
         };
 
+        // TODO: remove and inline
+        typedef ::std::vector<LifetimeParam> LifetimeParams;
+        typedef LifetimeParams ForLifetimes;
+
+        // A type generic parameter (as opposed to a lifetime generic parameter)
         class TypeParam : public GenericParam {
             bool has_outer_attribute;
             Attribute outer_attr;
@@ -53,15 +76,18 @@ namespace Rust {
         // "where" clause item base. Abstract - use LifetimeWhereClauseItem, TypeBoundWhereClauseItem
         class WhereClauseItem {};
 
+        // A lifetime where clause item
         class LifetimeWhereClauseItem : public WhereClauseItem {
             Lifetime lifetime;
 
             LifetimeBounds lifetime_bounds;
         };
 
+        // A type bound where clause item
         class TypeBoundWhereClauseItem : public WhereClauseItem {
             bool has_for_lifetimes;
-            LifetimeParams for_lifetimes;
+            //LifetimeParams for_lifetimes;
+            ::std::vector<LifetimeParam> for_lifetimes; // inlined
 
             Type bound_type;
 
@@ -69,10 +95,12 @@ namespace Rust {
             TypeParamBounds type_param_bounds;
         };
 
+        // A where clause
         struct WhereClause {
             ::std::vector<WhereClauseItem> where_clause_items;
         };
 
+        // A self parameter in a method 
         struct SelfParam {
             bool has_ref;
             bool has_lifetime; // only possible if also ref
@@ -84,6 +112,7 @@ namespace Rust {
             Type type;
         };
 
+        // A method (function belonging to a type)
         struct Method {
             FunctionQualifiers qualifiers;
             Identifier method_name;
@@ -104,12 +133,13 @@ namespace Rust {
 
             BlockExpr* expr;
 
+            public:
             ~Method() {
                 delete expr;
             }
         };
 
-        // Rust "item" node (declaration of top-level/module-level allowed stuff)
+        // Rust "item" AST node (declaration of top-level/module-level allowed stuff)
         class Item : public Node {
             ::std::vector<Attribute> outer_attrs; // maybe only outer attributes
         };
@@ -158,7 +188,7 @@ namespace Rust {
             // either an identifier or "_"
         };
 
-        // Rust extern crate decl
+        // Rust extern crate declaration AST node
         class ExternCrate : public VisItem {
             CrateRef referenced_crate;
             bool has_as_clause;
@@ -172,7 +202,7 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
-        // Rust use decl (module)
+        // Rust use declaration (i.e. for modules) AST node
         class UseDeclaration : public VisItem {
             // SimplePath path;
             bool has_asterisk; // glob
@@ -183,7 +213,7 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
-        // Qualifiers for function, i.e. const, unsafe, etc.
+        // Qualifiers for function, i.e. const, unsafe, extern etc.
         struct FunctionQualifiers {
             bool has_const;
             bool has_unsafe;
@@ -192,16 +222,18 @@ namespace Rust {
             // TODO: maybe ensure that extern_abi only exists if extern exists?
         };
 
+        // A function parameter
         struct FunctionParam {
             Pattern* param_name;
             Type type;
         };
 
+        // Parameters used in a function - TODO inline?
         struct FunctionParams {
             ::std::vector<FunctionParam> params;
         };
 
-        // Rust function decl
+        // Rust function declaration AST node
         class Function : public VisItem {
             FunctionQualifiers qualifiers;
 
@@ -228,7 +260,7 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
-        // Rust type alias
+        // Rust type alias (i.e. typedef) AST node
         class TypeAlias : public VisItem {
             Identifier new_type_name;
 
@@ -244,7 +276,7 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
-        // Rust base struct decl - maybe abstract?
+        // Rust base struct declaration AST node - maybe abstract?
         class Struct : public VisItem {
             Identifier struct_name;
 
@@ -267,7 +299,7 @@ namespace Rust {
             Type field_type;
         };
 
-        // Rust struct with true struct type
+        // Rust struct declaration with true struct type AST node
         class StructStruct : public Struct {
             ::std::vector<StructField> fields;
 
@@ -275,6 +307,7 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
+        // A single field in a tuple
         struct TupleField {
             bool has_outer_attributes;
             ::std::vector<Attribute> outer_attribs;
@@ -285,7 +318,7 @@ namespace Rust {
             Type field_type;
         };
 
-        // Rust tuple declared using struct keyword
+        // Rust tuple declared using struct keyword AST node
         class TupleStruct : public Struct {
             ::std::vector<TupleField> fields;
 
@@ -293,6 +326,7 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
+        // An item used in an "enum" tagged union
         class EnumItem {
             bool has_attrs;
             ::std::vector<Attribute> outer_attrs;
@@ -303,16 +337,19 @@ namespace Rust {
             virtual ~EnumItem() {}
         };
 
+        // A tuple item used in an "enum" tagged union
         class EnumItemTuple : public EnumItem {
             bool has_tuple_fields;
             ::std::vector<TupleField> tuple_fields;
         };
 
+        // A struct item used in an "enum" tagged union
         class EnumItemStruct : public EnumItem {
             bool has_struct_fields;
             ::std::vector<TupleField> struct_fields;
         };
 
+        // A discriminant item sued in an "enum" tagged union
         class EnumItemDiscriminant : public EnumItem {
             Expr* expression;
 
@@ -322,7 +359,7 @@ namespace Rust {
             }
         };
 
-        // Rust "enum" - tagged union
+        // AST node for Rust "enum" - tagged union 
         class Enum : public VisItem {
             Identifier enum_name;
 
@@ -338,7 +375,7 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
-        // Untagged union used for C compat
+        // Rust untagged union used for C compat AST node
         class Union : public VisItem {
             Identifier union_name;
 
@@ -354,6 +391,7 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
+        // "Constant item" AST node - used for constant, compile-time expressions within module scope
         class ConstantItem : public VisItem {
             // either has an identifier or "_" - maybe handle in identifier?
             bool identifier_is_underscore;
@@ -371,6 +409,7 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
+        // Static item AST node - items within module scope with fixed storage duration?
         class StaticItem : public VisItem {
             bool has_mut;
 
@@ -388,6 +427,7 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
+        // Item used in trait declarations - abstract base class
         class TraitItem {
             bool has_outer_attrs;
             ::std::vector<Attribute> outer_attrs;
@@ -396,6 +436,7 @@ namespace Rust {
             virtual ~TraitItem();
         };
 
+        // Function declaration in traits
         struct TraitFunctionDecl {
             // TODO: delete and replace with Function decl item?
             FunctionQualifiers qualifiers;
@@ -414,6 +455,7 @@ namespace Rust {
             WhereClause where_clause;
         };
 
+        // Actual trait item function declaration within traits
         class TraitItemFunc : public TraitItem {
             TraitFunctionDecl decl;
             BlockExpr* block_expr;
@@ -424,6 +466,7 @@ namespace Rust {
             }
         };
 
+        // Method declaration within traits
         struct TraitMethodDecl {
             // TODO: delete and replace with Function decl item?
             FunctionQualifiers qualifiers;
@@ -444,6 +487,7 @@ namespace Rust {
             WhereClause where_clause;
         };
 
+        // Actual trait item method declaration within traits
         class TraitItemMethod : public TraitItem {
             TraitMethodDecl decl;
             BlockExpr* block_expr;
@@ -454,6 +498,7 @@ namespace Rust {
             }
         };
 
+        // Constant item within traits
         class TraitItemConst : public TraitItem {
             Identifier name;
             Type type;
@@ -467,6 +512,7 @@ namespace Rust {
             }
         };
 
+        // Type items within traits
         class TraitItemType : public TraitItem {
             Identifier name;
 
@@ -474,10 +520,12 @@ namespace Rust {
             TypeParamBounds param_bounds;
         };
 
+        // Macro invocation items within traits
         class TraitItemMacroInvoc : public TraitItem {
             MacroInvocationSemi macro_invoc;
         };
 
+        // Rust trait item declaration AST node
         class Trait : public VisItem {
             bool has_unsafe;
 
@@ -499,6 +547,7 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
+        // Implementation item declaration AST node - abstract base class
         class Impl : public VisItem {
             bool has_generics;
             Generics generic_params;
@@ -510,20 +559,20 @@ namespace Rust {
 
             bool has_inner_attrs;
             ::std::vector<Attribute> inner_attrs;
-
-          public:
-            ::std::string as_string() const;
         };
 
+        // Abstract base class for items used within an inherent impl block (the impl name {} one)
         class InherentImplItem {
             bool has_outer_attrs;
             ::std::vector<Attribute> outer_attrs;
         };
 
+        // Macro item used within an inherent impl block
         class InherentImplItemMacro : public InherentImplItem {
             MacroInvocationSemi macro;
         };
 
+        // Constant item used within an inherent impl block
         class InherentImplItemConstant : public InherentImplItem {
             bool has_visibility;
             Visibility visibility;
@@ -531,6 +580,7 @@ namespace Rust {
             ConstantItem constant_item;
         };
 
+        // Function item used within an inherent impl block
         class InherentImplItemFunction : public InherentImplItem {
             bool has_visibility;
             Visibility visibility;
@@ -538,6 +588,7 @@ namespace Rust {
             Function function;
         };
 
+        // Method item used within an inherent impl block
         class InherentImplItemMethod : public InherentImplItem {
             bool has_visibility;
             Visibility visibility;
@@ -545,21 +596,27 @@ namespace Rust {
             Method method;
         };
 
-        // Regular "impl foo" impl block declaration
+        // Regular "impl foo" impl block declaration AST node
         class InherentImpl : public Impl {
             bool has_impl_items;
             ::std::vector<InherentImplItem> impl_items;
+
+          public:
+            ::std::string as_string() const;
         };
 
+        // Abstract base class for items used in a trait impl
         class TraitImplItem {
             bool has_outer_attrs;
             ::std::vector<Attribute> outer_attrs;
         };
 
+        // Macro invocation item in a trait impl
         class TraitImplItemMacro : public TraitImplItem {
             MacroInvocationSemi macro;
         };
 
+        // Type alias item in a trait impl
         class TraitImplItemTypeAlias : public TraitImplItem {
             bool has_visibility;
             Visibility visibility;
@@ -567,6 +624,7 @@ namespace Rust {
             TypeAlias type_alias;
         };
 
+        // Constant item in a trait impl
         class TraitImplItemConstant : public TraitImplItem {
             bool has_visibility;
             Visibility visibility;
@@ -574,6 +632,7 @@ namespace Rust {
             ConstantItem constant_item;
         };
 
+        /// Function item in a trait impl
         class TraitImplItemFunction : public TraitImplItem {
             bool has_visibility;
             Visibility visibility;
@@ -581,6 +640,7 @@ namespace Rust {
             Function function;
         };
 
+        // Method item in a trait impl
         class TraitImplItemMethod : public TraitImplItem {
             bool has_visibility;
             Visibility visibility;
@@ -588,7 +648,7 @@ namespace Rust {
             Method method;
         };
 
-        // The "impl footrait for foo" impl block declaration
+        // The "impl footrait for foo" impl block declaration AST node
         class TraitImpl : public Impl {
             bool has_unsafe;
 
@@ -603,6 +663,7 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
+        // Abstract base class for an item used inside an extern block 
         class ExternalItem {
             bool has_outer_attrs;
             ::std::vector<Attribute> outer_attrs;
@@ -613,12 +674,14 @@ namespace Rust {
             Identifier item_name;
         };
 
+        // A static item used in an extern block
         class ExternalStaticItem : public ExternalItem {
             bool has_mut;
 
             Type item_type;
         };
 
+        // A function item used in an extern block - abstract base class
         class ExternalFunctionItem : public ExternalItem {
             bool has_generics;
             Generics generic_params;
@@ -630,6 +693,7 @@ namespace Rust {
             WhereClause where_clause;
         };
 
+        // A named function parameter used in external functions
         struct NamedFunctionParam {
             bool has_name; // otherwise is _
             Identifier name;
@@ -637,18 +701,22 @@ namespace Rust {
             Type param_type;
         };
 
+        // An external function inside an extern block with no parameters
         class ExternalFunctionItemNoParams : public ExternalFunctionItem {};
 
+        // An external function inside an extern block without variadic parameters
         class ExternalFunctionItemNoVariadics : public ExternalFunctionItem {
             ::std::vector<NamedFunctionParam> function_params;
         };
 
+        // An external function inside an extern block with variadic parameters
         class ExternalFunctionItemVariadics : public ExternalFunctionItem {
             ::std::vector<NamedFunctionParam> function_params;
             // just merge into one with no variadics and have a "has variadics" boolean?
             // variadics are just ... in syntax - nothing else is different
         };
 
+        // An extern block AST node
         class ExternBlock : public VisItem {
             bool has_abi;
             AbiName abi;
@@ -663,16 +731,19 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
+        // A macro item AST node - potentially abstract base class
         class MacroItem : public Item {
             /*public:
             ::std::string as_string() const;*/
         };
 
+        // A macro invocation item AST node
         class MacroInvocationSemi : public MacroItem {
           public:
             ::std::string as_string() const;
         };
 
+        // A macro rules definition item AST node
         class MacroRulesDefinition : public MacroItem {
           public:
             ::std::string as_string() const;

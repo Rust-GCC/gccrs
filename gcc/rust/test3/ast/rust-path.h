@@ -85,7 +85,7 @@ namespace Rust {
         };
 
         // Represents a qualified path in a type; used for disambiguating trait function calls
-        class QualifiedPathInType {
+        class QualifiedPathInType : public TypeNoBounds {
             QualifiedPathType path_type;
             ::std::vector<TypePathSegment> segments;
         };
@@ -123,7 +123,7 @@ namespace Rust {
         };
 
         // Path used inside types
-        struct TypePath {
+        class TypePath : public TypeNoBounds {
             bool has_opening_scope_resolution;
             ::std::vector<TypePathSegment> segments;
         };

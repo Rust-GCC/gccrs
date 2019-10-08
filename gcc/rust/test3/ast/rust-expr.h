@@ -8,6 +8,7 @@ namespace Rust {
         /* TODO: if GCC moves to C++17 or allows boost, replace some boolean "has_whatever" pairs with
          * optional types (std::optional or boost::optional). */
 
+        // Base expression AST node - abstract
         class Expr : public Node {
             ::std::vector<Attribute> outer_attrs;
 
@@ -17,8 +18,10 @@ namespace Rust {
             }
         };
 
+        // AST node for an expression without an accompanying block - abstract
         class ExprWithoutBlock : public Expr {};
 
+        // AST node for an expression with an accompanying block - abstract
         class ExprWithBlock : public Expr {};
 
         // Literals? Or literal base?
@@ -47,9 +50,10 @@ namespace Rust {
             }
         };
 
-        // Base path expression AST node
+        // Base path expression AST node - abstract
         class PathExpr : public ExprWithoutBlock {};
 
+        // AST node for a non-qualified path expression
         class PathExprNonQual : public PathExpr {
             PathInExpression path;
 
@@ -59,6 +63,7 @@ namespace Rust {
             }
         };
 
+        // AST node for a qualified path expression
         class PathExprQual : public PathExpr {
             QualifiedPathInExpression path;
 
