@@ -731,14 +731,25 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
-        // A macro item AST node - potentially abstract base class
+        // Replaced with forward decls - defined in "rust-macro.h"
+        class MacroItem;
+        class MacroInvocationSemi;
+        class MacroRulesDefinition;
+
+        /*// A macro item AST node - potentially abstract base class
         class MacroItem : public Item {
-            /*public:
-            ::std::string as_string() const;*/
         };
 
-        // A macro invocation item AST node
-        class MacroInvocationSemi : public MacroItem {
+        // A macro invocation item (or statement) AST node
+        class MacroInvocationSemi : public MacroItem, public Statement {
+            SimplePath path;
+            enum DelimType {
+                PARENS,
+                SQUARE,
+                CURLY   // all delim types except curly must have invocation end with a semicolon
+            } delim_type;
+            ::std::vector<TokenTree> token_trees;
+
           public:
             ::std::string as_string() const;
         };
@@ -747,7 +758,7 @@ namespace Rust {
         class MacroRulesDefinition : public MacroItem {
           public:
             ::std::string as_string() const;
-        };
+        };*/
     }
 }
 

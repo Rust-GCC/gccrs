@@ -781,11 +781,12 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
-        // Macro invocation expression AST node?
-        class MacroInvocation : public ExprWithoutBlock {
+        // Forward decl - defined in rust-macro.h
+        class MacroInvocation;
+        /*class MacroInvocation : public ExprWithoutBlock {
           public: // TODO: remove if meant to be abstract
             ::std::string as_string() const;
-        };
+        };*/
 
         // Statement sequence used inside blocks
         // TODO: inline this into BlockExpr?

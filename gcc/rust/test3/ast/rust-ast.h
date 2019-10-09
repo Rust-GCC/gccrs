@@ -15,6 +15,8 @@ namespace Rust {
     typedef int location_t;
     // typedef ::std::string SimplePath;
     typedef ::std::string Identifier;
+    typedef int TupleIndex;
+    typedef int Literal;
 
     namespace AST {
         // Base AST node object
@@ -43,8 +45,25 @@ namespace Rust {
         // Attribute body - abstract base class
         class AttrInput {};
 
-        // Macro attribute body? May use multiple inheritance here.
-        struct DelimTokenTree : public AttrInput {};
+        // A tree of tokens (or a single token) - abstract base class
+        class TokenTree {};
+
+        // A token is a kind of token tree (except delimiter tokens)
+        class Token : public TokenTree, public MacroMatch {
+            // A token is a kind of token tree (except delimiter tokens)
+            // A token is a kind of MacroMatch (except $ and delimiter tokens)
+        };
+
+        // A token tree with delimiters
+        class DelimTokenTree : public TokenTree, public AttrInput {
+            enum DelimType {
+                PARENS,
+                SQUARE,
+                CURLY
+            } delim_type;
+
+            ::std::vector<TokenTree> token_trees;
+        };
 
         // forward decl LiteralExpr: must have rust-expr.h also included to use this
         class LiteralExpr;
@@ -63,7 +82,8 @@ namespace Rust {
         // forward decl for SimplePath - defined in rust-path.h
         class SimplePath;
 
-        // Attribute
+        // aka Attr
+        // Attribute AST representation
         struct Attribute {
             SimplePath path;
 
@@ -123,11 +143,12 @@ namespace Rust {
              *   feature     */
         };
 
-        // The rule for the DelimTokenTree used for AttrInput?
+        // Syntax used for Attribute by most built-in attributes and the meta fragment spec
         class MetaItem {
             SimplePath path;
         };
 
+        // A literal meta item
         class MetaItemLit : public MetaItem {
             LiteralExpr* expr;
 
@@ -137,6 +158,7 @@ namespace Rust {
             }
         };
 
+        // An inner meta item
         struct MetaItemInner {
             // Allows EITHER MetaItem or LiteralExpression (without suffix)
             bool lit_active;
@@ -151,6 +173,7 @@ namespace Rust {
             }
         };
 
+        // A sequence meta item
         class MetaItemSeq : public MetaItem {
             bool has_sequence;
             ::std::vector<MetaItemInner> sequence;
@@ -179,6 +202,15 @@ namespace Rust {
         struct MetaListNameValueStr {
             Identifier macro_name_thing;
             ::std::vector<MetaNameValueStr> list;
+        };
+
+        // A crate AST object - holds all the data for a single compilation unit
+        struct Crate {
+            bool has_utf8bom;
+            bool has_shebang;
+
+            ::std::vector<Attribute> inner_attrs;
+            ::std::vector<Item> items;
         };
     }
 }

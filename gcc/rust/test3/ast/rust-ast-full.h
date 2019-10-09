@@ -8,5 +8,6 @@
 #include "rust-pattern.h"
 #include "rust-stmt.h"
 #include "rust-type.h"
+#include "rust-macro.h"
 
 #endif

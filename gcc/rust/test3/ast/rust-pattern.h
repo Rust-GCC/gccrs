@@ -258,11 +258,12 @@ namespace Rust {
         class PathInExpression;
         class QualifiedPathInExpression;
 
-        // AST node representing a macro invocation
-        class MacroInvocation : public Pattern {
+        // Replaced with forward decl - defined in rust-macro.h
+        class MacroInvocation;
+        /*class MacroInvocation : public Pattern {
           public:
             ::std::string as_string() const;
-        };
+        };*/
     }
 }
 

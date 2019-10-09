@@ -84,11 +84,12 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
-        // Is this the same MacroInvocationSemi as the item one? Probably.
-        class MacroInvocationSemi : public Statement {
+        // Replaced definition of MacroInvocationSemi with forward decl - defined in rust-macro.h
+        class MacroInvocationSemi;
+        /*class MacroInvocationSemi : public Statement {
           public:
             ::std::string as_string() const;
-        };
+        };*/
     }
 }
 

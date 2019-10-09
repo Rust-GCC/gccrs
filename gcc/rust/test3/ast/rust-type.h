@@ -180,7 +180,14 @@ namespace Rust {
             BareFunctionReturnType return_type;
         };
 
-        class MacroInvocation : public TypeNoBounds {};
+        // Forward decl - defined in rust-macro.h
+        class MacroInvocation;
+
+        /*// AST node of a macro invocation, which is replaced by the macro result at compile time
+        class MacroInvocation : public TypeNoBounds, public Pattern, public ExprWithoutBlock {
+            SimplePath path;
+            DelimTokenTree token_tree;
+        };*/
 
         // struct type?
         // "enum" (tagged union) type?
