@@ -28,12 +28,13 @@ namespace Rust {
             bool is_mut;
 
             bool has_pattern;
-            Pattern* to_bind;
+            // Pattern* to_bind;
+            ::gnu::unique_ptr<Pattern> to_bind;
 
           public:
-            ~IdentifierPattern() {
+            /*~IdentifierPattern() {
                 delete to_bind;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -79,8 +80,10 @@ namespace Rust {
 
         // AST node for matching within a certain range (range pattern)
         class RangePattern : public Pattern {
-            RangePatternBound lower;
-            RangePatternBound upper;
+            /*RangePatternBound lower;
+            RangePatternBound upper;*/
+            ::gnu::unique_ptr<RangePatternBound> lower;
+            ::gnu::unique_ptr<RangePatternBound> upper;
 
             bool has_ellipsis_synax;
 
@@ -92,12 +95,13 @@ namespace Rust {
         class ReferencePattern : public Pattern {
             bool has_two_amps;
             bool is_mut;
-            Pattern* pattern;
+            // Pattern* pattern;
+            ::gnu::unique_ptr<Pattern> pattern;
 
           public:
-            ~ReferencePattern() {
+            /*~ReferencePattern() {
                 delete pattern;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -130,23 +134,25 @@ namespace Rust {
         // Tuple pattern single field in a struct pattern
         class StructPatternFieldTuplePat : public StructPatternField {
             TupleIndex index;
-            Pattern* tuple_pattern;
+            // Pattern* tuple_pattern;
+            ::gnu::unique_ptr<Pattern> tuple_pattern;
 
           public:
-            ~StructPatternFieldTuplePat() {
+            /*~StructPatternFieldTuplePat() {
                 delete tuple_pattern;
-            }
+            }*/
         };
 
         // Identifier pattern single field in a struct pattern
         class StructPatternFieldIdentPat : public StructPatternField {
             Identifier ident;
-            Pattern* ident_pattern;
+            // Pattern* ident_pattern;
+            ::gnu::unique_ptr<Pattern> ident_pattern;
 
           public:
-            ~StructPatternFieldIdentPat() {
+            /*~StructPatternFieldIdentPat() {
                 delete ident_pattern;
-            }
+            }*/
         };
 
         // Identifier only (with no pattern) single field in a struct pattern
@@ -160,7 +166,8 @@ namespace Rust {
         // Elements of a struct pattern
         struct StructPatternElements {
             bool has_struct_pattern_fields;
-            ::std::vector<StructPatternField> fields;
+            //::std::vector<StructPatternField> fields;
+            ::std::vector< ::gnu::unique_ptr<StructPatternField> > fields;
 
             bool has_struct_pattern_etc;
             StructPatternEtc etc;
@@ -184,19 +191,23 @@ namespace Rust {
 
         // Class for non-ranged tuple struct pattern patterns
         class TupleStructItemsNoRange : public TupleStructItems {
-            ::std::vector<Pattern> patterns;
+            //::std::vector<Pattern> patterns;
+            ::std::vector< ::gnu::unique_ptr<Pattern> > patterns;
         };
 
         // Class for ranged tuple struct pattern patterns
         class TupleStructItemsRange : public TupleStructItems {
-            ::std::vector<Pattern> lower_patterns;
-            ::std::vector<Pattern> upper_patterns;
+            /*::std::vector<Pattern> lower_patterns;
+            ::std::vector<Pattern> upper_patterns;*/
+            ::std::vector< ::gnu::unique_ptr<Pattern> > lower_patterns;
+            ::std::vector< ::gnu::unique_ptr<Pattern> > upper_patterns;
         };
 
         // AST node representing a tuple struct pattern
         class TupleStructPattern : public Pattern {
             PathInExpression path;
-            TupleStructItems items;
+            // TupleStructItems items;
+            ::gnu::unique_ptr<TupleStructItems> items;
 
           public:
             ::std::string as_string() const;
@@ -207,24 +218,29 @@ namespace Rust {
 
         // Class representing TuplePattern patterns where there is only a single pattern
         class TuplePatternItemsSingle {
-            Pattern pattern;
+            // Pattern pattern;
+            ::gnu::unique_ptr<Pattern> pattern;
         };
 
         // Class representing TuplePattern patterns where there are multiple patterns
         class TuplePatternItemsMultiple {
-            ::std::vector<Pattern> patterns;
+            //::std::vector<Pattern> patterns;
+            ::std::vector< ::gnu::unique_ptr<Pattern> > patterns;
         };
 
         // Class representing TuplePattern patterns where there are a range of patterns
         class TuplePatternItemsRanged {
-            ::std::vector<Pattern> lower_patterns;
-            ::std::vector<Pattern> upper_patterns;
+            /*::std::vector<Pattern> lower_patterns;
+            ::std::vector<Pattern> upper_patterns;*/
+            ::std::vector< ::gnu::unique_ptr<Pattern> > lower_patterns;
+            ::std::vector< ::gnu::unique_ptr<Pattern> > upper_patterns;
         };
 
         // AST node representing a tuple pattern
         class TuplePattern : public Pattern {
             bool has_tuple_pattern_items;
-            TuplePatternItems items;
+            // TuplePatternItems items;
+            ::gnu::unique_ptr<TuplePatternItems> items;
 
           public:
             ::std::string as_string() const;
@@ -232,7 +248,8 @@ namespace Rust {
 
         // AST node representing a pattern in parentheses, used to control precedence
         class GroupedPattern : public Pattern {
-            Pattern pattern_in_parens;
+            // Pattern pattern_in_parens;
+            ::gnu::unique_ptr<Pattern> pattern_in_parens;
 
           public:
             ::std::string as_string() const;
@@ -240,7 +257,8 @@ namespace Rust {
 
         // AST node representing patterns that can match slices and arrays
         class SlicePattern : public Pattern {
-            ::std::vector<Pattern> items;
+            //::std::vector<Pattern> items;
+            ::std::vector< ::gnu::unique_ptr<Pattern> > items;
 
           public:
             ::std::string as_string() const;

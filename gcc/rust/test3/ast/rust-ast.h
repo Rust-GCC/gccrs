@@ -76,12 +76,13 @@ namespace Rust {
         // Literal expression attribute body (non-macro attribute)
         class AttrInputLiteral : public AttrInput {
             // Literal expression WITHOUT SUFFIX
-            LiteralExpr* literal_expr;
+            //LiteralExpr* literal_expr;
+            ::gnu::unique_ptr<LiteralExpr> literal_expr;
 
           public:
-            ~AttrInputLiteral() {
+            /*~AttrInputLiteral() {
                 delete literal_expr;
-            }
+            }*/
         };
 
         // forward decl for SimplePath - defined in rust-path.h
@@ -93,12 +94,13 @@ namespace Rust {
             SimplePath path;
 
             bool has_attr_input;
-            AttrInput* attr_input;
+            //AttrInput* attr_input;
+            ::gnu::unique_ptr<AttrInput> attr_input;
 
             public:
-            ~Attribute() {
+            /*~Attribute() {
                 delete attr_input;
-            }
+            }*/
 
             /* e.g.:
                 #![crate_type = "lib"]
@@ -160,28 +162,32 @@ namespace Rust {
 
         // A literal meta item
         class MetaItemLit : public MetaItem {
-            LiteralExpr* expr;
+            //LiteralExpr* expr;
+            ::gnu::unique_ptr<LiteralExpr> expr;
 
           public:
-            ~MetaItemLit() {
+            /*~MetaItemLit() {
                 delete expr;
-            }
+            }*/
         };
 
         // An inner meta item
         struct MetaItemInner {
             // Allows EITHER MetaItem or LiteralExpression (without suffix)
             bool lit_active;
-            MetaItem* item;
-            LiteralExpr* expr;
+            /*MetaItem* item;
+            LiteralExpr* expr;*/
+            ::gnu::unique_ptr<MetaItem> item;
+            ::gnu::unique_ptr<LiteralExpr> expr;
 
+            // as no more conditional delete on expr member variable, must initialise it as NULL 
           public:
-            ~MetaItemInner() {
+            /*~MetaItemInner() {
                 if (lit_active) {
                     delete expr;
                 }
                 delete item;
-            }
+            }*/
         };
 
         // A sequence meta item
@@ -224,7 +230,14 @@ namespace Rust {
             bool has_shebang;
 
             ::std::vector<Attribute> inner_attrs;
-            ::std::vector<Item> items;
+            //::std::vector<Item> items;
+            // dodgy spacing required here
+            ::std::vector< ::gnu::unique_ptr<Item> > items;
+        };
+
+        // Rust "item" AST node (declaration of top-level/module-level allowed stuff)
+        class Item : public Node {
+            ::std::vector<Attribute> outer_attrs; // maybe only outer attributes
         };
     }
 }

@@ -35,24 +35,27 @@ namespace Rust {
             // bool has_outer_attrs;
             ::std::vector<Attribute> outer_attrs;
 
-            Pattern variables_pattern;
+            //Pattern variables_pattern;
+            ::gnu::unique_ptr<Pattern> variables_pattern;
 
             bool has_type;
-            Type type;
+            //Type type;
+            ::gnu::unique_ptr<Type> type;
 
             bool has_init_expr;
-            Expr* init_expr;
+            //Expr* init_expr;
+            ::gnu::unique_ptr<Expr> init_expr;
 
           public:
             bool has_outer_attrs() const {
                 return !outer_attrs.empty();
             }
 
-            ~LetStatement() {
+            /*~LetStatement() {
                 if (has_init_expr) {
                     delete init_expr;
                 }
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -62,24 +65,26 @@ namespace Rust {
 
         // Statement containing an expression without a block
         class ExpressionStatementWithoutBlock : public ExpressionStatement {
-            ExprWithoutBlock* expr;
+            //ExprWithoutBlock* expr;
+            ::gnu::unique_ptr<ExprWithoutBlock> expr;
 
           public:
-            ~ExpressionStatementWithoutBlock() {
+            /*~ExpressionStatementWithoutBlock() {
                 delete expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
 
         // Statement containing an expression with a block
         class ExpressionStatementWithBlock : public ExpressionStatement {
-            ExprWithBlock* expr;
+            //ExprWithBlock* expr;
+            ::gnu::unique_ptr<ExprWithBlock> expr;
 
           public:
-            ~ExpressionStatementWithBlock() {
+            /*~ExpressionStatementWithBlock() {
                 delete expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };

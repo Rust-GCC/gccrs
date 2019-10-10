@@ -30,7 +30,8 @@ namespace Rust {
 
         // TODO: inline
         struct FunctionReturnType {
-            Type return_type;
+            // Type return_type;
+            ::gnu::unique_ptr<Type> return_type;
         };
 
         // TODO: inline
@@ -68,12 +69,14 @@ namespace Rust {
             TypeParamBounds type_param_bounds;
 
             bool has_type;
-            Type type;
+            //Type type;
+            ::gnu::unique_ptr<Type> type;
         };
 
         struct Generics {
             // inline: change all occurences of "Generics" to this single param
-            ::std::vector<GenericParam> generic_params;
+            //::std::vector<GenericParam> generic_params;
+            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params;
         };
 
         // "where" clause item base. Abstract - use LifetimeWhereClauseItem, TypeBoundWhereClauseItem
@@ -92,7 +95,8 @@ namespace Rust {
             //LifetimeParams for_lifetimes;
             ::std::vector<LifetimeParam> for_lifetimes; // inlined
 
-            Type bound_type;
+            //Type bound_type;
+            ::gnu::unique_ptr<Type> bound_type;
 
             bool has_type_param_bounds;
             TypeParamBounds type_param_bounds;
@@ -100,7 +104,8 @@ namespace Rust {
 
         // A where clause
         struct WhereClause {
-            ::std::vector<WhereClauseItem> where_clause_items;
+            //::std::vector<WhereClauseItem> where_clause_items;
+            ::std::vector< ::gnu::unique_ptr<WhereClauseItem> > where_clause_items;
         };
 
         // A self parameter in a method 
@@ -112,7 +117,8 @@ namespace Rust {
             bool is_mut;
 
             bool has_type; // only possible if not ref
-            Type type;
+            //Type type;
+            ::gnu::unique_ptr<Type> type;
         };
 
         // Forward decl FunctionQualifiers
@@ -140,17 +146,13 @@ namespace Rust {
             bool has_where_clause;
             WhereClause where_clause;
 
-            BlockExpr* expr;
+            //BlockExpr* expr;
+            ::gnu::unique_ptr<BlockExpr> expr;
 
             public:
-            ~Method() {
+            /*~Method() {
                 delete expr;
-            }
-        };
-
-        // Rust "item" AST node (declaration of top-level/module-level allowed stuff)
-        class Item : public Node {
-            ::std::vector<Attribute> outer_attrs; // maybe only outer attributes
+            }*/
         };
 
         // Visibility of item - private, public, module-only, etc. ...
@@ -177,7 +179,8 @@ namespace Rust {
             bool has_inner_attrs;
             ::std::vector<Attribute> inner_attrs;
             bool has_items;
-            ::std::vector<Item> items;
+            //::std::vector<Item> items;
+            ::std::vector< ::gnu::unique_ptr<Item> > items;
 
           public:
             ::std::string as_string() const;
@@ -211,12 +214,46 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
+        // The path-ish thing referred to in a use declaration - abstract base class
+        class UseTree {};
+
+        // Use tree with a glob (wildcard) operator
+        class UseTreeGlob : public UseTree {
+            enum PathType {
+                NO_PATH,
+                GLOBAL,
+                PATH_PREFIXED
+            } glob_type;
+            SimplePath path;
+        };
+
+        // Use tree with a list of paths with a common prefix
+        class UseTreeList : public UseTree {
+            enum PathType {
+                NO_PATH,
+                GLOBAL,
+                PATH_PREFIXED
+            } glob_type;
+            SimplePath path;
+
+            ::std::vector< ::gnu::unique_ptr<UseTree> > trees;
+        };
+
+        // Use tree where it rebinds the module name as something else
+        class UseTreeRebind : public UseTree {
+            SimplePath path;
+
+            enum NewBindType {
+                NONE,
+                IDENTIFIER,
+                WILDCARD
+            } bind_type;
+            Identifier identifier; // only if NewBindType is IDENTIFIER
+        };
+
         // Rust use declaration (i.e. for modules) AST node
         class UseDeclaration : public VisItem {
-            // SimplePath path;
-            bool has_asterisk; // glob
-            // List of paths inside braces (with a common prefix) - vector?
-            // identifier in as OR _ in as
+            ::gnu::unique_ptr<UseTree> use_tree; 
 
           public:
             ::std::string as_string() const;
@@ -233,8 +270,10 @@ namespace Rust {
 
         // A function parameter
         struct FunctionParam {
-            Pattern* param_name;
-            Type type;
+            //Pattern* param_name;
+            ::gnu::unique_ptr<Pattern> param_name;
+            //Type type;
+            ::gnu::unique_ptr<Type> type;
         };
 
         // Parameters used in a function - TODO inline?
@@ -255,17 +294,19 @@ namespace Rust {
             FunctionParams function_params;
 
             bool has_function_return_type;
-            Type return_type;
+            //Type return_type;
+            ::gnu::unique_ptr<Type> return_type;
 
             bool has_where_clause;
             WhereClause where_clause;
 
-            BlockExpr* function_body;
+            //BlockExpr* function_body;
+            ::gnu::unique_ptr<BlockExpr> function_body;
 
           public:
-            ~Function() {
+            /*~Function() {
                 delete function_body;
-            }
+            }*/
             ::std::string as_string() const;
         };
 
@@ -279,13 +320,14 @@ namespace Rust {
             bool has_where_clause;
             WhereClause where_clause;
 
-            Type exiting_type;
+            //Type exiting_type;
+            ::gnu::unique_ptr<Type> existing_type;
 
           public:
             ::std::string as_string() const;
         };
 
-        // Rust base struct declaration AST node - maybe abstract?
+        // Rust base struct declaration AST node - abstract base class
         class Struct : public VisItem {
             Identifier struct_name;
 
@@ -305,7 +347,8 @@ namespace Rust {
             Visibility visibility;
 
             Identifier field_name;
-            Type field_type;
+            // Type field_type;
+            ::gnu::unique_ptr<Type> field_type;
         };
 
         // Rust struct declaration with true struct type AST node
@@ -319,12 +362,13 @@ namespace Rust {
         // A single field in a tuple
         struct TupleField {
             bool has_outer_attributes;
-            ::std::vector<Attribute> outer_attribs;
+            ::std::vector<Attribute> outer_attrs;
 
             bool has_visibility;
             Visibility visibility;
 
-            Type field_type;
+            //Type field_type;
+            ::gnu::unique_ptr<Type> field_type;
         };
 
         // Rust tuple declared using struct keyword AST node
@@ -360,12 +404,13 @@ namespace Rust {
 
         // A discriminant item sued in an "enum" tagged union
         class EnumItemDiscriminant : public EnumItem {
-            Expr* expression;
+            //Expr* expression;
+            ::gnu::unique_ptr<Expr> expression;
 
           public:
-            ~EnumItemDiscriminant() {
+            /*~EnumItemDiscriminant() {
                 delete expression;
-            }
+            }*/
         };
 
         // AST node for Rust "enum" - tagged union 
@@ -378,7 +423,7 @@ namespace Rust {
             bool has_where_clause;
             WhereClause where_clause;
 
-            ::std::vector<EnumItem> items;
+            ::std::vector< ::gnu::unique_ptr<EnumItem> > items;
 
           public:
             ::std::string as_string() const;
@@ -406,14 +451,16 @@ namespace Rust {
             bool identifier_is_underscore;
             Identifier identifier;
 
-            Type type;
+            //Type type;
+            ::gnu::unique_ptr<Type> type;
 
-            Expr* const_expr;
+            //Expr* const_expr;
+            ::gnu::unique_ptr<Expr> const_expr;
 
           public:
-            ~ConstantItem() {
+            /*~ConstantItem() {
                 delete const_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -424,14 +471,16 @@ namespace Rust {
 
             Identifier name;
 
-            Type type;
+            //Type type;
+            ::gnu::unique_ptr<Type> type;
 
-            Expr* expr;
+            //Expr* expr;
+            ::gnu::unique_ptr<Expr> expr;
 
           public:
-            ~StaticItem() {
+            /*~StaticItem() {
                 delete expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -458,7 +507,8 @@ namespace Rust {
             FunctionParams function_params;
 
             bool has_return_type;
-            Type return_type;
+            //Type return_type;
+            ::gnu::unique_ptr<Type> return_type;
 
             bool has_where_clause;
             WhereClause where_clause;
@@ -467,12 +517,13 @@ namespace Rust {
         // Actual trait item function declaration within traits
         class TraitItemFunc : public TraitItem {
             TraitFunctionDecl decl;
-            BlockExpr* block_expr;
+            //BlockExpr* block_expr;
+            ::gnu::unique_ptr<BlockExpr> block_expr;
 
           public:
-            ~TraitItemFunc() {
+            /*~TraitItemFunc() {
                 delete block_expr;
-            }
+            }*/
         };
 
         // Method declaration within traits
@@ -490,7 +541,8 @@ namespace Rust {
             FunctionParams function_params;
 
             bool has_return_type;
-            Type return_type;
+            //Type return_type;
+            ::gnu::unique_ptr<Type> return_type;
 
             bool has_where_clause;
             WhereClause where_clause;
@@ -499,26 +551,29 @@ namespace Rust {
         // Actual trait item method declaration within traits
         class TraitItemMethod : public TraitItem {
             TraitMethodDecl decl;
-            BlockExpr* block_expr;
+            //BlockExpr* block_expr;
+            ::gnu::unique_ptr<BlockExpr> block_expr;
 
           public:
-            ~TraitItemMethod() {
+            /*~TraitItemMethod() {
                 delete block_expr;
-            }
+            }*/
         };
 
         // Constant item within traits
         class TraitItemConst : public TraitItem {
             Identifier name;
-            Type type;
+            //Type type;
+            ::gnu::unique_ptr<Type> type;
 
             bool has_expression;
-            Expr* expr;
+            //Expr* expr;
+            ::gnu::unique_ptr<Expr> expr;
 
           public:
-            ~TraitItemConst() {
+            /*~TraitItemConst() {
                 delete expr;
-            }
+            }*/
         };
 
         // Type items within traits
@@ -550,7 +605,7 @@ namespace Rust {
             WhereClause where_clause;
 
             bool has_trait_items;
-            ::std::vector<TraitItem> trait_items;
+            ::std::vector< ::gnu::unique_ptr<TraitItem> > trait_items;
 
           public:
             ::std::string as_string() const;
@@ -561,7 +616,8 @@ namespace Rust {
             bool has_generics;
             Generics generic_params;
 
-            Type trait_type;
+            //Type trait_type;
+            ::gnu::unique_ptr<Type> trait_type;
 
             bool has_where_clause;
             WhereClause where_clause;
@@ -608,7 +664,7 @@ namespace Rust {
         // Regular "impl foo" impl block declaration AST node
         class InherentImpl : public Impl {
             bool has_impl_items;
-            ::std::vector<InherentImplItem> impl_items;
+            ::std::vector< ::gnu::unique_ptr<InherentImplItem> > impl_items;
 
           public:
             ::std::string as_string() const;
@@ -666,7 +722,7 @@ namespace Rust {
             TypePath trait_path;
 
             bool has_impl_items;
-            ::std::vector<TraitImplItem> impl_items;
+            ::std::vector< ::gnu::unique_ptr<TraitImplItem> > impl_items;
 
           public:
             ::std::string as_string() const;
@@ -687,7 +743,8 @@ namespace Rust {
         class ExternalStaticItem : public ExternalItem {
             bool has_mut;
 
-            Type item_type;
+            //Type item_type;
+            ::gnu::unique_ptr<Type> item_type;
         };
 
         // A function item used in an extern block - abstract base class
@@ -700,6 +757,10 @@ namespace Rust {
 
             bool has_where_clause;
             WhereClause where_clause;
+
+            ::std::vector<NamedFunctionParam> function_params;
+
+            bool has_variadics;
         };
 
         // A named function parameter used in external functions
@@ -707,22 +768,8 @@ namespace Rust {
             bool has_name; // otherwise is _
             Identifier name;
 
-            Type param_type;
-        };
-
-        // An external function inside an extern block with no parameters
-        class ExternalFunctionItemNoParams : public ExternalFunctionItem {};
-
-        // An external function inside an extern block without variadic parameters
-        class ExternalFunctionItemNoVariadics : public ExternalFunctionItem {
-            ::std::vector<NamedFunctionParam> function_params;
-        };
-
-        // An external function inside an extern block with variadic parameters
-        class ExternalFunctionItemVariadics : public ExternalFunctionItem {
-            ::std::vector<NamedFunctionParam> function_params;
-            // just merge into one with no variadics and have a "has variadics" boolean?
-            // variadics are just ... in syntax - nothing else is different
+            //Type param_type;
+            ::gnu::unique_ptr<Type> param_type;
         };
 
         // An extern block AST node
@@ -734,7 +781,7 @@ namespace Rust {
             ::std::vector<Attribute> inner_attrs;
 
             bool has_extern_items;
-            ::std::vector<ExternalItem> extern_items;
+            ::std::vector< ::gnu::unique_ptr<ExternalItem> > extern_items;
 
           public:
             ::std::string as_string() const;

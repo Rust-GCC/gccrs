@@ -45,13 +45,15 @@ namespace Rust {
         // A binding of an identifier to a type used in generic arguments in paths
         struct GenericArgsBinding {
             Identifier identifier;
-            Type type;
+            //Type type;
+            ::gnu::unique_ptr<Type> type;
         };
 
         // Generic arguments allowed in each path expression segment
         struct GenericArgs {
             ::std::vector<Lifetime> lifetime_args;
-            ::std::vector<Type> type_args;
+            //::std::vector<Type> type_args;
+            ::std::vector< ::gnu::unique_ptr<Type> > type_args;
             ::std::vector<GenericArgsBinding> binding_args;
         };
 
@@ -72,7 +74,8 @@ namespace Rust {
         };
 
         struct QualifiedPathType {
-            Type type_to_invoke_on;
+            //Type type_to_invoke_on;
+            ::gnu::unique_ptr<Type> type_to_invoke_on;
 
             bool has_as_clause;
             TypePath trait_path;
@@ -101,12 +104,14 @@ namespace Rust {
         // Represents a qualified path in a type; used for disambiguating trait function calls
         class QualifiedPathInType : public TypeNoBounds {
             QualifiedPathType path_type;
-            ::std::vector<TypePathSegment> segments;
+            // ::std::vector<TypePathSegment> segments;
+            ::std::vector< ::gnu::unique_ptr<TypePathSegment> > segments;
         };
 
         // TODO: inline
         struct TypePathFnInputs {
-            ::std::vector<Type> inputs;
+            //::std::vector<Type> inputs;
+            ::std::vector< ::gnu::unique_ptr<Type> > inputs;
         };
 
         // A function as represented in a type path
@@ -114,10 +119,12 @@ namespace Rust {
             // TODO: remove
             /*bool has_inputs;
             TypePathFnInputs inputs;*/
-            ::std::vector<Type> inputs; // inlined from TypePathFnInputs
+            //::std::vector<Type> inputs; // inlined from TypePathFnInputs
+            ::std::vector< ::gnu::unique_ptr<Type> > inputs;
 
             bool has_type;
-            Type type;
+            //Type type;
+            ::gnu::unique_ptr<Type> type;
         };
 
         // Segment used in type path with a function argument
@@ -128,7 +135,7 @@ namespace Rust {
         // Path used inside types
         class TypePath : public TypeNoBounds {
             bool has_opening_scope_resolution;
-            ::std::vector<TypePathSegment> segments;
+            ::std::vector< ::gnu::unique_ptr<TypePathSegment> > segments;
         };
     }
 }

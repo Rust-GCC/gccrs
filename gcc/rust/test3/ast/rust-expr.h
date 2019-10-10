@@ -85,12 +85,13 @@ namespace Rust {
 
         // Represents an expression using unary or binary operators as AST node. Can be overloaded.
         class OperatorExpr : public ExprWithoutBlock {
-            Expr* main_or_left_expr;
+            //Expr* main_or_left_expr;
+            ::gnu::unique_ptr<Expr> main_or_left_expr;
 
           public:
-            virtual ~OperatorExpr() {
+            /*virtual ~OperatorExpr() {
                 delete main_or_left_expr;
-            }
+            }*/
         };
 
         // Unary prefix & or &mut (or && and &&mut) borrow operator. Cannot be overloaded.
@@ -145,12 +146,13 @@ namespace Rust {
                 RIGHT_SHIFT  // std::ops::Shr
             } expr_type;
 
-            Expr* right_expr;
+            //Expr* right_expr;
+            ::gnu::unique_ptr<Expr> right_expr;
 
           public:
-            ~ArithmeticOrLogicalExpr() {
+            /*~ArithmeticOrLogicalExpr() {
                 delete right_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
 
@@ -171,12 +173,13 @@ namespace Rust {
                 LESS_OR_EQUAL     // std::cmp::PartialEq::le
             } expr_type;
 
-            Expr* right_expr;
+            //Expr* right_expr;
+            ::gnu::unique_ptr<Expr> right_expr;
 
           public:
-            ~ComparisonExpr() {
+            /*~ComparisonExpr() {
                 delete right_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
 
@@ -191,12 +194,13 @@ namespace Rust {
         class LazyBooleanExpr : public OperatorExpr {
             enum ExprType { LOGICAL_OR, LOGICAL_AND } expr_type;
 
-            Expr* right_expr;
+            //Expr* right_expr;
+            ::gnu::unique_ptr<Expr> right_expr;
 
           public:
-            ~LazyBooleanExpr() {
+            /*~LazyBooleanExpr() {
                 delete right_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
 
@@ -207,7 +211,8 @@ namespace Rust {
 
         // Binary infix "as" cast expression.
         class TypeCastExpr : public OperatorExpr {
-            TypeNoBounds type_to_convert_to;
+            //TypeNoBounds type_to_convert_to;
+            ::gnu::unique_ptr<TypeNoBounds> type_to_convert_to;
 
             // Note: only certain allowed, outlined in reference
           public:
@@ -216,12 +221,13 @@ namespace Rust {
 
         // Binary assignment expression.
         class AssignmentExpr : public OperatorExpr {
-            Expr* right_expr;
+            //Expr* right_expr;
+            ::gnu::unique_ptr<Expr> right_expr;
 
           public:
-            ~AssignmentExpr() {
+            /*~AssignmentExpr() {
                 delete right_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -242,12 +248,13 @@ namespace Rust {
                 RIGHT_SHIFT  // std::ops::ShrAssign
             } expr_type;
 
-            Expr* right_expr;
+            //Expr* right_expr;
+            ::gnu::unique_ptr<Expr> right_expr;
 
           public:
-            ~CompoundAssignmentExpr() {
+            /*~CompoundAssignmentExpr() {
                 delete right_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
 
@@ -259,12 +266,13 @@ namespace Rust {
         // Expression in parentheses (i.e. like literally just any 3 + (2 * 6))
         class GroupedExpr : public ExprWithoutBlock {
             ::std::vector<Attribute> inner_attrs;
-            Expr* expr_in_parens;
+            //Expr* expr_in_parens;
+            ::gnu::unique_ptr<Expr> expr_in_parens;
 
           public:
-            ~GroupedExpr() {
+            /*~GroupedExpr() {
                 delete expr_in_parens;
-            }
+            }*/
 
             ::std::string as_string() const;
 
@@ -282,30 +290,34 @@ namespace Rust {
 
         // Value array elements
         class ArrayElemsValues : public ArrayElems {
-            ::std::vector<Expr> values;
+            //::std::vector<Expr> values;
+            ::std::vector< ::gnu::unique_ptr<Expr> > values;
 
           public:
-            inline ::std::vector<Expr> get_values() const {
+            inline ::std::vector< ::gnu::unique_ptr<Expr> > get_values() const {
                 return values;
             }
         };
 
         // Copied array element and number of copies
         class ArrayElemsCopied : public ArrayElems {
-            Expr* elem_to_copy;
-            Expr* num_copies;
+            //Expr* elem_to_copy;
+            ::gnu::unique_ptr<Expr> elem_to_copy;
+            //Expr* num_copies;
+            ::gnu::unique_ptr<Expr> num_copies;
 
           public:
-            ~ArrayElemsCopied() {
+            /*~ArrayElemsCopied() {
                 delete num_copies;
                 delete elem_to_copy;
-            }
+            }*/
         };
 
         // Array definition-ish expression
         class ArrayExpr : public ExprWithoutBlock {
             ::std::vector<Attribute> inner_attrs;
-            ArrayElems internal_elements;
+            //ArrayElems internal_elements;
+            ::gnu::unique_ptr<ArrayElems> internal_elements;
 
           public:
             ::std::string as_string() const;
@@ -314,9 +326,9 @@ namespace Rust {
                 return inner_attrs;
             }
 
-            inline ArrayElems get_internal_elems() const {
+            inline ::gnu::unique_ptr<ArrayElems> get_internal_elems() const {
                 return internal_elements;
-            }
+            } // TODO: fix - this isn't memory safe?
         };
 
         // Aka IndexExpr (also applies to slices)
@@ -324,14 +336,16 @@ namespace Rust {
         // *std::ops::Index::index_mut(&mut a, b)
         // Also apparently deref operations on a will be repeatedly applied to find an implementation
         class ArrayIndexExpr : public ExprWithoutBlock {
-            Expr* array_expr;
-            Expr* index_expr;
+            /*Expr* array_expr;
+            Expr* index_expr;*/
+            ::gnu::unique_ptr<Expr> array_expr;
+            ::gnu::unique_ptr<Expr> index_expr;
 
           public:
-            ~ArrayIndexExpr() {
+            /*~ArrayIndexExpr() {
                 delete index_expr;
                 delete array_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -340,7 +354,8 @@ namespace Rust {
         class TupleExpr : public ExprWithoutBlock {
             ::std::vector<Attribute> inner_attrs;
 
-            ::std::vector<Expr> tuple_elems;
+            //::std::vector<Expr> tuple_elems;
+            ::std::vector< ::gnu::unique_ptr<Expr> > tuple_elems;
             // replaces (inlined version of) TupleElements
 
           public:
@@ -350,9 +365,9 @@ namespace Rust {
                 return inner_attrs;
             }
 
-            inline ::std::vector<Expr> get_tuple_elems() const {
+            inline ::std::vector< ::gnu::unique_ptr<Expr> > get_tuple_elems() const {
                 return tuple_elems;
-            }
+            } // TODO: fix - not memory safe?
 
             // Note: syntactically, can disambiguate single-element tuple from parens with comma, i.e.
             // (0,) rather than (0)
@@ -361,16 +376,17 @@ namespace Rust {
         // aka TupleIndexingExpr
         // AST representation of a tuple indexing expression
         class TupleIndexExpr : public ExprWithoutBlock {
-            Expr* tuple_expr;
+            //Expr* tuple_expr;
+            ::gnu::unique_ptr<Expr> tuple_expr;
             // TupleIndex is a decimal int literal with no underscores or suffix
             TupleIndex tuple_index;
 
             // i.e. pair.0
 
           public:
-            ~TupleIndexExpr() {
+            /*~TupleIndexExpr() {
                 delete tuple_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
 
@@ -403,14 +419,15 @@ namespace Rust {
 
         // AST node representing expression used to fill a struct's fields from another struct
         struct StructBase {
-            Expr* base_struct;
+            //Expr* base_struct;
+            ::gnu::unique_ptr<Expr> base_struct;
 
           public:
             StructBase(Expr* base_struct_ptr) : base_struct(base_struct_ptr) {}
 
-            ~StructBase() {
+            /*~StructBase() {
                 delete base_struct;
-            }
+            }*/
 
             // Returns a null expr-ed StructBase - error state
             static StructBase error() {
@@ -428,12 +445,13 @@ namespace Rust {
 
         // Base AST node for a single struct expression field with an assigned value - abstract
         class StructExprFieldWithVal : public StructExprField {
-            Expr* value;
+            //Expr* value;
+            ::gnu::unique_ptr<Expr> value;
 
           public:
-            ~StructExprFieldWithVal() {
+            /*~StructExprFieldWithVal() {
                 delete value;
-            }
+            }*/
         };
 
         // Identifier and value variant of StructExprField AST node
@@ -448,7 +466,8 @@ namespace Rust {
 
         // AST node of a struct creator with fields
         class StructExprStructFields : public StructExprStruct {
-            ::std::vector<StructExprField> fields;
+            //::std::vector<StructExprField> fields;
+            ::std::vector< ::gnu::unique_ptr<StructExprField> > fields;
 
             bool has_struct_base;
             StructBase struct_base;
@@ -456,7 +475,7 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            inline ::std::vector<StructExprField> get_fields() const {
+            inline ::std::vector< ::gnu::unique_ptr<StructExprField> > get_fields() const {
                 return fields;
             }
 
@@ -480,7 +499,8 @@ namespace Rust {
         // AST node of a tuple struct creator
         class StructExprTuple : public StructExpr {
             ::std::vector<Attribute> inner_attrs;
-            ::std::vector<Expr> exprs;
+            //::std::vector<Expr> exprs;
+            ::std::vector< ::gnu::unique_ptr<Expr> > exprs;
 
           public:
             ::std::string as_string() const;
@@ -489,7 +509,7 @@ namespace Rust {
                 return inner_attrs;
             }
 
-            inline ::std::vector<Expr> get_exprs() const {
+            inline ::std::vector< ::gnu::unique_ptr<Expr> > get_exprs() const {
                 return exprs;
             }
         };
@@ -525,12 +545,13 @@ namespace Rust {
 
         // Base AST node for a single enum expression field with an assigned value - abstract
         class EnumExprFieldWithVal : public EnumExprField {
-            Expr* value;
+            //Expr* value;
+            ::gnu::unique_ptr<Expr> value;
 
           public:
-            ~EnumExprFieldWithVal() {
+            /*~EnumExprFieldWithVal() {
                 delete value;
-            }
+            }*/
         };
 
         // Identifier and value variant of EnumExprField AST node
@@ -545,24 +566,26 @@ namespace Rust {
 
         // Struct-like syntax enum variant instance creation AST node
         class EnumExprStruct : public EnumVariantExpr {
-            ::std::vector<EnumExprField> fields;
+            //::std::vector<EnumExprField> fields;
+            ::std::vector< ::gnu::unique_ptr<EnumExprField> > fields;
 
           public:
             ::std::string as_string() const;
 
-            inline ::std::vector<EnumExprField> get_fields() const {
+            inline ::std::vector< ::gnu::unique_ptr<EnumExprField> > get_fields() const {
                 return fields;
             }
         };
 
         // Tuple-like syntax enum variant instance creation AST node
         class EnumExprTuple : public EnumVariantExpr {
-            ::std::vector<Expr> values;
+            //::std::vector<Expr> values;
+            ::std::vector< ::gnu::unique_ptr<Expr> > values;
 
           public:
             ::std::string as_string() const;
 
-            inline ::std::vector<Expr> get_values() const {
+            inline ::std::vector< ::gnu::unique_ptr<Expr> > get_values() const {
                 return values;
             }
         };
@@ -578,40 +601,45 @@ namespace Rust {
 
         // TODO: inline
         struct CallParams {
-            ::std::vector<Expr> params;
+            //::std::vector<Expr> params;
+            ::std::vector< ::gnu::unique_ptr<Expr> > params;
         };
 
         // Function call expression AST node
         class CallExpr : public ExprWithoutBlock {
-            Expr* function;
-            ::std::vector<Expr> params; // inlined form of CallParams
+            //Expr* function;
+            ::gnu::unique_ptr<Expr> function;
+            //::std::vector<Expr> params; // inlined form of CallParams
+            ::std::vector< ::gnu::unique_ptr<Expr> > params;
 
           public:
-            ~CallExpr() {
+            /*~CallExpr() {
                 delete function;
-            }
+            }*/
 
             ::std::string as_string() const;
 
-            inline ::std::vector<Expr> get_params() const {
+            inline ::std::vector< ::gnu::unique_ptr<Expr> > get_params() const {
                 return params;
             }
         };
 
         // Method call expression AST node
         class MethodCallExpr : public ExprWithoutBlock {
-            Expr* receiver;
+            //Expr* receiver;
+            ::gnu::unique_ptr<Expr> receiver;
             PathExprSegment method_name;
-            ::std::vector<Expr> params; // inlined form of CallParams
+            //::std::vector<Expr> params; // inlined form of CallParams
+            ::std::vector< ::gnu::unique_ptr<Expr> > params;
 
           public:
-            ~MethodCallExpr() {
+            /*~MethodCallExpr() {
                 delete receiver;
-            }
+            }*/
 
             ::std::string as_string() const;
 
-            inline ::std::vector<Expr> get_params() const {
+            inline ::std::vector< ::gnu::unique_ptr<Expr> > get_params() const {
                 return params;
             }
         };
@@ -619,23 +647,26 @@ namespace Rust {
         // aka FieldExpression
         // Struct or union field access expression AST node
         class FieldAccessExpr : public ExprWithoutBlock {
-            Expr* receiver;
+            //Expr* receiver;
+            ::gnu::unique_ptr<Expr> receiver;
             Identifier field;
 
           public:
-            ~FieldAccessExpr() {
+            /*~FieldAccessExpr() {
                 delete receiver;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
 
         // Closure parameter data structure
         struct ClosureParam {
-            Pattern pattern;
+            //Pattern pattern;
+            ::gnu::unique_ptr<Pattern> pattern;
 
             bool has_type_given;
-            Type type;
+            //Type type;
+            ::gnu::unique_ptr<Type> type;
         };
 
         // Base closure definition expression AST node - abstract
@@ -647,12 +678,13 @@ namespace Rust {
 
         // Represents a non-type-specified closure expression AST node
         class ClosureExprInner : public ClosureExpr {
-            Expr* closure_inner;
+            //Expr* closure_inner;
+            ::gnu::unique_ptr<Expr> closure_inner;
 
           public:
-            ~ClosureExprInner() {
+            /*~ClosureExprInner() {
                 delete closure_inner;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -662,13 +694,15 @@ namespace Rust {
 
         // Represents a type-specified closure expression AST node
         class ClosureExprInnerTyped : public ClosureExpr {
-            Type return_type;
-            BlockExpr* expr;
+            //Type return_type;
+            ::gnu::unique_ptr<Type> return_type;
+            //BlockExpr* expr;
+            ::gnu::unique_ptr<BlockExpr> expr;
 
           public:
-            ~ClosureExprInnerTyped() {
+            /*~ClosureExprInnerTyped() {
                 delete expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -689,32 +723,35 @@ namespace Rust {
             Lifetime label;
 
             bool has_break_expr;
-            Expr* break_expr; // may be uninitialised
+            //Expr* break_expr; // may be uninitialised
+            ::gnu::unique_ptr<Expr> break_expr;
 
           public:
-            ~BreakExpr() {
+            /*~BreakExpr() {
                 if (has_break_expr) {
                     delete break_expr;
                 }
-            }
+            }*/
 
             ::std::string as_string() const;
         };
 
-        // Base range expression AST node object
+        // Base range expression AST node object - abstract
         class RangeExpr : public ExprWithoutBlock {};
 
         // Range from (inclusive) and to (exclusive) expression AST node object
         // aka RangeExpr; constructs a std::ops::Range object
         class RangeFromToExpr : public RangeExpr {
-            Expr* from;
-            Expr* to;
+            /*Expr* from;
+            Expr* to;*/
+            ::gnu::unique_ptr<Expr> from;
+            ::gnu::unique_ptr<Expr> to;
 
           public:
-            ~RangeFromToExpr() {
+            /*~RangeFromToExpr() {
                 delete from;
                 delete to;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -722,12 +759,13 @@ namespace Rust {
         // Range from (inclusive) expression AST node object
         // constructs a std::ops::RangeFrom object
         class RangeFromExpr : public RangeExpr {
-            Expr* from;
+            //Expr* from;
+            ::gnu::unique_ptr<Expr> from;
 
           public:
-            ~RangeFromExpr() {
+            /*~RangeFromExpr() {
                 delete from;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -735,12 +773,13 @@ namespace Rust {
         // Range to (exclusive) expression AST node object
         // constructs a std::ops::RangeTo object
         class RangeToExpr : public RangeExpr {
-            Expr* to;
+            //Expr* to;
+            ::gnu::unique_ptr<Expr> to;
 
           public:
-            ~RangeToExpr() {
+            /*~RangeToExpr() {
                 delete to;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -754,14 +793,16 @@ namespace Rust {
         // Range from (inclusive) and to (inclusive) expression AST node object
         // aka RangeInclusiveExpr; constructs a std::ops::RangeInclusive object
         class RangeFromToInclExpr : public RangeExpr {
-            Expr* from;
-            Expr* to;
+            /*Expr* from;
+            Expr* to;*/
+            ::gnu::unique_ptr<Expr> from;
+            ::gnu::unique_ptr<Expr> to;
 
           public:
-            ~RangeFromToInclExpr() {
+            /*~RangeFromToInclExpr() {
                 delete from;
                 delete to;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -769,12 +810,13 @@ namespace Rust {
         // Range to (inclusive) expression AST node object
         // aka RangeToInclusiveExpr; constructs a std::ops::RangeToInclusive object
         class RangeToInclExpr : public RangeExpr {
-            Expr* to;
+            //Expr* to;
+            ::gnu::unique_ptr<Expr> to;
 
           public:
-            ~RangeToInclExpr() {
+            /*~RangeToInclExpr() {
                 delete to;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -782,14 +824,15 @@ namespace Rust {
         // Return expression AST node representation
         class ReturnExpr : public ExprWithoutBlock {
             bool has_return_expr;
-            Expr* return_expr;
+            //Expr* return_expr;
+            ::gnu::unique_ptr<Expr> return_expr;
 
           public:
-            ~ReturnExpr() {
+            /*~ReturnExpr() {
                 if (has_return_expr) {
                     delete return_expr;
                 }
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -805,17 +848,19 @@ namespace Rust {
         // TODO: inline this into BlockExpr?
         struct Statements {
             bool has_statements;
-            ::std::vector<Statement> statements;
+            //::std::vector<Statement> statements;
+            ::std::vector< ::gnu::unique_ptr<Statement> > statements;
 
             bool has_expr;
-            ExprWithoutBlock* expr;
+            //ExprWithoutBlock* expr;
+            ::gnu::unique_ptr<ExprWithoutBlock> expr;
 
           public:
-            ~Statements() {
+            /*~Statements() {
                 if (has_expr) {
                     delete expr;
                 }
-            }
+            }*/
         };
 
         // A block AST node
@@ -832,12 +877,13 @@ namespace Rust {
         // An unsafe block AST node
         class UnsafeBlockExpr : public ExprWithBlock {
             // Or just have it extend BlockExpr
-            BlockExpr* expr;
+            //BlockExpr* expr;
+            ::gnu::unique_ptr<BlockExpr> expr;
 
           public:
-            ~UnsafeBlockExpr() {
+            /*~UnsafeBlockExpr() {
                 delete expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -856,12 +902,13 @@ namespace Rust {
             bool has_loop_label;
             LoopLabel loop_label;
 
-            BlockExpr* loop_block;
+            //BlockExpr* loop_block;
+            ::gnu::unique_ptr<BlockExpr> loop_block;
 
           public:
-            ~BaseLoopExpr() {
+            /*~BaseLoopExpr() {
                 delete loop_block;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -871,12 +918,13 @@ namespace Rust {
 
         // While loop expression AST node (predicate loop)
         class WhileLoopExpr : public BaseLoopExpr {
-            Expr* condition;
+            //Expr* condition;
+            ::gnu::unique_ptr<Expr> condition;
 
           public:
-            ~WhileLoopExpr() {
+            /*~WhileLoopExpr() {
                 delete condition;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -887,25 +935,28 @@ namespace Rust {
         // While let loop expression AST node (predicate pattern loop)
         class WhileLetLoopExpr : public BaseLoopExpr {
             MatchArmPatterns patterns;
-            Expr* condition;
+            //Expr* condition;
+            ::gnu::unique_ptr<Expr> condition;
 
           public:
-            ~WhileLetLoopExpr() {
+            /*~WhileLetLoopExpr() {
                 delete condition;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
 
         // For loop expression AST node (iterator loop)
         class ForLoopExpr : public BaseLoopExpr {
-            Pattern pattern;
-            Expr* iterator_expr;
+            //Pattern pattern;
+            ::gnu::unique_ptr<Pattern> pattern;
+            //Expr* iterator_expr;
+            ::gnu::unique_ptr<Expr> iterator_expr;
 
           public:
-            ~ForLoopExpr() {
+            /*~ForLoopExpr() {
                 delete iterator_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -915,8 +966,10 @@ namespace Rust {
 
         // Base if expression with no "else" or "if let" AST node
         class IfExpr : public ExprWithBlock {
-            Expr* condition;
-            BlockExpr* if_block;
+            /*Expr* condition;
+            BlockExpr* if_block;*/
+            ::gnu::unique_ptr<Expr> condition;
+            ::gnu::unique_ptr<BlockExpr> if_block;
             /*union {
                 BlockExpr else_block;
                 IfExpr* if_expr;
@@ -929,10 +982,10 @@ namespace Rust {
             }*/
 
           public:
-            virtual ~IfExpr() {
+            /*virtual ~IfExpr() {
                 delete condition;
                 delete if_block;
-            }
+            }*/
 
             ::std::string as_string() const;
 
@@ -942,36 +995,39 @@ namespace Rust {
 
         // If expression with an ending "else" expression AST node (trailing)
         class IfExprConseqElse : public IfExpr {
-            BlockExpr* else_block;
+            //BlockExpr* else_block;
+            ::gnu::unique_ptr<BlockExpr> else_block;
 
           public:
-            ~IfExprConseqElse() {
+            /*~IfExprConseqElse() {
                 delete else_block;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
 
         // If expression with an ending "else if" expression AST node
         class IfExprConseqIf : public IfExpr {
-            IfExpr* if_expr;
+            //IfExpr* if_expr;
+            ::gnu::unique_ptr<IfExpr> if_expr;
 
           public:
-            ~IfExprConseqIf() {
+            /*~IfExprConseqIf() {
                 delete if_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
 
         // If expression with an ending "else if let" expression AST node
         class IfExprIfConseqIfLet : public IfExpr {
-            IfLetExpr* if_let_expr;
+            //IfLetExpr* if_let_expr;
+            ::gnu::unique_ptr<IfLetExpr> if_let_expr;
 
           public:
-            ~IfExprIfConseqIfLet() {
+            /*~IfExprIfConseqIfLet() {
                 delete if_let_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
@@ -979,8 +1035,10 @@ namespace Rust {
         // Basic "if let" expression AST node with no else
         class IfLetExpr : public ExprWithBlock {
             MatchArmPatterns patterns;
-            Expr* value;
-            BlockExpr* if_block;
+            /*Expr* value;
+            BlockExpr* if_block;*/
+            ::gnu::unique_ptr<Expr> value;
+            ::gnu::unique_ptr<BlockExpr> if_block;
             /*union {
                 BlockExpr else_block;
                 IfExpr if_expr;
@@ -988,64 +1046,69 @@ namespace Rust {
             } consequent_block;*/
 
           public:
-            virtual ~IfLetExpr() {
+            /*virtual ~IfLetExpr() {
                 // TODO: fix
                 delete value;
                 delete if_block;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
 
         // AST node representing "if let" expression with an "else" expression at the end
         class IfLetExprConseqElse : public IfLetExpr {
-            BlockExpr* else_block;
+            //BlockExpr* else_block;
+            ::gnu::unique_ptr<BlockExpr> else_block;
 
           public:
-            ~IfLetExprConseqElse() {
+            /*~IfLetExprConseqElse() {
                 delete else_block;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
 
         // AST node representing "if let" expression with an "else if" expression at the end
         class IfLetExprConseqIf : public IfLetExpr {
-            IfExpr* if_expr;
+            //IfExpr* if_expr;
+            ::gnu::unique_ptr<IfExpr> if_expr;
 
           public:
-            ~IfLetExprConseqIf() {
+            /*~IfLetExprConseqIf() {
                 delete if_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
 
         // AST node representing "if let" expression with an "else if let" expression at the end
         class IfLetExprConseqIfLet : public IfLetExpr {
-            IfLetExpr* if_let_expr;
+            //IfLetExpr* if_let_expr;
+            ::gnu::unique_ptr<IfLetExpr> if_let_expr;
 
           public:
-            ~IfLetExprConseqIfLet() {
+            /*~IfLetExprConseqIfLet() {
                 delete if_let_expr;
-            }
+            }*/
 
             ::std::string as_string() const;
         };
 
         struct MatchArmPatterns {
             // TODO: inline
-            ::std::vector<Pattern> patterns;
+            //::std::vector<Pattern> patterns;
+            ::std::vector< ::gnu::unique_ptr<Pattern> > patterns;
         };
 
         struct MatchArmGuard {
             // TODO: inline
-            Expr* guard_expr;
+            //Expr* guard_expr;
+            ::gnu::unique_ptr<Expr> guard_expr;
 
           public:
-            ~MatchArmGuard() {
+            /*~MatchArmGuard() {
                 delete guard_expr;
-            }
+            }*/
         };
 
         // Match arm expression
@@ -1054,14 +1117,15 @@ namespace Rust {
             MatchArmPatterns patterns;
 
             bool has_match_arm_guard;
-            Expr* match_arm_guard; // TODO: inlined from MatchArmGuard
+            //Expr* match_arm_guard; // TODO: inlined from MatchArmGuard
+            ::gnu::unique_ptr<Expr> guard_expr;
 
           public:
-            ~MatchArm() {
+            /*~MatchArm() {
                 if (has_match_arm_guard) {
                     delete match_arm_guard;
                 }
-            }
+            }*/
         };
 
         // Base "match case" for a match expression - abstract
@@ -1071,41 +1135,45 @@ namespace Rust {
 
         // Block expression match case
         class MatchCaseBlockExpr : public MatchCase {
-            BlockExpr* block_expr;
+            //BlockExpr* block_expr;
+            ::gnu::unique_ptr<BlockExpr> block_expr;
 
           public:
-            ~MatchCaseBlockExpr() {
+            /*~MatchCaseBlockExpr() {
                 delete block_expr;
-            }
+            }*/
         };
 
         // Expression (except block expression) match case
         class MatchCaseExpr : public MatchCase {
-            Expr* expr;
+            //Expr* expr;
+            ::gnu::unique_ptr<Expr> expr;
 
           public:
-            ~MatchCaseExpr() {
+            /*~MatchCaseExpr() {
                 delete expr;
-            }
+            }*/
         };
 
         struct MatchArms {
-            ::std::vector<MatchCase> cases;
+            //::std::vector<MatchCase> cases;
+            ::std::vector< ::gnu::unique_ptr<MatchCase> > cases;
             // TODO: inline type?
         };
 
         // Match expression AST node
         class MatchExpr : public ExprWithBlock {
-            Expr* branch_value;
+            //Expr* branch_value;
+            ::gnu::unique_ptr<Expr> branch_value;
             ::std::vector<Attribute> inner_attrs;
 
             bool has_match_arms;
             MatchArms match_arms;
 
           public:
-            ~MatchExpr() {
+            /*~MatchExpr() {
                 delete branch_value;
-            }
+            }*/
 
             ::std::string as_string() const;
         };

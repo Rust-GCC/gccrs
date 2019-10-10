@@ -10,16 +10,15 @@ namespace Rust {
         };
 
         // A macro invocation item (or statement) AST node
-        class MacroInvocationSemi
-          : public MacroItem
-          , public Statement {
+        class MacroInvocationSemi : public MacroItem, public Statement {
             SimplePath path;
             enum DelimType {
                 PARENS,
                 SQUARE,
                 CURLY // all delim types except curly must have invocation end with a semicolon
             } delim_type;
-            ::std::vector<TokenTree> token_trees;
+            //::std::vector<TokenTree> token_trees;
+            ::std::vector< ::gnu::unique_ptr<TokenTree> > token_trees;
 
           public:
             ::std::string as_string() const;
@@ -52,7 +51,8 @@ namespace Rust {
 
         // A repetition macro match
         class MacroMatchRep : public MacroMatch {
-            ::std::vector<MacroMatch> matches;
+            //::std::vector<MacroMatch> matches;
+            ::std::vector< ::gnu::unique_ptr<MacroMatch> > matches;
             enum MacroRepOp { NONE, ASTERISK, PLUS, QUESTION_MARK } op;
 
             bool has_sep;
@@ -63,7 +63,8 @@ namespace Rust {
         // TODO: inline
         class MacroMatcher : public MacroMatch {
             enum DelimType { PARENS, SQUARE, CURLY } delim_type;
-            ::std::vector<MacroMatch> matches;
+            //::std::vector<MacroMatch> matches;
+            ::std::vector< ::gnu::unique_ptr<MacroMatch> > matches;
         };
 
         // TODO: inline?

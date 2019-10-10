@@ -9,9 +9,9 @@ namespace Rust {
         // Represents a lifetime (and is also a kind of type param bound)
         class Lifetime : public TypeParamBound {
             enum LifetimeType {
-                NAMED,      // corresponds to LIFETIME_OR_LABEL
-                STATIC,     // corresponds to 'static
-                WILDCARD    // corresponds to '_
+                NAMED,   // corresponds to LIFETIME_OR_LABEL
+                STATIC,  // corresponds to 'static
+                WILDCARD // corresponds to '_
             } lifetime_type;
 
             // TODO: LIFETIME_OR_LABEL (aka lifetime token) is only field
@@ -20,7 +20,7 @@ namespace Rust {
             // only applies for NAMED lifetime_type
         };
 
-        // A trait bound 
+        // A trait bound
         class TraitBound : public TypeParamBound {
             bool in_parens;
             bool opening_question_mark;
@@ -38,7 +38,8 @@ namespace Rust {
 
         // TODO: inline
         struct TypeParamBounds {
-            ::std::vector<TypeParamBound> bounds;
+            //::std::vector<TypeParamBound> bounds;
+            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > bounds;
         };
 
         // Base class for types as represented in AST - abstract
@@ -52,7 +53,7 @@ namespace Rust {
             TypeParamBounds type_param_bounds;
         };
 
-        // An opaque value of another type that implements a set of traits 
+        // An opaque value of another type that implements a set of traits
         class TraitObjectType : public Type {
             bool has_dyn;
             TypeParamBounds type_param_bounds;
@@ -60,7 +61,8 @@ namespace Rust {
 
         // A type with parentheses around it, used to avoid ambiguity.
         class ParenthesisedType : public TypeNoBounds {
-            Type type_in_parens;
+            // Type type_in_parens;
+            ::gnu::unique_ptr<Type> type_in_parens;
         };
 
         // Impl trait with a single bound? Poor reference material here.
@@ -79,9 +81,10 @@ namespace Rust {
 
         // A type consisting of the "product" of others (the tuple's elements) in a specific order
         class TupleType : public TypeNoBounds {
-            ::std::vector<Type> elems;
+            //::std::vector<Type> elems;
+            ::std::vector< ::gnu::unique_ptr<Type> > elems;
 
-            public:
+          public:
             // Returns whether the tuple type is the unit type, i.e. has no elements.
             inline bool is_unit_type() const {
                 return elems.empty();
@@ -94,14 +97,12 @@ namespace Rust {
 
         // A type consisting of a pointer without safety or liveness guarantees
         class RawPointerType : public TypeNoBounds {
-            enum PointerType {
-                Mut,
-                Const
-            } pointer_type;
+            enum PointerType { Mut, Const } pointer_type;
 
-            TypeNoBounds type;
+            // TypeNoBounds type;
+            ::gnu::unique_ptr<TypeNoBounds> type;
 
-            public:
+          public:
             // Returns whether the pointer is mutable or constant.
             inline PointerType get_pointer_type() const {
                 return pointer_type;
@@ -115,9 +116,10 @@ namespace Rust {
 
             bool has_mut;
 
-            TypeNoBounds type;
+            //TypeNoBounds type;
+            ::gnu::unique_ptr<TypeNoBounds> type;
 
-            public:
+          public:
             // Returns whether the reference is mutable or immutable.
             inline bool is_mut() const {
                 return has_mut;
@@ -126,18 +128,21 @@ namespace Rust {
 
         // A fixed-size sequence of elements of a specified type
         class ArrayType : public TypeNoBounds {
-            Type elem_type;
-            Expr* size;
+            //Type elem_type;
+            ::gnu::unique_ptr<Type> elem_type;
+            //Expr* size;
+            ::gnu::unique_ptr<Expr> size;
 
-            public:
-            ~ArrayType() {
+          public:
+            /*~ArrayType() {
                 delete size;
-            }
+            }*/
         };
 
         // A dynamically-sized type representing a "view" into a sequence of elements of a type
         class SliceType : public TypeNoBounds {
-            Type elem_type;
+            //Type elem_type;
+            ::gnu::unique_ptr<Type> elem_type;
         };
 
         // Type used in generic arguments to explicitly request type inference (wildcard pattern)
@@ -150,18 +155,16 @@ namespace Rust {
 
         // TODO: inline as TypeNoBounds
         struct BareFunctionReturnType {
-            TypeNoBounds type;
+            //TypeNoBounds type;
+            ::gnu::unique_ptr<TypeNoBounds> type;
         };
 
         // A possibly named param used in a BaseFunctionType
         struct MaybeNamedParam {
-            Type param_type;
+            //Type param_type;
+            ::gnu::unique_ptr<Type> param_type;
 
-            enum ParamType {
-                UNNAMED,
-                IDENTIFIER,
-                WILDCARD
-            } param_type;
+            enum ParamKind { UNNAMED, IDENTIFIER, WILDCARD } param_kind;
             Identifier name; // technically, can be an identifier or '_'
         };
 
@@ -169,7 +172,7 @@ namespace Rust {
          * capturing closures. */
         class BareFunctionType : public TypeNoBounds {
             bool has_for_lifetimes;
-            //ForLifetimes for_lifetimes;
+            // ForLifetimes for_lifetimes;
             ::std::vector<LifetimeParam> for_lifetimes; // inlined version
 
             FunctionQualifiers function_qualifiers;
