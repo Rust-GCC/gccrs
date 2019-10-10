@@ -8,6 +8,16 @@ namespace Rust {
         /* TODO: if GCC moves to C++17 or allows boost, replace some boolean "has_whatever" pairs with
          * optional types (std::optional or boost::optional). */
 
+        // forward decls: defined in rust-path.h, rust-type.h, rust-pattern.h, and rust-stmt.h
+        class PathInExpression;
+        class QualifiedPathInExpression;
+        class PathExprSegment;
+        class Type;
+        class TypeNoBounds;
+        class Lifetime;
+        class Pattern;
+        class Statement;
+
         // Base expression AST node - abstract
         class Expr : public Node {
             ::std::vector<Attribute> outer_attrs;
@@ -647,6 +657,9 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
+        // Forward decl BlockExpr for ClosureExprInnerTyped
+        class BlockExpr;
+
         // Represents a type-specified closure expression AST node
         class ClosureExprInnerTyped : public ClosureExpr {
             Type return_type;
@@ -867,6 +880,9 @@ namespace Rust {
 
             ::std::string as_string() const;
         };
+
+        // Forward decl MatchArmPatterns
+        struct MatchArmPatterns;
 
         // While let loop expression AST node (predicate pattern loop)
         class WhileLetLoopExpr : public BaseLoopExpr {

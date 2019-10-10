@@ -1457,6 +1457,72 @@ namespace Rust {
         return NULL_TREE;
     }
 
+    // Method stub
+    Tree Parser::binary_as_cast(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_div_assig(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_mod_assig(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_mult_assig(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_plus_assig(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_minus_assig(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_assignment_expr(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_bitwise_or_assig(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_bitwise_xor_assig(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_bitwise_and_assig(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_left_shift_assig(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    Tree Parser::binary_right_shift_assig(const_TokenPtr tok, Tree left) {
+        return NULL_TREE;
+    }
+
+    // Method stub
+    AST::Visibility parse_visibility() {
+        AST::Visibility vis;
+        return vis;
+    }
+
     // Parse variable assignment statement. This is not the same as variable declaration.
     Tree Parser::parse_assignment_statement() {
         Tree variable = parse_lhs_assignment_expression();
@@ -2102,6 +2168,10 @@ namespace Rust {
         return field_decl;
     }*/
 
+    // TODO: remove: here to solve link errors
+    Tree Parser::parse_record() {
+        return Tree::error();
+    }
     // Parses a record.
     /*Tree Parser::parse_record() {
         // "record" field-decl* "end"

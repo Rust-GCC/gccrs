@@ -2,13 +2,15 @@
 #define RUST_AST_BASE_H
 // Base for AST used in gccrs
 
+// GCC imports 
+#include "config.h"
+#define INCLUDE_UNIQUE_PTR // should allow including the gcc emulation of std::unique_ptr
+#include "system.h"
+#include "coretypes.h"
+
+// STL imports
 #include <string>
 #include <vector>
-
-//#include <tr1/memory> // as memory not available in c++03
-
-// std::tr1::shared_ptr<int> no;
-// TODO: no unique_ptr<T> in C++03, so have to use regular pointers with delete and whatever
 
 namespace Rust {
     // TODO: remove
@@ -16,7 +18,7 @@ namespace Rust {
     // typedef ::std::string SimplePath;
     typedef ::std::string Identifier;
     typedef int TupleIndex;
-    typedef int Literal;
+    typedef int Literal; 
 
     namespace AST {
         // Base AST node object
@@ -47,6 +49,9 @@ namespace Rust {
 
         // A tree of tokens (or a single token) - abstract base class
         class TokenTree {};
+
+        // Forward decl for MacroMatch, defined in rust-macro.h
+        class MacroMatch;
 
         // A token is a kind of token tree (except delimiter tokens)
         class Token : public TokenTree, public MacroMatch {
@@ -88,7 +93,12 @@ namespace Rust {
             SimplePath path;
 
             bool has_attr_input;
-            AttrInput attr_input;
+            AttrInput* attr_input;
+
+            public:
+            ~Attribute() {
+                delete attr_input;
+            }
 
             /* e.g.:
                 #![crate_type = "lib"]
@@ -162,7 +172,7 @@ namespace Rust {
         struct MetaItemInner {
             // Allows EITHER MetaItem or LiteralExpression (without suffix)
             bool lit_active;
-            MetaItem item;
+            MetaItem* item;
             LiteralExpr* expr;
 
           public:
@@ -170,6 +180,7 @@ namespace Rust {
                 if (lit_active) {
                     delete expr;
                 }
+                delete item;
             }
         };
 
@@ -203,6 +214,9 @@ namespace Rust {
             Identifier macro_name_thing;
             ::std::vector<MetaNameValueStr> list;
         };
+
+        // Forward decl of Item - defined in rust-item.h
+        class Item;
 
         // A crate AST object - holds all the data for a single compilation unit
         struct Crate {

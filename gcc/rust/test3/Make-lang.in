@@ -74,6 +74,7 @@ GRS_OBJS = \
     rust/rust-parse.o \
     rust/rust-scope.o \
     rust/rust-misc-convert.o \
+	rust/rust-ast-full-test.o \
     $(END)
 # removed object files from here 
 
@@ -222,5 +223,10 @@ rust/%.o: rust/lex/%.cc
 
 # build all rust/parse files in rust folder, add cross-folder includes
 rust/%.o: rust/parse/%.cc
+	$(COMPILE) $(RUST_INCLUDES) $<
+	$(POSTCOMPILE)
+
+# build rust/ast files in rust folder
+rust/%.o: rust/ast/%.cc
 	$(COMPILE) $(RUST_INCLUDES) $<
 	$(POSTCOMPILE)

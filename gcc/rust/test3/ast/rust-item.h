@@ -12,6 +12,9 @@ namespace Rust {
         class BlockExpr;
         class Expr;
         class Type;
+        class TypePath;
+        class Pattern;
+        class MacroInvocationSemi;
 
         // TODO: remove
         //typedef int Type;
@@ -111,6 +114,12 @@ namespace Rust {
             bool has_type; // only possible if not ref
             Type type;
         };
+
+        // Forward decl FunctionQualifiers
+        struct FunctionQualifiers;
+
+        // Forward decl FunctionParams
+        struct FunctionParams;
 
         // A method (function belonging to a type)
         struct Method {

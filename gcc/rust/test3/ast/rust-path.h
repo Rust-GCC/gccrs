@@ -14,6 +14,9 @@ namespace Rust {
         typedef int Lifetime;
         typedef int Type;
         typedef int Binding;*/
+        
+        // forward decls:
+        class TypePath;
 
         // TODO: move applicable stuff into here
         // A segment of a path (maybe)
@@ -84,12 +87,6 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
-        // Represents a qualified path in a type; used for disambiguating trait function calls
-        class QualifiedPathInType : public TypeNoBounds {
-            QualifiedPathType path_type;
-            ::std::vector<TypePathSegment> segments;
-        };
-
         // Abstract base class for segments used in type paths
         class TypePathSegment {
             PathIdentSegment ident_segment;
@@ -99,6 +96,12 @@ namespace Rust {
         // Segment used in type path with generic args
         class TypePathSegmentGeneric : public TypePathSegment {
             GenericArgs generic_args;
+        };
+
+        // Represents a qualified path in a type; used for disambiguating trait function calls
+        class QualifiedPathInType : public TypeNoBounds {
+            QualifiedPathType path_type;
+            ::std::vector<TypePathSegment> segments;
         };
 
         // TODO: inline
