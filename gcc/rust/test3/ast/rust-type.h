@@ -1,79 +1,164 @@
 #ifndef RUST_AST_TYPE_H
 #define RUST_AST_TYPE_H
 
+#include "rust-ast.h"
+#include "rust-path.h"
+
 namespace Rust {
     namespace AST {
-        // Abstract base class representing a type param bound - Lifetime and TraitBound extends it
-        class TypeParamBound {};
-
-        // Represents a lifetime (and is also a kind of type param bound)
-        class Lifetime : public TypeParamBound {
-            enum LifetimeType {
-                NAMED,   // corresponds to LIFETIME_OR_LABEL
-                STATIC,  // corresponds to 'static
-                WILDCARD // corresponds to '_
-            } lifetime_type;
-
-            // TODO: LIFETIME_OR_LABEL (aka lifetime token) is only field
-            // find way of enclosing token or something
-            ::std::string lifetime_name;
-            // only applies for NAMED lifetime_type
-        };
+        // definitions moved to rust-ast.h
+        class TypeParamBound;
+        class Lifetime;
 
         // A trait bound
         class TraitBound : public TypeParamBound {
             bool in_parens;
             bool opening_question_mark;
 
-            bool has_for_lifetimes;
-            ForLifetimes for_lifetimes;
+            // bool has_for_lifetimes;
+            // LifetimeParams for_lifetimes;
+            ::std::vector<LifetimeParam> for_lifetimes; // inlined LifetimeParams
 
             TypePath type_path;
+
+          public:
+            // Returns whether trait bound has "for" lifetimes
+            inline bool has_for_lifetimes() const {
+                return !for_lifetimes.empty();
+            }
+
+            TraitBound(TypePath type_path, bool in_parens, bool opening_question_mark,
+              ::std::vector<LifetimeParam> for_lifetimes) :
+              type_path(type_path),
+              in_parens(in_parens), opening_question_mark(opening_question_mark),
+              for_lifetimes(for_lifetimes) {}
         };
 
         // TODO: inline
-        struct LifetimeBounds {
+        /*struct LifetimeBounds {
             ::std::vector<Lifetime> bounds;
-        };
+        };*/
 
         // TODO: inline
-        struct TypeParamBounds {
+        /*struct TypeParamBounds {
             //::std::vector<TypeParamBound> bounds;
             ::std::vector< ::gnu::unique_ptr<TypeParamBound> > bounds;
-        };
+        };*/
 
-        // Base class for types as represented in AST - abstract
-        class Type {};
-
-        // A type without parentheses?
-        class TypeNoBounds : public Type {};
+        // definition moved to rust-ast.h
+        class TypeNoBounds;
 
         // An impl trait? Poor reference material here.
         class ImplTraitType : public Type {
-            TypeParamBounds type_param_bounds;
+            // TypeParamBounds type_param_bounds;
+            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ImplTraitType* clone_type_impl() const OVERRIDE {
+                return new ImplTraitType(*this);
+            }
+
+          public:
+            ImplTraitType(::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds) :
+              type_param_bounds(type_param_bounds) {}
         };
 
         // An opaque value of another type that implements a set of traits
         class TraitObjectType : public Type {
             bool has_dyn;
-            TypeParamBounds type_param_bounds;
+            // TypeParamBounds type_param_bounds;
+            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual TraitObjectType* clone_type_impl() const OVERRIDE {
+                return new TraitObjectType(*this);
+            }
+
+          public:
+            TraitObjectType(::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds,
+              bool is_dyn_dispatch) :
+              type_param_bounds(type_param_bounds),
+              has_dyn(is_dyn_dispatch) {}
         };
 
         // A type with parentheses around it, used to avoid ambiguity.
         class ParenthesisedType : public TypeNoBounds {
             // Type type_in_parens;
             ::gnu::unique_ptr<Type> type_in_parens;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ParenthesisedType* clone_type_impl() const OVERRIDE {
+                return new ParenthesisedType(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ParenthesisedType* clone_type_no_bounds_impl() const OVERRIDE {
+                return new ParenthesisedType(*this);
+            }
+
+          public:
+            // Constructor uses Type pointer for polymorphism
+            ParenthesisedType(Type* type_inside_parens) : type_in_parens(type_inside_parens) {}
+
+            // Copy constructor uses custom deep copy method for type to preserve polymorphism
+            ParenthesisedType(ParenthesisedType const& other) :
+              type_in_parens(other.type_in_parens->clone_type()) {}
+
+            // Default destructor
+            ~ParenthesisedType() = default;
+
+            // overload assignment operator to use custom clone method
+            ParenthesisedType& operator=(ParenthesisedType const& other) {
+                type_in_parens = other.type_in_parens->clone_type();
+                return *this;
+            }
+
+            // default move semantics but no move in c++03
+            /*ParenthesisedType(ParenthesisedType&& other) = default;
+            ParenthesisedType& operator=(ParenthesisedType&& other) = default;*/
         };
 
         // Impl trait with a single bound? Poor reference material here.
         class ImplTraitTypeOneBound : public TypeNoBounds {
             TraitBound trait_bound;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ImplTraitTypeOneBound* clone_type_impl() const OVERRIDE {
+                return new ImplTraitTypeOneBound(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ImplTraitTypeOneBound* clone_type_no_bounds_impl() const OVERRIDE {
+                return new ImplTraitTypeOneBound(*this);
+            }
+
+          public:
+            ImplTraitTypeOneBound(TraitBound trait_bound) : trait_bound(trait_bound) {}
         };
 
         // A trait object with a single trait bound
         class TraitObjectTypeOneBound : public TypeNoBounds {
             bool has_dyn;
             TraitBound trait_bound;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual TraitObjectTypeOneBound* clone_type_impl() const OVERRIDE {
+                return new TraitObjectTypeOneBound(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual TraitObjectTypeOneBound* clone_type_no_bounds_impl() const OVERRIDE {
+                return new TraitObjectTypeOneBound(*this);
+            }
+
+          public:
+            TraitObjectTypeOneBound(TraitBound trait_bound, bool is_dyn_dispatch) :
+              trait_bound(trait_bound), has_dyn(is_dyn_dispatch) {}
         };
 
         // TODO: this the same TypePath as in rust-path.h.
@@ -89,11 +174,38 @@ namespace Rust {
             inline bool is_unit_type() const {
                 return elems.empty();
             }
+
+            TupleType(::std::vector< ::gnu::unique_ptr<Type> > elems) : elems(elems) {}
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual TupleType* clone_type_impl() const OVERRIDE {
+                return new TupleType(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual TupleType* clone_type_no_bounds_impl() const OVERRIDE {
+                return new TupleType(*this);
+            }
         };
 
         /* A type with no values, representing the result of computations that never complete.
          * Expressions of NeverType can be coerced into any other types. Represented as "!". */
-        class NeverType : public TypeNoBounds {};
+        class NeverType : public TypeNoBounds {
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual NeverType* clone_type_impl() const OVERRIDE {
+                return new NeverType(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual NeverType* clone_type_no_bounds_impl() const OVERRIDE {
+                return new NeverType(*this);
+            }
+
+          public:
+            NeverType() {}
+        };
 
         // A type consisting of a pointer without safety or liveness guarantees
         class RawPointerType : public TypeNoBounds {
@@ -107,16 +219,49 @@ namespace Rust {
             inline PointerType get_pointer_type() const {
                 return pointer_type;
             }
+
+            // Constructor requires pointer for polymorphism reasons
+            RawPointerType(PointerType pointer_type_, TypeNoBounds* type_no_bounds) :
+              pointer_type(pointer_type_), type(type_no_bounds) {}
+
+            // Copy constructor calls custom polymorphic clone function
+            RawPointerType(RawPointerType const& other) :
+              pointer_type(other.pointer_type), type(other.type->clone_type_no_bounds()) {}
+
+            // default destructor
+            ~RawPointerType() = default;
+
+            // overload assignment operator to use custom clone method
+            RawPointerType& operator=(RawPointerType const& other) {
+                pointer_type = other.pointer_type;
+                type = other.type->clone_type_no_bounds();
+                return *this;
+            }
+
+            // default move semantics but no move in c++03
+            /*RawPointerType(RawPointerType&& other) = default;
+            RawPointerType& operator=(RawPointerType&& other) = default;*/
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual RawPointerType* clone_type_impl() const OVERRIDE {
+                return new RawPointerType(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual RawPointerType* clone_type_no_bounds_impl() const OVERRIDE {
+                return new RawPointerType(*this);
+            }
         };
 
         // A type pointing to memory owned by another value
         class ReferenceType : public TypeNoBounds {
-            bool has_lifetime;
+            bool has_lifetime; // TODO: handle in lifetime or something?
             Lifetime lifetime;
 
             bool has_mut;
 
-            //TypeNoBounds type;
+            // TypeNoBounds type;
             ::gnu::unique_ptr<TypeNoBounds> type;
 
           public:
@@ -124,54 +269,199 @@ namespace Rust {
             inline bool is_mut() const {
                 return has_mut;
             }
+
+            // Constructor for a ReferenceType with a lifetime.
+            ReferenceType(Lifetime lifetime_, bool is_mut, TypeNoBounds* type_no_bounds) :
+              lifetime(lifetime_), has_lifetime(true), has_mut(is_mut), type(type_no_bounds) {}
+
+            // Constructor for a ReferenceType without a lifetime.
+            ReferenceType(bool is_mut, TypeNoBounds* type_no_bounds) :
+              has_lifetime(false), lifetime(Lifetime::error()), has_mut(is_mut),
+              type(type_no_bounds) {}
+
+            // Copy constructor with custom clone method
+            ReferenceType(ReferenceType const& other) :
+              has_lifetime(other.has_lifetime), lifetime(other.lifetime), has_mut(other.has_mut),
+              type(other.type->clone_type_no_bounds()) {}
+
+            // Default destructor
+            ~ReferenceType() = default;
+
+            // Operator overload assignment operator to custom clone the unique pointer
+            ReferenceType& operator=(ReferenceType const& other) {
+                has_lifetime = other.has_lifetime;
+                lifetime = other.lifetime;
+                has_mut = other.has_mut;
+                type = other.type->clone_type_no_bounds();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*ReferenceType(ReferenceType&& other) = default;
+            ReferenceType& operator=(ReferenceType&& other) = default;*/
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ReferenceType* clone_type_impl() const OVERRIDE {
+                return new ReferenceType(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ReferenceType* clone_type_no_bounds_impl() const OVERRIDE {
+                return new ReferenceType(*this);
+            }
         };
 
         // A fixed-size sequence of elements of a specified type
         class ArrayType : public TypeNoBounds {
-            //Type elem_type;
+            // Type elem_type;
             ::gnu::unique_ptr<Type> elem_type;
-            //Expr* size;
+            // Expr* size;
             ::gnu::unique_ptr<Expr> size;
 
           public:
+            // Constructor requires pointers for polymorphism
+            ArrayType(Type* type, Expr* array_size) : elem_type(type), size(array_size) {}
+
+            // Copy constructor requires deep copies of both unique pointers
+            ArrayType(ArrayType const& other) :
+              elem_type(other.elem_type->clone_type()), size(other.size->clone_expr()) {}
+
+            // default destructor
+            ~ArrayType() = default;
+
+            // Overload assignment operator to deep copy pointers
+            ArrayType& operator=(ArrayType const& other) {
+                elem_type = other.elem_type->clone_type();
+                size = other.size->clone_expr();
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*ArrayType(ArrayType&& other) = default;
+            ArrayType& operator=(ArrayType&& other) = default;*/
+
             /*~ArrayType() {
                 delete size;
             }*/
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ArrayType* clone_type_impl() const OVERRIDE {
+                return new ArrayType(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ArrayType* clone_type_no_bounds_impl() const OVERRIDE {
+                return new ArrayType(*this);
+            }
         };
 
         // A dynamically-sized type representing a "view" into a sequence of elements of a type
         class SliceType : public TypeNoBounds {
-            //Type elem_type;
+            // Type elem_type;
             ::gnu::unique_ptr<Type> elem_type;
+
+          public:
+            // Constructor requires pointer for polymorphism
+            SliceType(Type* type) : elem_type(type) {}
+
+            // Copy constructor requires deep copy of Type smart pointer
+            SliceType(SliceType const& other) : elem_type(other.elem_type->clone_type()) {}
+
+            // default destructor
+            ~SliceType() = default;
+
+            // Overload assignment operator to deep copy
+            SliceType& operator=(SliceType const& other) {
+                elem_type = other.elem_type->clone_type();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*SliceType(SliceType&& other) = default;
+            SliceType& operator=(SliceType&& other) = default;*/
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual SliceType* clone_type_impl() const OVERRIDE {
+                return new SliceType(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual SliceType* clone_type_no_bounds_impl() const OVERRIDE {
+                return new SliceType(*this);
+            }
         };
 
         // Type used in generic arguments to explicitly request type inference (wildcard pattern)
         class InferredType : public TypeNoBounds {
             // e.g. Vec<_> = whatever
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual InferredType* clone_type_impl() const OVERRIDE {
+                return new InferredType(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual InferredType* clone_type_no_bounds_impl() const OVERRIDE {
+                return new InferredType(*this);
+            }
+
+          public:
+            InferredType() {}
         };
 
         // TODO: this is the same QualifiedPathInType as in "rust-path.h"
         class QualifiedPathInType; // definition moved to "rust-path.h"
 
-        // TODO: inline as TypeNoBounds
-        struct BareFunctionReturnType {
+        // TODO: inline
+        /*struct BareFunctionReturnType {
+          private:
             //TypeNoBounds type;
             ::gnu::unique_ptr<TypeNoBounds> type;
-        };
+          public:
+
+        };*/
 
         // A possibly named param used in a BaseFunctionType
         struct MaybeNamedParam {
-            //Type param_type;
+            // Type param_type;
             ::gnu::unique_ptr<Type> param_type;
 
             enum ParamKind { UNNAMED, IDENTIFIER, WILDCARD } param_kind;
             Identifier name; // technically, can be an identifier or '_'
+
+          public:
+            MaybeNamedParam(Identifier name, ParamKind param_kind, Type* param_type) :
+              name(name), param_kind(param_kind), param_type(param_type) {}
+
+            // Copy constructor with clone
+            MaybeNamedParam(MaybeNamedParam const& other) :
+              name(other.name), param_kind(other.param_kind),
+              param_type(other.param_type->clone_type()) {}
+
+            ~MaybeNamedParam() = default;
+
+            // Overloaded assignment operator with clone
+            MaybeNamedParam& operator=(MaybeNamedParam const& other) {
+                name = other.name;
+                param_kind = other.param_kind;
+                param_type = other.param_type->clone_type();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*MaybeNamedParam(MaybeNamedParam&& other) = default;
+            MaybeNamedParam& operator=(MaybeNamedParam&& other) = default;*/
         };
 
         /* A function pointer type - can be created via coercion from function items and non-
          * capturing closures. */
         class BareFunctionType : public TypeNoBounds {
-            bool has_for_lifetimes;
+            // bool has_for_lifetimes;
             // ForLifetimes for_lifetimes;
             ::std::vector<LifetimeParam> for_lifetimes; // inlined version
 
@@ -179,8 +469,61 @@ namespace Rust {
             ::std::vector<MaybeNamedParam> params;
             bool is_variadic;
 
-            bool has_return_type;
-            BareFunctionReturnType return_type;
+            // bool has_return_type;
+            // BareFunctionReturnType return_type;
+            ::gnu::unique_ptr<TypeNoBounds> return_type; // inlined version
+          public:
+            // Whether a return type is defined with the function.
+            inline bool has_return_type() const {
+                return return_type != NULL;
+            }
+
+            // Whether the function has ForLifetimes.
+            inline bool has_for_lifetimes() const {
+                return !for_lifetimes.empty();
+            }
+
+            BareFunctionType(::std::vector<LifetimeParam> lifetime_params,
+              FunctionQualifiers qualifiers, ::std::vector<MaybeNamedParam> named_params,
+              bool is_variadic_, TypeNoBounds* type) :
+              for_lifetimes(lifetime_params),
+              function_qualifiers(qualifiers), params(named_params), is_variadic(is_variadic_),
+              return_type(type) {}
+
+            // Copy constructor with clone
+            BareFunctionType(BareFunctionType const& other) :
+              for_lifetimes(other.for_lifetimes), function_qualifiers(other.function_qualifiers),
+              params(other.params), is_variadic(other.is_variadic),
+              return_type(other.return_type->clone_type_no_bounds()) {}
+
+            // default destructor
+            ~BareFunctionType() = default;
+
+            // Overload assignment operator to deep copy
+            BareFunctionType& operator=(BareFunctionType const& other) {
+                for_lifetimes = other.for_lifetimes;
+                function_qualifiers = other.function_qualifiers;
+                params = other.params;
+                is_variadic = other.is_variadic;
+                return_type = other.return_type->clone_type_no_bounds();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*BareFunctionType(BareFunctionType&& other) = default;
+            BareFunctionType& operator=(BareFunctionType&& other) = default;*/
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual BareFunctionType* clone_type_impl() const OVERRIDE {
+                return new BareFunctionType(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual BareFunctionType* clone_type_no_bounds_impl() const OVERRIDE {
+                return new BareFunctionType(*this);
+            }
         };
 
         // Forward decl - defined in rust-macro.h

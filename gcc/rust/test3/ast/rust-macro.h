@@ -1,31 +1,13 @@
 #ifndef RUST_AST_MACRO_H
 #define RUST_AST_MACRO_H
 
+#include "rust-ast.h"
+
 namespace Rust {
     namespace AST {
-        // A macro item AST node - potentially abstract base class
-        class MacroItem : public Item {
-            /*public:
-            ::std::string as_string() const;*/
-        };
-
-        // A macro invocation item (or statement) AST node
-        class MacroInvocationSemi : public MacroItem, public Statement {
-            SimplePath path;
-            enum DelimType {
-                PARENS,
-                SQUARE,
-                CURLY // all delim types except curly must have invocation end with a semicolon
-            } delim_type;
-            //::std::vector<TokenTree> token_trees;
-            ::std::vector< ::gnu::unique_ptr<TokenTree> > token_trees;
-
-          public:
-            ::std::string as_string() const;
-        };
-
-        // Abstract base class for a macro match
-        class MacroMatch {};
+        // Decls as definitions moved to rust-ast.h
+        class MacroItem;
+        class MacroInvocationSemi;
 
         enum MacroFragSpec {
             BLOCK,
@@ -47,6 +29,10 @@ namespace Rust {
         class MacroMatchFragSpec : public MacroMatch {
             Identifier ident;
             MacroFragSpec frag_spec;
+
+          public:
+            MacroMatchFragSpec(Identifier ident, MacroFragSpec frag_spec) :
+              ident(ident), frag_spec(frag_spec) {}
         };
 
         // A repetition macro match
@@ -55,9 +41,40 @@ namespace Rust {
             ::std::vector< ::gnu::unique_ptr<MacroMatch> > matches;
             enum MacroRepOp { NONE, ASTERISK, PLUS, QUESTION_MARK } op;
 
-            bool has_sep;
+            // bool has_sep;
             typedef Token MacroRepSep;
-            MacroRepSep sep; // any token except delimiters and repetition operators
+            // any token except delimiters and repetition operators
+            ::gnu::unique_ptr<MacroRepSep> sep;
+
+          public:
+            // Returns whether macro match repetition has separator token.
+            inline bool has_sep() const {
+                return sep != NULL;
+            }
+
+            MacroMatchRep(::std::vector< ::gnu::unique_ptr<MacroMatch> > matches, MacroRepOp op,
+              MacroRepSep* sep) :
+              matches(matches),
+              op(op), sep(sep) {}
+
+            // Copy constructor with clone
+            MacroMatchRep(MacroMatchRep const& other) :
+              matches(other.matches), op(other.op), sep(other.sep->clone_token()) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            MacroMatchRep& operator=(MacroMatchRep const& other) {
+                matches = other.matches;
+                op = other.op;
+                sep = other.sep->clone_token();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*MacroMatchRep(MacroMatchRep&& other) = default;
+            MacroMatchRep& operator=(MacroMatchRep&& other) = default;*/
         };
 
         // TODO: inline
@@ -65,50 +82,110 @@ namespace Rust {
             enum DelimType { PARENS, SQUARE, CURLY } delim_type;
             //::std::vector<MacroMatch> matches;
             ::std::vector< ::gnu::unique_ptr<MacroMatch> > matches;
+
+          public:
+            MacroMatcher(
+              DelimType delim_type, ::std::vector< ::gnu::unique_ptr<MacroMatch> > matches) :
+              delim_type(delim_type),
+              matches(matches) {}
         };
 
         // TODO: inline?
         struct MacroTranscriber {
             DelimTokenTree token_tree;
+
+          public:
+            MacroTranscriber(DelimTokenTree token_tree) : token_tree(token_tree) {}
         };
 
         // A macro rule? Matcher and transcriber pair?
         struct MacroRule {
             MacroMatcher matcher;
             MacroTranscriber transcriber;
+
+          public:
+            MacroRule(MacroMatcher matcher, MacroTranscriber transcriber) :
+              matcher(matcher), transcriber(transcriber) {}
         };
 
         // TODO: inline
-        struct MacroRules {
+        /*struct MacroRules {
             ::std::vector<MacroRule> rules;
-        };
+        };*/
 
         // TODO: inline?
-        struct MacroRulesDef {
+        /*struct MacroRulesDef {
             enum DelimType {
                 PARENS,
                 SQUARE,
                 CURLY // only one without required semicolon at end
             } delim_type;
-            MacroRules rules;
-        };
+            //MacroRules rules;
+            ::std::vector<MacroRule> rules; // inlined form
+        };*/
 
         // A macro rules definition item AST node
         class MacroRulesDefinition : public MacroItem {
             Identifier rule_name;
-            MacroRulesDef rules_def; // TODO: inline
+            // MacroRulesDef rules_def; // TODO: inline
+            enum DelimType {
+                PARENS,
+                SQUARE,
+                CURLY // only one without required semicolon at end
+            } delim_type;
+            // MacroRules rules;
+            ::std::vector<MacroRule> rules; // inlined form
 
           public:
             ::std::string as_string() const;
+
+            MacroRulesDefinition(Identifier rule_name, DelimType delim_type,
+              ::std::vector<MacroRule> rules, ::std::vector<Attribute> outer_attrs) :
+              rule_name(rule_name),
+              delim_type(delim_type), rules(rules), MacroItem(outer_attrs) {}
         };
 
         // AST node of a macro invocation, which is replaced by the macro result at compile time
-        class MacroInvocation : public TypeNoBounds, public Pattern, public ExprWithoutBlock {
+        class MacroInvocation
+          : public TypeNoBounds
+          , public Pattern
+          , public ExprWithoutBlock {
             SimplePath path;
             DelimTokenTree token_tree;
 
           public:
             ::std::string as_string() const;
+
+            MacroInvocation(
+              SimplePath path, DelimTokenTree token_tree, ::std::vector<Attribute> outer_attrs) :
+              path(path),
+              token_tree(token_tree), ExprWithoutBlock(outer_attrs) {}
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroInvocation* clone_pattern_impl() const OVERRIDE {
+                return new MacroInvocation(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroInvocation* clone_expr_impl() const OVERRIDE {
+                return new MacroInvocation(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroInvocation* clone_expr_without_block_impl() const OVERRIDE {
+                return new MacroInvocation(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroInvocation* clone_type_impl() const OVERRIDE {
+                return new MacroInvocation(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroInvocation* clone_type_no_bounds_impl() const OVERRIDE {
+                return new MacroInvocation(*this);
+            }
         };
     }
 }

@@ -2,208 +2,576 @@
 #define RUST_AST_ITEM_H
 
 #include "rust-ast.h"
+#include "rust-path.h"
 
 namespace Rust {
     namespace AST {
         // forward decls
-        struct Lifetime;
-        struct LifetimeBounds;
-        struct TypeParamBounds;
+        // struct Lifetime;
+        // struct LifetimeBounds;
+        // struct TypeParamBounds;
         class BlockExpr;
-        class Expr;
-        class Type;
+        // class Expr;
+        // class Type;
         class TypePath;
-        class Pattern;
+        // class Pattern;
         class MacroInvocationSemi;
 
         // TODO: remove
-        //typedef int Type;
+        // typedef int Type;
         // typedef ::std::vector<int> Generics;
         // typedef ::std::string WhereClause;
-        //typedef ::std::vector<int> TypeParamBounds;
-        //typedef ::std::string Lifetime;
-        //typedef ::std::string LifetimeBounds;
-        //typedef ::std::string LifetimeParams;
-        //typedef Type FunctionReturnType;
-        //typedef Identifier AbiName;
-        //typedef Type TypePath;
+        // typedef ::std::vector<int> TypeParamBounds;
+        // typedef ::std::string Lifetime;
+        // typedef ::std::string LifetimeBounds;
+        // typedef ::std::string LifetimeParams;
+        // typedef Type FunctionReturnType;
+        // typedef Identifier AbiName;
+        // typedef Type TypePath;
 
         // TODO: inline
-        struct FunctionReturnType {
+        /*struct FunctionReturnType {
             // Type return_type;
             ::gnu::unique_ptr<Type> return_type;
-        };
+        };*/
 
         // TODO: inline
         struct AbiName {
             ::std::string abi_name;
             // Technically is meant to be STRING_LITERAL or RAW_STRING_LITERAL
-        };
 
-        // Base generic parameter in AST. Abstract - can be represented by a Lifetime or Type param
-        class GenericParam {};
+          public:
+            // Returns whether abi name is empty, i.e. doesn't exist.
+            inline bool is_empty() const {
+                return abi_name.empty();
+            }
 
-        // A lifetime generic parameter (as opposed to a type generic parameter)
-        class LifetimeParam : public GenericParam {
-            bool has_outer_attribute;
-            Attribute outer_attr;
+            AbiName(::std::string name) : abi_name(name) {}
 
-            Lifetime lifetime;
-
-            bool has_lifetime_bounds;
-            LifetimeBounds lifetime_bounds;
+            // Empty AbiName constructor
+            AbiName() {}
         };
 
         // TODO: remove and inline
-        typedef ::std::vector<LifetimeParam> LifetimeParams;
-        typedef LifetimeParams ForLifetimes;
+        /*typedef ::std::vector<LifetimeParam> LifetimeParams;
+        typedef LifetimeParams ForLifetimes;*/
 
         // A type generic parameter (as opposed to a lifetime generic parameter)
         class TypeParam : public GenericParam {
-            bool has_outer_attribute;
-            Attribute outer_attr;
+            // bool has_outer_attribute;
+            ::gnu::unique_ptr<Attribute> outer_attr;
 
             Identifier type_representation;
 
-            bool has_type_param_bounds;
-            TypeParamBounds type_param_bounds;
+            // bool has_type_param_bounds;
+            // TypeParamBounds type_param_bounds;
+            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
 
-            bool has_type;
-            //Type type;
+            // bool has_type;
+            // Type type;
             ::gnu::unique_ptr<Type> type;
+
+          public:
+            // Returns whether the type of the type param has been specified.
+            inline bool has_type() const {
+                return type != NULL;
+            }
+
+            // Returns whether the type param has type param bounds.
+            inline bool has_type_param_bounds() const {
+                return !type_param_bounds.empty();
+            }
+
+            // Returns whether the type param has an outer attribute.
+            inline bool has_outer_attribute() const {
+                return outer_attr != NULL;
+            }
+
+            TypeParam(Identifier type_representation,
+              ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds, Type* type,
+              Attribute* outer_attr) :
+              type_representation(type_representation),
+              type_param_bounds(type_param_bounds), type(type), outer_attr(outer_attr) {}
+
+            // TODO: more constructors with fewer parameters?
+
+            // Copy constructor uses clone
+            TypeParam(TypeParam const& other) :
+              type_representation(other.type_representation),
+              type_param_bounds(other.type_param_bounds), type(other.type->clone_type()),
+              outer_attr(other.outer_attr->clone_attribute()) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            TypeParam& operator=(TypeParam const& other) {
+                type_representation = other.type_representation;
+                type_param_bounds = other.type_param_bounds;
+                type = other.type->clone_type();
+                outer_attr = other.outer_attr->clone_attribute();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TypeParam(TypeParam&& other) = default;
+            TypeParam& operator=(TypeParam&& other) = default;*/
         };
 
-        struct Generics {
+        /*struct Generics {
             // inline: change all occurences of "Generics" to this single param
             //::std::vector<GenericParam> generic_params;
             ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params;
-        };
+        };*/
 
         // "where" clause item base. Abstract - use LifetimeWhereClauseItem, TypeBoundWhereClauseItem
-        class WhereClauseItem {};
+        class WhereClauseItem {
+          public:
+            virtual ~WhereClauseItem() {}
+        };
 
         // A lifetime where clause item
         class LifetimeWhereClauseItem : public WhereClauseItem {
             Lifetime lifetime;
 
-            LifetimeBounds lifetime_bounds;
+            // LifetimeBounds lifetime_bounds;
+            ::std::vector<Lifetime> lifetime_bounds; // inlined lifetime bounds
+
+          public:
+            LifetimeWhereClauseItem(Lifetime lifetime, ::std::vector<Lifetime> lifetime_bounds) :
+              lifetime(lifetime), lifetime_bounds(lifetime_bounds) {}
         };
 
         // A type bound where clause item
         class TypeBoundWhereClauseItem : public WhereClauseItem {
-            bool has_for_lifetimes;
-            //LifetimeParams for_lifetimes;
+            // bool has_for_lifetimes;
+            // LifetimeParams for_lifetimes;
             ::std::vector<LifetimeParam> for_lifetimes; // inlined
 
-            //Type bound_type;
+            // Type bound_type;
             ::gnu::unique_ptr<Type> bound_type;
 
-            bool has_type_param_bounds;
-            TypeParamBounds type_param_bounds;
+            // bool has_type_param_bounds;
+            // TypeParamBounds type_param_bounds;
+            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
+
+          public:
+            // Returns whether the item has ForLifetimes
+            inline bool has_for_lifetimes() const {
+                return !for_lifetimes.empty();
+            }
+
+            // Returns whether the item has type param bounds
+            inline bool has_type_param_bounds() const {
+                return !type_param_bounds.empty();
+            }
+
+            TypeBoundWhereClauseItem(::std::vector<LifetimeParam> for_lifetimes, Type* bound_type,
+              ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds) :
+              for_lifetimes(for_lifetimes),
+              bound_type(bound_type), type_param_bounds(type_param_bounds) {}
+
+            // Copy constructor requires clone
+            TypeBoundWhereClauseItem(TypeBoundWhereClauseItem const& other) :
+              for_lifetimes(other.for_lifetimes), bound_type(other.bound_type->clone_type()),
+              type_param_bounds(other.type_param_bounds) {}
+
+            // Destructor - define here if required
+
+            // Overload assignment operator to clone
+            TypeBoundWhereClauseItem& operator=(TypeBoundWhereClauseItem const& other) {
+                for_lifetimes = other.for_lifetimes;
+                bound_type = other.bound_type->clone_type();
+                type_param_bounds = other.type_param_bounds;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TypeBoundWhereClauseItem(TypeBoundWhereClauseItem&& other) = default;
+            TypeBoundWhereClauseItem& operator=(TypeBoundWhereClauseItem&& other) = default;*/
         };
 
         // A where clause
         struct WhereClause {
             //::std::vector<WhereClauseItem> where_clause_items;
             ::std::vector< ::gnu::unique_ptr<WhereClauseItem> > where_clause_items;
+
+          public:
+            WhereClause(::std::vector< ::gnu::unique_ptr<WhereClauseItem> > where_clause_items) :
+              where_clause_items(where_clause_items) {}
+
+            // Creates a WhereClause with no items.
+            static WhereClause create_empty() {
+                ::std::vector< ::gnu::unique_ptr<WhereClauseItem> > empty_where_clause_items;
+
+                return WhereClause(empty_where_clause_items);
+            }
+
+            // Returns whether the WhereClause has no items.
+            inline bool is_empty() const {
+                return where_clause_items.empty();
+            }
         };
 
-        // A self parameter in a method 
+        // A self parameter in a method
         struct SelfParam {
+          private:
             bool has_ref;
-            bool has_lifetime; // only possible if also ref
+            // bool has_lifetime; // only possible if also ref
             Lifetime lifetime;
 
             bool is_mut;
 
-            bool has_type; // only possible if not ref
-            //Type type;
+            // bool has_type; // only possible if not ref
+            // Type type;
             ::gnu::unique_ptr<Type> type;
+
+          public:
+            // Returns whether the self-param has a type field.
+            inline bool has_type() const {
+                return type != NULL;
+            }
+
+            // Returns whether the self-param has a valid lifetime.
+            inline bool has_lifetime() const {
+                return !lifetime.is_error();
+            }
+
+            // Returns whether the self-param is in an error state.
+            inline bool is_error_state() const {
+                return (has_type() && has_lifetime()) || (!has_type() && !has_lifetime());
+            }
+
+            // Type-based self parameter (not ref, no lifetime)
+            SelfParam(Type* type, bool is_mut) :
+              type(type), is_mut(is_mut), has_ref(false), lifetime(Lifetime::error()) {}
+
+            // Lifetime-based self parameter (is ref, no type)
+            SelfParam(Lifetime lifetime, bool is_mut) :
+              /*type(NULL), */is_mut(is_mut), has_ref(true), lifetime(lifetime) {}
+
+            // Copy constructor requires clone
+            SelfParam(SelfParam const& other) :
+              type(other.type->clone_type()), is_mut(other.is_mut), has_ref(other.has_ref),
+              lifetime(other.lifetime) {}
+
+            // Destructor - define here if required
+
+            // Overload assignment operator to use clone
+            SelfParam& operator=(SelfParam const& other) {
+                type = other.type->clone_type();
+                is_mut = other.is_mut;
+                has_ref = other.has_ref;
+                lifetime = other.lifetime;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*SelfParam(SelfParam&& other) = default;
+            SelfParam& operator=(SelfParam&& other) = default;*/
         };
 
-        // Forward decl FunctionQualifiers
-        struct FunctionQualifiers;
+        // Qualifiers for function, i.e. const, unsafe, extern etc.
+        struct FunctionQualifiers {
+          private:
+            bool has_const;
+            bool has_unsafe;
+            bool has_extern;
+            ::std::string extern_abi; // e.g. extern "C" fn() -> i32 {}
+            // TODO: maybe ensure that extern_abi only exists if extern exists?
+
+          public:
+            // Constructor with no extern (and hence no extern abi)
+            FunctionQualifiers(bool has_const, bool has_unsafe) :
+              has_const(has_const), has_unsafe(has_unsafe), has_extern(false),
+              extern_abi(::std::string("")) {}
+
+            // Constructor with extern abi (and thus extern)
+            FunctionQualifiers(bool has_const, bool has_unsafe, ::std::string extern_abi) :
+              has_const(has_const), has_unsafe(has_unsafe), has_extern(true), extern_abi(extern_abi) {
+            }
+        };
 
         // Forward decl FunctionParams
-        struct FunctionParams;
+        // struct FunctionParams;
+
+        // A function parameter
+        struct FunctionParam {
+            // Pattern* param_name;
+            ::gnu::unique_ptr<Pattern> param_name;
+            // Type type;
+            ::gnu::unique_ptr<Type> type;
+
+          public:
+            FunctionParam(Pattern* param_name, Type* param_type) :
+              param_name(param_name), type(param_type) {}
+
+            // Copy constructor uses clone
+            FunctionParam(FunctionParam const& other) :
+              param_name(other.param_name->clone_pattern()), type(other.type->clone_type()) {}
+
+            // Destructor - define here if required
+
+            // Overload assignment operator to use clone
+            FunctionParam& operator=(FunctionParam const& other) {
+                param_name = other.param_name->clone_pattern();
+                type = other.type->clone_type();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*FunctionParam(FunctionParam&& other) = default;
+            FunctionParam& operator=(FunctionParam&& other) = default;*/
+        };
 
         // A method (function belonging to a type)
         struct Method {
             FunctionQualifiers qualifiers;
             Identifier method_name;
 
-            bool has_generics;
-            Generics generic_params;
+            // bool has_generics;
+            // Generics generic_params;
+            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
 
             SelfParam self_param;
 
-            bool has_params;
-            FunctionParams function_params;
+            // bool has_params;
+            // FunctionParams function_params;
+            ::std::vector<FunctionParam> function_params; // inlined
 
-            bool has_return_type;
-            FunctionReturnType return_type;
+            // bool has_return_type;
+            // FunctionReturnType return_type;
+            ::gnu::unique_ptr<Type> return_type; // inlined
 
-            bool has_where_clause;
+            // bool has_where_clause;
             WhereClause where_clause;
 
-            //BlockExpr* expr;
+            // BlockExpr* expr;
             ::gnu::unique_ptr<BlockExpr> expr;
 
-            public:
+          public:
             /*~Method() {
                 delete expr;
             }*/
+
+            // Returns whether the method has generic parameters.
+            inline bool has_generics() const {
+                return !generic_params.empty();
+            }
+
+            // Returns whether the method has parameters.
+            inline bool has_params() const {
+                return !function_params.empty();
+            }
+
+            // Returns whether the method has a return type (void otherwise).
+            inline bool has_return_type() const {
+                return return_type != NULL;
+            }
+
+            // Returns whether the where clause exists (i.e. has items)
+            inline bool has_where_clause() const {
+                return !where_clause.is_empty();
+            }
+
+            // Mega-constructor with all possible fields
+            Method(Identifier method_name, FunctionQualifiers qualifiers,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
+              ::std::vector<FunctionParam> function_params, Type* return_type,
+              WhereClause where_clause, BlockExpr* function_body) :
+              method_name(method_name),
+              qualifiers(qualifiers), generic_params(generic_params), self_param(self_param),
+              function_params(function_params), return_type(return_type), where_clause(where_clause),
+              expr(function_body) {}
+
+            // TODO: add constructor with less fields
+
+            // Copy constructor with clone
+            Method(Method const& other) :
+              method_name(other.method_name), qualifiers(other.qualifiers),
+              generic_params(other.generic_params), self_param(other.self_param),
+              function_params(other.function_params), return_type(other.return_type->clone_type()),
+              where_clause(other.where_clause), expr(other.expr->clone_block_expr()) {}
+
+            ~Method() = default;
+
+            // Overloaded assignment operator to clone
+            Method& operator=(Method const& other) {
+                method_name = other.method_name;
+                qualifiers = other.qualifiers;
+                generic_params = other.generic_params;
+                self_param = other.self_param;
+                function_params = other.function_params;
+                return_type = other.return_type->clone_type();
+                where_clause = other.where_clause;
+                expr = other.expr->clone_block_expr();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*Method(Method&& other) = default;
+            Method& operator=(Method&& other) = default;*/
         };
 
-        // Visibility of item - private, public, module-only, etc. ...
+        // Visibility of item - if the item has it, then it is some form of public
         struct Visibility {
-            bool is_pub;
+            // bool is_pub;
 
             // if vis is public, one of these
             enum PublicVisType { NONE, CRATE, SELF, SUPER, IN_PATH } public_vis_type;
 
             // Only assigned if public_vis_type is IN_PATH
             SimplePath in_path;
+
+          public:
+            // Creates a Visibility
+            Visibility(PublicVisType public_vis_type, SimplePath in_path) :
+              public_vis_type(public_vis_type), in_path(in_path) {
+                if (public_vis_type != IN_PATH && !in_path.is_empty()) {
+                    // error - invalid state
+
+                    // just ignore path if vis type is not that
+                }
+            }
+
+            // Unique pointer custom clone function
+            ::gnu::unique_ptr<Visibility> clone_visibility() const {
+                return ::gnu::unique_ptr<Visibility>(clone_visibility_impl());
+            }
+
+            /* TODO: think of a way to only allow valid Visibility states - polymorphism is one
+             * idea but may be too resource-intensive. */
+          protected:
+            // Clone function implementation - not currently virtual but may be if polymorphism used
+            /*virtual*/ Visibility* clone_visibility_impl() const {
+                return new Visibility(*this);
+            }
         };
 
         // Item that supports visibility - abstract base class
         class VisItem : public Item {
-            Visibility visibility;
+          protected:
+            ::gnu::unique_ptr<Visibility> visibility;
+
+            // Visibility constructor (with outer attributes)
+            VisItem(Visibility* visibility, ::std::vector<Attribute> outer_attrs) :
+              visibility(visibility), Item(outer_attrs) {}
+
+            // Visibility constructor (no outer attributes)
+            VisItem(Visibility* visibility) : visibility(visibility), Item() {}
+
+            // Visibility copy constructor
+            VisItem(VisItem const& other) :
+              visibility(other.visibility->clone_visibility()), Item(other) {}
+
+            // Destructor - define here if required
+
+            // Overload assignment operator to clone
+            VisItem& operator=(VisItem const& other) {
+                Item::operator=(other);
+                visibility = other.visibility->clone_visibility();
+                // outer_attrs = other.outer_attrs;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*VisItem(VisItem&& other) = default;
+            VisItem& operator=(VisItem&& other) = default;*/
+
+          public:
+            // Does the item have some kind of public visibility (non-default visibility)?
+            inline bool has_visibility() const {
+                return visibility != NULL;
+            }
         };
 
         // Rust module item - abstract base class
-        class Module : public VisItem {};
+        class Module : public VisItem {
+          protected:
+            // Outer attributes constructor
+            Module(Visibility* visibility, ::std::vector<Attribute> outer_attrs) :
+              VisItem(visibility, outer_attrs) {}
+
+            // No outer attributes constructor
+            Module(Visibility* visibility) : VisItem(visibility) {}
+        };
 
         // Module with a body, defined in file
         class ModuleBodied : public Module {
-            bool has_inner_attrs;
+            // bool has_inner_attrs;
             ::std::vector<Attribute> inner_attrs;
-            bool has_items;
+            // bool has_items;
             //::std::vector<Item> items;
             ::std::vector< ::gnu::unique_ptr<Item> > items;
 
           public:
             ::std::string as_string() const;
+
+            // Returns whether the module has items in its body.
+            inline bool has_items() const {
+                return !items.empty();
+            }
+
+            // Returns whether the module has any inner attributes.
+            inline bool has_inner_attrs() const {
+                return !inner_attrs.empty();
+            }
+
+            // Empty constructor with no fields
+            ModuleBodied() : Module(NULL) {}
+
+            // Full constructor
+            ModuleBodied(::std::vector< ::gnu::unique_ptr<Item> > items, Visibility* visibility,
+              ::std::vector<Attribute> inner_attrs, ::std::vector<Attribute> outer_attrs) :
+              items(items),
+              inner_attrs(inner_attrs), Module(visibility, outer_attrs) {}
         };
 
         // Module without a body, loaded from external file
         class ModuleNoBody : public Module {
           public:
             ::std::string as_string() const;
+
+            // Full constructor
+            ModuleNoBody(Visibility* visibility, ::std::vector<Attribute> outer_attrs) :
+              Module(visibility, outer_attrs) {}
         };
 
         struct CrateRef {
             // either an identifier or "self"
+            ::std::string thing; // TODO: fix
+
+          public:
+            CrateRef(::std::string thing) : thing(thing) {}
         };
 
         struct AsClause {
             // either an identifier or "_"
+            ::std::string thing; // TODO: fix
+
+          public:
+            // Returns whether the as clause is empty.
+            inline bool is_empty() const {
+                return thing == ::std::string("");
+            }
+
+            // Create an empty AsClause
+            static AsClause create_empty() {
+                return AsClause(::std::string(""));
+            }
+
+            AsClause(::std::string thing) : thing(thing) {}
         };
 
         // Rust extern crate declaration AST node
         class ExternCrate : public VisItem {
             CrateRef referenced_crate;
-            bool has_as_clause;
+            // bool has_as_clause;
             AsClause as_clause;
 
             /* e.g.
@@ -212,74 +580,157 @@ namespace Rust {
                 "extern crate std as cool_std"  */
           public:
             ::std::string as_string() const;
+
+            inline bool has_as_clause() const {
+                return !as_clause.is_empty();
+            }
+
+            // Constructor with an as clause
+            ExternCrate(CrateRef referenced_crate, AsClause as_clause, Visibility* visibility,
+              ::std::vector<Attribute> outer_attrs) :
+              referenced_crate(referenced_crate),
+              as_clause(as_clause), VisItem(visibility, outer_attrs) {}
+
+            // Constructor with no as clause
+            ExternCrate(CrateRef referenced_crate, Visibility* visibility,
+              ::std::vector<Attribute> outer_attrs) :
+              referenced_crate(referenced_crate),
+              as_clause(AsClause::create_empty()), VisItem(visibility, outer_attrs) {}
         };
 
         // The path-ish thing referred to in a use declaration - abstract base class
-        class UseTree {};
+        class UseTree {
+          public:
+            virtual ~UseTree() {}
+
+            // Unique pointer custom clone function
+            ::gnu::unique_ptr<UseTree> clone_use_tree() const {
+                return ::gnu::unique_ptr<UseTree>(clone_use_tree_impl());
+            }
+
+          protected:
+            // Clone function implementation as pure virtual method
+            virtual UseTree* clone_use_tree_impl() const = 0;
+        };
 
         // Use tree with a glob (wildcard) operator
         class UseTreeGlob : public UseTree {
-            enum PathType {
-                NO_PATH,
-                GLOBAL,
-                PATH_PREFIXED
-            } glob_type;
+            enum PathType { NO_PATH, GLOBAL, PATH_PREFIXED } glob_type;
             SimplePath path;
+
+          public:
+            UseTreeGlob(PathType glob_type, SimplePath path) : glob_type(glob_type), path(path) {}
+
+            // Returns whether has path.
+            inline bool has_path() const {
+                return !path.is_empty();
+            }
+
+            // TODO: find way to ensure only PATH_PREFIXED glob_type has path - factory methods?
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual UseTreeGlob* clone_use_tree_impl() const OVERRIDE {
+                return new UseTreeGlob(*this);
+            }
         };
 
         // Use tree with a list of paths with a common prefix
         class UseTreeList : public UseTree {
-            enum PathType {
-                NO_PATH,
-                GLOBAL,
-                PATH_PREFIXED
-            } glob_type;
+            enum PathType { NO_PATH, GLOBAL, PATH_PREFIXED } path_type;
             SimplePath path;
 
             ::std::vector< ::gnu::unique_ptr<UseTree> > trees;
+
+          public:
+            UseTreeList(PathType path_type, SimplePath path,
+              ::std::vector< ::gnu::unique_ptr<UseTree> > trees) :
+              path_type(path_type),
+              path(path), trees(trees) {}
+
+            // Returns whether has path.
+            inline bool has_path() const {
+                return !path.is_empty();
+            }
+
+            // Returns whether has inner tree elements.
+            inline bool has_trees() const {
+                return !trees.empty();
+            }
+
+            // TODO: find way to ensure only PATH_PREFIXED path_type has path - factory methods?
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual UseTreeList* clone_use_tree_impl() const OVERRIDE {
+                return new UseTreeList(*this);
+            }
         };
 
         // Use tree where it rebinds the module name as something else
         class UseTreeRebind : public UseTree {
             SimplePath path;
 
-            enum NewBindType {
-                NONE,
-                IDENTIFIER,
-                WILDCARD
-            } bind_type;
+            enum NewBindType { NONE, IDENTIFIER, WILDCARD } bind_type;
             Identifier identifier; // only if NewBindType is IDENTIFIER
+
+          public:
+            UseTreeRebind(NewBindType bind_type, SimplePath path, Identifier identifier) :
+              bind_type(bind_type), path(path), identifier(identifier) {}
+
+            // Returns whether has path.
+            inline bool has_path() const {
+                return !path.is_empty();
+            }
+
+            // Returns whether has identifier (or, rather, is allowed to).
+            inline bool has_identifier() const {
+                return bind_type == IDENTIFIER;
+            }
+
+            // TODO: find way to ensure only PATH_PREFIXED path_type has path - factory methods?
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual UseTreeRebind* clone_use_tree_impl() const OVERRIDE {
+                return new UseTreeRebind(*this);
+            }
         };
 
         // Rust use declaration (i.e. for modules) AST node
         class UseDeclaration : public VisItem {
-            ::gnu::unique_ptr<UseTree> use_tree; 
+            ::gnu::unique_ptr<UseTree> use_tree;
 
           public:
             ::std::string as_string() const;
-        };
 
-        // Qualifiers for function, i.e. const, unsafe, extern etc.
-        struct FunctionQualifiers {
-            bool has_const;
-            bool has_unsafe;
-            bool has_extern;
-            ::std::string extern_abi; // e.g. extern "C" fn() -> i32 {}
-            // TODO: maybe ensure that extern_abi only exists if extern exists?
-        };
+            UseDeclaration(
+              UseTree* use_tree, Visibility* visibility, ::std::vector<Attribute> outer_attrs) :
+              use_tree(use_tree),
+              VisItem(visibility, outer_attrs) {}
 
-        // A function parameter
-        struct FunctionParam {
-            //Pattern* param_name;
-            ::gnu::unique_ptr<Pattern> param_name;
-            //Type type;
-            ::gnu::unique_ptr<Type> type;
+            // Copy constructor with clone
+            UseDeclaration(UseDeclaration const& other) :
+              use_tree(other.use_tree->clone_use_tree()), VisItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            UseDeclaration& operator=(UseDeclaration const& other) {
+                VisItem::operator=(other);
+                use_tree = other.use_tree->clone_use_tree();
+                // visibility = other.visibility->clone_visibility();
+                // outer_attrs = other.outer_attrs;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*UseDeclaration(UseDeclaration&& other) = default;
+            UseDeclaration& operator=(UseDeclaration&& other) = default;*/
         };
 
         // Parameters used in a function - TODO inline?
-        struct FunctionParams {
-            ::std::vector<FunctionParam> params;
-        };
+        /*struct FunctionParams {
+            ::std::vector<FunctionParam> function_params;
+        };*/
 
         // Rust function declaration AST node
         class Function : public VisItem {
@@ -287,20 +738,22 @@ namespace Rust {
 
             Identifier function_name;
 
-            bool has_generics;
-            Generics generic_params;
+            // bool has_generics;
+            // Generics generic_params;
+            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
 
-            bool has_function_params;
-            FunctionParams function_params;
+            // bool has_function_params;
+            // FunctionParams function_params;
+            ::std::vector<FunctionParam> function_params; // inlined
 
-            bool has_function_return_type;
-            //Type return_type;
+            // bool has_function_return_type;
+            // Type return_type;
             ::gnu::unique_ptr<Type> return_type;
 
-            bool has_where_clause;
+            // bool has_where_clause;
             WhereClause where_clause;
 
-            //BlockExpr* function_body;
+            // BlockExpr* function_body;
             ::gnu::unique_ptr<BlockExpr> function_body;
 
           public:
@@ -308,47 +761,220 @@ namespace Rust {
                 delete function_body;
             }*/
             ::std::string as_string() const;
+
+            // Returns whether function has generic parameters.
+            inline bool has_generics() const {
+                return !generic_params.empty();
+            }
+
+            // Returns whether function has regular parameters.
+            inline bool has_function_params() const {
+                return !function_params.empty();
+            }
+
+            // Returns whether function has return type - if not, it is void.
+            inline bool has_function_return_type() const {
+                return return_type != NULL;
+            }
+
+            // Returns whether function has a where clause.
+            inline bool has_where_clause() const {
+                return !where_clause.is_empty();
+            }
+
+            // Mega-constructor with all possible fields
+            Function(Identifier function_name, FunctionQualifiers qualifiers,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              ::std::vector<FunctionParam> function_params, Type* return_type,
+              WhereClause where_clause, BlockExpr* function_body, Visibility* vis,
+              ::std::vector<Attribute> outer_attrs) :
+              function_name(function_name),
+              qualifiers(qualifiers), generic_params(generic_params),
+              function_params(function_params), return_type(return_type), where_clause(where_clause),
+              function_body(function_body), VisItem(vis, outer_attrs) {}
+
+            // TODO: add constructor with less fields
+
+            // Copy constructor with clone
+            Function(Function const& other) :
+              function_name(other.function_name), qualifiers(other.qualifiers),
+              generic_params(other.generic_params), function_params(other.function_params),
+              return_type(other.return_type->clone_type()), where_clause(other.where_clause),
+              function_body(other.function_body->clone_block_expr()), VisItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            Function& operator=(Function const& other) {
+                VisItem::operator=(other);
+                function_name = other.function_name;
+                qualifiers = other.qualifiers;
+                generic_params = other.generic_params;
+                function_params = other.function_params;
+                return_type = other.return_type->clone_type();
+                where_clause = other.where_clause;
+                function_body = other.function_body->clone_block_expr();
+                // visibility = other.visibility->clone_visibility();
+                // outer_attrs = other.outer_attrs;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*Function(Function&& other) = default;
+            Function& operator=(Functionƒ&& other) = default;*/
         };
 
         // Rust type alias (i.e. typedef) AST node
         class TypeAlias : public VisItem {
             Identifier new_type_name;
 
-            bool has_generics;
-            Generics generic_params;
+            // bool has_generics;
+            // Generics generic_params;
+            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
 
-            bool has_where_clause;
+            // bool has_where_clause;
             WhereClause where_clause;
 
-            //Type exiting_type;
+            // Type exiting_type;
             ::gnu::unique_ptr<Type> existing_type;
 
           public:
             ::std::string as_string() const;
+
+            // Returns whether type alias has generic parameters.
+            inline bool has_generics() const {
+                return !generic_params.empty();
+            }
+
+            // Returns whether type alias has a where clause.
+            inline bool has_where_clause() const {
+                return !where_clause.is_empty();
+            }
+
+            // Mega-constructor with all possible fields
+            TypeAlias(Identifier new_type_name,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              WhereClause where_clause, Type* existing_type, Visibility* vis,
+              ::std::vector<Attribute> outer_attrs) :
+              new_type_name(new_type_name),
+              generic_params(generic_params), where_clause(where_clause),
+              existing_type(existing_type), VisItem(vis, outer_attrs) {}
+
+            // Copy constructor
+            TypeAlias(TypeAlias const& other) :
+              new_type_name(other.new_type_name), generic_params(other.generic_params),
+              where_clause(other.where_clause), existing_type(other.existing_type->clone_type()),
+              VisItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            TypeAlias& operator=(TypeAlias const& other) {
+                VisItem::operator=(other);
+                new_type_name = other.new_type_name;
+                generic_params = other.generic_params;
+                where_clause = other.where_clause;
+                existing_type = other.existing_type->clone_type();
+                // visibility = other.visibility->clone_visibility();
+                // outer_attrs = other.outer_attrs;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TypeAlias(TypeAlias&& other) = default;
+            TypeAlias& operator=(TypeAlias&& other) = default;*/
         };
 
         // Rust base struct declaration AST node - abstract base class
         class Struct : public VisItem {
+          protected:
             Identifier struct_name;
 
-            bool has_generics;
-            Generics generic_params;
+            // bool has_generics;
+            // Generics generic_params;
+            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
 
-            bool has_where_clause;
+            // bool has_where_clause;
             WhereClause where_clause;
+
+          public:
+            // Returns whether struct has generic parameters.
+            inline bool has_generics() const {
+                return !generic_params.empty();
+            }
+
+            // Returns whether struct has a where clause.
+            inline bool has_where_clause() const {
+                return !where_clause.is_empty();
+            }
+
+          protected:
+            Struct(Identifier struct_name,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              struct_name(struct_name),
+              generic_params(generic_params), where_clause(where_clause), VisItem(vis, outer_attrs) {}
+
+            Struct(Identifier struct_name,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              WhereClause where_clause, Visibility* vis) :
+              struct_name(struct_name),
+              generic_params(generic_params), where_clause(where_clause), VisItem(vis) {}
         };
 
         // A single field in a struct
         struct StructField {
-            bool has_outer_attributes;
-            ::std::vector<Attribute> outer_attribs;
+            // bool has_outer_attributes;
+            ::std::vector<Attribute> outer_attrs;
 
-            bool has_visibility;
-            Visibility visibility;
+            // bool has_visibility;
+            ::gnu::unique_ptr<Visibility> visibility;
 
             Identifier field_name;
             // Type field_type;
             ::gnu::unique_ptr<Type> field_type;
+
+          public:
+            // Returns whether struct field has any outer attributes.
+            inline bool has_outer_attributes() const {
+                return !outer_attrs.empty();
+            }
+
+            // Returns whether struct field has a non-private (non-default) visibility.
+            inline bool has_visibility() const {
+                return visibility != NULL;
+            }
+
+            StructField(Identifier field_name, Type* field_type, Visibility* vis,
+              ::std::vector<Attribute> outer_attrs) :
+              field_name(field_name),
+              field_type(field_type), visibility(vis), outer_attrs(outer_attrs) {}
+
+            StructField(Identifier field_name, Type* field_type, Visibility* vis) :
+              field_name(field_name), field_type(field_type), visibility(vis) {}
+
+            // Copy constructor
+            StructField(StructField const& other) :
+              field_name(other.field_name), field_type(other.field_type->clone_type()),
+              visibility(other.visibility->clone_visibility()), outer_attrs(other.outer_attrs) {}
+
+            ~StructField() = default;
+
+            // Overloaded assignment operator to clone
+            StructField& operator=(StructField const& other) {
+                field_name = other.field_name;
+                field_type = other.field_type->clone_type();
+                visibility = other.visibility->clone_visibility();
+                outer_attrs = other.outer_attrs;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*StructField(StructField&& other) = default;
+            StructField& operator=(StructField&& other) = default;*/
         };
 
         // Rust struct declaration with true struct type AST node
@@ -357,18 +983,60 @@ namespace Rust {
 
           public:
             ::std::string as_string() const;
+
+            // Mega-constructor with all possible fields
+            StructStruct(::std::vector<StructField> fields, Identifier struct_name,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              fields(fields),
+              Struct(struct_name, generic_params, where_clause, vis, outer_attrs) {}
         };
 
         // A single field in a tuple
         struct TupleField {
-            bool has_outer_attributes;
+            // bool has_outer_attributes;
             ::std::vector<Attribute> outer_attrs;
 
-            bool has_visibility;
-            Visibility visibility;
+            // bool has_visibility;
+            ::gnu::unique_ptr<Visibility> visibility;
 
-            //Type field_type;
+            // Type field_type;
             ::gnu::unique_ptr<Type> field_type;
+
+          public:
+            // Returns whether tuple field has outer attributes.
+            inline bool has_outer_attributes() const {
+                return !outer_attrs.empty();
+            }
+
+            // Returns whether tuple field has a non-default visibility (i.e. a public one)
+            inline bool has_visibility() const {
+                return visibility != NULL;
+            }
+
+            // Complete constructor
+            TupleField(Type* field_type, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              field_type(field_type), visibility(vis), outer_attrs(outer_attrs) {}
+
+            // Copy constructor with clone
+            TupleField(TupleField const& other) :
+              field_type(other.field_type->clone_type()),
+              visibility(other.visibility->clone_visibility()), outer_attrs(other.outer_attrs) {}
+
+            ~TupleField() = default;
+
+            // Overloaded assignment operator to clone
+            TupleField& operator=(TupleField const& other) {
+                field_type = other.field_type->clone_type();
+                visibility = other.visibility->clone_visibility();
+                outer_attrs = other.outer_attrs;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TupleField(TupleField&& other) = default;
+            TupleField& operator=(TupleField&& other) = default;*/
         };
 
         // Rust tuple declared using struct keyword AST node
@@ -377,84 +1045,189 @@ namespace Rust {
 
           public:
             ::std::string as_string() const;
+
+            // Mega-constructor with all possible fields
+            TupleStruct(::std::vector<TupleField> fields, Identifier struct_name,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              fields(fields),
+              Struct(struct_name, generic_params, where_clause, vis, outer_attrs) {}
         };
 
         // An item used in an "enum" tagged union
         class EnumItem {
-            bool has_attrs;
+          protected:
+            // bool has_attrs;
             ::std::vector<Attribute> outer_attrs;
 
             Identifier variant_name;
 
           public:
             virtual ~EnumItem() {}
+
+            // Returns whether enum item has outer attributes.
+            inline bool has_outer_attrs() const {
+                return !outer_attrs.empty();
+            }
+
+          protected:
+            EnumItem(Identifier variant_name, ::std::vector<Attribute> outer_attrs) :
+              variant_name(variant_name), outer_attrs(outer_attrs) {}
         };
 
         // A tuple item used in an "enum" tagged union
         class EnumItemTuple : public EnumItem {
-            bool has_tuple_fields;
+            // bool has_tuple_fields;
             ::std::vector<TupleField> tuple_fields;
+
+          public:
+            // Returns whether tuple enum item has tuple fields.
+            inline bool has_tuple_fields() const {
+                return !tuple_fields.empty();
+            }
+
+            EnumItemTuple(Identifier variant_name, ::std::vector<TupleField> tuple_fields,
+              ::std::vector<Attribute> outer_attrs) :
+              tuple_fields(tuple_fields),
+              EnumItem(variant_name, outer_attrs) {}
         };
 
         // A struct item used in an "enum" tagged union
         class EnumItemStruct : public EnumItem {
-            bool has_struct_fields;
-            ::std::vector<TupleField> struct_fields;
+            // bool has_struct_fields;
+            ::std::vector<StructField> struct_fields;
+
+          public:
+            // Returns whether struct enum item has struct fields.
+            inline bool has_struct_fields() const {
+                return !struct_fields.empty();
+            }
+
+            EnumItemStruct(Identifier variant_name, ::std::vector<StructField> struct_fields,
+              ::std::vector<Attribute> outer_attrs) :
+              struct_fields(struct_fields),
+              EnumItem(variant_name, outer_attrs) {}
         };
 
         // A discriminant item sued in an "enum" tagged union
         class EnumItemDiscriminant : public EnumItem {
-            //Expr* expression;
+            // Expr* expression;
             ::gnu::unique_ptr<Expr> expression;
 
           public:
             /*~EnumItemDiscriminant() {
                 delete expression;
             }*/
+
+            EnumItemDiscriminant(
+              Identifier variant_name, Expr* expr, ::std::vector<Attribute> outer_attrs) :
+              expression(expr),
+              EnumItem(variant_name, outer_attrs) {}
+
+            // Copy constructor with clone
+            EnumItemDiscriminant(EnumItemDiscriminant const& other) :
+              expression(other.expression->clone_expr()), EnumItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            EnumItemDiscriminant& operator=(EnumItemDiscriminant const& other) {
+                EnumItem::operator=(other);
+                expression = other.expression->clone_expr();
+                // variant_name = other.variant_name;
+                // outer_attrs = other.outer_attrs;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*EnumItemDiscriminant(EnumItemDiscriminant&& other) = default;
+            EnumItemDiscriminant& operator=(EnumItemDiscriminant&& other) = default;*/
         };
 
-        // AST node for Rust "enum" - tagged union 
+        // AST node for Rust "enum" - tagged union
         class Enum : public VisItem {
             Identifier enum_name;
 
-            bool has_generics;
-            Generics generics_params;
+            // bool has_generics;
+            // Generics generic_params;
+            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
 
-            bool has_where_clause;
+            // bool has_where_clause;
             WhereClause where_clause;
 
             ::std::vector< ::gnu::unique_ptr<EnumItem> > items;
 
           public:
             ::std::string as_string() const;
+
+            // Returns whether "enum" has generic parameters.
+            inline bool has_generics() const {
+                return !generic_params.empty();
+            }
+
+            // Returns whether "enum" has a where clause.
+            inline bool has_where_clause() const {
+                return !where_clause.is_empty();
+            }
+
+            // Mega-constructor
+            Enum(Identifier enum_name, Visibility* vis,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              WhereClause where_clause, ::std::vector< ::gnu::unique_ptr<EnumItem> > items,
+              ::std::vector<Attribute> outer_attrs) :
+              enum_name(enum_name),
+              generic_params(generic_params), where_clause(where_clause), items(items),
+              VisItem(vis, outer_attrs) {}
+
+            // TODO: constructor with less arguments
         };
 
         // Rust untagged union used for C compat AST node
         class Union : public VisItem {
             Identifier union_name;
 
-            bool has_generics;
-            Generics generics_params;
+            // bool has_generics;
+            // Generics generic_params;
+            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
 
-            bool has_where_clause;
+            // bool has_where_clause;
             WhereClause where_clause;
 
             ::std::vector<StructField> variants;
 
           public:
             ::std::string as_string() const;
+
+            // Returns whether union has generic params.
+            inline bool has_generics() const {
+                return !generic_params.empty();
+            }
+
+            // Returns whether union has where clause.
+            inline bool has_where_clause() const {
+                return !where_clause.is_empty();
+            }
+
+            Union(Identifier union_name, Visibility* vis,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              WhereClause where_clause, ::std::vector<StructField> variants,
+              ::std::vector<Attribute> outer_attrs) :
+              union_name(union_name),
+              generic_params(generic_params), where_clause(where_clause), variants(variants),
+              VisItem(vis, outer_attrs) {}
         };
 
         // "Constant item" AST node - used for constant, compile-time expressions within module scope
         class ConstantItem : public VisItem {
             // either has an identifier or "_" - maybe handle in identifier?
             bool identifier_is_underscore;
-            Identifier identifier;
+            Identifier identifier; // just going to assume that the "identifier" is underscore
 
-            //Type type;
+            // Type type;
             ::gnu::unique_ptr<Type> type;
 
-            //Expr* const_expr;
+            // Expr* const_expr;
             ::gnu::unique_ptr<Expr> const_expr;
 
           public:
@@ -463,6 +1236,31 @@ namespace Rust {
             }*/
 
             ::std::string as_string() const;
+
+            ConstantItem(Identifier ident, Visibility* vis, Type* type, Expr* const_expr,
+              ::std::vector<Attribute> outer_attrs) :
+              identifier(ident),
+              type(type), const_expr(const_expr), VisItem(vis, outer_attrs) {}
+
+            ConstantItem(ConstantItem const& other) :
+              identifier(other.identifier), type(other.type->clone_type()),
+              const_expr(other.const_expr->clone_expr()), VisItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overload assignment operator to clone
+            ConstantItem& operator=(ConstantItem const& other) {
+                VisItem::operator=(other);
+                identifier = other.identifier;
+                type = other.type->clone_type();
+                const_expr = other.const_expr->clone_expr();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*ConstantItem(ConstantItem&& other) = default;
+            ConstantItem& operator=(ConstantItem&& other) = default;*/
         };
 
         // Static item AST node - items within module scope with fixed storage duration?
@@ -471,10 +1269,10 @@ namespace Rust {
 
             Identifier name;
 
-            //Type type;
+            // Type type;
             ::gnu::unique_ptr<Type> type;
 
-            //Expr* expr;
+            // Expr* expr;
             ::gnu::unique_ptr<Expr> expr;
 
           public:
@@ -483,110 +1281,363 @@ namespace Rust {
             }*/
 
             ::std::string as_string() const;
+
+            StaticItem(Identifier name, bool is_mut, Type* type, Expr* expr, Visibility* vis,
+              ::std::vector<Attribute> outer_attrs) :
+              name(name),
+              has_mut(is_mut), type(type), expr(expr), VisItem(vis, outer_attrs) {}
+
+            // Copy constructor with clone
+            StaticItem(StaticItem const& other) :
+              name(other.name), has_mut(other.has_mut), type(other.type->clone_type()),
+              expr(other.expr->clone_expr()), VisItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            StaticItem& operator=(StaticItem const& other) {
+                VisItem::operator=(other);
+                name = other.name;
+                has_mut = other.has_mut;
+                type = other.type->clone_type();
+                expr = other.expr->clone_expr();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*StaticItem(StaticItem&& other) = default;
+            StaticItem& operator=(StaticItem&& other) = default;*/
         };
 
         // Item used in trait declarations - abstract base class
         class TraitItem {
-            bool has_outer_attrs;
+          protected:
+            // bool has_outer_attrs;
             ::std::vector<Attribute> outer_attrs;
 
+            // Outer attributes constructor
+            TraitItem(::std::vector<Attribute> outer_attrs) : outer_attrs(outer_attrs) {}
+
+            // Empty constructor
+            TraitItem() {}
+
           public:
-            virtual ~TraitItem();
+            virtual ~TraitItem() {}
+
+            // Returns whether TraitItem has outer attributes.
+            inline bool has_outer_attrs() const {
+                return !outer_attrs.empty();
+            }
         };
 
         // Function declaration in traits
         struct TraitFunctionDecl {
-            // TODO: delete and replace with Function decl item?
+            // TODO: delete and replace with Function decl item? no as no body in this.
             FunctionQualifiers qualifiers;
             Identifier function_name;
 
-            bool has_generics;
-            Generics generic_params;
+            // bool has_generics;
+            // Generics generic_params;
+            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
 
-            bool has_params;
-            FunctionParams function_params;
+            // bool has_params;
+            // FunctionParams function_params;
+            ::std::vector<FunctionParam> function_params; // inlined
 
-            bool has_return_type;
-            //Type return_type;
+            // bool has_return_type;
+            // Type return_type;
             ::gnu::unique_ptr<Type> return_type;
 
-            bool has_where_clause;
+            // bool has_where_clause;
             WhereClause where_clause;
+
+          public:
+            // Returns whether function decl has generic parameters.
+            inline bool has_generics() const {
+                return !generic_params.empty();
+            }
+
+            // Returns whether function decl has regular parameters.
+            inline bool has_params() const {
+                return !function_params.empty();
+            }
+
+            // Returns whether function has return type (otherwise is void).
+            inline bool has_return_type() const {
+                return return_type != NULL;
+            }
+
+            // Returns whether function has a where clause.
+            inline bool has_where_clause() const {
+                return !where_clause.is_empty();
+            }
+
+            // Mega-constructor
+            TraitFunctionDecl(Identifier function_name, FunctionQualifiers qualifiers,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              ::std::vector<FunctionParam> function_params, Type* return_type,
+              WhereClause where_clause) :
+              function_name(function_name),
+              qualifiers(qualifiers), generic_params(generic_params),
+              function_params(function_params), return_type(return_type), where_clause(where_clause) {
+            }
+
+            // Copy constructor with clone
+            TraitFunctionDecl(TraitFunctionDecl const& other) :
+              function_name(other.function_name), qualifiers(other.qualifiers),
+              generic_params(other.generic_params), function_params(other.function_params),
+              return_type(other.return_type->clone_type()), where_clause(other.where_clause) {}
+
+            ~TraitFunctionDecl() = default;
+
+            // Overloaded assignment operator with clone
+            TraitFunctionDecl& operator=(TraitFunctionDecl const& other) {
+                function_name = other.function_name;
+                qualifiers = other.qualifiers;
+                generic_params = other.generic_params;
+                function_params = other.function_params;
+                return_type = other.return_type->clone_type();
+                where_clause = other.where_clause;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TraitFunctionDecl(TraitFunctionDecl&& other) = default;
+            TraitFunctionDecl& operator=(TraitFunctionDecl&& other) = default;*/
         };
 
         // Actual trait item function declaration within traits
         class TraitItemFunc : public TraitItem {
             TraitFunctionDecl decl;
-            //BlockExpr* block_expr;
+            // BlockExpr* block_expr;
             ::gnu::unique_ptr<BlockExpr> block_expr;
 
           public:
             /*~TraitItemFunc() {
                 delete block_expr;
             }*/
+
+            TraitItemFunc(
+              TraitFunctionDecl decl, BlockExpr* block_expr, ::std::vector<Attribute> outer_attrs) :
+              decl(decl),
+              block_expr(block_expr), TraitItem(outer_attrs) {}
+
+            // Copy constructor with clone
+            TraitItemFunc(TraitItemFunc const& other) :
+              decl(other.decl), block_expr(other.block_expr->clone_block_expr()), TraitItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            TraitItemFunc& operator=(TraitItemFunc const& other) {
+                TraitItem::operator=(other);
+                decl = other.decl;
+                block_expr = other.block_expr->clone_block_expr();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TraitItemFunc(TraitItemFunc&& other) = default;
+            TraitItemFunc& operator=(TraitItemFunc&& other) = default;*/
         };
 
         // Method declaration within traits
         struct TraitMethodDecl {
-            // TODO: delete and replace with Function decl item?
+            // TODO: delete and replace with Function decl item? no as no body.
             FunctionQualifiers qualifiers;
             Identifier function_name;
 
-            bool has_generics;
-            Generics generic_params;
+            // bool has_generics;
+            // Generics generic_params;
+            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
 
             SelfParam self_param;
 
-            bool has_params;
-            FunctionParams function_params;
+            // bool has_params;
+            // FunctionParams function_params;
+            ::std::vector<FunctionParam> function_params; // inlined
 
-            bool has_return_type;
-            //Type return_type;
+            // bool has_return_type;
+            // Type return_type;
             ::gnu::unique_ptr<Type> return_type;
 
-            bool has_where_clause;
+            // bool has_where_clause;
             WhereClause where_clause;
+
+          public:
+            // Returns whether method decl has generic parameters.
+            inline bool has_generics() const {
+                return !generic_params.empty();
+            }
+
+            // Returns whether method decl has regular parameters.
+            inline bool has_params() const {
+                return !function_params.empty();
+            }
+
+            // Returns whether method has return type (otherwise is void).
+            inline bool has_return_type() const {
+                return return_type != NULL;
+            }
+
+            // Returns whether method has a where clause.
+            inline bool has_where_clause() const {
+                return !where_clause.is_empty();
+            }
+
+            // Mega-constructor
+            TraitMethodDecl(Identifier function_name, FunctionQualifiers qualifiers,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
+              ::std::vector<FunctionParam> function_params, Type* return_type,
+              WhereClause where_clause) :
+              function_name(function_name),
+              qualifiers(qualifiers), generic_params(generic_params), self_param(self_param),
+              function_params(function_params), return_type(return_type), where_clause(where_clause) {
+            }
+
+            // Copy constructor with clone
+            TraitMethodDecl(TraitMethodDecl const& other) :
+              function_name(other.function_name), qualifiers(other.qualifiers),
+              generic_params(other.generic_params), self_param(other.self_param),
+              function_params(other.function_params), return_type(other.return_type->clone_type()),
+              where_clause(other.where_clause) {}
+
+            ~TraitMethodDecl() = default;
+
+            // Overloaded assignment operator with clone
+            TraitMethodDecl& operator=(TraitMethodDecl const& other) {
+                function_name = other.function_name;
+                qualifiers = other.qualifiers;
+                generic_params = other.generic_params;
+                self_param = other.self_param;
+                function_params = other.function_params;
+                return_type = other.return_type->clone_type();
+                where_clause = other.where_clause;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TraitMethodDecl(TraitMethodDecl&& other) = default;
+            TraitMethodDecl& operator=(TraitMethodDecl&& other) = default;*/
         };
 
         // Actual trait item method declaration within traits
         class TraitItemMethod : public TraitItem {
             TraitMethodDecl decl;
-            //BlockExpr* block_expr;
+            // BlockExpr* block_expr;
             ::gnu::unique_ptr<BlockExpr> block_expr;
 
           public:
             /*~TraitItemMethod() {
                 delete block_expr;
             }*/
+
+            TraitItemMethod(
+              TraitMethodDecl decl, BlockExpr* block_expr, ::std::vector<Attribute> outer_attrs) :
+              decl(decl),
+              block_expr(block_expr), TraitItem(outer_attrs) {}
+
+            // Copy constructor with clone
+            TraitItemMethod(TraitItemMethod const& other) :
+              decl(other.decl), block_expr(other.block_expr->clone_block_expr()), TraitItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            TraitItemMethod& operator=(TraitItemMethod const& other) {
+                TraitItem::operator=(other);
+                decl = other.decl;
+                block_expr = other.block_expr->clone_block_expr();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TraitItemMethod(TraitItemMethod&& other) = default;
+            TraitItemMethod& operator=(TraitItemMethod&& other) = default;*/
         };
 
         // Constant item within traits
         class TraitItemConst : public TraitItem {
             Identifier name;
-            //Type type;
+            // Type type;
             ::gnu::unique_ptr<Type> type;
 
-            bool has_expression;
-            //Expr* expr;
+            // bool has_expression;
+            // Expr* expr;
             ::gnu::unique_ptr<Expr> expr;
 
           public:
             /*~TraitItemConst() {
                 delete expr;
             }*/
+
+            // Whether the constant item has an associated expression.
+            inline bool has_expression() const {
+                return expr != NULL;
+            }
+
+            TraitItemConst(
+              Identifier name, Type* type, Expr* expr, ::std::vector<Attribute> outer_attrs) :
+              name(name),
+              type(type), expr(expr), TraitItem(outer_attrs) {}
+
+            // Copy constructor with clones
+            TraitItemConst(TraitItemConst const& other) :
+              name(other.name), type(other.type->clone_type()), expr(other.expr->clone_expr()),
+              TraitItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            TraitItemConst& operator=(TraitItemConst const& other) {
+                TraitItem::operator=(other);
+                name = other.name;
+                type = other.type->clone_type();
+                expr = other.expr->clone_expr();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TraitItemConst(TraitItemConst&& other) = default;
+            TraitItemConst& operator=(TraitItemConst&& other) = default;*/
         };
 
         // Type items within traits
         class TraitItemType : public TraitItem {
             Identifier name;
 
-            bool has_type_param_bounds;
-            TypeParamBounds param_bounds;
+            // bool has_type_param_bounds;
+            // TypeParamBounds type_param_bounds;
+            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
+
+          public:
+            // Returns whether trait item type has type param bounds.
+            inline bool has_type_param_bounds() const {
+                return !type_param_bounds.empty();
+            }
+
+            TraitItemType(Identifier name,
+              ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds,
+              ::std::vector<Attribute> outer_attrs) :
+              name(name),
+              type_param_bounds(type_param_bounds), TraitItem(outer_attrs) {}
         };
 
         // Macro invocation items within traits
         class TraitItemMacroInvoc : public TraitItem {
             MacroInvocationSemi macro_invoc;
+
+          public:
+            TraitItemMacroInvoc(
+              MacroInvocationSemi macro_invoc, ::std::vector<Attribute> outer_attrs) :
+              macro_invoc(macro_invoc),
+              TraitItem(outer_attrs) {}
         };
 
         // Rust trait item declaration AST node
@@ -595,122 +1646,466 @@ namespace Rust {
 
             Identifier name;
 
-            bool has_generics;
-            Generics generic_params;
+            // bool has_generics;
+            // Generics generic_params;
+            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
 
-            bool has_type_param_bounds;
-            TypeParamBounds type_param_bounds;
+            // bool has_type_param_bounds;
+            // TypeParamBounds type_param_bounds;
+            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
 
-            bool has_where_clause;
+            // bool has_where_clause;
             WhereClause where_clause;
 
-            bool has_trait_items;
+            // bool has_trait_items;
             ::std::vector< ::gnu::unique_ptr<TraitItem> > trait_items;
 
           public:
             ::std::string as_string() const;
+
+            // Returns whether trait has generic parameters.
+            inline bool has_generics() const {
+                return !generic_params.empty();
+            }
+
+            // Returns whether trait has type parameter bounds.
+            inline bool has_type_param_bounds() const {
+                return !type_param_bounds.empty();
+            }
+
+            // Returns whether trait has where clause.
+            inline bool has_where_clause() const {
+                return !where_clause.is_empty();
+            }
+
+            // Returns whether trait has trait items.
+            inline bool has_trait_items() const {
+                return !trait_items.empty();
+            }
+
+            // Mega-constructor
+            Trait(Identifier name, bool is_unsafe,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds,
+              WhereClause where_clause, ::std::vector< ::gnu::unique_ptr<TraitItem> > trait_items,
+              Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              name(name),
+              has_unsafe(is_unsafe), generic_params(generic_params),
+              type_param_bounds(type_param_bounds), where_clause(where_clause),
+              trait_items(trait_items), VisItem(vis, outer_attrs) {}
         };
 
         // Implementation item declaration AST node - abstract base class
         class Impl : public VisItem {
-            bool has_generics;
-            Generics generic_params;
+            // bool has_generics;
+            // Generics generic_params;
+            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
 
-            //Type trait_type;
+            // Type trait_type;
             ::gnu::unique_ptr<Type> trait_type;
 
-            bool has_where_clause;
+            // bool has_where_clause;
             WhereClause where_clause;
 
-            bool has_inner_attrs;
+            // bool has_inner_attrs;
             ::std::vector<Attribute> inner_attrs;
+
+          public:
+            // Returns whether impl has generic parameters.
+            inline bool has_generics() const {
+                return !generic_params.empty();
+            }
+
+            // Returns whether impl has where clause.
+            inline bool has_where_clause() const {
+                return !where_clause.is_empty();
+            }
+
+            // Returns whether impl has inner attributes.
+            inline bool has_inner_attrs() const {
+                return !inner_attrs.empty();
+            }
+
+            // Mega-constructor
+            Impl(::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params, Type* trait_type,
+              WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> inner_attrs,
+              ::std::vector<Attribute> outer_attrs) :
+              generic_params(generic_params),
+              trait_type(trait_type), where_clause(where_clause), inner_attrs(inner_attrs),
+              VisItem(vis, outer_attrs) {}
+
+            // Copy constructor
+            Impl(Impl const& other) :
+              generic_params(other.generic_params), trait_type(other.trait_type->clone_type()),
+              where_clause(other.where_clause), inner_attrs(other.inner_attrs), VisItem(other) {}
+
+            // Destructor - define here if required
+
+            // Assignment operator overload with cloning
+            Impl& operator=(Impl const& other) {
+                VisItem::operator=(other);
+                generic_params = other.generic_params;
+                trait_type = other.trait_type->clone_type();
+                where_clause = other.where_clause;
+                inner_attrs = other.inner_attrs;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*Impl(Impl&& other) = default;
+            Impl& operator=(Impl&& other) = default;*/
         };
 
         // Abstract base class for items used within an inherent impl block (the impl name {} one)
         class InherentImplItem {
-            bool has_outer_attrs;
+          protected:
+            // bool has_outer_attrs;
             ::std::vector<Attribute> outer_attrs;
+
+            InherentImplItem(::std::vector<Attribute> outer_attrs) : outer_attrs(outer_attrs) {}
+
+            InherentImplItem() {}
+
+          public:
+            // Returns whether item has outer attributes.
+            inline bool has_outer_attrs() const {
+                return !outer_attrs.empty();
+            }
+
+            virtual ~InherentImplItem() {}
         };
 
         // Macro item used within an inherent impl block
         class InherentImplItemMacro : public InherentImplItem {
             MacroInvocationSemi macro;
+
+          public:
+            InherentImplItemMacro(MacroInvocationSemi macro, ::std::vector<Attribute> outer_attrs) :
+              macro(macro), InherentImplItem(outer_attrs) {}
         };
 
         // Constant item used within an inherent impl block
         class InherentImplItemConstant : public InherentImplItem {
-            bool has_visibility;
-            Visibility visibility;
+            // bool has_visibility;
+            ::gnu::unique_ptr<Visibility> visibility;
 
             ConstantItem constant_item;
+
+          public:
+            // Returns whether item has a non-default (i.e. non-private) visibility.
+            inline bool has_visibility() const {
+                return visibility != NULL;
+            }
+
+            InherentImplItemConstant(
+              ConstantItem constant_item, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              constant_item(constant_item),
+              visibility(vis), InherentImplItem(outer_attrs) {}
+
+            // Copy constructor with clone
+            InherentImplItemConstant(InherentImplItemConstant const& other) :
+              constant_item(other.constant_item), visibility(other.visibility->clone_visibility()),
+              InherentImplItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            InherentImplItemConstant& operator=(InherentImplItemConstant const& other) {
+                InherentImplItem::operator=(other);
+                constant_item = other.constant_item;
+                visibility = other.visibility->clone_visibility();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*InherentImplItemConstant(InherentImplItemConstant&& other) = default;
+            InherentImplItemConstant& operator=(InherentImplItemConstant&& other) = default;*/
         };
 
         // Function item used within an inherent impl block
         class InherentImplItemFunction : public InherentImplItem {
-            bool has_visibility;
-            Visibility visibility;
+            // bool has_visibility;
+            ::gnu::unique_ptr<Visibility> visibility;
 
             Function function;
+
+          public:
+            // Returns whether item has a non-default (i.e. non-private) visibility.
+            inline bool has_visibility() const {
+                return visibility != NULL;
+            }
+
+            InherentImplItemFunction(
+              Function function, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              function(function),
+              visibility(vis), InherentImplItem(outer_attrs) {}
+
+            // Copy constructor with clone
+            InherentImplItemFunction(InherentImplItemFunction const& other) :
+              function(other.function), visibility(other.visibility->clone_visibility()),
+              InherentImplItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            InherentImplItemFunction& operator=(InherentImplItemFunction const& other) {
+                InherentImplItem::operator=(other);
+                function = other.function;
+                visibility = other.visibility->clone_visibility();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*InherentImplItemFunction(InherentImplItemFunction&& other) = default;
+            InherentImplItemFunction& operator=(InherentImplItemFunction&& other) = default;*/
         };
 
         // Method item used within an inherent impl block
         class InherentImplItemMethod : public InherentImplItem {
-            bool has_visibility;
-            Visibility visibility;
+            // bool has_visibility;
+            ::gnu::unique_ptr<Visibility> visibility;
 
             Method method;
+
+          public:
+            // Returns whether the inherent impl item method has non-default (non-private) visibility.
+            inline bool has_visibility() const {
+                return visibility != NULL;
+            }
+
+            InherentImplItemMethod(
+              Method method, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              method(method),
+              visibility(vis), InherentImplItem(outer_attrs) {}
+
+            // Copy constructor with clone
+            InherentImplItemMethod(InherentImplItemMethod const& other) :
+              method(other.method), visibility(other.visibility->clone_visibility()),
+              InherentImplItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            InherentImplItemMethod& operator=(InherentImplItemMethod const& other) {
+                InherentImplItem::operator=(other);
+                method = other.method;
+                visibility = other.visibility->clone_visibility();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*InherentImplItemMethod(InherentImplItemMethod&& other) = default;
+            InherentImplItemMethod& operator=(InherentImplItemMethod&& other) = default;*/
         };
 
         // Regular "impl foo" impl block declaration AST node
         class InherentImpl : public Impl {
-            bool has_impl_items;
+            // bool has_impl_items;
             ::std::vector< ::gnu::unique_ptr<InherentImplItem> > impl_items;
 
           public:
             ::std::string as_string() const;
+
+            // Returns whether inherent impl block has inherent impl items.
+            inline bool has_impl_items() const {
+                return !impl_items.empty();
+            }
+
+            // Mega-constructor
+            InherentImpl(::std::vector< ::gnu::unique_ptr<InherentImplItem> > impl_items,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params, Type* trait_type,
+              WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> inner_attrs,
+              ::std::vector<Attribute> outer_attrs) :
+              impl_items(impl_items),
+              Impl(generic_params, trait_type, where_clause, vis, inner_attrs, outer_attrs) {}
         };
 
         // Abstract base class for items used in a trait impl
         class TraitImplItem {
-            bool has_outer_attrs;
+          protected:
+            // bool has_outer_attrs;
             ::std::vector<Attribute> outer_attrs;
+
+            TraitImplItem(::std::vector<Attribute> outer_attrs) : outer_attrs(outer_attrs) {}
+
+            TraitImplItem() {}
+
+          public:
+            virtual ~TraitImplItem(){};
+
+            // Returns whether trait impl item has outer attributes.
+            inline bool has_outer_attrs() const {
+                return !outer_attrs.empty();
+            }
         };
 
         // Macro invocation item in a trait impl
         class TraitImplItemMacro : public TraitImplItem {
             MacroInvocationSemi macro;
+
+          public:
+            TraitImplItemMacro(MacroInvocationSemi macro, ::std::vector<Attribute> outer_attrs) :
+              macro(macro), TraitImplItem(outer_attrs) {}
         };
 
         // Type alias item in a trait impl
         class TraitImplItemTypeAlias : public TraitImplItem {
-            bool has_visibility;
-            Visibility visibility;
+            // bool has_visibility;
+            ::gnu::unique_ptr<Visibility> visibility;
 
             TypeAlias type_alias;
+
+          public:
+            // Returns whether trait impl item has a non-default visibility.
+            inline bool has_visibility() const {
+                return visibility != NULL;
+            }
+
+            TraitImplItemTypeAlias(
+              TypeAlias type_alias, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              type_alias(type_alias),
+              visibility(vis), TraitImplItem(outer_attrs) {}
+
+            // Copy constructor
+            TraitImplItemTypeAlias(TraitImplItemTypeAlias const& other) :
+              type_alias(other.type_alias), visibility(other.visibility->clone_visibility()),
+              TraitImplItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            TraitImplItemTypeAlias& operator=(TraitImplItemTypeAlias const& other) {
+                TraitImplItem::operator=(other);
+                type_alias = other.type_alias;
+                visibility = other.visibility->clone_visibility();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TraitImplItemTypeAlias(TraitImplItemTypeAlias&& other) = default;
+            TraitImplItemTypeAlias& operator=(TraitImplItemTypeAlias&& other) = default;*/
         };
 
         // Constant item in a trait impl
         class TraitImplItemConstant : public TraitImplItem {
-            bool has_visibility;
-            Visibility visibility;
+            // bool has_visibility;
+            ::gnu::unique_ptr<Visibility> visibility;
 
             ConstantItem constant_item;
+
+          public:
+            // Returns whether item has a non-default (i.e. non-private) visibility.
+            inline bool has_visibility() const {
+                return visibility != NULL;
+            }
+
+            TraitImplItemConstant(
+              ConstantItem constant_item, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              constant_item(constant_item),
+              visibility(vis), TraitImplItem(outer_attrs) {}
+
+            // Copy constructor with clone
+            TraitImplItemConstant(TraitImplItemConstant const& other) :
+              constant_item(other.constant_item), visibility(other.visibility->clone_visibility()),
+              TraitImplItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            TraitImplItemConstant& operator=(TraitImplItemConstant const& other) {
+                TraitImplItem::operator=(other);
+                constant_item = other.constant_item;
+                visibility = other.visibility->clone_visibility();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TraitImplItemConstant(TraitImplItemConstant&& other) = default;
+            TraitImplItemConstant& operator=(TraitImplItemConstant&& other) = default;*/
         };
 
         /// Function item in a trait impl
         class TraitImplItemFunction : public TraitImplItem {
-            bool has_visibility;
-            Visibility visibility;
+            // bool has_visibility;
+            ::gnu::unique_ptr<Visibility> visibility;
 
             Function function;
+
+          public:
+            // Returns whether item has a non-default (i.e. non-private) visibility.
+            inline bool has_visibility() const {
+                return visibility != NULL;
+            }
+
+            TraitImplItemFunction(
+              Function function, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              function(function),
+              visibility(vis), TraitImplItem(outer_attrs) {}
+
+            // Copy constructor with clone
+            TraitImplItemFunction(TraitImplItemFunction const& other) :
+              function(other.function), visibility(other.visibility->clone_visibility()),
+              TraitImplItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            TraitImplItemFunction& operator=(TraitImplItemFunction const& other) {
+                TraitImplItem::operator=(other);
+                function = other.function;
+                visibility = other.visibility->clone_visibility();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TraitImplItemFunction(TraitImplItemFunction&& other) = default;
+            TraitImplItemFunction& operator=(TraitImplItemFunction&& other) = default;*/
         };
 
         // Method item in a trait impl
         class TraitImplItemMethod : public TraitImplItem {
-            bool has_visibility;
-            Visibility visibility;
+            // bool has_visibility;
+            ::gnu::unique_ptr<Visibility> visibility;
 
             Method method;
+
+          public:
+            // Returns whether the trait impl item method has non-default (non-private) visibility.
+            inline bool has_visibility() const {
+                return visibility != NULL;
+            }
+
+            TraitImplItemMethod(
+              Method method, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              method(method),
+              visibility(vis), TraitImplItem(outer_attrs) {}
+
+            // Copy constructor with clone
+            TraitImplItemMethod(TraitImplItemMethod const& other) :
+              method(other.method), visibility(other.visibility->clone_visibility()),
+              TraitImplItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            TraitImplItemMethod& operator=(TraitImplItemMethod const& other) {
+                TraitImplItem::operator=(other);
+                method = other.method;
+                visibility = other.visibility->clone_visibility();
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*TraitImplItemMethod(TraitImplItemMethod&& other) = default;
+            TraitImplItemMethod& operator=(TraitImplItemMethod&& other) = default;*/
         };
 
         // The "impl footrait for foo" impl block declaration AST node
@@ -721,70 +2116,245 @@ namespace Rust {
 
             TypePath trait_path;
 
-            bool has_impl_items;
+            // bool has_impl_items;
             ::std::vector< ::gnu::unique_ptr<TraitImplItem> > impl_items;
 
           public:
             ::std::string as_string() const;
+
+            // Returns whether trait impl has impl items.
+            inline bool has_impl_items() const {
+                return !impl_items.empty();
+            }
+
+            // Mega-constructor
+            TraitImpl(TypePath trait_path, bool is_unsafe, bool has_exclam,
+              ::std::vector< ::gnu::unique_ptr<TraitImplItem> > impl_items,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params, Type* trait_type,
+              WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> inner_attrs,
+              ::std::vector<Attribute> outer_attrs) :
+              trait_path(trait_path),
+              has_unsafe(is_unsafe), has_exclam(has_exclam), impl_items(impl_items),
+              Impl(generic_params, trait_type, where_clause, vis, inner_attrs, outer_attrs) {}
+
+            // TODO: constructors with less params
         };
 
-        // Abstract base class for an item used inside an extern block 
+        // Abstract base class for an item used inside an extern block
         class ExternalItem {
-            bool has_outer_attrs;
+          protected:
+            // bool has_outer_attrs;
             ::std::vector<Attribute> outer_attrs;
 
-            bool has_visibility;
-            Visibility visibility;
+            // bool has_visibility;
+            ::gnu::unique_ptr<Visibility> visibility;
 
             Identifier item_name;
+
+          public:
+            virtual ~ExternalItem() {}
+
+            // Returns whether item has outer attributes.
+            inline bool has_outer_attrs() const {
+                return !outer_attrs.empty();
+            }
+
+            // Returns whether item has non-default visibility.
+            inline bool has_visibility() const {
+                return visibility != NULL;
+            }
+
+          protected:
+            ExternalItem(
+              Identifier item_name, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              item_name(item_name),
+              visibility(vis), outer_attrs(outer_attrs) {}
+
+            // Copy constructor
+            ExternalItem(ExternalItem const& other) :
+              item_name(other.item_name), visibility(other.visibility->clone_visibility()),
+              outer_attrs(other.outer_attrs) {}
+
+            // Overloaded assignment operator to clone
+            ExternalItem& operator=(ExternalItem const& other) {
+                item_name = other.item_name;
+                visibility = other.visibility->clone_visibility();
+                outer_attrs = other.outer_attrs;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*ExternalItem(ExternalItem&& other) = default;
+            ExternalItem& operator=(ExternalItem&& other) = default;*/
         };
 
         // A static item used in an extern block
         class ExternalStaticItem : public ExternalItem {
             bool has_mut;
 
-            //Type item_type;
+            // Type item_type;
             ::gnu::unique_ptr<Type> item_type;
+
+          public:
+            ExternalStaticItem(Identifier item_name, Type* item_type, bool is_mut, Visibility* vis,
+              ::std::vector<Attribute> outer_attrs) :
+              item_type(item_type),
+              has_mut(is_mut), ExternalItem(item_name, vis, outer_attrs) {}
+
+            // Copy constructor
+            ExternalStaticItem(ExternalStaticItem const& other) :
+              item_type(other.item_type->clone_type()), has_mut(other.has_mut), ExternalItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator to clone
+            ExternalStaticItem& operator=(ExternalStaticItem const& other) {
+                ExternalItem::operator=(other);
+                item_type = other.item_type->clone_type();
+                has_mut = other.has_mut;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*ExternalStaticItem(ExternalStaticItem&& other) = default;
+            ExternalStaticItem& operator=(ExternalStaticItem&& other) = default;*/
         };
 
-        // A function item used in an extern block - abstract base class
+        // A named function parameter used in external functions
+        struct NamedFunctionParam {
+            bool has_name;   // otherwise is _
+            Identifier name; // TODO: handle wildcard in identifier?
+
+            // Type param_type;
+            ::gnu::unique_ptr<Type> param_type;
+
+          public:
+            NamedFunctionParam(Identifier name, Type* param_type) :
+              name(name), param_type(param_type) {}
+
+            // Copy constructor
+            NamedFunctionParam(NamedFunctionParam const& other) :
+              name(other.name), param_type(other.param_type->clone_type()), has_name(other.has_name) {
+            }
+
+            ~NamedFunctionParam() = default;
+
+            // Overloaded assignment operator to clone
+            NamedFunctionParam& operator=(NamedFunctionParam const& other) {
+                name = other.name;
+                param_type = other.param_type->clone_type();
+                has_name = other.has_name;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*NamedFunctionParam(NamedFunctionParam&& other) = default;
+            NamedFunctionParam& operator=(NamedFunctionParam&& other) = default;*/
+        };
+
+        // A function item used in an extern block
         class ExternalFunctionItem : public ExternalItem {
-            bool has_generics;
-            Generics generic_params;
+            // bool has_generics;
+            // Generics generic_params;
+            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
 
-            bool has_return_type;
-            FunctionReturnType return_type;
+            // bool has_return_type;
+            // FunctionReturnType return_type;
+            ::gnu::unique_ptr<Type> return_type; // inlined
 
-            bool has_where_clause;
+            // bool has_where_clause;
             WhereClause where_clause;
 
             ::std::vector<NamedFunctionParam> function_params;
 
             bool has_variadics;
-        };
 
-        // A named function parameter used in external functions
-        struct NamedFunctionParam {
-            bool has_name; // otherwise is _
-            Identifier name;
+          public:
+            // Returns whether item has generic parameters.
+            inline bool has_generics() const {
+                return !generic_params.empty();
+            }
 
-            //Type param_type;
-            ::gnu::unique_ptr<Type> param_type;
+            // Returns whether item has a return type (otherwise void).
+            inline bool has_return_type() const {
+                return return_type != NULL;
+            }
+
+            // Returns whether item has a where clause.
+            inline bool has_where_clause() const {
+                return !where_clause.is_empty();
+            }
+
+            ExternalFunctionItem(Identifier item_name,
+              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params, Type* return_type,
+              WhereClause where_clause, ::std::vector<NamedFunctionParam> function_params,
+              bool has_variadics, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              generic_params(generic_params),
+              return_type(return_type), where_clause(where_clause), function_params(function_params),
+              has_variadics(has_variadics), ExternalItem(item_name, vis, outer_attrs) {}
+
+            // Copy constructor with clone
+            ExternalFunctionItem(ExternalFunctionItem const& other) :
+              generic_params(other.generic_params), return_type(other.return_type->clone_type()),
+              where_clause(other.where_clause), function_params(other.function_params),
+              has_variadics(other.has_variadics), ExternalItem(other) {}
+
+            // Destructor - define here if required
+
+            // Overloaded assignment operator with clone
+            ExternalFunctionItem& operator=(ExternalFunctionItem const& other) {
+                ExternalItem::operator=(other);
+                generic_params = other.generic_params;
+                return_type = other.return_type->clone_type();
+                where_clause = other.where_clause;
+                function_params = other.function_params;
+                has_variadics = other.has_variadics;
+
+                return *this;
+            }
+
+            // no move constructors as not supported in c++03
+            /*ExternalFucntionItem(ExternalFunctionItem&& other) = default;
+            ExternalFunctionItem& operator=(ExternalFunctionItem&& other) = default;*/
         };
 
         // An extern block AST node
         class ExternBlock : public VisItem {
-            bool has_abi;
+            // bool has_abi;
             AbiName abi;
 
-            bool has_inner_attrs;
+            // bool has_inner_attrs;
             ::std::vector<Attribute> inner_attrs;
 
-            bool has_extern_items;
+            // bool has_extern_items;
             ::std::vector< ::gnu::unique_ptr<ExternalItem> > extern_items;
 
           public:
             ::std::string as_string() const;
+
+            // Returns whether extern block has inner attributes.
+            inline bool has_inner_attrs() const {
+                return !inner_attrs.empty();
+            }
+
+            // Returns whether extern block has extern items.
+            inline bool has_extern_items() const {
+                return !extern_items.empty();
+            }
+
+            // Returns whether extern block has ABI name.
+            inline bool has_abi() const {
+                return !abi.is_empty();
+            }
+
+            ExternBlock(AbiName abi, ::std::vector< ::gnu::unique_ptr<ExternalItem> > extern_items,
+              Visibility* vis, ::std::vector<Attribute> inner_attrs,
+              ::std::vector<Attribute> outer_attrs) :
+              abi(abi),
+              extern_items(extern_items), inner_attrs(inner_attrs), VisItem(vis, outer_attrs) {}
         };
 
         // Replaced with forward decls - defined in "rust-macro.h"
