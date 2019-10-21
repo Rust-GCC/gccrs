@@ -4,7 +4,8 @@
 
 // GCC imports
 #include "config.h"
-#define INCLUDE_UNIQUE_PTR // should allow including the gcc emulation of std::unique_ptr
+#define INCLUDE_UNIQUE_PTR 
+// should allow including the gcc emulation of std::unique_ptr
 #include "system.h"
 #include "coretypes.h"     // order: config, INCLUDE, system, coretypes
 
@@ -21,7 +22,7 @@ namespace Rust {
     typedef int Literal;
 
     namespace AST {
-        // Base AST node object
+        // Base AST node object - TODO is this really required or useful? Where to draw line?
         class Node {
           public:
             // Gets node's location_t.
@@ -130,6 +131,16 @@ namespace Rust {
           public:
             // TODO: put checks in constructor to enforce this rule?
             SimplePathSegment(::std::string segment_name) : segment_name(segment_name) {}
+
+            // Returns whether simple path segment is in an invalid state (currently, if empty).
+            inline bool is_error() const {
+                return segment_name.empty();
+            }
+
+            // Creates an error SimplePathSegment
+            static SimplePathSegment create_error() {
+                return SimplePathSegment(::std::string(""));
+            }
         };
 
         // A simple path without generic or type arguments
@@ -210,6 +221,16 @@ namespace Rust {
             /*~Attribute() {
                 delete attr_input;
             }*/
+
+            // Creates an empty attribute (which is invalid)
+            static Attribute create_empty() {
+                return Attribute(SimplePath::create_empty(), NULL);
+            }
+
+            // Returns whether the attribute is considered an "empty" attribute.
+            inline bool is_empty() const {
+                return attr_input == NULL && path.is_empty();
+            }
 
             /* e.g.:
                 #![crate_type = "lib"]
@@ -477,7 +498,7 @@ namespace Rust {
 
             // Constructor for a lifetime param with no attribute.
             LifetimeParam(Lifetime lifetime, ::std::vector<Lifetime> lifetime_bounds) :
-              lifetime(lifetime), lifetime_bounds(lifetime_bounds)/*, outer_attr(NULL)*/ {}
+              lifetime(lifetime), lifetime_bounds(lifetime_bounds) /*, outer_attr(NULL)*/ {}
 
             // Constructor for a lifetime param with an attribute.
             LifetimeParam(

@@ -5,6 +5,8 @@
 /* This is mainly the "logical", more "abstract" representation of the code, while the "AST" itself is
  * more high-level and matches the language better. */
 
+// TODO: this is now deprecated and replaced with the proper AST
+
 namespace Rust {
     namespace AST {
         struct Module {

@@ -5,8 +5,9 @@
 //#include "rust-tree.h"
 #include "rust-scope.h"
 
-// TODO: fix
-#include "rust-ast-containers.h"
+//#include "rust-ast-containers.h"
+// TODO: change, maybe?
+#include "rust-ast-full.h"
 
 namespace Rust {
     // Parser implementation for gccrs.
@@ -15,6 +16,7 @@ namespace Rust {
         void skip_after_semicolon();
         void skip_after_end();
         void skip_after_end_block();
+        void skip_after_end_attribute();
 
         bool skip_token(TokenId t);
         const_TokenPtr expect_token(TokenId t);
@@ -60,10 +62,21 @@ namespace Rust {
 
         void parse_statement_seq(bool (Parser::*done)());
 
-        void parse_crate();
-        AST::Module parse_module();
-        void parse_module_item(AST::Module module_for_items, AST::AttributeList item_outer_attributes);
-        AST::Visibility parse_visibility();
+        AST::Crate parse_crate();
+        ::std::vector<AST::Attribute> parse_inner_attributes();
+        ::std::vector< ::gnu::unique_ptr<AST::Item> > parse_items();
+        AST::Attribute parse_inner_attribute();
+        AST::Attribute parse_outer_attribute();
+        AST::Attribute parse_attribute_body();
+        AST::SimplePath parse_simple_path();
+        AST::SimplePathSegment parse_simple_path_segment();
+        AST::AttrInput* parse_attr_input();
+        AST::DelimTokenTree parse_delim_token_tree();
+        
+        //void parse_crate();
+        //AST::Module parse_module();
+        //void parse_module_item(AST::Module module_for_items, AST::AttributeList item_outer_attributes);
+        //AST::Visibility parse_visibility();
 
         bool done_end();
         bool done_end_or_else();

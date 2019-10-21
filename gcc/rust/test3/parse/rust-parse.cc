@@ -1,21 +1,21 @@
 #include "rust-parse.h"
 
-#include "config.h"
-#include "system.h"
-#include "coretypes.h"
-#include "target.h"
-#include "tree.h"
-#include "tree-iterator.h"
-#include "input.h"
-#include "diagnostic.h"
-#include "stringpool.h"
 #include "cgraph.h"
-#include "gimplify.h"
-#include "gimple-expr.h"
+#include "config.h"
 #include "convert.h"
+#include "coretypes.h"
+#include "diagnostic.h"
+#include "fold-const.h"
+#include "gimple-expr.h"
+#include "gimplify.h"
+#include "input.h"
 #include "print-tree.h"
 #include "stor-layout.h"
-#include "fold-const.h"
+#include "stringpool.h"
+#include "system.h"
+#include "target.h"
+#include "tree-iterator.h"
+#include "tree.h"
 /* order: config, system, coretypes, target, tree, tree-iterator, input, diagnostic, stringpool,
  * cgraph, gimplify, gimple-expr, convert, print-tree, stor-layout, fold-const  */
 // probably don't need all these
@@ -347,20 +347,248 @@ namespace Rust {
         main_fndecl = NULL_TREE;
     }
 
-    void Parser::parse_crate() {
-        AST::Crate crate;
+    // Parses a crate (compilation unit) - entry point
+    AST::Crate Parser::parse_crate() {
+        /* TODO: determine if has utf8bom and shebang. Currently, they are eliminated by the lexing
+         * phase.
+         * Neither are useful for the compiler anyway, so maybe a better idea would be to eliminate
+         * the has_utf8bom and has_shebang variables from the crate data structure. */
+        bool has_utf8bom = false;
+        bool has_shebang = false;
 
-        // parse attributes for crate
-        AST::AttributeList attrs;
+        // parse inner attributes
+        ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
 
-        AST::Module module = parse_module();
+        // parse items
+        ::std::vector< ::gnu::unique_ptr<AST::Item> > items = parse_items();
 
-        crate.root_module = module;
-        // crate.attrs = attrs;
+        AST::Crate crate(items, inner_attrs, has_utf8bom, has_shebang);
+
+        return crate;
+    }
+
+    // Parse a contiguous block of inner attributes.
+    ::std::vector<AST::Attribute> Parser::parse_inner_attributes() {
+        ::std::vector<AST::Attribute> inner_attributes;
+
+        while (lexer.peek_token()->get_id() == HASH) {
+            AST::Attribute inner_attr = parse_inner_attribute();
+
+            // Ensure only valid inner attributes are added to the inner_attributes list
+            if (!inner_attr.is_empty()) {
+                inner_attributes.push_back(inner_attr);
+            } else {
+                /* If no more valid inner attributes, break out of loop (only contiguous inner
+                 * attributes parsed). */
+                break;
+            }
+        }
+
+        return inner_attributes;
+    }
+
+    // Parse a single inner attribute.
+    AST::Attribute Parser::parse_inner_attribute() {
+        if (lexer.peek_token()->get_id() != HASH)
+            return AST::Attribute::create_empty();
+
+        lexer.skip_token();
+
+        if (lexer.peek_token()->get_id() != EXCLAM)
+            return AST::Attribute::create_empty();
+
+        lexer.skip_token();
+
+        if (lexer.peek_token()->get_id() != LEFT_SQUARE)
+            return AST::Attribute::create_empty();
+
+        lexer.skip_token();
+
+        AST::Attribute actual_attribute = parse_attribute_body();
+
+        if (lexer.peek_token()->get_id() != RIGHT_SQUARE)
+            return AST::Attribute::create_empty();
+
+        lexer.skip_token();
+
+        return actual_attribute;
+    }
+
+    // Parses the body of an attribute (inner or outer).
+    AST::Attribute Parser::parse_attribute_body() {
+        AST::SimplePath attr_path = parse_simple_path();
+        // ensure path is valid to parse attribute input
+        if (attr_path.is_empty()) {
+            error_at(lexer.peek_token()->get_locus(), "empty simple path in attribute");
+
+            // Skip past potential further info in attribute (i.e. attr_input)
+            skip_after_end_attribute();
+            return AST::Attribute::create_empty();
+        }
+
+        AST::AttrInput* attr_input = parse_attr_input();
+        // AttrInput is allowed to be null, so no checks here
+
+        return AST::Attribute(attr_path, attr_input);
+    }
+
+    // Parses a SimplePath AST node
+    AST::SimplePath Parser::parse_simple_path() {
+        bool has_opening_scope_resolution = false;
+
+        // Checks for opening scope resolution (i.e. global scope fully-qualified path)
+        if (lexer.peek_token()->get_id() == SCOPE_RESOLUTION) {
+            has_opening_scope_resolution = true;
+            lexer.skip_token();
+        }
+
+        // Parse single required simple path segment
+        AST::SimplePathSegment segment = parse_simple_path_segment();
+
+        ::std::vector<AST::SimplePathSegment> segments;
+
+        // Return empty vector if first, actually required segment is an error
+        if (segment.is_error()) {
+            return segments;
+        }
+
+        segments.push_back(segment);
+
+        // Parse all other simple path segments
+        while (lexer.peek_token()->get_id() == SCOPE_RESOLUTION) {
+            // Skip scope resolution operator
+            lexer.skip_token();
+
+            AST::SimplePathSegment new_segment = parse_simple_path_segment();
+
+            // Return path as currently constructed if segment in error state.
+            if (segment.is_error()) {
+                return segments;
+            }
+            segments.push_back(new_segment);
+        }
+
+        return segments;
+    }
+
+    // Parses a single SimplePathSegment (does not handle the scope resolution operators)
+    AST::SimplePathSegment Parser::parse_simple_path_segment() {
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case IDENTIFIER:
+                lexer.skip_token();
+
+                return AST::SimplePathSegment(t->get_str());
+            case SUPER:
+                lexer.skip_token();
+
+                return AST::SimplePathSegment(::std::string("super"));
+            case SELF:
+                lexer.skip_token();
+
+                return AST::SimplePathSegment(::std::string("self"));
+            case CRATE:
+                lexer.skip_token();
+
+                return AST::SimplePathSegment(::std::string("crate"));
+            case DOLLAR_SIGN:
+                if (lexer.peek_token(1)->get_id() == CRATE) {
+                    lexer.skip_token(1);
+
+                    return AST::SimplePathSegment(::std::string("$crate"));
+                }
+            default:
+                // do nothing but inactivates warning from gcc when compiling
+                // could put the error_at thing here but fallthrough (from failing $crate condition)
+                // isn't completely obvious if it is.
+        }
+
+        error_at(
+          t->get_locus(), "invalid token '%s' in simple path segment", t->get_token_description());
+        return AST::SimplePathSegment::create_error();
+    }
+
+    // Parses an AttrInput AST node (polymorphic, as AttrInput is abstract)
+    AST::AttrInput* Parser::parse_attr_input() {
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case LEFT_PAREN:
+            case LEFT_SQUARE:
+            case LEFT_CURLY:
+                // must be a delimited token tree, so parse that
+                DelimTokenTree* input_tree = new DelimTokenTree(parse_delim_token_tree());
+
+                // TODO: potential checks on DelimTokenTree before returning
+
+                return input_tree;
+            case EQUAL: {
+                // = LiteralExpr
+                skip_token();
+
+                t = lexer.peek_token();
+
+                // Ensure token is a "literal expression" (literally only a literal token of any type)
+                if (!t->is_literal()) {
+                    error_at(t->get_locus(),
+                      "unknown token '%s' in attribute body - literal expected",
+                      t->get_token_description());
+                    skip_after_end_attribute();
+                    return NULL;
+                }
+
+                AST::LiteralExpr::LitType lit_type = STRING;
+                // Crappy mapping of token type to literal type
+                switch (t->get_id()) {
+                    case INT_LITERAL:
+                        lit_type = INT;
+                        break;
+                    case FLOAT_LITERAL:
+                        lit_type = FLOAT;
+                        break;
+                    case CHAR_LITERAL:
+                        lit_type = CHAR;
+                        break;
+                    case BYTE_CHAR_LITERAL:
+                        lit_type = BYTE_CHAR;
+                        break;
+                    case BYTE_STRING_LITERAL:
+                        lit_type = BYTE_STRING;
+                        break;
+                    case STRING_LITERAL:
+                    default:
+                        lit_type = STRING;
+                        break; // TODO: raw string? don't eliminate it from lexer?
+                }
+
+                // create actual LiteralExpr
+                AST::LiteralExpr lit_expr(t->get_str(), lit_type);
+
+                AST::AttrInputLiteral* attr_input_lit = new AST::AttrInputLiteral(lit_expr);
+
+                // do checks or whatever? none required, really
+
+                return attr_input_lit;
+            } break;
+            case RIGHT_SQUARE:
+                // means AttrInput is missing, which is allowed
+                return NULL;
+            default:
+                error_at(t->get_locus(),
+                  "unknown token '%s' in attribute body - attribute input or none expected",
+                  t->get_token_description());
+                skip_after_end_attribute();
+                return NULL;
+        }
+    }
+
+    // Method stub
+    AST::Visibility parse_visibility() {
+        // AST::Visibility vis;
+        // return vis;
     }
 
     // TODO: rename to "parse_module_body"?
-    AST::Module Parser::parse_module() {
+    /*AST::Module Parser::parse_module() {
         // const_TokenPtr t = lexer.peek_token();
         AST::Module module;
 
@@ -381,9 +609,9 @@ namespace Rust {
         }
 
         return module;
-    }
+    }*/
 
-    void Parser::parse_module_item(
+    /*void Parser::parse_module_item(
       AST::Module module_for_items, AST::AttributeList item_outer_attrs) {
         AST::Visibility visibility = parse_visibility();
 
@@ -438,7 +666,7 @@ namespace Rust {
                 // TODO: parse "static item"
                 // etc: add more - all module-level allowed constructs should be represented here
         }
-    }
+    }*/
 
     // Parses a statement. Selects how to parse based on token id.
     Tree Parser::parse_statement() {
@@ -887,6 +1115,22 @@ namespace Rust {
         }
 
         /*if (t->get_id() == RIGHT_CURLY) {
+            lexer.skip_token();
+        }*/
+    }
+
+    // Skips all tokens until ] (the end of an attribute) - does not skip the ] (as designed for
+    // attribute body use)
+    void Parser::skip_after_end_attribute() {
+        const_TokenPtr t = lexer.peek_token();
+
+        while (t->get_id() != RIGHT_SQUARE) {
+            lexer.skip_token();
+            t = lexer.peek_token();
+        }
+
+        // Don't skip the RIGHT_SQUARE token
+        /*if (t->get_id() == RIGHT_SQUARE) {
             lexer.skip_token();
         }*/
     }
@@ -1515,12 +1759,6 @@ namespace Rust {
     // Method stub
     Tree Parser::binary_right_shift_assig(const_TokenPtr tok, Tree left) {
         return NULL_TREE;
-    }
-
-    // Method stub
-    AST::Visibility parse_visibility() {
-        AST::Visibility vis;
-        return vis;
     }
 
     // Parse variable assignment statement. This is not the same as variable declaration.

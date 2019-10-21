@@ -69,6 +69,9 @@ namespace Rust {
               value_as_string(value_as_string),
               type(type), ExprWithoutBlock(outer_attrs) {}
 
+            LiteralExpr(::std::string value_as_string, LitType type) :
+              value_as_string(value_as_string), type(type) {}
+
             // Unique pointer custom clone function
             ::gnu::unique_ptr<LiteralExpr> clone_literal_expr() const {
                 return ::gnu::unique_ptr<LiteralExpr>(clone_literal_expr_impl());
@@ -166,10 +169,10 @@ namespace Rust {
             }
 
             // Constructor with MetaItem
-            MetaItemInner(MetaItem* item) : item(item)/*, expr(NULL)*/ {}
+            MetaItemInner(MetaItem* item) : item(item) /*, expr(NULL)*/ {}
 
             // Constructor with LitExpr
-            MetaItemInner(LiteralExpr* expr) : /*item(NULL), */expr(expr) {}
+            MetaItemInner(LiteralExpr* expr) : /*item(NULL), */ expr(expr) {}
 
             // Copy constructor with clone
             MetaItemInner(MetaItemInner const& other) :
@@ -1672,7 +1675,7 @@ namespace Rust {
                 ExprWithoutBlock::operator=(other);
                 function = other.function->clone_expr();
                 params = other.params;
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -1731,7 +1734,7 @@ namespace Rust {
                 receiver = other.receiver->clone_expr();
                 method_name = other.method_name;
                 params = other.params;
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -1782,7 +1785,7 @@ namespace Rust {
                 ExprWithoutBlock::operator=(other);
                 receiver = other.receiver->clone_expr();
                 field = other.field;
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -1820,7 +1823,7 @@ namespace Rust {
             }
 
             // Constructor for closure parameter with no given type
-            ClosureParam(Pattern* param_pattern) : pattern(param_pattern)/*, type(NULL)*/ {}
+            ClosureParam(Pattern* param_pattern) : pattern(param_pattern) /*, type(NULL)*/ {}
 
             // Constructor for closure parameter with a given type
             ClosureParam(Pattern* param_pattern, Type* param_type) :
@@ -1895,9 +1898,9 @@ namespace Rust {
             ClosureExprInner& operator=(ClosureExprInner const& other) {
                 ClosureExpr::operator=(other);
                 closure_inner = other.closure_inner->clone_expr();
-                //params = other.params;
-                //has_move = other.has_move;
-                //outer_attrs = other.outer_attrs;
+                // params = other.params;
+                // has_move = other.has_move;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -1919,7 +1922,7 @@ namespace Rust {
         };
 
         // Forward decl BlockExpr for ClosureExprInnerTyped
-        //class BlockExpr;
+        // class BlockExpr;
 
         // A block AST node
         class BlockExpr : public ExprWithBlock {
@@ -1965,7 +1968,7 @@ namespace Rust {
                 statements = other.statements;
                 expr = other.expr->clone_expr_without_block();
                 inner_attrs = other.inner_attrs;
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2036,9 +2039,9 @@ namespace Rust {
                 ClosureExpr::operator=(other);
                 return_type = other.return_type->clone_type();
                 expr = other.expr->clone_block_expr();
-                //params = other.params;
-                //has_move = other.has_move;
-                //outer_attrs = other.outer_attrs;
+                // params = other.params;
+                // has_move = other.has_move;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2145,7 +2148,7 @@ namespace Rust {
                 ExprWithoutBlock::operator=(other);
                 label = other.label;
                 break_expr = other.break_expr->clone_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2204,7 +2207,7 @@ namespace Rust {
                 RangeExpr::operator=(other);
                 from = other.from->clone_expr();
                 to = other.to->clone_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2251,7 +2254,7 @@ namespace Rust {
             RangeFromExpr& operator=(RangeFromExpr const& other) {
                 RangeExpr::operator=(other);
                 from = other.from->clone_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2297,7 +2300,7 @@ namespace Rust {
             RangeToExpr& operator=(RangeToExpr const& other) {
                 RangeExpr::operator=(other);
                 to = other.to->clone_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2370,7 +2373,7 @@ namespace Rust {
                 RangeExpr::operator=(other);
                 from = other.from->clone_expr();
                 to = other.to->clone_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2417,7 +2420,7 @@ namespace Rust {
             RangeToInclExpr& operator=(RangeToInclExpr const& other) {
                 RangeExpr::operator=(other);
                 to = other.to->clone_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2476,7 +2479,7 @@ namespace Rust {
             ReturnExpr& operator=(ReturnExpr const& other) {
                 ExprWithoutBlock::operator=(other);
                 return_expr = other.return_expr->clone_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2551,7 +2554,7 @@ namespace Rust {
             UnsafeBlockExpr& operator=(UnsafeBlockExpr const& other) {
                 ExprWithBlock::operator=(other);
                 expr = other.expr->clone_block_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2624,7 +2627,7 @@ namespace Rust {
                 ExprWithBlock::operator=(other);
                 loop_block = other.loop_block->clone_block_expr();
                 loop_label = other.loop_label;
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2705,9 +2708,9 @@ namespace Rust {
             WhileLoopExpr& operator=(WhileLoopExpr const& other) {
                 BaseLoopExpr::operator=(other);
                 condition = other.condition->clone_expr();
-                //loop_block = other.loop_block->clone_block_expr();
-                //loop_label = other.loop_label;
-                //outer_attrs = other.outer_attrs;
+                // loop_block = other.loop_block->clone_block_expr();
+                // loop_label = other.loop_label;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2770,9 +2773,9 @@ namespace Rust {
                 BaseLoopExpr::operator=(other);
                 match_arm_patterns = other.match_arm_patterns;
                 condition = other.condition->clone_expr();
-                //loop_block = other.loop_block->clone_block_expr();
-                //loop_label = other.loop_label;
-                //outer_attrs = other.outer_attrs;
+                // loop_block = other.loop_block->clone_block_expr();
+                // loop_label = other.loop_label;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2898,7 +2901,7 @@ namespace Rust {
                 ExprWithBlock::operator=(other);
                 condition = other.condition->clone_expr();
                 if_block = other.if_block->clone_block_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -2958,10 +2961,10 @@ namespace Rust {
             // Overloaded assignment operator with cloning
             IfExprConseqElse& operator=(IfExprConseqElse const& other) {
                 IfExpr::operator=(other);
-                //condition = other.condition->clone_expr();
-                //if_block = other.if_block->clone_block_expr();
+                // condition = other.condition->clone_expr();
+                // if_block = other.if_block->clone_block_expr();
                 else_block = other.else_block->clone_block_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -3013,10 +3016,10 @@ namespace Rust {
             // Overloaded assignment operator to use clone
             IfExprConseqIf& operator=(IfExprConseqIf const& other) {
                 IfExpr::operator=(other);
-                //condition = other.condition->clone_expr();
-                //if_block = other.if_block->clone_block_expr();
+                // condition = other.condition->clone_expr();
+                // if_block = other.if_block->clone_block_expr();
                 if_expr = other.if_expr->clone_if_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -3084,7 +3087,7 @@ namespace Rust {
                 match_arm_patterns = other.match_arm_patterns;
                 value = other.value->clone_expr();
                 if_block = other.if_block->clone_block_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -3141,10 +3144,10 @@ namespace Rust {
             // Overloaded assignment operator to use clone
             IfExprConseqIfLet& operator=(IfExprConseqIfLet const& other) {
                 IfExpr::operator=(other);
-                //condition = other.condition->clone_expr();
-                //if_block = other.if_block->clone_block_expr();
+                // condition = other.condition->clone_expr();
+                // if_block = other.if_block->clone_block_expr();
                 if_let_expr = other.if_let_expr->clone_if_let_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -3197,11 +3200,11 @@ namespace Rust {
             // overload assignment operator to clone
             IfLetExprConseqElse& operator=(IfLetExprConseqElse const& other) {
                 IfLetExpr::operator=(other);
-                //match_arm_patterns = other.match_arm_patterns;
-                //value = other.value->clone_expr();
-                //if_block = other.if_block->clone_block_expr();
+                // match_arm_patterns = other.match_arm_patterns;
+                // value = other.value->clone_expr();
+                // if_block = other.if_block->clone_block_expr();
                 else_block = other.else_block->clone_block_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -3254,11 +3257,11 @@ namespace Rust {
             // overload assignment operator to clone
             IfLetExprConseqIf& operator=(IfLetExprConseqIf const& other) {
                 IfLetExpr::operator=(other);
-                //match_arm_patterns = other.match_arm_patterns;
-                //value = other.value->clone_expr();
-                //if_block = other.if_block->clone_block_expr();
+                // match_arm_patterns = other.match_arm_patterns;
+                // value = other.value->clone_expr();
+                // if_block = other.if_block->clone_block_expr();
                 if_expr = other.if_expr->clone_if_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -3311,11 +3314,11 @@ namespace Rust {
             // overload assignment operator to clone
             IfLetExprConseqIfLet& operator=(IfLetExprConseqIfLet const& other) {
                 IfLetExpr::operator=(other);
-                //match_arm_patterns = other.match_arm_patterns;
-                //value = other.value->clone_expr();
-                //if_block = other.if_block->clone_block_expr();
+                // match_arm_patterns = other.match_arm_patterns;
+                // value = other.value->clone_expr();
+                // if_block = other.if_block->clone_block_expr();
                 if_let_expr = other.if_let_expr->clone_if_let_expr();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
@@ -3387,7 +3390,7 @@ namespace Rust {
             MatchArm(::std::vector< ::gnu::unique_ptr<Pattern> > match_arm_patterns,
               ::std::vector<Attribute> outer_attrs) :
               match_arm_patterns(match_arm_patterns),
-              outer_attrs(outer_attrs)/*, guard_expr(NULL)*/ {}
+              outer_attrs(outer_attrs) /*, guard_expr(NULL)*/ {}
 
             // Constructor for match arm with a guard expression
             MatchArm(::std::vector< ::gnu::unique_ptr<Pattern> > match_arm_patterns, Expr* guard_expr,
@@ -3451,7 +3454,7 @@ namespace Rust {
             MatchCaseBlockExpr& operator=(MatchCaseBlockExpr const& other) {
                 MatchCase::operator=(other);
                 block_expr = other.block_expr->clone_block_expr();
-                //arm = other.arm;
+                // arm = other.arm;
 
                 return *this;
             }
@@ -3483,7 +3486,7 @@ namespace Rust {
             MatchCaseExpr& operator=(MatchCaseExpr const& other) {
                 MatchCase::operator=(other);
                 expr = other.expr->clone_expr();
-                //arm = other.arm;
+                // arm = other.arm;
 
                 return *this;
             }
@@ -3539,7 +3542,7 @@ namespace Rust {
                 branch_value = other.branch_value->clone_expr();
                 match_arms = other.match_arms;
                 inner_attrs = other.inner_attrs;
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }

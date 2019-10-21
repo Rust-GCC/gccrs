@@ -428,7 +428,7 @@ namespace Rust {
             SimplePath in_path;
 
           public:
-            // Creates a Visibility
+            // Creates a Visibility - TODO make constructor protected or private?
             Visibility(PublicVisType public_vis_type, SimplePath in_path) :
               public_vis_type(public_vis_type), in_path(in_path) {
                 if (public_vis_type != IN_PATH && !in_path.is_empty()) {
@@ -445,6 +445,32 @@ namespace Rust {
 
             /* TODO: think of a way to only allow valid Visibility states - polymorphism is one
              * idea but may be too resource-intensive. */
+            
+            // Creates a public visibility with no further features/arguments.
+            static Visibility create_public() {
+                return Visibility(NONE, SimplePath::create_empty());
+            }
+
+            // Creates a public visibility with crate-relative paths or whatever.
+            static Visibility create_crate() {
+                return Visibility(CRATE, SimplePath::create_empty());
+            }
+
+            // Creates a public visibility with self-relative paths or whatever.
+            static Visibility create_self() {
+                return Visibility(SELF, SimplePath::create_empty());
+            }
+
+            // Creates a public visibility with parent module-relative paths or whatever.
+            static Visibility create_super() {
+                return Visibility(SUPER, SimplePath::create_empty());
+            }
+
+            // Creates a public visibility with a given path or whatever.
+            static Visibility create_in_path(SimplePath in_path) {
+                return Visibility(IN_PATH, in_path);
+            }
+
           protected:
             // Clone function implementation - not currently virtual but may be if polymorphism used
             /*virtual*/ Visibility* clone_visibility_impl() const {
