@@ -72,6 +72,7 @@ namespace Rust {
         AST::SimplePathSegment parse_simple_path_segment();
         AST::AttrInput* parse_attr_input();
         AST::DelimTokenTree parse_delim_token_tree();
+        AST::TokenTree* parse_token_tree();
         
         //void parse_crate();
         //AST::Module parse_module();

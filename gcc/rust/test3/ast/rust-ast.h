@@ -4,10 +4,10 @@
 
 // GCC imports
 #include "config.h"
-#define INCLUDE_UNIQUE_PTR 
+#define INCLUDE_UNIQUE_PTR
 // should allow including the gcc emulation of std::unique_ptr
+#include "coretypes.h" // order: config, INCLUDE, system, coretypes
 #include "system.h"
-#include "coretypes.h"     // order: config, INCLUDE, system, coretypes
 
 // STL imports
 #include <string>
@@ -78,12 +78,27 @@ namespace Rust {
           , public MacroMatch {
             // A token is a kind of token tree (except delimiter tokens)
             // A token is a kind of MacroMatch (except $ and delimiter tokens)
+            // TODO: improve member variables - current ones are the same as lexer token
+            // Token kind.
+            TokenId token_id;
+            // Token location.
+            location_t locus;
+            // Associated text (if any) of token.
+            std::string str;
+            // Token type hint (if any).
+            PrimitiveCoreType type_hint;
 
           public:
             // Unique pointer custom clone function
             ::gnu::unique_ptr<Token> clone_token() const {
                 return ::gnu::unique_ptr<Token>(clone_token_impl());
             }
+
+            // Constructor from lexer const_TokenPtr
+            // TODO: find workaround for std::string being NULL
+            Token(const_TokenPtr lexer_token_ptr) :
+              token_id(lexer_token_ptr->get_id()), locus(lexer_token_ptr->get_locus()),
+              str(lexer_token_ptr->get_str()), type_hint(lexer_token_ptr->get_type_hint()) {}
 
           protected:
             // No virtual for now as not polymorphic but can be in future
@@ -111,6 +126,12 @@ namespace Rust {
               DelimType delim_type, ::std::vector< ::gnu::unique_ptr<TokenTree> > token_trees) :
               delim_type(delim_type),
               token_trees(token_trees) {}
+
+            DelimTokenTree(DelimType delim_type) : delim_type(delim_type) {}
+
+            static DelimTokenTree create_empty() {
+                return DelimTokenTree(PARENS);
+            }
         };
 
         // Forward decl - definition moved to rust-expr.h as it requires LiteralExpr to be defined

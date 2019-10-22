@@ -581,8 +581,109 @@ namespace Rust {
         }
     }
 
+    /* Returns true if the token id matches the delimiter type. Note that this only operates for
+     * END delimiter tokens. */
+    inline bool token_id_matches_delims(TokenId token_id, AST::DelimTokenTree::DelimType delim_type) {
+        return ((token_id == RIGHT_PAREN && delim_type == PARENS)
+                || (token_id == RIGHT_SQUARE && delim_type == SQUARE)
+                || (token_id == RIGHT_CURLY && delim_type == CURLY));
+    }
+
+    // Parses a delimited token tree
+    AST::DelimTokenTree Parser::parse_delim_token_tree() {
+        const_TokenPtr t = lexer.peek_token();
+        lexer.skip_token();
+
+        // save delim type to ensure it is reused later
+        AST::DelimTokenTree::DelimType delim_type = PARENS;
+
+        // Map tokens to DelimType
+        switch (t->get_id()) {
+            case LEFT_PAREN:
+                delim_type = PARENS;
+                break;
+            case LEFT_SQUARE:
+                delim_type = SQUARE;
+                break;
+            case LEFT_CURLY:
+                delim_type = CURLY;
+                break;
+            default:
+                error_at(t->get_locus(),
+                  "unexpected token '%s' - expecting delimiters (for a delimited token tree)",
+                  t->get_token_description());
+                return DelimTokenTree::create_empty();
+        }
+
+        t = lexer.peek_token();
+
+        // parse actual token tree vector - 0 or more
+        ::std::vector< ::gnu::unique_ptr<TokenTree> > token_trees_in_tree;
+
+        // repeat loop until finding the matches delimiter
+        while (!token_id_matches_delims(t->get_id(), delim_type)) {
+            TokenTree* tok_tree = parse_token_tree();
+
+            // may need attention in C++11 move
+            token_trees_in_tree.push_back(::gnu::unique_ptr<TokenTree>(tok_tree));
+
+            // lexer.skip_token();
+            // t = lexer.peek_token();
+        }
+
+        // TODO: put in std::move for vector in constructor or here?
+        AST::DelimTokenTree token_tree(delim_type, token_trees_in_tree);
+
+        // parse end delimiters
+        t = lexer.peek_token();
+
+        if (token_id_matches_delims(t->get_id(), delim_type)) {
+            // tokens match opening delimiter, so skip.
+            lexer.skip_token();
+
+            return token_tree;
+        } else {
+            // tokens don't match opening delimiters, so produce error
+            error_at(t->get_locus(),
+              "unexpected token '%s' - expecting closing delimiter '%s' (for a delimited token tree)",
+              t->get_token_description(),
+              (delim_type == PARENS ? ")" : (delim_type == SQUARE ? "]" : "}")));
+
+            /* return empty token tree despite possibly parsing valid token tree - TODO is this a
+             * good idea? */
+            return DelimTokenTree::create_empty();
+        }
+    }
+
+    /* Parses a TokenTree syntactical production. This is either a delimited token tree or a
+     * non-delimiter token. */
+    AST::TokenTree* Parser::parse_token_tree() {
+        const_TokenPtr t = lexer.peek_token();
+
+        switch (t->get_id()) {
+            case LEFT_PAREN:
+            case LEFT_SQUARE:
+            case LEFT_CURLY:
+                // Parse delimited token tree
+                return new parse_delim_token_tree();
+            case RIGHT_PAREN:
+            case RIGHT_SQUARE:
+            case RIGHT_CURLY:
+                // error - should not be called when this a token
+                error_at(t->get_locus(),
+                  "unexpected closing delimiter '%s' - token tree requires either paired delimiters "
+                  "or non-delimiter tokens",
+                  t->get_token_description());
+                lexer.skip_token();
+                return NULL;
+            default:
+                // parse token itself as TokenTree
+                return new AST::Token(t);
+        }
+    }
+
     // Method stub
-    AST::Visibility parse_visibility() {
+    AST::Visibility Parser::parse_visibility() {
         // AST::Visibility vis;
         // return vis;
     }
