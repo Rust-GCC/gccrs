@@ -678,8 +678,120 @@ namespace Rust {
                 return NULL;
             default:
                 // parse token itself as TokenTree
+                lexer.skip_token();
+                // TODO: fix that token constructor, possibly with c++11 features
                 return new AST::Token(t);
         }
+    }
+
+    // Parses a sequence of items within a module or the implicit top-level module in a crate.
+    ::std::vector< ::gnu::unique_ptr<AST::Item> > Parser::parse_items() {
+        ::std::vector< ::gnu::unique_ptr<AST::Item> > items;
+
+        // TODO: replace with do-while loop?
+        // infinite loop to save on comparisons (may be a tight loop) - breaks when next item is null
+        while (true) {
+            AST::Item* item = parse_item();
+
+            if (item != NULL) {
+                items.push_back(::gnu::unique_ptr<AST::Item>(item));
+            } else {
+                break;
+            }
+        }
+
+        return items;
+    }
+
+    // Parses a single item
+    AST::Item* Parser::parse_item() {
+        // parse outer attributes for item
+        ::std::vector<Attribute> outer_attrs = parse_outer_attributes();
+
+        // TODO: decide how to deal with VisItem vs MacroItem dichotomy
+        // best current solution: catch all keywords that would imply a VisItem in a switch and have
+        // MacroItem as a last resort
+
+        const_TokenPtr t = lexer.peek_token();
+
+        switch (t->get_id()) {
+            case PUB:
+            case MOD:
+            case EXTERN_TOK:
+            case USE:
+            case FN_TOK:
+            case TYPE:
+            case STRUCT_TOK:
+            case ENUM_TOK:
+            case UNION: // TODO: implement union keyword but not really because of context-dependence
+            case CONST:
+            case STATIC_TOK:
+            case TRAIT:
+            case IMPL:
+            case UNSAFE: // maybe - unsafe traits are a thing
+                // if any of these (should be all possible VisItem prefixes), parse a VisItem
+                return parse_vis_item();
+                break;
+            default:
+                // otherwise parse a MacroItem
+                return parse_macro_item();
+                break;
+        }
+    }
+
+    // Parses a contiguous block of outer attributes.
+    ::std::vector<AST::Attribute> Parser::parse_outer_attributes() {
+        ::std::vector<AST::Attribute> outer_attributes;
+
+        while (lexer.peek_token()->get_id() == HASH) {
+            AST::Attribute outer_attr = parse_outer_attribute();
+
+            // Ensure only valid outer attributes are added to the outer_attributes list
+            if (!outer_attr.is_empty()) {
+                outer_attributes.push_back(outer_attr);
+            } else {
+                /* If no more valid outer attributes, break out of loop (only contiguous outer
+                 * attributes parsed). */
+                break;
+            }
+        }
+
+        return outer_attributes;
+
+        // TODO: this shares basically all code with parse_inner_attributes except function call
+        // find way of making it more modular?
+    }
+
+    // Parse a single outer attribute.
+    AST::Attribute Parser::parse_outer_attribute() {
+        /* OuterAttribute -> '#' '[' Attr ']' */
+
+        if (lexer.peek_token()->get_id() != HASH)
+            return AST::Attribute::create_empty();
+
+        lexer.skip_token();
+
+        TokenId id = lexer.peek_token()->get_id();
+        if (id != LEFT_SQUARE) {
+            if (id == EXCLAM) {
+                // this is inner attribute syntax, so throw error
+                error_at(lexer.peek_token()->get_locus(),
+                  "token '!' found, indicating inner attribute definition. Inner attributes are not "
+                  "possible at this location.");
+            } // TODO: are there any cases where this wouldn't be an error?
+            return AST::Attribute::create_empty();
+        }
+
+        lexer.skip_token();
+
+        AST::Attribute actual_attribute = parse_attribute_body();
+
+        if (lexer.peek_token()->get_id() != RIGHT_SQUARE)
+            return AST::Attribute::create_empty();
+
+        lexer.skip_token();
+
+        return actual_attribute;
     }
 
     // Method stub

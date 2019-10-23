@@ -73,6 +73,8 @@ namespace Rust {
         AST::AttrInput* parse_attr_input();
         AST::DelimTokenTree parse_delim_token_tree();
         AST::TokenTree* parse_token_tree();
+        ::std::vector<AST::Attribute> parse_outer_attributes();
+        AST::Item* parse_item();
         
         //void parse_crate();
         //AST::Module parse_module();
