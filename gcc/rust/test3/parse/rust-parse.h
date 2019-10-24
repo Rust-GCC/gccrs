@@ -75,6 +75,9 @@ namespace Rust {
         AST::TokenTree* parse_token_tree();
         ::std::vector<AST::Attribute> parse_outer_attributes();
         AST::Item* parse_item();
+        AST::VisItem* parse_vis_item();
+        AST::MacroItem* parse_macro_item();
+        AST::Visibility* parse_visibility();
         
         //void parse_crate();
         //AST::Module parse_module();

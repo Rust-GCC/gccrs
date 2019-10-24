@@ -794,8 +794,118 @@ namespace Rust {
         return actual_attribute;
     }
 
-    // Method stub
-    AST::Visibility Parser::parse_visibility() {
+    // Parses a VisItem (item that can have non-default visibility).
+    AST::VisItem* Parser::parse_vis_item() {
+        // parse visibility, which may or may not exist
+        AST::Visibility* vis = parse_visibility();
+
+        // select VisItem to create depending on keyword
+        const_TokenPtr t = lexer.peek_token();
+
+        switch (t->get_id()) {
+            case MOD:
+                return parse_module(vis);
+            case EXTERN_TOK: 
+                // lookahead to resolve syntactical production
+                t = lexer.peek_token(1);
+
+                switch (t->get_id()) {
+                    case CRATE:
+                        return parse_extern_crate(vis);
+                    case FN_TOK: // extern function
+                        return parse_function(vis);
+                    case LEFT_CURLY: // extern block
+                        return parse_extern_block(vis);
+                    case STRING_LITERAL: // for specifying extern ABI
+                        // could be extern block or extern function, so more lookahead
+                        t = lexer.peek_token(2);
+
+                        switch (t->get_id()) {
+                            case FN_TOK:
+                                return parse_function(vis);
+                            case LEFT_CURLY:
+                                return parse_extern_block(vis);
+                            default:
+                                error_at(t->get_locus(),
+                                  "unexpected token '%s' in some sort of extern production",
+                                  t->get_token_description());
+                                lexer.skip_token(2); // TODO: is this right thing to do?
+                                return NULL;
+                        }
+                    default:
+                        error_at(t->get_locus(),
+                          "unexpected token '%s' in some sort of extern production",
+                          t->get_token_description());
+                        lexer.skip_token(1); // TODO: is this right thing to do?
+                        return NULL;
+                }
+            case USE:
+                return parse_use_decl(vis);
+            case FN_TOK:
+                return parse_function(vis);
+            case TYPE:
+                return parse_type_alias(vis);
+            case STRUCT_TOK:
+                return parse_struct(vis);
+            case ENUM_TOK:
+                return parse_enum(vis);
+            case UNION: // TODO: implement union keyword but not really because of context-dependence
+                return parse_union(vis);
+            case CONST: 
+                // lookahead to resolve syntactical production
+                t = lexer.peek_token(1);
+
+                switch (t->get_id()) {
+                    case IDENTIFIER:
+                    case UNDERSCORE:
+                        return parse_const_item(vis);
+                    case UNSAFE: 
+                    case EXTERN_TOK:
+                    case FN_TOK:
+                        return parse_function(vis);
+                    default:
+                        error_at(t->get_locus(),
+                          "unexpected token '%s' in some sort of const production",
+                          t->get_token_description());
+                        lexer.skip_token(1); // TODO: is this right thing to do?
+                        return NULL;
+                }
+            case STATIC_TOK:
+                return parse_static_item(vis);
+            case TRAIT:
+                return parse_trait(vis);
+            case IMPL:
+                return parse_impl(vis);
+            case UNSAFE: // unsafe traits, unsafe functions, unsafe impls (trait impls),
+                // lookahead to resolve syntactical production
+                t = lexer.peek_token(1);
+
+                switch (t->get_id()) {
+                    case TRAIT:
+                        return parse_trait(vis);
+                    case EXTERN_TOK:
+                    case FN_TOK:
+                        return parse_function(vis);
+                    case IMPL:
+                        return parse_impl(vis);
+                    default:
+                        error_at(t->get_locus(),
+                          "unexpected token '%s' in some sort of unsafe production",
+                          t->get_token_description());
+                        lexer.skip_token(1); // TODO: is this right thing to do?
+                        return NULL;
+                }
+            default:
+                // otherwise vis item clearly doesn't exist, which is not an error
+                return NULL;
+        }
+    }
+
+    // Parses a MacroItem (item that has something to do with macros).
+    AST::MacroItem* Parser::parse_macro_item() {}
+
+    // Parses a visibility syntactical production (i.e. creating a non-default visibility)
+    AST::Visibility* Parser::parse_visibility() {
         // AST::Visibility vis;
         // return vis;
     }
