@@ -93,7 +93,13 @@ namespace Rust {
               type_representation(type_representation),
               type_param_bounds(type_param_bounds), type(type), outer_attr(outer_attr) {}
 
-            // TODO: more constructors with fewer parameters?
+            // No bounds or type constructor
+            TypeParam(Identifier type_representation, Attribute* outer_attr) :
+              type_representation(type_representation), outer_attr(outer_attr) {}
+
+            // No bounds constructor
+            TypeParam(Identifier type_representation, Type* type, Attribute* outer_attr) :
+              type_representation(type_representation), type(type), outer_attr(outer_attr) {}
 
             // Copy constructor uses clone
             TypeParam(TypeParam const& other) :
@@ -249,7 +255,7 @@ namespace Rust {
 
             // Lifetime-based self parameter (is ref, no type)
             SelfParam(Lifetime lifetime, bool is_mut) :
-              /*type(NULL), */is_mut(is_mut), has_ref(true), lifetime(lifetime) {}
+              /*type(NULL), */ is_mut(is_mut), has_ref(true), lifetime(lifetime) {}
 
             // Copy constructor requires clone
             SelfParam(SelfParam const& other) :
@@ -292,6 +298,12 @@ namespace Rust {
             FunctionQualifiers(bool has_const, bool has_unsafe, ::std::string extern_abi) :
               has_const(has_const), has_unsafe(has_unsafe), has_extern(true), extern_abi(extern_abi) {
             }
+
+            // Constructor with all possible options (DON'T HAVE EXTERN_ABI WITHOUT EXTERN!)
+            FunctionQualifiers(
+              bool has_const, bool has_unsafe, bool has_extern, ::std::string extern_abi) :
+              has_const(has_const),
+              has_unsafe(has_unsafe), has_extern(has_extern), extern_abi(extern_abi) {}
         };
 
         // Forward decl FunctionParams
@@ -325,6 +337,16 @@ namespace Rust {
             // no move constructors as not supported in c++03
             /*FunctionParam(FunctionParam&& other) = default;
             FunctionParam& operator=(FunctionParam&& other) = default;*/
+
+            // Returns whether FunctionParam is in an invalid state.
+            inline bool is_error() const {
+                return param_name == NULL || type == NULL;
+            }
+
+            // Creates an error FunctionParam.
+            static FunctionParam create_error() {
+                return FunctionParam(NULL, NULL);
+            }
         };
 
         // A method (function belonging to a type)
@@ -445,7 +467,7 @@ namespace Rust {
 
             /* TODO: think of a way to only allow valid Visibility states - polymorphism is one
              * idea but may be too resource-intensive. */
-            
+
             // Creates a public visibility with no further features/arguments.
             static Visibility create_public() {
                 return Visibility(NONE, SimplePath::create_empty());
@@ -518,6 +540,7 @@ namespace Rust {
 
         // Rust module item - abstract base class
         class Module : public VisItem {
+            // TODO: module name? (identifier) - why don't I have this?
           protected:
             // Outer attributes constructor
             Module(Visibility* visibility, ::std::vector<Attribute> outer_attrs) :
@@ -568,15 +591,17 @@ namespace Rust {
               Module(visibility, outer_attrs) {}
         };
 
-        struct CrateRef {
+        // inlined
+        /*struct CrateRef {
             // either an identifier or "self"
             ::std::string thing; // TODO: fix
 
           public:
             CrateRef(::std::string thing) : thing(thing) {}
-        };
+        };*/
 
-        struct AsClause {
+        // inlined
+        /*struct AsClause {
             // either an identifier or "_"
             ::std::string thing; // TODO: fix
 
@@ -592,13 +617,16 @@ namespace Rust {
             }
 
             AsClause(::std::string thing) : thing(thing) {}
-        };
+        };*/
 
         // Rust extern crate declaration AST node
         class ExternCrate : public VisItem {
-            CrateRef referenced_crate;
+            // this is either an identifier or "self", with self parsed to string
+            ::std::string referenced_crate;
             // bool has_as_clause;
-            AsClause as_clause;
+            // AsClause as_clause;
+            // this is either an identifier or "_", with _ parsed to string
+            ::std::string as_clause_name;
 
             /* e.g.
                 "extern crate foo as _"
@@ -607,21 +635,27 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
+            // Returns whether extern crate declaration has an as clause.
             inline bool has_as_clause() const {
-                return !as_clause.is_empty();
+                return !as_clause_name.empty();
+            }
+
+            // Returns whether extern crate declaration references the current crate (i.e. self).
+            inline bool references_self() const {
+                return referenced_crate == "self";
             }
 
             // Constructor with an as clause
-            ExternCrate(CrateRef referenced_crate, AsClause as_clause, Visibility* visibility,
-              ::std::vector<Attribute> outer_attrs) :
+            ExternCrate(::std::string referenced_crate, ::std::string as_clause_name,
+              Visibility* visibility, ::std::vector<Attribute> outer_attrs) :
               referenced_crate(referenced_crate),
-              as_clause(as_clause), VisItem(visibility, outer_attrs) {}
+              as_clause_name(as_clause_name), VisItem(visibility, outer_attrs) {}
 
             // Constructor with no as clause
-            ExternCrate(CrateRef referenced_crate, Visibility* visibility,
+            ExternCrate(::std::string referenced_crate, Visibility* visibility,
               ::std::vector<Attribute> outer_attrs) :
               referenced_crate(referenced_crate),
-              as_clause(AsClause::create_empty()), VisItem(visibility, outer_attrs) {}
+              VisItem(visibility, outer_attrs) {}
         };
 
         // The path-ish thing referred to in a use declaration - abstract base class

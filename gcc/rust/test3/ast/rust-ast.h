@@ -527,6 +527,10 @@ namespace Rust {
               lifetime(lifetime),
               lifetime_bounds(lifetime_bounds), outer_attr(outer_attr) {}
 
+            // Constructor without lifetime bounds.
+            LifetimeParam(Lifetime lifetime, Attribute* outer_attr) :
+              lifetime(lifetime), outer_attr(outer_attr) {}
+
             // Copy constructor with clone
             LifetimeParam(LifetimeParam const& other) :
               lifetime(other.lifetime), lifetime_bounds(other.lifetime_bounds),

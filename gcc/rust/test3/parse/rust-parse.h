@@ -62,27 +62,67 @@ namespace Rust {
 
         void parse_statement_seq(bool (Parser::*done)());
 
+        // AST-related stuff - maybe move or something?
         AST::Crate parse_crate();
         ::std::vector<AST::Attribute> parse_inner_attributes();
-        ::std::vector< ::gnu::unique_ptr<AST::Item> > parse_items();
         AST::Attribute parse_inner_attribute();
+        ::std::vector<AST::Attribute> parse_outer_attributes();
         AST::Attribute parse_outer_attribute();
         AST::Attribute parse_attribute_body();
+        AST::AttrInput* parse_attr_input();
+
+        // Path-related
         AST::SimplePath parse_simple_path();
         AST::SimplePathSegment parse_simple_path_segment();
-        AST::AttrInput* parse_attr_input();
+
+        // Token tree or macro related
         AST::DelimTokenTree parse_delim_token_tree();
         AST::TokenTree* parse_token_tree();
-        ::std::vector<AST::Attribute> parse_outer_attributes();
+
+        // Top-level item-related
+        ::std::vector< ::gnu::unique_ptr<AST::Item> > parse_items();
         AST::Item* parse_item();
-        AST::VisItem* parse_vis_item();
-        AST::MacroItem* parse_macro_item();
+        AST::VisItem* parse_vis_item(::std::vector<AST::Attribute> outer_attrs);
+        AST::MacroItem* parse_macro_item(::std::vector<AST::Attribute> outer_attrs);
         AST::Visibility* parse_visibility();
-        
-        //void parse_crate();
-        //AST::Module parse_module();
-        //void parse_module_item(AST::Module module_for_items, AST::AttributeList item_outer_attributes);
-        //AST::Visibility parse_visibility();
+
+        // Item subclass-related
+        AST::Module* parse_module(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ExternCrate* parse_extern_crate(
+          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::UseDeclaration* parse_use_declaration(
+          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Function* parse_function(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::FunctionQualifiers parse_function_qualifiers();
+        ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > parse_generic_params_in_angles();
+        ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > parse_generic_params();
+        ::std::vector< ::gnu::unique_ptr<AST::LifetimeParam> > parse_lifetime_params();
+        AST::LifetimeParam* parse_lifetime_param();
+        ::std::vector< ::gnu::unique_ptr<AST::TypeParam> > parse_type_params();
+        ::std::vector<AST::FunctionParam> parse_function_params();
+        AST::FunctionParam parse_function_param();
+        AST::Type* parse_function_return_type();
+        AST::WhereClause parse_where_clause();
+        AST::WhereClauseItem* parse_where_clause_item();
+        AST::LifetimeWhereClauseItem* parse_lifetime_where_clause_item();
+        AST::TypeBoundWhereClauseItem* parse_type_bound_where_clause_item();
+        AST::TypeAlias* parse_type_alias(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Struct* parse_struct(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Enum* parse_enum(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Union* parse_union(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ConstantItem* parse_const_item(
+          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::StaticItem* parse_static_item(
+          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Trait* parse_trait(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Impl* parse_impl(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ExternBlock* parse_extern_block(
+          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+
+        // void parse_crate();
+        // AST::Module parse_module();
+        // void parse_module_item(AST::Module module_for_items, AST::AttributeList
+        // item_outer_attributes); AST::Visibility parse_visibility();
 
         bool done_end();
         bool done_end_or_else();

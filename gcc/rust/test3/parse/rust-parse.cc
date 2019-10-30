@@ -706,7 +706,7 @@ namespace Rust {
     // Parses a single item
     AST::Item* Parser::parse_item() {
         // parse outer attributes for item
-        ::std::vector<Attribute> outer_attrs = parse_outer_attributes();
+        ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
 
         // TODO: decide how to deal with VisItem vs MacroItem dichotomy
         // best current solution: catch all keywords that would imply a VisItem in a switch and have
@@ -723,18 +723,27 @@ namespace Rust {
             case TYPE:
             case STRUCT_TOK:
             case ENUM_TOK:
-            case UNION: // TODO: implement union keyword but not really because of context-dependence
             case CONST:
             case STATIC_TOK:
             case TRAIT:
             case IMPL:
+            /* TODO: implement union keyword but not really because of context-dependence
+             * crappy hack way to parse a union written below to separate it from the good code. */
+            // case UNION:
             case UNSAFE: // maybe - unsafe traits are a thing
                 // if any of these (should be all possible VisItem prefixes), parse a VisItem
-                return parse_vis_item();
+                return parse_vis_item(outer_attrs);
                 break;
+            // crappy hack to do union "keyword"
+            case IDENTIFIER:
+                // TODO: ensure std::string and literal comparison works
+                if (t->get_str() == "union") {
+                    return parse_vis_item(outer_attrs);
+                    // or should this go straight to parsing union?
+                }
             default:
                 // otherwise parse a MacroItem
-                return parse_macro_item();
+                return parse_macro_item(outer_attrs);
                 break;
         }
     }
@@ -795,7 +804,7 @@ namespace Rust {
     }
 
     // Parses a VisItem (item that can have non-default visibility).
-    AST::VisItem* Parser::parse_vis_item() {
+    AST::VisItem* Parser::parse_vis_item(::std::vector<AST::Attribute> outer_attrs) {
         // parse visibility, which may or may not exist
         AST::Visibility* vis = parse_visibility();
 
@@ -804,27 +813,27 @@ namespace Rust {
 
         switch (t->get_id()) {
             case MOD:
-                return parse_module(vis);
-            case EXTERN_TOK: 
+                return parse_module(vis, outer_attrs);
+            case EXTERN_TOK:
                 // lookahead to resolve syntactical production
                 t = lexer.peek_token(1);
 
                 switch (t->get_id()) {
                     case CRATE:
-                        return parse_extern_crate(vis);
+                        return parse_extern_crate(vis, outer_attrs);
                     case FN_TOK: // extern function
-                        return parse_function(vis);
+                        return parse_function(vis, outer_attrs);
                     case LEFT_CURLY: // extern block
-                        return parse_extern_block(vis);
+                        return parse_extern_block(vis, outer_attrs);
                     case STRING_LITERAL: // for specifying extern ABI
                         // could be extern block or extern function, so more lookahead
                         t = lexer.peek_token(2);
 
                         switch (t->get_id()) {
                             case FN_TOK:
-                                return parse_function(vis);
+                                return parse_function(vis, outer_attrs);
                             case LEFT_CURLY:
-                                return parse_extern_block(vis);
+                                return parse_extern_block(vis, outer_attrs);
                             default:
                                 error_at(t->get_locus(),
                                   "unexpected token '%s' in some sort of extern production",
@@ -840,29 +849,38 @@ namespace Rust {
                         return NULL;
                 }
             case USE:
-                return parse_use_decl(vis);
+                return parse_use_decl(vis, outer_attrs);
             case FN_TOK:
-                return parse_function(vis);
+                return parse_function(vis, outer_attrs);
             case TYPE:
-                return parse_type_alias(vis);
+                return parse_type_alias(vis, outer_attrs);
             case STRUCT_TOK:
-                return parse_struct(vis);
+                return parse_struct(vis, outer_attrs);
             case ENUM_TOK:
-                return parse_enum(vis);
-            case UNION: // TODO: implement union keyword but not really because of context-dependence
-                return parse_union(vis);
-            case CONST: 
+                return parse_enum(vis, outer_attrs);
+            // TODO: implement union keyword but not really because of context-dependence
+            // case UNION:
+            // crappy hack to do union "keyword"
+            case IDENTIFIER:
+                // TODO: ensure std::string and literal comparison works
+                if (t->get_str() == "union") {
+                    return parse_union(outer_attrs);
+                    // or should this go straight to parsing union?
+                } else {
+                    break;
+                }
+            case CONST:
                 // lookahead to resolve syntactical production
                 t = lexer.peek_token(1);
 
                 switch (t->get_id()) {
                     case IDENTIFIER:
                     case UNDERSCORE:
-                        return parse_const_item(vis);
-                    case UNSAFE: 
+                        return parse_const_item(vis, outer_attrs);
+                    case UNSAFE:
                     case EXTERN_TOK:
                     case FN_TOK:
-                        return parse_function(vis);
+                        return parse_function(vis, outer_attrs);
                     default:
                         error_at(t->get_locus(),
                           "unexpected token '%s' in some sort of const production",
@@ -871,23 +889,23 @@ namespace Rust {
                         return NULL;
                 }
             case STATIC_TOK:
-                return parse_static_item(vis);
+                return parse_static_item(vis, outer_attrs);
             case TRAIT:
-                return parse_trait(vis);
+                return parse_trait(vis, outer_attrs);
             case IMPL:
-                return parse_impl(vis);
+                return parse_impl(vis, outer_attrs);
             case UNSAFE: // unsafe traits, unsafe functions, unsafe impls (trait impls),
                 // lookahead to resolve syntactical production
                 t = lexer.peek_token(1);
 
                 switch (t->get_id()) {
                     case TRAIT:
-                        return parse_trait(vis);
+                        return parse_trait(vis, outer_attrs);
                     case EXTERN_TOK:
                     case FN_TOK:
-                        return parse_function(vis);
+                        return parse_function(vis, outer_attrs);
                     case IMPL:
-                        return parse_impl(vis);
+                        return parse_impl(vis, outer_attrs);
                     default:
                         error_at(t->get_locus(),
                           "unexpected token '%s' in some sort of unsafe production",
@@ -897,17 +915,603 @@ namespace Rust {
                 }
             default:
                 // otherwise vis item clearly doesn't exist, which is not an error
+                // has a catch-all post-switch return to allow other breaks to occur
+                break;
+        }
+        return NULL;
+    }
+
+    // Parses a MacroItem (either a MacroInvocationSemi or MacroRulesDefinition).
+    AST::MacroItem* Parser::parse_macro_item(::std::vector<AST::Attribute> outer_attrs) {
+        const_TokenPtr t = lexer.peek_token();
+
+        /* dodgy way of detecting macro due to weird context-dependence thing. probably can be
+         * improved */
+        // TODO: ensure that string compare works properly
+        if (t->get_id() == IDENTIFIER && t->get_str() == ::std::string("macro_rules")) {
+            return parse_macro_rules_def(outer_attrs);
+        } else {
+            // DEBUG: TODO: remove
+            error_at(t->get_locus(), "DEBUG - parse_macro_item called and token is not macro_rules");
+            if (t->get_id() == IDENTIFIER) {
+                error_at(t->get_locus(),
+                  "just add to last error: token is not macro_rules and is instead '%s'",
+                  t->get_str().c_str());
+            } else {
+                error_at(t->get_locus(),
+                  "just add to last error: token is not macro_rules and is not an identifier either "
+                  "- it is '%s'",
+                  t->get_token_description());
+            }
+
+            return parse_macro_invocation_semi(outer_attrs);
+        }
+    }
+
+    // Parses a visibility syntactical production (i.e. creating a non-default visibility)
+    AST::Visibility* Parser::parse_visibility() {
+        // check for no visibility
+        if (lexer.peek_token()->get_id() != PUB) {
+            return NULL;
+        }
+
+        lexer.skip_token();
+
+        // create simple pub visibility if no parentheses
+        if (lexer.peek_token()->get_id() != LEFT_PAREN) {
+            return new AST::Visibility(AST::Visibility::create_public());
+            // or whatever
+        }
+
+        lexer.skip_token();
+
+        const_TokenPtr t = lexer.peek_token();
+
+        switch (t->get_id()) {
+            case CRATE:
+                lexer.skip_token();
+
+                skip_token(RIGHT_PAREN);
+
+                return new AST::Visibility(AST::Visibility::create_crate());
+            case SELF:
+                lexer.skip_token();
+
+                skip_token(RIGHT_PAREN);
+
+                return new AST::Visibility(AST::Visibility::create_self());
+            case SUPER:
+                lexer.skip_token();
+
+                skip_token(RIGHT_PAREN);
+
+                return new AST::Visibility(AST::Visibility::create_super());
+            case IN:
+                lexer.skip_token();
+
+                // parse the "in" path as well
+                AST::SimplePath path = parse_simple_path();
+
+                skip_token(RIGHT_PAREN);
+
+                return new AST::Visibility(AST::Visibility::create_in_path(path));
+            default:
+                unexpected_token(t);
+                lexer.skip_token();
                 return NULL;
         }
     }
 
-    // Parses a MacroItem (item that has something to do with macros).
-    AST::MacroItem* Parser::parse_macro_item() {}
+    // Parses a module - either a bodied module or a module defined in another file.
+    AST::Module* Parser::parse_module(
+      AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+        skip_token(MOD);
 
-    // Parses a visibility syntactical production (i.e. creating a non-default visibility)
-    AST::Visibility* Parser::parse_visibility() {
-        // AST::Visibility vis;
-        // return vis;
+        const_TokenPtr module_name = expect_token(IDENTIFIER);
+        // TODO: come back when module name has been implemented
+
+        const_TokenPtr t = lexer.peek_token();
+
+        switch (t->get_id()) {
+            case SEMICOLON:
+                lexer.skip_token();
+
+                return new AST::ModuleNoBody(vis, outer_attrs); // module name?
+            case LEFT_CURLY: {
+                lexer.skip_token();
+
+                // parse inner attributes
+                ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
+
+                // parse items
+                ::std::vector< ::gnu::unique_ptr<AST::Item> > items = parse_items();
+
+                skip_token(RIGHT_CURLY);
+
+                return new AST::ModuleBodied(items, vis, inner_attrs, outer_attrs); // module name?
+            }
+            default:
+                unexpected_token(t);
+                lexer.skip_token();
+                return NULL;
+        }
+    }
+
+    // Parses an extern crate declaration (dependency on external crate)
+    AST::ExternCrate* Parser::parse_extern_crate(
+      Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+        skip_token(EXTERN_TOK);
+
+        skip_token(CRATE);
+
+        /* parse crate reference name - this has its own syntactical rule in reference but seems
+         * to not be used elsewhere, so i'm putting it here */
+        const_TokenPtr crate_name_tok = lexer.peek_token();
+        ::std::string crate_name;
+
+        switch (crate_name_tok->get_id()) {
+            case IDENTIFIER:
+                crate_name = crate_name_tok->get_str();
+                lexer.skip_token();
+                break;
+            case SELF:
+                crate_name = ::std::string("self");
+                lexer.skip_token();
+                break;
+            default:
+                error_at(crate_name_tok->get_locus(),
+                  "expecting crate name (identifier or 'self'), found '%s'",
+                  crate_name_tok->get_token_description());
+                skip_after_semicolon();
+                return NULL;
+        }
+
+        // don't parse as clause if it doesn't exist
+        if (lexer.peek_token()->get_id() == SEMICOLON) {
+            lexer.skip_token();
+
+            return new AST::ExternCrate(crate_name, vis, outer_attrs);
+        }
+
+        /* parse as clause - this also has its own syntactical rule in reference and also seems to
+         * not be used elsewhere, so including here again. */
+        skip_token(AS);
+
+        const_TokenPtr as_name_tok = lexer.peek_token();
+        ::std::string as_name;
+
+        switch (as_name_tok->get_id()) {
+            case IDENTIFIER:
+                as_name = as_name_tok->get_str();
+                lexer.skip_token();
+                break;
+            case UNDERSCORE:
+                as_name = ::std::string("_");
+                lexer.skip_token();
+                break;
+            default:
+                error_at(as_name_tok->get_locus(),
+                  "expecting as clause name (identifier or '_'), found '%s'",
+                  as_name_tok->get_token_description());
+                skip_after_semicolon();
+                return NULL;
+        }
+
+        skip_token(SEMICOLON);
+
+        return new AST::ExternCrate(crate_name, as_name, vis, outer_attrs);
+    }
+
+    // Parses a function (not a method).
+    AST::Function* Parser::parse_function(
+      AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+        // Get qualifiers for function if they exist
+        AST::FunctionQualifiers qualifiers = parse_function_qualifiers();
+
+        skip_token(FN_TOK);
+
+        // Save function name token
+        const_TokenPtr function_name_tok = expect_token(IDENTIFIER);
+
+        // TODO parse generic params - if exist
+        ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > generic_params
+          = parse_generic_params_in_angles();
+
+        skip_token(LEFT_PAREN);
+
+        // parse function parameters
+        ::std::vector<AST::FunctionParam> function_params = parse_function_params();
+
+        skip_token(RIGHT_PAREN);
+
+        // parse function return type - if exists
+        AST::Type* return_type = parse_function_return_type();
+
+        // TODO parse where clause - if exists
+        AST::WhereClause where_clause = parse_where_clause();
+
+        // TODO parse block expression
+        AST::BlockExpr* block_expr = parse_block_expr();
+
+        // TODO: put in all params
+        return new AST::Function();
+    }
+
+    // Parses function or method qualifiers (i.e. const, unsafe, and extern).
+    AST::FunctionQualifiers Parser::parse_function_qualifiers() {
+        bool has_const = false;
+        bool has_unsafe = false;
+        bool has_extern = false;
+        ::std::string abi;
+
+        // Check in order of const, unsafe, then extern
+        if (lexer.peek_token()->get_id() == CONST) {
+            lexer.skip_token();
+            has_const = true;
+        }
+
+        if (lexer.peek_token()->get_id() == UNSAFE) {
+            lexer.skip_token();
+            has_unsafe = true;
+        }
+
+        if (lexer.peek_token()->get_id() == EXTERN_TOK) {
+            lexer.skip_token();
+            has_extern = true;
+
+            // detect optional abi name
+            const_TokenPtr next_tok = lexer.peek_token();
+            if (next_tok->get_id() == STRING_LITERAL) {
+                lexer.skip_token();
+                abi = next_tok->get_str();
+            }
+        }
+
+        return AST::FunctionQualifiers(has_const, has_unsafe, has_extern, abi);
+    }
+
+    // Parses generic (lifetime or type) params inside angle brackets.
+    ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > Parser::parse_generic_params_in_angles() {
+        if (!skip_token(LEFT_ANGLE)) {
+            ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > empty;
+            return empty;
+        }
+
+        ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > generic_params = parse_generic_params();
+
+        if (!skip_token(RIGHT_ANGLE)) {
+            ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > empty;
+            return empty;
+        }
+
+        return generic_params;
+    }
+
+    /* Parse generic (lifetime or type) params NOT INSIDE ANGLE BRACKETS!!! Almost always
+     * parse_generic_params_in_angles is what is wanted. */
+    ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > Parser::parse_generic_params() {
+        ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > generic_params;
+
+        // parse lifetime params (optional), allowed to end with a trailing comma
+        ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > lifetime_params
+          = parse_lifetime_params();
+        if (!lifetime_params.empty()) {
+            // TODO: if change to c++11, will have to move the lifetime_params vector
+            // C++11 code:
+            /*generic_params.insert(generic_params.end(),
+              ::std::make_move_iterator(lifetime_params.begin()),
+              ::std::make_move_iterator(lifetime_params.end()));*/
+
+            // placeholder code
+            generic_params.insert(
+              generic_params.end(), lifetime_params.begin(), lifetime_params.end());
+        }
+
+        // parse type params (optional)
+        ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > type_params = parse_type_params();
+        if (!type_params.empty()) {
+            // TODO: if change to c++11, will have to move the type_params vector
+            // C++11 code:
+            /*generic_params.insert(generic_params.end(),
+              ::std::make_move_iterator(type_params.begin()),
+              ::std::make_move_iterator(type_params.end()));*/
+
+            // placeholder code
+            generic_params.insert(generic_params.end(), type_params.begin(), type_params.end());
+        }
+
+        return generic_params;
+    }
+
+    // Parses lifetime generic parameters. Will also consume any trailing comma.
+    ::std::vector< ::gnu::unique_ptr<AST::LifetimeParam> > Parser::parse_lifetime_params() {
+        ::std::vector< ::gnu::unique_ptr<AST::LifetimeParam> > lifetime_params;
+
+        // TODO: think of better control structure than infinite loop with break on failure?
+        while (true) {
+            AST::LifetimeParam* lifetime_param = parse_lifetime_param();
+
+            if (lifetime_param == NULL) {
+                // break if fails to parse
+                break;
+            }
+
+            lifetime_params.push_back(::gnu::unique_ptr<AST::LifetimeParam>(lifetime_param));
+
+            // skip commas, including trailing commas
+            if (lexer.peek_token()->get_id() == COMMA) {
+                lexer.skip_token();
+            }
+        }
+
+        return lifetime_params;
+    }
+
+    /* Parses a single lifetime generic parameter (not including comma). May change to return
+     * value rather than pointer - choosing pointer was convenient for the time but otherwise pretty
+     * arbitrary. */
+    AST::LifetimeParam* Parser::parse_lifetime_param() {
+        // parse outer attribute, which is optional and may not exist
+        AST::Attribute outer_attr = parse_outer_attribute();
+
+        // save lifetime token - required
+        const_TokenPtr lifetime_tok = lexer.peek_token();
+        if (lifetime_tok->get_id() != LIFETIME) {
+            // if lifetime is missing, must not be a lifetime param, so return null
+            return NULL;
+        }
+        // TODO: does this always create a named lifetime? or can a different type be made?
+        AST::Lifetime lifetime(NAMED, lifetime_tok->get_str());
+
+        // parse lifetime bounds, if it exists
+        if (lexer.peek_token()->get_id() == COLON) {
+            // parse lifetime bounds
+            ::std::vector<AST::Lifetime> lifetime_bounds = parse_lifetime_bounds();
+
+            return new AST::LifetimeParam(lifetime, lifetime_bounds,
+              outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+        }
+
+        return new AST::LifetimeParam(
+          lifetime, outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+    }
+
+    // Parses type generic parameters. Will also consume any trailing comma.
+    ::std::vector< ::gnu::unique_ptr<AST::TypeParam> > Parser::parse_type_params() {
+        ::std::vector< ::gnu::unique_ptr<AST::TypeParam> > type_params;
+
+        // TODO: think of better control structure than infinite loop with break on failure?
+        while (true) {
+            AST::TypeParam* type_param = parse_type_param();
+
+            if (type_param == NULL) {
+                // break if fails to parse
+                break;
+            }
+
+            type_params.push_back(::gnu::unique_ptr<AST::TypeParam>(type_param));
+
+            // skip commas, including trailing commas
+            if (lexer.peek_token()->get_id() == COMMA) {
+                lexer.skip_token();
+            }
+        }
+
+        return type_params;
+        // TODO: this shares most code with parse_lifetime_params - good place to use template?
+    }
+
+    // Parses a single type (generic) parameter, not including commas. May change to return value.
+    AST::TypeParam* Parser::parse_type_param() {
+        // parse outer attribute, which is optional and may not exist
+        AST::Attribute outer_attr = parse_outer_attribute();
+
+        const_TokenPtr identifier_tok = lexer.peek_token();
+        if (identifier_tok->get_id() != IDENTIFIER) {
+            // return null as type param can't exist without this required identifier
+            return NULL;
+        }
+        // TODO: create identifier from identifier token
+        AST::Identifier ident = identifier_tok->get_str();
+
+        // branch to type param bounds or type or none based on next token
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case COLON:
+                lexer.skip_token();
+
+                // parse type param bounds, which may or may not exist
+                ::std::vector< ::gnu::unique_ptr<AST::TypeParamBound> > type_param_bounds
+                  = parse_type_param_bounds();
+
+                return new AST::TypeParam(ident, type_param_bounds, NULL,
+                  outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+            case EQUAL:
+                lexer.skip_token();
+
+                // parse type
+                AST::Type* type = parse_type();
+
+                return new AST::TypeParam(
+                  ident, type, outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+            default:
+                // Best assumption is that this is the end of the type param
+                return new AST::TypeParam(
+                  ident, outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+        }
+    }
+
+    // Parses regular (i.e. non-generic) parameters in functions or methods.
+    ::std::vector<AST::FunctionParam> Parser::parse_function_params() {
+        ::std::vector<AST::FunctionParam> params;
+
+        AST::FunctionParam initial_param = parse_function_param();
+
+        // Return empty parameter list if no parameter there
+        if (initial_param.is_error()) {
+            return params;
+        }
+
+        params.push_back(initial_param);
+
+        // maybe think of a better control structure here - do-while with an initial error state?
+        // basically, loop through parameter list until can't find any more params
+        while (true) {
+            // skip comma if applies
+            if (lexer.peek_token()->get_id() == COMMA) {
+                lexer.skip_token();
+            }
+
+            AST::FunctionParam param = parse_function_param();
+
+            if (!param.is_error()) {
+                params.push_back(param);
+            } else {
+                // this would occur with a trailing comma, which is allowed
+                break;
+            }
+        }
+
+        return params;
+    }
+
+    /* Parses a single regular (i.e. non-generic) parameter in a function or method, i.e. the
+     * "name: type" bit. Also handles it not existing. */
+    AST::FunctionParam Parser::parse_function_param() {
+        AST::Pattern* param_pattern = parse_pattern();
+
+        // create error function param if it doesn't exist
+        if (param_pattern == NULL) {
+            return AST::FunctionParam::create_error();
+        }
+
+        skip_token(COLON);
+
+        AST::Type* param_type = parse_type();
+
+        return AST::FunctionParam(param_pattern, param_type);
+    }
+
+    /* Parses a function or method return type syntactical construction. Also handles a function
+     * return type not existing.*/
+    AST::Type* Parser::parse_function_return_type() {
+        if (lexer.peek_token()->get_id() != RETURN_TYPE) {
+            return NULL;
+        }
+        // skip return type, as it now obviously exists
+        skip_token();
+
+        AST::Type* type = parse_type();
+
+        return type;
+    }
+
+    /* Parses a "where clause" (in a function, struct, method, etc.). Also handles a where clause
+     * not existing, in which it will return WhereClause::create_empty(), which can be checked via
+     * WhereClause::is_empty(). */
+    AST::WhereClause Parser::parse_where_clause() {
+        const_TokenPtr where_tok = lexer.peek_token();
+        if (where_tok->get_id() != WHERE) {
+            // where clause doesn't exist, so create empty one
+            return AST::WhereClause::create_empty();
+        }
+
+        lexer.skip_token();
+
+        // parse where clause items - this is not a separate rule in the reference so won't be here
+        ::std::vector< ::gnu::unique_ptr<AST::WhereClauseItem> > where_clause_items;
+
+        // TODO: think of better control structure - do-while loop?
+        while (true) {
+            AST::WhereClauseItem* where_clause_item = parse_where_clause_item();
+
+            if (where_clause_item == NULL) {
+                // exit if parse failed
+                break;
+            }
+
+            where_clause_items.push_back(::gnu::unique_ptr<AST::WhereClauseItem>(where_clause_item));
+
+            // also skip comma if it exists
+            if (lexer.peek_token()->get_id() == COMMA) {
+                lexer.skip_token();
+            }
+        }
+
+        return AST::WhereClause(where_clause_items);
+    }
+
+    // Parses a where clause item (lifetime or type bound). Does not parse any commas.
+    AST::WhereClauseItem* Parser::parse_where_clause_item() {
+        // shitty cheat way of determining lifetime or type bound - test for lifetime
+        const_TokenPtr t = lexer.peek_token();
+
+        if (t->get_id() == LIFETIME) {
+            return parse_lifetime_where_clause_item();
+        } else {
+            return parse_type_bound_where_clause_item();
+        }
+    }
+
+    // Parses a lifetime where clause item.
+    AST::LifetimeWhereClauseItem* Parser::parse_lifetime_where_clause_item() {
+        AST::Lifetime lifetime = parse_lifetime();
+        if (lifetime.is_error()) {
+            // TODO: error here?
+            return NULL;
+        }
+
+        if (!skip_token(COLON)) {
+            // TODO: skip after somewhere
+            return NULL;
+        }
+
+        ::std::vector<AST::Lifetime> lifetime_bounds = parse_lifetime_bounds();
+
+        return new AST::LifetimeWhereClauseItem(lifetime, lifetime_bounds);
+    }
+
+    // Parses a type bound where clause item.
+    AST::TypeBoundWhereClauseItem* Parser::parse_type_bound_where_clause_item() {
+        // parse for lifetimes, if it exists (although empty for lifetimes is ok to handle this)
+        ::std::vector<AST::LifetimeParam> for_lifetimes = parse_for_lifetimes();
+
+        AST::Type* type = parse_type();
+        if (type == NULL) {
+            return NULL;
+        }
+
+        if (!skip_token(COLON)) {
+            // TODO: skip after somewhere
+            return NULL;
+        }
+
+        // parse type param bounds if they exist
+        ::std::vector< ::gnu::unique_ptr<AST::TypeParamBound> > type_param_bounds = parse_type_param_bounds();
+
+        return new AST::TypeBoundWhereClauseItem(for_lifetimes, type, type_param_bounds);
+    }
+
+    // Parses a "type alias" (typedef) item.
+    AST::TypeAlias* Parser::parse_type_alias(
+      AST::Visibility* vis, ::std::vector<Attribute> outer_attrs) {
+        skip_token(TYPE);
+
+        // TODO: use this token for identifier when finished that
+        const_TokenPtr alias_name_tok = expect_token(IDENTIFIER);
+
+        // TODO parse generic params, which may not exist
+
+        // TODO parse where clause, which may not exist
+
+        skip_token(EQUAL);
+
+        Type* type_to_alias = parse_type();
+
+        skip_token(SEMICOLON);
+
+        // TODO: fill in when finished
+        return new AST::TypeAlias();
     }
 
     // TODO: rename to "parse_module_body"?

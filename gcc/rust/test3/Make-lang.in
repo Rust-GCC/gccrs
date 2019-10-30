@@ -54,6 +54,8 @@ rust: gccrs$(exeext) grs1$(exeext)
 # Create the compiler driver gccrs.
 # A compiler driver is the program that interprets command argument and can be called from the command
 # line - e.g. gcc or g++, and not cc1, which is the actual compiler
+
+# Create driver objects
 GCCRS_D_OBJS = \
    $(GCC_OBJS) \
    rust/rsspec.o \
@@ -79,9 +81,9 @@ GRS_OBJS = \
 # removed object files from here 
 
 # The compiler itself is called grs1
-grs1$(exeext): attribs.o $(GRS_OBJS) $(BACKEND) $(LIBDEPS)
+grs1$(exeext): $(GRS_OBJS) attribs.o  $(BACKEND) $(LIBDEPS)
 	+$(LLINKER) $(ALL_LINKERFLAGS) $(LDFLAGS) -o $@ \
-	      attribs.o $(GRS_OBJS) $(BACKEND) $(LIBS) $(BACKENDLIBS)
+	      $(GRS_OBJS) attribs.o $(BACKEND) $(LIBS) $(BACKENDLIBS)
 
 # Build hooks.
 
@@ -114,10 +116,12 @@ rust.mostlyclean:
 
 rust.clean: rust.mostlyclean
 
-# Builds an etags TAGS file in the language subdirectory in the source tree. 
-#rust.tags: force
-#	cd $(srcdir)/rust; etags -o TAGS.sub *.y *.l *.cc *.h; \
-#	etags --include TAGS.sub --include ../TAGS.sub
+# Builds an etags TAGS file in the language subdirectory in the source tree.
+# TODO: add more directories if I add more 
+rust.tags: force
+	cd $(srcdir)/rust; \
+	etags -o TAGS.sub *.y *.l *.cc *.h ast/*.h ast/*.cc lex/*.h lex/*.cc parse/*.h parse/*.cc; \
+	etags --include TAGS.sub --include ../TAGS.sub
 
 # Build documentation hooks.
 
@@ -215,6 +219,8 @@ RUST_INCLUDES = -I $(srcdir)/rust -I $(srcdir)/rust/lex -I $(srcdir)/rust/parse 
 CFLAGS-rust/rust-lang.o += $(RUST_INCLUDES)
 CFLAGS-rust/rust-lex.o += $(RUST_INCLUDES)
 CFLAGS-rust/rust-parse.o += $(RUST_INCLUDES)
+
+# TODO: possibly find a way to ensure C++11 compilation level here?
 
 # build all rust/lex files in rust folder, add cross-folder includes
 rust/%.o: rust/lex/%.cc

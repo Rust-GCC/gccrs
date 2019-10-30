@@ -19,6 +19,12 @@
 /* Order: config, system, coretypes, target, tree, gimple-expr, diagnostic, opts, fold-const, 
  * gimplify, stor-layout, debug, convert, langhooks, langhooks-def, common-target */
 
+// version check to stop compiling if c++ isn't c++11 or higher
+#if __cplusplus < 201103
+# error "GCC Rust frontend requires C++11 or higher. You can compile the g++ frontend first and then compile the Rust frontend using that."
+#endif
+// TODO: is this best way to do it? Is it allowed? (should be)
+
 #include "rust-parse.h"
 
 // Language-dependent contents of a type. GTY() mark used for garbage collector.
