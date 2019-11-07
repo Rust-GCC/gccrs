@@ -74,31 +74,36 @@ namespace Rust {
         // Path-related
         AST::SimplePath parse_simple_path();
         AST::SimplePathSegment parse_simple_path_segment();
+        AST::TypePath parse_type_path();
 
         // Token tree or macro related
         AST::DelimTokenTree parse_delim_token_tree();
         AST::TokenTree* parse_token_tree();
 
         // Top-level item-related
-        ::std::vector< ::gnu::unique_ptr<AST::Item> > parse_items();
+        ::std::vector< ::std::unique_ptr<AST::Item> > parse_items();
         AST::Item* parse_item();
         AST::VisItem* parse_vis_item(::std::vector<AST::Attribute> outer_attrs);
         AST::MacroItem* parse_macro_item(::std::vector<AST::Attribute> outer_attrs);
         AST::Visibility* parse_visibility();
 
-        // Item subclass-related
+        // VisItem subclass-related
         AST::Module* parse_module(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::ExternCrate* parse_extern_crate(
           AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
-        AST::UseDeclaration* parse_use_declaration(
+        AST::UseDeclaration* parse_use_decl(
           AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
-        AST::Function* parse_function(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::UseTree* parse_use_tree();
+        AST::Function* parse_function(
+          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::FunctionQualifiers parse_function_qualifiers();
-        ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > parse_generic_params_in_angles();
-        ::std::vector< ::gnu::unique_ptr<AST::GenericParam> > parse_generic_params();
-        ::std::vector< ::gnu::unique_ptr<AST::LifetimeParam> > parse_lifetime_params();
-        AST::LifetimeParam* parse_lifetime_param();
-        ::std::vector< ::gnu::unique_ptr<AST::TypeParam> > parse_type_params();
+        ::std::vector< ::std::unique_ptr<AST::GenericParam> > parse_generic_params_in_angles();
+        ::std::vector< ::std::unique_ptr<AST::GenericParam> > parse_generic_params();
+        ::std::vector< ::std::unique_ptr<AST::LifetimeParam> > parse_lifetime_params();
+        ::std::vector<AST::LifetimeParam> parse_lifetime_params_objs();
+        AST::LifetimeParam parse_lifetime_param();
+        ::std::vector< ::std::unique_ptr<AST::TypeParam> > parse_type_params();
+        AST::TypeParam* parse_type_param();
         ::std::vector<AST::FunctionParam> parse_function_params();
         AST::FunctionParam parse_function_param();
         AST::Type* parse_function_return_type();
@@ -106,18 +111,52 @@ namespace Rust {
         AST::WhereClauseItem* parse_where_clause_item();
         AST::LifetimeWhereClauseItem* parse_lifetime_where_clause_item();
         AST::TypeBoundWhereClauseItem* parse_type_bound_where_clause_item();
-        AST::TypeAlias* parse_type_alias(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::vector<AST::LifetimeParam> parse_for_lifetimes();
+        ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > parse_type_param_bounds();
+        AST::TypeParamBound* parse_type_param_bound();
+        AST::TraitBound* parse_trait_bound();
+        ::std::vector<AST::Lifetime> parse_lifetime_bounds();
+        AST::Lifetime parse_lifetime();
+        AST::TypeAlias* parse_type_alias(
+          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::Struct* parse_struct(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::vector<AST::StructField> parse_struct_fields();
+        AST::StructField parse_struct_field();
+        ::std::vector<AST::TupleField> parse_tuple_fields();
+        AST::TupleField parse_tuple_field();
         AST::Enum* parse_enum(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::vector< ::std::unique_ptr<AST::EnumItem> > parse_enum_items();
+        AST::EnumItem* parse_enum_item();
         AST::Union* parse_union(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::ConstantItem* parse_const_item(
           AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::StaticItem* parse_static_item(
           AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::Trait* parse_trait(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::TraitItem* parse_trait_item();
         AST::Impl* parse_impl(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::ExternBlock* parse_extern_block(
           AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+
+        // MacroItem subclass-related
+        AST::MacroRulesDefinition* parse_macro_rules_def(::std::vector<AST::Attribute> outer_attrs);
+        AST::MacroInvocationSemi* parse_macro_invocation_semi(
+          ::std::vector<AST::Attribute> outer_attrs);
+
+        // Expression-related
+        AST::Expr* parse_expr();
+        AST::ExprWithoutBlock* parse_expr_without_block();
+        AST::BlockExpr* parse_block_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+
+        // Type-related
+        AST::Type* parse_type();
+
+        // Statement-related
+        AST::Statement* parse_stmt();
+
+        // Pattern-related
+        AST::Pattern* parse_pattern();
 
         // void parse_crate();
         // AST::Module parse_module();
@@ -143,7 +182,7 @@ namespace Rust {
         Tree parse_variable_declaration();
         Tree parse_type_declaration();
 
-        Tree parse_type();
+        //Tree parse_type();
         Tree parse_record();
         Tree parse_field_declaration(std::vector<std::string>& field_names);
 

@@ -12,8 +12,8 @@ namespace Rust {
             virtual ~ConfigurationPredicate() {}
 
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<ConfigurationPredicate> clone_configuration_predicate() const {
-                return ::gnu::unique_ptr<ConfigurationPredicate>(
+            ::std::unique_ptr<ConfigurationPredicate> clone_configuration_predicate() const {
+                return ::std::unique_ptr<ConfigurationPredicate>(
                   clone_configuration_predicate_impl());
             }
 
@@ -51,16 +51,16 @@ namespace Rust {
 
         // TODO: inline
         struct ConfigurationPredicateList {
-            ::std::vector< ::gnu::unique_ptr<ConfigurationPredicate> > predicate_list;
+            ::std::vector< ::std::unique_ptr<ConfigurationPredicate> > predicate_list;
         };
 
         // Predicate that returns true if all of the supplied predicates return true.
         class ConfigurationAll : public ConfigurationPredicate {
-            ::std::vector< ::gnu::unique_ptr<ConfigurationPredicate> > predicate_list; // inlined form
+            ::std::vector< ::std::unique_ptr<ConfigurationPredicate> > predicate_list; // inlined form
 
           public:
             ConfigurationAll(
-              ::std::vector< ::gnu::unique_ptr<ConfigurationPredicate> > predicate_list) :
+              ::std::vector< ::std::unique_ptr<ConfigurationPredicate> > predicate_list) :
               predicate_list(predicate_list) {}
 
           protected:
@@ -72,11 +72,11 @@ namespace Rust {
 
         // Predicate that returns true if any of the supplied predicates are true.
         class ConfigurationAny : public ConfigurationPredicate {
-            ::std::vector< ::gnu::unique_ptr<ConfigurationPredicate> > predicate_list; // inlined form
+            ::std::vector< ::std::unique_ptr<ConfigurationPredicate> > predicate_list; // inlined form
 
           public:
             ConfigurationAny(
-              ::std::vector< ::gnu::unique_ptr<ConfigurationPredicate> > predicate_list) :
+              ::std::vector< ::std::unique_ptr<ConfigurationPredicate> > predicate_list) :
               predicate_list(predicate_list) {}
 
           protected:
@@ -88,7 +88,7 @@ namespace Rust {
 
         // Predicate that produces the negation of a supplied other configuration predicate.
         class ConfigurationNot : public ConfigurationPredicate {
-            ::gnu::unique_ptr<ConfigurationPredicate> config_to_negate;
+            ::std::unique_ptr<ConfigurationPredicate> config_to_negate;
 
           public:
             ConfigurationNot(ConfigurationPredicate* config_to_negate) :
@@ -120,7 +120,7 @@ namespace Rust {
 
         // TODO: relationship to other attributes?
         class CfgAttribute {
-            ::gnu::unique_ptr<ConfigurationPredicate> config_to_include;
+            ::std::unique_ptr<ConfigurationPredicate> config_to_include;
 
           public:
             CfgAttribute(ConfigurationPredicate* config_to_include) :
@@ -151,7 +151,7 @@ namespace Rust {
 
         // TODO: relationship to other attributes?
         class CfgAttrAttribute {
-            ::gnu::unique_ptr<ConfigurationPredicate> config_to_include;
+            ::std::unique_ptr<ConfigurationPredicate> config_to_include;
             ::std::vector<Attribute> cfg_attrs;
 
           public:

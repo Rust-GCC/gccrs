@@ -42,7 +42,7 @@ namespace Rust {
         // TODO: inline
         /*struct TypeParamBounds {
             //::std::vector<TypeParamBound> bounds;
-            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > bounds;
+            ::std::vector< ::std::unique_ptr<TypeParamBound> > bounds;
         };*/
 
         // definition moved to rust-ast.h
@@ -51,7 +51,7 @@ namespace Rust {
         // An impl trait? Poor reference material here.
         class ImplTraitType : public Type {
             // TypeParamBounds type_param_bounds;
-            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
+            ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -60,7 +60,7 @@ namespace Rust {
             }
 
           public:
-            ImplTraitType(::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds) :
+            ImplTraitType(::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds) :
               type_param_bounds(type_param_bounds) {}
         };
 
@@ -68,7 +68,7 @@ namespace Rust {
         class TraitObjectType : public Type {
             bool has_dyn;
             // TypeParamBounds type_param_bounds;
-            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
+            ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -77,7 +77,7 @@ namespace Rust {
             }
 
           public:
-            TraitObjectType(::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds,
+            TraitObjectType(::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds,
               bool is_dyn_dispatch) :
               type_param_bounds(type_param_bounds),
               has_dyn(is_dyn_dispatch) {}
@@ -86,7 +86,7 @@ namespace Rust {
         // A type with parentheses around it, used to avoid ambiguity.
         class ParenthesisedType : public TypeNoBounds {
             // Type type_in_parens;
-            ::gnu::unique_ptr<Type> type_in_parens;
+            ::std::unique_ptr<Type> type_in_parens;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -167,7 +167,7 @@ namespace Rust {
         // A type consisting of the "product" of others (the tuple's elements) in a specific order
         class TupleType : public TypeNoBounds {
             //::std::vector<Type> elems;
-            ::std::vector< ::gnu::unique_ptr<Type> > elems;
+            ::std::vector< ::std::unique_ptr<Type> > elems;
 
           public:
             // Returns whether the tuple type is the unit type, i.e. has no elements.
@@ -175,7 +175,7 @@ namespace Rust {
                 return elems.empty();
             }
 
-            TupleType(::std::vector< ::gnu::unique_ptr<Type> > elems) : elems(elems) {}
+            TupleType(::std::vector< ::std::unique_ptr<Type> > elems) : elems(elems) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -212,7 +212,7 @@ namespace Rust {
             enum PointerType { Mut, Const } pointer_type;
 
             // TypeNoBounds type;
-            ::gnu::unique_ptr<TypeNoBounds> type;
+            ::std::unique_ptr<TypeNoBounds> type;
 
           public:
             // Returns whether the pointer is mutable or constant.
@@ -262,7 +262,7 @@ namespace Rust {
             bool has_mut;
 
             // TypeNoBounds type;
-            ::gnu::unique_ptr<TypeNoBounds> type;
+            ::std::unique_ptr<TypeNoBounds> type;
 
           public:
             // Returns whether the reference is mutable or immutable.
@@ -316,9 +316,9 @@ namespace Rust {
         // A fixed-size sequence of elements of a specified type
         class ArrayType : public TypeNoBounds {
             // Type elem_type;
-            ::gnu::unique_ptr<Type> elem_type;
+            ::std::unique_ptr<Type> elem_type;
             // Expr* size;
-            ::gnu::unique_ptr<Expr> size;
+            ::std::unique_ptr<Expr> size;
 
           public:
             // Constructor requires pointers for polymorphism
@@ -360,7 +360,7 @@ namespace Rust {
         // A dynamically-sized type representing a "view" into a sequence of elements of a type
         class SliceType : public TypeNoBounds {
             // Type elem_type;
-            ::gnu::unique_ptr<Type> elem_type;
+            ::std::unique_ptr<Type> elem_type;
 
           public:
             // Constructor requires pointer for polymorphism
@@ -420,7 +420,7 @@ namespace Rust {
         /*struct BareFunctionReturnType {
           private:
             //TypeNoBounds type;
-            ::gnu::unique_ptr<TypeNoBounds> type;
+            ::std::unique_ptr<TypeNoBounds> type;
           public:
 
         };*/
@@ -428,7 +428,7 @@ namespace Rust {
         // A possibly named param used in a BaseFunctionType
         struct MaybeNamedParam {
             // Type param_type;
-            ::gnu::unique_ptr<Type> param_type;
+            ::std::unique_ptr<Type> param_type;
 
             enum ParamKind { UNNAMED, IDENTIFIER, WILDCARD } param_kind;
             Identifier name; // technically, can be an identifier or '_'
@@ -471,7 +471,7 @@ namespace Rust {
 
             // bool has_return_type;
             // BareFunctionReturnType return_type;
-            ::gnu::unique_ptr<TypeNoBounds> return_type; // inlined version
+            ::std::unique_ptr<TypeNoBounds> return_type; // inlined version
           public:
             // Whether a return type is defined with the function.
             inline bool has_return_type() const {

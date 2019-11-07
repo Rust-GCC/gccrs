@@ -38,7 +38,7 @@ namespace Rust {
 
             // bool has_pattern;
             // Pattern* to_bind;
-            ::gnu::unique_ptr<Pattern> to_bind;
+            ::std::unique_ptr<Pattern> to_bind;
 
           public:
             /*~IdentifierPattern() {
@@ -118,8 +118,8 @@ namespace Rust {
             virtual ~RangePatternBound() {}
 
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<RangePatternBound> clone_range_pattern_bound() const {
-                return ::gnu::unique_ptr<RangePatternBound>(clone_range_pattern_bound_impl());
+            ::std::unique_ptr<RangePatternBound> clone_range_pattern_bound() const {
+                return ::std::unique_ptr<RangePatternBound>(clone_range_pattern_bound_impl());
             }
 
           protected:
@@ -182,8 +182,8 @@ namespace Rust {
         class RangePattern : public Pattern {
             /*RangePatternBound lower;
             RangePatternBound upper;*/
-            ::gnu::unique_ptr<RangePatternBound> lower;
-            ::gnu::unique_ptr<RangePatternBound> upper;
+            ::std::unique_ptr<RangePatternBound> lower;
+            ::std::unique_ptr<RangePatternBound> upper;
 
             bool has_ellipsis_syntax;
 
@@ -227,7 +227,7 @@ namespace Rust {
             bool has_two_amps;
             bool is_mut;
             // Pattern* pattern;
-            ::gnu::unique_ptr<Pattern> pattern;
+            ::std::unique_ptr<Pattern> pattern;
 
           public:
             /*~ReferencePattern() {
@@ -311,7 +311,7 @@ namespace Rust {
         class StructPatternFieldTuplePat : public StructPatternField {
             TupleIndex index;
             // Pattern* tuple_pattern;
-            ::gnu::unique_ptr<Pattern> tuple_pattern;
+            ::std::unique_ptr<Pattern> tuple_pattern;
 
           public:
             /*~StructPatternFieldTuplePat() {
@@ -349,7 +349,7 @@ namespace Rust {
         class StructPatternFieldIdentPat : public StructPatternField {
             Identifier ident;
             // Pattern* ident_pattern;
-            ::gnu::unique_ptr<Pattern> ident_pattern;
+            ::std::unique_ptr<Pattern> ident_pattern;
 
           public:
             /*~StructPatternFieldIdentPat() {
@@ -401,7 +401,7 @@ namespace Rust {
         struct StructPatternElements {
             // bool has_struct_pattern_fields;
             //::std::vector<StructPatternField> fields;
-            ::std::vector< ::gnu::unique_ptr<StructPatternField> > fields;
+            ::std::vector< ::std::unique_ptr<StructPatternField> > fields;
 
             bool has_struct_pattern_etc;
             StructPatternEtc etc;
@@ -416,17 +416,17 @@ namespace Rust {
 
             // Constructor for StructPatternElements with both (potentially)
             StructPatternElements(
-              ::std::vector< ::gnu::unique_ptr<StructPatternField> > fields, StructPatternEtc etc) :
+              ::std::vector< ::std::unique_ptr<StructPatternField> > fields, StructPatternEtc etc) :
               fields(fields),
               etc(etc), has_struct_pattern_etc(true) {}
 
             // Constructor for StructPatternElements with no StructPatternEtc
-            StructPatternElements(::std::vector< ::gnu::unique_ptr<StructPatternField> > fields) :
+            StructPatternElements(::std::vector< ::std::unique_ptr<StructPatternField> > fields) :
               fields(fields), etc(StructPatternEtc::create_empty()), has_struct_pattern_etc(false) {}
 
             // Creates an empty StructPatternElements
             static StructPatternElements create_empty() {
-                ::std::vector< ::gnu::unique_ptr<StructPatternField> > fields;
+                ::std::vector< ::std::unique_ptr<StructPatternField> > fields;
 
                 return StructPatternElements(fields);
             }
@@ -466,8 +466,8 @@ namespace Rust {
             virtual ~TupleStructItems() {}
 
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<TupleStructItems> clone_tuple_struct_items() const {
-                return ::gnu::unique_ptr<TupleStructItems>(clone_tuple_struct_items_impl());
+            ::std::unique_ptr<TupleStructItems> clone_tuple_struct_items() const {
+                return ::std::unique_ptr<TupleStructItems>(clone_tuple_struct_items_impl());
             }
 
           protected:
@@ -478,10 +478,10 @@ namespace Rust {
         // Class for non-ranged tuple struct pattern patterns
         class TupleStructItemsNoRange : public TupleStructItems {
             //::std::vector<Pattern> patterns;
-            ::std::vector< ::gnu::unique_ptr<Pattern> > patterns;
+            ::std::vector< ::std::unique_ptr<Pattern> > patterns;
 
           public:
-            TupleStructItemsNoRange(::std::vector< ::gnu::unique_ptr<Pattern> > patterns) :
+            TupleStructItemsNoRange(::std::vector< ::std::unique_ptr<Pattern> > patterns) :
               patterns(patterns) {}
 
           protected:
@@ -495,12 +495,12 @@ namespace Rust {
         class TupleStructItemsRange : public TupleStructItems {
             /*::std::vector<Pattern> lower_patterns;
             ::std::vector<Pattern> upper_patterns;*/
-            ::std::vector< ::gnu::unique_ptr<Pattern> > lower_patterns;
-            ::std::vector< ::gnu::unique_ptr<Pattern> > upper_patterns;
+            ::std::vector< ::std::unique_ptr<Pattern> > lower_patterns;
+            ::std::vector< ::std::unique_ptr<Pattern> > upper_patterns;
 
           public:
-            TupleStructItemsRange(::std::vector< ::gnu::unique_ptr<Pattern> > lower_patterns,
-              ::std::vector< ::gnu::unique_ptr<Pattern> > upper_patterns) :
+            TupleStructItemsRange(::std::vector< ::std::unique_ptr<Pattern> > lower_patterns,
+              ::std::vector< ::std::unique_ptr<Pattern> > upper_patterns) :
               lower_patterns(lower_patterns),
               upper_patterns(upper_patterns) {}
 
@@ -515,7 +515,7 @@ namespace Rust {
         class TupleStructPattern : public Pattern {
             PathInExpression path;
             // TupleStructItems items;
-            ::gnu::unique_ptr<TupleStructItems> items;
+            ::std::unique_ptr<TupleStructItems> items;
 
           public:
             ::std::string as_string() const;
@@ -554,8 +554,8 @@ namespace Rust {
             virtual ~TuplePatternItems() {}
 
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<TuplePatternItems> clone_tuple_pattern_items() const {
-                return ::gnu::unique_ptr<TuplePatternItems>(clone_tuple_pattern_items_impl());
+            ::std::unique_ptr<TuplePatternItems> clone_tuple_pattern_items() const {
+                return ::std::unique_ptr<TuplePatternItems>(clone_tuple_pattern_items_impl());
             }
 
           protected:
@@ -566,7 +566,7 @@ namespace Rust {
         // Class representing TuplePattern patterns where there is only a single pattern
         class TuplePatternItemsSingle : public TuplePatternItems {
             // Pattern pattern;
-            ::gnu::unique_ptr<Pattern> pattern;
+            ::std::unique_ptr<Pattern> pattern;
 
           public:
             TuplePatternItemsSingle(Pattern* pattern) : pattern(pattern) {}
@@ -598,10 +598,10 @@ namespace Rust {
         // Class representing TuplePattern patterns where there are multiple patterns
         class TuplePatternItemsMultiple : public TuplePatternItems {
             //::std::vector<Pattern> patterns;
-            ::std::vector< ::gnu::unique_ptr<Pattern> > patterns;
+            ::std::vector< ::std::unique_ptr<Pattern> > patterns;
 
           public:
-            TuplePatternItemsMultiple(::std::vector< ::gnu::unique_ptr<Pattern> > patterns) :
+            TuplePatternItemsMultiple(::std::vector< ::std::unique_ptr<Pattern> > patterns) :
               patterns(patterns) {}
 
           protected:
@@ -615,12 +615,12 @@ namespace Rust {
         class TuplePatternItemsRanged : public TuplePatternItems {
             /*::std::vector<Pattern> lower_patterns;
             ::std::vector<Pattern> upper_patterns;*/
-            ::std::vector< ::gnu::unique_ptr<Pattern> > lower_patterns;
-            ::std::vector< ::gnu::unique_ptr<Pattern> > upper_patterns;
+            ::std::vector< ::std::unique_ptr<Pattern> > lower_patterns;
+            ::std::vector< ::std::unique_ptr<Pattern> > upper_patterns;
 
           public:
-            TuplePatternItemsRanged(::std::vector< ::gnu::unique_ptr<Pattern> > lower_patterns,
-              ::std::vector< ::gnu::unique_ptr<Pattern> > upper_patterns) :
+            TuplePatternItemsRanged(::std::vector< ::std::unique_ptr<Pattern> > lower_patterns,
+              ::std::vector< ::std::unique_ptr<Pattern> > upper_patterns) :
               lower_patterns(lower_patterns),
               upper_patterns(upper_patterns) {}
 
@@ -635,7 +635,7 @@ namespace Rust {
         class TuplePattern : public Pattern {
             // bool has_tuple_pattern_items;
             // TuplePatternItems items;
-            ::gnu::unique_ptr<TuplePatternItems> items;
+            ::std::unique_ptr<TuplePatternItems> items;
 
           public:
             ::std::string as_string() const;
@@ -670,7 +670,7 @@ namespace Rust {
         // AST node representing a pattern in parentheses, used to control precedence
         class GroupedPattern : public Pattern {
             // Pattern pattern_in_parens;
-            ::gnu::unique_ptr<Pattern> pattern_in_parens;
+            ::std::unique_ptr<Pattern> pattern_in_parens;
 
           public:
             ::std::string as_string() const;
@@ -704,12 +704,12 @@ namespace Rust {
         // AST node representing patterns that can match slices and arrays
         class SlicePattern : public Pattern {
             //::std::vector<Pattern> items;
-            ::std::vector< ::gnu::unique_ptr<Pattern> > items;
+            ::std::vector< ::std::unique_ptr<Pattern> > items;
 
           public:
             ::std::string as_string() const;
 
-            SlicePattern(::std::vector< ::gnu::unique_ptr<Pattern> > items) : items(items) {}
+            SlicePattern(::std::vector< ::std::unique_ptr<Pattern> > items) : items(items) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

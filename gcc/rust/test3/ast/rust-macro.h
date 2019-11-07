@@ -38,13 +38,13 @@ namespace Rust {
         // A repetition macro match
         class MacroMatchRep : public MacroMatch {
             //::std::vector<MacroMatch> matches;
-            ::std::vector< ::gnu::unique_ptr<MacroMatch> > matches;
+            ::std::vector< ::std::unique_ptr<MacroMatch> > matches;
             enum MacroRepOp { NONE, ASTERISK, PLUS, QUESTION_MARK } op;
 
             // bool has_sep;
             typedef Token MacroRepSep;
             // any token except delimiters and repetition operators
-            ::gnu::unique_ptr<MacroRepSep> sep;
+            ::std::unique_ptr<MacroRepSep> sep;
 
           public:
             // Returns whether macro match repetition has separator token.
@@ -52,7 +52,7 @@ namespace Rust {
                 return sep != NULL;
             }
 
-            MacroMatchRep(::std::vector< ::gnu::unique_ptr<MacroMatch> > matches, MacroRepOp op,
+            MacroMatchRep(::std::vector< ::std::unique_ptr<MacroMatch> > matches, MacroRepOp op,
               MacroRepSep* sep) :
               matches(matches),
               op(op), sep(sep) {}
@@ -81,11 +81,11 @@ namespace Rust {
         class MacroMatcher : public MacroMatch {
             enum DelimType { PARENS, SQUARE, CURLY } delim_type;
             //::std::vector<MacroMatch> matches;
-            ::std::vector< ::gnu::unique_ptr<MacroMatch> > matches;
+            ::std::vector< ::std::unique_ptr<MacroMatch> > matches;
 
           public:
             MacroMatcher(
-              DelimType delim_type, ::std::vector< ::gnu::unique_ptr<MacroMatch> > matches) :
+              DelimType delim_type, ::std::vector< ::std::unique_ptr<MacroMatch> > matches) :
               delim_type(delim_type),
               matches(matches) {}
         };

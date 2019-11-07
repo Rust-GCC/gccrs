@@ -65,6 +65,8 @@ namespace Rust {
             return buffer[start + n];
         }
 
+        // TODO: add faster peek current token to remove overhead of conditional branches?
+
         // Advances start by n + 1.
         void skip(int n) {
             // Call peek to ensure requested n is actually in queue.
@@ -87,6 +89,18 @@ namespace Rust {
             if (start == end) {
                 start = end = 0;
             }
+        }
+
+        /* Inserts element at front of vector. Really dirty hack with terrible performance, only use 
+         * when really needed. */
+        void insert_at_front(T elem_to_insert) {
+            // TODO: test as this may not work properly
+
+            // Insert actual element in buffer at start.
+            buffer.insert(begin(), 1, elem_to_insert);
+
+            // Increase the end number since added element means all others have shifted one along
+            end++;
         }
 
       private:

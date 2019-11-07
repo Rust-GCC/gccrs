@@ -32,7 +32,7 @@ namespace Rust {
           private:
             Identifier identifier;
             // Type type;
-            ::gnu::unique_ptr<Type> type;
+            ::std::unique_ptr<Type> type;
 
           public:
             // Pointer type for type in constructor to enable polymorphism
@@ -62,7 +62,7 @@ namespace Rust {
         struct GenericArgs {
             ::std::vector<Lifetime> lifetime_args;
             //::std::vector<Type> type_args;
-            ::std::vector< ::gnu::unique_ptr<Type> > type_args;
+            ::std::vector< ::std::unique_ptr<Type> > type_args;
             ::std::vector<GenericArgsBinding> binding_args;
 
           public:
@@ -72,7 +72,7 @@ namespace Rust {
             }
 
             GenericArgs(::std::vector<Lifetime> lifetime_args,
-              ::std::vector< ::gnu::unique_ptr<Type> > type_args,
+              ::std::vector< ::std::unique_ptr<Type> > type_args,
               ::std::vector<GenericArgsBinding> binding_args) :
               lifetime_args(lifetime_args),
               type_args(type_args), binding_args(binding_args) {}
@@ -82,7 +82,7 @@ namespace Rust {
             // Creates an empty GenericArgs (no arguments)
             static GenericArgs empty() {
                 ::std::vector<Lifetime> empty_lifetime_args;
-                ::std::vector< ::gnu::unique_ptr<Type> > empty_type_args;
+                ::std::vector< ::std::unique_ptr<Type> > empty_type_args;
                 ::std::vector<GenericArgsBinding> empty_binding_args;
 
                 return GenericArgs(empty_lifetime_args, empty_type_args, empty_binding_args);
@@ -117,7 +117,7 @@ namespace Rust {
 
             // Constructor for segment with generic arguments (from segment name and all args)
             PathExprSegment(::std::string segment_name, ::std::vector<Lifetime> lifetime_args,
-              ::std::vector< ::gnu::unique_ptr<Type> > type_args,
+              ::std::vector< ::std::unique_ptr<Type> > type_args,
               ::std::vector<GenericArgsBinding> binding_args) :
               segment_name(PathIdentSegment(segment_name)),
               generic_args(GenericArgs(lifetime_args, type_args, binding_args)) {}
@@ -193,7 +193,7 @@ namespace Rust {
             // Constructor from segment name and all args
             TypePathSegmentGeneric(::std::string segment_name, bool has_separating_scope_resolution,
               ::std::vector<Lifetime> lifetime_args,
-              ::std::vector< ::gnu::unique_ptr<Type> > type_args,
+              ::std::vector< ::std::unique_ptr<Type> > type_args,
               ::std::vector<GenericArgsBinding> binding_args) :
               generic_args(GenericArgs(lifetime_args, type_args, binding_args)),
               TypePathSegment(segment_name, has_separating_scope_resolution) {}
@@ -202,7 +202,7 @@ namespace Rust {
         // TODO: inline
         /*struct TypePathFnInputs {
             //::std::vector<Type> inputs;
-            ::std::vector< ::gnu::unique_ptr<Type> > inputs;
+            ::std::vector< ::std::unique_ptr<Type> > inputs;
         };*/
 
         // A function as represented in a type path
@@ -211,11 +211,11 @@ namespace Rust {
             /*bool has_inputs;
             TypePathFnInputs inputs;*/
             //::std::vector<Type> inputs; // inlined from TypePathFnInputs
-            ::std::vector< ::gnu::unique_ptr<Type> > inputs;
+            ::std::vector< ::std::unique_ptr<Type> > inputs;
 
             // bool has_type;
             // Type type;
-            ::gnu::unique_ptr<Type> type;
+            ::std::unique_ptr<Type> type;
 
           public:
             // Returns whether the type of the function has been specified.
@@ -229,11 +229,11 @@ namespace Rust {
             }
 
             // Constructor for function with no specified type.
-            TypePathFn(::std::vector< ::gnu::unique_ptr<Type> > inputs) :
+            TypePathFn(::std::vector< ::std::unique_ptr<Type> > inputs) :
               inputs(inputs)/*, type(NULL)*/ {}
 
             // Constructor for function with a specified type.
-            TypePathFn(::std::vector< ::gnu::unique_ptr<Type> > inputs, Type* type) :
+            TypePathFn(::std::vector< ::std::unique_ptr<Type> > inputs, Type* type) :
               inputs(inputs), type(type) {}
 
             // Copy constructor with clone
@@ -276,7 +276,7 @@ namespace Rust {
         // Path used inside types
         class TypePath : public TypeNoBounds {
             bool has_opening_scope_resolution;
-            ::std::vector< ::gnu::unique_ptr<TypePathSegment> > segments;
+            ::std::vector< ::std::unique_ptr<TypePathSegment> > segments;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -297,20 +297,20 @@ namespace Rust {
             }
 
             // Constructor for TypePath with TypePathSegments and maybe an opening scope resolution
-            TypePath(::std::vector< ::gnu::unique_ptr<TypePathSegment> > segments,
+            TypePath(::std::vector< ::std::unique_ptr<TypePathSegment> > segments,
               bool has_opening_scope_resolution) :
               segments(segments),
               has_opening_scope_resolution(has_opening_scope_resolution) {}
 
             // Constructor for TypePath with TypePathSegments and no opening scope resolution
-            TypePath(::std::vector< ::gnu::unique_ptr<TypePathSegment> > segments) :
+            TypePath(::std::vector< ::std::unique_ptr<TypePathSegment> > segments) :
               segments(segments), has_opening_scope_resolution(false) {}
         };
 
         struct QualifiedPathType {
           private:
             // Type type_to_invoke_on;
-            ::gnu::unique_ptr<Type> type_to_invoke_on;
+            ::std::unique_ptr<Type> type_to_invoke_on;
 
             bool has_as_clause;
             TypePath trait_path;
@@ -369,7 +369,7 @@ namespace Rust {
         class QualifiedPathInType : public TypeNoBounds {
             QualifiedPathType path_type;
             // ::std::vector<TypePathSegment> segments;
-            ::std::vector< ::gnu::unique_ptr<TypePathSegment> > segments;
+            ::std::vector< ::std::unique_ptr<TypePathSegment> > segments;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -384,7 +384,7 @@ namespace Rust {
 
           public:
             QualifiedPathInType(QualifiedPathType qual_path_type,
-              ::std::vector< ::gnu::unique_ptr<TypePathSegment> > path_segments) :
+              ::std::vector< ::std::unique_ptr<TypePathSegment> > path_segments) :
               path_type(qual_path_type),
               segments(path_segments) {}
 

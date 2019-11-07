@@ -19,13 +19,14 @@ namespace Rust {
 
         /* This is syntactically identical to declaring an item inside a module BUT it has block
          * scope. Type of "declaration statement" as it introduces new name into scope */
-        class ItemStatement : public Statement {
+        /*class ItemStatement : public Statement {
             // TODO: put in same params as regular item
             // maybe even merge data structure with module item?
 
           public:
             ::std::string as_string() const;
-        };
+        };*/
+        // removed - just made item inherit from statement
 
         /* Variable assignment let statement - type of "declaration statement" as it introduces new
          * name into scope */
@@ -34,15 +35,15 @@ namespace Rust {
             ::std::vector<Attribute> outer_attrs;
 
             // Pattern variables_pattern;
-            ::gnu::unique_ptr<Pattern> variables_pattern;
+            ::std::unique_ptr<Pattern> variables_pattern;
 
             // bool has_type;
             // Type type;
-            ::gnu::unique_ptr<Type> type;
+            ::std::unique_ptr<Type> type;
 
             // bool has_init_expr;
             // Expr* init_expr;
-            ::gnu::unique_ptr<Expr> init_expr;
+            ::std::unique_ptr<Expr> init_expr;
 
           public:
             // Returns whether let statement has outer attributes.
@@ -102,7 +103,7 @@ namespace Rust {
         // Statement containing an expression without a block
         class ExpressionStatementWithoutBlock : public ExpressionStatement {
             // ExprWithoutBlock* expr;
-            ::gnu::unique_ptr<ExprWithoutBlock> expr;
+            ::std::unique_ptr<ExprWithoutBlock> expr;
 
           public:
             /*~ExpressionStatementWithoutBlock() {
@@ -135,7 +136,7 @@ namespace Rust {
         // Statement containing an expression with a block
         class ExpressionStatementWithBlock : public ExpressionStatement {
             // ExprWithBlock* expr;
-            ::gnu::unique_ptr<ExprWithBlock> expr;
+            ::std::unique_ptr<ExprWithBlock> expr;
 
           public:
             /*~ExpressionStatementWithBlock() {

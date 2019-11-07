@@ -110,7 +110,7 @@ namespace Rust {
         // The token source for the lexer.
         TokenSource token_source;
         // Token stream queue.
-        buffered_queue<std::tr1::shared_ptr<Token>, TokenSource> token_queue;
+        buffered_queue<std::shared_ptr<Token>, TokenSource> token_queue;
 
         // START CRAPPY CHANGES
         int current_char;

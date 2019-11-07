@@ -32,7 +32,7 @@ namespace Rust {
         // TODO: inline
         /*struct FunctionReturnType {
             // Type return_type;
-            ::gnu::unique_ptr<Type> return_type;
+            ::std::unique_ptr<Type> return_type;
         };*/
 
         // TODO: inline
@@ -59,17 +59,17 @@ namespace Rust {
         // A type generic parameter (as opposed to a lifetime generic parameter)
         class TypeParam : public GenericParam {
             // bool has_outer_attribute;
-            ::gnu::unique_ptr<Attribute> outer_attr;
+            ::std::unique_ptr<Attribute> outer_attr;
 
             Identifier type_representation;
 
             // bool has_type_param_bounds;
             // TypeParamBounds type_param_bounds;
-            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
+            ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
 
             // bool has_type;
             // Type type;
-            ::gnu::unique_ptr<Type> type;
+            ::std::unique_ptr<Type> type;
 
           public:
             // Returns whether the type of the type param has been specified.
@@ -88,7 +88,7 @@ namespace Rust {
             }
 
             TypeParam(Identifier type_representation,
-              ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds, Type* type,
+              ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds, Type* type,
               Attribute* outer_attr) :
               type_representation(type_representation),
               type_param_bounds(type_param_bounds), type(type), outer_attr(outer_attr) {}
@@ -119,15 +119,15 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TypeParam(TypeParam&& other) = default;
-            TypeParam& operator=(TypeParam&& other) = default;*/
+            // move constructors
+            TypeParam(TypeParam&& other) = default;
+            TypeParam& operator=(TypeParam&& other) = default;
         };
 
         /*struct Generics {
             // inline: change all occurences of "Generics" to this single param
             //::std::vector<GenericParam> generic_params;
-            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params;
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params;
         };*/
 
         // "where" clause item base. Abstract - use LifetimeWhereClauseItem, TypeBoundWhereClauseItem
@@ -155,11 +155,11 @@ namespace Rust {
             ::std::vector<LifetimeParam> for_lifetimes; // inlined
 
             // Type bound_type;
-            ::gnu::unique_ptr<Type> bound_type;
+            ::std::unique_ptr<Type> bound_type;
 
             // bool has_type_param_bounds;
             // TypeParamBounds type_param_bounds;
-            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
+            ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
 
           public:
             // Returns whether the item has ForLifetimes
@@ -173,7 +173,7 @@ namespace Rust {
             }
 
             TypeBoundWhereClauseItem(::std::vector<LifetimeParam> for_lifetimes, Type* bound_type,
-              ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds) :
+              ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds) :
               for_lifetimes(for_lifetimes),
               bound_type(bound_type), type_param_bounds(type_param_bounds) {}
 
@@ -193,23 +193,23 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TypeBoundWhereClauseItem(TypeBoundWhereClauseItem&& other) = default;
-            TypeBoundWhereClauseItem& operator=(TypeBoundWhereClauseItem&& other) = default;*/
+            // move constructors
+            TypeBoundWhereClauseItem(TypeBoundWhereClauseItem&& other) = default;
+            TypeBoundWhereClauseItem& operator=(TypeBoundWhereClauseItem&& other) = default;
         };
 
         // A where clause
         struct WhereClause {
             //::std::vector<WhereClauseItem> where_clause_items;
-            ::std::vector< ::gnu::unique_ptr<WhereClauseItem> > where_clause_items;
+            ::std::vector< ::std::unique_ptr<WhereClauseItem> > where_clause_items;
 
           public:
-            WhereClause(::std::vector< ::gnu::unique_ptr<WhereClauseItem> > where_clause_items) :
+            WhereClause(::std::vector< ::std::unique_ptr<WhereClauseItem> > where_clause_items) :
               where_clause_items(where_clause_items) {}
 
             // Creates a WhereClause with no items.
             static WhereClause create_empty() {
-                ::std::vector< ::gnu::unique_ptr<WhereClauseItem> > empty_where_clause_items;
+                ::std::vector< ::std::unique_ptr<WhereClauseItem> > empty_where_clause_items;
 
                 return WhereClause(empty_where_clause_items);
             }
@@ -231,7 +231,7 @@ namespace Rust {
 
             // bool has_type; // only possible if not ref
             // Type type;
-            ::gnu::unique_ptr<Type> type;
+            ::std::unique_ptr<Type> type;
 
           public:
             // Returns whether the self-param has a type field.
@@ -274,9 +274,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*SelfParam(SelfParam&& other) = default;
-            SelfParam& operator=(SelfParam&& other) = default;*/
+            // move constructors
+            SelfParam(SelfParam&& other) = default;
+            SelfParam& operator=(SelfParam&& other) = default;
         };
 
         // Qualifiers for function, i.e. const, unsafe, extern etc.
@@ -312,9 +312,9 @@ namespace Rust {
         // A function parameter
         struct FunctionParam {
             // Pattern* param_name;
-            ::gnu::unique_ptr<Pattern> param_name;
+            ::std::unique_ptr<Pattern> param_name;
             // Type type;
-            ::gnu::unique_ptr<Type> type;
+            ::std::unique_ptr<Type> type;
 
           public:
             FunctionParam(Pattern* param_name, Type* param_type) :
@@ -334,9 +334,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*FunctionParam(FunctionParam&& other) = default;
-            FunctionParam& operator=(FunctionParam&& other) = default;*/
+            // move constructors
+            FunctionParam(FunctionParam&& other) = default;
+            FunctionParam& operator=(FunctionParam&& other) = default;
 
             // Returns whether FunctionParam is in an invalid state.
             inline bool is_error() const {
@@ -356,7 +356,7 @@ namespace Rust {
 
             // bool has_generics;
             // Generics generic_params;
-            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
 
             SelfParam self_param;
 
@@ -366,13 +366,13 @@ namespace Rust {
 
             // bool has_return_type;
             // FunctionReturnType return_type;
-            ::gnu::unique_ptr<Type> return_type; // inlined
+            ::std::unique_ptr<Type> return_type; // inlined
 
             // bool has_where_clause;
             WhereClause where_clause;
 
             // BlockExpr* expr;
-            ::gnu::unique_ptr<BlockExpr> expr;
+            ::std::unique_ptr<BlockExpr> expr;
 
           public:
             /*~Method() {
@@ -401,7 +401,7 @@ namespace Rust {
 
             // Mega-constructor with all possible fields
             Method(Identifier method_name, FunctionQualifiers qualifiers,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
               ::std::vector<FunctionParam> function_params, Type* return_type,
               WhereClause where_clause, BlockExpr* function_body) :
               method_name(method_name),
@@ -434,9 +434,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*Method(Method&& other) = default;
-            Method& operator=(Method&& other) = default;*/
+            // move constructors
+            Method(Method&& other) = default;
+            Method& operator=(Method&& other) = default;
         };
 
         // Visibility of item - if the item has it, then it is some form of public
@@ -461,8 +461,8 @@ namespace Rust {
             }
 
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<Visibility> clone_visibility() const {
-                return ::gnu::unique_ptr<Visibility>(clone_visibility_impl());
+            ::std::unique_ptr<Visibility> clone_visibility() const {
+                return ::std::unique_ptr<Visibility>(clone_visibility_impl());
             }
 
             /* TODO: think of a way to only allow valid Visibility states - polymorphism is one
@@ -503,7 +503,7 @@ namespace Rust {
         // Item that supports visibility - abstract base class
         class VisItem : public Item {
           protected:
-            ::gnu::unique_ptr<Visibility> visibility;
+            ::std::unique_ptr<Visibility> visibility;
 
             // Visibility constructor (with outer attributes)
             VisItem(Visibility* visibility, ::std::vector<Attribute> outer_attrs) :
@@ -527,9 +527,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*VisItem(VisItem&& other) = default;
-            VisItem& operator=(VisItem&& other) = default;*/
+            // move constructors
+            VisItem(VisItem&& other) = default;
+            VisItem& operator=(VisItem&& other) = default;
 
           public:
             // Does the item have some kind of public visibility (non-default visibility)?
@@ -556,7 +556,7 @@ namespace Rust {
             ::std::vector<Attribute> inner_attrs;
             // bool has_items;
             //::std::vector<Item> items;
-            ::std::vector< ::gnu::unique_ptr<Item> > items;
+            ::std::vector< ::std::unique_ptr<Item> > items;
 
           public:
             ::std::string as_string() const;
@@ -575,7 +575,7 @@ namespace Rust {
             ModuleBodied() : Module(NULL) {}
 
             // Full constructor
-            ModuleBodied(::std::vector< ::gnu::unique_ptr<Item> > items, Visibility* visibility,
+            ModuleBodied(::std::vector< ::std::unique_ptr<Item> > items, Visibility* visibility,
               ::std::vector<Attribute> inner_attrs, ::std::vector<Attribute> outer_attrs) :
               items(items),
               inner_attrs(inner_attrs), Module(visibility, outer_attrs) {}
@@ -664,8 +664,8 @@ namespace Rust {
             virtual ~UseTree() {}
 
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<UseTree> clone_use_tree() const {
-                return ::gnu::unique_ptr<UseTree>(clone_use_tree_impl());
+            ::std::unique_ptr<UseTree> clone_use_tree() const {
+                return ::std::unique_ptr<UseTree>(clone_use_tree_impl());
             }
 
           protected:
@@ -675,7 +675,11 @@ namespace Rust {
 
         // Use tree with a glob (wildcard) operator
         class UseTreeGlob : public UseTree {
-            enum PathType { NO_PATH, GLOBAL, PATH_PREFIXED } glob_type;
+          public:
+            enum PathType { NO_PATH, GLOBAL, PATH_PREFIXED };
+
+          private:
+            PathType glob_type;
             SimplePath path;
 
           public:
@@ -696,14 +700,18 @@ namespace Rust {
 
         // Use tree with a list of paths with a common prefix
         class UseTreeList : public UseTree {
-            enum PathType { NO_PATH, GLOBAL, PATH_PREFIXED } path_type;
+          public:
+            enum PathType { NO_PATH, GLOBAL, PATH_PREFIXED };
+
+          private:
+            PathType path_type;
             SimplePath path;
 
-            ::std::vector< ::gnu::unique_ptr<UseTree> > trees;
+            ::std::vector< ::std::unique_ptr<UseTree> > trees;
 
           public:
             UseTreeList(PathType path_type, SimplePath path,
-              ::std::vector< ::gnu::unique_ptr<UseTree> > trees) :
+              ::std::vector< ::std::unique_ptr<UseTree> > trees) :
               path_type(path_type),
               path(path), trees(trees) {}
 
@@ -727,16 +735,24 @@ namespace Rust {
 
         // Use tree where it rebinds the module name as something else
         class UseTreeRebind : public UseTree {
+          public:
+            enum NewBindType { NONE, IDENTIFIER, WILDCARD };
+
+          private:
             SimplePath path;
 
-            enum NewBindType { NONE, IDENTIFIER, WILDCARD } bind_type;
+            NewBindType bind_type;
             Identifier identifier; // only if NewBindType is IDENTIFIER
 
           public:
             UseTreeRebind(NewBindType bind_type, SimplePath path, Identifier identifier) :
               bind_type(bind_type), path(path), identifier(identifier) {}
 
-            // Returns whether has path.
+            // No-identifier constructor
+            UseTreeRebind(NewBindType bind_type, SimplePath path) :
+              bind_type(bind_type), path(path) {}
+
+            // Returns whether has path (this should always be true).
             inline bool has_path() const {
                 return !path.is_empty();
             }
@@ -756,7 +772,7 @@ namespace Rust {
 
         // Rust use declaration (i.e. for modules) AST node
         class UseDeclaration : public VisItem {
-            ::gnu::unique_ptr<UseTree> use_tree;
+            ::std::unique_ptr<UseTree> use_tree;
 
           public:
             ::std::string as_string() const;
@@ -782,9 +798,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*UseDeclaration(UseDeclaration&& other) = default;
-            UseDeclaration& operator=(UseDeclaration&& other) = default;*/
+            // move constructors
+            UseDeclaration(UseDeclaration&& other) = default;
+            UseDeclaration& operator=(UseDeclaration&& other) = default;
         };
 
         // Parameters used in a function - TODO inline?
@@ -800,7 +816,7 @@ namespace Rust {
 
             // bool has_generics;
             // Generics generic_params;
-            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
 
             // bool has_function_params;
             // FunctionParams function_params;
@@ -808,13 +824,13 @@ namespace Rust {
 
             // bool has_function_return_type;
             // Type return_type;
-            ::gnu::unique_ptr<Type> return_type;
+            ::std::unique_ptr<Type> return_type;
 
             // bool has_where_clause;
             WhereClause where_clause;
 
             // BlockExpr* function_body;
-            ::gnu::unique_ptr<BlockExpr> function_body;
+            ::std::unique_ptr<BlockExpr> function_body;
 
           public:
             /*~Function() {
@@ -844,7 +860,7 @@ namespace Rust {
 
             // Mega-constructor with all possible fields
             Function(Identifier function_name, FunctionQualifiers qualifiers,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               ::std::vector<FunctionParam> function_params, Type* return_type,
               WhereClause where_clause, BlockExpr* function_body, Visibility* vis,
               ::std::vector<Attribute> outer_attrs) :
@@ -880,9 +896,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*Function(Function&& other) = default;
-            Function& operator=(Functionƒ&& other) = default;*/
+            // move constructors
+            Function(Function&& other) = default;
+            Function& operator=(Function&& other) = default;
         };
 
         // Rust type alias (i.e. typedef) AST node
@@ -891,13 +907,13 @@ namespace Rust {
 
             // bool has_generics;
             // Generics generic_params;
-            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
 
             // bool has_where_clause;
             WhereClause where_clause;
 
             // Type exiting_type;
-            ::gnu::unique_ptr<Type> existing_type;
+            ::std::unique_ptr<Type> existing_type;
 
           public:
             ::std::string as_string() const;
@@ -914,7 +930,7 @@ namespace Rust {
 
             // Mega-constructor with all possible fields
             TypeAlias(Identifier new_type_name,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, Type* existing_type, Visibility* vis,
               ::std::vector<Attribute> outer_attrs) :
               new_type_name(new_type_name),
@@ -942,9 +958,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TypeAlias(TypeAlias&& other) = default;
-            TypeAlias& operator=(TypeAlias&& other) = default;*/
+            // move constructors
+            TypeAlias(TypeAlias&& other) = default;
+            TypeAlias& operator=(TypeAlias&& other) = default;
         };
 
         // Rust base struct declaration AST node - abstract base class
@@ -954,7 +970,7 @@ namespace Rust {
 
             // bool has_generics;
             // Generics generic_params;
-            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
 
             // bool has_where_clause;
             WhereClause where_clause;
@@ -972,13 +988,13 @@ namespace Rust {
 
           protected:
             Struct(Identifier struct_name,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
               struct_name(struct_name),
               generic_params(generic_params), where_clause(where_clause), VisItem(vis, outer_attrs) {}
 
             Struct(Identifier struct_name,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, Visibility* vis) :
               struct_name(struct_name),
               generic_params(generic_params), where_clause(where_clause), VisItem(vis) {}
@@ -990,11 +1006,11 @@ namespace Rust {
             ::std::vector<Attribute> outer_attrs;
 
             // bool has_visibility;
-            ::gnu::unique_ptr<Visibility> visibility;
+            ::std::unique_ptr<Visibility> visibility;
 
             Identifier field_name;
             // Type field_type;
-            ::gnu::unique_ptr<Type> field_type;
+            ::std::unique_ptr<Type> field_type;
 
           public:
             // Returns whether struct field has any outer attributes.
@@ -1032,24 +1048,51 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*StructField(StructField&& other) = default;
-            StructField& operator=(StructField&& other) = default;*/
+            // move constructors
+            StructField(StructField&& other) = default;
+            StructField& operator=(StructField&& other) = default;
+
+            // Returns whether struct field is in an error state.
+            inline bool is_error() const {
+                return field_name.empty() && field_type == NULL;
+                // this should really be an or since neither are allowed
+            }
+
+            // Creates an error state struct field.
+            static StructField create_error() {
+                return StructField(::std::string(""), NULL, NULL);
+            }
         };
 
         // Rust struct declaration with true struct type AST node
         class StructStruct : public Struct {
             ::std::vector<StructField> fields;
+            bool is_unit;
 
           public:
             ::std::string as_string() const;
 
             // Mega-constructor with all possible fields
             StructStruct(::std::vector<StructField> fields, Identifier struct_name,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
-              WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
+              WhereClause where_clause, bool is_unit, Visibility* vis,
+              ::std::vector<Attribute> outer_attrs) :
               fields(fields),
+              is_unit(is_unit), Struct(struct_name, generic_params, where_clause, vis, outer_attrs) {}
+
+            // Unit struct constructor
+            StructStruct(Identifier struct_name,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
+              WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
+              is_unit(true),
               Struct(struct_name, generic_params, where_clause, vis, outer_attrs) {}
+            // TODO: can a unit struct have generic fields? assuming yes for now.
+
+            /* Returns whether the struct is a unit struct - struct defined without fields. This is
+             * important because it also means an implicit constant of its type is defined. */
+            inline bool is_unit() const {
+                return is_unit;
+            }
         };
 
         // A single field in a tuple
@@ -1058,10 +1101,10 @@ namespace Rust {
             ::std::vector<Attribute> outer_attrs;
 
             // bool has_visibility;
-            ::gnu::unique_ptr<Visibility> visibility;
+            ::std::unique_ptr<Visibility> visibility;
 
             // Type field_type;
-            ::gnu::unique_ptr<Type> field_type;
+            ::std::unique_ptr<Type> field_type;
 
           public:
             // Returns whether tuple field has outer attributes.
@@ -1077,6 +1120,8 @@ namespace Rust {
             // Complete constructor
             TupleField(Type* field_type, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
               field_type(field_type), visibility(vis), outer_attrs(outer_attrs) {}
+
+            TupleField(Type* field_type, Visibility* vis) : field_type(field_type), visibility(vis) {}
 
             // Copy constructor with clone
             TupleField(TupleField const& other) :
@@ -1094,9 +1139,19 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TupleField(TupleField&& other) = default;
-            TupleField& operator=(TupleField&& other) = default;*/
+            // move constructors
+            TupleField(TupleField&& other) = default;
+            TupleField& operator=(TupleField&& other) = default;
+
+            // Returns whether tuple field is in an error state.
+            inline bool is_error() const {
+                return field_type == NULL;
+            }
+
+            // Creates an error state tuple field.
+            static TupleField create_error() {
+                return TupleField(NULL, NULL);
+            }
         };
 
         // Rust tuple declared using struct keyword AST node
@@ -1108,13 +1163,13 @@ namespace Rust {
 
             // Mega-constructor with all possible fields
             TupleStruct(::std::vector<TupleField> fields, Identifier struct_name,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
               fields(fields),
               Struct(struct_name, generic_params, where_clause, vis, outer_attrs) {}
         };
 
-        // An item used in an "enum" tagged union
+        // An item used in an "enum" tagged union - not abstract: base represents a name-only enum
         class EnumItem {
           protected:
             // bool has_attrs;
@@ -1130,7 +1185,6 @@ namespace Rust {
                 return !outer_attrs.empty();
             }
 
-          protected:
             EnumItem(Identifier variant_name, ::std::vector<Attribute> outer_attrs) :
               variant_name(variant_name), outer_attrs(outer_attrs) {}
         };
@@ -1169,10 +1223,10 @@ namespace Rust {
               EnumItem(variant_name, outer_attrs) {}
         };
 
-        // A discriminant item sued in an "enum" tagged union
+        // A discriminant (numbered enum) item used in an "enum" tagged union
         class EnumItemDiscriminant : public EnumItem {
             // Expr* expression;
-            ::gnu::unique_ptr<Expr> expression;
+            ::std::unique_ptr<Expr> expression;
 
           public:
             /*~EnumItemDiscriminant() {
@@ -1200,9 +1254,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*EnumItemDiscriminant(EnumItemDiscriminant&& other) = default;
-            EnumItemDiscriminant& operator=(EnumItemDiscriminant&& other) = default;*/
+            // move constructors
+            EnumItemDiscriminant(EnumItemDiscriminant&& other) = default;
+            EnumItemDiscriminant& operator=(EnumItemDiscriminant&& other) = default;
         };
 
         // AST node for Rust "enum" - tagged union
@@ -1211,12 +1265,12 @@ namespace Rust {
 
             // bool has_generics;
             // Generics generic_params;
-            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
 
             // bool has_where_clause;
             WhereClause where_clause;
 
-            ::std::vector< ::gnu::unique_ptr<EnumItem> > items;
+            ::std::vector< ::std::unique_ptr<EnumItem> > items;
 
           public:
             ::std::string as_string() const;
@@ -1231,10 +1285,16 @@ namespace Rust {
                 return !where_clause.is_empty();
             }
 
+            /* Returns whether enum is a "zero-variant" (no possible variant) enum, which cannot be
+             * instantiated.*/
+            inline bool is_zero_variant() const {
+                return items.empty();
+            }
+
             // Mega-constructor
             Enum(Identifier enum_name, Visibility* vis,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
-              WhereClause where_clause, ::std::vector< ::gnu::unique_ptr<EnumItem> > items,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
+              WhereClause where_clause, ::std::vector< ::std::unique_ptr<EnumItem> > items,
               ::std::vector<Attribute> outer_attrs) :
               enum_name(enum_name),
               generic_params(generic_params), where_clause(where_clause), items(items),
@@ -1249,7 +1309,7 @@ namespace Rust {
 
             // bool has_generics;
             // Generics generic_params;
-            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
 
             // bool has_where_clause;
             WhereClause where_clause;
@@ -1270,7 +1330,7 @@ namespace Rust {
             }
 
             Union(Identifier union_name, Visibility* vis,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, ::std::vector<StructField> variants,
               ::std::vector<Attribute> outer_attrs) :
               union_name(union_name),
@@ -1281,14 +1341,15 @@ namespace Rust {
         // "Constant item" AST node - used for constant, compile-time expressions within module scope
         class ConstantItem : public VisItem {
             // either has an identifier or "_" - maybe handle in identifier?
-            bool identifier_is_underscore;
-            Identifier identifier; // just going to assume that the "identifier" is underscore
+            // bool identifier_is_underscore;
+            // if no identifier declared, identifier will be "_"
+            Identifier identifier;
 
             // Type type;
-            ::gnu::unique_ptr<Type> type;
+            ::std::unique_ptr<Type> type;
 
             // Expr* const_expr;
-            ::gnu::unique_ptr<Expr> const_expr;
+            ::std::unique_ptr<Expr> const_expr;
 
           public:
             /*~ConstantItem() {
@@ -1318,9 +1379,15 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ConstantItem(ConstantItem&& other) = default;
-            ConstantItem& operator=(ConstantItem&& other) = default;*/
+            // move constructors
+            ConstantItem(ConstantItem&& other) = default;
+            ConstantItem& operator=(ConstantItem&& other) = default;
+
+            /* Returns whether constant item is an "unnamed" (wildcard underscore used as identifier)
+             * constant. */
+            inline bool is_unnamed() const {
+                return identifier == ::std::string("_");
+            }
         };
 
         // Static item AST node - items within module scope with fixed storage duration?
@@ -1330,10 +1397,10 @@ namespace Rust {
             Identifier name;
 
             // Type type;
-            ::gnu::unique_ptr<Type> type;
+            ::std::unique_ptr<Type> type;
 
             // Expr* expr;
-            ::gnu::unique_ptr<Expr> expr;
+            ::std::unique_ptr<Expr> expr;
 
           public:
             /*~StaticItem() {
@@ -1365,30 +1432,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*StaticItem(StaticItem&& other) = default;
-            StaticItem& operator=(StaticItem&& other) = default;*/
-        };
-
-        // Item used in trait declarations - abstract base class
-        class TraitItem {
-          protected:
-            // bool has_outer_attrs;
-            ::std::vector<Attribute> outer_attrs;
-
-            // Outer attributes constructor
-            TraitItem(::std::vector<Attribute> outer_attrs) : outer_attrs(outer_attrs) {}
-
-            // Empty constructor
-            TraitItem() {}
-
-          public:
-            virtual ~TraitItem() {}
-
-            // Returns whether TraitItem has outer attributes.
-            inline bool has_outer_attrs() const {
-                return !outer_attrs.empty();
-            }
+            // move constructors
+            StaticItem(StaticItem&& other) = default;
+            StaticItem& operator=(StaticItem&& other) = default;
         };
 
         // Function declaration in traits
@@ -1399,7 +1445,7 @@ namespace Rust {
 
             // bool has_generics;
             // Generics generic_params;
-            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
 
             // bool has_params;
             // FunctionParams function_params;
@@ -1407,7 +1453,7 @@ namespace Rust {
 
             // bool has_return_type;
             // Type return_type;
-            ::gnu::unique_ptr<Type> return_type;
+            ::std::unique_ptr<Type> return_type;
 
             // bool has_where_clause;
             WhereClause where_clause;
@@ -1435,7 +1481,7 @@ namespace Rust {
 
             // Mega-constructor
             TraitFunctionDecl(Identifier function_name, FunctionQualifiers qualifiers,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               ::std::vector<FunctionParam> function_params, Type* return_type,
               WhereClause where_clause) :
               function_name(function_name),
@@ -1463,16 +1509,16 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TraitFunctionDecl(TraitFunctionDecl&& other) = default;
-            TraitFunctionDecl& operator=(TraitFunctionDecl&& other) = default;*/
+            // move constructors
+            TraitFunctionDecl(TraitFunctionDecl&& other) = default;
+            TraitFunctionDecl& operator=(TraitFunctionDecl&& other) = default;
         };
 
         // Actual trait item function declaration within traits
         class TraitItemFunc : public TraitItem {
             TraitFunctionDecl decl;
             // BlockExpr* block_expr;
-            ::gnu::unique_ptr<BlockExpr> block_expr;
+            ::std::unique_ptr<BlockExpr> block_expr;
 
           public:
             /*~TraitItemFunc() {
@@ -1499,9 +1545,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TraitItemFunc(TraitItemFunc&& other) = default;
-            TraitItemFunc& operator=(TraitItemFunc&& other) = default;*/
+            // move constructors
+            TraitItemFunc(TraitItemFunc&& other) = default;
+            TraitItemFunc& operator=(TraitItemFunc&& other) = default;
         };
 
         // Method declaration within traits
@@ -1512,7 +1558,7 @@ namespace Rust {
 
             // bool has_generics;
             // Generics generic_params;
-            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
 
             SelfParam self_param;
 
@@ -1522,7 +1568,7 @@ namespace Rust {
 
             // bool has_return_type;
             // Type return_type;
-            ::gnu::unique_ptr<Type> return_type;
+            ::std::unique_ptr<Type> return_type;
 
             // bool has_where_clause;
             WhereClause where_clause;
@@ -1550,7 +1596,7 @@ namespace Rust {
 
             // Mega-constructor
             TraitMethodDecl(Identifier function_name, FunctionQualifiers qualifiers,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
               ::std::vector<FunctionParam> function_params, Type* return_type,
               WhereClause where_clause) :
               function_name(function_name),
@@ -1580,16 +1626,16 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TraitMethodDecl(TraitMethodDecl&& other) = default;
-            TraitMethodDecl& operator=(TraitMethodDecl&& other) = default;*/
+            // move constructors
+            TraitMethodDecl(TraitMethodDecl&& other) = default;
+            TraitMethodDecl& operator=(TraitMethodDecl&& other) = default;
         };
 
         // Actual trait item method declaration within traits
         class TraitItemMethod : public TraitItem {
             TraitMethodDecl decl;
             // BlockExpr* block_expr;
-            ::gnu::unique_ptr<BlockExpr> block_expr;
+            ::std::unique_ptr<BlockExpr> block_expr;
 
           public:
             /*~TraitItemMethod() {
@@ -1616,20 +1662,20 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TraitItemMethod(TraitItemMethod&& other) = default;
-            TraitItemMethod& operator=(TraitItemMethod&& other) = default;*/
+            // move constructors
+            TraitItemMethod(TraitItemMethod&& other) = default;
+            TraitItemMethod& operator=(TraitItemMethod&& other) = default;
         };
 
         // Constant item within traits
         class TraitItemConst : public TraitItem {
             Identifier name;
             // Type type;
-            ::gnu::unique_ptr<Type> type;
+            ::std::unique_ptr<Type> type;
 
             // bool has_expression;
             // Expr* expr;
-            ::gnu::unique_ptr<Expr> expr;
+            ::std::unique_ptr<Expr> expr;
 
           public:
             /*~TraitItemConst() {
@@ -1663,9 +1709,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TraitItemConst(TraitItemConst&& other) = default;
-            TraitItemConst& operator=(TraitItemConst&& other) = default;*/
+            // move constructors
+            TraitItemConst(TraitItemConst&& other) = default;
+            TraitItemConst& operator=(TraitItemConst&& other) = default;
         };
 
         // Type items within traits
@@ -1674,7 +1720,7 @@ namespace Rust {
 
             // bool has_type_param_bounds;
             // TypeParamBounds type_param_bounds;
-            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
+            ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
 
           public:
             // Returns whether trait item type has type param bounds.
@@ -1683,14 +1729,15 @@ namespace Rust {
             }
 
             TraitItemType(Identifier name,
-              ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds,
+              ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds,
               ::std::vector<Attribute> outer_attrs) :
               name(name),
               type_param_bounds(type_param_bounds), TraitItem(outer_attrs) {}
         };
 
-        // Macro invocation items within traits
-        class TraitItemMacroInvoc : public TraitItem {
+        // Macro invocation items within traits - TODO is this approach better or is making
+        // MacroInvocationSemi itself implement TraitItem better? Leaning toward latter.
+        /*class TraitItemMacroInvoc : public TraitItem {
             MacroInvocationSemi macro_invoc;
 
           public:
@@ -1698,7 +1745,8 @@ namespace Rust {
               MacroInvocationSemi macro_invoc, ::std::vector<Attribute> outer_attrs) :
               macro_invoc(macro_invoc),
               TraitItem(outer_attrs) {}
-        };
+        };*/
+        // replaced with MacroInvocationSemi implementing TraitItem
 
         // Rust trait item declaration AST node
         class Trait : public VisItem {
@@ -1708,17 +1756,17 @@ namespace Rust {
 
             // bool has_generics;
             // Generics generic_params;
-            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
 
             // bool has_type_param_bounds;
             // TypeParamBounds type_param_bounds;
-            ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
+            ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
 
             // bool has_where_clause;
             WhereClause where_clause;
 
             // bool has_trait_items;
-            ::std::vector< ::gnu::unique_ptr<TraitItem> > trait_items;
+            ::std::vector< ::std::unique_ptr<TraitItem> > trait_items;
 
           public:
             ::std::string as_string() const;
@@ -1745,9 +1793,9 @@ namespace Rust {
 
             // Mega-constructor
             Trait(Identifier name, bool is_unsafe,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params,
-              ::std::vector< ::gnu::unique_ptr<TypeParamBound> > type_param_bounds,
-              WhereClause where_clause, ::std::vector< ::gnu::unique_ptr<TraitItem> > trait_items,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
+              ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds,
+              WhereClause where_clause, ::std::vector< ::std::unique_ptr<TraitItem> > trait_items,
               Visibility* vis, ::std::vector<Attribute> outer_attrs) :
               name(name),
               has_unsafe(is_unsafe), generic_params(generic_params),
@@ -1759,10 +1807,10 @@ namespace Rust {
         class Impl : public VisItem {
             // bool has_generics;
             // Generics generic_params;
-            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
 
             // Type trait_type;
-            ::gnu::unique_ptr<Type> trait_type;
+            ::std::unique_ptr<Type> trait_type;
 
             // bool has_where_clause;
             WhereClause where_clause;
@@ -1787,7 +1835,7 @@ namespace Rust {
             }
 
             // Mega-constructor
-            Impl(::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params, Type* trait_type,
+            Impl(::std::vector< ::std::unique_ptr<GenericParam> > generic_params, Type* trait_type,
               WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> inner_attrs,
               ::std::vector<Attribute> outer_attrs) :
               generic_params(generic_params),
@@ -1812,9 +1860,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*Impl(Impl&& other) = default;
-            Impl& operator=(Impl&& other) = default;*/
+            // move constructors
+            Impl(Impl&& other) = default;
+            Impl& operator=(Impl&& other) = default;
         };
 
         // Abstract base class for items used within an inherent impl block (the impl name {} one)
@@ -1848,7 +1896,7 @@ namespace Rust {
         // Constant item used within an inherent impl block
         class InherentImplItemConstant : public InherentImplItem {
             // bool has_visibility;
-            ::gnu::unique_ptr<Visibility> visibility;
+            ::std::unique_ptr<Visibility> visibility;
 
             ConstantItem constant_item;
 
@@ -1879,15 +1927,15 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*InherentImplItemConstant(InherentImplItemConstant&& other) = default;
-            InherentImplItemConstant& operator=(InherentImplItemConstant&& other) = default;*/
+            // move constructors
+            InherentImplItemConstant(InherentImplItemConstant&& other) = default;
+            InherentImplItemConstant& operator=(InherentImplItemConstant&& other) = default;
         };
 
         // Function item used within an inherent impl block
         class InherentImplItemFunction : public InherentImplItem {
             // bool has_visibility;
-            ::gnu::unique_ptr<Visibility> visibility;
+            ::std::unique_ptr<Visibility> visibility;
 
             Function function;
 
@@ -1918,15 +1966,15 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*InherentImplItemFunction(InherentImplItemFunction&& other) = default;
-            InherentImplItemFunction& operator=(InherentImplItemFunction&& other) = default;*/
+            // move constructors
+            InherentImplItemFunction(InherentImplItemFunction&& other) = default;
+            InherentImplItemFunction& operator=(InherentImplItemFunction&& other) = default;
         };
 
         // Method item used within an inherent impl block
         class InherentImplItemMethod : public InherentImplItem {
             // bool has_visibility;
-            ::gnu::unique_ptr<Visibility> visibility;
+            ::std::unique_ptr<Visibility> visibility;
 
             Method method;
 
@@ -1957,15 +2005,15 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*InherentImplItemMethod(InherentImplItemMethod&& other) = default;
-            InherentImplItemMethod& operator=(InherentImplItemMethod&& other) = default;*/
+            // move constructors
+            InherentImplItemMethod(InherentImplItemMethod&& other) = default;
+            InherentImplItemMethod& operator=(InherentImplItemMethod&& other) = default;
         };
 
         // Regular "impl foo" impl block declaration AST node
         class InherentImpl : public Impl {
             // bool has_impl_items;
-            ::std::vector< ::gnu::unique_ptr<InherentImplItem> > impl_items;
+            ::std::vector< ::std::unique_ptr<InherentImplItem> > impl_items;
 
           public:
             ::std::string as_string() const;
@@ -1976,8 +2024,8 @@ namespace Rust {
             }
 
             // Mega-constructor
-            InherentImpl(::std::vector< ::gnu::unique_ptr<InherentImplItem> > impl_items,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params, Type* trait_type,
+            InherentImpl(::std::vector< ::std::unique_ptr<InherentImplItem> > impl_items,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, Type* trait_type,
               WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> inner_attrs,
               ::std::vector<Attribute> outer_attrs) :
               impl_items(impl_items),
@@ -2015,7 +2063,7 @@ namespace Rust {
         // Type alias item in a trait impl
         class TraitImplItemTypeAlias : public TraitImplItem {
             // bool has_visibility;
-            ::gnu::unique_ptr<Visibility> visibility;
+            ::std::unique_ptr<Visibility> visibility;
 
             TypeAlias type_alias;
 
@@ -2046,15 +2094,15 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TraitImplItemTypeAlias(TraitImplItemTypeAlias&& other) = default;
-            TraitImplItemTypeAlias& operator=(TraitImplItemTypeAlias&& other) = default;*/
+            // move constructors
+            TraitImplItemTypeAlias(TraitImplItemTypeAlias&& other) = default;
+            TraitImplItemTypeAlias& operator=(TraitImplItemTypeAlias&& other) = default;
         };
 
         // Constant item in a trait impl
         class TraitImplItemConstant : public TraitImplItem {
             // bool has_visibility;
-            ::gnu::unique_ptr<Visibility> visibility;
+            ::std::unique_ptr<Visibility> visibility;
 
             ConstantItem constant_item;
 
@@ -2085,15 +2133,15 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TraitImplItemConstant(TraitImplItemConstant&& other) = default;
-            TraitImplItemConstant& operator=(TraitImplItemConstant&& other) = default;*/
+            // move constructors as not supported in c++03
+            TraitImplItemConstant(TraitImplItemConstant&& other) = default;
+            TraitImplItemConstant& operator=(TraitImplItemConstant&& other) = default;
         };
 
         /// Function item in a trait impl
         class TraitImplItemFunction : public TraitImplItem {
             // bool has_visibility;
-            ::gnu::unique_ptr<Visibility> visibility;
+            ::std::unique_ptr<Visibility> visibility;
 
             Function function;
 
@@ -2124,15 +2172,15 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TraitImplItemFunction(TraitImplItemFunction&& other) = default;
-            TraitImplItemFunction& operator=(TraitImplItemFunction&& other) = default;*/
+            // move constructors as not supported in c++03
+            TraitImplItemFunction(TraitImplItemFunction&& other) = default;
+            TraitImplItemFunction& operator=(TraitImplItemFunction&& other) = default;
         };
 
         // Method item in a trait impl
         class TraitImplItemMethod : public TraitImplItem {
             // bool has_visibility;
-            ::gnu::unique_ptr<Visibility> visibility;
+            ::std::unique_ptr<Visibility> visibility;
 
             Method method;
 
@@ -2163,9 +2211,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TraitImplItemMethod(TraitImplItemMethod&& other) = default;
-            TraitImplItemMethod& operator=(TraitImplItemMethod&& other) = default;*/
+            // move constructors
+            TraitImplItemMethod(TraitImplItemMethod&& other) = default;
+            TraitImplItemMethod& operator=(TraitImplItemMethod&& other) = default;
         };
 
         // The "impl footrait for foo" impl block declaration AST node
@@ -2177,7 +2225,7 @@ namespace Rust {
             TypePath trait_path;
 
             // bool has_impl_items;
-            ::std::vector< ::gnu::unique_ptr<TraitImplItem> > impl_items;
+            ::std::vector< ::std::unique_ptr<TraitImplItem> > impl_items;
 
           public:
             ::std::string as_string() const;
@@ -2189,8 +2237,8 @@ namespace Rust {
 
             // Mega-constructor
             TraitImpl(TypePath trait_path, bool is_unsafe, bool has_exclam,
-              ::std::vector< ::gnu::unique_ptr<TraitImplItem> > impl_items,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params, Type* trait_type,
+              ::std::vector< ::std::unique_ptr<TraitImplItem> > impl_items,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, Type* trait_type,
               WhereClause where_clause, Visibility* vis, ::std::vector<Attribute> inner_attrs,
               ::std::vector<Attribute> outer_attrs) :
               trait_path(trait_path),
@@ -2207,7 +2255,7 @@ namespace Rust {
             ::std::vector<Attribute> outer_attrs;
 
             // bool has_visibility;
-            ::gnu::unique_ptr<Visibility> visibility;
+            ::std::unique_ptr<Visibility> visibility;
 
             Identifier item_name;
 
@@ -2244,9 +2292,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ExternalItem(ExternalItem&& other) = default;
-            ExternalItem& operator=(ExternalItem&& other) = default;*/
+            // move constructors
+            ExternalItem(ExternalItem&& other) = default;
+            ExternalItem& operator=(ExternalItem&& other) = default;
         };
 
         // A static item used in an extern block
@@ -2254,7 +2302,7 @@ namespace Rust {
             bool has_mut;
 
             // Type item_type;
-            ::gnu::unique_ptr<Type> item_type;
+            ::std::unique_ptr<Type> item_type;
 
           public:
             ExternalStaticItem(Identifier item_name, Type* item_type, bool is_mut, Visibility* vis,
@@ -2277,9 +2325,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ExternalStaticItem(ExternalStaticItem&& other) = default;
-            ExternalStaticItem& operator=(ExternalStaticItem&& other) = default;*/
+            // move constructors
+            ExternalStaticItem(ExternalStaticItem&& other) = default;
+            ExternalStaticItem& operator=(ExternalStaticItem&& other) = default;
         };
 
         // A named function parameter used in external functions
@@ -2288,7 +2336,7 @@ namespace Rust {
             Identifier name; // TODO: handle wildcard in identifier?
 
             // Type param_type;
-            ::gnu::unique_ptr<Type> param_type;
+            ::std::unique_ptr<Type> param_type;
 
           public:
             NamedFunctionParam(Identifier name, Type* param_type) :
@@ -2310,20 +2358,20 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*NamedFunctionParam(NamedFunctionParam&& other) = default;
-            NamedFunctionParam& operator=(NamedFunctionParam&& other) = default;*/
+            // move constructors
+            NamedFunctionParam(NamedFunctionParam&& other) = default;
+            NamedFunctionParam& operator=(NamedFunctionParam&& other) = default;
         };
 
         // A function item used in an extern block
         class ExternalFunctionItem : public ExternalItem {
             // bool has_generics;
             // Generics generic_params;
-            ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params; // inlined
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
 
             // bool has_return_type;
             // FunctionReturnType return_type;
-            ::gnu::unique_ptr<Type> return_type; // inlined
+            ::std::unique_ptr<Type> return_type; // inlined
 
             // bool has_where_clause;
             WhereClause where_clause;
@@ -2349,7 +2397,7 @@ namespace Rust {
             }
 
             ExternalFunctionItem(Identifier item_name,
-              ::std::vector< ::gnu::unique_ptr<GenericParam> > generic_params, Type* return_type,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, Type* return_type,
               WhereClause where_clause, ::std::vector<NamedFunctionParam> function_params,
               bool has_variadics, Visibility* vis, ::std::vector<Attribute> outer_attrs) :
               generic_params(generic_params),
@@ -2376,9 +2424,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ExternalFucntionItem(ExternalFunctionItem&& other) = default;
-            ExternalFunctionItem& operator=(ExternalFunctionItem&& other) = default;*/
+            // move constructors
+            ExternalFunctionItem(ExternalFunctionItem&& other) = default;
+            ExternalFunctionItem& operator=(ExternalFunctionItem&& other) = default;
         };
 
         // An extern block AST node
@@ -2390,7 +2438,7 @@ namespace Rust {
             ::std::vector<Attribute> inner_attrs;
 
             // bool has_extern_items;
-            ::std::vector< ::gnu::unique_ptr<ExternalItem> > extern_items;
+            ::std::vector< ::std::unique_ptr<ExternalItem> > extern_items;
 
           public:
             ::std::string as_string() const;
@@ -2410,7 +2458,7 @@ namespace Rust {
                 return !abi.is_empty();
             }
 
-            ExternBlock(AbiName abi, ::std::vector< ::gnu::unique_ptr<ExternalItem> > extern_items,
+            ExternBlock(AbiName abi, ::std::vector< ::std::unique_ptr<ExternalItem> > extern_items,
               Visibility* vis, ::std::vector<Attribute> inner_attrs,
               ::std::vector<Attribute> outer_attrs) :
               abi(abi),

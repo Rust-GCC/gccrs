@@ -4,7 +4,7 @@
 
 // GCC imports
 #include "config.h"
-#define INCLUDE_UNIQUE_PTR
+//#define INCLUDE_UNIQUE_PTR
 // should allow including the gcc emulation of std::unique_ptr
 #include "coretypes.h" // order: config, INCLUDE, system, coretypes
 #include "system.h"
@@ -12,6 +12,9 @@
 // STL imports
 #include <string>
 #include <vector>
+
+// TODO: with C++11, now can use actual std::unique_ptr
+#include <memory>
 
 namespace Rust {
     // TODO: remove
@@ -51,8 +54,8 @@ namespace Rust {
             virtual ~AttrInput() {}
 
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<AttrInput> clone_attr_input() const {
-                return ::gnu::unique_ptr<AttrInput>(clone_attr_input_impl());
+            ::std::unique_ptr<AttrInput> clone_attr_input() const {
+                return ::std::unique_ptr<AttrInput>(clone_attr_input_impl());
             }
 
           protected:
@@ -90,12 +93,13 @@ namespace Rust {
 
           public:
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<Token> clone_token() const {
-                return ::gnu::unique_ptr<Token>(clone_token_impl());
+            ::std::unique_ptr<Token> clone_token() const {
+                return ::std::unique_ptr<Token>(clone_token_impl());
             }
 
             // Constructor from lexer const_TokenPtr
-            // TODO: find workaround for std::string being NULL
+            /* TODO: find workaround for std::string being NULL - probably have to introduce new
+             * method in lexer Token, or maybe make conversion method there*/
             Token(const_TokenPtr lexer_token_ptr) :
               token_id(lexer_token_ptr->get_id()), locus(lexer_token_ptr->get_locus()),
               str(lexer_token_ptr->get_str()), type_hint(lexer_token_ptr->get_type_hint()) {}
@@ -111,9 +115,13 @@ namespace Rust {
         class DelimTokenTree
           : public TokenTree
           , public AttrInput {
-            enum DelimType { PARENS, SQUARE, CURLY } delim_type;
+          public:
+            enum DelimType { PARENS, SQUARE, CURLY };
 
-            ::std::vector< ::gnu::unique_ptr<TokenTree> > token_trees;
+          private:
+            DelimType delim_type;
+
+            ::std::vector< ::std::unique_ptr<TokenTree> > token_trees;
 
           protected:
             // Use covariance to implement clone function as returning a DelimTokenTree object
@@ -123,7 +131,7 @@ namespace Rust {
 
           public:
             DelimTokenTree(
-              DelimType delim_type, ::std::vector< ::gnu::unique_ptr<TokenTree> > token_trees) :
+              DelimType delim_type, ::std::vector< ::std::unique_ptr<TokenTree> > token_trees) :
               delim_type(delim_type),
               token_trees(token_trees) {}
 
@@ -200,7 +208,7 @@ namespace Rust {
 
             // bool has_attr_input;
             // AttrInput* attr_input;
-            ::gnu::unique_ptr<AttrInput> attr_input;
+            ::std::unique_ptr<AttrInput> attr_input;
 
           public:
             // Returns whether Attribute has AttrInput
@@ -210,10 +218,6 @@ namespace Rust {
 
             // Constructor has pointer AttrInput for polymorphism reasons
             Attribute(SimplePath path_, AttrInput* input) : path(path_), attr_input(input) {}
-
-            // TODO: remove and also remove has_attr_input as pointer is nullable
-            // Attribute(SimplePath path_) : path(path_), has_attr_input(false), attr_input(NULL) {}
-            // this "NULL" is ambiguous
 
             // Copy constructor must deep copy attr_input as unique pointer
             Attribute(Attribute const& other) :
@@ -231,12 +235,12 @@ namespace Rust {
             }
 
             // default move semantics but no move in c++03
-            /*Attribute(Attribute&& other) = default;
-            Attribute& operator=(Attribute&& other) = default;*/
+            Attribute(Attribute&& other) = default;
+            Attribute& operator=(Attribute&& other) = default;
 
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<Attribute> clone_attribute() const {
-                return ::gnu::unique_ptr<Attribute>(clone_attribute_impl());
+            ::std::unique_ptr<Attribute> clone_attribute() const {
+                return ::std::unique_ptr<Attribute>(clone_attribute_impl());
             }
 
             /*~Attribute() {
@@ -323,8 +327,8 @@ namespace Rust {
 
           public:
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<MetaItem> clone_meta_item() const {
-                return ::gnu::unique_ptr<MetaItem>(clone_meta_item_impl());
+            ::std::unique_ptr<MetaItem> clone_meta_item() const {
+                return ::std::unique_ptr<MetaItem>(clone_meta_item_impl());
             }
         };
 
@@ -352,8 +356,12 @@ namespace Rust {
         // Forward decl - defined in rust-expr.h
         struct MetaListNameValueStr;
 
+        /* Base statement abstract class. Note that most "statements" are not allowed in top-level
+         * module scope - only a subclass of statements called "items" are. */
+        class Statement : public Node {};
+
         // Rust "item" AST node (declaration of top-level/module-level allowed stuff)
-        class Item : public Node {
+        class Item : public Statement {
           protected:
             ::std::vector<Attribute> outer_attrs;
 
@@ -372,8 +380,8 @@ namespace Rust {
             }
 
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<Expr> clone_expr() const {
-                return ::gnu::unique_ptr<Expr>(clone_expr_impl());
+            ::std::unique_ptr<Expr> clone_expr() const {
+                return ::std::unique_ptr<Expr>(clone_expr_impl());
             }
 
           protected:
@@ -403,22 +411,17 @@ namespace Rust {
 
           public:
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<ExprWithoutBlock> clone_expr_without_block() const {
-                return ::gnu::unique_ptr<ExprWithoutBlock>(clone_expr_without_block_impl());
+            ::std::unique_ptr<ExprWithoutBlock> clone_expr_without_block() const {
+                return ::std::unique_ptr<ExprWithoutBlock>(clone_expr_without_block_impl());
             }
         };
-
-        /* Base statement abstract class. Note that statements in Rust are only called as such if they
-         * are inside a block inside a function or outer expression, i.e. standalone, module-scope
-         * declarations are not statements. */
-        class Statement : public Node {};
 
         // Pattern base AST node
         class Pattern : public Node {
           public:
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<Pattern> clone_pattern() const {
-                return ::gnu::unique_ptr<Pattern>(clone_pattern_impl());
+            ::std::unique_ptr<Pattern> clone_pattern() const {
+                return ::std::unique_ptr<Pattern>(clone_pattern_impl());
             }
 
           protected:
@@ -430,8 +433,8 @@ namespace Rust {
         class Type {
           public:
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<Type> clone_type() const {
-                return ::gnu::unique_ptr<Type>(clone_type_impl());
+            ::std::unique_ptr<Type> clone_type() const {
+                return ::std::unique_ptr<Type>(clone_type_impl());
             }
 
             // virtual destructor
@@ -446,8 +449,8 @@ namespace Rust {
         class TypeNoBounds : public Type {
           public:
             // Unique pointer custom clone function
-            ::gnu::unique_ptr<TypeNoBounds> clone_type_no_bounds() const {
-                return ::gnu::unique_ptr<TypeNoBounds>(clone_type_no_bounds_impl());
+            ::std::unique_ptr<TypeNoBounds> clone_type_no_bounds() const {
+                return ::std::unique_ptr<TypeNoBounds>(clone_type_no_bounds_impl());
             }
 
           protected:
@@ -463,11 +466,15 @@ namespace Rust {
 
         // Represents a lifetime (and is also a kind of type param bound)
         class Lifetime : public TypeParamBound {
+          public:
             enum LifetimeType {
                 NAMED,   // corresponds to LIFETIME_OR_LABEL
                 STATIC,  // corresponds to 'static
                 WILDCARD // corresponds to '_
-            } lifetime_type;
+            };
+
+          private:
+            LifetimeType lifetime_type;
 
             // TODO: LIFETIME_OR_LABEL (aka lifetime token) is only field
             // find way of enclosing token or something
@@ -475,8 +482,12 @@ namespace Rust {
             // only applies for NAMED lifetime_type
 
           public:
+            // Named constructor
             Lifetime(LifetimeType type, ::std::string name) :
               lifetime_type(type), lifetime_name(name) {}
+
+            // Nameless constructor (error for named lifetime)
+            Lifetime(LifetimeType type) : lifetime_type(type) {}
 
             // Creates an "error" lifetime.
             static Lifetime error() {
@@ -498,7 +509,7 @@ namespace Rust {
         // A lifetime generic parameter (as opposed to a type generic parameter)
         class LifetimeParam : public GenericParam {
             // bool has_outer_attribute;
-            ::gnu::unique_ptr<Attribute> outer_attr;
+            ::std::unique_ptr<Attribute> outer_attr;
 
             Lifetime lifetime;
 
@@ -515,6 +526,16 @@ namespace Rust {
             // Returns whether the lifetime param has an outer attribute.
             inline bool has_outer_attribute() const {
                 return outer_attr != NULL;
+            }
+
+            // Creates an error state lifetime param.
+            static LifetimeParam create_error() {
+                return LifetimeParam(Lifetime::error(), NULL);
+            }
+
+            // Returns whether the lifetime param is in an error state.
+            inline bool is_error() const {
+                return lifetime.is_error();
             }
 
             // Constructor for a lifetime param with no attribute.
@@ -547,9 +568,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*LifetimeParam(LifetimeParam&& other) = default;
-            LifetimeParam& operator=(LifetimeParam&& other) = default;*/
+            // move constructors
+            LifetimeParam(LifetimeParam&& other) = default;
+            LifetimeParam& operator=(LifetimeParam&& other) = default;
         };
 
         // A macro item AST node - potentially abstract base class
@@ -560,10 +581,33 @@ namespace Rust {
             MacroItem(::std::vector<Attribute> outer_attribs) : Item(outer_attribs) {}
         };
 
+        // Item used in trait declarations - abstract base class
+        class TraitItem {
+          protected:
+            // bool has_outer_attrs;
+            ::std::vector<Attribute> outer_attrs;
+
+            // Outer attributes constructor
+            TraitItem(::std::vector<Attribute> outer_attrs) : outer_attrs(outer_attrs) {}
+
+            // Empty constructor
+            TraitItem() {}
+
+          public:
+            virtual ~TraitItem() {}
+
+            // Returns whether TraitItem has outer attributes.
+            inline bool has_outer_attrs() const {
+                return !outer_attrs.empty();
+            }
+        };
+
         // A macro invocation item (or statement) AST node
         class MacroInvocationSemi
           : public MacroItem
-          , public Statement {
+          , public TraitItem
+        /*, public Statement*/ {
+            // already inherits from statement indirectly via item as item is a subclass of statement
             SimplePath path;
             enum DelimType {
                 PARENS,
@@ -571,16 +615,23 @@ namespace Rust {
                 CURLY // all delim types except curly must have invocation end with a semicolon
             } delim_type;
             //::std::vector<TokenTree> token_trees;
-            ::std::vector< ::gnu::unique_ptr<TokenTree> > token_trees;
+            ::std::vector< ::std::unique_ptr<TokenTree> > token_trees;
 
           public:
             ::std::string as_string() const;
 
             MacroInvocationSemi(SimplePath macro_path, DelimType delim_type,
-              ::std::vector< ::gnu::unique_ptr<TokenTree> > token_trees,
+              ::std::vector< ::std::unique_ptr<TokenTree> > token_trees,
               ::std::vector<Attribute> outer_attribs) :
               path(macro_path),
-              delim_type(delim_type), token_trees(token_trees), MacroItem(outer_attribs) {}
+              delim_type(delim_type), token_trees(token_trees), MacroItem(outer_attribs),
+              TraitItem(outer_attribs) {}
+            /* TODO: possible issue with Item and TraitItem hierarchies both having outer attributes 
+             * - storage inefficiency at least. */
+
+            // TODO: redesign to fix diamond problem - maybe have a MacroInvocationSemi item and a
+            // separate MacroInvocationSemi statement?
+            // Fixed: inheritance from statement too
         };
 
         // A crate AST object - holds all the data for a single compilation unit
@@ -591,17 +642,18 @@ namespace Rust {
             ::std::vector<Attribute> inner_attrs;
             //::std::vector<Item> items;
             // dodgy spacing required here
-            ::std::vector< ::gnu::unique_ptr<Item> > items;
+            // TODO: is it better to have a vector of items here or a module (implicit top-level one)?
+            ::std::vector< ::std::unique_ptr<Item> > items;
 
           public:
             // Constructor for crate without shebang or utf8bom
             Crate(
-              ::std::vector< ::gnu::unique_ptr<Item> > items, ::std::vector<Attribute> inner_attrs) :
+              ::std::vector< ::std::unique_ptr<Item> > items, ::std::vector<Attribute> inner_attrs) :
               items(items),
               inner_attrs(inner_attrs), has_shebang(false), has_utf8bom(false) {}
 
             // Constructor with potentially a shebang and/or utf8bom
-            Crate(::std::vector< ::gnu::unique_ptr<Item> > items,
+            Crate(::std::vector< ::std::unique_ptr<Item> > items,
               ::std::vector<Attribute> inner_attrs, bool has_utf8bom, bool has_shebang) :
               items(items),
               inner_attrs(inner_attrs), has_shebang(has_shebang), has_utf8bom(has_utf8bom) {}

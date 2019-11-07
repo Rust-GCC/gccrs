@@ -8,8 +8,9 @@
 // order: config, system, coretypes, input
 
 #include <string>
-#include <tr1/memory> // as shared_ptr is not available in std memory in c++03
-// can't fix intellisense issues with tr1 memory thing
+//#include <tr1/memory> // as shared_ptr is not available in std memory in c++03
+// replace with proper std::memory in c++11
+#include <memory>
 
 #include "rust-codepoint.h"
 
@@ -198,9 +199,9 @@ namespace Rust {
     // dodgy "TokenPtr" declaration with Token forward declaration
     class Token;
     // A smart pointer (shared_ptr) to Token.
-    typedef std::tr1::shared_ptr<Token> TokenPtr;
+    typedef ::std::shared_ptr<Token> TokenPtr;
     // A smart pointer (shared_ptr) to a constant Token.
-    typedef std::tr1::shared_ptr<const Token> const_TokenPtr;
+    typedef ::std::shared_ptr<const Token> const_TokenPtr;
 
     // Hackily defined way to get token description for enum value using x-macros
     const char* get_token_description(TokenId id);
@@ -335,7 +336,7 @@ namespace Rust {
             return type_hint;
         }
 
-        // diagnostics
+        // diagnostics (error reporting)
         const char* get_token_description() const {
             return Rust::get_token_description(token_id);
         }
@@ -347,6 +348,22 @@ namespace Rust {
 
         // debugging
         const char* get_type_hint_str() const;
+
+        /* Returns whether the token is a literal of any type (int, float, char, string, byte char, 
+         * byte string). */
+        bool is_literal() const {
+            switch (token_id) {
+                case INT_LITERAL:
+                case FLOAT_LITERAL:
+                case CHAR_LITERAL:
+                case STRING_LITERAL:
+                case BYTE_CHAR_LITERAL:
+                case BYTE_STRING_LITERAL:
+                    return true;
+                default:
+                    return false;
+            }
+        }
     };
 }
 

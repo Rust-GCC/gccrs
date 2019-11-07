@@ -8,11 +8,14 @@
 // order: config, system, coretypes, tree
 
 #include <string>
-#include <tr1/memory> // as shared_ptr is not available in std memory in c++03
+//#include <tr1/memory> // as shared_ptr is not available in std memory in c++03
+// replaced with proper memory in c++11
+#include <memory>
 
 namespace Rust {
     // Kinds of symbols.
     enum SymbolKind { INVALID, VARIABLE, TYPENAME /*change to STRUCT*/, FUNCTION };
+    // TODO: possibly add typedef, struct, union, "enum"
 
     // A symbol used for identifiers, etc. - TODO: extend to support namespacing (Rust paths?)
     struct Symbol {
@@ -58,9 +61,9 @@ namespace Rust {
     };
 
     // Symbol shared pointer.
-    typedef std::tr1::shared_ptr<Symbol> SymbolPtr;
+    typedef std::shared_ptr<Symbol> SymbolPtr;
     // Const symbol shared pointer (i.e. to const Symbol).
-    typedef std::tr1::shared_ptr<const Symbol> const_SymbolPtr;
+    typedef std::shared_ptr<const Symbol> const_SymbolPtr;
 }
 
 #endif
