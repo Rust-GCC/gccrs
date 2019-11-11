@@ -7,7 +7,7 @@
 namespace Rust {
     namespace AST {
         /* TODO: if GCC moves to C++17 or allows boost, replace some boolean "has_whatever" pairs with
-         * optional types (std::optional or boost::optional). */
+         * optional types (std::optional or boost::optional)? */
 
         // forward decls: defined in rust-path.h, rust-type.h, rust-pattern.h, and rust-stmt.h
         /*class PathInExpression;
@@ -193,9 +193,9 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics but no move in c++03
-            /*MetaItemInner(MetaItemInner&& other) = default;
-            MetaItemInner& operator=(MetaItemInner&& other) = default;*/
+            // move constructors
+            MetaItemInner(MetaItemInner&& other) = default;
+            MetaItemInner& operator=(MetaItemInner&& other) = default;
         };
 
         // A sequence meta item
@@ -227,6 +227,7 @@ namespace Rust {
             MetaWord(Identifier word) : word(word) {}
         };
 
+        // A name-value string
         struct MetaNameValueStr {
             Identifier name;
             ::std::string value;
@@ -235,6 +236,7 @@ namespace Rust {
             MetaNameValueStr(Identifier name, ::std::string value) : name(name), value(value) {}
         };
 
+        // A list of paths
         struct MetaListPaths {
             Identifier type_thing;
             ::std::vector<SimplePath> paths;
@@ -244,6 +246,7 @@ namespace Rust {
               type_thing(type_thing), paths(paths) {}
         };
 
+        // A list of identifiers
         struct MetaListIdents {
             Identifier directive_thing;
             ::std::vector<Identifier> idents_to_use;
@@ -253,6 +256,7 @@ namespace Rust {
               directive_thing(directive_thing), idents_to_use(idents_to_use) {}
         };
 
+        // A list of MetaNameValueStr
         struct MetaListNameValueStr {
             Identifier macro_name_thing;
             ::std::vector<MetaNameValueStr> list;
@@ -333,15 +337,16 @@ namespace Rust {
 
             // Overload assignment operator to deep copy expr
             OperatorExpr& operator=(OperatorExpr const& other) {
+                ExprWithoutBlock::operator=(other);
                 main_or_left_expr = other.main_or_left_expr->clone_expr();
-                outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*OperatorExpr(OperatorExpr&& other) = default;
-            OperatorExpr& operator=(OperatorExpr&& other) = default;*/
+            // move constructors
+            OperatorExpr(OperatorExpr&& other) = default;
+            OperatorExpr& operator=(OperatorExpr&& other) = default;
 
           public:
             // Destructor (only for initialisation of expr purposes)
@@ -372,7 +377,7 @@ namespace Rust {
 
             // Overload assignment operator here if required
 
-            // Move semnatics here if required
+            // Move semantics here if required
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual BorrowExpr* clone_expr_impl() const OVERRIDE {
@@ -400,7 +405,7 @@ namespace Rust {
 
             // Overload assignment operator here if required
 
-            // Move semnatics here if required
+            // Move semantics here if required
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -430,7 +435,7 @@ namespace Rust {
 
             // Overload assignment operator here if required
 
-            // Move semnatics here if required
+            // Move semantics here if required
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -470,7 +475,7 @@ namespace Rust {
 
             // Overload assignment operator here if required
 
-            // Move semnatics here if required
+            // Move semantics here if required
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -529,17 +534,18 @@ namespace Rust {
 
             // Overload assignment operator
             ArithmeticOrLogicalExpr& operator=(ArithmeticOrLogicalExpr const& other) {
+                OperatorExpr::operator=(other);
                 main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 expr_type = other.expr_type;
-                outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ArithmeticOrLogicalExpr(ArithmeticOrLogicalExpr&& other) = default;
-            ArithmeticOrLogicalExpr& operator=(ArithmeticOrLogicalExpr&& other) = default;*/
+            // move constructors
+            ArithmeticOrLogicalExpr(ArithmeticOrLogicalExpr&& other) = default;
+            ArithmeticOrLogicalExpr& operator=(ArithmeticOrLogicalExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -594,17 +600,18 @@ namespace Rust {
 
             // Overload assignment operator to deep copy
             ComparisonExpr& operator=(ComparisonExpr const& other) {
+                OperatorExpr::operator=(other);
                 main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 expr_type = other.expr_type;
-                outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ComparisonExpr(ComparisonExpr&& other) = default;
-            ComparisonExpr& operator=(ComparisonExpr&& other) = default;*/
+            // move constructors
+            ComparisonExpr(ComparisonExpr&& other) = default;
+            ComparisonExpr& operator=(ComparisonExpr&& other) = default;
 
             // TODO: implement via a function call to std::cmp::PartialEq::eq(&op1, &op2) maybe?
           protected:
@@ -646,17 +653,18 @@ namespace Rust {
 
             // Overload assignment operator to deep copy
             LazyBooleanExpr& operator=(LazyBooleanExpr const& other) {
+                OperatorExpr::operator=(other);
                 main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 expr_type = other.expr_type;
-                outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*LazyBooleanExpr(LazyBooleanExpr&& other) = default;
-            LazyBooleanExpr& operator=(LazyBooleanExpr&& other) = default;*/
+            // move constructors
+            LazyBooleanExpr(LazyBooleanExpr&& other) = default;
+            LazyBooleanExpr& operator=(LazyBooleanExpr&& other) = default;
 
             ::std::string as_string() const;
 
@@ -700,16 +708,17 @@ namespace Rust {
 
             // Overload assignment operator to deep copy
             TypeCastExpr& operator=(TypeCastExpr const& other) {
+                OperatorExpr::operator=(other);
                 main_or_left_expr = other.main_or_left_expr->clone_expr();
                 type_to_convert_to = other.type_to_convert_to->clone_type_no_bounds();
-                outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TypeCastExpr(TypeCastExpr&& other) = default;
-            TypeCastExpr& operator=(TypeCastExpr&& other) = default;*/
+            // move constructors as not supported in c++03
+            TypeCastExpr(TypeCastExpr&& other) = default;
+            TypeCastExpr& operator=(TypeCastExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -749,16 +758,17 @@ namespace Rust {
 
             // Overload assignment operator to clone unique_ptr right_expr
             AssignmentExpr& operator=(AssignmentExpr const& other) {
+                OperatorExpr::operator=(other);
                 main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
-                outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*AssignmentExpr(AssignmentExpr&& other) = default;
-            AssignmentExpr& operator=(AssignmentExpr&& other) = default;*/
+            // move constructors
+            AssignmentExpr(AssignmentExpr&& other) = default;
+            AssignmentExpr& operator=(AssignmentExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -817,17 +827,18 @@ namespace Rust {
 
             // Overload assignment operator to clone
             CompoundAssignmentExpr& operator=(CompoundAssignmentExpr const& other) {
+                OperatorExpr::operator=(other);
                 main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 expr_type = other.expr_type;
-                outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*CompoundAssignmentExpr(CompoundAssignmentExpr&& other) = default;
-            CompoundAssignmentExpr& operator=(CompoundAssignmentExpr&& other) = default;*/
+            // move constructors
+            CompoundAssignmentExpr(CompoundAssignmentExpr&& other) = default;
+            CompoundAssignmentExpr& operator=(CompoundAssignmentExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -873,16 +884,17 @@ namespace Rust {
 
             // Overloaded assignment operator to clone expr_in_parens
             GroupedExpr& operator=(GroupedExpr const& other) {
+                ExprWithoutBlock::operator=(other);
                 inner_attrs = other.inner_attrs;
                 expr_in_parens = other.expr_in_parens->clone_expr();
-                outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*GroupedExpr(GroupedExpr&& other) = default;
-            GroupedExpr& operator=(GroupedExpr&& other) = default;*/
+            // move constructors
+            GroupedExpr(GroupedExpr&& other) = default;
+            GroupedExpr& operator=(GroupedExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -985,10 +997,6 @@ namespace Rust {
                 return inner_attrs;
             }
 
-            /*inline ::std::unique_ptr<ArrayElems> get_internal_elems() const {
-                return internal_elements;
-            } // TODO: fix - this isn't memory safe?*/
-
             // Constructor requires ArrayElems pointer
             ArrayExpr(ArrayElems* array_elems, ::std::vector<Attribute> inner_attribs,
               ::std::vector<Attribute> outer_attribs) :
@@ -1004,16 +1012,17 @@ namespace Rust {
 
             // Overload assignment operator to clone internal_elements
             ArrayExpr& operator=(ArrayExpr const& other) {
+                ExprWithoutBlock::operator=(other);
                 inner_attrs = other.inner_attrs;
                 internal_elements = other.internal_elements->clone_array_elems();
-                outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ArrayExpr(ArrayExpr&& other) = default;
-            ArrayExpr& operator=(ArrayExpr&& other) = default;*/
+            // move constructors
+            ArrayExpr(ArrayExpr&& other) = default;
+            ArrayExpr& operator=(ArrayExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1059,16 +1068,17 @@ namespace Rust {
 
             // Overload assignment operator to clone unique_ptrs
             ArrayIndexExpr& operator=(ArrayIndexExpr const& other) {
+                ExprWithoutBlock::operator=(other);
                 array_expr = other.array_expr->clone_expr();
                 index_expr = other.index_expr->clone_expr();
-                outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ArrayIndexExpr(ArrayIndexExpr&& other) = default;
-            ArrayIndexExpr& operator=(ArrayIndexExpr&& other) = default;*/
+            // move constructors
+            ArrayIndexExpr(ArrayIndexExpr&& other) = default;
+            ArrayIndexExpr& operator=(ArrayIndexExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1096,10 +1106,6 @@ namespace Rust {
             inline ::std::vector<Attribute> get_inner_attrs() const {
                 return inner_attrs;
             }
-
-            /*inline ::std::vector< ::std::unique_ptr<Expr> > get_tuple_elems() const {
-                return tuple_elems;
-            } // TODO: fix - not memory safe?*/
 
             TupleExpr(::std::vector< ::std::unique_ptr<Expr> > tuple_elements,
               ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs) :
@@ -1156,16 +1162,17 @@ namespace Rust {
 
             // Overload assignment operator in order to clone
             TupleIndexExpr& operator=(TupleIndexExpr const& other) {
+                ExprWithoutBlock::operator=(other);
                 tuple_expr = other.tuple_expr->clone_expr();
                 tuple_index = other.tuple_index;
-                outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TupleIndexExpr(TupleIndexExpr&& other) = default;
-            TupleIndexExpr& operator=(TupleIndexExpr&& other) = default;*/
+            // move constructors
+            TupleIndexExpr(TupleIndexExpr&& other) = default;
+            TupleIndexExpr& operator=(TupleIndexExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1181,9 +1188,9 @@ namespace Rust {
 
         // Base struct/tuple/union value creator AST node (abstract)
         class StructExpr : public ExprWithoutBlock {
-          protected:
             PathInExpression struct_name;
 
+          protected:
             // Protected constructor to allow initialising struct_name
             StructExpr(PathInExpression struct_path, ::std::vector<Attribute> outer_attribs) :
               struct_name(struct_path), ExprWithoutBlock(outer_attribs) {}
@@ -1244,9 +1251,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*StructBase(StructBase&& other) = default;
-            StructBase& operator=(StructBase&& other) = default;*/
+            // move constructors
+            StructBase(StructBase&& other) = default;
+            StructBase& operator=(StructBase&& other) = default;
 
             /*~StructBase() {
                 delete base_struct;
@@ -1279,10 +1286,10 @@ namespace Rust {
 
         // Base AST node for a single struct expression field with an assigned value - abstract
         class StructExprFieldWithVal : public StructExprField {
-          protected:
             // Expr* value;
             ::std::unique_ptr<Expr> value;
 
+          protected:
             StructExprFieldWithVal(Expr* field_value) : value(field_value) {}
 
             // Copy constructor requires clone
@@ -1298,9 +1305,10 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*StructExprFieldWithVal(StructExprFieldWithVal&& other) = default;
-            StructExprFieldWithVal& operator=(StructExprFieldWithVal&& other) = default;*/
+            // move constructors
+            StructExprFieldWithVal(StructExprFieldWithVal&& other) = default;
+            StructExprFieldWithVal& operator=(StructExprFieldWithVal&& other) = default;
+
           public:
             /*~StructExprFieldWithVal() {
                 delete value;
@@ -1468,9 +1476,9 @@ namespace Rust {
         // aka EnumerationVariantExpr
         // Base AST node representing creation of an enum variant instance - abstract
         class EnumVariantExpr : public ExprWithoutBlock {
-          protected:
             PathInExpression enum_variant_path;
 
+          protected:
             // Protected constructor for initialising enum_variant_path
             EnumVariantExpr(
               PathInExpression path_to_enum_variant, ::std::vector<Attribute> outer_attribs) :
@@ -1523,9 +1531,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*EnumExprFieldWithVal(EnumExprFieldWithVal&& other) = default;
-            EnumExprFieldWithVal& operator=(EnumExprFieldWithVal&& other) = default;*/
+            // move constructors
+            EnumExprFieldWithVal(EnumExprFieldWithVal&& other) = default;
+            EnumExprFieldWithVal& operator=(EnumExprFieldWithVal&& other) = default;
         };
 
         // Identifier and value variant of EnumExprField AST node
@@ -1542,6 +1550,7 @@ namespace Rust {
         // Tuple index and value variant of EnumExprField AST node
         class EnumExprFieldIndexValue : public EnumExprFieldWithVal {
             TupleIndex index;
+            // TODO: implement "with val" as a template with EnumExprField as type param?
 
           public:
             EnumExprFieldIndexValue(TupleIndex field_index, Expr* field_value) :
@@ -1640,7 +1649,7 @@ namespace Rust {
             }
         };
 
-        // TODO: inline
+        // inlined
         /*struct CallParams {
             //::std::vector<Expr> params;
             ::std::vector< ::std::unique_ptr<Expr> > params;
@@ -1685,9 +1694,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*CallExpr(CallExpr&& other) = default;
-            CallExpr& operator=(CallExpr&& other) = default;*/
+            // move constructors
+            CallExpr(CallExpr&& other) = default;
+            CallExpr& operator=(CallExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1744,9 +1753,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*MethodCallExpr(MethodCallExpr&& other) = default;
-            MethodCallExpr& operator=(MethodCallExpr&& other) = default;*/
+            // move constructors
+            MethodCallExpr(MethodCallExpr&& other) = default;
+            MethodCallExpr& operator=(MethodCallExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1795,9 +1804,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*FieldAccessExpr(FieldAccessExpr&& other) = default;
-            FieldAccessExpr& operator=(FieldAccessExpr&& other) = default;*/
+            // move constructors
+            FieldAccessExpr(FieldAccessExpr&& other) = default;
+            FieldAccessExpr& operator=(FieldAccessExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1848,18 +1857,18 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ClosureParam(ClosureParam&& other) = default;
-            ClosureParam& operator=(ClosureParam&& other) = default;*/
+            // move constructors
+            ClosureParam(ClosureParam&& other) = default;
+            ClosureParam& operator=(ClosureParam&& other) = default;
         };
 
         // Base closure definition expression AST node - abstract
         class ClosureExpr : public ExprWithoutBlock {
-          protected:
             bool has_move;
             ::std::vector<ClosureParam> params; // may be empty
             // also note a double pipe "||" can be used for empty params - does not need a space
 
+          protected:
             ClosureExpr(::std::vector<ClosureParam> closure_params, bool has_move,
               ::std::vector<Attribute> outer_attribs) :
               params(closure_params),
@@ -1910,9 +1919,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ClosureExprInner(ClosureExprInner&& other) = default;
-            ClosureExprInner& operator=(ClosureExprInner&& other) = default;*/
+            // move constructors
+            ClosureExprInner(ClosureExprInner&& other) = default;
+            ClosureExprInner& operator=(ClosureExprInner&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2051,9 +2060,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ClosureExprInnerTyped(ClosureExprInnerTyped&& other) = default;
-            ClosureExprInnerTyped& operator=(ClosureExprInnerTyped&& other) = default;*/
+            // move constructors
+            ClosureExprInnerTyped(ClosureExprInnerTyped&& other) = default;
+            ClosureExprInnerTyped& operator=(ClosureExprInnerTyped&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2158,9 +2167,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*BreakExpr(BreakExpr&& other) = default;
-            BreakExpr& operator=(BreakExpr&& other) = default;*/
+            // move constructors
+            BreakExpr(BreakExpr&& other) = default;
+            BreakExpr& operator=(BreakExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2217,9 +2226,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*RangeFromToExpr(RangeFromToExpr&& other) = default;
-            RangeFromToExpr& operator=(RangeFromToExpr&& other) = default;*/
+            // move constructors as not supported in c++03
+            RangeFromToExpr(RangeFromToExpr&& other) = default;
+            RangeFromToExpr& operator=(RangeFromToExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2264,9 +2273,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*RangeFromExpr(RangeFromExpr&& other) = default;
-            RangeFromExpr& operator=(RangeFromExpr&& other) = default;*/
+            // move constructors
+            RangeFromExpr(RangeFromExpr&& other) = default;
+            RangeFromExpr& operator=(RangeFromExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2310,9 +2319,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*RangeToExpr(RangeToExpr&& other) = default;
-            RangeToExpr& operator=(RangeToExpr&& other) = default;*/
+            // move constructors
+            RangeToExpr(RangeToExpr&& other) = default;
+            RangeToExpr& operator=(RangeToExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2383,9 +2392,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*RangeFromToInclExpr(RangeFromToInclExpr&& other) = default;
-            RangeFromToInclExpr& operator=(RangeFromToInclExpr&& other) = default;*/
+            // move constructors
+            RangeFromToInclExpr(RangeFromToInclExpr&& other) = default;
+            RangeFromToInclExpr& operator=(RangeFromToInclExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2430,9 +2439,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*RangeToInclExpr(RangeToInclExpr&& other) = default;
-            RangeToInclExpr& operator=(RangeToInclExpr&& other) = default;*/
+            // move constructors
+            RangeToInclExpr(RangeToInclExpr&& other) = default;
+            RangeToInclExpr& operator=(RangeToInclExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2489,9 +2498,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ReturnExpr(ReturnExpr&& other) = default;
-            ReturnExpr& operator=(ReturnExpr&& other) = default;*/
+            // move constructors
+            ReturnExpr(ReturnExpr&& other) = default;
+            ReturnExpr& operator=(ReturnExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2508,30 +2517,9 @@ namespace Rust {
         // Forward decl - defined in rust-macro.h
         class MacroInvocation;
         /*class MacroInvocation : public ExprWithoutBlock {
-          public: // TODO: remove if meant to be abstract
+          public:
             ::std::string as_string() const;
         };*/
-
-        // Statement sequence used inside blocks
-#if 0
-        // TODO: inline this into BlockExpr?
-        struct Statements {
-            bool has_statements;
-            //::std::vector<Statement> statements;
-            ::std::vector< ::std::unique_ptr<Statement> > statements;
-
-            bool has_expr;
-            // ExprWithoutBlock* expr;
-            ::std::unique_ptr<ExprWithoutBlock> expr;
-
-          public:
-            /*~Statements() {
-                if (has_expr) {
-                    delete expr;
-                }
-            }*/
-        };
-#endif
 
         // An unsafe block AST node
         class UnsafeBlockExpr : public ExprWithBlock {
@@ -2564,9 +2552,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*UnsafeBlockExpr(UnsafeBlockExpr&& other) = default;
-            UnsafeBlockExpr& operator=(UnsafeBlockExpr&& other) = default;*/
+            // move constructors
+            UnsafeBlockExpr(UnsafeBlockExpr&& other) = default;
+            UnsafeBlockExpr& operator=(UnsafeBlockExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2603,13 +2591,13 @@ namespace Rust {
 
         // Base loop expression AST node - aka LoopExpr
         class BaseLoopExpr : public ExprWithBlock {
-          protected:
             // bool has_loop_label;
             LoopLabel loop_label;
 
             // BlockExpr* loop_block;
             ::std::unique_ptr<BlockExpr> loop_block;
 
+          protected:
             // Constructor for BaseLoopExpr without a loop label
             BaseLoopExpr(BlockExpr* loop_block, ::std::vector<Attribute> outer_attribs) :
               loop_block(loop_block), loop_label(LoopLabel::error()), ExprWithBlock(outer_attribs) {}
@@ -2637,9 +2625,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*BaseLoopExpr(BaseLoopExpr&& other) = default;
-            BaseLoopExpr& operator=(BaseLoopExpr&& other) = default;*/
+            // move constructors
+            BaseLoopExpr(BaseLoopExpr&& other) = default;
+            BaseLoopExpr& operator=(BaseLoopExpr&& other) = default;
 
           public:
             /*~BaseLoopExpr() {
@@ -2720,9 +2708,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*WhileLoopExpr(WhileLoopExpr&& other) = default;
-            WhileLoopExpr& operator=(WhileLoopExpr&& other) = default;*/
+            // move constructors
+            WhileLoopExpr(WhileLoopExpr&& other) = default;
+            WhileLoopExpr& operator=(WhileLoopExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2785,9 +2773,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*WhileLetLoopExpr(WhileLetLoopExpr&& other) = default;
-            WhileLetLoopExpr& operator=(WhileLetLoopExpr&& other) = default;*/
+            // move constructors
+            WhileLetLoopExpr(WhileLetLoopExpr&& other) = default;
+            WhileLetLoopExpr& operator=(WhileLetLoopExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2846,9 +2834,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ForLoopExpr(ForLoopExpr&& other) = default;
-            ForLoopExpr& operator=(ForLoopExpr&& other) = default;*/
+            // move constructors
+            ForLoopExpr(ForLoopExpr&& other) = default;
+            ForLoopExpr& operator=(ForLoopExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2867,7 +2855,6 @@ namespace Rust {
 
         // Base if expression with no "else" or "if let" AST node
         class IfExpr : public ExprWithBlock {
-          protected:
             /*Expr* condition;
             BlockExpr* if_block;*/
             ::std::unique_ptr<Expr> condition;
@@ -2877,11 +2864,6 @@ namespace Rust {
                 IfExpr* if_expr;
                 IfLetExpr if_let_expr;
             } consequent_block;*/
-
-            /*~IfExpr() {
-                // TODO: fix
-                delete consequent_block.if_expr;
-            }*/
 
           public:
             /*virtual ~IfExpr() {
@@ -2911,9 +2893,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*IfExpr(IfExpr&& other) = default;
-            IfExpr& operator=(IfExpr&& other) = default;*/
+            // move constructors
+            IfExpr(IfExpr&& other) = default;
+            IfExpr& operator=(IfExpr&& other) = default;
 
             // Unique pointer custom clone function
             ::std::unique_ptr<IfExpr> clone_if_expr() const {
@@ -2974,9 +2956,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*IfExprConseqElse(IfExprConseqElse&& other) = default;
-            IfExprConseqElse& operator=(IfExprConseqElse&& other) = default;*/
+            // move constructors
+            IfExprConseqElse(IfExprConseqElse&& other) = default;
+            IfExprConseqElse& operator=(IfExprConseqElse&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3029,9 +3011,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*IfExprConseqIf(IfExprConseqIf&& other) = default;
-            IfExprConseqIf& operator=(IfExprConseqIf&& other) = default;*/
+            // move constructors
+            IfExprConseqIf(IfExprConseqIf&& other) = default;
+            IfExprConseqIf& operator=(IfExprConseqIf&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3052,7 +3034,6 @@ namespace Rust {
 
         // Basic "if let" expression AST node with no else
         class IfLetExpr : public ExprWithBlock {
-          protected:
             // MatchArmPatterns patterns;
             ::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns; // inlined
             /*Expr* value;
@@ -3066,12 +3047,6 @@ namespace Rust {
             } consequent_block;*/
 
           public:
-            /*virtual ~IfLetExpr() {
-                // TODO: fix
-                delete value;
-                delete if_block;
-            }*/
-
             ::std::string as_string() const;
 
             IfLetExpr(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns, Expr* value,
@@ -3097,9 +3072,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*IfLetExpr(IfLetExpr&& other) = default;
-            IfLetExpr& operator=(IfLetExpr&& other) = default;*/
+            // move constructors
+            IfLetExpr(IfLetExpr&& other) = default;
+            IfLetExpr& operator=(IfLetExpr&& other) = default;
 
             // Unique pointer custom clone function
             ::std::unique_ptr<IfLetExpr> clone_if_let_expr() const {
@@ -3157,9 +3132,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*IfExprConseqIfLet(IfExprConseqIfLet&& other) = default;
-            IfExprConseqIfLet& operator=(IfExprConseqIfLet&& other) = default;*/
+            // move constructors
+            IfExprConseqIfLet(IfExprConseqIfLet&& other) = default;
+            IfExprConseqIfLet& operator=(IfExprConseqIfLet&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3214,9 +3189,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*IfLetExprConseqElse(IfLetExprConseqElse&& other) = default;
-            IfLetExprConseqElse& operator=(IfLetExprConseqElse&& other) = default;*/
+            // move constructors
+            IfLetExprConseqElse(IfLetExprConseqElse&& other) = default;
+            IfLetExprConseqElse& operator=(IfLetExprConseqElse&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3271,9 +3246,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*IfLetExprConseqIf(IfLetExprConseqIf&& other) = default;
-            IfLetExprConseqIf& operator=(IfLetExprConseqIf&& other) = default;*/
+            // move constructors
+            IfLetExprConseqIf(IfLetExprConseqIf&& other) = default;
+            IfLetExprConseqIf& operator=(IfLetExprConseqIf&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3328,9 +3303,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*IfLetExprConseqIfLet(IfLetExprConseqIfLet&& other) = default;
-            IfLetExprConseqIfLet& operator=(IfLetExprConseqIfLet&& other) = default;*/
+            // move constructors
+            IfLetExprConseqIfLet(IfLetExprConseqIfLet&& other) = default;
+            IfLetExprConseqIfLet& operator=(IfLetExprConseqIfLet&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3349,25 +3324,6 @@ namespace Rust {
             }
         };
 
-        /*struct MatchArmPatterns {
-            // TODO: inline
-            //::std::vector<Pattern> patterns;
-            ::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns;
-        };*/
-
-#if 0
-        struct MatchArmGuard {
-            // TODO: inline
-            // Expr* guard_expr;
-            ::std::unique_ptr<Expr> guard_expr;
-
-          public:
-            /*~MatchArmGuard() {
-                delete guard_expr;
-            }*/
-        };
-#endif
-
         // Match arm expression
         struct MatchArm {
           private:
@@ -3376,7 +3332,7 @@ namespace Rust {
             ::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns; // inlined
 
             // bool has_match_arm_guard;
-            // Expr* match_arm_guard; // TODO: inlined from MatchArmGuard
+            // Expr* match_arm_guard; // inlined from MatchArmGuard
             ::std::unique_ptr<Expr> guard_expr;
 
           public:
@@ -3419,16 +3375,16 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*MatchArm(MatchArm&& other) = default;
-            MatchArm& operator=(MatchArm&& other) = default;*/
+            // move constructors
+            MatchArm(MatchArm&& other) = default;
+            MatchArm& operator=(MatchArm&& other) = default;
         };
 
         // Base "match case" for a match expression - abstract
         class MatchCase {
-          protected:
             MatchArm arm;
 
+          protected:
             MatchCase(MatchArm arm) : arm(arm) {}
 
             // Should not require copy constructor or assignment operator overloading
@@ -3464,9 +3420,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*MatchCaseBlockExpr(MatchCaseBlockExpr&& other) = default;
-            MatchCaseBlockExpr& operator=(MatchCaseBlockExpr&& other) = default;*/
+            // move constructors
+            MatchCaseBlockExpr(MatchCaseBlockExpr&& other) = default;
+            MatchCaseBlockExpr& operator=(MatchCaseBlockExpr&& other) = default;
         };
 
         // Expression (except block expression) match case
@@ -3496,16 +3452,10 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*MatchCaseExpr(MatchCaseExpr&& other) = default;
-            MatchCaseExpr& operator=(MatchCaseExpr&& other) = default;*/
+            // move constructors
+            MatchCaseExpr(MatchCaseExpr&& other) = default;
+            MatchCaseExpr& operator=(MatchCaseExpr&& other) = default;
         };
-
-        /*struct MatchArms {
-            //::std::vector<MatchCase> cases;
-            ::std::vector< ::std::unique_ptr<MatchCase> > cases;
-            // TODO: inline type?
-        };*/
 
         // Match expression AST node
         class MatchExpr : public ExprWithBlock {
@@ -3552,9 +3502,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*MatchExpr(MatchExpr&& other) = default;
-            MatchExpr& operator=(MatchExpr&& other) = default;*/
+            // move constructors
+            MatchExpr(MatchExpr&& other) = default;
+            MatchExpr& operator=(MatchExpr&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

@@ -92,13 +92,15 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*LetStatement(LetStatement&& other) = default;
-            LetStatement& operator=(LetStatement&& other) = default;*/
+            // move constructors 
+            LetStatement(LetStatement&& other) = default;
+            LetStatement& operator=(LetStatement&& other) = default;
         };
 
         // Abstract base class for expression statements (statements containing an expression)
-        class ExpressionStatement : public Statement {};
+        class ExpressionStatement : public Statement {
+            // TODO: add any useful virtual functions
+        };
 
         // Statement containing an expression without a block
         class ExpressionStatementWithoutBlock : public ExpressionStatement {
@@ -127,10 +129,10 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ExpressionStatementWithoutBlock(ExpressionStatementWithoutBlock&& other) = default;
+            // move constructors 
+            ExpressionStatementWithoutBlock(ExpressionStatementWithoutBlock&& other) = default;
             ExpressionStatementWithoutBlock& operator=(ExpressionStatementWithoutBlock&& other) =
-            default;*/
+            default;
         };
 
         // Statement containing an expression with a block
@@ -161,8 +163,8 @@ namespace Rust {
             }
 
             // no move constructors as not supported in c++03
-            /*ExpressionStatementWithBlock(ExpressionStatementWithBlock&& other) = default;
-            ExpressionStatementWithBlock& operator=(ExpressionStatementWithBlock&& other) = default;*/
+            ExpressionStatementWithBlock(ExpressionStatementWithBlock&& other) = default;
+            ExpressionStatementWithBlock& operator=(ExpressionStatementWithBlock&& other) = default;
         };
 
         // Replaced definition of MacroInvocationSemi with forward decl - defined in rust-macro.h

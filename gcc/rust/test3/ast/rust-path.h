@@ -24,7 +24,8 @@ namespace Rust {
           public:
             PathIdentSegment(::std::string segment_name) : segment_name(segment_name) {}
 
-            // TODO: insert check in constructor for this?
+            /* TODO: insert check in constructor for this? Or is this a semantic error best handled 
+             * then? */
         };
 
         // A binding of an identifier to a type used in generic arguments in paths
@@ -53,9 +54,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*GenericArgsBinding(GenericArgsBinding&& other) = default;
-            GenericArgsBinding& operator=(GenericArgsBinding&& other) = default;*/
+            // move constructors
+            GenericArgsBinding(GenericArgsBinding&& other) = default;
+            GenericArgsBinding& operator=(GenericArgsBinding&& other) = default;
         };
 
         // Generic arguments allowed in each path expression segment - inline?
@@ -125,9 +126,9 @@ namespace Rust {
 
         // AST node representing a pattern that involves a "path" - abstract base class
         class PathPattern : public Pattern {
-          protected:
-            ::std::vector<PathExprSegment> segments;
+          ::std::vector<PathExprSegment> segments;
 
+          protected:
             PathPattern(::std::vector<PathExprSegment> segments) : segments(segments) {}
         };
 
@@ -157,10 +158,10 @@ namespace Rust {
 
         // Abstract base class for segments used in type paths
         class TypePathSegment {
-          protected:
             PathIdentSegment ident_segment;
             bool has_separating_scope_resolution;
 
+          protected:
             // Protected constructor for initialising base class members
             TypePathSegment(PathIdentSegment ident_segment, bool has_separating_scope_resolution) :
               ident_segment(ident_segment),
@@ -199,14 +200,9 @@ namespace Rust {
               TypePathSegment(segment_name, has_separating_scope_resolution) {}
         };
 
-        // TODO: inline
-        /*struct TypePathFnInputs {
-            //::std::vector<Type> inputs;
-            ::std::vector< ::std::unique_ptr<Type> > inputs;
-        };*/
-
         // A function as represented in a type path
         struct TypePathFn {
+          private:
             // TODO: remove
             /*bool has_inputs;
             TypePathFnInputs inputs;*/
@@ -250,9 +246,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TypePathFn(TypePathFn&& other) = default;
-            TypePathFn& operator=(TypePathFn&& other) = default;*/
+            // move constructors
+            TypePathFn(TypePathFn&& other) = default;
+            TypePathFn& operator=(TypePathFn&& other) = default;
         };
 
         // Segment used in type path with a function argument
@@ -296,6 +292,16 @@ namespace Rust {
                 return has_opening_scope_resolution;
             }
 
+            // Returns whether the TypePath is in an invalid state.
+            inline bool is_error() const {
+                return segments.empty();
+            }
+
+            // Creates an error state TypePath.
+            static TypePath create_error() {
+                return TypePath(::std::vector< ::std::unique_ptr<TypePathSegment> >());
+            }
+
             // Constructor for TypePath with TypePathSegments and maybe an opening scope resolution
             TypePath(::std::vector< ::std::unique_ptr<TypePathSegment> > segments,
               bool has_opening_scope_resolution) :
@@ -337,9 +343,9 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics but no move in c++03
-            /*QualifiedPathType(QualifiedPathType&& other) = default;
-            QualifiedPathType& operator=(QualifiedPathType&& other) = default;*/
+            // move constructor
+            QualifiedPathType(QualifiedPathType&& other) = default;
+            QualifiedPathType& operator=(QualifiedPathType&& other) = default;
         };
 
         /* AST node representing a qualified path-in-expression pattern (path that allows specifying

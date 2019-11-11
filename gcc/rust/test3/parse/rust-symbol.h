@@ -17,6 +17,9 @@ namespace Rust {
     enum SymbolKind { INVALID, VARIABLE, TYPENAME /*change to STRUCT*/, FUNCTION };
     // TODO: possibly add typedef, struct, union, "enum"
 
+    /* TODO: apparently Rust's type symbol table is separate to its identifier symbol table, so have a
+     * different symbol table for each? */
+
     // A symbol used for identifiers, etc. - TODO: extend to support namespacing (Rust paths?)
     struct Symbol {
       public:

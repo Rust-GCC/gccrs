@@ -5,7 +5,8 @@
 /* This is mainly the "logical", more "abstract" representation of the code, while the "AST" itself is
  * more high-level and matches the language better. */
 
-// TODO: this is now deprecated and replaced with the proper AST
+// this is now deprecated and replaced with the proper AST
+#error "rust-ast-containers.h was included by accident. Don't use."
 
 namespace Rust {
     namespace AST {
@@ -18,13 +19,13 @@ namespace Rust {
             Module root_module;
         };
 
-        // TODO: replace with rust-types.h version
+        // replace with rust-types.h version
         struct AttributeList {
           public:
             //::std::vector<Attribute> attribs;
         };
 
-        // TODO: replace with rust-types.h version
+        // replace with rust-types.h version
         struct Visibility {};
 
         /*enum VisibilityType {

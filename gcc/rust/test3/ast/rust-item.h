@@ -29,13 +29,7 @@ namespace Rust {
         // typedef Identifier AbiName;
         // typedef Type TypePath;
 
-        // TODO: inline
-        /*struct FunctionReturnType {
-            // Type return_type;
-            ::std::unique_ptr<Type> return_type;
-        };*/
-
-        // TODO: inline
+        // TODO: inline?
         struct AbiName {
             ::std::string abi_name;
             // Technically is meant to be STRING_LITERAL or RAW_STRING_LITERAL
@@ -51,10 +45,6 @@ namespace Rust {
             // Empty AbiName constructor
             AbiName() {}
         };
-
-        // TODO: remove and inline
-        /*typedef ::std::vector<LifetimeParam> LifetimeParams;
-        typedef LifetimeParams ForLifetimes;*/
 
         // A type generic parameter (as opposed to a lifetime generic parameter)
         class TypeParam : public GenericParam {
@@ -233,6 +223,10 @@ namespace Rust {
             // Type type;
             ::std::unique_ptr<Type> type;
 
+            // Unrestricted constructor used for error state
+            SelfParam(Lifetime lifetime, bool has_ref, bool is_mut, Type* type) :
+              lifetime(lifetime), has_ref(has_ref), is_mut(is_mut), type(type) {}
+
           public:
             // Returns whether the self-param has a type field.
             inline bool has_type() const {
@@ -245,8 +239,13 @@ namespace Rust {
             }
 
             // Returns whether the self-param is in an error state.
-            inline bool is_error_state() const {
+            inline bool is_error() const {
                 return (has_type() && has_lifetime()) || (!has_type() && !has_lifetime());
+            }
+
+            // Creates an error state self-param.
+            static SelfParam create_error() {
+                return SelfParam(Lifetime::error(), false, false, NULL);
             }
 
             // Type-based self parameter (not ref, no lifetime)
@@ -502,9 +501,9 @@ namespace Rust {
 
         // Item that supports visibility - abstract base class
         class VisItem : public Item {
-          protected:
             ::std::unique_ptr<Visibility> visibility;
 
+          protected:
             // Visibility constructor (with outer attributes)
             VisItem(Visibility* visibility, ::std::vector<Attribute> outer_attrs) :
               visibility(visibility), Item(outer_attrs) {}
@@ -590,34 +589,6 @@ namespace Rust {
             ModuleNoBody(Visibility* visibility, ::std::vector<Attribute> outer_attrs) :
               Module(visibility, outer_attrs) {}
         };
-
-        // inlined
-        /*struct CrateRef {
-            // either an identifier or "self"
-            ::std::string thing; // TODO: fix
-
-          public:
-            CrateRef(::std::string thing) : thing(thing) {}
-        };*/
-
-        // inlined
-        /*struct AsClause {
-            // either an identifier or "_"
-            ::std::string thing; // TODO: fix
-
-          public:
-            // Returns whether the as clause is empty.
-            inline bool is_empty() const {
-                return thing == ::std::string("");
-            }
-
-            // Create an empty AsClause
-            static AsClause create_empty() {
-                return AsClause(::std::string(""));
-            }
-
-            AsClause(::std::string thing) : thing(thing) {}
-        };*/
 
         // Rust extern crate declaration AST node
         class ExternCrate : public VisItem {
@@ -1869,6 +1840,7 @@ namespace Rust {
         class InherentImplItem {
           protected:
             // bool has_outer_attrs;
+            // TODO: remove and rely on virtual functions and VisItem-derived attributes?
             ::std::vector<Attribute> outer_attrs;
 
             InherentImplItem(::std::vector<Attribute> outer_attrs) : outer_attrs(outer_attrs) {}

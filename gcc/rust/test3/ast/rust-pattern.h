@@ -77,9 +77,9 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics but no move in c++03
-            /*IdentifierPattern(IdentifierPattern&& other) = default;
-            IdentifierPattern& operator=(IdentifierPattern&& other) = default;*/
+            // default move semantics 
+            IdentifierPattern(IdentifierPattern&& other) = default;
+            IdentifierPattern& operator=(IdentifierPattern&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -217,9 +217,9 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics but no move in c++03
-            /*RangePattern(RangePattern&& other) = default;
-            RangePattern& operator=(RangePattern&& other) = default;*/
+            // default move semantics 
+            RangePattern(RangePattern&& other) = default;
+            RangePattern& operator=(RangePattern&& other) = default;
         };
 
         // AST node for pattern based on dereferencing the pointers given
@@ -255,9 +255,9 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics but no move in c++03
-            /*ReferencePattern(ReferencePattern&& other) = default;
-            ReferencePattern& operator=(ReferencePattern&& other) = default;*/
+            // default move semantics 
+            ReferencePattern(ReferencePattern&& other) = default;
+            ReferencePattern& operator=(ReferencePattern&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -283,11 +283,7 @@ namespace Rust {
 
         // Base class for a single field in a struct pattern - abstract
         class StructPatternField {
-          public:
-            virtual ~StructPatternField() {}
-
-          protected:
-            ::std::vector<Attribute> outer_attrs;
+          ::std::vector<Attribute> outer_attrs;
             /*union {
                 struct {
                     //TupleIndex index;
@@ -304,6 +300,10 @@ namespace Rust {
                 } ident;
             } pattern;*/
 
+          public:
+            virtual ~StructPatternField() {}
+
+          protected:
             StructPatternField(::std::vector<Attribute> outer_attribs) : outer_attrs(outer_attribs) {}
         };
 
@@ -340,9 +340,9 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics but no move in c++03
-            /*StructPatternFieldTuplePat(StructPatternFieldTuplePat&& other) = default;
-            StructPatternFieldTuplePat& operator=(StructPatternFieldTuplePat&& other) = default;*/
+            // default move semantics 
+            StructPatternFieldTuplePat(StructPatternFieldTuplePat&& other) = default;
+            StructPatternFieldTuplePat& operator=(StructPatternFieldTuplePat&& other) = default;
         };
 
         // Identifier pattern single field in a struct pattern
@@ -378,9 +378,9 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics but no move in c++03
-            /*StructPatternFieldIdentPat(StructPatternFieldIdentPat&& other) = default;
-            StructPatternFieldIdentPat& operator=(StructPatternFieldIdentPat&& other) = default;*/
+            // default move semantics 
+            StructPatternFieldIdentPat(StructPatternFieldIdentPat&& other) = default;
+            StructPatternFieldIdentPat& operator=(StructPatternFieldIdentPat&& other) = default;
         };
 
         // Identifier only (with no pattern) single field in a struct pattern
@@ -537,9 +537,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TupleStructPattern(TupleStructPattern&& other) = default;
-            TupleStructPattern& operator=(TupleStructPattern&& other) = default;*/
+            // move constructors 
+            TupleStructPattern(TupleStructPattern&& other) = default;
+            TupleStructPattern& operator=(TupleStructPattern&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -584,9 +584,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*TuplePatternItemsSingle(TuplePatternItemsSingle&& other) = default;
-            TuplePatternItemsSingle& operator=(TuplePtternItemsSingle&& other) = default;*/
+            // move constructors
+            TuplePatternItemsSingle(TuplePatternItemsSingle&& other) = default;
+            TuplePatternItemsSingle& operator=(TuplePtternItemsSingle&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -690,9 +690,9 @@ namespace Rust {
                 return *this;
             }
             
-            // default move semantics but no move in c++03
-            /*GroupedPattern(GroupedPattern&& other) = default;
-            GroupedPattern& operator=(GroupedPattern&& other) = default;*/
+            // default move semantics 
+            GroupedPattern(GroupedPattern&& other) = default;
+            GroupedPattern& operator=(GroupedPattern&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

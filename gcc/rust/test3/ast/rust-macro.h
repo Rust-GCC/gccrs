@@ -72,9 +72,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*MacroMatchRep(MacroMatchRep&& other) = default;
-            MacroMatchRep& operator=(MacroMatchRep&& other) = default;*/
+            // move constructors 
+            MacroMatchRep(MacroMatchRep&& other) = default;
+            MacroMatchRep& operator=(MacroMatchRep&& other) = default;
         };
 
         // TODO: inline
@@ -107,22 +107,6 @@ namespace Rust {
             MacroRule(MacroMatcher matcher, MacroTranscriber transcriber) :
               matcher(matcher), transcriber(transcriber) {}
         };
-
-        // TODO: inline
-        /*struct MacroRules {
-            ::std::vector<MacroRule> rules;
-        };*/
-
-        // TODO: inline?
-        /*struct MacroRulesDef {
-            enum DelimType {
-                PARENS,
-                SQUARE,
-                CURLY // only one without required semicolon at end
-            } delim_type;
-            //MacroRules rules;
-            ::std::vector<MacroRule> rules; // inlined form
-        };*/
 
         // A macro rules definition item AST node
         class MacroRulesDefinition : public MacroItem {

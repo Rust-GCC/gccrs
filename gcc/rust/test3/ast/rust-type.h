@@ -34,17 +34,6 @@ namespace Rust {
               for_lifetimes(for_lifetimes) {}
         };
 
-        // TODO: inline
-        /*struct LifetimeBounds {
-            ::std::vector<Lifetime> bounds;
-        };*/
-
-        // TODO: inline
-        /*struct TypeParamBounds {
-            //::std::vector<TypeParamBound> bounds;
-            ::std::vector< ::std::unique_ptr<TypeParamBound> > bounds;
-        };*/
-
         // definition moved to rust-ast.h
         class TypeNoBounds;
 
@@ -116,9 +105,9 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics but no move in c++03
-            /*ParenthesisedType(ParenthesisedType&& other) = default;
-            ParenthesisedType& operator=(ParenthesisedType&& other) = default;*/
+            // default move semantics 
+            ParenthesisedType(ParenthesisedType&& other) = default;
+            ParenthesisedType& operator=(ParenthesisedType&& other) = default;
         };
 
         // Impl trait with a single bound? Poor reference material here.
@@ -161,7 +150,6 @@ namespace Rust {
               trait_bound(trait_bound), has_dyn(is_dyn_dispatch) {}
         };
 
-        // TODO: this the same TypePath as in rust-path.h.
         class TypePath; // definition moved to "rust-path.h"
 
         // A type consisting of the "product" of others (the tuple's elements) in a specific order
@@ -238,9 +226,9 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics but no move in c++03
-            /*RawPointerType(RawPointerType&& other) = default;
-            RawPointerType& operator=(RawPointerType&& other) = default;*/
+            // default move semantics 
+            RawPointerType(RawPointerType&& other) = default;
+            RawPointerType& operator=(RawPointerType&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -297,9 +285,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ReferenceType(ReferenceType&& other) = default;
-            ReferenceType& operator=(ReferenceType&& other) = default;*/
+            // move constructors 
+            ReferenceType(ReferenceType&& other) = default;
+            ReferenceType& operator=(ReferenceType&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -338,9 +326,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ArrayType(ArrayType&& other) = default;
-            ArrayType& operator=(ArrayType&& other) = default;*/
+            // move constructors 
+            ArrayType(ArrayType&& other) = default;
+            ArrayType& operator=(ArrayType&& other) = default;
 
             /*~ArrayType() {
                 delete size;
@@ -379,9 +367,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*SliceType(SliceType&& other) = default;
-            SliceType& operator=(SliceType&& other) = default;*/
+            // move constructors 
+            SliceType(SliceType&& other) = default;
+            SliceType& operator=(SliceType&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -413,20 +401,11 @@ namespace Rust {
             InferredType() {}
         };
 
-        // TODO: this is the same QualifiedPathInType as in "rust-path.h"
         class QualifiedPathInType; // definition moved to "rust-path.h"
-
-        // TODO: inline
-        /*struct BareFunctionReturnType {
-          private:
-            //TypeNoBounds type;
-            ::std::unique_ptr<TypeNoBounds> type;
-          public:
-
-        };*/
 
         // A possibly named param used in a BaseFunctionType
         struct MaybeNamedParam {
+          private:
             // Type param_type;
             ::std::unique_ptr<Type> param_type;
 
@@ -453,9 +432,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*MaybeNamedParam(MaybeNamedParam&& other) = default;
-            MaybeNamedParam& operator=(MaybeNamedParam&& other) = default;*/
+            // move constructors 
+            MaybeNamedParam(MaybeNamedParam&& other) = default;
+            MaybeNamedParam& operator=(MaybeNamedParam&& other) = default;
         };
 
         /* A function pointer type - can be created via coercion from function items and non-
@@ -510,9 +489,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*BareFunctionType(BareFunctionType&& other) = default;
-            BareFunctionType& operator=(BareFunctionType&& other) = default;*/
+            // move constructors 
+            BareFunctionType(BareFunctionType&& other) = default;
+            BareFunctionType& operator=(BareFunctionType&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

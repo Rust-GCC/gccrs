@@ -460,7 +460,7 @@ namespace Rust {
                         return Token::make(COLON, loc);
                     }
                 case '!':
-                    // TODO: special handling for macros in lexer?
+                    // no special handling for macros in lexer?
                     if (peek_input() == '=') {
                         // not equal boolean operator
                         skip_input();
@@ -474,8 +474,6 @@ namespace Rust {
                         return Token::make(EXCLAM, loc);
                     }
                 case '?':
-                    // TODO: special handling for end of expression vs ternary operator?
-                    // does rust have a ternary operator?
                     current_column++;
                     return Token::make(QUESTION_MARK, loc);
                 case '#':

@@ -12,12 +12,15 @@
 // STL imports
 #include <string>
 #include <vector>
-
-// TODO: with C++11, now can use actual std::unique_ptr
+// with C++11, now can use actual std::unique_ptr
 #include <memory>
 
+// gccrs imports
+// required for AST::Token
+#include "rust-token.h"
+
 namespace Rust {
-    // TODO: remove
+    // TODO: remove typedefs and make actual types for these
     // typedef int location_t;
     // typedef ::std::string SimplePath;
     typedef ::std::string Identifier;
@@ -317,9 +320,9 @@ namespace Rust {
 
         // Syntax used for Attribute by most built-in attributes and the meta fragment spec
         class MetaItem {
-          protected:
             SimplePath path;
 
+          protected:
             MetaItem(SimplePath path) : path(path) {}
 
             // pure virtual as MetaItem is abstract?
@@ -362,9 +365,9 @@ namespace Rust {
 
         // Rust "item" AST node (declaration of top-level/module-level allowed stuff)
         class Item : public Statement {
-          protected:
             ::std::vector<Attribute> outer_attrs;
 
+          protected:
             // Outer attribute constructor
             Item(::std::vector<Attribute> outer_attribs) : outer_attrs(outer_attribs) {}
 
@@ -374,6 +377,8 @@ namespace Rust {
 
         // Base expression AST node - abstract
         class Expr : public Node {
+            ::std::vector<Attribute> outer_attrs;
+
           public:
             inline ::std::vector<Attribute> get_outer_attrs() const {
                 return outer_attrs;
@@ -385,8 +390,6 @@ namespace Rust {
             }
 
           protected:
-            ::std::vector<Attribute> outer_attrs;
-
             // Outer attribute constructor
             Expr(::std::vector<Attribute> outer_attribs) : outer_attrs(outer_attribs) {}
 
@@ -583,10 +586,11 @@ namespace Rust {
 
         // Item used in trait declarations - abstract base class
         class TraitItem {
-          protected:
             // bool has_outer_attrs;
+            // TODO: remove and rely on virtual functions and VisItem-derived attributes?
             ::std::vector<Attribute> outer_attrs;
 
+          protected:
             // Outer attributes constructor
             TraitItem(::std::vector<Attribute> outer_attrs) : outer_attrs(outer_attrs) {}
 
@@ -626,12 +630,12 @@ namespace Rust {
               path(macro_path),
               delim_type(delim_type), token_trees(token_trees), MacroItem(outer_attribs),
               TraitItem(outer_attribs) {}
-            /* TODO: possible issue with Item and TraitItem hierarchies both having outer attributes 
-             * - storage inefficiency at least. */
-
-            // TODO: redesign to fix diamond problem - maybe have a MacroInvocationSemi item and a
-            // separate MacroInvocationSemi statement?
-            // Fixed: inheritance from statement too
+            /* TODO: possible issue with Item and TraitItem hierarchies both having outer attributes
+             * - storage inefficiency at least.
+             * Best current idea is to make Item preferred and have TraitItem get virtual functions
+             * for attributes or something.
+             * Or just redo the "composition" approach, but then this prevents polymorphism and would
+             * entail redoing quite a bit of the parser. */
         };
 
         // A crate AST object - holds all the data for a single compilation unit

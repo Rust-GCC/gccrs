@@ -134,7 +134,12 @@ namespace Rust {
           AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::Trait* parse_trait(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::TraitItem* parse_trait_item();
+        AST::TraitItemType* parse_trait_type(::std::vector<AST::Attribute> outer_attrs);
+        AST::TraitItemConst* parse_trait_const(::std::vector<AST::Attribute> outer_attrs);
+        AST::SelfParam parse_self_param();
         AST::Impl* parse_impl(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::InherentImplItem* parse_inherent_impl_item();
+        AST::TraitImplItem* parse_trait_impl_item();
         AST::ExternBlock* parse_extern_block(
           AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
 

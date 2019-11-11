@@ -153,7 +153,9 @@ namespace Rust {
             /* TODO: issue here - distinguish between method calls and field access somehow?
                 Also would have to distinguish between paths and function calls (:: operator),
                 maybe more stuff. */
-            /* Current plan for tackling LBP - don't do it based on token, use lookahead. */
+            /* Current plan for tackling LBP - don't do it based on token, use lookahead. 
+             * Or alternatively, only use Pratt parsing for OperatorExpr and handle other expressions
+             * without it. */
 
             // TODO: handle operator overloading - have a function replace the operator?
 
@@ -1309,7 +1311,7 @@ namespace Rust {
         const_TokenPtr function_name_tok = expect_token(IDENTIFIER);
         Identifier function_name = function_name_tok->get_str();
 
-        // TODO parse generic params - if exist
+        // parse generic params - if exist
         ::std::vector< ::std::unique_ptr<AST::GenericParam> > generic_params
           = parse_generic_params_in_angles();
 
@@ -1333,13 +1335,13 @@ namespace Rust {
         // parse function return type - if exists
         AST::Type* return_type = parse_function_return_type();
 
-        // TODO parse where clause - if exists
+        // parse where clause - if exists
         AST::WhereClause where_clause = parse_where_clause();
 
-        // TODO parse block expression
+        // parse block expression
         AST::BlockExpr* block_expr = parse_block_expr();
 
-        // TODO: put in all params
+        // TODO: does this need move?
         return new AST::Function(function_name, qualifiers, ::std::move(generic_params),
           function_params, return_type, where_clause, block_expr, vis, outer_attrs);
     }
@@ -1404,7 +1406,6 @@ namespace Rust {
         ::std::vector< ::std::unique_ptr<AST::LifetimeParam> > lifetime_params
           = parse_lifetime_params();
         if (!lifetime_params.empty()) {
-            // TODO: if change to c++11, will have to move the lifetime_params vector
             // C++11 code:
             generic_params.insert(generic_params.end(),
               ::std::make_move_iterator(lifetime_params.begin()),
@@ -1418,7 +1419,6 @@ namespace Rust {
         // parse type params (optional)
         ::std::vector< ::std::unique_ptr<AST::TypeParam> > type_params = parse_type_params();
         if (!type_params.empty()) {
-            // TODO: if change to c++11, will have to move the type_params vector
             // C++11 code:
             generic_params.insert(generic_params.end(),
               ::std::make_move_iterator(type_params.begin()),
@@ -2475,15 +2475,309 @@ namespace Rust {
                 // else, fallthrough to function
             case UNSAFE:
             case EXTERN_TOK:
-            case FN_TOK:
-                /* function and method can't be disambiguated by lookahead alone (without a lot of 
-                 * work and waste), so either make a "parse_trait_function_or_method" or parse here 
+            case FN_TOK: {
+                /* function and method can't be disambiguated by lookahead alone (without a lot of
+                 * work and waste), so either make a "parse_trait_function_or_method" or parse here
                  * mostly and pass in most parameters (or if short enough, parse whole thing here). */
                 // parse function and method here
-            default:
-                // try and parse macro invocation semi - if fails, error.
+
+                // parse function or method qualifiers
+                AST::FunctionQualifiers qualifiers = parse_function_qualifiers();
+
+                skip_token(FN_TOK);
+
+                // parse function or method name
+                const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+                Identifier ident = ident_tok->get_str();
+
+                // parse generic params
+                ::std::vector< ::std::unique_ptr<AST::GenericParam> > generic_params
+                  = parse_generic_params_in_angles();
+
+                if (!skip_token(LEFT_PAREN)) {
+                    // skip after somewhere?
+                    return NULL;
+                }
+
+                // now for function vs method disambiguation - method has opening "self" param
+                AST::SelfParam self_param = parse_self_param();
+                bool is_method = false;
+                if (!self_param.is_error()) {
+                    is_method = true;
+
+                    // skip comma so function and method regular params can be parsed in same way
+                    if (lexer.peek_token()->get_id() == COMMA) {
+                        lexer.skip_token();
+                    }
+                }
+
+                // parse trait function params
+                ::std::vector<AST::FunctionParam> function_params = parse_function_params();
+
+                if (!skip_token(RIGHT_PAREN)) {
+                    // skip after somewhere?
+                    return NULL;
+                }
+
+                // parse return type (optional)
+                AST::Type* return_type = parse_function_return_type();
+
+                // parse where clause (optional)
+                AST::WhereClause where_clause = parse_where_clause();
+
+                // parse semicolon or function definition (in block)
+                const_TokenPtr t = lexer.peek_token();
+                AST::BlockExpr* definition = NULL;
+                switch (t->get_id()) {
+                    case SEMICOLON:
+                        lexer.skip_token();
+                        // definition is already NULL, so don't need to change it
+                        break;
+                    case LEFT_CURLY:
+                        definition = parse_block_expr();
+                        // FIXME: are these outer attributes meant to be passed into the block?
+                        break;
+                    default:
+                        error_at(t->get_locus(),
+                          "expected ';' or definiton at the end of trait %s definition - found '%s' "
+                          "instead",
+                          is_method ? "method" : "function", t->get_token_description());
+                        // skip?
+                        return NULL;
+                }
+
+                // do actual if instead of ternary for return value optimisation
+                if (is_method) {
+                    AST::TraitMethodDecl method_decl(ident, qualifiers, generic_params, self_param,
+                      function_params, return_type, where_clause);
+
+                    // TODO: does this (method_decl) need move?
+                    return new AST::TraitItemMethod(method_decl, definition, outer_attrs);
+                } else {
+                    AST::TraitFunctionDecl function_decl(
+                      ident, qualifiers, generic_params, function_params, return_type, where_clause);
+
+                    // TODO: does this (function_decl) need move?
+                    return new AST::TraitItemFunc(function_decl, definition, outer_attrs);
+                }
+            }
+            default: {
+                // TODO: try and parse macro invocation semi - if fails, maybe error.
+                AST::MacroInvocationSemi* macro_invoc = parse_macro_invocation_semi(outer_attrs);
+
+                if (macro_invoc == NULL) {
+                    // TODO: error?
+                    return NULL;
+                } else {
+                    return macro_invoc;
+                }
+            }
         }
     }
+
+    // Parse a typedef trait item.
+    AST::TraitItemType* Parser::parse_trait_type(::std::vector<AST::Attribute> outer_attrs) {
+        skip_token(TYPE);
+
+        const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+        Identifier ident = ident_tok->get_str();
+
+        bool has_colon = false;
+        ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > bounds;
+
+        // parse optional colon
+        if (lexer.peek_token()->get_id() == COLON) {
+            has_colon = true;
+            lexer.skip_token();
+
+            // parse optional type param bounds
+            bounds = parse_type_param_bounds();
+        }
+
+        if (!skip_token(SEMICOLON)) {
+            // skip?
+            return NULL;
+        }
+
+        return new AST::TraitItemType(ident, bounds, outer_attrs);
+    }
+
+    // Parses a constant trait item.
+    AST::TraitItemConst* Parser::parse_trait_const(::std::vector<AST::Attribute> outer_attrs) {
+        skip_token(CONST);
+
+        // parse constant item name
+        const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+        Identifier ident = ident_tok->get_str();
+
+        if (!skip_token(COLON)) {
+            skip_after_semicolon();
+            return NULL;
+        }
+
+        // parse constant trait item type
+        AST::Type* type = parse_type();
+
+        // parse constant trait body expression, if it exists
+        AST::Expr* const_body = NULL;
+        if (lexer.peek_token()->get_id() == EQUAL) {
+            lexer.skip_token();
+
+            // expression must exist, so parse it
+            const_body = parse_expr();
+        }
+
+        if (!skip_token(SEMICOLON)) {
+            // skip after something?
+            return NULL;
+        }
+
+        return new AST::TraitItemConst(ident, type, const_body, outer_attrs);
+    }
+
+    // Parses a struct "impl" item (both inherent impl and trait impl can be parsed here),
+    AST::Impl* Parser::parse_impl(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+        /* Note that only trait impls are allowed to be unsafe. So if unsafe, it must be a trait
+         * impl. However, this isn't enough for full disambiguation, so don't branch here. */
+        bool is_unsafe = false;
+        if (lexer.peek_token()->get_id() == UNSAFE) {
+            lexer.skip_token();
+            is_unsafe = true;
+        }
+
+        if (!skip_token(IMPL)) {
+            skip_after_end_block();
+            return NULL;
+        }
+
+        // parse generic params (shared by trait and inherent impls)
+        ::std::vector< ::std::unique_ptr<AST::GenericParam> > generic_params
+          = parse_generic_params_in_angles();
+
+        // Again, trait impl-only feature, but optional one, so can be used for branching yet.
+        bool has_exclam = false;
+        if (lexer.peek_token()->get_id() == EXCLAM) {
+            lexer.skip_token();
+            has_exclam = true;
+        }
+
+        /* FIXME: code that doesn't look shit for TypePath. Also, make sure this doesn't parse too
+         * much and not work. */
+        AST::TypePath type_path = parse_type_path();
+        if (type_path.is_error() || lexer.peek_token()->get_id() != FOR) {
+            // cannot parse type path (or not for token next, at least), so must be inherent impl
+
+            // hacky conversion of TypePath stack object to Type pointer
+            AST::Type* type = NULL;
+            if (!type_path.is_error()) {
+                // TODO: would move work here?
+                type = new AST::TypePath(type_path);
+            } else {
+                type = parse_type();
+            }
+            // Type is required, so error if null
+            if (type == NULL) {
+                error_at(lexer.peek_token()->get_locus(), "could not parse type in inherent impl");
+                skip_after_end_block();
+                return NULL;
+            }
+
+            // parse optional where clause
+            AST::WhereClause where_clause = parse_where_clause();
+
+            if (!skip_token(LEFT_CURLY)) {
+                // TODO: does this still skip properly?
+                skip_after_end_block();
+                return NULL;
+            }
+
+            // parse inner attributes (optional)
+            ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
+
+            // parse inherent impl items
+            ::std::vector< ::std::unique_ptr<AST::InherentImplItem> > impl_items;
+
+            const_TokenPtr t = lexer.peek_token();
+            while (t->get_id() != RIGHT_CURLY) {
+                AST::InherentImplItem* impl_item = parse_inherent_impl_item();
+
+                if (impl_item == NULL) {
+                    // TODO: this is probably an error as next character should equal RIGHT_CURLY
+                    break;
+                }
+
+                impl_items.push_back(::std::unique_ptr<AST::InherentImplItem>(impl_item));
+
+                t = lexer.peek_token();
+            }
+
+            if (!skip_token(RIGHT_CURLY)) {
+                // skip somewhere
+                return NULL;
+            }
+
+            return new AST::InherentImpl(
+              impl_items, generic_params, type, where_clause, vis, inner_attrs, outer_attrs);
+        } else {
+            // type path must both be valid and next token is for, so trait impl
+            if (!skip_token(FOR)) {
+                skip_after_end_block();
+                return NULL;
+            }
+
+            // parse type
+            AST::Type* type = parse_type();
+            // ensure type is included as it is required
+            if (type == NULL) {
+                error_at(lexer.peek_token()->get_locus(), "could not parse type in trait impl");
+                skip_after_end_block();
+                return NULL;
+            }
+
+            // parse optional where clause
+            AST::WhereClause where_clause = parse_where_clause();
+
+            if (!skip_token(LEFT_CURLY)) {
+                // TODO: does this still skip properly?
+                skip_after_end_block();
+                return NULL;
+            }
+
+            // parse inner attributes (optional)
+            ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
+
+            // parse trait impl items
+            ::std::vector< ::std::unique_ptr<AST::TraitImplItem> > impl_items;
+
+            const_TokenPtr t = lexer.peek_token();
+            while (t->get_id() != RIGHT_CURLY) {
+                AST::TraitImplItem* impl_item = parse_trait_impl_item();
+
+                if (impl_item == NULL) {
+                    // TODO: this is probably an error as next character should equal RIGHT_CURLY
+                    break;
+                }
+
+                impl_items.push_back(::std::unique_ptr<AST::TraitImplItem>(impl_item));
+
+                t = lexer.peek_token();
+            }
+
+            if (!skip_token(RIGHT_CURLY)) {
+                // skip somewhere
+                return NULL;
+            }
+
+            return new AST::TraitImpl(type_path, is_unsafe, has_exclam, impl_items, generic_params,
+              type, where_clause, vis, inner_attrs, outer_attrs);
+        }
+    }
+
+    // Parses a single inherent impl item (item inside an inherent impl block).
+    AST::InherentImplItem* Parser::parse_inherent_impl_item() {}
+
+    // Parses a single trait impl item (item inside a trait impl block).
+    AST::TraitImplItem* Parser::parse_trait_impl_item() {}
 
     // Parses a block expression, including the curly braces at start and end.
     AST::BlockExpr* Parser::parse_block_expr(::std::vector<AST::Attribute> outer_attrs) {
