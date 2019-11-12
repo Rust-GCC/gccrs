@@ -32,6 +32,12 @@ namespace Rust {
               type_path(type_path),
               in_parens(in_parens), opening_question_mark(opening_question_mark),
               for_lifetimes(for_lifetimes) {}
+
+          protected:
+            // Clone function implementation as (not pure) virtual method
+            virtual TraitBound* clone_type_param_bound_impl() const {
+                return new TraitBound(*this);
+            }
         };
 
         // definition moved to rust-ast.h
@@ -50,7 +56,33 @@ namespace Rust {
 
           public:
             ImplTraitType(::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds) :
-              type_param_bounds(type_param_bounds) {}
+              type_param_bounds(::std::move(type_param_bounds)) {}
+
+            // copy constructor with vector clone
+            ImplTraitType(ImplTraitType const& other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                type_param_bounds.reserve(other.type_param_bounds.size());
+
+                for (const auto& e : other.type_param_bounds) {
+                    type_param_bounds.push_back(e->clone_type_param_bound());
+                }
+            }
+
+            // overloaded assignment operator to clone
+            ImplTraitType& operator=(ImplTraitType const& other) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                type_param_bounds.reserve(other.type_param_bounds.size());
+
+                for (const auto& e : other.type_param_bounds) {
+                    type_param_bounds.push_back(e->clone_type_param_bound());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            ImplTraitType(ImplTraitType&& other) = default;
+            ImplTraitType& operator=(ImplTraitType&& other) = default;
         };
 
         // An opaque value of another type that implements a set of traits
@@ -68,8 +100,35 @@ namespace Rust {
           public:
             TraitObjectType(::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds,
               bool is_dyn_dispatch) :
-              type_param_bounds(type_param_bounds),
+              type_param_bounds(::std::move(type_param_bounds)),
               has_dyn(is_dyn_dispatch) {}
+
+            // copy constructor with vector clone
+            TraitObjectType(TraitObjectType const& other) : has_dyn(other.has_dyn) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                type_param_bounds.reserve(other.type_param_bounds.size());
+
+                for (const auto& e : other.type_param_bounds) {
+                    type_param_bounds.push_back(e->clone_type_param_bound());
+                }
+            }
+
+            // overloaded assignment operator to clone
+            TraitObjectType& operator=(TraitObjectType const& other) {
+                has_dyn = other.has_dyn;
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                type_param_bounds.reserve(other.type_param_bounds.size());
+
+                for (const auto& e : other.type_param_bounds) {
+                    type_param_bounds.push_back(e->clone_type_param_bound());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            TraitObjectType(TraitObjectType&& other) = default;
+            TraitObjectType& operator=(TraitObjectType&& other) = default;
         };
 
         // A type with parentheses around it, used to avoid ambiguity.
@@ -163,7 +222,33 @@ namespace Rust {
                 return elems.empty();
             }
 
-            TupleType(::std::vector< ::std::unique_ptr<Type> > elems) : elems(elems) {}
+            TupleType(::std::vector< ::std::unique_ptr<Type> > elems) : elems(::std::move(elems)) {}
+
+            // copy constructor with vector clone
+            TupleType(TupleType const& other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                elems.reserve(other.elems.size());
+
+                for (const auto& e : other.elems) {
+                    elems.push_back(e->clone_type());
+                }
+            }
+
+            // overloaded assignment operator to clone
+            TupleType& operator=(TupleType const& other) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                elems.reserve(other.elems.size());
+
+                for (const auto& e : other.elems) {
+                    elems.push_back(e->clone_type());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            TupleType(TupleType&& other) = default;
+            TupleType& operator=(TupleType&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -197,7 +282,11 @@ namespace Rust {
 
         // A type consisting of a pointer without safety or liveness guarantees
         class RawPointerType : public TypeNoBounds {
-            enum PointerType { Mut, Const } pointer_type;
+          public:
+          enum PointerType { MUT, CONST };
+
+          private: 
+            PointerType pointer_type;
 
             // TypeNoBounds type;
             ::std::unique_ptr<TypeNoBounds> type;
@@ -405,11 +494,14 @@ namespace Rust {
 
         // A possibly named param used in a BaseFunctionType
         struct MaybeNamedParam {
+          public:
+          enum ParamKind { UNNAMED, IDENTIFIER, WILDCARD };
+
           private:
             // Type param_type;
             ::std::unique_ptr<Type> param_type;
 
-            enum ParamKind { UNNAMED, IDENTIFIER, WILDCARD } param_kind;
+            ParamKind param_kind;
             Identifier name; // technically, can be an identifier or '_'
 
           public:

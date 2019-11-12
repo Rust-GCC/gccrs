@@ -76,17 +76,42 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<Type> > type_args,
               ::std::vector<GenericArgsBinding> binding_args) :
               lifetime_args(lifetime_args),
-              type_args(type_args), binding_args(binding_args) {}
+              type_args(::std::move(type_args)), binding_args(binding_args) {}
+
+            // copy constructor with vector clone
+            GenericArgs(GenericArgs const& other) : lifetime_args(other.lifetime_args), binding_args(other.binding_args) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                type_args.reserve(other.type_args.size());
+
+                for (const auto& e : other.type_args) {
+                    type_args.push_back(e->clone_type());
+                }
+            }
 
             ~GenericArgs() = default;
 
+            // overloaded assignment operator to vector clone
+            GenericArgs& operator=(GenericArgs const& other) {
+                lifetime_args = other.lifetime_args;
+                binding_args = other.binding_args;
+                
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                type_args.reserve(other.type_args.size());
+
+                for (const auto& e : other.type_args) {
+                    type_args.push_back(e->clone_type());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            GenericArgs(GenericArgs&& other) = default;
+            GenericArgs& operator=(GenericArgs&& other) = default;
+
             // Creates an empty GenericArgs (no arguments)
             static GenericArgs empty() {
-                ::std::vector<Lifetime> empty_lifetime_args;
-                ::std::vector< ::std::unique_ptr<Type> > empty_type_args;
-                ::std::vector<GenericArgsBinding> empty_binding_args;
-
-                return GenericArgs(empty_lifetime_args, empty_type_args, empty_binding_args);
+                return GenericArgs(::std::vector<Lifetime>(), ::std::vector< ::std::unique_ptr<Type> >(), ::std::vector<GenericArgsBinding>());
             }
         };
 
@@ -121,7 +146,7 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<Type> > type_args,
               ::std::vector<GenericArgsBinding> binding_args) :
               segment_name(PathIdentSegment(segment_name)),
-              generic_args(GenericArgs(lifetime_args, type_args, binding_args)) {}
+              generic_args(GenericArgs(lifetime_args, ::std::move(type_args), binding_args)) {}
         };
 
         // AST node representing a pattern that involves a "path" - abstract base class
@@ -143,11 +168,11 @@ namespace Rust {
             PathInExpression(
               ::std::vector<PathExprSegment> path_segments, bool has_opening_scope_resolution) :
               has_opening_scope_resolution(has_opening_scope_resolution),
-              PathPattern(segments) {}
+              PathPattern(path_segments) {}
 
             // Constructor with no opening scope resolution
             PathInExpression(::std::vector<PathExprSegment> path_segments) :
-              has_opening_scope_resolution(false), PathPattern(segments) {}
+              has_opening_scope_resolution(false), PathPattern(path_segments) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -172,8 +197,16 @@ namespace Rust {
               ident_segment(PathIdentSegment(segment_name)),
               has_separating_scope_resolution(has_separating_scope_resolution) {}
 
+            // Clone function implementation as pure virtual method
+            virtual TypePathSegment* clone_type_path_segment_impl() const = 0;
+
           public:
             virtual ~TypePathSegment() {}
+
+            // Unique pointer custom clone function
+            ::std::unique_ptr<TypePathSegment> clone_type_path_segment() const {
+                return ::std::unique_ptr<TypePathSegment>(clone_type_path_segment_impl());
+            }
         };
 
         // Segment used in type path with generic args
@@ -196,7 +229,7 @@ namespace Rust {
               ::std::vector<Lifetime> lifetime_args,
               ::std::vector< ::std::unique_ptr<Type> > type_args,
               ::std::vector<GenericArgsBinding> binding_args) :
-              generic_args(GenericArgs(lifetime_args, type_args, binding_args)),
+              generic_args(GenericArgs(lifetime_args, ::std::move(type_args), binding_args)),
               TypePathSegment(segment_name, has_separating_scope_resolution) {}
         };
 
@@ -226,22 +259,36 @@ namespace Rust {
 
             // Constructor for function with no specified type.
             TypePathFn(::std::vector< ::std::unique_ptr<Type> > inputs) :
-              inputs(inputs)/*, type(NULL)*/ {}
+              inputs(::std::move(inputs))/*, type(NULL)*/ {}
 
             // Constructor for function with a specified type.
             TypePathFn(::std::vector< ::std::unique_ptr<Type> > inputs, Type* type) :
-              inputs(inputs), type(type) {}
+              inputs(::std::move(inputs)), type(type) {}
 
             // Copy constructor with clone
             TypePathFn(TypePathFn const& other) :
-              inputs(other.inputs), type(other.type->clone_type()) {}
+              /*inputs(other.inputs),*/ type(other.type->clone_type()) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                inputs.reserve(other.inputs.size());
+
+                for (const auto& e : other.inputs) {
+                    inputs.push_back(e->clone_type());
+                }
+              }
 
             ~TypePathFn() = default;
 
             // Overloaded assignment operator to clone type
             TypePathFn& operator=(TypePathFn const& other) {
-                inputs = other.inputs;
+                //inputs = other.inputs;
                 type = other.type->clone_type();
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                inputs.reserve(other.inputs.size());
+
+                for (const auto& e : other.inputs) {
+                    inputs.push_back(e->clone_type());
+                }
 
                 return *this;
             }
@@ -305,12 +352,40 @@ namespace Rust {
             // Constructor for TypePath with TypePathSegments and maybe an opening scope resolution
             TypePath(::std::vector< ::std::unique_ptr<TypePathSegment> > segments,
               bool has_opening_scope_resolution) :
-              segments(segments),
+              segments(::std::move(segments)),
               has_opening_scope_resolution(has_opening_scope_resolution) {}
 
             // Constructor for TypePath with TypePathSegments and no opening scope resolution
             TypePath(::std::vector< ::std::unique_ptr<TypePathSegment> > segments) :
-              segments(segments), has_opening_scope_resolution(false) {}
+              segments(::std::move(segments)), has_opening_scope_resolution(false) {}
+
+            // Copy constructor with vector clone
+            TypePath(TypePath const& other) : has_opening_scope_resolution(other.has_opening_scope_resolution) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                segments.reserve(other.segments.size());
+
+                for (const auto& e : other.segments) {
+                    segments.push_back(e->clone_type_path_segment());
+                }
+            }
+
+            // Overloaded assignment operator with clone
+            TypePath& operator=(TypePath const& other) {
+                has_opening_scope_resolution = other.has_opening_scope_resolution;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                segments.reserve(other.segments.size());
+
+                for (const auto& e : other.segments) {
+                    segments.push_back(e->clone_type_path_segment());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            TypePath(TypePath&& other) = default;
+            TypePath& operator=(TypePath&& other) = default;
         };
 
         struct QualifiedPathType {
@@ -392,11 +467,37 @@ namespace Rust {
             QualifiedPathInType(QualifiedPathType qual_path_type,
               ::std::vector< ::std::unique_ptr<TypePathSegment> > path_segments) :
               path_type(qual_path_type),
-              segments(path_segments) {}
+              segments(::std::move(path_segments)) {}
 
             // TODO: maybe make a shortcut constructor that has QualifiedPathType elements as params
 
-            // Copy constructor, destructor, and assignment operator overload shouldn't be required
+            // Copy constructor with vector clone
+            QualifiedPathInType(QualifiedPathInType const& other) : path_type(other.path_type) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                segments.reserve(other.segments.size());
+
+                for (const auto& e : other.segments) {
+                    segments.push_back(e->clone_type_path_segment());
+                }
+            }
+
+            // Overloaded assignment operator with vector clone
+            QualifiedPathInType& operator=(QualifiedPathInType const& other) {
+                path_type = other.path_type;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                segments.reserve(other.segments.size());
+
+                for (const auto& e : other.segments) {
+                    segments.push_back(e->clone_type_path_segment());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            QualifiedPathInType(QualifiedPathInType&& other) = default;
+            QualifiedPathInType& operator=(QualifiedPathInType&& other) = default;
         };
     }
 }

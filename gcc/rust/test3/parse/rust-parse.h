@@ -85,17 +85,17 @@ namespace Rust {
         AST::Item* parse_item();
         AST::VisItem* parse_vis_item(::std::vector<AST::Attribute> outer_attrs);
         AST::MacroItem* parse_macro_item(::std::vector<AST::Attribute> outer_attrs);
-        AST::Visibility* parse_visibility();
+        AST::Visibility parse_visibility();
 
         // VisItem subclass-related
-        AST::Module* parse_module(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Module* parse_module(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::ExternCrate* parse_extern_crate(
-          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::UseDeclaration* parse_use_decl(
-          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::UseTree* parse_use_tree();
         AST::Function* parse_function(
-          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::FunctionQualifiers parse_function_qualifiers();
         ::std::vector< ::std::unique_ptr<AST::GenericParam> > parse_generic_params_in_angles();
         ::std::vector< ::std::unique_ptr<AST::GenericParam> > parse_generic_params();
@@ -118,30 +118,30 @@ namespace Rust {
         ::std::vector<AST::Lifetime> parse_lifetime_bounds();
         AST::Lifetime parse_lifetime();
         AST::TypeAlias* parse_type_alias(
-          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
-        AST::Struct* parse_struct(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Struct* parse_struct(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         ::std::vector<AST::StructField> parse_struct_fields();
         AST::StructField parse_struct_field();
         ::std::vector<AST::TupleField> parse_tuple_fields();
         AST::TupleField parse_tuple_field();
-        AST::Enum* parse_enum(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Enum* parse_enum(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         ::std::vector< ::std::unique_ptr<AST::EnumItem> > parse_enum_items();
         AST::EnumItem* parse_enum_item();
-        AST::Union* parse_union(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Union* parse_union(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::ConstantItem* parse_const_item(
-          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::StaticItem* parse_static_item(
-          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
-        AST::Trait* parse_trait(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Trait* parse_trait(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::TraitItem* parse_trait_item();
         AST::TraitItemType* parse_trait_type(::std::vector<AST::Attribute> outer_attrs);
         AST::TraitItemConst* parse_trait_const(::std::vector<AST::Attribute> outer_attrs);
         AST::SelfParam parse_self_param();
-        AST::Impl* parse_impl(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Impl* parse_impl(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::InherentImplItem* parse_inherent_impl_item();
         AST::TraitImplItem* parse_trait_impl_item();
         AST::ExternBlock* parse_extern_block(
-          AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs);
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
 
         // MacroItem subclass-related
         AST::MacroRulesDefinition* parse_macro_rules_def(::std::vector<AST::Attribute> outer_attrs);

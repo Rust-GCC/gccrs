@@ -33,6 +33,12 @@ namespace Rust {
           public:
             MacroMatchFragSpec(Identifier ident, MacroFragSpec frag_spec) :
               ident(ident), frag_spec(frag_spec) {}
+          
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroMatchFragSpec* clone_macro_match_impl() const OVERRIDE {
+                return new MacroMatchFragSpec(*this);
+            }
         };
 
         // A repetition macro match
@@ -54,20 +60,34 @@ namespace Rust {
 
             MacroMatchRep(::std::vector< ::std::unique_ptr<MacroMatch> > matches, MacroRepOp op,
               MacroRepSep* sep) :
-              matches(matches),
+              matches(::std::move(matches)),
               op(op), sep(sep) {}
 
             // Copy constructor with clone
             MacroMatchRep(MacroMatchRep const& other) :
-              matches(other.matches), op(other.op), sep(other.sep->clone_token()) {}
+              /*matches(other.matches),*/ op(other.op), sep(other.sep->clone_token()) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                matches.reserve(other.matches.size());
+
+                for (const auto& e : other.matches) {
+                    matches.push_back(e->clone_macro_match());
+                }
+              }
 
             // Destructor - define here if required
 
             // Overloaded assignment operator to clone
             MacroMatchRep& operator=(MacroMatchRep const& other) {
-                matches = other.matches;
+                //matches = other.matches; // TODO: this needs to clone somehow?
                 op = other.op;
                 sep = other.sep->clone_token();
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                matches.reserve(other.matches.size());
+
+                for (const auto& e : other.matches) {
+                    matches.push_back(e->clone_macro_match());
+                }
 
                 return *this;
             }
@@ -75,6 +95,12 @@ namespace Rust {
             // move constructors 
             MacroMatchRep(MacroMatchRep&& other) = default;
             MacroMatchRep& operator=(MacroMatchRep&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroMatchRep* clone_macro_match_impl() const OVERRIDE {
+                return new MacroMatchRep(*this);
+            }
         };
 
         // TODO: inline
@@ -87,7 +113,41 @@ namespace Rust {
             MacroMatcher(
               DelimType delim_type, ::std::vector< ::std::unique_ptr<MacroMatch> > matches) :
               delim_type(delim_type),
-              matches(matches) {}
+              matches(::std::move(matches)) {}
+
+            // copy constructor with vector clone
+            MacroMatcher(MacroMatcher const& other) : delim_type(delim_type) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                matches.reserve(other.matches.size());
+
+                for (const auto& e : other.matches) {
+                    matches.push_back(e->clone_macro_match());
+                }
+            }
+
+            // overloaded assignment operator with vector clone
+            MacroMatcher& operator=(MacroMatcher const& other) {
+                delim_type = other.delim_type;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                matches.reserve(other.matches.size());
+
+                for (const auto& e : other.matches) {
+                    matches.push_back(e->clone_macro_match());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            MacroMatcher(MacroMatcher&& other) = default;
+            MacroMatcher& operator=(MacroMatcher&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroMatcher* clone_macro_match_impl() const OVERRIDE {
+                return new MacroMatcher(*this);
+            }
         };
 
         // TODO: inline?

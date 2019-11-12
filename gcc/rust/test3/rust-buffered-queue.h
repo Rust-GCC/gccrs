@@ -97,7 +97,7 @@ namespace Rust {
             // TODO: test as this may not work properly
 
             // Insert actual element in buffer at start.
-            buffer.insert(begin(), 1, elem_to_insert);
+            buffer.insert(buffer.begin(), 1, elem_to_insert);
 
             // Increase the end number since added element means all others have shifted one along
             end++;

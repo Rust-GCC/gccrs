@@ -303,8 +303,16 @@ namespace Rust {
           public:
             virtual ~StructPatternField() {}
 
+            // Unique pointer custom clone function
+            ::std::unique_ptr<StructPatternField> clone_struct_pattern_field() const {
+                return ::std::unique_ptr<StructPatternField>(clone_struct_pattern_field_impl());
+            }
+
           protected:
             StructPatternField(::std::vector<Attribute> outer_attribs) : outer_attrs(outer_attribs) {}
+
+            // Clone function implementation as pure virtual method
+            virtual StructPatternField* clone_struct_pattern_field_impl() const = 0;
         };
 
         // Tuple pattern single field in a struct pattern
@@ -417,18 +425,45 @@ namespace Rust {
             // Constructor for StructPatternElements with both (potentially)
             StructPatternElements(
               ::std::vector< ::std::unique_ptr<StructPatternField> > fields, StructPatternEtc etc) :
-              fields(fields),
+              fields(::std::move(fields)),
               etc(etc), has_struct_pattern_etc(true) {}
 
             // Constructor for StructPatternElements with no StructPatternEtc
             StructPatternElements(::std::vector< ::std::unique_ptr<StructPatternField> > fields) :
-              fields(fields), etc(StructPatternEtc::create_empty()), has_struct_pattern_etc(false) {}
+              fields(::std::move(fields)), etc(StructPatternEtc::create_empty()), has_struct_pattern_etc(false) {}
+
+            // Copy constructor with vector clone
+            StructPatternElements(StructPatternElements const& other) : etc(other.etc), has_struct_pattern_etc(other.has_struct_pattern_etc) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                fields.reserve(other.fields.size());
+
+                for (const auto& e : other.fields) {
+                    fields.push_back(e->clone_struct_pattern_field());
+                }
+            }
+
+            // Overloaded assignment operator with vector clone
+            StructPatternElements& operator=(StructPatternElements const& other) {
+                etc = other.etc;
+                has_struct_pattern_etc = other.has_struct_pattern_etc;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                fields.reserve(other.fields.size());
+
+                for (const auto& e : other.fields) {
+                    fields.push_back(e->clone_struct_pattern_field());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            StructPatternElements(StructPatternElements&& other) = default;
+            StructPatternElements& operator=(StructPatternElements&& other) = default;
 
             // Creates an empty StructPatternElements
             static StructPatternElements create_empty() {
-                ::std::vector< ::std::unique_ptr<StructPatternField> > fields;
-
-                return StructPatternElements(fields);
+                return StructPatternElements(::std::vector< ::std::unique_ptr<StructPatternField> >());
             }
         };
 
@@ -482,7 +517,33 @@ namespace Rust {
 
           public:
             TupleStructItemsNoRange(::std::vector< ::std::unique_ptr<Pattern> > patterns) :
-              patterns(patterns) {}
+              patterns(::std::move(patterns)) {}
+
+            // Copy constructor with vector clone
+            TupleStructItemsNoRange(TupleStructItemsNoRange const& other) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                patterns.reserve(other.patterns.size());
+
+                for (const auto& e : other.patterns) {
+                    patterns.push_back(e->clone_pattern());
+                }
+            }
+
+            // Overloaded assignment operator with vector clone
+            TupleStructItemsNoRange& operator=(TupleStructItemsNoRange const& other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                patterns.reserve(other.patterns.size());
+
+                for (const auto& e : other.patterns) {
+                    patterns.push_back(e->clone_pattern());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            TupleStructItemsNoRange(TupleStructItemsNoRange&& other) = default;
+            TupleStructItemsNoRange& operator=(TupleStructItemsNoRange&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -501,8 +562,48 @@ namespace Rust {
           public:
             TupleStructItemsRange(::std::vector< ::std::unique_ptr<Pattern> > lower_patterns,
               ::std::vector< ::std::unique_ptr<Pattern> > upper_patterns) :
-              lower_patterns(lower_patterns),
-              upper_patterns(upper_patterns) {}
+              lower_patterns(::std::move(lower_patterns)),
+              upper_patterns(::std::move(upper_patterns)) {}
+
+            // Copy constructor with vector clone
+            TupleStructItemsRange(TupleStructItemsRange const& other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                lower_patterns.reserve(other.lower_patterns.size());
+
+                for (const auto& e : other.lower_patterns) {
+                    lower_patterns.push_back(e->clone_pattern());
+                }
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                upper_patterns.reserve(other.upper_patterns.size());
+
+                for (const auto& e : other.upper_patterns) {
+                    upper_patterns.push_back(e->clone_pattern());
+                }
+            }
+
+            // Overloaded assignment operator to clone
+            TupleStructItemsRange& operator=(TupleStructItemsRange const& other) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                lower_patterns.reserve(other.lower_patterns.size());
+
+                for (const auto& e : other.lower_patterns) {
+                    lower_patterns.push_back(e->clone_pattern());
+                }
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                upper_patterns.reserve(other.upper_patterns.size());
+
+                for (const auto& e : other.upper_patterns) {
+                    upper_patterns.push_back(e->clone_pattern());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            TupleStructItemsRange(TupleStructItemsRange&& other) = default;
+            TupleStructItemsRange& operator=(TupleStructItemsRange&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -586,7 +687,7 @@ namespace Rust {
 
             // move constructors
             TuplePatternItemsSingle(TuplePatternItemsSingle&& other) = default;
-            TuplePatternItemsSingle& operator=(TuplePtternItemsSingle&& other) = default;
+            TuplePatternItemsSingle& operator=(TuplePatternItemsSingle&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -602,7 +703,33 @@ namespace Rust {
 
           public:
             TuplePatternItemsMultiple(::std::vector< ::std::unique_ptr<Pattern> > patterns) :
-              patterns(patterns) {}
+              patterns(::std::move(patterns)) {}
+
+            // Copy constructor with vector clone
+            TuplePatternItemsMultiple(TuplePatternItemsMultiple const& other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                patterns.reserve(other.patterns.size());
+
+                for (const auto& e : other.patterns) {
+                    patterns.push_back(e->clone_pattern());
+                }
+            }
+
+            // Overloaded assignment operator to vector clone
+            TuplePatternItemsMultiple& operator=(TuplePatternItemsMultiple const& other) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                patterns.reserve(other.patterns.size());
+
+                for (const auto& e : other.patterns) {
+                    patterns.push_back(e->clone_pattern());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            TuplePatternItemsMultiple(TuplePatternItemsMultiple&& other) = default;
+            TuplePatternItemsMultiple& operator=(TuplePatternItemsMultiple&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -621,8 +748,48 @@ namespace Rust {
           public:
             TuplePatternItemsRanged(::std::vector< ::std::unique_ptr<Pattern> > lower_patterns,
               ::std::vector< ::std::unique_ptr<Pattern> > upper_patterns) :
-              lower_patterns(lower_patterns),
-              upper_patterns(upper_patterns) {}
+              lower_patterns(::std::move(lower_patterns)),
+              upper_patterns(::std::move(upper_patterns)) {}
+
+            // Copy constructor with vector clone
+            TuplePatternItemsRanged(TuplePatternItemsRanged const& other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                lower_patterns.reserve(other.lower_patterns.size());
+
+                for (const auto& e : other.lower_patterns) {
+                    lower_patterns.push_back(e->clone_pattern());
+                }
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                upper_patterns.reserve(other.upper_patterns.size());
+
+                for (const auto& e : other.upper_patterns) {
+                    upper_patterns.push_back(e->clone_pattern());
+                }
+            }
+
+            // Overloaded assignment operator to clone
+            TuplePatternItemsRanged& operator=(TuplePatternItemsRanged const& other) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                lower_patterns.reserve(other.lower_patterns.size());
+
+                for (const auto& e : other.lower_patterns) {
+                    lower_patterns.push_back(e->clone_pattern());
+                }
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                upper_patterns.reserve(other.upper_patterns.size());
+
+                for (const auto& e : other.upper_patterns) {
+                    upper_patterns.push_back(e->clone_pattern());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            TuplePatternItemsRanged(TuplePatternItemsRanged&& other) = default;
+            TuplePatternItemsRanged& operator=(TuplePatternItemsRanged&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -709,7 +876,33 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            SlicePattern(::std::vector< ::std::unique_ptr<Pattern> > items) : items(items) {}
+            SlicePattern(::std::vector< ::std::unique_ptr<Pattern> > items) : items(::std::move(items)) {}
+
+            // Copy constructor with vector clone
+            SlicePattern(SlicePattern const& other) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                items.reserve(other.items.size());
+
+                for (const auto& e : other.items) {
+                    items.push_back(e->clone_pattern());
+                }
+            }
+
+            // Overloaded assignment operator to vector clone
+            SlicePattern& operator=(SlicePattern const& other) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                items.reserve(other.items.size());
+
+                for (const auto& e : other.items) {
+                    items.push_back(e->clone_pattern());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            SlicePattern(SlicePattern&& other) = default;
+            SlicePattern& operator=(SlicePattern&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

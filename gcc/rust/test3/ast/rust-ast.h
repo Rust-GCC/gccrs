@@ -6,8 +6,8 @@
 #include "config.h"
 //#define INCLUDE_UNIQUE_PTR
 // should allow including the gcc emulation of std::unique_ptr
-#include "coretypes.h" // order: config, INCLUDE, system, coretypes
 #include "system.h"
+#include "coretypes.h" // order: config, INCLUDE, system, coretypes
 
 // STL imports
 #include <string>
@@ -70,12 +70,30 @@ namespace Rust {
         class TokenTree {
           public:
             virtual ~TokenTree() {}
+
+            // Unique pointer custom clone function
+            ::std::unique_ptr<TokenTree> clone_token_tree() const {
+                return ::std::unique_ptr<TokenTree>(clone_token_tree_impl());
+            }
+
+          protected:
+            // pure virtual clone implementation
+            virtual TokenTree* clone_token_tree_impl() const = 0;
         };
 
         // Abstract base class for a macro match
         class MacroMatch {
           public:
             virtual ~MacroMatch() {}
+
+            // Unique pointer custom clone function
+            ::std::unique_ptr<MacroMatch> clone_macro_match() const {
+                return ::std::unique_ptr<MacroMatch>(clone_macro_match_impl());
+            }
+
+          protected:
+            // pure virtual clone implementation
+            virtual MacroMatch* clone_macro_match_impl() const = 0;
         };
 
         // A token is a kind of token tree (except delimiter tokens)
@@ -112,6 +130,16 @@ namespace Rust {
             /*virtual*/ Token* clone_token_impl() const {
                 return new Token(*this);
             }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual Token* clone_token_tree_impl() const OVERRIDE {
+                return new Token(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual Token* clone_macro_match_impl() const OVERRIDE {
+                return new Token(*this);
+            }
         };
 
         // A token tree with delimiters
@@ -123,7 +151,6 @@ namespace Rust {
 
           private:
             DelimType delim_type;
-
             ::std::vector< ::std::unique_ptr<TokenTree> > token_trees;
 
           protected:
@@ -132,13 +159,46 @@ namespace Rust {
                 return new DelimTokenTree(*this);
             }
 
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual DelimTokenTree* clone_token_tree_impl() const OVERRIDE {
+                return new DelimTokenTree(*this);
+            }
+
           public:
             DelimTokenTree(
               DelimType delim_type, ::std::vector< ::std::unique_ptr<TokenTree> > token_trees) :
               delim_type(delim_type),
-              token_trees(token_trees) {}
+              token_trees(::std::move(token_trees)) {}
 
             DelimTokenTree(DelimType delim_type) : delim_type(delim_type) {}
+
+            // Copy constructor with vector clone
+            DelimTokenTree(DelimTokenTree const& other) : delim_type(other.delim_type) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                token_trees.reserve(other.token_trees.size());
+
+                for (const auto& e : other.token_trees) {
+                    token_trees.push_back(e->clone_token_tree());
+                }
+            }
+
+            // overloaded assignment operator with vector clone
+            DelimTokenTree& operator=(DelimTokenTree const& other) {
+                delim_type = other.delim_type;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                token_trees.reserve(other.token_trees.size());
+
+                for (const auto& e : other.token_trees) {
+                    token_trees.push_back(e->clone_token_tree());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            DelimTokenTree(DelimTokenTree&& other) = default;
+            DelimTokenTree& operator=(DelimTokenTree&& other) = default;
 
             static DelimTokenTree create_empty() {
                 return DelimTokenTree(PARENS);
@@ -173,6 +233,8 @@ namespace Rust {
             static SimplePathSegment create_error() {
                 return SimplePathSegment(::std::string(""));
             }
+
+            ::std::string as_string() const;
         };
 
         // A simple path without generic or type arguments
@@ -202,6 +264,8 @@ namespace Rust {
             inline bool is_empty() const {
                 return segments.empty();
             }
+
+            ::std::string as_string() const;
         };
 
         // aka Attr
@@ -333,6 +397,8 @@ namespace Rust {
             ::std::unique_ptr<MetaItem> clone_meta_item() const {
                 return ::std::unique_ptr<MetaItem>(clone_meta_item_impl());
             }
+
+            virtual ~MetaItem() {}
         };
 
         // Forward decl - defined in rust-expr.h
@@ -361,11 +427,27 @@ namespace Rust {
 
         /* Base statement abstract class. Note that most "statements" are not allowed in top-level
          * module scope - only a subclass of statements called "items" are. */
-        class Statement : public Node {};
+        class Statement : public Node {
+          public:
+            // Unique pointer custom clone function
+            ::std::unique_ptr<Statement> clone_statement() const {
+                return ::std::unique_ptr<Statement>(clone_statement_impl());
+            }
+
+          protected:
+            // Clone function implementation as pure virtual method
+            virtual Statement* clone_statement_impl() const = 0;
+        };
 
         // Rust "item" AST node (declaration of top-level/module-level allowed stuff)
         class Item : public Statement {
             ::std::vector<Attribute> outer_attrs;
+
+          public:
+            // Unique pointer custom clone function
+            ::std::unique_ptr<Item> clone_item() const {
+                return ::std::unique_ptr<Item>(clone_item_impl());
+            }
 
           protected:
             // Outer attribute constructor
@@ -373,6 +455,9 @@ namespace Rust {
 
             // No outer attributes constructor
             Item() {}
+
+            // Clone function implementation as pure virtual method
+            virtual Item* clone_item_impl() const = 0;
         };
 
         // Base expression AST node - abstract
@@ -465,6 +550,15 @@ namespace Rust {
         class TypeParamBound {
           public:
             virtual ~TypeParamBound() {}
+
+            // Unique pointer custom clone function
+            ::std::unique_ptr<TypeParamBound> clone_type_param_bound() const {
+                return ::std::unique_ptr<TypeParamBound>(clone_type_param_bound_impl());
+            }
+
+          protected:
+            // Clone function implementation as pure virtual method
+            virtual TypeParamBound* clone_type_param_bound_impl() const = 0;
         };
 
         // Represents a lifetime (and is also a kind of type param bound)
@@ -501,12 +595,27 @@ namespace Rust {
             inline bool is_error() const {
                 return lifetime_type == NAMED && lifetime_name.empty();
             }
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual Lifetime* clone_type_param_bound_impl() const OVERRIDE {
+                return new Lifetime(*this);
+            }
         };
 
         // Base generic parameter in AST. Abstract - can be represented by a Lifetime or Type param
         class GenericParam {
           public:
             virtual ~GenericParam() {}
+
+            // Unique pointer custom clone function
+            ::std::unique_ptr<GenericParam> clone_generic_param() const {
+                return ::std::unique_ptr<GenericParam>(clone_generic_param_impl());
+            }
+
+          protected:
+            // Clone function implementation as pure virtual method
+            virtual GenericParam* clone_generic_param_impl() const = 0;
         };
 
         // A lifetime generic parameter (as opposed to a type generic parameter)
@@ -574,6 +683,12 @@ namespace Rust {
             // move constructors
             LifetimeParam(LifetimeParam&& other) = default;
             LifetimeParam& operator=(LifetimeParam&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual LifetimeParam* clone_generic_param_impl() const OVERRIDE {
+                return new LifetimeParam(*this);
+            }
         };
 
         // A macro item AST node - potentially abstract base class
@@ -597,12 +712,20 @@ namespace Rust {
             // Empty constructor
             TraitItem() {}
 
+            // Clone function implementation as pure virtual method
+            virtual TraitItem* clone_trait_item_impl() const = 0;
+
           public:
             virtual ~TraitItem() {}
 
             // Returns whether TraitItem has outer attributes.
             inline bool has_outer_attrs() const {
                 return !outer_attrs.empty();
+            }
+
+            // Unique pointer custom clone function
+            ::std::unique_ptr<TraitItem> clone_trait_item() const {
+                return ::std::unique_ptr<TraitItem>(clone_trait_item_impl());
             }
         };
 
@@ -628,7 +751,7 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<TokenTree> > token_trees,
               ::std::vector<Attribute> outer_attribs) :
               path(macro_path),
-              delim_type(delim_type), token_trees(token_trees), MacroItem(outer_attribs),
+              delim_type(delim_type), token_trees(::std::move(token_trees)), MacroItem(outer_attribs),
               TraitItem(outer_attribs) {}
             /* TODO: possible issue with Item and TraitItem hierarchies both having outer attributes
              * - storage inefficiency at least.
@@ -636,6 +759,53 @@ namespace Rust {
              * for attributes or something.
              * Or just redo the "composition" approach, but then this prevents polymorphism and would
              * entail redoing quite a bit of the parser. */
+
+            // Copy constructor with vector clone
+            MacroInvocationSemi(MacroInvocationSemi const& other) : path(other.path), delim_type(other.delim_type), MacroItem(other), TraitItem(other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                token_trees.reserve(other.token_trees.size());
+
+                for (const auto& e : other.token_trees) {
+                    token_trees.push_back(e->clone_token_tree());
+                }
+            }
+
+            // Overloaded assignment operator to vector clone
+            MacroInvocationSemi& operator=(MacroInvocationSemi const& other) {
+                MacroItem::operator=(other);
+                TraitItem::operator=(other);
+                path = other.path;
+                delim_type = other.delim_type;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                token_trees.reserve(other.token_trees.size());
+
+                for (const auto& e : other.token_trees) {
+                    token_trees.push_back(e->clone_token_tree());
+                }
+
+                return *this;
+            }
+
+            // Move constructors
+            MacroInvocationSemi(MacroInvocationSemi&& other) = default;
+            MacroInvocationSemi& operator=(MacroInvocationSemi&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroInvocationSemi* clone_item_impl() const OVERRIDE {
+                return new MacroInvocationSemi(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroInvocationSemi* clone_statement_impl() const OVERRIDE {
+                return new MacroInvocationSemi(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroInvocationSemi* clone_trait_item_impl() const OVERRIDE {
+                return new MacroInvocationSemi(*this);
+            }
         };
 
         // A crate AST object - holds all the data for a single compilation unit
@@ -653,16 +823,46 @@ namespace Rust {
             // Constructor for crate without shebang or utf8bom
             Crate(
               ::std::vector< ::std::unique_ptr<Item> > items, ::std::vector<Attribute> inner_attrs) :
-              items(items),
+              items(::std::move(items)),
               inner_attrs(inner_attrs), has_shebang(false), has_utf8bom(false) {}
 
             // Constructor with potentially a shebang and/or utf8bom
             Crate(::std::vector< ::std::unique_ptr<Item> > items,
               ::std::vector<Attribute> inner_attrs, bool has_utf8bom, bool has_shebang) :
-              items(items),
+              items(::std::move(items)),
               inner_attrs(inner_attrs), has_shebang(has_shebang), has_utf8bom(has_utf8bom) {}
 
+            // Copy constructor with vector clone
+            Crate(Crate const& other) : inner_attrs(other.inner_attrs), has_shebang(other.has_shebang), has_utf8bom(other.has_utf8bom) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                items.reserve(other.items.size());
+
+                for (const auto& e : other.items) {
+                    items.push_back(e->clone_item());
+                }
+            }
+
             ~Crate() = default;
+
+            // Overloaded assignment operator with vector clone
+            Crate& operator=(Crate const& other) {
+                inner_attrs = other.inner_attrs;
+                has_shebang = other.has_shebang;
+                has_utf8bom = other.has_utf8bom;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                items.reserve(other.items.size());
+
+                for (const auto& e : other.items) {
+                    items.push_back(e->clone_item());
+                }
+
+                return *this;
+            }
+
+            // Move constructors
+            Crate(Crate&& other) = default;
+            Crate& operator=(Crate&& other) = default;
         };
     }
 }

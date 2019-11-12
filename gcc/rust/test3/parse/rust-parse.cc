@@ -1,21 +1,21 @@
 #include "rust-parse.h"
 
-#include "cgraph.h"
 #include "config.h"
-#include "convert.h"
+#include "system.h"
 #include "coretypes.h"
-#include "diagnostic.h"
-#include "fold-const.h"
-#include "gimple-expr.h"
-#include "gimplify.h"
+#include "target.h"
+#include "tree.h"
+#include "tree-iterator.h"
 #include "input.h"
+#include "diagnostic.h"
+#include "stringpool.h"
+#include "cgraph.h"
+#include "gimplify.h"
+#include "gimple-expr.h"
+#include "convert.h"
 #include "print-tree.h"
 #include "stor-layout.h"
-#include "stringpool.h"
-#include "system.h"
-#include "target.h"
-#include "tree-iterator.h"
-#include "tree.h"
+#include "fold-const.h"
 /* order: config, system, coretypes, target, tree, tree-iterator, input, diagnostic, stringpool,
  * cgraph, gimplify, gimple-expr, convert, print-tree, stor-layout, fold-const  */
 // probably don't need all these
@@ -153,7 +153,7 @@ namespace Rust {
             /* TODO: issue here - distinguish between method calls and field access somehow?
                 Also would have to distinguish between paths and function calls (:: operator),
                 maybe more stuff. */
-            /* Current plan for tackling LBP - don't do it based on token, use lookahead. 
+            /* Current plan for tackling LBP - don't do it based on token, use lookahead.
              * Or alternatively, only use Pratt parsing for OperatorExpr and handle other expressions
              * without it. */
 
@@ -368,7 +368,7 @@ namespace Rust {
         // parse items
         ::std::vector< ::std::unique_ptr<AST::Item> > items = parse_items();
 
-        return AST::Crate(items, inner_attrs, has_utf8bom, has_shebang);
+        return AST::Crate(::std::move(items), inner_attrs, has_utf8bom, has_shebang);
     }
 
     // Parse a contiguous block of inner attributes.
@@ -501,16 +501,20 @@ namespace Rust {
 
                     return AST::SimplePathSegment(::std::string("$crate"));
                 }
+                gcc_fallthrough();
             default:
                 // do nothing but inactivates warning from gcc when compiling
                 // could put the error_at thing here but fallthrough (from failing $crate condition)
                 // isn't completely obvious if it is.
-        }
 
+                // test prevent error
+                return AST::SimplePathSegment::create_error();
+        }
+        gcc_unreachable();
         /*error_at(
           t->get_locus(), "invalid token '%s' in simple path segment", t->get_token_description());*/
         // this is not necessarily an error, e.g. end of path
-        return AST::SimplePathSegment::create_error();
+        //return AST::SimplePathSegment::create_error();
     }
 
     // Parses an AttrInput AST node (polymorphic, as AttrInput is abstract)
@@ -519,13 +523,14 @@ namespace Rust {
         switch (t->get_id()) {
             case LEFT_PAREN:
             case LEFT_SQUARE:
-            case LEFT_CURLY:
+            case LEFT_CURLY: {
                 // must be a delimited token tree, so parse that
                 AST::DelimTokenTree* input_tree = new AST::DelimTokenTree(parse_delim_token_tree());
 
                 // TODO: potential checks on DelimTokenTree before returning
 
                 return input_tree;
+            }
             case EQUAL: {
                 // = LiteralExpr
                 lexer.skip_token();
@@ -584,6 +589,8 @@ namespace Rust {
                 skip_after_end_attribute();
                 return NULL;
         }
+        gcc_unreachable();
+        // TODO: find out how to stop gcc error on "no return value"
     }
 
     /* Returns true if the token id matches the delimiter type. Note that this only operates for
@@ -637,7 +644,7 @@ namespace Rust {
         }
 
         // TODO: put in std::move for vector in constructor or here?
-        AST::DelimTokenTree token_tree(delim_type, token_trees_in_tree);
+        AST::DelimTokenTree token_tree(delim_type, ::std::move(token_trees_in_tree));
 
         // parse end delimiters
         t = lexer.peek_token();
@@ -750,6 +757,8 @@ namespace Rust {
                     return parse_vis_item(outer_attrs);
                     // or should this go straight to parsing union?
                 }
+                gcc_fallthrough();
+                // TODO: find out how to disable gcc "implicit fallthrough" warning
             default:
                 // otherwise parse a MacroItem
                 return parse_macro_item(outer_attrs);
@@ -815,7 +824,7 @@ namespace Rust {
     // Parses a VisItem (item that can have non-default visibility).
     AST::VisItem* Parser::parse_vis_item(::std::vector<AST::Attribute> outer_attrs) {
         // parse visibility, which may or may not exist
-        AST::Visibility* vis = parse_visibility();
+        AST::Visibility vis = parse_visibility();
 
         // select VisItem to create depending on keyword
         const_TokenPtr t = lexer.peek_token();
@@ -958,17 +967,17 @@ namespace Rust {
     }
 
     // Parses a visibility syntactical production (i.e. creating a non-default visibility)
-    AST::Visibility* Parser::parse_visibility() {
+    AST::Visibility Parser::parse_visibility() {
         // check for no visibility
         if (lexer.peek_token()->get_id() != PUB) {
-            return NULL;
+            return AST::Visibility::create_error();
         }
 
         lexer.skip_token();
 
         // create simple pub visibility if no parentheses
         if (lexer.peek_token()->get_id() != LEFT_PAREN) {
-            return new AST::Visibility(AST::Visibility::create_public());
+            return AST::Visibility::create_public();
             // or whatever
         }
 
@@ -982,39 +991,44 @@ namespace Rust {
 
                 skip_token(RIGHT_PAREN);
 
-                return new AST::Visibility(AST::Visibility::create_crate());
+                return AST::Visibility::create_crate();
             case SELF:
                 lexer.skip_token();
 
                 skip_token(RIGHT_PAREN);
 
-                return new AST::Visibility(AST::Visibility::create_self());
+                return AST::Visibility::create_self();
             case SUPER:
                 lexer.skip_token();
 
                 skip_token(RIGHT_PAREN);
 
-                return new AST::Visibility(AST::Visibility::create_super());
+                return AST::Visibility::create_super();
             case IN: {
                 lexer.skip_token();
 
                 // parse the "in" path as well
                 AST::SimplePath path = parse_simple_path();
+                if (path.is_empty()) {
+                    error_at(lexer.peek_token()->get_locus(), "missing path in pub(in path) visibility");
+                    // skip after somewhere?
+                    return AST::Visibility::create_error();
+                }
 
                 skip_token(RIGHT_PAREN);
 
-                return new AST::Visibility(AST::Visibility::create_in_path(path));
+                return AST::Visibility::create_in_path(path);
             }
             default:
                 unexpected_token(t);
                 lexer.skip_token();
-                return NULL;
+                return AST::Visibility::create_error();
         }
     }
 
     // Parses a module - either a bodied module or a module defined in another file.
     AST::Module* Parser::parse_module(
-      AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+      AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         skip_token(MOD);
 
         const_TokenPtr module_name = expect_token(IDENTIFIER);
@@ -1038,7 +1052,8 @@ namespace Rust {
 
                 skip_token(RIGHT_CURLY);
 
-                return new AST::ModuleBodied(items, vis, inner_attrs, outer_attrs); // module name?
+                return new AST::ModuleBodied(
+                  ::std::move(items), vis, inner_attrs, outer_attrs); // module name?
             }
             default:
                 unexpected_token(t);
@@ -1049,7 +1064,7 @@ namespace Rust {
 
     // Parses an extern crate declaration (dependency on external crate)
     AST::ExternCrate* Parser::parse_extern_crate(
-      AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+      AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         if (!skip_token(EXTERN_TOK)) {
             skip_after_semicolon();
             return NULL;
@@ -1126,7 +1141,7 @@ namespace Rust {
 
     // Parses a use declaration.
     AST::UseDeclaration* Parser::parse_use_decl(
-      AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+      AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         if (!skip_token(USE)) {
             skip_after_semicolon();
             return NULL;
@@ -1301,7 +1316,7 @@ namespace Rust {
 
     // Parses a function (not a method).
     AST::Function* Parser::parse_function(
-      AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+      AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         // Get qualifiers for function if they exist
         AST::FunctionQualifiers qualifiers = parse_function_qualifiers();
 
@@ -1565,7 +1580,7 @@ namespace Rust {
                 return new AST::TypeParam(ident, ::std::move(type_param_bounds), NULL,
                   outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
             }
-            case EQUAL:
+            case EQUAL: {
                 lexer.skip_token();
 
                 // parse type
@@ -1573,11 +1588,14 @@ namespace Rust {
 
                 return new AST::TypeParam(
                   ident, type, outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+            }
             default:
                 // Best assumption is that this is the end of the type param
                 return new AST::TypeParam(
                   ident, outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
         }
+        // Stop the "control passes without return" error.
+        gcc_unreachable();
     }
 
     // Parses regular (i.e. non-generic) parameters in functions or methods.
@@ -1894,7 +1912,7 @@ namespace Rust {
 
     // Parses a "type alias" (typedef) item.
     AST::TypeAlias* Parser::parse_type_alias(
-      AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+      AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         skip_token(TYPE);
 
         // TODO: use this token for identifier when finished that
@@ -1921,12 +1939,12 @@ namespace Rust {
         }
 
         return new AST::TypeAlias(
-          alias_name, generic_params, where_clause, type_to_alias, vis, outer_attrs);
+          alias_name, ::std::move(generic_params), where_clause, type_to_alias, vis, outer_attrs);
     }
 
     // Parse a struct item AST node.
     AST::Struct* Parser::parse_struct(
-      AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+      AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         /* TODO: determine best way to parse the proper struct vs tuple struct - share most of
          * initial constructs so lookahead might be impossible, and if not probably too expensive.
          * Best way is probably unified parsing for the initial parts and then pass them in as params
@@ -1949,7 +1967,7 @@ namespace Rust {
           = parse_generic_params_in_angles();
 
         // branch on next token - determines whether proper struct or tuple struct
-        if (lexer.peek_token->get_id() == LEFT_PAREN) {
+        if (lexer.peek_token()->get_id() == LEFT_PAREN) {
             // tuple struct
 
             // skip left parenthesis
@@ -1973,7 +1991,7 @@ namespace Rust {
             }
 
             return new AST::TupleStruct(
-              tuple_fields, struct_name, generic_params, where_clause, vis, outer_attrs);
+              tuple_fields, struct_name, ::std::move(generic_params), where_clause, vis, outer_attrs);
         }
 
         // assume it is a proper struct being parsed and continue outside of switch - label only here
@@ -1999,8 +2017,8 @@ namespace Rust {
                     return NULL;
                 }
 
-                return new AST::StructStruct(
-                  struct_fields, struct_name, generic_params, where_clause, false, vis, outer_attrs);
+                return new AST::StructStruct(struct_fields, struct_name, ::std::move(generic_params),
+                  where_clause, false, vis, outer_attrs);
             }
             case SEMICOLON:
                 // unit struct declaration
@@ -2008,7 +2026,7 @@ namespace Rust {
                 lexer.skip_token();
 
                 return new AST::StructStruct(
-                  struct_name, generic_params, where_clause, vis, outer_attrs);
+                  struct_name, ::std::move(generic_params), where_clause, vis, outer_attrs);
             default:
                 error_at(t->get_locus(), "unexpected token '%s' in struct declaration",
                   t->get_token_description());
@@ -2061,7 +2079,7 @@ namespace Rust {
         ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
 
         // parse visibility, if it exists
-        AST::Visibility* vis = parse_visibility();
+        AST::Visibility vis = parse_visibility();
 
         // parse field name
         const_TokenPtr field_name_tok = lexer.peek_token();
@@ -2128,7 +2146,7 @@ namespace Rust {
         ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
 
         // parse visibility if it exists
-        AST::Visibility* vis = parse_visibility();
+        AST::Visibility vis = parse_visibility();
 
         // parse type, which is required
         AST::Type* field_type = parse_type();
@@ -2143,7 +2161,7 @@ namespace Rust {
     }
 
     // Parses a Rust "enum" tagged union item definition.
-    AST::Enum* Parser::parse_enum(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+    AST::Enum* Parser::parse_enum(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         skip_token(ENUM_TOK);
 
         // parse enum name
@@ -2170,7 +2188,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::Enum(enum_name, vis, generic_params, where_clause, enum_items, outer_attrs);
+        return new AST::Enum(enum_name, vis, ::std::move(generic_params), where_clause,
+          ::std::move(enum_items), outer_attrs);
     }
 
     // Parses the enum variants inside an enum definiton.
@@ -2270,7 +2289,7 @@ namespace Rust {
     }
 
     // Parses a C-style (and C-compat) untagged union declaration.
-    AST::Union* Parser::parse_union(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+    AST::Union* Parser::parse_union(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         // hack - "weak keyword" by finding identifier called "union" (lookahead in item switch)
         // skip union "identifier"
         skip_token(IDENTIFIER);
@@ -2305,12 +2324,12 @@ namespace Rust {
 
         // TODO: does this need move?
         return new AST::Union(
-          union_name, vis, generic_params, where_clause, union_fields, outer_attrs);
+          union_name, vis, ::std::move(generic_params), where_clause, union_fields, outer_attrs);
     }
 
     // Parses a "constant item" (compile-time constant to maybe "inline" throughout the program).
     AST::ConstantItem* Parser::parse_const_item(
-      AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+      AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         skip_token(CONST);
 
         // get constant identifier - this is either a proper identifier or the _ wildcard
@@ -2358,7 +2377,7 @@ namespace Rust {
 
     // Parses a "static item" (static storage item, with 'static lifetime).
     AST::StaticItem* Parser::parse_static_item(
-      AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+      AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         skip_token(STATIC_TOK);
 
         // determine whether static item is mutable
@@ -2396,7 +2415,7 @@ namespace Rust {
     }
 
     // Parses a trait definition item, including unsafe ones.
-    AST::Trait* Parser::parse_trait(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+    AST::Trait* Parser::parse_trait(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         bool is_unsafe = false;
         if (lexer.peek_token()->get_id() == UNSAFE) {
             is_unsafe = true;
@@ -2454,8 +2473,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::Trait(ident, is_unsafe, generic_params, type_param_bounds, where_clause,
-          trait_items, vis, outer_attrs);
+        return new AST::Trait(ident, is_unsafe, ::std::move(generic_params),
+          ::std::move(type_param_bounds), where_clause, ::std::move(trait_items), vis, outer_attrs);
     }
 
     // Parses a trait item used inside traits (not trait, the Item).
@@ -2473,6 +2492,8 @@ namespace Rust {
                     return parse_trait_const(outer_attrs);
                 }
                 // else, fallthrough to function
+                // TODO: find out how to disable gcc "implicit fallthrough" error
+                gcc_fallthrough();
             case UNSAFE:
             case EXTERN_TOK:
             case FN_TOK: {
@@ -2548,17 +2569,17 @@ namespace Rust {
 
                 // do actual if instead of ternary for return value optimisation
                 if (is_method) {
-                    AST::TraitMethodDecl method_decl(ident, qualifiers, generic_params, self_param,
+                    AST::TraitMethodDecl method_decl(ident, qualifiers, ::std::move(generic_params), self_param,
                       function_params, return_type, where_clause);
 
                     // TODO: does this (method_decl) need move?
-                    return new AST::TraitItemMethod(method_decl, definition, outer_attrs);
+                    return new AST::TraitItemMethod(::std::move(method_decl), definition, outer_attrs);
                 } else {
                     AST::TraitFunctionDecl function_decl(
-                      ident, qualifiers, generic_params, function_params, return_type, where_clause);
+                      ident, qualifiers, ::std::move(generic_params), function_params, return_type, where_clause);
 
                     // TODO: does this (function_decl) need move?
-                    return new AST::TraitItemFunc(function_decl, definition, outer_attrs);
+                    return new AST::TraitItemFunc(::std::move(function_decl), definition, outer_attrs);
                 }
             }
             default: {
@@ -2599,7 +2620,7 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::TraitItemType(ident, bounds, outer_attrs);
+        return new AST::TraitItemType(ident, ::std::move(bounds), outer_attrs);
     }
 
     // Parses a constant trait item.
@@ -2636,7 +2657,7 @@ namespace Rust {
     }
 
     // Parses a struct "impl" item (both inherent impl and trait impl can be parsed here),
-    AST::Impl* Parser::parse_impl(AST::Visibility* vis, ::std::vector<AST::Attribute> outer_attrs) {
+    AST::Impl* Parser::parse_impl(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         /* Note that only trait impls are allowed to be unsafe. So if unsafe, it must be a trait
          * impl. However, this isn't enough for full disambiguation, so don't branch here. */
         bool is_unsafe = false;
@@ -2716,8 +2737,8 @@ namespace Rust {
                 return NULL;
             }
 
-            return new AST::InherentImpl(
-              impl_items, generic_params, type, where_clause, vis, inner_attrs, outer_attrs);
+            return new AST::InherentImpl(::std::move(impl_items), ::std::move(generic_params), type,
+              where_clause, vis, inner_attrs, outer_attrs);
         } else {
             // type path must both be valid and next token is for, so trait impl
             if (!skip_token(FOR)) {
@@ -2768,8 +2789,8 @@ namespace Rust {
                 return NULL;
             }
 
-            return new AST::TraitImpl(type_path, is_unsafe, has_exclam, impl_items, generic_params,
-              type, where_clause, vis, inner_attrs, outer_attrs);
+            return new AST::TraitImpl(type_path, is_unsafe, has_exclam, ::std::move(impl_items),
+              ::std::move(generic_params), type, where_clause, vis, inner_attrs, outer_attrs);
         }
     }
 
@@ -2778,6 +2799,9 @@ namespace Rust {
 
     // Parses a single trait impl item (item inside a trait impl block).
     AST::TraitImplItem* Parser::parse_trait_impl_item() {}
+
+    // Parses an expression (will further disambiguate any expressions).
+    AST::Expr* Parser::parse_expr() {}
 
     // Parses a block expression, including the curly braces at start and end.
     AST::BlockExpr* Parser::parse_block_expr(::std::vector<AST::Attribute> outer_attrs) {
@@ -2949,6 +2973,7 @@ namespace Rust {
                 return Tree::error();
                 break;
         }
+        return Tree::error();
     }
 
     // "Unexpected token" panic mode - flags gcc error at unexpected token

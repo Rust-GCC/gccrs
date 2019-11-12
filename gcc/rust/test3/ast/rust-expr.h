@@ -934,7 +934,33 @@ namespace Rust {
                 return values;
             }*/
 
-            ArrayElemsValues(::std::vector< ::std::unique_ptr<Expr> > elems) : values(elems) {}
+            ArrayElemsValues(::std::vector< ::std::unique_ptr<Expr> > elems) : values(::std::move(elems)) {}
+
+            // copy constructor with vector clone
+            ArrayElemsValues(ArrayElemsValues const& other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                values.reserve(other.values.size());
+
+                for (const auto& e : other.values) {
+                    values.push_back(e->clone_expr());
+                }
+            }
+
+            // overloaded assignment operator with vector clone
+            ArrayElemsValues& operator=(ArrayElemsValues const& other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                values.reserve(other.values.size());
+
+                for (const auto& e : other.values) {
+                    values.push_back(e->clone_expr());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            ArrayElemsValues(ArrayElemsValues&& other) = default;
+            ArrayElemsValues& operator=(ArrayElemsValues&& other) = default;
 
           protected:
             virtual ArrayElemsValues* clone_array_elems_impl() const OVERRIDE {
@@ -1109,8 +1135,37 @@ namespace Rust {
 
             TupleExpr(::std::vector< ::std::unique_ptr<Expr> > tuple_elements,
               ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs) :
-              tuple_elems(tuple_elements),
+              tuple_elems(::std::move(tuple_elements)),
               inner_attrs(inner_attribs), ExprWithoutBlock(outer_attribs) {}
+
+            // copy constructor with vector clone
+            TupleExpr(TupleExpr const& other) : inner_attrs(other.inner_attrs), ExprWithoutBlock(other) {
+              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                tuple_elems.reserve(other.tuple_elems.size());
+
+                for (const auto& e : other.tuple_elems) {
+                    tuple_elems.push_back(e->clone_expr());
+                }
+            }
+
+            // overloaded assignment operator to vector clone
+            TupleExpr& operator=(TupleExpr const& other) {
+                ExprWithoutBlock::operator=(other);
+                inner_attrs = other.inner_attrs;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                tuple_elems.reserve(other.tuple_elems.size());
+
+                for (const auto& e : other.tuple_elems) {
+                    tuple_elems.push_back(e->clone_expr());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            TupleExpr(TupleExpr&& other) = default;
+            TupleExpr& operator=(TupleExpr&& other) = default;
 
             // Note: syntactically, can disambiguate single-element tuple from parens with comma, i.e.
             // (0,) rather than (0)
@@ -1274,6 +1329,15 @@ namespace Rust {
         class StructExprField {
           public:
             virtual ~StructExprField() {}
+
+            // Unique pointer custom clone function
+            ::std::unique_ptr<StructExprField> clone_struct_expr_field() const {
+                return ::std::unique_ptr<StructExprField>(clone_struct_expr_field_impl());
+            }
+
+          protected:
+            // pure virtual clone implementation
+            virtual StructExprField* clone_struct_expr_field_impl() const = 0;
         };
 
         // Identifier-only variant of StructExprField AST node
@@ -1282,6 +1346,12 @@ namespace Rust {
 
           public:
             StructExprFieldIdentifier(Identifier field_identifier) : field_name(field_identifier) {}
+
+          protected:
+            // Use covariance to implement clone function as returning this rather than base
+            virtual StructExprFieldIdentifier* clone_struct_expr_field_impl() const OVERRIDE {
+                return new StructExprFieldIdentifier(*this);
+            }
         };
 
         // Base AST node for a single struct expression field with an assigned value - abstract
@@ -1324,6 +1394,12 @@ namespace Rust {
               StructExprFieldWithVal(field_value), field_name(field_identifier) {}
 
             // copy constructor, destructor, and overloaded assignment operator should carry through
+
+          protected:
+            // Use covariance to implement clone function as returning this rather than base
+            virtual StructExprFieldIdentifierValue* clone_struct_expr_field_impl() const OVERRIDE {
+                return new StructExprFieldIdentifierValue(*this);
+            }
         };
 
         // Tuple index and value variant of StructExprField AST node
@@ -1335,6 +1411,12 @@ namespace Rust {
               StructExprFieldWithVal(field_value), index(tuple_index) {}
 
             // copy constructor, destructor, and overloaded assignment operator should carry through
+
+          protected:
+            // Use covariance to implement clone function as returning this rather than base
+            virtual StructExprFieldIndexValue* clone_struct_expr_field_impl() const OVERRIDE {
+                return new StructExprFieldIndexValue(*this);
+            }
         };
 
         // AST node of a struct creator with fields
@@ -1364,16 +1446,45 @@ namespace Rust {
             StructExprStructFields(PathInExpression struct_path,
               ::std::vector< ::std::unique_ptr<StructExprField> > expr_fields,
               ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs) :
-              fields(expr_fields),
+              fields(::std::move(expr_fields)),
               struct_base(StructBase::error()),
               StructExprStruct(struct_path, inner_attribs, outer_attribs) {}
 
-            // Constructor for StructExprStructFields when a struct base is ued
+            // Constructor for StructExprStructFields when a struct base is used
             StructExprStructFields(PathInExpression struct_path, StructBase base_struct,
               ::std::vector< ::std::unique_ptr<StructExprField> > expr_fields,
               ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs) :
-              fields(expr_fields),
+              fields(::std::move(expr_fields)),
               struct_base(base_struct), StructExprStruct(struct_path, inner_attribs, outer_attribs) {}
+
+            // copy constructor with vector clone
+            StructExprStructFields(StructExprStructFields const& other) : struct_base(other.struct_base), StructExprStruct(other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                fields.reserve(other.fields.size());
+
+                for (const auto& e : other.fields) {
+                    fields.push_back(e->clone_struct_expr_field());
+                }
+            }
+
+            // overloaded assignment operator with vector clone
+            StructExprStructFields& operator=(StructExprStructFields const& other) {
+                StructExprStruct::operator=(other);
+                struct_base = other.struct_base;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                fields.reserve(other.fields.size());
+
+                for (const auto& e : other.fields) {
+                    fields.push_back(e->clone_struct_expr_field());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            StructExprStructFields(StructExprStructFields&& other) = default;
+            StructExprStructFields& operator=(StructExprStructFields&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1435,8 +1546,37 @@ namespace Rust {
             StructExprTuple(PathInExpression struct_path,
               ::std::vector< ::std::unique_ptr<Expr> > tuple_exprs,
               ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs) :
-              exprs(tuple_exprs),
+              exprs(::std::move(tuple_exprs)),
               inner_attrs(inner_attribs), StructExpr(struct_path, outer_attribs) {}
+
+            // copy constructor with vector clone
+            StructExprTuple(StructExprTuple const& other) : inner_attrs(other.inner_attrs), StructExpr(other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                exprs.reserve(other.exprs.size());
+
+                for (const auto& e : other.exprs) {
+                    exprs.push_back(e->clone_expr());
+                }
+            }
+
+            // overloaded assignment operator with vector clone
+            StructExprTuple& operator=(StructExprTuple const& other) {
+                StructExpr::operator=(other);
+                inner_attrs = other.inner_attrs;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                exprs.reserve(other.exprs.size());
+
+                for (const auto& e : other.exprs) {
+                    exprs.push_back(e->clone_expr());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            StructExprTuple(StructExprTuple&& other) = default;
+            StructExprTuple& operator=(StructExprTuple&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1496,6 +1636,15 @@ namespace Rust {
         class EnumExprField {
           public:
             virtual ~EnumExprField() {}
+
+            // Unique pointer custom clone function
+            ::std::unique_ptr<EnumExprField> clone_enum_expr_field() const {
+                return ::std::unique_ptr<EnumExprField>(clone_enum_expr_field_impl());
+            }
+
+          protected:
+            // Clone function implementation as pure virtual method
+            virtual EnumExprField* clone_enum_expr_field_impl() const = 0;
         };
 
         // Identifier-only variant of EnumExprField AST node
@@ -1504,6 +1653,12 @@ namespace Rust {
 
           public:
             EnumExprFieldIdentifier(Identifier field_identifier) : field_name(field_identifier) {}
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual EnumExprFieldIdentifier* clone_enum_expr_field_impl() const OVERRIDE {
+                return new EnumExprFieldIdentifier(*this);
+            }
         };
 
         // Base AST node for a single enum expression field with an assigned value - abstract
@@ -1545,6 +1700,12 @@ namespace Rust {
               field_name(field_name), EnumExprFieldWithVal(field_value) {}
 
             // copy constructor, destructor, and assignment operator should not need defining
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual EnumExprFieldIdentifierValue* clone_enum_expr_field_impl() const OVERRIDE {
+                return new EnumExprFieldIdentifierValue(*this);
+            }
         };
 
         // Tuple index and value variant of EnumExprField AST node
@@ -1557,6 +1718,12 @@ namespace Rust {
               index(field_index), EnumExprFieldWithVal(field_value) {}
 
             // copy constructor, destructor, and assignment operator should not need defining
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual EnumExprFieldIndexValue* clone_enum_expr_field_impl() const OVERRIDE {
+                return new EnumExprFieldIndexValue(*this);
+            }
         };
 
         // Struct-like syntax enum variant instance creation AST node
@@ -1574,10 +1741,36 @@ namespace Rust {
             EnumExprStruct(PathInExpression enum_variant_path,
               ::std::vector< ::std::unique_ptr<EnumExprField> > variant_fields,
               ::std::vector<Attribute> outer_attribs) :
-              fields(variant_fields),
+              fields(::std::move(variant_fields)),
               EnumVariantExpr(enum_variant_path, outer_attribs) {}
 
-            // copy constructor, destructor, and assignment operator should not need defining
+            // copy constructor with vector clone
+            EnumExprStruct(EnumExprStruct const& other) : EnumVariantExpr(other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                fields.reserve(other.fields.size());
+
+                for (const auto& e : other.fields) {
+                    fields.push_back(e->clone_enum_expr_field());
+                }
+            }
+
+            // overloaded assignment operator with vector clone
+            EnumExprStruct& operator=(EnumExprStruct const& other) {
+                EnumVariantExpr::operator=(other);
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                fields.reserve(other.fields.size());
+
+                for (const auto& e : other.fields) {
+                    fields.push_back(e->clone_enum_expr_field());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            EnumExprStruct(EnumExprStruct&& other) = default;
+            EnumExprStruct& operator=(EnumExprStruct&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1606,10 +1799,36 @@ namespace Rust {
             EnumExprTuple(PathInExpression enum_variant_path,
               ::std::vector< ::std::unique_ptr<Expr> > variant_values,
               ::std::vector<Attribute> outer_attribs) :
-              values(variant_values),
+              values(::std::move(variant_values)),
               EnumVariantExpr(enum_variant_path, outer_attribs) {}
 
-            // copy constructor, destructor, and assignment operator should not need defining
+            // copy constructor with vector clone
+            EnumExprTuple(EnumExprTuple const& other) : EnumVariantExpr(other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                values.reserve(other.values.size());
+
+                for (const auto& e : other.values) {
+                    values.push_back(e->clone_expr());
+                }
+            }
+
+            // overloaded assignment operator with vector clone
+            EnumExprTuple& operator=(EnumExprTuple const& other) {
+                EnumVariantExpr::operator=(other);
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                values.reserve(other.values.size());
+
+                for (const auto& e : other.values) {
+                    values.push_back(e->clone_expr());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            EnumExprTuple(EnumExprTuple&& other) = default;
+            EnumExprTuple& operator=(EnumExprTuple&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1649,12 +1868,6 @@ namespace Rust {
             }
         };
 
-        // inlined
-        /*struct CallParams {
-            //::std::vector<Expr> params;
-            ::std::vector< ::std::unique_ptr<Expr> > params;
-        };*/
-
         // Function call expression AST node
         class CallExpr : public ExprWithoutBlock {
             // Expr* function;
@@ -1676,11 +1889,18 @@ namespace Rust {
             CallExpr(Expr* function_expr, ::std::vector< ::std::unique_ptr<Expr> > function_params,
               ::std::vector<Attribute> outer_attribs) :
               function(function_expr),
-              params(function_params), ExprWithoutBlock(outer_attribs) {}
+              params(::std::move(function_params)), ExprWithoutBlock(outer_attribs) {}
 
             // copy constructor requires clone
             CallExpr(CallExpr const& other) :
-              function(other.function->clone_expr()), params(other.params), ExprWithoutBlock(other) {}
+              function(other.function->clone_expr()), /*params(other.params),*/ ExprWithoutBlock(other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                params.reserve(other.params.size());
+
+                for (const auto& e : other.params) {
+                    params.push_back(e->clone_expr());
+                }
+              }
 
             // Destructor - define here if required
 
@@ -1688,8 +1908,15 @@ namespace Rust {
             CallExpr& operator=(CallExpr const& other) {
                 ExprWithoutBlock::operator=(other);
                 function = other.function->clone_expr();
-                params = other.params;
+                //params = other.params;
                 // outer_attrs = other.outer_attrs;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                params.reserve(other.params.size());
+
+                for (const auto& e : other.params) {
+                    params.push_back(e->clone_expr());
+                }
 
                 return *this;
             }
@@ -1733,12 +1960,19 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<Expr> > method_params,
               ::std::vector<Attribute> outer_attribs) :
               receiver(call_receiver),
-              method_name(method_path), params(method_params), ExprWithoutBlock(outer_attribs) {}
+              method_name(method_path), params(::std::move(method_params)), ExprWithoutBlock(outer_attribs) {}
 
             // copy constructor required due to cloning
             MethodCallExpr(MethodCallExpr const& other) :
               receiver(other.receiver->clone_expr()), method_name(other.method_name),
-              params(other.params), ExprWithoutBlock(other) {}
+              /*params(other.params),*/ ExprWithoutBlock(other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                params.reserve(other.params.size());
+
+                for (const auto& e : other.params) {
+                    params.push_back(e->clone_expr());
+                }
+              }
 
             // Destructor - define here if required
 
@@ -1747,8 +1981,15 @@ namespace Rust {
                 ExprWithoutBlock::operator=(other);
                 receiver = other.receiver->clone_expr();
                 method_name = other.method_name;
-                params = other.params;
+                //params = other.params;
                 // outer_attrs = other.outer_attrs;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                params.reserve(other.params.size());
+
+                for (const auto& e : other.params) {
+                    params.push_back(e->clone_expr());
+                }
 
                 return *this;
             }
@@ -1966,23 +2207,37 @@ namespace Rust {
             BlockExpr(::std::vector< ::std::unique_ptr<Statement> > block_statements,
               ExprWithoutBlock* block_expr, ::std::vector<Attribute> inner_attribs,
               ::std::vector<Attribute> outer_attribs) :
-              statements(block_statements),
+              statements(::std::move(block_statements)),
               expr(block_expr), inner_attrs(inner_attribs), ExprWithBlock(outer_attribs) {}
 
             // Copy constructor with clone
             BlockExpr(BlockExpr const& other) :
-              statements(other.statements), expr(other.expr->clone_expr_without_block()),
-              inner_attrs(other.inner_attrs), ExprWithBlock(other) {}
+              /*statements(other.statements),*/ expr(other.expr->clone_expr_without_block()),
+              inner_attrs(other.inner_attrs), ExprWithBlock(other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                statements.reserve(other.statements.size());
+
+                for (const auto& e : other.statements) {
+                    statements.push_back(e->clone_statement());
+                }
+              }
 
             // Destructor - define here if required
 
             // Overloaded assignment operator to clone pointer
             BlockExpr& operator=(BlockExpr const& other) {
                 ExprWithBlock::operator=(other);
-                statements = other.statements;
+                //statements = other.statements;
                 expr = other.expr->clone_expr_without_block();
                 inner_attrs = other.inner_attrs;
                 // outer_attrs = other.outer_attrs;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                statements.reserve(other.statements.size());
+
+                for (const auto& e : other.statements) {
+                    statements.push_back(e->clone_statement());
+                }
 
                 return *this;
             }
@@ -2744,31 +2999,45 @@ namespace Rust {
             // Constructor with no loop label
             WhileLetLoopExpr(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
               Expr* condition, BlockExpr* loop_block, ::std::vector<Attribute> outer_attribs) :
-              match_arm_patterns(match_arm_patterns),
+              match_arm_patterns(::std::move(match_arm_patterns)),
               condition(condition), BaseLoopExpr(loop_block, outer_attribs) {}
 
             // Constructor with a loop label
             WhileLetLoopExpr(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
               Expr* condition, BlockExpr* loop_block, LoopLabel loop_label,
               ::std::vector<Attribute> outer_attribs) :
-              match_arm_patterns(match_arm_patterns),
+              match_arm_patterns(::std::move(match_arm_patterns)),
               condition(condition), BaseLoopExpr(loop_block, loop_label, outer_attribs) {}
 
             // Copy constructor with clone
             WhileLetLoopExpr(WhileLetLoopExpr const& other) :
-              match_arm_patterns(other.match_arm_patterns), condition(other.condition->clone_expr()),
-              BaseLoopExpr(other) {}
+              /*match_arm_patterns(other.match_arm_patterns),*/ condition(other.condition->clone_expr()),
+              BaseLoopExpr(other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                match_arm_patterns.reserve(other.match_arm_patterns.size());
+
+                for (const auto& e : other.match_arm_patterns) {
+                    match_arm_patterns.push_back(e->clone_pattern());
+                }
+              }
 
             // Destructor - define here if required
 
             // Overloaded assignment operator to clone pointers
             WhileLetLoopExpr& operator=(WhileLetLoopExpr const& other) {
                 BaseLoopExpr::operator=(other);
-                match_arm_patterns = other.match_arm_patterns;
+                //match_arm_patterns = other.match_arm_patterns;
                 condition = other.condition->clone_expr();
                 // loop_block = other.loop_block->clone_block_expr();
                 // loop_label = other.loop_label;
                 // outer_attrs = other.outer_attrs;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                match_arm_patterns.reserve(other.match_arm_patterns.size());
+
+                for (const auto& e : other.match_arm_patterns) {
+                    match_arm_patterns.push_back(e->clone_pattern());
+                }
 
                 return *this;
             }
@@ -3051,23 +3320,37 @@ namespace Rust {
 
             IfLetExpr(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns, Expr* value,
               BlockExpr* if_block, ::std::vector<Attribute> outer_attribs) :
-              match_arm_patterns(match_arm_patterns),
+              match_arm_patterns(::std::move(match_arm_patterns)),
               value(value), if_block(if_block), ExprWithBlock(outer_attribs) {}
 
             // copy constructor with clone
             IfLetExpr(IfLetExpr const& other) :
-              match_arm_patterns(other.match_arm_patterns), value(other.value->clone_expr()),
-              if_block(other.if_block->clone_block_expr()), ExprWithBlock(other) {}
+              /*match_arm_patterns(other.match_arm_patterns),*/ value(other.value->clone_expr()),
+              if_block(other.if_block->clone_block_expr()), ExprWithBlock(other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                match_arm_patterns.reserve(other.match_arm_patterns.size());
+
+                for (const auto& e : other.match_arm_patterns) {
+                    match_arm_patterns.push_back(e->clone_pattern());
+                }
+              }
 
             // destructor - define here if required
 
             // overload assignment operator to clone
             IfLetExpr& operator=(IfLetExpr const& other) {
                 ExprWithBlock::operator=(other);
-                match_arm_patterns = other.match_arm_patterns;
+                //match_arm_patterns = other.match_arm_patterns;
                 value = other.value->clone_expr();
                 if_block = other.if_block->clone_block_expr();
                 // outer_attrs = other.outer_attrs;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                match_arm_patterns.reserve(other.match_arm_patterns.size());
+
+                for (const auto& e : other.match_arm_patterns) {
+                    match_arm_patterns.push_back(e->clone_pattern());
+                }
 
                 return *this;
             }
@@ -3168,7 +3451,7 @@ namespace Rust {
             IfLetExprConseqElse(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
               Expr* value, BlockExpr* if_block, BlockExpr* else_block,
               ::std::vector<Attribute> outer_attribs) :
-              IfLetExpr(match_arm_patterns, value, if_block, outer_attribs),
+              IfLetExpr(::std::move(match_arm_patterns), value, if_block, outer_attribs),
               else_block(else_block) {}
 
             // copy constructor with clone
@@ -3225,7 +3508,7 @@ namespace Rust {
             IfLetExprConseqIf(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
               Expr* value, BlockExpr* if_block, IfExpr* if_expr,
               ::std::vector<Attribute> outer_attribs) :
-              IfLetExpr(match_arm_patterns, value, if_block, outer_attribs),
+              IfLetExpr(::std::move(match_arm_patterns), value, if_block, outer_attribs),
               if_expr(if_expr) {}
 
             // copy constructor with clone
@@ -3282,7 +3565,7 @@ namespace Rust {
             IfLetExprConseqIfLet(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
               Expr* value, BlockExpr* if_block, IfLetExpr* if_let_expr,
               ::std::vector<Attribute> outer_attribs) :
-              IfLetExpr(match_arm_patterns, value, if_block, outer_attribs),
+              IfLetExpr(::std::move(match_arm_patterns), value, if_block, outer_attribs),
               if_let_expr(if_let_expr) {}
 
             // copy constructor with clone
@@ -3350,27 +3633,41 @@ namespace Rust {
             // Constructor for match arm without a guard expression
             MatchArm(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
               ::std::vector<Attribute> outer_attrs) :
-              match_arm_patterns(match_arm_patterns),
+              match_arm_patterns(::std::move(match_arm_patterns)),
               outer_attrs(outer_attrs) /*, guard_expr(NULL)*/ {}
 
             // Constructor for match arm with a guard expression
             MatchArm(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns, Expr* guard_expr,
               ::std::vector<Attribute> outer_attrs) :
-              match_arm_patterns(match_arm_patterns),
+              match_arm_patterns(::std::move(match_arm_patterns)),
               guard_expr(guard_expr), outer_attrs(outer_attrs) {}
 
             // Copy constructor with clone
             MatchArm(MatchArm const& other) :
-              match_arm_patterns(other.match_arm_patterns), outer_attrs(other.outer_attrs),
-              guard_expr(other.guard_expr->clone_expr()) {}
+              /*match_arm_patterns(other.match_arm_patterns),*/ outer_attrs(other.outer_attrs),
+              guard_expr(other.guard_expr->clone_expr()) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                match_arm_patterns.reserve(other.match_arm_patterns.size());
+
+                for (const auto& e : other.match_arm_patterns) {
+                    match_arm_patterns.push_back(e->clone_pattern());
+                }
+              }
 
             ~MatchArm() = default;
 
             // Overload assignment operator to clone
             MatchArm& operator=(MatchArm const& other) {
-                match_arm_patterns = other.match_arm_patterns;
+                //match_arm_patterns = other.match_arm_patterns;
                 outer_attrs = other.outer_attrs;
                 guard_expr = other.guard_expr->clone_expr();
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                match_arm_patterns.reserve(other.match_arm_patterns.size());
+
+                for (const auto& e : other.match_arm_patterns) {
+                    match_arm_patterns.push_back(e->clone_pattern());
+                }
 
                 return *this;
             }
@@ -3388,8 +3685,17 @@ namespace Rust {
             MatchCase(MatchArm arm) : arm(arm) {}
 
             // Should not require copy constructor or assignment operator overloading
+
+            // Clone function implementation as pure virtual method
+            virtual MatchCase* clone_match_case_impl() const = 0;
+
           public:
             virtual ~MatchCase() {}
+
+            // Unique pointer custom clone function
+            ::std::unique_ptr<MatchCase> clone_match_case() const {
+                return ::std::unique_ptr<MatchCase>(clone_match_case_impl());
+            }
         };
 
         // Block expression match case
@@ -3482,12 +3788,19 @@ namespace Rust {
             MatchExpr(Expr* branch_value, ::std::vector< ::std::unique_ptr<MatchCase> > match_arms,
               ::std::vector<Attribute> inner_attrs, ::std::vector<Attribute> outer_attrs) :
               branch_value(branch_value),
-              match_arms(match_arms), inner_attrs(inner_attrs), ExprWithBlock(outer_attrs) {}
+              match_arms(::std::move(match_arms)), inner_attrs(inner_attrs), ExprWithBlock(outer_attrs) {}
 
             // Copy constructor requires clone due to unique_ptr
             MatchExpr(MatchExpr const& other) :
-              branch_value(other.branch_value->clone_expr()), match_arms(other.match_arms),
-              inner_attrs(other.inner_attrs), ExprWithBlock(other) {}
+              branch_value(other.branch_value->clone_expr()), /*match_arms(other.match_arms),*/
+              inner_attrs(other.inner_attrs), ExprWithBlock(other) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                match_arms.reserve(other.match_arms.size());
+
+                for (const auto& e : other.match_arms) {
+                    match_arms.push_back(e->clone_match_case());
+                }
+              }
 
             // Destructor - define here if required
 
@@ -3495,9 +3808,16 @@ namespace Rust {
             MatchExpr& operator=(MatchExpr const& other) {
                 ExprWithBlock::operator=(other);
                 branch_value = other.branch_value->clone_expr();
-                match_arms = other.match_arms;
+                //match_arms = other.match_arms;
                 inner_attrs = other.inner_attrs;
                 // outer_attrs = other.outer_attrs;
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                match_arms.reserve(other.match_arms.size());
+
+                for (const auto& e : other.match_arms) {
+                    match_arms.push_back(e->clone_match_case());
+                }
 
                 return *this;
             }
