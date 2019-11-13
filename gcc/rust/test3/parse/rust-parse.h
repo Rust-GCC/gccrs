@@ -79,6 +79,14 @@ namespace Rust {
         // Token tree or macro related
         AST::DelimTokenTree parse_delim_token_tree();
         AST::TokenTree* parse_token_tree();
+        AST::MacroRulesDefinition* parse_macro_rules_def(::std::vector<AST::Attribute> outer_attrs);
+        AST::MacroInvocationSemi* parse_macro_invocation_semi(
+          ::std::vector<AST::Attribute> outer_attrs);
+        AST::MacroRule parse_macro_rule();
+        AST::MacroMatcher parse_macro_matcher();
+        AST::MacroMatch* parse_macro_match();
+        AST::MacroMatchFragment* parse_macro_match_fragment();
+        AST::MacroMatchRepetition* parse_macro_match_repetition();
 
         // Top-level item-related
         ::std::vector< ::std::unique_ptr<AST::Item> > parse_items();
@@ -139,14 +147,13 @@ namespace Rust {
         AST::SelfParam parse_self_param();
         AST::Impl* parse_impl(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::InherentImplItem* parse_inherent_impl_item();
+        AST::InherentImplItem* parse_inherent_impl_function_or_method(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::TraitImplItem* parse_trait_impl_item();
+        AST::TraitImplItem* parse_trait_impl_function_or_method(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::ExternBlock* parse_extern_block(
           AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
-
-        // MacroItem subclass-related
-        AST::MacroRulesDefinition* parse_macro_rules_def(::std::vector<AST::Attribute> outer_attrs);
-        AST::MacroInvocationSemi* parse_macro_invocation_semi(
-          ::std::vector<AST::Attribute> outer_attrs);
+        AST::ExternalItem* parse_external_item();
+        AST::NamedFunctionParam parse_named_function_param();
 
         // Expression-related
         AST::Expr* parse_expr();

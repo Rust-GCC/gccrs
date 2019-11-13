@@ -447,6 +447,8 @@ namespace Rust {
             // BlockExpr* expr;
             ::std::unique_ptr<BlockExpr> expr;
 
+            // TODO: move visibility to method struct for consistency?
+
           public:
             /*~Method() {
                 delete expr;
@@ -590,7 +592,7 @@ namespace Rust {
                 return Visibility(IN_PATH, in_path);
             }
 
-            ::std::string as_string() const; 
+            ::std::string as_string() const;
 
           protected:
             // Clone function implementation - not currently virtual but may be if polymorphism used
@@ -612,8 +614,7 @@ namespace Rust {
             VisItem(Visibility visibility) : visibility(visibility), Item() {}
 
             // Visibility copy constructor
-            VisItem(VisItem const& other) :
-              visibility(other.visibility), Item(other) {}
+            VisItem(VisItem const& other) : visibility(other.visibility), Item(other) {}
 
             // Destructor - define here if required
 
@@ -1394,8 +1395,8 @@ namespace Rust {
 
             // Copy constructor with clone
             TupleField(TupleField const& other) :
-              field_type(other.field_type->clone_type()),
-              visibility(other.visibility), outer_attrs(other.outer_attrs) {}
+              field_type(other.field_type->clone_type()), visibility(other.visibility),
+              outer_attrs(other.outer_attrs) {}
 
             ~TupleField() = default;
 
@@ -2497,29 +2498,37 @@ namespace Rust {
           public:
             InherentImplItemMacro(MacroInvocationSemi macro, ::std::vector<Attribute> outer_attrs) :
               macro(macro), InherentImplItem(outer_attrs) {}
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual InherentImplItemMacro* clone_inherent_impl_item_impl() const OVERRIDE {
+                return new InherentImplItemMacro(*this);
+            }
         };
 
         // Constant item used within an inherent impl block
         class InherentImplItemConstant : public InherentImplItem {
             // bool has_visibility;
-            Visibility visibility;
+            // FIXME: ConstantItem already has vis, so this is redundant
+            // Visibility visibility;
 
             ConstantItem constant_item;
 
           public:
             // Returns whether item has a non-default (i.e. non-private) visibility.
             inline bool has_visibility() const {
-                return !visibility.is_error();
+                // return !visibility.is_error();
+                return constant_item.has_visibility();
             }
 
             InherentImplItemConstant(
-              ConstantItem constant_item, Visibility vis, ::std::vector<Attribute> outer_attrs) :
+              ConstantItem constant_item, /*Visibility vis,*/ ::std::vector<Attribute> outer_attrs) :
               constant_item(constant_item),
-              visibility(vis), InherentImplItem(outer_attrs) {}
+              /*visibility(vis),*/ InherentImplItem(outer_attrs) {}
 
             // Copy constructor with clone
             InherentImplItemConstant(InherentImplItemConstant const& other) :
-              constant_item(other.constant_item), visibility(other.visibility),
+              constant_item(other.constant_item), /*visibility(other.visibility),*/
               InherentImplItem(other) {}
 
             // Destructor - define here if required
@@ -2528,7 +2537,7 @@ namespace Rust {
             InherentImplItemConstant& operator=(InherentImplItemConstant const& other) {
                 InherentImplItem::operator=(other);
                 constant_item = other.constant_item;
-                visibility = other.visibility;
+                // visibility = other.visibility;
 
                 return *this;
             }
@@ -2536,29 +2545,37 @@ namespace Rust {
             // move constructors
             InherentImplItemConstant(InherentImplItemConstant&& other) = default;
             InherentImplItemConstant& operator=(InherentImplItemConstant&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual InherentImplItemConstant* clone_inherent_impl_item_impl() const OVERRIDE {
+                return new InherentImplItemConstant(*this);
+            }
         };
 
         // Function item used within an inherent impl block
         class InherentImplItemFunction : public InherentImplItem {
             // bool has_visibility;
-            Visibility visibility;
+            // FIXME: function already has vis, so this is redundant
+            // Visibility visibility;
 
             Function function;
 
           public:
             // Returns whether item has a non-default (i.e. non-private) visibility.
             inline bool has_visibility() const {
-                return !visibility.is_error();
+                // return !visibility.is_error();
+                return function.has_visibility();
             }
 
             InherentImplItemFunction(
-              Function function, Visibility vis, ::std::vector<Attribute> outer_attrs) :
+              Function function, /*Visibility vis,*/ ::std::vector<Attribute> outer_attrs) :
               function(::std::move(function)),
-              visibility(vis), InherentImplItem(outer_attrs) {}
+              /*visibility(vis),*/ InherentImplItem(outer_attrs) {}
 
             // Copy constructor with clone
             InherentImplItemFunction(InherentImplItemFunction const& other) :
-              function(other.function), visibility(other.visibility),
+              function(other.function), /*visibility(other.visibility),*/
               InherentImplItem(other) {}
 
             // Destructor - define here if required
@@ -2567,7 +2584,7 @@ namespace Rust {
             InherentImplItemFunction& operator=(InherentImplItemFunction const& other) {
                 InherentImplItem::operator=(other);
                 function = other.function;
-                visibility = other.visibility;
+                // visibility = other.visibility;
 
                 return *this;
             }
@@ -2575,11 +2592,18 @@ namespace Rust {
             // move constructors
             InherentImplItemFunction(InherentImplItemFunction&& other) = default;
             InherentImplItemFunction& operator=(InherentImplItemFunction&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual InherentImplItemFunction* clone_inherent_impl_item_impl() const OVERRIDE {
+                return new InherentImplItemFunction(*this);
+            }
         };
 
         // Method item used within an inherent impl block
         class InherentImplItemMethod : public InherentImplItem {
             // bool has_visibility;
+            // TODO: move visibility to method to be consistent with other inherent impl items?
             Visibility visibility;
 
             Method method;
@@ -2597,8 +2621,7 @@ namespace Rust {
 
             // Copy constructor with clone
             InherentImplItemMethod(InherentImplItemMethod const& other) :
-              method(other.method), visibility(other.visibility),
-              InherentImplItem(other) {}
+              method(other.method), visibility(other.visibility), InherentImplItem(other) {}
 
             // Destructor - define here if required
 
@@ -2614,6 +2637,12 @@ namespace Rust {
             // move constructors
             InherentImplItemMethod(InherentImplItemMethod&& other) = default;
             InherentImplItemMethod& operator=(InherentImplItemMethod&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual InherentImplItemMethod* clone_inherent_impl_item_impl() const OVERRIDE {
+                return new InherentImplItemMethod(*this);
+            }
         };
 
         // Regular "impl foo" impl block declaration AST node
@@ -2712,30 +2741,37 @@ namespace Rust {
           public:
             TraitImplItemMacro(MacroInvocationSemi macro, ::std::vector<Attribute> outer_attrs) :
               macro(macro), TraitImplItem(outer_attrs) {}
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual TraitImplItemMacro* clone_trait_impl_item_impl() const OVERRIDE {
+                return new TraitImplItemMacro(*this);
+            }
         };
 
         // Type alias item in a trait impl
         class TraitImplItemTypeAlias : public TraitImplItem {
             // bool has_visibility;
-            Visibility visibility;
+            // FIXME: don't double up visibility because TypeAlias already has it
+            //Visibility visibility;
 
             TypeAlias type_alias;
 
           public:
             // Returns whether trait impl item has a non-default visibility.
             inline bool has_visibility() const {
-                return !visibility.is_error();
+                //return !visibility.is_error();
+                return type_alias.has_visibility();
             }
 
             TraitImplItemTypeAlias(
-              TypeAlias type_alias, Visibility vis, ::std::vector<Attribute> outer_attrs) :
+              TypeAlias type_alias, /*Visibility vis,*/ ::std::vector<Attribute> outer_attrs) :
               type_alias(::std::move(type_alias)),
-              visibility(vis), TraitImplItem(outer_attrs) {}
+              /*visibility(vis),*/ TraitImplItem(outer_attrs) {}
 
             // Copy constructor
             TraitImplItemTypeAlias(TraitImplItemTypeAlias const& other) :
-              type_alias(other.type_alias), visibility(other.visibility),
-              TraitImplItem(other) {}
+              type_alias(other.type_alias), /*visibility(other.visibility),*/ TraitImplItem(other) {}
 
             // Destructor - define here if required
 
@@ -2743,7 +2779,7 @@ namespace Rust {
             TraitImplItemTypeAlias& operator=(TraitImplItemTypeAlias const& other) {
                 TraitImplItem::operator=(other);
                 type_alias = other.type_alias;
-                visibility = other.visibility;
+                //visibility = other.visibility;
 
                 return *this;
             }
@@ -2751,30 +2787,38 @@ namespace Rust {
             // move constructors
             TraitImplItemTypeAlias(TraitImplItemTypeAlias&& other) = default;
             TraitImplItemTypeAlias& operator=(TraitImplItemTypeAlias&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual TraitImplItemTypeAlias* clone_trait_impl_item_impl() const OVERRIDE {
+                return new TraitImplItemTypeAlias(*this);
+            }
         };
 
         // Constant item in a trait impl
         class TraitImplItemConstant : public TraitImplItem {
             // bool has_visibility;
-            Visibility visibility;
+            // FIXME: this is redundant as VisItem has it
+            //Visibility visibility;
 
             ConstantItem constant_item;
 
           public:
             // Returns whether item has a non-default (i.e. non-private) visibility.
             inline bool has_visibility() const {
-                return !visibility.is_error();
+                //return !visibility.is_error();
+                return constant_item.has_visibility();
             }
 
             TraitImplItemConstant(
-              ConstantItem constant_item, Visibility vis, ::std::vector<Attribute> outer_attrs) :
+              ConstantItem constant_item, /*Visibility vis,*/ ::std::vector<Attribute> outer_attrs) :
               constant_item(constant_item),
-              visibility(vis), TraitImplItem(outer_attrs) {}
+              /*visibility(vis),*/ TraitImplItem(outer_attrs) {}
 
             // Copy constructor with clone
             TraitImplItemConstant(TraitImplItemConstant const& other) :
-              constant_item(other.constant_item), visibility(other.visibility),
-              TraitImplItem(other) {}
+              constant_item(other.constant_item), /*visibility(other.visibility),*/ TraitImplItem(other) {
+            }
 
             // Destructor - define here if required
 
@@ -2782,7 +2826,7 @@ namespace Rust {
             TraitImplItemConstant& operator=(TraitImplItemConstant const& other) {
                 TraitImplItem::operator=(other);
                 constant_item = other.constant_item;
-                visibility = other.visibility;
+                //visibility = other.visibility;
 
                 return *this;
             }
@@ -2790,30 +2834,37 @@ namespace Rust {
             // move constructors as not supported in c++03
             TraitImplItemConstant(TraitImplItemConstant&& other) = default;
             TraitImplItemConstant& operator=(TraitImplItemConstant&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual TraitImplItemConstant* clone_trait_impl_item_impl() const OVERRIDE {
+                return new TraitImplItemConstant(*this);
+            }
         };
 
         /// Function item in a trait impl
         class TraitImplItemFunction : public TraitImplItem {
             // bool has_visibility;
-            Visibility visibility;
+            // FIXME: redundant - VisItem already has visibility
+            //Visibility visibility;
 
             Function function;
 
           public:
             // Returns whether item has a non-default (i.e. non-private) visibility.
             inline bool has_visibility() const {
-                return !visibility.is_error();
+                //return !visibility.is_error();
+                return function.has_visibility();
             }
 
             TraitImplItemFunction(
-              Function function, Visibility vis, ::std::vector<Attribute> outer_attrs) :
+              Function function, /*Visibility vis,*/ ::std::vector<Attribute> outer_attrs) :
               function(::std::move(function)),
-              visibility(vis), TraitImplItem(outer_attrs) {}
+              /*visibility(vis),*/ TraitImplItem(outer_attrs) {}
 
             // Copy constructor with clone
             TraitImplItemFunction(TraitImplItemFunction const& other) :
-              function(other.function), visibility(other.visibility),
-              TraitImplItem(other) {}
+              function(other.function), /*visibility(other.visibility),*/ TraitImplItem(other) {}
 
             // Destructor - define here if required
 
@@ -2821,7 +2872,7 @@ namespace Rust {
             TraitImplItemFunction& operator=(TraitImplItemFunction const& other) {
                 TraitImplItem::operator=(other);
                 function = other.function;
-                visibility = other.visibility;
+                //visibility = other.visibility;
 
                 return *this;
             }
@@ -2829,6 +2880,12 @@ namespace Rust {
             // move constructors
             TraitImplItemFunction(TraitImplItemFunction&& other) = default;
             TraitImplItemFunction& operator=(TraitImplItemFunction&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual TraitImplItemFunction* clone_trait_impl_item_impl() const OVERRIDE {
+                return new TraitImplItemFunction(*this);
+            }
         };
 
         // Method item in a trait impl
@@ -2836,6 +2893,7 @@ namespace Rust {
             // bool has_visibility;
             Visibility visibility;
 
+            // TODO: add visibility to Method for consistency?
             Method method;
 
           public:
@@ -2844,15 +2902,12 @@ namespace Rust {
                 return !visibility.is_error();
             }
 
-            TraitImplItemMethod(
-              Method method, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              method(::std::move(method)),
-              visibility(vis), TraitImplItem(outer_attrs) {}
+            TraitImplItemMethod(Method method, Visibility vis, ::std::vector<Attribute> outer_attrs) :
+              method(::std::move(method)), visibility(vis), TraitImplItem(outer_attrs) {}
 
             // Copy constructor with clone
             TraitImplItemMethod(TraitImplItemMethod const& other) :
-              method(other.method), visibility(other.visibility),
-              TraitImplItem(other) {}
+              method(other.method), visibility(other.visibility), TraitImplItem(other) {}
 
             // Destructor - define here if required
 
@@ -2868,6 +2923,12 @@ namespace Rust {
             // move constructors
             TraitImplItemMethod(TraitImplItemMethod&& other) = default;
             TraitImplItemMethod& operator=(TraitImplItemMethod&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual TraitImplItemMethod* clone_trait_impl_item_impl() const OVERRIDE {
+                return new TraitImplItemMethod(*this);
+            }
         };
 
         // The "impl footrait for foo" impl block declaration AST node
@@ -2976,10 +3037,8 @@ namespace Rust {
             }
 
           protected:
-            ExternalItem(
-              Identifier item_name, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              item_name(item_name),
-              visibility(vis), outer_attrs(outer_attrs) {}
+            ExternalItem(Identifier item_name, Visibility vis, ::std::vector<Attribute> outer_attrs) :
+              item_name(item_name), visibility(vis), outer_attrs(outer_attrs) {}
 
             // Copy constructor
             ExternalItem(ExternalItem const& other) :
@@ -3034,23 +3093,46 @@ namespace Rust {
             // move constructors
             ExternalStaticItem(ExternalStaticItem&& other) = default;
             ExternalStaticItem& operator=(ExternalStaticItem&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ExternalStaticItem* clone_external_item_impl() const OVERRIDE {
+                return new ExternalStaticItem(*this);
+            }
         };
 
         // A named function parameter used in external functions
         struct NamedFunctionParam {
-            bool has_name;   // otherwise is _
+          private:
+            //bool has_name;   // otherwise is _
             Identifier name; // TODO: handle wildcard in identifier?
 
             // Type param_type;
             ::std::unique_ptr<Type> param_type;
 
           public:
+            // Returns whether the named function parameter has a name (i.e. name is not '_').
+            inline bool has_name() const {
+                return name != "_";
+            }
+
+            // Returns whether the named function parameter is in an error state.
+            inline bool is_error() const {
+                // also if identifier is "" but that is probably more costly to compute
+                return param_type == NULL;
+            }
+
+            // Creates an error state named function parameter.
+            static NamedFunctionParam create_error() {
+                return NamedFunctionParam("", NULL);
+            }
+            
             NamedFunctionParam(Identifier name, Type* param_type) :
               name(name), param_type(param_type) {}
 
             // Copy constructor
             NamedFunctionParam(NamedFunctionParam const& other) :
-              name(other.name), param_type(other.param_type->clone_type()), has_name(other.has_name) {
+              name(other.name), param_type(other.param_type->clone_type()) {
             }
 
             ~NamedFunctionParam() = default;
@@ -3059,7 +3141,7 @@ namespace Rust {
             NamedFunctionParam& operator=(NamedFunctionParam const& other) {
                 name = other.name;
                 param_type = other.param_type->clone_type();
-                has_name = other.has_name;
+                //has_name = other.has_name;
 
                 return *this;
             }
@@ -3147,6 +3229,12 @@ namespace Rust {
             // move constructors
             ExternalFunctionItem(ExternalFunctionItem&& other) = default;
             ExternalFunctionItem& operator=(ExternalFunctionItem&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ExternalFunctionItem* clone_external_item_impl() const OVERRIDE {
+                return new ExternalFunctionItem(*this);
+            }
         };
 
         // An extern block AST node

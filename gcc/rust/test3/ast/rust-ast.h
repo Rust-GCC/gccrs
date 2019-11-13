@@ -28,6 +28,9 @@ namespace Rust {
     typedef int Literal;
 
     namespace AST {
+        // Delimiter types - used in macros and whatever.
+        enum DelimType { PARENS, SQUARE, CURLY };
+
         // Base AST node object - TODO is this really required or useful? Where to draw line?
         class Node {
           public:
@@ -146,10 +149,6 @@ namespace Rust {
         class DelimTokenTree
           : public TokenTree
           , public AttrInput {
-          public:
-            enum DelimType { PARENS, SQUARE, CURLY };
-
-          private:
             DelimType delim_type;
             ::std::vector< ::std::unique_ptr<TokenTree> > token_trees;
 
@@ -174,7 +173,7 @@ namespace Rust {
 
             // Copy constructor with vector clone
             DelimTokenTree(DelimTokenTree const& other) : delim_type(other.delim_type) {
-              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 token_trees.reserve(other.token_trees.size());
 
                 for (const auto& e : other.token_trees) {
@@ -458,6 +457,12 @@ namespace Rust {
 
             // Clone function implementation as pure virtual method
             virtual Item* clone_item_impl() const = 0;
+
+            /* Save having to specify two clone methods in derived classes by making statement clone 
+             * return item clone. Hopefully won't affect performance too much. */
+            virtual Item* clone_statement_impl() const OVERRIDE {
+                return clone_item_impl();
+            }
         };
 
         // Base expression AST node - abstract
@@ -496,6 +501,12 @@ namespace Rust {
 
             // pure virtual clone implementation
             virtual ExprWithoutBlock* clone_expr_without_block_impl() const = 0;
+
+            /* Save having to specify two clone methods in derived classes by making expr clone 
+             * return exprwithoutblock clone. Hopefully won't affect performance too much. */
+            virtual ExprWithoutBlock* clone_expr_impl() const OVERRIDE {
+                return clone_expr_without_block_impl();
+            }
 
           public:
             // Unique pointer custom clone function
@@ -544,6 +555,12 @@ namespace Rust {
           protected:
             // Clone function implementation as pure virtual method
             virtual TypeNoBounds* clone_type_no_bounds_impl() const = 0;
+
+            /* Save having to specify two clone methods in derived classes by making type clone 
+             * return typenobounds clone. Hopefully won't affect performance too much. */
+            virtual TypeNoBounds* clone_type_impl() const OVERRIDE {
+                return clone_type_no_bounds_impl();
+            }
         };
 
         // Abstract base class representing a type param bound - Lifetime and TraitBound extends it
@@ -729,18 +746,15 @@ namespace Rust {
             }
         };
 
-        // A macro invocation item (or statement) AST node
+        // A macro invocation item (or statement) AST node (i.e. semi-coloned macro invocation)
         class MacroInvocationSemi
           : public MacroItem
           , public TraitItem
         /*, public Statement*/ {
             // already inherits from statement indirectly via item as item is a subclass of statement
             SimplePath path;
-            enum DelimType {
-                PARENS,
-                SQUARE,
-                CURLY // all delim types except curly must have invocation end with a semicolon
-            } delim_type;
+            // all delim types except curly must have invocation end with a semicolon
+            DelimType delim_type;
             //::std::vector<TokenTree> token_trees;
             ::std::vector< ::std::unique_ptr<TokenTree> > token_trees;
 
@@ -761,7 +775,8 @@ namespace Rust {
              * entail redoing quite a bit of the parser. */
 
             // Copy constructor with vector clone
-            MacroInvocationSemi(MacroInvocationSemi const& other) : path(other.path), delim_type(other.delim_type), MacroItem(other), TraitItem(other) {
+            MacroInvocationSemi(MacroInvocationSemi const& other) :
+              path(other.path), delim_type(other.delim_type), MacroItem(other), TraitItem(other) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 token_trees.reserve(other.token_trees.size());
 
@@ -797,6 +812,7 @@ namespace Rust {
                 return new MacroInvocationSemi(*this);
             }
 
+            // FIXME: remove if item impl virtual override works properly
             // Use covariance to implement clone function as returning this object rather than base
             virtual MacroInvocationSemi* clone_statement_impl() const OVERRIDE {
                 return new MacroInvocationSemi(*this);
@@ -833,8 +849,10 @@ namespace Rust {
               inner_attrs(inner_attrs), has_shebang(has_shebang), has_utf8bom(has_utf8bom) {}
 
             // Copy constructor with vector clone
-            Crate(Crate const& other) : inner_attrs(other.inner_attrs), has_shebang(other.has_shebang), has_utf8bom(other.has_utf8bom) {
-              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+            Crate(Crate const& other) :
+              inner_attrs(other.inner_attrs), has_shebang(other.has_shebang),
+              has_utf8bom(other.has_utf8bom) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 items.reserve(other.items.size());
 
                 for (const auto& e : other.items) {

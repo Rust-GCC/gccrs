@@ -1,24 +1,7 @@
 #include "rust-parse.h"
 
-#include "config.h"
-#include "system.h"
-#include "coretypes.h"
-#include "target.h"
-#include "tree.h"
-#include "tree-iterator.h"
-#include "input.h"
-#include "diagnostic.h"
-#include "stringpool.h"
-#include "cgraph.h"
-#include "gimplify.h"
-#include "gimple-expr.h"
-#include "convert.h"
-#include "print-tree.h"
-#include "stor-layout.h"
-#include "fold-const.h"
-/* order: config, system, coretypes, target, tree, tree-iterator, input, diagnostic, stringpool,
- * cgraph, gimplify, gimple-expr, convert, print-tree, stor-layout, fold-const  */
-// probably don't need all these
+// instead of gcc includes specified here. Thanks clang-format.
+#include "rust-parse-includes.h"
 
 #include <algorithm> // for std::find
 
@@ -514,7 +497,7 @@ namespace Rust {
         /*error_at(
           t->get_locus(), "invalid token '%s' in simple path segment", t->get_token_description());*/
         // this is not necessarily an error, e.g. end of path
-        //return AST::SimplePathSegment::create_error();
+        // return AST::SimplePathSegment::create_error();
     }
 
     // Parses an AttrInput AST node (polymorphic, as AttrInput is abstract)
@@ -595,10 +578,10 @@ namespace Rust {
 
     /* Returns true if the token id matches the delimiter type. Note that this only operates for
      * END delimiter tokens. */
-    inline bool token_id_matches_delims(TokenId token_id, AST::DelimTokenTree::DelimType delim_type) {
-        return ((token_id == RIGHT_PAREN && delim_type == AST::DelimTokenTree::PARENS)
-                || (token_id == RIGHT_SQUARE && delim_type == AST::DelimTokenTree::SQUARE)
-                || (token_id == RIGHT_CURLY && delim_type == AST::DelimTokenTree::CURLY));
+    inline bool token_id_matches_delims(TokenId token_id, AST::DelimType delim_type) {
+        return ((token_id == RIGHT_PAREN && delim_type == AST::PARENS)
+                || (token_id == RIGHT_SQUARE && delim_type == AST::SQUARE)
+                || (token_id == RIGHT_CURLY && delim_type == AST::CURLY));
     }
 
     // Parses a delimited token tree
@@ -607,18 +590,18 @@ namespace Rust {
         lexer.skip_token();
 
         // save delim type to ensure it is reused later
-        AST::DelimTokenTree::DelimType delim_type = AST::DelimTokenTree::PARENS;
+        AST::DelimType delim_type = AST::PARENS;
 
         // Map tokens to DelimType
         switch (t->get_id()) {
             case LEFT_PAREN:
-                delim_type = AST::DelimTokenTree::PARENS;
+                delim_type = AST::PARENS;
                 break;
             case LEFT_SQUARE:
-                delim_type = AST::DelimTokenTree::SQUARE;
+                delim_type = AST::SQUARE;
                 break;
             case LEFT_CURLY:
-                delim_type = AST::DelimTokenTree::CURLY;
+                delim_type = AST::CURLY;
                 break;
             default:
                 error_at(t->get_locus(),
@@ -632,9 +615,17 @@ namespace Rust {
         // parse actual token tree vector - 0 or more
         ::std::vector< ::std::unique_ptr<AST::TokenTree> > token_trees_in_tree;
 
-        // repeat loop until finding the matches delimiter
+        // repeat loop until finding the matching delimiter
         while (!token_id_matches_delims(t->get_id(), delim_type)) {
             AST::TokenTree* tok_tree = parse_token_tree();
+
+            if (tok_tree == NULL) {
+                // TODO: is this error handling appropriate?
+                error_at(t->get_locus(),
+                  "failed to parse token tree in delimited token tree - found '%s'",
+                  t->get_token_description());
+                return AST::DelimTokenTree::create_empty();
+            }
 
             // may need attention in C++11 move
             token_trees_in_tree.push_back(::std::unique_ptr<AST::TokenTree>(tok_tree));
@@ -659,9 +650,7 @@ namespace Rust {
             error_at(t->get_locus(),
               "unexpected token '%s' - expecting closing delimiter '%s' (for a delimited token tree)",
               t->get_token_description(),
-              (delim_type == AST::DelimTokenTree::PARENS
-                  ? ")"
-                  : (delim_type == AST::DelimTokenTree::SQUARE ? "]" : "}")));
+              (delim_type == AST::PARENS ? ")" : (delim_type == AST::SQUARE ? "]" : "}")));
 
             /* return empty token tree despite possibly parsing valid token tree - TODO is this a
              * good idea? */
@@ -966,6 +955,433 @@ namespace Rust {
         }
     }
 
+    // Parses a macro rules definition syntax extension whatever thing.
+    AST::MacroRulesDefinition* Parser::parse_macro_rules_def(
+      ::std::vector<AST::Attribute> outer_attrs) {
+        // ensure that first token is identifier saying "macro_rules"
+        const_TokenPtr t = lexer.peek_token();
+        if (t->get_id() != IDENTIFIER || t->get_str() != "macro_rules") {
+            error_at(t->get_locus(), "macro rules definition does not start with 'macro_rules'");
+            // skip after somewhere?
+            return NULL;
+        }
+        lexer.skip_token();
+
+        if (!skip_token(EXCLAM)) {
+            // skip after somewhere?
+            return NULL;
+        }
+
+        // parse macro name
+        const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+        Identifier rule_name = ident_tok->get_str();
+
+        // save delim type to ensure it is reused later
+        AST::DelimType delim_type = AST::PARENS;
+
+        // Map tokens to DelimType
+        t = lexer.peek_token();
+        switch (t->get_id()) {
+            case LEFT_PAREN:
+                delim_type = AST::PARENS;
+                break;
+            case LEFT_SQUARE:
+                delim_type = AST::SQUARE;
+                break;
+            case LEFT_CURLY:
+                delim_type = AST::CURLY;
+                break;
+            default:
+                error_at(t->get_locus(),
+                  "unexpected token '%s' - expecting delimiters (for a macro rules definition)",
+                  t->get_token_description());
+                return NULL;
+        }
+
+        // parse actual macro rules
+        ::std::vector<AST::MacroRule> macro_rules;
+
+        // must be at least one macro rule, so parse it
+        AST::MacroRule initial_rule = parse_macro_rule();
+        if (initial_rule.is_error()) {
+            error_at(lexer.peek_token()->get_locus(),
+              "required first macro rule in macro rules definition could not be parsed");
+            // skip after somewhere?
+            return NULL;
+        }
+        macro_rules.push_back(initial_rule);
+
+        t = lexer.peek_token();
+        // parse macro rules
+        while (t->get_id() == SEMICOLON) {
+            // skip semicolon
+            lexer.skip_token();
+
+            // try to parse next rule
+            AST::MacroRule rule = parse_macro_rule();
+            if (rule.is_error()) {
+                // not necessarily an error - could be trailing semicolon
+                break;
+            }
+
+            macro_rules.push_back(rule);
+
+            t = lexer.peek_token();
+        }
+
+        // parse end delimiters
+        t = lexer.peek_token();
+        if (token_id_matches_delims(t->get_id(), delim_type)) {
+            // tokens match opening delimiter, so skip.
+            lexer.skip_token();
+
+            if (delim_type != AST::CURLY) {
+                // skip semicolon at end of non-curly macro definitions
+                if (!skip_token(SEMICOLON)) {
+                    // as this is the end, allow recovery (probably) - may change
+                    return new AST::MacroRulesDefinition(
+                      rule_name, delim_type, macro_rules, outer_attrs);
+                }
+            }
+
+            return new AST::MacroRulesDefinition(rule_name, delim_type, macro_rules, outer_attrs);
+        } else {
+            // tokens don't match opening delimiters, so produce error
+            error_at(t->get_locus(),
+              "unexpected token '%s' - expecting closing delimiter '%s' (for a macro rules "
+              "definition)",
+              t->get_token_description(),
+              (delim_type == AST::PARENS ? ")" : (delim_type == AST::SQUARE ? "]" : "}")));
+
+            /* return empty macro definiton despite possibly parsing mostly valid one - TODO is this
+             * a good idea? */
+            return NULL;
+        }
+    }
+
+    // Parses a semi-coloned (except for full block) macro invocation item.
+    AST::MacroInvocationSemi* Parser::parse_macro_invocation_semi(
+      ::std::vector<AST::Attribute> outer_attrs) {
+        AST::SimplePath path = parse_simple_path();
+
+        if (!skip_token(EXCLAM)) {
+            // skip after somewhere?
+            return NULL;
+        }
+
+        // save delim type to ensure it is reused later
+        AST::DelimType delim_type = AST::PARENS;
+
+        // Map tokens to DelimType
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case LEFT_PAREN:
+                delim_type = AST::PARENS;
+                break;
+            case LEFT_SQUARE:
+                delim_type = AST::SQUARE;
+                break;
+            case LEFT_CURLY:
+                delim_type = AST::CURLY;
+                break;
+            default:
+                error_at(t->get_locus(),
+                  "unexpected token '%s' - expecting delimiters (for a macro invocation semi body)",
+                  t->get_token_description());
+                return NULL;
+        }
+
+        // parse actual token trees
+        ::std::vector< ::std::unique_ptr<AST::TokenTree> > token_trees;
+
+        t = lexer.peek_token();
+        // parse token trees until the initial delimiter token is found again
+        while (!token_id_matches_delims(t->get_id(), delim_type)) {
+            AST::TokenTree* tree = parse_token_tree();
+
+            if (tree == NULL) {
+                error_at(t->get_locus(),
+                  "failed to parse token tree for macro invocation semi - found '%s'",
+                  t->get_token_description());
+                return NULL;
+            }
+
+            token_trees.push_back(::std::unique_ptr<AST::TokenTree>(tree));
+
+            t = lexer.peek_token();
+        }
+
+        // parse end delimiters
+        t = lexer.peek_token();
+        if (token_id_matches_delims(t->get_id(), delim_type)) {
+            // tokens match opening delimiter, so skip.
+            lexer.skip_token();
+
+            if (delim_type != AST::CURLY) {
+                // skip semicolon at end of non-curly macro invocation semis
+                if (!skip_token(SEMICOLON)) {
+                    // as this is the end, allow recovery (probably) - may change
+                    return new AST::MacroInvocationSemi(
+                      path, delim_type, ::std::move(token_trees), outer_attrs);
+                }
+            }
+
+            return new AST::MacroInvocationSemi(
+              path, delim_type, ::std::move(token_trees), outer_attrs);
+        } else {
+            // tokens don't match opening delimiters, so produce error
+            error_at(t->get_locus(),
+              "unexpected token '%s' - expecting closing delimiter '%s' (for a macro invocation "
+              "semi)",
+              t->get_token_description(),
+              (delim_type == AST::PARENS ? ")" : (delim_type == AST::SQUARE ? "]" : "}")));
+
+            /* return empty macro invocation despite possibly parsing mostly valid one - TODO is this
+             * a good idea? */
+            return NULL;
+        }
+    }
+
+    // Parses a macro rule definition - does not parse semicolons.
+    AST::MacroRule Parser::parse_macro_rule() {
+        // parse macro matcher
+        AST::MacroMatcher matcher = parse_macro_matcher();
+        if (matcher.is_error()) {
+            return AST::MacroRule::create_error();
+        }
+
+        if (!skip_token(MATCH_ARROW)) {
+            // skip after somewhere?
+            return AST::MacroRule::create_error();
+        }
+
+        // parse transcriber (this is just a delim token tree)
+        AST::DelimTokenTree transcribe_tree = parse_delim_token_tree();
+        AST::MacroTranscriber transcriber(transcribe_tree);
+
+        return AST::MacroRule(matcher, transcriber);
+    }
+
+    // Parses a macro matcher (part of a macro rule definition).
+    AST::MacroMatcher Parser::parse_macro_matcher() {
+        // save delim type to ensure it is reused later
+        AST::DelimType delim_type = AST::PARENS;
+
+        // Map tokens to DelimType
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case LEFT_PAREN:
+                delim_type = AST::PARENS;
+                break;
+            case LEFT_SQUARE:
+                delim_type = AST::SQUARE;
+                break;
+            case LEFT_CURLY:
+                delim_type = AST::CURLY;
+                break;
+            default:
+                error_at(t->get_locus(),
+                  "unexpected token '%s' - expecting delimiters (for a macro matcher)",
+                  t->get_token_description());
+                return AST::MacroMatcher::create_error();
+        }
+
+        // parse actual macro matches
+        ::std::vector< ::std::unique_ptr<AST::MacroMatch> > matches;
+
+        t = lexer.peek_token();
+        // parse token trees until the initial delimiter token is found again
+        while (!token_id_matches_delims(t->get_id(), delim_type)) {
+            AST::MacroMatch* match = parse_macro_match();
+
+            if (match == NULL) {
+                error_at(t->get_locus(), "failed to parse macro match for macro matcher - found '%s'",
+                  t->get_token_description());
+                return AST::MacroMatcher::create_error();
+            }
+
+            matches.push_back(::std::unique_ptr<AST::MacroMatch>(match));
+
+            t = lexer.peek_token();
+        }
+
+        // parse end delimiters
+        t = lexer.peek_token();
+        if (token_id_matches_delims(t->get_id(), delim_type)) {
+            // tokens match opening delimiter, so skip.
+            lexer.skip_token();
+
+            return AST::MacroMatcher(delim_type, ::std::move(matches));
+        } else {
+            // tokens don't match opening delimiters, so produce error
+            error_at(t->get_locus(),
+              "unexpected token '%s' - expecting closing delimiter '%s' (for a macro matcher)",
+              t->get_token_description(),
+              (delim_type == AST::PARENS ? ")" : (delim_type == AST::SQUARE ? "]" : "}")));
+
+            /* return error macro matcher despite possibly parsing mostly correct one? TODO is this
+             * the best idea? */
+            return AST::MacroMatcher::create_error();
+        }
+    }
+
+    // Parses a macro match (syntax match inside a matcher in a macro rule).
+    AST::MacroMatch* Parser::parse_macro_match() {
+        // branch based on token available
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case LEFT_PAREN:
+            case LEFT_SQUARE:
+            case LEFT_CURLY:
+                // must be macro matcher as delimited
+                return new AST::MacroMatcher(parse_macro_matcher());
+            case DOLLAR_SIGN: {
+                // have to do more lookahead to determine if fragment or repetition
+                const_TokenPtr t2 = lexer.peek_token(1);
+                switch (t2->get_id()) {
+                    case IDENTIFIER:
+                        // macro fragment
+                        return parse_macro_match_fragment();
+                    case LEFT_PAREN:
+                        // macro repetition
+                        return parse_macro_match_repetition();
+                    default:
+                        // error: unrecognised
+                        error_at(t2->get_locus(),
+                          "unrecognised token combination '$%s' at start of macro match - did you "
+                          "mean '$identifier' or '$('?",
+                          t2->get_token_description());
+                        // skip somewhere?
+                        return NULL;
+                }
+            }
+            case RIGHT_PAREN:
+            case RIGHT_SQUARE:
+            case RIGHT_CURLY:
+                // not allowed
+                error_at(t->get_locus(),
+                  "closing delimiters like '%s' are not allowed at the start of a macro match",
+                  t->get_token_description());
+                // skip somewhere?
+                return NULL;
+            default:
+                // just the token
+                return new AST::Token(t);
+        }
+    }
+
+    // Parses a fragment macro match.
+    AST::MacroMatchFragment* Parser::parse_macro_match_fragment() {
+        skip_token(DOLLAR_SIGN);
+
+        const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+        Identifier ident = ident_tok->get_str();
+
+        if (!skip_token(COLON)) {
+            // skip after somewhere?
+            return NULL;
+        }
+
+        // get MacroFragSpec for macro
+        const_TokenPtr t = expect_token(IDENTIFIER);
+        AST::MacroFragSpec frag = AST::get_frag_spec_from_str(t->get_str());
+        if (frag == AST::INVALID) {
+            error_at(t->get_locus(), "invalid fragment specifier '%s' in fragment macro match",
+              t->get_str().c_str());
+            return NULL;
+        }
+
+        return new AST::MacroMatchFragment(ident, frag);
+    }
+
+    // Parses a repetition macro match.
+    AST::MacroMatchRepetition* Parser::parse_macro_match_repetition() {
+        skip_token(DOLLAR_SIGN);
+        skip_token(LEFT_PAREN);
+
+        ::std::vector< ::std::unique_ptr<AST::MacroMatch> > matches;
+
+        // parse required first macro match
+        AST::MacroMatch* initial_match = parse_macro_match();
+        if (initial_match == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "could not parse required first macro match in macro match repetition");
+            // skip after somewhere?
+            return NULL;
+        }
+        matches.push_back(::std::unique_ptr<AST::MacroMatch>(initial_match));
+
+        // parse optional later macro matches
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() != RIGHT_PAREN) {
+            AST::MacroMatch* match = parse_macro_match();
+
+            if (match == NULL) {
+                break;
+            }
+
+            matches.push_back(::std::unique_ptr<AST::MacroMatch>(match));
+
+            t = lexer.peek_token();
+        }
+
+        if (!skip_token(RIGHT_PAREN)) {
+            // skip after somewhere?
+            return NULL;
+        }
+
+        t = lexer.peek_token();
+        // see if separator token exists
+        AST::Token* separator = NULL;
+        switch (t->get_id()) {
+            // repetition operators
+            case ASTERISK:
+            case PLUS:
+            case QUESTION_MARK:
+            // delimiters
+            case LEFT_PAREN:
+            case LEFT_CURLY:
+            case LEFT_SQUARE:
+            case RIGHT_PAREN:
+            case RIGHT_CURLY:
+            case RIGHT_SQUARE:
+                // separator does not exist, so still null
+                lexer.skip_token();
+                break;
+            default:
+                // separator does exist
+                separator = new AST::Token(t);
+                lexer.skip_token();
+                break;
+        }
+
+        // parse repetition operator
+        t = lexer.peek_token();
+        AST::MacroMatchRepetition::MacroRepOp op = AST::MacroMatchRepetition::ASTERISK;
+        switch (t->get_id()) {
+            case ASTERISK:
+                op = AST::MacroMatchRepetition::ASTERISK;
+                lexer.skip_token();
+                break;
+            case PLUS:
+                op = AST::MacroMatchRepetition::PLUS;
+                lexer.skip_token();
+                break;
+            case QUESTION_MARK:
+                op = AST::MacroMatchRepetition::QUESTION_MARK;
+                lexer.skip_token();
+                break;
+            default:
+                error_at(t->get_locus(),
+                  "expected macro repetition operator ('*', '+', or '?') in macro match - found '%s'",
+                  t->get_token_description());
+                // skip after somewhere?
+                return NULL;
+        }
+
+        return new AST::MacroMatchRepetition(::std::move(matches), op, separator);
+    }
+
     // Parses a visibility syntactical production (i.e. creating a non-default visibility)
     AST::Visibility Parser::parse_visibility() {
         // check for no visibility
@@ -1010,7 +1426,8 @@ namespace Rust {
                 // parse the "in" path as well
                 AST::SimplePath path = parse_simple_path();
                 if (path.is_empty()) {
-                    error_at(lexer.peek_token()->get_locus(), "missing path in pub(in path) visibility");
+                    error_at(
+                      lexer.peek_token()->get_locus(), "missing path in pub(in path) visibility");
                     // skip after somewhere?
                     return AST::Visibility::create_error();
                 }
@@ -2569,17 +2986,19 @@ namespace Rust {
 
                 // do actual if instead of ternary for return value optimisation
                 if (is_method) {
-                    AST::TraitMethodDecl method_decl(ident, qualifiers, ::std::move(generic_params), self_param,
-                      function_params, return_type, where_clause);
+                    AST::TraitMethodDecl method_decl(ident, qualifiers, ::std::move(generic_params),
+                      self_param, function_params, return_type, where_clause);
 
                     // TODO: does this (method_decl) need move?
-                    return new AST::TraitItemMethod(::std::move(method_decl), definition, outer_attrs);
+                    return new AST::TraitItemMethod(
+                      ::std::move(method_decl), definition, outer_attrs);
                 } else {
-                    AST::TraitFunctionDecl function_decl(
-                      ident, qualifiers, ::std::move(generic_params), function_params, return_type, where_clause);
+                    AST::TraitFunctionDecl function_decl(ident, qualifiers,
+                      ::std::move(generic_params), function_params, return_type, where_clause);
 
                     // TODO: does this (function_decl) need move?
-                    return new AST::TraitItemFunc(::std::move(function_decl), definition, outer_attrs);
+                    return new AST::TraitItemFunc(
+                      ::std::move(function_decl), definition, outer_attrs);
                 }
             }
             default: {
@@ -2795,13 +3214,697 @@ namespace Rust {
     }
 
     // Parses a single inherent impl item (item inside an inherent impl block).
-    AST::InherentImplItem* Parser::parse_inherent_impl_item() {}
+    AST::InherentImplItem* Parser::parse_inherent_impl_item() {
+        // parse outer attributes (if they exist)
+        ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
+
+        // branch on next token:
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case IDENTIFIER:
+            case SUPER:
+            case SELF:
+            case CRATE:
+            case DOLLAR_SIGN: {
+                // these seem to be SimplePath tokens, so this is a macro invocation semi
+                AST::MacroInvocationSemi* macro_invoc = parse_macro_invocation_semi(outer_attrs);
+                if (macro_invoc == NULL) {
+                    error_at(t->get_locus(), "could not parse macro inherent impl item");
+                    skip_after_semicolon();
+                    return NULL;
+                }
+                // TODO: keep ahead of possible hierachy changes
+                // have to do this then delete macro pointer because of taking param by value
+                AST::InherentImplItemMacro* return_val
+                  = new AST::InherentImplItemMacro(*macro_invoc, outer_attrs);
+                delete macro_invoc;
+                // FIXME: ensure this doesn't cause double free
+                return return_val;
+            }
+            case PUB: {
+                // visibility, so not a macro invocation semi - must be constant, function, or method
+                AST::Visibility vis = parse_visibility();
+
+                // TODO: is a recursive call to parse_inherent_impl_item better?
+                switch (lexer.peek_token()->get_id()) {
+                    case EXTERN_TOK:
+                    case UNSAFE:
+                    case FN_TOK:
+                        // function or method
+                        return parse_inherent_impl_function_or_method(vis, outer_attrs);
+                    case CONST:
+                        // lookahead to resolve production - could be function/method or const item
+                        t = lexer.peek_token(1);
+
+                        switch (t->get_id()) {
+                            case IDENTIFIER:
+                            case UNDERSCORE: {
+                                AST::ConstantItem* const_item = parse_const_item(vis, outer_attrs);
+
+                                // have to do this then delete const item ptr because of taking param
+                                // by value
+                                AST::InherentImplItemConstant* return_val
+                                  = new AST::InherentImplItemConstant(*const_item, outer_attrs);
+                                delete const_item;
+                                // FIXME: ensure this doesn't cause double free
+                                return return_val;
+                            }
+                            case UNSAFE:
+                            case EXTERN_TOK:
+                            case FN_TOK:
+                                return parse_inherent_impl_function_or_method(vis, outer_attrs);
+                            default:
+                                error_at(t->get_locus(),
+                                  "unexpected token '%s' in some sort of const item in inherent impl",
+                                  t->get_token_description());
+                                lexer.skip_token(1); // TODO: is this right thing to do?
+                                return NULL;
+                        }
+                    default:
+                        error_at(t->get_locus(), "unrecognised token '%s' for item in inherent impl",
+                          t->get_token_description());
+                        // skip?
+                        return NULL;
+                }
+            }
+            case EXTERN_TOK:
+            case UNSAFE:
+            case FN_TOK:
+                // function or method
+                return parse_inherent_impl_function_or_method(
+                  AST::Visibility::create_error(), outer_attrs);
+            case CONST:
+                // lookahead to resolve production - could be function/method or const item
+                t = lexer.peek_token(1);
+
+                switch (t->get_id()) {
+                    case IDENTIFIER:
+                    case UNDERSCORE: {
+                        AST::ConstantItem* const_item
+                          = parse_const_item(AST::Visibility::create_error(), outer_attrs);
+
+                        // have to do this then delete const item ptr because of taking param
+                        // by value
+                        AST::InherentImplItemConstant* return_val
+                          = new AST::InherentImplItemConstant(*const_item, outer_attrs);
+                        delete const_item;
+                        // FIXME: ensure this doesn't cause double free
+                        return return_val;
+                    }
+                    case UNSAFE:
+                    case EXTERN_TOK:
+                    case FN_TOK:
+                        return parse_inherent_impl_function_or_method(
+                          AST::Visibility::create_error(), outer_attrs);
+                    default:
+                        error_at(t->get_locus(),
+                          "unexpected token '%s' in some sort of const item in inherent impl",
+                          t->get_token_description());
+                        lexer.skip_token(1); // TODO: is this right thing to do?
+                        return NULL;
+                }
+                gcc_unreachable();
+            default:
+                error_at(t->get_locus(), "unrecognised token '%s' for item in inherent impl",
+                  t->get_token_description());
+                // skip?
+                return NULL;
+        }
+    }
+
+    /* For internal use only by parse_inherent_impl_item() - splits giant method into smaller ones
+     * and prevents duplication of logic. Strictly, this parses a function or method item inside an
+     * inherent impl item block. */
+    AST::InherentImplItem* Parser::parse_inherent_impl_function_or_method(
+      AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse function or method qualifiers
+        AST::FunctionQualifiers qualifiers = parse_function_qualifiers();
+
+        skip_token(FN_TOK);
+
+        // parse function or method name
+        const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+        Identifier ident = ident_tok->get_str();
+
+        // parse generic params
+        ::std::vector< ::std::unique_ptr<AST::GenericParam> > generic_params
+          = parse_generic_params_in_angles();
+
+        if (!skip_token(LEFT_PAREN)) {
+            // skip after somewhere?
+            return NULL;
+        }
+
+        // now for function vs method disambiguation - method has opening "self" param
+        AST::SelfParam self_param = parse_self_param();
+        bool is_method = false;
+        if (!self_param.is_error()) {
+            is_method = true;
+
+            // skip comma so function and method regular params can be parsed in same way
+            if (lexer.peek_token()->get_id() == COMMA) {
+                lexer.skip_token();
+            }
+        }
+
+        // parse trait function params
+        ::std::vector<AST::FunctionParam> function_params = parse_function_params();
+
+        if (!skip_token(RIGHT_PAREN)) {
+            skip_after_end_block();
+            return NULL;
+        }
+
+        // parse return type (optional)
+        AST::Type* return_type = parse_function_return_type();
+
+        // parse where clause (optional)
+        AST::WhereClause where_clause = parse_where_clause();
+
+        // parse function definition (in block) - semicolon not allowed
+        if (lexer.peek_token()->get_id() == SEMICOLON) {
+            error_at(lexer.peek_token()->get_locus(),
+              "%s declaration in inherent impl not allowed - must have a definition",
+              is_method ? "method" : "function");
+            lexer.skip_token();
+            return NULL;
+        }
+        AST::BlockExpr* body = parse_block_expr();
+        if (body == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "could not parse definition in inherent impl %s definition",
+              is_method ? "method" : "function");
+            skip_after_end_block();
+            return NULL;
+        }
+
+        // do actual if instead of ternary for return value optimisation
+        if (is_method) {
+            AST::Method method_decl(ident, qualifiers, ::std::move(generic_params), self_param,
+              function_params, return_type, where_clause, body);
+
+            return new AST::InherentImplItemMethod(::std::move(method_decl), vis, outer_attrs);
+        } else {
+            // TODO: this is bad - double up of outer attributes
+            AST::Function function_decl(ident, qualifiers, ::std::move(generic_params),
+              function_params, return_type, where_clause, body, vis, outer_attrs);
+
+            // TODO: does this (function_decl) need move?
+            return new AST::InherentImplItemFunction(::std::move(function_decl), outer_attrs);
+        }
+    }
 
     // Parses a single trait impl item (item inside a trait impl block).
-    AST::TraitImplItem* Parser::parse_trait_impl_item() {}
+    AST::TraitImplItem* Parser::parse_trait_impl_item() {
+        // parse outer attributes (if they exist)
+        ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
+
+        // branch on next token:
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case IDENTIFIER:
+            case SUPER:
+            case SELF:
+            case CRATE:
+            case DOLLAR_SIGN: {
+                // these seem to be SimplePath tokens, so this is a macro invocation semi
+                AST::MacroInvocationSemi* macro_invoc = parse_macro_invocation_semi(outer_attrs);
+                if (macro_invoc == NULL) {
+                    error_at(t->get_locus(), "could not parse macro inherent impl item");
+                    skip_after_semicolon();
+                    return NULL;
+                }
+                // TODO: keep ahead of possible hierachy changes
+                // have to do this then delete macro pointer because of taking param by value
+                AST::TraitImplItemMacro* return_val
+                  = new AST::TraitImplItemMacro(*macro_invoc, outer_attrs);
+                delete macro_invoc;
+                // FIXME: ensure this doesn't cause double free
+                return return_val;
+            }
+            case TYPE: {
+                AST::TypeAlias* type_alias
+                  = parse_type_alias(AST::Visibility::create_error(), outer_attrs);
+
+                // have to do this then delete const item ptr because of taking param by value
+                AST::TraitImplItemTypeAlias* return_val
+                  = new AST::TraitImplItemTypeAlias(*type_alias, outer_attrs);
+                delete type_alias;
+                // FIXME: ensure this doesn't cause double free
+                return return_val;
+            }
+            case PUB: {
+                // visibility, so not a macro invocation semi - must be constant, function, or method
+                AST::Visibility vis = parse_visibility();
+
+                // TODO: is a recursive call to parse_trait_impl_item better?
+                switch (lexer.peek_token()->get_id()) {
+                    case TYPE: {
+                        AST::TypeAlias* type_alias = parse_type_alias(vis, outer_attrs);
+
+                        // have to do this then delete const item ptr because of taking param by value
+                        AST::TraitImplItemTypeAlias* return_val
+                          = new AST::TraitImplItemTypeAlias(*type_alias, outer_attrs);
+                        delete type_alias;
+                        // FIXME: ensure this doesn't cause double free
+                        return return_val;
+                    }
+                    case EXTERN_TOK:
+                    case UNSAFE:
+                    case FN_TOK:
+                        // function or method
+                        return parse_trait_impl_function_or_method(vis, outer_attrs);
+                    case CONST:
+                        // lookahead to resolve production - could be function/method or const item
+                        t = lexer.peek_token(1);
+
+                        switch (t->get_id()) {
+                            case IDENTIFIER:
+                            case UNDERSCORE: {
+                                AST::ConstantItem* const_item = parse_const_item(vis, outer_attrs);
+
+                                // have to do this then delete const item ptr because of taking param
+                                // by value
+                                AST::TraitImplItemConstant* return_val
+                                  = new AST::TraitImplItemConstant(*const_item, outer_attrs);
+                                delete const_item;
+                                // FIXME: ensure this doesn't cause double free
+                                return return_val;
+                            }
+                            case UNSAFE:
+                            case EXTERN_TOK:
+                            case FN_TOK:
+                                return parse_trait_impl_function_or_method(vis, outer_attrs);
+                            default:
+                                error_at(t->get_locus(),
+                                  "unexpected token '%s' in some sort of const item in trait impl",
+                                  t->get_token_description());
+                                lexer.skip_token(1); // TODO: is this right thing to do?
+                                return NULL;
+                        }
+                    default:
+                        error_at(t->get_locus(), "unrecognised token '%s' for item in trait impl",
+                          t->get_token_description());
+                        // skip?
+                        return NULL;
+                }
+            }
+            case EXTERN_TOK:
+            case UNSAFE:
+            case FN_TOK:
+                // function or method
+                return parse_trait_impl_function_or_method(
+                  AST::Visibility::create_error(), outer_attrs);
+            case CONST:
+                // lookahead to resolve production - could be function/method or const item
+                t = lexer.peek_token(1);
+
+                switch (t->get_id()) {
+                    case IDENTIFIER:
+                    case UNDERSCORE: {
+                        AST::ConstantItem* const_item
+                          = parse_const_item(AST::Visibility::create_error(), outer_attrs);
+
+                        // have to do this then delete const item ptr because of taking param
+                        // by value
+                        AST::TraitImplItemConstant* return_val
+                          = new AST::TraitImplItemConstant(*const_item, outer_attrs);
+                        delete const_item;
+                        // FIXME: ensure this doesn't cause double free
+                        return return_val;
+                    }
+                    case UNSAFE:
+                    case EXTERN_TOK:
+                    case FN_TOK:
+                        return parse_trait_impl_function_or_method(
+                          AST::Visibility::create_error(), outer_attrs);
+                    default:
+                        error_at(t->get_locus(),
+                          "unexpected token '%s' in some sort of const item in trait impl",
+                          t->get_token_description());
+                        lexer.skip_token(1); // TODO: is this right thing to do?
+                        return NULL;
+                }
+                gcc_unreachable();
+            default:
+                error_at(t->get_locus(), "unrecognised token '%s' for item in trait impl",
+                  t->get_token_description());
+                // skip?
+                return NULL;
+        }
+    }
+
+    /* For internal use only by parse_trait_impl_item() - splits giant method into smaller ones
+     * and prevents duplication of logic. Strictly, this parses a function or method item inside a
+     * trait impl item block. */
+    AST::TraitImplItem* Parser::parse_trait_impl_function_or_method(
+      AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
+        // this shares virtually all logic with parse_inherent_impl_function_or_method - template?
+
+        // parse function or method qualifiers
+        AST::FunctionQualifiers qualifiers = parse_function_qualifiers();
+
+        skip_token(FN_TOK);
+
+        // parse function or method name
+        const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+        Identifier ident = ident_tok->get_str();
+
+        // parse generic params
+        ::std::vector< ::std::unique_ptr<AST::GenericParam> > generic_params
+          = parse_generic_params_in_angles();
+
+        if (!skip_token(LEFT_PAREN)) {
+            // skip after somewhere?
+            return NULL;
+        }
+
+        // now for function vs method disambiguation - method has opening "self" param
+        AST::SelfParam self_param = parse_self_param();
+        bool is_method = false;
+        if (!self_param.is_error()) {
+            is_method = true;
+
+            // skip comma so function and method regular params can be parsed in same way
+            if (lexer.peek_token()->get_id() == COMMA) {
+                lexer.skip_token();
+            }
+        }
+
+        // parse trait function params
+        ::std::vector<AST::FunctionParam> function_params = parse_function_params();
+
+        if (!skip_token(RIGHT_PAREN)) {
+            skip_after_end_block();
+            return NULL;
+        }
+
+        // parse return type (optional)
+        AST::Type* return_type = parse_function_return_type();
+
+        // parse where clause (optional)
+        AST::WhereClause where_clause = parse_where_clause();
+
+        // parse function definition (in block) - semicolon not allowed
+        if (lexer.peek_token()->get_id() == SEMICOLON) {
+            error_at(lexer.peek_token()->get_locus(),
+              "%s declaration in trait impl not allowed - must have a definition",
+              is_method ? "method" : "function");
+            lexer.skip_token();
+            return NULL;
+        }
+        AST::BlockExpr* body = parse_block_expr();
+        if (body == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "could not parse definition in trait impl %s definition",
+              is_method ? "method" : "function");
+            skip_after_end_block();
+            return NULL;
+        }
+
+        // do actual if instead of ternary for return value optimisation
+        if (is_method) {
+            AST::Method method_decl(ident, qualifiers, ::std::move(generic_params), self_param,
+              function_params, return_type, where_clause, body);
+
+            return new AST::TraitImplItemMethod(::std::move(method_decl), vis, outer_attrs);
+        } else {
+            // TODO: this is bad - double up of outer attributes
+            AST::Function function_decl(ident, qualifiers, ::std::move(generic_params),
+              function_params, return_type, where_clause, body, vis, outer_attrs);
+
+            // TODO: does this (function_decl) need move?
+            return new AST::TraitImplItemFunction(::std::move(function_decl), outer_attrs);
+        }
+    }
+
+    // Parses an extern block of declarations.
+    AST::ExternBlock* Parser::parse_extern_block(
+      AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
+        skip_token(EXTERN_TOK);
+
+        // detect optional abi name
+        ::std::string abi;
+        const_TokenPtr next_tok = lexer.peek_token();
+        if (next_tok->get_id() == STRING_LITERAL) {
+            lexer.skip_token();
+            abi = next_tok->get_str();
+        }
+
+        if (!skip_token(LEFT_CURLY)) {
+            skip_after_end_block();
+            return NULL;
+        }
+
+        ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
+
+        // parse declarations inside extern block
+        ::std::vector< ::std::unique_ptr<AST::ExternalItem> > extern_items;
+
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() != RIGHT_CURLY) {
+            AST::ExternalItem* extern_item = parse_external_item();
+
+            if (extern_item == NULL) {
+                error_at(t->get_locus(),
+                  "failed to parse external item despite not reaching end of extern block");
+                return NULL;
+            }
+
+            extern_items.push_back(::std::unique_ptr<AST::ExternalItem>(extern_item));
+
+            t = lexer.peek_token();
+        }
+
+        if (!skip_token(RIGHT_CURLY)) {
+            // skip somewhere
+            return NULL;
+        }
+
+        return new AST::ExternBlock(abi, ::std::move(extern_items), vis, inner_attrs, outer_attrs);
+    }
+
+    // Parses a single extern block item (static or function declaration).
+    AST::ExternalItem* Parser::parse_external_item() {
+        // parse optional outer attributes
+        ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
+
+        // parse optional visibility
+        AST::Visibility vis = parse_visibility();
+
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case STATIC_TOK: {
+                // parse extern static item
+                lexer.skip_token();
+
+                // parse mut (optional)
+                bool has_mut = false;
+                if (lexer.peek_token()->get_id() == MUT) {
+                    lexer.skip_token();
+                    has_mut = true;
+                }
+
+                // parse identifier
+                const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+                if (ident_tok == NULL) {
+                    skip_after_semicolon();
+                    return NULL;
+                }
+                Identifier ident = ident_tok->get_str();
+
+                if (!skip_token(COLON)) {
+                    skip_after_semicolon();
+                    return NULL;
+                }
+
+                // parse type (required)
+                AST::Type* type = parse_type();
+                if (type == NULL) {
+                    error_at(lexer.peek_token()->get_locus(),
+                      "failed to parse type in external static item");
+                    skip_after_semicolon();
+                    return NULL;
+                }
+
+                if (!skip_token(SEMICOLON)) {
+                    // skip after somewhere?
+                    return NULL;
+                }
+
+                return new AST::ExternalStaticItem(ident, type, has_mut, vis, outer_attrs);
+            }
+            case FN_TOK: {
+                // parse extern function declaration item
+                // skip function token
+                lexer.skip_token();
+
+                // parse identifier
+                const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+                if (ident_tok == NULL) {
+                    skip_after_semicolon();
+                    return NULL;
+                }
+                Identifier ident = ident_tok->get_str();
+
+                // parse (optional) generic params
+                ::std::vector< ::std::unique_ptr<AST::GenericParam> > generic_params
+                  = parse_generic_params_in_angles();
+
+                if (!skip_token(LEFT_PAREN)) {
+                    skip_after_semicolon();
+                    return NULL;
+                }
+
+                // parse parameters
+                ::std::vector<AST::NamedFunctionParam> function_params;
+                bool is_variadic = false;
+
+                const_TokenPtr t = lexer.peek_token();
+                while (t->get_id() != RIGHT_PAREN) {
+                    AST::NamedFunctionParam param = parse_named_function_param();
+
+                    if (param.is_error()) {
+                        // is this an error? probably
+                        error_at(t->get_locus(),
+                          "could not parse named function parameter in external function");
+                        skip_after_semicolon();
+                        return NULL;
+                    }
+
+                    t = lexer.peek_token();
+                    if (t->get_id() != COMMA) {
+                        if (t->get_id() != RIGHT_PAREN) {
+                            error_at(t->get_locus(),
+                              "expected comma or right parentheses in named function parameters, "
+                              "found '%s'",
+                              t->get_token_description());
+                        } else {
+                            // end of loop
+                            break;
+                        }
+                    }
+                    // skip comma
+                    lexer.skip_token();
+
+                    t = lexer.peek_token();
+
+                    // parse variadic ... if it exists
+                    if (t->get_id() == ELLIPSIS && lexer.peek_token(1)->get_id() == RIGHT_PAREN) {
+                        lexer.skip_token();
+
+                        is_variadic = true;
+
+                        t = lexer.peek_token();
+                    }
+                }
+
+                if (!skip_token(RIGHT_PAREN)) {
+                    skip_after_semicolon();
+                    return NULL;
+                }
+
+                // parse (optional) return type
+                AST::Type* return_type = parse_function_return_type();
+
+                // parse (optional) where clause
+                AST::WhereClause where_clause = parse_where_clause();
+
+                if (!skip_token(SEMICOLON)) {
+                    // skip somewhere?
+                    return NULL;
+                }
+
+                return new AST::ExternalFunctionItem(ident, ::std::move(generic_params), return_type,
+                  where_clause, function_params, is_variadic, vis, outer_attrs);
+            }
+            default:
+                // error
+                error_at(t->get_locus(), "unrecognised token '%s' in extern block item declaration",
+                  t->get_token_description());
+                skip_after_semicolon();
+                return NULL;
+        }
+    }
+
+    // Parses an extern block function param (with "pattern" being _ or an identifier).
+    AST::NamedFunctionParam Parser::parse_named_function_param() {
+        // parse identifier/_
+        Identifier name;
+
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case IDENTIFIER:
+                name = t->get_str();
+                lexer.skip_token();
+                break;
+            case UNDERSCORE:
+                name = "_";
+                lexer.skip_token();
+                break;
+            default:
+                // this is not a function param, but not necessarily an error
+                return AST::NamedFunctionParam::create_error();
+        }
+
+        if (!skip_token(COLON)) {
+            // skip after somewhere?
+            return AST::NamedFunctionParam::create_error();
+        }
+
+        // parse (required) type
+        AST::Type* param_type = parse_type();
+        if (param_type == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "could not parse param type in extern block function declaration");
+            skip_after_semicolon();
+            return AST::NamedFunctionParam::create_error();
+        }
+
+        return AST::NamedFunctionParam(name, param_type);
+    }
 
     // Parses an expression (will further disambiguate any expressions).
-    AST::Expr* Parser::parse_expr() {}
+    AST::Expr* Parser::parse_expr() {
+        // TODO
+        return NULL;
+    }
+
+    // Parses a statement (will further disambiguate any statement).
+    AST::Statement* Parser::parse_stmt() {
+        // TODO
+        return NULL;
+    }
+
+    // Parses a type (will further disambiguate any type).
+    AST::Type* Parser::parse_type() {
+        // TODO
+        return NULL;
+    }
+
+    // Parses a pattern (will further disambiguate any pattern).
+    AST::Pattern* Parser::parse_pattern() {
+        // TODO
+        return NULL;
+    }
+
+    // Parses a type path.
+    AST::TypePath Parser::parse_type_path() {
+        // TODO
+        return AST::TypePath::create_error();
+    }
+
+    // Parses a self param.
+    AST::SelfParam Parser::parse_self_param() {
+        // TODO
+        return AST::SelfParam::create_error();
+    }
+
+    // Parses an expression without a block associated with it (further disambiguates).
+    AST::ExprWithoutBlock* Parser::parse_expr_without_block() {
+        // TODO
+        return NULL;
+    }
 
     // Parses a block expression, including the curly braces at start and end.
     AST::BlockExpr* Parser::parse_block_expr(::std::vector<AST::Attribute> outer_attrs) {

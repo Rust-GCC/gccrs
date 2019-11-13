@@ -115,5 +115,17 @@ namespace Rust {
         ::std::string TypeAlias::as_string() const {
             return ::std::string("not implemented");
         }
+
+        ::std::string MacroInvocationSemi::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ExternBlock::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string MacroRulesDefinition::as_string() const {
+            return ::std::string("not implemented");
+        }
     }
 }
