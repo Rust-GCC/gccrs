@@ -96,10 +96,23 @@ namespace Rust {
         LBP_L_SHIFT_ASSIG = LBP_ASSIG,
         LBP_R_SHIFT_ASSIG = LBP_ASSIG,
 
-        // return, break, and closures as lowest priority?
-        // LBP_RETURN = 5,
-        // LBP_BREAK = LBP_RETURN,
-        // LBP_CLOSURE = LBP_RETURN,
+    // return, break, and closures as lowest priority?
+    // LBP_RETURN = 5,
+    // LBP_BREAK = LBP_RETURN,
+    // LBP_CLOSURE = LBP_RETURN,
+
+#if 0
+        // rust precedences
+        PREC_CLOSURE = -40,     // used for closures
+        PREC_JUMP = -30,        // used for break, continue, return, and yield
+        PREC_RANGE = -10,       // used for range (although weird comment in rustc about this)
+        PREC_BINOP = FROM_ASSOC_OP, 
+        // used for binary operators mentioned below - also cast, colon (type), assign, assign_op
+        PREC_PREFIX = 50,       // used for box, address_of, let, unary (again, weird comment on let)
+        PREC_POSTFIX = 60,      // used for await, call, method call, field, index, try, inline asm, macro invocation
+        PREC_PAREN = 99,        // used for array, repeat, tuple, literal, path, paren, if, while, for, 'loop', match, block, try block, async, struct
+        PREC_FORCE_PAREN = 100,
+#endif
 
         // lowest priority
         LBP_LOWEST = 0
@@ -138,7 +151,10 @@ namespace Rust {
                 maybe more stuff. */
             /* Current plan for tackling LBP - don't do it based on token, use lookahead.
              * Or alternatively, only use Pratt parsing for OperatorExpr and handle other expressions
-             * without it. */
+             * without it.
+             * rustc only considers arithmetic, logical/relational, 'as', '?=', ranges, colons, and
+             * assignment to have operator precedence and associativity rules applicable. It then has
+             * a separate "ExprPrecedence" that also includes binary operators. */
 
             // TODO: handle operator overloading - have a function replace the operator?
 
@@ -351,7 +367,7 @@ namespace Rust {
         // parse items
         ::std::vector< ::std::unique_ptr<AST::Item> > items = parse_items();
 
-        return AST::Crate(::std::move(items), inner_attrs, has_utf8bom, has_shebang);
+        return AST::Crate(::std::move(items), ::std::move(inner_attrs), has_utf8bom, has_shebang);
     }
 
     // Parse a contiguous block of inner attributes.
@@ -363,7 +379,7 @@ namespace Rust {
 
             // Ensure only valid inner attributes are added to the inner_attributes list
             if (!inner_attr.is_empty()) {
-                inner_attributes.push_back(inner_attr);
+                inner_attributes.push_back(::std::move(inner_attr));
             } else {
                 /* If no more valid inner attributes, break out of loop (only contiguous inner
                  * attributes parsed). */
@@ -498,6 +514,49 @@ namespace Rust {
           t->get_locus(), "invalid token '%s' in simple path segment", t->get_token_description());*/
         // this is not necessarily an error, e.g. end of path
         // return AST::SimplePathSegment::create_error();
+    }
+
+    // Parses a PathIdentSegment - an identifier segment of a non-SimplePath path.
+    AST::PathIdentSegment Parser::parse_path_ident_segment() {
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case IDENTIFIER:
+                lexer.skip_token();
+
+                return AST::PathIdentSegment(t->get_str());
+            case SUPER:
+                lexer.skip_token();
+
+                return AST::PathIdentSegment(::std::string("super"));
+            case SELF:
+                lexer.skip_token();
+
+                return AST::PathIdentSegment(::std::string("self"));
+            case SELF_ALIAS:
+                lexer.skip_token();
+
+                return AST::PathIdentSegment(::std::string("Self"));
+            case CRATE:
+                lexer.skip_token();
+
+                return AST::PathIdentSegment(::std::string("crate"));
+            case DOLLAR_SIGN:
+                if (lexer.peek_token(1)->get_id() == CRATE) {
+                    lexer.skip_token(1);
+
+                    return AST::PathIdentSegment(::std::string("$crate"));
+                }
+                gcc_fallthrough();
+            default:
+                // do nothing but inactivates warning from gcc when compiling
+                // could put the error_at thing here but fallthrough (from failing $crate condition)
+                // isn't completely obvious if it is.
+
+                // test prevent error
+                return AST::PathIdentSegment::create_error();
+        }
+        gcc_unreachable();
+        // not necessarily an error
     }
 
     // Parses an AttrInput AST node (polymorphic, as AttrInput is abstract)
@@ -695,7 +754,7 @@ namespace Rust {
         // TODO: replace with do-while loop?
         // infinite loop to save on comparisons (may be a tight loop) - breaks when next item is null
         while (true) {
-            AST::Item* item = parse_item();
+            AST::Item* item = parse_item(false);
 
             if (item != NULL) {
                 items.push_back(::std::unique_ptr<AST::Item>(item));
@@ -704,12 +763,13 @@ namespace Rust {
             }
         }
 
-        // TODO: does this need move?
         return items;
     }
 
     // Parses a single item
-    AST::Item* Parser::parse_item() {
+    AST::Item* Parser::parse_item(bool called_from_statement) {
+        // has a "called_from_statement" parameter for better error message handling
+
         // parse outer attributes for item
         ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
 
@@ -737,20 +797,38 @@ namespace Rust {
             // case UNION:
             case UNSAFE: // maybe - unsafe traits are a thing
                 // if any of these (should be all possible VisItem prefixes), parse a VisItem
-                return parse_vis_item(outer_attrs);
+                return parse_vis_item(::std::move(outer_attrs));
+                break;
+            case SUPER:
+            case SELF:
+            case CRATE:
+            case DOLLAR_SIGN:
+                // almost certainly macro invocation semi
+                return parse_macro_item(::std::move(outer_attrs));
                 break;
             // crappy hack to do union "keyword"
             case IDENTIFIER:
                 // TODO: ensure std::string and literal comparison works
                 if (t->get_str() == "union") {
-                    return parse_vis_item(outer_attrs);
+                    return parse_vis_item(::std::move(outer_attrs));
                     // or should this go straight to parsing union?
+                } else if (t->get_str() == "macro_rules") {
+                    // macro_rules! macro item
+                    return parse_macro_item(::std::move(outer_attrs));
+                } else if (lexer.peek_token(1)->get_id() == SCOPE_RESOLUTION
+                           || lexer.peek_token(1)->get_id() == EXCLAM) {
+                    // path (probably) or macro invocation, so probably a macro invocation semi
+                    return parse_macro_item(::std::move(outer_attrs));
                 }
                 gcc_fallthrough();
                 // TODO: find out how to disable gcc "implicit fallthrough" warning
             default:
-                // otherwise parse a MacroItem
-                return parse_macro_item(outer_attrs);
+                // otherwise unrecognised
+                // return parse_macro_item(::std::move(outer_attrs));
+                error_at(t->get_locus(), "unrecognised token '%s' for start of %s",
+                  t->get_token_description(), called_from_statement ? "statement" : "item");
+                // skip somewhere?
+                return NULL;
                 break;
         }
     }
@@ -764,7 +842,7 @@ namespace Rust {
 
             // Ensure only valid outer attributes are added to the outer_attributes list
             if (!outer_attr.is_empty()) {
-                outer_attributes.push_back(outer_attr);
+                outer_attributes.push_back(::std::move(outer_attr));
             } else {
                 /* If no more valid outer attributes, break out of loop (only contiguous outer
                  * attributes parsed). */
@@ -1741,6 +1819,10 @@ namespace Rust {
 
         // Save function name token
         const_TokenPtr function_name_tok = expect_token(IDENTIFIER);
+        if (function_name_tok == NULL) {
+            skip_after_end_block();
+            return NULL;
+        }
         Identifier function_name = function_name_tok->get_str();
 
         // parse generic params - if exist
@@ -1780,15 +1862,26 @@ namespace Rust {
 
     // Parses function or method qualifiers (i.e. const, unsafe, and extern).
     AST::FunctionQualifiers Parser::parse_function_qualifiers() {
-        bool has_const = false;
+        AST::FunctionQualifiers::AsyncConstStatus const_status = AST::FunctionQualifiers::NONE;
+        // bool has_const = false;
         bool has_unsafe = false;
         bool has_extern = false;
         ::std::string abi;
 
         // Check in order of const, unsafe, then extern
-        if (lexer.peek_token()->get_id() == CONST) {
-            lexer.skip_token();
-            has_const = true;
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case CONST:
+                lexer.skip_token();
+                const_status = AST::FunctionQualifiers::CONST;
+                break;
+            case ASYNC:
+                lexer.skip_token();
+                const_status = AST::FunctionQualifiers::ASYNC;
+                break;
+            default:
+                // const status is still none
+                break;
         }
 
         if (lexer.peek_token()->get_id() == UNSAFE) {
@@ -1808,7 +1901,7 @@ namespace Rust {
             }
         }
 
-        return AST::FunctionQualifiers(has_const, has_unsafe, has_extern, abi);
+        return AST::FunctionQualifiers(const_status, has_unsafe, has_extern, abi);
     }
 
     // Parses generic (lifetime or type) params inside angle brackets.
@@ -2939,6 +3032,7 @@ namespace Rust {
 
                 // now for function vs method disambiguation - method has opening "self" param
                 AST::SelfParam self_param = parse_self_param();
+                // FIXME: ensure that self param doesn't accidently consume tokens for a function
                 bool is_method = false;
                 if (!self_param.is_error()) {
                     is_method = true;
@@ -3357,6 +3451,8 @@ namespace Rust {
 
         // now for function vs method disambiguation - method has opening "self" param
         AST::SelfParam self_param = parse_self_param();
+        // FIXME: ensure that self param doesn't accidently consume tokens for a function
+        // one idea is to lookahead up to 4 tokens to see whether self is one of them
         bool is_method = false;
         if (!self_param.is_error()) {
             is_method = true;
@@ -3581,6 +3677,7 @@ namespace Rust {
 
         // now for function vs method disambiguation - method has opening "self" param
         AST::SelfParam self_param = parse_self_param();
+        // FIXME: ensure that self param doesn't accidently consume tokens for a function
         bool is_method = false;
         if (!self_param.is_error()) {
             is_method = true;
@@ -3871,7 +3968,88 @@ namespace Rust {
     }
 
     // Parses a statement (will further disambiguate any statement).
-    AST::Statement* Parser::parse_stmt() {
+    AST::Stmt* Parser::parse_stmt() {
+        // TODO
+        return NULL;
+
+        // quick exit for empty statement
+        if (lexer.peek_token()->get_id() == SEMICOLON) {
+            lexer.skip_token();
+            return new AST::EmptyStmt();
+        }
+
+        // parse outer attributes
+        ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
+
+        // parsing this will be annoying because of the many different possibilities
+        /* best may be just to copy paste in parse_item switch, and failing that try to parse outer
+         * attributes, and then pass them in to either a let statement or (fallback) expression
+         * statement. */
+        // FIXME: think of a way to do this without such a large switch?
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case LET:
+                // let statement
+                return parse_let_stmt(::std::move(outer_attrs));
+            case PUB:
+            case MOD:
+            case EXTERN_TOK:
+            case USE:
+            case FN_TOK:
+            case TYPE:
+            case STRUCT_TOK:
+            case ENUM_TOK:
+            case CONST:
+            case STATIC_TOK:
+            case TRAIT:
+            case IMPL:
+            /* TODO: implement union keyword but not really because of context-dependence
+             * crappy hack way to parse a union written below to separate it from the good code. */
+            // case UNION:
+            case UNSAFE: // maybe - unsafe traits are a thing
+                // if any of these (should be all possible VisItem prefixes), parse a VisItem
+                // can't parse item because would require reparsing outer attributes
+                return parse_vis_item(::std::move(outer_attrs));
+                break;
+            case SUPER:
+            case SELF:
+            case CRATE:
+            case DOLLAR_SIGN:
+                // almost certainly macro invocation semi
+                return parse_macro_item(::std::move(outer_attrs));
+                break;
+            // crappy hack to do union "keyword"
+            case IDENTIFIER:
+                // TODO: ensure std::string and literal comparison works
+                if (t->get_str() == "union") {
+                    return parse_vis_item(::std::move(outer_attrs));
+                    // or should this go straight to parsing union?
+                } else if (t->get_str() == "macro_rules") {
+                    // macro_rules! macro item
+                    return parse_macro_item(::std::move(outer_attrs));
+                } else if (lexer.peek_token(1)->get_id() == SCOPE_RESOLUTION
+                           || lexer.peek_token(1)->get_id() == EXCLAM) {
+                    // FIXME: ensure doesn't take any expressions by mistake
+                    // path (probably) or macro invocation, so probably a macro invocation semi
+                    return parse_macro_item(::std::move(outer_attrs));
+                }
+                gcc_fallthrough();
+                // TODO: find out how to disable gcc "implicit fallthrough" warning
+            default:
+                // fallback: expression statement
+                return parse_expr_stmt(::std::move(outer_attrs));
+                break;
+        }
+    }
+
+    // Parses a let statement.
+    AST::LetStmt* Parser::parse_let_stmt(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO
+        return NULL;
+    }
+
+    // Parses an expression statement (disambiguates to expression with or without block statement).
+    AST::ExprStmt* Parser::parse_expr_stmt(::std::vector<AST::Attribute> outer_attrs) {
         // TODO
         return NULL;
     }
@@ -3890,14 +4068,591 @@ namespace Rust {
 
     // Parses a type path.
     AST::TypePath Parser::parse_type_path() {
-        // TODO
-        return AST::TypePath::create_error();
+        bool has_opening_scope_resolution = false;
+        if (lexer.peek_token()->get_id() == SCOPE_RESOLUTION) {
+            has_opening_scope_resolution = true;
+            lexer.skip_token();
+        }
+
+        // create segment vector
+        ::std::vector< ::std::unique_ptr<AST::TypePathSegment> > segments;
+
+        // parse required initial segment
+        AST::TypePathSegment* initial_segment = parse_type_path_segment();
+        if (initial_segment == NULL) {
+            // skip after somewhere?
+            // don't necessarily throw error but yeah
+            return AST::TypePath::create_error();
+        }
+        segments.push_back(::std::unique_ptr<AST::TypePathSegment>(initial_segment));
+
+        // parse optional segments (as long as scope resolution operator exists)
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() == SCOPE_RESOLUTION) {
+            // skip scope resolution operator
+            lexer.skip_token();
+
+            // parse the actual segment - it is an error if it doesn't exist now
+            AST::TypePathSegment* segment = parse_type_path_segment();
+            if (initial_segment == NULL) {
+                // skip after somewhere?
+                error_at(t->get_locus(), "could not parse type path segment");
+                return AST::TypePath::create_error();
+            }
+
+            segments.push_back(::std::unique_ptr<AST::TypePathSegment>(segment));
+
+            t = lexer.peek_token();
+        }
+
+        return AST::TypePath(::std::move(segments), has_opening_scope_resolution);
+    }
+
+    // Parses the generic arguments in each path segment.
+    AST::GenericArgs Parser::parse_path_generic_args() {
+        if (!skip_token(LEFT_ANGLE)) {
+            // skip after somewhere?
+            return AST::GenericArgs::create_empty();
+        }
+
+        // try to parse lifetimes first
+        ::std::vector<AST::Lifetime> lifetime_args;
+
+        // TODO: think of better control structure
+        while (true) {
+            AST::Lifetime lifetime = parse_lifetime();
+            if (lifetime.is_error()) {
+                // not necessarily an error
+                break;
+            }
+
+            lifetime_args.push_back(lifetime);
+
+            // if next token isn't comma, then it must be end of list
+            if (lexer.peek_token()->get_id() != COMMA) {
+                break;
+            }
+            // skip comma
+            lexer.skip_token();
+        }
+
+        // try to parse types second
+        ::std::vector< ::std::unique_ptr<AST::Type> > type_args;
+
+        // TODO: think of better control structure
+        while (true) {
+            AST::Type* type = parse_type();
+            if (type == NULL) {
+                // not necessarily an error
+                break;
+            }
+
+            type_args.push_back(::std::unique_ptr<AST::Type>(type));
+
+            // if next token isn't comma, then it must be end of list
+            if (lexer.peek_token()->get_id() != COMMA) {
+                break;
+            }
+            // skip comma
+            lexer.skip_token();
+        }
+
+        // try to parse bindings third
+        ::std::vector<AST::GenericArgsBinding> binding_args;
+
+        // TODO: think of better control structure
+        while (true) {
+            AST::GenericArgsBinding binding = parse_generic_args_binding();
+            if (binding.is_error()) {
+                // not necessarily an error
+                break;
+            }
+
+            binding_args.push_back(binding);
+
+            // if next token isn't comma, then it must be end of list
+            if (lexer.peek_token()->get_id() != COMMA) {
+                break;
+            }
+            // skip comma
+            lexer.skip_token();
+        }
+
+        // skip any trailing commas
+        if (lexer.peek_token()->get_id() == COMMA) {
+            lexer.skip_token();
+        }
+
+        if (!skip_token(RIGHT_ANGLE)) {
+            // skip after somewhere?
+            return AST::GenericArgs::create_empty();
+        }
+
+        return AST::GenericArgs(
+          ::std::move(lifetime_args), ::std::move(type_args), ::std::move(binding_args));
+    }
+
+    // Parses a binding in a generic args path segment.
+    AST::GenericArgsBinding Parser::parse_generic_args_binding() {
+        const_TokenPtr ident_tok = lexer.peek_token();
+        if (ident_tok->get_id() != IDENTIFIER) {
+            // allow non error-inducing use
+            // skip somewhere?
+            return AST::GenericArgsBinding::create_error();
+        }
+        lexer.skip_token();
+        Identifier ident = ident_tok->get_str();
+
+        if (!skip_token(EQUAL)) {
+            // skip after somewhere?
+            return AST::GenericArgsBinding::create_error();
+        }
+
+        // parse type (required)
+        AST::Type* type = parse_type();
+        if (type == NULL) {
+            // skip somewhere?
+            return AST::GenericArgsBinding::create_error();
+        }
+
+        return AST::GenericArgsBinding(ident, type);
+    }
+
+    /* Parses a single type path segment (not including opening scope resolution, but includes any
+     * internal ones). Includes generic args or type path functions too. */
+    AST::TypePathSegment* Parser::parse_type_path_segment() {
+        // parse ident segment part
+        AST::PathIdentSegment ident_segment = parse_path_ident_segment();
+        if (ident_segment.is_error()) {
+            // not necessarily an error
+            return NULL;
+        }
+
+        bool has_separating_scope_resolution = false;
+        if (lexer.peek_token()->get_id() == SCOPE_RESOLUTION) {
+            has_separating_scope_resolution = true;
+            lexer.skip_token();
+        }
+
+        // branch into variants on next token
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case LEFT_ANGLE: {
+                // parse generic args
+                AST::GenericArgs generic_args = parse_path_generic_args();
+
+                return new AST::TypePathSegmentGeneric(
+                  ident_segment, has_separating_scope_resolution, ::std::move(generic_args));
+            }
+            case LEFT_PAREN: {
+                // parse type path function
+                AST::TypePathFunction type_path_function = parse_type_path_function();
+
+                if (type_path_function.is_error()) {
+                    // skip after somewhere?
+                    return NULL;
+                }
+
+                return new AST::TypePathSegmentFunction(
+                  ident_segment, has_separating_scope_resolution, type_path_function);
+            }
+            default:
+                // neither of them
+                return new AST::TypePathSegment(ident_segment, has_separating_scope_resolution);
+        }
+        gcc_unreachable();
+    }
+
+    // Parses a function call representation inside a type path.
+    AST::TypePathFunction Parser::parse_type_path_function() {
+        if (!skip_token(LEFT_PAREN)) {
+            // skip somewhere?
+            return AST::TypePathFunction::create_error();
+        }
+
+        // parse function inputs
+        ::std::vector< ::std::unique_ptr<AST::Type> > inputs;
+
+        // TODO: think of better control structure
+        while (true) {
+            AST::Type* type = parse_type();
+            if (type == NULL) {
+                // not necessarily an error
+                break;
+            }
+
+            inputs.push_back(::std::unique_ptr<AST::Type>(type));
+
+            // skip commas, including trailing commas
+            if (lexer.peek_token()->get_id() != COMMA) {
+                break;
+            } else {
+                lexer.skip_token();
+            }
+        }
+
+        if (!skip_token(RIGHT_PAREN)) {
+            // skip somewhere?
+            return AST::TypePathFunction::create_error();
+        }
+
+        // parse optional return type
+        AST::Type* return_type = parse_function_return_type();
+
+        return AST::TypePathFunction(inputs, return_type);
+    }
+
+    // Parses a path inside an expression that allows generic arguments.
+    AST::PathInExpression Parser::parse_path_in_expression() {
+        bool has_opening_scope_resolution = false;
+        if (lexer.peek_token()->get_id() == SCOPE_RESOLUTION) {
+            has_opening_scope_resolution = true;
+            lexer.skip_token();
+        }
+
+        // create segment vector
+        ::std::vector<AST::PathExprSegment> segments;
+
+        // parse required initial segment
+        AST::PathExprSegment initial_segment = parse_path_expr_segment();
+        if (initial_segment.is_error()) {
+            // skip after somewhere?
+            // don't necessarily throw error but yeah
+            return AST::PathInExpression::create_error();
+        }
+        segments.push_back(initial_segment);
+
+        // parse optional segments (as long as scope resolution operator exists)
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() == SCOPE_RESOLUTION) {
+            // skip scope resolution operator
+            lexer.skip_token();
+
+            // parse the actual segment - it is an error if it doesn't exist now
+            AST::PathExprSegment segment = parse_path_expr_segment();
+            if (segment.is_error()) {
+                // skip after somewhere?
+                error_at(t->get_locus(), "could not parse path expression segment");
+                return AST::PathInExpression::create_error();
+            }
+
+            segments.push_back(segment);
+
+            t = lexer.peek_token();
+        }
+
+        return AST::PathInExpression(::std::move(segments), has_opening_scope_resolution);
+    }
+
+    // Parses a single path in expression path segment (including generic arguments).
+    AST::PathExprSegment Parser::parse_path_expr_segment() {
+        // parse ident segment
+        AST::PathIdentSegment ident = parse_path_ident_segment();
+        if (ident.is_error()) {
+            // not necessarily an error?
+            return AST::PathExprSegment::create_error();
+        }
+
+        // parse generic args (and turbofish), if they exist
+        /* use lookahead to determine if they actually exist (don't want to accidently parse over
+         * next ident segment) */
+        if (lexer.peek_token()->get_id() == SCOPE_RESOLUTION
+            && lexer.peek_token(1)->get_id() == LEFT_ANGLE) {
+            // skip scope resolution
+            lexer.skip_token();
+
+            AST::GenericArgs generic_args = parse_path_generic_args();
+
+            return AST::PathExprSegment(::std::move(ident), ::std::move(generic_args));
+        }
+
+        // return a generic parameter-less expr segment if not found
+        return AST::PathExprSegment(::std::move(ident));
+    }
+
+    // Parses a fully qualified path in expression (i.e. a pattern).
+    AST::QualifiedPathInExpression Parser::parse_qualified_path_in_expression() {
+        /* Note: the Rust grammar is defined in such a way that it is impossible to determine whether
+         * a prospective qualified path is a QualifiedPathInExpression or QualifiedPathInType in all
+         * cases by the rules themselves (the only possible difference is a TypePathSegment with
+         * function, and lookahead to find this is too difficult). However, as this is a pattern and
+         * QualifiedPathInType is a type, I believe it that their construction will not be confused
+         * (due to rules regarding patterns vs types).
+         * As such, this function will not attempt to minimise errors created by their confusion. */
+
+        // parse the qualified path type (required)
+        AST::QualifiedPathType qual_path_type = parse_qualified_path_type();
+        if (qual_path_type.is_error()) {
+            // TODO: should this create a parse error?
+            return AST::QualifiedPathInExpression::create_error();
+        }
+
+        // parse path segments
+        ::std::vector<AST::PathExprSegment> segments;
+
+        // parse initial required segment
+        if (!expect_token(SCOPE_RESOLUTION)) {
+            // skip after somewhere?
+
+            return AST::QualifiedPathInExpression::create_error();
+        }
+        AST::PathExprSegment initial_segment = parse_path_expr_segment();
+        if (initial_segment.is_error()) {
+            // skip after somewhere?
+            error_at(lexer.peek_token()->get_locus(),
+              "required initial path expression segment in "
+              "qualified path in expression could not be parsed");
+            return AST::QualifiedPathInExpression::create_error();
+        }
+        segments.push_back(::std::move(initial_segment));
+
+        // parse optional segments (as long as scope resolution operator exists)
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() == SCOPE_RESOLUTION) {
+            // skip scope resolution operator
+            lexer.skip_token();
+
+            // parse the actual segment - it is an error if it doesn't exist now
+            AST::PathExprSegment segment = parse_path_expr_segment();
+            if (segment.is_error()) {
+                // skip after somewhere?
+                error_at(t->get_locus(),
+                  "could not parse path expression segment in qualified path in expression");
+                return AST::QualifiedPathInExpression::create_error();
+            }
+
+            segments.push_back(::std::move(segment));
+
+            t = lexer.peek_token();
+        }
+
+        return AST::QualifiedPathInExpression(::std::move(qual_path_type), ::std::move(segments));
+    }
+
+    // Parses the type syntactical construction at the start of a qualified path.
+    AST::QualifiedPathType Parser::parse_qualified_path_type() {
+        // TODO: should this actually be error? is there anywhere where this could be valid?
+        if (!skip_token(LEFT_ANGLE)) {
+            // skip after somewhere?
+            return AST::QualifiedPathType::create_error();
+        }
+
+        // parse type (required)
+        AST::Type* type = parse_type();
+        if (type == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "could not parse type in qualified path type");
+            // skip somewhere?
+            return AST::QualifiedPathType::create_error();
+        }
+
+        // parse optional as clause
+        AST::TypePath as_type_path = AST::TypePath::create_error();
+        if (lexer.peek_token()->get_id() == AS) {
+            lexer.skip_token();
+
+            // parse type path, which is required now
+            as_type_path = parse_type_path();
+            if (as_type_path.is_error()) {
+                error_at(lexer.peek_token()->get_locus(),
+                  "could not parse type path in as clause in qualified path type");
+                // skip somewhere?
+                return AST::QualifiedPathType::create_error();
+            }
+        }
+
+        if (!skip_token(RIGHT_ANGLE)) {
+            // skip after somewhere?
+            return AST::QualifiedPathType::create_error();
+        }
+
+        return AST::QualifiedPathType(type, as_type_path);
+    }
+
+    // Parses a fully qualified path in type (i.e. a type).
+    AST::QualifiedPathInType Parser::parse_qualified_path_in_type() {
+        // parse the qualified path type (required)
+        AST::QualifiedPathType qual_path_type = parse_qualified_path_type();
+        if (qual_path_type.is_error()) {
+            // TODO: should this create a parse error?
+            return AST::QualifiedPathInType::create_error();
+        }
+
+        // parse path segments
+        ::std::vector< ::std::unique_ptr<AST::TypePathSegment> > segments;
+
+        // parse initial required segment
+        if (!expect_token(SCOPE_RESOLUTION)) {
+            // skip after somewhere?
+
+            return AST::QualifiedPathInType::create_error();
+        }
+        AST::TypePathSegment* initial_segment = parse_type_path_segment();
+        if (initial_segment == NULL) {
+            // skip after somewhere?
+            error_at(lexer.peek_token()->get_locus(),
+              "required initial type path segment in qualified path in type could not be parsed");
+            return AST::QualifiedPathInType::create_error();
+        }
+        segments.push_back(::std::unique_ptr<AST::TypePathSegment>(initial_segment));
+
+        // parse optional segments (as long as scope resolution operator exists)
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() == SCOPE_RESOLUTION) {
+            // skip scope resolution operator
+            lexer.skip_token();
+
+            // parse the actual segment - it is an error if it doesn't exist now
+            AST::TypePathSegment* segment = parse_type_path_segment();
+            if (segment == NULL) {
+                // skip after somewhere?
+                error_at(
+                  t->get_locus(), "could not parse type path segment in qualified path in type");
+                return AST::QualifiedPathInType::create_error();
+            }
+
+            segments.push_back(::std::unique_ptr<AST::TypePathSegment>(segment));
+
+            t = lexer.peek_token();
+        }
+
+        return AST::QualifiedPathInType(::std::move(qual_path_type), ::std::move(segments));
     }
 
     // Parses a self param.
     AST::SelfParam Parser::parse_self_param() {
-        // TODO
-        return AST::SelfParam::create_error();
+        bool has_reference = false;
+        AST::Lifetime lifetime = AST::Lifetime::error();
+
+        // test if self is a reference parameter
+        if (lexer.peek_token()->get_id() == AMP) {
+            has_reference = true;
+            lexer.skip_token();
+
+            // now test whether it has a lifetime
+            if (lexer.peek_token()->get_id() == LIFETIME) {
+                lifetime = parse_lifetime();
+
+                // something went wrong somehow
+                if (lifetime.is_error()) {
+                    error_at(
+                      lexer.peek_token()->get_locus(), "failed to parse lifetime in self param");
+                    // skip after somewhere?
+                    return AST::SelfParam::create_error();
+                }
+            }
+        }
+
+        // test for mut
+        bool has_mut = false;
+        if (lexer.peek_token()->get_id() == MUT) {
+            has_mut = true;
+            lexer.skip_token();
+        }
+
+        // skip self token
+        if (!skip_token(SELF)) {
+            // skip after somewhere?
+            return AST::SelfParam::create_error();
+        }
+
+        // parse optional type
+        AST::Type* type = NULL;
+        if (lexer.peek_token()->get_id() == COLON) {
+            lexer.skip_token();
+
+            // type is now required
+            type = parse_type();
+            if (type == NULL) {
+                error_at(lexer.peek_token()->get_locus(), "could not parse type in self param");
+                // skip after somewhere?
+                return AST::SelfParam::create_error();
+            }
+        }
+
+        // ensure that cannot have both type and reference
+        if (type != NULL && has_reference) {
+            error_at(lexer.peek_token()->get_locus(),
+              "cannot have both a reference and a type specified in a self param");
+            // skip after somewhere?
+            return AST::SelfParam::create_error();
+        }
+
+        if (has_reference) {
+            return AST::SelfParam(lifetime, has_mut);
+        } else {
+            // note that type may be NULL here and that's fine
+            return AST::SelfParam(type, has_mut);
+        }
+    }
+
+    /* Parses a method. Note that this function is probably useless because using lookahead to
+     * determine whether a function is a method is a PITA (maybe not even doable), so most places
+     * probably parse a "function or method" and then resolve it into whatever it is afterward. As
+     * such, this is only here for algorithmically defining the grammar rule. */
+    AST::Method Parser::parse_method() {
+        // Note: as a result of the above, this will not attempt to disambiguate a function
+        // parse qualifiers
+        AST::FunctionQualifiers qualifiers = parse_function_qualifiers();
+
+        skip_token(FN_TOK);
+
+        const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+        if (ident_tok == NULL) {
+            skip_after_end_block();
+            return AST::Method::create_error();
+        }
+        Identifier method_name = ident_tok->get_str();
+
+        // parse generic params - if exist
+        ::std::vector< ::std::unique_ptr<AST::GenericParam> > generic_params
+          = parse_generic_params_in_angles();
+
+        if (!skip_token(LEFT_PAREN)) {
+            error_at(lexer.peek_token()->get_locus(),
+              "method missing opening parentheses before parameter list");
+            skip_after_end_block();
+            return AST::Method::create_error();
+        }
+
+        // parse self param
+        AST::SelfParam self_param = parse_self_param();
+        if (self_param.is_error()) {
+            error_at(lexer.peek_token()->get_locus(), "could not parse self param in method");
+            skip_after_end_block();
+            return AST::Method::create_error();
+        }
+
+        // skip comma if it exists
+        if (lexer.peek_token()->get_id() == COMMA) {
+            lexer.skip_token();
+        }
+
+        // parse function parameters
+        ::std::vector<AST::FunctionParam> function_params = parse_function_params();
+
+        if (!skip_token(RIGHT_PAREN)) {
+            error_at(lexer.peek_token()->get_locus(),
+              "method declaration missing closing parentheses after parameter list");
+            skip_after_end_block();
+            return AST::Method::create_error();
+        }
+
+        // parse function return type - if exists
+        AST::Type* return_type = parse_function_return_type();
+
+        // parse where clause - if exists
+        AST::WhereClause where_clause = parse_where_clause();
+
+        // parse block expression
+        AST::BlockExpr* block_expr = parse_block_expr();
+        if (block_expr == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "method declaration missing block expression");
+            skip_after_end_block();
+            return AST::Method::create_error();
+        }
+
+        return AST::Method(method_name, qualifiers, ::std::move(generic_params), self_param,
+          function_params, return_type, where_clause, block_expr);
     }
 
     // Parses an expression without a block associated with it (further disambiguates).
@@ -3916,17 +4671,17 @@ namespace Rust {
         ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
 
         // parse statements
-        ::std::vector< ::std::unique_ptr<AST::Statement> > stmts;
+        ::std::vector< ::std::unique_ptr<AST::Stmt> > stmts;
 
         // TODO: think of better control structure
         while (true) {
-            AST::Statement* stmt = parse_stmt();
+            AST::Stmt* stmt = parse_stmt();
 
             if (stmt == NULL) {
                 break;
             }
 
-            stmts.push_back(::std::unique_ptr<AST::Statement>(stmt));
+            stmts.push_back(::std::unique_ptr<AST::Stmt>(stmt));
         }
 
         // parse final expression (optional)

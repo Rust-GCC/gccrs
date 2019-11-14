@@ -8,13 +8,19 @@
 namespace Rust {
     namespace AST {
         // Just a semi-colon, which apparently is a statement.
-        class EmptyStatement : public Statement {
+        class EmptyStmt : public Stmt {
           public:
             ::std::string as_string() const {
                 return ::std::string(1, ';');
             }
 
-            EmptyStatement() {}
+            EmptyStmt() {}
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual EmptyStmt* clone_stmt_impl() const OVERRIDE {
+                return new EmptyStmt(*this);
+            }
         };
 
         /* This is syntactically identical to declaring an item inside a module BUT it has block
@@ -30,7 +36,7 @@ namespace Rust {
 
         /* Variable assignment let statement - type of "declaration statement" as it introduces new
          * name into scope */
-        class LetStatement : public Statement {
+        class LetStmt : public Stmt {
             // bool has_outer_attrs;
             ::std::vector<Attribute> outer_attrs;
 
@@ -69,13 +75,13 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            LetStatement(Pattern* variables_pattern, Expr* init_expr, Type* type,
+            LetStmt(Pattern* variables_pattern, Expr* init_expr, Type* type,
               ::std::vector<Attribute> outer_attrs) :
               variables_pattern(variables_pattern),
               init_expr(init_expr), type(type), outer_attrs(outer_attrs) {}
 
             // Copy constructor with clone
-            LetStatement(LetStatement const& other) :
+            LetStmt(LetStmt const& other) :
               variables_pattern(other.variables_pattern->clone_pattern()),
               init_expr(other.init_expr->clone_expr()), type(other.type->clone_type()),
               outer_attrs(other.outer_attrs) {}
@@ -83,7 +89,7 @@ namespace Rust {
             // Destructor - define here if required
 
             // Overloaded assignment operator to clone
-            LetStatement& operator=(LetStatement const& other) {
+            LetStmt& operator=(LetStmt const& other) {
                 variables_pattern = other.variables_pattern->clone_pattern();
                 init_expr = other.init_expr->clone_expr();
                 type = other.type->clone_type();
@@ -93,17 +99,23 @@ namespace Rust {
             }
 
             // move constructors 
-            LetStatement(LetStatement&& other) = default;
-            LetStatement& operator=(LetStatement&& other) = default;
+            LetStmt(LetStmt&& other) = default;
+            LetStmt& operator=(LetStmt&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual LetStmt* clone_stmt_impl() const OVERRIDE {
+                return new LetStmt(*this);
+            }
         };
 
         // Abstract base class for expression statements (statements containing an expression)
-        class ExpressionStatement : public Statement {
+        class ExprStmt : public Stmt {
             // TODO: add any useful virtual functions
         };
 
         // Statement containing an expression without a block
-        class ExpressionStatementWithoutBlock : public ExpressionStatement {
+        class ExprStmtWithoutBlock : public ExprStmt {
             // ExprWithoutBlock* expr;
             ::std::unique_ptr<ExprWithoutBlock> expr;
 
@@ -114,29 +126,35 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            ExpressionStatementWithoutBlock(ExprWithoutBlock* expr) : expr(expr) {}
+            ExprStmtWithoutBlock(ExprWithoutBlock* expr) : expr(expr) {}
 
             // Copy constructor with clone
-            ExpressionStatementWithoutBlock(ExpressionStatementWithoutBlock const& other) :
+            ExprStmtWithoutBlock(ExprStmtWithoutBlock const& other) :
               expr(other.expr->clone_expr_without_block()) {}
 
             // Destructor - define here if required
 
             // Overloaded assignment operator to clone
-            ExpressionStatementWithoutBlock& operator=(ExpressionStatementWithoutBlock const& other) {
+            ExprStmtWithoutBlock& operator=(ExprStmtWithoutBlock const& other) {
                 expr = other.expr->clone_expr_without_block();
 
                 return *this;
             }
 
             // move constructors 
-            ExpressionStatementWithoutBlock(ExpressionStatementWithoutBlock&& other) = default;
-            ExpressionStatementWithoutBlock& operator=(ExpressionStatementWithoutBlock&& other) =
+            ExprStmtWithoutBlock(ExprStmtWithoutBlock&& other) = default;
+            ExprStmtWithoutBlock& operator=(ExprStmtWithoutBlock&& other) =
             default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ExprStmtWithoutBlock* clone_stmt_impl() const OVERRIDE {
+                return new ExprStmtWithoutBlock(*this);
+            }
         };
 
         // Statement containing an expression with a block
-        class ExpressionStatementWithBlock : public ExpressionStatement {
+        class ExprStmtWithBlock : public ExprStmt {
             // ExprWithBlock* expr;
             ::std::unique_ptr<ExprWithBlock> expr;
 
@@ -147,24 +165,30 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            ExpressionStatementWithBlock(ExprWithBlock* expr) : expr(expr) {}
+            ExprStmtWithBlock(ExprWithBlock* expr) : expr(expr) {}
 
             // Copy constructor with clone
-            ExpressionStatementWithBlock(ExpressionStatementWithBlock const& other) :
+            ExprStmtWithBlock(ExprStmtWithBlock const& other) :
               expr(other.expr->clone_expr_with_block()) {}
 
             // Destructor - define here if required
 
             // Overloaded assignment operator to clone
-            ExpressionStatementWithBlock& operator=(ExpressionStatementWithBlock const& other) {
+            ExprStmtWithBlock& operator=(ExprStmtWithBlock const& other) {
                 expr = other.expr->clone_expr_with_block();
 
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            ExpressionStatementWithBlock(ExpressionStatementWithBlock&& other) = default;
-            ExpressionStatementWithBlock& operator=(ExpressionStatementWithBlock&& other) = default;
+            // move constructors 
+            ExprStmtWithBlock(ExprStmtWithBlock&& other) = default;
+            ExprStmtWithBlock& operator=(ExprStmtWithBlock&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual ExprStmtWithBlock* clone_stmt_impl() const OVERRIDE {
+                return new ExprStmtWithBlock(*this);
+            }
         };
 
         // Replaced definition of MacroInvocationSemi with forward decl - defined in rust-macro.h

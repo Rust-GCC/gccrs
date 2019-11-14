@@ -426,20 +426,20 @@ namespace Rust {
 
         /* Base statement abstract class. Note that most "statements" are not allowed in top-level
          * module scope - only a subclass of statements called "items" are. */
-        class Statement : public Node {
+        class Stmt : public Node {
           public:
             // Unique pointer custom clone function
-            ::std::unique_ptr<Statement> clone_statement() const {
-                return ::std::unique_ptr<Statement>(clone_statement_impl());
+            ::std::unique_ptr<Stmt> clone_stmt() const {
+                return ::std::unique_ptr<Stmt>(clone_stmt_impl());
             }
 
           protected:
             // Clone function implementation as pure virtual method
-            virtual Statement* clone_statement_impl() const = 0;
+            virtual Stmt* clone_stmt_impl() const = 0;
         };
 
         // Rust "item" AST node (declaration of top-level/module-level allowed stuff)
-        class Item : public Statement {
+        class Item : public Stmt {
             ::std::vector<Attribute> outer_attrs;
 
           public:
@@ -460,7 +460,7 @@ namespace Rust {
 
             /* Save having to specify two clone methods in derived classes by making statement clone 
              * return item clone. Hopefully won't affect performance too much. */
-            virtual Item* clone_statement_impl() const OVERRIDE {
+            virtual Item* clone_stmt_impl() const OVERRIDE {
                 return clone_item_impl();
             }
         };
@@ -814,9 +814,9 @@ namespace Rust {
 
             // FIXME: remove if item impl virtual override works properly
             // Use covariance to implement clone function as returning this object rather than base
-            virtual MacroInvocationSemi* clone_statement_impl() const OVERRIDE {
+            /*virtual MacroInvocationSemi* clone_statement_impl() const OVERRIDE {
                 return new MacroInvocationSemi(*this);
-            }
+            }*/
 
             // Use covariance to implement clone function as returning this object rather than base
             virtual MacroInvocationSemi* clone_trait_item_impl() const OVERRIDE {

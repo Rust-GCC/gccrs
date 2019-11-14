@@ -2187,7 +2187,7 @@ namespace Rust {
             Statements statements;*/
 
             // bool has_statements;
-            ::std::vector< ::std::unique_ptr<Statement> > statements;
+            ::std::vector< ::std::unique_ptr<Stmt> > statements;
             // bool has_expr;
             ::std::unique_ptr<ExprWithoutBlock> expr; // inlined from Statements
 
@@ -2204,7 +2204,7 @@ namespace Rust {
                 return expr != NULL;
             }
 
-            BlockExpr(::std::vector< ::std::unique_ptr<Statement> > block_statements,
+            BlockExpr(::std::vector< ::std::unique_ptr<Stmt> > block_statements,
               ExprWithoutBlock* block_expr, ::std::vector<Attribute> inner_attribs,
               ::std::vector<Attribute> outer_attribs) :
               statements(::std::move(block_statements)),
@@ -2218,7 +2218,7 @@ namespace Rust {
                 statements.reserve(other.statements.size());
 
                 for (const auto& e : other.statements) {
-                    statements.push_back(e->clone_statement());
+                    statements.push_back(e->clone_stmt());
                 }
               }
 
@@ -2236,7 +2236,7 @@ namespace Rust {
                 statements.reserve(other.statements.size());
 
                 for (const auto& e : other.statements) {
-                    statements.push_back(e->clone_statement());
+                    statements.push_back(e->clone_stmt());
                 }
 
                 return *this;

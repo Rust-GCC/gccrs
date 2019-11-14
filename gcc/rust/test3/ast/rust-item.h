@@ -314,12 +314,16 @@ namespace Rust {
 
             // Returns whether the self-param is in an error state.
             inline bool is_error() const {
-                return (has_type() && has_lifetime()) || (!has_type() && !has_lifetime());
+                return has_type() && has_lifetime();
+                // not having either is not an error
             }
 
             // Creates an error state self-param.
             static SelfParam create_error() {
-                return SelfParam(Lifetime::error(), false, false, NULL);
+                /* HACK: creates a dummy type. Since it's a unique pointer, it should clean it up, but
+                 * it still allocates memory, which is not ideal. */
+                return SelfParam(Lifetime(Lifetime::STATIC), false, false,
+                  new QualifiedPathInType(QualifiedPathInType::create_error()));
             }
 
             // Type-based self parameter (not ref, no lifetime)
@@ -354,8 +358,12 @@ namespace Rust {
 
         // Qualifiers for function, i.e. const, unsafe, extern etc.
         struct FunctionQualifiers {
+          public:
+            // Whether the function is neither const nor async, const only, or async only.
+            enum AsyncConstStatus { NONE, CONST, ASYNC };
+
           private:
-            bool has_const;
+            AsyncConstStatus const_status;
             bool has_unsafe;
             bool has_extern;
             ::std::string extern_abi; // e.g. extern "C" fn() -> i32 {}
@@ -363,19 +371,20 @@ namespace Rust {
 
           public:
             // Constructor with no extern (and hence no extern abi)
-            FunctionQualifiers(bool has_const, bool has_unsafe) :
-              has_const(has_const), has_unsafe(has_unsafe), has_extern(false),
+            FunctionQualifiers(AsyncConstStatus const_status, bool has_unsafe) :
+              const_status(const_status), has_unsafe(has_unsafe), has_extern(false),
               extern_abi(::std::string("")) {}
 
             // Constructor with extern abi (and thus extern)
-            FunctionQualifiers(bool has_const, bool has_unsafe, ::std::string extern_abi) :
-              has_const(has_const), has_unsafe(has_unsafe), has_extern(true), extern_abi(extern_abi) {
-            }
+            FunctionQualifiers(
+              AsyncConstStatus const_status, bool has_unsafe, ::std::string extern_abi) :
+              const_status(const_status),
+              has_unsafe(has_unsafe), has_extern(true), extern_abi(extern_abi) {}
 
             // Constructor with all possible options (DON'T HAVE EXTERN_ABI WITHOUT EXTERN!)
-            FunctionQualifiers(
-              bool has_const, bool has_unsafe, bool has_extern, ::std::string extern_abi) :
-              has_const(has_const),
+            FunctionQualifiers(AsyncConstStatus const_status, bool has_unsafe, bool has_extern,
+              ::std::string extern_abi) :
+              const_status(const_status),
               has_unsafe(has_unsafe), has_extern(has_extern), extern_abi(extern_abi) {}
         };
 
@@ -424,6 +433,7 @@ namespace Rust {
 
         // A method (function belonging to a type)
         struct Method {
+          private:
             FunctionQualifiers qualifiers;
             Identifier method_name;
 
@@ -453,6 +463,18 @@ namespace Rust {
             /*~Method() {
                 delete expr;
             }*/
+
+            // Returns whether the method is in an error state.
+            inline bool is_error() const {
+                return expr == NULL || method_name.empty() || self_param.is_error();
+            }
+
+            // Creates an error state method.
+            static Method create_error() {
+                return Method("", FunctionQualifiers(FunctionQualifiers::NONE, true),
+                  ::std::vector< ::std::unique_ptr<GenericParam> >(), SelfParam::create_error(),
+                  ::std::vector<FunctionParam>(), NULL, WhereClause::create_empty(), NULL);
+            }
 
             // Returns whether the method has generic parameters.
             inline bool has_generics() const {
@@ -718,9 +740,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual ModuleBodied* clone_statement_impl() const OVERRIDE {
+            /*virtual ModuleBodied* clone_statement_impl() const OVERRIDE {
                 return new ModuleBodied(*this);
-            }
+            }*/
         };
 
         // Module without a body, loaded from external file
@@ -739,9 +761,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual ModuleNoBody* clone_statement_impl() const OVERRIDE {
+            /*virtual ModuleNoBody* clone_statement_impl() const OVERRIDE {
                 return new ModuleNoBody(*this);
-            }
+            }*/
         };
 
         // Rust extern crate declaration AST node
@@ -789,9 +811,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual ExternCrate* clone_statement_impl() const OVERRIDE {
+            /*virtual ExternCrate* clone_statement_impl() const OVERRIDE {
                 return new ExternCrate(*this);
-            }
+            }*/
         };
 
         // The path-ish thing referred to in a use declaration - abstract base class
@@ -974,9 +996,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual UseDeclaration* clone_statement_impl() const OVERRIDE {
+            /*virtual UseDeclaration* clone_statement_impl() const OVERRIDE {
                 return new UseDeclaration(*this);
-            }
+            }*/
         };
 
         // Parameters used in a function - TODO inline?
@@ -1097,9 +1119,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual Function* clone_statement_impl() const OVERRIDE {
+            /*virtual Function* clone_statement_impl() const OVERRIDE {
                 return new Function(*this);
-            }
+            }*/
         };
 
         // Rust type alias (i.e. typedef) AST node
@@ -1184,9 +1206,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual TypeAlias* clone_statement_impl() const OVERRIDE {
+            /*virtual TypeAlias* clone_statement_impl() const OVERRIDE {
                 return new TypeAlias(*this);
-            }
+            }*/
         };
 
         // Rust base struct declaration AST node - abstract base class
@@ -1360,9 +1382,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual StructStruct* clone_statement_impl() const OVERRIDE {
+            /*virtual StructStruct* clone_statement_impl() const OVERRIDE {
                 return new StructStruct(*this);
-            }
+            }*/
         };
 
         // A single field in a tuple
@@ -1445,9 +1467,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual TupleStruct* clone_statement_impl() const OVERRIDE {
+            /*virtual TupleStruct* clone_statement_impl() const OVERRIDE {
                 return new TupleStruct(*this);
-            }
+            }*/
         };
 
         // An item used in an "enum" tagged union - not abstract: base represents a name-only enum
@@ -1663,9 +1685,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual Enum* clone_statement_impl() const OVERRIDE {
+            /*virtual Enum* clone_statement_impl() const OVERRIDE {
                 return new Enum(*this);
-            }
+            }*/
         };
 
         // Rust untagged union used for C compat AST node
@@ -1742,9 +1764,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual Union* clone_statement_impl() const OVERRIDE {
+            /*virtual Union* clone_statement_impl() const OVERRIDE {
                 return new Union(*this);
-            }
+            }*/
         };
 
         // "Constant item" AST node - used for constant, compile-time expressions within module scope
@@ -1805,9 +1827,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual ConstantItem* clone_statement_impl() const OVERRIDE {
+            /*virtual ConstantItem* clone_statement_impl() const OVERRIDE {
                 return new ConstantItem(*this);
-            }
+            }*/
         };
 
         // Static item AST node - items within module scope with fixed storage duration?
@@ -1863,9 +1885,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual StaticItem* clone_statement_impl() const OVERRIDE {
+            /*virtual StaticItem* clone_statement_impl() const OVERRIDE {
                 return new StaticItem(*this);
-            }
+            }*/
         };
 
         // Function declaration in traits
@@ -2382,9 +2404,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual Trait* clone_statement_impl() const OVERRIDE {
+            /*virtual Trait* clone_statement_impl() const OVERRIDE {
                 return new Trait(*this);
-            }
+            }*/
         };
 
         // Implementation item declaration AST node - abstract base class
@@ -2702,9 +2724,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual InherentImpl* clone_statement_impl() const OVERRIDE {
+            /*virtual InherentImpl* clone_statement_impl() const OVERRIDE {
                 return new InherentImpl(*this);
-            }
+            }*/
         };
 
         // Abstract base class for items used in a trait impl
@@ -2753,14 +2775,14 @@ namespace Rust {
         class TraitImplItemTypeAlias : public TraitImplItem {
             // bool has_visibility;
             // FIXME: don't double up visibility because TypeAlias already has it
-            //Visibility visibility;
+            // Visibility visibility;
 
             TypeAlias type_alias;
 
           public:
             // Returns whether trait impl item has a non-default visibility.
             inline bool has_visibility() const {
-                //return !visibility.is_error();
+                // return !visibility.is_error();
                 return type_alias.has_visibility();
             }
 
@@ -2779,7 +2801,7 @@ namespace Rust {
             TraitImplItemTypeAlias& operator=(TraitImplItemTypeAlias const& other) {
                 TraitImplItem::operator=(other);
                 type_alias = other.type_alias;
-                //visibility = other.visibility;
+                // visibility = other.visibility;
 
                 return *this;
             }
@@ -2799,14 +2821,14 @@ namespace Rust {
         class TraitImplItemConstant : public TraitImplItem {
             // bool has_visibility;
             // FIXME: this is redundant as VisItem has it
-            //Visibility visibility;
+            // Visibility visibility;
 
             ConstantItem constant_item;
 
           public:
             // Returns whether item has a non-default (i.e. non-private) visibility.
             inline bool has_visibility() const {
-                //return !visibility.is_error();
+                // return !visibility.is_error();
                 return constant_item.has_visibility();
             }
 
@@ -2817,8 +2839,8 @@ namespace Rust {
 
             // Copy constructor with clone
             TraitImplItemConstant(TraitImplItemConstant const& other) :
-              constant_item(other.constant_item), /*visibility(other.visibility),*/ TraitImplItem(other) {
-            }
+              constant_item(other.constant_item),
+              /*visibility(other.visibility),*/ TraitImplItem(other) {}
 
             // Destructor - define here if required
 
@@ -2826,7 +2848,7 @@ namespace Rust {
             TraitImplItemConstant& operator=(TraitImplItemConstant const& other) {
                 TraitImplItem::operator=(other);
                 constant_item = other.constant_item;
-                //visibility = other.visibility;
+                // visibility = other.visibility;
 
                 return *this;
             }
@@ -2846,14 +2868,14 @@ namespace Rust {
         class TraitImplItemFunction : public TraitImplItem {
             // bool has_visibility;
             // FIXME: redundant - VisItem already has visibility
-            //Visibility visibility;
+            // Visibility visibility;
 
             Function function;
 
           public:
             // Returns whether item has a non-default (i.e. non-private) visibility.
             inline bool has_visibility() const {
-                //return !visibility.is_error();
+                // return !visibility.is_error();
                 return function.has_visibility();
             }
 
@@ -2872,7 +2894,7 @@ namespace Rust {
             TraitImplItemFunction& operator=(TraitImplItemFunction const& other) {
                 TraitImplItem::operator=(other);
                 function = other.function;
-                //visibility = other.visibility;
+                // visibility = other.visibility;
 
                 return *this;
             }
@@ -3003,9 +3025,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual TraitImpl* clone_statement_impl() const OVERRIDE {
+            /*virtual TraitImpl* clone_statement_impl() const OVERRIDE {
                 return new TraitImpl(*this);
-            }
+            }*/
         };
 
         // Abstract base class for an item used inside an extern block
@@ -3104,7 +3126,7 @@ namespace Rust {
         // A named function parameter used in external functions
         struct NamedFunctionParam {
           private:
-            //bool has_name;   // otherwise is _
+            // bool has_name;   // otherwise is _
             Identifier name; // TODO: handle wildcard in identifier?
 
             // Type param_type;
@@ -3126,14 +3148,13 @@ namespace Rust {
             static NamedFunctionParam create_error() {
                 return NamedFunctionParam("", NULL);
             }
-            
+
             NamedFunctionParam(Identifier name, Type* param_type) :
               name(name), param_type(param_type) {}
 
             // Copy constructor
             NamedFunctionParam(NamedFunctionParam const& other) :
-              name(other.name), param_type(other.param_type->clone_type()) {
-            }
+              name(other.name), param_type(other.param_type->clone_type()) {}
 
             ~NamedFunctionParam() = default;
 
@@ -3141,7 +3162,7 @@ namespace Rust {
             NamedFunctionParam& operator=(NamedFunctionParam const& other) {
                 name = other.name;
                 param_type = other.param_type->clone_type();
-                //has_name = other.has_name;
+                // has_name = other.has_name;
 
                 return *this;
             }
@@ -3311,9 +3332,9 @@ namespace Rust {
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual ExternBlock* clone_statement_impl() const OVERRIDE {
+            /*virtual ExternBlock* clone_statement_impl() const OVERRIDE {
                 return new ExternBlock(*this);
-            }
+            }*/
         };
 
         // Replaced with forward decls - defined in "rust-macro.h"

@@ -75,6 +75,16 @@ namespace Rust {
         AST::SimplePath parse_simple_path();
         AST::SimplePathSegment parse_simple_path_segment();
         AST::TypePath parse_type_path();
+        AST::TypePathSegment* parse_type_path_segment();
+        AST::PathIdentSegment parse_path_ident_segment();
+        AST::GenericArgs parse_path_generic_args();
+        AST::GenericArgsBinding parse_generic_args_binding();
+        AST::TypePathFunction parse_type_path_function();
+        AST::PathInExpression parse_path_in_expression();
+        AST::PathExprSegment parse_path_expr_segment();
+        AST::QualifiedPathInExpression parse_qualified_path_in_expression();
+        AST::QualifiedPathType parse_qualified_path_type();
+        AST::QualifiedPathInType parse_qualified_path_in_type();
 
         // Token tree or macro related
         AST::DelimTokenTree parse_delim_token_tree();
@@ -90,7 +100,7 @@ namespace Rust {
 
         // Top-level item-related
         ::std::vector< ::std::unique_ptr<AST::Item> > parse_items();
-        AST::Item* parse_item();
+        AST::Item* parse_item(bool called_from_statement);
         AST::VisItem* parse_vis_item(::std::vector<AST::Attribute> outer_attrs);
         AST::MacroItem* parse_macro_item(::std::vector<AST::Attribute> outer_attrs);
         AST::Visibility parse_visibility();
@@ -154,6 +164,7 @@ namespace Rust {
           AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::ExternalItem* parse_external_item();
         AST::NamedFunctionParam parse_named_function_param();
+        AST::Method parse_method();
 
         // Expression-related
         AST::Expr* parse_expr();
@@ -165,7 +176,9 @@ namespace Rust {
         AST::Type* parse_type();
 
         // Statement-related
-        AST::Statement* parse_stmt();
+        AST::Stmt* parse_stmt();
+        AST::LetStmt* parse_let_stmt(::std::vector<AST::Attribute> outer_attrs);
+        AST::ExprStmt* parse_expr_stmt(::std::vector<AST::Attribute> outer_attrs);
 
         // Pattern-related
         AST::Pattern* parse_pattern();
