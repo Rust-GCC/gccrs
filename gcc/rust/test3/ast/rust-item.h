@@ -393,6 +393,7 @@ namespace Rust {
 
         // A function parameter
         struct FunctionParam {
+          private:
             // Pattern* param_name;
             ::std::unique_ptr<Pattern> param_name;
             // Type type;
@@ -552,10 +553,14 @@ namespace Rust {
 
         // Visibility of item - if the item has it, then it is some form of public
         struct Visibility {
+          public:
+            enum PublicVisType { NONE, CRATE, SELF, SUPER, IN_PATH };
+
+          private:
             // bool is_pub;
 
             // if vis is public, one of these
-            enum PublicVisType { NONE, CRATE, SELF, SUPER, IN_PATH } public_vis_type;
+            PublicVisType public_vis_type;
 
             // Only assigned if public_vis_type is IN_PATH
             SimplePath in_path;
@@ -563,7 +568,7 @@ namespace Rust {
           public:
             // Creates a Visibility - TODO make constructor protected or private?
             Visibility(PublicVisType public_vis_type, SimplePath in_path) :
-              public_vis_type(public_vis_type), in_path(in_path) {
+              public_vis_type(public_vis_type), in_path(::std::move(in_path)) {
                 if (public_vis_type != IN_PATH && !in_path.is_empty()) {
                     // error - invalid state
 
@@ -611,7 +616,7 @@ namespace Rust {
 
             // Creates a public visibility with a given path or whatever.
             static Visibility create_in_path(SimplePath in_path) {
-                return Visibility(IN_PATH, in_path);
+                return Visibility(IN_PATH, ::std::move(in_path));
             }
 
             ::std::string as_string() const;
@@ -630,10 +635,10 @@ namespace Rust {
           protected:
             // Visibility constructor (with outer attributes)
             VisItem(Visibility visibility, ::std::vector<Attribute> outer_attrs) :
-              visibility(visibility), Item(outer_attrs) {}
+              visibility(::std::move(visibility)), Item(::std::move(outer_attrs)) {}
 
             // Visibility constructor (no outer attributes)
-            VisItem(Visibility visibility) : visibility(visibility), Item() {}
+            VisItem(Visibility visibility) : visibility(::std::move(visibility)), Item() {}
 
             // Visibility copy constructor
             VisItem(VisItem const& other) : visibility(other.visibility), Item(other) {}
@@ -668,10 +673,10 @@ namespace Rust {
           protected:
             // Outer attributes constructor
             Module(Visibility visibility, ::std::vector<Attribute> outer_attrs) :
-              VisItem(visibility, outer_attrs) {}
+              VisItem(::std::move(visibility), ::std::move(outer_attrs)) {}
 
             // No outer attributes constructor
-            Module(Visibility visibility) : VisItem(visibility) {}
+            Module(Visibility visibility) : VisItem(::std::move(visibility)) {}
         };
 
         // Module with a body, defined in file
@@ -702,7 +707,8 @@ namespace Rust {
             ModuleBodied(::std::vector< ::std::unique_ptr<Item> > items, Visibility visibility,
               ::std::vector<Attribute> inner_attrs, ::std::vector<Attribute> outer_attrs) :
               items(::std::move(items)),
-              inner_attrs(inner_attrs), Module(visibility, outer_attrs) {}
+              inner_attrs(::std::move(inner_attrs)),
+              Module(::std::move(visibility), ::std::move(outer_attrs)) {}
 
             // Copy constructor with vector clone
             ModuleBodied(ModuleBodied const& other) : inner_attrs(other.inner_attrs), Module(other) {
@@ -752,7 +758,7 @@ namespace Rust {
 
             // Full constructor
             ModuleNoBody(Visibility visibility, ::std::vector<Attribute> outer_attrs) :
-              Module(visibility, outer_attrs) {}
+              Module(::std::move(visibility), ::std::move(outer_attrs)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

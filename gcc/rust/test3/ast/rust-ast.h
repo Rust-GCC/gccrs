@@ -244,19 +244,17 @@ namespace Rust {
           public:
             // Constructor with no opening scope resolution
             SimplePath(::std::vector<SimplePathSegment> path_segments) :
-              segments(path_segments), has_opening_scope_resolution(false) {}
+              segments(::std::move(path_segments)), has_opening_scope_resolution(false) {}
 
             // Constructor with an opening scope resolution
             SimplePath(
               ::std::vector<SimplePathSegment> path_segments, bool has_opening_scope_resolution) :
-              segments(path_segments),
+              segments(::std::move(path_segments)),
               has_opening_scope_resolution(has_opening_scope_resolution) {}
 
             // Creates an empty SimplePath.
             static SimplePath create_empty() {
-                ::std::vector<SimplePathSegment> empty_path_segments;
-
-                return SimplePath(empty_path_segments);
+                return SimplePath(::std::vector<SimplePathSegment>());
             }
 
             // Returns whether the SimplePath is empty, i.e. has path segments.
@@ -283,7 +281,7 @@ namespace Rust {
             }
 
             // Constructor has pointer AttrInput for polymorphism reasons
-            Attribute(SimplePath path_, AttrInput* input) : path(path_), attr_input(input) {}
+            Attribute(SimplePath path_, AttrInput* input) : path(::std::move(path_)), attr_input(input) {}
 
             // Copy constructor must deep copy attr_input as unique pointer
             Attribute(Attribute const& other) :
@@ -386,7 +384,7 @@ namespace Rust {
             SimplePath path;
 
           protected:
-            MetaItem(SimplePath path) : path(path) {}
+            MetaItem(SimplePath path) : path(::std::move(path)) {}
 
             // pure virtual as MetaItem is abstract?
             virtual MetaItem* clone_meta_item_impl() const = 0;
@@ -450,7 +448,7 @@ namespace Rust {
 
           protected:
             // Outer attribute constructor
-            Item(::std::vector<Attribute> outer_attribs) : outer_attrs(outer_attribs) {}
+            Item(::std::vector<Attribute> outer_attribs) : outer_attrs(::std::move(outer_attribs)) {}
 
             // No outer attributes constructor
             Item() {}
@@ -481,7 +479,7 @@ namespace Rust {
 
           protected:
             // Outer attribute constructor
-            Expr(::std::vector<Attribute> outer_attribs) : outer_attrs(outer_attribs) {}
+            Expr(::std::vector<Attribute> outer_attribs) : outer_attrs(::std::move(outer_attribs)) {}
 
             // No outer attributes constructor
             Expr() {}
@@ -494,7 +492,7 @@ namespace Rust {
         class ExprWithoutBlock : public Expr {
           protected:
             // Outer attribute constructor
-            ExprWithoutBlock(::std::vector<Attribute> outer_attribs) : Expr(outer_attribs) {}
+            ExprWithoutBlock(::std::vector<Attribute> outer_attribs) : Expr(::std::move(outer_attribs)) {}
 
             // No outer attribute constructor
             ExprWithoutBlock() : Expr() {}
@@ -598,7 +596,7 @@ namespace Rust {
           public:
             // Named constructor
             Lifetime(LifetimeType type, ::std::string name) :
-              lifetime_type(type), lifetime_name(name) {}
+              lifetime_type(type), lifetime_name(::std::move(name)) {}
 
             // Nameless constructor (error for named lifetime)
             Lifetime(LifetimeType type) : lifetime_type(type) {}
@@ -638,7 +636,8 @@ namespace Rust {
         // A lifetime generic parameter (as opposed to a type generic parameter)
         class LifetimeParam : public GenericParam {
             // bool has_outer_attribute;
-            ::std::unique_ptr<Attribute> outer_attr;
+            //::std::unique_ptr<Attribute> outer_attr;
+            Attribute outer_attr;
 
             Lifetime lifetime;
 
@@ -654,12 +653,12 @@ namespace Rust {
 
             // Returns whether the lifetime param has an outer attribute.
             inline bool has_outer_attribute() const {
-                return outer_attr != NULL;
+                return !outer_attr.is_empty();
             }
 
             // Creates an error state lifetime param.
             static LifetimeParam create_error() {
-                return LifetimeParam(Lifetime::error(), NULL);
+                return LifetimeParam(Lifetime::error(), Attribute::create_empty());
             }
 
             // Returns whether the lifetime param is in an error state.
@@ -669,22 +668,22 @@ namespace Rust {
 
             // Constructor for a lifetime param with no attribute.
             LifetimeParam(Lifetime lifetime, ::std::vector<Lifetime> lifetime_bounds) :
-              lifetime(lifetime), lifetime_bounds(lifetime_bounds) /*, outer_attr(NULL)*/ {}
+              lifetime(::std::move(lifetime)), lifetime_bounds(::std::move(lifetime_bounds)), outer_attr(Attribute::create_empty()) {}
 
             // Constructor for a lifetime param with an attribute.
             LifetimeParam(
-              Lifetime lifetime, ::std::vector<Lifetime> lifetime_bounds, Attribute* outer_attr) :
-              lifetime(lifetime),
-              lifetime_bounds(lifetime_bounds), outer_attr(outer_attr) {}
+              Lifetime lifetime, ::std::vector<Lifetime> lifetime_bounds, Attribute outer_attr) :
+              lifetime(::std::move(lifetime)),
+              lifetime_bounds(::std::move(lifetime_bounds)), outer_attr(::std::move(outer_attr)) {}
 
             // Constructor without lifetime bounds.
-            LifetimeParam(Lifetime lifetime, Attribute* outer_attr) :
-              lifetime(lifetime), outer_attr(outer_attr) {}
+            LifetimeParam(Lifetime lifetime, Attribute outer_attr) :
+              lifetime(::std::move(lifetime)), outer_attr(::std::move(outer_attr)) {}
 
             // Copy constructor with clone
             LifetimeParam(LifetimeParam const& other) :
               lifetime(other.lifetime), lifetime_bounds(other.lifetime_bounds),
-              outer_attr(other.outer_attr->clone_attribute()) {}
+              outer_attr(other.outer_attr) {}
 
             // Destructor - define here if required
 
@@ -692,7 +691,7 @@ namespace Rust {
             LifetimeParam& operator=(LifetimeParam const& other) {
                 lifetime = other.lifetime;
                 lifetime_bounds = other.lifetime_bounds;
-                outer_attr = other.outer_attr->clone_attribute();
+                outer_attr = other.outer_attr;
 
                 return *this;
             }
@@ -713,7 +712,7 @@ namespace Rust {
             /*public:
             ::std::string as_string() const;*/
           protected:
-            MacroItem(::std::vector<Attribute> outer_attribs) : Item(outer_attribs) {}
+            MacroItem(::std::vector<Attribute> outer_attribs) : Item(::std::move(outer_attribs)) {}
         };
 
         // Item used in trait declarations - abstract base class
@@ -724,7 +723,7 @@ namespace Rust {
 
           protected:
             // Outer attributes constructor
-            TraitItem(::std::vector<Attribute> outer_attrs) : outer_attrs(outer_attrs) {}
+            TraitItem(::std::vector<Attribute> outer_attrs) : outer_attrs(::std::move(outer_attrs)) {}
 
             // Empty constructor
             TraitItem() {}
@@ -764,7 +763,7 @@ namespace Rust {
             MacroInvocationSemi(SimplePath macro_path, DelimType delim_type,
               ::std::vector< ::std::unique_ptr<TokenTree> > token_trees,
               ::std::vector<Attribute> outer_attribs) :
-              path(macro_path),
+              path(::std::move(macro_path)),
               delim_type(delim_type), token_trees(::std::move(token_trees)), MacroItem(outer_attribs),
               TraitItem(outer_attribs) {}
             /* TODO: possible issue with Item and TraitItem hierarchies both having outer attributes

@@ -432,7 +432,7 @@ namespace Rust {
         AST::AttrInput* attr_input = parse_attr_input();
         // AttrInput is allowed to be null, so no checks here
 
-        return AST::Attribute(attr_path, attr_input);
+        return AST::Attribute(::std::move(attr_path), attr_input);
     }
 
     // Parses a SimplePath AST node
@@ -452,7 +452,7 @@ namespace Rust {
 
         // Return empty vector if first, actually required segment is an error
         if (segment.is_error()) {
-            return segments;
+            return AST::SimplePath::create_empty();
         }
 
         segments.push_back(segment);
@@ -466,12 +466,12 @@ namespace Rust {
 
             // Return path as currently constructed if segment in error state.
             if (segment.is_error()) {
-                return segments;
+                return AST::SimplePath(::std::move(segments));
             }
             segments.push_back(new_segment);
         }
 
-        return segments;
+        return AST::SimplePath(::std::move(segments));
     }
 
     // Parses a single SimplePathSegment (does not handle the scope resolution operators)
@@ -898,27 +898,27 @@ namespace Rust {
 
         switch (t->get_id()) {
             case MOD:
-                return parse_module(vis, outer_attrs);
+                return parse_module(::std::move(vis), ::std::move(outer_attrs));
             case EXTERN_TOK:
                 // lookahead to resolve syntactical production
                 t = lexer.peek_token(1);
 
                 switch (t->get_id()) {
                     case CRATE:
-                        return parse_extern_crate(vis, outer_attrs);
+                        return parse_extern_crate(::std::move(vis), ::std::move(outer_attrs));
                     case FN_TOK: // extern function
-                        return parse_function(vis, outer_attrs);
+                        return parse_function(::std::move(vis), ::std::move(outer_attrs));
                     case LEFT_CURLY: // extern block
-                        return parse_extern_block(vis, outer_attrs);
+                        return parse_extern_block(::std::move(vis), ::std::move(outer_attrs));
                     case STRING_LITERAL: // for specifying extern ABI
                         // could be extern block or extern function, so more lookahead
                         t = lexer.peek_token(2);
 
                         switch (t->get_id()) {
                             case FN_TOK:
-                                return parse_function(vis, outer_attrs);
+                                return parse_function(::std::move(vis), ::std::move(outer_attrs));
                             case LEFT_CURLY:
-                                return parse_extern_block(vis, outer_attrs);
+                                return parse_extern_block(::std::move(vis), ::std::move(outer_attrs));
                             default:
                                 error_at(t->get_locus(),
                                   "unexpected token '%s' in some sort of extern production",
@@ -934,22 +934,22 @@ namespace Rust {
                         return NULL;
                 }
             case USE:
-                return parse_use_decl(vis, outer_attrs);
+                return parse_use_decl(::std::move(vis), ::std::move(outer_attrs));
             case FN_TOK:
-                return parse_function(vis, outer_attrs);
+                return parse_function(::std::move(vis), ::std::move(outer_attrs));
             case TYPE:
-                return parse_type_alias(vis, outer_attrs);
+                return parse_type_alias(::std::move(vis), ::std::move(outer_attrs));
             case STRUCT_TOK:
-                return parse_struct(vis, outer_attrs);
+                return parse_struct(::std::move(vis), ::std::move(outer_attrs));
             case ENUM_TOK:
-                return parse_enum(vis, outer_attrs);
+                return parse_enum(::std::move(vis), ::std::move(outer_attrs));
             // TODO: implement union keyword but not really because of context-dependence
             // case UNION:
             // crappy hack to do union "keyword"
             case IDENTIFIER:
                 // TODO: ensure std::string and literal comparison works
                 if (t->get_str() == "union") {
-                    return parse_union(vis, outer_attrs);
+                    return parse_union(::std::move(vis), ::std::move(outer_attrs));
                     // or should item switch go straight to parsing union?
                 } else {
                     break;
@@ -961,11 +961,11 @@ namespace Rust {
                 switch (t->get_id()) {
                     case IDENTIFIER:
                     case UNDERSCORE:
-                        return parse_const_item(vis, outer_attrs);
+                        return parse_const_item(::std::move(vis), ::std::move(outer_attrs));
                     case UNSAFE:
                     case EXTERN_TOK:
                     case FN_TOK:
-                        return parse_function(vis, outer_attrs);
+                        return parse_function(::std::move(vis), ::std::move(outer_attrs));
                     default:
                         error_at(t->get_locus(),
                           "unexpected token '%s' in some sort of const production",
@@ -974,23 +974,23 @@ namespace Rust {
                         return NULL;
                 }
             case STATIC_TOK:
-                return parse_static_item(vis, outer_attrs);
+                return parse_static_item(::std::move(vis), ::std::move(outer_attrs));
             case TRAIT:
-                return parse_trait(vis, outer_attrs);
+                return parse_trait(::std::move(vis), ::std::move(outer_attrs));
             case IMPL:
-                return parse_impl(vis, outer_attrs);
+                return parse_impl(::std::move(vis), ::std::move(outer_attrs));
             case UNSAFE: // unsafe traits, unsafe functions, unsafe impls (trait impls),
                 // lookahead to resolve syntactical production
                 t = lexer.peek_token(1);
 
                 switch (t->get_id()) {
                     case TRAIT:
-                        return parse_trait(vis, outer_attrs);
+                        return parse_trait(::std::move(vis), ::std::move(outer_attrs));
                     case EXTERN_TOK:
                     case FN_TOK:
-                        return parse_function(vis, outer_attrs);
+                        return parse_function(::std::move(vis), ::std::move(outer_attrs));
                     case IMPL:
-                        return parse_impl(vis, outer_attrs);
+                        return parse_impl(::std::move(vis), ::std::move(outer_attrs));
                     default:
                         error_at(t->get_locus(),
                           "unexpected token '%s' in some sort of unsafe production",
@@ -1014,7 +1014,7 @@ namespace Rust {
          * improved */
         // TODO: ensure that string compare works properly
         if (t->get_id() == IDENTIFIER && t->get_str() == ::std::string("macro_rules")) {
-            return parse_macro_rules_def(outer_attrs);
+            return parse_macro_rules_def(::std::move(outer_attrs));
         } else {
             // DEBUG: TODO: remove
             error_at(t->get_locus(), "DEBUG - parse_macro_item called and token is not macro_rules");
@@ -1029,7 +1029,7 @@ namespace Rust {
                   t->get_token_description());
             }
 
-            return parse_macro_invocation_semi(outer_attrs);
+            return parse_macro_invocation_semi(::std::move(outer_attrs));
         }
     }
 
@@ -1118,11 +1118,11 @@ namespace Rust {
                 if (!skip_token(SEMICOLON)) {
                     // as this is the end, allow recovery (probably) - may change
                     return new AST::MacroRulesDefinition(
-                      rule_name, delim_type, macro_rules, outer_attrs);
+                      ::std::move(rule_name), delim_type, ::std::move(macro_rules), ::std::move(outer_attrs));
                 }
             }
 
-            return new AST::MacroRulesDefinition(rule_name, delim_type, macro_rules, outer_attrs);
+            return new AST::MacroRulesDefinition(::std::move(rule_name), delim_type, ::std::mvoe(macro_rules), ::std::move(outer_attrs));
         } else {
             // tokens don't match opening delimiters, so produce error
             error_at(t->get_locus(),
@@ -1200,12 +1200,12 @@ namespace Rust {
                 if (!skip_token(SEMICOLON)) {
                     // as this is the end, allow recovery (probably) - may change
                     return new AST::MacroInvocationSemi(
-                      path, delim_type, ::std::move(token_trees), outer_attrs);
+                      ::std::move(path), delim_type, ::std::move(token_trees), ::std::move(outer_attrs));
                 }
             }
 
             return new AST::MacroInvocationSemi(
-              path, delim_type, ::std::move(token_trees), outer_attrs);
+              ::std::move(path), delim_type, ::std::move(token_trees), ::std::move(outer_attrs));
         } else {
             // tokens don't match opening delimiters, so produce error
             error_at(t->get_locus(),
@@ -1235,9 +1235,9 @@ namespace Rust {
 
         // parse transcriber (this is just a delim token tree)
         AST::DelimTokenTree transcribe_tree = parse_delim_token_tree();
-        AST::MacroTranscriber transcriber(transcribe_tree);
+        AST::MacroTranscriber transcriber(::std::move(transcribe_tree));
 
-        return AST::MacroRule(matcher, transcriber);
+        return AST::MacroRule(::std::move(matcher), ::std::move(transcriber));
     }
 
     // Parses a macro matcher (part of a macro rule definition).
@@ -1353,6 +1353,10 @@ namespace Rust {
         skip_token(DOLLAR_SIGN);
 
         const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+        if (ident_tok == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "missing identifier in macro match fragment");
+            return NULL;
+        }
         Identifier ident = ident_tok->get_str();
 
         if (!skip_token(COLON)) {
@@ -1369,7 +1373,7 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::MacroMatchFragment(ident, frag);
+        return new AST::MacroMatchFragment(::std::move(ident), frag);
     }
 
     // Parses a repetition macro match.
@@ -1512,7 +1516,7 @@ namespace Rust {
 
                 skip_token(RIGHT_PAREN);
 
-                return AST::Visibility::create_in_path(path);
+                return AST::Visibility::create_in_path(::std::move(path));
             }
             default:
                 unexpected_token(t);
@@ -1535,7 +1539,7 @@ namespace Rust {
             case SEMICOLON:
                 lexer.skip_token();
 
-                return new AST::ModuleNoBody(vis, outer_attrs); // module name?
+                return new AST::ModuleNoBody(::std::move(vis), ::std::move(outer_attrs)); // module name?
             case LEFT_CURLY: {
                 lexer.skip_token();
 
@@ -1548,7 +1552,7 @@ namespace Rust {
                 skip_token(RIGHT_CURLY);
 
                 return new AST::ModuleBodied(
-                  ::std::move(items), vis, inner_attrs, outer_attrs); // module name?
+                  ::std::move(items), ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs)); // module name?
             }
             default:
                 unexpected_token(t);
@@ -1631,7 +1635,7 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::ExternCrate(crate_name, as_name, vis, outer_attrs);
+        return new AST::ExternCrate(::std::move(crate_name), ::std::move(as_name), ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parses a use declaration.
@@ -1649,7 +1653,7 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::UseDeclaration(use_tree, vis, outer_attrs);
+        return new AST::UseDeclaration(use_tree, ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parses a use tree (which can be recursive and is actually a base class).
@@ -1675,6 +1679,8 @@ namespace Rust {
         // Thus, parsing smaller parts of use tree may require feeding into function via parameters
         // (or could handle all in this single function because other use tree types aren't
         // recognised) as separate in the spec
+
+        // TODO: I think this function is too complex, probably should split it
 
         // bool has_path = false;
         AST::SimplePath path = parse_simple_path();
@@ -1749,7 +1755,7 @@ namespace Rust {
                     // glob UseTree type
                     lexer.skip_token();
 
-                    return new AST::UseTreeGlob(AST::UseTreeGlob::PATH_PREFIXED, path);
+                    return new AST::UseTreeGlob(AST::UseTreeGlob::PATH_PREFIXED, ::std::move(path));
                 case LEFT_CURLY: {
                     // nested tree UseTree type
                     lexer.skip_token();
@@ -1774,7 +1780,7 @@ namespace Rust {
                     }
 
                     return new AST::UseTreeList(
-                      AST::UseTreeList::PATH_PREFIXED, path, std::move(use_trees));
+                      AST::UseTreeList::PATH_PREFIXED, ::std::move(path), std::move(use_trees));
                 }
                 case AS: {
                     // rebind UseTree type
@@ -1784,10 +1790,10 @@ namespace Rust {
                     switch (t->get_id()) {
                         case IDENTIFIER:
                             return new AST::UseTreeRebind(
-                              AST::UseTreeRebind::IDENTIFIER, path, t->get_str());
+                              AST::UseTreeRebind::IDENTIFIER, ::std::move(path), t->get_str());
                         case UNDERSCORE:
                             return new AST::UseTreeRebind(
-                              AST::UseTreeRebind::WILDCARD, path, ::std::string("_"));
+                              AST::UseTreeRebind::WILDCARD, ::std::move(path), ::std::string("_"));
                         default:
                             unexpected_token(t);
                             skip_after_semicolon();
@@ -1800,7 +1806,7 @@ namespace Rust {
                     // don't skip semicolon - handled in parse_use_tree
                     // lexer.skip_token();
 
-                    return new AST::UseTreeRebind(AST::UseTreeRebind::NONE, path);
+                    return new AST::UseTreeRebind(AST::UseTreeRebind::NONE, ::std::move(path));
                 default:
                     unexpected_token(t);
                     skip_after_semicolon();
@@ -1855,9 +1861,9 @@ namespace Rust {
         // parse block expression
         AST::BlockExpr* block_expr = parse_block_expr();
 
-        // TODO: does this need move?
-        return new AST::Function(function_name, qualifiers, ::std::move(generic_params),
-          function_params, return_type, where_clause, block_expr, vis, outer_attrs);
+        return new AST::Function(::std::move(function_name), ::std::move(qualifiers),
+          ::std::move(generic_params), ::std::move(function_params), return_type,
+          ::std::move(where_clause), block_expr, ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parses function or method qualifiers (i.e. const, unsafe, and extern).
@@ -1901,24 +1907,21 @@ namespace Rust {
             }
         }
 
-        return AST::FunctionQualifiers(const_status, has_unsafe, has_extern, abi);
+        return AST::FunctionQualifiers(const_status, has_unsafe, has_extern, ::std::move(abi));
     }
 
     // Parses generic (lifetime or type) params inside angle brackets.
     ::std::vector< ::std::unique_ptr<AST::GenericParam> > Parser::parse_generic_params_in_angles() {
         if (!skip_token(LEFT_ANGLE)) {
-            ::std::vector< ::std::unique_ptr<AST::GenericParam> > empty;
-            return empty;
+            return ::std::vector< ::std::unique_ptr<AST::GenericParam> >();
         }
 
         ::std::vector< ::std::unique_ptr<AST::GenericParam> > generic_params = parse_generic_params();
 
         if (!skip_token(RIGHT_ANGLE)) {
-            ::std::vector< ::std::unique_ptr<AST::GenericParam> > empty;
-            return empty;
+            return ::std::vector< ::std::unique_ptr<AST::GenericParam> >();
         }
 
-        // TODO: is move required here?
         return generic_params;
     }
 
@@ -1953,7 +1956,6 @@ namespace Rust {
             // generic_params.insert(generic_params.end(), type_params.begin(), type_params.end());
         }
 
-        // TODO: is move required here?
         return generic_params;
     }
 
@@ -1980,7 +1982,6 @@ namespace Rust {
             lexer.skip_token();
         }
 
-        // TODO: is move required here?
         return lifetime_params;
     }
 
@@ -2029,12 +2030,14 @@ namespace Rust {
             // parse lifetime bounds
             ::std::vector<AST::Lifetime> lifetime_bounds = parse_lifetime_bounds();
 
-            return AST::LifetimeParam(lifetime, lifetime_bounds,
-              outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+            return AST::LifetimeParam(::std::move(lifetime), ::std::move(lifetime_bounds),
+              outer_attr.is_empty() ? AST::Attribute::create_empty()
+                                    : AST::Attribute(::std::move(outer_attr)));
         }
 
-        return AST::LifetimeParam(
-          lifetime, outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+        return AST::LifetimeParam(::std::move(lifetime), outer_attr.is_empty()
+                                                           ? AST::Attribute::create_empty()
+                                                           : AST::Attribute(::std::move(outer_attr)));
     }
 
     // Parses type generic parameters. Will also consume any trailing comma.
@@ -2087,7 +2090,7 @@ namespace Rust {
                   = parse_type_param_bounds();
 
                 // TODO: is move required here?
-                return new AST::TypeParam(ident, ::std::move(type_param_bounds), NULL,
+                return new AST::TypeParam(::std::move(ident), ::std::move(type_param_bounds), NULL,
                   outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
             }
             case EQUAL: {
@@ -2097,12 +2100,12 @@ namespace Rust {
                 AST::Type* type = parse_type();
 
                 return new AST::TypeParam(
-                  ident, type, outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+                  ::std::move(ident), type, outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
             }
             default:
                 // Best assumption is that this is the end of the type param
                 return new AST::TypeParam(
-                  ident, outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+                  ::std::move(ident), outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
         }
         // Stop the "control passes without return" error.
         gcc_unreachable();
@@ -2161,12 +2164,16 @@ namespace Rust {
         }
 
         AST::Type* param_type = parse_type();
+        if (param_type == NULL) {
+            // skip?
+            return AST::FunctiomParam::create_error();
+        }
 
         return AST::FunctionParam(param_pattern, param_type);
     }
 
     /* Parses a function or method return type syntactical construction. Also handles a function
-     * return type not existing.*/
+     * return type not existing. */
     AST::Type* Parser::parse_function_return_type() {
         if (lexer.peek_token()->get_id() != RETURN_TYPE) {
             return NULL;
@@ -2242,7 +2249,7 @@ namespace Rust {
 
         ::std::vector<AST::Lifetime> lifetime_bounds = parse_lifetime_bounds();
 
-        return new AST::LifetimeWhereClauseItem(lifetime, lifetime_bounds);
+        return new AST::LifetimeWhereClauseItem(::std::move(lifetime), ::std::move(lifetime_bounds));
     }
 
     // Parses a type bound where clause item.
@@ -2264,8 +2271,7 @@ namespace Rust {
         ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > type_param_bounds
           = parse_type_param_bounds();
 
-        // TODO: is move required here?
-        return new AST::TypeBoundWhereClauseItem(for_lifetimes, type, ::std::move(type_param_bounds));
+        return new AST::TypeBoundWhereClauseItem(::std::move(for_lifetimes), type, ::std::move(type_param_bounds));
     }
 
     // Parses a for lifetimes clause, including the for keyword and angle brackets.
@@ -2325,7 +2331,6 @@ namespace Rust {
             type_param_bounds.push_back(::std::unique_ptr<AST::TypeParamBound>(bound));
         }
 
-        // TODO: is move required here?
         return type_param_bounds;
     }
 
@@ -2372,7 +2377,7 @@ namespace Rust {
             }
         }
 
-        return new AST::TraitBound(type_path, has_parens, has_question_mark, for_lifetimes);
+        return new AST::TraitBound(::std::move(type_path), has_parens, has_question_mark, ::std::move(for_lifetimes));
     }
 
     // Parses lifetime bounds.
@@ -2416,7 +2421,7 @@ namespace Rust {
         } else if (lifetime_ident == "'_") {
             return AST::Lifetime(AST::Lifetime::WILDCARD);
         } else {
-            return AST::Lifetime(AST::Lifetime::NAMED, lifetime_ident);
+            return AST::Lifetime(AST::Lifetime::NAMED, ::std::move(lifetime_ident));
         }
     }
 
@@ -2427,6 +2432,11 @@ namespace Rust {
 
         // TODO: use this token for identifier when finished that
         const_TokenPtr alias_name_tok = expect_token(IDENTIFIER);
+        if (alias_name_tok == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "could not parse identifier in type alias");
+            skip_after_semicolon();
+            return NULL;
+        }
         Identifier alias_name = alias_name_tok->get_str();
 
         // parse generic params, which may not exist
@@ -2449,7 +2459,7 @@ namespace Rust {
         }
 
         return new AST::TypeAlias(
-          alias_name, ::std::move(generic_params), where_clause, type_to_alias, vis, outer_attrs);
+          ::std::move(alias_name), ::std::move(generic_params), ::std::move(where_clause), type_to_alias, ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parse a struct item AST node.
@@ -2470,6 +2480,11 @@ namespace Rust {
 
         // parse struct name
         const_TokenPtr name_tok = expect_token(IDENTIFIER);
+        if (name_tok == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "could not parse struct or tuple struct identifier");
+            // skip after somewhere?
+            return NULL;
+        }
         Identifier struct_name = name_tok->get_str();
 
         // parse generic params, which may or may not exist
@@ -2501,7 +2516,7 @@ namespace Rust {
             }
 
             return new AST::TupleStruct(
-              tuple_fields, struct_name, ::std::move(generic_params), where_clause, vis, outer_attrs);
+              ::std::move(tuple_fields), ::std::move(struct_name), ::std::move(generic_params), ::std::move(where_clause), ::std::move(vis), ::std::move(outer_attrs));
         }
 
         // assume it is a proper struct being parsed and continue outside of switch - label only here
@@ -2527,8 +2542,8 @@ namespace Rust {
                     return NULL;
                 }
 
-                return new AST::StructStruct(struct_fields, struct_name, ::std::move(generic_params),
-                  where_clause, false, vis, outer_attrs);
+                return new AST::StructStruct(::std::move(struct_fields), ::std::move(struct_name), ::std::move(generic_params),
+                  ::std::move(where_clause), false, ::std::move(vis), ::std::move(outer_attrs));
             }
             case SEMICOLON:
                 // unit struct declaration
@@ -2536,7 +2551,7 @@ namespace Rust {
                 lexer.skip_token();
 
                 return new AST::StructStruct(
-                  struct_name, ::std::move(generic_params), where_clause, vis, outer_attrs);
+                  ::std::move(struct_name), ::std::move(generic_params), ::std::move(where_clause), ::std::move(vis), ::std::move(outer_attrs));
             default:
                 error_at(t->get_locus(), "unexpected token '%s' in struct declaration",
                   t->get_token_description());
@@ -2609,7 +2624,7 @@ namespace Rust {
             return AST::StructField::create_error();
         }
 
-        return AST::StructField(field_name, field_type, vis, outer_attrs);
+        return AST::StructField(::std::move(field_name), field_type, ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parses tuple fields in tuple/tuple struct declarations.
@@ -2667,7 +2682,7 @@ namespace Rust {
             return AST::TupleField::create_error();
         }
 
-        return AST::TupleField(field_type, vis, outer_attrs);
+        return AST::TupleField(field_type, ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parses a Rust "enum" tagged union item definition.
@@ -2698,8 +2713,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::Enum(enum_name, vis, ::std::move(generic_params), where_clause,
-          ::std::move(enum_items), outer_attrs);
+        return new AST::Enum(::std::move(enum_name), ::std::move(vis), ::std::move(generic_params), ::std::move(where_clause),
+          ::std::move(enum_items), ::std::move(outer_attrs));
     }
 
     // Parses the enum variants inside an enum definiton.
@@ -2769,7 +2784,7 @@ namespace Rust {
                     return NULL;
                 }
 
-                return new AST::EnumItemTuple(item_name, tuple_fields, outer_attrs);
+                return new AST::EnumItemTuple(::std::move(item_name), ::std::move(tuple_fields), ::std::move(outer_attrs));
             }
             case LEFT_CURLY: {
                 // struct enum item
@@ -2782,7 +2797,7 @@ namespace Rust {
                     return NULL;
                 }
 
-                return new AST::EnumItemStruct(item_name, struct_fields, outer_attrs);
+                return new AST::EnumItemStruct(::std::move(item_name), ::std::move(struct_fields), ::std::move(outer_attrs));
             }
             case EQUAL: {
                 // discriminant enum item
@@ -2790,11 +2805,11 @@ namespace Rust {
 
                 AST::Expr* discriminant_expr = parse_expr();
 
-                return new AST::EnumItemDiscriminant(item_name, discriminant_expr, outer_attrs);
+                return new AST::EnumItemDiscriminant(::std::move(item_name), discriminant_expr, ::std::move(outer_attrs));
             }
             default:
                 // regular enum with just an identifier
-                return new AST::EnumItem(item_name, outer_attrs);
+                return new AST::EnumItem(::std::move(item_name), ::std::move(outer_attrs));
         }
     }
 
@@ -2832,9 +2847,8 @@ namespace Rust {
             return NULL;
         }
 
-        // TODO: does this need move?
         return new AST::Union(
-          union_name, vis, ::std::move(generic_params), where_clause, union_fields, outer_attrs);
+          ::std::move(union_name), ::std::move(vis), ::std::move(generic_params), ::std::move(where_clause), ::std::move(union_fields), ::std::move(outer_attrs));
     }
 
     // Parses a "constant item" (compile-time constant to maybe "inline" throughout the program).
@@ -2882,7 +2896,7 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::ConstantItem(ident, vis, type, expr, outer_attrs);
+        return new AST::ConstantItem(::std::move(ident), ::std::move(vis), type, expr, ::std::move(outer_attrs));
     }
 
     // Parses a "static item" (static storage item, with 'static lifetime).
@@ -2921,7 +2935,7 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::StaticItem(ident, is_mut, type, expr, vis, outer_attrs);
+        return new AST::StaticItem(::std::move(ident), is_mut, type, expr, ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parses a trait definition item, including unsafe ones.
@@ -2983,8 +2997,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::Trait(ident, is_unsafe, ::std::move(generic_params),
-          ::std::move(type_param_bounds), where_clause, ::std::move(trait_items), vis, outer_attrs);
+        return new AST::Trait(::std::move(ident), is_unsafe, ::std::move(generic_params),
+          ::std::move(type_param_bounds), ::std::move(where_clause), ::std::move(trait_items), ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parses a trait item used inside traits (not trait, the Item).
@@ -2995,11 +3009,11 @@ namespace Rust {
         // lookahead to determine what type of trait item to parse
         switch (lexer.peek_token()->get_id()) {
             case TYPE:
-                return parse_trait_type(outer_attrs);
+                return parse_trait_type(::std::move(outer_attrs));
             case CONST:
                 // disambiguate with function qualifier
                 if (lexer.peek_token(1)->get_id() == IDENTIFIER) {
-                    return parse_trait_const(outer_attrs);
+                    return parse_trait_const(::std::move(outer_attrs));
                 }
                 // else, fallthrough to function
                 // TODO: find out how to disable gcc "implicit fallthrough" error
@@ -3080,19 +3094,18 @@ namespace Rust {
 
                 // do actual if instead of ternary for return value optimisation
                 if (is_method) {
-                    AST::TraitMethodDecl method_decl(ident, qualifiers, ::std::move(generic_params),
-                      self_param, function_params, return_type, where_clause);
+                    AST::TraitMethodDecl method_decl(::std::move(ident), ::std::move(qualifiers), ::std::move(generic_params),
+                      ::std::move(self_param), ::std::move(function_params), return_type, ::std::move(where_clause));
 
                     // TODO: does this (method_decl) need move?
                     return new AST::TraitItemMethod(
-                      ::std::move(method_decl), definition, outer_attrs);
+                      ::std::move(method_decl), definition, ::std::move(outer_attrs));
                 } else {
-                    AST::TraitFunctionDecl function_decl(ident, qualifiers,
-                      ::std::move(generic_params), function_params, return_type, where_clause);
+                    AST::TraitFunctionDecl function_decl(::std::move(ident), ::std::move(qualifiers),
+                      ::std::move(generic_params), ::std::move(function_params), return_type, ::std::move(where_clause));
 
-                    // TODO: does this (function_decl) need move?
                     return new AST::TraitItemFunc(
-                      ::std::move(function_decl), definition, outer_attrs);
+                      ::std::move(function_decl), definition, ::std::move(outer_attrs));
                 }
             }
             default: {
@@ -3133,7 +3146,7 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::TraitItemType(ident, ::std::move(bounds), outer_attrs);
+        return new AST::TraitItemType(::std::move(ident), ::std::move(bounds), ::std::move(outer_attrs));
     }
 
     // Parses a constant trait item.
@@ -3166,7 +3179,7 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::TraitItemConst(ident, type, const_body, outer_attrs);
+        return new AST::TraitItemConst(::std::move(ident), type, const_body, ::std::move(outer_attrs));
     }
 
     // Parses a struct "impl" item (both inherent impl and trait impl can be parsed here),
@@ -3251,7 +3264,7 @@ namespace Rust {
             }
 
             return new AST::InherentImpl(::std::move(impl_items), ::std::move(generic_params), type,
-              where_clause, vis, inner_attrs, outer_attrs);
+              ::std::move(where_clause), ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs));
         } else {
             // type path must both be valid and next token is for, so trait impl
             if (!skip_token(FOR)) {
@@ -3302,8 +3315,8 @@ namespace Rust {
                 return NULL;
             }
 
-            return new AST::TraitImpl(type_path, is_unsafe, has_exclam, ::std::move(impl_items),
-              ::std::move(generic_params), type, where_clause, vis, inner_attrs, outer_attrs);
+            return new AST::TraitImpl(::std::move(type_path), is_unsafe, has_exclam, ::std::move(impl_items),
+              ::std::move(generic_params), type, ::std::move(where_clause), ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs));
         }
     }
 
@@ -3311,6 +3324,8 @@ namespace Rust {
     AST::InherentImplItem* Parser::parse_inherent_impl_item() {
         // parse outer attributes (if they exist)
         ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
+
+        // TODO: cleanup - currently an unreadable mess
 
         // branch on next token:
         const_TokenPtr t = lexer.peek_token();
@@ -3496,14 +3511,14 @@ namespace Rust {
 
         // do actual if instead of ternary for return value optimisation
         if (is_method) {
-            AST::Method method_decl(ident, qualifiers, ::std::move(generic_params), self_param,
-              function_params, return_type, where_clause, body);
+            AST::Method method_decl(::std::move(ident), ::std::move(qualifiers), ::std::move(generic_params), ::std::move(self_param),
+              ::std::move(function_params), return_type, ::std::move(where_clause), body);
 
-            return new AST::InherentImplItemMethod(::std::move(method_decl), vis, outer_attrs);
+            return new AST::InherentImplItemMethod(::std::move(method_decl), ::std::move(vis), outer_attrs);
         } else {
             // TODO: this is bad - double up of outer attributes
-            AST::Function function_decl(ident, qualifiers, ::std::move(generic_params),
-              function_params, return_type, where_clause, body, vis, outer_attrs);
+            AST::Function function_decl(::std::move(ident), ::std::move(qualifiers), ::std::move(generic_params),
+              ::std::move(function_params), return_type, ::std::move(where_clause), body, ::std::move(vis), outer_attrs);
 
             // TODO: does this (function_decl) need move?
             return new AST::InherentImplItemFunction(::std::move(function_decl), outer_attrs);
@@ -3514,6 +3529,8 @@ namespace Rust {
     AST::TraitImplItem* Parser::parse_trait_impl_item() {
         // parse outer attributes (if they exist)
         ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
+
+        // TODO: clean this function up, it is basically unreadable hacks
 
         // branch on next token:
         const_TokenPtr t = lexer.peek_token();
@@ -3721,16 +3738,16 @@ namespace Rust {
 
         // do actual if instead of ternary for return value optimisation
         if (is_method) {
-            AST::Method method_decl(ident, qualifiers, ::std::move(generic_params), self_param,
-              function_params, return_type, where_clause, body);
+            AST::Method method_decl(::std::move(ident), ::std::move(qualifiers), ::std::move(generic_params), ::std::move(self_param),
+              ::std::move(function_params), return_type, ::std::move(where_clause), body);
 
-            return new AST::TraitImplItemMethod(::std::move(method_decl), vis, outer_attrs);
+            return new AST::TraitImplItemMethod(::std::move(method_decl), ::std::move(vis), ::std::move(outer_attrs));
         } else {
             // TODO: this is bad - double up of outer attributes
-            AST::Function function_decl(ident, qualifiers, ::std::move(generic_params),
-              function_params, return_type, where_clause, body, vis, outer_attrs);
+            AST::Function function_decl(::std::move(ident), ::std::move(qualifiers),
+              ::std::move(generic_params), ::std::move(function_params), return_type,
+              ::std::move(where_clause), body, ::std::move(vis), outer_attrs);
 
-            // TODO: does this (function_decl) need move?
             return new AST::TraitImplItemFunction(::std::move(function_decl), outer_attrs);
         }
     }
@@ -3778,7 +3795,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::ExternBlock(abi, ::std::move(extern_items), vis, inner_attrs, outer_attrs);
+        return new AST::ExternBlock(::std::move(abi), ::std::move(extern_items), ::std::move(vis),
+          ::std::move(inner_attrs), ::std::move(outer_attrs));
     }
 
     // Parses a single extern block item (static or function declaration).
@@ -3829,7 +3847,8 @@ namespace Rust {
                     return NULL;
                 }
 
-                return new AST::ExternalStaticItem(ident, type, has_mut, vis, outer_attrs);
+                return new AST::ExternalStaticItem(
+                  ::std::move(ident), type, has_mut, ::std::move(vis), ::std::move(outer_attrs));
             }
             case FN_TOK: {
                 // parse extern function declaration item
@@ -3868,6 +3887,8 @@ namespace Rust {
                         skip_after_semicolon();
                         return NULL;
                     }
+
+                    function_params.push_back(::std::move(param));
 
                     t = lexer.peek_token();
                     if (t->get_id() != COMMA) {
@@ -3912,8 +3933,9 @@ namespace Rust {
                     return NULL;
                 }
 
-                return new AST::ExternalFunctionItem(ident, ::std::move(generic_params), return_type,
-                  where_clause, function_params, is_variadic, vis, outer_attrs);
+                return new AST::ExternalFunctionItem(::std::move(ident), ::std::move(generic_params),
+                  return_type, ::std::move(where_clause), ::std::move(function_params), is_variadic,
+                  ::std::move(vis), ::std::move(outer_attrs));
             }
             default:
                 // error
@@ -3958,7 +3980,7 @@ namespace Rust {
             return AST::NamedFunctionParam::create_error();
         }
 
-        return AST::NamedFunctionParam(name, param_type);
+        return AST::NamedFunctionParam(::std::move(name), param_type);
     }
 
     // Parses an expression (will further disambiguate any expressions).
@@ -4044,14 +4066,108 @@ namespace Rust {
 
     // Parses a let statement.
     AST::LetStmt* Parser::parse_let_stmt(::std::vector<AST::Attribute> outer_attrs) {
-        // TODO
-        return NULL;
+        skip_token(LET);
+
+        // parse pattern (required)
+        AST::Pattern* pattern = parse_pattern();
+        if (pattern == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "failed to parse pattern in let statement");
+            skip_after_semicolon();
+            return NULL;
+        }
+
+        // parse type declaration (optional)
+        AST::Type* type = NULL;
+        if (lexer.peek_token()->get_id() == COLON) {
+            // must have a type declaration
+            lexer.skip_token();
+
+            type = parse_type();
+            if (type == NULL) {
+                error_at(lexer.peek_token()->get_locus(), "failed to parse type in let statement");
+                skip_after_semicolon();
+                return NULL;
+            }
+        }
+
+        // parse expression to set variable to (optional)
+        AST::Expr* expr = NULL;
+        if (lexer.peek_token()->get_id() == EQUAL) {
+            // must have an expression
+            lexer.skip_token();
+
+            expr = parse_expr();
+            if (expr == NULL) {
+                error_at(
+                  lexer.peek_token()->get_locus(), "failed to parse expression in let statement");
+                skip_after_semicolon();
+                return NULL;
+            }
+        }
+
+        if (!skip_token(SEMICOLON)) {
+            // skip after somewhere
+            return NULL;
+            // TODO: how wise is it to ditch a mostly-valid let statement just because a semicolon is
+            // missing?
+        }
+
+        return new AST::LetStmt(pattern, expr, type, ::std::move(outer_attrs));
     }
 
     // Parses an expression statement (disambiguates to expression with or without block statement).
     AST::ExprStmt* Parser::parse_expr_stmt(::std::vector<AST::Attribute> outer_attrs) {
         // TODO
         return NULL;
+
+        /* potential thoughts - define new virtual method "has_block()" on expr. parse expr and then
+         * determine whether semicolon is needed as a result of this method.
+         * but then this would require dynamic_cast, which is not allowed. */
+
+        /* okay new thought - big switch to disambiguate exprs with blocks - either block expr,
+         * async block expr, unsafe block expr, loop expr, if expr, if let expr, or match expr. So
+         * all others are exprs without block. */
+        /* new thought: possible initial tokens: 'loop', 'while', 'for', lifetime (and then ':' and
+         * then loop), 'if', 'match', '{', 'async', 'unsafe' (and then '{')). This seems to have no
+         * ambiguity. */
+
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case LOOP:
+            case WHILE:
+            case FOR:
+            case IF:
+            case MATCH:
+            case LEFT_CURLY:
+            case ASYNC:
+                // expression with block
+                return parse_expr_stmt_with_block(::std::move(outer_attrs));
+            case LIFETIME: {
+                /* FIXME: are there any expressions without blocks that can have lifetime as their 
+                 * first token? Or is loop expr the only one? */
+                // safe side for now: 
+                if (lexer.peek_token(1) == COLON && lexer.peek_token(2) == LOOP) {
+                    return parse_expr_stmt_with_block(::std::move(outer_attrs));
+                } else {
+                    return parse_expr_stmt_without_block(::std::move(outer_attrs));
+                }
+            }
+            case UNSAFE: {
+                /* FIXME: are there any expressions without blocks that can have unsafe as their 
+                 * first token? Or is unsafe the only one? */
+                // safe side for now
+                if (lexer.peek_token(1) == LEFT_CURLY) {
+                    return parse_expr_stmt_with_block(::std::move(outer_attrs));
+                } else {
+                    return parse_expr_stmt_without_block(::std::move(outer_attrs));
+                }
+            }
+            default:
+                // not a parse expr with block, so must be expr without block
+                /* TODO: if possible, be more selective about possible expr without block initial 
+                 * tokens in order to prevent more syntactical errors at parse time. */
+                return parse_expr_stmt_without_block(::std::move(outer_attrs));
+        }
     }
 
     // Parses a type (will further disambiguate any type).
@@ -4215,7 +4331,7 @@ namespace Rust {
             return AST::GenericArgsBinding::create_error();
         }
 
-        return AST::GenericArgsBinding(ident, type);
+        return AST::GenericArgsBinding(::std::move(ident), type);
     }
 
     /* Parses a single type path segment (not including opening scope resolution, but includes any
@@ -4253,12 +4369,13 @@ namespace Rust {
                     return NULL;
                 }
 
-                return new AST::TypePathSegmentFunction(
-                  ident_segment, has_separating_scope_resolution, type_path_function);
+                return new AST::TypePathSegmentFunction(::std::move(ident_segment),
+                  has_separating_scope_resolution, ::std::move(type_path_function));
             }
             default:
                 // neither of them
-                return new AST::TypePathSegment(ident_segment, has_separating_scope_resolution);
+                return new AST::TypePathSegment(
+                  ::std::move(ident_segment), has_separating_scope_resolution);
         }
         gcc_unreachable();
     }
@@ -4299,7 +4416,7 @@ namespace Rust {
         // parse optional return type
         AST::Type* return_type = parse_function_return_type();
 
-        return AST::TypePathFunction(inputs, return_type);
+        return AST::TypePathFunction(::std::move(inputs), return_type);
     }
 
     // Parses a path inside an expression that allows generic arguments.
@@ -4465,7 +4582,7 @@ namespace Rust {
             return AST::QualifiedPathType::create_error();
         }
 
-        return AST::QualifiedPathType(type, as_type_path);
+        return AST::QualifiedPathType(type, ::std::move(as_type_path));
     }
 
     // Parses a fully qualified path in type (i.e. a type).
@@ -4578,7 +4695,7 @@ namespace Rust {
         }
 
         if (has_reference) {
-            return AST::SelfParam(lifetime, has_mut);
+            return AST::SelfParam(::std::move(lifetime), has_mut);
         } else {
             // note that type may be NULL here and that's fine
             return AST::SelfParam(type, has_mut);
@@ -4651,8 +4768,9 @@ namespace Rust {
             return AST::Method::create_error();
         }
 
-        return AST::Method(method_name, qualifiers, ::std::move(generic_params), self_param,
-          function_params, return_type, where_clause, block_expr);
+        return AST::Method(::std::move(method_name), ::std::move(qualifiers),
+          ::std::move(generic_params), ::std::move(self_param), ::std::move(function_params),
+          return_type, ::std::move(where_clause), block_expr);
     }
 
     // Parses an expression without a block associated with it (further disambiguates).
@@ -4693,7 +4811,8 @@ namespace Rust {
         }
 
         // TODO: is move required here?
-        return new AST::BlockExpr(::std::move(stmts), expr, inner_attrs, outer_attrs);
+        return new AST::BlockExpr(
+          ::std::move(stmts), expr, ::std::move(inner_attrs), ::std::move(outer_attrs));
     }
 
     // TODO: rename to "parse_module_body"?
