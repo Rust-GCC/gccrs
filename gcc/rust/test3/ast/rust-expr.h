@@ -2104,6 +2104,16 @@ namespace Rust {
             // move constructors
             ClosureParam(ClosureParam&& other) = default;
             ClosureParam& operator=(ClosureParam&& other) = default;
+
+            // Returns whether closure parameter is in an error state.
+            inline bool is_error() const {
+                return pattern == NULL;
+            }
+
+            // Creates an error state closure parameter.
+            static ClosureParam create_error() {
+                return ClosureParam(NULL);
+            }
         };
 
         // Base closure definition expression AST node - abstract
@@ -2115,8 +2125,8 @@ namespace Rust {
           protected:
             ClosureExpr(::std::vector<ClosureParam> closure_params, bool has_move,
               ::std::vector<Attribute> outer_attribs) :
-              params(closure_params),
-              has_move(has_move), ExprWithoutBlock(outer_attribs) {}
+              params(::std::move(closure_params)),
+              has_move(has_move), ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor, destructor, and assignment operator override should not be needed
         };

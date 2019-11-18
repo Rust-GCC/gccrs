@@ -92,6 +92,7 @@ namespace Rust {
         AST::MacroRulesDefinition* parse_macro_rules_def(::std::vector<AST::Attribute> outer_attrs);
         AST::MacroInvocationSemi* parse_macro_invocation_semi(
           ::std::vector<AST::Attribute> outer_attrs);
+        AST::MacroInvocation* parse_macro_invocation(::std::vector<AST::Attribute> outer_attrs);
         AST::MacroRule parse_macro_rule();
         AST::MacroMatcher parse_macro_matcher();
         AST::MacroMatch* parse_macro_match();
@@ -112,8 +113,7 @@ namespace Rust {
         AST::UseDeclaration* parse_use_decl(
           AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::UseTree* parse_use_tree();
-        AST::Function* parse_function(
-          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::Function* parse_function(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::FunctionQualifiers parse_function_qualifiers();
         ::std::vector< ::std::unique_ptr<AST::GenericParam> > parse_generic_params_in_angles();
         ::std::vector< ::std::unique_ptr<AST::GenericParam> > parse_generic_params();
@@ -157,9 +157,11 @@ namespace Rust {
         AST::SelfParam parse_self_param();
         AST::Impl* parse_impl(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::InherentImplItem* parse_inherent_impl_item();
-        AST::InherentImplItem* parse_inherent_impl_function_or_method(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::InherentImplItem* parse_inherent_impl_function_or_method(
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::TraitImplItem* parse_trait_impl_item();
-        AST::TraitImplItem* parse_trait_impl_function_or_method(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
+        AST::TraitImplItem* parse_trait_impl_function_or_method(
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::ExternBlock* parse_extern_block(
           AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::ExternalItem* parse_external_item();
@@ -168,17 +170,34 @@ namespace Rust {
 
         // Expression-related
         AST::Expr* parse_expr();
-        AST::ExprWithoutBlock* parse_expr_without_block();
+        AST::ExprWithoutBlock* parse_expr_without_block(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::BlockExpr* parse_block_expr(
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::IfExpr* parse_if_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::IfLetExpr* parse_if_let_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::LoopExpr* parse_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::WhileLoopExpr* parse_while_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::WhileLetLoopExpr* parse_while_let_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::ForLoopExpr* parse_for_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::MatchExpr* parse_match_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::BaseLoopExpr* parse_labelled_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::AsyncBlockExpr* parse_async_block_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::UnsafeBlockExpr* parse_unsafe_block_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::GroupedExpr* parse_grouped_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::ClosureExpr* parse_closure_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::ClosureParam parse_closure_param();
 
         // Type-related
         AST::Type* parse_type();
+        AST::TypeNoBounds* parse_type_no_bounds();
 
         // Statement-related
         AST::Stmt* parse_stmt();
         AST::LetStmt* parse_let_stmt(::std::vector<AST::Attribute> outer_attrs);
         AST::ExprStmt* parse_expr_stmt(::std::vector<AST::Attribute> outer_attrs);
+        AST::ExprStmtWithBlock* parse_expr_stmt_with_block(::std::vector<AST::Attribute> outer_attrs);
+        AST::ExprStmtWithoutBlock* parse_expr_stmt_without_block(
+          ::std::vector<AST::Attribute> outer_attrs);
 
         // Pattern-related
         AST::Pattern* parse_pattern();
@@ -207,7 +226,7 @@ namespace Rust {
         Tree parse_variable_declaration();
         Tree parse_type_declaration();
 
-        //Tree parse_type();
+        // Tree parse_type();
         Tree parse_record();
         Tree parse_field_declaration(std::vector<std::string>& field_names);
 

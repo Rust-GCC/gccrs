@@ -40,7 +40,7 @@ namespace Rust {
                 return abi_name.empty();
             }
 
-            AbiName(::std::string name) : abi_name(name) {}
+            AbiName(::std::string name) : abi_name(::std::move(name)) {}
 
             // Empty AbiName constructor
             AbiName() {}
@@ -49,7 +49,8 @@ namespace Rust {
         // A type generic parameter (as opposed to a lifetime generic parameter)
         class TypeParam : public GenericParam {
             // bool has_outer_attribute;
-            ::std::unique_ptr<Attribute> outer_attr;
+            //::std::unique_ptr<Attribute> outer_attr;
+            Attribute outer_attr;
 
             Identifier type_representation;
 
@@ -74,28 +75,31 @@ namespace Rust {
 
             // Returns whether the type param has an outer attribute.
             inline bool has_outer_attribute() const {
-                return outer_attr != NULL;
+                return !outer_attr.is_empty();
             }
 
             TypeParam(Identifier type_representation,
               ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds, Type* type,
-              Attribute* outer_attr) :
-              type_representation(type_representation),
-              type_param_bounds(::std::move(type_param_bounds)), type(type), outer_attr(outer_attr) {}
+              Attribute outer_attr) :
+              type_representation(::std::move(type_representation)),
+              type_param_bounds(::std::move(type_param_bounds)), type(type),
+              outer_attr(::std::move(outer_attr)) {}
 
             // No bounds or type constructor
-            TypeParam(Identifier type_representation, Attribute* outer_attr) :
-              type_representation(type_representation), outer_attr(outer_attr) {}
+            TypeParam(Identifier type_representation, Attribute outer_attr) :
+              type_representation(::std::move(type_representation)),
+              outer_attr(::std::move(outer_attr)) {}
 
             // No bounds constructor
-            TypeParam(Identifier type_representation, Type* type, Attribute* outer_attr) :
-              type_representation(type_representation), type(type), outer_attr(outer_attr) {}
+            TypeParam(Identifier type_representation, Type* type, Attribute outer_attr) :
+              type_representation(::std::move(type_representation)), type(type),
+              outer_attr(::std::move(outer_attr)) {}
 
             // Copy constructor uses clone
             TypeParam(TypeParam const& other) :
               type_representation(other.type_representation),
               /*type_param_bounds(other.type_param_bounds),*/ type(other.type->clone_type()),
-              outer_attr(other.outer_attr->clone_attribute()) {
+              outer_attr(other.outer_attr) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
 
@@ -111,7 +115,7 @@ namespace Rust {
                 type_representation = other.type_representation;
                 // type_param_bounds = other.type_param_bounds;
                 type = other.type->clone_type();
-                outer_attr = other.outer_attr->clone_attribute();
+                outer_attr = other.outer_attr;
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
@@ -158,7 +162,7 @@ namespace Rust {
 
           public:
             LifetimeWhereClauseItem(Lifetime lifetime, ::std::vector<Lifetime> lifetime_bounds) :
-              lifetime(lifetime), lifetime_bounds(lifetime_bounds) {}
+              lifetime(::std::move(lifetime)), lifetime_bounds(::std::move(lifetime_bounds)) {}
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -193,7 +197,7 @@ namespace Rust {
 
             TypeBoundWhereClauseItem(::std::vector<LifetimeParam> for_lifetimes, Type* bound_type,
               ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds) :
-              for_lifetimes(for_lifetimes),
+              for_lifetimes(::std::move(for_lifetimes)),
               bound_type(bound_type), type_param_bounds(::std::move(type_param_bounds)) {}
 
             // Copy constructor requires clone
@@ -240,6 +244,7 @@ namespace Rust {
 
         // A where clause
         struct WhereClause {
+          private:
             //::std::vector<WhereClauseItem> where_clause_items;
             ::std::vector< ::std::unique_ptr<WhereClauseItem> > where_clause_items;
 
@@ -299,7 +304,7 @@ namespace Rust {
 
             // Unrestricted constructor used for error state
             SelfParam(Lifetime lifetime, bool has_ref, bool is_mut, Type* type) :
-              lifetime(lifetime), has_ref(has_ref), is_mut(is_mut), type(type) {}
+              lifetime(::std::move(lifetime)), has_ref(has_ref), is_mut(is_mut), type(type) {}
 
           public:
             // Returns whether the self-param has a type field.
@@ -332,7 +337,7 @@ namespace Rust {
 
             // Lifetime-based self parameter (is ref, no type)
             SelfParam(Lifetime lifetime, bool is_mut) :
-              /*type(NULL), */ is_mut(is_mut), has_ref(true), lifetime(lifetime) {}
+              /*type(NULL), */ is_mut(is_mut), has_ref(true), lifetime(::std::move(lifetime)) {}
 
             // Copy constructor requires clone
             SelfParam(SelfParam const& other) :
@@ -379,13 +384,13 @@ namespace Rust {
             FunctionQualifiers(
               AsyncConstStatus const_status, bool has_unsafe, ::std::string extern_abi) :
               const_status(const_status),
-              has_unsafe(has_unsafe), has_extern(true), extern_abi(extern_abi) {}
+              has_unsafe(has_unsafe), has_extern(true), extern_abi(::std::move(extern_abi)) {}
 
             // Constructor with all possible options (DON'T HAVE EXTERN_ABI WITHOUT EXTERN!)
             FunctionQualifiers(AsyncConstStatus const_status, bool has_unsafe, bool has_extern,
               ::std::string extern_abi) :
               const_status(const_status),
-              has_unsafe(has_unsafe), has_extern(has_extern), extern_abi(extern_abi) {}
+              has_unsafe(has_unsafe), has_extern(has_extern), extern_abi(::std::move(extern_abi)) {}
         };
 
         // Forward decl FunctionParams
@@ -502,10 +507,11 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
               ::std::vector<FunctionParam> function_params, Type* return_type,
               WhereClause where_clause, BlockExpr* function_body) :
-              method_name(method_name),
-              qualifiers(qualifiers), generic_params(::std::move(generic_params)),
-              self_param(self_param), function_params(function_params), return_type(return_type),
-              where_clause(where_clause), expr(function_body) {}
+              method_name(::std::move(method_name)),
+              qualifiers(::std::move(qualifiers)), generic_params(::std::move(generic_params)),
+              self_param(::std::move(self_param)), function_params(::std::move(function_params)),
+              return_type(return_type), where_clause(::std::move(where_clause)), expr(function_body) {
+            }
 
             // TODO: add constructor with less fields
 
@@ -801,14 +807,15 @@ namespace Rust {
             // Constructor with an as clause
             ExternCrate(::std::string referenced_crate, ::std::string as_clause_name,
               Visibility visibility, ::std::vector<Attribute> outer_attrs) :
-              referenced_crate(referenced_crate),
-              as_clause_name(as_clause_name), VisItem(visibility, outer_attrs) {}
+              referenced_crate(::std::move(referenced_crate)),
+              as_clause_name(::std::move(as_clause_name)),
+              VisItem(::std::move(visibility), ::std::move(outer_attrs)) {}
 
             // Constructor with no as clause
             ExternCrate(::std::string referenced_crate, Visibility visibility,
               ::std::vector<Attribute> outer_attrs) :
-              referenced_crate(referenced_crate),
-              VisItem(visibility, outer_attrs) {}
+              referenced_crate(::std::move(referenced_crate)),
+              VisItem(::std::move(visibility), ::std::move(outer_attrs)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -847,7 +854,8 @@ namespace Rust {
             SimplePath path;
 
           public:
-            UseTreeGlob(PathType glob_type, SimplePath path) : glob_type(glob_type), path(path) {}
+            UseTreeGlob(PathType glob_type, SimplePath path) :
+              glob_type(glob_type), path(::std::move(path)) {}
 
             // Returns whether has path.
             inline bool has_path() const {
@@ -877,7 +885,7 @@ namespace Rust {
             UseTreeList(PathType path_type, SimplePath path,
               ::std::vector< ::std::unique_ptr<UseTree> > trees) :
               path_type(path_type),
-              path(path), trees(::std::move(trees)) {}
+              path(::std::move(path)), trees(::std::move(trees)) {}
 
             // copy constructor with vector clone
             UseTreeList(UseTreeList const& other) : path_type(other.path_type), path(other.path) {
@@ -939,11 +947,11 @@ namespace Rust {
 
           public:
             UseTreeRebind(NewBindType bind_type, SimplePath path, Identifier identifier) :
-              bind_type(bind_type), path(path), identifier(identifier) {}
+              bind_type(bind_type), path(::std::move(path)), identifier(::std::move(identifier)) {}
 
             // No-identifier constructor
             UseTreeRebind(NewBindType bind_type, SimplePath path) :
-              bind_type(bind_type), path(path) {}
+              bind_type(bind_type), path(::std::move(path)) {}
 
             // Returns whether has path (this should always be true).
             inline bool has_path() const {
@@ -973,7 +981,7 @@ namespace Rust {
             UseDeclaration(
               UseTree* use_tree, Visibility visibility, ::std::vector<Attribute> outer_attrs) :
               use_tree(use_tree),
-              VisItem(visibility, outer_attrs) {}
+              VisItem(::std::move(visibility), ::std::move(outer_attrs)) {}
 
             // Copy constructor with clone
             UseDeclaration(UseDeclaration const& other) :
@@ -1068,10 +1076,11 @@ namespace Rust {
               ::std::vector<FunctionParam> function_params, Type* return_type,
               WhereClause where_clause, BlockExpr* function_body, Visibility vis,
               ::std::vector<Attribute> outer_attrs) :
-              function_name(function_name),
-              qualifiers(qualifiers), generic_params(::std::move(generic_params)),
-              function_params(function_params), return_type(return_type), where_clause(where_clause),
-              function_body(function_body), VisItem(vis, outer_attrs) {}
+              function_name(::std::move(function_name)),
+              qualifiers(::std::move(qualifiers)), generic_params(::std::move(generic_params)),
+              function_params(::std::move(function_params)), return_type(return_type),
+              where_clause(::std::move(where_clause)), function_body(function_body),
+              VisItem(::std::move(vis), ::std::move(outer_attrs)) {}
 
             // TODO: add constructor with less fields
 
@@ -1162,9 +1171,9 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, Type* existing_type, Visibility vis,
               ::std::vector<Attribute> outer_attrs) :
-              new_type_name(new_type_name),
-              generic_params(::std::move(generic_params)), where_clause(where_clause),
-              existing_type(existing_type), VisItem(vis, outer_attrs) {}
+              new_type_name(::std::move(new_type_name)),
+              generic_params(::std::move(generic_params)), where_clause(::std::move(where_clause)),
+              existing_type(existing_type), VisItem(::std::move(vis), ::std::move(outer_attrs)) {}
 
             // Copy constructor
             TypeAlias(TypeAlias const& other) :

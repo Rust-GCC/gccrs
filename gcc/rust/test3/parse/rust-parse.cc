@@ -643,6 +643,24 @@ namespace Rust {
                 || (token_id == RIGHT_CURLY && delim_type == AST::CURLY));
     }
 
+    /* Returns true if the likely result of parsing the next few tokens is a path. Not guaranteed,
+     * though, especially in the case of syntax errors. */
+    inline bool is_likely_path_next(TokenId next_token_id) {
+        switch (next_token_id) {
+            case IDENTIFIER:
+            case SUPER:
+            case SELF:
+            case SELF_ALIAS:
+            case CRATE:
+            // maybe - maybe do extra check. But then requires another TokenId.
+            case DOLLAR_SIGN:
+            case SCOPE_RESOLUTION:
+                return true;
+            default:
+                return false;
+        }
+    }
+
     // Parses a delimited token tree
     AST::DelimTokenTree Parser::parse_delim_token_tree() {
         const_TokenPtr t = lexer.peek_token();
@@ -1117,12 +1135,13 @@ namespace Rust {
                 // skip semicolon at end of non-curly macro definitions
                 if (!skip_token(SEMICOLON)) {
                     // as this is the end, allow recovery (probably) - may change
-                    return new AST::MacroRulesDefinition(
-                      ::std::move(rule_name), delim_type, ::std::move(macro_rules), ::std::move(outer_attrs));
+                    return new AST::MacroRulesDefinition(::std::move(rule_name), delim_type,
+                      ::std::move(macro_rules), ::std::move(outer_attrs));
                 }
             }
 
-            return new AST::MacroRulesDefinition(::std::move(rule_name), delim_type, ::std::mvoe(macro_rules), ::std::move(outer_attrs));
+            return new AST::MacroRulesDefinition(
+              ::std::move(rule_name), delim_type, ::std::move(macro_rules), ::std::move(outer_attrs));
         } else {
             // tokens don't match opening delimiters, so produce error
             error_at(t->get_locus(),
@@ -1199,8 +1218,8 @@ namespace Rust {
                 // skip semicolon at end of non-curly macro invocation semis
                 if (!skip_token(SEMICOLON)) {
                     // as this is the end, allow recovery (probably) - may change
-                    return new AST::MacroInvocationSemi(
-                      ::std::move(path), delim_type, ::std::move(token_trees), ::std::move(outer_attrs));
+                    return new AST::MacroInvocationSemi(::std::move(path), delim_type,
+                      ::std::move(token_trees), ::std::move(outer_attrs));
                 }
             }
 
@@ -1218,6 +1237,28 @@ namespace Rust {
              * a good idea? */
             return NULL;
         }
+    }
+
+    // Parses a non-semicoloned macro invocation (i.e. as pattern or expression).
+    AST::MacroInvocation* Parser::parse_macro_invocation(::std::vector<AST::Attribute> outer_attrs) {
+        // parse macro path
+        AST::SimplePath macro_path = parse_simple_path();
+        if (macro_path.is_empty()) {
+            error_at(lexer.peek_token()->get_locus(), "failed to parse macro invocation path");
+            // skip?
+            return NULL;
+        }
+
+        if (!skip_token(EXCLAM)) {
+            // skip after somewhere?
+            return NULL;
+        }
+
+        // parse internal delim token tree
+        AST::DelimTokenTree delim_tok_tree = parse_delim_token_tree();
+
+        return new AST::MacroInvocation(
+          ::std::move(macro_path), ::std::move(delim_tok_tree), ::std::move(outer_attrs));
     }
 
     // Parses a macro rule definition - does not parse semicolons.
@@ -1539,7 +1580,8 @@ namespace Rust {
             case SEMICOLON:
                 lexer.skip_token();
 
-                return new AST::ModuleNoBody(::std::move(vis), ::std::move(outer_attrs)); // module name?
+                return new AST::ModuleNoBody(
+                  ::std::move(vis), ::std::move(outer_attrs)); // module name?
             case LEFT_CURLY: {
                 lexer.skip_token();
 
@@ -1551,8 +1593,8 @@ namespace Rust {
 
                 skip_token(RIGHT_CURLY);
 
-                return new AST::ModuleBodied(
-                  ::std::move(items), ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs)); // module name?
+                return new AST::ModuleBodied(::std::move(items), ::std::move(vis),
+                  ::std::move(inner_attrs), ::std::move(outer_attrs)); // module name?
             }
             default:
                 unexpected_token(t);
@@ -1635,7 +1677,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::ExternCrate(::std::move(crate_name), ::std::move(as_name), ::std::move(vis), ::std::move(outer_attrs));
+        return new AST::ExternCrate(
+          ::std::move(crate_name), ::std::move(as_name), ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parses a use declaration.
@@ -2090,8 +2133,8 @@ namespace Rust {
                   = parse_type_param_bounds();
 
                 // TODO: is move required here?
-                return new AST::TypeParam(::std::move(ident), ::std::move(type_param_bounds), NULL,
-                  outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+                return new AST::TypeParam(
+                  ::std::move(ident), ::std::move(type_param_bounds), NULL, ::std::move(outer_attr));
             }
             case EQUAL: {
                 lexer.skip_token();
@@ -2099,13 +2142,11 @@ namespace Rust {
                 // parse type
                 AST::Type* type = parse_type();
 
-                return new AST::TypeParam(
-                  ::std::move(ident), type, outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+                return new AST::TypeParam(::std::move(ident), type, ::std::move(outer_attr));
             }
             default:
                 // Best assumption is that this is the end of the type param
-                return new AST::TypeParam(
-                  ::std::move(ident), outer_attr.is_empty() ? NULL : new AST::Attribute(outer_attr));
+                return new AST::TypeParam(::std::move(ident), ::std::move(outer_attr));
         }
         // Stop the "control passes without return" error.
         gcc_unreachable();
@@ -2166,7 +2207,7 @@ namespace Rust {
         AST::Type* param_type = parse_type();
         if (param_type == NULL) {
             // skip?
-            return AST::FunctiomParam::create_error();
+            return AST::FunctionParam::create_error();
         }
 
         return AST::FunctionParam(param_pattern, param_type);
@@ -2271,7 +2312,8 @@ namespace Rust {
         ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > type_param_bounds
           = parse_type_param_bounds();
 
-        return new AST::TypeBoundWhereClauseItem(::std::move(for_lifetimes), type, ::std::move(type_param_bounds));
+        return new AST::TypeBoundWhereClauseItem(
+          ::std::move(for_lifetimes), type, ::std::move(type_param_bounds));
     }
 
     // Parses a for lifetimes clause, including the for keyword and angle brackets.
@@ -2377,7 +2419,8 @@ namespace Rust {
             }
         }
 
-        return new AST::TraitBound(::std::move(type_path), has_parens, has_question_mark, ::std::move(for_lifetimes));
+        return new AST::TraitBound(
+          ::std::move(type_path), has_parens, has_question_mark, ::std::move(for_lifetimes));
     }
 
     // Parses lifetime bounds.
@@ -2458,8 +2501,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::TypeAlias(
-          ::std::move(alias_name), ::std::move(generic_params), ::std::move(where_clause), type_to_alias, ::std::move(vis), ::std::move(outer_attrs));
+        return new AST::TypeAlias(::std::move(alias_name), ::std::move(generic_params),
+          ::std::move(where_clause), type_to_alias, ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parse a struct item AST node.
@@ -2481,7 +2524,8 @@ namespace Rust {
         // parse struct name
         const_TokenPtr name_tok = expect_token(IDENTIFIER);
         if (name_tok == NULL) {
-            error_at(lexer.peek_token()->get_locus(), "could not parse struct or tuple struct identifier");
+            error_at(
+              lexer.peek_token()->get_locus(), "could not parse struct or tuple struct identifier");
             // skip after somewhere?
             return NULL;
         }
@@ -2515,8 +2559,9 @@ namespace Rust {
                 return NULL;
             }
 
-            return new AST::TupleStruct(
-              ::std::move(tuple_fields), ::std::move(struct_name), ::std::move(generic_params), ::std::move(where_clause), ::std::move(vis), ::std::move(outer_attrs));
+            return new AST::TupleStruct(::std::move(tuple_fields), ::std::move(struct_name),
+              ::std::move(generic_params), ::std::move(where_clause), ::std::move(vis),
+              ::std::move(outer_attrs));
         }
 
         // assume it is a proper struct being parsed and continue outside of switch - label only here
@@ -2542,16 +2587,17 @@ namespace Rust {
                     return NULL;
                 }
 
-                return new AST::StructStruct(::std::move(struct_fields), ::std::move(struct_name), ::std::move(generic_params),
-                  ::std::move(where_clause), false, ::std::move(vis), ::std::move(outer_attrs));
+                return new AST::StructStruct(::std::move(struct_fields), ::std::move(struct_name),
+                  ::std::move(generic_params), ::std::move(where_clause), false, ::std::move(vis),
+                  ::std::move(outer_attrs));
             }
             case SEMICOLON:
                 // unit struct declaration
 
                 lexer.skip_token();
 
-                return new AST::StructStruct(
-                  ::std::move(struct_name), ::std::move(generic_params), ::std::move(where_clause), ::std::move(vis), ::std::move(outer_attrs));
+                return new AST::StructStruct(::std::move(struct_name), ::std::move(generic_params),
+                  ::std::move(where_clause), ::std::move(vis), ::std::move(outer_attrs));
             default:
                 error_at(t->get_locus(), "unexpected token '%s' in struct declaration",
                   t->get_token_description());
@@ -2624,7 +2670,8 @@ namespace Rust {
             return AST::StructField::create_error();
         }
 
-        return AST::StructField(::std::move(field_name), field_type, ::std::move(vis), ::std::move(outer_attrs));
+        return AST::StructField(
+          ::std::move(field_name), field_type, ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parses tuple fields in tuple/tuple struct declarations.
@@ -2713,8 +2760,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::Enum(::std::move(enum_name), ::std::move(vis), ::std::move(generic_params), ::std::move(where_clause),
-          ::std::move(enum_items), ::std::move(outer_attrs));
+        return new AST::Enum(::std::move(enum_name), ::std::move(vis), ::std::move(generic_params),
+          ::std::move(where_clause), ::std::move(enum_items), ::std::move(outer_attrs));
     }
 
     // Parses the enum variants inside an enum definiton.
@@ -2784,7 +2831,8 @@ namespace Rust {
                     return NULL;
                 }
 
-                return new AST::EnumItemTuple(::std::move(item_name), ::std::move(tuple_fields), ::std::move(outer_attrs));
+                return new AST::EnumItemTuple(
+                  ::std::move(item_name), ::std::move(tuple_fields), ::std::move(outer_attrs));
             }
             case LEFT_CURLY: {
                 // struct enum item
@@ -2797,7 +2845,8 @@ namespace Rust {
                     return NULL;
                 }
 
-                return new AST::EnumItemStruct(::std::move(item_name), ::std::move(struct_fields), ::std::move(outer_attrs));
+                return new AST::EnumItemStruct(
+                  ::std::move(item_name), ::std::move(struct_fields), ::std::move(outer_attrs));
             }
             case EQUAL: {
                 // discriminant enum item
@@ -2805,7 +2854,8 @@ namespace Rust {
 
                 AST::Expr* discriminant_expr = parse_expr();
 
-                return new AST::EnumItemDiscriminant(::std::move(item_name), discriminant_expr, ::std::move(outer_attrs));
+                return new AST::EnumItemDiscriminant(
+                  ::std::move(item_name), discriminant_expr, ::std::move(outer_attrs));
             }
             default:
                 // regular enum with just an identifier
@@ -2847,8 +2897,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::Union(
-          ::std::move(union_name), ::std::move(vis), ::std::move(generic_params), ::std::move(where_clause), ::std::move(union_fields), ::std::move(outer_attrs));
+        return new AST::Union(::std::move(union_name), ::std::move(vis), ::std::move(generic_params),
+          ::std::move(where_clause), ::std::move(union_fields), ::std::move(outer_attrs));
     }
 
     // Parses a "constant item" (compile-time constant to maybe "inline" throughout the program).
@@ -2896,7 +2946,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::ConstantItem(::std::move(ident), ::std::move(vis), type, expr, ::std::move(outer_attrs));
+        return new AST::ConstantItem(
+          ::std::move(ident), ::std::move(vis), type, expr, ::std::move(outer_attrs));
     }
 
     // Parses a "static item" (static storage item, with 'static lifetime).
@@ -2935,7 +2986,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::StaticItem(::std::move(ident), is_mut, type, expr, ::std::move(vis), ::std::move(outer_attrs));
+        return new AST::StaticItem(
+          ::std::move(ident), is_mut, type, expr, ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parses a trait definition item, including unsafe ones.
@@ -2998,7 +3050,8 @@ namespace Rust {
         }
 
         return new AST::Trait(::std::move(ident), is_unsafe, ::std::move(generic_params),
-          ::std::move(type_param_bounds), ::std::move(where_clause), ::std::move(trait_items), ::std::move(vis), ::std::move(outer_attrs));
+          ::std::move(type_param_bounds), ::std::move(where_clause), ::std::move(trait_items),
+          ::std::move(vis), ::std::move(outer_attrs));
     }
 
     // Parses a trait item used inside traits (not trait, the Item).
@@ -3094,15 +3147,17 @@ namespace Rust {
 
                 // do actual if instead of ternary for return value optimisation
                 if (is_method) {
-                    AST::TraitMethodDecl method_decl(::std::move(ident), ::std::move(qualifiers), ::std::move(generic_params),
-                      ::std::move(self_param), ::std::move(function_params), return_type, ::std::move(where_clause));
+                    AST::TraitMethodDecl method_decl(::std::move(ident), ::std::move(qualifiers),
+                      ::std::move(generic_params), ::std::move(self_param),
+                      ::std::move(function_params), return_type, ::std::move(where_clause));
 
                     // TODO: does this (method_decl) need move?
                     return new AST::TraitItemMethod(
                       ::std::move(method_decl), definition, ::std::move(outer_attrs));
                 } else {
                     AST::TraitFunctionDecl function_decl(::std::move(ident), ::std::move(qualifiers),
-                      ::std::move(generic_params), ::std::move(function_params), return_type, ::std::move(where_clause));
+                      ::std::move(generic_params), ::std::move(function_params), return_type,
+                      ::std::move(where_clause));
 
                     return new AST::TraitItemFunc(
                       ::std::move(function_decl), definition, ::std::move(outer_attrs));
@@ -3146,7 +3201,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::TraitItemType(::std::move(ident), ::std::move(bounds), ::std::move(outer_attrs));
+        return new AST::TraitItemType(
+          ::std::move(ident), ::std::move(bounds), ::std::move(outer_attrs));
     }
 
     // Parses a constant trait item.
@@ -3179,7 +3235,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::TraitItemConst(::std::move(ident), type, const_body, ::std::move(outer_attrs));
+        return new AST::TraitItemConst(
+          ::std::move(ident), type, const_body, ::std::move(outer_attrs));
     }
 
     // Parses a struct "impl" item (both inherent impl and trait impl can be parsed here),
@@ -3264,7 +3321,8 @@ namespace Rust {
             }
 
             return new AST::InherentImpl(::std::move(impl_items), ::std::move(generic_params), type,
-              ::std::move(where_clause), ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs));
+              ::std::move(where_clause), ::std::move(vis), ::std::move(inner_attrs),
+              ::std::move(outer_attrs));
         } else {
             // type path must both be valid and next token is for, so trait impl
             if (!skip_token(FOR)) {
@@ -3315,8 +3373,9 @@ namespace Rust {
                 return NULL;
             }
 
-            return new AST::TraitImpl(::std::move(type_path), is_unsafe, has_exclam, ::std::move(impl_items),
-              ::std::move(generic_params), type, ::std::move(where_clause), ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs));
+            return new AST::TraitImpl(::std::move(type_path), is_unsafe, has_exclam,
+              ::std::move(impl_items), ::std::move(generic_params), type, ::std::move(where_clause),
+              ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs));
         }
     }
 
@@ -3511,14 +3570,17 @@ namespace Rust {
 
         // do actual if instead of ternary for return value optimisation
         if (is_method) {
-            AST::Method method_decl(::std::move(ident), ::std::move(qualifiers), ::std::move(generic_params), ::std::move(self_param),
-              ::std::move(function_params), return_type, ::std::move(where_clause), body);
+            AST::Method method_decl(::std::move(ident), ::std::move(qualifiers),
+              ::std::move(generic_params), ::std::move(self_param), ::std::move(function_params),
+              return_type, ::std::move(where_clause), body);
 
-            return new AST::InherentImplItemMethod(::std::move(method_decl), ::std::move(vis), outer_attrs);
+            return new AST::InherentImplItemMethod(
+              ::std::move(method_decl), ::std::move(vis), outer_attrs);
         } else {
             // TODO: this is bad - double up of outer attributes
-            AST::Function function_decl(::std::move(ident), ::std::move(qualifiers), ::std::move(generic_params),
-              ::std::move(function_params), return_type, ::std::move(where_clause), body, ::std::move(vis), outer_attrs);
+            AST::Function function_decl(::std::move(ident), ::std::move(qualifiers),
+              ::std::move(generic_params), ::std::move(function_params), return_type,
+              ::std::move(where_clause), body, ::std::move(vis), outer_attrs);
 
             // TODO: does this (function_decl) need move?
             return new AST::InherentImplItemFunction(::std::move(function_decl), outer_attrs);
@@ -3738,10 +3800,12 @@ namespace Rust {
 
         // do actual if instead of ternary for return value optimisation
         if (is_method) {
-            AST::Method method_decl(::std::move(ident), ::std::move(qualifiers), ::std::move(generic_params), ::std::move(self_param),
-              ::std::move(function_params), return_type, ::std::move(where_clause), body);
+            AST::Method method_decl(::std::move(ident), ::std::move(qualifiers),
+              ::std::move(generic_params), ::std::move(self_param), ::std::move(function_params),
+              return_type, ::std::move(where_clause), body);
 
-            return new AST::TraitImplItemMethod(::std::move(method_decl), ::std::move(vis), ::std::move(outer_attrs));
+            return new AST::TraitImplItemMethod(
+              ::std::move(method_decl), ::std::move(vis), ::std::move(outer_attrs));
         } else {
             // TODO: this is bad - double up of outer attributes
             AST::Function function_decl(::std::move(ident), ::std::move(qualifiers),
@@ -4113,73 +4177,6 @@ namespace Rust {
         }
 
         return new AST::LetStmt(pattern, expr, type, ::std::move(outer_attrs));
-    }
-
-    // Parses an expression statement (disambiguates to expression with or without block statement).
-    AST::ExprStmt* Parser::parse_expr_stmt(::std::vector<AST::Attribute> outer_attrs) {
-        // TODO
-        return NULL;
-
-        /* potential thoughts - define new virtual method "has_block()" on expr. parse expr and then
-         * determine whether semicolon is needed as a result of this method.
-         * but then this would require dynamic_cast, which is not allowed. */
-
-        /* okay new thought - big switch to disambiguate exprs with blocks - either block expr,
-         * async block expr, unsafe block expr, loop expr, if expr, if let expr, or match expr. So
-         * all others are exprs without block. */
-        /* new thought: possible initial tokens: 'loop', 'while', 'for', lifetime (and then ':' and
-         * then loop), 'if', 'match', '{', 'async', 'unsafe' (and then '{')). This seems to have no
-         * ambiguity. */
-
-        const_TokenPtr t = lexer.peek_token();
-        switch (t->get_id()) {
-            case LOOP:
-            case WHILE:
-            case FOR:
-            case IF:
-            case MATCH:
-            case LEFT_CURLY:
-            case ASYNC:
-                // expression with block
-                return parse_expr_stmt_with_block(::std::move(outer_attrs));
-            case LIFETIME: {
-                /* FIXME: are there any expressions without blocks that can have lifetime as their 
-                 * first token? Or is loop expr the only one? */
-                // safe side for now: 
-                if (lexer.peek_token(1) == COLON && lexer.peek_token(2) == LOOP) {
-                    return parse_expr_stmt_with_block(::std::move(outer_attrs));
-                } else {
-                    return parse_expr_stmt_without_block(::std::move(outer_attrs));
-                }
-            }
-            case UNSAFE: {
-                /* FIXME: are there any expressions without blocks that can have unsafe as their 
-                 * first token? Or is unsafe the only one? */
-                // safe side for now
-                if (lexer.peek_token(1) == LEFT_CURLY) {
-                    return parse_expr_stmt_with_block(::std::move(outer_attrs));
-                } else {
-                    return parse_expr_stmt_without_block(::std::move(outer_attrs));
-                }
-            }
-            default:
-                // not a parse expr with block, so must be expr without block
-                /* TODO: if possible, be more selective about possible expr without block initial 
-                 * tokens in order to prevent more syntactical errors at parse time. */
-                return parse_expr_stmt_without_block(::std::move(outer_attrs));
-        }
-    }
-
-    // Parses a type (will further disambiguate any type).
-    AST::Type* Parser::parse_type() {
-        // TODO
-        return NULL;
-    }
-
-    // Parses a pattern (will further disambiguate any pattern).
-    AST::Pattern* Parser::parse_pattern() {
-        // TODO
-        return NULL;
     }
 
     // Parses a type path.
@@ -4773,10 +4770,223 @@ namespace Rust {
           return_type, ::std::move(where_clause), block_expr);
     }
 
+    // Parses an expression statement (disambiguates to expression with or without block statement).
+    AST::ExprStmt* Parser::parse_expr_stmt(::std::vector<AST::Attribute> outer_attrs) {
+        /* potential thoughts - define new virtual method "has_block()" on expr. parse expr and then
+         * determine whether semicolon is needed as a result of this method.
+         * but then this would require dynamic_cast, which is not allowed. */
+
+        /* okay new thought - big switch to disambiguate exprs with blocks - either block expr,
+         * async block expr, unsafe block expr, loop expr, if expr, if let expr, or match expr. So
+         * all others are exprs without block. */
+        /* new thought: possible initial tokens: 'loop', 'while', 'for', lifetime (and then ':' and
+         * then loop), 'if', 'match', '{', 'async', 'unsafe' (and then '{')). This seems to have no
+         * ambiguity. */
+
+        const_TokenPtr t = lexer.peek_token();
+        /* TODO: should the switch just directly call the individual parse methods rather than adding
+         * another layer of indirection with parse_expr_stmt_with_block()? */
+        switch (t->get_id()) {
+            case LOOP:
+            case WHILE:
+            case FOR:
+            case IF:
+            case MATCH_TOK:
+            case LEFT_CURLY:
+            case ASYNC:
+                // expression with block
+                return parse_expr_stmt_with_block(::std::move(outer_attrs));
+            case LIFETIME: {
+                /* FIXME: are there any expressions without blocks that can have lifetime as their
+                 * first token? Or is loop expr the only one? */
+                // safe side for now:
+                if (lexer.peek_token(1)->get_id() == COLON && lexer.peek_token(2)->get_id() == LOOP) {
+                    return parse_expr_stmt_with_block(::std::move(outer_attrs));
+                } else {
+                    return parse_expr_stmt_without_block(::std::move(outer_attrs));
+                }
+            }
+            case UNSAFE: {
+                /* FIXME: are there any expressions without blocks that can have unsafe as their
+                 * first token? Or is unsafe the only one? */
+                // safe side for now
+                if (lexer.peek_token(1)->get_id() == LEFT_CURLY) {
+                    return parse_expr_stmt_with_block(::std::move(outer_attrs));
+                } else {
+                    return parse_expr_stmt_without_block(::std::move(outer_attrs));
+                }
+            }
+            default:
+                // not a parse expr with block, so must be expr without block
+                /* TODO: if possible, be more selective about possible expr without block initial
+                 * tokens in order to prevent more syntactical errors at parse time. */
+                return parse_expr_stmt_without_block(::std::move(outer_attrs));
+        }
+    }
+
+    // Parses a expression statement containing an expression with block. Disambiguates internally.
+    AST::ExprStmtWithBlock* Parser::parse_expr_stmt_with_block(
+      ::std::vector<AST::Attribute> outer_attrs) {
+        AST::ExprWithBlock* expr_parsed = NULL;
+
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case IF:
+                // if or if let, so more lookahead to find out
+                if (lexer.peek_token(1)->get_id() == LET) {
+                    // if let expr
+                    expr_parsed = parse_if_let_expr(::std::move(outer_attrs));
+                    break;
+                } else {
+                    // if expr
+                    expr_parsed = parse_if_expr(::std::move(outer_attrs));
+                    break;
+                }
+            case LOOP:
+                // infinite loop
+                expr_parsed = parse_loop_expr(::std::move(outer_attrs));
+                break;
+            case FOR:
+                // "for" iterator loop
+                expr_parsed = parse_for_loop_expr(::std::move(outer_attrs));
+                break;
+            case WHILE: {
+                // while or while let, so more lookahead to find out
+                if (lexer.peek_token()->get_id() == LET) {
+                    // while let loop expr
+                    expr_parsed = parse_while_let_loop_expr(::std::move(outer_attrs));
+                    break;
+                } else {
+                    // while loop expr
+                    expr_parsed = parse_while_loop_expr(::std::move(outer_attrs));
+                    break;
+                }
+            }
+            case MATCH_TOK:
+                // match expression
+                expr_parsed = parse_match_expr(::std::move(outer_attrs));
+                break;
+            case LEFT_CURLY:
+                // block expression
+                expr_parsed = parse_block_expr(::std::move(outer_attrs));
+                break;
+            case ASYNC:
+                // async block expression
+                expr_parsed = parse_async_block_expr(::std::move(outer_attrs));
+                break;
+            case UNSAFE:
+                // unsafe block expression
+                expr_parsed = parse_unsafe_block_expr(::std::move(outer_attrs));
+                break;
+            case LIFETIME:
+                // some kind of loop expr (with loop label)
+                expr_parsed = parse_labelled_loop_expr(::std::move(outer_attrs));
+                break;
+            default:
+                error_at(t->get_locus(),
+                  "could not recognise expr beginning with '%s' as an expr with block in parsing "
+                  "expr statement.",
+                  t->get_token_description());
+                skip_after_end_block();
+                return NULL;
+        }
+
+        // ensure expr parsed exists
+        if (expr_parsed == NULL) {
+            error_at(t->get_locus(), "failed to parse expr with block in parsing expr statement");
+            skip_after_end_block();
+            return NULL;
+        }
+
+        // return expr stmt created from expr
+        return new AST::ExprStmtWithBlock(expr_parsed);
+    }
+
+    // Parses an expression statement containing an expression without block. Disambiguates further.
+    AST::ExprStmtWithoutBlock* Parser::parse_expr_stmt_without_block(
+      ::std::vector<AST::Attribute> outer_attrs) {
+        // TODO: maybe move more logic for expr without block in here for better error handling
+
+        // try to parse expr without block
+        AST::ExprWithoutBlock* expr = NULL;
+        expr = parse_expr_without_block(::std::move(outer_attrs));
+        if (expr == NULL) {
+            // expr is required, error
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse expr without block in expr statement");
+            skip_after_semicolon();
+            return NULL;
+        }
+
+        // skip semicolon at end that is required
+        if (!skip_token(SEMICOLON)) {
+            // skip somewhere?
+            return NULL;
+        }
+
+        return new AST::ExprStmtWithoutBlock(expr);
+    }
+
     // Parses an expression without a block associated with it (further disambiguates).
-    AST::ExprWithoutBlock* Parser::parse_expr_without_block() {
+    AST::ExprWithoutBlock* Parser::parse_expr_without_block(
+      ::std::vector<AST::Attribute> outer_attrs) {
         // TODO
         return NULL;
+
+        /* Notes on types of expr without block:
+         *  - literal expr          tokens that are literals
+         *  - path expr             path_in_expr or qual_path_in_expr
+         *  - operator expr         many different types
+         *     unary:
+         *      borrow expr         ( '&' | '&&' ) 'mut'? expr
+         *      dereference expr    '*' expr
+         *      error propagation   expr '?'
+         *      negation            '-' expr
+         *      not                 '!' expr
+         *     binary: all start with expr
+         *  - grouped/paren expr    '(' inner_attributes expr ')'
+         *  - array expr            '[' inner_attributes array_elems? ']'
+         *  - await expr            expr '.' 'await'
+         *  - (array/slice) index expr  expr '[' expr ']'
+         *  - tuple expr            '(' inner_attributes tuple_elems? ')'
+         *      note that a single elem tuple is distinguished from a grouped expr by a trailing
+         *      comma, i.e. a grouped expr is preferred over a tuple expr
+         *  - tuple index expr      expr '.' tuple_index
+         *  - struct expr           path_in_expr (and optional other stuff)
+         *  - enum variant expr     path_in_expr (and optional other stuff)
+         *      this means that there is no syntactic difference between an enum variant and a struct
+         *      - only name resolution can tell the difference. Thus, maybe rework AST to take this
+         *      into account ("struct or enum" nodes?)
+         *  - (function) call expr  expr '(' call_params? ')'
+         *  - method call expr      expr '.' path_expr_segment '(' call_params? ')'
+         *  - field expr            expr '.' identifier
+         *      note that method call expr is preferred, i.e. field expr must not be followed by
+         *      parenthesised expression sequence.
+         *  - closure expr          'move'? ( '||' | '|' closure_params? '|' ) ( expr | '->'
+         * type_no_bounds block_expr )
+         *  - continue expr         'continue' labelled_lifetime?
+         *  - break expr            'break' labelled_lifetime? expr?
+         *  - range expr            many different types but all involve '..' or '..='
+         *  - return expr           'return' as 1st tok
+         *  - macro invocation      identifier then :: or identifier then ! (simple_path '!') */
+
+        // ok well at least can do easy ones
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case RETURN_TOK:
+                // return expr
+            case BREAK:
+                // break expr
+            case CONTINUE:
+                // continue expr
+            case MOVE:
+                // closure expr (though not all closure exprs require this)
+            case LEFT_SQUARE:
+                // array expr (creation, not index)
+            case LEFT_PAREN:
+                /* either grouped expr or tuple expr - depends on whether there is a comma inside the
+                 * parentheses - if so, tuple expr, otherwise, grouped expr. */
+        }
     }
 
     // Parses a block expression, including the curly braces at start and end.
@@ -4813,6 +5023,134 @@ namespace Rust {
         // TODO: is move required here?
         return new AST::BlockExpr(
           ::std::move(stmts), expr, ::std::move(inner_attrs), ::std::move(outer_attrs));
+    }
+
+    // Parses a "grouped" expression (expression in parentheses), used to control precedence.
+    AST::GroupedExpr* Parser::parse_grouped_expr(::std::vector<AST::Attribute> outer_attrs) {
+        skip_token(LEFT_PAREN);
+
+        ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
+
+        // parse required expr inside parentheses
+        AST::Expr* expr_in_parens = parse_expr();
+        if (expr_in_parens == NULL) {
+            // skip after somewhere?
+            // error?
+            return NULL;
+        }
+
+        if (!skip_token(RIGHT_PAREN)) {
+            // skip after somewhere?
+            return NULL;
+        }
+
+        return new AST::GroupedExpr(
+          expr_in_parens, ::std::move(inner_attrs), ::std::move(outer_attrs));
+    }
+
+    // Parses a closure expression (closure definition).
+    AST::ClosureExpr* Parser::parse_closure_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // detect optional "move"
+        bool has_move = false;
+        if (lexer.peek_token()->get_id() == MOVE) {
+            lexer.skip_token();
+            has_move = true;
+        }
+
+        // handle parameter list
+        ::std::vector<AST::ClosureParam> params;
+
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case OR:
+                // skip token, no parameters
+                lexer.skip_token();
+                break;
+            case PIPE:
+                // actually may have parameters
+                lexer.skip_token();
+
+                while (t->get_id() != PIPE) {
+                    AST::ClosureParam param = parse_closure_param();
+                    if (param.is_error()) {
+                        // TODO is this really an error?
+                        error_at(t->get_locus(), "could not parse closure param");
+                        break;
+                    }
+                    params.push_back(::std::move(param));
+
+                    if (lexer.peek_token()->get_id() != COMMA) {
+                        // not an error but means param list is done
+                        break;
+                    }
+                    // skip comma
+                    lexer.skip_token();
+
+                    t = lexer.peek_token();
+                }
+                break;
+            default:
+                error_at(t->get_locus(),
+                  "unexpected token '%s' in closure expression - expected '|' or '||'",
+                  t->get_token_description());
+                // skip somewhere?
+                return NULL;
+        }
+
+        // again branch based on next token
+        t = lexer.peek_token();
+        if (t->get_id() == RETURN_TYPE) {
+            // must be return type closure with block expr
+
+            // skip "return type" token
+            lexer.skip_token();
+
+            // parse actual type, which is required
+            AST::TypeNoBounds* type = parse_type_no_bounds();
+            if (type == NULL) {
+                // error
+                error_at(t->get_locus(), "failed to parse type for closure");
+                // skip somewhere?
+                return NULL;
+            }
+
+            // parse block expr, which is required
+            AST::BlockExpr* block = parse_block_expr();
+            if (block == NULL) {
+                // error
+                error_at(lexer.peek_token()->get_locus(), "failed to parse block expr in closure");
+                // skip somewhere?
+                return NULL;
+            }
+
+            return new AST::ClosureExprInnerTyped(
+              type, block, ::std::move(params), has_move, ::std::move(outer_attrs));
+        } else {
+            // must be expr-only closure
+
+            // parse expr, which is required
+            AST::Expr* expr = parse_expr();
+            if (expr == NULL) {
+                error_at(t->get_locus(), "failed to parse expression in closure");
+                // skip somewhere?
+                return NULL;
+            }
+
+            return new AST::ClosureExprInner(
+              expr, ::std::move(params), has_move, ::std::move(outer_attrs));
+        }
+    }
+
+    // Parses a type (will further disambiguate any type).
+    AST::Type* Parser::parse_type() {
+        // TODO
+        return NULL;
+    }
+
+    // Parses a pattern (will further disambiguate any pattern).
+    AST::Pattern* Parser::parse_pattern() {
+        // TODO
+        return NULL;
     }
 
     // TODO: rename to "parse_module_body"?
@@ -5304,7 +5642,7 @@ namespace Rust {
         return t;
     }
 
-    // Skips all tokens until EOF or }.
+    // Skips all tokens until EOF or }. Don't use.
     void Parser::skip_after_end() {
         const_TokenPtr t = lexer.peek_token();
 

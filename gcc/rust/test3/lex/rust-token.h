@@ -218,7 +218,7 @@ namespace Rust {
         // Token location.
         location_t locus;
         // Associated text (if any) of token.
-        std::string* str;
+        ::std::string* str;
         // Type hint for token based on lexer data (e.g. type suffix). Does not exist for most tokens.
         PrimitiveCoreType type_hint;
 
@@ -227,25 +227,25 @@ namespace Rust {
           token_id(token_id), locus(location), str(NULL), type_hint(CORETYPE_UNKNOWN) {}
 
         // Token constructor from token id, location, and a string.
-        Token(TokenId token_id, location_t location, const std::string& paramStr) :
-          token_id(token_id), locus(location), str(new std::string(paramStr)),
+        Token(TokenId token_id, location_t location, const ::std::string& paramStr) :
+          token_id(token_id), locus(location), str(new ::std::string(paramStr)),
           type_hint(CORETYPE_UNKNOWN) {}
 
         // Token constructor from token id, location, and a char.
         Token(TokenId token_id, location_t location, char paramChar) :
-          token_id(token_id), locus(location), str(new std::string(1, paramChar)),
+          token_id(token_id), locus(location), str(new ::std::string(1, paramChar)),
           type_hint(CORETYPE_UNKNOWN) {}
 
         // Token constructor from token id, location, and a "codepoint".
         Token(TokenId token_id, location_t location, Codepoint paramCodepoint) :
-          token_id(token_id), locus(location), str(new std::string(paramCodepoint.as_string())),
+          token_id(token_id), locus(location), str(new ::std::string(paramCodepoint.as_string())),
           type_hint(CORETYPE_UNKNOWN) {}
 
         // Token constructor from token id, location, a string, and type hint.
-        Token(TokenId token_id, location_t location, const std::string& paramStr,
+        Token(TokenId token_id, location_t location, const ::std::string& paramStr,
           PrimitiveCoreType parType) :
           token_id(token_id),
-          locus(location), str(new std::string(paramStr)), type_hint(parType) {}
+          locus(location), str(new ::std::string(paramStr)), type_hint(parType) {}
 
         // No default initialiser.
         Token();
@@ -264,34 +264,34 @@ namespace Rust {
         }
 
         // Makes and returns a new TokenPtr of type IDENTIFIER.
-        static TokenPtr make_identifier(location_t locus, const std::string& str) {
+        static TokenPtr make_identifier(location_t locus, const ::std::string& str) {
             return TokenPtr(new Token(IDENTIFIER, locus, str));
         }
 
         // Makes and returns a new TokenPtr of type INT_LITERAL.
-        static TokenPtr make_int(location_t locus, const std::string& str) {
+        static TokenPtr make_int(location_t locus, const ::std::string& str) {
             return TokenPtr(new Token(INT_LITERAL, locus, str));
         }
 
         // Makes and returns a new TokenPtr of type INT_LITERAL.
         static TokenPtr make_int(
-          location_t locus, const std::string& str, PrimitiveCoreType type_hint) {
+          location_t locus, const ::std::string& str, PrimitiveCoreType type_hint) {
             return TokenPtr(new Token(INT_LITERAL, locus, str, type_hint));
         }
 
         // Makes and returns a new TokenPtr of type FLOAT_LITERAL.
-        static TokenPtr make_float(location_t locus, const std::string& str) {
+        static TokenPtr make_float(location_t locus, const ::std::string& str) {
             return TokenPtr(new Token(FLOAT_LITERAL, locus, str));
         }
 
         // Makes and returns a new TokenPtr of type FLOAT_LITERAL.
         static TokenPtr make_float(
-          location_t locus, const std::string& str, PrimitiveCoreType type_hint) {
+          location_t locus, const ::std::string& str, PrimitiveCoreType type_hint) {
             return TokenPtr(new Token(FLOAT_LITERAL, locus, str, type_hint));
         }
 
         // Makes and returns a new TokenPtr of type STRING_LITERAL.
-        static TokenPtr make_string(location_t locus, const std::string& str) {
+        static TokenPtr make_string(location_t locus, const ::std::string& str) {
             return TokenPtr(new Token(STRING_LITERAL, locus, str, CORETYPE_STR));
         }
 
@@ -306,12 +306,12 @@ namespace Rust {
         }
 
         // Makes and returns a new TokenPtr of type BYTE_STRING_LITERAL (fix).
-        static TokenPtr make_byte_string(location_t locus, const std::string& str) {
+        static TokenPtr make_byte_string(location_t locus, const ::std::string& str) {
             return TokenPtr(new Token(BYTE_STRING_LITERAL, locus, str));
         }
 
         // Makes and returns a new TokenPtr of type LIFETIME.
-        static TokenPtr make_lifetime(location_t locus, const std::string& str) {
+        static TokenPtr make_lifetime(location_t locus, const ::std::string& str) {
             return TokenPtr(new Token(LIFETIME, locus, str));
         }
 
@@ -326,7 +326,7 @@ namespace Rust {
         }
 
         // Gets string description of the token.
-        const std::string& get_str() const {
+        const ::std::string& get_str() const {
             gcc_assert(str != NULL);
             return *str;
         }
