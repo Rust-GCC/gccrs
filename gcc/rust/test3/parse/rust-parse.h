@@ -186,6 +186,7 @@ namespace Rust {
         AST::GroupedExpr* parse_grouped_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::ClosureExpr* parse_closure_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::ClosureParam parse_closure_param();
+        AST::LiteralExpr* parse_literal_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
 
         // Type-related
         AST::Type* parse_type();

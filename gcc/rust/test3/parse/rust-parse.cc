@@ -471,7 +471,7 @@ namespace Rust {
             segments.push_back(new_segment);
         }
 
-        return AST::SimplePath(::std::move(segments));
+        return AST::SimplePath(::std::move(segments), has_opening_scope_resolution);
     }
 
     // Parses a single SimplePathSegment (does not handle the scope resolution operators)
@@ -4975,17 +4975,32 @@ namespace Rust {
         switch (t->get_id()) {
             case RETURN_TOK:
                 // return expr
+                // TODO:
+                break;
             case BREAK:
                 // break expr
+                // TODO:
+                break;
             case CONTINUE:
                 // continue expr
+                // TODO:
+                break;
             case MOVE:
                 // closure expr (though not all closure exprs require this)
+                // TODO:
+                break;
             case LEFT_SQUARE:
                 // array expr (creation, not index)
+                // TODO:
+                break;
             case LEFT_PAREN:
                 /* either grouped expr or tuple expr - depends on whether there is a comma inside the
                  * parentheses - if so, tuple expr, otherwise, grouped expr. */
+                // TODO:
+                break;
+            default:
+            // TODO:
+                break;
         }
     }
 
@@ -5141,8 +5156,148 @@ namespace Rust {
         }
     }
 
+    // Parses a literal token (to literal expression).
+    AST::LiteralExpr* Parser::parse_literal_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO: change if literal representation in lexer changes
+
+        ::std::string literal_value;
+        AST::LiteralExpr::LitType type = AST::LiteralExpr::STRING;
+
+        // branch based on token
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case CHAR_LITERAL:
+                type = AST::LiteralExpr::CHAR;
+                literal_value = t->get_str();
+                lexer.skip_token();
+                break;
+            case STRING_LITERAL:
+                type = AST::LiteralExpr::STRING;
+                literal_value = t->get_str();
+                lexer.skip_token();
+                break;
+            // case RAW_STRING_LITERAL:
+            // put here if lexer changes to have these
+            case BYTE_CHAR_LITERAL:
+                type = AST::LiteralExpr::BYTE;
+                literal_value = t->get_str();
+                lexer.skip_token();
+                break;
+            case BYTE_STRING_LITERAL:
+                type = AST::LiteralExpr::BYTE_STRING;
+                literal_value = t->get_str();
+                lexer.skip_token();
+                break;
+            // case RAW_BYTE_STRING_LITERAL:
+            case INT_LITERAL:
+                type = AST::LiteralExpr::INT;
+                literal_value = t->get_str();
+                lexer.skip_token();
+                break;
+            case FLOAT_LITERAL:
+                type = AST::LiteralExpr::FLOAT;
+                literal_value = t->get_str();
+                lexer.skip_token();
+                break;
+            // case BOOL_LITERAL
+            // use true and false keywords rather than "bool literal" Rust terminology
+            case TRUE:
+                type = AST::LiteralExpr::BOOL;
+                literal_value = ::std::string("true");
+                lexer.skip_token();
+                break;
+            case FALSE:
+                type = AST::LiteralExpr::BOOL;
+                literal_value = ::std::string("false");
+                lexer.skip_token();
+                break;
+            default:
+                // error - cannot be a literal expr
+                error_at(t->get_locus(), "unexpected token '%s' when parsing literal expression", t->get_token_description());
+                // skip?
+                return NULL;
+        }
+
+        // create literal based on stuff in switch
+        return new AST::LiteralExpr(::std::move(literal_value), type);
+    }
+
+    // Parses an if expression of any kind, including with else, else if, else if let, and neither.
+    AST::IfExpr* Parser::parse_if_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO
+        return NULL;
+    }
+
+    // Parses an if let expression of any kind, including with else, else if, else if let, and none.
+    AST::IfLetExpr* Parser::parse_if_let_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO
+        return NULL;
+    }
+
+    // FIXME: decide on way to implement label handling in loop parsing methods - as a parameter?
+
+    // Parses a "loop" infinite loop expression (without label).
+    AST::LoopExpr* Parser::parse_loop_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO
+        return NULL;
+    }
+
+    // Parses a "while" loop expression (without label).
+    AST::WhileLoopExpr* Parser::parse_while_loop_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO
+        return NULL;
+    }
+
+    // Parses a "while let" loop expression (without label).
+    AST::WhileLetLoopExpr* Parser::parse_while_let_loop_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO
+        return NULL;
+    }
+
+    // Parses a "for" iterative loop (without label).
+    AST::ForLoopExpr* Parser::parse_for_loop_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO
+        return NULL;
+    }
+
+    // Parses a match expression.
+    AST::MatchExpr* Parser::parse_match_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO
+        return NULL;
+    }
+
+    // Parses a loop expression with label (any kind of loop).
+    AST::BaseLoopExpr* Parser::parse_labelled_loop_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO
+        return NULL;
+    }
+
+    // Parses an async block expression.
+    AST::AsyncBlockExpr* Parser::parse_async_block_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO
+        return NULL;
+    }
+
+    // Parses an unsafe block expression.
+    AST::UnsafeBlockExpr* Parser::parse_unsafe_block_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO
+        return NULL;
+    }
+
+    // Parses a single parameter used in a closure definition.
+    AST::ClosureParam Parser::parse_closure_param() {
+        // TODO
+        return AST::ClosureParam::create_error();
+    }
+
     // Parses a type (will further disambiguate any type).
     AST::Type* Parser::parse_type() {
+        // TODO
+        return NULL;
+    }
+
+    // Parses a type, taking into account type boundary disambiguation.
+    AST::TypeNoBounds* Parser::parse_type_no_bounds() {
         // TODO
         return NULL;
     }

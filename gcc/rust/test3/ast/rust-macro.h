@@ -167,7 +167,7 @@ namespace Rust {
               matches(::std::move(matches)), is_invalid(false) {}
 
             // copy constructor with vector clone
-            MacroMatcher(MacroMatcher const& other) : delim_type(delim_type) {
+            MacroMatcher(MacroMatcher const& other) : delim_type(other.delim_type) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 matches.reserve(other.matches.size());
 

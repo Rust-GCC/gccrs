@@ -127,5 +127,25 @@ namespace Rust {
         ::std::string MacroRulesDefinition::as_string() const {
             return ::std::string("not implemented");
         }
+        
+        ::std::string MacroInvocation::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string PathInExpression::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ExprStmtWithBlock::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ClosureExprInnerTyped::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string QualifiedPathInExpression::as_string() const {
+            return ::std::string("not implemented");
+        }
     }
 }
