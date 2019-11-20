@@ -326,10 +326,15 @@ namespace Rust {
         }
 
         // Gets string description of the token.
-        const ::std::string& get_str() const {
-            gcc_assert(str != NULL);
+        const ::std::string& get_str() const; /*{
+            // FIXME: put in header again when fix null problem
+            //gcc_assert(str != NULL);
+            if (str == NULL) {
+                error_at(get_locus(), "attempted to get string for '%s', which has no string. returning empty string instead.", get_token_description());
+                return "";
+            }
             return *str;
-        }
+        }*/
 
         // Gets token's type hint info.
         PrimitiveCoreType get_type_hint() const {
@@ -351,7 +356,7 @@ namespace Rust {
 
         /* Returns whether the token is a literal of any type (int, float, char, string, byte char, 
          * byte string). */
-        bool is_literal() const {
+        inline bool is_literal() const {
             switch (token_id) {
                 case INT_LITERAL:
                 case FLOAT_LITERAL:
@@ -363,6 +368,16 @@ namespace Rust {
                 default:
                     return false;
             }
+        }
+
+        // Returns whether the token actually has a string (regardless of whether it should or not).
+        inline bool has_str() const {
+            return str != NULL;
+        }
+
+        // Returns whether the token should have a string.
+        inline bool should_have_str() const {
+            return is_literal() || token_id == IDENTIFIER || token_id == LIFETIME;
         }
     };
 }

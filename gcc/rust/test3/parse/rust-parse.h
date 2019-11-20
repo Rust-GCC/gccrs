@@ -246,6 +246,7 @@ namespace Rust {
 
         // Dumps all lexer output.
         void debug_dump_lex_output();
+        void debug_dump_ast_output();
 
       private:
         // The lexer associated with the parser.

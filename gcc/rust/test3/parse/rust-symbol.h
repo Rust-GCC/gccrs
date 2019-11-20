@@ -20,6 +20,12 @@ namespace Rust {
     /* TODO: apparently Rust's type symbol table is separate to its identifier symbol table, so have a
      * different symbol table for each? */
 
+    /* The symbol table(s) will be generated as a pass over the AST (the first, probably) and each 
+     * scope, including module namespacing, will be a separate symbol table (with earlier ones still
+     * accessible but searched afterward). It will be preserved in later passes over the AST to type
+     * check and maybe bind identifiers together or something. 
+     * It may have to be preserved, at least partially, for GENERIC lowering. */
+
     // A symbol used for identifiers, etc. - TODO: extend to support namespacing (Rust paths?)
     struct Symbol {
       public:

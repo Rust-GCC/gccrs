@@ -839,6 +839,8 @@ namespace Rust {
                 return ::std::unique_ptr<UseTree>(clone_use_tree_impl());
             }
 
+            virtual ::std::string as_string() const = 0;
+
           protected:
             // Clone function implementation as pure virtual method
             virtual UseTree* clone_use_tree_impl() const = 0;
@@ -857,10 +859,12 @@ namespace Rust {
             UseTreeGlob(PathType glob_type, SimplePath path) :
               glob_type(glob_type), path(::std::move(path)) {}
 
-            // Returns whether has path.
+            // Returns whether has path. Should be made redundant by PathType PATH_PREFIXED.
             inline bool has_path() const {
                 return !path.is_empty();
             }
+
+            ::std::string as_string() const;
 
             // TODO: find way to ensure only PATH_PREFIXED glob_type has path - factory methods?
           protected:
@@ -916,7 +920,7 @@ namespace Rust {
             UseTreeList(UseTreeList&& other) = default;
             UseTreeList& operator=(UseTreeList&& other) = default;
 
-            // Returns whether has path.
+            // Returns whether has path. Should be made redundant by path_type.
             inline bool has_path() const {
                 return !path.is_empty();
             }
@@ -925,6 +929,8 @@ namespace Rust {
             inline bool has_trees() const {
                 return !trees.empty();
             }
+
+            ::std::string as_string() const;
 
             // TODO: find way to ensure only PATH_PREFIXED path_type has path - factory methods?
           protected:
@@ -962,6 +968,8 @@ namespace Rust {
             inline bool has_identifier() const {
                 return bind_type == IDENTIFIER;
             }
+
+            ::std::string as_string() const;
 
             // TODO: find way to ensure only PATH_PREFIXED path_type has path - factory methods?
           protected:

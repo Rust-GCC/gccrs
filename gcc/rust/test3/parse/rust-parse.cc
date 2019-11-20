@@ -465,10 +465,17 @@ namespace Rust {
             AST::SimplePathSegment new_segment = parse_simple_path_segment();
 
             // Return path as currently constructed if segment in error state.
-            if (segment.is_error()) {
-                return AST::SimplePath(::std::move(segments));
-            }
+            if (new_segment.is_error()) {
+                break;
+            } 
             segments.push_back(new_segment);
+        }
+
+        // DEBUG: check for any empty segments
+        for (const auto& seg : segments) {
+            if (seg.is_error()) {
+                fprintf(stderr, "when parsing simple path, somehow empty path segment was not filtered out. Path begins with '%s' \n", segments.at(0).as_string().c_str());
+            }
         }
 
         return AST::SimplePath(::std::move(segments), has_opening_scope_resolution);
@@ -1689,7 +1696,13 @@ namespace Rust {
             return NULL;
         }
 
+        // parse use tree, which is required
         AST::UseTree* use_tree = parse_use_tree();
+        if (use_tree == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "could not parse use tree in use declaration");
+            skip_after_semicolon();
+            return NULL;
+        }
 
         if (!skip_token(SEMICOLON)) {
             skip_after_semicolon();
@@ -1756,10 +1769,9 @@ namespace Rust {
 
                     ::std::vector< ::std::unique_ptr<AST::UseTree> > use_trees;
 
-                    // TODO: think of better control structure
-                    while (true) {
+                    const_TokenPtr t = lexer.peek_token();
+                    while (t->get_id() != RIGHT_CURLY) {
                         AST::UseTree* use_tree = parse_use_tree();
-
                         if (use_tree == NULL) {
                             break;
                         }
@@ -1769,9 +1781,16 @@ namespace Rust {
                         if (lexer.peek_token()->get_id() != COMMA) {
                             break;
                         }
-
                         lexer.skip_token();
+
+                        t = lexer.peek_token();
                     }
+
+                    // skip end curly delimiter
+                    if (!skip_token(RIGHT_CURLY)) {
+                        // skip after somewhere?
+                        return NULL;
+                    } 
 
                     // TODO: find way to determine whether GLOBAL or NO_PATH path type - placeholder
                     return new AST::UseTreeList(AST::UseTreeList::NO_PATH,
@@ -1806,9 +1825,9 @@ namespace Rust {
                     ::std::vector< ::std::unique_ptr<AST::UseTree> > use_trees;
 
                     // TODO: think of better control structure
-                    while (true) {
+                    const_TokenPtr t = lexer.peek_token();
+                    while (t->get_id() != RIGHT_CURLY) {
                         AST::UseTree* use_tree = parse_use_tree();
-
                         if (use_tree == NULL) {
                             break;
                         }
@@ -1818,9 +1837,16 @@ namespace Rust {
                         if (lexer.peek_token()->get_id() != COMMA) {
                             break;
                         }
-
                         lexer.skip_token();
+
+                        t = lexer.peek_token();
                     }
+
+                    // skip end curly delimiter
+                    if (!skip_token(RIGHT_CURLY)) {
+                        // skip after somewhere?
+                        return NULL;
+                    } 
 
                     return new AST::UseTreeList(
                       AST::UseTreeList::PATH_PREFIXED, ::std::move(path), std::move(use_trees));
@@ -1832,9 +1858,15 @@ namespace Rust {
                     const_TokenPtr t = lexer.peek_token();
                     switch (t->get_id()) {
                         case IDENTIFIER:
+                            // skip lexer token
+                            lexer.skip_token();
+
                             return new AST::UseTreeRebind(
                               AST::UseTreeRebind::IDENTIFIER, ::std::move(path), t->get_str());
                         case UNDERSCORE:
+                            // skip lexer token
+                            lexer.skip_token();
+            
                             return new AST::UseTreeRebind(
                               AST::UseTreeRebind::WILDCARD, ::std::move(path), ::std::string("_"));
                         default:
@@ -1850,9 +1882,13 @@ namespace Rust {
                     // lexer.skip_token();
 
                     return new AST::UseTreeRebind(AST::UseTreeRebind::NONE, ::std::move(path));
+                case COMMA:
+                case RIGHT_CURLY:
+                    // this may occur in recursive calls - assume it is ok and ignore it
+                    return new AST::UseTreeRebind(AST::UseTreeRebind::NONE, ::std::move(path));
                 default:
                     unexpected_token(t);
-                    skip_after_semicolon();
+                    //skip_after_semicolon();
                     return NULL;
             }
         }
@@ -1953,11 +1989,13 @@ namespace Rust {
         return AST::FunctionQualifiers(const_status, has_unsafe, has_extern, ::std::move(abi));
     }
 
-    // Parses generic (lifetime or type) params inside angle brackets.
+    // Parses generic (lifetime or type) params inside angle brackets (optional). 
     ::std::vector< ::std::unique_ptr<AST::GenericParam> > Parser::parse_generic_params_in_angles() {
-        if (!skip_token(LEFT_ANGLE)) {
+        if (lexer.peek_token()->get_id() != LEFT_ANGLE) {
+            // seems to be no generic params, so exit with empty vector
             return ::std::vector< ::std::unique_ptr<AST::GenericParam> >();
         }
+        lexer.skip_token();
 
         ::std::vector< ::std::unique_ptr<AST::GenericParam> > generic_params = parse_generic_params();
 
@@ -7205,5 +7243,13 @@ namespace Rust {
             lexer.skip_token();
             tok = lexer.peek_token();
         }
+    }
+
+    // Parses crate and dumps AST to stderr, recursively.
+    void Parser::debug_dump_ast_output() {
+        AST::Crate crate = parse_crate();
+
+        // print crate "as string", which then calls each item as string, etc.
+        fprintf(stderr, crate.as_string().c_str());
     }
 }

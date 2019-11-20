@@ -1,5 +1,7 @@
 #include "rust-token.h"
 
+#include "diagnostic.h" // for error_at
+
 namespace Rust {
     // Hackily defined way to get token description for enum value using x-macros
     const char* get_token_description(TokenId id) {
@@ -39,10 +41,10 @@ namespace Rust {
                 return "char";
             case CORETYPE_STR:
                 return "str";
-            //case CORETYPE_INT:
+            // case CORETYPE_INT:
             case CORETYPE_ISIZE:
                 return "isize";
-            //case CORETYPE_UINT:
+            // case CORETYPE_UINT:
             case CORETYPE_USIZE:
                 return "usize";
             case CORETYPE_F32:
@@ -77,5 +79,18 @@ namespace Rust {
 
     const char* Token::get_type_hint_str() const {
         return get_type_hint_string(type_hint);
+    }
+
+    const ::std::string& Token::get_str() const {
+        // FIXME: attempt to return null again
+        // gcc_assert(str != NULL);
+        if (str == NULL) {
+            error_at(get_locus(),
+              "attempted to get string for '%s', which has no string. returning empty string "
+              "instead.",
+              get_token_description());
+            return "";
+        }
+        return *str;
     }
 }

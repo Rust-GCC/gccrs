@@ -102,9 +102,15 @@ static void grs_parse_file(const char* filename) {
     Rust::Lexer lex(filename, file);
     Rust::Parser parser(lex);
 
-    // turn off due to debugging lexer
     //parser.parse_program();
-    parser.debug_dump_lex_output();
+    
+    // lexer debug
+    //parser.debug_dump_lex_output();
+
+    // parser debug
+    parser.debug_dump_ast_output();
+
+    // semantic analyser debug
 
     /* Rust::const_TokenPtr tok = lex.peek_token();
     // do shit until EOF

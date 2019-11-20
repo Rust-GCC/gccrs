@@ -113,6 +113,11 @@ namespace Rust {
             /*~AttrInputLiteral() {
                 delete literal_expr;
             }*/
+
+            ::std::string as_string() const {
+                return " = " + literal_expr.as_string();
+            }
+
           protected:
             // Use covariance to implement clone function as returning an AttrInputLiteral object
             virtual AttrInputLiteral* clone_attr_input_impl() const OVERRIDE {

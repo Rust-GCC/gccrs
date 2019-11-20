@@ -64,6 +64,8 @@ namespace Rust {
                 return ::std::unique_ptr<AttrInput>(clone_attr_input_impl());
             }
 
+            virtual ::std::string as_string() const = 0;
+
           protected:
             // pure virtual clone implementation
             virtual AttrInput* clone_attr_input_impl() const = 0;
@@ -78,6 +80,8 @@ namespace Rust {
             ::std::unique_ptr<TokenTree> clone_token_tree() const {
                 return ::std::unique_ptr<TokenTree>(clone_token_tree_impl());
             }
+
+            virtual ::std::string as_string() const = 0;
 
           protected:
             // pure virtual clone implementation
@@ -126,7 +130,17 @@ namespace Rust {
              * method in lexer Token, or maybe make conversion method there*/
             Token(const_TokenPtr lexer_token_ptr) :
               token_id(lexer_token_ptr->get_id()), locus(lexer_token_ptr->get_locus()),
-              str(lexer_token_ptr->get_str()), type_hint(lexer_token_ptr->get_type_hint()) {}
+              str(""), type_hint(lexer_token_ptr->get_type_hint()) {
+                // FIXME: change to "should have str" later? 
+                  if (lexer_token_ptr->has_str()) {
+                      str = lexer_token_ptr->get_str();
+                  } else {
+                      // FIXME: is this returning correct thing?
+                      str = lexer_token_ptr->get_token_description();
+                  }
+              }
+
+            ::std::string as_string() const;
 
           protected:
             // No virtual for now as not polymorphic but can be in future
@@ -202,6 +216,8 @@ namespace Rust {
             static DelimTokenTree create_empty() {
                 return DelimTokenTree(PARENS);
             }
+
+            ::std::string as_string() const;
         };
 
         // Forward decl - definition moved to rust-expr.h as it requires LiteralExpr to be defined
@@ -281,7 +297,8 @@ namespace Rust {
             }
 
             // Constructor has pointer AttrInput for polymorphism reasons
-            Attribute(SimplePath path_, AttrInput* input) : path(::std::move(path_)), attr_input(input) {}
+            Attribute(SimplePath path_, AttrInput* input) :
+              path(::std::move(path_)), attr_input(input) {}
 
             // Copy constructor must deep copy attr_input as unique pointer
             Attribute(Attribute const& other) :
@@ -372,6 +389,9 @@ namespace Rust {
              *   global_allocator
              *   windows_subsystem
              *   feature     */
+
+            ::std::string as_string() const;
+
           protected:
             // not virtual as currently no subclasses of Attribute, but could be in future
             /*virtual*/ Attribute* clone_attribute_impl() const {
@@ -456,7 +476,7 @@ namespace Rust {
             // Clone function implementation as pure virtual method
             virtual Item* clone_item_impl() const = 0;
 
-            /* Save having to specify two clone methods in derived classes by making statement clone 
+            /* Save having to specify two clone methods in derived classes by making statement clone
              * return item clone. Hopefully won't affect performance too much. */
             virtual Item* clone_stmt_impl() const OVERRIDE {
                 return clone_item_impl();
@@ -492,7 +512,8 @@ namespace Rust {
         class ExprWithoutBlock : public Expr {
           protected:
             // Outer attribute constructor
-            ExprWithoutBlock(::std::vector<Attribute> outer_attribs) : Expr(::std::move(outer_attribs)) {}
+            ExprWithoutBlock(::std::vector<Attribute> outer_attribs) :
+              Expr(::std::move(outer_attribs)) {}
 
             // No outer attribute constructor
             ExprWithoutBlock() : Expr() {}
@@ -500,7 +521,7 @@ namespace Rust {
             // pure virtual clone implementation
             virtual ExprWithoutBlock* clone_expr_without_block_impl() const = 0;
 
-            /* Save having to specify two clone methods in derived classes by making expr clone 
+            /* Save having to specify two clone methods in derived classes by making expr clone
              * return exprwithoutblock clone. Hopefully won't affect performance too much. */
             virtual ExprWithoutBlock* clone_expr_impl() const OVERRIDE {
                 return clone_expr_without_block_impl();
@@ -554,7 +575,7 @@ namespace Rust {
             // Clone function implementation as pure virtual method
             virtual TypeNoBounds* clone_type_no_bounds_impl() const = 0;
 
-            /* Save having to specify two clone methods in derived classes by making type clone 
+            /* Save having to specify two clone methods in derived classes by making type clone
              * return typenobounds clone. Hopefully won't affect performance too much. */
             virtual TypeNoBounds* clone_type_impl() const OVERRIDE {
                 return clone_type_no_bounds_impl();
@@ -668,7 +689,8 @@ namespace Rust {
 
             // Constructor for a lifetime param with no attribute.
             LifetimeParam(Lifetime lifetime, ::std::vector<Lifetime> lifetime_bounds) :
-              lifetime(::std::move(lifetime)), lifetime_bounds(::std::move(lifetime_bounds)), outer_attr(Attribute::create_empty()) {}
+              lifetime(::std::move(lifetime)), lifetime_bounds(::std::move(lifetime_bounds)),
+              outer_attr(Attribute::create_empty()) {}
 
             // Constructor for a lifetime param with an attribute.
             LifetimeParam(
@@ -880,6 +902,9 @@ namespace Rust {
             // Move constructors
             Crate(Crate&& other) = default;
             Crate& operator=(Crate&& other) = default;
+
+            // Get crate representation as string (e.g. for debugging).
+            ::std::string as_string() const;
         };
     }
 }
