@@ -34,7 +34,7 @@ namespace Rust {
                 }
             }
 
-            return str;
+            return str + "\n";
         }
 
         ::std::string Attribute::as_string() const {
@@ -82,7 +82,10 @@ namespace Rust {
         ::std::string Token::as_string() const {
             /* FIXME: only works when not identifier or literal or whatever, i.e. when doesn't store
              * string value */
-            return get_token_description(token_id);
+            //return get_token_description(token_id);
+
+            // maybe fixed - stores everything as string though, so storage-inefficient
+            return str;
         }
 
         ::std::string SimplePathSegment::as_string() const {
@@ -133,11 +136,24 @@ namespace Rust {
 
         // Creates a string that reflects the visibility stored.
         ::std::string VisItem::as_string() const {
-            // TODO: add string that reflects the outer attributes on item. Probably from Item itself
-            ::std::string str;
+            // FIXME: can't do formatting on string to make identation occur. 
+            ::std::string str = Item::as_string();
 
             if (has_visibility()) {
                 str = visibility.as_string() + " ";
+            }
+
+            return str;
+        }
+
+        // Creates a string that reflects the outer attributes stored.
+        ::std::string Item::as_string() const {
+            ::std::string str;
+            
+            if (!outer_attrs.empty()) {
+                for (const auto& attr : outer_attrs) {
+                    str += attr.as_string() + "\n";
+                }
             }
 
             return str;

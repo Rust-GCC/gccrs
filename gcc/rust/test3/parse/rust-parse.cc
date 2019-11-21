@@ -467,14 +467,17 @@ namespace Rust {
             // Return path as currently constructed if segment in error state.
             if (new_segment.is_error()) {
                 break;
-            } 
+            }
             segments.push_back(new_segment);
         }
 
         // DEBUG: check for any empty segments
         for (const auto& seg : segments) {
             if (seg.is_error()) {
-                fprintf(stderr, "when parsing simple path, somehow empty path segment was not filtered out. Path begins with '%s' \n", segments.at(0).as_string().c_str());
+                fprintf(stderr,
+                  "when parsing simple path, somehow empty path segment was not filtered out. Path "
+                  "begins with '%s' \n",
+                  segments.at(0).as_string().c_str());
             }
         }
 
@@ -1790,7 +1793,7 @@ namespace Rust {
                     if (!skip_token(RIGHT_CURLY)) {
                         // skip after somewhere?
                         return NULL;
-                    } 
+                    }
 
                     // TODO: find way to determine whether GLOBAL or NO_PATH path type - placeholder
                     return new AST::UseTreeList(AST::UseTreeList::NO_PATH,
@@ -1846,7 +1849,7 @@ namespace Rust {
                     if (!skip_token(RIGHT_CURLY)) {
                         // skip after somewhere?
                         return NULL;
-                    } 
+                    }
 
                     return new AST::UseTreeList(
                       AST::UseTreeList::PATH_PREFIXED, ::std::move(path), std::move(use_trees));
@@ -1866,7 +1869,7 @@ namespace Rust {
                         case UNDERSCORE:
                             // skip lexer token
                             lexer.skip_token();
-            
+
                             return new AST::UseTreeRebind(
                               AST::UseTreeRebind::WILDCARD, ::std::move(path), ::std::string("_"));
                         default:
@@ -1888,7 +1891,7 @@ namespace Rust {
                     return new AST::UseTreeRebind(AST::UseTreeRebind::NONE, ::std::move(path));
                 default:
                     unexpected_token(t);
-                    //skip_after_semicolon();
+                    // skip_after_semicolon();
                     return NULL;
             }
         }
@@ -1989,7 +1992,7 @@ namespace Rust {
         return AST::FunctionQualifiers(const_status, has_unsafe, has_extern, ::std::move(abi));
     }
 
-    // Parses generic (lifetime or type) params inside angle brackets (optional). 
+    // Parses generic (lifetime or type) params inside angle brackets (optional).
     ::std::vector< ::std::unique_ptr<AST::GenericParam> > Parser::parse_generic_params_in_angles() {
         if (lexer.peek_token()->get_id() != LEFT_ANGLE) {
             // seems to be no generic params, so exit with empty vector
@@ -2698,6 +2701,11 @@ namespace Rust {
         }
         Identifier field_name = field_name_tok->get_str();
         lexer.skip_token();
+
+        if (!skip_token(COLON)) {
+            // skip after somewhere?
+            return AST::StructField::create_error();
+        }
 
         // parse field type - this is required
         AST::Type* field_type = parse_type();
@@ -5013,20 +5021,16 @@ namespace Rust {
         switch (t->get_id()) {
             case RETURN_TOK:
                 // return expr
-                // TODO:
-                break;
+                return parse_return_expr(::std::move(outer_attrs));
             case BREAK:
                 // break expr
-                // TODO:
-                break;
+                return parse_break_expr(::std::move(outer_attrs));
             case CONTINUE:
                 // continue expr
-                // TODO:
-                break;
+                return parse_continue_expr(::std::move(outer_attrs));
             case MOVE:
                 // closure expr (though not all closure exprs require this)
-                // TODO:
-                break;
+                return parse_closure_expr(::std::move(outer_attrs));
             case LEFT_SQUARE:
                 // array expr (creation, not index)
                 // TODO:
@@ -5037,7 +5041,7 @@ namespace Rust {
                 // TODO:
                 break;
             default:
-            // TODO:
+                // TODO:
                 break;
         }
     }
@@ -5251,13 +5255,73 @@ namespace Rust {
                 break;
             default:
                 // error - cannot be a literal expr
-                error_at(t->get_locus(), "unexpected token '%s' when parsing literal expression", t->get_token_description());
+                error_at(t->get_locus(), "unexpected token '%s' when parsing literal expression",
+                  t->get_token_description());
                 // skip?
                 return NULL;
         }
 
         // create literal based on stuff in switch
         return new AST::LiteralExpr(::std::move(literal_value), type);
+    }
+
+    // Parses a return expression (including any expression to return).
+    AST::ReturnExpr* Parser::parse_return_expr(::std::vector<AST::Attribute> outer_attrs) {
+        skip_token(RETURN_TOK);
+
+        // parse expression to return, if it exists
+        AST::Expr* returned_expr = parse_expr();
+        // FIXME: ensure this doesn't ruin the middle of any expressions or anything
+
+        return new AST::ReturnExpr(returned_expr, ::std::move(outer_attrs));
+    }
+
+    // Parses a break expression (including any label to break to AND any return expression).
+    AST::BreakExpr* Parser::parse_break_expr(::std::vector<AST::Attribute> outer_attrs) {
+        skip_token(BREAK);
+
+        // parse label (lifetime) if it exists - create dummy first
+        AST::Lifetime label = AST::Lifetime::error();
+        if (lexer.peek_token()->get_id() == LIFETIME) {
+            label = parse_lifetime();
+        }
+
+        // parse return expression if it exists
+        AST::Expr* return_expr = parse_expr();
+
+        return new AST::BreakExpr(label, return_expr, ::std::move(outer_attrs));
+    }
+
+    // Parses a continue expression (including any label to continue from).
+    AST::ContinueExpr* Parser::parse_continue_expr(::std::vector<AST::Attribute> outer_attrs) {
+        skip_token(CONTINUE);
+
+        // parse label (lifetime) if it exists - create dummy first
+        AST::Lifetime label = AST::Lifetime::error();
+        if (lexer.peek_token()->get_id() == LIFETIME) {
+            label = parse_lifetime();
+        }
+
+        return new AST::ContinueExpr(label, ::std::move(outer_attrs));
+    }
+
+    // Parses a loop label used in loop expressions.
+    AST::LoopLabel Parser::parse_loop_label() {
+        // parse lifetime - if doesn't exist, assume no label
+        const_TokenPtr t = lexer.peek_token();
+        if (t->get_id() != LIFETIME) {
+            // not necessarily an error
+            return AST::LoopLabel::error();
+        }
+        // FIXME: check for named lifetime requirement here? or check in semantic analysis phase?
+        AST::Lifetime label = parse_lifetime();
+
+        if (!skip_token(COLON)) {
+            // skip somewhere?
+            return AST::LoopLabel::error();
+        }
+
+        return AST::LoopLabel(::std::move(label));
     }
 
     // Parses an if expression of any kind, including with else, else if, else if let, and neither.
@@ -5272,42 +5336,326 @@ namespace Rust {
         return NULL;
     }
 
-    // FIXME: decide on way to implement label handling in loop parsing methods - as a parameter?
+    // TODO: possibly decide on different method of handling label (i.e. not parameter)
 
-    // Parses a "loop" infinite loop expression (without label).
-    AST::LoopExpr* Parser::parse_loop_expr(::std::vector<AST::Attribute> outer_attrs) {
-        // TODO
-        return NULL;
+    /* Parses a "loop" infinite loop expression. Label is not parsed and should be parsed via
+     * parse_labelled_loop_expr, which would call this. */
+    AST::LoopExpr* Parser::parse_loop_expr(
+      ::std::vector<AST::Attribute> outer_attrs, AST::LoopLabel label) {
+        skip_token(LOOP);
+
+        // parse loop body, which is required
+        AST::BlockExpr* loop_body = parse_block_expr();
+        if (loop_body == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "could not parse loop body in (infinite) loop expression");
+            return NULL;
+        }
+
+        return new AST::LoopExpr(loop_body, ::std::move(label), ::std::move(outer_attrs));
     }
 
-    // Parses a "while" loop expression (without label).
-    AST::WhileLoopExpr* Parser::parse_while_loop_expr(::std::vector<AST::Attribute> outer_attrs) {
-        // TODO
-        return NULL;
+    /* Parses a "while" loop expression. Label is not parsed and should be parsed via
+     * parse_labelled_loop_expr, which would call this. */
+    AST::WhileLoopExpr* Parser::parse_while_loop_expr(
+      ::std::vector<AST::Attribute> outer_attrs, AST::LoopLabel label) {
+        skip_token(WHILE);
+
+        // ensure it isn't a while let loop
+        if (lexer.peek_token()->get_id() == LET) {
+            error_at(lexer.peek_token()->get_locus(),
+              "appears to be while let loop but is being parsed by "
+              "while loop - this may be a compiler issue");
+            // skip somewhere?
+            return NULL;
+        }
+
+        // parse loop predicate (required)
+        AST::Expr* predicate = parse_expr();
+        if (predicate == NULL) {
+            error_at(
+              lexer.peek_token()->get_locus(), "failed to parse predicate expression in while loop");
+            // skip somewhere?
+            return NULL;
+        }
+        // TODO: check that it isn't struct expression here? actually, probably in semantic analysis
+
+        // parse loop body (required)
+        AST::BlockExpr* body = parse_block_expr();
+        if (body == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse loop body block expression in while loop");
+            // skip somewhere
+            return NULL;
+        }
+
+        return new AST::WhileLoopExpr(predicate, body, ::std::move(label), ::std::move(outer_attrs));
     }
 
-    // Parses a "while let" loop expression (without label).
-    AST::WhileLetLoopExpr* Parser::parse_while_let_loop_expr(::std::vector<AST::Attribute> outer_attrs) {
-        // TODO
-        return NULL;
+    /* Parses a "while let" loop expression. Label is not parsed and should be parsed via
+     * parse_labelled_loop_expr, which would call this. */
+    AST::WhileLetLoopExpr* Parser::parse_while_let_loop_expr(
+      ::std::vector<AST::Attribute> outer_attrs, AST::LoopLabel label) {
+        skip_token(WHILE);
+
+        // check for possible accidental recognition of a while loop as a while let loop
+        if (lexer.peek_token()->get_id() != LET) {
+            error_at(lexer.peek_token()->get_locus(),
+              "appears to be a while loop but is being parsed by "
+              "while let loop - this may be a compiler issue");
+            // skip somewhere
+            return NULL;
+        }
+        // as this token is definitely let now, save the computation of comparison
+        lexer.skip_token();
+
+        // parse predicate patterns
+        ::std::vector< ::std::unique_ptr<AST::Pattern> > predicate_patterns
+          = parse_match_arm_patterns();
+        // TODO: have to ensure that there is at least 1 pattern?
+
+        if (!skip_token(EQUAL)) {
+            // skip somewhere?
+            return NULL;
+        }
+
+        // parse predicate expression, which is required
+        AST::Expr* predicate_expr = parse_expr();
+        if (predicate_expr == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse predicate expression in while let loop");
+            // skip somewhere?
+            return NULL;
+        }
+        // TODO: ensure that struct expression is not parsed? Actually, probably in semantic analysis.
+
+        // parse loop body, which is required
+        AST::BlockExpr* body = parse_block_expr();
+        if (body == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse block expr (loop body) of while let loop");
+            // skip somewhere?
+            return NULL;
+        }
+
+        return new AST::WhileLetLoopExpr(
+          predicate_patterns, predicate_expr, body, ::std::move(label), ::std::move(outer_attrs));
     }
 
-    // Parses a "for" iterative loop (without label).
-    AST::ForLoopExpr* Parser::parse_for_loop_expr(::std::vector<AST::Attribute> outer_attrs) {
-        // TODO
-        return NULL;
+    /* Parses a "for" iterative loop. Label is not parsed and should be parsed via
+     * parse_labelled_loop_expr, which would call this. */
+    AST::ForLoopExpr* Parser::parse_for_loop_expr(
+      ::std::vector<AST::Attribute> outer_attrs, AST::LoopLabel label) {
+        skip_token(FOR);
+
+        // parse pattern, which is required
+        AST::Pattern* pattern = parse_pattern();
+        if (pattern == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "failed to parse iterator pattern in for loop");
+            // skip somewhere?
+            return NULL;
+        }
+
+        if (!skip_token(IN)) {
+            // skip somewhere?
+            return NULL;
+        }
+
+        // parse iterator expression, which is required
+        AST::Expr* expr = parse_expr();
+        if (expr == NULL) {
+            error_at(
+              lexer.peek_token()->get_locus(), "failed to parse iterator expression in for loop");
+            // skip somewhere?
+            return NULL;
+        }
+        // TODO: check to ensure this isn't struct expr? Or in semantic analysis.
+
+        // parse loop body, which is required
+        AST::BlockExpr* body = parse_block_expr();
+        if (body == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse loop body block expression in for loop");
+            // skip somewhere?
+            return NULL;
+        }
+
+        return new AST::ForLoopExpr(
+          pattern, expr, body, ::std::move(label), ::std::move(outer_attrs));
+    }
+
+    // Parses a loop expression with label (any kind of loop - disambiguates).
+    AST::BaseLoopExpr* Parser::parse_labelled_loop_expr(::std::vector<AST::Attribute> outer_attrs) {
+        // TODO: decide whether it should not work if there is no label, or parse it with no label
+        // at the moment, I will make it not work with no label because that's the implication.
+
+        if (lexer.peek_token()->get_id() != LIFETIME) {
+            error_at(lexer.peek_token()->get_locus(),
+              "expected lifetime in labelled loop expr (to parse loop label) - found '%s'",
+              lexer.peek_token()->get_token_description());
+            // skip?
+            return NULL;
+        }
+
+        // parse loop label (required)
+        AST::LoopLabel label = parse_loop_label();
+        if (label.is_error()) {
+            error_at(
+              lexer.peek_token()->get_locus(), "failed to parse loop label in labelled loop expr");
+            // skip?
+            return NULL;
+        }
+
+        // branch on next token
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case LOOP:
+                return parse_loop_expr(::std::move(outer_attrs), ::std::move(label));
+            case FOR:
+                return parse_for_loop_expr(::std::move(outer_attrs), ::std::move(label));
+            case WHILE:
+                // further disambiguate into while vs while let
+                if (lexer.peek_token(1)->get_id() == LET) {
+                    return parse_while_let_loop_expr(::std::move(outer_attrs), ::std::move(label));
+                } else {
+                    return parse_while_loop_expr(::std::move(outer_attrs), ::std::move(label));
+                }
+            default:
+                // error
+                error_at(t->get_locus(), "unexpected token '%s' when parsing labelled loop",
+                  t->get_token_description());
+                // skip?
+                return NULL;
+        }
     }
 
     // Parses a match expression.
     AST::MatchExpr* Parser::parse_match_expr(::std::vector<AST::Attribute> outer_attrs) {
         // TODO
         return NULL;
+
+        skip_token(MATCH_TOK);
+
+        // parse scrutinee expression, which is required
+        AST::Expr* scrutinee = parse_expr();
+        if (scrutinee == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "failed to parse scrutinee expression in match expression");
+            // skip somewhere?
+            return NULL;
+        }
+        // TODO: check for scrutinee expr not being struct expr? or do so in semantic analysis
+    
+        if (!skip_token(LEFT_CURLY)) {
+            // skip somewhere?
+            return NULL;
+        }
+
+        // parse inner attributes (if they exist)
+        ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
+
+        // parse match arms (if they exist)
+        ::std::vector< ::std::unique_ptr<AST::MatchCase> > match_arms;
+
+        // FIXME: absolute worst control structure ever
+        // parse match cases
+        while (true) {
+            // parse match arm itself, which is required
+            AST::MatchArm arm = parse_match_arm();
+            if (arm.is_error()) {
+                // not necessarily an error
+                break;
+            }
+
+            if (!skip_token(MATCH_ARROW)) {
+                // skip after somewhere?
+                // TODO is returning here a good idea? or is break better?
+                return NULL;
+            }
+
+            // branch on next token - if '{', block expr, otherwise just expr
+            if (lexer.peek_token()->get_id() == LEFT_CURLY) {
+                // block expr
+                AST::BlockExpr* block_expr = parse_block_expr();
+                if (block_expr == NULL) {
+                    error_at(lexer.peek_token()->get_locus(), "failed to parse block expr in match arm in match expr");
+                    // skip somewhere
+                    return NULL;
+                }
+
+                // create match case block expr and add to cases
+                AST::MatchCaseBlockExpr* match_case_block = new AST::MatchCaseBlockExpr(::std::move(arm), block_expr);
+                match_arms.push_back(::std::unique_ptr<AST::MatchCaseBlockExpr>(match_case_block));
+
+                // skip optional comma
+                if (lexer.peek_token()->get_id() == COMMA) {
+                    lexer.skip_token();
+                }
+            } else {
+                // regular expr
+                AST::Expr* expr = parse_expr();
+                if (expr == NULL) {
+                    error_at(lexer.peek_token()->get_locus(), "failed to parse expr in match arm in match expr");
+                    // skip somewhere?
+                    return NULL;
+                }
+
+                // construct match case expr and add to cases
+                AST::MatchCaseExpr* match_case_expr = new AST::MatchCaseExpr(::std::move(arm), expr);
+                match_arms.push_back(::std::unique_ptr<AST::MatchCaseExpr>(match_case_expr));
+
+                // skip REQUIRED comma - if no comma, break
+                if (lexer.peek_token()->get_id() != COMMA) {
+                    // if no comma, must be end of cases
+                    break;
+                }
+                lexer.skip_token();
+            }
+        }
+
+        if (!skip_token(RIGHT_CURLY)) {
+            // skip somewhere?
+            return NULL;
+        }
+
+        return new AST::MatchExpr(scrutinee, ::std::move(match_arms), ::std::move(inner_attrs), ::std::move(outer_attrs));
     }
 
-    // Parses a loop expression with label (any kind of loop).
-    AST::BaseLoopExpr* Parser::parse_labelled_loop_expr(::std::vector<AST::Attribute> outer_attrs) {
-        // TODO
-        return NULL;
+    // Parses the "pattern" part of the match arm (the 'case x:' equivalent).
+    AST::MatchArm Parser::parse_match_arm() {
+        // parse optional outer attributes
+        ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
+
+        // parse match arm patterns - at least 1 is required
+        ::std::vector< ::std::unique_ptr<AST::Pattern> > match_arm_patterns = parse_match_arm_patterns();
+        if (match_arm_patterns.empty()) {
+            error_at(lexer.peek_token()->get_locus(), "failed to parse any patterns in match arm");
+            // skip somewhere?
+            return NULL;
+        }
+
+        // parse match arm guard expr if it exists
+        AST::Expr* guard_expr = NULL;
+        if (lexer.peek_token()->get_id() == IF) {
+            lexer.skip_token();
+
+            guard_expr = parse_expr();
+            if (guard_expr == NULL) {
+                error_at(lexer.peek_token()->get_locus(), "failed to parse guard expression in match arm");
+                // skip somewhere?
+                return NULL;
+            }
+        }
+
+        return AST::MatchArm(::std::move(match_arm_patterns), guard_expr, ::std::move(outer_attrs));
+    }
+
+    // Parses the patterns used in a match arm.
+    ::std::vector< ::std::unique_ptr<AST::Pattern> > Parser::parse_match_arm_patterns() {
+        // skip optional leading '|'
+
+        // parse required pattern - if doesn't exist, return empty
+
+        // parse new patterns as long as next char is '|'
     }
 
     // Parses an async block expression.

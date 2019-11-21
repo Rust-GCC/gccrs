@@ -175,18 +175,24 @@ namespace Rust {
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::IfExpr* parse_if_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::IfLetExpr* parse_if_let_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::LoopExpr* parse_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::WhileLoopExpr* parse_while_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::WhileLetLoopExpr* parse_while_let_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::ForLoopExpr* parse_for_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::LoopExpr* parse_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), AST::LoopLabel label = AST::LoopLabel::error());
+        AST::WhileLoopExpr* parse_while_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), AST::LoopLabel label = AST::LoopLabel::error());
+        AST::WhileLetLoopExpr* parse_while_let_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), AST::LoopLabel label = AST::LoopLabel::error());
+        AST::ForLoopExpr* parse_for_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), AST::LoopLabel label = AST::LoopLabel::error());
         AST::MatchExpr* parse_match_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::MatchArm parse_match_arm();
+        ::std::vector< ::std::unique_ptr<AST::Pattern> > parse_match_arm_patterns();
         AST::BaseLoopExpr* parse_labelled_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::LoopLabel parse_loop_label();
         AST::AsyncBlockExpr* parse_async_block_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::UnsafeBlockExpr* parse_unsafe_block_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::GroupedExpr* parse_grouped_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::ClosureExpr* parse_closure_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::ClosureParam parse_closure_param();
         AST::LiteralExpr* parse_literal_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::ReturnExpr* parse_return_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::BreakExpr* parse_break_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::ContinueExpr* parse_continue_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
 
         // Type-related
         AST::Type* parse_type();

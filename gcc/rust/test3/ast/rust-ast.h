@@ -134,9 +134,20 @@ namespace Rust {
                 // FIXME: change to "should have str" later? 
                   if (lexer_token_ptr->has_str()) {
                       str = lexer_token_ptr->get_str();
+                      
+                      // DEBUG
+                      fprintf(stderr, "ast token created with str '%s'\n", str.c_str());
                   } else {
                       // FIXME: is this returning correct thing?
                       str = lexer_token_ptr->get_token_description();
+
+                      // DEBUG
+                      fprintf(stderr, "ast token created with string '%s'\n", str.c_str());
+                  }
+
+                  // DEBUG
+                  if (lexer_token_ptr->should_have_str() && !lexer_token_ptr->has_str()) {
+                      fprintf(stderr, "BAD: for token '%s', should have string but does not!\n", lexer_token_ptr->get_token_description());
                   }
               }
 
@@ -465,6 +476,8 @@ namespace Rust {
             ::std::unique_ptr<Item> clone_item() const {
                 return ::std::unique_ptr<Item>(clone_item_impl());
             }
+
+            ::std::string as_string() const;
 
           protected:
             // Outer attribute constructor

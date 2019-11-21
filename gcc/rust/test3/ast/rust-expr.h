@@ -328,7 +328,7 @@ namespace Rust {
 
         // Represents an expression using unary or binary operators as AST node. Can be overloaded.
         class OperatorExpr : public ExprWithoutBlock {
-          // TODO: create binary and unary operator subclasses?
+            // TODO: create binary and unary operator subclasses?
           protected:
             // Variable must be protected to allow derived classes to modify it
             // Expr* main_or_left_expr;
@@ -525,8 +525,8 @@ namespace Rust {
 
             // Constructor calls OperatorExpr's protected constructor
             ArithmeticOrLogicalExpr(Expr* left_value, Expr* right_value, ExprType expr_kind) :
-              OperatorExpr(left_value, ::std::vector<Attribute>()),
-              right_expr(right_value), expr_type(expr_kind) {}
+              OperatorExpr(left_value, ::std::vector<Attribute>()), right_expr(right_value),
+              expr_type(expr_kind) {}
             // outer attributes not allowed
 
             // Copy constructor - probably required due to unique pointer
@@ -590,8 +590,8 @@ namespace Rust {
 
             // Constructor requires pointers for polymorphism
             ComparisonExpr(Expr* left_value, Expr* right_value, ExprType comparison_kind) :
-              OperatorExpr(left_value, ::std::vector<Attribute>()),
-              right_expr(right_value), expr_type(comparison_kind) {}
+              OperatorExpr(left_value, ::std::vector<Attribute>()), right_expr(right_value),
+              expr_type(comparison_kind) {}
             // outer attributes not allowed
 
             // Copy constructor also calls OperatorExpr's protected constructor
@@ -643,8 +643,8 @@ namespace Rust {
 
             // Constructor calls OperatorExpr's protected constructor
             LazyBooleanExpr(Expr* left_bool_expr, Expr* right_bool_expr, ExprType expr_kind) :
-              OperatorExpr(left_bool_expr, ::std::vector<Attribute>()),
-              right_expr(right_bool_expr), expr_type(expr_kind) {}
+              OperatorExpr(left_bool_expr, ::std::vector<Attribute>()), right_expr(right_bool_expr),
+              expr_type(expr_kind) {}
             // outer attributes not allowed
 
             // Copy constructor also calls OperatorExpr's protected constructor
@@ -814,8 +814,8 @@ namespace Rust {
             }
 
             // Use pointers in constructor to enable polymorphism
-            CompoundAssignmentExpr(Expr* value_to_assign_to, Expr* value_to_assign,
-              ExprType expr_kind) :
+            CompoundAssignmentExpr(
+              Expr* value_to_assign_to, Expr* value_to_assign, ExprType expr_kind) :
               OperatorExpr(value_to_assign_to, ::std::vector<Attribute>()),
               right_expr(value_to_assign), expr_type(expr_kind) {}
             // outer attributes not allowed
@@ -2479,10 +2479,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            RangeFromToExpr(
-              Expr* range_from, Expr* range_to) :
-              from(range_from),
-              to(range_to), RangeExpr() {}
+            RangeFromToExpr(Expr* range_from, Expr* range_to) :
+              from(range_from), to(range_to), RangeExpr() {}
             // outer attributes not allowed
 
             // Copy constructor with cloning
@@ -2529,8 +2527,7 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            RangeFromExpr(Expr* range_from) :
-              from(range_from), RangeExpr() {}
+            RangeFromExpr(Expr* range_from) : from(range_from), RangeExpr() {}
             // outer attributes not allowed
 
             // Copy constructor with clone
@@ -2577,8 +2574,7 @@ namespace Rust {
             ::std::string as_string() const;
 
             // outer attributes not allowed
-            RangeToExpr(Expr* range_to) :
-              to(range_to), RangeExpr() {}
+            RangeToExpr(Expr* range_to) : to(range_to), RangeExpr() {}
 
             // Copy constructor with clone
             RangeToExpr(RangeToExpr const& other) : to(other.to->clone_expr()), RangeExpr(other) {}
@@ -2646,10 +2642,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            RangeFromToInclExpr(
-              Expr* range_from, Expr* range_to) :
-              from(range_from),
-              to(range_to), RangeExpr() {}
+            RangeFromToInclExpr(Expr* range_from, Expr* range_to) :
+              from(range_from), to(range_to), RangeExpr() {}
             // outer attributes not allowed
 
             // Copy constructor with clone
@@ -2696,8 +2690,7 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            RangeToInclExpr(Expr* range_to, ::std::vector<Attribute> outer_attribs) :
-              to(range_to) {}
+            RangeToInclExpr(Expr* range_to, ::std::vector<Attribute> outer_attribs) : to(range_to) {}
             // outer attributes not allowed
 
             // Copy constructor with clone
@@ -3225,8 +3218,7 @@ namespace Rust {
             ::std::string as_string() const;
 
             IfExprConseqElse(Expr* condition, BlockExpr* if_block, BlockExpr* else_block) :
-              else_block(else_block),
-              IfExpr(condition, if_block) {}
+              else_block(else_block), IfExpr(condition, if_block) {}
             // again, outer attributes not allowed
 
             // Copy constructor with clone
@@ -3279,8 +3271,7 @@ namespace Rust {
             ::std::string as_string() const;
 
             IfExprConseqIf(Expr* condition, BlockExpr* if_block, IfExpr* conseq_if_expr) :
-              if_expr(conseq_if_expr),
-              IfExpr(condition, if_block) {}
+              if_expr(conseq_if_expr), IfExpr(condition, if_block) {}
             // outer attributes not allowed
 
             // Copy constructor with clone
@@ -3413,8 +3404,7 @@ namespace Rust {
             ::std::string as_string() const;
 
             IfExprConseqIfLet(Expr* condition, BlockExpr* if_block, IfLetExpr* conseq_if_let_expr) :
-              if_let_expr(conseq_if_let_expr),
-              IfExpr(condition, if_block) {}
+              if_let_expr(conseq_if_let_expr), IfExpr(condition, if_block) {}
             // outer attributes not allowed
 
             // Copy constructor with clone
@@ -3646,17 +3636,12 @@ namespace Rust {
                 return guard_expr != NULL;
             }
 
-            // Constructor for match arm without a guard expression
-            MatchArm(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
-              ::std::vector<Attribute> outer_attrs) :
-              match_arm_patterns(::std::move(match_arm_patterns)),
-              outer_attrs(outer_attrs) /*, guard_expr(NULL)*/ {}
-
             // Constructor for match arm with a guard expression
-            MatchArm(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns, Expr* guard_expr,
-              ::std::vector<Attribute> outer_attrs) :
+            MatchArm(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
+              Expr* guard_expr = NULL,
+              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
               match_arm_patterns(::std::move(match_arm_patterns)),
-              guard_expr(guard_expr), outer_attrs(outer_attrs) {}
+              guard_expr(guard_expr), outer_attrs(::std::move(outer_attrs)) {}
 
             // Copy constructor with clone
             MatchArm(MatchArm const& other) :
@@ -3691,6 +3676,14 @@ namespace Rust {
             // move constructors
             MatchArm(MatchArm&& other) = default;
             MatchArm& operator=(MatchArm&& other) = default;
+
+            // Returns whether match arm is in an error state.
+            inline bool is_error() const {
+                return match_arm_patterns.empty();
+            }
+
+            // Creates a match arm in an error state.
+            static MatchArm create_error() {}
         };
 
         // Base "match case" for a match expression - abstract
@@ -3698,7 +3691,7 @@ namespace Rust {
             MatchArm arm;
 
           protected:
-            MatchCase(MatchArm arm) : arm(arm) {}
+            MatchCase(MatchArm arm) : arm(::std::move(arm)) {}
 
             // Should not require copy constructor or assignment operator overloading
 
@@ -3725,7 +3718,7 @@ namespace Rust {
             }*/
 
             MatchCaseBlockExpr(MatchArm arm, BlockExpr* block_expr) :
-              block_expr(block_expr), MatchCase(arm) {}
+              block_expr(block_expr), MatchCase(::std::move(arm)) {}
 
             // Copy constructor requires clone
             MatchCaseBlockExpr(MatchCaseBlockExpr const& other) :
@@ -3745,6 +3738,12 @@ namespace Rust {
             // move constructors
             MatchCaseBlockExpr(MatchCaseBlockExpr&& other) = default;
             MatchCaseBlockExpr& operator=(MatchCaseBlockExpr&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MatchCaseBlockExpr* clone_match_case_impl() const OVERRIDE {
+                return new MatchCaseBlockExpr(*this);
+            }
         };
 
         // Expression (except block expression) match case
@@ -3757,7 +3756,7 @@ namespace Rust {
                 delete expr;
             }*/
 
-            MatchCaseExpr(MatchArm arm, Expr* expr) : expr(expr), MatchCase(arm) {}
+            MatchCaseExpr(MatchArm arm, Expr* expr) : expr(expr), MatchCase(::std::move(arm)) {}
 
             // Copy constructor requires clone
             MatchCaseExpr(MatchCaseExpr const& other) :
@@ -3777,6 +3776,12 @@ namespace Rust {
             // move constructors
             MatchCaseExpr(MatchCaseExpr&& other) = default;
             MatchCaseExpr& operator=(MatchCaseExpr&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MatchCaseExpr* clone_match_case_impl() const OVERRIDE {
+                return new MatchCaseExpr(*this);
+            }
         };
 
         // Match expression AST node
@@ -3804,8 +3809,8 @@ namespace Rust {
             MatchExpr(Expr* branch_value, ::std::vector< ::std::unique_ptr<MatchCase> > match_arms,
               ::std::vector<Attribute> inner_attrs, ::std::vector<Attribute> outer_attrs) :
               branch_value(branch_value),
-              match_arms(::std::move(match_arms)), inner_attrs(inner_attrs),
-              ExprWithBlock(outer_attrs) {}
+              match_arms(::std::move(match_arms)), inner_attrs(::std::move(inner_attrs)),
+              ExprWithBlock(::std::move(outer_attrs)) {}
 
             // Copy constructor requires clone due to unique_ptr
             MatchExpr(MatchExpr const& other) :
@@ -3862,7 +3867,7 @@ namespace Rust {
           public:
             // TODO: ensure outer attributes are actually allowed
             AwaitExpr(Expr* awaited_expr, ::std::vector<Attribute> outer_attrs) :
-              awaited_expr(awaited_expr), ExprWithoutBlock(::std::move(outer_attrs)) {}
+              awaited_expr(awaited_expr), ExprWithoutBlock(::std::move(::std::move(outer_attrs))) {}
 
             // copy constructor with clone
             AwaitExpr(AwaitExpr const& other) :
@@ -3893,7 +3898,7 @@ namespace Rust {
             AsyncBlockExpr(
               BlockExpr* block_expr, bool has_move, ::std::vector<Attribute> outer_attrs) :
               has_move(has_move),
-              block_expr(block_expr), ExprWithBlock(outer_attrs) {}
+              block_expr(block_expr), ExprWithBlock(::std::move(outer_attrs)) {}
 
             // copy constructor with clone
             AsyncBlockExpr(AsyncBlockExpr const& other) :
