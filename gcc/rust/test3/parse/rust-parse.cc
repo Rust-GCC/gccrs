@@ -5077,7 +5077,14 @@ namespace Rust {
             return NULL;
         }
 
-        // TODO: is move required here?
+        // ensure that there is at least either a statement or an expr
+        if (stmts.empty() && expr == NULL) {
+            error_at(lexer.peek_token()->get_id(),
+              "block expression requires statements or an expression without block - found neither");
+            skip_after_end_block();
+            return NULL;
+        }
+
         return new AST::BlockExpr(
           ::std::move(stmts), expr, ::std::move(inner_attrs), ::std::move(outer_attrs));
     }
@@ -5328,6 +5335,22 @@ namespace Rust {
     AST::IfExpr* Parser::parse_if_expr(::std::vector<AST::Attribute> outer_attrs) {
         // TODO
         return NULL;
+
+        skip_token(IF);
+
+        // detect accidental if let
+
+        // parse required condition expr
+        AST::Expr* condition = parse_expr();
+        if (condition == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "failed to parse condition expression in if expression");
+            // skip somewhere?
+            return NULL;
+        }
+
+        // parse required block expr
+
+        // branch to parse end, else, else if, or else if let
     }
 
     // Parses an if let expression of any kind, including with else, else if, else if let, and none.
@@ -5536,12 +5559,13 @@ namespace Rust {
         // parse scrutinee expression, which is required
         AST::Expr* scrutinee = parse_expr();
         if (scrutinee == NULL) {
-            error_at(lexer.peek_token()->get_locus(), "failed to parse scrutinee expression in match expression");
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse scrutinee expression in match expression");
             // skip somewhere?
             return NULL;
         }
         // TODO: check for scrutinee expr not being struct expr? or do so in semantic analysis
-    
+
         if (!skip_token(LEFT_CURLY)) {
             // skip somewhere?
             return NULL;
@@ -5574,13 +5598,15 @@ namespace Rust {
                 // block expr
                 AST::BlockExpr* block_expr = parse_block_expr();
                 if (block_expr == NULL) {
-                    error_at(lexer.peek_token()->get_locus(), "failed to parse block expr in match arm in match expr");
+                    error_at(lexer.peek_token()->get_locus(),
+                      "failed to parse block expr in match arm in match expr");
                     // skip somewhere
                     return NULL;
                 }
 
                 // create match case block expr and add to cases
-                AST::MatchCaseBlockExpr* match_case_block = new AST::MatchCaseBlockExpr(::std::move(arm), block_expr);
+                AST::MatchCaseBlockExpr* match_case_block
+                  = new AST::MatchCaseBlockExpr(::std::move(arm), block_expr);
                 match_arms.push_back(::std::unique_ptr<AST::MatchCaseBlockExpr>(match_case_block));
 
                 // skip optional comma
@@ -5591,7 +5617,8 @@ namespace Rust {
                 // regular expr
                 AST::Expr* expr = parse_expr();
                 if (expr == NULL) {
-                    error_at(lexer.peek_token()->get_locus(), "failed to parse expr in match arm in match expr");
+                    error_at(lexer.peek_token()->get_locus(),
+                      "failed to parse expr in match arm in match expr");
                     // skip somewhere?
                     return NULL;
                 }
@@ -5614,7 +5641,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::MatchExpr(scrutinee, ::std::move(match_arms), ::std::move(inner_attrs), ::std::move(outer_attrs));
+        return new AST::MatchExpr(
+          scrutinee, ::std::move(match_arms), ::std::move(inner_attrs), ::std::move(outer_attrs));
     }
 
     // Parses the "pattern" part of the match arm (the 'case x:' equivalent).
@@ -5623,7 +5651,8 @@ namespace Rust {
         ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
 
         // parse match arm patterns - at least 1 is required
-        ::std::vector< ::std::unique_ptr<AST::Pattern> > match_arm_patterns = parse_match_arm_patterns();
+        ::std::vector< ::std::unique_ptr<AST::Pattern> > match_arm_patterns
+          = parse_match_arm_patterns();
         if (match_arm_patterns.empty()) {
             error_at(lexer.peek_token()->get_locus(), "failed to parse any patterns in match arm");
             // skip somewhere?
@@ -5637,7 +5666,8 @@ namespace Rust {
 
             guard_expr = parse_expr();
             if (guard_expr == NULL) {
-                error_at(lexer.peek_token()->get_locus(), "failed to parse guard expression in match arm");
+                error_at(
+                  lexer.peek_token()->get_locus(), "failed to parse guard expression in match arm");
                 // skip somewhere?
                 return NULL;
             }
@@ -5648,14 +5678,47 @@ namespace Rust {
 
     // Parses the patterns used in a match arm.
     ::std::vector< ::std::unique_ptr<AST::Pattern> > Parser::parse_match_arm_patterns() {
-        // TODO
-        return NULL;
-
         // skip optional leading '|'
+        bool has_leading_pipe = false;
+        if (lexer.peek_token()->get_id() == PIPE) {
+            has_leading_pipe = true;
+            lexer.skip_token();
+        }
+        // TODO: do I even need to store the result of this? can't be used.
+        // If semantically different, I need a wrapped "match arm patterns" object for this.
+
+        ::std::vector< ::std::unique_ptr<AST::Pattern> > patterns;
 
         // parse required pattern - if doesn't exist, return empty
+        AST::Pattern* initial_pattern = parse_pattern();
+        if (initial_pattern == NULL) {
+            // FIXME: should this be an error?
+            return patterns;
+        }
+        patterns.push_back(::std::unique_ptr<AST::Pattern>(initial_pattern));
 
         // parse new patterns as long as next char is '|'
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() == PIPE) {
+            // skip pipe token
+            lexer.skip_token();
+
+            // parse pattern
+            AST::Pattern* pattern = parse_pattern();
+            if (pattern == NULL) {
+                // this is an error
+                error_at(
+                  lexer.peek_token()->get_locus(), "failed to parse pattern in match arm patterns");
+                // skip somewhere?
+                return ::std::vector< ::std::unique_ptr<AST::Pattern> >();
+            }
+
+            patterns.push_back(::std::unique_ptr<AST::Pattern>(pattern));
+
+            t = lexer.peek_token();
+        }
+
+        return patterns;
     }
 
     // Parses an async block expression.
