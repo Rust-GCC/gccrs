@@ -5531,9 +5531,6 @@ namespace Rust {
 
     // Parses a match expression.
     AST::MatchExpr* Parser::parse_match_expr(::std::vector<AST::Attribute> outer_attrs) {
-        // TODO
-        return NULL;
-
         skip_token(MATCH_TOK);
 
         // parse scrutinee expression, which is required
@@ -5651,6 +5648,9 @@ namespace Rust {
 
     // Parses the patterns used in a match arm.
     ::std::vector< ::std::unique_ptr<AST::Pattern> > Parser::parse_match_arm_patterns() {
+        // TODO
+        return NULL;
+
         // skip optional leading '|'
 
         // parse required pattern - if doesn't exist, return empty
