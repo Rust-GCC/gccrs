@@ -9,6 +9,7 @@ namespace Rust {
         class LiteralPattern : public Pattern {
             Literal val; // make literal have a type given by enum, etc. rustc uses an extended form
             // of its literal token implementation
+            // FIXME: literal representation - use LiteralExpr? or another thing?
 
             // Minus prefixed to literal (if integer or floating-point)
             bool has_minus;
@@ -17,11 +18,8 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            // Constructor for a literal pattern with no minus
-            LiteralPattern(Literal val) : val(val), has_minus(false) {}
-
-            // Constructor for a literal pattern with maybe a minus
-            LiteralPattern(Literal val, bool has_minus) : val(val), has_minus(has_minus) {}
+            // Constructor for a literal pattern
+            LiteralPattern(Literal val, bool has_minus = false) : val(val), has_minus(has_minus) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -52,13 +50,11 @@ namespace Rust {
                 return to_bind != NULL;
             }
 
-            // Identifier-only constructor
-            IdentifierPattern(Identifier ident) :
-              variable_ident(ident), is_ref(false), is_mut(false)/*, to_bind(NULL)*/ {}
-
-            // Constructor with all potential fields
-            IdentifierPattern(Identifier ident, bool is_ref, bool is_mut, Pattern* to_bind) :
-              variable_ident(ident), is_ref(is_ref), is_mut(is_mut), to_bind(to_bind) {}
+            // Constructor
+            IdentifierPattern(
+              Identifier ident, bool is_ref = false, bool is_mut = false, Pattern* to_bind = NULL) :
+              variable_ident(::std::move(ident)),
+              is_ref(is_ref), is_mut(is_mut), to_bind(to_bind) {}
 
             // Copy constructor with clone
             IdentifierPattern(IdentifierPattern const& other) :
@@ -77,7 +73,7 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics 
+            // default move semantics
             IdentifierPattern(IdentifierPattern&& other) = default;
             IdentifierPattern& operator=(IdentifierPattern&& other) = default;
 
@@ -136,12 +132,9 @@ namespace Rust {
             bool has_minus;
 
           public:
-            // Full constructor
-            RangePatternBoundLiteral(Literal literal, bool has_minus) :
+            // Constructor
+            RangePatternBoundLiteral(Literal literal, bool has_minus = false) :
               literal(literal), has_minus(has_minus) {}
-
-            // No minus constructor
-            RangePatternBoundLiteral(Literal literal) : literal(literal), has_minus(false) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -155,7 +148,7 @@ namespace Rust {
             PathInExpression path;
 
           public:
-            RangePatternBoundPath(PathInExpression path) : path(path) {}
+            RangePatternBoundPath(PathInExpression path) : path(::std::move(path)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -169,7 +162,7 @@ namespace Rust {
             QualifiedPathInExpression path;
 
           public:
-            RangePatternBoundQualPath(QualifiedPathInExpression path) : path(path) {}
+            RangePatternBoundQualPath(QualifiedPathInExpression path) : path(::std::move(path)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -190,13 +183,9 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            // Basic constructor
-            RangePattern(RangePatternBound* lower, RangePatternBound* upper) :
-              lower(lower), upper(upper), has_ellipsis_syntax(false) {}
-
-            // Full constructor
+            // Constructor
             RangePattern(
-              RangePatternBound* lower, RangePatternBound* upper, bool has_ellipsis_syntax) :
+              RangePatternBound* lower, RangePatternBound* upper, bool has_ellipsis_syntax = false) :
               lower(lower),
               upper(upper), has_ellipsis_syntax(has_ellipsis_syntax) {}
 
@@ -217,7 +206,7 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics 
+            // default move semantics
             RangePattern(RangePattern&& other) = default;
             RangePattern& operator=(RangePattern&& other) = default;
         };
@@ -255,7 +244,7 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics 
+            // default move semantics
             ReferencePattern(ReferencePattern&& other) = default;
             ReferencePattern& operator=(ReferencePattern&& other) = default;
 
@@ -268,10 +257,12 @@ namespace Rust {
 
         // aka StructPatternEtCetera; potential element in struct pattern
         struct StructPatternEtc {
+          private:
             ::std::vector<Attribute> outer_attrs;
 
           public:
-            StructPatternEtc(::std::vector<Attribute> outer_attribs) : outer_attrs(outer_attribs) {}
+            StructPatternEtc(::std::vector<Attribute> outer_attribs) :
+              outer_attrs(::std::move(outer_attribs)) {}
 
             // Creates an empty StructPatternEtc
             static StructPatternEtc create_empty() {
@@ -283,7 +274,7 @@ namespace Rust {
 
         // Base class for a single field in a struct pattern - abstract
         class StructPatternField {
-          ::std::vector<Attribute> outer_attrs;
+            ::std::vector<Attribute> outer_attrs;
             /*union {
                 struct {
                     //TupleIndex index;
@@ -309,7 +300,8 @@ namespace Rust {
             }
 
           protected:
-            StructPatternField(::std::vector<Attribute> outer_attribs) : outer_attrs(outer_attribs) {}
+            StructPatternField(::std::vector<Attribute> outer_attribs) :
+              outer_attrs(::std::move(outer_attribs)) {}
 
             // Clone function implementation as pure virtual method
             virtual StructPatternField* clone_struct_pattern_field_impl() const = 0;
@@ -329,7 +321,7 @@ namespace Rust {
             StructPatternFieldTuplePat(
               TupleIndex index, Pattern* tuple_pattern, ::std::vector<Attribute> outer_attribs) :
               tuple_pattern(tuple_pattern),
-              index(index), StructPatternField(outer_attribs) {}
+              index(index), StructPatternField(::std::move(outer_attribs)) {}
 
             // Copy constructor requires clone
             StructPatternFieldTuplePat(StructPatternFieldTuplePat const& other) :
@@ -343,12 +335,12 @@ namespace Rust {
                 StructPatternField::operator=(other);
                 tuple_pattern = other.tuple_pattern->clone_pattern();
                 index = other.index;
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // default move semantics 
+            // default move semantics
             StructPatternFieldTuplePat(StructPatternFieldTuplePat&& other) = default;
             StructPatternFieldTuplePat& operator=(StructPatternFieldTuplePat&& other) = default;
         };
@@ -366,8 +358,8 @@ namespace Rust {
 
             StructPatternFieldIdentPat(
               Identifier ident, Pattern* ident_pattern, ::std::vector<Attribute> outer_attrs) :
-              ident(ident),
-              ident_pattern(ident_pattern), StructPatternField(outer_attrs) {}
+              ident(::std::move(ident)),
+              ident_pattern(ident_pattern), StructPatternField(::std::move(outer_attrs)) {}
 
             // Copy constructor requires clone
             StructPatternFieldIdentPat(StructPatternFieldIdentPat const& other) :
@@ -381,12 +373,12 @@ namespace Rust {
                 StructPatternField::operator=(other);
                 ident = other.ident;
                 ident_pattern = other.ident_pattern->clone_pattern();
-                //outer_attrs = other.outer_attrs;
+                // outer_attrs = other.outer_attrs;
 
                 return *this;
             }
 
-            // default move semantics 
+            // default move semantics
             StructPatternFieldIdentPat(StructPatternFieldIdentPat&& other) = default;
             StructPatternFieldIdentPat& operator=(StructPatternFieldIdentPat&& other) = default;
         };
@@ -401,12 +393,13 @@ namespace Rust {
           public:
             StructPatternFieldIdent(
               Identifier ident, bool is_ref, bool is_mut, ::std::vector<Attribute> outer_attrs) :
-              ident(ident),
-              has_ref(is_ref), has_mut(is_mut), StructPatternField(outer_attrs) {}
+              ident(::std::move(ident)),
+              has_ref(is_ref), has_mut(is_mut), StructPatternField(::std::move(outer_attrs)) {}
         };
 
         // Elements of a struct pattern
         struct StructPatternElements {
+          private:
             // bool has_struct_pattern_fields;
             //::std::vector<StructPatternField> fields;
             ::std::vector< ::std::unique_ptr<StructPatternField> > fields;
@@ -426,15 +419,17 @@ namespace Rust {
             StructPatternElements(
               ::std::vector< ::std::unique_ptr<StructPatternField> > fields, StructPatternEtc etc) :
               fields(::std::move(fields)),
-              etc(etc), has_struct_pattern_etc(true) {}
+              etc(::std::move(etc)), has_struct_pattern_etc(true) {}
 
             // Constructor for StructPatternElements with no StructPatternEtc
             StructPatternElements(::std::vector< ::std::unique_ptr<StructPatternField> > fields) :
-              fields(::std::move(fields)), etc(StructPatternEtc::create_empty()), has_struct_pattern_etc(false) {}
+              fields(::std::move(fields)), etc(StructPatternEtc::create_empty()),
+              has_struct_pattern_etc(false) {}
 
             // Copy constructor with vector clone
-            StructPatternElements(StructPatternElements const& other) : etc(other.etc), has_struct_pattern_etc(other.has_struct_pattern_etc) {
-              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+            StructPatternElements(StructPatternElements const& other) :
+              etc(other.etc), has_struct_pattern_etc(other.has_struct_pattern_etc) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 fields.reserve(other.fields.size());
 
                 for (const auto& e : other.fields) {
@@ -463,7 +458,8 @@ namespace Rust {
 
             // Creates an empty StructPatternElements
             static StructPatternElements create_empty() {
-                return StructPatternElements(::std::vector< ::std::unique_ptr<StructPatternField> >());
+                return StructPatternElements(
+                  ::std::vector< ::std::unique_ptr<StructPatternField> >());
             }
         };
 
@@ -477,14 +473,11 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            // Constructs a struct pattern with no elements
-            StructPattern(PathInExpression struct_path) :
-              path(struct_path), elems(StructPatternElements::create_empty()),
-              has_struct_pattern_elements(false) {}
-
             // Constructs a struct pattern from specified StructPatternElements
-            StructPattern(PathInExpression struct_path, StructPatternElements elems) :
-              path(struct_path), elems(elems), has_struct_pattern_elements(true) {}
+            StructPattern(PathInExpression struct_path,
+              StructPatternElements elems = StructPatternElements::create_empty()) :
+              path(::std::move(struct_path)),
+              elems(::std::move(elems)), has_struct_pattern_elements(true) {}
 
             // TODO: constructor to construct via elements included in StructPatternElements
 
@@ -521,7 +514,7 @@ namespace Rust {
 
             // Copy constructor with vector clone
             TupleStructItemsNoRange(TupleStructItemsNoRange const& other) {
-              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 patterns.reserve(other.patterns.size());
 
                 for (const auto& e : other.patterns) {
@@ -584,7 +577,7 @@ namespace Rust {
 
             // Overloaded assignment operator to clone
             TupleStructItemsRange& operator=(TupleStructItemsRange const& other) {
-              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 lower_patterns.reserve(other.lower_patterns.size());
 
                 for (const auto& e : other.lower_patterns) {
@@ -622,7 +615,7 @@ namespace Rust {
             ::std::string as_string() const;
 
             TupleStructPattern(PathInExpression tuple_struct_path, TupleStructItems* items) :
-              path(tuple_struct_path), items(items) {}
+              path(::std::move(tuple_struct_path)), items(items) {}
 
             // Copy constructor required to clone
             TupleStructPattern(TupleStructPattern const& other) :
@@ -638,7 +631,7 @@ namespace Rust {
                 return *this;
             }
 
-            // move constructors 
+            // move constructors
             TupleStructPattern(TupleStructPattern&& other) = default;
             TupleStructPattern& operator=(TupleStructPattern&& other) = default;
 
@@ -717,7 +710,7 @@ namespace Rust {
 
             // Overloaded assignment operator to vector clone
             TuplePatternItemsMultiple& operator=(TuplePatternItemsMultiple const& other) {
-              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 patterns.reserve(other.patterns.size());
 
                 for (const auto& e : other.patterns) {
@@ -770,7 +763,7 @@ namespace Rust {
 
             // Overloaded assignment operator to clone
             TuplePatternItemsRanged& operator=(TuplePatternItemsRanged const& other) {
-              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 lower_patterns.reserve(other.lower_patterns.size());
 
                 for (const auto& e : other.lower_patterns) {
@@ -856,8 +849,8 @@ namespace Rust {
 
                 return *this;
             }
-            
-            // default move semantics 
+
+            // default move semantics
             GroupedPattern(GroupedPattern&& other) = default;
             GroupedPattern& operator=(GroupedPattern&& other) = default;
 
@@ -876,11 +869,12 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            SlicePattern(::std::vector< ::std::unique_ptr<Pattern> > items) : items(::std::move(items)) {}
+            SlicePattern(::std::vector< ::std::unique_ptr<Pattern> > items) :
+              items(::std::move(items)) {}
 
             // Copy constructor with vector clone
             SlicePattern(SlicePattern const& other) {
-              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 items.reserve(other.items.size());
 
                 for (const auto& e : other.items) {
@@ -890,7 +884,7 @@ namespace Rust {
 
             // Overloaded assignment operator to vector clone
             SlicePattern& operator=(SlicePattern const& other) {
-              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 items.reserve(other.items.size());
 
                 for (const auto& e : other.items) {

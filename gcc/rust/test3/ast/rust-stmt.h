@@ -2,8 +2,8 @@
 #define RUST_AST_STATEMENT_H
 
 #include "rust-ast.h"
-#include "rust-expr.h"
 #include "rust-path.h"
+#include "rust-expr.h"
 
 namespace Rust {
     namespace AST {
@@ -78,7 +78,7 @@ namespace Rust {
             LetStmt(Pattern* variables_pattern, Expr* init_expr, Type* type,
               ::std::vector<Attribute> outer_attrs) :
               variables_pattern(variables_pattern),
-              init_expr(init_expr), type(type), outer_attrs(outer_attrs) {}
+              init_expr(init_expr), type(type), outer_attrs(::std::move(outer_attrs)) {}
 
             // Copy constructor with clone
             LetStmt(LetStmt const& other) :
@@ -98,7 +98,7 @@ namespace Rust {
                 return *this;
             }
 
-            // move constructors 
+            // move constructors
             LetStmt(LetStmt&& other) = default;
             LetStmt& operator=(LetStmt&& other) = default;
 
@@ -141,10 +141,9 @@ namespace Rust {
                 return *this;
             }
 
-            // move constructors 
+            // move constructors
             ExprStmtWithoutBlock(ExprStmtWithoutBlock&& other) = default;
-            ExprStmtWithoutBlock& operator=(ExprStmtWithoutBlock&& other) =
-            default;
+            ExprStmtWithoutBlock& operator=(ExprStmtWithoutBlock&& other) = default;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -180,7 +179,7 @@ namespace Rust {
                 return *this;
             }
 
-            // move constructors 
+            // move constructors
             ExprStmtWithBlock(ExprStmtWithBlock&& other) = default;
             ExprStmtWithBlock& operator=(ExprStmtWithBlock&& other) = default;
 

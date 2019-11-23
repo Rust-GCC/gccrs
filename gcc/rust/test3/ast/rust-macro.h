@@ -66,7 +66,7 @@ namespace Rust {
 
           public:
             MacroMatchFragment(Identifier ident, MacroFragSpec frag_spec) :
-              ident(ident), frag_spec(frag_spec) {}
+              ident(::std::move(ident)), frag_spec(frag_spec) {}
 
             // Returns whether macro match fragment is in an error state.
             inline bool is_error() const {
@@ -220,7 +220,7 @@ namespace Rust {
             DelimTokenTree token_tree;
 
           public:
-            MacroTranscriber(DelimTokenTree token_tree) : token_tree(token_tree) {}
+            MacroTranscriber(DelimTokenTree token_tree) : token_tree(::std::move(token_tree)) {}
         };
 
         // A macro rule? Matcher and transcriber pair?
@@ -231,7 +231,7 @@ namespace Rust {
 
           public:
             MacroRule(MacroMatcher matcher, MacroTranscriber transcriber) :
-              matcher(matcher), transcriber(transcriber) {}
+              matcher(::std::move(matcher)), transcriber(::std::move(transcriber)) {}
 
             // Returns whether macro rule is in error state.
             inline bool is_error() const {
@@ -259,8 +259,8 @@ namespace Rust {
 
             MacroRulesDefinition(Identifier rule_name, DelimType delim_type,
               ::std::vector<MacroRule> rules, ::std::vector<Attribute> outer_attrs) :
-              rule_name(rule_name),
-              delim_type(delim_type), rules(rules), MacroItem(outer_attrs) {}
+              rule_name(::std::move(rule_name)),
+              delim_type(delim_type), rules(::std::move(rules)), MacroItem(::std::move(outer_attrs)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -282,8 +282,8 @@ namespace Rust {
 
             MacroInvocation(
               SimplePath path, DelimTokenTree token_tree, ::std::vector<Attribute> outer_attrs) :
-              path(path),
-              token_tree(token_tree), ExprWithoutBlock(outer_attrs) {}
+              path(::std::move(path)),
+              token_tree(::std::move(token_tree)), ExprWithoutBlock(::std::move(outer_attrs)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

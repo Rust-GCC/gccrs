@@ -129,27 +129,28 @@ namespace Rust {
             /* TODO: find workaround for std::string being NULL - probably have to introduce new
              * method in lexer Token, or maybe make conversion method there*/
             Token(const_TokenPtr lexer_token_ptr) :
-              token_id(lexer_token_ptr->get_id()), locus(lexer_token_ptr->get_locus()),
-              str(""), type_hint(lexer_token_ptr->get_type_hint()) {
-                // FIXME: change to "should have str" later? 
-                  if (lexer_token_ptr->has_str()) {
-                      str = lexer_token_ptr->get_str();
-                      
-                      // DEBUG
-                      fprintf(stderr, "ast token created with str '%s'\n", str.c_str());
-                  } else {
-                      // FIXME: is this returning correct thing?
-                      str = lexer_token_ptr->get_token_description();
+              token_id(lexer_token_ptr->get_id()), locus(lexer_token_ptr->get_locus()), str(""),
+              type_hint(lexer_token_ptr->get_type_hint()) {
+                // FIXME: change to "should have str" later?
+                if (lexer_token_ptr->has_str()) {
+                    str = lexer_token_ptr->get_str();
 
-                      // DEBUG
-                      fprintf(stderr, "ast token created with string '%s'\n", str.c_str());
-                  }
+                    // DEBUG
+                    fprintf(stderr, "ast token created with str '%s'\n", str.c_str());
+                } else {
+                    // FIXME: is this returning correct thing?
+                    str = lexer_token_ptr->get_token_description();
 
-                  // DEBUG
-                  if (lexer_token_ptr->should_have_str() && !lexer_token_ptr->has_str()) {
-                      fprintf(stderr, "BAD: for token '%s', should have string but does not!\n", lexer_token_ptr->get_token_description());
-                  }
-              }
+                    // DEBUG
+                    fprintf(stderr, "ast token created with string '%s'\n", str.c_str());
+                }
+
+                // DEBUG
+                if (lexer_token_ptr->should_have_str() && !lexer_token_ptr->has_str()) {
+                    fprintf(stderr, "BAD: for token '%s', should have string but does not!\n",
+                      lexer_token_ptr->get_token_description());
+                }
+            }
 
             ::std::string as_string() const;
 
@@ -190,11 +191,10 @@ namespace Rust {
 
           public:
             DelimTokenTree(
-              DelimType delim_type, ::std::vector< ::std::unique_ptr<TokenTree> > token_trees) :
+              DelimType delim_type, ::std::vector< ::std::unique_ptr<TokenTree> > token_trees
+                                    = ::std::vector< ::std::unique_ptr<TokenTree> >()) :
               delim_type(delim_type),
               token_trees(::std::move(token_trees)) {}
-
-            DelimTokenTree(DelimType delim_type) : delim_type(delim_type) {}
 
             // Copy constructor with vector clone
             DelimTokenTree(DelimTokenTree const& other) : delim_type(other.delim_type) {
@@ -248,7 +248,7 @@ namespace Rust {
             // only allow identifiers, "super", "self", "crate", or "$crate"
           public:
             // TODO: put checks in constructor to enforce this rule?
-            SimplePathSegment(::std::string segment_name) : segment_name(segment_name) {}
+            SimplePathSegment(::std::string segment_name) : segment_name(::std::move(segment_name)) {}
 
             // Returns whether simple path segment is in an invalid state (currently, if empty).
             inline bool is_error() const {
@@ -308,8 +308,8 @@ namespace Rust {
             }
 
             // Constructor has pointer AttrInput for polymorphism reasons
-            Attribute(SimplePath path_, AttrInput* input) :
-              path(::std::move(path_)), attr_input(input) {}
+            Attribute(SimplePath path, AttrInput* input) :
+              path(::std::move(path)), attr_input(input) {}
 
             // Copy constructor must deep copy attr_input as unique pointer
             Attribute(Attribute const& other) :
@@ -326,7 +326,7 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics but no move in c++03
+            // default move semantics 
             Attribute(Attribute&& other) = default;
             Attribute& operator=(Attribute&& other) = default;
 
@@ -480,11 +480,9 @@ namespace Rust {
             ::std::string as_string() const;
 
           protected:
-            // Outer attribute constructor
-            Item(::std::vector<Attribute> outer_attribs) : outer_attrs(::std::move(outer_attribs)) {}
-
-            // No outer attributes constructor
-            Item() {}
+            // Constructor
+            Item(::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
+              outer_attrs(::std::move(outer_attribs)) {}
 
             // Clone function implementation as pure virtual method
             virtual Item* clone_item_impl() const = 0;
@@ -511,11 +509,9 @@ namespace Rust {
             }
 
           protected:
-            // Outer attribute constructor
-            Expr(::std::vector<Attribute> outer_attribs) : outer_attrs(::std::move(outer_attribs)) {}
-
-            // No outer attributes constructor
-            Expr() {}
+            // Constructor
+            Expr(::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
+              outer_attrs(::std::move(outer_attribs)) {}
 
             // Clone function implementation as pure virtual method
             virtual Expr* clone_expr_impl() const = 0;
@@ -524,12 +520,9 @@ namespace Rust {
         // AST node for an expression without an accompanying block - abstract
         class ExprWithoutBlock : public Expr {
           protected:
-            // Outer attribute constructor
-            ExprWithoutBlock(::std::vector<Attribute> outer_attribs) :
+            // Constructor
+            ExprWithoutBlock(::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
               Expr(::std::move(outer_attribs)) {}
-
-            // No outer attribute constructor
-            ExprWithoutBlock() : Expr() {}
 
             // pure virtual clone implementation
             virtual ExprWithoutBlock* clone_expr_without_block_impl() const = 0;
@@ -628,12 +621,9 @@ namespace Rust {
             // only applies for NAMED lifetime_type
 
           public:
-            // Named constructor
-            Lifetime(LifetimeType type, ::std::string name) :
+            // Constructor
+            Lifetime(LifetimeType type, ::std::string name = ::std::string()) :
               lifetime_type(type), lifetime_name(::std::move(name)) {}
-
-            // Nameless constructor (error for named lifetime)
-            Lifetime(LifetimeType type) : lifetime_type(type) {}
 
             // Creates an "error" lifetime.
             static Lifetime error() {
@@ -692,7 +682,7 @@ namespace Rust {
 
             // Creates an error state lifetime param.
             static LifetimeParam create_error() {
-                return LifetimeParam(Lifetime::error(), Attribute::create_empty());
+                return LifetimeParam(Lifetime::error());
             }
 
             // Returns whether the lifetime param is in an error state.
@@ -700,20 +690,12 @@ namespace Rust {
                 return lifetime.is_error();
             }
 
-            // Constructor for a lifetime param with no attribute.
-            LifetimeParam(Lifetime lifetime, ::std::vector<Lifetime> lifetime_bounds) :
-              lifetime(::std::move(lifetime)), lifetime_bounds(::std::move(lifetime_bounds)),
-              outer_attr(Attribute::create_empty()) {}
-
-            // Constructor for a lifetime param with an attribute.
-            LifetimeParam(
-              Lifetime lifetime, ::std::vector<Lifetime> lifetime_bounds, Attribute outer_attr) :
+            // Constructor
+            LifetimeParam(Lifetime lifetime,
+              ::std::vector<Lifetime> lifetime_bounds = ::std::vector<Lifetime>(),
+              Attribute outer_attr = Attribute::create_empty()) :
               lifetime(::std::move(lifetime)),
               lifetime_bounds(::std::move(lifetime_bounds)), outer_attr(::std::move(outer_attr)) {}
-
-            // Constructor without lifetime bounds.
-            LifetimeParam(Lifetime lifetime, Attribute outer_attr) :
-              lifetime(::std::move(lifetime)), outer_attr(::std::move(outer_attr)) {}
 
             // Copy constructor with clone
             LifetimeParam(LifetimeParam const& other) :
@@ -757,11 +739,9 @@ namespace Rust {
             ::std::vector<Attribute> outer_attrs;
 
           protected:
-            // Outer attributes constructor
-            TraitItem(::std::vector<Attribute> outer_attrs) : outer_attrs(::std::move(outer_attrs)) {}
-
-            // Empty constructor
-            TraitItem() {}
+            // Constructor
+            TraitItem(::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              outer_attrs(::std::move(outer_attrs)) {}
 
             // Clone function implementation as pure virtual method
             virtual TraitItem* clone_trait_item_impl() const = 0;
@@ -870,17 +850,13 @@ namespace Rust {
             ::std::vector< ::std::unique_ptr<Item> > items;
 
           public:
-            // Constructor for crate without shebang or utf8bom
-            Crate(
-              ::std::vector< ::std::unique_ptr<Item> > items, ::std::vector<Attribute> inner_attrs) :
-              items(::std::move(items)),
-              inner_attrs(inner_attrs), has_shebang(false), has_utf8bom(false) {}
-
-            // Constructor with potentially a shebang and/or utf8bom
+            // Constructor
             Crate(::std::vector< ::std::unique_ptr<Item> > items,
-              ::std::vector<Attribute> inner_attrs, bool has_utf8bom, bool has_shebang) :
+              ::std::vector<Attribute> inner_attrs, bool has_utf8bom = false,
+              bool has_shebang = false) :
               items(::std::move(items)),
-              inner_attrs(inner_attrs), has_shebang(has_shebang), has_utf8bom(has_utf8bom) {}
+              inner_attrs(::std::move(inner_attrs)), has_shebang(has_shebang),
+              has_utf8bom(has_utf8bom) {}
 
             // Copy constructor with vector clone
             Crate(Crate const& other) :

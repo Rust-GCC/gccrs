@@ -26,12 +26,16 @@ namespace Rust {
         class ExprWithBlock : public Expr {
             // TODO: should this mean that a BlockExpr should be a member variable?
           protected:
-            ExprWithBlock(::std::vector<Attribute> outer_attrs) : Expr(outer_attrs) {}
-
-            ExprWithBlock() : Expr() {}
+            ExprWithBlock(::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              Expr(::std::move(outer_attrs)) {}
 
             // pure virtual clone implementation
             virtual ExprWithBlock* clone_expr_with_block_impl() const = 0;
+
+            // prevent having to define multiple clone expressions
+            virtual ExprWithBlock* clone_expr_impl() const OVERRIDE {
+                return clone_expr_with_block_impl();
+            }
 
           public:
             // Unique pointer custom clone function
@@ -70,13 +74,10 @@ namespace Rust {
                 return type;
             }
 
-            LiteralExpr(
-              ::std::string value_as_string, LitType type, ::std::vector<Attribute> outer_attrs) :
-              value_as_string(value_as_string),
-              type(type), ExprWithoutBlock(outer_attrs) {}
-
-            LiteralExpr(::std::string value_as_string, LitType type) :
-              value_as_string(value_as_string), type(type) {}
+            LiteralExpr(::std::string value_as_string, LitType type,
+              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              value_as_string(::std::move(value_as_string)),
+              type(type), ExprWithoutBlock(::std::move(outer_attrs)) {}
 
             // Unique pointer custom clone function
             ::std::unique_ptr<LiteralExpr> clone_literal_expr() const {
@@ -109,7 +110,7 @@ namespace Rust {
             // TODO: will require pointer if LiteralExpr is changed to have subclassing
 
           public:
-            AttrInputLiteral(LiteralExpr lit_expr) : literal_expr(lit_expr) {}
+            AttrInputLiteral(LiteralExpr lit_expr) : literal_expr(::std::move(lit_expr)) {}
             /*~AttrInputLiteral() {
                 delete literal_expr;
             }*/
@@ -136,7 +137,8 @@ namespace Rust {
                 delete expr;
             }*/
 
-            MetaItemLit(LiteralExpr expr, SimplePath path) : expr(expr), MetaItem(path) {}
+            MetaItemLit(LiteralExpr expr, SimplePath path) :
+              expr(::std::move(expr)), MetaItem(::std::move(path)) {}
 
           protected:
             // Use covariance to implement clone function as returning derived object
@@ -216,7 +218,7 @@ namespace Rust {
             }
 
             MetaItemSeq(SimplePath path, ::std::vector<MetaItemInner> sequence) :
-              sequence(sequence), MetaItem(path) {}
+              sequence(::std::move(sequence)), MetaItem(::std::move(path)) {}
 
           protected:
             // Use covariance to implement clone function as returning derived object
@@ -227,55 +229,63 @@ namespace Rust {
 
         // Something to do with subsets of MetaItem syntax or something
         struct MetaWord {
+          private:
             Identifier word;
 
           public:
-            MetaWord(Identifier word) : word(word) {}
+            MetaWord(Identifier word) : word(::std::move(word)) {}
         };
 
         // A name-value string
         struct MetaNameValueStr {
+          private:
             Identifier name;
             ::std::string value;
 
           public:
-            MetaNameValueStr(Identifier name, ::std::string value) : name(name), value(value) {}
+            MetaNameValueStr(Identifier name, ::std::string value) :
+              name(::std::move(name)), value(::std::move(value)) {}
         };
 
         // A list of paths
         struct MetaListPaths {
+          private:
             Identifier type_thing;
             ::std::vector<SimplePath> paths;
 
           public:
             MetaListPaths(Identifier type_thing, ::std::vector<SimplePath> paths) :
-              type_thing(type_thing), paths(paths) {}
+              type_thing(::std::move(type_thing)), paths(::std::move(paths)) {}
         };
 
         // A list of identifiers
         struct MetaListIdents {
+          private:
             Identifier directive_thing;
             ::std::vector<Identifier> idents_to_use;
 
           public:
             MetaListIdents(Identifier directive_thing, ::std::vector<Identifier> idents_to_use) :
-              directive_thing(directive_thing), idents_to_use(idents_to_use) {}
+              directive_thing(::std::move(directive_thing)),
+              idents_to_use(::std::move(idents_to_use)) {}
         };
 
         // A list of MetaNameValueStr
         struct MetaListNameValueStr {
+          private:
             Identifier macro_name_thing;
             ::std::vector<MetaNameValueStr> list;
 
           public:
             MetaListNameValueStr(Identifier macro_name_thing, ::std::vector<MetaNameValueStr> list) :
-              macro_name_thing(macro_name_thing), list(list) {}
+              macro_name_thing(::std::move(macro_name_thing)), list(::std::move(list)) {}
         };
 
         // Base path expression AST node - abstract
         class PathExpr : public ExprWithoutBlock {
           protected:
-            PathExpr(::std::vector<Attribute> outer_attribs) : ExprWithoutBlock(outer_attribs) {}
+            PathExpr(::std::vector<Attribute> outer_attribs) :
+              ExprWithoutBlock(::std::move(outer_attribs)) {}
         };
 
         // AST node for a non-qualified path expression
@@ -288,7 +298,7 @@ namespace Rust {
             }
 
             PathExprNonQual(PathInExpression path, ::std::vector<Attribute> outer_attribs) :
-              path(path), PathExpr(outer_attribs) {}
+              path(::std::move(path)), PathExpr(::std::move(outer_attribs)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -312,7 +322,7 @@ namespace Rust {
             }
 
             PathExprQual(QualifiedPathInExpression path, ::std::vector<Attribute> outer_attribs) :
-              path(path), PathExpr(outer_attribs) {}
+              path(::std::move(path)), PathExpr(::std::move(outer_attribs)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -336,7 +346,7 @@ namespace Rust {
 
             // Constructor (only for initialisation of expr purposes)
             OperatorExpr(Expr* main_or_left_expr_, ::std::vector<Attribute> outer_attribs) :
-              main_or_left_expr(main_or_left_expr_), ExprWithoutBlock(outer_attribs) {}
+              main_or_left_expr(main_or_left_expr_), ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor (only for initialisation of expr purposes)
             OperatorExpr(OperatorExpr const& other) :
@@ -372,7 +382,7 @@ namespace Rust {
             // Constructor calls OperatorExpr's protected constructor
             BorrowExpr(Expr* borrow_lvalue, bool is_mut_borrow, bool is_double_borrow,
               ::std::vector<Attribute> outer_attribs) :
-              OperatorExpr(borrow_lvalue, outer_attribs),
+              OperatorExpr(borrow_lvalue, ::std::move(outer_attribs)),
               is_mut(is_mut_borrow), double_borrow(is_double_borrow) {}
 
             // Copy constructor - define here if required
@@ -401,7 +411,7 @@ namespace Rust {
 
             // Constructor calls OperatorExpr's protected constructor
             DereferenceExpr(Expr* deref_lvalue, ::std::vector<Attribute> outer_attribs) :
-              OperatorExpr(deref_lvalue, outer_attribs) {}
+              OperatorExpr(deref_lvalue, ::std::move(outer_attribs)) {}
 
             // Copy constructor - define here if required
 
@@ -431,7 +441,7 @@ namespace Rust {
             // Constructor calls OperatorExpr's protected constructor
             ErrorPropogationExpr(
               Expr* potential_error_value, ::std::vector<Attribute> outer_attribs) :
-              OperatorExpr(potential_error_value, outer_attribs) {}
+              OperatorExpr(potential_error_value, ::std::move(outer_attribs)) {}
 
             // Copy constructor - define here if required
 
@@ -470,7 +480,7 @@ namespace Rust {
             // Constructor calls OperatorExpr's protected constructor
             NegationExpr(Expr* negated_value, NegationType negation_kind,
               ::std::vector<Attribute> outer_attribs) :
-              OperatorExpr(negated_value, outer_attribs),
+              OperatorExpr(negated_value, ::std::move(outer_attribs)),
               negation_type(negation_kind) {}
 
             // Copy constructor - define here if required
@@ -875,7 +885,7 @@ namespace Rust {
             GroupedExpr(Expr* parenthesised_expr, ::std::vector<Attribute> inner_attribs,
               ::std::vector<Attribute> outer_attribs) :
               expr_in_parens(parenthesised_expr),
-              inner_attrs(inner_attribs), ExprWithoutBlock(outer_attribs) {}
+              inner_attrs(::std::move(inner_attribs)), ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor includes clone for expr_in_parens
             GroupedExpr(GroupedExpr const& other) :
@@ -1003,9 +1013,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ArrayElemsCopied(ArrayElemsCopied&& other) = default;
-            ArrayElemsCopied& operator=(ArrayElemsCopied&& other) = default;*/
+            // move constructors 
+            ArrayElemsCopied(ArrayElemsCopied&& other) = default;
+            ArrayElemsCopied& operator=(ArrayElemsCopied&& other) = default;
 
           protected:
             virtual ArrayElemsCopied* clone_array_elems_impl() const OVERRIDE {
@@ -1030,7 +1040,7 @@ namespace Rust {
             ArrayExpr(ArrayElems* array_elems, ::std::vector<Attribute> inner_attribs,
               ::std::vector<Attribute> outer_attribs) :
               internal_elements(array_elems),
-              inner_attrs(inner_attribs), ExprWithoutBlock(outer_attribs) {}
+              inner_attrs(::std::move(inner_attribs)), ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor requires cloning ArrayElems for polymorphism to hold
             ArrayExpr(ArrayExpr const& other) :
@@ -1084,9 +1094,9 @@ namespace Rust {
             ::std::string as_string() const;
 
             ArrayIndexExpr(
-              Expr* array_expr_, Expr* array_index_expr, ::std::vector<Attribute> outer_attribs) :
-              array_expr(array_expr_),
-              index_expr(array_index_expr), ExprWithoutBlock(outer_attribs) {}
+              Expr* array_expr, Expr* array_index_expr, ::std::vector<Attribute> outer_attribs) :
+              array_expr(array_expr),
+              index_expr(array_index_expr), ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor requires special cloning due to unique_ptr
             ArrayIndexExpr(ArrayIndexExpr const& other) :
@@ -1139,7 +1149,7 @@ namespace Rust {
             TupleExpr(::std::vector< ::std::unique_ptr<Expr> > tuple_elements,
               ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs) :
               tuple_elems(::std::move(tuple_elements)),
-              inner_attrs(inner_attribs), ExprWithoutBlock(outer_attribs) {}
+              inner_attrs(::std::move(inner_attribs)), ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // copy constructor with vector clone
             TupleExpr(TupleExpr const& other) :
@@ -1208,9 +1218,9 @@ namespace Rust {
             }
 
             TupleIndexExpr(
-              Expr* tuple_expr_, TupleIndex index, ::std::vector<Attribute> outer_attribs) :
-              tuple_expr(tuple_expr_),
-              tuple_index(index), ExprWithoutBlock(outer_attribs) {}
+              Expr* tuple_expr, TupleIndex index, ::std::vector<Attribute> outer_attribs) :
+              tuple_expr(tuple_expr),
+              tuple_index(index), ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor requires a clone for tuple_expr
             TupleIndexExpr(TupleIndexExpr const& other) :
@@ -1252,7 +1262,7 @@ namespace Rust {
           protected:
             // Protected constructor to allow initialising struct_name
             StructExpr(PathInExpression struct_path, ::std::vector<Attribute> outer_attribs) :
-              struct_name(struct_path), ExprWithoutBlock(outer_attribs) {}
+              struct_name(::std::move(struct_path)), ExprWithoutBlock(::std::move(outer_attribs)) {}
 
           public:
             inline PathInExpression get_struct_name() const {
@@ -1274,8 +1284,8 @@ namespace Rust {
             // Constructor has to call protected constructor of base class
             StructExprStruct(PathInExpression struct_path, ::std::vector<Attribute> inner_attribs,
               ::std::vector<Attribute> outer_attribs) :
-              StructExpr(struct_path, outer_attribs),
-              inner_attrs(inner_attribs) {}
+              StructExpr(::std::move(struct_path), ::std::move(outer_attribs)),
+              inner_attrs(::std::move(inner_attribs)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1349,7 +1359,8 @@ namespace Rust {
             Identifier field_name;
 
           public:
-            StructExprFieldIdentifier(Identifier field_identifier) : field_name(field_identifier) {}
+            StructExprFieldIdentifier(Identifier field_identifier) :
+              field_name(::std::move(field_identifier)) {}
 
           protected:
             // Use covariance to implement clone function as returning this rather than base
@@ -1395,7 +1406,7 @@ namespace Rust {
 
           public:
             StructExprFieldIdentifierValue(Identifier field_identifier, Expr* field_value) :
-              StructExprFieldWithVal(field_value), field_name(field_identifier) {}
+              StructExprFieldWithVal(field_value), field_name(::std::move(field_identifier)) {}
 
             // copy constructor, destructor, and overloaded assignment operator should carry through
 
@@ -1449,17 +1460,13 @@ namespace Rust {
             // Constructor for StructExprStructFields when no struct base is used
             StructExprStructFields(PathInExpression struct_path,
               ::std::vector< ::std::unique_ptr<StructExprField> > expr_fields,
-              ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs) :
+              StructBase base_struct = StructBase::error(),
+              ::std::vector<Attribute> inner_attribs = ::std::vector<Attribute>(),
+              ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
               fields(::std::move(expr_fields)),
-              struct_base(StructBase::error()),
-              StructExprStruct(struct_path, inner_attribs, outer_attribs) {}
-
-            // Constructor for StructExprStructFields when a struct base is used
-            StructExprStructFields(PathInExpression struct_path, StructBase base_struct,
-              ::std::vector< ::std::unique_ptr<StructExprField> > expr_fields,
-              ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs) :
-              fields(::std::move(expr_fields)),
-              struct_base(base_struct), StructExprStruct(struct_path, inner_attribs, outer_attribs) {}
+              struct_base(::std::move(base_struct)),
+              StructExprStruct(
+                ::std::move(struct_path), ::std::move(inner_attribs), ::std::move(outer_attribs)) {}
 
             // copy constructor with vector clone
             StructExprStructFields(StructExprStructFields const& other) :
@@ -1516,8 +1523,9 @@ namespace Rust {
 
             StructExprStructBase(PathInExpression struct_path, StructBase base_struct,
               ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs) :
-              struct_base(base_struct),
-              StructExprStruct(struct_path, inner_attribs, outer_attribs) {}
+              struct_base(::std::move(base_struct)),
+              StructExprStruct(
+                ::std::move(struct_path), ::std::move(inner_attribs), ::std::move(outer_attribs)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1552,7 +1560,8 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<Expr> > tuple_exprs,
               ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs) :
               exprs(::std::move(tuple_exprs)),
-              inner_attrs(inner_attribs), StructExpr(struct_path, outer_attribs) {}
+              inner_attrs(::std::move(inner_attribs)),
+              StructExpr(::std::move(struct_path), ::std::move(outer_attribs)) {}
 
             // copy constructor with vector clone
             StructExprTuple(StructExprTuple const& other) :
@@ -1605,7 +1614,7 @@ namespace Rust {
             }
 
             StructExprUnit(PathInExpression struct_path, ::std::vector<Attribute> outer_attribs) :
-              StructExpr(struct_path, outer_attribs) {}
+              StructExpr(::std::move(struct_path), ::std::move(outer_attribs)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1628,8 +1637,8 @@ namespace Rust {
             // Protected constructor for initialising enum_variant_path
             EnumVariantExpr(
               PathInExpression path_to_enum_variant, ::std::vector<Attribute> outer_attribs) :
-              enum_variant_path(path_to_enum_variant),
-              ExprWithoutBlock(outer_attribs) {}
+              enum_variant_path(::std::move(path_to_enum_variant)),
+              ExprWithoutBlock(::std::move(outer_attribs)) {}
 
           public:
             // TODO: maybe remove and have string version gotten here directly
@@ -1658,7 +1667,8 @@ namespace Rust {
             Identifier field_name;
 
           public:
-            EnumExprFieldIdentifier(Identifier field_identifier) : field_name(field_identifier) {}
+            EnumExprFieldIdentifier(Identifier field_identifier) :
+              field_name(::std::move(field_identifier)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1669,14 +1679,10 @@ namespace Rust {
 
         // Base AST node for a single enum expression field with an assigned value - abstract
         class EnumExprFieldWithVal : public EnumExprField {
-          protected:
-            /*~EnumExprFieldWithVal() {
-                delete value;
-            }*/
-
             // Expr* value;
             ::std::unique_ptr<Expr> value;
 
+          protected:
             EnumExprFieldWithVal(Expr* field_value) : value(field_value) {}
 
             // Copy constructor must clone unique_ptr value
@@ -1703,7 +1709,7 @@ namespace Rust {
 
           public:
             EnumExprFieldIdentifierValue(Identifier field_name, Expr* field_value) :
-              field_name(field_name), EnumExprFieldWithVal(field_value) {}
+              field_name(::std::move(field_name)), EnumExprFieldWithVal(field_value) {}
 
             // copy constructor, destructor, and assignment operator should not need defining
 
@@ -1748,7 +1754,7 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<EnumExprField> > variant_fields,
               ::std::vector<Attribute> outer_attribs) :
               fields(::std::move(variant_fields)),
-              EnumVariantExpr(enum_variant_path, outer_attribs) {}
+              EnumVariantExpr(::std::move(enum_variant_path), ::std::move(outer_attribs)) {}
 
             // copy constructor with vector clone
             EnumExprStruct(EnumExprStruct const& other) : EnumVariantExpr(other) {
@@ -1806,7 +1812,7 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<Expr> > variant_values,
               ::std::vector<Attribute> outer_attribs) :
               values(::std::move(variant_values)),
-              EnumVariantExpr(enum_variant_path, outer_attribs) {}
+              EnumVariantExpr(::std::move(enum_variant_path), ::std::move(outer_attribs)) {}
 
             // copy constructor with vector clone
             EnumExprTuple(EnumExprTuple const& other) : EnumVariantExpr(other) {
@@ -1858,7 +1864,7 @@ namespace Rust {
 
             EnumExprFieldless(
               PathInExpression enum_variant_path, ::std::vector<Attribute> outer_attribs) :
-              EnumVariantExpr(enum_variant_path, outer_attribs) {}
+              EnumVariantExpr(::std::move(enum_variant_path), ::std::move(outer_attribs)) {}
 
             // copy constructor, destructor, and assignment operator should not need defining
 
@@ -1895,7 +1901,7 @@ namespace Rust {
             CallExpr(Expr* function_expr, ::std::vector< ::std::unique_ptr<Expr> > function_params,
               ::std::vector<Attribute> outer_attribs) :
               function(function_expr),
-              params(::std::move(function_params)), ExprWithoutBlock(outer_attribs) {}
+              params(::std::move(function_params)), ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // copy constructor requires clone
             CallExpr(CallExpr const& other) :
@@ -1967,8 +1973,8 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<Expr> > method_params,
               ::std::vector<Attribute> outer_attribs) :
               receiver(call_receiver),
-              method_name(method_path), params(::std::move(method_params)),
-              ExprWithoutBlock(outer_attribs) {}
+              method_name(::std::move(method_path)), params(::std::move(method_params)),
+              ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // copy constructor required due to cloning
             MethodCallExpr(MethodCallExpr const& other) :
@@ -2035,7 +2041,7 @@ namespace Rust {
             FieldAccessExpr(Expr* field_access_receiver, Identifier field_name,
               ::std::vector<Attribute> outer_attribs) :
               receiver(field_access_receiver),
-              field(field_name), ExprWithoutBlock(outer_attribs) {}
+              field(::std::move(field_name)), ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor required due to unique_ptr cloning
             FieldAccessExpr(FieldAccessExpr const& other) :
@@ -2085,11 +2091,8 @@ namespace Rust {
                 return type != NULL;
             }
 
-            // Constructor for closure parameter with no given type
-            ClosureParam(Pattern* param_pattern) : pattern(param_pattern) /*, type(NULL)*/ {}
-
-            // Constructor for closure parameter with a given type
-            ClosureParam(Pattern* param_pattern, Type* param_type) :
+            // Constructor for closure parameter
+            ClosureParam(Pattern* param_pattern, Type* param_type = NULL) :
               pattern(param_pattern), type(param_type) {}
 
             // Copy constructor required due to cloning as a result of unique_ptrs
@@ -2148,17 +2151,12 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            // Constructor for a ClosureExprInner without a move
+            // Constructor for a ClosureExprInner
             ClosureExprInner(Expr* closure_inner_expr, ::std::vector<ClosureParam> closure_params,
-              ::std::vector<Attribute> outer_attribs) :
+              bool is_move = false,
+              ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
               closure_inner(closure_inner_expr),
-              ClosureExpr(closure_params, false, outer_attribs) {}
-
-            // Constructor for a ClosureExprInner with maybe a move
-            ClosureExprInner(Expr* closure_inner_expr, ::std::vector<ClosureParam> closure_params,
-              bool is_move, ::std::vector<Attribute> outer_attribs) :
-              closure_inner(closure_inner_expr),
-              ClosureExpr(closure_params, is_move, outer_attribs) {}
+              ClosureExpr(::std::move(closure_params), is_move, ::std::move(outer_attribs)) {}
 
             // Copy constructor must be defined to allow copying via cloning of unique_ptr
             ClosureExprInner(ClosureExprInner const& other) :
@@ -2226,7 +2224,8 @@ namespace Rust {
               ExprWithoutBlock* block_expr, ::std::vector<Attribute> inner_attribs,
               ::std::vector<Attribute> outer_attribs) :
               statements(::std::move(block_statements)),
-              expr(block_expr), inner_attrs(inner_attribs), ExprWithBlock(outer_attribs) {}
+              expr(block_expr), inner_attrs(::std::move(inner_attribs)),
+              ExprWithBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor with clone
             BlockExpr(BlockExpr const& other) :
@@ -2301,18 +2300,13 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            // Constructor with no move
-            ClosureExprInnerTyped(Type* closure_return_type, BlockExpr* closure_expr,
-              ::std::vector<ClosureParam> closure_params, ::std::vector<Attribute> outer_attribs) :
-              return_type(closure_return_type),
-              expr(closure_expr), ClosureExpr(closure_params, false, outer_attribs) {}
-
             // Constructor potentially with a move
             ClosureExprInnerTyped(Type* closure_return_type, BlockExpr* closure_expr,
-              ::std::vector<ClosureParam> closure_params, bool is_move,
-              ::std::vector<Attribute> outer_attribs) :
+              ::std::vector<ClosureParam> closure_params, bool is_move = false,
+              ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
               return_type(closure_return_type),
-              expr(closure_expr), ClosureExpr(closure_params, is_move, outer_attribs) {}
+              expr(closure_expr),
+              ClosureExpr(::std::move(closure_params), is_move, ::std::move(outer_attribs)) {}
 
             // Copy constructor requires cloning
             ClosureExprInnerTyped(ClosureExprInnerTyped const& other) :
@@ -2362,13 +2356,11 @@ namespace Rust {
                 return !label.is_error();
             }
 
-            // Constructor for a ContinueExpr without a label.
-            ContinueExpr(::std::vector<Attribute> outer_attribs) :
-              label(Lifetime::error()), ExprWithoutBlock(outer_attribs) {}
-
             // Constructor for a ContinueExpr with a label.
-            ContinueExpr(Lifetime label, ::std::vector<Attribute> outer_attribs) :
-              label(label), ExprWithoutBlock(outer_attribs) {}
+            ContinueExpr(Lifetime label = Lifetime::error(),
+              ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
+              label(::std::move(label)),
+              ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // copy constructor, destructor, and assignment operator should not need defining
 
@@ -2413,15 +2405,11 @@ namespace Rust {
                 return break_expr != NULL;
             }
 
-            // Constructor for a break expression without a label or expression in break
-            BreakExpr(::std::vector<Attribute> outer_attribs) :
-              label(Lifetime::error()), /*break_expr(NULL),*/ ExprWithoutBlock(outer_attribs) {}
-
-            // Constructor for a break expression with potentially a label and expression in break
-            BreakExpr(
-              Lifetime break_label, Expr* expr_in_break, ::std::vector<Attribute> outer_attribs) :
-              label(break_label),
-              break_expr(expr_in_break), ExprWithoutBlock(outer_attribs) {}
+            // Constructor for a break expression
+            BreakExpr(Lifetime break_label = Lifetime::error(), Expr* expr_in_break = NULL,
+              ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
+              label(::std::move(break_label)),
+              break_expr(expr_in_break), ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor defined to use clone for unique pointer
             BreakExpr(BreakExpr const& other) :
@@ -2690,7 +2678,7 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            RangeToInclExpr(Expr* range_to, ::std::vector<Attribute> outer_attribs) : to(range_to) {}
+            RangeToInclExpr(Expr* range_to) : to(range_to) {}
             // outer attributes not allowed
 
             // Copy constructor with clone
@@ -2743,13 +2731,11 @@ namespace Rust {
                 return return_expr != NULL;
             }
 
-            // Constructor for ReturnExpr without a returned expression.
-            ReturnExpr(::std::vector<Attribute> outer_attribs) :
-              /*return_expr(NULL),*/ ExprWithoutBlock(outer_attribs) {}
-
-            // Constructor for ReturnExpr with a returned expression.
-            ReturnExpr(Expr* returned_expr, ::std::vector<Attribute> outer_attribs) :
-              return_expr(returned_expr), ExprWithoutBlock(outer_attribs) {}
+            // Constructor for ReturnExpr.
+            ReturnExpr(Expr* returned_expr = NULL,
+              ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
+              return_expr(returned_expr),
+              ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor with clone
             ReturnExpr(ReturnExpr const& other) :
@@ -2803,7 +2789,7 @@ namespace Rust {
             ::std::string as_string() const;
 
             UnsafeBlockExpr(BlockExpr* block_expr, ::std::vector<Attribute> outer_attribs) :
-              expr(block_expr), ExprWithBlock(outer_attribs) {}
+              expr(block_expr), ExprWithBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor with clone
             UnsafeBlockExpr(UnsafeBlockExpr const& other) :
@@ -2844,7 +2830,7 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            LoopLabel(Lifetime loop_label) : label(loop_label) {}
+            LoopLabel(Lifetime loop_label) : label(::std::move(loop_label)) {}
 
             // Returns whether the LoopLabel is in an error state.
             inline bool is_error() const {
@@ -2866,15 +2852,11 @@ namespace Rust {
             ::std::unique_ptr<BlockExpr> loop_block;
 
           protected:
-            // Constructor for BaseLoopExpr without a loop label
-            BaseLoopExpr(BlockExpr* loop_block, ::std::vector<Attribute> outer_attribs) :
-              loop_block(loop_block), loop_label(LoopLabel::error()), ExprWithBlock(outer_attribs) {}
-
-            // Constructor for BaseLoopExpr with a loop label
-            BaseLoopExpr(
-              BlockExpr* loop_block, LoopLabel loop_label, ::std::vector<Attribute> outer_attribs) :
+            // Constructor for BaseLoopExpr
+            BaseLoopExpr(BlockExpr* loop_block, LoopLabel loop_label = LoopLabel::error(),
+              ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
               loop_block(loop_block),
-              loop_label(loop_label), ExprWithBlock(outer_attribs) {}
+              loop_label(::std::move(loop_label)), ExprWithBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor for BaseLoopExpr with clone
             BaseLoopExpr(BaseLoopExpr const& other) :
@@ -2912,14 +2894,10 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            // Constructor for LoopExpr without a loop label
-            LoopExpr(BlockExpr* loop_block, ::std::vector<Attribute> outer_attribs) :
-              BaseLoopExpr(loop_block, outer_attribs) {}
-
-            // Constructor for LoopExpr with a loop label
-            LoopExpr(
-              BlockExpr* loop_block, LoopLabel loop_label, ::std::vector<Attribute> outer_attribs) :
-              BaseLoopExpr(loop_block, loop_label, outer_attribs) {}
+            // Constructor for LoopExpr
+            LoopExpr(BlockExpr* loop_block, LoopLabel loop_label = LoopLabel::error(),
+              ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
+              BaseLoopExpr(loop_block, ::std::move(loop_label), ::std::move(outer_attribs)) {}
 
             // copy constructor, destructor, and assignment operator should not need modification
 
@@ -2947,17 +2925,12 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            // Constructor for while loop without loop label
-            WhileLoopExpr(
-              Expr* loop_condition, BlockExpr* loop_block, ::std::vector<Attribute> outer_attribs) :
-              condition(loop_condition),
-              BaseLoopExpr(loop_block, outer_attribs) {}
-
             // Constructor for while loop with loop label
-            WhileLoopExpr(Expr* loop_condition, BlockExpr* loop_block, LoopLabel loop_label,
-              ::std::vector<Attribute> outer_attribs) :
+            WhileLoopExpr(Expr* loop_condition, BlockExpr* loop_block,
+              LoopLabel loop_label = LoopLabel::error(),
+              ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
               condition(loop_condition),
-              BaseLoopExpr(loop_block, loop_label, outer_attribs) {}
+              BaseLoopExpr(loop_block, ::std::move(loop_label), ::std::move(outer_attribs)) {}
 
             // Copy constructor with clone
             WhileLoopExpr(WhileLoopExpr const& other) :
@@ -3009,18 +2982,13 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            // Constructor with no loop label
-            WhileLetLoopExpr(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
-              Expr* condition, BlockExpr* loop_block, ::std::vector<Attribute> outer_attribs) :
-              match_arm_patterns(::std::move(match_arm_patterns)),
-              condition(condition), BaseLoopExpr(loop_block, outer_attribs) {}
-
             // Constructor with a loop label
             WhileLetLoopExpr(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
-              Expr* condition, BlockExpr* loop_block, LoopLabel loop_label,
-              ::std::vector<Attribute> outer_attribs) :
+              Expr* condition, BlockExpr* loop_block, LoopLabel loop_label = LoopLabel::error(),
+              ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
               match_arm_patterns(::std::move(match_arm_patterns)),
-              condition(condition), BaseLoopExpr(loop_block, loop_label, outer_attribs) {}
+              condition(condition),
+              BaseLoopExpr(loop_block, ::std::move(loop_label), ::std::move(outer_attribs)) {}
 
             // Copy constructor with clone
             WhileLetLoopExpr(WhileLetLoopExpr const& other) :
@@ -3086,17 +3054,13 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            // Constructor without loop label
-            ForLoopExpr(Pattern* loop_pattern, Expr* iterator_expr, BlockExpr* loop_body,
-              ::std::vector<Attribute> outer_attribs) :
-              pattern(loop_pattern),
-              iterator_expr(iterator_expr), BaseLoopExpr(loop_body, outer_attribs) {}
-
             // Constructor with loop label
             ForLoopExpr(Pattern* loop_pattern, Expr* iterator_expr, BlockExpr* loop_body,
-              LoopLabel loop_label, ::std::vector<Attribute> outer_attribs) :
+              LoopLabel loop_label = LoopLabel::error(),
+              ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
               pattern(loop_pattern),
-              iterator_expr(iterator_expr), BaseLoopExpr(loop_body, loop_label, outer_attribs) {}
+              iterator_expr(iterator_expr),
+              BaseLoopExpr(loop_body, ::std::move(loop_label), ::std::move(outer_attribs)) {}
 
             // Copy constructor with clone
             ForLoopExpr(ForLoopExpr const& other) :
@@ -3185,8 +3149,9 @@ namespace Rust {
                 return ::std::unique_ptr<IfExpr>(clone_if_expr_impl());
             }
 
-            // Note that multiple "else if"s are handled via nested ASTs rather than an array of
-            // else ifs - i.e. not like a switch statement
+            /* Note that multiple "else if"s are handled via nested ASTs rather than a vector of
+             * else ifs - i.e. not like a switch statement. TODO - is this a better approach? or
+             * does it not parse correctly and have downsides? */
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3867,7 +3832,7 @@ namespace Rust {
           public:
             // TODO: ensure outer attributes are actually allowed
             AwaitExpr(Expr* awaited_expr, ::std::vector<Attribute> outer_attrs) :
-              awaited_expr(awaited_expr), ExprWithoutBlock(::std::move(::std::move(outer_attrs))) {}
+              awaited_expr(awaited_expr), ExprWithoutBlock(::std::move(outer_attrs)) {}
 
             // copy constructor with clone
             AwaitExpr(AwaitExpr const& other) :
@@ -3919,6 +3884,14 @@ namespace Rust {
             // move constructors
             AsyncBlockExpr(AsyncBlockExpr&& other) = default;
             AsyncBlockExpr& operator=(AsyncBlockExpr&& other) = default;
+
+            ::std::string as_string() const;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual AsyncBlockExpr* clone_expr_with_block_impl() const OVERRIDE {
+                return new AsyncBlockExpr(*this);
+            }
         };
     }
 }

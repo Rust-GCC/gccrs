@@ -22,7 +22,7 @@ namespace Rust {
 
             // only allow identifiers, "super", "self", "Self", "crate", or "$crate"
           public:
-            PathIdentSegment(::std::string segment_name) : segment_name(segment_name) {}
+            PathIdentSegment(::std::string segment_name) : segment_name(::std::move(segment_name)) {}
 
             /* TODO: insert check in constructor for this? Or is this a semantic error best handled
              * then? */
@@ -58,7 +58,7 @@ namespace Rust {
 
             // Pointer type for type in constructor to enable polymorphism
             GenericArgsBinding(Identifier ident, Type* type_ptr) :
-              identifier(ident), type(type_ptr) {}
+              identifier(::std::move(ident)), type(type_ptr) {}
 
             // Copy constructor has to deep copy the type as it is a unique pointer
             GenericArgsBinding(GenericArgsBinding const& other) :
@@ -95,8 +95,8 @@ namespace Rust {
             GenericArgs(::std::vector<Lifetime> lifetime_args,
               ::std::vector< ::std::unique_ptr<Type> > type_args,
               ::std::vector<GenericArgsBinding> binding_args) :
-              lifetime_args(lifetime_args),
-              type_args(::std::move(type_args)), binding_args(binding_args) {}
+              lifetime_args(::std::move(lifetime_args)),
+              type_args(::std::move(type_args)), binding_args(::std::move(binding_args)) {}
 
             // copy constructor with vector clone
             GenericArgs(GenericArgs const& other) :
@@ -151,25 +151,21 @@ namespace Rust {
                 return generic_args.has_generic_args();
             }
 
-            // Constructor for segment without generic arguments (from IdentSegment)
-            PathExprSegment(PathIdentSegment segment_name) :
-              segment_name(segment_name), generic_args(GenericArgs::create_empty()) {}
-
-            // Constructor for segment with generic arguments (from IdentSegment and GenericArgs)
-            PathExprSegment(PathIdentSegment segment_name, GenericArgs generic_args) :
-              segment_name(segment_name), generic_args(generic_args) {}
-
-            // Constructor for segment without generic arguments (from segment name itself)
-            PathExprSegment(::std::string segment_name) :
-              segment_name(PathIdentSegment(segment_name)),
-              generic_args(GenericArgs::create_empty()) {}
+            // Constructor for segment (from IdentSegment and GenericArgs)
+            PathExprSegment(
+              PathIdentSegment segment_name, GenericArgs generic_args = GenericArgs::create_empty()) :
+              segment_name(::std::move(segment_name)),
+              generic_args(::std::move(generic_args)) {}
 
             // Constructor for segment with generic arguments (from segment name and all args)
-            PathExprSegment(::std::string segment_name, ::std::vector<Lifetime> lifetime_args,
-              ::std::vector< ::std::unique_ptr<Type> > type_args,
-              ::std::vector<GenericArgsBinding> binding_args) :
-              segment_name(PathIdentSegment(segment_name)),
-              generic_args(GenericArgs(lifetime_args, ::std::move(type_args), binding_args)) {}
+            PathExprSegment(::std::string segment_name,
+              ::std::vector<Lifetime> lifetime_args = ::std::vector<Lifetime>(),
+              ::std::vector< ::std::unique_ptr<Type> > type_args
+              = ::std::vector< ::std::unique_ptr<Type> >(),
+              ::std::vector<GenericArgsBinding> binding_args = ::std::vector<GenericArgsBinding>()) :
+              segment_name(PathIdentSegment(::std::move(segment_name))),
+              generic_args(GenericArgs(
+                ::std::move(lifetime_args), ::std::move(type_args), ::std::move(binding_args))) {}
 
             // Returns whether path expression segment is in an error state.
             inline bool is_error() const {
@@ -187,7 +183,7 @@ namespace Rust {
             ::std::vector<PathExprSegment> segments;
 
           protected:
-            PathPattern(::std::vector<PathExprSegment> segments) : segments(segments) {}
+            PathPattern(::std::vector<PathExprSegment> segments) : segments(::std::move(segments)) {}
 
             // Returns whether path has segments.
             inline bool has_segments() const {
@@ -202,15 +198,11 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            // Constructor with potentially an opening scope resolution
-            PathInExpression(
-              ::std::vector<PathExprSegment> path_segments, bool has_opening_scope_resolution) :
+            // Constructor
+            PathInExpression(::std::vector<PathExprSegment> path_segments,
+              bool has_opening_scope_resolution = false) :
               has_opening_scope_resolution(has_opening_scope_resolution),
-              PathPattern(path_segments) {}
-
-            // Constructor with no opening scope resolution
-            PathInExpression(::std::vector<PathExprSegment> path_segments) :
-              has_opening_scope_resolution(false), PathPattern(path_segments) {}
+              PathPattern(::std::move(path_segments)) {}
 
             // Creates an error state path in expression.
             static PathInExpression create_error() {
@@ -254,11 +246,11 @@ namespace Rust {
             }
 
             TypePathSegment(PathIdentSegment ident_segment, bool has_separating_scope_resolution) :
-              ident_segment(ident_segment),
+              ident_segment(::std::move(ident_segment)),
               has_separating_scope_resolution(has_separating_scope_resolution) {}
 
             TypePathSegment(::std::string segment_name, bool has_separating_scope_resolution) :
-              ident_segment(PathIdentSegment(segment_name)),
+              ident_segment(PathIdentSegment(::std::move(segment_name))),
               has_separating_scope_resolution(has_separating_scope_resolution) {}
         };
 
@@ -274,16 +266,16 @@ namespace Rust {
             // Constructor with PathIdentSegment and GenericArgs
             TypePathSegmentGeneric(PathIdentSegment ident_segment,
               bool has_separating_scope_resolution, GenericArgs generic_args) :
-              generic_args(generic_args),
-              TypePathSegment(ident_segment, has_separating_scope_resolution) {}
+              generic_args(::std::move(generic_args)),
+              TypePathSegment(::std::move(ident_segment), has_separating_scope_resolution) {}
 
             // Constructor from segment name and all args
             TypePathSegmentGeneric(::std::string segment_name, bool has_separating_scope_resolution,
               ::std::vector<Lifetime> lifetime_args,
               ::std::vector< ::std::unique_ptr<Type> > type_args,
               ::std::vector<GenericArgsBinding> binding_args) :
-              generic_args(GenericArgs(lifetime_args, ::std::move(type_args), binding_args)),
-              TypePathSegment(segment_name, has_separating_scope_resolution) {}
+              generic_args(GenericArgs(::std::move(lifetime_args), ::std::move(type_args), ::std::move(binding_args))),
+              TypePathSegment(::std::move(segment_name), has_separating_scope_resolution) {}
 
           protected:
             // Use covariance to override base class method
@@ -333,12 +325,8 @@ namespace Rust {
                 return TypePathFunction(true);
             }
 
-            // Constructor for function with no specified type.
-            TypePathFunction(::std::vector< ::std::unique_ptr<Type> > inputs) :
-              inputs(::std::move(inputs)), is_invalid(false) {}
-
-            // Constructor for function with a specified type.
-            TypePathFunction(::std::vector< ::std::unique_ptr<Type> > inputs, Type* type) :
+            // Constructor 
+            TypePathFunction(::std::vector< ::std::unique_ptr<Type> > inputs, Type* type = NULL) :
               inputs(::std::move(inputs)), return_type(type), is_invalid(false) {}
 
             // Copy constructor with clone
@@ -384,14 +372,14 @@ namespace Rust {
             // Constructor with PathIdentSegment and TypePathFn
             TypePathSegmentFunction(PathIdentSegment ident_segment,
               bool has_separating_scope_resolution, TypePathFunction function_path) :
-              function_path(function_path),
-              TypePathSegment(ident_segment, has_separating_scope_resolution) {}
+              function_path(::std::move(function_path)),
+              TypePathSegment(::std::move(ident_segment), has_separating_scope_resolution) {}
 
             // Constructor with segment name and TypePathFn
             TypePathSegmentFunction(::std::string segment_name, bool has_separating_scope_resolution,
               TypePathFunction function_path) :
-              function_path(function_path),
-              TypePathSegment(segment_name, has_separating_scope_resolution) {}
+              function_path(::std::move(function_path)),
+              TypePathSegment(::std::move(segment_name), has_separating_scope_resolution) {}
 
           protected:
             // Use covariance to override base class method
@@ -433,15 +421,11 @@ namespace Rust {
                 return TypePath(::std::vector< ::std::unique_ptr<TypePathSegment> >());
             }
 
-            // Constructor for TypePath with TypePathSegments and maybe an opening scope resolution
+            // Constructor 
             TypePath(::std::vector< ::std::unique_ptr<TypePathSegment> > segments,
-              bool has_opening_scope_resolution) :
+              bool has_opening_scope_resolution = false) :
               segments(::std::move(segments)),
               has_opening_scope_resolution(has_opening_scope_resolution) {}
-
-            // Constructor for TypePath with TypePathSegments and no opening scope resolution
-            TypePath(::std::vector< ::std::unique_ptr<TypePathSegment> > segments) :
-              segments(::std::move(segments)), has_opening_scope_resolution(false) {}
 
             // Copy constructor with vector clone
             TypePath(TypePath const& other) :
@@ -482,13 +466,9 @@ namespace Rust {
             TypePath trait_path;
 
           public:
-            // Constructor with a TypePath
-            QualifiedPathType(Type* invoke_on_type, TypePath trait_path_) :
-              type_to_invoke_on(invoke_on_type), trait_path(::std::move(trait_path_)) {}
-
-            // Constructor with no TypePath
-            QualifiedPathType(Type* invoke_on_type) :
-              type_to_invoke_on(invoke_on_type), trait_path(TypePath::create_error()) {}
+            // Constructor 
+            QualifiedPathType(Type* invoke_on_type, TypePath trait_path = TypePath::create_error()) :
+              type_to_invoke_on(invoke_on_type), trait_path(::std::move(trait_path)) {}
 
             // Copy constructor uses custom deep copy for Type to preserve polymorphism
             QualifiedPathType(QualifiedPathType const& other) :
@@ -536,7 +516,7 @@ namespace Rust {
             QualifiedPathInExpression(
               QualifiedPathType qual_path_type, ::std::vector<PathExprSegment> path_segments) :
               path_type(::std::move(qual_path_type)),
-              PathPattern(path_segments) {}
+              PathPattern(::std::move(path_segments)) {}
 
             // TODO: maybe make a shortcut constructor that has QualifiedPathType elements as params
 
@@ -580,7 +560,7 @@ namespace Rust {
           public:
             QualifiedPathInType(QualifiedPathType qual_path_type,
               ::std::vector< ::std::unique_ptr<TypePathSegment> > path_segments) :
-              path_type(qual_path_type),
+              path_type(::std::move(qual_path_type)),
               segments(::std::move(path_segments)) {}
 
             // TODO: maybe make a shortcut constructor that has QualifiedPathType elements as params

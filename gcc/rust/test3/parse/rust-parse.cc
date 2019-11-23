@@ -2110,18 +2110,14 @@ namespace Rust {
         AST::Lifetime lifetime(AST::Lifetime::NAMED, lifetime_tok->get_str());
 
         // parse lifetime bounds, if it exists
+        ::std::vector<AST::Lifetime> lifetime_bounds;
         if (lexer.peek_token()->get_id() == COLON) {
             // parse lifetime bounds
-            ::std::vector<AST::Lifetime> lifetime_bounds = parse_lifetime_bounds();
-
-            return AST::LifetimeParam(::std::move(lifetime), ::std::move(lifetime_bounds),
-              outer_attr.is_empty() ? AST::Attribute::create_empty()
-                                    : AST::Attribute(::std::move(outer_attr)));
+            lifetime_bounds = parse_lifetime_bounds();
         }
 
-        return AST::LifetimeParam(::std::move(lifetime), outer_attr.is_empty()
-                                                           ? AST::Attribute::create_empty()
-                                                           : AST::Attribute(::std::move(outer_attr)));
+        return AST::LifetimeParam(
+          ::std::move(lifetime), ::std::move(lifetime_bounds), ::std::move(outer_attr));
     }
 
     // Parses type generic parameters. Will also consume any trailing comma.
@@ -5014,7 +5010,10 @@ namespace Rust {
          *  - break expr            'break' labelled_lifetime? expr?
          *  - range expr            many different types but all involve '..' or '..='
          *  - return expr           'return' as 1st tok
-         *  - macro invocation      identifier then :: or identifier then ! (simple_path '!') */
+         *  - macro invocation      identifier then :: or identifier then ! (simple_path '!')
+         *
+         * any that have rules beginning with 'expr' should probably be pratt-parsed, with parsing
+         * type to use determined by token AND lookahead. */
 
         // ok well at least can do easy ones
         const_TokenPtr t = lexer.peek_token();
@@ -5033,8 +5032,7 @@ namespace Rust {
                 return parse_closure_expr(::std::move(outer_attrs));
             case LEFT_SQUARE:
                 // array expr (creation, not index)
-                // TODO:
-                break;
+                return parse_array_expr(::std::move(outer_attrs));
             case LEFT_PAREN:
                 /* either grouped expr or tuple expr - depends on whether there is a comma inside the
                  * parentheses - if so, tuple expr, otherwise, grouped expr. */
@@ -5331,32 +5329,219 @@ namespace Rust {
         return AST::LoopLabel(::std::move(label));
     }
 
-    // Parses an if expression of any kind, including with else, else if, else if let, and neither.
+    /* Parses an if expression of any kind, including with else, else if, else if let, and neither.
+     * Note that any outer attributes will be ignored because if expressions don't support them. */
     AST::IfExpr* Parser::parse_if_expr(::std::vector<AST::Attribute> outer_attrs) {
-        // TODO
-        return NULL;
+        // TODO: make having outer attributes an error?
 
         skip_token(IF);
 
         // detect accidental if let
+        if (lexer.peek_token()->get_id() == LET) {
+            error_at(lexer.peek_token()->get_locus(),
+              "if let expression probably exists, but is being parsed as an if expression. This may "
+              "be a parser error.");
+            // skip somewhere?
+            return NULL;
+        }
 
         // parse required condition expr
         AST::Expr* condition = parse_expr();
         if (condition == NULL) {
-            error_at(lexer.peek_token()->get_locus(), "failed to parse condition expression in if expression");
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse condition expression in if expression");
             // skip somewhere?
             return NULL;
         }
 
         // parse required block expr
+        AST::BlockExpr* if_body = parse_block_expr();
+        if (if_body == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse if body block expression in if expression");
+            // skip somewhere?
+            return NULL;
+        }
 
-        // branch to parse end, else, else if, or else if let
+        // branch to parse end or else (and then else, else if, or else if let)
+        if (lexer.peek_token()->get_id() != ELSE) {
+            // single selection - end of if expression
+            return new AST::IfExpr(condition, if_body);
+        } else {
+            // double or multiple selection - branch on end, else if, or else if let
+
+            // skip "else"
+            lexer.skip_token();
+
+            // branch on whether next token is '{' or 'if'
+            const_TokenPtr t = lexer.peek_token();
+            switch (t->get_id()) {
+                case LEFT_CURLY: {
+                    // double selection - else
+                    // parse else block expr (required)
+                    AST::BlockExpr* else_body = parse_block_expr();
+                    if (else_body == NULL) {
+                        error_at(lexer.peek_token()->get_locus(),
+                          "failed to parse else body block expression in if expression");
+                        // skip somewhere?
+                        return NULL;
+                    }
+
+                    return new AST::IfExprConseqElse(condition, if_body, else_body);
+                }
+                case IF: {
+                    // multiple selection - else if or else if let
+                    // branch on whether next token is 'let' or not
+                    if (lexer.peek_token(1)->get_id() == LET) {
+                        // parse if let expr (required)
+                        AST::IfLetExpr* if_let_expr = parse_if_let_expr();
+                        if (if_let_expr == NULL) {
+                            error_at(lexer.peek_token()->get_locus(),
+                              "failed to parse (else) if let expression after if expression");
+                            // skip somewhere?
+                            return NULL;
+                        }
+
+                        return new AST::IfExprConseqIfLet(condition, if_body, if_let_expr);
+                    } else {
+                        // parse if expr (required)
+                        AST::IfExpr* if_expr = parse_if_expr();
+                        if (if_expr == NULL) {
+                            error_at(lexer.peek_token()->get_locus(),
+                              "failed to parse (else) if expression after if expression");
+                            // skip somewhere?
+                            return NULL;
+                        }
+
+                        return new AST::IfExprConseqIf(condition, if_body, if_expr);
+                    }
+                }
+                default:
+                    // error - invalid token
+                    error_at(t->get_locus(), "unexpected token '%s' after else in if expression",
+                      t->get_token_description());
+                    // skip somewhere?
+                    return NULL;
+            }
+        }
     }
 
-    // Parses an if let expression of any kind, including with else, else if, else if let, and none.
+    /* Parses an if let expression of any kind, including with else, else if, else if let, and none.
+     * Note that any outer attributes will be ignored as if let expressions don't support them. */
     AST::IfLetExpr* Parser::parse_if_let_expr(::std::vector<AST::Attribute> outer_attrs) {
-        // TODO
-        return NULL;
+        // TODO: make having outer attributes an error?
+
+        skip_token(IF);
+
+        // detect accidental if expr parsed as if let expr
+        if (lexer.peek_token()->get_id() != LET) {
+            error_at(lexer.peek_token()->get_locus(),
+              "if expression probably exists, but is being parsed as an if let expression. This may "
+              "be a parser error.");
+            // skip somewhere?
+            return NULL;
+        }
+        lexer.skip_token();
+
+        // parse match arm patterns (which are required)
+        ::std::vector< ::std::unique_ptr<AST::Pattern> > match_arm_patterns
+          = parse_match_arm_patterns();
+        if (match_arm_patterns.empty()) {
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse any match arm patterns in if let expression");
+            // skip somewhere?
+            return NULL;
+        }
+
+        if (!skip_token(EQUAL)) {
+            // skip somewhere?
+            return NULL;
+        }
+
+        // parse expression (required)
+        AST::Expr* scrutinee_expr = parse_expr();
+        if (scrutinee_expr == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse scrutinee expression in if let expression");
+            // skip somewhere?
+            return NULL;
+        }
+        /* TODO: check for expression not being a struct expression or lazy boolean expression here?
+         * or actually probably in semantic analysis. */
+
+        // parse block expression (required)
+        AST::BlockExpr* if_let_body = parse_block_expr();
+        if (if_let_body == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse if let body block expression in if let expression");
+            // skip somewhere?
+            return NULL;
+        }
+
+        // branch to parse end or else (and then else, else if, or else if let)
+        if (lexer.peek_token()->get_id() != ELSE) {
+            // single selection - end of if let expression
+            return new AST::IfLetExpr(::std::move(match_arm_patterns), scrutinee_expr, if_let_body);
+        } else {
+            // double or multiple selection - branch on end, else if, or else if let
+
+            // skip "else"
+            lexer.skip_token();
+
+            // branch on whether next token is '{' or 'if'
+            const_TokenPtr t = lexer.peek_token();
+            switch (t->get_id()) {
+                case LEFT_CURLY: {
+                    // double selection - else
+                    // parse else block expr (required)
+                    AST::BlockExpr* else_body = parse_block_expr();
+                    if (else_body == NULL) {
+                        error_at(lexer.peek_token()->get_locus(),
+                          "failed to parse else body block expression in if let expression");
+                        // skip somewhere?
+                        return NULL;
+                    }
+
+                    return new AST::IfLetExprConseqElse(
+                      ::std::move(match_arm_patterns), scrutinee_expr, if_let_body, else_body);
+                }
+                case IF: {
+                    // multiple selection - else if or else if let
+                    // branch on whether next token is 'let' or not
+                    if (lexer.peek_token(1)->get_id() == LET) {
+                        // parse if let expr (required)
+                        AST::IfLetExpr* if_let_expr = parse_if_let_expr();
+                        if (if_let_expr == NULL) {
+                            error_at(lexer.peek_token()->get_locus(),
+                              "failed to parse (else) if let expression after if let expression");
+                            // skip somewhere?
+                            return NULL;
+                        }
+
+                        return new AST::IfLetExprConseqIfLet(
+                          ::std::move(match_arm_patterns), scrutinee_expr, if_let_body, if_let_expr);
+                    } else {
+                        // parse if expr (required)
+                        AST::IfExpr* if_expr = parse_if_expr();
+                        if (if_expr == NULL) {
+                            error_at(lexer.peek_token()->get_locus(),
+                              "failed to parse (else) if expression after if let expression");
+                            // skip somewhere?
+                            return NULL;
+                        }
+
+                        return new AST::IfLetExprConseqIf(
+                          ::std::move(match_arm_patterns), scrutinee_expr, if_let_body, if_expr);
+                    }
+                }
+                default:
+                    // error - invalid token
+                    error_at(t->get_locus(), "unexpected token '%s' after else in if let expression",
+                      t->get_token_description());
+                    // skip somewhere?
+                    return NULL;
+            }
+        }
     }
 
     // TODO: possibly decide on different method of handling label (i.e. not parameter)
@@ -5656,7 +5841,7 @@ namespace Rust {
         if (match_arm_patterns.empty()) {
             error_at(lexer.peek_token()->get_locus(), "failed to parse any patterns in match arm");
             // skip somewhere?
-            return NULL;
+            return AST::MatchArm::create_error();
         }
 
         // parse match arm guard expr if it exists
@@ -5669,7 +5854,7 @@ namespace Rust {
                 error_at(
                   lexer.peek_token()->get_locus(), "failed to parse guard expression in match arm");
                 // skip somewhere?
-                return NULL;
+                return AST::MatchArm::create_error();
             }
         }
 
@@ -5723,20 +5908,160 @@ namespace Rust {
 
     // Parses an async block expression.
     AST::AsyncBlockExpr* Parser::parse_async_block_expr(::std::vector<AST::Attribute> outer_attrs) {
-        // TODO
-        return NULL;
+        skip_token(ASYNC);
+
+        // detect optional move token
+        bool has_move = false;
+        if (lexer.peek_token()->get_id() == MOVE) {
+            lexer.skip_token();
+            has_move = true;
+        }
+
+        // parse block expression (required)
+        AST::BlockExpr* block_expr = parse_block_expr();
+        if (block_expr == false) {
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse block expression of async block expression");
+            // skip somewhere?
+            return NULL;
+        }
+
+        return new AST::AsyncBlockExpr(block_expr, has_move, ::std::move(outer_attrs));
     }
 
     // Parses an unsafe block expression.
     AST::UnsafeBlockExpr* Parser::parse_unsafe_block_expr(::std::vector<AST::Attribute> outer_attrs) {
-        // TODO
-        return NULL;
+        skip_token(UNSAFE);
+
+        // parse block expression (required)
+        AST::BlockExpr* block_expr = parse_block_expr();
+        if (block_expr == false) {
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse block expression of unsafe block expression");
+            // skip somewhere?
+            return NULL;
+        }
+
+        return new AST::UnsafeBlockExpr(block_expr, ::std::move(outer_attrs));
+    }
+
+    // Parses an array definition expression.
+    AST::ArrayExpr* Parser::parse_array_expr(::std::vector<AST::Attribute> outer_attrs) {
+        skip_token(LEFT_SQUARE);
+
+        // parse optional inner attributes
+        ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
+
+        // parse the "array elements" section, which is optional
+        if (lexer.peek_token()->get_id() == RIGHT_SQUARE) {
+            // no array elements
+            lexer.skip_token();
+
+            return new AST::ArrayExpr(NULL, ::std::move(inner_attrs), ::std::move(outer_attrs));
+        } else {
+            // should have array elements
+            // parse initial expression, which is required for either
+            AST::Expr* initial_expr = parse_expr();
+            if (initial_expr == NULL) {
+                error_at(
+                  lexer.peek_token()->get_locus(), "could not parse expression in array expression "
+                                                   "(even though arrayelems seems to be present)");
+                // skip somewhere?
+                return NULL;
+            }
+
+            if (lexer.peek_token()->get_id() == SEMICOLON) {
+                // copy array elems
+                lexer.skip_token();
+
+                // parse copy amount expression (required)
+                AST::Expr* copy_amount = parse_expr();
+                if (copy_amount == NULL) {
+                    error_at(lexer.peek_token()->get_locus(),
+                      "could not parse copy amount expression in array expression (arrayelems)");
+                    // skip somewhere?
+                    return NULL;
+                }
+
+                AST::ArrayElemsCopied* copied_array_elems
+                  = new AST::ArrayElemsCopied(initial_expr, copy_amount);
+                return new AST::ArrayExpr(
+                  copied_array_elems, ::std::move(inner_attrs), ::std::move(outer_attrs));
+            } else if (lexer.peek_token()->get_id() == RIGHT_SQUARE) {
+                // single-element array expression
+                ::std::vector< ::std::unique_ptr<AST::Expr> > exprs
+                  = { ::std::unique_ptr<AST::Expr>(initial_expr) };
+
+                AST::ArrayElemsValues* array_elems = new AST::ArrayElemsValues(::std::move(exprs));
+                return new AST::ArrayExpr(
+                  array_elems, ::std::move(inner_attrs), ::std::move(outer_attrs));
+            } else if (lexer.peek_token()->get_id() == COMMA) {
+                // multi-element array expression (or trailing comma)
+                ::std::vector< ::std::unique_ptr<AST::Expr> > exprs
+                  = { ::std::unique_ptr<AST::Expr>(initial_expr) };
+
+                const_TokenPtr t = lexer.peek_token();
+                while (t->get_id() == COMMA) {
+                    lexer.skip_token();
+
+                    // quick break if right square bracket
+                    if (lexer.peek_token()->get_id() == RIGHT_SQUARE) {
+                        break;
+                    }
+
+                    // parse expression (required)
+                    AST::Expr* expr = parse_expr();
+                    if (expr == NULL) {
+                        error_at(lexer.peek_token()->get_locus(),
+                          "failed to parse element in array expression");
+                        // skip somewhere?
+                        return NULL;
+                    }
+                    exprs.push_back(::std::unique_ptr<AST::Expr>(expr));
+
+                    t = lexer.peek_token();
+                }
+
+                skip_token(RIGHT_SQUARE);
+
+                AST::ArrayElemsValues* array_elems = new AST::ArrayElemsValues(::std::move(exprs));
+                return new AST::ArrayExpr(
+                  array_elems, ::std::move(inner_attrs), ::std::move(outer_attrs));
+            } else {
+                // error
+                error_at(lexer.peek_token()->get_locus(),
+                  "unexpected token '%s' in array expression (arrayelems)",
+                  lexer.peek_token()->get_token_description());
+                // skip somewhere?
+                return NULL;
+            }
+        }
     }
 
     // Parses a single parameter used in a closure definition.
     AST::ClosureParam Parser::parse_closure_param() {
-        // TODO
-        return AST::ClosureParam::create_error();
+        // parse pattern (which is required)
+        AST::Pattern* pattern = parse_pattern();
+        if (pattern == NULL) {
+            // not necessarily an error
+            return AST::ClosureParam::create_error();
+        }
+
+        // parse optional type of param
+        AST::Type* type = NULL;
+        if (lexer.peek_token()->get_id() == COLON) {
+            lexer.skip_token();
+
+            // parse type, which is now required
+            type = parse_type();
+            if (type == NULL) {
+                error_at(lexer.peek_token()->get_id(), "failed to parse type in closure parameter");
+                // skip somewhere?
+                return AST::ClosureParam::create_error();
+            }
+        }
+
+        return AST::ClosureParam(pattern, type);
     }
 
     // Parses a type (will further disambiguate any type).

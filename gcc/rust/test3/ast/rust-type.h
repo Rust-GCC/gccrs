@@ -29,9 +29,9 @@ namespace Rust {
 
             TraitBound(TypePath type_path, bool in_parens, bool opening_question_mark,
               ::std::vector<LifetimeParam> for_lifetimes) :
-              type_path(type_path),
+              type_path(::std::move(type_path)),
               in_parens(in_parens), opening_question_mark(opening_question_mark),
-              for_lifetimes(for_lifetimes) {}
+              for_lifetimes(::std::move(for_lifetimes)) {}
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -70,7 +70,7 @@ namespace Rust {
 
             // overloaded assignment operator to clone
             ImplTraitType& operator=(ImplTraitType const& other) {
-              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
 
                 for (const auto& e : other.type_param_bounds) {
@@ -116,7 +116,7 @@ namespace Rust {
             // overloaded assignment operator to clone
             TraitObjectType& operator=(TraitObjectType const& other) {
                 has_dyn = other.has_dyn;
-              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
 
                 for (const auto& e : other.type_param_bounds) {
@@ -164,7 +164,7 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics 
+            // default move semantics
             ParenthesisedType(ParenthesisedType&& other) = default;
             ParenthesisedType& operator=(ParenthesisedType&& other) = default;
         };
@@ -185,7 +185,7 @@ namespace Rust {
             }
 
           public:
-            ImplTraitTypeOneBound(TraitBound trait_bound) : trait_bound(trait_bound) {}
+            ImplTraitTypeOneBound(TraitBound trait_bound) : trait_bound(::std::move(trait_bound)) {}
         };
 
         // A trait object with a single trait bound
@@ -206,7 +206,7 @@ namespace Rust {
 
           public:
             TraitObjectTypeOneBound(TraitBound trait_bound, bool is_dyn_dispatch) :
-              trait_bound(trait_bound), has_dyn(is_dyn_dispatch) {}
+              trait_bound(::std::move(trait_bound)), has_dyn(is_dyn_dispatch) {}
         };
 
         class TypePath; // definition moved to "rust-path.h"
@@ -236,7 +236,7 @@ namespace Rust {
 
             // overloaded assignment operator to clone
             TupleType& operator=(TupleType const& other) {
-              // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 elems.reserve(other.elems.size());
 
                 for (const auto& e : other.elems) {
@@ -283,9 +283,9 @@ namespace Rust {
         // A type consisting of a pointer without safety or liveness guarantees
         class RawPointerType : public TypeNoBounds {
           public:
-          enum PointerType { MUT, CONST };
+            enum PointerType { MUT, CONST };
 
-          private: 
+          private:
             PointerType pointer_type;
 
             // TypeNoBounds type;
@@ -315,7 +315,7 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics 
+            // default move semantics
             RawPointerType(RawPointerType&& other) = default;
             RawPointerType& operator=(RawPointerType&& other) = default;
 
@@ -333,7 +333,7 @@ namespace Rust {
 
         // A type pointing to memory owned by another value
         class ReferenceType : public TypeNoBounds {
-            bool has_lifetime; // TODO: handle in lifetime or something?
+            // bool has_lifetime; // TODO: handle in lifetime or something?
             Lifetime lifetime;
 
             bool has_mut;
@@ -347,18 +347,20 @@ namespace Rust {
                 return has_mut;
             }
 
-            // Constructor for a ReferenceType with a lifetime.
-            ReferenceType(Lifetime lifetime_, bool is_mut, TypeNoBounds* type_no_bounds) :
-              lifetime(lifetime_), has_lifetime(true), has_mut(is_mut), type(type_no_bounds) {}
+            // Returns whether the reference has a lifetime.
+            inline bool has_lifetime() const {
+                return !lifetime.is_error();
+            }
 
-            // Constructor for a ReferenceType without a lifetime.
-            ReferenceType(bool is_mut, TypeNoBounds* type_no_bounds) :
-              has_lifetime(false), lifetime(Lifetime::error()), has_mut(is_mut),
-              type(type_no_bounds) {}
+            // Constructor
+            ReferenceType(
+              bool is_mut, TypeNoBounds* type_no_bounds, Lifetime lifetime = Lifetime::error()) :
+              lifetime(::std::move(lifetime)),
+              has_mut(is_mut), type(type_no_bounds) {}
 
             // Copy constructor with custom clone method
             ReferenceType(ReferenceType const& other) :
-              has_lifetime(other.has_lifetime), lifetime(other.lifetime), has_mut(other.has_mut),
+              lifetime(other.lifetime), has_mut(other.has_mut),
               type(other.type->clone_type_no_bounds()) {}
 
             // Default destructor
@@ -366,7 +368,6 @@ namespace Rust {
 
             // Operator overload assignment operator to custom clone the unique pointer
             ReferenceType& operator=(ReferenceType const& other) {
-                has_lifetime = other.has_lifetime;
                 lifetime = other.lifetime;
                 has_mut = other.has_mut;
                 type = other.type->clone_type_no_bounds();
@@ -374,7 +375,7 @@ namespace Rust {
                 return *this;
             }
 
-            // move constructors 
+            // move constructors
             ReferenceType(ReferenceType&& other) = default;
             ReferenceType& operator=(ReferenceType&& other) = default;
 
@@ -415,7 +416,7 @@ namespace Rust {
                 return *this;
             }
 
-            // move constructors 
+            // move constructors
             ArrayType(ArrayType&& other) = default;
             ArrayType& operator=(ArrayType&& other) = default;
 
@@ -456,7 +457,7 @@ namespace Rust {
                 return *this;
             }
 
-            // move constructors 
+            // move constructors
             SliceType(SliceType&& other) = default;
             SliceType& operator=(SliceType&& other) = default;
 
@@ -495,7 +496,7 @@ namespace Rust {
         // A possibly named param used in a BaseFunctionType
         struct MaybeNamedParam {
           public:
-          enum ParamKind { UNNAMED, IDENTIFIER, WILDCARD };
+            enum ParamKind { UNNAMED, IDENTIFIER, WILDCARD };
 
           private:
             // Type param_type;
@@ -506,7 +507,7 @@ namespace Rust {
 
           public:
             MaybeNamedParam(Identifier name, ParamKind param_kind, Type* param_type) :
-              name(name), param_kind(param_kind), param_type(param_type) {}
+              name(::std::move(name)), param_kind(param_kind), param_type(param_type) {}
 
             // Copy constructor with clone
             MaybeNamedParam(MaybeNamedParam const& other) :
@@ -524,7 +525,7 @@ namespace Rust {
                 return *this;
             }
 
-            // move constructors 
+            // move constructors
             MaybeNamedParam(MaybeNamedParam&& other) = default;
             MaybeNamedParam& operator=(MaybeNamedParam&& other) = default;
         };
@@ -556,10 +557,10 @@ namespace Rust {
 
             BareFunctionType(::std::vector<LifetimeParam> lifetime_params,
               FunctionQualifiers qualifiers, ::std::vector<MaybeNamedParam> named_params,
-              bool is_variadic_, TypeNoBounds* type) :
-              for_lifetimes(lifetime_params),
-              function_qualifiers(qualifiers), params(named_params), is_variadic(is_variadic_),
-              return_type(type) {}
+              bool is_variadic, TypeNoBounds* type) :
+              for_lifetimes(::std::move(lifetime_params)),
+              function_qualifiers(::std::move(qualifiers)), params(::std::move(named_params)),
+              is_variadic(is_variadic), return_type(type) {}
 
             // Copy constructor with clone
             BareFunctionType(BareFunctionType const& other) :
@@ -581,7 +582,7 @@ namespace Rust {
                 return *this;
             }
 
-            // move constructors 
+            // move constructors
             BareFunctionType(BareFunctionType&& other) = default;
             BareFunctionType& operator=(BareFunctionType&& other) = default;
 

@@ -193,6 +193,7 @@ namespace Rust {
         AST::ReturnExpr* parse_return_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::BreakExpr* parse_break_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::ContinueExpr* parse_continue_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::ArrayExpr* parse_array_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
 
         // Type-related
         AST::Type* parse_type();
