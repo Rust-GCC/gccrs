@@ -4089,17 +4089,8 @@ namespace Rust {
         return AST::NamedFunctionParam(::std::move(name), param_type);
     }
 
-    // Parses an expression (will further disambiguate any expressions).
-    AST::Expr* Parser::parse_expr() {
-        // TODO
-        return NULL;
-    }
-
     // Parses a statement (will further disambiguate any statement).
     AST::Stmt* Parser::parse_stmt() {
-        // TODO
-        return NULL;
-
         // quick exit for empty statement
         if (lexer.peek_token()->get_id() == SEMICOLON) {
             lexer.skip_token();
@@ -5036,8 +5027,7 @@ namespace Rust {
             case LEFT_PAREN:
                 /* either grouped expr or tuple expr - depends on whether there is a comma inside the
                  * parentheses - if so, tuple expr, otherwise, grouped expr. */
-                // TODO:
-                break;
+                return parse_grouped_or_tuple_expr(::std::move(outer_attrs));
             default:
                 // TODO:
                 break;
@@ -5248,12 +5238,12 @@ namespace Rust {
                 break;
             // case BOOL_LITERAL
             // use true and false keywords rather than "bool literal" Rust terminology
-            case TRUE:
+            case TRUE_LITERAL:
                 type = AST::LiteralExpr::BOOL;
                 literal_value = ::std::string("true");
                 lexer.skip_token();
                 break;
-            case FALSE:
+            case FALSE_LITERAL:
                 type = AST::LiteralExpr::BOOL;
                 literal_value = ::std::string("false");
                 lexer.skip_token();
@@ -5271,8 +5261,10 @@ namespace Rust {
     }
 
     // Parses a return expression (including any expression to return).
-    AST::ReturnExpr* Parser::parse_return_expr(::std::vector<AST::Attribute> outer_attrs) {
-        skip_token(RETURN_TOK);
+    AST::ReturnExpr* Parser::parse_return_expr(::std::vector<AST::Attribute> outer_attrs, bool pratt_parse) {
+        if (!pratt_parse) {
+            skip_token(RETURN_TOK);
+        }
 
         // parse expression to return, if it exists
         AST::Expr* returned_expr = parse_expr();
@@ -5282,8 +5274,10 @@ namespace Rust {
     }
 
     // Parses a break expression (including any label to break to AND any return expression).
-    AST::BreakExpr* Parser::parse_break_expr(::std::vector<AST::Attribute> outer_attrs) {
-        skip_token(BREAK);
+    AST::BreakExpr* Parser::parse_break_expr(::std::vector<AST::Attribute> outer_attrs, bool pratt_parse) {
+        if (!pratt_parse) {
+            skip_token(BREAK);
+        }  
 
         // parse label (lifetime) if it exists - create dummy first
         AST::Lifetime label = AST::Lifetime::error();
@@ -5291,7 +5285,7 @@ namespace Rust {
             label = parse_lifetime();
         }
 
-        // parse return expression if it exists
+        // parse break return expression if it exists
         AST::Expr* return_expr = parse_expr();
 
         return new AST::BreakExpr(label, return_expr, ::std::move(outer_attrs));
@@ -5963,9 +5957,9 @@ namespace Rust {
             // parse initial expression, which is required for either
             AST::Expr* initial_expr = parse_expr();
             if (initial_expr == NULL) {
-                error_at(
-                  lexer.peek_token()->get_locus(), "could not parse expression in array expression "
-                                                   "(even though arrayelems seems to be present)");
+                error_at(lexer.peek_token()->get_locus(),
+                  "could not parse expression in array expression "
+                  "(even though arrayelems seems to be present)");
                 // skip somewhere?
                 return NULL;
             }
@@ -6062,6 +6056,87 @@ namespace Rust {
         }
 
         return AST::ClosureParam(pattern, type);
+    }
+
+    // Parses a grouped or tuple expression (disambiguates).
+    AST::ExprWithoutBlock* Parser::parse_grouped_or_tuple_expr(
+      ::std::vector<AST::Attribute> outer_attrs, bool pratt_parse) {
+        // adjustment to allow Pratt parsing to reuse function without copy-paste
+        if (!pratt_parse) {
+            skip_token(LEFT_PAREN);
+        }
+
+        // parse optional inner attributes
+        ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
+
+        if (lexer.peek_token()->get_id() == RIGHT_PAREN) {
+            // must be empty tuple
+            lexer.skip_token();
+
+            // create tuple with empty tuple elems
+            return new AST::TupleExpr(::std::vector< ::std::unique_ptr<AST::Expr> >(),
+              ::std::move(inner_attrs), ::std::move(outer_attrs));
+        }
+
+        // parse first expression (required)
+        AST::Expr* first_expr = parse_expr();
+        if (first_expr == NULL) {
+            error_at(lexer.peek_token()->get_locus(),
+              "failed to parse expression in grouped or tuple expression");
+            // skip after somewhere?
+            return NULL;
+        }
+
+        // detect whether grouped expression with right parentheses as next token
+        if (lexer.peek_token()->get_id() == RIGHT_PAREN) {
+            // must be grouped expr
+            lexer.skip_token();
+
+            // create grouped expr
+            return new AST::GroupedExpr(
+              first_expr, ::std::move(inner_attrs), ::std::move(outer_attrs));
+        } else if (lexer.peek_token()->get_id() == COMMA) {
+            // tuple expr
+            ::std::vector< ::std::unique_ptr<AST::Expr> > exprs
+              = { ::std::unique_ptr<AST::Expr>(first_expr) };
+
+            // parse potential other tuple exprs
+            const_TokenPtr t = lexer.peek_token();
+            while (t->get_id() == COMMA) {
+                lexer.skip_token();
+
+                // break out if right paren
+                if (lexer.peek_token()->get_id() == RIGHT_PAREN) {
+                    break;
+                }
+
+                // parse expr, which is now required
+                AST::Expr* expr = parse_expr();
+                if (expr == NULL) {
+                    error_at(lexer.peek_token()->get_locus(), "failed to parse expr in tuple expr");
+                    // skip somewhere?
+                    return NULL;
+                }
+                exprs.push_back(::std::unique_ptr<AST::Expr>(expr));
+
+                t = lexer.peek_token();
+            }
+
+            // skip right paren
+            skip_token(RIGHT_PAREN);
+
+            return new AST::TupleExpr(
+              ::std::move(exprs), ::std::move(inner_attrs), ::std::move(outer_attrs));
+        } else {
+            // error
+            const_TokenPtr t = lexer.peek_token();
+            error_at(t->get_locus(),
+              "unexpected token '%s' in grouped or tuple expression (parenthesised expression) - "
+              "expected ')' for grouped expr and ',' for tuple expr",
+              t->get_str().c_str());
+            // skip somewhere?
+            return NULL;
+        }
     }
 
     // Parses a type (will further disambiguate any type).
@@ -6635,6 +6710,37 @@ namespace Rust {
         }*/
     }
 
+    // Pratt parser impl of parse_expr. FIXME: this is only provisional and probably will be changed.
+    AST::Expr* Parser::parse_expr(int right_binding_power) {
+        const_TokenPtr current_token = lexer.peek_token();
+        lexer.skip_token();
+
+        // parse null denotation (unary part of expression)
+        AST::Expr* expr = null_denotation_NEW(current_token);
+
+        if (expr == NULL) {
+            return NULL;
+        }
+
+        // stop parsing if find lower priority token - parse higher priority first
+        while (right_binding_power < left_binding_power(lexer.peek_token())) {
+            current_token = lexer.peek_token();
+            lexer.skip_token();
+
+            expr = left_denotation(current_token, expr);
+            if (expr == NULL) {
+                return NULL;
+            }
+        }
+
+        return expr;
+    }
+
+    // Parse expression with lowest left binding power.
+    AST::Expr* Parser::parse_expr() {
+        return parse_expr(LBP_LOWEST);
+    }
+
     // Pratt parser impl of parse_expression.
     Tree Parser::parse_expression(int right_binding_power) {
         const_TokenPtr current_token = lexer.peek_token();
@@ -6695,13 +6801,958 @@ namespace Rust {
     }
 
     // Determines action to take when finding token at beginning of expression.
+    AST::Expr* Parser::null_denotation_NEW(const_TokenPtr tok) {
+        // note: tok is previous character in input stream, not current one, as parse_expr
+        // skips it before passing it in
+
+        /* as a Pratt parser (which works by decomposing expressions into a null denotation and then a
+         * left denotation), null denotations handle primaries and unary operands (but only prefix
+         * unary operands) */
+
+        switch (tok->get_id()) {
+            /*case IDENTIFIER: {
+                // when encountering identifier, lookup in scope
+                SymbolPtr s = scope.lookup(tok->get_str());
+                if (s == NULL) {
+                    error_at(tok->get_locus(), "variable '%s' not declared in the current scope",
+                      tok->get_str().c_str());
+
+                    return Tree::error();
+                }
+                // expression is just its VAR_DECL that was stored in the Symbol at declaration
+                return Tree(s->get_tree_decl(), tok->get_locus());
+            }*/
+            // symbol table must be created in semantic analysis pass, so can't use this
+            // FIXME: delegate to parse_literal_expr instead? would have to rejig tokens and whatever.
+            case INT_LITERAL:
+                // we should check the range, but ignore for now
+                // encode as int?
+                return new AST::LiteralExpr(tok->get_str(), AST::LiteralExpr::INT);
+            case FLOAT_LITERAL:
+                // encode as float?
+                return new AST::LiteralExpr(tok->get_str(), AST::LiteralExpr::FLOAT);
+            case STRING_LITERAL:
+                return new AST::LiteralExpr(tok->get_str(), AST::LiteralExpr::STRING);
+            case TRUE_LITERAL:
+                return new AST::LiteralExpr("true", AST::LiteralExpr::BOOL);
+            case FALSE_LITERAL:
+                return new AST::LiteralExpr("false", AST::LiteralExpr::BOOL);
+            case LEFT_PAREN: { // have to parse whole expression if inside brackets
+                /* recursively invoke parse_expression with lowest priority possible as it it were
+                 * a top-level expression. */
+                /*AST::Expr* expr = parse_expr();
+                tok = lexer.peek_token();
+
+                // end of expression must be a close-bracket
+                if (tok->get_id() != RIGHT_PAREN)
+                    error_at(
+                      tok->get_locus(), "expecting ')' but %s found\n", tok->get_token_description());
+                else
+                    lexer.skip_token();
+
+                return expr;
+                // FIXME: this assumes grouped expression - could be tuple expression if commas inside*/
+
+                return parse_grouped_or_tuple_expr(::std::vector<AST::Attribute>(), true);
+            }
+            /*case PLUS: { // unary plus operator
+                // invoke parse_expr recursively with appropriate priority, etc. for below
+                AST::Expr* expr = parse_expr(LBP_UNARY_PLUS);
+
+                if (expr == NULL)
+                    return NULL;
+                // can only apply to integer and float expressions
+                if (expr->get_type() != integer_type_node || expr->get_type() != float_type_node) {
+                    error_at(tok->get_locus(),
+                      "operand of unary plus must be int or float but it is %s",
+                      print_type(expr->get_type()));
+                    return NULL;
+                }
+
+                return Tree(expr, tok->get_locus());
+            }*/
+            // Rust has no unary plus operator
+            case MINUS: { // unary minus
+                AST::Expr* expr = parse_expr(LBP_UNARY_MINUS);
+
+                if (expr == NULL)
+                    return NULL;
+                // can only apply to integer and float expressions
+                /*if (expr.get_type() != integer_type_node || expr.get_type() != float_type_node) {
+                    error_at(tok->get_locus(),
+                      "operand of unary minus must be int or float but it is %s",
+                      print_type(expr.get_type()));
+                    return Tree::error();
+                }*/
+                /* FIXME: when implemented the "get type" method on expr, ensure it is int or float
+                 * type (except unsigned int). Actually, this would probably have to be done in
+                 * semantic analysis (as type checking). */
+
+                /* FIXME: allow outer attributes on these expressions by having an outer attrs
+                 * parameter in function*/
+                return new AST::NegationExpr(
+                  expr, AST::NegationExpr::NEGATE, ::std::vector<AST::Attribute>());
+            }
+            case EXCLAM: { // logical or bitwise not
+                AST::Expr* expr = parse_expr(LBP_UNARY_EXCLAM);
+
+                if (expr == NULL)
+                    return NULL;
+                // can only apply to boolean expressions
+                /*if (expr.get_type() != boolean_type_node) {
+                    error_at(tok->get_locus(),
+                      "operand of logical not must be a boolean but it is %s",
+                      print_type(expr.get_type()));
+                    return Tree::error();
+                }*/
+                // FIXME: type checking for boolean or integer expressions in semantic analysis
+
+                // FIXME: allow outer attributes on these expressions
+                return new AST::NegationExpr(
+                  expr, AST::NegationExpr::NOT, ::std::vector<AST::Attribute>());
+            }
+            case ASTERISK: {
+                // pointer dereference only - TODO: ensure that it is
+                AST::Expr* expr = parse_expr(LBP_UNARY_ASTERISK);
+                // FIXME: allow outer attributes on expression
+                return new AST::DereferenceExpr(expr, ::std::vector<AST::Attribute>());
+            }
+            case AMP: {
+                // (single) "borrow" expression - shared (mutable) or immutable
+                AST::Expr* expr = NULL;
+                bool is_mut_borrow = false;
+
+                if (lexer.peek_token()->get_id() == MUT) {
+                    lexer.skip_token();
+                    expr = parse_expr(LBP_UNARY_AMP_MUT);
+                    is_mut_borrow = true;
+                } else {
+                    expr = parse_expr(LBP_UNARY_AMP);
+                }
+
+                // FIXME: allow outer attributes on expression
+                return new AST::BorrowExpr(
+                  expr, is_mut_borrow, false, ::std::vector<AST::Attribute>());
+            }
+            case LOGICAL_AND: {
+                // (double) "borrow" expression - shared (mutable) or immutable
+                AST::Expr* expr = NULL;
+                bool is_mut_borrow = false;
+
+                if (lexer.peek_token()->get_id() == MUT) {
+                    lexer.skip_token();
+                    expr = parse_expr(LBP_UNARY_AMP_MUT);
+                    is_mut_borrow = true;
+                } else {
+                    expr = parse_expr(LBP_UNARY_AMP);
+                }
+
+                // FIXME: allow outer attributes on expression
+                return new AST::BorrowExpr(
+                  expr, is_mut_borrow, true, ::std::vector<AST::Attribute>());
+            }
+            case SCOPE_RESOLUTION: {
+                // TODO: fix: this is for global paths, i.e. ::std::string::whatever
+                error_at(tok->get_locus(), "found null denotation scope resolution operator, and "
+                                           "haven't written handling for it.");
+                return NULL;
+            }
+            case OR:
+            case PIPE:
+            case MOVE:
+                // TODO: fix: this is for closure expressions
+                error_at(tok->get_locus(), "found null denotation closure expr initial tokens, and "
+                                           "haven't written handling for it.");
+                return NULL;
+            case DOT_DOT:
+                // either "range to" or "range full" expressions
+                return parse_nud_range_exclusive_expr(tok, ::std::vector<AST::Attribute>());
+            case DOT_DOT_EQ:
+                // range to inclusive expr
+                return parse_range_to_inclusive_expr(tok, ::std::vector<AST::Attribute>());
+            case RETURN_TOK:
+                // FIXME: is this really a null denotation expression?
+                return parse_return_expr(::std::vector<AST::Attribute>(), true);
+            case BREAK:
+                // FIXME: is this really a null denotation expression?
+                return parse_break_expr(::std::vector<AST::Attribute>(), true);
+            default:
+                error_at(tok->get_locus(), "found unexpected token '%s' in null denotation",
+                  tok->get_token_description());
+                return NULL;
+        }
+    }
+
+    /* Called for each token that can appear in infix (between) position. Can be operators or other
+     * punctuation.
+     * Returns a function pointer to member function that implements the left denotation for the token
+     * given. */
+    AST::Expr* Parser::left_denotation(const_TokenPtr tok, AST::Expr* left) {
+        // Token passed in has already been skipped, so peek gives "next" token
+        /*BinaryHandler binary_handler = get_binary_handler(tok->get_id());
+        if (binary_handler == NULL) {
+            unexpected_token(tok);
+            return NULL;
+        }
+
+        return (this->*binary_handler)(tok, left);*/
+        // can't do with binary handler because same token used for several operators
+        switch (tok->get_id()) {
+            // FIXME: allow for outer attributes to be applied
+            case QUESTION_MARK:
+                // error propagation expression - unary postfix
+                return new AST::ErrorPropogationExpr(left, ::std::vector<AST::Attribute>());
+            case PLUS:
+                // sum expression - binary infix
+                return parse_binary_plus_expr(tok, left, ::std::vector<AST::Attribute>());
+            case MINUS:
+                // difference expression - binary infix
+                return parse_binary_minus_expr(tok, left, ::std::vector<AST::Attribute>());
+            case ASTERISK:
+                // product expression - binary infix
+                return parse_binary_mult_expr(tok, left, ::std::vector<AST::Attribute>());
+            case DIV:
+                // quotient expression - binary infix
+                return parse_binary_div_expr(tok, left, ::std::vector<AST::Attribute>());
+            case MOD:
+                // modulo expression - binary infix
+                return parse_binary_mod_expr(tok, left, ::std::vector<AST::Attribute>());
+            case AMP:
+                // logical or bitwise and expression - binary infix
+                return parse_bitwise_and_expr(tok, left, ::std::vector<AST::Attribute>());
+            case PIPE:
+                // logical or bitwise or expression - binary infix
+                return parse_bitwise_or_expr(tok, left, ::std::vector<AST::Attribute>());
+            case CARET:
+                // logical or bitwise xor expression - binary infix
+                return parse_bitwise_xor_expr(tok, left, ::std::vector<AST::Attribute>());
+            case LEFT_SHIFT:
+                // left shift expression - binary infix
+                return parse_left_shift_expr(tok, left, ::std::vector<AST::Attribute>());
+            case RIGHT_SHIFT:
+                // right shift expression - binary infix
+                return parse_right_shift_expr(tok, left, ::std::vector<AST::Attribute>());
+            case EQUAL_EQUAL:
+                // equal to expression - binary infix (no associativity)
+                return parse_binary_equal_expr(tok, left, ::std::vector<AST::Attribute>());
+            case NOT_EQUAL:
+                // not equal to expression - binary infix (no associativity)
+                return parse_binary_not_equal_expr(tok, left, ::std::vector<AST::Attribute>());
+            case RIGHT_ANGLE:
+                // greater than expression - binary infix (no associativity)
+                return parse_binary_greater_than_expr(tok, left, ::std::vector<AST::Attribute>());
+            case LEFT_ANGLE:
+                // less than expression - binary infix (no associativity)
+                return parse_binary_less_than_expr(tok, left, ::std::vector<AST::Attribute>());
+            case GREATER_OR_EQUAL:
+                // greater than or equal to expression - binary infix (no associativity)
+                return parse_binary_greater_equal_expr(tok, left, ::std::vector<AST::Attribute>());
+            case LESS_OR_EQUAL:
+                // less than or equal to expression - binary infix (no associativity)
+                return parse_binary_less_equal_expr(tok, left, ::std::vector<AST::Attribute>());
+            case OR:
+                // lazy logical or expression - binary infix
+                return parse_lazy_or_expr(tok, left, ::std::vector<AST::Attribute>());
+            case LOGICAL_AND:
+                // lazy logical and expression - binary infix
+                return parse_lazy_and_expr(tok, left, ::std::vector<AST::Attribute>());
+            case AS:
+                // type cast expression - kind of binary infix (RHS is actually a TypeNoBounds)
+                return parse_type_cast_expr(tok, left, ::std::vector<AST::Attribute>());
+            case EQUAL:
+                // assignment expression - binary infix (note right-to-left associativity)
+                return parse_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+            case PLUS_EQ:
+                // plus-assignment expression - binary infix (note right-to-left associativity)
+                return parse_plus_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+            case MINUS_EQ:
+                // minus-assignment expression - binary infix (note right-to-left associativity)
+                return parse_minus_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+            case ASTERISK_EQ:
+                // multiply-assignment expression - binary infix (note right-to-left associativity)
+                return parse_mult_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+            case DIV_EQ:
+                // division-assignment expression - binary infix (note right-to-left associativity)
+                return parse_div_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+            case PERCENT_EQ:
+                // modulo-assignment expression - binary infix (note right-to-left associativity)
+                return parse_mod_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+            case AMP_EQ:
+                // bitwise and-assignment expression - binary infix (note right-to-left associativity)
+                return parse_and_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+            case PIPE_EQ:
+                // bitwise or-assignment expression - binary infix (note right-to-left associativity)
+                return parse_or_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+            case CARET_EQ:
+                // bitwise xor-assignment expression - binary infix (note right-to-left associativity)
+                return parse_xor_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+            case LEFT_SHIFT_EQ:
+                // left shift-assignment expression - binary infix (note right-to-left associativity)
+                return parse_left_shift_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+            case RIGHT_SHIFT_EQ:
+                // right shift-assignment expression - binary infix (note right-to-left associativity)
+                return parse_right_shift_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+            case DOT_DOT:
+                // range exclusive expression - binary infix (no associativity)
+                // either "range" or "range from"
+                return parse_led_range_exclusive_expr(tok, left, ::std::vector<AST::Attribute>());
+            case DOT_DOT_EQ:
+                // range inclusive expression - binary infix (no associativity)
+                // unambiguously RangeInclusiveExpr
+                return parse_range_inclusive_expr(tok, left, ::std::vector<AST::Attribute>());
+            case SCOPE_RESOLUTION:
+                // path expression - binary infix? FIXME should this even be parsed here?
+                error_at(tok->get_locus(), "found scope resolution operator in left denotation "
+                                           "function - this should probably be handled elsewhere.");
+                return NULL;
+            case DOT: {
+                // field expression or method call - relies on parentheses after next identifier
+                // or await if token after is "await" (unary postfix)
+                // or tuple index if token after is a decimal int literal
+
+                const_TokenPtr next_tok = lexer.peek_token();
+                if (next_tok->get_id() == IDENTIFIER && next_tok->get_str() == "await") {
+                    // await expression
+                    return parse_await_expr(tok, left, ::std::vector<AST::Attribute>());
+                } else if (next_tok->get_id() == INT_LITERAL) {
+                    // tuple index expression - TODO check for decimal int literal
+                    return parse_tuple_index_expr(tok, left, ::std::vector<AST::Attribute>());
+                } else if (next_tok->get_id() == IDENTIFIER
+                           && lexer.peek_token(1)->get_id() != LEFT_PAREN) {
+                    // field expression (or should be)
+                    return parse_field_access_expr(tok, left, ::std::vector<AST::Attribute>());
+                } else {
+                    // method call (probably)
+                    return parse_method_call_expr(tok, left, ::std::vector<AST::Attribute>());
+                }
+            }
+            case LEFT_PAREN:
+                // function call - method call is based on dot notation first
+                return parse_function_call_expr(tok, left, ::std::vector<AST::Attribute>());
+            case LEFT_SQUARE:
+                // array or slice index expression (pseudo binary infix)
+                return parse_index_expr(tok, left, ::std::vector<AST::Attribute>());
+            default:
+                error_at(tok->get_locus(), "found unexpected token '%s' in left denotation",
+                  tok->get_token_description());
+        }
+    }
+
+    // Parses a binary addition expression (with Pratt parsing).
+    AST::ArithmeticOrLogicalExpr* Parser::parse_binary_plus_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_PLUS);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ArithmeticOrLogicalExpr(left, right, AST::ArithmeticOrLogicalExpr::ADD);
+    }
+
+    // Parses a binary subtraction expression (with Pratt parsing).
+    AST::ArithmeticOrLogicalExpr* Parser::parse_binary_minus_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_MINUS);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ArithmeticOrLogicalExpr(left, right, AST::ArithmeticOrLogicalExpr::SUBTRACT);
+    }
+
+    // Parses a binary multiplication expression (with Pratt parsing).
+    AST::ArithmeticOrLogicalExpr* Parser::parse_binary_mult_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_MUL);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ArithmeticOrLogicalExpr(left, right, AST::ArithmeticOrLogicalExpr::MULTIPLY);
+    }
+
+    // Parses a binary division expression (with Pratt parsing).
+    AST::ArithmeticOrLogicalExpr* Parser::parse_binary_div_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_DIV);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ArithmeticOrLogicalExpr(left, right, AST::ArithmeticOrLogicalExpr::DIVIDE);
+    }
+
+    // Parses a binary modulo expression (with Pratt parsing).
+    AST::ArithmeticOrLogicalExpr* Parser::parse_binary_mod_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_MOD);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ArithmeticOrLogicalExpr(left, right, AST::ArithmeticOrLogicalExpr::MODULUS);
+    }
+
+    // Parses a binary bitwise (or eager logical) and expression (with Pratt parsing).
+    AST::ArithmeticOrLogicalExpr* Parser::parse_bitwise_and_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_AMP);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ArithmeticOrLogicalExpr(
+          left, right, AST::ArithmeticOrLogicalExpr::BITWISE_AND);
+    }
+
+    // Parses a binary bitwise (or eager logical) or expression (with Pratt parsing).
+    AST::ArithmeticOrLogicalExpr* Parser::parse_bitwise_or_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_PIPE);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ArithmeticOrLogicalExpr(
+          left, right, AST::ArithmeticOrLogicalExpr::BITWISE_OR);
+    }
+
+    // Parses a binary bitwise (or eager logical) xor expression (with Pratt parsing).
+    AST::ArithmeticOrLogicalExpr* Parser::parse_bitwise_xor_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_CARET);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ArithmeticOrLogicalExpr(
+          left, right, AST::ArithmeticOrLogicalExpr::BITWISE_XOR);
+    }
+
+    // Parses a binary left shift expression (with Pratt parsing).
+    AST::ArithmeticOrLogicalExpr* Parser::parse_left_shift_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_L_SHIFT);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ArithmeticOrLogicalExpr(
+          left, right, AST::ArithmeticOrLogicalExpr::LEFT_SHIFT);
+    }
+
+    // Parses a binary right shift expression (with Pratt parsing).
+    AST::ArithmeticOrLogicalExpr* Parser::parse_right_shift_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_R_SHIFT);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ArithmeticOrLogicalExpr(
+          left, right, AST::ArithmeticOrLogicalExpr::RIGHT_SHIFT);
+    }
+
+    // Parses a binary equal to expression (with Pratt parsing).
+    AST::ComparisonExpr* Parser::parse_binary_equal_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_EQUAL);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ComparisonExpr(left, right, AST::ComparisonExpr::EQUAL);
+    }
+
+    // Parses a binary not equal to expression (with Pratt parsing).
+    AST::ComparisonExpr* Parser::parse_binary_not_equal_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_NOT_EQUAL);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ComparisonExpr(left, right, AST::ComparisonExpr::NOT_EQUAL);
+    }
+
+    // Parses a binary greater than expression (with Pratt parsing).
+    AST::ComparisonExpr* Parser::parse_binary_greater_than_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_GREATER_THAN);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ComparisonExpr(left, right, AST::ComparisonExpr::GREATER_THAN);
+    }
+
+    // Parses a binary less than expression (with Pratt parsing).
+    AST::ComparisonExpr* Parser::parse_binary_less_than_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_SMALLER_THAN);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ComparisonExpr(left, right, AST::ComparisonExpr::LESS_THAN);
+    }
+
+    // Parses a binary greater than or equal to expression (with Pratt parsing).
+    AST::ComparisonExpr* Parser::parse_binary_greater_equal_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_GREATER_EQUAL);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ComparisonExpr(left, right, AST::ComparisonExpr::GREATER_OR_EQUAL);
+    }
+
+    // Parses a binary less than or equal to expression (with Pratt parsing).
+    AST::ComparisonExpr* Parser::parse_binary_less_equal_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_SMALLER_EQUAL);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ComparisonExpr(left, right, AST::ComparisonExpr::LESS_OR_EQUAL);
+    }
+
+    // Parses a binary lazy boolean or expression (with Pratt parsing).
+    AST::LazyBooleanExpr* Parser::parse_lazy_or_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_LOGICAL_OR);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::LazyBooleanExpr(left, right, AST::LazyBooleanExpr::LOGICAL_OR);
+    }
+
+    // Parses a binary lazy boolean and expression (with Pratt parsing).
+    AST::LazyBooleanExpr* Parser::parse_lazy_and_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_LOGICAL_AND);
+        if (right == NULL)
+            return NULL;
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::LazyBooleanExpr(left, right, AST::LazyBooleanExpr::LOGICAL_AND);
+    }
+
+    // Parses a pseudo-binary infix type cast expression (with Pratt parsing).
+    AST::TypeCastExpr* Parser::parse_type_cast_expr(
+      const_TokenPtr tok, AST::Expr* expr_to_cast, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::TypeNoBounds* type = parse_type_no_bounds();
+        if (type == NULL)
+            return NULL;
+        // FIXME: how do I get precedence put in here?
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::TypeCastExpr(expr_to_cast, type);
+    }
+
+    // Parses a binary assignment expression (with Pratt parsing).
+    AST::AssignmentExpr* Parser::parse_assig_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_ASSIG - 1);
+        if (right == NULL)
+            return NULL;
+        // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::AssignmentExpr(left, right);
+    }
+
+    // Parses a binary add-assignment expression (with Pratt parsing).
+    AST::CompoundAssignmentExpr* Parser::parse_plus_assig_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_PLUS_ASSIG - 1);
+        if (right == NULL)
+            return NULL;
+        // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::CompoundAssignmentExpr(left, right, AST::CompoundAssignmentExpr::ADD);
+    }
+
+    // Parses a binary minus-assignment expression (with Pratt parsing).
+    AST::CompoundAssignmentExpr* Parser::parse_minus_assig_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_MINUS_ASSIG - 1);
+        if (right == NULL)
+            return NULL;
+        // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::CompoundAssignmentExpr(left, right, AST::CompoundAssignmentExpr::SUBTRACT);
+    }
+
+    // Parses a binary multiplication-assignment expression (with Pratt parsing).
+    AST::CompoundAssignmentExpr* Parser::parse_mult_assig_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_MULT_ASSIG - 1);
+        if (right == NULL)
+            return NULL;
+        // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::CompoundAssignmentExpr(left, right, AST::CompoundAssignmentExpr::MULTIPLY);
+    }
+
+    // Parses a binary division-assignment expression (with Pratt parsing).
+    AST::CompoundAssignmentExpr* Parser::parse_div_assig_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_DIV_ASSIG - 1);
+        if (right == NULL)
+            return NULL;
+        // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::CompoundAssignmentExpr(left, right, AST::CompoundAssignmentExpr::DIVIDE);
+    }
+
+    // Parses a binary modulo-assignment expression (with Pratt parsing).
+    AST::CompoundAssignmentExpr* Parser::parse_mod_assig_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_MOD_ASSIG - 1);
+        if (right == NULL)
+            return NULL;
+        // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::CompoundAssignmentExpr(left, right, AST::CompoundAssignmentExpr::MODULUS);
+    }
+
+    // Parses a binary and-assignment expression (with Pratt parsing).
+    AST::CompoundAssignmentExpr* Parser::parse_and_assig_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_AMP_ASSIG - 1);
+        if (right == NULL)
+            return NULL;
+        // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::CompoundAssignmentExpr(left, right, AST::CompoundAssignmentExpr::BITWISE_AND);
+    }
+
+    // Parses a binary or-assignment expression (with Pratt parsing).
+    AST::CompoundAssignmentExpr* Parser::parse_or_assig_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_PIPE_ASSIG - 1);
+        if (right == NULL)
+            return NULL;
+        // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::CompoundAssignmentExpr(left, right, AST::CompoundAssignmentExpr::BITWISE_OR);
+    }
+
+    // Parses a binary xor-assignment expression (with Pratt parsing).
+    AST::CompoundAssignmentExpr* Parser::parse_xor_assig_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_CARET_ASSIG - 1);
+        if (right == NULL)
+            return NULL;
+        // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::CompoundAssignmentExpr(left, right, AST::CompoundAssignmentExpr::BITWISE_XOR);
+    }
+
+    // Parses a binary left shift-assignment expression (with Pratt parsing).
+    AST::CompoundAssignmentExpr* Parser::parse_left_shift_assig_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_L_SHIFT_ASSIG - 1);
+        if (right == NULL)
+            return NULL;
+        // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::CompoundAssignmentExpr(left, right, AST::CompoundAssignmentExpr::LEFT_SHIFT);
+    }
+
+    // Parses a binary right shift-assignment expression (with Pratt parsing).
+    AST::CompoundAssignmentExpr* Parser::parse_right_shift_assig_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_R_SHIFT_ASSIG - 1);
+        if (right == NULL)
+            return NULL;
+        // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::CompoundAssignmentExpr(left, right, AST::CompoundAssignmentExpr::RIGHT_SHIFT);
+    }
+
+    // Parses a postfix unary await expression (with Pratt parsing).
+    AST::AwaitExpr* Parser::parse_await_expr(
+      const_TokenPtr tok, AST::Expr* expr_to_await, ::std::vector<AST::Attribute> outer_attrs) {
+        // skip "await" identifier (as "." has already been consumed in parse_expression)
+        // this assumes that the identifier was already identified as await
+        if (!skip_token(IDENTIFIER)) {
+            error_at(tok->get_locus(),
+              "failed to skip 'await' in await expr - this is probably a deep issue.");
+            // skip somewhere?
+            return NULL;
+        }
+
+        // TODO: check inside async block in semantic analysis
+
+        return new AST::AwaitExpr(expr_to_await, ::std::move(outer_attrs));
+    }
+
+    /* Parses an exclusive range ('..') in left denotation position (i.e. RangeFromExpr or
+     * RangeFromToExpr). */
+    AST::RangeExpr* Parser::parse_led_range_exclusive_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // FIXME: this probably parses expressions accidently or whatever
+        // try parsing RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_DOT_DOT);
+        if (right == NULL) {
+            // range from expr
+            return new AST::RangeFromExpr(left);
+        } else {
+            return new AST::RangeFromToExpr(left, right);
+        }
+        // FIXME: make non-associative
+    }
+
+    /* Parses an exclusive range ('..') in null denotation position (i.e. RangeToExpr or
+     * RangeFullExpr). */
+    AST::RangeExpr* Parser::parse_nud_range_exclusive_expr(
+      const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs) {
+        // FIXME: this probably parses expressions accidently or whatever
+        // try parsing RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_DOT_DOT);
+        if (right == NULL) {
+            // range from expr
+            return new AST::RangeFullExpr();
+        } else {
+            return new AST::RangeToExpr(right);
+        }
+        // FIXME: make non-associative
+    }
+
+    // Parses a full binary range inclusive expression.
+    AST::RangeFromToInclExpr* Parser::parse_range_inclusive_expr(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_DOT_DOT_EQ);
+        if (right == NULL)
+            return NULL;
+        // FIXME: make non-associative
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::RangeFromToInclExpr(left, right);
+    }
+
+    // Parses an inclusive range-to prefix unary expression.
+    AST::RangeToInclExpr* Parser::parse_range_to_inclusive_expr(
+      const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* right = parse_expr(LBP_DOT_DOT_EQ);
+        if (right == NULL)
+            return NULL;
+        // FIXME: make non-associative
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::RangeToInclExpr(right);
+    }
+
+    // Parses a pseudo-binary infix tuple index expression.
+    AST::TupleIndexExpr* Parser::parse_tuple_index_expr(
+      const_TokenPtr tok, AST::Expr* tuple_expr, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse int literal (as token already skipped)
+        const_TokenPtr index_tok = expect_token(INT_LITERAL);
+        ::std::string index = index_tok->get_str();
+
+        // convert to integer
+        int index_int = atoi(index.c_str());
+
+        return new AST::TupleIndexExpr(tuple_expr, index_int, ::std::move(outer_attrs));
+    }
+
+    // Parses a pseudo-binary infix array (or slice) index expression.
+    AST::ArrayIndexExpr* Parser::parse_index_expr(
+      const_TokenPtr tok, AST::Expr* array_expr, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse RHS (as tok has already been consumed in parse_expression)
+        AST::Expr* index_expr = parse_expr(LBP_ARRAY_REF);
+        if (index_expr == NULL)
+            return NULL;
+
+        // skip ']' at end of array
+        if (!skip_token(RIGHT_SQUARE)) {
+            // skip somewhere?
+            return NULL;
+        }
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::ArrayIndexExpr(array_expr, index_expr, ::std::move(outer_attrs));
+    }
+
+    // Parses a pseudo-binary infix struct field access expression.
+    AST::FieldAccessExpr* Parser::parse_field_access_expr(
+      const_TokenPtr tok, AST::Expr* struct_expr, ::std::vector<AST::Attribute> outer_attrs) {
+        // get field name identifier (assume that this is a field access expr and not say await)
+        const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+        Identifier ident = ident_tok->get_str();
+
+        // TODO: check types. actually, do so during semantic analysis
+        return new AST::FieldAccessExpr(struct_expr, ident, ::std::move(outer_attrs));
+    }
+
+    // Parses a pseudo-binary infix method call expression.
+    AST::MethodCallExpr* Parser::parse_method_call_expr(
+      const_TokenPtr tok, AST::Expr* receiver_expr, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse path expr segment
+        AST::PathExprSegment segment = parse_path_expr_segment();
+        if (segment.is_error()) {
+            error_at(tok->get_locus(), "failed to parse path expr segment of method call expr");
+            return NULL;
+        }
+
+        // skip left parentheses
+        if (!skip_token(LEFT_PAREN)) {
+            return NULL;
+        }
+
+        // parse method params (if they exist)
+        ::std::vector< ::std::unique_ptr<AST::Expr> > params;
+
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() != RIGHT_PAREN) {
+            AST::Expr* param = parse_expr();
+            if (param == NULL) {
+                error_at(t->get_locus(), "failed to parse method param in method call");
+                return NULL;
+            }
+            params.push_back(::std::unique_ptr<AST::Expr>(param));
+
+            if (lexer.peek_token()->get_id() != COMMA) {
+                break;
+            }
+            lexer.skip_token();
+
+            t = lexer.peek_token();
+        }
+
+        // skip right paren
+        if (!skip_token(RIGHT_PAREN)) {
+            return NULL;
+        }
+
+        // TODO: check types. actually do so in semantic analysis pass.
+
+        return new AST::MethodCallExpr(
+          receiver_expr, ::std::move(segment), ::std::move(params), ::std::move(outer_attrs));
+    }
+
+    // Parses a pseudo-binary infix function call expression.
+    AST::CallExpr* Parser::parse_function_call_expr(
+      const_TokenPtr tok, AST::Expr* function_expr, ::std::vector<AST::Attribute> outer_attrs) {
+        // parse function params (if they exist)
+        ::std::vector< ::std::unique_ptr<AST::Expr> > params;
+
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() != RIGHT_PAREN) {
+            AST::Expr* param = parse_expr();
+            if (param == NULL) {
+                error_at(t->get_locus(), "failed to parse function param in function call");
+                return NULL;
+            }
+            params.push_back(::std::unique_ptr<AST::Expr>(param));
+
+            if (lexer.peek_token()->get_id() != COMMA) {
+                break;
+            }
+            lexer.skip_token();
+
+            t = lexer.peek_token();
+        }
+
+        // skip ')' at end of param list
+        if (!skip_token(RIGHT_PAREN)) {
+            // skip somewhere?
+            return NULL;
+        }
+
+        // TODO: check types. actually, do so during semantic analysis
+
+        return new AST::CallExpr(function_expr, ::std::move(params), ::std::move(outer_attrs));
+    }
+
+    // Determines action to take when finding token at beginning of expression.
     Tree Parser::null_denotation(const_TokenPtr tok) {
         // note: tok is previous character in input stream, not current one, as parse_expression
         // skips it before passing it in
 
         /* as a Pratt parser (which works by decomposing expressions into a null denotation and then a
          * left denotation), null denotations handle primaries and unary operands (but only prefix
-         * unary operands?)*/
+         * unary operands) */
 
         switch (tok->get_id()) {
             case IDENTIFIER: {
@@ -7115,7 +8166,7 @@ namespace Rust {
     }
 
     // Implementation of binary array reference ([) operator parsing;
-    Tree Parser::binary_array_ref(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_array_index(const_TokenPtr tok, Tree left) {
         // parse integer expression inside square brackets (array index)
         Tree right = parse_integer_expression();
         if (right.is_error())

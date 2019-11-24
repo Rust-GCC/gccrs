@@ -168,32 +168,141 @@ namespace Rust {
         AST::NamedFunctionParam parse_named_function_param();
         AST::Method parse_method();
 
-        // Expression-related
+        // Expression-related (Pratt parsed)
         AST::Expr* parse_expr();
-        AST::ExprWithoutBlock* parse_expr_without_block(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::Expr* parse_expr(int right_binding_power);
+        AST::Expr* null_denotation_NEW(const_TokenPtr t);
+        AST::Expr* left_denotation(const_TokenPtr t, AST::Expr* left);
+        AST::ArithmeticOrLogicalExpr* parse_binary_plus_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ArithmeticOrLogicalExpr* parse_binary_minus_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ArithmeticOrLogicalExpr* parse_binary_mult_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ArithmeticOrLogicalExpr* parse_binary_div_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ArithmeticOrLogicalExpr* parse_binary_mod_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ArithmeticOrLogicalExpr* parse_bitwise_and_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ArithmeticOrLogicalExpr* parse_bitwise_or_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ArithmeticOrLogicalExpr* parse_bitwise_xor_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ArithmeticOrLogicalExpr* parse_left_shift_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ArithmeticOrLogicalExpr* parse_right_shift_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ComparisonExpr* parse_binary_equal_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ComparisonExpr* parse_binary_not_equal_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ComparisonExpr* parse_binary_greater_than_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ComparisonExpr* parse_binary_less_than_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ComparisonExpr* parse_binary_greater_equal_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ComparisonExpr* parse_binary_less_equal_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::LazyBooleanExpr* parse_lazy_or_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::LazyBooleanExpr* parse_lazy_and_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::TypeCastExpr* parse_type_cast_expr(
+          const_TokenPtr tok, AST::Expr* expr_to_cast, ::std::vector<AST::Attribute> outer_attrs);
+        AST::AssignmentExpr* parse_assig_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::CompoundAssignmentExpr* parse_plus_assig_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::CompoundAssignmentExpr* parse_minus_assig_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::CompoundAssignmentExpr* parse_mult_assig_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::CompoundAssignmentExpr* parse_div_assig_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::CompoundAssignmentExpr* parse_mod_assig_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::CompoundAssignmentExpr* parse_and_assig_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::CompoundAssignmentExpr* parse_or_assig_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::CompoundAssignmentExpr* parse_xor_assig_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::CompoundAssignmentExpr* parse_left_shift_assig_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::CompoundAssignmentExpr* parse_right_shift_assig_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::AwaitExpr* parse_await_expr(
+          const_TokenPtr tok, AST::Expr* expr_to_await, ::std::vector<AST::Attribute> outer_attrs);
+        AST::MethodCallExpr* parse_method_call_expr(
+          const_TokenPtr tok, AST::Expr* receiver_expr, ::std::vector<AST::Attribute> outer_attrs);
+        AST::CallExpr* parse_function_call_expr(
+          const_TokenPtr tok, AST::Expr* function_expr, ::std::vector<AST::Attribute> outer_attrs);
+        AST::RangeExpr* parse_led_range_exclusive_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::RangeExpr* parse_nud_range_exclusive_expr(
+          const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs);
+        AST::RangeFromToInclExpr* parse_range_inclusive_expr(
+          const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
+        AST::RangeToInclExpr* parse_range_to_inclusive_expr(
+          const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs);
+        AST::TupleIndexExpr* parse_tuple_index_expr(
+          const_TokenPtr tok, AST::Expr* tuple_expr, ::std::vector<AST::Attribute> outer_attrs);
+        AST::FieldAccessExpr* parse_field_access_expr(
+          const_TokenPtr tok, AST::Expr* struct_expr, ::std::vector<AST::Attribute> outer_attrs);
+        AST::ArrayIndexExpr* parse_index_expr(
+          const_TokenPtr tok, AST::Expr* array_expr, ::std::vector<AST::Attribute> outer_attrs);
+
+        // Expression-related (non-Pratt parsed)
+        AST::ExprWithoutBlock* parse_expr_without_block(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::BlockExpr* parse_block_expr(
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::IfExpr* parse_if_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::IfLetExpr* parse_if_let_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::LoopExpr* parse_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), AST::LoopLabel label = AST::LoopLabel::error());
-        AST::WhileLoopExpr* parse_while_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), AST::LoopLabel label = AST::LoopLabel::error());
-        AST::WhileLetLoopExpr* parse_while_let_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), AST::LoopLabel label = AST::LoopLabel::error());
-        AST::ForLoopExpr* parse_for_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), AST::LoopLabel label = AST::LoopLabel::error());
-        AST::MatchExpr* parse_match_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::IfExpr* parse_if_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::IfLetExpr* parse_if_let_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::LoopExpr* parse_loop_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          AST::LoopLabel label = AST::LoopLabel::error());
+        AST::WhileLoopExpr* parse_while_loop_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          AST::LoopLabel label = AST::LoopLabel::error());
+        AST::WhileLetLoopExpr* parse_while_let_loop_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          AST::LoopLabel label = AST::LoopLabel::error());
+        AST::ForLoopExpr* parse_for_loop_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          AST::LoopLabel label = AST::LoopLabel::error());
+        AST::MatchExpr* parse_match_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::MatchArm parse_match_arm();
         ::std::vector< ::std::unique_ptr<AST::Pattern> > parse_match_arm_patterns();
-        AST::BaseLoopExpr* parse_labelled_loop_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::BaseLoopExpr* parse_labelled_loop_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::LoopLabel parse_loop_label();
-        AST::AsyncBlockExpr* parse_async_block_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::UnsafeBlockExpr* parse_unsafe_block_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::GroupedExpr* parse_grouped_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::ClosureExpr* parse_closure_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::AsyncBlockExpr* parse_async_block_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::UnsafeBlockExpr* parse_unsafe_block_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::GroupedExpr* parse_grouped_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::ClosureExpr* parse_closure_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::ClosureParam parse_closure_param();
-        AST::LiteralExpr* parse_literal_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::ReturnExpr* parse_return_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::BreakExpr* parse_break_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::ContinueExpr* parse_continue_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        AST::ArrayExpr* parse_array_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::LiteralExpr* parse_literal_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::ReturnExpr* parse_return_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
+        AST::BreakExpr* parse_break_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
+        AST::ContinueExpr* parse_continue_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::ArrayExpr* parse_array_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::ExprWithoutBlock* parse_grouped_or_tuple_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
 
         // Type-related
         AST::Type* parse_type();
@@ -280,49 +389,59 @@ namespace Rust {
         std::vector<BlockChain> stack_block_chain;
 
 // x-macro list for binary operators - only defined here to be inside Parser class
-#define BINARY_HANDLER_LIST                                   \
-    BINARY_HANDLER(plus, PLUS)                                \
-    BINARY_HANDLER(minus, MINUS)                              \
-    BINARY_HANDLER(mult, ASTERISK)                            \
-    BINARY_HANDLER(div, DIV)                                  \
-    BINARY_HANDLER(mod, PERCENT)                              \
-    BINARY_HANDLER(bitwise_and, AMP)                          \
-    BINARY_HANDLER(bitwise_or, PIPE)                          \
-    BINARY_HANDLER(bitwise_xor, CARET)                        \
-    BINARY_HANDLER(left_shift, LEFT_SHIFT)                    \
-    BINARY_HANDLER(right_shift, RIGHT_SHIFT)                  \
-                                                              \
-    BINARY_HANDLER(equal, EQUAL_EQUAL)                        \
-    BINARY_HANDLER(not_equal, NOT_EQUAL)                      \
-    BINARY_HANDLER(smaller_than, LEFT_ANGLE)                  \
-    BINARY_HANDLER(smaller_equal, LESS_OR_EQUAL)              \
-    BINARY_HANDLER(greater_than, RIGHT_ANGLE)                 \
-    BINARY_HANDLER(greater_equal, GREATER_OR_EQUAL)           \
-                                                              \
-    BINARY_HANDLER(logical_and, LOGICAL_AND)                  \
-    BINARY_HANDLER(logical_or, OR)                            \
-                                                              \
-    BINARY_HANDLER(as_cast, AS)                               \
-    /* should this really be an operator? */                  \
-                                                              \
-    BINARY_HANDLER(array_ref, LEFT_SQUARE)                    \
-                                                              \
-    BINARY_HANDLER(field_ref, DOT)                            \
-    /*BINARY_HANDLER(question_mark, QUESTION_MARK)*/          \
-    /* not a binary operator, technically */                  \
-    BINARY_HANDLER(assignment_expr, EQUAL)                    \
-    /* should this really be an operator? or a binary one? */ \
-    /* if it should, also add all operation-assign below:*/   \
-    BINARY_HANDLER(plus_assig, PLUS_EQ)                       \
-    BINARY_HANDLER(minus_assig, MINUS_EQ)                     \
-    BINARY_HANDLER(mult_assig, ASTERISK_EQ)                   \
-    BINARY_HANDLER(div_assig, DIV_EQ)                         \
-    BINARY_HANDLER(mod_assig, PERCENT_EQ)                     \
-    BINARY_HANDLER(bitwise_and_assig, AMP_EQ)                 \
-    BINARY_HANDLER(bitwise_or_assig, PIPE_EQ)                 \
-    BINARY_HANDLER(bitwise_xor_assig, CARET_EQ)               \
-    BINARY_HANDLER(left_shift_assig, LEFT_SHIFT_EQ)           \
-    BINARY_HANDLER(right_shift_assig, RIGHT_SHIFT_EQ)
+#define BINARY_HANDLER_LIST                                             \
+    BINARY_HANDLER(plus, PLUS)                                          \
+    BINARY_HANDLER(minus, MINUS)                                        \
+    BINARY_HANDLER(mult, ASTERISK)                                      \
+    BINARY_HANDLER(div, DIV)                                            \
+    BINARY_HANDLER(mod, PERCENT)                                        \
+    BINARY_HANDLER(bitwise_and, AMP)                                    \
+    BINARY_HANDLER(bitwise_or, PIPE)                                    \
+    BINARY_HANDLER(bitwise_xor, CARET)                                  \
+    BINARY_HANDLER(left_shift, LEFT_SHIFT)                              \
+    BINARY_HANDLER(right_shift, RIGHT_SHIFT)                            \
+                                                                        \
+    BINARY_HANDLER(equal, EQUAL_EQUAL)                                  \
+    BINARY_HANDLER(not_equal, NOT_EQUAL)                                \
+    BINARY_HANDLER(smaller_than, LEFT_ANGLE)                            \
+    BINARY_HANDLER(smaller_equal, LESS_OR_EQUAL)                        \
+    BINARY_HANDLER(greater_than, RIGHT_ANGLE)                           \
+    BINARY_HANDLER(greater_equal, GREATER_OR_EQUAL)                     \
+                                                                        \
+    BINARY_HANDLER(logical_and, LOGICAL_AND)                            \
+    BINARY_HANDLER(logical_or, OR)                                      \
+                                                                        \
+    BINARY_HANDLER(as_cast, AS)                                         \
+    /* should this really be an operator? */                            \
+                                                                        \
+    BINARY_HANDLER(array_index, LEFT_SQUARE)                            \
+                                                                        \
+    BINARY_HANDLER(field_ref, DOT)                                      \
+    /*BINARY_HANDLER(method_call, DOT)*/                                \
+    BINARY_HANDLER(error_propagation, QUESTION_MARK)                    \
+    /* not a binary operator, technically, but still left denotation */ \
+    BINARY_HANDLER(assignment_expr, EQUAL)                              \
+    /* should this really be an operator? or a binary one? */           \
+    /* if it should, also add all operation-assign below:*/             \
+    BINARY_HANDLER(plus_assig, PLUS_EQ)                                 \
+    BINARY_HANDLER(minus_assig, MINUS_EQ)                               \
+    BINARY_HANDLER(mult_assig, ASTERISK_EQ)                             \
+    BINARY_HANDLER(div_assig, DIV_EQ)                                   \
+    BINARY_HANDLER(mod_assig, PERCENT_EQ)                               \
+    BINARY_HANDLER(bitwise_and_assig, AMP_EQ)                           \
+    BINARY_HANDLER(bitwise_or_assig, PIPE_EQ)                           \
+    BINARY_HANDLER(bitwise_xor_assig, CARET_EQ)                         \
+    BINARY_HANDLER(left_shift_assig, LEFT_SHIFT_EQ)                     \
+    BINARY_HANDLER(right_shift_assig, RIGHT_SHIFT_EQ)                   \
+                                                                        \
+    BINARY_HANDLER(range_exclusive, DOT_DOT)                            \
+    BINARY_HANDLER(range_inclusive, DOT_DOT_EQ)                         \
+                                                                        \
+    BINARY_HANDLER(path, SCOPE_RESOLUTION)                              \
+                                                                        \
+    BINARY_HANDLER(return, RETURN_TOK)                                  \
+    BINARY_HANDLER(break, BREAK)                                        \
+    BINARY_HANDLER(closure, MOVE)
 
 // create declarations for binary op handling
 #define BINARY_HANDLER(name, _) Tree binary_##name(const_TokenPtr tok, Tree left);

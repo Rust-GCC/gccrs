@@ -339,14 +339,14 @@ namespace Rust {
         // Represents an expression using unary or binary operators as AST node. Can be overloaded.
         class OperatorExpr : public ExprWithoutBlock {
             // TODO: create binary and unary operator subclasses?
-          protected:
             // Variable must be protected to allow derived classes to modify it
             // Expr* main_or_left_expr;
             ::std::unique_ptr<Expr> main_or_left_expr;
 
+          protected:
             // Constructor (only for initialisation of expr purposes)
-            OperatorExpr(Expr* main_or_left_expr_, ::std::vector<Attribute> outer_attribs) :
-              main_or_left_expr(main_or_left_expr_), ExprWithoutBlock(::std::move(outer_attribs)) {}
+            OperatorExpr(Expr* main_or_left_expr, ::std::vector<Attribute> outer_attribs) :
+              main_or_left_expr(main_or_left_expr), ExprWithoutBlock(::std::move(outer_attribs)) {}
 
             // Copy constructor (only for initialisation of expr purposes)
             OperatorExpr(OperatorExpr const& other) :
@@ -465,10 +465,14 @@ namespace Rust {
 
         // Unary prefix - or ! negation or NOT operators.
         class NegationExpr : public OperatorExpr {
+          public:
+            enum NegationType { NEGATE, NOT };
+
+          private:
             // Note: overload negation via std::ops::Neg and not via std::ops::Not
             // Negation only works for signed integer and floating-point types, NOT only works for
             // boolean and integer types (via bitwise NOT)
-            enum NegationType { NEGATE, NOT } negation_type;
+            NegationType negation_type;
 
           public:
             ::std::string as_string() const;
@@ -505,7 +509,7 @@ namespace Rust {
 
         // Infix binary operators. +, -, *, /, %, &, |, ^, <<, >>
         class ArithmeticOrLogicalExpr : public OperatorExpr {
-            // Note: overloading trait specified in comments
+          public:
             enum ExprType {
                 ADD,         // std::ops::Add
                 SUBTRACT,    // std::ops::Sub
@@ -517,7 +521,11 @@ namespace Rust {
                 BITWISE_XOR, // std::ops::BitXor
                 LEFT_SHIFT,  // std::ops::Shl
                 RIGHT_SHIFT  // std::ops::Shr
-            } expr_type;
+            };
+
+          private:
+            // Note: overloading trait specified in comments
+            ExprType expr_type;
 
             // Expr* right_expr;
             ::std::unique_ptr<Expr> right_expr;
@@ -549,7 +557,7 @@ namespace Rust {
             // Overload assignment operator
             ArithmeticOrLogicalExpr& operator=(ArithmeticOrLogicalExpr const& other) {
                 OperatorExpr::operator=(other);
-                main_or_left_expr = other.main_or_left_expr->clone_expr();
+                //main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 expr_type = other.expr_type;
 
@@ -574,7 +582,7 @@ namespace Rust {
 
         // Infix binary comparison operators. ==, !=, <, <=, >, >=
         class ComparisonExpr : public OperatorExpr {
-            // Note: overloading trait specified in comments
+          public:
             enum ExprType {
                 EQUAL,            // std::cmp::PartialEq::eq
                 NOT_EQUAL,        // std::cmp::PartialEq::ne
@@ -582,7 +590,11 @@ namespace Rust {
                 LESS_THAN,        // std::cmp::PartialEq::lt
                 GREATER_OR_EQUAL, // std::cmp::PartialEq::ge
                 LESS_OR_EQUAL     // std::cmp::PartialEq::le
-            } expr_type;
+            };
+
+          private:
+            // Note: overloading trait specified in comments
+            ExprType expr_type;
 
             // Expr* right_expr;
             ::std::unique_ptr<Expr> right_expr;
@@ -614,7 +626,7 @@ namespace Rust {
             // Overload assignment operator to deep copy
             ComparisonExpr& operator=(ComparisonExpr const& other) {
                 OperatorExpr::operator=(other);
-                main_or_left_expr = other.main_or_left_expr->clone_expr();
+                //main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 expr_type = other.expr_type;
                 // outer_attrs = other.outer_attrs;
@@ -641,7 +653,11 @@ namespace Rust {
 
         // Infix binary lazy boolean logical operators && and ||.
         class LazyBooleanExpr : public OperatorExpr {
-            enum ExprType { LOGICAL_OR, LOGICAL_AND } expr_type;
+          public:
+            enum ExprType { LOGICAL_OR, LOGICAL_AND };
+
+          private:
+            ExprType expr_type;
 
             // Expr* right_expr;
             ::std::unique_ptr<Expr> right_expr;
@@ -667,7 +683,7 @@ namespace Rust {
             // Overload assignment operator to deep copy
             LazyBooleanExpr& operator=(LazyBooleanExpr const& other) {
                 OperatorExpr::operator=(other);
-                main_or_left_expr = other.main_or_left_expr->clone_expr();
+                //main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 expr_type = other.expr_type;
 
@@ -721,7 +737,7 @@ namespace Rust {
             // Overload assignment operator to deep copy
             TypeCastExpr& operator=(TypeCastExpr const& other) {
                 OperatorExpr::operator=(other);
-                main_or_left_expr = other.main_or_left_expr->clone_expr();
+                //main_or_left_expr = other.main_or_left_expr->clone_expr();
                 type_to_convert_to = other.type_to_convert_to->clone_type_no_bounds();
 
                 return *this;
@@ -770,7 +786,7 @@ namespace Rust {
             // Overload assignment operator to clone unique_ptr right_expr
             AssignmentExpr& operator=(AssignmentExpr const& other) {
                 OperatorExpr::operator=(other);
-                main_or_left_expr = other.main_or_left_expr->clone_expr();
+                //main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 // outer_attrs = other.outer_attrs;
 
@@ -795,7 +811,7 @@ namespace Rust {
 
         // Binary infix compound assignment (arithmetic or logic then assignment) expressions.
         class CompoundAssignmentExpr : public OperatorExpr {
-            // Note: overloading trait specified in comments
+          public:
             enum ExprType {
                 ADD,         // std::ops::AddAssign
                 SUBTRACT,    // std::ops::SubAssign
@@ -807,7 +823,11 @@ namespace Rust {
                 BITWISE_XOR, // std::ops::BitXorAssign
                 LEFT_SHIFT,  // std::ops::ShlAssign
                 RIGHT_SHIFT  // std::ops::ShrAssign
-            } expr_type;
+            };
+
+          private:
+            // Note: overloading trait specified in comments
+            ExprType expr_type;
 
             // Expr* right_expr;
             ::std::unique_ptr<Expr> right_expr;
@@ -840,7 +860,7 @@ namespace Rust {
             // Overload assignment operator to clone
             CompoundAssignmentExpr& operator=(CompoundAssignmentExpr const& other) {
                 OperatorExpr::operator=(other);
-                main_or_left_expr = other.main_or_left_expr->clone_expr();
+                //main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 expr_type = other.expr_type;
                 // outer_attrs = other.outer_attrs;
@@ -1937,6 +1957,11 @@ namespace Rust {
             // move constructors
             CallExpr(CallExpr&& other) = default;
             CallExpr& operator=(CallExpr&& other) = default;
+
+            // Returns whether function call has parameters.
+            inline bool has_params() const {
+                return !params.empty();
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3851,6 +3876,14 @@ namespace Rust {
             // move constructors
             AwaitExpr(AwaitExpr&& other) = default;
             AwaitExpr& operator=(AwaitExpr&& other) = default;
+
+            ::std::string as_string() const;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual AwaitExpr* clone_expr_without_block_impl() const OVERRIDE {
+                return new AwaitExpr(*this);
+            }
         };
 
         // Async block expression AST node (block expr that evaluates to a future)
