@@ -226,7 +226,7 @@ namespace Rust {
             ::std::string as_string() const;
 
             ReferencePattern(Pattern* pattern, bool is_mut_reference, bool ref_has_two_amps) :
-              pattern(pattern), is_mut(is_mut_reference), has_two_amps(ref_has_two_amps) {}
+              has_two_amps(ref_has_two_amps), is_mut(is_mut_reference), pattern(pattern) {}
 
             // Copy constructor requires clone
             ReferencePattern(ReferencePattern const& other) :

@@ -281,7 +281,7 @@ namespace Rust {
         }
 
         ::std::string Function::as_string() const {
-            return ::std::string("not implemented");
+            return ::std::string("Function: not implemented");
         }
 
         ::std::string BlockExpr::as_string() const {
@@ -325,6 +325,178 @@ namespace Rust {
         }
 
         ::std::string QualifiedPathInExpression::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string BorrowExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ReturnExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string GroupedExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string RangeToExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ContinueExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string NegationExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string RangeFromExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string RangeFullExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string WhileLoopExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ArrayIndexExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string AssignmentExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string AsyncBlockExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ComparisonExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string IfExprConseqIf::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string MethodCallExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string TupleIndexExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string DereferenceExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string FieldAccessExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string LazyBooleanExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string RangeFromToExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string RangeToInclExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string UnsafeBlockExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ClosureExprInner::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string IfExprConseqElse::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string WhileLetLoopExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string IfExprConseqIfLet::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string IfLetExprConseqIf::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string IfLetExprConseqElse::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string RangeFromToInclExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ErrorPropogationExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string IfLetExprConseqIfLet::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string CompoundAssignmentExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ArithmeticOrLogicalExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string CallExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string LoopExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ArrayExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string AwaitExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string BreakExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string IfExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string IfLetExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string LoopLabel::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string MatchExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string TupleExpr::as_string() const {
             return ::std::string("not implemented");
         }
     }

@@ -84,12 +84,16 @@ namespace Rust {
     const ::std::string& Token::get_str() const {
         // FIXME: attempt to return null again
         // gcc_assert(str != NULL);
+
+        // HACK: allow referencing an empty string
+        static const ::std::string empty = "";
+
         if (str == NULL) {
             error_at(get_locus(),
               "attempted to get string for '%s', which has no string. returning empty string "
               "instead.",
               get_token_description());
-            return "";
+            return empty;
         }
         return *str;
     }

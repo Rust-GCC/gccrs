@@ -508,6 +508,10 @@ namespace Rust {
                 return ::std::unique_ptr<Expr>(clone_expr_impl());
             }
 
+            /* TODO: public methods that could be useful: 
+             *  - get_type() - returns type of expression. set_type() may also be useful for some?
+             *  - evaluate() - evaluates expression if constant? can_evaluate()? */
+
           protected:
             // Constructor
             Expr(::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
@@ -515,6 +519,24 @@ namespace Rust {
 
             // Clone function implementation as pure virtual method
             virtual Expr* clone_expr_impl() const = 0;
+        };
+
+        // HACK: IdentifierExpr, delete when figure out identifier vs expr problem in Pratt parser
+        class IdentifierExpr : public Expr {
+            Identifier ident;
+
+          public:
+            IdentifierExpr(Identifier ident, ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) : ident(::std::move(ident)), Expr(::std::move(outer_attrs)) {}
+
+            ::std::string as_string() const {
+              return "not implemented as a HACK";
+            }
+
+          protected:
+            // Clone method implementation
+            virtual IdentifierExpr* clone_expr_impl() const OVERRIDE {
+                return new IdentifierExpr(*this);
+            }
         };
 
         // AST node for an expression without an accompanying block - abstract

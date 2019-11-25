@@ -3673,7 +3673,9 @@ namespace Rust {
             }
 
             // Creates a match arm in an error state.
-            static MatchArm create_error() {}
+            static MatchArm create_error() {
+              return MatchArm(::std::vector< ::std::unique_ptr<Pattern> >());
+            }
         };
 
         // Base "match case" for a match expression - abstract

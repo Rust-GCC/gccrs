@@ -5641,7 +5641,7 @@ namespace Rust {
         }
 
         return new AST::WhileLetLoopExpr(
-          predicate_patterns, predicate_expr, body, ::std::move(label), ::std::move(outer_attrs));
+          ::std::move(predicate_patterns), predicate_expr, body, ::std::move(label), ::std::move(outer_attrs));
     }
 
     /* Parses a "for" iterative loop. Label is not parsed and should be parsed via
@@ -5913,7 +5913,7 @@ namespace Rust {
 
         // parse block expression (required)
         AST::BlockExpr* block_expr = parse_block_expr();
-        if (block_expr == false) {
+        if (block_expr == NULL) {
             error_at(lexer.peek_token()->get_locus(),
               "failed to parse block expression of async block expression");
             // skip somewhere?
@@ -5929,7 +5929,7 @@ namespace Rust {
 
         // parse block expression (required)
         AST::BlockExpr* block_expr = parse_block_expr();
-        if (block_expr == false) {
+        if (block_expr == NULL) {
             error_at(lexer.peek_token()->get_locus(),
               "failed to parse block expression of unsafe block expression");
             // skip somewhere?
@@ -5983,16 +5983,16 @@ namespace Rust {
                   copied_array_elems, ::std::move(inner_attrs), ::std::move(outer_attrs));
             } else if (lexer.peek_token()->get_id() == RIGHT_SQUARE) {
                 // single-element array expression
-                ::std::vector< ::std::unique_ptr<AST::Expr> > exprs
-                  = { ::std::unique_ptr<AST::Expr>(initial_expr) };
+                ::std::vector< ::std::unique_ptr<AST::Expr> > exprs;
+                exprs.push_back(::std::unique_ptr<AST::Expr>(initial_expr));
 
                 AST::ArrayElemsValues* array_elems = new AST::ArrayElemsValues(::std::move(exprs));
                 return new AST::ArrayExpr(
                   array_elems, ::std::move(inner_attrs), ::std::move(outer_attrs));
             } else if (lexer.peek_token()->get_id() == COMMA) {
                 // multi-element array expression (or trailing comma)
-                ::std::vector< ::std::unique_ptr<AST::Expr> > exprs
-                  = { ::std::unique_ptr<AST::Expr>(initial_expr) };
+                ::std::vector< ::std::unique_ptr<AST::Expr> > exprs;
+                exprs.push_back(::std::unique_ptr<AST::Expr>(initial_expr));
 
                 const_TokenPtr t = lexer.peek_token();
                 while (t->get_id() == COMMA) {
@@ -6097,8 +6097,8 @@ namespace Rust {
               first_expr, ::std::move(inner_attrs), ::std::move(outer_attrs));
         } else if (lexer.peek_token()->get_id() == COMMA) {
             // tuple expr
-            ::std::vector< ::std::unique_ptr<AST::Expr> > exprs
-              = { ::std::unique_ptr<AST::Expr>(first_expr) };
+            ::std::vector< ::std::unique_ptr<AST::Expr> > exprs;
+            exprs.push_back(::std::unique_ptr<AST::Expr>(first_expr));
 
             // parse potential other tuple exprs
             const_TokenPtr t = lexer.peek_token();
@@ -6710,7 +6710,9 @@ namespace Rust {
         }*/
     }
 
-    // Pratt parser impl of parse_expr. FIXME: this is only provisional and probably will be changed.
+    /* Pratt parser impl of parse_expr. FIXME: this is only provisional and probably will be changed.
+     * FIXME: this may only parse expressions without blocks as they are the only expressions to have
+     * precedence? */
     AST::Expr* Parser::parse_expr(int right_binding_power) {
         const_TokenPtr current_token = lexer.peek_token();
         lexer.skip_token();
@@ -6736,8 +6738,10 @@ namespace Rust {
         return expr;
     }
 
-    // Parse expression with lowest left binding power.
+    /* Parse expression with lowest left binding power. FIXME: this may only apply to expressions
+     * without blocks as they are the only ones to have precedence? */
     AST::Expr* Parser::parse_expr() {
+        // HACK: only call parse_expr(LBP_LOWEST) after ensuring it is not an expression with block?
         return parse_expr(LBP_LOWEST);
     }
 
@@ -6800,7 +6804,9 @@ namespace Rust {
         return expr;
     }
 
-    // Determines action to take when finding token at beginning of expression.
+    /* Determines action to take when finding token at beginning of expression. 
+     * FIXME: this may only apply to precedence-capable expressions (which are all expressions without
+     * blocks), so make return type ExprWithoutBlock? It would simplify stuff. */
     AST::Expr* Parser::null_denotation_NEW(const_TokenPtr tok) {
         // note: tok is previous character in input stream, not current one, as parse_expr
         // skips it before passing it in
@@ -6823,6 +6829,10 @@ namespace Rust {
                 return Tree(s->get_tree_decl(), tok->get_locus());
             }*/
             // symbol table must be created in semantic analysis pass, so can't use this
+            case IDENTIFIER:
+                // have to return an identifier expression or something, idk
+                // HACK: may have to become permanent, but this is my current identifier expression
+                return new AST::IdentifierExpr(tok->get_str());
             // FIXME: delegate to parse_literal_expr instead? would have to rejig tokens and whatever.
             case INT_LITERAL:
                 // we should check the range, but ignore for now
@@ -7135,6 +7145,7 @@ namespace Rust {
             default:
                 error_at(tok->get_locus(), "found unexpected token '%s' in left denotation",
                   tok->get_token_description());
+                return NULL;
         }
     }
 
@@ -7894,17 +7905,18 @@ namespace Rust {
      * Returns a function pointer to member function that implements the left denotation for the token
      * given. */
     Tree Parser::left_denotation(const_TokenPtr tok, Tree left) {
-        BinaryHandler binary_handler = get_binary_handler(tok->get_id());
+        /*BinaryHandler binary_handler = get_binary_handler(tok->get_id());
         if (binary_handler == NULL) {
             unexpected_token(tok);
             return Tree::error();
         }
 
-        return (this->*binary_handler)(tok, left);
+        return (this->*binary_handler)(tok, left);*/
+        return Tree::error();
     }
 
     // Gets method for handling binary operation parsing for specific token type.
-    Parser::BinaryHandler Parser::get_binary_handler(TokenId id) {
+    /*Parser::BinaryHandler Parser::get_binary_handler(TokenId id) {
         switch (id) {
 #define BINARY_HANDLER(name, token_id) \
     case token_id:                     \
@@ -7914,7 +7926,7 @@ namespace Rust {
             default:
                 return NULL;
         }
-    }
+    }*/
 
     /* Returns the type of the binary operation. May also modify input trees if types do not match,
      * e.g. change a float and int to two floats in addition.   */

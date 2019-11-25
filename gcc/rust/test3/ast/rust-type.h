@@ -29,9 +29,8 @@ namespace Rust {
 
             TraitBound(TypePath type_path, bool in_parens, bool opening_question_mark,
               ::std::vector<LifetimeParam> for_lifetimes) :
-              type_path(::std::move(type_path)),
-              in_parens(in_parens), opening_question_mark(opening_question_mark),
-              for_lifetimes(::std::move(for_lifetimes)) {}
+              in_parens(in_parens), opening_question_mark(opening_question_mark), 
+              for_lifetimes(::std::move(for_lifetimes)), type_path(::std::move(type_path)) {}
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -100,8 +99,7 @@ namespace Rust {
           public:
             TraitObjectType(::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds,
               bool is_dyn_dispatch) :
-              type_param_bounds(::std::move(type_param_bounds)),
-              has_dyn(is_dyn_dispatch) {}
+              has_dyn(is_dyn_dispatch), type_param_bounds(::std::move(type_param_bounds)) {}
 
             // copy constructor with vector clone
             TraitObjectType(TraitObjectType const& other) : has_dyn(other.has_dyn) {
@@ -206,7 +204,7 @@ namespace Rust {
 
           public:
             TraitObjectTypeOneBound(TraitBound trait_bound, bool is_dyn_dispatch) :
-              trait_bound(::std::move(trait_bound)), has_dyn(is_dyn_dispatch) {}
+              has_dyn(is_dyn_dispatch), trait_bound(::std::move(trait_bound)) {}
         };
 
         class TypePath; // definition moved to "rust-path.h"
@@ -298,8 +296,8 @@ namespace Rust {
             }
 
             // Constructor requires pointer for polymorphism reasons
-            RawPointerType(PointerType pointer_type_, TypeNoBounds* type_no_bounds) :
-              pointer_type(pointer_type_), type(type_no_bounds) {}
+            RawPointerType(PointerType pointer_type, TypeNoBounds* type_no_bounds) :
+              pointer_type(pointer_type), type(type_no_bounds) {}
 
             // Copy constructor calls custom polymorphic clone function
             RawPointerType(RawPointerType const& other) :
@@ -507,7 +505,7 @@ namespace Rust {
 
           public:
             MaybeNamedParam(Identifier name, ParamKind param_kind, Type* param_type) :
-              name(::std::move(name)), param_kind(param_kind), param_type(param_type) {}
+              param_type(param_type), param_kind(param_kind), name(::std::move(name)) {}
 
             // Copy constructor with clone
             MaybeNamedParam(MaybeNamedParam const& other) :

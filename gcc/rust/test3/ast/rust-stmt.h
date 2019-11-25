@@ -77,8 +77,8 @@ namespace Rust {
 
             LetStmt(Pattern* variables_pattern, Expr* init_expr, Type* type,
               ::std::vector<Attribute> outer_attrs) :
-              variables_pattern(variables_pattern),
-              init_expr(init_expr), type(type), outer_attrs(::std::move(outer_attrs)) {}
+              outer_attrs(::std::move(outer_attrs)), variables_pattern(variables_pattern), type(type),
+              init_expr(init_expr) {}
 
             // Copy constructor with clone
             LetStmt(LetStmt const& other) :
