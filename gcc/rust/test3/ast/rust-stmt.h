@@ -77,14 +77,14 @@ namespace Rust {
 
             LetStmt(Pattern* variables_pattern, Expr* init_expr, Type* type,
               ::std::vector<Attribute> outer_attrs) :
-              outer_attrs(::std::move(outer_attrs)), variables_pattern(variables_pattern), type(type),
-              init_expr(init_expr) {}
+              outer_attrs(::std::move(outer_attrs)),
+              variables_pattern(variables_pattern), type(type), init_expr(init_expr) {}
 
             // Copy constructor with clone
             LetStmt(LetStmt const& other) :
+              outer_attrs(other.outer_attrs),
               variables_pattern(other.variables_pattern->clone_pattern()),
-              init_expr(other.init_expr->clone_expr()), type(other.type->clone_type()),
-              outer_attrs(other.outer_attrs) {}
+              type(other.type->clone_type()), init_expr(other.init_expr->clone_expr()) {}
 
             // Destructor - define here if required
 
@@ -114,10 +114,14 @@ namespace Rust {
             // TODO: add any useful virtual functions
         };
 
-        // Statement containing an expression without a block
+        /* Statement containing an expression without a block (or, due to technical difficulties, can
+         * only be guaranteed to hold an expression). */
         class ExprStmtWithoutBlock : public ExprStmt {
             // ExprWithoutBlock* expr;
-            ::std::unique_ptr<ExprWithoutBlock> expr;
+            /* HACK: cannot ensure type safety of ExprWithoutBlock due to Pratt parsing, so have to
+             * store more general type of Expr. FIXME: fix this issue somehow or redesign AST. */
+            //::std::unique_ptr<ExprWithoutBlock> expr;
+            ::std::unique_ptr<Expr> expr;
 
           public:
             /*~ExpressionStatementWithoutBlock() {
@@ -126,17 +130,18 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            ExprStmtWithoutBlock(ExprWithoutBlock* expr) : expr(expr) {}
+            // ExprStmtWithoutBlock(ExprWithoutBlock* expr) : expr(expr) {}
+            ExprStmtWithoutBlock(Expr* expr) : expr(expr) {}
 
             // Copy constructor with clone
             ExprStmtWithoutBlock(ExprStmtWithoutBlock const& other) :
-              expr(other.expr->clone_expr_without_block()) {}
+              expr(other.expr->clone_expr /*_without_block*/ ()) {}
 
             // Destructor - define here if required
 
             // Overloaded assignment operator to clone
             ExprStmtWithoutBlock& operator=(ExprStmtWithoutBlock const& other) {
-                expr = other.expr->clone_expr_without_block();
+                expr = other.expr->clone_expr /*_without_block*/ ();
 
                 return *this;
             }

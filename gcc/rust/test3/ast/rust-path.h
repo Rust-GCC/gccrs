@@ -36,6 +36,10 @@ namespace Rust {
             inline bool is_error() const {
                 return segment_name.empty();
             }
+
+            ::std::string as_string() const {
+                return segment_name;
+            }
         };
 
         // A binding of an identifier to a type used in generic arguments in paths
@@ -135,6 +139,8 @@ namespace Rust {
                 return GenericArgs(::std::vector<Lifetime>(),
                   ::std::vector< ::std::unique_ptr<Type> >(), ::std::vector<GenericArgsBinding>());
             }
+
+            ::std::string as_string() const;
         };
 
         // A segment of a path in expression, including an identifier aspect and maybe generic args
@@ -176,6 +182,8 @@ namespace Rust {
             static PathExprSegment create_error() {
                 return PathExprSegment(PathIdentSegment::create_error());
             }
+
+            ::std::string as_string() const;
         };
 
         // AST node representing a pattern that involves a "path" - abstract base class
@@ -188,6 +196,17 @@ namespace Rust {
             // Returns whether path has segments.
             inline bool has_segments() const {
                 return !segments.empty();
+            }
+
+            /* Converts path segments to their equivalent SimplePath segments if possible, and creates
+             * a SimplePath from them. */
+            SimplePath convert_to_simple_path(bool with_opening_scope_resolution) const;
+
+          public:
+            /* Returns whether the path is a single segment (excluding qualified path initial as 
+             * segment). */
+            inline bool is_single_segment() const {
+                return segments.size() == 1;
             }
         };
 
@@ -212,6 +231,16 @@ namespace Rust {
             // Returns whether path in expression is in an error state.
             inline bool is_error() const {
                 return !has_segments();
+            }
+
+            /* Converts PathInExpression to SimplePath if possible (i.e. no generic arguments). 
+             * Otherwise returns an empty SimplePath. */
+            inline SimplePath as_simple_path() const {
+                /* delegate to parent class as can't access segments. however, 
+                 * QualifiedPathInExpression conversion to simple path wouldn't make sense, so the
+                 * method in the parent class should be protected, not public. 
+                 * Have to pass in opening scope resolution as parent class has no access to it. */
+                return convert_to_simple_path(has_opening_scope_resolution);
             }
 
           protected:
@@ -424,8 +453,8 @@ namespace Rust {
             // Constructor 
             TypePath(::std::vector< ::std::unique_ptr<TypePathSegment> > segments,
               bool has_opening_scope_resolution = false) :
-              segments(::std::move(segments)),
-              has_opening_scope_resolution(has_opening_scope_resolution) {}
+              has_opening_scope_resolution(has_opening_scope_resolution), segments(::std::move(segments))
+               {}
 
             // Copy constructor with vector clone
             TypePath(TypePath const& other) :
@@ -455,6 +484,8 @@ namespace Rust {
             // move constructors
             TypePath(TypePath&& other) = default;
             TypePath& operator=(TypePath&& other) = default;
+
+            ::std::string as_string() const;
         };
 
         struct QualifiedPathType {
@@ -603,6 +634,8 @@ namespace Rust {
                 return QualifiedPathInType(QualifiedPathType::create_error(),
                   ::std::vector< ::std::unique_ptr<TypePathSegment> >());
             }
+
+            ::std::string as_string() const;
         };
     }
 }

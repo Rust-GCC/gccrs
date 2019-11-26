@@ -25,7 +25,6 @@ namespace Rust {
     // typedef ::std::string SimplePath;
     typedef ::std::string Identifier;
     typedef int TupleIndex;
-    typedef int Literal;
 
     namespace AST {
         // Delimiter types - used in macros and whatever.
@@ -92,6 +91,8 @@ namespace Rust {
         class MacroMatch {
           public:
             virtual ~MacroMatch() {}
+
+            virtual ::std::string as_string() const = 0;
 
             // Unique pointer custom clone function
             ::std::unique_ptr<MacroMatch> clone_macro_match() const {
@@ -171,6 +172,41 @@ namespace Rust {
             }
         };
 
+        // A literal - value with a type. Used in LiteralExpr and LiteralPattern.
+        struct Literal {
+          public:
+            enum LitType {
+                CHAR,
+                STRING,
+                RAW_STRING,
+                BYTE,
+                BYTE_STRING,
+                RAW_BYTE_STRING,
+                INT,
+                FLOAT,
+                BOOL
+            };
+          
+          private:
+            // TODO: maybe make subclasses of each type of literal with their typed values (or
+            // generics)
+            ::std::string value_as_string;
+            LitType type;
+
+          public:
+            ::std::string as_string() const {
+                return value_as_string;
+            }
+
+            inline LitType get_lit_type() const {
+                return type;
+            }
+
+            Literal(::std::string value_as_string, LitType type) :
+              value_as_string(::std::move(value_as_string)),
+              type(type) {}
+        };
+
         // A token tree with delimiters
         class DelimTokenTree
           : public TokenTree
@@ -239,6 +275,8 @@ namespace Rust {
         class PathSegment {
           public:
             virtual ~PathSegment() {}
+
+            virtual ::std::string as_string() const = 0;
         };
 
         // A segment of a simple path without generic or type arguments
@@ -295,6 +333,7 @@ namespace Rust {
         // aka Attr
         // Attribute AST representation
         struct Attribute {
+          private:
             SimplePath path;
 
             // bool has_attr_input;
@@ -427,6 +466,8 @@ namespace Rust {
             }
 
             virtual ~MetaItem() {}
+
+            virtual ::std::string as_string() const = 0;
         };
 
         // Forward decl - defined in rust-expr.h
@@ -570,6 +611,8 @@ namespace Rust {
                 return ::std::unique_ptr<Pattern>(clone_pattern_impl());
             }
 
+            // possible virtual methods: is_refutable()
+
           protected:
             // Clone pattern implementation as pure virtual method
             virtual Pattern* clone_pattern_impl() const = 0;
@@ -585,6 +628,8 @@ namespace Rust {
 
             // virtual destructor
             virtual ~Type() {}
+
+            virtual ::std::string as_string() const = 0;
 
           protected:
             // Clone function implementation as pure virtual method
@@ -619,6 +664,8 @@ namespace Rust {
             ::std::unique_ptr<TypeParamBound> clone_type_param_bound() const {
                 return ::std::unique_ptr<TypeParamBound>(clone_type_param_bound_impl());
             }
+
+            virtual ::std::string as_string() const = 0;
 
           protected:
             // Clone function implementation as pure virtual method
@@ -657,6 +704,8 @@ namespace Rust {
                 return lifetime_type == NAMED && lifetime_name.empty();
             }
 
+            ::std::string as_string() const;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual Lifetime* clone_type_param_bound_impl() const OVERRIDE {
@@ -673,6 +722,8 @@ namespace Rust {
             ::std::unique_ptr<GenericParam> clone_generic_param() const {
                 return ::std::unique_ptr<GenericParam>(clone_generic_param_impl());
             }
+
+            virtual ::std::string as_string() const = 0;
 
           protected:
             // Clone function implementation as pure virtual method
@@ -738,6 +789,8 @@ namespace Rust {
             // move constructors
             LifetimeParam(LifetimeParam&& other) = default;
             LifetimeParam& operator=(LifetimeParam&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

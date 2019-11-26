@@ -169,10 +169,10 @@ namespace Rust {
         AST::Method parse_method();
 
         // Expression-related (Pratt parsed)
-        AST::Expr* parse_expr();
-        AST::Expr* parse_expr(int right_binding_power);
-        AST::Expr* null_denotation_NEW(const_TokenPtr t);
-        AST::Expr* left_denotation(const_TokenPtr t, AST::Expr* left);
+        AST::Expr* parse_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::Expr* parse_expr(int right_binding_power, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::Expr* null_denotation_NEW(const_TokenPtr t, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        AST::Expr* left_denotation(const_TokenPtr t, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::ArithmeticOrLogicalExpr* parse_binary_plus_expr(
           const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs);
         AST::ArithmeticOrLogicalExpr* parse_binary_minus_expr(
@@ -318,6 +318,16 @@ namespace Rust {
 
         // Pattern-related
         AST::Pattern* parse_pattern();
+        AST::Pattern* parse_literal_or_range_pattern();
+        AST::RangePatternBound* parse_range_pattern_bound();
+        AST::ReferencePattern* parse_reference_pattern();
+        AST::Pattern* parse_grouped_or_tuple_pattern();
+        AST::SlicePattern* parse_slice_pattern();
+        AST::IdentifierPattern* parse_identifier_pattern();
+        AST::Pattern* parse_ident_leading_pattern();
+        AST::TupleStructItems* parse_tuple_struct_items();
+        AST::StructPatternElements parse_struct_pattern_elems();
+        AST::StructPatternField* parse_struct_pattern_field();
 
         // void parse_crate();
         // AST::Module parse_module();

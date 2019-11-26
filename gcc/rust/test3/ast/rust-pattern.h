@@ -7,7 +7,7 @@ namespace Rust {
     namespace AST {
         // Literal pattern AST node (comparing to a literal)
         class LiteralPattern : public Pattern {
-            Literal val; // make literal have a type given by enum, etc. rustc uses an extended form
+            Literal lit; // make literal have a type given by enum, etc. rustc uses an extended form
             // of its literal token implementation
             // FIXME: literal representation - use LiteralExpr? or another thing?
 
@@ -19,7 +19,11 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Constructor for a literal pattern
-            LiteralPattern(Literal val, bool has_minus = false) : val(val), has_minus(has_minus) {}
+            LiteralPattern(Literal lit, bool has_minus = false) :
+              lit(::std::move(lit)), has_minus(has_minus) {}
+
+            LiteralPattern(::std::string val, Literal::LitType type, bool has_minus = false) :
+              lit(Literal(::std::move(val), type)), has_minus(has_minus) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -209,6 +213,12 @@ namespace Rust {
             // default move semantics
             RangePattern(RangePattern&& other) = default;
             RangePattern& operator=(RangePattern&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual RangePattern* clone_pattern_impl() const OVERRIDE {
+                return new RangePattern(*this);
+            }
         };
 
         // AST node for pattern based on dereferencing the pointers given
@@ -230,8 +240,8 @@ namespace Rust {
 
             // Copy constructor requires clone
             ReferencePattern(ReferencePattern const& other) :
-              pattern(other.pattern->clone_pattern()), is_mut(other.is_mut),
-              has_two_amps(other.has_two_amps) {}
+              has_two_amps(other.has_two_amps), is_mut(other.is_mut),
+              pattern(other.pattern->clone_pattern()) {}
 
             // Destructor - define here if required
 
@@ -266,9 +276,7 @@ namespace Rust {
 
             // Creates an empty StructPatternEtc
             static StructPatternEtc create_empty() {
-                ::std::vector<Attribute> outer_attribs;
-
-                return StructPatternEtc(outer_attribs);
+                return StructPatternEtc(::std::vector<Attribute>());
             }
         };
 
@@ -320,13 +328,13 @@ namespace Rust {
 
             StructPatternFieldTuplePat(
               TupleIndex index, Pattern* tuple_pattern, ::std::vector<Attribute> outer_attribs) :
-              tuple_pattern(tuple_pattern),
-              index(index), StructPatternField(::std::move(outer_attribs)) {}
+              StructPatternField(::std::move(outer_attribs)),
+              index(index), tuple_pattern(tuple_pattern) {}
 
             // Copy constructor requires clone
             StructPatternFieldTuplePat(StructPatternFieldTuplePat const& other) :
-              tuple_pattern(other.tuple_pattern->clone_pattern()), index(other.index),
-              StructPatternField(other) {}
+              StructPatternField(other), index(other.index),
+              tuple_pattern(other.tuple_pattern->clone_pattern()) {}
 
             // Destructor - define here if required
 
@@ -343,6 +351,12 @@ namespace Rust {
             // default move semantics
             StructPatternFieldTuplePat(StructPatternFieldTuplePat&& other) = default;
             StructPatternFieldTuplePat& operator=(StructPatternFieldTuplePat&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual StructPatternFieldTuplePat* clone_struct_pattern_field_impl() const OVERRIDE {
+                return new StructPatternFieldTuplePat(*this);
+            }
         };
 
         // Identifier pattern single field in a struct pattern
@@ -358,13 +372,13 @@ namespace Rust {
 
             StructPatternFieldIdentPat(
               Identifier ident, Pattern* ident_pattern, ::std::vector<Attribute> outer_attrs) :
-              ident(::std::move(ident)),
-              ident_pattern(ident_pattern), StructPatternField(::std::move(outer_attrs)) {}
+              StructPatternField(::std::move(outer_attrs)),
+              ident(::std::move(ident)), ident_pattern(ident_pattern) {}
 
             // Copy constructor requires clone
             StructPatternFieldIdentPat(StructPatternFieldIdentPat const& other) :
-              ident(other.ident), ident_pattern(other.ident_pattern->clone_pattern()),
-              StructPatternField(other) {}
+              StructPatternField(other), ident(other.ident),
+              ident_pattern(other.ident_pattern->clone_pattern()) {}
 
             // Destructor - define here if required
 
@@ -381,6 +395,12 @@ namespace Rust {
             // default move semantics
             StructPatternFieldIdentPat(StructPatternFieldIdentPat&& other) = default;
             StructPatternFieldIdentPat& operator=(StructPatternFieldIdentPat&& other) = default;
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual StructPatternFieldIdentPat* clone_struct_pattern_field_impl() const OVERRIDE {
+                return new StructPatternFieldIdentPat(*this);
+            }
         };
 
         // Identifier only (with no pattern) single field in a struct pattern
@@ -393,8 +413,14 @@ namespace Rust {
           public:
             StructPatternFieldIdent(
               Identifier ident, bool is_ref, bool is_mut, ::std::vector<Attribute> outer_attrs) :
-              ident(::std::move(ident)),
-              has_ref(is_ref), has_mut(is_mut), StructPatternField(::std::move(outer_attrs)) {}
+              StructPatternField(::std::move(outer_attrs)),
+              has_ref(is_ref), has_mut(is_mut), ident(::std::move(ident)) {}
+
+          protected:
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual StructPatternFieldIdent* clone_struct_pattern_field_impl() const OVERRIDE {
+                return new StructPatternFieldIdent(*this);
+            }
         };
 
         // Elements of a struct pattern
@@ -658,7 +684,7 @@ namespace Rust {
         };
 
         // Class representing TuplePattern patterns where there is only a single pattern
-        class TuplePatternItemsSingle : public TuplePatternItems {
+        /*class TuplePatternItemsSingle : public TuplePatternItems {
             // Pattern pattern;
             ::std::unique_ptr<Pattern> pattern;
 
@@ -687,7 +713,8 @@ namespace Rust {
             virtual TuplePatternItemsSingle* clone_tuple_pattern_items_impl() const OVERRIDE {
                 return new TuplePatternItemsSingle(*this);
             }
-        };
+        };*/
+        // removed in favour of single-element TuplePatternItemsMultiple
 
         // Class representing TuplePattern patterns where there are multiple patterns
         class TuplePatternItemsMultiple : public TuplePatternItems {
@@ -833,7 +860,9 @@ namespace Rust {
             ::std::unique_ptr<Pattern> pattern_in_parens;
 
           public:
-            ::std::string as_string() const;
+            ::std::string as_string() const {
+                return "(" + pattern_in_parens->as_string() + ")";
+            }
 
             GroupedPattern(Pattern* pattern_in_parens) : pattern_in_parens(pattern_in_parens) {}
 

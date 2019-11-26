@@ -598,27 +598,27 @@ namespace Rust {
                     return NULL;
                 }
 
-                AST::LiteralExpr::LitType lit_type = AST::LiteralExpr::STRING;
+                AST::Literal::LitType lit_type = AST::Literal::STRING;
                 // Crappy mapping of token type to literal type
                 switch (t->get_id()) {
                     case INT_LITERAL:
-                        lit_type = AST::LiteralExpr::INT;
+                        lit_type = AST::Literal::INT;
                         break;
                     case FLOAT_LITERAL:
-                        lit_type = AST::LiteralExpr::FLOAT;
+                        lit_type = AST::Literal::FLOAT;
                         break;
                     case CHAR_LITERAL:
-                        lit_type = AST::LiteralExpr::CHAR;
+                        lit_type = AST::Literal::CHAR;
                         break;
                     case BYTE_CHAR_LITERAL:
-                        lit_type = AST::LiteralExpr::BYTE;
+                        lit_type = AST::Literal::BYTE;
                         break;
                     case BYTE_STRING_LITERAL:
-                        lit_type = AST::LiteralExpr::BYTE_STRING;
+                        lit_type = AST::Literal::BYTE_STRING;
                         break;
                     case STRING_LITERAL:
                     default:
-                        lit_type = AST::LiteralExpr::STRING;
+                        lit_type = AST::Literal::STRING;
                         break; // TODO: raw string? don't eliminate it from lexer?
                 }
 
@@ -808,6 +808,9 @@ namespace Rust {
         const_TokenPtr t = lexer.peek_token();
 
         switch (t->get_id()) {
+            case END_OF_FILE:
+                // not necessarily an error
+                return NULL;
             case PUB:
             case MOD:
             case EXTERN_TOK:
@@ -1924,8 +1927,11 @@ namespace Rust {
             return NULL;
         }
 
-        // parse function parameters
-        ::std::vector<AST::FunctionParam> function_params = parse_function_params();
+        // parse function parameters (only if next token isn't right paren)
+        ::std::vector<AST::FunctionParam> function_params;
+        if (lexer.peek_token()->get_id() != RIGHT_PAREN) {
+            function_params = parse_function_params();
+        }
 
         if (!skip_token(RIGHT_PAREN)) {
             error_at(lexer.peek_token()->get_locus(),
@@ -2179,11 +2185,15 @@ namespace Rust {
                 // parse type
                 AST::Type* type = parse_type();
 
-                return new AST::TypeParam(::std::move(ident), type, ::std::move(outer_attr));
+                return new AST::TypeParam(::std::move(ident),
+                  ::std::vector< ::std::unique_ptr<AST::TypeParamBound> >(), type,
+                  ::std::move(outer_attr));
             }
             default:
                 // Best assumption is that this is the end of the type param
-                return new AST::TypeParam(::std::move(ident), ::std::move(outer_attr));
+                return new AST::TypeParam(::std::move(ident),
+                  ::std::vector< ::std::unique_ptr<AST::TypeParamBound> >(), NULL,
+                  ::std::move(outer_attr));
         }
         // Stop the "control passes without return" error.
         gcc_unreachable();
@@ -4941,8 +4951,11 @@ namespace Rust {
         // TODO: maybe move more logic for expr without block in here for better error handling
 
         // try to parse expr without block
-        AST::ExprWithoutBlock* expr = NULL;
-        expr = parse_expr_without_block(::std::move(outer_attrs));
+        /*AST::ExprWithoutBlock* expr = NULL;
+        expr = parse_expr_without_block(::std::move(outer_attrs));*/
+        // HACK: parse expression instead of expression without block, due to Pratt parsing issues
+        AST::Expr* expr = NULL;
+        expr = parse_expr(::std::move(outer_attrs));
         if (expr == NULL) {
             // expr is required, error
             error_at(lexer.peek_token()->get_locus(),
@@ -5047,18 +5060,34 @@ namespace Rust {
         ::std::vector< ::std::unique_ptr<AST::Stmt> > stmts;
 
         // TODO: think of better control structure
-        while (true) {
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() != RIGHT_CURLY) {
             AST::Stmt* stmt = parse_stmt();
 
             if (stmt == NULL) {
+                // not necessarily an error
                 break;
             }
 
             stmts.push_back(::std::unique_ptr<AST::Stmt>(stmt));
+
+            t = lexer.peek_token();
         }
 
         // parse final expression (optional)
-        AST::ExprWithoutBlock* expr = parse_expr_without_block();
+        AST::ExprWithoutBlock* expr = NULL;
+        if (t->get_id() != RIGHT_CURLY) {
+            expr = parse_expr_without_block();
+
+            if (expr == NULL) {
+                error_at(t->get_locus(),
+                  "failed to parse final expression without block in block expression despite token "
+                  "after last statement being '%s', not '}'",
+                  t->get_token_description());
+                skip_after_end_block();
+                return NULL;
+            }
+        }
 
         if (!skip_token(RIGHT_CURLY)) {
             skip_after_end_block();
@@ -5198,53 +5227,53 @@ namespace Rust {
         // TODO: change if literal representation in lexer changes
 
         ::std::string literal_value;
-        AST::LiteralExpr::LitType type = AST::LiteralExpr::STRING;
+        AST::Literal::LitType type = AST::Literal::STRING;
 
         // branch based on token
         const_TokenPtr t = lexer.peek_token();
         switch (t->get_id()) {
             case CHAR_LITERAL:
-                type = AST::LiteralExpr::CHAR;
+                type = AST::Literal::CHAR;
                 literal_value = t->get_str();
                 lexer.skip_token();
                 break;
             case STRING_LITERAL:
-                type = AST::LiteralExpr::STRING;
+                type = AST::Literal::STRING;
                 literal_value = t->get_str();
                 lexer.skip_token();
                 break;
             // case RAW_STRING_LITERAL:
             // put here if lexer changes to have these
             case BYTE_CHAR_LITERAL:
-                type = AST::LiteralExpr::BYTE;
+                type = AST::Literal::BYTE;
                 literal_value = t->get_str();
                 lexer.skip_token();
                 break;
             case BYTE_STRING_LITERAL:
-                type = AST::LiteralExpr::BYTE_STRING;
+                type = AST::Literal::BYTE_STRING;
                 literal_value = t->get_str();
                 lexer.skip_token();
                 break;
             // case RAW_BYTE_STRING_LITERAL:
             case INT_LITERAL:
-                type = AST::LiteralExpr::INT;
+                type = AST::Literal::INT;
                 literal_value = t->get_str();
                 lexer.skip_token();
                 break;
             case FLOAT_LITERAL:
-                type = AST::LiteralExpr::FLOAT;
+                type = AST::Literal::FLOAT;
                 literal_value = t->get_str();
                 lexer.skip_token();
                 break;
             // case BOOL_LITERAL
             // use true and false keywords rather than "bool literal" Rust terminology
             case TRUE_LITERAL:
-                type = AST::LiteralExpr::BOOL;
+                type = AST::Literal::BOOL;
                 literal_value = ::std::string("true");
                 lexer.skip_token();
                 break;
             case FALSE_LITERAL:
-                type = AST::LiteralExpr::BOOL;
+                type = AST::Literal::BOOL;
                 literal_value = ::std::string("false");
                 lexer.skip_token();
                 break;
@@ -5261,7 +5290,8 @@ namespace Rust {
     }
 
     // Parses a return expression (including any expression to return).
-    AST::ReturnExpr* Parser::parse_return_expr(::std::vector<AST::Attribute> outer_attrs, bool pratt_parse) {
+    AST::ReturnExpr* Parser::parse_return_expr(
+      ::std::vector<AST::Attribute> outer_attrs, bool pratt_parse) {
         if (!pratt_parse) {
             skip_token(RETURN_TOK);
         }
@@ -5274,10 +5304,11 @@ namespace Rust {
     }
 
     // Parses a break expression (including any label to break to AND any return expression).
-    AST::BreakExpr* Parser::parse_break_expr(::std::vector<AST::Attribute> outer_attrs, bool pratt_parse) {
+    AST::BreakExpr* Parser::parse_break_expr(
+      ::std::vector<AST::Attribute> outer_attrs, bool pratt_parse) {
         if (!pratt_parse) {
             skip_token(BREAK);
-        }  
+        }
 
         // parse label (lifetime) if it exists - create dummy first
         AST::Lifetime label = AST::Lifetime::error();
@@ -5640,8 +5671,8 @@ namespace Rust {
             return NULL;
         }
 
-        return new AST::WhileLetLoopExpr(
-          ::std::move(predicate_patterns), predicate_expr, body, ::std::move(label), ::std::move(outer_attrs));
+        return new AST::WhileLetLoopExpr(::std::move(predicate_patterns), predicate_expr, body,
+          ::std::move(label), ::std::move(outer_attrs));
     }
 
     /* Parses a "for" iterative loop. Label is not parsed and should be parsed via
@@ -6151,10 +6182,909 @@ namespace Rust {
         return NULL;
     }
 
+    /* Parses a literal pattern or range pattern. Assumes that literals passed in are valid range
+     * pattern bounds. Do not pass in paths in expressions, for instance. */
+    AST::Pattern* Parser::parse_literal_or_range_pattern() {
+        const_TokenPtr range_lower = lexer.peek_token();
+        AST::Literal::LitType type = AST::Literal::STRING;
+        bool has_minus = false;
+
+        // get lit type
+        switch (range_lower->get_id()) {
+            case CHAR_LITERAL:
+                type = AST::Literal::CHAR;
+                lexer.skip_token();
+                break;
+            case BYTE_CHAR_LITERAL:
+                type = AST::Literal::BYTE;
+                lexer.skip_token();
+                break;
+            case INT_LITERAL:
+                type = AST::Literal::INT;
+                lexer.skip_token();
+                break;
+            case FLOAT_LITERAL:
+                type = AST::Literal::FLOAT;
+                lexer.skip_token();
+                break;
+            case MINUS:
+                // branch on next token
+                range_lower = lexer.peek_token(1);
+                switch (range_lower->get_id()) {
+                    case INT_LITERAL:
+                        type = AST::Literal::INT;
+                        has_minus = true;
+                        lexer.skip_token(1);
+                        break;
+                    case FLOAT_LITERAL:
+                        type = AST::Literal::FLOAT;
+                        has_minus = true;
+                        lexer.skip_token(1);
+                        break;
+                    default:
+                        error_at(range_lower->get_locus(),
+                          "token type '%s' cannot be parsed as range pattern bound or literal after "
+                          "minus "
+                          "symbol",
+                          range_lower->get_token_description());
+                        return NULL;
+                }
+                break;
+            default:
+                error_at(range_lower->get_locus(),
+                  "token type '%s' cannot be parsed as range pattern bound",
+                  range_lower->get_token_description());
+                return NULL;
+        }
+
+        const_TokenPtr next = lexer.peek_token();
+        if (next->get_id() == DOT_DOT_EQ || next->get_id() == ELLIPSIS) {
+            // range pattern
+            lexer.skip_token();
+            AST::RangePatternBound* lower = new AST::RangePatternBoundLiteral(
+              AST::Literal(range_lower->get_str(), type), has_minus);
+
+            AST::RangePatternBound* upper = parse_range_pattern_bound();
+            if (upper == NULL) {
+                error_at(next->get_locus(), "failed to parse range pattern bound in range pattern");
+                return NULL;
+            }
+
+            return new AST::RangePattern(lower, upper);
+        } else {
+            // literal pattern
+            return new AST::LiteralPattern(range_lower->get_str(), type, has_minus);
+        }
+    }
+
+    // Parses a range pattern bound (value only).
+    AST::RangePatternBound* Parser::parse_range_pattern_bound() {
+        const_TokenPtr range_lower = lexer.peek_token();
+
+        // get lit type
+        switch (range_lower->get_id()) {
+            case CHAR_LITERAL:
+                lexer.skip_token();
+                return new AST::RangePatternBoundLiteral(
+                  AST::Literal(range_lower->get_str(), AST::Literal::CHAR));
+            case BYTE_CHAR_LITERAL:
+                lexer.skip_token();
+                return new AST::RangePatternBoundLiteral(
+                  AST::Literal(range_lower->get_str(), AST::Literal::BYTE));
+            case INT_LITERAL:
+                lexer.skip_token();
+                return new AST::RangePatternBoundLiteral(
+                  AST::Literal(range_lower->get_str(), AST::Literal::INT));
+            case FLOAT_LITERAL:
+                lexer.skip_token();
+                fprintf(stderr, "warning: used deprecated float range pattern bound");
+                return new AST::RangePatternBoundLiteral(
+                  AST::Literal(range_lower->get_str(), AST::Literal::FLOAT));
+            case MINUS:
+                // branch on next token
+                range_lower = lexer.peek_token(1);
+                switch (range_lower->get_id()) {
+                    case INT_LITERAL:
+                        lexer.skip_token(1);
+                        return new AST::RangePatternBoundLiteral(
+                          AST::Literal(range_lower->get_str(), AST::Literal::INT), true);
+                    case FLOAT_LITERAL:
+                        lexer.skip_token(1);
+                        fprintf(stderr, "warning: used deprecated float range pattern bound");
+                        return new AST::RangePatternBoundLiteral(
+                          AST::Literal(range_lower->get_str(), AST::Literal::FLOAT), true);
+                    default:
+                        error_at(range_lower->get_locus(),
+                          "token type '%s' cannot be parsed as range pattern bound after minus "
+                          "symbol",
+                          range_lower->get_token_description());
+                        return NULL;
+                }
+            case IDENTIFIER:
+            case SUPER:
+            case SELF:
+            case SELF_ALIAS:
+            case CRATE:
+            case SCOPE_RESOLUTION:
+            case DOLLAR_SIGN: {
+                // path in expression
+                AST::PathInExpression path = parse_path_in_expression();
+                if (path.is_error()) {
+                    error_at(range_lower->get_locus(),
+                      "failed to parse path in expression range pattern bound");
+                    return NULL;
+                }
+                return new AST::RangePatternBoundPath(::std::move(path));
+            }
+            case LEFT_ANGLE: {
+                // qualified path in expression
+                AST::QualifiedPathInExpression path = parse_qualified_path_in_expression();
+                if (path.is_error()) {
+                    error_at(range_lower->get_locus(),
+                      "failed to parse qualified path in expression range pattern bound");
+                    return NULL;
+                }
+                return new AST::RangePatternBoundQualPath(::std::move(path));
+            }
+            default:
+                error_at(range_lower->get_locus(),
+                  "token type '%s' cannot be parsed as range pattern bound",
+                  range_lower->get_token_description());
+                return NULL;
+        }
+    }
+
     // Parses a pattern (will further disambiguate any pattern).
     AST::Pattern* Parser::parse_pattern() {
-        // TODO
-        return NULL;
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case TRUE_LITERAL:
+                lexer.skip_token();
+                return new AST::LiteralPattern("true", AST::Literal::BOOL);
+            case FALSE_LITERAL:
+                lexer.skip_token();
+                return new AST::LiteralPattern("false", AST::Literal::BOOL);
+            case CHAR_LITERAL:
+            case BYTE_CHAR_LITERAL:
+            case INT_LITERAL:
+            case FLOAT_LITERAL:
+                return parse_literal_or_range_pattern();
+            case STRING_LITERAL:
+                lexer.skip_token();
+                return new AST::LiteralPattern(t->get_str(), AST::Literal::STRING);
+            case BYTE_STRING_LITERAL:
+                lexer.skip_token();
+                return new AST::LiteralPattern(t->get_str(), AST::Literal::BYTE_STRING);
+            // raw string and raw byte string literals too if they are readded to lexer
+            case MINUS:
+                if (lexer.peek_token(1)->get_id() == INT_LITERAL) {
+                    return parse_literal_or_range_pattern();
+                } else if (lexer.peek_token(1)->get_id() == FLOAT_LITERAL) {
+                    return parse_literal_or_range_pattern();
+                } else {
+                    error_at(t->get_locus(),
+                      "unexpected token '-' in pattern - did you forget an integer literal?");
+                    return NULL;
+                }
+            case UNDERSCORE:
+                lexer.skip_token();
+                return new AST::WildcardPattern();
+            case REF:
+            case MUT:
+                return parse_identifier_pattern();
+            case IDENTIFIER:
+                // if identifier with no scope resolution afterwards, identifier pattern.
+                // if scope resolution afterwards, path pattern (or range pattern or struct pattern or
+                // tuple struct pattern) or macro invocation
+                return parse_ident_leading_pattern();
+            case AMP:
+            case LOGICAL_AND:
+                // reference pattern
+                return parse_reference_pattern();
+            case LEFT_PAREN:
+                // tuple pattern or grouped pattern
+                return parse_grouped_or_tuple_pattern();
+            case LEFT_SQUARE:
+                // slice pattern
+                return parse_slice_pattern();
+            case LEFT_ANGLE: {
+                // qualified path in expression or qualified range pattern bound
+                AST::QualifiedPathInExpression path = parse_qualified_path_in_expression();
+
+                if (lexer.peek_token()->get_id() == DOT_DOT_EQ
+                    || lexer.peek_token()->get_id() == ELLIPSIS) {
+                    // qualified range pattern bound, so parse rest of range pattern
+                    bool has_ellipsis_syntax = lexer.peek_token()->get_id() == ELLIPSIS;
+                    lexer.skip_token();
+
+                    AST::RangePatternBoundQualPath* lower_bound
+                      = new AST::RangePatternBoundQualPath(::std::move(path));
+                    AST::RangePatternBound* upper_bound = parse_range_pattern_bound();
+
+                    return new AST::RangePattern(lower_bound, upper_bound, has_ellipsis_syntax);
+                } else {
+                    // just qualified path in expression
+                    return new AST::QualifiedPathInExpression(::std::move(path));
+                }
+            }
+            case SUPER:
+            case SELF:
+            case SELF_ALIAS:
+            case CRATE:
+            case SCOPE_RESOLUTION:
+            case DOLLAR_SIGN: {
+                // path in expression or range pattern bound
+                AST::PathInExpression path = parse_path_in_expression();
+
+                const_TokenPtr next = lexer.peek_token();
+                switch (next->get_id()) {
+                    case DOT_DOT_EQ:
+                    case ELLIPSIS: {
+                        // qualified range pattern bound, so parse rest of range pattern
+                        bool has_ellipsis_syntax = lexer.peek_token()->get_id() == ELLIPSIS;
+                        lexer.skip_token();
+
+                        AST::RangePatternBoundPath* lower_bound
+                          = new AST::RangePatternBoundPath(::std::move(path));
+                        AST::RangePatternBound* upper_bound = parse_range_pattern_bound();
+
+                        return new AST::RangePattern(lower_bound, upper_bound, has_ellipsis_syntax);
+                    }
+                    case EXCLAM: {
+                        // macro invocation
+                        lexer.skip_token();
+
+                        // convert PathInExpression to SimplePath - if this isn't possible, error
+                        AST::SimplePath converted_path = path.as_simple_path();
+                        if (converted_path.is_empty()) {
+                            error_at(
+                              t->get_locus(), "failed to parse simple path to macro invocation");
+                            return NULL;
+                        }
+
+                        AST::DelimTokenTree tok_tree = parse_delim_token_tree();
+
+                        return new AST::MacroInvocation(::std::move(converted_path),
+                          ::std::move(tok_tree), ::std::vector<AST::Attribute>());
+                    }
+                    case LEFT_PAREN: {
+                        // tuple struct
+                        lexer.skip_token();
+
+                        // parse items
+                        AST::TupleStructItems* items = parse_tuple_struct_items();
+                        if (items == NULL) {
+                            error_at(
+                              lexer.peek_token()->get_locus(), "failed to parse tuple struct items");
+                            return NULL;
+                        }
+
+                        if (!skip_token(RIGHT_PAREN)) {
+                            return NULL;
+                        }
+
+                        return new AST::TupleStructPattern(::std::move(path), items);
+                    }
+                    case LEFT_CURLY: {
+                        // struct
+                        lexer.skip_token();
+
+                        // parse elements (optional)
+                        AST::StructPatternElements elems = parse_struct_pattern_elems();
+
+                        if (!skip_token(RIGHT_PAREN)) {
+                            return NULL;
+                        }
+
+                        return new AST::StructPattern(::std::move(path), elems);
+                    }
+                    default:
+                        // assume path in expression
+                        return new AST::PathInExpression(::std::move(path));
+                }
+            }
+            default:
+                error_at(
+                  t->get_locus(), "unexpected token '%s' in pattern", t->get_token_description());
+                return NULL;
+        }
+    }
+
+    // Parses a single or double reference pattern.
+    AST::ReferencePattern* Parser::parse_reference_pattern() {
+        // parse double or single ref
+        bool is_double_ref = false;
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case AMP:
+                // still false
+                lexer.skip_token();
+                break;
+            case LOGICAL_AND:
+                is_double_ref = true;
+                lexer.skip_token();
+                break;
+            default:
+                error_at(t->get_locus(), "unexpected token '%s' in reference pattern",
+                  t->get_token_description());
+                return NULL;
+        }
+
+        // parse mut (if it exists)
+        bool is_mut = false;
+        if (lexer.peek_token()->get_id() == MUT) {
+            is_mut = true;
+            lexer.skip_token();
+        }
+
+        // parse pattern to get reference of (required)
+        AST::Pattern* pattern = parse_pattern();
+        if (pattern == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "failed to parse pattern in reference pattern");
+            // skip somewhere?
+            return NULL;
+        }
+
+        return new AST::ReferencePattern(pattern, is_mut, is_double_ref);
+    }
+
+    /* Parses a grouped pattern or tuple pattern. Prefers grouped over tuple if only a single element
+     * with no commas. */
+    AST::Pattern* Parser::parse_grouped_or_tuple_pattern() {
+        skip_token(LEFT_PAREN);
+
+        // detect '..' token (ranged with no lower range)
+        if (lexer.peek_token()->get_id() == DOT_DOT) {
+            lexer.skip_token();
+
+            // parse new patterns while next token is a comma
+            ::std::vector< ::std::unique_ptr<AST::Pattern> > patterns;
+
+            const_TokenPtr t = lexer.peek_token();
+            while (t->get_id() == COMMA) {
+                lexer.skip_token();
+
+                // break if next token is ')'
+                if (lexer.peek_token()->get_id() == RIGHT_PAREN) {
+                    break;
+                }
+
+                // parse pattern, which is required
+                AST::Pattern* pattern = parse_pattern();
+                if (pattern == NULL) {
+                    error_at(lexer.peek_token()->get_locus(),
+                      "failed to parse pattern inside ranged tuple pattern");
+                    // skip somewhere?
+                    return NULL;
+                }
+                patterns.push_back(::std::unique_ptr<AST::Pattern>(pattern));
+
+                t = lexer.peek_token();
+            }
+
+            if (!skip_token(RIGHT_PAREN)) {
+                // skip somewhere?
+                return NULL;
+            }
+
+            // create ranged tuple pattern items with only upper items
+            AST::TuplePatternItemsRanged* items = new AST::TuplePatternItemsRanged(
+              ::std::vector< ::std::unique_ptr<AST::Pattern> >(), ::std::move(patterns));
+            return new AST::TuplePattern(items);
+        }
+
+        // parse initial pattern (required)
+        AST::Pattern* initial_pattern = parse_pattern();
+        if (initial_pattern == NULL) {
+            error_at(
+              lexer.peek_token()->get_locus(), "failed to parse pattern in grouped or tuple pattern");
+            return NULL;
+        }
+
+        // branch on whether next token is a comma or not
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case RIGHT_PAREN:
+                // grouped pattern
+                lexer.skip_token();
+
+                return new AST::GroupedPattern(initial_pattern);
+            case COMMA: {
+                // tuple pattern
+                lexer.skip_token();
+
+                // create vector of patterns
+                ::std::vector< ::std::unique_ptr<AST::Pattern> > patterns;
+                patterns.push_back(::std::unique_ptr<AST::Pattern>(initial_pattern));
+
+                t = lexer.peek_token();
+                while (t->get_id() != RIGHT_PAREN && t->get_id() != DOT_DOT) {
+                    // parse pattern (required)
+                    AST::Pattern* pattern = parse_pattern();
+                    if (pattern == NULL) {
+                        error_at(t->get_locus(), "failed to parse pattern in tuple pattern");
+                        return NULL;
+                    }
+                    patterns.push_back(::std::unique_ptr<AST::Pattern>(pattern));
+
+                    if (lexer.peek_token()->get_id() != COMMA) {
+                        break;
+                    }
+                    lexer.skip_token();
+
+                    t = lexer.peek_token();
+                }
+
+                if (t->get_id() == RIGHT_PAREN) {
+                    // non-ranged tuple pattern
+                    lexer.skip_token();
+
+                    AST::TuplePatternItemsMultiple* items
+                      = new AST::TuplePatternItemsMultiple(::std::move(patterns));
+                    return new AST::TuplePattern(items);
+                } else if (t->get_id() == DOT_DOT) {
+                    // ranged tuple pattern
+                    lexer.skip_token();
+
+                    // parse upper patterns
+                    ::std::vector< ::std::unique_ptr<AST::Pattern> > upper_patterns;
+                    t = lexer.peek_token();
+                    while (t->get_id() == COMMA) {
+                        lexer.skip_token();
+
+                        // break if end
+                        if (lexer.peek_token()->get_id() == RIGHT_PAREN) {
+                            break;
+                        }
+
+                        // parse pattern (required)
+                        AST::Pattern* pattern = parse_pattern();
+                        if (pattern == NULL) {
+                            error_at(lexer.peek_token()->get_locus(),
+                              "failed to parse pattern in tuple pattern");
+                            return NULL;
+                        }
+                        upper_patterns.push_back(::std::unique_ptr<AST::Pattern>(pattern));
+
+                        t = lexer.peek_token();
+                    }
+
+                    if (!skip_token(RIGHT_PAREN)) {
+                        return NULL;
+                    }
+
+                    AST::TuplePatternItemsRanged* items = new AST::TuplePatternItemsRanged(
+                      ::std::move(patterns), ::std::move(upper_patterns));
+                    return new AST::TuplePattern(items);
+                } else {
+                    // some kind of error
+                    error_at(t->get_locus(),
+                      "failed to parse tuple pattern (probably) or maybe grouped pattern");
+                    return NULL;
+                }
+            }
+            default:
+                // error
+                error_at(t->get_locus(),
+                  "unrecognised token '%s' in grouped or tuple pattern after first pattern",
+                  t->get_token_description());
+                return NULL;
+        }
+    }
+
+    // Parses a slice pattern that can match arrays or slices. Parses the square brackets too.
+    AST::SlicePattern* Parser::parse_slice_pattern() {
+        skip_token(LEFT_SQUARE);
+
+        // parse initial pattern (required)
+        AST::Pattern* initial_pattern = parse_pattern();
+        if (initial_pattern == NULL) {
+            error_at(
+              lexer.peek_token()->get_locus(), "failed to parse initial pattern in slice pattern");
+            return NULL;
+        }
+
+        ::std::vector< ::std::unique_ptr<AST::Pattern> > patterns;
+        patterns.push_back(::std::unique_ptr<AST::Pattern>(initial_pattern));
+
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() == COMMA) {
+            lexer.skip_token();
+
+            // break if end bracket
+            if (lexer.peek_token()->get_id() == RIGHT_SQUARE) {
+                break;
+            }
+
+            // parse pattern (required)
+            AST::Pattern* pattern = parse_pattern();
+            if (pattern == NULL) {
+                error_at(lexer.peek_token()->get_locus(), "failed to parse pattern in slice pattern");
+                return NULL;
+            }
+            patterns.push_back(::std::unique_ptr<AST::Pattern>(pattern));
+
+            t = lexer.peek_token();
+        }
+
+        if (!skip_token(RIGHT_SQUARE)) {
+            return NULL;
+        }
+
+        return new AST::SlicePattern(::std::move(patterns));
+    }
+
+    // Parses an identifier pattern (pattern that binds a value matched to a variable).
+    AST::IdentifierPattern* Parser::parse_identifier_pattern() {
+        bool has_ref = false;
+        if (lexer.peek_token()->get_id() == REF) {
+            has_ref = true;
+            lexer.skip_token();
+        }
+
+        bool has_mut = false;
+        if (lexer.peek_token()->get_id() == MUT) {
+            has_mut = true;
+            lexer.skip_token();
+        }
+
+        // parse identifier (required)
+        const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+        if (ident_tok == NULL) {
+            // skip somewhere?
+            return NULL;
+        }
+        Identifier ident = ident_tok->get_str();
+
+        // parse optional pattern binding thing
+        AST::Pattern* bind_pattern = NULL;
+        if (lexer.peek_token()->get_id() == PATTERN_BIND) {
+            lexer.skip_token();
+
+            // parse required pattern to bind
+            bind_pattern = parse_pattern();
+            if (bind_pattern == NULL) {
+                error_at(lexer.peek_token()->get_locus(),
+                  "failed to parse pattern to bind in identifier pattern");
+                return NULL;
+            }
+        }
+
+        return new AST::IdentifierPattern(::std::move(ident), has_ref, has_mut, bind_pattern);
+    }
+
+    /* Parses a pattern that opens with an identifier. This includes identifier patterns, path
+     * patterns (and derivatives such as struct patterns, tuple struct patterns, and macro
+     * invocations), and ranges. */
+    AST::Pattern* Parser::parse_ident_leading_pattern() {
+        // ensure first token is actually identifier
+        const_TokenPtr initial_tok = lexer.peek_token();
+        if (initial_tok->get_id() != IDENTIFIER) {
+            return NULL;
+        }
+
+        // save initial identifier as it may be useful (but don't skip)
+        ::std::string initial_ident = initial_tok->get_str();
+
+        // parse next tokens as a PathInExpression
+        AST::PathInExpression path = parse_path_in_expression();
+
+        // branch on next token
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case EXCLAM: {
+                // macro invocation
+                lexer.skip_token();
+
+                // convert PathInExpression to SimplePath - if this isn't possible, error
+                AST::SimplePath converted_path = path.as_simple_path();
+                if (converted_path.is_empty()) {
+                    error_at(t->get_locus(), "failed to parse simple path to macro invocation");
+                    return NULL;
+                }
+
+                AST::DelimTokenTree tok_tree = parse_delim_token_tree();
+
+                return new AST::MacroInvocation(::std::move(converted_path), ::std::move(tok_tree),
+                  ::std::vector<AST::Attribute>());
+            }
+            case LEFT_PAREN: {
+                // tuple struct
+                lexer.skip_token();
+
+                // parse items
+                AST::TupleStructItems* items = parse_tuple_struct_items();
+                if (items == NULL) {
+                    error_at(lexer.peek_token()->get_locus(), "failed to parse tuple struct items");
+                    return NULL;
+                }
+
+                if (!skip_token(RIGHT_PAREN)) {
+                    return NULL;
+                }
+
+                return new AST::TupleStructPattern(::std::move(path), items);
+            }
+            case LEFT_CURLY: {
+                // struct
+                lexer.skip_token();
+
+                // parse elements (optional)
+                AST::StructPatternElements elems = parse_struct_pattern_elems();
+
+                if (!skip_token(RIGHT_PAREN)) {
+                    return NULL;
+                }
+
+                return new AST::StructPattern(::std::move(path), elems);
+            }
+            case DOT_DOT_EQ:
+            case ELLIPSIS: {
+                // range
+                bool has_ellipsis_syntax = lexer.peek_token()->get_id() == ELLIPSIS;
+
+                lexer.skip_token();
+
+                AST::RangePatternBoundPath* lower_bound
+                  = new AST::RangePatternBoundPath(::std::move(path));
+                AST::RangePatternBound* upper_bound = parse_range_pattern_bound();
+
+                return new AST::RangePattern(lower_bound, upper_bound, has_ellipsis_syntax);
+            }
+            case PATTERN_BIND: {
+                // only allow on single-segment paths
+                if (path.is_single_segment()) {
+                    // identifier with pattern bind
+                    lexer.skip_token();
+
+                    AST::Pattern* bind_pattern = parse_pattern();
+                    if (bind_pattern == NULL) {
+                        error_at(
+                          t->get_locus(), "failed to parse pattern to bind to identifier pattern");
+                        return NULL;
+                    }
+                    return new AST::IdentifierPattern(
+                      ::std::move(initial_ident), false, false, bind_pattern);
+                }
+                error_at(t->get_locus(), "failed to parse pattern bind to a path, not an identifier");
+                return NULL;
+            }
+            default:
+                // assume identifier if single segment
+                if (path.is_single_segment()) {
+                    return new AST::IdentifierPattern(::std::move(initial_ident));
+                }
+                // return path otherwise
+                return new AST::PathInExpression(::std::move(path));
+        }
+    }
+
+    // Parses tuple struct items if they exist. Does not parse parentheses.
+    AST::TupleStructItems* Parser::parse_tuple_struct_items() {
+        ::std::vector< ::std::unique_ptr<AST::Pattern> > lower_patterns;
+
+        // check for '..' at front
+        if (lexer.peek_token()->get_id() == DOT_DOT) {
+            // only parse upper patterns
+            lexer.skip_token();
+
+            ::std::vector< ::std::unique_ptr<AST::Pattern> > upper_patterns;
+
+            const_TokenPtr t = lexer.peek_token();
+            while (t->get_id() == COMMA) {
+                lexer.skip_token();
+
+                // break if right paren
+                if (lexer.peek_token()->get_id() == RIGHT_PAREN) {
+                    break;
+                }
+
+                // parse pattern, which is now required
+                AST::Pattern* pattern = parse_pattern();
+                if (pattern == NULL) {
+                    error_at(lexer.peek_token()->get_locus(),
+                      "failed to parse pattern in tuple struct items");
+                    return NULL;
+                }
+                upper_patterns.push_back(::std::unique_ptr<AST::Pattern>(pattern));
+
+                t = lexer.peek_token();
+            }
+
+            return new AST::TupleStructItemsRange(
+              ::std::move(lower_patterns), ::std::move(upper_patterns));
+        }
+
+        // has at least some lower patterns
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() != RIGHT_PAREN && t->get_id() != DOT_DOT) {
+            // parse pattern, which is required
+            AST::Pattern* pattern = parse_pattern();
+            if (pattern == NULL) {
+                error_at(t->get_locus(), "failed to parse pattern in tuple struct items");
+                return NULL;
+            }
+            lower_patterns.push_back(::std::unique_ptr<AST::Pattern>(pattern));
+
+            if (lexer.peek_token()->get_id() != COMMA) {
+                break;
+            }
+            lexer.skip_token();
+
+            t = lexer.peek_token();
+        }
+
+        // branch on next token
+        switch (t->get_id()) {
+            case RIGHT_PAREN:
+                return new AST::TupleStructItemsNoRange(::std::move(lower_patterns));
+            case DOT_DOT: {
+                // has an upper range that must be parsed separately
+                lexer.skip_token();
+
+                ::std::vector< ::std::unique_ptr<AST::Pattern> > upper_patterns;
+
+                t = lexer.peek_token();
+                while (t->get_id() == COMMA) {
+                    lexer.skip_token();
+
+                    // break if next token is right paren
+                    if (lexer.peek_token()->get_id() == RIGHT_PAREN) {
+                        break;
+                    }
+
+                    // parse pattern, which is required
+                    AST::Pattern* pattern = parse_pattern();
+                    if (pattern == NULL) {
+                        error_at(lexer.peek_token()->get_locus(),
+                          "failed to parse pattern in tuple struct items");
+                        return NULL;
+                    }
+                    upper_patterns.push_back(::std::unique_ptr<AST::Pattern>(pattern));
+
+                    t = lexer.peek_token();
+                }
+
+                return new AST::TupleStructItemsRange(
+                  ::std::move(lower_patterns), ::std::move(upper_patterns));
+            }
+            default:
+                // error
+                error_at(t->get_locus(), "unexpected token '%s' in tuple struct items",
+                  t->get_token_description());
+                return NULL;
+        }
+    }
+
+    // Parses struct pattern elements if they exist.
+    AST::StructPatternElements Parser::parse_struct_pattern_elems() {
+        ::std::vector< ::std::unique_ptr<AST::StructPatternField> > fields;
+
+        // try parsing struct pattern fields
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() != RIGHT_CURLY && t->get_id() != DOT_DOT) {
+            AST::StructPatternField* field = parse_struct_pattern_field();
+            if (field == NULL) {
+                // TODO: should this be an error?
+                // assuming that this means that it is a struct pattern etc instead
+                break;
+            }
+
+            fields.push_back(::std::unique_ptr<AST::StructPatternField>(field));
+
+            if (lexer.peek_token()->get_id() != COMMA) {
+                break;
+            }
+            lexer.skip_token();
+
+            t = lexer.peek_token();
+        }
+
+        // FIXME: this method of parsing prevents parsing any outer attributes on the ..
+        if (t->get_id() == DOT_DOT) {
+            lexer.skip_token();
+
+            // as no outer attributes
+            AST::StructPatternEtc etc = AST::StructPatternEtc::create_empty();
+
+            return AST::StructPatternElements(::std::move(fields), ::std::move(etc));
+        }
+
+        return AST::StructPatternElements(::std::move(fields));
+    }
+
+    // Parses a struct pattern field (tuple index/pattern, identifier/pattern, or identifier).
+    AST::StructPatternField* Parser::parse_struct_pattern_field() {
+        // parse outer attributes (if they exist)
+        ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
+
+        // branch based on next token
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case INT_LITERAL: {
+                // tuple index
+                ::std::string index_str = t->get_str();
+                int index = atoi(index_str.c_str());
+
+                if (!skip_token(COLON)) {
+                    return NULL;
+                }
+
+                // parse required pattern
+                AST::Pattern* pattern = parse_pattern();
+                if (pattern == NULL) {
+                    error_at(
+                      t->get_locus(), "failed to parse pattern in tuple index struct pattern field");
+                    return NULL;
+                }
+
+                return new AST::StructPatternFieldTuplePat(index, pattern, ::std::move(outer_attrs));
+            }
+            case IDENTIFIER:
+                // identifier-pattern OR only identifier
+                // branch on next token
+                switch (lexer.peek_token(1)->get_id()) {
+                    case COLON: {
+                        // identifier-pattern
+                        Identifier ident = t->get_str();
+                        lexer.skip_token();
+
+                        skip_token(COLON);
+
+                        // parse required pattern
+                        AST::Pattern* pattern = parse_pattern();
+                        if (pattern == NULL) {
+                            error_at(
+                              t->get_locus(), "failed to parse pattern in struct pattern field");
+                            return NULL;
+                        }
+
+                        return new AST::StructPatternFieldIdentPat(
+                          ::std::move(ident), pattern, ::std::move(outer_attrs));
+                    }
+                    case COMMA:
+                    case RIGHT_CURLY: {
+                        // identifier only
+                        Identifier ident = t->get_str();
+                        lexer.skip_token();
+
+                        return new AST::StructPatternFieldIdent(
+                          ::std::move(ident), false, false, ::std::move(outer_attrs));
+                    }
+                    default:
+                        // error
+                        error_at(t->get_locus(), "unrecognised token '%s' in struct pattern field",
+                          t->get_token_description());
+                        return NULL;
+                }
+            case REF:
+            case MUT: {
+                // only identifier
+                bool has_ref = false;
+                if (t->get_id() == REF) {
+                    has_ref = true;
+                    lexer.skip_token();
+                }
+
+                bool has_mut = false;
+                if (lexer.peek_token()->get_id() == MUT) {
+                    has_mut = true;
+                    lexer.skip_token();
+                }
+
+                const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+                if (ident_tok == NULL) {
+                    return NULL;
+                }
+                Identifier ident = ident_tok->get_str();
+
+                return new AST::StructPatternFieldIdent(
+                  ::std::move(ident), has_ref, has_mut, ::std::move(outer_attrs));
+            }
+            default:
+                // not necessarily an error
+                return NULL;
+        }
     }
 
     // TODO: rename to "parse_module_body"?
@@ -6713,12 +7643,13 @@ namespace Rust {
     /* Pratt parser impl of parse_expr. FIXME: this is only provisional and probably will be changed.
      * FIXME: this may only parse expressions without blocks as they are the only expressions to have
      * precedence? */
-    AST::Expr* Parser::parse_expr(int right_binding_power) {
+    AST::Expr* Parser::parse_expr(
+      int right_binding_power, ::std::vector<AST::Attribute> outer_attrs) {
         const_TokenPtr current_token = lexer.peek_token();
         lexer.skip_token();
 
         // parse null denotation (unary part of expression)
-        AST::Expr* expr = null_denotation_NEW(current_token);
+        AST::Expr* expr = null_denotation_NEW(current_token, ::std::move(outer_attrs));
 
         if (expr == NULL) {
             return NULL;
@@ -6740,9 +7671,9 @@ namespace Rust {
 
     /* Parse expression with lowest left binding power. FIXME: this may only apply to expressions
      * without blocks as they are the only ones to have precedence? */
-    AST::Expr* Parser::parse_expr() {
+    AST::Expr* Parser::parse_expr(::std::vector<AST::Attribute> outer_attrs) {
         // HACK: only call parse_expr(LBP_LOWEST) after ensuring it is not an expression with block?
-        return parse_expr(LBP_LOWEST);
+        return parse_expr(LBP_LOWEST, outer_attrs);
     }
 
     // Pratt parser impl of parse_expression.
@@ -6804,10 +7735,11 @@ namespace Rust {
         return expr;
     }
 
-    /* Determines action to take when finding token at beginning of expression. 
+    /* Determines action to take when finding token at beginning of expression.
      * FIXME: this may only apply to precedence-capable expressions (which are all expressions without
      * blocks), so make return type ExprWithoutBlock? It would simplify stuff. */
-    AST::Expr* Parser::null_denotation_NEW(const_TokenPtr tok) {
+    AST::Expr* Parser::null_denotation_NEW(
+      const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs) {
         // note: tok is previous character in input stream, not current one, as parse_expr
         // skips it before passing it in
 
@@ -6837,16 +7769,16 @@ namespace Rust {
             case INT_LITERAL:
                 // we should check the range, but ignore for now
                 // encode as int?
-                return new AST::LiteralExpr(tok->get_str(), AST::LiteralExpr::INT);
+                return new AST::LiteralExpr(tok->get_str(), AST::Literal::INT);
             case FLOAT_LITERAL:
                 // encode as float?
-                return new AST::LiteralExpr(tok->get_str(), AST::LiteralExpr::FLOAT);
+                return new AST::LiteralExpr(tok->get_str(), AST::Literal::FLOAT);
             case STRING_LITERAL:
-                return new AST::LiteralExpr(tok->get_str(), AST::LiteralExpr::STRING);
+                return new AST::LiteralExpr(tok->get_str(), AST::Literal::STRING);
             case TRUE_LITERAL:
-                return new AST::LiteralExpr("true", AST::LiteralExpr::BOOL);
+                return new AST::LiteralExpr("true", AST::Literal::BOOL);
             case FALSE_LITERAL:
-                return new AST::LiteralExpr("false", AST::LiteralExpr::BOOL);
+                return new AST::LiteralExpr("false", AST::Literal::BOOL);
             case LEFT_PAREN: { // have to parse whole expression if inside brackets
                 /* recursively invoke parse_expression with lowest priority possible as it it were
                  * a top-level expression. */
@@ -6861,7 +7793,8 @@ namespace Rust {
                     lexer.skip_token();
 
                 return expr;
-                // FIXME: this assumes grouped expression - could be tuple expression if commas inside*/
+                // FIXME: this assumes grouped expression - could be tuple expression if commas
+                inside*/
 
                 return parse_grouped_or_tuple_expr(::std::vector<AST::Attribute>(), true);
             }
@@ -6997,7 +7930,8 @@ namespace Rust {
      * punctuation.
      * Returns a function pointer to member function that implements the left denotation for the token
      * given. */
-    AST::Expr* Parser::left_denotation(const_TokenPtr tok, AST::Expr* left) {
+    AST::Expr* Parser::left_denotation(
+      const_TokenPtr tok, AST::Expr* left, ::std::vector<AST::Attribute> outer_attrs) {
         // Token passed in has already been skipped, so peek gives "next" token
         /*BinaryHandler binary_handler = get_binary_handler(tok->get_id());
         if (binary_handler == NULL) {
@@ -7011,105 +7945,105 @@ namespace Rust {
             // FIXME: allow for outer attributes to be applied
             case QUESTION_MARK:
                 // error propagation expression - unary postfix
-                return new AST::ErrorPropogationExpr(left, ::std::vector<AST::Attribute>());
+                return new AST::ErrorPropogationExpr(left, ::std::move(outer_attrs));
             case PLUS:
                 // sum expression - binary infix
-                return parse_binary_plus_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_binary_plus_expr(tok, left, ::std::move(outer_attrs));
             case MINUS:
                 // difference expression - binary infix
-                return parse_binary_minus_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_binary_minus_expr(tok, left, ::std::move(outer_attrs));
             case ASTERISK:
                 // product expression - binary infix
-                return parse_binary_mult_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_binary_mult_expr(tok, left, ::std::move(outer_attrs));
             case DIV:
                 // quotient expression - binary infix
-                return parse_binary_div_expr(tok, left, ::std::vector<AST::Attribute>());
-            case MOD:
+                return parse_binary_div_expr(tok, left, ::std::move(outer_attrs));
+            case PERCENT:
                 // modulo expression - binary infix
-                return parse_binary_mod_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_binary_mod_expr(tok, left, ::std::move(outer_attrs));
             case AMP:
                 // logical or bitwise and expression - binary infix
-                return parse_bitwise_and_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_bitwise_and_expr(tok, left, ::std::move(outer_attrs));
             case PIPE:
                 // logical or bitwise or expression - binary infix
-                return parse_bitwise_or_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_bitwise_or_expr(tok, left, ::std::move(outer_attrs));
             case CARET:
                 // logical or bitwise xor expression - binary infix
-                return parse_bitwise_xor_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_bitwise_xor_expr(tok, left, ::std::move(outer_attrs));
             case LEFT_SHIFT:
                 // left shift expression - binary infix
-                return parse_left_shift_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_left_shift_expr(tok, left, ::std::move(outer_attrs));
             case RIGHT_SHIFT:
                 // right shift expression - binary infix
-                return parse_right_shift_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_right_shift_expr(tok, left, ::std::move(outer_attrs));
             case EQUAL_EQUAL:
                 // equal to expression - binary infix (no associativity)
-                return parse_binary_equal_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_binary_equal_expr(tok, left, ::std::move(outer_attrs));
             case NOT_EQUAL:
                 // not equal to expression - binary infix (no associativity)
-                return parse_binary_not_equal_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_binary_not_equal_expr(tok, left, ::std::move(outer_attrs));
             case RIGHT_ANGLE:
                 // greater than expression - binary infix (no associativity)
-                return parse_binary_greater_than_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_binary_greater_than_expr(tok, left, ::std::move(outer_attrs));
             case LEFT_ANGLE:
                 // less than expression - binary infix (no associativity)
-                return parse_binary_less_than_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_binary_less_than_expr(tok, left, ::std::move(outer_attrs));
             case GREATER_OR_EQUAL:
                 // greater than or equal to expression - binary infix (no associativity)
-                return parse_binary_greater_equal_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_binary_greater_equal_expr(tok, left, ::std::move(outer_attrs));
             case LESS_OR_EQUAL:
                 // less than or equal to expression - binary infix (no associativity)
-                return parse_binary_less_equal_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_binary_less_equal_expr(tok, left, ::std::move(outer_attrs));
             case OR:
                 // lazy logical or expression - binary infix
-                return parse_lazy_or_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_lazy_or_expr(tok, left, ::std::move(outer_attrs));
             case LOGICAL_AND:
                 // lazy logical and expression - binary infix
-                return parse_lazy_and_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_lazy_and_expr(tok, left, ::std::move(outer_attrs));
             case AS:
                 // type cast expression - kind of binary infix (RHS is actually a TypeNoBounds)
-                return parse_type_cast_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_type_cast_expr(tok, left, ::std::move(outer_attrs));
             case EQUAL:
                 // assignment expression - binary infix (note right-to-left associativity)
-                return parse_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_assig_expr(tok, left, ::std::move(outer_attrs));
             case PLUS_EQ:
                 // plus-assignment expression - binary infix (note right-to-left associativity)
-                return parse_plus_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_plus_assig_expr(tok, left, ::std::move(outer_attrs));
             case MINUS_EQ:
                 // minus-assignment expression - binary infix (note right-to-left associativity)
-                return parse_minus_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_minus_assig_expr(tok, left, ::std::move(outer_attrs));
             case ASTERISK_EQ:
                 // multiply-assignment expression - binary infix (note right-to-left associativity)
-                return parse_mult_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_mult_assig_expr(tok, left, ::std::move(outer_attrs));
             case DIV_EQ:
                 // division-assignment expression - binary infix (note right-to-left associativity)
-                return parse_div_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_div_assig_expr(tok, left, ::std::move(outer_attrs));
             case PERCENT_EQ:
                 // modulo-assignment expression - binary infix (note right-to-left associativity)
-                return parse_mod_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_mod_assig_expr(tok, left, ::std::move(outer_attrs));
             case AMP_EQ:
                 // bitwise and-assignment expression - binary infix (note right-to-left associativity)
-                return parse_and_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_and_assig_expr(tok, left, ::std::move(outer_attrs));
             case PIPE_EQ:
                 // bitwise or-assignment expression - binary infix (note right-to-left associativity)
-                return parse_or_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_or_assig_expr(tok, left, ::std::move(outer_attrs));
             case CARET_EQ:
                 // bitwise xor-assignment expression - binary infix (note right-to-left associativity)
-                return parse_xor_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_xor_assig_expr(tok, left, ::std::move(outer_attrs));
             case LEFT_SHIFT_EQ:
                 // left shift-assignment expression - binary infix (note right-to-left associativity)
-                return parse_left_shift_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_left_shift_assig_expr(tok, left, ::std::move(outer_attrs));
             case RIGHT_SHIFT_EQ:
                 // right shift-assignment expression - binary infix (note right-to-left associativity)
-                return parse_right_shift_assig_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_right_shift_assig_expr(tok, left, ::std::move(outer_attrs));
             case DOT_DOT:
                 // range exclusive expression - binary infix (no associativity)
                 // either "range" or "range from"
-                return parse_led_range_exclusive_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_led_range_exclusive_expr(tok, left, ::std::move(outer_attrs));
             case DOT_DOT_EQ:
                 // range inclusive expression - binary infix (no associativity)
                 // unambiguously RangeInclusiveExpr
-                return parse_range_inclusive_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_range_inclusive_expr(tok, left, ::std::move(outer_attrs));
             case SCOPE_RESOLUTION:
                 // path expression - binary infix? FIXME should this even be parsed here?
                 error_at(tok->get_locus(), "found scope resolution operator in left denotation "
@@ -7123,25 +8057,25 @@ namespace Rust {
                 const_TokenPtr next_tok = lexer.peek_token();
                 if (next_tok->get_id() == IDENTIFIER && next_tok->get_str() == "await") {
                     // await expression
-                    return parse_await_expr(tok, left, ::std::vector<AST::Attribute>());
+                    return parse_await_expr(tok, left, ::std::move(outer_attrs));
                 } else if (next_tok->get_id() == INT_LITERAL) {
                     // tuple index expression - TODO check for decimal int literal
-                    return parse_tuple_index_expr(tok, left, ::std::vector<AST::Attribute>());
+                    return parse_tuple_index_expr(tok, left, ::std::move(outer_attrs));
                 } else if (next_tok->get_id() == IDENTIFIER
                            && lexer.peek_token(1)->get_id() != LEFT_PAREN) {
                     // field expression (or should be)
-                    return parse_field_access_expr(tok, left, ::std::vector<AST::Attribute>());
+                    return parse_field_access_expr(tok, left, ::std::move(outer_attrs));
                 } else {
                     // method call (probably)
-                    return parse_method_call_expr(tok, left, ::std::vector<AST::Attribute>());
+                    return parse_method_call_expr(tok, left, ::std::move(outer_attrs));
                 }
             }
             case LEFT_PAREN:
                 // function call - method call is based on dot notation first
-                return parse_function_call_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_function_call_expr(tok, left, ::std::move(outer_attrs));
             case LEFT_SQUARE:
                 // array or slice index expression (pseudo binary infix)
-                return parse_index_expr(tok, left, ::std::vector<AST::Attribute>());
+                return parse_index_expr(tok, left, ::std::move(outer_attrs));
             default:
                 error_at(tok->get_locus(), "found unexpected token '%s' in left denotation",
                   tok->get_token_description());

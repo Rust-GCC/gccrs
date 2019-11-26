@@ -79,27 +79,18 @@ namespace Rust {
             }
 
             TypeParam(Identifier type_representation,
-              ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds, Type* type,
-              Attribute outer_attr) :
+              ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds
+              = ::std::vector< ::std::unique_ptr<TypeParamBound> >(),
+              Type* type = NULL, Attribute outer_attr = Attribute::create_empty()) :
+              outer_attr(::std::move(outer_attr)),
               type_representation(::std::move(type_representation)),
-              type_param_bounds(::std::move(type_param_bounds)), type(type),
-              outer_attr(::std::move(outer_attr)) {}
-
-            // No bounds or type constructor
-            TypeParam(Identifier type_representation, Attribute outer_attr) :
-              type_representation(::std::move(type_representation)),
-              outer_attr(::std::move(outer_attr)) {}
-
-            // No bounds constructor
-            TypeParam(Identifier type_representation, Type* type, Attribute outer_attr) :
-              type_representation(::std::move(type_representation)), type(type),
-              outer_attr(::std::move(outer_attr)) {}
+              type_param_bounds(::std::move(type_param_bounds)), type(type) {}
 
             // Copy constructor uses clone
-            TypeParam(TypeParam const& other) :
+            TypeParam(TypeParam const& other) : outer_attr(other.outer_attr),
               type_representation(other.type_representation),
-              /*type_param_bounds(other.type_param_bounds),*/ type(other.type->clone_type()),
-              outer_attr(other.outer_attr) {
+              /*type_param_bounds(other.type_param_bounds),*/ type(other.type->clone_type())
+               {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
 
@@ -130,6 +121,8 @@ namespace Rust {
             // move constructors
             TypeParam(TypeParam&& other) = default;
             TypeParam& operator=(TypeParam&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -287,6 +280,8 @@ namespace Rust {
             inline bool is_empty() const {
                 return where_clause_items.empty();
             }
+
+            ::std::string as_string() const;
         };
 
         // A self parameter in a method
@@ -391,6 +386,8 @@ namespace Rust {
               ::std::string extern_abi) :
               const_status(const_status),
               has_unsafe(has_unsafe), has_extern(has_extern), extern_abi(::std::move(extern_abi)) {}
+
+            ::std::string as_string() const;
         };
 
         // Forward decl FunctionParams
@@ -435,6 +432,8 @@ namespace Rust {
             static FunctionParam create_error() {
                 return FunctionParam(NULL, NULL);
             }
+
+            ::std::string as_string() const;
         };
 
         // A method (function belonging to a type)
@@ -1084,11 +1083,11 @@ namespace Rust {
               ::std::vector<FunctionParam> function_params, Type* return_type,
               WhereClause where_clause, BlockExpr* function_body, Visibility vis,
               ::std::vector<Attribute> outer_attrs) :
-              function_name(::std::move(function_name)),
-              qualifiers(::std::move(qualifiers)), generic_params(::std::move(generic_params)),
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              qualifiers(::std::move(qualifiers)), function_name(::std::move(function_name)),
+              generic_params(::std::move(generic_params)),
               function_params(::std::move(function_params)), return_type(return_type),
-              where_clause(::std::move(where_clause)), function_body(function_body),
-              VisItem(::std::move(vis), ::std::move(outer_attrs)) {}
+              where_clause(::std::move(where_clause)), function_body(function_body) {}
 
             // TODO: add constructor with less fields
 

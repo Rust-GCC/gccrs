@@ -29,8 +29,11 @@ namespace Rust {
 
             TraitBound(TypePath type_path, bool in_parens, bool opening_question_mark,
               ::std::vector<LifetimeParam> for_lifetimes) :
-              in_parens(in_parens), opening_question_mark(opening_question_mark), 
-              for_lifetimes(::std::move(for_lifetimes)), type_path(::std::move(type_path)) {}
+              in_parens(in_parens),
+              opening_question_mark(opening_question_mark), for_lifetimes(::std::move(for_lifetimes)),
+              type_path(::std::move(type_path)) {}
+
+            ::std::string as_string() const;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -82,6 +85,8 @@ namespace Rust {
             // move constructors
             ImplTraitType(ImplTraitType&& other) = default;
             ImplTraitType& operator=(ImplTraitType&& other) = default;
+
+            ::std::string as_string() const;
         };
 
         // An opaque value of another type that implements a set of traits
@@ -99,7 +104,8 @@ namespace Rust {
           public:
             TraitObjectType(::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds,
               bool is_dyn_dispatch) :
-              has_dyn(is_dyn_dispatch), type_param_bounds(::std::move(type_param_bounds)) {}
+              has_dyn(is_dyn_dispatch),
+              type_param_bounds(::std::move(type_param_bounds)) {}
 
             // copy constructor with vector clone
             TraitObjectType(TraitObjectType const& other) : has_dyn(other.has_dyn) {
@@ -127,6 +133,8 @@ namespace Rust {
             // move constructors
             TraitObjectType(TraitObjectType&& other) = default;
             TraitObjectType& operator=(TraitObjectType&& other) = default;
+
+            ::std::string as_string() const;
         };
 
         // A type with parentheses around it, used to avoid ambiguity.
@@ -165,6 +173,10 @@ namespace Rust {
             // default move semantics
             ParenthesisedType(ParenthesisedType&& other) = default;
             ParenthesisedType& operator=(ParenthesisedType&& other) = default;
+
+            ::std::string as_string() const {
+                return "(" + type_in_parens->as_string() + ")";
+            }
         };
 
         // Impl trait with a single bound? Poor reference material here.
@@ -184,6 +196,8 @@ namespace Rust {
 
           public:
             ImplTraitTypeOneBound(TraitBound trait_bound) : trait_bound(::std::move(trait_bound)) {}
+
+            ::std::string as_string() const;
         };
 
         // A trait object with a single trait bound
@@ -205,6 +219,8 @@ namespace Rust {
           public:
             TraitObjectTypeOneBound(TraitBound trait_bound, bool is_dyn_dispatch) :
               has_dyn(is_dyn_dispatch), trait_bound(::std::move(trait_bound)) {}
+
+            ::std::string as_string() const;
         };
 
         class TypePath; // definition moved to "rust-path.h"
@@ -248,6 +264,8 @@ namespace Rust {
             TupleType(TupleType&& other) = default;
             TupleType& operator=(TupleType&& other) = default;
 
+            ::std::string as_string() const;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TupleType* clone_type_impl() const OVERRIDE {
@@ -276,6 +294,10 @@ namespace Rust {
 
           public:
             NeverType() {}
+
+            ::std::string as_string() const {
+                return "! (never type)";
+            }
         };
 
         // A type consisting of a pointer without safety or liveness guarantees
@@ -316,6 +338,8 @@ namespace Rust {
             // default move semantics
             RawPointerType(RawPointerType&& other) = default;
             RawPointerType& operator=(RawPointerType&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -377,6 +401,8 @@ namespace Rust {
             ReferenceType(ReferenceType&& other) = default;
             ReferenceType& operator=(ReferenceType&& other) = default;
 
+            ::std::string as_string() const;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ReferenceType* clone_type_impl() const OVERRIDE {
@@ -417,6 +443,8 @@ namespace Rust {
             // move constructors
             ArrayType(ArrayType&& other) = default;
             ArrayType& operator=(ArrayType&& other) = default;
+
+            ::std::string as_string() const;
 
             /*~ArrayType() {
                 delete size;
@@ -459,6 +487,8 @@ namespace Rust {
             SliceType(SliceType&& other) = default;
             SliceType& operator=(SliceType&& other) = default;
 
+            ::std::string as_string() const;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual SliceType* clone_type_impl() const OVERRIDE {
@@ -487,6 +517,8 @@ namespace Rust {
 
           public:
             InferredType() {}
+
+            ::std::string as_string() const;
         };
 
         class QualifiedPathInType; // definition moved to "rust-path.h"
@@ -509,8 +541,8 @@ namespace Rust {
 
             // Copy constructor with clone
             MaybeNamedParam(MaybeNamedParam const& other) :
-              name(other.name), param_kind(other.param_kind),
-              param_type(other.param_type->clone_type()) {}
+              param_type(other.param_type->clone_type()), param_kind(other.param_kind),
+              name(other.name) {}
 
             ~MaybeNamedParam() = default;
 
@@ -526,6 +558,8 @@ namespace Rust {
             // move constructors
             MaybeNamedParam(MaybeNamedParam&& other) = default;
             MaybeNamedParam& operator=(MaybeNamedParam&& other) = default;
+
+            ::std::string as_string() const;
         };
 
         /* A function pointer type - can be created via coercion from function items and non-
@@ -542,6 +576,7 @@ namespace Rust {
             // bool has_return_type;
             // BareFunctionReturnType return_type;
             ::std::unique_ptr<TypeNoBounds> return_type; // inlined version
+
           public:
             // Whether a return type is defined with the function.
             inline bool has_return_type() const {
@@ -584,6 +619,8 @@ namespace Rust {
             BareFunctionType(BareFunctionType&& other) = default;
             BareFunctionType& operator=(BareFunctionType&& other) = default;
 
+            ::std::string as_string() const;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual BareFunctionType* clone_type_impl() const OVERRIDE {
@@ -611,7 +648,7 @@ namespace Rust {
         // function item type?
         // closure expression types?
 
-        /* Incomplete spec references:
+        /* FIXME: Incomplete spec references:
          *  anonymous type parameters, aka "impl Trait in argument position" - impl then trait bounds
          *  abstract return types, aka "impl Trait in return position" - impl then trait bounds */
     }

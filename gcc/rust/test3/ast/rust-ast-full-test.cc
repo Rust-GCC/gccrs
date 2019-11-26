@@ -281,7 +281,50 @@ namespace Rust {
         }
 
         ::std::string Function::as_string() const {
-            return ::std::string("Function: not implemented");
+            ::std::string str = VisItem::as_string() + "Function: ";
+            ::std::string qualifiers_str = qualifiers.as_string();
+
+            ::std::string generic_params_str("Generic params: ");
+            if (has_generics()) {
+                for (const auto& generic_param : generic_params) {
+                    generic_params_str += generic_param->as_string() + ", ";
+                }
+            } else {
+                generic_params_str += "none";
+            }
+
+            ::std::string function_params_str("Function params: ");
+            if (has_function_params()) {
+                for (const auto& param : function_params) {
+                    function_params_str += param.as_string() + ", ";
+                }
+            } else {
+                function_params_str += "none";
+            }
+
+            ::std::string return_type_str("Return type: ");
+            if (has_function_return_type()) {
+                return_type_str += return_type->as_string();
+            } else {
+                return_type_str += "none (void)";
+            }
+
+            ::std::string where_clause_str("Where clause: ");
+            if (has_where_clause()) {
+                where_clause_str += where_clause.as_string();
+            } else {
+                where_clause_str += "none";
+            }
+
+            ::std::string body_str = "Body: " + function_body->as_string();
+
+            str += "\n   " + qualifiers_str + "\n   " + generic_params_str + "\n   " + function_params_str + "\n   " + return_type_str + "\n   " + where_clause_str + "\n   " + body_str;
+
+            return str;
+        }
+
+        ::std::string WhereClause::as_string() const {
+            return ::std::string("not implemented");
         }
 
         ::std::string BlockExpr::as_string() const {
@@ -497,6 +540,131 @@ namespace Rust {
         }
 
         ::std::string TupleExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ExprStmtWithoutBlock::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string FunctionParam::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string FunctionQualifiers::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string TraitBound::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string MacroMatcher::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string LifetimeParam::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string MacroMatchFragment::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string QualifiedPathInType::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string MacroMatchRepetition::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string Lifetime::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string TypePath::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string TypeParam::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        SimplePath PathPattern::convert_to_simple_path(bool with_opening_scope_resolution) const {
+            if (!has_segments()) {
+                return SimplePath::create_empty();
+            }
+
+            // create vector of reserved size (to minimise reallocations)
+            ::std::vector<SimplePathSegment> simple_segments;
+            simple_segments.reserve(segments.size());
+
+            for (const auto& segment : segments) {
+                // return empty path if doesn't meet simple path segment requirements
+                if (segment.is_error() || segment.has_generic_args() || segment.as_string() == "Self") {
+                    return SimplePath::create_empty();
+                }
+
+                // create segment and add to vector
+                ::std::string segment_str = segment.as_string();
+                simple_segments.push_back(SimplePathSegment(::std::move(segment_str)));
+            }
+
+            return SimplePath(::std::move(simple_segments), with_opening_scope_resolution);
+        }
+
+        ::std::string PathExprSegment::as_string() const {
+            ::std::string ident_str = segment_name.as_string();
+            if (has_generic_args()) {
+                ident_str += "::<" + generic_args.as_string() + ">";
+            } 
+
+            return ident_str;
+        }
+
+        ::std::string GenericArgs::as_string() const {
+            // TODO: write GenericArgs as string
+            return "not implemented";
+        }
+
+        ::std::string ForLoopExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string RangePattern::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string SlicePattern::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string TuplePattern::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string StructPattern::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string LiteralPattern::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ReferencePattern::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string IdentifierPattern::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string TupleStructPattern::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string LetStmt::as_string() const {
             return ::std::string("not implemented");
         }
     }

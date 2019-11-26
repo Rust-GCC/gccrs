@@ -46,38 +46,45 @@ namespace Rust {
 
         // Literals? Or literal base?
         class LiteralExpr : public ExprWithoutBlock {
-          public:
-            enum LitType {
-                CHAR,
-                STRING,
-                RAW_STRING,
-                BYTE,
-                BYTE_STRING,
-                RAW_BYTE_STRING,
-                INT,
-                FLOAT,
-                BOOL
-            };
+            /*public:
+              enum LitType {
+                  CHAR,
+                  STRING,
+                  RAW_STRING,
+                  BYTE,
+                  BYTE_STRING,
+                  RAW_BYTE_STRING,
+                  INT,
+                  FLOAT,
+                  BOOL
+              };
 
-          private:
-            // TODO: maybe make subclasses of each type of literal with their typed values (or
-            // generics)
-            ::std::string value_as_string;
-            LitType type;
+            private:
+              // TODO: maybe make subclasses of each type of literal with their typed values (or
+              // generics)
+              ::std::string value_as_string;
+              LitType type;*/
+            // moved to Literal
+            Literal literal;
 
           public:
             ::std::string as_string() const {
-                return value_as_string;
+                return literal.as_string();
             }
 
-            inline LitType get_lit_type() const {
-                return type;
+            inline Literal::LitType get_lit_type() const {
+                return literal.get_lit_type();
             }
 
-            LiteralExpr(::std::string value_as_string, LitType type,
+            LiteralExpr(::std::string value_as_string, Literal::LitType type,
               ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
-              value_as_string(::std::move(value_as_string)),
-              type(type), ExprWithoutBlock(::std::move(outer_attrs)) {}
+              ExprWithoutBlock(::std::move(outer_attrs)),
+              literal(::std::move(value_as_string), type) {}
+
+            LiteralExpr(
+              Literal literal, ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              ExprWithoutBlock(::std::move(outer_attrs)),
+              literal(::std::move(literal)) {}
 
             // Unique pointer custom clone function
             ::std::unique_ptr<LiteralExpr> clone_literal_expr() const {
@@ -138,7 +145,9 @@ namespace Rust {
             }*/
 
             MetaItemLit(LiteralExpr expr, SimplePath path) :
-              expr(::std::move(expr)), MetaItem(::std::move(path)) {}
+              MetaItem(::std::move(path)), expr(::std::move(expr)) {}
+
+            ::std::string as_string() const;
 
           protected:
             // Use covariance to implement clone function as returning derived object
@@ -218,7 +227,9 @@ namespace Rust {
             }
 
             MetaItemSeq(SimplePath path, ::std::vector<MetaItemInner> sequence) :
-              sequence(::std::move(sequence)), MetaItem(::std::move(path)) {}
+              MetaItem(::std::move(path)), sequence(::std::move(sequence)) {}
+
+            ::std::string as_string() const;
 
           protected:
             // Use covariance to implement clone function as returning derived object
@@ -288,7 +299,7 @@ namespace Rust {
               ExprWithoutBlock(::std::move(outer_attribs)) {}
         };
 
-        // AST node for a non-qualified path expression
+        // AST node for a non-qualified path expression - FIXME: should this be inheritance instead?
         class PathExprNonQual : public PathExpr {
             PathInExpression path;
 
@@ -312,7 +323,7 @@ namespace Rust {
             }
         };
 
-        // AST node for a qualified path expression
+        // AST node for a qualified path expression - FIXME: should this be inheritance instead?
         class PathExprQual : public PathExpr {
             QualifiedPathInExpression path;
 
@@ -557,7 +568,7 @@ namespace Rust {
             // Overload assignment operator
             ArithmeticOrLogicalExpr& operator=(ArithmeticOrLogicalExpr const& other) {
                 OperatorExpr::operator=(other);
-                //main_or_left_expr = other.main_or_left_expr->clone_expr();
+                // main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 expr_type = other.expr_type;
 
@@ -626,7 +637,7 @@ namespace Rust {
             // Overload assignment operator to deep copy
             ComparisonExpr& operator=(ComparisonExpr const& other) {
                 OperatorExpr::operator=(other);
-                //main_or_left_expr = other.main_or_left_expr->clone_expr();
+                // main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 expr_type = other.expr_type;
                 // outer_attrs = other.outer_attrs;
@@ -683,7 +694,7 @@ namespace Rust {
             // Overload assignment operator to deep copy
             LazyBooleanExpr& operator=(LazyBooleanExpr const& other) {
                 OperatorExpr::operator=(other);
-                //main_or_left_expr = other.main_or_left_expr->clone_expr();
+                // main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 expr_type = other.expr_type;
 
@@ -737,7 +748,7 @@ namespace Rust {
             // Overload assignment operator to deep copy
             TypeCastExpr& operator=(TypeCastExpr const& other) {
                 OperatorExpr::operator=(other);
-                //main_or_left_expr = other.main_or_left_expr->clone_expr();
+                // main_or_left_expr = other.main_or_left_expr->clone_expr();
                 type_to_convert_to = other.type_to_convert_to->clone_type_no_bounds();
 
                 return *this;
@@ -786,7 +797,7 @@ namespace Rust {
             // Overload assignment operator to clone unique_ptr right_expr
             AssignmentExpr& operator=(AssignmentExpr const& other) {
                 OperatorExpr::operator=(other);
-                //main_or_left_expr = other.main_or_left_expr->clone_expr();
+                // main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 // outer_attrs = other.outer_attrs;
 
@@ -860,7 +871,7 @@ namespace Rust {
             // Overload assignment operator to clone
             CompoundAssignmentExpr& operator=(CompoundAssignmentExpr const& other) {
                 OperatorExpr::operator=(other);
-                //main_or_left_expr = other.main_or_left_expr->clone_expr();
+                // main_or_left_expr = other.main_or_left_expr->clone_expr();
                 right_expr = other.right_expr->clone_expr();
                 expr_type = other.expr_type;
                 // outer_attrs = other.outer_attrs;
@@ -1033,7 +1044,7 @@ namespace Rust {
                 return *this;
             }
 
-            // move constructors 
+            // move constructors
             ArrayElemsCopied(ArrayElemsCopied&& other) = default;
             ArrayElemsCopied& operator=(ArrayElemsCopied&& other) = default;
 
@@ -3674,7 +3685,7 @@ namespace Rust {
 
             // Creates a match arm in an error state.
             static MatchArm create_error() {
-              return MatchArm(::std::vector< ::std::unique_ptr<Pattern> >());
+                return MatchArm(::std::vector< ::std::unique_ptr<Pattern> >());
             }
         };
 
