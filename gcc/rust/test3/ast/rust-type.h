@@ -642,11 +642,14 @@ namespace Rust {
             DelimTokenTree token_tree;
         };*/
 
-        // struct type?
-        // "enum" (tagged union) type?
-        // C-like union type?
-        // function item type?
-        // closure expression types?
+        /* TODO: possible types
+         * struct type?
+         * "enum" (tagged union) type?
+         * C-like union type?
+         * function item type?
+         * closure expression types?
+         * primitive types (bool, int, float, char, str (the slice)) 
+         * Although supposedly TypePaths are used to reference these types (including primitives) */
 
         /* FIXME: Incomplete spec references:
          *  anonymous type parameters, aka "impl Trait in argument position" - impl then trait bounds

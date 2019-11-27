@@ -445,16 +445,16 @@ namespace Rust {
             StructPatternElements(
               ::std::vector< ::std::unique_ptr<StructPatternField> > fields, StructPatternEtc etc) :
               fields(::std::move(fields)),
-              etc(::std::move(etc)), has_struct_pattern_etc(true) {}
+              has_struct_pattern_etc(true), etc(::std::move(etc)) {}
 
             // Constructor for StructPatternElements with no StructPatternEtc
             StructPatternElements(::std::vector< ::std::unique_ptr<StructPatternField> > fields) :
-              fields(::std::move(fields)), etc(StructPatternEtc::create_empty()),
-              has_struct_pattern_etc(false) {}
+              fields(::std::move(fields)), has_struct_pattern_etc(false),
+              etc(StructPatternEtc::create_empty()) {}
 
             // Copy constructor with vector clone
             StructPatternElements(StructPatternElements const& other) :
-              etc(other.etc), has_struct_pattern_etc(other.has_struct_pattern_etc) {
+              has_struct_pattern_etc(other.has_struct_pattern_etc), etc(other.etc) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 fields.reserve(other.fields.size());
 
@@ -503,7 +503,7 @@ namespace Rust {
             StructPattern(PathInExpression struct_path,
               StructPatternElements elems = StructPatternElements::create_empty()) :
               path(::std::move(struct_path)),
-              elems(::std::move(elems)), has_struct_pattern_elements(true) {}
+              has_struct_pattern_elements(true), elems(::std::move(elems)) {}
 
             // TODO: constructor to construct via elements included in StructPatternElements
 

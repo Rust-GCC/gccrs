@@ -343,7 +343,7 @@ namespace Rust {
 
       public:
         // Construct parser with specified lexer reference.
-        Parser(Lexer& parLexer) : lexer(parLexer), puts_fn(), printf_fn(), scanf_fn() {}
+        Parser(Lexer& parLexer) : lexer(parLexer), printf_fn(), puts_fn(), scanf_fn() {}
 
         // Main entry point for parser.
         void parse_program();

@@ -1691,7 +1691,7 @@ namespace Rust {
         }
 
         return new AST::ExternCrate(
-          ::std::move(crate_name), ::std::move(as_name), ::std::move(vis), ::std::move(outer_attrs));
+          ::std::move(crate_name), ::std::move(vis), ::std::move(outer_attrs), ::std::move(as_name));
     }
 
     // Parses a use declaration.
@@ -5286,7 +5286,7 @@ namespace Rust {
         }
 
         // create literal based on stuff in switch
-        return new AST::LiteralExpr(::std::move(literal_value), type);
+        return new AST::LiteralExpr(::std::move(literal_value), type, ::std::move(outer_attrs));
     }
 
     // Parses a return expression (including any expression to return).
@@ -8838,7 +8838,7 @@ namespace Rust {
      * punctuation.
      * Returns a function pointer to member function that implements the left denotation for the token
      * given. */
-    Tree Parser::left_denotation(const_TokenPtr tok, Tree left) {
+    Tree Parser::left_denotation(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         /*BinaryHandler binary_handler = get_binary_handler(tok->get_id());
         if (binary_handler == NULL) {
             unexpected_token(tok);
@@ -9174,87 +9174,87 @@ namespace Rust {
     }
 
     // Method stub
-    Tree Parser::binary_bitwise_or(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_bitwise_or(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_left_shift(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_left_shift(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_bitwise_and(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_bitwise_and(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_bitwise_xor(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_bitwise_xor(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_right_shift(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_right_shift(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_as_cast(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_as_cast(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_div_assig(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_div_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_mod_assig(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_mod_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_mult_assig(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_mult_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_plus_assig(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_plus_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_minus_assig(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_minus_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_assignment_expr(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_assignment_expr(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_bitwise_or_assig(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_bitwise_or_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_bitwise_xor_assig(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_bitwise_xor_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_bitwise_and_assig(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_bitwise_and_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_left_shift_assig(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_left_shift_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_right_shift_assig(const_TokenPtr tok, Tree left) {
+    Tree Parser::binary_right_shift_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 

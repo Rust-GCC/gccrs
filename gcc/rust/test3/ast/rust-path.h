@@ -203,7 +203,7 @@ namespace Rust {
             SimplePath convert_to_simple_path(bool with_opening_scope_resolution) const;
 
           public:
-            /* Returns whether the path is a single segment (excluding qualified path initial as 
+            /* Returns whether the path is a single segment (excluding qualified path initial as
              * segment). */
             inline bool is_single_segment() const {
                 return segments.size() == 1;
@@ -220,8 +220,8 @@ namespace Rust {
             // Constructor
             PathInExpression(::std::vector<PathExprSegment> path_segments,
               bool has_opening_scope_resolution = false) :
-              has_opening_scope_resolution(has_opening_scope_resolution),
-              PathPattern(::std::move(path_segments)) {}
+              PathPattern(::std::move(path_segments)),
+              has_opening_scope_resolution(has_opening_scope_resolution) {}
 
             // Creates an error state path in expression.
             static PathInExpression create_error() {
@@ -233,12 +233,12 @@ namespace Rust {
                 return !has_segments();
             }
 
-            /* Converts PathInExpression to SimplePath if possible (i.e. no generic arguments). 
+            /* Converts PathInExpression to SimplePath if possible (i.e. no generic arguments).
              * Otherwise returns an empty SimplePath. */
             inline SimplePath as_simple_path() const {
-                /* delegate to parent class as can't access segments. however, 
+                /* delegate to parent class as can't access segments. however,
                  * QualifiedPathInExpression conversion to simple path wouldn't make sense, so the
-                 * method in the parent class should be protected, not public. 
+                 * method in the parent class should be protected, not public.
                  * Have to pass in opening scope resolution as parent class has no access to it. */
                 return convert_to_simple_path(has_opening_scope_resolution);
             }
@@ -295,16 +295,17 @@ namespace Rust {
             // Constructor with PathIdentSegment and GenericArgs
             TypePathSegmentGeneric(PathIdentSegment ident_segment,
               bool has_separating_scope_resolution, GenericArgs generic_args) :
-              generic_args(::std::move(generic_args)),
-              TypePathSegment(::std::move(ident_segment), has_separating_scope_resolution) {}
+              TypePathSegment(::std::move(ident_segment), has_separating_scope_resolution),
+              generic_args(::std::move(generic_args)) {}
 
             // Constructor from segment name and all args
             TypePathSegmentGeneric(::std::string segment_name, bool has_separating_scope_resolution,
               ::std::vector<Lifetime> lifetime_args,
               ::std::vector< ::std::unique_ptr<Type> > type_args,
               ::std::vector<GenericArgsBinding> binding_args) :
-              generic_args(GenericArgs(::std::move(lifetime_args), ::std::move(type_args), ::std::move(binding_args))),
-              TypePathSegment(::std::move(segment_name), has_separating_scope_resolution) {}
+              TypePathSegment(::std::move(segment_name), has_separating_scope_resolution),
+              generic_args(GenericArgs(
+                ::std::move(lifetime_args), ::std::move(type_args), ::std::move(binding_args))) {}
 
           protected:
             // Use covariance to override base class method
@@ -354,7 +355,7 @@ namespace Rust {
                 return TypePathFunction(true);
             }
 
-            // Constructor 
+            // Constructor
             TypePathFunction(::std::vector< ::std::unique_ptr<Type> > inputs, Type* type = NULL) :
               inputs(::std::move(inputs)), return_type(type), is_invalid(false) {}
 
@@ -401,14 +402,14 @@ namespace Rust {
             // Constructor with PathIdentSegment and TypePathFn
             TypePathSegmentFunction(PathIdentSegment ident_segment,
               bool has_separating_scope_resolution, TypePathFunction function_path) :
-              function_path(::std::move(function_path)),
-              TypePathSegment(::std::move(ident_segment), has_separating_scope_resolution) {}
+              TypePathSegment(::std::move(ident_segment), has_separating_scope_resolution),
+              function_path(::std::move(function_path)) {}
 
             // Constructor with segment name and TypePathFn
             TypePathSegmentFunction(::std::string segment_name, bool has_separating_scope_resolution,
               TypePathFunction function_path) :
-              function_path(::std::move(function_path)),
-              TypePathSegment(::std::move(segment_name), has_separating_scope_resolution) {}
+              TypePathSegment(::std::move(segment_name), has_separating_scope_resolution),
+              function_path(::std::move(function_path)) {}
 
           protected:
             // Use covariance to override base class method
@@ -450,11 +451,11 @@ namespace Rust {
                 return TypePath(::std::vector< ::std::unique_ptr<TypePathSegment> >());
             }
 
-            // Constructor 
+            // Constructor
             TypePath(::std::vector< ::std::unique_ptr<TypePathSegment> > segments,
               bool has_opening_scope_resolution = false) :
-              has_opening_scope_resolution(has_opening_scope_resolution), segments(::std::move(segments))
-               {}
+              has_opening_scope_resolution(has_opening_scope_resolution),
+              segments(::std::move(segments)) {}
 
             // Copy constructor with vector clone
             TypePath(TypePath const& other) :
@@ -497,7 +498,7 @@ namespace Rust {
             TypePath trait_path;
 
           public:
-            // Constructor 
+            // Constructor
             QualifiedPathType(Type* invoke_on_type, TypePath trait_path = TypePath::create_error()) :
               type_to_invoke_on(invoke_on_type), trait_path(::std::move(trait_path)) {}
 
@@ -546,8 +547,7 @@ namespace Rust {
 
             QualifiedPathInExpression(
               QualifiedPathType qual_path_type, ::std::vector<PathExprSegment> path_segments) :
-              path_type(::std::move(qual_path_type)),
-              PathPattern(::std::move(path_segments)) {}
+              PathPattern(::std::move(path_segments)), path_type(::std::move(qual_path_type)) {}
 
             // TODO: maybe make a shortcut constructor that has QualifiedPathType elements as params
 

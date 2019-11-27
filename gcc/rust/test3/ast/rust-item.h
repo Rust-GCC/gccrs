@@ -87,10 +87,9 @@ namespace Rust {
               type_param_bounds(::std::move(type_param_bounds)), type(type) {}
 
             // Copy constructor uses clone
-            TypeParam(TypeParam const& other) : outer_attr(other.outer_attr),
-              type_representation(other.type_representation),
-              /*type_param_bounds(other.type_param_bounds),*/ type(other.type->clone_type())
-               {
+            TypeParam(TypeParam const& other) :
+              outer_attr(other.outer_attr), type_representation(other.type_representation),
+              /*type_param_bounds(other.type_param_bounds),*/ type(other.type->clone_type()) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
 
@@ -288,10 +287,9 @@ namespace Rust {
         struct SelfParam {
           private:
             bool has_ref;
+            bool is_mut;
             // bool has_lifetime; // only possible if also ref
             Lifetime lifetime;
-
-            bool is_mut;
 
             // bool has_type; // only possible if not ref
             // Type type;
@@ -299,7 +297,7 @@ namespace Rust {
 
             // Unrestricted constructor used for error state
             SelfParam(Lifetime lifetime, bool has_ref, bool is_mut, Type* type) :
-              lifetime(::std::move(lifetime)), has_ref(has_ref), is_mut(is_mut), type(type) {}
+              has_ref(has_ref), is_mut(is_mut), lifetime(::std::move(lifetime)), type(type) {}
 
           public:
             // Returns whether the self-param has a type field.
@@ -328,16 +326,16 @@ namespace Rust {
 
             // Type-based self parameter (not ref, no lifetime)
             SelfParam(Type* type, bool is_mut) :
-              type(type), is_mut(is_mut), has_ref(false), lifetime(Lifetime::error()) {}
+              has_ref(false), is_mut(is_mut), lifetime(Lifetime::error()), type(type) {}
 
             // Lifetime-based self parameter (is ref, no type)
             SelfParam(Lifetime lifetime, bool is_mut) :
-              /*type(NULL), */ is_mut(is_mut), has_ref(true), lifetime(::std::move(lifetime)) {}
+              /*type(NULL), */ has_ref(true), is_mut(is_mut), lifetime(::std::move(lifetime)) {}
 
             // Copy constructor requires clone
             SelfParam(SelfParam const& other) :
-              type(other.type->clone_type()), is_mut(other.is_mut), has_ref(other.has_ref),
-              lifetime(other.lifetime) {}
+              has_ref(other.has_ref), is_mut(other.is_mut), lifetime(other.lifetime),
+              type(other.type->clone_type()) {}
 
             // Destructor - define here if required
 
@@ -506,8 +504,8 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
               ::std::vector<FunctionParam> function_params, Type* return_type,
               WhereClause where_clause, BlockExpr* function_body) :
-              method_name(::std::move(method_name)),
-              qualifiers(::std::move(qualifiers)), generic_params(::std::move(generic_params)),
+              qualifiers(::std::move(qualifiers)),
+              method_name(::std::move(method_name)), generic_params(::std::move(generic_params)),
               self_param(::std::move(self_param)), function_params(::std::move(function_params)),
               return_type(return_type), where_clause(::std::move(where_clause)), expr(function_body) {
             }
@@ -516,7 +514,7 @@ namespace Rust {
 
             // Copy constructor with clone
             Method(Method const& other) :
-              method_name(other.method_name), qualifiers(other.qualifiers),
+              qualifiers(other.qualifiers), method_name(other.method_name),
               /*generic_params(other.generic_params),*/ self_param(other.self_param),
               function_params(other.function_params), return_type(other.return_type->clone_type()),
               where_clause(other.where_clause), expr(other.expr->clone_block_expr()) {
@@ -638,15 +636,14 @@ namespace Rust {
             Visibility visibility;
 
           protected:
-            // Visibility constructor (with outer attributes)
-            VisItem(Visibility visibility, ::std::vector<Attribute> outer_attrs) :
-              visibility(::std::move(visibility)), Item(::std::move(outer_attrs)) {}
-
-            // Visibility constructor (no outer attributes)
-            VisItem(Visibility visibility) : visibility(::std::move(visibility)), Item() {}
+            // Visibility constructor
+            VisItem(Visibility visibility,
+              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              Item(::std::move(outer_attrs)),
+              visibility(::std::move(visibility)) {}
 
             // Visibility copy constructor
-            VisItem(VisItem const& other) : visibility(other.visibility), Item(other) {}
+            VisItem(VisItem const& other) : Item(other), visibility(other.visibility) {}
 
             // Destructor - define here if required
 
@@ -705,18 +702,17 @@ namespace Rust {
                 return !inner_attrs.empty();
             }
 
-            // Empty constructor with no fields
-            ModuleBodied() : Module(Visibility::create_error()) {}
-
             // Full constructor
-            ModuleBodied(::std::vector< ::std::unique_ptr<Item> > items, Visibility visibility,
-              ::std::vector<Attribute> inner_attrs, ::std::vector<Attribute> outer_attrs) :
-              items(::std::move(items)),
-              inner_attrs(::std::move(inner_attrs)),
-              Module(::std::move(visibility), ::std::move(outer_attrs)) {}
+            ModuleBodied(::std::vector< ::std::unique_ptr<Item> > items
+                         = ::std::vector< ::std::unique_ptr<Item> >(),
+              Visibility visibility = Visibility::create_error(),
+              ::std::vector<Attribute> inner_attrs = ::std::vector<Attribute>(),
+              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              Module(::std::move(visibility), ::std::move(outer_attrs)),
+              inner_attrs(::std::move(inner_attrs)), items(::std::move(items)) {}
 
             // Copy constructor with vector clone
-            ModuleBodied(ModuleBodied const& other) : inner_attrs(other.inner_attrs), Module(other) {
+            ModuleBodied(ModuleBodied const& other) : Module(other), inner_attrs(other.inner_attrs) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 items.reserve(other.items.size());
 
@@ -803,18 +799,12 @@ namespace Rust {
                 return referenced_crate == "self";
             }
 
-            // Constructor with an as clause
-            ExternCrate(::std::string referenced_crate, ::std::string as_clause_name,
-              Visibility visibility, ::std::vector<Attribute> outer_attrs) :
-              referenced_crate(::std::move(referenced_crate)),
-              as_clause_name(::std::move(as_clause_name)),
-              VisItem(::std::move(visibility), ::std::move(outer_attrs)) {}
-
-            // Constructor with no as clause
+            // Constructor
             ExternCrate(::std::string referenced_crate, Visibility visibility,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, ::std::string as_clause_name = ::std::string()) :
+              VisItem(::std::move(visibility), ::std::move(outer_attrs)),
               referenced_crate(::std::move(referenced_crate)),
-              VisItem(::std::move(visibility), ::std::move(outer_attrs)) {}
+              as_clause_name(::std::move(as_clause_name)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -951,12 +941,10 @@ namespace Rust {
             Identifier identifier; // only if NewBindType is IDENTIFIER
 
           public:
-            UseTreeRebind(NewBindType bind_type, SimplePath path, Identifier identifier) :
-              bind_type(bind_type), path(::std::move(path)), identifier(::std::move(identifier)) {}
-
-            // No-identifier constructor
-            UseTreeRebind(NewBindType bind_type, SimplePath path) :
-              bind_type(bind_type), path(::std::move(path)) {}
+            UseTreeRebind(
+              NewBindType bind_type, SimplePath path, Identifier identifier = ::std::string()) :
+              path(::std::move(path)),
+              bind_type(bind_type), identifier(::std::move(identifier)) {}
 
             // Returns whether has path (this should always be true).
             inline bool has_path() const {
@@ -987,12 +975,12 @@ namespace Rust {
 
             UseDeclaration(
               UseTree* use_tree, Visibility visibility, ::std::vector<Attribute> outer_attrs) :
-              use_tree(use_tree),
-              VisItem(::std::move(visibility), ::std::move(outer_attrs)) {}
+              VisItem(::std::move(visibility), ::std::move(outer_attrs)),
+              use_tree(use_tree) {}
 
             // Copy constructor with clone
             UseDeclaration(UseDeclaration const& other) :
-              use_tree(other.use_tree->clone_use_tree()), VisItem(other) {}
+              VisItem(other), use_tree(other.use_tree->clone_use_tree()) {}
 
             // Destructor - define here if required
 
@@ -1093,10 +1081,10 @@ namespace Rust {
 
             // Copy constructor with clone
             Function(Function const& other) :
-              function_name(other.function_name), qualifiers(other.qualifiers),
+              VisItem(other), qualifiers(other.qualifiers), function_name(other.function_name),
               /*generic_params(other.generic_params),*/ function_params(other.function_params),
               return_type(other.return_type->clone_type()), where_clause(other.where_clause),
-              function_body(other.function_body->clone_block_expr()), VisItem(other) {
+              function_body(other.function_body->clone_block_expr()) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -1178,15 +1166,15 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, Type* existing_type, Visibility vis,
               ::std::vector<Attribute> outer_attrs) :
-              new_type_name(::std::move(new_type_name)),
-              generic_params(::std::move(generic_params)), where_clause(::std::move(where_clause)),
-              existing_type(existing_type), VisItem(::std::move(vis), ::std::move(outer_attrs)) {}
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              new_type_name(::std::move(new_type_name)), generic_params(::std::move(generic_params)),
+              where_clause(::std::move(where_clause)), existing_type(existing_type) {}
 
             // Copy constructor
             TypeAlias(TypeAlias const& other) :
+              VisItem(other),
               new_type_name(other.new_type_name), /*generic_params(other.generic_params),*/
-              where_clause(other.where_clause), existing_type(other.existing_type->clone_type()),
-              VisItem(other) {
+              where_clause(other.where_clause), existing_type(other.existing_type->clone_type()) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -1259,20 +1247,15 @@ namespace Rust {
           protected:
             Struct(Identifier struct_name,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
-              WhereClause where_clause, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              struct_name(struct_name),
-              generic_params(::std::move(generic_params)), where_clause(where_clause),
-              VisItem(vis, outer_attrs) {}
-
-            Struct(Identifier struct_name,
-              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
-              WhereClause where_clause, Visibility vis) :
-              struct_name(struct_name),
-              generic_params(::std::move(generic_params)), where_clause(where_clause), VisItem(vis) {}
+              WhereClause where_clause, Visibility vis,
+              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              struct_name(::std::move(struct_name)), generic_params(::std::move(generic_params)),
+              where_clause(::std::move(where_clause)) {}
 
             // Copy constructor with vector clone
             Struct(Struct const& other) :
-              struct_name(other.struct_name), where_clause(other.where_clause), VisItem(other) {
+              VisItem(other), struct_name(other.struct_name), where_clause(other.where_clause) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -1326,17 +1309,15 @@ namespace Rust {
             }
 
             StructField(Identifier field_name, Type* field_type, Visibility vis,
-              ::std::vector<Attribute> outer_attrs) :
-              field_name(field_name),
-              field_type(field_type), visibility(vis), outer_attrs(outer_attrs) {}
-
-            StructField(Identifier field_name, Type* field_type, Visibility vis) :
-              field_name(field_name), field_type(field_type), visibility(vis) {}
+              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              outer_attrs(::std::move(outer_attrs)),
+              visibility(::std::move(vis)), field_name(::std::move(field_name)),
+              field_type(field_type) {}
 
             // Copy constructor
             StructField(StructField const& other) :
-              field_name(other.field_name), field_type(other.field_type->clone_type()),
-              visibility(other.visibility), outer_attrs(other.outer_attrs) {}
+              outer_attrs(other.outer_attrs), visibility(other.visibility),
+              field_name(other.field_name), field_type(other.field_type->clone_type()) {}
 
             ~StructField() = default;
 
@@ -1379,16 +1360,17 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, bool is_unit, Visibility vis,
               ::std::vector<Attribute> outer_attrs) :
-              fields(fields),
-              is_unit(is_unit),
-              Struct(struct_name, ::std::move(generic_params), where_clause, vis, outer_attrs) {}
+              Struct(::std::move(struct_name), ::std::move(generic_params), ::std::move(where_clause),
+                ::std::move(vis), ::std::move(outer_attrs)),
+              fields(::std::move(fields)), is_unit(is_unit) {}
 
             // Unit struct constructor
             StructStruct(Identifier struct_name,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              is_unit(true),
-              Struct(struct_name, ::std::move(generic_params), where_clause, vis, outer_attrs) {}
+              Struct(::std::move(struct_name), ::std::move(generic_params), ::std::move(where_clause),
+                ::std::move(vis), ::std::move(outer_attrs)),
+              is_unit(true) {}
             // TODO: can a unit struct have generic fields? assuming yes for now.
 
             /* Returns whether the struct is a unit struct - struct defined without fields. This is
@@ -1411,6 +1393,7 @@ namespace Rust {
 
         // A single field in a tuple
         struct TupleField {
+          private:
             // bool has_outer_attributes;
             ::std::vector<Attribute> outer_attrs;
 
@@ -1432,15 +1415,15 @@ namespace Rust {
             }
 
             // Complete constructor
-            TupleField(Type* field_type, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              field_type(field_type), visibility(vis), outer_attrs(outer_attrs) {}
-
-            TupleField(Type* field_type, Visibility vis) : field_type(field_type), visibility(vis) {}
+            TupleField(Type* field_type, Visibility vis,
+              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              outer_attrs(::std::move(outer_attrs)),
+              visibility(::std::move(vis)), field_type(field_type) {}
 
             // Copy constructor with clone
             TupleField(TupleField const& other) :
-              field_type(other.field_type->clone_type()), visibility(other.visibility),
-              outer_attrs(other.outer_attrs) {}
+              outer_attrs(other.outer_attrs), visibility(other.visibility),
+              field_type(other.field_type->clone_type()) {}
 
             ~TupleField() = default;
 
@@ -1479,8 +1462,9 @@ namespace Rust {
             TupleStruct(::std::vector<TupleField> fields, Identifier struct_name,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              fields(fields),
-              Struct(struct_name, ::std::move(generic_params), where_clause, vis, outer_attrs) {}
+              Struct(::std::move(struct_name), ::std::move(generic_params), ::std::move(where_clause),
+                ::std::move(vis), ::std::move(outer_attrs)),
+              fields(::std::move(fields)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1510,7 +1494,7 @@ namespace Rust {
             }
 
             EnumItem(Identifier variant_name, ::std::vector<Attribute> outer_attrs) :
-              variant_name(variant_name), outer_attrs(outer_attrs) {}
+              outer_attrs(::std::move(outer_attrs)), variant_name(::std::move(variant_name)) {}
 
             // Unique pointer custom clone function
             ::std::unique_ptr<EnumItem> clone_enum_item() const {
@@ -1537,8 +1521,8 @@ namespace Rust {
 
             EnumItemTuple(Identifier variant_name, ::std::vector<TupleField> tuple_fields,
               ::std::vector<Attribute> outer_attrs) :
-              tuple_fields(tuple_fields),
-              EnumItem(variant_name, outer_attrs) {}
+              EnumItem(::std::move(variant_name), ::std::move(outer_attrs)),
+              tuple_fields(::std::move(tuple_fields)) {}
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -1560,8 +1544,8 @@ namespace Rust {
 
             EnumItemStruct(Identifier variant_name, ::std::vector<StructField> struct_fields,
               ::std::vector<Attribute> outer_attrs) :
-              struct_fields(struct_fields),
-              EnumItem(variant_name, outer_attrs) {}
+              EnumItem(::std::move(variant_name), ::std::move(outer_attrs)),
+              struct_fields(::std::move(struct_fields)) {}
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -1582,12 +1566,12 @@ namespace Rust {
 
             EnumItemDiscriminant(
               Identifier variant_name, Expr* expr, ::std::vector<Attribute> outer_attrs) :
-              expression(expr),
-              EnumItem(variant_name, outer_attrs) {}
+              EnumItem(::std::move(variant_name), ::std::move(outer_attrs)),
+              expression(expr) {}
 
             // Copy constructor with clone
             EnumItemDiscriminant(EnumItemDiscriminant const& other) :
-              expression(other.expression->clone_expr()), EnumItem(other) {}
+              EnumItem(other), expression(other.expression->clone_expr()) {}
 
             // Destructor - define here if required
 
@@ -1649,15 +1633,15 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, ::std::vector< ::std::unique_ptr<EnumItem> > items,
               ::std::vector<Attribute> outer_attrs) :
-              enum_name(enum_name),
-              generic_params(::std::move(generic_params)), where_clause(where_clause),
-              items(::std::move(items)), VisItem(vis, outer_attrs) {}
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              enum_name(::std::move(enum_name)), generic_params(::std::move(generic_params)),
+              where_clause(::std::move(where_clause)), items(::std::move(items)) {}
 
             // TODO: constructor with less arguments
 
             // Copy constructor with vector clone
             Enum(Enum const& other) :
-              enum_name(other.enum_name), where_clause(other.where_clause), VisItem(other) {
+              VisItem(other), enum_name(other.enum_name), where_clause(other.where_clause) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -1742,14 +1726,14 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, ::std::vector<StructField> variants,
               ::std::vector<Attribute> outer_attrs) :
-              union_name(union_name),
-              generic_params(::std::move(generic_params)), where_clause(where_clause),
-              variants(variants), VisItem(vis, outer_attrs) {}
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              union_name(::std::move(union_name)), generic_params(::std::move(generic_params)),
+              where_clause(::std::move(where_clause)), variants(::std::move(variants)) {}
 
             // copy constructor with vector clone
             Union(Union const& other) :
-              union_name(other.union_name), where_clause(other.where_clause),
-              variants(other.variants), VisItem(other) {
+              VisItem(other), union_name(other.union_name), where_clause(other.where_clause),
+              variants(other.variants) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -1813,12 +1797,12 @@ namespace Rust {
 
             ConstantItem(Identifier ident, Visibility vis, Type* type, Expr* const_expr,
               ::std::vector<Attribute> outer_attrs) :
-              identifier(ident),
-              type(type), const_expr(const_expr), VisItem(vis, outer_attrs) {}
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              identifier(::std::move(ident)), type(type), const_expr(const_expr) {}
 
             ConstantItem(ConstantItem const& other) :
-              identifier(other.identifier), type(other.type->clone_type()),
-              const_expr(other.const_expr->clone_expr()), VisItem(other) {}
+              VisItem(other), identifier(other.identifier), type(other.type->clone_type()),
+              const_expr(other.const_expr->clone_expr()) {}
 
             // Destructor - define here if required
 
@@ -1875,13 +1859,13 @@ namespace Rust {
 
             StaticItem(Identifier name, bool is_mut, Type* type, Expr* expr, Visibility vis,
               ::std::vector<Attribute> outer_attrs) :
-              name(name),
-              has_mut(is_mut), type(type), expr(expr), VisItem(vis, outer_attrs) {}
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              has_mut(is_mut), name(::std::move(name)), type(type), expr(expr) {}
 
             // Copy constructor with clone
             StaticItem(StaticItem const& other) :
-              name(other.name), has_mut(other.has_mut), type(other.type->clone_type()),
-              expr(other.expr->clone_expr()), VisItem(other) {}
+              VisItem(other), has_mut(other.has_mut), name(other.name),
+              type(other.type->clone_type()), expr(other.expr->clone_expr()) {}
 
             // Destructor - define here if required
 
@@ -1959,14 +1943,14 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               ::std::vector<FunctionParam> function_params, Type* return_type,
               WhereClause where_clause) :
-              function_name(function_name),
-              qualifiers(qualifiers), generic_params(::std::move(generic_params)),
-              function_params(function_params), return_type(return_type), where_clause(where_clause) {
-            }
+              qualifiers(::std::move(qualifiers)),
+              function_name(::std::move(function_name)), generic_params(::std::move(generic_params)),
+              function_params(::std::move(function_params)), return_type(return_type),
+              where_clause(::std::move(where_clause)) {}
 
             // Copy constructor with clone
             TraitFunctionDecl(TraitFunctionDecl const& other) :
-              function_name(other.function_name), qualifiers(other.qualifiers),
+              qualifiers(other.qualifiers), function_name(other.function_name),
               /*generic_params(other.generic_params),*/ function_params(other.function_params),
               return_type(other.return_type->clone_type()), where_clause(other.where_clause) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
@@ -2016,12 +2000,12 @@ namespace Rust {
 
             TraitItemFunc(
               TraitFunctionDecl decl, BlockExpr* block_expr, ::std::vector<Attribute> outer_attrs) :
-              decl(::std::move(decl)),
-              block_expr(block_expr), TraitItem(outer_attrs) {}
+              TraitItem(::std::move(outer_attrs)),
+              decl(::std::move(decl)), block_expr(block_expr) {}
 
             // Copy constructor with clone
             TraitItemFunc(TraitItemFunc const& other) :
-              decl(other.decl), block_expr(other.block_expr->clone_block_expr()), TraitItem(other) {}
+              TraitItem(other), decl(other.decl), block_expr(other.block_expr->clone_block_expr()) {}
 
             // Destructor - define here if required
 
@@ -2094,14 +2078,14 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
               ::std::vector<FunctionParam> function_params, Type* return_type,
               WhereClause where_clause) :
-              function_name(function_name),
-              qualifiers(qualifiers), generic_params(::std::move(generic_params)),
-              self_param(self_param), function_params(function_params), return_type(return_type),
-              where_clause(where_clause) {}
+              qualifiers(::std::move(qualifiers)),
+              function_name(::std::move(function_name)), generic_params(::std::move(generic_params)),
+              self_param(::std::move(self_param)), function_params(::std::move(function_params)),
+              return_type(return_type), where_clause(::std::move(where_clause)) {}
 
             // Copy constructor with clone
             TraitMethodDecl(TraitMethodDecl const& other) :
-              function_name(other.function_name), qualifiers(other.qualifiers),
+              qualifiers(other.qualifiers), function_name(other.function_name),
               /*generic_params(other.generic_params),*/ self_param(other.self_param),
               function_params(other.function_params), return_type(other.return_type->clone_type()),
               where_clause(other.where_clause) {
@@ -2153,12 +2137,12 @@ namespace Rust {
 
             TraitItemMethod(
               TraitMethodDecl decl, BlockExpr* block_expr, ::std::vector<Attribute> outer_attrs) :
-              decl(::std::move(decl)),
-              block_expr(block_expr), TraitItem(outer_attrs) {}
+              TraitItem(::std::move(outer_attrs)),
+              decl(::std::move(decl)), block_expr(block_expr) {}
 
             // Copy constructor with clone
             TraitItemMethod(TraitItemMethod const& other) :
-              decl(other.decl), block_expr(other.block_expr->clone_block_expr()), TraitItem(other) {}
+              TraitItem(other), decl(other.decl), block_expr(other.block_expr->clone_block_expr()) {}
 
             // Destructor - define here if required
 
@@ -2204,13 +2188,13 @@ namespace Rust {
 
             TraitItemConst(
               Identifier name, Type* type, Expr* expr, ::std::vector<Attribute> outer_attrs) :
-              name(name),
-              type(type), expr(expr), TraitItem(outer_attrs) {}
+              TraitItem(::std::move(outer_attrs)),
+              name(::std::move(name)), type(type), expr(expr) {}
 
             // Copy constructor with clones
             TraitItemConst(TraitItemConst const& other) :
-              name(other.name), type(other.type->clone_type()), expr(other.expr->clone_expr()),
-              TraitItem(other) {}
+              TraitItem(other), name(other.name), type(other.type->clone_type()),
+              expr(other.expr->clone_expr()) {}
 
             // Destructor - define here if required
 
@@ -2252,11 +2236,11 @@ namespace Rust {
             TraitItemType(Identifier name,
               ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds,
               ::std::vector<Attribute> outer_attrs) :
-              name(name),
-              type_param_bounds(::std::move(type_param_bounds)), TraitItem(outer_attrs) {}
+              TraitItem(::std::move(outer_attrs)),
+              name(::std::move(name)), type_param_bounds(::std::move(type_param_bounds)) {}
 
             // Copy constructor with vector clone
-            TraitItemType(TraitItemType const& other) : name(other.name), TraitItem(other) {
+            TraitItemType(TraitItemType const& other) : TraitItem(other), name(other.name) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
 
@@ -2353,15 +2337,16 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds,
               WhereClause where_clause, ::std::vector< ::std::unique_ptr<TraitItem> > trait_items,
               Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              name(name),
-              has_unsafe(is_unsafe), generic_params(::std::move(generic_params)),
-              type_param_bounds(::std::move(type_param_bounds)), where_clause(where_clause),
-              trait_items(::std::move(trait_items)), VisItem(vis, outer_attrs) {}
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              has_unsafe(is_unsafe), name(::std::move(name)),
+              generic_params(::std::move(generic_params)),
+              type_param_bounds(::std::move(type_param_bounds)),
+              where_clause(::std::move(where_clause)), trait_items(::std::move(trait_items)) {}
 
             // Copy constructor with vector clone
             Trait(Trait const& other) :
-              name(other.name), has_unsafe(other.has_unsafe), where_clause(other.where_clause),
-              VisItem(other) {
+              VisItem(other), has_unsafe(other.has_unsafe), name(other.name),
+              where_clause(other.where_clause) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -2466,14 +2451,15 @@ namespace Rust {
             Impl(::std::vector< ::std::unique_ptr<GenericParam> > generic_params, Type* trait_type,
               WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
               ::std::vector<Attribute> outer_attrs) :
-              generic_params(::std::move(generic_params)),
-              trait_type(trait_type), where_clause(where_clause), inner_attrs(inner_attrs),
-              VisItem(vis, outer_attrs) {}
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              generic_params(::std::move(generic_params)), trait_type(trait_type),
+              where_clause(::std::move(where_clause)), inner_attrs(::std::move(inner_attrs)) {}
 
             // Copy constructor
             Impl(Impl const& other) :
+              VisItem(other),
               /*generic_params(other.generic_params),*/ trait_type(other.trait_type->clone_type()),
-              where_clause(other.where_clause), inner_attrs(other.inner_attrs), VisItem(other) {
+              where_clause(other.where_clause), inner_attrs(other.inner_attrs) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -2514,9 +2500,8 @@ namespace Rust {
             // TODO: remove and rely on virtual functions and VisItem-derived attributes?
             ::std::vector<Attribute> outer_attrs;
 
-            InherentImplItem(::std::vector<Attribute> outer_attrs) : outer_attrs(outer_attrs) {}
-
-            InherentImplItem() {}
+            InherentImplItem(::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              outer_attrs(::std::move(outer_attrs)) {}
 
             // Clone function implementation as pure virtual method
             virtual InherentImplItem* clone_inherent_impl_item_impl() const = 0;
@@ -2541,7 +2526,7 @@ namespace Rust {
 
           public:
             InherentImplItemMacro(MacroInvocationSemi macro, ::std::vector<Attribute> outer_attrs) :
-              macro(macro), InherentImplItem(outer_attrs) {}
+              InherentImplItem(::std::move(outer_attrs)), macro(::std::move(macro)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2567,13 +2552,14 @@ namespace Rust {
 
             InherentImplItemConstant(
               ConstantItem constant_item, /*Visibility vis,*/ ::std::vector<Attribute> outer_attrs) :
-              constant_item(constant_item),
-              /*visibility(vis),*/ InherentImplItem(outer_attrs) {}
+              InherentImplItem(::std::move(outer_attrs)),
+              constant_item(::std::move(constant_item))
+            /*, visibility(vis),*/ {}
 
             // Copy constructor with clone
             InherentImplItemConstant(InherentImplItemConstant const& other) :
-              constant_item(other.constant_item), /*visibility(other.visibility),*/
-              InherentImplItem(other) {}
+              InherentImplItem(other), constant_item(other.constant_item)
+            /*, visibility(other.visibility),*/ {}
 
             // Destructor - define here if required
 
@@ -2614,13 +2600,13 @@ namespace Rust {
 
             InherentImplItemFunction(
               Function function, /*Visibility vis,*/ ::std::vector<Attribute> outer_attrs) :
-              function(::std::move(function)),
-              /*visibility(vis),*/ InherentImplItem(outer_attrs) {}
+              InherentImplItem(::std::move(outer_attrs)),
+              function(::std::move(function))
+            /*, visibility(vis),*/ {}
 
             // Copy constructor with clone
             InherentImplItemFunction(InherentImplItemFunction const& other) :
-              function(other.function), /*visibility(other.visibility),*/
-              InherentImplItem(other) {}
+              InherentImplItem(other), function(other.function) /*, visibility(other.visibility),*/ {}
 
             // Destructor - define here if required
 
@@ -2660,12 +2646,12 @@ namespace Rust {
 
             InherentImplItemMethod(
               Method method, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              method(::std::move(method)),
-              visibility(vis), InherentImplItem(outer_attrs) {}
+              InherentImplItem(::std::move(outer_attrs)),
+              visibility(::std::move(vis)), method(::std::move(method)) {}
 
             // Copy constructor with clone
             InherentImplItemMethod(InherentImplItemMethod const& other) :
-              method(other.method), visibility(other.visibility), InherentImplItem(other) {}
+              InherentImplItem(other), visibility(other.visibility), method(other.method) {}
 
             // Destructor - define here if required
 
@@ -2707,9 +2693,9 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, Type* trait_type,
               WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
               ::std::vector<Attribute> outer_attrs) :
-              impl_items(::std::move(impl_items)),
-              Impl(::std::move(generic_params), trait_type, where_clause, vis, inner_attrs,
-                outer_attrs) {}
+              Impl(::std::move(generic_params), trait_type, ::std::move(where_clause),
+                ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs)),
+              impl_items(::std::move(impl_items)) {}
 
             // Copy constructor with vector clone
             InherentImpl(InherentImpl const& other) : Impl(other) {
@@ -2756,10 +2742,10 @@ namespace Rust {
           protected:
             // bool has_outer_attrs;
             ::std::vector<Attribute> outer_attrs;
+            // TODO: don't have outer attributes and rely on VisItem outer attributes only?
 
-            TraitImplItem(::std::vector<Attribute> outer_attrs) : outer_attrs(outer_attrs) {}
-
-            TraitImplItem() {}
+            TraitImplItem(::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              outer_attrs(::std::move(outer_attrs)) {}
 
             // Clone function implementation as pure virtual method
             virtual TraitImplItem* clone_trait_impl_item_impl() const = 0;
@@ -2784,7 +2770,7 @@ namespace Rust {
 
           public:
             TraitImplItemMacro(MacroInvocationSemi macro, ::std::vector<Attribute> outer_attrs) :
-              macro(macro), TraitImplItem(outer_attrs) {}
+              TraitImplItem(::std::move(outer_attrs)), macro(::std::move(macro)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2810,12 +2796,14 @@ namespace Rust {
 
             TraitImplItemTypeAlias(
               TypeAlias type_alias, /*Visibility vis,*/ ::std::vector<Attribute> outer_attrs) :
-              type_alias(::std::move(type_alias)),
-              /*visibility(vis),*/ TraitImplItem(outer_attrs) {}
+              TraitImplItem(::std::move(outer_attrs)),
+              type_alias(::std::move(type_alias))
+            /*, visibility(vis),*/ {}
 
             // Copy constructor
             TraitImplItemTypeAlias(TraitImplItemTypeAlias const& other) :
-              type_alias(other.type_alias), /*visibility(other.visibility),*/ TraitImplItem(other) {}
+              TraitImplItem(other), type_alias(other.type_alias) /*, visibility(other.visibility),*/ {
+            }
 
             // Destructor - define here if required
 
@@ -2856,13 +2844,14 @@ namespace Rust {
 
             TraitImplItemConstant(
               ConstantItem constant_item, /*Visibility vis,*/ ::std::vector<Attribute> outer_attrs) :
-              constant_item(constant_item),
-              /*visibility(vis),*/ TraitImplItem(outer_attrs) {}
+              TraitImplItem(::std::move(outer_attrs)),
+              constant_item(::std::move(constant_item))
+            /*, visibility(vis),*/ {}
 
             // Copy constructor with clone
             TraitImplItemConstant(TraitImplItemConstant const& other) :
-              constant_item(other.constant_item),
-              /*visibility(other.visibility),*/ TraitImplItem(other) {}
+              TraitImplItem(other), constant_item(other.constant_item)
+            /*, visibility(other.visibility),*/ {}
 
             // Destructor - define here if required
 
@@ -2903,12 +2892,13 @@ namespace Rust {
 
             TraitImplItemFunction(
               Function function, /*Visibility vis,*/ ::std::vector<Attribute> outer_attrs) :
-              function(::std::move(function)),
-              /*visibility(vis),*/ TraitImplItem(outer_attrs) {}
+              TraitImplItem(::std::move(outer_attrs)),
+              function(::std::move(function))
+            /*, visibility(vis),*/ {}
 
             // Copy constructor with clone
             TraitImplItemFunction(TraitImplItemFunction const& other) :
-              function(other.function), /*visibility(other.visibility),*/ TraitImplItem(other) {}
+              TraitImplItem(other), function(other.function) /*, visibility(other.visibility),*/ {}
 
             // Destructor - define here if required
 
@@ -2947,11 +2937,12 @@ namespace Rust {
             }
 
             TraitImplItemMethod(Method method, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              method(::std::move(method)), visibility(vis), TraitImplItem(outer_attrs) {}
+              TraitImplItem(::std::move(outer_attrs)), visibility(::std::move(vis)),
+              method(::std::move(method)) {}
 
             // Copy constructor with clone
             TraitImplItemMethod(TraitImplItemMethod const& other) :
-              method(other.method), visibility(other.visibility), TraitImplItem(other) {}
+              TraitImplItem(other), visibility(other.visibility), method(other.method) {}
 
             // Destructor - define here if required
 
@@ -3000,17 +2991,17 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, Type* trait_type,
               WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
               ::std::vector<Attribute> outer_attrs) :
-              trait_path(trait_path),
-              has_unsafe(is_unsafe), has_exclam(has_exclam), impl_items(::std::move(impl_items)),
-              Impl(::std::move(generic_params), trait_type, where_clause, vis, inner_attrs,
-                outer_attrs) {}
+              Impl(::std::move(generic_params), trait_type, ::std::move(where_clause),
+                ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs)),
+              has_unsafe(is_unsafe), has_exclam(has_exclam), trait_path(::std::move(trait_path)),
+              impl_items(::std::move(impl_items)) {}
 
             // TODO: constructors with less params
 
             // Copy constructor with vector clone
             TraitImpl(TraitImpl const& other) :
-              trait_path(other.trait_path), has_unsafe(other.has_unsafe),
-              has_exclam(other.has_exclam), Impl(other) {
+              Impl(other), has_unsafe(other.has_unsafe), has_exclam(other.has_exclam),
+              trait_path(other.trait_path) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 impl_items.reserve(other.impl_items.size());
 
@@ -3082,12 +3073,13 @@ namespace Rust {
 
           protected:
             ExternalItem(Identifier item_name, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              item_name(item_name), visibility(vis), outer_attrs(outer_attrs) {}
+              outer_attrs(::std::move(outer_attrs)), visibility(::std::move(vis)),
+              item_name(::std::move(item_name)) {}
 
             // Copy constructor
             ExternalItem(ExternalItem const& other) :
-              item_name(other.item_name), visibility(other.visibility),
-              outer_attrs(other.outer_attrs) {}
+              outer_attrs(other.outer_attrs), visibility(other.visibility),
+              item_name(other.item_name) {}
 
             // Overloaded assignment operator to clone
             ExternalItem& operator=(ExternalItem const& other) {
@@ -3116,12 +3108,12 @@ namespace Rust {
           public:
             ExternalStaticItem(Identifier item_name, Type* item_type, bool is_mut, Visibility vis,
               ::std::vector<Attribute> outer_attrs) :
-              item_type(item_type),
-              has_mut(is_mut), ExternalItem(item_name, vis, outer_attrs) {}
+              ExternalItem(::std::move(item_name), ::std::move(vis), ::std::move(outer_attrs)),
+              has_mut(is_mut), item_type(item_type) {}
 
             // Copy constructor
             ExternalStaticItem(ExternalStaticItem const& other) :
-              item_type(other.item_type->clone_type()), has_mut(other.has_mut), ExternalItem(other) {}
+              ExternalItem(other), has_mut(other.has_mut), item_type(other.item_type->clone_type()) {}
 
             // Destructor - define here if required
 
@@ -3172,7 +3164,7 @@ namespace Rust {
             }
 
             NamedFunctionParam(Identifier name, Type* param_type) :
-              name(name), param_type(param_type) {}
+              name(::std::move(name)), param_type(param_type) {}
 
             // Copy constructor
             NamedFunctionParam(NamedFunctionParam const& other) :
@@ -3231,15 +3223,17 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, Type* return_type,
               WhereClause where_clause, ::std::vector<NamedFunctionParam> function_params,
               bool has_variadics, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              generic_params(::std::move(generic_params)),
-              return_type(return_type), where_clause(where_clause), function_params(function_params),
-              has_variadics(has_variadics), ExternalItem(item_name, vis, outer_attrs) {}
+              ExternalItem(::std::move(item_name), ::std::move(vis), ::std::move(outer_attrs)),
+              generic_params(::std::move(generic_params)), return_type(return_type),
+              where_clause(::std::move(where_clause)), function_params(::std::move(function_params)),
+              has_variadics(has_variadics) {}
 
             // Copy constructor with clone
             ExternalFunctionItem(ExternalFunctionItem const& other) :
+              ExternalItem(other),
               /*generic_params(other.generic_params),*/ return_type(other.return_type->clone_type()),
               where_clause(other.where_clause), function_params(other.function_params),
-              has_variadics(other.has_variadics), ExternalItem(other) {
+              has_variadics(other.has_variadics) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -3312,13 +3306,13 @@ namespace Rust {
             ExternBlock(AbiName abi, ::std::vector< ::std::unique_ptr<ExternalItem> > extern_items,
               Visibility vis, ::std::vector<Attribute> inner_attrs,
               ::std::vector<Attribute> outer_attrs) :
-              abi(abi),
-              extern_items(::std::move(extern_items)), inner_attrs(inner_attrs),
-              VisItem(vis, outer_attrs) {}
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              abi(::std::move(abi)), inner_attrs(::std::move(inner_attrs)),
+              extern_items(::std::move(extern_items)) {}
 
             // Copy constructor with vector clone
             ExternBlock(ExternBlock const& other) :
-              abi(other.abi), inner_attrs(other.inner_attrs), VisItem(other) {
+              VisItem(other), abi(other.abi), inner_attrs(other.inner_attrs) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 extern_items.reserve(other.extern_items.size());
 

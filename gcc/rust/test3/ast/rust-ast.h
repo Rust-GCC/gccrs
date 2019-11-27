@@ -186,7 +186,7 @@ namespace Rust {
                 FLOAT,
                 BOOL
             };
-          
+
           private:
             // TODO: maybe make subclasses of each type of literal with their typed values (or
             // generics)
@@ -203,8 +203,7 @@ namespace Rust {
             }
 
             Literal(::std::string value_as_string, LitType type) :
-              value_as_string(::std::move(value_as_string)),
-              type(type) {}
+              value_as_string(::std::move(value_as_string)), type(type) {}
         };
 
         // A token tree with delimiters
@@ -307,15 +306,11 @@ namespace Rust {
             ::std::vector<SimplePathSegment> segments;
 
           public:
-            // Constructor with no opening scope resolution
-            SimplePath(::std::vector<SimplePathSegment> path_segments) :
-              segments(::std::move(path_segments)), has_opening_scope_resolution(false) {}
-
-            // Constructor with an opening scope resolution
-            SimplePath(
-              ::std::vector<SimplePathSegment> path_segments, bool has_opening_scope_resolution) :
-              segments(::std::move(path_segments)),
-              has_opening_scope_resolution(has_opening_scope_resolution) {}
+            // Constructor
+            SimplePath(::std::vector<SimplePathSegment> path_segments,
+              bool has_opening_scope_resolution = false) :
+              has_opening_scope_resolution(has_opening_scope_resolution),
+              segments(::std::move(path_segments)) {}
 
             // Creates an empty SimplePath.
             static SimplePath create_empty() {
@@ -365,7 +360,7 @@ namespace Rust {
                 return *this;
             }
 
-            // default move semantics 
+            // default move semantics
             Attribute(Attribute&& other) = default;
             Attribute& operator=(Attribute&& other) = default;
 
@@ -549,7 +544,7 @@ namespace Rust {
                 return ::std::unique_ptr<Expr>(clone_expr_impl());
             }
 
-            /* TODO: public methods that could be useful: 
+            /* TODO: public methods that could be useful:
              *  - get_type() - returns type of expression. set_type() may also be useful for some?
              *  - evaluate() - evaluates expression if constant? can_evaluate()? */
 
@@ -567,10 +562,13 @@ namespace Rust {
             Identifier ident;
 
           public:
-            IdentifierExpr(Identifier ident, ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) : ident(::std::move(ident)), Expr(::std::move(outer_attrs)) {}
+            IdentifierExpr(
+              Identifier ident, ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              Expr(::std::move(outer_attrs)),
+              ident(::std::move(ident)) {}
 
             ::std::string as_string() const {
-              return "not implemented as a HACK";
+                return "not implemented as a HACK";
             }
 
           protected:
@@ -732,15 +730,15 @@ namespace Rust {
 
         // A lifetime generic parameter (as opposed to a type generic parameter)
         class LifetimeParam : public GenericParam {
-            // bool has_outer_attribute;
-            //::std::unique_ptr<Attribute> outer_attr;
-            Attribute outer_attr;
-
             Lifetime lifetime;
 
             // bool has_lifetime_bounds;
             // LifetimeBounds lifetime_bounds;
             ::std::vector<Lifetime> lifetime_bounds; // inlined LifetimeBounds
+
+            // bool has_outer_attribute;
+            //::std::unique_ptr<Attribute> outer_attr;
+            Attribute outer_attr;
 
           public:
             // Returns whether the lifetime param has any lifetime bounds.
@@ -853,9 +851,9 @@ namespace Rust {
             MacroInvocationSemi(SimplePath macro_path, DelimType delim_type,
               ::std::vector< ::std::unique_ptr<TokenTree> > token_trees,
               ::std::vector<Attribute> outer_attribs) :
-              path(::std::move(macro_path)),
-              delim_type(delim_type), token_trees(::std::move(token_trees)), MacroItem(outer_attribs),
-              TraitItem(outer_attribs) {}
+              MacroItem(outer_attribs),
+              TraitItem(outer_attribs), path(::std::move(macro_path)), delim_type(delim_type),
+              token_trees(::std::move(token_trees)) {}
             /* TODO: possible issue with Item and TraitItem hierarchies both having outer attributes
              * - storage inefficiency at least.
              * Best current idea is to make Item preferred and have TraitItem get virtual functions
@@ -865,7 +863,7 @@ namespace Rust {
 
             // Copy constructor with vector clone
             MacroInvocationSemi(MacroInvocationSemi const& other) :
-              path(other.path), delim_type(other.delim_type), MacroItem(other), TraitItem(other) {
+              MacroItem(other), TraitItem(other), path(other.path), delim_type(other.delim_type) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 token_trees.reserve(other.token_trees.size());
 
@@ -929,14 +927,14 @@ namespace Rust {
             Crate(::std::vector< ::std::unique_ptr<Item> > items,
               ::std::vector<Attribute> inner_attrs, bool has_utf8bom = false,
               bool has_shebang = false) :
-              items(::std::move(items)),
-              inner_attrs(::std::move(inner_attrs)), has_shebang(has_shebang),
-              has_utf8bom(has_utf8bom) {}
+              has_utf8bom(has_utf8bom),
+              has_shebang(has_shebang), inner_attrs(::std::move(inner_attrs)),
+              items(::std::move(items)) {}
 
             // Copy constructor with vector clone
             Crate(Crate const& other) :
-              inner_attrs(other.inner_attrs), has_shebang(other.has_shebang),
-              has_utf8bom(other.has_utf8bom) {
+              has_utf8bom(other.has_utf8bom), has_shebang(other.has_shebang),
+              inner_attrs(other.inner_attrs) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 items.reserve(other.items.size());
 
