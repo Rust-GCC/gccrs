@@ -328,7 +328,41 @@ namespace Rust {
         }
 
         ::std::string BlockExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = "BlockExpr: ";
+
+            // get outer attributes
+            str += "\n " + Expr::as_string();
+            
+            // inner attributes
+            str += "\n inner attributes: ";
+            if (inner_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "inner attribute" syntax - just the body
+                for (const auto& attr : inner_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            // statements
+            str += "\n statements: ";
+            if (statements.empty()) {
+                str += "none";
+            } else {
+                for (const auto& stmt : statements) {
+                    str += "\n  " + stmt->as_string();
+                }
+            }
+
+            // final expression
+            str += "\n final expression: ";
+            if (expr == NULL) {
+                str += "none";
+            } else {
+                str += "\n  " + expr->as_string();
+            }
+
+            return str;
         }
 
         ::std::string TraitImpl::as_string() const {
@@ -360,7 +394,15 @@ namespace Rust {
         }
 
         ::std::string ExprStmtWithBlock::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("ExprStmtWithBlock: \n ");
+
+            if (expr == NULL) {
+                str += "none (this should not happen and is an error)";
+            } else {
+                str += expr->as_string();
+            }
+
+            return str;
         }
 
         ::std::string ClosureExprInnerTyped::as_string() const {
@@ -412,7 +454,19 @@ namespace Rust {
         }
 
         ::std::string AssignmentExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("AssignmentExpr: ");
+
+            if (main_or_left_expr == NULL || right_expr == NULL) {
+                str += "error (either or both expressions are null)";
+            } else {
+                // left expr
+                str += "\n left: " + main_or_left_expr->as_string();
+
+                // right expr
+                str += "\n right: " + right_expr->as_string();
+            }
+
+            return str;
         }
 
         ::std::string AsyncBlockExpr::as_string() const {
@@ -500,7 +554,56 @@ namespace Rust {
         }
 
         ::std::string ArithmeticOrLogicalExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string operator_str;
+            operator_str.reserve(1);
+
+            // get operator string
+            switch (expr_type) {
+                case ADD:
+                    operator_str = "+";
+                    break;
+                case SUBTRACT: 
+                    operator_str = "-";
+                    break;
+                case MULTIPLY:
+                    operator_str = "*";
+                    break;
+                case DIVIDE:
+                    operator_str = "/";
+                    break;
+                case MODULUS:
+                    operator_str = "%";
+                    break;
+                case BITWISE_AND:
+                    operator_str = "&";
+                    break;
+                case BITWISE_OR:
+                    operator_str = "|";
+                    break;
+                case BITWISE_XOR:
+                    operator_str = "^";
+                    break;
+                case LEFT_SHIFT:
+                    operator_str = "<<";
+                    break;
+                case RIGHT_SHIFT:
+                    operator_str = ">>";
+                    break;
+                default:
+                    operator_str = "invalid operator. wtf";
+                    break;
+            }
+
+            ::std::string str("ArithmeticOrLogicalExpr: ");
+            if (main_or_left_expr == NULL || right_expr == NULL) {
+                str += "error. this is probably a parsing failure.";
+            } else {
+                str += "\n left: " + main_or_left_expr->as_string();
+                str += "\n right: " + right_expr->as_string();
+                str += "\n operator: " + operator_str;
+            }
+
+            return str;
         }
 
         ::std::string CallExpr::as_string() const {
@@ -544,7 +647,15 @@ namespace Rust {
         }
 
         ::std::string ExprStmtWithoutBlock::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("ExprStmtWithoutBlock: \n ");
+
+            if (expr == NULL) {
+                str += "none (this shouldn't happen and is probably an error)";
+            } else {
+                str += expr->as_string();
+            }
+
+            return str;
         }
 
         ::std::string FunctionParam::as_string() const {
@@ -614,6 +725,29 @@ namespace Rust {
             return SimplePath(::std::move(simple_segments), with_opening_scope_resolution);
         }
 
+        SimplePath TypePath::as_simple_path() const {
+            if (segments.empty()) {
+                return SimplePath::create_empty();
+            }
+
+            // create vector of reserved size (to minimise reallocations)
+            ::std::vector<SimplePathSegment> simple_segments;
+            simple_segments.reserve(segments.size());
+
+            for (const auto& segment : segments) {
+                // return empty path if doesn't meet simple path segment requirements
+                if (segment == NULL || segment->is_error() || !segment->is_ident_only() || segment->as_string() == "Self") {
+                    return SimplePath::create_empty();
+                }
+
+                // create segment and add to vector
+                ::std::string segment_str = segment->as_string();
+                simple_segments.push_back(SimplePathSegment(::std::move(segment_str)));
+            }
+
+            return SimplePath(::std::move(simple_segments), has_opening_scope_resolution);
+        }
+
         ::std::string PathExprSegment::as_string() const {
             ::std::string ident_str = segment_name.as_string();
             if (has_generic_args()) {
@@ -666,6 +800,29 @@ namespace Rust {
 
         ::std::string LetStmt::as_string() const {
             return ::std::string("not implemented");
+        }
+
+        // Used to get outer attributes for expressions.
+        ::std::string Expr::as_string() const {
+            // outer attributes
+            ::std::string str = "outer attributes: ";
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            return str;
+        }
+
+        // hopefully definition here will prevent circular dependency issue
+        TraitBound* TypePath::to_trait_bound(bool in_parens) const {
+            // create clone FIXME is this required? or is copy constructor automatically called?
+            TypePath copy(*this);
+            return new TraitBound(::std::move(copy), in_parens);
         }
     }
 }

@@ -258,9 +258,11 @@ namespace Rust {
              * One difference is that function on TypePathSegment is not allowed if GenericArgs are,
              * so could disallow that in constructor, which won't give that much size overhead. */
             PathIdentSegment ident_segment;
-            bool has_separating_scope_resolution;
 
           protected:
+            // This is protected because it is only really used by derived classes, not the base.
+            bool has_separating_scope_resolution;
+
             // Clone function implementation - not pure virtual as overrided by subclasses
             virtual TypePathSegment* clone_type_path_segment_impl() const {
                 return new TypePathSegment(*this);
@@ -281,6 +283,21 @@ namespace Rust {
             TypePathSegment(::std::string segment_name, bool has_separating_scope_resolution) :
               ident_segment(PathIdentSegment(::std::move(segment_name))),
               has_separating_scope_resolution(has_separating_scope_resolution) {}
+
+            virtual ::std::string as_string() const {
+                return ident_segment.as_string();
+            }
+
+            // Returns whether the type path segment is in an error state. May be virtual in future.
+            inline bool is_error() const {
+                return ident_segment.is_error();
+            }
+
+            /* Returns whether segment is identifier only (as opposed to generic args or function). 
+            Overriden in derived classes with other segments. */
+            virtual bool is_ident_only() const {
+                return true;
+            }
         };
 
         // Segment used in type path with generic args
@@ -290,6 +307,10 @@ namespace Rust {
           public:
             inline bool has_generic_args() const {
                 return generic_args.has_generic_args();
+            }
+
+            bool is_ident_only() const {
+                return false;
             }
 
             // Constructor with PathIdentSegment and GenericArgs
@@ -306,6 +327,8 @@ namespace Rust {
               TypePathSegment(::std::move(segment_name), has_separating_scope_resolution),
               generic_args(GenericArgs(
                 ::std::move(lifetime_args), ::std::move(type_args), ::std::move(binding_args))) {}
+
+            ::std::string as_string() const;
 
           protected:
             // Use covariance to override base class method
@@ -411,6 +434,12 @@ namespace Rust {
               TypePathSegment(::std::move(segment_name), has_separating_scope_resolution),
               function_path(::std::move(function_path)) {}
 
+            ::std::string as_string() const;
+
+            bool is_ident_only() const {
+                return false;
+            }
+
           protected:
             // Use covariance to override base class method
             virtual TypePathSegmentFunction* clone_type_path_segment_impl() const OVERRIDE {
@@ -487,6 +516,13 @@ namespace Rust {
             TypePath& operator=(TypePath&& other) = default;
 
             ::std::string as_string() const;
+
+            /* Converts TypePath to SimplePath if possible (i.e. no generic or function arguments).
+             * Otherwise returns an empty SimplePath. */
+            SimplePath as_simple_path() const;
+
+            // Creates a trait bound with a clone of this type path as its only element. 
+            virtual TraitBound* to_trait_bound(bool in_parens) const OVERRIDE;
         };
 
         struct QualifiedPathType {

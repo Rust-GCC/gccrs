@@ -27,8 +27,8 @@ namespace Rust {
                 return !for_lifetimes.empty();
             }
 
-            TraitBound(TypePath type_path, bool in_parens, bool opening_question_mark,
-              ::std::vector<LifetimeParam> for_lifetimes) :
+            TraitBound(TypePath type_path, bool in_parens = false, bool opening_question_mark = false,
+              ::std::vector<LifetimeParam> for_lifetimes = ::std::vector<LifetimeParam>()) :
               in_parens(in_parens),
               opening_question_mark(opening_question_mark), for_lifetimes(::std::move(for_lifetimes)),
               type_path(::std::move(type_path)) {}
@@ -103,7 +103,7 @@ namespace Rust {
 
           public:
             TraitObjectType(::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds,
-              bool is_dyn_dispatch) :
+              bool is_dyn_dispatch = false) :
               has_dyn(is_dyn_dispatch),
               type_param_bounds(::std::move(type_param_bounds)) {}
 
@@ -161,8 +161,7 @@ namespace Rust {
             ParenthesisedType(ParenthesisedType const& other) :
               type_in_parens(other.type_in_parens->clone_type()) {}
 
-            // Default destructor
-            ~ParenthesisedType() = default;
+            // define destructor here if required
 
             // overload assignment operator to use custom clone method
             ParenthesisedType& operator=(ParenthesisedType const& other) {
@@ -176,6 +175,14 @@ namespace Rust {
 
             ::std::string as_string() const {
                 return "(" + type_in_parens->as_string() + ")";
+            }
+
+            // Creates a trait bound (clone of this one's trait bound) - HACK 
+            virtual TraitBound* to_trait_bound(bool in_parens) const OVERRIDE {
+                /* NOTE: obviously it is unknown whether the internal type is a trait bound due to 
+                 * polymorphism, so just let the internal type handle it. As parenthesised type, it
+                 * must be in parentheses. */
+                return type_in_parens->to_trait_bound(true);
             }
         };
 
@@ -200,7 +207,8 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
-        // A trait object with a single trait bound
+        /* A trait object with a single trait bound. The "trait bound" is really just the trait. 
+         * Basically like using an interface as a type in an OOP language. */
         class TraitObjectTypeOneBound : public TypeNoBounds {
             bool has_dyn;
             TraitBound trait_bound;
@@ -217,10 +225,17 @@ namespace Rust {
             }
 
           public:
-            TraitObjectTypeOneBound(TraitBound trait_bound, bool is_dyn_dispatch) :
+            TraitObjectTypeOneBound(TraitBound trait_bound, bool is_dyn_dispatch = false) :
               has_dyn(is_dyn_dispatch), trait_bound(::std::move(trait_bound)) {}
 
             ::std::string as_string() const;
+
+            // Creates a trait bound (clone of this one's trait bound) - HACK 
+            virtual TraitBound* to_trait_bound(bool in_parens) const OVERRIDE {
+                /* NOTE: this assumes there is no dynamic dispatch specified- if there was, this 
+                 * cloning would not be required as parsing is unambiguous. */
+                return new AST::TraitBound(trait_bound);
+            }
         };
 
         class TypePath; // definition moved to "rust-path.h"
@@ -560,6 +575,16 @@ namespace Rust {
             MaybeNamedParam& operator=(MaybeNamedParam&& other) = default;
 
             ::std::string as_string() const;
+
+            // Returns whether the param is in an error state.
+            inline bool is_error() const {
+                return param_type == NULL;
+            }
+
+            // Creates an error state param.
+            static MaybeNamedParam create_error() {
+                return MaybeNamedParam("", UNNAMED, NULL);
+            }
         };
 
         /* A function pointer type - can be created via coercion from function items and non-

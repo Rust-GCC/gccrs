@@ -535,7 +535,7 @@ namespace Rust {
             ::std::vector<Attribute> outer_attrs;
 
           public:
-            inline ::std::vector<Attribute> get_outer_attrs() const {
+            inline const ::std::vector<Attribute>& get_outer_attrs() const {
                 return outer_attrs;
             }
 
@@ -547,6 +547,8 @@ namespace Rust {
             /* TODO: public methods that could be useful:
              *  - get_type() - returns type of expression. set_type() may also be useful for some?
              *  - evaluate() - evaluates expression if constant? can_evaluate()? */
+
+            ::std::string as_string() const;
 
           protected:
             // Constructor
@@ -616,6 +618,9 @@ namespace Rust {
             virtual Pattern* clone_pattern_impl() const = 0;
         };
 
+        // forward decl for Type
+        class TraitBound;
+
         // Base class for types as represented in AST - abstract
         class Type {
           public:
@@ -628,6 +633,12 @@ namespace Rust {
             virtual ~Type() {}
 
             virtual ::std::string as_string() const = 0;
+
+            // HACK: convert to trait bound. Virtual method overriden by classes that enable this.
+            virtual TraitBound* to_trait_bound(bool in_parens) const {
+                return NULL;
+            }
+            // as pointer, shouldn't require definition beforehand, only forward declaration.
 
           protected:
             // Clone function implementation as pure virtual method

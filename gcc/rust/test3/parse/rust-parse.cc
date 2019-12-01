@@ -2407,11 +2407,9 @@ namespace Rust {
             if (lexer.peek_token()->get_id() != PLUS) {
                 return type_param_bounds;
             }
-
             lexer.skip_token();
 
             AST::TypeParamBound* bound = parse_type_param_bound();
-
             if (bound == NULL) {
                 // not an error: bound is allowed to be null as trailing plus is allowed
                 return type_param_bounds;
@@ -2428,11 +2426,22 @@ namespace Rust {
     AST::TypeParamBound* Parser::parse_type_param_bound() {
         // shitty cheat way of determining lifetime or trait bound - test for lifetime
         const_TokenPtr t = lexer.peek_token();
-
-        if (t->get_id() == LIFETIME) {
-            return new AST::Lifetime(parse_lifetime());
-        } else {
-            return parse_trait_bound();
+        switch (t->get_id()) {
+            case LIFETIME:
+                return new AST::Lifetime(parse_lifetime());
+            case LEFT_PAREN:
+            case QUESTION_MARK:
+            case FOR:
+            case IDENTIFIER:
+            case SUPER:
+            case SELF:
+            case SELF_ALIAS:
+            case CRATE:
+            case DOLLAR_SIGN:
+                return parse_trait_bound();
+            default:
+                // don't error - assume this is fine TODO
+                return NULL;
         }
     }
 
@@ -2454,7 +2463,10 @@ namespace Rust {
         }
 
         // parse for lifetimes, if it exists (although empty for lifetimes is ok to handle this)
-        ::std::vector<AST::LifetimeParam> for_lifetimes = parse_for_lifetimes();
+        ::std::vector<AST::LifetimeParam> for_lifetimes;
+        if (lexer.peek_token()->get_id() == FOR) {
+            for_lifetimes = parse_for_lifetimes();
+        }
 
         // handle TypePath
         AST::TypePath type_path = parse_type_path();
@@ -6174,6 +6186,642 @@ namespace Rust {
     AST::Type* Parser::parse_type() {
         // TODO
         return NULL;
+
+        /* rules for all types:
+         * NeverType:               '!'
+         * SliceType:               '[' Type ']'
+         * InferredType:            '_'
+         * MacroInvocation:         SimplePath '!' DelimTokenTree
+         * ParenthesisedType:       '(' Type ')'
+         * ImplTraitType:           'impl' TypeParamBounds
+         *  TypeParamBounds (not type)  TypeParamBound ( '+' TypeParamBound )* '+'?
+         *  TypeParamBound          Lifetime | TraitBound
+         * ImplTraitTypeOneBound:   'impl' TraitBound
+         * TraitObjectType:         'dyn'? TypeParamBounds
+         * TraitObjectTypeOneBound: 'dyn'? TraitBound
+         *  TraitBound              '?'? ForLifetimes? TypePath | '(' '?'? ForLifetimes? TypePath ')'
+         * BareFunctionType:        ForLifetimes? FunctionQualifiers 'fn' etc.
+         *  ForLifetimes (not type) 'for' '<' LifetimeParams '>'
+         *  FunctionQualifiers      ( 'async' | 'const' )? 'unsafe'? ('extern' abi?)?
+         * QualifiedPathInType:     '<' Type ( 'as' TypePath )? '>' ( '::' TypePathSegment )+
+         * TypePath:                '::'? TypePathSegment ( '::' TypePathSegment)*
+         * ArrayType:               '[' Type ';' Expr ']'
+         * ReferenceType:           '&' Lifetime? 'mut'? TypeNoBounds
+         * RawPointerType:          '*' ( 'mut' | 'const' ) TypeNoBounds
+         * TupleType:               '(' Type etc. - regular tuple stuff. Also regular tuple vs
+         *                              parenthesised precedence
+         *
+         * Disambiguate between macro and type path via type path being parsed, and then if '!'
+         * found, convert type path to simple path for macro.
+         * Usual disambiguation for tuple vs parenthesised.
+         * For ImplTraitType and TraitObjectType individual disambiguations, they seem more like
+         * "special cases", so probably just try to parse the more general ImplTraitType or
+         * TraitObjectType and return OneBound versions if they satisfy those criteria. */
+
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case EXCLAM:
+                // never type - can't be macro as no path beforehand
+                lexer.skip_token();
+                return new AST::NeverType();
+            case LEFT_SQUARE:
+                // slice type or array type - requires further disambiguation
+                return parse_slice_or_array_type();
+            case LEFT_ANGLE: {
+                // qualified path in type
+                AST::QualifiedPathInType path = parse_qualified_path_in_type();
+                if (path.is_error()) {
+                    error_at(t->get_locus(), "failed to parse qualified path in type");
+                    return NULL;
+                }
+                return new AST::QualifiedPathInType(::std::move(path));
+            }
+            case UNDERSCORE:
+                // inferred type
+                lexer.skip_token();
+                return new AST::InferredType();
+            case ASTERISK:
+                // raw pointer type
+                return parse_raw_pointer_type();
+            case AMP: // does this also include AMP_AMP?
+                // reference type
+                return parse_reference_type();
+            case IDENTIFIER:
+            case SUPER:
+            case SELF:
+            case SELF_ALIAS:
+            case CRATE:
+            case DOLLAR_SIGN:
+            case SCOPE_RESOLUTION: {
+                // macro invocation or type path - requires further disambiguation.
+                /* for parsing path component of each rule, perhaps parse it as a typepath and
+                 * attempt conversion to simplepath if a trailing '!' is found */
+                /* Type path also includes TraitObjectTypeOneBound BUT if it starts with it, it is
+                 * exactly the same as a TypePath syntactically, so this is a syntactical ambiguity.
+                 * As such, the parser will parse it as a TypePath.
+                 * This, however, does not prevent TraitObjectType from starting with a typepath. */
+
+                // parse path as type path
+                AST::TypePath path = parse_type_path();
+                if (path.is_error()) {
+                    error_at(t->get_locus(), "failed to parse path as first component of type");
+                    return NULL;
+                }
+
+                // branch on next token
+                t = lexer.peek_token();
+                switch (t->get_id()) {
+                    case EXCLAM: {
+                        // macro invocation
+                        // convert to simple path
+                        AST::SimplePath macro_path = path.as_simple_path();
+                        if (macro_path.is_empty()) {
+                            error_at(t->get_locus(),
+                              "failed to parse simple path in macro invocation (for type)");
+                            return NULL;
+                        }
+
+                        lexer.skip_token();
+
+                        AST::DelimTokenTree tok_tree = parse_delim_token_tree();
+
+                        return new AST::MacroInvocation(::std::move(macro_path),
+                          ::std::move(tok_tree), ::std::vector<AST::Attribute>());
+                    }
+                    case PLUS: {
+                        // type param bounds
+                        ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > bounds;
+
+                        // convert type path to trait bound
+                        AST::TraitBound* path_bound
+                          = new AST::TraitBound(::std::move(path), false, false);
+                        bounds.push_back(::std::unique_ptr<AST::TraitBound>(path_bound));
+
+                        // parse rest of bounds - FIXME: better way to find when to stop parsing
+                        while (t->get_id() == PLUS) {
+                            lexer.skip_token();
+
+                            // parse bound if it exists - if not, assume end of sequence
+                            AST::TypeParamBound* bound = parse_type_param_bound();
+                            if (bound == NULL) {
+                                break;
+                            }
+                            bounds.push_back(::std::unique_ptr<AST::TypeParamBound>(bound));
+
+                            t = lexer.peek_token();
+                        }
+
+                        return new AST::TraitObjectType(::std::move(bounds));
+                    }
+                    default:
+                        // assume that this is a type path and not an error
+                        return new AST::TypePath(::std::move(path));
+                }
+            }
+            case LEFT_PAREN:
+                // tuple type or parenthesised type - requires further disambiguation (the usual)
+                // ok apparently can be a parenthesised TraitBound too, so could be
+                // TraitObjectTypeOneBound or TraitObjectType
+                return parse_paren_prefixed_type();
+            case FOR:
+                // TraitObjectTypeOneBound or BareFunctionType
+                return parse_for_prefixed_type();
+            case ASYNC:
+            case CONST:
+            case UNSAFE:
+            case EXTERN_TOK:
+            case FN_TOK:
+                // bare function type (with no for lifetimes)
+                return parse_bare_function_type(::std::vector<AST::LifetimeParam>());
+            case IMPL:
+                lexer.skip_token();
+                if (lexer.peek_token()->get_id() == LIFETIME) {
+                    // cannot be one bound because lifetime prevents it from being traitbound
+                    ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > bounds
+                      = parse_type_param_bounds();
+
+                    return new AST::ImplTraitType(::std::move(bounds));
+                } else {
+                    // should be trait bound, so parse trait bound
+                    AST::TraitBound* initial_bound = parse_trait_bound();
+                    if (initial_bound == NULL) {
+                        error_at(lexer.peek_token()->get_locus(),
+                          "failed to parse ImplTraitType initial bound");
+                        return NULL;
+                    }
+
+                    // short cut if next token isn't '+'
+                    t = lexer.peek_token();
+                    if (t->get_id() != PLUS) {
+                        // convert trait bound to value object
+                        AST::TraitBound value_bound(*initial_bound);
+                        delete initial_bound;
+
+                        return new AST::ImplTraitTypeOneBound(::std::move(value_bound));
+                    }
+
+                    // parse additional type param bounds
+                    ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > bounds;
+                    bounds.push_back(::std::unique_ptr<AST::TraitBound>(initial_bound));
+                    while (t->get_id() == PLUS) {
+                        lexer.skip_token();
+
+                        // parse bound if it exists
+                        AST::TypeParamBound* bound = parse_type_param_bound();
+                        if (bound == NULL) {
+                            // not an error as trailing plus may exist
+                            break;
+                        }
+                        bounds.push_back(::std::unique_ptr<AST::TypeParamBound>(bound));
+
+                        t = lexer.peek_token();
+                    }
+
+                    return new AST::ImplTraitType(::std::move(bounds));
+                }
+            case DYN:
+            case QUESTION_MARK: {
+                // either TraitObjectType or TraitObjectTypeOneBound
+                bool has_dyn = false;
+                if (t->get_id() == DYN) {
+                    lexer.skip_token();
+                    has_dyn = true;
+                }
+
+                if (lexer.peek_token()->get_id() == LIFETIME) {
+                    // cannot be one bound because lifetime prevents it from being traitbound
+                    ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > bounds
+                      = parse_type_param_bounds();
+
+                    return new AST::TraitObjectType(::std::move(bounds), has_dyn);
+                } else {
+                    // should be trait bound, so parse trait bound
+                    AST::TraitBound* initial_bound = parse_trait_bound();
+                    if (initial_bound == NULL) {
+                        error_at(lexer.peek_token()->get_locus(),
+                          "failed to parse TraitObjectType initial bound");
+                        return NULL;
+                    }
+
+                    // short cut if next token isn't '+'
+                    t = lexer.peek_token();
+                    if (t->get_id() != PLUS) {
+                        // convert trait bound to value object
+                        AST::TraitBound value_bound(*initial_bound);
+                        delete initial_bound;
+
+                        return new AST::TraitObjectTypeOneBound(::std::move(value_bound), has_dyn);
+                    }
+
+                    // parse additional type param bounds
+                    ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > bounds;
+                    bounds.push_back(::std::unique_ptr<AST::TraitBound>(initial_bound));
+                    while (t->get_id() == PLUS) {
+                        lexer.skip_token();
+
+                        // parse bound if it exists
+                        AST::TypeParamBound* bound = parse_type_param_bound();
+                        if (bound == NULL) {
+                            // not an error as trailing plus may exist
+                            break;
+                        }
+                        bounds.push_back(::std::unique_ptr<AST::TypeParamBound>(bound));
+
+                        t = lexer.peek_token();
+                    }
+
+                    return new AST::TraitObjectType(::std::move(bounds), has_dyn);
+                }
+            }
+            default:
+                error_at(
+                  t->get_locus(), "unrecognised token in type '%s'", t->get_token_description());
+                return NULL;
+        }
+    }
+
+    /* Parses a type that has '(' as its first character. Returns a tuple type, parenthesised type,
+     * TraitObjectTypeOneBound, or TraitObjectType depending on following characters. */
+    AST::Type* Parser::parse_paren_prefixed_type() {
+        /* NOTE: Syntactical ambiguity of a parenthesised trait bound is considered a trait bound,
+         * not a parenthesised type, so that it can still be used in type param bounds. */
+
+        /* NOTE: this implementation is really shit but I couldn't think of a better one. It requires
+         * essentially breaking polymorphism and downcasting via virtual method abuse, as it was
+         * copied from the rustc implementation (in which types are reified due to tagged union),
+         * after a more OOP attempt by me failed. */
+
+        // skip left delim
+        lexer.skip_token();
+        // while next token isn't close delim, parse comma-separated types, saving whether trailing
+        // comma happens
+        const_TokenPtr t = lexer.peek_token();
+        bool trailing_comma = true;
+        ::std::vector< ::std::unique_ptr<AST::Type> > types;
+
+        while (t->get_id() != RIGHT_PAREN) {
+            AST::Type* type = parse_type();
+            if (type == NULL) {
+                error_at(t->get_locus(),
+                  "failed to parse type inside parentheses (probably tuple or parenthesised)");
+                return NULL;
+            }
+            types.push_back(::std::unique_ptr<AST::Type>(type));
+
+            t = lexer.peek_token();
+            if (t->get_id() != COMMA) {
+                trailing_comma = false;
+                break;
+            }
+            lexer.skip_token();
+
+            t = lexer.peek_token();
+        }
+
+        if (!skip_token(RIGHT_PAREN)) {
+            return NULL;
+        }
+
+        // if only one type and no trailing comma, then not a tuple type
+        if (types.size() == 1 && !trailing_comma) {
+            // must be a TraitObjectType (with more than one bound)
+            if (lexer.peek_token()->get_id() == PLUS) {
+                // create type param bounds vector
+                ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > bounds;
+
+                // HACK: convert type to traitbound and add to bounds
+                AST::Type* released_ptr = types[0].release();
+                AST::TraitBound* converted_bound = released_ptr->to_trait_bound(true);
+                delete released_ptr;
+                if (converted_bound == NULL) {
+                    error_at(lexer.peek_token()->get_id(),
+                      "failed to hackily converted parsed type to trait bound");
+                    return NULL;
+                }
+                bounds.push_back(::std::unique_ptr<AST::TraitBound>(converted_bound));
+
+                t = lexer.peek_token();
+                while (t->get_id() == PLUS) {
+                    lexer.skip_token();
+
+                    // attempt to parse typeparambound
+                    AST::TypeParamBound* bound = parse_type_param_bound();
+                    if (bound == NULL) {
+                        // not an error if null
+                        break;
+                    }
+                    bounds.push_back(::std::unique_ptr<AST::TypeParamBound>(bound));
+
+                    t = lexer.peek_token();
+                }
+
+                return new AST::TraitObjectType(::std::move(bounds));
+            } else {
+                // release vector pointer
+                AST::Type* released_ptr = types[0].release();
+                // HACK: attempt to convert to trait bound. if fails, parenthesised type
+                AST::TraitBound* converted_bound = released_ptr->to_trait_bound(true);
+                if (converted_bound == NULL) {
+                    // parenthesised type
+                    return new AST::ParenthesisedType(released_ptr);
+                } else {
+                    // trait object type (one bound)
+                    delete released_ptr;
+
+                    // get value semantics trait bound
+                    AST::TraitBound value_bound(*converted_bound);
+                    delete converted_bound;
+
+                    return new AST::TraitObjectTypeOneBound(value_bound);
+                }
+            }
+        } else {
+            return new AST::TupleType(::std::move(types));
+        }
+        // TODO: ensure that this ensures that dynamic dispatch for traits is not lost somehow
+    }
+
+    /* Parses a type that has 'for' as its first character. This means it has a "for lifetimes", so
+     * returns either a BareFunctionType, TraitObjectType, or TraitObjectTypeOneBound depending on
+     * following characters. */
+    AST::Type* Parser::parse_for_prefixed_type() {
+        // parse for lifetimes in type
+        ::std::vector<AST::LifetimeParam> for_lifetimes = parse_for_lifetimes();
+
+        // branch on next token - either function or a trait type
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case ASYNC:
+            case CONST:
+            case UNSAFE:
+            case EXTERN_TOK:
+            case FN_TOK:
+                return parse_bare_function_type(::std::move(for_lifetimes));
+            case SCOPE_RESOLUTION:
+            case IDENTIFIER:
+            case SUPER:
+            case SELF:
+            case SELF_ALIAS:
+            case CRATE:
+            case DOLLAR_SIGN: {
+                // path, so trait type
+
+                // parse type path to finish parsing trait bound
+                AST::TypePath path = parse_type_path();
+
+                t = lexer.peek_token();
+                if (t->get_id() != PLUS) {
+                    // must be one-bound trait type
+                    // create trait bound value object
+                    AST::TraitBound bound(
+                      ::std::move(path), false, false, ::std::move(for_lifetimes));
+
+                    return new AST::TraitObjectTypeOneBound(::std::move(bound));
+                }
+
+                // more than one bound trait type (or at least parsed as it - could be trailing '+')
+                // create trait bound pointer and bounds
+                AST::TraitBound* initial_bound
+                  = new AST::TraitBound(::std::move(path), false, false, ::std::move(for_lifetimes));
+                ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > bounds;
+                bounds.push_back(::std::unique_ptr<AST::TraitBound>(initial_bound));
+
+                while (t->get_id() == PLUS) {
+                    lexer.skip_token();
+
+                    // parse type param bound if it exists
+                    AST::TypeParamBound* bound = parse_type_param_bound();
+                    if (bound == NULL) {
+                        // not an error - e.g. trailing plus
+                        return NULL;
+                    }
+                    bounds.push_back(::std::unique_ptr<AST::TypeParamBound>(bound));
+
+                    t = lexer.peek_token();
+                }
+
+                return new AST::TraitObjectType(::std::move(bounds));
+            }
+            default:
+                // error
+                error_at(t->get_locus(),
+                  "unrecognised token '%s' in bare function type or trait object type or trait "
+                  "object type one bound",
+                  t->get_token_description());
+                return NULL;
+        }
+    }
+
+    // Parses a maybe named param used in bare function types.
+    AST::MaybeNamedParam Parser::parse_maybe_named_param() {
+        /* Basically guess that param is named if first token is identifier or underscore and
+         * second token is semicolon. This should probably have no exceptions. rustc uses
+         * backtracking to parse these, but at the time of writing gccrs has no backtracking
+         * capabilities. */
+        const_TokenPtr current = lexer.peek_token();
+        const_TokenPtr next = lexer.peek_token(1);
+
+        Identifier name;
+        AST::MaybeNamedParam::ParamKind kind = AST::MaybeNamedParam::UNNAMED;
+
+        if (current->get_id() == IDENTIFIER && next->get_id() == COLON) {
+            // named param
+            name = current->get_str();
+            kind = AST::MaybeNamedParam::IDENTIFIER;
+            lexer.skip_token(1);
+        } else if (current->get_id() == UNDERSCORE && next->get_id() == COLON) {
+            // wildcard param
+            name = "_";
+            kind = AST::MaybeNamedParam::WILDCARD;
+            lexer.skip_token(1);
+        }
+
+        // parse type (required)
+        AST::Type* type = parse_type();
+        if (type == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "failed to parse type in maybe named param");
+            return AST::MaybeNamedParam::create_error();
+        }
+
+        return AST::MaybeNamedParam(::std::move(name), kind, type);
+    }
+
+    /* Parses a bare function type (with the given for lifetimes for convenience - does not parse them
+     * itself). */
+    AST::BareFunctionType* Parser::parse_bare_function_type(
+      ::std::vector<AST::LifetimeParam> for_lifetimes) {
+        AST::FunctionQualifiers qualifiers = parse_function_qualifiers();
+
+        if (!skip_token(FN_TOK)) {
+            return NULL;
+        }
+
+        if (!skip_token(LEFT_PAREN)) {
+            return NULL;
+        }
+
+        // parse function params, if they exist
+        ::std::vector<AST::MaybeNamedParam> params;
+        bool is_variadic = false;
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() != RIGHT_PAREN) {
+            // handle ellipsis (only if next character is right paren)
+            if (t->get_id() == ELLIPSIS) {
+                if (lexer.peek_token(1)->get_id() == RIGHT_PAREN) {
+                    lexer.skip_token();
+                    is_variadic = true;
+                    break;
+                } else {
+                    error_at(t->get_locus(),
+                      "ellipsis (for variadic) can only go at end of bare function type");
+                    return NULL;
+                }
+            }
+
+            // parse required param
+            AST::MaybeNamedParam param = parse_maybe_named_param();
+            if (param.is_error()) {
+                error_at(t->get_locus(), "failed to parse maybe named param in bare function type");
+                return NULL;
+            }
+            params.push_back(::std::move(param));
+
+            if (lexer.peek_token()->get_id() != COMMA) {
+                break;
+            }
+            lexer.skip_token();
+
+            t = lexer.peek_token();
+        }
+
+        if (!skip_token(RIGHT_PAREN)) {
+            return NULL;
+        }
+
+        // bare function return type, if exists
+        AST::TypeNoBounds* return_type = NULL;
+        if (lexer.peek_token()->get_id() == RETURN_TYPE) {
+            lexer.skip_token();
+
+            // parse required TypeNoBounds
+            return_type = parse_type_no_bounds();
+            if (return_type == NULL) {
+                error_at(lexer.peek_token()->get_locus(),
+                  "failed to parse return type (type no bounds) in bare function type");
+                return NULL;
+            }
+        }
+
+        return new AST::BareFunctionType(::std::move(for_lifetimes), ::std::move(qualifiers),
+          ::std::move(params), is_variadic, return_type);
+    }
+
+    // Parses a reference type (mutable or immutable, with given lifetime).
+    AST::ReferenceType* Parser::parse_reference_type() {
+        skip_token(AMP);
+
+        // parse optional lifetime
+        AST::Lifetime lifetime = AST::Lifetime::error();
+        if (lexer.peek_token()->get_id() == LIFETIME) {
+            lifetime = parse_lifetime();
+            if (lifetime.is_error()) {
+                error_at(
+                  lexer.peek_token()->get_locus(), "failed to parse lifetime in reference type");
+                return NULL;
+            }
+        }
+
+        bool is_mut = false;
+        if (lexer.peek_token()->get_id() == MUT) {
+            lexer.skip_token();
+            is_mut = true;
+        }
+
+        // parse type no bounds, which is required
+        AST::TypeNoBounds* type = parse_type_no_bounds();
+        if (type == NULL) {
+            error_at(
+              lexer.peek_token()->get_id(), "failed to parse referenced type in reference type");
+            return NULL;
+        }
+
+        return new AST::ReferenceType(is_mut, type, ::std::move(lifetime));
+    }
+
+    // Parses a raw (unsafe) pointer type.
+    AST::RawPointerType* Parser::parse_raw_pointer_type() {
+        skip_token(ASTERISK);
+
+        AST::RawPointerType::PointerType kind = AST::RawPointerType::CONST;
+
+        // branch on next token for pointer kind info
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case MUT:
+                kind = AST::RawPointerType::MUT;
+                lexer.skip_token();
+                break;
+            case CONST:
+                kind = AST::RawPointerType::CONST;
+                lexer.skip_token();
+                break;
+            default:
+                error_at(t->get_locus(), "unrecognised token '%s' in raw pointer type",
+                  t->get_token_description());
+                return NULL;
+        }
+
+        // parse type no bounds (required)
+        AST::TypeNoBounds* type = parse_type_no_bounds();
+        if (type == NULL) {
+            error_at(
+              lexer.peek_token()->get_locus(), "failed to parse pointed type of raw pointer type");
+            return NULL;
+        }
+
+        return new AST::RawPointerType(kind, type);
+    }
+
+    // Parses a slice or array type, depending on following arguments (as lookahead is not possible).
+    AST::TypeNoBounds* Parser::parse_slice_or_array_type() {
+        skip_token(LEFT_SQUARE);
+
+        // parse inner type (required)
+        AST::Type* inner_type = parse_type();
+        if (inner_type == NULL) {
+            error_at(lexer.peek_token()->get_locus(), "failed to parse inner type in slice or array type");
+            return NULL;
+        }
+
+        // branch on next token
+        const_TokenPtr t = lexer.peek_token();
+        switch (t->get_id()) {
+            case RIGHT_SQUARE:
+                // slice type
+                lexer.skip_token();
+
+                return new AST::SliceType(inner_type);
+            case SEMICOLON: {
+                // array type
+                lexer.skip_token();
+
+                // parse required array size expression
+                AST::Expr* size = parse_expr();
+                if (size == NULL) {
+                    error_at(lexer.peek_token()->get_locus(), "failed to parse size expression in array type");
+                    return NULL;
+                }
+
+                if (!skip_token(RIGHT_SQUARE)) {
+                    return NULL;
+                }
+
+                return new AST::ArrayType(inner_type, size);
+            }
+            default:
+                // error
+                error_at(t->get_locus(), "unrecognised token '%s' in slice or array type after inner type", t->get_token_description());
+        }
     }
 
     // Parses a type, taking into account type boundary disambiguation.
@@ -9229,32 +9877,38 @@ namespace Rust {
     }
 
     // Method stub
-    Tree Parser::binary_assignment_expr(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
+    Tree Parser::binary_assignment_expr(
+      const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_bitwise_or_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
+    Tree Parser::binary_bitwise_or_assig(
+      const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_bitwise_xor_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
+    Tree Parser::binary_bitwise_xor_assig(
+      const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_bitwise_and_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
+    Tree Parser::binary_bitwise_and_assig(
+      const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_left_shift_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
+    Tree Parser::binary_left_shift_assig(
+      const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 
     // Method stub
-    Tree Parser::binary_right_shift_assig(const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
+    Tree Parser::binary_right_shift_assig(
+      const_TokenPtr tok ATTRIBUTE_UNUSED, Tree left ATTRIBUTE_UNUSED) {
         return NULL_TREE;
     }
 

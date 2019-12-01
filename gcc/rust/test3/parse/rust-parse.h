@@ -307,6 +307,13 @@ namespace Rust {
         // Type-related
         AST::Type* parse_type();
         AST::TypeNoBounds* parse_type_no_bounds();
+        AST::TypeNoBounds* parse_slice_or_array_type();
+        AST::RawPointerType* parse_raw_pointer_type();
+        AST::ReferenceType* parse_reference_type();
+        AST::BareFunctionType* parse_bare_function_type(::std::vector<AST::LifetimeParam> for_lifetimes);
+        AST::Type* parse_paren_prefixed_type();
+        AST::Type* parse_for_prefixed_type();
+        AST::MaybeNamedParam parse_maybe_named_param();
 
         // Statement-related
         AST::Stmt* parse_stmt();

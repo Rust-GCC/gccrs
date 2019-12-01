@@ -350,11 +350,12 @@ namespace Rust {
         // Represents an expression using unary or binary operators as AST node. Can be overloaded.
         class OperatorExpr : public ExprWithoutBlock {
             // TODO: create binary and unary operator subclasses?
-            // Variable must be protected to allow derived classes to modify it
+
+          protected:
+            // Variable must be protected to allow derived classes to use it as a first class citizen
             // Expr* main_or_left_expr;
             ::std::unique_ptr<Expr> main_or_left_expr;
 
-          protected:
             // Constructor (only for initialisation of expr purposes)
             OperatorExpr(Expr* main_or_left_expr, ::std::vector<Attribute> outer_attribs) :
               ExprWithoutBlock(::std::move(outer_attribs)), main_or_left_expr(main_or_left_expr) {}
