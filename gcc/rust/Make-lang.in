@@ -56,6 +56,7 @@ RUST_OBJS = \
 	rust/rust-backend.o \
 	rust/rust-linemap.o \
 	rust/rust-gcc-diagnostics.o \
+	rust/node.o \
 	rust/rs-parser.o \
 	rust/rs-lexer.o \
 	rust/main.o \
