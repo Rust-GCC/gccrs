@@ -280,11 +280,16 @@ rust_langhook_post_options (const char **pfilename ATTRIBUTE_UNUSED)
 static void
 rust_langhook_parse_file (void)
 {
+    // RUSTLY MAIN
+    
     // TODO
-    rust_parse_input_files (in_fnames, num_in_fnames, flag_syntax_only);
+    // rust_parse_input_files (in_fnames, num_in_fnames, flag_syntax_only);
 
-  /* Final processing of globals and early debug info generation.  */
-  // rust_write_globals ();
+    /* Final processing of globals and early debug info generation.  */
+    // rust_write_globals ();
+
+    rust_create_rustly(flag_syntax_only, rust_get_linemap());
+    rust_parse_input_files(in_fnames, num_in_fnames);
 }
 
 static tree

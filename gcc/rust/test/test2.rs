@@ -1,7 +1,3 @@
-macro_rules! println {
-    () => { ... };
-    ($($arg:tt)*) => { ... };
-}
 
 // Function that returns a boolean value
 fn is_divisible_by(lhs: u32, rhs: u32) -> bool {
@@ -17,6 +13,6 @@ fn is_divisible_by(lhs: u32, rhs: u32) -> bool {
 
 
 fn main() {
-    let mut x = is_divisible(3, 12);
+    let mut x:i32 = is_divisible(3, 12);
 }
 
