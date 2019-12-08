@@ -4,6 +4,8 @@
 namespace Rust {
     namespace AST {
         ::std::string Crate::as_string() const {
+            fprintf(stderr, "beginning crate recursive as-string\n");
+
             ::std::string str("Crate: ");
             // add utf8bom and shebang
             if (has_utf8bom) {
@@ -30,6 +32,12 @@ namespace Rust {
                 str += "none";
             } else {
                 for (const auto& item : items) {
+                    // DEBUG: null pointer check
+                    if (item == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer item in crate.");
+                        return "NULL_POINTER_MARK";
+                    }
+
                     str += "\n  " + item->as_string();
                 }
             }
@@ -71,6 +79,12 @@ namespace Rust {
                 str += "none";
             } else {
                 for (const auto& tree : token_trees) {
+                    // DEBUG: null pointer check
+                    if (tree == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer token tree in delim token tree.");
+                        return "NULL_POINTER_MARK";
+                    }
+
                     str += tree->as_string() + ", ";
                 }
             }
@@ -196,6 +210,12 @@ namespace Rust {
         ::std::string UseDeclaration::as_string() const {
             ::std::string str = VisItem::as_string();
 
+            // DEBUG: null pointer check
+            if (use_tree == NULL) {
+                fprintf(stderr, "something really terrible has gone wrong - null pointer use tree in use declaration.");
+                return "NULL_POINTER_MARK";
+            }
+
             str += "use " + use_tree->as_string();
 
             return str;
@@ -238,6 +258,12 @@ namespace Rust {
 
             if (has_trees()) {
                 for (const auto& tree : trees) {
+                    // DEBUG: null pointer check
+                    if (tree == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer tree in use tree list.");
+                        return "NULL_POINTER_MARK";
+                    }
+
                     path_str += tree->as_string() + ", ";
                 }
             } else {
@@ -287,6 +313,12 @@ namespace Rust {
             ::std::string generic_params_str("Generic params: ");
             if (has_generics()) {
                 for (const auto& generic_param : generic_params) {
+                    // DEBUG: null pointer check
+                    if (generic_param == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in function item.");
+                        return "NULL_POINTER_MARK";
+                    }
+
                     generic_params_str += generic_param->as_string() + ", ";
                 }
             } else {
@@ -304,6 +336,12 @@ namespace Rust {
 
             ::std::string return_type_str("Return type: ");
             if (has_function_return_type()) {
+                // DEBUG: null pointer check
+                    if (return_type == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer return type in function.");
+                        return "NULL_POINTER_MARK";
+                    }
+
                 return_type_str += return_type->as_string();
             } else {
                 return_type_str += "none (void)";
@@ -316,6 +354,11 @@ namespace Rust {
                 where_clause_str += "none";
             }
 
+            // DEBUG: null pointer check
+                    if (function_body == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer function body in function.");
+                        return "NULL_POINTER_MARK";
+                    }
             ::std::string body_str = "Body: " + function_body->as_string();
 
             str += "\n   " + qualifiers_str + "\n   " + generic_params_str + "\n   " + function_params_str + "\n   " + return_type_str + "\n   " + where_clause_str + "\n   " + body_str;
@@ -350,6 +393,12 @@ namespace Rust {
                 str += "none";
             } else {
                 for (const auto& stmt : statements) {
+                    // DEBUG: null pointer check
+                    if (stmt == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer stmt in block expr.");
+                        return "NULL_POINTER_MARK";
+                    }
+
                     str += "\n  " + stmt->as_string();
                 }
             }
@@ -823,6 +872,62 @@ namespace Rust {
             // create clone FIXME is this required? or is copy constructor automatically called?
             TypePath copy(*this);
             return new TraitBound(::std::move(copy), in_parens);
+        }
+
+        ::std::string InferredType::as_string() const {
+            return "(inferred)";
+        }
+
+        ::std::string TypeCastExpr::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ImplTraitType::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ReferenceType::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string RawPointerType::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string TraitObjectType::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string BareFunctionType::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ImplTraitTypeOneBound::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string TypePathSegmentGeneric::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string TraitObjectTypeOneBound::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string TypePathSegmentFunction::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string ArrayType::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string SliceType::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string TupleType::as_string() const {
+            return ::std::string("not implemented");
         }
     }
 }

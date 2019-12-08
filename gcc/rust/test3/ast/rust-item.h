@@ -85,6 +85,15 @@ namespace Rust {
               outer_attr(::std::move(outer_attr)),
               type_representation(::std::move(type_representation)),
               type_param_bounds(::std::move(type_param_bounds)), type(type) {}
+            // FIXME: deprecated
+
+            TypeParam(Identifier type_representation,
+              ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds
+              = ::std::vector< ::std::unique_ptr<TypeParamBound> >(),
+              ::std::unique_ptr<Type> type = NULL, Attribute outer_attr = Attribute::create_empty()) :
+              outer_attr(::std::move(outer_attr)),
+              type_representation(::std::move(type_representation)),
+              type_param_bounds(::std::move(type_param_bounds)), type(::std::move(type)) {}
 
             // Copy constructor uses clone
             TypeParam(TypeParam const& other) :
@@ -191,6 +200,12 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds) :
               for_lifetimes(::std::move(for_lifetimes)),
               bound_type(bound_type), type_param_bounds(::std::move(type_param_bounds)) {}
+            // FIXME: deprecated
+
+            TypeBoundWhereClauseItem(::std::vector<LifetimeParam> for_lifetimes, ::std::unique_ptr<Type> bound_type,
+              ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds) :
+              for_lifetimes(::std::move(for_lifetimes)),
+              bound_type(::std::move(bound_type)), type_param_bounds(::std::move(type_param_bounds)) {}
 
             // Copy constructor requires clone
             TypeBoundWhereClauseItem(TypeBoundWhereClauseItem const& other) :
@@ -298,6 +313,7 @@ namespace Rust {
             // Unrestricted constructor used for error state
             SelfParam(Lifetime lifetime, bool has_ref, bool is_mut, Type* type) :
               has_ref(has_ref), is_mut(is_mut), lifetime(::std::move(lifetime)), type(type) {}
+            // this is ok as no outside classes can ever call this
 
           public:
             // Returns whether the self-param has a type field.
@@ -327,6 +343,11 @@ namespace Rust {
             // Type-based self parameter (not ref, no lifetime)
             SelfParam(Type* type, bool is_mut) :
               has_ref(false), is_mut(is_mut), lifetime(Lifetime::error()), type(type) {}
+            // FIXME: deprecated
+
+            // Type-based self parameter (not ref, no lifetime)
+            SelfParam(::std::unique_ptr<Type> type, bool is_mut) :
+              has_ref(false), is_mut(is_mut), lifetime(Lifetime::error()), type(::std::move(type)) {}
 
             // Lifetime-based self parameter (is ref, no type)
             SelfParam(Lifetime lifetime, bool is_mut) :
@@ -402,6 +423,10 @@ namespace Rust {
           public:
             FunctionParam(Pattern* param_name, Type* param_type) :
               param_name(param_name), type(param_type) {}
+            // FIXME: deprecated
+
+            FunctionParam(::std::unique_ptr<Pattern> param_name, ::std::unique_ptr<Type> param_type) :
+              param_name(::std::move(param_name)), type(::std::move(param_type)) {}
 
             // Copy constructor uses clone
             FunctionParam(FunctionParam const& other) :
@@ -508,6 +533,18 @@ namespace Rust {
               method_name(::std::move(method_name)), generic_params(::std::move(generic_params)),
               self_param(::std::move(self_param)), function_params(::std::move(function_params)),
               return_type(return_type), where_clause(::std::move(where_clause)), expr(function_body) {
+            }
+            // FIXME: deprecated
+
+            // Mega-constructor with all possible fields
+            Method(Identifier method_name, FunctionQualifiers qualifiers,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
+              ::std::vector<FunctionParam> function_params, ::std::unique_ptr<Type> return_type,
+              WhereClause where_clause, ::std::unique_ptr<BlockExpr> function_body) :
+              qualifiers(::std::move(qualifiers)),
+              method_name(::std::move(method_name)), generic_params(::std::move(generic_params)),
+              self_param(::std::move(self_param)), function_params(::std::move(function_params)),
+              return_type(::std::move(return_type)), where_clause(::std::move(where_clause)), expr(::std::move(function_body)) {
             }
 
             // TODO: add constructor with less fields
@@ -977,6 +1014,12 @@ namespace Rust {
               UseTree* use_tree, Visibility visibility, ::std::vector<Attribute> outer_attrs) :
               VisItem(::std::move(visibility), ::std::move(outer_attrs)),
               use_tree(use_tree) {}
+            // FIXME: deprecated
+
+            UseDeclaration(
+              ::std::unique_ptr<UseTree> use_tree, Visibility visibility, ::std::vector<Attribute> outer_attrs) :
+              VisItem(::std::move(visibility), ::std::move(outer_attrs)),
+              use_tree(::std::move(use_tree)) {}
 
             // Copy constructor with clone
             UseDeclaration(UseDeclaration const& other) :
@@ -1076,6 +1119,19 @@ namespace Rust {
               generic_params(::std::move(generic_params)),
               function_params(::std::move(function_params)), return_type(return_type),
               where_clause(::std::move(where_clause)), function_body(function_body) {}
+            // FIXME: deprecated
+
+            // Mega-constructor with all possible fields
+            Function(Identifier function_name, FunctionQualifiers qualifiers,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
+              ::std::vector<FunctionParam> function_params, ::std::unique_ptr<Type> return_type,
+              WhereClause where_clause, ::std::unique_ptr<BlockExpr> function_body, Visibility vis,
+              ::std::vector<Attribute> outer_attrs) :
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              qualifiers(::std::move(qualifiers)), function_name(::std::move(function_name)),
+              generic_params(::std::move(generic_params)),
+              function_params(::std::move(function_params)), return_type(::std::move(return_type)),
+              where_clause(::std::move(where_clause)), function_body(::std::move(function_body)) {}
 
             // TODO: add constructor with less fields
 
@@ -1169,6 +1225,16 @@ namespace Rust {
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
               new_type_name(::std::move(new_type_name)), generic_params(::std::move(generic_params)),
               where_clause(::std::move(where_clause)), existing_type(existing_type) {}
+            // FIXME: deprecated
+
+            // Mega-constructor with all possible fields
+            TypeAlias(Identifier new_type_name,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
+              WhereClause where_clause, ::std::unique_ptr<Type> existing_type, Visibility vis,
+              ::std::vector<Attribute> outer_attrs) :
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              new_type_name(::std::move(new_type_name)), generic_params(::std::move(generic_params)),
+              where_clause(::std::move(where_clause)), existing_type(::std::move(existing_type)) {}
 
             // Copy constructor
             TypeAlias(TypeAlias const& other) :
@@ -1287,6 +1353,7 @@ namespace Rust {
 
         // A single field in a struct
         struct StructField {
+          private:
             // bool has_outer_attributes;
             ::std::vector<Attribute> outer_attrs;
 
@@ -1313,6 +1380,13 @@ namespace Rust {
               outer_attrs(::std::move(outer_attrs)),
               visibility(::std::move(vis)), field_name(::std::move(field_name)),
               field_type(field_type) {}
+            // FIXME: deprecated
+
+            StructField(Identifier field_name, ::std::unique_ptr<Type> field_type, Visibility vis,
+              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              outer_attrs(::std::move(outer_attrs)),
+              visibility(::std::move(vis)), field_name(::std::move(field_name)),
+              field_type(::std::move(field_type)) {}
 
             // Copy constructor
             StructField(StructField const& other) :
@@ -1419,6 +1493,13 @@ namespace Rust {
               ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
               outer_attrs(::std::move(outer_attrs)),
               visibility(::std::move(vis)), field_type(field_type) {}
+            // FIXME: deprecated
+
+            // Complete constructor
+            TupleField(::std::unique_ptr<Type> field_type, Visibility vis,
+              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              outer_attrs(::std::move(outer_attrs)),
+              visibility(::std::move(vis)), field_type(::std::move(field_type)) {}
 
             // Copy constructor with clone
             TupleField(TupleField const& other) :
@@ -1568,6 +1649,12 @@ namespace Rust {
               Identifier variant_name, Expr* expr, ::std::vector<Attribute> outer_attrs) :
               EnumItem(::std::move(variant_name), ::std::move(outer_attrs)),
               expression(expr) {}
+            // FIXME: deprecated
+
+            EnumItemDiscriminant(
+              Identifier variant_name, ::std::unique_ptr<Expr> expr, ::std::vector<Attribute> outer_attrs) :
+              EnumItem(::std::move(variant_name), ::std::move(outer_attrs)),
+              expression(::std::move(expr)) {}
 
             // Copy constructor with clone
             EnumItemDiscriminant(EnumItemDiscriminant const& other) :
@@ -1799,6 +1886,12 @@ namespace Rust {
               ::std::vector<Attribute> outer_attrs) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
               identifier(::std::move(ident)), type(type), const_expr(const_expr) {}
+            // FIXME: deprecated
+
+            ConstantItem(Identifier ident, Visibility vis, ::std::unique_ptr<Type> type, ::std::unique_ptr<Expr> const_expr,
+              ::std::vector<Attribute> outer_attrs) :
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              identifier(::std::move(ident)), type(::std::move(type)), const_expr(::std::move(const_expr)) {}
 
             ConstantItem(ConstantItem const& other) :
               VisItem(other), identifier(other.identifier), type(other.type->clone_type()),
@@ -1861,6 +1954,12 @@ namespace Rust {
               ::std::vector<Attribute> outer_attrs) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
               has_mut(is_mut), name(::std::move(name)), type(type), expr(expr) {}
+            // FIXME: deprecated
+
+            StaticItem(Identifier name, bool is_mut, ::std::unique_ptr<Type> type, ::std::unique_ptr<Expr> expr, Visibility vis,
+              ::std::vector<Attribute> outer_attrs) :
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              has_mut(is_mut), name(::std::move(name)), type(::std::move(type)), expr(::std::move(expr)) {}
 
             // Copy constructor with clone
             StaticItem(StaticItem const& other) :
@@ -1898,6 +1997,7 @@ namespace Rust {
 
         // Function declaration in traits
         struct TraitFunctionDecl {
+          private:
             // TODO: delete and replace with Function decl item? no as no body in this.
             FunctionQualifiers qualifiers;
             Identifier function_name;
@@ -1946,6 +2046,17 @@ namespace Rust {
               qualifiers(::std::move(qualifiers)),
               function_name(::std::move(function_name)), generic_params(::std::move(generic_params)),
               function_params(::std::move(function_params)), return_type(return_type),
+              where_clause(::std::move(where_clause)) {}
+            // FIXME: deprecated
+
+            // Mega-constructor
+            TraitFunctionDecl(Identifier function_name, FunctionQualifiers qualifiers,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
+              ::std::vector<FunctionParam> function_params, ::std::unique_ptr<Type> return_type,
+              WhereClause where_clause) :
+              qualifiers(::std::move(qualifiers)),
+              function_name(::std::move(function_name)), generic_params(::std::move(generic_params)),
+              function_params(::std::move(function_params)), return_type(::std::move(return_type)),
               where_clause(::std::move(where_clause)) {}
 
             // Copy constructor with clone
@@ -2002,6 +2113,12 @@ namespace Rust {
               TraitFunctionDecl decl, BlockExpr* block_expr, ::std::vector<Attribute> outer_attrs) :
               TraitItem(::std::move(outer_attrs)),
               decl(::std::move(decl)), block_expr(block_expr) {}
+            // FIXME: deprecated
+
+            TraitItemFunc(
+              TraitFunctionDecl decl, ::std::unique_ptr<BlockExpr> block_expr, ::std::vector<Attribute> outer_attrs) :
+              TraitItem(::std::move(outer_attrs)),
+              decl(::std::move(decl)), block_expr(::std::move(block_expr)) {}
 
             // Copy constructor with clone
             TraitItemFunc(TraitItemFunc const& other) :
@@ -2031,6 +2148,7 @@ namespace Rust {
 
         // Method declaration within traits
         struct TraitMethodDecl {
+          private:
             // TODO: delete and replace with Function decl item? no as no body.
             FunctionQualifiers qualifiers;
             Identifier function_name;
@@ -2082,6 +2200,17 @@ namespace Rust {
               function_name(::std::move(function_name)), generic_params(::std::move(generic_params)),
               self_param(::std::move(self_param)), function_params(::std::move(function_params)),
               return_type(return_type), where_clause(::std::move(where_clause)) {}
+            // FIXME: deprecated
+
+            // Mega-constructor
+            TraitMethodDecl(Identifier function_name, FunctionQualifiers qualifiers,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
+              ::std::vector<FunctionParam> function_params, ::std::unique_ptr<Type> return_type,
+              WhereClause where_clause) :
+              qualifiers(::std::move(qualifiers)),
+              function_name(::std::move(function_name)), generic_params(::std::move(generic_params)),
+              self_param(::std::move(self_param)), function_params(::std::move(function_params)),
+              return_type(::std::move(return_type)), where_clause(::std::move(where_clause)) {}
 
             // Copy constructor with clone
             TraitMethodDecl(TraitMethodDecl const& other) :
@@ -2139,6 +2268,12 @@ namespace Rust {
               TraitMethodDecl decl, BlockExpr* block_expr, ::std::vector<Attribute> outer_attrs) :
               TraitItem(::std::move(outer_attrs)),
               decl(::std::move(decl)), block_expr(block_expr) {}
+            // FIXME: deprecated
+
+            TraitItemMethod(
+              TraitMethodDecl decl, ::std::unique_ptr<BlockExpr> block_expr, ::std::vector<Attribute> outer_attrs) :
+              TraitItem(::std::move(outer_attrs)),
+              decl(::std::move(decl)), block_expr(::std::move(block_expr)) {}
 
             // Copy constructor with clone
             TraitItemMethod(TraitItemMethod const& other) :
@@ -2190,6 +2325,12 @@ namespace Rust {
               Identifier name, Type* type, Expr* expr, ::std::vector<Attribute> outer_attrs) :
               TraitItem(::std::move(outer_attrs)),
               name(::std::move(name)), type(type), expr(expr) {}
+            // FIXME: deprecated
+
+            TraitItemConst(
+              Identifier name, ::std::unique_ptr<Type> type, ::std::unique_ptr<Expr> expr, ::std::vector<Attribute> outer_attrs) :
+              TraitItem(::std::move(outer_attrs)),
+              name(::std::move(name)), type(::std::move(type)), expr(::std::move(expr)) {}
 
             // Copy constructor with clones
             TraitItemConst(TraitItemConst const& other) :
@@ -2454,6 +2595,15 @@ namespace Rust {
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
               generic_params(::std::move(generic_params)), trait_type(trait_type),
               where_clause(::std::move(where_clause)), inner_attrs(::std::move(inner_attrs)) {}
+            // FIXME: deprecated
+
+            // Mega-constructor
+            Impl(::std::vector< ::std::unique_ptr<GenericParam> > generic_params, ::std::unique_ptr<Type> trait_type,
+              WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
+              ::std::vector<Attribute> outer_attrs) :
+              VisItem(::std::move(vis), ::std::move(outer_attrs)),
+              generic_params(::std::move(generic_params)), trait_type(::std::move(trait_type)),
+              where_clause(::std::move(where_clause)), inner_attrs(::std::move(inner_attrs)) {}
 
             // Copy constructor
             Impl(Impl const& other) :
@@ -2498,6 +2648,8 @@ namespace Rust {
           protected:
             // bool has_outer_attrs;
             // TODO: remove and rely on virtual functions and VisItem-derived attributes?
+            // or actually, make this a subtype of item? then multiple inheritance would be annoying
+            // and virtual inheritance would be required, hence significant performance penalty.
             ::std::vector<Attribute> outer_attrs;
 
             InherentImplItem(::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
@@ -2694,6 +2846,16 @@ namespace Rust {
               WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
               ::std::vector<Attribute> outer_attrs) :
               Impl(::std::move(generic_params), trait_type, ::std::move(where_clause),
+                ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs)),
+              impl_items(::std::move(impl_items)) {}
+            // FIXME: deprecated
+
+            // Mega-constructor
+            InherentImpl(::std::vector< ::std::unique_ptr<InherentImplItem> > impl_items,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, ::std::unique_ptr<Type> trait_type,
+              WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
+              ::std::vector<Attribute> outer_attrs) :
+              Impl(::std::move(generic_params), ::std::move(trait_type), ::std::move(where_clause),
                 ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs)),
               impl_items(::std::move(impl_items)) {}
 
@@ -2995,6 +3157,18 @@ namespace Rust {
                 ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs)),
               has_unsafe(is_unsafe), has_exclam(has_exclam), trait_path(::std::move(trait_path)),
               impl_items(::std::move(impl_items)) {}
+            // FIXME: deprecated
+
+            // Mega-constructor
+            TraitImpl(TypePath trait_path, bool is_unsafe, bool has_exclam,
+              ::std::vector< ::std::unique_ptr<TraitImplItem> > impl_items,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, ::std::unique_ptr<Type> trait_type,
+              WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
+              ::std::vector<Attribute> outer_attrs) :
+              Impl(::std::move(generic_params), ::std::move(trait_type), ::std::move(where_clause),
+                ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs)),
+              has_unsafe(is_unsafe), has_exclam(has_exclam), trait_path(::std::move(trait_path)),
+              impl_items(::std::move(impl_items)) {}
 
             // TODO: constructors with less params
 
@@ -3110,6 +3284,12 @@ namespace Rust {
               ::std::vector<Attribute> outer_attrs) :
               ExternalItem(::std::move(item_name), ::std::move(vis), ::std::move(outer_attrs)),
               has_mut(is_mut), item_type(item_type) {}
+            // FIXME: deprecated
+
+            ExternalStaticItem(Identifier item_name, ::std::unique_ptr<Type> item_type, bool is_mut, Visibility vis,
+              ::std::vector<Attribute> outer_attrs) :
+              ExternalItem(::std::move(item_name), ::std::move(vis), ::std::move(outer_attrs)),
+              has_mut(is_mut), item_type(::std::move(item_type)) {}
 
             // Copy constructor
             ExternalStaticItem(ExternalStaticItem const& other) :
@@ -3165,6 +3345,10 @@ namespace Rust {
 
             NamedFunctionParam(Identifier name, Type* param_type) :
               name(::std::move(name)), param_type(param_type) {}
+            // FIXME: deprecated
+
+            NamedFunctionParam(Identifier name, ::std::unique_ptr<Type> param_type) :
+              name(::std::move(name)), param_type(::std::move(param_type)) {}
 
             // Copy constructor
             NamedFunctionParam(NamedFunctionParam const& other) :
@@ -3225,6 +3409,16 @@ namespace Rust {
               bool has_variadics, Visibility vis, ::std::vector<Attribute> outer_attrs) :
               ExternalItem(::std::move(item_name), ::std::move(vis), ::std::move(outer_attrs)),
               generic_params(::std::move(generic_params)), return_type(return_type),
+              where_clause(::std::move(where_clause)), function_params(::std::move(function_params)),
+              has_variadics(has_variadics) {}
+            // FIXME: deprecated
+
+            ExternalFunctionItem(Identifier item_name,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, ::std::unique_ptr<Type> return_type,
+              WhereClause where_clause, ::std::vector<NamedFunctionParam> function_params,
+              bool has_variadics, Visibility vis, ::std::vector<Attribute> outer_attrs) :
+              ExternalItem(::std::move(item_name), ::std::move(vis), ::std::move(outer_attrs)),
+              generic_params(::std::move(generic_params)), return_type(::std::move(return_type)),
               where_clause(::std::move(where_clause)), function_params(::std::move(function_params)),
               has_variadics(has_variadics) {}
 

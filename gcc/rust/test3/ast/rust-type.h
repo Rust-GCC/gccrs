@@ -156,6 +156,10 @@ namespace Rust {
           public:
             // Constructor uses Type pointer for polymorphism
             ParenthesisedType(Type* type_inside_parens) : type_in_parens(type_inside_parens) {}
+            // FIXME: deprecated
+
+            // Constructor uses Type pointer for polymorphism
+            ParenthesisedType(::std::unique_ptr<Type> type_inside_parens) : type_in_parens(::std::move(type_inside_parens)) {}
 
             // Copy constructor uses custom deep copy method for type to preserve polymorphism
             ParenthesisedType(ParenthesisedType const& other) :
@@ -335,6 +339,11 @@ namespace Rust {
             // Constructor requires pointer for polymorphism reasons
             RawPointerType(PointerType pointer_type, TypeNoBounds* type_no_bounds) :
               pointer_type(pointer_type), type(type_no_bounds) {}
+            // FIXME: deprecated
+
+            // Constructor requires pointer for polymorphism reasons
+            RawPointerType(PointerType pointer_type, ::std::unique_ptr<TypeNoBounds> type_no_bounds) :
+              pointer_type(pointer_type), type(::std::move(type_no_bounds)) {}
 
             // Copy constructor calls custom polymorphic clone function
             RawPointerType(RawPointerType const& other) :
@@ -394,6 +403,13 @@ namespace Rust {
               bool is_mut, TypeNoBounds* type_no_bounds, Lifetime lifetime = Lifetime::error()) :
               lifetime(::std::move(lifetime)),
               has_mut(is_mut), type(type_no_bounds) {}
+            // FIXME: deprecated
+
+            // Constructor
+            ReferenceType(
+              bool is_mut, ::std::unique_ptr<TypeNoBounds> type_no_bounds, Lifetime lifetime = Lifetime::error()) :
+              lifetime(::std::move(lifetime)),
+              has_mut(is_mut), type(::std::move(type_no_bounds)) {}
 
             // Copy constructor with custom clone method
             ReferenceType(ReferenceType const& other) :
@@ -440,6 +456,10 @@ namespace Rust {
           public:
             // Constructor requires pointers for polymorphism
             ArrayType(Type* type, Expr* array_size) : elem_type(type), size(array_size) {}
+            // FIXME: deprecated
+
+            // Constructor requires pointers for polymorphism
+            ArrayType(::std::unique_ptr<Type> type, ::std::unique_ptr<Expr> array_size) : elem_type(::std::move(type)), size(::std::move(array_size)) {}
 
             // Copy constructor requires deep copies of both unique pointers
             ArrayType(ArrayType const& other) :
@@ -484,6 +504,10 @@ namespace Rust {
           public:
             // Constructor requires pointer for polymorphism
             SliceType(Type* type) : elem_type(type) {}
+            // FIXME: deprecated
+
+            // Constructor requires pointer for polymorphism
+            SliceType(::std::unique_ptr<Type> type) : elem_type(::std::move(type)) {}
 
             // Copy constructor requires deep copy of Type smart pointer
             SliceType(SliceType const& other) : elem_type(other.elem_type->clone_type()) {}
@@ -553,6 +577,10 @@ namespace Rust {
           public:
             MaybeNamedParam(Identifier name, ParamKind param_kind, Type* param_type) :
               param_type(param_type), param_kind(param_kind), name(::std::move(name)) {}
+            // FIXME: deprecated
+
+            MaybeNamedParam(Identifier name, ParamKind param_kind, ::std::unique_ptr<Type> param_type) :
+              param_type(::std::move(param_type)), param_kind(param_kind), name(::std::move(name)) {}
 
             // Copy constructor with clone
             MaybeNamedParam(MaybeNamedParam const& other) :
@@ -619,6 +647,14 @@ namespace Rust {
               for_lifetimes(::std::move(lifetime_params)),
               function_qualifiers(::std::move(qualifiers)), params(::std::move(named_params)),
               is_variadic(is_variadic), return_type(type) {}
+            // FIXME: deprecated
+
+            BareFunctionType(::std::vector<LifetimeParam> lifetime_params,
+              FunctionQualifiers qualifiers, ::std::vector<MaybeNamedParam> named_params,
+              bool is_variadic, ::std::unique_ptr<TypeNoBounds> type) :
+              for_lifetimes(::std::move(lifetime_params)),
+              function_qualifiers(::std::move(qualifiers)), params(::std::move(named_params)),
+              is_variadic(is_variadic), return_type(::std::move(type)) {}
 
             // Copy constructor with clone
             BareFunctionType(BareFunctionType const& other) :
@@ -626,8 +662,7 @@ namespace Rust {
               params(other.params), is_variadic(other.is_variadic),
               return_type(other.return_type->clone_type_no_bounds()) {}
 
-            // default destructor
-            ~BareFunctionType() = default;
+            // destructor - define here if required
 
             // Overload assignment operator to deep copy
             BareFunctionType& operator=(BareFunctionType const& other) {

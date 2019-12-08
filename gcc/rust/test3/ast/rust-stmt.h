@@ -79,6 +79,12 @@ namespace Rust {
               ::std::vector<Attribute> outer_attrs) :
               outer_attrs(::std::move(outer_attrs)),
               variables_pattern(variables_pattern), type(type), init_expr(init_expr) {}
+            // FIXME: deprecated
+
+            LetStmt(::std::unique_ptr<Pattern> variables_pattern, ::std::unique_ptr<Expr> init_expr, ::std::unique_ptr<Type> type,
+              ::std::vector<Attribute> outer_attrs) :
+              outer_attrs(::std::move(outer_attrs)),
+              variables_pattern(::std::move(variables_pattern)), type(::std::move(type)), init_expr(::std::move(init_expr)) {}
 
             // Copy constructor with clone
             LetStmt(LetStmt const& other) :
@@ -132,6 +138,10 @@ namespace Rust {
 
             // ExprStmtWithoutBlock(ExprWithoutBlock* expr) : expr(expr) {}
             ExprStmtWithoutBlock(Expr* expr) : expr(expr) {}
+            // FIXME: deprecated
+
+            //ExprStmtWithoutBlock(::std::unique_ptr<ExprWithoutBlock> expr) : expr(::std::move(expr)) {}
+            ExprStmtWithoutBlock(::std::unique_ptr<Expr> expr) : expr(::std::move(expr)) {}
 
             // Copy constructor with clone
             ExprStmtWithoutBlock(ExprStmtWithoutBlock const& other) :
@@ -170,6 +180,9 @@ namespace Rust {
             ::std::string as_string() const;
 
             ExprStmtWithBlock(ExprWithBlock* expr) : expr(expr) {}
+            // FIXME: deprecated
+
+            ExprStmtWithBlock(::std::unique_ptr<ExprWithBlock> expr) : expr(::std::move(expr)) {}
 
             // Copy constructor with clone
             ExprStmtWithBlock(ExprStmtWithBlock const& other) :

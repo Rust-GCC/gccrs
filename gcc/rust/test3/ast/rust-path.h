@@ -63,6 +63,11 @@ namespace Rust {
             // Pointer type for type in constructor to enable polymorphism
             GenericArgsBinding(Identifier ident, Type* type_ptr) :
               identifier(::std::move(ident)), type(type_ptr) {}
+            // FIXME: deprecated
+
+            // Pointer type for type in constructor to enable polymorphism
+            GenericArgsBinding(Identifier ident, ::std::unique_ptr<Type> type_ptr) :
+              identifier(::std::move(ident)), type(::std::move(type_ptr)) {}
 
             // Copy constructor has to deep copy the type as it is a unique pointer
             GenericArgsBinding(GenericArgsBinding const& other) :
@@ -381,6 +386,11 @@ namespace Rust {
             // Constructor
             TypePathFunction(::std::vector< ::std::unique_ptr<Type> > inputs, Type* type = NULL) :
               inputs(::std::move(inputs)), return_type(type), is_invalid(false) {}
+            // FIXME: deprecated
+
+            // Constructor
+            TypePathFunction(::std::vector< ::std::unique_ptr<Type> > inputs, ::std::unique_ptr<Type> type = NULL) :
+              inputs(::std::move(inputs)), return_type(::std::move(type)), is_invalid(false) {}
 
             // Copy constructor with clone
             TypePathFunction(TypePathFunction const& other) :
@@ -537,6 +547,11 @@ namespace Rust {
             // Constructor
             QualifiedPathType(Type* invoke_on_type, TypePath trait_path = TypePath::create_error()) :
               type_to_invoke_on(invoke_on_type), trait_path(::std::move(trait_path)) {}
+            // FIXME: deprecated
+
+            // Constructor
+            QualifiedPathType(::std::unique_ptr<Type> invoke_on_type, TypePath trait_path = TypePath::create_error()) :
+              type_to_invoke_on(::std::move(invoke_on_type)), trait_path(::std::move(trait_path)) {}
 
             // Copy constructor uses custom deep copy for Type to preserve polymorphism
             QualifiedPathType(QualifiedPathType const& other) :

@@ -48,6 +48,8 @@ namespace Rust {
 
             virtual ~Node() {}
 
+            // TODO: constructor including location_t? Make all derived classes have location_t?
+
           private:
             // The node's location.
             location_t loc;
@@ -344,6 +346,11 @@ namespace Rust {
             // Constructor has pointer AttrInput for polymorphism reasons
             Attribute(SimplePath path, AttrInput* input) :
               path(::std::move(path)), attr_input(input) {}
+            // FIXME: deprecated
+
+            // Constructor has pointer AttrInput for polymorphism reasons
+            Attribute(SimplePath path, ::std::unique_ptr<AttrInput> input) :
+              path(::std::move(path)), attr_input(::std::move(input)) {}
 
             // Copy constructor must deep copy attr_input as unique pointer
             Attribute(Attribute const& other) :

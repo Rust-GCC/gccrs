@@ -55,10 +55,18 @@ namespace Rust {
             }
 
             // Constructor
-            IdentifierPattern(
+            /*IdentifierPattern(
               Identifier ident, bool is_ref = false, bool is_mut = false, Pattern* to_bind = NULL) :
               variable_ident(::std::move(ident)),
-              is_ref(is_ref), is_mut(is_mut), to_bind(to_bind) {}
+              is_ref(is_ref), is_mut(is_mut), to_bind(to_bind) {}*/
+            // FIXME: deprecated
+            // must be removed for overload resolution with default parameter
+
+            // Constructor
+            IdentifierPattern(
+              Identifier ident, bool is_ref = false, bool is_mut = false, ::std::unique_ptr<Pattern> to_bind = NULL) :
+              variable_ident(::std::move(ident)),
+              is_ref(is_ref), is_mut(is_mut), to_bind(::std::move(to_bind)) {}
 
             // Copy constructor with clone
             IdentifierPattern(IdentifierPattern const& other) :
@@ -192,6 +200,13 @@ namespace Rust {
               RangePatternBound* lower, RangePatternBound* upper, bool has_ellipsis_syntax = false) :
               lower(lower),
               upper(upper), has_ellipsis_syntax(has_ellipsis_syntax) {}
+            // FIXME: deprecated
+
+            // Constructor
+            RangePattern(
+              ::std::unique_ptr<RangePatternBound> lower, ::std::unique_ptr<RangePatternBound> upper, bool has_ellipsis_syntax = false) :
+              lower(::std::move(lower)),
+              upper(::std::move(upper)), has_ellipsis_syntax(has_ellipsis_syntax) {}
 
             // Copy constructor with clone
             RangePattern(RangePattern const& other) :
@@ -237,6 +252,10 @@ namespace Rust {
 
             ReferencePattern(Pattern* pattern, bool is_mut_reference, bool ref_has_two_amps) :
               has_two_amps(ref_has_two_amps), is_mut(is_mut_reference), pattern(pattern) {}
+            // FIXME: deprecated
+
+            ReferencePattern(::std::unique_ptr<Pattern> pattern, bool is_mut_reference, bool ref_has_two_amps) :
+              has_two_amps(ref_has_two_amps), is_mut(is_mut_reference), pattern(::std::move(pattern)) {}
 
             // Copy constructor requires clone
             ReferencePattern(ReferencePattern const& other) :
@@ -330,6 +349,12 @@ namespace Rust {
               TupleIndex index, Pattern* tuple_pattern, ::std::vector<Attribute> outer_attribs) :
               StructPatternField(::std::move(outer_attribs)),
               index(index), tuple_pattern(tuple_pattern) {}
+            // FIXME: deprecated
+
+            StructPatternFieldTuplePat(
+              TupleIndex index, ::std::unique_ptr<Pattern> tuple_pattern, ::std::vector<Attribute> outer_attribs) :
+              StructPatternField(::std::move(outer_attribs)),
+              index(index), tuple_pattern(::std::move(tuple_pattern)) {}
 
             // Copy constructor requires clone
             StructPatternFieldTuplePat(StructPatternFieldTuplePat const& other) :
@@ -374,6 +399,12 @@ namespace Rust {
               Identifier ident, Pattern* ident_pattern, ::std::vector<Attribute> outer_attrs) :
               StructPatternField(::std::move(outer_attrs)),
               ident(::std::move(ident)), ident_pattern(ident_pattern) {}
+            // FIXME: deprecated
+
+            StructPatternFieldIdentPat(
+              Identifier ident, ::std::unique_ptr<Pattern> ident_pattern, ::std::vector<Attribute> outer_attrs) :
+              StructPatternField(::std::move(outer_attrs)),
+              ident(::std::move(ident)), ident_pattern(::std::move(ident_pattern)) {}
 
             // Copy constructor requires clone
             StructPatternFieldIdentPat(StructPatternFieldIdentPat const& other) :
@@ -642,6 +673,10 @@ namespace Rust {
 
             TupleStructPattern(PathInExpression tuple_struct_path, TupleStructItems* items) :
               path(::std::move(tuple_struct_path)), items(items) {}
+            // FIXME: deprecated
+
+            TupleStructPattern(PathInExpression tuple_struct_path, ::std::unique_ptr<TupleStructItems> items) :
+              path(::std::move(tuple_struct_path)), items(::std::move(items)) {}
 
             // Copy constructor required to clone
             TupleStructPattern(TupleStructPattern const& other) :
@@ -833,6 +868,9 @@ namespace Rust {
             }
 
             TuplePattern(TuplePatternItems* items) : items(items) {}
+            // FIXME: deprecated
+
+            TuplePattern(::std::unique_ptr<TuplePatternItems> items) : items(::std::move(items)) {}
 
             // Copy constructor requires clone
             TuplePattern(TuplePattern const& other) :
@@ -865,6 +903,9 @@ namespace Rust {
             }
 
             GroupedPattern(Pattern* pattern_in_parens) : pattern_in_parens(pattern_in_parens) {}
+            // FIXME: deprecated
+
+            GroupedPattern(::std::unique_ptr<Pattern> pattern_in_parens) : pattern_in_parens(::std::move(pattern_in_parens)) {}
 
             // Copy constructor uses clone
             GroupedPattern(GroupedPattern const& other) :

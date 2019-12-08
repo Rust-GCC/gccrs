@@ -112,6 +112,12 @@ namespace Rust {
               MacroRepSep* sep) :
               matches(::std::move(matches)),
               op(op), sep(sep) {}
+            // FIXME: deprecated
+
+            MacroMatchRepetition(::std::vector< ::std::unique_ptr<MacroMatch> > matches, MacroRepOp op,
+              ::std::unique_ptr<MacroRepSep> sep) :
+              matches(::std::move(matches)),
+              op(op), sep(::std::move(sep)) {}
 
             // Copy constructor with clone
             MacroMatchRepetition(MacroMatchRepetition const& other) :
