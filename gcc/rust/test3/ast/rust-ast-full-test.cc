@@ -929,5 +929,17 @@ namespace Rust {
         ::std::string TupleType::as_string() const {
             return ::std::string("not implemented");
         }
+
+        ::std::string StructExprTuple::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string StructExprStruct::as_string() const {
+            return ::std::string("not implemented");
+        }
+
+        ::std::string StructExprStructFields::as_string() const {
+            return ::std::string("not implemented");
+        }
     }
 }

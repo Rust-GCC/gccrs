@@ -10,6 +10,50 @@
 #include "rust-ast-full.h"
 
 namespace Rust {
+    /* HACK: used to resolve the expression-or-statement problem at the end of a block by allowing either to
+     * be returned (technically). Tagged union would probably take up the same amount of space. */
+    struct ExprOrStmt {
+        ::std::unique_ptr<AST::ExprWithoutBlock> expr;
+        ::std::unique_ptr<AST::Stmt> stmt;
+
+        /* I was going to resist the urge to make this a real class and make it POD, but construction in
+         * steps is too difficult. So it'll just also have a constructor. */
+
+        // expression constructor
+        ExprOrStmt(::std::unique_ptr<AST::ExprWithoutBlock> expr) : expr(::std::move(expr)) {}
+
+        // statement constructor
+        ExprOrStmt(::std::unique_ptr<AST::Stmt> stmt) : stmt(::std::move(stmt)) {}
+
+        // Returns whether this object is in an error state.
+        inline bool is_error() const {
+            return (expr == NULL && stmt == NULL) || (expr != NULL && stmt != NULL);
+        }
+
+        // Returns an error state object.
+        static ExprOrStmt create_error() {
+            return ExprOrStmt(NULL, NULL);
+        }
+
+        ~ExprOrStmt() = default;
+
+        // no copy constructors/assignment copy as simple object like this shouldn't require it
+
+        // move constructors
+        ExprOrStmt(ExprOrStmt&& other) = default;
+        ExprOrStmt& operator=(ExprOrStmt&& other) = default;
+
+        private:
+        // private constructor only used for creating error state expr or stmt objects
+          ExprOrStmt(AST::ExprWithoutBlock* expr, AST::Stmt* stmt) : expr(expr), stmt(stmt) {}
+
+        // make this work: have a disambiguation specifically for known statements (i.e. ';' and 'let').
+        // then, have a special "parse expr or stmt" function that returns this type. inside it, it parses
+        // an expression, and then determines whether to return expr or stmt via whether the next token is
+        // a semicolon. 
+        // should be able to disambiguate inside that function between stmts with blocks and without blocks.
+    };
+
     // Parser implementation for gccrs.
     class Parser {
       private:
@@ -83,8 +127,8 @@ namespace Rust {
         AST::TypePathFunction parse_type_path_function();
         AST::PathInExpression parse_path_in_expression();
         AST::PathExprSegment parse_path_expr_segment();
-        AST::QualifiedPathInExpression parse_qualified_path_in_expression();
-        AST::QualifiedPathType parse_qualified_path_type();
+        AST::QualifiedPathInExpression parse_qualified_path_in_expression(bool pratt_parse = false);
+        AST::QualifiedPathType parse_qualified_path_type(bool pratt_parse = false);
         AST::QualifiedPathInType parse_qualified_path_in_type();
 
         // Token tree or macro related
@@ -254,6 +298,9 @@ namespace Rust {
           const_TokenPtr tok, ::std::unique_ptr<AST::Expr> struct_expr, ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::ArrayIndexExpr> parse_index_expr(
           const_TokenPtr tok, ::std::unique_ptr<AST::Expr> array_expr, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::MacroInvocation> parse_macro_invocation_partial(AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::StructExprStruct> parse_struct_expr_struct_partial(AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::StructExprTuple> parse_struct_expr_tuple_partial(AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
 
         // Expression-related (non-Pratt parsed)
         ::std::unique_ptr<AST::ExprWithoutBlock> parse_expr_without_block(
@@ -304,6 +351,7 @@ namespace Rust {
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         ::std::unique_ptr<AST::ExprWithoutBlock> parse_grouped_or_tuple_expr(
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
+        ::std::unique_ptr<AST::StructExprField> parse_struct_expr_field();
 
         // Type-related
         ::std::unique_ptr<AST::Type> parse_type();
@@ -324,6 +372,9 @@ namespace Rust {
         ::std::unique_ptr<AST::ExprStmtWithBlock> parse_expr_stmt_with_block(::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::ExprStmtWithoutBlock> parse_expr_stmt_without_block(
           ::std::vector<AST::Attribute> outer_attrs);
+        ExprOrStmt parse_stmt_or_expr_without_block();
+        ExprOrStmt parse_macro_invocation_maybe_semi(::std::vector<AST::Attribute> outer_attrs);
+        ExprOrStmt parse_path_based_stmt_or_expr(::std::vector<AST::Attribute> outer_attrs);
 
         // Pattern-related
         ::std::unique_ptr<AST::Pattern> parse_pattern();

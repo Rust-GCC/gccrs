@@ -537,6 +537,9 @@ namespace Rust {
             }
         };
 
+        // forward decl of ExprWithoutBlock
+        class ExprWithoutBlock;
+
         // Base expression AST node - abstract
         class Expr : public Node {
             ::std::vector<Attribute> outer_attrs;
@@ -556,6 +559,11 @@ namespace Rust {
              *  - evaluate() - evaluates expression if constant? can_evaluate()? */
 
             ::std::string as_string() const;
+
+            // HACK: downcasting without dynamic_cast (if possible) via polymorphism - overrided in subclasses of ExprWithoutBlock
+            virtual ExprWithoutBlock* as_expr_without_block() const {
+                return NULL;
+            }
 
           protected:
             // Constructor
@@ -607,6 +615,11 @@ namespace Rust {
             // Unique pointer custom clone function
             ::std::unique_ptr<ExprWithoutBlock> clone_expr_without_block() const {
                 return ::std::unique_ptr<ExprWithoutBlock>(clone_expr_without_block_impl());
+            }
+
+            // downcasting hack from expr to use pratt parsing with parse_expr_without_block
+            virtual ExprWithoutBlock* as_expr_without_block() const {
+                return clone_expr_without_block_impl();
             }
         };
 
