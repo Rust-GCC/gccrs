@@ -1454,9 +1454,18 @@ namespace Rust {
             StructBase(::std::unique_ptr<Expr> base_struct_ptr) : base_struct(::std::move(base_struct_ptr)) {}
 
             // Copy constructor requires clone
-            StructBase(StructBase const& other) : base_struct(other.base_struct->clone_expr()) {}
+            StructBase(StructBase const& other) {
+                // HACK: gets around base_struct pointer being null (e.g. if no struct base exists)
+                if (other.base_struct != NULL) {
+                    other.base_struct->clone_expr();
+                }
 
-            // Destructor - define here if required
+                // DEBUG:
+                fprintf(stderr, "struct base copy constructor called successfully\n");
+            }
+
+            // Destructor 
+            ~StructBase() = default;
 
             // Overload assignment operator to clone base_struct
             StructBase& operator=(StructBase const& other) {
@@ -1626,12 +1635,27 @@ namespace Rust {
             // copy constructor with vector clone
             StructExprStructFields(StructExprStructFields const& other) :
               StructExprStruct(other), struct_base(other.struct_base) {
+                // DEBUG
+                fprintf(stderr, "got past the initialisation list part of copy constructor\n");
+
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 fields.reserve(other.fields.size());
 
+                // DEBUG
+                fprintf(stderr, "reserved space in fields\n");
+
                 for (const auto& e : other.fields) {
+                    // DEBUG
+                    fprintf(stderr, "about to clone a field\n");
+
                     fields.push_back(e->clone_struct_expr_field());
+
+                    // DEBUG
+                    fprintf(stderr, "cloned a field successfully\n");
                 }
+
+                // DEBUG
+                fprintf(stderr, "finished cloning fields\n");
             }
 
             // overloaded assignment operator with vector clone
@@ -1661,6 +1685,29 @@ namespace Rust {
 
             // Use covariance to implement clone function as returning this object rather than base
             virtual StructExprStructFields* clone_expr_without_block_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "called structexprstructfields clone expr without block impl - about to return new structexprstructfields\n");
+
+                // DEBUG
+                if (this == NULL) {
+                    fprintf(stderr, "this (structexprstructfields) is null! Returning null!\n");
+                    return NULL;
+                }
+
+                // DEBUG - test creation of a base from this
+                fprintf(stderr, "about to try to create and allocate structexprstruct \n");
+                StructExprStruct* test_DELETE = new StructExprStruct(*this);
+                delete test_DELETE;
+                fprintf(stderr, "managed to create and allocate structexprstruct \n");
+                // very weird: can create and allocate structexpstruct but not structexprstructfields
+
+                // DEBUG - test creation of a non-returned class from this
+                fprintf(stderr, "about to try to create and allocate structexprstructfields (but not return)\n");
+                StructExprStructFields* test_DELETE2 = new StructExprStructFields(*this);
+                delete test_DELETE2;
+                fprintf(stderr, "managed to create and allocate structexprstructfields (if not returned) \n");
+                // ok this fails. fair enough.
+
                 return new StructExprStructFields(*this);
             }
         };

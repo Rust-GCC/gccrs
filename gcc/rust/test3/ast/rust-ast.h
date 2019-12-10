@@ -562,6 +562,9 @@ namespace Rust {
 
             // HACK: downcasting without dynamic_cast (if possible) via polymorphism - overrided in subclasses of ExprWithoutBlock
             virtual ExprWithoutBlock* as_expr_without_block() const {
+                // DEBUG
+                fprintf(stderr, "clone expr without block returns null and has not been overriden\n");
+
                 return NULL;
             }
 
@@ -618,7 +621,10 @@ namespace Rust {
             }
 
             // downcasting hack from expr to use pratt parsing with parse_expr_without_block
-            virtual ExprWithoutBlock* as_expr_without_block() const {
+            virtual ExprWithoutBlock* as_expr_without_block() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "about to call the impl for clone expr without block\n");
+
                 return clone_expr_without_block_impl();
             }
         };

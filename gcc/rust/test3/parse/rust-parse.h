@@ -301,12 +301,13 @@ namespace Rust {
         ::std::unique_ptr<AST::MacroInvocation> parse_macro_invocation_partial(AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::StructExprStruct> parse_struct_expr_struct_partial(AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::StructExprTuple> parse_struct_expr_tuple_partial(AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
+        AST::PathInExpression parse_path_in_expression_pratt(const_TokenPtr tok);
 
         // Expression-related (non-Pratt parsed)
         ::std::unique_ptr<AST::ExprWithoutBlock> parse_expr_without_block(
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         ::std::unique_ptr<AST::BlockExpr> parse_block_expr(
-          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
         ::std::unique_ptr<AST::IfExpr> parse_if_expr(
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         ::std::unique_ptr<AST::IfLetExpr> parse_if_let_expr(
@@ -346,7 +347,7 @@ namespace Rust {
         ::std::unique_ptr<AST::BreakExpr> parse_break_expr(
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
         ::std::unique_ptr<AST::ContinueExpr> parse_continue_expr(
-          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
         ::std::unique_ptr<AST::ArrayExpr> parse_array_expr(
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         ::std::unique_ptr<AST::ExprWithoutBlock> parse_grouped_or_tuple_expr(
