@@ -112,7 +112,6 @@ extern void validate_replace_rtx_group (rtx, rtx, rtx_insn *);
 extern void validate_replace_src_group (rtx, rtx, rtx_insn *);
 extern bool validate_simplify_insn (rtx_insn *insn);
 extern int num_changes_pending (void);
-extern int next_insn_tests_no_inequality (rtx_insn *);
 extern bool reg_fits_class_p (const_rtx, reg_class_t, int, machine_mode);
 
 extern int offsettable_memref_p (rtx);
@@ -142,7 +141,7 @@ extern void preprocess_constraints (rtx_insn *);
 extern rtx_insn *peep2_next_insn (int);
 extern int peep2_regno_dead_p (int, int);
 extern int peep2_reg_dead_p (int, rtx);
-#ifdef CLEAR_HARD_REG_SET
+#ifdef HARD_CONST
 extern rtx peep2_find_free_register (int, int, const char *,
 				     machine_mode, HARD_REG_SET *);
 #endif
@@ -185,6 +184,23 @@ skip_alternative (const char *p)
 
 /* Nonzero means volatile operands are recognized.  */
 extern int volatile_ok;
+
+/* RAII class for temporarily setting volatile_ok.  */
+
+class temporary_volatile_ok
+{
+public:
+  temporary_volatile_ok (int value) : save_volatile_ok (volatile_ok)
+  {
+    volatile_ok = value;
+  }
+
+  ~temporary_volatile_ok () { volatile_ok = save_volatile_ok; }
+
+private:
+  temporary_volatile_ok (const temporary_volatile_ok &);
+  int save_volatile_ok;
+};
 
 /* Set by constrain_operands to the number of the alternative that
    matched.  */

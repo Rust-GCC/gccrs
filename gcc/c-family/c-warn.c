@@ -34,6 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gcc-rich-location.h"
 #include "gimplify.h"
 #include "c-family/c-indentation.h"
+#include "c-family/c-spellcheck.h"
 #include "calls.h"
 #include "stor-layout.h"
 
@@ -207,32 +208,32 @@ warn_logical_operator (location_t location, enum tree_code code, tree type,
      programmer. That is, an expression such as op && MASK
      where op should not be any boolean expression, nor a
      constant, and mask seems to be a non-boolean integer constant.  */
+  STRIP_ANY_LOCATION_WRAPPER (op_right);
   if (TREE_CODE (op_right) == CONST_DECL)
     /* An enumerator counts as a constant.  */
     op_right = DECL_INITIAL (op_right);
+  tree stripped_op_left = tree_strip_any_location_wrapper (op_left);
   if (!truth_value_p (code_left)
       && INTEGRAL_TYPE_P (TREE_TYPE (op_left))
-      && !CONSTANT_CLASS_P (op_left)
-      && !TREE_NO_WARNING (op_left))
+      && !CONSTANT_CLASS_P (stripped_op_left)
+      && TREE_CODE (stripped_op_left) != CONST_DECL
+      && !TREE_NO_WARNING (op_left)
+      && TREE_CODE (op_right) == INTEGER_CST
+      && !integer_zerop (op_right)
+      && !integer_onep (op_right))
     {
-      tree folded_op_right = fold_for_warn (op_right);
-      if (TREE_CODE (folded_op_right) == INTEGER_CST
-	  && !integer_zerop (folded_op_right)
-	  && !integer_onep (folded_op_right))
-	{
-	  bool warned;
-	  if (or_op)
-	    warned
-	      = warning_at (location, OPT_Wlogical_op,
-			    "logical %<or%> applied to non-boolean constant");
-	  else
-	    warned
-	      = warning_at (location, OPT_Wlogical_op,
-			    "logical %<and%> applied to non-boolean constant");
-	  if (warned)
-	    TREE_NO_WARNING (op_left) = true;
-	  return;
-	}
+      bool warned;
+      if (or_op)
+	warned
+	  = warning_at (location, OPT_Wlogical_op,
+			"logical %<or%> applied to non-boolean constant");
+      else
+	warned
+	  = warning_at (location, OPT_Wlogical_op,
+			"logical %<and%> applied to non-boolean constant");
+      if (warned)
+	TREE_NO_WARNING (op_left) = true;
+      return;
     }
 
   /* We do not warn for constants because they are typical of macro
@@ -1460,8 +1461,9 @@ c_do_switch_warnings (splay_tree cases, location_t switch_location,
 				       min_value) >= 0)
 	    {
 	      location_t loc = EXPR_LOCATION ((tree) node->value);
-	      warning_at (loc, 0, "lower value in case label range"
-				  " less than minimum value for type");
+	      warning_at (loc, OPT_Wswitch_outside_range,
+			  "lower value in case label range less than minimum"
+			  " value for type");
 	      CASE_LOW ((tree) node->value) = convert (TREE_TYPE (cond),
 						       min_value);
 	      node->key = (splay_tree_key) CASE_LOW ((tree) node->value);
@@ -1474,8 +1476,8 @@ c_do_switch_warnings (splay_tree cases, location_t switch_location,
 	      if (node == NULL || !node->key)
 		break;
 	      location_t loc = EXPR_LOCATION ((tree) node->value);
-	      warning_at (loc, 0, "case label value is less than minimum "
-				  "value for type");
+	      warning_at (loc, OPT_Wswitch_outside_range, "case label value is"
+			  " less than minimum value for type");
 	      splay_tree_remove (cases, node->key);
 	    }
 	  while (1);
@@ -1491,8 +1493,8 @@ c_do_switch_warnings (splay_tree cases, location_t switch_location,
 				   max_value) > 0)
 	{
 	  location_t loc = EXPR_LOCATION ((tree) node->value);
-	  warning_at (loc, 0, "upper value in case label range"
-			      " exceeds maximum value for type");
+	  warning_at (loc, OPT_Wswitch_outside_range, "upper value in case"
+		      " label range exceeds maximum value for type");
 	  CASE_HIGH ((tree) node->value)
 	    = convert (TREE_TYPE (cond), max_value);
 	  outside_range_p = true;
@@ -1503,7 +1505,7 @@ c_do_switch_warnings (splay_tree cases, location_t switch_location,
 	     != NULL)
 	{
 	  location_t loc = EXPR_LOCATION ((tree) node->value);
-	  warning_at (loc, 0,
+	  warning_at (loc, OPT_Wswitch_outside_range,
 		      "case label value exceeds maximum value for type");
 	  splay_tree_remove (cases, node->key);
 	  outside_range_p = true;
@@ -1625,6 +1627,15 @@ c_do_switch_warnings (splay_tree cases, location_t switch_location,
       /* If the switch expression is a constant, we only really care
 	 about whether that constant is handled by the switch.  */
       if (cond && tree_int_cst_compare (cond, value))
+	continue;
+
+      /* If the enumerator is defined in a system header and uses a reserved
+	 name, then we continue to avoid throwing a warning.  */
+      location_t loc = DECL_SOURCE_LOCATION
+	    (TYPE_STUB_DECL (TYPE_MAIN_VARIANT (type)));
+      if (in_system_header_at (loc)
+	  && name_reserved_for_implementation_p
+	      (IDENTIFIER_POINTER (TREE_PURPOSE (chain))))
 	continue;
 
       /* If there is a default_node, the only relevant option is
@@ -2232,10 +2243,12 @@ warn_for_sign_compare (location_t location,
 		{
 		  if (constant == 0)
 		    warning_at (location, OPT_Wsign_compare,
-				"promoted ~unsigned is always non-zero");
+				"promoted bitwise complement of an unsigned "
+				"value is always nonzero");
 		  else
 		    warning_at (location, OPT_Wsign_compare,
-				"comparison of promoted ~unsigned with constant");
+				"comparison of promoted bitwise complement "
+				"of an unsigned value with constant");
 		}
 	    }
 	}
@@ -2245,7 +2258,8 @@ warn_for_sign_compare (location_t location,
 	       && (TYPE_PRECISION (TREE_TYPE (op1))
 		   < TYPE_PRECISION (result_type)))
 	warning_at (location, OPT_Wsign_compare,
-		    "comparison of promoted ~unsigned with unsigned");
+		    "comparison of promoted bitwise complement "
+		    "of an unsigned value with unsigned");
     }
 }
 
@@ -2597,11 +2611,11 @@ warn_for_restrict (unsigned param_pos, tree *argarray, unsigned nargs)
     }
 
   return warning_n (&richloc, OPT_Wrestrict, arg_positions.length (),
-		    "passing argument %i to restrict-qualified parameter"
+		    "passing argument %i to %qs-qualified parameter"
 		    " aliases with argument %Z",
-		    "passing argument %i to restrict-qualified parameter"
+		    "passing argument %i to %qs-qualified parameter"
 		    " aliases with arguments %Z",
-		    param_pos + 1, arg_positions.address (),
+		    param_pos + 1, "restrict", arg_positions.address (),
 		    arg_positions.length ());
 }
 
@@ -2784,6 +2798,8 @@ check_alignment_of_packed_member (tree type, tree field, bool rvalue)
   /* Check alignment of the data member.  */
   if (TREE_CODE (field) == FIELD_DECL
       && (DECL_PACKED (field) || TYPE_PACKED (TREE_TYPE (field)))
+      /* Ignore FIELDs not laid out yet.  */
+      && DECL_FIELD_OFFSET (field)
       && (!rvalue || TREE_CODE (TREE_TYPE (field)) == ARRAY_TYPE))
     {
       /* Check the expected alignment against the field alignment.  */

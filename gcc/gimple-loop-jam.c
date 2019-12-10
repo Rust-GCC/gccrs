@@ -20,7 +20,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "params.h"
 #include "tree-pass.h"
 #include "backend.h"
 #include "tree.h"
@@ -103,11 +102,11 @@ along with GCC; see the file COPYING3.  If not see
    to the OLD loop or the outer loop of OLD now is inside LOOP.  */
 
 static void
-merge_loop_tree (struct loop *loop, struct loop *old)
+merge_loop_tree (class loop *loop, class loop *old)
 {
   basic_block *bbs;
   int i, n;
-  struct loop *subloop;
+  class loop *subloop;
   edge e;
   edge_iterator ei;
 
@@ -186,11 +185,11 @@ bb_prevents_fusion_p (basic_block bb)
    If so return true, otherwise return false.  */
 
 static bool
-unroll_jam_possible_p (struct loop *outer, struct loop *loop)
+unroll_jam_possible_p (class loop *outer, class loop *loop)
 {
   basic_block *bbs;
   int i, n;
-  struct tree_niter_desc niter;
+  class tree_niter_desc niter;
 
   /* When fusing the loops we skip the latch block
      of the first one, so it mustn't have any effects to
@@ -301,9 +300,9 @@ unroll_jam_possible_p (struct loop *outer, struct loop *loop)
    be in appropriate form.  */
 
 static void
-fuse_loops (struct loop *loop)
+fuse_loops (class loop *loop)
 {
-  struct loop *next = loop->next;
+  class loop *next = loop->next;
 
   while (next)
     {
@@ -353,23 +352,40 @@ fuse_loops (struct loop *loop)
 
       merge_loop_tree (loop, next);
       gcc_assert (!next->num_nodes);
-      struct loop *ln = next->next;
+      class loop *ln = next->next;
       delete_loop (next);
       next = ln;
     }
   rewrite_into_loop_closed_ssa_1 (NULL, 0, SSA_OP_USE, loop);
 }
 
+/* Return true if any of the access functions for dataref A
+   isn't invariant with respect to loop LOOP_NEST.  */
+static bool
+any_access_function_variant_p (const struct data_reference *a,
+			       const class loop *loop_nest)
+{
+  unsigned int i;
+  vec<tree> fns = DR_ACCESS_FNS (a);
+  tree t;
+
+  FOR_EACH_VEC_ELT (fns, i, t)
+    if (!evolution_function_is_invariant_p (t, loop_nest->num))
+      return true;
+
+  return false;
+}
+
 /* Returns true if the distance in DDR can be determined and adjusts
    the unroll factor in *UNROLL to make unrolling valid for that distance.
-   Otherwise return false.
+   Otherwise return false.  DDR is with respect to the outer loop of INNER.
 
    If this data dep can lead to a removed memory reference, increment
    *REMOVED and adjust *PROFIT_UNROLL to be the necessary unroll factor
    for this to happen.  */
 
 static bool
-adjust_unroll_factor (struct data_dependence_relation *ddr,
+adjust_unroll_factor (class loop *inner, struct data_dependence_relation *ddr,
 		      unsigned *unroll, unsigned *profit_unroll,
 		      unsigned *removed)
 {
@@ -392,9 +408,59 @@ adjust_unroll_factor (struct data_dependence_relation *ddr,
 	    gcc_unreachable ();
 	  else if ((unsigned)dist >= *unroll)
 	    ;
-	  else if (lambda_vector_lexico_pos (dist_v + 1, DDR_NB_LOOPS (ddr) - 1)
-		   || (lambda_vector_zerop (dist_v + 1, DDR_NB_LOOPS (ddr) - 1)
-		       && dist > 0))
+	  else if (lambda_vector_zerop (dist_v + 1, DDR_NB_LOOPS (ddr) - 1))
+	    {
+	      /* We have (a,0) with a < N, so this will be transformed into
+	         (0,0) after unrolling by N.  This might potentially be a
+		 problem, if it's not a read-read dependency.  */
+	      if (DR_IS_READ (DDR_A (ddr)) && DR_IS_READ (DDR_B (ddr)))
+		;
+	      else
+		{
+		  /* So, at least one is a write, and we might reduce the
+		     distance vector to (0,0).  This is still no problem
+		     if both data-refs are affine with respect to the inner
+		     loops.  But if one of them is invariant with respect
+		     to an inner loop our reordering implicit in loop fusion
+		     corrupts the program, as our data dependences don't
+		     capture this.  E.g. for:
+		       for (0 <= i < n)
+		         for (0 <= j < m)
+		           a[i][0] = a[i+1][0] + 2;    // (1)
+		           b[i][j] = b[i+1][j] + 2;    // (2)
+		     the distance vector for both statements is (-1,0),
+		     but exchanging the order for (2) is okay, while
+		     for (1) it is not.  To see this, write out the original
+		     accesses (assume m is 2):
+		       a i j original
+		       0 0 0 r a[1][0] b[1][0]
+		       1 0 0 w a[0][0] b[0][0]
+		       2 0 1 r a[1][0] b[1][1]
+		       3 0 1 w a[0][0] b[0][1]
+		       4 1 0 r a[2][0] b[2][0]
+		       5 1 0 w a[1][0] b[1][0]
+		     after unroll-by-2 and fusion the accesses are done in
+		     this order (from column a): 0,1, 4,5, 2,3, i.e. this:
+		       a i j transformed
+		       0 0 0 r a[1][0] b[1][0]
+		       1 0 0 w a[0][0] b[0][0]
+		       4 1 0 r a[2][0] b[2][0]
+		       5 1 0 w a[1][0] b[1][0]
+		       2 0 1 r a[1][0] b[1][1]  
+		       3 0 1 w a[0][0] b[0][1]
+		     Note how access 2 accesses the same element as access 5
+		     for array 'a' but not for array 'b'.  */
+		  if (any_access_function_variant_p (DDR_A (ddr), inner)
+		      && any_access_function_variant_p (DDR_B (ddr), inner))
+		    ;
+		  else
+		    /* And if any dataref of this pair is invariant with
+		       respect to the inner loop, we have no chance than
+		       to reduce the unroll factor.  */
+		    *unroll = dist;
+		}
+	    }
+	  else if (lambda_vector_lexico_pos (dist_v + 1, DDR_NB_LOOPS (ddr) - 1))
 	    ;
 	  else
 	    *unroll = dist;
@@ -422,7 +488,7 @@ adjust_unroll_factor (struct data_dependence_relation *ddr,
 static unsigned int
 tree_loop_unroll_and_jam (void)
 {
-  struct loop *loop;
+  class loop *loop;
   bool changed = false;
 
   gcc_assert (scev_initialized_p ());
@@ -430,7 +496,7 @@ tree_loop_unroll_and_jam (void)
   /* Go through all innermost loops.  */
   FOR_EACH_LOOP (loop, LI_ONLY_INNERMOST)
     {
-      struct loop *outer = loop_outer (loop);
+      class loop *outer = loop_outer (loop);
 
       if (loop_depth (loop) < 2
 	  || optimize_loop_nest_for_size_p (outer))
@@ -442,7 +508,7 @@ tree_loop_unroll_and_jam (void)
       vec<data_reference_p> datarefs;
       vec<ddr_p> dependences;
       unsigned unroll_factor, profit_unroll, removed;
-      struct tree_niter_desc desc;
+      class tree_niter_desc desc;
       bool unroll = false;
 
       auto_vec<loop_p, 3> loop_nest;
@@ -486,7 +552,7 @@ tree_loop_unroll_and_jam (void)
 	  /* Now check the distance vector, for determining a sensible
 	     outer unroll factor, and for validity of merging the inner
 	     loop copies.  */
-	  if (!adjust_unroll_factor (ddr, &unroll_factor, &profit_unroll,
+	  if (!adjust_unroll_factor (loop, ddr, &unroll_factor, &profit_unroll,
 				     &removed))
 	    {
 	      /* Couldn't get the distance vector.  For two reads that's
@@ -505,15 +571,15 @@ tree_loop_unroll_and_jam (void)
       /* We regard a user-specified minimum percentage of zero as a request
 	 to ignore all profitability concerns and apply the transformation
 	 always.  */
-      if (!PARAM_VALUE (PARAM_UNROLL_JAM_MIN_PERCENT))
-	profit_unroll = 2;
+      if (!param_unroll_jam_min_percent)
+	profit_unroll = MAX(2, profit_unroll);
       else if (removed * 100 / datarefs.length ()
-	  < (unsigned)PARAM_VALUE (PARAM_UNROLL_JAM_MIN_PERCENT))
+	  < (unsigned)param_unroll_jam_min_percent)
 	profit_unroll = 1;
       if (unroll_factor > profit_unroll)
 	unroll_factor = profit_unroll;
-      if (unroll_factor > (unsigned)PARAM_VALUE (PARAM_UNROLL_JAM_MAX_UNROLL))
-	unroll_factor = PARAM_VALUE (PARAM_UNROLL_JAM_MAX_UNROLL);
+      if (unroll_factor > (unsigned)param_unroll_jam_max_unroll)
+	unroll_factor = param_unroll_jam_max_unroll;
       unroll = (unroll_factor > 1
 		&& can_unroll_loop_p (outer, unroll_factor, &desc));
 

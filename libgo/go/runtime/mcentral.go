@@ -56,15 +56,6 @@ retry:
 			c.empty.insertBack(s)
 			unlock(&c.lock)
 			s.sweep(true)
-
-			// With gccgo's conservative GC, the returned span may
-			// now be full. See the comments in mspan.sweep.
-			if uintptr(s.allocCount) == s.nelems {
-				s.freeindex = s.nelems
-				lock(&c.lock)
-				goto retry
-			}
-
 			goto havespan
 		}
 		if s.sweepgen == sg-1 {
@@ -260,16 +251,16 @@ func (c *mcentral) freeSpan(s *mspan, preserve bool, wasempty bool) bool {
 func (c *mcentral) grow() *mspan {
 	npages := uintptr(class_to_allocnpages[c.spanclass.sizeclass()])
 	size := uintptr(class_to_size[c.spanclass.sizeclass()])
-	n := (npages << _PageShift) / size
 
 	s := mheap_.alloc(npages, c.spanclass, false, true)
 	if s == nil {
 		return nil
 	}
 
-	p := s.base()
-	s.limit = p + size*n
-
+	// Use division by multiplication and shifts to quickly compute:
+	// n := (npages << _PageShift) / size
+	n := (npages << _PageShift) >> s.divShift * uintptr(s.divMul) >> s.divShift2
+	s.limit = s.base() + size*n
 	heapBitsForAddr(s.base()).initSpan(s)
 	return s
 }

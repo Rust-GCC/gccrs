@@ -122,14 +122,14 @@
 
 #ifndef __cpp_init_captures
 #  error "__cpp_init_captures"
-#elif __cpp_init_captures != 201304
-#  error "__cpp_init_captures != 201304"
+#elif __cpp_init_captures != 201803
+#  error "__cpp_init_captures != 201803"
 #endif
 
 #ifndef __cpp_generic_lambdas
 #  error "__cpp_generic_lambdas"
-#elif __cpp_generic_lambdas != 201304
-#  error "__cpp_generic_lambdas != 201304"
+#elif __cpp_generic_lambdas != 201707
+#  error "__cpp_generic_lambdas != 201707"
 #endif
 
 #ifndef __cpp_constexpr
@@ -291,12 +291,12 @@
 #if __has_include(<array>)
 #  define STD_ARRAY 1
 #  include <array>
-  template<typename _Tp, size_t _Num>
+  template<typename _Tp, std::size_t _Num>
     using array = std::array<_Tp, _Num>;
 #elif __has_include(<tr1/array>)
 #  define TR1_ARRAY 1
 #  include <tr1/array>
-  template<typename _Tp, size_t _Num>
+  template<typename _Tp, std::size_t _Num>
     typedef std::tr1::array<_Tp, _Num> array;
 #endif
 
@@ -430,16 +430,34 @@
 
 // C++20 features
 
-#if __cpp_conditional_explicit != 201806
-# error "__cpp_conditional_explicit != 201806"
+#ifndef __cpp_conditional_explicit
+#  error "__cpp_conditional_explicit"
+#elif __cpp_conditional_explicit != 201806
+#  error "__cpp_conditional_explicit != 201806"
 #endif
 
-#if __cpp_nontype_template_parameter_class != 201806
-# error "__cpp_nontype_template_parameter_class != 201806"
+#ifndef __cpp_nontype_template_parameter_class
+#  error "__cpp_nontype_template_parameter_class"
+#elif __cpp_nontype_template_parameter_class != 201806
+#  error "__cpp_nontype_template_parameter_class != 201806"
 #endif
 
-#if __cpp_impl_destroying_delete != 201806
-# error "__cpp_impl_destroying_delete != 201806"
+#ifndef __cpp_impl_destroying_delete
+#  error "__cpp_impl_destroying_delete"
+#elif __cpp_impl_destroying_delete != 201806
+#  error "__cpp_impl_destroying_delete != 201806"
+#endif
+
+#ifndef __cpp_constinit
+#  error "__cpp_constinit"
+#elif __cpp_constinit != 201907
+#  error "__cpp_constinit != 201907"
+#endif
+
+#ifndef __cpp_constexpr_dynamic_alloc
+#  error "__cpp_constexpr_dynamic_alloc"
+#elif __cpp_constexpr_dynamic_alloc != 201907
+#  error "__cpp_constexpr_dynamic_alloc != 201907"
 #endif
 
 #ifdef __has_cpp_attribute
@@ -452,8 +470,8 @@
 
 #  if ! __has_cpp_attribute(nodiscard)
 #    error "__has_cpp_attribute(nodiscard)"
-#  elif __has_cpp_attribute(nodiscard) != 201603
-#    error "__has_cpp_attribute(nodiscard) != 201603"
+#  elif __has_cpp_attribute(nodiscard) != 201907
+#    error "__has_cpp_attribute(nodiscard) != 201907"
 #  endif
 
 #  if ! __has_cpp_attribute(fallthrough)
@@ -484,10 +502,32 @@
 #  error "__has_cpp_attribute"
 #endif
 
-// C++2A features:
-
 #ifndef __cpp_char8_t
 #  error "__cpp_char8_t"
 #elif __cpp_char8_t != 201811
 #  error "__cpp_char8_t != 201811"
+#endif
+
+#ifndef __cpp_designated_initializers
+#  error "__cpp_designated_initializers"
+#elif __cpp_designated_initializers != 201707
+#  error "__cpp_designated_initializers != 201707"
+#endif
+
+#ifndef __cpp_constexpr_in_decltype
+#  error "__cpp_constexpr_in_decltype"
+#elif __cpp_constexpr_in_decltype != 201711
+#  error "__cpp_constexpr_in_decltype != 201711"
+#endif
+
+#ifndef __cpp_consteval
+#  error "__cpp_consteval"
+#elif __cpp_consteval != 201811
+#  error "__cpp_consteval != 201811"
+#endif
+
+#ifndef __cpp_concepts
+#  error "__cpp_concepts"
+#elif __cpp_concepts != 201907
+#  error "__cpp_concepts != 201907"
 #endif

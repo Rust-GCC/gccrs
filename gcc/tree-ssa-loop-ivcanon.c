@@ -59,11 +59,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgloop.h"
 #include "tree-chrec.h"
 #include "tree-scalar-evolution.h"
-#include "params.h"
 #include "tree-inline.h"
 #include "tree-cfgcleanup.h"
 #include "builtins.h"
 #include "tree-ssa-sccvn.h"
+#include "dbgcnt.h"
 
 /* Specifies types of loops that may be unrolled.  */
 
@@ -82,7 +82,7 @@ enum unroll_level
    if they are not NULL.  */
 
 void
-create_canonical_iv (struct loop *loop, edge exit, tree niter,
+create_canonical_iv (class loop *loop, edge exit, tree niter,
 		     tree *var_before = NULL, tree *var_after = NULL)
 {
   edge in;
@@ -161,9 +161,9 @@ struct loop_size
 /* Return true if OP in STMT will be constant after peeling LOOP.  */
 
 static bool
-constant_after_peeling (tree op, gimple *stmt, struct loop *loop)
+constant_after_peeling (tree op, gimple *stmt, class loop *loop)
 {
-  if (is_gimple_min_invariant (op))
+  if (CONSTANT_CLASS_P (op))
     return true;
 
   /* We can still fold accesses to constant arrays when index is known.  */
@@ -211,7 +211,7 @@ constant_after_peeling (tree op, gimple *stmt, struct loop *loop)
    Stop estimating after UPPER_BOUND is met.  Return true in this case.  */
 
 static bool
-tree_estimate_loop_size (struct loop *loop, edge exit, edge edge_to_cancel,
+tree_estimate_loop_size (class loop *loop, edge exit, edge edge_to_cancel,
 			 struct loop_size *size, int upper_bound)
 {
   basic_block *body = get_loop_body (loop);
@@ -294,7 +294,8 @@ tree_estimate_loop_size (struct loop *loop, edge exit, edge edge_to_cancel,
 						  stmt, loop)
 		       && (gimple_assign_rhs_class (stmt) != GIMPLE_BINARY_RHS
 			   || constant_after_peeling (gimple_assign_rhs2 (stmt),
-						      stmt, loop)))
+						      stmt, loop))
+		       && gimple_assign_rhs_class (stmt) != GIMPLE_TERNARY_RHS)
 		{
 		  size->constant_iv = true;
 		  if (dump_file && (dump_flags & TDF_DETAILS))
@@ -441,7 +442,7 @@ estimated_unrolled_size (struct loop_size *size,
    The other cases are hopefully rare and will be cleaned up later.  */
 
 static edge
-loop_edge_to_cancel (struct loop *loop)
+loop_edge_to_cancel (class loop *loop)
 {
   vec<edge> exits;
   unsigned i;
@@ -495,9 +496,9 @@ loop_edge_to_cancel (struct loop *loop)
    known to not be executed.  */
 
 static bool
-remove_exits_and_undefined_stmts (struct loop *loop, unsigned int npeeled)
+remove_exits_and_undefined_stmts (class loop *loop, unsigned int npeeled)
 {
-  struct nb_iter_bound *elt;
+  class nb_iter_bound *elt;
   bool changed = false;
 
   for (elt = loop->bounds; elt; elt = elt->next)
@@ -553,9 +554,9 @@ remove_exits_and_undefined_stmts (struct loop *loop, unsigned int npeeled)
    discovered.  */
 
 static bool
-remove_redundant_iv_tests (struct loop *loop)
+remove_redundant_iv_tests (class loop *loop)
 {
-  struct nb_iter_bound *elt;
+  class nb_iter_bound *elt;
   bool changed = false;
 
   if (!loop->any_upper_bound)
@@ -569,7 +570,7 @@ remove_redundant_iv_tests (struct loop *loop)
 	{
 	  basic_block bb = gimple_bb (elt->stmt);
 	  edge exit_edge = EDGE_SUCC (bb, 0);
-	  struct tree_niter_desc niter;
+	  class tree_niter_desc niter;
 
 	  if (!loop_exit_edge_p (loop, exit_edge))
 	    exit_edge = EDGE_SUCC (bb, 1);
@@ -629,7 +630,7 @@ unloop_loops (bitmap loop_closed_ssa_invalidated,
 {
   while (loops_to_unloop.length ())
     {
-      struct loop *loop = loops_to_unloop.pop ();
+      class loop *loop = loops_to_unloop.pop ();
       int n_unroll = loops_to_unloop_nunroll.pop ();
       basic_block latch = loop->latch;
       edge latch_edge = loop_latch_edge (loop);
@@ -688,7 +689,7 @@ unloop_loops (bitmap loop_closed_ssa_invalidated,
    a summary of the unroll to the dump file.  */
 
 static bool
-try_unroll_loop_completely (struct loop *loop,
+try_unroll_loop_completely (class loop *loop,
 			    edge exit, tree niter, bool may_be_zero,
 			    enum unroll_level ul,
 			    HOST_WIDE_INT maxiter,
@@ -739,7 +740,7 @@ try_unroll_loop_completely (struct loop *loop,
     return false;
 
   if (!loop->unroll
-      && n_unroll > (unsigned) PARAM_VALUE (PARAM_MAX_COMPLETELY_PEEL_TIMES))
+      && n_unroll > (unsigned) param_max_completely_peel_times)
     {
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file, "Not unrolling loop %d "
@@ -780,7 +781,7 @@ try_unroll_loop_completely (struct loop *loop,
 	  bool large
 	    = tree_estimate_loop_size
 		(loop, remove_exit ? exit : NULL, edge_to_cancel, &size,
-		 PARAM_VALUE (PARAM_MAX_COMPLETELY_PEELED_INSNS));
+		 param_max_completely_peeled_insns);
 	  if (large)
 	    {
 	      if (dump_file && (dump_flags & TDF_DETAILS))
@@ -864,7 +865,7 @@ try_unroll_loop_completely (struct loop *loop,
 	     blow the branch predictor tables.  Limit number of
 	     branches on the hot path through the peeled sequence.  */
 	  else if (size.num_branches_on_hot_path * (int)n_unroll
-		   > PARAM_VALUE (PARAM_MAX_PEEL_BRANCHES))
+		   > param_max_peel_branches)
 	    {
 	      if (dump_file && (dump_flags & TDF_DETAILS))
 		fprintf (dump_file, "Not unrolling loop %d: "
@@ -874,7 +875,7 @@ try_unroll_loop_completely (struct loop *loop,
 	      return false;
 	    }
 	  else if (unr_insns
-		   > (unsigned) PARAM_VALUE (PARAM_MAX_COMPLETELY_PEELED_INSNS))
+		   > (unsigned) param_max_completely_peeled_insns)
 	    {
 	      if (dump_file && (dump_flags & TDF_DETAILS))
 		fprintf (dump_file, "Not unrolling loop %d: "
@@ -884,6 +885,9 @@ try_unroll_loop_completely (struct loop *loop,
 	      return false;
 	    }
 	}
+
+      if (!dbg_cnt (gimple_unroll))
+	return false;
 
       initialize_original_copy_tables ();
       auto_sbitmap wont_exit (n_unroll + 1);
@@ -986,7 +990,7 @@ estimated_peeled_sequence_size (struct loop_size *size,
    Parameters are the same as for try_unroll_loops_completely */
 
 static bool
-try_peel_loop (struct loop *loop,
+try_peel_loop (class loop *loop,
 	       edge exit, tree niter, bool may_be_zero,
 	       HOST_WIDE_INT maxiter)
 {
@@ -995,7 +999,7 @@ try_peel_loop (struct loop *loop,
   int peeled_size;
 
   if (!flag_peel_loops
-      || PARAM_VALUE (PARAM_MAX_PEEL_TIMES) <= 0
+      || param_max_peel_times <= 0
       || !peeled_loops)
     return false;
 
@@ -1054,7 +1058,7 @@ try_peel_loop (struct loop *loop,
   /* We want to peel estimated number of iterations + 1 (so we never
      enter the loop on quick path).  Check against PARAM_MAX_PEEL_TIMES
      and be sure to avoid overflows.  */
-  if (npeel > PARAM_VALUE (PARAM_MAX_PEEL_TIMES) - 1)
+  if (npeel > param_max_peel_times - 1)
     {
       if (dump_file)
 	fprintf (dump_file, "Not peeling: rolls too much "
@@ -1065,15 +1069,18 @@ try_peel_loop (struct loop *loop,
 
   /* Check peeled loops size.  */
   tree_estimate_loop_size (loop, exit, NULL, &size,
-			   PARAM_VALUE (PARAM_MAX_PEELED_INSNS));
+			   param_max_peeled_insns);
   if ((peeled_size = estimated_peeled_sequence_size (&size, (int) npeel))
-      > PARAM_VALUE (PARAM_MAX_PEELED_INSNS))
+      > param_max_peeled_insns)
     {
       if (dump_file)
 	fprintf (dump_file, "Not peeling: peeled sequence size is too large "
 		 "(%i insns > --param max-peel-insns)", peeled_size);
       return false;
     }
+
+  if (!dbg_cnt (gimple_unroll))
+    return false;
 
   /* Duplicate possibly eliminating the exits.  */
   initialize_original_copy_tables ();
@@ -1155,7 +1162,7 @@ try_peel_loop (struct loop *loop,
    Returns true if cfg is changed.   */
 
 static bool
-canonicalize_loop_induction_variables (struct loop *loop,
+canonicalize_loop_induction_variables (class loop *loop,
 				       bool create_iv, enum unroll_level ul,
 				       bool try_eval, bool allow_peel)
 {
@@ -1164,7 +1171,7 @@ canonicalize_loop_induction_variables (struct loop *loop,
   HOST_WIDE_INT maxiter;
   bool modified = false;
   dump_user_location_t locus;
-  struct tree_niter_desc niter_desc;
+  class tree_niter_desc niter_desc;
   bool may_be_zero = false;
 
   /* For unrolling allow conditional constant or zero iterations, thus
@@ -1215,8 +1222,10 @@ canonicalize_loop_induction_variables (struct loop *loop,
      by find_loop_niter_by_eval.  Be sure to keep it for future.  */
   if (niter && TREE_CODE (niter) == INTEGER_CST)
     {
+      vec<edge> exits = get_loop_exit_edges  (loop);
       record_niter_bound (loop, wi::to_widest (niter),
-			  exit == single_likely_exit (loop), true);
+			  exit == single_likely_exit (loop, exits), true);
+      exits.release ();
     }
 
   /* Force re-computation of loop bounds so we can remove redundant exits.  */
@@ -1282,7 +1291,7 @@ canonicalize_loop_induction_variables (struct loop *loop,
 unsigned int
 canonicalize_induction_variables (void)
 {
-  struct loop *loop;
+  class loop *loop;
   bool changed = false;
   bool irred_invalidated = false;
   bitmap loop_closed_ssa_invalidated = BITMAP_ALLOC (NULL);
@@ -1324,11 +1333,11 @@ canonicalize_induction_variables (void)
 
 static bool
 tree_unroll_loops_completely_1 (bool may_increase_size, bool unroll_outer,
-				bitmap father_bbs, struct loop *loop)
+				bitmap father_bbs, class loop *loop)
 {
-  struct loop *loop_father;
+  class loop *loop_father;
   bool changed = false;
-  struct loop *inner;
+  class loop *inner;
   enum unroll_level ul;
   unsigned num = number_of_loops (cfun);
 
@@ -1496,7 +1505,7 @@ tree_unroll_loops_completely (bool may_increase_size, bool unroll_outer)
         BITMAP_FREE (loop_closed_ssa_invalidated);
     }
   while (changed
-	 && ++iteration <= PARAM_VALUE (PARAM_MAX_UNROLL_ITERATIONS));
+	 && ++iteration <= param_max_unroll_iterations);
 
   BITMAP_FREE (father_bbs);
 

@@ -33,6 +33,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-pretty-print.h"
 #include "cgraph.h"
 #include "print-tree.h"
+#include "alloc-pool.h"
 #include "symbol-summary.h"
 #include "hsa-common.h"
 
@@ -1229,7 +1230,7 @@ dump_hsa_cfun (FILE *f)
 
   FOR_ALL_BB_FN (bb, cfun)
     {
-      hsa_bb *hbb = (struct hsa_bb *) bb->aux;
+      hsa_bb *hbb = (class hsa_bb *) bb->aux;
       dump_hsa_bb (f, hbb);
     }
 }

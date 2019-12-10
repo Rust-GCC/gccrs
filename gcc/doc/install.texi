@@ -2,7 +2,6 @@
 @c @ifnothtml
 @c %**start of header
 @setfilename gccinstall.info
-@settitle Installing GCC
 @setchapternewpage odd
 @c %**end of header
 @c @end ifnothtml
@@ -271,12 +270,34 @@ name of the package depends on your distro) or you must build GCC as a
 @option{--disable-multilib}.  Otherwise, you may encounter an error such as
 @samp{fatal error: gnu/stubs-32.h: No such file}
 
-@item GNAT
+@item @anchor{GNAT-prerequisite}GNAT
 
-In order to build the Ada compiler (GNAT) you must already have GNAT
-installed because portions of the Ada frontend are written in Ada (with
-GNAT extensions.)  Refer to the Ada installation instructions for more
-specific information.
+In order to build GNAT, the Ada compiler, you need a working GNAT
+compiler (GCC version 4.7 or later).
+
+This includes GNAT tools such as @command{gnatmake} and
+@command{gnatlink}, since the Ada front end is written in Ada and
+uses some GNAT-specific extensions.
+
+In order to build a cross compiler, it is strongly recommended to install
+the new compiler as native first, and then use it to build the cross
+compiler. Other native compiler versions may work but this is not guaranteed and
+will typically fail with hard to understand compilation errors during the
+build.
+
+Similarly, it is strongly recommended to use an older version of GNAT to build
+GNAT. More recent versions of GNAT than the version built are not guaranteed
+to work and will often fail during the build with compilation errors.
+
+Note that @command{configure} does not test whether the GNAT installation works
+and has a sufficiently recent version; if too old a GNAT version is
+installed and @option{--enable-languages=ada} is used, the build will fail.
+
+@env{ADA_INCLUDE_PATH} and @env{ADA_OBJECT_PATH} environment variables
+must not be set when building the Ada compiler, the Ada tools, or the
+Ada runtime libraries. You can check that your build environment is clean
+by verifying that @samp{gnatls -v} lists only one explicit path in each
+section.
 
 @item A ``working'' POSIX compatible shell, or GNU bash
 
@@ -312,7 +333,7 @@ requirements.
 @itemx bzip2 version 1.0.2 (or later)
 
 Necessary to uncompress GCC @command{tar} files when source code is
-obtained via FTP mirror sites.
+obtained via HTTPS mirror sites.
 
 @item GNU make version 3.80 (or later)
 
@@ -363,7 +384,7 @@ and @option{--with-gmp-include}.
 The in-tree build is only supported with the GMP version that
 download_prerequisites installs.
 
-@item MPFR Library version 2.4.2 (or later)
+@item MPFR Library version 3.1.0 (or later)
 
 Necessary to build GCC@.  It can be downloaded from
 @uref{https://www.mpfr.org}.  If an MPFR source distribution is found
@@ -390,12 +411,18 @@ download_prerequisites installs.
 @item isl Library version 0.15 or later.
 
 Necessary to build GCC with the Graphite loop optimizations.
-It can be downloaded from @uref{ftp://gcc.gnu.org/pub/gcc/infrastructure/}.
+It can be downloaded from @uref{https://gcc.gnu.org/pub/gcc/infrastructure/}.
 If an isl source distribution is found
 in a subdirectory of your GCC sources named @file{isl}, it will be
 built together with GCC.  Alternatively, the @option{--with-isl} configure
 option should be used if isl is not installed in your default library
 search path.
+
+@item zstd Library.
+
+Necessary to build GCC with zstd compression used for LTO bytecode.
+The library is searched in your default library patch search.
+Alternatively, the @option{--with-zstd} configure option should be used.
 
 @end table
 
@@ -437,10 +464,7 @@ Necessary when modifying @command{gperf} input files, e.g.@:
 @itemx Tcl
 
 Necessary to run the GCC testsuite; see the section on testing for
-details.  Tcl 8.6 has a known regression in RE pattern handling that
-make parts of the testsuite fail.  See
-@uref{http://core.tcl.tk/tcl/tktview/267b7e2334ee2e9de34c4b00d6e72e2f1997085f}
-for more information.  This bug has been fixed in 8.6.1.
+details.
 
 @item autogen version 5.5.4 (or later) and
 @itemx guile version 1.4.1 (or later)
@@ -489,7 +513,7 @@ files in the directories below @file{jit/docs}.
 @itemx SSH (any version)
 
 Necessary to access the SVN repository.  Public releases and weekly
-snapshots of the development sources are also available via FTP@.
+snapshots of the development sources are also available via HTTPS@.
 
 @item GNU diffutils version 2.7 (or later)
 
@@ -523,9 +547,8 @@ own sources.
 @cindex Downloading GCC
 @cindex Downloading the Source
 
-GCC is distributed via @uref{http://gcc.gnu.org/svn.html,,SVN} and FTP
-tarballs compressed with @command{gzip} or
-@command{bzip2}.
+GCC is distributed via @uref{http://gcc.gnu.org/svn.html,,SVN} and via
+HTTPS as tarballs compressed with @command{gzip} or @command{bzip2}.
 
 Please refer to the @uref{http://gcc.gnu.org/releases.html,,releases web page}
 for information on how to obtain GCC@.
@@ -1285,6 +1308,11 @@ assumptions made by the configure test are incorrect.
 @item --disable-tls
 Specify that the target does not support TLS.
 This is an alias for @option{--enable-tls=no}.
+
+@item --disable-tm-clone-registry
+Disable TM clone registry in libgcc. It is enabled in libgcc by default.
+This option helps to reduce code size for embedded targets which do
+not use transactional memory.
 
 @item --with-cpu=@var{cpu}
 @itemx --with-cpu-32=@var{cpu}
@@ -2131,7 +2159,7 @@ specifying paths @var{path1}, @dots{}, @var{pathN}.
 
 @smallexample
 % @var{srcdir}/configure \
-    --enable-offload-target=i686-unknown-linux-gnu=/path/to/i686/compiler,x86_64-pc-linux-gnu
+    --enable-offload-targets=x86_64-intelmicemul-linux-gnu=/path/to/x86_64/compiler,nvptx-none,hsa
 @end smallexample
 
 If @samp{hsa} is specified as one of the targets, the compiler will be
@@ -2249,15 +2277,48 @@ being used as the target C library.  This causes @code{__eprintf} to be
 omitted from @file{libgcc.a} on the assumption that it will be provided by
 @samp{newlib}.
 
+@html
+<a name="avr"></a>
+@end html
 @item --with-avrlibc
-Specifies that @samp{AVR-Libc} is
-being used as the target C library.  This causes float support
+Only supported for the AVR target. Specifies that @samp{AVR-Libc} is
+being used as the target C@tie{} library.  This causes float support
 functions like @code{__addsf3} to be omitted from @file{libgcc.a} on
 the assumption that it will be provided by @file{libm.a}.  For more
 technical details, cf. @uref{http://gcc.gnu.org/PR54461,,PR54461}.
-This option is only supported for the AVR target.  It is not supported for
+It is not supported for
 RTEMS configurations, which currently use newlib.  The option is
 supported since version 4.7.2 and is the default in 4.8.0 and newer.
+
+@item --with-double=@{32|64|32,64|64,32@}
+@itemx --with-long-double=@{32|64|32,64|64,32|double@}
+Only supported for the AVR target since version@tie{}10.
+Specify the default layout available for the C/C++ @samp{double}
+and @samp{long double} type, respectively. The following rules apply:
+@itemize
+@item
+The first value after the @samp{=} specifies the default layout (in bits)
+of the type and also the default for the @option{-mdouble=} resp.
+@option{-mlong-double=} compiler option.
+@item
+If more than one value is specified, respective multilib variants are
+available, and  @option{-mdouble=} resp. @option{-mlong-double=} acts
+as a multilib option.
+@item
+If @option{--with-long-double=double} is specified, @samp{double} and
+@samp{long double} will have the same layout.
+@item
+If the configure option is not set, it defaults to @samp{32} which
+is compatible with older versions of the compiler that use non-standard
+32-bit types for @samp{double} and @samp{long double}.
+@end itemize
+Not all combinations of @option{--with-double=} and
+@option{--with-long-double=} are valid.  For example, the combination
+@option{--with-double=32,64} @option{--with-long-double=32} will be
+rejected because the first option specifies the availability of
+multilibs for @samp{double}, whereas the second option implies
+that @samp{long double} --- and hence also @samp{double} --- is always
+32@tie{}bits wide.
 
 @item --with-nds32-lib=@var{library}
 Specifies that @var{library} setting is used for building @file{libgcc.a}.
@@ -2320,7 +2381,7 @@ The following options apply to the build of the Objective-C runtime library.
 @item --enable-objc-gc
 Specify that an additional variant of the GNU Objective-C runtime library
 is built, using an external build of the Boehm-Demers-Weiser garbage
-collector (@uref{http://www.hboehm.info/gc/}).  This library needs to be
+collector (@uref{https://www.hboehm.info/gc/}).  This library needs to be
 available for each multilib variant, unless configured with
 @option{--enable-objc-gc=@samp{auto}} in which case the build of the
 additional runtime library is skipped when not available and the build
@@ -2527,6 +2588,7 @@ Removes any @option{-O}-started option from @code{BOOT_CFLAGS}, and adds
 @samp{BOOT_CFLAGS='-g -O1'}.
 
 @item @samp{bootstrap-O3}
+@itemx @samp{bootstrap-Og}
 Analogous to @code{bootstrap-O1}.
 
 @item @samp{bootstrap-lto}
@@ -2699,26 +2761,12 @@ and network filesystems.
 
 @section Building the Ada compiler
 
-In order to build GNAT, the Ada compiler, you need a working GNAT
-compiler (GCC version 4.0 or later).
-This includes GNAT tools such as @command{gnatmake} and
-@command{gnatlink}, since the Ada front end is written in Ada and
-uses some GNAT-specific extensions.
-
-In order to build a cross compiler, it is suggested to install
-the new compiler as native first, and then use it to build the cross
-compiler.
-
-@command{configure} does not test whether the GNAT installation works
-and has a sufficiently recent version; if too old a GNAT version is
-installed, the build will fail unless @option{--enable-languages} is
-used to disable building the Ada front end.
-
-@env{ADA_INCLUDE_PATH} and @env{ADA_OBJECT_PATH} environment variables
-must not be set when building the Ada compiler, the Ada tools, or the
-Ada runtime libraries. You can check that your build environment is clean
-by verifying that @samp{gnatls -v} lists only one explicit path in each
-section.
+@ifnothtml
+@ref{GNAT-prerequisite}.
+@end ifnothtml
+@ifhtml
+@uref{prerequisites.html#GNAT-prerequisite,,GNAT prerequisites}.
+@end ifhtml
 
 @section Building with profile feedback
 
@@ -3466,11 +3514,6 @@ This section contains general configuration information for all
 Alpha-based platforms using ELF@.  In addition to reading this
 section, please read all other sections that match your target.
 
-We require binutils 2.11.2 or newer.
-Previous binutils releases had a number of problems with DWARF 2
-debugging information, not the least of which is incorrect linking of
-shared libraries.
-
 @html
 <hr />
 @end html
@@ -3578,7 +3621,7 @@ See ``Blackfin Options'' in the main manual
 @end ifhtml
 
 More information, and a version of binutils with support for this processor,
-is available at @uref{https://blackfin.uclinux.org}
+are available at @uref{https://sourceforge.net/projects/adi-toolchain/}.
 
 @html
 <hr />
@@ -4348,7 +4391,7 @@ The OpenRISC 1000 32-bit processor with delay slots.
 You can specify a default version for the @option{-mcpu=@var{cpu_type}}
 switch by using the configure option @option{--with-cpu-@var{cpu_type}}.
 
-You will need GNU binutils 2.15 or newer.
+You will need GNU binutils 2.20 or newer.
 
 @html
 <hr />

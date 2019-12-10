@@ -43,7 +43,6 @@ static hashval_t list_hash_pieces (tree, tree, tree);
 static tree build_target_expr (tree, tree, tsubst_flags_t);
 static tree count_trees_r (tree *, int *, void *);
 static tree verify_stmt_tree_r (tree *, int *, void *);
-static tree build_local_temp (tree);
 
 static tree handle_init_priority_attribute (tree *, tree, tree, int, bool *);
 static tree handle_abi_tag_attribute (tree *, tree, tree, int, bool *);
@@ -236,10 +235,23 @@ lvalue_kind (const_tree ref)
 	  gcc_assert (!type_dependent_expression_p (CONST_CAST_TREE (ref)));
 	  goto default_;
 	}
-      op1_lvalue_kind = lvalue_kind (TREE_OPERAND (ref, 1)
-				    ? TREE_OPERAND (ref, 1)
-				    : TREE_OPERAND (ref, 0));
-      op2_lvalue_kind = lvalue_kind (TREE_OPERAND (ref, 2));
+      {
+	tree op1 = TREE_OPERAND (ref, 1);
+	if (!op1) op1 = TREE_OPERAND (ref, 0);
+	tree op2 = TREE_OPERAND (ref, 2);
+	op1_lvalue_kind = lvalue_kind (op1);
+	op2_lvalue_kind = lvalue_kind (op2);
+	if (!op1_lvalue_kind != !op2_lvalue_kind)
+	  {
+	    /* The second or the third operand (but not both) is a
+	       throw-expression; the result is of the type
+	       and value category of the other.  */
+	    if (op1_lvalue_kind && TREE_CODE (op2) == THROW_EXPR)
+	      op2_lvalue_kind = op1_lvalue_kind;
+	    else if (op2_lvalue_kind && TREE_CODE (op1) == THROW_EXPR)
+	      op1_lvalue_kind = op2_lvalue_kind;
+	  }
+      }
       break;
 
     case MODOP_EXPR:
@@ -512,7 +524,7 @@ build_target_expr (tree decl, tree value, tsubst_flags_t complain)
 /* Return an undeclared local temporary of type TYPE for use in building a
    TARGET_EXPR.  */
 
-static tree
+tree
 build_local_temp (tree type)
 {
   tree slot = build_decl (input_location,
@@ -1418,7 +1430,10 @@ apply_identity_attributes (tree result, tree attribs, bool *remove_attributes)
   return cp_build_type_attribute_variant (result, new_attribs);
 }
 
-/* Builds a qualified variant of T that is not a typedef variant.
+/* Builds a qualified variant of T that is either not a typedef variant
+   (the default behavior) or not a typedef variant of a user-facing type
+   (if FLAGS contains STF_USER_FACING).
+
    E.g. consider the following declarations:
      typedef const int ConstInt;
      typedef ConstInt* PtrConstInt;
@@ -1443,7 +1458,7 @@ apply_identity_attributes (tree result, tree attribs, bool *remove_attributes)
    stripped.  */
 
 tree
-strip_typedefs (tree t, bool *remove_attributes)
+strip_typedefs (tree t, bool *remove_attributes, unsigned int flags)
 {
   tree result = NULL, type = NULL, t0 = NULL;
 
@@ -1458,7 +1473,7 @@ strip_typedefs (tree t, bool *remove_attributes)
       for (; t; t = TREE_CHAIN (t))
 	{
 	  gcc_assert (!TREE_PURPOSE (t));
-	  tree elt = strip_typedefs (TREE_VALUE (t), remove_attributes);
+	  tree elt = strip_typedefs (TREE_VALUE (t), remove_attributes, flags);
 	  if (elt != TREE_VALUE (t))
 	    changed = true;
 	  vec_safe_push (vec, elt);
@@ -1473,7 +1488,8 @@ strip_typedefs (tree t, bool *remove_attributes)
   if (t == TYPE_CANONICAL (t))
     return t;
 
-  if (dependent_alias_template_spec_p (t))
+  if (!(flags & STF_STRIP_DEPENDENT)
+      && dependent_alias_template_spec_p (t))
     /* DR 1558: However, if the template-id is dependent, subsequent
        template argument substitution still applies to the template-id.  */
     return t;
@@ -1481,28 +1497,29 @@ strip_typedefs (tree t, bool *remove_attributes)
   switch (TREE_CODE (t))
     {
     case POINTER_TYPE:
-      type = strip_typedefs (TREE_TYPE (t), remove_attributes);
+      type = strip_typedefs (TREE_TYPE (t), remove_attributes, flags);
       result = build_pointer_type (type);
       break;
     case REFERENCE_TYPE:
-      type = strip_typedefs (TREE_TYPE (t), remove_attributes);
+      type = strip_typedefs (TREE_TYPE (t), remove_attributes, flags);
       result = cp_build_reference_type (type, TYPE_REF_IS_RVALUE (t));
       break;
     case OFFSET_TYPE:
-      t0 = strip_typedefs (TYPE_OFFSET_BASETYPE (t), remove_attributes);
-      type = strip_typedefs (TREE_TYPE (t), remove_attributes);
+      t0 = strip_typedefs (TYPE_OFFSET_BASETYPE (t), remove_attributes, flags);
+      type = strip_typedefs (TREE_TYPE (t), remove_attributes, flags);
       result = build_offset_type (t0, type);
       break;
     case RECORD_TYPE:
       if (TYPE_PTRMEMFUNC_P (t))
 	{
-	  t0 = strip_typedefs (TYPE_PTRMEMFUNC_FN_TYPE (t), remove_attributes);
+	  t0 = strip_typedefs (TYPE_PTRMEMFUNC_FN_TYPE (t),
+			       remove_attributes, flags);
 	  result = build_ptrmemfunc_type (t0);
 	}
       break;
     case ARRAY_TYPE:
-      type = strip_typedefs (TREE_TYPE (t), remove_attributes);
-      t0  = strip_typedefs (TYPE_DOMAIN (t), remove_attributes);
+      type = strip_typedefs (TREE_TYPE (t), remove_attributes, flags);
+      t0  = strip_typedefs (TYPE_DOMAIN (t), remove_attributes, flags);
       result = build_cplus_array_type (type, t0);
       break;
     case FUNCTION_TYPE:
@@ -1521,7 +1538,7 @@ strip_typedefs (tree t, bool *remove_attributes)
 	    && (TYPE_ATTRIBUTES (t) || TYPE_USER_ALIGN (t)))
 	  is_variant = true;
 
-	type = strip_typedefs (TREE_TYPE (t), remove_attributes);
+	type = strip_typedefs (TREE_TYPE (t), remove_attributes, flags);
 	tree canon_spec = (flag_noexcept_type
 			   ? canonical_eh_spec (TYPE_RAISES_EXCEPTIONS (t))
 			   : NULL_TREE);
@@ -1535,7 +1552,7 @@ strip_typedefs (tree t, bool *remove_attributes)
 	    if (arg_node == void_list_node)
 	      break;
 	    arg_type = strip_typedefs (TREE_VALUE (arg_node),
-				       remove_attributes);
+				       remove_attributes, flags);
 	    gcc_assert (arg_type);
 	    if (arg_type == TREE_VALUE (arg_node) && !changed)
 	      continue;
@@ -1599,9 +1616,10 @@ strip_typedefs (tree t, bool *remove_attributes)
 		tree arg = TREE_VEC_ELT (args, i);
 		tree strip_arg;
 		if (TYPE_P (arg))
-		  strip_arg = strip_typedefs (arg, remove_attributes);
+		  strip_arg = strip_typedefs (arg, remove_attributes, flags);
 		else
-		  strip_arg = strip_typedefs_expr (arg, remove_attributes);
+		  strip_arg = strip_typedefs_expr (arg, remove_attributes,
+						   flags);
 		TREE_VEC_ELT (new_args, i) = strip_arg;
 		if (strip_arg != arg)
 		  changed = true;
@@ -1617,7 +1635,7 @@ strip_typedefs (tree t, bool *remove_attributes)
 	    else
 	      ggc_free (new_args);
 	  }
-	tree ctx = strip_typedefs (TYPE_CONTEXT (t), remove_attributes);
+	tree ctx = strip_typedefs (TYPE_CONTEXT (t), remove_attributes, flags);
 	if (!changed && ctx == TYPE_CONTEXT (t) && !typedef_variant_p (t))
 	  return t;
 	tree name = fullname;
@@ -1630,7 +1648,7 @@ strip_typedefs (tree t, bool *remove_attributes)
       break;
     case DECLTYPE_TYPE:
       result = strip_typedefs_expr (DECLTYPE_TYPE_EXPR (t),
-				    remove_attributes);
+				    remove_attributes, flags);
       if (result == DECLTYPE_TYPE_EXPR (t))
 	result = NULL_TREE;
       else
@@ -1640,7 +1658,8 @@ strip_typedefs (tree t, bool *remove_attributes)
 		   tf_none));
       break;
     case UNDERLYING_TYPE:
-      type = strip_typedefs (UNDERLYING_TYPE_TYPE (t), remove_attributes);
+      type = strip_typedefs (UNDERLYING_TYPE_TYPE (t),
+			     remove_attributes, flags);
       result = finish_underlying_type (type);
       break;
     default:
@@ -1651,15 +1670,19 @@ strip_typedefs (tree t, bool *remove_attributes)
     {
       if (typedef_variant_p (t))
 	{
-	  /* Explicitly get the underlying type, as TYPE_MAIN_VARIANT doesn't
-	     strip typedefs with attributes.  */
-	  result = TYPE_MAIN_VARIANT (DECL_ORIGINAL_TYPE (TYPE_NAME (t)));
-	  result = strip_typedefs (result);
+	  if ((flags & STF_USER_VISIBLE)
+	      && !user_facing_original_type_p (t))
+	    return t;
+	  result = strip_typedefs (DECL_ORIGINAL_TYPE (TYPE_NAME (t)),
+				   remove_attributes,
+				   flags | STF_STRIP_DEPENDENT);
 	}
       else
 	result = TYPE_MAIN_VARIANT (t);
     }
-  gcc_assert (!typedef_variant_p (result));
+  gcc_assert (!typedef_variant_p (result)
+	      || ((flags & STF_USER_VISIBLE)
+		  && !user_facing_original_type_p (result)));
 
   if (COMPLETE_TYPE_P (result) && !COMPLETE_TYPE_P (t))
   /* If RESULT is complete and T isn't, it's likely the case that T
@@ -1708,7 +1731,7 @@ strip_typedefs (tree t, bool *remove_attributes)
    sizeof(TT) is replaced by sizeof(T).  */
 
 tree
-strip_typedefs_expr (tree t, bool *remove_attributes)
+strip_typedefs_expr (tree t, bool *remove_attributes, unsigned int flags)
 {
   unsigned i,n;
   tree r, type, *ops;
@@ -1725,7 +1748,7 @@ strip_typedefs_expr (tree t, bool *remove_attributes)
   /* Some expressions have type operands, so let's handle types here rather
      than check TYPE_P in multiple places below.  */
   if (TYPE_P (t))
-    return strip_typedefs (t, remove_attributes);
+    return strip_typedefs (t, remove_attributes, flags);
 
   code = TREE_CODE (t);
   switch (code)
@@ -1739,8 +1762,10 @@ strip_typedefs_expr (tree t, bool *remove_attributes)
 
     case TRAIT_EXPR:
       {
-	tree type1 = strip_typedefs (TRAIT_EXPR_TYPE1 (t), remove_attributes);
-	tree type2 = strip_typedefs (TRAIT_EXPR_TYPE2 (t), remove_attributes);
+	tree type1 = strip_typedefs (TRAIT_EXPR_TYPE1 (t),
+				     remove_attributes, flags);
+	tree type2 = strip_typedefs (TRAIT_EXPR_TYPE2 (t),
+				     remove_attributes, flags);
 	if (type1 == TRAIT_EXPR_TYPE1 (t)
 	    && type2 == TRAIT_EXPR_TYPE2 (t))
 	  return t;
@@ -1757,7 +1782,8 @@ strip_typedefs_expr (tree t, bool *remove_attributes)
 	tree it;
 	for (it = t; it; it = TREE_CHAIN (it))
 	  {
-	    tree val = strip_typedefs_expr (TREE_VALUE (it), remove_attributes);
+	    tree val = strip_typedefs_expr (TREE_VALUE (it),
+					    remove_attributes, flags);
 	    vec_safe_push (vec, val);
 	    if (val != TREE_VALUE (it))
 	      changed = true;
@@ -1783,7 +1809,7 @@ strip_typedefs_expr (tree t, bool *remove_attributes)
 	for (i = 0; i < n; ++i)
 	  {
 	    tree op = strip_typedefs_expr (TREE_VEC_ELT (t, i),
-					   remove_attributes);
+					   remove_attributes, flags);
 	    vec->quick_push (op);
 	    if (op != TREE_VEC_ELT (t, i))
 	      changed = true;
@@ -1807,18 +1833,19 @@ strip_typedefs_expr (tree t, bool *remove_attributes)
 	vec<constructor_elt, va_gc> *vec
 	  = vec_safe_copy (CONSTRUCTOR_ELTS (t));
 	n = CONSTRUCTOR_NELTS (t);
-	type = strip_typedefs (TREE_TYPE (t), remove_attributes);
+	type = strip_typedefs (TREE_TYPE (t), remove_attributes, flags);
 	for (i = 0; i < n; ++i)
 	  {
 	    constructor_elt *e = &(*vec)[i];
-	    tree op = strip_typedefs_expr (e->value, remove_attributes);
+	    tree op = strip_typedefs_expr (e->value, remove_attributes, flags);
 	    if (op != e->value)
 	      {
 		changed = true;
 		e->value = op;
 	      }
 	    gcc_checking_assert
-	      (e->index == strip_typedefs_expr (e->index, remove_attributes));
+	      (e->index == strip_typedefs_expr (e->index, remove_attributes,
+						flags));
 	  }
 
 	if (!changed && type == TREE_TYPE (t))
@@ -1862,12 +1889,13 @@ strip_typedefs_expr (tree t, bool *remove_attributes)
     case REINTERPRET_CAST_EXPR:
     case CAST_EXPR:
     case NEW_EXPR:
-      type = strip_typedefs (type, remove_attributes);
+      type = strip_typedefs (type, remove_attributes, flags);
       /* fallthrough */
 
     default:
       for (i = 0; i < n; ++i)
-	ops[i] = strip_typedefs_expr (TREE_OPERAND (t, i), remove_attributes);
+	ops[i] = strip_typedefs_expr (TREE_OPERAND (t, i),
+				      remove_attributes, flags);
       break;
     }
 
@@ -2546,6 +2574,7 @@ canonical_eh_spec (tree raises)
   if (raises == NULL_TREE)
     return raises;
   else if (DEFERRED_NOEXCEPT_SPEC_P (raises)
+	   || UNPARSED_NOEXCEPT_SPEC_P (raises)
 	   || uses_template_parms (raises)
 	   || uses_template_parms (TREE_PURPOSE (raises)))
     /* Keep a dependent or deferred exception specification.  */
@@ -3115,6 +3144,11 @@ replace_placeholders_r (tree* t, int* walk_subtrees, void* data_)
 	    tree type = TREE_TYPE (*valp);
 	    tree subob = obj;
 
+	    /* Elements with RANGE_EXPR index shouldn't have any
+	       placeholders in them.  */
+	    if (ce->index && TREE_CODE (ce->index) == RANGE_EXPR)
+	      continue;
+
 	    if (TREE_CODE (*valp) == CONSTRUCTOR
 		&& AGGREGATE_TYPE_P (type))
 	      {
@@ -3656,6 +3690,7 @@ cp_tree_equal (tree t1, tree t2)
     case IDENTIFIER_NODE:
     case SSA_NAME:
     case USING_DECL:
+    case DEFERRED_PARSE:
       return false;
 
     case BASELINK:
@@ -4350,16 +4385,79 @@ zero_init_p (const_tree t)
   return 1;
 }
 
+/* True IFF T is a C++20 structural type (P1907R1) that can be used as a
+   non-type template parameter.  If EXPLAIN, explain why not.  */
+
+bool
+structural_type_p (tree t, bool explain)
+{
+  t = strip_array_types (t);
+  if (INTEGRAL_OR_ENUMERATION_TYPE_P (t))
+    return true;
+  if (NULLPTR_TYPE_P (t))
+    return true;
+  if (TYPE_PTR_P (t) || TYPE_PTRMEM_P (t))
+    return true;
+  if (TYPE_REF_P (t) && !TYPE_REF_IS_RVALUE (t))
+    return true;
+  if (!CLASS_TYPE_P (t))
+    return false;
+  if (TREE_CODE (t) == UNION_TYPE)
+    {
+      if (explain)
+	inform (location_of (t), "%qT is a union", t);
+      return false;
+    }
+  if (!literal_type_p (t))
+    {
+      if (explain)
+	explain_non_literal_class (t);
+      return false;
+    }
+  if (CLASSTYPE_HAS_MUTABLE (t))
+    {
+      if (explain)
+	inform (location_of (t), "%qT has a mutable member", t);
+      return false;
+    }
+  for (tree m = next_initializable_field (TYPE_FIELDS (t)); m;
+       m = next_initializable_field (DECL_CHAIN (m)))
+    {
+      if (TREE_PRIVATE (m) || TREE_PROTECTED (m))
+	{
+	  if (explain)
+	    inform (location_of (m), "%qD is not public", m);
+	  return false;
+	}
+      if (!structural_type_p (TREE_TYPE (m)))
+	{
+	  if (explain)
+	    {
+	      inform (location_of (m), "%qD has a non-structural type", m);
+	      structural_type_p (TREE_TYPE (m), true);
+	    }
+	  return false;
+	}
+    }
+  return true;
+}
+
 /* Handle the C++17 [[nodiscard]] attribute, which is similar to the GNU
    warn_unused_result attribute.  */
 
 static tree
-handle_nodiscard_attribute (tree *node, tree name, tree /*args*/,
+handle_nodiscard_attribute (tree *node, tree name, tree args,
 			    int /*flags*/, bool *no_add_attrs)
 {
+  if (args && TREE_CODE (TREE_VALUE (args)) != STRING_CST)
+    {
+      error ("%qE attribute argument must be a string constant", name);
+      *no_add_attrs = true;
+    }
   if (TREE_CODE (*node) == FUNCTION_DECL)
     {
-      if (VOID_TYPE_P (TREE_TYPE (TREE_TYPE (*node))))
+      if (VOID_TYPE_P (TREE_TYPE (TREE_TYPE (*node)))
+	  && !DECL_CONSTRUCTOR_P (*node))
 	warning_at (DECL_SOURCE_LOCATION (*node),
 		    OPT_Wattributes, "%qE attribute applied to %qD with void "
 		    "return type", name, *node);
@@ -4445,7 +4543,7 @@ const struct attribute_spec std_attribute_table[] =
        affects_type_identity, handler, exclude } */
   { "maybe_unused", 0, 0, false, false, false, false,
     handle_unused_attribute, NULL },
-  { "nodiscard", 0, 0, false, false, false, false,
+  { "nodiscard", 0, 1, false, false, false, false,
     handle_nodiscard_attribute, NULL },
   { "no_unique_address", 0, 0, true, false, false, false,
     handle_no_unique_addr_attribute, NULL },
@@ -4453,6 +4551,8 @@ const struct attribute_spec std_attribute_table[] =
     handle_likeliness_attribute, attr_cold_hot_exclusions },
   { "unlikely", 0, 0, false, false, false, false,
     handle_likeliness_attribute, attr_cold_hot_exclusions },
+  { "noreturn", 0, 0, true, false, false, false,
+    handle_noreturn_attribute, attr_noreturn_exclusions },
   { NULL, 0, 0, false, false, false, false, NULL, NULL }
 };
 
@@ -4784,7 +4884,7 @@ cp_walk_subtrees (tree *tp, int *walk_subtrees_p, walk_tree_fn func,
   result = NULL_TREE;
   switch (code)
     {
-    case DEFAULT_ARG:
+    case DEFERRED_PARSE:
     case TEMPLATE_TEMPLATE_PARM:
     case BOUND_TEMPLATE_TEMPLATE_PARM:
     case UNBOUND_CLASS_TEMPLATE:
@@ -5006,7 +5106,35 @@ special_function_p (const_tree decl)
     return sfk_conversion;
   if (deduction_guide_p (decl))
     return sfk_deduction_guide;
+  if (DECL_OVERLOADED_OPERATOR_CODE_RAW (decl) >= OVL_OP_EQ_EXPR
+      && DECL_OVERLOADED_OPERATOR_CODE_RAW (decl) <= OVL_OP_SPACESHIP_EXPR)
+    return sfk_comparison;
 
+  return sfk_none;
+}
+
+/* As above, but only if DECL is a special member function as per 11.3.3
+   [special]: default/copy/move ctor, copy/move assignment, or destructor.  */
+
+special_function_kind
+special_memfn_p (const_tree decl)
+{
+  switch (special_function_kind sfk = special_function_p (decl))
+    {
+    case sfk_constructor:
+      if (!default_ctor_p (decl))
+	break;
+      gcc_fallthrough();
+    case sfk_copy_constructor:
+    case sfk_copy_assignment:
+    case sfk_move_assignment:
+    case sfk_move_constructor:
+    case sfk_destructor:
+      return sfk;
+
+    default:
+      break;
+    }
   return sfk_none;
 }
 
@@ -5457,6 +5585,8 @@ cp_expr_location (const_tree t_)
       return LAMBDA_EXPR_LOCATION (t);
     case STATIC_ASSERT:
       return STATIC_ASSERT_SOURCE_LOCATION (t);
+    case TRAIT_EXPR:
+      return TRAIT_EXPR_LOCATION (t);
     default:
       return EXPR_LOCATION (t);
     }
@@ -5475,6 +5605,68 @@ maybe_warn_zero_as_null_pointer_constant (tree expr, location_t loc)
       return true;
     }
   return false;
+}
+
+/* Given an initializer INIT for a TYPE, return true if INIT is zero
+   so that it can be replaced by value initialization.  This function
+   distinguishes betwen empty strings as initializers for arrays and
+   for pointers (which make it return false).  */
+
+bool
+type_initializer_zero_p (tree type, tree init)
+{
+  if (type == error_mark_node || init == error_mark_node)
+    return false;
+
+  STRIP_NOPS (init);
+
+  if (POINTER_TYPE_P (type))
+    return TREE_CODE (init) != STRING_CST && initializer_zerop (init);
+
+  if (TREE_CODE (init) != CONSTRUCTOR)
+    return initializer_zerop (init);
+
+  if (TREE_CODE (type) == ARRAY_TYPE)
+    {
+      tree elt_type = TREE_TYPE (type);
+      elt_type = TYPE_MAIN_VARIANT (elt_type);
+      if (elt_type == char_type_node)
+	return initializer_zerop (init);
+
+      tree elt_init;
+      unsigned HOST_WIDE_INT i;
+      FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (init), i, elt_init)
+	if (!type_initializer_zero_p (elt_type, elt_init))
+	  return false;
+      return true;
+    }
+
+  if (TREE_CODE (type) != RECORD_TYPE)
+    return initializer_zerop (init);
+
+  if (TYPE_NON_AGGREGATE_CLASS (type))
+    return false;
+
+  tree fld = TYPE_FIELDS (type);
+
+  tree fld_init;
+  unsigned HOST_WIDE_INT i;
+  FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (init), i, fld_init)
+    {
+      fld = next_initializable_field (fld);
+      if (!fld)
+	return true;
+
+      tree fldtype = TREE_TYPE (fld);
+      if (!type_initializer_zero_p (fldtype, fld_init))
+	return false;
+
+      fld = DECL_CHAIN (fld);
+      if (!fld)
+	break;
+    }
+
+  return true;
 }
 
 #if defined ENABLE_TREE_CHECKING && (GCC_VERSION >= 2007)

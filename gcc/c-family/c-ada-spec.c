@@ -1025,7 +1025,9 @@ get_underlying_decl (tree type)
 
   if (TYPE_P (type))
     {
-      type = TYPE_MAIN_VARIANT (type);
+      /* Strip qualifiers but do not look through typedefs.  */
+      if (TYPE_QUALS_NO_ADDR_SPACE (type))
+	type = TYPE_MAIN_VARIANT (type);
 
       /* type is a typedef.  */
       if (TYPE_NAME (type) && DECL_P (TYPE_NAME (type)))
@@ -1589,14 +1591,13 @@ dump_ada_function_declaration (pretty_printer *buffer, tree func,
 			       bool is_method, bool is_constructor,
 			       bool is_destructor, int spc)
 {
-  tree arg;
-  const tree node = TREE_TYPE (func);
+  tree type = TREE_TYPE (func);
+  tree arg = TYPE_ARG_TYPES (type);
+  tree t;
   char buf[17];
-  int num = 0, num_args = 0, have_args = true, have_ellipsis = false;
+  int num, num_args = 0, have_args = true, have_ellipsis = false;
 
   /* Compute number of arguments.  */
-  arg = TYPE_ARG_TYPES (node);
-
   if (arg)
     {
       while (TREE_CHAIN (arg) && arg != error_mark_node)
@@ -1627,25 +1628,29 @@ dump_ada_function_declaration (pretty_printer *buffer, tree func,
       pp_left_paren (buffer);
     }
 
+  /* For a function, see if we have the corresponding arguments.  */
   if (TREE_CODE (func) == FUNCTION_DECL)
-    arg = DECL_ARGUMENTS (func);
+    {
+      arg = DECL_ARGUMENTS (func);
+      for (t = arg, num = 0; t; t = DECL_CHAIN (t))
+	num++;
+      if (num < num_args)
+	arg = NULL_TREE;
+    }
   else
     arg = NULL_TREE;
 
-  if (arg == NULL_TREE)
+  /* Otherwise, only print the types.  */
+  if (!arg)
     {
       have_args = false;
-      arg = TYPE_ARG_TYPES (node);
-
-      if (arg && TREE_CODE (TREE_VALUE (arg)) == VOID_TYPE)
-	arg = NULL_TREE;
+      arg = TYPE_ARG_TYPES (type);
     }
 
   if (is_constructor)
     arg = TREE_CHAIN (arg);
 
-  /* Print the argument names (if available) & types.  */
-
+  /* Print the argument names (if available) and types.  */
   for (num = 1; num <= num_args; num++)
     {
       if (have_args)
@@ -1663,13 +1668,13 @@ dump_ada_function_declaration (pretty_printer *buffer, tree func,
 	      pp_string (buffer, buf);
 	    }
 
-	  dump_ada_node (buffer, TREE_TYPE (arg), node, spc, false, true);
+	  dump_ada_node (buffer, TREE_TYPE (arg), type, spc, false, true);
 	}
       else
 	{
 	  sprintf (buf, "arg%d : ", num);
 	  pp_string (buffer, buf);
-	  dump_ada_node (buffer, TREE_VALUE (arg), node, spc, false, true);
+	  dump_ada_node (buffer, TREE_VALUE (arg), type, spc, false, true);
 	}
 
       /* If the type is a pointer to a tagged type, we need to differentiate
@@ -1707,11 +1712,11 @@ dump_ada_function_declaration (pretty_printer *buffer, tree func,
   if (num_args > 0)
     pp_right_paren (buffer);
 
-  if (is_constructor || !VOID_TYPE_P (TREE_TYPE (node)))
+  if (is_constructor || !VOID_TYPE_P (TREE_TYPE (type)))
     {
       pp_string (buffer, " return ");
-      tree type = is_constructor ? DECL_CONTEXT (func) : TREE_TYPE (node);
-      dump_ada_node (buffer, type, type, spc, false, true);
+      tree rtype = is_constructor ? DECL_CONTEXT (func) : TREE_TYPE (type);
+      dump_ada_node (buffer, rtype, rtype, spc, false, true);
     }
 }
 
@@ -2451,6 +2456,9 @@ dump_forward_type (pretty_printer *buffer, tree type, tree t, int spc)
   if (DECL_SOURCE_FILE (decl) != DECL_SOURCE_FILE (t))
     return;
 
+  if (TREE_CODE (type) == FUNCTION_TYPE)
+    return;
+
   /* Generate an incomplete type declaration.  */
   pp_string (buffer, "type ");
   dump_ada_node (buffer, decl, NULL_TREE, spc, false, true);
@@ -2519,7 +2527,10 @@ dump_nested_type (pretty_printer *buffer, tree field, tree t, tree parent,
       while (TREE_CODE (tmp) == ARRAY_TYPE)
 	tmp = TREE_TYPE (tmp);
       decl = get_underlying_decl (tmp);
-      if (decl && !DECL_NAME (decl) && !TREE_VISITED (decl))
+      if (decl
+	  && !DECL_NAME (decl)
+	  && DECL_SOURCE_FILE (decl) == DECL_SOURCE_FILE (t)
+	  && !TREE_VISITED (decl))
 	{
 	  /* Generate full declaration.  */
 	  dump_nested_type (buffer, decl, t, parent, spc);

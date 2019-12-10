@@ -159,24 +159,11 @@ ada_demangle (const char *mangled, int options);
 extern char *
 dlang_demangle (const char *mangled, int options);
 
-/* Returns non-zero iff MANGLED is a rust mangled symbol.  MANGLED must
-   already have been demangled through cplus_demangle_v3.  If this function
-   returns non-zero then MANGLED can be demangled (in-place) using
-   RUST_DEMANGLE_SYM.  */
 extern int
-rust_is_mangled (const char *mangled);
+rust_demangle_callback (const char *mangled, int options,
+                        demangle_callbackref callback, void *opaque);
 
-/* Demangles SYM (in-place) if RUST_IS_MANGLED returned non-zero for SYM.
-   If RUST_IS_MANGLED returned zero for SYM then RUST_DEMANGLE_SYM might
-   replace characters that cannot be demangled with '?' and might truncate
-   SYM.  After calling RUST_DEMANGLE_SYM SYM might be shorter, but never
-   larger.  */
-extern void
-rust_demangle_sym (char *sym);
 
-/* Demangles MANGLED if it was GNU_V3 and then RUST mangled, otherwise
-   returns NULL. Uses CPLUS_DEMANGLE_V3, RUST_IS_MANGLED and
-   RUST_DEMANGLE_SYM.  Returns a new string that is owned by the caller.  */
 extern char *
 rust_demangle (const char *mangled, int options);
 
@@ -481,6 +468,7 @@ struct demangle_component
      Initialize to zero.  Private to d_print_comp.
      All other fields are final after initialization.  */
   int d_printing;
+  int d_counting;
 
   union
   {

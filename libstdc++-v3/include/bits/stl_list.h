@@ -563,7 +563,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 #if __cplusplus >= 201103L
       static_assert(is_same<typename remove_cv<_Tp>::type, _Tp>::value,
 	  "std::list must have a non-const, non-volatile value_type");
-# ifdef __STRICT_ANSI__
+# if __cplusplus > 201703L || defined __STRICT_ANSI__
       static_assert(is_same<typename _Alloc::value_type, _Tp>::value,
 	  "std::list must have the same value_type as its allocator");
 # endif
@@ -1957,8 +1957,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 	else
 	  // The rvalue's allocator cannot be moved, or is not equal,
 	  // so we need to individually move each element.
-	  _M_assign_dispatch(std::__make_move_if_noexcept_iterator(__x.begin()),
-			     std::__make_move_if_noexcept_iterator(__x.end()),
+	  _M_assign_dispatch(std::make_move_iterator(__x.begin()),
+			     std::make_move_iterator(__x.end()),
 			     __false_type{});
       }
 #endif

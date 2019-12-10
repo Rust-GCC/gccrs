@@ -470,6 +470,16 @@ pp_c_specifier_qualifier_list (c_pretty_printer *pp, tree t)
 			     ? "_Complex" : "__complex__"));
       else if (code == VECTOR_TYPE)
 	{
+	  /* The syntax we print for vector types isn't real C or C++ syntax,
+	     so it's better to print the type name if we have one.  */
+	  tree name = TYPE_NAME (t);
+	  if (!(pp->flags & pp_c_flag_gnu_v3)
+	      && name
+	      && TREE_CODE (name) == TYPE_DECL)
+	    {
+	      pp->id_expression (name);
+	      break;
+	    }
 	  pp_c_ws_string (pp, "__vector");
 	  pp_c_left_paren (pp);
 	  pp_wide_integer (pp, TYPE_VECTOR_SUBPARTS (t));
@@ -525,7 +535,7 @@ pp_c_parameter_type_list (c_pretty_printer *pp, tree t)
       if (!first && !parms)
 	{
 	  pp_separate_with (pp, ',');
-	  pp_c_ws_string (pp, "...");
+	  pp_string (pp, "...");
 	}
     }
   pp_c_right_paren (pp);
@@ -571,16 +581,20 @@ c_pretty_printer::direct_abstract_declarator (tree t)
 
     case ARRAY_TYPE:
       pp_c_left_bracket (this);
-      if (TYPE_DOMAIN (t) && TYPE_MAX_VALUE (TYPE_DOMAIN (t)))
+      if (tree dom = TYPE_DOMAIN (t))
 	{
-	  tree maxval = TYPE_MAX_VALUE (TYPE_DOMAIN (t));
-	  tree type = TREE_TYPE (maxval);
+	  if (tree maxval = TYPE_MAX_VALUE (dom))
+	    {
+	      tree type = TREE_TYPE (maxval);
 
-	  if (tree_fits_shwi_p (maxval))
-	    pp_wide_integer (this, tree_to_shwi (maxval) + 1);
+	      if (tree_fits_shwi_p (maxval))
+		pp_wide_integer (this, tree_to_shwi (maxval) + 1);
+	      else
+		expression (fold_build2 (PLUS_EXPR, type, maxval,
+					 build_int_cst (type, 1)));
+	    }
 	  else
-	    expression (fold_build2 (PLUS_EXPR, type, maxval,
-                                     build_int_cst (type, 1)));
+	    pp_string (this, "0");
 	}
       pp_c_right_bracket (this);
       direct_abstract_declarator (TREE_TYPE (t));

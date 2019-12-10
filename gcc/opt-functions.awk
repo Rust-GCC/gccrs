@@ -105,7 +105,8 @@ function switch_flags (flags)
 	  test_flag("Undocumented", flags,  " | CL_UNDOCUMENTED") \
 	  test_flag("NoDWARFRecord", flags,  " | CL_NO_DWARF_RECORD") \
 	  test_flag("Warning", flags,  " | CL_WARNING") \
-	  test_flag("(Optimization|PerFunction)", flags,  " | CL_OPTIMIZATION")
+	  test_flag("(Optimization|PerFunction)", flags,  " | CL_OPTIMIZATION") \
+	  test_flag("Param", flags,  " | CL_PARAMS")
 	sub( "^0 \\| ", "", result )
 	return result
 }
@@ -346,9 +347,10 @@ function search_var_name(name, opt_numbers, opts, flags, n_opts)
 function integer_range_info(range_option, init, option)
 {
     if (range_option != "") {
-	start = nth_arg(0, range_option);
-	end = nth_arg(1, range_option);
-	if (init != "" && init != "-1" && (init < start || init > end))
+	ival = init + 0;
+	start = nth_arg(0, range_option) + 0;
+	end = nth_arg(1, range_option) + 0;
+	if (init != "" && init != "-1" && (ival < start || ival > end))
 	  print "#error initial value " init " of '" option "' must be in range [" start "," end "]"
 	return start ", " end
     }

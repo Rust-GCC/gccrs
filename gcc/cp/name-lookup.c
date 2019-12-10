@@ -29,7 +29,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "attribs.h"
 #include "debug.h"
 #include "c-family/c-pragma.h"
-#include "params.h"
 #include "gcc-rich-location.h"
 #include "spellcheck-tree.h"
 #include "parser.h"
@@ -157,7 +156,7 @@ find_local_binding (cp_binding_level *b, tree name)
   return NULL;
 }
 
-struct name_lookup
+class name_lookup
 {
 public:
   typedef std::pair<tree, tree> using_pair;
@@ -1273,7 +1272,7 @@ get_class_binding_direct (tree klass, tree name, bool want_type)
    special function creation as necessary.  */
 
 tree
-get_class_binding (tree klass, tree name, bool want_type)
+get_class_binding (tree klass, tree name, bool want_type /*=false*/)
 {
   klass = complete_type (klass);
 
@@ -2268,7 +2267,13 @@ diagnose_name_conflict (tree decl, tree bval)
       && (TREE_CODE (decl) != TYPE_DECL
 	  || DECL_ARTIFICIAL (decl) == DECL_ARTIFICIAL (bval))
       && CP_DECL_CONTEXT (decl) == CP_DECL_CONTEXT (bval))
-    error ("redeclaration of %q#D", decl);
+    {
+      if (concept_definition_p (decl))
+        error ("redeclaration of %q#D with different template parameters",
+               decl);
+      else
+        error ("redeclaration of %q#D", decl);
+    }
   else
     error ("%q#D conflicts with a previous declaration", decl);
 
@@ -2333,6 +2338,9 @@ matching_fn_p (tree one, tree two)
 			TREE_TYPE (TREE_TYPE (two))))
 	return false;
     }
+
+  if (!equivalently_constrained (one, two))
+    return false;
 
   return true;
 }
@@ -2549,12 +2557,12 @@ check_extern_c_conflict (tree decl)
       if (mismatch)
 	{
 	  auto_diagnostic_group d;
-	  pedwarn (input_location, 0,
+	  pedwarn (DECL_SOURCE_LOCATION (decl), 0,
 		   "conflicting C language linkage declaration %q#D", decl);
 	  inform (DECL_SOURCE_LOCATION (old),
 		  "previous declaration %q#D", old);
 	  if (mismatch < 0)
-	    inform (input_location,
+	    inform (DECL_SOURCE_LOCATION (decl),
 		    "due to different exception specifications");
 	}
       else
@@ -2674,7 +2682,8 @@ check_local_shadow (tree decl)
 	  /* ARM $8.3 */
 	  if (b->kind == sk_function_parms)
 	    {
-	      error ("declaration of %q#D shadows a parameter", decl);
+	      error_at (DECL_SOURCE_LOCATION (decl),
+			"declaration of %q#D shadows a parameter", decl);
 	      return;
 	    }
 	}
@@ -2700,7 +2709,8 @@ check_local_shadow (tree decl)
 	       && (old_scope->kind == sk_cond || old_scope->kind == sk_for))
 	{
 	  auto_diagnostic_group d;
-	  error ("redeclaration of %q#D", decl);
+	  error_at (DECL_SOURCE_LOCATION (decl),
+		    "redeclaration of %q#D", decl);
 	  inform (DECL_SOURCE_LOCATION (old),
 		  "%q#D previously declared here", old);
 	  return;
@@ -2723,7 +2733,8 @@ check_local_shadow (tree decl)
 		   && in_function_try_handler))
 	{
 	  auto_diagnostic_group d;
-	  if (permerror (input_location, "redeclaration of %q#D", decl))
+	  if (permerror (DECL_SOURCE_LOCATION (decl),
+			 "redeclaration of %q#D", decl))
 	    inform (DECL_SOURCE_LOCATION (old),
 		    "%q#D previously declared here", old);
 	  return;
@@ -2738,29 +2749,31 @@ check_local_shadow (tree decl)
 	 parameter, more than often they would use the variable
 	 thinking (mistakenly) it's still the parameter. It would be
 	 rare that users would use the variable in the place that
-	 expects the parameter but thinking it's a new decl.  */
+	 expects the parameter but thinking it's a new decl.
+	 If either object is a TYPE_DECL, '-Wshadow=compatible-local'
+	 warns regardless of whether one of the types involved
+	 is a subclass of the other, since that is never okay.  */
 
       enum opt_code warning_code;
       if (warn_shadow)
 	warning_code = OPT_Wshadow;
-      else if (warn_shadow_local)
-	warning_code = OPT_Wshadow_local;
-      else if (warn_shadow_compatible_local
-	       && (same_type_p (TREE_TYPE (old), TREE_TYPE (decl))
-		   || (!dependent_type_p (TREE_TYPE (decl))
-		       && !dependent_type_p (TREE_TYPE (old))
-		       /* If the new decl uses auto, we don't yet know
-			  its type (the old type cannot be using auto
-			  at this point, without also being
-			  dependent).  This is an indication we're
-			  (now) doing the shadow checking too
-			  early.  */
-		       && !type_uses_auto (TREE_TYPE (decl))
-		       && can_convert (TREE_TYPE (old), TREE_TYPE (decl),
-				       tf_none))))
+      else if (same_type_p (TREE_TYPE (old), TREE_TYPE (decl))
+	       || TREE_CODE (decl) == TYPE_DECL
+	       || TREE_CODE (old) == TYPE_DECL
+	       || (!dependent_type_p (TREE_TYPE (decl))
+		   && !dependent_type_p (TREE_TYPE (old))
+		   /* If the new decl uses auto, we don't yet know
+		      its type (the old type cannot be using auto
+		      at this point, without also being
+		      dependent).  This is an indication we're
+		      (now) doing the shadow checking too
+		      early.  */
+		   && !type_uses_auto (TREE_TYPE (decl))
+		   && can_convert_arg (TREE_TYPE (old), TREE_TYPE (decl),
+				       decl, LOOKUP_IMPLICIT, tf_none)))
 	warning_code = OPT_Wshadow_compatible_local;
       else
-	return;
+	warning_code = OPT_Wshadow_local;
 
       const char *msg;
       if (TREE_CODE (old) == PARM_DECL)
@@ -2771,7 +2784,7 @@ check_local_shadow (tree decl)
 	msg = "declaration of %qD shadows a previous local";
 
       auto_diagnostic_group d;
-      if (warning_at (input_location, warning_code, msg, decl))
+      if (warning_at (DECL_SOURCE_LOCATION (decl), warning_code, msg, decl))
 	inform_shadowed (old);
       return;
     }
@@ -2798,7 +2811,7 @@ check_local_shadow (tree decl)
 	    || TYPE_PTRMEMFUNC_P (TREE_TYPE (decl)))
 	  {
 	    auto_diagnostic_group d;
-	    if (warning_at (input_location, OPT_Wshadow,
+	    if (warning_at (DECL_SOURCE_LOCATION (decl), OPT_Wshadow,
 			    "declaration of %qD shadows a member of %qT",
 			    decl, current_nonlambda_class_type ())
 		&& DECL_P (member))
@@ -2818,7 +2831,7 @@ check_local_shadow (tree decl)
     /* XXX shadow warnings in outer-more namespaces */
     {
       auto_diagnostic_group d;
-      if (warning_at (input_location, OPT_Wshadow,
+      if (warning_at (DECL_SOURCE_LOCATION (decl), OPT_Wshadow,
 		      "declaration of %qD shadows a global declaration",
 		      decl))
 	inform_shadowed (old);
@@ -3077,8 +3090,9 @@ do_pushdecl (tree decl, bool is_friend)
 		  /* In a local class, a friend function declaration must
 		     find a matching decl in the innermost non-class scope.
 		     [class.friend/11] */
-		  error ("friend declaration %qD in local class without "
-			 "prior local declaration", decl);
+		  error_at (DECL_SOURCE_LOCATION (decl),
+			    "friend declaration %qD in local class without "
+			    "prior local declaration", decl);
 		  /* Don't attempt to push it.  */
 		  return error_mark_node;
 		}
@@ -3392,7 +3406,7 @@ leave_scope (void)
      namespace.  For classes, we cache some binding levels.  For other
      scopes, we just make the structure available for reuse.  */
   if (scope->kind != sk_namespace
-      && scope->kind != sk_class)
+      && scope != previous_class_level)
     {
       scope->level_chain = free_binding_level;
       gcc_assert (!ENABLE_SCOPE_CHECKING
@@ -3418,6 +3432,18 @@ leave_scope (void)
     }
 
   return current_binding_level;
+}
+
+/* When we exit a toplevel class scope, we save its binding level so
+   that we can restore it quickly.  Here, we've entered some other
+   class, so we must invalidate our cache.  */
+
+void
+invalidate_class_lookup_cache (void)
+{
+  previous_class_level->level_chain = free_binding_level;
+  free_binding_level = previous_class_level;
+  previous_class_level = NULL;
 }
 
 static void
@@ -3795,22 +3821,6 @@ constructor_name_p (tree name, tree type)
     return true;
 
   return false;
-}
-
-/* This code is practically identical to that for creating anonymous
-   names, but is just used for lambdas instead.  This isn't really
-   necessary, but it's convenient to avoid mistaking lambdas for other
-   unnamed types.  */
-
-static GTY(()) int lambda_cnt = 0;
-
-tree
-make_lambda_name (void)
-{
-  char buf[32];
-
-  sprintf (buf, LAMBDANAME_FORMAT, lambda_cnt++);
-  return get_identifier (buf);
 }
 
 /* Same as pushdecl, but define X in binding-level LEVEL.  We rely on the
@@ -4452,9 +4462,9 @@ push_class_level_binding_1 (tree name, tree x)
       tree scope = context_for_name_lookup (x);
       if (TYPE_P (scope) && same_type_p (scope, current_class_type))
 	{
-	  error ("%qD has the same name as the class in which it is "
-		 "declared",
-		 x);
+	  error_at (DECL_SOURCE_LOCATION (x),
+		    "%qD has the same name as the class in which it is "
+		    "declared", x);
 	  return false;
 	}
     }
@@ -4508,9 +4518,6 @@ push_class_level_binding_1 (tree name, tree x)
 		binding->type = NULL_TREE;
 	    }
 	}
-      else if (TREE_CODE (target_decl) == OVERLOAD
-	       && OVL_P (target_bval))
-	old_decl = bval;
       else if (TREE_CODE (decl) == USING_DECL
 	       && TREE_CODE (bval) == USING_DECL
 	       && same_type_p (USING_DECL_SCOPE (decl),
@@ -4529,6 +4536,9 @@ push_class_level_binding_1 (tree name, tree x)
       else if (TREE_CODE (bval) == USING_DECL
 	       && OVL_P (target_decl))
 	return true;
+      else if (OVL_P (target_decl)
+	       && OVL_P (target_bval))
+	old_decl = bval;
 
       if (old_decl && binding->scope == class_binding_level)
 	{
@@ -4574,101 +4584,166 @@ push_class_level_binding (tree name, tree x)
   return ret;
 }
 
+/* Process and lookup a using decl SCOPE::lookup.name, filling in
+   lookup.values & lookup.type.  Return true if ok.  */
+
+static bool
+lookup_using_decl (tree scope, name_lookup &lookup)
+{
+  tree current = current_scope ();
+  bool dependent_p = false;
+
+  if (TREE_CODE (scope) == NAMESPACE_DECL)
+    {
+      /* Naming a namespace member.  */
+      if (TYPE_P (current))
+	{
+	  error ("using-declaration for non-member at class scope");
+	  return false;
+	}
+
+      qualified_namespace_lookup (scope, &lookup);
+    }
+  else if (TREE_CODE (scope) == ENUMERAL_TYPE)
+    {
+      error ("using-declaration may not name enumerator %<%E::%D%>",
+	     scope, lookup.name);
+      return false;
+    }
+  else
+    {
+      /* Naming a class member.  */
+      if (!TYPE_P (current))
+	{
+	  error ("using-declaration for member at non-class scope");
+	  return false;
+	}
+
+      /* Make sure the name is not invalid */
+      if (TREE_CODE (lookup.name) == BIT_NOT_EXPR)
+	{
+	  error ("%<%T::%D%> names destructor", scope, lookup.name);
+	  return false;
+	}
+
+      /* Using T::T declares inheriting ctors, even if T is a typedef.  */
+      if (MAYBE_CLASS_TYPE_P (scope)
+	  && (lookup.name == TYPE_IDENTIFIER (scope)
+	      || constructor_name_p (lookup.name, scope)))
+	{
+	  maybe_warn_cpp0x (CPP0X_INHERITING_CTORS);
+	  lookup.name = ctor_identifier;
+	  CLASSTYPE_NON_AGGREGATE (current) = true;
+	  TYPE_HAS_USER_CONSTRUCTOR (current) = true;
+    	}
+
+      /* Cannot introduce a constructor name.  */
+      if (constructor_name_p (lookup.name, current))
+	{
+	  error ("%<%T::%D%> names constructor in %qT",
+		 scope, lookup.name, current);
+	  return false;
+	}
+
+      /* Member using decls finish processing when completing the
+	 class.  */
+      /* From [namespace.udecl]:
+
+         A using-declaration used as a member-declaration shall refer
+         to a member of a base class of the class being defined.
+
+         In general, we cannot check this constraint in a template
+         because we do not know the entire set of base classes of the
+         current class type. Morover, if SCOPE is dependent, it might
+         match a non-dependent base.  */
+
+      dependent_p = dependent_scope_p (scope);
+      if (!dependent_p)
+	{
+	  base_kind b_kind;
+	  tree binfo = lookup_base (current, scope, ba_any, &b_kind,
+				    tf_warning_or_error);
+	  if (b_kind < bk_proper_base)
+	    {
+	      /* If there are dependent bases, scope might resolve at
+		 instantiation time, even if it isn't exactly one of
+		 the dependent bases.  */
+	      if (b_kind == bk_same_type || !any_dependent_bases_p ())
+		{
+		  error_not_base_type (scope, current);
+		  return false;
+		}
+	      /* Treat as-if dependent.  */
+	      dependent_p = true;
+	    }
+	  else if (lookup.name == ctor_identifier && !binfo_direct_p (binfo))
+	    {
+	      error ("cannot inherit constructors from indirect base %qT",
+		     scope);
+	      return false;
+	    }
+	  else if (IDENTIFIER_CONV_OP_P (lookup.name)
+		   && dependent_type_p (TREE_TYPE (lookup.name)))
+	    dependent_p = true;
+	  else
+	    lookup.value = lookup_member (binfo, lookup.name, 0,
+					  false, tf_warning_or_error);
+	}
+    }
+
+  if (!dependent_p)
+    {
+      if (!lookup.value)
+	{
+	  error ("%qD has not been declared in %qE", lookup.name, scope);
+	  return false;
+	}
+
+      if (TREE_CODE (lookup.value) == TREE_LIST
+	  /* We can (independently) have ambiguous implicit typedefs.  */
+	  || (lookup.type && TREE_CODE (lookup.type) == TREE_LIST))
+	{
+	  error ("reference to %qD is ambiguous", lookup.name);
+	  print_candidates (TREE_CODE (lookup.value) == TREE_LIST
+			    ? lookup.value : lookup.type);
+	  return false;
+	}
+
+      if (TREE_CODE (lookup.value) == NAMESPACE_DECL)
+	{
+	  error ("using-declaration may not name namespace %qD", lookup.value);
+	  return false;
+	}
+    }
+
+  return true;
+}
+
 /* Process "using SCOPE::NAME" in a class scope.  Return the
    USING_DECL created.  */
 
 tree
 do_class_using_decl (tree scope, tree name)
 {
-  if (name == error_mark_node)
+  if (name == error_mark_node
+      || scope == error_mark_node)
     return NULL_TREE;
 
-  if (!scope || !TYPE_P (scope))
-    {
-      error ("using-declaration for non-member at class scope");
-      return NULL_TREE;
-    }
+  name_lookup lookup (name, 0);
+  if (!lookup_using_decl (scope, lookup))
+    return NULL_TREE;
 
-  /* Make sure the name is not invalid */
-  if (TREE_CODE (name) == BIT_NOT_EXPR)
-    {
-      error ("%<%T::%D%> names destructor", scope, name);
-      return NULL_TREE;
-    }
+  tree found = lookup.value;
+  if (found && BASELINK_P (found))
+    /* The binfo from which the functions came does not matter.  */
+    found = BASELINK_FUNCTIONS (found);
 
-  /* Using T::T declares inheriting ctors, even if T is a typedef.  */
-  if (MAYBE_CLASS_TYPE_P (scope)
-      && (name == TYPE_IDENTIFIER (scope)
-	  || constructor_name_p (name, scope)))
-    {
-      maybe_warn_cpp0x (CPP0X_INHERITING_CTORS);
-      name = ctor_identifier;
-      CLASSTYPE_NON_AGGREGATE (current_class_type) = true;
-    }
+  tree using_decl = build_lang_decl (USING_DECL, lookup.name, NULL_TREE);
+  USING_DECL_SCOPE (using_decl) = scope;
+  USING_DECL_DECLS (using_decl) = found;
+  DECL_DEPENDENT_P (using_decl) = !found;
 
-  /* Cannot introduce a constructor name.  */
-  if (constructor_name_p (name, current_class_type))
-    {
-      error ("%<%T::%D%> names constructor in %qT",
-	     scope, name, current_class_type);
-      return NULL_TREE;
-    }
-
-  /* From [namespace.udecl]:
-
-       A using-declaration used as a member-declaration shall refer to a
-       member of a base class of the class being defined.
-
-     In general, we cannot check this constraint in a template because
-     we do not know the entire set of base classes of the current
-     class type. Morover, if SCOPE is dependent, it might match a
-     non-dependent base.  */
-
-  tree decl = NULL_TREE;
-  if (!dependent_scope_p (scope))
-    {
-      base_kind b_kind;
-      tree binfo = lookup_base (current_class_type, scope, ba_any, &b_kind,
-				tf_warning_or_error);
-      if (b_kind < bk_proper_base)
-	{
-	  /* If there are dependent bases, scope might resolve at
-	     instantiation time, even if it isn't exactly one of the
-	     dependent bases.  */
-	  if (b_kind == bk_same_type || !any_dependent_bases_p ())
-	    {
-	      error_not_base_type (scope, current_class_type);
-	      return NULL_TREE;
-	    }
-	}
-      else if (name == ctor_identifier && !binfo_direct_p (binfo))
-	{
-	  error ("cannot inherit constructors from indirect base %qT", scope);
-	  return NULL_TREE;
-	}
-      else if (!IDENTIFIER_CONV_OP_P (name)
-	       || !dependent_type_p (TREE_TYPE (name)))
-	{
-	  decl = lookup_member (binfo, name, 0, false, tf_warning_or_error);
-	  if (!decl)
-	    {
-	      error ("no members matching %<%T::%D%> in %q#T", scope, name,
-		     scope);
-	      return NULL_TREE;
-	    }
-
-	  /* The binfo from which the functions came does not matter.  */
-	  if (BASELINK_P (decl))
-	    decl = BASELINK_FUNCTIONS (decl);
-	}
-    }
-
-  tree value = build_lang_decl (USING_DECL, name, NULL_TREE);
-  USING_DECL_DECLS (value) = decl;
-  USING_DECL_SCOPE (value) = scope;
-  DECL_DEPENDENT_P (value) = !decl;
-
-  return value;
+  return using_decl;
 }
 
 
@@ -4758,7 +4833,8 @@ set_decl_namespace (tree decl, tree scope, bool friendp)
       /* Writing "N::i" to declare something directly in "N" is invalid.  */
       if (CP_DECL_CONTEXT (decl) == current_namespace
 	  && at_namespace_scope_p ())
-	error ("explicit qualification in declaration of %qD", decl);
+	error_at (DECL_SOURCE_LOCATION (decl),
+		  "explicit qualification in declaration of %qD", decl);
       return;
     }
 
@@ -4909,6 +4985,24 @@ handle_namespace_attrs (tree ns, tree attributes)
 	    DECL_ATTRIBUTES (ns) = tree_cons (name, args,
 					      DECL_ATTRIBUTES (ns));
 	}
+      else if (is_attribute_p ("deprecated", name))
+	{
+	  if (!DECL_NAME (ns))
+	    {
+	      warning (OPT_Wattributes, "ignoring %qD attribute on anonymous "
+		       "namespace", name);
+	      continue;
+	    }
+	  if (args && TREE_CODE (TREE_VALUE (args)) != STRING_CST)
+	    {
+	      error ("deprecated message is not a string");
+	      continue;
+	    }
+	  TREE_DEPRECATED (ns) = 1;
+	  if (args)
+	    DECL_ATTRIBUTES (ns) = tree_cons (name, args,
+					      DECL_ATTRIBUTES (ns));
+	}
       else
 	{
 	  warning (OPT_Wattributes, "%qD attribute directive ignored",
@@ -5016,39 +5110,14 @@ void
 finish_nonmember_using_decl (tree scope, tree name)
 {
   gcc_checking_assert (current_binding_level->kind != sk_class);
-  gcc_checking_assert (identifier_p (name));
+
+  if (scope == error_mark_node || name == error_mark_node)
+    return;
 
   name_lookup lookup (name, 0);
 
-  if (TREE_CODE (scope) != NAMESPACE_DECL)
-    {
-      error ("%qE is not a namespace or unscoped enum", scope);
-      return;
-    }
-
-  qualified_namespace_lookup (scope, &lookup);
-
-  if (!lookup.value)
-    {
-      error ("%qD has not been declared in %qE", name, scope);
-      return;
-    }
-
-  if (TREE_CODE (lookup.value) == TREE_LIST
-      /* But we can (independently) have ambiguous implicit typedefs.  */
-      || (lookup.type && TREE_CODE (lookup.type) == TREE_LIST))
-    {
-      error ("reference to %qD is ambiguous", name);
-      print_candidates (TREE_CODE (lookup.value) == TREE_LIST
-			? lookup.value : lookup.type);
-      return;
-    }
-
-  if (TREE_CODE (lookup.value) == NAMESPACE_DECL)
-    {
-      error ("using-declaration may not name namespace %qD", lookup.value);
-      return;
-    }
+  if (!lookup_using_decl (scope, lookup))
+    return;
 
   /* Emit debug info.  */
   if (!processing_template_decl)
@@ -5076,7 +5145,7 @@ finish_nonmember_using_decl (tree scope, tree name)
     }
   else
     {
-      tree using_decl = build_lang_decl (USING_DECL, name, NULL_TREE);
+      tree using_decl = build_lang_decl (USING_DECL, lookup.name, NULL_TREE);
       USING_DECL_SCOPE (using_decl) = scope;
       add_decl_expr (using_decl);
 
@@ -5117,7 +5186,6 @@ finish_nonmember_using_decl (tree scope, tree name)
 	  set_identifier_type_value (name, type);
 	}
     }
-
 }
 
 /* Return the declarations that are members of the namespace NS.  */
@@ -5327,7 +5395,7 @@ namespace_hints::namespace_hints (location_t loc, tree name)
 
   m_candidates = vNULL;
   m_limited = false;
-  m_limit = PARAM_VALUE (CXX_MAX_NAMESPACES_FOR_DIAGNOSTIC_HELP);
+  m_limit = param_cxx_max_namespaces_for_diagnostic_help;
 
   /* Breadth-first search of namespaces.  Up to limit namespaces
      searched (limit zero == unlimited).  */
@@ -5554,14 +5622,22 @@ get_std_name_hint (const char *name)
     {"make_any", "<any>", cxx17},
     /* <array>.  */
     {"array", "<array>", cxx11},
+    {"to_array", "<array>", cxx2a},
     /* <atomic>.  */
     {"atomic", "<atomic>", cxx11},
     {"atomic_flag", "<atomic>", cxx11},
+    {"atomic_ref", "<atomic>", cxx2a},
     /* <bitset>.  */
     {"bitset", "<bitset>", cxx11},
+    /* <compare> */
+    {"weak_equality", "<compare>", cxx2a},
+    {"strong_equality", "<compare>", cxx2a},
+    {"partial_ordering", "<compare>", cxx2a},
+    {"weak_ordering", "<compare>", cxx2a},
+    {"strong_ordering", "<compare>", cxx2a},
     /* <complex>.  */
     {"complex", "<complex>", cxx98},
-    {"complex_literals", "<complex>", cxx98},
+    {"complex_literals", "<complex>", cxx14},
     /* <condition_variable>. */
     {"condition_variable", "<condition_variable>", cxx11},
     {"condition_variable_any", "<condition_variable>", cxx11},
@@ -5579,9 +5655,17 @@ get_std_name_hint (const char *name)
     {"ofstream", "<fstream>", cxx98},
     /* <functional>.  */
     {"bind", "<functional>", cxx11},
+    {"bind_front", "<functional>", cxx2a},
     {"function", "<functional>", cxx11},
     {"hash", "<functional>", cxx11},
+    {"invoke", "<functional>", cxx17},
     {"mem_fn", "<functional>", cxx11},
+    {"not_fn", "<functional>", cxx17},
+    {"reference_wrapper", "<functional>", cxx11},
+    {"unwrap_reference", "<functional>", cxx2a},
+    {"unwrap_reference_t", "<functional>", cxx2a},
+    {"unwrap_ref_decay", "<functional>", cxx2a},
+    {"unwrap_ref_decay_t", "<functional>", cxx2a},
     /* <future>. */
     {"async", "<future>", cxx11},
     {"future", "<future>", cxx11},
@@ -5622,11 +5706,16 @@ get_std_name_hint (const char *name)
     {"map", "<map>", cxx98},
     {"multimap", "<map>", cxx98},
     /* <memory>.  */
+    {"allocate_shared", "<memory>", cxx11},
+    {"allocator", "<memory>", cxx98},
+    {"allocator_traits", "<memory>", cxx11},
     {"make_shared", "<memory>", cxx11},
-    {"make_unique", "<memory>", cxx11},
+    {"make_unique", "<memory>", cxx14},
     {"shared_ptr", "<memory>", cxx11},
     {"unique_ptr", "<memory>", cxx11},
     {"weak_ptr", "<memory>", cxx11},
+    /* <memory_resource>.  */
+    {"pmr", "<memory_resource>", cxx17},
     /* <mutex>.  */
     {"mutex", "<mutex>", cxx11},
     {"timed_mutex", "<mutex>", cxx11},
@@ -5676,14 +5765,39 @@ get_std_name_hint (const char *name)
     {"u16string", "<string>", cxx11},
     {"u32string", "<string>", cxx11},
     /* <string_view>.  */
+    {"basic_string_view", "<string_view>", cxx17},
     {"string_view", "<string_view>", cxx17},
     /* <thread>.  */
     {"thread", "<thread>", cxx11},
+    {"this_thread", "<thread>", cxx11},
     /* <tuple>.  */
+    {"apply", "<tuple>", cxx17},
+    {"forward_as_tuple", "<tuple>", cxx11},
+    {"make_from_tuple", "<tuple>", cxx17},
     {"make_tuple", "<tuple>", cxx11},
+    {"tie", "<tuple>", cxx11},
     {"tuple", "<tuple>", cxx11},
+    {"tuple_cat", "<tuple>", cxx11},
     {"tuple_element", "<tuple>", cxx11},
+    {"tuple_element_t", "<tuple>", cxx14},
     {"tuple_size", "<tuple>", cxx11},
+    {"tuple_size_v", "<tuple>", cxx17},
+    /* <type_traits>.  */
+    {"enable_if", "<type_traits>", cxx11},
+    {"enable_if_t", "<type_traits>", cxx14},
+    {"invoke_result", "<type_traits>", cxx17},
+    {"invoke_result_t", "<type_traits>", cxx17},
+    {"remove_cvref", "<type_traits>", cxx2a},
+    {"remove_cvref_t", "<type_traits>", cxx2a},
+    {"type_identity", "<type_traits>", cxx2a},
+    {"type_identity_t", "<type_traits>", cxx2a},
+    {"void_t", "<type_traits>", cxx17},
+    {"conjunction", "<type_traits>", cxx17},
+    {"conjunction_v", "<type_traits>", cxx17},
+    {"disjunction", "<type_traits>", cxx17},
+    {"disjunction_v", "<type_traits>", cxx17},
+    {"negation", "<type_traits>", cxx17},
+    {"negation_v", "<type_traits>", cxx17},
     /* <unordered_map>.  */
     {"unordered_map", "<unordered_map>", cxx11},
     {"unordered_multimap", "<unordered_map>", cxx11},
@@ -5872,7 +5986,7 @@ suggest_alternative_in_scoped_enum (tree name, tree scoped_enum)
 
 tree
 lookup_qualified_name (tree scope, tree name, int prefer_type, bool complain,
-		       bool find_hidden)
+		       bool find_hidden /*=false*/)
 {
   tree t = NULL_TREE;
 
@@ -5895,6 +6009,12 @@ lookup_qualified_name (tree scope, tree name, int prefer_type, bool complain,
     return error_mark_node;
   return t;
 }
+
+/* Wrapper for the above that takes a string argument.  The function name is
+   not at the beginning of the line to keep this wrapper out of etags.  */
+
+tree lookup_qualified_name (tree t, const char *p, int wt, bool c, bool fh)
+{ return lookup_qualified_name (t, get_identifier (p), wt, c, fh); }
 
 /* [namespace.qual]
    Accepts the NAME to lookup and its qualifying SCOPE.
@@ -6476,81 +6596,66 @@ lookup_name_prefer_type (tree name, int prefer_type)
 static tree
 lookup_type_scope_1 (tree name, tag_scope scope)
 {
-  cxx_binding *iter = NULL;
-  tree val = NULL_TREE;
-  cp_binding_level *level = NULL;
+  cp_binding_level *b = current_binding_level;
 
-  /* Look in non-namespace scope first.  */
-  if (current_binding_level->kind != sk_namespace)
-    iter = outer_binding (name, NULL, /*class_p=*/ true);
-  for (; iter; iter = outer_binding (name, iter, /*class_p=*/ true))
+  if (b->kind != sk_namespace)
+    /* Look in non-namespace scopes.  */
+    for (cxx_binding *iter = NULL;
+	 (iter = outer_binding (name, iter, /*class_p=*/ true)); )
+      {
+	/* First check we're supposed to be looking in this scope --
+	   if we're not, we're done.  */
+	for (; b != iter->scope; b = b->level_chain)
+	  if (!(b->kind == sk_cleanup
+		|| b->kind == sk_template_parms
+		|| b->kind == sk_function_parms
+		|| (b->kind == sk_class
+		    && scope == ts_within_enclosing_non_class)))
+	    return NULL_TREE;
+
+	/* Check if this is the kind of thing we're looking for.  If
+	   SCOPE is TS_CURRENT, also make sure it doesn't come from
+	   base class.  For ITER->VALUE, we can simply use
+	   INHERITED_VALUE_BINDING_P.  For ITER->TYPE, we have to
+	   use our own check.
+
+	   We check ITER->TYPE before ITER->VALUE in order to handle
+	     typedef struct C {} C;
+	   correctly.  */
+	if (tree type = iter->type)
+	  if (qualify_lookup (type, LOOKUP_PREFER_TYPES)
+	      && (scope != ts_current
+		  || LOCAL_BINDING_P (iter)
+		  || DECL_CONTEXT (type) == iter->scope->this_entity))
+	    return type;
+
+	if (qualify_lookup (iter->value, LOOKUP_PREFER_TYPES)
+	    && (scope != ts_current
+		|| !INHERITED_VALUE_BINDING_P (iter)))
+	  return iter->value;
+      }
+
+  /* Now check if we can look in namespace scope.  */
+  for (; b->kind != sk_namespace; b = b->level_chain)
+    if (!(b->kind == sk_cleanup
+	  || b->kind == sk_template_parms
+	  || b->kind == sk_function_parms
+	  || (b->kind == sk_class
+	      && scope == ts_within_enclosing_non_class)))
+      return NULL_TREE;
+
+  /* Look in the innermost namespace.  */
+  tree ns = b->this_entity;
+  if (tree *slot = find_namespace_slot (ns, name))
     {
-      /* Check if this is the kind of thing we're looking for.
-	 If SCOPE is TS_CURRENT, also make sure it doesn't come from
-	 base class.  For ITER->VALUE, we can simply use
-	 INHERITED_VALUE_BINDING_P.  For ITER->TYPE, we have to use
-	 our own check.
+      /* If this is the kind of thing we're looking for, we're done.  */
+      if (tree type = MAYBE_STAT_TYPE (*slot))
+	if (qualify_lookup (type, LOOKUP_PREFER_TYPES))
+	  return type;
 
-	 We check ITER->TYPE before ITER->VALUE in order to handle
-	   typedef struct C {} C;
-	 correctly.  */
-
-      if (qualify_lookup (iter->type, LOOKUP_PREFER_TYPES)
-	  && (scope != ts_current
-	      || LOCAL_BINDING_P (iter)
-	      || DECL_CONTEXT (iter->type) == iter->scope->this_entity))
-	val = iter->type;
-      else if ((scope != ts_current
-		|| !INHERITED_VALUE_BINDING_P (iter))
-	       && qualify_lookup (iter->value, LOOKUP_PREFER_TYPES))
-	val = iter->value;
-
-      if (val)
-	break;
-    }
-
-  /* Look in namespace scope.  */
-  if (val)
-    level = iter->scope;
-  else
-    {
-      tree ns = current_decl_namespace ();
-
-      if (tree *slot = find_namespace_slot (ns, name))
-	{
-	  /* If this is the kind of thing we're looking for, we're done.  */
-	  if (tree type = MAYBE_STAT_TYPE (*slot))
-	    if (qualify_lookup (type, LOOKUP_PREFER_TYPES))
-	      val = type;
-	  if (!val)
-	    {
-	      if (tree decl = MAYBE_STAT_DECL (*slot))
-		if (qualify_lookup (decl, LOOKUP_PREFER_TYPES))
-		  val = decl;
-	    }
-	  level = NAMESPACE_LEVEL (ns);
-	}
-    }
-
-  /* Type found, check if it is in the allowed scopes, ignoring cleanup
-     and template parameter scopes.  */
-  if (val)
-    {
-      cp_binding_level *b = current_binding_level;
-      while (b)
-	{
-	  if (level == b)
-	    return val;
-
-	  if (b->kind == sk_cleanup || b->kind == sk_template_parms
-	      || b->kind == sk_function_parms)
-	    b = b->level_chain;
-	  else if (b->kind == sk_class
-		   && scope == ts_within_enclosing_non_class)
-	    b = b->level_chain;
-	  else
-	    break;
-	}
+      if (tree decl = MAYBE_STAT_DECL (*slot))
+	if (qualify_lookup (decl, LOOKUP_PREFER_TYPES))
+	  return decl;
     }
 
   return NULL_TREE;
@@ -7416,13 +7521,6 @@ cp_emit_debug_info_for_using (tree t, tree context)
   if (seen_error ())
     return;
 
-  /* Ignore this FUNCTION_DECL if it refers to a builtin declaration
-     of a builtin function.  */
-  if (TREE_CODE (t) == FUNCTION_DECL
-      && DECL_EXTERNAL (t)
-      && fndecl_built_in_p (t))
-    return;
-
   /* Do not supply context to imported_module_or_decl, if
      it is a global namespace.  */
   if (context == global_namespace)
@@ -7430,18 +7528,26 @@ cp_emit_debug_info_for_using (tree t, tree context)
 
   t = MAYBE_BASELINK_FUNCTIONS (t);
 
-  /* FIXME: Handle TEMPLATE_DECLs.  */
   for (lkp_iterator iter (t); iter; ++iter)
     {
       tree fn = *iter;
-      if (TREE_CODE (fn) != TEMPLATE_DECL)
-	{
-	  if (building_stmt_list_p ())
-	    add_stmt (build_stmt (input_location, USING_STMT, fn));
-	  else
-	    debug_hooks->imported_module_or_decl (fn, NULL_TREE, context,
-						  false, false);
-	}
+
+      if (TREE_CODE (fn) == TEMPLATE_DECL)
+	/* FIXME: Handle TEMPLATE_DECLs.  */
+	continue;
+      
+      /* Ignore this FUNCTION_DECL if it refers to a builtin declaration
+	 of a builtin function.  */
+      if (TREE_CODE (fn) == FUNCTION_DECL
+	  && DECL_EXTERNAL (fn)
+	  && fndecl_built_in_p (fn))
+	continue;
+
+      if (building_stmt_list_p ())
+	add_stmt (build_stmt (input_location, USING_STMT, fn));
+      else
+	debug_hooks->imported_module_or_decl (fn, NULL_TREE, context,
+					      false, false);
     }
 }
 

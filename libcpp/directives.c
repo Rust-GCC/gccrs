@@ -406,13 +406,13 @@ directive_diagnostics (cpp_reader *pfile, const directive *dir, int indented)
     }
 }
 
-/* Check if we have a known directive.  INDENTED is nonzero if the
+/* Check if we have a known directive.  INDENTED is true if the
    '#' of the directive was indented.  This function is in this file
    to save unnecessarily exporting dtable etc. to lex.c.  Returns
    nonzero if the line of tokens has been handled, zero if we should
    continue processing the line.  */
 int
-_cpp_handle_directive (cpp_reader *pfile, int indented)
+_cpp_handle_directive (cpp_reader *pfile, bool indented)
 {
   const directive *dir = 0;
   const cpp_token *dname;
@@ -818,6 +818,10 @@ do_include_common (cpp_reader *pfile, enum include_type type)
      callback can dump comments which follow #include.  */
   pfile->state.save_comments = ! CPP_OPTION (pfile, discard_comments);
 
+  /* Tell the lexer this is an include directive -- we want it to
+     increment the line number even if this is the last line of a file.  */
+  pfile->state.in_directive = 2;
+
   fname = parse_include (pfile, &angle_brackets, &buf, &location);
   if (!fname)
     goto done;
@@ -831,8 +835,13 @@ do_include_common (cpp_reader *pfile, enum include_type type)
     }
 
   /* Prevent #include recursion.  */
-  if (pfile->line_table->depth >= CPP_STACK_MAX)
-    cpp_error (pfile, CPP_DL_ERROR, "#include nested too deeply");
+  if (pfile->line_table->depth >= CPP_OPTION (pfile, max_include_depth))
+    cpp_error (pfile, 
+	       CPP_DL_ERROR, 
+	       "#include nested depth %u exceeds maximum of %u"
+	       " (use -fmax-include-depth=DEPTH to increase the maximum)",
+	       pfile->line_table->depth,
+	       CPP_OPTION (pfile, max_include_depth));
   else
     {
       /* Get out of macro context, if we are.  */
@@ -938,7 +947,7 @@ strtolinenum (const uchar *str, size_t len, linenum_type *nump, bool *wrapped)
 static void
 do_line (cpp_reader *pfile)
 {
-  struct line_maps *line_table = pfile->line_table;
+  class line_maps *line_table = pfile->line_table;
   const line_map_ordinary *map = LINEMAPS_LAST_ORDINARY_MAP (line_table);
 
   /* skip_rest_of_line() may cause line table to be realloc()ed so note down
@@ -1001,7 +1010,7 @@ do_line (cpp_reader *pfile)
 static void
 do_linemarker (cpp_reader *pfile)
 {
-  struct line_maps *line_table = pfile->line_table;
+  class line_maps *line_table = pfile->line_table;
   const line_map_ordinary *map = LINEMAPS_LAST_ORDINARY_MAP (line_table);
   const cpp_token *token;
   const char *new_file = ORDINARY_MAP_FILE_NAME (map);
@@ -1079,9 +1088,17 @@ do_linemarker (cpp_reader *pfile)
       map = LINEMAPS_LAST_ORDINARY_MAP (line_table);
       const line_map_ordinary *from
 	= linemap_included_from_linemap (line_table, map);
-      if (MAIN_FILE_P (map)
-	  || (from
-	      && filename_cmp (ORDINARY_MAP_FILE_NAME (from), new_file) != 0))
+
+      if (!from)
+	/* Not nested.  */;
+      else if (!new_file[0])
+	/* Leaving to "" means fill in the popped-to name.  */
+	new_file = ORDINARY_MAP_FILE_NAME (from);
+      else if (filename_cmp (ORDINARY_MAP_FILE_NAME (from), new_file) != 0)
+	/* It's the wrong name, Grommit!  */
+	from = NULL;
+
+      if (!from)
 	{
 	  cpp_warning (pfile, CPP_W_NONE,
 		       "file \"%s\" linemarker ignored due to "
@@ -1089,6 +1106,7 @@ do_linemarker (cpp_reader *pfile)
 	  return;
 	}
     }
+
   /* Compensate for the increment in linemap_add that occurs in
      _cpp_do_file_change.  We're currently at the start of the line
      *following* the #line directive.  A separate location_t for this
@@ -1564,6 +1582,8 @@ do_pragma_push_macro (cpp_reader *pfile)
   node = _cpp_lex_identifier (pfile, c->name);
   if (node->type == NT_VOID)
     c->is_undef = 1;
+  else if (node->type == NT_BUILTIN_MACRO)
+    c->is_builtin = 1;
   else
     {
       defn = cpp_macro_definition (pfile, node);
@@ -1947,9 +1967,9 @@ do_ifdef (cpp_reader *pfile)
       if (node)
 	{
 	  /* Do not treat conditional macros as being defined.  This is due to
-	     the powerpc and spu ports using conditional macros for 'vector',
-	     'bool', and 'pixel' to act as conditional keywords.  This messes
-	     up tests like #ifndef bool.  */
+	     the powerpc port using conditional macros for 'vector', 'bool',
+	     and 'pixel' to act as conditional keywords.  This messes up tests
+	     like #ifndef bool.  */
 	  skip = !cpp_macro_p (node) || (node->flags & NODE_CONDITIONAL);
 	  _cpp_mark_macro_used (node);
 	  _cpp_maybe_notify_macro_use (pfile, node);
@@ -1976,9 +1996,9 @@ do_ifndef (cpp_reader *pfile)
       if (node)
 	{
 	  /* Do not treat conditional macros as being defined.  This is due to
-	     the powerpc and spu ports using conditional macros for 'vector',
-	     'bool', and 'pixel' to act as conditional keywords.  This messes
-	     up tests like #ifndef bool.  */
+	     the powerpc port using conditional macros for 'vector', 'bool',
+	     and 'pixel' to act as conditional keywords.  This messes up tests
+	     like #ifndef bool.  */
 	  skip = (cpp_macro_p (node)
 		  && !(node->flags & NODE_CONDITIONAL));
 	  _cpp_mark_macro_used (node);
@@ -2452,6 +2472,11 @@ cpp_pop_definition (cpp_reader *pfile, struct def_pragma_macro *c)
 
   if (c->is_undef)
     return;
+  if (c->is_builtin)
+    {
+      _cpp_restore_special_builtin (pfile, c);
+      return;
+    }
 
   {
     size_t namelen;
@@ -2539,7 +2564,7 @@ cpp_set_callbacks (cpp_reader *pfile, cpp_callbacks *cb)
 }
 
 /* The dependencies structure.  (Creates one if it hasn't already been.)  */
-struct mkdeps *
+class mkdeps *
 cpp_get_deps (cpp_reader *pfile)
 {
   if (!pfile->deps)

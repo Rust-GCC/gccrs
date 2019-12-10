@@ -41,7 +41,6 @@ compilation is specified by a string called a "spec".  */
 #include "diagnostic.h"
 #include "flags.h"
 #include "opts.h"
-#include "params.h"
 #include "filenames.h"
 #include "spellcheck.h"
 
@@ -57,7 +56,7 @@ compilation is specified by a string called a "spec".  */
      getenv ();
    Hence we need to use "get" for the accessor method, not "getenv".  */
 
-class env_manager
+struct env_manager
 {
  public:
   void init (bool can_restore, bool debug);
@@ -3770,7 +3769,7 @@ driver_wrong_lang_callback (const struct cl_decoded_option *decoded,
   const struct cl_option *option = &cl_options[decoded->opt_index];
 
   if (option->cl_reject_driver)
-    error ("unrecognized command line option %qs",
+    error ("unrecognized command-line option %qs",
 	   decoded->orig_option_with_args_text);
   else
     save_switch (decoded->canonical_option[0],
@@ -4040,6 +4039,10 @@ driver_handle_option (struct gcc_options *opts,
 
     case OPT_fdiagnostics_color_:
       diagnostic_color_init (dc, value);
+      break;
+
+    case OPT_fdiagnostics_urls_:
+      diagnostic_urls_init (dc, value);
       break;
 
     case OPT_fdiagnostics_format_:
@@ -6792,6 +6795,11 @@ print_configuration (FILE *file)
 #endif
 
   fnotice (file, "Thread model: %s\n", thrmod);
+  fnotice (file, "Supported LTO compression algorithms: zlib");
+#ifdef HAVE_ZSTD_H
+  fnotice (file, " zstd");
+#endif
+  fnotice (file, "\n");
 
   /* compiler_version is truncated at the first space when initialized
   from version string, so truncate version_string at the first space
@@ -7415,10 +7423,6 @@ driver::expand_at_files (int *argc, char ***argv) const
 void
 driver::decode_argv (int argc, const char **argv)
 {
-  /* Register the language-independent parameters.  */
-  global_init_params ();
-  finish_params ();
-
   init_opts_obstack ();
   init_options_struct (&global_options, &global_options_set);
 
@@ -7439,6 +7443,7 @@ driver::global_initializations ()
 
   diagnostic_initialize (global_dc, 0);
   diagnostic_color_init (global_dc);
+  diagnostic_urls_init (global_dc);
 
 #ifdef GCC_DRIVER_HOST_INITIALIZATION
   /* Perform host dependent initialization when needed.  */
@@ -7847,11 +7852,11 @@ driver::handle_unrecognized_options ()
       {
 	const char *hint = m_option_proposer.suggest_option (switches[i].part1);
 	if (hint)
-	  error ("unrecognized command line option %<-%s%>;"
+	  error ("unrecognized command-line option %<-%s%>;"
 		 " did you mean %<-%s%>?",
 		 switches[i].part1, hint);
 	else
-	  error ("unrecognized command line option %<-%s%>",
+	  error ("unrecognized command-line option %<-%s%>",
 		 switches[i].part1);
       }
 }
@@ -8264,6 +8269,8 @@ driver::maybe_run_linker (const char *argv0) const
     {
       int tmp = execution_count;
 
+      detect_jobserver ();
+
       if (! have_c)
 	{
 #if HAVE_LTO_PLUGIN > 0
@@ -8350,6 +8357,46 @@ driver::final_actions () const
     {
       printf (("\nFor bug reporting instructions, please see:\n"));
       printf ("%s\n", bug_report_url);
+    }
+}
+
+/* Detect whether jobserver is active and working.  If not drop
+   --jobserver-auth from MAKEFLAGS.  */
+
+void
+driver::detect_jobserver () const
+{
+  /* Detect jobserver and drop it if it's not working.  */
+  const char *makeflags = env.get ("MAKEFLAGS");
+  if (makeflags != NULL)
+    {
+      const char *needle = "--jobserver-auth=";
+      const char *n = strstr (makeflags, needle);
+      if (n != NULL)
+	{
+	  int rfd = -1;
+	  int wfd = -1;
+
+	  bool jobserver
+	    = (sscanf (n + strlen (needle), "%d,%d", &rfd, &wfd) == 2
+	       && rfd > 0
+	       && wfd > 0
+	       && is_valid_fd (rfd)
+	       && is_valid_fd (wfd));
+
+	  /* Drop the jobserver if it's not working now.  */
+	  if (!jobserver)
+	    {
+	      unsigned offset = n - makeflags;
+	      char *dup = xstrdup (makeflags);
+	      dup[offset] = '\0';
+
+	      const char *space = strchr (makeflags + offset, ' ');
+	      if (space != NULL)
+		strcpy (dup + offset, space);
+	      xputenv (concat ("MAKEFLAGS=", dup, NULL));
+	    }
+	}
     }
 }
 
@@ -8575,7 +8622,7 @@ static int n_mdswitches;
 /* Check whether a particular argument was used.  The first time we
    canonicalize the switches to keep only the ones we care about.  */
 
-class used_arg_t
+struct used_arg_t
 {
  public:
   int operator () (const char *p, int len);
@@ -10063,7 +10110,6 @@ void
 driver::finalize ()
 {
   env.restore ();
-  params_c_finalize ();
   diagnostic_finish (global_dc);
 
   is_cpp_driver = 0;
@@ -10083,9 +10129,6 @@ driver::finalize ()
   save_temps_length = 0;
   spec_machine = DEFAULT_TARGET_MACHINE;
   greatest_status = 1;
-
-  finalize_options_struct (&global_options);
-  finalize_options_struct (&global_options_set);
 
   obstack_free (&obstack, NULL);
   obstack_free (&opts_obstack, NULL); /* in opts.c */

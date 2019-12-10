@@ -28,7 +28,6 @@
 
 #include "openacc.h"
 #include "libgomp.h"
-#include "libgomp_g.h"
 #include "gomp-constants.h"
 #include "oacc-int.h"
 #ifdef HAVE_INTTYPES_H
@@ -325,9 +324,12 @@ GOACC_parallel_keyed (int flags_m, void (*fn) (void *),
   
   devaddrs = gomp_alloca (sizeof (void *) * mapnum);
   for (i = 0; i < mapnum; i++)
-    devaddrs[i] = (void *) (tgt->list[i].key->tgt->tgt_start
-			    + tgt->list[i].key->tgt_offset
-			    + tgt->list[i].offset);
+    if (tgt->list[i].key != NULL)
+      devaddrs[i] = (void *) (tgt->list[i].key->tgt->tgt_start
+			      + tgt->list[i].key->tgt_offset
+			      + tgt->list[i].offset);
+    else
+      devaddrs[i] = NULL;
   if (aq == NULL)
     acc_dev->openacc.exec_func (tgt_fn, mapnum, hostaddrs, devaddrs, dims,
 				tgt);

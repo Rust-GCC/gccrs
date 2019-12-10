@@ -1629,10 +1629,12 @@ package body System.OS_Lib is
       pragma Import (C, C_Kill, "__gnat_kill");
 
    begin
-      if Hard_Kill then
-         C_Kill (Pid, SIGKILL, 1);
-      else
-         C_Kill (Pid, SIGINT, 1);
+      if Pid /= Invalid_Pid then
+         if Hard_Kill then
+            C_Kill (Pid, SIGKILL, 1);
+         else
+            C_Kill (Pid, SIGINT, 1);
+         end if;
       end if;
    end Kill;
 
@@ -2977,6 +2979,15 @@ package body System.OS_Lib is
       end loop;
    end Spawn_Internal;
 
+   ------------
+   -- To_Ada --
+   ------------
+
+   function To_Ada (Time : time_t) return OS_Time is
+   begin
+      return OS_Time (Time);
+   end To_Ada;
+
    ---------------------------
    -- To_Path_String_Access --
    ---------------------------
@@ -3005,6 +3016,15 @@ package body System.OS_Lib is
 
       return Return_Val;
    end To_Path_String_Access;
+
+   ----------
+   -- To_C --
+   ----------
+
+   function To_C (Time : OS_Time) return time_t is
+   begin
+      return time_t (Time);
+   end To_C;
 
    ------------------
    -- Wait_Process --

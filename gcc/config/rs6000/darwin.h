@@ -43,8 +43,7 @@
 
 /* We're not ever going to do TOCs.  */
 
-#define TARGET_TOC 0
-#define TARGET_NO_TOC 1
+#define TARGET_HAS_TOC 0
 
 /* Override the default rs6000 definition.  */
 #undef  PTRDIFF_TYPE
@@ -53,16 +52,27 @@
 #define TARGET_OS_CPP_BUILTINS()			\
   do							\
     {							\
-      if (!TARGET_64BIT) builtin_define ("__ppc__");	\
-      if (TARGET_64BIT) builtin_define ("__ppc64__");	\
       builtin_define ("__POWERPC__");			\
+      builtin_define ("__PPC__");			\
+      if (TARGET_64BIT)					\
+	{						\
+	  builtin_define ("__ppc64__");			\
+	  builtin_define ("__PPC64__");			\
+	  builtin_define ("__powerpc64__");		\
+	  builtin_assert ("cpu=powerpc64");		\
+	  builtin_assert ("machine=powerpc64");		\
+	}						\
+      else						\
+	{						\
+	  builtin_define ("__ppc__");			\
+	  builtin_define_std ("PPC");			\
+	  builtin_assert ("cpu=powerpc");		\
+	  builtin_assert ("machine=powerpc");		\
+	}						\
       builtin_define ("__NATURAL_ALIGNMENT__");		\
       darwin_cpp_builtins (pfile);			\
     }							\
   while (0)
-
-/* Generate branch islands stubs if this is true.  */
-extern int darwin_emit_branch_islands;
 
 #define SUBTARGET_OVERRIDE_OPTIONS darwin_rs6000_override_options ()
 
@@ -84,6 +94,24 @@ extern int darwin_emit_branch_islands;
 
 #define RS6000_DEFAULT_LONG_DOUBLE_SIZE 128
 
+/* Machine dependent libraries.
+   Include libmx when targeting Darwin 7.0 and above, but before libSystem,
+   since the functions are actually in libSystem but for 7.x compatibility
+   we want them to be looked for in libmx first.
+   Include libSystemStubs when compiling against 10.3 - 10.5 SDKs (we assume
+   this is the case when targetting these) - but not for 64-bit long double.
+   Don't do either for m64, the library is either a dummy or non-existent.
+*/
+
+#undef LIB_SPEC
+#define LIB_SPEC \
+"%{!static:								\
+  %{!m64:%{!mlong-double-64:						\
+    %{pg:%:version-compare(>< 10.3 10.5 mmacosx-version-min= -lSystemStubs_profile)} \
+    %{!pg:%:version-compare(>< 10.3 10.5 mmacosx-version-min= -lSystemStubs)} \
+     %:version-compare(>< 10.3 10.4 mmacosx-version-min= -lmx)}}	\
+  -lSystem								\
+}"
 
 /* We want -fPIC by default, unless we're using -static to compile for
    the kernel or some such.  The "-faltivec" option should have been
@@ -98,11 +126,10 @@ extern int darwin_emit_branch_islands;
   %<faltivec %<fno-altivec " \
   DARWIN_CC1_SPEC
 
-#define DARWIN_ARCH_SPEC "%{m64:ppc64;:ppc}"
+/* Default to PPC for single arch builds.  */
+#define DARWIN_ARCH_SPEC "ppc"
 
 #define DARWIN_SUBARCH_SPEC "			\
- %{m64: ppc64}					\
- %{!m64:					\
  %{mcpu=601:ppc601;				\
    mcpu=603:ppc603;				\
    mcpu=603e:ppc603;				\
@@ -117,7 +144,7 @@ extern int darwin_emit_branch_islands;
    mcpu=970:ppc970;				\
    mcpu=power4:ppc970;				\
    mcpu=G5:ppc970;				\
-   :ppc}}"
+   :ppc}"
 
 /* We need to jam the crt to 10.5 for 10.6 (Rosetta) use.  */
 #undef DARWIN_CRT1_SPEC
@@ -126,9 +153,30 @@ extern int darwin_emit_branch_islands;
    %:version-compare(>< 10.5 10.7 mmacosx-version-min= -lcrt1.10.5.o)	\
    %{fgnu-tm: -lcrttms.o}"
 
-/* crt2.o is at least partially required for 10.3.x and earlier.  */
+/* crt2.o is at least partially required for 10.3.x and earlier.
+   It deals with registration of the unwind frames, where this is not
+   automatically provided by the system.  So we need it for any case that
+   might use exceptions.  */
+#undef DARWIN_CRT2_SPEC
 #define DARWIN_CRT2_SPEC \
-  "%{!m64:%:version-compare(!> 10.4 mmacosx-version-min= crt2.o%s)}"
+"%{!m64:%{shared-libgcc|static-libstdc++|fexceptions|fobjc-exceptions|fgnu-runtime: \
+   %:version-compare(!> 10.4 mmacosx-version-min= crt2.o%s) \
+  }}"
+
+/* crt3 deals with providing cxa_atexit on earlier systems (or fixing it up,
+   for broken versions).  It's only needed for c++ code, so we can make it
+   conditional on shared-libgcc since that's forced on for c++.  */
+#undef DARWIN_CRT3_SPEC
+#define DARWIN_CRT3_SPEC \
+"%{!m64:%{shared-libgcc|static-libstdc++:							\
+   %:version-compare(>< 10.4 10.5 mmacosx-version-min= crt3.o%s) \
+   %:version-compare(!> 10.4 mmacosx-version-min= crt3_2.o%s) \
+  }}"
+
+/* The PPC regs save/restore functions are leaves and could, conceivably
+   be used by the tm destructor.  */
+#undef ENDFILE_SPEC
+#define ENDFILE_SPEC TM_DESTRUCTOR " -lef_ppc"
 
 #undef SUBTARGET_EXTRA_SPECS
 #define SUBTARGET_EXTRA_SPECS			\
@@ -281,9 +329,9 @@ extern int darwin_emit_branch_islands;
 /* This is supported in cctools 465 and later.  The macro test
    above prevents using it in earlier build environments.  */
 #define ASM_OUTPUT_MAX_SKIP_ALIGN(FILE,LOG,MAX_SKIP)          \
-  if ((LOG) != 0)                                             \
+  if ((LOG) > 0)                                             \
     {                                                         \
-      if ((MAX_SKIP) == 0)                                    \
+      if ((MAX_SKIP) <= 0)                                    \
         fprintf ((FILE), "\t.p2align %d\n", (LOG));           \
       else                                                    \
         fprintf ((FILE), "\t.p2align %d,,%d\n", (LOG), (MAX_SKIP)); \
@@ -398,6 +446,7 @@ extern int darwin_emit_branch_islands;
   do \
     { \
       DARWIN_REGISTER_TARGET_PRAGMAS(); \
+      targetm.target_option.pragma_parse = rs6000_pragma_target_parse; \
       targetm.resolve_overloaded_builtin = altivec_resolve_overloaded_builtin; \
     } \
   while (0)
@@ -456,6 +505,9 @@ do {									\
 /* So far, there is no rs6000_fold_builtin, if one is introduced, then
    this will need to be modified similar to the x86 case.  */
 #define TARGET_FOLD_BUILTIN SUBTARGET_FOLD_BUILTIN
+
+/* First available SYMBOL flag bit for use by subtargets.  */
+#define SYMBOL_FLAG_SUBT_DEP (SYMBOL_FLAG_MACH_DEP)
 
 /* Use standard DWARF numbering for DWARF debugging information.  */
 #define RS6000_USE_DWARF_NUMBERING

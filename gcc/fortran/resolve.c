@@ -583,6 +583,9 @@ resolve_contained_fntype (gfc_symbol *sym, gfc_namespace *ns)
       || sym->attr.entry_master)
     return;
 
+  if (!sym->result)
+    return;
+
   /* Try to find out of what the return type is.  */
   if (sym->result->ts.type == BT_UNKNOWN && sym->result->ts.interface == NULL)
     {
@@ -1426,8 +1429,7 @@ resolve_structure_cons (gfc_expr *expr, int init)
 	  if (s2 && !gfc_compare_interfaces (comp->ts.interface, s2, name, 0, 1,
 					     err, sizeof (err), NULL, NULL))
 	    {
-	      gfc_error_opt (OPT_Wargument_mismatch,
-			     "Interface mismatch for procedure-pointer "
+	      gfc_error_opt (0, "Interface mismatch for procedure-pointer "
 			     "component %qs in structure constructor at %L:"
 			     " %s", comp->name, &cons->expr->where, err);
 	      return false;
@@ -1862,6 +1864,25 @@ resolve_procedure_expression (gfc_expr* expr)
 }
 
 
+/* Check that name is not a derived type.  */
+
+static bool
+is_dt_name (const char *name)
+{
+  gfc_symbol *dt_list, *dt_first;
+
+  dt_list = dt_first = gfc_derived_types;
+  for (; dt_list; dt_list = dt_list->dt_next)
+    {
+      if (strcmp(dt_list->name, name) == 0)
+	return true;
+      if (dt_first == dt_list->dt_next)
+	break;
+    }
+  return false;
+}
+
+
 /* Resolve an actual argument list.  Most of the time, this is just
    resolving the expressions in the list.
    The exception is that we sometimes have to decide whether arguments
@@ -1922,6 +1943,13 @@ resolve_actual_arglist (gfc_actual_arglist *arg, procedure_type ptype,
       /* See if the expression node should really be a variable reference.  */
 
       sym = e->symtree->n.sym;
+
+      if (sym->attr.flavor == FL_PROCEDURE && is_dt_name (sym->name))
+	{
+	  gfc_error ("Derived type %qs is used as an actual "
+		     "argument at %L", sym->name, &e->where);
+	  goto cleanup;
+	}
 
       if (sym->attr.flavor == FL_PROCEDURE
 	  || sym->attr.intrinsic
@@ -2477,8 +2505,7 @@ gfc_explicit_interface_required (gfc_symbol *sym, char *errmsg, int err_len)
 
 
 static void
-resolve_global_procedure (gfc_symbol *sym, locus *where,
-			  gfc_actual_arglist **actual, int sub)
+resolve_global_procedure (gfc_symbol *sym, locus *where, int sub)
 {
   gfc_gsymbol * gsym;
   gfc_namespace *ns;
@@ -2581,19 +2608,10 @@ resolve_global_procedure (gfc_symbol *sym, locus *where,
       if (!gfc_compare_interfaces (sym, def_sym, sym->name, 0, 1,
 				   reason, sizeof(reason), NULL, NULL))
 	{
-	  gfc_error_opt (OPT_Wargument_mismatch,
-			 "Interface mismatch in global procedure %qs at %L:"
+	  gfc_error_opt (0, "Interface mismatch in global procedure %qs at %L:"
 			 " %s", sym->name, &sym->declared_at, reason);
 	  goto done;
 	}
-
-      if (!pedantic
-	  || ((gfc_option.warn_std & GFC_STD_LEGACY)
-	      && !(gfc_option.warn_std & GFC_STD_GNU)))
-	gfc_errors_to_warnings (true);
-
-      if (sym->attr.if_source != IFSRC_IFBODY)
-	gfc_procedure_use (def_sym, actual, where);
     }
 
 done:
@@ -3169,8 +3187,7 @@ resolve_function (gfc_expr *expr)
 
   /* If the procedure is external, check for usage.  */
   if (sym && is_external_proc (sym))
-    resolve_global_procedure (sym, &expr->where,
-			      &expr->value.function.actual, 0);
+    resolve_global_procedure (sym, &expr->where, 0);
 
   if (sym && sym->ts.type == BT_CHARACTER
       && sym->ts.u.cl
@@ -3224,6 +3241,16 @@ resolve_function (gfc_expr *expr)
 
   if (expr->expr_type != EXPR_FUNCTION)
     return t;
+
+  /* Walk the argument list looking for invalid BOZ.  */
+  for (arg = expr->value.function.actual; arg; arg = arg->next)
+    if (arg->expr && arg->expr->ts.type == BT_BOZ)
+      {
+	gfc_error ("A BOZ literal constant at %L cannot appear as an "
+		   "actual argument in a function reference",
+		   &arg->expr->where);
+	return false;
+      }
 
   temp = need_full_assumed_size;
   need_full_assumed_size = 0;
@@ -3646,7 +3673,7 @@ resolve_call (gfc_code *c)
 
   /* If external, check for usage.  */
   if (csym && is_external_proc (csym))
-    resolve_global_procedure (csym, &c->loc, &c->ext.actual, 1);
+    resolve_global_procedure (csym, &c->loc, 1);
 
   t = true;
   if (c->resolved_sym == NULL)
@@ -3873,6 +3900,42 @@ impure_function_callback (gfc_expr **e, int *walk_subtrees ATTRIBUTE_UNUSED,
   return 0;
 }
 
+/* Return true if TYPE is character based, false otherwise.  */
+
+static int
+is_character_based (bt type)
+{
+  return type == BT_CHARACTER || type == BT_HOLLERITH;
+}
+
+
+/* If expression is a hollerith, convert it to character and issue a warning
+   for the conversion.  */
+
+static void
+convert_hollerith_to_character (gfc_expr *e)
+{
+  if (e->ts.type == BT_HOLLERITH)
+    {
+      gfc_typespec t;
+      gfc_clear_ts (&t);
+      t.type = BT_CHARACTER;
+      t.kind = e->ts.kind;
+      gfc_convert_type_warn (e, &t, 2, 1);
+    }
+}
+
+/* Convert to numeric and issue a warning for the conversion.  */
+
+static void
+convert_to_numeric (gfc_expr *a, gfc_expr *b)
+{
+  gfc_typespec t;
+  gfc_clear_ts (&t);
+  t.type = b->ts.type;
+  t.kind = b->ts.kind;
+  gfc_convert_type_warn (a, &t, 2, 1);
+}
 
 /* Resolve an operator expression node.  This can involve replacing the
    operation with a user defined function call.  */
@@ -3901,6 +3964,14 @@ resolve_operator (gfc_expr *e)
     case INTRINSIC_PARENTHESES:
       if (!gfc_resolve_expr (e->value.op.op1))
 	return false;
+      if (e->value.op.op1
+	  && e->value.op.op1->ts.type == BT_BOZ && !e->value.op.op2)
+	{
+	  gfc_error ("BOZ literal constant at %L cannot be an operand of "
+		     "unary operator %qs", &e->value.op.op1->where,
+		     gfc_op2string (e->value.op.op));
+	  return false;
+	}
       break;
     }
 
@@ -3909,6 +3980,16 @@ resolve_operator (gfc_expr *e)
   op1 = e->value.op.op1;
   op2 = e->value.op.op2;
   dual_locus_error = false;
+
+  /* op1 and op2 cannot both be BOZ.  */
+  if (op1 && op1->ts.type == BT_BOZ
+      && op2 && op2->ts.type == BT_BOZ)
+    {
+      gfc_error ("Operands at %L and %L cannot appear as operands of "
+		 "binary operator %qs", &op1->where, &op2->where,
+		 gfc_op2string (e->value.op.op));
+      return false;
+    }
 
   if ((op1 && op1->expr_type == EXPR_NULL)
       || (op2 && op2->expr_type == EXPR_NULL))
@@ -3930,7 +4011,7 @@ resolve_operator (gfc_expr *e)
 	}
 
       sprintf (msg, _("Operand of unary numeric operator %%<%s%%> at %%L is %s"),
-	       gfc_op2string (e->value.op.op), gfc_typename (&e->ts));
+	       gfc_op2string (e->value.op.op), gfc_typename (e));
       goto bad_op;
 
     case INTRINSIC_PLUS:
@@ -3952,8 +4033,8 @@ resolve_operator (gfc_expr *e)
       else
       	sprintf (msg,
 	       _("Operands of binary numeric operator %%<%s%%> at %%L are %s/%s"),
-	       gfc_op2string (e->value.op.op), gfc_typename (&op1->ts),
-	       gfc_typename (&op2->ts));
+	       gfc_op2string (e->value.op.op), gfc_typename (op1),
+	       gfc_typename (op2));
       goto bad_op;
 
     case INTRINSIC_CONCAT:
@@ -3967,7 +4048,7 @@ resolve_operator (gfc_expr *e)
 
       sprintf (msg,
 	       _("Operands of string concatenation operator at %%L are %s/%s"),
-	       gfc_typename (&op1->ts), gfc_typename (&op2->ts));
+	       gfc_typename (op1), gfc_typename (op2));
       goto bad_op;
 
     case INTRINSIC_AND:
@@ -4009,8 +4090,8 @@ resolve_operator (gfc_expr *e)
 	}
 
       sprintf (msg, _("Operands of logical operator %%<%s%%> at %%L are %s/%s"),
-	       gfc_op2string (e->value.op.op), gfc_typename (&op1->ts),
-	       gfc_typename (&op2->ts));
+	       gfc_op2string (e->value.op.op), gfc_typename (op1),
+	       gfc_typename (op2));
 
       goto bad_op;
 
@@ -4032,7 +4113,7 @@ resolve_operator (gfc_expr *e)
 	}
 
       sprintf (msg, _("Operand of .not. operator at %%L is %s"),
-	       gfc_typename (&op1->ts));
+		      gfc_typename (op1));
       goto bad_op;
 
     case INTRINSIC_GT:
@@ -4055,6 +4136,15 @@ resolve_operator (gfc_expr *e)
     case INTRINSIC_EQ_OS:
     case INTRINSIC_NE:
     case INTRINSIC_NE_OS:
+
+      if (flag_dec
+	  && is_character_based (op1->ts.type)
+	  && is_character_based (op2->ts.type))
+	{
+	  convert_hollerith_to_character (op1);
+	  convert_hollerith_to_character (op2);
+	}
+
       if (op1->ts.type == BT_CHARACTER && op2->ts.type == BT_CHARACTER
 	  && op1->ts.kind == op2->ts.kind)
 	{
@@ -4062,6 +4152,43 @@ resolve_operator (gfc_expr *e)
 	  e->ts.kind = gfc_default_logical_kind;
 	  break;
 	}
+
+      /* If op1 is BOZ, then op2 is not!.  Try to convert to type of op2.  */
+      if (op1->ts.type == BT_BOZ)
+	{
+	  if (gfc_invalid_boz ("BOZ literal constant near %L cannot appear as "
+				"an operand of a relational operator",
+				&op1->where))
+	    return false;
+
+	  if (op2->ts.type == BT_INTEGER && !gfc_boz2int (op1, op2->ts.kind))
+	    return false;
+
+	  if (op2->ts.type == BT_REAL && !gfc_boz2real (op1, op2->ts.kind))
+	    return false;
+	}
+
+      /* If op2 is BOZ, then op1 is not!.  Try to convert to type of op2. */
+      if (op2->ts.type == BT_BOZ)
+	{
+	  if (gfc_invalid_boz ("BOZ literal constant near %L cannot appear as "
+				"an operand of a relational operator",
+				&op2->where))
+	    return false;
+
+	  if (op1->ts.type == BT_INTEGER && !gfc_boz2int (op2, op1->ts.kind))
+	    return false;
+
+	  if (op1->ts.type == BT_REAL && !gfc_boz2real (op2, op1->ts.kind))
+	    return false;
+	}
+      if (flag_dec
+	  && op1->ts.type == BT_HOLLERITH && gfc_numeric_ts (&op2->ts))
+	convert_to_numeric (op1, op2);
+
+      if (flag_dec
+	  && gfc_numeric_ts (&op1->ts) && op2->ts.type == BT_HOLLERITH)
+	convert_to_numeric (op2, op1);
 
       if (gfc_numeric_ts (&op1->ts) && gfc_numeric_ts (&op2->ts))
 	{
@@ -4088,7 +4215,7 @@ resolve_operator (gfc_expr *e)
 		    msg = "Inequality comparison for %s at %L";
 
 		  gfc_warning (OPT_Wcompare_reals, msg,
-			       gfc_typename (&op1->ts), &op1->where);
+			       gfc_typename (op1), &op1->where);
 		}
 	    }
 
@@ -4104,8 +4231,8 @@ resolve_operator (gfc_expr *e)
       else
 	sprintf (msg,
 		 _("Operands of comparison operator %%<%s%%> at %%L are %s/%s"),
-		 gfc_op2string (e->value.op.op), gfc_typename (&op1->ts),
-		 gfc_typename (&op2->ts));
+		 gfc_op2string (e->value.op.op), gfc_typename (op1),
+		 gfc_typename (op2));
 
       goto bad_op;
 
@@ -4123,12 +4250,12 @@ resolve_operator (gfc_expr *e)
 	}
       else if (op2 == NULL)
 	sprintf (msg, _("Operand of user operator %%<%s%%> at %%L is %s"),
-		 e->value.op.uop->name, gfc_typename (&op1->ts));
+		 e->value.op.uop->name, gfc_typename (op1));
       else
 	{
 	  sprintf (msg, _("Operands of user operator %%<%s%%> at %%L are %s/%s"),
-		   e->value.op.uop->name, gfc_typename (&op1->ts),
-		   gfc_typename (&op2->ts));
+		   e->value.op.uop->name, gfc_typename (op1),
+		   gfc_typename (op2));
 	  e->value.op.uop->op->sym->attr.referenced = 1;
 	}
 
@@ -5388,13 +5515,16 @@ resolve_variable (gfc_expr *e)
 	}
     }
   /* TS 29113, C535b.  */
-  else if ((sym->ts.type == BT_CLASS && sym->attr.class_ok
-	    && CLASS_DATA (sym)->as
-	    && CLASS_DATA (sym)->as->type == AS_ASSUMED_RANK)
-	   || (sym->ts.type != BT_CLASS && sym->as
-	       && sym->as->type == AS_ASSUMED_RANK))
+  else if (((sym->ts.type == BT_CLASS && sym->attr.class_ok
+	     && CLASS_DATA (sym)->as
+	     && CLASS_DATA (sym)->as->type == AS_ASSUMED_RANK)
+	    || (sym->ts.type != BT_CLASS && sym->as
+	        && sym->as->type == AS_ASSUMED_RANK))
+	   && !sym->attr.select_rank_temporary)
     {
-      if (!actual_arg)
+      if (!actual_arg
+	  && !(cs_base && cs_base->current
+	       && cs_base->current->op == EXEC_SELECT_RANK))
 	{
 	  gfc_error ("Assumed-rank variable %s at %L may only be used as "
 		     "actual argument", sym->name, &e->where);
@@ -6403,6 +6533,7 @@ resolve_compcall (gfc_expr* e, const char **name)
       return false;
     }
 
+
   /* These must not be assign-calls!  */
   gcc_assert (!e->value.compcall.assign);
 
@@ -6469,21 +6600,6 @@ resolve_typebound_function (gfc_expr* e)
   overridable = !e->value.compcall.tbp->non_overridable;
   if (expr && expr->ts.type == BT_CLASS && e->value.compcall.name)
     {
-      /* If the base_object is not a variable, the corresponding actual
-	 argument expression must be stored in e->base_expression so
-	 that the corresponding tree temporary can be used as the base
-	 object in gfc_conv_procedure_call.  */
-      if (expr->expr_type != EXPR_VARIABLE)
-	{
-	  gfc_actual_arglist *args;
-
-	  for (args= e->value.function.actual; args; args = args->next)
-	    {
-	      if (expr == args->expr)
-		expr = args->expr;
-	    }
-	}
-
       /* Since the typebound operators are generic, we have to ensure
 	 that any delays in resolution are corrected and that the vtab
 	 is present.  */
@@ -6544,7 +6660,6 @@ resolve_typebound_function (gfc_expr* e)
     }
 
   c = gfc_find_component (declared, "_data", true, true, NULL);
-  declared = c->ts.u.derived;
 
   /* Treat the call as if it is a typebound procedure, in order to roll
      out the correct name for the specific function.  */
@@ -6848,7 +6963,7 @@ gfc_resolve_expr (gfc_expr *e)
   bool t;
   bool inquiry_save, actual_arg_save, first_actual_arg_save;
 
-  if (e == NULL)
+  if (e == NULL || e->do_not_resolve_again)
     return true;
 
   /* inquiry_argument only applies to variables.  */
@@ -6958,6 +7073,13 @@ gfc_resolve_expr (gfc_expr *e)
   actual_arg = actual_arg_save;
   first_actual_arg = first_actual_arg_save;
 
+  /* For some reason, resolving these expressions a second time mangles
+     the typespec of the expression itself.  */
+  if (t && e->expr_type == EXPR_VARIABLE
+      && e->symtree->n.sym->attr.select_rank_temporary
+      && UNLIMITED_POLY (e->symtree->n.sym))
+    e->do_not_resolve_again = 1;
+
   return t;
 }
 
@@ -7030,19 +7152,6 @@ gfc_resolve_iterator (gfc_iterator *iter, bool real_ok, bool own_scope)
 				  "Step expression in DO loop"))
     return false;
 
-  if (iter->step->expr_type == EXPR_CONSTANT)
-    {
-      if ((iter->step->ts.type == BT_INTEGER
-	   && mpz_cmp_ui (iter->step->value.integer, 0) == 0)
-	  || (iter->step->ts.type == BT_REAL
-	      && mpfr_sgn (iter->step->value.real) == 0))
-	{
-	  gfc_error ("Step expression in DO loop at %L cannot be zero",
-		     &iter->step->where);
-	  return false;
-	}
-    }
-
   /* Convert start, end, and step to the same type as var.  */
   if (iter->start->ts.kind != iter->var->ts.kind
       || iter->start->ts.type != iter->var->ts.type)
@@ -7055,6 +7164,19 @@ gfc_resolve_iterator (gfc_iterator *iter, bool real_ok, bool own_scope)
   if (iter->step->ts.kind != iter->var->ts.kind
       || iter->step->ts.type != iter->var->ts.type)
     gfc_convert_type (iter->step, &iter->var->ts, 1);
+
+  if (iter->step->expr_type == EXPR_CONSTANT)
+    {
+      if ((iter->step->ts.type == BT_INTEGER
+	   && mpz_cmp_ui (iter->step->value.integer, 0) == 0)
+	  || (iter->step->ts.type == BT_REAL
+	      && mpfr_sgn (iter->step->value.real) == 0))
+	{
+	  gfc_error ("Step expression in DO loop at %L cannot be zero",
+		     &iter->step->where);
+	  return false;
+	}
+    }
 
   if (iter->start->expr_type == EXPR_CONSTANT
       && iter->end->expr_type == EXPR_CONSTANT
@@ -7358,6 +7480,10 @@ gfc_expr_to_initialize (gfc_expr *e)
   for (ref = result->ref; ref; ref = ref->next)
     if (ref->type == REF_ARRAY && ref->next == NULL)
       {
+	if (ref->u.ar.dimen == 0
+	    && ref->u.ar.as && ref->u.ar.as->corank)
+	  return result;
+
 	ref->u.ar.type = AR_FULL;
 
 	for (i = 0; i < ref->u.ar.dimen; i++)
@@ -7410,7 +7536,7 @@ conformable_arrays (gfc_expr *e1, gfc_expr *e2)
   for (tail = e2->ref; tail && tail->next; tail = tail->next);
 
   /* First compare rank.  */
-  if ((tail && e1->rank != tail->u.ar.as->rank)
+  if ((tail && (!tail->u.ar.as || e1->rank != tail->u.ar.as->rank))
       || (!tail && e1->rank != e2->rank))
     {
       gfc_error ("Source-expr at %L must be scalar or have the "
@@ -8415,7 +8541,7 @@ resolve_select (gfc_code *code, bool select_type)
   if (type != BT_LOGICAL && type != BT_INTEGER && type != BT_CHARACTER)
     {
       gfc_error ("Argument of SELECT statement at %L cannot be %s",
-		 &case_expr->where, gfc_typename (&case_expr->ts));
+		 &case_expr->where, gfc_typename (case_expr));
 
       /* Punt. Going on here just produce more garbage error messages.  */
       return;
@@ -8444,7 +8570,7 @@ resolve_select (gfc_code *code, bool select_type)
 					  case_expr->ts.kind) != ARITH_OK)
 	    gfc_warning (0, "Expression in CASE statement at %L is "
 			 "not in the range of %s", &cp->low->where,
-			 gfc_typename (&case_expr->ts));
+			 gfc_typename (case_expr));
 
 	  if (cp->high
 	      && cp->low != cp->high
@@ -8452,7 +8578,7 @@ resolve_select (gfc_code *code, bool select_type)
 					  case_expr->ts.kind) != ARITH_OK)
 	    gfc_warning (0, "Expression in CASE statement at %L is "
 			 "not in the range of %s", &cp->high->where,
-			 gfc_typename (&case_expr->ts));
+			 gfc_typename (case_expr));
 	}
 
   /* PR 19168 has a long discussion concerning a mismatch of the kinds
@@ -8774,7 +8900,7 @@ resolve_assoc_var (gfc_symbol* sym, bool resolve_target)
   if (target->ts.type == BT_CLASS)
     gfc_fix_class_refs (target);
 
-  if (target->rank != 0)
+  if (target->rank != 0 && !sym->attr.select_rank_temporary)
     {
       gfc_array_spec *as;
       /* The rank may be incorrectly guessed at parsing, therefore make sure
@@ -8804,7 +8930,7 @@ resolve_assoc_var (gfc_symbol* sym, bool resolve_target)
 	    CLASS_DATA (sym)->attr.codimension = 1;
 	}
     }
-  else
+  else if (!sym->attr.select_rank_temporary)
     {
       /* target's rank is 0, but the type of the sym is still array valued,
 	 which has to be corrected.  */
@@ -9420,6 +9546,175 @@ resolve_select_type (gfc_code *code, gfc_namespace *old_ns)
 
   if (ref)
     free (ref);
+}
+
+
+/* Resolve a SELECT RANK statement.  */
+
+static void
+resolve_select_rank (gfc_code *code, gfc_namespace *old_ns)
+{
+  gfc_namespace *ns;
+  gfc_code *body, *new_st, *tail;
+  gfc_case *c;
+  char tname[GFC_MAX_SYMBOL_LEN];
+  char name[2 * GFC_MAX_SYMBOL_LEN];
+  gfc_symtree *st;
+  gfc_expr *selector_expr = NULL;
+  int case_value;
+  HOST_WIDE_INT charlen = 0;
+
+  ns = code->ext.block.ns;
+  gfc_resolve (ns);
+
+  code->op = EXEC_BLOCK;
+  if (code->expr2)
+    {
+      gfc_association_list* assoc;
+
+      assoc = gfc_get_association_list ();
+      assoc->st = code->expr1->symtree;
+      assoc->target = gfc_copy_expr (code->expr2);
+      assoc->target->where = code->expr2->where;
+      /* assoc->variable will be set by resolve_assoc_var.  */
+
+      code->ext.block.assoc = assoc;
+      code->expr1->symtree->n.sym->assoc = assoc;
+
+      resolve_assoc_var (code->expr1->symtree->n.sym, false);
+    }
+  else
+    code->ext.block.assoc = NULL;
+
+  /* Loop over RANK cases. Note that returning on the errors causes a
+     cascade of further errors because the case blocks do not compile
+     correctly.  */
+  for (body = code->block; body; body = body->block)
+    {
+      c = body->ext.block.case_list;
+      if (c->low)
+	case_value = (int) mpz_get_si (c->low->value.integer);
+      else
+	case_value = -2;
+
+      /* Check for repeated cases.  */
+      for (tail = code->block; tail; tail = tail->block)
+	{
+	  gfc_case *d = tail->ext.block.case_list;
+	  int case_value2;
+
+	  if (tail == body)
+	    break;
+
+	  /* Check F2018: C1153.  */
+	  if (!c->low && !d->low)
+	    gfc_error ("RANK DEFAULT at %L is repeated at %L",
+		       &c->where, &d->where);
+
+	  if (!c->low || !d->low)
+	    continue;
+
+	  /* Check F2018: C1153.  */
+	  case_value2 = (int) mpz_get_si (d->low->value.integer);
+	  if ((case_value == case_value2) && case_value == -1)
+	    gfc_error ("RANK (*) at %L is repeated at %L",
+		       &c->where, &d->where);
+	  else if (case_value == case_value2)
+	    gfc_error ("RANK (%i) at %L is repeated at %L",
+		       case_value, &c->where, &d->where);
+	}
+
+      if (!c->low)
+        continue;
+
+      /* Check F2018: C1155.  */
+      if (case_value == -1 && (gfc_expr_attr (code->expr1).allocatable
+			       || gfc_expr_attr (code->expr1).pointer))
+	gfc_error ("RANK (*) at %L cannot be used with the pointer or "
+		   "allocatable selector at %L", &c->where, &code->expr1->where);
+
+      if (case_value == -1 && (gfc_expr_attr (code->expr1).allocatable
+			       || gfc_expr_attr (code->expr1).pointer))
+	gfc_error ("RANK (*) at %L cannot be used with the pointer or "
+		   "allocatable selector at %L", &c->where, &code->expr1->where);
+    }
+
+  /* Add EXEC_SELECT to switch on rank.  */
+  new_st = gfc_get_code (code->op);
+  new_st->expr1 = code->expr1;
+  new_st->expr2 = code->expr2;
+  new_st->block = code->block;
+  code->expr1 = code->expr2 =  NULL;
+  code->block = NULL;
+  if (!ns->code)
+    ns->code = new_st;
+  else
+    ns->code->next = new_st;
+  code = new_st;
+  code->op = EXEC_SELECT_RANK;
+
+  selector_expr = code->expr1;
+
+  /* Loop over SELECT RANK cases.  */
+  for (body = code->block; body; body = body->block)
+    {
+      c = body->ext.block.case_list;
+      int case_value;
+
+      /* Pass on the default case.  */
+      if (c->low == NULL)
+	continue;
+
+      /* Associate temporary to selector.  This should only be done
+	 when this case is actually true, so build a new ASSOCIATE
+	 that does precisely this here (instead of using the
+	 'global' one).  */
+      if (c->ts.type == BT_CHARACTER && c->ts.u.cl && c->ts.u.cl->length
+	  && c->ts.u.cl->length->expr_type == EXPR_CONSTANT)
+	charlen = gfc_mpz_get_hwi (c->ts.u.cl->length->value.integer);
+
+      if (c->ts.type == BT_CLASS)
+	sprintf (tname, "class_%s", c->ts.u.derived->name);
+      else if (c->ts.type == BT_DERIVED)
+	sprintf (tname, "type_%s", c->ts.u.derived->name);
+      else if (c->ts.type != BT_CHARACTER)
+	sprintf (tname, "%s_%d", gfc_basic_typename (c->ts.type), c->ts.kind);
+      else
+	sprintf (tname, "%s_" HOST_WIDE_INT_PRINT_DEC "_%d",
+		 gfc_basic_typename (c->ts.type), charlen, c->ts.kind);
+
+      case_value = (int) mpz_get_si (c->low->value.integer);
+      if (case_value >= 0)
+	sprintf (name, "__tmp_%s_rank_%d", tname, case_value);
+      else
+	sprintf (name, "__tmp_%s_rank_m%d", tname, -case_value);
+
+      st = gfc_find_symtree (ns->sym_root, name);
+      gcc_assert (st->n.sym->assoc);
+
+      st->n.sym->assoc->target = gfc_get_variable_expr (selector_expr->symtree);
+      st->n.sym->assoc->target->where = selector_expr->where;
+
+      new_st = gfc_get_code (EXEC_BLOCK);
+      new_st->ext.block.ns = gfc_build_block_ns (ns);
+      new_st->ext.block.ns->code = body->next;
+      body->next = new_st;
+
+      /* Chain in the new list only if it is marked as dangling.  Otherwise
+	 there is a CASE label overlap and this is already used.  Just ignore,
+	 the error is diagnosed elsewhere.  */
+      if (st->n.sym->assoc->dangling)
+	{
+	  new_st->ext.block.assoc = st->n.sym->assoc;
+	  st->n.sym->assoc->dangling = 0;
+	}
+
+      resolve_assoc_var (st->n.sym, false);
+    }
+
+  gfc_current_ns = ns;
+  gfc_resolve_blocks (code->block, gfc_current_ns);
+  gfc_current_ns = old_ns;
 }
 
 
@@ -10299,6 +10594,7 @@ gfc_resolve_blocks (gfc_code *b, gfc_namespace *ns)
 
 	case EXEC_SELECT:
 	case EXEC_SELECT_TYPE:
+	case EXEC_SELECT_RANK:
 	case EXEC_FORALL:
 	case EXEC_DO:
 	case EXEC_DO_WHILE:
@@ -10332,6 +10628,8 @@ gfc_resolve_blocks (gfc_code *b, gfc_namespace *ns)
 	case EXEC_OACC_PARALLEL:
 	case EXEC_OACC_KERNELS_LOOP:
 	case EXEC_OACC_KERNELS:
+	case EXEC_OACC_SERIAL_LOOP:
+	case EXEC_OACC_SERIAL:
 	case EXEC_OACC_DATA:
 	case EXEC_OACC_HOST_DATA:
 	case EXEC_OACC_LOOP:
@@ -10445,44 +10743,44 @@ resolve_ordinary_assign (gfc_code *code, gfc_namespace *ns)
   lhs = code->expr1;
   rhs = code->expr2;
 
-  if (rhs->is_boz
-      && !gfc_notify_std (GFC_STD_GNU, "BOZ literal at %L outside "
-			  "a DATA statement and outside INT/REAL/DBLE/CMPLX",
-			  &code->loc))
-    return false;
+  if ((gfc_numeric_ts (&lhs->ts) || lhs->ts.type == BT_LOGICAL)
+      && rhs->ts.type == BT_CHARACTER
+      && (rhs->expr_type != EXPR_CONSTANT || !flag_dec_char_conversions))
+    {
+      /* Use of -fdec-char-conversions allows assignment of character data
+	 to non-character variables.  This not permited for nonconstant
+	 strings.  */
+      gfc_error ("Cannot convert %s to %s at %L", gfc_typename (rhs),
+		 gfc_typename (lhs), &rhs->where);
+      return false;
+    }
 
   /* Handle the case of a BOZ literal on the RHS.  */
-  if (rhs->is_boz && lhs->ts.type != BT_INTEGER)
+  if (rhs->ts.type == BT_BOZ)
     {
-      int rc;
-      if (warn_surprising)
-	gfc_warning (OPT_Wsurprising,
-		     "BOZ literal at %L is bitwise transferred "
-		     "non-integer symbol %qs", &code->loc,
-		     lhs->symtree->n.sym->name);
-
-      if (!gfc_convert_boz (rhs, &lhs->ts))
+      if (gfc_invalid_boz ("BOZ literal constant at %L is neither a DATA "
+			   "statement value nor an actual argument of "
+			   "INT/REAL/DBLE/CMPLX intrinsic subprogram",
+			   &rhs->where))
 	return false;
-      if ((rc = gfc_range_check (rhs)) != ARITH_OK)
+
+      switch (lhs->ts.type)
 	{
-	  if (rc == ARITH_UNDERFLOW)
-	    gfc_error ("Arithmetic underflow of bit-wise transferred BOZ at %L"
-		       ". This check can be disabled with the option "
-		       "%<-fno-range-check%>", &rhs->where);
-	  else if (rc == ARITH_OVERFLOW)
-	    gfc_error ("Arithmetic overflow of bit-wise transferred BOZ at %L"
-		       ". This check can be disabled with the option "
-		       "%<-fno-range-check%>", &rhs->where);
-	  else if (rc == ARITH_NAN)
-	    gfc_error ("Arithmetic NaN of bit-wise transferred BOZ at %L"
-		       ". This check can be disabled with the option "
-		       "%<-fno-range-check%>", &rhs->where);
+	case BT_INTEGER:
+	  if (!gfc_boz2int (rhs, lhs->ts.kind))
+	    return false;
+	  break;
+	case BT_REAL:
+	  if (!gfc_boz2real (rhs, lhs->ts.kind))
+	    return false;
+	  break;
+	default:
+	  gfc_error ("Invalid use of BOZ literal constant at %L", &rhs->where);
 	  return false;
 	}
     }
 
-  if (lhs->ts.type == BT_CHARACTER
-	&& warn_character_truncation)
+  if (lhs->ts.type == BT_CHARACTER && warn_character_truncation)
     {
       HOST_WIDE_INT llen = 0, rlen = 0;
       if (lhs->ts.u.cl != NULL
@@ -10537,9 +10835,12 @@ resolve_ordinary_assign (gfc_code *code, gfc_namespace *ns)
 			"component in a PURE procedure",
 			&rhs->where);
 	  else
-	    gfc_error ("The impure variable at %L is assigned to "
-			"a derived type variable with a POINTER "
-			"component in a PURE procedure (12.6)",
+	  /* F2008, C1283 (4).  */
+	    gfc_error ("In a pure subprogram an INTENT(IN) dummy argument "
+			"shall not be used as the expr at %L of an intrinsic "
+			"assignment statement in which the variable is of a "
+			"derived type if the derived type has a pointer "
+			"component at any level of component selection.",
 			&rhs->where);
 	  return rval;
 	}
@@ -11292,6 +11593,8 @@ gfc_resolve_code (gfc_code *code, gfc_namespace *ns)
 	    case EXEC_OACC_PARALLEL:
 	    case EXEC_OACC_KERNELS_LOOP:
 	    case EXEC_OACC_KERNELS:
+	    case EXEC_OACC_SERIAL_LOOP:
+	    case EXEC_OACC_SERIAL:
 	    case EXEC_OACC_DATA:
 	    case EXEC_OACC_HOST_DATA:
 	    case EXEC_OACC_LOOP:
@@ -11588,6 +11891,10 @@ start:
 	  resolve_select_type (code, ns);
 	  break;
 
+	case EXEC_SELECT_RANK:
+	  resolve_select_rank (code, ns);
+	  break;
+
 	case EXEC_BLOCK:
 	  resolve_block_construct (code);
 	  break;
@@ -11701,6 +12008,8 @@ start:
 	case EXEC_OACC_PARALLEL:
 	case EXEC_OACC_KERNELS_LOOP:
 	case EXEC_OACC_KERNELS:
+	case EXEC_OACC_SERIAL_LOOP:
+	case EXEC_OACC_SERIAL:
 	case EXEC_OACC_DATA:
 	case EXEC_OACC_HOST_DATA:
 	case EXEC_OACC_LOOP:
@@ -12027,6 +12336,9 @@ is_non_constant_shape_array (gfc_symbol *sym)
 	 simplification now.  */
       for (i = 0; i < sym->as->rank + sym->as->corank; i++)
 	{
+	  if (i == GFC_MAX_DIMENSIONS)
+	    break;
+
 	  e = sym->as->lower[i];
 	  if (e && (!resolve_index_expr(e)
 		    || !gfc_is_constant_expr (e)))
@@ -12359,6 +12671,10 @@ deferred_requirements (gfc_symbol *sym)
 	   || sym->attr.associate_var
 	   || sym->attr.omp_udr_artificial_var))
     {
+      /* If a function has a result variable, only check the variable.  */
+      if (sym->result && sym->name != sym->result->name)
+	return true;
+
       gfc_error ("Entity %qs at %L has a deferred type parameter and "
 		 "requires either the POINTER or ALLOCATABLE attribute",
 		 sym->name, &sym->declared_at);
@@ -12567,6 +12883,10 @@ resolve_fl_procedure (gfc_symbol *sym, int mp_flag)
 
   if (sym->attr.function
       && !resolve_fl_var_and_proc (sym, mp_flag))
+    return false;
+
+  /* Constraints on deferred type parameter.  */
+  if (!deferred_requirements (sym))
     return false;
 
   if (sym->ts.type == BT_CHARACTER)
@@ -13510,14 +13830,34 @@ resolve_typebound_procedure (gfc_symtree* stree)
     }
   else
     {
+      /* If proc has not been resolved at this point, proc->name may
+	 actually be a USE associated entity. See PR fortran/89647. */
+      if (!proc->resolved
+	  && proc->attr.function == 0 && proc->attr.subroutine == 0)
+	{
+	  gfc_symbol *tmp;
+	  gfc_find_symbol (proc->name, gfc_current_ns->parent, 1, &tmp);
+	  if (tmp && tmp->attr.use_assoc)
+	    {
+	      proc->module = tmp->module;
+	      proc->attr.proc = tmp->attr.proc;
+	      proc->attr.function = tmp->attr.function;
+	      proc->attr.subroutine = tmp->attr.subroutine;
+	      proc->attr.use_assoc = tmp->attr.use_assoc;
+	      proc->ts = tmp->ts;
+	      proc->result = tmp->result;
+	    }
+	}
+
       /* Check for F08:C465.  */
       if ((!proc->attr.subroutine && !proc->attr.function)
 	  || (proc->attr.proc != PROC_MODULE
 	      && proc->attr.if_source != IFSRC_IFBODY)
 	  || proc->attr.abstract)
 	{
-	  gfc_error ("%qs must be a module procedure or an external procedure with"
-		    " an explicit interface at %L", proc->name, &where);
+	  gfc_error ("%qs must be a module procedure or an external "
+		     "procedure with an explicit interface at %L",
+		     proc->name, &where);
 	  goto error;
 	}
     }
@@ -14965,7 +15305,9 @@ resolve_symbol (gfc_symbol *sym)
 	}
       /* TS 29113, C535a.  */
       if (as->type == AS_ASSUMED_RANK && !sym->attr.dummy
-	  && !sym->attr.select_type_temporary)
+	  && !sym->attr.select_type_temporary
+	  && !(cs_base && cs_base->current
+	       && cs_base->current->op == EXEC_SELECT_RANK))
 	{
 	  gfc_error ("Assumed-rank array at %L must be a dummy argument",
 		     &sym->declared_at);
@@ -15633,8 +15975,6 @@ check_data_variable (gfc_data_variable *var, locus *where)
       return false;
     }
 
-  has_pointer = sym->attr.pointer;
-
   if (gfc_is_coindexed (e))
     {
       gfc_error ("DATA element %qs at %L cannot have a coindex", sym->name,
@@ -15642,19 +15982,30 @@ check_data_variable (gfc_data_variable *var, locus *where)
       return false;
     }
 
+  has_pointer = sym->attr.pointer;
+
   for (ref = e->ref; ref; ref = ref->next)
     {
       if (ref->type == REF_COMPONENT && ref->u.c.component->attr.pointer)
 	has_pointer = 1;
 
-      if (has_pointer
-	    && ref->type == REF_ARRAY
-	    && ref->u.ar.type != AR_FULL)
-	  {
-	    gfc_error ("DATA element %qs at %L is a pointer and so must "
-			"be a full array", sym->name, where);
-	    return false;
-	  }
+      if (has_pointer)
+	{
+	  if (ref->type == REF_ARRAY && ref->u.ar.type != AR_FULL)
+	    {
+	      gfc_error ("DATA element %qs at %L is a pointer and so must "
+			 "be a full array", sym->name, where);
+	      return false;
+	    }
+
+	  if (values.vnode->expr->expr_type == EXPR_CONSTANT)
+	    {
+	      gfc_error ("DATA object near %L has the pointer attribute "
+			 "and the corresponding DATA value is not a valid "
+			 "initial-data-target", where);
+	      return false;
+	    }
+	}
     }
 
   if (e->rank == 0 || has_pointer)
@@ -16496,8 +16847,8 @@ resolve_equivalence (gfc_equiv *eq)
 }
 
 
-/* Function called by resolve_fntype to flag other symbol used in the
-   length type parameter specification of function resuls.  */
+/* Function called by resolve_fntype to flag other symbols used in the
+   length type parameter specification of function results.  */
 
 static bool
 flag_fn_result_spec (gfc_expr *expr,

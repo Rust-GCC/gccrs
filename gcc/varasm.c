@@ -47,6 +47,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "stmt.h"
 #include "expr.h"
 #include "expmed.h"
+#include "optabs.h"
 #include "output.h"
 #include "langhooks.h"
 #include "debug.h"
@@ -68,8 +69,8 @@ extern GTY(()) const char *weak_global_object_name;
 const char *first_global_object_name;
 const char *weak_global_object_name;
 
-struct addr_const;
-struct constant_descriptor_rtx;
+class addr_const;
+class constant_descriptor_rtx;
 struct rtx_constant_pool;
 
 #define n_deferred_constants (crtl->varasm.deferred_constants)
@@ -105,7 +106,7 @@ static int contains_pointers_p (tree);
 #ifdef ASM_OUTPUT_EXTERNAL
 static bool incorporeal_function_p (tree);
 #endif
-static void decode_addr_const (tree, struct addr_const *);
+static void decode_addr_const (tree, class addr_const *);
 static hashval_t const_hash_1 (const tree);
 static int compare_constant (const tree, const tree);
 static void output_constant_def_contents (rtx);
@@ -2872,25 +2873,27 @@ assemble_real (REAL_VALUE_TYPE d, scalar_float_mode mode, unsigned int align,
   real_to_target (data, &d, mode);
 
   /* Put out the first word with the specified alignment.  */
+  unsigned int chunk_nunits = MIN (nunits, units_per);
   if (reverse)
     elt = flip_storage_order (SImode, gen_int_mode (data[nelts - 1], SImode));
   else
-    elt = GEN_INT (data[0]);
-  assemble_integer (elt, MIN (nunits, units_per), align, 1);
-  nunits -= units_per;
+    elt = GEN_INT (sext_hwi (data[0], chunk_nunits * BITS_PER_UNIT));
+  assemble_integer (elt, chunk_nunits, align, 1);
+  nunits -= chunk_nunits;
 
   /* Subsequent words need only 32-bit alignment.  */
   align = min_align (align, 32);
 
   for (int i = 1; i < nelts; i++)
     {
+      chunk_nunits = MIN (nunits, units_per);
       if (reverse)
 	elt = flip_storage_order (SImode,
 				  gen_int_mode (data[nelts - 1 - i], SImode));
       else
-	elt = GEN_INT (data[i]);
-      assemble_integer (elt, MIN (nunits, units_per), align, 1);
-      nunits -= units_per;
+	elt = GEN_INT (sext_hwi (data[i], chunk_nunits * BITS_PER_UNIT));
+      assemble_integer (elt, chunk_nunits, align, 1);
+      nunits -= chunk_nunits;
     }
 }
 
@@ -2899,13 +2902,14 @@ assemble_real (REAL_VALUE_TYPE d, scalar_float_mode mode, unsigned int align,
    Store them both in the structure *VALUE.
    EXP must be reducible.  */
 
-struct addr_const {
+class addr_const {
+public:
   rtx base;
   poly_int64 offset;
 };
 
 static void
-decode_addr_const (tree exp, struct addr_const *value)
+decode_addr_const (tree exp, class addr_const *value)
 {
   tree target = TREE_OPERAND (exp, 0);
   poly_int64 offset = 0;
@@ -3075,7 +3079,7 @@ const_hash_1 (const tree exp)
       /* Fallthru.  */
     case FDESC_EXPR:
       {
-	struct addr_const value;
+	class addr_const value;
 
 	decode_addr_const (exp, &value);
 	switch (GET_CODE (value.base))
@@ -3271,7 +3275,7 @@ compare_constant (const tree t1, const tree t2)
     case ADDR_EXPR:
     case FDESC_EXPR:
       {
-	struct addr_const value1, value2;
+	class addr_const value1, value2;
 	enum rtx_code code;
 	int ret;
 
@@ -3385,7 +3389,15 @@ build_constant_desc (tree exp)
   if (TREE_CODE (exp) == STRING_CST)
     SET_DECL_ALIGN (decl, targetm.constant_alignment (exp, DECL_ALIGN (decl)));
   else
-    align_variable (decl, 0);
+    {
+      align_variable (decl, 0);
+      if (DECL_ALIGN (decl) < GET_MODE_ALIGNMENT (DECL_MODE (decl))
+	  && ((optab_handler (movmisalign_optab, DECL_MODE (decl))
+	       != CODE_FOR_nothing)
+	      || targetm.slow_unaligned_access (DECL_MODE (decl),
+						DECL_ALIGN (decl))))
+	SET_DECL_ALIGN (decl, GET_MODE_ALIGNMENT (DECL_MODE (decl)));
+    }
 
   /* Now construct the SYMBOL_REF and the MEM.  */
   if (use_object_blocks_p ())
@@ -3621,8 +3633,9 @@ tree_output_constant_def (tree exp)
   return decl;
 }
 
-struct GTY((chain_next ("%h.next"), for_user)) constant_descriptor_rtx {
-  struct constant_descriptor_rtx *next;
+class GTY((chain_next ("%h.next"), for_user)) constant_descriptor_rtx {
+public:
+  class constant_descriptor_rtx *next;
   rtx mem;
   rtx sym;
   rtx constant;
@@ -3649,8 +3662,8 @@ struct const_rtx_desc_hasher : ggc_ptr_hash<constant_descriptor_rtx>
 
 struct GTY(()) rtx_constant_pool {
   /* Pointers to first and last constant in pool, as ordered by offset.  */
-  struct constant_descriptor_rtx *first;
-  struct constant_descriptor_rtx *last;
+  class constant_descriptor_rtx *first;
+  class constant_descriptor_rtx *last;
 
   /* Hash facility for making memory-constants from constant rtl-expressions.
      It is used on RISC machines where immediate integer arguments and
@@ -3810,7 +3823,7 @@ simplify_subtraction (rtx x)
 rtx
 force_const_mem (machine_mode in_mode, rtx x)
 {
-  struct constant_descriptor_rtx *desc, tmp;
+  class constant_descriptor_rtx *desc, tmp;
   struct rtx_constant_pool *pool;
   char label[256];
   rtx def, symbol;
@@ -3918,7 +3931,7 @@ get_pool_constant (const_rtx addr)
 rtx
 get_pool_constant_mark (rtx addr, bool *pmarked)
 {
-  struct constant_descriptor_rtx *desc;
+  class constant_descriptor_rtx *desc;
 
   desc = SYMBOL_REF_CONSTANT (addr);
   *pmarked = (desc->mark != 0);
@@ -4026,7 +4039,7 @@ output_constant_pool_2 (fixed_size_mode mode, rtx x, unsigned int align)
    giving it ALIGN bits of alignment.  */
 
 static void
-output_constant_pool_1 (struct constant_descriptor_rtx *desc,
+output_constant_pool_1 (class constant_descriptor_rtx *desc,
 			unsigned int align)
 {
   rtx x, tmp;
@@ -4103,7 +4116,7 @@ output_constant_pool_1 (struct constant_descriptor_rtx *desc,
 static void
 recompute_pool_offsets (struct rtx_constant_pool *pool)
 {
-  struct constant_descriptor_rtx *desc;
+  class constant_descriptor_rtx *desc;
   pool->offset = 0;
 
   for (desc = pool->first; desc ; desc = desc->next)
@@ -4132,7 +4145,7 @@ mark_constants_in_pattern (rtx insn)
 	{
 	  if (CONSTANT_POOL_ADDRESS_P (x))
 	    {
-	      struct constant_descriptor_rtx *desc = SYMBOL_REF_CONSTANT (x);
+	      class constant_descriptor_rtx *desc = SYMBOL_REF_CONSTANT (x);
 	      if (desc->mark == 0)
 		{
 		  desc->mark = 1;
@@ -4201,7 +4214,7 @@ mark_constant_pool (void)
 static void
 output_constant_pool_contents (struct rtx_constant_pool *pool)
 {
-  struct constant_descriptor_rtx *desc;
+  class constant_descriptor_rtx *desc;
 
   for (desc = pool->first; desc ; desc = desc->next)
     if (desc->mark)
@@ -5904,7 +5917,7 @@ do_assemble_alias (tree decl, tree target)
       else
 #endif
 	error_at (DECL_SOURCE_LOCATION (decl),
-		  "ifunc is not supported on this target");
+		  "%qs is not supported on this target", "ifunc");
     }
 
 # ifdef ASM_OUTPUT_DEF_FROM_DECLS
@@ -5962,9 +5975,9 @@ assemble_alias (tree decl, tree target)
       ultimate_transparent_alias_target (&target);
 
       if (alias == target)
-	error ("weakref %q+D ultimately targets itself", decl);
+	error ("%qs symbol %q+D ultimately targets itself", "weakref", decl);
       if (TREE_PUBLIC (decl))
-	error ("weakref %q+D must have static linkage", decl);
+	error ("%qs symbol %q+D must have static linkage", "weakref", decl);
     }
   else
     {
@@ -5981,7 +5994,7 @@ assemble_alias (tree decl, tree target)
 	  if (TREE_CODE (decl) == FUNCTION_DECL
 	      && lookup_attribute ("ifunc", DECL_ATTRIBUTES (decl)))
 	    error_at (DECL_SOURCE_LOCATION (decl),
-		      "ifunc is not supported in this configuration");
+		      "%qs is not supported in this configuration", "ifunc");
 	  else
 	    error_at (DECL_SOURCE_LOCATION (decl),
 		      "only weak aliases are supported in this configuration");
@@ -6428,6 +6441,9 @@ default_section_type_flags (tree decl, const char *name, int reloc)
       || strncmp (name, ".gnu.linkonce.tb.", 17) == 0)
     flags |= SECTION_TLS | SECTION_BSS;
 
+  if (strcmp (name, ".noinit") == 0)
+    flags |= SECTION_WRITE | SECTION_BSS | SECTION_NOTYPE;
+
   /* Various sections have special ELF types that the assembler will
      assign by default based on the name.  They are neither SHT_PROGBITS
      nor SHT_NOBITS, so when changing sections we don't want to print a
@@ -6753,6 +6769,7 @@ default_elf_select_section (tree decl, int reloc,
 			    unsigned HOST_WIDE_INT align)
 {
   const char *sname;
+
   switch (categorize_decl_for_section (decl, reloc))
     {
     case SECCAT_TEXT:
@@ -6790,6 +6807,13 @@ default_elf_select_section (tree decl, int reloc,
       sname = ".tdata";
       break;
     case SECCAT_BSS:
+      if (DECL_P (decl)
+	  && lookup_attribute ("noinit", DECL_ATTRIBUTES (decl)) != NULL_TREE)
+	{
+	  sname = ".noinit";
+	  break;
+	}
+
       if (bss_section)
 	return bss_section;
       sname = ".bss";
@@ -7450,7 +7474,7 @@ void
 place_block_symbol (rtx symbol)
 {
   unsigned HOST_WIDE_INT size, mask, offset;
-  struct constant_descriptor_rtx *desc;
+  class constant_descriptor_rtx *desc;
   unsigned int alignment;
   struct object_block *block;
   tree decl;
@@ -7612,7 +7636,7 @@ get_section_anchor (struct object_block *block, HOST_WIDE_INT offset,
 static void
 output_object_block (struct object_block *block)
 {
-  struct constant_descriptor_rtx *desc;
+  class constant_descriptor_rtx *desc;
   unsigned int i;
   HOST_WIDE_INT offset;
   tree decl;

@@ -1,4 +1,4 @@
-// { dg-do compile { target c++17 } }
+// { dg-do compile { target c++17_only } }
 // { dg-options "-fconcepts" }
 
 template<typename T>
@@ -12,7 +12,7 @@ void f2(C1) {}
 
 int main ()
 {
-  f1(0, 0); // { dg-error "cannot call" }
-  f2(1); // { dg-error "cannot call" }
+  f1(0, 0); // { dg-error "" }
+  f2(1); // { dg-error "" }
   return 0;
 }

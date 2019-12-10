@@ -83,13 +83,13 @@ DEFCIFCODE(RECURSIVE_INLINING, CIF_FINAL_NORMAL,
 DEFCIFCODE(UNLIKELY_CALL, CIF_FINAL_NORMAL,
 	   N_("call is unlikely and code size would grow"))
 
+/* Call is considered never executed.  */
+DEFCIFCODE(NEVER_CALL, CIF_FINAL_NORMAL,
+	   N_("call is considered never executed and code size would grow"))
+
 /* Function is not declared as inline.  */
 DEFCIFCODE(NOT_DECLARED_INLINED, CIF_FINAL_NORMAL,
 	   N_("function not declared inline and code size would grow"))
-
-/* Caller and callee disagree on the arguments.  */
-DEFCIFCODE(MISMATCHED_ARGUMENTS, CIF_FINAL_ERROR,
-	   N_("mismatched arguments"))
 
 /* Caller and callee disagree on the arguments.  */
 DEFCIFCODE(LTO_MISMATCHED_DECLARATIONS, CIF_FINAL_ERROR,

@@ -252,6 +252,19 @@ flush_ssaname_freelist (void)
   vec_safe_truncate (FREE_SSANAMES_QUEUE (cfun), 0);
 }
 
+/* Initialize SSA_NAME_IMM_USE_NODE of a SSA NAME.  */
+
+void
+init_ssa_name_imm_use (tree name)
+{
+  use_operand_p imm;
+  imm = &(SSA_NAME_IMM_USE_NODE (name));
+  imm->use = NULL;
+  imm->prev = imm;
+  imm->next = imm;
+  imm->loc.ssa_name = name;
+}
+
 /* Return an SSA_NAME node for variable VAR defined in statement STMT
    in function FN.  STMT may be an empty statement for artificial
    references (e.g., default definitions created when a variable is
@@ -263,8 +276,6 @@ make_ssa_name_fn (struct function *fn, tree var, gimple *stmt,
 		  unsigned int version)
 {
   tree t;
-  use_operand_p imm;
-
   gcc_assert (VAR_P (var)
 	      || TREE_CODE (var) == PARM_DECL
 	      || TREE_CODE (var) == RESULT_DECL
@@ -318,11 +329,7 @@ make_ssa_name_fn (struct function *fn, tree var, gimple *stmt,
 
   SSA_NAME_IN_FREE_LIST (t) = 0;
   SSA_NAME_IS_DEFAULT_DEF (t) = 0;
-  imm = &(SSA_NAME_IMM_USE_NODE (t));
-  imm->use = NULL;
-  imm->prev = imm;
-  imm->next = imm;
-  imm->loc.ssa_name = t;
+  init_ssa_name_imm_use (t);
 
   return t;
 }
@@ -401,7 +408,7 @@ set_range_info (tree name, enum value_range_kind range_type,
 /* Store range information for NAME from a value_range.  */
 
 void
-set_range_info (tree name, const value_range_base &vr)
+set_range_info (tree name, const value_range &vr)
 {
   wide_int min = wi::to_wide (vr.min ());
   wide_int max = wi::to_wide (vr.max ());
@@ -434,20 +441,22 @@ get_range_info (const_tree name, wide_int *min, wide_int *max)
    in a value_range VR.  Returns the value_range_kind.  */
 
 enum value_range_kind
-get_range_info (const_tree name, value_range_base &vr)
+get_range_info (const_tree name, value_range &vr)
 {
   tree min, max;
   wide_int wmin, wmax;
   enum value_range_kind kind = get_range_info (name, &wmin, &wmax);
 
-  if (kind == VR_VARYING || kind == VR_UNDEFINED)
-    min = max = NULL;
+  if (kind == VR_VARYING)
+    vr.set_varying (TREE_TYPE (name));
+  else if (kind == VR_UNDEFINED)
+    vr.set_undefined ();
   else
     {
       min = wide_int_to_tree (TREE_TYPE (name), wmin);
       max = wide_int_to_tree (TREE_TYPE (name), wmax);
+      vr.set (min, max, kind);
     }
-  vr.set (kind, min, max);
   return kind;
 }
 
@@ -820,7 +829,12 @@ reset_flow_sensitive_info (tree name)
     {
       /* points-to info is not flow-sensitive.  */
       if (SSA_NAME_PTR_INFO (name))
-	mark_ptr_info_alignment_unknown (SSA_NAME_PTR_INFO (name));
+	{
+	  /* [E]VRP can derive context sensitive alignment info and
+	     non-nullness properties.  We must reset both.  */
+	  mark_ptr_info_alignment_unknown (SSA_NAME_PTR_INFO (name));
+	  SSA_NAME_PTR_INFO (name)->pt.null = 1;
+	}
     }
   else
     SSA_NAME_RANGE_INFO (name) = NULL;

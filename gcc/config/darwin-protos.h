@@ -17,6 +17,9 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#ifndef CONFIG_DARWIN_PROTOS_H
+#define CONFIG_DARWIN_PROTOS_H
+
 extern void darwin_init_sections (void);
 extern int name_needs_quotes (const char *);
 
@@ -52,8 +55,6 @@ extern void darwin_encode_section_info (tree, rtx, int);
 extern void darwin_set_default_type_attributes (tree);
 
 #endif /* TREE_CODE */
-
-extern void machopic_finish (FILE *);
 
 extern int machopic_reloc_rw_mask (void);
 extern section *machopic_select_section (tree, int, unsigned HOST_WIDE_INT);
@@ -125,3 +126,5 @@ extern void darwin_override_options (void);
 extern void darwin_patch_builtins (void);
 extern void darwin_rename_builtins (void);
 extern bool darwin_libc_has_function (enum function_class fn_class);
+
+#endif /* CONFIG_DARWIN_PROTOS_H */

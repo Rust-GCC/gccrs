@@ -69,7 +69,7 @@ extern void rs6000_generate_float2_code (bool, rtx, rtx, rtx);
 extern void rs6000_generate_float2_double_code (rtx, rtx, rtx);
 extern void rs6000_generate_vsigned2_code (bool, rtx, rtx, rtx);
 extern int expand_block_clear (rtx[]);
-extern int expand_block_move (rtx[]);
+extern int expand_block_move (rtx[], bool);
 extern bool expand_block_compare (rtx[]);
 extern bool expand_strn_compare (rtx[], int);
 extern bool rs6000_is_valid_mask (rtx, int *, int *, machine_mode);
@@ -112,6 +112,7 @@ extern const char *rs6000_pltseq_template (rtx *, int);
 extern enum rtx_code rs6000_reverse_condition (machine_mode,
 					       enum rtx_code);
 extern rtx rs6000_emit_eqne (machine_mode, rtx, rtx, rtx);
+extern rtx rs6000_emit_fp_cror (rtx_code, machine_mode, rtx);
 extern void rs6000_emit_sCOND (machine_mode, rtx[]);
 extern void rs6000_emit_cbranch (machine_mode, rtx[]);
 extern char * output_cbranch (rtx, const char *, int, rtx_insn *);
@@ -139,7 +140,6 @@ extern bool valid_sf_si_move (rtx, rtx, machine_mode);
 extern void rs6000_emit_move (rtx, rtx, machine_mode);
 extern bool rs6000_legitimate_offset_address_p (machine_mode, rtx,
 						bool, bool);
-extern void rs6000_output_tlsargs (rtx *);
 extern rtx rs6000_find_base_term (rtx);
 extern rtx rs6000_return_addr (int, rtx);
 extern void rs6000_output_symbol_ref (FILE*, rtx);
@@ -154,6 +154,67 @@ extern align_flags rs6000_loop_align (rtx);
 extern void rs6000_split_logical (rtx [], enum rtx_code, bool, bool, bool);
 extern bool rs6000_pcrel_p (struct function *);
 extern bool rs6000_fndecl_pcrel_p (const_tree);
+
+/* Different PowerPC instruction formats that are used by GCC.  There are
+   various other instruction formats used by the PowerPC hardware, but these
+   formats are not currently used by GCC.  */
+
+enum insn_form {
+  INSN_FORM_BAD,		/* Bad instruction format.  */
+  INSN_FORM_BASE_REG,		/* Base register only.  */
+  INSN_FORM_D,			/* Reg + 16-bit numeric offset.  */
+  INSN_FORM_DS,			/* Reg + offset, bottom 2 bits must be 0.  */
+  INSN_FORM_DQ,			/* Reg + offset, bottom 4 bits must be 0.  */
+  INSN_FORM_X,			/* Base register + index register.  */
+  INSN_FORM_UPDATE,		/* Address updates base register.  */
+  INSN_FORM_LO_SUM,		/* Reg + offset using symbol.  */
+  INSN_FORM_PREFIXED_NUMERIC,	/* Reg + 34 bit numeric offset.  */
+  INSN_FORM_PCREL_LOCAL,	/* PC-relative local symbol.  */
+  INSN_FORM_PCREL_EXTERNAL	/* PC-relative external symbol.  */
+};
+
+/* Instruction format for the non-prefixed version of a load or store.  This is
+   used to determine if a 16-bit offset is valid to be used with a non-prefixed
+   (traditional) instruction or if the bottom bits of the offset cannot be used
+   with a DS or DQ instruction format, and GCC has to use a prefixed
+   instruction for the load or store.  */
+
+enum non_prefixed_form {
+  NON_PREFIXED_DEFAULT,		/* Use the default.  */
+  NON_PREFIXED_D,		/* All 16-bits are valid.  */
+  NON_PREFIXED_DS,		/* Bottom 2 bits must be 0.  */
+  NON_PREFIXED_DQ,		/* Bottom 4 bits must be 0.  */
+  NON_PREFIXED_X		/* No offset memory form exists.  */
+};
+
+extern enum insn_form address_to_insn_form (rtx, machine_mode,
+					    enum non_prefixed_form);
+extern bool prefixed_load_p (rtx_insn *);
+extern bool prefixed_store_p (rtx_insn *);
+extern bool prefixed_paddi_p (rtx_insn *);
+extern void rs6000_asm_output_opcode (FILE *);
+extern void rs6000_final_prescan_insn (rtx_insn *, rtx [], int);
+extern int rs6000_adjust_insn_length (rtx_insn *, int);
+
+/* Return true if the address can be used for a prefixed load, store, or add
+   immediate instructions that cannot be used with a non-prefixed instruction.
+   For example, using a numeric offset that is not valid for the non-prefixed
+   instruction or a PC-relative reference to a local symbol would return true,
+   but an address with an offset of 64 would not return true.
+
+   References to external PC-relative symbols aren't allowed, because GCC has
+   to load the address into a register and then issue a separate load or
+   store.  */
+
+static inline bool
+address_is_prefixed (rtx addr,
+		     machine_mode mode,
+		     enum non_prefixed_form non_prefixed)
+{
+  enum insn_form iform = address_to_insn_form (addr, mode, non_prefixed);
+  return (iform == INSN_FORM_PREFIXED_NUMERIC
+	  || iform == INSN_FORM_PCREL_LOCAL);
+}
 #endif /* RTX_CODE */
 
 #ifdef TREE_CODE
@@ -232,8 +293,6 @@ extern void rs6000_d_target_versions (void);
 #ifdef NO_DOLLAR_IN_LABEL
 const char * rs6000_xcoff_strip_dollar (const char *);
 #endif
-
-void rs6000_final_prescan_insn (rtx_insn *, rtx *operand, int num_operands);
 
 extern unsigned char rs6000_class_max_nregs[][LIM_REG_CLASSES];
 extern unsigned char rs6000_hard_regno_nregs[][FIRST_PSEUDO_REGISTER];

@@ -88,7 +88,7 @@ _cpp_preprocess_dir_only (cpp_reader *pfile,
 	{
 	  if (c != '#' && (flags & DO_BOL))
 	  {
-	    struct line_maps *line_table;
+	    class line_maps *line_table;
 
 	    if (!pfile->state.skipping && next_line != base)
 	      cb->print_lines (lines, base, next_line - base);
@@ -101,7 +101,7 @@ _cpp_preprocess_dir_only (cpp_reader *pfile,
 	    /* Ensure proper column numbering for generated error messages. */
 	    buffer->line_base -= col - 1;
 
-	    _cpp_handle_directive (pfile, 0 /* ignore indented */);
+	    _cpp_handle_directive (pfile, false /* ignore indented */);
 
 	    /* Sanitize the line settings.  Duplicate #include's can mess
 	       things up. */

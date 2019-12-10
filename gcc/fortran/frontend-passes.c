@@ -56,7 +56,6 @@ static gfc_expr* check_conjg_transpose_variable (gfc_expr *, bool *,
 static int call_external_blas (gfc_code **, int *, void *);
 static int matmul_temp_args (gfc_code **, int *,void *data);
 static int index_interchange (gfc_code **, int*, void *);
-
 static bool is_fe_temp (gfc_expr *e);
 
 #ifdef CHECKING_P
@@ -2518,7 +2517,12 @@ insert_index (gfc_expr *e, gfc_symbol *sym, mpz_t val, mpz_t ret)
   data.sym = sym;
   mpz_init_set (data.val, val);
   gfc_expr_walker (&n, callback_insert_index, (void *) &data);
+
+  /* Suppress errors here - we could get errors here such as an
+     out of bounds access for arrays, see PR 90563.  */
+  gfc_push_suppress_errors ();
   gfc_simplify_expr (n, 0);
+  gfc_pop_suppress_errors ();
 
   if (n->expr_type == EXPR_CONSTANT)
     {
@@ -2556,6 +2560,12 @@ do_subscript (gfc_expr **e)
   if (in_assoc_list)
     return 0;
 
+  /* We already warned about this.  */
+  if (v->do_not_warn)
+    return 0;
+
+  v->do_not_warn = 1;
+
   for (ref = v->ref; ref; ref = ref->next)
     {
       if (ref->type == REF_ARRAY && ref->u.ar.type == AR_ELEMENT)
@@ -2568,6 +2578,7 @@ do_subscript (gfc_expr **e)
 	      bool have_do_start, have_do_end;
 	      bool error_not_proven;
 	      int warn;
+	      int sgn;
 
 	      dl = lp->c;
 	      if (dl == NULL)
@@ -2596,7 +2607,16 @@ do_subscript (gfc_expr **e)
 		 Do not warn in this case.  */
 
 	      if (dl->ext.iterator->step->expr_type == EXPR_CONSTANT)
-		mpz_init_set (do_step, dl->ext.iterator->step->value.integer);
+		{
+		  sgn = mpz_cmp_ui (dl->ext.iterator->step->value.integer, 0);
+		  /* This can happen, but then the error has been
+		     reported previously.  */
+		  if (sgn == 0)
+		    continue;
+
+		  mpz_init_set (do_step, dl->ext.iterator->step->value.integer);
+		}
+
 	      else
 		continue;
 
@@ -2608,7 +2628,6 @@ do_subscript (gfc_expr **e)
 	      else
 		have_do_start = false;
 
-
 	      if (dl->ext.iterator->end->expr_type == EXPR_CONSTANT)
 		{
 		  have_do_end = true;
@@ -2619,6 +2638,16 @@ do_subscript (gfc_expr **e)
 
 	      if (!have_do_start && !have_do_end)
 		return 0;
+
+	      /* No warning inside a zero-trip loop.  */
+	      if (have_do_start && have_do_end)
+		{
+		  int cmp;
+
+		  cmp = mpz_cmp (do_end, do_start);
+		  if ((sgn > 0 && cmp < 0) || (sgn < 0 && cmp > 0))
+		    break;
+		}
 
 	      /* May have to correct the end value if the step does not equal
 		 one.  */
@@ -2761,6 +2790,12 @@ static void
 doloop_warn (gfc_namespace *ns)
 {
   gfc_code_walker (&ns->code, doloop_code, do_function, NULL);
+
+  for (ns = ns->contained; ns; ns = ns->sibling)
+    {
+      if (ns->code == NULL || ns->code->op != EXEC_BLOCK)
+	doloop_warn (ns);
+    }
 }
 
 /* This selction deals with inlining calls to MATMUL.  */
@@ -4600,6 +4635,7 @@ call_external_blas (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
   call->symtree->n.sym->attr.procedure = 1;
   call->symtree->n.sym->attr.flavor = FL_PROCEDURE;
   call->resolved_sym = call->symtree->n.sym;
+  gfc_commit_symbol (call->resolved_sym);
 
   /* Argument TRANSA.  */
   next = gfc_get_actual_arglist ();
@@ -5336,4 +5372,134 @@ gfc_code_walker (gfc_code **c, walk_code_fn_t codefn, walk_expr_fn_t exprfn,
 	}
     }
   return 0;
+}
+
+/* As a post-resolution step, check that all global symbols which are
+   not declared in the source file match in their call signatures.
+   We do this by looping over the code (and expressions). The first call
+   we happen to find is assumed to be canonical.  */
+
+
+/* Common tests for argument checking for both functions and subroutines.  */
+
+static int
+check_externals_procedure (gfc_symbol *sym, locus *loc,
+			   gfc_actual_arglist *actual)
+{
+  gfc_gsymbol *gsym;
+  gfc_symbol *def_sym = NULL;
+
+ if (sym == NULL || sym->attr.is_bind_c)
+    return 0;
+
+  if (sym->attr.proc != PROC_EXTERNAL && sym->attr.proc != PROC_UNKNOWN)
+    return 0;
+
+  if (sym->attr.if_source == IFSRC_IFBODY || sym->attr.if_source == IFSRC_DECL)
+    return 0;
+
+  gsym = gfc_find_gsymbol (gfc_gsym_root, sym->name);
+  if (gsym == NULL)
+    return 0;
+
+  if (gsym->ns)
+    gfc_find_symbol (sym->name, gsym->ns, 0, &def_sym);
+
+  if (def_sym)
+    {
+      gfc_compare_actual_formal (&actual, def_sym->formal, 0, 0, 0, loc);
+      return 0;
+    }
+
+  /* First time we have seen this procedure called. Let's create an
+     "interface" from the call and put it into a new namespace.  */
+  gfc_namespace *save_ns;
+  gfc_symbol *new_sym;
+
+  gsym->where = *loc;
+  save_ns = gfc_current_ns;
+  gsym->ns = gfc_get_namespace (gfc_current_ns, 0);
+  gsym->ns->proc_name = sym;
+
+  gfc_get_symbol (sym->name, gsym->ns, &new_sym);
+  gcc_assert (new_sym);
+  new_sym->attr = sym->attr;
+  new_sym->attr.if_source = IFSRC_DECL;
+  gfc_current_ns = gsym->ns;
+
+  gfc_get_formal_from_actual_arglist (new_sym, actual);
+  gfc_current_ns = save_ns;
+
+  return 0;
+
+}
+
+/* Callback for calls of external routines.  */
+
+static int
+check_externals_code (gfc_code **c, int *walk_subtrees ATTRIBUTE_UNUSED,
+		      void *data ATTRIBUTE_UNUSED)
+{
+  gfc_code *co = *c;
+  gfc_symbol *sym;
+  locus *loc;
+  gfc_actual_arglist *actual;
+
+  if (co->op != EXEC_CALL)
+    return 0;
+
+  sym = co->resolved_sym;
+  loc = &co->loc;
+  actual = co->ext.actual;
+
+  return check_externals_procedure (sym, loc, actual);
+
+}
+
+/* Callback for external functions.  */
+
+static int
+check_externals_expr (gfc_expr **ep, int *walk_subtrees ATTRIBUTE_UNUSED,
+		      void *data ATTRIBUTE_UNUSED)
+{
+  gfc_expr *e = *ep;
+  gfc_symbol *sym;
+  locus *loc;
+  gfc_actual_arglist *actual;
+
+  if (e->expr_type != EXPR_FUNCTION)
+    return 0;
+
+  sym = e->value.function.esym;
+  if (sym == NULL)
+    return 0;
+
+  loc = &e->where;
+  actual = e->value.function.actual;
+
+  return check_externals_procedure (sym, loc, actual);
+}
+
+/* Called routine.  */
+
+void
+gfc_check_externals (gfc_namespace *ns)
+{
+
+  gfc_clear_error ();
+
+  /* Turn errors into warnings if the user indicated this.  */
+
+  if (!pedantic && flag_allow_argument_mismatch)
+    gfc_errors_to_warnings (true);
+
+  gfc_code_walker (&ns->code, check_externals_code, check_externals_expr, NULL);
+
+  for (ns = ns->contained; ns; ns = ns->sibling)
+    {
+      if (ns->code == NULL || ns->code->op != EXEC_BLOCK)
+	gfc_check_externals (ns);
+    }
+
+  gfc_errors_to_warnings (false);
 }

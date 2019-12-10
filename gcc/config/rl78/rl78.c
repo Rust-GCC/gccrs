@@ -723,7 +723,7 @@ need_to_save (unsigned int regno)
 	 any call_used registers, so we have to preserve them.
          We do not have to worry about the frame pointer register
 	 though, as that is handled below.  */
-      if (!crtl->is_leaf && call_used_regs[regno] && regno < 22)
+      if (!crtl->is_leaf && call_used_or_fixed_reg_p (regno) && regno < 22)
 	return true;
 
       /* Otherwise we only have to save a register, call_used
@@ -739,7 +739,7 @@ need_to_save (unsigned int regno)
   if (crtl->calls_eh_return)
     return true;
   if (df_regs_ever_live_p (regno)
-      && !call_used_regs[regno])
+      && !call_used_or_fixed_reg_p (regno))
     return true;
   return false;
 }
@@ -1737,21 +1737,11 @@ rl78_promote_function_mode (const_tree type ATTRIBUTE_UNUSED,
   return mode;
 }
 
-/* Return an RTL expression describing the register holding a function
-   parameter of mode MODE and type TYPE or NULL_RTX if the parameter should
-   be passed on the stack.  CUM describes the previous parameters to the
-   function and NAMED is false if the parameter is part of a variable
-   parameter list, or the last named parameter before the start of a
-   variable parameter list.  */
-
 #undef  TARGET_FUNCTION_ARG
 #define TARGET_FUNCTION_ARG     	rl78_function_arg
 
 static rtx
-rl78_function_arg (cumulative_args_t cum_v ATTRIBUTE_UNUSED,
-		   machine_mode mode ATTRIBUTE_UNUSED,
-		   const_tree type ATTRIBUTE_UNUSED,
-		   bool named ATTRIBUTE_UNUSED)
+rl78_function_arg (cumulative_args_t, const function_arg_info &)
 {
   return NULL_RTX;
 }
@@ -1760,14 +1750,13 @@ rl78_function_arg (cumulative_args_t cum_v ATTRIBUTE_UNUSED,
 #define TARGET_FUNCTION_ARG_ADVANCE     rl78_function_arg_advance
 
 static void
-rl78_function_arg_advance (cumulative_args_t cum_v, machine_mode mode, const_tree type,
-			   bool named ATTRIBUTE_UNUSED)
+rl78_function_arg_advance (cumulative_args_t cum_v,
+			   const function_arg_info &arg)
 {
   int rounded_size;
   CUMULATIVE_ARGS * cum = get_cumulative_args (cum_v);
 
-  rounded_size = ((mode == BLKmode)
-		  ? int_size_in_bytes (type) : GET_MODE_SIZE (mode));
+  rounded_size = arg.promoted_size_in_bytes ();
   if (rounded_size & 1)
     rounded_size ++;
   (*cum) += rounded_size;

@@ -1,7 +1,8 @@
 //===-- sanitizer_syscalls_netbsd.inc ---------------------------*- C++ -*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -41,8 +42,8 @@
 // DO NOT EDIT! THIS FILE HAS BEEN GENERATED!
 //
 // Generated with: generate_netbsd_syscalls.awk
-// Generated date: 2018-03-03
-// Generated from: syscalls.master,v 1.291 2018/01/06 16:41:23 kamil Exp
+// Generated date: 2019-11-01
+// Generated from: syscalls.master,v 1.296 2019/09/22 22:59:39 christos Exp
 //
 //===----------------------------------------------------------------------===//
 
@@ -1452,7 +1453,15 @@ PRE_SYSCALL(fpathconf)(long long fd_, long long name_) { /* Nothing to do */ }
 POST_SYSCALL(fpathconf)(long long res, long long fd_, long long name_) {
   /* Nothing to do */
 }
-/* syscall 193 has been skipped */
+PRE_SYSCALL(getsockopt2)
+(long long s_, long long level_, long long name_, void *val_, void *avalsize_) {
+  /* TODO */
+}
+POST_SYSCALL(getsockopt2)
+(long long res, long long s_, long long level_, long long name_, void *val_,
+  void *avalsize_) {
+  /* TODO */
+}
 PRE_SYSCALL(getrlimit)(long long which_, void *rlp_) {
   PRE_WRITE(rlp_, struct_rlimit_sz);
 }
@@ -2339,20 +2348,8 @@ POST_SYSCALL(__sigaction_sigtramp)
     PRE_READ(nsa_, sizeof(__sanitizer_sigaction));
   }
 }
-PRE_SYSCALL(pmc_get_info)(long long ctr_, long long op_, void *args_) {
-  /* TODO */
-}
-POST_SYSCALL(pmc_get_info)
-(long long res, long long ctr_, long long op_, void *args_) {
-  /* TODO */
-}
-PRE_SYSCALL(pmc_control)(long long ctr_, long long op_, void *args_) {
-  /* TODO */
-}
-POST_SYSCALL(pmc_control)
-(long long res, long long ctr_, long long op_, void *args_) {
-  /* TODO */
-}
+/* syscall 341 has been skipped */
+/* syscall 342 has been skipped */
 PRE_SYSCALL(rasctl)(void *addr_, long long len_, long long op_) {
   /* Nothing to do */
 }
@@ -2436,30 +2433,31 @@ PRE_SYSCALL(uuidgen)(void *store_, long long count_) { /* Nothing to do */ }
 POST_SYSCALL(uuidgen)(long long res, void *store_, long long count_) {
   /* Nothing to do */
 }
-PRE_SYSCALL(getvfsstat)(void *buf_, long long bufsize_, long long flags_) {
+PRE_SYSCALL(compat_90_getvfsstat)
+(void *buf_, long long bufsize_, long long flags_) {
   /* Nothing to do */
 }
-POST_SYSCALL(getvfsstat)
+POST_SYSCALL(compat_90_getvfsstat)
 (long long res, void *buf_, long long bufsize_, long long flags_) {
   /* Nothing to do */
 }
-PRE_SYSCALL(statvfs1)(void *path_, void *buf_, long long flags_) {
+PRE_SYSCALL(compat_90_statvfs1)(void *path_, void *buf_, long long flags_) {
   const char *path = (const char *)path_;
   if (path) {
     PRE_READ(path, __sanitizer::internal_strlen(path) + 1);
   }
 }
-POST_SYSCALL(statvfs1)
+POST_SYSCALL(compat_90_statvfs1)
 (long long res, void *path_, void *buf_, long long flags_) {
   const char *path = (const char *)path_;
   if (path) {
     POST_READ(path, __sanitizer::internal_strlen(path) + 1);
   }
 }
-PRE_SYSCALL(fstatvfs1)(long long fd_, void *buf_, long long flags_) {
+PRE_SYSCALL(compat_90_fstatvfs1)(long long fd_, void *buf_, long long flags_) {
   /* Nothing to do */
 }
-POST_SYSCALL(fstatvfs1)
+POST_SYSCALL(compat_90_fstatvfs1)
 (long long res, long long fd_, void *buf_, long long flags_) {
   /* Nothing to do */
 }
@@ -2856,13 +2854,13 @@ PRE_SYSCALL(__fhopen40)(void *fhp_, long long fh_size_, long long flags_) {
 }
 POST_SYSCALL(__fhopen40)
 (long long res, void *fhp_, long long fh_size_, long long flags_) {}
-PRE_SYSCALL(__fhstatvfs140)
+PRE_SYSCALL(compat_90_fhstatvfs1)
 (void *fhp_, long long fh_size_, void *buf_, long long flags_) {
   if (fhp_) {
     PRE_READ(fhp_, fh_size_);
   }
 }
-POST_SYSCALL(__fhstatvfs140)
+POST_SYSCALL(compat_90_fhstatvfs1)
 (long long res, void *fhp_, long long fh_size_, void *buf_, long long flags_) {}
 PRE_SYSCALL(compat_50___fhstat40)(void *fhp_, long long fh_size_, void *sb_) {
   if (fhp_) {
@@ -3693,18 +3691,18 @@ POST_SYSCALL(recvmmsg)
 PRE_SYSCALL(sendmmsg)
 (long long s_, void *mmsg_, long long vlen_, long long flags_) {
   struct __sanitizer_mmsghdr *mmsg = (struct __sanitizer_mmsghdr *)mmsg_;
-  unsigned int vlen = (vlen_ > 1024 ? 1024 : vlen_);
   if (mmsg) {
-    PRE_READ(mmsg, sizeof(struct __sanitizer_mmsghdr) * vlen);
+    PRE_READ(mmsg, sizeof(struct __sanitizer_mmsghdr) *
+                       (vlen_ > 1024 ? 1024 : vlen_));
   }
 }
 POST_SYSCALL(sendmmsg)
 (long long res, long long s_, void *mmsg_, long long vlen_, long long flags_) {
   struct __sanitizer_mmsghdr *mmsg = (struct __sanitizer_mmsghdr *)mmsg_;
-  unsigned int vlen = (vlen_ > 1024 ? 1024 : vlen_);
   if (res >= 0) {
     if (mmsg) {
-      POST_READ(mmsg, sizeof(struct __sanitizer_mmsghdr) * vlen);
+      POST_READ(mmsg, sizeof(struct __sanitizer_mmsghdr) *
+                          (vlen_ > 1024 ? 1024 : vlen_));
     }
   }
 }
@@ -3771,6 +3769,41 @@ POST_SYSCALL(clock_getcpuclockid2)
 (long long res, long long idtype_, long long id_, void *clock_id_) {
   /* Nothing to do */
 }
+PRE_SYSCALL(__getvfsstat90)(void *buf_, long long bufsize_, long long flags_) {
+  /* Nothing to do */
+}
+POST_SYSCALL(__getvfsstat90)
+(long long res, void *buf_, long long bufsize_, long long flags_) {
+  /* Nothing to do */
+}
+PRE_SYSCALL(__statvfs190)(void *path_, void *buf_, long long flags_) {
+  const char *path = (const char *)path_;
+  if (path) {
+    PRE_READ(path, __sanitizer::internal_strlen(path) + 1);
+  }
+}
+POST_SYSCALL(__statvfs190)
+(long long res, void *path_, void *buf_, long long flags_) {
+  const char *path = (const char *)path_;
+  if (path) {
+    POST_READ(path, __sanitizer::internal_strlen(path) + 1);
+  }
+}
+PRE_SYSCALL(__fstatvfs190)(long long fd_, void *buf_, long long flags_) {
+  /* Nothing to do */
+}
+POST_SYSCALL(__fstatvfs190)
+(long long res, long long fd_, void *buf_, long long flags_) {
+  /* Nothing to do */
+}
+PRE_SYSCALL(__fhstatvfs190)
+(void *fhp_, long long fh_size_, void *buf_, long long flags_) {
+  if (fhp_) {
+    PRE_READ(fhp_, fh_size_);
+  }
+}
+POST_SYSCALL(__fhstatvfs190)
+(long long res, void *fhp_, long long fh_size_, void *buf_, long long flags_) {}
 #undef SYS_MAXSYSARGS
 } // extern "C"
 

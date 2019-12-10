@@ -436,8 +436,8 @@ fi
 timeval=`grep '^type _timeval ' gen-sysinfo.go`
 timeval_sec=`echo $timeval | sed -n -e 's/^.*tv_sec \([^ ]*\);.*$/\1/p'`
 timeval_usec=`echo $timeval | sed -n -e 's/^.*tv_usec \([^ ]*\);.*$/\1/p'`
-echo "type Timeval_sec_t $timeval_sec" >> ${OUT}
-echo "type Timeval_usec_t $timeval_usec" >> ${OUT}
+echo "type Timeval_sec_t = $timeval_sec" >> ${OUT}
+echo "type Timeval_usec_t = $timeval_usec" >> ${OUT}
 echo $timeval | \
   sed -e 's/type _timeval /type Timeval /' \
       -e 's/tv_sec *[a-zA-Z0-9_]*/Sec Timeval_sec_t/' \
@@ -449,8 +449,8 @@ if test "$timespec" = ""; then
 fi
 timespec_sec=`echo $timespec | sed -n -e 's/^.*tv_sec \([^ ]*\);.*$/\1/p'`
 timespec_nsec=`echo $timespec | sed -n -e 's/^.*tv_nsec \([^ ]*\);.*$/\1/p'`
-echo "type Timespec_sec_t $timespec_sec" >> ${OUT}
-echo "type Timespec_nsec_t $timespec_nsec" >> ${OUT}
+echo "type Timespec_sec_t = $timespec_sec" >> ${OUT}
+echo "type Timespec_nsec_t = $timespec_nsec" >> ${OUT}
 echo $timespec | \
   sed -e 's/^type ___timespec /type Timespec /' \
       -e 's/^type _timespec /type Timespec /' \
@@ -461,8 +461,8 @@ timestruc=`grep '^type _timestruc_t ' gen-sysinfo.go || true`
 if test "$timestruc" != ""; then
   timestruc_sec=`echo $timestruc | sed -n -e 's/^.*tv_sec \([^ ]*\);.*$/\1/p'`
   timestruc_nsec=`echo $timestruc | sed -n -e 's/^.*tv_nsec \([^ ]*\);.*$/\1/p'`
-  echo "type Timestruc_sec_t $timestruc_sec" >> ${OUT}
-  echo "type Timestruc_nsec_t $timestruc_nsec" >> ${OUT}
+  echo "type Timestruc_sec_t = $timestruc_sec" >> ${OUT}
+  echo "type Timestruc_nsec_t = $timestruc_nsec" >> ${OUT}
   echo $timestruc | \
     sed -e 's/^type _timestruc_t /type Timestruc /' \
         -e 's/tv_sec *[a-zA-Z0-9_]*/Sec Timestruc_sec_t/' \
@@ -1123,10 +1123,10 @@ grep '^const _FALLOC_' gen-sysinfo.go |
 # Prefer largefile variant if available.
 # CentOS 5 does not have f_flags, so pull from f_spare.
 statfs=`grep '^type _statfs64 ' gen-sysinfo.go || true`
-if test "$statfs" == ""; then
+if test "$statfs" = ""; then
   statfs=`grep '^type _statfs ' gen-sysinfo.go || true`
 fi
-if ! echo "$statfs" | grep f_flags; then
+if ! echo "$statfs" | grep f_flags >/dev/null 2>&1; then
   statfs=`echo "$statfs" | sed -e 's/f_spare \[4+1\]\([^ ;]*\)/f_flags \1; f_spare [3+1]\1/'`
 fi
 echo "$statfs" | sed -e 's/type _statfs64/type Statfs_t/' \
@@ -1392,5 +1392,11 @@ grep '^type _mac_ipaddr_t ' gen-sysinfo.go | \
 grep '^type _mactun_info_t ' gen-sysinfo.go | \
     sed -e 's/_in6_addr_t/[16]byte/g' \
     >> ${OUT}
+
+# Type 'uint128' is needed in a couple of type definitions on arm64,such
+# as _user_fpsimd_struct, _elf_fpregset_t, etc.
+if ! grep '^type uint128' ${OUT} > /dev/null 2>&1; then
+    echo "type uint128 [16]byte" >> ${OUT}
+fi
 
 exit $?

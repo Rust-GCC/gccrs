@@ -165,7 +165,6 @@ func breakpoint()
 
 func asminit() {}
 
-//go:linkname reflectcall runtime.reflectcall
 //go:noescape
 func reflectcall(fntype *functype, fn *funcval, isInterface, isMethod bool, params, results *unsafe.Pointer)
 
@@ -241,28 +240,6 @@ func asmcgocall(fn, arg unsafe.Pointer) int32 {
 	return 0
 }
 
-// argp used in Defer structs when there is no argp.
-const _NoArgs = ^uintptr(0)
-
-//extern __builtin_prefetch
-func prefetch(addr unsafe.Pointer, rw int32, locality int32)
-
-func prefetcht0(addr uintptr) {
-	prefetch(unsafe.Pointer(addr), 0, 3)
-}
-
-func prefetcht1(addr uintptr) {
-	prefetch(unsafe.Pointer(addr), 0, 2)
-}
-
-func prefetcht2(addr uintptr) {
-	prefetch(unsafe.Pointer(addr), 0, 1)
-}
-
-func prefetchnta(addr uintptr) {
-	prefetch(unsafe.Pointer(addr), 0, 0)
-}
-
 // round n up to a multiple of a.  a must be a power of 2.
 func round(n, a uintptr) uintptr {
 	return (n + a - 1) &^ (a - 1)
@@ -273,18 +250,6 @@ func checkASM() bool {
 	return true
 }
 
-func eqstring(x, y string) bool {
-	a := stringStructOf(&x)
-	b := stringStructOf(&y)
-	if a.len != b.len {
-		return false
-	}
-	if a.str == b.str {
-		return true
-	}
-	return memequal(a.str, b.str, uintptr(a.len))
-}
-
 // For gccgo this is in the C code.
 func osyield()
 
@@ -292,13 +257,13 @@ func osyield()
 func syscall(trap uintptr, a1, a2, a3, a4, a5, a6 uintptr) uintptr
 
 // For gccgo, to communicate from the C code to the Go code.
-//go:linkname setIsCgo runtime.setIsCgo
+//go:linkname setIsCgo
 func setIsCgo() {
 	iscgo = true
 }
 
 // For gccgo, to communicate from the C code to the Go code.
-//go:linkname setSupportAES runtime.setSupportAES
+//go:linkname setSupportAES
 func setSupportAES(v bool) {
 	support_aes = v
 }
@@ -309,13 +274,6 @@ func errno() int
 // For gccgo these are written in C.
 func entersyscall()
 func entersyscallblock()
-
-// For gccgo to call from C code, so that the C code and the Go code
-// can share the memstats variable for now.
-//go:linkname getMstats runtime.getMstats
-func getMstats() *mstats {
-	return &memstats
-}
 
 // Get signal trampoline, written in C.
 func getSigtramp() uintptr
@@ -338,46 +296,10 @@ func dumpregs(*_siginfo_t, unsafe.Pointer)
 // Implemented in C for gccgo.
 func setRandomNumber(uint32)
 
-// Temporary for gccgo until we port proc.go.
-//go:linkname getsched runtime.getsched
-func getsched() *schedt {
-	return &sched
-}
-
-// Temporary for gccgo until we port proc.go.
-//go:linkname getCgoHasExtraM runtime.getCgoHasExtraM
-func getCgoHasExtraM() *bool {
-	return &cgoHasExtraM
-}
-
-// Temporary for gccgo until we port proc.go.
-//go:linkname getAllP runtime.getAllP
-func getAllP() **p {
-	return &allp[0]
-}
-
-// Temporary for gccgo until we port proc.go.
-//go:linkname allocg runtime.allocg
+// Called by gccgo's proc.c.
+//go:linkname allocg
 func allocg() *g {
 	return new(g)
-}
-
-// Temporary for gccgo until we port the garbage collector.
-//go:linkname getallglen runtime.getallglen
-func getallglen() uintptr {
-	return allglen
-}
-
-// Temporary for gccgo until we port the garbage collector.
-//go:linkname getallg runtime.getallg
-func getallg(i int) *g {
-	return allgs[i]
-}
-
-// Temporary for gccgo until we port the garbage collector.
-//go:linkname getallm runtime.getallm
-func getallm() *m {
-	return allm
 }
 
 // Throw and rethrow an exception.
@@ -387,39 +309,6 @@ func rethrowException()
 // Fetch the size and required alignment of the _Unwind_Exception type
 // used by the stack unwinder.
 func unwindExceptionSize() uintptr
-
-// Temporary for gccgo until C code no longer needs it.
-//go:nosplit
-//go:linkname getPanicking runtime.getPanicking
-func getPanicking() uint32 {
-	return panicking
-}
-
-// Called by C code to set the number of CPUs.
-//go:linkname setncpu runtime.setncpu
-func setncpu(n int32) {
-	ncpu = n
-}
-
-// Called by C code to set the page size.
-//go:linkname setpagesize runtime.setpagesize
-func setpagesize(s uintptr) {
-	if physPageSize == 0 {
-		physPageSize = s
-	}
-}
-
-// Called by C code during library initialization.
-//go:linkname runtime_m0 runtime.runtime_m0
-func runtime_m0() *m {
-	return &m0
-}
-
-// Temporary for gccgo until we port mgc.go.
-//go:linkname runtime_g0 runtime.runtime_g0
-func runtime_g0() *g {
-	return &g0
-}
 
 const uintptrMask = 1<<(8*sys.PtrSize) - 1
 
@@ -456,17 +345,16 @@ func abort()
 var usestackmaps bool
 
 // probestackmaps detects whether there are stack maps.
-//go:linkname probestackmaps runtime.probestackmaps
 func probestackmaps() bool
 
 // For the math/bits packages for gccgo.
-//go:linkname getDivideError runtime.getDivideError
+//go:linkname getDivideError
 func getDivideError() error {
 	return divideError
 }
 
 // For the math/bits packages for gccgo.
-//go:linkname getOverflowError runtime.getOverflowError
+//go:linkname getOverflowError
 func getOverflowError() error {
 	return overflowError
 }

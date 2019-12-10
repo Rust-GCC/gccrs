@@ -2104,7 +2104,7 @@ real_from_string (REAL_VALUE_TYPE *r, const char *str)
 
       /* Nonzero value, possibly overflowing or underflowing.  */
       mpfr_init2 (m, SIGNIFICAND_BITS);
-      inexact = mpfr_strtofr (m, str, NULL, 10, GMP_RNDZ);
+      inexact = mpfr_strtofr (m, str, NULL, 10, MPFR_RNDZ);
       /* The result should never be a NaN, and because the rounding is
 	 toward zero should never be an infinity.  */
       gcc_assert (!mpfr_nan_p (m) && !mpfr_inf_p (m));
@@ -2120,7 +2120,7 @@ real_from_string (REAL_VALUE_TYPE *r, const char *str)
 	}
       else
 	{
-	  real_from_mpfr (r, m, NULL_TREE, GMP_RNDZ);
+	  real_from_mpfr (r, m, NULL_TREE, MPFR_RNDZ);
 	  /* 1 to 3 bits may have been shifted off (with a sticky bit)
 	     because the hex digits used in real_from_mpfr did not
 	     start with a digit 8 to f, but the exponent bounds above
@@ -2431,9 +2431,9 @@ dconst_e_ptr (void)
     {
       mpfr_t m;
       mpfr_init2 (m, SIGNIFICAND_BITS);
-      mpfr_set_ui (m, 1, GMP_RNDN);
-      mpfr_exp (m, m, GMP_RNDN);
-      real_from_mpfr (&value, m, NULL_TREE, GMP_RNDN);
+      mpfr_set_ui (m, 1, MPFR_RNDN);
+      mpfr_exp (m, m, MPFR_RNDN);
+      real_from_mpfr (&value, m, NULL_TREE, MPFR_RNDN);
       mpfr_clear (m);
 
     }
@@ -2474,8 +2474,8 @@ dconst_sqrt2_ptr (void)
     {
       mpfr_t m;
       mpfr_init2 (m, SIGNIFICAND_BITS);
-      mpfr_sqrt_ui (m, 2, GMP_RNDN);
-      real_from_mpfr (&value, m, NULL_TREE, GMP_RNDN);
+      mpfr_sqrt_ui (m, 2, MPFR_RNDN);
+      real_from_mpfr (&value, m, NULL_TREE, MPFR_RNDN);
       mpfr_clear (m);
     }
   return &value;
@@ -5010,6 +5010,101 @@ real_round (REAL_VALUE_TYPE *r, format_helper fmt,
     real_convert (r, fmt, r);
 }
 
+/* Return true including 0 if integer part of R is even, else return
+   false.  The function is not valid for rvc_inf and rvc_nan classes.  */
+
+bool
+is_even (REAL_VALUE_TYPE *r)
+{
+  gcc_assert (r->cl != rvc_inf);
+  gcc_assert (r->cl != rvc_nan);
+
+  if (r->cl == rvc_zero)
+    return true;
+
+  /* For (-1,1), number is even.  */
+  if (REAL_EXP (r) <= 0)
+    return true;
+
+  /* Check lowest bit, if not set, return true.  */
+  else if (REAL_EXP (r) <= SIGNIFICAND_BITS)
+    {
+      unsigned int n = SIGNIFICAND_BITS - REAL_EXP (r);
+      int w = n / HOST_BITS_PER_LONG;
+
+      unsigned long num = ((unsigned long)1 << (n % HOST_BITS_PER_LONG));
+
+      if ((r->sig[w] & num) == 0)
+	return true;
+    }
+  else
+    return true;
+
+  return false;
+}
+
+/* Return true if R is halfway between two integers, else return
+   false.  The function is not valid for rvc_inf and rvc_nan classes.  */
+
+bool
+is_halfway_below (const REAL_VALUE_TYPE *r)
+{
+  gcc_assert (r->cl != rvc_inf);
+  gcc_assert (r->cl != rvc_nan);
+  int i;
+
+  if (r->cl == rvc_zero)
+    return false;
+
+  /* For numbers (-0.5,0) and (0,0.5).  */
+  if (REAL_EXP (r) < 0)
+    return false;
+
+  else if (REAL_EXP (r) < SIGNIFICAND_BITS)
+    {
+      unsigned int n = SIGNIFICAND_BITS - REAL_EXP (r) - 1;
+      int w = n / HOST_BITS_PER_LONG;
+
+      for (i = 0; i < w; ++i)
+	if (r->sig[i] != 0)
+	  return false;
+
+      unsigned long num = ((unsigned long)1 << (n % HOST_BITS_PER_LONG));
+
+      if (((r->sig[w] & num) != 0) && ((r->sig[w] & (num-1)) == 0))
+	return true;
+    }
+  return false;
+}
+
+/* Round X to nearest integer, rounding halfway cases towards even.  */
+
+void
+real_roundeven (REAL_VALUE_TYPE *r, format_helper fmt,
+		const REAL_VALUE_TYPE *x)
+{
+  if (is_halfway_below (x))
+    {
+      /* Special case as -0.5 rounds to -0.0 and
+	 similarly +0.5 rounds to +0.0.  */
+      if (REAL_EXP (x) == 0)
+	{
+	  *r = *x;
+	  clear_significand_below (r, SIGNIFICAND_BITS);
+	}
+      else
+	{
+	  do_add (r, x, &dconsthalf, x->sign);
+	  if (!is_even (r))
+	    do_add (r, r, &dconstm1, x->sign);
+	}
+      if (fmt)
+	real_convert (r, fmt, r);
+    }
+  else
+    real_round (r, fmt, x);
+}
+
 /* Set the sign of R to the sign of X.  */
 
 void
@@ -5147,13 +5242,19 @@ real_nextafter (REAL_VALUE_TYPE *r, format_helper fmt,
 /* Write into BUF the maximum representable finite floating-point
    number, (1 - b**-p) * b**emax for a given FP format FMT as a hex
    float string.  LEN is the size of BUF, and the buffer must be large
-   enough to contain the resulting string.  */
+   enough to contain the resulting string.  If NORM_MAX, instead write
+   the maximum representable finite normalized floating-point number,
+   defined to be such that all choices of digits for that exponent are
+   representable in the format (this only makes a difference for IBM
+   long double).  */
 
 void
-get_max_float (const struct real_format *fmt, char *buf, size_t len)
+get_max_float (const struct real_format *fmt, char *buf, size_t len,
+	       bool norm_max)
 {
   int i, n;
   char *p;
+  bool is_ibm_extended = fmt->pnan < fmt->p;
 
   strcpy (buf, "0x0.");
   n = fmt->p;
@@ -5161,8 +5262,9 @@ get_max_float (const struct real_format *fmt, char *buf, size_t len)
     *p++ = 'f';
   if (i < n)
     *p++ = "08ce"[n - i];
-  sprintf (p, "p%d", fmt->emax);
-  if (fmt->pnan < fmt->p)
+  sprintf (p, "p%d",
+	   (is_ibm_extended && norm_max) ? fmt->emax - 1 : fmt->emax);
+  if (is_ibm_extended && !norm_max)
     {
       /* This is an IBM extended double format made up of two IEEE
 	 doubles.  The value of the long double is the sum of the
@@ -5308,13 +5410,13 @@ build_sinatan_real (REAL_VALUE_TYPE * r, tree type)
 
   mpfr_inits (mpfr_const1, mpfr_c, mpfr_maxval, NULL);
 
-  mpfr_from_real (mpfr_const1, &dconst1, GMP_RNDN);
-  mpfr_from_real (mpfr_maxval, &maxval,  GMP_RNDN);
+  mpfr_from_real (mpfr_const1, &dconst1, MPFR_RNDN);
+  mpfr_from_real (mpfr_maxval, &maxval,  MPFR_RNDN);
 
-  mpfr_sub (mpfr_c, mpfr_maxval, mpfr_const1, GMP_RNDN);
-  mpfr_sqrt (mpfr_c, mpfr_c, GMP_RNDZ);
+  mpfr_sub (mpfr_c, mpfr_maxval, mpfr_const1, MPFR_RNDN);
+  mpfr_sqrt (mpfr_c, mpfr_c, MPFR_RNDZ);
 
-  real_from_mpfr (r, mpfr_c, fmt, GMP_RNDZ);
+  real_from_mpfr (r, mpfr_c, fmt, MPFR_RNDZ);
   
   mpfr_clears (mpfr_const1, mpfr_c, mpfr_maxval, NULL);
 }

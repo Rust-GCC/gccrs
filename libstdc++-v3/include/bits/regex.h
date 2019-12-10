@@ -628,8 +628,10 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
        * expression pattern interpreted according to @p __flags.  If
        * regex_error is thrown, *this remains unchanged.
        */
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 3296. Inconsistent default argument for basic_regex<>::assign
       basic_regex&
-      assign(const _Ch_type* __p, std::size_t __len, flag_type __flags)
+      assign(const _Ch_type* __p, size_t __len, flag_type __flags = ECMAScript)
       { return this->assign(string_type(__p, __len), __flags); }
 
       /**
@@ -2054,8 +2056,17 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
 	 match_results<_Bi_iter, _Alloc>& __rhs) noexcept
     { __lhs.swap(__rhs); }
 
-
 _GLIBCXX_END_NAMESPACE_CXX11
+
+#if __cplusplus > 201703L
+namespace ranges::__detail
+{
+  template<typename _Tp> extern inline const bool __enable_view_impl;
+  template<typename _Bi_iter, typename _Alloc>
+    inline constexpr bool __enable_view_impl<match_results<_Bi_iter, _Alloc>>
+      = false;
+} // namespace ranges::__detail
+#endif // C++20
 
   // [28.11.2] Function template regex_match
   /**

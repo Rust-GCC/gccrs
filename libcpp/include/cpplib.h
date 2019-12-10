@@ -78,6 +78,7 @@ struct _cpp_file;
   OP(NOT_EQ,		"!=")						\
   OP(GREATER_EQ,	">=")						\
   OP(LESS_EQ,		"<=")						\
+  OP(SPACESHIP,		"<=>")						\
 									\
   /* These two are unary + / - in preprocessor expressions.  */		\
   OP(PLUS_EQ,		"+=")	/* math */				\
@@ -480,8 +481,14 @@ struct cpp_options
   /* Nonzero for C++ 2014 Standard digit separators.  */
   unsigned char digit_separators;
 
+  /* Nonzero for C2X decimal floating-point constants.  */
+  unsigned char dfp_constants;
+
   /* Nonzero for C++2a __VA_OPT__ feature.  */
   unsigned char va_opt;
+
+  /* Nonzero for the '::' token.  */
+  unsigned char scope;
 
   /* Holds the name of the target (execution) character set.  */
   const char *narrow_charset;
@@ -504,6 +511,9 @@ struct cpp_options
 
   /* True if warn about differences between C90 and C99.  */
   signed char cpp_warn_c90_c99_compat;
+
+  /* True if warn about differences between C11 and C2X.  */
+  signed char cpp_warn_c11_c2x_compat;
 
   /* True if warn about differences between C++98 and C++11.  */
   bool cpp_warn_cxx11_compat;
@@ -550,6 +560,9 @@ struct cpp_options
 
   /* True enables canonicalization of system header file paths. */
   bool canonical_system_headers;
+
+  /* The maximum depth of the nested #include.  */
+  unsigned int max_include_depth;
 };
 
 /* Diagnostic levels.  To get a diagnostic without associating a
@@ -601,6 +614,7 @@ enum cpp_warning_reason {
   CPP_W_DATE_TIME,
   CPP_W_PEDANTIC,
   CPP_W_C90_C99_COMPAT,
+  CPP_W_C11_C2X_COMPAT,
   CPP_W_CXX11_COMPAT,
   CPP_W_EXPANSION_TO_DEFINED
 };
@@ -662,6 +676,9 @@ struct cpp_callbacks
 
   /* Callback to identify whether an attribute exists.  */
   int (*has_attribute) (cpp_reader *);
+
+  /* Callback to determine whether a built-in function is recognized.  */
+  int (*has_builtin) (cpp_reader *);
 
   /* Callback that can change a user lazy into normal macro.  */
   void (*user_lazy_macro) (cpp_reader *, cpp_macro *, unsigned);
@@ -842,7 +859,8 @@ enum cpp_builtin_type
   BT_PRAGMA,			/* `_Pragma' operator */
   BT_TIMESTAMP,			/* `__TIMESTAMP__' */
   BT_COUNTER,			/* `__COUNTER__' */
-  BT_HAS_ATTRIBUTE		/* `__has_attribute__(x)' */
+  BT_HAS_ATTRIBUTE,		/* `__has_attribute__(x)' */
+  BT_HAS_BUILTIN		/* `__has_builtin(x)' */
 };
 
 #define CPP_HASHNODE(HNODE)	((cpp_hashnode *) (HNODE))
@@ -932,11 +950,11 @@ class cpp_substring_ranges
    that cpplib will share; this technique is used by the C front
    ends.  */
 extern cpp_reader *cpp_create_reader (enum c_lang, struct ht *,
-				      struct line_maps *);
+				      class line_maps *);
 
 /* Reset the cpp_reader's line_map.  This is only used after reading a
    PCH file.  */
-extern void cpp_set_line_map (cpp_reader *, struct line_maps *);
+extern void cpp_set_line_map (cpp_reader *, class line_maps *);
 
 /* Call this to change the selected language standard (e.g. because of
    command line options).  */
@@ -953,7 +971,7 @@ extern void cpp_set_include_chains (cpp_reader *, cpp_dir *, cpp_dir *, int);
 extern cpp_options *cpp_get_options (cpp_reader *);
 extern cpp_callbacks *cpp_get_callbacks (cpp_reader *);
 extern void cpp_set_callbacks (cpp_reader *, cpp_callbacks *);
-extern struct mkdeps *cpp_get_deps (cpp_reader *);
+extern class mkdeps *cpp_get_deps (cpp_reader *);
 
 /* This function reads the file, but does not start preprocessing.  It
    returns the name of the original file; this is the same as the

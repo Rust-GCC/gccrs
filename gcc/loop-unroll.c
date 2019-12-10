@@ -32,7 +32,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "profile.h"
 #include "cfgrtl.h"
 #include "cfgloop.h"
-#include "params.h"
 #include "dojump.h"
 #include "expr.h"
 #include "dumpfile.h"
@@ -163,19 +162,19 @@ struct opt_info
   basic_block loop_preheader;      /* The loop preheader basic block.  */
 };
 
-static void decide_unroll_stupid (struct loop *, int);
-static void decide_unroll_constant_iterations (struct loop *, int);
-static void decide_unroll_runtime_iterations (struct loop *, int);
-static void unroll_loop_stupid (struct loop *);
+static void decide_unroll_stupid (class loop *, int);
+static void decide_unroll_constant_iterations (class loop *, int);
+static void decide_unroll_runtime_iterations (class loop *, int);
+static void unroll_loop_stupid (class loop *);
 static void decide_unrolling (int);
-static void unroll_loop_constant_iterations (struct loop *);
-static void unroll_loop_runtime_iterations (struct loop *);
-static struct opt_info *analyze_insns_in_loop (struct loop *);
+static void unroll_loop_constant_iterations (class loop *);
+static void unroll_loop_runtime_iterations (class loop *);
+static struct opt_info *analyze_insns_in_loop (class loop *);
 static void opt_info_start_duplication (struct opt_info *);
 static void apply_opt_in_copies (struct opt_info *, unsigned, bool, bool);
 static void free_opt_info (struct opt_info *);
-static struct var_to_expand *analyze_insn_to_expand_var (struct loop*, rtx_insn *);
-static bool referenced_in_one_insn_in_loop_p (struct loop *, rtx, int *);
+static struct var_to_expand *analyze_insn_to_expand_var (class loop*, rtx_insn *);
+static bool referenced_in_one_insn_in_loop_p (class loop *, rtx, int *);
 static struct iv_to_split *analyze_iv_to_split_insn (rtx_insn *);
 static void expand_var_during_unrolling (struct var_to_expand *, rtx_insn *);
 static void insert_var_expansion_initialization (struct var_to_expand *,
@@ -189,7 +188,7 @@ static rtx get_expansion (struct var_to_expand *);
    appropriate given the dump or -fopt-info settings.  */
 
 static void
-report_unroll (struct loop *loop, dump_location_t locus)
+report_unroll (class loop *loop, dump_location_t locus)
 {
   dump_flags_t report_flags = MSG_OPTIMIZED_LOCATIONS | TDF_DETAILS;
 
@@ -215,7 +214,7 @@ report_unroll (struct loop *loop, dump_location_t locus)
 static void
 decide_unrolling (int flags)
 {
-  struct loop *loop;
+  class loop *loop;
 
   /* Scan the loops, inner ones first.  */
   FOR_EACH_LOOP (loop, LI_FROM_INNERMOST)
@@ -279,7 +278,7 @@ decide_unrolling (int flags)
 void
 unroll_loops (int flags)
 {
-  struct loop *loop;
+  class loop *loop;
   bool changed = false;
 
   /* Now decide rest of unrolling.  */
@@ -322,9 +321,9 @@ unroll_loops (int flags)
 /* Check whether exit of the LOOP is at the end of loop body.  */
 
 static bool
-loop_exit_at_end_p (struct loop *loop)
+loop_exit_at_end_p (class loop *loop)
 {
-  struct niter_desc *desc = get_simple_loop_desc (loop);
+  class niter_desc *desc = get_simple_loop_desc (loop);
   rtx_insn *insn;
 
   /* We should never have conditional in latch block.  */
@@ -347,10 +346,10 @@ loop_exit_at_end_p (struct loop *loop)
    and how much.  */
 
 static void
-decide_unroll_constant_iterations (struct loop *loop, int flags)
+decide_unroll_constant_iterations (class loop *loop, int flags)
 {
   unsigned nunroll, nunroll_by_av, best_copies, best_unroll = 0, n_copies, i;
-  struct niter_desc *desc;
+  class niter_desc *desc;
   widest_int iterations;
 
   /* If we were not asked to unroll this loop, just return back silently.  */
@@ -364,13 +363,13 @@ decide_unroll_constant_iterations (struct loop *loop, int flags)
 
   /* nunroll = total number of copies of the original loop body in
      unrolled loop (i.e. if it is 2, we have to duplicate loop body once).  */
-  nunroll = PARAM_VALUE (PARAM_MAX_UNROLLED_INSNS) / loop->ninsns;
+  nunroll = param_max_unrolled_insns / loop->ninsns;
   nunroll_by_av
-    = PARAM_VALUE (PARAM_MAX_AVERAGE_UNROLLED_INSNS) / loop->av_ninsns;
+    = param_max_average_unrolled_insns / loop->av_ninsns;
   if (nunroll > nunroll_by_av)
     nunroll = nunroll_by_av;
-  if (nunroll > (unsigned) PARAM_VALUE (PARAM_MAX_UNROLL_TIMES))
-    nunroll = PARAM_VALUE (PARAM_MAX_UNROLL_TIMES);
+  if (nunroll > (unsigned) param_max_unroll_times)
+    nunroll = param_max_unroll_times;
 
   if (targetm.loop_unroll_adjust)
     nunroll = targetm.loop_unroll_adjust (nunroll, loop);
@@ -480,14 +479,14 @@ decide_unroll_constant_iterations (struct loop *loop, int flags)
      }
   */
 static void
-unroll_loop_constant_iterations (struct loop *loop)
+unroll_loop_constant_iterations (class loop *loop)
 {
   unsigned HOST_WIDE_INT niter;
   unsigned exit_mod;
   unsigned i;
   edge e;
   unsigned max_unroll = loop->lpt_decision.times;
-  struct niter_desc *desc = get_simple_loop_desc (loop);
+  class niter_desc *desc = get_simple_loop_desc (loop);
   bool exit_at_end = loop_exit_at_end_p (loop);
   struct opt_info *opt_info = NULL;
   bool ok;
@@ -667,10 +666,10 @@ unroll_loop_constant_iterations (struct loop *loop)
 /* Decide whether to unroll LOOP iterating runtime computable number of times
    and how much.  */
 static void
-decide_unroll_runtime_iterations (struct loop *loop, int flags)
+decide_unroll_runtime_iterations (class loop *loop, int flags)
 {
   unsigned nunroll, nunroll_by_av, i;
-  struct niter_desc *desc;
+  class niter_desc *desc;
   widest_int iterations;
 
   /* If we were not asked to unroll this loop, just return back silently.  */
@@ -684,12 +683,12 @@ decide_unroll_runtime_iterations (struct loop *loop, int flags)
 
   /* nunroll = total number of copies of the original loop body in
      unrolled loop (i.e. if it is 2, we have to duplicate loop body once.  */
-  nunroll = PARAM_VALUE (PARAM_MAX_UNROLLED_INSNS) / loop->ninsns;
-  nunroll_by_av = PARAM_VALUE (PARAM_MAX_AVERAGE_UNROLLED_INSNS) / loop->av_ninsns;
+  nunroll = param_max_unrolled_insns / loop->ninsns;
+  nunroll_by_av = param_max_average_unrolled_insns / loop->av_ninsns;
   if (nunroll > nunroll_by_av)
     nunroll = nunroll_by_av;
-  if (nunroll > (unsigned) PARAM_VALUE (PARAM_MAX_UNROLL_TIMES))
-    nunroll = PARAM_VALUE (PARAM_MAX_UNROLL_TIMES);
+  if (nunroll > (unsigned) param_max_unroll_times)
+    nunroll = param_max_unroll_times;
 
   if (targetm.loop_unroll_adjust)
     nunroll = targetm.loop_unroll_adjust (nunroll, loop);
@@ -881,7 +880,7 @@ compare_and_jump_seq (rtx op0, rtx op1, enum rtx_code comp,
      }
    */
 static void
-unroll_loop_runtime_iterations (struct loop *loop)
+unroll_loop_runtime_iterations (class loop *loop)
 {
   rtx old_niter, niter, tmp;
   rtx_insn *init_code, *branch_code;
@@ -894,7 +893,7 @@ unroll_loop_runtime_iterations (struct loop *loop)
   edge e;
   bool extra_zero_check, last_may_exit;
   unsigned max_unroll = loop->lpt_decision.times;
-  struct niter_desc *desc = get_simple_loop_desc (loop);
+  class niter_desc *desc = get_simple_loop_desc (loop);
   bool exit_at_end = loop_exit_at_end_p (loop);
   struct opt_info *opt_info = NULL;
   bool ok;
@@ -1152,10 +1151,10 @@ unroll_loop_runtime_iterations (struct loop *loop)
 
 /* Decide whether to unroll LOOP stupidly and how much.  */
 static void
-decide_unroll_stupid (struct loop *loop, int flags)
+decide_unroll_stupid (class loop *loop, int flags)
 {
   unsigned nunroll, nunroll_by_av, i;
-  struct niter_desc *desc;
+  class niter_desc *desc;
   widest_int iterations;
 
   /* If we were not asked to unroll this loop, just return back silently.  */
@@ -1167,13 +1166,13 @@ decide_unroll_stupid (struct loop *loop, int flags)
 
   /* nunroll = total number of copies of the original loop body in
      unrolled loop (i.e. if it is 2, we have to duplicate loop body once.  */
-  nunroll = PARAM_VALUE (PARAM_MAX_UNROLLED_INSNS) / loop->ninsns;
+  nunroll = param_max_unrolled_insns / loop->ninsns;
   nunroll_by_av
-    = PARAM_VALUE (PARAM_MAX_AVERAGE_UNROLLED_INSNS) / loop->av_ninsns;
+    = param_max_average_unrolled_insns / loop->av_ninsns;
   if (nunroll > nunroll_by_av)
     nunroll = nunroll_by_av;
-  if (nunroll > (unsigned) PARAM_VALUE (PARAM_MAX_UNROLL_TIMES))
-    nunroll = PARAM_VALUE (PARAM_MAX_UNROLL_TIMES);
+  if (nunroll > (unsigned) param_max_unroll_times)
+    nunroll = param_max_unroll_times;
 
   if (targetm.loop_unroll_adjust)
     nunroll = targetm.loop_unroll_adjust (nunroll, loop);
@@ -1250,10 +1249,10 @@ decide_unroll_stupid (struct loop *loop, int flags)
      }
    */
 static void
-unroll_loop_stupid (struct loop *loop)
+unroll_loop_stupid (class loop *loop)
 {
   unsigned nunroll = loop->lpt_decision.times;
-  struct niter_desc *desc = get_simple_loop_desc (loop);
+  class niter_desc *desc = get_simple_loop_desc (loop);
   struct opt_info *opt_info = NULL;
   bool ok;
 
@@ -1301,7 +1300,7 @@ unroll_loop_stupid (struct loop *loop)
    variable.  */
 
 static bool
-referenced_in_one_insn_in_loop_p (struct loop *loop, rtx reg,
+referenced_in_one_insn_in_loop_p (class loop *loop, rtx reg,
 				  int *debug_uses)
 {
   basic_block *body, bb;
@@ -1329,7 +1328,7 @@ referenced_in_one_insn_in_loop_p (struct loop *loop, rtx reg,
 /* Reset the DEBUG_USES debug insns in LOOP that reference REG.  */
 
 static void
-reset_debug_uses_in_loop (struct loop *loop, rtx reg, int debug_uses)
+reset_debug_uses_in_loop (class loop *loop, rtx reg, int debug_uses)
 {
   basic_block *body, bb;
   unsigned i;
@@ -1378,7 +1377,7 @@ reset_debug_uses_in_loop (struct loop *loop, rtx reg, int debug_uses)
 */
 
 static struct var_to_expand *
-analyze_insn_to_expand_var (struct loop *loop, rtx_insn *insn)
+analyze_insn_to_expand_var (class loop *loop, rtx_insn *insn)
 {
   rtx set, dest, src;
   struct var_to_expand *ves;
@@ -1519,7 +1518,7 @@ static struct iv_to_split *
 analyze_iv_to_split_insn (rtx_insn *insn)
 {
   rtx set, dest;
-  struct rtx_iv iv;
+  class rtx_iv iv;
   struct iv_to_split *ivts;
   scalar_int_mode mode;
   bool ok;
@@ -1571,7 +1570,7 @@ analyze_iv_to_split_insn (rtx_insn *insn)
    is undefined for the return value.  */
 
 static struct opt_info *
-analyze_insns_in_loop (struct loop *loop)
+analyze_insns_in_loop (class loop *loop)
 {
   basic_block *body, bb;
   unsigned i;
@@ -1824,7 +1823,7 @@ expand_var_during_unrolling (struct var_to_expand *ve, rtx_insn *insn)
 
   /* Generate a new register only if the expansion limit has not been
      reached.  Else reuse an already existing expansion.  */
-  if (PARAM_VALUE (PARAM_MAX_VARIABLE_EXPANSIONS) > ve->expansion_count)
+  if (param_max_variable_expansions > ve->expansion_count)
     {
       really_new_expansion = true;
       new_reg = gen_reg_rtx (GET_MODE (ve->reg));

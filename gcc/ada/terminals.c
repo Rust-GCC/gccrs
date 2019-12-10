@@ -108,7 +108,7 @@ __gnat_tty_supported (void)
 }
 
 int
-__gnat_tty_waitpid (void *desc ATTRIBUTE_UNUSED)
+__gnat_tty_waitpid (void *desc ATTRIBUTE_UNUSED, int blocking)
 {
   return 1;
 }
@@ -152,6 +152,7 @@ __gnat_setup_winsize (void *desc ATTRIBUTE_UNUSED,
 #include <stdlib.h>
 
 #include <windows.h>
+#include <winternl.h>
 
 #define MAXPATHLEN 1024
 
@@ -169,7 +170,7 @@ struct TTY_Process {
   BOOL usePipe;
 };
 
-/* Control whether create_child cause the process to inherit GPS'
+/* Control whether create_child cause the process to inherit GNAT Studio'
    error mode setting.  The default is 1, to minimize the possibility of
    subprocesses blocking when accessing unmounted drives.  */
 static int Vw32_start_process_inherit_error_mode = 1;
@@ -1014,20 +1015,28 @@ __gnat_terminate_pid (int pid)
    the Win32 API instead of the C one. */
 
 int
-__gnat_tty_waitpid (struct TTY_Process* p)
+__gnat_tty_waitpid (struct TTY_Process* p, int blocking)
 {
   DWORD exitcode;
-  DWORD res;
-  HANDLE proc_hand = p->procinfo.hProcess;
+  HANDLE hprocess = p->procinfo.hProcess;
 
-  res = WaitForSingleObject (proc_hand, 0);
-  GetExitCodeProcess (proc_hand, &exitcode);
+  if (blocking) {
+     /* Wait is needed on Windows only in blocking mode. */
+     WaitForSingleObject (hprocess, 0);
+  }
 
-  CloseHandle (p->procinfo.hThread);
-  CloseHandle (p->procinfo.hProcess);
+  GetExitCodeProcess (hprocess, &exitcode);
+
+  if (exitcode == STILL_ACTIVE) {
+     /* If process is still active return -1. */
+     exitcode = -1;
+  } else {
+     /* Process is dead, so handle to process and main thread can be closed. */
+     CloseHandle (p->procinfo.hThread);
+     CloseHandle (hprocess);
+  }
 
   /* No need to close the handles: they were closed on the ada side */
-
   return (int) exitcode;
 }
 
@@ -1556,11 +1565,21 @@ __gnat_terminate_pid (int pid)
  *   exit status of the child process
  */
 int
-__gnat_tty_waitpid (pty_desc *desc)
+__gnat_tty_waitpid (pty_desc *desc, int blocking)
 {
-  int status = 0;
-  waitpid (desc->child_pid, &status, 0);
-  return WEXITSTATUS (status);
+  int status = -1;
+  int options = 0;
+
+  if (blocking) {
+     options = 0;
+  } else {
+     options = WNOHANG;
+  }
+  waitpid (desc->child_pid, &status, options);
+  if WIFEXITED (status) {
+     status = WEXITSTATUS (status);
+  }
+  return status;
 }
 
 /* __gnat_tty_supported - Are tty supported ?
@@ -1629,8 +1648,8 @@ __gnat_new_tty (void)
  */
 void __gnat_close_tty (pty_desc* desc)
 {
-  if (desc->master_fd >= 0) close (desc->master_fd);
-  if (desc->slave_fd  >= 0) close (desc->slave_fd);
+  if (desc->master_fd >= 0) { close (desc->master_fd); desc->master_fd = -1; }
+  if (desc->slave_fd  >= 0) { close (desc->slave_fd);  desc->slave_fd  = -1; }
 }
 
 /* __gnat_tty_name - return slave side device name

@@ -503,7 +503,11 @@ replace_goto_queue_1 (gimple *stmt, struct leh_tf_state *tf,
       seq = find_goto_replacement (tf, temp);
       if (seq)
 	{
-	  gsi_insert_seq_before (gsi, gimple_seq_copy (seq), GSI_SAME_STMT);
+	  gimple_stmt_iterator i;
+	  seq = gimple_seq_copy (seq);
+	  for (i = gsi_start (seq); !gsi_end_p (i); gsi_next (&i))
+	    gimple_set_location (gsi_stmt (i), gimple_location (stmt));
+	  gsi_insert_seq_before (gsi, seq, GSI_SAME_STMT);
 	  gsi_remove (gsi, false);
 	  return;
 	}
@@ -811,15 +815,6 @@ emit_resx (gimple_seq *seq, eh_region region)
     record_stmt_eh_region (region->outer, x);
 }
 
-/* Emit an EH_DISPATCH statement into SEQ for REGION.  */
-
-static void
-emit_eh_dispatch (gimple_seq *seq, eh_region region)
-{
-  geh_dispatch *x = gimple_build_eh_dispatch (region->index);
-  gimple_seq_add_stmt (seq, x);
-}
-
 /* Note that the current EH region may contain a throw, or a
    call to a function which itself may contain a throw.  */
 
@@ -1001,11 +996,14 @@ honor_protect_cleanup_actions (struct leh_state *outer_state,
       gimple_try_set_cleanup (tf->top_p, gimple_eh_else_n_body (eh_else));
       finally = gimple_eh_else_e_body (eh_else);
 
-      /* Let the ELSE see the exception that's being processed.  */
-      eh_region save_ehp = this_state->ehp_region;
-      this_state->ehp_region = this_state->cur_region;
-      lower_eh_constructs_1 (this_state, &finally);
-      this_state->ehp_region = save_ehp;
+      /* Let the ELSE see the exception that's being processed, but
+	 since the cleanup is outside the try block, process it with
+	 outer_state, otherwise it may be used as a cleanup for
+	 itself, and Bad Things (TM) ensue.  */
+      eh_region save_ehp = outer_state->ehp_region;
+      outer_state->ehp_region = this_state->cur_region;
+      lower_eh_constructs_1 (outer_state, &finally);
+      outer_state->ehp_region = save_ehp;
     }
   else
     {
@@ -1762,7 +1760,9 @@ lower_catch (struct leh_state *state, gtry *tp)
   tree out_label;
   gimple_seq new_seq, cleanup;
   gimple *x;
+  geh_dispatch *eh_dispatch;
   location_t try_catch_loc = gimple_location (tp);
+  location_t catch_loc = UNKNOWN_LOCATION;
 
   if (flag_exceptions)
     {
@@ -1776,7 +1776,8 @@ lower_catch (struct leh_state *state, gtry *tp)
     return gimple_try_eval (tp);
 
   new_seq = NULL;
-  emit_eh_dispatch (&new_seq, try_region);
+  eh_dispatch = gimple_build_eh_dispatch (try_region->index);
+  gimple_seq_add_stmt (&new_seq, eh_dispatch);
   emit_resx (&new_seq, try_region);
 
   this_state.cur_region = state->cur_region;
@@ -1799,6 +1800,8 @@ lower_catch (struct leh_state *state, gtry *tp)
       gimple_seq handler;
 
       catch_stmt = as_a <gcatch *> (gsi_stmt (gsi));
+      if (catch_loc == UNKNOWN_LOCATION)
+	catch_loc = gimple_location (catch_stmt);
       c = gen_eh_region_catch (try_region, gimple_catch_types (catch_stmt));
 
       handler = gimple_catch_handler (catch_stmt);
@@ -1821,6 +1824,10 @@ lower_catch (struct leh_state *state, gtry *tp)
       if (!c->type_list)
 	break;
     }
+
+  /* Try to set a location on the dispatching construct to avoid inheriting
+     the location of the previous statement.  */
+  gimple_set_location (eh_dispatch, catch_loc);
 
   gimple_try_set_cleanup (tp, new_seq);
 
@@ -1857,11 +1864,13 @@ lower_eh_filter (struct leh_state *state, gtry *tp)
   if (!eh_region_may_contain_throw (this_region))
     return gimple_try_eval (tp);
 
-  new_seq = NULL;
   this_state.cur_region = state->cur_region;
   this_state.ehp_region = this_region;
 
-  emit_eh_dispatch (&new_seq, this_region);
+  new_seq = NULL;
+  x = gimple_build_eh_dispatch (this_region->index);
+  gimple_set_location (x, gimple_location (tp));
+  gimple_seq_add_stmt (&new_seq, x);
   emit_resx (&new_seq, this_region);
 
   this_region->u.allowed.label = create_artificial_label (UNKNOWN_LOCATION);
@@ -2490,6 +2499,14 @@ operation_could_trap_helper_p (enum tree_code op,
       /* Constructing an object cannot trap.  */
       return false;
 
+    case COND_EXPR:
+    case VEC_COND_EXPR:
+      /* Whether *COND_EXPR can trap depends on whether the
+	 first argument can trap, so signal it as not handled.
+	 Whether lhs is floating or not doesn't matter.  */
+      *handled = false;
+      return false;
+
     default:
       /* Any floating arithmetic may trap.  */
       if (fp_operation && flag_trapping_math)
@@ -2513,6 +2530,10 @@ operation_could_trap_p (enum tree_code op, bool fp_operation, bool honor_trapv,
 		     && !flag_finite_math_only);
   bool honor_snans = fp_operation && flag_signaling_nans != 0;
   bool handled;
+
+  /* This function cannot tell whether or not COND_EXPR and VEC_COND_EXPR could
+     trap, because that depends on the respective condition op.  */
+  gcc_assert (op != COND_EXPR && op != VEC_COND_EXPR);
 
   if (TREE_CODE_CLASS (op) != tcc_comparison
       && TREE_CODE_CLASS (op) != tcc_unary
@@ -2599,6 +2620,13 @@ tree_could_trap_p (tree expr)
   tree t, base, div = NULL_TREE;
 
   if (!expr)
+    return false;
+
+  /* In COND_EXPR and VEC_COND_EXPR only the condition may trap, but
+     they won't appear as operands in GIMPLE form, so this is just for the
+     GENERIC uses where it needs to recurse on the operands and so
+     *COND_EXPR itself doesn't trap.  */
+  if (TREE_CODE (expr) == COND_EXPR || TREE_CODE (expr) == VEC_COND_EXPR)
     return false;
 
   code = TREE_CODE (expr);
@@ -3752,6 +3780,7 @@ lower_eh_dispatch (basic_block src, geh_dispatch *stmt)
 	    filter = create_tmp_var (TREE_TYPE (TREE_TYPE (fn)));
 	    filter = make_ssa_name (filter, x);
 	    gimple_call_set_lhs (x, filter);
+	    gimple_set_location (x, gimple_location (stmt));
 	    gsi_insert_before (&gsi, x, GSI_SAME_STMT);
 
 	    /* Turn the default label into a default case.  */
@@ -3759,6 +3788,7 @@ lower_eh_dispatch (basic_block src, geh_dispatch *stmt)
 	    sort_case_labels (labels);
 
 	    x = gimple_build_switch (filter, default_label, labels);
+	    gimple_set_location (x, gimple_location (stmt));
 	    gsi_insert_before (&gsi, x, GSI_SAME_STMT);
 	  }
       }
@@ -3775,6 +3805,7 @@ lower_eh_dispatch (basic_block src, geh_dispatch *stmt)
 	filter = create_tmp_var (TREE_TYPE (TREE_TYPE (fn)));
 	filter = make_ssa_name (filter, x);
 	gimple_call_set_lhs (x, filter);
+	gimple_set_location (x, gimple_location (stmt));
 	gsi_insert_before (&gsi, x, GSI_SAME_STMT);
 
 	r->u.allowed.label = NULL;
@@ -4028,15 +4059,14 @@ maybe_remove_unreachable_handlers (void)
 
   if (cfun->eh == NULL)
     return;
-           
+
   FOR_EACH_VEC_SAFE_ELT (cfun->eh->lp_array, i, lp)
-    if (lp && lp->post_landing_pad)
+    if (lp
+	&& (lp->post_landing_pad == NULL_TREE
+	    || label_to_block (cfun, lp->post_landing_pad) == NULL))
       {
-	if (label_to_block (cfun, lp->post_landing_pad) == NULL)
-	  {
-	    remove_unreachable_handlers ();
-	    return;
-	  }
+	remove_unreachable_handlers ();
+	return;
       }
 }
 
@@ -4197,6 +4227,27 @@ unsplit_all_eh (void)
       changed |= unsplit_eh (lp);
 
   return changed;
+}
+
+/* Wrapper around unsplit_all_eh that makes it usable everywhere.  */
+
+void
+unsplit_eh_edges (void)
+{
+  bool changed;
+
+  /* unsplit_all_eh can die looking up unreachable landing pads.  */
+  maybe_remove_unreachable_handlers ();
+
+  changed = unsplit_all_eh ();
+
+  /* If EH edges have been unsplit, delete unreachable forwarder blocks.  */
+  if (changed)
+    {
+      free_dominance_info (CDI_DOMINATORS);
+      free_dominance_info (CDI_POST_DOMINATORS);
+      delete_unreachable_blocks ();
+    }
 }
 
 /* A subroutine of cleanup_empty_eh.  Redirect all EH edges incoming
@@ -4728,6 +4779,14 @@ make_pass_cleanup_eh (gcc::context *ctxt)
   return new pass_cleanup_eh (ctxt);
 }
 
+/* Disable warnings about missing quoting in GCC diagnostics for
+   the verification errors.  Their format strings don't follow GCC
+   diagnostic conventions but are only used for debugging.  */
+#if __GNUC__ >= 10
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wformat-diag"
+#endif
+
 /* Verify that BB containing STMT as the last statement, has precisely the
    edge that make_eh_edges would create.  */
 
@@ -4874,3 +4933,7 @@ verify_eh_dispatch_edge (geh_dispatch *stmt)
 
   return false;
 }
+
+#if __GNUC__ >= 10
+#  pragma GCC diagnostic pop
+#endif

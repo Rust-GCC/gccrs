@@ -2234,8 +2234,16 @@ package body Sem_Ch5 is
                It : Interp;
 
             begin
+               --  The domain of iteration must implement either the RM
+               --  iterator interface, or the SPARK Iterable aspect.
+
                if No (Iterator) then
-                  null;  --  error reported below
+                  if No (Find_Aspect (Etype (Iter_Name), Aspect_Iterable)) then
+                     Error_Msg_NE
+                       ("cannot iterate over&",
+                        N, Base_Type (Etype (Iter_Name)));
+                     return;
+                  end if;
 
                elsif not Is_Overloaded (Iterator) then
                   Check_Reverse_Iteration (Etype (Iterator));
@@ -3080,7 +3088,7 @@ package body Sem_Ch5 is
 
          else
             --  A quantified expression that appears in a pre/post condition
-            --  is preanalyzed several times.  If the range is given by an
+            --  is preanalyzed several times. If the range is given by an
             --  attribute reference it is rewritten as a range, and this is
             --  done even with expansion disabled. If the type is already set
             --  do not reanalyze, because a range with static bounds may be
@@ -3359,8 +3367,6 @@ package body Sem_Ch5 is
       --  The following exception is raised by routine Prepare_Loop_Statement
       --  to avoid further analysis of a transformed loop.
 
-      Skip_Analysis : exception;
-
       function Disable_Constant (N : Node_Id) return Traverse_Result;
       --  If N represents an E_Variable entity, set Is_True_Constant To False
 
@@ -3368,11 +3374,12 @@ package body Sem_Ch5 is
       --  Helper for Analyze_Loop_Statement, to unset Is_True_Constant on
       --  variables referenced within an OpenACC construct.
 
-      procedure Prepare_Loop_Statement (Iter : Node_Id);
+      procedure Prepare_Loop_Statement
+        (Iter            : Node_Id;
+         Stop_Processing : out Boolean);
       --  Determine whether loop statement N with iteration scheme Iter must be
-      --  transformed prior to analysis, and if so, perform it. The routine
-      --  raises Skip_Analysis to prevent further analysis of the transformed
-      --  loop.
+      --  transformed prior to analysis, and if so, perform it.
+      --  If Stop_Processing is set to True, should stop further processing.
 
       ----------------------
       -- Disable_Constant --
@@ -3394,7 +3401,10 @@ package body Sem_Ch5 is
       -- Prepare_Loop_Statement --
       ----------------------------
 
-      procedure Prepare_Loop_Statement (Iter : Node_Id) is
+      procedure Prepare_Loop_Statement
+        (Iter            : Node_Id;
+         Stop_Processing : out Boolean)
+      is
          function Has_Sec_Stack_Default_Iterator
            (Cont_Typ : Entity_Id) return Boolean;
          pragma Inline (Has_Sec_Stack_Default_Iterator);
@@ -3414,21 +3424,27 @@ package body Sem_Ch5 is
          --  Determine whether arbitrary statement Stmt is the sole statement
          --  wrapped within some block, excluding pragmas.
 
-         procedure Prepare_Iterator_Loop (Iter_Spec : Node_Id);
+         procedure Prepare_Iterator_Loop
+           (Iter_Spec       : Node_Id;
+            Stop_Processing : out Boolean);
          pragma Inline (Prepare_Iterator_Loop);
          --  Prepare an iterator loop with iteration specification Iter_Spec
          --  for transformation if needed.
+         --  If Stop_Processing is set to True, should stop further processing.
 
-         procedure Prepare_Param_Spec_Loop (Param_Spec : Node_Id);
+         procedure Prepare_Param_Spec_Loop
+           (Param_Spec      : Node_Id;
+            Stop_Processing : out Boolean);
          pragma Inline (Prepare_Param_Spec_Loop);
          --  Prepare a discrete loop with parameter specification Param_Spec
          --  for transformation if needed.
+         --  If Stop_Processing is set to True, should stop further processing.
 
          procedure Wrap_Loop_Statement (Manage_Sec_Stack : Boolean);
-         pragma Inline    (Wrap_Loop_Statement);
-         pragma No_Return (Wrap_Loop_Statement);
+         pragma Inline (Wrap_Loop_Statement);
          --  Wrap loop statement N within a block. Flag Manage_Sec_Stack must
          --  be set when the block must mark and release the secondary stack.
+         --  Should stop further processing after calling this procedure.
 
          ------------------------------------
          -- Has_Sec_Stack_Default_Iterator --
@@ -3504,12 +3520,17 @@ package body Sem_Ch5 is
          -- Prepare_Iterator_Loop --
          ---------------------------
 
-         procedure Prepare_Iterator_Loop (Iter_Spec : Node_Id) is
+         procedure Prepare_Iterator_Loop
+           (Iter_Spec       : Node_Id;
+            Stop_Processing : out Boolean)
+         is
             Cont_Typ : Entity_Id;
             Nam      : Node_Id;
             Nam_Copy : Node_Id;
 
          begin
+            Stop_Processing := False;
+
             --  The iterator specification has syntactic errors. Transform the
             --  loop into an infinite loop in order to safely perform at least
             --  some minor analysis. This check must come first.
@@ -3517,8 +3538,7 @@ package body Sem_Ch5 is
             if Error_Posted (Iter_Spec) then
                Set_Iteration_Scheme (N, Empty);
                Analyze (N);
-
-               raise Skip_Analysis;
+               Stop_Processing := True;
 
             --  Nothing to do when the loop is already wrapped in a block
 
@@ -3578,6 +3598,7 @@ package body Sem_Ch5 is
                                    (Cont_Typ, Name_First)
                          or else Is_Sec_Stack_Iteration_Primitive
                                    (Cont_Typ, Name_Next));
+                  Stop_Processing := True;
                end if;
             end if;
          end Prepare_Iterator_Loop;
@@ -3586,7 +3607,10 @@ package body Sem_Ch5 is
          -- Prepare_Param_Spec_Loop --
          -----------------------------
 
-         procedure Prepare_Param_Spec_Loop (Param_Spec : Node_Id) is
+         procedure Prepare_Param_Spec_Loop
+           (Param_Spec      : Node_Id;
+            Stop_Processing : out Boolean)
+         is
             High     : Node_Id;
             Low      : Node_Id;
             Rng      : Node_Id;
@@ -3594,6 +3618,7 @@ package body Sem_Ch5 is
             Rng_Typ  : Entity_Id;
 
          begin
+            Stop_Processing := False;
             Rng := Discrete_Subtype_Definition (Param_Spec);
 
             --  Nothing to do when the loop is already wrapped in a block
@@ -3610,10 +3635,15 @@ package body Sem_Ch5 is
             then
                Rng := Range_Expression (Constraint (Rng));
 
-               --  Preanalyze the bounds of the range constraint
+               --  Preanalyze the bounds of the range constraint, setting
+               --  parent fields to associate the copied bounds with the range,
+               --  allowing proper tree climbing during preanalysis.
 
                Low  := New_Copy_Tree (Low_Bound  (Rng));
                High := New_Copy_Tree (High_Bound (Rng));
+
+               Set_Parent (Low, Rng);
+               Set_Parent (High, Rng);
 
                Preanalyze (Low);
                Preanalyze (High);
@@ -3622,11 +3652,10 @@ package body Sem_Ch5 is
                --  on the secondary stack. Note that the loop must be wrapped
                --  only when such a call exists.
 
-               if Has_Sec_Stack_Call (Low)
-                    or else
-                  Has_Sec_Stack_Call (High)
+               if Has_Sec_Stack_Call (Low) or else Has_Sec_Stack_Call (High)
                then
                   Wrap_Loop_Statement (Manage_Sec_Stack => True);
+                  Stop_Processing := True;
                end if;
 
             --  Otherwise the parameter specification appears in the form
@@ -3663,6 +3692,7 @@ package body Sem_Ch5 is
                            and then Needs_Finalization (Rng_Typ))
                then
                   Wrap_Loop_Statement (Manage_Sec_Stack => True);
+                  Stop_Processing := True;
                end if;
             end if;
          end Prepare_Param_Spec_Loop;
@@ -3690,8 +3720,6 @@ package body Sem_Ch5 is
 
             Rewrite (N, Blk);
             Analyze (N);
-
-            raise Skip_Analysis;
          end Wrap_Loop_Statement;
 
          --  Local variables
@@ -3702,11 +3730,13 @@ package body Sem_Ch5 is
       --  Start of processing for Prepare_Loop_Statement
 
       begin
+         Stop_Processing := False;
+
          if Present (Iter_Spec) then
-            Prepare_Iterator_Loop (Iter_Spec);
+            Prepare_Iterator_Loop (Iter_Spec, Stop_Processing);
 
          elsif Present (Param_Spec) then
-            Prepare_Param_Spec_Loop (Param_Spec);
+            Prepare_Param_Spec_Loop (Param_Spec, Stop_Processing);
          end if;
       end Prepare_Loop_Statement;
 
@@ -3805,7 +3835,15 @@ package body Sem_Ch5 is
       --      wrapped within a block in order to manage the secondary stack.
 
       if Present (Iter) then
-         Prepare_Loop_Statement (Iter);
+         declare
+            Stop_Processing : Boolean;
+         begin
+            Prepare_Loop_Statement (Iter, Stop_Processing);
+
+            if Stop_Processing then
+               return;
+            end if;
+         end;
       end if;
 
       --  Kill current values on entry to loop, since statements in the body of
@@ -3879,7 +3917,7 @@ package body Sem_Ch5 is
       --  If the expander is not active then we want to analyze the loop body
       --  now even in the Ada 2012 iterator case, since the rewriting will not
       --  be done. Insert the loop variable in the current scope, if not done
-      --  when analysing the iteration scheme.  Set its kind properly to detect
+      --  when analysing the iteration scheme. Set its kind properly to detect
       --  improper uses in the loop body.
 
       --  In GNATprove mode, we do one of the above depending on the kind of
@@ -3973,16 +4011,12 @@ package body Sem_Ch5 is
 
       --  Variables referenced within a loop subject to possible OpenACC
       --  offloading may be implicitly written to as part of the OpenACC
-      --  transaction.  Clear flags possibly conveying that they are constant,
+      --  transaction. Clear flags possibly conveying that they are constant,
       --  set for example when the code does not explicitly assign them.
 
       if Is_OpenAcc_Environment (Stmt) then
          Disable_Constants (Stmt);
       end if;
-
-   exception
-      when Skip_Analysis =>
-         null;
    end Analyze_Loop_Statement;
 
    ----------------------------
@@ -4041,7 +4075,7 @@ package body Sem_Ch5 is
                end if;
 
             --  If we failed to find a label, it means the implicit declaration
-            --  of the label was hidden.  A for-loop parameter can do this to
+            --  of the label was hidden. A for-loop parameter can do this to
             --  a label with the same name inside the loop, since the implicit
             --  label declaration is in the innermost enclosing body or block
             --  statement.

@@ -79,6 +79,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "attribs.h"
 #include "gimple.h"
 #include "options.h"
+#include "function-abi.h"
 
 /* So we can assign to cfun in this file.  */
 #undef cfun
@@ -133,7 +134,7 @@ vec<tree, va_gc> *types_used_by_cur_var_decl;
 
 /* Forward declarations.  */
 
-static struct temp_slot *find_temp_slot_from_address (rtx);
+static class temp_slot *find_temp_slot_from_address (rtx);
 static void pad_to_arg_alignment (struct args_size *, int, struct args_size *);
 static void pad_below (struct args_size *, machine_mode, tree);
 static void reorder_blocks_1 (rtx_insn *, tree, vec<tree> *);
@@ -345,7 +346,7 @@ try_fit_stack_local (poly_int64 start, poly_int64 length,
 static void
 add_frame_space (poly_int64 start, poly_int64 end)
 {
-  struct frame_space *space = ggc_alloc<frame_space> ();
+  class frame_space *space = ggc_alloc<frame_space> ();
   space->next = crtl->frame_space_list;
   crtl->frame_space_list = space;
   space->start = start;
@@ -441,11 +442,11 @@ assign_stack_local_1 (machine_mode mode, poly_int64 size,
     {
       if (kind & ASLK_RECORD_PAD)
 	{
-	  struct frame_space **psp;
+	  class frame_space **psp;
 
 	  for (psp = &crtl->frame_space_list; *psp; psp = &(*psp)->next)
 	    {
-	      struct frame_space *space = *psp;
+	      class frame_space *space = *psp;
 	      if (!try_fit_stack_local (space->start, space->length, size,
 					alignment, &slot_offset))
 		continue;
@@ -556,11 +557,12 @@ assign_stack_local (machine_mode mode, poly_int64 size, int align)
    result, all temporaries are preserved.  A temporary is preserved by
    pretending it was allocated at the previous nesting level.  */
 
-struct GTY(()) temp_slot {
+class GTY(()) temp_slot {
+public:
   /* Points to next temporary slot.  */
-  struct temp_slot *next;
+  class temp_slot *next;
   /* Points to previous temporary slot.  */
-  struct temp_slot *prev;
+  class temp_slot *prev;
   /* The rtx to used to reference the slot.  */
   rtx slot;
   /* The size, in units, of the slot.  */
@@ -588,7 +590,7 @@ struct GTY(()) temp_slot {
 struct GTY((for_user)) temp_slot_address_entry {
   hashval_t hash;
   rtx address;
-  struct temp_slot *temp_slot;
+  class temp_slot *temp_slot;
 };
 
 struct temp_address_hasher : ggc_ptr_hash<temp_slot_address_entry>
@@ -605,7 +607,7 @@ static size_t n_temp_slots_in_use;
 /* Removes temporary slot TEMP from LIST.  */
 
 static void
-cut_slot_from_list (struct temp_slot *temp, struct temp_slot **list)
+cut_slot_from_list (class temp_slot *temp, class temp_slot **list)
 {
   if (temp->next)
     temp->next->prev = temp->prev;
@@ -620,7 +622,7 @@ cut_slot_from_list (struct temp_slot *temp, struct temp_slot **list)
 /* Inserts temporary slot TEMP to LIST.  */
 
 static void
-insert_slot_to_list (struct temp_slot *temp, struct temp_slot **list)
+insert_slot_to_list (class temp_slot *temp, class temp_slot **list)
 {
   temp->next = *list;
   if (*list)
@@ -631,7 +633,7 @@ insert_slot_to_list (struct temp_slot *temp, struct temp_slot **list)
 
 /* Returns the list of used temp slots at LEVEL.  */
 
-static struct temp_slot **
+static class temp_slot **
 temp_slots_at_level (int level)
 {
   if (level >= (int) vec_safe_length (used_temp_slots))
@@ -654,7 +656,7 @@ max_slot_level (void)
 /* Moves temporary slot TEMP to LEVEL.  */
 
 static void
-move_slot_to_level (struct temp_slot *temp, int level)
+move_slot_to_level (class temp_slot *temp, int level)
 {
   cut_slot_from_list (temp, temp_slots_at_level (temp->level));
   insert_slot_to_list (temp, temp_slots_at_level (level));
@@ -664,7 +666,7 @@ move_slot_to_level (struct temp_slot *temp, int level)
 /* Make temporary slot TEMP available.  */
 
 static void
-make_slot_available (struct temp_slot *temp)
+make_slot_available (class temp_slot *temp)
 {
   cut_slot_from_list (temp, temp_slots_at_level (temp->level));
   insert_slot_to_list (temp, &avail_temp_slots);
@@ -700,10 +702,10 @@ temp_address_hasher::equal (temp_slot_address_entry *t1,
 
 /* Add ADDRESS as an alias of TEMP_SLOT to the addess -> temp slot mapping.  */
 static void
-insert_temp_slot_address (rtx address, struct temp_slot *temp_slot)
+insert_temp_slot_address (rtx address, class temp_slot *temp_slot)
 {
   struct temp_slot_address_entry *t = ggc_alloc<temp_slot_address_entry> ();
-  t->address = address;
+  t->address = copy_rtx (address);
   t->temp_slot = temp_slot;
   t->hash = temp_slot_address_compute_hash (t);
   *temp_slot_address_table->find_slot_with_hash (t, t->hash, INSERT) = t;
@@ -734,10 +736,10 @@ remove_unused_temp_slot_addresses (void)
 
 /* Find the temp slot corresponding to the object at address X.  */
 
-static struct temp_slot *
+static class temp_slot *
 find_temp_slot_from_address (rtx x)
 {
-  struct temp_slot *p;
+  class temp_slot *p;
   struct temp_slot_address_entry tmp, *t;
 
   /* First try the easy way:
@@ -786,7 +788,7 @@ rtx
 assign_stack_temp_for_type (machine_mode mode, poly_int64 size, tree type)
 {
   unsigned int align;
-  struct temp_slot *p, *best_p = 0, *selected = NULL, **pp;
+  class temp_slot *p, *best_p = 0, *selected = NULL, **pp;
   rtx slot;
 
   gcc_assert (known_size_p (size));
@@ -1030,7 +1032,7 @@ assign_temp (tree type_or_decl, int memory_required,
 static void
 combine_temp_slots (void)
 {
-  struct temp_slot *p, *q, *next, *next_q;
+  class temp_slot *p, *q, *next, *next_q;
   int num_slots;
 
   /* We can't combine slots, because the information about which slot
@@ -1094,7 +1096,7 @@ combine_temp_slots (void)
 void
 update_temp_slot_address (rtx old_rtx, rtx new_rtx)
 {
-  struct temp_slot *p;
+  class temp_slot *p;
 
   if (rtx_equal_p (old_rtx, new_rtx))
     return;
@@ -1148,7 +1150,7 @@ update_temp_slot_address (rtx old_rtx, rtx new_rtx)
 void
 preserve_temp_slots (rtx x)
 {
-  struct temp_slot *p = 0, *next;
+  class temp_slot *p = 0, *next;
 
   if (x == 0)
     return;
@@ -1188,7 +1190,7 @@ preserve_temp_slots (rtx x)
 void
 free_temp_slots (void)
 {
-  struct temp_slot *p, *next;
+  class temp_slot *p, *next;
   bool some_available = false;
 
   for (p = *temp_slots_at_level (temp_slot_level); p; p = next)
@@ -2118,10 +2120,17 @@ aggregate_value_p (const_tree exp, const_tree fntype)
   if (!REG_P (reg))
     return 0;
 
+  /* Use the default ABI if the type of the function isn't known.
+     The scheme for handling interoperability between different ABIs
+     requires us to be able to tell when we're calling a function with
+     a nondefault ABI.  */
+  const predefined_function_abi &abi = (fntype
+					? fntype_abi (fntype)
+					: default_function_abi);
   regno = REGNO (reg);
   nregs = hard_regno_nregs (regno, TYPE_MODE (type));
   for (i = 0; i < nregs; i++)
-    if (! call_used_regs[regno + i])
+    if (!fixed_regs[regno + i] && !abi.clobbers_full_reg_p (regno + i))
       return 1;
 
   return 0;
@@ -2263,18 +2272,13 @@ struct assign_parm_data_all
 struct assign_parm_data_one
 {
   tree nominal_type;
-  tree passed_type;
+  function_arg_info arg;
   rtx entry_parm;
   rtx stack_parm;
   machine_mode nominal_mode;
   machine_mode passed_mode;
-  machine_mode promoted_mode;
   struct locate_and_pad_arg_data locate;
   int partial;
-  BOOL_BITFIELD named_arg : 1;
-  BOOL_BITFIELD passed_pointer : 1;
-  BOOL_BITFIELD on_stack : 1;
-  BOOL_BITFIELD loaded_in_reg : 1;
 };
 
 /* A subroutine of assign_parms.  Initialize ALL.  */
@@ -2408,24 +2412,22 @@ static void
 assign_parm_find_data_types (struct assign_parm_data_all *all, tree parm,
 			     struct assign_parm_data_one *data)
 {
-  tree nominal_type, passed_type;
-  machine_mode nominal_mode, passed_mode, promoted_mode;
   int unsignedp;
 
-  memset (data, 0, sizeof (*data));
+  *data = assign_parm_data_one ();
 
   /* NAMED_ARG is a misnomer.  We really mean 'non-variadic'. */
   if (!cfun->stdarg)
-    data->named_arg = 1;  /* No variadic parms.  */
+    data->arg.named = 1;  /* No variadic parms.  */
   else if (DECL_CHAIN (parm))
-    data->named_arg = 1;  /* Not the last non-variadic parm. */
+    data->arg.named = 1;  /* Not the last non-variadic parm. */
   else if (targetm.calls.strict_argument_naming (all->args_so_far))
-    data->named_arg = 1;  /* Only variadic ones are unnamed.  */
+    data->arg.named = 1;  /* Only variadic ones are unnamed.  */
   else
-    data->named_arg = 0;  /* Treat as variadic.  */
+    data->arg.named = 0;  /* Treat as variadic.  */
 
-  nominal_type = TREE_TYPE (parm);
-  passed_type = DECL_ARG_TYPE (parm);
+  data->nominal_type = TREE_TYPE (parm);
+  data->arg.type = DECL_ARG_TYPE (parm);
 
   /* Look out for errors propagating this far.  Also, if the parameter's
      type is void then its value doesn't matter.  */
@@ -2433,47 +2435,38 @@ assign_parm_find_data_types (struct assign_parm_data_all *all, tree parm,
       /* This can happen after weird syntax errors
 	 or if an enum type is defined among the parms.  */
       || TREE_CODE (parm) != PARM_DECL
-      || passed_type == NULL
-      || VOID_TYPE_P (nominal_type))
+      || data->arg.type == NULL
+      || VOID_TYPE_P (data->nominal_type))
     {
-      nominal_type = passed_type = void_type_node;
-      nominal_mode = passed_mode = promoted_mode = VOIDmode;
-      goto egress;
+      data->nominal_type = data->arg.type = void_type_node;
+      data->nominal_mode = data->passed_mode = data->arg.mode = VOIDmode;
+      return;
     }
 
   /* Find mode of arg as it is passed, and mode of arg as it should be
      during execution of this function.  */
-  passed_mode = TYPE_MODE (passed_type);
-  nominal_mode = TYPE_MODE (nominal_type);
+  data->passed_mode = data->arg.mode = TYPE_MODE (data->arg.type);
+  data->nominal_mode = TYPE_MODE (data->nominal_type);
 
   /* If the parm is to be passed as a transparent union or record, use the
      type of the first field for the tests below.  We have already verified
      that the modes are the same.  */
-  if ((TREE_CODE (passed_type) == UNION_TYPE
-       || TREE_CODE (passed_type) == RECORD_TYPE)
-      && TYPE_TRANSPARENT_AGGR (passed_type))
-    passed_type = TREE_TYPE (first_field (passed_type));
+  if (RECORD_OR_UNION_TYPE_P (data->arg.type)
+      && TYPE_TRANSPARENT_AGGR (data->arg.type))
+    data->arg.type = TREE_TYPE (first_field (data->arg.type));
 
   /* See if this arg was passed by invisible reference.  */
-  if (pass_by_reference (&all->args_so_far_v, passed_mode,
-			 passed_type, data->named_arg))
+  if (apply_pass_by_reference_rules (&all->args_so_far_v, data->arg))
     {
-      passed_type = nominal_type = build_pointer_type (passed_type);
-      data->passed_pointer = true;
-      passed_mode = nominal_mode = TYPE_MODE (nominal_type);
+      data->nominal_type = data->arg.type;
+      data->passed_mode = data->nominal_mode = data->arg.mode;
     }
 
   /* Find mode as it is passed by the ABI.  */
-  unsignedp = TYPE_UNSIGNED (passed_type);
-  promoted_mode = promote_function_mode (passed_type, passed_mode, &unsignedp,
-				         TREE_TYPE (current_function_decl), 0);
-
- egress:
-  data->nominal_type = nominal_type;
-  data->passed_type = passed_type;
-  data->nominal_mode = nominal_mode;
-  data->passed_mode = passed_mode;
-  data->promoted_mode = promoted_mode;
+  unsignedp = TYPE_UNSIGNED (data->arg.type);
+  data->arg.mode
+    = promote_function_mode (data->arg.type, data->arg.mode, &unsignedp,
+			     TREE_TYPE (current_function_decl), 0);
 }
 
 /* A subroutine of assign_parms.  Invoke setup_incoming_varargs.  */
@@ -2484,9 +2477,9 @@ assign_parms_setup_varargs (struct assign_parm_data_all *all,
 {
   int varargs_pretend_bytes = 0;
 
-  targetm.calls.setup_incoming_varargs (all->args_so_far,
-					data->promoted_mode,
-					data->passed_type,
+  function_arg_info last_named_arg = data->arg;
+  last_named_arg.named = true;
+  targetm.calls.setup_incoming_varargs (all->args_so_far, last_named_arg,
 					&varargs_pretend_bytes, no_rtl);
 
   /* If the back-end has requested extra stack space, record how much is
@@ -2507,22 +2500,19 @@ assign_parm_find_entry_rtl (struct assign_parm_data_all *all,
   rtx entry_parm;
   bool in_regs;
 
-  if (data->promoted_mode == VOIDmode)
+  if (data->arg.mode == VOIDmode)
     {
       data->entry_parm = data->stack_parm = const0_rtx;
       return;
     }
 
   targetm.calls.warn_parameter_passing_abi (all->args_so_far,
-					    data->passed_type);
+					    data->arg.type);
 
   entry_parm = targetm.calls.function_incoming_arg (all->args_so_far,
-						    data->promoted_mode,
-						    data->passed_type,
-						    data->named_arg);
-
+						    data->arg);
   if (entry_parm == 0)
-    data->promoted_mode = data->passed_mode;
+    data->arg.mode = data->passed_mode;
 
   /* Determine parm's home in the stack, in case it arrives in the stack
      or we should pretend it did.  Compute the stack position and rtx where
@@ -2538,32 +2528,29 @@ assign_parm_find_entry_rtl (struct assign_parm_data_all *all,
 #ifdef STACK_PARMS_IN_REG_PARM_AREA
   in_regs = true;
 #endif
-  if (!in_regs && !data->named_arg)
+  if (!in_regs && !data->arg.named)
     {
       if (targetm.calls.pretend_outgoing_varargs_named (all->args_so_far))
 	{
 	  rtx tem;
+	  function_arg_info named_arg = data->arg;
+	  named_arg.named = true;
 	  tem = targetm.calls.function_incoming_arg (all->args_so_far,
-						     data->promoted_mode,
-						     data->passed_type, true);
+						     named_arg);
 	  in_regs = tem != NULL;
 	}
     }
 
   /* If this parameter was passed both in registers and in the stack, use
      the copy on the stack.  */
-  if (targetm.calls.must_pass_in_stack (data->promoted_mode,
-					data->passed_type))
+  if (targetm.calls.must_pass_in_stack (data->arg))
     entry_parm = 0;
 
   if (entry_parm)
     {
       int partial;
 
-      partial = targetm.calls.arg_partial_bytes (all->args_so_far,
-						 data->promoted_mode,
-						 data->passed_type,
-						 data->named_arg);
+      partial = targetm.calls.arg_partial_bytes (all->args_so_far, data->arg);
       data->partial = partial;
 
       /* The caller might already have allocated stack space for the
@@ -2598,7 +2585,7 @@ assign_parm_find_entry_rtl (struct assign_parm_data_all *all,
 	}
     }
 
-  locate_and_pad_parm (data->promoted_mode, data->passed_type, in_regs,
+  locate_and_pad_parm (data->arg.mode, data->arg.type, in_regs,
 		       all->reg_parm_stack_space,
 		       entry_parm ? data->partial : 0, current_function_decl,
 		       &all->stack_args_size, &data->locate);
@@ -2669,21 +2656,21 @@ assign_parm_find_stack_rtl (tree parm, struct assign_parm_data_one *data)
   stack_parm = crtl->args.internal_arg_pointer;
   if (offset_rtx != const0_rtx)
     stack_parm = gen_rtx_PLUS (Pmode, stack_parm, offset_rtx);
-  stack_parm = gen_rtx_MEM (data->promoted_mode, stack_parm);
+  stack_parm = gen_rtx_MEM (data->arg.mode, stack_parm);
 
-  if (!data->passed_pointer)
+  if (!data->arg.pass_by_reference)
     {
       set_mem_attributes (stack_parm, parm, 1);
       /* set_mem_attributes could set MEM_SIZE to the passed mode's size,
 	 while promoted mode's size is needed.  */
-      if (data->promoted_mode != BLKmode
-	  && data->promoted_mode != DECL_MODE (parm))
+      if (data->arg.mode != BLKmode
+	  && data->arg.mode != DECL_MODE (parm))
 	{
-	  set_mem_size (stack_parm, GET_MODE_SIZE (data->promoted_mode));
+	  set_mem_size (stack_parm, GET_MODE_SIZE (data->arg.mode));
 	  if (MEM_EXPR (stack_parm) && MEM_OFFSET_KNOWN_P (stack_parm))
 	    {
 	      poly_int64 offset = subreg_lowpart_offset (DECL_MODE (parm),
-							 data->promoted_mode);
+							 data->arg.mode);
 	      if (maybe_ne (offset, 0))
 		set_mem_offset (stack_parm, MEM_OFFSET (stack_parm) - offset);
 	    }
@@ -2698,8 +2685,23 @@ assign_parm_find_stack_rtl (tree parm, struct assign_parm_data_one *data)
      intentionally forcing upward padding.  Otherwise we have to come
      up with a guess at the alignment based on OFFSET_RTX.  */
   poly_int64 offset;
-  if (data->locate.where_pad != PAD_DOWNWARD || data->entry_parm)
+  if (data->locate.where_pad == PAD_NONE || data->entry_parm)
     align = boundary;
+  else if (data->locate.where_pad == PAD_UPWARD)
+    {
+      align = boundary;
+      /* If the argument offset is actually more aligned than the nominal
+	 stack slot boundary, take advantage of that excess alignment.
+	 Don't make any assumptions if STACK_POINTER_OFFSET is in use.  */
+      if (poly_int_rtx_p (offset_rtx, &offset)
+	  && known_eq (STACK_POINTER_OFFSET, 0))
+	{
+	  unsigned int offset_align = known_alignment (offset) * BITS_PER_UNIT;
+	  if (offset_align == 0 || offset_align > STACK_BOUNDARY)
+	    offset_align = STACK_BOUNDARY;
+	  align = MAX (align, offset_align);
+	}
+    }
   else if (poly_int_rtx_p (offset_rtx, &offset))
     {
       align = least_bit_hwi (boundary);
@@ -2735,8 +2737,7 @@ assign_parm_adjust_entry_rtl (struct assign_parm_data_one *data)
 	 locations.  The Irix 6 ABI has examples of this.  */
       if (GET_CODE (entry_parm) == PARALLEL)
 	emit_group_store (validize_mem (copy_rtx (stack_parm)), entry_parm,
-			  data->passed_type,
-			  int_size_in_bytes (data->passed_type));
+			  data->arg.type, int_size_in_bytes (data->arg.type));
       else
 	{
 	  gcc_assert (data->partial % UNITS_PER_WORD == 0);
@@ -2792,7 +2793,7 @@ assign_parm_remove_parallels (struct assign_parm_data_one *data)
   if (GET_CODE (entry_parm) == PARALLEL && GET_MODE (entry_parm) != BLKmode)
     {
       rtx parmreg = gen_reg_rtx (GET_MODE (entry_parm));
-      emit_group_store (parmreg, entry_parm, data->passed_type,
+      emit_group_store (parmreg, entry_parm, data->arg.type,
 			GET_MODE_SIZE (GET_MODE (entry_parm)));
       entry_parm = parmreg;
     }
@@ -2812,8 +2813,11 @@ assign_parm_adjust_stack_rtl (struct assign_parm_data_one *data)
      ultimate type, don't use that slot after entry.  We'll make another
      stack slot, if we need one.  */
   if (stack_parm
-      && ((STRICT_ALIGNMENT
-	   && GET_MODE_ALIGNMENT (data->nominal_mode) > MEM_ALIGN (stack_parm))
+      && ((GET_MODE_ALIGNMENT (data->nominal_mode) > MEM_ALIGN (stack_parm)
+	   && ((optab_handler (movmisalign_optab, data->nominal_mode)
+		!= CODE_FOR_nothing)
+	       || targetm.slow_unaligned_access (data->nominal_mode,
+						 MEM_ALIGN (stack_parm))))
 	  || (data->nominal_type
 	      && TYPE_ALIGN (data->nominal_type) > MEM_ALIGN (stack_parm)
 	      && MEM_ALIGN (stack_parm) < PREFERRED_STACK_BOUNDARY)))
@@ -2830,7 +2834,7 @@ assign_parm_adjust_stack_rtl (struct assign_parm_data_one *data)
      pointers in their passed stack slots.  */
   else if (crtl->stack_protect_guard
 	   && (flag_stack_protect == 2
-	       || data->passed_pointer
+	       || data->arg.pass_by_reference
 	       || POINTER_TYPE_P (data->nominal_type)))
     stack_parm = NULL;
 
@@ -2852,8 +2856,8 @@ assign_parm_setup_block_p (struct assign_parm_data_one *data)
   /* Only assign_parm_setup_block knows how to deal with register arguments
      that are padded at the least significant end.  */
   if (REG_P (data->entry_parm)
-      && known_lt (GET_MODE_SIZE (data->promoted_mode), UNITS_PER_WORD)
-      && (BLOCK_REG_PADDING (data->passed_mode, data->passed_type, 1)
+      && known_lt (GET_MODE_SIZE (data->arg.mode), UNITS_PER_WORD)
+      && (BLOCK_REG_PADDING (data->passed_mode, data->arg.type, 1)
 	  == (BYTES_BIG_ENDIAN ? PAD_UPWARD : PAD_DOWNWARD)))
     return true;
 #endif
@@ -2908,7 +2912,7 @@ assign_parm_setup_block (struct assign_parm_data_all *all,
       data->stack_parm = NULL;
     }
 
-  size = int_size_in_bytes (data->passed_type);
+  size = int_size_in_bytes (data->arg.type);
   size_stored = CEIL_ROUND (size, UNITS_PER_WORD);
   if (stack_parm == 0)
     {
@@ -2963,12 +2967,12 @@ assign_parm_setup_block (struct assign_parm_data_all *all,
 
       /* Handle values in multiple non-contiguous locations.  */
       if (GET_CODE (entry_parm) == PARALLEL && !MEM_P (mem))
-	emit_group_store (mem, entry_parm, data->passed_type, size);
+	emit_group_store (mem, entry_parm, data->arg.type, size);
       else if (GET_CODE (entry_parm) == PARALLEL)
 	{
 	  push_to_sequence2 (all->first_conversion_insn,
 			     all->last_conversion_insn);
-	  emit_group_store (mem, entry_parm, data->passed_type, size);
+	  emit_group_store (mem, entry_parm, data->arg.type, size);
 	  all->first_conversion_insn = get_insns ();
 	  all->last_conversion_insn = get_last_insn ();
 	  end_sequence ();
@@ -2988,7 +2992,7 @@ assign_parm_setup_block (struct assign_parm_data_all *all,
 	  if (mode != BLKmode
 #ifdef BLOCK_REG_PADDING
 	      && (size == UNITS_PER_WORD
-		  || (BLOCK_REG_PADDING (mode, data->passed_type, 1)
+		  || (BLOCK_REG_PADDING (mode, data->arg.type, 1)
 		      != (BYTES_BIG_ENDIAN ? PAD_UPWARD : PAD_DOWNWARD)))
 #endif
 	      )
@@ -3029,7 +3033,7 @@ assign_parm_setup_block (struct assign_parm_data_all *all,
 		 additional changes to work correctly.  */
 	      gcc_checking_assert (BYTES_BIG_ENDIAN
 				   && (BLOCK_REG_PADDING (mode,
-							  data->passed_type, 1)
+							  data->arg.type, 1)
 				       == PAD_UPWARD));
 
 	      int by = (UNITS_PER_WORD - size) * BITS_PER_UNIT;
@@ -3050,7 +3054,7 @@ assign_parm_setup_block (struct assign_parm_data_all *all,
 	     handle all cases (e.g. SIZE == 3).  */
 	  else if (size != UNITS_PER_WORD
 #ifdef BLOCK_REG_PADDING
-		   && (BLOCK_REG_PADDING (mode, data->passed_type, 1)
+		   && (BLOCK_REG_PADDING (mode, data->arg.type, 1)
 		       == PAD_DOWNWARD)
 #else
 		   && BYTES_BIG_ENDIAN
@@ -3074,7 +3078,7 @@ assign_parm_setup_block (struct assign_parm_data_all *all,
 	  gcc_checking_assert (size > UNITS_PER_WORD);
 #ifdef BLOCK_REG_PADDING
 	  gcc_checking_assert (BLOCK_REG_PADDING (GET_MODE (mem),
-						  data->passed_type, 0)
+						  data->arg.type, 0)
 			       == PAD_UPWARD);
 #endif
 	  emit_move_insn (mem, entry_parm);
@@ -3083,7 +3087,7 @@ assign_parm_setup_block (struct assign_parm_data_all *all,
 	move_block_from_reg (REGNO (entry_parm), mem,
 			     size_stored / UNITS_PER_WORD);
     }
-  else if (data->stack_parm == 0)
+  else if (data->stack_parm == 0 && !TYPE_EMPTY_P (data->arg.type))
     {
       push_to_sequence2 (all->first_conversion_insn, all->last_conversion_insn);
       emit_block_move (stack_parm, data->entry_parm, GEN_INT (size),
@@ -3127,6 +3131,7 @@ assign_parm_setup_reg (struct assign_parm_data_all *all, tree parm,
   int unsignedp = TYPE_UNSIGNED (TREE_TYPE (parm));
   bool did_conversion = false;
   bool need_conversion, moved;
+  enum insn_code icode;
   rtx rtl;
 
   /* Store the parm in a pseudoregister during the function, but we may
@@ -3142,9 +3147,9 @@ assign_parm_setup_reg (struct assign_parm_data_all *all, tree parm,
 
   /* If this was an item that we received a pointer to,
      set rtl appropriately.  */
-  if (data->passed_pointer)
+  if (data->arg.pass_by_reference)
     {
-      rtl = gen_rtx_MEM (TYPE_MODE (TREE_TYPE (data->passed_type)), parmreg);
+      rtl = gen_rtx_MEM (TYPE_MODE (TREE_TYPE (data->arg.type)), parmreg);
       set_mem_attributes (rtl, parm, 1);
     }
   else
@@ -3159,7 +3164,7 @@ assign_parm_setup_reg (struct assign_parm_data_all *all, tree parm,
   validated_mem = validize_mem (copy_rtx (data->entry_parm));
 
   need_conversion = (data->nominal_mode != data->passed_mode
-		     || promoted_nominal_mode != data->promoted_mode);
+		     || promoted_nominal_mode != data->arg.mode);
   moved = false;
 
   if (need_conversion
@@ -3188,7 +3193,6 @@ assign_parm_setup_reg (struct assign_parm_data_all *all, tree parm,
 	 conversion.  We verify that this insn does not clobber any
 	 hard registers.  */
 
-      enum insn_code icode;
       rtx op0, op1;
 
       icode = can_extend_p (promoted_nominal_mode, data->passed_mode,
@@ -3231,8 +3235,7 @@ assign_parm_setup_reg (struct assign_parm_data_all *all, tree parm,
 	  for (insn = insns; insn && moved; insn = NEXT_INSN (insn))
 	    {
 	      if (INSN_P (insn))
-		note_stores (PATTERN (insn), record_hard_reg_sets,
-			     &hardregs);
+		note_stores (insn, record_hard_reg_sets, &hardregs);
 	      if (!hard_reg_set_empty_p (hardregs))
 		moved = false;
 	    }
@@ -3291,12 +3294,29 @@ assign_parm_setup_reg (struct assign_parm_data_all *all, tree parm,
 
       did_conversion = true;
     }
+  else if (MEM_P (data->entry_parm)
+	   && GET_MODE_ALIGNMENT (promoted_nominal_mode)
+	      > MEM_ALIGN (data->entry_parm)
+	   && (((icode = optab_handler (movmisalign_optab,
+					promoted_nominal_mode))
+		!= CODE_FOR_nothing)
+	       || targetm.slow_unaligned_access (promoted_nominal_mode,
+						 MEM_ALIGN (data->entry_parm))))
+    {
+      if (icode != CODE_FOR_nothing)
+	emit_insn (GEN_FCN (icode) (parmreg, validated_mem));
+      else
+	rtl = parmreg = extract_bit_field (validated_mem,
+			GET_MODE_BITSIZE (promoted_nominal_mode), 0,
+			unsignedp, parmreg,
+			promoted_nominal_mode, VOIDmode, false, NULL);
+    }
   else
     emit_move_insn (parmreg, validated_mem);
 
   /* If we were passed a pointer but the actual value can safely live
      in a register, retrieve it and use it directly.  */
-  if (data->passed_pointer && TYPE_MODE (TREE_TYPE (parm)) != BLKmode)
+  if (data->arg.pass_by_reference && TYPE_MODE (TREE_TYPE (parm)) != BLKmode)
     {
       /* We can't use nominal_mode, because it will have been set to
 	 Pmode above.  We must use the actual mode of the parm.  */
@@ -3413,7 +3433,7 @@ assign_parm_setup_stack (struct assign_parm_data_all *all, tree parm,
 
   assign_parm_remove_parallels (data);
 
-  if (data->promoted_mode != data->nominal_mode)
+  if (data->arg.mode != data->nominal_mode)
     {
       /* Conversion is required.  */
       rtx tempreg = gen_reg_rtx (GET_MODE (data->entry_parm));
@@ -3446,20 +3466,31 @@ assign_parm_setup_stack (struct assign_parm_data_all *all, tree parm,
 
       if (data->stack_parm == 0)
 	{
-	  int align = STACK_SLOT_ALIGNMENT (data->passed_type,
+	  int align = STACK_SLOT_ALIGNMENT (data->arg.type,
 					    GET_MODE (data->entry_parm),
-					    TYPE_ALIGN (data->passed_type));
+					    TYPE_ALIGN (data->arg.type));
+	  if (align < (int)GET_MODE_ALIGNMENT (GET_MODE (data->entry_parm))
+	      && ((optab_handler (movmisalign_optab,
+				  GET_MODE (data->entry_parm))
+		   != CODE_FOR_nothing)
+		  || targetm.slow_unaligned_access (GET_MODE (data->entry_parm),
+						    align)))
+	    align = GET_MODE_ALIGNMENT (GET_MODE (data->entry_parm));
 	  data->stack_parm
 	    = assign_stack_local (GET_MODE (data->entry_parm),
 				  GET_MODE_SIZE (GET_MODE (data->entry_parm)),
 				  align);
+	  align = MEM_ALIGN (data->stack_parm);
 	  set_mem_attributes (data->stack_parm, parm, 1);
+	  set_mem_align (data->stack_parm, align);
 	}
 
       dest = validize_mem (copy_rtx (data->stack_parm));
       src = validize_mem (copy_rtx (data->entry_parm));
 
-      if (MEM_P (src))
+      if (TYPE_EMPTY_P (data->arg.type))
+	/* Empty types don't really need to be copied.  */;
+      else if (MEM_P (src))
 	{
 	  /* Use a block move to handle potentially misaligned entry_parm.  */
 	  if (!to_conversion)
@@ -3468,7 +3499,7 @@ assign_parm_setup_stack (struct assign_parm_data_all *all, tree parm,
 	  to_conversion = true;
 
 	  emit_block_move (dest, src,
-			   GEN_INT (int_size_in_bytes (data->passed_type)),
+			   GEN_INT (int_size_in_bytes (data->arg.type)),
 			   BLOCK_OP_NORMAL);
 	}
       else
@@ -3592,10 +3623,9 @@ assign_parms (tree fndecl)
       if (SUPPORTS_STACK_ALIGNMENT)
         {
           unsigned int align
-	    = targetm.calls.function_arg_boundary (data.promoted_mode,
-						   data.passed_type);
-	  align = MINIMUM_ALIGNMENT (data.passed_type, data.promoted_mode,
-				     align);
+	    = targetm.calls.function_arg_boundary (data.arg.mode,
+						   data.arg.type);
+	  align = MINIMUM_ALIGNMENT (data.arg.type, data.arg.mode, align);
 	  if (TYPE_ALIGN (data.nominal_type) > align)
 	    align = MINIMUM_ALIGNMENT (data.nominal_type,
 				       TYPE_MODE (data.nominal_type),
@@ -3615,12 +3645,22 @@ assign_parms (tree fndecl)
 	{
 	  assign_parm_find_stack_rtl (parm, &data);
 	  assign_parm_adjust_entry_rtl (&data);
+	  /* For arguments that occupy no space in the parameter
+	     passing area, have non-zero size and have address taken,
+	     force creation of a stack slot so that they have distinct
+	     address from other parameters.  */
+	  if (TYPE_EMPTY_P (data.arg.type)
+	      && TREE_ADDRESSABLE (parm)
+	      && data.entry_parm == data.stack_parm
+	      && MEM_P (data.entry_parm)
+	      && int_size_in_bytes (data.arg.type))
+	    data.stack_parm = NULL_RTX;
 	}
       /* Record permanently how this parm was passed.  */
-      if (data.passed_pointer)
+      if (data.arg.pass_by_reference)
 	{
 	  rtx incoming_rtl
-	    = gen_rtx_MEM (TYPE_MODE (TREE_TYPE (data.passed_type)),
+	    = gen_rtx_MEM (TYPE_MODE (TREE_TYPE (data.arg.type)),
 			   data.entry_parm);
 	  set_decl_incoming_rtl (parm, incoming_rtl, true);
 	}
@@ -3631,7 +3671,7 @@ assign_parms (tree fndecl)
 
       if (assign_parm_setup_block_p (&data))
 	assign_parm_setup_block (&all, parm, &data);
-      else if (data.passed_pointer || use_register_for_decl (parm))
+      else if (data.arg.pass_by_reference || use_register_for_decl (parm))
 	assign_parm_setup_reg (&all, parm, &data);
       else
 	assign_parm_setup_stack (&all, parm, &data);
@@ -3640,8 +3680,7 @@ assign_parms (tree fndecl)
 	assign_parms_setup_varargs (&all, &data, false);
 
       /* Update info on where next arg arrives in registers.  */
-      targetm.calls.function_arg_advance (all.args_so_far, data.promoted_mode,
-					  data.passed_type, data.named_arg);
+      targetm.calls.function_arg_advance (all.args_so_far, data.arg);
     }
 
   if (targetm.calls.split_complex_arg)
@@ -3828,14 +3867,13 @@ gimplify_parameters (gimple_seq *cleanup)
 	continue;
 
       /* Update info on where next arg arrives in registers.  */
-      targetm.calls.function_arg_advance (all.args_so_far, data.promoted_mode,
-					  data.passed_type, data.named_arg);
+      targetm.calls.function_arg_advance (all.args_so_far, data.arg);
 
       /* ??? Once upon a time variable_size stuffed parameter list
 	 SAVE_EXPRs (amongst others) onto a pending sizes list.  This
 	 turned out to be less than manageable in the gimple world.
 	 Now we have to hunt them down ourselves.  */
-      walk_tree_without_duplicates (&data.passed_type,
+      walk_tree_without_duplicates (&data.arg.type,
 				    gimplify_parm_type, &stmts);
 
       if (TREE_CODE (DECL_SIZE_UNIT (parm)) != INTEGER_CST)
@@ -3844,11 +3882,11 @@ gimplify_parameters (gimple_seq *cleanup)
 	  gimplify_one_sizepos (&DECL_SIZE_UNIT (parm), &stmts);
 	}
 
-      if (data.passed_pointer)
+      if (data.arg.pass_by_reference)
 	{
-          tree type = TREE_TYPE (data.passed_type);
-	  if (reference_callee_copied (&all.args_so_far_v, TYPE_MODE (type),
-				       type, data.named_arg))
+	  tree type = TREE_TYPE (data.arg.type);
+	  function_arg_info orig_arg (type, data.arg.named);
+	  if (reference_callee_copied (&all.args_so_far_v, orig_arg))
 	    {
 	      tree local, t;
 
@@ -3874,9 +3912,8 @@ gimplify_parameters (gimple_seq *cleanup)
 		  if (!is_gimple_reg (local)
 		      && flag_stack_reuse != SR_NONE)
 		    {
-		      tree clobber = build_constructor (type, NULL);
+		      tree clobber = build_clobber (type);
 		      gimple *clobber_stmt;
-		      TREE_THIS_VOLATILE (clobber) = 1;
 		      clobber_stmt = gimple_build_assign (local, clobber);
 		      gimple_seq_add_stmt (cleanup, clobber_stmt);
 		    }
@@ -4020,13 +4057,6 @@ locate_and_pad_parm (machine_mode passed_mode, tree type, int in_regs,
 	    }
 	}
     }
-
-  /* Remember if the outgoing parameter requires extra alignment on the
-     calling function side.  */
-  if (crtl->stack_alignment_needed < boundary)
-    crtl->stack_alignment_needed = boundary;
-  if (crtl->preferred_stack_boundary < boundary)
-    crtl->preferred_stack_boundary = boundary;
 
   if (ARGS_GROW_DOWNWARD)
     {
@@ -4707,6 +4737,16 @@ get_last_funcdef_no (void)
   return funcdef_no;
 }
 
+/* Allocate and initialize the stack usage info data structure for the
+   current function.  */
+static void
+allocate_stack_usage_info (void)
+{
+  gcc_assert (!cfun->su);
+  cfun->su = ggc_cleared_alloc<stack_usage> ();
+  cfun->su->static_stack_size = -1;
+}
+
 /* Allocate a function structure for FNDECL and set its contents
    to the defaults.  Set cfun to the newly-allocated object.
    Some of the helper functions invoked during initialization assume
@@ -4784,6 +4824,9 @@ allocate_struct_function (tree fndecl, bool abstract_p)
 
       if (!profile_flag && !flag_instrument_function_entry_exit)
 	DECL_NO_INSTRUMENT_FUNCTION_ENTRY_EXIT (fndecl) = 1;
+
+      if (flag_callgraph_info)
+	allocate_stack_usage_info ();
     }
 
   /* Don't enable begin stmt markers if var-tracking at assignments is
@@ -4816,17 +4859,20 @@ static void
 prepare_function_start (void)
 {
   gcc_assert (!get_last_insn ());
+
+  if (in_dummy_function)
+    crtl->abi = &default_function_abi;
+  else
+    crtl->abi = &fndecl_abi (cfun->decl).base_abi ();
+
   init_temp_slots ();
   init_emit ();
   init_varasm_status ();
   init_expr ();
   default_rtl_profile ();
 
-  if (flag_stack_usage_info)
-    {
-      cfun->su = ggc_cleared_alloc<stack_usage> ();
-      cfun->su->static_stack_size = -1;
-    }
+  if (flag_stack_usage_info && !flag_callgraph_info)
+    allocate_stack_usage_info ();
 
   cse_not_expected = ! optimize;
 
@@ -5142,7 +5188,7 @@ expand_function_start (tree subr)
       r_save = expand_expr (t_save, NULL_RTX, VOIDmode, EXPAND_WRITE);
       gcc_assert (GET_MODE (r_save) == Pmode);
 
-      emit_move_insn (r_save, targetm.builtin_setjmp_frame_value ());
+      emit_move_insn (r_save, hard_frame_pointer_rtx);
       update_nonlocal_goto_save_area ();
     }
 
@@ -5249,19 +5295,6 @@ static void
 use_return_register (void)
 {
   diddle_return_value (do_use_return_reg, NULL);
-}
-
-/* Set the location of the insn chain starting at INSN to LOC.  */
-
-static void
-set_insn_locations (rtx_insn *insn, int loc)
-{
-  while (insn != NULL)
-    {
-      if (INSN_P (insn))
-	INSN_LOCATION (insn) = loc;
-      insn = NEXT_INSN (insn);
-    }
 }
 
 /* Generate RTL for the end of the current function.  */
@@ -6362,10 +6395,44 @@ rest_of_handle_thread_prologue_and_epilogue (void)
   cleanup_cfg (optimize ? CLEANUP_EXPENSIVE : 0);
 
   /* The stack usage info is finalized during prologue expansion.  */
-  if (flag_stack_usage_info)
+  if (flag_stack_usage_info || flag_callgraph_info)
     output_stack_usage ();
 
   return 0;
+}
+
+/* Record a final call to CALLEE at LOCATION.  */
+
+void
+record_final_call (tree callee, location_t location)
+{
+  struct callinfo_callee datum = { location, callee };
+  vec_safe_push (cfun->su->callees, datum);
+}
+
+/* Record a dynamic allocation made for DECL_OR_EXP.  */
+
+void
+record_dynamic_alloc (tree decl_or_exp)
+{
+  struct callinfo_dalloc datum;
+
+  if (DECL_P (decl_or_exp))
+    {
+      datum.location = DECL_SOURCE_LOCATION (decl_or_exp);
+      const char *name = lang_hooks.decl_printable_name (decl_or_exp, 2);
+      const char *dot = strrchr (name, '.');
+      if (dot)
+	name = dot + 1;
+      datum.name = ggc_strdup (name);
+    }
+  else
+    {
+      datum.location = EXPR_LOCATION (decl_or_exp);
+      datum.name = NULL;
+    }
+
+  vec_safe_push (cfun->su->dallocs, datum);
 }
 
 namespace {

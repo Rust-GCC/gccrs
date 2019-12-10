@@ -1,3 +1,546 @@
+2019-11-18  Szabolcs Nagy  <szabolcs.nagy@arm.com>
+
+	PR libgcc/91737
+	* config.host: Add t-gthr-noweak on *-*-musl*.
+	* config/t-gthr-noweak: New file.
+
+2019-11-17  John David Anglin  <danglin@gcc.gnu.org>
+
+	* config/pa/linux-atomic.c (__kernel_cmpxchg): Change argument 1 to
+	volatile void *.  Remove trap check.
+	(__kernel_cmpxchg2): Likewise.
+	(FETCH_AND_OP_2): Adjust operand types.
+	(OP_AND_FETCH_2): Likewise.
+	(FETCH_AND_OP_WORD): Likewise.
+	(OP_AND_FETCH_WORD): Likewise.
+	(COMPARE_AND_SWAP_2): Likewise.
+	(__sync_val_compare_and_swap_4): Likewise.
+	(__sync_bool_compare_and_swap_4): Likewise.
+	(SYNC_LOCK_TEST_AND_SET_2): Likewise.
+	(__sync_lock_test_and_set_4): Likewise.
+	(SYNC_LOCK_RELEASE_1): Likewise.  Use __kernel_cmpxchg2 for release.
+	(__sync_lock_release_4): Adjust operand types.  Use __kernel_cmpxchg
+	for release.
+	(__sync_lock_release_8): Remove.
+
+2019-11-15  Szabolcs Nagy  <szabolcs.nagy@arm.com>
+
+	* config/m68k/linux-unwind.h (struct uw_ucontext): Use sigset_t instead
+	of __sigset_t.
+
+2019-11-14  Jerome Lambourg  <lambourg@adacore.com>
+	    Doug Rupp <rupp@adacore.com>
+	    Olivier Hainque  <hainque@adacore.com>
+
+	* config.host: Collapse the arm-vxworks entries into
+	a single arm-wrs-vxworks7* one.
+	* config/arm/unwind-arm-vxworks.c: Update comments.  Provide
+	__gnu_Unwind_Find_exidx and a weak dummy __cxa_type_match for
+	kernel modules, to be overriden by libstdc++ when we link with
+	it.  Rely on externally provided __exidx_start/end.
+
+2019-11-14  Doug Rupp  <rupp@adacore.com>
+	    Olivier Hainque  <hainque@adacore.com>
+
+	* config.host: Handle aarch64*-wrs-vxworks7*.
+
+2019-11-12  Olivier Hainque  <hainque@adacore.com>
+
+	* config/t-gthr-vxworksae: New file, add all the gthr-vxworks
+	sources except the cxx0x support to LIB2ADDEH.  We don't support
+	cxx0x on AE/653.
+	* config/t-vxworksae: New file.
+	* config.host: Handle *-*-vxworksae: Add the two aforementioned
+	Makefile fragment files at their expected position in the tmake_file
+	list, in accordance with what is done for other VxWorks variants.
+
+2019-11-12  Corentin Gay  <gay@adacore.com>
+	    Jerome Lambourg  <lambourg@adacore.com>
+	    Olivier Hainque  <hainque@adacore.com>
+
+	* config/t-gthr-vxworks: New file, add all the gthr-vxworks
+	sources to LIB2ADDEH.
+	* config/t-vxworks: Remove adjustments to LIB2ADDEH.
+	* config/t-vxworks7: Likewise.
+
+	* config.host: Append a block at the end of the file to add the
+	t-gthr files to the tmake_file list for VxWorks after everything
+	else.
+
+	* config/vxlib.c: Rename as gthr-vxworks.c.
+	* config/vxlib-tls.c: Rename as gthr-vxworks-tls.c.
+
+	* config/gthr-vxworks.h: Simplify a few comments.  Expose a TAS
+	API and a basic error checking API, both internal.  Simplify the
+	__gthread_once_t type definition and initializers.  Add sections
+	for condition variables support and for the C++0x thread support,
+	conditioned against Vx653 for the latter.
+
+	* config/gthr-vxworks.c (__gthread_once): Simplify comments and
+	implementation, leveraging the TAS internal API.
+	* config/gthr-vxworks-tls.c: Introduce an internal TLS data access
+	API, leveraging the general availability of TLS services in VxWorks7
+	post SR6xxx.
+	(__gthread_setspecific, __gthread_setspecific): Use it.
+	(tls_delete_hook): Likewise, and simplify the enter/leave dtor logic.
+	* config/gthr-vxworks-cond.c: New file.  GTHREAD_COND variable
+	support based on VxWorks primitives.
+	* config/gthr-vxworks-thread.c: New file.  GTHREAD_CXX0X support
+	based on VxWorks primitives.
+
+2019-11-06  Jerome Lambourg  <lambourg@adacore.com>
+	    Olivier Hainque  <hainque@adacore.com>
+
+	* config/vxcrtstuff.c: New file.
+	* config/t-vxcrtstuff: New Makefile fragment.
+	* config.host: Append t-vxcrtstuff to the tmake_file list
+	on all VxWorks ports using dwarf for table based EH.
+
+2019-11-07  Georg-Johann Lay  <avr@gjlay.de>
+
+	Support 64-bit double and 64-bit long double configurations.
+
+	PR target/92055
+	* config/avr/t-avr (HOST_LIBGCC2_CFLAGS): Only add -DF=SF if
+	long double is a 32-bit type.
+	* config/avr/t-avrlibc: Copy double64 and long-double64
+	multilib(s) from the vanilla one.
+	* config/avr/t-copy-libgcc: New Makefile snip.
+
+2019-11-04  Jozef Lawrynowicz  <jozef.l@mittosystems.com>
+
+	* crtstuff.c: Define USE_TM_CLONE_REGISTRY to 0 if it's undefined and
+	the target output object format is not ELF.
+	s/defined(USE_TM_CLONE_REGISTRY)/USE_TM_CLONE_REGISTRY.
+
+2019-11-03  Oleg Endo  <olegendo@gcc.gnu.org>
+
+	PR libgcc/78804
+	* fp-bit.h: Remove FLOAT_BIT_ORDER_MISMATCH.
+	* fp-bit.c (pack_d, unpack_d): Remove special cases for
+	FLOAT_BIT_ORDER_MISMATCH.
+	* config/arc/t-arc: Remove FLOAT_BIT_ORDER_MISMATCH.
+
+2019-11-01  Jim Wilson  <jimw@sifive.com>
+
+	* config/riscv/t-softfp32 (softfp_extra): Add FP divide routines
+
+2019-10-23  Jozef Lawrynowicz  <jozef.l@mittosystems.com>
+
+	* config/msp430/lib2hw_mul.S: Fix wrong syntax in branch instruction.
+	s/RESULT_LO/RESLO, s/RESULT_HI/RESHI, s/MPY_OP1/MPY, 
+	s/MPY_OP1_S/MPYS, s/MAC_OP1/MAC, s/MPY_OP2/OP2, s/MAC_OP2/OP2.
+	Define symbols for 32-bit and f5series hardware multiply
+	register addresses.
+	Replace hard-coded register addresses with symbols.
+	Fix "_mspabi*" typo.
+	Fix whitespace.
+	* config/msp430/lib2mul.c: Add comment.
+
+2019-10-15  John David Anglin  <danglin@gcc.gnu.org>
+
+	* config/pa/fptr.c (_dl_read_access_allowed): Change argument to
+	unsigned int.  Adjust callers.
+	(__canonicalize_funcptr_for_compare): Change plabel type to volatile
+	unsigned int *.  Load relocation offset before function pointer.
+	Add barrier to ensure ordering.
+
+2019-10-12  John David Anglin  <danglin@gcc.gnu.org>
+
+	* config/pa/lib2funcs.S (__gcc_plt_call): Load branch target to %r21.
+	Load PIC register after branch target.  Fix white space.
+	* config/pa/milli64.S ($$dyncall): Separate LINUX and non LINUX
+	implementations.  Load PIC register after branch target.  Don't
+	clobber function pointer when it points to function descriptor.
+	Use nullification instead of branch in LINUX implementation.
+
+2019-10-03  John David Anglin  <danglin@gcc.gnu.org>
+
+	* config/pa/fptr.c: Disable -Warray-bounds warning.
+
+2019-09-25  Richard Henderson  <richard.henderson@linaro.org>
+
+	* config.in, configure: Re-rebuild with stock autoconf 2.69,
+	not the ubuntu modified 2.69.
+
+	PR target/91833
+	* config/aarch64/lse-init.c: Include auto-target.h.  Disable
+	initialization if !HAVE_SYS_AUXV_H.
+	* configure.ac (AC_CHECK_HEADERS): Add sys/auxv.h.
+	* config.in, configure: Rebuild.
+
+	PR target/91834
+	* config/aarch64/lse.S (LDNM): Ensure STXR output does not
+	overlap the inputs.
+
+2019-09-25  Shaokun Zhang  <zhangshaokun@hisilicon.com>
+
+	* config/aarch64/sync-cache.c (__aarch64_sync_cache_range): Add support for
+	CTR_EL0.IDC and CTR_EL0.DIC.
+
+2019-09-20  Christophe Lyon  <christophe.lyon@st.com>
+
+	Revert:
+	2019-09-10  Christophe Lyon  <christophe.lyon@st.com>
+		Mickaël Guêné <mickael.guene@st.com>
+
+	* config/arm/unwind-arm.c (_Unwind_VRS_Set): Handle thumb-only
+	architecture.
+
+2019-09-19  Richard Henderson  <richard.henderson@linaro.org>
+
+	* config/aarch64/lse-init.c: New file.
+	* config/aarch64/lse.S: New file.
+	* config/aarch64/t-lse: New file.
+	* config.host: Add t-lse to all aarch64 tuples.
+
+2019-09-10  Christophe Lyon  <christophe.lyon@st.com>
+	Mickaël Guêné <mickael.guene@st.com>
+
+	* config/arm/unwind-arm.c (_Unwind_VRS_Set): Handle thumb-only
+	architecture.
+
+2019-09-10  Christophe Lyon  <christophe.lyon@st.com>
+	Mickaël Guêné <mickael.guene@st.com>
+
+	* unwind-arm-common.inc (ARM_SET_R7_RT_SIGRETURN)
+	(THUMB2_SET_R7_RT_SIGRETURN, FDPIC_LDR_R12_WITH_FUNCDESC)
+	(FDPIC_LDR_R9_WITH_GOT, FDPIC_LDR_PC_WITH_RESTORER)
+	(FDPIC_FUNCDESC_OFFSET, ARM_NEW_RT_SIGFRAME_UCONTEXT)
+	(ARM_UCONTEXT_SIGCONTEXT, ARM_SIGCONTEXT_R0, FDPIC_T2_LDR_R12_WITH_FUNCDESC)
+	(FDPIC_T2_LDR_R9_WITH_GOT, FDPIC_T2_LDR_PC_WITH_RESTORER): New.
+	(__gnu_personality_sigframe_fdpic): New.
+	(get_eit_entry): Add FDPIC signal frame support.
+
+2019-09-10  Christophe Lyon  <christophe.lyon@st.com>
+	Mickaël Guêné <mickael.guene@st.com>
+
+	* config/arm/linux-atomic.c (__kernel_cmpxchg): Add FDPIC support.
+	(__kernel_dmb): Likewise.
+	(__fdpic_cmpxchg): New function.
+	(__fdpic_dmb): New function.
+	* config/arm/unwind-arm.h (FDPIC_REGNUM): New define.
+	(gnu_Unwind_Find_got): New function.
+	(_Unwind_decode_typeinfo_ptr): Add FDPIC support.
+	* unwind-arm-common.inc (UCB_PR_GOT): New.
+	(funcdesc_t): New struct.
+	(get_eit_entry): Add FDPIC support.
+	(unwind_phase2): Likewise.
+	(unwind_phase2_forced): Likewise.
+	(__gnu_Unwind_RaiseException): Likewise.
+	(__gnu_Unwind_Resume): Likewise.
+	(__gnu_Unwind_Backtrace): Likewise.
+	* unwind-pe.h (read_encoded_value_with_base): Likewise.
+
+2019-09-10  Christophe Lyon  <christophe.lyon@st.com>
+	Mickaël Guêné <mickael.guene@st.com>
+
+	* libgcc/crtstuff.c: Add support for FDPIC.
+
+2019-09-10  Christophe Lyon  <christophe.lyon@st.com>
+
+	* config.host: Handle *-*-uclinuxfdpiceabi.
+
+2019-09-09  Jose E. Marchesi  <jose.marchesi@oracle.com>
+
+	* config.host: Set cpu_type for bpf-*-* targets.
+	* config/bpf/t-bpf: Likewise.
+	* config/bpf/crtn.S: Likewise.
+	* config/bpf/crti.S: New file.
+
+2019-09-06  Jim Wilson  <jimw@sifive.com>
+
+	* config.host (riscv*-*-linux*): Add t-slibgcc-libgcc to tmake_file.
+	(riscv*-*-freebsd*): Likewise.
+
+2019-09-03  Ulrich Weigand  <uweigand@de.ibm.com>
+
+	* config.host: Remove references to spu.
+	* config/spu/: Remove directory.
+
+2019-08-23  Jozef Lawrynowicz  <jozef.l@mittosystems.com>
+
+	PR target/91306
+	* crtstuff.c (__CTOR_LIST__): Align to the "__alignof__" the array
+	element type, instead of "sizeof" the element type.
+	(__DTOR_LIST__): Likewise.
+	(__TMC_LIST__): Likewise.
+	(__do_global_dtors_aux_fini_array_entry): Likewise.
+	(__frame_dummy_init_array_entry): Likewise.
+	(__CTOR_END__): Likewise.
+	(__DTOR_END__): Likweise.
+	(__FRAME_END__): Likewise.
+	(__TMC_END__): Likewise.
+
+2019-08-20  Lili Cui  <lilicui@intel.com>
+
+	* config/i386/cpuinfo.h: Add INTEL_COREI7_TIGERLAKE and
+	INTEL_COREI7_COOPERLAKE.
+
+2019-07-31  Matt Thomas  <matt@3am-software.com>
+	    Nick Hudson <nick@nthcliff.demon.co.uk>
+	    Matthew Green <mrg@eterna.com.au>
+	    Maya Rashish <coypu@sdf.org>
+
+	* config.host (hppa*-*-netbsd*): New case.
+	* config/pa/t-netbsd: New file.
+
+2019-07-31  Joel Hutton  <Joel.Hutton@arm.com>
+
+	* config/arm/cmse.c (cmse_check_address_range): Add
+	warn_unused_result attribute.
+
+2019-07-22  Martin Liska  <mliska@suse.cz>
+
+	* config/pa/stublib.c: Remove stub symbol __gnu_lto_v1.
+	* config/pa/t-stublib: Likewise.
+
+2019-07-22  Stafford Horne  <shorne@gmail.com>
+
+	PR target/90362
+	* config/or1k/lib1funcs.S (__udivsi3): Change l.sfeqi
+	to l.sfeq and l.sfltsi to l.sflts equivalents as the immediate
+	instructions are not available on every processor.  Change a
+	l.bnf to l.bf to fix logic issue.
+
+2019-07-04  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* config.host: Remove reference to t-darwin8.
+
+2019-07-03  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* config.host (powerpc-*-darwin*,powerpc64-*-darwin*): Revise crt
+	list.
+	* config/rs6000/t-darwin: Build crt3_2 for older systems.  Revise
+	mmacosx-version-min for crts to run across all system versions.
+	* config/rs6000/t-darwin64 (LIB2ADD): Remove.
+	* config/t-darwin: Revise mmacosx-version-min for crts to run across
+	system versions >= 10.4.
+
+2019-07-03  Martin Liska  <mliska@suse.cz>
+
+	* Makefile.in: Use topn_values instead of one_value names.
+	* libgcov-merge.c (__gcov_merge_single): Move to ...
+	(__gcov_merge_topn): ... this.
+	(merge_single_value_set): Move to ...
+	(merge_topn_values_set): ... this.
+	* libgcov-profiler.c (__gcov_one_value_profiler_body): Move to
+	...
+	(__gcov_topn_values_profiler_body): ... this.
+	(__gcov_one_value_profiler_v2): Move to ...
+	(__gcov_topn_values_profiler): ... this.
+	(__gcov_one_value_profiler_v2_atomic): Move to ...
+	(__gcov_topn_values_profiler_atomic): ... this.
+	(__gcov_indirect_call_profiler_v4): Remove.
+	* libgcov-util.c (__gcov_single_counter_op): Move to ...
+	(__gcov_topn_counter_op): ... this.
+	* libgcov.h (L_gcov_merge_single): Remove.
+	(L_gcov_merge_topn): New.
+	(__gcov_merge_single): Remove.
+	(__gcov_merge_topn): New.
+	(__gcov_one_value_profiler_v2): Move to ..
+	(__gcov_topn_values_profiler): ... this.
+	(__gcov_one_value_profiler_v2_atomic): Move to ...
+	(__gcov_topn_values_profiler_atomic): ... this.
+
+2019-07-03  Martin Liska  <mliska@suse.cz>
+
+	* libgcov-merge.c (merge_single_value_set): Support N values.
+	* libgcov-profiler.c (__gcov_one_value_profiler_body): Likewise.
+
+2019-06-27  Ilia Diachkov  <ilia.diachkov@optimitech.com>
+
+	* Makefile.in (USE_TM_CLONE_REGISTRY): New.
+	(CRTSTUFF_CFLAGS): Use USE_TM_CLONE_REGISTRY.
+	* configure.ac: Add --disable-tm-clone-registry option.
+	* configure: Regenerate.
+
+2019-06-27  Martin Liska  <mliska@suse.cz>
+
+	* libgcov-driver-system.c (gcov_exit_open_gcda_file): Remove obviously
+	dead assignments.
+	* libgcov-util.c: Likewise.
+
+2019-06-27  Martin Liska  <mliska@suse.cz>
+
+	* libgcov-util.c (gcov_profile_merge): Release allocated
+	memory.
+	(calculate_overlap): Likewise.
+
+2019-06-25  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* config.host: Add libef_ppc.a to the extra files for powerpc-darwin.
+	* config/rs6000/t-darwin: (PPC_ENDFILE_SRC, PPC_ENDFILE_OBJS): New.
+	Build objects for the out of line save/restore register functions
+	so that they can be used for any supported Darwin version.
+	* config/t-darwin: Default the build Darwin version to Darwin8
+	(MacOS 10.4).
+
+2019-06-25  Martin Liska  <mliska@suse.cz>
+
+	* libgcov-driver-system.c (replace_filename_variables): Do not
+	call strlen with NULL argument.
+
+2019-06-25  Andrew Stubbs  <ams@codesourcery.com>
+
+	* config/gcn/t-amdgcn (LIB2ADD): Add unwind-gcn.c.
+	* config/gcn/unwind-gcn.c: New file.
+
+2019-06-25  Kwok Cheung Yeung  <kcy@codesourcery.com>
+            Andrew Stubbs  <ams@codesourcery.com>
+
+	* configure: Regenerate.
+	* config/gcn/gthr-gcn.h: New.
+
+2019-06-18  Tom de Vries  <tdevries@suse.de>
+
+	* config/nvptx/crt0.c (__main): Declare.
+
+2019-06-17  Matthew Green  <mrg@eterna.com.au>
+	    Maya Rashish  <coypu@sdf.org>
+
+	* config.host (aarch64*-*-netbsd*): New case.
+
+2019-06-16  Jozef Lawrynowicz  <jozef.l@mittosystems.com>
+
+	* config/msp430/slli.S (__mspabi_sllll): New library function for
+	performing a logical left shift of a 64-bit value.
+	* config/msp430/srai.S (__mspabi_srall): New library function for
+	performing a arithmetic right shift of a 64-bit value.
+	* config/msp430/srll.S (__mspabi_srlll): New library function for
+	performing a logical right shift of a 64-bit value.
+
+2019-06-14  Matt Thomas  <matt@3am-software.com>
+	    Matthew Green  <mrg@eterna.com.au>
+	    Nick Hudson  <skrll@netbsd.org>
+	    Maya Rashish  <coypu@sdf.org>
+
+	* config.host (arm*-*-netbsdelf*): Add support for EABI configurations.
+	* config/arm/t-netbsd (LIB1ASMFUNCS): Add some additional assembler
+	functions to build.
+	* config/arm/t-netbsd-eabi: New file.
+
+2019-06-12  Dimitar Dimitrov  <dimitar@dinux.eu>
+
+	* config.host: Add PRU target.
+	* config/pru/asri.c: New file.
+	* config/pru/eqd.c: New file.
+	* config/pru/eqf.c: New file.
+	* config/pru/ged.c: New file.
+	* config/pru/gef.c: New file.
+	* config/pru/gtd.c: New file.
+	* config/pru/gtf.c: New file.
+	* config/pru/led.c: New file.
+	* config/pru/lef.c: New file.
+	* config/pru/lib2bitcountHI.c: New file.
+	* config/pru/lib2divHI.c: New file.
+	* config/pru/lib2divQI.c: New file.
+	* config/pru/lib2divSI.c: New file.
+	* config/pru/libgcc-eabi.ver: New file.
+	* config/pru/ltd.c: New file.
+	* config/pru/ltf.c: New file.
+	* config/pru/mpyll.S: New file.
+	* config/pru/pru-abi.h: New file.
+	* config/pru/pru-asm.h: New file.
+	* config/pru/pru-divmod.h: New file.
+	* config/pru/sfp-machine.h: New file.
+	* config/pru/t-pru: New file.
+
+2019-06-11  Jakub Jelinek  <jakub@redhat.com>
+
+	* libgcov-merge.c (__gcov_merge_single): Revert previous change.
+
+2019-06-10  Martin Liska  <mliska@suse.cz>
+
+	PR bootstrap/90808
+	* libgcov.h: Add ATTRIBUTE_UNUSED.
+
+2019-06-10  Martin Liska  <mliska@suse.cz>
+
+	* Makefile.in: Add __gcov_one_value_profiler_v2,
+	__gcov_one_value_profiler_v2_atomic and
+	__gcov_indirect_call_profiler_v4.
+	* libgcov-merge.c (__gcov_merge_single): Change
+	function signature.
+	(merge_single_value_set): New.
+	* libgcov-profiler.c (__gcov_one_value_profiler_body):
+	Update functionality.
+	(__gcov_one_value_profiler): Remove.
+	(__gcov_one_value_profiler_v2): ... this.
+	(__gcov_one_value_profiler_atomic): Rename to ...
+	(__gcov_one_value_profiler_v2_atomic): this.
+	(__gcov_indirect_call_profiler_v3): Rename to ...
+	(__gcov_indirect_call_profiler_v4): ... this.
+	* libgcov.h (__gcov_one_value_profiler): Remove.
+	(__gcov_one_value_profiler_atomic): Remove.
+	(__gcov_one_value_profiler_v2_atomic): New.
+	(__gcov_indirect_call_profiler_v3): Remove.
+	(__gcov_one_value_profiler_v2): New.
+	(__gcov_indirect_call_profiler_v4): New.
+	(gcov_get_counter_ignore_scaling): New function.
+
+2019-06-07  Martin Liska  <mliska@suse.cz>
+
+	* Makefile.in: Remove usage of
+	_gcov_merge_icall_topn.
+	* libgcov-driver.c (gcov_sort_n_vals): Remove.
+	(gcov_sort_icall_topn_counter): Likewise.
+	(gcov_sort_topn_counter_arrays): Likewise.
+	(dump_one_gcov): Remove call to gcov_sort_topn_counter_arrays.
+	* libgcov-merge.c (__gcov_merge_icall_topn): Remove.
+	* libgcov-profiler.c (__gcov_topn_value_profiler_body):
+	Likewise.
+	(GCOV_ICALL_COUNTER_CLEAR_THRESHOLD): Remove.
+	(struct indirect_call_tuple): Remove.
+	(__gcov_indirect_call_topn_profiler): Remove.
+	* libgcov-util.c (__gcov_icall_topn_counter_op): Remove.
+	* libgcov.h (gcov_sort_n_vals): Remove.
+	(L_gcov_merge_icall_topn): Likewise.
+	(__gcov_merge_icall_topn): Likewise.
+	(__gcov_indirect_call_topn_profiler): Likewise.
+
+2019-06-06  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* config/rs6000/t-darwin: Ensure that the unwinder is built with
+	altivec enabled.
+
+2019-06-06  Jozef Lawrynowicz  <jozef.l@mittosystems.com>
+
+	* config/msp430/slli.S (__mspabi_slli_n): Put function in its own
+	section.
+	(__mspabi_slli): Likewise.
+	(__mspabi_slll_n): Likewise.
+	(__mspabi_slll): Likewise.
+	* config/msp430/srai.S (__mspabi_srai_n): Likewise.
+	(__mspabi_srai): Likewise.
+	(__mspabi_sral_n): Likewise.
+	(__mspabi_sral): Likewise.
+	* config/msp430/srli.S (__mspabi_srli_n): Likewise.
+	(__mspabi_srli): Likewise.
+	(__mspabi_srll_n): Likewise.
+	(__mspabi_srll): Likewise.
+
+2019-06-05  Yoshinori Sato  <ysato@users.sourceforge.jp>
+
+	* config.host (rx-*-linux*): Add t-fdpbit to tmake_file
+	Add appropriate tm_file clause as well.
+	* config/rx/t-rx (HOST_LIBGCC2_CFLAGS): Remove.
+
+2019-06-05  James Clarke  <jrtc27@jrtc27.com>
+
+	* config/ia64/crtbegin.S (__dso_handle): Put in .sdata/.sbss
+	rather than .data/.bss so it can be accessed via gp-relative
+	addressing.
+
+2019-06-05  David Edelsohn  <dje.gcc@gmail.com>
+
+	* config/rs6000/aix-unwind.h (LR_REGNO): Rename to R_LR.
+	(CR2_REGNO): Rename to R_CR2.
+	(XER_REGNO): Rename to R_XER.
+	(FIRST_ALTIVEC_REGNO): Rename to R_FIRST_ALTIVEC.
+	(VRSAVE_REGNO): Rename to R_VRSAVE.
+	(VSCR_REGNO): R_VSCR.
+
 2019-05-29  Yoshinori Sato  <ysato@users.sourceforge.jp>
 
 	* config.host (rx-*-linux*): Add new case.

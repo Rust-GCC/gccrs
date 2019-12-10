@@ -32,8 +32,8 @@ with Namet;    use Namet;
 with Opt;      use Opt;
 with Uname;    use Uname;
 
---  Note: this package body is used by GPS and GNATBench to supply a list of
---  entries for help on available library routines.
+--  Note: this package body is used by GNAT Studio and GNATBench to supply a
+--  list of entries for help on available library routines.
 
 package body Impunit is
 
@@ -241,6 +241,7 @@ package body Impunit is
     ("g-binenv", F),  -- GNAT.Bind_Environment
     ("g-boubuf", F),  -- GNAT.Bounded_Buffers
     ("g-boumai", F),  -- GNAT.Bounded_Mailboxes
+    ("g-brapre", F),  -- GNAT.Branch_Prediction
     ("g-bubsor", F),  -- GNAT.Bubble_Sort
     ("g-busora", F),  -- GNAT.Bubble_Sort_A
     ("g-busorg", F),  -- GNAT.Bubble_Sort_G
@@ -275,6 +276,7 @@ package body Impunit is
     ("g-exptty", F),  -- GNAT.Expect.TTY
     ("g-flocon", F),  -- GNAT.Float_Control
     ("g-forstr", F),  -- GNAT.Formatted_String
+    ("g-graphs", F),  -- GNAT.Graphs
     ("g-heasor", F),  -- GNAT.Heap_Sort
     ("g-hesora", F),  -- GNAT.Heap_Sort_A
     ("g-hesorg", F),  -- GNAT.Heap_Sort_G
@@ -690,19 +692,10 @@ package body Impunit is
          return Not_Predefined_Unit;
       end if;
 
-      --  To be considered predefined, the file name must end in .ads or .adb.
-      --  File names with other extensions (coming from the use of non-standard
-      --  file naming schemes) can never be predefined.
+      --  Not predefined if file name does not end in .ads. This can happen
+      --  when non-standard file names are being used.
 
-      --  Note that in the context of a compiler, the .adb case will never
-      --  arise. However it can arise for other tools, e.g. gnatprove uses
-      --  this routine to detect when a construct comes from an instance of
-      --  a generic defined in a predefined unit.
-
-      if File (File'Last - 3 .. File'Last) /= ".ads"
-           and then
-         File (File'Last - 3 .. File'Last) /= ".adb"
-      then
+      if Name_Buffer (Name_Len - 3 .. Name_Len) /= ".ads" then
          return Not_Predefined_Unit;
       end if;
 

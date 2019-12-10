@@ -53,13 +53,17 @@ package body Exp_Unst is
    -- Local Subprograms --
    -----------------------
 
-   procedure Unnest_Subprogram (Subp : Entity_Id; Subp_Body : Node_Id);
+   procedure Unnest_Subprogram
+     (Subp : Entity_Id; Subp_Body : Node_Id; For_Inline : Boolean := False);
    --  Subp is a library-level subprogram which has nested subprograms, and
    --  Subp_Body is the corresponding N_Subprogram_Body node. This procedure
    --  declares the AREC types and objects, adds assignments to the AREC record
    --  as required, defines the xxxPTR types for uplevel referenced objects,
    --  adds the ARECP parameter to all nested subprograms which need it, and
-   --  modifies all uplevel references appropriately.
+   --  modifies all uplevel references appropriately. If For_Inline is True,
+   --  we're unnesting this subprogram because it's on the list of inlined
+   --  subprograms and should unnest it despite it not being part of the main
+   --  unit.
 
    -----------
    -- Calls --
@@ -254,8 +258,7 @@ package body Exp_Unst is
             Typ := Full_View (Typ);
          end if;
 
-         return Is_Array_Type (Typ)
-           and then not Is_Constrained (Typ);
+         return Is_Array_Type (Typ) and then not Is_Constrained (Typ);
       else
          return False;
       end if;
@@ -298,7 +301,8 @@ package body Exp_Unst is
    -- Unnest_Subprogram --
    -----------------------
 
-   procedure Unnest_Subprogram (Subp : Entity_Id; Subp_Body : Node_Id) is
+   procedure Unnest_Subprogram
+     (Subp : Entity_Id; Subp_Body : Node_Id; For_Inline : Boolean := False) is
       function AREC_Name (J : Pos; S : String) return Name_Id;
       --  Returns name for string ARECjS, where j is the decimal value of j
 
@@ -403,15 +407,18 @@ package body Exp_Unst is
       --  to determine whether the main unit is generic (the scope stack is not
       --  present when this is called on the main unit).
 
-      if Ekind (Cunit_Entity (Main_Unit)) = E_Package_Body
+      if not For_Inline
+        and then Ekind (Cunit_Entity (Main_Unit)) = E_Package_Body
         and then Is_Generic_Unit (Spec_Entity (Cunit_Entity (Main_Unit)))
       then
          return;
-      end if;
 
-      --  Only unnest when generating code for the main source unit
+      --  Only unnest when generating code for the main source unit or if we're
+      --  unnesting for inline.
 
-      if not In_Extended_Main_Code_Unit (Subp_Body) then
+      elsif not For_Inline
+        and then not In_Extended_Main_Code_Unit (Subp_Body)
+      then
          return;
       end if;
 
@@ -464,7 +471,10 @@ package body Exp_Unst is
             Callee : Entity_Id;
 
             procedure Check_Static_Type
-              (T : Entity_Id; N : Node_Id; DT : in out Boolean);
+              (T                : Entity_Id;
+               N                : Node_Id;
+               DT               : in out Boolean;
+               Check_Designated : Boolean := False);
             --  Given a type T, checks if it is a static type defined as a type
             --  with no dynamic bounds in sight. If so, the only action is to
             --  set Is_Static_Type True for T. If T is not a static type, then
@@ -473,6 +483,9 @@ package body Exp_Unst is
             --  library level, and DT is set True. If N is specified, it's the
             --  node that will need to be replaced. If not specified, it means
             --  we can't do a replacement because the bound is implicit.
+
+            --  If Check_Designated is True and T or its full view is an access
+            --  type, check whether the designated type has dynamic bounds.
 
             procedure Note_Uplevel_Ref
               (E      : Entity_Id;
@@ -492,7 +505,10 @@ package body Exp_Unst is
             -----------------------
 
             procedure Check_Static_Type
-              (T : Entity_Id; N : Node_Id; DT : in out Boolean)
+              (T                : Entity_Id;
+               N                : Node_Id;
+               DT               : in out Boolean;
+               Check_Designated : Boolean := False)
             is
                procedure Note_Uplevel_Bound (N : Node_Id; Ref : Node_Id);
                --  N is the bound of a dynamic type. This procedure notes that
@@ -590,6 +606,33 @@ package body Exp_Unst is
                   then
                      Note_Uplevel_Bound (Prefix (N), Ref);
 
+                  --  Conditional expressions
+
+                  elsif Nkind (N) = N_If_Expression then
+                     declare
+                        Expr : Node_Id;
+
+                     begin
+                        Expr := First (Expressions (N));
+                        while Present (Expr) loop
+                           Note_Uplevel_Bound (Expr, Ref);
+                           Next (Expr);
+                        end loop;
+                     end;
+
+                  elsif Nkind (N) = N_Case_Expression then
+                     declare
+                        Alternative : Node_Id;
+
+                     begin
+                        Note_Uplevel_Bound (Expression (N), Ref);
+
+                        Alternative := First (Alternatives (N));
+                        while Present (Alternative) loop
+                           Note_Uplevel_Bound (Expression (Alternative), Ref);
+                        end loop;
+                     end;
+
                   --  Conversion case
 
                   elsif Nkind (N) = N_Type_Conversion then
@@ -602,7 +645,7 @@ package body Exp_Unst is
             begin
                --  If already marked static, immediate return
 
-               if Is_Static_Type (T) then
+               if Is_Static_Type (T) and then not Check_Designated then
                   return;
                end if;
 
@@ -685,12 +728,19 @@ package body Exp_Unst is
 
                --  For private type, examine whether full view is static
 
-               elsif Is_Private_Type (T) and then Present (Full_View (T)) then
-                  Check_Static_Type (Full_View (T), N, DT);
+               elsif Is_Incomplete_Or_Private_Type (T)
+                 and then Present (Full_View (T))
+               then
+                  Check_Static_Type (Full_View (T), N, DT, Check_Designated);
 
                   if Is_Static_Type (Full_View (T)) then
                      Set_Is_Static_Type (T);
                   end if;
+
+               --  For access types, check designated type when required
+
+               elsif Is_Access_Type (T) and then Check_Designated then
+                  Check_Static_Type (Directly_Designated_Type (T), N, DT);
 
                --  For now, ignore other types
 
@@ -936,7 +986,11 @@ package body Exp_Unst is
                      declare
                         DT : Boolean := False;
                      begin
-                        Check_Static_Type (Etype (Expression (N)), Empty,  DT);
+                        Check_Static_Type
+                          (Etype (Expression (N)),
+                           Empty,
+                           DT,
+                           Check_Designated => Nkind (N) = N_Free_Statement);
                      end;
                   end if;
 
@@ -2123,11 +2177,14 @@ package body Exp_Unst is
             --  not need rewriting (e.g. the appearence in a conversion).
             --  Also ignore if no reference was specified or if the rewriting
             --  has already been done (this can happen if the N_Identifier
-            --  occurs more than one time in the tree).
+            --  occurs more than one time in the tree). Also ignore references
+            --  when not generating C code (in particular for the case of LLVM,
+            --  since GNAT-LLVM will handle the processing for up-level refs).
 
             if No (UPJ.Ref)
               or else not Is_Entity_Name (UPJ.Ref)
               or else not Present (Entity (UPJ.Ref))
+              or else not Opt.Generate_C_Code
             then
                goto Continue;
             end if;
@@ -2188,8 +2245,7 @@ package body Exp_Unst is
                  and then Present (Constant_Value (UPJ.Ent))
                  and then Is_Static_Expression (Constant_Value (UPJ.Ent))
                then
-                  Rewrite (UPJ.Ref,
-                    New_Copy_Tree (Constant_Value (UPJ.Ent)));
+                  Rewrite (UPJ.Ref, New_Copy_Tree (Constant_Value (UPJ.Ent)));
                   goto Continue;
                end if;
 
@@ -2504,6 +2560,9 @@ package body Exp_Unst is
          return OK;
       end Search_Subprograms;
 
+      Subp      : Entity_Id;
+      Subp_Body : Node_Id;
+
    --  Start of processing for Unnest_Subprograms
 
    begin
@@ -2523,6 +2582,24 @@ package body Exp_Unst is
       end if;
 
       Do_Search (N);
+
+      --  Unnest any subprograms passed on the list of inlined subprograms
+
+      Subp := First_Inlined_Subprogram (N);
+
+      while Present (Subp) loop
+         Subp_Body := Parent (Declaration_Node (Subp));
+
+         if Nkind (Subp_Body) = N_Subprogram_Declaration
+           and then Present (Corresponding_Body (Subp_Body))
+         then
+            Subp_Body := Parent (Declaration_Node
+                                   (Corresponding_Body (Subp_Body)));
+         end if;
+
+         Unnest_Subprogram (Subp, Subp_Body, For_Inline => True);
+         Next_Inlined_Subprogram (Subp);
+      end loop;
    end Unnest_Subprograms;
 
 end Exp_Unst;

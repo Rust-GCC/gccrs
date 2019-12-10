@@ -103,8 +103,7 @@ searchc (struct searchc_env* env, struct cgraph_node *v,
         continue;
 
       if (w->aux
-	  && (avail > AVAIL_INTERPOSABLE
-	      || avail == AVAIL_INTERPOSABLE))
+	  && (avail >= AVAIL_INTERPOSABLE))
 	{
 	  w_info = (struct ipa_dfs_info *) w->aux;
 	  if (w_info->new_node)
@@ -297,7 +296,7 @@ ipa_reverse_postorder (struct cgraph_node **order)
       if (!node->aux
 	  && (pass
 	      || (!node->address_taken
-		  && !node->global.inlined_to
+		  && !node->inlined_to
 		  && !node->alias && !node->thunk.thunk_p
 		  && !node->only_called_directly_p ())))
 	{
@@ -519,7 +518,7 @@ ipa_merge_profiles (struct cgraph_node *dst,
 	    {
 	      if (symtab->dump_file)
 		fprintf (symtab->dump_file,
-			 "Edge count mistmatch for bb %i.\n",
+			 "Edge count mismatch for bb %i.\n",
 			 srcbb->index);
 	      match = false;
 	      break;
@@ -532,7 +531,7 @@ ipa_merge_profiles (struct cgraph_node *dst,
 		{
 		  if (symtab->dump_file)
 		    fprintf (symtab->dump_file,
-			     "Succ edge mistmatch for bb %i.\n",
+			     "Succ edge mismatch for bb %i.\n",
 			     srce->dest->index);
 		  match = false;
 		  break;

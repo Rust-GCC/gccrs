@@ -29,6 +29,7 @@
 #ifndef _GLIBCXX_DEBUG_HELPER_FUNCTIONS_H
 #define _GLIBCXX_DEBUG_HELPER_FUNCTIONS_H 1
 
+#include <bits/move.h>				// for __addressof
 #include <bits/stl_iterator_base_types.h>	// for iterator_traits,
 						// categories and _Iter_base
 #include <bits/cpp_type_traits.h>		// for __is_integer
@@ -50,10 +51,11 @@ namespace __gnu_debug
    */
   enum _Distance_precision
     {
-      __dp_none,	// Not even an iterator type
-      __dp_equality,	//< Can compare iterator equality, only
-      __dp_sign,	//< Can determine equality and ordering
-      __dp_exact	//< Can determine distance precisely
+      __dp_none,		// Not even an iterator type
+      __dp_equality,		//< Can compare iterator equality, only
+      __dp_sign,		//< Can determine equality and ordering
+      __dp_sign_max_size,	//< __dp_sign and gives max range size
+      __dp_exact		//< Can determine distance precisely
     };
 
   template<typename _Iterator,
@@ -87,12 +89,14 @@ namespace __gnu_debug
    *	precision.
   */
   template<typename _Iterator>
+    _GLIBCXX_CONSTEXPR
     inline typename _Distance_traits<_Iterator>::__type
     __get_distance(_Iterator __lhs, _Iterator __rhs,
 		   std::random_access_iterator_tag)
     { return std::make_pair(__rhs - __lhs, __dp_exact); }
 
   template<typename _Iterator>
+    _GLIBCXX_CONSTEXPR
     inline typename _Distance_traits<_Iterator>::__type
     __get_distance(_Iterator __lhs, _Iterator __rhs,
 		   std::input_iterator_tag)
@@ -104,15 +108,40 @@ namespace __gnu_debug
     }
 
   template<typename _Iterator>
+    _GLIBCXX_CONSTEXPR
     inline typename _Distance_traits<_Iterator>::__type
     __get_distance(_Iterator __lhs, _Iterator __rhs)
     { return __get_distance(__lhs, __rhs, std::__iterator_category(__lhs)); }
+
+  // An arbitrary iterator pointer is not singular.
+  inline bool
+  __check_singular_aux(const void*) { return false; }
+
+  // We may have an iterator that derives from _Safe_iterator_base but isn't
+  // a _Safe_iterator.
+  template<typename _Iterator>
+    inline bool
+    __check_singular(_Iterator const& __x)
+    { return __check_singular_aux(std::__addressof(__x)); }
+
+  /** Non-NULL pointers are nonsingular. */
+  template<typename _Tp>
+    inline bool
+    __check_singular(_Tp* const& __ptr)
+    { return __ptr == 0; }
 
   /** We say that integral types for a valid range, and defer to other
    *  routines to realize what to do with integral types instead of
    *  iterators.
   */
   template<typename _Integral>
+    _GLIBCXX_CONSTEXPR
+    inline bool
+    __valid_range_aux(_Integral, _Integral, std::__true_type)
+    { return true; }
+
+  template<typename _Integral>
+    _GLIBCXX20_CONSTEXPR
     inline bool
     __valid_range_aux(_Integral, _Integral,
 		      typename _Distance_traits<_Integral>::__type& __dist,
@@ -122,15 +151,50 @@ namespace __gnu_debug
       return true;
     }
 
+  template<typename _InputIterator>
+    _GLIBCXX_CONSTEXPR
+    inline bool
+    __valid_range_aux(_InputIterator __first, _InputIterator __last,
+		      std::input_iterator_tag)
+    {
+      return __first == __last
+	|| (!__check_singular(__first) && !__check_singular(__last));
+    }
+
+  template<typename _InputIterator>
+    _GLIBCXX_CONSTEXPR
+    inline bool
+    __valid_range_aux(_InputIterator __first, _InputIterator __last,
+		      std::random_access_iterator_tag)
+    {
+      return
+	__valid_range_aux(__first, __last, std::input_iterator_tag())
+	&& __first <= __last;
+    }
+
   /** We have iterators, so figure out what kind of iterators they are
    *  to see if we can check the range ahead of time.
   */
   template<typename _InputIterator>
+    _GLIBCXX_CONSTEXPR
+    inline bool
+    __valid_range_aux(_InputIterator __first, _InputIterator __last,
+		      std::__false_type)
+    {
+      return __valid_range_aux(__first, __last,
+			       std::__iterator_category(__first));
+    }
+
+  template<typename _InputIterator>
+    _GLIBCXX20_CONSTEXPR
     inline bool
     __valid_range_aux(_InputIterator __first, _InputIterator __last,
 		      typename _Distance_traits<_InputIterator>::__type& __dist,
 		      std::__false_type)
     {
+      if (!__valid_range_aux(__first, __last, std::input_iterator_tag()))
+	return false;
+
       __dist = __get_distance(__first, __last);
       switch (__dist.second)
 	{
@@ -141,6 +205,7 @@ namespace __gnu_debug
 	    return true;
 	  break;
 	case __dp_sign:
+	case __dp_sign_max_size:
 	case __dp_exact:
 	  return __dist.first >= 0;
 	}
@@ -155,10 +220,16 @@ namespace __gnu_debug
    *  otherwise.
   */
   template<typename _InputIterator>
+    _GLIBCXX20_CONSTEXPR
     inline bool
     __valid_range(_InputIterator __first, _InputIterator __last,
 		  typename _Distance_traits<_InputIterator>::__type& __dist)
     {
+#ifdef __cpp_lib_is_constant_evaluated
+      if (std::is_constant_evaluated())
+	// Detected by the compiler directly.
+	return true;
+#endif
       typedef typename std::__is_integer<_InputIterator>::__type _Integral;
       return __valid_range_aux(__first, __last, __dist, _Integral());
     }
@@ -178,11 +249,17 @@ namespace __gnu_debug
 #endif
 
   template<typename _InputIterator>
+    _GLIBCXX14_CONSTEXPR
     inline bool
     __valid_range(_InputIterator __first, _InputIterator __last)
     {
-      typename _Distance_traits<_InputIterator>::__type __dist;
-      return __valid_range(__first, __last, __dist);
+#ifdef _GLIBCXX_HAVE_BUILTIN_IS_CONSTANT_EVALUATED
+      if (__builtin_is_constant_evaluated())
+	// Detected by the compiler directly.
+	return true;
+#endif
+      typedef typename std::__is_integer<_InputIterator>::__type _Integral;
+      return __valid_range_aux(__first, __last, _Integral());
     }
 
   template<typename _Iterator, typename _Sequence, typename _Category>
@@ -199,6 +276,7 @@ namespace __gnu_debug
 
   // Fallback method, always ok.
   template<typename _InputIterator, typename _Size>
+    _GLIBCXX_CONSTEXPR
     inline bool
     __can_advance(_InputIterator, _Size)
     { return true; }
@@ -216,6 +294,7 @@ namespace __gnu_debug
    *  thanks to the < operator.
    */
   template<typename _Iterator>
+    _GLIBCXX_CONSTEXPR
     inline _Iterator
     __base(_Iterator __it)
     { return __it; }

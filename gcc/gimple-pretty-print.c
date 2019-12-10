@@ -43,6 +43,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "asan.h"
 #include "cfgloop.h"
 
+/* Disable warnings about quoting issues in the pp_xxx calls below
+   that (intentionally) don't follow GCC diagnostic conventions.  */
+#if __GNUC__ >= 10
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wformat-diag"
+#endif
+
 #define INDENT(SPACE)							\
   do { int i; for (i = 0; i < SPACE; i++) pp_space (buffer); } while (0)
 
@@ -597,10 +604,14 @@ dump_ternary_rhs (pretty_printer *buffer, gassign *gs, int spc,
 	  pp_string (buffer, ", ");
 	  dump_generic_node (buffer, gimple_assign_rhs3 (gs),
 			     spc, flags, false);
-	  pp_string (buffer, " (");
 	  if (INTEGRAL_TYPE_P (TREE_TYPE (gimple_assign_rhs2 (gs))))
-	    pp_decimal_int (buffer, TYPE_PRECISION
-				      (TREE_TYPE (gimple_assign_rhs2 (gs))));
+	    {
+	      pp_string (buffer, " (");
+	      pp_decimal_int (buffer, TYPE_PRECISION
+			      (TREE_TYPE (gimple_assign_rhs2 (gs))));
+	      pp_string (buffer, " bits)");
+	    }
+	  pp_greater (buffer);
 	}
       break;
 
@@ -1221,6 +1232,8 @@ dump_gimple_try (pretty_printer *buffer, gtry *gs, int spc,
       newline_and_indent (buffer, spc + 2);
       pp_right_brace (buffer);
 
+      gimple_seq seq = gimple_try_cleanup (gs);
+
       if (gimple_try_kind (gs) == GIMPLE_TRY_CATCH)
 	{
 	  newline_and_indent (buffer, spc);
@@ -1234,12 +1247,28 @@ dump_gimple_try (pretty_printer *buffer, gtry *gs, int spc,
 	  pp_string (buffer, "finally");
 	  newline_and_indent (buffer, spc + 2);
 	  pp_left_brace (buffer);
+
+	  if (seq && is_a <geh_else *> (gimple_seq_first_stmt (seq))
+	      && gimple_seq_nondebug_singleton_p (seq))
+	    {
+	      geh_else *stmt = as_a <geh_else *> (gimple_seq_first_stmt (seq));
+	      seq = gimple_eh_else_n_body (stmt);
+	      pp_newline (buffer);
+	      dump_gimple_seq (buffer, seq, spc + 4, flags);
+	      newline_and_indent (buffer, spc + 2);
+	      pp_right_brace (buffer);
+	      seq = gimple_eh_else_e_body (stmt);
+	      newline_and_indent (buffer, spc);
+	      pp_string (buffer, "else");
+	      newline_and_indent (buffer, spc + 2);
+	      pp_left_brace (buffer);
+	    }
 	}
       else
 	pp_string (buffer, " <UNKNOWN GIMPLE_TRY> {");
 
       pp_newline (buffer);
-      dump_gimple_seq (buffer, gimple_try_cleanup (gs), spc + 4, flags);
+      dump_gimple_seq (buffer, seq, spc + 4, flags);
       newline_and_indent (buffer, spc + 2);
       pp_right_brace (buffer);
     }
@@ -1647,6 +1676,9 @@ dump_gimple_omp_target (pretty_printer *buffer, gomp_target *gs,
     case GF_OMP_TARGET_KIND_OACC_PARALLEL:
       kind = " oacc_parallel";
       break;
+    case GF_OMP_TARGET_KIND_OACC_SERIAL:
+      kind = " oacc_serial";
+      break;
     case GF_OMP_TARGET_KIND_OACC_DATA:
       kind = " oacc_data";
       break;
@@ -1792,9 +1824,6 @@ dump_gimple_omp_block (pretty_printer *buffer, gimple *gs, int spc,
 	case GIMPLE_OMP_MASTER:
 	  pp_string (buffer, "#pragma omp master");
 	  break;
-	case GIMPLE_OMP_TASKGROUP:
-	  pp_string (buffer, "#pragma omp taskgroup");
-	  break;
 	case GIMPLE_OMP_SECTION:
 	  pp_string (buffer, "#pragma omp section");
 	  break;
@@ -1861,6 +1890,34 @@ dump_gimple_omp_ordered (pretty_printer *buffer, gomp_ordered *gs,
     {
       pp_string (buffer, "#pragma omp ordered");
       dump_omp_clauses (buffer, gimple_omp_ordered_clauses (gs), spc, flags);
+      if (!gimple_seq_empty_p (gimple_omp_body (gs)))
+	{
+	  newline_and_indent (buffer, spc + 2);
+	  pp_left_brace (buffer);
+	  pp_newline (buffer);
+	  dump_gimple_seq (buffer, gimple_omp_body (gs), spc + 4, flags);
+	  newline_and_indent (buffer, spc + 2);
+	  pp_right_brace (buffer);
+	}
+    }
+}
+
+/* Dump a GIMPLE_OMP_SCAN tuple on the pretty_printer BUFFER.  */
+
+static void
+dump_gimple_omp_scan (pretty_printer *buffer, gomp_scan *gs,
+		      int spc, dump_flags_t flags)
+{
+  if (flags & TDF_RAW)
+    dump_gimple_fmt (buffer, spc, flags, "%G <%+BODY <%S> >", gs,
+		     gimple_omp_body (gs));
+  else
+    {
+      if (gimple_omp_scan_clauses (gs))
+	{
+	  pp_string (buffer, "#pragma omp scan");
+	  dump_omp_clauses (buffer, gimple_omp_scan_clauses (gs), spc, flags);
+	}
       if (!gimple_seq_empty_p (gimple_omp_body (gs)))
 	{
 	  newline_and_indent (buffer, spc + 2);
@@ -2645,6 +2702,11 @@ pp_gimple_stmt_1 (pretty_printer *buffer, gimple *gs, int spc,
 			       flags);
       break;
 
+    case GIMPLE_OMP_SCAN:
+      dump_gimple_omp_scan (buffer, as_a <gomp_scan *> (gs), spc,
+			    flags);
+      break;
+
     case GIMPLE_OMP_CRITICAL:
       dump_gimple_omp_critical (buffer, as_a <gomp_critical *> (gs), spc,
 				flags);
@@ -2975,6 +3037,14 @@ percent_G_format (text_info *text)
 {
   gimple *stmt = va_arg (*text->args_ptr, gimple*);
 
+  /* Fall back on the rich location if the statement doesn't have one.  */
+  location_t loc = gimple_location (stmt);
+  if (loc == UNKNOWN_LOCATION)
+    loc = text->m_richloc->get_loc ();
   tree block = gimple_block (stmt);
-  percent_K_format (text, gimple_location (stmt), block);
+  percent_K_format (text, loc, block);
 }
+
+#if __GNUC__ >= 10
+#  pragma GCC diagnostic pop
+#endif

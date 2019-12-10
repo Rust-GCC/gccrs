@@ -1817,29 +1817,6 @@ FP_ASM_SPEC "\
    called function in tact.  EPILOGUE_USES says that $31 is useful
    to the called function.  */
 
-#define CALL_USED_REGISTERS						\
-{									\
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
-  0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0,			\
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
-  1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,			\
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
-  /* COP0 registers */							\
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
-  /* COP2 registers */							\
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
-  /* COP3 registers */							\
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
-  /* 6 DSP accumulator registers & 6 control registers */		\
-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1					\
-}
-
-
-/* Define this since $28, though fixed, is call-saved in many ABIs.  */
-
 #define CALL_REALLY_USED_REGISTERS                                      \
 { /* General registers.  */                                             \
   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,                       \
@@ -3099,12 +3076,12 @@ while (0)
 #define MIPS_MIN_MOVE_MEM_ALIGN 16
 
 /* The maximum number of bytes that can be copied by one iteration of
-   a movmemsi loop; see mips_block_move_loop.  */
+   a cpymemsi loop; see mips_block_move_loop.  */
 #define MIPS_MAX_MOVE_BYTES_PER_LOOP_ITER \
   (UNITS_PER_WORD * 4)
 
 /* The maximum number of bytes that can be copied by a straight-line
-   implementation of movmemsi; see mips_block_move_straight.  We want
+   implementation of cpymemsi; see mips_block_move_straight.  We want
    to make sure that any loop-based implementation will iterate at
    least twice.  */
 #define MIPS_MAX_MOVE_BYTES_STRAIGHT \
@@ -3119,11 +3096,11 @@ while (0)
 
 #define MIPS_CALL_RATIO 8
 
-/* Any loop-based implementation of movmemsi will have at least
+/* Any loop-based implementation of cpymemsi will have at least
    MIPS_MAX_MOVE_BYTES_STRAIGHT / UNITS_PER_WORD memory-to-memory
    moves, so allow individual copies of fewer elements.
 
-   When movmemsi is not available, use a value approximating
+   When cpymemsi is not available, use a value approximating
    the length of a memcpy call sequence, so that move_by_pieces
    will generate inline code if it is shorter than a function call.
    Since move_by_pieces_ninsns counts memory-to-memory moves, but
@@ -3131,7 +3108,7 @@ while (0)
    value of MIPS_CALL_RATIO to take that into account.  */
 
 #define MOVE_RATIO(speed)				\
-  (HAVE_movmemsi					\
+  (HAVE_cpymemsi					\
    ? MIPS_MAX_MOVE_BYTES_STRAIGHT / MOVE_MAX		\
    : MIPS_CALL_RATIO / 2)
 

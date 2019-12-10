@@ -107,7 +107,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 #if __cplusplus >= 201103L
       static_assert(is_same<typename remove_cv<_Key>::type, _Key>::value,
 	  "std::set must have a non-const, non-volatile value_type");
-# ifdef __STRICT_ANSI__
+# if __cplusplus > 201703L || defined __STRICT_ANSI__
       static_assert(is_same<typename _Alloc::value_type, _Key>::value,
 	  "std::set must have the same value_type as its allocator");
 # endif
@@ -1051,6 +1051,15 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
       _S_get_tree(_GLIBCXX_STD_C::multiset<_Val, _Cmp2, _Alloc>& __set)
       { return __set._M_t; }
     };
+#if __cplusplus > 201703L
+namespace ranges::__detail
+{
+  template<typename _Tp> extern inline const bool __enable_view_impl;
+  template<typename _Key, typename _Compare, typename _Alloc>
+    inline constexpr bool
+      __enable_view_impl<_GLIBCXX_STD_C::set<_Key, _Compare, _Alloc>> = false;
+} // namespace ranges::__detail
+#endif // C++20
 #endif // C++17
 
 _GLIBCXX_END_NAMESPACE_VERSION

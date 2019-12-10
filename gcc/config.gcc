@@ -247,8 +247,7 @@ md_file=
 
 # Obsolete configurations.
 case ${target} in
-  spu*-*-*				\
-  | tile*-*-*				\
+  tile*-*-*				\
  )
     if test "x$enable_obsolete" != xyes; then
       echo "*** Configuration ${target} is obsolete." >&2
@@ -280,6 +279,7 @@ case ${target} in
  | powerpc*-*-linux*paired*		\
  | powerpc*-*-*spe*			\
  | sparc-hal-solaris2*			\
+ | spu*-*-*				\
  | thumb-*-*				\
  | *-*-freebsd[12] | *-*-freebsd[1234].* \
  | *-*-freebsd*aout*			\
@@ -315,12 +315,12 @@ m32c*-*-*)
         ;;
 aarch64*-*-*)
 	cpu_type=aarch64
-	extra_headers="arm_fp16.h arm_neon.h arm_acle.h"
+	extra_headers="arm_fp16.h arm_neon.h arm_acle.h arm_sve.h"
 	c_target_objs="aarch64-c.o"
 	cxx_target_objs="aarch64-c.o"
 	d_target_objs="aarch64-d.o"
-	extra_objs="aarch64-builtins.o aarch-common.o cortex-a57-fma-steering.o aarch64-speculation.o falkor-tag-collision-avoidance.o aarch64-bti-insert.o"
-	target_gtfiles="\$(srcdir)/config/aarch64/aarch64-builtins.c"
+	extra_objs="aarch64-builtins.o aarch-common.o aarch64-sve-builtins.o aarch64-sve-builtins-shapes.o aarch64-sve-builtins-base.o cortex-a57-fma-steering.o aarch64-speculation.o falkor-tag-collision-avoidance.o aarch64-bti-insert.o"
+	target_gtfiles="\$(srcdir)/config/aarch64/aarch64-builtins.c \$(srcdir)/config/aarch64/aarch64-sve-builtins.h \$(srcdir)/config/aarch64/aarch64-sve-builtins.cc"
 	target_has_targetm_common=yes
 	;;
 alpha*-*-*)
@@ -359,6 +359,9 @@ avr-*-*)
 	;;
 bfin*-*)
 	cpu_type=bfin
+	;;
+bpf-*-*)
+	cpu_type=bpf
 	;;
 crisv32-*)
 	cpu_type=cris
@@ -408,7 +411,7 @@ i[34567]86-*-*)
 		       avx512vpopcntdqvlintrin.h avx512bitalgintrin.h
 		       pconfigintrin.h wbnoinvdintrin.h movdirintrin.h
 		       waitpkgintrin.h cldemoteintrin.h avx512bf16vlintrin.h avx512bf16intrin.h
-		       enqcmdintrin.h"
+		       enqcmdintrin.h avx512vp2intersectintrin.h avx512vp2intersectvlintrin.h"
 	;;
 x86_64-*-*)
 	cpu_type=i386
@@ -441,7 +444,7 @@ x86_64-*-*)
 		       avx512vpopcntdqvlintrin.h avx512bitalgintrin.h
 		       pconfigintrin.h wbnoinvdintrin.h movdirintrin.h
 		       waitpkgintrin.h cldemoteintrin.h avx512bf16vlintrin.h avx512bf16intrin.h
-		       enqcmdintrin.h"
+		       enqcmdintrin.h avx512vp2intersectintrin.h avx512vp2intersectvlintrin.h"
 	;;
 ia64-*-*)
 	extra_headers=ia64intrin.h
@@ -499,7 +502,7 @@ or1k*-*-*)
 	;;
 powerpc*-*-*)
 	cpu_type=rs6000
-	extra_objs="rs6000-string.o rs6000-p8swap.o"
+	extra_objs="rs6000-string.o rs6000-p8swap.o rs6000-logue.o rs6000-call.o"
 	extra_headers="ppc-asm.h altivec.h htmintrin.h htmxlintrin.h"
 	extra_headers="${extra_headers} bmi2intrin.h bmiintrin.h"
 	extra_headers="${extra_headers} xmmintrin.h mm_malloc.h emmintrin.h"
@@ -513,15 +516,20 @@ powerpc*-*-*)
 		;;
 	esac
 	extra_options="${extra_options} g.opt fused-madd.opt rs6000/rs6000-tables.opt"
+	target_gtfiles="$target_gtfiles \$(srcdir)/config/rs6000/rs6000-logue.c \$(srcdir)/config/rs6000/rs6000-call.c"
+	;;
+pru-*-*)
+	cpu_type=pru
 	;;
 riscv*)
 	cpu_type=riscv
-	extra_objs="riscv-builtins.o riscv-c.o"
+	extra_objs="riscv-builtins.o riscv-c.o riscv-sr.o"
 	d_target_objs="riscv-d.o"
 	;;
 rs6000*-*-*)
 	extra_options="${extra_options} g.opt fused-madd.opt rs6000/rs6000-tables.opt"
-	extra_objs="rs6000-string.o rs6000-p8swap.o"
+	extra_objs="rs6000-string.o rs6000-p8swap.o rs6000-logue.o rs6000-call.o"
+	target_gtfiles="$target_gtfiles \$(srcdir)/config/rs6000/rs6000-logue.c \$(srcdir)/config/rs6000/rs6000-call.c"
 	;;
 sparc*-*-*)
 	cpu_type=sparc
@@ -529,9 +537,6 @@ sparc*-*-*)
 	cxx_target_objs="sparc-c.o"
 	d_target_objs="sparc-d.o"
 	extra_headers="visintrin.h"
-	;;
-spu*-*-*)
-	cpu_type=spu
 	;;
 s390*-*-*)
 	cpu_type=s390
@@ -659,7 +664,8 @@ bdver3 bdver4 znver1 znver2 btver1 btver2 k8 k8-sse3 opteron \
 opteron-sse3 nocona core2 corei7 corei7-avx core-avx-i core-avx2 atom \
 slm nehalem westmere sandybridge ivybridge haswell broadwell bonnell \
 silvermont knl knm skylake-avx512 cannonlake icelake-client icelake-server \
-skylake goldmont goldmont-plus tremont cascadelake x86-64 native"
+skylake goldmont goldmont-plus tremont cascadelake tigerlake cooperlake x86-64 \
+native"
 
 # Additional x86 processors supported by --with-cpu=.  Each processor
 # MUST be separated by exactly one space.
@@ -668,7 +674,7 @@ x86_cpus="generic intel"
 # Common parts for widely ported systems.
 case ${target} in
 *-*-darwin*)
-  tmake_file="t-darwin ${cpu_type}/t-darwin"
+  tmake_file="t-darwin "
   tm_file="${tm_file} darwin.h"
   case ${target} in
   *-*-darwin9*)
@@ -768,7 +774,7 @@ case ${target} in
 *-*-fuchsia*)
   native_system_header_dir=/include
   ;;
-*-*-linux* | frv-*-*linux* | *-*-kfreebsd*-gnu | *-*-gnu* | *-*-kopensolaris*-gnu)
+*-*-linux* | frv-*-*linux* | *-*-kfreebsd*-gnu | *-*-gnu* | *-*-kopensolaris*-gnu | *-*-uclinuxfdpiceabi)
   extra_options="$extra_options gnu-user.opt"
   gas=yes
   gnu_ld=yes
@@ -797,7 +803,7 @@ case ${target} in
     *-*-*android*)
       tm_defines="$tm_defines DEFAULT_LIBC=LIBC_BIONIC"
       ;;
-    *-*-*uclibc*)
+    *-*-*uclibc* | *-*-uclinuxfdpiceabi)
       tm_defines="$tm_defines DEFAULT_LIBC=LIBC_UCLIBC"
       ;;
     *-*-*musl*)
@@ -956,6 +962,11 @@ case ${target} in
     "" | yes | vxworks) thread_file='vxworks' ;;
     *) echo 'Unknown thread configuration for VxWorks'; exit 1 ;;
   esac
+
+  # A few common macro definitions conveying general characteristics
+  # of the configuration at hand. Note that by VxWorks 7, we mean the
+  # the SR6xx major update or beyond in vendor parlance:
+
   case $target in
     *-*-vxworks7*)
       tm_defines="$tm_defines TARGET_VXWORKS7=1"
@@ -964,6 +975,18 @@ case ${target} in
   case $target in
     *64-*-vxworks*)
       tm_defines="$tm_defines TARGET_VXWORKS64=1"
+      ;;
+  esac
+
+  # Then a few build configuration controls for VxWorks 7, which
+  # has specificities on top of which we aim to provide more complete
+  # C++ support:
+
+  case $target in
+    *-*-vxworks7*)
+      # VxWorks 7 always has init/fini_array support and it is simpler to
+      # just leverage this, sticking to what the system toolchain does:
+      gcc_cv_initfini_array=yes
       ;;
   esac
   ;;
@@ -977,7 +1000,7 @@ esac
 case ${target} in
 aarch64*-*-elf | aarch64*-*-fuchsia* | aarch64*-*-rtems*)
 	tm_file="${tm_file} dbxelf.h elfos.h newlib-stdint.h"
-	tm_file="${tm_file} aarch64/aarch64-elf.h aarch64/aarch64-elf-raw.h"
+	tm_file="${tm_file} aarch64/aarch64-elf.h aarch64/aarch64-errata.h aarch64/aarch64-elf-raw.h"
 	tmake_file="${tmake_file} aarch64/t-aarch64"
 	case $target in
 	aarch64-*-elf*)
@@ -1014,13 +1037,19 @@ aarch64*-*-elf | aarch64*-*-fuchsia* | aarch64*-*-rtems*)
 	;;
 aarch64*-*-freebsd*)
 	tm_file="${tm_file} dbxelf.h elfos.h ${fbsd_tm_file}"
-	tm_file="${tm_file} aarch64/aarch64-elf.h aarch64/aarch64-freebsd.h"
+	tm_file="${tm_file} aarch64/aarch64-elf.h aarch64/aarch64-errata.h aarch64/aarch64-freebsd.h"
 	tmake_file="${tmake_file} aarch64/t-aarch64 aarch64/t-aarch64-freebsd"
 	tm_defines="${tm_defines}  TARGET_DEFAULT_ASYNC_UNWIND_TABLES=1"
 	;;
+aarch64*-*-netbsd*)
+	tm_file="${tm_file} dbxelf.h elfos.h ${nbsd_tm_file}"
+	tm_file="${tm_file} aarch64/aarch64-elf.h aarch64/aarch64-errata.h aarch64/aarch64-netbsd.h"
+	tmake_file="${tmake_file} aarch64/t-aarch64 aarch64/t-aarch64-netbsd"
+	extra_options="${extra_options} netbsd.opt netbsd-elf.opt"
+	;;
 aarch64*-*-linux*)
 	tm_file="${tm_file} dbxelf.h elfos.h gnu-user.h linux.h glibc-stdint.h"
-	tm_file="${tm_file} aarch64/aarch64-elf.h aarch64/aarch64-linux.h"
+	tm_file="${tm_file} aarch64/aarch64-elf.h aarch64/aarch64-errata.h aarch64/aarch64-linux.h"
 	tmake_file="${tmake_file} aarch64/t-aarch64 aarch64/t-aarch64-linux"
 	tm_defines="${tm_defines}  TARGET_DEFAULT_ASYNC_UNWIND_TABLES=1"
 	case $target in
@@ -1047,6 +1076,11 @@ aarch64*-*-linux*)
 	done
 	TM_MULTILIB_CONFIG=`echo $TM_MULTILIB_CONFIG | sed 's/^,//'`
 	;;
+aarch64*-wrs-vxworks*)
+        tm_file="${tm_file} elfos.h aarch64/aarch64-elf.h"
+        tm_file="${tm_file} vx-common.h vxworks.h aarch64/aarch64-vxworks.h"
+        tmake_file="${tmake_file} aarch64/t-aarch64 aarch64/t-aarch64-vxworks"
+        ;;
 alpha*-*-linux*)
 	tm_file="elfos.h ${tm_file} alpha/elf.h alpha/linux.h alpha/linux-elf.h glibc-stdint.h"
 	tmake_file="${tmake_file} alpha/t-linux alpha/t-alpha"
@@ -1114,23 +1148,17 @@ arc*-*-linux*)
 	# automatically detect that GAS supports it, yet we require it.
 	gcc_cv_initfini_array=yes
 	;;
-arm-wrs-vxworks|arm-wrs-vxworks7)
+arm-wrs-vxworks7*)
+	# We only support VxWorks 7 now on ARM, post SR600.  Pre SR600
+	# VxWorks 7 was transitory and major versions prior to 7 were based
+	# on long deprecated ABI, not supported at all any more regardless
+	# of VxWorks.
 	extra_options="${extra_options} arm/vxworks.opt"
-	tmake_file="${tmake_file} arm/t-arm arm/t-vxworks"
-        case $target in
-	*-vxworks7)
-            # VxWorks7 on ARM adheres to the ARM Base Platform ABI
-	    tmake_file="${tmake_file} arm/t-bpabi"
-	    tm_file="arm/bpabi.h ${tm_file}"
-	    # The BPABI long long divmod functions return a 128-bit value in
-	    # registers r0-r3.
-	    need_64bit_hwint=yes
-	    default_use_cxa_atexit=yes
-	    ;;
-        *)  ;;
-        esac
-        tm_file="elfos.h arm/elf.h arm/aout.h ${tm_file} vx-common.h vxworks.h arm/vxworks.h"
-	target_cpu_cname="arm8"
+	tmake_file="${tmake_file} arm/t-arm arm/t-vxworks arm/t-bpabi"
+	tm_file="elfos.h arm/elf.h arm/bpabi.h arm/aout.h ${tm_file}"
+	tm_file="${tm_file} vx-common.h vxworks.h arm/vxworks.h"
+	target_cpu_cname="armv7-a"
+	need_64bit_hwint=yes
 	;;
 arm*-*-freebsd*)                # ARM FreeBSD EABI
 	tm_file="dbxelf.h elfos.h ${fbsd_tm_file} arm/elf.h"
@@ -1159,12 +1187,37 @@ arm*-*-freebsd*)                # ARM FreeBSD EABI
 	with_tls=${with_tls:-gnu}
 	;;
 arm*-*-netbsdelf*)
-	tm_file="dbxelf.h elfos.h ${nbsd_tm_file} arm/elf.h arm/aout.h ${tm_file} arm/netbsd-elf.h"
-	extra_options="${extra_options} netbsd.opt netbsd-elf.opt"
-	tmake_file="${tmake_file} arm/t-arm"
 	target_cpu_cname="strongarm"
+	tmake_file="${tmake_file} arm/t-arm"
+	tm_file="dbxelf.h elfos.h ${nbsd_tm_file} arm/elf.h"
+	extra_options="${extra_options} netbsd.opt netbsd-elf.opt"
+	case ${target} in
+	arm*eb-*) tm_defines="${tm_defines} TARGET_BIG_ENDIAN_DEFAULT=1" ;;
+	esac
+	case ${target} in
+	arm*-*-netbsdelf-*eabi*)
+	    tm_file="$tm_file arm/bpabi.h arm/netbsd-elf.h arm/netbsd-eabi.h"
+	    tmake_file="$tmake_file arm/t-bpabi arm/t-netbsdeabi"
+	    ;;
+	*)
+	    tm_file="$tm_file arm/netbsd-elf.h"
+	    tmake_file="$tmake_file arm/t-netbsd"
+	    ;;
+	esac
+	tm_file="${tm_file} arm/aout.h arm/arm.h"
+	case ${target} in
+	arm*-*-netbsdelf-*eabihf*)
+	    # Hard-float requires at least Arm v5te
+	    target_cpu_cname="arm10e"
+	    tm_defines="${tm_defines} TARGET_DEFAULT_FLOAT_ABI=ARM_FLOAT_ABI_HARD"
+	    ;;
+	esac
+	case ${target} in
+	armv6*) target_cpu_cname="arm1176jzf-s";;
+	armv7*) target_cpu_cname="generic-armv7-a";;
+	esac
 	;;
-arm*-*-linux-*)			# ARM GNU/Linux with ELF
+arm*-*-linux-* | arm*-*-uclinuxfdpiceabi)
 	tm_file="dbxelf.h elfos.h gnu-user.h linux.h linux-android.h glibc-stdint.h arm/elf.h arm/linux-gas.h arm/linux-elf.h"
 	extra_options="${extra_options} linux-android.opt"
 	case $target in
@@ -1174,6 +1227,11 @@ arm*-*-linux-*)			# ARM GNU/Linux with ELF
 	esac
 	tmake_file="${tmake_file} arm/t-arm arm/t-arm-elf arm/t-bpabi arm/t-linux-eabi"
 	tm_file="$tm_file arm/bpabi.h arm/linux-eabi.h arm/aout.h arm/arm.h"
+	case $target in
+	arm*-*-uclinuxfdpiceabi)
+	    tm_file="$tm_file arm/uclinuxfdpiceabi.h"
+	    ;;
+	esac
 	# Generation of floating-point instructions requires at least ARMv5te.
 	if [ "$with_float" = "hard" -o "$with_float" = "softfp" ] ; then
 	    target_cpu_cname="arm10e"
@@ -1245,6 +1303,88 @@ avr-*-*)
 	    tm_file="${tm_file} ${cpu_type}/avrlibc.h"
 	    tm_defines="${tm_defines} WITH_AVRLIBC"
 	fi
+	case y${with_double} in
+	    y | y32)
+		avr_double=32
+		tm_defines="${tm_defines} HAVE_DOUBLE32"
+		;;
+	    y64)
+		avr_double=64
+		tm_defines="${tm_defines} HAVE_DOUBLE64"
+		;;
+	    y64,32)
+		avr_double=64
+		avr_double_multilib=1
+		tm_defines="${tm_defines} HAVE_DOUBLE32"
+		tm_defines="${tm_defines} HAVE_DOUBLE64"
+		tm_defines="${tm_defines} HAVE_DOUBLE_MULTILIB"
+		;;
+	    y32,64)
+		avr_double=32
+		avr_double_multilib=1
+		tm_defines="${tm_defines} HAVE_DOUBLE32"
+		tm_defines="${tm_defines} HAVE_DOUBLE64"
+		tm_defines="${tm_defines} HAVE_DOUBLE_MULTILIB"
+		;;
+	    *)
+		echo "Error: --with-double= can only be used with: '32', '32,64', '64,32', '64'" 1>&2
+		exit 1
+		;;
+	esac
+	case y${with_long_double} in
+	    y | y32)
+		avr_long_double=32
+		tm_defines="${tm_defines} HAVE_LONG_DOUBLE32"
+		;;
+	    y64)
+		avr_long_double=64
+		tm_defines="${tm_defines} HAVE_LONG_DOUBLE64"
+		;;
+	    y64,32)
+		avr_long_double=64
+		avr_long_double_multilib=1
+		tm_defines="${tm_defines} HAVE_LONG_DOUBLE32"
+		tm_defines="${tm_defines} HAVE_LONG_DOUBLE64"
+		tm_defines="${tm_defines} HAVE_LONG_DOUBLE_MULTILIB"
+		;;
+	    y32,64)
+		avr_long_double=32
+		avr_long_double_multilib=1
+		tm_defines="${tm_defines} HAVE_LONG_DOUBLE32"
+		tm_defines="${tm_defines} HAVE_LONG_DOUBLE64"
+		tm_defines="${tm_defines} HAVE_LONG_DOUBLE_MULTILIB"
+		;;
+	    ydouble)
+		avr_long_double=${avr_double}
+		tm_defines="${tm_defines} HAVE_LONG_DOUBLE_IS_DOUBLE"
+		if test y${avr_double_multilib} = y1; then
+		    tm_defines="${tm_defines} HAVE_LONG_DOUBLE32"
+		    tm_defines="${tm_defines} HAVE_LONG_DOUBLE64"
+		else
+		    tm_defines="${tm_defines} HAVE_LONG_DOUBLE${avr_long_double}"
+		fi
+		;;
+	    *)
+		echo "Error: --with-long_double= can only be used with: '32', '32,64', '64,32', '64', 'double'" 1>&2
+		exit 1
+		;;
+	esac
+	if test ${avr_long_double}x${avr_long_double_multilib}y${avr_double_multilib}z = 32xy1z; then
+	    if test y${with_long_double} != ydouble; then
+		echo "Error: --with-double=${with_double} requests a multilib for double, but long double is always 32 bits wide due to --with-long-double=${with_long_double}" 1>&2
+		exit 1
+	    fi
+	fi
+	if test ${avr_double}x${avr_long_double_multilib}y${avr_double_multilib}z = 64x1yz; then
+	    echo "Error: --with-long-double=${with_long_double} requests a multilib for long double, but double is always 64 bits wide due to --with-double=64" 1>&2
+	    exit 1
+	fi
+	if test y${avr_double}${avr_long_double} = y6432; then
+	    echo "Error: double default of 64 bits from --with-double=${with_double} conflicts with default of 32 bits for long double from --with-long-double=${with_long_double}" 1>&2
+	    exit 1
+	fi
+	tm_defines="${tm_defines} WITH_DOUBLE${avr_double}"
+	tm_defines="${tm_defines} WITH_LONG_DOUBLE${avr_long_double}"
 	tmake_file="${tmake_file} avr/t-avr avr/t-multilib"
 	use_gcc_stdint=wrap
 	extra_gcc_objs="driver-avr.o avr-devices.o"
@@ -1274,6 +1414,12 @@ bfin*-*)
 	use_collect2=no
 	use_gcc_stdint=wrap
 	;;
+bpf-*-*)
+        tmake_file="${tmake_file} bpf/t-bpf"
+        use_collect2=no
+        extra_headers="bpf-helpers.h"
+        use_gcc_stdint=provide
+        ;;
 cr16-*-elf)
         tm_file="elfos.h ${tm_file} newlib-stdint.h"
         tmake_file="${tmake_file} cr16/t-cr16 "
@@ -1428,6 +1574,7 @@ amdgcn-*-amdhsa)
 	fi
 	# Force .init_array support.
 	gcc_cv_initfini_array=yes
+	thread_file=gcn
 	;;
 moxie-*-elf)
 	gas=yes
@@ -1484,6 +1631,14 @@ hppa*-*-openbsd*)
 	d_target_objs="${d_target_objs} pa-d.o"
 	gas=yes
 	gnu_ld=yes
+	;;
+hppa*-*-netbsd*)
+	target_cpu_default="MASK_PA_11|MASK_NO_SPACE_REGS"
+	tm_file="${tm_file} dbxelf.h elfos.h ${nbsd_tm_file} \
+		 pa/pa-netbsd.h pa/pa32-regs.h pa/pa32-netbsd.h"
+	tmake_file="${tmake_file}"
+	tm_defines="${tm_defines} CHAR_FAST8=1 SHORT_FAST16=1"
+	extra_options="${extra_options} netbsd.opt netbsd-elf.opt"
 	;;
 hppa[12]*-*-hpux10*)
 	case ${target} in
@@ -1608,16 +1763,25 @@ hppa[12]*-*-hpux11*)
 		dwarf2=no
 	fi
 	;;
+i[34567]86-*-darwin1[89]*)
+	echo "Error: 32bit target is not supported after Darwin17" 1>&2
+	;;
 i[34567]86-*-darwin*)
 	need_64bit_isa=yes
 	# Baseline choice for a machine that allows m64 support.
+	with_cpu=${with_cpu:-core2}
+	tmake_file="${tmake_file} ${cpu_type}/t-darwin32-biarch t-slibgcc"
+	tm_file="${tm_file} ${cpu_type}/darwin32-biarch.h"
+	;;
+x86_64-*-darwin1[89]* | x86_64-*-darwin2[01]*)
+	# Only 64b from now
 	with_cpu=${with_cpu:-core2}
 	tmake_file="${tmake_file} t-slibgcc"
 	;;
 x86_64-*-darwin*)
 	with_cpu=${with_cpu:-core2}
-	tmake_file="${tmake_file} ${cpu_type}/t-darwin64 t-slibgcc"
-	tm_file="${tm_file} ${cpu_type}/darwin64.h"
+	tmake_file="${tmake_file} ${cpu_type}/t-darwin64-biarch t-slibgcc"
+	tm_file="${tm_file} ${cpu_type}/darwin64-biarch.h"
 	;;
 i[34567]86-*-elfiamcu)
 	tm_file="${tm_file} i386/unix.h i386/att.h dbxelf.h elfos.h newlib-stdint.h i386/iamcu.h"
@@ -2465,7 +2629,14 @@ msp430*-*-*)
 	c_target_objs="msp430-c.o"
 	cxx_target_objs="msp430-c.o"
 	tmake_file="${tmake_file} msp430/t-msp430"
-	extra_gcc_objs="driver-msp430.o"
+	extra_objs="${extra_objs} msp430-devices.o"
+	extra_gcc_objs="driver-msp430.o msp430-devices.o"
+	# Enable .init_array unless it has been explicitly disabled.
+	# The MSP430 EABI mandates the use of .init_array, and the Newlib CRT
+	# code since mid-2019 expects it.
+	if test x${disable_initfini_array} != xyes; then
+		gcc_cv_initfini_array=yes
+	fi
 	;;
 nds32*-*-*)
 	target_cpu_default="0"
@@ -2541,6 +2712,8 @@ or1k*-*-*)
 	for or1k_multilib in ${or1k_multilibs}; do
 		case ${or1k_multilib} in
 		mcmov | msext | msfimm | \
+		mror | mrori | \
+		mhard-float | mdouble-float | munordered-float | msoft-float | \
 		mhard-div | mhard-mul | \
 		msoft-div | msoft-mul )
 			TM_MULTILIB_CONFIG="${TM_MULTILIB_CONFIG},${or1k_multilib}"
@@ -2577,26 +2750,31 @@ pdp11-*-*)
 #	extra_headers=
 #	;;
 powerpc-*-darwin*)
-	extra_options="${extra_options} rs6000/darwin.opt"
+	extra_options="${extra_options} ${cpu_type}/darwin.opt"
 	case ${target} in
-	  *-darwin1[0-9]* | *-darwin[8-9]*)
-	    tmake_file="${tmake_file} rs6000/t-darwin8"
-	    tm_file="${tm_file} rs6000/darwin8.h"
+	  *-darwin1[0-9]* | *-darwin9*)
+	    tmake_file="${tmake_file} ${cpu_type}/t-darwin32-biarch"
+	    tm_file="${tm_file} ${cpu_type}/darwin32-biarch.h"
+	    ;;
+	  *-darwin8*)
+	    tmake_file="${tmake_file} ${cpu_type}/t-darwin32-biarch"
+	    tm_file="${tm_file} ${cpu_type}/darwin32-biarch.h"
+	    tm_file="${tm_file} ${cpu_type}/darwin8.h"
 	    ;;
 	  *-darwin7*)
-	    tm_file="${tm_file} rs6000/darwin7.h"
+	    tm_file="${tm_file} ${cpu_type}/darwin7.h"
 	    ;;
-	  *-darwin[0-6]*)
+	  *-darwin[456]*)
+	    # Earlier - ingle arch, with 32b only
+	    # OS X 10.0, the first edition is Darwin4
 	    ;;
 	esac
 	tmake_file="${tmake_file} t-slibgcc"
-	extra_headers=altivec.h
 	;;
 powerpc64-*-darwin*)
 	extra_options="${extra_options} ${cpu_type}/darwin.opt"
-	tmake_file="${tmake_file} ${cpu_type}/t-darwin64 t-slibgcc"
-	tm_file="${tm_file} ${cpu_type}/darwin8.h ${cpu_type}/darwin64.h"
-	extra_headers=altivec.h
+	tmake_file="${tmake_file} ${cpu_type}/t-darwin64-biarch t-slibgcc"
+	tm_file="${tm_file} ${cpu_type}/darwin64-biarch.h"
 	;;
 powerpc*-*-freebsd*)
 	tm_file="${tm_file} dbxelf.h elfos.h gnu-user.h ${fbsd_tm_file} rs6000/sysv4.h"
@@ -2607,8 +2785,14 @@ powerpc*-*-freebsd*)
 	    	tm_file="${tm_file} rs6000/default64.h rs6000/freebsd64.h"
 		tmake_file="${tmake_file} rs6000/t-freebsd64"
 		extra_options="${extra_options} rs6000/linux64.opt"
+		if test $fbsd_major -ge 13; then
+		    tm_defines="${tm_defines} TARGET_FREEBSD32_SECURE_PLT=1"
+		fi
 		;;
 	     *)
+		if test $fbsd_major -ge 13; then
+		    tm_file="rs6000/secureplt.h ${tm_file}"
+		fi
 	        tm_file="${tm_file} rs6000/freebsd.h"
 		;;
 	esac
@@ -2762,6 +2946,12 @@ powerpcle-*-eabi*)
 	tm_file="${tm_file} dbxelf.h elfos.h gnu-user.h usegas.h freebsd-spec.h newlib-stdint.h rs6000/sysv4.h rs6000/sysv4le.h rs6000/eabi.h"
 	tmake_file="rs6000/t-fprules rs6000/t-ppcgas rs6000/t-ppccomm"
 	extra_options="${extra_options} rs6000/sysv4.opt"
+	use_gcc_stdint=wrap
+	;;
+pru*-*-*)
+	tm_file="elfos.h newlib-stdint.h ${tm_file}"
+	tmake_file="${tmake_file} pru/t-pru"
+	extra_objs="pru-pragma.o pru-passes.o"
 	use_gcc_stdint=wrap
 	;;
 rs6000-ibm-aix6.* | powerpc-ibm-aix6.*)
@@ -3095,15 +3285,6 @@ sparc64-*-openbsd*)
 	gas=yes gnu_ld=yes
 	with_cpu=ultrasparc
 	tmake_file="${tmake_file} sparc/t-sparc"
-	;;
-spu-*-elf*)
-	tm_file="dbxelf.h elfos.h spu/spu-elf.h spu/spu.h newlib-stdint.h"
-	tmake_file="spu/t-spu-elf"
-        native_system_header_dir=/include
-	extra_headers="spu_intrinsics.h spu_internals.h vmx2spu.h spu_mfcio.h vec_types.h spu_cache.h"
-	extra_modes=spu/spu-modes.def
-	c_target_objs="${c_target_objs} spu-c.o"
-	cxx_target_objs="${cxx_target_objs} spu-c.o"
 	;;
 tic6x-*-elf)
 	tm_file="elfos.h ${tm_file} c6x/elf-common.h c6x/elf.h"
@@ -3837,32 +4018,40 @@ case "${target}" in
 				  sed -e 's/,.*$//'`
 			  fi
 
+			  # Use the pre-processor to strip flatten the options.
+			  # This makes the format less rigid than if we use
+			  # grep and sed directly here.
+			  opt_macro="AARCH64_OPT_EXTENSION(A, B, C, D, E, F)=A, B, C, D, E, F"
+			  options_parsed="`$ac_cv_prog_CPP -D"$opt_macro" -x c \
+				${srcdir}/config/aarch64/aarch64-option-extensions.def`"
+
+			  # Match one element inside AARCH64_OPT_EXTENSION, we
+			  # consume anything that's not a ,.
+			  elem="[ 	]*\([^,]\+\)[ 	]*"
+
+			  # Repeat the pattern for the number of entries in the
+			  # AARCH64_OPT_EXTENSION, currently 6 times.
+			  sed_patt="^$elem,$elem,$elem,$elem,$elem,$elem"
+
 			  while [ x"$ext_val" != x ]
 			  do
 				ext_val=`echo $ext_val | sed -e 's/\+//'`
 				ext=`echo $ext_val | sed -e 's/\+.*//'`
 				base_ext=`echo $ext | sed -e 's/^no//'`
+				opt_line=`echo -e "$options_parsed" | \
+					grep "^\"$base_ext\""`
 
 				if [ x"$base_ext" = x ] \
-				    || grep "^AARCH64_OPT_EXTENSION(\"$base_ext\"," \
-				    ${srcdir}/config/aarch64/aarch64-option-extensions.def \
-				    > /dev/null; then
+				    || [[ -n $opt_line ]]; then
 
-				  ext_canon=`grep "^AARCH64_OPT_EXTENSION(\"$base_ext\"," \
-					${srcdir}/config/aarch64/aarch64-option-extensions.def | \
-					sed -e 's/^[^,]*,[ 	]*//' | \
-					sed -e 's/,.*$//'`
-				  ext_on=`grep "^AARCH64_OPT_EXTENSION(\"$base_ext\"," \
-					${srcdir}/config/aarch64/aarch64-option-extensions.def | \
-					sed -e 's/^[^,]*,[ 	]*[^,]*,[ 	]*//' | \
-					sed -e 's/,.*$//' | \
-					sed -e 's/).*$//'`
-				  ext_off=`grep "^AARCH64_OPT_EXTENSION(\"$base_ext\"," \
-					${srcdir}/config/aarch64/aarch64-option-extensions.def | \
-					sed -e 's/^[^,]*,[ 	]*[^,]*,[ 	]*[^,]*,[ 	]*//' | \
-					sed -e 's/,.*$//' | \
-					sed -e 's/).*$//'`
-
+				  # These regexp extract the elements based on
+				  # their group match index in the regexp.
+				  ext_canon=`echo -e "$opt_line" | \
+					sed -e "s/$sed_patt/\2/"`
+				  ext_on=`echo -e "$opt_line" | \
+					sed -e "s/$sed_patt/\3/"`
+				  ext_off=`echo -e "$opt_line" | \
+					sed -e "s/$sed_patt/\4/"`
 
 				  if [ $ext = $base_ext ]; then
 					# Adding extension
@@ -3962,12 +4151,13 @@ case "${target}" in
 
 		# see if --with-fpu matches any of the supported FPUs
 		if [ x"$with_fpu" != x ] ; then
+		  val=$with_fpu
 		  fpu=`awk -f ${srcdir}/config/arm/parsecpu.awk \
-			-v cmd="chkfpu $with_fpu" \
+			-v cmd="chkfpu $val" \
 			${srcdir}/config/arm/arm-cpus.in`
-		  if [ "$fpu" = "error"]
+		  if [ "$fpu" = "error" ]
 		  then
-		    echo "Unknown target in --with-$which=$val" 1>&2
+		    echo "Unknown target in --with-fpu=$val" 1>&2
 		    exit 1
 		  fi
 		fi
@@ -4127,7 +4317,7 @@ case "${target}" in
 		for which in arch tune; do
 			eval "val=\$with_$which"
 			case ${val} in
-			"" | carrizo | fiji | gfx900 )
+			"" | carrizo | fiji | gfx900 | gfx906 )
 				# OK
 				;;
 			*)
@@ -4690,14 +4880,12 @@ case "${target}" in
 			 echo "#undef  LINK_OS_EXTRA_SPEC32"
 			 echo "#define LINK_OS_EXTRA_SPEC32" \
 			      "\"%(link_os_new_dtags)" \
-			      "-rpath $prefix/lib -rpath $at/lib" \
-			      "-L $prefix/lib -L $at/lib\""
+			      "-rpath $prefix/lib -rpath $at/lib\""
 			 echo
 			 echo "#undef  LINK_OS_EXTRA_SPEC64"
 			 echo "#define LINK_OS_EXTRA_SPEC64" \
 			      "\"%(link_os_new_dtags)" \
-			      "-rpath $prefix/lib64 -rpath $at/lib64" \
-			      "-L $prefix/lib64 -L $at/lib64\""
+			      "-rpath $prefix/lib64 -rpath $at/lib64\""
 			 echo
 			 echo "#undef  LINK_OS_NEW_DTAGS_SPEC"
 			 echo "#define LINK_OS_NEW_DTAGS_SPEC" \
@@ -4710,7 +4898,10 @@ case "${target}" in
 			 echo "#define MD_EXEC_PREFIX \"$at/bin/\""
 			 echo
 			 echo "#undef  MD_STARTFILE_PREFIX"
-			 echo "#define MD_STARTFILE_PREFIX \"$at/lib/\"") \
+			 echo "#define MD_STARTFILE_PREFIX \"$prefix/lib/\""
+			 echo
+			 echo "#undef  MD_STARTFILE_PREFIX_1"
+			 echo "#define MD_STARTFILE_PREFIX_1 \"$at/lib/\"") \
 			    > advance-toolchain.h
 		    else
 			echo "Unknown advance-toolchain $with_advance_toolchain"
@@ -4733,7 +4924,7 @@ case "${target}" in
 		for which in arch tune; do
 			eval "val=\$with_$which"
 			case ${val} in
-			"" | native | z900 | z990 | z9-109 | z9-ec | z10 | z196 | zEC12 | z13 | z14 | arch5 | arch6 | arch7 | arch8 | arch9 | arch10 | arch11 | arch12 | arch13 )
+			"" | native | z900 | z990 | z9-109 | z9-ec | z10 | z196 | zEC12 | z13 | z14 | z15 | arch5 | arch6 | arch7 | arch8 | arch9 | arch10 | arch11 | arch12 | arch13 )
 				# OK
 				;;
 			*)
@@ -4804,23 +4995,6 @@ case "${target}" in
 			exit 1
 			;;
 		esac
-		;;
-
-	spu-*-*)
-		supported_defaults="arch tune"
-
-		for which in arch tune; do
-			eval "val=\$with_$which"
-			case ${val} in
-			"" | cell | celledp)
-				# OK
-				;;
-			*)
-				echo "Unknown cpu used in --with-$which=$val." 1>&2
-				exit 1
-				;;
-			esac
-		done
 		;;
 
 	tic6x-*-*)

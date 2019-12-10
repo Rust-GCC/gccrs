@@ -22,8 +22,6 @@
 
 ; Please try to keep this file in ASCII collating order.
 
-; Describes command-line options used by this frontend
-
 Language
 Rust
 

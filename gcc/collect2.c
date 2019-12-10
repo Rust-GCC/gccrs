@@ -616,7 +616,7 @@ static const char *const target_machine = TARGET_MACHINE;
 
    Return 0 if not found, otherwise return its name, allocated with malloc.  */
 
-#if defined (OBJECT_FORMAT_NONE) || defined (OBJECT_FORMAT_COFF)
+#ifdef OBJECT_FORMAT_NONE
 
 /* Add an entry for the object file NAME to object file list LIST.
    New entries are added at the end of the list. The original pointer
@@ -636,7 +636,7 @@ add_lto_object (struct lto_object_list *list, const char *name)
 
   list->last = n;
 }
-#endif
+#endif /* OBJECT_FORMAT_NONE */
 
 
 /* Perform a link-time recompilation and relink if any of the object
@@ -824,6 +824,30 @@ maybe_run_lto_and_relink (char **lto_ld_argv, char **object_lst,
     }
   else
     post_ld_pass (false); /* No LTO objects were found, no temp file.  */
+}
+/* Entry point for linker invoation.  Called from main in collect2.c.
+   LD_ARGV is an array of arguments for the linker.  */
+
+static void
+do_link (char **ld_argv)
+{
+  struct pex_obj *pex;
+  const char *prog = "ld";
+  pex = collect_execute (prog, ld_argv, NULL, NULL,
+			 PEX_LAST | PEX_SEARCH,
+			 HAVE_GNU_LD && at_file_supplied);
+  int ret = collect_wait (prog, pex);
+  if (ret)
+    {
+      error ("ld returned %d exit status", ret);
+      exit (ret);
+    }
+  else
+    {
+      /* We have just successfully produced an output file, so assume that we
+	 may unlink it if need be for now on.  */
+      may_unlink_output_file = true;
+    }
 }
 
 /* Main program.  */
@@ -1704,7 +1728,7 @@ main (int argc, char **argv)
        functions from precise cross reference insertions by the compiler.  */
 
     if (early_exit || ld1_filter != SCAN_NOTHING)
-      do_tlink (ld1_argv, object_lst);
+      do_link (ld1_argv);
 
     if (early_exit)
       {
@@ -1762,10 +1786,10 @@ main (int argc, char **argv)
 #endif
       )
     {
-      /* Do tlink without additional code generation now if we didn't
+      /* Do link without additional code generation now if we didn't
 	 do it earlier for scanning purposes.  */
       if (ld1_filter == SCAN_NOTHING)
-	do_tlink (ld1_argv, object_lst);
+	do_link (ld1_argv);
 
       if (lto_mode)
         maybe_run_lto_and_relink (ld1_argv, object_lst, object, false);
@@ -1868,13 +1892,13 @@ main (int argc, char **argv)
 
   fork_execute ("gcc",  c_argv, at_file_supplied);
 #ifdef COLLECT_EXPORT_LIST
-  /* On AIX we must call tlink because of possible templates resolution.  */
-  do_tlink (ld2_argv, object_lst);
+  /* On AIX we must call link because of possible templates resolution.  */
+  do_link (ld2_argv);
 
   if (lto_mode)
     maybe_run_lto_and_relink (ld2_argv, object_lst, object, false);
 #else
-  /* Otherwise, simply call ld because tlink is already done.  */
+  /* Otherwise, simply call ld because link is already done.  */
   if (lto_mode)
     maybe_run_lto_and_relink (ld2_argv, object_lst, object, true);
   else
@@ -2799,10 +2823,8 @@ scan_prog_file (const char *prog_name, scanpass which_pass,
   LDFILE *ldptr = NULL;
   int sym_index, sym_count;
   int is_shared = 0;
-  int found_lto = 0;
 
-  if (which_pass != PASS_FIRST && which_pass != PASS_OBJ
-      && which_pass != PASS_LTOINFO)
+  if (which_pass != PASS_FIRST && which_pass != PASS_OBJ)
     return;
 
 #ifdef COLLECT_EXPORT_LIST
@@ -2815,7 +2837,6 @@ scan_prog_file (const char *prog_name, scanpass which_pass,
      eliminate scan_libraries() function.  */
   do
     {
-      found_lto = 0;
 #endif
       /* Some platforms (e.g. OSF4) declare ldopen as taking a
 	 non-const char * filename parameter, even though it will not
@@ -2857,19 +2878,6 @@ scan_prog_file (const char *prog_name, scanpass which_pass,
 		      if (*name == '.')
 			++name;
 #endif
-
-                      if (which_pass == PASS_LTOINFO)
-                        {
-			  if (found_lto)
-			    continue;
-			  if (strncmp (name, "__gnu_lto_v1", 12) == 0)
-			    {
-			      add_lto_object (&lto_objects, prog_name);
-			      found_lto = 1;
-			      break;
-			    }
-			  continue;
-			}
 
 		      switch (is_ctor_dtor (name))
 			{

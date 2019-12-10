@@ -123,6 +123,8 @@ arm_cpu_builtins (struct cpp_reader* pfile)
     builtin_define ("__ARM_ARCH_ISA_ARM");
   builtin_define ("__APCS_32__");
 
+  def_or_undef_macro (pfile, "__GCC_ASM_FLAG_OUTPUTS__", !TARGET_THUMB1);
+
   def_or_undef_macro (pfile, "__thumb__", TARGET_THUMB);
   def_or_undef_macro (pfile, "__thumb2__", TARGET_THUMB2);
   if (TARGET_BIG_END)
@@ -202,6 +204,8 @@ arm_cpu_builtins (struct cpp_reader* pfile)
 	builtin_define ("__ARM_PCS");
       builtin_define ("__ARM_EABI__");
     }
+
+  def_or_undef_macro (pfile, "__FDPIC__", TARGET_FDPIC);
 
   def_or_undef_macro (pfile, "__ARM_ARCH_EXT_IDIV__", TARGET_IDIV);
   def_or_undef_macro (pfile, "__ARM_FEATURE_IDIV", TARGET_IDIV);

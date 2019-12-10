@@ -45,7 +45,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgloop.h"
 #include "tree-ssa-sccvn.h"
 #include "tree-scalar-evolution.h"
-#include "params.h"
 #include "dbgcnt.h"
 #include "domwalk.h"
 #include "tree-ssa-propagate.h"
@@ -257,6 +256,7 @@ typedef struct pre_expr_d : nofree_ptr_hash <pre_expr_d>
 {
   enum pre_expr_kind kind;
   unsigned int id;
+  location_t loc;
   pre_expr_union u;
 
   /* hash_table support.  */
@@ -421,6 +421,7 @@ get_or_alloc_expr_for_name (tree name)
 
   result = pre_expr_pool.allocate ();
   result->kind = NAME;
+  result->loc = UNKNOWN_LOCATION;
   PRE_EXPR_NAME (result) = name;
   alloc_expression_id (result);
   return result;
@@ -428,8 +429,9 @@ get_or_alloc_expr_for_name (tree name)
 
 /* An unordered bitmap set.  One bitmap tracks values, the other,
    expressions.  */
-typedef struct bitmap_set
+typedef class bitmap_set
 {
+public:
   bitmap_head expressions;
   bitmap_head values;
 } *bitmap_set_t;
@@ -1076,6 +1078,7 @@ get_or_alloc_expr_for_constant (tree constant)
 
   newexpr = pre_expr_pool.allocate ();
   newexpr->kind = CONSTANT;
+  newexpr->loc = UNKNOWN_LOCATION;
   PRE_EXPR_CONSTANT (newexpr) = constant;
   alloc_expression_id (newexpr);
   value_id = get_or_alloc_constant_value_id (constant);
@@ -1152,7 +1155,7 @@ translate_vuse_through_block (vec<vn_reference_op_s> operands,
   if (gimple_bb (phi) != phiblock)
     return vuse;
 
-  unsigned int cnt = PARAM_VALUE (PARAM_SCCVN_MAX_ALIAS_QUERIES_PER_ACCESS);
+  unsigned int cnt = param_sccvn_max_alias_queries_per_access;
   use_oracle = ao_ref_init_from_vn_reference (&ref, set, type, operands);
 
   /* Use the alias-oracle to find either the PHI node in this block,
@@ -1185,8 +1188,8 @@ translate_vuse_through_block (vec<vn_reference_op_s> operands,
 	  bitmap visited = NULL;
 	  /* Try to find a vuse that dominates this phi node by skipping
 	     non-clobbering statements.  */
-	  vuse = get_continuation_for_phi (phi, &ref, cnt, &visited, false,
-					   NULL, NULL);
+	  vuse = get_continuation_for_phi (phi, &ref, true,
+					   cnt, &visited, false, NULL, NULL);
 	  if (visited)
 	    BITMAP_FREE (visited);
 	}
@@ -1333,6 +1336,7 @@ phi_translate_1 (bitmap_set_t dest,
 {
   basic_block pred = e->src;
   basic_block phiblock = e->dest;
+  location_t expr_loc = expr->loc;
   switch (expr->kind)
     {
     case NARY:
@@ -1435,6 +1439,7 @@ phi_translate_1 (bitmap_set_t dest,
 	    expr = pre_expr_pool.allocate ();
 	    expr->kind = NARY;
 	    expr->id = 0;
+	    expr->loc = expr_loc;
 	    if (nary && !nary->predicated_values)
 	      {
 		PRE_EXPR_NARY (expr) = nary;
@@ -1586,6 +1591,7 @@ phi_translate_1 (bitmap_set_t dest,
 	    expr = pre_expr_pool.allocate ();
 	    expr->kind = REFERENCE;
 	    expr->id = 0;
+	    expr->loc = expr_loc;
 
 	    if (newref)
 	      new_val_id = newref->value_id;
@@ -2012,8 +2018,6 @@ prune_clobbered_mems (bitmap_set_t set, basic_block block)
     }
 }
 
-static sbitmap has_abnormal_preds;
-
 /* Compute the ANTIC set for BLOCK.
 
    If succs(BLOCK) > 1 then
@@ -2230,7 +2234,7 @@ compute_partial_antic_aux (basic_block block,
   bitmap_set_t PA_OUT;
   edge e;
   edge_iterator ei;
-  unsigned long max_pa = PARAM_VALUE (PARAM_MAX_PARTIAL_ANTIC_LENGTH);
+  unsigned long max_pa = param_max_partial_antic_length;
 
   old_PA_IN = PA_OUT = NULL;
 
@@ -2351,7 +2355,7 @@ compute_antic (void)
 
   /* If any predecessor edges are abnormal, we punt, so antic_in is empty.
      We pre-build the map of blocks with incoming abnormal edges here.  */
-  has_abnormal_preds = sbitmap_alloc (last_basic_block_for_fn (cfun));
+  auto_sbitmap has_abnormal_preds (last_basic_block_for_fn (cfun));
   bitmap_clear (has_abnormal_preds);
 
   FOR_ALL_BB_FN (block, cfun)
@@ -2435,8 +2439,6 @@ compute_antic (void)
 						   block->index));
 	}
     }
-
-  sbitmap_free (has_abnormal_preds);
 }
 
 
@@ -2489,7 +2491,7 @@ create_component_ref_by_pieces_1 (basic_block block, vn_reference_t ref,
     case TARGET_MEM_REF:
       {
 	tree genop0 = NULL_TREE, genop1 = NULL_TREE;
-	vn_reference_op_t nextop = &ref->operands[++*operand];
+	vn_reference_op_t nextop = &ref->operands[(*operand)++];
 	tree baseop = create_component_ref_by_pieces_1 (block, ref, operand,
 							stmts);
 	if (!baseop)
@@ -2792,6 +2794,7 @@ create_expression_by_pieces (basic_block block, pre_expr expr,
 	      args.quick_push (arg);
 	    }
 	  gcall *call = gimple_build_call_vec (fn, args);
+	  gimple_set_location (call, expr->loc);
 	  gimple_call_set_fntype (call, currop->type);
 	  if (sc)
 	    gimple_call_set_chain (call, sc);
@@ -2825,6 +2828,7 @@ create_expression_by_pieces (basic_block block, pre_expr expr,
 	    return NULL_TREE;
 	  name = make_temp_ssa_name (exprtype, NULL, "pretmp");
 	  newstmt = gimple_build_assign (name, folded);
+	  gimple_set_location (newstmt, expr->loc);
 	  gimple_seq_add_stmt_without_update (&forced_stmts, newstmt);
 	  gimple_set_vuse (newstmt, BB_LIVE_VOP_ON_EXIT (block));
 	  folded = name;
@@ -2863,6 +2867,7 @@ create_expression_by_pieces (basic_block block, pre_expr expr,
 	    folded = build_constructor (nary->type, elts);
 	    name = make_temp_ssa_name (exprtype, NULL, "pretmp");
 	    newstmt = gimple_build_assign (name, folded);
+	    gimple_set_location (newstmt, expr->loc);
 	    gimple_seq_add_stmt_without_update (&forced_stmts, newstmt);
 	    folded = name;
 	  }
@@ -2871,16 +2876,17 @@ create_expression_by_pieces (basic_block block, pre_expr expr,
 	    switch (nary->length)
 	      {
 	      case 1:
-		folded = gimple_build (&forced_stmts, nary->opcode, nary->type,
-				       genop[0]);
+		folded = gimple_build (&forced_stmts, expr->loc,
+				       nary->opcode, nary->type, genop[0]);
 		break;
 	      case 2:
-		folded = gimple_build (&forced_stmts, nary->opcode, nary->type,
-				       genop[0], genop[1]);
+		folded = gimple_build (&forced_stmts, expr->loc, nary->opcode,
+				       nary->type, genop[0], genop[1]);
 		break;
 	      case 3:
-		folded = gimple_build (&forced_stmts, nary->opcode, nary->type,
-				       genop[0], genop[1], genop[2]);
+		folded = gimple_build (&forced_stmts, expr->loc, nary->opcode,
+				       nary->type, genop[0], genop[1],
+				       genop[2]);
 		break;
 	      default:
 		gcc_unreachable ();
@@ -3859,6 +3865,7 @@ compute_avail (void)
 		    result = pre_expr_pool.allocate ();
 		    result->kind = REFERENCE;
 		    result->id = 0;
+		    result->loc = gimple_location (stmt);
 		    PRE_EXPR_REFERENCE (result) = ref;
 
 		    get_or_alloc_expression_id (result);
@@ -3899,6 +3906,7 @@ compute_avail (void)
 		      result = pre_expr_pool.allocate ();
 		      result->kind = NARY;
 		      result->id = 0;
+		      result->loc = gimple_location (stmt);
 		      PRE_EXPR_NARY (result) = nary;
 		      break;
 		    }
@@ -4016,6 +4024,7 @@ compute_avail (void)
 		      result = pre_expr_pool.allocate ();
 		      result->kind = REFERENCE;
 		      result->id = 0;
+		      result->loc = gimple_location (stmt);
 		      PRE_EXPR_REFERENCE (result) = ref;
 		      break;
 		    }

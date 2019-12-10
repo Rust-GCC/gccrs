@@ -34,6 +34,9 @@ Enum(gpu_type) String(fiji) Value(PROCESSOR_FIJI)
 EnumValue
 Enum(gpu_type) String(gfx900) Value(PROCESSOR_VEGA)
 
+EnumValue
+Enum(gpu_type) String(gfx906) Value(PROCESSOR_VEGA)
+
 march=
 Target RejectNegative Joined ToLower Enum(gpu_type) Var(gcn_arch) Init(PROCESSOR_CARRIZO)
 Specify the name of the target GPU.
@@ -62,7 +65,7 @@ Target Report RejectNegative Var(flag_bypass_init_error)
 bool flag_worker_partitioning = false
 
 macc-experimental-workers
-Target Report Var(flag_worker_partitioning) Init(1)
+Target Report Var(flag_worker_partitioning) Init(0)
 
 int stack_size_opt = -1
 

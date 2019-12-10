@@ -31,7 +31,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-iterator.h"
 #include "tree-cfg.h"
 #include "tree-ssa-threadupdate.h"
-#include "params.h"
 #include "tree-ssa-scopedtables.h"
 #include "tree-ssa-threadedge.h"
 #include "tree-ssa-dom.h"
@@ -165,8 +164,8 @@ record_temporary_equivalences_from_phis (edge e,
 	  /* Get an empty new VR we can pass to update_value_range and save
 	     away in the VR stack.  */
 	  vr_values *vr_values = evrp_range_analyzer->get_vr_values ();
-	  value_range *new_vr = vr_values->allocate_value_range ();
-	  new (new_vr) value_range ();
+	  value_range_equiv *new_vr = vr_values->allocate_value_range_equiv ();
+	  new (new_vr) value_range_equiv ();
 
 	  /* There are three cases to consider:
 
@@ -183,7 +182,7 @@ record_temporary_equivalences_from_phis (edge e,
 	  else if (TREE_CODE (src) == INTEGER_CST)
 	    new_vr->set (src);
 	  else
-	    new_vr->set_varying ();
+	    new_vr->set_varying (TREE_TYPE (src));
 
 	  /* This is a temporary range for DST, so push it.  */
 	  evrp_range_analyzer->push_value_range (dst, new_vr);
@@ -234,7 +233,7 @@ record_temporary_equivalences_from_stmts_at_dest (edge e,
   gimple_stmt_iterator gsi;
   int max_stmt_count;
 
-  max_stmt_count = PARAM_VALUE (PARAM_MAX_JUMP_THREAD_DUPLICATION_STMTS);
+  max_stmt_count = param_max_jump_thread_duplication_stmts;
 
   /* Walk through each statement in the block recording equivalences
      we discover.  Note any equivalences we discover are context
@@ -275,7 +274,7 @@ record_temporary_equivalences_from_stmts_at_dest (edge e,
 	     killed due to threading, grow the max count
 	     accordingly.  */
 	  if (max_stmt_count
-	      == PARAM_VALUE (PARAM_MAX_JUMP_THREAD_DUPLICATION_STMTS))
+	      == param_max_jump_thread_duplication_stmts)
 	    {
 	      max_stmt_count += estimate_threading_killed_stmts (e->dest);
 	      if (dump_file)
@@ -331,6 +330,7 @@ record_temporary_equivalences_from_stmts_at_dest (edge e,
 	{
 	  tree fndecl = gimple_call_fndecl (stmt);
 	  if (fndecl
+	      && fndecl_built_in_p (fndecl, BUILT_IN_NORMAL)
 	      && (DECL_FUNCTION_CODE (fndecl) == BUILT_IN_OBJECT_SIZE
 		  || DECL_FUNCTION_CODE (fndecl) == BUILT_IN_CONSTANT_P))
 	    continue;
@@ -1157,6 +1157,68 @@ thread_through_normal_block (edge e,
   return 0;
 }
 
+/* There are basic blocks look like:
+   <P0>
+   p0 = a CMP b ; or p0 = (INT) (a CMP b)
+   goto <X>;
+
+   <P1>
+   p1 = c CMP d
+   goto <X>;
+
+   <X>
+   # phi = PHI <p0 (P0), p1 (P1)>
+   if (phi != 0) goto <Y>; else goto <Z>;
+
+   Then, edge (P0,X) or (P1,X) could be marked as EDGE_START_JUMP_THREAD
+   And edge (X,Y), (X,Z) is EDGE_COPY_SRC_JOINER_BLOCK
+
+   Return true if E is (P0,X) or (P1,X)  */
+
+bool
+edge_forwards_cmp_to_conditional_jump_through_empty_bb_p (edge e)
+{
+  /* See if there is only one stmt which is gcond.  */
+  gcond *gs;
+  if (!(gs = safe_dyn_cast<gcond *> (last_and_only_stmt (e->dest))))
+    return false;
+
+  /* See if gcond's cond is "(phi !=/== 0/1)" in the basic block.  */
+  tree cond = gimple_cond_lhs (gs);
+  enum tree_code code = gimple_cond_code (gs);
+  tree rhs = gimple_cond_rhs (gs);
+  if (TREE_CODE (cond) != SSA_NAME
+      || (code != NE_EXPR && code != EQ_EXPR)
+      || (!integer_onep (rhs) && !integer_zerop (rhs)))
+    return false;
+  gphi *phi = dyn_cast <gphi *> (SSA_NAME_DEF_STMT (cond));
+  if (phi == NULL || gimple_bb (phi) != e->dest)
+    return false;
+
+  /* Check if phi's incoming value is CMP.  */
+  gassign *def;
+  tree value = PHI_ARG_DEF_FROM_EDGE (phi, e);
+  if (TREE_CODE (value) != SSA_NAME
+      || !has_single_use (value)
+      || !(def = dyn_cast <gassign *> (SSA_NAME_DEF_STMT (value))))
+    return false;
+
+  /* Or if it is (INT) (a CMP b).  */
+  if (CONVERT_EXPR_CODE_P (gimple_assign_rhs_code (def)))
+    {
+      value = gimple_assign_rhs1 (def);
+      if (TREE_CODE (value) != SSA_NAME
+	  || !has_single_use (value)
+	  || !(def = dyn_cast<gassign *> (SSA_NAME_DEF_STMT (value))))
+	return false;
+    }
+
+  if (TREE_CODE_CLASS (gimple_assign_rhs_code (def)) != tcc_comparison)
+    return false;
+
+  return true;
+}
+
 /* We are exiting E->src, see if E->dest ends with a conditional
    jump which has a known value when reached via E.
 
@@ -1299,7 +1361,6 @@ thread_across_edge (gcond *dummy_cond,
 
         x = new jump_thread_edge (taken_edge, EDGE_COPY_SRC_JOINER_BLOCK);
 	path->safe_push (x);
-	found = false;
 	found = thread_around_empty_blocks (taken_edge,
 					    dummy_cond,
 					    avail_exprs_stack,
@@ -1317,10 +1378,12 @@ thread_across_edge (gcond *dummy_cond,
 
 	/* If we were able to thread through a successor of E->dest, then
 	   record the jump threading opportunity.  */
-	if (found)
+	if (found
+	    || edge_forwards_cmp_to_conditional_jump_through_empty_bb_p (e))
 	  {
-	    propagate_threaded_block_debug_into (path->last ()->e->dest,
-						 taken_edge->dest);
+	    if (taken_edge->dest != path->last ()->e->dest)
+	      propagate_threaded_block_debug_into (path->last ()->e->dest,
+						   taken_edge->dest);
 	    register_jump_thread (path);
 	  }
 	else

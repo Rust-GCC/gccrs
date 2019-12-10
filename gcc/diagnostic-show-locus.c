@@ -39,6 +39,13 @@ along with GCC; see the file COPYING3.  If not see
 # include <sys/ioctl.h>
 #endif
 
+/* Disable warnings about quoting issues in the pp_xxx calls below
+   that (intentionally) don't follow GCC diagnostic conventions.  */
+#if __GNUC__ >= 10
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wformat-diag"
+#endif
+
 /* Classes for rendering source code and diagnostics, within an
    anonymous namespace.
    The work is done by "class layout", which embeds and uses
@@ -157,8 +164,9 @@ struct line_bounds
    splits the pertinent source lines into a list of disjoint line_span
    instances (e.g. lines 5-10, lines 15-20, line 23).  */
 
-struct line_span
+class line_span
 {
+public:
   line_span (linenum_type first_line, linenum_type last_line)
     : m_first_line (first_line), m_last_line (last_line)
   {
@@ -1031,6 +1039,8 @@ layout::print_gap_in_line_numbering ()
 {
   gcc_assert (m_show_line_numbers_p);
 
+  pp_emit_prefix (m_pp);
+
   for (int i = 0; i < m_linenum_width + 1; i++)
     pp_character (m_pp, '.');
 
@@ -1258,6 +1268,8 @@ layout::print_source_line (linenum_type row, const char *line, int line_width,
 							   line_width);
   line += m_x_offset;
 
+  pp_emit_prefix (m_pp);
+
   if (m_show_line_numbers_p)
     {
       int width = num_digits (row);
@@ -1338,6 +1350,7 @@ layout::should_print_annotation_line_p (linenum_type row) const
 void
 layout::start_annotation_line (char margin_char) const
 {
+  pp_emit_prefix (m_pp);
   if (m_show_line_numbers_p)
     {
       /* Print the margin.  If MARGIN_CHAR != ' ', then print up to 3
@@ -1402,12 +1415,13 @@ layout::print_annotation_line (linenum_type row, const line_bounds lbounds)
 
    A label within the given row of source.  */
 
-struct line_label
+class line_label
 {
+public:
   line_label (int state_idx, int column, label_text text)
   : m_state_idx (state_idx), m_column (column),
     m_text (text), m_length (strlen (text.m_buffer)),
-    m_label_line (0)
+    m_label_line (0), m_has_vbar (true)
   {}
 
   /* Sorting is primarily by column, then by state index.  */
@@ -1418,7 +1432,10 @@ struct line_label
     int column_cmp = compare (ll1->m_column, ll2->m_column);
     if (column_cmp)
       return column_cmp;
-    return compare (ll1->m_state_idx, ll2->m_state_idx);
+    /* Order by reverse state index, so that labels are printed
+       in order of insertion into the rich_location when the
+       sorted list is walked backwards.  */
+    return -compare (ll1->m_state_idx, ll2->m_state_idx);
   }
 
   int m_state_idx;
@@ -1426,6 +1443,7 @@ struct line_label
   label_text m_text;
   size_t m_length;
   int m_label_line;
+  bool m_has_vbar;
 };
 
 /* Print any labels in this row.  */
@@ -1502,8 +1520,8 @@ layout::print_any_labels (linenum_type row)
        foo + bar
            ^               : label line 0
            |               : label line 1
-           label 1         : label line 2
-           label 0         : label line 3.  */
+           label 0         : label line 2
+           label 1         : label line 3.  */
 
   int max_label_line = 1;
   {
@@ -1513,7 +1531,15 @@ layout::print_any_labels (linenum_type row)
       {
 	/* Would this label "touch" or overlap the next label?  */
 	if (label->m_column + label->m_length >= (size_t)next_column)
-	  max_label_line++;
+	  {
+	    max_label_line++;
+
+	    /* If we've already seen labels with the same column, suppress the
+	       vertical bar for subsequent ones in this backwards iteration;
+	       hence only the one with the highest label_line has m_has_vbar set.  */
+	    if (label->m_column == next_column)
+	      label->m_has_vbar = false;
+	  }
 
 	label->m_label_line = max_label_line;
 	next_column = label->m_column;
@@ -1524,10 +1550,6 @@ layout::print_any_labels (linenum_type row)
      either a vertical bar ('|') for the labels that are lower down, or the
      labels themselves once we've reached their line.  */
   {
-    /* Keep track of in which column we last printed a vertical bar.
-       This allows us to suppress duplicate vertical bars for the case
-       where multiple labels are on one column.  */
-    int last_vbar = 0;
     for (int label_line = 0; label_line <= max_label_line; label_line++)
       {
 	start_annotation_line ();
@@ -1549,14 +1571,13 @@ layout::print_any_labels (linenum_type row)
 		m_colorizer.set_normal_text ();
 		column += label->m_length;
 	      }
-	    else if (label->m_column != last_vbar)
+	    else if (label->m_has_vbar)
 	      {
 		gcc_assert (column <= label->m_column);
 		move_to_column (&column, label->m_column, true);
 		m_colorizer.set_range (label->m_state_idx);
 		pp_character (m_pp, '|');
 		m_colorizer.set_normal_text ();
-		last_vbar = column;
 		column++;
 	      }
 	  }
@@ -1716,8 +1737,9 @@ layout::annotation_line_showed_range_p (linenum_type line, int start_column,
 
 /* A range of columns within a line.  */
 
-struct column_range
+class column_range
 {
+public:
   column_range (int start_, int finish_) : start (start_), finish (finish_)
   {
     /* We must have either a range, or an insertion.  */
@@ -1769,8 +1791,9 @@ get_printed_columns (const fixit_hint *hint)
    instances that affected the line, potentially consolidating hints
    into corrections to make the result easier for the user to read.  */
 
-struct correction
+class correction
 {
+public:
   correction (column_range affected_columns,
 	      column_range printed_columns,
 	      const char *new_text, size_t new_text_len)
@@ -1847,8 +1870,9 @@ correction::ensure_terminated ()
    This is used by layout::print_trailing_fixits for planning
    how to print the fix-it hints affecting the line.  */
 
-struct line_corrections
+class line_corrections
 {
+public:
   line_corrections (const char *filename, linenum_type row)
   : m_filename (filename), m_row (row)
   {}
@@ -1874,8 +1898,9 @@ line_corrections::~line_corrections ()
 /* A struct wrapping a particular source line, allowing
    run-time bounds-checking of accesses in a checked build.  */
 
-struct source_line
+class source_line
 {
+public:
   source_line (const char *filename, int line);
 
   char_span as_span () { return char_span (chars, width); }
@@ -2277,9 +2302,6 @@ diagnostic_show_locus (diagnostic_context * context,
 
   context->last_location = loc;
 
-  char *saved_prefix = pp_take_prefix (context->printer);
-  pp_set_prefix (context->printer, NULL);
-
   layout layout (context, richloc, diagnostic_kind);
   for (int line_span_idx = 0; line_span_idx < layout.get_num_line_spans ();
        line_span_idx++)
@@ -2309,8 +2331,6 @@ diagnostic_show_locus (diagnostic_context * context,
 	   row <= last_line; row++)
 	layout.print_line (row);
     }
-
-  pp_set_prefix (context->printer, saved_prefix);
 }
 
 #if CHECKING_P
@@ -2443,23 +2463,93 @@ test_one_liner_fixit_insert_after ()
 		pp_formatted_text (dc.printer));
 }
 
-/* Removal fix-it hint: removal of the ".field". */
+/* Removal fix-it hint: removal of the ".field".
+   Also verify the interaction of pp_set_prefix with rulers and
+   fix-it hints.  */
 
 static void
 test_one_liner_fixit_remove ()
 {
-  test_diagnostic_context dc;
   location_t start = linemap_position_for_column (line_table, 10);
   location_t finish = linemap_position_for_column (line_table, 15);
   location_t dot = make_location (start, start, finish);
   rich_location richloc (line_table, dot);
   richloc.add_fixit_remove ();
-  diagnostic_show_locus (&dc, &richloc, DK_ERROR);
-  ASSERT_STREQ ("\n"
-		" foo = bar.field;\n"
-		"          ^~~~~~\n"
-		"          ------\n",
-		pp_formatted_text (dc.printer));
+
+  /* Normal.  */
+  {
+    test_diagnostic_context dc;
+    diagnostic_show_locus (&dc, &richloc, DK_ERROR);
+    ASSERT_STREQ ("\n"
+		  " foo = bar.field;\n"
+		  "          ^~~~~~\n"
+		  "          ------\n",
+		  pp_formatted_text (dc.printer));
+  }
+
+  /* Test of adding a prefix.  */
+  {
+    test_diagnostic_context dc;
+    pp_prefixing_rule (dc.printer) = DIAGNOSTICS_SHOW_PREFIX_EVERY_LINE;
+    pp_set_prefix (dc.printer, xstrdup ("TEST PREFIX:"));
+    diagnostic_show_locus (&dc, &richloc, DK_ERROR);
+    ASSERT_STREQ ("\n"
+		  "TEST PREFIX: foo = bar.field;\n"
+		  "TEST PREFIX:          ^~~~~~\n"
+		  "TEST PREFIX:          ------\n",
+		  pp_formatted_text (dc.printer));
+  }
+
+  /* Normal, with ruler.  */
+  {
+    test_diagnostic_context dc;
+    dc.show_ruler_p = true;
+    dc.caret_max_width = 104;
+    diagnostic_show_locus (&dc, &richloc, DK_ERROR);
+    ASSERT_STREQ ("\n"
+		  "          0         0         0         0         0         0         0         0         0         1    \n"
+		  "          1         2         3         4         5         6         7         8         9         0    \n"
+		  " 12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234\n"
+		  " foo = bar.field;\n"
+		  "          ^~~~~~\n"
+		  "          ------\n",
+		  pp_formatted_text (dc.printer));
+  }
+
+  /* Test of adding a prefix, with ruler.  */
+  {
+    test_diagnostic_context dc;
+    dc.show_ruler_p = true;
+    dc.caret_max_width = 50;
+    pp_prefixing_rule (dc.printer) = DIAGNOSTICS_SHOW_PREFIX_EVERY_LINE;
+    pp_set_prefix (dc.printer, xstrdup ("TEST PREFIX:"));
+    diagnostic_show_locus (&dc, &richloc, DK_ERROR);
+    ASSERT_STREQ ("\n"
+		  "TEST PREFIX:          1         2         3         4         5\n"
+		  "TEST PREFIX: 12345678901234567890123456789012345678901234567890\n"
+		  "TEST PREFIX: foo = bar.field;\n"
+		  "TEST PREFIX:          ^~~~~~\n"
+		  "TEST PREFIX:          ------\n",
+		  pp_formatted_text (dc.printer));
+  }
+
+  /* Test of adding a prefix, with ruler and line numbers.  */
+  {
+    test_diagnostic_context dc;
+    dc.show_ruler_p = true;
+    dc.caret_max_width = 50;
+    dc.show_line_numbers_p = true;
+    pp_prefixing_rule (dc.printer) = DIAGNOSTICS_SHOW_PREFIX_EVERY_LINE;
+    pp_set_prefix (dc.printer, xstrdup ("TEST PREFIX:"));
+    diagnostic_show_locus (&dc, &richloc, DK_ERROR);
+    ASSERT_STREQ ("\n"
+		  "TEST PREFIX:      |          1         2         3         4         5\n"
+		  "TEST PREFIX:      | 12345678901234567890123456789012345678901234567890\n"
+		  "TEST PREFIX:    1 | foo = bar.field;\n"
+		  "TEST PREFIX:      |          ^~~~~~\n"
+		  "TEST PREFIX:      |          ------\n",
+		  pp_formatted_text (dc.printer));
+  }
 }
 
 /* Replace fix-it hint: replacing "field" with "m_field". */
@@ -2770,9 +2860,51 @@ test_one_liner_labels ()
 		  " foo = bar.field;\n"
 		  "       ^~~\n"
 		  "       |\n"
-		  "       label 2\n"
+		  "       label 0\n"
 		  "       label 1\n"
-		  "       label 0\n",
+		  "       label 2\n",
+		  pp_formatted_text (dc.printer));
+  }
+
+  /* Example of out-of-order ranges (thus requiring a sort), where
+     they overlap, and there are multiple ranges on the same point.  */
+  {
+    text_range_label label_0a ("label 0a");
+    text_range_label label_1a ("label 1a");
+    text_range_label label_2a ("label 2a");
+    text_range_label label_0b ("label 0b");
+    text_range_label label_1b ("label 1b");
+    text_range_label label_2b ("label 2b");
+    text_range_label label_0c ("label 0c");
+    text_range_label label_1c ("label 1c");
+    text_range_label label_2c ("label 2c");
+    gcc_rich_location richloc (field, &label_0a);
+    richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label_1a);
+    richloc.add_range (foo, SHOW_RANGE_WITHOUT_CARET, &label_2a);
+
+    richloc.add_range (field, SHOW_RANGE_WITHOUT_CARET, &label_0b);
+    richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label_1b);
+    richloc.add_range (foo, SHOW_RANGE_WITHOUT_CARET, &label_2b);
+
+    richloc.add_range (field, SHOW_RANGE_WITHOUT_CARET, &label_0c);
+    richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label_1c);
+    richloc.add_range (foo, SHOW_RANGE_WITHOUT_CARET, &label_2c);
+
+    test_diagnostic_context dc;
+    diagnostic_show_locus (&dc, &richloc, DK_ERROR);
+    ASSERT_STREQ ("\n"
+		  " foo = bar.field;\n"
+		  " ~~~   ~~~ ^~~~~\n"
+		  " |     |   |\n"
+		  " |     |   label 0a\n"
+		  " |     |   label 0b\n"
+		  " |     |   label 0c\n"
+		  " |     label 1a\n"
+		  " |     label 1b\n"
+		  " |     label 1c\n"
+		  " label 2a\n"
+		  " label 2b\n"
+		  " label 2c\n",
 		  pp_formatted_text (dc.printer));
   }
 
@@ -3740,3 +3872,7 @@ diagnostic_show_locus_c_tests ()
 } // namespace selftest
 
 #endif /* #if CHECKING_P */
+
+#if __GNUC__ >= 10
+#  pragma GCC diagnostic pop
+#endif

@@ -44,6 +44,8 @@
 #include "plugin-suffix.h"
 #endif
 
+#define FIELD_TGT_EMPTY (~(size_t) 0)
+
 static void gomp_target_init (void);
 
 /* The whole initialization code for offloading plugins is only run one.  */
@@ -497,17 +499,25 @@ gomp_map_val (struct target_mem_desc *tgt, void **hostaddrs, size_t i)
     return tgt->list[i].key->tgt->tgt_start
 	   + tgt->list[i].key->tgt_offset
 	   + tgt->list[i].offset;
-  if (tgt->list[i].offset == ~(uintptr_t) 0)
-    return (uintptr_t) hostaddrs[i];
-  if (tgt->list[i].offset == ~(uintptr_t) 1)
-    return 0;
-  if (tgt->list[i].offset == ~(uintptr_t) 2)
-    return tgt->list[i + 1].key->tgt->tgt_start
-	   + tgt->list[i + 1].key->tgt_offset
-	   + tgt->list[i + 1].offset
-	   + (uintptr_t) hostaddrs[i]
-	   - (uintptr_t) hostaddrs[i + 1];
-  return tgt->tgt_start + tgt->list[i].offset;
+
+  switch (tgt->list[i].offset)
+    {
+    case OFFSET_INLINED:
+      return (uintptr_t) hostaddrs[i];
+
+    case OFFSET_POINTER:
+      return 0;
+
+    case OFFSET_STRUCT:
+      return tgt->list[i + 1].key->tgt->tgt_start
+	     + tgt->list[i + 1].key->tgt_offset
+	     + tgt->list[i + 1].offset
+	     + (uintptr_t) hostaddrs[i]
+	     - (uintptr_t) hostaddrs[i + 1];
+
+    default:
+      return tgt->tgt_start + tgt->list[i].offset;
+    }
 }
 
 static inline __attribute__((always_inline)) struct target_mem_desc *
@@ -575,25 +585,41 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
 	  || (kind & typemask) == GOMP_MAP_FIRSTPRIVATE_INT)
 	{
 	  tgt->list[i].key = NULL;
-	  tgt->list[i].offset = ~(uintptr_t) 0;
+	  tgt->list[i].offset = OFFSET_INLINED;
 	  continue;
 	}
       else if ((kind & typemask) == GOMP_MAP_USE_DEVICE_PTR)
 	{
-	  cur_node.host_start = (uintptr_t) hostaddrs[i];
-	  cur_node.host_end = cur_node.host_start;
-	  splay_tree_key n = gomp_map_lookup (mem_map, &cur_node);
-	  if (n == NULL)
-	    {
-	      gomp_mutex_unlock (&devicep->lock);
-	      gomp_fatal ("use_device_ptr pointer wasn't mapped");
-	    }
-	  cur_node.host_start -= n->host_start;
-	  hostaddrs[i]
-	    = (void *) (n->tgt->tgt_start + n->tgt_offset
-			+ cur_node.host_start);
 	  tgt->list[i].key = NULL;
-	  tgt->list[i].offset = ~(uintptr_t) 0;
+	  if (!not_found_cnt)
+	    {
+	      /* In OpenMP < 5.0 and OpenACC the mapping has to be done
+		 on a separate construct prior to using use_device_{addr,ptr}.
+		 In OpenMP 5.0, map directives need to be ordered by the
+		 middle-end before the use_device_* clauses.  If
+		 !not_found_cnt, all mappings requested (if any) are already
+		 mapped, so use_device_{addr,ptr} can be resolved right away.
+		 Otherwise, if not_found_cnt, gomp_map_lookup might fail
+		 now but would succeed after performing the mappings in the
+		 following loop.  We can't defer this always to the second
+		 loop, because it is not even invoked when !not_found_cnt
+		 after the first loop.  */
+	      cur_node.host_start = (uintptr_t) hostaddrs[i];
+	      cur_node.host_end = cur_node.host_start;
+	      splay_tree_key n = gomp_map_lookup (mem_map, &cur_node);
+	      if (n == NULL)
+		{
+		  gomp_mutex_unlock (&devicep->lock);
+		  gomp_fatal ("use_device_ptr pointer wasn't mapped");
+		}
+	      cur_node.host_start -= n->host_start;
+	      hostaddrs[i]
+		= (void *) (n->tgt->tgt_start + n->tgt_offset
+			    + cur_node.host_start);
+	      tgt->list[i].offset = ~(uintptr_t) 0;
+	    }
+	  else
+	    tgt->list[i].offset = 0;
 	  continue;
 	}
       else if ((kind & typemask) == GOMP_MAP_STRUCT)
@@ -604,7 +630,7 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
 	  cur_node.host_end = (uintptr_t) hostaddrs[last]
 			      + sizes[last];
 	  tgt->list[i].key = NULL;
-	  tgt->list[i].offset = ~(uintptr_t) 2;
+	  tgt->list[i].offset = OFFSET_STRUCT;
 	  splay_tree_key n = splay_tree_lookup (mem_map, &cur_node);
 	  if (n == NULL)
 	    {
@@ -637,7 +663,7 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
       else if ((kind & typemask) == GOMP_MAP_ALWAYS_POINTER)
 	{
 	  tgt->list[i].key = NULL;
-	  tgt->list[i].offset = ~(uintptr_t) 1;
+	  tgt->list[i].offset = OFFSET_POINTER;
 	  has_firstprivate = true;
 	  continue;
 	}
@@ -667,7 +693,7 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
 	  if (!n)
 	    {
 	      tgt->list[i].key = NULL;
-	      tgt->list[i].offset = ~(uintptr_t) 1;
+	      tgt->list[i].offset = OFFSET_POINTER;
 	      continue;
 	    }
 	}
@@ -791,8 +817,25 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
 		tgt_size += len;
 		continue;
 	      case GOMP_MAP_FIRSTPRIVATE_INT:
-	      case GOMP_MAP_USE_DEVICE_PTR:
 	      case GOMP_MAP_ZERO_LEN_ARRAY_SECTION:
+		continue;
+	      case GOMP_MAP_USE_DEVICE_PTR:
+		if (tgt->list[i].offset == 0)
+		  {
+		    cur_node.host_start = (uintptr_t) hostaddrs[i];
+		    cur_node.host_end = cur_node.host_start;
+		    n = gomp_map_lookup (mem_map, &cur_node);
+		    if (n == NULL)
+		      {
+			gomp_mutex_unlock (&devicep->lock);
+			gomp_fatal ("use_device_ptr pointer wasn't mapped");
+		      }
+		    cur_node.host_start -= n->host_start;
+		    hostaddrs[i]
+		      = (void *) (n->tgt->tgt_start + n->tgt_offset
+				  + cur_node.host_start);
+		    tgt->list[i].offset = ~(uintptr_t) 0;
+		  }
 		continue;
 	      case GOMP_MAP_STRUCT:
 		first = i + 1;
@@ -875,12 +918,12 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
 		size_t align = (size_t) 1 << (kind >> rshift);
 		tgt->list[i].key = k;
 		k->tgt = tgt;
-		if (field_tgt_clear != ~(size_t) 0)
+		if (field_tgt_clear != FIELD_TGT_EMPTY)
 		  {
 		    k->tgt_offset = k->host_start - field_tgt_base
 				    + field_tgt_offset;
 		    if (i == field_tgt_clear)
-		      field_tgt_clear = ~(size_t) 0;
+		      field_tgt_clear = FIELD_TGT_EMPTY;
 		  }
 		else
 		  {

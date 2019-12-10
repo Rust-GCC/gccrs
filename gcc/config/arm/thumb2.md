@@ -24,20 +24,6 @@
 ;; changes made in armv5t as "thumb2".  These are considered part
 ;; the 16-bit Thumb-1 instruction set.
 
-;; Thumb-2 only allows shift by constant on data processing instructions
-(define_insn "*thumb_andsi_not_shiftsi_si"
-  [(set (match_operand:SI 0 "s_register_operand" "=r")
-	(and:SI (not:SI (match_operator:SI 4 "shift_operator"
-			 [(match_operand:SI 2 "s_register_operand" "r")
-			  (match_operand:SI 3 "const_int_operand" "M")]))
-		(match_operand:SI 1 "s_register_operand" "r")))]
-  "TARGET_THUMB2"
-  "bic%?\\t%0, %1, %2%S4"
-  [(set_attr "predicable" "yes")
-   (set_attr "shift" "2")
-   (set_attr "type" "alu_shift_imm")]
-)
-
 ;; We use the '0' constraint for operand 1 because reload should
 ;; be smart enough to generate an appropriate move for the r/r/r case.
 (define_insn_and_split "*thumb2_smaxsi3"
@@ -247,8 +233,8 @@
 ;; regs.  The high register alternatives are not taken into account when
 ;; choosing register preferences in order to reflect their expense.
 (define_insn "*thumb2_movsi_insn"
-  [(set (match_operand:SI 0 "nonimmediate_operand" "=rk,r,l,r,r,l ,*hk,m,*m")
-	(match_operand:SI 1 "general_operand"	   "rk,I,Py,K,j,mi,*mi,l,*hk"))]
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rk,r,l,r,r,lk*r,m")
+	(match_operand:SI 1 "general_operand"	   "rk,I,Py,K,j,mi,lk*r"))]
   "TARGET_THUMB2 && !TARGET_IWMMXT && !TARGET_HARD_FLOAT
    && (   register_operand (operands[0], SImode)
        || register_operand (operands[1], SImode))"
@@ -262,22 +248,20 @@
     case 3: return \"mvn%?\\t%0, #%B1\";
     case 4: return \"movw%?\\t%0, %1\";
     case 5:
-    case 6:
       /* Cannot load it directly, split to load it via MOV / MOVT.  */
       if (!MEM_P (operands[1]) && arm_disable_literal_pool)
 	return \"#\";
       return \"ldr%?\\t%0, %1\";
-    case 7:
-    case 8: return \"str%?\\t%1, %0\";
+    case 6: return \"str%?\\t%1, %0\";
     default: gcc_unreachable ();
     }
 }
-  [(set_attr "type" "mov_reg,mov_imm,mov_imm,mvn_imm,mov_imm,load_4,load_4,store_4,store_4")
-   (set_attr "length" "2,4,2,4,4,4,4,4,4")
+  [(set_attr "type" "mov_reg,mov_imm,mov_imm,mvn_imm,mov_imm,load_4,store_4")
+   (set_attr "length" "2,4,2,4,4,4,4")
    (set_attr "predicable" "yes")
-   (set_attr "predicable_short_it" "yes,no,yes,no,no,no,no,no,no")
-   (set_attr "pool_range" "*,*,*,*,*,1018,4094,*,*")
-   (set_attr "neg_pool_range" "*,*,*,*,*,0,0,*,*")]
+   (set_attr "predicable_short_it" "yes,no,yes,no,no,no,no")
+   (set_attr "pool_range" "*,*,*,*,*,1018,*")
+   (set_attr "neg_pool_range" "*,*,*,*,*,0,*")]
 )
 
 (define_insn "tls_load_dot_plus_four"
@@ -335,19 +319,6 @@
   [(set_attr "type" "store_8")]
 )
 
-(define_insn "*thumb2_cmpsi_neg_shiftsi"
-  [(set (reg:CC CC_REGNUM)
-	(compare:CC (match_operand:SI 0 "s_register_operand" "r")
-		    (neg:SI (match_operator:SI 3 "shift_operator"
-			     [(match_operand:SI 1 "s_register_operand" "r")
-			      (match_operand:SI 2 "const_int_operand" "M")]))))]
-  "TARGET_THUMB2"
-  "cmn%?\\t%0, %1%S3"
-  [(set_attr "conds" "set")
-   (set_attr "shift" "1")
-   (set_attr "type" "alus_shift_imm")]
-)
-
 (define_insn_and_split "*thumb2_mov_scc"
   [(set (match_operand:SI 0 "s_register_operand" "=l,r")
 	(match_operator:SI 1 "arm_comparison_operator_mode"
@@ -370,7 +341,9 @@
   [(set (match_operand:SI 0 "s_register_operand" "=r")
 	(neg:SI (match_operator:SI 1 "arm_comparison_operator_mode"
 		 [(match_operand 2 "cc_register" "") (const_int 0)])))]
-  "TARGET_THUMB2 && !arm_restrict_it"
+  "TARGET_THUMB2
+   && !arm_restrict_it
+   && !arm_borrow_operation (operands[1], SImode)"
   "#"   ; "ite\\t%D1\;mov%D1\\t%0, #0\;mvn%d1\\t%0, #0"
   "&& true"
   [(set (match_dup 0)
@@ -389,7 +362,9 @@
   [(set (match_operand:SI 0 "low_register_operand" "=l")
 	(neg:SI (match_operator:SI 1 "arm_comparison_operator_mode"
 		 [(match_operand 2 "cc_register" "") (const_int 0)])))]
-  "TARGET_THUMB2 && arm_restrict_it"
+  "TARGET_THUMB2
+   && arm_restrict_it
+   && !arm_borrow_operation (operands[1], SImode)"
   "#"   ; ";mvn\\t%0, #0 ;it\\t%D1\;mov%D1\\t%0, #0\"
   "&& reload_completed"
   [(set (match_dup 0)
@@ -1312,8 +1287,8 @@
 )
 
 (define_insn "thumb2_addsi3_compare0"
-  [(set (reg:CC_NOOV CC_REGNUM)
-	(compare:CC_NOOV
+  [(set (reg:CC_NZ CC_REGNUM)
+	(compare:CC_NZ
 	  (plus:SI (match_operand:SI 1 "s_register_operand" "l,  0, r")
 		   (match_operand:SI 2 "arm_add_operand"    "lPt,Ps,rIL"))
 	  (const_int 0)))
@@ -1346,8 +1321,8 @@
 )
 
 (define_insn "*thumb2_addsi3_compare0_scratch"
-  [(set (reg:CC_NOOV CC_REGNUM)
-	(compare:CC_NOOV
+  [(set (reg:CC_NZ CC_REGNUM)
+	(compare:CC_NZ
 	  (plus:SI (match_operand:SI 0 "s_register_operand" "l,  r")
 		   (match_operand:SI 1 "arm_add_operand"    "lPv,rIL"))
 	  (const_int 0)))]
@@ -1384,8 +1359,8 @@
    (set_attr "type" "muls")])
 
 (define_insn "*thumb2_mulsi_short_compare0"
-  [(set (reg:CC_NOOV CC_REGNUM)
-        (compare:CC_NOOV
+  [(set (reg:CC_NZ CC_REGNUM)
+        (compare:CC_NZ
          (mult:SI (match_operand:SI 1 "register_operand" "%0")
 	          (match_operand:SI 2 "register_operand" "l"))
          (const_int 0)))
@@ -1397,8 +1372,8 @@
    (set_attr "type" "muls")])
 
 (define_insn "*thumb2_mulsi_short_compare0_scratch"
-  [(set (reg:CC_NOOV CC_REGNUM)
-        (compare:CC_NOOV
+  [(set (reg:CC_NZ CC_REGNUM)
+        (compare:CC_NZ
          (mult:SI (match_operand:SI 1 "register_operand" "%0")
 	          (match_operand:SI 2 "register_operand" "l"))
          (const_int 0)))
@@ -1478,103 +1453,6 @@
    (set_attr "type" "alu_sreg")]
 )
 
-; Constants for op 2 will never be given to these patterns.
-(define_insn_and_split "*iordi_notdi_di"
-  [(set (match_operand:DI 0 "s_register_operand" "=&r,&r")
-	(ior:DI (not:DI (match_operand:DI 1 "s_register_operand" "0,r"))
-		(match_operand:DI 2 "s_register_operand" "r,0")))]
-  "TARGET_THUMB2"
-  "#"
-  "TARGET_THUMB2 && reload_completed"
-  [(set (match_dup 0) (ior:SI (not:SI (match_dup 1)) (match_dup 2)))
-   (set (match_dup 3) (ior:SI (not:SI (match_dup 4)) (match_dup 5)))]
-  "
-  {
-    operands[3] = gen_highpart (SImode, operands[0]);
-    operands[0] = gen_lowpart (SImode, operands[0]);
-    operands[4] = gen_highpart (SImode, operands[1]);
-    operands[1] = gen_lowpart (SImode, operands[1]);
-    operands[5] = gen_highpart (SImode, operands[2]);
-    operands[2] = gen_lowpart (SImode, operands[2]);
-  }"
-  [(set_attr "length" "8")
-   (set_attr "predicable" "yes")
-   (set_attr "predicable_short_it" "no")
-   (set_attr "type" "multiple")]
-)
-
-(define_insn_and_split "*iordi_notzesidi_di"
-  [(set (match_operand:DI 0 "s_register_operand" "=&r,&r")
-	(ior:DI (not:DI (zero_extend:DI
-			 (match_operand:SI 2 "s_register_operand" "r,r")))
-		(match_operand:DI 1 "s_register_operand" "0,?r")))]
-  "TARGET_THUMB2"
-  "#"
-  ; (not (zero_extend...)) means operand0 will always be 0xffffffff
-  "TARGET_THUMB2 && reload_completed"
-  [(set (match_dup 0) (ior:SI (not:SI (match_dup 2)) (match_dup 1)))
-   (set (match_dup 3) (const_int -1))]
-  "
-  {
-    operands[3] = gen_highpart (SImode, operands[0]);
-    operands[0] = gen_lowpart (SImode, operands[0]);
-    operands[1] = gen_lowpart (SImode, operands[1]);
-  }"
-  [(set_attr "length" "4,8")
-   (set_attr "predicable" "yes")
-   (set_attr "predicable_short_it" "no")
-   (set_attr "type" "multiple")]
-)
-
-(define_insn_and_split "*iordi_notdi_zesidi"
-  [(set (match_operand:DI 0 "s_register_operand" "=&r,&r")
-	(ior:DI (not:DI (match_operand:DI 2 "s_register_operand" "0,?r"))
-		(zero_extend:DI
-		 (match_operand:SI 1 "s_register_operand" "r,r"))))]
-  "TARGET_THUMB2"
-  "#"
-  "TARGET_THUMB2 && reload_completed"
-  [(set (match_dup 0) (ior:SI (not:SI (match_dup 2)) (match_dup 1)))
-   (set (match_dup 3) (not:SI (match_dup 4)))]
-  "
-  {
-    operands[3] = gen_highpart (SImode, operands[0]);
-    operands[0] = gen_lowpart (SImode, operands[0]);
-    operands[1] = gen_lowpart (SImode, operands[1]);
-    operands[4] = gen_highpart (SImode, operands[2]);
-    operands[2] = gen_lowpart (SImode, operands[2]);
-  }"
-  [(set_attr "length" "8")
-   (set_attr "predicable" "yes")
-   (set_attr "predicable_short_it" "no")
-   (set_attr "type" "multiple")]
-)
-
-(define_insn_and_split "*iordi_notsesidi_di"
-  [(set (match_operand:DI 0 "s_register_operand" "=&r,&r")
-	(ior:DI (not:DI (sign_extend:DI
-			 (match_operand:SI 2 "s_register_operand" "r,r")))
-		(match_operand:DI 1 "s_register_operand" "0,r")))]
-  "TARGET_THUMB2"
-  "#"
-  "TARGET_THUMB2 && reload_completed"
-  [(set (match_dup 0) (ior:SI (not:SI (match_dup 2)) (match_dup 1)))
-   (set (match_dup 3) (ior:SI (not:SI
-				(ashiftrt:SI (match_dup 2) (const_int 31)))
-			       (match_dup 4)))]
-  "
-  {
-    operands[3] = gen_highpart (SImode, operands[0]);
-    operands[0] = gen_lowpart (SImode, operands[0]);
-    operands[4] = gen_highpart (SImode, operands[1]);
-    operands[1] = gen_lowpart (SImode, operands[1]);
-  }"
-  [(set_attr "length" "8")
-   (set_attr "predicable" "yes")
-   (set_attr "predicable_short_it" "no")
-   (set_attr "type" "multiple")]
-)
-
 (define_insn "*orsi_notsi_si"
   [(set (match_operand:SI 0 "s_register_operand" "=r")
 	(ior:SI (not:SI (match_operand:SI 2 "s_register_operand" "r"))
@@ -1599,15 +1477,15 @@
 )
 
 (define_peephole2
-  [(set (match_operand:CC_NOOV 0 "cc_register" "")
-	(compare:CC_NOOV (zero_extract:SI
+  [(set (match_operand:CC_NZ 0 "cc_register" "")
+	(compare:CC_NZ (zero_extract:SI
 			  (match_operand:SI 1 "low_register_operand" "")
 			  (const_int 1)
 			  (match_operand:SI 2 "const_int_operand" ""))
 			 (const_int 0)))
    (match_scratch:SI 3 "l")
    (set (pc)
-	(if_then_else (match_operator:CC_NOOV 4 "equality_operator"
+	(if_then_else (match_operator:CC_NZ 4 "equality_operator"
 		       [(match_dup 0) (const_int 0)])
 		      (match_operand 5 "" "")
 		      (match_operand 6 "" "")))]
@@ -1615,7 +1493,7 @@
    && (INTVAL (operands[2]) >= 0 && INTVAL (operands[2]) < 32)
    && peep2_reg_dead_p (2, operands[0])"
   [(parallel [(set (match_dup 0)
-		   (compare:CC_NOOV (ashift:SI (match_dup 1) (match_dup 2))
+		   (compare:CC_NZ (ashift:SI (match_dup 1) (match_dup 2))
 				    (const_int 0)))
 	      (clobber (match_dup 3))])
    (set (pc)
@@ -1628,15 +1506,15 @@
   ")
 
 (define_peephole2
-  [(set (match_operand:CC_NOOV 0 "cc_register" "")
-	(compare:CC_NOOV (zero_extract:SI
+  [(set (match_operand:CC_NZ 0 "cc_register" "")
+	(compare:CC_NZ (zero_extract:SI
 			  (match_operand:SI 1 "low_register_operand" "")
 			  (match_operand:SI 2 "const_int_operand" "")
 			  (const_int 0))
 			 (const_int 0)))
    (match_scratch:SI 3 "l")
    (set (pc)
-	(if_then_else (match_operator:CC_NOOV 4 "equality_operator"
+	(if_then_else (match_operator:CC_NZ 4 "equality_operator"
 		       [(match_dup 0) (const_int 0)])
 		      (match_operand 5 "" "")
 		      (match_operand 6 "" "")))]
@@ -1644,8 +1522,8 @@
    && (INTVAL (operands[2]) > 0 && INTVAL (operands[2]) < 32)
    && peep2_reg_dead_p (2, operands[0])"
   [(parallel [(set (match_dup 0)
-		   (compare:CC_NOOV (ashift:SI (match_dup 1) (match_dup 2))
-				    (const_int 0)))
+		   (compare:CC_NZ (ashift:SI (match_dup 1) (match_dup 2))
+				  (const_int 0)))
 	      (clobber (match_dup 3))])
    (set (pc)
 	(if_then_else (match_op_dup 4 [(match_dup 0) (const_int 0)])

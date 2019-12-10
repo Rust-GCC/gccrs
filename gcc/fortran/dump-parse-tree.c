@@ -66,6 +66,19 @@ void debug (symbol_attribute *attr)
   dumpfile = tmp;
 }
 
+void debug (gfc_formal_arglist *formal)
+{
+  FILE *tmp = dumpfile;
+  dumpfile = stderr;
+  for (; formal; formal = formal->next)
+    {
+      fputc ('\n', dumpfile);
+      show_symbol (formal->sym);
+    }
+  fputc ('\n', dumpfile);
+  dumpfile = tmp;
+}
+
 void debug (symbol_attribute attr)
 {
   debug (&attr);
@@ -75,9 +88,15 @@ void debug (gfc_expr *e)
 {
   FILE *tmp = dumpfile;
   dumpfile = stderr;
-  show_expr (e);
-  fputc (' ', dumpfile);
-  show_typespec (&e->ts);
+  if (e != NULL)
+    {
+      show_expr (e);
+      fputc (' ', dumpfile);
+      show_typespec (&e->ts);
+    }
+  else
+    fputs ("() ", dumpfile);
+
   fputc ('\n', dumpfile);
   dumpfile = tmp;
 }
@@ -540,6 +559,16 @@ show_expr (gfc_expr *p)
 	  fputc (')', dumpfile);
 	  break;
 
+	case BT_BOZ:
+	  if (p->boz.rdx == 2)
+	    fputs ("b'", dumpfile);
+	  else if (p->boz.rdx == 8)
+	    fputs ("o'", dumpfile);
+	  else
+	    fputs ("z'", dumpfile);
+	  fprintf (dumpfile, "%s'", p->boz.str);
+	  break;
+
 	case BT_HOLLERITH:
 	  fprintf (dumpfile, HOST_WIDE_INT_PRINT_DEC "H",
 		   p->representation.length);
@@ -981,11 +1010,17 @@ show_symbol (gfc_symbol *sym)
       show_expr (sym->value);
     }
 
-  if (sym->as)
+  if (sym->ts.type != BT_CLASS && sym->as)
     {
       show_indent ();
       fputs ("Array spec:", dumpfile);
       show_array_spec (sym->as);
+    }
+  else if (sym->ts.type == BT_CLASS && CLASS_DATA (sym)->as)
+    {
+      show_indent ();
+      fputs ("Array spec:", dumpfile);
+      show_array_spec (CLASS_DATA (sym)->as);
     }
 
   if (sym->generic)
@@ -1482,6 +1517,7 @@ show_omp_clauses (gfc_omp_clauses *omp_clauses)
 	  case OMP_LIST_CACHE: type = "CACHE"; break;
 	  case OMP_LIST_IS_DEVICE_PTR: type = "IS_DEVICE_PTR"; break;
 	  case OMP_LIST_USE_DEVICE_PTR: type = "USE_DEVICE_PTR"; break;
+	  case OMP_LIST_USE_DEVICE_ADDR: type = "USE_DEVICE_ADDR"; break;
 	  default:
 	    gcc_unreachable ();
 	  }
@@ -1618,6 +1654,8 @@ show_omp_node (int level, gfc_code *c)
     case EXEC_OACC_PARALLEL: name = "PARALLEL"; is_oacc = true; break;
     case EXEC_OACC_KERNELS_LOOP: name = "KERNELS LOOP"; is_oacc = true; break;
     case EXEC_OACC_KERNELS: name = "KERNELS"; is_oacc = true; break;
+    case EXEC_OACC_SERIAL_LOOP: name = "SERIAL LOOP"; is_oacc = true; break;
+    case EXEC_OACC_SERIAL: name = "SERIAL"; is_oacc = true; break;
     case EXEC_OACC_DATA: name = "DATA"; is_oacc = true; break;
     case EXEC_OACC_HOST_DATA: name = "HOST_DATA"; is_oacc = true; break;
     case EXEC_OACC_LOOP: name = "LOOP"; is_oacc = true; break;
@@ -1693,6 +1731,8 @@ show_omp_node (int level, gfc_code *c)
     case EXEC_OACC_PARALLEL:
     case EXEC_OACC_KERNELS_LOOP:
     case EXEC_OACC_KERNELS:
+    case EXEC_OACC_SERIAL_LOOP:
+    case EXEC_OACC_SERIAL:
     case EXEC_OACC_DATA:
     case EXEC_OACC_HOST_DATA:
     case EXEC_OACC_LOOP:
@@ -2149,18 +2189,22 @@ show_code_node (int level, gfc_code *c)
 
     case EXEC_SELECT:
     case EXEC_SELECT_TYPE:
+    case EXEC_SELECT_RANK:
       d = c->block;
-      if (c->op == EXEC_SELECT_TYPE)
+      fputc ('\n', dumpfile);
+      code_indent (level, 0);
+      if (c->op == EXEC_SELECT_RANK)
+	fputs ("SELECT RANK ", dumpfile);
+      else if (c->op == EXEC_SELECT_TYPE)
 	fputs ("SELECT TYPE ", dumpfile);
       else
 	fputs ("SELECT CASE ", dumpfile);
       show_expr (c->expr1);
-      fputc ('\n', dumpfile);
 
       for (; d; d = d->block)
 	{
+	  fputc ('\n', dumpfile);
 	  code_indent (level, 0);
-
 	  fputs ("CASE ", dumpfile);
 	  for (cp = d->ext.block.case_list; cp; cp = cp->next)
 	    {
@@ -2171,9 +2215,9 @@ show_code_node (int level, gfc_code *c)
 	      fputc (')', dumpfile);
 	      fputc (' ', dumpfile);
 	    }
-	  fputc ('\n', dumpfile);
 
 	  show_code (level + 1, d->next);
+	  fputc ('\n', dumpfile);
 	}
 
       code_indent (level, c->label1);
@@ -2878,6 +2922,8 @@ show_code_node (int level, gfc_code *c)
     case EXEC_OACC_PARALLEL:
     case EXEC_OACC_KERNELS_LOOP:
     case EXEC_OACC_KERNELS:
+    case EXEC_OACC_SERIAL_LOOP:
+    case EXEC_OACC_SERIAL:
     case EXEC_OACC_DATA:
     case EXEC_OACC_HOST_DATA:
     case EXEC_OACC_LOOP:
@@ -3442,4 +3488,37 @@ write_interop_decl (gfc_symbol *sym)
     write_type (sym);
   else if (sym->attr.flavor == FL_PROCEDURE)
     write_proc (sym, true);
+}
+
+/* This section deals with dumping the global symbol tree.  */
+
+/* Callback function for printing out the contents of the tree.  */
+
+static void
+show_global_symbol (gfc_gsymbol *gsym, void *f_data)
+{
+  FILE *out;
+  out = (FILE *) f_data;
+
+  if (gsym->name)
+    fprintf (out, "name=%s", gsym->name);
+
+  if (gsym->sym_name)
+    fprintf (out, ", sym_name=%s", gsym->sym_name);
+
+  if (gsym->mod_name)
+    fprintf (out, ", mod_name=%s", gsym->mod_name);
+
+  if (gsym->binding_label)
+    fprintf (out, ", binding_label=%s", gsym->binding_label);
+
+  fputc ('\n', out);
+}
+
+/* Show all global symbols.  */
+
+void
+gfc_dump_global_symbols (FILE *f)
+{
+  gfc_traverse_gsymbol (gfc_gsym_root, show_global_symbol, (void *) f);
 }

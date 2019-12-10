@@ -2262,7 +2262,7 @@ package body Ch4 is
          --  capacity-exceeded error. The purpose of this trick is to avoid
          --  creating a deeply nested tree, which would cause deep recursion
          --  during semantics, causing stack overflow. This way, we can handle
-         --  enormous concatenations in the normal case of predefined "&".  We
+         --  enormous concatenations in the normal case of predefined "&". We
          --  first build up the normal tree, and then rewrite it if
          --  appropriate.
 
@@ -2850,7 +2850,7 @@ package body Ch4 is
 
             when Tok_At_Sign =>  --  AI12-0125 : target_name
                if Ada_Version < Ada_2020 then
-                  Error_Msg_SC ("target name is an Ada 2020 extension");
+                  Error_Msg_SC ("target name is an Ada 202x feature");
                   Error_Msg_SC ("\compile with -gnatX");
                end if;
 
@@ -3325,7 +3325,7 @@ package body Ch4 is
       Set_Expression (Assoc_Node, P_Expression);
 
       if Ada_Version < Ada_2020 then
-         Error_Msg_SC ("iterated component is an Ada 2020 extension");
+         Error_Msg_SC ("iterated component is an Ada 202x feature");
          Error_Msg_SC ("\compile with -gnatX");
       end if;
 

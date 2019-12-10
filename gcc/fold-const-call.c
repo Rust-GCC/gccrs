@@ -99,7 +99,7 @@ do_mpfr_ckconv (real_value *result, mpfr_srcptr m, bool inexact,
     return false;
 
   REAL_VALUE_TYPE tmp;
-  real_from_mpfr (&tmp, m, format, GMP_RNDN);
+  real_from_mpfr (&tmp, m, format, MPFR_RNDN);
 
   /* Proceed iff GCC's REAL_VALUE_TYPE can hold the MPFR values.
      If the REAL_VALUE_TYPE is zero but the mpft_t is not, then we
@@ -130,11 +130,11 @@ do_mpfr_arg1 (real_value *result,
     return false;
 
   int prec = format->p;
-  mp_rnd_t rnd = format->round_towards_zero ? GMP_RNDZ : GMP_RNDN;
+  mpfr_rnd_t rnd = format->round_towards_zero ? MPFR_RNDZ : MPFR_RNDN;
   mpfr_t m;
 
   mpfr_init2 (m, prec);
-  mpfr_from_real (m, arg, GMP_RNDN);
+  mpfr_from_real (m, arg, MPFR_RNDN);
   mpfr_clear_flags ();
   bool inexact = func (m, m, rnd);
   bool ok = do_mpfr_ckconv (result, m, inexact, format);
@@ -160,11 +160,11 @@ do_mpfr_sincos (real_value *result_sin, real_value *result_cos,
     return false;
 
   int prec = format->p;
-  mp_rnd_t rnd = format->round_towards_zero ? GMP_RNDZ : GMP_RNDN;
+  mpfr_rnd_t rnd = format->round_towards_zero ? MPFR_RNDZ : MPFR_RNDN;
   mpfr_t m, ms, mc;
 
   mpfr_inits2 (prec, m, ms, mc, NULL);
-  mpfr_from_real (m, arg, GMP_RNDN);
+  mpfr_from_real (m, arg, MPFR_RNDN);
   mpfr_clear_flags ();
   bool inexact = mpfr_sin_cos (ms, mc, m, rnd);
   bool ok = (do_mpfr_ckconv (result_sin, ms, inexact, format)
@@ -193,12 +193,12 @@ do_mpfr_arg2 (real_value *result,
     return false;
 
   int prec = format->p;
-  mp_rnd_t rnd = format->round_towards_zero ? GMP_RNDZ : GMP_RNDN;
+  mpfr_rnd_t rnd = format->round_towards_zero ? MPFR_RNDZ : MPFR_RNDN;
   mpfr_t m0, m1;
 
   mpfr_inits2 (prec, m0, m1, NULL);
-  mpfr_from_real (m0, arg0, GMP_RNDN);
-  mpfr_from_real (m1, arg1, GMP_RNDN);
+  mpfr_from_real (m0, arg0, MPFR_RNDN);
+  mpfr_from_real (m1, arg1, MPFR_RNDN);
   mpfr_clear_flags ();
   bool inexact = func (m0, m0, m1, rnd);
   bool ok = do_mpfr_ckconv (result, m0, inexact, format);
@@ -216,7 +216,7 @@ do_mpfr_arg2 (real_value *result,
 
 static bool
 do_mpfr_arg2 (real_value *result,
-	      int (*func) (mpfr_ptr, long, mpfr_srcptr, mp_rnd_t),
+	      int (*func) (mpfr_ptr, long, mpfr_srcptr, mpfr_rnd_t),
 	      const wide_int_ref &arg0, const real_value *arg1,
 	      const real_format *format)
 {
@@ -224,11 +224,11 @@ do_mpfr_arg2 (real_value *result,
     return false;
 
   int prec = format->p;
-  mp_rnd_t rnd = format->round_towards_zero ? GMP_RNDZ : GMP_RNDN;
+  mpfr_rnd_t rnd = format->round_towards_zero ? MPFR_RNDZ : MPFR_RNDN;
   mpfr_t m;
 
   mpfr_init2 (m, prec);
-  mpfr_from_real (m, arg1, GMP_RNDN);
+  mpfr_from_real (m, arg1, MPFR_RNDN);
   mpfr_clear_flags ();
   bool inexact = func (m, arg0.to_shwi (), m, rnd);
   bool ok = do_mpfr_ckconv (result, m, inexact, format);
@@ -260,13 +260,13 @@ do_mpfr_arg3 (real_value *result,
     return false;
 
   int prec = format->p;
-  mp_rnd_t rnd = format->round_towards_zero ? GMP_RNDZ : GMP_RNDN;
+  mpfr_rnd_t rnd = format->round_towards_zero ? MPFR_RNDZ : MPFR_RNDN;
   mpfr_t m0, m1, m2;
 
   mpfr_inits2 (prec, m0, m1, m2, NULL);
-  mpfr_from_real (m0, arg0, GMP_RNDN);
-  mpfr_from_real (m1, arg1, GMP_RNDN);
-  mpfr_from_real (m2, arg2, GMP_RNDN);
+  mpfr_from_real (m0, arg0, MPFR_RNDN);
+  mpfr_from_real (m1, arg1, MPFR_RNDN);
+  mpfr_from_real (m2, arg2, MPFR_RNDN);
   mpfr_clear_flags ();
   bool inexact = func (m0, m0, m1, m2, rnd);
   bool ok = do_mpfr_ckconv (result, m0, inexact, format);
@@ -296,8 +296,8 @@ do_mpc_ckconv (real_value *result_real, real_value *result_imag,
     return false;
 
   REAL_VALUE_TYPE tmp_real, tmp_imag;
-  real_from_mpfr (&tmp_real, mpc_realref (m), format, GMP_RNDN);
-  real_from_mpfr (&tmp_imag, mpc_imagref (m), format, GMP_RNDN);
+  real_from_mpfr (&tmp_real, mpc_realref (m), format, MPFR_RNDN);
+  real_from_mpfr (&tmp_imag, mpc_imagref (m), format, MPFR_RNDN);
 
   /* Proceed iff GCC's REAL_VALUE_TYPE can hold the MPFR values.
      If the REAL_VALUE_TYPE is zero but the mpft_t is not, then we
@@ -341,8 +341,8 @@ do_mpc_arg1 (real_value *result_real, real_value *result_imag,
   mpc_t m;
 
   mpc_init2 (m, prec);
-  mpfr_from_real (mpc_realref (m), arg_real, GMP_RNDN);
-  mpfr_from_real (mpc_imagref (m), arg_imag, GMP_RNDN);
+  mpfr_from_real (mpc_realref (m), arg_real, MPFR_RNDN);
+  mpfr_from_real (mpc_imagref (m), arg_imag, MPFR_RNDN);
   mpfr_clear_flags ();
   bool inexact = func (m, m, crnd);
   bool ok = do_mpc_ckconv (result_real, result_imag, m, inexact, format);
@@ -378,10 +378,10 @@ do_mpc_arg2 (real_value *result_real, real_value *result_imag,
 
   mpc_init2 (m0, prec);
   mpc_init2 (m1, prec);
-  mpfr_from_real (mpc_realref (m0), arg0_real, GMP_RNDN);
-  mpfr_from_real (mpc_imagref (m0), arg0_imag, GMP_RNDN);
-  mpfr_from_real (mpc_realref (m1), arg1_real, GMP_RNDN);
-  mpfr_from_real (mpc_imagref (m1), arg1_imag, GMP_RNDN);
+  mpfr_from_real (mpc_realref (m0), arg0_real, MPFR_RNDN);
+  mpfr_from_real (mpc_imagref (m0), arg0_imag, MPFR_RNDN);
+  mpfr_from_real (mpc_realref (m1), arg1_real, MPFR_RNDN);
+  mpfr_from_real (mpc_imagref (m1), arg1_imag, MPFR_RNDN);
   mpfr_clear_flags ();
   bool inexact = func (m0, m0, m1, crnd);
   bool ok = do_mpc_ckconv (result_real, result_imag, m0, inexact, format);
@@ -691,6 +691,36 @@ fold_const_vec_convert (tree ret_type, tree arg)
 
 /* Try to evaluate:
 
+      IFN_WHILE_ULT (ARG0, ARG1, (TYPE) { ... })
+
+   Return the value on success and null on failure.  */
+
+static tree
+fold_while_ult (tree type, poly_uint64 arg0, poly_uint64 arg1)
+{
+  if (known_ge (arg0, arg1))
+    return build_zero_cst (type);
+
+  if (maybe_ge (arg0, arg1))
+    return NULL_TREE;
+
+  poly_uint64 diff = arg1 - arg0;
+  poly_uint64 nelts = TYPE_VECTOR_SUBPARTS (type);
+  if (known_ge (diff, nelts))
+    return build_all_ones_cst (type);
+
+  unsigned HOST_WIDE_INT const_diff;
+  if (known_le (diff, nelts) && diff.is_constant (&const_diff))
+    {
+      tree minus_one = build_minus_one_cst (TREE_TYPE (type));
+      tree zero = build_zero_cst (TREE_TYPE (type));
+      return build_vector_a_then_b (type, const_diff, minus_one, zero);
+    }
+  return NULL_TREE;
+}
+
+/* Try to evaluate:
+
       *RESULT = FN (*ARG)
 
    in format FORMAT.  Return true on success.  */
@@ -806,7 +836,7 @@ fold_const_call_ss (real_value *result, combined_fn fn,
 
     CASE_CFN_FLOOR:
     CASE_CFN_FLOOR_FN:
-      if (!REAL_VALUE_ISNAN (*arg) || !flag_errno_math)
+      if (!REAL_VALUE_ISSIGNALING_NAN (*arg))
 	{
 	  real_floor (result, format, arg);
 	  return true;
@@ -815,7 +845,7 @@ fold_const_call_ss (real_value *result, combined_fn fn,
 
     CASE_CFN_CEIL:
     CASE_CFN_CEIL_FN:
-      if (!REAL_VALUE_ISNAN (*arg) || !flag_errno_math)
+      if (!REAL_VALUE_ISSIGNALING_NAN (*arg))
 	{
 	  real_ceil (result, format, arg);
 	  return true;
@@ -824,14 +854,27 @@ fold_const_call_ss (real_value *result, combined_fn fn,
 
     CASE_CFN_TRUNC:
     CASE_CFN_TRUNC_FN:
-      real_trunc (result, format, arg);
-      return true;
+      if (!REAL_VALUE_ISSIGNALING_NAN (*arg))
+	{
+	  real_trunc (result, format, arg);
+	  return true;
+	}
+      return false;
 
     CASE_CFN_ROUND:
     CASE_CFN_ROUND_FN:
-      if (!REAL_VALUE_ISNAN (*arg) || !flag_errno_math)
+      if (!REAL_VALUE_ISSIGNALING_NAN (*arg))
 	{
 	  real_round (result, format, arg);
+	  return true;
+	}
+      return false;
+
+    CASE_CFN_ROUNDEVEN:
+    CASE_CFN_ROUNDEVEN_FN:
+      if (!REAL_VALUE_ISSIGNALING_NAN (*arg))
+	{
+	  real_roundeven (result, format, arg);
 	  return true;
 	}
       return false;
@@ -1781,6 +1824,14 @@ fold_const_call (combined_fn fn, tree type, tree arg0, tree arg1, tree arg2)
 			       fold_build_pointer_plus_hwi (arg0, r - p0));
 	}
       return NULL_TREE;
+
+    case CFN_WHILE_ULT:
+      {
+	poly_uint64 parg0, parg1;
+	if (poly_int_tree_p (arg0, &parg0) && poly_int_tree_p (arg1, &parg1))
+	  return fold_while_ult (type, parg0, parg1);
+	return NULL_TREE;
+      }
 
     default:
       return fold_const_call_1 (fn, type, arg0, arg1, arg2);

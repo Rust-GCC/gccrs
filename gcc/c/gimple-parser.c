@@ -63,13 +63,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-phinodes.h"
 #include "tree-into-ssa.h"
 #include "bitmap.h"
-#include "params.h"
 
 
 /* GIMPLE parser state.  */
 
-struct gimple_parser
+class gimple_parser
 {
+public:
   gimple_parser (c_parser *p) : parser (p), edges(), current_bb(NULL) {}
   /* c_parser is not visible here, use composition and fake inheritance
      via a conversion operator.  */
@@ -77,8 +77,9 @@ struct gimple_parser
   c_parser *parser;
 
   /* CFG build state.  */
-  struct gimple_parser_edge
+  class gimple_parser_edge
   {
+  public:
     int src;
     int dest;
     int flags;
@@ -115,6 +116,7 @@ static struct c_expr c_parser_gimple_postfix_expression_after_primary
 static void c_parser_gimple_declaration (gimple_parser &);
 static void c_parser_gimple_goto_stmt (gimple_parser &, location_t,
 				       tree, gimple_seq *);
+static void c_parser_gimple_try_stmt (gimple_parser &, gimple_seq *);
 static void c_parser_gimple_if_stmt (gimple_parser &, gimple_seq *);
 static void c_parser_gimple_switch_stmt (gimple_parser &, gimple_seq *);
 static void c_parser_gimple_return_stmt (gimple_parser &, gimple_seq *);
@@ -232,6 +234,7 @@ c_parser_parse_gimple_body (c_parser *cparser, char *gimple_pass,
       /* We have at least cdil_gimple_cfg.  */
       gimple_register_cfg_hooks ();
       init_empty_tree_cfg ();
+      parser.current_bb = ENTRY_BLOCK_PTR_FOR_FN (cfun);
       /* Initialize the bare loop structure - we are going to only
          mark headers and leave the rest to fixup.  */
       set_loops_for_fn (cfun, ggc_cleared_alloc<struct loops> ());
@@ -350,9 +353,11 @@ c_parser_parse_gimple_body (c_parser *cparser, char *gimple_pass,
   if (cfun->curr_properties & PROP_cfg)
     {
       ENTRY_BLOCK_PTR_FOR_FN (cfun)->count = entry_bb_count;
-      gcov_type t = PARAM_VALUE (PARAM_GIMPLE_FE_COMPUTED_HOT_BB_THRESHOLD);
+      gcov_type t = param_gimple_fe_computed_hot_bb_threshold;
       set_hot_bb_threshold (t);
       update_max_bb_count ();
+      cgraph_node::get_create (cfun->decl);
+      cgraph_edge::rebuild_edges ();
     }
   dump_function (TDI_gimple, current_function_decl);
 }
@@ -405,6 +410,9 @@ c_parser_gimple_compound_statement (gimple_parser &parser, gimple_seq *seq)
 	case CPP_KEYWORD:
 	  switch (c_parser_peek_token (parser)->keyword)
 	    {
+	    case RID_AT_TRY:
+	      c_parser_gimple_try_stmt (parser, seq);
+	      break;
 	    case RID_IF:
 	      c_parser_gimple_if_stmt (parser, seq);
 	      break;
@@ -444,6 +452,14 @@ c_parser_gimple_compound_statement (gimple_parser &parser, gimple_seq *seq)
 	  if (c_parser_peek_2nd_token (parser)->type == CPP_COLON)
 	    {
 	      c_parser_gimple_label (parser, seq);
+	      break;
+	    }
+	  if (c_parser_next_token_is (parser, CPP_NAME)
+	      && c_parser_peek_token (parser)->id_kind == C_ID_ID
+	      && strcmp (IDENTIFIER_POINTER (c_parser_peek_token (parser)->value),
+			 "try") == 0)
+	    {
+	      c_parser_gimple_try_stmt (parser, seq);
 	      break;
 	    }
 	  /* Basic block specification.
@@ -578,12 +594,12 @@ c_parser_gimple_compound_statement (gimple_parser &parser, gimple_seq *seq)
 	      if (last_basic_block_for_fn (cfun) <= index)
 		last_basic_block_for_fn (cfun) = index + 1;
 	      n_basic_blocks_for_fn (cfun)++;
-	      if (!parser.current_bb)
+	      if (parser.current_bb->index == ENTRY_BLOCK)
 		parser.push_edge (ENTRY_BLOCK, bb->index, EDGE_FALLTHRU,
 				  profile_probability::always ());
 
 	      /* We leave the proper setting to fixup.  */
-	      struct loop *loop_father = loops_for_fn (cfun)->tree_root;
+	      class loop *loop_father = loops_for_fn (cfun)->tree_root;
 	      /* If the new block is a loop header, allocate a loop
 		 struct.  Fixup will take care of proper placement within
 		 the loop tree.  */
@@ -596,7 +612,7 @@ c_parser_gimple_compound_statement (gimple_parser &parser, gimple_seq *seq)
 		    }
 		  else
 		    {
-		      struct loop *loop = alloc_loop ();
+		      class loop *loop = alloc_loop ();
 		      loop->num = is_loop_header_of;
 		      loop->header = bb;
 		      vec_safe_grow_cleared (loops_for_fn (cfun)->larray,
@@ -1379,6 +1395,7 @@ c_parser_gimple_postfix_expression (gimple_parser &parser)
     case CPP_CHAR:
     case CPP_CHAR16:
     case CPP_CHAR32:
+    case CPP_UTF8CHAR:
     case CPP_WCHAR:
       expr.value = c_parser_peek_token (parser)->value;
       set_c_expr_source_range (&expr, tok_range);
@@ -1389,10 +1406,7 @@ c_parser_gimple_postfix_expression (gimple_parser &parser)
     case CPP_STRING32:
     case CPP_WSTRING:
     case CPP_UTF8STRING:
-      expr.value = c_parser_peek_token (parser)->value;
-      set_c_expr_source_range (&expr, tok_range);
-      expr.original_code = STRING_CST;
-      c_parser_consume_token (parser);
+      expr = c_parser_string_literal (parser, false, true);
       break;
     case CPP_DOT:
       expr = c_parser_gimple_call_internal (parser);
@@ -1596,17 +1610,24 @@ c_parser_gimple_postfix_expression (gimple_parser &parser)
 		}
 	      else
 		{
-		  bool neg_p;
+		  bool neg_p, addr_p;
 		  if ((neg_p = c_parser_next_token_is (parser, CPP_MINUS)))
+		    c_parser_consume_token (parser);
+		  if ((addr_p = c_parser_next_token_is (parser, CPP_AND)))
 		    c_parser_consume_token (parser);
 		  tree val = c_parser_gimple_postfix_expression (parser).value;
 		  if (! val
 		      || val == error_mark_node
-		      || ! CONSTANT_CLASS_P (val))
+		      || (!CONSTANT_CLASS_P (val)
+			  && !(addr_p
+			       && (TREE_CODE (val) == STRING_CST
+				   || DECL_P (val)))))
 		    {
 		      c_parser_error (parser, "invalid _Literal");
 		      return expr;
 		    }
+		  if (addr_p)
+		    val = build1 (ADDR_EXPR, type, val);
 		  if (neg_p)
 		    {
 		      val = const_unop (NEGATE_EXPR, TREE_TYPE (val), val);
@@ -1902,8 +1923,8 @@ c_parser_gimple_or_rtl_pass_list (c_parser *parser, c_declspecs *specs)
 	      return;
 	    }
 	  pass = xstrdup (TREE_STRING_POINTER
-				(c_parser_peek_token (parser)->value));
-	  c_parser_consume_token (parser);
+			  (c_parser_string_literal (parser, false,
+						    false).value));
 	  if (! c_parser_require (parser, CPP_CLOSE_PAREN, "expected %<(%>"))
 	    return;
 	}
@@ -1994,7 +2015,7 @@ c_parser_gimple_declaration (gimple_parser &parser)
   struct c_declarator *declarator;
   struct c_declspecs *specs = build_null_declspecs ();
   c_parser_declspecs (parser, specs, true, true, true,
-		      true, true, cla_nonabstract_decl);
+		      true, true, true, true, cla_nonabstract_decl);
   finish_declspecs (specs);
 
   /* Provide better error recovery.  Note that a type name here is usually
@@ -2019,13 +2040,13 @@ c_parser_gimple_declaration (gimple_parser &parser)
       unsigned version, ver_offset;
       if (declarator->kind == cdk_id
 	  && is_gimple_reg_type (specs->type)
-	  && c_parser_parse_ssa_name_id (declarator->u.id,
+	  && c_parser_parse_ssa_name_id (declarator->u.id.id,
 					 &version, &ver_offset)
 	  /* The following restricts it to unnamed anonymous SSA names
 	     which fails parsing of named ones in dumps (we could
 	     decide to not dump their name for -gimple).  */
 	  && ver_offset == 0)
-	c_parser_parse_ssa_name (parser, declarator->u.id, specs->type,
+	c_parser_parse_ssa_name (parser, declarator->u.id.id, specs->type,
 				 version, ver_offset);
       else
 	{
@@ -2081,6 +2102,55 @@ c_parser_gimple_paren_condition (gimple_parser &parser)
   if (! c_parser_require (parser, CPP_CLOSE_PAREN, "expected %<)%>"))
     return error_mark_node;
   return cond;
+}
+
+/* Parse gimple try statement.
+
+   try-statement:
+     try { ... } finally { ... }
+     try { ... } finally { ... } else { ... }
+
+   This could support try/catch as well, but it's not implemented yet.
+ */
+
+static void
+c_parser_gimple_try_stmt (gimple_parser &parser, gimple_seq *seq)
+{
+  gimple_seq tryseq = NULL;
+  c_parser_consume_token (parser);
+  c_parser_gimple_compound_statement (parser, &tryseq);
+
+  if ((c_parser_next_token_is (parser, CPP_KEYWORD)
+       && c_parser_peek_token (parser)->keyword == RID_AT_FINALLY)
+      || (c_parser_next_token_is (parser, CPP_NAME)
+	  && c_parser_peek_token (parser)->id_kind == C_ID_ID
+	  && strcmp (IDENTIFIER_POINTER (c_parser_peek_token (parser)->value),
+		     "finally") == 0))
+    {
+      gimple_seq finseq = NULL;
+      c_parser_consume_token (parser);
+      c_parser_gimple_compound_statement (parser, &finseq);
+
+      if (c_parser_next_token_is (parser, CPP_KEYWORD)
+	  && c_parser_peek_token (parser)->keyword == RID_ELSE)
+	{
+	  gimple_seq elsseq = NULL;
+	  c_parser_consume_token (parser);
+	  c_parser_gimple_compound_statement (parser, &elsseq);
+
+	  geh_else *stmt = gimple_build_eh_else (finseq, elsseq);
+	  finseq = NULL;
+	  gimple_seq_add_stmt_without_update (&finseq, stmt);
+	}
+
+      gtry *stmt = gimple_build_try (tryseq, finseq, GIMPLE_TRY_FINALLY);
+      gimple_seq_add_stmt_without_update (seq, stmt);
+    }
+  else if (c_parser_next_token_is (parser, CPP_KEYWORD)
+      && c_parser_peek_token (parser)->keyword == RID_AT_CATCH)
+    c_parser_error (parser, "%<catch%> is not supported");
+  else
+    c_parser_error (parser, "expected %<finally%> or %<catch%>");
 }
 
 /* Parse gimple if-else statement.

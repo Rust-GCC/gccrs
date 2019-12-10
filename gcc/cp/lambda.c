@@ -128,22 +128,15 @@ build_lambda_object (tree lambda_expr)
 tree
 begin_lambda_type (tree lambda)
 {
-  tree type;
+  /* Lambda names are nearly but not quite anonymous.  */
+  tree name = make_anon_name ();
+  IDENTIFIER_LAMBDA_P (name) = true;
 
-  {
-    /* Unique name.  This is just like an unnamed class, but we cannot use
-       make_anon_name because of certain checks against TYPE_UNNAMED_P.  */
-    tree name;
-    name = make_lambda_name ();
-
-    /* Create the new RECORD_TYPE for this lambda.  */
-    type = xref_tag (/*tag_code=*/record_type,
-                     name,
-                     /*scope=*/ts_lambda,
-                     /*template_header_p=*/false);
-    if (type == error_mark_node)
-      return error_mark_node;
-  }
+  /* Create the new RECORD_TYPE for this lambda.  */
+  tree type = xref_tag (/*tag_code=*/record_type, name,
+			/*scope=*/ts_lambda, /*template_header_p=*/false);
+  if (type == error_mark_node)
+    return error_mark_node;
 
   /* Designate it as a struct so that we can use aggregate initialization.  */
   CLASSTYPE_DECLARED_CLASS (type) = false;
@@ -220,16 +213,7 @@ lambda_capture_field_type (tree expr, bool explicit_init_p,
   tree type;
   bool is_this = is_this_parameter (tree_strip_nop_conversions (expr));
 
-  if (!is_this && type_dependent_expression_p (expr))
-    {
-      type = cxx_make_type (DECLTYPE_TYPE);
-      DECLTYPE_TYPE_EXPR (type) = expr;
-      DECLTYPE_FOR_LAMBDA_CAPTURE (type) = true;
-      DECLTYPE_FOR_INIT_CAPTURE (type) = explicit_init_p;
-      DECLTYPE_FOR_REF_CAPTURE (type) = by_reference_p;
-      SET_TYPE_STRUCTURAL_EQUALITY (type);
-    }
-  else if (!is_this && explicit_init_p)
+  if (!is_this && explicit_init_p)
     {
       tree auto_node = make_auto ();
       
@@ -239,6 +223,14 @@ lambda_capture_field_type (tree expr, bool explicit_init_p,
 	   outermost CV qualifiers of EXPR.  */
 	type = build_reference_type (type);
       type = do_auto_deduction (type, expr, auto_node);
+    }
+  else if (!is_this && type_dependent_expression_p (expr))
+    {
+      type = cxx_make_type (DECLTYPE_TYPE);
+      DECLTYPE_TYPE_EXPR (type) = expr;
+      DECLTYPE_FOR_LAMBDA_CAPTURE (type) = true;
+      DECLTYPE_FOR_REF_CAPTURE (type) = by_reference_p;
+      SET_TYPE_STRUCTURAL_EQUALITY (type);
     }
   else
     {
@@ -601,7 +593,16 @@ add_capture (tree lambda, tree id, tree orig_init, bool by_reference_p,
   name = get_identifier (buf);
 
   if (variadic)
-    type = make_pack_expansion (type);
+    {
+      type = make_pack_expansion (type);
+      if (explicit_init_p)
+	/* With an explicit initializer 'type' is auto, which isn't really a
+	   parameter pack in this context.  We will want as many fields as we
+	   have elements in the expansion of the initializer, so use its packs
+	   instead.  */
+	PACK_EXPANSION_PARAMETER_PACKS (type)
+	  = uses_parameter_packs (initializer);
+    }
 
   /* Make member variable.  */
   member = build_decl (input_location, FIELD_DECL, name, type);
@@ -696,8 +697,7 @@ add_default_capture (tree lambda_stack, tree id, tree initializer)
       /* Warn about deprecated implicit capture of this via [=].  */
       if (cxx_dialect >= cxx2a
 	  && this_capture_p
-	  && LAMBDA_EXPR_DEFAULT_CAPTURE_MODE (lambda) == CPLD_COPY
-	  && !in_system_header_at (LAMBDA_EXPR_LOCATION (lambda)))
+	  && LAMBDA_EXPR_DEFAULT_CAPTURE_MODE (lambda) == CPLD_COPY)
 	{
 	  if (warning_at (LAMBDA_EXPR_LOCATION (lambda), OPT_Wdeprecated,
 			  "implicit capture of %qE via %<[=]%> is deprecated "
@@ -1039,12 +1039,18 @@ maybe_add_lambda_conv_op (tree type)
 
   bool const generic_lambda_p = generic_lambda_fn_p (callop);
 
-  if (!generic_lambda_p && DECL_INITIAL (callop) == NULL_TREE)
+  if (!generic_lambda_p && undeduced_auto_decl (callop))
     {
-      /* If the op() wasn't instantiated due to errors, give up.  */
+      /* If the op() wasn't deduced due to errors, give up.  */
       gcc_assert (errorcount || sorrycount);
       return;
     }
+
+  /* Non-generic non-capturing lambdas only have a conversion function to
+     pointer to function when the trailing requires-clause's constraints are
+     satisfied.  */
+  if (!generic_lambda_p && !constraints_satisfied_p (callop))
+    return;
 
   /* Non-template conversion operators are defined directly with build_call_a
      and using DIRECT_ARGVEC for arguments (including 'this').  Templates are
@@ -1188,6 +1194,9 @@ maybe_add_lambda_conv_op (tree type)
   DECL_ARTIFICIAL (fn) = 1;
   DECL_NOT_REALLY_EXTERN (fn) = 1;
   DECL_DECLARED_INLINE_P (fn) = 1;
+  DECL_DECLARED_CONSTEXPR_P (fn) = DECL_DECLARED_CONSTEXPR_P (callop);
+  if (DECL_IMMEDIATE_FUNCTION_P (callop))
+    SET_DECL_IMMEDIATE_FUNCTION_P (fn);
   DECL_ARGUMENTS (fn) = build_this_parm (fn, fntype, TYPE_QUAL_CONST);
 
   if (nested_def)
@@ -1220,6 +1229,9 @@ maybe_add_lambda_conv_op (tree type)
   DECL_NOT_REALLY_EXTERN (fn) = 1;
   DECL_DECLARED_INLINE_P (fn) = 1;
   DECL_STATIC_FUNCTION_P (fn) = 1;
+  DECL_DECLARED_CONSTEXPR_P (fn) = DECL_DECLARED_CONSTEXPR_P (callop);
+  if (DECL_IMMEDIATE_FUNCTION_P (callop))
+    SET_DECL_IMMEDIATE_FUNCTION_P (fn);
   DECL_ARGUMENTS (fn) = fn_args;
   for (tree arg = fn_args; arg; arg = DECL_CHAIN (arg))
     {

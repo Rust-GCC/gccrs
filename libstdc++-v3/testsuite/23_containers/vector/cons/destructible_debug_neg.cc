@@ -17,6 +17,7 @@
 
 // { dg-options "-D_GLIBCXX_DEBUG" }
 // { dg-do compile { target c++11 } }
+// { dg-skip-if "" { *-*-* } { "-D_GLIBCXX_PARALLEL" } }
 
 #include <vector>
 
@@ -46,3 +47,7 @@ test02()
 
 // In Debug Mode the "required from here" errors come from <debug/vector>
 // { dg-error "required from here" "" { target *-*-* } 163 }
+
+// Needed because of PR c++/92193
+// { dg-prune-output "deleted function" }
+// { dg-prune-output "private within this context" }

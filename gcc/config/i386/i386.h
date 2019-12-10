@@ -93,6 +93,8 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define TARGET_AVX512VNNI_P(x) TARGET_ISA_AVX512VNNI_P(x)
 #define TARGET_AVX512BITALG	TARGET_ISA_AVX512BITALG
 #define TARGET_AVX512BITALG_P(x) TARGET_ISA_AVX512BITALG_P(x)
+#define TARGET_AVX512VP2INTERSECT	TARGET_ISA_AVX512VP2INTERSECT
+#define TARGET_AVX512VP2INTERSECT_P(x) TARGET_ISA_AVX512VP2INTERSECT_P(x)
 #define TARGET_FMA	TARGET_ISA_FMA
 #define TARGET_FMA_P(x)	TARGET_ISA_FMA_P(x)
 #define TARGET_SSE4A	TARGET_ISA_SSE4A
@@ -235,9 +237,46 @@ struct stringop_algs
   } size [MAX_STRINGOP_ALGS];
 };
 
-/* Define the specific costs for a given cpu */
+/* Define the specific costs for a given cpu.  NB: hard_register is used
+   by TARGET_REGISTER_MOVE_COST and TARGET_MEMORY_MOVE_COST to compute
+   hard register move costs by register allocator.  Relative costs of
+   pseudo register load and store versus pseudo register moves in RTL
+   expressions for TARGET_RTX_COSTS can be different from relative
+   costs of hard registers to get the most efficient operations with
+   pseudo registers.  */
 
 struct processor_costs {
+  /* Costs used by register allocator.  integer->integer register move
+     cost is 2.  */
+  struct
+    {
+      const int movzbl_load;	/* cost of loading using movzbl */
+      const int int_load[3];	/* cost of loading integer registers
+				   in QImode, HImode and SImode relative
+				   to reg-reg move (2).  */
+      const int int_store[3];	/* cost of storing integer register
+				   in QImode, HImode and SImode */
+      const int fp_move;	/* cost of reg,reg fld/fst */
+      const int fp_load[3];	/* cost of loading FP register
+				   in SFmode, DFmode and XFmode */
+      const int fp_store[3];	/* cost of storing FP register
+				   in SFmode, DFmode and XFmode */
+      const int mmx_move;	/* cost of moving MMX register.  */
+      const int mmx_load[2];	/* cost of loading MMX register
+				   in SImode and DImode */
+      const int mmx_store[2];	/* cost of storing MMX register
+				   in SImode and DImode */
+      const int xmm_move;	/* cost of moving XMM register.  */
+      const int ymm_move;	/* cost of moving XMM register.  */
+      const int zmm_move;	/* cost of moving XMM register.  */
+      const int sse_load[5];	/* cost of loading SSE register
+				   in 32bit, 64bit, 128bit, 256bit and 512bit */
+      const int sse_store[5];	/* cost of storing SSE register
+				   in SImode, DImode and TImode.  */
+      const int sse_to_integer;	/* cost of moving SSE register to integer.  */
+      const int integer_to_sse;	/* cost of moving integer register to SSE. */
+    } hard_register;
+
   const int add;		/* cost of an add instruction */
   const int lea;		/* cost of a lea instruction */
   const int shift_var;		/* variable shift costs */
@@ -252,33 +291,22 @@ struct processor_costs {
   const int large_insn;		/* insns larger than this cost more */
   const int move_ratio;		/* The threshold of number of scalar
 				   memory-to-memory move insns.  */
-  const int movzbl_load;	/* cost of loading using movzbl */
+  const int clear_ratio;	/* The threshold of number of scalar
+				   memory clearing insns.  */
   const int int_load[3];	/* cost of loading integer registers
 				   in QImode, HImode and SImode relative
 				   to reg-reg move (2).  */
   const int int_store[3];	/* cost of storing integer register
 				   in QImode, HImode and SImode */
-  const int fp_move;		/* cost of reg,reg fld/fst */
-  const int fp_load[3];		/* cost of loading FP register
-				   in SFmode, DFmode and XFmode */
-  const int fp_store[3];	/* cost of storing FP register
-				   in SFmode, DFmode and XFmode */
-  const int mmx_move;		/* cost of moving MMX register.  */
-  const int mmx_load[2];	/* cost of loading MMX register
-				   in SImode and DImode */
-  const int mmx_store[2];	/* cost of storing MMX register
-				   in SImode and DImode */
-  const int xmm_move, ymm_move, /* cost of moving XMM and YMM register.  */
-	    zmm_move;
   const int sse_load[5];	/* cost of loading SSE register
 				   in 32bit, 64bit, 128bit, 256bit and 512bit */
-  const int sse_unaligned_load[5];/* cost of unaligned load.  */
   const int sse_store[5];	/* cost of storing SSE register
-				   in SImode, DImode and TImode.  */
+				   in 32bit, 64bit, 128bit, 256bit and 512bit */
+  const int sse_unaligned_load[5];/* cost of unaligned load.  */
   const int sse_unaligned_store[5];/* cost of unaligned store.  */
-  const int mmxsse_to_integer;	/* cost of moving mmxsse register to
-				   integer.  */
-  const int ssemmx_to_integer;  /* cost of moving integer to mmxsse register. */
+  const int xmm_move, ymm_move, /* cost of moving XMM and YMM register.  */
+	    zmm_move;
+  const int sse_to_integer;	/* cost of moving SSE register to integer.  */
   const int gather_static, gather_per_elt; /* Cost of gather load is computed
 				   as static + per_item * nelts. */
   const int scatter_static, scatter_per_elt; /* Cost of gather store is
@@ -414,6 +442,8 @@ extern const struct processor_costs ix86_size_cost;
 #define TARGET_ICELAKE_CLIENT (ix86_tune == PROCESSOR_ICELAKE_CLIENT)
 #define TARGET_ICELAKE_SERVER (ix86_tune == PROCESSOR_ICELAKE_SERVER)
 #define TARGET_CASCADELAKE (ix86_tune == PROCESSOR_CASCADELAKE)
+#define TARGET_TIGERLAKE (ix86_tune == PROCESSOR_TIGERLAKE)
+#define TARGET_COOPERLAKE (ix86_tune == PROCESSOR_COOPERLAKE)
 #define TARGET_INTEL (ix86_tune == PROCESSOR_INTEL)
 #define TARGET_GENERIC (ix86_tune == PROCESSOR_GENERIC)
 #define TARGET_AMDFAM10 (ix86_tune == PROCESSOR_AMDFAM10)
@@ -548,8 +578,8 @@ extern unsigned char ix86_tune_features[X86_TUNE_LAST];
 	ix86_tune_features[X86_TUNE_AVOID_LEA_FOR_ADDR]
 #define TARGET_SOFTWARE_PREFETCHING_BENEFICIAL \
 	ix86_tune_features[X86_TUNE_SOFTWARE_PREFETCHING_BENEFICIAL]
-#define TARGET_AVX128_OPTIMAL \
-	ix86_tune_features[X86_TUNE_AVX128_OPTIMAL]
+#define TARGET_AVX256_SPLIT_REGS \
+	ix86_tune_features[X86_TUNE_AVX256_SPLIT_REGS]
 #define TARGET_GENERAL_REGS_SSE_SPILL \
 	ix86_tune_features[X86_TUNE_GENERAL_REGS_SSE_SPILL]
 #define TARGET_AVOID_MEM_OPND_FOR_CMOVE \
@@ -562,6 +592,8 @@ extern unsigned char ix86_tune_features[X86_TUNE_LAST];
 	ix86_tune_features[X86_TUNE_AVOID_FALSE_DEP_FOR_BMI]
 #define TARGET_ONE_IF_CONV_INSN \
 	ix86_tune_features[X86_TUNE_ONE_IF_CONV_INSN]
+#define TARGET_USE_XCHG_FOR_ATOMIC_STORE \
+	ix86_tune_features[X86_TUNE_USE_XCHG_FOR_ATOMIC_STORE]
 #define TARGET_EMIT_VZEROUPPER \
 	ix86_tune_features[X86_TUNE_EMIT_VZEROUPPER]
 
@@ -646,7 +678,7 @@ extern tree x86_mfence;
 /* Replace MACH-O, ifdefs by in-line tests, where possible. 
    (a) Macros defined in config/i386/darwin.h  */
 #define TARGET_MACHO 0
-#define TARGET_MACHO_BRANCH_ISLANDS 0
+#define TARGET_MACHO_SYMBOL_STUBS 0
 #define MACHOPIC_ATT_STUB 0
 /* (b) Macros defined in config/darwin.h  */
 #define MACHO_DYNAMIC_NO_PIC_P 0
@@ -675,6 +707,12 @@ extern tree x86_mfence;
 /* Subtargets may reset this to 1 in order to enable 96-bit long double
    with the rounding mode forced to 53 bits.  */
 #define TARGET_96_ROUND_53_LONG_DOUBLE 0
+
+#ifndef SUBTARGET_DRIVER_SELF_SPECS
+# define SUBTARGET_DRIVER_SELF_SPECS ""
+#endif
+
+#define DRIVER_SELF_SPECS SUBTARGET_DRIVER_SELF_SPECS
 
 /* -march=native handling only makes sense with compiler running on
    an x86 or x86_64 chip.  If changing this condition, also change
@@ -1126,6 +1164,8 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 
 #define HARD_REGNO_NREGS_WITH_PADDING(REGNO, MODE) ((MODE) == XFmode ? 4 : 8)
 
+#define REGMODE_NATURAL_SIZE(MODE) ix86_regmode_natural_size (MODE)
+
 #define VALID_AVX256_REG_MODE(MODE)					\
   ((MODE) == V32QImode || (MODE) == V16HImode || (MODE) == V8SImode	\
    || (MODE) == V4DImode || (MODE) == V2TImode || (MODE) == V8SFmode	\
@@ -1220,7 +1260,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #define HARD_REGNO_CALLER_SAVE_MODE(REGNO, NREGS, MODE)			\
   (CC_REGNO_P (REGNO) ? VOIDmode					\
    : (MODE) == VOIDmode && (NREGS) != 1 ? VOIDmode			\
-   : (MODE) == VOIDmode ? choose_hard_reg_mode ((REGNO), (NREGS), false) \
+   : (MODE) == VOIDmode ? choose_hard_reg_mode ((REGNO), (NREGS), NULL)	\
    : (MODE) == HImode && !((GENERAL_REGNO_P (REGNO)			\
 			    && TARGET_PARTIAL_REG_STALL)		\
 			   || MASK_REGNO_P (REGNO)) ? SImode		\
@@ -1510,6 +1550,7 @@ enum reg_class
 
 #define MASK_REG_P(X) (REG_P (X) && MASK_REGNO_P (REGNO (X)))
 #define MASK_REGNO_P(N) IN_RANGE ((N), FIRST_MASK_REG, LAST_MASK_REG)
+#define MASK_PAIR_REGNO_P(N) ((((N) - FIRST_MASK_REG) & 1) == 0)
 
 #define MMX_REG_P(X) (REG_P (X) && MMX_REGNO_P (REGNO (X)))
 #define MMX_REGNO_P(N) IN_RANGE ((N), FIRST_MMX_REG, LAST_MMX_REG)
@@ -1897,7 +1938,7 @@ typedef struct ix86_args {
    ? GET_MODE_SIZE (TImode) : UNITS_PER_WORD)
 
 /* If a memory-to-memory move would take MOVE_RATIO or more simple
-   move-instruction pairs, we will do a movmem or libcall instead.
+   move-instruction pairs, we will do a cpymem or libcall instead.
    Increasing the value will always make code faster, but eventually
    incurs high cost in increased code size.
 
@@ -1908,7 +1949,7 @@ typedef struct ix86_args {
 /* If a clear memory operation would take CLEAR_RATIO or more simple
    move-instruction sequences, we will do a clrmem or libcall instead.  */
 
-#define CLEAR_RATIO(speed) ((speed) ? MIN (6, ix86_cost->move_ratio) : 2)
+#define CLEAR_RATIO(speed) ((speed) ? ix86_cost->clear_ratio : 2)
 
 /* Define if shifts truncate the shift count which implies one can
    omit a sign-extension or zero-extension of a shift count.
@@ -2268,6 +2309,8 @@ enum processor_type
   PROCESSOR_ICELAKE_CLIENT,
   PROCESSOR_ICELAKE_SERVER,
   PROCESSOR_CASCADELAKE,
+  PROCESSOR_TIGERLAKE,
+  PROCESSOR_COOPERLAKE,
   PROCESSOR_INTEL,
   PROCESSOR_GEODE,
   PROCESSOR_K6,
@@ -2363,9 +2406,12 @@ const wide_int_bitmask PTA_AVX512BITALG (0, HOST_WIDE_INT_1U << 5);
 const wide_int_bitmask PTA_RDPID (0, HOST_WIDE_INT_1U << 6);
 const wide_int_bitmask PTA_PCONFIG (0, HOST_WIDE_INT_1U << 7);
 const wide_int_bitmask PTA_WBNOINVD (0, HOST_WIDE_INT_1U << 8);
+const wide_int_bitmask PTA_AVX512VP2INTERSECT (0, HOST_WIDE_INT_1U << 9);
 const wide_int_bitmask PTA_WAITPKG (0, HOST_WIDE_INT_1U << 9);
 const wide_int_bitmask PTA_PTWRITE (0, HOST_WIDE_INT_1U << 10);
 const wide_int_bitmask PTA_AVX512BF16 (0, HOST_WIDE_INT_1U << 11);
+const wide_int_bitmask PTA_MOVDIRI(0, HOST_WIDE_INT_1U << 13);
+const wide_int_bitmask PTA_MOVDIR64B(0, HOST_WIDE_INT_1U << 14);
 
 const wide_int_bitmask PTA_CORE2 = PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2
   | PTA_SSE3 | PTA_SSSE3 | PTA_CX16 | PTA_FXSR;
@@ -2386,14 +2432,17 @@ const wide_int_bitmask PTA_SKYLAKE_AVX512 = PTA_SKYLAKE | PTA_AVX512F
   | PTA_AVX512CD | PTA_AVX512VL | PTA_AVX512BW | PTA_AVX512DQ | PTA_PKU
   | PTA_CLWB;
 const wide_int_bitmask PTA_CASCADELAKE = PTA_SKYLAKE_AVX512 | PTA_AVX512VNNI;
+const wide_int_bitmask PTA_COOPERLAKE = PTA_CASCADELAKE | PTA_AVX512BF16;
 const wide_int_bitmask PTA_CANNONLAKE = PTA_SKYLAKE | PTA_AVX512F
   | PTA_AVX512CD | PTA_AVX512VL | PTA_AVX512BW | PTA_AVX512DQ | PTA_PKU
   | PTA_AVX512VBMI | PTA_AVX512IFMA | PTA_SHA;
 const wide_int_bitmask PTA_ICELAKE_CLIENT = PTA_CANNONLAKE | PTA_AVX512VNNI
   | PTA_GFNI | PTA_VAES | PTA_AVX512VBMI2 | PTA_VPCLMULQDQ | PTA_AVX512BITALG
-  | PTA_RDPID | PTA_CLWB;
+  | PTA_RDPID | PTA_CLWB | PTA_AVX512VPOPCNTDQ;
 const wide_int_bitmask PTA_ICELAKE_SERVER = PTA_ICELAKE_CLIENT | PTA_PCONFIG
   | PTA_WBNOINVD;
+const wide_int_bitmask PTA_TIGERLAKE = PTA_ICELAKE_CLIENT | PTA_MOVDIRI
+  | PTA_MOVDIR64B | PTA_AVX512VP2INTERSECT;
 const wide_int_bitmask PTA_KNL = PTA_BROADWELL | PTA_AVX512PF | PTA_AVX512ER
   | PTA_AVX512F | PTA_AVX512CD;
 const wide_int_bitmask PTA_BONNELL = PTA_CORE2 | PTA_MOVBE;
@@ -2412,8 +2461,9 @@ const wide_int_bitmask PTA_KNM = PTA_KNL | PTA_AVX5124VNNIW
 
 #include "insn-attr-common.h"
 
-struct pta
+class pta
 {
+public:
   const char *const name;		/* processor name or nickname.  */
   const enum processor_type processor;
   const enum attr_cpu schedule;
@@ -2465,6 +2515,7 @@ enum ix86_stack_slot
 {
   SLOT_TEMP = 0,
   SLOT_CW_STORED,
+  SLOT_CW_ROUNDEVEN,
   SLOT_CW_TRUNC,
   SLOT_CW_FLOOR,
   SLOT_CW_CEIL,
@@ -2476,6 +2527,7 @@ enum ix86_entity
 {
   X86_DIRFLAG = 0,
   AVX_U128,
+  I387_ROUNDEVEN,
   I387_TRUNC,
   I387_FLOOR,
   I387_CEIL,
@@ -2511,7 +2563,7 @@ enum avx_u128_state
 
 #define NUM_MODES_FOR_MODE_SWITCHING			\
   { X86_DIRFLAG_ANY, AVX_U128_ANY,			\
-    I387_CW_ANY, I387_CW_ANY, I387_CW_ANY }
+    I387_CW_ANY, I387_CW_ANY, I387_CW_ANY, I387_CW_ANY  }
 
 
 /* Avoid renaming of stack registers, as doing so in combination with
@@ -2593,6 +2645,11 @@ struct GTY(()) ix86_frame
   /* When save_regs_using_mov is set, emit prologue using
      move instead of push instructions.  */
   bool save_regs_using_mov;
+
+  /* Assume without checking that:
+       EXPENSIVE_P = expensive_function_p (EXPENSIVE_COUNT).  */
+  bool expensive_p;
+  int expensive_count;
 };
 
 /* Machine specific frame tracking during prologue/epilogue generation.  All

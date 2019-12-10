@@ -361,7 +361,7 @@ handle_pragma_weak (cpp_reader * ARG_UNUSED (dummy))
   if (t == CPP_EQ)
     {
       if (pragma_lex (&value) != CPP_NAME)
-	GCC_BAD ("%<malformed #pragma weak%>, ignored");
+	GCC_BAD ("malformed %<#pragma weak%>, ignored");
       t = pragma_lex (&x);
     }
   if (t != CPP_EOF)
@@ -1291,6 +1291,7 @@ static const struct omp_pragma_def oacc_pragmas[] = {
   { "loop", PRAGMA_OACC_LOOP },
   { "parallel", PRAGMA_OACC_PARALLEL },
   { "routine", PRAGMA_OACC_ROUTINE },
+  { "serial", PRAGMA_OACC_SERIAL },
   { "update", PRAGMA_OACC_UPDATE },
   { "wait", PRAGMA_OACC_WAIT }
 };
@@ -1318,8 +1319,10 @@ static const struct omp_pragma_def omp_pragmas_simd[] = {
   { "declare", PRAGMA_OMP_DECLARE },
   { "distribute", PRAGMA_OMP_DISTRIBUTE },
   { "for", PRAGMA_OMP_FOR },
+  { "loop", PRAGMA_OMP_LOOP },
   { "ordered", PRAGMA_OMP_ORDERED },
   { "parallel", PRAGMA_OMP_PARALLEL },
+  { "scan", PRAGMA_OMP_SCAN },
   { "simd", PRAGMA_OMP_SIMD },
   { "target", PRAGMA_OMP_TARGET },
   { "taskloop", PRAGMA_OMP_TASKLOOP },

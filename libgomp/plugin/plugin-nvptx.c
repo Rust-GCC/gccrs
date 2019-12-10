@@ -34,7 +34,6 @@
 #define _GNU_SOURCE
 #include "openacc.h"
 #include "config.h"
-#include "gstdint.h"
 #include "libgomp-plugin.h"
 #include "oacc-plugin.h"
 #include "gomp-constants.h"
@@ -1576,7 +1575,7 @@ GOMP_OFFLOAD_openacc_cuda_set_stream (struct goacc_asyncqueue *aq, void *stream)
 }
 
 struct goacc_asyncqueue *
-GOMP_OFFLOAD_openacc_async_construct (void)
+GOMP_OFFLOAD_openacc_async_construct (int device __attribute__((unused)))
 {
   CUstream stream = NULL;
   CUDA_CALL_ERET (NULL, cuStreamCreate, &stream, CU_STREAM_DEFAULT);

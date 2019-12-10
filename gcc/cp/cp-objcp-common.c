@@ -24,6 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cp-tree.h"
 #include "cp-objcp-common.h"
 #include "dwarf2.h"
+#include "stringpool.h"
 
 /* Special routine to get the alias set for C++.  */
 
@@ -67,7 +68,7 @@ cp_tree_size (enum tree_code code)
     case PTRMEM_CST:		return sizeof (ptrmem_cst);
     case BASELINK:		return sizeof (tree_baselink);
     case TEMPLATE_PARM_INDEX:	return sizeof (template_parm_index);
-    case DEFAULT_ARG:		return sizeof (tree_default_arg);
+    case DEFERRED_PARSE:	return sizeof (tree_deferred_parse);
     case DEFERRED_NOEXCEPT:	return sizeof (tree_deferred_noexcept);
     case OVERLOAD:		return sizeof (tree_overload);
     case STATIC_ASSERT:         return sizeof (tree_static_assert);
@@ -122,7 +123,7 @@ cxx_types_compatible_p (tree x, tree y)
   return same_type_ignoring_top_level_qualifiers_p (x, y);
 }
 
-static GTY((cache)) tree_cache_map *debug_type_map;
+static GTY((cache)) type_tree_cache_map *debug_type_map;
 
 /* Return a type to use in the debug info instead of TYPE, or NULL_TREE to
    keep TYPE.  */
@@ -145,11 +146,9 @@ cp_get_debug_type (const_tree type)
   if (dtype)
     {
       tree ktype = CONST_CAST_TREE (type);
-      if (debug_type_map == NULL)
-	debug_type_map = tree_cache_map::create_ggc (512);
-      else if (tree *slot = debug_type_map->get (ktype))
+      if (tree *slot = hash_map_safe_get (debug_type_map, ktype))
 	return *slot;
-      debug_type_map->put (ktype, dtype);
+      hash_map_safe_put<hm_ggc> (debug_type_map, ktype, dtype);
     }
 
   return dtype;
@@ -350,6 +349,86 @@ identifier_global_value (tree name)
   return get_global_binding (name);
 }
 
+/* Similarly, but return struct/class/union NAME instead.  */
+
+tree
+identifier_global_tag (tree name)
+{
+  return lookup_qualified_name (global_namespace, name, /*prefer_type*/2,
+				/*complain*/false);
+}
+
+/* Returns true if NAME refers to a built-in function or function-like
+   operator.  */
+
+bool
+names_builtin_p (const char *name)
+{
+  tree id = get_identifier (name);
+  if (tree binding = get_global_binding (id))
+    {
+      if (TREE_CODE (binding) == FUNCTION_DECL && DECL_IS_BUILTIN (binding))
+	return true;
+
+      /* Handle the case when an overload for a  built-in name exists.  */
+      if (TREE_CODE (binding) != OVERLOAD)
+	return false;
+
+      for (ovl_iterator it (binding); it; ++it)
+	{
+	  tree decl = *it;
+	  if (DECL_IS_BUILTIN (decl))
+	    return true;
+	}
+    }
+
+  /* Also detect common reserved C++ words that aren't strictly built-in
+     functions.  */
+  switch (C_RID_CODE (id))
+    {
+    case RID_ADDRESSOF:
+    case RID_BUILTIN_CONVERTVECTOR:
+    case RID_BUILTIN_HAS_ATTRIBUTE:
+    case RID_BUILTIN_SHUFFLE:
+    case RID_BUILTIN_LAUNDER:
+    case RID_OFFSETOF:
+    case RID_HAS_NOTHROW_ASSIGN:
+    case RID_HAS_NOTHROW_CONSTRUCTOR:
+    case RID_HAS_NOTHROW_COPY:
+    case RID_HAS_TRIVIAL_ASSIGN:
+    case RID_HAS_TRIVIAL_CONSTRUCTOR:
+    case RID_HAS_TRIVIAL_COPY:
+    case RID_HAS_TRIVIAL_DESTRUCTOR:
+    case RID_HAS_UNIQUE_OBJ_REPRESENTATIONS:
+    case RID_HAS_VIRTUAL_DESTRUCTOR:
+    case RID_IS_ABSTRACT:
+    case RID_IS_AGGREGATE:
+    case RID_IS_BASE_OF:
+    case RID_IS_CLASS:
+    case RID_IS_EMPTY:
+    case RID_IS_ENUM:
+    case RID_IS_FINAL:
+    case RID_IS_LITERAL_TYPE:
+    case RID_IS_POD:
+    case RID_IS_POLYMORPHIC:
+    case RID_IS_SAME_AS:
+    case RID_IS_STD_LAYOUT:
+    case RID_IS_TRIVIAL:
+    case RID_IS_TRIVIALLY_ASSIGNABLE:
+    case RID_IS_TRIVIALLY_CONSTRUCTIBLE:
+    case RID_IS_TRIVIALLY_COPYABLE:
+    case RID_IS_UNION:
+    case RID_IS_ASSIGNABLE:
+    case RID_IS_CONSTRUCTIBLE:
+    case RID_UNDERLYING_TYPE:
+      return true;
+    default:
+      break;
+    }
+
+  return false;
+}
+
 /* Register c++-specific dumps.  */
 
 void
@@ -365,105 +444,109 @@ cp_register_dumps (gcc::dump_manager *dumps)
 void
 cp_common_init_ts (void)
 {
-  MARK_TS_DECL_NON_COMMON (USING_DECL);
-  MARK_TS_DECL_COMMON (TEMPLATE_DECL);
-  MARK_TS_DECL_COMMON (WILDCARD_DECL);
+  /* With type.  */
+  MARK_TS_TYPED (PTRMEM_CST);
+  MARK_TS_TYPED (LAMBDA_EXPR);
+  MARK_TS_TYPED (TYPE_ARGUMENT_PACK);
 
-  MARK_TS_COMMON (TEMPLATE_TEMPLATE_PARM);
-  MARK_TS_COMMON (TEMPLATE_TYPE_PARM);
-  MARK_TS_COMMON (TEMPLATE_PARM_INDEX);
+  /* Random new trees.  */
+  MARK_TS_COMMON (BASELINK);
+  MARK_TS_COMMON (DECLTYPE_TYPE);
   MARK_TS_COMMON (OVERLOAD);
-  MARK_TS_COMMON (TEMPLATE_INFO);
+  MARK_TS_COMMON (TEMPLATE_PARM_INDEX);
   MARK_TS_COMMON (TYPENAME_TYPE);
   MARK_TS_COMMON (TYPEOF_TYPE);
-  MARK_TS_COMMON (UNDERLYING_TYPE);
-  MARK_TS_COMMON (BASELINK);
-  MARK_TS_COMMON (TYPE_PACK_EXPANSION);
-  MARK_TS_COMMON (TYPE_ARGUMENT_PACK);
-  MARK_TS_COMMON (DECLTYPE_TYPE);
-  MARK_TS_COMMON (BOUND_TEMPLATE_TEMPLATE_PARM);
   MARK_TS_COMMON (UNBOUND_CLASS_TEMPLATE);
+  MARK_TS_COMMON (UNDERLYING_TYPE);
 
-  MARK_TS_TYPED (SWITCH_STMT);
-  MARK_TS_TYPED (IF_STMT);
-  MARK_TS_TYPED (FOR_STMT);
-  MARK_TS_TYPED (RANGE_FOR_STMT);
-  MARK_TS_TYPED (EH_SPEC_BLOCK);
-  MARK_TS_TYPED (CLEANUP_STMT);
-  MARK_TS_TYPED (SCOPE_REF);
-  MARK_TS_TYPED (TRY_BLOCK);
-  MARK_TS_TYPED (HANDLER);
-  MARK_TS_TYPED (TYPE_ARGUMENT_PACK);
-  MARK_TS_TYPED (NOEXCEPT_EXPR);
-  MARK_TS_TYPED (WHILE_STMT);
-  MARK_TS_TYPED (BREAK_STMT);
-  MARK_TS_TYPED (DO_STMT);
-  MARK_TS_TYPED (CONTINUE_STMT);
-  MARK_TS_TYPED (PTRMEM_CST);
-  MARK_TS_TYPED (USING_STMT);
-  MARK_TS_TYPED (OMP_DEPOBJ);
+  /* New decls.  */
+  MARK_TS_DECL_COMMON (TEMPLATE_DECL);
+  MARK_TS_DECL_COMMON (WILDCARD_DECL);
+  MARK_TS_DECL_COMMON (CONCEPT_DECL);
 
-  MARK_TS_EXP (AGGR_INIT_EXPR);
-  MARK_TS_EXP (CTOR_INITIALIZER);
-  MARK_TS_EXP (EXPR_STMT);
-  MARK_TS_EXP (TAG_DEFN);
-  MARK_TS_EXP (EMPTY_CLASS_EXPR);
-  MARK_TS_EXP (MODOP_EXPR);
-  MARK_TS_EXP (THROW_EXPR);
-  MARK_TS_EXP (CAST_EXPR);
-  MARK_TS_EXP (TYPE_EXPR);
-  MARK_TS_EXP (REINTERPRET_CAST_EXPR);
-  MARK_TS_EXP (CONST_CAST_EXPR);
-  MARK_TS_EXP (STATIC_CAST_EXPR);
-  MARK_TS_EXP (DYNAMIC_CAST_EXPR);
-  MARK_TS_EXP (IMPLICIT_CONV_EXPR);
-  MARK_TS_EXP (TEMPLATE_ID_EXPR);
-  MARK_TS_EXP (ARROW_EXPR);
-  MARK_TS_EXP (UNARY_PLUS_EXPR);
-  MARK_TS_EXP (TRAIT_EXPR);
+  MARK_TS_DECL_NON_COMMON (USING_DECL);
 
-  MARK_TS_EXP (NON_DEPENDENT_EXPR);
-  MARK_TS_EXP (NEW_EXPR);
-  MARK_TS_EXP (VEC_NEW_EXPR);
-  MARK_TS_EXP (MEMBER_REF);
-  MARK_TS_EXP (DOTSTAR_EXPR);
-  MARK_TS_EXP (DELETE_EXPR);
-  MARK_TS_EXP (VEC_DELETE_EXPR);
-  MARK_TS_EXP (PSEUDO_DTOR_EXPR);
-  MARK_TS_EXP (TYPEID_EXPR);
-  MARK_TS_EXP (MUST_NOT_THROW_EXPR);
-  MARK_TS_EXP (STMT_EXPR);
-  MARK_TS_EXP (OFFSET_REF);
-  MARK_TS_EXP (OFFSETOF_EXPR);
+  /* New Types.  */
+  MARK_TS_TYPE_NON_COMMON (BOUND_TEMPLATE_TEMPLATE_PARM);
+  MARK_TS_TYPE_NON_COMMON (TEMPLATE_TEMPLATE_PARM);
+  MARK_TS_TYPE_NON_COMMON (TEMPLATE_TYPE_PARM);
+  MARK_TS_TYPE_NON_COMMON (TYPE_ARGUMENT_PACK);
+  MARK_TS_TYPE_NON_COMMON (TYPE_PACK_EXPANSION);
+
+  /* Statements.  */
+  MARK_TS_EXP (BREAK_STMT);
+  MARK_TS_EXP (CLEANUP_STMT);
+  MARK_TS_EXP (CONTINUE_STMT);
+  MARK_TS_EXP (DO_STMT);
+  MARK_TS_EXP (EH_SPEC_BLOCK);
+  MARK_TS_EXP (FOR_STMT);
+  MARK_TS_EXP (HANDLER);
+  MARK_TS_EXP (IF_STMT);
+  MARK_TS_EXP (OMP_DEPOBJ);
+  MARK_TS_EXP (RANGE_FOR_STMT);
+  MARK_TS_EXP (SWITCH_STMT);
+  MARK_TS_EXP (TRY_BLOCK);
+  MARK_TS_EXP (USING_STMT);
+  MARK_TS_EXP (WHILE_STMT);
+
+  /* Random expressions.  */
   MARK_TS_EXP (ADDRESSOF_EXPR);
-  MARK_TS_EXP (VEC_INIT_EXPR);
-  MARK_TS_EXP (LAMBDA_EXPR);
-
+  MARK_TS_EXP (AGGR_INIT_EXPR);
   MARK_TS_EXP (ALIGNOF_EXPR);
+  MARK_TS_EXP (ARROW_EXPR);
   MARK_TS_EXP (AT_ENCODE_EXPR);
+  MARK_TS_EXP (CAST_EXPR);
+  MARK_TS_EXP (CONST_CAST_EXPR);
+  MARK_TS_EXP (CTOR_INITIALIZER);
+  MARK_TS_EXP (DELETE_EXPR);
+  MARK_TS_EXP (DOTSTAR_EXPR);
+  MARK_TS_EXP (DYNAMIC_CAST_EXPR);
+  MARK_TS_EXP (EMPTY_CLASS_EXPR);
+  MARK_TS_EXP (EXPR_STMT);
+  MARK_TS_EXP (IMPLICIT_CONV_EXPR);
+  MARK_TS_EXP (MEMBER_REF);
+  MARK_TS_EXP (MODOP_EXPR);
+  MARK_TS_EXP (MUST_NOT_THROW_EXPR);
+  MARK_TS_EXP (NEW_EXPR);
+  MARK_TS_EXP (NOEXCEPT_EXPR);
+  MARK_TS_EXP (NON_DEPENDENT_EXPR);
+  MARK_TS_EXP (OFFSETOF_EXPR);
+  MARK_TS_EXP (OFFSET_REF);
+  MARK_TS_EXP (PSEUDO_DTOR_EXPR);
+  MARK_TS_EXP (REINTERPRET_CAST_EXPR);
+  MARK_TS_EXP (SCOPE_REF);
+  MARK_TS_EXP (STATIC_CAST_EXPR);
+  MARK_TS_EXP (STMT_EXPR);
+  MARK_TS_EXP (TAG_DEFN);
+  MARK_TS_EXP (TEMPLATE_ID_EXPR);
+  MARK_TS_EXP (THROW_EXPR);
+  MARK_TS_EXP (TRAIT_EXPR);
+  MARK_TS_EXP (TYPEID_EXPR);
+  MARK_TS_EXP (TYPE_EXPR);
+  MARK_TS_EXP (UNARY_PLUS_EXPR);
+  MARK_TS_EXP (VEC_DELETE_EXPR);
+  MARK_TS_EXP (VEC_INIT_EXPR);
+  MARK_TS_EXP (VEC_NEW_EXPR);
+  MARK_TS_EXP (SPACESHIP_EXPR);
 
-  MARK_TS_EXP (NONTYPE_ARGUMENT_PACK);
-  MARK_TS_EXP (EXPR_PACK_EXPANSION);
-  MARK_TS_EXP (UNARY_LEFT_FOLD_EXPR);
-  MARK_TS_EXP (UNARY_RIGHT_FOLD_EXPR);
+  /* Fold expressions.  */
   MARK_TS_EXP (BINARY_LEFT_FOLD_EXPR);
   MARK_TS_EXP (BINARY_RIGHT_FOLD_EXPR);
+  MARK_TS_EXP (EXPR_PACK_EXPANSION);
+  MARK_TS_EXP (NONTYPE_ARGUMENT_PACK);
+  MARK_TS_EXP (UNARY_LEFT_FOLD_EXPR);
+  MARK_TS_EXP (UNARY_RIGHT_FOLD_EXPR);
 
+  /* Constraints.  */
+  MARK_TS_EXP (CHECK_CONSTR);
+  MARK_TS_EXP (COMPOUND_REQ);
+  MARK_TS_EXP (CONJ_CONSTR);
+  MARK_TS_EXP (DISJ_CONSTR);
+  MARK_TS_EXP (ATOMIC_CONSTR);
+  MARK_TS_EXP (NESTED_REQ);
   MARK_TS_EXP (REQUIRES_EXPR);
   MARK_TS_EXP (SIMPLE_REQ);
   MARK_TS_EXP (TYPE_REQ);
-  MARK_TS_EXP (COMPOUND_REQ);
-  MARK_TS_EXP (NESTED_REQ);
-  MARK_TS_EXP (PRED_CONSTR);
-  MARK_TS_EXP (CHECK_CONSTR);
-  MARK_TS_EXP (EXPR_CONSTR);
-  MARK_TS_EXP (TYPE_CONSTR);
-  MARK_TS_EXP (ICONV_CONSTR);
-  MARK_TS_EXP (DEDUCT_CONSTR);
-  MARK_TS_EXP (EXCEPT_CONSTR);
-  MARK_TS_EXP (PARM_CONSTR);
-  MARK_TS_EXP (CONJ_CONSTR);
-  MARK_TS_EXP (DISJ_CONSTR);
 
   c_common_init_ts ();
 }

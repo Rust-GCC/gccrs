@@ -94,8 +94,9 @@
  "@internal
   Thumb only.  The union of the low registers and the stack register.")
 
-(define_register_constraint "c" "CC_REG"
- "@internal The condition code register.")
+(define_constraint "c"
+ "@internal The condition code register."
+ (match_operand 0 "cc_register"))
 
 (define_register_constraint "Cs" "CALLER_SAVE_REGS"
  "@internal The caller save registers.  Useful for sibcalls.")
@@ -272,24 +273,6 @@
   In ARM/Thumb-2 state a const_int that can be used by insn adddi."
  (and (match_code "const_int")
       (match_test "TARGET_32BIT && const_ok_for_dimode_op (ival, PLUS)")))
-
-(define_constraint "De"
- "@internal
-  In ARM/Thumb-2 state a const_int that can be used by insn anddi."
- (and (match_code "const_int")
-      (match_test "TARGET_32BIT && const_ok_for_dimode_op (ival, AND)")))
-
-(define_constraint "Df"
- "@internal
-  In ARM/Thumb-2 state a const_int that can be used by insn iordi."
- (and (match_code "const_int")
-      (match_test "TARGET_32BIT && const_ok_for_dimode_op (ival, IOR)")))
-
-(define_constraint "Dg"
- "@internal
-  In ARM/Thumb-2 state a const_int that can be used by insn xordi."
- (and (match_code "const_int")
-      (match_test "TARGET_32BIT && const_ok_for_dimode_op (ival, XOR)")))
 
 (define_constraint "Di"
  "@internal

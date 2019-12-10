@@ -1,7 +1,8 @@
 //===-- tsan_platform.h -----------------------------------------*- C++ -*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -455,6 +456,8 @@ struct Mapping47 {
   static const uptr kAppMemBeg     = 0x000000001000ull;
   static const uptr kAppMemEnd     = 0x00e000000000ull;
 };
+
+#define TSAN_RUNTIME_VMA 1
 
 #elif SANITIZER_GO && defined(__aarch64__)
 
@@ -1010,6 +1013,7 @@ void FlushShadowMemory();
 void WriteMemoryProfile(char *buf, uptr buf_size, uptr nthread, uptr nlive);
 int ExtractResolvFDs(void *state, int *fds, int nfd);
 int ExtractRecvmsgFDs(void *msg, int *fds, int nfd);
+uptr ExtractLongJmpSp(uptr *env);
 void ImitateTlsWrite(ThreadState *thr, uptr tls_addr, uptr tls_size);
 
 int call_pthread_cancel_with_cleanup(int(*fn)(void *c, void *m,

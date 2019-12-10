@@ -168,11 +168,13 @@ c_diagnostic_finalizer (diagnostic_context *context,
 			diagnostic_info *diagnostic,
 			diagnostic_t)
 {
+  char *saved_prefix = pp_take_prefix (context->printer);
+  pp_set_prefix (context->printer, NULL);
   diagnostic_show_locus (context, diagnostic->richloc, diagnostic->kind);
   /* By default print macro expansion contexts in the diagnostic
      finalizer -- for tokens resulting from macro expansion.  */
   virt_loc_aware_diagnostic_finalizer (context, diagnostic);
-  pp_destroy_prefix (context->printer);
+  pp_set_prefix (context->printer, saved_prefix);
   pp_flush (context->printer);
 }
 
@@ -460,6 +462,10 @@ c_common_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
       cpp_opts->extended_identifiers = value;
       break;
 
+    case OPT_fmax_include_depth_:
+	cpp_opts->max_include_depth = value;
+      break;
+
     case OPT_foperator_names:
       cpp_opts->operator_names = value;
       break;
@@ -495,12 +501,6 @@ c_common_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
 	cpp_opts->track_macro_expansion = value;
       else
 	cpp_opts->track_macro_expansion = 2;
-      break;
-
-    case OPT_frepo:
-      flag_use_repository = value;
-      if (value)
-	flag_implicit_templates = 0;
       break;
 
     case OPT_ftabstop_:
@@ -796,14 +796,13 @@ c_common_post_options (const char **pfilename)
      support.  */
   if (c_dialect_cxx ())
     {
-      if (flag_excess_precision_cmdline == EXCESS_PRECISION_STANDARD)
+      if (flag_excess_precision == EXCESS_PRECISION_STANDARD)
 	sorry ("%<-fexcess-precision=standard%> for C++");
-      flag_excess_precision_cmdline = EXCESS_PRECISION_FAST;
+      flag_excess_precision = EXCESS_PRECISION_FAST;
     }
-  else if (flag_excess_precision_cmdline == EXCESS_PRECISION_DEFAULT)
-    flag_excess_precision_cmdline = (flag_iso
-				     ? EXCESS_PRECISION_STANDARD
-				     : EXCESS_PRECISION_FAST);
+  else if (flag_excess_precision == EXCESS_PRECISION_DEFAULT)
+    flag_excess_precision = (flag_iso ? EXCESS_PRECISION_STANDARD
+				      : EXCESS_PRECISION_FAST);
 
   /* ISO C restricts floating-point expression contraction to within
      source-language expressions (-ffp-contract=on, currently an alias
@@ -827,6 +826,12 @@ c_common_post_options (const char **pfilename)
   else
     flag_permitted_flt_eval_methods = PERMITTED_FLT_EVAL_METHODS_C11;
 
+  /* C2X Annex F does not permit certain built-in functions to raise
+     "inexact".  */
+  if (flag_isoc2x)
+    SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+			 flag_fp_int_builtin_inexact, 0);
+
   /* By default we use C99 inline semantics in GNU99 or C99 mode.  C99
      inline semantics are not supported in GNU89 or C89 mode.  */
   if (flag_gnu89_inline == -1)
@@ -842,9 +847,9 @@ c_common_post_options (const char **pfilename)
 
   /* If -ffreestanding, -fno-hosted or -fno-builtin then disable
      pattern recognition.  */
-  if (!global_options_set.x_flag_tree_loop_distribute_patterns
-      && flag_no_builtin)
-    flag_tree_loop_distribute_patterns = 0;
+  if (flag_no_builtin)
+    SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+			 flag_tree_loop_distribute_patterns, 0);
 
   /* -Woverlength-strings is off by default, but is enabled by -Wpedantic.
      It is never enabled in C++, as the minimum limit is not normative
@@ -899,6 +904,10 @@ c_common_post_options (const char **pfilename)
   if (warn_implicit_int == -1)
     warn_implicit_int = flag_isoc99;
 
+  /* -Wold-style-definition is enabled by default for C2X.  */
+  if (warn_old_style_definition == -1)
+    warn_old_style_definition = flag_isoc2x;
+
   /* -Wshift-overflow is enabled by default in C99 and C++11 modes.  */
   if (warn_shift_overflow == -1)
     warn_shift_overflow = cxx_dialect >= cxx11 || flag_isoc99;
@@ -909,8 +918,17 @@ c_common_post_options (const char **pfilename)
 				 && (cxx_dialect >= cxx11 || flag_isoc99));
 
   /* -Wregister is enabled by default in C++17.  */
-  if (!global_options_set.x_warn_register)
-    warn_register = cxx_dialect >= cxx17;
+  SET_OPTION_IF_UNSET (&global_options, &global_options_set, warn_register,
+		       cxx_dialect >= cxx17);
+
+  /* -Wcomma-subscript is enabled by default in C++20.  */
+  SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+		       warn_comma_subscript,
+		       cxx_dialect >= cxx2a && warn_deprecated);
+
+  /* -Wvolatile is enabled by default in C++20.  */
+  SET_OPTION_IF_UNSET (&global_options, &global_options_set, warn_volatile,
+		       cxx_dialect >= cxx2a && warn_deprecated);
 
   /* Declone C++ 'structors if -Os.  */
   if (flag_declone_ctor_dtor == -1)
@@ -924,7 +942,7 @@ c_common_post_options (const char **pfilename)
 
   /* Change flag_abi_version to be the actual current ABI level, for the
      benefit of c_cpp_builtins, and to make comparison simpler.  */
-  const int latest_abi_version = 13;
+  const int latest_abi_version = 14;
   /* Generate compatibility aliases for ABI v11 (7.1) by default.  */
   const int abi_compat_default = 11;
 
@@ -962,12 +980,13 @@ c_common_post_options (const char **pfilename)
   /* By default, enable the new inheriting constructor semantics along with ABI
      11.  New and old should coexist fine, but it is a change in what
      artificial symbols are generated.  */
-  if (!global_options_set.x_flag_new_inheriting_ctors)
-    flag_new_inheriting_ctors = abi_version_at_least (11);
+  SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+		       flag_new_inheriting_ctors,
+		       abi_version_at_least (11));
 
   /* For GCC 7, only enable DR150 resolution by default if -std=c++17.  */
-  if (!global_options_set.x_flag_new_ttp)
-    flag_new_ttp = (cxx_dialect >= cxx17);
+  SET_OPTION_IF_UNSET (&global_options, &global_options_set, flag_new_ttp,
+		       cxx_dialect >= cxx17);
 
   if (cxx_dialect >= cxx11)
     {
@@ -1020,6 +1039,16 @@ c_common_post_options (const char **pfilename)
   /* Enable by default only for C++ and C++ with ObjC extensions.  */
   if (warn_return_type == -1 && c_dialect_cxx ())
     warn_return_type = 1;
+
+  /* C++2a is the final version of concepts. We still use -fconcepts
+     to know when concepts are enabled. Note that -fconcepts-ts can
+     be used to include additional features, although modified to
+     work with the standard.  */
+  if (cxx_dialect >= cxx2a || flag_concepts_ts)
+    flag_concepts = 1;
+  else if (flag_concepts)
+    /* For -std=c++17 -fconcepts, imply -fconcepts-ts.  */
+    flag_concepts_ts = 1;
 
   if (num_in_fnames > 1)
     error ("too many filenames given; type %<%s %s%> for usage",
@@ -1283,7 +1312,7 @@ handle_deferred_opts (void)
   if (!deps_seen)
     return;
 
-  struct mkdeps *deps = cpp_get_deps (parse_in);
+  mkdeps *deps = cpp_get_deps (parse_in);
 
   for (size_t i = 0; i < deferred_count; i++)
     {
@@ -1700,6 +1729,7 @@ set_std_cxx2a (int iso)
   flag_isoc94 = 1;
   flag_isoc99 = 1;
   flag_isoc11 = 1;
+  /* C++2a includes concepts. */
   cxx_dialect = cxx2a;
   lang_hooks.name = "GNU C++17"; /* Pretend C++17 until standardization.  */
 }

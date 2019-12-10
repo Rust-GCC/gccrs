@@ -3162,9 +3162,9 @@
 
 ;; The definition of this insn does not really explain what it does,
 ;; but it should suffice that anything generated as this insn will be
-;; recognized as a movmemsi operation, and that it will not successfully
+;; recognized as a cpymemsi operation, and that it will not successfully
 ;; combine with anything.
-(define_expand "movmemsi"
+(define_expand "cpymemsi"
   [(parallel [(set (match_operand:BLK 0 "" "")
 		   (match_operand:BLK 1 "" ""))
 	      (clobber (match_dup 4))
@@ -3244,7 +3244,7 @@
 ;; operands 0 and 1 are both equivalent to symbolic MEMs.  Thus, we are
 ;; forced to internally copy operands 0 and 1 to operands 7 and 8,
 ;; respectively.  We then split or peephole optimize after reload.
-(define_insn "movmemsi_prereload"
+(define_insn "cpymemsi_prereload"
   [(set (mem:BLK (match_operand:SI 0 "register_operand" "r,r"))
 	(mem:BLK (match_operand:SI 1 "register_operand" "r,r")))
    (clobber (match_operand:SI 2 "register_operand" "=&r,&r"))	;loop cnt/tmp
@@ -3337,7 +3337,7 @@
     }
 }")
 
-(define_insn "movmemsi_postreload"
+(define_insn "cpymemsi_postreload"
   [(set (mem:BLK (match_operand:SI 0 "register_operand" "+r,r"))
 	(mem:BLK (match_operand:SI 1 "register_operand" "+r,r")))
    (clobber (match_operand:SI 2 "register_operand" "=&r,&r"))	;loop cnt/tmp
@@ -3352,7 +3352,7 @@
   "* return pa_output_block_move (operands, !which_alternative);"
   [(set_attr "type" "multi,multi")])
 
-(define_expand "movmemdi"
+(define_expand "cpymemdi"
   [(parallel [(set (match_operand:BLK 0 "" "")
 		   (match_operand:BLK 1 "" ""))
 	      (clobber (match_dup 4))
@@ -3432,7 +3432,7 @@
 ;; operands 0 and 1 are both equivalent to symbolic MEMs.  Thus, we are
 ;; forced to internally copy operands 0 and 1 to operands 7 and 8,
 ;; respectively.  We then split or peephole optimize after reload.
-(define_insn "movmemdi_prereload"
+(define_insn "cpymemdi_prereload"
   [(set (mem:BLK (match_operand:DI 0 "register_operand" "r,r"))
 	(mem:BLK (match_operand:DI 1 "register_operand" "r,r")))
    (clobber (match_operand:DI 2 "register_operand" "=&r,&r"))	;loop cnt/tmp
@@ -3525,7 +3525,7 @@
     }
 }")
 
-(define_insn "movmemdi_postreload"
+(define_insn "cpymemdi_postreload"
   [(set (mem:BLK (match_operand:DI 0 "register_operand" "+r,r"))
 	(mem:BLK (match_operand:DI 1 "register_operand" "+r,r")))
    (clobber (match_operand:DI 2 "register_operand" "=&r,&r"))	;loop cnt/tmp
@@ -6904,20 +6904,20 @@
   rtx stack = operands[2];
   rtx fp = operands[3];
 
-  lab = copy_to_reg (lab);
-
   emit_clobber (gen_rtx_MEM (BLKmode, gen_rtx_SCRATCH (VOIDmode)));
   emit_clobber (gen_rtx_MEM (BLKmode, hard_frame_pointer_rtx));
 
-  /* Restore the frame pointer.  The virtual_stack_vars_rtx is saved
-     instead of the hard_frame_pointer_rtx in the save area.  As a
-     result, an extra instruction is needed to adjust for the offset
-     of the virtual stack variables and the hard frame pointer.  */
-  if (GET_CODE (fp) != REG)
-    fp = force_reg (Pmode, fp);
-  emit_move_insn (hard_frame_pointer_rtx, plus_constant (Pmode, fp, -8));
+  lab = copy_to_reg (lab);
 
+  /* Restore the stack and frame pointers.  */
+  fp = copy_to_reg (fp);
   emit_stack_restore (SAVE_NONLOCAL, stack);
+
+  /* Ensure the frame pointer move is not optimized.  */
+  emit_insn (gen_blockage ());
+  emit_clobber (hard_frame_pointer_rtx);
+  emit_clobber (frame_pointer_rtx);
+  emit_move_insn (hard_frame_pointer_rtx, fp);
 
   emit_use (hard_frame_pointer_rtx);
   emit_use (stack_pointer_rtx);
@@ -8695,22 +8695,23 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   emit_clobber (gen_rtx_MEM (BLKmode, gen_rtx_SCRATCH (VOIDmode)));
   emit_clobber (gen_rtx_MEM (BLKmode, hard_frame_pointer_rtx));
 
-  /* Restore the frame pointer.  The virtual_stack_vars_rtx is saved
-     instead of the hard_frame_pointer_rtx in the save area.  We need
-     to adjust for the offset between these two values.  */
-  if (GET_CODE (fp) != REG)
-    fp = force_reg (Pmode, fp);
-  emit_move_insn (hard_frame_pointer_rtx, plus_constant (Pmode, fp, -8));
-
-  /* This bit is the same as expand_builtin_longjmp.  */
-  emit_stack_restore (SAVE_NONLOCAL, stack);
-  emit_use (hard_frame_pointer_rtx);
-  emit_use (stack_pointer_rtx);
-
   /* Load the label we are jumping through into r1 so that we know
      where to look for it when we get back to setjmp's function for
      restoring the gp.  */
   emit_move_insn (pv, lab);
+
+  /* Restore the stack and frame pointers.  */
+  fp = copy_to_reg (fp);
+  emit_stack_restore (SAVE_NONLOCAL, stack);
+
+  /* Ensure the frame pointer move is not optimized.  */
+  emit_insn (gen_blockage ());
+  emit_clobber (hard_frame_pointer_rtx);
+  emit_clobber (frame_pointer_rtx);
+  emit_move_insn (hard_frame_pointer_rtx, fp);
+
+  emit_use (hard_frame_pointer_rtx);
+  emit_use (stack_pointer_rtx);
 
   /* Prevent the insns above from being scheduled into the delay slot
      of the interspace jump because the space register could change.  */
@@ -10085,23 +10086,55 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
    (set_attr "length" "4,16")])
 
 ;; PA 2.0 hardware supports out-of-order execution of loads and stores, so
-;; we need a memory barrier to enforce program order for memory references.
-;; Since we want PA 1.x code to be PA 2.0 compatible, we also need the
-;; barrier when generating PA 1.x code.
+;; we need memory barriers to enforce program order for memory references
+;; when the TLB and PSW O bits are not set.  We assume all PA 2.0 systems
+;; are weakly ordered since neither HP-UX or Linux set the PSW O bit.  Since
+;; we want PA 1.x code to be PA 2.0 compatible, we also need barriers when
+;; generating PA 1.x code even though all PA 1.x systems are strongly ordered.
+
+;; When barriers are needed, we use a strongly ordered ldcw instruction as
+;; the barrier.  Most PA 2.0 targets are cache coherent.  In that case, we
+;; can use the coherent cache control hint and avoid aligning the ldcw
+;; address.  In spite of its description, it is not clear that the sync
+;; instruction works as a barrier.
 
 (define_expand "memory_barrier"
-  [(set (match_dup 0)
-        (unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))]
+  [(parallel
+     [(set (match_dup 0) (unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))
+      (clobber (match_dup 1))])]
   ""
 {
-  operands[0] = gen_rtx_MEM (BLKmode, gen_rtx_SCRATCH (Pmode));
+  /* We don't need a barrier if the target uses ordered memory references.  */
+  if (TARGET_ORDERED)
+    FAIL;
+  operands[1] = gen_reg_rtx (Pmode);
+  operands[0] = gen_rtx_MEM (BLKmode, operands[1]);
   MEM_VOLATILE_P (operands[0]) = 1;
 })
 
-(define_insn "*memory_barrier"
+(define_insn "*memory_barrier_coherent"
   [(set (match_operand:BLK 0 "" "")
-        (unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))]
-  ""
-  "sync"
+        (unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))
+   (clobber (match_operand 1 "pmode_register_operand" "=r"))]
+  "TARGET_PA_20 && TARGET_COHERENT_LDCW"
+  "ldcw,co 0(%%sp),%1"
   [(set_attr "type" "binary")
    (set_attr "length" "4")])
+
+(define_insn "*memory_barrier_64"
+  [(set (match_operand:BLK 0 "" "")
+        (unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))
+    (clobber (match_operand 1 "pmode_register_operand" "=&r"))]
+  "TARGET_64BIT"
+  "ldo 15(%%sp),%1\n\tdepd %%r0,63,3,%1\n\tldcw 0(%1),%1"
+  [(set_attr "type" "binary")
+   (set_attr "length" "12")])
+
+(define_insn "*memory_barrier_32"
+  [(set (match_operand:BLK 0 "" "")
+        (unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))
+    (clobber (match_operand 1 "pmode_register_operand" "=&r"))]
+  ""
+  "ldo 15(%%sp),%1\n\t{dep|depw} %%r0,31,3,%1\n\tldcw 0(%1),%1"
+  [(set_attr "type" "binary")
+   (set_attr "length" "12")])

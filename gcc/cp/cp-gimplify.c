@@ -1,4 +1,4 @@
-/* C++-specific tree lowering bits; see also c-gimplify.c and tree-gimple.c.
+/* C++-specific tree lowering bits; see also c-gimplify.c and gimple.c.
 
    Copyright (C) 2002-2019 Free Software Foundation, Inc.
    Contributed by Jason Merrill <jason@redhat.com>
@@ -638,13 +638,29 @@ lvalue_has_side_effects (tree e)
     return TREE_SIDE_EFFECTS (e);
 }
 
+/* Gimplify *EXPR_P as rvalue into an expression that can't be modified
+   by expressions with side-effects in other operands.  */
+
+static enum gimplify_status
+gimplify_to_rvalue (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
+		    bool (*gimple_test_f) (tree))
+{
+  enum gimplify_status t
+    = gimplify_expr (expr_p, pre_p, post_p, gimple_test_f, fb_rvalue);
+  if (t == GS_ERROR)
+    return GS_ERROR;
+  else if (is_gimple_variable (*expr_p) && TREE_CODE (*expr_p) != SSA_NAME)
+    *expr_p = get_initialized_tmp_var (*expr_p, pre_p);
+  return t;
+}
+
 /* Do C++-specific gimplification.  Args are as for gimplify_expr.  */
 
 int
 cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 {
   int saved_stmts_are_full_exprs_p = 0;
-  location_t loc = cp_expr_loc_or_loc (*expr_p, input_location);
+  location_t loc = cp_expr_loc_or_input_loc (*expr_p);
   enum tree_code code = TREE_CODE (*expr_p);
   enum gimplify_status ret;
 
@@ -751,7 +767,7 @@ cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 		&& (TREE_CODE (op1) == CALL_EXPR
 		    || (SCALAR_TYPE_P (TREE_TYPE (op1))
 			&& !TREE_CONSTANT (op1))))
-	 TREE_OPERAND (*expr_p, 1) = get_formal_tmp_var (op1, pre_p);
+	 TREE_OPERAND (*expr_p, 1) = get_initialized_tmp_var (op1, pre_p);
       }
       ret = GS_OK;
       break;
@@ -796,6 +812,7 @@ cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
     case OMP_FOR:
     case OMP_SIMD:
     case OMP_DISTRIBUTE:
+    case OMP_LOOP:
     case OMP_TASKLOOP:
       ret = cp_gimplify_omp_for (expr_p, pre_p);
       break;
@@ -817,6 +834,22 @@ cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 
     case CALL_EXPR:
       ret = GS_OK;
+      if (flag_strong_eval_order == 2
+	  && CALL_EXPR_FN (*expr_p)
+	  && cp_get_callee_fndecl_nofold (*expr_p) == NULL_TREE)
+	{
+	  tree fnptrtype = TREE_TYPE (CALL_EXPR_FN (*expr_p));
+	  enum gimplify_status t
+	    = gimplify_to_rvalue (&CALL_EXPR_FN (*expr_p), pre_p, NULL,
+				  is_gimple_call_addr);
+	  if (t == GS_ERROR)
+	    ret = GS_ERROR;
+	  /* GIMPLE considers most pointer conversion useless, but for
+	     calls we actually care about the exact function pointer type.  */
+	  else if (TREE_TYPE (CALL_EXPR_FN (*expr_p)) != fnptrtype)
+	    CALL_EXPR_FN (*expr_p)
+	      = build1 (NOP_EXPR, fnptrtype, CALL_EXPR_FN (*expr_p));
+	}
       if (!CALL_EXPR_FN (*expr_p))
 	/* Internal function call.  */;
       else if (CALL_EXPR_REVERSE_ARGS (*expr_p))
@@ -1053,7 +1086,7 @@ cp_fold_r (tree *stmt_p, int *walk_subtrees, void *data)
 
   code = TREE_CODE (stmt);
   if (code == OMP_FOR || code == OMP_SIMD || code == OMP_DISTRIBUTE
-      || code == OMP_TASKLOOP || code == OACC_LOOP)
+      || code == OMP_LOOP || code == OMP_TASKLOOP || code == OACC_LOOP)
     {
       tree x;
       int i, n;
@@ -1109,6 +1142,17 @@ cp_fold_function (tree fndecl)
 {
   hash_set<tree> pset;
   cp_walk_tree (&DECL_SAVED_TREE (fndecl), cp_fold_r, &pset, NULL);
+}
+
+/* Turn SPACESHIP_EXPR EXPR into GENERIC.  */
+
+static tree genericize_spaceship (tree expr)
+{
+  iloc_sentinel s (cp_expr_location (expr));
+  tree type = TREE_TYPE (expr);
+  tree op0 = TREE_OPERAND (expr, 0);
+  tree op1 = TREE_OPERAND (expr, 1);
+  return genericize_spaceship (type, op0, op1);
 }
 
 /* Perform any pre-gimplification lowering of C++ front end trees to
@@ -1238,6 +1282,8 @@ cp_genericize_r (tree *stmt_p, int *walk_subtrees, void *data)
 	case OMP_CLAUSE_FIRSTPRIVATE:
 	case OMP_CLAUSE_COPYIN:
 	case OMP_CLAUSE_COPYPRIVATE:
+	case OMP_CLAUSE_INCLUSIVE:
+	case OMP_CLAUSE_EXCLUSIVE:
 	  /* Don't dereference an invisiref in OpenMP clauses.  */
 	  if (is_invisiref_parm (OMP_CLAUSE_DECL (stmt)))
 	    *walk_subtrees = 0;
@@ -1539,9 +1585,14 @@ cp_genericize_r (tree *stmt_p, int *walk_subtrees, void *data)
       genericize_break_stmt (stmt_p);
       break;
 
+    case SPACESHIP_EXPR:
+      *stmt_p = genericize_spaceship (*stmt_p);
+      break;
+
     case OMP_FOR:
     case OMP_SIMD:
     case OMP_DISTRIBUTE:
+    case OMP_LOOP:
     case OACC_LOOP:
       genericize_omp_for_stmt (stmt_p, walk_subtrees, data);
       break;
@@ -2051,6 +2102,9 @@ cxx_omp_predetermined_sharing_1 (tree decl)
       tree ctx = CP_DECL_CONTEXT (decl);
       if (TYPE_P (ctx) && MAYBE_CLASS_TYPE_P (ctx))
 	return OMP_CLAUSE_DEFAULT_SHARED;
+
+      if (c_omp_predefined_variable (decl))
+	return OMP_CLAUSE_DEFAULT_SHARED;
     }
 
   /* this may not be specified in data-sharing clauses, still we need
@@ -2095,7 +2149,9 @@ cxx_omp_finish_clause (tree c, gimple_seq *)
   tree decl, inner_type;
   bool make_shared = false;
 
-  if (OMP_CLAUSE_CODE (c) != OMP_CLAUSE_FIRSTPRIVATE)
+  if (OMP_CLAUSE_CODE (c) != OMP_CLAUSE_FIRSTPRIVATE
+      && (OMP_CLAUSE_CODE (c) != OMP_CLAUSE_LASTPRIVATE
+	  || !OMP_CLAUSE_LASTPRIVATE_LOOP_IV (c)))
     return;
 
   decl = OMP_CLAUSE_DECL (c);
@@ -2113,9 +2169,11 @@ cxx_omp_finish_clause (tree c, gimple_seq *)
   /* Check for special function availability by building a call to one.
      Save the results, because later we won't be in the right context
      for making these queries.  */
+  bool first = OMP_CLAUSE_CODE (c) == OMP_CLAUSE_FIRSTPRIVATE;
   if (!make_shared
       && CLASS_TYPE_P (inner_type)
-      && cxx_omp_create_clause_info (c, inner_type, false, true, false, true))
+      && cxx_omp_create_clause_info (c, inner_type, !first, first, !first,
+				     true))
     make_shared = true;
 
   if (make_shared)
@@ -2499,6 +2557,9 @@ cp_fold (tree x)
 	  else
 	    x = org_x;
 	}
+      if (code == MODIFY_EXPR && TREE_CODE (x) == MODIFY_EXPR)
+	TREE_THIS_VOLATILE (x) = TREE_THIS_VOLATILE (org_x);
+
       break;
 
     case VEC_COND_EXPR:
@@ -2512,9 +2573,9 @@ cp_fold (tree x)
 	{
 	  warning_sentinel s (warn_int_in_bool_context);
 	  if (!VOID_TYPE_P (TREE_TYPE (op1)))
-	    op1 = cp_truthvalue_conversion (op1);
+	    op1 = cp_truthvalue_conversion (op1, tf_warning_or_error);
 	  if (!VOID_TYPE_P (TREE_TYPE (op2)))
-	    op2 = cp_truthvalue_conversion (op2);
+	    op2 = cp_truthvalue_conversion (op2, tf_warning_or_error);
 	}
       else if (VOID_TYPE_P (TREE_TYPE (x)))
 	{

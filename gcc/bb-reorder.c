@@ -105,7 +105,6 @@
 #include "emit-rtl.h"
 #include "output.h"
 #include "expr.h"
-#include "params.h"
 #include "tree-pass.h"
 #include "cfgrtl.h"
 #include "cfganal.h"
@@ -113,6 +112,7 @@
 #include "cfgcleanup.h"
 #include "bb-reorder.h"
 #include "except.h"
+#include "alloc-pool.h"
 #include "fibonacci_heap.h"
 #include "stringpool.h"
 #include "attribs.h"
@@ -1032,7 +1032,7 @@ connect_better_edge_p (const_edge e, bool src_index_p, int best_len,
       else if (e->count () < cur_best_edge->count ())
 	/* The edge has lower probability than the temporary best edge.  */
 	is_better_edge = false;
-      if (e->probability > cur_best_edge->probability)
+      else if (e->probability > cur_best_edge->probability)
 	/* The edge has higher probability than the temporary best edge.  */
 	is_better_edge = true;
       else if (e->probability < cur_best_edge->probability)
@@ -1357,8 +1357,8 @@ connect_traces (int n_traces, struct trace *traces)
 static bool
 copy_bb_p (const_basic_block bb, int code_may_grow)
 {
-  int size = 0;
-  int max_size = uncond_jump_length;
+  unsigned int size = 0;
+  unsigned int max_size = uncond_jump_length;
   rtx_insn *insn;
 
   if (EDGE_COUNT (bb->preds) < 2)
@@ -1371,12 +1371,16 @@ copy_bb_p (const_basic_block bb, int code_may_grow)
     return false;
 
   if (code_may_grow && optimize_bb_for_speed_p (bb))
-    max_size *= PARAM_VALUE (PARAM_MAX_GROW_COPY_BB_INSNS);
+    max_size *= param_max_grow_copy_bb_insns;
 
   FOR_BB_INSNS (bb, insn)
     {
       if (INSN_P (insn))
-	size += get_attr_min_length (insn);
+	{
+	  size += get_attr_min_length (insn);
+	  if (size > max_size)
+	    break;
+	}
     }
 
   if (size <= max_size)
@@ -1385,7 +1389,7 @@ copy_bb_p (const_basic_block bb, int code_may_grow)
   if (dump_file)
     {
       fprintf (dump_file,
-	       "Block %d can't be copied because its size = %d.\n",
+	       "Block %d can't be copied because its size = %u.\n",
 	       bb->index, size);
     }
 
@@ -1397,7 +1401,7 @@ copy_bb_p (const_basic_block bb, int code_may_grow)
 int
 get_uncond_jump_length (void)
 {
-  int length;
+  unsigned int length;
 
   start_sequence ();
   rtx_code_label *label = emit_label (gen_label_rtx ());
@@ -1405,6 +1409,7 @@ get_uncond_jump_length (void)
   length = get_attr_min_length (jump);
   end_sequence ();
 
+  gcc_assert (length < INT_MAX);
   return length;
 }
 
@@ -2746,7 +2751,7 @@ duplicate_computed_gotos (function *fun)
 
   /* Never copy a block larger than this.  */
   int max_size
-    = uncond_jump_length * PARAM_VALUE (PARAM_MAX_GOTO_DUPLICATION_INSNS);
+    = uncond_jump_length * param_max_goto_duplication_insns;
 
   bool changed = false;
 

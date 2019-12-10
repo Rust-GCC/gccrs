@@ -186,6 +186,9 @@
 ;; Modes with 8-bit elements.
 (define_mode_iterator VE [V8QI V16QI])
 
+;; V2DI only (for use with @ patterns).
+(define_mode_iterator V2DI_ONLY [V2DI])
+
 ;; Modes with 64-bit elements only.
 (define_mode_iterator V64 [DI V2DI])
 
@@ -216,11 +219,6 @@
 ;; Code iterators
 ;;----------------------------------------------------------------------------
 
-;; A list of condition codes used in compare instructions where
-;; the carry flag from the addition is used instead of doing the
-;; compare a second time.
-(define_code_iterator LTUGEU [ltu geu])
-
 ;; The signed gt, ge comparisons
 (define_code_iterator GTGE [gt ge])
 
@@ -235,6 +233,8 @@
 
 ;; A list of ...
 (define_code_iterator IOR_XOR [ior xor])
+
+(define_code_iterator LOGICAL [and ior xor])
 
 ;; Operations on two halves of a quadword vector.
 (define_code_iterator VQH_OPS [plus smin smax umin umax])
@@ -264,8 +264,11 @@
 ;; Conversions.
 (define_code_iterator FCVT [unsigned_float float])
 
+;; Saturating addition, subtraction
+(define_code_iterator SSPLUSMINUS [ss_plus ss_minus])
+
 ;; plus and minus are the only SHIFTABLE_OPS for which Thumb2 allows
-;; a stack pointer opoerand.  The minus operation is a candidate for an rsub
+;; a stack pointer operand.  The minus operation is a candidate for an rsub
 ;; and hence only plus is supported.
 (define_code_attr t2_binop0
   [(plus "rk") (minus "r") (ior "r") (xor "r") (and "r")])
@@ -281,6 +284,8 @@
 (define_code_attr cmp_type [(eq "i") (gt "s") (ge "s") (lt "s") (le "s")])
 
 (define_code_attr vfml_op [(plus "a") (minus "s")])
+
+(define_code_attr ss_op [(ss_plus "qadd") (ss_minus "qsub")])
 
 ;;----------------------------------------------------------------------------
 ;; Int iterators
@@ -340,6 +345,8 @@
 (define_int_iterator VQSUB [UNSPEC_VQSUB_S UNSPEC_VQSUB_U])
 
 (define_int_iterator VSUBHN [UNSPEC_VSUBHN UNSPEC_VRSUBHN])
+
+(define_int_iterator VABAL [UNSPEC_VABAL_S UNSPEC_VABAL_U])
 
 (define_int_iterator VABD [UNSPEC_VABD_S UNSPEC_VABD_U])
 
@@ -411,16 +418,47 @@
 (define_int_iterator CRC [UNSPEC_CRC32B UNSPEC_CRC32H UNSPEC_CRC32W
                           UNSPEC_CRC32CB UNSPEC_CRC32CH UNSPEC_CRC32CW])
 
-(define_int_iterator CRYPTO_UNARY [UNSPEC_AESMC UNSPEC_AESIMC])
+(define_int_iterator CRYPTO_AESMC [UNSPEC_AESMC UNSPEC_AESIMC])
 
-(define_int_iterator CRYPTO_BINARY [UNSPEC_AESD UNSPEC_AESE
-                                    UNSPEC_SHA1SU1 UNSPEC_SHA256SU0])
+(define_int_iterator CRYPTO_AES [UNSPEC_AESD UNSPEC_AESE])
+
+(define_int_iterator CRYPTO_BINARY [UNSPEC_SHA1SU1 UNSPEC_SHA256SU0])
 
 (define_int_iterator CRYPTO_TERNARY [UNSPEC_SHA1SU0 UNSPEC_SHA256H
                                      UNSPEC_SHA256H2 UNSPEC_SHA256SU1])
 
 (define_int_iterator CRYPTO_SELECTING [UNSPEC_SHA1C UNSPEC_SHA1M
                                        UNSPEC_SHA1P])
+
+(define_int_iterator USXTB16 [UNSPEC_SXTB16 UNSPEC_UXTB16])
+(define_int_iterator SIMD32_NOGE_BINOP
+				[UNSPEC_QADD8 UNSPEC_QSUB8 UNSPEC_SHADD8
+				 UNSPEC_SHSUB8 UNSPEC_UHADD8 UNSPEC_UHSUB8
+				 UNSPEC_UQADD8 UNSPEC_UQSUB8
+				 UNSPEC_QADD16 UNSPEC_QASX UNSPEC_QSAX
+				 UNSPEC_QSUB16 UNSPEC_SHADD16 UNSPEC_SHASX
+				 UNSPEC_SHSAX UNSPEC_SHSUB16 UNSPEC_UHADD16
+				 UNSPEC_UHASX UNSPEC_UHSAX UNSPEC_UHSUB16
+				 UNSPEC_UQADD16 UNSPEC_UQASX UNSPEC_UQSAX
+				 UNSPEC_UQSUB16 UNSPEC_SMUSD UNSPEC_SMUSDX
+				 UNSPEC_SXTAB16 UNSPEC_UXTAB16 UNSPEC_USAD8])
+
+(define_int_iterator SIMD32_DIMODE [UNSPEC_SMLALD UNSPEC_SMLALDX
+				    UNSPEC_SMLSLD UNSPEC_SMLSLDX])
+
+(define_int_iterator SMLAWBT [UNSPEC_SMLAWB UNSPEC_SMLAWT])
+
+(define_int_iterator SIMD32_GE [UNSPEC_SADD8 UNSPEC_SSUB8 UNSPEC_UADD8
+				UNSPEC_USUB8 UNSPEC_SADD16 UNSPEC_SASX
+				UNSPEC_SSAX UNSPEC_SSUB16 UNSPEC_UADD16
+				UNSPEC_UASX UNSPEC_USAX UNSPEC_USUB16])
+
+(define_int_iterator SIMD32_TERNOP_Q [UNSPEC_SMLAD UNSPEC_SMLADX UNSPEC_SMLSD
+				      UNSPEC_SMLSDX])
+
+(define_int_iterator SIMD32_BINOP_Q [UNSPEC_SMUAD UNSPEC_SMUADX])
+
+(define_int_iterator USSAT16 [UNSPEC_SSAT16 UNSPEC_USAT16])
 
 (define_int_iterator VQRDMLH_AS [UNSPEC_VQRDMLAH UNSPEC_VQRDMLSH])
 
@@ -735,14 +773,20 @@
 (define_mode_attr qhs_extenddi_op [(SI "s_register_operand")
 				   (HI "nonimmediate_operand")
 				   (QI "arm_reg_or_extendqisi_mem_op")])
-(define_mode_attr qhs_extenddi_cstr [(SI "r,0,r,r,r") (HI "r,0,rm,rm,r") (QI "r,0,rUq,rm,r")])
-(define_mode_attr qhs_zextenddi_cstr [(SI "r,0,r,r") (HI "r,0,rm,r") (QI "r,0,rm,r")])
+(define_mode_attr qhs_extenddi_cstr [(SI "0,r,r") (HI "0,rm,rm") (QI "0,rUq,rm")])
+(define_mode_attr qhs_zextenddi_cstr [(SI "0,r") (HI "0,rm") (QI "0,rm")])
 
 ;; Mode attributes used for fixed-point support.
 (define_mode_attr qaddsub_suf [(V4UQQ "8") (V2UHQ "16") (UQQ "8") (UHQ "16")
 			       (V2UHA "16") (UHA "16")
 			       (V4QQ "8") (V2HQ "16") (QQ "8") (HQ "16")
 			       (V2HA "16") (HA "16") (SQ "") (SA "")])
+
+(define_mode_attr qaddsub_clob_q [(V4UQQ "0") (V2UHQ "0") (UQQ "0") (UHQ "0")
+			       (V2UHA "0") (UHA "0")
+			       (V4QQ "0") (V2HQ "0") (QQ "0") (HQ "0")
+			       (V2HA "0") (HA "0") (SQ "ARM_Q_BIT_READ")
+			       (SA "ARM_Q_BIT_READ")])
 
 ;; Mode attribute for vshll.
 (define_mode_attr V_innermode [(V8QI "QI") (V4HI "HI") (V2SI "SI")])
@@ -773,6 +817,10 @@
 ;; Code attributes
 ;;----------------------------------------------------------------------------
 
+;; Determine the mode of a 'wide compare', ie where the carry flag is
+;; propagated into the comparison.
+(define_code_attr CC_EXTEND [(sign_extend "CC_NV") (zero_extend "CC_B")])
+
 ;; Assembler mnemonics for vqh_ops and vqhs_ops iterators.
 (define_code_attr VQH_mnem [(plus "vadd") (smin "vmin") (smax "vmax")
                 (umin "vmin") (umax "vmax")])
@@ -785,11 +833,15 @@
 (define_code_attr VQH_sign [(plus "i") (smin "s") (smax "s") (umin "u")
                 (umax "u")])
 
-(define_code_attr cnb [(ltu "CC_C") (geu "CC")])
-(define_code_attr optab [(ltu "ltu") (geu "geu")])
+;; Map rtl operator codes to optab names
+(define_code_attr optab
+ [(and "and")
+  (ior "ior")
+  (xor "xor")])
 
 ;; Assembler mnemonics for signedness of widening operations.
 (define_code_attr US [(sign_extend "s") (zero_extend "u")])
+(define_code_attr Us [(sign_extend "") (zero_extend "u")])
 
 ;; Signedness suffix for float->fixed conversions.  Empty for signed
 ;; conversion.
@@ -819,6 +871,7 @@
 ;; Mapping between vector UNSPEC operations and the signed ('s'),
 ;; unsigned ('u'), poly ('p') or float ('f') nature of their data type.
 (define_int_attr sup [
+  (UNSPEC_SXTB16 "s") (UNSPEC_UXTB16 "u")
   (UNSPEC_VADDL_S "s") (UNSPEC_VADDL_U "u")
   (UNSPEC_VADDW_S "s") (UNSPEC_VADDW_U "u")
   (UNSPEC_VRHADD_S "s") (UNSPEC_VRHADD_U "u")
@@ -834,6 +887,7 @@
   (UNSPEC_VSUBW_S "s") (UNSPEC_VSUBW_U "u")
   (UNSPEC_VHSUB_S "s") (UNSPEC_VHSUB_U "u")
   (UNSPEC_VQSUB_S "s") (UNSPEC_VQSUB_U "u")
+  (UNSPEC_VABAL_S "s") (UNSPEC_VABAL_U "u")
   (UNSPEC_VABD_S "s") (UNSPEC_VABD_U "u")
   (UNSPEC_VABDL_S "s") (UNSPEC_VABDL_U "u")
   (UNSPEC_VMAX "s") (UNSPEC_VMAX_U "u")
@@ -866,6 +920,7 @@
   (UNSPEC_VRSRA_S_N "s") (UNSPEC_VRSRA_U_N "u")
   (UNSPEC_VCVTH_S "s") (UNSPEC_VCVTH_U "u")
   (UNSPEC_DOT_S "s") (UNSPEC_DOT_U "u")
+  (UNSPEC_SSAT16 "s") (UNSPEC_USAT16 "u")
 ])
 
 (define_int_attr vfml_half
@@ -1006,6 +1061,34 @@
 		      (UNSPEC_VCMLA180 "180")
 		      (UNSPEC_VCMLA270 "270")])
 
+(define_int_attr simd32_op [(UNSPEC_QADD8 "qadd8") (UNSPEC_QSUB8 "qsub8")
+			    (UNSPEC_SHADD8 "shadd8") (UNSPEC_SHSUB8 "shsub8")
+			    (UNSPEC_UHADD8 "uhadd8") (UNSPEC_UHSUB8 "uhsub8")
+			    (UNSPEC_UQADD8 "uqadd8") (UNSPEC_UQSUB8 "uqsub8")
+			    (UNSPEC_QADD16 "qadd16") (UNSPEC_QASX "qasx")
+			    (UNSPEC_QSAX "qsax") (UNSPEC_QSUB16 "qsub16")
+			    (UNSPEC_SHADD16 "shadd16") (UNSPEC_SHASX "shasx")
+			    (UNSPEC_SHSAX "shsax") (UNSPEC_SHSUB16 "shsub16")
+			    (UNSPEC_UHADD16 "uhadd16") (UNSPEC_UHASX "uhasx")
+			    (UNSPEC_UHSAX "uhsax") (UNSPEC_UHSUB16 "uhsub16")
+			    (UNSPEC_UQADD16 "uqadd16") (UNSPEC_UQASX "uqasx")
+			    (UNSPEC_UQSAX "uqsax") (UNSPEC_UQSUB16 "uqsub16")
+			    (UNSPEC_SMUSD "smusd") (UNSPEC_SMUSDX "smusdx")
+			    (UNSPEC_SXTAB16 "sxtab16") (UNSPEC_UXTAB16 "uxtab16")
+			    (UNSPEC_USAD8 "usad8") (UNSPEC_SMLALD "smlald")
+			    (UNSPEC_SMLALDX "smlaldx") (UNSPEC_SMLSLD "smlsld")
+			    (UNSPEC_SMLSLDX "smlsldx")(UNSPEC_SADD8 "sadd8")
+			    (UNSPEC_UADD8 "uadd8") (UNSPEC_SSUB8 "ssub8")
+			    (UNSPEC_USUB8 "usub8") (UNSPEC_SADD16 "sadd16")
+			    (UNSPEC_SASX "sasx") (UNSPEC_SSAX "ssax")
+			    (UNSPEC_SSUB16 "ssub16") (UNSPEC_UADD16 "uadd16")
+			    (UNSPEC_UASX "uasx") (UNSPEC_USAX "usax")
+			    (UNSPEC_USUB16 "usub16") (UNSPEC_SMLAD "smlad")
+			    (UNSPEC_SMLADX "smladx") (UNSPEC_SMLSD "smlsd")
+			    (UNSPEC_SMLSDX "smlsdx") (UNSPEC_SMUAD "smuad")
+			    (UNSPEC_SMUADX "smuadx") (UNSPEC_SSAT16 "ssat16")
+			    (UNSPEC_USAT16 "usat16")])
+
 ;; Both kinds of return insn.
 (define_code_iterator RETURNS [return simple_return])
 (define_code_attr return_str [(return "") (simple_return "simple_")])
@@ -1069,3 +1152,5 @@
 
 (define_int_attr opsuffix [(UNSPEC_DOT_S "s8")
 			   (UNSPEC_DOT_U "u8")])
+
+(define_int_attr smlaw_op [(UNSPEC_SMLAWB "smlawb") (UNSPEC_SMLAWT "smlawt")])

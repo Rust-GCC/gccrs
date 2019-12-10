@@ -40,6 +40,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgcleanup.h"
 #include "reload.h"
 #include "tree-pass.h"
+#include "function-abi.h"
 
 #ifndef STACK_POP_CODE
 #if STACK_GROWS_DOWNWARD
@@ -920,23 +921,6 @@ validate_simplify_insn (rtx_insn *insn)
 	  }
       }
   return ((num_changes_pending () > 0) && (apply_change_group () > 0));
-}
-
-/* Return 1 if the insn using CC0 set by INSN does not contain
-   any ordered tests applied to the condition codes.
-   EQ and NE tests do not count.  */
-
-int
-next_insn_tests_no_inequality (rtx_insn *insn)
-{
-  rtx_insn *next = next_cc0_user (insn);
-
-  /* If there is no next insn, we have to take the conservative choice.  */
-  if (next == 0)
-    return 0;
-
-  return (INSN_P (next)
-	  && ! inequality_comparisons_p (PATTERN (next)));
 }
 
 /* Return 1 if OP is a valid general operand for machine mode MODE.
@@ -3227,7 +3211,8 @@ peep2_find_free_register (int from, int to, const char *class_str,
 	      break;
 	    }
 	  /* And that we don't create an extra save/restore.  */
-	  if (! call_used_regs[regno + j] && ! df_regs_ever_live_p (regno + j))
+	  if (! crtl->abi->clobbers_full_reg_p (regno + j)
+	      && ! df_regs_ever_live_p (regno + j))
 	    {
 	      success = 0;
 	      break;
@@ -3724,8 +3709,7 @@ store_data_bypass_p_1 (rtx_insn *out_insn, rtx in_set)
     {
       rtx out_exp = XVECEXP (out_pat, 0, i);
 
-      if (GET_CODE (out_exp) == CLOBBER || GET_CODE (out_exp) == USE
-	  || GET_CODE (out_exp) == CLOBBER_HIGH)
+      if (GET_CODE (out_exp) == CLOBBER || GET_CODE (out_exp) == USE)
 	continue;
 
       gcc_assert (GET_CODE (out_exp) == SET);
@@ -3756,8 +3740,7 @@ store_data_bypass_p (rtx_insn *out_insn, rtx_insn *in_insn)
     {
       rtx in_exp = XVECEXP (in_pat, 0, i);
 
-      if (GET_CODE (in_exp) == CLOBBER || GET_CODE (in_exp) == USE
-	  || GET_CODE (in_exp) == CLOBBER_HIGH)
+      if (GET_CODE (in_exp) == CLOBBER || GET_CODE (in_exp) == USE)
 	continue;
 
       gcc_assert (GET_CODE (in_exp) == SET);
@@ -3809,7 +3792,7 @@ if_test_bypass_p (rtx_insn *out_insn, rtx_insn *in_insn)
 	{
 	  rtx exp = XVECEXP (out_pat, 0, i);
 
-	  if (GET_CODE (exp) == CLOBBER  || GET_CODE (exp) == CLOBBER_HIGH)
+	  if (GET_CODE (exp) == CLOBBER)
 	    continue;
 
 	  gcc_assert (GET_CODE (exp) == SET);

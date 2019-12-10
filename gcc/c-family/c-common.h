@@ -180,6 +180,9 @@ enum rid
   /* C++11 */
   RID_CONSTEXPR, RID_DECLTYPE, RID_NOEXCEPT, RID_NULLPTR, RID_STATIC_ASSERT,
 
+  /* C++20 */
+  RID_CONSTINIT, RID_CONSTEVAL,
+
   /* char8_t */
   RID_CHAR8,
 
@@ -250,6 +253,8 @@ enum rid
 
   RID_FIRST_CXX11 = RID_CONSTEXPR,
   RID_LAST_CXX11 = RID_STATIC_ASSERT,
+  RID_FIRST_CXX20 = RID_CONSTINIT,
+  RID_LAST_CXX20 = RID_CONSTINIT,
   RID_FIRST_AT = RID_AT_ENCODE,
   RID_LAST_AT = RID_AT_IMPLEMENTATION,
   RID_FIRST_PQ = RID_IN,
@@ -427,6 +432,7 @@ extern machine_mode c_default_pointer_mode;
 #define D_CXX_CONCEPTS  0x0400	/* In C++, only with concepts.  */
 #define D_TRANSMEM	0X0800	/* C++ transactional memory TS.  */
 #define D_CXX_CHAR8_T	0X1000	/* In C++, only with -fchar8_t.  */
+#define D_CXX20		0x2000  /* In C++, C++20 only.  */
 
 #define D_CXX_CONCEPTS_FLAGS D_CXXONLY | D_CXX_CONCEPTS
 #define D_CXX_CHAR8_T_FLAGS D_CXXONLY | D_CXX_CHAR8_T
@@ -695,11 +701,6 @@ extern int warn_abi_version;
    != (warn_abi_version == 0			\
        || warn_abi_version >= (N)))
 
-/* Nonzero means generate separate instantiation control files and
-   juggle them at link time.  */
-
-extern int flag_use_repository;
-
 /* The supported C++ dialects.  */
 
 enum cxx_dialect {
@@ -756,6 +757,16 @@ extern bool done_lexing;
 #define C_TYPE_OBJECT_OR_INCOMPLETE_P(type) \
   (!C_TYPE_FUNCTION_P (type))
 
+/* Return true if TYPE is a vector type that should be subject to the GNU
+   vector extensions (as opposed to a vector type that is used only for
+   the purposes of defining target-specific built-in functions).  */
+
+inline bool
+gnu_vector_type_p (const_tree type)
+{
+  return TREE_CODE (type) == VECTOR_TYPE && !TYPE_INDIVISIBLE_P (type);
+}
+
 struct visibility_flags
 {
   unsigned inpragma : 1;	/* True when in #pragma GCC visibility.  */
@@ -800,6 +811,8 @@ extern void c_register_addr_space (const char *str, addr_space_t as);
 extern bool in_late_binary_op;
 extern const char *c_addr_space_name (addr_space_t as);
 extern tree identifier_global_value (tree);
+extern tree identifier_global_tag (tree);
+extern bool names_builtin_p (const char *);
 extern tree c_linkage_bindings (tree);
 extern void record_builtin_type (enum rid, const char *, tree);
 extern tree build_void_list_node (void);
@@ -817,7 +830,7 @@ extern void check_function_arguments_recurse (void (*)
 					      void *, tree,
 					      unsigned HOST_WIDE_INT);
 extern bool check_builtin_function_arguments (location_t, vec<location_t>,
-					      tree, int, tree *);
+					      tree, tree, int, tree *);
 extern void check_function_format (const_tree, tree, int, tree *,
 				   vec<location_t> *);
 extern bool attribute_fallthrough_p (tree);
@@ -868,7 +881,7 @@ extern bool pointer_to_zero_sized_aggr_p (tree);
 extern bool bool_promoted_to_int_p (tree);
 extern tree fold_for_warn (tree);
 extern tree c_common_get_narrower (tree, int *);
-extern bool get_nonnull_operand (tree, unsigned HOST_WIDE_INT *);
+extern bool get_attribute_operand (tree, unsigned HOST_WIDE_INT *);
 
 #define c_sizeof(LOC, T)  c_sizeof_or_alignof_type (LOC, T, true, false, 1)
 #define c_alignof(LOC, T) c_sizeof_or_alignof_type (LOC, T, false, false, 1)
@@ -994,7 +1007,8 @@ extern bool c_switch_covers_all_cases_p (splay_tree, tree);
 extern tree build_function_call (location_t, tree, tree);
 
 extern tree build_function_call_vec (location_t, vec<location_t>, tree,
-				     vec<tree, va_gc> *, vec<tree, va_gc> *);
+				     vec<tree, va_gc> *, vec<tree, va_gc> *,
+				     tree = NULL_TREE);
 
 extern tree resolve_overloaded_builtin (location_t, tree, vec<tree, va_gc> *);
 
@@ -1020,6 +1034,7 @@ extern bool c_cpp_diagnostic (cpp_reader *, enum cpp_diagnostic_level,
 			      const char *, va_list *)
      ATTRIBUTE_GCC_DIAG(5,0);
 extern int c_common_has_attribute (cpp_reader *);
+extern int c_common_has_builtin (cpp_reader *);
 
 extern bool parse_optimize_options (tree, bool);
 
@@ -1061,6 +1076,7 @@ extern tree builtin_type_for_size (int, bool);
 extern void c_common_mark_addressable_vec (tree);
 
 extern void set_underlying_type (tree);
+extern bool user_facing_original_type_p (const_tree);
 extern void record_types_used_by_current_var_decl (tree);
 extern vec<tree, va_gc> *make_tree_vector (void);
 extern void release_tree_vector (vec<tree, va_gc> *);
@@ -1148,7 +1164,8 @@ enum c_omp_clause_split
   C_OMP_CLAUSE_SPLIT_SIMD,
   C_OMP_CLAUSE_SPLIT_COUNT,
   C_OMP_CLAUSE_SPLIT_SECTIONS = C_OMP_CLAUSE_SPLIT_FOR,
-  C_OMP_CLAUSE_SPLIT_TASKLOOP = C_OMP_CLAUSE_SPLIT_FOR
+  C_OMP_CLAUSE_SPLIT_TASKLOOP = C_OMP_CLAUSE_SPLIT_FOR,
+  C_OMP_CLAUSE_SPLIT_LOOP = C_OMP_CLAUSE_SPLIT_FOR
 };
 
 enum c_omp_region_type
@@ -1184,7 +1201,10 @@ extern void c_omp_split_clauses (location_t, enum tree_code, omp_clause_mask,
 				 tree, tree *);
 extern tree c_omp_declare_simd_clauses_to_numbers (tree, tree);
 extern void c_omp_declare_simd_clauses_to_decls (tree, tree);
+extern bool c_omp_predefined_variable (tree);
 extern enum omp_clause_default_kind c_omp_predetermined_sharing (tree);
+extern tree c_omp_check_context_selector (location_t, tree);
+extern void c_omp_mark_declare_variant (location_t, tree, tree);
 
 /* Return next tree in the chain for chain_next walking of tree nodes.  */
 static inline tree
@@ -1338,12 +1358,16 @@ extern void warn_for_multistatement_macros (location_t, location_t,
 
 /* In c-attribs.c.  */
 extern bool attribute_takes_identifier_p (const_tree);
+extern tree handle_deprecated_attribute (tree *, tree, tree, int, bool *);
 extern tree handle_unused_attribute (tree *, tree, tree, int, bool *);
+extern tree handle_fallthrough_attribute (tree *, tree, tree, int, bool *);
 extern int parse_tm_stmt_attr (tree, int);
 extern int tm_attr_to_mask (tree);
 extern tree tm_mask_to_attr (int);
 extern tree find_tm_attribute (tree);
 extern const struct attribute_spec::exclusions attr_cold_hot_exclusions[];
+extern const struct attribute_spec::exclusions attr_noreturn_exclusions[];
+extern tree handle_noreturn_attribute (tree *, tree, tree, int, bool *);
 
 /* In c-format.c.  */
 extern bool valid_format_string_type_p (tree);

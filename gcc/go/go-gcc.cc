@@ -613,7 +613,16 @@ Gcc_backend::Gcc_backend()
 						NULL_TREE),
 		       false, false);
 
-  // Used by runtime/internal/sys.
+  // We use __builtin_memset for zeroing data.
+  this->define_builtin(BUILT_IN_MEMSET, "__builtin_memset", "memset",
+		       build_function_type_list(void_type_node,
+						ptr_type_node,
+						integer_type_node,
+						size_type_node,
+						NULL_TREE),
+		       false, false);
+
+  // Used by runtime/internal/sys and math/bits.
   this->define_builtin(BUILT_IN_CTZ, "__builtin_ctz", "ctz",
 		       build_function_type_list(integer_type_node,
 						unsigned_type_node,
@@ -622,6 +631,31 @@ Gcc_backend::Gcc_backend()
   this->define_builtin(BUILT_IN_CTZLL, "__builtin_ctzll", "ctzll",
 		       build_function_type_list(integer_type_node,
 						long_long_unsigned_type_node,
+						NULL_TREE),
+		       true, false);
+  this->define_builtin(BUILT_IN_CLZ, "__builtin_clz", "clz",
+		       build_function_type_list(integer_type_node,
+						unsigned_type_node,
+						NULL_TREE),
+		       true, false);
+  this->define_builtin(BUILT_IN_CLZLL, "__builtin_clzll", "clzll",
+		       build_function_type_list(integer_type_node,
+						long_long_unsigned_type_node,
+						NULL_TREE),
+		       true, false);
+  this->define_builtin(BUILT_IN_POPCOUNT, "__builtin_popcount", "popcount",
+		       build_function_type_list(integer_type_node,
+						unsigned_type_node,
+						NULL_TREE),
+		       true, false);
+  this->define_builtin(BUILT_IN_POPCOUNTLL, "__builtin_popcountll", "popcountll",
+		       build_function_type_list(integer_type_node,
+						long_long_unsigned_type_node,
+						NULL_TREE),
+		       true, false);
+  this->define_builtin(BUILT_IN_BSWAP16, "__builtin_bswap16", "bswap16",
+		       build_function_type_list(uint16_type_node,
+						uint16_type_node,
 						NULL_TREE),
 		       true, false);
   this->define_builtin(BUILT_IN_BSWAP32, "__builtin_bswap32", "bswap32",
@@ -871,6 +905,8 @@ Gcc_backend::Gcc_backend()
                                NULL_TREE);
   this->define_builtin(BUILT_IN_ATOMIC_AND_FETCH_1, "__atomic_and_fetch_1", NULL,
                        t, false, false);
+  this->define_builtin(BUILT_IN_ATOMIC_FETCH_AND_1, "__atomic_fetch_and_1", NULL,
+                       t, false, false);
 
   t = build_function_type_list(unsigned_char_type_node,
                                ptr_type_node,
@@ -878,6 +914,8 @@ Gcc_backend::Gcc_backend()
                                integer_type_node,
                                NULL_TREE);
   this->define_builtin(BUILT_IN_ATOMIC_OR_FETCH_1, "__atomic_or_fetch_1", NULL,
+                       t, false, false);
+  this->define_builtin(BUILT_IN_ATOMIC_FETCH_OR_1, "__atomic_fetch_or_1", NULL,
                        t, false, false);
 }
 

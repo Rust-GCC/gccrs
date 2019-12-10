@@ -405,6 +405,7 @@ grok_array_decl (location_t loc, tree array_expr, tree index_exp,
   else
     {
       tree p1, p2, i1, i2;
+      bool swapped = false;
 
       /* Otherwise, create an ARRAY_REF for a pointer or array type.
 	 It is a little-known fact that, if `a' is an array and `i' is
@@ -431,11 +432,11 @@ grok_array_decl (location_t loc, tree array_expr, tree index_exp,
       if (p1 && i2)
 	array_expr = p1, index_exp = i2;
       else if (i1 && p2)
-	array_expr = p2, index_exp = i1;
+	swapped = true, array_expr = p2, index_exp = i1;
       else
 	{
-	  error ("invalid types %<%T[%T]%> for array subscript",
-		 type, TREE_TYPE (index_exp));
+	  error_at (loc, "invalid types %<%T[%T]%> for array subscript",
+		    type, TREE_TYPE (index_exp));
 	  return error_mark_node;
 	}
 
@@ -447,7 +448,12 @@ grok_array_decl (location_t loc, tree array_expr, tree index_exp,
       else
 	array_expr = mark_lvalue_use_nonread (array_expr);
       index_exp = mark_rvalue_use (index_exp);
-      expr = build_array_ref (input_location, array_expr, index_exp);
+      if (swapped
+	  && flag_strong_eval_order == 2
+	  && (TREE_SIDE_EFFECTS (array_expr) || TREE_SIDE_EFFECTS (index_exp)))
+	expr = build_array_ref (input_location, index_exp, array_expr);
+      else
+	expr = build_array_ref (input_location, array_expr, index_exp);
     }
   if (processing_template_decl && expr != error_mark_node)
     {
@@ -487,15 +493,19 @@ delete_sanity (tree exp, tree size, bool doing_vec, int use_global_delete,
     }
 
   /* An array can't have been allocated by new, so complain.  */
-  if (TREE_CODE (TREE_TYPE (exp)) == ARRAY_TYPE)
-    warning (0, "deleting array %q#E", exp);
+  if (TREE_CODE (TREE_TYPE (exp)) == ARRAY_TYPE
+      && (complain & tf_warning))
+    warning_at (cp_expr_loc_or_input_loc (exp), 0,
+		"deleting array %q#E", exp);
 
   t = build_expr_type_conversion (WANT_POINTER, exp, true);
 
   if (t == NULL_TREE || t == error_mark_node)
     {
-      error ("type %q#T argument given to %<delete%>, expected pointer",
-	     TREE_TYPE (exp));
+      if (complain & tf_error)
+	error_at (cp_expr_loc_or_input_loc (exp),
+		  "type %q#T argument given to %<delete%>, expected pointer",
+		  TREE_TYPE (exp));
       return error_mark_node;
     }
 
@@ -506,15 +516,19 @@ delete_sanity (tree exp, tree size, bool doing_vec, int use_global_delete,
   /* You can't delete functions.  */
   if (TREE_CODE (TREE_TYPE (type)) == FUNCTION_TYPE)
     {
-      error ("cannot delete a function.  Only pointer-to-objects are "
-	     "valid arguments to %<delete%>");
+      if (complain & tf_error)
+	error_at (cp_expr_loc_or_input_loc (exp),
+		  "cannot delete a function.  Only pointer-to-objects are "
+		  "valid arguments to %<delete%>");
       return error_mark_node;
     }
 
   /* Deleting ptr to void is undefined behavior [expr.delete/3].  */
   if (VOID_TYPE_P (TREE_TYPE (type)))
     {
-      warning (OPT_Wdelete_incomplete, "deleting %qT is undefined", type);
+      if (complain & tf_warning)
+	warning_at (cp_expr_loc_or_input_loc (exp), OPT_Wdelete_incomplete,
+		    "deleting %qT is undefined", type);
       doing_vec = 0;
     }
 
@@ -920,7 +934,7 @@ grokfield (const cp_declarator *declarator,
 		  DECL_DECLARED_INLINE_P (value) = 1;
 		}
 	    }
-	  else if (TREE_CODE (init) == DEFAULT_ARG)
+	  else if (TREE_CODE (init) == DEFERRED_PARSE)
 	    error ("invalid initializer for member function %qD", value);
 	  else if (TREE_CODE (TREE_TYPE (value)) == METHOD_TYPE)
 	    {
@@ -975,6 +989,9 @@ grokfield (const cp_declarator *declarator,
     flags = LOOKUP_NORMAL;
   else
     flags = LOOKUP_IMPLICIT;
+
+  if (decl_spec_seq_has_spec_p (declspecs, ds_constinit))
+    flags |= LOOKUP_CONSTINIT;
 
   switch (TREE_CODE (value))
     {
@@ -1406,32 +1423,68 @@ cp_check_const_attributes (tree attributes)
     }
 }
 
-/* Return true if TYPE is an OpenMP mappable type.  */
-bool
-cp_omp_mappable_type (tree type)
+/* Return true if TYPE is an OpenMP mappable type.
+   If NOTES is non-zero, emit a note message for each problem.  */
+static bool
+cp_omp_mappable_type_1 (tree type, bool notes)
 {
+  bool result = true;
+
   /* Mappable type has to be complete.  */
   if (type == error_mark_node || !COMPLETE_TYPE_P (type))
-    return false;
+    {
+      if (notes && type != error_mark_node)
+	{
+	  tree decl = TYPE_MAIN_DECL (type);
+	  inform ((decl ? DECL_SOURCE_LOCATION (decl) : input_location),
+		  "incomplete type %qT is not mappable", type);
+	}
+      result = false;
+    }
   /* Arrays have mappable type if the elements have mappable type.  */
   while (TREE_CODE (type) == ARRAY_TYPE)
     type = TREE_TYPE (type);
   /* A mappable type cannot contain virtual members.  */
   if (CLASS_TYPE_P (type) && CLASSTYPE_VTABLES (type))
-    return false;
+    {
+      if (notes)
+	inform (DECL_SOURCE_LOCATION (TYPE_MAIN_DECL (type)),
+		"type %qT with virtual members is not mappable", type);
+      result = false;
+    }
   /* All data members must be non-static.  */
   if (CLASS_TYPE_P (type))
     {
       tree field;
       for (field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field))
 	if (VAR_P (field))
-	  return false;
+	  {
+	    if (notes)
+	      inform (DECL_SOURCE_LOCATION (field),
+		      "static field %qD is not mappable", field);
+	    result = false;
+	  }
 	/* All fields must have mappable types.  */
 	else if (TREE_CODE (field) == FIELD_DECL
-		 && !cp_omp_mappable_type (TREE_TYPE (field)))
-	  return false;
+		 && !cp_omp_mappable_type_1 (TREE_TYPE (field), notes))
+	  result = false;
     }
-  return true;
+  return result;
+}
+
+/* Return true if TYPE is an OpenMP mappable type.  */
+bool
+cp_omp_mappable_type (tree type)
+{
+  return cp_omp_mappable_type_1 (type, false);
+}
+
+/* Return true if TYPE is an OpenMP mappable type.
+   Emit an error messages if not.  */
+bool
+cp_omp_emit_unmappable_type_notes (tree type)
+{
+  return cp_omp_mappable_type_1 (type, true);
 }
 
 /* Return the last pushed declaration for the symbol DECL or NULL
@@ -1505,8 +1558,12 @@ cplus_decl_attributes (tree *decl, tree attributes, int flags)
 	attributes = tree_cons (get_identifier ("omp declare target implicit"),
 				NULL_TREE, attributes);
       else
-	attributes = tree_cons (get_identifier ("omp declare target"),
-				NULL_TREE, attributes);
+	{
+	  attributes = tree_cons (get_identifier ("omp declare target"),
+				  NULL_TREE, attributes);
+	  attributes = tree_cons (get_identifier ("omp declare target block"),
+				  NULL_TREE, attributes);
+	}
     }
 
   if (processing_template_decl)
@@ -1564,7 +1621,8 @@ build_anon_union_vars (tree type, tree object)
      just give an error.  */
   if (TREE_CODE (type) != UNION_TYPE)
     {
-      error ("anonymous struct not inside named type");
+      error_at (DECL_SOURCE_LOCATION (TYPE_MAIN_DECL (type)),
+		"anonymous struct not inside named type");
       return error_mark_node;
     }
 
@@ -2035,7 +2093,7 @@ import_export_class (tree ctype)
        repository.  If the virtual table is assigned to this
        translation unit, then export the class; otherwise, import
        it.  */
-      import_export = repo_export_class_p (ctype) ? 1 : -1;
+      import_export = -1;
   else if (TYPE_POLYMORPHIC_P (ctype))
     {
       /* The ABI specifies that the virtual table and associated
@@ -2091,7 +2149,7 @@ mark_needed (tree decl)
       struct cgraph_node *node = cgraph_node::get_create (decl);
       node->forced_by_abi = true;
 
-      /* #pragma interface and -frepo code can call mark_needed for
+      /* #pragma interface can call mark_needed for
           maybe-in-charge 'tors; mark the clones as well.  */
       tree clone;
       FOR_EACH_CLONE (clone, decl)
@@ -2669,13 +2727,8 @@ determine_visibility_from_class (tree decl, tree class_type)
   /* Give the target a chance to override the visibility associated
      with DECL.  */
   if (VAR_P (decl)
-      && (DECL_TINFO_P (decl)
-	  || (DECL_VTABLE_OR_VTT_P (decl)
-	      /* Construction virtual tables are not exported because
-		 they cannot be referred to from other object files;
-		 their name is not standardized by the ABI.  */
-	      && !DECL_CONSTRUCTION_VTABLE_P (decl)))
       && TREE_PUBLIC (decl)
+      && (DECL_TINFO_P (decl) || DECL_VTABLE_OR_VTT_P (decl))
       && !DECL_REALLY_EXTERN (decl)
       && !CLASSTYPE_VISIBILITY_SPECIFIED (class_type))
     targetm.cxx.determine_class_data_visibility (decl);
@@ -2925,7 +2978,6 @@ tentative_decl_linkage (tree decl)
 void
 import_export_decl (tree decl)
 {
-  int emit_p;
   bool comdat_p;
   bool import_p;
   tree class_type = NULL_TREE;
@@ -2936,11 +2988,7 @@ import_export_decl (tree decl)
   /* We cannot determine what linkage to give to an entity with vague
      linkage until the end of the file.  For example, a virtual table
      for a class will be defined if and only if the key method is
-     defined in this translation unit.  As a further example, consider
-     that when compiling a translation unit that uses PCH file with
-     "-frepo" it would be incorrect to make decisions about what
-     entities to emit when building the PCH; those decisions must be
-     delayed until the repository information has been processed.  */
+     defined in this translation unit.  */
   gcc_assert (at_eof);
   /* Object file linkage for explicit instantiations is handled in
      mark_decl_instantiated.  For static variables in functions with
@@ -2986,27 +3034,7 @@ import_export_decl (tree decl)
      unit.  */
   import_p = false;
 
-  /* See if the repository tells us whether or not to emit DECL in
-     this translation unit.  */
-  emit_p = repo_emit_p (decl);
-  if (emit_p == 0)
-    import_p = true;
-  else if (emit_p == 1)
-    {
-      /* The repository indicates that this entity should be defined
-	 here.  Make sure the back end honors that request.  */
-      mark_needed (decl);
-      /* Output the definition as an ordinary strong definition.  */
-      DECL_EXTERNAL (decl) = 0;
-      DECL_INTERFACE_KNOWN (decl) = 1;
-      return;
-    }
-
-  if (import_p)
-    /* We have already decided what to do with this DECL; there is no
-       need to check anything further.  */
-    ;
-  else if (VAR_P (decl) && DECL_VTABLE_OR_VTT_P (decl))
+  if (VAR_P (decl) && DECL_VTABLE_OR_VTT_P (decl))
     {
       class_type = DECL_CONTEXT (decl);
       import_export_class (class_type);
@@ -3112,8 +3140,7 @@ import_export_decl (tree decl)
     {
       /* DECL is an implicit instantiation of a function or static
 	 data member.  */
-      if ((flag_implicit_templates
-	   && !flag_use_repository)
+      if (flag_implicit_templates
 	  || (flag_implicit_inline_templates
 	      && TREE_CODE (decl) == FUNCTION_DECL
 	      && DECL_DECLARED_INLINE_P (decl)))
@@ -5098,7 +5125,6 @@ c_parse_final_cleanups (void)
 
   perform_deferred_noexcept_checks ();
 
-  finish_repo ();
   fini_constexpr ();
 
   /* The entire file is now complete.  If requested, dump everything
@@ -5363,6 +5389,43 @@ cp_warn_deprecated_use (tree decl, tsubst_flags_t complain)
   return warned;
 }
 
+/* Like above, but takes into account outer scopes.  */
+
+void
+cp_warn_deprecated_use_scopes (tree scope)
+{
+  while (scope
+	 && scope != error_mark_node
+	 && scope != global_namespace)
+    {
+      if (cp_warn_deprecated_use (scope))
+	return;
+      if (TYPE_P (scope))
+	scope = CP_TYPE_CONTEXT (scope);
+      else
+	scope = CP_DECL_CONTEXT (scope);
+    }
+}
+
+/* True if DECL or its enclosing scope have unbound template parameters.  */
+
+bool
+decl_dependent_p (tree decl)
+{
+  if (DECL_FUNCTION_SCOPE_P (decl)
+      || TREE_CODE (decl) == CONST_DECL
+      || TREE_CODE (decl) == USING_DECL
+      || TREE_CODE (decl) == FIELD_DECL)
+    decl = CP_DECL_CONTEXT (decl);
+  if (tree tinfo = get_template_info (decl))
+    if (any_dependent_template_arguments_p (TI_ARGS (tinfo)))
+      return true;
+  if (LAMBDA_FUNCTION_P (decl)
+      && dependent_type_p (DECL_CONTEXT (decl)))
+    return true;
+  return false;
+}
+
 /* Mark DECL (either a _DECL or a BASELINK) as "used" in the program.
    If DECL is a specialization or implicitly declared class member,
    generate the actual definition.  Return false if something goes
@@ -5389,6 +5452,9 @@ mark_used (tree decl, tsubst_flags_t complain)
       decl = OVL_FIRST (decl);
     }
 
+  if (!DECL_P (decl))
+    return true;
+
   /* Set TREE_USED for the benefit of -Wunused.  */
   TREE_USED (decl) = 1;
   /* And for structured bindings also the underlying decl.  */
@@ -5404,6 +5470,17 @@ mark_used (tree decl, tsubst_flags_t complain)
   /* Mark enumeration types as used.  */
   if (TREE_CODE (decl) == CONST_DECL)
     used_types_insert (DECL_CONTEXT (decl));
+
+  if (TREE_CODE (decl) == FUNCTION_DECL
+      && DECL_MAYBE_DELETED (decl))
+    {
+      /* ??? Switch other defaulted functions to use DECL_MAYBE_DELETED?  */
+      gcc_assert (special_function_p (decl) == sfk_comparison);
+
+      ++function_depth;
+      synthesize_method (decl);
+      --function_depth;
+    }
 
   if (TREE_CODE (decl) == FUNCTION_DECL
       && !maybe_instantiate_noexcept (decl, complain))
@@ -5436,7 +5513,7 @@ mark_used (tree decl, tsubst_flags_t complain)
       || DECL_LANG_SPECIFIC (decl) == NULL
       || DECL_THUNK_P (decl))
     {
-      if (!processing_template_decl
+      if (!decl_dependent_p (decl)
 	  && !require_deduced_type (decl, complain))
 	return false;
       return true;
@@ -5457,6 +5534,21 @@ mark_used (tree decl, tsubst_flags_t complain)
      them instantiated for reduction clauses which inline them by hand
      directly.  */
   maybe_instantiate_decl (decl);
+
+  if (flag_concepts && TREE_CODE (decl) == FUNCTION_DECL
+      && !constraints_satisfied_p (decl))
+    {
+      if (complain & tf_error)
+	{
+	  auto_diagnostic_group d;
+	  error ("use of function %qD with unsatisfied constraints",
+		 decl);
+	  location_t loc = DECL_SOURCE_LOCATION (decl);
+	  inform (loc, "declared here");
+	  diagnose_constraints (loc, decl, NULL_TREE);
+	}
+      return false;
+    }
 
   if (processing_template_decl || in_template_function ())
     return true;
@@ -5511,7 +5603,6 @@ mark_used (tree decl, tsubst_flags_t complain)
 
   /* Is it a synthesized method that needs to be synthesized?  */
   if (TREE_CODE (decl) == FUNCTION_DECL
-      && DECL_NONSTATIC_MEMBER_FUNCTION_P (decl)
       && DECL_DEFAULTED_FN (decl)
       /* A function defaulted outside the class is synthesized either by
 	 cp_finish_decl or instantiate_decl.  */
@@ -5529,7 +5620,8 @@ mark_used (tree decl, tsubst_flags_t complain)
       /* Remember the current location for a function we will end up
 	 synthesizing.  Then we can inform the user where it was
 	 required in the case of error.  */
-      DECL_SOURCE_LOCATION (decl) = input_location;
+      if (DECL_ARTIFICIAL (decl))
+	DECL_SOURCE_LOCATION (decl) = input_location;
 
       /* Synthesizing an implicitly defined member function will result in
 	 garbage collection.  We must treat this situation as if we were

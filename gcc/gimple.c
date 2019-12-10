@@ -110,10 +110,27 @@ gimple_set_code (gimple *g, enum gimple_code code)
 /* Return the number of bytes needed to hold a GIMPLE statement with
    code CODE.  */
 
-static inline size_t
-gimple_size (enum gimple_code code)
+size_t
+gimple_size (enum gimple_code code, unsigned num_ops)
 {
-  return gsstruct_code_size[gss_for_code (code)];
+  size_t size = gsstruct_code_size[gss_for_code (code)];
+  if (num_ops > 0)
+    size += (sizeof (tree) * (num_ops - 1));
+  return size;
+}
+
+/* Initialize GIMPLE statement G with CODE and NUM_OPS.  */
+
+void
+gimple_init (gimple *g, enum gimple_code code, unsigned num_ops)
+{
+  gimple_set_code (g, code);
+  gimple_set_num_ops (g, num_ops);
+
+  /* Do not call gimple_set_modified here as it has other side
+     effects and this tuple is still not completely built.  */
+  g->modified = 1;
+  gimple_init_singleton (g);
 }
 
 /* Allocate memory for a GIMPLE statement with code CODE and NUM_OPS
@@ -125,10 +142,7 @@ gimple_alloc (enum gimple_code code, unsigned num_ops MEM_STAT_DECL)
   size_t size;
   gimple *stmt;
 
-  size = gimple_size (code);
-  if (num_ops > 0)
-    size += sizeof (tree) * (num_ops - 1);
-
+  size = gimple_size (code, num_ops);
   if (GATHER_STATISTICS)
     {
       enum gimple_alloc_kind kind = gimple_alloc_kind (code);
@@ -137,14 +151,7 @@ gimple_alloc (enum gimple_code code, unsigned num_ops MEM_STAT_DECL)
     }
 
   stmt = ggc_alloc_cleared_gimple_statement_stat (size PASS_MEM_STAT);
-  gimple_set_code (stmt, code);
-  gimple_set_num_ops (stmt, num_ops);
-
-  /* Do not call gimple_set_modified here as it has other side
-     effects and this tuple is still not completely built.  */
-  stmt->modified = 1;
-  gimple_init_singleton (stmt);
-
+  gimple_init (stmt, code, num_ops);
   return stmt;
 }
 
@@ -1108,6 +1115,25 @@ gimple_build_omp_return (bool wait_p)
 }
 
 
+/* Build a GIMPLE_OMP_SCAN statement.
+
+   BODY is the sequence of statements to be executed by the scan
+   construct.
+   CLAUSES are any of the construct's clauses.  */
+
+gomp_scan *
+gimple_build_omp_scan (gimple_seq body, tree clauses)
+{
+  gomp_scan *p
+    = as_a <gomp_scan *> (gimple_alloc (GIMPLE_OMP_SCAN, 0));
+  gimple_omp_scan_set_clauses (p, clauses);
+  if (body)
+    gimple_omp_set_body (p, body);
+
+  return p;
+}
+
+
 /* Build a GIMPLE_OMP_SECTIONS statement.
 
    BODY is a sequence of section statements.
@@ -1564,7 +1590,7 @@ gimple_call_nonnull_result_p (gcall *call)
   if (!fndecl)
     return false;
   if (flag_delete_null_pointer_checks && !flag_check_new
-      && DECL_IS_OPERATOR_NEW (fndecl)
+      && DECL_IS_OPERATOR_NEW_P (fndecl)
       && !TREE_NOTHROW (fndecl))
     return true;
 
@@ -1771,6 +1797,8 @@ gimple_get_lhs (const gimple *stmt)
     return gimple_assign_lhs (stmt);
   else if (code == GIMPLE_CALL)
     return gimple_call_lhs (stmt);
+  else if (code == GIMPLE_PHI)
+    return gimple_phi_result (stmt);
   else
     return NULL_TREE;
 }
@@ -1943,6 +1971,12 @@ gimple_copy (gimple *stmt)
 	  gimple_omp_ordered_set_clauses (as_a <gomp_ordered *> (copy), t);
 	  goto copy_omp_body;
 
+	case GIMPLE_OMP_SCAN:
+	  t = gimple_omp_scan_clauses (as_a <gomp_scan *> (stmt));
+	  t = unshare_expr (t);
+	  gimple_omp_scan_set_clauses (as_a <gomp_scan *> (copy), t);
+	  goto copy_omp_body;
+
 	case GIMPLE_OMP_TASKGROUP:
 	  t = unshare_expr (gimple_omp_taskgroup_clauses (stmt));
 	  gimple_omp_taskgroup_set_clauses (copy, t);
@@ -2032,6 +2066,18 @@ gimple_copy (gimple *stmt)
   return copy;
 }
 
+/* Move OLD_STMT's vuse and vdef operands to NEW_STMT, on the assumption
+   that OLD_STMT is about to be removed.  */
+
+void
+gimple_move_vops (gimple *new_stmt, gimple *old_stmt)
+{
+  tree vdef = gimple_vdef (old_stmt);
+  gimple_set_vuse (new_stmt, gimple_vuse (old_stmt));
+  gimple_set_vdef (new_stmt, vdef);
+  if (vdef && TREE_CODE (vdef) == SSA_NAME)
+    SSA_NAME_DEF_STMT (vdef) = new_stmt;
+}
 
 /* Return true if statement S has side-effects.  We consider a
    statement to have side effects if:
@@ -2103,10 +2149,22 @@ gimple_could_trap_p_1 (gimple *s, bool include_mem, bool include_stores)
       return false;
 
     case GIMPLE_ASSIGN:
-      t = gimple_expr_type (s);
       op = gimple_assign_rhs_code (s);
+
+      /* For COND_EXPR and VEC_COND_EXPR only the condition may trap.  */
+      if (op == COND_EXPR || op == VEC_COND_EXPR)
+	return tree_could_trap_p (gimple_assign_rhs1 (s));
+
+      /* For comparisons we need to check rhs operand types instead of rhs type
+         (which is BOOLEAN_TYPE).  */
+      if (TREE_CODE_CLASS (op) == tcc_comparison)
+	t = TREE_TYPE (gimple_assign_rhs1 (s));
+      else
+	t = gimple_expr_type (s);
+
       if (get_gimple_rhs_class (op) == GIMPLE_BINARY_RHS)
 	div = gimple_assign_rhs2 (s);
+
       return (operation_could_trap_p (op, FLOAT_TYPE_P (t),
 				      (INTEGRAL_TYPE_P (t)
 				       && TYPE_OVERFLOW_TRAPS (t)),
@@ -2181,16 +2239,18 @@ dump_gimple_statistics (void)
 unsigned
 get_gimple_rhs_num_ops (enum tree_code code)
 {
-  enum gimple_rhs_class rhs_class = get_gimple_rhs_class (code);
-
-  if (rhs_class == GIMPLE_UNARY_RHS || rhs_class == GIMPLE_SINGLE_RHS)
-    return 1;
-  else if (rhs_class == GIMPLE_BINARY_RHS)
-    return 2;
-  else if (rhs_class == GIMPLE_TERNARY_RHS)
-    return 3;
-  else
-    gcc_unreachable ();
+  switch (get_gimple_rhs_class (code))
+    {
+    case GIMPLE_UNARY_RHS:
+    case GIMPLE_SINGLE_RHS:
+      return 1;
+    case GIMPLE_BINARY_RHS:
+      return 2;
+    case GIMPLE_TERNARY_RHS:
+      return 3;
+    default:
+      gcc_unreachable ();
+    }
 }
 
 #define DEFTREECODE(SYM, STRING, TYPE, NARGS)   			    \
@@ -2668,6 +2728,18 @@ gimple_builtin_call_types_compatible_p (const gimple *stmt, tree fndecl)
   if (targs && !VOID_TYPE_P (TREE_VALUE (targs)))
     return false;
   return true;
+}
+
+/* Return true when STMT is operator delete call.  */
+
+bool
+gimple_call_operator_delete_p (const gcall *stmt)
+{
+  tree fndecl;
+
+  if ((fndecl = gimple_call_fndecl (stmt)) != NULL_TREE)
+    return DECL_IS_OPERATOR_DELETE_P (fndecl);
+  return false;
 }
 
 /* Return true when STMT is builtins call.  */

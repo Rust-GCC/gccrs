@@ -79,8 +79,6 @@
 #  define SIZE 96  /* 256 - 160 bytes for register save area */
 #elif defined (__s390__)
 #  define SIZE 160 /* 256 -  96 bytes for register save area */
-#elif defined (__SPU__)
-#  define SIZE 224
 #elif defined (__epiphany__)
 #  define SIZE (256 - __EPIPHANY_STACK_OFFSET__)
 #elif defined (__RL78__)
@@ -92,6 +90,8 @@
 #elif defined (xstormy16)
 #  define SIZE 254
 #elif defined (__nios2__)
+#  define SIZE 252
+#elif defined (__PRU__)
 #  define SIZE 252
 #elif defined (__v850__)
 #define SIZE 260

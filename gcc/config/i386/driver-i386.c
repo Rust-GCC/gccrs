@@ -423,6 +423,7 @@ const char *host_detect_local_cpu (int argc, const char **argv)
   unsigned int has_shstk = 0;
   unsigned int has_avx512vnni = 0, has_vaes = 0;
   unsigned int has_vpclmulqdq = 0;
+  unsigned int has_avx512vp2intersect = 0;
   unsigned int has_movdiri = 0, has_movdir64b = 0;
   unsigned int has_enqcmd = 0;
   unsigned int has_waitpkg = 0;
@@ -532,6 +533,7 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 
       has_avx5124vnniw = edx & bit_AVX5124VNNIW;
       has_avx5124fmaps = edx & bit_AVX5124FMAPS;
+      has_avx512vp2intersect = edx & bit_AVX512VP2INTERSECT;
 
       has_shstk = ecx & bit_SHSTK;
       has_pconfig = edx & bit_PCONFIG;
@@ -861,36 +863,45 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	  if (arch)
 	    {
 	      /* This is unknown family 0x6 CPU.  */
-	      /* Assume Ice Lake Server.  */
-	      if (has_wbnoinvd)
-		cpu = "icelake-server";
-	      /* Assume Ice Lake.  */
-	      else if (has_gfni)
-		cpu = "icelake-client";
-	      /* Assume Cannon Lake.  */
-	      else if (has_avx512vbmi)
-		cpu = "cannonlake";
-	      /* Assume Knights Mill.  */
-	      else if (has_avx5124vnniw)
-		cpu = "knm";
-	      /* Assume Knights Landing.  */
-	      else if (has_avx512er)
-		cpu = "knl";
-	      /* Assume Skylake with AVX-512.  */
-	      else if (has_avx512f)
-		cpu = "skylake-avx512";
-	      /* Assume Skylake.  */
-	      else if (has_clflushopt)
-		cpu = "skylake";
-	      /* Assume Broadwell.  */
-	      else if (has_adx)
-		cpu = "broadwell";
-	      else if (has_avx2)
+	      if (has_avx)
+	      {
+		/* Assume Tiger Lake */
+		if (has_avx512vp2intersect)
+		  cpu = "tigerlake";
+		/* Assume Cooper Lake */
+		else if (has_avx512bf16)
+		  cpu = "cooperlake";
+		/* Assume Ice Lake Server.  */
+		else if (has_wbnoinvd)
+		  cpu = "icelake-server";
+		/* Assume Ice Lake.  */
+		else if (has_avx512bitalg)
+		  cpu = "icelake-client";
+		/* Assume Cannon Lake.  */
+		else if (has_avx512vbmi)
+		  cpu = "cannonlake";
+		/* Assume Knights Mill.  */
+		else if (has_avx5124vnniw)
+		  cpu = "knm";
+		/* Assume Knights Landing.  */
+		else if (has_avx512er)
+		  cpu = "knl";
+		/* Assume Skylake with AVX-512.  */
+		else if (has_avx512f)
+		  cpu = "skylake-avx512";
+		/* Assume Skylake.  */
+		else if (has_clflushopt)
+		  cpu = "skylake";
+		/* Assume Broadwell.  */
+		else if (has_adx)
+		  cpu = "broadwell";
+		else if (has_avx2)
 		/* Assume Haswell.  */
-		cpu = "haswell";
-	      else if (has_avx)
+		  cpu = "haswell";
+		else
 		/* Assume Sandy Bridge.  */
-		cpu = "sandybridge";
+		  cpu = "sandybridge";	      
+	      }
 	      else if (has_sse4_2)
 		{
 		  if (has_gfni)
@@ -1143,6 +1154,7 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       const char *shstk = has_shstk ? " -mshstk" : " -mno-shstk";
       const char *vaes = has_vaes ? " -mvaes" : " -mno-vaes";
       const char *vpclmulqdq = has_vpclmulqdq ? " -mvpclmulqdq" : " -mno-vpclmulqdq";
+      const char *avx512vp2intersect = has_avx512vp2intersect ? " -mavx512vp2intersect" : " -mno-avx512vp2intersect";
       const char *avx512bitalg = has_avx512bitalg ? " -mavx512bitalg" : " -mno-avx512bitalg";
       const char *movdiri = has_movdiri ? " -mmovdiri" : " -mno-movdiri";
       const char *movdir64b = has_movdir64b ? " -mmovdir64b" : " -mno-movdir64b";
@@ -1165,7 +1177,7 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 			clwb, mwaitx, clzero, pku, rdpid, gfni, shstk,
 			avx512vbmi2, avx512vnni, vaes, vpclmulqdq,
 			avx512bitalg, movdiri, movdir64b, waitpkg, cldemote,
-			ptwrite, avx512bf16, enqcmd,
+			ptwrite, avx512bf16, enqcmd, avx512vp2intersect,
 			NULL);
     }
 

@@ -44,7 +44,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-data-ref.h"
 #include "tree-scalar-evolution.h"
 #include "tree-inline.h"
-#include "params.h"
 #include "case-cfn-macros.h"
 
 static unsigned int tree_ssa_phiopt_worker (bool, bool, bool);
@@ -504,7 +503,24 @@ factor_out_conditional_conversion (edge e0, edge e1, gphi *phi,
 		  gsi = gsi_for_stmt (arg0_def_stmt);
 		  gsi_prev_nondebug (&gsi);
 		  if (!gsi_end_p (gsi))
-		    return NULL;
+		    {
+		      if (gassign *assign
+			    = dyn_cast <gassign *> (gsi_stmt (gsi)))
+			{
+			  tree lhs = gimple_assign_lhs (assign);
+			  enum tree_code ass_code
+			    = gimple_assign_rhs_code (assign);
+			  if (ass_code != MAX_EXPR && ass_code != MIN_EXPR)
+			    return NULL;
+			  if (lhs != gimple_assign_rhs1 (arg0_def_stmt))
+			    return NULL;
+			  gsi_prev_nondebug (&gsi);
+			  if (!gsi_end_p (gsi))
+			    return NULL;
+			}
+		      else
+			return NULL;
+		    }
 		  gsi = gsi_for_stmt (arg0_def_stmt);
 		  gsi_next_nondebug (&gsi);
 		  if (!gsi_end_p (gsi))
@@ -1365,7 +1381,8 @@ minmax_replacement (basic_block cond_bb, basic_block middle_bb,
 
   /* Turn EQ/NE of extreme values to order comparisons.  */
   if ((cmp == NE_EXPR || cmp == EQ_EXPR)
-      && TREE_CODE (rhs) == INTEGER_CST)
+      && TREE_CODE (rhs) == INTEGER_CST
+      && INTEGRAL_TYPE_P (TREE_TYPE (rhs)))
     {
       if (wi::eq_p (wi::to_wide (rhs), wi::min_value (TREE_TYPE (rhs))))
 	{
@@ -1391,7 +1408,8 @@ minmax_replacement (basic_block cond_bb, basic_block middle_bb,
       larger = rhs;
       /* If we have smaller < CST it is equivalent to smaller <= CST-1.
 	 Likewise smaller <= CST is equivalent to smaller < CST+1.  */
-      if (TREE_CODE (larger) == INTEGER_CST)
+      if (TREE_CODE (larger) == INTEGER_CST
+	  && INTEGRAL_TYPE_P (TREE_TYPE (larger)))
 	{
 	  if (cmp == LT_EXPR)
 	    {
@@ -1419,7 +1437,8 @@ minmax_replacement (basic_block cond_bb, basic_block middle_bb,
       larger = gimple_cond_lhs (cond);
       /* If we have larger > CST it is equivalent to larger >= CST+1.
 	 Likewise larger >= CST is equivalent to larger > CST-1.  */
-      if (TREE_CODE (smaller) == INTEGER_CST)
+      if (TREE_CODE (smaller) == INTEGER_CST
+	  && INTEGRAL_TYPE_P (TREE_TYPE (smaller)))
 	{
 	  wi::overflow_type overflow;
 	  if (cmp == GT_EXPR)
@@ -2179,7 +2198,8 @@ get_non_trapping (void)
 
    We check that MIDDLE_BB contains only one store, that that store
    doesn't trap (not via NOTRAP, but via checking if an access to the same
-   memory location dominates us) and that the store has a "simple" RHS.  */
+   memory location dominates us, or the store is to a local addressable
+   object) and that the store has a "simple" RHS.  */
 
 static bool
 cond_store_replacement (basic_block middle_bb, basic_block join_bb,
@@ -2198,11 +2218,17 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb,
       || gimple_has_volatile_ops (assign))
     return false;
 
+  /* And no PHI nodes so all uses in the single stmt are also
+     available where we insert to.  */
+  if (!gimple_seq_empty_p (phi_nodes (middle_bb)))
+    return false;
+
   locus = gimple_location (assign);
   lhs = gimple_assign_lhs (assign);
   rhs = gimple_assign_rhs1 (assign);
-  if (TREE_CODE (lhs) != MEM_REF
-      || TREE_CODE (TREE_OPERAND (lhs, 0)) != SSA_NAME
+  if ((TREE_CODE (lhs) != MEM_REF
+       && TREE_CODE (lhs) != ARRAY_REF
+       && TREE_CODE (lhs) != COMPONENT_REF)
       || !is_gimple_reg_type (TREE_TYPE (lhs)))
     return false;
 
@@ -2210,7 +2236,13 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb,
      TREE_THIS_NOTRAP here, but in that case we also could move stores,
      whose value is not available readily, which we want to avoid.  */
   if (!nontrap->contains (lhs))
-    return false;
+    {
+      /* If LHS is a local variable without address-taken, we could
+	 always safely move down the store.  */
+      tree base = get_base_address (lhs);
+      if (!auto_var_p (base) || TREE_ADDRESSABLE (base))
+	return false;
+    }
 
   /* Now we've checked the constraints, so do the transformation:
      1) Remove the single store.  */
@@ -2240,6 +2272,10 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb,
   name = make_temp_ssa_name (TREE_TYPE (lhs), NULL, "cstore");
   new_stmt = gimple_build_assign (name, lhs);
   gimple_set_location (new_stmt, locus);
+  lhs = unshare_expr (lhs);
+  /* Set TREE_NO_WARNING on the rhs of the load to avoid uninit
+     warnings.  */
+  TREE_NO_WARNING (gimple_assign_rhs1 (new_stmt)) = 1;
   gsi_insert_on_edge (e1, new_stmt);
 
   /* 3) Create a PHI node at the join block, with one argument
@@ -2250,7 +2286,6 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb,
   add_phi_arg (newphi, rhs, e0, locus);
   add_phi_arg (newphi, name, e1, locus);
 
-  lhs = unshare_expr (lhs);
   new_stmt = gimple_build_assign (lhs, PHI_RESULT (newphi));
 
   /* 4) Insert that PHI node.  */
@@ -2262,6 +2297,14 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb,
     }
   else
     gsi_insert_before (&gsi, new_stmt, GSI_NEW_STMT);
+
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    {
+      fprintf (dump_file, "\nConditional store replacement happened!");
+      fprintf (dump_file, "\nReplaced the store with a load.");
+      fprintf (dump_file, "\nInserted a new PHI statement in joint block:\n");
+      print_gimple_stmt (dump_file, new_stmt, 0, TDF_VOPS|TDF_MEMSYMS);
+    }
 
   return true;
 }
@@ -2429,7 +2472,11 @@ cond_if_else_store_replacement (basic_block then_bb, basic_block else_bb,
 						 then_assign, else_assign);
     }
 
-  if (MAX_STORES_TO_SINK == 0)
+  /* If either vectorization or if-conversion is disabled then do
+     not sink any stores.  */
+  if (param_max_stores_to_sink == 0
+      || (!flag_tree_loop_vectorize && !flag_tree_slp_vectorize)
+      || !flag_tree_loop_if_convert)
     return false;
 
   /* Find data references.  */
@@ -2486,7 +2533,7 @@ cond_if_else_store_replacement (basic_block then_bb, basic_block else_bb,
 
   /* No pairs of stores found.  */
   if (!then_stores.length ()
-      || then_stores.length () > (unsigned) MAX_STORES_TO_SINK)
+      || then_stores.length () > (unsigned) param_max_stores_to_sink)
     {
       free_data_refs (then_datarefs);
       free_data_refs (else_datarefs);
@@ -2616,7 +2663,7 @@ static void
 hoist_adjacent_loads (basic_block bb0, basic_block bb1,
 		      basic_block bb2, basic_block bb3)
 {
-  int param_align = PARAM_VALUE (PARAM_L1_CACHE_LINE_SIZE);
+  int param_align = param_l1_cache_line_size;
   unsigned param_align_bits = (unsigned) (param_align * BITS_PER_UNIT);
   gphi_iterator gsi;
 
@@ -2766,7 +2813,7 @@ static bool
 gate_hoist_loads (void)
 {
   return (flag_hoist_adjacent_loads == 1
-	  && PARAM_VALUE (PARAM_L1_CACHE_LINE_SIZE)
+	  && param_l1_cache_line_size
 	  && HAVE_conditional_move);
 }
 

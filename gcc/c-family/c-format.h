@@ -36,6 +36,7 @@ enum format_lengths
   FMT_LEN_H,
   FMT_LEN_D,
   FMT_LEN_DD,
+  FMT_LEN_w,   /* GCC's HOST_WIDE_INT.  */
   FMT_LEN_MAX
 };
 
@@ -47,6 +48,7 @@ enum format_std_version
   STD_C94,
   STD_C9L, /* C99, but treat as C89 if -Wno-long-long.  */
   STD_C99,
+  STD_C2X,
   STD_EXT
 };
 
@@ -148,6 +150,7 @@ struct format_char_info
      two digit year formats, "3" for strftime formats giving two digit
      years in some locales, "4" for "2" which becomes "3" with an "E" modifier,
      "o" if use of strftime "O" is a GNU extension beyond C99,
+     "p" if use of strftime "O" is a C2x feature,
      "W" if the argument is a pointer which is dereferenced and written into,
      "R" if the argument is a pointer which is dereferenced and read from,
      "i" for printf integer formats where the '0' flag is ignored with

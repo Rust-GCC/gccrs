@@ -1056,9 +1056,17 @@ package body Sem_Ch6 is
          --  Apply constraint check. Note that this is done before the implicit
          --  conversion of the expression done for anonymous access types to
          --  ensure correct generation of the null-excluding check associated
-         --  with null-excluding expressions found in return statements.
+         --  with null-excluding expressions found in return statements. We
+         --  don't need a check if the subtype of the return object is the
+         --  same as the result subtype of the function.
 
-         Apply_Constraint_Check (Expr, R_Type);
+         if Nkind (N) /= N_Extended_Return_Statement
+           or else Nkind (Obj_Decl) /= N_Object_Declaration
+           or else Nkind (Object_Definition (Obj_Decl)) not in N_Has_Entity
+           or else Entity (Object_Definition (Obj_Decl)) /= R_Type
+         then
+            Apply_Constraint_Check (Expr, R_Type);
+         end if;
 
          --  The return value is converted to the return type of the function,
          --  which implies a predicate check if the return type is predicated.
@@ -3368,6 +3376,9 @@ package body Sem_Ch6 is
 
       --  Local variables
 
+      Body_Nod         : Node_Id := Empty;
+      Minimum_Acc_Objs : List_Id := No_List;
+
       Saved_GM   : constant Ghost_Mode_Type := Ghost_Mode;
       Saved_IGR  : constant Node_Id         := Ignored_Ghost_Region;
       Saved_EA   : constant Boolean         := Expander_Active;
@@ -3689,7 +3700,7 @@ package body Sem_Ch6 is
          --  generated. Freeze nodes, if any, are inserted before the current
          --  body. These freeze actions are also needed in ASIS mode and in
          --  Compile_Only mode to enable the proper back-end type annotations.
-         --  They are necessary in any case to insure order of elaboration
+         --  They are necessary in any case to ensure proper elaboration order
          --  in gigi.
 
          if Nkind (N) = N_Subprogram_Body
@@ -3698,13 +3709,16 @@ package body Sem_Ch6 is
            and then Serious_Errors_Detected = 0
            and then (Expander_Active
                       or else ASIS_Mode
-                      or else Operating_Mode = Check_Semantics)
+                      or else Operating_Mode = Check_Semantics
+                      or else Is_Ignored_Ghost_Entity (Spec_Id))
          then
             --  The body generated for an expression function that is not a
             --  completion is a freeze point neither for the profile nor for
             --  anything else. That's why, in order to prevent any freezing
             --  during analysis, we need to mask types declared outside the
             --  expression (and in an outer scope) that are not yet frozen.
+            --  This also needs to be done in the case of an ignored Ghost
+            --  expression function, where the expander isn't active.
 
             Set_Is_Frozen (Spec_Id);
             Mask_Types := Mask_Unfrozen_Types (Spec_Id);
@@ -4243,6 +4257,110 @@ package body Sem_Ch6 is
          end;
       end if;
 
+      --  Generate minimum accessibility local objects to correspond with
+      --  any extra formal added for anonymous access types. This new local
+      --  object can then be used instead of the formal in case it is used
+      --  in an actual to a call to a nested subprogram.
+
+      --  This method is used to supplement our "small integer model" for
+      --  accessibility-check generation (for more information see
+      --  Dynamic_Accessibility_Level).
+
+      --  Because we allow accessibility values greater than our expected value
+      --  passing along the same extra accessibility formal as an actual
+      --  to a nested subprogram becomes a problem because high values mean
+      --  different things to the callee even though they are the same to the
+      --  caller. So, as described in the first section, we create a local
+      --  object representing the minimum of the accessibility level value that
+      --  is passed in and the accessibility level of the callee's parameter
+      --  and locals and use it in the case of a call to a nested subprogram.
+      --  This generated object is refered to as a "minimum accessiblity
+      --  level."
+
+      if Present (Spec_Id) or else Present (Body_Id) then
+         Body_Nod := Unit_Declaration_Node (Body_Id);
+
+         declare
+            Form : Entity_Id;
+         begin
+            --  Grab the appropriate formal depending on whether there exists
+            --  an actual spec for the subprogram or whether we are dealing
+            --  with a protected subprogram.
+
+            if Present (Spec_Id) then
+               if Present (Protected_Body_Subprogram (Spec_Id)) then
+                  Form := First_Formal (Protected_Body_Subprogram (Spec_Id));
+               else
+                  Form := First_Formal (Spec_Id);
+               end if;
+            else
+               Form := First_Formal (Body_Id);
+            end if;
+
+            --  Loop through formals if the subprogram is capable of accepting
+            --  a generated local object. If it is not then it is also not
+            --  capable of having local subprograms meaning it would not need
+            --  a minimum accessibility level object anyway.
+
+            if Present (Body_Nod)
+              and then Has_Declarations (Body_Nod)
+              and then Nkind (Body_Nod) /= N_Package_Specification
+            then
+               while Present (Form) loop
+
+                  if Present (Extra_Accessibility (Form))
+                    and then No (Minimum_Accessibility (Form))
+                  then
+                     --  Generate the minimum accessibility level object
+
+                     --    A60b : integer := integer'min(2, paramL);
+
+                     declare
+                        Loc      : constant Source_Ptr := Sloc (Body_Nod);
+                        Obj_Node : constant Node_Id :=
+                           Make_Object_Declaration (Loc,
+                            Defining_Identifier =>
+                              Make_Temporary
+                                (Loc, 'A', Extra_Accessibility (Form)),
+                            Object_Definition   => New_Occurrence_Of
+                                                     (Standard_Integer, Loc),
+                            Expression          =>
+                              Make_Attribute_Reference (Loc,
+                                Prefix         => New_Occurrence_Of
+                                                    (Standard_Integer, Loc),
+                                Attribute_Name => Name_Min,
+                                Expressions    => New_List (
+                                  Make_Integer_Literal (Loc,
+                                    Object_Access_Level (Form)),
+                                  New_Occurrence_Of
+                                    (Extra_Accessibility (Form), Loc))));
+                     begin
+                        --  Add the new local object to the Minimum_Acc_Obj to
+                        --  be later prepended to the subprogram's list of
+                        --  declarations after we are sure all expansion is
+                        --  done.
+
+                        if Present (Minimum_Acc_Objs) then
+                           Prepend (Obj_Node, Minimum_Acc_Objs);
+                        else
+                           Minimum_Acc_Objs := New_List (Obj_Node);
+                        end if;
+
+                        --  Register the object and analyze it
+
+                        Set_Minimum_Accessibility
+                          (Form, Defining_Identifier (Obj_Node));
+
+                        Analyze (Obj_Node);
+                     end;
+                  end if;
+
+                  Next_Formal (Form);
+               end loop;
+            end if;
+         end;
+      end if;
+
       --  Now we can go on to analyze the body
 
       HSS := Handled_Statement_Sequence (N);
@@ -4346,6 +4464,19 @@ package body Sem_Ch6 is
       Check_Completion;
       Inspect_Deferred_Constant_Completion (Declarations (N));
       Analyze (HSS);
+
+      --  Add the generated minimum accessibility objects to the subprogram
+      --  body's list of declarations after analysis of the statements and
+      --  contracts.
+
+      while Is_Non_Empty_List (Minimum_Acc_Objs) loop
+         if Present (Declarations (Body_Nod)) then
+            Prepend (Remove_Head (Minimum_Acc_Objs), Declarations (Body_Nod));
+         else
+            Set_Declarations
+              (Body_Nod, New_List (Remove_Head (Minimum_Acc_Objs)));
+         end if;
+      end loop;
 
       --  Deal with end of scope processing for the body
 
@@ -5444,10 +5575,14 @@ package body Sem_Ch6 is
                and then Directly_Designated_Type (Old_Formal_Base) =
                                     Directly_Designated_Type (New_Formal_Base)
            and then ((Is_Itype (Old_Formal_Base)
-                       and then Can_Never_Be_Null (Old_Formal_Base))
+                       and then (Can_Never_Be_Null (Old_Formal_Base)
+                                  or else Is_Access_Constant
+                                            (Old_Formal_Base)))
                      or else
                       (Is_Itype (New_Formal_Base)
-                        and then Can_Never_Be_Null (New_Formal_Base)));
+                        and then (Can_Never_Be_Null (New_Formal_Base)
+                                   or else Is_Access_Constant
+                                             (New_Formal_Base))));
 
          --  Types must always match. In the visible part of an instance,
          --  usual overloading rules for dispatching operations apply, and
@@ -5953,7 +6088,7 @@ package body Sem_Ch6 is
               Access_Definition (N, Discriminant_Type (New_Discr));
 
          else
-            Analyze (Discriminant_Type (New_Discr));
+            Find_Type (Discriminant_Type (New_Discr));
             New_Discr_Type := Etype (Discriminant_Type (New_Discr));
 
             --  Ada 2005: if the discriminant definition carries a null
@@ -7019,6 +7154,11 @@ package body Sem_Ch6 is
       In_Scope    : Boolean;
       Typ         : Entity_Id;
 
+      function Is_Valid_Formal (F : Entity_Id) return Boolean;
+      --  Predicate for legality rule in 9.4 (11.9/2): If an inherited
+      --  subprogram is implemented by a protected procedure or entry,
+      --  its first parameter must be out, in out, or access-to-variable.
+
       function Matches_Prefixed_View_Profile
         (Prim_Params  : List_Id;
          Iface_Params : List_Id) return Boolean;
@@ -7026,6 +7166,19 @@ package body Sem_Ch6 is
       --  matches that of a potentially overridden interface subprogram
       --  Iface_Params. Also determine if the type of first parameter of
       --  Iface_Params is an implemented interface.
+
+      ----------------------
+      --  Is_Valid_Formal --
+      ----------------------
+
+      function Is_Valid_Formal (F : Entity_Id) return Boolean is
+      begin
+         return
+           Ekind_In (F, E_In_Out_Parameter, E_Out_Parameter)
+             or else
+               (Nkind (Parameter_Type (Parent (F))) = N_Access_Definition
+                 and then not Constant_Present (Parameter_Type (Parent (F))));
+      end Is_Valid_Formal;
 
       -----------------------------------
       -- Matches_Prefixed_View_Profile --
@@ -7280,10 +7433,7 @@ package body Sem_Ch6 is
 
                   if Ekind_In (Candidate, E_Entry, E_Procedure)
                     and then Is_Protected_Type (Typ)
-                    and then Ekind (Formal) /= E_In_Out_Parameter
-                    and then Ekind (Formal) /= E_Out_Parameter
-                    and then Nkind (Parameter_Type (Parent (Formal))) /=
-                                                       N_Access_Definition
+                    and then not Is_Valid_Formal (Formal)
                   then
                      null;
 
@@ -8050,7 +8200,6 @@ package body Sem_Ch6 is
       if Is_Build_In_Place_Function (E) then
          declare
             Result_Subt : constant Entity_Id := Etype (E);
-            Full_Subt   : constant Entity_Id := Available_View (Result_Subt);
             Formal_Typ  : Entity_Id;
             Subp_Decl   : Node_Id;
             Discard     : Entity_Id;
@@ -8100,7 +8249,7 @@ package body Sem_Ch6 is
             --  master of the tasks to be created, and the caller's activation
             --  chain.
 
-            if Has_Task (Full_Subt) then
+            if Needs_BIP_Task_Actuals (E) then
                Discard :=
                  Add_Extra_Formal
                    (E, RTE (RE_Master_Id),
@@ -8413,11 +8562,12 @@ package body Sem_Ch6 is
 
    begin
       --  This check applies only if we have a subprogram declaration with an
-      --  untagged record type.
+      --  untagged record type that is conformant to the predefined op.
 
       if Nkind (Decl) /= N_Subprogram_Declaration
         or else not Is_Record_Type (Typ)
         or else Is_Tagged_Type (Typ)
+        or else Etype (Next_Formal (First_Formal (Eq_Op))) /= Typ
       then
          return;
       end if;
@@ -10148,7 +10298,7 @@ package body Sem_Ch6 is
 
                         --  Here, S is "function ... return T;" declared in
                         --  the private part, not overriding some visible
-                        --  operation.  That's illegal in the tagged case
+                        --  operation. That's illegal in the tagged case
                         --  (but not if the private type is untagged).
 
                         if ((Present (Partial_View)
@@ -11335,7 +11485,13 @@ package body Sem_Ch6 is
                goto Continue;
             end if;
 
-            Formal_Type := Entity (Ptype);
+            --  Protect against malformed parameter types
+
+            if Nkind (Ptype) not in N_Has_Entity then
+               Formal_Type := Any_Type;
+            else
+               Formal_Type := Entity (Ptype);
+            end if;
 
             if Is_Incomplete_Type (Formal_Type)
               or else
@@ -11882,7 +12038,7 @@ package body Sem_Ch6 is
             --  predicate may come from an explicit aspect of be inherited.
 
             elsif Has_Predicates (T) then
-               Insert_List_Before_And_Analyze (Decl,
+               Insert_List_After_And_Analyze (Decl,
                  Freeze_Entity (Defining_Identifier (Decl), N));
             end if;
 

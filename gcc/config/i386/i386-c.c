@@ -222,6 +222,13 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       def_or_undef (parse_in, "__cascadelake");
       def_or_undef (parse_in, "__cascadelake__");
       break;
+    case PROCESSOR_TIGERLAKE:
+      def_or_undef (parse_in, "__tigerlake");
+      def_or_undef (parse_in, "__tigerlake__");
+      break;
+    case PROCESSOR_COOPERLAKE:
+      def_or_undef (parse_in, "__cooperlake");
+      def_or_undef (parse_in, "__cooperlake__");
     /* use PROCESSOR_max to not set/unset the arch macro.  */
     case PROCESSOR_max:
       break;
@@ -370,6 +377,12 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     case PROCESSOR_CASCADELAKE:
       def_or_undef (parse_in, "__tune_cascadelake__");
       break;
+    case PROCESSOR_TIGERLAKE:
+      def_or_undef (parse_in, "__tune_tigerlake__");
+      break;
+    case PROCESSOR_COOPERLAKE:
+      def_or_undef (parse_in, "__tune_cooperlake__");
+      break;
     case PROCESSOR_INTEL:
     case PROCESSOR_GENERIC:
       break;
@@ -404,6 +417,8 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
 
   if (isa_flag2 & OPTION_MASK_ISA_WBNOINVD)
     def_or_undef (parse_in, "__WBNOINVD__");
+  if (isa_flag2 & OPTION_MASK_ISA_AVX512VP2INTERSECT)
+    def_or_undef (parse_in, "__AVX512VP2INTERSECT__");
   if (isa_flag & OPTION_MASK_ISA_MMX)
     def_or_undef (parse_in, "__MMX__");
   if (isa_flag & OPTION_MASK_ISA_3DNOW)

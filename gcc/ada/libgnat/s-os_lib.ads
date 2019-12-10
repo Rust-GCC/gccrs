@@ -164,6 +164,15 @@ package System.OS_Lib is
    --  component parts to be interpreted in the local time zone, and returns
    --  an OS_Time. Returns Invalid_Time if the creation fails.
 
+   subtype time_t is Long_Integer;
+   --  C time_t type of the time representation
+
+   function To_C (Time : OS_Time) return time_t;
+   --  Convert OS_Time to C time_t type
+
+   function To_Ada (Time : time_t) return OS_Time;
+   --  Convert C time_t type to OS_Time
+
    ----------------
    -- File Stuff --
    ----------------
@@ -246,7 +255,7 @@ package System.OS_Lib is
       Success  : out Boolean;
       Mode     : Copy_Mode := Copy;
       Preserve : Attribute := Time_Stamps);
-   --  Copy a file. Name must designate a single file (no wild cards allowed).
+   --  Copy a file. Name must designate a single file (no wildcards allowed).
    --  Pathname can be a filename or directory name. In the latter case Name
    --  is copied into the directory preserving the same file name. Mode
    --  defines the kind of copy, see above with the default being a normal
@@ -1107,6 +1116,8 @@ private
    pragma Inline (">");
    pragma Inline ("<=");
    pragma Inline (">=");
+   pragma Inline (To_C);
+   pragma Inline (To_Ada);
 
    type Process_Id is new Integer;
    Invalid_Pid : constant Process_Id := -1;

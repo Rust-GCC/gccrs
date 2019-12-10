@@ -42,6 +42,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimplify.h"
 #include "attribs.h"
 #include "debug.h"
+#include "calls.h"
 
 /* Data type for the expressions representing sizes of data types.
    It is the first integer type laid out.  */
@@ -514,18 +515,43 @@ mode_for_vector (scalar_mode innermode, poly_uint64 nunits)
   return opt_machine_mode ();
 }
 
-/* Return the mode for a vector that has NUNITS integer elements of
-   INT_BITS bits each, if such a mode exists.  The mode can be either
-   an integer mode or a vector mode.  */
+/* If a piece of code is using vector mode VECTOR_MODE and also wants
+   to operate on elements of mode ELEMENT_MODE, return the vector mode
+   it should use for those elements.  If NUNITS is nonzero, ensure that
+   the mode has exactly NUNITS elements, otherwise pick whichever vector
+   size pairs the most naturally with VECTOR_MODE; this may mean choosing
+   a mode with a different size and/or number of elements, depending on
+   what the target prefers.  Return an empty opt_machine_mode if there
+   is no supported vector mode with the required properties.
+
+   Unlike mode_for_vector. any returned mode is guaranteed to satisfy
+   both VECTOR_MODE_P and targetm.vector_mode_supported_p.  */
 
 opt_machine_mode
-mode_for_int_vector (unsigned int int_bits, poly_uint64 nunits)
+related_vector_mode (machine_mode vector_mode, scalar_mode element_mode,
+		     poly_uint64 nunits)
 {
+  gcc_assert (VECTOR_MODE_P (vector_mode));
+  return targetm.vectorize.related_mode (vector_mode, element_mode, nunits);
+}
+
+/* If a piece of code is using vector mode VECTOR_MODE and also wants
+   to operate on integer vectors with the same element size and number
+   of elements, return the vector mode it should use.  Return an empty
+   opt_machine_mode if there is no supported vector mode with the
+   required properties.
+
+   Unlike mode_for_vector. any returned mode is guaranteed to satisfy
+   both VECTOR_MODE_P and targetm.vector_mode_supported_p.  */
+
+opt_machine_mode
+related_int_vector_mode (machine_mode vector_mode)
+{
+  gcc_assert (VECTOR_MODE_P (vector_mode));
   scalar_int_mode int_mode;
-  machine_mode vec_mode;
-  if (int_mode_for_size (int_bits, 0).exists (&int_mode)
-      && mode_for_vector (int_mode, nunits).exists (&vec_mode))
-    return vec_mode;
+  if (int_mode_for_mode (GET_MODE_INNER (vector_mode)).exists (&int_mode))
+    return related_vector_mode (vector_mode, int_mode,
+				GET_MODE_NUNITS (vector_mode));
   return opt_machine_mode ();
 }
 
@@ -1810,7 +1836,8 @@ compute_record_mode (tree type)
      line.  */
   SET_TYPE_MODE (type, BLKmode);
 
-  if (! tree_fits_uhwi_p (TYPE_SIZE (type)))
+  poly_uint64 type_size;
+  if (!poly_int_tree_p (TYPE_SIZE (type), &type_size))
     return;
 
   /* A record which has any BLKmode members must itself be
@@ -1821,20 +1848,21 @@ compute_record_mode (tree type)
       if (TREE_CODE (field) != FIELD_DECL)
 	continue;
 
+      poly_uint64 field_size;
       if (TREE_CODE (TREE_TYPE (field)) == ERROR_MARK
 	  || (TYPE_MODE (TREE_TYPE (field)) == BLKmode
 	      && ! TYPE_NO_FORCE_BLK (TREE_TYPE (field))
 	      && !(TYPE_SIZE (TREE_TYPE (field)) != 0
 		   && integer_zerop (TYPE_SIZE (TREE_TYPE (field)))))
-	  || ! tree_fits_uhwi_p (bit_position (field))
+	  || !tree_fits_poly_uint64_p (bit_position (field))
 	  || DECL_SIZE (field) == 0
-	  || ! tree_fits_uhwi_p (DECL_SIZE (field)))
+	  || !poly_int_tree_p (DECL_SIZE (field), &field_size))
 	return;
 
       /* If this field is the whole struct, remember its mode so
 	 that, say, we can put a double in a class into a DF
 	 register instead of forcing it to live in the stack.  */
-      if (simple_cst_equal (TYPE_SIZE (type), DECL_SIZE (field))
+      if (known_eq (field_size, type_size)
 	  /* Partial int types (e.g. __int20) may have TYPE_SIZE equal to
 	     wider types (e.g. int32), despite precision being less.  Ensure
 	     that the TYPE_MODE of the struct does not get set to the partial
@@ -1854,15 +1882,14 @@ compute_record_mode (tree type)
      For UNION_TYPE, if the widest field is MODE_INT then use that mode.
      If the widest field is MODE_PARTIAL_INT, and the union will be passed
      by reference, then use that mode.  */
-  poly_uint64 type_size;
   if ((TREE_CODE (type) == RECORD_TYPE
        || (TREE_CODE (type) == UNION_TYPE
 	   && (GET_MODE_CLASS (mode) == MODE_INT
 	       || (GET_MODE_CLASS (mode) == MODE_PARTIAL_INT
-		   && targetm.calls.pass_by_reference (pack_cumulative_args (0),
-						       mode, type, 0)))))
+		   && (targetm.calls.pass_by_reference
+		       (pack_cumulative_args (0),
+			function_arg_info (type, mode, /*named=*/false)))))))
       && mode != VOIDmode
-      && poly_int_tree_p (TYPE_SIZE (type), &type_size)
       && known_eq (GET_MODE_BITSIZE (mode), type_size))
     ;
   else
@@ -2716,10 +2743,12 @@ initialize_sizetypes (void)
       for (i = 0; i < NUM_INT_N_ENTS; i++)
 	if (int_n_enabled_p[i])
 	  {
-	    char name[50];
+	    char name[50], altname[50];
 	    sprintf (name, "__int%d unsigned", int_n_data[i].bitsize);
+	    sprintf (altname, "__int%d__ unsigned", int_n_data[i].bitsize);
 
-	    if (strcmp (name, SIZETYPE) == 0)
+	    if (strcmp (name, SIZETYPE) == 0
+		|| strcmp (altname, SIZETYPE) == 0)
 	      {
 		precision = int_n_data[i].bitsize;
 	      }

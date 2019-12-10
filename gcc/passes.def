@@ -42,7 +42,7 @@ along with GCC; see the file COPYING3.  If not see
   NEXT_PASS (pass_build_cfg);
   NEXT_PASS (pass_warn_function_return);
   NEXT_PASS (pass_expand_omp);
-  NEXT_PASS (pass_sprintf_length, false);
+  NEXT_PASS (pass_warn_printf);
   NEXT_PASS (pass_walloca, /*strict_mode_p=*/true);
   NEXT_PASS (pass_build_cgraph_edges);
   TERMINATE_PASS_LIST (all_lowering_passes)
@@ -83,13 +83,12 @@ along with GCC; see the file COPYING3.  If not see
 	  /* pass_build_ealias is a dummy pass that ensures that we
 	     execute TODO_rebuild_alias at this point.  */
 	  NEXT_PASS (pass_build_ealias);
-	  NEXT_PASS (pass_fre);
+	  NEXT_PASS (pass_fre, true /* may_iterate */);
 	  NEXT_PASS (pass_early_vrp);
 	  NEXT_PASS (pass_merge_phi);
           NEXT_PASS (pass_dse);
 	  NEXT_PASS (pass_cd_dce);
 	  NEXT_PASS (pass_phiopt, true /* early_p */);
-	  NEXT_PASS (pass_early_ipa_sra);
 	  NEXT_PASS (pass_tail_recursion);
 	  NEXT_PASS (pass_convert_switch);
 	  NEXT_PASS (pass_cleanup_eh);
@@ -117,7 +116,7 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_oacc_kernels);
 	  PUSH_INSERT_PASSES_WITHIN (pass_oacc_kernels)
 	      NEXT_PASS (pass_ch);
-	      NEXT_PASS (pass_fre);
+	      NEXT_PASS (pass_fre, true /* may_iterate */);
 	      /* We use pass_lim to rewrite in-memory iteration and reduction
 		 variable accesses in loops into local variables accesses.  */
 	      NEXT_PASS (pass_lim);
@@ -148,6 +147,7 @@ along with GCC; see the file COPYING3.  If not see
   NEXT_PASS (pass_ipa_icf);
   NEXT_PASS (pass_ipa_devirt);
   NEXT_PASS (pass_ipa_cp);
+  NEXT_PASS (pass_ipa_sra);
   NEXT_PASS (pass_ipa_cdtor_merge);
   NEXT_PASS (pass_ipa_hsa);
   NEXT_PASS (pass_ipa_fn_summary);
@@ -199,7 +199,7 @@ along with GCC; see the file COPYING3.  If not see
 	 execute TODO_rebuild_alias at this point.  */
       NEXT_PASS (pass_build_alias);
       NEXT_PASS (pass_return_slot);
-      NEXT_PASS (pass_fre);
+      NEXT_PASS (pass_fre, true /* may_iterate */);
       NEXT_PASS (pass_merge_phi);
       NEXT_PASS (pass_thread_jumps);
       NEXT_PASS (pass_vrp, true /* warn_array_bounds_p */);
@@ -307,11 +307,13 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_lower_vector_ssa);
       NEXT_PASS (pass_lower_switch);
       NEXT_PASS (pass_cse_reciprocals);
-      NEXT_PASS (pass_sprintf_length, true);
       NEXT_PASS (pass_reassoc, false /* insert_powi_p */);
       NEXT_PASS (pass_strength_reduction);
       NEXT_PASS (pass_split_paths);
       NEXT_PASS (pass_tracer);
+      NEXT_PASS (pass_fre, false /* may_iterate */);
+      /* After late FRE we rewrite no longer addressed locals into SSA
+         form if possible.  */
       NEXT_PASS (pass_thread_jumps);
       NEXT_PASS (pass_dominator, false /* may_peel_loop_headers_p */);
       NEXT_PASS (pass_strlen);
@@ -355,7 +357,7 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_object_sizes);
       /* Fold remaining builtins.  */
       NEXT_PASS (pass_fold_builtins);
-      NEXT_PASS (pass_sprintf_length, true);
+      NEXT_PASS (pass_strlen);
       /* Copy propagation also copy-propagates constants, this is necessary
          to forward object-size and builtin folding results properly.  */
       NEXT_PASS (pass_copy_prop);
@@ -426,6 +428,7 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_rtl_doloop);
 	  NEXT_PASS (pass_rtl_loop_done);
       POP_INSERT_PASSES ()
+      NEXT_PASS (pass_lower_subreg2);
       NEXT_PASS (pass_web);
       NEXT_PASS (pass_rtl_cprop);
       NEXT_PASS (pass_cse2);
@@ -436,10 +439,11 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_ud_rtl_dce);
       NEXT_PASS (pass_combine);
       NEXT_PASS (pass_if_after_combine);
+      NEXT_PASS (pass_jump_after_combine);
       NEXT_PASS (pass_partition_blocks);
       NEXT_PASS (pass_outof_cfg_layout_mode);
       NEXT_PASS (pass_split_all_insns);
-      NEXT_PASS (pass_lower_subreg2);
+      NEXT_PASS (pass_lower_subreg3);
       NEXT_PASS (pass_df_initialize_no_opt);
       NEXT_PASS (pass_stack_ptr_mod);
       NEXT_PASS (pass_mode_switching);
@@ -452,13 +456,11 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_reload);
       NEXT_PASS (pass_postreload);
       PUSH_INSERT_PASSES_WITHIN (pass_postreload)
-	  NEXT_PASS (pass_postreload_jump);
 	  NEXT_PASS (pass_postreload_cse);
 	  NEXT_PASS (pass_gcse2);
 	  NEXT_PASS (pass_split_after_reload);
 	  NEXT_PASS (pass_ree);
 	  NEXT_PASS (pass_compare_elim_after_reload);
-	  NEXT_PASS (pass_branch_target_load_optimize1);
 	  NEXT_PASS (pass_thread_prologue_and_epilogue);
 	  NEXT_PASS (pass_rtl_dse2);
 	  NEXT_PASS (pass_stack_adjustments);
@@ -471,7 +473,6 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_cprop_hardreg);
 	  NEXT_PASS (pass_fast_rtl_dce);
 	  NEXT_PASS (pass_reorder_blocks);
-	  NEXT_PASS (pass_branch_target_load_optimize2);
 	  NEXT_PASS (pass_leaf_regs);
 	  NEXT_PASS (pass_split_before_sched2);
 	  NEXT_PASS (pass_sched2);

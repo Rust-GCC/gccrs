@@ -47,6 +47,13 @@ static inline bool is_dir_sep(path::value_type ch)
 #endif
 }
 
+#ifdef _GLIBCXX_FILESYSTEM_IS_WINDOWS
+static inline bool is_disk_designator(std::wstring_view s)
+{
+  return s.length() == 2 && s[1] == L':';
+}
+#endif
+
 struct path::_Parser
 {
   using string_view_type = std::basic_string_view<value_type>;
@@ -117,7 +124,7 @@ struct path::_Parser
 	  ++pos;
       }
 #ifdef _GLIBCXX_FILESYSTEM_IS_WINDOWS
-    else if (len > 1 && input[1] == L':')
+    else if (is_disk_designator(input.substr(0, 2)))
       {
 	// got disk designator
 	root.first.str = input.substr(0, 2);
@@ -1747,6 +1754,19 @@ path::lexically_relative(const path& base) const
   if (!has_root_directory() && base.has_root_directory())
     return ret;
   auto [a, b] = std::mismatch(begin(), end(), base.begin(), base.end());
+#ifdef _GLIBCXX_FILESYSTEM_IS_WINDOWS
+  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+  // 3070. path::lexically_relative causes surprising results if a filename
+  // can also be a root-name
+  if (!empty())
+    for (auto& p : _M_cmpts)
+      if (p._M_type() == _Type::_Filename && is_disk_designator(p.native()))
+	return ret;
+  if (!base.empty())
+    for (auto i = b, end = base.end(); i != end; ++i)
+      if (i->_M_type() == _Type::_Filename && is_disk_designator(i->native()))
+	return ret;
+#endif
   if (a == end() && b == base.end())
     ret = ".";
   else
@@ -1894,7 +1914,7 @@ path::_S_convert_loc(const char* __first, const char* __last,
 #if _GLIBCXX_USE_WCHAR_T
   auto& __cvt = std::use_facet<codecvt<wchar_t, char, mbstate_t>>(__loc);
   basic_string<wchar_t> __ws;
-  if (!__str_codecvt_in(__first, __last, __ws, __cvt))
+  if (!__str_codecvt_in_all(__first, __last, __ws, __cvt))
     _GLIBCXX_THROW_OR_ABORT(filesystem_error(
 	  "Cannot convert character sequence",
 	  std::make_error_code(errc::illegal_byte_sequence)));
@@ -1928,20 +1948,20 @@ fs::hash_value(const path& p) noexcept
 
 struct fs::filesystem_error::_Impl
 {
-  _Impl(const string& what_arg, const path& p1, const path& p2)
+  _Impl(string_view what_arg, const path& p1, const path& p2)
   : path1(p1), path2(p2), what(make_what(what_arg, &p1, &p2))
   { }
 
-  _Impl(const string& what_arg, const path& p1)
+  _Impl(string_view what_arg, const path& p1)
   : path1(p1), path2(), what(make_what(what_arg, &p1, nullptr))
   { }
 
-  _Impl(const string& what_arg)
+  _Impl(string_view what_arg)
   : what(make_what(what_arg, nullptr, nullptr))
   { }
 
   static std::string
-  make_what(const std::string& s, const path* p1, const path* p2)
+  make_what(string_view s, const path* p1, const path* p2)
   {
     const std::string pstr1 = p1 ? p1->u8string() : std::string{};
     const std::string pstr2 = p2 ? p2->u8string() : std::string{};
@@ -1977,20 +1997,20 @@ template class std::__shared_ptr<const fs::filesystem_error::_Impl>;
 fs::filesystem_error::
 filesystem_error(const string& what_arg, error_code ec)
 : system_error(ec, what_arg),
-  _M_impl(std::__make_shared<_Impl>(what_arg))
+  _M_impl(std::__make_shared<_Impl>(system_error::what()))
 { }
 
 fs::filesystem_error::
 filesystem_error(const string& what_arg, const path& p1, error_code ec)
 : system_error(ec, what_arg),
-  _M_impl(std::__make_shared<_Impl>(what_arg, p1))
+  _M_impl(std::__make_shared<_Impl>(system_error::what(), p1))
 { }
 
 fs::filesystem_error::
 filesystem_error(const string& what_arg, const path& p1, const path& p2,
 		 error_code ec)
 : system_error(ec, what_arg),
-  _M_impl(std::__make_shared<_Impl>(what_arg, p1, p2))
+  _M_impl(std::__make_shared<_Impl>(system_error::what(), p1, p2))
 { }
 
 fs::filesystem_error::~filesystem_error() = default;

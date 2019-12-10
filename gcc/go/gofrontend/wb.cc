@@ -41,9 +41,6 @@ class Mark_address_taken : public Traverse
   expression(Expression**);
 
  private:
-  Call_expression*
-  find_makeslice_call(Expression*);
-
   // General IR.
   Gogo* gogo_;
   // The function we are traversing.
@@ -100,31 +97,6 @@ Mark_address_taken::statement(Block* block, size_t* pindex, Statement* s)
   return TRAVERSE_CONTINUE;
 }
 
-// Look through the expression of a Slice_value_expression's valmem to
-// find an call to makeslice.
-
-Call_expression*
-Mark_address_taken::find_makeslice_call(Expression* expr)
-{
-  Unsafe_type_conversion_expression* utce =
-    expr->unsafe_conversion_expression();
-  if (utce != NULL)
-    expr = utce->expr();
-
-  Call_expression* call = expr->call_expression();
-  if (call == NULL)
-    return NULL;
-
-  Func_expression* fe = call->fn()->func_expression();
-  if (fe != NULL && fe->runtime_code() == Runtime::MAKESLICE)
-    return call;
-
-  // We don't worry about MAKESLICE64 bcause we don't want to use a
-  // stack allocation for a large slice anyhow.
-
-  return NULL;
-}
-
 // Mark variable addresses taken.
 
 int
@@ -173,7 +145,10 @@ Mark_address_taken::expression(Expression** pexpr)
   Slice_value_expression* sve = expr->slice_value_expression();
   if (sve != NULL)
     {
-      Call_expression* call = this->find_makeslice_call(sve->valmem());
+      std::pair<Call_expression*, Temporary_statement*> p =
+        Expression::find_makeslice_call(sve);
+      Call_expression* call = p.first;
+      Temporary_statement* ts = p.second;
       if (call != NULL
 	  && Node::make_node(call)->encoding() == Node::ESCAPE_NONE)
         {
@@ -203,6 +178,8 @@ Mark_address_taken::expression(Expression** pexpr)
 		Expression::make_slice_value(expr->type(), ptr, len_arg,
 					     cap_arg, loc);
               *pexpr = slice;
+              if (ts != NULL && ts->uses() == 1)
+                ts->set_init(Expression::make_nil(loc));
             }
         }
     }
@@ -425,12 +402,19 @@ class Write_barriers : public Traverse
 {
  public:
   Write_barriers(Gogo* gogo)
-    : Traverse(traverse_functions | traverse_variables | traverse_statements),
-      gogo_(gogo), function_(NULL), statements_added_()
+    : Traverse(traverse_functions
+	       | traverse_blocks
+	       | traverse_variables
+	       | traverse_statements),
+      gogo_(gogo), function_(NULL), statements_added_(),
+      nonwb_pointers_()
   { }
 
   int
   function(Named_object*);
+
+  int
+  block(Block*);
 
   int
   variable(Named_object*);
@@ -445,6 +429,9 @@ class Write_barriers : public Traverse
   Function* function_;
   // Statements introduced.
   Statement_inserter::Statements statements_added_;
+  // Within a single block, pointer variables that point to values
+  // that do not need write barriers.
+  Unordered_set(const Named_object*) nonwb_pointers_;
 };
 
 // Traverse a function.  Just record it for later.
@@ -460,6 +447,16 @@ Write_barriers::function(Named_object* no)
   if (t == TRAVERSE_EXIT)
     return t;
   return TRAVERSE_SKIP_COMPONENTS;
+}
+
+// Traverse a block.  Clear anything we know about local pointer
+// variables.
+
+int
+Write_barriers::block(Block*)
+{
+  this->nonwb_pointers_.clear();
+  return TRAVERSE_CONTINUE;
 }
 
 // Insert write barriers for a global variable: ensure that variable
@@ -556,7 +553,16 @@ Write_barriers::statement(Block* block, size_t* pindex, Statement* s)
 	// local variables get declaration statements, and local
 	// variables on the stack do not require write barriers.
 	if (!var->is_in_heap())
-	  break;
+          {
+	    // If this is a pointer variable, and assigning through
+	    // the initializer does not require a write barrier,
+	    // record that fact.
+	    if (var->type()->points_to() != NULL
+		&& this->gogo_->is_nonwb_pointer(init, &this->nonwb_pointers_))
+	      this->nonwb_pointers_.insert(no);
+
+	    break;
+          }
 
 	// Nothing to do if the variable does not contain any pointers.
 	if (!var->type()->has_pointer())
@@ -601,15 +607,27 @@ Write_barriers::statement(Block* block, size_t* pindex, Statement* s)
       {
 	Assignment_statement* as = s->assignment_statement();
 
-	if (as->omit_write_barrier())
-	  break;
-
 	Expression* lhs = as->lhs();
 	Expression* rhs = as->rhs();
 
+	// Keep track of variables whose values do not escape.
+	Var_expression* lhsve = lhs->var_expression();
+	if (lhsve != NULL && lhsve->type()->points_to() != NULL)
+	  {
+	    Named_object* no = lhsve->named_object();
+	    if (this->gogo_->is_nonwb_pointer(rhs, &this->nonwb_pointers_))
+	      this->nonwb_pointers_.insert(no);
+	    else
+	      this->nonwb_pointers_.erase(no);
+	  }
+
+	if (as->omit_write_barrier())
+	  break;
+
 	// We may need to emit a write barrier for the assignment.
 
-	if (!this->gogo_->assign_needs_write_barrier(lhs))
+	if (!this->gogo_->assign_needs_write_barrier(lhs,
+						     &this->nonwb_pointers_))
 	  break;
 
 	// Change the assignment to use a write barrier.
@@ -690,9 +708,13 @@ Gogo::write_barrier_variable()
 }
 
 // Return whether an assignment that sets LHS needs a write barrier.
+// NONWB_POINTERS is a set of variables that point to values that do
+// not need write barriers.
 
 bool
-Gogo::assign_needs_write_barrier(Expression* lhs)
+Gogo::assign_needs_write_barrier(
+    Expression* lhs,
+    Unordered_set(const Named_object*)* nonwb_pointers)
 {
   // Nothing to do if the variable does not contain any pointers.
   if (!lhs->type()->has_pointer())
@@ -710,6 +732,31 @@ Gogo::assign_needs_write_barrier(Expression* lhs)
       if (lhs->type()->points_to() != NULL
 	  && !lhs->type()->points_to()->in_heap())
 	return false;
+
+      // For a struct assignment, we don't need a write barrier if all
+      // the field types can not be in the heap.
+      Struct_type* st = lhs->type()->struct_type();
+      if (st != NULL)
+	{
+	  bool in_heap = false;
+	  const Struct_field_list* fields = st->fields();
+	  for (Struct_field_list::const_iterator p = fields->begin();
+	       p != fields->end();
+	       p++)
+	    {
+	      Type* ft = p->type();
+	      if (!ft->has_pointer())
+		continue;
+	      if (!ft->in_heap())
+		continue;
+	      if (ft->points_to() != NULL && !ft->points_to()->in_heap())
+		continue;
+	      in_heap = true;
+	      break;
+	    }
+	  if (!in_heap)
+	    return false;
+	}
 
       Field_reference_expression* fre = lhs->field_reference_expression();
       if (fre != NULL)
@@ -758,32 +805,49 @@ Gogo::assign_needs_write_barrier(Expression* lhs)
 	}
     }
 
-  // For a struct assignment, we don't need a write barrier if all the
-  // pointer types can not be in the heap.
-  Struct_type* st = lhs->type()->struct_type();
-  if (st != NULL)
-    {
-      bool in_heap = false;
-      const Struct_field_list* fields = st->fields();
-      for (Struct_field_list::const_iterator p = fields->begin();
-	   p != fields->end();
-	   p++)
-	{
-	  Type* ft = p->type();
-	  if (!ft->has_pointer())
-	    continue;
-	  if (!ft->in_heap())
-	    continue;
-	  if (ft->points_to() != NULL && !ft->points_to()->in_heap())
-	    continue;
-	  in_heap = true;
-	  break;
-	}
-      if (!in_heap)
-	return false;
-    }
+  // Nothing to do for an assignment to *(convert(&x)) where
+  // x is local variable or a temporary variable.
+  Unary_expression* ue = lhs->unary_expression();
+  if (ue != NULL
+      && ue->op() == OPERATOR_MULT
+      && this->is_nonwb_pointer(ue->operand(), nonwb_pointers))
+    return false;
 
   // Write barrier needed in other cases.
+  return true;
+}
+
+// Return whether EXPR is the address of a variable that can be set
+// without a write barrier.  That is, if this returns true, then an
+// assignment to *EXPR does not require a write barrier.
+// NONWB_POINTERS is a set of variables that point to values that do
+// not need write barriers.
+
+bool
+Gogo::is_nonwb_pointer(Expression* expr,
+		       Unordered_set(const Named_object*)* nonwb_pointers)
+{
+  while (true)
+    {
+      if (expr->conversion_expression() != NULL)
+	expr = expr->conversion_expression()->expr();
+      else if (expr->unsafe_conversion_expression() != NULL)
+	expr = expr->unsafe_conversion_expression()->expr();
+      else
+	break;
+    }
+
+  Var_expression* ve = expr->var_expression();
+  if (ve != NULL
+      && nonwb_pointers != NULL
+      && nonwb_pointers->find(ve->named_object()) != nonwb_pointers->end())
+    return true;
+
+  Unary_expression* ue = expr->unary_expression();
+  if (ue == NULL || ue->op() != OPERATOR_AND)
+    return false;
+  if (this->assign_needs_write_barrier(ue->operand(), nonwb_pointers))
+    return false;
   return true;
 }
 
@@ -845,6 +909,7 @@ Gogo::assign_with_write_barrier(Function* function, Block* enclosing,
   Type* unsafe_ptr_type = Type::make_pointer_type(Type::make_void_type());
   lhs = Expression::make_unsafe_cast(unsafe_ptr_type, lhs, loc);
 
+  Type* uintptr_type = Type::lookup_integer_type("uintptr");
   Expression* call;
   switch (type->base()->classification())
     {
@@ -860,23 +925,138 @@ Gogo::assign_with_write_barrier(Function* function, Block* enclosing,
     case Type::TYPE_CHANNEL:
       {
 	// These types are all represented by a single pointer.
-	Type* uintptr_type = Type::lookup_integer_type("uintptr");
 	rhs = Expression::make_unsafe_cast(uintptr_type, rhs, loc);
 	call = Runtime::make_call(Runtime::GCWRITEBARRIER, loc, 2, lhs, rhs);
       }
       break;
 
     case Type::TYPE_STRING:
-    case Type::TYPE_STRUCT:
-    case Type::TYPE_ARRAY:
+      {
+        // Assign the length field directly.
+        Expression* llen =
+          Expression::make_string_info(indir->copy(),
+                                       Expression::STRING_INFO_LENGTH,
+                                       loc);
+        Expression* rlen =
+          Expression::make_string_info(rhs,
+                                       Expression::STRING_INFO_LENGTH,
+                                       loc);
+        Statement* as = Statement::make_assignment(llen, rlen, loc);
+        inserter->insert(as);
+
+        // Assign the data field with a write barrier.
+        lhs =
+          Expression::make_string_info(indir->copy(),
+                                       Expression::STRING_INFO_DATA,
+                                       loc);
+        rhs =
+          Expression::make_string_info(rhs,
+                                       Expression::STRING_INFO_DATA,
+                                       loc);
+        assign = Statement::make_assignment(lhs, rhs, loc);
+        lhs = Expression::make_unary(OPERATOR_AND, lhs, loc);
+        rhs = Expression::make_unsafe_cast(uintptr_type, rhs, loc);
+        call = Runtime::make_call(Runtime::GCWRITEBARRIER, loc, 2, lhs, rhs);
+      }
+      break;
+
     case Type::TYPE_INTERFACE:
       {
-	rhs = Expression::make_unary(OPERATOR_AND, rhs, loc);
-	rhs->unary_expression()->set_does_not_escape();
-	call = Runtime::make_call(Runtime::TYPEDMEMMOVE, loc, 3,
-				  Expression::make_type_descriptor(type, loc),
-				  lhs, rhs);
+        // Assign the first field directly.
+        // The first field is either a type descriptor or a method table.
+        // Type descriptors are either statically created, or created by
+        // the reflect package. For the latter the reflect package keeps
+        // all references.
+        // Method tables are either statically created or persistently
+        // allocated.
+        // In all cases they don't need a write barrier.
+        Expression* ltab =
+          Expression::make_interface_info(indir->copy(),
+                                          Expression::INTERFACE_INFO_METHODS,
+                                          loc);
+        Expression* rtab =
+          Expression::make_interface_info(rhs,
+                                          Expression::INTERFACE_INFO_METHODS,
+                                          loc);
+        Statement* as = Statement::make_assignment(ltab, rtab, loc);
+        inserter->insert(as);
+
+        // Assign the data field with a write barrier.
+        lhs =
+          Expression::make_interface_info(indir->copy(),
+                                          Expression::INTERFACE_INFO_OBJECT,
+                                          loc);
+        rhs =
+          Expression::make_interface_info(rhs,
+                                          Expression::INTERFACE_INFO_OBJECT,
+                                          loc);
+        assign = Statement::make_assignment(lhs, rhs, loc);
+        lhs = Expression::make_unary(OPERATOR_AND, lhs, loc);
+        rhs = Expression::make_unsafe_cast(uintptr_type, rhs, loc);
+        call = Runtime::make_call(Runtime::GCWRITEBARRIER, loc, 2, lhs, rhs);
       }
+      break;
+
+    case Type::TYPE_ARRAY:
+      if (type->is_slice_type())
+       {
+          // Assign the lenth fields directly.
+          Expression* llen =
+            Expression::make_slice_info(indir->copy(),
+                                        Expression::SLICE_INFO_LENGTH,
+                                        loc);
+          Expression* rlen =
+            Expression::make_slice_info(rhs,
+                                        Expression::SLICE_INFO_LENGTH,
+                                        loc);
+          Statement* as = Statement::make_assignment(llen, rlen, loc);
+          inserter->insert(as);
+
+          // Assign the capacity fields directly.
+          Expression* lcap =
+            Expression::make_slice_info(indir->copy(),
+                                        Expression::SLICE_INFO_CAPACITY,
+                                        loc);
+          Expression* rcap =
+            Expression::make_slice_info(rhs,
+                                        Expression::SLICE_INFO_CAPACITY,
+                                        loc);
+          as = Statement::make_assignment(lcap, rcap, loc);
+          inserter->insert(as);
+
+          // Assign the data field with a write barrier.
+          lhs =
+            Expression::make_slice_info(indir->copy(),
+                                        Expression::SLICE_INFO_VALUE_POINTER,
+                                        loc);
+          rhs =
+            Expression::make_slice_info(rhs,
+                                        Expression::SLICE_INFO_VALUE_POINTER,
+                                        loc);
+          assign = Statement::make_assignment(lhs, rhs, loc);
+          lhs = Expression::make_unary(OPERATOR_AND, lhs, loc);
+          rhs = Expression::make_unsafe_cast(uintptr_type, rhs, loc);
+          call = Runtime::make_call(Runtime::GCWRITEBARRIER, loc, 2, lhs, rhs);
+          break;
+        }
+      // fallthrough
+
+    case Type::TYPE_STRUCT:
+      if (type->is_direct_iface_type())
+        {
+          rhs = Expression::unpack_direct_iface(rhs, loc);
+          rhs = Expression::make_unsafe_cast(uintptr_type, rhs, loc);
+          call = Runtime::make_call(Runtime::GCWRITEBARRIER, loc, 2, lhs, rhs);
+        }
+      else
+        {
+          // TODO: split assignments for small struct/array?
+          rhs = Expression::make_unary(OPERATOR_AND, rhs, loc);
+          rhs->unary_expression()->set_does_not_escape();
+          call = Runtime::make_call(Runtime::TYPEDMEMMOVE, loc, 3,
+                                    Expression::make_type_descriptor(type, loc),
+                                    lhs, rhs);
+        }
       break;
     }
 

@@ -31,8 +31,9 @@ class hash_map;
 #define LOCATION_LINE_WIDTH	  48
 
 /* Memory allocation location.  */
-struct mem_location
+class mem_location
 {
+public:
   /* Default constructor.  */
   inline
   mem_location () {}
@@ -123,8 +124,9 @@ struct mem_location
 };
 
 /* Memory usage register to a memory location.  */
-struct mem_usage
+class mem_usage
 {
+public:
   /* Default constructor.  */
   mem_usage (): m_allocated (0), m_times (0), m_peak (0), m_instances (1) {}
 
@@ -260,8 +262,9 @@ struct mem_usage
 /* Memory usage pair that connectes memory usage and number
    of allocated bytes.  */
 template <class T>
-struct mem_usage_pair
+class mem_usage_pair
 {
+public:
   mem_usage_pair (T *usage_, size_t allocated_): usage (usage_),
   allocated (allocated_) {}
 
@@ -358,14 +361,11 @@ public:
      are filtered by ORIGIN type, LENGTH is return value where we register
      the number of elements in the list. If we want to process custom order,
      CMP comparator can be provided.  */
-  mem_list_t *get_list (mem_alloc_origin origin, unsigned *length,
-			int (*cmp) (const void *first,
-				    const void *second) = NULL);
+  mem_list_t *get_list (mem_alloc_origin origin, unsigned *length);
 
   /* Dump all tracked instances of type ORIGIN. If we want to process custom
      order, CMP comparator can be provided.  */
-  void dump (mem_alloc_origin origin,
-	     int (*cmp) (const void *first, const void *second) = NULL);
+  void dump (mem_alloc_origin origin);
 
   /* Reverse object map used for every object allocation mapping.  */
   reverse_object_map_t *m_reverse_object_map;
@@ -535,11 +535,8 @@ inline void
 mem_alloc_description<T>::release_object_overhead (void *ptr)
 {
   std::pair <T *, size_t> *entry = m_reverse_object_map->get (ptr);
-  if (entry)
-    {
-      entry->first->release_overhead (entry->second);
-      m_reverse_object_map->remove (ptr);
-    }
+  entry->first->release_overhead (entry->second);
+  m_reverse_object_map->remove (ptr);
 }
 
 /* Unregister a memory allocation descriptor registered with
@@ -559,9 +556,9 @@ template <class T>
 inline
 mem_alloc_description<T>::mem_alloc_description ()
 {
-  m_map = new mem_map_t (13, false, false);
-  m_reverse_map = new reverse_mem_map_t (13, false, false);
-  m_reverse_object_map = new reverse_object_map_t (13, false, false);
+  m_map = new mem_map_t (13, false, false, false);
+  m_reverse_map = new reverse_mem_map_t (13, false, false, false);
+  m_reverse_object_map = new reverse_object_map_t (13, false, false, false);
 }
 
 /* Default destructor.  */
@@ -590,9 +587,7 @@ mem_alloc_description<T>::~mem_alloc_description ()
 template <class T>
 inline
 typename mem_alloc_description<T>::mem_list_t *
-mem_alloc_description<T>::get_list (mem_alloc_origin origin, unsigned *length,
-				    int (*cmp) (const void *first,
-						const void *second))
+mem_alloc_description<T>::get_list (mem_alloc_origin origin, unsigned *length)
 {
   /* vec data structure is not used because all vectors generate memory
      allocation info a it would create a cycle.  */
@@ -605,7 +600,7 @@ mem_alloc_description<T>::get_list (mem_alloc_origin origin, unsigned *length,
     if ((*it).first->m_origin == origin)
       list[i++] = std::pair<mem_location*, T*> (*it);
 
-  qsort (list, i, element_size, cmp == NULL ? T::compare : cmp);
+  qsort (list, i, element_size, T::compare);
   *length = i;
 
   return list;
@@ -634,15 +629,13 @@ mem_alloc_description<T>::get_sum (mem_alloc_origin origin)
 
 template <class T>
 inline void
-mem_alloc_description<T>::dump (mem_alloc_origin origin,
-				int (*cmp) (const void *first,
-					    const void *second))
+mem_alloc_description<T>::dump (mem_alloc_origin origin)
 {
   unsigned length;
 
   fprintf (stderr, "\n");
 
-  mem_list_t *list = get_list (origin, &length, cmp);
+  mem_list_t *list = get_list (origin, &length);
   T total = get_sum (origin);
 
   T::print_dash_line ();

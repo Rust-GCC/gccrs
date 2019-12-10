@@ -235,7 +235,7 @@ convert_to_real_1 (tree type, tree expr, bool fold_p)
 		     (T1) sqrtT4 ((T4) exprT3)
 
 		  , where T1 is TYPE, T2 is ITYPE, T3 is TREE_TYPE (ARG0),
-		 and T4 is NEWTYPE.  All those types are of floating point types.
+		 and T4 is NEWTYPE.  All those types are of floating-point types.
 		 T4 (NEWTYPE) should be narrower than T2 (ITYPE). This conversion
 		 is safe only if P1 >= P2*2+2, where P1 and P2 are precisions of
 		 T2 and T4.  See the following URL for a reference:
@@ -298,92 +298,6 @@ convert_to_real_1 (tree type, tree expr, bool fold_p)
 	      return build1 (TREE_CODE (expr), type, arg);
 	    }
 	  break;
-	/* Convert (outertype)((innertype0)a+(innertype1)b)
-	   into ((newtype)a+(newtype)b) where newtype
-	   is the widest mode from all of these.  */
-	case PLUS_EXPR:
-	case MINUS_EXPR:
-	case MULT_EXPR:
-	case RDIV_EXPR:
-	   {
-	     tree arg0 = strip_float_extensions (TREE_OPERAND (expr, 0));
-	     tree arg1 = strip_float_extensions (TREE_OPERAND (expr, 1));
-
-	     if (FLOAT_TYPE_P (TREE_TYPE (arg0))
-		 && FLOAT_TYPE_P (TREE_TYPE (arg1))
-		 && DECIMAL_FLOAT_TYPE_P (itype) == DECIMAL_FLOAT_TYPE_P (type))
-	       {
-		  tree newtype = type;
-
-		  if (TYPE_MODE (TREE_TYPE (arg0)) == SDmode
-		      || TYPE_MODE (TREE_TYPE (arg1)) == SDmode
-		      || TYPE_MODE (type) == SDmode)
-		    newtype = dfloat32_type_node;
-		  if (TYPE_MODE (TREE_TYPE (arg0)) == DDmode
-		      || TYPE_MODE (TREE_TYPE (arg1)) == DDmode
-		      || TYPE_MODE (type) == DDmode)
-		    newtype = dfloat64_type_node;
-		  if (TYPE_MODE (TREE_TYPE (arg0)) == TDmode
-		      || TYPE_MODE (TREE_TYPE (arg1)) == TDmode
-		      || TYPE_MODE (type) == TDmode)
-                    newtype = dfloat128_type_node;
-		  if (newtype == dfloat32_type_node
-		      || newtype == dfloat64_type_node
-		      || newtype == dfloat128_type_node)
-		    {
-		      expr = build2 (TREE_CODE (expr), newtype,
-				     convert_to_real_1 (newtype, arg0,
-							fold_p),
-				     convert_to_real_1 (newtype, arg1,
-							fold_p));
-		      if (newtype == type)
-			return expr;
-		      break;
-		    }
-
-		  if (TYPE_PRECISION (TREE_TYPE (arg0)) > TYPE_PRECISION (newtype))
-		    newtype = TREE_TYPE (arg0);
-		  if (TYPE_PRECISION (TREE_TYPE (arg1)) > TYPE_PRECISION (newtype))
-		    newtype = TREE_TYPE (arg1);
-		  /* Sometimes this transformation is safe (cannot
-		     change results through affecting double rounding
-		     cases) and sometimes it is not.  If NEWTYPE is
-		     wider than TYPE, e.g. (float)((long double)double
-		     + (long double)double) converted to
-		     (float)(double + double), the transformation is
-		     unsafe regardless of the details of the types
-		     involved; double rounding can arise if the result
-		     of NEWTYPE arithmetic is a NEWTYPE value half way
-		     between two representable TYPE values but the
-		     exact value is sufficiently different (in the
-		     right direction) for this difference to be
-		     visible in ITYPE arithmetic.  If NEWTYPE is the
-		     same as TYPE, however, the transformation may be
-		     safe depending on the types involved: it is safe
-		     if the ITYPE has strictly more than twice as many
-		     mantissa bits as TYPE, can represent infinities
-		     and NaNs if the TYPE can, and has sufficient
-		     exponent range for the product or ratio of two
-		     values representable in the TYPE to be within the
-		     range of normal values of ITYPE.  */
-		  if (TYPE_PRECISION (newtype) < TYPE_PRECISION (itype)
-		      && (flag_unsafe_math_optimizations
-			  || (TYPE_PRECISION (newtype) == TYPE_PRECISION (type)
-			      && real_can_shorten_arithmetic (TYPE_MODE (itype),
-							      TYPE_MODE (type))
-			      && !excess_precision_type (newtype))))
-		    {
-		      expr = build2 (TREE_CODE (expr), newtype,
-				     convert_to_real_1 (newtype, arg0,
-							fold_p),
-				     convert_to_real_1 (newtype, arg1,
-							fold_p));
-		      if (newtype == type)
-			return expr;
-		    }
-	       }
-	   }
-	  break;
 	default:
 	  break;
       }
@@ -415,11 +329,11 @@ convert_to_real_1 (tree type, tree expr, bool fold_p)
 
     case POINTER_TYPE:
     case REFERENCE_TYPE:
-      error ("pointer value used where a floating point was expected");
+      error ("pointer value used where a floating-point was expected");
       return convert_to_real_1 (type, integer_zero_node, fold_p);
 
     default:
-      error ("aggregate value used where a floating point was expected");
+      error ("aggregate value used where a floating-point was expected");
       return convert_to_real_1 (type, integer_zero_node, fold_p);
     }
 }

@@ -75,6 +75,8 @@ set_dec_flags (int value)
   SET_BITFLAG (flag_dec_math, value, value);
   SET_BITFLAG (flag_dec_include, value, value);
   SET_BITFLAG (flag_dec_format_defaults, value, value);
+  SET_BITFLAG (flag_dec_blank_format_item, value, value);
+  SET_BITFLAG (flag_dec_char_conversions, value, value);
 }
 
 /* Finalize DEC flags.  */
@@ -160,8 +162,8 @@ gfc_init_options (unsigned int decoded_options_count,
   /* ??? Wmissing-include-dirs is disabled by default in C/C++ but
      enabled by default in Fortran.  Ideally, we should express this
      in .opt, but that is not supported yet.  */
-  if (!global_options_set.x_cpp_warn_missing_include_dirs)
-    global_options.x_cpp_warn_missing_include_dirs = 1;
+  SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+		       cpp_warn_missing_include_dirs, 1);
 
   set_dec_flags (0);
 
@@ -263,9 +265,9 @@ gfc_post_options (const char **pfilename)
 
   /* Excess precision other than "fast" requires front-end
      support.  */
-  if (flag_excess_precision_cmdline == EXCESS_PRECISION_STANDARD)
+  if (flag_excess_precision == EXCESS_PRECISION_STANDARD)
     sorry ("%<-fexcess-precision=standard%> for Fortran");
-  flag_excess_precision_cmdline = EXCESS_PRECISION_FAST;
+  flag_excess_precision = EXCESS_PRECISION_FAST;
 
   /* Fortran allows associative math - but we cannot reassociate if
      we want traps or signed zeros. Cf. also flag_protect_parens.  */
@@ -408,7 +410,8 @@ gfc_post_options (const char **pfilename)
     gfc_warning_now (0, "Flag %<-fno-automatic%> overwrites %<-fmax-stack-var-size=%d%>",
 		     flag_max_stack_var_size);
   else if (!flag_automatic && flag_recursive)
-    gfc_warning_now (0, "Flag %<-fno-automatic%> overwrites %<-frecursive%>");
+    gfc_warning_now (OPT_Woverwrite_recursive, "Flag %<-fno-automatic%> "
+		     "overwrites %<-frecursive%>");
   else if (!flag_automatic && flag_openmp)
     gfc_warning_now (0, "Flag %<-fno-automatic%> overwrites %<-frecursive%> implied by "
 		     "%<-fopenmp%>");
@@ -436,7 +439,7 @@ gfc_post_options (const char **pfilename)
 
   /* Set default.  */
   if (flag_max_stack_var_size == -2)
-    flag_max_stack_var_size = 32768;
+    flag_max_stack_var_size = 65536;
 
   /* Implement -fno-automatic as -fmax-stack-var-size=0.  */
   if (!flag_automatic)
@@ -579,12 +582,12 @@ gfc_handle_runtime_check_option (const char *arg)
   int result, pos = 0, n;
   static const char * const optname[] = { "all", "bounds", "array-temps",
 					  "recursion", "do", "pointer",
-					  "mem", NULL };
+					  "mem", "bits", NULL };
   static const int optmask[] = { GFC_RTCHECK_ALL, GFC_RTCHECK_BOUNDS,
 				 GFC_RTCHECK_ARRAY_TEMPS,
 				 GFC_RTCHECK_RECURSION, GFC_RTCHECK_DO,
 				 GFC_RTCHECK_POINTER, GFC_RTCHECK_MEM,
-				 0 };
+				 GFC_RTCHECK_BITS, 0 };
  
   while (*arg)
     {

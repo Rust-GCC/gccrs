@@ -54,6 +54,13 @@
 #define TARGET_AIX_OS 0
 #endif
 
+/* Turn off TOC support if pc-relative addressing is used.  */
+#define TARGET_TOC             (TARGET_HAS_TOC && !TARGET_PCREL)
+
+/* On 32-bit systems without a TOC or pc-relative addressing, we need to use
+   ADDIS/ADDI to load up the address of a symbol.  */
+#define TARGET_NO_TOC_OR_PCREL (!TARGET_HAS_TOC && !TARGET_PCREL)
+
 /* Control whether function entry points use a "dot" symbol when
    ABI_AIX.  */
 #define DOT_SYMBOLS 1
@@ -69,6 +76,20 @@
 #else
 #define PPC405_ERRATUM77 0
 #endif
+
+#ifndef SUBTARGET_DRIVER_SELF_SPECS
+# define SUBTARGET_DRIVER_SELF_SPECS ""
+#endif
+
+/* Only for use in the testsuite: -mdejagnu-cpu= simply overrides -mcpu=.
+   With older versions of Dejagnu the command line arguments you set in
+   RUNTESTFLAGS override those set in the testcases; with this option,
+   the testcase will always win.  Ditto for -mdejagnu-tune=.  */
+#define DRIVER_SELF_SPECS \
+  "%{mdejagnu-cpu=*: %<mcpu=* -mcpu=%*}", \
+  "%{mdejagnu-tune=*: %<mtune=* -mtune=%*}", \
+  "%{mdejagnu-*: %<mdejagnu-*}", \
+   SUBTARGET_DRIVER_SELF_SPECS
 
 #if CHECKING_P
 #define ASM_OPT_ANY ""
@@ -150,6 +171,7 @@ ASM_OPT_ANY
 #define CPP_DEFAULT_SPEC ""
 
 #define ASM_DEFAULT_SPEC ""
+#define ASM_DEFAULT_EXTRA ""
 
 /* This macro defines names of additional specifications to put in the specs
    that can be used in various specifications like CC1_SPEC.  Its definition
@@ -167,7 +189,7 @@ ASM_OPT_ANY
   { "cpp_default",		CPP_DEFAULT_SPEC },			\
   { "asm_cpu",			ASM_CPU_SPEC },				\
   { "asm_cpu_native",		ASM_CPU_NATIVE_SPEC },			\
-  { "asm_default",		ASM_DEFAULT_SPEC },			\
+  { "asm_default",		ASM_DEFAULT_SPEC ASM_DEFAULT_EXTRA },	\
   { "cc1_cpu",			CC1_CPU_SPEC },				\
   SUBTARGET_EXTRA_SPECS
 
@@ -204,15 +226,6 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #ifndef HAVE_AS_MFCRF
 #undef  TARGET_MFCRF
 #define TARGET_MFCRF 0
-#endif
-
-/* Define TARGET_TLS_MARKERS if the target assembler does not support
-   arg markers for __tls_get_addr calls.  */
-#ifndef HAVE_AS_TLS_MARKERS
-#undef  TARGET_TLS_MARKERS
-#define TARGET_TLS_MARKERS 0
-#else
-#define TARGET_TLS_MARKERS tls_markers
 #endif
 
 #ifndef TARGET_SECURE_PLT
@@ -453,7 +466,7 @@ extern int rs6000_vector_align[];
 #define TARGET_FCTIWUZ	TARGET_POPCNTD
 #define TARGET_CTZ	TARGET_MODULO
 #define TARGET_EXTSWSLI	(TARGET_MODULO && TARGET_POWERPC64)
-#define TARGET_MADDLD	(TARGET_MODULO && TARGET_POWERPC64)
+#define TARGET_MADDLD	TARGET_MODULO
 
 #define TARGET_XSCVDPSPN	(TARGET_DIRECT_MOVE || TARGET_P8_VECTOR)
 #define TARGET_XSCVSPDPN	(TARGET_DIRECT_MOVE || TARGET_P8_VECTOR)
@@ -509,7 +522,6 @@ extern int rs6000_vector_align[];
 #define MASK_HTM			OPTION_MASK_HTM
 #define MASK_ISEL			OPTION_MASK_ISEL
 #define MASK_MFCRF			OPTION_MASK_MFCRF
-#define MASK_MFPGPR			OPTION_MASK_MFPGPR
 #define MASK_MULHW			OPTION_MASK_MULHW
 #define MASK_MULTIPLE			OPTION_MASK_MULTIPLE
 #define MASK_NO_UPDATE			OPTION_MASK_NO_UPDATE
@@ -861,31 +873,6 @@ enum data_align { align_abi, align_opt, align_both };
    1, 1, 1					   \
 }
 
-/* 1 for registers not available across function calls.
-   These must include the FIXED_REGISTERS and also any
-   registers that can be used without being saved.
-   The latter must include the registers where values are returned
-   and the register where structure-value addresses are passed.
-   Aside from that, you can include as many other registers as you like.  */
-
-#define CALL_USED_REGISTERS  \
-  {/* GPRs */					   \
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, FIXED_R13, 0, 0, \
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-   /* FPRs */					   \
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, \
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-   /* VRs */					   \
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-   /* lr ctr ca ap */				   \
-   1, 1, 1, 1,					   \
-   /* cr0..cr7 */				   \
-   1, 1, 0, 0, 0, 1, 1, 1,			   \
-   /* vrsave vscr sfp */			   \
-   1, 1, 1					   \
-}
-
 /* Like `CALL_USED_REGISTERS' except this macro doesn't require that
    the entire set of `FIXED_REGISTERS' be included.
    (`CALL_USED_REGISTERS' must be a superset of `FIXED_REGISTERS').
@@ -1042,7 +1029,7 @@ enum data_align { align_abi, align_opt, align_both };
    ? DFmode								\
    : (MODE) == TDmode && FP_REGNO_P (REGNO)				\
    ? DImode								\
-   : choose_hard_reg_mode ((REGNO), (NREGS), false))
+   : choose_hard_reg_mode ((REGNO), (NREGS), NULL))
 
 #define VSX_VECTOR_MODE(MODE)		\
 	 ((MODE) == V4SFmode		\
@@ -1257,18 +1244,8 @@ enum r6000_reg_class_enum {
   RS6000_CONSTRAINT_f,		/* fpr registers for single values */
   RS6000_CONSTRAINT_v,		/* Altivec registers */
   RS6000_CONSTRAINT_wa,		/* Any VSX register */
-  RS6000_CONSTRAINT_wd,		/* VSX register for V2DF */
   RS6000_CONSTRAINT_we,		/* VSX register if ISA 3.0 vector. */
-  RS6000_CONSTRAINT_wf,		/* VSX register for V4SF */
-  RS6000_CONSTRAINT_wg,		/* FPR register for -mmfpgpr */
-  RS6000_CONSTRAINT_wi,		/* FPR/VSX register to hold DImode */
-  RS6000_CONSTRAINT_wp,		/* VSX reg for IEEE 128-bit fp TFmode. */
-  RS6000_CONSTRAINT_wq,		/* VSX reg for IEEE 128-bit fp KFmode.  */
   RS6000_CONSTRAINT_wr,		/* GPR register if 64-bit  */
-  RS6000_CONSTRAINT_ws,		/* VSX register for DF */
-  RS6000_CONSTRAINT_wt,		/* VSX register for TImode */
-  RS6000_CONSTRAINT_wv,		/* Altivec register for double load/stores.  */
-  RS6000_CONSTRAINT_ww,		/* FP or VSX register for vsx float ops.  */
   RS6000_CONSTRAINT_wx,		/* FPR register for STFIWX */
   RS6000_CONSTRAINT_wA,		/* BASE_REGS if 64-bit.  */
   RS6000_CONSTRAINT_MAX
@@ -1501,13 +1478,6 @@ enum rs6000_pltseq_enum {
 
 #define IS_V4_FP_ARGS(OP) \
   ((INTVAL (OP) & (CALL_V4_CLEAR_FP_ARGS | CALL_V4_SET_FP_ARGS)) != 0)
-
-/* Whether OP is an UNSPEC used in !TARGET_TLS_MARKER calls.  */
-#define IS_NOMARK_TLSGETADDR(OP)		\
-  (!TARGET_TLS_MARKERS				\
-   && GET_CODE (OP) == UNSPEC			\
-   && (XINT (OP, 1) == UNSPEC_TLSGD		\
-       || XINT (OP, 1) == UNSPEC_TLSLD))
 
 /* We don't have prologue and epilogue functions to save/restore
    everything for most ABIs.  */
@@ -1861,9 +1831,19 @@ extern scalar_int_mode rs6000_pmode;
 /* Adjust the length of an INSN.  LENGTH is the currently-computed length and
    should be adjusted to reflect any required changes.  This macro is used when
    there is some systematic length adjustment required that would be difficult
-   to express in the length attribute.  */
+   to express in the length attribute.
 
-/* #define ADJUST_INSN_LENGTH(X,LENGTH) */
+   In the PowerPC, we use this to adjust the length of an instruction if one or
+   more prefixed instructions are generated, using the attribute
+   num_prefixed_insns.  A prefixed instruction is 8 bytes instead of 4, but the
+   hardware requires that a prefied instruciton does not cross a 64-byte
+   boundary.  This means the compiler has to assume the length of the first
+   prefixed instruction is 12 bytes instead of 8 bytes.  Since the length is
+   already set for the non-prefixed instruction, we just need to udpate for the
+   difference.  */
+
+#define ADJUST_INSN_LENGTH(INSN,LENGTH)					\
+  (LENGTH) = rs6000_adjust_insn_length ((INSN), (LENGTH))
 
 /* Given a comparison code (EQ, NE, etc.) and the first operand of a
    COMPARE, return the mode to be used for the comparison.  For
@@ -2497,8 +2477,88 @@ enum rs6000_builtin_type_index
 extern GTY(()) tree rs6000_builtin_types[RS6000_BTI_MAX];
 extern GTY(()) tree rs6000_builtin_decls[RS6000_BUILTIN_COUNT];
 
+#ifndef USED_FOR_TARGET
+/* A C structure for machine-specific, per-function data.
+   This is added to the cfun structure.  */
+typedef struct GTY(()) machine_function
+{
+  /* Flags if __builtin_return_address (n) with n >= 1 was used.  */
+  int ra_needs_full_frame;
+  /* Flags if __builtin_return_address (0) was used.  */
+  int ra_need_lr;
+  /* Cache lr_save_p after expansion of builtin_eh_return.  */
+  int lr_save_state;
+  /* Whether we need to save the TOC to the reserved stack location in the
+     function prologue.  */
+  bool save_toc_in_prologue;
+  /* Offset from virtual_stack_vars_rtx to the start of the ABI_V4
+     varargs save area.  */
+  HOST_WIDE_INT varargs_save_offset;
+  /* Alternative internal arg pointer for -fsplit-stack.  */
+  rtx split_stack_arg_pointer;
+  bool split_stack_argp_used;
+  /* Flag if r2 setup is needed with ELFv2 ABI.  */
+  bool r2_setup_needed;
+  /* The number of components we use for separate shrink-wrapping.  */
+  int n_components;
+  /* The components already handled by separate shrink-wrapping, which should
+     not be considered by the prologue and epilogue.  */
+  bool gpr_is_wrapped_separately[32];
+  bool fpr_is_wrapped_separately[32];
+  bool lr_is_wrapped_separately;
+  bool toc_is_wrapped_separately;
+} machine_function;
+#endif
+
+
 #define TARGET_SUPPORTS_WIDE_INT 1
 
 #if (GCC_VERSION >= 3000)
 #pragma GCC poison TARGET_FLOAT128 OPTION_MASK_FLOAT128 MASK_FLOAT128
 #endif
+
+/* Whether a given VALUE is a valid 16 or 34-bit signed offset.  */
+#define SIGNED_16BIT_OFFSET_P(VALUE)					\
+  IN_RANGE ((VALUE),							\
+	    -(HOST_WIDE_INT_1 << 15),					\
+	    (HOST_WIDE_INT_1 << 15) - 1)
+
+#define SIGNED_34BIT_OFFSET_P(VALUE)					\
+  IN_RANGE ((VALUE),							\
+	    -(HOST_WIDE_INT_1 << 33),					\
+	    (HOST_WIDE_INT_1 << 33) - 1)
+
+/* Like SIGNED_16BIT_OFFSET_P and SIGNED_34BIT_OFFSET_P, but with an extra
+   argument that gives a length to validate a range of addresses, to allow for
+   splitting insns into several insns, each of which has an offsettable
+   address.  */
+#define SIGNED_16BIT_OFFSET_EXTRA_P(VALUE, EXTRA)			\
+  IN_RANGE ((VALUE),							\
+	    -(HOST_WIDE_INT_1 << 15),					\
+	    (HOST_WIDE_INT_1 << 15) - 1 - (EXTRA))
+
+#define SIGNED_34BIT_OFFSET_EXTRA_P(VALUE, EXTRA)			\
+  IN_RANGE ((VALUE),							\
+	    -(HOST_WIDE_INT_1 << 33),					\
+	    (HOST_WIDE_INT_1 << 33) - 1 - (EXTRA))
+
+/* Define this if some processing needs to be done before outputting the
+   assembler code.  On the PowerPC, we remember if the current insn is a normal
+   prefixed insn where we need to emit a 'p' before the insn.  */
+#define FINAL_PRESCAN_INSN(INSN, OPERANDS, NOPERANDS)			\
+do									\
+  {									\
+    if (TARGET_PREFIXED_ADDR)						\
+      rs6000_final_prescan_insn (INSN, OPERANDS, NOPERANDS);		\
+  }									\
+while (0)
+
+/* Do anything special before emitting an opcode.  We use it to emit a 'p' for
+   prefixed insns that is set in FINAL_PRESCAN_INSN.  */
+#define ASM_OUTPUT_OPCODE(STREAM, OPCODE)				\
+  do									\
+    {									\
+     if (TARGET_PREFIXED_ADDR)						\
+       rs6000_asm_output_opcode (STREAM);				\
+    }									\
+  while (0)

@@ -207,7 +207,7 @@ AC_SUBST(long_double_type_size)
 
 AC_CHECK_HEADERS(inttypes.h stdint.h stdlib.h ftw.h \
 	unistd.h sys/stat.h sys/types.h \
-	string.h strings.h memory.h)
+	string.h strings.h memory.h sys/auxv.h)
 AC_HEADER_STDC
 
 # Check for decimal float support.
@@ -260,6 +260,16 @@ if test "$enable_explicit_exception_frame_registration" = yes; then
 fi
 ])
 AC_SUBST([force_explicit_eh_registry])
+
+AC_ARG_ENABLE([tm-clone-registry],
+[  --disable-tm-clone-registry    disable TM clone registry],
+[
+use_tm_clone_registry=
+if test "$enable_tm_clone_registry" = no; then
+  use_tm_clone_registry=-DUSE_TM_CLONE_REGISTRY=0
+fi
+])
+AC_SUBST([use_tm_clone_registry])
 
 AC_LIB_PROG_LD_GNU
 

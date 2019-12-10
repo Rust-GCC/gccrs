@@ -64,10 +64,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-stdarg.h"
 #include "tm-constrs.h"
 #include "libfuncs.h"
-#include "params.h"
 #include "builtins.h"
 #include "rtl-iter.h"
 #include "flags.h"
+#include "opts.h"
 
 /* This file should be included last.  */
 #include "target-def.h"
@@ -484,17 +484,14 @@ alpha_option_override (void)
     }
 
   if (line_size)
-    maybe_set_param_value (PARAM_L1_CACHE_LINE_SIZE, line_size,
-			   global_options.x_param_values,
-			   global_options_set.x_param_values);
+    SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+			 param_l1_cache_line_size, line_size);
   if (l1_size)
-    maybe_set_param_value (PARAM_L1_CACHE_SIZE, l1_size,
-			   global_options.x_param_values,
-			   global_options_set.x_param_values);
+    SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+			 param_l1_cache_size, l1_size);
   if (l2_size)
-    maybe_set_param_value (PARAM_L2_CACHE_SIZE, l2_size,
-			   global_options.x_param_values,
-			   global_options_set.x_param_values);
+    SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+			 param_l2_cache_size, l2_size);
 
   /* Do some sanity checks on the above options.  */
 
@@ -526,7 +523,7 @@ alpha_option_override (void)
 	  alpha_fptm = ALPHA_FPTM_SU;
 	}
       if (target_flags_explicit & MASK_LONG_DOUBLE_128)
-	warning (0, "128-bit long double not supported for VAX floats");
+	warning (0, "128-bit %<long double%> not supported for VAX floats");
       target_flags &= ~MASK_LONG_DOUBLE_128;
     }
 
@@ -729,19 +726,6 @@ static bool
 alpha_vector_mode_supported_p (machine_mode mode)
 {
   return mode == V8QImode || mode == V4HImode || mode == V2SImode;
-}
-
-/* Return 1 if this function can directly return via $26.  */
-
-int
-direct_return (void)
-{
-  return (TARGET_ABI_OSF
-	  && reload_completed
-	  && alpha_sa_size () == 0
-	  && get_frame_size () == 0
-	  && crtl->outgoing_args_size == 0
-	  && crtl->args.pretend_args_size == 0);
 }
 
 /* Return the TLS model to use for SYMBOL.  */
@@ -2305,10 +2289,7 @@ alpha_expand_mov_nobwx (machine_mode mode, rtx *operands)
 	{
 	  if (reload_in_progress)
 	    {
-	      if (mode == QImode)
-		seq = gen_reload_inqi_aligned (operands[0], operands[1]);
-	      else
-		seq = gen_reload_inhi_aligned (operands[0], operands[1]);
+	      seq = gen_reload_in_aligned (mode, operands[0], operands[1]);
 	      emit_insn (seq);
 	    }
 	  else
@@ -2391,10 +2372,8 @@ alpha_expand_mov_nobwx (machine_mode mode, rtx *operands)
 	  rtx temp3 = gen_reg_rtx (DImode);
 	  rtx ua = get_unaligned_address (operands[0]);
 
-	  if (mode == QImode)
-	    seq = gen_unaligned_storeqi (ua, operands[1], temp1, temp2, temp3);
-	  else
-	    seq = gen_unaligned_storehi (ua, operands[1], temp1, temp2, temp3);
+	  seq = gen_unaligned_store
+	    (mode, ua, operands[1], temp1, temp2, temp3);
 
 	  alpha_set_memflags (seq, operands[0]);
 	  emit_insn (seq);
@@ -4362,34 +4341,6 @@ emit_unlikely_jump (rtx cond, rtx label)
   add_reg_br_prob_note (insn, profile_probability::very_unlikely ());
 }
 
-/* A subroutine of the atomic operation splitters.  Emit a load-locked
-   instruction in MODE.  */
-
-static void
-emit_load_locked (machine_mode mode, rtx reg, rtx mem)
-{
-  rtx (*fn) (rtx, rtx) = NULL;
-  if (mode == SImode)
-    fn = gen_load_locked_si;
-  else if (mode == DImode)
-    fn = gen_load_locked_di;
-  emit_insn (fn (reg, mem));
-}
-
-/* A subroutine of the atomic operation splitters.  Emit a store-conditional
-   instruction in MODE.  */
-
-static void
-emit_store_conditional (machine_mode mode, rtx res, rtx mem, rtx val)
-{
-  rtx (*fn) (rtx, rtx, rtx) = NULL;
-  if (mode == SImode)
-    fn = gen_store_conditional_si;
-  else if (mode == DImode)
-    fn = gen_store_conditional_di;
-  emit_insn (fn (res, mem, val));
-}
-
 /* Subroutines of the atomic operation splitters.  Emit barriers
    as needed for the memory MODEL.  */
 
@@ -4461,7 +4412,7 @@ alpha_split_atomic_op (enum rtx_code code, rtx mem, rtx val, rtx before,
 
   if (before == NULL)
     before = scratch;
-  emit_load_locked (mode, before, mem);
+  emit_insn (gen_load_locked (mode, before, mem));
 
   if (code == NOT)
     {
@@ -4476,7 +4427,7 @@ alpha_split_atomic_op (enum rtx_code code, rtx mem, rtx val, rtx before,
     emit_insn (gen_rtx_SET (after, copy_rtx (x)));
   emit_insn (gen_rtx_SET (scratch, x));
 
-  emit_store_conditional (mode, cond, mem, scratch);
+  emit_insn (gen_store_conditional (mode, cond, mem, scratch));
 
   x = gen_rtx_EQ (DImode, cond, const0_rtx);
   emit_unlikely_jump (x, label);
@@ -4515,7 +4466,7 @@ alpha_split_compare_and_swap (rtx operands[])
     }
   label2 = gen_rtx_LABEL_REF (DImode, gen_label_rtx ());
 
-  emit_load_locked (mode, retval, mem);
+  emit_insn (gen_load_locked (mode, retval, mem));
 
   x = gen_lowpart (DImode, retval);
   if (oldval == const0_rtx)
@@ -4532,7 +4483,8 @@ alpha_split_compare_and_swap (rtx operands[])
   emit_unlikely_jump (x, label2);
 
   emit_move_insn (cond, newval);
-  emit_store_conditional (mode, cond, mem, gen_lowpart (mode, cond));
+  emit_insn (gen_store_conditional
+	     (mode, cond, mem, gen_lowpart (mode, cond)));
 
   if (!is_weak)
     {
@@ -4555,7 +4507,6 @@ alpha_expand_compare_and_swap_12 (rtx operands[])
   rtx cond, dst, mem, oldval, newval, is_weak, mod_s, mod_f;
   machine_mode mode;
   rtx addr, align, wdst;
-  rtx (*gen) (rtx, rtx, rtx, rtx, rtx, rtx, rtx, rtx, rtx);
 
   cond = operands[0];
   dst = operands[1];
@@ -4580,12 +4531,9 @@ alpha_expand_compare_and_swap_12 (rtx operands[])
     newval = emit_insxl (mode, newval, addr);
 
   wdst = gen_reg_rtx (DImode);
-  if (mode == QImode)
-    gen = gen_atomic_compare_and_swapqi_1;
-  else
-    gen = gen_atomic_compare_and_swaphi_1;
-  emit_insn (gen (cond, wdst, mem, oldval, newval, align,
-		  is_weak, mod_s, mod_f));
+  emit_insn (gen_atomic_compare_and_swap_1
+	     (mode, cond, wdst, mem, oldval, newval, align,
+	      is_weak, mod_s, mod_f));
 
   emit_move_insn (dst, gen_lowpart (mode, wdst));
 }
@@ -4627,7 +4575,7 @@ alpha_split_compare_and_swap_12 (rtx operands[])
     }
   label2 = gen_rtx_LABEL_REF (DImode, gen_label_rtx ());
 
-  emit_load_locked (DImode, scratch, mem);
+  emit_insn (gen_load_locked (DImode, scratch, mem));
   
   width = GEN_INT (GET_MODE_BITSIZE (mode));
   mask = GEN_INT (mode == QImode ? 0xff : 0xffff);
@@ -4651,7 +4599,7 @@ alpha_split_compare_and_swap_12 (rtx operands[])
   if (newval != const0_rtx)
     emit_insn (gen_iordi3 (cond, cond, newval));
 
-  emit_store_conditional (DImode, cond, mem, cond);
+  emit_insn (gen_store_conditional (DImode, cond, mem, cond));
 
   if (!is_weak)
     {
@@ -4691,9 +4639,9 @@ alpha_split_atomic_exchange (rtx operands[])
   label = gen_rtx_LABEL_REF (DImode, gen_label_rtx ());
   emit_label (XEXP (label, 0));
 
-  emit_load_locked (mode, retval, mem);
+  emit_insn (gen_load_locked (mode, retval, mem));
   emit_move_insn (scratch, val);
-  emit_store_conditional (mode, cond, mem, scratch);
+  emit_insn (gen_store_conditional (mode, cond, mem, scratch));
 
   x = gen_rtx_EQ (DImode, cond, const0_rtx);
   emit_unlikely_jump (x, label);
@@ -4707,7 +4655,6 @@ alpha_expand_atomic_exchange_12 (rtx operands[])
   rtx dst, mem, val, model;
   machine_mode mode;
   rtx addr, align, wdst;
-  rtx (*gen) (rtx, rtx, rtx, rtx, rtx);
 
   dst = operands[0];
   mem = operands[1];
@@ -4727,11 +4674,7 @@ alpha_expand_atomic_exchange_12 (rtx operands[])
     val = emit_insxl (mode, val, addr);
 
   wdst = gen_reg_rtx (DImode);
-  if (mode == QImode)
-    gen = gen_atomic_exchangeqi_1;
-  else
-    gen = gen_atomic_exchangehi_1;
-  emit_insn (gen (wdst, mem, val, align, model));
+  emit_insn (gen_atomic_exchange_1 (mode, wdst, mem, val, align, model));
 
   emit_move_insn (dst, gen_lowpart (mode, wdst));
 }
@@ -4763,7 +4706,7 @@ alpha_split_atomic_exchange_12 (rtx operands[])
   label = gen_rtx_LABEL_REF (DImode, gen_label_rtx ());
   emit_label (XEXP (label, 0));
 
-  emit_load_locked (DImode, scratch, mem);
+  emit_insn (gen_load_locked (DImode, scratch, mem));
   
   width = GEN_INT (GET_MODE_BITSIZE (mode));
   mask = GEN_INT (mode == QImode ? 0xff : 0xffff);
@@ -4772,7 +4715,7 @@ alpha_split_atomic_exchange_12 (rtx operands[])
   if (val != const0_rtx)
     emit_insn (gen_iordi3 (scratch, scratch, val));
 
-  emit_store_conditional (DImode, scratch, mem, scratch);
+  emit_insn (gen_store_conditional (DImode, scratch, mem, scratch));
 
   x = gen_rtx_EQ (DImode, scratch, const0_rtx);
   emit_unlikely_jump (x, label);
@@ -4840,6 +4783,10 @@ struct GTY(()) alpha_links;
 
 struct GTY(()) machine_function
 {
+  unsigned HOST_WIDE_INT sa_mask;
+  HOST_WIDE_INT sa_size;
+  HOST_WIDE_INT frame_size;
+
   /* For flag_reorder_blocks_and_partition.  */
   rtx gp_save_rtx;
 
@@ -5595,38 +5542,32 @@ alpha_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
    Value is zero to push the argument on the stack,
    or a hard register in which to store the argument.
 
-   MODE is the argument's machine mode.
-   TYPE is the data type of the argument (as a tree).
-    This is null for libcalls where that information may
-    not be available.
    CUM is a variable of type CUMULATIVE_ARGS which gives info about
     the preceding args and about the function being called.
-   NAMED is nonzero if this argument is a named parameter
-    (otherwise it is an extra parameter matching an ellipsis).
+   ARG is a description of the argument.
 
    On Alpha the first 6 words of args are normally in registers
    and the rest are pushed.  */
 
 static rtx
-alpha_function_arg (cumulative_args_t cum_v, machine_mode mode,
-		    const_tree type, bool named ATTRIBUTE_UNUSED)
+alpha_function_arg (cumulative_args_t cum_v, const function_arg_info &arg)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
   int basereg;
   int num_args;
 
   /* Don't get confused and pass small structures in FP registers.  */
-  if (type && AGGREGATE_TYPE_P (type))
+  if (arg.aggregate_type_p ())
     basereg = 16;
   else
     {
       /* With alpha_split_complex_arg, we shouldn't see any raw complex
 	 values here.  */
-      gcc_checking_assert (!COMPLEX_MODE_P (mode));
+      gcc_checking_assert (!COMPLEX_MODE_P (arg.mode));
 
       /* Set up defaults for FP operands passed in FP registers, and
 	 integral operands passed in integer registers.  */
-      if (TARGET_FPREGS && GET_MODE_CLASS (mode) == MODE_FLOAT)
+      if (TARGET_FPREGS && GET_MODE_CLASS (arg.mode) == MODE_FLOAT)
 	basereg = 32 + 16;
       else
 	basereg = 16;
@@ -5636,12 +5577,12 @@ alpha_function_arg (cumulative_args_t cum_v, machine_mode mode,
      the two platforms, so we can't avoid conditional compilation.  */
 #if TARGET_ABI_OPEN_VMS
     {
-      if (mode == VOIDmode)
+      if (arg.end_marker_p ())
 	return alpha_arg_info_reg_val (*cum);
 
       num_args = cum->num_args;
       if (num_args >= 6
-	  || targetm.calls.must_pass_in_stack (mode, type))
+	  || targetm.calls.must_pass_in_stack (arg))
 	return NULL_RTX;
     }
 #elif TARGET_ABI_OSF
@@ -5650,55 +5591,49 @@ alpha_function_arg (cumulative_args_t cum_v, machine_mode mode,
 	return NULL_RTX;
       num_args = *cum;
 
-      /* VOID is passed as a special flag for "last argument".  */
-      if (type == void_type_node)
+      if (arg.end_marker_p ())
 	basereg = 16;
-      else if (targetm.calls.must_pass_in_stack (mode, type))
+      else if (targetm.calls.must_pass_in_stack (arg))
 	return NULL_RTX;
     }
 #else
 #error Unhandled ABI
 #endif
 
-  return gen_rtx_REG (mode, num_args + basereg);
+  return gen_rtx_REG (arg.mode, num_args + basereg);
 }
 
-/* Update the data in CUM to advance over an argument
-   of mode MODE and data type TYPE.
-   (TYPE is null for libcalls where that information may not be available.)  */
+/* Update the data in CUM to advance over argument ARG.  */
 
 static void
-alpha_function_arg_advance (cumulative_args_t cum_v, machine_mode mode,
-			    const_tree type, bool named ATTRIBUTE_UNUSED)
+alpha_function_arg_advance (cumulative_args_t cum_v,
+			    const function_arg_info &arg)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
-  bool onstack = targetm.calls.must_pass_in_stack (mode, type);
-  int increment = onstack ? 6 : ALPHA_ARG_SIZE (mode, type);
+  bool onstack = targetm.calls.must_pass_in_stack (arg);
+  int increment = onstack ? 6 : ALPHA_ARG_SIZE (arg.mode, arg.type);
 
 #if TARGET_ABI_OSF
   *cum += increment;
 #else
   if (!onstack && cum->num_args < 6)
-    cum->atypes[cum->num_args] = alpha_arg_type (mode);
+    cum->atypes[cum->num_args] = alpha_arg_type (arg.mode);
   cum->num_args += increment;
 #endif
 }
 
 static int
-alpha_arg_partial_bytes (cumulative_args_t cum_v,
-			 machine_mode mode ATTRIBUTE_UNUSED,
-			 tree type ATTRIBUTE_UNUSED,
-			 bool named ATTRIBUTE_UNUSED)
+alpha_arg_partial_bytes (cumulative_args_t cum_v, const function_arg_info &arg)
 {
   int words = 0;
   CUMULATIVE_ARGS *cum ATTRIBUTE_UNUSED = get_cumulative_args (cum_v);
 
 #if TARGET_ABI_OPEN_VMS
   if (cum->num_args < 6
-      && 6 < cum->num_args + ALPHA_ARG_SIZE (mode, type))
+      && 6 < cum->num_args + ALPHA_ARG_SIZE (arg.mode, arg.type))
     words = 6 - cum->num_args;
 #elif TARGET_ABI_OSF
-  if (*cum < 6 && 6 < *cum + ALPHA_ARG_SIZE (mode, type))
+  if (*cum < 6 && 6 < *cum + ALPHA_ARG_SIZE (arg.mode, arg.type))
     words = 6 - *cum;
 #else
 #error Unhandled ABI
@@ -5763,13 +5698,10 @@ alpha_return_in_memory (const_tree type, const_tree fndecl ATTRIBUTE_UNUSED)
   return size > UNITS_PER_WORD;
 }
 
-/* Return true if TYPE should be passed by invisible reference.  */
+/* Return true if ARG should be passed by invisible reference.  */
 
 static bool
-alpha_pass_by_reference (cumulative_args_t ca ATTRIBUTE_UNUSED,
-			 machine_mode mode,
-			 const_tree type ATTRIBUTE_UNUSED,
-			 bool named)
+alpha_pass_by_reference (cumulative_args_t, const function_arg_info &arg)
 {
   /* Pass float and _Complex float variable arguments by reference.
      This avoids 64-bit store from a FP register to a pretend args save area
@@ -5789,10 +5721,10 @@ alpha_pass_by_reference (cumulative_args_t ca ATTRIBUTE_UNUSED,
      to worry about, and passing unpromoted _Float32 and _Complex float
      as a variable argument will actually work in the future.  */
 
-  if (mode == SFmode || mode == SCmode)
-    return !named;
+  if (arg.mode == SFmode || arg.mode == SCmode)
+    return !arg.named;
 
-  return mode == TFmode || mode == TCmode;
+  return arg.mode == TFmode || arg.mode == TCmode;
 }
 
 /* Define how to find the value returned by a function.  VALTYPE is the
@@ -6146,14 +6078,14 @@ escapes:
    variable number of arguments.  */
 
 static void
-alpha_setup_incoming_varargs (cumulative_args_t pcum, machine_mode mode,
-			      tree type, int *pretend_size, int no_rtl)
+alpha_setup_incoming_varargs (cumulative_args_t pcum,
+			      const function_arg_info &arg,
+			      int *pretend_size, int no_rtl)
 {
   CUMULATIVE_ARGS cum = *get_cumulative_args (pcum);
 
   /* Skip the current argument.  */
-  targetm.calls.function_arg_advance (pack_cumulative_args (&cum), mode, type,
-				      true);
+  targetm.calls.function_arg_advance (pack_cumulative_args (&cum), arg);
 
 #if TARGET_ABI_OPEN_VMS
   /* For VMS, we allocate space for all 6 arg registers plus a count.
@@ -6293,7 +6225,7 @@ alpha_gimplify_va_arg_1 (tree type, tree base, tree offset,
 
   /* If the type could not be passed in registers, skip the block
      reserved for the registers.  */
-  if (targetm.calls.must_pass_in_stack (TYPE_MODE (type), type))
+  if (must_pass_va_arg_in_stack (type))
     {
       t = build_int_cst (TREE_TYPE (offset), 6*8);
       gimplify_assign (offset,
@@ -6380,7 +6312,7 @@ alpha_gimplify_va_arg (tree valist, tree type, gimple_seq *pre_p,
   t = fold_convert (build_nonstandard_integer_type (64, 0), offset_field);
   offset = get_initialized_tmp_var (t, pre_p, NULL);
 
-  indirect = pass_by_reference (NULL, TYPE_MODE (type), type, false);
+  indirect = pass_va_arg_by_reference (type);
 
   if (indirect)
     {
@@ -6707,7 +6639,7 @@ alpha_expand_builtin (tree exp, rtx target,
 #define MAX_ARGS 2
 
   tree fndecl = TREE_OPERAND (CALL_EXPR_FN (exp), 0);
-  unsigned int fcode = DECL_FUNCTION_CODE (fndecl);
+  unsigned int fcode = DECL_MD_FUNCTION_CODE (fndecl);
   tree arg;
   call_expr_arg_iterator iter;
   enum insn_code icode;
@@ -7106,7 +7038,7 @@ alpha_fold_builtin (tree fndecl, int n_args, tree *op,
 	}
     }
 
-  switch (DECL_FUNCTION_CODE (fndecl))
+  switch (DECL_MD_FUNCTION_CODE (fndecl))
     {
     case ALPHA_BUILTIN_CMPBGE:
       return alpha_fold_builtin_cmpbge (opint, op_const);
@@ -7222,7 +7154,7 @@ alpha_gimple_fold_builtin (gimple_stmt_iterator *gsi)
 	{
 	  tree arg0, arg1;
 
-	  switch (DECL_FUNCTION_CODE (fndecl))
+	  switch (DECL_MD_FUNCTION_CODE (fndecl))
 	    {
 	    case ALPHA_BUILTIN_UMULH:
 	      arg0 = gimple_call_arg (stmt, 0);
@@ -7271,83 +7203,59 @@ static int vms_save_fp_regno;
 /* Register number used to reference objects off our PV.  */
 static int vms_base_regno;
 
-/* Compute register masks for saved registers.  */
-
+/* Compute register masks for saved registers, register save area size,
+   and total frame size.  */
 static void
-alpha_sa_mask (unsigned long *imaskP, unsigned long *fmaskP)
+alpha_compute_frame_layout (void)
 {
-  unsigned long imask = 0;
-  unsigned long fmask = 0;
-  unsigned int i;
+  unsigned HOST_WIDE_INT sa_mask = 0;
+  HOST_WIDE_INT frame_size;
+  int sa_size;
 
   /* When outputting a thunk, we don't have valid register life info,
      but assemble_start_function wants to output .frame and .mask
      directives.  */
-  if (cfun->is_thunk)
+  if (!cfun->is_thunk)
     {
-      *imaskP = 0;
-      *fmaskP = 0;
-      return;
-    }
+      if (TARGET_ABI_OPEN_VMS && alpha_procedure_type == PT_STACK)
+	sa_mask |= HOST_WIDE_INT_1U << HARD_FRAME_POINTER_REGNUM;
 
-  if (TARGET_ABI_OPEN_VMS && alpha_procedure_type == PT_STACK)
-    imask |= (1UL << HARD_FRAME_POINTER_REGNUM);
+      /* One for every register we have to save.  */
+      for (unsigned i = 0; i < FIRST_PSEUDO_REGISTER; i++)
+	if (! call_used_or_fixed_reg_p (i)
+	    && df_regs_ever_live_p (i) && i != REG_RA)
+	  sa_mask |= HOST_WIDE_INT_1U << i;
 
-  /* One for every register we have to save.  */
-  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-    if (! fixed_regs[i] && ! call_used_regs[i]
-	&& df_regs_ever_live_p (i) && i != REG_RA)
-      {
-	if (i < 32)
-	  imask |= (1UL << i);
-	else
-	  fmask |= (1UL << (i - 32));
-      }
-
-  /* We need to restore these for the handler.  */
-  if (crtl->calls_eh_return)
-    {
-      for (i = 0; ; ++i)
+      /* We need to restore these for the handler.  */
+      if (crtl->calls_eh_return)
 	{
-	  unsigned regno = EH_RETURN_DATA_REGNO (i);
-	  if (regno == INVALID_REGNUM)
-	    break;
-	  imask |= 1UL << regno;
+	  for (unsigned i = 0; ; ++i)
+	    {
+	      unsigned regno = EH_RETURN_DATA_REGNO (i);
+	      if (regno == INVALID_REGNUM)
+		break;
+	      sa_mask |= HOST_WIDE_INT_1U << regno;
+	    }
 	}
+
+      /* If any register spilled, then spill the return address also.  */
+      /* ??? This is required by the Digital stack unwind specification
+	 and isn't needed if we're doing Dwarf2 unwinding.  */
+      if (sa_mask || alpha_ra_ever_killed ())
+	sa_mask |= HOST_WIDE_INT_1U << REG_RA;
     }
 
-  /* If any register spilled, then spill the return address also.  */
-  /* ??? This is required by the Digital stack unwind specification
-     and isn't needed if we're doing Dwarf2 unwinding.  */
-  if (imask || fmask || alpha_ra_ever_killed ())
-    imask |= (1UL << REG_RA);
-
-  *imaskP = imask;
-  *fmaskP = fmask;
-}
-
-int
-alpha_sa_size (void)
-{
-  unsigned long mask[2];
-  int sa_size = 0;
-  int i, j;
-
-  alpha_sa_mask (&mask[0], &mask[1]);
-
-  for (j = 0; j < 2; ++j)
-    for (i = 0; i < 32; ++i)
-      if ((mask[j] >> i) & 1)
-	sa_size++;
+  sa_size = popcount_hwi(sa_mask);
+  frame_size = get_frame_size ();
 
   if (TARGET_ABI_OPEN_VMS)
     {
       /* Start with a stack procedure if we make any calls (REG_RA used), or
 	 need a frame pointer, with a register procedure if we otherwise need
 	 at least a slot, and with a null procedure in other cases.  */
-      if ((mask[0] >> REG_RA) & 1 || frame_pointer_needed)
+      if ((sa_mask >> REG_RA) & 1 || frame_pointer_needed)
 	alpha_procedure_type = PT_STACK;
-      else if (get_frame_size() != 0)
+      else if (frame_size != 0)
 	alpha_procedure_type = PT_REGISTER;
       else
 	alpha_procedure_type = PT_NULL;
@@ -7371,12 +7279,15 @@ alpha_sa_size (void)
 
       /* If we want to copy PV into FP, we need to find some register
 	 in which to save FP.  */
-
       vms_save_fp_regno = -1;
       if (vms_base_regno == HARD_FRAME_POINTER_REGNUM)
-	for (i = 0; i < 32; i++)
-	  if (! fixed_regs[i] && call_used_regs[i] && ! df_regs_ever_live_p (i))
-	    vms_save_fp_regno = i;
+	for (unsigned i = 0; i < 32; i++)
+	  if (! fixed_regs[i] && call_used_or_fixed_reg_p (i)
+	      && ! df_regs_ever_live_p (i))
+	    {
+	      vms_save_fp_regno = i;
+	      break;
+	    }
 
       /* A VMS condition handler requires a stack procedure in our
 	 implementation. (not required by the calling standard).  */
@@ -7401,8 +7312,34 @@ alpha_sa_size (void)
       if (sa_size & 1)
 	sa_size++;
     }
+  sa_size *= 8;
 
-  return sa_size * 8;
+  if (TARGET_ABI_OPEN_VMS)
+    frame_size = ALPHA_ROUND (sa_size
+			      + (alpha_procedure_type == PT_STACK ? 8 : 0)
+			      + frame_size
+			      + crtl->args.pretend_args_size);
+  else
+    frame_size = (ALPHA_ROUND (crtl->outgoing_args_size)
+		  + sa_size
+		  + ALPHA_ROUND (frame_size + crtl->args.pretend_args_size));
+
+  cfun->machine->sa_mask = sa_mask;
+  cfun->machine->sa_size = sa_size;
+  cfun->machine->frame_size = frame_size;
+}
+
+#undef  TARGET_COMPUTE_FRAME_LAYOUT
+#define TARGET_COMPUTE_FRAME_LAYOUT  alpha_compute_frame_layout
+
+/* Return 1 if this function can directly return via $26.  */
+
+bool
+direct_return (void)
+{
+  return (TARGET_ABI_OSF
+	  && reload_completed
+	  && cfun->machine->frame_size == 0);
 }
 
 /* Define the offset between two registers, one to be eliminated,
@@ -7414,7 +7351,7 @@ alpha_initial_elimination_offset (unsigned int from,
 {
   HOST_WIDE_INT ret;
 
-  ret = alpha_sa_size ();
+  ret = cfun->machine->sa_size;
   ret += ALPHA_ROUND (crtl->outgoing_args_size);
 
   switch (from)
@@ -7442,9 +7379,6 @@ alpha_initial_elimination_offset (unsigned int from,
 static bool
 alpha_vms_can_eliminate (const int from ATTRIBUTE_UNUSED, const int to)
 {
-  /* We need the alpha_procedure_type to decide. Evaluate it now.  */
-  alpha_sa_size ();
-
   switch (alpha_procedure_type)
     {
     case PT_NULL:
@@ -7474,7 +7408,7 @@ alpha_vms_initial_elimination_offset (unsigned int from, unsigned int to)
      on the proper computations and will need the register save area size
      in most cases.  */
 
-  HOST_WIDE_INT sa_size = alpha_sa_size ();
+  HOST_WIDE_INT sa_size = cfun->machine->sa_size;
 
   /* PT_NULL procedures have no frame of their own and we only allow
      elimination to the stack pointer. This is the argument pointer and we
@@ -7706,24 +7640,6 @@ emit_frame_store (unsigned int regno, rtx base_reg,
   emit_frame_store_1 (reg, base_reg, frame_bias, base_ofs, reg);
 }
 
-/* Compute the frame size.  SIZE is the size of the "naked" frame
-   and SA_SIZE is the size of the register save area.  */
-
-static HOST_WIDE_INT
-compute_frame_size (HOST_WIDE_INT size, HOST_WIDE_INT sa_size)
-{
-  if (TARGET_ABI_OPEN_VMS)
-    return ALPHA_ROUND (sa_size 
-			+ (alpha_procedure_type == PT_STACK ? 8 : 0)
-			+ size
-			+ crtl->args.pretend_args_size);
-  else
-    return ALPHA_ROUND (crtl->outgoing_args_size)
-	   + sa_size
-	   + ALPHA_ROUND (size
-			  + crtl->args.pretend_args_size);
-}
-
 /* Write function prologue.  */
 
 /* On vms we have two kinds of functions:
@@ -7745,22 +7661,17 @@ void
 alpha_expand_prologue (void)
 {
   /* Registers to save.  */
-  unsigned long imask = 0;
-  unsigned long fmask = 0;
+  unsigned HOST_WIDE_INT sa_mask = cfun->machine->sa_mask;
   /* Stack space needed for pushing registers clobbered by us.  */
-  HOST_WIDE_INT sa_size, sa_bias;
+  HOST_WIDE_INT sa_size = cfun->machine->sa_size;
   /* Complete stack size needed.  */
-  HOST_WIDE_INT frame_size;
+  HOST_WIDE_INT frame_size = cfun->machine->frame_size;
   /* Probed stack size; it additionally includes the size of
      the "reserve region" if any.  */
-  HOST_WIDE_INT probed_size;
+  HOST_WIDE_INT probed_size, sa_bias;
   /* Offset from base reg to register save area.  */
   HOST_WIDE_INT reg_offset;
   rtx sa_reg;
-  int i;
-
-  sa_size = alpha_sa_size ();
-  frame_size = compute_frame_size (get_frame_size (), sa_size);
 
   if (flag_stack_usage_info)
     current_function_static_stack_size = frame_size;
@@ -7769,8 +7680,6 @@ alpha_expand_prologue (void)
     reg_offset = 8 + 8 * cfun->machine->uses_condition_handler;
   else
     reg_offset = ALPHA_ROUND (crtl->outgoing_args_size);
-
-  alpha_sa_mask (&imask, &fmask);
 
   /* Emit an insn to reload GP, if needed.  */
   if (TARGET_ABI_OSF)
@@ -7910,28 +7819,14 @@ alpha_expand_prologue (void)
   if (TARGET_ABI_OPEN_VMS && alpha_procedure_type == PT_STACK)
     emit_frame_store (REG_PV, stack_pointer_rtx, 0, 0);
 
-  /* Save register RA next.  */
-  if (imask & (1UL << REG_RA))
+  /* Save register RA next, followed by any other registers
+     that need to be saved.  */
+  for (unsigned i = REG_RA; sa_mask != 0; i = ctz_hwi(sa_mask))
     {
-      emit_frame_store (REG_RA, sa_reg, sa_bias, reg_offset);
-      imask &= ~(1UL << REG_RA);
+      emit_frame_store (i, sa_reg, sa_bias, reg_offset);
       reg_offset += 8;
+      sa_mask &= ~(HOST_WIDE_INT_1U << i);
     }
-
-  /* Now save any other registers required to be saved.  */
-  for (i = 0; i < 31; i++)
-    if (imask & (1UL << i))
-      {
-	emit_frame_store (i, sa_reg, sa_bias, reg_offset);
-	reg_offset += 8;
-      }
-
-  for (i = 0; i < 31; i++)
-    if (fmask & (1UL << i))
-      {
-	emit_frame_store (i+32, sa_reg, sa_bias, reg_offset);
-	reg_offset += 8;
-      }
 
   if (TARGET_ABI_OPEN_VMS)
     {
@@ -8019,14 +7914,11 @@ void
 alpha_start_function (FILE *file, const char *fnname,
 		      tree decl ATTRIBUTE_UNUSED)
 {
-  unsigned long imask = 0;
-  unsigned long fmask = 0;
-  /* Stack space needed for pushing registers clobbered by us.  */
-  HOST_WIDE_INT sa_size;
+  unsigned long imask, fmask;
   /* Complete stack size needed.  */
-  unsigned HOST_WIDE_INT frame_size;
+  HOST_WIDE_INT frame_size = cfun->machine->frame_size;
   /* The maximum debuggable frame size.  */
-  unsigned HOST_WIDE_INT max_frame_size = 1UL << 31;
+  const HOST_WIDE_INT max_frame_size = HOST_WIDE_INT_1 << 31;
   /* Offset from base reg to register save area.  */
   HOST_WIDE_INT reg_offset;
   char *entry_label = (char *) alloca (strlen (fnname) + 6);
@@ -8038,15 +7930,14 @@ alpha_start_function (FILE *file, const char *fnname,
 #endif
 
   alpha_fnname = fnname;
-  sa_size = alpha_sa_size ();
-  frame_size = compute_frame_size (get_frame_size (), sa_size);
 
   if (TARGET_ABI_OPEN_VMS)
     reg_offset = 8 + 8 * cfun->machine->uses_condition_handler;
   else
     reg_offset = ALPHA_ROUND (crtl->outgoing_args_size);
 
-  alpha_sa_mask (&imask, &fmask);
+  imask = cfun->machine->sa_mask & 0xffffffffu;
+  fmask = cfun->machine->sa_mask >> 32;
 
   /* Issue function start and label.  */
   if (TARGET_ABI_OPEN_VMS || !flag_inhibit_size_directive)
@@ -8113,7 +8004,7 @@ alpha_start_function (FILE *file, const char *fnname,
     fprintf (file, "\t.frame $%d," HOST_WIDE_INT_PRINT_DEC ",$26,"
 	     HOST_WIDE_INT_PRINT_DEC "\n",
 	     vms_unwind_regno,
-	     frame_size >= (1UL << 31) ? 0 : frame_size,
+	     frame_size >= max_frame_size ? 0 : frame_size,
 	     reg_offset);
   else if (!flag_inhibit_size_directive)
     fprintf (file, "\t.frame $%d," HOST_WIDE_INT_PRINT_DEC ",$26,%d\n",
@@ -8193,12 +8084,11 @@ void
 alpha_expand_epilogue (void)
 {
   /* Registers to save.  */
-  unsigned long imask = 0;
-  unsigned long fmask = 0;
+  unsigned HOST_WIDE_INT sa_mask = cfun->machine->sa_mask;
   /* Stack space needed for pushing registers clobbered by us.  */
-  HOST_WIDE_INT sa_size;
+  HOST_WIDE_INT sa_size = cfun->machine->sa_size;
   /* Complete stack size needed.  */
-  HOST_WIDE_INT frame_size;
+  HOST_WIDE_INT frame_size = cfun->machine->frame_size;
   /* Offset from base reg to register save area.  */
   HOST_WIDE_INT reg_offset;
   int fp_is_frame_pointer, fp_offset;
@@ -8206,10 +8096,6 @@ alpha_expand_epilogue (void)
   rtx sp_adj1, sp_adj2, mem, reg, insn;
   rtx eh_ofs;
   rtx cfa_restores = NULL_RTX;
-  int i;
-
-  sa_size = alpha_sa_size ();
-  frame_size = compute_frame_size (get_frame_size (), sa_size);
 
   if (TARGET_ABI_OPEN_VMS)
     {
@@ -8220,8 +8106,6 @@ alpha_expand_epilogue (void)
     }
   else
     reg_offset = ALPHA_ROUND (crtl->outgoing_args_size);
-
-  alpha_sa_mask (&imask, &fmask);
 
   fp_is_frame_pointer
     = (TARGET_ABI_OPEN_VMS
@@ -8261,43 +8145,23 @@ alpha_expand_epilogue (void)
 	}
 
       /* Restore registers in order, excepting a true frame pointer.  */
-
-      mem = gen_frame_mem (DImode, plus_constant (Pmode, sa_reg, reg_offset));
-      reg = gen_rtx_REG (DImode, REG_RA);
-      emit_move_insn (reg, mem);
-      cfa_restores = alloc_reg_note (REG_CFA_RESTORE, reg, cfa_restores);
-
-      reg_offset += 8;
-      imask &= ~(1UL << REG_RA);
-
-      for (i = 0; i < 31; ++i)
-	if (imask & (1UL << i))
-	  {
-	    if (i == HARD_FRAME_POINTER_REGNUM && fp_is_frame_pointer)
-	      fp_offset = reg_offset;
-	    else
-	      {
-		mem = gen_frame_mem (DImode,
-				     plus_constant (Pmode, sa_reg,
-						    reg_offset));
-		reg = gen_rtx_REG (DImode, i);
-		emit_move_insn (reg, mem);
-		cfa_restores = alloc_reg_note (REG_CFA_RESTORE, reg,
-					       cfa_restores);
-	      }
-	    reg_offset += 8;
-	  }
-
-      for (i = 0; i < 31; ++i)
-	if (fmask & (1UL << i))
-	  {
-	    mem = gen_frame_mem (DFmode, plus_constant (Pmode, sa_reg,
-						        reg_offset));
-	    reg = gen_rtx_REG (DFmode, i+32);
-	    emit_move_insn (reg, mem);
-	    cfa_restores = alloc_reg_note (REG_CFA_RESTORE, reg, cfa_restores);
-	    reg_offset += 8;
-	  }
+      for (unsigned i = REG_RA; sa_mask != 0; i = ctz_hwi(sa_mask))
+	{
+	  if (i == HARD_FRAME_POINTER_REGNUM && fp_is_frame_pointer)
+	    fp_offset = reg_offset;
+	  else
+	    {
+	      mem = gen_frame_mem (DImode,
+				   plus_constant (Pmode, sa_reg,
+						  reg_offset));
+	      reg = gen_rtx_REG (DImode, i);
+	      emit_move_insn (reg, mem);
+	      cfa_restores = alloc_reg_note (REG_CFA_RESTORE, reg,
+					     cfa_restores);
+	    }
+	  reg_offset += 8;
+	  sa_mask &= ~(HOST_WIDE_INT_1U << i);
+	}
     }
 
   if (frame_size || eh_ofs)
@@ -8840,6 +8704,9 @@ alpha_handle_trap_shadows (void)
 		    case CALL_INSN:
 		    case CODE_LABEL:
 		      goto close_shadow;
+
+		    case DEBUG_INSN:
+		      break;
 
 		    default:
 		      gcc_unreachable ();

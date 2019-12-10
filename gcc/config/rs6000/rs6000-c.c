@@ -430,8 +430,6 @@ rs6000_target_modify_macros (bool define_p, HOST_WIDE_INT flags,
     rs6000_define_or_undefine_macro (define_p, "_ARCH_PWR5X");
   if ((flags & OPTION_MASK_CMPB) != 0)
     rs6000_define_or_undefine_macro (define_p, "_ARCH_PWR6");
-  if ((flags & OPTION_MASK_MFPGPR) != 0)
-    rs6000_define_or_undefine_macro (define_p, "_ARCH_PWR6X");
   if ((flags & OPTION_MASK_POPCNTD) != 0)
     rs6000_define_or_undefine_macro (define_p, "_ARCH_PWR7");
   /* Note that the OPTION_MASK_DIRECT_MOVE flag is automatically
@@ -6078,14 +6076,14 @@ altivec_build_resolved_builtin (tree *args, int n,
      condition (LT vs. EQ, which is recognizable by bit 1 of the first
      argument) is reversed.  Patch the arguments here before building
      the resolved CALL_EXPR.  */
-  if (desc->code == ALTIVEC_BUILTIN_VEC_VCMPGE_P
+  if (n == 3
+      && desc->code == ALTIVEC_BUILTIN_VEC_VCMPGE_P
       && desc->overloaded_code != ALTIVEC_BUILTIN_VCMPGEFP_P
       && desc->overloaded_code != VSX_BUILTIN_XVCMPGEDP_P)
     {
-      tree t;
-      t = args[2], args[2] = args[1], args[1] = t;
-      t = arg_type[2], arg_type[2] = arg_type[1], arg_type[1] = t;
-      
+      std::swap (args[1], args[2]);
+      std::swap (arg_type[1], arg_type[2]);
+
       args[0] = fold_build2 (BIT_XOR_EXPR, TREE_TYPE (args[0]), args[0],
 			     build_int_cst (NULL_TREE, 2));
     }
@@ -6126,7 +6124,7 @@ altivec_resolve_overloaded_builtin (location_t loc, tree fndecl,
   vec<tree, va_gc> *arglist = static_cast<vec<tree, va_gc> *> (passed_arglist);
   unsigned int nargs = vec_safe_length (arglist);
   enum rs6000_builtins fcode
-    = (enum rs6000_builtins)DECL_FUNCTION_CODE (fndecl);
+    = (enum rs6000_builtins) DECL_MD_FUNCTION_CODE (fndecl);
   tree fnargs = TYPE_ARG_TYPES (TREE_TYPE (fndecl));
   tree types[3], args[3];
   const struct altivec_builtin_types *desc;
@@ -7038,8 +7036,7 @@ altivec_resolve_overloaded_builtin (location_t loc, tree fndecl,
 		    name, internal_name);
 	  }
 	else
-	  error ("builtin function %qs not supported in this compiler "
-		 "configuration", name);
+	  error ("%qs is not supported in this compiler configuration", name);
 	/* If an error-representing  result tree was returned from
 	   altivec_build_resolved_builtin above, use it.  */
 	return (result != NULL) ? result : error_mark_node;

@@ -421,7 +421,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     {
       static_assert(is_same<typename remove_cv<_Tp>::type, _Tp>::value,
 	  "std::forward_list must have a non-const, non-volatile value_type");
-#ifdef __STRICT_ANSI__
+#if __cplusplus > 201703L || defined __STRICT_ANSI__
       static_assert(is_same<typename _Alloc::value_type, _Tp>::value,
 	  "std::forward_list must have the same value_type as its allocator");
 #endif
@@ -1336,8 +1336,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	else
 	  // The rvalue's allocator cannot be moved, or is not equal,
 	  // so we need to individually move each element.
-	  this->assign(std::__make_move_if_noexcept_iterator(__list.begin()),
-		       std::__make_move_if_noexcept_iterator(__list.end()));
+	  this->assign(std::make_move_iterator(__list.begin()),
+		       std::make_move_iterator(__list.end()));
       }
 
       // Called by assign(_InputIterator, _InputIterator) if _Tp is

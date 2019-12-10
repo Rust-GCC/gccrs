@@ -74,8 +74,9 @@ struct chunk_info
 
 /* The output buffer datatype.  This is best seen as an abstract datatype
    whose fields should not be accessed directly by clients.  */
-struct output_buffer
+class output_buffer
 {
+public:
   output_buffer ();
   ~output_buffer ();
 
@@ -214,8 +215,9 @@ class format_postprocessor
 /* The data structure that contains the bare minimum required to do
    proper pretty-printing.  Clients may derived from this structure
    and add additional fields they need.  */
-struct pretty_printer
+class pretty_printer
 {
+public:
   /* Default construct a pretty printer with specified
      maximum line length cut off limit.  */
   explicit pretty_printer (int = 0);
@@ -271,6 +273,9 @@ struct pretty_printer
 
   /* Nonzero means that text should be colorized.  */
   bool show_color;
+
+  /* Nonzero means that URLs should be emitted.  */
+  bool show_urls;
 };
 
 static inline const char *
@@ -390,6 +395,9 @@ extern void pp_maybe_space (pretty_printer *);
 
 extern void pp_begin_quote (pretty_printer *, bool);
 extern void pp_end_quote (pretty_printer *, bool);
+
+extern void pp_begin_url (pretty_printer *pp, const char *url);
+extern void pp_end_url (pretty_printer *pp);
 
 /* Switch into verbatim mode and return the old mode.  */
 static inline pp_wrapping_mode_t

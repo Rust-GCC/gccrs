@@ -1,3 +1,181 @@
+2019-11-27  Tobias Burnus  <tobias@codesourcery.com>
+
+	PR middle-end/92463
+	* configure.ac: Use MPFR_RNDN instead of GMP's MP_RNDN.
+	* configure: Regenerate
+
+2019-11-20  Janne Blomqvist  <jb@gcc.gnu.org>
+
+	* configure.ac: Use https for gcc.gnu.org.
+	* configure: Regenerated.
+
+2019-11-19  James Greenhalgh  <james.greenhalgh@arm.com>
+
+	* MAINTAINERS (aarch64 port): Remove my name, move to...
+	(Write After Approval): ...Here.
+
+2019-11-15  Kelvin Nilsen  <kelvin@gcc.gnu.org>
+
+	* MAINTAINERS: Change my email address as maintainer.
+
+2019-11-11  Janne Blomqvist  <jb@gcc.gnu.org>
+
+	PR fortran/91828
+	* configure.ac: Bump minimum MPFR to 3.1.0, recommended to 3.1.6+.
+	* configure: Regenerated.
+
+2019-10-21  Jason Merrill  <jason@redhat.com>
+
+	* .gitattributes: Also check ChangeLog whitespace.
+
+2019-10-21  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* contrib/dg-extract-results.sh: Add support for KPASS.
+	* contrib/dg-extract-results.py: Likewise.
+
+2019-10-17  Jason Merrill  <jason@redhat.com>
+
+	* .gitattributes: Avoid {} in filename pattern.
+
+2019-10-08  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* MAINTAINERS: Add back Trevor Smigiel; move into Write After
+	Approval section.
+
+2019-10-01  Frederik Harwath <frederik@codesourcery.com>
+
+	* MAINTAINERS: Add myself to Write After Approval
+
+2019-09-26  Richard Sandiford  <richard.sandiford@arm.com>
+
+	* MAINTAINERS: Add myself as an aarch64 maintainer.
+
+2019-09-26  Kyrylo Tkachov  <kyrylo.tkachov@arm.com>
+
+	* MAINTAINERS: Add myself as aarch64 maintainer.
+
+2019-09-23  Carl Love  <cel@us.ibm.com>
+
+	* config/rs6000/vsx.md (xxswapd_v4si, xxswapd_v8hi, xxswapd_v16qi):
+	New define_insn.
+	(vsx_xxpermdi4_le_<mode> for VSX_W, vsx_xxpermdi8_le_V8HI,
+	vsx_xxpermdi16_le_V16QI): Removed define_insn.
+
+2019-09-13  Sam Tebbs  <sam.tebbs@arm.com>
+
+	* MAINTAINERS (Sam Tebbs): Update email address.
+
+2019-09-10  Tobias Burnus  <tobias@codesourcery.com>
+
+	* MAINTAINERS: Update my email address.
+
+2019-09-10  Christophe Lyon  <christophe.lyon@st.com>
+
+	* libtool.m4: Handle uclinuxfdpiceabi.
+
+2019-09-09  Jose E. Marchesi  <jose.marchesi@oracle.com>
+
+	* MAINTAINERS: Add myself as the maintainer of the eBPF port.
+	Remove myself from Write After Approval section.
+
+2019-09-09  Jose E. Marchesi  <jose.marchesi@oracle.com>
+
+	* configure.ac: Support for bpf-*-* targets.
+	* configure: Regenerate.
+
+2019-09-09  Jose E. Marchesi  <jose.marchesi@oracle.com>
+
+	* config.sub: Import upstream version 2019-06-30.
+	* config.guess: Import upstream version 2019-07-24.
+
+2019-09-03  Ulrich Weigand  <uweigand@de.ibm.com>
+
+	* MAINTAINERS: Remove spu port maintainers.
+
+2019-08-28  Martin Liska  <mliska@suse.cz>
+
+	* .gitignore: Add .clangd and compile_commands.json
+	to .gitignore.
+
+2019-08-23  Michael Forney  <mforney@mforney.org>
+
+	* Makefile.tpl (HOST_EXPORTS): Add CXX_FOR_BUILD.
+	* Makefile.in: Regenerate.
+
+2019-08-19  Tom Tromey  <tom@tromey.com>
+
+	* configure: Rebuild.
+	* configure.ac: Add --with-static-standard-libraries.
+
+2019-08-16  Alexandre Oliva <oliva@gnu.org>
+
+	* MAINTAINERS: aoliva from @redhat.com to @gcc.gnu.org.
+
+2019-08-13  Mark Eggleston  <mark.eggleston@codethink.co.uk>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2019-07-08  Kito Cheng  <kito.cheng@sifive.com>
+
+	* MAINTAINERS (Write After Approval): Remove myself, already listed in
+	RISC-V port maitainer.
+
+2019-07-08  Kito Cheng  <kito.cheng@sifive.com>
+
+	* MAINTAINERS (Write After Approval): Fix the list sorted by surname.
+
+2019-07-08  Kito Cheng  <kito.cheng@sifive.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2019-07-03  Andrea Corallo  <andrea.corallo@arm.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2019-06-25  Martin Liska  <mliska@suse.cz>
+
+	contrib/filter-clang-warnings.py: Transform from
+	filter-rtags-warnings.py.
+
+2019-06-15  Tom Tromey  <tom@tromey.com>
+
+	* configure.ac (host_libs): Add gnulib.
+	* configure: Rebuild.
+	* Makefile.def (host_modules, dependencies): Add gnulib.
+	* Makefile.in: Rebuild.
+
+2019-06-12  Dimitar Dimitrov  <dimitar@dinux.eu>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2019-06-12  Dimitar Dimitrov  <dimitar@dinux.eu>
+
+	* configure: Regenerate.
+	* configure.ac: Add PRU target.
+
+2019-06-11  Matthew Beliveau  <mbelivea@redhat.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2019-06-11  Nick Clifton  <nickc@redhat.com>
+
+	Import these changes from the binutils/gdb repository:
+
+	2019-05-28  Nick Alcock  <nick.alcock@oracle.com>
+
+	* Makefile.def (dependencies): configure-libctf depends on all-bfd
+	and all its deps.
+	* Makefile.in: Regenerated.
+
+	2019-05-28  Nick Alcock  <nick.alcock@oracle.com>
+
+	* Makefile.def (host_modules): Add libctf.
+	* Makefile.def (dependencies): Likewise.
+	libctf depends on zlib, libiberty, and bfd.
+	* Makefile.in: Regenerated.
+	* configure.ac (host_libs): Add libctf.
+	* configure: Regenerated.
+
 2019-05-20  Vladislav Ivanishin  <vlad@ispras.ru>
 
 	* MAINTAINERS (Write After Approval): Add myself.

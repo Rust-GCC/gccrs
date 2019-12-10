@@ -860,7 +860,7 @@ s390_resolve_overloaded_builtin (location_t loc,
   vec<tree, va_gc> *arglist = static_cast<vec<tree, va_gc> *> (passed_arglist);
   unsigned int in_args_num = vec_safe_length (arglist);
   unsigned int ob_args_num = 0;
-  unsigned int ob_fcode = DECL_FUNCTION_CODE (ob_fndecl);
+  unsigned int ob_fcode = DECL_MD_FUNCTION_CODE (ob_fndecl);
   enum s390_overloaded_builtin_vars bindex;
   unsigned int i;
   int last_match_type = INT_MAX;
@@ -902,6 +902,12 @@ s390_resolve_overloaded_builtin (location_t loc,
   if (!TARGET_VXE && (ob_flags & B_VXE))
     {
       error_at (loc, "%qF requires z14 or higher", ob_fndecl);
+      return error_mark_node;
+    }
+
+  if (!TARGET_VXE2 && (ob_flags & B_VXE2))
+    {
+      error_at (loc, "%qF requires z15 or higher", ob_fndecl);
       return error_mark_node;
     }
 
@@ -979,6 +985,15 @@ s390_resolve_overloaded_builtin (location_t loc,
       && bflags_overloaded_builtin_var[last_match_index] & B_VXE)
     {
       error_at (loc, "%qs matching variant requires z14 or higher",
+		IDENTIFIER_POINTER (DECL_NAME (ob_fndecl)));
+      return error_mark_node;
+    }
+
+
+  if (!TARGET_VXE2
+      && bflags_overloaded_builtin_var[last_match_index] & B_VXE2)
+    {
+      error_at (loc, "%qs matching variant requires z15 or higher",
 		IDENTIFIER_POINTER (DECL_NAME (ob_fndecl)));
       return error_mark_node;
     }

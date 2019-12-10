@@ -1142,12 +1142,25 @@ ssa_create_duplicates (struct redirection_data **slot,
       gimple_seq seq = NULL;
       if (gsi_stmt (local_info->template_last_to_copy)
 	  != gsi_stmt (gsi_last_bb (local_info->template_block)))
-	seq = gsi_split_seq_after (local_info->template_last_to_copy);
+	{
+	  if (gsi_end_p (local_info->template_last_to_copy))
+	    {
+	      seq = bb_seq (local_info->template_block);
+	      set_bb_seq (local_info->template_block, NULL);
+	    }
+	  else
+	    seq = gsi_split_seq_after (local_info->template_last_to_copy);
+	}
       create_block_for_threading (local_info->template_block, rd, 0,
 				  &local_info->duplicate_blocks);
       if (seq)
-	gsi_insert_seq_after (&local_info->template_last_to_copy,
-			      seq, GSI_SAME_STMT);
+	{
+	  if (gsi_end_p (local_info->template_last_to_copy))
+	    set_bb_seq (local_info->template_block, seq);
+	  else
+	    gsi_insert_seq_after (&local_info->template_last_to_copy,
+				  seq, GSI_SAME_STMT);
+	}
 
       /* Go ahead and wire up outgoing edges and update PHIs for the duplicate
 	 block.   */
@@ -1543,7 +1556,7 @@ dbds_continue_enumeration_p (const_basic_block bb, const void *stop)
    returns the state.  */
 
 enum bb_dom_status
-determine_bb_domination_status (struct loop *loop, basic_block bb)
+determine_bb_domination_status (class loop *loop, basic_block bb)
 {
   basic_block *bblocks;
   unsigned nblocks, i;
@@ -1601,7 +1614,7 @@ determine_bb_domination_status (struct loop *loop, basic_block bb)
    to the inside of the loop.  */
 
 static bool
-thread_through_loop_header (struct loop *loop, bool may_peel_loop_headers)
+thread_through_loop_header (class loop *loop, bool may_peel_loop_headers)
 {
   basic_block header = loop->header;
   edge e, tgt_edge, latch = loop_latch_edge (loop);
@@ -2304,7 +2317,7 @@ duplicate_thread_path (edge entry, edge exit, basic_block *region,
 		       unsigned n_region, unsigned current_path_no)
 {
   unsigned i;
-  struct loop *loop = entry->dest->loop_father;
+  class loop *loop = entry->dest->loop_father;
   edge exit_copy;
   edge redirected;
   profile_count curr_count;
@@ -2504,7 +2517,7 @@ thread_through_all_blocks (bool may_peel_loop_headers)
 {
   bool retval = false;
   unsigned int i;
-  struct loop *loop;
+  class loop *loop;
   auto_bitmap threaded_blocks;
   hash_set<edge> visited_starting_edges;
 

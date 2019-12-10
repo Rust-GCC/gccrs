@@ -42,7 +42,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimplify.h"
 #include "optabs-tree.h"
 #include "tree-eh.h"
-
+#include "dbgcnt.h"
 
 /* Forward declarations of the private auto-generated matchers.
    They expect valueized operands in canonical order and do not
@@ -57,6 +57,16 @@ static bool gimple_simplify (gimple_match_op *, gimple_seq *, tree (*)(tree),
 			     code_helper, tree, tree, tree, tree, tree);
 static bool gimple_simplify (gimple_match_op *, gimple_seq *, tree (*)(tree),
 			     code_helper, tree, tree, tree, tree, tree, tree);
+static bool gimple_resimplify1 (gimple_seq *, gimple_match_op *,
+				tree (*)(tree));
+static bool gimple_resimplify2 (gimple_seq *, gimple_match_op *,
+				tree (*)(tree));
+static bool gimple_resimplify3 (gimple_seq *, gimple_match_op *,
+				tree (*)(tree));
+static bool gimple_resimplify4 (gimple_seq *, gimple_match_op *,
+				tree (*)(tree));
+static bool gimple_resimplify5 (gimple_seq *, gimple_match_op *,
+				tree (*)(tree));
 
 const unsigned int gimple_match_op::MAX_NUM_OPS;
 
@@ -173,7 +183,7 @@ maybe_resimplify_conditional_op (gimple_seq *seq, gimple_match_op *res_op,
    RES_OP with a simplified and/or canonicalized result and
    returns whether any change was made.  */
 
-bool
+static bool
 gimple_resimplify1 (gimple_seq *seq, gimple_match_op *res_op,
 		    tree (*valueize)(tree))
 {
@@ -181,7 +191,12 @@ gimple_resimplify1 (gimple_seq *seq, gimple_match_op *res_op,
     {
       tree tem = NULL_TREE;
       if (res_op->code.is_tree_code ())
-	tem = const_unop (res_op->code, res_op->type, res_op->ops[0]);
+	{
+	  tree_code code = res_op->code;
+	  if (IS_EXPR_CODE_CLASS (TREE_CODE_CLASS (code))
+	      && TREE_CODE_LENGTH (code) == 1)
+	    tem = const_unop (res_op->code, res_op->type, res_op->ops[0]);
+	}
       else
 	tem = fold_const_call (combined_fn (res_op->code), res_op->type,
 			       res_op->ops[0]);
@@ -233,7 +248,7 @@ gimple_resimplify1 (gimple_seq *seq, gimple_match_op *res_op,
    RES_OP with a simplified and/or canonicalized result and
    returns whether any change was made.  */
 
-bool
+static bool
 gimple_resimplify2 (gimple_seq *seq, gimple_match_op *res_op,
 		    tree (*valueize)(tree))
 {
@@ -242,8 +257,13 @@ gimple_resimplify2 (gimple_seq *seq, gimple_match_op *res_op,
     {
       tree tem = NULL_TREE;
       if (res_op->code.is_tree_code ())
-	tem = const_binop (res_op->code, res_op->type,
-			   res_op->ops[0], res_op->ops[1]);
+	{
+	  tree_code code = res_op->code;
+	  if (IS_EXPR_CODE_CLASS (TREE_CODE_CLASS (code))
+	      && TREE_CODE_LENGTH (code) == 2)
+	    tem = const_binop (res_op->code, res_op->type,
+			       res_op->ops[0], res_op->ops[1]);
+	}
       else
 	tem = fold_const_call (combined_fn (res_op->code), res_op->type,
 			       res_op->ops[0], res_op->ops[1]);
@@ -305,7 +325,7 @@ gimple_resimplify2 (gimple_seq *seq, gimple_match_op *res_op,
    RES_OP with a simplified and/or canonicalized result and
    returns whether any change was made.  */
 
-bool
+static bool
 gimple_resimplify3 (gimple_seq *seq, gimple_match_op *res_op,
 		    tree (*valueize)(tree))
 {
@@ -315,9 +335,14 @@ gimple_resimplify3 (gimple_seq *seq, gimple_match_op *res_op,
     {
       tree tem = NULL_TREE;
       if (res_op->code.is_tree_code ())
-	tem = fold_ternary/*_to_constant*/ (res_op->code, res_op->type,
-					    res_op->ops[0], res_op->ops[1],
-					    res_op->ops[2]);
+	{
+	  tree_code code = res_op->code;
+	  if (IS_EXPR_CODE_CLASS (TREE_CODE_CLASS (code))
+	      && TREE_CODE_LENGTH (code) == 3)
+	    tem = fold_ternary/*_to_constant*/ (res_op->code, res_op->type,
+						res_op->ops[0], res_op->ops[1],
+						res_op->ops[2]);
+	}
       else
 	tem = fold_const_call (combined_fn (res_op->code), res_op->type,
 			       res_op->ops[0], res_op->ops[1], res_op->ops[2]);
@@ -376,7 +401,7 @@ gimple_resimplify3 (gimple_seq *seq, gimple_match_op *res_op,
    RES_OP with a simplified and/or canonicalized result and
    returns whether any change was made.  */
 
-bool
+static bool
 gimple_resimplify4 (gimple_seq *seq, gimple_match_op *res_op,
 		    tree (*valueize)(tree))
 {
@@ -417,7 +442,7 @@ gimple_resimplify4 (gimple_seq *seq, gimple_match_op *res_op,
    RES_OP with a simplified and/or canonicalized result and
    returns whether any change was made.  */
 
-bool
+static bool
 gimple_resimplify5 (gimple_seq *seq, gimple_match_op *res_op,
 		    tree (*valueize)(tree))
 {
@@ -437,6 +462,30 @@ gimple_resimplify5 (gimple_seq *seq, gimple_match_op *res_op,
     return true;
 
   return false;
+}
+
+/* Match and simplify the toplevel valueized operation THIS.
+   Replaces THIS with a simplified and/or canonicalized result and
+   returns whether any change was made.  */
+
+bool
+gimple_match_op::resimplify (gimple_seq *seq, tree (*valueize)(tree))
+{
+  switch (num_ops)
+    {
+    case 1:
+      return gimple_resimplify1 (seq, this, valueize);
+    case 2:
+      return gimple_resimplify2 (seq, this, valueize);
+    case 3:
+      return gimple_resimplify3 (seq, this, valueize);
+    case 4:
+      return gimple_resimplify4 (seq, this, valueize);
+    case 5:
+      return gimple_resimplify5 (seq, this, valueize);
+    default:
+      gcc_unreachable ();
+    }
 }
 
 /* If in GIMPLE the operation described by RES_OP should be single-rhs,
@@ -803,8 +852,8 @@ try_conditional_simplification (internal_fn ifn, gimple_match_op *res_op,
   gimple_match_op cond_op (gimple_match_cond (res_op->ops[0],
 					      res_op->ops[num_ops - 1]),
 			   op, res_op->type, num_ops - 2);
-  for (unsigned int i = 1; i < num_ops - 1; ++i)
-    cond_op.ops[i - 1] = res_op->ops[i];
+
+  memcpy (cond_op.ops, res_op->ops + 1, (num_ops - 1) * sizeof *cond_op.ops);
   switch (num_ops - 2)
     {
     case 2:

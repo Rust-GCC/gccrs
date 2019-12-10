@@ -1,3 +1,175 @@
+2019-11-14  Joseph Myers  <joseph@codesourcery.com>
+
+	* charset.c (narrow_str_to_charconst): Make CPP_UTF8CHAR constants
+	unsigned for C.
+	* init.c (lang_defaults): Set utf8_char_literals for GNUC2X and
+	STDC2X.
+
+2019-11-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/91370 - Implement P1041R4 and P1139R2 - Stronger Unicode reqs
+	* charset.c (narrow_str_to_charconst): Add TYPE argument.  For
+	CPP_UTF8CHAR diagnose whenever number of chars is > 1, using
+	CPP_DL_ERROR instead of CPP_DL_WARNING.
+	(wide_str_to_charconst): For CPP_CHAR16 or CPP_CHAR32, use
+	CPP_DL_ERROR instead of CPP_DL_WARNING when multiple char16_t
+	or char32_t chars are needed.
+	(cpp_interpret_charconst): Adjust narrow_str_to_charconst caller.
+
+2019-11-05  Tim van Deurzen  <tim@kompiler.org>
+
+	* cpplib.h: Add spaceship operator for C++.
+	* lex.c: Implement conditional lexing of spaceship operator for C++20.
+
+2019-10-31  Jakub Jelinek  <jakub@redhat.com>
+
+	PR preprocessor/92296
+	* internal.h (struct def_pragma_macro): Add is_builtin bitfield.
+	(_cpp_restore_special_builtin): Declare.
+	* init.c (_cpp_restore_special_builtin): New function.
+	* directives.c (do_pragma_push_macro): For NT_BUILTIN_MACRO
+	set is_builtin and don't try to grab definition.
+	(cpp_pop_definition): Use _cpp_restore_special_builtin to restore
+	builtin macros.
+
+2019-10-15  Nathan Sidwell  <nathan@acm.org>
+
+	* include/line-map.h (struct maps_info_ordinary): Make cache
+	mutable.
+	(struct maps_info_macro): Likewise.
+	(LINEMAPS_CACHE): Remove non-ref accessor. Constify ref accessor.
+	(LINEMAPS_ORDINARY_CACHE, LINEMAPS_MACRO_CACHE): Likewise.
+	(LINEMAPS_ORDINARY_MAP_AT, LINEMAPS_MACRO_MAP_AT): Use
+	LINEMAPS_USED and LINEMAPS_MAP_AT.
+	(linemap_lookup): Constify line_map arg.
+	linemap.c (linemap_ordinary_map_lookup, linemap_macro_map_lookup):
+	Constify line_map arg.
+
+2019-10-11  Joseph Myers  <joseph@codesourcery.com>
+
+	* include/cpplib.h (struct cpp_options): Add dfp_constants and
+	cpp_warn_c11_c2x_compat.
+	(enum cpp_warning_reason): Add CPP_W_C11_C2X_COMPAT.
+	* init.c (struct lang_flags): Add dfp_constants.
+	(lang_defaults): Set dfp_constants to 1 for GNUC2X and STDC2X and
+	0 for other languages.
+	(cpp_set_lang): Set dfp_constants from language.
+	(cpp_create_reader): Set cpp_warn_c11_c2x_compat to -1.
+	* expr.c (interpret_float_suffix): Mention DFP constants as C2X in
+	comment.
+	(cpp_classify_number): Do not diagnose DFP constants for languages
+	setting dfp_constants, unless cpp_warn_c11_c2x_compat.
+
+2019-10-04  Nathan Sidwell  <nathan@acm.org>
+
+	PR preprocessor/91991
+	* line-map.c (linemap_line_start): Clear max_column_hint if we run
+	out of locations.
+
+2019-10-02  Richard Biener  <rguenther@suse.de>
+
+	* internal.h (enum include_type): Remove trailing comma.
+
+2019-10-02  Joseph Myers  <joseph@codesourcery.com>
+
+	* include/cpplib.h (struct cpp_options): Add member scope.
+	* init.c (struct lang_flags, lang_defaults): Likewise.
+	(cpp_set_lang): Set scope member of pfile.
+	* lex.c (_cpp_lex_direct): Test CPP_OPTION (pfile, scope) not
+	CPP_OPTION (pfile, cplusplus) for creating CPP_SCOPE tokens.
+
+2019-09-26  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* charset.c (UCS_LIMIT): New macro.
+	(ucn_valid_in_identifier): Use it instead of a hardcoded constant.
+	(_cpp_valid_ucn): Issue a pedantic warning for UCNs larger than
+	UCS_LIMIT outside of identifiers in C and in C++2a or later.
+
+2019-09-19  Lewis Hyatt  <lhyatt@gmail.com>
+
+	PR c/67224
+	* charset.c (_cpp_valid_utf8): New function to help lex UTF-8 tokens.
+	* internal.h (_cpp_valid_utf8): Declare.
+	* lex.c (forms_identifier_p): Use it to recognize UTF-8 identifiers.
+	(_cpp_lex_direct): Handle UTF-8 in identifiers and CPP_OTHER tokens.
+	Do all work in "default" case to avoid slowing down typical code paths.
+	Also handle $ and UCN in the default case for consistency.
+
+2019-08-30  Nathan Sidwell  <nathan@acm.org>
+
+	New # semantics for popping to "" name.
+	libcpp/
+	* directives.c (do_linemarker): Popping to "" name means get the
+	name from the include stack..
+
+2019-09-05  Nathan Sidwell  <nathan@acm.org>
+
+	PR preprocessor/91639
+	* directives.c (do_include_common): Tell lexer we're a #include.
+	* files.c (_cpp_stack_file): Lexer will have always incremented.
+	* internal.h (struct cpp_context): Extend in_directive's
+	semantics.
+	* lex.c (_cpp_lex_direct): Increment line for final \n when lexing
+	for an ISO #include.
+	* line-map.c (linemap_line_start): Remember if we overflowed.
+
+2019-09-03  Ulrich Weigand  <uweigand@de.ibm.com>
+
+	* directives.c: Remove references to spu from comments.
+	* expr.c: Likewise.
+
+2019-08-29  Nathan Sidwell  <nathan@acm.org>
+
+	* internal.h (enum include_type): Add IT_MAIN, IT_DIRECTIVE_HWM,
+	IT_HEADER_HWM.
+	(_cpp_stack_file): Take include_type, not a bool.
+	* files.c (_cpp_find_file): Refactor to not hide an if inside a
+	for conditional.
+	(should_stack_file): Break apart to ...
+	(is_known_idempotent_file, has_unique_contents): ... these.
+	(_cpp_stack_file): Replace IMPORT boolean with include_type enum.
+	Refactor to use new predicates.  Do linemap compensation here ...
+	(_cpp_stack_include): ... not here.
+	* init.c (cpp_read_main_file): Pass IT_MAIN to _cpp_stack_file.
+
+2019-08-28  Nathan Sidwell  <nathan@acm.org>
+
+	* directives-only.c (_cpp_preprocess_dir_only): Use false, not
+	zero for _cpp_handle_directive call.
+	* directives.c (_cpp_handle_directive): Indented is bool.
+	* files.c (struct _cpp_file): Make bools 1 bit bitfields.
+	* internal.h (enum include_type): Reformat and comment.
+	(struct cpp_buffer): Make flags 1 bit bitfields.
+	(_cpp_handle_directive): Indented is bool.
+
+2019-07-09  Martin Sebor  <msebor@redhat.com>
+
+	* include/line-map.h: Change class-key from class to struct and vice
+	versa to match convention and avoid -Wclass-is-pod and -Wstruct-no-pod.
+	* mkdeps.c: Same.
+
+2019-07-03  Martin Liska  <mliska@suse.cz>
+
+	* line-map.c (linemap_get_expansion_filename): Remove
+	dead assignemts.
+	* mkdeps.c (make_write): Likewise.
+
+2019-07-02  qing zhao  <qing.zhao@oracle.com>
+
+	PR preprocessor/90581
+	* directives.c (do_include_common): Replace CPP_STACK_MAX with
+	CPP_OPTION (pfile, max_include_depth).
+	* include/cpplib.h (struct cpp_options): Add new field
+	max_include_depth.
+	* init.c (cpp_create_reader): Initiate new field max_include_depth.
+	* internal.h: Delete CPP_STACK_MAX.
+
+2019-06-26  Nathan Sidwell  <nathan@acm.org>
+
+	PR preprocessor/90927
+	* mkdeps.c (mkdeps::vec::operator[]): Add non-const variant.
+	(deps_add_target): Deal with out of order unquoted targets.
+
 2019-05-19  Andrew Pinski  <apinski@marvell.com>
 
 	PR pch/81721

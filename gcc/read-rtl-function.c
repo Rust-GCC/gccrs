@@ -41,6 +41,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "read-rtl-function.h"
 #include "selftest.h"
 #include "selftest-rtl.h"
+#include "regs.h"
+#include "function-abi.h"
 
 /* Forward decls.  */
 class function_reader;
@@ -52,8 +54,9 @@ class fixup;
    at LOC, which will be turned into an actual CFG edge once
    the "insn-chain" is fully parsed.  */
 
-struct deferred_edge
+class deferred_edge
 {
+public:
   deferred_edge (file_location loc, int src_bb_idx, int dest_bb_idx, int flags)
   : m_loc (loc), m_src_bb_idx (src_bb_idx), m_dest_bb_idx (dest_bb_idx),
     m_flags (flags)
@@ -112,7 +115,7 @@ class function_reader : public rtx_reader
 					int operand_idx, int bb_idx);
 
   void add_fixup_source_location (file_location loc, rtx_insn *insn,
-				  const char *filename, int lineno);
+				  const char *filename, int lineno, int colno);
 
   void add_fixup_expr (file_location loc, rtx x,
 		       const char *desc);
@@ -1368,7 +1371,7 @@ function_reader::add_fixup_note_insn_basic_block (file_location loc, rtx insn,
 
 void
 function_reader::add_fixup_source_location (file_location, rtx_insn *,
-					    const char *, int)
+					    const char *, int, int)
 {
 }
 
@@ -1554,7 +1557,20 @@ function_reader::maybe_read_location (rtx_insn *insn)
       require_char (':');
       struct md_name line_num;
       read_name (&line_num);
-      add_fixup_source_location (loc, insn, filename, atoi (line_num.string));
+
+      int column = 0;
+      int ch = read_char ();
+      if (ch == ':')
+	{
+	  struct md_name column_num;
+	  read_name (&column_num);
+	  column = atoi (column_num.string);
+	}
+      else
+	unread_char (ch);
+      add_fixup_source_location (loc, insn, filename,
+				 atoi (line_num.string),
+				 column);
     }
   else
     unread_char (ch);
@@ -1610,6 +1626,7 @@ bool
 read_rtl_function_body (const char *path)
 {
   initialize_rtl ();
+  crtl->abi = &default_function_abi;
   init_emit ();
   init_varasm_status ();
 
@@ -1643,6 +1660,7 @@ read_rtl_function_body_from_file_range (location_t start_loc,
     }
 
   initialize_rtl ();
+  crtl->abi = &fndecl_abi (cfun->decl).base_abi ();
   init_emit ();
   init_varasm_status ();
 

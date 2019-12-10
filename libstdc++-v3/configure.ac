@@ -83,6 +83,8 @@ AC_PROG_CC
 AC_PROG_CXX
 CXXFLAGS="$save_CXXFLAGS"
 
+AC_SYS_LARGEFILE
+
 # Runs configure.host, and assorted other critical bits.  Sets
 # up critical shell variables.
 GLIBCXX_CONFIGURE
@@ -219,6 +221,9 @@ GLIBCXX_ENABLE_LIBSTDCXX_TIME
 
 # Check for tmpnam which is obsolescent in POSIX.1-2008
 GLIBCXX_CHECK_TMPNAM
+
+# For pthread_cond_clockwait
+GLIBCXX_CHECK_PTHREAD_COND_CLOCKWAIT
 
 AC_LC_MESSAGES
 
@@ -483,6 +488,10 @@ AM_CONDITIONAL(BUILD_MAN,
 AC_CHECK_PROG([DBLATEX], dblatex, yes, no)
 AC_CHECK_PROG([PDFLATEX], pdflatex, yes, no)
 AM_CONDITIONAL(BUILD_PDF,
+	       test $ac_cv_prog_DOXYGEN = "yes" &&
+	       test $ac_cv_prog_DOT = "yes" &&
+	       test $ac_cv_prog_XSLTPROC = "yes" &&
+	       test $ac_cv_prog_XMLLINT = "yes" &&
 	       test $ac_cv_prog_DBLATEX = "yes" &&
 	       test $ac_cv_prog_PDFLATEX = "yes")
 

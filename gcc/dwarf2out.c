@@ -3104,7 +3104,8 @@ die_node;
 /* Set to TRUE while dwarf2out_early_global_decl is running.  */
 static bool early_dwarf;
 static bool early_dwarf_finished;
-struct set_early_dwarf {
+class set_early_dwarf {
+public:
   bool saved;
   set_early_dwarf () : saved(early_dwarf)
     {
@@ -11196,7 +11197,8 @@ add_top_level_skeleton_die_attrs (dw_die_ref die)
   if (comp_dir != NULL)
     add_skeleton_AT_string (die, DW_AT_comp_dir, comp_dir);
   add_AT_pubnames (die);
-  add_AT_lineptr (die, dwarf_AT (DW_AT_addr_base), debug_addr_section_label);
+  if (addr_index_table != NULL && addr_index_table->size () > 0)
+    add_AT_lineptr (die, dwarf_AT (DW_AT_addr_base), debug_addr_section_label);
 }
 
 /* Output skeleton debug sections that point to the dwo file.  */
@@ -16428,7 +16430,6 @@ mem_loc_descriptor (rtx rtl, machine_mode mode,
     case CONST_FIXED:
     case CLRSB:
     case CLOBBER:
-    case CLOBBER_HIGH:
       break;
 
     case CONST_STRING:
@@ -18566,6 +18567,24 @@ loc_list_from_tree_1 (tree loc, int want_address,
 	}
       break;
 
+    case POLY_INT_CST:
+      {
+	if (want_address)
+	  {
+	    expansion_failed (loc, NULL_RTX,
+			      "constant address with a runtime component");
+	    return 0;
+	  }
+	poly_int64 value;
+	if (!poly_int_tree_p (loc, &value))
+	  {
+	    expansion_failed (loc, NULL_RTX, "constant too big");
+	    return 0;
+	  }
+	ret = int_loc_descriptor (value);
+      }
+      break;
+
     case CONSTRUCTOR:
     case REAL_CST:
     case STRING_CST:
@@ -19682,6 +19701,7 @@ add_const_value_attribute (dw_die_ref die, rtx rtl)
     case MINUS:
     case SIGN_EXTEND:
     case ZERO_EXTEND:
+    case CONST_POLY_INT:
       return false;
 
     case MEM:
@@ -20845,6 +20865,7 @@ add_scalar_info (dw_die_ref die, enum dwarf_attribute attr, tree value,
 	  if (decl_die != NULL)
 	    {
 	      if (get_AT (decl_die, DW_AT_location)
+		  || get_AT (decl_die, DW_AT_data_member_location)
 		  || get_AT (decl_die, DW_AT_const_value))
 		{
 		  add_AT_die_ref (die, attr, decl_die);
@@ -21850,8 +21871,8 @@ gen_array_type_die (tree type, dw_die_ref context_die)
 
   /* Emit DW_TAG_string_type for Fortran character types (with kind 1 only, as
      DW_TAG_string_type doesn't have DW_AT_type attribute).  */
-  if (TYPE_STRING_FLAG (type)
-      && TREE_CODE (type) == ARRAY_TYPE
+  if (TREE_CODE (type) == ARRAY_TYPE
+      && TYPE_STRING_FLAG (type)
       && is_fortran ()
       && TYPE_MODE (TREE_TYPE (type)) == TYPE_MODE (char_type_node))
     {
@@ -22283,19 +22304,18 @@ gen_formal_parameter_die (tree node, tree origin, bool emit_name_p,
       /* If the contexts differ, we may not be talking about the same
 	 thing.
 	 ???  When in LTO the DIE parent is the "abstract" copy and the
-	 context_die is the specification "copy".  But this whole block
-	 should eventually be no longer needed.  */
-      if (parm_die && parm_die->die_parent != context_die && !in_lto_p)
+	 context_die is the specification "copy".  */
+      if (parm_die
+	  && parm_die->die_parent != context_die
+	  && (parm_die->die_parent->die_tag != DW_TAG_GNU_formal_parameter_pack
+	      || parm_die->die_parent->die_parent != context_die)
+	  && !in_lto_p)
 	{
-	  if (!DECL_ABSTRACT_P (node))
-	    {
-	      /* This can happen when creating an inlined instance, in
-		 which case we need to create a new DIE that will get
-		 annotated with DW_AT_abstract_origin.  */
-	      parm_die = NULL;
-	    }
-	  else
-	    gcc_unreachable ();
+	  gcc_assert (!DECL_ABSTRACT_P (node));
+	  /* This can happen when creating a concrete instance, in
+	     which case we need to create a new DIE that will get
+	     annotated with DW_AT_abstract_origin.  */
+	  parm_die = NULL;
 	}
 
       if (parm_die && parm_die->die_parent == NULL)
@@ -23684,6 +23704,34 @@ local_function_static (tree decl)
     && TREE_CODE (DECL_CONTEXT (decl)) == FUNCTION_DECL;
 }
 
+/* Return true iff DECL overrides (presumably completes) the type of
+   OLD_DIE within CONTEXT_DIE.  */
+
+static bool
+override_type_for_decl_p (tree decl, dw_die_ref old_die,
+			  dw_die_ref context_die)
+{
+  tree type = TREE_TYPE (decl);
+  int cv_quals;
+
+  if (decl_by_reference_p (decl))
+    {
+      type = TREE_TYPE (type);
+      cv_quals = TYPE_UNQUALIFIED;
+    }
+  else
+    cv_quals = decl_quals (decl);
+
+  dw_die_ref type_die = modified_type_die (type,
+					   cv_quals | TYPE_QUALS (type),
+					   false,
+					   context_die);
+
+  dw_die_ref old_type_die = get_AT_ref (old_die, DW_AT_type);
+
+  return type_die != old_type_die;
+}
+
 /* Generate a DIE to represent a declared data object.
    Either DECL or ORIGIN must be non-null.  */
 
@@ -23936,7 +23984,9 @@ gen_variable_die (tree decl, tree origin, dw_die_ref context_die)
 	  && !DECL_ABSTRACT_P (decl_or_origin)
 	  && variably_modified_type_p (TREE_TYPE (decl_or_origin),
 				       decl_function_context
-							(decl_or_origin))))
+				       (decl_or_origin)))
+      || (old_die && specialization_p
+	  && override_type_for_decl_p (decl_or_origin, old_die, context_die)))
     {
       tree type = TREE_TYPE (decl_or_origin);
 
@@ -24429,7 +24479,7 @@ gen_producer_string (void)
       case OPT_U:
       case OPT_SPECIAL_unknown:
       case OPT_SPECIAL_ignore:
-      case OPT_SPECIAL_deprecated:
+      case OPT_SPECIAL_warn_removed:
       case OPT_SPECIAL_program_name:
       case OPT_SPECIAL_input_file:
       case OPT_grecord_gcc_switches:
@@ -24457,6 +24507,13 @@ gen_producer_string (void)
       case OPT_fchecking_:
 	/* Ignore these.  */
 	continue;
+      case OPT_flto_:
+	{
+	  const char *lto_canonical = "-flto";
+	  switches.safe_push (lto_canonical);
+	  len += strlen (lto_canonical) + 1;
+	  break;
+	}
       default:
         if (cl_options[save_decoded_options[j].opt_index].flags
 	    & CL_NO_DWARF_RECORD)
@@ -26650,16 +26707,12 @@ dwarf2out_late_global_decl (tree decl)
     {
       dw_die_ref die = lookup_decl_die (decl);
 
-      /* We may have to generate early debug late for LTO in case debug
+      /* We may have to generate full debug late for LTO in case debug
          was not enabled at compile-time or the target doesn't support
 	 the LTO early debug scheme.  */
       if (! die && in_lto_p)
-	{
-	  dwarf2out_decl (decl);
-	  die = lookup_decl_die (decl);
-	}
-
-      if (die)
+	dwarf2out_decl (decl);
+      else if (die)
 	{
 	  /* We get called via the symtab code invoking late_global_decl
 	     for symbols that are optimized out.
@@ -27064,6 +27117,9 @@ lookup_filename (const char *file_name)
 
   if (!file_name)
     return NULL;
+
+  if (!file_name[0])
+    file_name = "<stdin>";
 
   dwarf_file_data **slot
     = file_table->find_slot_with_hash (file_name, htab_hash_string (file_name),
@@ -27495,7 +27551,7 @@ create_label:
       ca_loc->tail_call_p = SIBLING_CALL_P (prev);
 
       /* Look for a SYMBOL_REF in the "prev" instruction.  */
-      rtx x = get_call_rtx_from (PATTERN (prev));
+      rtx x = get_call_rtx_from (prev);
       if (x)
 	{
 	  /* Try to get the call symbol, if any.  */
@@ -29108,6 +29164,30 @@ output_addr_table (void)
     return;
 
   switch_to_section (debug_addr_section);
+  /* GNU DebugFission https://gcc.gnu.org/wiki/DebugFission
+     which GCC uses to implement -gsplit-dwarf as DWARF GNU extension
+     before DWARF5, didn't have a header for .debug_addr units.
+     DWARF5 specifies a small header when address tables are used.  */
+  if (dwarf_version >= 5)
+    {
+      unsigned int last_idx = 0;
+      unsigned long addrs_length;
+
+      addr_index_table->traverse_noresize
+	<unsigned int *, count_index_addrs> (&last_idx);
+      addrs_length = last_idx * DWARF2_ADDR_SIZE + 4;
+
+      if (DWARF_INITIAL_LENGTH_SIZE - DWARF_OFFSET_SIZE == 4)
+	dw2_asm_output_data (4, 0xffffffff,
+			     "Escape value for 64-bit DWARF extension");
+      dw2_asm_output_data (DWARF_OFFSET_SIZE, addrs_length,
+			   "Length of Address Unit");
+      dw2_asm_output_data (2, 5, "DWARF addr version");
+      dw2_asm_output_data (1, DWARF2_ADDR_SIZE, "Size of Address");
+      dw2_asm_output_data (1, 0, "Size of Segment Descriptor");
+    }
+  ASM_OUTPUT_LABEL (asm_out_file, debug_addr_section_label);
+
   addr_index_table
     ->traverse_noresize<unsigned int *, output_addr_table_entry> (&index);
 }
@@ -29419,9 +29499,16 @@ prune_unused_types_walk (dw_die_ref die)
 	    break;
 
 	  /* premark_used_variables marks external variables --- don't mark
-	     them here.  */
+	     them here.  But function-local externals are always considered
+	     used.  */
 	  if (get_AT (die, DW_AT_external))
-	    return;
+	    {
+	      for (c = die->die_parent; c; c = c->die_parent)
+		if (c->die_tag == DW_TAG_subprogram)
+		  break;
+	      if (!c)
+		return;
+	    }
 	}
       /* FALLTHROUGH */
 
@@ -31623,30 +31710,6 @@ dwarf2out_finish (const char *filename)
 			    ranges_section_label);
 	}
 
-      switch_to_section (debug_addr_section);
-      /* GNU DebugFission https://gcc.gnu.org/wiki/DebugFission
-	 which GCC uses to implement -gsplit-dwarf as DWARF GNU extension
-	 before DWARF5, didn't have a header for .debug_addr units.
-	 DWARF5 specifies a small header when address tables are used.  */
-      if (dwarf_version >= 5)
-	{
-	  unsigned int last_idx = 0;
-	  unsigned long addrs_length;
-
-	  addr_index_table->traverse_noresize
-	    <unsigned int *, count_index_addrs> (&last_idx);
-	  addrs_length = last_idx * DWARF2_ADDR_SIZE + 4;
-
-	  if (DWARF_INITIAL_LENGTH_SIZE - DWARF_OFFSET_SIZE == 4)
-	    dw2_asm_output_data (4, 0xffffffff,
-				 "Escape value for 64-bit DWARF extension");
-	  dw2_asm_output_data (DWARF_OFFSET_SIZE, addrs_length,
-			       "Length of Address Unit");
-	  dw2_asm_output_data (2, 5, "DWARF addr version");
-	  dw2_asm_output_data (1, DWARF2_ADDR_SIZE, "Size of Address");
-	  dw2_asm_output_data (1, 0, "Size of Segment Descriptor");
-	}
-      ASM_OUTPUT_LABEL (asm_out_file, debug_addr_section_label);
       output_addr_table ();
     }
 

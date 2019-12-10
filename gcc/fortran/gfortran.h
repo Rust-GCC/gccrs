@@ -216,14 +216,15 @@ enum gfc_statement
   ST_POINTER_ASSIGNMENT, ST_SELECT_CASE, ST_SEQUENCE, ST_SIMPLE_IF,
   ST_STATEMENT_FUNCTION, ST_DERIVED_DECL, ST_LABEL_ASSIGNMENT, ST_ENUM,
   ST_ENUMERATOR, ST_END_ENUM, ST_SELECT_TYPE, ST_TYPE_IS, ST_CLASS_IS,
-  ST_STRUCTURE_DECL, ST_END_STRUCTURE,
+  ST_SELECT_RANK, ST_RANK, ST_STRUCTURE_DECL, ST_END_STRUCTURE,
   ST_UNION, ST_END_UNION, ST_MAP, ST_END_MAP,
   ST_OACC_PARALLEL_LOOP, ST_OACC_END_PARALLEL_LOOP, ST_OACC_PARALLEL,
   ST_OACC_END_PARALLEL, ST_OACC_KERNELS, ST_OACC_END_KERNELS, ST_OACC_DATA,
   ST_OACC_END_DATA, ST_OACC_HOST_DATA, ST_OACC_END_HOST_DATA, ST_OACC_LOOP,
   ST_OACC_END_LOOP, ST_OACC_DECLARE, ST_OACC_UPDATE, ST_OACC_WAIT,
   ST_OACC_CACHE, ST_OACC_KERNELS_LOOP, ST_OACC_END_KERNELS_LOOP,
-  ST_OACC_ENTER_DATA, ST_OACC_EXIT_DATA, ST_OACC_ROUTINE,
+  ST_OACC_SERIAL_LOOP, ST_OACC_END_SERIAL_LOOP, ST_OACC_SERIAL,
+  ST_OACC_END_SERIAL, ST_OACC_ENTER_DATA, ST_OACC_EXIT_DATA, ST_OACC_ROUTINE,
   ST_OACC_ATOMIC, ST_OACC_END_ATOMIC,
   ST_OMP_ATOMIC, ST_OMP_BARRIER, ST_OMP_CRITICAL, ST_OMP_END_ATOMIC,
   ST_OMP_END_CRITICAL, ST_OMP_END_DO, ST_OMP_END_MASTER, ST_OMP_END_ORDERED,
@@ -423,6 +424,7 @@ enum gfc_isym_id
   GFC_ISYM_C_SIZEOF,
   GFC_ISYM_DATE_AND_TIME,
   GFC_ISYM_DBLE,
+  GFC_ISYM_DFLOAT,
   GFC_ISYM_DIGITS,
   GFC_ISYM_DIM,
   GFC_ISYM_DOT_PRODUCT,
@@ -448,6 +450,7 @@ enum gfc_isym_id
   GFC_ISYM_FGET,
   GFC_ISYM_FGETC,
   GFC_ISYM_FINDLOC,
+  GFC_ISYM_FLOAT,
   GFC_ISYM_FLOOR,
   GFC_ISYM_FLUSH,
   GFC_ISYM_FNUM,
@@ -573,6 +576,7 @@ enum gfc_isym_id
   GFC_ISYM_RANGE,
   GFC_ISYM_RANK,
   GFC_ISYM_REAL,
+  GFC_ISYM_REALPART,
   GFC_ISYM_RENAME,
   GFC_ISYM_REPEAT,
   GFC_ISYM_RESHAPE,
@@ -598,6 +602,7 @@ enum gfc_isym_id
   GFC_ISYM_SIZE,
   GFC_ISYM_SLEEP,
   GFC_ISYM_SIZEOF,
+  GFC_ISYM_SNGL,
   GFC_ISYM_SPACING,
   GFC_ISYM_SPREAD,
   GFC_ISYM_SQRT,
@@ -890,9 +895,9 @@ typedef struct
 	   event_comp:1, defined_assign_comp:1, unlimited_polymorphic:1,
 	   has_dtio_procs:1, caf_token:1;
 
-  /* This is a temporary selector for SELECT TYPE or an associate
-     variable for SELECT_TYPE or ASSOCIATE.  */
-  unsigned select_type_temporary:1, associate_var:1;
+  /* This is a temporary selector for SELECT TYPE/RANK or an associate
+     variable for SELECT TYPE/RANK or ASSOCIATE.  */
+  unsigned select_type_temporary:1, select_rank_temporary:1, associate_var:1;
 
   /* These are the attributes required for parameterized derived
      types.  */
@@ -1259,6 +1264,7 @@ enum
   OMP_LIST_CACHE,
   OMP_LIST_IS_DEVICE_PTR,
   OMP_LIST_USE_DEVICE_PTR,
+  OMP_LIST_USE_DEVICE_ADDR,
   OMP_LIST_NUM
 };
 
@@ -1606,6 +1612,12 @@ typedef struct gfc_symbol
   /* Set if this is a module function or subroutine with the
      abreviated declaration in a submodule.  */
   unsigned abr_modproc_decl:1;
+  /* Set if a previous error or warning has occurred and no other
+     should be reported.  */
+  unsigned error:1;
+  /* Set if the dummy argument of a procedure could be an array despite
+     being called with a scalar actual argument. */
+  unsigned maybe_array:1;
 
   int refs;
   struct gfc_namespace *ns;	/* namespace containing this symbol */
@@ -2118,7 +2130,7 @@ gfc_intrinsic_sym;
 
 #include <mpfr.h>
 #include <mpc.h>
-#define GFC_RND_MODE GMP_RNDN
+#define GFC_RND_MODE MPFR_RNDN
 #define GFC_MPC_RND_MODE MPC_RNDNN
 
 typedef splay_tree gfc_constructor_base;
@@ -2152,9 +2164,8 @@ typedef struct gfc_expr
      is not a variable.  */
   struct gfc_expr *base_expr;
 
-  /* is_boz is true if the integer is regarded as BOZ bit pattern and is_snan
-     denotes a signalling not-a-number.  */
-  unsigned int is_boz : 1, is_snan : 1;
+  /* is_snan denotes a signalling not-a-number.  */
+  unsigned int is_snan : 1;
 
   /* Sometimes, when an error has been emitted, it is necessary to prevent
       it from recurring.  */
@@ -2187,6 +2198,10 @@ typedef struct gfc_expr
   /* Set this if no warning should be given somewhere in a lower level.  */
 
   unsigned int do_not_warn : 1;
+
+  /* Set this if the expression came from expanding an array constructor.  */
+  unsigned int from_constructor : 1;
+
   /* If an expression comes from a Hollerith constant or compile-time
      evaluation of a transfer statement, it may have a prescribed target-
      memory representation, and these cannot always be backformed from
@@ -2197,6 +2212,14 @@ typedef struct gfc_expr
     char *string;
   }
   representation;
+
+  struct
+  {
+    int len;	/* Length of BOZ string without terminating NULL.  */
+    int rdx;	/* Radix of BOZ.  */
+    char *str;	/* BOZ string with NULL terminating character.  */
+  }
+  boz;
 
   union
   {
@@ -2407,6 +2430,9 @@ typedef struct
 {
   gfc_expr *var, *start, *end, *step;
   unsigned short unroll;
+  bool ivdep;
+  bool vector;
+  bool novector;
 }
 gfc_iterator;
 
@@ -2541,17 +2567,17 @@ enum gfc_exec_op
   EXEC_IF, EXEC_ARITHMETIC_IF, EXEC_DO, EXEC_DO_CONCURRENT, EXEC_DO_WHILE,
   EXEC_SELECT, EXEC_BLOCK, EXEC_FORALL, EXEC_WHERE, EXEC_CYCLE, EXEC_EXIT,
   EXEC_CALL_PPC, EXEC_ALLOCATE, EXEC_DEALLOCATE, EXEC_END_PROCEDURE,
-  EXEC_SELECT_TYPE, EXEC_SYNC_ALL, EXEC_SYNC_MEMORY, EXEC_SYNC_IMAGES,
-  EXEC_OPEN, EXEC_CLOSE, EXEC_WAIT,
+  EXEC_SELECT_TYPE, EXEC_SELECT_RANK, EXEC_SYNC_ALL, EXEC_SYNC_MEMORY,
+  EXEC_SYNC_IMAGES, EXEC_OPEN, EXEC_CLOSE, EXEC_WAIT,
   EXEC_READ, EXEC_WRITE, EXEC_IOLENGTH, EXEC_TRANSFER, EXEC_DT_END,
   EXEC_BACKSPACE, EXEC_ENDFILE, EXEC_INQUIRE, EXEC_REWIND, EXEC_FLUSH,
   EXEC_FORM_TEAM, EXEC_CHANGE_TEAM, EXEC_END_TEAM, EXEC_SYNC_TEAM,
   EXEC_LOCK, EXEC_UNLOCK, EXEC_EVENT_POST, EXEC_EVENT_WAIT, EXEC_FAIL_IMAGE,
-  EXEC_OACC_KERNELS_LOOP, EXEC_OACC_PARALLEL_LOOP, EXEC_OACC_ROUTINE,
-  EXEC_OACC_PARALLEL, EXEC_OACC_KERNELS, EXEC_OACC_DATA, EXEC_OACC_HOST_DATA,
-  EXEC_OACC_LOOP, EXEC_OACC_UPDATE, EXEC_OACC_WAIT, EXEC_OACC_CACHE,
-  EXEC_OACC_ENTER_DATA, EXEC_OACC_EXIT_DATA, EXEC_OACC_ATOMIC,
-  EXEC_OACC_DECLARE,
+  EXEC_OACC_KERNELS_LOOP, EXEC_OACC_PARALLEL_LOOP, EXEC_OACC_SERIAL_LOOP,
+  EXEC_OACC_ROUTINE, EXEC_OACC_PARALLEL, EXEC_OACC_KERNELS, EXEC_OACC_SERIAL,
+  EXEC_OACC_DATA, EXEC_OACC_HOST_DATA, EXEC_OACC_LOOP, EXEC_OACC_UPDATE,
+  EXEC_OACC_WAIT, EXEC_OACC_CACHE, EXEC_OACC_ENTER_DATA, EXEC_OACC_EXIT_DATA,
+  EXEC_OACC_ATOMIC, EXEC_OACC_DECLARE,
   EXEC_OMP_CRITICAL, EXEC_OMP_DO, EXEC_OMP_FLUSH, EXEC_OMP_MASTER,
   EXEC_OMP_ORDERED, EXEC_OMP_PARALLEL, EXEC_OMP_PARALLEL_DO,
   EXEC_OMP_PARALLEL_SECTIONS, EXEC_OMP_PARALLEL_WORKSHARE,
@@ -2783,6 +2809,9 @@ gfc_finalizer;
 bool gfc_in_match_data (void);
 match gfc_match_char_spec (gfc_typespec *);
 extern int directive_unroll;
+extern bool directive_ivdep;
+extern bool directive_vector;
+extern bool directive_novector;
 
 /* SIMD clause enum.  */
 enum gfc_simd_clause
@@ -2863,7 +2892,9 @@ void gfc_end_source_files (void);
 void gfc_clear_ts (gfc_typespec *);
 FILE *gfc_open_file (const char *);
 const char *gfc_basic_typename (bt);
+const char *gfc_dummy_typename (gfc_typespec *);
 const char *gfc_typename (gfc_typespec *);
+const char *gfc_typename (gfc_expr *);
 const char *gfc_op2string (gfc_intrinsic_op);
 const char *gfc_code2string (const mstring *, int);
 int gfc_string2code (const mstring *, const char *);
@@ -2996,6 +3027,7 @@ bool gfc_merge_new_implicit (gfc_typespec *);
 void gfc_set_implicit_none (bool, bool, locus *);
 void gfc_check_function_type (gfc_namespace *);
 bool gfc_is_intrinsic_typename (const char *);
+bool gfc_check_conflict (symbol_attribute *, const char *, locus *);
 
 gfc_typespec *gfc_get_default_type (const char *, gfc_namespace *);
 bool gfc_set_default_type (gfc_symbol *, int, gfc_namespace *);
@@ -3117,12 +3149,11 @@ void gfc_traverse_user_op (gfc_namespace *, void (*)(gfc_user_op *));
 void gfc_save_all (gfc_namespace *);
 
 void gfc_enforce_clean_symbol_state (void);
-void gfc_free_dt_list (void);
-
 
 gfc_gsymbol *gfc_get_gsymbol (const char *, bool bind_c);
 gfc_gsymbol *gfc_find_gsymbol (gfc_gsymbol *, const char *);
 gfc_gsymbol *gfc_find_case_gsymbol (gfc_gsymbol *, const char *);
+void gfc_traverse_gsymbol (gfc_gsymbol *, void (*)(gfc_gsymbol *, void *), void *);
 
 gfc_typebound_proc* gfc_get_typebound_proc (gfc_typebound_proc*);
 gfc_symbol* gfc_get_derived_super_type (gfc_symbol*);
@@ -3410,6 +3441,9 @@ bool gfc_check_typebound_override (gfc_symtree*, gfc_symtree*);
 void gfc_check_dtio_interfaces (gfc_symbol*);
 gfc_symtree* gfc_find_typebound_dtio_proc (gfc_symbol *, bool, bool);
 gfc_symbol* gfc_find_specific_dtio_proc (gfc_symbol*, bool, bool);
+void gfc_get_formal_from_actual_arglist (gfc_symbol *, gfc_actual_arglist *);
+bool gfc_compare_actual_formal (gfc_actual_arglist **, gfc_formal_arglist *,
+				int, int, bool, locus *);
 
 
 /* io.c */
@@ -3466,6 +3500,9 @@ void gfc_delete_bbt (void *, void *, compare_fn);
 void gfc_dump_parse_tree (gfc_namespace *, FILE *);
 void gfc_dump_c_prototypes (gfc_namespace *, FILE *);
 void gfc_dump_external_c_prototypes (FILE *);
+void gfc_dump_global_symbols (FILE *);
+void debug (gfc_symbol *);
+void debug (gfc_expr *);
 
 /* parse.c */
 bool gfc_parse_file (void);
@@ -3481,6 +3518,10 @@ bool gfc_dep_difference (gfc_expr *, gfc_expr *, mpz_t *);
 bool gfc_check_same_strlen (const gfc_expr*, const gfc_expr*, const char*);
 bool gfc_calculate_transfer_sizes (gfc_expr*, gfc_expr*, gfc_expr*,
 				      size_t*, size_t*, size_t*);
+bool gfc_boz2int (gfc_expr *, int);
+bool gfc_boz2real (gfc_expr *, int);
+bool gfc_invalid_boz (const char *, locus *);
+
 
 /* class.c */
 void gfc_fix_class_refs (gfc_expr *e);
@@ -3536,6 +3577,7 @@ int gfc_dummy_code_callback (gfc_code **, int *, void *);
 int gfc_expr_walker (gfc_expr **, walk_expr_fn_t, void *);
 int gfc_code_walker (gfc_code **, walk_code_fn_t, walk_expr_fn_t, void *);
 bool gfc_has_dimen_vector_ref (gfc_expr *e);
+void gfc_check_externals (gfc_namespace *);
 
 /* simplify.c */
 

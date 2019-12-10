@@ -50,8 +50,6 @@ namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
-  using std::size_t;
-
   /**
    *  @brief  A meta-allocator with debugging bits.
    *  @ingroup allocators
@@ -91,7 +89,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _Alloc			_M_allocator;
 
       template<typename _Alloc2,
-	       typename = typename _Alloc2::template rebind<value_type>::other>
+	       typename = typename __alloc_traits<_Alloc2>::template
+			   rebind<value_type>::other>
 	struct __convertible
 	{ };
 
@@ -103,7 +102,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       size_type _S_extra()
       {
-	const size_t __obj_size = sizeof(value_type);
+	const std::size_t __obj_size = sizeof(value_type);
 	return (sizeof(size_type) + __obj_size - 1) / __obj_size; 
       }
 

@@ -86,7 +86,7 @@
 			alu_sreg,alus_sreg,logic_reg,logics_reg,
 			adc_imm,adcs_imm,adc_reg,adcs_reg,
 			csel,clz,rbit,rev,alu_dsp_reg,
-			mov_reg,mvn_reg,mrs,multiple,no_insn"))
+			mov_reg,mvn_reg,mrs,multiple"))
   "cortex_a53_slot_any")
 
 (define_insn_reservation "cortex_a53_alu_shift" 3
@@ -722,10 +722,4 @@
 (define_bypass 4 "cortex_a53_fpmac"
 		 "cortex_a53_fpmac"
 		 "aarch_accumulator_forwarding")
-
-;; We want AESE and AESMC to end up consecutive to one another.
-
-(define_bypass 0 "cortex_a53_crypto_aese"
-		 "cortex_a53_crypto_aesmc"
-		 "aarch_crypto_can_dual_issue")
 

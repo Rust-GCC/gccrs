@@ -1555,23 +1555,19 @@ package body Exp_Ch3 is
 
       --  Handle the optionally generated formal *_skip_null_excluding_checks
 
-      if Needs_Conditional_Null_Excluding_Check (Full_Init_Type) then
+      --  Look at the associated node for the object we are referencing and
+      --  verify that we are expanding a call to an Init_Proc for an internally
+      --  generated object declaration before passing True and skipping the
+      --  relevant checks.
 
-         --  Look at the associated node for the object we are referencing
-         --  and verify that we are expanding a call to an Init_Proc for an
-         --  internally generated object declaration before passing True and
-         --  skipping the relevant checks.
-
-         if Nkind (Id_Ref) in N_Has_Entity
-           and then Comes_From_Source (Associated_Node (Id_Ref))
-         then
-            Append_To (Args, New_Occurrence_Of (Standard_True, Loc));
-
-         --  Otherwise, we pass False to perform null-excluding checks
-
-         else
-            Append_To (Args, New_Occurrence_Of (Standard_False, Loc));
-         end if;
+      if Needs_Conditional_Null_Excluding_Check (Full_Init_Type)
+        and then Nkind (Id_Ref) in N_Has_Entity
+        and then (Comes_From_Source (Id_Ref)
+                   or else (Present (Associated_Node (Id_Ref))
+                             and then Comes_From_Source
+                                        (Associated_Node (Id_Ref))))
+      then
+         Append_To (Args, New_Occurrence_Of (Standard_True, Loc));
       end if;
 
       --  Add discriminant values if discriminants are present
@@ -1926,9 +1922,15 @@ package body Exp_Ch3 is
 
          --  Adjust the tag if tagged (because of possible view conversions).
          --  Suppress the tag adjustment when not Tagged_Type_Expansion because
-         --  tags are represented implicitly in objects.
+         --  tags are represented implicitly in objects, and when the record is
+         --  initialized with a raise expression.
 
-         if Is_Tagged_Type (Typ) and then Tagged_Type_Expansion then
+         if Is_Tagged_Type (Typ)
+           and then Tagged_Type_Expansion
+           and then Nkind (Exp) /= N_Raise_Expression
+           and then (Nkind (Exp) /= N_Qualified_Expression
+                       or else Nkind (Expression (Exp)) /= N_Raise_Expression)
+         then
             Append_To (Res,
               Make_Assignment_Statement (Default_Loc,
                 Name       =>
@@ -4852,7 +4854,7 @@ package body Exp_Ch3 is
                Make_Range (Sloc (Enumeration_Rep_Expr (Ent)),
                  Low_Bound =>
                    Make_Integer_Literal (Loc,
-                    Intval =>  Enumeration_Rep (Ent)),
+                    Intval => Enumeration_Rep (Ent)),
                  High_Bound =>
                    Make_Integer_Literal (Loc, Intval => Last_Repval))),
 
@@ -5522,7 +5524,14 @@ package body Exp_Ch3 is
          --  Note: This code covers access-to-limited-interfaces because they
          --        can be used to reference tasks implementing them.
 
-         elsif Is_Limited_Class_Wide_Type (Desig_Typ)
+         --  Suppress the master creation for access types created for entry
+         --  formal parameters (parameter block component types). Seems like
+         --  suppression should be more general for compiler-generated types,
+         --  but testing Comes_From_Source, like the code above does, may be
+         --  too general in this case (affects some test output)???
+
+         elsif not Is_Param_Block_Component_Type (Ptr_Typ)
+           and then Is_Limited_Class_Wide_Type (Desig_Typ)
            and then Tasking_Allowed
          then
             Build_Class_Wide_Master (Ptr_Typ);
@@ -6309,7 +6318,8 @@ package body Exp_Ch3 is
       -------------------------
 
       function Rewrite_As_Renaming return Boolean is
-      begin
+         Result : constant Boolean :=
+
          --  If the object declaration appears in the form
 
          --    Obj : Ctrl_Typ := Func (...);
@@ -6325,14 +6335,15 @@ package body Exp_Ch3 is
          --  would otherwise make two copies. The RM allows removing redunant
          --  Adjust/Finalize calls, but does not allow insertion of extra ones.
 
-         --  This part is disabled for now, because it breaks GPS builds
+         --  This part is disabled for now, because it breaks GNAT Studio
+         --  builds
 
-         return (False -- ???
-             and then Nkind (Expr_Q) = N_Explicit_Dereference
-             and then not Comes_From_Source (Expr_Q)
-             and then Nkind (Original_Node (Expr_Q)) = N_Function_Call
-             and then Nkind (Object_Definition (N)) in N_Has_Entity
-             and then (Needs_Finalization (Entity (Object_Definition (N)))))
+         (False -- ???
+            and then Nkind (Expr_Q) = N_Explicit_Dereference
+            and then not Comes_From_Source (Expr_Q)
+            and then Nkind (Original_Node (Expr_Q)) = N_Function_Call
+            and then Nkind (Object_Definition (N)) in N_Has_Entity
+            and then (Needs_Finalization (Entity (Object_Definition (N)))))
 
            --  If the initializing expression is for a variable with attribute
            --  OK_To_Rename set, then transform:
@@ -6353,6 +6364,14 @@ package body Exp_Ch3 is
                and then Ekind (Entity (Expr_Q)) = E_Variable
                and then OK_To_Rename (Entity (Expr_Q))
                and then Is_Entity_Name (Obj_Def));
+      begin
+         --  Return False if there are any aspect specifications, because
+         --  otherwise we duplicate that corresponding implicit attribute
+         --  definition, and call Insert_Action, which has no place to insert
+         --  the attribute definition. The attribute definition is stored in
+         --  Aspect_Rep_Item, which is not a list.
+
+         return Result and then No (Aspect_Specifications (N));
       end Rewrite_As_Renaming;
 
       --  Local variables
@@ -8695,6 +8714,7 @@ package body Exp_Ch3 is
                Make_Defining_Identifier (Loc,
                  New_External_Name (Chars
                    (Component_Type (Typ)), "_skip_null_excluding_check")),
+             Expression          => New_Occurrence_Of (Standard_False, Loc),
              In_Present          => True,
              Parameter_Type      =>
                New_Occurrence_Of (Standard_Boolean, Loc)));
@@ -9480,14 +9500,22 @@ package body Exp_Ch3 is
 
    --  or a null statement if the list L is empty
 
+   --  Equality may be user-defined for a given component type, in which case
+   --  a function call is constructed instead of an operator node. This is an
+   --  Ada 2012 change in the composability of equality for untagged composite
+   --  types.
+
    function Make_Eq_If
      (E : Entity_Id;
       L : List_Id) return Node_Id
    is
-      Loc        : constant Source_Ptr := Sloc (E);
+      Loc : constant Source_Ptr := Sloc (E);
+
       C          : Node_Id;
-      Field_Name : Name_Id;
       Cond       : Node_Id;
+      Field_Name : Name_Id;
+      Next_Test  : Node_Id;
+      Typ        : Entity_Id;
 
    begin
       if No (L) then
@@ -9498,6 +9526,7 @@ package body Exp_Ch3 is
 
          C := First_Non_Pragma (L);
          while Present (C) loop
+            Typ        := Etype (Defining_Identifier (C));
             Field_Name := Chars (Defining_Identifier (C));
 
             --  The tags must not be compared: they are not part of the value.
@@ -9510,22 +9539,55 @@ package body Exp_Ch3 is
             --  discriminants could be picked up in the private type case.
 
             if Field_Name = Name_uParent
-              and then Is_Interface (Etype (Defining_Identifier (C)))
+              and then Is_Interface (Typ)
             then
                null;
 
             elsif Field_Name /= Name_uTag then
-               Evolve_Or_Else (Cond,
-                 Make_Op_Ne (Loc,
-                   Left_Opnd =>
-                     Make_Selected_Component (Loc,
-                       Prefix        => Make_Identifier (Loc, Name_X),
-                       Selector_Name => Make_Identifier (Loc, Field_Name)),
+               declare
+                  Lhs : constant Node_Id :=
+                    Make_Selected_Component (Loc,
+                      Prefix        => Make_Identifier (Loc, Name_X),
+                      Selector_Name => Make_Identifier (Loc, Field_Name));
 
-                   Right_Opnd =>
-                     Make_Selected_Component (Loc,
-                       Prefix        => Make_Identifier (Loc, Name_Y),
-                       Selector_Name => Make_Identifier (Loc, Field_Name))));
+                  Rhs : constant Node_Id :=
+                    Make_Selected_Component (Loc,
+                      Prefix        => Make_Identifier (Loc, Name_Y),
+                      Selector_Name => Make_Identifier (Loc, Field_Name));
+                  Eq_Call : Node_Id;
+
+               begin
+                  --  Build equality code with a user-defined operator, if
+                  --  available, and with the predefined "=" otherwise. For
+                  --  compatibility with older Ada versions, and preserve the
+                  --  workings of some ASIS tools, we also use the predefined
+                  --  operation if the component-type equality is abstract,
+                  --  rather than raising Program_Error.
+
+                  if Ada_Version < Ada_2012 then
+                     Next_Test := Make_Op_Ne (Loc, Lhs, Rhs);
+
+                  else
+                     Eq_Call := Build_Eq_Call (Typ, Loc, Lhs, Rhs);
+
+                     if No (Eq_Call) then
+                        Next_Test := Make_Op_Ne (Loc, Lhs, Rhs);
+
+                     --  If a component has a defined abstract equality, its
+                     --  application raises Program_Error on that component
+                     --  and therefore on the current variant.
+
+                     elsif Nkind (Eq_Call) = N_Raise_Program_Error then
+                        Set_Etype (Eq_Call, Standard_Boolean);
+                        Next_Test := Make_Op_Not (Loc, Eq_Call);
+
+                     else
+                        Next_Test := Make_Op_Not (Loc, Eq_Call);
+                     end if;
+                  end if;
+               end;
+
+               Evolve_Or_Else (Cond, Next_Test);
             end if;
 
             Next_Non_Pragma (C);
@@ -10274,8 +10336,24 @@ package body Exp_Ch3 is
              Result_Definition        => New_Occurrence_Of (Ret_Type, Loc));
       end if;
 
+      --  Declare an abstract subprogram for primitive subprograms of an
+      --  interface type (except for "=").
+
       if Is_Interface (Tag_Typ) then
-         return Make_Abstract_Subprogram_Declaration (Loc, Spec);
+         if Name /= Name_Op_Eq then
+            return Make_Abstract_Subprogram_Declaration (Loc, Spec);
+
+         --  The equality function (if any) for an interface type is defined
+         --  to be nonabstract, so we create an expression function for it that
+         --  always returns False. Note that the function can never actually be
+         --  invoked because interface types are abstract, so there aren't any
+         --  objects of such types (and their equality operation will always
+         --  dispatch).
+
+         else
+            return Make_Expression_Function
+                     (Loc, Spec, New_Occurrence_Of (Standard_False, Loc));
+         end if;
 
       --  If body case, return empty subprogram body. Note that this is ill-
       --  formed, because there is not even a null statement, and certainly not

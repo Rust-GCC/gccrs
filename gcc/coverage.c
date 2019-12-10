@@ -47,7 +47,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "context.h"
 #include "pass_manager.h"
 #include "intl.h"
-#include "params.h"
 #include "auto-profile.h"
 #include "profile.h"
 
@@ -324,7 +323,7 @@ get_coverage_counts (unsigned counter, unsigned cfg_checksum,
 	}
       return NULL;
     }
-  if (PARAM_VALUE (PARAM_PROFILE_FUNC_INTERNAL_ID))
+  if (param_profile_func_internal_id)
     elt.ident = current_function_funcdef_no + 1;
   else
     {
@@ -560,7 +559,7 @@ coverage_compute_profile_id (struct cgraph_node *n)
     {
       expanded_location xloc
 	= expand_location (DECL_SOURCE_LOCATION (n->decl));
-      bool use_name_only = (PARAM_VALUE (PARAM_PROFILE_FUNC_INTERNAL_ID) == 0);
+      bool use_name_only = (param_profile_func_internal_id == 0);
 
       chksum = (use_name_only ? 0 : xloc.line);
       if (xloc.file)
@@ -628,7 +627,7 @@ coverage_begin_function (unsigned lineno_checksum, unsigned cfg_checksum)
 
   /* Announce function */
   offset = gcov_write_tag (GCOV_TAG_FUNCTION);
-  if (PARAM_VALUE (PARAM_PROFILE_FUNC_INTERNAL_ID))
+  if (param_profile_func_internal_id)
     gcov_write_unsigned (current_function_funcdef_no + 1);
   else
     {
@@ -643,7 +642,7 @@ coverage_begin_function (unsigned lineno_checksum, unsigned cfg_checksum)
 		     (DECL_ASSEMBLER_NAME (current_function_decl)));
   gcov_write_unsigned (DECL_ARTIFICIAL (current_function_decl)
 		       && !DECL_FUNCTION_VERSIONED (current_function_decl)
-		       && !DECL_LAMBDA_FUNCTION (current_function_decl));
+		       && !DECL_LAMBDA_FUNCTION_P (current_function_decl));
   gcov_write_filename (xloc.file);
   gcov_write_unsigned (xloc.line);
   gcov_write_unsigned (xloc.column);
@@ -682,7 +681,7 @@ coverage_end_function (unsigned lineno_checksum, unsigned cfg_checksum)
 
       item = ggc_alloc<coverage_data> ();
 
-      if (PARAM_VALUE (PARAM_PROFILE_FUNC_INTERNAL_ID))
+      if (param_profile_func_internal_id)
 	item->ident = current_function_funcdef_no + 1;
       else
 	{
@@ -1229,6 +1228,14 @@ coverage_init (const char *filename)
       else
 	profile_data_prefix = getpwd ();
     }
+  else
+    {
+      /* when filename is a absolute path, we also need to mangle the full
+      path of filename to prevent the profiling data being stored into a
+      different path than that specified by profile_data_prefix.  */
+      filename = mangle_path (filename);
+      len = strlen (filename);
+    }
 
   if (profile_data_prefix)
     prefix_len = strlen (profile_data_prefix);
@@ -1255,9 +1262,14 @@ coverage_init (const char *filename)
   /* Name of bbg file.  */
   if (flag_test_coverage && !flag_compare_debug)
     {
-      bbg_file_name = XNEWVEC (char, len + strlen (GCOV_NOTE_SUFFIX) + 1);
-      memcpy (bbg_file_name, filename, len);
-      strcpy (bbg_file_name + len, GCOV_NOTE_SUFFIX);
+      if (profile_note_location)
+	bbg_file_name = xstrdup (profile_note_location);
+      else
+	{
+	  bbg_file_name = XNEWVEC (char, len + strlen (GCOV_NOTE_SUFFIX) + 1);
+	  memcpy (bbg_file_name, filename, len);
+	  strcpy (bbg_file_name + len, GCOV_NOTE_SUFFIX);
+	}
 
       if (!gcov_open (bbg_file_name, -1))
 	{

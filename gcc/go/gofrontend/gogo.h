@@ -103,6 +103,11 @@ class Import_init
   precursors() const
   { return this->precursor_functions_; }
 
+  // Whether this is a dummy init, which is used only to record transitive import.
+  bool
+  is_dummy() const
+  { return this->init_name_[0] == '~'; }
+
  private:
   // The name of the package being imported.
   std::string package_name_;
@@ -217,7 +222,9 @@ class Gogo
   {
     return (name[0] == '.'
 	    && name[name.length() - 1] == '_'
-	    && name[name.length() - 2] == '.');
+	    && name[name.length() - 2] == '.')
+        || (name[0] == '_'
+            && name.length() == 1);
   }
 
   // Helper used when adding parameters (including receiver param) to the
@@ -335,6 +342,9 @@ class Gogo
   void
   set_debug_optimization(bool b)
   { this->debug_optimization_ = b; }
+
+  // Dump to stderr for debugging
+  void debug_dump();
 
   // Return the size threshold used to determine whether to issue
   // a nil-check for a given pointer dereference. A threshold of -1
@@ -539,7 +549,9 @@ class Gogo
   { this->file_block_names_[name] = location; }
 
   // Add a linkname, from the go:linkname compiler directive.  This
-  // changes the externally visible name of go_name to be ext_name.
+  // changes the externally visible name of GO_NAME to be EXT_NAME.
+  // If EXT_NAME is the empty string, GO_NAME is unchanged, but the
+  // symbol is made publicly visible.
   void
   add_linkname(const std::string& go_name, bool is_exported,
 	       const std::string& ext_name, Location location);
@@ -617,6 +629,11 @@ class Gogo
     this->gc_roots_.push_back(expr);
   }
 
+  // Add a type to the descriptor list.
+  void
+  add_type_descriptor(Type* type)
+  { this->type_descriptors_.push_back(type); }
+
   // Traverse the tree.  See the Traverse class.
   void
   traverse(Traverse*);
@@ -683,6 +700,10 @@ class Gogo
   void
   check_return_statements();
 
+  // Remove deadcode.
+  void
+  remove_deadcode();
+
   // Make implicit type conversions explicit.
   void
   add_conversions();
@@ -735,9 +756,17 @@ class Gogo
   void
   remove_shortcuts();
 
+  // Turn short-cut operators into explicit if statements in a block.
+  void
+  remove_shortcuts_in_block(Block*);
+
   // Use temporary variables to force order of evaluation.
   void
   order_evaluations();
+
+  // Order evaluations in a block.
+  void
+  order_block(Block*);
 
   // Add write barriers as needed.
   void
@@ -746,7 +775,14 @@ class Gogo
   // Return whether an assignment that sets LHS to RHS needs a write
   // barrier.
   bool
-  assign_needs_write_barrier(Expression* lhs);
+  assign_needs_write_barrier(Expression* lhs,
+                             Unordered_set(const Named_object*)*);
+
+  // Return whether EXPR is the address of a variable that can be set
+  // without a write barrier.  That is, if this returns true, then an
+  // assignment to *EXPR does not require a write barrier.
+  bool
+  is_nonwb_pointer(Expression* expr, Unordered_set(const Named_object*)*);
 
   // Return an assignment that sets LHS to RHS using a write barrier.
   // This returns an if statement that checks whether write barriers
@@ -755,6 +791,12 @@ class Gogo
   Statement*
   assign_with_write_barrier(Function*, Block*, Statement_inserter*,
 			    Expression* lhs, Expression* rhs, Location);
+
+  // Return a statement that tests whether write barriers are enabled
+  // and executes either the efficient code (WITHOUT) or the write
+  // barrier function call (WITH), depending.
+  Statement*
+  check_write_barrier(Block*, Statement* without, Statement* with);
 
   // Flatten parse tree.
   void
@@ -897,9 +939,27 @@ class Gogo
   const std::string&
   get_init_fn_name();
 
+  // Return the name for a dummy init function, which is not a real
+  // function but only for tracking transitive import.
+  std::string
+  dummy_init_fn_name();
+
+  // Return the package path symbol from an init function name, which
+  // can be a real init function or a dummy one.
+  std::string
+  pkgpath_from_init_fn_name(std::string);
+
   // Return the name for a type descriptor symbol.
   std::string
-  type_descriptor_name(Type*, Named_type*);
+  type_descriptor_name(const Type*, Named_type*);
+
+  // Return the name of the type descriptor list symbol of a package.
+  std::string
+  type_descriptor_list_symbol(std::string);
+
+  // Return the name of the list of all type descriptor lists.
+  std::string
+  typelists_symbol();
 
   // Return the assembler name for the GC symbol for a type.
   std::string
@@ -967,14 +1027,20 @@ class Gogo
                    std::vector<Bstatement*>&,
                    Bfunction* init_bfunction);
 
+  // Build the list of type descriptors.
+  void
+  build_type_descriptor_list();
+
+  // Register the type descriptors with the runtime.
+  void
+  register_type_descriptors(std::vector<Bstatement*>&,
+                            Bfunction* init_bfunction);
+
   void
   propagate_writebarrierrec();
 
   Named_object*
   write_barrier_variable();
-
-  Statement*
-  check_write_barrier(Block*, Statement*, Statement*);
 
   // Type used to map import names to packages.
   typedef std::map<std::string, Package*> Imports;
@@ -1108,6 +1174,8 @@ class Gogo
   std::vector<Analysis_set> analysis_sets_;
   // A list of objects to add to the GC roots.
   std::vector<Expression*> gc_roots_;
+  // A list of type descriptors that we need to register.
+  std::vector<Type*> type_descriptors_;
   // A list of function declarations with imported bodies that we may
   // want to inline.
   std::vector<Named_object*> imported_inlinable_functions_;
@@ -1294,6 +1362,11 @@ class Function
   void
   set_asm_name(const std::string& asm_name)
   { this->asm_name_ = asm_name; }
+
+  // Mark this symbol as exported by a linkname directive.
+  void
+  set_is_exported_by_linkname()
+  { this->is_exported_by_linkname_ = true; }
 
   // Return the pragmas for this function.
   unsigned int
@@ -1486,6 +1559,16 @@ class Function
   set_is_inline_only()
   { this->is_inline_only_ = true; }
 
+  // Report whether the function is referenced by an inline body.
+  bool
+  is_referenced_by_inline() const
+  { return this->is_referenced_by_inline_; }
+
+  // Mark the function as referenced by an inline body.
+  void
+  set_is_referenced_by_inline()
+  { this->is_referenced_by_inline_ = true; }
+
   // Swap with another function.  Used only for the thunk which calls
   // recover.
   void
@@ -1538,20 +1621,21 @@ class Function
 
   // Export the function.
   void
-  export_func(Export*, const std::string& name) const;
+  export_func(Export*, const Named_object*) const;
 
   // Export a function with a type.
   static void
-  export_func_with_type(Export*, const std::string& name,
+  export_func_with_type(Export*, const Named_object*,
 			const Function_type*, Results*, bool nointerface,
-			Block* block, Location);
+			const std::string& asm_name, Block* block, Location);
 
-  // Import a function.
-  static void
-  import_func(Import*, std::string* pname, Typed_identifier** receiver,
+  // Import a function.  Reports whether the import succeeded.
+  static bool
+  import_func(Import*, std::string* pname, Package** pkg,
+	      bool* is_exported, Typed_identifier** receiver,
 	      Typed_identifier_list** pparameters,
 	      Typed_identifier_list** presults, bool* is_varargs,
-	      bool* nointerface, std::string* body);
+	      bool* nointerface, std::string* asm_name, std::string* body);
 
  private:
   // Type for mapping from label names to Label objects.
@@ -1628,6 +1712,12 @@ class Function
   // True if this function is inline only: if it should not be emitted
   // if it is not inlined.
   bool is_inline_only_ : 1;
+  // True if this function is referenced from an inlined body that
+  // will be put into the export data.
+  bool is_referenced_by_inline_ : 1;
+  // True if we should make this function visible to other packages
+  // because of a go:linkname directive.
+  bool is_exported_by_linkname_ : 1;
 };
 
 // A snapshot of the current binding state.
@@ -1768,11 +1858,11 @@ class Function_declaration
 
   // Export a function declaration.
   void
-  export_func(Export* exp, const std::string& name) const
+  export_func(Export* exp, const Named_object* no) const
   {
-    Function::export_func_with_type(exp, name, this->fntype_, NULL,
+    Function::export_func_with_type(exp, no, this->fntype_, NULL,
 				    this->is_method() && this->nointerface(),
-				    NULL, this->location_);
+				    this->asm_name_, NULL, this->location_);
   }
 
   // Check that the types used in this declaration's signature are defined.
@@ -2022,6 +2112,14 @@ class Variable
     this->in_unique_section_ = true;
   }
 
+  // Mark the variable as referenced by an inline body.
+  void
+  set_is_referenced_by_inline()
+  {
+    go_assert(this->is_global_);
+    this->is_referenced_by_inline_ = true;
+  }
+
   // Return the top-level declaration for this variable.
   Statement*
   toplevel_decl()
@@ -2062,11 +2160,12 @@ class Variable
 
   // Export the variable.
   void
-  export_var(Export*, const std::string& name) const;
+  export_var(Export*, const Named_object*) const;
 
-  // Import a variable.
-  static void
-  import_var(Import*, std::string* pname, Type** ptype);
+  // Import a variable.  Reports whether the import succeeded.
+  static bool
+  import_var(Import*, std::string* pname, Package** pkg, bool* is_exported,
+	     Type** ptype);
 
  private:
   // The type of a tuple.
@@ -2133,6 +2232,9 @@ class Variable
   // True if this variable should be put in a unique section.  This is
   // used for field tracking.
   bool in_unique_section_ : 1;
+  // True if this variable is referenced from an inlined body that
+  // will be put into the export data.
+  bool is_referenced_by_inline_ : 1;
   // The top-level declaration for this variable. Only used for local
   // variables. Must be a Temporary_statement if not NULL.
   Statement* toplevel_decl_;
@@ -2993,6 +3095,9 @@ class Bindings
   first_declaration()
   { return this->bindings_.empty() ? NULL : this->bindings_.begin()->second; }
 
+  // Dump to stderr for debugging
+  void debug_dump();
+
  private:
   Named_object*
   add_named_object_to_contour(Contour*, Named_object*);
@@ -3489,6 +3594,24 @@ class Traverse
   Expressions_seen* expressions_seen_;
 };
 
+// This class looks for interface types to finalize methods of inherited
+// interfaces.
+
+class Finalize_methods : public Traverse
+{
+ public:
+  Finalize_methods(Gogo* gogo)
+    : Traverse(traverse_types),
+      gogo_(gogo)
+  { }
+
+  int
+  type(Type*);
+
+ private:
+  Gogo* gogo_;
+};
+
 // A class which makes it easier to insert new statements before the
 // current statement during a traversal.
 
@@ -3627,21 +3750,27 @@ static const int RUNTIME_ERROR_STRING_SLICE_OUT_OF_BOUNDS = 5;
 // locations.
 static const int RUNTIME_ERROR_NIL_DEREFERENCE = 6;
 
-// Slice length or capacity out of bounds in make: negative or
-// overflow or length greater than capacity.
-static const int RUNTIME_ERROR_MAKE_SLICE_OUT_OF_BOUNDS = 7;
+// Slice length out of bounds in make: negative or overflow
+// or length greater than capacity.
+static const int RUNTIME_ERROR_MAKE_SLICE_LEN_OUT_OF_BOUNDS = 7;
+
+// Slice capacity out of bounds in make: negative.
+static const int RUNTIME_ERROR_MAKE_SLICE_CAP_OUT_OF_BOUNDS = 8;
 
 // Map capacity out of bounds in make: negative or overflow.
-static const int RUNTIME_ERROR_MAKE_MAP_OUT_OF_BOUNDS = 8;
+static const int RUNTIME_ERROR_MAKE_MAP_OUT_OF_BOUNDS = 9;
 
 // Channel capacity out of bounds in make: negative or overflow.
-static const int RUNTIME_ERROR_MAKE_CHAN_OUT_OF_BOUNDS = 9;
+static const int RUNTIME_ERROR_MAKE_CHAN_OUT_OF_BOUNDS = 10;
 
 // Division by zero.
-static const int RUNTIME_ERROR_DIVISION_BY_ZERO = 10;
+static const int RUNTIME_ERROR_DIVISION_BY_ZERO = 11;
 
 // Go statement with nil function.
-static const int RUNTIME_ERROR_GO_NIL = 11;
+static const int RUNTIME_ERROR_GO_NIL = 12;
+
+// Shift by negative value.
+static const int RUNTIME_ERROR_SHIFT_BY_NEGATIVE = 13;
 
 // This is used by some of the langhooks.
 extern Gogo* go_get_gogo();
@@ -3649,5 +3778,11 @@ extern Gogo* go_get_gogo();
 // Whether we have seen any errors.  FIXME: Replace with a backend
 // interface.
 extern bool saw_errors();
+
+// For use in the debugger
+extern void debug_go_gogo(Gogo*);
+extern void debug_go_named_object(Named_object*);
+extern void debug_go_bindings(Bindings*);
+
 
 #endif // !defined(GO_GOGO_H)

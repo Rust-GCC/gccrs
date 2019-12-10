@@ -1748,6 +1748,12 @@ The stack pointer register (@code{SP})
 @item w
 Floating point register, Advanced SIMD vector register or SVE vector register
 
+@item x
+Like @code{w}, but restricted to registers 0 to 15 inclusive.
+
+@item y
+Like @code{w}, but restricted to registers 0 to 7 inclusive.
+
 @item Upl
 One of the low eight SVE predicate registers (@code{P0} to @code{P7})
 
@@ -3196,11 +3202,8 @@ Altivec vector register
 @item wa
 Any VSX register if the @option{-mvsx} option was used or NO_REGS.
 
-When using any of the register constraints (@code{wa}, @code{wd},
-@code{wf}, @code{wg}, @code{wi},
-@code{wp}, @code{wq}, @code{ws},
-@code{wt}, @code{wv}, or @code{ww})
-that take VSX registers, you must use @code{%x<n>} in the template so
+When using the register constraint @code{wa}
+that takes VSX registers, you must use @code{%x<n>} in the template so
 that the correct register is used.  Otherwise the register number
 output in the assembly file will be incorrect if an Altivec register
 is an operand of a VSX instruction that expects VSX register
@@ -3246,45 +3249,15 @@ asm ("xsaddqp %x0,%x1,%x2"
 @noindent
 is incorrect.
 
-@item wd
-VSX vector register to hold vector double data or NO_REGS.
-
 @item we
 VSX register if the @option{-mcpu=power9} and @option{-m64} options
 were used or NO_REGS.
 
-@item wf
-VSX vector register to hold vector float data or NO_REGS.
-
-@item wg
-If @option{-mmfpgpr} was used, a floating point register or NO_REGS.
-
-@item wi
-FP or VSX register to hold 64-bit integers for VSX insns or NO_REGS.
-
 @item wn
 No register (NO_REGS).
 
-@item wp
-VSX register to use for IEEE 128-bit floating point TFmode, or NO_REGS.
-
-@item wq
-VSX register to use for IEEE 128-bit floating point, or NO_REGS.
-
 @item wr
 General purpose register if 64-bit instructions are enabled or NO_REGS.
-
-@item ws
-VSX vector register to hold scalar double values or NO_REGS.
-
-@item wt
-VSX vector register to hold 128 bit integer or NO_REGS.
-
-@item wv
-Altivec register to use for double loads/stores  or NO_REGS.
-
-@item ww
-FP or VSX register to perform float operations under @option{-mvsx} or NO_REGS.
 
 @item wx
 Floating point register if the STFIWX instruction is enabled or NO_REGS.
@@ -3367,6 +3340,9 @@ Zero
 @item P
 Constant whose negation is a signed 16-bit constant
 
+@item eI
+Signed 34-bit integer constant if prefixed instructions are supported.
+
 @item G
 Floating point constant that can be loaded into a register with one
 instruction per word
@@ -3427,6 +3403,25 @@ Vector constant that does not require memory
 
 @item j
 Vector constant that is all zeros.
+
+@end table
+
+@item PRU---@file{config/pru/constraints.md}
+@table @code
+@item I
+An unsigned 8-bit integer constant.
+
+@item J
+An unsigned 16-bit integer constant.
+
+@item L
+An unsigned 5-bit integer constant (for shift counts).
+
+@item T
+A text segment (program memory) constant label.
+
+@item Z
+Integer constant zero.
 
 @end table
 
@@ -3738,76 +3733,6 @@ Memory address with only a base register
 
 @item Y
 Vector zero
-
-@end table
-
-@item SPU---@file{config/spu/spu.h}
-@table @code
-@item a
-An immediate which can be loaded with the il/ila/ilh/ilhu instructions.  const_int is treated as a 64 bit value.
-
-@item c
-An immediate for and/xor/or instructions.  const_int is treated as a 64 bit value.
-
-@item d
-An immediate for the @code{iohl} instruction.  const_int is treated as a 64 bit value.
-
-@item f
-An immediate which can be loaded with @code{fsmbi}.
-
-@item A
-An immediate which can be loaded with the il/ila/ilh/ilhu instructions.  const_int is treated as a 32 bit value.
-
-@item B
-An immediate for most arithmetic instructions.  const_int is treated as a 32 bit value.
-
-@item C
-An immediate for and/xor/or instructions.  const_int is treated as a 32 bit value.
-
-@item D
-An immediate for the @code{iohl} instruction.  const_int is treated as a 32 bit value.
-
-@item I
-A constant in the range [@minus{}64, 63] for shift/rotate instructions.
-
-@item J
-An unsigned 7-bit constant for conversion/nop/channel instructions.
-
-@item K
-A signed 10-bit constant for most arithmetic instructions.
-
-@item M
-A signed 16 bit immediate for @code{stop}.
-
-@item N
-An unsigned 16-bit constant for @code{iohl} and @code{fsmbi}.
-
-@item O
-An unsigned 7-bit constant whose 3 least significant bits are 0.
-
-@item P
-An unsigned 3-bit constant for 16-byte rotates and shifts
-
-@item R
-Call operand, reg, for indirect calls
-
-@item S
-Call operand, symbol, for relative calls.
-
-@item T
-Call operand, const_int, for absolute calls.
-
-@item U
-An immediate which can be loaded with the il/ila/ilh/ilhu instructions.  const_int is sign extended to 128 bit.
-
-@item W
-An immediate for shift and rotate instructions.  const_int is treated as a 32 bit value.
-
-@item Y
-An immediate for and/xor/or instructions.  const_int is sign extended as a 128 bit.
-
-@item Z
-An immediate for the @code{iohl} instruction.  const_int is sign extended to 128 bit.
 
 @end table
 
@@ -5034,12 +4959,12 @@ for (j = 0; j < GET_MODE_NUNITS (@var{n}); j++)
 
 This pattern is not allowed to @code{FAIL}.
 
-@cindex @code{gather_load@var{m}} instruction pattern
-@item @samp{gather_load@var{m}}
+@cindex @code{gather_load@var{m}@var{n}} instruction pattern
+@item @samp{gather_load@var{m}@var{n}}
 Load several separate memory locations into a vector of mode @var{m}.
-Operand 1 is a scalar base address and operand 2 is a vector of
-offsets from that base.  Operand 0 is a destination vector with the
-same number of elements as the offset.  For each element index @var{i}:
+Operand 1 is a scalar base address and operand 2 is a vector of mode @var{n}
+containing offsets from that base.  Operand 0 is a destination vector with
+the same number of elements as @var{n}.  For each element index @var{i}:
 
 @itemize @bullet
 @item
@@ -5056,20 +4981,20 @@ load the value at that address into element @var{i} of operand 0.
 The value of operand 3 does not matter if the offsets are already
 address width.
 
-@cindex @code{mask_gather_load@var{m}} instruction pattern
-@item @samp{mask_gather_load@var{m}}
-Like @samp{gather_load@var{m}}, but takes an extra mask operand as
+@cindex @code{mask_gather_load@var{m}@var{n}} instruction pattern
+@item @samp{mask_gather_load@var{m}@var{n}}
+Like @samp{gather_load@var{m}@var{n}}, but takes an extra mask operand as
 operand 5.  Bit @var{i} of the mask is set if element @var{i}
 of the result should be loaded from memory and clear if element @var{i}
 of the result should be set to zero.
 
-@cindex @code{scatter_store@var{m}} instruction pattern
-@item @samp{scatter_store@var{m}}
+@cindex @code{scatter_store@var{m}@var{n}} instruction pattern
+@item @samp{scatter_store@var{m}@var{n}}
 Store a vector of mode @var{m} into several distinct memory locations.
-Operand 0 is a scalar base address and operand 1 is a vector of offsets
-from that base.  Operand 4 is the vector of values that should be stored,
-which has the same number of elements as the offset.  For each element
-index @var{i}:
+Operand 0 is a scalar base address and operand 1 is a vector of mode
+@var{n} containing offsets from that base.  Operand 4 is the vector of
+values that should be stored, which has the same number of elements as
+@var{n}.  For each element index @var{i}:
 
 @itemize @bullet
 @item
@@ -5086,9 +5011,9 @@ store element @var{i} of operand 4 to that address.
 The value of operand 2 does not matter if the offsets are already
 address width.
 
-@cindex @code{mask_scatter_store@var{m}} instruction pattern
-@item @samp{mask_scatter_store@var{m}}
-Like @samp{scatter_store@var{m}}, but takes an extra mask operand as
+@cindex @code{mask_scatter_store@var{m}@var{n}} instruction pattern
+@item @samp{mask_scatter_store@var{m}@var{n}}
+Like @samp{scatter_store@var{m}@var{n}}, but takes an extra mask operand as
 operand 5.  Bit @var{i} of the mask is set if element @var{i}
 of the result should be stored to memory.
 
@@ -5149,6 +5074,37 @@ The operation is equivalent to:
 operand0[0] = operand1 < operand2;
 for (i = 1; i < GET_MODE_NUNITS (@var{n}); i++)
   operand0[i] = operand0[i - 1] && (operand1 + i < operand2);
+@end smallexample
+
+@cindex @code{check_raw_ptrs@var{m}} instruction pattern
+@item @samp{check_raw_ptrs@var{m}}
+Check whether, given two pointers @var{a} and @var{b} and a length @var{len},
+a write of @var{len} bytes at @var{a} followed by a read of @var{len} bytes
+at @var{b} can be split into interleaved byte accesses
+@samp{@var{a}[0], @var{b}[0], @var{a}[1], @var{b}[1], @dots{}}
+without affecting the dependencies between the bytes.  Set operand 0
+to true if the split is possible and false otherwise.
+
+Operands 1, 2 and 3 provide the values of @var{a}, @var{b} and @var{len}
+respectively.  Operand 4 is a constant integer that provides the known
+common alignment of @var{a} and @var{b}.  All inputs have mode @var{m}.
+
+This split is possible if:
+
+@smallexample
+@var{a} == @var{b} || @var{a} + @var{len} <= @var{b} || @var{b} + @var{len} <= @var{a}
+@end smallexample
+
+You should only define this pattern if the target has a way of accelerating
+the test without having to do the individual comparisons.
+
+@cindex @code{check_war_ptrs@var{m}} instruction pattern
+@item @samp{check_war_ptrs@var{m}}
+Like @samp{check_raw_ptrs@var{m}}, but with the read and write swapped round.
+The split is possible in this case if:
+
+@smallexample
+@var{b} <= @var{a} || @var{a} + @var{len} <= @var{b}
 @end smallexample
 
 @cindex @code{vec_cmp@var{m}@var{n}} instruction pattern
@@ -5428,6 +5384,11 @@ mode @var{m} and the scalars have the mode appropriate for one
 element of @var{m}.  The operation is strictly in-order: there is
 no reassociation.
 
+@cindex @code{mask_fold_left_plus_@var{m}} instruction pattern
+@item @code{mask_fold_left_plus_@var{m}}
+Like @samp{fold_left_plus_@var{m}}, but takes an additional mask operand
+(operand 3) that specifies which elements of the source vector should be added.
+
 @cindex @code{sdot_prod@var{m}} instruction pattern
 @item @samp{sdot_prod@var{m}}
 @cindex @code{udot_prod@var{m}} instruction pattern
@@ -5457,6 +5418,44 @@ operand 1. Add operand 1 to operand 2 and place the widened result in
 operand 0. (This is used express accumulation of elements into an accumulator
 of a wider mode.)
 
+@cindex @code{smulhs@var{m3}} instruction pattern
+@item @samp{smulhs@var{m3}}
+@cindex @code{umulhs@var{m3}} instruction pattern
+@itemx @samp{umulhs@var{m3}}
+Signed/unsigned multiply high with scale. This is equivalent to the C code:
+@smallexample
+narrow op0, op1, op2;
+@dots{}
+op0 = (narrow) (((wide) op1 * (wide) op2) >> (N / 2 - 1));
+@end smallexample
+where the sign of @samp{narrow} determines whether this is a signed
+or unsigned operation, and @var{N} is the size of @samp{wide} in bits.
+
+@cindex @code{smulhrs@var{m3}} instruction pattern
+@item @samp{smulhrs@var{m3}}
+@cindex @code{umulhrs@var{m3}} instruction pattern
+@itemx @samp{umulhrs@var{m3}}
+Signed/unsigned multiply high with round and scale. This is
+equivalent to the C code:
+@smallexample
+narrow op0, op1, op2;
+@dots{}
+op0 = (narrow) (((((wide) op1 * (wide) op2) >> (N / 2 - 2)) + 1) >> 1);
+@end smallexample
+where the sign of @samp{narrow} determines whether this is a signed
+or unsigned operation, and @var{N} is the size of @samp{wide} in bits.
+
+@cindex @code{sdiv_pow2@var{m3}} instruction pattern
+@item @samp{sdiv_pow2@var{m3}}
+@cindex @code{sdiv_pow2@var{m3}} instruction pattern
+@itemx @samp{sdiv_pow2@var{m3}}
+Signed division by power-of-2 immediate. Equivalent to:
+@smallexample
+signed op0, op1;
+@dots{}
+op0 = op1 / (1 << imm);
+@end smallexample
+
 @cindex @code{vec_shl_insert_@var{m}} instruction pattern
 @item @samp{vec_shl_insert_@var{m}}
 Shift the elements in vector input operand 1 left one element (i.e.@:
@@ -5464,6 +5463,14 @@ away from element 0) and fill the vacated element 0 with the scalar
 in operand 2.  Store the result in vector output operand 0.  Operands
 0 and 1 have mode @var{m} and operand 2 has the mode appropriate for
 one element of @var{m}.
+
+@cindex @code{vec_shl_@var{m}} instruction pattern
+@item @samp{vec_shl_@var{m}}
+Whole vector left shift in bits, i.e.@: away from element 0.
+Operand 1 is a vector to be shifted.
+Operand 2 is an integer shift amount in bits.
+Operand 0 is where the resulting shifted vector is stored.
+The output and input vectors should have the same modes.
 
 @cindex @code{vec_shr_@var{m}} instruction pattern
 @item @samp{vec_shr_@var{m}}
@@ -5478,7 +5485,7 @@ The output and input vectors should have the same modes.
 Narrow (demote) and merge the elements of two vectors. Operands 1 and 2
 are vectors of the same mode having N integral or floating point elements
 of size S@.  Operand 0 is the resulting vector in which 2*N elements of
-size N/2 are concatenated after narrowing them down using truncation.
+size S/2 are concatenated after narrowing them down using truncation.
 
 @cindex @code{vec_pack_sbool_trunc_@var{m}} instruction pattern
 @item @samp{vec_pack_sbool_trunc_@var{m}}
@@ -5505,7 +5512,7 @@ saturating arithmetic.
 Narrow, convert to signed/unsigned integral type and merge the elements
 of two vectors.  Operands 1 and 2 are vectors of the same mode having N
 floating point elements of size S@.  Operand 0 is the resulting vector
-in which 2*N elements of size N/2 are concatenated.
+in which 2*N elements of size S/2 are concatenated.
 
 @cindex @code{vec_packs_float_@var{m}} instruction pattern
 @cindex @code{vec_packu_float_@var{m}} instruction pattern
@@ -5513,7 +5520,7 @@ in which 2*N elements of size N/2 are concatenated.
 Narrow, convert to floating point type and merge the elements
 of two vectors.  Operands 1 and 2 are vectors of the same mode having N
 signed/unsigned integral elements of size S@.  Operand 0 is the resulting vector
-in which 2*N elements of size N/2 are concatenated.
+in which 2*N elements of size S/2 are concatenated.
 
 @cindex @code{vec_unpacks_hi_@var{m}} instruction pattern
 @cindex @code{vec_unpacks_lo_@var{m}} instruction pattern
@@ -6198,13 +6205,50 @@ This pattern is not allowed to @code{FAIL}.
 @item @samp{one_cmpl@var{m}2}
 Store the bitwise-complement of operand 1 into operand 0.
 
+@cindex @code{cpymem@var{m}} instruction pattern
+@item @samp{cpymem@var{m}}
+Block copy instruction.  The destination and source blocks of memory
+are the first two operands, and both are @code{mem:BLK}s with an
+address in mode @code{Pmode}.
+
+The number of bytes to copy is the third operand, in mode @var{m}.
+Usually, you specify @code{Pmode} for @var{m}.  However, if you can
+generate better code knowing the range of valid lengths is smaller than
+those representable in a full Pmode pointer, you should provide
+a pattern with a
+mode corresponding to the range of values you can handle efficiently
+(e.g., @code{QImode} for values in the range 0--127; note we avoid numbers
+that appear negative) and also a pattern with @code{Pmode}.
+
+The fourth operand is the known shared alignment of the source and
+destination, in the form of a @code{const_int} rtx.  Thus, if the
+compiler knows that both source and destination are word-aligned,
+it may provide the value 4 for this operand.
+
+Optional operands 5 and 6 specify expected alignment and size of block
+respectively.  The expected alignment differs from alignment in operand 4
+in a way that the blocks are not required to be aligned according to it in
+all cases. This expected alignment is also in bytes, just like operand 4.
+Expected size, when unknown, is set to @code{(const_int -1)}.
+
+Descriptions of multiple @code{cpymem@var{m}} patterns can only be
+beneficial if the patterns for smaller modes have fewer restrictions
+on their first, second and fourth operands.  Note that the mode @var{m}
+in @code{cpymem@var{m}} does not impose any restriction on the mode of
+individually copied data units in the block.
+
+The @code{cpymem@var{m}} patterns need not give special consideration
+to the possibility that the source and destination strings might
+overlap. These patterns are used to do inline expansion of
+@code{__builtin_memcpy}.
+
 @cindex @code{movmem@var{m}} instruction pattern
 @item @samp{movmem@var{m}}
 Block move instruction.  The destination and source blocks of memory
 are the first two operands, and both are @code{mem:BLK}s with an
 address in mode @code{Pmode}.
 
-The number of bytes to move is the third operand, in mode @var{m}.
+The number of bytes to copy is the third operand, in mode @var{m}.
 Usually, you specify @code{Pmode} for @var{m}.  However, if you can
 generate better code knowing the range of valid lengths is smaller than
 those representable in a full Pmode pointer, you should provide
@@ -6228,10 +6272,11 @@ Descriptions of multiple @code{movmem@var{m}} patterns can only be
 beneficial if the patterns for smaller modes have fewer restrictions
 on their first, second and fourth operands.  Note that the mode @var{m}
 in @code{movmem@var{m}} does not impose any restriction on the mode of
-individually moved data units in the block.
+individually copied data units in the block.
 
-These patterns need not give special consideration to the possibility
-that the source and destination strings might overlap.
+The @code{movmem@var{m}} patterns must correctly handle the case where
+the source and destination strings overlap. These patterns are used to
+do inline expansion of @code{__builtin_memmove}.
 
 @cindex @code{movstr} instruction pattern
 @item @samp{movstr}
@@ -6252,7 +6297,7 @@ given as a @code{mem:BLK} whose address is in mode @code{Pmode}.  The
 number of bytes to set is the second operand, in mode @var{m}.  The value to
 initialize the memory with is the third operand. Targets that only support the
 clearing of memory should reject any value that is not the constant 0.  See
-@samp{movmem@var{m}} for a discussion of the choice of mode.
+@samp{cpymem@var{m}} for a discussion of the choice of mode.
 
 The fourth operand is the known alignment of the destination, in the form
 of a @code{const_int} rtx.  Thus, if the compiler knows that the
@@ -6270,13 +6315,13 @@ Operand 9 is the probable maximal size (i.e.@: we cannot rely on it for
 correctness, but it can be used for choosing proper code sequence for a
 given size).
 
-The use for multiple @code{setmem@var{m}} is as for @code{movmem@var{m}}.
+The use for multiple @code{setmem@var{m}} is as for @code{cpymem@var{m}}.
 
 @cindex @code{cmpstrn@var{m}} instruction pattern
 @item @samp{cmpstrn@var{m}}
 String compare instruction, with five operands.  Operand 0 is the output;
 it has mode @var{m}.  The remaining four operands are like the operands
-of @samp{movmem@var{m}}.  The two memory blocks specified are compared
+of @samp{cpymem@var{m}}.  The two memory blocks specified are compared
 byte by byte in lexicographic order starting at the beginning of each
 string.  The instruction is not allowed to prefetch more than one byte
 at a time since either string may end in the first byte and reading past
@@ -8357,7 +8402,7 @@ case that the pattern is @emph{not} matched by any @code{define_insn}.
 The combiner pass first tries to split a single @code{set} expression
 and then the same @code{set} expression inside a @code{parallel}, but
 followed by a @code{clobber} of a pseudo-reg to use as a scratch
-register.  In these cases, the combiner expects exactly two new insn
+register.  In these cases, the combiner expects exactly one or two new insn
 patterns to be generated.  It will verify that these patterns match some
 @code{define_insn} definitions, so you need not do this test in the
 @code{define_split} (of course, there is no point in writing a
@@ -8494,6 +8539,119 @@ The @code{define_insn_and_split} construction provides exactly the same
 functionality as two separate @code{define_insn} and @code{define_split}
 patterns.  It exists for compactness, and as a maintenance tool to prevent
 having to ensure the two patterns' templates match.
+
+@findex define_insn_and_rewrite
+It is sometimes useful to have a @code{define_insn_and_split}
+that replaces specific operands of an instruction but leaves the
+rest of the instruction pattern unchanged.  You can do this directly
+with a @code{define_insn_and_split}, but it requires a
+@var{new-insn-pattern-1} that repeats most of the original @var{insn-pattern}.
+There is also the complication that an implicit @code{parallel} in
+@var{insn-pattern} must become an explicit @code{parallel} in
+@var{new-insn-pattern-1}, which is easy to overlook.
+A simpler alternative is to use @code{define_insn_and_rewrite}, which
+is a form of @code{define_insn_and_split} that automatically generates
+@var{new-insn-pattern-1} by replacing each @code{match_operand}
+in @var{insn-pattern} with a corresponding @code{match_dup}, and each
+@code{match_operator} in the pattern with a corresponding @code{match_op_dup}.
+The arguments are otherwise identical to @code{define_insn_and_split}:
+
+@smallexample
+(define_insn_and_rewrite
+  [@var{insn-pattern}]
+  "@var{condition}"
+  "@var{output-template}"
+  "@var{split-condition}"
+  "@var{preparation-statements}"
+  [@var{insn-attributes}])
+@end smallexample
+
+The @code{match_dup}s and @code{match_op_dup}s in the new
+instruction pattern use any new operand values that the
+@var{preparation-statements} store in the @code{operands} array,
+as for a normal @code{define_insn_and_split}.  @var{preparation-statements}
+can also emit additional instructions before the new instruction.
+They can even emit an entirely different sequence of instructions and
+use @code{DONE} to avoid emitting a new form of the original
+instruction.
+
+The split in a @code{define_insn_and_rewrite} is only intended
+to apply to existing instructions that match @var{insn-pattern}.
+@var{split-condition} must therefore start with @code{&&},
+so that the split condition applies on top of @var{condition}.
+
+Here is an example from the AArch64 SVE port, in which operand 1 is
+known to be equivalent to an all-true constant and isn't used by the
+output template:
+
+@smallexample
+(define_insn_and_rewrite "*while_ult<GPI:mode><PRED_ALL:mode>_cc"
+  [(set (reg:CC CC_REGNUM)
+        (compare:CC
+          (unspec:SI [(match_operand:PRED_ALL 1)
+                      (unspec:PRED_ALL
+                        [(match_operand:GPI 2 "aarch64_reg_or_zero" "rZ")
+                         (match_operand:GPI 3 "aarch64_reg_or_zero" "rZ")]
+                        UNSPEC_WHILE_LO)]
+                     UNSPEC_PTEST_PTRUE)
+          (const_int 0)))
+   (set (match_operand:PRED_ALL 0 "register_operand" "=Upa")
+        (unspec:PRED_ALL [(match_dup 2)
+                          (match_dup 3)]
+                         UNSPEC_WHILE_LO))]
+  "TARGET_SVE"
+  "whilelo\t%0.<PRED_ALL:Vetype>, %<w>2, %<w>3"
+  ;; Force the compiler to drop the unused predicate operand, so that we
+  ;; don't have an unnecessary PTRUE.
+  "&& !CONSTANT_P (operands[1])"
+  @{
+    operands[1] = CONSTM1_RTX (<MODE>mode);
+  @}
+)
+@end smallexample
+
+The splitter in this case simply replaces operand 1 with the constant
+value that it is known to have.  The equivalent @code{define_insn_and_split}
+would be:
+
+@smallexample
+(define_insn_and_split "*while_ult<GPI:mode><PRED_ALL:mode>_cc"
+  [(set (reg:CC CC_REGNUM)
+        (compare:CC
+          (unspec:SI [(match_operand:PRED_ALL 1)
+                      (unspec:PRED_ALL
+                        [(match_operand:GPI 2 "aarch64_reg_or_zero" "rZ")
+                         (match_operand:GPI 3 "aarch64_reg_or_zero" "rZ")]
+                        UNSPEC_WHILE_LO)]
+                     UNSPEC_PTEST_PTRUE)
+          (const_int 0)))
+   (set (match_operand:PRED_ALL 0 "register_operand" "=Upa")
+        (unspec:PRED_ALL [(match_dup 2)
+                          (match_dup 3)]
+                         UNSPEC_WHILE_LO))]
+  "TARGET_SVE"
+  "whilelo\t%0.<PRED_ALL:Vetype>, %<w>2, %<w>3"
+  ;; Force the compiler to drop the unused predicate operand, so that we
+  ;; don't have an unnecessary PTRUE.
+  "&& !CONSTANT_P (operands[1])"
+  [(parallel
+     [(set (reg:CC CC_REGNUM)
+           (compare:CC
+             (unspec:SI [(match_dup 1)
+                         (unspec:PRED_ALL [(match_dup 2)
+                                           (match_dup 3)]
+                                          UNSPEC_WHILE_LO)]
+                        UNSPEC_PTEST_PTRUE)
+             (const_int 0)))
+      (set (match_dup 0)
+           (unspec:PRED_ALL [(match_dup 2)
+                             (match_dup 3)]
+                            UNSPEC_WHILE_LO))])]
+  @{
+    operands[1] = CONSTM1_RTX (<MODE>mode);
+  @}
+)
+@end smallexample
 
 @end ifset
 @ifset INTERNALS
@@ -11227,5 +11385,14 @@ name and same types of iterator.  For example:
 
 would produce a single set of functions that handles both
 @code{INTEGER_MODES} and @code{FLOAT_MODES}.
+
+It is also possible for these @samp{@@} patterns to have different
+numbers of operands from each other.  For example, patterns with
+a binary rtl code might take three operands (one output and two inputs)
+while patterns with a ternary rtl code might take four operands (one
+output and three inputs).  This combination would produce separate
+@samp{maybe_gen_@var{name}} and @samp{gen_@var{name}} functions for
+each operand count, but it would still produce a single
+@samp{maybe_code_for_@var{name}} and a single @samp{code_for_@var{name}}.
 
 @end ifset

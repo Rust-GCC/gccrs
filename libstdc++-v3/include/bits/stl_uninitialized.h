@@ -57,12 +57,14 @@
 #define _STL_UNINITIALIZED_H 1
 
 #if __cplusplus > 201402L
-#include <utility>
+#include <bits/stl_pair.h>
 #endif
 
 #if __cplusplus >= 201103L
 #include <type_traits>
 #endif
+
+#include <ext/alloc_traits.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -130,9 +132,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #if __cplusplus < 201103L
       const bool __assignable = true;
 #else
-      // trivial types can have deleted assignment
+      // Trivial types can have deleted copy constructor, but the std::copy
+      // optimization that uses memmove would happily "copy" them anyway.
+      static_assert(is_constructible<_ValueType2, decltype(*__first)>::value,
+	  "result type must be constructible from value type of input range");
+
       typedef typename iterator_traits<_InputIterator>::reference _RefType1;
       typedef typename iterator_traits<_ForwardIterator>::reference _RefType2;
+      // Trivial types can have deleted assignment, so using std::copy
+      // would be ill-formed. Require assignability before using std::copy:
       const bool __assignable = is_assignable<_RefType2, _RefType1>::value;
 #endif
 
@@ -197,7 +205,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #if __cplusplus < 201103L
       const bool __assignable = true;
 #else
-      // trivial types can have deleted assignment
+      // Trivial types can have deleted copy constructor, but the std::fill
+      // optimization that uses memmove would happily "copy" them anyway.
+      static_assert(is_constructible<_ValueType, const _Tp&>::value,
+	  "result type must be constructible from input type");
+
+      // Trivial types can have deleted assignment, so using std::fill
+      // would be ill-formed. Require assignability before using std::fill:
       const bool __assignable = is_copy_assignable<_ValueType>::value;
 #endif
 
@@ -262,7 +276,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #if __cplusplus < 201103L
       const bool __assignable = true;
 #else
-      // trivial types can have deleted assignment
+      // Trivial types can have deleted copy constructor, but the std::fill
+      // optimization that uses memmove would happily "copy" them anyway.
+      static_assert(is_constructible<_ValueType, const _Tp&>::value,
+	  "result type must be constructible from input type");
+
+      // Trivial types can have deleted assignment, so using std::fill
+      // would be ill-formed. Require assignability before using std::fill:
       const bool __assignable = is_copy_assignable<_ValueType>::value;
 #endif
       return __uninitialized_fill_n<__is_trivial(_ValueType) && __assignable>::

@@ -107,9 +107,9 @@
 	* gfortran.dg/ieee/ieee_9.f90:  XFAIL on arm*-*-gnueabi[hf].
 
 2018-12-24  Jan Hubicka  <hubicka@ucw.cz>
-	
+
 	PR lto/88140
-	* gcc.c-torture/pr88140.c: New testcase.
+	* gcc.c-torture/compile/pr88140.c: New testcase.
 
 2018-12-24  Iain Sandoe  <iain@sandoe.co.uk>
 
@@ -572,6 +572,8 @@
 	* gcc.target/avr/pr88253.c: New test.
 
 2018-12-17  Richard Sandiford  <richard.sandiford@arm.com>
+	    Ramana Radhakrishnan  <ramana.radhakrishnan@arm.com>
+	    Kyrylo Tkachov  <kyrylo.tkachov@arm.com>
 
 	* gcc.dg/loop-versioning-1.c: New test.
 	* gcc.dg/loop-versioning-10.c: Likewise.

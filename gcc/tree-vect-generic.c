@@ -382,8 +382,47 @@ expand_vector_comparison (gimple_stmt_iterator *gsi, tree type, tree op0,
   tree t;
   if (!expand_vec_cmp_expr_p (TREE_TYPE (op0), type, code)
       && !expand_vec_cond_expr_p (type, TREE_TYPE (op0), code))
-    t = expand_vector_piecewise (gsi, do_compare, type,
-				 TREE_TYPE (TREE_TYPE (op0)), op0, op1, code);
+    {
+      if (VECTOR_BOOLEAN_TYPE_P (type)
+	  && SCALAR_INT_MODE_P (TYPE_MODE (type))
+	  && known_lt (GET_MODE_BITSIZE (TYPE_MODE (type)),
+		       TYPE_VECTOR_SUBPARTS (type)
+		       * GET_MODE_BITSIZE (SCALAR_TYPE_MODE
+						(TREE_TYPE (type)))))
+	{
+	  tree inner_type = TREE_TYPE (TREE_TYPE (op0));
+	  tree part_width = TYPE_SIZE (inner_type);
+	  tree index = bitsize_int (0);
+	  int nunits = nunits_for_known_piecewise_op (TREE_TYPE (op0));
+	  int prec = GET_MODE_PRECISION (SCALAR_TYPE_MODE (type));
+	  tree ret_type = build_nonstandard_integer_type (prec, 1);
+	  tree ret_inner_type = boolean_type_node;
+	  int i;
+	  location_t loc = gimple_location (gsi_stmt (*gsi));
+	  t = build_zero_cst (ret_type);
+
+	  if (TYPE_PRECISION (ret_inner_type) != 1)
+	    ret_inner_type = build_nonstandard_integer_type (1, 1);
+	  warning_at (loc, OPT_Wvector_operation_performance,
+		      "vector operation will be expanded piecewise");
+	  for (i = 0; i < nunits;
+	       i++, index = int_const_binop (PLUS_EXPR, index, part_width))
+	    {
+	      tree a = tree_vec_extract (gsi, inner_type, op0, part_width,
+					 index);
+	      tree b = tree_vec_extract (gsi, inner_type, op1, part_width,
+					 index);
+	      tree result = gimplify_build2 (gsi, code, ret_inner_type, a, b);
+	      t = gimplify_build3 (gsi, BIT_INSERT_EXPR, ret_type, t, result,
+				   bitsize_int (i));
+	    }
+	  t = gimplify_build1 (gsi, VIEW_CONVERT_EXPR, type, t);
+	}
+      else
+	t = expand_vector_piecewise (gsi, do_compare, type,
+				     TREE_TYPE (TREE_TYPE (op0)), op0, op1,
+				     code);
+    }
   else
     t = NULL_TREE;
 
@@ -655,7 +694,7 @@ expand_vector_divmod (gimple_stmt_iterator *gsi, tree type, tree op0,
 	      tree zero, cst, cond, mask_type;
 	      gimple *stmt;
 
-	      mask_type = build_same_sized_truth_vector_type (type);
+	      mask_type = truth_type_for (type);
 	      zero = build_zero_cst (type);
 	      cond = build2 (LT_EXPR, mask_type, op0, zero);
 	      tree_vector_builder vec (type, nunits, 1);
@@ -879,6 +918,7 @@ expand_vector_condition (gimple_stmt_iterator *gsi)
   tree a1 = a;
   tree a2 = NULL_TREE;
   bool a_is_comparison = false;
+  bool a_is_scalar_bitmask = false;
   tree b = gimple_assign_rhs2 (stmt);
   tree c = gimple_assign_rhs3 (stmt);
   vec<constructor_elt, va_gc> *v;
@@ -942,6 +982,20 @@ expand_vector_condition (gimple_stmt_iterator *gsi)
   warning_at (loc, OPT_Wvector_operation_performance,
 	      "vector condition will be expanded piecewise");
 
+  if (!a_is_comparison
+      && VECTOR_BOOLEAN_TYPE_P (TREE_TYPE (a))
+      && SCALAR_INT_MODE_P (TYPE_MODE (TREE_TYPE (a)))
+      && known_lt (GET_MODE_BITSIZE (TYPE_MODE (TREE_TYPE (a))),
+		   TYPE_VECTOR_SUBPARTS (TREE_TYPE (a))
+		   * GET_MODE_BITSIZE (SCALAR_TYPE_MODE
+						(TREE_TYPE (TREE_TYPE (a))))))
+    {
+      a_is_scalar_bitmask = true;
+      int prec = GET_MODE_PRECISION (SCALAR_TYPE_MODE (TREE_TYPE (a)));
+      tree atype = build_nonstandard_integer_type (prec, 1);
+      a = gimplify_build1 (gsi, VIEW_CONVERT_EXPR, atype, a);
+    }
+
   int nunits = nunits_for_known_piecewise_op (type);
   vec_alloc (v, nunits);
   for (i = 0; i < nunits; i++)
@@ -956,6 +1010,14 @@ expand_vector_condition (gimple_stmt_iterator *gsi)
 	  tree aa2 = tree_vec_extract (gsi, comp_inner_type, a2,
 				       comp_width, comp_index);
 	  aa = fold_build2 (TREE_CODE (a), cond_type, aa1, aa2);
+	}
+      else if (a_is_scalar_bitmask)
+	{
+	  wide_int w = wi::set_bit_in_zero (i, TYPE_PRECISION (TREE_TYPE (a)));
+	  result = gimplify_build2 (gsi, BIT_AND_EXPR, TREE_TYPE (a),
+				    a, wide_int_to_tree (TREE_TYPE (a), w));
+	  aa = fold_build2 (NE_EXPR, boolean_type_node, result,
+			    build_zero_cst (TREE_TYPE (a)));
 	}
       else
 	aa = tree_vec_extract (gsi, cond_type, a, width, index);
@@ -1361,6 +1423,32 @@ lower_vec_perm (gimple_stmt_iterator *gsi)
 	      ok_p = i == elements;
 	    }
 	  if (ok_p)
+	    {
+	      gimple_assign_set_rhs3 (stmt, mask);
+	      update_stmt (stmt);
+	      return;
+	    }
+	}
+      /* And similarly vec_shl pattern.  */
+      if (optab_handler (vec_shl_optab, TYPE_MODE (vect_type))
+	  != CODE_FOR_nothing
+	  && TREE_CODE (vec0) == VECTOR_CST
+	  && initializer_zerop (vec0))
+	{
+	  unsigned int first = 0;
+	  for (i = 0; i < elements; ++i)
+	    if (known_eq (poly_uint64 (indices[i]), elements))
+	      {
+		if (i == 0 || first)
+		  break;
+		first = i;
+	      }
+	    else if (first
+		     ? maybe_ne (poly_uint64 (indices[i]),
+					      elements + i - first)
+		     : maybe_ge (poly_uint64 (indices[i]), elements))
+	      break;
+	  if (i == elements)
 	    {
 	      gimple_assign_set_rhs3 (stmt, mask);
 	      update_stmt (stmt);
@@ -1915,7 +2003,11 @@ expand_vector_operations_1 (gimple_stmt_iterator *gsi)
   /* A scalar operation pretending to be a vector one.  */
   if (VECTOR_BOOLEAN_TYPE_P (type)
       && !VECTOR_MODE_P (TYPE_MODE (type))
-      && TYPE_MODE (type) != BLKmode)
+      && TYPE_MODE (type) != BLKmode
+      && (TREE_CODE_CLASS (gimple_assign_rhs_code (stmt)) != tcc_comparison
+	  || (VECTOR_BOOLEAN_TYPE_P (TREE_TYPE (rhs1))
+	      && !VECTOR_MODE_P (TYPE_MODE (TREE_TYPE (rhs1)))
+	      && TYPE_MODE (TREE_TYPE (rhs1)) != BLKmode)))
     return;
 
   /* If the vector operation is operating on all same vector elements
@@ -1955,7 +2047,6 @@ expand_vector_operations_1 (gimple_stmt_iterator *gsi)
       || code == VEC_UNPACK_FLOAT_LO_EXPR
       || code == VEC_PACK_FLOAT_EXPR)
     {
-      type = TREE_TYPE (rhs1);
       /* We do not know how to scalarize those.  */
       return;
     }
@@ -1978,7 +2069,6 @@ expand_vector_operations_1 (gimple_stmt_iterator *gsi)
       || code == VEC_WIDEN_LSHIFT_HI_EXPR
       || code == VEC_WIDEN_LSHIFT_LO_EXPR)
     {
-      type = TREE_TYPE (rhs1);
       /* We do not know how to scalarize those.  */
       return;
     }

@@ -29,14 +29,11 @@
  *                                                                          *
  ****************************************************************************/
 
-#ifdef __alpha_vxworks
-#include "vxWorks.h"
-#endif
-
 #ifdef IN_RTS
 #define POSIX
-#include "tconfig.h"
-#include "tsystem.h"
+#include "runtime.h"
+#include <unistd.h>
+
 #else
 #include "config.h"
 #include "system.h"
@@ -265,7 +262,7 @@ __gnat_expect_poll (int *fd,
 	  if ((status & 1) != 1)
 	    {
               ready = -1;
-              dead_process = i + 1;
+              *dead_process = i + 1;
               return ready;
 	    }
 	}
@@ -450,7 +447,7 @@ __gnat_expect_poll (int *fd,
 	            if (ei.request == TIOCCLOSE)
 		      {
 		        ioctl (fd[i], TIOCREQSET, &ei);
-                        dead_process = i + 1;
+                        *dead_process = i + 1;
 		        return -1;
 		      }
 

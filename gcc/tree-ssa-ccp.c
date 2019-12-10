@@ -136,7 +136,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-cfg.h"
 #include "tree-ssa-propagate.h"
 #include "dbgcnt.h"
-#include "params.h"
 #include "builtins.h"
 #include "cfgloop.h"
 #include "stor-layout.h"
@@ -157,7 +156,8 @@ typedef enum
   VARYING
 } ccp_lattice_t;
 
-struct ccp_prop_value_t {
+class ccp_prop_value_t {
+public:
     /* Lattice value.  */
     ccp_lattice_t lattice_val;
 
@@ -614,9 +614,17 @@ get_value_for_expr (tree expr, bool for_bits_p)
 	  val.mask = -1;
 	}
       if (for_bits_p
-	  && val.lattice_val == CONSTANT
-	  && TREE_CODE (val.value) == ADDR_EXPR)
-	val = get_value_from_alignment (val.value);
+	  && val.lattice_val == CONSTANT)
+	{
+	  if (TREE_CODE (val.value) == ADDR_EXPR)
+	    val = get_value_from_alignment (val.value);
+	  else if (TREE_CODE (val.value) != INTEGER_CST)
+	    {
+	      val.lattice_val = VARYING;
+	      val.value = NULL_TREE;
+	      val.mask = -1;
+	    }
+	}
       /* Fall back to a copy value.  */
       if (!for_bits_p
 	  && val.lattice_val == VARYING
@@ -2084,9 +2092,7 @@ insert_clobber_before_stack_restore (tree saved_val, tree var,
   FOR_EACH_IMM_USE_STMT (stmt, iter, saved_val)
     if (gimple_call_builtin_p (stmt, BUILT_IN_STACK_RESTORE))
       {
-	clobber = build_constructor (TREE_TYPE (var),
-				     NULL);
-	TREE_THIS_VOLATILE (clobber) = 1;
+	clobber = build_clobber (TREE_TYPE (var));
 	clobber_stmt = gimple_build_assign (var, clobber);
 
 	i = gsi_for_stmt (stmt);
@@ -2108,8 +2114,6 @@ insert_clobber_before_stack_restore (tree saved_val, tree var,
     else if (gimple_assign_ssa_name_copy_p (stmt))
       insert_clobber_before_stack_restore (gimple_assign_lhs (stmt), var,
 					   visited);
-    else
-      gcc_assert (is_gimple_debug (stmt));
 }
 
 /* Advance the iterator to the previous non-debug gimple statement in the same
@@ -2134,9 +2138,9 @@ gsi_prev_dom_bb_nondebug (gimple_stmt_iterator *i)
 /* Find a BUILT_IN_STACK_SAVE dominating gsi_stmt (I), and insert
    a clobber of VAR before each matching BUILT_IN_STACK_RESTORE.
 
-   It is possible that BUILT_IN_STACK_SAVE cannot be find in a dominator when a
-   previous pass (such as DOM) duplicated it along multiple paths to a BB.  In
-   that case the function gives up without inserting the clobbers.  */
+   It is possible that BUILT_IN_STACK_SAVE cannot be found in a dominator when
+   a previous pass (such as DOM) duplicated it along multiple paths to a BB.
+   In that case the function gives up without inserting the clobbers.  */
 
 static void
 insert_clobbers_for_var (gimple_stmt_iterator i, tree var)
@@ -2188,7 +2192,7 @@ fold_builtin_alloca_with_align (gimple *stmt)
   size = tree_to_uhwi (arg);
 
   /* Heuristic: don't fold large allocas.  */
-  threshold = (unsigned HOST_WIDE_INT)PARAM_VALUE (PARAM_LARGE_STACK_FRAME);
+  threshold = (unsigned HOST_WIDE_INT)param_large_stack_frame;
   /* In case the alloca is located at function entry, it has the same lifetime
      as a declared array, so we allow a larger size.  */
   block = gimple_block (stmt);
@@ -2215,7 +2219,25 @@ fold_builtin_alloca_with_align (gimple *stmt)
   elem_type = build_nonstandard_integer_type (BITS_PER_UNIT, 1);
   n_elem = size * 8 / BITS_PER_UNIT;
   array_type = build_array_type_nelts (elem_type, n_elem);
-  var = create_tmp_var (array_type);
+
+  if (tree ssa_name = SSA_NAME_IDENTIFIER (lhs))
+    {
+      /* Give the temporary a name derived from the name of the VLA
+	 declaration so it can be referenced in diagnostics.  */
+      const char *name = IDENTIFIER_POINTER (ssa_name);
+      var = create_tmp_var (array_type, name);
+    }
+  else
+    var = create_tmp_var (array_type);
+
+  if (gimple *lhsdef = SSA_NAME_DEF_STMT (lhs))
+    {
+      /* Set the temporary's location to that of the VLA declaration
+	 so it can be pointed to in diagnostics.  */
+      location_t loc = gimple_location (lhsdef);
+      DECL_SOURCE_LOCATION (var) = loc;
+    }
+
   SET_DECL_ALIGN (var, TREE_INT_CST_LOW (gimple_call_arg (stmt, 1)));
   if (uid != 0)
     SET_DECL_PT_UID (var, uid);
@@ -2313,6 +2335,32 @@ ccp_folder::fold_stmt (gimple_stmt_iterator *gsi)
 		return true;
 	      }
           }
+
+	/* If there's no extra info from an assume_aligned call,
+	   drop it so it doesn't act as otherwise useless dataflow
+	   barrier.  */
+	if (gimple_call_builtin_p (stmt, BUILT_IN_ASSUME_ALIGNED))
+	  {
+	    tree ptr = gimple_call_arg (stmt, 0);
+	    ccp_prop_value_t ptrval = get_value_for_expr (ptr, true);
+	    if (ptrval.lattice_val == CONSTANT
+		&& TREE_CODE (ptrval.value) == INTEGER_CST
+		&& ptrval.mask != 0)
+	      {
+		ccp_prop_value_t val
+		  = bit_value_assume_aligned (stmt, NULL_TREE, ptrval, false);
+		unsigned int ptralign = least_bit_hwi (ptrval.mask.to_uhwi ());
+		unsigned int align = least_bit_hwi (val.mask.to_uhwi ());
+		if (ptralign == align
+		    && ((TREE_INT_CST_LOW (ptrval.value) & (align - 1))
+			== (TREE_INT_CST_LOW (val.value) & (align - 1))))
+		  {
+		    bool res = update_call_from_tree (gsi, ptr);
+		    gcc_assert (res);
+		    return true;
+		  }
+	      }
+	  }
 
 	/* Propagate into the call arguments.  Compared to replace_uses_in
 	   this can use the argument slot types for type verification
@@ -2597,7 +2645,7 @@ optimize_stack_restore (gimple_stmt_iterator i)
 	  || ALLOCA_FUNCTION_CODE_P (DECL_FUNCTION_CODE (callee)))
 	return NULL_TREE;
 
-      if (DECL_FUNCTION_CODE (callee) == BUILT_IN_STACK_RESTORE)
+      if (fndecl_built_in_p (callee, BUILT_IN_STACK_RESTORE))
 	goto second_stack_restore;
     }
 
@@ -2655,9 +2703,6 @@ optimize_stdarg_builtin (gimple *call)
   tree callee, lhs, rhs, cfun_va_list;
   bool va_list_simple_ptr;
   location_t loc = gimple_location (call);
-
-  if (gimple_code (call) != GIMPLE_CALL)
-    return NULL_TREE;
 
   callee = gimple_call_fndecl (call);
 
@@ -2961,12 +3006,10 @@ optimize_atomic_bit_test_and (gimple_stmt_iterator *gsip,
 				    bit, flag);
   gimple_call_set_lhs (g, new_lhs);
   gimple_set_location (g, gimple_location (call));
-  gimple_set_vuse (g, gimple_vuse (call));
-  gimple_set_vdef (g, gimple_vdef (call));
+  gimple_move_vops (g, call);
   bool throws = stmt_can_throw_internal (cfun, call);
   gimple_call_set_nothrow (as_a <gcall *> (g),
 			   gimple_call_nothrow_p (as_a <gcall *> (call)));
-  SSA_NAME_DEF_STMT (gimple_vdef (call)) = g;
   gimple_stmt_iterator gsi = *gsip;
   gsi_insert_after (&gsi, g, GSI_NEW_STMT);
   edge e = NULL;

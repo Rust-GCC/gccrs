@@ -63,9 +63,6 @@ int flag_complex_method = 1
 Variable
 bool flag_warn_unused_result = false
 
-Variable
-int *param_values
-
 ; Nonzero if we should write GIMPLE bytecode for link-time optimization.
 Variable
 int flag_generate_lto
@@ -436,13 +433,6 @@ Common Driver Alias(-target-help)
 
 fversion
 Common Driver Alias(-version)
-
--param
-Common Separate
---param <param>=<value>	Set parameter <param> to value.  See below for a complete list of parameters.
-
--param=
-Common Joined Alias(-param)
 
 -sysroot
 Driver Separate Alias(-sysroot=)
@@ -951,6 +941,8 @@ Driver Undocumented
 ; 13: Fixes the accidental change in 12 to the calling convention for classes
 ;     with deleted copy constructor and trivial move constructor.
 ;     Default in G++ 8.2.
+; 14: Corrects the mangling of nullptr expression.
+;     Default in G++ 10.
 ;
 ; Additional positive integers will be assigned as new versions of
 ; the ABI become the default version of the ABI.
@@ -992,6 +984,10 @@ Align the start of loops.
 
 falign-loops=
 Common RejectNegative Joined Var(str_align_loops) Optimization
+
+fallow-store-data-races
+Common Report Var(flag_store_data_races) Optimization
+Allow the compiler to introduce new data races on stores.
 
 fargument-alias
 Common Ignore
@@ -1076,16 +1072,24 @@ Common Report Var(flag_branch_probabilities) Optimization
 Use profiling information for branch probabilities.
 
 fbranch-target-load-optimize
-Common Report Var(flag_branch_target_load_optimize) Optimization
-Perform branch target load optimization before prologue / epilogue threading.
+Common Ignore
+Does nothing.  Preserved for backward compatibility.
 
 fbranch-target-load-optimize2
-Common Report Var(flag_branch_target_load_optimize2) Optimization
-Perform branch target load optimization after prologue / epilogue threading.
+Common Ignore
+Does nothing.  Preserved for backward compatibility.
 
 fbtr-bb-exclusive
-Common Report Var(flag_btr_bb_exclusive) Optimization
-Restrict target load migration not to re-use registers in any basic block.
+Common Ignore
+Does nothing.  Preserved for backward compatibility.
+
+fcallgraph-info
+Common Report RejectNegative Var(flag_callgraph_info) Init(NO_CALLGRAPH_INFO);
+Output callgraph information on a per-file basis.
+
+fcallgraph-info=
+Common Report RejectNegative Joined
+Output callgraph information on a per-file basis with decorations.
 
 fcall-saved-
 Common Joined RejectNegative Var(common_deferred_options) Defer
@@ -1127,8 +1131,8 @@ Common Report Var(flag_combine_stack_adjustments) Optimization
 Looks for opportunities to reduce stack adjustments and stack references.
 
 fcommon
-Common Report Var(flag_no_common,0)
-Do not put uninitialized globals in the common section.
+Common Report Var(flag_no_common,0) Init(1)
+Put uninitialized globals in the common section.
 
 fcompare-debug
 Driver
@@ -1184,7 +1188,7 @@ List all available debugging counters with their limits and counts.
 
 fdbg-cnt=
 Common RejectNegative Joined Var(common_deferred_options) Defer
--fdbg-cnt=<counter>[:<lower_limit>]:<upper_limit>[,<counter>:...]	Set the debug counter limit.
+-fdbg-cnt=<counter>[:<lower_limit1>-]<upper_limit1>[:<lower_limit2>-<upper_limit2>:...][,<counter>:...]	Set the debug counter limit.
 
 fdebug-prefix-map=
 Common Joined RejectNegative Var(common_deferred_options) Defer
@@ -1280,6 +1284,26 @@ Enum(diagnostic_color_rule) String(always) Value(DIAGNOSTICS_COLOR_YES)
 
 EnumValue
 Enum(diagnostic_color_rule) String(auto) Value(DIAGNOSTICS_COLOR_AUTO)
+
+fdiagnostics-urls=
+Driver Common Joined RejectNegative Var(flag_diagnostics_show_urls) Enum(diagnostic_url_rule) Init(DIAGNOSTICS_URL_AUTO)
+-fdiagnostics-urls=[never|always|auto]	Embed URLs in diagnostics.
+
+; Required for these enum values.
+SourceInclude
+diagnostic-url.h
+
+Enum
+Name(diagnostic_url_rule) Type(int)
+
+EnumValue
+Enum(diagnostic_url_rule) String(never) Value(DIAGNOSTICS_URL_NO)
+
+EnumValue
+Enum(diagnostic_url_rule) String(always) Value(DIAGNOSTICS_URL_YES)
+
+EnumValue
+Enum(diagnostic_url_rule) String(auto) Value(DIAGNOSTICS_URL_AUTO)
 
 fdiagnostics-format=
 Common Joined RejectNegative Enum(diagnostics_output_format)
@@ -1379,7 +1403,7 @@ Common Report Var(flag_ipa_sra) Init(0) Optimization
 Perform interprocedural reduction of aggregates.
 
 feliminate-unused-debug-symbols
-Common Report Var(flag_debug_only_used_symbols)
+Common Report Var(flag_debug_only_used_symbols) Init(1)
 Perform unused symbol elimination in debug info.
 
 feliminate-unused-debug-types
@@ -1399,7 +1423,7 @@ Common Report Var(flag_expensive_optimizations) Optimization
 Perform a number of minor, expensive optimizations.
 
 fexcess-precision=
-Common Joined RejectNegative Enum(excess_precision) Var(flag_excess_precision_cmdline) Init(EXCESS_PRECISION_DEFAULT) SetByCombined
+Common Joined RejectNegative Enum(excess_precision) Var(flag_excess_precision) Init(EXCESS_PRECISION_DEFAULT) Optimization SetByCombined
 -fexcess-precision=[fast|standard]	Specify handling of excess floating-point precision.
 
 Enum
@@ -1436,6 +1460,10 @@ Output lto objects containing both the intermediate language and binary output.
 ffinite-math-only
 Common Report Var(flag_finite_math_only) Optimization SetByCombined
 Assume no NaNs or infinities are generated.
+
+ffinite-loops
+Common Report Var(flag_finite_loops) Optimization
+Assume that loops with an exit will terminate and not loop indefinitely.
 
 ffixed-
 Common Joined RejectNegative Var(common_deferred_options) Defer
@@ -1884,12 +1912,12 @@ Specify the algorithm to partition symbols and vars at linktime.
 
 ; The initial value of -1 comes from Z_DEFAULT_COMPRESSION in zlib.h.
 flto-compression-level=
-Common Joined RejectNegative UInteger Var(flag_lto_compression_level) Init(-1) IntegerRange(0, 9)
--flto-compression-level=<number>	Use zlib compression level <number> for IL.
+Common Joined RejectNegative UInteger Var(flag_lto_compression_level) Init(-1) IntegerRange(0, 19)
+-flto-compression-level=<number>	Use zlib/zstd compression level <number> for IL.
 
 flto-odr-type-merging
-Common Report Var(flag_lto_odr_type_mering) Init(1)
-Merge C++ types using One Definition Rule.
+Common Ignore
+Does nothing.  Preserved for backward compatibility.
 
 flto-report
 Common Report Var(flag_lto_report) Init(0)
@@ -1951,7 +1979,7 @@ Common Var(flag_dce) Init(1) Optimization
 Use the RTL dead code elimination pass.
 
 fdse
-Common Var(flag_dse) Init(1) Optimization
+Common Var(flag_dse) Init(0) Optimization
 Use the RTL dead store elimination pass.
 
 freschedule-modulo-scheduled-loops
@@ -2092,6 +2120,10 @@ Common Joined RejectNegative Var(profile_data_prefix)
 Set the top-level directory for storing the profile data.
 The default is 'pwd'.
 
+fprofile-note=
+Common Joined RejectNegative Var(profile_note_location)
+Select the name for storing the profile note file.
+
 fprofile-correction
 Common Report Var(flag_profile_correction)
 Enable correction of flow inconsistent profile data input.
@@ -2202,6 +2234,10 @@ Enum(live_patching_level) String(inline-only-static) Value(LIVE_PATCHING_INLINE_
 
 EnumValue
 Enum(live_patching_level) String(inline-clone) Value(LIVE_PATCHING_INLINE_CLONE)
+
+fallocation-dce
+Common Report Var(flag_allocation_dce) Init(1) Optimization
+Tell DCE to remove unused C++ allocations.
 
 flive-range-shrinkage
 Common Report Var(flag_live_range_shrinkage) Init(0) Optimization
@@ -2421,6 +2457,10 @@ Generate discontiguous stack frames.
 fsplit-wide-types
 Common Report Var(flag_split_wide_types) Optimization
 Split wide types into independent registers.
+
+fsplit-wide-types-early
+Common Report Var(flag_split_wide_types_early) Optimization
+Split wide types into independent registers earlier.
 
 fssa-backprop
 Common Report Var(flag_ssa_backprop) Init(1) Optimization
@@ -2976,19 +3016,19 @@ Common Driver Var(dwarf2out_as_locview_support) Init(2)
 Assume assembler support for view in (DWARF2+) .loc directives.
 
 gcoff
-Common Driver Deprecated
+Common Driver WarnRemoved
 Does nothing.  Preserved for backward compatibility.
 
 gcoff1
-Common Driver Deprecated
+Common Driver WarnRemoved
 Does nothing.  Preserved for backward compatibility.
 
 gcoff2
-Common Driver Deprecated
+Common Driver WarnRemoved
 Does nothing.  Preserved for backward compatibility.
 
 gcoff3
-Common Driver Deprecated
+Common Driver WarnRemoved
 Does nothing.  Preserved for backward compatibility.
 
 gcolumn-info

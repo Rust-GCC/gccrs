@@ -100,7 +100,7 @@ static bool
 callee_saved_regno_p (int regno)
 {
   /* Check call-saved registers.  */
-  if (!call_used_regs[regno] && df_regs_ever_live_p (regno))
+  if (!call_used_or_fixed_reg_p (regno) && df_regs_ever_live_p (regno))
     return true;
 
   switch (regno)
@@ -928,23 +928,16 @@ or1k_legitimate_constant_p (machine_mode, rtx x)
 #define TARGET_LEGITIMATE_CONSTANT_P or1k_legitimate_constant_p
 
 /* Worker for TARGET_PASS_BY_REFERENCE.
-   Returns true if an argument of TYPE in MODE should be passed by reference
-   as required by the OpenRISC ABI.  On OpenRISC structures, unions and
+   Returns true if an argument ARG should be passed by reference as
+   required by the OpenRISC ABI.  On OpenRISC structures, unions and
    arguments larger than 64-bits are passed by reference.  */
 
 static bool
-or1k_pass_by_reference (cumulative_args_t, machine_mode mode,
-			const_tree type, bool)
+or1k_pass_by_reference (cumulative_args_t, const function_arg_info &arg)
 {
-  HOST_WIDE_INT size;
-  if (type)
-    {
-      if (AGGREGATE_TYPE_P (type))
-	return true;
-      size = int_size_in_bytes (type);
-    }
-  else
-    size = GET_MODE_SIZE (mode);
+  if (arg.aggregate_type_p ())
+    return true;
+  HOST_WIDE_INT size = arg.type_size_in_bytes ();
   return size < 0 || size > 8;
 }
 
@@ -1004,20 +997,19 @@ or1k_strict_argument_naming (cumulative_args_t /* ca */)
    maybe be passed in registers r3 to r8.  */
 
 static rtx
-or1k_function_arg (cumulative_args_t cum_v, machine_mode mode,
-		   const_tree /* type */, bool named)
+or1k_function_arg (cumulative_args_t cum_v, const function_arg_info &arg)
 {
-  /* VOIDmode is passed as a special flag for "last argument".  */
-  if (mode == VOIDmode)
+  /* Handle the special marker for the end of the arguments.  */
+  if (arg.end_marker_p ())
     return NULL_RTX;
 
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
-  int nreg = CEIL (GET_MODE_SIZE (mode), UNITS_PER_WORD);
+  int nreg = CEIL (GET_MODE_SIZE (arg.mode), UNITS_PER_WORD);
 
   /* Note that all large arguments are passed by reference.  */
   gcc_assert (nreg <= 2);
-  if (named && *cum + nreg <= 6)
-    return gen_rtx_REG (mode, *cum + 3);
+  if (arg.named && *cum + nreg <= 6)
+    return gen_rtx_REG (arg.mode, *cum + 3);
   else
     return NULL_RTX;
 }
@@ -1027,15 +1019,15 @@ or1k_function_arg (cumulative_args_t cum_v, machine_mode mode,
    argument.  Note, this is not called for arguments passed on the stack.  */
 
 static void
-or1k_function_arg_advance (cumulative_args_t cum_v, machine_mode mode,
-			   const_tree /* type */, bool named)
+or1k_function_arg_advance (cumulative_args_t cum_v,
+			   const function_arg_info &arg)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
-  int nreg = CEIL (GET_MODE_SIZE (mode), UNITS_PER_WORD);
+  int nreg = CEIL (GET_MODE_SIZE (arg.mode), UNITS_PER_WORD);
 
   /* Note that all large arguments are passed by reference.  */
   gcc_assert (nreg <= 2);
-  if (named)
+  if (arg.named)
     *cum += nreg;
 }
 
@@ -1224,6 +1216,19 @@ or1k_print_operand (FILE *file, rtx x, int code)
 	fprintf (file, "%s", reg_names[REGNO (operand) + 1]);
       else
 	output_operand_lossage ("invalid %%H value");
+      break;
+
+    case 'd':
+      if (REG_P (x))
+	{
+	  if (GET_MODE (x) == DFmode || GET_MODE (x) == DImode)
+	    fprintf (file, "%s,%s", reg_names[REGNO (operand)],
+				    reg_names[REGNO (operand) + 1]);
+	  else
+	    fprintf (file, "%s", reg_names[REGNO (operand)]);
+	}
+      else
+	output_operand_lossage ("invalid %%d value");
       break;
 
     case 'h':
@@ -1435,21 +1440,44 @@ void
 or1k_expand_compare (rtx *operands)
 {
   rtx sr_f = gen_rtx_REG (BImode, SR_F_REGNUM);
+  rtx righthand_op = XEXP (operands[0], 1);
+  rtx_code cmp_code = GET_CODE (operands[0]);
+  bool flag_check_ne = true;
 
-  /* The RTL may receive an immediate in argument 1 of the compare, this is not
-     supported unless we have l.sf*i instructions, force them into registers.  */
-  if (!TARGET_SFIMM)
-    XEXP (operands[0], 1) = force_reg (SImode, XEXP (operands[0], 1));
+  /* Integer RTL may receive an immediate in argument 1 of the compare, this is
+     not supported unless we have l.sf*i instructions, force them into
+     registers.  */
+  if (!TARGET_SFIMM && CONST_INT_P (righthand_op))
+    XEXP (operands[0], 1) = force_reg (SImode, righthand_op);
+
+  /* Normalize comparison operators to ones OpenRISC support.  */
+  switch (cmp_code)
+    {
+      case LTGT:
+	cmp_code = UNEQ;
+	flag_check_ne = false;
+	break;
+
+      case ORDERED:
+	cmp_code = UNORDERED;
+	flag_check_ne = false;
+	break;
+
+      default:
+	break;
+    }
 
   /* Emit the given comparison into the Flag bit.  */
   PUT_MODE (operands[0], BImode);
+  PUT_CODE (operands[0], cmp_code);
   emit_insn (gen_rtx_SET (sr_f, operands[0]));
 
   /* Adjust the operands for use in the caller.  */
-  operands[0] = gen_rtx_NE (VOIDmode, sr_f, const0_rtx);
+  operands[0] = flag_check_ne ? gen_rtx_NE (VOIDmode, sr_f, const0_rtx)
+			      : gen_rtx_EQ (VOIDmode, sr_f, const0_rtx);
   operands[1] = sr_f;
   operands[2] = const0_rtx;
-}
+ }
 
 /* Expand the patterns "call", "sibcall", "call_value" and "sibcall_value".
    Expands a function call where argument RETVAL is an optional RTX providing

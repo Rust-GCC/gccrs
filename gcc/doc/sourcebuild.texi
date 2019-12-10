@@ -569,8 +569,8 @@ and the online manuals should be linked to from
 @file{onlinedocs/index.html}.
 @item
 Any old releases or CVS repositories of the front end, before its
-inclusion in GCC, should be made available on the GCC FTP site
-@uref{ftp://gcc.gnu.org/pub/gcc/old-releases/}.
+inclusion in GCC, should be made available on the GCC web site at
+@uref{https://gcc.gnu.org/pub/gcc/old-releases/}.
 @item
 The release and snapshot script @file{maintainer-scripts/gcc_release}
 should be updated to generate appropriate tarballs for this front end.
@@ -1360,6 +1360,9 @@ Target has @code{int} that is at 32 bits or longer.
 @item int16
 Target has @code{int} that is 16 bits or shorter.
 
+@item longlong64
+Target has 64-bit @code{long long}.
+
 @item long_neq_int
 Target has @code{int} and @code{long} with different sizes.
 
@@ -1442,6 +1445,14 @@ vector alignment.
 Target supports both signed and unsigned averaging operations on vectors
 of bytes.
 
+@item vect_mulhrs_hi
+Target supports both signed and unsigned multiply-high-with-round-and-scale
+operations on vectors of half-words.
+
+@item vect_sdiv_pow2_si
+Target supports signed division by constant power-of-2 operations
+on vectors of 4-byte integers.
+
 @item vect_condition
 Target supports vector conditional operations.
 
@@ -1479,6 +1490,10 @@ Target supports hardware vectors of @code{long}.
 @item vect_long_long
 Target supports hardware vectors of @code{long long}.
 
+@item vect_check_ptrs
+Target supports the @code{check_raw_ptrs} and @code{check_war_ptrs}
+optabs on vectors.
+
 @item vect_fully_masked
 Target supports fully-masked (also known as fully-predicated) loops,
 so that vector loops can handle partial as well as full vectors.
@@ -1509,6 +1524,10 @@ Target does not support a vector add instruction on @code{int}.
 
 @item vect_no_bitwise
 Target does not support vector bitwise instructions.
+
+@item vect_char_add
+Target supports addition of @code{char} vectors for at least one
+vector length.
 
 @item vect_char_mult
 Target supports @code{vector char} multiplication.
@@ -1896,6 +1915,19 @@ in @ref{arm_coproc2_ok} in addition the following: @code{MCRR} and @code{MRRC}.
 @item arm_coproc4_ok
 ARM target supports all the coprocessor instructions also listed as supported
 in @ref{arm_coproc3_ok} in addition the following: @code{MCRR2} and @code{MRRC2}.
+
+@item arm_simd32_ok
+@anchor{arm_simd32_ok}
+ARM Target supports options suitable for accessing the SIMD32 intrinsics from
+@code{arm_acle.h}.
+Some multilibs may be incompatible with these options.
+
+@item arm_qbit_ok
+@anchor{arm_qbit_ok}
+ARM Target supports options suitable for accessing the Q-bit manipulation
+intrinsics from @code{arm_acle.h}.
+Some multilibs may be incompatible with these options.
+
 @end table
 
 @subsubsection AArch64-specific attributes
@@ -2011,9 +2043,6 @@ PowerPC target supports PowerPC 405.
 @item ppc_recip_hw
 PowerPC target supports executing reciprocal estimate instructions.
 
-@item spu_auto_overlay
-SPU target has toolchain that supports automatic overlay generation.
-
 @item vmx_hw
 PowerPC target supports executing AltiVec instructions.
 
@@ -2045,6 +2074,9 @@ Target supports compiling @code{avx512f} instructions.
 
 @item avx512f_runtime
 Target supports the execution of @code{avx512f} instructions.
+
+@item avx512vp2intersect
+Target supports the execution of @code{avx512vp2intersect} instructions.
 
 @item cell_hw
 Test system can execute AltiVec and Cell PPU instructions.
@@ -2299,6 +2331,9 @@ Target uses natural alignment (aligned to type size) for types of
 Target uses natural alignment (aligned to type size) for types of
 64 bits or less.
 
+@item noinit
+Target supports the @code{noinit} variable attribute.
+
 @item nonpic
 Target does not generate PIC by default.
 
@@ -2371,6 +2406,10 @@ Target supports @code{wchar_t} that is compatible with @code{char32_t}.
 
 @item comdat_group
 Target uses comdat groups.
+
+@item indirect_calls
+Target supports indirect calls, i.e. calls where the target is not
+constant.
 @end table
 
 @subsubsection Local to tests in @code{gcc.target/i386}
@@ -2415,13 +2454,6 @@ Target supports compiling @code{vpclmul} instructions.
 
 @item xop
 Target supports compiling @code{xop} instructions.
-@end table
-
-@subsubsection Local to tests in @code{gcc.target/spu/ea}
-
-@table @code
-@item ealib
-Target @code{__ea} library functions are available.
 @end table
 
 @subsubsection Local to tests in @code{gcc.test-framework}
@@ -2512,9 +2544,6 @@ instructions, if this is supported by the target; see the
 @item bind_pic_locally
 Add the target-specific flags needed to enable functions to bind
 locally when using pic/PIC passes in the testsuite.
-
-@item c99_runtime
-Add the target-specific flags needed to access the C99 runtime.
 
 @item float@var{n}
 Add the target-specific flags needed to use the @code{_Float@var{n}} type.
@@ -2666,6 +2695,91 @@ assembly output.
 @item scan-not-hidden @var{symbol} [@{ target/xfail @var{selector} @}]
 Passes if @var{symbol} is not defined as a hidden symbol in the test's
 assembly output.
+
+@item check-function-bodies @var{prefix} @var{terminator} [@var{option}]
+Looks through the source file for comments that give the expected assembly
+output for selected functions.  Each line of expected output starts with the
+prefix string @var{prefix} and the expected output for a function as a whole
+is followed by a line that starts with the string @var{terminator}.
+Specifying an empty terminator is equivalent to specifying @samp{"*/"}.
+
+If @var{option} is specified, the test only applies to command lines
+that contain @var{option}.  This can be useful if a source file is compiled
+both with and without optimization, since it is rarely useful to check the
+assembly output for unoptimized code.
+
+The first line of the expected output for a function @var{fn} has the form:
+
+@smallexample
+@var{prefix} @var{fn}:  [@{ target/xfail @var{selector} @}]
+@end smallexample
+
+Subsequent lines of the expected output also start with @var{prefix}.
+In both cases, whitespace after @var{prefix} is not significant.
+
+The test discards assembly directives such as @code{.cfi_startproc}
+and local label definitions such as @code{.LFB0} from the compiler's
+assembly output.  It then matches the result against the expected
+output for a function as a single regular expression.  This means that
+later lines can use backslashes to refer back to @samp{(@dots{})}
+captures on earlier lines.  For example:
+
+@smallexample
+/* @{ dg-final @{ check-function-bodies "**" "" "-DCHECK_ASM" @} @} */
+@dots{}
+/*
+** add_w0_s8_m:
+**	mov	(z[0-9]+\.b), w0
+**	add	z0\.b, p0/m, z0\.b, \1
+**	ret
+*/
+svint8_t add_w0_s8_m (@dots{}) @{ @dots{} @}
+@dots{}
+/*
+** add_b0_s8_m:
+**	mov	(z[0-9]+\.b), b0
+**	add	z1\.b, p0/m, z1\.b, \1
+**	ret
+*/
+svint8_t add_b0_s8_m (@dots{}) @{ @dots{} @}
+@end smallexample
+
+checks whether the implementations of @code{add_w0_s8_m} and
+@code{add_b0_s8_m} match the regular expressions given.  The test only
+runs when @samp{-DCHECK_ASM} is passed on the command line.
+
+It is possible to create non-capturing multi-line regular expression
+groups of the form @samp{(@var{a}|@var{b}|@dots{})} by putting the
+@samp{(}, @samp{|} and @samp{)} on separate lines (each still using
+@var{prefix}).  For example:
+
+@smallexample
+/*
+** cmple_f16_tied:
+** (
+**	fcmge	p0\.h, p0/z, z1\.h, z0\.h
+** |
+**	fcmle	p0\.h, p0/z, z0\.h, z1\.h
+** )
+**	ret
+*/
+svbool_t cmple_f16_tied (@dots{}) @{ @dots{} @}
+@end smallexample
+
+checks whether @code{cmple_f16_tied} is implemented by the
+@code{fcmge} instruction followed by @code{ret} or by the
+@code{fcmle} instruction followed by @code{ret}.  The test is
+still a single regular rexpression.
+
+A line containing just:
+
+@smallexample
+@var{prefix} ...
+@end smallexample
+
+stands for zero or more unmatched lines; the whitespace after
+@var{prefix} is again not significant.
+
 @end table
 
 @subsubsection Scan optimization dump files
@@ -2782,9 +2896,6 @@ int main() @{ return 0; @}
 
 @item cleanup-profile-file
 Removes profiling files generated for this test.
-
-@item cleanup-repo-files
-Removes files generated for this test for @option{-frepo}.
 
 @end table
 

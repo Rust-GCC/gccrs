@@ -41,6 +41,7 @@
 #include "langhooks.h"
 #include "case-cfn-macros.h"
 #include "sbitmap.h"
+#include "stringpool.h"
 
 #define SIMD_MAX_BUILTIN_ARGS 7
 
@@ -126,6 +127,20 @@ static enum arm_type_qualifiers
 arm_binop_imm_qualifiers[SIMD_MAX_BUILTIN_ARGS]
   = { qualifier_none, qualifier_none, qualifier_immediate };
 #define BINOP_IMM_QUALIFIERS (arm_binop_imm_qualifiers)
+
+/* T (T, unsigned immediate).  */
+static enum arm_type_qualifiers
+arm_sat_binop_imm_qualifiers[SIMD_MAX_BUILTIN_ARGS]
+  = { qualifier_unsigned, qualifier_none, qualifier_unsigned_immediate };
+#define SAT_BINOP_UNSIGNED_IMM_QUALIFIERS \
+  (arm_sat_binop_imm_qualifiers)
+
+/* unsigned T (T, unsigned immediate).  */
+static enum arm_type_qualifiers
+arm_unsigned_sat_binop_unsigned_imm_qualifiers[SIMD_MAX_BUILTIN_ARGS]
+  = { qualifier_unsigned, qualifier_none, qualifier_unsigned_immediate };
+#define UNSIGNED_SAT_BINOP_UNSIGNED_IMM_QUALIFIERS \
+  (arm_unsigned_sat_binop_unsigned_imm_qualifiers)
 
 /* T (T, lane index).  */
 static enum arm_type_qualifiers
@@ -285,6 +300,18 @@ arm_storestruct_lane_qualifiers[SIMD_MAX_BUILTIN_ARGS]
       qualifier_none, qualifier_struct_load_store_lane_index };
 #define STORE1LANE_QUALIFIERS (arm_storestruct_lane_qualifiers)
 
+   /* int (void).  */
+static enum arm_type_qualifiers
+arm_sat_occurred_qualifiers[SIMD_MAX_BUILTIN_ARGS]
+  = { qualifier_none, qualifier_void };
+#define SAT_OCCURRED_QUALIFIERS (arm_sat_occurred_qualifiers)
+
+   /* void (int).  */
+static enum arm_type_qualifiers
+arm_set_sat_qualifiers[SIMD_MAX_BUILTIN_ARGS]
+  = { qualifier_void, qualifier_none };
+#define SET_SAT_QUALIFIERS (arm_set_sat_qualifiers)
+
 #define v8qi_UP  E_V8QImode
 #define v4hi_UP  E_V4HImode
 #define v4hf_UP  E_V4HFmode
@@ -376,7 +403,7 @@ static arm_builtin_datum neon_builtin_data[] =
 #undef CF
 #undef VAR1
 #define VAR1(T, N, A) \
-  {#N, UP (A), CODE_FOR_##N, 0, T##_QUALIFIERS},
+  {#N, UP (A), CODE_FOR_arm_##N, 0, T##_QUALIFIERS},
 
 static arm_builtin_datum acle_builtin_data[] =
 {
@@ -674,6 +701,7 @@ enum arm_builtins
   ARM_BUILTIN_##N,
 
   ARM_BUILTIN_ACLE_BASE,
+  ARM_BUILTIN_SAT_IMM_CHECK = ARM_BUILTIN_ACLE_BASE,
 
 #include "arm_acle_builtins.def"
 
@@ -1168,6 +1196,16 @@ static void
 arm_init_acle_builtins (void)
 {
   unsigned int i, fcode = ARM_BUILTIN_ACLE_PATTERN_START;
+
+  tree sat_check_fpr = build_function_type_list (void_type_node,
+						 intSI_type_node,
+						 intSI_type_node,
+						 intSI_type_node,
+						 NULL);
+  arm_builtin_decls[ARM_BUILTIN_SAT_IMM_CHECK]
+    = add_builtin_function ("__builtin_sat_imm_check", sat_check_fpr,
+			    ARM_BUILTIN_SAT_IMM_CHECK, BUILT_IN_MD,
+			    NULL, NULL_TREE);
 
   for (i = 0; i < ARRAY_SIZE (acle_builtin_data); i++, fcode++)
     {
@@ -1993,24 +2031,11 @@ arm_expand_ternop_builtin (enum insn_code icode,
   rtx op0 = expand_normal (arg0);
   rtx op1 = expand_normal (arg1);
   rtx op2 = expand_normal (arg2);
-  rtx op3 = NULL_RTX;
 
-  /* The sha1c, sha1p, sha1m crypto builtins require a different vec_select
-     lane operand depending on endianness.  */
-  bool builtin_sha1cpm_p = false;
-
-  if (insn_data[icode].n_operands == 5)
-    {
-      gcc_assert (icode == CODE_FOR_crypto_sha1c
-                  || icode == CODE_FOR_crypto_sha1p
-                  || icode == CODE_FOR_crypto_sha1m);
-      builtin_sha1cpm_p = true;
-    }
   machine_mode tmode = insn_data[icode].operand[0].mode;
   machine_mode mode0 = insn_data[icode].operand[1].mode;
   machine_mode mode1 = insn_data[icode].operand[2].mode;
   machine_mode mode2 = insn_data[icode].operand[3].mode;
-
 
   if (VECTOR_MODE_P (mode0))
     op0 = safe_vector_operand (op0, mode0);
@@ -2034,13 +2059,8 @@ arm_expand_ternop_builtin (enum insn_code icode,
     op1 = copy_to_mode_reg (mode1, op1);
   if (! (*insn_data[icode].operand[3].predicate) (op2, mode2))
     op2 = copy_to_mode_reg (mode2, op2);
-  if (builtin_sha1cpm_p)
-    op3 = GEN_INT (TARGET_BIG_END ? 1 : 0);
 
-  if (builtin_sha1cpm_p)
-    pat = GEN_FCN (icode) (target, op0, op1, op2, op3);
-  else
-    pat = GEN_FCN (icode) (target, op0, op1, op2);
+  pat = GEN_FCN (icode) (target, op0, op1, op2);
   if (! pat)
     return 0;
   emit_insn (pat);
@@ -2096,16 +2116,8 @@ arm_expand_unop_builtin (enum insn_code icode,
   rtx pat;
   tree arg0 = CALL_EXPR_ARG (exp, 0);
   rtx op0 = expand_normal (arg0);
-  rtx op1 = NULL_RTX;
   machine_mode tmode = insn_data[icode].operand[0].mode;
   machine_mode mode0 = insn_data[icode].operand[1].mode;
-  bool builtin_sha1h_p = false;
-
-  if (insn_data[icode].n_operands == 3)
-    {
-      gcc_assert (icode == CODE_FOR_crypto_sha1h);
-      builtin_sha1h_p = true;
-    }
 
   if (! target
       || GET_MODE (target) != tmode
@@ -2121,13 +2133,9 @@ arm_expand_unop_builtin (enum insn_code icode,
       if (! (*insn_data[icode].operand[1].predicate) (op0, mode0))
 	op0 = copy_to_mode_reg (mode0, op0);
     }
-  if (builtin_sha1h_p)
-    op1 = GEN_INT (TARGET_BIG_END ? 1 : 0);
 
-  if (builtin_sha1h_p)
-    pat = GEN_FCN (icode) (target, op0, op1);
-  else
-    pat = GEN_FCN (icode) (target, op0);
+  pat = GEN_FCN (icode) (target, op0);
+
   if (! pat)
     return 0;
   emit_insn (pat);
@@ -2337,6 +2345,9 @@ constant_arg:
   if (have_retval)
     switch (argc)
       {
+      case 0:
+	pat = GEN_FCN (icode) (target);
+	break;
       case 1:
 	pat = GEN_FCN (icode) (target, op[0]);
 	break;
@@ -2495,7 +2506,26 @@ arm_expand_builtin_1 (int fcode, tree exp, rtx target,
 static rtx
 arm_expand_acle_builtin (int fcode, tree exp, rtx target)
 {
+  if (fcode == ARM_BUILTIN_SAT_IMM_CHECK)
+    {
+      /* Check the saturation immediate bounds.  */
 
+      rtx min_sat = expand_normal (CALL_EXPR_ARG (exp, 1));
+      rtx max_sat = expand_normal (CALL_EXPR_ARG (exp, 2));
+      gcc_assert (CONST_INT_P (min_sat));
+      gcc_assert (CONST_INT_P (max_sat));
+      rtx sat_imm = expand_normal (CALL_EXPR_ARG (exp, 0));
+      if (CONST_INT_P (sat_imm))
+	{
+	  if (!IN_RANGE (sat_imm, min_sat, max_sat))
+	    error ("%Ksaturation bit range must be in the range [%wd, %wd]",
+		   exp, UINTVAL (min_sat), UINTVAL (max_sat));
+	}
+      else
+	error ("%Ksaturation bit range must be a constant immediate", exp);
+      /* Don't generate any RTL.  */
+      return const0_rtx;
+    }
   arm_builtin_datum *d
     = &acle_builtin_data[fcode - ARM_BUILTIN_ACLE_PATTERN_START];
 
@@ -2585,7 +2615,7 @@ arm_expand_builtin (tree exp,
   rtx               op1;
   rtx               op2;
   rtx               pat;
-  unsigned int      fcode = DECL_FUNCTION_CODE (fndecl);
+  unsigned int      fcode = DECL_MD_FUNCTION_CODE (fndecl);
   size_t            i;
   machine_mode tmode;
   machine_mode mode0;
@@ -3323,6 +3353,31 @@ arm_atomic_assign_expand_fenv (tree *hold, tree *clear, tree *update)
   *update = build2 (COMPOUND_EXPR, void_type_node,
 		    build2 (COMPOUND_EXPR, void_type_node,
 			    reload_fenv, restore_fnenv), update_call);
+}
+
+/* Implement TARGET_CHECK_BUILTIN_CALL.  Record a read of the Q bit through
+   intrinsics in the machine function.  */
+bool
+arm_check_builtin_call (location_t , vec<location_t> , tree fndecl,
+			tree, unsigned int, tree *)
+{
+  int fcode = DECL_MD_FUNCTION_CODE (fndecl);
+  if (fcode == ARM_BUILTIN_saturation_occurred
+      || fcode == ARM_BUILTIN_set_saturation)
+    {
+      if (cfun && cfun->decl)
+	DECL_ATTRIBUTES (cfun->decl)
+	  = tree_cons (get_identifier ("acle qbit"), NULL_TREE,
+		       DECL_ATTRIBUTES (cfun->decl));
+    }
+  if (fcode == ARM_BUILTIN_sel)
+    {
+      if (cfun && cfun->decl)
+	DECL_ATTRIBUTES (cfun->decl)
+	  = tree_cons (get_identifier ("acle gebits"), NULL_TREE,
+		       DECL_ATTRIBUTES (cfun->decl));
+    }
+  return true;
 }
 
 #include "gt-arm-builtins.h"

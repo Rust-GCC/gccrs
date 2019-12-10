@@ -36,7 +36,7 @@ along with GCC; see the file COPYING3.  If not see
 struct record_reference_ctx
 {
   bool only_vars;
-  class varpool_node *varpool_node;
+  struct varpool_node *varpool_node;
 };
 
 /* Walk tree and record all calls and references to functions/variables.
@@ -428,7 +428,7 @@ cgraph_edge::rebuild_edges (void)
 	node->record_stmt_references (gsi_stmt (gsi));
     }
   record_eh_tables (node, cfun);
-  gcc_assert (!node->global.inlined_to);
+  gcc_assert (!node->inlined_to);
   return 0;
 }
 

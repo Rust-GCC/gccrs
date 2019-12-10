@@ -48,6 +48,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "ssa-iterators.h"
 #include "cgraph.h"
 #include "print-tree.h"
+#include "alloc-pool.h"
 #include "symbol-summary.h"
 #include "hsa-common.h"
 #include "cfghooks.h"
@@ -55,7 +56,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgloop.h"
 #include "cfganal.h"
 #include "builtins.h"
-#include "params.h"
 #include "gomp-constants.h"
 #include "internal-fn.h"
 #include "builtins.h"
@@ -5939,7 +5939,7 @@ init_prologue (void)
   unsigned index = hsa_get_number_decl_kernel_mappings ();
 
   /* Emit store to debug argument.  */
-  if (PARAM_VALUE (PARAM_HSA_GEN_DEBUG_STORES) > 0)
+  if (param_hsa_gen_debug_stores > 0)
     set_debug_value (prologue, new hsa_op_immed (1000 + index, BRIG_TYPE_U64));
 }
 
@@ -6070,7 +6070,7 @@ gen_function_def_parameters ()
   for (parm = DECL_ARGUMENTS (cfun->decl); parm;
        parm = DECL_CHAIN (parm))
     {
-      struct hsa_symbol **slot;
+      class hsa_symbol **slot;
 
       hsa_symbol *arg
 	= new hsa_symbol (BRIG_TYPE_NONE, hsa_cfun->m_kern_p
@@ -6128,7 +6128,7 @@ gen_function_def_parameters ()
 
   if (!VOID_TYPE_P (TREE_TYPE (TREE_TYPE (cfun->decl))))
     {
-      struct hsa_symbol **slot;
+      class hsa_symbol **slot;
 
       hsa_cfun->m_output_arg = new hsa_symbol (BRIG_TYPE_NONE, BRIG_SEGMENT_ARG,
 					       BRIG_LINKAGE_FUNCTION);
@@ -6213,8 +6213,9 @@ transformable_switch_to_sbr_p (gswitch *s)
 /* Structure hold connection between PHI nodes and immediate
    values hold by there nodes.  */
 
-struct phi_definition
+class phi_definition
 {
+public:
   phi_definition (unsigned phi_i, unsigned label_i, tree imm):
     phi_index (phi_i), label_index (label_i), phi_value (imm)
   {}

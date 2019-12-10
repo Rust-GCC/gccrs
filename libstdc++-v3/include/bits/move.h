@@ -31,7 +31,9 @@
 #define _MOVE_H 1
 
 #include <bits/c++config.h>
-#include <bits/concept_check.h>
+#if __cplusplus < 201103L
+# include <bits/concept_check.h>
+#endif
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -145,6 +147,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // C++11 version of std::exchange for internal use.
   template <typename _Tp, typename _Up = _Tp>
+    _GLIBCXX20_CONSTEXPR
     inline _Tp
     __exchange(_Tp& __obj, _Up&& __new_val)
     {
@@ -174,6 +177,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  @return   Nothing.
   */
   template<typename _Tp>
+    _GLIBCXX20_CONSTEXPR
     inline
 #if __cplusplus >= 201103L
     typename enable_if<__and_<__not_<__is_tuple_like<_Tp>>,
@@ -186,9 +190,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     _GLIBCXX_NOEXCEPT_IF(__and_<is_nothrow_move_constructible<_Tp>,
 				is_nothrow_move_assignable<_Tp>>::value)
     {
+#if __cplusplus < 201103L
       // concept requirements
       __glibcxx_function_requires(_SGIAssignableConcept<_Tp>)
-
+#endif
       _Tp __tmp = _GLIBCXX_MOVE(__a);
       __a = _GLIBCXX_MOVE(__b);
       __b = _GLIBCXX_MOVE(__tmp);
@@ -198,6 +203,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // DR 809. std::swap should be overloaded for array types.
   /// Swap the contents of two arrays.
   template<typename _Tp, size_t _Nm>
+    _GLIBCXX20_CONSTEXPR
     inline
 #if __cplusplus >= 201103L
     typename enable_if<__is_swappable<_Tp>::value>::type

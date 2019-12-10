@@ -300,13 +300,22 @@ oacc_xform_loop (gcall *call)
   tree chunk_size = NULL_TREE;
   unsigned mask = (unsigned) TREE_INT_CST_LOW (gimple_call_arg (call, 5));
   tree lhs = gimple_call_lhs (call);
-  tree type = TREE_TYPE (lhs);
+  tree type = NULL_TREE;
   tree diff_type = TREE_TYPE (range);
   tree r = NULL_TREE;
   gimple_seq seq = NULL;
   bool chunking = false, striding = true;
   unsigned outer_mask = mask & (~mask + 1); // Outermost partitioning
   unsigned inner_mask = mask & ~outer_mask; // Inner partitioning (if any)
+
+  /* Skip lowering if return value of IFN_GOACC_LOOP call is not used.  */
+  if (!lhs)
+    {
+      gsi_replace_with_seq (&gsi, seq, true);
+      return;
+    }
+
+  type = TREE_TYPE (lhs);
 
 #ifdef ACCEL_COMPILER
   chunk_size = gimple_call_arg (call, 4);
@@ -380,8 +389,8 @@ oacc_xform_loop (gcall *call)
 	      || !global_options_set.x_flag_tree_loop_vectorize))
 	{
 	  basic_block bb = gsi_bb (gsi);
-	  struct loop *parent = bb->loop_father;
-	  struct loop *body = parent->inner;
+	  class loop *parent = bb->loop_father;
+	  class loop *body = parent->inner;
 
 	  parent->force_vectorize = true;
 	  parent->safelen = INT_MAX;
@@ -1846,8 +1855,7 @@ ompdevlow_adjust_simt_enter (gimple_stmt_iterator *gsi, bool *regimplify)
     {
       gcc_assert (gimple_call_internal_p (exit_stmt, IFN_GOMP_SIMT_EXIT));
       gimple_stmt_iterator exit_gsi = gsi_for_stmt (exit_stmt);
-      tree clobber = build_constructor (rectype, NULL);
-      TREE_THIS_VOLATILE (clobber) = 1;
+      tree clobber = build_clobber (rectype);
       exit_stmt = gimple_build_assign (build_simple_mem_ref (simtrec), clobber);
       gsi_insert_before (&exit_gsi, exit_stmt, GSI_SAME_STMT);
     }

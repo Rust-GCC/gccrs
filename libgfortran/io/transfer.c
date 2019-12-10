@@ -193,7 +193,8 @@ static const st_option async_opt[] = {
 
 typedef enum
 { FORMATTED_SEQUENTIAL, UNFORMATTED_SEQUENTIAL,
-  FORMATTED_DIRECT, UNFORMATTED_DIRECT, FORMATTED_STREAM, UNFORMATTED_STREAM
+  FORMATTED_DIRECT, UNFORMATTED_DIRECT, FORMATTED_STREAM,
+  UNFORMATTED_STREAM, FORMATTED_UNSPECIFIED
 }
 file_mode;
 
@@ -203,7 +204,7 @@ current_mode (st_parameter_dt *dtp)
 {
   file_mode m;
 
-  m = FORM_UNSPECIFIED;
+  m = FORMATTED_UNSPECIFIED;
 
   if (dtp->u.p.current_unit->flags.access == ACCESS_DIRECT)
     {
@@ -1727,17 +1728,17 @@ formatted_transfer_scalar_read (st_parameter_dt *dtp, bt type, void *p, int kind
 
 	case FMT_S:
 	  consume_data_flag = 0;
-	  dtp->u.p.sign_status = SIGN_S;
+	  dtp->u.p.sign_status = SIGN_PROCDEFINED;
 	  break;
 
 	case FMT_SS:
 	  consume_data_flag = 0;
-	  dtp->u.p.sign_status = SIGN_SS;
+	  dtp->u.p.sign_status = SIGN_SUPPRESS;
 	  break;
 
 	case FMT_SP:
 	  consume_data_flag = 0;
-	  dtp->u.p.sign_status = SIGN_SP;
+	  dtp->u.p.sign_status = SIGN_PLUS;
 	  break;
 
 	case FMT_BN:
@@ -2007,7 +2008,10 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 	    goto need_data;
 	  if (require_type (dtp, BT_REAL, type, f))
 	    return;
-	  write_d (dtp, f, p, kind);
+	  if (f->u.real.w == 0)
+	    write_real_w0 (dtp, p, kind, FMT_D, f->u.real.d);
+	  else
+	    write_d (dtp, f, p, kind);
 	  break;
 
 	case FMT_DT:
@@ -2070,7 +2074,10 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 	    goto need_data;
 	  if (require_type (dtp, BT_REAL, type, f))
 	    return;
-	  write_e (dtp, f, p, kind);
+	  if (f->u.real.w == 0)
+	    write_real_w0 (dtp, p, kind, FMT_E, f->u.real.d);
+	  else
+	    write_e (dtp, f, p, kind);
 	  break;
 
 	case FMT_EN:
@@ -2078,7 +2085,10 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 	    goto need_data;
 	  if (require_type (dtp, BT_REAL, type, f))
 	    return;
-	  write_en (dtp, f, p, kind);
+	  if (f->u.real.w == 0)
+	    write_real_w0 (dtp, p, kind, FMT_EN, f->u.real.d);
+	  else
+	    write_en (dtp, f, p, kind);
 	  break;
 
 	case FMT_ES:
@@ -2086,7 +2096,10 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 	    goto need_data;
 	  if (require_type (dtp, BT_REAL, type, f))
 	    return;
-	  write_es (dtp, f, p, kind);
+	  if (f->u.real.w == 0)
+	    write_real_w0 (dtp, p, kind, FMT_ES, f->u.real.d);
+	  else
+	    write_es (dtp, f, p, kind);
 	  break;
 
 	case FMT_F:
@@ -2116,7 +2129,7 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 		break;
 	      case BT_REAL:
 		if (f->u.real.w == 0)
-                  write_real_g0 (dtp, p, kind, f->u.real.d);
+		  write_real_w0 (dtp, p, kind, FMT_G, f->u.real.d);
 		else
 		  write_d (dtp, f, p, kind);
 		break;
@@ -2186,17 +2199,17 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 
 	case FMT_S:
 	  consume_data_flag = 0;
-	  dtp->u.p.sign_status = SIGN_S;
+	  dtp->u.p.sign_status = SIGN_PROCDEFINED;
 	  break;
 
 	case FMT_SS:
 	  consume_data_flag = 0;
-	  dtp->u.p.sign_status = SIGN_SS;
+	  dtp->u.p.sign_status = SIGN_SUPPRESS;
 	  break;
 
 	case FMT_SP:
 	  consume_data_flag = 0;
-	  dtp->u.p.sign_status = SIGN_SP;
+	  dtp->u.p.sign_status = SIGN_PLUS;
 	  break;
 
 	case FMT_BN:
@@ -2529,26 +2542,62 @@ transfer_array_inner (st_parameter_dt *dtp, gfc_array_char *desc, int kind,
 
   data = GFC_DESCRIPTOR_DATA (desc);
 
-  while (data)
+  /* When reading, we need to check endfile conditions so we do not miss
+     an END=label.  Make this separate so we do not have an extra test
+     in a tight loop when it is not needed.  */
+
+  if (dtp->u.p.current_unit && dtp->u.p.mode == READING)
     {
-      dtp->u.p.transfer (dtp, iotype, data, kind, size, tsize);
-      data += stride0 * tsize;
-      count[0] += tsize;
-      n = 0;
-      while (count[n] == extent[n])
+      while (data)
 	{
-	  count[n] = 0;
-	  data -= stride[n] * extent[n];
-	  n++;
-	  if (n == rank)
+	  if (unlikely (dtp->u.p.current_unit->endfile == AFTER_ENDFILE))
+	    return;
+
+	  dtp->u.p.transfer (dtp, iotype, data, kind, size, tsize);
+	  data += stride0 * tsize;
+	  count[0] += tsize;
+	  n = 0;
+	  while (count[n] == extent[n])
 	    {
-	      data = NULL;
-	      break;
+	      count[n] = 0;
+	      data -= stride[n] * extent[n];
+	      n++;
+	      if (n == rank)
+		{
+		  data = NULL;
+		  break;
+		}
+	      else
+		{
+		  count[n]++;
+		  data += stride[n];
+		}
 	    }
-	  else
+	}
+    }
+  else
+    {
+      while (data)
+	{
+	  dtp->u.p.transfer (dtp, iotype, data, kind, size, tsize);
+	  data += stride0 * tsize;
+	  count[0] += tsize;
+	  n = 0;
+	  while (count[n] == extent[n])
 	    {
-	      count[n]++;
-	      data += stride[n];
+	      count[n] = 0;
+	      data -= stride[n] * extent[n];
+	      n++;
+	      if (n == rank)
+		{
+		  data = NULL;
+		  break;
+		}
+	      else
+		{
+		  count[n]++;
+		  data += stride[n];
+		}
 	    }
 	}
     }
@@ -2766,6 +2815,8 @@ pre_position (st_parameter_dt *dtp)
     case UNFORMATTED_DIRECT:
       dtp->u.p.current_unit->bytes_left = dtp->u.p.current_unit->recl;
       break;
+    case FORMATTED_UNSPECIFIED:
+      gcc_unreachable ();
     }
 
   dtp->u.p.current_unit->current_record = 1;
@@ -3258,8 +3309,9 @@ data_transfer_init_worker (st_parameter_dt *dtp, int read_flag)
 
           if (dtp->pos != dtp->u.p.current_unit->strm_pos)
             {
-              fbuf_flush (dtp->u.p.current_unit, dtp->u.p.mode);
-              if (sseek (dtp->u.p.current_unit->s, dtp->pos - 1, SEEK_SET) < 0)
+	      fbuf_reset (dtp->u.p.current_unit);
+	      if (sseek (dtp->u.p.current_unit->s, dtp->pos - 1,
+			 SEEK_SET) < 0)
                 {
                   generate_error (&dtp->common, LIBERROR_OS, NULL);
                   return;
@@ -3637,6 +3689,8 @@ next_record_r (st_parameter_dt *dtp, int done)
 	  while (p != '\n');
 	}
       break;
+    case FORMATTED_UNSPECIFIED:
+      gcc_unreachable ();
     }
 }
 
@@ -4002,6 +4056,8 @@ next_record_w (st_parameter_dt *dtp, int done)
 	}
 
       break;
+    case FORMATTED_UNSPECIFIED:
+      gcc_unreachable ();
 
     io_error:
       generate_error (&dtp->common, LIBERROR_OS, NULL);

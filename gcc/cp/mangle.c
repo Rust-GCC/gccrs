@@ -2004,8 +2004,7 @@ write_local_name (tree function, const tree local_entity,
       write_name (entity, /*ignore_local_scope=*/1);
       if (DECL_DISCRIMINATOR_P (local_entity)
 	  && !(TREE_CODE (local_entity) == TYPE_DECL
-	       && (LAMBDA_TYPE_P (TREE_TYPE (local_entity))
-		   || TYPE_UNNAMED_P (TREE_TYPE (local_entity)))))
+	       && TYPE_ANON_P (TREE_TYPE (local_entity))))
 	write_discriminator (discriminator_for_local_entity (local_entity));
     }
 }
@@ -3401,7 +3400,9 @@ write_template_arg_literal (const tree value)
       case INTEGER_CST:
 	gcc_assert (!same_type_p (TREE_TYPE (value), boolean_type_node)
 		    || integer_zerop (value) || integer_onep (value));
-	write_integer_cst (value);
+	if (!(abi_version_at_least (14)
+	      && NULLPTR_TYPE_P (TREE_TYPE (value))))
+	  write_integer_cst (value);
 	break;
 
       case REAL_CST:
@@ -3792,7 +3793,6 @@ static tree
 mangle_decl_string (const tree decl)
 {
   tree result;
-  location_t saved_loc = input_location;
   tree saved_fn = NULL_TREE;
   bool template_p = false;
 
@@ -3810,7 +3810,7 @@ mangle_decl_string (const tree decl)
 	  current_function_decl = NULL_TREE;
 	}
     }
-  input_location = DECL_SOURCE_LOCATION (decl);
+  iloc_sentinel ils (DECL_SOURCE_LOCATION (decl));
 
   start_mangling (decl);
 
@@ -3829,7 +3829,6 @@ mangle_decl_string (const tree decl)
       pop_tinst_level ();
       current_function_decl = saved_fn;
     }
-  input_location = saved_loc;
 
   return result;
 }

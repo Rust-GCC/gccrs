@@ -704,12 +704,6 @@ __gnat_servent_s_proto (struct servent * s)
 
 #if defined(AF_INET6) && !defined(__rtems__)
 
-#if defined (__vxworks)
-#define getaddrinfo ipcom_getaddrinfo
-#define getnameinfo ipcom_getnameinfo
-#define freeaddrinfo ipcom_freeaddrinfo
-#endif
-
 int __gnat_getaddrinfo(
   const char *node,
   const char *service,
@@ -802,5 +796,16 @@ const char * __gnat_gai_strerror(int errcode) {
 }
 
 #endif
+
+int __gnat_minus_500ms() {
+#if defined (_WIN32)
+  // Windows Server 2019 and Windows 8.0 do not need 500 millisecond socket
+  // timeout correction.
+  return !(IsWindows8OrGreater() && !IsWindowsServer()
+           || IsWindowsVersionOrGreater(10, 0, 17763));
+#else
+   return 0;
+#endif
+}
 
 #endif /* defined(HAVE_SOCKETS) */

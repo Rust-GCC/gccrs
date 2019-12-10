@@ -313,9 +313,6 @@ emission of floating point pcs attributes.  */
 /* Nonzero if disallow volatile memory access in IT block.  */
 #define TARGET_NO_VOLATILE_CE		(arm_arch_no_volatile_ce)
 
-/* Should NEON be used for 64-bits bitops.  */
-#define TARGET_PREFER_NEON_64BITS (prefer_neon_for_64bits)
-
 /* Should constant I be slplit for OP.  */
 #define DONT_EARLY_SPLIT_CONSTANT(i, op) \
 				((optimize >= 2) \
@@ -508,10 +505,6 @@ extern int arm_arch_thumb_hwdiv;
 
 /* Nonzero if chip disallows volatile memory access in IT block.  */
 extern int arm_arch_no_volatile_ce;
-
-/* Nonzero if we should use Neon to handle 64-bits operations rather
-   than core registers.  */
-extern int prefer_neon_for_64bits;
 
 /* Nonzero if we shouldn't use literal pools.  */
 #ifndef USED_FOR_TARGET
@@ -730,6 +723,10 @@ extern int arm_arch_cmse;
 	                goto.  Without it fp appears to be used and the
 			elimination code won't get rid of sfp.  It tracks
 			fp exactly at all times.
+	apsrq		Nor this, it is used to track operations on the Q bit
+			of APSR by ACLE saturating intrinsics.
+	apsrge		Nor this, it is used to track operations on the GE bits
+			of APSR by ACLE SIMD32 intrinsics
 
    *: See TARGET_CONDITIONAL_REGISTER_USAGE  */
 
@@ -777,7 +774,7 @@ extern int arm_arch_cmse;
   1,1,1,1,1,1,1,1,		\
   1,1,1,1,			\
   /* Specials.  */		\
-  1,1,1,1			\
+  1,1,1,1,1,1			\
 }
 
 /* 1 for registers not available across function calls.
@@ -807,7 +804,7 @@ extern int arm_arch_cmse;
   1,1,1,1,1,1,1,1,		\
   1,1,1,1,			\
   /* Specials.  */		\
-  1,1,1,1			\
+  1,1,1,1,1,1			\
 }
 
 #ifndef SUBTARGET_CONDITIONAL_REGISTER_USAGE
@@ -891,6 +888,9 @@ extern int arm_arch_cmse;
    as an invisible last argument (possible since varargs don't exist in
    Pascal), so the following is not true.  */
 #define STATIC_CHAIN_REGNUM	12
+
+/* r9 is the FDPIC register (base register for GOT and FUNCDESC accesses).  */
+#define FDPIC_REGNUM		9
 
 /* Define this to be where the real frame pointer is if it is not possible to
    work out the offset between the frame pointer and the automatic variables
@@ -979,10 +979,11 @@ extern int arm_arch_cmse;
   ((((REGNUM) - FIRST_VFP_REGNUM) & 3) == 0 \
    && (LAST_VFP_REGNUM - (REGNUM) >= 2 * (N) - 1))
 
-/* The number of hard registers is 16 ARM + 1 CC + 1 SFP + 1 AFP.  */
+/* The number of hard registers is 16 ARM + 1 CC + 1 SFP + 1 AFP
+   + 1 APSRQ + 1 APSRGE.  */
 /* Intel Wireless MMX Technology registers add 16 + 4 more.  */
 /* VFP (VFP3) adds 32 (64) + 1 VFPCC.  */
-#define FIRST_PSEUDO_REGISTER   104
+#define FIRST_PSEUDO_REGISTER   106
 
 #define DBX_REGISTER_NUMBER(REGNO) arm_dbx_register_number (REGNO)
 
@@ -1066,15 +1067,14 @@ extern int arm_regs_in_sequence[];
   /* Registers not for general use.  */		\
   CC_REGNUM, VFPCC_REGNUM,			\
   FRAME_POINTER_REGNUM, ARG_POINTER_REGNUM,	\
-  SP_REGNUM, PC_REGNUM 				\
+  SP_REGNUM, PC_REGNUM, APSRQ_REGNUM, APSRGE_REGNUM	\
 }
 
 /* Use different register alloc ordering for Thumb.  */
 #define ADJUST_REG_ALLOC_ORDER arm_order_regs_for_local_alloc ()
 
-/* Tell IRA to use the order we define rather than messing it up with its
-   own cost calculations.  */
-#define HONOR_REG_ALLOC_ORDER 1
+/* Tell IRA to use the order we define when optimizing for size.  */
+#define HONOR_REG_ALLOC_ORDER optimize_function_for_size_p (cfun)
 
 /* Interrupt functions can only use registers that have already been
    saved by the prologue, even if they would normally be
@@ -1407,6 +1407,9 @@ typedef struct GTY(()) machine_function
 machine_function;
 #endif
 
+#define ARM_Q_BIT_READ (arm_q_bit_access ())
+#define ARM_GE_BITS_READ (arm_ge_bits_access ())
+
 /* As in the machine_function, a global set of call-via labels, for code 
    that is in text_section.  */
 extern GTY(()) rtx thumb_call_via_label[14];
@@ -1599,7 +1602,7 @@ typedef struct
 #define INIT_EXPANDERS  arm_init_expanders ()
 
 /* Length in units of the trampoline for entering a nested function.  */
-#define TRAMPOLINE_SIZE  (TARGET_32BIT ? 16 : 20)
+#define TRAMPOLINE_SIZE  (TARGET_FDPIC ? 32 : (TARGET_32BIT ? 16 : 20))
 
 /* Alignment required for a trampoline in bits.  */
 #define TRAMPOLINE_ALIGNMENT  32
@@ -1948,6 +1951,10 @@ extern unsigned arm_pic_register;
    data addresses in memory.  */
 #define PIC_OFFSET_TABLE_REGNUM arm_pic_register
 
+/* For FDPIC, the FDPIC register is call-clobbered (otherwise PLT
+   entries would need to handle saving and restoring it).  */
+#define PIC_OFFSET_TABLE_REG_CALL_CLOBBERED TARGET_FDPIC
+
 /* We can't directly access anything that contains a symbol,
    nor can we indirect via the constant pool.  One exception is
    UNSPEC_TLS, which is always PIC.  */
@@ -1959,6 +1966,13 @@ extern unsigned arm_pic_register;
 	       && (symbol_mentioned_p (get_pool_constant (X))		\
 		   || label_mentioned_p (get_pool_constant (X)))))	\
 	 || tls_mentioned_p (X))
+
+/* We may want to save the PIC register if it is a dedicated one.  */
+#define PIC_REGISTER_MAY_NEED_SAVING			\
+  (flag_pic						\
+   && !TARGET_SINGLE_PIC_BASE				\
+   && !TARGET_FDPIC					\
+   && arm_pic_register != INVALID_REGNUM)
 
 /* We need to know when we are making a constant pool; this determines
    whether data needs to be in the GOT or can be referenced via a GOT

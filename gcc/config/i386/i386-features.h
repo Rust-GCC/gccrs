@@ -84,7 +84,7 @@ public:
     return STUB_INDEX_OFFSET + m_stack_align_off_in;
   }
 
-  static const struct xlogue_layout &get_instance ();
+  static const class xlogue_layout &get_instance ();
   static unsigned count_stub_managed_regs ();
   static bool is_stub_managed_reg (unsigned regno, unsigned count);
 
@@ -127,10 +127,15 @@ namespace {
 class scalar_chain
 {
  public:
-  scalar_chain ();
+  scalar_chain (enum machine_mode, enum machine_mode);
   virtual ~scalar_chain ();
 
   static unsigned max_id;
+
+  /* Scalar mode.  */
+  enum machine_mode smode;
+  /* Vector mode.  */
+  enum machine_mode vmode;
 
   /* ID of a chain.  */
   unsigned int chain_id;
@@ -159,18 +164,22 @@ class scalar_chain
   virtual void convert_registers () = 0;
 };
 
-class dimode_scalar_chain : public scalar_chain
+class general_scalar_chain : public scalar_chain
 {
  public:
+  general_scalar_chain (enum machine_mode smode_, enum machine_mode vmode_);
+  ~general_scalar_chain ();
   int compute_convert_gain ();
  private:
+  hash_map<rtx, rtx> defs_map;
+  bitmap insns_conv;
+  unsigned n_sse_to_integer;
+  unsigned n_integer_to_sse;
   void mark_dual_mode_def (df_ref def);
-  rtx replace_with_subreg (rtx x, rtx reg, rtx subreg);
-  void replace_with_subreg_in_insn (rtx_insn *insn, rtx reg, rtx subreg);
   void convert_insn (rtx_insn *insn);
   void convert_op (rtx *op, rtx_insn *insn);
-  void convert_reg (unsigned regno);
-  void make_vector_copies (unsigned regno);
+  void convert_reg (rtx_insn *insn, rtx dst, rtx src);
+  void make_vector_copies (rtx_insn *, rtx);
   void convert_registers ();
   int vector_const_cost (rtx exp);
 };
@@ -178,6 +187,8 @@ class dimode_scalar_chain : public scalar_chain
 class timode_scalar_chain : public scalar_chain
 {
  public:
+  timode_scalar_chain () : scalar_chain (TImode, V1TImode) {}
+
   /* Convert from TImode to V1TImode is always faster.  */
   int compute_convert_gain () { return 1; }
 

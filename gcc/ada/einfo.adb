@@ -215,6 +215,7 @@ package body Einfo is
    --    Stored_Constraint               Elist23
 
    --    Incomplete_Actuals              Elist24
+   --    Minimum_Accessibility           Node24
    --    Related_Expression              Node24
    --    Subps_Index                     Uint24
 
@@ -421,7 +422,6 @@ package body Einfo is
    --    Never_Set_In_Source             Flag115
    --    Is_Visible_Lib_Unit             Flag116
    --    Is_Unchecked_Union              Flag117
-   --    Is_For_Access_Subtype           Flag118
    --    Has_Convention_Pragma           Flag119
    --    Has_Primitive_Operations        Flag120
 
@@ -629,8 +629,8 @@ package body Einfo is
    --    Is_Activation_Record            Flag305
    --    Needs_Activation_Record         Flag306
    --    Is_Loop_Parameter               Flag307
+   --    Invariants_Ignored              Flag308
 
-   --    (unused)                        Flag308
    --    (unused)                        Flag309
 
    --  Note: Flag310-317 are defined in atree.ads/adb, but not yet in atree.h
@@ -2077,6 +2077,12 @@ package body Einfo is
       return Node21 (Id);
    end Interface_Name;
 
+   function Invariants_Ignored (Id : E) return B is
+   begin
+      pragma Assert (Is_Type (Id));
+      return Flag308 (Id);
+   end Invariants_Ignored;
+
    function Is_Abstract_Subprogram (Id : E) return B is
    begin
       pragma Assert (Is_Overloadable (Id));
@@ -2141,7 +2147,7 @@ package body Einfo is
 
    function Is_Called (Id : E) return B is
    begin
-      pragma Assert (Ekind_In (Id, E_Procedure, E_Function));
+      pragma Assert (Ekind_In (Id, E_Procedure, E_Function, E_Package));
       return Flag102 (Id);
    end Is_Called;
 
@@ -2303,12 +2309,6 @@ package body Einfo is
       return Flag70 (Id);
    end Is_First_Subtype;
 
-   function Is_For_Access_Subtype (Id : E) return B is
-   begin
-      pragma Assert (Ekind_In (Id, E_Record_Subtype, E_Private_Subtype));
-      return Flag118 (Id);
-   end Is_For_Access_Subtype;
-
    function Is_Formal_Subprogram (Id : E) return B is
    begin
       return Flag111 (Id);
@@ -2321,7 +2321,7 @@ package body Einfo is
 
    function Is_Generic_Actual_Subprogram (Id : E) return B is
    begin
-      pragma Assert (Ekind (Id) = E_Function or else Ekind (Id) = E_Procedure);
+      pragma Assert (Ekind_In (Id, E_Function, E_Procedure));
       return Flag274 (Id);
    end Is_Generic_Actual_Subprogram;
 
@@ -2853,6 +2853,12 @@ package body Einfo is
       pragma Assert (Ekind (Id) = E_Function or else Is_Formal (Id));
       return UI_To_Int (Uint8 (Id));
    end Mechanism;
+
+   function Minimum_Accessibility (Id : E) return E is
+   begin
+      pragma Assert (Ekind (Id) in Formal_Kind);
+      return Node24 (Id);
+   end Minimum_Accessibility;
 
    function Modulus (Id : E) return Uint is
    begin
@@ -5278,6 +5284,12 @@ package body Einfo is
       Set_Node21 (Id, V);
    end Set_Interface_Name;
 
+   procedure Set_Invariants_Ignored (Id : E; V : B := True) is
+   begin
+      pragma Assert (Is_Type (Id));
+      Set_Flag308 (Id, V);
+   end Set_Invariants_Ignored;
+
    procedure Set_Is_Abstract_Subprogram (Id : E; V : B := True) is
    begin
       pragma Assert (Is_Overloadable (Id));
@@ -5351,7 +5363,7 @@ package body Einfo is
 
    procedure Set_Is_Called (Id : E; V : B := True) is
    begin
-      pragma Assert (Ekind_In (Id, E_Procedure, E_Function));
+      pragma Assert (Ekind_In (Id, E_Procedure, E_Function, E_Package));
       Set_Flag102 (Id, V);
    end Set_Is_Called;
 
@@ -5525,12 +5537,6 @@ package body Einfo is
    begin
       Set_Flag70 (Id, V);
    end Set_Is_First_Subtype;
-
-   procedure Set_Is_For_Access_Subtype (Id : E; V : B := True) is
-   begin
-      pragma Assert (Ekind_In (Id, E_Record_Subtype, E_Private_Subtype));
-      Set_Flag118 (Id, V);
-   end Set_Is_For_Access_Subtype;
 
    procedure Set_Is_Formal_Subprogram (Id : E; V : B := True) is
    begin
@@ -6088,6 +6094,12 @@ package body Einfo is
       pragma Assert (Ekind (Id) = E_Function or else Is_Formal (Id));
       Set_Uint8 (Id, UI_From_Int (V));
    end Set_Mechanism;
+
+   procedure Set_Minimum_Accessibility (Id : E; V : E) is
+   begin
+      pragma Assert (Ekind (Id) in Formal_Kind);
+      Set_Node24 (Id, V);
+   end Set_Minimum_Accessibility;
 
    procedure Set_Modulus (Id : E; V : U) is
    begin
@@ -7602,6 +7614,7 @@ package body Einfo is
                  Id = Pragma_Initial_Condition          or else
                  Id = Pragma_Initializes                or else
                  Id = Pragma_Interrupt_Handler          or else
+                 Id = Pragma_No_Caching                 or else
                  Id = Pragma_Part_Of                    or else
                  Id = Pragma_Refined_Depends            or else
                  Id = Pragma_Refined_Global             or else
@@ -8044,10 +8057,8 @@ package body Einfo is
    ------------------------
 
    function Is_Constant_Object (Id : E) return B is
-      K : constant Entity_Kind := Ekind (Id);
    begin
-      return
-        K = E_Constant or else K = E_In_Parameter or else K = E_Loop_Parameter;
+      return Ekind_In (Id, E_Constant, E_In_Parameter, E_Loop_Parameter);
    end Is_Constant_Object;
 
    -------------------
@@ -8065,8 +8076,8 @@ package body Einfo is
 
    function Is_Discriminal (Id : E) return B is
    begin
-      return (Ekind_In (Id, E_Constant, E_In_Parameter)
-                and then Present (Discriminal_Link (Id)));
+      return Ekind_In (Id, E_Constant, E_In_Parameter)
+               and then Present (Discriminal_Link (Id));
    end Is_Discriminal;
 
    ----------------------
@@ -8127,7 +8138,7 @@ package body Einfo is
    function Is_Elaboration_Target (Id : Entity_Id) return Boolean is
    begin
       return
-        Ekind_In (Id, E_Constant, E_Variable)
+        Ekind_In (Id, E_Constant, E_Package, E_Variable)
           or else Is_Entry        (Id)
           or else Is_Generic_Unit (Id)
           or else Is_Subprogram   (Id)
@@ -8141,7 +8152,7 @@ package body Einfo is
    function Is_External_State (Id : E) return B is
    begin
       --  To qualify, the abstract state must appear with option "external" or
-      --  "synchronous" (SPARK RM 7.1.4(8) and (10)).
+      --  "synchronous" (SPARK RM 7.1.4(7) and (9)).
 
       return
         Ekind (Id) = E_Abstract_State
@@ -8193,8 +8204,8 @@ package body Einfo is
 
    function Is_Prival (Id : E) return B is
    begin
-      return (Ekind_In (Id, E_Constant, E_Variable)
-                and then Present (Prival_Link (Id)));
+      return Ekind_In (Id, E_Constant, E_Variable)
+               and then Present (Prival_Link (Id));
    end Is_Prival;
 
    ----------------------------
@@ -8319,7 +8330,7 @@ package body Einfo is
    function Is_Synchronized_State (Id : E) return B is
    begin
       --  To qualify, the abstract state must appear with simple option
-      --  "synchronous" (SPARK RM 7.1.4(10)).
+      --  "synchronous" (SPARK RM 7.1.4(9)).
 
       return
         Ekind (Id) = E_Abstract_State
@@ -9786,6 +9797,7 @@ package body Einfo is
       W ("In_Package_Body",                 Flag48  (Id));
       W ("In_Private_Part",                 Flag45  (Id));
       W ("In_Use",                          Flag8   (Id));
+      W ("Invariants_Ignored",              Flag308 (Id));
       W ("Is_Abstract_Subprogram",          Flag19  (Id));
       W ("Is_Abstract_Type",                Flag146 (Id));
       W ("Is_Access_Constant",              Flag69  (Id));
@@ -9826,7 +9838,6 @@ package body Einfo is
       W ("Is_Exported",                     Flag99  (Id));
       W ("Is_Finalized_Transient",          Flag252 (Id));
       W ("Is_First_Subtype",                Flag70  (Id));
-      W ("Is_For_Access_Subtype",           Flag118 (Id));
       W ("Is_Formal_Subprogram",            Flag111 (Id));
       W ("Is_Frozen",                       Flag4   (Id));
       W ("Is_Generic_Actual_Subprogram",    Flag274 (Id));
@@ -10927,6 +10938,9 @@ package body Einfo is
             | E_Variable
          =>
             Write_Str ("Related_Expression");
+
+         when Formal_Kind =>
+            Write_Str ("Minimum_Accessibility");
 
          when E_Function
             | E_Operator

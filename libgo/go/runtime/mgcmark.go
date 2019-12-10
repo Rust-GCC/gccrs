@@ -657,6 +657,11 @@ func scanstack(gp *g, gcw *gcWork) {
 		scanstackblock(uintptr(unsafe.Pointer(&gp.context)), unsafe.Sizeof(gp.context), gcw)
 	}
 
+	// Note: in the gc runtime scanstack also scans defer records.
+	// This is necessary as it uses stack objects (a.k.a. stack tracing).
+	// We don't (yet) do stack objects, and regular stack/heap scan
+	// will take care of defer records just fine.
+
 	gp.gcscanvalid = true
 }
 
@@ -1037,7 +1042,7 @@ func scanobject(b uintptr, gcw *gcWork) {
 	gcw.scanWork += int64(i)
 }
 
-//go:linkname scanstackblock runtime.scanstackblock
+//go:linkname scanstackblock
 
 // scanstackblock is called by the stack scanning code in C to
 // actually find and mark pointers in the stack block. This is like
@@ -1059,7 +1064,7 @@ func scanstackblock(b, n uintptr, gcw *gcWork) {
 
 // scanstackblockwithmap is like scanstackblock, but with an explicit
 // pointer bitmap. This is used only when precise stack scan is enabled.
-//go:linkname scanstackblockwithmap runtime.scanstackblockwithmap
+//go:linkname scanstackblockwithmap
 //go:nowritebarrier
 func scanstackblockwithmap(pc, b0, n0 uintptr, ptrmask *uint8, gcw *gcWork) {
 	// Use local copies of original parameters, so that a stack trace

@@ -52,7 +52,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgloop.h"
 #include "tree-cfg.h"
 #include "domwalk.h"
-#include "params.h"
 #include "tree-ssa-address.h"
 #include "tree-affine.h"
 #include "tree-eh.h"
@@ -226,8 +225,9 @@ enum cand_kind
   CAND_PHI
 };
 
-struct slsr_cand_d
+class slsr_cand_d
 {
+public:
   /* The candidate statement S1.  */
   gimple *cand_stmt;
 
@@ -296,8 +296,8 @@ struct slsr_cand_d
   tree cached_basis;
 };
 
-typedef struct slsr_cand_d slsr_cand, *slsr_cand_t;
-typedef const struct slsr_cand_d *const_slsr_cand_t;
+typedef class slsr_cand_d slsr_cand, *slsr_cand_t;
+typedef const class slsr_cand_d *const_slsr_cand_t;
 
 /* Pointers to candidates are chained together as part of a mapping
    from base expressions to the candidates that use them.  */
@@ -329,8 +329,9 @@ typedef const struct cand_chain_d *const_cand_chain_t;
    of the cost of initializers.  The absolute value of the increment
    is stored in the incr_info.  */
 
-struct incr_info_d
+class incr_info_d
 {
+public:
   /* The increment that relates a candidate to its basis.  */
   widest_int incr;
 
@@ -352,7 +353,7 @@ struct incr_info_d
   basic_block init_bb;
 };
 
-typedef struct incr_info_d incr_info, *incr_info_t;
+typedef class incr_info_d incr_info, *incr_info_t;
 
 /* Candidates are maintained in a vector.  If candidate X dominates
    candidate Y, then X appears before Y in the vector; but the
@@ -544,7 +545,7 @@ find_basis_for_base_expr (slsr_cand_t c, tree base_expr)
 
   // Limit potential of N^2 behavior for long candidate chains.
   int iters = 0;
-  int max_iters = PARAM_VALUE (PARAM_MAX_SLSR_CANDIDATE_SCAN);
+  int max_iters = param_max_slsr_candidate_scan;
 
   mapping_key.base_expr = base_expr;
   chain = base_cand_map->find (&mapping_key);
@@ -805,7 +806,7 @@ slsr_process_phi (gphi *phi, bool speed)
   unsigned i;
   tree arg0_base = NULL_TREE, base_type;
   slsr_cand_t c;
-  struct loop *cand_loop = gimple_bb (phi)->loop_father;
+  class loop *cand_loop = gimple_bb (phi)->loop_father;
   unsigned savings = 0;
 
   /* A CAND_PHI requires each of its arguments to have the same
@@ -1997,6 +1998,23 @@ replace_ref (tree *expr, slsr_cand_t c)
   update_stmt (c->cand_stmt);
 }
 
+/* Return true if CAND_REF candidate C is a valid memory reference.  */
+
+static bool
+valid_mem_ref_cand_p (slsr_cand_t c)
+{
+  if (TREE_CODE (TREE_OPERAND (c->stride, 1)) != INTEGER_CST)
+    return false;
+
+  struct mem_address addr
+    = { NULL_TREE, c->base_expr, TREE_OPERAND (c->stride, 0),
+	TREE_OPERAND (c->stride, 1), wide_int_to_tree (sizetype, c->index) };
+
+  return
+    valid_mem_ref_p (TYPE_MODE (c->cand_type), TYPE_ADDR_SPACE (c->cand_type),
+		     &addr);
+}
+
 /* Replace CAND_REF candidate C, each sibling of candidate C, and each
    dependent of candidate C with an equivalent strength-reduced data
    reference.  */
@@ -2004,6 +2022,16 @@ replace_ref (tree *expr, slsr_cand_t c)
 static void
 replace_refs (slsr_cand_t c)
 {
+  /* Replacing a chain of only 2 candidates which are valid memory references
+     is generally counter-productive because you cannot recoup the additional
+     calculation added in front of them.  */
+  if (c->basis == 0
+      && c->dependent
+      && !lookup_cand (c->dependent)->dependent
+      && valid_mem_ref_cand_p (c)
+      && valid_mem_ref_cand_p (lookup_cand (c->dependent)))
+    return;
+
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
       fputs ("Replacing reference: ", dump_file);

@@ -22,8 +22,8 @@ along with GCC; see the file COPYING3.  If not see
 #define GCC_IPA_REF_H
 
 struct cgraph_node;
-class varpool_node;
-class symtab_node;
+struct varpool_node;
+struct symtab_node;
 
 
 /* How the reference is done.  */
@@ -46,7 +46,7 @@ public:
      function.  */
   bool cannot_lead_to_return ();
 
-  /* Return true if refernece may be used in address compare.  */
+  /* Return true if reference may be used in address compare.  */
   bool address_matters_p ();
 
   /* Return reference list this reference is in.  */

@@ -135,7 +135,7 @@ can_refer_decl_in_current_unit_p (tree decl, tree from_decl)
       if (!snode || !snode->definition)
 	return false;
       node = dyn_cast <cgraph_node *> (snode);
-      return !node || !node->global.inlined_to;
+      return !node || !node->inlined_to;
     }
 
   /* We will later output the initializer, so we can refer to it.
@@ -184,7 +184,7 @@ can_refer_decl_in_current_unit_p (tree decl, tree from_decl)
 	      || (!snode->forced_by_abi && !snode->force_output))))
     return false;
   node = dyn_cast <cgraph_node *> (snode);
-  return !node || !node->global.inlined_to;
+  return !node || !node->inlined_to;
 }
 
 /* Create a temporary for TYPE for a statement STMT.  If the current function
@@ -641,14 +641,7 @@ replace_call_with_call_and_fold (gimple_stmt_iterator *gsi, gimple *repl)
   gimple *stmt = gsi_stmt (*gsi);
   gimple_call_set_lhs (repl, gimple_call_lhs (stmt));
   gimple_set_location (repl, gimple_location (stmt));
-  if (gimple_vdef (stmt)
-      && TREE_CODE (gimple_vdef (stmt)) == SSA_NAME)
-    {
-      gimple_set_vdef (repl, gimple_vdef (stmt));
-      SSA_NAME_DEF_STMT (gimple_vdef (repl)) = repl;
-    }
-  if (gimple_vuse (stmt))
-    gimple_set_vuse (repl, gimple_vuse (stmt));
+  gimple_move_vops (repl, stmt);
   gsi_replace (gsi, repl, false);
   fold_stmt (gsi);
 }
@@ -684,8 +677,7 @@ size_must_be_zero_p (tree size)
   /* Compute the value of SSIZE_MAX, the largest positive value that
      can be stored in ssize_t, the signed counterpart of size_t.  */
   wide_int ssize_max = wi::lshift (wi::one (prec), prec - 1) - 1;
-  value_range valid_range (VR_RANGE,
-			   build_int_cst (type, 0),
+  value_range valid_range (build_int_cst (type, 0),
 			   wide_int_to_tree (type, ssize_max));
   value_range vr;
   get_range_info (size, vr);
@@ -766,11 +758,13 @@ gimple_fold_builtin_memory_op (gimple_stmt_iterator *gsi,
       dest_align = get_pointer_alignment (dest);
       if (tree_fits_uhwi_p (len)
 	  && compare_tree_int (len, MOVE_MAX) <= 0
-	  /* ???  Don't transform copies from strings with known length this
-	     confuses the tree-ssa-strlen.c.  This doesn't handle
-	     the case in gcc.dg/strlenopt-8.c which is XFAILed for that
-	     reason.  */
-	  && !c_strlen (src, 2)
+	  /* FIXME: Don't transform copies from strings with known length.
+	     Until GCC 9 this prevented a case in gcc.dg/strlenopt-8.c
+	     from being handled, and the case was XFAILed for that reason.
+	     Now that it is handled and the XFAIL removed, as soon as other
+	     strlenopt tests that rely on it for passing are adjusted, this
+	     hack can be removed.  */
+	  && !c_strlen (src, 1)
 	  && !((tmp_str = c_getstr (src, &tmp_len)) != NULL
 	       && memchr (tmp_str, 0, tmp_len) == NULL))
 	{
@@ -832,11 +826,7 @@ gimple_fold_builtin_memory_op (gimple_stmt_iterator *gsi,
 			= gimple_build_assign (fold_build2 (MEM_REF, desttype,
 							    dest, off0),
 					       srcmem);
-		      gimple_set_vuse (new_stmt, gimple_vuse (stmt));
-		      gimple_set_vdef (new_stmt, gimple_vdef (stmt));
-		      if (gimple_vdef (new_stmt)
-			  && TREE_CODE (gimple_vdef (new_stmt)) == SSA_NAME)
-			SSA_NAME_DEF_STMT (gimple_vdef (new_stmt)) = new_stmt;
+		      gimple_move_vops (new_stmt, stmt);
 		      if (!lhs)
 			{
 			  gsi_replace (gsi, new_stmt, false);
@@ -1097,11 +1087,7 @@ gimple_fold_builtin_memory_op (gimple_stmt_iterator *gsi,
 	= gimple_build_assign (fold_build2 (MEM_REF, desttype, dest, off0),
 			       fold_build2 (MEM_REF, srctype, src, off0));
 set_vop_and_replace:
-      gimple_set_vuse (new_stmt, gimple_vuse (stmt));
-      gimple_set_vdef (new_stmt, gimple_vdef (stmt));
-      if (gimple_vdef (new_stmt)
-	  && TREE_CODE (gimple_vdef (new_stmt)) == SSA_NAME)
-	SSA_NAME_DEF_STMT (gimple_vdef (new_stmt)) = new_stmt;
+      gimple_move_vops (new_stmt, stmt);
       if (!lhs)
 	{
 	  gsi_replace (gsi, new_stmt, false);
@@ -1273,13 +1259,7 @@ gimple_fold_builtin_memset (gimple_stmt_iterator *gsi, tree c, tree len)
 
   var = fold_build2 (MEM_REF, etype, dest, build_int_cst (ptr_type_node, 0));
   gimple *store = gimple_build_assign (var, build_int_cst_type (etype, cval));
-  gimple_set_vuse (store, gimple_vuse (stmt));
-  tree vdef = gimple_vdef (stmt);
-  if (vdef && TREE_CODE (vdef) == SSA_NAME)
-    {
-      gimple_set_vdef (store, gimple_vdef (stmt));
-      SSA_NAME_DEF_STMT (gimple_vdef (stmt)) = store;
-    }
+  gimple_move_vops (store, stmt);
   gsi_insert_before (gsi, store, GSI_SAME_STMT);
   if (gimple_call_lhs (stmt))
     {
@@ -1366,6 +1346,10 @@ get_range_strlen_tree (tree arg, bitmap *visited, strlen_range_kind rkind,
 	  pdata->decl = lendata.decl;
 	}
     }
+
+  /* Set if VAL represents the maximum length based on array size (set
+     when exact length cannot be determined).  */
+  bool maxbound = false;
 
   if (!val && rkind == SRK_LENRANGE)
     {
@@ -1462,6 +1446,7 @@ get_range_strlen_tree (tree arg, bitmap *visited, strlen_range_kind rkind,
 	      pdata->minlen = ssize_int (0);
 	    }
 	}
+      maxbound = true;
     }
 
   if (!val)
@@ -1475,25 +1460,23 @@ get_range_strlen_tree (tree arg, bitmap *visited, strlen_range_kind rkind,
 	  && tree_int_cst_lt (val, pdata->minlen)))
     pdata->minlen = val;
 
-  if (pdata->maxbound)
+  if (pdata->maxbound && TREE_CODE (pdata->maxbound) == INTEGER_CST)
     {
       /* Adjust the tighter (more optimistic) string length bound
 	 if necessary and proceed to adjust the more conservative
 	 bound.  */
       if (TREE_CODE (val) == INTEGER_CST)
 	{
-	  if (TREE_CODE (pdata->maxbound) == INTEGER_CST)
-	    {
-	      if (tree_int_cst_lt (pdata->maxbound, val))
-		pdata->maxbound = val;
-	    }
-	  else
-	    pdata->maxbound = build_all_ones_cst (size_type_node);
+	  if (tree_int_cst_lt (pdata->maxbound, val))
+	    pdata->maxbound = val;
 	}
       else
 	pdata->maxbound = val;
     }
-  else
+  else if (pdata->maxbound || maxbound)
+    /* Set PDATA->MAXBOUND only if it either isn't INTEGER_CST or
+       if VAL corresponds to the maximum length determined based
+       on the type of the object.  */
     pdata->maxbound = val;
 
   if (tight_bound)
@@ -1672,35 +1655,25 @@ get_range_strlen (tree arg, bitmap *visited,
     }
 }
 
-/* Determine the minimum and maximum value or string length that ARG
-   refers to and store each in the first two elements of MINMAXLEN.
-   For expressions that point to strings of unknown lengths that are
-   character arrays, use the upper bound of the array as the maximum
-   length.  For example, given an expression like 'x ? array : "xyz"'
-   and array declared as 'char array[8]', MINMAXLEN[0] will be set
-   to 0 and MINMAXLEN[1] to 7, the longest string that could be
-   stored in array.
-   Return true if the range of the string lengths has been obtained
-   from the upper bound of an array at the end of a struct.  Such
-   an array may hold a string that's longer than its upper bound
-   due to it being used as a poor-man's flexible array member.
-
-   STRICT is true if it will handle PHIs and COND_EXPRs conservatively
-   and false if PHIs and COND_EXPRs are to be handled optimistically,
-   if we can determine string length minimum and maximum; it will use
-   the minimum from the ones where it can be determined.
-   STRICT false should be only used for warning code.
-   When non-null, clear *NONSTR if ARG refers to a constant array
-   that is known not be nul-terminated.  Otherwise set it to
-   the declaration of the constant non-terminated array.
-
-   ELTSIZE is 1 for normal single byte character strings, and 2 or
-   4 for wide characer strings.  ELTSIZE is by default 1.  */
+/* Try to obtain the range of the lengths of the string(s) referenced
+   by ARG, or the size of the largest array ARG refers to if the range
+   of lengths cannot be determined, and store all in *PDATA which must
+   be zero-initialized on input except PDATA->MAXBOUND may be set to
+   a non-null tree node other than INTEGER_CST to request to have it
+   set to the length of the longest string in a PHI.  ELTSIZE is
+   the expected size of the string element in bytes: 1 for char and
+   some power of 2 for wide characters.
+   Return true if the range [PDATA->MINLEN, PDATA->MAXLEN] is suitable
+   for optimization.  Returning false means that a nonzero PDATA->MINLEN
+   doesn't reflect the true lower bound of the range when PDATA->MAXLEN
+   is -1 (in that case, the actual range is indeterminate, i.e.,
+   [0, PTRDIFF_MAX - 2].  */
 
 bool
 get_range_strlen (tree arg, c_strlen_data *pdata, unsigned eltsize)
 {
   bitmap visited = NULL;
+  tree maxbound = pdata->maxbound;
 
   if (!get_range_strlen (arg, &visited, SRK_LENRANGE, pdata, eltsize))
     {
@@ -1713,9 +1686,10 @@ get_range_strlen (tree arg, c_strlen_data *pdata, unsigned eltsize)
   else if (!pdata->minlen)
     pdata->minlen = ssize_int (0);
 
-  /* Unless its null, leave the more conservative MAXBOUND unchanged.  */
-  if (!pdata->maxbound)
-    pdata->maxbound = pdata->maxlen;
+  /* If it's unchanged from it initial non-null value, set the conservative
+     MAXBOUND to SIZE_MAX.  Otherwise leave it null (if it is null).  */
+  if (maxbound && pdata->maxbound == maxbound)
+    pdata->maxbound = build_all_ones_cst (size_type_node);
 
   if (visited)
     BITMAP_FREE (visited);
@@ -1925,6 +1899,11 @@ gimple_fold_builtin_strchr (gimple_stmt_iterator *gsi, bool is_strrchr)
   if (!gimple_call_lhs (stmt))
     return false;
 
+  /* Avoid folding if the first argument is not a nul-terminated array.
+     Defer warning until later.  */
+  if (!check_nul_terminated_array (NULL_TREE, str))
+    return false;
+
   if ((p = c_getstr (str)) && target_char_cst_p (c, &ch))
     {
       const char *p1 = is_strrchr ? strrchr (p, ch) : strchr (p, ch);
@@ -1999,18 +1978,23 @@ static bool
 gimple_fold_builtin_strstr (gimple_stmt_iterator *gsi)
 {
   gimple *stmt = gsi_stmt (*gsi);
-  tree haystack = gimple_call_arg (stmt, 0);
-  tree needle = gimple_call_arg (stmt, 1);
-  const char *p, *q;
-
   if (!gimple_call_lhs (stmt))
     return false;
 
-  q = c_getstr (needle);
+  tree haystack = gimple_call_arg (stmt, 0);
+  tree needle = gimple_call_arg (stmt, 1);
+
+  /* Avoid folding if either argument is not a nul-terminated array.
+     Defer warning until later.  */
+  if (!check_nul_terminated_array (NULL_TREE, haystack)
+      || !check_nul_terminated_array (NULL_TREE, needle))
+    return false;
+
+  const char *q = c_getstr (needle);
   if (q == NULL)
     return false;
 
-  if ((p = c_getstr (haystack)))
+  if (const char *p = c_getstr (haystack))
     {
       const char *r = strstr (p, q);
 
@@ -2349,8 +2333,7 @@ gimple_load_first_char (location_t loc, tree str, gimple_seq *stmts)
   return var;
 }
 
-/* Fold a call to the str{n}{case}cmp builtin pointed by GSI iterator.
-   FCODE is the name of the builtin.  */
+/* Fold a call to the str{n}{case}cmp builtin pointed by GSI iterator.  */
 
 static bool
 gimple_fold_builtin_string_compare (gimple_stmt_iterator *gsi)
@@ -2363,18 +2346,20 @@ gimple_fold_builtin_string_compare (gimple_stmt_iterator *gsi)
   tree str1 = gimple_call_arg (stmt, 0);
   tree str2 = gimple_call_arg (stmt, 1);
   tree lhs = gimple_call_lhs (stmt);
-  HOST_WIDE_INT length = -1;
+
+  tree bound_node = NULL_TREE;
+  unsigned HOST_WIDE_INT bound = HOST_WIDE_INT_M1U;
 
   /* Handle strncmp and strncasecmp functions.  */
   if (gimple_call_num_args (stmt) == 3)
     {
-      tree len = gimple_call_arg (stmt, 2);
-      if (tree_fits_uhwi_p (len))
-	length = tree_to_uhwi (len);
+      bound_node = gimple_call_arg (stmt, 2);
+      if (tree_fits_uhwi_p (bound_node))
+	bound = tree_to_uhwi (bound_node);
     }
 
-  /* If the LEN parameter is zero, return zero.  */
-  if (length == 0)
+  /* If the BOUND parameter is zero, return zero.  */
+  if (bound == 0)
     {
       replace_call_with_value (gsi, integer_zero_node);
       return true;
@@ -2387,8 +2372,32 @@ gimple_fold_builtin_string_compare (gimple_stmt_iterator *gsi)
       return true;
     }
 
-  const char *p1 = c_getstr (str1);
-  const char *p2 = c_getstr (str2);
+  /* Initially set to the number of characters, including the terminating
+     nul if each array has one.   LENx == strnlen (Sx, LENx) implies that
+     the array Sx is not terminated by a nul.
+     For nul-terminated strings then adjusted to their length so that
+     LENx == NULPOSx holds.  */
+  unsigned HOST_WIDE_INT len1 = HOST_WIDE_INT_MAX, len2 = len1;
+  const char *p1 = c_getstr (str1, &len1);
+  const char *p2 = c_getstr (str2, &len2);
+
+  /* The position of the terminating nul character if one exists, otherwise
+     a value greater than LENx.  */
+  unsigned HOST_WIDE_INT nulpos1 = HOST_WIDE_INT_MAX, nulpos2 = nulpos1;
+
+  if (p1)
+    {
+      size_t n = strnlen (p1, len1);
+      if (n < len1)
+	len1 = nulpos1 = n;
+    }
+
+  if (p2)
+    {
+      size_t n = strnlen (p2, len2);
+      if (n < len2)
+	len2 = nulpos2 = n;
+    }
 
   /* For known strings, return an immediate value.  */
   if (p1 && p2)
@@ -2400,17 +2409,33 @@ gimple_fold_builtin_string_compare (gimple_stmt_iterator *gsi)
 	{
 	case BUILT_IN_STRCMP:
 	case BUILT_IN_STRCMP_EQ:
-	  {
-	    r = strcmp (p1, p2);
-	    known_result = true;
+	  if (len1 != nulpos1 || len2 != nulpos2)
 	    break;
-	  }
+
+	  r = strcmp (p1, p2);
+	  known_result = true;
+	  break;
+
 	case BUILT_IN_STRNCMP:
 	case BUILT_IN_STRNCMP_EQ:
 	  {
-	    if (length == -1)
+	    if (bound == HOST_WIDE_INT_M1U)
 	      break;
-	    r = strncmp (p1, p2, length);
+
+	    /* Reduce the bound to be no more than the length
+	       of the shorter of the two strings, or the sizes
+	       of the unterminated arrays.  */
+	    unsigned HOST_WIDE_INT n = bound;
+
+	    if (len1 == nulpos1 && len1 < n)
+	      n = len1 + 1;
+	    if (len2 == nulpos2 && len2 < n)
+	      n = len2 + 1;
+
+	    if (MIN (nulpos1, nulpos2) + 1 < n)
+	      break;
+
+	    r = strncmp (p1, p2, n);
 	    known_result = true;
 	    break;
 	  }
@@ -2420,9 +2445,9 @@ gimple_fold_builtin_string_compare (gimple_stmt_iterator *gsi)
 	  break;
 	case BUILT_IN_STRNCASECMP:
 	  {
-	    if (length == -1)
+	    if (bound == HOST_WIDE_INT_M1U)
 	      break;
-	    r = strncmp (p1, p2, length);
+	    r = strncmp (p1, p2, bound);
 	    if (r == 0)
 	      known_result = true;
 	    break;
@@ -2438,7 +2463,7 @@ gimple_fold_builtin_string_compare (gimple_stmt_iterator *gsi)
 	}
     }
 
-  bool nonzero_length = length >= 1
+  bool nonzero_bound = (bound >= 1 && bound < HOST_WIDE_INT_M1U)
     || fcode == BUILT_IN_STRCMP
     || fcode == BUILT_IN_STRCMP_EQ
     || fcode == BUILT_IN_STRCASECMP;
@@ -2446,7 +2471,7 @@ gimple_fold_builtin_string_compare (gimple_stmt_iterator *gsi)
   location_t loc = gimple_location (stmt);
 
   /* If the second arg is "", return *(const unsigned char*)arg1.  */
-  if (p2 && *p2 == '\0' && nonzero_length)
+  if (p2 && *p2 == '\0' && nonzero_bound)
     {
       gimple_seq stmts = NULL;
       tree var = gimple_load_first_char (loc, str1, &stmts);
@@ -2461,7 +2486,7 @@ gimple_fold_builtin_string_compare (gimple_stmt_iterator *gsi)
     }
 
   /* If the first arg is "", return -*(const unsigned char*)arg2.  */
-  if (p1 && *p1 == '\0' && nonzero_length)
+  if (p1 && *p1 == '\0' && nonzero_bound)
     {
       gimple_seq stmts = NULL;
       tree var = gimple_load_first_char (loc, str2, &stmts);
@@ -2480,9 +2505,9 @@ gimple_fold_builtin_string_compare (gimple_stmt_iterator *gsi)
       return true;
     }
 
-  /* If len parameter is one, return an expression corresponding to
+  /* If BOUND is one, return an expression corresponding to
      (*(const unsigned char*)arg2 - *(const unsigned char*)arg1).  */
-  if (fcode == BUILT_IN_STRNCMP && length == 1)
+  if (fcode == BUILT_IN_STRNCMP && bound == 1)
     {
       gimple_seq stmts = NULL;
       tree temp1 = gimple_load_first_char (loc, str1, &stmts);
@@ -2506,12 +2531,13 @@ gimple_fold_builtin_string_compare (gimple_stmt_iterator *gsi)
       return true;
     }
 
-  /* If length is larger than the length of one constant string, 
-     replace strncmp with corresponding strcmp */ 
-  if (fcode == BUILT_IN_STRNCMP 
-      && length > 0
-      && ((p2 && (size_t) length > strlen (p2)) 
-          || (p1 && (size_t) length > strlen (p1))))
+  /* If BOUND is greater than the length of one constant string,
+     and the other argument is also a nul-terminated string, replace
+     strncmp with strcmp.  */
+  if (fcode == BUILT_IN_STRNCMP
+      && bound > 0 && bound < HOST_WIDE_INT_M1U
+      && ((p2 && len2 < bound && len2 == nulpos2)
+	  || (p1 && len1 < bound && len1 == nulpos1)))
     {
       tree fn = builtin_decl_implicit (BUILT_IN_STRCMP);
       if (!fn)
@@ -2557,7 +2583,15 @@ gimple_fold_builtin_memchr (gimple_stmt_iterator *gsi)
       const char *r = (const char *)memchr (p1, c, MIN (length, string_length));
       if (r == NULL)
 	{
-	  if (length <= string_length)
+	  tree mem_size, offset_node;
+	  string_constant (arg1, &offset_node, &mem_size, NULL);
+	  unsigned HOST_WIDE_INT offset = (offset_node == NULL_TREE)
+					  ? 0 : tree_to_uhwi (offset_node);
+	  /* MEM_SIZE is the size of the array the string literal
+	     is stored in.  */
+	  unsigned HOST_WIDE_INT string_size = tree_to_uhwi (mem_size) - offset;
+	  gcc_checking_assert (string_length <= string_size);
+	  if (length <= string_size)
 	    {
 	      replace_call_with_value (gsi, build_int_cst (ptr_type_node, 0));
 	      return true;
@@ -2988,11 +3022,7 @@ gimple_fold_builtin_stpcpy (gimple_stmt_iterator *gsi)
 			tem, build_int_cst (size_type_node, 1));
   gsi_insert_seq_before (gsi, stmts, GSI_SAME_STMT);
   gcall *repl = gimple_build_call (fn, 3, dest, src, lenp1);
-  gimple_set_vuse (repl, gimple_vuse (stmt));
-  gimple_set_vdef (repl, gimple_vdef (stmt));
-  if (gimple_vdef (repl)
-      && TREE_CODE (gimple_vdef (repl)) == SSA_NAME)
-    SSA_NAME_DEF_STMT (gimple_vdef (repl)) = repl;
+  gimple_move_vops (repl, stmt);
   gsi_insert_before (gsi, repl, GSI_SAME_STMT);
   /* Replace the result with dest + len.  */
   stmts = NULL;
@@ -3757,7 +3787,7 @@ gimple_fold_builtin_strlen (gimple_stmt_iterator *gsi)
 
   /* Set the strlen() range to [0, MAXLEN].  */
   if (tree lhs = gimple_call_lhs (stmt))
-    set_strlen_range (lhs, maxlen);
+    set_strlen_range (lhs, minlen, maxlen);
 
   return false;
 }
@@ -4140,9 +4170,7 @@ fold_builtin_atomic_compare_exchange (gimple_stmt_iterator *gsi)
 				  gimple_call_arg (stmt, 5));
   tree lhs = make_ssa_name (ctype);
   gimple_call_set_lhs (g, lhs);
-  gimple_set_vdef (g, gimple_vdef (stmt));
-  gimple_set_vuse (g, gimple_vuse (stmt));
-  SSA_NAME_DEF_STMT (gimple_vdef (g)) = g;
+  gimple_move_vops (g, stmt);
   tree oldlhs = gimple_call_lhs (stmt);
   if (stmt_can_throw_internal (cfun, stmt))
     {
@@ -4211,6 +4239,63 @@ arith_overflowed_p (enum tree_code code, const_tree type,
   if (sign == UNSIGNED && wi::neg_p (wres))
     return true;
   return wi::min_precision (wres, sign) > TYPE_PRECISION (type);
+}
+
+/* If IFN_MASK_LOAD/STORE call CALL is unconditional, return a MEM_REF
+   for the memory it references, otherwise return null.  VECTYPE is the
+   type of the memory vector.  */
+
+static tree
+gimple_fold_mask_load_store_mem_ref (gcall *call, tree vectype)
+{
+  tree ptr = gimple_call_arg (call, 0);
+  tree alias_align = gimple_call_arg (call, 1);
+  tree mask = gimple_call_arg (call, 2);
+  if (!tree_fits_uhwi_p (alias_align) || !integer_all_onesp (mask))
+    return NULL_TREE;
+
+  unsigned HOST_WIDE_INT align = tree_to_uhwi (alias_align) * BITS_PER_UNIT;
+  if (TYPE_ALIGN (vectype) != align)
+    vectype = build_aligned_type (vectype, align);
+  tree offset = build_zero_cst (TREE_TYPE (alias_align));
+  return fold_build2 (MEM_REF, vectype, ptr, offset);
+}
+
+/* Try to fold IFN_MASK_LOAD call CALL.  Return true on success.  */
+
+static bool
+gimple_fold_mask_load (gimple_stmt_iterator *gsi, gcall *call)
+{
+  tree lhs = gimple_call_lhs (call);
+  if (!lhs)
+    return false;
+
+  if (tree rhs = gimple_fold_mask_load_store_mem_ref (call, TREE_TYPE (lhs)))
+    {
+      gassign *new_stmt = gimple_build_assign (lhs, rhs);
+      gimple_set_location (new_stmt, gimple_location (call));
+      gimple_move_vops (new_stmt, call);
+      gsi_replace (gsi, new_stmt, false);
+      return true;
+    }
+  return false;
+}
+
+/* Try to fold IFN_MASK_STORE call CALL.  Return true on success.  */
+
+static bool
+gimple_fold_mask_store (gimple_stmt_iterator *gsi, gcall *call)
+{
+  tree rhs = gimple_call_arg (call, 3);
+  if (tree lhs = gimple_fold_mask_load_store_mem_ref (call, TREE_TYPE (rhs)))
+    {
+      gassign *new_stmt = gimple_build_assign (lhs, rhs);
+      gimple_set_location (new_stmt, gimple_location (call));
+      gimple_move_vops (new_stmt, call);
+      gsi_replace (gsi, new_stmt, false);
+      return true;
+    }
+  return false;
 }
 
 /* Attempt to fold a call statement referenced by the statement iterator GSI.
@@ -4321,8 +4406,7 @@ gimple_fold_call (gimple_stmt_iterator *gsi, bool inplace)
 		      SSA_NAME_DEF_STMT (lhs) = gimple_build_nop ();
 		      set_ssa_default_def (cfun, var, lhs);
 		    }
-		  gimple_set_vuse (new_stmt, gimple_vuse (stmt));
-		  gimple_set_vdef (new_stmt, gimple_vdef (stmt));
+		  gimple_move_vops (new_stmt, stmt);
 		  gsi_replace (gsi, new_stmt, false);
 		  return true;
 		}
@@ -4442,6 +4526,12 @@ gimple_fold_call (gimple_stmt_iterator *gsi, bool inplace)
 	case IFN_MUL_OVERFLOW:
 	  subcode = MULT_EXPR;
 	  cplx_result = true;
+	  break;
+	case IFN_MASK_LOAD:
+	  changed |= gimple_fold_mask_load (gsi, stmt);
+	  break;
+	case IFN_MASK_STORE:
+	  changed |= gimple_fold_mask_store (gsi, stmt);
 	  break;
 	default:
 	  break;
@@ -5340,22 +5430,22 @@ same_bool_result_p (const_tree op1, const_tree op2)
 /* Forward declarations for some mutually recursive functions.  */
 
 static tree
-and_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
+and_comparisons_1 (tree type, enum tree_code code1, tree op1a, tree op1b,
 		   enum tree_code code2, tree op2a, tree op2b);
 static tree
-and_var_with_comparison (tree var, bool invert,
+and_var_with_comparison (tree type, tree var, bool invert,
 			 enum tree_code code2, tree op2a, tree op2b);
 static tree
-and_var_with_comparison_1 (gimple *stmt,
+and_var_with_comparison_1 (tree type, gimple *stmt,
 			   enum tree_code code2, tree op2a, tree op2b);
 static tree
-or_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
+or_comparisons_1 (tree, enum tree_code code1, tree op1a, tree op1b,
 		  enum tree_code code2, tree op2a, tree op2b);
 static tree
-or_var_with_comparison (tree var, bool invert,
+or_var_with_comparison (tree, tree var, bool invert,
 			enum tree_code code2, tree op2a, tree op2b);
 static tree
-or_var_with_comparison_1 (gimple *stmt,
+or_var_with_comparison_1 (tree, gimple *stmt,
 			  enum tree_code code2, tree op2a, tree op2b);
 
 /* Helper function for and_comparisons_1:  try to simplify the AND of the
@@ -5364,7 +5454,7 @@ or_var_with_comparison_1 (gimple *stmt,
    Return NULL_EXPR if we can't simplify this to a single expression.  */
 
 static tree
-and_var_with_comparison (tree var, bool invert,
+and_var_with_comparison (tree type, tree var, bool invert,
 			 enum tree_code code2, tree op2a, tree op2b)
 {
   tree t;
@@ -5378,11 +5468,11 @@ and_var_with_comparison (tree var, bool invert,
      !var AND (op2a code2 op2b) => !(var OR !(op2a code2 op2b))
      Then we only have to consider the simpler non-inverted cases.  */
   if (invert)
-    t = or_var_with_comparison_1 (stmt, 
+    t = or_var_with_comparison_1 (type, stmt,
 				  invert_tree_comparison (code2, false),
 				  op2a, op2b);
   else
-    t = and_var_with_comparison_1 (stmt, code2, op2a, op2b);
+    t = and_var_with_comparison_1 (type, stmt, code2, op2a, op2b);
   return canonicalize_bool (t, invert);
 }
 
@@ -5391,7 +5481,7 @@ and_var_with_comparison (tree var, bool invert,
    Return NULL_EXPR if we can't simplify this to a single expression.  */
 
 static tree
-and_var_with_comparison_1 (gimple *stmt,
+and_var_with_comparison_1 (tree type, gimple *stmt,
 			   enum tree_code code2, tree op2a, tree op2b)
 {
   tree var = gimple_assign_lhs (stmt);
@@ -5422,7 +5512,7 @@ and_var_with_comparison_1 (gimple *stmt,
   /* If the definition is a comparison, recurse on it.  */
   if (TREE_CODE_CLASS (innercode) == tcc_comparison)
     {
-      tree t = and_comparisons_1 (innercode,
+      tree t = and_comparisons_1 (type, innercode,
 				  gimple_assign_rhs1 (stmt),
 				  gimple_assign_rhs2 (stmt),
 				  code2,
@@ -5458,18 +5548,20 @@ and_var_with_comparison_1 (gimple *stmt,
       else if (inner1 == false_test_var)
 	return (is_and
 		? boolean_false_node
-		: and_var_with_comparison (inner2, false, code2, op2a, op2b));
+		: and_var_with_comparison (type, inner2, false, code2, op2a,
+					   op2b));
       else if (inner2 == false_test_var)
 	return (is_and
 		? boolean_false_node
-		: and_var_with_comparison (inner1, false, code2, op2a, op2b));
+		: and_var_with_comparison (type, inner1, false, code2, op2a,
+					   op2b));
 
       /* Next, redistribute/reassociate the AND across the inner tests.
 	 Compute the first partial result, (inner1 AND (op2a code op2b))  */
       if (TREE_CODE (inner1) == SSA_NAME
 	  && is_gimple_assign (s = SSA_NAME_DEF_STMT (inner1))
 	  && TREE_CODE_CLASS (gimple_assign_rhs_code (s)) == tcc_comparison
-	  && (t = maybe_fold_and_comparisons (gimple_assign_rhs_code (s),
+	  && (t = maybe_fold_and_comparisons (type, gimple_assign_rhs_code (s),
 					      gimple_assign_rhs1 (s),
 					      gimple_assign_rhs2 (s),
 					      code2, op2a, op2b)))
@@ -5501,7 +5593,7 @@ and_var_with_comparison_1 (gimple *stmt,
       if (TREE_CODE (inner2) == SSA_NAME
 	  && is_gimple_assign (s = SSA_NAME_DEF_STMT (inner2))
 	  && TREE_CODE_CLASS (gimple_assign_rhs_code (s)) == tcc_comparison
-	  && (t = maybe_fold_and_comparisons (gimple_assign_rhs_code (s),
+	  && (t = maybe_fold_and_comparisons (type, gimple_assign_rhs_code (s),
 					      gimple_assign_rhs1 (s),
 					      gimple_assign_rhs2 (s),
 					      code2, op2a, op2b)))
@@ -5557,7 +5649,7 @@ and_var_with_comparison_1 (gimple *stmt,
    in the first comparison but not the second.  */
 
 static tree
-and_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
+and_comparisons_1 (tree type, enum tree_code code1, tree op1a, tree op1b,
 		   enum tree_code code2, tree op2a, tree op2b)
 {
   tree truth_type = truth_type_for (TREE_TYPE (op1a));
@@ -5587,136 +5679,6 @@ and_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
 	return t;
     }
 
-  /* If both comparisons are of the same value against constants, we might
-     be able to merge them.  */
-  if (operand_equal_p (op1a, op2a, 0)
-      && TREE_CODE (op1b) == INTEGER_CST
-      && TREE_CODE (op2b) == INTEGER_CST)
-    {
-      int cmp = tree_int_cst_compare (op1b, op2b);
-
-      /* If we have (op1a == op1b), we should either be able to
-	 return that or FALSE, depending on whether the constant op1b
-	 also satisfies the other comparison against op2b.  */
-      if (code1 == EQ_EXPR)
-	{
-	  bool done = true;
-	  bool val;
-	  switch (code2)
-	    {
-	    case EQ_EXPR: val = (cmp == 0); break;
-	    case NE_EXPR: val = (cmp != 0); break;
-	    case LT_EXPR: val = (cmp < 0); break;
-	    case GT_EXPR: val = (cmp > 0); break;
-	    case LE_EXPR: val = (cmp <= 0); break;
-	    case GE_EXPR: val = (cmp >= 0); break;
-	    default: done = false;
-	    }
-	  if (done)
-	    {
-	      if (val)
-		return fold_build2 (code1, boolean_type_node, op1a, op1b);
-	      else
-		return boolean_false_node;
-	    }
-	}
-      /* Likewise if the second comparison is an == comparison.  */
-      else if (code2 == EQ_EXPR)
-	{
-	  bool done = true;
-	  bool val;
-	  switch (code1)
-	    {
-	    case EQ_EXPR: val = (cmp == 0); break;
-	    case NE_EXPR: val = (cmp != 0); break;
-	    case LT_EXPR: val = (cmp > 0); break;
-	    case GT_EXPR: val = (cmp < 0); break;
-	    case LE_EXPR: val = (cmp >= 0); break;
-	    case GE_EXPR: val = (cmp <= 0); break;
-	    default: done = false;
-	    }
-	  if (done)
-	    {
-	      if (val)
-		return fold_build2 (code2, boolean_type_node, op2a, op2b);
-	      else
-		return boolean_false_node;
-	    }
-	}
-
-      /* Same business with inequality tests.  */
-      else if (code1 == NE_EXPR)
-	{
-	  bool val;
-	  switch (code2)
-	    {
-	    case EQ_EXPR: val = (cmp != 0); break;
-	    case NE_EXPR: val = (cmp == 0); break;
-	    case LT_EXPR: val = (cmp >= 0); break;
-	    case GT_EXPR: val = (cmp <= 0); break;
-	    case LE_EXPR: val = (cmp > 0); break;
-	    case GE_EXPR: val = (cmp < 0); break;
-	    default:
-	      val = false;
-	    }
-	  if (val)
-	    return fold_build2 (code2, boolean_type_node, op2a, op2b);
-	}
-      else if (code2 == NE_EXPR)
-	{
-	  bool val;
-	  switch (code1)
-	    {
-	    case EQ_EXPR: val = (cmp == 0); break;
-	    case NE_EXPR: val = (cmp != 0); break;
-	    case LT_EXPR: val = (cmp <= 0); break;
-	    case GT_EXPR: val = (cmp >= 0); break;
-	    case LE_EXPR: val = (cmp < 0); break;
-	    case GE_EXPR: val = (cmp > 0); break;
-	    default:
-	      val = false;
-	    }
-	  if (val)
-	    return fold_build2 (code1, boolean_type_node, op1a, op1b);
-	}
-
-      /* Chose the more restrictive of two < or <= comparisons.  */
-      else if ((code1 == LT_EXPR || code1 == LE_EXPR)
-	       && (code2 == LT_EXPR || code2 == LE_EXPR))
-	{
-	  if ((cmp < 0) || (cmp == 0 && code1 == LT_EXPR))
-	    return fold_build2 (code1, boolean_type_node, op1a, op1b);
-	  else
-	    return fold_build2 (code2, boolean_type_node, op2a, op2b);
-	}
-
-      /* Likewise chose the more restrictive of two > or >= comparisons.  */
-      else if ((code1 == GT_EXPR || code1 == GE_EXPR)
-	       && (code2 == GT_EXPR || code2 == GE_EXPR))
-	{
-	  if ((cmp > 0) || (cmp == 0 && code1 == GT_EXPR))
-	    return fold_build2 (code1, boolean_type_node, op1a, op1b);
-	  else
-	    return fold_build2 (code2, boolean_type_node, op2a, op2b);
-	}
-
-      /* Check for singleton ranges.  */
-      else if (cmp == 0
-	       && ((code1 == LE_EXPR && code2 == GE_EXPR)
-		   || (code1 == GE_EXPR && code2 == LE_EXPR)))
-	return fold_build2 (EQ_EXPR, boolean_type_node, op1a, op2b);
-
-      /* Check for disjoint ranges. */
-      else if (cmp <= 0
-	       && (code1 == LT_EXPR || code1 == LE_EXPR)
-	       && (code2 == GT_EXPR || code2 == GE_EXPR))
-	return boolean_false_node;
-      else if (cmp >= 0
-	       && (code1 == GT_EXPR || code1 == GE_EXPR)
-	       && (code2 == LT_EXPR || code2 == LE_EXPR))
-	return boolean_false_node;
-    }
-
   /* Perhaps the first comparison is (NAME != 0) or (NAME == 1) where
      NAME's definition is a truth value.  See if there are any simplifications
      that can be done against the NAME's definition.  */
@@ -5731,7 +5693,8 @@ and_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
 	{
 	case GIMPLE_ASSIGN:
 	  /* Try to simplify by copy-propagating the definition.  */
-	  return and_var_with_comparison (op1a, invert, code2, op2a, op2b);
+	  return and_var_with_comparison (type, op1a, invert, code2, op2a,
+					  op2b);
 
 	case GIMPLE_PHI:
 	  /* If every argument to the PHI produces the same result when
@@ -5781,7 +5744,7 @@ and_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
 					     gimple_bb (def_stmt),
 					     gimple_bb (stmt)))
 			return NULL_TREE;
-		      temp = and_var_with_comparison (arg, invert, code2,
+		      temp = and_var_with_comparison (type, arg, invert, code2,
 						      op2a, op2b);
 		      if (!temp)
 			return NULL_TREE;
@@ -5803,6 +5766,83 @@ and_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
   return NULL_TREE;
 }
 
+/* Helper function for maybe_fold_and_comparisons and maybe_fold_or_comparisons
+   : try to simplify the AND/OR of the ssa variable VAR with the comparison
+   specified by (OP2A CODE2 OP2B) from match.pd.  Return NULL_EXPR if we can't
+   simplify this to a single expression.  As we are going to lower the cost
+   of building SSA names / gimple stmts significantly, we need to allocate
+   them ont the stack.  This will cause the code to be a bit ugly.  */
+
+static tree
+maybe_fold_comparisons_from_match_pd (tree type, enum tree_code code,
+				      enum tree_code code1,
+				      tree op1a, tree op1b,
+				      enum tree_code code2, tree op2a,
+				      tree op2b)
+{
+  /* Allocate gimple stmt1 on the stack.  */
+  gassign *stmt1
+    = (gassign *) XALLOCAVEC (char, gimple_size (GIMPLE_ASSIGN, 3));
+  gimple_init (stmt1, GIMPLE_ASSIGN, 3);
+  gimple_assign_set_rhs_code (stmt1, code1);
+  gimple_assign_set_rhs1 (stmt1, op1a);
+  gimple_assign_set_rhs2 (stmt1, op1b);
+
+  /* Allocate gimple stmt2 on the stack.  */
+  gassign *stmt2
+    = (gassign *) XALLOCAVEC (char, gimple_size (GIMPLE_ASSIGN, 3));
+  gimple_init (stmt2, GIMPLE_ASSIGN, 3);
+  gimple_assign_set_rhs_code (stmt2, code2);
+  gimple_assign_set_rhs1 (stmt2, op2a);
+  gimple_assign_set_rhs2 (stmt2, op2b);
+
+  /* Allocate SSA names(lhs1) on the stack.  */
+  tree lhs1 = (tree)XALLOCA (tree_ssa_name);
+  memset (lhs1, 0, sizeof (tree_ssa_name));
+  TREE_SET_CODE (lhs1, SSA_NAME);
+  TREE_TYPE (lhs1) = type;
+  init_ssa_name_imm_use (lhs1);
+
+  /* Allocate SSA names(lhs2) on the stack.  */
+  tree lhs2 = (tree)XALLOCA (tree_ssa_name);
+  memset (lhs2, 0, sizeof (tree_ssa_name));
+  TREE_SET_CODE (lhs2, SSA_NAME);
+  TREE_TYPE (lhs2) = type;
+  init_ssa_name_imm_use (lhs2);
+
+  gimple_assign_set_lhs (stmt1, lhs1);
+  gimple_assign_set_lhs (stmt2, lhs2);
+
+  gimple_match_op op (gimple_match_cond::UNCOND, code,
+		      type, gimple_assign_lhs (stmt1),
+		      gimple_assign_lhs (stmt2));
+  if (op.resimplify (NULL, follow_all_ssa_edges))
+    {
+      if (gimple_simplified_result_is_gimple_val (&op))
+	{
+	  tree res = op.ops[0];
+	  if (res == lhs1)
+	    return build2 (code1, type, op1a, op1b);
+	  else if (res == lhs2)
+	    return build2 (code2, type, op2a, op2b);
+	  else
+	    return res;
+	}
+      else if (op.code.is_tree_code ()
+	       && TREE_CODE_CLASS ((tree_code)op.code) == tcc_comparison)
+	{
+	  tree op0 = op.ops[0];
+	  tree op1 = op.ops[1];
+	  if (op0 == lhs1 || op0 == lhs2 || op1 == lhs1 || op1 == lhs2)
+	    return NULL_TREE;  /* not simple */
+
+	  return build2 ((enum tree_code)op.code, op.type, op0, op1);
+	}
+    }
+
+  return NULL_TREE;
+}
+
 /* Try to simplify the AND of two comparisons, specified by
    (OP1A CODE1 OP1B) and (OP2B CODE2 OP2B), respectively.
    If this can be simplified to a single expression (without requiring
@@ -5811,14 +5851,22 @@ and_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
    If the result expression is non-null, it has boolean type.  */
 
 tree
-maybe_fold_and_comparisons (enum tree_code code1, tree op1a, tree op1b,
+maybe_fold_and_comparisons (tree type,
+			    enum tree_code code1, tree op1a, tree op1b,
 			    enum tree_code code2, tree op2a, tree op2b)
 {
-  tree t = and_comparisons_1 (code1, op1a, op1b, code2, op2a, op2b);
-  if (t)
+  if (tree t = and_comparisons_1 (type, code1, op1a, op1b, code2, op2a, op2b))
     return t;
-  else
-    return and_comparisons_1 (code2, op2a, op2b, code1, op1a, op1b);
+
+  if (tree t = and_comparisons_1 (type, code2, op2a, op2b, code1, op1a, op1b))
+    return t;
+
+  if (tree t = maybe_fold_comparisons_from_match_pd (type, BIT_AND_EXPR, code1,
+						     op1a, op1b, code2, op2a,
+						     op2b))
+    return t;
+
+  return NULL_TREE;
 }
 
 /* Helper function for or_comparisons_1:  try to simplify the OR of the
@@ -5827,7 +5875,7 @@ maybe_fold_and_comparisons (enum tree_code code1, tree op1a, tree op1b,
    Return NULL_EXPR if we can't simplify this to a single expression.  */
 
 static tree
-or_var_with_comparison (tree var, bool invert,
+or_var_with_comparison (tree type, tree var, bool invert,
 			enum tree_code code2, tree op2a, tree op2b)
 {
   tree t;
@@ -5841,11 +5889,11 @@ or_var_with_comparison (tree var, bool invert,
      !var OR (op2a code2 op2b) => !(var AND !(op2a code2 op2b))
      Then we only have to consider the simpler non-inverted cases.  */
   if (invert)
-    t = and_var_with_comparison_1 (stmt, 
+    t = and_var_with_comparison_1 (type, stmt,
 				   invert_tree_comparison (code2, false),
 				   op2a, op2b);
   else
-    t = or_var_with_comparison_1 (stmt, code2, op2a, op2b);
+    t = or_var_with_comparison_1 (type, stmt, code2, op2a, op2b);
   return canonicalize_bool (t, invert);
 }
 
@@ -5854,7 +5902,7 @@ or_var_with_comparison (tree var, bool invert,
    Return NULL_EXPR if we can't simplify this to a single expression.  */
 
 static tree
-or_var_with_comparison_1 (gimple *stmt,
+or_var_with_comparison_1 (tree type, gimple *stmt,
 			  enum tree_code code2, tree op2a, tree op2b)
 {
   tree var = gimple_assign_lhs (stmt);
@@ -5885,7 +5933,7 @@ or_var_with_comparison_1 (gimple *stmt,
   /* If the definition is a comparison, recurse on it.  */
   if (TREE_CODE_CLASS (innercode) == tcc_comparison)
     {
-      tree t = or_comparisons_1 (innercode,
+      tree t = or_comparisons_1 (type, innercode,
 				 gimple_assign_rhs1 (stmt),
 				 gimple_assign_rhs2 (stmt),
 				 code2,
@@ -5921,18 +5969,20 @@ or_var_with_comparison_1 (gimple *stmt,
       else if (inner1 == false_test_var)
 	return (is_or
 		? boolean_true_node
-		: or_var_with_comparison (inner2, false, code2, op2a, op2b));
+		: or_var_with_comparison (type, inner2, false, code2, op2a,
+					  op2b));
       else if (inner2 == false_test_var)
 	return (is_or
 		? boolean_true_node
-		: or_var_with_comparison (inner1, false, code2, op2a, op2b));
+		: or_var_with_comparison (type, inner1, false, code2, op2a,
+					  op2b));
       
       /* Next, redistribute/reassociate the OR across the inner tests.
 	 Compute the first partial result, (inner1 OR (op2a code op2b))  */
       if (TREE_CODE (inner1) == SSA_NAME
 	  && is_gimple_assign (s = SSA_NAME_DEF_STMT (inner1))
 	  && TREE_CODE_CLASS (gimple_assign_rhs_code (s)) == tcc_comparison
-	  && (t = maybe_fold_or_comparisons (gimple_assign_rhs_code (s),
+	  && (t = maybe_fold_or_comparisons (type, gimple_assign_rhs_code (s),
 					     gimple_assign_rhs1 (s),
 					     gimple_assign_rhs2 (s),
 					     code2, op2a, op2b)))
@@ -5964,7 +6014,7 @@ or_var_with_comparison_1 (gimple *stmt,
       if (TREE_CODE (inner2) == SSA_NAME
 	  && is_gimple_assign (s = SSA_NAME_DEF_STMT (inner2))
 	  && TREE_CODE_CLASS (gimple_assign_rhs_code (s)) == tcc_comparison
-	  && (t = maybe_fold_or_comparisons (gimple_assign_rhs_code (s),
+	  && (t = maybe_fold_or_comparisons (type, gimple_assign_rhs_code (s),
 					     gimple_assign_rhs1 (s),
 					     gimple_assign_rhs2 (s),
 					     code2, op2a, op2b)))
@@ -6021,7 +6071,7 @@ or_var_with_comparison_1 (gimple *stmt,
    in the first comparison but not the second.  */
 
 static tree
-or_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
+or_comparisons_1 (tree type, enum tree_code code1, tree op1a, tree op1b,
 		  enum tree_code code2, tree op2a, tree op2b)
 {
   tree truth_type = truth_type_for (TREE_TYPE (op1a));
@@ -6051,136 +6101,6 @@ or_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
 	return t;
     }
 
-  /* If both comparisons are of the same value against constants, we might
-     be able to merge them.  */
-  if (operand_equal_p (op1a, op2a, 0)
-      && TREE_CODE (op1b) == INTEGER_CST
-      && TREE_CODE (op2b) == INTEGER_CST)
-    {
-      int cmp = tree_int_cst_compare (op1b, op2b);
-
-      /* If we have (op1a != op1b), we should either be able to
-	 return that or TRUE, depending on whether the constant op1b
-	 also satisfies the other comparison against op2b.  */
-      if (code1 == NE_EXPR)
-	{
-	  bool done = true;
-	  bool val;
-	  switch (code2)
-	    {
-	    case EQ_EXPR: val = (cmp == 0); break;
-	    case NE_EXPR: val = (cmp != 0); break;
-	    case LT_EXPR: val = (cmp < 0); break;
-	    case GT_EXPR: val = (cmp > 0); break;
-	    case LE_EXPR: val = (cmp <= 0); break;
-	    case GE_EXPR: val = (cmp >= 0); break;
-	    default: done = false;
-	    }
-	  if (done)
-	    {
-	      if (val)
-		return boolean_true_node;
-	      else
-		return fold_build2 (code1, boolean_type_node, op1a, op1b);
-	    }
-	}
-      /* Likewise if the second comparison is a != comparison.  */
-      else if (code2 == NE_EXPR)
-	{
-	  bool done = true;
-	  bool val;
-	  switch (code1)
-	    {
-	    case EQ_EXPR: val = (cmp == 0); break;
-	    case NE_EXPR: val = (cmp != 0); break;
-	    case LT_EXPR: val = (cmp > 0); break;
-	    case GT_EXPR: val = (cmp < 0); break;
-	    case LE_EXPR: val = (cmp >= 0); break;
-	    case GE_EXPR: val = (cmp <= 0); break;
-	    default: done = false;
-	    }
-	  if (done)
-	    {
-	      if (val)
-		return boolean_true_node;
-	      else
-		return fold_build2 (code2, boolean_type_node, op2a, op2b);
-	    }
-	}
-
-      /* See if an equality test is redundant with the other comparison.  */
-      else if (code1 == EQ_EXPR)
-	{
-	  bool val;
-	  switch (code2)
-	    {
-	    case EQ_EXPR: val = (cmp == 0); break;
-	    case NE_EXPR: val = (cmp != 0); break;
-	    case LT_EXPR: val = (cmp < 0); break;
-	    case GT_EXPR: val = (cmp > 0); break;
-	    case LE_EXPR: val = (cmp <= 0); break;
-	    case GE_EXPR: val = (cmp >= 0); break;
-	    default:
-	      val = false;
-	    }
-	  if (val)
-	    return fold_build2 (code2, boolean_type_node, op2a, op2b);
-	}
-      else if (code2 == EQ_EXPR)
-	{
-	  bool val;
-	  switch (code1)
-	    {
-	    case EQ_EXPR: val = (cmp == 0); break;
-	    case NE_EXPR: val = (cmp != 0); break;
-	    case LT_EXPR: val = (cmp > 0); break;
-	    case GT_EXPR: val = (cmp < 0); break;
-	    case LE_EXPR: val = (cmp >= 0); break;
-	    case GE_EXPR: val = (cmp <= 0); break;
-	    default:
-	      val = false;
-	    }
-	  if (val)
-	    return fold_build2 (code1, boolean_type_node, op1a, op1b);
-	}
-
-      /* Chose the less restrictive of two < or <= comparisons.  */
-      else if ((code1 == LT_EXPR || code1 == LE_EXPR)
-	       && (code2 == LT_EXPR || code2 == LE_EXPR))
-	{
-	  if ((cmp < 0) || (cmp == 0 && code1 == LT_EXPR))
-	    return fold_build2 (code2, boolean_type_node, op2a, op2b);
-	  else
-	    return fold_build2 (code1, boolean_type_node, op1a, op1b);
-	}
-
-      /* Likewise chose the less restrictive of two > or >= comparisons.  */
-      else if ((code1 == GT_EXPR || code1 == GE_EXPR)
-	       && (code2 == GT_EXPR || code2 == GE_EXPR))
-	{
-	  if ((cmp > 0) || (cmp == 0 && code1 == GT_EXPR))
-	    return fold_build2 (code2, boolean_type_node, op2a, op2b);
-	  else
-	    return fold_build2 (code1, boolean_type_node, op1a, op1b);
-	}
-
-      /* Check for singleton ranges.  */
-      else if (cmp == 0
-	       && ((code1 == LT_EXPR && code2 == GT_EXPR)
-		   || (code1 == GT_EXPR && code2 == LT_EXPR)))
-	return fold_build2 (NE_EXPR, boolean_type_node, op1a, op2b);
-
-      /* Check for less/greater pairs that don't restrict the range at all.  */
-      else if (cmp >= 0
-	       && (code1 == LT_EXPR || code1 == LE_EXPR)
-	       && (code2 == GT_EXPR || code2 == GE_EXPR))
-	return boolean_true_node;
-      else if (cmp <= 0
-	       && (code1 == GT_EXPR || code1 == GE_EXPR)
-	       && (code2 == LT_EXPR || code2 == LE_EXPR))
-	return boolean_true_node;
-    }
-
   /* Perhaps the first comparison is (NAME != 0) or (NAME == 1) where
      NAME's definition is a truth value.  See if there are any simplifications
      that can be done against the NAME's definition.  */
@@ -6195,7 +6115,8 @@ or_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
 	{
 	case GIMPLE_ASSIGN:
 	  /* Try to simplify by copy-propagating the definition.  */
-	  return or_var_with_comparison (op1a, invert, code2, op2a, op2b);
+	  return or_var_with_comparison (type, op1a, invert, code2, op2a,
+					 op2b);
 
 	case GIMPLE_PHI:
 	  /* If every argument to the PHI produces the same result when
@@ -6245,7 +6166,7 @@ or_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
 					     gimple_bb (def_stmt),
 					     gimple_bb (stmt)))
 			return NULL_TREE;
-		      temp = or_var_with_comparison (arg, invert, code2,
+		      temp = or_var_with_comparison (type, arg, invert, code2,
 						     op2a, op2b);
 		      if (!temp)
 			return NULL_TREE;
@@ -6275,16 +6196,23 @@ or_comparisons_1 (enum tree_code code1, tree op1a, tree op1b,
    If the result expression is non-null, it has boolean type.  */
 
 tree
-maybe_fold_or_comparisons (enum tree_code code1, tree op1a, tree op1b,
+maybe_fold_or_comparisons (tree type,
+			   enum tree_code code1, tree op1a, tree op1b,
 			   enum tree_code code2, tree op2a, tree op2b)
 {
-  tree t = or_comparisons_1 (code1, op1a, op1b, code2, op2a, op2b);
-  if (t)
+  if (tree t = or_comparisons_1 (type, code1, op1a, op1b, code2, op2a, op2b))
     return t;
-  else
-    return or_comparisons_1 (code2, op2a, op2b, code1, op1a, op1b);
-}
 
+  if (tree t = or_comparisons_1 (type, code2, op2a, op2b, code1, op1a, op1b))
+    return t;
+
+  if (tree t = maybe_fold_comparisons_from_match_pd (type, BIT_IOR_EXPR, code1,
+						     op1a, op1b, code2, op2a,
+						     op2b))
+    return t;
+
+  return NULL_TREE;
+}
 
 /* Fold STMT to a constant using VALUEIZE to valueize SSA names.
 
@@ -6562,6 +6490,7 @@ gimple_fold_stmt_to_constant_1 (gimple *stmt, tree (*valueize) (tree),
 
 	fn = (*valueize) (gimple_call_fn (stmt));
 	if (TREE_CODE (fn) == ADDR_EXPR
+	    && TREE_CODE (TREE_OPERAND (fn, 0)) == FUNCTION_DECL
 	    && fndecl_built_in_p (TREE_OPERAND (fn, 0))
 	    && gimple_builtin_call_types_compatible_p (stmt,
 						       TREE_OPERAND (fn, 0)))
@@ -6722,14 +6651,13 @@ fold_array_ctor_reference (tree type, tree ctor,
   elt_size = wi::to_offset (TYPE_SIZE_UNIT (TREE_TYPE (TREE_TYPE (ctor))));
 
   /* When TYPE is non-null, verify that it specifies a constant-sized
-     accessed not larger than size of array element.  Avoid division
+     access of a multiple of the array element size.  Avoid division
      by zero below when ELT_SIZE is zero, such as with the result of
      an initializer for a zero-length array or an empty struct.  */
   if (elt_size == 0
       || (type
 	  && (!TYPE_SIZE_UNIT (type)
-	      || TREE_CODE (TYPE_SIZE_UNIT (type)) != INTEGER_CST
-	      || elt_size < wi::to_offset (TYPE_SIZE_UNIT (type)))))
+	      || TREE_CODE (TYPE_SIZE_UNIT (type)) != INTEGER_CST)))
     return NULL_TREE;
 
   /* Compute the array index we look for.  */
@@ -6740,10 +6668,88 @@ fold_array_ctor_reference (tree type, tree ctor,
   /* And offset within the access.  */
   inner_offset = offset % (elt_size.to_uhwi () * BITS_PER_UNIT);
 
-  /* See if the array field is large enough to span whole access.  We do not
-     care to fold accesses spanning multiple array indexes.  */
-  if (inner_offset + size > elt_size.to_uhwi () * BITS_PER_UNIT)
-    return NULL_TREE;
+  if (size > elt_size.to_uhwi () * BITS_PER_UNIT)
+    {
+      /* native_encode_expr constraints.  */
+      if (size > MAX_BITSIZE_MODE_ANY_MODE
+	  || size % BITS_PER_UNIT != 0
+	  || inner_offset % BITS_PER_UNIT != 0)
+	return NULL_TREE;
+
+      unsigned ctor_idx;
+      tree val = get_array_ctor_element_at_index (ctor, access_index,
+						  &ctor_idx);
+      if (!val && ctor_idx >= CONSTRUCTOR_NELTS  (ctor))
+	return build_zero_cst (type);
+
+      /* native-encode adjacent ctor elements.  */
+      unsigned char buf[MAX_BITSIZE_MODE_ANY_MODE / BITS_PER_UNIT];
+      unsigned bufoff = 0;
+      offset_int index = 0;
+      offset_int max_index = access_index;
+      constructor_elt *elt = CONSTRUCTOR_ELT (ctor, ctor_idx);
+      if (!val)
+	val = build_zero_cst (TREE_TYPE (TREE_TYPE (ctor)));
+      else if (!CONSTANT_CLASS_P (val))
+	return NULL_TREE;
+      if (!elt->index)
+	;
+      else if (TREE_CODE (elt->index) == RANGE_EXPR)
+	{
+	  index = wi::to_offset (TREE_OPERAND (elt->index, 0));
+	  max_index = wi::to_offset (TREE_OPERAND (elt->index, 1));
+	}
+      else
+	index = max_index = wi::to_offset (elt->index);
+      index = wi::umax (index, access_index);
+      do
+	{
+	  int len = native_encode_expr (val, buf + bufoff,
+					elt_size.to_uhwi (),
+					inner_offset / BITS_PER_UNIT);
+	  if (len != elt_size - inner_offset / BITS_PER_UNIT)
+	    return NULL_TREE;
+	  inner_offset = 0;
+	  bufoff += len;
+
+	  access_index += 1;
+	  if (wi::cmpu (access_index, index) == 0)
+	    val = elt->value;
+	  else if (wi::cmpu (access_index, max_index) > 0)
+	    {
+	      ctor_idx++;
+	      if (ctor_idx >= CONSTRUCTOR_NELTS (ctor))
+		{
+		  val = build_zero_cst (TREE_TYPE (TREE_TYPE (ctor)));
+		  ++max_index;
+		}
+	      else
+		{
+		  elt = CONSTRUCTOR_ELT (ctor, ctor_idx);
+		  index = 0;
+		  max_index = access_index;
+		  if (!elt->index)
+		    ;
+		  else if (TREE_CODE (elt->index) == RANGE_EXPR)
+		    {
+		      index = wi::to_offset (TREE_OPERAND (elt->index, 0));
+		      max_index = wi::to_offset (TREE_OPERAND (elt->index, 1));
+		    }
+		  else
+		    index = max_index = wi::to_offset (elt->index);
+		  index = wi::umax (index, access_index);
+		  if (wi::cmpu (access_index, index) == 0)
+		    val = elt->value;
+		  else
+		    val = build_zero_cst (TREE_TYPE (TREE_TYPE (ctor)));
+		}
+	    }
+	}
+      while (bufoff < size / BITS_PER_UNIT);
+      *suboff += size;
+      return native_interpret_expr (type, buf, size / BITS_PER_UNIT);
+    }
+
   if (tree val = get_array_ctor_element_at_index (ctor, access_index))
     {
       if (!size && TREE_CODE (val) != CONSTRUCTOR)
@@ -6863,12 +6869,15 @@ fold_nonarray_ctor_reference (tree type, tree ctor,
 				      from_decl, suboff);
 	}
     }
-  /* Memory not explicitly mentioned in constructor is 0.  */
-  return type ? build_zero_cst (type) : NULL_TREE;
+
+  if (!type)
+    return NULL_TREE;
+
+  return build_zero_cst (type);
 }
 
 /* CTOR is value initializing memory.  Fold a reference of TYPE and
-   bit size POLY_SIZE to the memory at bit POLY_OFFSET.  When SIZE
+   bit size POLY_SIZE to the memory at bit POLY_OFFSET.  When POLY_SIZE
    is zero, attempt to fold a reference to the entire subobject
    which OFFSET refers to.  This is used when folding accesses to
    string members of aggregates.  When non-null, set *SUBOFF to

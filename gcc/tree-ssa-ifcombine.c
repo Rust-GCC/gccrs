@@ -40,7 +40,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimplify-me.h"
 #include "tree-cfg.h"
 #include "tree-ssa.h"
-#include "params.h"
 
 #ifndef LOGICAL_OP_NON_SHORT_CIRCUIT
 #define LOGICAL_OP_NON_SHORT_CIRCUIT \
@@ -555,7 +554,7 @@ ifcombine_ifandif (basic_block inner_cond_bb, bool inner_inv,
 	return false;
       /* Don't return false so fast, try maybe_fold_or_comparisons?  */
 
-      if (!(t = maybe_fold_and_comparisons (inner_cond_code,
+      if (!(t = maybe_fold_and_comparisons (boolean_type_node, inner_cond_code,
 					    gimple_cond_lhs (inner_cond),
 					    gimple_cond_rhs (inner_cond),
 					    outer_cond_code,
@@ -565,9 +564,9 @@ ifcombine_ifandif (basic_block inner_cond_bb, bool inner_inv,
 	  tree t1, t2;
 	  gimple_stmt_iterator gsi;
 	  bool logical_op_non_short_circuit = LOGICAL_OP_NON_SHORT_CIRCUIT;
-	  if (PARAM_VALUE (PARAM_LOGICAL_OP_NON_SHORT_CIRCUIT) != -1)
+	  if (param_logical_op_non_short_circuit != -1)
 	    logical_op_non_short_circuit
-	      = PARAM_VALUE (PARAM_LOGICAL_OP_NON_SHORT_CIRCUIT);
+	      = param_logical_op_non_short_circuit;
 	  if (!logical_op_non_short_circuit || flag_sanitize_coverage)
 	    return false;
 	  /* Only do this optimization if the inner bb contains only the conditional. */
@@ -599,6 +598,12 @@ ifcombine_ifandif (basic_block inner_cond_bb, bool inner_inv,
       t = canonicalize_cond_expr_cond (t);
       if (!t)
 	return false;
+      if (!is_gimple_condexpr_for_cond (t))
+	{
+	  gsi = gsi_for_stmt (inner_cond);
+	  t = force_gimple_operand_gsi_1 (&gsi, t, is_gimple_condexpr_for_cond,
+					  NULL, true, GSI_SAME_STMT);
+	}
       gimple_cond_set_condition_from_tree (inner_cond, t);
       update_stmt (inner_cond);
 

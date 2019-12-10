@@ -107,7 +107,7 @@ static int pa_can_combine_p (rtx_insn *, rtx_insn *, rtx_insn *, int, rtx,
 static bool forward_branch_p (rtx_insn *);
 static void compute_zdepwi_operands (unsigned HOST_WIDE_INT, unsigned *);
 static void compute_zdepdi_operands (unsigned HOST_WIDE_INT, unsigned *);
-static int compute_movmem_length (rtx_insn *);
+static int compute_cpymem_length (rtx_insn *);
 static int compute_clrmem_length (rtx_insn *);
 static bool pa_assemble_integer (rtx, unsigned int, int);
 static void remove_useless_addtr_insns (int);
@@ -118,7 +118,8 @@ static void set_reg_plus_d (int, int, HOST_WIDE_INT, int);
 static rtx pa_function_value (const_tree, const_tree, bool);
 static rtx pa_libcall_value (machine_mode, const_rtx);
 static bool pa_function_value_regno_p (const unsigned int);
-static void pa_output_function_prologue (FILE *);
+static void pa_output_function_prologue (FILE *) ATTRIBUTE_UNUSED;
+static void pa_linux_output_function_prologue (FILE *) ATTRIBUTE_UNUSED;
 static void update_total_code_bytes (unsigned int);
 static void pa_output_function_epilogue (FILE *);
 static int pa_adjust_cost (rtx_insn *, int, rtx_insn *, int, unsigned int);
@@ -163,14 +164,12 @@ static void output_deferred_profile_counters (void) ATTRIBUTE_UNUSED;
 static void pa_file_end (void);
 static void pa_init_libfuncs (void);
 static rtx pa_struct_value_rtx (tree, int);
-static bool pa_pass_by_reference (cumulative_args_t, machine_mode,
-				  const_tree, bool);
-static int pa_arg_partial_bytes (cumulative_args_t, machine_mode,
-				 tree, bool);
-static void pa_function_arg_advance (cumulative_args_t, machine_mode,
-				     const_tree, bool);
-static rtx pa_function_arg (cumulative_args_t, machine_mode,
-			    const_tree, bool);
+static bool pa_pass_by_reference (cumulative_args_t,
+				  const function_arg_info &);
+static int pa_arg_partial_bytes (cumulative_args_t, const function_arg_info &);
+static void pa_function_arg_advance (cumulative_args_t,
+				     const function_arg_info &);
+static rtx pa_function_arg (cumulative_args_t, const function_arg_info &);
 static pad_direction pa_function_arg_padding (machine_mode, const_tree);
 static unsigned int pa_function_arg_boundary (machine_mode, const_tree);
 static struct machine_function * pa_init_machine_status (void);
@@ -198,8 +197,7 @@ static bool pa_cannot_force_const_mem (machine_mode, rtx);
 static bool pa_legitimate_constant_p (machine_mode, rtx);
 static unsigned int pa_section_type_flags (tree, const char *, int);
 static bool pa_legitimate_address_p (machine_mode, rtx, bool);
-static bool pa_callee_copies (cumulative_args_t, machine_mode,
-			      const_tree, bool);
+static bool pa_callee_copies (cumulative_args_t, const function_arg_info &);
 static unsigned int pa_hard_regno_nregs (unsigned int, machine_mode);
 static bool pa_hard_regno_mode_ok (unsigned int, machine_mode);
 static bool pa_modes_tieable_p (machine_mode, machine_mode);
@@ -262,8 +260,6 @@ static size_t n_deferred_plabels = 0;
 #undef TARGET_ASM_INTEGER
 #define TARGET_ASM_INTEGER pa_assemble_integer
 
-#undef TARGET_ASM_FUNCTION_PROLOGUE
-#define TARGET_ASM_FUNCTION_PROLOGUE pa_output_function_prologue
 #undef TARGET_ASM_FUNCTION_EPILOGUE
 #define TARGET_ASM_FUNCTION_EPILOGUE pa_output_function_epilogue
 
@@ -539,7 +535,7 @@ pa_option_override (void)
 
   if (! TARGET_GAS && write_symbols != NO_DEBUG)
     {
-      warning (0, "%<-g%> is only supported when using GAS on this processor,");
+      warning (0, "%<-g%> is only supported when using GAS on this processor");
       warning (0, "%<-g%> option disabled");
       write_symbols = NO_DEBUG;
     }
@@ -654,7 +650,7 @@ pa_expand_builtin (tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
 		   int ignore ATTRIBUTE_UNUSED)
 {
   tree fndecl = TREE_OPERAND (CALL_EXPR_FN (exp), 0);
-  unsigned int fcode = DECL_FUNCTION_CODE (fndecl);
+  unsigned int fcode = DECL_MD_FUNCTION_CODE (fndecl);
 
   switch (fcode)
     {
@@ -2986,7 +2982,7 @@ pa_output_block_move (rtx *operands, int size_is_constant ATTRIBUTE_UNUSED)
    count insns rather than emit them.  */
 
 static int
-compute_movmem_length (rtx_insn *insn)
+compute_cpymem_length (rtx_insn *insn)
 {
   rtx pat = PATTERN (insn);
   unsigned int align = INTVAL (XEXP (XVECEXP (pat, 0, 7), 0));
@@ -3842,16 +3838,10 @@ pa_compute_frame_size (poly_int64 size, int *fregs_live)
 	  & ~(PREFERRED_STACK_BOUNDARY / BITS_PER_UNIT - 1));
 }
 
-/* On HP-PA, move-double insns between fpu and cpu need an 8-byte block
-   of memory.  If any fpu reg is used in the function, we allocate
-   such a block here, at the bottom of the frame, just in case it's needed.
+/* Output function label, and associated .PROC and .CALLINFO statements.  */
 
-   If this function is a leaf procedure, then we may choose not
-   to do a "save" insn.  The decision about whether or not
-   to do this is made in regclass.c.  */
-
-static void
-pa_output_function_prologue (FILE *file)
+void
+pa_output_function_label (FILE *file)
 {
   /* The function's label and associated .PROC must never be
      separated and must be output *after* any profiling declarations
@@ -3897,7 +3887,22 @@ pa_output_function_prologue (FILE *file)
     fprintf (file, ",ENTRY_FR=%d", fr_saved + 11);
 
   fputs ("\n\t.ENTRY\n", file);
+}
 
+/* Output function prologue.  */
+
+static void
+pa_output_function_prologue (FILE *file)
+{
+  pa_output_function_label (file);
+  remove_useless_addtr_insns (0);
+}
+
+/* The label is output by ASM_DECLARE_FUNCTION_NAME on linux.  */
+
+static void
+pa_linux_output_function_prologue (FILE *file ATTRIBUTE_UNUSED)
+{
   remove_useless_addtr_insns (0);
 }
 
@@ -4048,7 +4053,7 @@ pa_expand_prologue (void)
 	}
 
       for (i = 18; i >= 4; i--)
-	if (df_regs_ever_live_p (i) && ! call_used_regs[i])
+	if (df_regs_ever_live_p (i) && !call_used_or_fixed_reg_p (i))
 	  {
 	    store_reg (i, offset, HARD_FRAME_POINTER_REGNUM);
 	    offset += UNITS_PER_WORD;
@@ -4088,7 +4093,7 @@ pa_expand_prologue (void)
 	}
 
       for (i = 18; i >= 3; i--)
-      	if (df_regs_ever_live_p (i) && ! call_used_regs[i])
+	if (df_regs_ever_live_p (i) && !call_used_or_fixed_reg_p (i))
 	  {
 	    /* If merge_sp_adjust_with_store is nonzero, then we can
 	       optimize the first GR save.  */
@@ -4389,7 +4394,7 @@ pa_expand_epilogue (void)
 	}
 
       for (i = 18; i >= 4; i--)
-	if (df_regs_ever_live_p (i) && ! call_used_regs[i])
+	if (df_regs_ever_live_p (i) && !call_used_or_fixed_reg_p (i))
 	  {
 	    load_reg (i, offset, HARD_FRAME_POINTER_REGNUM);
 	    offset += UNITS_PER_WORD;
@@ -4426,7 +4431,7 @@ pa_expand_epilogue (void)
 
       for (i = 18; i >= 3; i--)
 	{
-	  if (df_regs_ever_live_p (i) && ! call_used_regs[i])
+	  if (df_regs_ever_live_p (i) && !call_used_or_fixed_reg_p (i))
 	    {
 	      /* Only for the first load.
 	         merge_sp_adjust_with_load holds the register load
@@ -5052,7 +5057,7 @@ pa_adjust_insn_length (rtx_insn *insn, int length)
       && GET_CODE (XEXP (XVECEXP (pat, 0, 0), 1)) == MEM
       && GET_MODE (XEXP (XVECEXP (pat, 0, 0), 0)) == BLKmode
       && GET_MODE (XEXP (XVECEXP (pat, 0, 0), 1)) == BLKmode)
-    length += compute_movmem_length (insn) - 4;
+    length += compute_cpymem_length (insn) - 4;
   /* Block clear pattern.  */
   else if (NONJUMP_INSN_P (insn)
 	   && GET_CODE (pat) == PARALLEL
@@ -6215,17 +6220,9 @@ pa_eh_return_handler_rtx (void)
    or updates the ABI.  */
 
 static bool
-pa_pass_by_reference (cumulative_args_t ca ATTRIBUTE_UNUSED,
-		      machine_mode mode, const_tree type,
-		      bool named ATTRIBUTE_UNUSED)
+pa_pass_by_reference (cumulative_args_t, const function_arg_info &arg)
 {
-  HOST_WIDE_INT size;
-
-  if (type)
-    size = int_size_in_bytes (type);
-  else
-    size = GET_MODE_SIZE (mode);
-
+  HOST_WIDE_INT size = arg.type_size_in_bytes ();
   if (TARGET_64BIT)
     return size <= 0;
   else
@@ -6369,7 +6366,7 @@ hppa_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
       unsigned int size, ofs;
       bool indirect;
 
-      indirect = pass_by_reference (NULL, TYPE_MODE (type), type, 0);
+      indirect = pass_va_arg_by_reference (type);
       if (indirect)
 	{
 	  type = ptr;
@@ -7848,7 +7845,7 @@ pa_attr_length_call (rtx_insn *insn, int sibcall)
 
   /* 64-bit plabel sequence.  */
   else if (TARGET_64BIT && !local_call)
-    length += sibcall ? 28 : 24;
+    length += 24;
 
   /* non-pic long absolute branch sequence.  */
   else if ((TARGET_LONG_ABS_CALL || local_call) && !flag_pic)
@@ -7920,38 +7917,24 @@ pa_output_call (rtx_insn *insn, rtx call_dest, int sibcall)
 	  xoperands[0] = pa_get_deferred_plabel (call_dest);
 	  xoperands[1] = gen_label_rtx ();
 
-	  /* If this isn't a sibcall, we put the load of %r27 into the
-	     delay slot.  We can't do this in a sibcall as we don't
-	     have a second call-clobbered scratch register available.
-	     We don't need to do anything when generating fast indirect
-	     calls.  */
-	  if (seq_length != 0 && !sibcall)
+	  /* Put the load of %r27 into the delay slot.  We don't need to
+	     do anything when generating fast indirect calls.  */
+	  if (seq_length != 0)
 	    {
 	      final_scan_insn (NEXT_INSN (insn), asm_out_file,
 			       optimize, 0, NULL);
 
 	      /* Now delete the delay insn.  */
 	      SET_INSN_DELETED (NEXT_INSN (insn));
-	      seq_length = 0;
 	    }
 
 	  output_asm_insn ("addil LT'%0,%%r27", xoperands);
 	  output_asm_insn ("ldd RT'%0(%%r1),%%r1", xoperands);
 	  output_asm_insn ("ldd 0(%%r1),%%r1", xoperands);
-
-	  if (sibcall)
-	    {
-	      output_asm_insn ("ldd 24(%%r1),%%r27", xoperands);
-	      output_asm_insn ("ldd 16(%%r1),%%r1", xoperands);
-	      output_asm_insn ("bve (%%r1)", xoperands);
-	    }
-	  else
-	    {
-	      output_asm_insn ("ldd 16(%%r1),%%r2", xoperands);
-	      output_asm_insn ("bve,l (%%r2),%%r2", xoperands);
-	      output_asm_insn ("ldd 24(%%r1),%%r27", xoperands);
-	      seq_length = 1;
-	    }
+	  output_asm_insn ("ldd 16(%%r1),%%r2", xoperands);
+	  output_asm_insn ("bve,l (%%r2),%%r2", xoperands);
+	  output_asm_insn ("ldd 24(%%r1),%%r27", xoperands);
+	  seq_length = 1;
 	}
       else
 	{
@@ -8044,20 +8027,22 @@ pa_output_call (rtx_insn *insn, rtx call_dest, int sibcall)
 		    {
 		      output_asm_insn ("addil LT'%0,%%r19", xoperands);
 		      output_asm_insn ("ldw RT'%0(%%r1),%%r1", xoperands);
-		      output_asm_insn ("ldw 0(%%r1),%%r1", xoperands);
+		      output_asm_insn ("ldw 0(%%r1),%%r22", xoperands);
 		    }
 		  else
 		    {
 		      output_asm_insn ("addil LR'%0-$global$,%%r27",
 				       xoperands);
-		      output_asm_insn ("ldw RR'%0-$global$(%%r1),%%r1",
+		      output_asm_insn ("ldw RR'%0-$global$(%%r1),%%r22",
 				       xoperands);
 		    }
 
-		  output_asm_insn ("bb,>=,n %%r1,30,.+16", xoperands);
-		  output_asm_insn ("depi 0,31,2,%%r1", xoperands);
-		  output_asm_insn ("ldw 4(%%sr0,%%r1),%%r19", xoperands);
-		  output_asm_insn ("ldw 0(%%sr0,%%r1),%%r1", xoperands);
+		  output_asm_insn ("bb,>=,n %%r22,30,.+16", xoperands);
+		  output_asm_insn ("depi 0,31,2,%%r22", xoperands);
+		  /* Should this be an ordered load to ensure the target
+	             address is loaded before the global pointer?  */
+		  output_asm_insn ("ldw 0(%%r22),%%r1", xoperands);
+		  output_asm_insn ("ldw 4(%%r22),%%r19", xoperands);
 
 		  if (!sibcall && !TARGET_PA_20)
 		    {
@@ -8150,10 +8135,6 @@ pa_attr_length_indirect_call (rtx_insn *insn)
   if (TARGET_PORTABLE_RUNTIME)
     return 16;
 
-  /* Inline version of $$dyncall.  */
-  if ((TARGET_NO_SPACE_REGS || TARGET_PA_20) && !optimize_size)
-    return 20;
-
   if (!TARGET_LONG_CALLS
       && ((TARGET_PA_20 && !TARGET_SOM && distance < 7600000)
 	  || distance < MAX_PCREL17F_OFFSET))
@@ -8163,12 +8144,15 @@ pa_attr_length_indirect_call (rtx_insn *insn)
   if (!flag_pic)
     return 12;
 
-  /* Inline version of $$dyncall.  */
-  if (TARGET_NO_SPACE_REGS || TARGET_PA_20)
-    return 20;
-
+  /* Inline versions of $$dyncall.  */
   if (!optimize_size)
-    return 36;
+    {
+      if (TARGET_NO_SPACE_REGS)
+	return 28;
+
+      if (TARGET_PA_20)
+	return 32;
+    }
 
   /* Long PIC pc-relative call.  */
   return 20;
@@ -8206,22 +8190,6 @@ pa_output_indirect_call (rtx_insn *insn, rtx call_dest)
       return "blr %%r0,%%r2\n\tbv,n %%r0(%%r31)";
     }
 
-  /* Maybe emit a fast inline version of $$dyncall.  */
-  if ((TARGET_NO_SPACE_REGS || TARGET_PA_20) && !optimize_size)
-    {
-      output_asm_insn ("bb,>=,n %%r22,30,.+12\n\t"
-		       "ldw 2(%%r22),%%r19\n\t"
-		       "ldw -2(%%r22),%%r22", xoperands);
-      pa_output_arg_descriptor (insn);
-      if (TARGET_NO_SPACE_REGS)
-	{
-	  if (TARGET_PA_20)
-	    return "bve,l,n (%%r22),%%r2\n\tnop";
-	  return "ble 0(%%sr4,%%r22)\n\tcopy %%r31,%%r2";
-	}
-      return "bve,l (%%r22),%%r2\n\tstw %%r2,-24(%%sp)";
-    }
-
   /* Now the normal case -- we can reach $$dyncall directly or
      we're sure that we can get there via a long-branch stub. 
 
@@ -8250,35 +8218,40 @@ pa_output_indirect_call (rtx_insn *insn, rtx call_dest)
       return "ble R'$$dyncall(%%sr4,%%r2)\n\tcopy %%r31,%%r2";
     }
 
-  /* Maybe emit a fast inline version of $$dyncall.  The long PIC
-     pc-relative call sequence is five instructions.  The inline PA 2.0
-     version of $$dyncall is also five instructions.  The PA 1.X versions
-     are longer but still an overall win.  */
-  if (TARGET_NO_SPACE_REGS || TARGET_PA_20 || !optimize_size)
+  /* The long PIC pc-relative call sequence is five instructions.  So,
+     let's use an inline version of $$dyncall when the calling sequence
+     has a roughly similar number of instructions and we are not optimizing
+     for size.  We need two instructions to load the return pointer plus
+     the $$dyncall implementation.  */
+  if (!optimize_size)
     {
-      output_asm_insn ("bb,>=,n %%r22,30,.+12\n\t"
-		       "ldw 2(%%r22),%%r19\n\t"
-		       "ldw -2(%%r22),%%r22", xoperands);
       if (TARGET_NO_SPACE_REGS)
 	{
 	  pa_output_arg_descriptor (insn);
-	  if (TARGET_PA_20)
-	    return "bve,l,n (%%r22),%%r2\n\tnop";
-	  return "ble 0(%%sr4,%%r22)\n\tcopy %%r31,%%r2";
+	  output_asm_insn ("bl .+8,%%r2\n\t"
+			   "ldo 20(%%r2),%%r2\n\t"
+			   "extru,<> %%r22,30,1,%%r0\n\t"
+			   "bv,n %%r0(%%r22)\n\t"
+			   "ldw -2(%%r22),%%r21\n\t"
+			   "bv %%r0(%%r21)\n\t"
+			   "ldw 2(%%r22),%%r19", xoperands);
+	  return "";
 	}
       if (TARGET_PA_20)
 	{
 	  pa_output_arg_descriptor (insn);
-	  return "bve,l (%%r22),%%r2\n\tstw %%r2,-24(%%sp)";
+	  output_asm_insn ("bl .+8,%%r2\n\t"
+			   "ldo 24(%%r2),%%r2\n\t"
+			   "stw %%r2,-24(%%sp)\n\t"
+			   "extru,<> %r22,30,1,%%r0\n\t"
+			   "bve,n (%%r22)\n\t"
+			   "ldw -2(%%r22),%%r21\n\t"
+			   "bve (%%r21)\n\t"
+			   "ldw 2(%%r22),%%r19", xoperands);
+	  return "";
 	}
-      output_asm_insn ("bl .+8,%%r2\n\t"
-		       "ldo 16(%%r2),%%r2\n\t"
-		       "ldsid (%%r22),%%r1\n\t"
-		       "mtsp %%r1,%%sr0", xoperands);
-      pa_output_arg_descriptor (insn);
-      return "be 0(%%sr0,%%r22)\n\tstw %%r2,-24(%%sp)";
     }
- 
+
   /* We need a long PIC call to $$dyncall.  */
   xoperands[0] = gen_rtx_SYMBOL_REF (Pmode, "$$dyncall");
   xoperands[1] = gen_rtx_REG (Pmode, 2);
@@ -9439,21 +9412,19 @@ pa_function_value_regno_p (const unsigned int regno)
   return false;
 }
 
-/* Update the data in CUM to advance over an argument
-   of mode MODE and data type TYPE.
-   (TYPE is null for libcalls where that information may not be available.)  */
+/* Update the data in CUM to advance over argument ARG.  */
 
 static void
-pa_function_arg_advance (cumulative_args_t cum_v, machine_mode mode,
-			 const_tree type, bool named ATTRIBUTE_UNUSED)
+pa_function_arg_advance (cumulative_args_t cum_v,
+			 const function_arg_info &arg)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
-  int arg_size = pa_function_arg_size (mode, type);
+  int arg_size = pa_function_arg_size (arg.mode, arg.type);
 
   cum->nargs_prototype--;
   cum->words += (arg_size
 		 + ((cum->words & 01)
-		    && type != NULL_TREE
+		    && arg.type != NULL_TREE
 		    && arg_size > 1));
 }
 
@@ -9466,10 +9437,11 @@ pa_function_arg_advance (cumulative_args_t cum_v, machine_mode mode,
    ??? We might want to restructure this so that it looks more like other
    ports.  */
 static rtx
-pa_function_arg (cumulative_args_t cum_v, machine_mode mode,
-		 const_tree type, bool named ATTRIBUTE_UNUSED)
+pa_function_arg (cumulative_args_t cum_v, const function_arg_info &arg)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
+  tree type = arg.type;
+  machine_mode mode = arg.mode;
   int max_arg_words = (TARGET_64BIT ? 8 : 4);
   int alignment = 0;
   int arg_size;
@@ -9477,7 +9449,7 @@ pa_function_arg (cumulative_args_t cum_v, machine_mode mode,
   int gpr_reg_base;
   rtx retval;
 
-  if (mode == VOIDmode)
+  if (arg.end_marker_p ())
     return NULL_RTX;
 
   arg_size = pa_function_arg_size (mode, type);
@@ -9677,8 +9649,7 @@ pa_function_arg_boundary (machine_mode mode, const_tree type)
    then this routine should return zero.  */
 
 static int
-pa_arg_partial_bytes (cumulative_args_t cum_v, machine_mode mode,
-		      tree type, bool named ATTRIBUTE_UNUSED)
+pa_arg_partial_bytes (cumulative_args_t cum_v, const function_arg_info &arg)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
   unsigned int max_arg_words = 8;
@@ -9687,10 +9658,11 @@ pa_arg_partial_bytes (cumulative_args_t cum_v, machine_mode mode,
   if (!TARGET_64BIT)
     return 0;
 
-  if (pa_function_arg_size (mode, type) > 1 && (cum->words & 1))
+  if (pa_function_arg_size (arg.mode, arg.type) > 1 && (cum->words & 1))
     offset = 1;
 
-  if (cum->words + offset + pa_function_arg_size (mode, type) <= max_arg_words)
+  if (cum->words + offset + pa_function_arg_size (arg.mode, arg.type)
+      <= max_arg_words)
     /* Arg fits fully into registers.  */
     return 0;
   else if (cum->words + offset >= max_arg_words)
@@ -9797,19 +9769,22 @@ pa_som_asm_init_sections (void)
       = get_unnamed_section (0, output_section_asm_op,
 			     "\t.SPACE $PRIVATE$\n\t.SUBSPA $TM_CLONE_TABLE$");
 
-  /* FIXME: HPUX ld generates incorrect GOT entries for "T" fixups
-     which reference data within the $TEXT$ space (for example constant
+  /* HPUX ld generates incorrect GOT entries for "T" fixups which
+     reference data within the $TEXT$ space (for example constant
      strings in the $LIT$ subspace).
 
      The assemblers (GAS and HP as) both have problems with handling
-     the difference of two symbols which is the other correct way to
+     the difference of two symbols.  This is the other correct way to
      reference constant data during PIC code generation.
 
-     So, there's no way to reference constant data which is in the
-     $TEXT$ space during PIC generation.  Instead place all constant
-     data into the $PRIVATE$ subspace (this reduces sharing, but it
-     works correctly).  */
-  readonly_data_section = flag_pic ? data_section : som_readonly_data_section;
+     Thus, we can't put constant data needing relocation in the $TEXT$
+     space during PIC generation.
+
+     Previously, we placed all constant data into the $DATA$ subspace
+     when generating PIC code.  This reduces sharing, but it works
+     correctly.  Now we rely on pa_reloc_rw_mask() for section selection.
+     This puts constant data not needing relocation into the $TEXT$ space.  */
+  readonly_data_section = som_readonly_data_section;
 
   /* We must not have a reference to an external symbol defined in a
      shared library in a readonly section, else the SOM linker will
@@ -9842,7 +9817,7 @@ pa_select_section (tree exp, int reloc,
       && DECL_INITIAL (exp)
       && (DECL_INITIAL (exp) == error_mark_node
           || TREE_CONSTANT (DECL_INITIAL (exp)))
-      && !reloc)
+      && !(reloc & pa_reloc_rw_mask ()))
     {
       if (TARGET_SOM
 	  && DECL_ONE_ONLY (exp)
@@ -9851,7 +9826,8 @@ pa_select_section (tree exp, int reloc,
       else
 	return readonly_data_section;
     }
-  else if (CONSTANT_CLASS_P (exp) && !reloc)
+  else if (CONSTANT_CLASS_P (exp)
+	   && !(reloc & pa_reloc_rw_mask ()))
     return readonly_data_section;
   else if (TARGET_SOM
 	   && TREE_CODE (exp) == VAR_DECL
@@ -9867,12 +9843,11 @@ pa_select_section (tree exp, int reloc,
 static int
 pa_reloc_rw_mask (void)
 {
-  /* We force (const (plus (symbol) (const_int))) to memory when the
-     const_int doesn't fit in a 14-bit integer.  The SOM linker can't
-     handle this construct in read-only memory and we want to avoid
-     this for ELF.  So, we always force an RTX needing relocation to
-     the data section.  */
-  return 3;
+  if (flag_pic || (TARGET_SOM && !TARGET_HPUX_11))
+    return 3;
+
+  /* HP linker does not support global relocs in readonly memory.  */
+  return TARGET_SOM ? 2 : 0;
 }
 
 static void
@@ -10040,7 +10015,7 @@ pa_modes_tieable_p (machine_mode mode1, machine_mode mode2)
 
 /* Length in units of the trampoline instruction code.  */
 
-#define TRAMPOLINE_CODE_SIZE (TARGET_64BIT ? 24 : (TARGET_PA_20 ? 32 : 40))
+#define TRAMPOLINE_CODE_SIZE (TARGET_64BIT ? 24 : (TARGET_PA_20 ? 36 : 48))
 
 
 /* Output assembler code for a block containing the constant parts
@@ -10061,27 +10036,46 @@ pa_asm_trampoline_template (FILE *f)
 {
   if (!TARGET_64BIT)
     {
-      fputs ("\tldw	36(%r22),%r21\n", f);
-      fputs ("\tbb,>=,n	%r21,30,.+16\n", f);
-      if (ASSEMBLER_DIALECT == 0)
-	fputs ("\tdepi	0,31,2,%r21\n", f);
-      else
-	fputs ("\tdepwi	0,31,2,%r21\n", f);
-      fputs ("\tldw	4(%r21),%r19\n", f);
-      fputs ("\tldw	0(%r21),%r21\n", f);
       if (TARGET_PA_20)
 	{
-	  fputs ("\tbve	(%r21)\n", f);
-	  fputs ("\tldw	40(%r22),%r29\n", f);
+	  fputs ("\tmfia	%r20\n", f);
+	  fputs ("\tldw		48(%r20),%r22\n", f);
+	  fputs ("\tcopy	%r22,%r21\n", f);
+	  fputs ("\tbb,>=,n	%r22,30,.+16\n", f);
+	  fputs ("\tdepwi	0,31,2,%r22\n", f);
+	  fputs ("\tldw		0(%r22),%r21\n", f);
+	  fputs ("\tldw		4(%r22),%r19\n", f);
+	  fputs ("\tbve		(%r21)\n", f);
+	  fputs ("\tldw		52(%r1),%r29\n", f);
+	  fputs ("\t.word	0\n", f);
 	  fputs ("\t.word	0\n", f);
 	  fputs ("\t.word	0\n", f);
 	}
       else
 	{
+	  if (ASSEMBLER_DIALECT == 0)
+	    {
+	      fputs ("\tbl	.+8,%r20\n", f);
+	      fputs ("\tdepi	0,31,2,%r20\n", f);
+	    }
+	  else
+	    {
+	      fputs ("\tb,l	.+8,%r20\n", f);
+	      fputs ("\tdepwi	0,31,2,%r20\n", f);
+	    }
+	  fputs ("\tldw		40(%r20),%r22\n", f);
+	  fputs ("\tcopy	%r22,%r21\n", f);
+	  fputs ("\tbb,>=,n	%r22,30,.+16\n", f);
+	  if (ASSEMBLER_DIALECT == 0)
+	    fputs ("\tdepi	0,31,2,%r22\n", f);
+	  else
+	    fputs ("\tdepwi	0,31,2,%r22\n", f);
+	  fputs ("\tldw		0(%r22),%r21\n", f);
+	  fputs ("\tldw		4(%r22),%r19\n", f);
 	  fputs ("\tldsid	(%r21),%r1\n", f);
 	  fputs ("\tmtsp	%r1,%sr0\n", f);
-	  fputs ("\tbe	0(%sr0,%r21)\n", f);
-	  fputs ("\tldw	40(%r22),%r29\n", f);
+	  fputs ("\tbe		0(%sr0,%r21)\n", f);
+	  fputs ("\tldw		44(%r20),%r29\n", f);
 	}
       fputs ("\t.word	0\n", f);
       fputs ("\t.word	0\n", f);
@@ -10095,11 +10089,11 @@ pa_asm_trampoline_template (FILE *f)
       fputs ("\t.dword 0\n", f);
       fputs ("\t.dword 0\n", f);
       fputs ("\tmfia	%r31\n", f);
-      fputs ("\tldd	24(%r31),%r1\n", f);
-      fputs ("\tldd	24(%r1),%r27\n", f);
-      fputs ("\tldd	16(%r1),%r1\n", f);
-      fputs ("\tbve	(%r1)\n", f);
+      fputs ("\tldd	24(%r31),%r27\n", f);
       fputs ("\tldd	32(%r31),%r31\n", f);
+      fputs ("\tldd	16(%r27),%r1\n", f);
+      fputs ("\tbve	(%r1)\n", f);
+      fputs ("\tldd	24(%r27),%r27\n", f);
       fputs ("\t.dword 0  ; fptr\n", f);
       fputs ("\t.dword 0  ; static link\n", f);
     }
@@ -10109,10 +10103,10 @@ pa_asm_trampoline_template (FILE *f)
    FNADDR is an RTX for the address of the function's pure code.
    CXT is an RTX for the static chain value for the function.
 
-   Move the function address to the trampoline template at offset 36.
-   Move the static chain value to trampoline template at offset 40.
-   Move the trampoline address to trampoline template at offset 44.
-   Move r19 to trampoline template at offset 48.  The latter two
+   Move the function address to the trampoline template at offset 48.
+   Move the static chain value to trampoline template at offset 52.
+   Move the trampoline address to trampoline template at offset 56.
+   Move r19 to trampoline template at offset 60.  The latter two
    words create a plabel for the indirect call to the trampoline.
 
    A similar sequence is used for the 64-bit port but the plabel is
@@ -10138,15 +10132,15 @@ pa_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
 
   if (!TARGET_64BIT)
     {
-      tmp = adjust_address (m_tramp, Pmode, 36);
+      tmp = adjust_address (m_tramp, Pmode, 48);
       emit_move_insn (tmp, fnaddr);
-      tmp = adjust_address (m_tramp, Pmode, 40);
+      tmp = adjust_address (m_tramp, Pmode, 52);
       emit_move_insn (tmp, chain_value);
 
       /* Create a fat pointer for the trampoline.  */
-      tmp = adjust_address (m_tramp, Pmode, 44);
+      tmp = adjust_address (m_tramp, Pmode, 56);
       emit_move_insn (tmp, r_tramp);
-      tmp = adjust_address (m_tramp, Pmode, 48);
+      tmp = adjust_address (m_tramp, Pmode, 60);
       emit_move_insn (tmp, gen_rtx_REG (Pmode, 19));
 
       /* fdc and fic only use registers for the address to flush,
@@ -10198,20 +10192,20 @@ pa_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
     }
 
 #ifdef HAVE_ENABLE_EXECUTE_STACK
-  emit_library_call (gen_rtx_SYMBOL_REF (Pmode, "__enable_execute_stack"),
+  emit_library_call (gen_rtx_SYMBOL_REF (Pmode, "__enable_execute_stack"),
 		     LCT_NORMAL, VOIDmode, XEXP (m_tramp, 0), Pmode);
 #endif
 }
 
 /* Perform any machine-specific adjustment in the address of the trampoline.
    ADDR contains the address that was passed to pa_trampoline_init.
-   Adjust the trampoline address to point to the plabel at offset 44.  */
+   Adjust the trampoline address to point to the plabel at offset 56.  */
 
 static rtx
 pa_trampoline_adjust_address (rtx addr)
 {
   if (!TARGET_64BIT)
-    addr = memory_address (Pmode, plus_constant (Pmode, addr, 46));
+    addr = memory_address (Pmode, plus_constant (Pmode, addr, 58));
   return addr;
 }
 
@@ -10764,10 +10758,7 @@ pa_maybe_emit_compare_and_swap_exchange_loop (rtx target, rtx mem, rtx val)
    in the 64-bit HP runtime.  */
 
 static bool
-pa_callee_copies (cumulative_args_t cum ATTRIBUTE_UNUSED,
-		  machine_mode mode ATTRIBUTE_UNUSED,
-		  const_tree type ATTRIBUTE_UNUSED,
-		  bool named ATTRIBUTE_UNUSED)
+pa_callee_copies (cumulative_args_t, const function_arg_info &)
 {
   return !TARGET_CALLER_COPIES;
 }

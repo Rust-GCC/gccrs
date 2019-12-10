@@ -137,6 +137,10 @@ extern const char *unix_lbasename (const char *) ATTRIBUTE_RETURNS_NONNULL ATTRI
 
 extern char *lrealpath (const char *);
 
+/* Return true when FD file descriptor exists.  */
+
+extern int is_valid_fd (int fd);
+
 /* Concatenate an arbitrary number of strings.  You must pass NULL as
    the last argument of this function, to terminate the list of
    strings.  Allocates memory using xmalloc.  */
@@ -310,30 +314,30 @@ extern void xmalloc_failed (size_t) ATTRIBUTE_NORETURN;
    message to stderr (using the name set by xmalloc_set_program_name,
    if any) and then call xexit.  */
 
-extern void *xmalloc (size_t) ATTRIBUTE_MALLOC ATTRIBUTE_RETURNS_NONNULL;
+extern void *xmalloc (size_t) ATTRIBUTE_MALLOC ATTRIBUTE_RETURNS_NONNULL ATTRIBUTE_RESULT_SIZE_1 ATTRIBUTE_WARN_UNUSED_RESULT;
 
 /* Reallocate memory without fail.  This works like xmalloc.  Note,
    realloc type functions are not suitable for attribute malloc since
    they may return the same address across multiple calls. */
 
-extern void *xrealloc (void *, size_t) ATTRIBUTE_RETURNS_NONNULL;
+extern void *xrealloc (void *, size_t) ATTRIBUTE_RETURNS_NONNULL ATTRIBUTE_RESULT_SIZE_2 ATTRIBUTE_WARN_UNUSED_RESULT;
 
 /* Allocate memory without fail and set it to zero.  This works like
    xmalloc.  */
 
-extern void *xcalloc (size_t, size_t) ATTRIBUTE_MALLOC ATTRIBUTE_RETURNS_NONNULL;
+extern void *xcalloc (size_t, size_t) ATTRIBUTE_MALLOC ATTRIBUTE_RETURNS_NONNULL ATTRIBUTE_RESULT_SIZE_1_2 ATTRIBUTE_WARN_UNUSED_RESULT;
 
 /* Copy a string into a memory buffer without fail.  */
 
-extern char *xstrdup (const char *) ATTRIBUTE_MALLOC ATTRIBUTE_RETURNS_NONNULL;
+extern char *xstrdup (const char *) ATTRIBUTE_MALLOC ATTRIBUTE_RETURNS_NONNULL ATTRIBUTE_WARN_UNUSED_RESULT;
 
 /* Copy at most N characters from string into a buffer without fail.  */
 
-extern char *xstrndup (const char *, size_t) ATTRIBUTE_MALLOC ATTRIBUTE_RETURNS_NONNULL;
+extern char *xstrndup (const char *, size_t) ATTRIBUTE_MALLOC ATTRIBUTE_RETURNS_NONNULL ATTRIBUTE_WARN_UNUSED_RESULT;
 
 /* Copy an existing memory buffer to a new memory buffer without fail.  */
 
-extern void *xmemdup (const void *, size_t, size_t) ATTRIBUTE_MALLOC ATTRIBUTE_RETURNS_NONNULL;
+extern void *xmemdup (const void *, size_t, size_t) ATTRIBUTE_MALLOC ATTRIBUTE_RETURNS_NONNULL ATTRIBUTE_WARN_UNUSED_RESULT;
 
 /* Physical memory routines.  Return values are in BYTES.  */
 extern double physmem_total (void);

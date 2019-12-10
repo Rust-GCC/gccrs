@@ -97,7 +97,8 @@ extern const char *arc_cpu_to_as (int argc, const char **argv);
 
 #undef ASM_SPEC
 #define ASM_SPEC  "%{mbig-endian|EB:-EB} %{EL} "			\
-  "%:cpu_to_as(%{mcpu=*:%*}) %{mspfp*} %{mdpfp*} %{mfpu=fpuda*:-mfpuda}"
+  "%:cpu_to_as(%{mcpu=*:%*}) %{mspfp*} %{mdpfp*} "                      \
+  "%{mfpu=fpuda*:-mfpuda} %{mcode-density}"
 
 #define OPTION_DEFAULT_SPECS						\
   {"cpu", "%{!mcpu=*:%{!mARC*:%{!marc*:%{!mA7:%{!mA6:-mcpu=%(VALUE)}}}}}" }
@@ -1423,7 +1424,7 @@ do { \
    in one reasonably fast instruction.  */
 #define MOVE_MAX 4
 
-/* Undo the effects of the movmem pattern presence on STORE_BY_PIECES_P .  */
+/* Undo the effects of the cpymem pattern presence on STORE_BY_PIECES_P .  */
 #define MOVE_RATIO(SPEED) ((SPEED) ? 15 : 3)
 
 /* Define this to be nonzero if shift instructions ignore all but the

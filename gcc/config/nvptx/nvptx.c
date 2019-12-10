@@ -520,30 +520,29 @@ promote_return (machine_mode mode)
 /* Implement TARGET_FUNCTION_ARG.  */
 
 static rtx
-nvptx_function_arg (cumulative_args_t ARG_UNUSED (cum_v), machine_mode mode,
-		    const_tree, bool named)
+nvptx_function_arg (cumulative_args_t, const function_arg_info &arg)
 {
-  if (mode == VOIDmode || !named)
+  if (arg.end_marker_p () || !arg.named)
     return NULL_RTX;
 
-  return gen_reg_rtx (mode);
+  return gen_reg_rtx (arg.mode);
 }
 
 /* Implement TARGET_FUNCTION_INCOMING_ARG.  */
 
 static rtx
-nvptx_function_incoming_arg (cumulative_args_t cum_v, machine_mode mode,
-			     const_tree, bool named)
+nvptx_function_incoming_arg (cumulative_args_t cum_v,
+			     const function_arg_info &arg)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
 
-  if (mode == VOIDmode || !named)
+  if (arg.end_marker_p () || !arg.named)
     return NULL_RTX;
 
   /* No need to deal with split modes here, the only case that can
      happen is complex modes and those are dealt with by
      TARGET_SPLIT_COMPLEX_ARG.  */
-  return gen_rtx_UNSPEC (mode,
+  return gen_rtx_UNSPEC (arg.mode,
 			 gen_rtvec (1, GEN_INT (cum->count)),
 			 UNSPEC_ARG_REG);
 }
@@ -551,10 +550,7 @@ nvptx_function_incoming_arg (cumulative_args_t cum_v, machine_mode mode,
 /* Implement TARGET_FUNCTION_ARG_ADVANCE.  */
 
 static void
-nvptx_function_arg_advance (cumulative_args_t cum_v,
-			    machine_mode ARG_UNUSED (mode),
-			    const_tree ARG_UNUSED (type),
-			    bool ARG_UNUSED (named))
+nvptx_function_arg_advance (cumulative_args_t cum_v, const function_arg_info &)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
 
@@ -633,11 +629,9 @@ nvptx_function_value_regno_p (const unsigned int regno)
    reference in memory.  */
 
 static bool
-nvptx_pass_by_reference (cumulative_args_t ARG_UNUSED (cum),
-			 machine_mode mode, const_tree type,
-			 bool ARG_UNUSED (named))
+nvptx_pass_by_reference (cumulative_args_t, const function_arg_info &arg)
 {
-  return pass_in_memory (mode, type, false);
+  return pass_in_memory (arg.mode, arg.type, false);
 }
 
 /* Implement TARGET_RETURN_IN_MEMORY.  */
@@ -1475,7 +1469,7 @@ nvptx_output_softstack_switch (FILE *file, bool entering,
       fputs (";\n", file);
       if (!CONST_INT_P (size) || UINTVAL (align) > GET_MODE_SIZE (DImode))
 	fprintf (file,
-		 "\t\tand.u%d %%r%d, %%r%d, -" HOST_WIDE_INT_PRINT_DEC ";\n",
+		 "\t\tand.b%d %%r%d, %%r%d, -" HOST_WIDE_INT_PRINT_DEC ";\n",
 		 bits, regno, regno, UINTVAL (align));
     }
   if (cfun->machine->has_softstack)
@@ -3258,6 +3252,7 @@ nvptx_find_par (bb_insn_map_t *map, parallel *par, basic_block block)
 	    unsigned mask = UINTVAL (XVECEXP (PATTERN (end), 0, 0));
 
 	    gcc_assert (par->mask == mask);
+	    gcc_assert (par->join_block == NULL);
 	    par->join_block = block;
 	    par->join_insn = end;
 	    if (nvptx_needs_shared_bcast (mask))
@@ -3551,7 +3546,7 @@ nvptx_sese_number (int n, int p, int dir, basic_block b,
       size_t offset = (dir > 0 ? offsetof (edge_def, dest)
 		       : offsetof (edge_def, src));
       edge e;
-      edge_iterator (ei);
+      edge_iterator ei;
 
       FOR_EACH_EDGE (e, ei, edges)
 	{
@@ -3574,7 +3569,7 @@ nvptx_sese_pseudo (basic_block me, bb_sese *sese, int depth, int dir,
 		   vec<edge, va_gc> *edges, size_t offset)
 {
   edge e;
-  edge_iterator (ei);
+  edge_iterator ei;
   int hi_back = depth;
   pseudo_node_t node_back (0, depth);
   int hi_child = depth;
@@ -4402,8 +4397,10 @@ nvptx_single (unsigned mask, basic_block from, basic_block to)
       {
 	rtx_code_label *label = gen_label_rtx ();
 	rtx pred = cfun->machine->axis_predicate[mode - GOMP_DIM_WORKER];
-	rtx_insn **mode_jump = mode == GOMP_DIM_VECTOR ? &vector_jump : &worker_jump;
-	rtx_insn **mode_label = mode == GOMP_DIM_VECTOR ? &vector_label : &worker_label;
+	rtx_insn **mode_jump
+	  = mode == GOMP_DIM_VECTOR ? &vector_jump : &worker_jump;
+	rtx_insn **mode_label
+	  = mode == GOMP_DIM_VECTOR ? &vector_label : &worker_label;
 
 	if (!pred)
 	  {
@@ -4437,10 +4434,7 @@ nvptx_single (unsigned mask, basic_block from, basic_block to)
 	      emit_insn_after (gen_exit (), label_insn);
 	  }
 
-	if (mode == GOMP_DIM_VECTOR)
-	  vector_label = label_insn;
-	else
-	  worker_label = label_insn;
+	*mode_label = label_insn;
       }
 
   /* Now deal with propagating the branch condition.  */
@@ -5452,7 +5446,7 @@ nvptx_expand_builtin (tree exp, rtx target, rtx ARG_UNUSED (subtarget),
 		      machine_mode mode, int ignore)
 {
   tree fndecl = TREE_OPERAND (CALL_EXPR_FN (exp), 0);
-  switch (DECL_FUNCTION_CODE (fndecl))
+  switch (DECL_MD_FUNCTION_CODE (fndecl))
     {
     case NVPTX_BUILTIN_SHUFFLE:
     case NVPTX_BUILTIN_SHUFFLELL:
@@ -5478,6 +5472,32 @@ static int
 nvptx_simt_vf ()
 {
   return PTX_WARP_SIZE;
+}
+
+/* Return 1 if TRAIT NAME is present in the OpenMP context's
+   device trait set, return 0 if not present in any OpenMP context in the
+   whole translation unit, or -1 if not present in the current OpenMP context
+   but might be present in another OpenMP context in the same TU.  */
+
+int
+nvptx_omp_device_kind_arch_isa (enum omp_device_kind_arch_isa trait,
+				const char *name)
+{
+  switch (trait)
+    {
+    case omp_device_kind:
+      return strcmp (name, "gpu") == 0;
+    case omp_device_arch:
+      return strcmp (name, "nvptx") == 0;
+    case omp_device_isa:
+      if (strcmp (name, "sm_30") == 0)
+	return !TARGET_SM35;
+      if (strcmp (name, "sm_35") == 0)
+	return TARGET_SM35;
+      return 0;
+    default:
+      gcc_unreachable ();
+    }
 }
 
 static bool
@@ -6544,6 +6564,9 @@ nvptx_set_current_function (tree fndecl)
 
 #undef TARGET_SIMT_VF
 #define TARGET_SIMT_VF nvptx_simt_vf
+
+#undef TARGET_OMP_DEVICE_KIND_ARCH_ISA
+#define TARGET_OMP_DEVICE_KIND_ARCH_ISA nvptx_omp_device_kind_arch_isa
 
 #undef TARGET_GOACC_VALIDATE_DIMS
 #define TARGET_GOACC_VALIDATE_DIMS nvptx_goacc_validate_dims

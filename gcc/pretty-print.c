@@ -1192,6 +1192,7 @@ pp_format (pretty_printer *pp, text_info *text)
   /* Set output to the argument obstack, and switch line-wrapping and
      prefixing off.  */
   buffer->obstack = &buffer->chunk_obstack;
+  const int old_line_length = buffer->line_length;
   old_wrapping_mode = pp_set_verbatim_wrapping (pp);
 
   /* Second phase.  Replace each formatter with the formatted text it
@@ -1412,7 +1413,7 @@ pp_format (pretty_printer *pp, text_info *text)
 
   /* Revert to normal obstack and wrapping mode.  */
   buffer->obstack = &buffer->formatted_obstack;
-  buffer->line_length = 0;
+  buffer->line_length = old_line_length;
   pp_wrapping_mode (pp) = old_wrapping_mode;
   pp_clear_state (pp);
 }
@@ -1427,7 +1428,6 @@ pp_output_formatted_text (pretty_printer *pp)
   const char **args = chunk_array->args;
 
   gcc_assert (buffer->obstack == &buffer->formatted_obstack);
-  gcc_assert (buffer->line_length == 0);
 
   /* This is a third phase, first 2 phases done in pp_format_args.
      Now we actually print it.  */
@@ -1579,7 +1579,8 @@ pretty_printer::pretty_printer (int maximum_length)
     emitted_prefix (),
     need_newline (),
     translate_identifiers (true),
-    show_color ()
+    show_color (),
+    show_urls (false)
 {
   pp_line_cutoff (this) = maximum_length;
   /* By default, we emit prefixes once per message.  */
@@ -2028,6 +2029,41 @@ identifier_to_locale (const char *ident)
   }
 }
 
+/* Support for encoding URLs.
+   See egmontkob/Hyperlinks_in_Terminal_Emulators.md
+   ( https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda ).
+
+   > A hyperlink is opened upon encountering an OSC 8 escape sequence with
+   > the target URI. The syntax is
+   >
+   >  OSC 8 ; params ; URI ST
+   >
+   > A hyperlink is closed with the same escape sequence, omitting the
+   > parameters and the URI but keeping the separators:
+   >
+   > OSC 8 ; ; ST
+   >
+   > OSC (operating system command) is typically ESC ].  */
+
+/* If URL-printing is enabled, write an "open URL" escape sequence to PP
+   for the given URL.  */
+
+void
+pp_begin_url (pretty_printer *pp, const char *url)
+{
+  if (pp->show_urls)
+    pp_printf (pp, "\33]8;;%s\33\\", url);
+}
+
+/* If URL-printing is enabled, write a "close URL" escape sequence to PP.  */
+
+void
+pp_end_url (pretty_printer *pp)
+{
+  if (pp->show_urls)
+    pp_string (pp, "\33]8;;\33\\");
+}
+
 #if CHECKING_P
 
 namespace selftest {
@@ -2312,6 +2348,32 @@ test_prefixes_and_wrapping ()
 
 }
 
+/* Verify that URL-printing works as expected.  */
+
+void
+test_urls ()
+{
+  {
+    pretty_printer pp;
+    pp.show_urls = false;
+    pp_begin_url (&pp, "http://example.com");
+    pp_string (&pp, "This is a link");
+    pp_end_url (&pp);
+    ASSERT_STREQ ("This is a link",
+		  pp_formatted_text (&pp));
+  }
+
+  {
+    pretty_printer pp;
+    pp.show_urls = true;
+    pp_begin_url (&pp, "http://example.com");
+    pp_string (&pp, "This is a link");
+    pp_end_url (&pp);
+    ASSERT_STREQ ("\33]8;;http://example.com\33\\This is a link\33]8;;\33\\",
+		  pp_formatted_text (&pp));
+  }
+}
+
 /* Run all of the selftests within this file.  */
 
 void
@@ -2320,6 +2382,7 @@ pretty_print_c_tests ()
   test_basic_printing ();
   test_pp_format ();
   test_prefixes_and_wrapping ();
+  test_urls ();
 }
 
 } // namespace selftest

@@ -1,3 +1,34 @@
+2019-11-12  Martin Liska  <mliska@suse.cz>
+
+	* go-lang.c (go_langhook_post_options):
+	Use SET_OPTION_IF_UNSET.
+
+2019-09-04  Ian Lance Taylor  <iant@golang.org>
+
+	PR tree-optimization/91663
+	* go-lang.c (go_langhook_post_options): Clear
+	flag_partial_inlining.
+
+2019-08-23  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/91283
+	* go-lang.c (go_langhook_post_options): Set flag_excess_precision
+	instead of flag_excess_precision_cmdline.
+
+2019-07-02  Cherry Zhang  <cherryyz@google.com>
+
+	* go-gcc.cc (Gcc_backend::Gcc_backend): Define __builtin_memset.
+
+2019-06-21  Cherry Zhang  <cherryyz@google.com>
+
+	* go-gcc.cc (Gcc_backend::Gcc_backend): Define math/bits
+	builtins.
+
+2019-05-30  Jim Wilson  <jimw@sifive.com>
+
+	* go-gcc.cc (Gcc_backend::Gcc_backend): Add BUILT_IN_ATOMIC_FETCH_AND_1
+	and BUILT_IN_ATOMIC_FETCH_OR_1.
+
 2019-05-16  Cherry Zhang  <cherryyz@google.com>
 
 	* go-gcc.cc (Gcc_backend::Gcc_backend): Define atomic builtins.
@@ -37,10 +68,10 @@
 
 2019-02-05  Nikhil Benesch  <nikhil.benesch@gmail.com>
 
-        PR go/89019
-        * go-gcc.cc (Gcc_backend::placeholder_struct_type): Mark
-        placeholder structs as requiring structural equality.
-        (Gcc_backend::set_placeholder_pointer_type): Propagate the
+	PR go/89019
+	* go-gcc.cc (Gcc_backend::placeholder_struct_type): Mark
+	placeholder structs as requiring structural equality.
+	(Gcc_backend::set_placeholder_pointer_type): Propagate the
 	canonical type from the desired pointer type to the placeholder
 	pointer type.
 
@@ -938,7 +969,7 @@
 2013-11-22  Andrew MacLeod  <amacleod@redhat.com>
 
 	* go-gcc.cc: Add required include files from gimple.h.
-	* go-lang.c: Likewise
+	* go-lang.c: Likewise.
 
 2013-11-18  Richard Sandiford  <rdsandiford@googlemail.com>
 

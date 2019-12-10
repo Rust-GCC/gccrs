@@ -56,11 +56,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimplify.h"
 #include "langhooks.h"
 #include "reload.h"
-#include "params.h"
 #include "tree-pass.h"
 #include "context.h"
 #include "builtins.h"
 #include "tree-vector-builder.h"
+#include "opts.h"
 
 /* This file should be included last.  */
 #include "target-def.h"
@@ -655,20 +655,17 @@ static rtx sparc_legitimize_address (rtx, rtx, machine_mode);
 static rtx sparc_delegitimize_address (rtx);
 static bool sparc_mode_dependent_address_p (const_rtx, addr_space_t);
 static bool sparc_pass_by_reference (cumulative_args_t,
-				     machine_mode, const_tree, bool);
+				     const function_arg_info &);
 static void sparc_function_arg_advance (cumulative_args_t,
-					machine_mode, const_tree, bool);
-static rtx sparc_function_arg_1 (cumulative_args_t,
-				 machine_mode, const_tree, bool, bool);
-static rtx sparc_function_arg (cumulative_args_t,
-			       machine_mode, const_tree, bool);
+					const function_arg_info &);
+static rtx sparc_function_arg (cumulative_args_t, const function_arg_info &);
 static rtx sparc_function_incoming_arg (cumulative_args_t,
-					machine_mode, const_tree, bool);
+					const function_arg_info &);
 static pad_direction sparc_function_arg_padding (machine_mode, const_tree);
 static unsigned int sparc_function_arg_boundary (machine_mode,
 						 const_tree);
 static int sparc_arg_partial_bytes (cumulative_args_t,
-				    machine_mode, tree, bool);
+				    const function_arg_info &);
 static bool sparc_return_in_memory (const_tree, const_tree);
 static rtx sparc_struct_value_rtx (tree, int);
 static rtx sparc_function_value (const_tree, const_tree, bool);
@@ -679,7 +676,6 @@ static void sparc_output_dwarf_dtprel (FILE *, int, rtx) ATTRIBUTE_UNUSED;
 static void sparc_file_end (void);
 static bool sparc_frame_pointer_required (void);
 static bool sparc_can_eliminate (const int, const int);
-static rtx sparc_builtin_setjmp_frame_value (void);
 static void sparc_conditional_register_usage (void);
 static bool sparc_use_pseudo_pic_reg (void);
 static void sparc_init_pic_reg (void);
@@ -877,9 +873,6 @@ char sparc_hard_reg_printed[8];
 
 #undef TARGET_FRAME_POINTER_REQUIRED
 #define TARGET_FRAME_POINTER_REQUIRED sparc_frame_pointer_required
-
-#undef TARGET_BUILTIN_SETJMP_FRAME_VALUE
-#define TARGET_BUILTIN_SETJMP_FRAME_VALUE sparc_builtin_setjmp_frame_value
 
 #undef TARGET_CAN_ELIMINATE
 #define TARGET_CAN_ELIMINATE sparc_can_eliminate
@@ -2017,7 +2010,7 @@ sparc_option_override (void)
       gcc_unreachable ();
     };
 
-  /* PARAM_SIMULTANEOUS_PREFETCHES is the number of prefetches that
+  /* param_simultaneous_prefetches is the number of prefetches that
      can run at the same time.  More important, it is the threshold
      defining when additional prefetches will be dropped by the
      hardware.
@@ -2040,21 +2033,20 @@ sparc_option_override (void)
      single-threaded program.  Experimental results show that setting
      this parameter to 32 works well when the number of threads is not
      high.  */
-  maybe_set_param_value (PARAM_SIMULTANEOUS_PREFETCHES,
-			 ((sparc_cpu == PROCESSOR_ULTRASPARC
-			   || sparc_cpu == PROCESSOR_NIAGARA
-			   || sparc_cpu == PROCESSOR_NIAGARA2
-			   || sparc_cpu == PROCESSOR_NIAGARA3
-			   || sparc_cpu == PROCESSOR_NIAGARA4)
-			  ? 2
-			  : (sparc_cpu == PROCESSOR_ULTRASPARC3
-			     ? 8 : ((sparc_cpu == PROCESSOR_NIAGARA7
-				     || sparc_cpu == PROCESSOR_M8)
-				    ? 32 : 3))),
-			 global_options.x_param_values,
-			 global_options_set.x_param_values);
+  SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+		       param_simultaneous_prefetches,
+		       ((sparc_cpu == PROCESSOR_ULTRASPARC
+			 || sparc_cpu == PROCESSOR_NIAGARA
+			 || sparc_cpu == PROCESSOR_NIAGARA2
+			 || sparc_cpu == PROCESSOR_NIAGARA3
+			 || sparc_cpu == PROCESSOR_NIAGARA4)
+			? 2
+			: (sparc_cpu == PROCESSOR_ULTRASPARC3
+			   ? 8 : ((sparc_cpu == PROCESSOR_NIAGARA7
+				   || sparc_cpu == PROCESSOR_M8)
+				  ? 32 : 3))));
 
-  /* PARAM_L1_CACHE_LINE_SIZE is the size of the L1 cache line, in
+  /* param_l1_cache_line_size is the size of the L1 cache line, in
      bytes.
 
      The Oracle SPARC Architecture (previously the UltraSPARC
@@ -2071,38 +2063,33 @@ sparc_option_override (void)
      L2 and L3, but only 32B are brought into the L1D$. (Assuming it
      is a read_n prefetch, which is the only type which allocates to
      the L1.)  */
-  maybe_set_param_value (PARAM_L1_CACHE_LINE_SIZE,
-			 (sparc_cpu == PROCESSOR_M8
-			  ? 64 : 32),
-			 global_options.x_param_values,
-			 global_options_set.x_param_values);
+  SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+		       param_l1_cache_line_size,
+		       (sparc_cpu == PROCESSOR_M8 ? 64 : 32));
 
-  /* PARAM_L1_CACHE_SIZE is the size of the L1D$ (most SPARC chips use
+  /* param_l1_cache_size is the size of the L1D$ (most SPARC chips use
      Hardvard level-1 caches) in kilobytes.  Both UltraSPARC and
      Niagara processors feature a L1D$ of 16KB.  */
-  maybe_set_param_value (PARAM_L1_CACHE_SIZE,
-			 ((sparc_cpu == PROCESSOR_ULTRASPARC
-			   || sparc_cpu == PROCESSOR_ULTRASPARC3
-			   || sparc_cpu == PROCESSOR_NIAGARA
-			   || sparc_cpu == PROCESSOR_NIAGARA2
-			   || sparc_cpu == PROCESSOR_NIAGARA3
-			   || sparc_cpu == PROCESSOR_NIAGARA4
-			   || sparc_cpu == PROCESSOR_NIAGARA7
-			   || sparc_cpu == PROCESSOR_M8)
-			  ? 16 : 64),
-			 global_options.x_param_values,
-			 global_options_set.x_param_values);
+  SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+		       param_l1_cache_size,
+		       ((sparc_cpu == PROCESSOR_ULTRASPARC
+			 || sparc_cpu == PROCESSOR_ULTRASPARC3
+			 || sparc_cpu == PROCESSOR_NIAGARA
+			 || sparc_cpu == PROCESSOR_NIAGARA2
+			 || sparc_cpu == PROCESSOR_NIAGARA3
+			 || sparc_cpu == PROCESSOR_NIAGARA4
+			 || sparc_cpu == PROCESSOR_NIAGARA7
+			 || sparc_cpu == PROCESSOR_M8)
+			? 16 : 64));
 
-
-  /* PARAM_L2_CACHE_SIZE is the size fo the L2 in kilobytes.  Note
+  /* param_l2_cache_size is the size fo the L2 in kilobytes.  Note
      that 512 is the default in params.def.  */
-  maybe_set_param_value (PARAM_L2_CACHE_SIZE,
-			 ((sparc_cpu == PROCESSOR_NIAGARA4
-			   || sparc_cpu == PROCESSOR_M8)
-			  ? 128 : (sparc_cpu == PROCESSOR_NIAGARA7
-				   ? 256 : 512)),
-			 global_options.x_param_values,
-			 global_options_set.x_param_values);
+  SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+		       param_l2_cache_size,
+		       ((sparc_cpu == PROCESSOR_NIAGARA4
+			 || sparc_cpu == PROCESSOR_M8)
+			? 128 : (sparc_cpu == PROCESSOR_NIAGARA7
+				 ? 256 : 512)));
   
 
   /* Disable save slot sharing for call-clobbered registers by default.
@@ -3210,13 +3197,13 @@ select_cc_mode (enum rtx_code op, rtx x, rtx y)
 	case UNGT:
 	case UNGE:
 	case UNEQ:
-	case LTGT:
 	  return CCFPmode;
 
 	case LT:
 	case LE:
 	case GT:
 	case GE:
+	case LTGT:
 	  return CCFPEmode;
 
 	default:
@@ -4243,9 +4230,11 @@ sparc_cannot_force_const_mem (machine_mode mode, rtx x)
 }
 
 /* Global Offset Table support.  */
-static GTY(()) rtx got_helper_rtx = NULL_RTX;
-static GTY(()) rtx got_register_rtx = NULL_RTX;
 static GTY(()) rtx got_symbol_rtx = NULL_RTX;
+static GTY(()) rtx got_register_rtx = NULL_RTX;
+static GTY(()) rtx got_helper_rtx = NULL_RTX;
+
+static GTY(()) bool got_helper_needed = false;
 
 /* Return the SYMBOL_REF for the Global Offset Table.  */
 
@@ -4256,27 +4245,6 @@ sparc_got (void)
     got_symbol_rtx = gen_rtx_SYMBOL_REF (Pmode, "_GLOBAL_OFFSET_TABLE_");
 
   return got_symbol_rtx;
-}
-
-#ifdef HAVE_GAS_HIDDEN
-# define USE_HIDDEN_LINKONCE 1
-#else
-# define USE_HIDDEN_LINKONCE 0
-#endif
-
-static void
-get_pc_thunk_name (char name[32], unsigned int regno)
-{
-  const char *reg_name = reg_names[regno];
-
-  /* Skip the leading '%' as that cannot be used in a
-     symbol name.  */
-  reg_name += 1;
-
-  if (USE_HIDDEN_LINKONCE)
-    sprintf (name, "__sparc_get_pc_thunk.%s", reg_name);
-  else
-    ASM_GENERATE_INTERNAL_LABEL (name, "LADDPC", regno);
 }
 
 /* Wrapper around the load_pcrel_sym{si,di} patterns.  */
@@ -4298,30 +4266,78 @@ gen_load_pcrel_sym (rtx op0, rtx op1, rtx op2)
   return insn;
 }
 
+/* Output the load_pcrel_sym{si,di} patterns.  */
+
+const char *
+output_load_pcrel_sym (rtx *operands)
+{
+  if (flag_delayed_branch)
+    {
+      output_asm_insn ("sethi\t%%hi(%a1-4), %0", operands);
+      output_asm_insn ("call\t%a2", operands);
+      output_asm_insn (" add\t%0, %%lo(%a1+4), %0", operands);
+    }
+  else
+    {
+      output_asm_insn ("sethi\t%%hi(%a1-8), %0", operands);
+      output_asm_insn ("add\t%0, %%lo(%a1-4), %0", operands);
+      output_asm_insn ("call\t%a2", operands);
+      output_asm_insn (" nop", NULL);
+    }
+
+  if (operands[2] == got_helper_rtx)
+    got_helper_needed = true;
+
+  return "";
+}
+
+#ifdef HAVE_GAS_HIDDEN
+# define USE_HIDDEN_LINKONCE 1
+#else
+# define USE_HIDDEN_LINKONCE 0
+#endif
+
 /* Emit code to load the GOT register.  */
 
 void
 load_got_register (void)
 {
-  if (!got_register_rtx)
-    got_register_rtx = gen_rtx_REG (Pmode, GLOBAL_OFFSET_TABLE_REGNUM);
+  rtx insn;
 
   if (TARGET_VXWORKS_RTP)
-    emit_insn (gen_vxworks_load_got ());
+    {
+      if (!got_register_rtx)
+	got_register_rtx = pic_offset_table_rtx;
+
+      insn = gen_vxworks_load_got ();
+    }
   else
     {
+      if (!got_register_rtx)
+	got_register_rtx = gen_rtx_REG (Pmode, GLOBAL_OFFSET_TABLE_REGNUM);
+
       /* The GOT symbol is subject to a PC-relative relocation so we need a
 	 helper function to add the PC value and thus get the final value.  */
       if (!got_helper_rtx)
 	{
 	  char name[32];
-	  get_pc_thunk_name (name, GLOBAL_OFFSET_TABLE_REGNUM);
+
+	  /* Skip the leading '%' as that cannot be used in a symbol name.  */
+	  if (USE_HIDDEN_LINKONCE)
+	    sprintf (name, "__sparc_get_pc_thunk.%s",
+		     reg_names[REGNO (got_register_rtx)] + 1);
+	  else
+	    ASM_GENERATE_INTERNAL_LABEL (name, "LADDPC",
+					 REGNO (got_register_rtx));
+
 	  got_helper_rtx = gen_rtx_SYMBOL_REF (Pmode, ggc_strdup (name));
 	}
 
-      emit_insn (gen_load_pcrel_sym (got_register_rtx, sparc_got (),
-				     got_helper_rtx));
+      insn
+	= gen_load_pcrel_sym (got_register_rtx, sparc_got (), got_helper_rtx);
     }
+
+  emit_insn (insn);
 }
 
 /* Ensure that we are not using patterns that are not OK with PIC.  */
@@ -4457,7 +4473,7 @@ sparc_pic_register_p (rtx x)
     return true;
 
   if (!HARD_REGISTER_P (pic_offset_table_rtx)
-      && (HARD_REGISTER_P (x) || lra_in_progress)
+      && (HARD_REGISTER_P (x) || lra_in_progress || reload_in_progress)
       && ORIGINAL_REGNO (x) == REGNO (pic_offset_table_rtx))
     return true;
 
@@ -5446,7 +5462,7 @@ static inline bool
 save_global_or_fp_reg_p (unsigned int regno,
 			 int leaf_function ATTRIBUTE_UNUSED)
 {
-  return !call_used_regs[regno] && df_regs_ever_live_p (regno);
+  return !call_used_or_fixed_reg_p (regno) && df_regs_ever_live_p (regno);
 }
 
 /* Return whether the return address register (%i7) is needed.  */
@@ -5474,7 +5490,7 @@ static bool
 save_local_or_in_reg_p (unsigned int regno, int leaf_function)
 {
   /* General case: call-saved registers live at some point.  */
-  if (!call_used_regs[regno] && df_regs_ever_live_p (regno))
+  if (!call_used_or_fixed_reg_p (regno) && df_regs_ever_live_p (regno))
     return true;
 
   /* Frame pointer register (%fp) if needed.  */
@@ -5486,7 +5502,7 @@ save_local_or_in_reg_p (unsigned int regno, int leaf_function)
     return true;
 
   /* GOT register (%l7) if needed.  */
-  if (regno == GLOBAL_OFFSET_TABLE_REGNUM && got_register_rtx)
+  if (got_register_rtx && regno == REGNO (got_register_rtx))
     return true;
 
   /* If the function accesses prior frames, the frame pointer and the return
@@ -6747,10 +6763,10 @@ sparc_strict_argument_naming (cumulative_args_t ca ATTRIBUTE_UNUSED)
    Specify whether to pass the argument by reference.  */
 
 static bool
-sparc_pass_by_reference (cumulative_args_t cum ATTRIBUTE_UNUSED,
-			 machine_mode mode, const_tree type,
-			 bool named ATTRIBUTE_UNUSED)
+sparc_pass_by_reference (cumulative_args_t, const function_arg_info &arg)
 {
+  tree type = arg.type;
+  machine_mode mode = arg.mode;
   if (TARGET_ARCH32)
     /* Original SPARC 32-bit ABI says that structures and unions,
        and quad-precision floats are passed by reference.
@@ -7383,24 +7399,22 @@ function_arg_vector_value (int size, int slotno, bool named, int regno)
 
    CUM is a variable of type CUMULATIVE_ARGS which gives info about
     the preceding args and about the function being called.
-   MODE is the argument's machine mode.
-   TYPE is the data type of the argument (as a tree).
-    This is null for libcalls where that information may
-    not be available.
-   NAMED is true if this argument is a named parameter
-    (otherwise it is an extra parameter matching an ellipsis).
+   ARG is a description of the argument.
    INCOMING_P is false for TARGET_FUNCTION_ARG, true for
     TARGET_FUNCTION_INCOMING_ARG.  */
 
 static rtx
-sparc_function_arg_1 (cumulative_args_t cum_v, machine_mode mode,
-		      const_tree type, bool named, bool incoming)
+sparc_function_arg_1 (cumulative_args_t cum_v, const function_arg_info &arg,
+		      bool incoming)
 {
   const CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
   const int regbase
     = incoming ? SPARC_INCOMING_INT_ARG_FIRST : SPARC_OUTGOING_INT_ARG_FIRST;
   int slotno, regno, padding;
+  tree type = arg.type;
+  machine_mode mode = arg.mode;
   enum mode_class mclass = GET_MODE_CLASS (mode);
+  bool named = arg.named;
 
   slotno
     = function_arg_slotno (cum, mode, type, named, incoming, &regno, &padding);
@@ -7499,19 +7513,18 @@ sparc_function_arg_1 (cumulative_args_t cum_v, machine_mode mode,
 /* Handle the TARGET_FUNCTION_ARG target hook.  */
 
 static rtx
-sparc_function_arg (cumulative_args_t cum, machine_mode mode,
-		    const_tree type, bool named)
+sparc_function_arg (cumulative_args_t cum, const function_arg_info &arg)
 {
-  return sparc_function_arg_1 (cum, mode, type, named, false);
+  return sparc_function_arg_1 (cum, arg, false);
 }
 
 /* Handle the TARGET_FUNCTION_INCOMING_ARG target hook.  */
 
 static rtx
-sparc_function_incoming_arg (cumulative_args_t cum, machine_mode mode,
-			     const_tree type, bool named)
+sparc_function_incoming_arg (cumulative_args_t cum,
+			     const function_arg_info &arg)
 {
-  return sparc_function_arg_1 (cum, mode, type, named, true);
+  return sparc_function_arg_1 (cum, arg, true);
 }
 
 /* For sparc64, objects requiring 16 byte alignment are passed that way.  */
@@ -7537,14 +7550,13 @@ sparc_function_arg_boundary (machine_mode mode, const_tree type)
    mode] will be split between that reg and memory.  */
 
 static int
-sparc_arg_partial_bytes (cumulative_args_t cum, machine_mode mode,
-			 tree type, bool named)
+sparc_arg_partial_bytes (cumulative_args_t cum, const function_arg_info &arg)
 {
   int slotno, regno, padding;
 
   /* We pass false for incoming here, it doesn't matter.  */
-  slotno = function_arg_slotno (get_cumulative_args (cum), mode, type, named,
-				false, &regno, &padding);
+  slotno = function_arg_slotno (get_cumulative_args (cum), arg.mode, arg.type,
+				arg.named, false, &regno, &padding);
 
   if (slotno == -1)
     return 0;
@@ -7554,7 +7566,7 @@ sparc_arg_partial_bytes (cumulative_args_t cum, machine_mode mode,
       /* We are guaranteed by pass_by_reference that the size of the
 	 argument is not greater than 8 bytes, so we only need to return
 	 one word if the argument is partially passed in registers.  */
-      const int size = GET_MODE_SIZE (mode);
+      const int size = GET_MODE_SIZE (arg.mode);
 
       if (size > UNITS_PER_WORD && slotno == SPARC_INT_ARG_MAX - 1)
 	return UNITS_PER_WORD;
@@ -7564,33 +7576,33 @@ sparc_arg_partial_bytes (cumulative_args_t cum, machine_mode mode,
       /* We are guaranteed by pass_by_reference that the size of the
 	 argument is not greater than 16 bytes, so we only need to return
 	 one word if the argument is partially passed in registers.  */
-      if (type && AGGREGATE_TYPE_P (type))
+      if (arg.aggregate_type_p ())
 	{
-	  const int size = int_size_in_bytes (type);
+	  const int size = int_size_in_bytes (arg.type);
 
 	  if (size > UNITS_PER_WORD
 	      && (slotno == SPARC_INT_ARG_MAX - 1
 		  || slotno == SPARC_FP_ARG_MAX - 1))
 	    return UNITS_PER_WORD;
 	}
-      else if (GET_MODE_CLASS (mode) == MODE_COMPLEX_INT
-	       || ((GET_MODE_CLASS (mode) == MODE_COMPLEX_FLOAT
-		    || (type && VECTOR_TYPE_P (type)))
-		   && !(TARGET_FPU && named)))
+      else if (GET_MODE_CLASS (arg.mode) == MODE_COMPLEX_INT
+	       || ((GET_MODE_CLASS (arg.mode) == MODE_COMPLEX_FLOAT
+		    || (arg.type && VECTOR_TYPE_P (arg.type)))
+		   && !(TARGET_FPU && arg.named)))
 	{
-	  const int size = (type && VECTOR_FLOAT_TYPE_P (type))
-			   ? int_size_in_bytes (type)
-			   : GET_MODE_SIZE (mode);
+	  const int size = (arg.type && VECTOR_FLOAT_TYPE_P (arg.type))
+			   ? int_size_in_bytes (arg.type)
+			   : GET_MODE_SIZE (arg.mode);
 
 	  if (size > UNITS_PER_WORD && slotno == SPARC_INT_ARG_MAX - 1)
 	    return UNITS_PER_WORD;
 	}
-      else if (GET_MODE_CLASS (mode) == MODE_COMPLEX_FLOAT
-	       || (type && VECTOR_TYPE_P (type)))
+      else if (GET_MODE_CLASS (arg.mode) == MODE_COMPLEX_FLOAT
+	       || (arg.type && VECTOR_TYPE_P (arg.type)))
 	{
-	  const int size = (type && VECTOR_FLOAT_TYPE_P (type))
-			   ? int_size_in_bytes (type)
-			   : GET_MODE_SIZE (mode);
+	  const int size = (arg.type && VECTOR_FLOAT_TYPE_P (arg.type))
+			   ? int_size_in_bytes (arg.type)
+			   : GET_MODE_SIZE (arg.mode);
 
 	  if (size > UNITS_PER_WORD && slotno == SPARC_FP_ARG_MAX - 1)
 	    return UNITS_PER_WORD;
@@ -7601,19 +7613,19 @@ sparc_arg_partial_bytes (cumulative_args_t cum, machine_mode mode,
 }
 
 /* Handle the TARGET_FUNCTION_ARG_ADVANCE hook.
-   Update the data in CUM to advance over an argument
-   of mode MODE and data type TYPE.
-   TYPE is null for libcalls where that information may not be available.  */
+   Update the data in CUM to advance over argument ARG.  */
 
 static void
-sparc_function_arg_advance (cumulative_args_t cum_v, machine_mode mode,
-			    const_tree type, bool named)
+sparc_function_arg_advance (cumulative_args_t cum_v,
+			    const function_arg_info &arg)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
+  tree type = arg.type;
+  machine_mode mode = arg.mode;
   int regno, padding;
 
   /* We pass false for incoming here, it doesn't matter.  */
-  function_arg_slotno (cum, mode, type, named, false, &regno, &padding);
+  function_arg_slotno (cum, mode, type, arg.named, false, &regno, &padding);
 
   /* If argument requires leading padding, add it.  */
   cum->words += padding;
@@ -7939,7 +7951,7 @@ sparc_gimplify_va_arg (tree valist, tree type, gimple_seq *pre_p,
   bool indirect;
   tree ptrtype = build_pointer_type (type);
 
-  if (pass_by_reference (NULL, TYPE_MODE (type), type, false))
+  if (pass_va_arg_by_reference (type))
     {
       indirect = true;
       size = rsize = UNITS_PER_WORD;
@@ -11665,7 +11677,8 @@ sparc_expand_builtin (tree exp, rtx target,
 		      int ignore ATTRIBUTE_UNUSED)
 {
   tree fndecl = TREE_OPERAND (CALL_EXPR_FN (exp), 0);
-  enum sparc_builtins code = (enum sparc_builtins) DECL_FUNCTION_CODE (fndecl);
+  enum sparc_builtins code
+    = (enum sparc_builtins) DECL_MD_FUNCTION_CODE (fndecl);
   enum insn_code icode = sparc_builtins_icode[code];
   bool nonvoid = TREE_TYPE (TREE_TYPE (fndecl)) != void_type_node;
   call_expr_arg_iterator iter;
@@ -11833,7 +11846,8 @@ static tree
 sparc_fold_builtin (tree fndecl, int n_args ATTRIBUTE_UNUSED,
 		    tree *args, bool ignore)
 {
-  enum sparc_builtins code = (enum sparc_builtins) DECL_FUNCTION_CODE (fndecl);
+  enum sparc_builtins code
+    = (enum sparc_builtins) DECL_MD_FUNCTION_CODE (fndecl);
   tree rtype = TREE_TYPE (TREE_TYPE (fndecl));
   tree arg0, arg1, arg2;
 
@@ -12531,10 +12545,9 @@ static void
 sparc_file_end (void)
 {
   /* If we need to emit the special GOT helper function, do so now.  */
-  if (got_helper_rtx)
+  if (got_helper_needed)
     {
       const char *name = XSTR (got_helper_rtx, 0);
-      const char *reg_name = reg_names[GLOBAL_OFFSET_TABLE_REGNUM];
 #ifdef DWARF2_UNWIND_INFO
       bool do_cfi;
 #endif
@@ -12571,17 +12584,22 @@ sparc_file_end (void)
 #ifdef DWARF2_UNWIND_INFO
       do_cfi = dwarf2out_do_cfi_asm ();
       if (do_cfi)
-	fprintf (asm_out_file, "\t.cfi_startproc\n");
+	output_asm_insn (".cfi_startproc", NULL);
 #endif
       if (flag_delayed_branch)
-	fprintf (asm_out_file, "\tjmp\t%%o7+8\n\t add\t%%o7, %s, %s\n",
-		 reg_name, reg_name);
+	{
+	  output_asm_insn ("jmp\t%%o7+8", NULL);
+	  output_asm_insn (" add\t%%o7, %0, %0", &got_register_rtx);
+	}
       else
-	fprintf (asm_out_file, "\tadd\t%%o7, %s, %s\n\tjmp\t%%o7+8\n\t nop\n",
-		 reg_name, reg_name);
+	{
+	  output_asm_insn ("add\t%%o7, %0, %0", &got_register_rtx);
+	  output_asm_insn ("jmp\t%%o7+8", NULL);
+	  output_asm_insn (" nop", NULL);
+	}
 #ifdef DWARF2_UNWIND_INFO
       if (do_cfi)
-	fprintf (asm_out_file, "\t.cfi_endproc\n");
+	output_asm_insn (".cfi_endproc", NULL);
 #endif
     }
 
@@ -13003,14 +13021,6 @@ sparc_can_eliminate (const int from ATTRIBUTE_UNUSED, const int to)
   return to == HARD_FRAME_POINTER_REGNUM || !sparc_frame_pointer_required ();
 }
 
-/* Return the hard frame pointer directly to bypass the stack bias.  */
-
-static rtx
-sparc_builtin_setjmp_frame_value (void)
-{
-  return hard_frame_pointer_rtx;
-}
-
 /* If !TARGET_FPU, then make the fp registers and fp cc regs fixed so that
    they won't be allocated.  */
 
@@ -13018,10 +13028,7 @@ static void
 sparc_conditional_register_usage (void)
 {
   if (PIC_OFFSET_TABLE_REGNUM != INVALID_REGNUM)
-    {
-      fixed_regs[PIC_OFFSET_TABLE_REGNUM] = 1;
-      call_used_regs[PIC_OFFSET_TABLE_REGNUM] = 1;
-    }
+    fixed_regs[PIC_OFFSET_TABLE_REGNUM] = 1;
   /* If the user has passed -f{fixed,call-{used,saved}}-g5 */
   /* then honor it.  */
   if (TARGET_ARCH32 && fixed_regs[5])
@@ -13087,7 +13094,10 @@ sparc_init_pic_reg (void)
   edge entry_edge;
   rtx_insn *seq;
 
-  if (!crtl->uses_pic_offset_table)
+  /* In PIC mode, we need to always initialize the PIC register if optimization
+     is enabled, because we are called from IRA and LRA may later force things
+     to the constant pool for optimization purposes.  */
+  if (!flag_pic || (!crtl->uses_pic_offset_table && !optimize))
     return;
 
   start_sequence ();

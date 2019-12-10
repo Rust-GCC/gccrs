@@ -37,13 +37,21 @@ void test01()
 		char (int, ClassType) const volatile &&>(true), "");
 
   // Negative tests.
+  static_assert(test_category<is_function, int*>(false), "");
   static_assert(test_category<is_function, int&>(false), "");
   static_assert(test_category<is_function, void>(false), "");
   static_assert(test_category<is_function, const void>(false), "");
+  static_assert(test_category<is_function, void*>(false), "");
+  static_assert(test_category<is_function, const void*>(false), "");
+  static_assert(test_category<is_function, void**>(false), "");
+  static_assert(test_category<is_function, std::nullptr_t>(false), "");
 
   static_assert(test_category<is_function, AbstractClass>(false), "");
   static_assert(test_category<is_function, int(&)(int)>(false), "");
+  static_assert(test_category<is_function, int(*)(int)>(false), "");
   
   // Sanity check.
   static_assert(test_category<is_function, ClassType>(false), "");
+  static_assert(test_category<is_function, IncompleteClass>(false), "");
+  static_assert(test_category<is_function, IncompleteUnion>(false), "");
 }

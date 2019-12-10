@@ -26,7 +26,8 @@ along with GCC; see the file COPYING3.  If not see
    interface.  */
 extern void rust_add_search_path (const char*);
 
-extern void rust_parse_input_files (const char**, unsigned int,
+extern void rust_parse_input_files (const char**,
+                                    unsigned int,
                                     bool only_check_syntax);
 extern void rust_write_globals (void);
 
@@ -42,7 +43,5 @@ extern const char *rust_localize_identifier (const char*);
 extern unsigned int rust_field_alignment (tree);
 
 extern void rust_imported_unsafe (void);
-
-extern GTY(()) tree rust_non_zero_struct;
 
 #endif /* !defined(RUST_RUST_C_H) */

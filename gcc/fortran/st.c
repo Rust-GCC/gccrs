@@ -141,6 +141,7 @@ gfc_free_statement (gfc_code *p)
 
     case EXEC_SELECT:
     case EXEC_SELECT_TYPE:
+    case EXEC_SELECT_RANK:
       if (p->ext.block.case_list)
 	gfc_free_case_list (p->ext.block.case_list);
       break;
@@ -201,6 +202,8 @@ gfc_free_statement (gfc_code *p)
     case EXEC_OACC_PARALLEL:
     case EXEC_OACC_KERNELS_LOOP:
     case EXEC_OACC_KERNELS:
+    case EXEC_OACC_SERIAL_LOOP:
+    case EXEC_OACC_SERIAL:
     case EXEC_OACC_DATA:
     case EXEC_OACC_HOST_DATA:
     case EXEC_OACC_LOOP:

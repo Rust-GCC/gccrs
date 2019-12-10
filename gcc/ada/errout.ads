@@ -647,8 +647,8 @@ package Errout is
    --  CODEFIX Facility --
    -----------------------
 
-   --  The GPS and GNATBench IDE's have a codefix facility that allows for
-   --  automatic correction of a subset of the errors and warnings issued
+   --  The GNAT Studio and GNATBench IDE's have a codefix facility that allows
+   --  for automatic correction of a subset of the errors and warnings issued
    --  by the compiler. This is done by recognizing the text of specific
    --  messages using appropriate matching patterns.
 
@@ -947,5 +947,11 @@ package Errout is
    --  return, the name is in Name_Buffer, null terminated with Name_Len set.
    --  This name is the identifier name as passed, cased according to the
    --  default identifier casing for the given file.
+
+   Size_Too_Small_Message : constant String :=
+     "size for& too small, minimum allowed is ^";
+   --  This message is explicitly tested in Special_Msg_Delete in the package
+   --  body, which is somewhat questionable, but at least by using a constant
+   --  we are obeying the DRY principle.
 
 end Errout;

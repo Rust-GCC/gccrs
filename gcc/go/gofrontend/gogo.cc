@@ -64,6 +64,7 @@ Gogo::Gogo(Backend* backend, Linemap* linemap, int, int pointer_size)
     named_types_are_converted_(false),
     analysis_sets_(),
     gc_roots_(),
+    type_descriptors_(),
     imported_inlinable_functions_(),
     imported_inline_functions_()
 {
@@ -297,7 +298,7 @@ void
 Gogo::set_pkgpath(const std::string& arg)
 {
   go_assert(!this->pkgpath_set_);
-  this->pkgpath_ = arg;
+  this->pkgpath_ = go_mangle_pkgpath(arg);
   this->pkgpath_set_ = true;
   this->pkgpath_from_option_ = true;
 }
@@ -395,7 +396,8 @@ Gogo::set_package_name(const std::string& package_name,
 	{
 	  if (!this->prefix_from_option_)
 	    this->prefix_ = "go";
-	  this->pkgpath_ = this->prefix_ + '.' + package_name;
+	  this->pkgpath_ = (go_mangle_pkgpath(this->prefix_) + '.'
+			    + package_name);
 	  this->pkgpath_symbol_ = (Gogo::pkgpath_for_symbol(this->prefix_) + '.'
 				   + Gogo::pkgpath_for_symbol(package_name));
 	}
@@ -517,11 +519,11 @@ Gogo::import_package(const std::string& filename,
       else if (ln == ".")
 	{
 	  Bindings* bindings = package->bindings();
-	  for (Bindings::const_declarations_iterator p =
+	  for (Bindings::const_declarations_iterator pd =
 		 bindings->begin_declarations();
-	       p != bindings->end_declarations();
-	       ++p)
-	    this->add_dot_import_object(p->second);
+	       pd != bindings->end_declarations();
+	       ++pd)
+	    this->add_dot_import_object(pd->second);
           std::string dot_alias = "." + package->package_name();
           package->add_alias(dot_alias, location);
 	}
@@ -551,7 +553,7 @@ Gogo::import_package(const std::string& filename,
       if (package->pkgpath() == this->pkgpath())
 	go_error_at(location,
 		    ("imported package uses same package path as package "
-		     "being compiled (see -fgo-pkgpath option)"));
+		     "being compiled (see %<-fgo-pkgpath%> option)"));
 
       this->imports_.insert(std::make_pair(filename, package));
     }
@@ -677,8 +679,8 @@ Gogo::recompute_init_priorities()
            pci != ii->precursors().end();
            ++pci)
         {
-          Import_init* ii = this->lookup_init(*pci);
-          nonroots.insert(ii);
+          Import_init* ii_init = this->lookup_init(*pci);
+          nonroots.insert(ii_init);
         }
     }
 
@@ -723,6 +725,9 @@ Gogo::init_imports(std::vector<Bstatement*>& init_stmts, Bfunction *bfunction)
        p != this->imported_init_fns_.end();
        ++p)
     {
+      // Don't include dummy inits. They are not real functions.
+      if ((*p)->is_dummy())
+        continue;
       if ((*p)->priority() < 0)
 	go_error_at(Linemap::unknown_location(),
 		    "internal error: failed to set init priority for %s",
@@ -901,6 +906,148 @@ Gogo::register_gc_vars(const std::vector<Named_object*>& var_gc,
   Translate_context context(this, NULL, NULL, NULL);
   Bexpression* bcall = register_roots->get_backend(&context);
   init_stmts.push_back(this->backend()->expression_statement(init_bfn, bcall));
+}
+
+// Build the list of type descriptors defined in this package. This is to help
+// the reflect package to find compiler-generated types.
+
+// type typeDescriptorList struct {
+// 	 count int
+// 	 types [...]unsafe.Pointer
+// }
+
+static Struct_type*
+type_descriptor_list_type(unsigned long len)
+{
+  Location builtin_loc = Linemap::predeclared_location();
+  Type* int_type = Type::lookup_integer_type("int");
+  Type* ptr_type = Type::make_pointer_type(Type::make_void_type());
+  // Avoid creating zero-length type.
+  unsigned long nelems = (len != 0 ? len : 1);
+  Expression* len_expr = Expression::make_integer_ul(nelems, NULL,
+                                                     builtin_loc);
+  Array_type* array_type = Type::make_array_type(ptr_type, len_expr);
+  array_type->set_is_array_incomparable();
+  Struct_type* list_type =
+    Type::make_builtin_struct_type(2, "count", int_type,
+                                   "types", array_type);
+  return list_type;
+}
+
+void
+Gogo::build_type_descriptor_list()
+{
+  // Create the list type
+  Location builtin_loc = Linemap::predeclared_location();
+  unsigned long len = this->type_descriptors_.size();
+  Struct_type* list_type = type_descriptor_list_type(len);
+  Btype* bt = list_type->get_backend(this);
+  Btype* bat = list_type->field(1)->type()->get_backend(this);
+
+  // Create the variable
+  std::string name = this->type_descriptor_list_symbol(this->pkgpath_symbol());
+  Bvariable* bv = this->backend()->implicit_variable(name, name, bt,
+                                                     false, true, false,
+                                                     0);
+
+  // Build the initializer
+  std::vector<unsigned long> indexes;
+  std::vector<Bexpression*> vals;
+  std::vector<Type*>::iterator p = this->type_descriptors_.begin();
+  for (unsigned long i = 0; i < len; ++i, ++p)
+    {
+      Bexpression* bexpr = (*p)->type_descriptor_pointer(this,
+                                                         builtin_loc);
+      indexes.push_back(i);
+      vals.push_back(bexpr);
+    }
+  Bexpression* barray =
+    this->backend()->array_constructor_expression(bat, indexes, vals,
+                                                  builtin_loc);
+
+  Translate_context context(this, NULL, NULL, NULL);
+  std::vector<Bexpression*> fields;
+  Expression* len_expr = Expression::make_integer_ul(len, NULL,
+                                                     builtin_loc);
+  fields.push_back(len_expr->get_backend(&context));
+  fields.push_back(barray);
+  Bexpression* binit =
+    this->backend()->constructor_expression(bt, fields, builtin_loc);
+
+  this->backend()->implicit_variable_set_init(bv, name, bt, false,
+                                              true, false, binit);
+}
+
+// Register the type descriptors with the runtime.  This is to help
+// the reflect package to find compiler-generated types.
+
+void
+Gogo::register_type_descriptors(std::vector<Bstatement*>& init_stmts,
+                                Bfunction* init_bfn)
+{
+  // Create the list type
+  Location builtin_loc = Linemap::predeclared_location();
+  Struct_type* list_type = type_descriptor_list_type(1);
+  Btype* bt = list_type->get_backend(this);
+
+  // Collect type lists from transitive imports.
+  std::vector<std::string> list_names;
+  for (Import_init_set::iterator it = this->imported_init_fns_.begin();
+       it != this->imported_init_fns_.end();
+       ++it)
+    {
+      std::string pkgpath =
+        this->pkgpath_from_init_fn_name((*it)->init_name());
+      list_names.push_back(this->type_descriptor_list_symbol(pkgpath));
+    }
+  // Add the main package itself.
+  list_names.push_back(this->type_descriptor_list_symbol("main"));
+
+  // Build a list of lists.
+  std::vector<unsigned long> indexes;
+  std::vector<Bexpression*> vals;
+  unsigned long i = 0;
+  for (std::vector<std::string>::iterator p = list_names.begin();
+       p != list_names.end();
+       ++p)
+    {
+      Bvariable* bv =
+        this->backend()->implicit_variable_reference(*p, *p, bt);
+      Bexpression* bexpr = this->backend()->var_expression(bv, builtin_loc);
+      bexpr = this->backend()->address_expression(bexpr, builtin_loc);
+
+      indexes.push_back(i);
+      vals.push_back(bexpr);
+      i++;
+    }
+  Expression* len_expr = Expression::make_integer_ul(i, NULL, builtin_loc);
+  Type* list_ptr_type = Type::make_pointer_type(list_type);
+  Type* list_array_type = Type::make_array_type(list_ptr_type, len_expr);
+  Btype* bat = list_array_type->get_backend(this);
+  Bexpression* barray =
+    this->backend()->array_constructor_expression(bat, indexes, vals,
+                                                  builtin_loc);
+
+  // Create a variable holding the list.
+  std::string name = this->typelists_symbol();
+  Bvariable* bv = this->backend()->implicit_variable(name, name, bat,
+                                                     true, true, false,
+                                                     0);
+  this->backend()->implicit_variable_set_init(bv, name, bat, true, true,
+                                              false, barray);
+
+  // Build the call in main package's init function.
+  Translate_context context(this, NULL, NULL, NULL);
+  Bexpression* bexpr = this->backend()->var_expression(bv, builtin_loc);
+  bexpr = this->backend()->address_expression(bexpr, builtin_loc);
+  Type* array_ptr_type = Type::make_pointer_type(list_array_type);
+  Expression* expr = Expression::make_backend(bexpr, array_ptr_type,
+                                              builtin_loc);
+  expr = Runtime::make_call(Runtime::REGISTER_TYPE_DESCRIPTORS,
+                            builtin_loc, 2, len_expr->copy(), expr);
+  Bexpression* bcall = expr->get_backend(&context);
+  init_stmts.push_back(this->backend()->expression_statement(init_bfn,
+                                                             bcall));
 }
 
 // Build the decl for the initialization function.
@@ -1411,7 +1558,6 @@ Gogo::write_globals()
     {
       init_fndecl = this->initialization_function_decl();
       init_bfn = init_fndecl->func_value()->get_or_make_decl(this, init_fndecl);
-      this->init_imports(init_stmts, init_bfn);
     }
 
   // A list of variable initializations.
@@ -1584,6 +1730,22 @@ Gogo::write_globals()
        p != this->imported_inline_functions_.end();
        ++p)
     (*p)->get_backend(this, const_decls, type_decls, func_decls);
+
+  // Build the list of type descriptors.
+  this->build_type_descriptor_list();
+
+  if (this->is_main_package())
+    {
+      // Register the type descriptor lists, so that at run time
+      // the reflect package can find compiler-created types, and
+      // deduplicate if the same type is created with reflection.
+      // This needs to be done before calling any package's init
+      // function, as it may create type through reflection.
+      this->register_type_descriptors(init_stmts, init_bfn);
+
+      // Initialize imported packages.
+      this->init_imports(init_stmts, init_bfn);
+    }
 
   // Register global variables with the garbage collector.
   this->register_gc_vars(var_gc, init_stmts, init_bfn);
@@ -2370,13 +2532,26 @@ Gogo::add_linkname(const std::string& go_name, bool is_exported,
   if (no == NULL)
     go_error_at(loc, "%s is not defined", go_name.c_str());
   else if (no->is_function())
-    no->func_value()->set_asm_name(ext_name);
+    {
+      if (ext_name.empty())
+	no->func_value()->set_is_exported_by_linkname();
+      else
+	no->func_value()->set_asm_name(ext_name);
+    }
   else if (no->is_function_declaration())
-    no->func_declaration_value()->set_asm_name(ext_name);
+    {
+      if (ext_name.empty())
+	go_error_at(loc,
+		    ("%<//go:linkname%> missing external name "
+		     "for declaration of %s"),
+		    go_name.c_str());
+      else
+	no->func_declaration_value()->set_asm_name(ext_name);
+    }
   else
     go_error_at(loc,
 		("%s is not a function; "
-		 "//go:linkname is only supported for functions"),
+		 "%<//go:linkname%> is only supported for functions"),
 		go_name.c_str());
 }
 
@@ -2415,9 +2590,11 @@ Gogo::define_global_names()
   if (this->is_main_package())
     {
       // Every Go program has to import the runtime package, so that
-      // it is properly initialized.
+      // it is properly initialized.  We can't use
+      // predeclared_location here as it will cause runtime functions
+      // to appear to be builtin functions.
       this->import_package("runtime", "_", false, false,
-			   Linemap::predeclared_location());
+			   this->package_->location());
     }
 
   for (Bindings::const_declarations_iterator p =
@@ -2437,11 +2614,11 @@ Gogo::define_global_names()
 	    {
 	      if (no->type_declaration_value()->has_methods())
 		{
-		  for (std::vector<Named_object*>::const_iterator p =
+		  for (std::vector<Named_object*>::const_iterator pm =
 			 no->type_declaration_value()->methods()->begin();
-		       p != no->type_declaration_value()->methods()->end();
-		       p++)
-		    go_error_at((*p)->location(),
+		       pm != no->type_declaration_value()->methods()->end();
+		       pm++)
+		    go_error_at((*pm)->location(),
 				"may not define methods on non-local type");
 		}
 	      no->set_type_value(global_no->type_value());
@@ -3047,6 +3224,80 @@ Gogo::add_conversions_in_block(Block *b)
   b->traverse(&add_conversions);
 }
 
+// Traversal class for simple deadcode elimination.
+
+class Remove_deadcode : public Traverse
+{
+ public:
+  Remove_deadcode()
+    : Traverse(traverse_statements
+               | traverse_expressions)
+  { }
+
+  int
+  statement(Block*, size_t* pindex, Statement*);
+
+  int
+  expression(Expression**);
+};
+
+// Remove deadcode in a statement.
+
+int
+Remove_deadcode::statement(Block* block, size_t* pindex, Statement* sorig)
+{
+  Location loc = sorig->location();
+  If_statement* ifs = sorig->if_statement();
+  if (ifs != NULL)
+    {
+      // Remove the dead branch of an if statement.
+      bool bval;
+      if (ifs->condition()->boolean_constant_value(&bval))
+        {
+          Statement* s;
+          if (bval)
+            s = Statement::make_block_statement(ifs->then_block(),
+                                                loc);
+          else
+            if (ifs->else_block() != NULL)
+              s = Statement::make_block_statement(ifs->else_block(),
+                                                  loc);
+            else
+              // Make a dummy statement.
+              s = Statement::make_statement(Expression::make_boolean(false, loc),
+                                            true);
+
+          block->replace_statement(*pindex, s);
+        }
+    }
+  return TRAVERSE_CONTINUE;
+}
+
+// Remove deadcode in an expression.
+
+int
+Remove_deadcode::expression(Expression** pexpr)
+{
+  // Discard the right arm of a shortcut expression of constant value.
+  Binary_expression* be = (*pexpr)->binary_expression();
+  bool bval;
+  if (be != NULL
+      && be->boolean_constant_value(&bval)
+      && (be->op() == OPERATOR_ANDAND
+          || be->op() == OPERATOR_OROR))
+    *pexpr = Expression::make_boolean(bval, be->location());
+  return TRAVERSE_CONTINUE;
+}
+
+// Remove deadcode.
+
+void
+Gogo::remove_deadcode()
+{
+  Remove_deadcode remove_deadcode;
+  this->traverse(&remove_deadcode);
+}
+
 // Traverse the tree to create function descriptors as needed.
 
 class Create_function_descriptors : public Traverse
@@ -3186,24 +3437,6 @@ Gogo::create_function_descriptors()
   Create_function_descriptors cfd(this);
   this->traverse(&cfd);
 }
-
-// Look for interface types to finalize methods of inherited
-// interfaces.
-
-class Finalize_methods : public Traverse
-{
- public:
-  Finalize_methods(Gogo* gogo)
-    : Traverse(traverse_types),
-      gogo_(gogo)
-  { }
-
-  int
-  type(Type*);
-
- private:
-  Gogo* gogo_;
-};
 
 // Finalize the methods of an interface type.
 
@@ -3470,7 +3703,7 @@ Check_types_traverse::variable(Named_object* named_object)
           if (fntype->is_builtin())
             {
 	      go_error_at(init->location(),
-			  "invalid use of special builtin function %qs; "
+			  "invalid use of special built-in function %qs; "
 			  "must be called",
 			  no->message_name().c_str());
             }
@@ -3880,6 +4113,15 @@ Gogo::order_evaluations()
   this->traverse(&order_eval);
 }
 
+// Order evaluations in a block.
+
+void
+Gogo::order_block(Block* block)
+{
+  Order_eval order_eval(this);
+  block->traverse(&order_eval);
+}
+
 // A traversal class used to find a single shortcut operator within an
 // expression.
 
@@ -4087,6 +4329,15 @@ Gogo::remove_shortcuts()
 {
   Shortcuts shortcuts(this);
   this->traverse(&shortcuts);
+}
+
+// Turn shortcut operators into explicit if statements in a block.
+
+void
+Gogo::remove_shortcuts_in_block(Block* block)
+{
+  Shortcuts shortcuts(this);
+  block->traverse(&shortcuts);
 }
 
 // Traversal to flatten parse tree after order of evaluation rules are applied.
@@ -4843,9 +5094,10 @@ Inline_within_budget::expression(Expression** pexpr)
 class Mark_inline_candidates : public Traverse
 {
  public:
-  Mark_inline_candidates()
+  Mark_inline_candidates(Unordered_set(Named_object*)* marked)
     : Traverse(traverse_functions
-	       | traverse_types)
+	       | traverse_types),
+      marked_functions_(marked)
   { }
 
   int
@@ -4862,6 +5114,9 @@ class Mark_inline_candidates : public Traverse
   // budget is a heuristic.  In the usual GCC spirit, we could
   // consider setting this via a command line option.
   const int budget_heuristic = 80;
+
+  // Set of named objects that are marked as inline candidates.
+  Unordered_set(Named_object*)* marked_functions_;
 };
 
 // Mark a function if it is an inline candidate.
@@ -4870,11 +5125,16 @@ int
 Mark_inline_candidates::function(Named_object* no)
 {
   Function* func = no->func_value();
+  if ((func->pragmas() & GOPRAGMA_NOINLINE) != 0)
+    return TRAVERSE_CONTINUE;
   int budget = budget_heuristic;
   Inline_within_budget iwb(&budget);
   func->block()->traverse(&iwb);
   if (budget >= 0)
-    func->set_export_for_inlining();
+    {
+      func->set_export_for_inlining();
+      this->marked_functions_->insert(no);
+    }
   return TRAVERSE_CONTINUE;
 }
 
@@ -4896,11 +5156,16 @@ Mark_inline_candidates::type(Type* t)
       Named_object* no = *p;
       go_assert(no->is_function());
       Function *func = no->func_value();
+      if ((func->pragmas() & GOPRAGMA_NOINLINE) != 0)
+        continue;
       int budget = budget_heuristic;
       Inline_within_budget iwb(&budget);
       func->block()->traverse(&iwb);
       if (budget >= 0)
-	func->set_export_for_inlining();
+        {
+          func->set_export_for_inlining();
+          this->marked_functions_->insert(no);
+        }
     }
   return TRAVERSE_CONTINUE;
 }
@@ -4910,9 +5175,13 @@ Mark_inline_candidates::type(Type* t)
 void
 Gogo::do_exports()
 {
+  if (saw_errors())
+    return;
+
   // Mark any functions whose body should be exported for inlining by
   // other packages.
-  Mark_inline_candidates mic;
+  Unordered_set(Named_object*) marked_functions;
+  Mark_inline_candidates mic(&marked_functions);
   this->traverse(&mic);
 
   // For now we always stream to a section.  Later we may want to
@@ -4932,6 +5201,14 @@ Gogo::do_exports()
   else
     prefix = "go";
 
+  std::string init_fn_name;
+  if (this->is_main_package())
+    init_fn_name = "";
+  else if (this->need_init_fn_)
+    init_fn_name = this->get_init_fn_name();
+  else
+    init_fn_name = this->dummy_init_fn_name();
+
   Export exp(&stream);
   exp.register_builtin_types(this);
   exp.export_globals(this->package_name(),
@@ -4939,11 +5216,10 @@ Gogo::do_exports()
 		     pkgpath,
 		     this->packages_,
 		     this->imports_,
-		     (this->need_init_fn_ && !this->is_main_package()
-		      ? this->get_init_fn_name()
-		      : ""),
+		     init_fn_name,
 		     this->imported_init_fns_,
-		     this->package_->bindings());
+		     this->package_->bindings(),
+                     &marked_functions);
 
   if (!this->c_header_.empty() && !saw_errors())
     this->write_c_header();
@@ -4978,11 +5254,11 @@ Gogo::write_c_header()
       // package they are mostly types defined by mkrsysinfo.sh based
       // on the C system header files.  We don't need to translate
       // types to C and back to Go.  But do accept the special cases
-      // _defer and _panic.
+      // _defer, _panic, and _type.
       std::string name = Gogo::unpack_hidden_name(no->name());
       if (name[0] == '_'
 	  && (name[1] < 'A' || name[1] > 'Z')
-	  && (name != "_defer" && name != "_panic"))
+	  && (name != "_defer" && name != "_panic" && name != "_type"))
 	continue;
 
       if (no->is_type() && no->type_value()->struct_type() != NULL)
@@ -5170,6 +5446,29 @@ Gogo::convert_named_types_in_bindings(Bindings* bindings)
     }
 }
 
+void
+debug_go_gogo(Gogo* gogo)
+{
+  if (gogo != NULL)
+    gogo->debug_dump();
+}
+
+void
+Gogo::debug_dump()
+{
+  std::cerr << "Packages:\n";
+  for (Packages::const_iterator p = this->packages_.begin();
+       p != this->packages_.end();
+       ++p)
+    {
+      const char *tag = "  ";
+      if (p->second == this->package_)
+        tag = "* ";
+      std::cerr << tag << "'" << p->first << "' "
+                << p->second->pkgpath() << " " << ((void*)p->second) << "\n";
+    }
+}
+
 // Class Function.
 
 Function::Function(Function_type* type, Named_object* enclosing, Block* block,
@@ -5182,7 +5481,8 @@ Function::Function(Function_type* type, Named_object* enclosing, Block* block,
     calls_recover_(false), is_recover_thunk_(false), has_recover_thunk_(false),
     calls_defer_retaddr_(false), is_type_specific_function_(false),
     in_unique_section_(false), export_for_inlining_(false),
-    is_inline_only_(false)
+    is_inline_only_(false), is_referenced_by_inline_(false),
+    is_exported_by_linkname_(false)
 {
 }
 
@@ -5534,23 +5834,24 @@ Function::defer_stack(Location location)
 // Export the function.
 
 void
-Function::export_func(Export* exp, const std::string& name) const
+Function::export_func(Export* exp, const Named_object* no) const
 {
   Block* block = NULL;
   if (this->export_for_inlining())
     block = this->block_;
-  Function::export_func_with_type(exp, name, this->type_, this->results_,
+  Function::export_func_with_type(exp, no, this->type_, this->results_,
 				  this->is_method() && this->nointerface(),
-				  block, this->location_);
+				  this->asm_name(), block, this->location_);
 }
 
 // Export a function with a type.
 
 void
-Function::export_func_with_type(Export* exp, const std::string& name,
+Function::export_func_with_type(Export* exp, const Named_object* no,
 				const Function_type* fntype,
 				Function::Results* result_vars,
-				bool nointerface, Block* block, Location loc)
+				bool nointerface, const std::string& asm_name,
+				Block* block, Location loc)
 {
   exp->write_c_string("func ");
 
@@ -5558,6 +5859,13 @@ Function::export_func_with_type(Export* exp, const std::string& name,
     {
       go_assert(fntype->is_method());
       exp->write_c_string("/*nointerface*/ ");
+    }
+
+  if (!asm_name.empty())
+    {
+      exp->write_c_string("/*asm ");
+      exp->write_string(asm_name);
+      exp->write_c_string(" */ ");
     }
 
   if (fntype->is_method())
@@ -5571,7 +5879,21 @@ Function::export_func_with_type(Export* exp, const std::string& name,
       exp->write_c_string(") ");
     }
 
-  exp->write_string(name);
+  if (no->package() != NULL && !fntype->is_method())
+    {
+      char buf[50];
+      snprintf(buf, sizeof buf, "<p%d>", exp->package_index(no->package()));
+      exp->write_c_string(buf);
+    }
+
+  const std::string& name(no->name());
+  if (!Gogo::is_hidden_name(name))
+    exp->write_string(name);
+  else
+    {
+      exp->write_c_string(".");
+      exp->write_string(Gogo::unpack_hidden_name(name));
+    }
 
   exp->write_c_string(" (");
   const Typed_identifier_list* parameters = fntype->parameters();
@@ -5677,23 +5999,45 @@ Function::export_func_with_type(Export* exp, const std::string& name,
 
 // Import a function.
 
-void
+bool
 Function::import_func(Import* imp, std::string* pname,
+		      Package** ppkg, bool* pis_exported,
 		      Typed_identifier** preceiver,
 		      Typed_identifier_list** pparameters,
 		      Typed_identifier_list** presults,
 		      bool* is_varargs,
 		      bool* nointerface,
+		      std::string* asm_name,
 		      std::string* body)
 {
   imp->require_c_string("func ");
 
   *nointerface = false;
-  if (imp->match_c_string("/*"))
+  while (imp->match_c_string("/*"))
     {
-      imp->require_c_string("/*nointerface*/ ");
-      *nointerface = true;
+      imp->advance(2);
+      if (imp->match_c_string("nointerface"))
+	{
+	  imp->require_c_string("nointerface*/ ");
+	  *nointerface = true;
+	}
+      else if (imp->match_c_string("asm"))
+	{
+	  imp->require_c_string("asm ");
+	  *asm_name = imp->read_identifier();
+	  imp->require_c_string(" */ ");
+	}
+      else
+	{
+	  go_error_at(imp->location(),
+		      "import error at %d: unrecognized function comment",
+		      imp->pos());
+	  return false;
+	}
+    }
 
+  if (*nointerface)
+    {
       // Only a method can be nointerface.
       go_assert(imp->peek_char() == '(');
     }
@@ -5711,7 +6055,13 @@ Function::import_func(Import* imp, std::string* pname,
       imp->require_c_string(") ");
     }
 
-  *pname = imp->read_identifier();
+  if (!Import::read_qualified_identifier(imp, pname, ppkg, pis_exported))
+    {
+      go_error_at(imp->location(),
+		  "import error at %d: bad function name in export data",
+		  imp->pos());
+      return false;
+    }
 
   Typed_identifier_list* parameters;
   *is_varargs = false;
@@ -5812,11 +6162,13 @@ Function::import_func(Import* imp, std::string* pname,
 	{
 	  go_error_at(imp->location(), "invalid inline function length %s",
 		      lenstr.c_str());
-	  return;
+	  return false;
 	}
 
       *body = imp->read(static_cast<size_t>(llen));
     }
+
+  return true;
 }
 
 // Get the backend representation.
@@ -5829,7 +6181,10 @@ Function::get_or_make_decl(Gogo* gogo, Named_object* no)
       unsigned int flags = 0;
       bool is_init_fn = false;
       if (no->package() != NULL)
-        ;
+	{
+	  // Functions defined in other packages must be visible.
+	  flags |= Backend::function_is_visible;
+	}
       else if (this->enclosing_ != NULL || Gogo::is_thunk(no))
         ;
       else if (Gogo::unpack_hidden_name(no->name()) == "init"
@@ -5876,6 +6231,16 @@ Function::get_or_make_decl(Gogo* gogo, Named_object* no)
 	}
       else
 	asm_name = gogo->function_asm_name(no->name(), no->package(), rtype);
+
+      // If an inline body refers to this function, then it
+      // needs to be visible in the symbol table.
+      if (this->is_referenced_by_inline_)
+	flags |= Backend::function_is_visible;
+
+      // A go:linkname directive can be used to force a function to be
+      // visible.
+      if (this->is_exported_by_linkname_)
+	flags |= Backend::function_is_visible;
 
       // If a function calls the predeclared recover function, we
       // can't inline it, because recover behaves differently in a
@@ -5957,7 +6322,10 @@ Function_declaration::get_or_make_decl(Gogo* gogo, Named_object* no)
 	    }
 
 	  if (this->asm_name_ == "runtime.gopanic"
-	      || this->asm_name_ == "__go_runtime_error")
+	      || this->asm_name_.compare(0, 15, "runtime.goPanic") == 0
+	      || this->asm_name_ == "__go_runtime_error"
+              || this->asm_name_ == "runtime.panicdottype"
+              || this->asm_name_ == "runtime.block")
 	    flags |= Backend::function_does_not_return;
 	}
 
@@ -6037,7 +6405,7 @@ Function::build(Gogo* gogo, Named_object* named_function)
   // Variables that need to be declared for this function and their
   // initial values.
   std::vector<Bvariable*> vars;
-  std::vector<Bexpression*> var_inits;
+  std::vector<Expression*> var_inits;
   std::vector<Statement*> var_decls_stmts;
   for (Bindings::const_definitions_iterator p =
 	 this->block_->bindings()->begin_definitions();
@@ -6080,7 +6448,7 @@ Function::build(Gogo* gogo, Named_object* named_function)
                                                  loc);
               if ((*p)->var_value()->is_in_heap())
                 parm_ref = Expression::make_heap_expression(parm_ref, loc);
-              var_inits.push_back(parm_ref->get_backend(&context));
+              var_inits.push_back(parm_ref);
 	    }
 	  else if ((*p)->var_value()->is_in_heap())
 	    {
@@ -6097,7 +6465,7 @@ Function::build(Gogo* gogo, Named_object* named_function)
 	      Expression* var_ref =
 		  Expression::make_var_reference(parm_no, loc);
 	      var_ref = Expression::make_heap_expression(var_ref, loc);
-              var_inits.push_back(var_ref->get_backend(&context));
+              var_inits.push_back(var_ref);
 	    }
           param_vars.push_back(parm_bvar);
 	}
@@ -6106,15 +6474,15 @@ Function::build(Gogo* gogo, Named_object* named_function)
 	  Bvariable* bvar = (*p)->get_backend_variable(gogo, named_function);
 
 	  Type* type = (*p)->result_var_value()->type();
-	  Bexpression* init;
+	  Expression* init;
 	  if (!(*p)->result_var_value()->is_in_heap())
 	    {
 	      Btype* btype = type->get_backend(gogo);
-	      init = gogo->backend()->zero_expression(btype);
+	      Bexpression* binit = gogo->backend()->zero_expression(btype);
+              init = Expression::make_backend(binit, type, loc);
 	    }
 	  else
-	    init = Expression::make_allocation(type,
-					       loc)->get_backend(&context);
+	    init = Expression::make_allocation(type, loc);
 
           vars.push_back(bvar);
           var_inits.push_back(init);
@@ -6183,17 +6551,20 @@ Function::build(Gogo* gogo, Named_object* named_function)
 
       // Build the backend representation for all the statements in the
       // function.
-      Translate_context context(gogo, named_function, NULL, NULL);
-      Bblock* code_block = this->block_->get_backend(&context);
+      Translate_context bcontext(gogo, named_function, NULL, NULL);
+      Bblock* code_block = this->block_->get_backend(&bcontext);
 
       // Initialize variables if necessary.
+      Translate_context icontext(gogo, named_function, this->block_,
+                                 var_decls);
       std::vector<Bstatement*> init;
       go_assert(vars.size() == var_inits.size());
       for (size_t i = 0; i < vars.size(); ++i)
 	{
+          Bexpression* binit = var_inits[i]->get_backend(&icontext);
           Bstatement* init_stmt =
               gogo->backend()->init_statement(this->fndecl_, vars[i],
-                                              var_inits[i]);
+                                              binit);
           init.push_back(init_stmt);
 	}
       Bstatement* var_init = gogo->backend()->statement_list(init);
@@ -6238,8 +6609,8 @@ Function::build(Gogo* gogo, Named_object* named_function)
   // If we created a descriptor for the function, make sure we emit it.
   if (this->descriptor_ != NULL)
     {
-      Translate_context context(gogo, NULL, NULL, NULL);
-      this->descriptor_->get_backend(&context);
+      Translate_context dcontext(gogo, NULL, NULL, NULL);
+      this->descriptor_->get_backend(&dcontext);
     }
 }
 
@@ -6655,7 +7026,12 @@ Block::import_block(Block* set, Import_function_body *ifb, Location loc)
 
       if (at_end)
 	{
-	  off = nl + 1;
+	  // An if statement can have an "else" following the "}", in
+	  // which case we want to leave the offset where it is, just
+	  // after the "}".  We don't get the block ending location
+	  // quite right for if statements.
+	  if (body.compare(off, 6, " else ") != 0)
+	    off = nl + 1;
 	  break;
 	}
 
@@ -6978,6 +7354,8 @@ Function_declaration::import_function_body(Gogo* gogo, Named_object* no)
       Named_type* rtype = fntype->receiver()->type()->deref()->named_type();
       go_assert(rtype != NULL);
       no = rtype->add_method(no->name(), fn);
+      const Package* package = rtype->named_object()->package();
+      package->bindings()->add_method(no);
     }
 
   Import_function_body ifb(gogo, this->imp_, no, body, nl + 1, outer, indent);
@@ -6986,6 +7364,7 @@ Function_declaration::import_function_body(Gogo* gogo, Named_object* no)
     return;
 
   gogo->lower_block(no, outer);
+  outer->determine_types();
 
   gogo->add_imported_inline_function(no);
 }
@@ -7015,7 +7394,8 @@ Variable::Variable(Type* type, Expression* init, bool is_global,
     type_from_init_tuple_(false), type_from_range_index_(false),
     type_from_range_value_(false), type_from_chan_element_(false),
     is_type_switch_var_(false), determined_type_(false),
-    in_unique_section_(false), toplevel_decl_(NULL)
+    in_unique_section_(false), is_referenced_by_inline_(false),
+    toplevel_decl_(NULL)
 {
   go_assert(type != NULL || init != NULL);
   go_assert(!is_parameter || init == NULL);
@@ -7497,11 +7877,25 @@ Variable::get_init_block(Gogo* gogo, Named_object* function,
 // Export the variable
 
 void
-Variable::export_var(Export* exp, const std::string& name) const
+Variable::export_var(Export* exp, const Named_object* no) const
 {
   go_assert(this->is_global_);
   exp->write_c_string("var ");
-  exp->write_string(name);
+  if (no->package() != NULL)
+    {
+      char buf[50];
+      snprintf(buf, sizeof buf, "<p%d>", exp->package_index(no->package()));
+      exp->write_c_string(buf);
+    }
+
+  if (!Gogo::is_hidden_name(no->name()))
+    exp->write_string(no->name());
+  else
+    {
+      exp->write_c_string(".");
+      exp->write_string(Gogo::unpack_hidden_name(no->name()));
+    }
+
   exp->write_c_string(" ");
   exp->write_type(this->type());
   exp->write_c_string("\n");
@@ -7509,15 +7903,23 @@ Variable::export_var(Export* exp, const std::string& name) const
 
 // Import a variable.
 
-void
-Variable::import_var(Import* imp, std::string* pname, Type** ptype)
+bool
+Variable::import_var(Import* imp, std::string* pname, Package** ppkg,
+		     bool* pis_exported, Type** ptype)
 {
   imp->require_c_string("var ");
-  *pname = imp->read_identifier();
+  if (!Import::read_qualified_identifier(imp, pname, ppkg, pis_exported))
+    {
+      go_error_at(imp->location(),
+		  "import error at %d: bad variable name in export data",
+		  imp->pos());
+      return false;
+    }
   imp->require_c_string(" ");
   *ptype = imp->read_type();
   imp->require_semicolon_if_old_version();
   imp->require_c_string("\n");
+  return true;
 }
 
 // Convert a variable to the backend representation.
@@ -7566,6 +7968,18 @@ Variable::get_backend_variable(Gogo* gogo, Named_object* function,
 	      // This is because go:linkname doesn't work on variables.
 	      if (gogo->compiling_runtime()
 		  && var_name == "runtime.writeBarrier")
+		is_hidden = false;
+
+	      // If an inline body refers to this variable, then it
+	      // needs to be visible in the symbol table.
+	      if (this->is_referenced_by_inline_)
+		is_hidden = false;
+
+	      // If this variable is in a different package, then it
+	      // can't be treated as a hidden symbol.  This case can
+	      // arise when an inlined function refers to a
+	      // package-scope unexported variable.
+	      if (package != NULL)
 		is_hidden = false;
 
 	      bvar = backend->global_variable(var_name,
@@ -7828,7 +8242,7 @@ Type_declaration::define_methods(Named_type* nt)
 	       ++p)
 	    go_error_at((*p)->location(),
 			("invalid receiver type "
-			 "(receiver must be a named type"));
+			 "(receiver must be a named type)"));
 	  return;
 	}
     }
@@ -8145,11 +8559,11 @@ Named_object::export_named_object(Export* exp) const
       break;
 
     case NAMED_OBJECT_FUNC_DECLARATION:
-      this->func_declaration_value()->export_func(exp, this->name_);
+      this->func_declaration_value()->export_func(exp, this);
       break;
 
     case NAMED_OBJECT_VAR:
-      this->var_value()->export_var(exp, this->name_);
+      this->var_value()->export_var(exp, this);
       break;
 
     case NAMED_OBJECT_RESULT_VAR:
@@ -8157,7 +8571,7 @@ Named_object::export_named_object(Export* exp) const
       go_unreachable();
 
     case NAMED_OBJECT_FUNC:
-      this->func_value()->export_func(exp, this->name_);
+      this->func_value()->export_func(exp, this);
       break;
     }
 }
@@ -8225,6 +8639,61 @@ Named_object::get_id(Gogo* gogo)
   return decl_name;
 }
 
+void
+debug_go_named_object(Named_object* no)
+{
+  if (no == NULL)
+    {
+      std::cerr << "<null>";
+      return;
+    }
+  std::cerr << "'" << no->name() << "': ";
+  const char *tag;
+  switch (no->classification())
+    {
+      case Named_object::NAMED_OBJECT_UNINITIALIZED:
+        tag = "uninitialized";
+        break;
+      case Named_object::NAMED_OBJECT_ERRONEOUS:
+        tag = "<error>";
+        break;
+      case Named_object::NAMED_OBJECT_UNKNOWN:
+        tag = "<unknown>";
+        break;
+      case Named_object::NAMED_OBJECT_CONST:
+        tag = "constant";
+        break;
+      case Named_object::NAMED_OBJECT_TYPE:
+        tag = "type";
+        break;
+      case Named_object::NAMED_OBJECT_TYPE_DECLARATION:
+        tag = "type_decl";
+        break;
+      case Named_object::NAMED_OBJECT_VAR:
+        tag = "var";
+        break;
+      case Named_object::NAMED_OBJECT_RESULT_VAR:
+        tag = "result_var";
+        break;
+      case Named_object::NAMED_OBJECT_SINK:
+        tag = "<sink>";
+        break;
+      case Named_object::NAMED_OBJECT_FUNC:
+        tag = "func";
+        break;
+      case Named_object::NAMED_OBJECT_FUNC_DECLARATION:
+        tag = "func_decl";
+        break;
+      case Named_object::NAMED_OBJECT_PACKAGE:
+        tag = "package";
+        break;
+      default:
+        tag = "<unknown named object classification>";
+        break;
+  };
+  std::cerr << tag << "\n";
+}
+
 // Get the backend representation for this named object.
 
 void
@@ -8250,7 +8719,13 @@ Named_object::get_backend(Gogo* gogo, std::vector<Bexpression*>& const_decls,
     case NAMED_OBJECT_TYPE:
       {
         Named_type* named_type = this->u_.type_value;
-	if (!Gogo::is_erroneous_name(this->name_) && !named_type->is_alias())
+
+        // No need to do anything for aliases-- whatever has to be done
+        // can be done for the alias target.
+        if (named_type->is_alias())
+          break;
+
+	if (!Gogo::is_erroneous_name(this->name_))
 	  type_decls.push_back(named_type->get_backend(gogo));
 
         // We need to produce a type descriptor for every named
@@ -8770,6 +9245,31 @@ Bindings::traverse(Traverse* traverse, bool is_global)
     }
 
   return TRAVERSE_CONTINUE;
+}
+
+void
+Bindings::debug_dump()
+{
+  std::set<Named_object*> defs;
+  for (size_t i = 0; i < this->named_objects_.size(); ++i)
+    defs.insert(this->named_objects_[i]);
+  for (Contour::iterator p = this->bindings_.begin();
+       p != this->bindings_.end();
+       ++p)
+    {
+      const char* tag = "  ";
+      if (defs.find(p->second) != defs.end())
+        tag = "* ";
+      std::cerr << tag;
+      debug_go_named_object(p->second);
+    }
+}
+
+void
+debug_go_bindings(Bindings* bindings)
+{
+  if (bindings != NULL)
+    bindings->debug_dump();
 }
 
 // Class Label.

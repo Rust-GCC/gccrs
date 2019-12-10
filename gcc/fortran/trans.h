@@ -107,6 +107,14 @@ typedef struct gfc_se
 }
 gfc_se;
 
+typedef struct gfc_co_subroutines_args
+{
+  tree image_index;
+  tree stat;
+  tree errmsg;
+  tree errmsg_len;
+}
+gfc_co_subroutines_args;
 
 /* Denotes different types of coarray.
    Please keep in sync with libgfortran/caf/libcaf.h.  */
@@ -434,6 +442,7 @@ tree gfc_vptr_final_get (tree);
 tree gfc_vptr_deallocate_get (tree);
 void gfc_reset_vptr (stmtblock_t *, gfc_expr *);
 void gfc_reset_len (stmtblock_t *, gfc_expr *);
+tree gfc_get_class_from_expr (tree);
 tree gfc_get_vptr_from_expr (tree);
 tree gfc_get_class_array_ref (tree, tree, tree, bool);
 tree gfc_copy_class_to_class (tree, tree, tree, bool);
@@ -507,6 +516,7 @@ void gfc_conv_label_variable (gfc_se * se, gfc_expr * expr);
 /* If the value is not constant, Create a temporary and copy the value.  */
 tree gfc_evaluate_now_loc (location_t, tree, stmtblock_t *);
 tree gfc_evaluate_now (tree, stmtblock_t *);
+tree gfc_evaluate_now_function_scope (tree, stmtblock_t *);
 
 /* Find the appropriate variant of a math intrinsic.  */
 tree gfc_builtin_decl_for_float_kind (enum built_in_function, int);
@@ -776,6 +786,9 @@ struct array_descr_info;
 bool gfc_get_array_descr_info (const_tree, struct array_descr_info *);
 
 /* In trans-openmp.c */
+bool gfc_omp_is_allocatable_or_ptr (const_tree);
+tree gfc_omp_check_optional_argument (tree, bool);
+tree gfc_omp_array_data (tree, bool);
 bool gfc_omp_privatize_by_reference (const_tree);
 enum omp_clause_default_kind gfc_omp_predetermined_sharing (tree);
 tree gfc_omp_report_decl (tree);
@@ -802,7 +815,7 @@ extern GTY(()) tree gfor_fndecl_error_stop_string;
 extern GTY(()) tree gfor_fndecl_runtime_error;
 extern GTY(()) tree gfor_fndecl_runtime_error_at;
 extern GTY(()) tree gfor_fndecl_runtime_warning_at;
-extern GTY(()) tree gfor_fndecl_os_error;
+extern GTY(()) tree gfor_fndecl_os_error_at;
 extern GTY(()) tree gfor_fndecl_generate_error;
 extern GTY(()) tree gfor_fndecl_set_fpe;
 extern GTY(()) tree gfor_fndecl_set_options;
@@ -989,6 +1002,7 @@ struct GTY(()) lang_decl {
   tree token, caf_offset;
   unsigned int scalar_allocatable : 1;
   unsigned int scalar_pointer : 1;
+  unsigned int optional_arg : 1;
 };
 
 
@@ -1003,6 +1017,8 @@ struct GTY(()) lang_decl {
   (DECL_LANG_SPECIFIC (node)->scalar_allocatable)
 #define GFC_DECL_SCALAR_POINTER(node) \
   (DECL_LANG_SPECIFIC (node)->scalar_pointer)
+#define GFC_DECL_OPTIONAL_ARGUMENT(node) \
+  (DECL_LANG_SPECIFIC (node)->optional_arg)
 #define GFC_DECL_GET_SCALAR_ALLOCATABLE(node) \
   (DECL_LANG_SPECIFIC (node) ? GFC_DECL_SCALAR_ALLOCATABLE (node) : 0)
 #define GFC_DECL_GET_SCALAR_POINTER(node) \

@@ -39,7 +39,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "domwalk.h"
 #include "tree-ssa-propagate.h"
 #include "tree-ssa-threadupdate.h"
-#include "params.h"
 #include "tree-ssa-scopedtables.h"
 #include "tree-ssa-threadedge.h"
 #include "tree-ssa-dom.h"
@@ -395,7 +394,7 @@ edge_info::record_simple_equiv (tree lhs, tree rhs)
 void
 free_dom_edge_info (edge e)
 {
-  class edge_info *edge_info = (struct edge_info *)e->aux;
+  class edge_info *edge_info = (class edge_info *)e->aux;
 
   if (edge_info)
     delete edge_info;
@@ -543,7 +542,7 @@ record_edge_info (basic_block bb)
               bool can_infer_simple_equiv
                 = !(HONOR_SIGNED_ZEROS (op0)
                     && real_zerop (op0));
-              struct edge_info *edge_info;
+	      class edge_info *edge_info;
 
 	      edge_info = new class edge_info (true_edge);
               record_conditions (&edge_info->cond_equivalences, cond, inverted);
@@ -567,7 +566,7 @@ record_edge_info (basic_block bb)
               bool can_infer_simple_equiv
                 = !(HONOR_SIGNED_ZEROS (op1)
                     && (TREE_CODE (op1) == SSA_NAME || real_zerop (op1)));
-              struct edge_info *edge_info;
+	      class edge_info *edge_info;
 
 	      edge_info = new class edge_info (true_edge);
               record_conditions (&edge_info->cond_equivalences, cond, inverted);
@@ -901,7 +900,7 @@ simplify_stmt_for_jump_threading (gimple *stmt,
       if (TREE_CODE (op) != SSA_NAME)
 	return NULL_TREE;
 
-      value_range *vr = x_vr_values->get_value_range (op);
+      const value_range_equiv *vr = x_vr_values->get_value_range (op);
       if (vr->undefined_p ()
 	  || vr->varying_p ()
 	  || vr->symbolic_p ())
@@ -913,21 +912,26 @@ simplify_stmt_for_jump_threading (gimple *stmt,
 
 	  find_case_label_range (switch_stmt, vr->min (), vr->max (), &i, &j);
 
+	  /* Is there only one such label?  */
 	  if (i == j)
 	    {
 	      tree label = gimple_switch_label (switch_stmt, i);
 	      tree singleton;
 
+	      /* The i'th label will only be taken if the value range of the
+		 operand is entirely within the bounds of this label.  */
 	      if (CASE_HIGH (label) != NULL_TREE
 		  ? (tree_int_cst_compare (CASE_LOW (label), vr->min ()) <= 0
 		     && tree_int_cst_compare (CASE_HIGH (label), vr->max ()) >= 0)
 		  : (vr->singleton_p (&singleton)
 		     && tree_int_cst_equal (CASE_LOW (label), singleton)))
 		return label;
-
-	      if (i > j)
-		return gimple_switch_label (switch_stmt, 0);
 	    }
+
+	  /* If there are no such labels, then the default label
+	     will be taken.  */
+	  if (i > j)
+	    return gimple_switch_label (switch_stmt, 0);
 	}
 
       if (vr->kind () == VR_ANTI_RANGE)
@@ -958,9 +962,9 @@ simplify_stmt_for_jump_threading (gimple *stmt,
 	{
 	  edge dummy_e;
 	  tree dummy_tree;
-	  value_range new_vr;
+	  value_range_equiv new_vr;
 	  x_vr_values->extract_range_from_stmt (stmt, &dummy_e,
-					      &dummy_tree, &new_vr);
+						&dummy_tree, &new_vr);
 	  tree singleton;
 	  if (new_vr.singleton_p (&singleton))
 	    return singleton;
