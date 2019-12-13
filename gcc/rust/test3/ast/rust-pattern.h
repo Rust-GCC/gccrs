@@ -70,8 +70,12 @@ namespace Rust {
 
             // Copy constructor with clone
             IdentifierPattern(IdentifierPattern const& other) :
-              variable_ident(other.variable_ident), is_ref(other.is_ref), is_mut(other.is_mut),
-              to_bind(other.to_bind->clone_pattern()) {}
+              variable_ident(other.variable_ident), is_ref(other.is_ref), is_mut(other.is_mut) {
+                // fix to get prevent null pointer dereference
+                if (other.to_bind != NULL) {
+                  to_bind = other.to_bind->clone_pattern();
+                }
+              }
 
             // Destructor - define here if required
 
@@ -80,7 +84,10 @@ namespace Rust {
                 variable_ident = other.variable_ident;
                 is_ref = other.is_ref;
                 is_mut = other.is_mut;
-                to_bind = other.to_bind->clone_pattern();
+                // fix to get prevent null pointer dereference
+                if (other.to_bind != NULL) {
+                  to_bind = other.to_bind->clone_pattern();
+                }
 
                 return *this;
             }

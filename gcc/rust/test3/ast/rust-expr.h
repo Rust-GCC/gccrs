@@ -205,15 +205,27 @@ namespace Rust {
             MetaItemInner(::std::unique_ptr<LiteralExpr> expr) : /*item(NULL), */ expr(::std::move(expr)) {}
 
             // Copy constructor with clone
-            MetaItemInner(MetaItemInner const& other) :
-              item(other.item->clone_meta_item()), expr(other.expr->clone_literal_expr()) {}
+            MetaItemInner(MetaItemInner const& other) {
+                // guard to protect from null pointer dereference
+                if (other.item != NULL) {
+                  item = other.item->clone_meta_item();
+                }
+                if (other.expr != NULL) {
+                  expr = other.expr->clone_literal_expr();
+                }
+              }
 
             // Destructor - define here if required
 
             // Overload assignment operator to use clone
             MetaItemInner& operator=(MetaItemInner const& other) {
-                item = other.item->clone_meta_item();
-                expr = other.expr->clone_literal_expr();
+                // guard to protect from null pointer dereference
+                if (other.item != NULL) {
+                  item = other.item->clone_meta_item();
+                }
+                if (other.expr != NULL) {
+                  expr = other.expr->clone_literal_expr();
+                }
 
                 return *this;
             }
@@ -375,7 +387,18 @@ namespace Rust {
 
             // Copy constructor (only for initialisation of expr purposes)
             OperatorExpr(OperatorExpr const& other) :
-              ExprWithoutBlock(other), main_or_left_expr(other.main_or_left_expr->clone_expr()) {}
+              ExprWithoutBlock(other)/*, main_or_left_expr(other.main_or_left_expr->clone_expr())*/ {
+                // DEBUG: moved main_or_left_expr into body - move back later
+
+                if (other.main_or_left_expr == NULL) {
+                  fprintf(stderr, "other operator expr's main_or_left_expr is null!\n");
+                }
+
+                fprintf(stderr, "called operator expr copy constructor - about to clone main_or_left_expr\n");
+                main_or_left_expr = other.main_or_left_expr->clone_expr();
+                fprintf(stderr, "successfully cloned main_or_left_expr\n");
+                // this occurred successfully, so something else must be the issue
+              }
 
             // Overload assignment operator to deep copy expr
             OperatorExpr& operator=(OperatorExpr const& other) {
@@ -431,6 +454,9 @@ namespace Rust {
 
             // Use covariance to implement clone function as returning this object rather than base
             virtual BorrowExpr* clone_expr_without_block_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "called clone_expr_without_block_impl() on borrowexpr\n");
+
                 return new BorrowExpr(*this);
             }
         };
@@ -465,6 +491,9 @@ namespace Rust {
 
             // Use covariance to implement clone function as returning this object rather than base
             virtual DereferenceExpr* clone_expr_without_block_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "called clone_expr_without_block_impl() on dereferenceexpr\n");
+
                 return new DereferenceExpr(*this);
             }
         };
@@ -501,6 +530,9 @@ namespace Rust {
 
             // Use covariance to implement clone function as returning this object rather than base
             virtual ErrorPropogationExpr* clone_expr_without_block_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "called clone_expr_without_block_impl() on errorpropogationexpr\n");
+
                 return new ErrorPropogationExpr(*this);
             }
         };
@@ -552,6 +584,9 @@ namespace Rust {
 
             // Use covariance to implement clone function as returning this object rather than base
             virtual NegationExpr* clone_expr_without_block_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "called clone_expr_without_block_impl() on negationexpr\n");
+
                 return new NegationExpr(*this);
             }
         };
@@ -632,6 +667,9 @@ namespace Rust {
 
             // Use covariance to implement clone function as returning this object rather than base
             virtual ArithmeticOrLogicalExpr* clone_expr_without_block_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "called clone_expr_without_block_impl() on arithmeticorlogicalexpr\n");
+
                 return new ArithmeticOrLogicalExpr(*this);
             }
         };
@@ -710,6 +748,9 @@ namespace Rust {
 
             // Use covariance to implement clone function as returning this object rather than base
             virtual ComparisonExpr* clone_expr_without_block_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "called clone_expr_without_block_impl() on comparisonexpr\n");
+
                 return new ComparisonExpr(*this);
             }
         };
@@ -778,6 +819,9 @@ namespace Rust {
 
             // Use covariance to implement clone function as returning this object rather than base
             virtual LazyBooleanExpr* clone_expr_without_block_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "called clone_expr_without_block_impl() on lazybooleanexpr\n");
+
                 return new LazyBooleanExpr(*this);
             }
         };
@@ -832,6 +876,9 @@ namespace Rust {
 
             // Use covariance to implement clone function as returning this object rather than base
             virtual TypeCastExpr* clone_expr_without_block_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "called clone_expr_without_block_impl() on typecastexpr\n");
+
                 return new TypeCastExpr(*this);
             }
         };
@@ -863,7 +910,20 @@ namespace Rust {
 
             // Call OperatorExpr constructor in copy constructor, as well as clone
             AssignmentExpr(AssignmentExpr const& other) :
-              OperatorExpr(other), right_expr(other.right_expr->clone_expr()) {}
+              OperatorExpr(other)/*, right_expr(other.right_expr->clone_expr())*/ {
+                // DEBUG: moved cloning right expr into body
+                fprintf(stderr, "assignment expr copy constructor successfully cloned base operator expr\n");
+                if (other.right_expr == NULL) {
+                    fprintf(stderr, "other expr's right expr (in assignment) is null!!!");
+                }
+                fprintf(stderr, "test other's right expr as string: %s\n", other.right_expr->as_string().c_str());
+                // apparently, despite not being null, cloning still fails
+                right_expr = other.right_expr->clone_expr();
+                fprintf(stderr, "assignment expr copy constructor successfully cloned right expr\n");
+
+                // DEBUG
+                fprintf(stderr, "assignment expr copy constructor called successfully\n");
+              }
 
             // Destructor - define here if required
 
@@ -889,6 +949,9 @@ namespace Rust {
 
             // Use covariance to implement clone function as returning this object rather than base
             virtual AssignmentExpr* clone_expr_without_block_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "called clone_expr_without_block_impl() on assignmentexpr\n");
+
                 return new AssignmentExpr(*this);
             }
         };
@@ -972,6 +1035,9 @@ namespace Rust {
 
             // Use covariance to implement clone function as returning this object rather than base
             virtual CompoundAssignmentExpr* clone_expr_without_block_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "called clone_expr_without_block_impl() on compoundassignmentexpr\n");
+
                 return new CompoundAssignmentExpr(*this);
             }
         };
@@ -2340,7 +2406,12 @@ namespace Rust {
 
             // Copy constructor required due to cloning as a result of unique_ptrs
             ClosureParam(ClosureParam const& other) :
-              pattern(other.pattern->clone_pattern()), type(other.type->clone_type()) {}
+              pattern(other.pattern->clone_pattern()) {
+                // guard to protect from null pointer dereference
+                if (other.type != NULL) {
+                  type = other.type->clone_type();
+                }
+              }
 
             ~ClosureParam() = default;
 
@@ -2489,7 +2560,12 @@ namespace Rust {
             // Copy constructor with clone
             BlockExpr(BlockExpr const& other) :
               ExprWithBlock(other), /*statements(other.statements),*/
-              inner_attrs(other.inner_attrs), expr(other.expr->clone_expr_without_block()) {
+              inner_attrs(other.inner_attrs) {
+                // guard to protect from null pointer dereference
+                if (other.expr != NULL) {
+                  expr = other.expr->clone_expr_without_block();
+                }
+
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 statements.reserve(other.statements.size());
 
@@ -2686,8 +2762,12 @@ namespace Rust {
 
             // Copy constructor defined to use clone for unique pointer
             BreakExpr(BreakExpr const& other) :
-              ExprWithoutBlock(other), label(other.label),
-              break_expr(other.break_expr->clone_expr()) {}
+              ExprWithoutBlock(other), label(other.label) {
+                // guard to protect from null pointer dereference
+                if (other.break_expr != NULL) {
+                  break_expr = other.break_expr->clone_expr();
+                }
+              }
 
             // Destructor - define here if required
 
@@ -3039,7 +3119,12 @@ namespace Rust {
 
             // Copy constructor with clone
             ReturnExpr(ReturnExpr const& other) :
-              ExprWithoutBlock(other), return_expr(other.return_expr->clone_expr()) {}
+              ExprWithoutBlock(other) {
+                // guard to protect from null pointer dereference
+                if (other.return_expr != NULL) {
+                  return_expr = other.return_expr->clone_expr();
+                }
+              }
 
             // Destructor - define here if required
 
@@ -4006,14 +4091,27 @@ namespace Rust {
 
             // Copy constructor with clone
             MatchArm(MatchArm const& other) :
-              /*match_arm_patterns(other.match_arm_patterns),*/ outer_attrs(other.outer_attrs),
-              guard_expr(other.guard_expr->clone_expr()) {
+              /*match_arm_patterns(other.match_arm_patterns),*/ outer_attrs(other.outer_attrs) {
+                // guard to protect from null pointer dereference
+                if (other.guard_expr != NULL) {
+                  guard_expr = other.guard_expr->clone_expr();
+                }
+
+                // DEBUG
+                fprintf(stderr, "started copy-constructing match arm (outer attrs, guard expr done)\n");
+
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 match_arm_patterns.reserve(other.match_arm_patterns.size());
 
                 for (const auto& e : other.match_arm_patterns) {
                     match_arm_patterns.push_back(e->clone_pattern());
+
+                    // DEBUG
+                    fprintf(stderr, "successfully pushed back a match arm pattern\n");
                 }
+
+                // DEBUG
+                fprintf(stderr, "successfully copy-constructed match arm\n");
             }
 
             ~MatchArm() = default;
@@ -4066,6 +4164,9 @@ namespace Rust {
 
             // Unique pointer custom clone function
             ::std::unique_ptr<MatchCase> clone_match_case() const {
+                // DEBUG
+                fprintf(stderr, "about to call clone match case impl\n");
+
                 return ::std::unique_ptr<MatchCase>(clone_match_case_impl());
             }
         };
@@ -4089,7 +4190,10 @@ namespace Rust {
 
             // Copy constructor requires clone
             MatchCaseBlockExpr(MatchCaseBlockExpr const& other) :
-              MatchCase(other), block_expr(other.block_expr->clone_block_expr()) {}
+              MatchCase(other), block_expr(other.block_expr->clone_block_expr()) {
+                // DEBUG
+                fprintf(stderr, "successfully copy constructed match case expr\n");
+              }
 
             // Destructor - define here if required
 
@@ -4109,6 +4213,9 @@ namespace Rust {
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual MatchCaseBlockExpr* clone_match_case_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "about to copy construct match case block expr\n");
+
                 return new MatchCaseBlockExpr(*this);
             }
         };
@@ -4130,7 +4237,10 @@ namespace Rust {
 
             // Copy constructor requires clone
             MatchCaseExpr(MatchCaseExpr const& other) :
-              MatchCase(other), expr(other.expr->clone_expr()) {}
+              MatchCase(other), expr(other.expr->clone_expr()) {
+                // DEBUG
+                fprintf(stderr, "successfully copy constructed match case expr\n");
+              }
 
             // Destructor - define here if required
 
@@ -4150,6 +4260,12 @@ namespace Rust {
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual MatchCaseExpr* clone_match_case_impl() const OVERRIDE {
+                // DEBUG
+                fprintf(stderr, "about to copy construct match case expr\n");
+                if (expr == NULL) {
+                  fprintf(stderr, "warning: match case expr to be copy constructed has null expr!\n");
+                }
+
                 return new MatchCaseExpr(*this);
             }
         };
@@ -4194,12 +4310,19 @@ namespace Rust {
               ExprWithBlock(other),
               branch_value(other.branch_value->clone_expr()), /*match_arms(other.match_arms),*/
               inner_attrs(other.inner_attrs) {
+                fprintf(stderr, "copy constructor for matchexpr called - only match arm vector copying after this\n");
+
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 match_arms.reserve(other.match_arms.size());
 
+                fprintf(stderr, "match expr: successfully reserved size\n");
+
                 for (const auto& e : other.match_arms) {
                     match_arms.push_back(e->clone_match_case());
+                    fprintf(stderr, "match expr: successfully pushed back a match case\n");
                 }
+
+                fprintf(stderr, "match expr: successfully pushed back all match cases\n");
             }
 
             // Destructor - define here if required

@@ -54,6 +54,15 @@ namespace Rust {
         // should be able to disambiguate inside that function between stmts with blocks and without blocks.
     };
 
+    /* Restrictions on parsing used to signal that certain ambiguous grammar features should be parsed in a
+     * certain way.*/
+    struct ParseRestrictions {
+        bool can_be_struct_expr = true;
+        /* Whether the expression was entered from a unary expression - prevents stuff like struct exprs
+         * being parsed from a dereference. */
+        bool entered_from_unary = false;
+    };
+
     // Parser implementation for gccrs.
     class Parser {
       private:
@@ -66,6 +75,7 @@ namespace Rust {
         bool skip_token(TokenId t);
         const_TokenPtr expect_token(TokenId t);
         void unexpected_token(const_TokenPtr t);
+        bool skip_generics_right_angle();
 
         // expression parsing
         int left_binding_power(const_TokenPtr tok);
@@ -214,10 +224,10 @@ namespace Rust {
         AST::Method parse_method();
 
         // Expression-related (Pratt parsed)
-        ::std::unique_ptr<AST::Expr> parse_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        ::std::unique_ptr<AST::Expr> parse_expr(int right_binding_power, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        ::std::unique_ptr<AST::Expr> null_denotation_NEW(const_TokenPtr t, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        ::std::unique_ptr<AST::Expr> left_denotation(const_TokenPtr t, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        ::std::unique_ptr<AST::Expr> parse_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::Expr> parse_expr(int right_binding_power, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::Expr> null_denotation_NEW(const_TokenPtr t, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::Expr> left_denotation(const_TokenPtr t, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), ParseRestrictions restrictions = ParseRestrictions());
         ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_binary_plus_expr(
           const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_binary_minus_expr(
@@ -302,6 +312,8 @@ namespace Rust {
         ::std::unique_ptr<AST::StructExprStruct> parse_struct_expr_struct_partial(AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::StructExprTuple> parse_struct_expr_tuple_partial(AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
         AST::PathInExpression parse_path_in_expression_pratt(const_TokenPtr tok);
+        ::std::unique_ptr<AST::ClosureExpr> parse_closure_expr_pratt(
+          const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
 
         // Expression-related (non-Pratt parsed)
         ::std::unique_ptr<AST::ExprWithoutBlock> parse_expr_without_block(
@@ -325,9 +337,9 @@ namespace Rust {
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
           AST::LoopLabel label = AST::LoopLabel::error());
         ::std::unique_ptr<AST::MatchExpr> parse_match_expr(
-          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
         AST::MatchArm parse_match_arm();
-        ::std::vector< ::std::unique_ptr<AST::Pattern> > parse_match_arm_patterns();
+        ::std::vector< ::std::unique_ptr<AST::Pattern> > parse_match_arm_patterns(TokenId end_token_id);
         ::std::unique_ptr<AST::BaseLoopExpr> parse_labelled_loop_expr(
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::LoopLabel parse_loop_label();

@@ -354,7 +354,12 @@ namespace Rust {
 
             // Copy constructor must deep copy attr_input as unique pointer
             Attribute(Attribute const& other) :
-              path(other.path), attr_input(other.attr_input->clone_attr_input()) {}
+              path(other.path) {
+                // guard to protect from null pointer dereference
+                if (other.attr_input != NULL) {
+                  attr_input = other.attr_input->clone_attr_input();
+                }
+              }
 
             // default destructor
             ~Attribute() = default;
@@ -362,7 +367,10 @@ namespace Rust {
             // overload assignment operator to use custom clone method
             Attribute& operator=(Attribute const& other) {
                 path = other.path;
-                attr_input = other.attr_input->clone_attr_input();
+                // guard to protect from null pointer dereference
+                if (other.attr_input != NULL) {
+                  attr_input = other.attr_input->clone_attr_input();
+                }
 
                 return *this;
             }
@@ -578,6 +586,7 @@ namespace Rust {
         };
 
         // HACK: IdentifierExpr, delete when figure out identifier vs expr problem in Pratt parser
+        // Alternatively, identifiers could just be represented as single-segment paths
         class IdentifierExpr : public Expr {
             Identifier ident;
 

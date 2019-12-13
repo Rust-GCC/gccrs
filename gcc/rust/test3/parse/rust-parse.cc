@@ -96,10 +96,10 @@ namespace Rust {
         LBP_L_SHIFT_ASSIG = LBP_ASSIG,
         LBP_R_SHIFT_ASSIG = LBP_ASSIG,
 
-    // return, break, and closures as lowest priority?
-    LBP_RETURN = 5,
-    LBP_BREAK = LBP_RETURN,
-    LBP_CLOSURE = LBP_RETURN,   // unary prefix operators
+        // return, break, and closures as lowest priority?
+        LBP_RETURN = 5,
+        LBP_BREAK = LBP_RETURN,
+        LBP_CLOSURE = LBP_RETURN, // unary prefix operators
 
 #if 0
         // rust precedences
@@ -140,6 +140,96 @@ namespace Rust {
         return type.get_tree_code() == RECORD_TYPE;
     }
 
+    // Returns whether the token can start a type (i.e. there is a valid type beginning with the
+    // token).
+    bool can_tok_start_type(TokenId id) {
+        switch (id) {
+            case EXCLAM:
+            case LEFT_SQUARE:
+            case LEFT_ANGLE:
+            case UNDERSCORE:
+            case ASTERISK:
+            case AMP:
+            case LIFETIME:
+            case IDENTIFIER:
+            case SUPER:
+            case SELF:
+            case SELF_ALIAS:
+            case CRATE:
+            case DOLLAR_SIGN:
+            case SCOPE_RESOLUTION:
+            case LEFT_PAREN:
+            case FOR:
+            case ASYNC:
+            case CONST:
+            case UNSAFE:
+            case EXTERN_TOK:
+            case FN_TOK:
+            case IMPL:
+            case DYN:
+            case QUESTION_MARK:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /* Returns whether the token id is (or is likely to be) a right angle bracket. i.e. '>', '>>',
+     * '>=' and '>>=' tokens. */
+    bool is_right_angle_tok(TokenId id) {
+        switch (id) {
+            case RIGHT_ANGLE:
+            case RIGHT_SHIFT:
+            case GREATER_OR_EQUAL:
+            case RIGHT_SHIFT_EQ:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // HACK-y special handling for skipping a right angle token at the end of generic arguments.
+    bool Parser::skip_generics_right_angle() {
+        // HACK: special handling for right shift '>>', greater or equal '>=', and right shift assig
+        // '>>='
+        const_TokenPtr tok = lexer.peek_token();
+        switch (tok->get_id()) {
+            case RIGHT_ANGLE:
+                // this is good - skip token
+                lexer.skip_token();
+                return true;
+            case RIGHT_SHIFT: {
+                /* shit. preferred HACK would be to replace this token in stream with '>', but may not
+                 * be possible at this point. */
+                // FIXME: ensure locations aren't messed up
+                TokenPtr right_angle = Token::make(RIGHT_ANGLE, tok->get_locus() + 1);
+                lexer.replace_current_token(right_angle);
+                return true;
+            }
+            case GREATER_OR_EQUAL: {
+                // another HACK - replace with equal (as assignment intended, probably)
+                /* FIXME: is this even required? how many people wouldn't leave a space? - apparently
+                 * rustc has this feature */
+                // FIXME: ensure locations aren't messed up
+                TokenPtr equal = Token::make(EQUAL, tok->get_locus() + 1);
+                lexer.replace_current_token(equal);
+                return true;
+            }
+            case RIGHT_SHIFT_EQ: {
+                // another HACK - replace with greater or equal
+                // FIXME: again, is this really required? rustc has the feature, though
+                // FIXME: ensure locations aren't messed up
+                TokenPtr greater_equal = Token::make(GREATER_OR_EQUAL, tok->get_locus() + 1);
+                lexer.replace_current_token(greater_equal);
+                return true;
+            }
+            default:
+                error_at(tok->get_locus(), "expected '>' at end of generic argument - found '%s'",
+                  tok->get_token_description());
+                return false;
+        }
+    }
+
     /* Gets left binding power for specified token.
      * Not suitable for use at the moment or possibly ever because binding power cannot be purely
      * determined from operator token with Rust grammar - e.g. method call and field access have
@@ -147,33 +237,36 @@ namespace Rust {
     int Parser::left_binding_power(const_TokenPtr token) {
         // HACK: called with "peek_token()", so lookahead is "peek_token(1)"
         switch (token->get_id()) {
-            /* TODO: issue here - distinguish between method calls and field access somehow?
-                Also would have to distinguish between paths and function calls (:: operator),
-                maybe more stuff. */
-            /* Current plan for tackling LBP - don't do it based on token, use lookahead.
-             * Or alternatively, only use Pratt parsing for OperatorExpr and handle other expressions
-             * without it.
-             * rustc only considers arithmetic, logical/relational, 'as', '?=', ranges, colons, and
-             * assignment to have operator precedence and associativity rules applicable. It then has
-             * a separate "ExprPrecedence" that also includes binary operators. */
+                /* TODO: issue here - distinguish between method calls and field access somehow?
+                    Also would have to distinguish between paths and function calls (:: operator),
+                    maybe more stuff. */
+                /* Current plan for tackling LBP - don't do it based on token, use lookahead.
+                 * Or alternatively, only use Pratt parsing for OperatorExpr and handle other
+                 * expressions without it. rustc only considers arithmetic, logical/relational, 'as',
+                 * '?=', ranges, colons, and assignment to have operator precedence and associativity
+                 * rules applicable. It then has
+                 * a separate "ExprPrecedence" that also includes binary operators. */
 
-            // TODO: handle operator overloading - have a function replace the operator?
+                // TODO: handle operator overloading - have a function replace the operator?
 
-            /*case DOT:
-                return LBP_DOT;*/
+                /*case DOT:
+                    return LBP_DOT;*/
 
             case SCOPE_RESOLUTION:
-                fprintf(stderr, "possible error - looked up LBP of scope resolution operator. should be handled elsewhere. \n");
+                fprintf(stderr, "possible error - looked up LBP of scope resolution operator. should "
+                                "be handled elsewhere. \n");
                 return LBP_PATH;
 
-            /* Resolved by lookahead HACK that should work with current code. If next token is identifier
-             * and token after that isn't parenthesised expression list, it is a field reference. */
+            /* Resolved by lookahead HACK that should work with current code. If next token is
+             * identifier and token after that isn't parenthesised expression list, it is a field
+             * reference. */
             case DOT:
-                if (lexer.peek_token(1)->get_id() == IDENTIFIER && lexer.peek_token(2)->get_id() != LEFT_PAREN) {
+                if (lexer.peek_token(1)->get_id() == IDENTIFIER
+                    && lexer.peek_token(2)->get_id() != LEFT_PAREN) {
                     return LBP_FIELD_EXPR;
                 }
                 return LBP_METHOD_CALL;
-            
+
             case LEFT_PAREN:
                 return LBP_FUNCTION_CALL;
 
@@ -681,6 +774,9 @@ namespace Rust {
 
     // Parses a delimited token tree
     AST::DelimTokenTree Parser::parse_delim_token_tree() {
+        // DEBUG
+        fprintf(stderr, "new delim token tree parsing begun\n");
+
         const_TokenPtr t = lexer.peek_token();
         lexer.skip_token();
 
@@ -705,12 +801,11 @@ namespace Rust {
                 return AST::DelimTokenTree::create_empty();
         }
 
-        t = lexer.peek_token();
-
         // parse actual token tree vector - 0 or more
         ::std::vector< ::std::unique_ptr<AST::TokenTree> > token_trees_in_tree;
 
         // repeat loop until finding the matching delimiter
+        t = lexer.peek_token();
         while (!token_id_matches_delims(t->get_id(), delim_type)) {
             ::std::unique_ptr<AST::TokenTree> tok_tree = parse_token_tree();
 
@@ -736,6 +831,11 @@ namespace Rust {
         if (token_id_matches_delims(t->get_id(), delim_type)) {
             // tokens match opening delimiter, so skip.
             lexer.skip_token();
+
+            // DEBUG
+            fprintf(stderr,
+              "finished parsing new delim token tree - peeked token is now '%s' while t is '%s'\n",
+              lexer.peek_token()->get_token_description(), t->get_token_description());
 
             return token_tree;
         } else {
@@ -1211,6 +1311,7 @@ namespace Rust {
                   t->get_token_description());
                 return NULL;
         }
+        lexer.skip_token();
 
         // parse actual token trees
         ::std::vector< ::std::unique_ptr<AST::TokenTree> > token_trees;
@@ -1247,6 +1348,10 @@ namespace Rust {
                         ::std::move(token_trees), ::std::move(outer_attrs)));
                 }
             }
+
+            // DEBUG:
+            fprintf(stderr, "skipped token is '%s', next token (current peek) is '%s'\n",
+              t->get_token_description(), lexer.peek_token()->get_token_description());
 
             return ::std::unique_ptr<AST::MacroInvocationSemi>(new AST::MacroInvocationSemi(
               ::std::move(path), delim_type, ::std::move(token_trees), ::std::move(outer_attrs)));
@@ -1619,9 +1724,24 @@ namespace Rust {
                 ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
 
                 // parse items
-                ::std::vector< ::std::unique_ptr<AST::Item> > items = parse_items();
+                ::std::vector< ::std::unique_ptr<AST::Item> > items;
+                const_TokenPtr tok = lexer.peek_token();
+                while (tok->get_id() != RIGHT_CURLY) {
+                    ::std::unique_ptr<AST::Item> item = parse_item(false);
+                    if (item == NULL) {
+                        error_at(tok->get_locus(), "failed to parse item in module");
+                        return NULL;
+                    }
 
-                skip_token(RIGHT_CURLY);
+                    items.push_back(::std::move(item));
+
+                    tok = lexer.peek_token();
+                }
+
+                if (!skip_token(RIGHT_CURLY)) {
+                    // skip somewhere?
+                    return NULL;
+                }
 
                 return ::std::unique_ptr<AST::ModuleBodied>(
                   new AST::ModuleBodied(::std::move(items), ::std::move(vis),
@@ -2040,9 +2160,18 @@ namespace Rust {
         }
         lexer.skip_token();
 
+        // DEBUG:
+        fprintf(stderr, "skipped left angle in generic param\n");
+
         ::std::vector< ::std::unique_ptr<AST::GenericParam> > generic_params = parse_generic_params();
 
-        if (!skip_token(RIGHT_ANGLE)) {
+        // DEBUG:
+        fprintf(stderr, "finished parsing actual generic params (i.e. inside angles)\n");
+
+        if (!skip_generics_right_angle()) {
+            // DEBUG
+            fprintf(stderr, "failed to skip generics right angle - returning empty generic params\n");
+
             return ::std::vector< ::std::unique_ptr<AST::GenericParam> >();
         }
 
@@ -2054,6 +2183,136 @@ namespace Rust {
     ::std::vector< ::std::unique_ptr<AST::GenericParam> > Parser::parse_generic_params() {
         ::std::vector< ::std::unique_ptr<AST::GenericParam> > generic_params;
 
+        // can't parse lifetime and type params separately due to lookahead issues
+        // thus, parse them all here
+
+        // DEBUG
+        fprintf(stderr, "starting to parse generic params (inside angle brackets)\n");
+
+        // HACK: used to retain attribute data if a lifetime param is tentatively parsed but it turns
+        // out to be type param
+        AST::Attribute parsed_outer_attr = AST::Attribute::create_empty();
+
+        // HACK: generic params always in angle brackets with current syntax, so have that as end char
+        const_TokenPtr t = lexer.peek_token();
+        // parse lifetime params
+        while (!is_right_angle_tok(t->get_id())) {
+            // HACK: reimpl of lifetime param parsing
+            AST::Attribute outer_attr = parse_outer_attribute();
+
+            // move attribute outward if type param
+            if (lexer.peek_token()->get_id() != LIFETIME) {
+                parsed_outer_attr = ::std::move(outer_attr);
+
+                // DEBUG
+                fprintf(stderr, "broke from parsing lifetime params as next token isn't lifetime - "
+                                "saved attribute\n");
+
+                break;
+            }
+
+            AST::Lifetime lifetime = parse_lifetime();
+
+            // DEBUG
+            fprintf(stderr, "parsed lifetime in lifetime params\n");
+
+            // parse optional bounds
+            ::std::vector<AST::Lifetime> lifetime_bounds;
+            if (lexer.peek_token()->get_id() == COLON) {
+                lexer.skip_token();
+                // parse required bounds
+                lifetime_bounds = parse_lifetime_bounds();
+            }
+
+            ::std::unique_ptr<AST::LifetimeParam> param(new AST::LifetimeParam(
+              ::std::move(lifetime), ::std::move(lifetime_bounds), ::std::move(outer_attr)));
+            generic_params.push_back(::std::move(param));
+
+            if (lexer.peek_token()->get_id() != COMMA) {
+                break;
+            }
+            lexer.skip_token();
+
+            t = lexer.peek_token();
+        }
+
+        // parse type params (reimpl required for first one but not others)
+        if (!is_right_angle_tok(lexer.peek_token()->get_id()) && !parsed_outer_attr.is_empty()) {
+            // DEBUG
+            fprintf(stderr, "as parsed outer attr isn't empty, started parsing type param reimpl\n");
+
+            // reimpl as type param definitely exists
+            const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+            if (ident_tok == NULL) {
+                error_at(lexer.peek_token()->get_locus(),
+                  "failed to parse identifier in type param in generic params");
+                return ::std::vector< ::std::unique_ptr<AST::GenericParam> >();
+            }
+            Identifier ident = ident_tok->get_str();
+
+            // parse optional bounds
+            ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > type_param_bounds;
+            if (lexer.peek_token()->get_id() == COLON) {
+                lexer.skip_token();
+
+                // parse optional type param bounds
+                type_param_bounds = parse_type_param_bounds();
+            }
+
+            // parse optional type
+            ::std::unique_ptr<AST::Type> type = NULL;
+            if (lexer.peek_token()->get_id() == EQUAL) {
+                lexer.skip_token();
+
+                // parse required type
+                type = parse_type();
+                if (type == NULL) {
+                    error_at(lexer.peek_token()->get_id(),
+                      "failed to parse type in type param in generic params");
+                    return ::std::vector< ::std::unique_ptr<AST::GenericParam> >();
+                }
+            }
+
+            ::std::unique_ptr<AST::TypeParam> param(new AST::TypeParam(::std::move(ident),
+              ::std::move(type_param_bounds), ::std::move(type), ::std::move(parsed_outer_attr)));
+            generic_params.push_back(::std::move(param));
+
+            // handle comma
+            if (lexer.peek_token()->get_id() == COMMA) {
+                lexer.skip_token();
+            }
+        }
+
+        // DEBUG
+        fprintf(stderr, "about to start parsing normally-parsed type params in generic params\n");
+
+        // parse rest of type params - reimpl due to right angle tokens
+        t = lexer.peek_token();
+        while (!is_right_angle_tok(t->get_id())) {
+            ::std::unique_ptr<AST::TypeParam> type_param = parse_type_param();
+
+            if (type_param == NULL) {
+                error_at(
+                  lexer.peek_token()->get_locus(), "failed to parse type param in generic params");
+                return ::std::vector< ::std::unique_ptr<AST::GenericParam> >();
+            }
+
+            // DEBUG
+            fprintf(stderr, "successfully parsed type param\n");
+
+            generic_params.push_back(::std::move(type_param));
+
+            if (lexer.peek_token()->get_id() != COMMA) {
+                break;
+            }
+            // skip commas, including trailing commas
+            lexer.skip_token();
+
+            t = lexer.peek_token();
+        }
+
+        // old code
+        /*
         // parse lifetime params (optional), allowed to end with a trailing comma
         ::std::vector< ::std::unique_ptr<AST::LifetimeParam> > lifetime_params
           = parse_lifetime_params();
@@ -2062,10 +2321,6 @@ namespace Rust {
             generic_params.insert(generic_params.end(),
               ::std::make_move_iterator(lifetime_params.begin()),
               ::std::make_move_iterator(lifetime_params.end()));
-
-            // placeholder code
-            /*generic_params.insert(
-              generic_params.end(), lifetime_params.begin(), lifetime_params.end());*/
         }
 
         // parse type params (optional)
@@ -2075,10 +2330,7 @@ namespace Rust {
             generic_params.insert(generic_params.end(),
               ::std::make_move_iterator(type_params.begin()),
               ::std::make_move_iterator(type_params.end()));
-
-            // placeholder code
-            // generic_params.insert(generic_params.end(), type_params.begin(), type_params.end());
-        }
+        }*/
 
         return generic_params;
     }
@@ -2198,39 +2450,32 @@ namespace Rust {
         }
         // TODO: create identifier from identifier token
         Identifier ident = identifier_tok->get_str();
+        lexer.skip_token();
 
-        // branch to type param bounds or type or none based on next token
-        const_TokenPtr t = lexer.peek_token();
-        switch (t->get_id()) {
-            case COLON: {
-                lexer.skip_token();
+        // parse type param bounds (if they exist)
+        ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > type_param_bounds;
+        if (lexer.peek_token()->get_id() == COLON) {
+            lexer.skip_token();
 
-                // parse type param bounds, which may or may not exist
-                ::std::vector< ::std::unique_ptr<AST::TypeParamBound> > type_param_bounds
-                  = parse_type_param_bounds();
-
-                // TODO: is move required here?
-                return ::std::unique_ptr<AST::TypeParam>(new AST::TypeParam(
-                  ::std::move(ident), ::std::move(type_param_bounds), NULL, ::std::move(outer_attr)));
-            }
-            case EQUAL: {
-                lexer.skip_token();
-
-                // parse type
-                ::std::unique_ptr<AST::Type> type = parse_type();
-
-                return ::std::unique_ptr<AST::TypeParam>(new AST::TypeParam(::std::move(ident),
-                  ::std::vector< ::std::unique_ptr<AST::TypeParamBound> >(), ::std::move(type),
-                  ::std::move(outer_attr)));
-            }
-            default:
-                // Best assumption is that this is the end of the type param
-                return ::std::unique_ptr<AST::TypeParam>(new AST::TypeParam(::std::move(ident),
-                  ::std::vector< ::std::unique_ptr<AST::TypeParamBound> >(), NULL,
-                  ::std::move(outer_attr)));
+            // parse type param bounds, which may or may not exist
+            type_param_bounds = parse_type_param_bounds();
         }
-        // Stop the "control passes without return" error.
-        gcc_unreachable();
+
+        // parse type (if it exists)
+        ::std::unique_ptr<AST::Type> type = NULL;
+        if (lexer.peek_token()->get_id() == EQUAL) {
+            lexer.skip_token();
+
+            // parse type (now required)
+            type = parse_type();
+            if (type == NULL) {
+                error_at(lexer.peek_token()->get_locus(), "failed to parse type in type param");
+                return NULL;
+            }
+        }
+
+        return ::std::unique_ptr<AST::TypeParam>(new AST::TypeParam(::std::move(ident),
+          ::std::move(type_param_bounds), ::std::move(type), ::std::move(outer_attr)));
     }
 
     // Parses regular (i.e. non-generic) parameters in functions or methods.
@@ -2241,7 +2486,7 @@ namespace Rust {
         if (lexer.peek_token()->get_id() == RIGHT_PAREN) {
             return params;
         }
-        
+
         AST::FunctionParam initial_param = parse_function_param();
 
         // Return empty parameter list if no parameter there
@@ -2335,21 +2580,25 @@ namespace Rust {
         // parse where clause items - this is not a separate rule in the reference so won't be here
         ::std::vector< ::std::unique_ptr<AST::WhereClauseItem> > where_clause_items;
 
-        // TODO: think of better control structure - do-while loop?
-        while (true) {
+        // HACK: where clauses end with a right curly or semicolon or equals in all uses currently
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() != LEFT_CURLY && t->get_id() != SEMICOLON && t->get_id() != EQUAL) {
             ::std::unique_ptr<AST::WhereClauseItem> where_clause_item = parse_where_clause_item();
 
             if (where_clause_item == NULL) {
-                // exit if parse failed
-                break;
+                error_at(t->get_locus(), "failed to parse where clause item");
+                return AST::WhereClause::create_empty();
             }
 
             where_clause_items.push_back(::std::move(where_clause_item));
 
             // also skip comma if it exists
-            if (lexer.peek_token()->get_id() == COMMA) {
-                lexer.skip_token();
+            if (lexer.peek_token()->get_id() != COMMA) {
+                break;
             }
+            lexer.skip_token();
+
+            t = lexer.peek_token();
         }
 
         return AST::WhereClause(::std::move(where_clause_items));
@@ -2388,8 +2637,11 @@ namespace Rust {
 
     // Parses a type bound where clause item.
     ::std::unique_ptr<AST::TypeBoundWhereClauseItem> Parser::parse_type_bound_where_clause_item() {
-        // parse for lifetimes, if it exists (although empty for lifetimes is ok to handle this)
-        ::std::vector<AST::LifetimeParam> for_lifetimes = parse_for_lifetimes();
+        // parse for lifetimes, if it exists
+        ::std::vector<AST::LifetimeParam> for_lifetimes;
+        if (lexer.peek_token()->get_id() == FOR) {
+            for_lifetimes = parse_for_lifetimes();
+        }
 
         ::std::unique_ptr<AST::Type> type = parse_type();
         if (type == NULL) {
@@ -2425,7 +2677,7 @@ namespace Rust {
 
         params = parse_lifetime_params_objs();
 
-        if (!skip_token(RIGHT_ANGLE)) {
+        if (!skip_generics_right_angle()) {
             // skip after somewhere?
             return params;
         }
@@ -3433,7 +3685,8 @@ namespace Rust {
 
                 if (impl_item == NULL) {
                     // TODO: this is probably an error as next character should equal RIGHT_CURLY
-                    fprintf(stderr, "impl item is null and next char wasn't RIGHT_CURLY - probably an error");
+                    fprintf(stderr,
+                      "impl item is null and next char wasn't RIGHT_CURLY - probably an error");
                     break;
                 }
 
@@ -3974,9 +4227,15 @@ namespace Rust {
         const_TokenPtr ident_tok = expect_token(IDENTIFIER);
         Identifier ident = ident_tok->get_str();
 
+        // DEBUG:
+        fprintf(stderr, "about to start parsing generic params in trait impl function or method\n");
+
         // parse generic params
         ::std::vector< ::std::unique_ptr<AST::GenericParam> > generic_params
           = parse_generic_params_in_angles();
+
+        // DEBUG:
+        fprintf(stderr, "finished parsing generic params in trait impl function or method\n");
 
         if (!skip_token(LEFT_PAREN)) {
             // skip after somewhere?
@@ -4494,7 +4753,8 @@ namespace Rust {
 
         const_TokenPtr t = lexer.peek_token();
         const_TokenPtr t2 = lexer.peek_token(1);
-        while (t->get_id() == LIFETIME && (t2->get_id() == COMMA || t2->get_id() == RIGHT_ANGLE)) {
+        while (
+          t->get_id() == LIFETIME && (t2->get_id() == COMMA || !is_right_angle_tok(t2->get_id()))) {
             AST::Lifetime lifetime = parse_lifetime();
             if (lifetime.is_error()) {
                 // not necessarily an error
@@ -4519,7 +4779,7 @@ namespace Rust {
 
         // TODO: think of better control structure
         t = lexer.peek_token();
-        while (t->get_id() != RIGHT_ANGLE) {
+        while (!is_right_angle_tok(t->get_id())) {
             // ensure not binding being parsed as type accidently
             if (t->get_id() == IDENTIFIER && lexer.peek_token(1)->get_id() == EQUAL) {
                 break;
@@ -4548,7 +4808,7 @@ namespace Rust {
 
         // TODO: think of better control structure
         t = lexer.peek_token();
-        while (t->get_id() != RIGHT_ANGLE) {
+        while (!is_right_angle_tok(t->get_id())) {
             AST::GenericArgsBinding binding = parse_generic_args_binding();
             if (binding.is_error()) {
                 // not necessarily an error
@@ -4572,8 +4832,7 @@ namespace Rust {
             lexer.skip_token();
         }
 
-        if (!skip_token(RIGHT_ANGLE)) {
-            // skip after somewhere?
+        if (!skip_generics_right_angle()) {
             return AST::GenericArgs::create_empty();
         }
 
@@ -4857,6 +5116,8 @@ namespace Rust {
             }
         }
 
+        // NOTE: should actually be a right-angle token, so skip_generics_right_angle shouldn't be
+        // required
         if (!skip_token(RIGHT_ANGLE)) {
             // skip after somewhere?
             return AST::QualifiedPathType::create_error();
@@ -5295,7 +5556,8 @@ namespace Rust {
                 fprintf(stderr, "successfully parsed expr (in expr without block method)\n");
 
                 if (expr == NULL) {
-                    error_at(t->get_locus(), "failed to parse expression for expression without block (pratt-parsed expression is null)");
+                    error_at(t->get_locus(), "failed to parse expression for expression without "
+                                             "block (pratt-parsed expression is null)");
                     return NULL;
                 }
 
@@ -5309,7 +5571,8 @@ namespace Rust {
                 if (expr_without_block != NULL) {
 
                     // DEBUG
-                    fprintf(stderr, "expr to expr without block conversion was successful; returning\n");
+                    fprintf(
+                      stderr, "expr to expr without block conversion was successful; returning\n");
 
                     return expr_without_block;
                 } else {
@@ -5756,7 +6019,7 @@ namespace Rust {
 
         // parse match arm patterns (which are required)
         ::std::vector< ::std::unique_ptr<AST::Pattern> > match_arm_patterns
-          = parse_match_arm_patterns();
+          = parse_match_arm_patterns(EQUAL);
         if (match_arm_patterns.empty()) {
             error_at(lexer.peek_token()->get_locus(),
               "failed to parse any match arm patterns in if let expression");
@@ -5769,8 +6032,11 @@ namespace Rust {
             return NULL;
         }
 
-        // parse expression (required)
-        ::std::unique_ptr<AST::Expr> scrutinee_expr = parse_expr();
+        // parse expression (required) - HACK to prevent struct expr being parsed
+        ParseRestrictions no_struct_expr;
+        no_struct_expr.can_be_struct_expr = false;
+        ::std::unique_ptr<AST::Expr> scrutinee_expr
+          = parse_expr(::std::vector<AST::Attribute>(), no_struct_expr);
         if (scrutinee_expr == NULL) {
             error_at(lexer.peek_token()->get_locus(),
               "failed to parse scrutinee expression in if let expression");
@@ -5896,8 +6162,11 @@ namespace Rust {
             return NULL;
         }
 
-        // parse loop predicate (required)
-        ::std::unique_ptr<AST::Expr> predicate = parse_expr();
+        // parse loop predicate (required) with HACK to prevent struct expr parsing
+        ParseRestrictions no_struct_expr;
+        no_struct_expr.can_be_struct_expr = false;
+        ::std::unique_ptr<AST::Expr> predicate
+          = parse_expr(::std::vector<AST::Attribute>(), no_struct_expr);
         if (predicate == NULL) {
             error_at(
               lexer.peek_token()->get_locus(), "failed to parse predicate expression in while loop");
@@ -5938,7 +6207,7 @@ namespace Rust {
 
         // parse predicate patterns
         ::std::vector< ::std::unique_ptr<AST::Pattern> > predicate_patterns
-          = parse_match_arm_patterns();
+          = parse_match_arm_patterns(EQUAL);
         // TODO: have to ensure that there is at least 1 pattern?
 
         if (!skip_token(EQUAL)) {
@@ -5946,8 +6215,11 @@ namespace Rust {
             return NULL;
         }
 
-        // parse predicate expression, which is required
-        ::std::unique_ptr<AST::Expr> predicate_expr = parse_expr();
+        // parse predicate expression, which is required (and HACK to prevent struct expr)
+        ParseRestrictions no_struct_expr;
+        no_struct_expr.can_be_struct_expr = false;
+        ::std::unique_ptr<AST::Expr> predicate_expr
+          = parse_expr(::std::vector<AST::Attribute>(), no_struct_expr);
         if (predicate_expr == NULL) {
             error_at(lexer.peek_token()->get_locus(),
               "failed to parse predicate expression in while let loop");
@@ -5989,8 +6261,11 @@ namespace Rust {
             return NULL;
         }
 
-        // parse iterator expression, which is required
-        ::std::unique_ptr<AST::Expr> expr = parse_expr();
+        // parse iterator expression, which is required - also HACK to prevent struct expr
+        ParseRestrictions no_struct_expr;
+        no_struct_expr.can_be_struct_expr = false;
+        ::std::unique_ptr<AST::Expr> expr
+          = parse_expr(::std::vector<AST::Attribute>(), no_struct_expr);
         if (expr == NULL) {
             error_at(
               lexer.peek_token()->get_locus(), "failed to parse iterator expression in for loop");
@@ -6060,11 +6335,16 @@ namespace Rust {
 
     // Parses a match expression.
     ::std::unique_ptr<AST::MatchExpr> Parser::parse_match_expr(
-      ::std::vector<AST::Attribute> outer_attrs) {
-        skip_token(MATCH_TOK);
+      ::std::vector<AST::Attribute> outer_attrs, bool pratt_parse) {
+        if (!pratt_parse) {
+            skip_token(MATCH_TOK);
+        }
 
-        // parse scrutinee expression, which is required
-        ::std::unique_ptr<AST::Expr> scrutinee = parse_expr();
+        // parse scrutinee expression, which is required (and HACK to prevent struct expr)
+        ParseRestrictions no_struct_expr;
+        no_struct_expr.can_be_struct_expr = false;
+        ::std::unique_ptr<AST::Expr> scrutinee
+          = parse_expr(::std::vector<AST::Attribute>(), no_struct_expr);
         if (scrutinee == NULL) {
             error_at(lexer.peek_token()->get_locus(),
               "failed to parse scrutinee expression in match expression");
@@ -6084,21 +6364,33 @@ namespace Rust {
         // parse match arms (if they exist)
         ::std::vector< ::std::unique_ptr<AST::MatchCase> > match_arms;
 
+        // DEBUG
+        fprintf(stderr, "about to start loop to start parsing match cases\n");
+
         // FIXME: absolute worst control structure ever
         // parse match cases
         while (true) {
             // parse match arm itself, which is required
             AST::MatchArm arm = parse_match_arm();
             if (arm.is_error()) {
+                // DEBUG
+                fprintf(stderr, "broke loop on invalid match arm\n");
+
                 // not necessarily an error
                 break;
             }
+
+            // DEBUG
+            fprintf(stderr, "parsed valid match arm\n");
 
             if (!skip_token(MATCH_ARROW)) {
                 // skip after somewhere?
                 // TODO is returning here a good idea? or is break better?
                 return NULL;
             }
+
+            // DEBUG
+            fprintf(stderr, "skipped match arrow\n");
 
             // branch on next token - if '{', block expr, otherwise just expr
             if (lexer.peek_token()->get_id() == LEFT_CURLY) {
@@ -6158,14 +6450,26 @@ namespace Rust {
         // parse optional outer attributes
         ::std::vector<AST::Attribute> outer_attrs = parse_outer_attributes();
 
+        // DEBUG
+        fprintf(stderr, "about to start parsing match arm patterns\n");
+
+        // break early if find right curly
+        if (lexer.peek_token()->get_id() == RIGHT_CURLY) {
+            // not an error
+            return AST::MatchArm::create_error();
+        }
+
         // parse match arm patterns - at least 1 is required
         ::std::vector< ::std::unique_ptr<AST::Pattern> > match_arm_patterns
-          = parse_match_arm_patterns();
+          = parse_match_arm_patterns(RIGHT_CURLY);
         if (match_arm_patterns.empty()) {
             error_at(lexer.peek_token()->get_locus(), "failed to parse any patterns in match arm");
             // skip somewhere?
             return AST::MatchArm::create_error();
         }
+
+        // DEBUG
+        fprintf(stderr, "successfully parsed match arm patterns\n");
 
         // parse match arm guard expr if it exists
         ::std::unique_ptr<AST::Expr> guard_expr = NULL;
@@ -6181,12 +6485,17 @@ namespace Rust {
             }
         }
 
+        // DEBUG
+        fprintf(stderr, "successfully parsed match arm\n");
+
         return AST::MatchArm(
           ::std::move(match_arm_patterns), ::std::move(guard_expr), ::std::move(outer_attrs));
     }
 
-    // Parses the patterns used in a match arm.
-    ::std::vector< ::std::unique_ptr<AST::Pattern> > Parser::parse_match_arm_patterns() {
+    /* Parses the patterns used in a match arm. End token id is the id of the token that would exist
+     * after the patterns are done (e.g. '}' for match expr, '=' for if let and while let). */
+    ::std::vector< ::std::unique_ptr<AST::Pattern> > Parser::parse_match_arm_patterns(
+      TokenId end_token_id) {
         // skip optional leading '|'
         bool has_leading_pipe = false;
         if (lexer.peek_token()->get_id() == PIPE) {
@@ -6198,6 +6507,11 @@ namespace Rust {
 
         ::std::vector< ::std::unique_ptr<AST::Pattern> > patterns;
 
+        // quick break out if end_token_id
+        if (lexer.peek_token()->get_id() == end_token_id) {
+            return patterns;
+        }
+
         // parse required pattern - if doesn't exist, return empty
         ::std::unique_ptr<AST::Pattern> initial_pattern = parse_pattern();
         if (initial_pattern == NULL) {
@@ -6206,11 +6520,19 @@ namespace Rust {
         }
         patterns.push_back(::std::move(initial_pattern));
 
+        // DEBUG
+        fprintf(stderr, "successfully parsed initial match arm pattern\n");
+
         // parse new patterns as long as next char is '|'
         const_TokenPtr t = lexer.peek_token();
         while (t->get_id() == PIPE) {
             // skip pipe token
             lexer.skip_token();
+
+            // break if hit end token id
+            if (lexer.peek_token()->get_id() == end_token_id) {
+                break;
+            }
 
             // parse pattern
             ::std::unique_ptr<AST::Pattern> pattern = parse_pattern();
@@ -7873,6 +8195,7 @@ namespace Rust {
                     t = lexer.peek_token();
                 }
 
+                t = lexer.peek_token();
                 if (t->get_id() == RIGHT_PAREN) {
                     // non-ranged tuple pattern
                     lexer.skip_token();
@@ -7981,6 +8304,9 @@ namespace Rust {
         if (lexer.peek_token()->get_id() == REF) {
             has_ref = true;
             lexer.skip_token();
+
+            // DEBUG
+            fprintf(stderr, "parsed ref in identifier pattern\n");
         }
 
         bool has_mut = false;
@@ -7997,6 +8323,9 @@ namespace Rust {
         }
         Identifier ident = ident_tok->get_str();
 
+        // DEBUG
+        fprintf(stderr, "parsed identifier in identifier pattern\n");
+
         // parse optional pattern binding thing
         ::std::unique_ptr<AST::Pattern> bind_pattern = NULL;
         if (lexer.peek_token()->get_id() == PATTERN_BIND) {
@@ -8006,10 +8335,13 @@ namespace Rust {
             bind_pattern = parse_pattern();
             if (bind_pattern == NULL) {
                 error_at(lexer.peek_token()->get_locus(),
-                  "failed to parse pattern to bind in identifier pattern");
+                  "failed to parse pattern to bind in identifier pattern\n");
                 return NULL;
             }
         }
+
+        // DEBUG
+        fprintf(stderr, "about to return identifier pattern\n");
 
         return ::std::unique_ptr<AST::IdentifierPattern>(new AST::IdentifierPattern(
           ::std::move(ident), has_ref, has_mut, ::std::move(bind_pattern)));
@@ -8041,6 +8373,9 @@ namespace Rust {
                 // tuple struct
                 lexer.skip_token();
 
+                // DEBUG
+                fprintf(stderr, "parsing tuple struct pattern\n");
+
                 // parse items
                 ::std::unique_ptr<AST::TupleStructItems> items = parse_tuple_struct_items();
                 if (items == NULL) {
@@ -8048,9 +8383,15 @@ namespace Rust {
                     return NULL;
                 }
 
+                // DEBUG
+                fprintf(stderr, "successfully parsed tuple struct items\n");
+
                 if (!skip_token(RIGHT_PAREN)) {
                     return NULL;
                 }
+
+                // DEBUG
+                fprintf(stderr, "successfully parsed tuple struct pattern\n");
 
                 return ::std::unique_ptr<AST::TupleStructPattern>(
                   new AST::TupleStructPattern(::std::move(path), ::std::move(items)));
@@ -8117,10 +8458,16 @@ namespace Rust {
     ::std::unique_ptr<AST::TupleStructItems> Parser::parse_tuple_struct_items() {
         ::std::vector< ::std::unique_ptr<AST::Pattern> > lower_patterns;
 
+        // DEBUG
+        fprintf(stderr, "started parsing tuple struct items\n");
+
         // check for '..' at front
         if (lexer.peek_token()->get_id() == DOT_DOT) {
             // only parse upper patterns
             lexer.skip_token();
+
+            // DEBUG
+            fprintf(stderr, "'..' at front in tuple struct items detected\n");
 
             ::std::vector< ::std::unique_ptr<AST::Pattern> > upper_patterns;
 
@@ -8145,6 +8492,9 @@ namespace Rust {
                 t = lexer.peek_token();
             }
 
+            // DEBUG
+            fprintf(stderr, "finished parsing tuple struct items ranged (upper/none only)\n");
+
             return ::std::unique_ptr<AST::TupleStructItemsRange>(new AST::TupleStructItemsRange(
               ::std::move(lower_patterns), ::std::move(upper_patterns)));
         }
@@ -8152,6 +8502,10 @@ namespace Rust {
         // has at least some lower patterns
         const_TokenPtr t = lexer.peek_token();
         while (t->get_id() != RIGHT_PAREN && t->get_id() != DOT_DOT) {
+
+            // DEBUG
+            fprintf(stderr, "about to parse pattern in tuple struct items\n");
+
             // parse pattern, which is required
             ::std::unique_ptr<AST::Pattern> pattern = parse_pattern();
             if (pattern == NULL) {
@@ -8160,7 +8514,13 @@ namespace Rust {
             }
             lower_patterns.push_back(::std::move(pattern));
 
+            // DEBUG
+            fprintf(stderr, "successfully parsed pattern in tuple struct items\n");
+
             if (lexer.peek_token()->get_id() != COMMA) {
+                // DEBUG
+                fprintf(stderr, "broke out of parsing patterns in tuple struct items as no comma \n");
+
                 break;
             }
             lexer.skip_token();
@@ -8169,6 +8529,7 @@ namespace Rust {
         }
 
         // branch on next token
+        t = lexer.peek_token();
         switch (t->get_id()) {
             case RIGHT_PAREN:
                 return ::std::unique_ptr<AST::TupleStructItemsNoRange>(
@@ -8664,13 +9025,33 @@ namespace Rust {
                 }
             }
             case LEFT_CURLY: {
-                // assume struct expr struct (as struct-enum disambiguation requires name
-                // lookup) again, make statement if final ';'
-                ::std::unique_ptr<AST::StructExprStruct> struct_expr
-                  = parse_struct_expr_struct_partial(::std::move(path), ::std::move(outer_attrs));
-                if (struct_expr == NULL) {
-                    error_at(t2->get_locus(), "failed to parse struct expr struct");
-                    return ExprOrStmt::create_error();
+                /* definitely not a block:
+                 *  path '{' ident ','
+                 *  path '{' ident ':' [anything] ','
+                 *  path '{' ident ':' [not a type]
+                 * otherwise, assume block expr and thus path */
+                bool not_a_block
+                  = lexer.peek_token(1)->get_id() == IDENTIFIER
+                    && (lexer.peek_token(2)->get_id() == COMMA
+                         || (lexer.peek_token(2)->get_id() == COLON
+                              && (lexer.peek_token(4)->get_id() == COMMA
+                                   || !can_tok_start_type(lexer.peek_token(3)->get_id()))));
+                ::std::unique_ptr<AST::ExprWithoutBlock> expr = NULL;
+
+                if (not_a_block) {
+                    // assume struct expr struct (as struct-enum disambiguation requires name
+                    // lookup) again, make statement if final ';'
+                    expr
+                      = parse_struct_expr_struct_partial(::std::move(path), ::std::move(outer_attrs));
+                    if (expr == NULL) {
+                        error_at(t2->get_locus(), "failed to parse struct expr struct");
+                        return ExprOrStmt::create_error();
+                    }
+                } else {
+                    // assume path - make statement if final ';'
+                    // lexer.skip_token();
+                    expr = ::std::unique_ptr<AST::PathExprNonQual>(
+                      new AST::PathExprNonQual(::std::move(path), ::std::move(outer_attrs)));
                 }
 
                 // determine if statement if ends with semicolon
@@ -8678,12 +9059,12 @@ namespace Rust {
                     // statement
                     lexer.skip_token();
                     ::std::unique_ptr<AST::ExprStmtWithoutBlock> stmt(
-                      new AST::ExprStmtWithoutBlock(::std::move(struct_expr)));
+                      new AST::ExprStmtWithoutBlock(::std::move(expr)));
                     return ExprOrStmt(::std::move(stmt));
                 }
 
                 // otherwise, expression
-                return ExprOrStmt(::std::move(struct_expr));
+                return ExprOrStmt(::std::move(expr));
             }
             case LEFT_PAREN: {
                 // assume struct expr tuple (as struct-enum disambiguation requires name
@@ -8709,7 +9090,7 @@ namespace Rust {
             }
             default: {
                 // assume path - make statement if final ';'
-                lexer.skip_token();
+                // lexer.skip_token();
                 ::std::unique_ptr<AST::PathExprNonQual> expr(
                   new AST::PathExprNonQual(::std::move(path), ::std::move(outer_attrs)));
 
@@ -9306,14 +9687,14 @@ namespace Rust {
     /* Pratt parser impl of parse_expr. FIXME: this is only provisional and probably will be changed.
      * FIXME: this may only parse expressions without blocks as they are the only expressions to have
      * precedence? */
-    ::std::unique_ptr<AST::Expr> Parser::parse_expr(
-      int right_binding_power, ::std::vector<AST::Attribute> outer_attrs) {
+    ::std::unique_ptr<AST::Expr> Parser::parse_expr(int right_binding_power,
+      ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions) {
         const_TokenPtr current_token = lexer.peek_token();
         lexer.skip_token();
 
         // parse null denotation (unary part of expression)
         ::std::unique_ptr<AST::Expr> expr
-          = null_denotation_NEW(current_token, ::std::move(outer_attrs));
+          = null_denotation_NEW(current_token, ::std::move(outer_attrs), restrictions);
 
         // DEBUG
         fprintf(stderr, "finished parsing null denotation\n");
@@ -9332,7 +9713,7 @@ namespace Rust {
             current_token = lexer.peek_token();
             lexer.skip_token();
 
-            expr = left_denotation(current_token, ::std::move(expr));
+            expr = left_denotation(current_token, ::std::move(expr), ::std::vector<AST::Attribute>(), restrictions);
 
             // DEBUG
             fprintf(stderr, "successfully got left_denotation in parse_expr \n");
@@ -9357,9 +9738,10 @@ namespace Rust {
 
     /* Parse expression with lowest left binding power. FIXME: this may only apply to expressions
      * without blocks as they are the only ones to have precedence? */
-    ::std::unique_ptr<AST::Expr> Parser::parse_expr(::std::vector<AST::Attribute> outer_attrs) {
+    ::std::unique_ptr<AST::Expr> Parser::parse_expr(
+      ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions) {
         // HACK: only call parse_expr(LBP_LOWEST) after ensuring it is not an expression with block?
-        return parse_expr(LBP_LOWEST, ::std::move(outer_attrs));
+        return parse_expr(LBP_LOWEST, ::std::move(outer_attrs), restrictions);
     }
 
     // Pratt parser impl of parse_expression.
@@ -9425,7 +9807,7 @@ namespace Rust {
      * FIXME: this may only apply to precedence-capable expressions (which are all expressions without
      * blocks), so make return type ExprWithoutBlock? It would simplify stuff. */
     ::std::unique_ptr<AST::Expr> Parser::null_denotation_NEW(
-      const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs) {
+      const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions) {
         // note: tok is previous character in input stream, not current one, as parse_expr
         // skips it before passing it in
 
@@ -9456,7 +9838,8 @@ namespace Rust {
                 AST::PathInExpression path = parse_path_in_expression_pratt(tok);
 
                 // DEBUG:
-                fprintf(stderr, "finished null denotation identifier path parsing - next is branching \n");
+                fprintf(
+                  stderr, "finished null denotation identifier path parsing - next is branching \n");
 
                 // branch on next token
                 const_TokenPtr t = lexer.peek_token();
@@ -9465,12 +9848,52 @@ namespace Rust {
                         // macro
                         return parse_macro_invocation_partial(
                           ::std::move(path), ::std::move(outer_attrs));
-                    case LEFT_CURLY:
+                    case LEFT_CURLY: {
+                        bool not_a_block
+                  = lexer.peek_token(1)->get_id() == IDENTIFIER
+                    && (lexer.peek_token(2)->get_id() == COMMA
+                         || (lexer.peek_token(2)->get_id() == COLON
+                              && (lexer.peek_token(4)->get_id() == COMMA
+                                   || !can_tok_start_type(lexer.peek_token(3)->get_id()))));
+
+                                        /* definitely not a block:
+                 *  path '{' ident ','
+                 *  path '{' ident ':' [anything] ','
+                 *  path '{' ident ':' [not a type]
+                 * otherwise, assume block expr and thus path */
+                        // DEBUG
+                        fprintf(stderr, "values of lookahead: '%s' '%s' '%s' '%s' \n", lexer.peek_token(1)->get_token_description(), lexer.peek_token(2)->get_token_description(), lexer.peek_token(3)->get_token_description(), lexer.peek_token(4)->get_token_description());
+
                         // struct/enum expr struct
+                        if (!restrictions.can_be_struct_expr && !not_a_block) {
+                            // assume path is returned if not single segment
+                            if (path.is_single_segment()) {
+                                // have to return an identifier expression or something, idk
+                                // HACK: may have to become permanent, but this is my current
+                                // identifier expression
+                                return ::std::unique_ptr<AST::IdentifierExpr>(
+                                  new AST::IdentifierExpr(tok->get_str()));
+                            }
+                            return ::std::unique_ptr<AST::PathExprNonQual>(
+                              new AST::PathExprNonQual(::std::move(path), ::std::move(outer_attrs)));
+                        }
                         return parse_struct_expr_struct_partial(
                           ::std::move(path), ::std::move(outer_attrs));
+                    }
                     case LEFT_PAREN:
                         // struct/enum expr tuple
+                        if (!restrictions.can_be_struct_expr) {
+                            // assume path is returned if not single segment
+                            if (path.is_single_segment()) {
+                                // have to return an identifier expression or something, idk
+                                // HACK: may have to become permanent, but this is my current
+                                // identifier expression
+                                return ::std::unique_ptr<AST::IdentifierExpr>(
+                                  new AST::IdentifierExpr(tok->get_str()));
+                            }
+                            return ::std::unique_ptr<AST::PathExprNonQual>(
+                              new AST::PathExprNonQual(::std::move(path), ::std::move(outer_attrs)));
+                        }
                         return parse_struct_expr_tuple_partial(
                           ::std::move(path), ::std::move(outer_attrs));
                     default:
@@ -9485,6 +9908,7 @@ namespace Rust {
                         return ::std::unique_ptr<AST::PathExprNonQual>(
                           new AST::PathExprNonQual(::std::move(path), ::std::move(outer_attrs)));
                 }
+                gcc_unreachable();
             }
             // FIXME: delegate to parse_literal_expr instead? would have to rejig tokens and whatever.
             // FIXME: could also be path expression (and hence macro expression, struct/enum expr)
@@ -9547,7 +9971,10 @@ namespace Rust {
             }*/
             // Rust has no unary plus operator
             case MINUS: { // unary minus
-                ::std::unique_ptr<AST::Expr> expr = parse_expr(LBP_UNARY_MINUS);
+                ParseRestrictions entered_from_unary;
+                entered_from_unary.entered_from_unary = true;
+                ::std::unique_ptr<AST::Expr> expr
+                  = parse_expr(LBP_UNARY_MINUS, ::std::vector<AST::Attribute>(), entered_from_unary);
 
                 if (expr == NULL)
                     return NULL;
@@ -9568,7 +9995,10 @@ namespace Rust {
                   ::std::move(expr), AST::NegationExpr::NEGATE, ::std::move(outer_attrs)));
             }
             case EXCLAM: { // logical or bitwise not
-                ::std::unique_ptr<AST::Expr> expr = parse_expr(LBP_UNARY_EXCLAM);
+                ParseRestrictions entered_from_unary;
+                entered_from_unary.entered_from_unary = true;
+                ::std::unique_ptr<AST::Expr> expr
+                  = parse_expr(LBP_UNARY_EXCLAM, ::std::vector<AST::Attribute>(), entered_from_unary);
 
                 if (expr == NULL)
                     return NULL;
@@ -9587,7 +10017,10 @@ namespace Rust {
             }
             case ASTERISK: {
                 // pointer dereference only - TODO: ensure that it is
-                ::std::unique_ptr<AST::Expr> expr = parse_expr(LBP_UNARY_ASTERISK);
+                ParseRestrictions entered_from_unary;
+                entered_from_unary.entered_from_unary = true;
+                ::std::unique_ptr<AST::Expr> expr = parse_expr(
+                  LBP_UNARY_ASTERISK, ::std::vector<AST::Attribute>(), entered_from_unary);
                 // FIXME: allow outer attributes on expression
                 return ::std::unique_ptr<AST::DereferenceExpr>(
                   new AST::DereferenceExpr(::std::move(expr), ::std::move(outer_attrs)));
@@ -9597,12 +10030,17 @@ namespace Rust {
                 ::std::unique_ptr<AST::Expr> expr = NULL;
                 bool is_mut_borrow = false;
 
+                ParseRestrictions entered_from_unary;
+                entered_from_unary.entered_from_unary = true;
+
                 if (lexer.peek_token()->get_id() == MUT) {
                     lexer.skip_token();
-                    expr = parse_expr(LBP_UNARY_AMP_MUT);
+                    expr = parse_expr(
+                      LBP_UNARY_AMP_MUT, ::std::vector<AST::Attribute>(), entered_from_unary);
                     is_mut_borrow = true;
                 } else {
-                    expr = parse_expr(LBP_UNARY_AMP);
+                    expr = parse_expr(
+                      LBP_UNARY_AMP, ::std::vector<AST::Attribute>(), entered_from_unary);
                 }
 
                 // FIXME: allow outer attributes on expression
@@ -9614,12 +10052,17 @@ namespace Rust {
                 ::std::unique_ptr<AST::Expr> expr = NULL;
                 bool is_mut_borrow = false;
 
+                ParseRestrictions entered_from_unary;
+                entered_from_unary.entered_from_unary = true;
+
                 if (lexer.peek_token()->get_id() == MUT) {
                     lexer.skip_token();
-                    expr = parse_expr(LBP_UNARY_AMP_MUT);
+                    expr = parse_expr(
+                      LBP_UNARY_AMP_MUT, ::std::vector<AST::Attribute>(), entered_from_unary);
                     is_mut_borrow = true;
                 } else {
-                    expr = parse_expr(LBP_UNARY_AMP);
+                    expr = parse_expr(
+                      LBP_UNARY_AMP, ::std::vector<AST::Attribute>(), entered_from_unary);
                 }
 
                 // FIXME: allow outer attributes on expression
@@ -9645,6 +10088,12 @@ namespace Rust {
                 // path info from it
                 AST::PathInExpression path = parse_path_in_expression_pratt(tok);
 
+                // HACK: always make "self" by itself a path (regardless of next tokens)
+                if (tok->get_id() == SELF && path.is_single_segment()) {
+                    return ::std::unique_ptr<AST::PathExprNonQual>(
+                      new AST::PathExprNonQual(::std::move(path), ::std::move(outer_attrs)));
+                }
+
                 // branch on next token
                 const_TokenPtr t = lexer.peek_token();
                 switch (t->get_id()) {
@@ -9652,12 +10101,33 @@ namespace Rust {
                         // macro
                         return parse_macro_invocation_partial(
                           ::std::move(path), ::std::move(outer_attrs));
-                    case LEFT_CURLY:
+                    case LEFT_CURLY: {
                         // struct/enum expr struct
+                        fprintf(stderr, "can_be_struct_expr: %s\n",
+                          restrictions.can_be_struct_expr ? "true" : "false");
+
+                        bool not_a_block
+                  = lexer.peek_token(1)->get_id() == IDENTIFIER
+                    && (lexer.peek_token(2)->get_id() == COMMA
+                         || (lexer.peek_token(2)->get_id() == COLON
+                              && (lexer.peek_token(4)->get_id() == COMMA
+                                   || !can_tok_start_type(lexer.peek_token(3)->get_id()))));
+
+                        if (!restrictions.can_be_struct_expr && !not_a_block) {
+                            // assume path is returned
+                            return ::std::unique_ptr<AST::PathExprNonQual>(
+                              new AST::PathExprNonQual(::std::move(path), ::std::move(outer_attrs)));
+                        }
                         return parse_struct_expr_struct_partial(
                           ::std::move(path), ::std::move(outer_attrs));
+                    }
                     case LEFT_PAREN:
                         // struct/enum expr tuple
+                        if (!restrictions.can_be_struct_expr) {
+                            // assume path is returned
+                            return ::std::unique_ptr<AST::PathExprNonQual>(
+                              new AST::PathExprNonQual(::std::move(path), ::std::move(outer_attrs)));
+                        }
                         return parse_struct_expr_tuple_partial(
                           ::std::move(path), ::std::move(outer_attrs));
                     default:
@@ -9665,14 +10135,13 @@ namespace Rust {
                         return ::std::unique_ptr<AST::PathExprNonQual>(
                           new AST::PathExprNonQual(::std::move(path), ::std::move(outer_attrs)));
                 }
+                gcc_unreachable();
             }
             case OR:
             case PIPE:
             case MOVE:
-                // TODO: fix: this is for closure expressions
-                error_at(tok->get_locus(), "found null denotation closure expr initial tokens, and "
-                                           "haven't written handling for it.");
-                return NULL;
+                // closure expression
+                return parse_closure_expr_pratt(tok, ::std::move(outer_attrs));
             case DOT_DOT:
                 // either "range to" or "range full" expressions
                 return parse_nud_range_exclusive_expr(tok, ::std::move(outer_attrs));
@@ -9690,6 +10159,9 @@ namespace Rust {
             case LEFT_CURLY:
                 // ok - this is an expression with block for once.
                 return parse_block_expr(::std::move(outer_attrs), true);
+            case MATCH_TOK:
+                // also an expression with block
+                return parse_match_expr(::std::move(outer_attrs), true);
             default:
                 error_at(tok->get_locus(), "found unexpected token '%s' in null denotation",
                   tok->get_token_description());
@@ -9702,7 +10174,7 @@ namespace Rust {
      * Returns a function pointer to member function that implements the left denotation for the token
      * given. */
     ::std::unique_ptr<AST::Expr> Parser::left_denotation(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions) {
         // Token passed in has already been skipped, so peek gives "next" token
         /*BinaryHandler binary_handler = get_binary_handler(tok->get_id());
         if (binary_handler == NULL) {
@@ -9837,8 +10309,10 @@ namespace Rust {
                     // tuple index expression - TODO check for decimal int literal
                     return parse_tuple_index_expr(tok, ::std::move(left), ::std::move(outer_attrs));
                 } else if (next_tok->get_id() == IDENTIFIER
-                           && lexer.peek_token(1)->get_id() != LEFT_PAREN) {
-                    // field expression (or should be)
+                           && lexer.peek_token(1)->get_id() != LEFT_PAREN
+                           && lexer.peek_token(1)->get_id() != SCOPE_RESOLUTION) {
+                    // field expression (or should be) - FIXME: scope resolution right after
+                    // identifier should always be method, I'm pretty sure
                     return parse_field_access_expr(tok, ::std::move(left), ::std::move(outer_attrs));
                 } else {
                     // method call (probably)
@@ -10573,7 +11047,8 @@ namespace Rust {
 
                     if (lexer.peek_token()->get_id() != COMMA) {
                         // DEBUG:
-                        fprintf(stderr, "lack of comma detected in struct/enum expr fields - break \n");
+                        fprintf(
+                          stderr, "lack of comma detected in struct/enum expr fields - break \n");
                         break;
                     }
                     lexer.skip_token();
@@ -10751,6 +11226,101 @@ namespace Rust {
         }
 
         return AST::PathInExpression(::std::move(segments));
+    }
+
+    // Parses a closure expression with pratt parsing (from null denotation).
+    ::std::unique_ptr<AST::ClosureExpr> Parser::parse_closure_expr_pratt(
+      const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs) {
+        // TODO: does this need pratt parsing (for precedence)? probably not, but idk
+        bool has_move = false;
+        if (tok->get_id() == MOVE) {
+            has_move = true;
+            tok = lexer.peek_token();
+            lexer.skip_token();
+            // skip token and reassign
+        }
+
+        // handle parameter list
+        ::std::vector<AST::ClosureParam> params;
+
+        switch (tok->get_id()) {
+            case OR:
+                // no parameters, don't skip token
+                break;
+            case PIPE:
+                // actually may have parameters
+                // don't skip token
+
+                while (tok->get_id() != PIPE) {
+                    AST::ClosureParam param = parse_closure_param();
+                    if (param.is_error()) {
+                        // TODO is this really an error?
+                        error_at(tok->get_locus(), "could not parse closure param");
+                        break;
+                    }
+                    params.push_back(::std::move(param));
+
+                    if (lexer.peek_token()->get_id() != COMMA) {
+                        // not an error but means param list is done
+                        break;
+                    }
+                    // skip comma
+                    lexer.skip_token();
+
+                    tok = lexer.peek_token();
+                }
+                break;
+            default:
+                error_at(tok->get_locus(),
+                  "unexpected token '%s' in closure expression - expected '|' or '||'",
+                  tok->get_token_description());
+                // skip somewhere?
+                return NULL;
+        }
+
+        // again branch based on next token
+        tok = lexer.peek_token();
+        if (tok->get_id() == RETURN_TYPE) {
+            // must be return type closure with block expr
+
+            // skip "return type" token
+            lexer.skip_token();
+
+            // parse actual type, which is required
+            ::std::unique_ptr<AST::TypeNoBounds> type = parse_type_no_bounds();
+            if (type == NULL) {
+                // error
+                error_at(tok->get_locus(), "failed to parse type for closure");
+                // skip somewhere?
+                return NULL;
+            }
+
+            // parse block expr, which is required
+            ::std::unique_ptr<AST::BlockExpr> block = parse_block_expr();
+            if (block == NULL) {
+                // error
+                error_at(lexer.peek_token()->get_locus(), "failed to parse block expr in closure");
+                // skip somewhere?
+                return NULL;
+            }
+
+            return ::std::unique_ptr<AST::ClosureExprInnerTyped>(
+              new AST::ClosureExprInnerTyped(::std::move(type), ::std::move(block),
+                ::std::move(params), has_move, ::std::move(outer_attrs)));
+        } else {
+            // must be expr-only closure
+
+            // parse expr, which is required
+            ::std::unique_ptr<AST::Expr> expr = parse_expr();
+            if (expr == NULL) {
+                error_at(tok->get_locus(), "failed to parse expression in closure");
+                // skip somewhere?
+                return NULL;
+            }
+
+            return ::std::unique_ptr<AST::ClosureExprInner>(new AST::ClosureExprInner(
+              ::std::move(expr), ::std::move(params), has_move, ::std::move(outer_attrs)));
+        }
     }
 
     // Determines action to take when finding token at beginning of expression.

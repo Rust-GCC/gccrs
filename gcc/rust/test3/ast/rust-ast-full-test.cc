@@ -688,7 +688,7 @@ namespace Rust {
         }
 
         ::std::string MatchExpr::as_string() const {
-            return ::std::string("not implemented");
+            return ::std::string("not implemented (match expr)");
         }
 
         ::std::string TupleExpr::as_string() const {
