@@ -1218,6 +1218,9 @@ namespace Rust {
         }
         Identifier rule_name = ident_tok->get_str();
 
+        // DEBUG
+        fprintf(stderr, "in macro rules def, about to parse parens.\n");
+
         // save delim type to ensure it is reused later
         AST::DelimType delim_type = AST::PARENS;
 
@@ -1239,6 +1242,7 @@ namespace Rust {
                   t->get_token_description());
                 return NULL;
         }
+        lexer.skip_token();
 
         // parse actual macro rules
         ::std::vector<AST::MacroRule> macro_rules;
@@ -1253,6 +1257,9 @@ namespace Rust {
         }
         macro_rules.push_back(::std::move(initial_rule));
 
+        // DEBUG
+        fprintf(stderr, "successfully pushed back initial macro rule\n");
+
         t = lexer.peek_token();
         // parse macro rules
         while (t->get_id() == SEMICOLON) {
@@ -1261,6 +1268,9 @@ namespace Rust {
 
             // don't parse if end of macro rules
             if (token_id_matches_delims(lexer.peek_token()->get_id(), delim_type)) {
+                // DEBUG
+                fprintf(stderr, "broke out of parsing macro rules loop due to finding delim\n");
+
                 break;
             }
 
@@ -1273,6 +1283,9 @@ namespace Rust {
             }
 
             macro_rules.push_back(::std::move(rule));
+
+            // DEBUG
+            fprintf(stderr, "successfully pushed back another macro rule\n");
 
             t = lexer.peek_token();
         }
@@ -1424,20 +1437,40 @@ namespace Rust {
 
     // Parses a macro rule definition - does not parse semicolons.
     AST::MacroRule Parser::parse_macro_rule() {
+        // DEBUG
+        fprintf(stderr, "begun parsing macro rule\n");
+
         // parse macro matcher
         AST::MacroMatcher matcher = parse_macro_matcher();
+
+        // DEBUG
+        fprintf(stderr, "managed to get past parsing macro matcher\n");
+
         if (matcher.is_error()) {
             return AST::MacroRule::create_error();
         }
+
+        // DEBUG
+        fprintf(stderr, "successfully parsed macro matcher\n");
 
         if (!skip_token(MATCH_ARROW)) {
             // skip after somewhere?
             return AST::MacroRule::create_error();
         }
 
+        // DEBUG
+        fprintf(stderr, "successfully skipped match arrow\n");
+
         // parse transcriber (this is just a delim token tree)
         AST::DelimTokenTree transcribe_tree = parse_delim_token_tree();
+
+        // DEBUG
+        fprintf(stderr, "successfully parsed transcribe tree\n");
+
         AST::MacroTranscriber transcriber(::std::move(transcribe_tree));
+
+        // DEBUG
+        fprintf(stderr, "successfully parsed macro transcriber - returning macro rule\n");
 
         return AST::MacroRule(::std::move(matcher), ::std::move(transcriber));
     }
@@ -1446,6 +1479,9 @@ namespace Rust {
     AST::MacroMatcher Parser::parse_macro_matcher() {
         // save delim type to ensure it is reused later
         AST::DelimType delim_type = AST::PARENS;
+
+        // DEBUG
+        fprintf(stderr, "begun parsing macro matcher\n");
 
         // Map tokens to DelimType
         const_TokenPtr t = lexer.peek_token();
@@ -1465,6 +1501,7 @@ namespace Rust {
                   t->get_token_description());
                 return AST::MacroMatcher::create_error();
         }
+        lexer.skip_token();
 
         // parse actual macro matches
         ::std::vector< ::std::unique_ptr<AST::MacroMatch> > matches;
@@ -1481,6 +1518,9 @@ namespace Rust {
             }
 
             matches.push_back(::std::move(match));
+
+            // DEBUG
+            fprintf(stderr, "pushed back a match in macro matcher\n");
 
             t = lexer.peek_token();
         }
@@ -1610,7 +1650,8 @@ namespace Rust {
             ::std::unique_ptr<AST::MacroMatch> match = parse_macro_match();
 
             if (match == NULL) {
-                break;
+                error_at(lexer.peek_token()->get_locus(), "failed to parse macro match in macro match repetition");
+                return NULL;
             }
 
             matches.push_back(::std::move(match));
@@ -1638,8 +1679,7 @@ namespace Rust {
             case RIGHT_PAREN:
             case RIGHT_CURLY:
             case RIGHT_SQUARE:
-                // separator does not exist, so still null
-                lexer.skip_token();
+                // separator does not exist, so still null and don't skip token
                 break;
             default:
                 // separator does exist
