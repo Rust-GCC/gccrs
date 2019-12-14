@@ -585,28 +585,6 @@ namespace Rust {
             virtual Expr* clone_expr_impl() const = 0;
         };
 
-        // HACK: IdentifierExpr, delete when figure out identifier vs expr problem in Pratt parser
-        // Alternatively, identifiers could just be represented as single-segment paths
-        class IdentifierExpr : public Expr {
-            Identifier ident;
-
-          public:
-            IdentifierExpr(
-              Identifier ident, ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
-              Expr(::std::move(outer_attrs)),
-              ident(::std::move(ident)) {}
-
-            ::std::string as_string() const {
-                return "not implemented as a HACK";
-            }
-
-          protected:
-            // Clone method implementation
-            virtual IdentifierExpr* clone_expr_impl() const OVERRIDE {
-                return new IdentifierExpr(*this);
-            }
-        };
-
         // AST node for an expression without an accompanying block - abstract
         class ExprWithoutBlock : public Expr {
           protected:
@@ -635,6 +613,28 @@ namespace Rust {
                 fprintf(stderr, "about to call the impl for clone expr without block\n");
 
                 return clone_expr_without_block_impl();
+            }
+        };
+
+        // HACK: IdentifierExpr, delete when figure out identifier vs expr problem in Pratt parser
+        // Alternatively, identifiers could just be represented as single-segment paths
+        class IdentifierExpr : public ExprWithoutBlock {
+            Identifier ident;
+
+          public:
+            IdentifierExpr(
+              Identifier ident, ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              ExprWithoutBlock(::std::move(outer_attrs)),
+              ident(::std::move(ident)) {}
+
+            ::std::string as_string() const {
+                return "not implemented as a HACK";
+            }
+
+          protected:
+            // Clone method implementation
+            virtual IdentifierExpr* clone_expr_without_block_impl() const OVERRIDE {
+                return new IdentifierExpr(*this);
             }
         };
 

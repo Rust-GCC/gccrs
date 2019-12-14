@@ -355,6 +355,11 @@ namespace Rust {
             case RIGHT_SHIFT_EQ:
                 return LBP_R_SHIFT_ASSIG;
 
+            // HACK: float literal due to lexer misidentifying a dot then an integer as a float
+            case FLOAT_LITERAL:
+                return LBP_FIELD_EXPR;
+                // field expr is same as tuple expr in precedence, i imagine
+
             // anything that can't appear in an infix position is given lowest priority
             default:
                 return LBP_LOWEST;
@@ -464,7 +469,21 @@ namespace Rust {
         ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
 
         // parse items
-        ::std::vector< ::std::unique_ptr<AST::Item> > items = parse_items();
+        ::std::vector< ::std::unique_ptr<AST::Item> > items;
+
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() != END_OF_FILE) {
+            ::std::unique_ptr<AST::Item> item = parse_item(false);
+            if (item == NULL) {
+                error_at(lexer.peek_token()->get_locus(), "failed to parse item in crate");
+                items = ::std::vector< ::std::unique_ptr<AST::Item> >();
+                break;
+            }
+
+            items.push_back(::std::move(item));
+
+            t = lexer.peek_token();
+        }
 
         return AST::Crate(::std::move(items), ::std::move(inner_attrs), has_utf8bom, has_shebang);
     }
@@ -882,7 +901,9 @@ namespace Rust {
         }
     }
 
-    // Parses a sequence of items within a module or the implicit top-level module in a crate.
+    /* Parses a sequence of items within a module or the implicit top-level module in a crate. Note:
+     * this is not currently used as parsing an item sequence individually is pretty simple and allows
+     * for better error diagnostics and detection. */
     ::std::vector< ::std::unique_ptr<AST::Item> > Parser::parse_items() {
         ::std::vector< ::std::unique_ptr<AST::Item> > items;
 
@@ -1192,6 +1213,9 @@ namespace Rust {
 
         // parse macro name
         const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+        if (ident_tok == NULL) {
+            return NULL;
+        }
         Identifier rule_name = ident_tok->get_str();
 
         // save delim type to ensure it is reused later
@@ -1235,11 +1259,17 @@ namespace Rust {
             // skip semicolon
             lexer.skip_token();
 
+            // don't parse if end of macro rules
+            if (token_id_matches_delims(lexer.peek_token()->get_id(), delim_type)) {
+                break;
+            }
+
             // try to parse next rule
             AST::MacroRule rule = parse_macro_rule();
             if (rule.is_error()) {
-                // not necessarily an error - could be trailing semicolon
-                break;
+                error_at(lexer.peek_token()->get_locus(),
+                  "failed to parse macro rule in macro rules definition");
+                return NULL;
             }
 
             macro_rules.push_back(::std::move(rule));
@@ -1482,10 +1512,17 @@ namespace Rust {
         switch (t->get_id()) {
             case LEFT_PAREN:
             case LEFT_SQUARE:
-            case LEFT_CURLY:
+            case LEFT_CURLY: {
                 // must be macro matcher as delimited
+                AST::MacroMatcher matcher = parse_macro_matcher();
+                if (matcher.is_error()) {
+                    error_at(lexer.peek_token()->get_locus(),
+                      "failed to parse macro matcher in macro match");
+                    return NULL;
+                }
                 return ::std::unique_ptr<AST::MacroMatcher>(
-                  new AST::MacroMatcher(parse_macro_matcher()));
+                  new AST::MacroMatcher(::std::move(matcher)));
+            }
             case DOLLAR_SIGN: {
                 // have to do more lookahead to determine if fragment or repetition
                 const_TokenPtr t2 = lexer.peek_token(1);
@@ -3054,22 +3091,26 @@ namespace Rust {
 
         // maybe think of a better control structure here - do-while with an initial error state?
         // basically, loop through field list until can't find any more params
-        while (true) {
-            if (lexer.peek_token()->get_id() != COMMA) {
-                break;
-            }
-
-            // skip comma if applies
+        // HACK: all current syntax uses of tuple fields have them ending with a right paren token
+        const_TokenPtr t = lexer.peek_token();
+        while (t->get_id() == COMMA) {
+            // skip comma if applies - e.g. trailing comma
             lexer.skip_token();
 
-            AST::TupleField field = parse_tuple_field();
-
-            if (!field.is_error()) {
-                fields.push_back(::std::move(field));
-            } else {
-                // this would occur with a trailing comma, which is allowed
+            // break out due to right paren if it exists
+            if (lexer.peek_token()->get_id() == RIGHT_PAREN) {
                 break;
             }
+
+            AST::TupleField field = parse_tuple_field();
+            if (field.is_error()) {
+                error_at(lexer.peek_token()->get_locus(), "failed to parse tuple field in tuple fields");
+                return ::std::vector<AST::TupleField>();
+            }
+
+            fields.push_back(::std::move(field));
+
+            t = lexer.peek_token();
         }
 
         return fields;
@@ -4225,6 +4266,9 @@ namespace Rust {
 
         // parse function or method name
         const_TokenPtr ident_tok = expect_token(IDENTIFIER);
+        if (ident_tok == NULL) {
+            return NULL;
+        }
         Identifier ident = ident_tok->get_str();
 
         // DEBUG:
@@ -5628,12 +5672,13 @@ namespace Rust {
         }
 
         // ensure that there is at least either a statement or an expr
-        if (stmts.empty() && expr == NULL) {
+        /*if (stmts.empty() && expr == NULL) {
             error_at(lexer.peek_token()->get_id(),
               "block expression requires statements or an expression without block - found neither");
             skip_after_end_block();
             return NULL;
-        }
+        }*/
+        // grammar allows for empty block expressions
 
         return ::std::unique_ptr<AST::BlockExpr>(new AST::BlockExpr(
           ::std::move(stmts), ::std::move(expr), ::std::move(inner_attrs), ::std::move(outer_attrs)));
@@ -5914,8 +5959,11 @@ namespace Rust {
             return NULL;
         }
 
-        // parse required condition expr
-        ::std::unique_ptr<AST::Expr> condition = parse_expr();
+        // parse required condition expr - HACK to prevent struct expr from being parsed
+        ParseRestrictions no_struct_expr;
+        no_struct_expr.can_be_struct_expr = false;
+        ::std::unique_ptr<AST::Expr> condition
+          = parse_expr(::std::vector<AST::Attribute>(), no_struct_expr);
         if (condition == NULL) {
             error_at(lexer.peek_token()->get_locus(),
               "failed to parse condition expression in if expression");
@@ -6597,8 +6645,10 @@ namespace Rust {
 
     // Parses an array definition expression.
     ::std::unique_ptr<AST::ArrayExpr> Parser::parse_array_expr(
-      ::std::vector<AST::Attribute> outer_attrs) {
-        skip_token(LEFT_SQUARE);
+      ::std::vector<AST::Attribute> outer_attrs, bool pratt_parse) {
+        if (!pratt_parse) {
+            skip_token(LEFT_SQUARE);
+        }
 
         // parse optional inner attributes
         ::std::vector<AST::Attribute> inner_attrs = parse_inner_attributes();
@@ -8048,7 +8098,7 @@ namespace Rust {
                         // parse elements (optional)
                         AST::StructPatternElements elems = parse_struct_pattern_elems();
 
-                        if (!skip_token(RIGHT_PAREN)) {
+                        if (!skip_token(RIGHT_CURLY)) {
                             return NULL;
                         }
 
@@ -8403,9 +8453,12 @@ namespace Rust {
                 // parse elements (optional)
                 AST::StructPatternElements elems = parse_struct_pattern_elems();
 
-                if (!skip_token(RIGHT_PAREN)) {
+                if (!skip_token(RIGHT_CURLY)) {
                     return NULL;
                 }
+
+                // DEBUG
+                fprintf(stderr, "successfully parsed struct pattern\n");
 
                 return ::std::unique_ptr<AST::StructPattern>(
                   new AST::StructPattern(::std::move(path), ::std::move(elems)));
@@ -8583,10 +8636,17 @@ namespace Rust {
             if (field == NULL) {
                 // TODO: should this be an error?
                 // assuming that this means that it is a struct pattern etc instead
+
+                // DEBUG
+                fprintf(stderr, "failed to parse struct pattern field - breaking from loop\n");
+
                 break;
             }
 
             fields.push_back(::std::move(field));
+
+            // DEBUG
+            fprintf(stderr, "successfully pushed back a struct pattern field\n");
 
             if (lexer.peek_token()->get_id() != COMMA) {
                 break;
@@ -8597,7 +8657,8 @@ namespace Rust {
         }
 
         // FIXME: this method of parsing prevents parsing any outer attributes on the ..
-        if (t->get_id() == DOT_DOT) {
+        // also there seems to be no distinction between having etc and not having etc.
+        if (lexer.peek_token()->get_id() == DOT_DOT) {
             lexer.skip_token();
 
             // as no outer attributes
@@ -9708,12 +9769,17 @@ namespace Rust {
         // DEBUG
         fprintf(stderr, "null denotation is not null - going on to left denotation\n");
 
+        // DEBUG
+        fprintf(stderr, "initial rbp: '%i', initial lbp: '%i' (for '%s')\n", right_binding_power,
+          left_binding_power(lexer.peek_token()), lexer.peek_token()->get_token_description());
+
         // stop parsing if find lower priority token - parse higher priority first
         while (right_binding_power < left_binding_power(lexer.peek_token())) {
             current_token = lexer.peek_token();
             lexer.skip_token();
 
-            expr = left_denotation(current_token, ::std::move(expr), ::std::vector<AST::Attribute>(), restrictions);
+            expr = left_denotation(
+              current_token, ::std::move(expr), ::std::vector<AST::Attribute>(), restrictions);
 
             // DEBUG
             fprintf(stderr, "successfully got left_denotation in parse_expr \n");
@@ -9850,19 +9916,23 @@ namespace Rust {
                           ::std::move(path), ::std::move(outer_attrs));
                     case LEFT_CURLY: {
                         bool not_a_block
-                  = lexer.peek_token(1)->get_id() == IDENTIFIER
-                    && (lexer.peek_token(2)->get_id() == COMMA
-                         || (lexer.peek_token(2)->get_id() == COLON
-                              && (lexer.peek_token(4)->get_id() == COMMA
-                                   || !can_tok_start_type(lexer.peek_token(3)->get_id()))));
+                          = lexer.peek_token(1)->get_id() == IDENTIFIER
+                            && (lexer.peek_token(2)->get_id() == COMMA
+                                 || (lexer.peek_token(2)->get_id() == COLON
+                                      && (lexer.peek_token(4)->get_id() == COMMA
+                                           || !can_tok_start_type(lexer.peek_token(3)->get_id()))));
 
-                                        /* definitely not a block:
-                 *  path '{' ident ','
-                 *  path '{' ident ':' [anything] ','
-                 *  path '{' ident ':' [not a type]
-                 * otherwise, assume block expr and thus path */
+                        /* definitely not a block:
+                         *  path '{' ident ','
+                         *  path '{' ident ':' [anything] ','
+                         *  path '{' ident ':' [not a type]
+                         * otherwise, assume block expr and thus path */
                         // DEBUG
-                        fprintf(stderr, "values of lookahead: '%s' '%s' '%s' '%s' \n", lexer.peek_token(1)->get_token_description(), lexer.peek_token(2)->get_token_description(), lexer.peek_token(3)->get_token_description(), lexer.peek_token(4)->get_token_description());
+                        fprintf(stderr, "values of lookahead: '%s' '%s' '%s' '%s' \n",
+                          lexer.peek_token(1)->get_token_description(),
+                          lexer.peek_token(2)->get_token_description(),
+                          lexer.peek_token(3)->get_token_description(),
+                          lexer.peek_token(4)->get_token_description());
 
                         // struct/enum expr struct
                         if (!restrictions.can_be_struct_expr && !not_a_block) {
@@ -10088,6 +10158,11 @@ namespace Rust {
                 // path info from it
                 AST::PathInExpression path = parse_path_in_expression_pratt(tok);
 
+                // DEBUG
+                fprintf(stderr,
+                  "just finished parsing path (going to disambiguate) - peeked token is '%s'\n",
+                  lexer.peek_token()->get_token_description());
+
                 // HACK: always make "self" by itself a path (regardless of next tokens)
                 if (tok->get_id() == SELF && path.is_single_segment()) {
                     return ::std::unique_ptr<AST::PathExprNonQual>(
@@ -10107,11 +10182,11 @@ namespace Rust {
                           restrictions.can_be_struct_expr ? "true" : "false");
 
                         bool not_a_block
-                  = lexer.peek_token(1)->get_id() == IDENTIFIER
-                    && (lexer.peek_token(2)->get_id() == COMMA
-                         || (lexer.peek_token(2)->get_id() == COLON
-                              && (lexer.peek_token(4)->get_id() == COMMA
-                                   || !can_tok_start_type(lexer.peek_token(3)->get_id()))));
+                          = lexer.peek_token(1)->get_id() == IDENTIFIER
+                            && (lexer.peek_token(2)->get_id() == COMMA
+                                 || (lexer.peek_token(2)->get_id() == COLON
+                                      && (lexer.peek_token(4)->get_id() == COMMA
+                                           || !can_tok_start_type(lexer.peek_token(3)->get_id()))));
 
                         if (!restrictions.can_be_struct_expr && !not_a_block) {
                             // assume path is returned
@@ -10162,6 +10237,9 @@ namespace Rust {
             case MATCH_TOK:
                 // also an expression with block
                 return parse_match_expr(::std::move(outer_attrs), true);
+            case LEFT_SQUARE:
+                // array definition expr (not indexing)
+                return parse_array_expr(::std::move(outer_attrs), true);
             default:
                 error_at(tok->get_locus(), "found unexpected token '%s' in null denotation",
                   tok->get_token_description());
@@ -10174,7 +10252,8 @@ namespace Rust {
      * Returns a function pointer to member function that implements the left denotation for the token
      * given. */
     ::std::unique_ptr<AST::Expr> Parser::left_denotation(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // Token passed in has already been skipped, so peek gives "next" token
         /*BinaryHandler binary_handler = get_binary_handler(tok->get_id());
         if (binary_handler == NULL) {
@@ -10192,105 +10271,134 @@ namespace Rust {
                   new AST::ErrorPropogationExpr(::std::move(left), ::std::move(outer_attrs)));
             case PLUS:
                 // sum expression - binary infix
-                return parse_binary_plus_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_binary_plus_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case MINUS:
                 // difference expression - binary infix
-                return parse_binary_minus_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_binary_minus_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case ASTERISK:
                 // product expression - binary infix
-                return parse_binary_mult_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_binary_mult_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case DIV:
                 // quotient expression - binary infix
-                return parse_binary_div_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_binary_div_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case PERCENT:
                 // modulo expression - binary infix
-                return parse_binary_mod_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_binary_mod_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case AMP:
                 // logical or bitwise and expression - binary infix
-                return parse_bitwise_and_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_bitwise_and_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case PIPE:
                 // logical or bitwise or expression - binary infix
-                return parse_bitwise_or_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_bitwise_or_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case CARET:
                 // logical or bitwise xor expression - binary infix
-                return parse_bitwise_xor_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_bitwise_xor_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case LEFT_SHIFT:
                 // left shift expression - binary infix
-                return parse_left_shift_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_left_shift_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case RIGHT_SHIFT:
                 // right shift expression - binary infix
-                return parse_right_shift_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_right_shift_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case EQUAL_EQUAL:
                 // equal to expression - binary infix (no associativity)
-                return parse_binary_equal_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_binary_equal_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case NOT_EQUAL:
                 // not equal to expression - binary infix (no associativity)
-                return parse_binary_not_equal_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_binary_not_equal_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case RIGHT_ANGLE:
                 // greater than expression - binary infix (no associativity)
                 return parse_binary_greater_than_expr(
-                  tok, ::std::move(left), ::std::move(outer_attrs));
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case LEFT_ANGLE:
                 // less than expression - binary infix (no associativity)
-                return parse_binary_less_than_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_binary_less_than_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case GREATER_OR_EQUAL:
                 // greater than or equal to expression - binary infix (no associativity)
                 return parse_binary_greater_equal_expr(
-                  tok, ::std::move(left), ::std::move(outer_attrs));
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case LESS_OR_EQUAL:
                 // less than or equal to expression - binary infix (no associativity)
-                return parse_binary_less_equal_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_binary_less_equal_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case OR:
                 // lazy logical or expression - binary infix
-                return parse_lazy_or_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_lazy_or_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case LOGICAL_AND:
                 // lazy logical and expression - binary infix
-                return parse_lazy_and_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_lazy_and_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case AS:
                 // type cast expression - kind of binary infix (RHS is actually a TypeNoBounds)
-                return parse_type_cast_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_type_cast_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case EQUAL:
                 // assignment expression - binary infix (note right-to-left associativity)
-                return parse_assig_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_assig_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case PLUS_EQ:
                 // plus-assignment expression - binary infix (note right-to-left associativity)
-                return parse_plus_assig_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_plus_assig_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case MINUS_EQ:
                 // minus-assignment expression - binary infix (note right-to-left associativity)
-                return parse_minus_assig_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_minus_assig_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case ASTERISK_EQ:
                 // multiply-assignment expression - binary infix (note right-to-left associativity)
-                return parse_mult_assig_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_mult_assig_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case DIV_EQ:
                 // division-assignment expression - binary infix (note right-to-left associativity)
-                return parse_div_assig_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_div_assig_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case PERCENT_EQ:
                 // modulo-assignment expression - binary infix (note right-to-left associativity)
-                return parse_mod_assig_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_mod_assig_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case AMP_EQ:
                 // bitwise and-assignment expression - binary infix (note right-to-left associativity)
-                return parse_and_assig_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_and_assig_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case PIPE_EQ:
                 // bitwise or-assignment expression - binary infix (note right-to-left associativity)
-                return parse_or_assig_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_or_assig_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case CARET_EQ:
                 // bitwise xor-assignment expression - binary infix (note right-to-left associativity)
-                return parse_xor_assig_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_xor_assig_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case LEFT_SHIFT_EQ:
                 // left shift-assignment expression - binary infix (note right-to-left associativity)
-                return parse_left_shift_assig_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_left_shift_assig_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case RIGHT_SHIFT_EQ:
                 // right shift-assignment expression - binary infix (note right-to-left associativity)
-                return parse_right_shift_assig_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_right_shift_assig_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case DOT_DOT:
                 // range exclusive expression - binary infix (no associativity)
                 // either "range" or "range from"
                 return parse_led_range_exclusive_expr(
-                  tok, ::std::move(left), ::std::move(outer_attrs));
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case DOT_DOT_EQ:
                 // range inclusive expression - binary infix (no associativity)
                 // unambiguously RangeInclusiveExpr
-                return parse_range_inclusive_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_range_inclusive_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case SCOPE_RESOLUTION:
                 // path expression - binary infix? FIXME should this even be parsed here?
                 error_at(tok->get_locus(), "found scope resolution operator in left denotation "
@@ -10307,24 +10415,33 @@ namespace Rust {
                     return parse_await_expr(tok, ::std::move(left), ::std::move(outer_attrs));
                 } else if (next_tok->get_id() == INT_LITERAL) {
                     // tuple index expression - TODO check for decimal int literal
-                    return parse_tuple_index_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                    return parse_tuple_index_expr(
+                      tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
                 } else if (next_tok->get_id() == IDENTIFIER
                            && lexer.peek_token(1)->get_id() != LEFT_PAREN
                            && lexer.peek_token(1)->get_id() != SCOPE_RESOLUTION) {
                     // field expression (or should be) - FIXME: scope resolution right after
                     // identifier should always be method, I'm pretty sure
-                    return parse_field_access_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                    return parse_field_access_expr(
+                      tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
                 } else {
                     // method call (probably)
-                    return parse_method_call_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                    return parse_method_call_expr(
+                      tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
                 }
             }
             case LEFT_PAREN:
                 // function call - method call is based on dot notation first
-                return parse_function_call_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_function_call_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             case LEFT_SQUARE:
                 // array or slice index expression (pseudo binary infix)
-                return parse_index_expr(tok, ::std::move(left), ::std::move(outer_attrs));
+                return parse_index_expr(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
+            case FLOAT_LITERAL:
+                // HACK: get around lexer mis-identifying '.0' or '.1' or whatever as a float literal
+                return parse_tuple_index_expr_float(
+                  tok, ::std::move(left), ::std::move(outer_attrs), restrictions);
             default:
                 error_at(tok->get_locus(), "found unexpected token '%s' in left denotation",
                   tok->get_token_description());
@@ -10334,9 +10451,11 @@ namespace Rust {
 
     // Parses a binary addition expression (with Pratt parsing).
     ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_plus_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_PLUS);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_PLUS, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10349,9 +10468,10 @@ namespace Rust {
     // Parses a binary subtraction expression (with Pratt parsing).
     ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_minus_expr(
       const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left,
-      ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_MINUS);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_MINUS, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10363,9 +10483,11 @@ namespace Rust {
 
     // Parses a binary multiplication expression (with Pratt parsing).
     ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_mult_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_MUL);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_MUL, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10377,9 +10499,11 @@ namespace Rust {
 
     // Parses a binary division expression (with Pratt parsing).
     ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_div_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_DIV);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_DIV, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10391,9 +10515,11 @@ namespace Rust {
 
     // Parses a binary modulo expression (with Pratt parsing).
     ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_mod_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_MOD);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_MOD, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10405,9 +10531,11 @@ namespace Rust {
 
     // Parses a binary bitwise (or eager logical) and expression (with Pratt parsing).
     ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_bitwise_and_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_AMP);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_AMP, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10419,9 +10547,11 @@ namespace Rust {
 
     // Parses a binary bitwise (or eager logical) or expression (with Pratt parsing).
     ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_bitwise_or_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_PIPE);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_PIPE, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10433,9 +10563,11 @@ namespace Rust {
 
     // Parses a binary bitwise (or eager logical) xor expression (with Pratt parsing).
     ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_bitwise_xor_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_CARET);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_CARET, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10447,9 +10579,11 @@ namespace Rust {
 
     // Parses a binary left shift expression (with Pratt parsing).
     ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_left_shift_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_L_SHIFT);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_L_SHIFT, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10461,9 +10595,11 @@ namespace Rust {
 
     // Parses a binary right shift expression (with Pratt parsing).
     ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_right_shift_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_R_SHIFT);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_R_SHIFT, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10475,9 +10611,11 @@ namespace Rust {
 
     // Parses a binary equal to expression (with Pratt parsing).
     ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_equal_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_EQUAL);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_EQUAL, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10489,9 +10627,11 @@ namespace Rust {
 
     // Parses a binary not equal to expression (with Pratt parsing).
     ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_not_equal_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_NOT_EQUAL);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_NOT_EQUAL, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10503,9 +10643,11 @@ namespace Rust {
 
     // Parses a binary greater than expression (with Pratt parsing).
     ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_greater_than_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_GREATER_THAN);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_GREATER_THAN, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10517,9 +10659,11 @@ namespace Rust {
 
     // Parses a binary less than expression (with Pratt parsing).
     ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_less_than_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_SMALLER_THAN);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_SMALLER_THAN, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10531,9 +10675,11 @@ namespace Rust {
 
     // Parses a binary greater than or equal to expression (with Pratt parsing).
     ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_greater_equal_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_GREATER_EQUAL);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_GREATER_EQUAL, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10545,9 +10691,11 @@ namespace Rust {
 
     // Parses a binary less than or equal to expression (with Pratt parsing).
     ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_less_equal_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_SMALLER_EQUAL);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_SMALLER_EQUAL, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10559,9 +10707,11 @@ namespace Rust {
 
     // Parses a binary lazy boolean or expression (with Pratt parsing).
     ::std::unique_ptr<AST::LazyBooleanExpr> Parser::parse_lazy_or_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_LOGICAL_OR);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_LOGICAL_OR, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10573,9 +10723,11 @@ namespace Rust {
 
     // Parses a binary lazy boolean and expression (with Pratt parsing).
     ::std::unique_ptr<AST::LazyBooleanExpr> Parser::parse_lazy_and_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_LOGICAL_AND);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_LOGICAL_AND, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
 
@@ -10587,7 +10739,8 @@ namespace Rust {
 
     // Parses a pseudo-binary infix type cast expression (with Pratt parsing).
     ::std::unique_ptr<AST::TypeCastExpr> Parser::parse_type_cast_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> expr_to_cast, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> expr_to_cast, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::TypeNoBounds> type = parse_type_no_bounds();
         if (type == NULL)
@@ -10602,9 +10755,11 @@ namespace Rust {
 
     // Parses a binary assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::AssignmentExpr> Parser::parse_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_ASSIG - 1);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
         // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
@@ -10617,9 +10772,11 @@ namespace Rust {
 
     // Parses a binary add-assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_plus_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_PLUS_ASSIG - 1);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_PLUS_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
         // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
@@ -10632,9 +10789,11 @@ namespace Rust {
 
     // Parses a binary minus-assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_minus_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_MINUS_ASSIG - 1);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_MINUS_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
         // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
@@ -10647,9 +10806,11 @@ namespace Rust {
 
     // Parses a binary multiplication-assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_mult_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_MULT_ASSIG - 1);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_MULT_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
         // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
@@ -10662,9 +10823,11 @@ namespace Rust {
 
     // Parses a binary division-assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_div_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_DIV_ASSIG - 1);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_DIV_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
         // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
@@ -10677,9 +10840,11 @@ namespace Rust {
 
     // Parses a binary modulo-assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_mod_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_MOD_ASSIG - 1);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_MOD_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
         // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
@@ -10692,9 +10857,11 @@ namespace Rust {
 
     // Parses a binary and-assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_and_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_AMP_ASSIG - 1);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_AMP_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
         // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
@@ -10707,9 +10874,11 @@ namespace Rust {
 
     // Parses a binary or-assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_or_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_PIPE_ASSIG - 1);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_PIPE_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
         // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
@@ -10722,9 +10891,11 @@ namespace Rust {
 
     // Parses a binary xor-assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_xor_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_CARET_ASSIG - 1);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_CARET_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
         // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
@@ -10738,9 +10909,10 @@ namespace Rust {
     // Parses a binary left shift-assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_left_shift_assig_expr(
       const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left,
-      ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_L_SHIFT_ASSIG - 1);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_L_SHIFT_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
         // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
@@ -10754,9 +10926,10 @@ namespace Rust {
     // Parses a binary right shift-assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_right_shift_assig_expr(
       const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left,
-      ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_R_SHIFT_ASSIG - 1);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_R_SHIFT_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
         // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
@@ -10788,10 +10961,12 @@ namespace Rust {
     /* Parses an exclusive range ('..') in left denotation position (i.e. RangeFromExpr or
      * RangeFromToExpr). */
     ::std::unique_ptr<AST::RangeExpr> Parser::parse_led_range_exclusive_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // FIXME: this probably parses expressions accidently or whatever
         // try parsing RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_DOT_DOT);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_DOT_DOT, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL) {
             // range from expr
             return ::std::unique_ptr<AST::RangeFromExpr>(new AST::RangeFromExpr(::std::move(left)));
@@ -10808,7 +10983,7 @@ namespace Rust {
       const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs) {
         // FIXME: this probably parses expressions accidently or whatever
         // try parsing RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_DOT_DOT);
+        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_DOT_DOT, ::std::vector<AST::Attribute>());
         if (right == NULL) {
             // range from expr
             return ::std::unique_ptr<AST::RangeFullExpr>(new AST::RangeFullExpr());
@@ -10820,9 +10995,11 @@ namespace Rust {
 
     // Parses a full binary range inclusive expression.
     ::std::unique_ptr<AST::RangeFromToInclExpr> Parser::parse_range_inclusive_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_DOT_DOT_EQ);
+        ::std::unique_ptr<AST::Expr> right
+          = parse_expr(LBP_DOT_DOT_EQ, ::std::vector<AST::Attribute>(), restrictions);
         if (right == NULL)
             return NULL;
         // FIXME: make non-associative
@@ -10849,9 +11026,13 @@ namespace Rust {
 
     // Parses a pseudo-binary infix tuple index expression.
     ::std::unique_ptr<AST::TupleIndexExpr> Parser::parse_tuple_index_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> tuple_expr, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> tuple_expr, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions ATTRIBUTE_UNUSED) {
         // parse int literal (as token already skipped)
         const_TokenPtr index_tok = expect_token(INT_LITERAL);
+        if (index_tok == NULL) {
+            return NULL;
+        }
         ::std::string index = index_tok->get_str();
 
         // convert to integer
@@ -10863,9 +11044,11 @@ namespace Rust {
 
     // Parses a pseudo-binary infix array (or slice) index expression.
     ::std::unique_ptr<AST::ArrayIndexExpr> Parser::parse_index_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> array_expr, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> array_expr, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
-        ::std::unique_ptr<AST::Expr> index_expr = parse_expr(LBP_ARRAY_REF);
+        ::std::unique_ptr<AST::Expr> index_expr
+          = parse_expr(LBP_ARRAY_REF, ::std::vector<AST::Attribute>(), restrictions);
         if (index_expr == NULL)
             return NULL;
 
@@ -10883,7 +11066,8 @@ namespace Rust {
 
     // Parses a pseudo-binary infix struct field access expression.
     ::std::unique_ptr<AST::FieldAccessExpr> Parser::parse_field_access_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> struct_expr, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> struct_expr, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // get field name identifier (assume that this is a field access expr and not say await)
         const_TokenPtr ident_tok = expect_token(IDENTIFIER);
         Identifier ident = ident_tok->get_str();
@@ -10895,7 +11079,8 @@ namespace Rust {
 
     // Parses a pseudo-binary infix method call expression.
     ::std::unique_ptr<AST::MethodCallExpr> Parser::parse_method_call_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> receiver_expr, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> receiver_expr, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse path expr segment
         AST::PathExprSegment segment = parse_path_expr_segment();
         if (segment.is_error()) {
@@ -10942,7 +11127,8 @@ namespace Rust {
 
     // Parses a pseudo-binary infix function call expression.
     ::std::unique_ptr<AST::CallExpr> Parser::parse_function_call_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> function_expr, ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::unique_ptr<AST::Expr> function_expr, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions) {
         // parse function params (if they exist)
         ::std::vector< ::std::unique_ptr<AST::Expr> > params;
 
@@ -11148,6 +11334,10 @@ namespace Rust {
     AST::PathInExpression Parser::parse_path_in_expression_pratt(const_TokenPtr tok) {
         // HACK-y way of making up for pratt-parsing consuming first token
 
+        // DEBUG
+        fprintf(stderr, "current peek token when starting path pratt parse: '%s'\n",
+          lexer.peek_token()->get_token_description());
+
         // create segment vector
         ::std::vector<AST::PathExprSegment> segments;
 
@@ -11225,6 +11415,10 @@ namespace Rust {
             t = lexer.peek_token();
         }
 
+        // DEBUG:
+        fprintf(stderr, "current token (just about to return path to null denotation): '%s'\n",
+          lexer.peek_token()->get_token_description());
+
         return AST::PathInExpression(::std::move(segments));
     }
 
@@ -11247,16 +11441,16 @@ namespace Rust {
             case OR:
                 // no parameters, don't skip token
                 break;
-            case PIPE:
+            case PIPE: {
                 // actually may have parameters
                 // don't skip token
-
-                while (tok->get_id() != PIPE) {
+                const_TokenPtr t = lexer.peek_token();
+                while (t->get_id() != PIPE) {
                     AST::ClosureParam param = parse_closure_param();
                     if (param.is_error()) {
                         // TODO is this really an error?
-                        error_at(tok->get_locus(), "could not parse closure param");
-                        break;
+                        error_at(t->get_locus(), "could not parse closure param");
+                        return NULL;
                     }
                     params.push_back(::std::move(param));
 
@@ -11267,9 +11461,14 @@ namespace Rust {
                     // skip comma
                     lexer.skip_token();
 
-                    tok = lexer.peek_token();
+                    t = lexer.peek_token();
+                }
+
+                if (!skip_token(PIPE)) {
+                    return NULL;
                 }
                 break;
+            }
             default:
                 error_at(tok->get_locus(),
                   "unexpected token '%s' in closure expression - expected '|' or '||'",
@@ -11322,6 +11521,29 @@ namespace Rust {
               ::std::move(expr), ::std::move(params), has_move, ::std::move(outer_attrs)));
         }
     }
+
+    /* Parses a tuple index expression (pratt-parsed) from a 'float' token as a result of lexer
+     * misidentification. */
+    ::std::unique_ptr<AST::TupleIndexExpr> Parser::parse_tuple_index_expr_float(const_TokenPtr tok,
+      ::std::unique_ptr<AST::Expr> tuple_expr, ::std::vector<AST::Attribute> outer_attrs,
+      ParseRestrictions restrictions ATTRIBUTE_UNUSED) {
+          // only works on float literals
+          if (tok->get_id() != FLOAT_LITERAL) {
+              return NULL;
+          }
+
+          // DEBUG:
+          fprintf(stderr, "exact string form of float: '%s'\n", tok->get_str().c_str());
+
+          // get float string and remove dot and initial 0
+          ::std::string index_str = tok->get_str();
+          index_str.erase(index_str.begin());
+
+          // get int from string
+          int index = atoi(index_str.c_str());
+
+          return ::std::unique_ptr<AST::TupleIndexExpr>(new AST::TupleIndexExpr(::std::move(tuple_expr), index, ::std::move(outer_attrs)));
+      }
 
     // Determines action to take when finding token at beginning of expression.
     Tree Parser::null_denotation(const_TokenPtr tok) {
