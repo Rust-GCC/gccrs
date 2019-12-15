@@ -30,7 +30,7 @@ namespace Rust {
         // typedef Type TypePath;
 
         // TODO: inline?
-        struct AbiName {
+        /*struct AbiName {
             ::std::string abi_name;
             // Technically is meant to be STRING_LITERAL or RAW_STRING_LITERAL
 
@@ -44,7 +44,7 @@ namespace Rust {
 
             // Empty AbiName constructor
             AbiName() {}
-        };
+        };*/
 
         // A type generic parameter (as opposed to a lifetime generic parameter)
         class TypeParam : public GenericParam {
@@ -373,6 +373,8 @@ namespace Rust {
             // move constructors
             SelfParam(SelfParam&& other) = default;
             SelfParam& operator=(SelfParam&& other) = default;
+
+            ::std::string as_string() const;
         };
 
         // Qualifiers for function, i.e. const, unsafe, extern etc.
@@ -459,138 +461,6 @@ namespace Rust {
             ::std::string as_string() const;
         };
 
-        // A method (function belonging to a type)
-        struct Method {
-          private:
-            FunctionQualifiers qualifiers;
-            Identifier method_name;
-
-            // bool has_generics;
-            // Generics generic_params;
-            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
-
-            SelfParam self_param;
-
-            // bool has_params;
-            // FunctionParams function_params;
-            ::std::vector<FunctionParam> function_params; // inlined
-
-            // bool has_return_type;
-            // FunctionReturnType return_type;
-            ::std::unique_ptr<Type> return_type; // inlined
-
-            // bool has_where_clause;
-            WhereClause where_clause;
-
-            // BlockExpr* expr;
-            ::std::unique_ptr<BlockExpr> expr;
-
-            // TODO: move visibility to method struct for consistency?
-
-          public:
-            /*~Method() {
-                delete expr;
-            }*/
-
-            // Returns whether the method is in an error state.
-            inline bool is_error() const {
-                return expr == NULL || method_name.empty() || self_param.is_error();
-            }
-
-            // Creates an error state method.
-            static Method create_error() {
-                return Method("", FunctionQualifiers(FunctionQualifiers::NONE, true),
-                  ::std::vector< ::std::unique_ptr<GenericParam> >(), SelfParam::create_error(),
-                  ::std::vector<FunctionParam>(), NULL, WhereClause::create_empty(), NULL);
-            }
-
-            // Returns whether the method has generic parameters.
-            inline bool has_generics() const {
-                return !generic_params.empty();
-            }
-
-            // Returns whether the method has parameters.
-            inline bool has_params() const {
-                return !function_params.empty();
-            }
-
-            // Returns whether the method has a return type (void otherwise).
-            inline bool has_return_type() const {
-                return return_type != NULL;
-            }
-
-            // Returns whether the where clause exists (i.e. has items)
-            inline bool has_where_clause() const {
-                return !where_clause.is_empty();
-            }
-
-            // Mega-constructor with all possible fields
-            Method(Identifier method_name, FunctionQualifiers qualifiers,
-              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
-              ::std::vector<FunctionParam> function_params, Type* return_type,
-              WhereClause where_clause, BlockExpr* function_body) :
-              qualifiers(::std::move(qualifiers)),
-              method_name(::std::move(method_name)), generic_params(::std::move(generic_params)),
-              self_param(::std::move(self_param)), function_params(::std::move(function_params)),
-              return_type(return_type), where_clause(::std::move(where_clause)), expr(function_body) {
-            }
-            // FIXME: deprecated
-
-            // Mega-constructor with all possible fields
-            Method(Identifier method_name, FunctionQualifiers qualifiers,
-              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
-              ::std::vector<FunctionParam> function_params, ::std::unique_ptr<Type> return_type,
-              WhereClause where_clause, ::std::unique_ptr<BlockExpr> function_body) :
-              qualifiers(::std::move(qualifiers)),
-              method_name(::std::move(method_name)), generic_params(::std::move(generic_params)),
-              self_param(::std::move(self_param)), function_params(::std::move(function_params)),
-              return_type(::std::move(return_type)), where_clause(::std::move(where_clause)), expr(::std::move(function_body)) {
-            }
-
-            // TODO: add constructor with less fields
-
-            // Copy constructor with clone
-            Method(Method const& other) :
-              qualifiers(other.qualifiers), method_name(other.method_name),
-              /*generic_params(other.generic_params),*/ self_param(other.self_param),
-              function_params(other.function_params), return_type(other.return_type->clone_type()),
-              where_clause(other.where_clause), expr(other.expr->clone_block_expr()) {
-                // crappy vector unique pointer clone - TODO is there a better way of doing this?
-                generic_params.reserve(other.generic_params.size());
-
-                for (const auto& e : other.generic_params) {
-                    generic_params.push_back(e->clone_generic_param());
-                }
-            }
-
-            ~Method() = default;
-
-            // Overloaded assignment operator to clone
-            Method& operator=(Method const& other) {
-                method_name = other.method_name;
-                qualifiers = other.qualifiers;
-                // generic_params = other.generic_params;
-                self_param = other.self_param;
-                function_params = other.function_params;
-                return_type = other.return_type->clone_type();
-                where_clause = other.where_clause;
-                expr = other.expr->clone_block_expr();
-
-                // crappy vector unique pointer clone - TODO is there a better way of doing this?
-                generic_params.reserve(other.generic_params.size());
-
-                for (const auto& e : other.generic_params) {
-                    generic_params.push_back(e->clone_generic_param());
-                }
-
-                return *this;
-            }
-
-            // move constructors
-            Method(Method&& other) = default;
-            Method& operator=(Method&& other) = default;
-        };
-
         // Visibility of item - if the item has it, then it is some form of public
         struct Visibility {
           public:
@@ -668,6 +538,137 @@ namespace Rust {
             }
         };
 
+        // A method (function belonging to a type)
+        struct Method {
+          private:
+            // moved from impl items for consistency
+            Visibility vis;
+
+            FunctionQualifiers qualifiers;
+            Identifier method_name;
+
+            // bool has_generics;
+            // Generics generic_params;
+            ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
+
+            SelfParam self_param;
+
+            // bool has_params;
+            // FunctionParams function_params;
+            ::std::vector<FunctionParam> function_params; // inlined
+
+            // bool has_return_type;
+            // FunctionReturnType return_type;
+            ::std::unique_ptr<Type> return_type; // inlined
+
+            // bool has_where_clause;
+            WhereClause where_clause;
+
+            // BlockExpr* expr;
+            ::std::unique_ptr<BlockExpr> expr;
+
+            // TODO: move visibility to method struct for consistency?
+
+          public:
+            /*~Method() {
+                delete expr;
+            }*/
+
+            // Returns whether the method is in an error state.
+            inline bool is_error() const {
+                return expr == NULL || method_name.empty() || self_param.is_error();
+            }
+
+            // Creates an error state method.
+            static Method create_error() {
+                return Method("", FunctionQualifiers(FunctionQualifiers::NONE, true),
+                  ::std::vector< ::std::unique_ptr<GenericParam> >(), SelfParam::create_error(),
+                  ::std::vector<FunctionParam>(), NULL, WhereClause::create_empty(), NULL, Visibility::create_error());
+            }
+
+            // Returns whether the method has generic parameters.
+            inline bool has_generics() const {
+                return !generic_params.empty();
+            }
+
+            // Returns whether the method has parameters.
+            inline bool has_params() const {
+                return !function_params.empty();
+            }
+
+            // Returns whether the method has a return type (void otherwise).
+            inline bool has_return_type() const {
+                return return_type != NULL;
+            }
+
+            // Returns whether the where clause exists (i.e. has items)
+            inline bool has_where_clause() const {
+                return !where_clause.is_empty();
+            }
+
+            // Returns whether method has a non-default visibility.
+            inline bool has_visibility() const {
+                return !vis.is_error();
+            }
+
+            // Mega-constructor with all possible fields
+            Method(Identifier method_name, FunctionQualifiers qualifiers,
+              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
+              ::std::vector<FunctionParam> function_params, ::std::unique_ptr<Type> return_type,
+              WhereClause where_clause, ::std::unique_ptr<BlockExpr> function_body, Visibility vis) :
+              vis(::std::move(vis)), qualifiers(::std::move(qualifiers)),
+              method_name(::std::move(method_name)), generic_params(::std::move(generic_params)),
+              self_param(::std::move(self_param)), function_params(::std::move(function_params)),
+              return_type(::std::move(return_type)), where_clause(::std::move(where_clause)), expr(::std::move(function_body)) {
+            }
+
+            // TODO: add constructor with less fields
+
+            // Copy constructor with clone
+            Method(Method const& other) :
+              vis(other.vis), qualifiers(other.qualifiers), method_name(other.method_name),
+              /*generic_params(other.generic_params),*/ self_param(other.self_param),
+              function_params(other.function_params), return_type(other.return_type->clone_type()),
+              where_clause(other.where_clause), expr(other.expr->clone_block_expr()) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                generic_params.reserve(other.generic_params.size());
+
+                for (const auto& e : other.generic_params) {
+                    generic_params.push_back(e->clone_generic_param());
+                }
+            }
+
+            ~Method() = default;
+
+            // Overloaded assignment operator to clone
+            Method& operator=(Method const& other) {
+                method_name = other.method_name;
+                vis = other.vis;
+                qualifiers = other.qualifiers;
+                // generic_params = other.generic_params;
+                self_param = other.self_param;
+                function_params = other.function_params;
+                return_type = other.return_type->clone_type();
+                where_clause = other.where_clause;
+                expr = other.expr->clone_block_expr();
+
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                generic_params.reserve(other.generic_params.size());
+
+                for (const auto& e : other.generic_params) {
+                    generic_params.push_back(e->clone_generic_param());
+                }
+
+                return *this;
+            }
+
+            // move constructors
+            Method(Method&& other) = default;
+            Method& operator=(Method&& other) = default;
+
+            ::std::string as_string() const;
+        };
+
         // Item that supports visibility - abstract base class
         class VisItem : public Item {
             Visibility visibility;
@@ -708,14 +709,15 @@ namespace Rust {
 
         // Rust module item - abstract base class
         class Module : public VisItem {
-            // TODO: module name? (identifier) - why don't I have this?
-          protected:
-            // Outer attributes constructor
-            Module(Visibility visibility, ::std::vector<Attribute> outer_attrs) :
-              VisItem(::std::move(visibility), ::std::move(outer_attrs)) {}
+            Identifier module_name;
 
-            // No outer attributes constructor
-            Module(Visibility visibility) : VisItem(::std::move(visibility)) {}
+          protected:
+            // Protected constructor
+            Module(Identifier module_name, Visibility visibility, ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              VisItem(::std::move(visibility), ::std::move(outer_attrs)), module_name(module_name) {}
+
+          public:
+            virtual ::std::string as_string() const;
         };
 
         // Module with a body, defined in file
@@ -740,12 +742,12 @@ namespace Rust {
             }
 
             // Full constructor
-            ModuleBodied(::std::vector< ::std::unique_ptr<Item> > items
+            ModuleBodied(Identifier name, ::std::vector< ::std::unique_ptr<Item> > items
                          = ::std::vector< ::std::unique_ptr<Item> >(),
               Visibility visibility = Visibility::create_error(),
               ::std::vector<Attribute> inner_attrs = ::std::vector<Attribute>(),
               ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
-              Module(::std::move(visibility), ::std::move(outer_attrs)),
+              Module(::std::move(name), ::std::move(visibility), ::std::move(outer_attrs)),
               inner_attrs(::std::move(inner_attrs)), items(::std::move(items)) {}
 
             // Copy constructor with vector clone
@@ -795,8 +797,8 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Full constructor
-            ModuleNoBody(Visibility visibility, ::std::vector<Attribute> outer_attrs) :
-              Module(::std::move(visibility), ::std::move(outer_attrs)) {}
+            ModuleNoBody(Identifier name, Visibility visibility, ::std::vector<Attribute> outer_attrs) :
+              Module(::std::move(name), ::std::move(visibility), ::std::move(outer_attrs)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1290,6 +1292,7 @@ namespace Rust {
         // Rust base struct declaration AST node - abstract base class
         class Struct : public VisItem {
           protected:
+            // protected to enable access by derived classes - allows better as_string 
             Identifier struct_name;
 
             // bool has_generics;
@@ -1419,6 +1422,8 @@ namespace Rust {
             static StructField create_error() {
                 return StructField(::std::string(""), NULL, Visibility::create_error());
             }
+
+            ::std::string as_string() const;
         };
 
         // Rust struct declaration with true struct type AST node
@@ -1530,6 +1535,8 @@ namespace Rust {
             static TupleField create_error() {
                 return TupleField(NULL, Visibility::create_error());
             }
+
+            ::std::string as_string() const;
         };
 
         // Rust tuple declared using struct keyword AST node
@@ -1582,6 +1589,8 @@ namespace Rust {
                 return ::std::unique_ptr<EnumItem>(clone_enum_item_impl());
             }
 
+            virtual ::std::string as_string() const;
+
           protected:
             // Clone function implementation as (not pure) virtual method
             virtual EnumItem* clone_enum_item_impl() const {
@@ -1605,6 +1614,8 @@ namespace Rust {
               EnumItem(::std::move(variant_name), ::std::move(outer_attrs)),
               tuple_fields(::std::move(tuple_fields)) {}
 
+            ::std::string as_string() const;
+
           protected:
             // Clone function implementation as (not pure) virtual method
             virtual EnumItemTuple* clone_enum_item_impl() const {
@@ -1627,6 +1638,8 @@ namespace Rust {
               ::std::vector<Attribute> outer_attrs) :
               EnumItem(::std::move(variant_name), ::std::move(outer_attrs)),
               struct_fields(::std::move(struct_fields)) {}
+
+            ::std::string as_string() const;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -1675,6 +1688,8 @@ namespace Rust {
             // move constructors
             EnumItemDiscriminant(EnumItemDiscriminant&& other) = default;
             EnumItemDiscriminant& operator=(EnumItemDiscriminant&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -2096,6 +2111,8 @@ namespace Rust {
             // move constructors
             TraitFunctionDecl(TraitFunctionDecl&& other) = default;
             TraitFunctionDecl& operator=(TraitFunctionDecl&& other) = default;
+
+            ::std::string as_string() const;
         };
 
         // Actual trait item function declaration within traits
@@ -2108,6 +2125,11 @@ namespace Rust {
             /*~TraitItemFunc() {
                 delete block_expr;
             }*/
+
+            // Returns whether function has a definition or is just a declaration.
+            inline bool has_definition() const {
+                return block_expr != NULL;
+            }
 
             TraitItemFunc(
               TraitFunctionDecl decl, BlockExpr* block_expr, ::std::vector<Attribute> outer_attrs) :
@@ -2122,7 +2144,11 @@ namespace Rust {
 
             // Copy constructor with clone
             TraitItemFunc(TraitItemFunc const& other) :
-              TraitItem(other), decl(other.decl), block_expr(other.block_expr->clone_block_expr()) {}
+              TraitItem(other), decl(other.decl)/*, block_expr(other.block_expr->clone_block_expr())*/ {
+                if (other.block_expr != NULL) {
+                  block_expr = other.block_expr->clone_block_expr();
+                }
+              }
 
             // Destructor - define here if required
 
@@ -2130,7 +2156,9 @@ namespace Rust {
             TraitItemFunc& operator=(TraitItemFunc const& other) {
                 TraitItem::operator=(other);
                 decl = other.decl;
-                block_expr = other.block_expr->clone_block_expr();
+                if (other.block_expr != NULL) {
+                  block_expr = other.block_expr->clone_block_expr();
+                }
 
                 return *this;
             }
@@ -2138,6 +2166,8 @@ namespace Rust {
             // move constructors
             TraitItemFunc(TraitItemFunc&& other) = default;
             TraitItemFunc& operator=(TraitItemFunc&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -2251,6 +2281,8 @@ namespace Rust {
             // move constructors
             TraitMethodDecl(TraitMethodDecl&& other) = default;
             TraitMethodDecl& operator=(TraitMethodDecl&& other) = default;
+
+            ::std::string as_string() const;
         };
 
         // Actual trait item method declaration within traits
@@ -2263,6 +2295,11 @@ namespace Rust {
             /*~TraitItemMethod() {
                 delete block_expr;
             }*/
+
+            // Returns whether method has a definition or is just a declaration.
+            inline bool has_definition() const {
+                return block_expr != NULL;
+            }
 
             TraitItemMethod(
               TraitMethodDecl decl, BlockExpr* block_expr, ::std::vector<Attribute> outer_attrs) :
@@ -2293,6 +2330,8 @@ namespace Rust {
             // move constructors
             TraitItemMethod(TraitItemMethod&& other) = default;
             TraitItemMethod& operator=(TraitItemMethod&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -2353,6 +2392,8 @@ namespace Rust {
             TraitItemConst(TraitItemConst&& other) = default;
             TraitItemConst& operator=(TraitItemConst&& other) = default;
 
+            ::std::string as_string() const;
+
           protected:
             // Clone function implementation as (not pure) virtual method
             virtual TraitItemConst* clone_trait_item_impl() const {
@@ -2408,6 +2449,8 @@ namespace Rust {
             // default move constructors
             TraitItemType(TraitItemType&& other) = default;
             TraitItemType& operator=(TraitItemType&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -2559,6 +2602,8 @@ namespace Rust {
 
         // Implementation item declaration AST node - abstract base class
         class Impl : public VisItem {
+          // must be protected to allow subclasses to access them properly
+          protected:
             // bool has_generics;
             // Generics generic_params;
             ::std::vector< ::std::unique_ptr<GenericParam> > generic_params; // inlined
@@ -2670,6 +2715,8 @@ namespace Rust {
             ::std::unique_ptr<InherentImplItem> clone_inherent_impl_item() const {
                 return ::std::unique_ptr<InherentImplItem>(clone_inherent_impl_item_impl());
             }
+
+            virtual ::std::string as_string() const = 0;
         };
 
         // Macro item used within an inherent impl block
@@ -2679,6 +2726,10 @@ namespace Rust {
           public:
             InherentImplItemMacro(MacroInvocationSemi macro, ::std::vector<Attribute> outer_attrs) :
               InherentImplItem(::std::move(outer_attrs)), macro(::std::move(macro)) {}
+
+            ::std::string as_string() const {
+                return macro.as_string();
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2728,6 +2779,10 @@ namespace Rust {
             InherentImplItemConstant(InherentImplItemConstant&& other) = default;
             InherentImplItemConstant& operator=(InherentImplItemConstant&& other) = default;
 
+            ::std::string as_string() const {
+                return constant_item.as_string();
+            }
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual InherentImplItemConstant* clone_inherent_impl_item_impl() const OVERRIDE {
@@ -2775,6 +2830,10 @@ namespace Rust {
             InherentImplItemFunction(InherentImplItemFunction&& other) = default;
             InherentImplItemFunction& operator=(InherentImplItemFunction&& other) = default;
 
+            ::std::string as_string() const {
+                return function.as_string();
+            }
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual InherentImplItemFunction* clone_inherent_impl_item_impl() const OVERRIDE {
@@ -2786,24 +2845,21 @@ namespace Rust {
         class InherentImplItemMethod : public InherentImplItem {
             // bool has_visibility;
             // TODO: move visibility to method to be consistent with other inherent impl items?
-            Visibility visibility;
-
             Method method;
 
           public:
             // Returns whether the inherent impl item method has non-default (non-private) visibility.
             inline bool has_visibility() const {
-                return !visibility.is_error();
+                return method.has_visibility();
             }
 
             InherentImplItemMethod(
-              Method method, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              InherentImplItem(::std::move(outer_attrs)),
-              visibility(::std::move(vis)), method(::std::move(method)) {}
+              Method method, ::std::vector<Attribute> outer_attrs) :
+              InherentImplItem(::std::move(outer_attrs)), method(::std::move(method)) {}
 
             // Copy constructor with clone
             InherentImplItemMethod(InherentImplItemMethod const& other) :
-              InherentImplItem(other), visibility(other.visibility), method(other.method) {}
+              InherentImplItem(other), method(other.method) {}
 
             // Destructor - define here if required
 
@@ -2811,7 +2867,7 @@ namespace Rust {
             InherentImplItemMethod& operator=(InherentImplItemMethod const& other) {
                 InherentImplItem::operator=(other);
                 method = other.method;
-                visibility = other.visibility;
+                //visibility = other.visibility;
 
                 return *this;
             }
@@ -2819,6 +2875,10 @@ namespace Rust {
             // move constructors
             InherentImplItemMethod(InherentImplItemMethod&& other) = default;
             InherentImplItemMethod& operator=(InherentImplItemMethod&& other) = default;
+
+            ::std::string as_string() const {
+                return method.as_string();
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2924,6 +2984,8 @@ namespace Rust {
             ::std::unique_ptr<TraitImplItem> clone_trait_impl_item() const {
                 return ::std::unique_ptr<TraitImplItem>(clone_trait_impl_item_impl());
             }
+
+            virtual ::std::string as_string() const = 0;
         };
 
         // Macro invocation item in a trait impl
@@ -2933,6 +2995,10 @@ namespace Rust {
           public:
             TraitImplItemMacro(MacroInvocationSemi macro, ::std::vector<Attribute> outer_attrs) :
               TraitImplItem(::std::move(outer_attrs)), macro(::std::move(macro)) {}
+
+            ::std::string as_string() const {
+                return macro.as_string();
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2982,6 +3048,10 @@ namespace Rust {
             TraitImplItemTypeAlias(TraitImplItemTypeAlias&& other) = default;
             TraitImplItemTypeAlias& operator=(TraitImplItemTypeAlias&& other) = default;
 
+            ::std::string as_string() const {
+                return type_alias.as_string();
+            }
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TraitImplItemTypeAlias* clone_trait_impl_item_impl() const OVERRIDE {
@@ -3030,6 +3100,10 @@ namespace Rust {
             TraitImplItemConstant(TraitImplItemConstant&& other) = default;
             TraitImplItemConstant& operator=(TraitImplItemConstant&& other) = default;
 
+            ::std::string as_string() const {
+                return constant_item.as_string();
+            }
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TraitImplItemConstant* clone_trait_impl_item_impl() const OVERRIDE {
@@ -3077,6 +3151,10 @@ namespace Rust {
             TraitImplItemFunction(TraitImplItemFunction&& other) = default;
             TraitImplItemFunction& operator=(TraitImplItemFunction&& other) = default;
 
+            ::std::string as_string() const {
+                return function.as_string();
+            }
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TraitImplItemFunction* clone_trait_impl_item_impl() const OVERRIDE {
@@ -3087,7 +3165,7 @@ namespace Rust {
         // Method item in a trait impl
         class TraitImplItemMethod : public TraitImplItem {
             // bool has_visibility;
-            Visibility visibility;
+            //Visibility visibility;
 
             // TODO: add visibility to Method for consistency?
             Method method;
@@ -3095,16 +3173,16 @@ namespace Rust {
           public:
             // Returns whether the trait impl item method has non-default (non-private) visibility.
             inline bool has_visibility() const {
-                return !visibility.is_error();
+                return method.has_visibility();
             }
 
-            TraitImplItemMethod(Method method, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              TraitImplItem(::std::move(outer_attrs)), visibility(::std::move(vis)),
+            TraitImplItemMethod(Method method, ::std::vector<Attribute> outer_attrs) :
+              TraitImplItem(::std::move(outer_attrs)),
               method(::std::move(method)) {}
 
             // Copy constructor with clone
             TraitImplItemMethod(TraitImplItemMethod const& other) :
-              TraitImplItem(other), visibility(other.visibility), method(other.method) {}
+              TraitImplItem(other), method(other.method) {}
 
             // Destructor - define here if required
 
@@ -3112,7 +3190,7 @@ namespace Rust {
             TraitImplItemMethod& operator=(TraitImplItemMethod const& other) {
                 TraitImplItem::operator=(other);
                 method = other.method;
-                visibility = other.visibility;
+                //visibility = other.visibility;
 
                 return *this;
             }
@@ -3120,6 +3198,10 @@ namespace Rust {
             // move constructors
             TraitImplItemMethod(TraitImplItemMethod&& other) = default;
             TraitImplItemMethod& operator=(TraitImplItemMethod&& other) = default;
+
+            ::std::string as_string() const {
+                return method.as_string();
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3245,6 +3327,8 @@ namespace Rust {
                 return ::std::unique_ptr<ExternalItem>(clone_external_item_impl());
             }
 
+            virtual ::std::string as_string() const;
+
           protected:
             ExternalItem(Identifier item_name, Visibility vis, ::std::vector<Attribute> outer_attrs) :
               outer_attrs(::std::move(outer_attrs)), visibility(::std::move(vis)),
@@ -3270,6 +3354,11 @@ namespace Rust {
 
             // Clone function implementation as pure virtual method
             virtual ExternalItem* clone_external_item_impl() const = 0;
+
+            // possibly make this public if required
+            ::std::string get_item_name() const {
+                return item_name;
+            }
         };
 
         // A static item used in an extern block
@@ -3309,6 +3398,8 @@ namespace Rust {
             // move constructors
             ExternalStaticItem(ExternalStaticItem&& other) = default;
             ExternalStaticItem& operator=(ExternalStaticItem&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3368,6 +3459,8 @@ namespace Rust {
             // move constructors
             NamedFunctionParam(NamedFunctionParam&& other) = default;
             NamedFunctionParam& operator=(NamedFunctionParam&& other) = default;
+
+            ::std::string as_string() const;
         };
 
         // A function item used in an extern block
@@ -3461,6 +3554,8 @@ namespace Rust {
             ExternalFunctionItem(ExternalFunctionItem&& other) = default;
             ExternalFunctionItem& operator=(ExternalFunctionItem&& other) = default;
 
+            ::std::string as_string() const;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ExternalFunctionItem* clone_external_item_impl() const OVERRIDE {
@@ -3471,7 +3566,7 @@ namespace Rust {
         // An extern block AST node
         class ExternBlock : public VisItem {
             // bool has_abi;
-            AbiName abi;
+            ::std::string abi;
 
             // bool has_inner_attrs;
             ::std::vector<Attribute> inner_attrs;
@@ -3494,10 +3589,10 @@ namespace Rust {
 
             // Returns whether extern block has ABI name.
             inline bool has_abi() const {
-                return !abi.is_empty();
+                return !abi.empty();
             }
 
-            ExternBlock(AbiName abi, ::std::vector< ::std::unique_ptr<ExternalItem> > extern_items,
+            ExternBlock(::std::string abi, ::std::vector< ::std::unique_ptr<ExternalItem> > extern_items,
               Visibility vis, ::std::vector<Attribute> inner_attrs,
               ::std::vector<Attribute> outer_attrs) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),

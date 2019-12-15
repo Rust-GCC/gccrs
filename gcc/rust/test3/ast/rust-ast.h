@@ -877,6 +877,8 @@ namespace Rust {
             ::std::unique_ptr<TraitItem> clone_trait_item() const {
                 return ::std::unique_ptr<TraitItem>(clone_trait_item_impl());
             }
+
+            virtual ::std::string as_string() const;
         };
 
         // A macro invocation item (or statement) AST node (i.e. semi-coloned macro invocation)

@@ -173,38 +173,306 @@ namespace Rust {
             return str;
         }
 
-        ::std::string ModuleBodied::as_string() const {
+        ::std::string Module::as_string() const {
             ::std::string vis_item = VisItem::as_string();
 
-            return ::std::string("not implemented");
+            return vis_item + "mod " + module_name;
+        }
+
+        ::std::string ModuleBodied::as_string() const {
+            // get module string for "[vis] mod [name]"
+            ::std::string str = Module::as_string();
+
+            // inner attributes
+            str += "\n inner attributes: ";
+            if (inner_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "inner attribute" syntax - just the body
+                for (const auto& attr : inner_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            // items
+            str += "\n items: ";
+            if (items.empty()) {
+                str += "none";
+            } else {
+                for (const auto& item : items) {
+                    // DEBUG: null pointer check
+                    if (item == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer item in crate.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + item->as_string();
+                }
+            }
+
+            return str + "\n";
         }
 
         ::std::string ModuleNoBody::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = Module::as_string();
+
+            str += "\n no body (reference to external file)";
+
+            return str + "\n";
         }
 
         ::std::string StaticItem::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = VisItem::as_string();
+
+            str += "static";
+
+            if (has_mut) {
+                str += " mut";
+            }
+
+            str += name;
+
+            // DEBUG: null pointer check
+            if (type == NULL) {
+                fprintf(stderr, "something really terrible has gone wrong - null pointer type in static item.");
+                return "NULL_POINTER_MARK";
+            }
+            str += "\n  Type: " + type->as_string();
+
+            // DEBUG: null pointer check
+            if (expr == NULL) {
+                fprintf(stderr, "something really terrible has gone wrong - null pointer expr in static item.");
+                return "NULL_POINTER_MARK";
+            }
+            str += "\n  Expression: " + expr->as_string();
+
+            return str + "\n";
         }
 
         ::std::string ExternCrate::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = VisItem::as_string();
+
+            str += "extern crate " + referenced_crate;
+
+            if (has_as_clause()) {
+                str += " as " + as_clause_name;
+            }
+
+            return str;
         }
 
         ::std::string TupleStruct::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = VisItem::as_string();
+
+            str += "struct " + struct_name;
+
+            // generic params
+            str += "\n Generic params: ";
+            if (generic_params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : generic_params) {
+                    // DEBUG: null pointer check
+                    if (param == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in enum.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            // tuple fields
+            str += "\n Tuple fields: ";
+            if (fields.empty()) {
+                str += "none";
+            } else {
+                for (const auto& field : fields) {
+                    str += "\n  " + field.as_string();
+                }
+            }
+
+            str += "\n Where clause: ";
+            if (has_where_clause()) {
+                str += where_clause.as_string();
+            } else {
+                str += "none";
+            }
+
+            return str;
         }
 
         ::std::string ConstantItem::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = VisItem::as_string();
+
+            str += "const " + identifier;
+
+            // DEBUG: null pointer check
+            if (type == NULL) {
+                fprintf(stderr, "something really terrible has gone wrong - null pointer type in const item.");
+                return "NULL_POINTER_MARK";
+            }
+            str += "\n  Type: " + type->as_string();
+
+            // DEBUG: null pointer check
+            if (const_expr == NULL) {
+                fprintf(stderr, "something really terrible has gone wrong - null pointer expr in const item.");
+                return "NULL_POINTER_MARK";
+            }
+            str += "\n  Expression: " + const_expr->as_string();
+
+            return str + "\n";
         }
 
         ::std::string InherentImpl::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = VisItem::as_string();
+
+            str += "impl ";
+
+            // generic params
+            str += "\n Generic params: ";
+            if (generic_params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : generic_params) {
+                    // DEBUG: null pointer check
+                    if (param == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in inherent impl.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            str += "\n Type: " + trait_type->as_string();
+
+            str += "\n Where clause: ";
+            if (has_where_clause()) {
+                str += where_clause.as_string();
+            } else {
+                str += "none";
+            }
+
+            // inner attributes
+            str += "\n inner attributes: ";
+            if (inner_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "inner attribute" syntax - just the body
+                for (const auto& attr : inner_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            // inherent impl items
+            str += "\n Inherent impl items: ";
+            if (!has_impl_items()) {
+                str += "none";
+            } else {
+                for (const auto& item : impl_items) {
+                    str += "\n  " + item->as_string();
+                }
+            }
+
+            return str;
+        }
+
+        ::std::string Method::as_string() const {
+            ::std::string str("Method: \n ");
+
+            str += vis.as_string() + " " + qualifiers.as_string();
+
+            str += " fn " + method_name;
+
+            // generic params
+            str += "\n Generic params: ";
+            if (generic_params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : generic_params) {
+                    // DEBUG: null pointer check
+                    if (param == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in method.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            str += "\n Self param: " + self_param.as_string();
+
+            str += "\n Function params: ";
+            if (function_params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : function_params) {
+                    str += "\n  " + param.as_string();
+                }
+            }
+
+            str += "\n Return type: ";
+            if (has_return_type()) {
+                str += return_type->as_string();
+            } else {
+                str += "none (void)";
+            }
+
+            str += "\n Where clause: ";
+            if (has_where_clause()) {
+                str += where_clause.as_string();
+            } else {
+                str += "none";
+            }
+
+            str += "\n Block expr (body): \n  ";
+            str += expr->as_string();
+
+            return str;
         }
 
         ::std::string StructStruct::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = VisItem::as_string();
+
+            str += "struct " + struct_name;
+
+            // generic params
+            str += "\n Generic params: ";
+            if (generic_params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : generic_params) {
+                    // DEBUG: null pointer check
+                    if (param == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in enum.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            str += "\n Where clause: ";
+            if (has_where_clause()) {
+                str += where_clause.as_string();
+            } else {
+                str += "none";
+            }
+
+            // struct fields
+            str += "\n Struct fields: ";
+            if (is_unit) {
+                str += "none (unit)";
+            } else if (fields.empty()) {
+                str += "none (non-unit)";
+            } else {
+                for (const auto& field : fields) {
+                    str += "\n  " + field.as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string UseDeclaration::as_string() const {
@@ -295,20 +563,160 @@ namespace Rust {
         }
 
         ::std::string Enum::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = VisItem::as_string();
+            str += enum_name;
+
+            // generic params
+            str += "\n Generic params: ";
+            if (generic_params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : generic_params) {
+                    // DEBUG: null pointer check
+                    if (param == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in enum.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            str += "\n Where clause: ";
+            if (has_where_clause()) {
+                str += where_clause.as_string();
+            } else {
+                str += "none";
+            }
+
+            // items
+            str += "\n Items: ";
+            if (items.empty()) {
+                str += "none";
+            } else {
+                for (const auto& item : items) {
+                    // DEBUG: null pointer check
+                    if (item == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer enum item in enum.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + item->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string Trait::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = VisItem::as_string();
+
+            if (has_unsafe) {
+                str += "unsafe ";
+            }
+
+            str += "trait " + name;
+
+            // generic params
+            str += "\n Generic params: ";
+            if (generic_params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : generic_params) {
+                    // DEBUG: null pointer check
+                    if (param == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in trait.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            str += "\n Type param bounds: ";
+            if (!has_type_param_bounds()) {
+                str += "none";
+            } else {
+                for (const auto& bound : type_param_bounds) {
+                    // DEBUG: null pointer check
+                    if (bound == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer type param bound in trait.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + bound->as_string();
+                }
+            }
+
+            str += "\n Where clause: ";
+            if (!has_where_clause()) {
+                str += "none";
+            } else {
+                str += where_clause.as_string();
+            }
+
+            str += "\n Trait items: ";
+            if (!has_trait_items()) {
+                str += "none";
+            } else {
+                for (const auto& item : trait_items) {
+                    // DEBUG: null pointer check
+                    if (item == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer trait item in trait.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + item->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string Union::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = VisItem::as_string();
+
+            str += "union " + union_name;
+
+            // generic params
+            str += "\n Generic params: ";
+            if (generic_params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : generic_params) {
+                    // DEBUG: null pointer check
+                    if (param == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in union.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            str += "\n Where clause: ";
+            if (has_where_clause()) {
+                str += where_clause.as_string();
+            } else {
+                str += "none";
+            }
+
+            // struct fields
+            str += "\n Struct fields (variants): ";
+            if (variants.empty()) {
+                str += "none";
+            } else {
+                for (const auto& field : variants) {
+                    str += "\n  " + field.as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string Function::as_string() const {
             ::std::string str = VisItem::as_string() + "Function: ";
-            ::std::string qualifiers_str = qualifiers.as_string();
+            ::std::string qualifiers_str = "Qualifiers: " + qualifiers.as_string();
 
             ::std::string generic_params_str("Generic params: ");
             if (has_generics()) {
@@ -415,11 +823,90 @@ namespace Rust {
         }
 
         ::std::string TraitImpl::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = VisItem::as_string();
+
+            if (has_unsafe) {
+                str += "unsafe ";
+            }
+
+            str += "impl ";
+
+            // generic params
+            str += "\n Generic params: ";
+            if (!has_generics()) {
+                str += "none";
+            } else {
+                for (const auto& param : generic_params) {
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            str += "\n Has exclam: ";
+            if (has_exclam) {
+                str += "true";
+            } else {
+                str += "false";
+            }
+
+            str += "\n TypePath (to trait): " + trait_path.as_string();
+
+            str += "\n Type (struct to impl on): " + trait_type->as_string();
+
+            str += "\n Where clause: ";
+            if (!has_where_clause()) {
+                str += "none";
+            } else {
+                str += where_clause.as_string();
+            }
+
+            // inner attributes
+            str += "\n inner attributes: ";
+            if (inner_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "inner attribute" syntax - just the body
+                for (const auto& attr : inner_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            str += "\n trait impl items: ";
+            if (!has_impl_items()) {
+                str += "none";
+            } else {
+                for (const auto& item : impl_items) {
+                    str += "\n  " + item->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string TypeAlias::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = VisItem::as_string();
+
+            str += " " + new_type_name;
+
+            // generic params
+            str += "\n Generic params: ";
+            if (!has_generics()) {
+                str += "none";
+            } else {
+                for (const auto& param : generic_params) {
+                    str += param->as_string() + ", ";
+                }
+            }
+
+            str += "\n Where clause: ";
+            if (!has_where_clause()) {
+                str += "none";
+            } else {
+                str += where_clause.as_string();
+            }
+
+            str += "\n Type: " + existing_type->as_string();
+
+            return str;
         }
 
         ::std::string MacroInvocationSemi::as_string() const {
@@ -427,7 +914,34 @@ namespace Rust {
         }
 
         ::std::string ExternBlock::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = VisItem::as_string();
+
+            str += "extern ";
+            if (has_abi()) {
+                str += "\"" + abi + "\" ";
+            } 
+
+            // inner attributes
+            str += "\n inner attributes: ";
+            if (inner_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "inner attribute" syntax - just the body
+                for (const auto& attr : inner_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            str += "\n external items: ";
+            if (!has_extern_items()) {
+                str += "none";
+            } else {
+                for (const auto& item : extern_items) {
+                    str += "\n  " + item->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string MacroRulesDefinition::as_string() const {
@@ -712,7 +1226,34 @@ namespace Rust {
         }
 
         ::std::string FunctionQualifiers::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str;
+
+            switch (const_status) {
+                case NONE:
+                    // do nothing
+                    break;
+                case CONST:
+                    str += "const ";
+                    break;
+                case ASYNC:
+                    str += "async ";
+                    break;
+                default:
+                    return "ERROR_MARK_STRING: async-const status failure";
+            }
+
+            if (has_unsafe) {
+                str += "unsafe ";
+            }
+
+            if (has_extern) {
+                str += "extern";
+                if (extern_abi != "") {
+                    str += " \"" + extern_abi + "\"";
+                }
+            }
+
+            return str;
         }
 
         ::std::string TraitBound::as_string() const {
@@ -740,7 +1281,20 @@ namespace Rust {
         }
 
         ::std::string Lifetime::as_string() const {
-            return ::std::string("not implemented");
+            if (is_error()) {
+                return "error lifetime";
+            }
+
+            switch (lifetime_type) {
+                case NAMED:
+                    return "'" + lifetime_name;
+                case STATIC:
+                    return "'static";
+                case WILDCARD:
+                    return "'_";
+                default:
+                    return "ERROR-MARK-STRING: lifetime type failure";
+            }
         }
 
         ::std::string TypePath::as_string() const {
@@ -807,8 +1361,34 @@ namespace Rust {
         }
 
         ::std::string GenericArgs::as_string() const {
-            // TODO: write GenericArgs as string
-            return "not implemented";
+            ::std::string args;
+
+            // lifetime args
+            if (!lifetime_args.empty()) {
+                for (const auto& lifetime_arg : lifetime_args) {
+                    args += lifetime_arg.as_string() + ", ";
+                }
+            }
+
+            // type args
+            if (!type_args.empty()) {
+                for (const auto& type_arg : type_args) {
+                    args += type_arg->as_string() + ", ";
+                }
+            }
+
+            // binding args
+            if (!binding_args.empty()) {
+                for (const auto& binding_arg : binding_args) {
+                    args += binding_arg.as_string() + ", ";
+                }
+            }
+
+            return args;
+        }
+
+        ::std::string GenericArgsBinding::as_string() const {
+            return ::std::string("not implemented");
         }
 
         ::std::string ForLoopExpr::as_string() const {
@@ -940,6 +1520,433 @@ namespace Rust {
 
         ::std::string StructExprStructFields::as_string() const {
             return ::std::string("not implemented");
+        }
+
+        ::std::string EnumItem::as_string() const {
+            // outer attributes
+            ::std::string str = "outer attributes: ";
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            str += "\n" + variant_name;
+
+            return str;
+        }
+
+        ::std::string EnumItemTuple::as_string() const {
+            ::std::string str = EnumItem::as_string();
+            
+            // add tuple opening parens
+            str += "(";
+
+            // tuple fields
+            if (has_tuple_fields()) {
+                for (const auto& field : tuple_fields) {
+                    str += field.as_string() + ", ";
+                }
+            }
+
+            // add tuple closing parens
+            str += ")";
+
+            return str;
+        }
+
+        ::std::string TupleField::as_string() const {
+            // outer attributes
+            ::std::string str = "outer attributes: ";
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            if (has_visibility()) {
+                str += "\n" + visibility.as_string();
+            }
+
+            str += " " + field_type->as_string();
+
+            return str;
+        }
+
+        ::std::string EnumItemStruct::as_string() const {
+            ::std::string str = EnumItem::as_string();
+            
+            // add struct opening parens
+            str += "{";
+
+            // tuple fields
+            if (has_struct_fields()) {
+                for (const auto& field : struct_fields) {
+                    str += field.as_string() + ", ";
+                }
+            }
+
+            // add struct closing parens
+            str += "}";
+
+            return str;
+        }
+
+        ::std::string StructField::as_string() const {
+            // outer attributes
+            ::std::string str = "outer attributes: ";
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            if (has_visibility()) {
+                str += "\n" + visibility.as_string();
+            }
+
+            str += " " + field_name + " : " + field_type->as_string();
+
+            return str;
+        }
+
+        ::std::string EnumItemDiscriminant::as_string() const {
+            ::std::string str = EnumItem::as_string();
+
+            // add equal and expression
+            str += " = " + expression->as_string();
+
+            return str;
+        }
+
+        ::std::string ExternalItem::as_string() const {
+            // outer attributes
+            ::std::string str = "outer attributes: ";
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            // start visibility on new line and with a space
+            str += "\n" + visibility.as_string() + " ";
+
+            return str;
+        }
+
+        ::std::string ExternalStaticItem::as_string() const {
+            ::std::string str = ExternalItem::as_string();
+
+            str += "static ";
+
+            if (has_mut) {
+                str += "mut ";
+            }
+
+            // add name
+            str += get_item_name();
+
+            // add type on new line
+            str += "\n Type: " + item_type->as_string();
+
+            return str;
+        }
+
+        ::std::string ExternalFunctionItem::as_string() const {
+            ::std::string str = ExternalItem::as_string();
+
+            str += "fn ";
+
+            // add name
+            str += get_item_name();
+
+            // generic params
+            str += "\n Generic params: ";
+            if (generic_params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : generic_params) {
+                    // DEBUG: null pointer check
+                    if (param == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in external function item.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            // function params
+            str += "\n Function params: ";
+            if (function_params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : function_params) {
+                    str += "\n  " + param.as_string();
+                }
+                if (has_variadics) {
+                    str += "\n  .. (variadic)";
+                }
+            }
+
+            // add type on new line
+            str += "\n (return) Type: " + return_type->as_string();
+
+            // where clause
+            str += "\n Where clause: ";
+            if (has_where_clause()) {
+                str += where_clause.as_string();
+            } else {
+                str += "none";
+            }
+
+            return str;
+        }
+
+        ::std::string NamedFunctionParam::as_string() const {
+            ::std::string str = name;
+
+            str += "\n Type: " + param_type->as_string();
+
+            return str;
+        }
+
+        ::std::string TraitItem::as_string() const {
+            // outer attributes
+            ::std::string str = "outer attributes: ";
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            return str;
+        }
+
+        ::std::string TraitItemFunc::as_string() const {
+            ::std::string str = TraitItem::as_string();
+
+            str += "\n" + decl.as_string();
+
+            str += "\n Definition (block expr): ";
+            if (has_definition()) {
+                str += block_expr->as_string();
+            } else {
+                str += "none";
+            }
+
+            return str;
+        }
+
+        ::std::string TraitFunctionDecl::as_string() const {
+            ::std::string str = qualifiers.as_string() + "fn " + function_name;
+
+            // generic params
+            str += "\n Generic params: ";
+            if (generic_params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : generic_params) {
+                    // DEBUG: null pointer check
+                    if (param == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in trait function decl.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            str += "\n Function params: ";
+            if (has_params()) {
+                for (const auto& param : function_params) {
+                    str += "\n  " + param.as_string();
+                }
+            } else {
+                str += "none";
+            }
+
+            str += "\n Return type: ";
+            if (has_return_type()) {
+                str += return_type->as_string();
+            } else {
+                str += "none (void)";
+            }
+
+            str += "\n Where clause: ";
+            if (has_where_clause()) {
+                str += where_clause.as_string();
+            } else {
+                str += "none";
+            }
+
+            return str;
+        }
+
+        ::std::string TraitItemMethod::as_string() const {
+            ::std::string str = TraitItem::as_string();
+
+            str += "\n" + decl.as_string();
+
+            str += "\n Definition (block expr): ";
+            if (has_definition()) {
+                str += block_expr->as_string();
+            } else {
+                str += "none";
+            }
+
+            return str;
+        }
+
+        ::std::string TraitMethodDecl::as_string() const {
+            ::std::string str = qualifiers.as_string() + "fn " + function_name;
+
+            // generic params
+            str += "\n Generic params: ";
+            if (generic_params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : generic_params) {
+                    // DEBUG: null pointer check
+                    if (param == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in trait function decl.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            str += "\n Self param: " + self_param.as_string();
+
+            str += "\n Function params: ";
+            if (has_params()) {
+                for (const auto& param : function_params) {
+                    str += "\n  " + param.as_string();
+                }
+            } else {
+                str += "none";
+            }
+
+            str += "\n Return type: ";
+            if (has_return_type()) {
+                str += return_type->as_string();
+            } else {
+                str += "none (void)";
+            }
+
+            str += "\n Where clause: ";
+            if (has_where_clause()) {
+                str += where_clause.as_string();
+            } else {
+                str += "none";
+            }
+
+            return str;
+        }
+
+        ::std::string TraitItemConst::as_string() const {
+            ::std::string str = TraitItem::as_string();
+
+            str += "\nconst " + name + " : " + type->as_string();
+
+            if (has_expression()) {
+                str += " = " + expr->as_string();
+            }
+
+            return str;
+        }
+
+        ::std::string TraitItemType::as_string() const {
+            ::std::string str = TraitItem::as_string();
+
+            str += "\ntype " + name;
+
+            str += "\n Type param bounds: ";
+            if (!has_type_param_bounds()) {
+                str += "none";
+            } else {
+                for (const auto& bound : type_param_bounds) {
+                    // DEBUG: null pointer check
+                    if (bound == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer type param bound in trait item type.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    str += "\n  " + bound->as_string();
+                }
+            }
+
+            return str;
+        }
+
+        ::std::string SelfParam::as_string() const {
+            if (is_error()) {
+                return "error";
+            } else {
+                if (has_type()) {
+                    // type (i.e. not ref, no lifetime)
+                    ::std::string str;
+
+                    if (is_mut) {
+                        str += "mut ";
+                    }
+
+                    str += "self : ";
+
+                    str += type->as_string();
+
+                    return str;
+                } else if (has_lifetime()) {
+                    // ref and lifetime
+                    ::std::string str = "&" + lifetime.as_string() + " ";
+
+                    if (is_mut) {
+                        str += "mut ";
+                    }
+
+                    str += "self";
+
+                    return str;
+                } else if (has_ref) {
+                    // ref with no lifetime
+                    ::std::string str = "&";
+
+                    if (is_mut) {
+                        str += " mut ";
+                    }
+
+                    str += "self";
+
+                    return str;
+                } else {
+                    // no ref, no type
+                    ::std::string str;
+
+                    if (is_mut) {
+                        str += "mut ";
+                    }
+
+                    str += "self";
+
+                    return str;
+                }
+            }
         }
     }
 }

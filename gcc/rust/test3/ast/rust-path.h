@@ -86,6 +86,8 @@ namespace Rust {
             // move constructors
             GenericArgsBinding(GenericArgsBinding&& other) = default;
             GenericArgsBinding& operator=(GenericArgsBinding&& other) = default;
+
+            ::std::string as_string() const;
         };
 
         // Generic arguments allowed in each path expression segment - inline?

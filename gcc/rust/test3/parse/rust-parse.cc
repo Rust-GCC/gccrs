@@ -1784,7 +1784,10 @@ namespace Rust {
         skip_token(MOD);
 
         const_TokenPtr module_name = expect_token(IDENTIFIER);
-        // TODO: come back when module name has been implemented
+        if (module_name == NULL) {
+            return NULL;
+        }
+        Identifier name = module_name->get_str();
 
         const_TokenPtr t = lexer.peek_token();
 
@@ -1793,7 +1796,7 @@ namespace Rust {
                 lexer.skip_token();
 
                 return ::std::unique_ptr<AST::ModuleNoBody>(
-                  new AST::ModuleNoBody(::std::move(vis), ::std::move(outer_attrs))); // module name?
+                  new AST::ModuleNoBody(::std::move(name), ::std::move(vis), ::std::move(outer_attrs))); // module name?
             case LEFT_CURLY: {
                 lexer.skip_token();
 
@@ -1821,7 +1824,7 @@ namespace Rust {
                 }
 
                 return ::std::unique_ptr<AST::ModuleBodied>(
-                  new AST::ModuleBodied(::std::move(items), ::std::move(vis),
+                  new AST::ModuleBodied(::std::move(name), ::std::move(items), ::std::move(vis),
                     ::std::move(inner_attrs), ::std::move(outer_attrs))); // module name?
             }
             default:
@@ -4073,10 +4076,10 @@ namespace Rust {
         if (is_method) {
             AST::Method method_decl(::std::move(ident), ::std::move(qualifiers),
               ::std::move(generic_params), ::std::move(self_param), ::std::move(function_params),
-              ::std::move(return_type), ::std::move(where_clause), ::std::move(body));
+              ::std::move(return_type), ::std::move(where_clause), ::std::move(body), ::std::move(vis));
 
             return ::std::unique_ptr<AST::InherentImplItemMethod>(new AST::InherentImplItemMethod(
-              ::std::move(method_decl), ::std::move(vis), outer_attrs));
+              ::std::move(method_decl), outer_attrs));
         } else {
             // TODO: this is bad - double up of outer attributes
             AST::Function function_decl(::std::move(ident), ::std::move(qualifiers),
@@ -4403,13 +4406,13 @@ namespace Rust {
         if (is_method) {
             AST::Method method_decl(::std::move(ident), ::std::move(qualifiers),
               ::std::move(generic_params), ::std::move(self_param), ::std::move(function_params),
-              ::std::move(return_type), ::std::move(where_clause), ::std::move(body));
+              ::std::move(return_type), ::std::move(where_clause), ::std::move(body), ::std::move(vis));
 
             // DEBUG
             fprintf(stderr, "successfully parsed method trait impl item\n");
 
             return ::std::unique_ptr<AST::TraitImplItemMethod>(new AST::TraitImplItemMethod(
-              ::std::move(method_decl), ::std::move(vis), ::std::move(outer_attrs)));
+              ::std::move(method_decl), ::std::move(outer_attrs)));
         } else {
             // TODO: this is bad - double up of outer attributes
             AST::Function function_decl(::std::move(ident), ::std::move(qualifiers),
@@ -5395,9 +5398,10 @@ namespace Rust {
             return AST::Method::create_error();
         }
 
+        // does not parse visibility, but this method isn't used, so doesn't matter
         return AST::Method(::std::move(method_name), ::std::move(qualifiers),
           ::std::move(generic_params), ::std::move(self_param), ::std::move(function_params),
-          ::std::move(return_type), ::std::move(where_clause), ::std::move(block_expr));
+          ::std::move(return_type), ::std::move(where_clause), ::std::move(block_expr), AST::Visibility::create_error());
     }
 
     // Parses an expression statement (disambiguates to expression with or without block statement).
