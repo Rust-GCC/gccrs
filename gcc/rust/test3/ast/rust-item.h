@@ -149,6 +149,8 @@ namespace Rust {
                 return ::std::unique_ptr<WhereClauseItem>(clone_where_clause_item_impl());
             }
 
+            virtual ::std::string as_string() const = 0;
+
           protected:
             // Clone function implementation as pure virtual method
             virtual WhereClauseItem* clone_where_clause_item_impl() const = 0;
@@ -164,6 +166,8 @@ namespace Rust {
           public:
             LifetimeWhereClauseItem(Lifetime lifetime, ::std::vector<Lifetime> lifetime_bounds) :
               lifetime(::std::move(lifetime)), lifetime_bounds(::std::move(lifetime_bounds)) {}
+
+            ::std::string as_string() const;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -241,6 +245,8 @@ namespace Rust {
             // move constructors
             TypeBoundWhereClauseItem(TypeBoundWhereClauseItem&& other) = default;
             TypeBoundWhereClauseItem& operator=(TypeBoundWhereClauseItem&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Clone function implementation as (not pure) virtual method

@@ -1594,6 +1594,7 @@ namespace Rust {
                 return NULL;
             default:
                 // just the token
+                lexer.skip_token();
                 return ::std::unique_ptr<AST::Token>(new AST::Token(t));
         }
     }
@@ -9978,6 +9979,8 @@ namespace Rust {
                           lexer.peek_token(3)->get_token_description(),
                           lexer.peek_token(4)->get_token_description());
 
+                        fprintf(stderr, "can be struct expr: '%s', not a block: '%s'\n", restrictions.can_be_struct_expr ? "true" : "false", not_a_block ? "true" : "false");
+
                         // struct/enum expr struct
                         if (!restrictions.can_be_struct_expr && !not_a_block) {
                             // assume path is returned if not single segment
@@ -10130,9 +10133,10 @@ namespace Rust {
                   ::std::move(expr), AST::NegationExpr::NOT, ::std::move(outer_attrs)));
             }
             case ASTERISK: {
-                // pointer dereference only - TODO: ensure that it is
+                // pointer dereference only - HACK: as struct expressions should always be value expressions, cannot be dereferenced
                 ParseRestrictions entered_from_unary;
                 entered_from_unary.entered_from_unary = true;
+                entered_from_unary.can_be_struct_expr = false;
                 ::std::unique_ptr<AST::Expr> expr = parse_expr(
                   LBP_UNARY_ASTERISK, ::std::vector<AST::Attribute>(), entered_from_unary);
                 // FIXME: allow outer attributes on expression
@@ -10144,8 +10148,10 @@ namespace Rust {
                 ::std::unique_ptr<AST::Expr> expr = NULL;
                 bool is_mut_borrow = false;
 
+                // HACK: as struct expressions should always be value expressions, cannot be referenced
                 ParseRestrictions entered_from_unary;
                 entered_from_unary.entered_from_unary = true;
+                entered_from_unary.can_be_struct_expr = false;
 
                 if (lexer.peek_token()->get_id() == MUT) {
                     lexer.skip_token();

@@ -215,6 +215,8 @@ namespace Rust {
             inline bool is_single_segment() const {
                 return segments.size() == 1;
             }
+
+            virtual ::std::string as_string() const;
         };
 
         // AST node representing a path-in-expression pattern (path that allows generic arguments)
@@ -588,6 +590,8 @@ namespace Rust {
             static QualifiedPathType create_error() {
                 return QualifiedPathType(NULL);
             }
+
+            ::std::string as_string() const;
         };
 
         /* AST node representing a qualified path-in-expression pattern (path that allows specifying

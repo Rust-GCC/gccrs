@@ -3,6 +3,21 @@
 
 namespace Rust {
     namespace AST {
+        // Gets a string in a certain delim type.
+        ::std::string get_string_in_delims(::std::string str_input, DelimType delim_type) {
+            switch (delim_type) {
+                case PARENS:
+                    return "(" + str_input + ")";
+                case SQUARE:
+                    return "[" + str_input + "]";
+                case CURLY:
+                    return "{" + str_input + "}";
+                default:
+                    return "ERROR-MARK-STRING (delims)";
+            }
+            gcc_unreachable();
+        }
+
         ::std::string Crate::as_string() const {
             fprintf(stderr, "beginning crate recursive as-string\n");
 
@@ -34,7 +49,8 @@ namespace Rust {
                 for (const auto& item : items) {
                     // DEBUG: null pointer check
                     if (item == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer item in crate.");
+                        fprintf(stderr,
+                          "something really terrible has gone wrong - null pointer item in crate.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -81,7 +97,8 @@ namespace Rust {
                 for (const auto& tree : token_trees) {
                     // DEBUG: null pointer check
                     if (tree == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer token tree in delim token tree.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "token tree in delim token tree.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -96,7 +113,7 @@ namespace Rust {
         ::std::string Token::as_string() const {
             /* FIXME: only works when not identifier or literal or whatever, i.e. when doesn't store
              * string value */
-            //return get_token_description(token_id);
+            // return get_token_description(token_id);
 
             // maybe fixed - stores everything as string though, so storage-inefficient
             return str;
@@ -124,7 +141,10 @@ namespace Rust {
 
                 // DEBUG: remove later. Checks for path error.
                 if (segment.is_error()) {
-                    fprintf(stderr, "segment in path is error - this should've been filtered out. first segment was '%s' \n", segments.at(0).as_string().c_str());
+                    fprintf(stderr,
+                      "segment in path is error - this should've been filtered out. first segment "
+                      "was '%s' \n",
+                      segments.at(0).as_string().c_str());
                 }
             }
 
@@ -150,7 +170,7 @@ namespace Rust {
 
         // Creates a string that reflects the visibility stored.
         ::std::string VisItem::as_string() const {
-            // FIXME: can't do formatting on string to make identation occur. 
+            // FIXME: can't do formatting on string to make identation occur.
             ::std::string str = Item::as_string();
 
             if (has_visibility()) {
@@ -163,7 +183,7 @@ namespace Rust {
         // Creates a string that reflects the outer attributes stored.
         ::std::string Item::as_string() const {
             ::std::string str;
-            
+
             if (!outer_attrs.empty()) {
                 for (const auto& attr : outer_attrs) {
                     str += attr.as_string() + "\n";
@@ -202,7 +222,8 @@ namespace Rust {
                 for (const auto& item : items) {
                     // DEBUG: null pointer check
                     if (item == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer item in crate.");
+                        fprintf(stderr,
+                          "something really terrible has gone wrong - null pointer item in crate.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -234,14 +255,16 @@ namespace Rust {
 
             // DEBUG: null pointer check
             if (type == NULL) {
-                fprintf(stderr, "something really terrible has gone wrong - null pointer type in static item.");
+                fprintf(stderr,
+                  "something really terrible has gone wrong - null pointer type in static item.");
                 return "NULL_POINTER_MARK";
             }
             str += "\n  Type: " + type->as_string();
 
             // DEBUG: null pointer check
             if (expr == NULL) {
-                fprintf(stderr, "something really terrible has gone wrong - null pointer expr in static item.");
+                fprintf(stderr,
+                  "something really terrible has gone wrong - null pointer expr in static item.");
                 return "NULL_POINTER_MARK";
             }
             str += "\n  Expression: " + expr->as_string();
@@ -274,7 +297,8 @@ namespace Rust {
                 for (const auto& param : generic_params) {
                     // DEBUG: null pointer check
                     if (param == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in enum.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "generic param in enum.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -309,14 +333,16 @@ namespace Rust {
 
             // DEBUG: null pointer check
             if (type == NULL) {
-                fprintf(stderr, "something really terrible has gone wrong - null pointer type in const item.");
+                fprintf(stderr,
+                  "something really terrible has gone wrong - null pointer type in const item.");
                 return "NULL_POINTER_MARK";
             }
             str += "\n  Type: " + type->as_string();
 
             // DEBUG: null pointer check
             if (const_expr == NULL) {
-                fprintf(stderr, "something really terrible has gone wrong - null pointer expr in const item.");
+                fprintf(stderr,
+                  "something really terrible has gone wrong - null pointer expr in const item.");
                 return "NULL_POINTER_MARK";
             }
             str += "\n  Expression: " + const_expr->as_string();
@@ -337,7 +363,8 @@ namespace Rust {
                 for (const auto& param : generic_params) {
                     // DEBUG: null pointer check
                     if (param == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in inherent impl.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "generic param in inherent impl.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -393,7 +420,8 @@ namespace Rust {
                 for (const auto& param : generic_params) {
                     // DEBUG: null pointer check
                     if (param == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in method.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "generic param in method.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -445,7 +473,8 @@ namespace Rust {
                 for (const auto& param : generic_params) {
                     // DEBUG: null pointer check
                     if (param == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in enum.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "generic param in enum.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -480,7 +509,8 @@ namespace Rust {
 
             // DEBUG: null pointer check
             if (use_tree == NULL) {
-                fprintf(stderr, "something really terrible has gone wrong - null pointer use tree in use declaration.");
+                fprintf(stderr, "something really terrible has gone wrong - null pointer use tree in "
+                                "use declaration.");
                 return "NULL_POINTER_MARK";
             }
 
@@ -528,7 +558,8 @@ namespace Rust {
                 for (const auto& tree : trees) {
                     // DEBUG: null pointer check
                     if (tree == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer tree in use tree list.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "tree in use tree list.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -574,7 +605,8 @@ namespace Rust {
                 for (const auto& param : generic_params) {
                     // DEBUG: null pointer check
                     if (param == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in enum.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "generic param in enum.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -597,7 +629,8 @@ namespace Rust {
                 for (const auto& item : items) {
                     // DEBUG: null pointer check
                     if (item == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer enum item in enum.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "enum item in enum.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -625,7 +658,8 @@ namespace Rust {
                 for (const auto& param : generic_params) {
                     // DEBUG: null pointer check
                     if (param == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in trait.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "generic param in trait.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -640,7 +674,8 @@ namespace Rust {
                 for (const auto& bound : type_param_bounds) {
                     // DEBUG: null pointer check
                     if (bound == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer type param bound in trait.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "type param bound in trait.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -662,7 +697,8 @@ namespace Rust {
                 for (const auto& item : trait_items) {
                     // DEBUG: null pointer check
                     if (item == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer trait item in trait.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "trait item in trait.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -686,7 +722,8 @@ namespace Rust {
                 for (const auto& param : generic_params) {
                     // DEBUG: null pointer check
                     if (param == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in union.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "generic param in union.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -723,7 +760,8 @@ namespace Rust {
                 for (const auto& generic_param : generic_params) {
                     // DEBUG: null pointer check
                     if (generic_param == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in function item.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "generic param in function item.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -745,10 +783,11 @@ namespace Rust {
             ::std::string return_type_str("Return type: ");
             if (has_function_return_type()) {
                 // DEBUG: null pointer check
-                    if (return_type == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer return type in function.");
-                        return "NULL_POINTER_MARK";
-                    }
+                if (return_type == NULL) {
+                    fprintf(stderr, "something really terrible has gone wrong - null pointer return "
+                                    "type in function.");
+                    return "NULL_POINTER_MARK";
+                }
 
                 return_type_str += return_type->as_string();
             } else {
@@ -763,19 +802,33 @@ namespace Rust {
             }
 
             // DEBUG: null pointer check
-                    if (function_body == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer function body in function.");
-                        return "NULL_POINTER_MARK";
-                    }
+            if (function_body == NULL) {
+                fprintf(stderr, "something really terrible has gone wrong - null pointer function "
+                                "body in function.");
+                return "NULL_POINTER_MARK";
+            }
             ::std::string body_str = "Body: " + function_body->as_string();
 
-            str += "\n   " + qualifiers_str + "\n   " + generic_params_str + "\n   " + function_params_str + "\n   " + return_type_str + "\n   " + where_clause_str + "\n   " + body_str;
+            str += "\n   " + qualifiers_str + "\n   " + generic_params_str + "\n   "
+                   + function_params_str + "\n   " + return_type_str + "\n   " + where_clause_str
+                   + "\n   " + body_str;
 
             return str;
         }
 
         ::std::string WhereClause::as_string() const {
-            return ::std::string("not implemented");
+            // just print where clause items, don't mention "where" or "where clause"
+            ::std::string str;
+
+            if (where_clause_items.empty()) {
+                str = "none";
+            } else {
+                for (const auto& item : where_clause_items) {
+                    str += "\n  " + item->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string BlockExpr::as_string() const {
@@ -783,7 +836,7 @@ namespace Rust {
 
             // get outer attributes
             str += "\n " + Expr::as_string();
-            
+
             // inner attributes
             str += "\n inner attributes: ";
             if (inner_attrs.empty()) {
@@ -803,7 +856,8 @@ namespace Rust {
                 for (const auto& stmt : statements) {
                     // DEBUG: null pointer check
                     if (stmt == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer stmt in block expr.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "stmt in block expr.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -910,7 +964,28 @@ namespace Rust {
         }
 
         ::std::string MacroInvocationSemi::as_string() const {
-            return ::std::string("not implemented");
+            // get outer attrs
+            ::std::string str = MacroItem::as_string();
+
+            str += "\n" + path.as_string() + "!";
+
+            ::std::string tok_trees;
+            if (token_trees.empty()) {
+                tok_trees = "none";
+            } else {
+                for (const auto& tree : token_trees) {
+                    // DEBUG: null pointer check
+                    if (tree == NULL) {
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "token tree in macro invocation semi.");
+                        return "NULL_POINTER_MARK";
+                    }
+
+                    tok_trees += tree->as_string() + ", ";
+                }
+            }
+
+            return str + get_string_in_delims(::std::move(tok_trees), delim_type);
         }
 
         ::std::string ExternBlock::as_string() const {
@@ -919,7 +994,7 @@ namespace Rust {
             str += "extern ";
             if (has_abi()) {
                 str += "\"" + abi + "\" ";
-            } 
+            }
 
             // inner attributes
             str += "\n inner attributes: ";
@@ -953,7 +1028,13 @@ namespace Rust {
         }
 
         ::std::string PathInExpression::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str;
+
+            if (has_opening_scope_resolution) {
+                str = "::";
+            }
+
+            return str + PathPattern::as_string();
         }
 
         ::std::string ExprStmtWithBlock::as_string() const {
@@ -972,40 +1053,118 @@ namespace Rust {
             return ::std::string("not implemented");
         }
 
+        ::std::string PathPattern::as_string() const {
+            ::std::string str;
+
+            for (const auto& segment : segments) {
+                str += segment.as_string() + "::";
+            }
+
+            // basically a hack - remove last two characters of string (remove final ::)
+            str.erase(str.end() - 2);
+
+            return str;
+        }
+
+        ::std::string QualifiedPathType::as_string() const {
+            ::std::string str("<");
+            str += type_to_invoke_on->as_string();
+
+            if (has_as_clause()) {
+                str += " as " + trait_path.as_string();
+            }
+
+            return str + ">";
+        }
+
         ::std::string QualifiedPathInExpression::as_string() const {
-            return ::std::string("not implemented");
+            return path_type.as_string() + "::" + PathPattern::as_string();
         }
 
         ::std::string BorrowExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("&");
+
+            if (double_borrow) {
+                str += "&";
+            }
+
+            if (is_mut) {
+                str += "mut ";
+            }
+
+            str += main_or_left_expr->as_string();
+
+            return str;
         }
 
         ::std::string ReturnExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("return ");
+
+            if (has_return_expr()) {
+                str += return_expr->as_string();
+            }
+
+            return str;
         }
 
         ::std::string GroupedExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("Grouped expr:");
+
+            // inner attributes
+            str += "\n inner attributes: ";
+            if (inner_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "inner attribute" syntax - just the body
+                for (const auto& attr : inner_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            str += "\n Expr in parens: " + expr_in_parens->as_string();
+
+            return str;
         }
 
         ::std::string RangeToExpr::as_string() const {
-            return ::std::string("not implemented");
+            return ".." + to->as_string();
         }
 
         ::std::string ContinueExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("continue ");
+
+            if (has_label()) {
+                str += label.as_string();
+            }
+
+            return str;
         }
 
         ::std::string NegationExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str;
+
+            switch (negation_type) {
+                case NEGATE:
+                    str = "-";
+                    break;
+                case NOT:
+                    str = "!";
+                    break;
+                default:
+                    return "ERROR_MARK_STRING - negation expr";
+            }
+
+            str += main_or_left_expr->as_string();
+
+            return str;
         }
 
         ::std::string RangeFromExpr::as_string() const {
-            return ::std::string("not implemented");
+            return from->as_string() + "..";
         }
 
         ::std::string RangeFullExpr::as_string() const {
-            return ::std::string("not implemented");
+            return "..";
         }
 
         ::std::string WhileLoopExpr::as_string() const {
@@ -1013,7 +1172,7 @@ namespace Rust {
         }
 
         ::std::string ArrayIndexExpr::as_string() const {
-            return ::std::string("not implemented");
+            return array_expr->as_string() + "[" + index_expr->as_string() + "]";
         }
 
         ::std::string AssignmentExpr::as_string() const {
@@ -1033,11 +1192,46 @@ namespace Rust {
         }
 
         ::std::string AsyncBlockExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = "AsyncBlockExpr: ";
+
+            // get outer attributes
+            str += "\n " + Expr::as_string();
+
+            str += "\n Has move: ";
+            str += has_move ? "true" : "false";
+
+            return str + "\n" + block_expr->as_string();
         }
 
         ::std::string ComparisonExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str(main_or_left_expr->as_string());
+
+            switch (expr_type) {
+                case EQUAL:
+                    str += " == ";
+                    break;
+                case NOT_EQUAL:
+                    str += " != ";
+                    break;
+                case GREATER_THAN:
+                    str += " > ";
+                    break;
+                case LESS_THAN:
+                    str += " < ";
+                    break;
+                case GREATER_OR_EQUAL:
+                    str += " >= ";
+                    break;
+                case LESS_OR_EQUAL:
+                    str += " <= ";
+                    break;
+                default:
+                    return "ERROR_MARK_STRING - comparison expr";
+            }
+
+            str += right_expr->as_string();
+
+            return str;
         }
 
         ::std::string IfExprConseqIf::as_string() const {
@@ -1049,31 +1243,51 @@ namespace Rust {
         }
 
         ::std::string TupleIndexExpr::as_string() const {
-            return ::std::string("not implemented");
+            return tuple_expr->as_string() + "." + ::std::to_string(tuple_index);
         }
 
         ::std::string DereferenceExpr::as_string() const {
-            return ::std::string("not implemented");
+            return "*" + main_or_left_expr->as_string();
         }
 
         ::std::string FieldAccessExpr::as_string() const {
-            return ::std::string("not implemented");
+            return receiver->as_string() + "." + field;
         }
 
         ::std::string LazyBooleanExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str(main_or_left_expr->as_string());
+
+            switch (expr_type) {
+                case LOGICAL_OR:
+                    str += " || ";
+                    break;
+                case LOGICAL_AND:
+                    str += " && ";
+                    break;
+                default:
+                    return "ERROR_MARK_STRING - lazy boolean expr out of bounds";
+            }
+
+            str += right_expr->as_string();
+
+            return str;
         }
 
         ::std::string RangeFromToExpr::as_string() const {
-            return ::std::string("not implemented");
+            return from->as_string() + ".." + to->as_string();
         }
 
         ::std::string RangeToInclExpr::as_string() const {
-            return ::std::string("not implemented");
+            return "..=" + to->as_string();
         }
 
         ::std::string UnsafeBlockExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = "UnsafeBlockExpr: ";
+
+            // get outer attributes
+            str += "\n " + Expr::as_string();
+
+            return str + "\n" + expr->as_string();
         }
 
         ::std::string ClosureExprInner::as_string() const {
@@ -1101,11 +1315,11 @@ namespace Rust {
         }
 
         ::std::string RangeFromToInclExpr::as_string() const {
-            return ::std::string("not implemented");
+            return from->as_string() + "..=" + to->as_string();
         }
 
         ::std::string ErrorPropogationExpr::as_string() const {
-            return ::std::string("not implemented");
+            return main_or_left_expr->as_string() + "?";
         }
 
         ::std::string IfLetExprConseqIfLet::as_string() const {
@@ -1113,7 +1327,58 @@ namespace Rust {
         }
 
         ::std::string CompoundAssignmentExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string operator_str;
+            operator_str.reserve(1);
+
+            // get operator string
+            switch (expr_type) {
+                case ADD:
+                    operator_str = "+";
+                    break;
+                case SUBTRACT:
+                    operator_str = "-";
+                    break;
+                case MULTIPLY:
+                    operator_str = "*";
+                    break;
+                case DIVIDE:
+                    operator_str = "/";
+                    break;
+                case MODULUS:
+                    operator_str = "%";
+                    break;
+                case BITWISE_AND:
+                    operator_str = "&";
+                    break;
+                case BITWISE_OR:
+                    operator_str = "|";
+                    break;
+                case BITWISE_XOR:
+                    operator_str = "^";
+                    break;
+                case LEFT_SHIFT:
+                    operator_str = "<<";
+                    break;
+                case RIGHT_SHIFT:
+                    operator_str = ">>";
+                    break;
+                default:
+                    operator_str = "invalid operator. wtf";
+                    break;
+            }
+
+            operator_str += "=";
+
+            ::std::string str("CompoundAssignmentExpr: ");
+            if (main_or_left_expr == NULL || right_expr == NULL) {
+                str += "error. this is probably a parsing failure.";
+            } else {
+                str += "\n left: " + main_or_left_expr->as_string();
+                str += "\n right: " + right_expr->as_string();
+                str += "\n operator: " + operator_str;
+            }
+
+            return str;
         }
 
         ::std::string ArithmeticOrLogicalExpr::as_string() const {
@@ -1125,7 +1390,7 @@ namespace Rust {
                 case ADD:
                     operator_str = "+";
                     break;
-                case SUBTRACT: 
+                case SUBTRACT:
                     operator_str = "-";
                     break;
                 case MULTIPLY:
@@ -1178,11 +1443,31 @@ namespace Rust {
         }
 
         ::std::string ArrayExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("ArrayExpr:");
+
+            // inner attributes
+            str += "\n inner attributes: ";
+            if (inner_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "inner attribute" syntax - just the body
+                for (const auto& attr : inner_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            str += "\n Array elems: ";
+            if (!has_array_elems()) {
+                str += "none";
+            } else {
+                str += internal_elements->as_string();
+            }
+
+            return str;
         }
 
         ::std::string AwaitExpr::as_string() const {
-            return ::std::string("not implemented");
+            return awaited_expr->as_string() + ".await";
         }
 
         ::std::string BreakExpr::as_string() const {
@@ -1206,7 +1491,29 @@ namespace Rust {
         }
 
         ::std::string TupleExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("TupleExpr:");
+
+            // inner attributes
+            str += "\n inner attributes: ";
+            if (inner_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "inner attribute" syntax - just the body
+                for (const auto& attr : inner_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            str += "\n Tuple elements: ";
+            if (tuple_elems.empty()) {
+                str += "none";
+            } else {
+                for (const auto& elem : tuple_elems) {
+                    str += "\n  " + elem->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string ExprStmtWithoutBlock::as_string() const {
@@ -1316,7 +1623,8 @@ namespace Rust {
 
             for (const auto& segment : segments) {
                 // return empty path if doesn't meet simple path segment requirements
-                if (segment.is_error() || segment.has_generic_args() || segment.as_string() == "Self") {
+                if (segment.is_error() || segment.has_generic_args()
+                    || segment.as_string() == "Self") {
                     return SimplePath::create_empty();
                 }
 
@@ -1339,7 +1647,8 @@ namespace Rust {
 
             for (const auto& segment : segments) {
                 // return empty path if doesn't meet simple path segment requirements
-                if (segment == NULL || segment->is_error() || !segment->is_ident_only() || segment->as_string() == "Self") {
+                if (segment == NULL || segment->is_error() || !segment->is_ident_only()
+                    || segment->as_string() == "Self") {
                     return SimplePath::create_empty();
                 }
 
@@ -1355,7 +1664,7 @@ namespace Rust {
             ::std::string ident_str = segment_name.as_string();
             if (has_generic_args()) {
                 ident_str += "::<" + generic_args.as_string() + ">";
-            } 
+            }
 
             return ident_str;
         }
@@ -1428,7 +1737,28 @@ namespace Rust {
         }
 
         ::std::string LetStmt::as_string() const {
-            return ::std::string("not implemented");
+            // outer attributes
+            ::std::string str = "Outer attributes: ";
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            str += "\nlet " + variables_pattern->as_string();
+
+            if (has_type()) {
+                str += " : " + type->as_string();
+            }
+
+            if (has_init_expr()) {
+                str += " = " + init_expr->as_string();
+            }
+
+            return str;
         }
 
         // Used to get outer attributes for expressions.
@@ -1455,11 +1785,11 @@ namespace Rust {
         }
 
         ::std::string InferredType::as_string() const {
-            return "(inferred)";
+            return "_ (inferred)";
         }
 
         ::std::string TypeCastExpr::as_string() const {
-            return ::std::string("not implemented");
+            return main_or_left_expr->as_string() + " as " + type_to_convert_to->as_string();
         }
 
         ::std::string ImplTraitType::as_string() const {
@@ -1499,11 +1829,11 @@ namespace Rust {
         }
 
         ::std::string ArrayType::as_string() const {
-            return ::std::string("not implemented");
+            return "[" + elem_type->as_string() + "; " + size->as_string() + "]";
         }
 
         ::std::string SliceType::as_string() const {
-            return ::std::string("not implemented");
+            return "[" + elem_type->as_string() + "]";
         }
 
         ::std::string TupleType::as_string() const {
@@ -1541,7 +1871,7 @@ namespace Rust {
 
         ::std::string EnumItemTuple::as_string() const {
             ::std::string str = EnumItem::as_string();
-            
+
             // add tuple opening parens
             str += "(";
 
@@ -1581,7 +1911,7 @@ namespace Rust {
 
         ::std::string EnumItemStruct::as_string() const {
             ::std::string str = EnumItem::as_string();
-            
+
             // add struct opening parens
             str += "{";
 
@@ -1680,7 +2010,8 @@ namespace Rust {
                 for (const auto& param : generic_params) {
                     // DEBUG: null pointer check
                     if (param == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in external function item.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "generic param in external function item.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -1764,7 +2095,8 @@ namespace Rust {
                 for (const auto& param : generic_params) {
                     // DEBUG: null pointer check
                     if (param == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in trait function decl.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "generic param in trait function decl.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -1824,7 +2156,8 @@ namespace Rust {
                 for (const auto& param : generic_params) {
                     // DEBUG: null pointer check
                     if (param == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer generic param in trait function decl.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "generic param in trait function decl.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -1884,7 +2217,8 @@ namespace Rust {
                 for (const auto& bound : type_param_bounds) {
                     // DEBUG: null pointer check
                     if (bound == NULL) {
-                        fprintf(stderr, "something really terrible has gone wrong - null pointer type param bound in trait item type.");
+                        fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                        "type param bound in trait item type.");
                         return "NULL_POINTER_MARK";
                     }
 
@@ -1947,6 +2281,68 @@ namespace Rust {
                     return str;
                 }
             }
+        }
+
+        ::std::string ArrayElemsCopied::as_string() const {
+            return elem_to_copy->as_string() + "; " + num_copies->as_string();
+        }
+
+        ::std::string LifetimeWhereClauseItem::as_string() const {
+            ::std::string str("Lifetime: ");
+
+            str += lifetime.as_string();
+
+            str += "\nLifetime bounds: ";
+
+            for (const auto& bound : lifetime_bounds) {
+                str += "\n " + bound.as_string();
+            }
+
+            return str;
+        }
+
+        ::std::string TypeBoundWhereClauseItem::as_string() const {
+            ::std::string str("For lifetimes: ");
+
+            if (!has_for_lifetimes()) {
+                str += "none";
+            } else {
+                for (const auto& for_lifetime : for_lifetimes) {
+                    str += "\n " + for_lifetime.as_string();
+                }
+            }
+
+            str += "\nType: " + bound_type->as_string();
+
+            str += "\nType param bounds bounds: ";
+
+            for (const auto& bound : type_param_bounds) {
+                // debug null pointer check
+                if (bound == NULL) {
+                    return "NULL_POINTER_MARK - type param bounds";
+                }
+
+                str += "\n " + bound->as_string();
+            }
+
+            return str;
+        }
+
+        ::std::string ArrayElemsValues::as_string() const {
+            ::std::string str;
+
+            for (const auto& expr : values) {
+                // DEBUG: null pointer check
+                if (expr == NULL) {
+                    fprintf(stderr, "something really terrible has gone wrong - null pointer "
+                                    "expr in array elems values.");
+                    return "NULL_POINTER_MARK";
+                }
+
+                str += "\n  " + expr->as_string();
+            }
+
+            return str;
         }
     }
 }

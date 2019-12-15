@@ -1104,7 +1104,7 @@ namespace Rust {
             }
         };
 
-        // Base array initialisation internal element representation thing
+        // Base array initialisation internal element representation thing (abstract)
         // aka ArrayElements
         class ArrayElems {
           public:
@@ -1114,6 +1114,8 @@ namespace Rust {
             ::std::unique_ptr<ArrayElems> clone_array_elems() const {
                 return ::std::unique_ptr<ArrayElems>(clone_array_elems_impl());
             }
+
+            virtual ::std::string as_string() const = 0;
 
           protected:
             // pure virtual clone implementation
@@ -1158,6 +1160,8 @@ namespace Rust {
             // move constructors
             ArrayElemsValues(ArrayElemsValues&& other) = default;
             ArrayElemsValues& operator=(ArrayElemsValues&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             virtual ArrayElemsValues* clone_array_elems_impl() const OVERRIDE {
@@ -1206,6 +1210,8 @@ namespace Rust {
             ArrayElemsCopied(ArrayElemsCopied&& other) = default;
             ArrayElemsCopied& operator=(ArrayElemsCopied&& other) = default;
 
+            ::std::string as_string() const;
+
           protected:
             virtual ArrayElemsCopied* clone_array_elems_impl() const OVERRIDE {
                 return new ArrayElemsCopied(*this);
@@ -1225,12 +1231,10 @@ namespace Rust {
                 return inner_attrs;
             }
 
-            // Constructor requires ArrayElems pointer
-            ArrayExpr(ArrayElems* array_elems, ::std::vector<Attribute> inner_attribs,
-              ::std::vector<Attribute> outer_attribs) :
-              ExprWithoutBlock(::std::move(outer_attribs)),
-              inner_attrs(::std::move(inner_attribs)), internal_elements(array_elems) {}
-            // FIXME: deprecated
+            // Returns whether array expr has array elems or if it is just empty.
+            inline bool has_array_elems() const {
+                return internal_elements != NULL;
+            }
 
             // Constructor requires ArrayElems pointer
             ArrayExpr(::std::unique_ptr<ArrayElems> array_elems, ::std::vector<Attribute> inner_attribs,
@@ -1240,8 +1244,11 @@ namespace Rust {
 
             // Copy constructor requires cloning ArrayElems for polymorphism to hold
             ArrayExpr(ArrayExpr const& other) :
-              ExprWithoutBlock(other), inner_attrs(other.inner_attrs),
-              internal_elements(other.internal_elements->clone_array_elems()) {}
+              ExprWithoutBlock(other), inner_attrs(other.inner_attrs) {
+                if (other.has_array_elems()) {
+                  internal_elements = other.internal_elements->clone_array_elems();
+                }
+              }
 
             // Destructor - define here if required
 
@@ -1249,7 +1256,9 @@ namespace Rust {
             ArrayExpr& operator=(ArrayExpr const& other) {
                 ExprWithoutBlock::operator=(other);
                 inner_attrs = other.inner_attrs;
-                internal_elements = other.internal_elements->clone_array_elems();
+                if (other.has_array_elems()) {
+                  internal_elements = other.internal_elements->clone_array_elems();
+                }
                 // outer_attrs = other.outer_attrs;
 
                 return *this;
