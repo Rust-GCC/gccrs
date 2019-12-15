@@ -1482,9 +1482,11 @@ namespace Rust {
               ExprWithoutBlock(::std::move(outer_attribs)), struct_name(::std::move(struct_path)) {}
 
           public:
-            inline PathInExpression get_struct_name() const {
+            inline const PathInExpression& get_struct_name() const {
                 return struct_name;
             }
+
+            virtual ::std::string as_string() const;
         };
 
         // Actual AST node of the struct creator (with no fields). Not abstract!
@@ -1825,7 +1827,7 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            inline ::std::vector<Attribute> get_inner_attrs() const {
+            inline const ::std::vector<Attribute>& get_inner_attrs() const {
                 return inner_attrs;
             }
 

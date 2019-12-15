@@ -1239,7 +1239,28 @@ namespace Rust {
         }
 
         ::std::string MethodCallExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("MethodCallExpr: \n Object (receiver) expr: ");
+
+            str += receiver->as_string();
+
+            str += "\n Method path segment: \n";
+
+            str += method_name.as_string();
+
+            str += "\n Call params:";
+            if (params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : params) {
+                    if (param == NULL) {
+                        return "ERROR_MARK_STRING - method call expr param is null";
+                    }
+
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string TupleIndexExpr::as_string() const {
@@ -1435,7 +1456,24 @@ namespace Rust {
         }
 
         ::std::string CallExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("CallExpr: \n Function expr: ");
+
+            str += function->as_string();
+
+            str += "\n Call params:";
+            if (!has_params()) {
+                str += "none";
+            } else {
+                for (const auto& param : params) {
+                    if (param == NULL) {
+                        return "ERROR_MARK_STRING - call expr param is null";
+                    }
+
+                    str += "\n  " + param->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string LoopExpr::as_string() const {
@@ -1471,7 +1509,17 @@ namespace Rust {
         }
 
         ::std::string BreakExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("break ");
+
+            if (has_label()) {
+                str += label.as_string() + " ";
+            }
+
+            if (has_break_expr()) {
+                str += break_expr->as_string();
+            }
+
+            return str;
         }
 
         ::std::string IfExpr::as_string() const {
@@ -1483,7 +1531,7 @@ namespace Rust {
         }
 
         ::std::string LoopLabel::as_string() const {
-            return ::std::string("not implemented");
+            return label.as_string() + ": (label) ";
         }
 
         ::std::string MatchExpr::as_string() const {
@@ -1840,8 +1888,45 @@ namespace Rust {
             return ::std::string("not implemented");
         }
 
+        ::std::string StructExpr::as_string() const {
+           ::std::string str = ExprWithoutBlock::as_string();
+
+           str += "\nStructExpr";
+
+           str += "\n PathInExpr: " + struct_name.as_string();
+
+           return str;
+        }
+
         ::std::string StructExprTuple::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = StructExpr::as_string();
+
+            // inner attributes
+            str += "\n inner attributes: ";
+            if (inner_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "inner attribute" syntax - just the body
+                for (const auto& attr : inner_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            str += "\n Tuple fields: ";
+            if (exprs.empty()) {
+                str += "none";
+            } else {
+                for (const auto& field : exprs) {
+                    // debug - null pointer check
+                    if (field == NULL) {
+                        return "ERROR_MARK_STRING - nullptr struct expr tuple field";
+                    }
+
+                    str += "\n  " + field->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string StructExprStruct::as_string() const {
