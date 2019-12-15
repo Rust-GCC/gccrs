@@ -182,7 +182,7 @@ namespace Rust {
             }
 
             // Creates a trait bound (clone of this one's trait bound) - HACK 
-            virtual TraitBound* to_trait_bound(bool in_parens) const OVERRIDE {
+            virtual TraitBound* to_trait_bound(bool in_parens ATTRIBUTE_UNUSED) const OVERRIDE {
                 /* NOTE: obviously it is unknown whether the internal type is a trait bound due to 
                  * polymorphism, so just let the internal type handle it. As parenthesised type, it
                  * must be in parentheses. */
@@ -235,7 +235,7 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Creates a trait bound (clone of this one's trait bound) - HACK 
-            virtual TraitBound* to_trait_bound(bool in_parens) const OVERRIDE {
+            virtual TraitBound* to_trait_bound(bool in_parens ATTRIBUTE_UNUSED) const OVERRIDE {
                 /* NOTE: this assumes there is no dynamic dispatch specified- if there was, this 
                  * cloning would not be required as parsing is unambiguous. */
                 return new AST::TraitBound(trait_bound);

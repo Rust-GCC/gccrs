@@ -1765,12 +1765,6 @@ namespace Rust {
                 // DEBUG
                 fprintf(stderr, "called structexprstructfields clone expr without block impl - about to return new structexprstructfields\n");
 
-                // DEBUG
-                if (this == NULL) {
-                    fprintf(stderr, "this (structexprstructfields) is null! Returning null!\n");
-                    return NULL;
-                }
-
                 // DEBUG - test creation of a base from this
                 fprintf(stderr, "about to try to create and allocate structexprstruct \n");
                 StructExprStruct* test_DELETE = new StructExprStruct(*this);

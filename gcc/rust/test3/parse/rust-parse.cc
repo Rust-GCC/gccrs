@@ -5,26 +5,6 @@
 
 #include <algorithm> // for std::find
 
-/* parsing notes:
- *  kinds of "syntactic units" used:
- *  - statement: expresses an action to be carried out (executed), e.g.:
- *      function calls
- *      goto
- *      return
- *      (maybe) variable definition
- *      blocks (apparently) - as in {}
- *      control structures - if, while, do-while, switch
- *     cannot return a result and are executed only for side effects
- *     distinction may not exist in rust entirely due to functional influence of lots of things being
- *      expressions
- *
- *  - expression: stuff that evaluates to a value, e.g.:
- *      2 + 3
- *      y * 6
- *
- * - variable definition (maybe - if not a statement), e.g.:
- *      y = x + 2 */
-
 namespace Rust {
     // Left binding powers of operations.
     enum binding_powers {
@@ -3874,26 +3854,9 @@ namespace Rust {
             case SUPER:
             case SELF:
             case CRATE:
-            case DOLLAR_SIGN: {
+            case DOLLAR_SIGN: 
                 // these seem to be SimplePath tokens, so this is a macro invocation semi
-                ::std::unique_ptr<AST::MacroInvocationSemi> macro_invoc
-                  = parse_macro_invocation_semi(outer_attrs);
-                if (macro_invoc == NULL) {
-                    error_at(t->get_locus(), "could not parse macro inherent impl item");
-                    skip_after_semicolon();
-                    return NULL;
-                }
-                // TODO: keep ahead of possible hierachy changes
-                // have to do this then delete macro pointer because of taking param by value
-                ::std::unique_ptr<AST::InherentImplItemMacro> return_val(
-                  new AST::InherentImplItemMacro(*macro_invoc, outer_attrs));
-
-                // DEBUG: removed this - as unique pointer, should auto-delete
-                // delete macro_invoc;
-
-                // FIXME: ensure this doesn't cause double free
-                return return_val;
-            }
+                return parse_macro_invocation_semi(::std::move(outer_attrs));  
             case PUB: {
                 // visibility, so not a macro invocation semi - must be constant, function, or method
                 AST::Visibility vis = parse_visibility();
@@ -3912,27 +3875,8 @@ namespace Rust {
 
                         switch (t->get_id()) {
                             case IDENTIFIER:
-                            case UNDERSCORE: {
-                                ::std::unique_ptr<AST::ConstantItem> const_item
-                                  = parse_const_item(::std::move(vis), outer_attrs);
-                                if (const_item == NULL) {
-                                    error_at(
-                                      t->get_locus(), "could not parse constant inherent impl item");
-                                    skip_after_semicolon();
-                                    return NULL;
-                                }
-
-                                // have to do this then delete const item ptr because of taking param
-                                // by value
-                                ::std::unique_ptr<AST::InherentImplItemConstant> return_val(
-                                  new AST::InherentImplItemConstant(*const_item, outer_attrs));
-
-                                // DEBUG: removed this - unique ptr should auto-delete
-                                // delete const_item;
-
-                                // FIXME: ensure this doesn't cause double free
-                                return return_val;
-                            }
+                            case UNDERSCORE: 
+                                return parse_const_item(::std::move(vis), ::std::move(outer_attrs));
                             case UNSAFE:
                             case EXTERN_TOK:
                             case FN_TOK:
@@ -3964,26 +3908,8 @@ namespace Rust {
 
                 switch (t->get_id()) {
                     case IDENTIFIER:
-                    case UNDERSCORE: {
-                        ::std::unique_ptr<AST::ConstantItem> const_item
-                          = parse_const_item(AST::Visibility::create_error(), outer_attrs);
-                        if (const_item == NULL) {
-                            error_at(t->get_locus(), "could not parse constant inherent impl item");
-                            skip_after_semicolon();
-                            return NULL;
-                        }
-
-                        // have to do this then delete const item ptr because of taking param
-                        // by value
-                        ::std::unique_ptr<AST::InherentImplItemConstant> return_val(
-                          new AST::InherentImplItemConstant(*const_item, outer_attrs));
-
-                        // DEBUG: removed this - unique ptr should auto delete this
-                        // delete const_item;
-
-                        // FIXME: ensure this doesn't cause double free
-                        return return_val;
-                    }
+                    case UNDERSCORE: 
+                        return parse_const_item(AST::Visibility::create_error(), ::std::move(outer_attrs));
                     case UNSAFE:
                     case EXTERN_TOK:
                     case FN_TOK:
@@ -4075,21 +4001,13 @@ namespace Rust {
 
         // do actual if instead of ternary for return value optimisation
         if (is_method) {
-            AST::Method method_decl(::std::move(ident), ::std::move(qualifiers),
+            return ::std::unique_ptr<AST::Method>(new AST::Method(::std::move(ident), ::std::move(qualifiers),
               ::std::move(generic_params), ::std::move(self_param), ::std::move(function_params),
-              ::std::move(return_type), ::std::move(where_clause), ::std::move(body), ::std::move(vis));
-
-            return ::std::unique_ptr<AST::InherentImplItemMethod>(new AST::InherentImplItemMethod(
-              ::std::move(method_decl), outer_attrs));
+              ::std::move(return_type), ::std::move(where_clause), ::std::move(body), ::std::move(vis), ::std::move(outer_attrs)));
         } else {
-            // TODO: this is bad - double up of outer attributes
-            AST::Function function_decl(::std::move(ident), ::std::move(qualifiers),
+            return ::std::unique_ptr<AST::Function>(new AST::Function(::std::move(ident), ::std::move(qualifiers),
               ::std::move(generic_params), ::std::move(function_params), ::std::move(return_type),
-              ::std::move(where_clause), ::std::move(body), ::std::move(vis), outer_attrs);
-
-            // TODO: does this (function_decl) need move?
-            return ::std::unique_ptr<AST::InherentImplItemFunction>(
-              new AST::InherentImplItemFunction(::std::move(function_decl), outer_attrs));
+              ::std::move(where_clause), ::std::move(body), ::std::move(vis), ::std::move(outer_attrs)));
         }
     }
 
@@ -4107,82 +4025,19 @@ namespace Rust {
             case SUPER:
             case SELF:
             case CRATE:
-            case DOLLAR_SIGN: {
+            case DOLLAR_SIGN: 
                 // these seem to be SimplePath tokens, so this is a macro invocation semi
-                ::std::unique_ptr<AST::MacroInvocationSemi> macro_invoc
-                  = parse_macro_invocation_semi(outer_attrs);
-                if (macro_invoc == NULL) {
-                    error_at(t->get_locus(), "could not parse macro inherent impl item");
-                    skip_after_semicolon();
-                    return NULL;
-                }
-                // TODO: keep ahead of possible hierachy changes
-                // have to do this then delete macro pointer because of taking param by value
-                ::std::unique_ptr<AST::TraitImplItemMacro> return_val(
-                  new AST::TraitImplItemMacro(*macro_invoc, outer_attrs));
-
-                // DEBUG: removed this as unique ptr should auto delete
-                // delete macro_invoc;
-
-                // FIXME: ensure this doesn't cause double free
-
-                // DEBUG
-                fprintf(stderr, "successfully parsed macro trait impl item\n");
-
-                return return_val;
-            }
-            case TYPE: {
-                ::std::unique_ptr<AST::TypeAlias> type_alias
-                  = parse_type_alias(AST::Visibility::create_error(), outer_attrs);
-                if (type_alias == NULL) {
-                    error_at(t->get_locus(), "could not parse type alias inherent impl item");
-                    skip_after_semicolon();
-                    return NULL;
-                }
-
-                // have to do this then delete const item ptr because of taking param by value
-                ::std::unique_ptr<AST::TraitImplItemTypeAlias> return_val(
-                  new AST::TraitImplItemTypeAlias(*type_alias, outer_attrs));
-
-                // DEBUG: removed as unique ptr and should auto-delete
-                // delete type_alias;
-
-                // FIXME: ensure this doesn't cause double free
-
-                // DEBUG
-                fprintf(stderr, "successfully parsed typedef trait impl item\n");
-
-                return return_val;
-            }
+                return parse_macro_invocation_semi(::std::move(outer_attrs));
+            case TYPE: 
+                return parse_type_alias(AST::Visibility::create_error(), ::std::move(outer_attrs));
             case PUB: {
                 // visibility, so not a macro invocation semi - must be constant, function, or method
                 AST::Visibility vis = parse_visibility();
 
                 // TODO: is a recursive call to parse_trait_impl_item better?
                 switch (lexer.peek_token()->get_id()) {
-                    case TYPE: {
-                        ::std::unique_ptr<AST::TypeAlias> type_alias
-                          = parse_type_alias(::std::move(vis), outer_attrs);
-                        if (type_alias == NULL) {
-                            error_at(t->get_locus(), "could not parse type alias inherent impl item");
-                            skip_after_semicolon();
-                            return NULL;
-                        }
-
-                        // have to do this then delete const item ptr because of taking param by value
-                        ::std::unique_ptr<AST::TraitImplItemTypeAlias> return_val(
-                          new AST::TraitImplItemTypeAlias(*type_alias, outer_attrs));
-
-                        // DEBUG: removed as should auto delete as unique ptr
-                        // delete type_alias;
-
-                        // FIXME: ensure this doesn't cause double free
-
-                        // DEBUG
-                        fprintf(stderr, "successfully parsed pub typedef trait impl item\n");
-
-                        return return_val;
-                    }
+                    case TYPE: 
+                        return parse_type_alias(::std::move(vis), ::std::move(outer_attrs));
                     case EXTERN_TOK:
                     case UNSAFE:
                     case FN_TOK:
@@ -4195,31 +4050,8 @@ namespace Rust {
 
                         switch (t->get_id()) {
                             case IDENTIFIER:
-                            case UNDERSCORE: {
-                                ::std::unique_ptr<AST::ConstantItem> const_item
-                                  = parse_const_item(::std::move(vis), outer_attrs);
-                                if (const_item == NULL) {
-                                    error_at(
-                                      t->get_locus(), "could not parse constant trait impl item");
-                                    skip_after_semicolon();
-                                    return NULL;
-                                }
-
-                                // have to do this then delete const item ptr because of taking param
-                                // by value
-                                ::std::unique_ptr<AST::TraitImplItemConstant> return_val(
-                                  new AST::TraitImplItemConstant(*const_item, outer_attrs));
-
-                                // DEBUG: removed as unique ptr should auto delete
-                                // delete const_item;
-
-                                // FIXME: ensure this doesn't cause double free
-
-                                // DEBUG
-                                fprintf(stderr, "successfully parsed pub const trait impl item\n");
-
-                                return return_val;
-                            }
+                            case UNDERSCORE: 
+                                return parse_const_item(::std::move(vis), ::std::move(outer_attrs));            
                             case UNSAFE:
                             case EXTERN_TOK:
                             case FN_TOK:
@@ -4251,30 +4083,8 @@ namespace Rust {
 
                 switch (t->get_id()) {
                     case IDENTIFIER:
-                    case UNDERSCORE: {
-                        ::std::unique_ptr<AST::ConstantItem> const_item
-                          = parse_const_item(AST::Visibility::create_error(), outer_attrs);
-                        if (const_item == NULL) {
-                            error_at(t->get_locus(), "could not parse constant trait impl item");
-                            skip_after_semicolon();
-                            return NULL;
-                        }
-
-                        // have to do this then delete const item ptr because of taking param
-                        // by value
-                        ::std::unique_ptr<AST::TraitImplItemConstant> return_val(
-                          new AST::TraitImplItemConstant(*const_item, outer_attrs));
-
-                        // DEBUG: removed as should auto delete as unique ptr
-                        // delete const_item;
-
-                        // FIXME: ensure this doesn't cause double free
-
-                        // DEBUG
-                        fprintf(stderr, "successfully parsed const trait impl item\n");
-
-                        return return_val;
-                    }
+                    case UNDERSCORE: 
+                        return parse_const_item(AST::Visibility::create_error(), ::std::move(outer_attrs));
                     case UNSAFE:
                     case EXTERN_TOK:
                     case FN_TOK:
@@ -4405,26 +4215,13 @@ namespace Rust {
 
         // do actual if instead of ternary for return value optimisation
         if (is_method) {
-            AST::Method method_decl(::std::move(ident), ::std::move(qualifiers),
+            return ::std::unique_ptr<AST::Method>(new AST::Method(::std::move(ident), ::std::move(qualifiers),
               ::std::move(generic_params), ::std::move(self_param), ::std::move(function_params),
-              ::std::move(return_type), ::std::move(where_clause), ::std::move(body), ::std::move(vis));
-
-            // DEBUG
-            fprintf(stderr, "successfully parsed method trait impl item\n");
-
-            return ::std::unique_ptr<AST::TraitImplItemMethod>(new AST::TraitImplItemMethod(
-              ::std::move(method_decl), ::std::move(outer_attrs)));
+              ::std::move(return_type), ::std::move(where_clause), ::std::move(body), ::std::move(vis), ::std::move(outer_attrs)));
         } else {
-            // TODO: this is bad - double up of outer attributes
-            AST::Function function_decl(::std::move(ident), ::std::move(qualifiers),
+            return ::std::unique_ptr<AST::Function>(new AST::Function(::std::move(ident), ::std::move(qualifiers),
               ::std::move(generic_params), ::std::move(function_params), ::std::move(return_type),
-              ::std::move(where_clause), ::std::move(body), ::std::move(vis), outer_attrs);
-
-            // DEBUG
-            fprintf(stderr, "successfully parsed function trait impl item\n");
-
-            return ::std::unique_ptr<AST::TraitImplItemFunction>(
-              new AST::TraitImplItemFunction(::std::move(function_decl), outer_attrs));
+              ::std::move(where_clause), ::std::move(body), ::std::move(vis), ::std::move(outer_attrs)));
         }
     }
 
@@ -5402,7 +5199,7 @@ namespace Rust {
         // does not parse visibility, but this method isn't used, so doesn't matter
         return AST::Method(::std::move(method_name), ::std::move(qualifiers),
           ::std::move(generic_params), ::std::move(self_param), ::std::move(function_params),
-          ::std::move(return_type), ::std::move(where_clause), ::std::move(block_expr), AST::Visibility::create_error());
+          ::std::move(return_type), ::std::move(where_clause), ::std::move(block_expr), AST::Visibility::create_error(), ::std::vector<AST::Attribute>());
     }
 
     // Parses an expression statement (disambiguates to expression with or without block statement).
@@ -5990,7 +5787,7 @@ namespace Rust {
 
     /* Parses an if expression of any kind, including with else, else if, else if let, and neither.
      * Note that any outer attributes will be ignored because if expressions don't support them. */
-    ::std::unique_ptr<AST::IfExpr> Parser::parse_if_expr(::std::vector<AST::Attribute> outer_attrs) {
+    ::std::unique_ptr<AST::IfExpr> Parser::parse_if_expr(::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED) {
         // TODO: make having outer attributes an error?
 
         skip_token(IF);
@@ -6095,7 +5892,7 @@ namespace Rust {
     /* Parses an if let expression of any kind, including with else, else if, else if let, and none.
      * Note that any outer attributes will be ignored as if let expressions don't support them. */
     ::std::unique_ptr<AST::IfLetExpr> Parser::parse_if_let_expr(
-      ::std::vector<AST::Attribute> outer_attrs) {
+      ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED) {
         // TODO: make having outer attributes an error?
 
         skip_token(IF);
@@ -10500,8 +10297,8 @@ namespace Rust {
     }
 
     // Parses a binary addition expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_plus_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_plus_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10517,8 +10314,8 @@ namespace Rust {
 
     // Parses a binary subtraction expression (with Pratt parsing).
     ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_minus_expr(
-      const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left,
-      ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions) {
+      const_TokenPtr tok ATTRIBUTE_UNUSED, ::std::unique_ptr<AST::Expr> left,
+      ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
           = parse_expr(LBP_MINUS, ::std::vector<AST::Attribute>(), restrictions);
@@ -10532,8 +10329,8 @@ namespace Rust {
     }
 
     // Parses a binary multiplication expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_mult_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_mult_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10548,8 +10345,8 @@ namespace Rust {
     }
 
     // Parses a binary division expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_div_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_div_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10564,8 +10361,8 @@ namespace Rust {
     }
 
     // Parses a binary modulo expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_mod_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_binary_mod_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10580,8 +10377,8 @@ namespace Rust {
     }
 
     // Parses a binary bitwise (or eager logical) and expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_bitwise_and_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_bitwise_and_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10596,8 +10393,8 @@ namespace Rust {
     }
 
     // Parses a binary bitwise (or eager logical) or expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_bitwise_or_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_bitwise_or_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10612,8 +10409,8 @@ namespace Rust {
     }
 
     // Parses a binary bitwise (or eager logical) xor expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_bitwise_xor_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_bitwise_xor_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10628,8 +10425,8 @@ namespace Rust {
     }
 
     // Parses a binary left shift expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_left_shift_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_left_shift_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10644,8 +10441,8 @@ namespace Rust {
     }
 
     // Parses a binary right shift expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_right_shift_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> Parser::parse_right_shift_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10660,8 +10457,8 @@ namespace Rust {
     }
 
     // Parses a binary equal to expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_equal_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_equal_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10676,8 +10473,8 @@ namespace Rust {
     }
 
     // Parses a binary not equal to expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_not_equal_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_not_equal_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10692,8 +10489,8 @@ namespace Rust {
     }
 
     // Parses a binary greater than expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_greater_than_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_greater_than_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10708,8 +10505,8 @@ namespace Rust {
     }
 
     // Parses a binary less than expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_less_than_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_less_than_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10724,8 +10521,8 @@ namespace Rust {
     }
 
     // Parses a binary greater than or equal to expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_greater_equal_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_greater_equal_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10740,8 +10537,8 @@ namespace Rust {
     }
 
     // Parses a binary less than or equal to expression (with Pratt parsing).
-    ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_less_equal_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::ComparisonExpr> Parser::parse_binary_less_equal_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10756,8 +10553,8 @@ namespace Rust {
     }
 
     // Parses a binary lazy boolean or expression (with Pratt parsing).
-    ::std::unique_ptr<AST::LazyBooleanExpr> Parser::parse_lazy_or_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::LazyBooleanExpr> Parser::parse_lazy_or_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10772,8 +10569,8 @@ namespace Rust {
     }
 
     // Parses a binary lazy boolean and expression (with Pratt parsing).
-    ::std::unique_ptr<AST::LazyBooleanExpr> Parser::parse_lazy_and_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::LazyBooleanExpr> Parser::parse_lazy_and_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10788,9 +10585,9 @@ namespace Rust {
     }
 
     // Parses a pseudo-binary infix type cast expression (with Pratt parsing).
-    ::std::unique_ptr<AST::TypeCastExpr> Parser::parse_type_cast_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> expr_to_cast, ::std::vector<AST::Attribute> outer_attrs,
-      ParseRestrictions restrictions) {
+    ::std::unique_ptr<AST::TypeCastExpr> Parser::parse_type_cast_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> expr_to_cast, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
+      ParseRestrictions restrictions ATTRIBUTE_UNUSED) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::TypeNoBounds> type = parse_type_no_bounds();
         if (type == NULL)
@@ -10804,8 +10601,8 @@ namespace Rust {
     }
 
     // Parses a binary assignment expression (with Pratt parsing).
-    ::std::unique_ptr<AST::AssignmentExpr> Parser::parse_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::AssignmentExpr> Parser::parse_assig_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10821,8 +10618,8 @@ namespace Rust {
     }
 
     // Parses a binary add-assignment expression (with Pratt parsing).
-    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_plus_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_plus_assig_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10838,8 +10635,8 @@ namespace Rust {
     }
 
     // Parses a binary minus-assignment expression (with Pratt parsing).
-    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_minus_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_minus_assig_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10855,8 +10652,8 @@ namespace Rust {
     }
 
     // Parses a binary multiplication-assignment expression (with Pratt parsing).
-    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_mult_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_mult_assig_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10872,8 +10669,8 @@ namespace Rust {
     }
 
     // Parses a binary division-assignment expression (with Pratt parsing).
-    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_div_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_div_assig_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10889,8 +10686,8 @@ namespace Rust {
     }
 
     // Parses a binary modulo-assignment expression (with Pratt parsing).
-    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_mod_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_mod_assig_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10906,8 +10703,8 @@ namespace Rust {
     }
 
     // Parses a binary and-assignment expression (with Pratt parsing).
-    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_and_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_and_assig_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10923,8 +10720,8 @@ namespace Rust {
     }
 
     // Parses a binary or-assignment expression (with Pratt parsing).
-    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_or_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_or_assig_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10940,8 +10737,8 @@ namespace Rust {
     }
 
     // Parses a binary xor-assignment expression (with Pratt parsing).
-    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_xor_assig_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_xor_assig_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -10958,8 +10755,8 @@ namespace Rust {
 
     // Parses a binary left shift-assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_left_shift_assig_expr(
-      const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left,
-      ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions) {
+      const_TokenPtr tok ATTRIBUTE_UNUSED, ::std::unique_ptr<AST::Expr> left,
+      ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
           = parse_expr(LBP_L_SHIFT_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
@@ -10975,8 +10772,8 @@ namespace Rust {
 
     // Parses a binary right shift-assignment expression (with Pratt parsing).
     ::std::unique_ptr<AST::CompoundAssignmentExpr> Parser::parse_right_shift_assig_expr(
-      const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left,
-      ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions) {
+      const_TokenPtr tok ATTRIBUTE_UNUSED, ::std::unique_ptr<AST::Expr> left,
+      ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
           = parse_expr(LBP_R_SHIFT_ASSIG - 1, ::std::vector<AST::Attribute>(), restrictions);
@@ -11010,8 +10807,8 @@ namespace Rust {
 
     /* Parses an exclusive range ('..') in left denotation position (i.e. RangeFromExpr or
      * RangeFromToExpr). */
-    ::std::unique_ptr<AST::RangeExpr> Parser::parse_led_range_exclusive_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::RangeExpr> Parser::parse_led_range_exclusive_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // FIXME: this probably parses expressions accidently or whatever
         // try parsing RHS (as tok has already been consumed in parse_expression)
@@ -11030,7 +10827,7 @@ namespace Rust {
     /* Parses an exclusive range ('..') in null denotation position (i.e. RangeToExpr or
      * RangeFullExpr). */
     ::std::unique_ptr<AST::RangeExpr> Parser::parse_nud_range_exclusive_expr(
-      const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs) {
+      const_TokenPtr tok ATTRIBUTE_UNUSED, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED) {
         // FIXME: this probably parses expressions accidently or whatever
         // try parsing RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_DOT_DOT, ::std::vector<AST::Attribute>());
@@ -11044,8 +10841,8 @@ namespace Rust {
     }
 
     // Parses a full binary range inclusive expression.
-    ::std::unique_ptr<AST::RangeFromToInclExpr> Parser::parse_range_inclusive_expr(const_TokenPtr tok,
-      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+    ::std::unique_ptr<AST::RangeFromToInclExpr> Parser::parse_range_inclusive_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
+      ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right
@@ -11062,7 +10859,7 @@ namespace Rust {
 
     // Parses an inclusive range-to prefix unary expression.
     ::std::unique_ptr<AST::RangeToInclExpr> Parser::parse_range_to_inclusive_expr(
-      const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs) {
+      const_TokenPtr tok ATTRIBUTE_UNUSED, ::std::vector<AST::Attribute> outer_attrs ATTRIBUTE_UNUSED) {
         // parse RHS (as tok has already been consumed in parse_expression)
         ::std::unique_ptr<AST::Expr> right = parse_expr(LBP_DOT_DOT_EQ);
         if (right == NULL)
@@ -11075,7 +10872,7 @@ namespace Rust {
     }
 
     // Parses a pseudo-binary infix tuple index expression.
-    ::std::unique_ptr<AST::TupleIndexExpr> Parser::parse_tuple_index_expr(const_TokenPtr tok,
+    ::std::unique_ptr<AST::TupleIndexExpr> Parser::parse_tuple_index_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
       ::std::unique_ptr<AST::Expr> tuple_expr, ::std::vector<AST::Attribute> outer_attrs,
       ParseRestrictions restrictions ATTRIBUTE_UNUSED) {
         // parse int literal (as token already skipped)
@@ -11093,7 +10890,7 @@ namespace Rust {
     }
 
     // Parses a pseudo-binary infix array (or slice) index expression.
-    ::std::unique_ptr<AST::ArrayIndexExpr> Parser::parse_index_expr(const_TokenPtr tok,
+    ::std::unique_ptr<AST::ArrayIndexExpr> Parser::parse_index_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
       ::std::unique_ptr<AST::Expr> array_expr, ::std::vector<AST::Attribute> outer_attrs,
       ParseRestrictions restrictions) {
         // parse RHS (as tok has already been consumed in parse_expression)
@@ -11115,9 +10912,9 @@ namespace Rust {
     }
 
     // Parses a pseudo-binary infix struct field access expression.
-    ::std::unique_ptr<AST::FieldAccessExpr> Parser::parse_field_access_expr(const_TokenPtr tok,
+    ::std::unique_ptr<AST::FieldAccessExpr> Parser::parse_field_access_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
       ::std::unique_ptr<AST::Expr> struct_expr, ::std::vector<AST::Attribute> outer_attrs,
-      ParseRestrictions restrictions) {
+      ParseRestrictions restrictions ATTRIBUTE_UNUSED) {
         // get field name identifier (assume that this is a field access expr and not say await)
         const_TokenPtr ident_tok = expect_token(IDENTIFIER);
         Identifier ident = ident_tok->get_str();
@@ -11130,7 +10927,7 @@ namespace Rust {
     // Parses a pseudo-binary infix method call expression.
     ::std::unique_ptr<AST::MethodCallExpr> Parser::parse_method_call_expr(const_TokenPtr tok,
       ::std::unique_ptr<AST::Expr> receiver_expr, ::std::vector<AST::Attribute> outer_attrs,
-      ParseRestrictions restrictions) {
+      ParseRestrictions restrictions ATTRIBUTE_UNUSED) {
         // parse path expr segment
         AST::PathExprSegment segment = parse_path_expr_segment();
         if (segment.is_error()) {
@@ -11176,9 +10973,9 @@ namespace Rust {
     }
 
     // Parses a pseudo-binary infix function call expression.
-    ::std::unique_ptr<AST::CallExpr> Parser::parse_function_call_expr(const_TokenPtr tok,
+    ::std::unique_ptr<AST::CallExpr> Parser::parse_function_call_expr(const_TokenPtr tok ATTRIBUTE_UNUSED,
       ::std::unique_ptr<AST::Expr> function_expr, ::std::vector<AST::Attribute> outer_attrs,
-      ParseRestrictions restrictions) {
+      ParseRestrictions restrictions ATTRIBUTE_UNUSED) {
         // parse function params (if they exist)
         ::std::vector< ::std::unique_ptr<AST::Expr> > params;
 
@@ -11232,7 +11029,7 @@ namespace Rust {
         fprintf(stderr, "successfully parsed macro invocation (via partial)\n");
 
         return ::std::unique_ptr<AST::MacroInvocation>(new AST::MacroInvocation(
-          ::std::move(converted_path), ::std::move(tok_tree), ::std::vector<AST::Attribute>()));
+          ::std::move(converted_path), ::std::move(tok_tree), ::std::move(outer_attrs)));
     }
 
     // Parses a struct expr struct with a path in expression already parsed (but not '{' token).

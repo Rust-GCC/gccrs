@@ -233,6 +233,10 @@ namespace Rust {
 
           public:
             MacroTranscriber(DelimTokenTree token_tree) : token_tree(::std::move(token_tree)) {}
+
+            ::std::string as_string() const {
+              return token_tree.as_string();
+            }
         };
 
         // A macro rule? Matcher and transcriber pair?
@@ -255,6 +259,8 @@ namespace Rust {
                 return MacroRule(
                   MacroMatcher::create_error(), MacroTranscriber(DelimTokenTree::create_empty()));
             }
+
+            ::std::string as_string() const;
         };
 
         // A macro rules definition item AST node

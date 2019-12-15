@@ -18,6 +18,42 @@ namespace Rust {
             gcc_unreachable();
         }
 
+        // Converts a frag spec enum item to a string form.
+        ::std::string frag_spec_to_str(MacroFragSpec frag_spec) {
+            switch (frag_spec) {
+                case BLOCK:
+                    return "block";
+                case EXPR:
+                    return "expr";
+                case IDENT:
+                    return "ident";
+                case ITEM:
+                    return "item";
+                case LIFETIME:
+                    return "lifetime";
+                case LITERAL:
+                    return "literal";
+                case META:
+                    return "meta";
+                case PAT:
+                    return "pat";
+                case PATH:
+                    return "path";
+                case STMT:
+                    return "stmt";
+                case TT:
+                    return "tt";
+                case TY:
+                    return "ty";
+                case VIS:
+                    return "vis";
+                case INVALID:
+                    return "INVALID_FRAG_SPEC";
+                default:
+                    return "ERROR_MARK_STRING - unknown frag spec";
+            }
+        }
+
         ::std::string Crate::as_string() const {
             fprintf(stderr, "beginning crate recursive as-string\n");
 
@@ -1019,12 +1055,50 @@ namespace Rust {
             return str;
         }
 
+        ::std::string MacroRule::as_string() const {
+            ::std::string str("Macro rule: ");
+
+            str += "\n Matcher: \n  ";
+            str += matcher.as_string();
+
+            str += "\n Transcriber: \n  ";
+            str += transcriber.as_string();
+        }
+
         ::std::string MacroRulesDefinition::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("macro_rules!");
+
+            str += rule_name;
+
+            str += "\n Macro rules: ";
+            if (rules.empty()) {
+                str += "none";
+            } else {
+                for (const auto& rule : rules) {
+                    str += "\n  " + rule.as_string();
+                }
+            }
+
+            str += "\n Delim type: ";
+            switch (delim_type) {
+                case PARENS:
+                    str += "parentheses";
+                    break;
+                case SQUARE:
+                    str += "square";
+                    break;
+                case CURLY:
+                    str += "curly";
+                    break;
+                default:
+                    return "ERROR_MARK_STRING - delim type in macro invocation";
+            }
+
+            return str;
         }
 
         ::std::string MacroInvocation::as_string() const {
-            return ::std::string("not implemented");
+            return path.as_string() + "!" + token_tree.as_string();
         }
 
         ::std::string PathInExpression::as_string() const {
@@ -1577,7 +1651,7 @@ namespace Rust {
         }
 
         ::std::string FunctionParam::as_string() const {
-            return ::std::string("not implemented");
+            return param_name->as_string() + " : " + type->as_string();
         }
 
         ::std::string FunctionQualifiers::as_string() const {
@@ -1616,7 +1690,35 @@ namespace Rust {
         }
 
         ::std::string MacroMatcher::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("Macro matcher: ");
+
+            str += "\n Delim type: ";
+
+            switch (delim_type) {
+                case PARENS:
+                    str += "parentheses";
+                    break;
+                case SQUARE:
+                    str += "square";
+                    break;
+                case CURLY:
+                    str += "curly";
+                    break;
+                default:
+                    return "ERROR_MARK_STRING - macro matcher delim";
+            }
+
+            str += "\n Matches: ";
+
+            if (matches.empty()) {
+                str += "none";
+            } else {
+                for (const auto& match : matches) {
+                    str += "\n  " + match->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string LifetimeParam::as_string() const {
@@ -1624,7 +1726,7 @@ namespace Rust {
         }
 
         ::std::string MacroMatchFragment::as_string() const {
-            return ::std::string("not implemented");
+            return "$" + ident + ": " + frag_spec_to_str(frag_spec);
         }
 
         ::std::string QualifiedPathInType::as_string() const {
@@ -2139,7 +2241,7 @@ namespace Rust {
             return str;
         }
 
-        ::std::string TraitItem::as_string() const {
+        /*::std::string TraitItem::as_string() const {
             // outer attributes
             ::std::string str = "outer attributes: ";
             if (outer_attrs.empty()) {
@@ -2152,10 +2254,18 @@ namespace Rust {
             }
 
             return str;
-        }
+        }*/
 
         ::std::string TraitItemFunc::as_string() const {
-            ::std::string str = TraitItem::as_string();
+            ::std::string str = "outer attributes: ";
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
 
             str += "\n" + decl.as_string();
 
@@ -2216,7 +2326,15 @@ namespace Rust {
         }
 
         ::std::string TraitItemMethod::as_string() const {
-            ::std::string str = TraitItem::as_string();
+            ::std::string str = "outer attributes: ";
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
 
             str += "\n" + decl.as_string();
 
@@ -2279,7 +2397,15 @@ namespace Rust {
         }
 
         ::std::string TraitItemConst::as_string() const {
-            ::std::string str = TraitItem::as_string();
+            ::std::string str = "outer attributes: ";
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
 
             str += "\nconst " + name + " : " + type->as_string();
 
@@ -2291,7 +2417,15 @@ namespace Rust {
         }
 
         ::std::string TraitItemType::as_string() const {
-            ::std::string str = TraitItem::as_string();
+            ::std::string str = "outer attributes: ";
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
 
             str += "\ntype " + name;
 

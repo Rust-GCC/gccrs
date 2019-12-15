@@ -670,7 +670,7 @@ namespace Rust {
             virtual ::std::string as_string() const = 0;
 
             // HACK: convert to trait bound. Virtual method overriden by classes that enable this.
-            virtual TraitBound* to_trait_bound(bool in_parens) const {
+            virtual TraitBound* to_trait_bound(bool in_parens ATTRIBUTE_UNUSED) const {
                 return NULL;
             }
             // as pointer, shouldn't require definition beforehand, only forward declaration.
@@ -855,12 +855,14 @@ namespace Rust {
         class TraitItem {
             // bool has_outer_attrs;
             // TODO: remove and rely on virtual functions and VisItem-derived attributes?
-            ::std::vector<Attribute> outer_attrs;
+            //::std::vector<Attribute> outer_attrs;
+
+            // NOTE: all children should have outer attributes
 
           protected:
             // Constructor
-            TraitItem(::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
-              outer_attrs(::std::move(outer_attrs)) {}
+            /*TraitItem(::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              outer_attrs(::std::move(outer_attrs)) {}*/
 
             // Clone function implementation as pure virtual method
             virtual TraitItem* clone_trait_item_impl() const = 0;
@@ -869,22 +871,55 @@ namespace Rust {
             virtual ~TraitItem() {}
 
             // Returns whether TraitItem has outer attributes.
-            inline bool has_outer_attrs() const {
+            /*inline bool has_outer_attrs() const {
                 return !outer_attrs.empty();
-            }
+            }*/
 
             // Unique pointer custom clone function
             ::std::unique_ptr<TraitItem> clone_trait_item() const {
                 return ::std::unique_ptr<TraitItem>(clone_trait_item_impl());
             }
 
-            virtual ::std::string as_string() const;
+            virtual ::std::string as_string() const = 0;
+        };
+
+        // Abstract base class for items used within an inherent impl block (the impl name {} one)
+        class InherentImplItem {
+          protected:
+            // Clone function implementation as pure virtual method
+            virtual InherentImplItem* clone_inherent_impl_item_impl() const = 0;
+
+          public:
+            virtual ~InherentImplItem() {}
+
+            // Unique pointer custom clone function
+            ::std::unique_ptr<InherentImplItem> clone_inherent_impl_item() const {
+                return ::std::unique_ptr<InherentImplItem>(clone_inherent_impl_item_impl());
+            }
+
+            virtual ::std::string as_string() const = 0;
+        };
+
+        // Abstract base class for items used in a trait impl
+        class TraitImplItem {
+          protected:
+            virtual TraitImplItem* clone_trait_impl_item_impl() const = 0;
+
+          public:
+            virtual ~TraitImplItem(){};
+
+            // Unique pointer custom clone function
+            ::std::unique_ptr<TraitImplItem> clone_trait_impl_item() const {
+                return ::std::unique_ptr<TraitImplItem>(clone_trait_impl_item_impl());
+            }
+
+            virtual ::std::string as_string() const = 0;
         };
 
         // A macro invocation item (or statement) AST node (i.e. semi-coloned macro invocation)
         class MacroInvocationSemi
           : public MacroItem
-          , public TraitItem
+          , public TraitItem, public InherentImplItem, public TraitImplItem
         /*, public Statement*/ {
             // already inherits from statement indirectly via item as item is a subclass of statement
             SimplePath path;
@@ -899,8 +934,7 @@ namespace Rust {
             MacroInvocationSemi(SimplePath macro_path, DelimType delim_type,
               ::std::vector< ::std::unique_ptr<TokenTree> > token_trees,
               ::std::vector<Attribute> outer_attribs) :
-              MacroItem(outer_attribs),
-              TraitItem(outer_attribs), path(::std::move(macro_path)), delim_type(delim_type),
+              MacroItem(::std::move(outer_attribs)), path(::std::move(macro_path)), delim_type(delim_type),
               token_trees(::std::move(token_trees)) {}
             /* TODO: possible issue with Item and TraitItem hierarchies both having outer attributes
              * - storage inefficiency at least.
@@ -944,6 +978,16 @@ namespace Rust {
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual MacroInvocationSemi* clone_item_impl() const OVERRIDE {
+                return new MacroInvocationSemi(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroInvocationSemi* clone_inherent_impl_item_impl() const OVERRIDE {
+                return new MacroInvocationSemi(*this);
+            }
+
+            // Use covariance to implement clone function as returning this object rather than base
+            virtual MacroInvocationSemi* clone_trait_impl_item_impl() const OVERRIDE {
                 return new MacroInvocationSemi(*this);
             }
 
