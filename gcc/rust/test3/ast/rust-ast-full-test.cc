@@ -1063,6 +1063,8 @@ namespace Rust {
 
             str += "\n Transcriber: \n  ";
             str += transcriber.as_string();
+
+            return str;
         }
 
         ::std::string MacroRulesDefinition::as_string() const {
@@ -1123,8 +1125,44 @@ namespace Rust {
             return str;
         }
 
+        ::std::string ClosureParam::as_string() const {
+            ::std::string str(pattern->as_string());
+
+            if (has_type_given()) {
+                str += " : " + type->as_string();
+            }
+
+            return str;
+        }
+
+        ::std::string ClosureExpr::as_string() const {
+            ::std::string str("ClosureExpr:\n Has move: ");
+            if (has_move) {
+                str += "true";
+            } else {
+                str += "false";
+            }
+
+            str += "\n Params: ";
+            if (params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : params) {
+                    str += "\n  " + param.as_string();
+                }
+            }
+
+            return str;
+        }
+
         ::std::string ClosureExprInnerTyped::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = ClosureExpr::as_string();
+
+            str += "\n Return type: " + return_type->as_string();
+
+            str += "\n Body: " + expr->as_string();
+
+            return str;
         }
 
         ::std::string PathPattern::as_string() const {
@@ -1135,7 +1173,7 @@ namespace Rust {
             }
 
             // basically a hack - remove last two characters of string (remove final ::)
-            str.erase(str.end() - 2);
+            str.erase(str.length() - 2);
 
             return str;
         }
@@ -1241,10 +1279,6 @@ namespace Rust {
             return "..";
         }
 
-        ::std::string WhileLoopExpr::as_string() const {
-            return ::std::string("not implemented");
-        }
-
         ::std::string ArrayIndexExpr::as_string() const {
             return array_expr->as_string() + "[" + index_expr->as_string() + "]";
         }
@@ -1306,10 +1340,6 @@ namespace Rust {
             str += right_expr->as_string();
 
             return str;
-        }
-
-        ::std::string IfExprConseqIf::as_string() const {
-            return ::std::string("not implemented");
         }
 
         ::std::string MethodCallExpr::as_string() const {
@@ -1386,27 +1416,88 @@ namespace Rust {
         }
 
         ::std::string ClosureExprInner::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = ClosureExpr::as_string();
+
+            str += "\n Expression: " + closure_inner->as_string();
+
+            return str;
+        }
+
+        ::std::string IfExpr::as_string() const {
+            ::std::string str("IfExpr: ");
+
+            str += "\n Condition expr: " + condition->as_string();
+
+            str += "\n If block expr: " + if_block->as_string();
+
+            return str;
         }
 
         ::std::string IfExprConseqElse::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = IfExpr::as_string();
+
+            str += "\n Else block expr: " + else_block->as_string();
+
+            return str;
         }
 
-        ::std::string WhileLetLoopExpr::as_string() const {
-            return ::std::string("not implemented");
+        ::std::string IfExprConseqIf::as_string() const {
+            ::std::string str = IfExpr::as_string();
+
+            str += "\n Else if expr: \n  " + if_expr->as_string();
+
+            return str;
         }
 
         ::std::string IfExprConseqIfLet::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = IfExpr::as_string();
+
+            str += "\n Else if let expr: \n  " + if_let_expr->as_string();
+
+            return str;
         }
 
-        ::std::string IfLetExprConseqIf::as_string() const {
-            return ::std::string("not implemented");
+        ::std::string IfLetExpr::as_string() const {
+            ::std::string str("IfLetExpr: ");
+
+            str += "\n Condition match arm patterns: ";
+            if (match_arm_patterns.empty()) {
+                str += "none";
+            } else {
+                for (const auto& pattern : match_arm_patterns) {
+                    str += "\n  " + pattern->as_string();
+                }
+            }
+
+            str += "\n Scrutinee expr: " + value->as_string();
+
+            str += "\n If let block expr: " + if_block->as_string();
+
+            return str;
         }
 
         ::std::string IfLetExprConseqElse::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = IfLetExpr::as_string();
+
+            str += "\n Else block expr: " + else_block->as_string();
+
+            return str;
+        }
+
+        ::std::string IfLetExprConseqIf::as_string() const {
+            ::std::string str = IfLetExpr::as_string();
+
+            str += "\n Else if expr: \n  " + if_expr->as_string();
+
+            return str;
+        }
+
+        ::std::string IfLetExprConseqIfLet::as_string() const {
+            ::std::string str = IfLetExpr::as_string();
+
+            str += "\n Else if let expr: \n  " + if_let_expr->as_string();
+
+            return str;
         }
 
         ::std::string RangeFromToInclExpr::as_string() const {
@@ -1415,10 +1506,6 @@ namespace Rust {
 
         ::std::string ErrorPropogationExpr::as_string() const {
             return main_or_left_expr->as_string() + "?";
-        }
-
-        ::std::string IfLetExprConseqIfLet::as_string() const {
-            return ::std::string("not implemented");
         }
 
         ::std::string CompoundAssignmentExpr::as_string() const {
@@ -1550,8 +1637,62 @@ namespace Rust {
             return str;
         }
 
+        ::std::string WhileLoopExpr::as_string() const {
+            ::std::string str("WhileLoopExpr: ");
+
+            str += "\n Label: ";
+            if (!has_loop_label()) {
+                str += "none";
+            } else {
+                str += loop_label.as_string();
+            }
+
+            str += "\n Conditional expr: " + condition->as_string();
+
+            str += "\n Loop block: " + loop_block->as_string();
+
+            return str;
+        }
+
+        ::std::string WhileLetLoopExpr::as_string() const {
+            ::std::string str("WhileLetLoopExpr: ");
+
+            str += "\n Label: ";
+            if (!has_loop_label()) {
+                str += "none";
+            } else {
+                str += loop_label.as_string();
+            }
+
+            str += "\n Match arm patterns: ";
+            if (match_arm_patterns.empty()) {
+                str += "none";
+            } else {
+                for (const auto& pattern : match_arm_patterns) {
+                    str += "\n  " + pattern->as_string();
+                }
+            }
+
+            str += "\n Scrutinee expr: " + condition->as_string();
+
+            str += "\n Loop block: " + loop_block->as_string();
+
+            return str;
+        }
+
         ::std::string LoopExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("LoopExpr: (infinite loop)");
+
+            str += "\n Label: ";
+            if (!has_loop_label()) {
+                str += "none";
+            } else {
+                str += loop_label.as_string();
+            }
+
+            str += "\n Loop block: " + loop_block->as_string();
+
+            return str;
         }
 
         ::std::string ArrayExpr::as_string() const {
@@ -1596,20 +1737,92 @@ namespace Rust {
             return str;
         }
 
-        ::std::string IfExpr::as_string() const {
-            return ::std::string("not implemented");
-        }
-
-        ::std::string IfLetExpr::as_string() const {
-            return ::std::string("not implemented");
-        }
-
         ::std::string LoopLabel::as_string() const {
             return label.as_string() + ": (label) ";
         }
 
+        ::std::string MatchArm::as_string() const {
+            // outer attributes
+            ::std::string str = "Outer attributes: ";
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n " + attr.as_string();
+                }
+            }
+
+            str += "\nPatterns: ";
+            if (match_arm_patterns.empty()) {
+                str += "none";
+            } else {
+                for (const auto& pattern : match_arm_patterns) {
+                    str += "\n " + pattern->as_string();
+                }
+            }
+
+            str += "\nGuard expr: ";
+            if (!has_match_arm_guard()) {
+                str += "none";
+            } else {
+                str += guard_expr->as_string();
+            }
+
+            return str;
+        }
+
+        ::std::string MatchCase::as_string() const {
+            ::std::string str("MatchCase: (match arm) ");
+
+            str += "\n Match arm matcher: \n" + arm.as_string();
+
+            return str;
+        }
+
+        ::std::string MatchCaseBlockExpr::as_string() const {
+            ::std::string str = MatchCase::as_string();
+
+            str += "\n Block expr: " + block_expr->as_string();
+
+            return str;
+        }
+
+        ::std::string MatchCaseExpr::as_string() const {
+            ::std::string str = MatchCase::as_string();
+
+            str += "\n Expr: " + expr->as_string();
+
+            return str;
+        }
+
         ::std::string MatchExpr::as_string() const {
-            return ::std::string("not implemented (match expr)");
+            ::std::string str("MatchExpr:");
+
+            str += "\n Scrutinee expr: " + branch_value->as_string();
+
+            // inner attributes
+            str += "\n inner attributes: ";
+            if (inner_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "inner attribute" syntax - just the body
+                for (const auto& attr : inner_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            // match arms
+            str += "\n Match arms: ";
+            if (match_arms.empty()) {
+                str += "none";
+            } else {
+                for (const auto& arm : match_arms) {
+                    str += "\n  " + arm->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string TupleExpr::as_string() const {
@@ -1686,7 +1899,27 @@ namespace Rust {
         }
 
         ::std::string TraitBound::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("TraitBound:");
+
+            str += "\n Has opening question mark: ";
+            if (opening_question_mark) {
+                str += "true";
+            } else {
+                str += "false";
+            }
+
+            str += "\n For lifetimes: ";
+            if (!has_for_lifetimes()) {
+                str += "none";
+            } else {
+                for (const auto& lifetime : for_lifetimes) {
+                    str += "\n  " + lifetime.as_string();
+                }
+            }
+
+            str += "\n Type path: " + type_path.as_string();
+
+            return str;
         }
 
         ::std::string MacroMatcher::as_string() const {
@@ -1722,7 +1955,27 @@ namespace Rust {
         }
 
         ::std::string LifetimeParam::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("LifetimeParam: ");
+
+            str += "\n Outer attribute: ";
+            if (!has_outer_attribute()) {
+                str += "none";
+            } else {
+                str += outer_attr.as_string();
+            }
+
+            str += "\n Lifetime: " + lifetime.as_string();
+
+            str += "\n Lifetime bounds: ";
+            if (!has_lifetime_bounds()) {
+                str += "none";
+            } else {
+                for (const auto& bound : lifetime_bounds) {
+                    str += "\n  " + bound.as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string MacroMatchFragment::as_string() const {
@@ -1730,11 +1983,53 @@ namespace Rust {
         }
 
         ::std::string QualifiedPathInType::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = path_type.as_string();
+
+            for (const auto& segment : segments) {
+                str += "::" + segment->as_string();
+            }
+
+            return str;
         }
 
         ::std::string MacroMatchRepetition::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("Macro match repetition: ");
+
+            str += "\n Matches: ";
+            if (matches.empty()) {
+                str += "none";
+            } else {
+                for (const auto& match : matches) {
+                    str += "\n  " + match->as_string();
+                }
+            }
+
+            str += "\n Sep: ";
+            if (!has_sep()) {
+                str += "none";
+            } else {
+                str += sep->as_string();
+            }
+
+            str += "\n Op: ";
+            switch (op) {
+                case ASTERISK:
+                    str += "*";
+                    break;
+                case PLUS:
+                    str += "+";
+                    break;
+                case QUESTION_MARK:
+                    str += "?";
+                    break;
+                case NONE:
+                    str += "no op? shouldn't be allowed";
+                    break;
+                default:
+                    return "ERROR_MARK_STRING - unknown op in macro match repetition";
+            }
+
+            return str;
         }
 
         ::std::string Lifetime::as_string() const {
@@ -1755,11 +2050,51 @@ namespace Rust {
         }
 
         ::std::string TypePath::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str;
+
+            if (has_opening_scope_resolution) {
+                str = "::";
+            }
+
+            for (const auto& segment : segments) {
+                str += segment->as_string() + "::";
+            }
+
+            // kinda hack - remove last 2 '::' characters
+            str.erase(str.length() - 2);
+
+            return str;
         }
 
         ::std::string TypeParam::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("TypeParam: ");
+
+            str += "\n Outer attribute: ";
+            if (!has_outer_attribute()) {
+                str += "none";
+            } else {
+                str += outer_attr.as_string();
+            }
+
+            str += "\n Identifier: " + type_representation;
+
+            str += "\n Type param bounds: ";
+            if (!has_type_param_bounds()) {
+                str += "none";
+            } else {
+                for (const auto& bound : type_param_bounds) {
+                    str += "\n  " + bound->as_string();
+                }
+            }
+
+            str += "\n Type: ";
+            if (!has_type()) {
+                str += "none";
+            } else {
+                str += type->as_string();
+            }
+
+            return str;
         }
 
         SimplePath PathPattern::convert_to_simple_path(bool with_opening_scope_resolution) const {
@@ -1847,43 +2182,272 @@ namespace Rust {
         }
 
         ::std::string GenericArgsBinding::as_string() const {
-            return ::std::string("not implemented");
+            return identifier + " = " + type->as_string();
         }
 
         ::std::string ForLoopExpr::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("ForLoopExpr: ");
+
+            str += "\n Label: ";
+            if (!has_loop_label()) {
+                str += "none";
+            } else {
+                str += loop_label.as_string();
+            }
+
+            str += "\n Pattern: " + pattern->as_string();
+
+            str += "\n Iterator expr: " + iterator_expr->as_string();
+
+            str += "\n Loop block: " + loop_block->as_string();
+
+            return str;
         }
 
         ::std::string RangePattern::as_string() const {
-            return ::std::string("not implemented");
+            if (has_ellipsis_syntax) {
+                return lower->as_string() + "..." + upper->as_string();
+            } else {
+                return lower->as_string() + "..=" + upper->as_string();
+            }
+        }
+
+        ::std::string RangePatternBoundLiteral::as_string() const {
+            ::std::string str;
+
+            if (has_minus) {
+                str += "-";
+            }
+
+            str += literal.as_string();
+
+            return str;
         }
 
         ::std::string SlicePattern::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("SlicePattern: ");
+
+            for (const auto& pattern : items) {
+                str += "\n " + pattern->as_string();
+            }
+
+            return str;
+        }
+
+        ::std::string TuplePatternItemsMultiple::as_string() const {
+            ::std::string str;
+
+            for (const auto& pattern : patterns) {
+                str += "\n " + pattern->as_string();
+            }
+
+            return str;
+        }
+
+        ::std::string TuplePatternItemsRanged::as_string() const {
+            ::std::string str;
+
+            str += "\n Lower patterns: ";
+            if (lower_patterns.empty()) {
+                str += "none";
+            } else {
+                for (const auto& lower : lower_patterns) {
+                    str += "\n  " + lower->as_string();
+                }
+            }
+
+            str += "\n Upper patterns: ";
+            if (upper_patterns.empty()) {
+                str += "none";
+            } else {
+                for (const auto& upper : upper_patterns) {
+                    str += "\n  " + upper->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string TuplePattern::as_string() const {
-            return ::std::string("not implemented");
+            return "TuplePattern: " + items->as_string();
+        }
+
+        ::std::string StructPatternField::as_string() const {
+            // outer attributes
+            ::std::string str("Outer attributes: ");
+            if (outer_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "outer attribute" syntax - just the body
+                for (const auto& attr : outer_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            return str;
+        }
+
+        ::std::string StructPatternFieldIdent::as_string() const {
+            ::std::string str = StructPatternField::as_string();
+
+            str += "\n";
+
+            if (has_ref) {
+                str += "ref ";
+            }
+
+            if (has_mut) {
+                str += "mut ";
+            }
+
+            str += ident;
+
+            return str;
+        }
+
+        ::std::string StructPatternFieldTuplePat::as_string() const {
+            ::std::string str = StructPatternField::as_string();
+
+            str += "\n";
+
+            str += ::std::to_string(index) + " : " + tuple_pattern->as_string();
+
+            return str;
+        }
+
+        ::std::string StructPatternFieldIdentPat::as_string() const {
+            ::std::string str = StructPatternField::as_string();
+
+            str += "\n";
+
+            str += ident + " : " + ident_pattern->as_string();
+
+            return str;
+        }
+
+        ::std::string StructPatternElements::as_string() const {
+            ::std::string str("\n  Fields: ");
+
+            if (!has_struct_pattern_fields()) {
+                str += "none";
+            } else {
+                for (const auto& field : fields) {
+                    str += "\n   " + field->as_string();
+                }
+            }
+
+            str += "\n  Etc: ";
+            if (has_struct_pattern_etc) {
+                str += "true";
+            } else {
+                str += "false";
+            }
+
+            return str;
         }
 
         ::std::string StructPattern::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("StructPattern: \n Path: ");
+
+            str += path.as_string();
+
+            str += "\n Struct pattern elems: ";
+            if (!has_struct_pattern_elems()) {
+                str += "none";
+            } else {
+                str += elems.as_string();
+            }
+
+            return str;
         }
 
         ::std::string LiteralPattern::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str;
+
+            if (has_minus) {
+                str += "-";
+            }
+
+            return str + lit.as_string();
         }
 
         ::std::string ReferencePattern::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("&");
+
+            if (has_two_amps) {
+                str += "&";
+            }
+
+            if (is_mut) {
+                str += "mut ";
+            }
+
+            str += pattern->as_string();
+
+            return str;
         }
 
         ::std::string IdentifierPattern::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str;
+
+            if (is_ref) {
+                str += "ref ";
+            }
+
+            if (is_mut) {
+                str += "mut ";
+            }
+
+            str += variable_ident;
+
+            if (has_pattern_to_bind()) {
+                str += " @ " + to_bind->as_string();
+            }
+
+            return str;
+        }
+
+        ::std::string TupleStructItemsNoRange::as_string() const {
+            ::std::string str;
+
+            for (const auto& pattern : patterns) {
+                str += "\n  " + pattern->as_string();
+            }
+
+            return str;
+        }
+
+        ::std::string TupleStructItemsRange::as_string() const {
+            ::std::string str("\n  Lower patterns: ");
+
+            if (lower_patterns.empty()) {
+                str += "none";
+            } else {
+                for (const auto& lower : lower_patterns) {
+                    str += "\n   " + lower->as_string();
+                }
+            }
+
+            str += "\n  Upper patterns: ";
+            if (upper_patterns.empty()) {
+                str += "none";
+            } else {
+                for (const auto& upper : upper_patterns) {
+                    str += "\n   " + upper->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string TupleStructPattern::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("TupleStructPattern: \n Path: ");
+
+            str += path.as_string();
+
+            str += "\n Tuple struct items: " + items->as_string();
+
+            return str;
         }
 
         ::std::string LetStmt::as_string() const {
@@ -1943,39 +2507,158 @@ namespace Rust {
         }
 
         ::std::string ImplTraitType::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("ImplTraitType: \n TypeParamBounds: ");
+
+            if (type_param_bounds.empty()) {
+                str += "none";
+            } else {
+                for (const auto& bound : type_param_bounds) {
+                    str += "\n  " + bound->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string ReferenceType::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("&");
+
+            if (has_lifetime()) {
+                str += lifetime.as_string() + " ";
+            }
+
+            if (has_mut) {
+                str += "mut ";
+            }
+
+            str += type->as_string();
+
+            return str;
         }
 
         ::std::string RawPointerType::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("*");
+
+            switch (pointer_type) {
+                case MUT:
+                    str += "mut ";
+                    break;
+                case CONST:
+                    str += "const ";
+                    break;
+                default:
+                    return "ERROR_MARK_STRING - unknown pointer type in raw pointer type";
+            }
+
+            str += type->as_string();
+
+            return str;
         }
 
         ::std::string TraitObjectType::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("TraitObjectType: \n Has dyn dispatch: ");
+
+            if (has_dyn) {
+                str += "true";
+            } else {
+                str += "false";
+            }
+
+            str += "\n TypeParamBounds: ";
+            if (type_param_bounds.empty()) {
+                str += "none";
+            } else {
+                for (const auto& bound : type_param_bounds) {
+                    str += "\n  " + bound->as_string();
+                }
+            }
+
+            return str;
         }
 
         ::std::string BareFunctionType::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("BareFunctionType: \n For lifetimes: ");
+
+            if (!has_for_lifetimes()) {
+                str += "none";
+            } else {
+                for (const auto& for_lifetime : for_lifetimes) {
+                    str += "\n  " + for_lifetime.as_string();
+                }
+            }
+
+            str += "\n Qualifiers: " + function_qualifiers.as_string();
+
+            str += "\n Params: ";
+            if (params.empty()) {
+                str += "none";
+            } else {
+                for (const auto& param : params) {
+                    str += "\n  " + param.as_string();
+                }
+            }
+
+            str += "\n Is variadic: ";
+            if (is_variadic) {
+                str += "true";
+            } else {
+                str += "false";
+            }
+
+            str += "\n Return type: ";
+            if (!has_return_type()) {
+                str += "none (void)";
+            } else {
+                str += return_type->as_string();
+            }
+
+            return str;
         }
 
         ::std::string ImplTraitTypeOneBound::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("ImplTraitTypeOneBound: \n TraitBound: ");
+
+            return str + trait_bound.as_string();
         }
 
         ::std::string TypePathSegmentGeneric::as_string() const {
-            return ::std::string("not implemented");
+            return TypePathSegment::as_string() + "<" + generic_args.as_string() + ">";
         }
 
         ::std::string TraitObjectTypeOneBound::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("TraitObjectTypeOneBound: \n Has dyn dispatch: ");
+
+            if (has_dyn) {
+                str += "true";
+            } else {
+                str += "false";
+            }
+
+            str += "\n TraitBound: " + trait_bound.as_string();
+
+            return str;
+        }
+
+        ::std::string TypePathFunction::as_string() const {
+            ::std::string str("(");
+
+            if (has_inputs()) {
+                for (const auto& param : inputs) {
+                    str += param->as_string() + ", ";
+                }
+            }
+
+            str += ")";
+
+            if (has_return_type()) {
+                str += " -> " + return_type->as_string();
+            }
+
+            return str;
         }
 
         ::std::string TypePathSegmentFunction::as_string() const {
-            return ::std::string("not implemented");
+            return TypePathSegment::as_string() + function_path.as_string();
         }
 
         ::std::string ArrayType::as_string() const {
@@ -1987,17 +2670,27 @@ namespace Rust {
         }
 
         ::std::string TupleType::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("(");
+
+            if (!is_unit_type()) {
+                for (const auto& elem : elems) {
+                    str += elem->as_string() + ", ";
+                }
+            }
+
+            str += ")";
+
+            return str;
         }
 
         ::std::string StructExpr::as_string() const {
-           ::std::string str = ExprWithoutBlock::as_string();
+            ::std::string str = ExprWithoutBlock::as_string();
 
-           str += "\nStructExpr";
+            str += "\nStructExpr";
 
-           str += "\n PathInExpr: " + struct_name.as_string();
+            str += "\n PathInExpr: " + struct_name.as_string();
 
-           return str;
+            return str;
         }
 
         ::std::string StructExprTuple::as_string() const {
@@ -2032,11 +2725,65 @@ namespace Rust {
         }
 
         ::std::string StructExprStruct::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str("StructExprStruct (or subclass): ");
+
+            str += "\n Path: " + get_struct_name().as_string();
+
+            // inner attributes
+            str += "\n inner attributes: ";
+            if (inner_attrs.empty()) {
+                str += "none";
+            } else {
+                // note that this does not print them with "inner attribute" syntax - just the body
+                for (const auto& attr : inner_attrs) {
+                    str += "\n  " + attr.as_string();
+                }
+            }
+
+            return str;
+        }
+
+        ::std::string StructBase::as_string() const {
+            if (base_struct != NULL) {
+                return base_struct->as_string();
+            } else {
+                return "ERROR_MARK_STRING - invalid struct base had as string applied";
+            }
+        }
+
+        ::std::string StructExprFieldWithVal::as_string() const {
+            // used to get value string
+            return value->as_string();
+        }
+
+        ::std::string StructExprFieldIdentifierValue::as_string() const {
+            return field_name + " : " + StructExprFieldWithVal::as_string();
+        }
+
+        ::std::string StructExprFieldIndexValue::as_string() const {
+            return ::std::to_string(index) + " : " + StructExprFieldWithVal::as_string();
         }
 
         ::std::string StructExprStructFields::as_string() const {
-            return ::std::string("not implemented");
+            ::std::string str = StructExprStruct::as_string();
+
+            str += "\n Fields: ";
+            if (fields.empty()) {
+                str += "none";
+            } else {
+                for (const auto& field : fields) {
+                    str += "\n  " + field->as_string();
+                }
+            }
+
+            str += "\n Struct base: ";
+            if (!has_struct_base()) {
+                str += "none";
+            } else {
+                str += struct_base.as_string();
+            }
+
+            return str;
         }
 
         ::std::string EnumItem::as_string() const {
@@ -2560,6 +3307,27 @@ namespace Rust {
 
                 str += "\n  " + expr->as_string();
             }
+
+            return str;
+        }
+
+        ::std::string MaybeNamedParam::as_string() const {
+            ::std::string str;
+
+            switch (param_kind) {
+                case UNNAMED:
+                    break;
+                case IDENTIFIER:
+                    str = name + " : ";
+                    break;
+                case WILDCARD:
+                    str = "_ : ";
+                    break;
+                default:
+                    return "ERROR_MARK_STRING - maybe named param unrecognised param kind";
+            }
+
+            str += param_type->as_string();
 
             return str;
         }

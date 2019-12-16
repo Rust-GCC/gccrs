@@ -1568,6 +1568,8 @@ namespace Rust {
             inline bool is_invalid() const {
                 return base_struct == NULL;
             }
+
+            ::std::string as_string() const;
         };
 
         // Base AST node for a single struct expression field (in struct instance creation) - abstract
@@ -1579,6 +1581,8 @@ namespace Rust {
             ::std::unique_ptr<StructExprField> clone_struct_expr_field() const {
                 return ::std::unique_ptr<StructExprField>(clone_struct_expr_field_impl());
             }
+
+            virtual ::std::string as_string() const = 0;
 
           protected:
             // pure virtual clone implementation
@@ -1592,6 +1596,10 @@ namespace Rust {
           public:
             StructExprFieldIdentifier(Identifier field_identifier) :
               field_name(::std::move(field_identifier)) {}
+
+            ::std::string as_string() const {
+                return field_name;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this rather than base
@@ -1632,6 +1640,8 @@ namespace Rust {
             /*~StructExprFieldWithVal() {
                 delete value;
             }*/
+
+            ::std::string as_string() const;
         };
 
         // Identifier and value variant of StructExprField AST node
@@ -1647,6 +1657,8 @@ namespace Rust {
               StructExprFieldWithVal(::std::move(field_value)), field_name(::std::move(field_identifier)) {}
 
             // copy constructor, destructor, and overloaded assignment operator should carry through
+
+            ::std::string as_string() const;
 
           protected:
             // Use covariance to implement clone function as returning this rather than base
@@ -1668,6 +1680,8 @@ namespace Rust {
               StructExprFieldWithVal(::std::move(field_value)), index(tuple_index) {}
 
             // copy constructor, destructor, and overloaded assignment operator should carry through
+
+            ::std::string as_string() const;
 
           protected:
             // Use covariance to implement clone function as returning this rather than base
@@ -2441,6 +2455,8 @@ namespace Rust {
             static ClosureParam create_error() {
                 return ClosureParam(NULL);
             }
+
+            ::std::string as_string() const;
         };
 
         // Base closure definition expression AST node - abstract
@@ -2456,6 +2472,9 @@ namespace Rust {
               has_move(has_move), params(::std::move(closure_params)) {}
 
             // Copy constructor, destructor, and assignment operator override should not be needed
+          public:
+            virtual ::std::string as_string() const;
+
         };
 
         // Represents a non-type-specified closure expression AST node
@@ -3239,6 +3258,8 @@ namespace Rust {
 
         // Base loop expression AST node - aka LoopExpr
         class BaseLoopExpr : public ExprWithBlock {
+          protected:
+            // protected to allow subclasses better use of them
             // bool has_loop_label;
             LoopLabel loop_label;
 
@@ -4150,6 +4171,8 @@ namespace Rust {
             static MatchArm create_error() {
                 return MatchArm(::std::vector< ::std::unique_ptr<Pattern> >());
             }
+
+            ::std::string as_string() const;
         };
 
         // Base "match case" for a match expression - abstract
@@ -4174,6 +4197,8 @@ namespace Rust {
 
                 return ::std::unique_ptr<MatchCase>(clone_match_case_impl());
             }
+
+            virtual ::std::string as_string() const;
         };
 
         // Block expression match case
@@ -4214,6 +4239,8 @@ namespace Rust {
             // move constructors
             MatchCaseBlockExpr(MatchCaseBlockExpr&& other) = default;
             MatchCaseBlockExpr& operator=(MatchCaseBlockExpr&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -4261,6 +4288,8 @@ namespace Rust {
             // move constructors
             MatchCaseExpr(MatchCaseExpr&& other) = default;
             MatchCaseExpr& operator=(MatchCaseExpr&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

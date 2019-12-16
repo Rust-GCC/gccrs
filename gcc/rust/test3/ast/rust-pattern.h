@@ -137,6 +137,8 @@ namespace Rust {
                 return ::std::unique_ptr<RangePatternBound>(clone_range_pattern_bound_impl());
             }
 
+            virtual ::std::string as_string() const = 0;
+
           protected:
             // pure virtual as RangePatternBound is abstract
             virtual RangePatternBound* clone_range_pattern_bound_impl() const = 0;
@@ -155,6 +157,8 @@ namespace Rust {
             RangePatternBoundLiteral(Literal literal, bool has_minus = false) :
               literal(literal), has_minus(has_minus) {}
 
+            ::std::string as_string() const;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual RangePatternBoundLiteral* clone_range_pattern_bound_impl() const OVERRIDE {
@@ -166,8 +170,14 @@ namespace Rust {
         class RangePatternBoundPath : public RangePatternBound {
             PathInExpression path;
 
+            // TODO: should this be refactored so that PathInExpression is a subclass of RangePatternBound?
+
           public:
             RangePatternBoundPath(PathInExpression path) : path(::std::move(path)) {}
+
+            ::std::string as_string() const {
+                return path.as_string();
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -180,8 +190,15 @@ namespace Rust {
         class RangePatternBoundQualPath : public RangePatternBound {
             QualifiedPathInExpression path;
 
+            /* TODO: should this be refactored so that QualifiedPathInExpression is a subclass of 
+             * RangePatternBound? */
+
           public:
             RangePatternBoundQualPath(QualifiedPathInExpression path) : path(::std::move(path)) {}
+
+            ::std::string as_string() const {
+                return path.as_string();
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -333,6 +350,8 @@ namespace Rust {
                 return ::std::unique_ptr<StructPatternField>(clone_struct_pattern_field_impl());
             }
 
+            virtual ::std::string as_string() const;
+
           protected:
             StructPatternField(::std::vector<Attribute> outer_attribs) :
               outer_attrs(::std::move(outer_attribs)) {}
@@ -384,6 +403,8 @@ namespace Rust {
             StructPatternFieldTuplePat(StructPatternFieldTuplePat&& other) = default;
             StructPatternFieldTuplePat& operator=(StructPatternFieldTuplePat&& other) = default;
 
+            ::std::string as_string() const;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual StructPatternFieldTuplePat* clone_struct_pattern_field_impl() const OVERRIDE {
@@ -434,6 +455,8 @@ namespace Rust {
             StructPatternFieldIdentPat(StructPatternFieldIdentPat&& other) = default;
             StructPatternFieldIdentPat& operator=(StructPatternFieldIdentPat&& other) = default;
 
+            ::std::string as_string() const;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual StructPatternFieldIdentPat* clone_struct_pattern_field_impl() const OVERRIDE {
@@ -453,6 +476,8 @@ namespace Rust {
               Identifier ident, bool is_ref, bool is_mut, ::std::vector<Attribute> outer_attrs) :
               StructPatternField(::std::move(outer_attrs)),
               has_ref(is_ref), has_mut(is_mut), ident(::std::move(ident)) {}
+
+              ::std::string as_string() const;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -477,6 +502,11 @@ namespace Rust {
             // Returns whether there are any struct pattern fields
             inline bool has_struct_pattern_fields() const {
                 return !fields.empty();
+            }
+
+            // Returns whether the struct pattern elements is entirely empty (no fields, no etc).
+            inline bool is_empty() const {
+                return !has_struct_pattern_fields() && !has_struct_pattern_etc;
             }
 
             // Constructor for StructPatternElements with both (potentially)
@@ -525,13 +555,15 @@ namespace Rust {
                 return StructPatternElements(
                   ::std::vector< ::std::unique_ptr<StructPatternField> >());
             }
+
+            ::std::string as_string() const;
         };
 
         // Struct pattern AST node representation
         class StructPattern : public Pattern {
             PathInExpression path;
 
-            bool has_struct_pattern_elements;
+            //bool has_struct_pattern_elements;
             StructPatternElements elems;
 
           public:
@@ -540,10 +572,14 @@ namespace Rust {
             // Constructs a struct pattern from specified StructPatternElements
             StructPattern(PathInExpression struct_path,
               StructPatternElements elems = StructPatternElements::create_empty()) :
-              path(::std::move(struct_path)),
-              has_struct_pattern_elements(true), elems(::std::move(elems)) {}
+              path(::std::move(struct_path)), elems(::std::move(elems)) {}
 
             // TODO: constructor to construct via elements included in StructPatternElements
+
+            // Returns whether struct pattern has any struct pattern elements (if not, it is empty).
+            inline bool has_struct_pattern_elems() const {
+                return !elems.is_empty();
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -561,6 +597,8 @@ namespace Rust {
             ::std::unique_ptr<TupleStructItems> clone_tuple_struct_items() const {
                 return ::std::unique_ptr<TupleStructItems>(clone_tuple_struct_items_impl());
             }
+
+            virtual ::std::string as_string() const = 0;
 
           protected:
             // pure virtual clone implementation
@@ -601,6 +639,8 @@ namespace Rust {
             // move constructors
             TupleStructItemsNoRange(TupleStructItemsNoRange&& other) = default;
             TupleStructItemsNoRange& operator=(TupleStructItemsNoRange&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -662,6 +702,8 @@ namespace Rust {
             TupleStructItemsRange(TupleStructItemsRange&& other) = default;
             TupleStructItemsRange& operator=(TupleStructItemsRange&& other) = default;
 
+            ::std::string as_string() const;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TupleStructItemsRange* clone_tuple_struct_items_impl() const OVERRIDE {
@@ -719,6 +761,8 @@ namespace Rust {
             ::std::unique_ptr<TuplePatternItems> clone_tuple_pattern_items() const {
                 return ::std::unique_ptr<TuplePatternItems>(clone_tuple_pattern_items_impl());
             }
+
+            virtual ::std::string as_string() const = 0;
 
           protected:
             // pure virtual clone implementation
@@ -793,6 +837,8 @@ namespace Rust {
             TuplePatternItemsMultiple(TuplePatternItemsMultiple&& other) = default;
             TuplePatternItemsMultiple& operator=(TuplePatternItemsMultiple&& other) = default;
 
+            ::std::string as_string() const;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TuplePatternItemsMultiple* clone_tuple_pattern_items_impl() const OVERRIDE {
@@ -852,6 +898,8 @@ namespace Rust {
             // move constructors
             TuplePatternItemsRanged(TuplePatternItemsRanged&& other) = default;
             TuplePatternItemsRanged& operator=(TuplePatternItemsRanged&& other) = default;
+
+            ::std::string as_string() const;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

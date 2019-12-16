@@ -429,6 +429,8 @@ namespace Rust {
             // move constructors
             TypePathFunction(TypePathFunction&& other) = default;
             TypePathFunction& operator=(TypePathFunction&& other) = default;
+
+            ::std::string as_string() const;
         };
 
         // Segment used in type path with a function argument
