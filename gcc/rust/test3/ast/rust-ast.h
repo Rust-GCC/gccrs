@@ -628,7 +628,7 @@ namespace Rust {
               ident(::std::move(ident)) {}
 
             ::std::string as_string() const {
-                return "not implemented as a HACK";
+                return ident;
             }
 
           protected:
