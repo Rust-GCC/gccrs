@@ -64,6 +64,8 @@ namespace Rust {
             Identifier ident;
             MacroFragSpec frag_spec;
 
+            // TODO: should store location information?
+
           public:
             MacroMatchFragment(Identifier ident, MacroFragSpec frag_spec) :
               ident(::std::move(ident)), frag_spec(frag_spec) {}
@@ -102,17 +104,13 @@ namespace Rust {
             // any token except delimiters and repetition operators
             ::std::unique_ptr<MacroRepSep> sep;
 
+            // TODO: should store location information?
+
           public:
             // Returns whether macro match repetition has separator token.
             inline bool has_sep() const {
                 return sep != NULL;
             }
-
-            MacroMatchRepetition(::std::vector< ::std::unique_ptr<MacroMatch> > matches, MacroRepOp op,
-              MacroRepSep* sep) :
-              matches(::std::move(matches)),
-              op(op), sep(sep) {}
-            // FIXME: deprecated
 
             MacroMatchRepetition(::std::vector< ::std::unique_ptr<MacroMatch> > matches, MacroRepOp op,
               ::std::unique_ptr<MacroRepSep> sep) :
@@ -169,6 +167,8 @@ namespace Rust {
 
             // TODO: think of way to mark invalid that doesn't take up more space
             bool is_invalid;
+
+            // TODO: should store location information?
 
           public:
             MacroMatcher(
@@ -231,6 +231,8 @@ namespace Rust {
           private:
             DelimTokenTree token_tree;
 
+            // TODO: should store location information?
+
           public:
             MacroTranscriber(DelimTokenTree token_tree) : token_tree(::std::move(token_tree)) {}
 
@@ -244,6 +246,8 @@ namespace Rust {
           private:
             MacroMatcher matcher;
             MacroTranscriber transcriber;
+
+            // TODO: should store location information?
 
           public:
             MacroRule(MacroMatcher matcher, MacroTranscriber transcriber) :
@@ -272,13 +276,15 @@ namespace Rust {
             // MacroRules rules;
             ::std::vector<MacroRule> rules; // inlined form
 
+            location_t locus;
+
           public:
             ::std::string as_string() const;
 
             MacroRulesDefinition(Identifier rule_name, DelimType delim_type,
-              ::std::vector<MacroRule> rules, ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<MacroRule> rules, ::std::vector<Attribute> outer_attrs, location_t locus) :
               MacroItem(::std::move(outer_attrs)), rule_name(::std::move(rule_name)),
-              delim_type(delim_type), rules(::std::move(rules)) {}
+              delim_type(delim_type), rules(::std::move(rules)), locus(locus) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -295,13 +301,23 @@ namespace Rust {
             SimplePath path;
             DelimTokenTree token_tree;
 
+            location_t locus;
+
           public:
             ::std::string as_string() const;
 
             MacroInvocation(
-              SimplePath path, DelimTokenTree token_tree, ::std::vector<Attribute> outer_attrs) :
+              SimplePath path, DelimTokenTree token_tree, ::std::vector<Attribute> outer_attrs, location_t locus) :
               ExprWithoutBlock(::std::move(outer_attrs)), path(::std::move(path)),
-              token_tree(::std::move(token_tree)) {}
+              token_tree(::std::move(token_tree)), locus(locus) {}
+
+            location_t get_locus() const {
+                return locus;
+            }
+
+            location_t get_locus_slow() const OVERRIDE {
+                return get_locus();
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

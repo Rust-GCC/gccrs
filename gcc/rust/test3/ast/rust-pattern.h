@@ -15,15 +15,21 @@ namespace Rust {
             bool has_minus;
             // Actually, this might be a good place to use a template.
 
+            location_t locus;
+
           public:
             ::std::string as_string() const;
 
             // Constructor for a literal pattern
-            LiteralPattern(Literal lit, bool has_minus = false) :
-              lit(::std::move(lit)), has_minus(has_minus) {}
+            LiteralPattern(Literal lit, location_t locus, bool has_minus = false) :
+              lit(::std::move(lit)), has_minus(has_minus), locus(locus) {}
 
-            LiteralPattern(::std::string val, Literal::LitType type, bool has_minus = false) :
-              lit(Literal(::std::move(val), type)), has_minus(has_minus) {}
+            LiteralPattern(::std::string val, Literal::LitType type, location_t locus, bool has_minus = false) :
+              lit(Literal(::std::move(val), type)), has_minus(has_minus), locus(locus) {}
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -42,6 +48,8 @@ namespace Rust {
             // Pattern* to_bind;
             ::std::unique_ptr<Pattern> to_bind;
 
+            location_t locus;
+
           public:
             /*~IdentifierPattern() {
                 delete to_bind;
@@ -55,22 +63,14 @@ namespace Rust {
             }
 
             // Constructor
-            /*IdentifierPattern(
-              Identifier ident, bool is_ref = false, bool is_mut = false, Pattern* to_bind = NULL) :
-              variable_ident(::std::move(ident)),
-              is_ref(is_ref), is_mut(is_mut), to_bind(to_bind) {}*/
-            // FIXME: deprecated
-            // must be removed for overload resolution with default parameter
-
-            // Constructor
             IdentifierPattern(
-              Identifier ident, bool is_ref = false, bool is_mut = false, ::std::unique_ptr<Pattern> to_bind = NULL) :
+              Identifier ident, location_t locus, bool is_ref = false, bool is_mut = false, ::std::unique_ptr<Pattern> to_bind = NULL) :
               variable_ident(::std::move(ident)),
-              is_ref(is_ref), is_mut(is_mut), to_bind(::std::move(to_bind)) {}
+              is_ref(is_ref), is_mut(is_mut), to_bind(::std::move(to_bind)), locus(locus) {}
 
             // Copy constructor with clone
             IdentifierPattern(IdentifierPattern const& other) :
-              variable_ident(other.variable_ident), is_ref(other.is_ref), is_mut(other.is_mut) {
+              variable_ident(other.variable_ident), is_ref(other.is_ref), is_mut(other.is_mut), locus(other.locus) {
                 // fix to get prevent null pointer dereference
                 if (other.to_bind != NULL) {
                   to_bind = other.to_bind->clone_pattern();
@@ -84,6 +84,7 @@ namespace Rust {
                 variable_ident = other.variable_ident;
                 is_ref = other.is_ref;
                 is_mut = other.is_mut;
+                locus = other.locus;
                 // fix to get prevent null pointer dereference
                 if (other.to_bind != NULL) {
                   to_bind = other.to_bind->clone_pattern();
@@ -96,6 +97,10 @@ namespace Rust {
             IdentifierPattern(IdentifierPattern&& other) = default;
             IdentifierPattern& operator=(IdentifierPattern&& other) = default;
 
+            location_t get_locus() const {
+                return locus;
+            }
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual IdentifierPattern* clone_pattern_impl() const OVERRIDE {
@@ -105,12 +110,18 @@ namespace Rust {
 
         // AST node for using the '_' wildcard "match any value" pattern
         class WildcardPattern : public Pattern {
+          location_t locus;
+
           public:
             ::std::string as_string() const {
                 return ::std::string(1, '_');
             }
 
-            WildcardPattern() {}
+            WildcardPattern(location_t locus) : locus(locus) {}
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -152,12 +163,18 @@ namespace Rust {
             // Minus prefixed to literal (if integer or floating-point)
             bool has_minus;
 
+            location_t locus;
+
           public:
             // Constructor
-            RangePatternBoundLiteral(Literal literal, bool has_minus = false) :
-              literal(literal), has_minus(has_minus) {}
+            RangePatternBoundLiteral(Literal literal, location_t locus, bool has_minus = false) :
+              literal(literal), has_minus(has_minus), locus(locus) {}
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -177,6 +194,10 @@ namespace Rust {
 
             ::std::string as_string() const {
                 return path.as_string();
+            }
+
+            location_t get_locus() const {
+                return path.get_locus();
             }
 
           protected:
@@ -200,6 +221,10 @@ namespace Rust {
                 return path.as_string();
             }
 
+            location_t get_locus() const {
+                return path.get_locus();
+            }
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual RangePatternBoundQualPath* clone_range_pattern_bound_impl() const OVERRIDE {
@@ -216,27 +241,24 @@ namespace Rust {
 
             bool has_ellipsis_syntax;
 
+            // location only stored to avoid a dereference - lower pattern should give correct location
+            // so maybe change in future
+            location_t locus;
+
           public:
             ::std::string as_string() const;
 
             // Constructor
             RangePattern(
-              RangePatternBound* lower, RangePatternBound* upper, bool has_ellipsis_syntax = false) :
-              lower(lower),
-              upper(upper), has_ellipsis_syntax(has_ellipsis_syntax) {}
-            // FIXME: deprecated
-
-            // Constructor
-            RangePattern(
-              ::std::unique_ptr<RangePatternBound> lower, ::std::unique_ptr<RangePatternBound> upper, bool has_ellipsis_syntax = false) :
+              ::std::unique_ptr<RangePatternBound> lower, ::std::unique_ptr<RangePatternBound> upper, location_t locus, bool has_ellipsis_syntax = false) :
               lower(::std::move(lower)),
-              upper(::std::move(upper)), has_ellipsis_syntax(has_ellipsis_syntax) {}
+              upper(::std::move(upper)), has_ellipsis_syntax(has_ellipsis_syntax), locus(locus) {}
 
             // Copy constructor with clone
             RangePattern(RangePattern const& other) :
               lower(other.lower->clone_range_pattern_bound()),
               upper(other.upper->clone_range_pattern_bound()),
-              has_ellipsis_syntax(other.has_ellipsis_syntax) {}
+              has_ellipsis_syntax(other.has_ellipsis_syntax), locus(other.locus) {}
 
             // Destructor - define here if required
 
@@ -245,6 +267,7 @@ namespace Rust {
                 lower = other.lower->clone_range_pattern_bound();
                 upper = other.upper->clone_range_pattern_bound();
                 has_ellipsis_syntax = other.has_ellipsis_syntax;
+                locus = other.locus;
 
                 return *this;
             }
@@ -252,6 +275,10 @@ namespace Rust {
             // default move semantics
             RangePattern(RangePattern&& other) = default;
             RangePattern& operator=(RangePattern&& other) = default;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -267,6 +294,8 @@ namespace Rust {
             // Pattern* pattern;
             ::std::unique_ptr<Pattern> pattern;
 
+            location_t locus;
+
           public:
             /*~ReferencePattern() {
                 delete pattern;
@@ -274,17 +303,13 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            ReferencePattern(Pattern* pattern, bool is_mut_reference, bool ref_has_two_amps) :
-              has_two_amps(ref_has_two_amps), is_mut(is_mut_reference), pattern(pattern) {}
-            // FIXME: deprecated
-
-            ReferencePattern(::std::unique_ptr<Pattern> pattern, bool is_mut_reference, bool ref_has_two_amps) :
-              has_two_amps(ref_has_two_amps), is_mut(is_mut_reference), pattern(::std::move(pattern)) {}
+            ReferencePattern(::std::unique_ptr<Pattern> pattern, bool is_mut_reference, bool ref_has_two_amps, location_t locus) :
+              has_two_amps(ref_has_two_amps), is_mut(is_mut_reference), pattern(::std::move(pattern)), locus(locus) {}
 
             // Copy constructor requires clone
             ReferencePattern(ReferencePattern const& other) :
               has_two_amps(other.has_two_amps), is_mut(other.is_mut),
-              pattern(other.pattern->clone_pattern()) {}
+              pattern(other.pattern->clone_pattern()), locus(other.locus) {}
 
             // Destructor - define here if required
 
@@ -293,6 +318,7 @@ namespace Rust {
                 pattern = other.pattern->clone_pattern();
                 is_mut = other.is_mut;
                 has_two_amps = other.has_two_amps;
+                locus = other.locus;
 
                 return *this;
             }
@@ -312,6 +338,8 @@ namespace Rust {
         struct StructPatternEtc {
           private:
             ::std::vector<Attribute> outer_attrs;
+
+            // should this store location data?
 
           public:
             StructPatternEtc(::std::vector<Attribute> outer_attribs) :
@@ -342,6 +370,8 @@ namespace Rust {
                 } ident;
             } pattern;*/
 
+            location_t locus;
+
           public:
             virtual ~StructPatternField() {}
 
@@ -352,9 +382,13 @@ namespace Rust {
 
             virtual ::std::string as_string() const;
 
+            location_t get_locus() const {
+                return locus;
+            }
+
           protected:
-            StructPatternField(::std::vector<Attribute> outer_attribs) :
-              outer_attrs(::std::move(outer_attribs)) {}
+            StructPatternField(::std::vector<Attribute> outer_attribs, location_t locus) :
+              outer_attrs(::std::move(outer_attribs)), locus(locus) {}
 
             // Clone function implementation as pure virtual method
             virtual StructPatternField* clone_struct_pattern_field_impl() const = 0;
@@ -372,14 +406,8 @@ namespace Rust {
             }*/
 
             StructPatternFieldTuplePat(
-              TupleIndex index, Pattern* tuple_pattern, ::std::vector<Attribute> outer_attribs) :
-              StructPatternField(::std::move(outer_attribs)),
-              index(index), tuple_pattern(tuple_pattern) {}
-            // FIXME: deprecated
-
-            StructPatternFieldTuplePat(
-              TupleIndex index, ::std::unique_ptr<Pattern> tuple_pattern, ::std::vector<Attribute> outer_attribs) :
-              StructPatternField(::std::move(outer_attribs)),
+              TupleIndex index, ::std::unique_ptr<Pattern> tuple_pattern, ::std::vector<Attribute> outer_attribs, location_t locus) :
+              StructPatternField(::std::move(outer_attribs), locus),
               index(index), tuple_pattern(::std::move(tuple_pattern)) {}
 
             // Copy constructor requires clone
@@ -424,14 +452,8 @@ namespace Rust {
             }*/
 
             StructPatternFieldIdentPat(
-              Identifier ident, Pattern* ident_pattern, ::std::vector<Attribute> outer_attrs) :
-              StructPatternField(::std::move(outer_attrs)),
-              ident(::std::move(ident)), ident_pattern(ident_pattern) {}
-            // FIXME: deprecated
-
-            StructPatternFieldIdentPat(
-              Identifier ident, ::std::unique_ptr<Pattern> ident_pattern, ::std::vector<Attribute> outer_attrs) :
-              StructPatternField(::std::move(outer_attrs)),
+              Identifier ident, ::std::unique_ptr<Pattern> ident_pattern, ::std::vector<Attribute> outer_attrs, location_t locus) :
+              StructPatternField(::std::move(outer_attrs), locus),
               ident(::std::move(ident)), ident_pattern(::std::move(ident_pattern)) {}
 
             // Copy constructor requires clone
@@ -473,8 +495,8 @@ namespace Rust {
 
           public:
             StructPatternFieldIdent(
-              Identifier ident, bool is_ref, bool is_mut, ::std::vector<Attribute> outer_attrs) :
-              StructPatternField(::std::move(outer_attrs)),
+              Identifier ident, bool is_ref, bool is_mut, ::std::vector<Attribute> outer_attrs, location_t locus) :
+              StructPatternField(::std::move(outer_attrs), locus),
               has_ref(is_ref), has_mut(is_mut), ident(::std::move(ident)) {}
 
               ::std::string as_string() const;
@@ -497,6 +519,8 @@ namespace Rust {
             StructPatternEtc etc;
 
             // must have at least one of the two and maybe both
+
+            // should this store location data?
 
           public:
             // Returns whether there are any struct pattern fields
@@ -566,6 +590,8 @@ namespace Rust {
             //bool has_struct_pattern_elements;
             StructPatternElements elems;
 
+            // TODO: should this store location data? Accessor uses path location data.
+
           public:
             ::std::string as_string() const;
 
@@ -581,6 +607,10 @@ namespace Rust {
                 return !elems.is_empty();
             }
 
+            location_t get_locus() const {
+                return path.get_locus();
+            }
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual StructPattern* clone_pattern_impl() const OVERRIDE {
@@ -592,6 +622,8 @@ namespace Rust {
         class TupleStructItems {
           public:
             virtual ~TupleStructItems() {}
+
+            // TODO: should this store location data?
 
             // Unique pointer custom clone function
             ::std::unique_ptr<TupleStructItems> clone_tuple_struct_items() const {
@@ -717,12 +749,10 @@ namespace Rust {
             // TupleStructItems items;
             ::std::unique_ptr<TupleStructItems> items;
 
+            // TOOD: should this store location data? current accessor uses path location data
+
           public:
             ::std::string as_string() const;
-
-            TupleStructPattern(PathInExpression tuple_struct_path, TupleStructItems* items) :
-              path(::std::move(tuple_struct_path)), items(items) {}
-            // FIXME: deprecated
 
             TupleStructPattern(PathInExpression tuple_struct_path, ::std::unique_ptr<TupleStructItems> items) :
               path(::std::move(tuple_struct_path)), items(::std::move(items)) {}
@@ -745,6 +775,10 @@ namespace Rust {
             TupleStructPattern(TupleStructPattern&& other) = default;
             TupleStructPattern& operator=(TupleStructPattern&& other) = default;
 
+            location_t get_locus() const {
+                return path.get_locus();
+            }
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TupleStructPattern* clone_pattern_impl() const OVERRIDE {
@@ -756,6 +790,8 @@ namespace Rust {
         class TuplePatternItems {
           public:
             virtual ~TuplePatternItems() {}
+
+            // TODO: should this store location data?
 
             // Unique pointer custom clone function
             ::std::unique_ptr<TuplePatternItems> clone_tuple_pattern_items() const {
@@ -914,6 +950,8 @@ namespace Rust {
             // TuplePatternItems items;
             ::std::unique_ptr<TuplePatternItems> items;
 
+            location_t locus;
+
           public:
             ::std::string as_string() const;
 
@@ -922,22 +960,24 @@ namespace Rust {
                 return items != NULL;
             }
 
-            TuplePattern(TuplePatternItems* items) : items(items) {}
-            // FIXME: deprecated
-
-            TuplePattern(::std::unique_ptr<TuplePatternItems> items) : items(::std::move(items)) {}
+            TuplePattern(::std::unique_ptr<TuplePatternItems> items, location_t locus) : items(::std::move(items)), locus(locus) {}
 
             // Copy constructor requires clone
             TuplePattern(TuplePattern const& other) :
-              items(other.items->clone_tuple_pattern_items()) {}
+              items(other.items->clone_tuple_pattern_items()), locus(other.locus) {}
 
             // Destructor - define here if required
 
             // Overload assignment operator to clone
             TuplePattern& operator=(TuplePattern const& other) {
                 items = other.items->clone_tuple_pattern_items();
+                locus = other.locus;
 
                 return *this;
+            }
+
+            location_t get_locus() const {
+                return locus;
             }
 
           protected:
@@ -952,25 +992,25 @@ namespace Rust {
             // Pattern pattern_in_parens;
             ::std::unique_ptr<Pattern> pattern_in_parens;
 
+            location_t locus;
+
           public:
             ::std::string as_string() const {
                 return "(" + pattern_in_parens->as_string() + ")";
             }
 
-            GroupedPattern(Pattern* pattern_in_parens) : pattern_in_parens(pattern_in_parens) {}
-            // FIXME: deprecated
-
-            GroupedPattern(::std::unique_ptr<Pattern> pattern_in_parens) : pattern_in_parens(::std::move(pattern_in_parens)) {}
+            GroupedPattern(::std::unique_ptr<Pattern> pattern_in_parens, location_t locus) : pattern_in_parens(::std::move(pattern_in_parens)), locus(locus) {}
 
             // Copy constructor uses clone
             GroupedPattern(GroupedPattern const& other) :
-              pattern_in_parens(other.pattern_in_parens->clone_pattern()) {}
+              pattern_in_parens(other.pattern_in_parens->clone_pattern()), locus(other.locus) {}
 
             // Destructor - define here if required
 
             // Overload assignment operator to clone
             GroupedPattern& operator=(GroupedPattern const& other) {
                 pattern_in_parens = other.pattern_in_parens->clone_pattern();
+                locus = other.locus;
 
                 return *this;
             }
@@ -978,6 +1018,10 @@ namespace Rust {
             // default move semantics
             GroupedPattern(GroupedPattern&& other) = default;
             GroupedPattern& operator=(GroupedPattern&& other) = default;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -991,14 +1035,16 @@ namespace Rust {
             //::std::vector<Pattern> items;
             ::std::vector< ::std::unique_ptr<Pattern> > items;
 
+            location_t locus;
+
           public:
             ::std::string as_string() const;
 
-            SlicePattern(::std::vector< ::std::unique_ptr<Pattern> > items) :
-              items(::std::move(items)) {}
+            SlicePattern(::std::vector< ::std::unique_ptr<Pattern> > items, location_t locus) :
+              items(::std::move(items)), locus(locus) {}
 
             // Copy constructor with vector clone
-            SlicePattern(SlicePattern const& other) {
+            SlicePattern(SlicePattern const& other) : locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 items.reserve(other.items.size());
 
@@ -1009,6 +1055,7 @@ namespace Rust {
 
             // Overloaded assignment operator to vector clone
             SlicePattern& operator=(SlicePattern const& other) {
+              locus = other.locus;
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 items.reserve(other.items.size());
 
@@ -1022,6 +1069,10 @@ namespace Rust {
             // move constructors
             SlicePattern(SlicePattern&& other) = default;
             SlicePattern& operator=(SlicePattern&& other) = default;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

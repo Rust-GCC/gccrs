@@ -2115,10 +2115,18 @@ namespace Rust {
 
                 // create segment and add to vector
                 ::std::string segment_str = segment.as_string();
-                simple_segments.push_back(SimplePathSegment(::std::move(segment_str)));
+                simple_segments.push_back(SimplePathSegment(::std::move(segment_str), segment.get_locus()));
             }
 
-            return SimplePath(::std::move(simple_segments), with_opening_scope_resolution);
+            // kind of a HACK to get locus depending on opening scope resolution
+            location_t locus = UNKNOWN_LOCATION;
+            if (with_opening_scope_resolution) {
+                locus = simple_segments[0].get_locus() - 2; // minus 2 chars for ::
+            } else {
+                locus = simple_segments[0].get_locus();
+            }
+
+            return SimplePath(::std::move(simple_segments), with_opening_scope_resolution, locus);
         }
 
         SimplePath TypePath::as_simple_path() const {
@@ -2139,10 +2147,10 @@ namespace Rust {
 
                 // create segment and add to vector
                 ::std::string segment_str = segment->as_string();
-                simple_segments.push_back(SimplePathSegment(::std::move(segment_str)));
+                simple_segments.push_back(SimplePathSegment(::std::move(segment_str), segment->get_locus()));
             }
 
-            return SimplePath(::std::move(simple_segments), has_opening_scope_resolution);
+            return SimplePath(::std::move(simple_segments), has_opening_scope_resolution, locus);
         }
 
         ::std::string PathExprSegment::as_string() const {

@@ -21,19 +21,25 @@ namespace Rust {
 
             TypePath type_path;
 
+            location_t locus;
+
           public:
             // Returns whether trait bound has "for" lifetimes
             inline bool has_for_lifetimes() const {
                 return !for_lifetimes.empty();
             }
 
-            TraitBound(TypePath type_path, bool in_parens = false, bool opening_question_mark = false,
+            TraitBound(TypePath type_path, location_t locus, bool in_parens = false, bool opening_question_mark = false,
               ::std::vector<LifetimeParam> for_lifetimes = ::std::vector<LifetimeParam>()) :
               in_parens(in_parens),
               opening_question_mark(opening_question_mark), for_lifetimes(::std::move(for_lifetimes)),
-              type_path(::std::move(type_path)) {}
+              type_path(::std::move(type_path)), locus(locus) {}
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -50,6 +56,8 @@ namespace Rust {
             // TypeParamBounds type_param_bounds;
             ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
 
+            location_t locus;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ImplTraitType* clone_type_impl() const OVERRIDE {
@@ -57,11 +65,11 @@ namespace Rust {
             }
 
           public:
-            ImplTraitType(::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds) :
-              type_param_bounds(::std::move(type_param_bounds)) {}
+            ImplTraitType(::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds, location_t locus) :
+              type_param_bounds(::std::move(type_param_bounds)), locus(locus) {}
 
             // copy constructor with vector clone
-            ImplTraitType(ImplTraitType const& other) {
+            ImplTraitType(ImplTraitType const& other) : locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
 
@@ -72,6 +80,7 @@ namespace Rust {
 
             // overloaded assignment operator to clone
             ImplTraitType& operator=(ImplTraitType const& other) {
+              locus = other.locus;
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
 
@@ -87,6 +96,10 @@ namespace Rust {
             ImplTraitType& operator=(ImplTraitType&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
         };
 
         // An opaque value of another type that implements a set of traits
@@ -95,6 +108,8 @@ namespace Rust {
             // TypeParamBounds type_param_bounds;
             ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
 
+            location_t locus;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TraitObjectType* clone_type_impl() const OVERRIDE {
@@ -102,13 +117,13 @@ namespace Rust {
             }
 
           public:
-            TraitObjectType(::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds,
+            TraitObjectType(::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds, location_t locus,
               bool is_dyn_dispatch = false) :
               has_dyn(is_dyn_dispatch),
-              type_param_bounds(::std::move(type_param_bounds)) {}
+              type_param_bounds(::std::move(type_param_bounds)), locus(locus) {}
 
             // copy constructor with vector clone
-            TraitObjectType(TraitObjectType const& other) : has_dyn(other.has_dyn) {
+            TraitObjectType(TraitObjectType const& other) : has_dyn(other.has_dyn), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
 
@@ -120,6 +135,7 @@ namespace Rust {
             // overloaded assignment operator to clone
             TraitObjectType& operator=(TraitObjectType const& other) {
                 has_dyn = other.has_dyn;
+                locus = other.locus;
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
 
@@ -135,12 +151,18 @@ namespace Rust {
             TraitObjectType& operator=(TraitObjectType&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
         };
 
         // A type with parentheses around it, used to avoid ambiguity.
         class ParenthesisedType : public TypeNoBounds {
             // Type type_in_parens;
             ::std::unique_ptr<Type> type_in_parens;
+
+            location_t locus;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -155,21 +177,18 @@ namespace Rust {
 
           public:
             // Constructor uses Type pointer for polymorphism
-            ParenthesisedType(Type* type_inside_parens) : type_in_parens(type_inside_parens) {}
-            // FIXME: deprecated
-
-            // Constructor uses Type pointer for polymorphism
-            ParenthesisedType(::std::unique_ptr<Type> type_inside_parens) : type_in_parens(::std::move(type_inside_parens)) {}
+            ParenthesisedType(::std::unique_ptr<Type> type_inside_parens, location_t locus) : type_in_parens(::std::move(type_inside_parens)), locus(locus) {}
 
             // Copy constructor uses custom deep copy method for type to preserve polymorphism
             ParenthesisedType(ParenthesisedType const& other) :
-              type_in_parens(other.type_in_parens->clone_type()) {}
+              type_in_parens(other.type_in_parens->clone_type()), locus(other.locus) {}
 
             // define destructor here if required
 
             // overload assignment operator to use custom clone method
             ParenthesisedType& operator=(ParenthesisedType const& other) {
                 type_in_parens = other.type_in_parens->clone_type();
+                locus = other.locus;
                 return *this;
             }
 
@@ -188,11 +207,17 @@ namespace Rust {
                  * must be in parentheses. */
                 return type_in_parens->to_trait_bound(true);
             }
+
+            location_t get_locus() const {
+                return locus;
+            }
         };
 
         // Impl trait with a single bound? Poor reference material here.
         class ImplTraitTypeOneBound : public TypeNoBounds {
             TraitBound trait_bound;
+
+            location_t locus;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -206,9 +231,13 @@ namespace Rust {
             }
 
           public:
-            ImplTraitTypeOneBound(TraitBound trait_bound) : trait_bound(::std::move(trait_bound)) {}
+            ImplTraitTypeOneBound(TraitBound trait_bound, location_t locus) : trait_bound(::std::move(trait_bound)), locus(locus) {}
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
         };
 
         /* A trait object with a single trait bound. The "trait bound" is really just the trait. 
@@ -216,6 +245,8 @@ namespace Rust {
         class TraitObjectTypeOneBound : public TypeNoBounds {
             bool has_dyn;
             TraitBound trait_bound;
+
+            location_t locus;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -229,8 +260,8 @@ namespace Rust {
             }
 
           public:
-            TraitObjectTypeOneBound(TraitBound trait_bound, bool is_dyn_dispatch = false) :
-              has_dyn(is_dyn_dispatch), trait_bound(::std::move(trait_bound)) {}
+            TraitObjectTypeOneBound(TraitBound trait_bound, location_t locus, bool is_dyn_dispatch = false) :
+              has_dyn(is_dyn_dispatch), trait_bound(::std::move(trait_bound)), locus(locus) {}
 
             ::std::string as_string() const;
 
@@ -239,6 +270,10 @@ namespace Rust {
                 /* NOTE: this assumes there is no dynamic dispatch specified- if there was, this 
                  * cloning would not be required as parsing is unambiguous. */
                 return new AST::TraitBound(trait_bound);
+            }
+
+            location_t get_locus() const {
+                return locus;
             }
         };
 
@@ -249,16 +284,18 @@ namespace Rust {
             //::std::vector<Type> elems;
             ::std::vector< ::std::unique_ptr<Type> > elems;
 
+            location_t locus;
+
           public:
             // Returns whether the tuple type is the unit type, i.e. has no elements.
             inline bool is_unit_type() const {
                 return elems.empty();
             }
 
-            TupleType(::std::vector< ::std::unique_ptr<Type> > elems) : elems(::std::move(elems)) {}
+            TupleType(::std::vector< ::std::unique_ptr<Type> > elems, location_t locus) : elems(::std::move(elems)), locus(locus) {}
 
             // copy constructor with vector clone
-            TupleType(TupleType const& other) {
+            TupleType(TupleType const& other) : locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 elems.reserve(other.elems.size());
 
@@ -269,6 +306,7 @@ namespace Rust {
 
             // overloaded assignment operator to clone
             TupleType& operator=(TupleType const& other) {
+              locus = other.locus;
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 elems.reserve(other.elems.size());
 
@@ -285,6 +323,10 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            location_t get_locus() const {
+                return locus;
+            }
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TupleType* clone_type_impl() const OVERRIDE {
@@ -300,6 +342,8 @@ namespace Rust {
         /* A type with no values, representing the result of computations that never complete.
          * Expressions of NeverType can be coerced into any other types. Represented as "!". */
         class NeverType : public TypeNoBounds {
+          location_t locus;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual NeverType* clone_type_impl() const OVERRIDE {
@@ -312,10 +356,14 @@ namespace Rust {
             }
 
           public:
-            NeverType() {}
+            NeverType(location_t locus) : locus(locus) {}
 
             ::std::string as_string() const {
                 return "! (never type)";
+            }
+
+            location_t get_locus() const {
+                return locus;
             }
         };
 
@@ -330,6 +378,8 @@ namespace Rust {
             // TypeNoBounds type;
             ::std::unique_ptr<TypeNoBounds> type;
 
+            location_t locus;
+
           public:
             // Returns whether the pointer is mutable or constant.
             inline PointerType get_pointer_type() const {
@@ -337,25 +387,20 @@ namespace Rust {
             }
 
             // Constructor requires pointer for polymorphism reasons
-            RawPointerType(PointerType pointer_type, TypeNoBounds* type_no_bounds) :
-              pointer_type(pointer_type), type(type_no_bounds) {}
-            // FIXME: deprecated
-
-            // Constructor requires pointer for polymorphism reasons
-            RawPointerType(PointerType pointer_type, ::std::unique_ptr<TypeNoBounds> type_no_bounds) :
-              pointer_type(pointer_type), type(::std::move(type_no_bounds)) {}
+            RawPointerType(PointerType pointer_type, ::std::unique_ptr<TypeNoBounds> type_no_bounds, location_t locus) :
+              pointer_type(pointer_type), type(::std::move(type_no_bounds)), locus(locus) {}
 
             // Copy constructor calls custom polymorphic clone function
             RawPointerType(RawPointerType const& other) :
-              pointer_type(other.pointer_type), type(other.type->clone_type_no_bounds()) {}
+              pointer_type(other.pointer_type), type(other.type->clone_type_no_bounds()), locus(other.locus) {}
 
-            // default destructor
-            ~RawPointerType() = default;
+            // no destructor required?
 
             // overload assignment operator to use custom clone method
             RawPointerType& operator=(RawPointerType const& other) {
                 pointer_type = other.pointer_type;
                 type = other.type->clone_type_no_bounds();
+                locus = other.locus;
                 return *this;
             }
 
@@ -364,6 +409,10 @@ namespace Rust {
             RawPointerType& operator=(RawPointerType&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -387,6 +436,8 @@ namespace Rust {
             // TypeNoBounds type;
             ::std::unique_ptr<TypeNoBounds> type;
 
+            location_t locus;
+
           public:
             // Returns whether the reference is mutable or immutable.
             inline bool is_mut() const {
@@ -400,30 +451,23 @@ namespace Rust {
 
             // Constructor
             ReferenceType(
-              bool is_mut, TypeNoBounds* type_no_bounds, Lifetime lifetime = Lifetime::error()) :
+              bool is_mut, ::std::unique_ptr<TypeNoBounds> type_no_bounds, location_t locus, Lifetime lifetime = Lifetime::error()) :
               lifetime(::std::move(lifetime)),
-              has_mut(is_mut), type(type_no_bounds) {}
-            // FIXME: deprecated
-
-            // Constructor
-            ReferenceType(
-              bool is_mut, ::std::unique_ptr<TypeNoBounds> type_no_bounds, Lifetime lifetime = Lifetime::error()) :
-              lifetime(::std::move(lifetime)),
-              has_mut(is_mut), type(::std::move(type_no_bounds)) {}
+              has_mut(is_mut), type(::std::move(type_no_bounds)), locus(locus) {}
 
             // Copy constructor with custom clone method
             ReferenceType(ReferenceType const& other) :
               lifetime(other.lifetime), has_mut(other.has_mut),
-              type(other.type->clone_type_no_bounds()) {}
+              type(other.type->clone_type_no_bounds()), locus(other.locus) {}
 
-            // Default destructor
-            ~ReferenceType() = default;
+            // Destructor not required?
 
             // Operator overload assignment operator to custom clone the unique pointer
             ReferenceType& operator=(ReferenceType const& other) {
                 lifetime = other.lifetime;
                 has_mut = other.has_mut;
                 type = other.type->clone_type_no_bounds();
+                locus = other.locus;
 
                 return *this;
             }
@@ -433,6 +477,10 @@ namespace Rust {
             ReferenceType& operator=(ReferenceType&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -453,25 +501,23 @@ namespace Rust {
             // Expr* size;
             ::std::unique_ptr<Expr> size;
 
+            location_t locus;
+
           public:
             // Constructor requires pointers for polymorphism
-            ArrayType(Type* type, Expr* array_size) : elem_type(type), size(array_size) {}
-            // FIXME: deprecated
-
-            // Constructor requires pointers for polymorphism
-            ArrayType(::std::unique_ptr<Type> type, ::std::unique_ptr<Expr> array_size) : elem_type(::std::move(type)), size(::std::move(array_size)) {}
+            ArrayType(::std::unique_ptr<Type> type, ::std::unique_ptr<Expr> array_size, location_t locus) : elem_type(::std::move(type)), size(::std::move(array_size)), locus(locus) {}
 
             // Copy constructor requires deep copies of both unique pointers
             ArrayType(ArrayType const& other) :
-              elem_type(other.elem_type->clone_type()), size(other.size->clone_expr()) {}
+              elem_type(other.elem_type->clone_type()), size(other.size->clone_expr()), locus(other.locus) {}
 
-            // default destructor
-            ~ArrayType() = default;
+            // destructor not required?
 
             // Overload assignment operator to deep copy pointers
             ArrayType& operator=(ArrayType const& other) {
                 elem_type = other.elem_type->clone_type();
                 size = other.size->clone_expr();
+                locus = other.locus;
                 return *this;
             }
 
@@ -480,6 +526,10 @@ namespace Rust {
             ArrayType& operator=(ArrayType&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
             /*~ArrayType() {
                 delete size;
@@ -501,23 +551,21 @@ namespace Rust {
             // Type elem_type;
             ::std::unique_ptr<Type> elem_type;
 
+            location_t locus;
+
           public:
             // Constructor requires pointer for polymorphism
-            SliceType(Type* type) : elem_type(type) {}
-            // FIXME: deprecated
-
-            // Constructor requires pointer for polymorphism
-            SliceType(::std::unique_ptr<Type> type) : elem_type(::std::move(type)) {}
+            SliceType(::std::unique_ptr<Type> type, location_t locus) : elem_type(::std::move(type)), locus(locus) {}
 
             // Copy constructor requires deep copy of Type smart pointer
-            SliceType(SliceType const& other) : elem_type(other.elem_type->clone_type()) {}
+            SliceType(SliceType const& other) : elem_type(other.elem_type->clone_type()), locus(other.locus) {}
 
-            // default destructor
-            ~SliceType() = default;
+            // destructor not required?
 
             // Overload assignment operator to deep copy
             SliceType& operator=(SliceType const& other) {
                 elem_type = other.elem_type->clone_type();
+                locus = other.locus;
 
                 return *this;
             }
@@ -527,6 +575,10 @@ namespace Rust {
             SliceType& operator=(SliceType&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -542,6 +594,8 @@ namespace Rust {
 
         // Type used in generic arguments to explicitly request type inference (wildcard pattern)
         class InferredType : public TypeNoBounds {
+          location_t locus;
+
             // e.g. Vec<_> = whatever
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -555,9 +609,13 @@ namespace Rust {
             }
 
           public:
-            InferredType() {}
+            InferredType(location_t locus) : locus(locus) {}
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
         };
 
         class QualifiedPathInType; // definition moved to "rust-path.h"
@@ -574,18 +632,16 @@ namespace Rust {
             ParamKind param_kind;
             Identifier name; // technically, can be an identifier or '_'
 
-          public:
-            MaybeNamedParam(Identifier name, ParamKind param_kind, Type* param_type) :
-              param_type(param_type), param_kind(param_kind), name(::std::move(name)) {}
-            // FIXME: deprecated
+            location_t locus;
 
-            MaybeNamedParam(Identifier name, ParamKind param_kind, ::std::unique_ptr<Type> param_type) :
-              param_type(::std::move(param_type)), param_kind(param_kind), name(::std::move(name)) {}
+          public:
+            MaybeNamedParam(Identifier name, ParamKind param_kind, ::std::unique_ptr<Type> param_type, location_t locus) :
+              param_type(::std::move(param_type)), param_kind(param_kind), name(::std::move(name)), locus(locus) {}
 
             // Copy constructor with clone
             MaybeNamedParam(MaybeNamedParam const& other) :
               param_type(other.param_type->clone_type()), param_kind(other.param_kind),
-              name(other.name) {}
+              name(other.name), locus(other.locus) {}
 
             ~MaybeNamedParam() = default;
 
@@ -594,6 +650,7 @@ namespace Rust {
                 name = other.name;
                 param_kind = other.param_kind;
                 param_type = other.param_type->clone_type();
+                locus = other.locus;
 
                 return *this;
             }
@@ -611,7 +668,11 @@ namespace Rust {
 
             // Creates an error state param.
             static MaybeNamedParam create_error() {
-                return MaybeNamedParam("", UNNAMED, NULL);
+                return MaybeNamedParam("", UNNAMED, NULL, UNKNOWN_LOCATION);
+            }
+
+            location_t get_locus() const {
+                return locus;
             }
         };
 
@@ -630,6 +691,8 @@ namespace Rust {
             // BareFunctionReturnType return_type;
             ::std::unique_ptr<TypeNoBounds> return_type; // inlined version
 
+            location_t locus;
+
           public:
             // Whether a return type is defined with the function.
             inline bool has_return_type() const {
@@ -643,24 +706,16 @@ namespace Rust {
 
             BareFunctionType(::std::vector<LifetimeParam> lifetime_params,
               FunctionQualifiers qualifiers, ::std::vector<MaybeNamedParam> named_params,
-              bool is_variadic, TypeNoBounds* type) :
+              bool is_variadic, ::std::unique_ptr<TypeNoBounds> type, location_t locus) :
               for_lifetimes(::std::move(lifetime_params)),
               function_qualifiers(::std::move(qualifiers)), params(::std::move(named_params)),
-              is_variadic(is_variadic), return_type(type) {}
-            // FIXME: deprecated
-
-            BareFunctionType(::std::vector<LifetimeParam> lifetime_params,
-              FunctionQualifiers qualifiers, ::std::vector<MaybeNamedParam> named_params,
-              bool is_variadic, ::std::unique_ptr<TypeNoBounds> type) :
-              for_lifetimes(::std::move(lifetime_params)),
-              function_qualifiers(::std::move(qualifiers)), params(::std::move(named_params)),
-              is_variadic(is_variadic), return_type(::std::move(type)) {}
+              is_variadic(is_variadic), return_type(::std::move(type)), locus(locus) {}
 
             // Copy constructor with clone
             BareFunctionType(BareFunctionType const& other) :
               for_lifetimes(other.for_lifetimes), function_qualifiers(other.function_qualifiers),
               params(other.params), is_variadic(other.is_variadic),
-              return_type(other.return_type->clone_type_no_bounds()) {}
+              return_type(other.return_type->clone_type_no_bounds()), locus(other.locus) {}
 
             // destructor - define here if required
 
@@ -671,6 +726,7 @@ namespace Rust {
                 params = other.params;
                 is_variadic = other.is_variadic;
                 return_type = other.return_type->clone_type_no_bounds();
+                locus = other.locus;
 
                 return *this;
             }
@@ -680,6 +736,10 @@ namespace Rust {
             BareFunctionType& operator=(BareFunctionType&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

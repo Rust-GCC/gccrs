@@ -62,6 +62,8 @@ namespace Rust {
             // Type type;
             ::std::unique_ptr<Type> type;
 
+            location_t locus;
+
           public:
             // Returns whether the type of the type param has been specified.
             inline bool has_type() const {
@@ -78,27 +80,18 @@ namespace Rust {
                 return !outer_attr.is_empty();
             }
 
-            TypeParam(Identifier type_representation,
-              ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds
-              = ::std::vector< ::std::unique_ptr<TypeParamBound> >(),
-              Type* type = NULL, Attribute outer_attr = Attribute::create_empty()) :
-              outer_attr(::std::move(outer_attr)),
-              type_representation(::std::move(type_representation)),
-              type_param_bounds(::std::move(type_param_bounds)), type(type) {}
-            // FIXME: deprecated
-
-            TypeParam(Identifier type_representation,
+            TypeParam(Identifier type_representation, location_t locus = UNKNOWN_LOCATION,
               ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds
               = ::std::vector< ::std::unique_ptr<TypeParamBound> >(),
               ::std::unique_ptr<Type> type = NULL, Attribute outer_attr = Attribute::create_empty()) :
               outer_attr(::std::move(outer_attr)),
               type_representation(::std::move(type_representation)),
-              type_param_bounds(::std::move(type_param_bounds)), type(::std::move(type)) {}
+              type_param_bounds(::std::move(type_param_bounds)), type(::std::move(type)), locus(locus) {}
 
             // Copy constructor uses clone
             TypeParam(TypeParam const& other) :
               outer_attr(other.outer_attr), type_representation(other.type_representation),
-              /*type_param_bounds(other.type_param_bounds),*/ type(other.type->clone_type()) {
+              /*type_param_bounds(other.type_param_bounds),*/ type(other.type->clone_type()), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
 
@@ -115,6 +108,7 @@ namespace Rust {
                 // type_param_bounds = other.type_param_bounds;
                 type = other.type->clone_type();
                 outer_attr = other.outer_attr;
+                locus = other.locus;
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
@@ -131,6 +125,10 @@ namespace Rust {
             TypeParam& operator=(TypeParam&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -163,6 +161,8 @@ namespace Rust {
             // LifetimeBounds lifetime_bounds;
             ::std::vector<Lifetime> lifetime_bounds; // inlined lifetime bounds
 
+            // should this store location info? 
+
           public:
             LifetimeWhereClauseItem(Lifetime lifetime, ::std::vector<Lifetime> lifetime_bounds) :
               lifetime(::std::move(lifetime)), lifetime_bounds(::std::move(lifetime_bounds)) {}
@@ -189,6 +189,8 @@ namespace Rust {
             // TypeParamBounds type_param_bounds;
             ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
 
+            // should this store location info? 
+
           public:
             // Returns whether the item has ForLifetimes
             inline bool has_for_lifetimes() const {
@@ -199,12 +201,6 @@ namespace Rust {
             inline bool has_type_param_bounds() const {
                 return !type_param_bounds.empty();
             }
-
-            TypeBoundWhereClauseItem(::std::vector<LifetimeParam> for_lifetimes, Type* bound_type,
-              ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds) :
-              for_lifetimes(::std::move(for_lifetimes)),
-              bound_type(bound_type), type_param_bounds(::std::move(type_param_bounds)) {}
-            // FIXME: deprecated
 
             TypeBoundWhereClauseItem(::std::vector<LifetimeParam> for_lifetimes, ::std::unique_ptr<Type> bound_type,
               ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds) :
@@ -261,6 +257,8 @@ namespace Rust {
             //::std::vector<WhereClauseItem> where_clause_items;
             ::std::vector< ::std::unique_ptr<WhereClauseItem> > where_clause_items;
 
+            // should this store location info? 
+
           public:
             WhereClause(::std::vector< ::std::unique_ptr<WhereClauseItem> > where_clause_items) :
               where_clause_items(::std::move(where_clause_items)) {}
@@ -316,6 +314,8 @@ namespace Rust {
             // Type type;
             ::std::unique_ptr<Type> type;
 
+            location_t locus;
+
             // Unrestricted constructor used for error state
             SelfParam(Lifetime lifetime, bool has_ref, bool is_mut, Type* type) :
               has_ref(has_ref), is_mut(is_mut), lifetime(::std::move(lifetime)), type(type) {}
@@ -347,22 +347,17 @@ namespace Rust {
             }
 
             // Type-based self parameter (not ref, no lifetime)
-            SelfParam(Type* type, bool is_mut) :
-              has_ref(false), is_mut(is_mut), lifetime(Lifetime::error()), type(type) {}
-            // FIXME: deprecated
-
-            // Type-based self parameter (not ref, no lifetime)
-            SelfParam(::std::unique_ptr<Type> type, bool is_mut) :
-              has_ref(false), is_mut(is_mut), lifetime(Lifetime::error()), type(::std::move(type)) {}
+            SelfParam(::std::unique_ptr<Type> type, bool is_mut, location_t locus) :
+              has_ref(false), is_mut(is_mut), lifetime(Lifetime::error()), type(::std::move(type)), locus(locus) {}
 
             // Lifetime-based self parameter (is ref, no type)
-            SelfParam(Lifetime lifetime, bool is_mut) :
-              /*type(NULL), */ has_ref(true), is_mut(is_mut), lifetime(::std::move(lifetime)) {}
+            SelfParam(Lifetime lifetime, bool is_mut, location_t locus) :
+              /*type(NULL), */ has_ref(true), is_mut(is_mut), lifetime(::std::move(lifetime)), locus(locus) {}
 
             // Copy constructor requires clone
             SelfParam(SelfParam const& other) :
               has_ref(other.has_ref), is_mut(other.is_mut), lifetime(other.lifetime),
-              type(other.type->clone_type()) {}
+              type(other.type->clone_type()), locus(other.locus) {}
 
             // Destructor - define here if required
 
@@ -372,6 +367,7 @@ namespace Rust {
                 is_mut = other.is_mut;
                 has_ref = other.has_ref;
                 lifetime = other.lifetime;
+                locus = other.locus;
 
                 return *this;
             }
@@ -381,6 +377,10 @@ namespace Rust {
             SelfParam& operator=(SelfParam&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
         };
 
         // Qualifiers for function, i.e. const, unsafe, extern etc.
@@ -395,6 +395,8 @@ namespace Rust {
             bool has_extern;
             ::std::string extern_abi; // e.g. extern "C" fn() -> i32 {}
             // TODO: maybe ensure that extern_abi only exists if extern exists?
+
+            // should this store location info? 
 
           public:
             // Constructor with no extern (and hence no extern abi)
@@ -428,17 +430,15 @@ namespace Rust {
             // Type type;
             ::std::unique_ptr<Type> type;
 
-          public:
-            FunctionParam(Pattern* param_name, Type* param_type) :
-              param_name(param_name), type(param_type) {}
-            // FIXME: deprecated
+            location_t locus;
 
-            FunctionParam(::std::unique_ptr<Pattern> param_name, ::std::unique_ptr<Type> param_type) :
-              param_name(::std::move(param_name)), type(::std::move(param_type)) {}
+          public:
+            FunctionParam(::std::unique_ptr<Pattern> param_name, ::std::unique_ptr<Type> param_type, location_t locus) :
+              param_name(::std::move(param_name)), type(::std::move(param_type)), locus(locus) {}
 
             // Copy constructor uses clone
             FunctionParam(FunctionParam const& other) :
-              param_name(other.param_name->clone_pattern()), type(other.type->clone_type()) {}
+              param_name(other.param_name->clone_pattern()), type(other.type->clone_type()), locus(other.locus) {}
 
             // Destructor - define here if required
 
@@ -446,6 +446,7 @@ namespace Rust {
             FunctionParam& operator=(FunctionParam const& other) {
                 param_name = other.param_name->clone_pattern();
                 type = other.type->clone_type();
+                locus = other.locus;
 
                 return *this;
             }
@@ -461,10 +462,14 @@ namespace Rust {
 
             // Creates an error FunctionParam.
             static FunctionParam create_error() {
-                return FunctionParam(NULL, NULL);
+                return FunctionParam(NULL, NULL, UNKNOWN_LOCATION);
             }
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
         };
 
         // Visibility of item - if the item has it, then it is some form of public
@@ -480,6 +485,8 @@ namespace Rust {
 
             // Only assigned if public_vis_type is IN_PATH
             SimplePath in_path;
+
+            // should this store location info? 
 
           public:
             // Creates a Visibility - TODO make constructor protected or private?
@@ -573,6 +580,8 @@ namespace Rust {
             // BlockExpr* expr;
             ::std::unique_ptr<BlockExpr> expr;
 
+            location_t locus;
+
           public:
             /*~Method() {
                 delete expr;
@@ -619,11 +628,11 @@ namespace Rust {
             Method(Identifier method_name, FunctionQualifiers qualifiers,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
               ::std::vector<FunctionParam> function_params, ::std::unique_ptr<Type> return_type,
-              WhereClause where_clause, ::std::unique_ptr<BlockExpr> function_body, Visibility vis, ::std::vector<Attribute> outer_attrs) :
+              WhereClause where_clause, ::std::unique_ptr<BlockExpr> function_body, Visibility vis, ::std::vector<Attribute> outer_attrs, location_t locus = UNKNOWN_LOCATION) :
               outer_attrs(::std::move(outer_attrs)), vis(::std::move(vis)), qualifiers(::std::move(qualifiers)),
               method_name(::std::move(method_name)), generic_params(::std::move(generic_params)),
               self_param(::std::move(self_param)), function_params(::std::move(function_params)),
-              return_type(::std::move(return_type)), where_clause(::std::move(where_clause)), expr(::std::move(function_body)) {
+              return_type(::std::move(return_type)), where_clause(::std::move(where_clause)), expr(::std::move(function_body)), locus(locus) {
             }
 
             // TODO: add constructor with less fields
@@ -633,7 +642,7 @@ namespace Rust {
               outer_attrs(other.outer_attrs), vis(other.vis), qualifiers(other.qualifiers), method_name(other.method_name),
               /*generic_params(other.generic_params),*/ self_param(other.self_param),
               function_params(other.function_params), return_type(other.return_type->clone_type()),
-              where_clause(other.where_clause), expr(other.expr->clone_block_expr()) {
+              where_clause(other.where_clause), expr(other.expr->clone_block_expr()), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -656,6 +665,7 @@ namespace Rust {
                 return_type = other.return_type->clone_type();
                 where_clause = other.where_clause;
                 expr = other.expr->clone_block_expr();
+                locus = other.locus;
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
@@ -727,13 +737,19 @@ namespace Rust {
         class Module : public VisItem {
             Identifier module_name;
 
+            location_t locus;
+
           protected:
             // Protected constructor
-            Module(Identifier module_name, Visibility visibility, ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
-              VisItem(::std::move(visibility), ::std::move(outer_attrs)), module_name(module_name) {}
+            Module(Identifier module_name, Visibility visibility, location_t locus, ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+              VisItem(::std::move(visibility), ::std::move(outer_attrs)), module_name(module_name), locus(locus) {}
 
           public:
             virtual ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
         };
 
         // Module with a body, defined in file
@@ -758,12 +774,12 @@ namespace Rust {
             }
 
             // Full constructor
-            ModuleBodied(Identifier name, ::std::vector< ::std::unique_ptr<Item> > items
+            ModuleBodied(Identifier name, location_t locus, ::std::vector< ::std::unique_ptr<Item> > items
                          = ::std::vector< ::std::unique_ptr<Item> >(),
               Visibility visibility = Visibility::create_error(),
               ::std::vector<Attribute> inner_attrs = ::std::vector<Attribute>(),
               ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
-              Module(::std::move(name), ::std::move(visibility), ::std::move(outer_attrs)),
+              Module(::std::move(name), ::std::move(visibility), locus, ::std::move(outer_attrs)),
               inner_attrs(::std::move(inner_attrs)), items(::std::move(items)) {}
 
             // Copy constructor with vector clone
@@ -813,8 +829,8 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Full constructor
-            ModuleNoBody(Identifier name, Visibility visibility, ::std::vector<Attribute> outer_attrs) :
-              Module(::std::move(name), ::std::move(visibility), ::std::move(outer_attrs)) {}
+            ModuleNoBody(Identifier name, Visibility visibility, ::std::vector<Attribute> outer_attrs, location_t locus) :
+              Module(::std::move(name), ::std::move(visibility), locus, ::std::move(outer_attrs)) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -837,6 +853,8 @@ namespace Rust {
             // this is either an identifier or "_", with _ parsed to string
             ::std::string as_clause_name;
 
+            location_t locus;
+
             /* e.g.
                 "extern crate foo as _"
                 "extern crate foo"
@@ -856,10 +874,14 @@ namespace Rust {
 
             // Constructor
             ExternCrate(::std::string referenced_crate, Visibility visibility,
-              ::std::vector<Attribute> outer_attrs, ::std::string as_clause_name = ::std::string()) :
+              ::std::vector<Attribute> outer_attrs, location_t locus, ::std::string as_clause_name = ::std::string()) :
               VisItem(::std::move(visibility), ::std::move(outer_attrs)),
               referenced_crate(::std::move(referenced_crate)),
-              as_clause_name(::std::move(as_clause_name)) {}
+              as_clause_name(::std::move(as_clause_name)), locus(locus) {}
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -875,6 +897,8 @@ namespace Rust {
 
         // The path-ish thing referred to in a use declaration - abstract base class
         class UseTree {
+            location_t locus;
+
           public:
             virtual ~UseTree() {}
 
@@ -885,9 +909,15 @@ namespace Rust {
 
             virtual ::std::string as_string() const = 0;
 
+            location_t get_locus() const {
+                return locus;
+            }
+
           protected:
             // Clone function implementation as pure virtual method
             virtual UseTree* clone_use_tree_impl() const = 0;
+
+            UseTree(location_t locus) : locus(locus) {}
         };
 
         // Use tree with a glob (wildcard) operator
@@ -900,8 +930,8 @@ namespace Rust {
             SimplePath path;
 
           public:
-            UseTreeGlob(PathType glob_type, SimplePath path) :
-              glob_type(glob_type), path(::std::move(path)) {}
+            UseTreeGlob(PathType glob_type, SimplePath path, location_t locus) :
+              UseTree(locus), glob_type(glob_type), path(::std::move(path)) {}
 
             // Returns whether has path. Should be made redundant by PathType PATH_PREFIXED.
             inline bool has_path() const {
@@ -931,12 +961,12 @@ namespace Rust {
 
           public:
             UseTreeList(PathType path_type, SimplePath path,
-              ::std::vector< ::std::unique_ptr<UseTree> > trees) :
-              path_type(path_type),
+              ::std::vector< ::std::unique_ptr<UseTree> > trees, location_t locus) :
+              UseTree(locus), path_type(path_type),
               path(::std::move(path)), trees(::std::move(trees)) {}
 
             // copy constructor with vector clone
-            UseTreeList(UseTreeList const& other) : path_type(other.path_type), path(other.path) {
+            UseTreeList(UseTreeList const& other) : UseTree(other), path_type(other.path_type), path(other.path) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 trees.reserve(other.trees.size());
 
@@ -947,6 +977,7 @@ namespace Rust {
 
             // overloaded assignment operator with vector clone
             UseTreeList& operator=(UseTreeList const& other) {
+                UseTree::operator=(other);
                 path_type = other.path_type;
                 path = other.path;
 
@@ -997,8 +1028,8 @@ namespace Rust {
 
           public:
             UseTreeRebind(
-              NewBindType bind_type, SimplePath path, Identifier identifier = ::std::string()) :
-              path(::std::move(path)),
+              NewBindType bind_type, SimplePath path, location_t locus, Identifier identifier = ::std::string()) :
+              UseTree(locus), path(::std::move(path)),
               bind_type(bind_type), identifier(::std::move(identifier)) {}
 
             // Returns whether has path (this should always be true).
@@ -1025,23 +1056,19 @@ namespace Rust {
         class UseDeclaration : public VisItem {
             ::std::unique_ptr<UseTree> use_tree;
 
+            location_t locus;
+
           public:
             ::std::string as_string() const;
 
             UseDeclaration(
-              UseTree* use_tree, Visibility visibility, ::std::vector<Attribute> outer_attrs) :
+              ::std::unique_ptr<UseTree> use_tree, Visibility visibility, ::std::vector<Attribute> outer_attrs, location_t locus) :
               VisItem(::std::move(visibility), ::std::move(outer_attrs)),
-              use_tree(use_tree) {}
-            // FIXME: deprecated
-
-            UseDeclaration(
-              ::std::unique_ptr<UseTree> use_tree, Visibility visibility, ::std::vector<Attribute> outer_attrs) :
-              VisItem(::std::move(visibility), ::std::move(outer_attrs)),
-              use_tree(::std::move(use_tree)) {}
+              use_tree(::std::move(use_tree)), locus(locus) {}
 
             // Copy constructor with clone
             UseDeclaration(UseDeclaration const& other) :
-              VisItem(other), use_tree(other.use_tree->clone_use_tree()) {}
+              VisItem(other), use_tree(other.use_tree->clone_use_tree()), locus(other.locus) {}
 
             // Destructor - define here if required
 
@@ -1051,6 +1078,7 @@ namespace Rust {
                 use_tree = other.use_tree->clone_use_tree();
                 // visibility = other.visibility->clone_visibility();
                 // outer_attrs = other.outer_attrs;
+                locus = other.locus;
 
                 return *this;
             }
@@ -1058,6 +1086,10 @@ namespace Rust {
             // move constructors
             UseDeclaration(UseDeclaration&& other) = default;
             UseDeclaration& operator=(UseDeclaration&& other) = default;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1100,6 +1132,8 @@ namespace Rust {
             // BlockExpr* function_body;
             ::std::unique_ptr<BlockExpr> function_body;
 
+            location_t locus;
+
           public:
             /*~Function() {
                 delete function_body;
@@ -1129,27 +1163,14 @@ namespace Rust {
             // Mega-constructor with all possible fields
             Function(Identifier function_name, FunctionQualifiers qualifiers,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
-              ::std::vector<FunctionParam> function_params, Type* return_type,
-              WhereClause where_clause, BlockExpr* function_body, Visibility vis,
-              ::std::vector<Attribute> outer_attrs) :
-              VisItem(::std::move(vis), ::std::move(outer_attrs)),
-              qualifiers(::std::move(qualifiers)), function_name(::std::move(function_name)),
-              generic_params(::std::move(generic_params)),
-              function_params(::std::move(function_params)), return_type(return_type),
-              where_clause(::std::move(where_clause)), function_body(function_body) {}
-            // FIXME: deprecated
-
-            // Mega-constructor with all possible fields
-            Function(Identifier function_name, FunctionQualifiers qualifiers,
-              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               ::std::vector<FunctionParam> function_params, ::std::unique_ptr<Type> return_type,
               WhereClause where_clause, ::std::unique_ptr<BlockExpr> function_body, Visibility vis,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
               qualifiers(::std::move(qualifiers)), function_name(::std::move(function_name)),
               generic_params(::std::move(generic_params)),
               function_params(::std::move(function_params)), return_type(::std::move(return_type)),
-              where_clause(::std::move(where_clause)), function_body(::std::move(function_body)) {}
+              where_clause(::std::move(where_clause)), function_body(::std::move(function_body)), locus(locus) {}
 
             // TODO: add constructor with less fields
 
@@ -1158,7 +1179,7 @@ namespace Rust {
               VisItem(other), qualifiers(other.qualifiers), function_name(other.function_name),
               /*generic_params(other.generic_params),*/ function_params(other.function_params),
               return_type(other.return_type->clone_type()), where_clause(other.where_clause),
-              function_body(other.function_body->clone_block_expr()) {
+              function_body(other.function_body->clone_block_expr()), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -1181,6 +1202,7 @@ namespace Rust {
                 function_body = other.function_body->clone_block_expr();
                 // visibility = other.visibility->clone_visibility();
                 // outer_attrs = other.outer_attrs;
+                locus = other.locus;
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
@@ -1195,6 +1217,10 @@ namespace Rust {
             // move constructors
             Function(Function&& other) = default;
             Function& operator=(Function&& other) = default;
+
+          location_t get_locus() const {
+              return locus;
+          }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1232,6 +1258,8 @@ namespace Rust {
             // Type exiting_type;
             ::std::unique_ptr<Type> existing_type;
 
+            location_t locus;
+
           public:
             ::std::string as_string() const;
 
@@ -1248,27 +1276,17 @@ namespace Rust {
             // Mega-constructor with all possible fields
             TypeAlias(Identifier new_type_name,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
-              WhereClause where_clause, Type* existing_type, Visibility vis,
-              ::std::vector<Attribute> outer_attrs) :
-              VisItem(::std::move(vis), ::std::move(outer_attrs)),
-              new_type_name(::std::move(new_type_name)), generic_params(::std::move(generic_params)),
-              where_clause(::std::move(where_clause)), existing_type(existing_type) {}
-            // FIXME: deprecated
-
-            // Mega-constructor with all possible fields
-            TypeAlias(Identifier new_type_name,
-              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, ::std::unique_ptr<Type> existing_type, Visibility vis,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
               new_type_name(::std::move(new_type_name)), generic_params(::std::move(generic_params)),
-              where_clause(::std::move(where_clause)), existing_type(::std::move(existing_type)) {}
+              where_clause(::std::move(where_clause)), existing_type(::std::move(existing_type)), locus(locus) {}
 
             // Copy constructor
             TypeAlias(TypeAlias const& other) :
               VisItem(other),
               new_type_name(other.new_type_name), /*generic_params(other.generic_params),*/
-              where_clause(other.where_clause), existing_type(other.existing_type->clone_type()) {
+              where_clause(other.where_clause), existing_type(other.existing_type->clone_type()), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -1288,6 +1306,7 @@ namespace Rust {
                 existing_type = other.existing_type->clone_type();
                 // visibility = other.visibility->clone_visibility();
                 // outer_attrs = other.outer_attrs;
+                locus = other.locus;
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
@@ -1302,6 +1321,10 @@ namespace Rust {
             // move constructors
             TypeAlias(TypeAlias&& other) = default;
             TypeAlias& operator=(TypeAlias&& other) = default;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1333,6 +1356,8 @@ namespace Rust {
             // bool has_where_clause;
             WhereClause where_clause;
 
+            location_t locus;
+
           public:
             // Returns whether struct has generic parameters.
             inline bool has_generics() const {
@@ -1344,18 +1369,22 @@ namespace Rust {
                 return !where_clause.is_empty();
             }
 
+            location_t get_locus() const {
+                return locus;
+            }
+
           protected:
             Struct(Identifier struct_name,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
-              WhereClause where_clause, Visibility vis,
+              WhereClause where_clause, Visibility vis, location_t locus,
               ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
               struct_name(::std::move(struct_name)), generic_params(::std::move(generic_params)),
-              where_clause(::std::move(where_clause)) {}
+              where_clause(::std::move(where_clause)), locus(locus) {}
 
             // Copy constructor with vector clone
             Struct(Struct const& other) :
-              VisItem(other), struct_name(other.struct_name), where_clause(other.where_clause) {
+              VisItem(other), struct_name(other.struct_name), where_clause(other.where_clause), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -1369,6 +1398,7 @@ namespace Rust {
                 VisItem::operator=(other);
                 struct_name = other.struct_name;
                 where_clause = other.where_clause;
+                locus = other.locus;
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
@@ -1398,6 +1428,8 @@ namespace Rust {
             // Type field_type;
             ::std::unique_ptr<Type> field_type;
 
+            // should this store location info? 
+
           public:
             // Returns whether struct field has any outer attributes.
             inline bool has_outer_attributes() const {
@@ -1408,13 +1440,6 @@ namespace Rust {
             inline bool has_visibility() const {
                 return !visibility.is_error();
             }
-
-            StructField(Identifier field_name, Type* field_type, Visibility vis,
-              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
-              outer_attrs(::std::move(outer_attrs)),
-              visibility(::std::move(vis)), field_name(::std::move(field_name)),
-              field_type(field_type) {}
-            // FIXME: deprecated
 
             StructField(Identifier field_name, ::std::unique_ptr<Type> field_type, Visibility vis,
               ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
@@ -1469,17 +1494,17 @@ namespace Rust {
             StructStruct(::std::vector<StructField> fields, Identifier struct_name,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, bool is_unit, Visibility vis,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               Struct(::std::move(struct_name), ::std::move(generic_params), ::std::move(where_clause),
-                ::std::move(vis), ::std::move(outer_attrs)),
+                ::std::move(vis), locus, ::std::move(outer_attrs)),
               fields(::std::move(fields)), is_unit(is_unit) {}
 
             // Unit struct constructor
             StructStruct(Identifier struct_name,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
-              WhereClause where_clause, Visibility vis, ::std::vector<Attribute> outer_attrs) :
+              WhereClause where_clause, Visibility vis, ::std::vector<Attribute> outer_attrs, location_t locus) :
               Struct(::std::move(struct_name), ::std::move(generic_params), ::std::move(where_clause),
-                ::std::move(vis), ::std::move(outer_attrs)),
+                ::std::move(vis), locus, ::std::move(outer_attrs)),
               is_unit(true) {}
             // TODO: can a unit struct have generic fields? assuming yes for now.
 
@@ -1513,6 +1538,8 @@ namespace Rust {
             // Type field_type;
             ::std::unique_ptr<Type> field_type;
 
+            // should this store location info? 
+
           public:
             // Returns whether tuple field has outer attributes.
             inline bool has_outer_attributes() const {
@@ -1523,13 +1550,6 @@ namespace Rust {
             inline bool has_visibility() const {
                 return !visibility.is_error();
             }
-
-            // Complete constructor
-            TupleField(Type* field_type, Visibility vis,
-              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
-              outer_attrs(::std::move(outer_attrs)),
-              visibility(::std::move(vis)), field_type(field_type) {}
-            // FIXME: deprecated
 
             // Complete constructor
             TupleField(::std::unique_ptr<Type> field_type, Visibility vis,
@@ -1580,9 +1600,9 @@ namespace Rust {
             // Mega-constructor with all possible fields
             TupleStruct(::std::vector<TupleField> fields, Identifier struct_name,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
-              WhereClause where_clause, Visibility vis, ::std::vector<Attribute> outer_attrs) :
+              WhereClause where_clause, Visibility vis, ::std::vector<Attribute> outer_attrs, location_t locus) :
               Struct(::std::move(struct_name), ::std::move(generic_params), ::std::move(where_clause),
-                ::std::move(vis), ::std::move(outer_attrs)),
+                ::std::move(vis), locus, ::std::move(outer_attrs)),
               fields(::std::move(fields)) {}
 
           protected:
@@ -1604,6 +1624,8 @@ namespace Rust {
 
             Identifier variant_name;
 
+            location_t locus;
+
           public:
             virtual ~EnumItem() {}
 
@@ -1612,8 +1634,8 @@ namespace Rust {
                 return !outer_attrs.empty();
             }
 
-            EnumItem(Identifier variant_name, ::std::vector<Attribute> outer_attrs) :
-              outer_attrs(::std::move(outer_attrs)), variant_name(::std::move(variant_name)) {}
+            EnumItem(Identifier variant_name, ::std::vector<Attribute> outer_attrs, location_t locus) :
+              outer_attrs(::std::move(outer_attrs)), variant_name(::std::move(variant_name)), locus(locus) {}
 
             // Unique pointer custom clone function
             ::std::unique_ptr<EnumItem> clone_enum_item() const {
@@ -1641,8 +1663,8 @@ namespace Rust {
             }
 
             EnumItemTuple(Identifier variant_name, ::std::vector<TupleField> tuple_fields,
-              ::std::vector<Attribute> outer_attrs) :
-              EnumItem(::std::move(variant_name), ::std::move(outer_attrs)),
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
+              EnumItem(::std::move(variant_name), ::std::move(outer_attrs), locus),
               tuple_fields(::std::move(tuple_fields)) {}
 
             ::std::string as_string() const;
@@ -1666,8 +1688,8 @@ namespace Rust {
             }
 
             EnumItemStruct(Identifier variant_name, ::std::vector<StructField> struct_fields,
-              ::std::vector<Attribute> outer_attrs) :
-              EnumItem(::std::move(variant_name), ::std::move(outer_attrs)),
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
+              EnumItem(::std::move(variant_name), ::std::move(outer_attrs), locus),
               struct_fields(::std::move(struct_fields)) {}
 
             ::std::string as_string() const;
@@ -1690,14 +1712,8 @@ namespace Rust {
             }*/
 
             EnumItemDiscriminant(
-              Identifier variant_name, Expr* expr, ::std::vector<Attribute> outer_attrs) :
-              EnumItem(::std::move(variant_name), ::std::move(outer_attrs)),
-              expression(expr) {}
-            // FIXME: deprecated
-
-            EnumItemDiscriminant(
-              Identifier variant_name, ::std::unique_ptr<Expr> expr, ::std::vector<Attribute> outer_attrs) :
-              EnumItem(::std::move(variant_name), ::std::move(outer_attrs)),
+              Identifier variant_name, ::std::unique_ptr<Expr> expr, ::std::vector<Attribute> outer_attrs, location_t locus) :
+              EnumItem(::std::move(variant_name), ::std::move(outer_attrs), locus),
               expression(::std::move(expr)) {}
 
             // Copy constructor with clone
@@ -1742,6 +1758,8 @@ namespace Rust {
 
             ::std::vector< ::std::unique_ptr<EnumItem> > items;
 
+            location_t locus;
+
           public:
             ::std::string as_string() const;
 
@@ -1765,16 +1783,16 @@ namespace Rust {
             Enum(Identifier enum_name, Visibility vis,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, ::std::vector< ::std::unique_ptr<EnumItem> > items,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
               enum_name(::std::move(enum_name)), generic_params(::std::move(generic_params)),
-              where_clause(::std::move(where_clause)), items(::std::move(items)) {}
+              where_clause(::std::move(where_clause)), items(::std::move(items)), locus(locus) {}
 
             // TODO: constructor with less arguments
 
             // Copy constructor with vector clone
             Enum(Enum const& other) :
-              VisItem(other), enum_name(other.enum_name), where_clause(other.where_clause) {
+              VisItem(other), enum_name(other.enum_name), where_clause(other.where_clause), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -1795,6 +1813,7 @@ namespace Rust {
                 VisItem::operator=(other);
                 enum_name = other.enum_name;
                 where_clause = other.where_clause;
+                locus = other.locus;
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
@@ -1816,6 +1835,10 @@ namespace Rust {
             // Move constructors
             Enum(Enum&& other) = default;
             Enum& operator=(Enum&& other) = default;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1842,6 +1865,8 @@ namespace Rust {
 
             ::std::vector<StructField> variants;
 
+            location_t locus;
+
           public:
             ::std::string as_string() const;
 
@@ -1858,15 +1883,15 @@ namespace Rust {
             Union(Identifier union_name, Visibility vis,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               WhereClause where_clause, ::std::vector<StructField> variants,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
               union_name(::std::move(union_name)), generic_params(::std::move(generic_params)),
-              where_clause(::std::move(where_clause)), variants(::std::move(variants)) {}
+              where_clause(::std::move(where_clause)), variants(::std::move(variants)), locus(locus) {}
 
             // copy constructor with vector clone
             Union(Union const& other) :
               VisItem(other), union_name(other.union_name), where_clause(other.where_clause),
-              variants(other.variants) {
+              variants(other.variants), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -1881,6 +1906,7 @@ namespace Rust {
                 union_name = other.union_name;
                 where_clause = other.where_clause;
                 variants = other.variants;
+                locus = other.locus;
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
@@ -1895,6 +1921,10 @@ namespace Rust {
             // move constructors
             Union(Union&& other) = default;
             Union& operator=(Union&& other) = default;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1921,6 +1951,8 @@ namespace Rust {
             // Expr* const_expr;
             ::std::unique_ptr<Expr> const_expr;
 
+            location_t locus;
+
           public:
             /*~ConstantItem() {
                 delete const_expr;
@@ -1928,20 +1960,14 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            ConstantItem(Identifier ident, Visibility vis, Type* type, Expr* const_expr,
-              ::std::vector<Attribute> outer_attrs) :
-              VisItem(::std::move(vis), ::std::move(outer_attrs)),
-              identifier(::std::move(ident)), type(type), const_expr(const_expr) {}
-            // FIXME: deprecated
-
             ConstantItem(Identifier ident, Visibility vis, ::std::unique_ptr<Type> type, ::std::unique_ptr<Expr> const_expr,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
-              identifier(::std::move(ident)), type(::std::move(type)), const_expr(::std::move(const_expr)) {}
+              identifier(::std::move(ident)), type(::std::move(type)), const_expr(::std::move(const_expr)), locus(locus) {}
 
             ConstantItem(ConstantItem const& other) :
               VisItem(other), identifier(other.identifier), type(other.type->clone_type()),
-              const_expr(other.const_expr->clone_expr()) {}
+              const_expr(other.const_expr->clone_expr()), locus(other.locus) {}
 
             // Destructor - define here if required
 
@@ -1951,6 +1977,7 @@ namespace Rust {
                 identifier = other.identifier;
                 type = other.type->clone_type();
                 const_expr = other.const_expr->clone_expr();
+                locus = other.locus;
 
                 return *this;
             }
@@ -1963,6 +1990,10 @@ namespace Rust {
              * constant. */
             inline bool is_unnamed() const {
                 return identifier == ::std::string("_");
+            }
+
+            location_t get_locus() const {
+                return locus;
             }
 
           protected:
@@ -1999,6 +2030,8 @@ namespace Rust {
             // Expr* expr;
             ::std::unique_ptr<Expr> expr;
 
+            location_t locus;
+
           public:
             /*~StaticItem() {
                 delete expr;
@@ -2006,21 +2039,15 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            StaticItem(Identifier name, bool is_mut, Type* type, Expr* expr, Visibility vis,
-              ::std::vector<Attribute> outer_attrs) :
-              VisItem(::std::move(vis), ::std::move(outer_attrs)),
-              has_mut(is_mut), name(::std::move(name)), type(type), expr(expr) {}
-            // FIXME: deprecated
-
             StaticItem(Identifier name, bool is_mut, ::std::unique_ptr<Type> type, ::std::unique_ptr<Expr> expr, Visibility vis,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
-              has_mut(is_mut), name(::std::move(name)), type(::std::move(type)), expr(::std::move(expr)) {}
+              has_mut(is_mut), name(::std::move(name)), type(::std::move(type)), expr(::std::move(expr)), locus(locus) {}
 
             // Copy constructor with clone
             StaticItem(StaticItem const& other) :
               VisItem(other), has_mut(other.has_mut), name(other.name),
-              type(other.type->clone_type()), expr(other.expr->clone_expr()) {}
+              type(other.type->clone_type()), expr(other.expr->clone_expr()), locus(other.locus) {}
 
             // Destructor - define here if required
 
@@ -2031,6 +2058,7 @@ namespace Rust {
                 has_mut = other.has_mut;
                 type = other.type->clone_type();
                 expr = other.expr->clone_expr();
+                locus = other.locus;
 
                 return *this;
             }
@@ -2038,6 +2066,10 @@ namespace Rust {
             // move constructors
             StaticItem(StaticItem&& other) = default;
             StaticItem& operator=(StaticItem&& other) = default;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2073,6 +2105,8 @@ namespace Rust {
             // bool has_where_clause;
             WhereClause where_clause;
 
+            // should this store location info? 
+
           public:
             // Returns whether function decl has generic parameters.
             inline bool has_generics() const {
@@ -2093,17 +2127,6 @@ namespace Rust {
             inline bool has_where_clause() const {
                 return !where_clause.is_empty();
             }
-
-            // Mega-constructor
-            TraitFunctionDecl(Identifier function_name, FunctionQualifiers qualifiers,
-              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
-              ::std::vector<FunctionParam> function_params, Type* return_type,
-              WhereClause where_clause) :
-              qualifiers(::std::move(qualifiers)),
-              function_name(::std::move(function_name)), generic_params(::std::move(generic_params)),
-              function_params(::std::move(function_params)), return_type(return_type),
-              where_clause(::std::move(where_clause)) {}
-            // FIXME: deprecated
 
             // Mega-constructor
             TraitFunctionDecl(Identifier function_name, FunctionQualifiers qualifiers,
@@ -2163,6 +2186,8 @@ namespace Rust {
             // BlockExpr* block_expr;
             ::std::unique_ptr<BlockExpr> block_expr;
 
+            location_t locus;
+
           public:
             /*~TraitItemFunc() {
                 delete block_expr;
@@ -2174,19 +2199,13 @@ namespace Rust {
             }
 
             TraitItemFunc(
-              TraitFunctionDecl decl, BlockExpr* block_expr, ::std::vector<Attribute> outer_attrs) :
+              TraitFunctionDecl decl, ::std::unique_ptr<BlockExpr> block_expr, ::std::vector<Attribute> outer_attrs, location_t locus) :
               outer_attrs(::std::move(outer_attrs)),
-              decl(::std::move(decl)), block_expr(block_expr) {}
-            // FIXME: deprecated
-
-            TraitItemFunc(
-              TraitFunctionDecl decl, ::std::unique_ptr<BlockExpr> block_expr, ::std::vector<Attribute> outer_attrs) :
-              outer_attrs(::std::move(outer_attrs)),
-              decl(::std::move(decl)), block_expr(::std::move(block_expr)) {}
+              decl(::std::move(decl)), block_expr(::std::move(block_expr)), locus(locus) {}
 
             // Copy constructor with clone
             TraitItemFunc(TraitItemFunc const& other) :
-              outer_attrs(other.outer_attrs), decl(other.decl)/*, block_expr(other.block_expr->clone_block_expr())*/ {
+              outer_attrs(other.outer_attrs), decl(other.decl)/*, block_expr(other.block_expr->clone_block_expr())*/, locus(other.locus) {
                 if (other.block_expr != NULL) {
                   block_expr = other.block_expr->clone_block_expr();
                 }
@@ -2199,6 +2218,7 @@ namespace Rust {
                 TraitItem::operator=(other);
                 outer_attrs = other.outer_attrs;
                 decl = other.decl;
+                locus = other.locus;
                 if (other.block_expr != NULL) {
                   block_expr = other.block_expr->clone_block_expr();
                 }
@@ -2211,6 +2231,10 @@ namespace Rust {
             TraitItemFunc& operator=(TraitItemFunc&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -2243,6 +2267,8 @@ namespace Rust {
             // bool has_where_clause;
             WhereClause where_clause;
 
+            // should this store location info? 
+
           public:
             // Returns whether method decl has generic parameters.
             inline bool has_generics() const {
@@ -2263,17 +2289,6 @@ namespace Rust {
             inline bool has_where_clause() const {
                 return !where_clause.is_empty();
             }
-
-            // Mega-constructor
-            TraitMethodDecl(Identifier function_name, FunctionQualifiers qualifiers,
-              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, SelfParam self_param,
-              ::std::vector<FunctionParam> function_params, Type* return_type,
-              WhereClause where_clause) :
-              qualifiers(::std::move(qualifiers)),
-              function_name(::std::move(function_name)), generic_params(::std::move(generic_params)),
-              self_param(::std::move(self_param)), function_params(::std::move(function_params)),
-              return_type(return_type), where_clause(::std::move(where_clause)) {}
-            // FIXME: deprecated
 
             // Mega-constructor
             TraitMethodDecl(Identifier function_name, FunctionQualifiers qualifiers,
@@ -2335,6 +2350,8 @@ namespace Rust {
             // BlockExpr* block_expr;
             ::std::unique_ptr<BlockExpr> block_expr;
 
+            location_t locus;
+
           public:
             /*~TraitItemMethod() {
                 delete block_expr;
@@ -2346,13 +2363,13 @@ namespace Rust {
             }
 
             TraitItemMethod(
-              TraitMethodDecl decl, ::std::unique_ptr<BlockExpr> block_expr, ::std::vector<Attribute> outer_attrs) :
+              TraitMethodDecl decl, ::std::unique_ptr<BlockExpr> block_expr, ::std::vector<Attribute> outer_attrs, location_t locus) :
               outer_attrs(::std::move(outer_attrs)),
-              decl(::std::move(decl)), block_expr(::std::move(block_expr)) {}
+              decl(::std::move(decl)), block_expr(::std::move(block_expr)), locus(locus) {}
 
             // Copy constructor with clone
             TraitItemMethod(TraitItemMethod const& other) :
-              outer_attrs(other.outer_attrs), decl(other.decl), block_expr(other.block_expr->clone_block_expr()) {}
+              outer_attrs(other.outer_attrs), decl(other.decl), block_expr(other.block_expr->clone_block_expr()), locus(other.locus) {}
 
             // Destructor - define here if required
 
@@ -2362,6 +2379,7 @@ namespace Rust {
                 outer_attrs = other.outer_attrs;
                 decl = other.decl;
                 block_expr = other.block_expr->clone_block_expr();
+                locus = other.locus;
 
                 return *this;
             }
@@ -2371,6 +2389,10 @@ namespace Rust {
             TraitItemMethod& operator=(TraitItemMethod&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -2390,6 +2412,8 @@ namespace Rust {
             // Expr* expr;
             ::std::unique_ptr<Expr> expr;
 
+            location_t locus;
+
           public:
             /*~TraitItemConst() {
                 delete expr;
@@ -2401,14 +2425,14 @@ namespace Rust {
             }
 
             TraitItemConst(
-              Identifier name, ::std::unique_ptr<Type> type, ::std::unique_ptr<Expr> expr, ::std::vector<Attribute> outer_attrs) :
+              Identifier name, ::std::unique_ptr<Type> type, ::std::unique_ptr<Expr> expr, ::std::vector<Attribute> outer_attrs, location_t locus) :
               outer_attrs(::std::move(outer_attrs)),
-              name(::std::move(name)), type(::std::move(type)), expr(::std::move(expr)) {}
+              name(::std::move(name)), type(::std::move(type)), expr(::std::move(expr)), locus(locus) {}
 
             // Copy constructor with clones
             TraitItemConst(TraitItemConst const& other) :
               outer_attrs(other.outer_attrs), name(other.name), type(other.type->clone_type()),
-              expr(other.expr->clone_expr()) {}
+              expr(other.expr->clone_expr()), locus(other.locus) {}
 
             // Destructor - define here if required
 
@@ -2419,6 +2443,7 @@ namespace Rust {
                 name = other.name;
                 type = other.type->clone_type();
                 expr = other.expr->clone_expr();
+                locus = other.locus;
 
                 return *this;
             }
@@ -2428,6 +2453,10 @@ namespace Rust {
             TraitItemConst& operator=(TraitItemConst&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -2446,6 +2475,8 @@ namespace Rust {
             // TypeParamBounds type_param_bounds;
             ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds; // inlined form
 
+            location_t locus;
+
           public:
             // Returns whether trait item type has type param bounds.
             inline bool has_type_param_bounds() const {
@@ -2454,12 +2485,12 @@ namespace Rust {
 
             TraitItemType(Identifier name,
               ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               outer_attrs(::std::move(outer_attrs)),
-              name(::std::move(name)), type_param_bounds(::std::move(type_param_bounds)) {}
+              name(::std::move(name)), type_param_bounds(::std::move(type_param_bounds)), locus(locus) {}
 
             // Copy constructor with vector clone
-            TraitItemType(TraitItemType const& other) : outer_attrs(other.outer_attrs), name(other.name) {
+            TraitItemType(TraitItemType const& other) : outer_attrs(other.outer_attrs), name(other.name), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
 
@@ -2473,6 +2504,7 @@ namespace Rust {
                 TraitItem::operator=(other);
                 outer_attrs = other.outer_attrs;
                 name = other.name;
+                locus = other.locus;
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 type_param_bounds.reserve(other.type_param_bounds.size());
@@ -2489,6 +2521,10 @@ namespace Rust {
             TraitItemType& operator=(TraitItemType&& other) = default;
 
             ::std::string as_string() const;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -2530,6 +2566,8 @@ namespace Rust {
             // bool has_trait_items;
             ::std::vector< ::std::unique_ptr<TraitItem> > trait_items;
 
+            location_t locus;
+
           public:
             ::std::string as_string() const;
 
@@ -2558,17 +2596,17 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params,
               ::std::vector< ::std::unique_ptr<TypeParamBound> > type_param_bounds,
               WhereClause where_clause, ::std::vector< ::std::unique_ptr<TraitItem> > trait_items,
-              Visibility vis, ::std::vector<Attribute> outer_attrs) :
+              Visibility vis, ::std::vector<Attribute> outer_attrs, location_t locus) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
               has_unsafe(is_unsafe), name(::std::move(name)),
               generic_params(::std::move(generic_params)),
               type_param_bounds(::std::move(type_param_bounds)),
-              where_clause(::std::move(where_clause)), trait_items(::std::move(trait_items)) {}
+              where_clause(::std::move(where_clause)), trait_items(::std::move(trait_items)), locus(locus) {}
 
             // Copy constructor with vector clone
             Trait(Trait const& other) :
               VisItem(other), has_unsafe(other.has_unsafe), name(other.name),
-              where_clause(other.where_clause) {
+              where_clause(other.where_clause), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -2597,6 +2635,7 @@ namespace Rust {
                 name = other.name;
                 has_unsafe = other.has_unsafe;
                 where_clause = other.where_clause;
+                locus = other.locus;
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
@@ -2625,6 +2664,10 @@ namespace Rust {
             // default move constructors
             Trait(Trait&& other) = default;
             Trait& operator=(Trait&& other) = default;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2655,6 +2698,10 @@ namespace Rust {
             // bool has_inner_attrs;
             ::std::vector<Attribute> inner_attrs;
 
+          private:
+            // doesn't really need to be protected as write access probably not needed
+            location_t locus;
+
           public:
             // Returns whether impl has generic parameters.
             inline bool has_generics() const {
@@ -2671,28 +2718,24 @@ namespace Rust {
                 return !inner_attrs.empty();
             }
 
-            // Mega-constructor
-            Impl(::std::vector< ::std::unique_ptr<GenericParam> > generic_params, Type* trait_type,
-              WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
-              ::std::vector<Attribute> outer_attrs) :
-              VisItem(::std::move(vis), ::std::move(outer_attrs)),
-              generic_params(::std::move(generic_params)), trait_type(trait_type),
-              where_clause(::std::move(where_clause)), inner_attrs(::std::move(inner_attrs)) {}
-            // FIXME: deprecated
+            location_t get_locus() const {
+                return locus;
+            }
 
+          protected:
             // Mega-constructor
             Impl(::std::vector< ::std::unique_ptr<GenericParam> > generic_params, ::std::unique_ptr<Type> trait_type,
               WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
               generic_params(::std::move(generic_params)), trait_type(::std::move(trait_type)),
-              where_clause(::std::move(where_clause)), inner_attrs(::std::move(inner_attrs)) {}
+              where_clause(::std::move(where_clause)), inner_attrs(::std::move(inner_attrs)), locus(locus) {}
 
             // Copy constructor
             Impl(Impl const& other) :
               VisItem(other),
               /*generic_params(other.generic_params),*/ trait_type(other.trait_type->clone_type()),
-              where_clause(other.where_clause), inner_attrs(other.inner_attrs) {
+              where_clause(other.where_clause), inner_attrs(other.inner_attrs), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
 
@@ -2710,6 +2753,7 @@ namespace Rust {
                 trait_type = other.trait_type->clone_type();
                 where_clause = other.where_clause;
                 inner_attrs = other.inner_attrs;
+                locus = other.locus;
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 generic_params.reserve(other.generic_params.size());
@@ -2741,21 +2785,11 @@ namespace Rust {
 
             // Mega-constructor
             InherentImpl(::std::vector< ::std::unique_ptr<InherentImplItem> > impl_items,
-              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, Type* trait_type,
-              WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
-              ::std::vector<Attribute> outer_attrs) :
-              Impl(::std::move(generic_params), trait_type, ::std::move(where_clause),
-                ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs)),
-              impl_items(::std::move(impl_items)) {}
-            // FIXME: deprecated
-
-            // Mega-constructor
-            InherentImpl(::std::vector< ::std::unique_ptr<InherentImplItem> > impl_items,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, ::std::unique_ptr<Type> trait_type,
               WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               Impl(::std::move(generic_params), ::std::move(trait_type), ::std::move(where_clause),
-                ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs)),
+                ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs), locus),
               impl_items(::std::move(impl_items)) {}
 
             // Copy constructor with vector clone
@@ -2820,23 +2854,11 @@ namespace Rust {
             // Mega-constructor
             TraitImpl(TypePath trait_path, bool is_unsafe, bool has_exclam,
               ::std::vector< ::std::unique_ptr<TraitImplItem> > impl_items,
-              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, Type* trait_type,
-              WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
-              ::std::vector<Attribute> outer_attrs) :
-              Impl(::std::move(generic_params), trait_type, ::std::move(where_clause),
-                ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs)),
-              has_unsafe(is_unsafe), has_exclam(has_exclam), trait_path(::std::move(trait_path)),
-              impl_items(::std::move(impl_items)) {}
-            // FIXME: deprecated
-
-            // Mega-constructor
-            TraitImpl(TypePath trait_path, bool is_unsafe, bool has_exclam,
-              ::std::vector< ::std::unique_ptr<TraitImplItem> > impl_items,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, ::std::unique_ptr<Type> trait_type,
               WhereClause where_clause, Visibility vis, ::std::vector<Attribute> inner_attrs,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               Impl(::std::move(generic_params), ::std::move(trait_type), ::std::move(where_clause),
-                ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs)),
+                ::std::move(vis), ::std::move(inner_attrs), ::std::move(outer_attrs), locus),
               has_unsafe(is_unsafe), has_exclam(has_exclam), trait_path(::std::move(trait_path)),
               impl_items(::std::move(impl_items)) {}
 
@@ -2897,6 +2919,8 @@ namespace Rust {
 
             Identifier item_name;
 
+            location_t locus;
+
           public:
             virtual ~ExternalItem() {}
 
@@ -2917,21 +2941,26 @@ namespace Rust {
 
             virtual ::std::string as_string() const;
 
+            location_t get_locus() const {
+                return locus;
+            }
+
           protected:
-            ExternalItem(Identifier item_name, Visibility vis, ::std::vector<Attribute> outer_attrs) :
+            ExternalItem(Identifier item_name, Visibility vis, ::std::vector<Attribute> outer_attrs, location_t locus) :
               outer_attrs(::std::move(outer_attrs)), visibility(::std::move(vis)),
-              item_name(::std::move(item_name)) {}
+              item_name(::std::move(item_name)), locus(locus) {}
 
             // Copy constructor
             ExternalItem(ExternalItem const& other) :
               outer_attrs(other.outer_attrs), visibility(other.visibility),
-              item_name(other.item_name) {}
+              item_name(other.item_name), locus(other.locus) {}
 
             // Overloaded assignment operator to clone
             ExternalItem& operator=(ExternalItem const& other) {
                 item_name = other.item_name;
                 visibility = other.visibility;
                 outer_attrs = other.outer_attrs;
+                locus = other.locus;
 
                 return *this;
             }
@@ -2957,15 +2986,9 @@ namespace Rust {
             ::std::unique_ptr<Type> item_type;
 
           public:
-            ExternalStaticItem(Identifier item_name, Type* item_type, bool is_mut, Visibility vis,
-              ::std::vector<Attribute> outer_attrs) :
-              ExternalItem(::std::move(item_name), ::std::move(vis), ::std::move(outer_attrs)),
-              has_mut(is_mut), item_type(item_type) {}
-            // FIXME: deprecated
-
             ExternalStaticItem(Identifier item_name, ::std::unique_ptr<Type> item_type, bool is_mut, Visibility vis,
-              ::std::vector<Attribute> outer_attrs) :
-              ExternalItem(::std::move(item_name), ::std::move(vis), ::std::move(outer_attrs)),
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
+              ExternalItem(::std::move(item_name), ::std::move(vis), ::std::move(outer_attrs), locus),
               has_mut(is_mut), item_type(::std::move(item_type)) {}
 
             // Copy constructor
@@ -3005,6 +3028,8 @@ namespace Rust {
             // Type param_type;
             ::std::unique_ptr<Type> param_type;
 
+            // TODO: should this store location data?
+
           public:
             // Returns whether the named function parameter has a name (i.e. name is not '_').
             inline bool has_name() const {
@@ -3021,10 +3046,6 @@ namespace Rust {
             static NamedFunctionParam create_error() {
                 return NamedFunctionParam("", NULL);
             }
-
-            NamedFunctionParam(Identifier name, Type* param_type) :
-              name(::std::move(name)), param_type(param_type) {}
-            // FIXME: deprecated
 
             NamedFunctionParam(Identifier name, ::std::unique_ptr<Type> param_type) :
               name(::std::move(name)), param_type(::std::move(param_type)) {}
@@ -3085,20 +3106,10 @@ namespace Rust {
             }
 
             ExternalFunctionItem(Identifier item_name,
-              ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, Type* return_type,
-              WhereClause where_clause, ::std::vector<NamedFunctionParam> function_params,
-              bool has_variadics, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              ExternalItem(::std::move(item_name), ::std::move(vis), ::std::move(outer_attrs)),
-              generic_params(::std::move(generic_params)), return_type(return_type),
-              where_clause(::std::move(where_clause)), function_params(::std::move(function_params)),
-              has_variadics(has_variadics) {}
-            // FIXME: deprecated
-
-            ExternalFunctionItem(Identifier item_name,
               ::std::vector< ::std::unique_ptr<GenericParam> > generic_params, ::std::unique_ptr<Type> return_type,
               WhereClause where_clause, ::std::vector<NamedFunctionParam> function_params,
-              bool has_variadics, Visibility vis, ::std::vector<Attribute> outer_attrs) :
-              ExternalItem(::std::move(item_name), ::std::move(vis), ::std::move(outer_attrs)),
+              bool has_variadics, Visibility vis, ::std::vector<Attribute> outer_attrs, location_t locus) :
+              ExternalItem(::std::move(item_name), ::std::move(vis), ::std::move(outer_attrs), locus),
               generic_params(::std::move(generic_params)), return_type(::std::move(return_type)),
               where_clause(::std::move(where_clause)), function_params(::std::move(function_params)),
               has_variadics(has_variadics) {}
@@ -3162,6 +3173,8 @@ namespace Rust {
             // bool has_extern_items;
             ::std::vector< ::std::unique_ptr<ExternalItem> > extern_items;
 
+            location_t locus;
+
           public:
             ::std::string as_string() const;
 
@@ -3182,14 +3195,14 @@ namespace Rust {
 
             ExternBlock(::std::string abi, ::std::vector< ::std::unique_ptr<ExternalItem> > extern_items,
               Visibility vis, ::std::vector<Attribute> inner_attrs,
-              ::std::vector<Attribute> outer_attrs) :
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               VisItem(::std::move(vis), ::std::move(outer_attrs)),
               abi(::std::move(abi)), inner_attrs(::std::move(inner_attrs)),
-              extern_items(::std::move(extern_items)) {}
+              extern_items(::std::move(extern_items)), locus(locus) {}
 
             // Copy constructor with vector clone
             ExternBlock(ExternBlock const& other) :
-              VisItem(other), abi(other.abi), inner_attrs(other.inner_attrs) {
+              VisItem(other), abi(other.abi), inner_attrs(other.inner_attrs), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 extern_items.reserve(other.extern_items.size());
 
@@ -3203,6 +3216,7 @@ namespace Rust {
                 VisItem::operator=(other);
                 abi = other.abi;
                 inner_attrs = other.inner_attrs;
+                locus = other.locus;
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 extern_items.reserve(other.extern_items.size());
@@ -3217,6 +3231,10 @@ namespace Rust {
             // move constructors
             ExternBlock(ExternBlock&& other) = default;
             ExternBlock& operator=(ExternBlock&& other) = default;
+
+            location_t get_locus() const {
+                return locus;
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
