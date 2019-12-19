@@ -27,35 +27,35 @@ namespace Rust {
         };
 
         inline MacroFragSpec get_frag_spec_from_str(::std::string str) {
-            if (str == "block") 
-              return BLOCK;
+            if (str == "block")
+                return BLOCK;
             else if (str == "expr")
-              return EXPR;
+                return EXPR;
             else if (str == "ident")
-              return IDENT;
+                return IDENT;
             else if (str == "item")
-              return ITEM;
+                return ITEM;
             else if (str == "lifetime")
-              return LIFETIME;
+                return LIFETIME;
             else if (str == "literal")
-              return LITERAL;
+                return LITERAL;
             else if (str == "meta")
-              return META;
+                return META;
             else if (str == "pat")
-              return PAT;
+                return PAT;
             else if (str == "path")
-              return PATH;
+                return PATH;
             else if (str == "stmt")
-              return STMT;
+                return STMT;
             else if (str == "tt")
-              return TT;
+                return TT;
             else if (str == "ty")
-              return TY;
+                return TY;
             else if (str == "vis")
-              return VIS;
+                return VIS;
             else {
-              //error_at("invalid string '%s' used as fragment specifier", str->c_str());
-              return INVALID;
+                // error_at("invalid string '%s' used as fragment specifier", str->c_str());
+                return INVALID;
             }
         }
 
@@ -112,8 +112,8 @@ namespace Rust {
                 return sep != NULL;
             }
 
-            MacroMatchRepetition(::std::vector< ::std::unique_ptr<MacroMatch> > matches, MacroRepOp op,
-              ::std::unique_ptr<MacroRepSep> sep) :
+            MacroMatchRepetition(::std::vector< ::std::unique_ptr<MacroMatch> > matches,
+              MacroRepOp op, ::std::unique_ptr<MacroRepSep> sep) :
               matches(::std::move(matches)),
               op(op), sep(::std::move(sep)) {}
 
@@ -237,7 +237,7 @@ namespace Rust {
             MacroTranscriber(DelimTokenTree token_tree) : token_tree(::std::move(token_tree)) {}
 
             ::std::string as_string() const {
-              return token_tree.as_string();
+                return token_tree.as_string();
             }
         };
 
@@ -282,9 +282,11 @@ namespace Rust {
             ::std::string as_string() const;
 
             MacroRulesDefinition(Identifier rule_name, DelimType delim_type,
-              ::std::vector<MacroRule> rules, ::std::vector<Attribute> outer_attrs, location_t locus) :
-              MacroItem(::std::move(outer_attrs)), rule_name(::std::move(rule_name)),
-              delim_type(delim_type), rules(::std::move(rules)), locus(locus) {}
+              ::std::vector<MacroRule> rules, ::std::vector<Attribute> outer_attrs,
+              location_t locus) :
+              MacroItem(::std::move(outer_attrs)),
+              rule_name(::std::move(rule_name)), delim_type(delim_type), rules(::std::move(rules)),
+              locus(locus) {}
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -306,10 +308,10 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            MacroInvocation(
-              SimplePath path, DelimTokenTree token_tree, ::std::vector<Attribute> outer_attrs, location_t locus) :
-              ExprWithoutBlock(::std::move(outer_attrs)), path(::std::move(path)),
-              token_tree(::std::move(token_tree)), locus(locus) {}
+            MacroInvocation(SimplePath path, DelimTokenTree token_tree,
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
+              ExprWithoutBlock(::std::move(outer_attrs)),
+              path(::std::move(path)), token_tree(::std::move(token_tree)), locus(locus) {}
 
             location_t get_locus() const {
                 return locus;

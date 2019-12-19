@@ -2,14 +2,14 @@
 #define RUST_AST_STATEMENT_H
 
 #include "rust-ast.h"
-#include "rust-path.h"
 #include "rust-expr.h"
+#include "rust-path.h"
 
 namespace Rust {
     namespace AST {
         // Just a semi-colon, which apparently is a statement.
         class EmptyStmt : public Stmt {
-          location_t locus;
+            location_t locus;
 
           public:
             ::std::string as_string() const {
@@ -83,16 +83,18 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            LetStmt(::std::unique_ptr<Pattern> variables_pattern, ::std::unique_ptr<Expr> init_expr, ::std::unique_ptr<Type> type,
-              ::std::vector<Attribute> outer_attrs, location_t locus) :
+            LetStmt(::std::unique_ptr<Pattern> variables_pattern, ::std::unique_ptr<Expr> init_expr,
+              ::std::unique_ptr<Type> type, ::std::vector<Attribute> outer_attrs, location_t locus) :
               outer_attrs(::std::move(outer_attrs)),
-              variables_pattern(::std::move(variables_pattern)), type(::std::move(type)), init_expr(::std::move(init_expr)), locus(locus) {}
+              variables_pattern(::std::move(variables_pattern)), type(::std::move(type)),
+              init_expr(::std::move(init_expr)), locus(locus) {}
 
             // Copy constructor with clone
             LetStmt(LetStmt const& other) :
               outer_attrs(other.outer_attrs),
               variables_pattern(other.variables_pattern->clone_pattern()),
-              type(other.type->clone_type()), init_expr(other.init_expr->clone_expr()), locus(other.locus) {}
+              type(other.type->clone_type()), init_expr(other.init_expr->clone_expr()),
+              locus(other.locus) {}
 
             // Destructor - define here if required
 
@@ -135,7 +137,6 @@ namespace Rust {
 
           protected:
             ExprStmt(location_t locus) : locus(locus) {}
-
         };
 
         /* Statement containing an expression without a block (or, due to technical difficulties, can
@@ -154,8 +155,10 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            //ExprStmtWithoutBlock(::std::unique_ptr<ExprWithoutBlock> expr) : expr(::std::move(expr)) {}
-            ExprStmtWithoutBlock(::std::unique_ptr<Expr> expr, location_t locus) : ExprStmt(locus), expr(::std::move(expr)) {}
+            // ExprStmtWithoutBlock(::std::unique_ptr<ExprWithoutBlock> expr) :
+            // expr(::std::move(expr)) {}
+            ExprStmtWithoutBlock(::std::unique_ptr<Expr> expr, location_t locus) :
+              ExprStmt(locus), expr(::std::move(expr)) {}
 
             // Copy constructor with clone
             ExprStmtWithoutBlock(ExprStmtWithoutBlock const& other) :
@@ -194,7 +197,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            ExprStmtWithBlock(::std::unique_ptr<ExprWithBlock> expr, location_t locus) : ExprStmt(locus), expr(::std::move(expr)) {}
+            ExprStmtWithBlock(::std::unique_ptr<ExprWithBlock> expr, location_t locus) :
+              ExprStmt(locus), expr(::std::move(expr)) {}
 
             // Copy constructor with clone
             ExprStmtWithBlock(ExprStmtWithBlock const& other) :

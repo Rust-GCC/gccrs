@@ -78,13 +78,13 @@ namespace Rust {
                 return literal.get_lit_type();
             }
 
-            LiteralExpr(::std::string value_as_string, Literal::LitType type,
-              location_t locus, ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+            LiteralExpr(::std::string value_as_string, Literal::LitType type, location_t locus,
+              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
               ExprWithoutBlock(::std::move(outer_attrs)),
               literal(::std::move(value_as_string), type), locus(locus) {}
 
-            LiteralExpr(
-              Literal literal, location_t locus, ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+            LiteralExpr(Literal literal, location_t locus,
+              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
               ExprWithoutBlock(::std::move(outer_attrs)),
               literal(::std::move(literal)), locus(locus) {}
 
@@ -207,21 +207,23 @@ namespace Rust {
             }
 
             // Constructor with MetaItem
-            MetaItemInner(::std::unique_ptr<MetaItem> item) : item(::std::move(item)) /*, expr(NULL)*/ {}
+            MetaItemInner(::std::unique_ptr<MetaItem> item) :
+              item(::std::move(item)) /*, expr(NULL)*/ {}
 
             // Constructor with LitExpr
-            MetaItemInner(::std::unique_ptr<LiteralExpr> expr) : /*item(NULL), */ expr(::std::move(expr)) {}
+            MetaItemInner(::std::unique_ptr<LiteralExpr> expr) :
+              /*item(NULL), */ expr(::std::move(expr)) {}
 
             // Copy constructor with clone
             MetaItemInner(MetaItemInner const& other) {
                 // guard to protect from null pointer dereference
                 if (other.item != NULL) {
-                  item = other.item->clone_meta_item();
+                    item = other.item->clone_meta_item();
                 }
                 if (other.expr != NULL) {
-                  expr = other.expr->clone_literal_expr();
+                    expr = other.expr->clone_literal_expr();
                 }
-              }
+            }
 
             // Destructor - define here if required
 
@@ -229,10 +231,10 @@ namespace Rust {
             MetaItemInner& operator=(MetaItemInner const& other) {
                 // guard to protect from null pointer dereference
                 if (other.item != NULL) {
-                  item = other.item->clone_meta_item();
+                    item = other.item->clone_meta_item();
                 }
                 if (other.expr != NULL) {
-                  expr = other.expr->clone_literal_expr();
+                    expr = other.expr->clone_literal_expr();
                 }
 
                 return *this;
@@ -394,23 +396,27 @@ namespace Rust {
             ::std::unique_ptr<Expr> main_or_left_expr;
 
             // Constructor (only for initialisation of expr purposes)
-            OperatorExpr(::std::unique_ptr<Expr> main_or_left_expr, ::std::vector<Attribute> outer_attribs, location_t locus) :
-              ExprWithoutBlock(::std::move(outer_attribs)), locus(locus), main_or_left_expr(::std::move(main_or_left_expr)) {}
+            OperatorExpr(::std::unique_ptr<Expr> main_or_left_expr,
+              ::std::vector<Attribute> outer_attribs, location_t locus) :
+              ExprWithoutBlock(::std::move(outer_attribs)),
+              locus(locus), main_or_left_expr(::std::move(main_or_left_expr)) {}
 
             // Copy constructor (only for initialisation of expr purposes)
             OperatorExpr(OperatorExpr const& other) :
-              ExprWithoutBlock(other), locus(other.locus)/*, main_or_left_expr(other.main_or_left_expr->clone_expr())*/ {
+              ExprWithoutBlock(other),
+              locus(other.locus) /*, main_or_left_expr(other.main_or_left_expr->clone_expr())*/ {
                 // DEBUG: moved main_or_left_expr into body - move back later
 
                 if (other.main_or_left_expr == NULL) {
-                  fprintf(stderr, "other operator expr's main_or_left_expr is null!\n");
+                    fprintf(stderr, "other operator expr's main_or_left_expr is null!\n");
                 }
 
-                fprintf(stderr, "called operator expr copy constructor - about to clone main_or_left_expr\n");
+                fprintf(stderr,
+                  "called operator expr copy constructor - about to clone main_or_left_expr\n");
                 main_or_left_expr = other.main_or_left_expr->clone_expr();
                 fprintf(stderr, "successfully cloned main_or_left_expr\n");
                 // this occurred successfully, so something else must be the issue
-              }
+            }
 
             // Overload assignment operator to deep copy expr
             OperatorExpr& operator=(OperatorExpr const& other) {
@@ -448,8 +454,8 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            BorrowExpr(::std::unique_ptr<Expr> borrow_lvalue, bool is_mut_borrow, bool is_double_borrow,
-              ::std::vector<Attribute> outer_attribs, location_t locus) :
+            BorrowExpr(::std::unique_ptr<Expr> borrow_lvalue, bool is_mut_borrow,
+              bool is_double_borrow, ::std::vector<Attribute> outer_attribs, location_t locus) :
               OperatorExpr(::std::move(borrow_lvalue), ::std::move(outer_attribs), locus),
               is_mut(is_mut_borrow), double_borrow(is_double_borrow) {}
 
@@ -481,7 +487,8 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Constructor calls OperatorExpr's protected constructor
-            DereferenceExpr(::std::unique_ptr<Expr> deref_lvalue, ::std::vector<Attribute> outer_attribs, location_t locus) :
+            DereferenceExpr(::std::unique_ptr<Expr> deref_lvalue,
+              ::std::vector<Attribute> outer_attribs, location_t locus) :
               OperatorExpr(::std::move(deref_lvalue), ::std::move(outer_attribs), locus) {}
 
             // Copy constructor - define here if required
@@ -513,8 +520,8 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Constructor calls OperatorExpr's protected constructor
-            ErrorPropogationExpr(
-              ::std::unique_ptr<Expr> potential_error_value, ::std::vector<Attribute> outer_attribs, location_t locus) :
+            ErrorPropogationExpr(::std::unique_ptr<Expr> potential_error_value,
+              ::std::vector<Attribute> outer_attribs, location_t locus) :
               OperatorExpr(::std::move(potential_error_value), ::std::move(outer_attribs), locus) {}
 
             // Copy constructor - define here if required
@@ -622,9 +629,10 @@ namespace Rust {
             }
 
             // Constructor calls OperatorExpr's protected constructor
-            ArithmeticOrLogicalExpr(::std::unique_ptr<Expr> left_value, ::std::unique_ptr<Expr> right_value, ExprType expr_kind, location_t locus) :
-              OperatorExpr(::std::move(left_value), ::std::vector<Attribute>(), locus), expr_type(expr_kind),
-              right_expr(::std::move(right_value)) {}
+            ArithmeticOrLogicalExpr(::std::unique_ptr<Expr> left_value,
+              ::std::unique_ptr<Expr> right_value, ExprType expr_kind, location_t locus) :
+              OperatorExpr(::std::move(left_value), ::std::vector<Attribute>(), locus),
+              expr_type(expr_kind), right_expr(::std::move(right_value)) {}
             // outer attributes not allowed
 
             // Copy constructor - probably required due to unique pointer
@@ -657,7 +665,8 @@ namespace Rust {
             // Use covariance to implement clone function as returning this object rather than base
             virtual ArithmeticOrLogicalExpr* clone_expr_without_block_impl() const OVERRIDE {
                 // DEBUG
-                fprintf(stderr, "called clone_expr_without_block_impl() on arithmeticorlogicalexpr\n");
+                fprintf(
+                  stderr, "called clone_expr_without_block_impl() on arithmeticorlogicalexpr\n");
 
                 return new ArithmeticOrLogicalExpr(*this);
             }
@@ -694,9 +703,10 @@ namespace Rust {
             }
 
             // Constructor requires pointers for polymorphism
-            ComparisonExpr(::std::unique_ptr<Expr> left_value, ::std::unique_ptr<Expr> right_value, ExprType comparison_kind, location_t locus) :
-              OperatorExpr(::std::move(left_value), ::std::vector<Attribute>(), locus), expr_type(comparison_kind),
-              right_expr(::std::move(right_value)) {}
+            ComparisonExpr(::std::unique_ptr<Expr> left_value, ::std::unique_ptr<Expr> right_value,
+              ExprType comparison_kind, location_t locus) :
+              OperatorExpr(::std::move(left_value), ::std::vector<Attribute>(), locus),
+              expr_type(comparison_kind), right_expr(::std::move(right_value)) {}
             // outer attributes not allowed
 
             // Copy constructor also calls OperatorExpr's protected constructor
@@ -754,9 +764,10 @@ namespace Rust {
             }*/
 
             // Constructor calls OperatorExpr's protected constructor
-            LazyBooleanExpr(::std::unique_ptr<Expr> left_bool_expr, ::std::unique_ptr<Expr> right_bool_expr, ExprType expr_kind, location_t locus) :
-              OperatorExpr(::std::move(left_bool_expr), ::std::vector<Attribute>(), locus), expr_type(expr_kind),
-              right_expr(::std::move(right_bool_expr)) {}
+            LazyBooleanExpr(::std::unique_ptr<Expr> left_bool_expr,
+              ::std::unique_ptr<Expr> right_bool_expr, ExprType expr_kind, location_t locus) :
+              OperatorExpr(::std::move(left_bool_expr), ::std::vector<Attribute>(), locus),
+              expr_type(expr_kind), right_expr(::std::move(right_bool_expr)) {}
             // outer attributes not allowed
 
             // Copy constructor also calls OperatorExpr's protected constructor
@@ -811,7 +822,8 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Constructor requires calling protected constructor of OperatorExpr
-            TypeCastExpr(::std::unique_ptr<Expr> expr_to_cast, ::std::unique_ptr<TypeNoBounds> type_to_cast_to, location_t locus) :
+            TypeCastExpr(::std::unique_ptr<Expr> expr_to_cast,
+              ::std::unique_ptr<TypeNoBounds> type_to_cast_to, location_t locus) :
               OperatorExpr(::std::move(expr_to_cast), ::std::vector<Attribute>(), locus),
               type_to_convert_to(::std::move(type_to_cast_to)) {}
             // outer attributes not allowed
@@ -864,27 +876,30 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Call OperatorExpr constructor to initialise left_expr
-            AssignmentExpr(::std::unique_ptr<Expr> value_to_assign_to, ::std::unique_ptr<Expr> value_to_assign, location_t locus) :
+            AssignmentExpr(::std::unique_ptr<Expr> value_to_assign_to,
+              ::std::unique_ptr<Expr> value_to_assign, location_t locus) :
               OperatorExpr(::std::move(value_to_assign_to), ::std::vector<Attribute>(), locus),
               right_expr(::std::move(value_to_assign)) {}
             // outer attributes not allowed
 
             // Call OperatorExpr constructor in copy constructor, as well as clone
             AssignmentExpr(AssignmentExpr const& other) :
-              OperatorExpr(other)/*, right_expr(other.right_expr->clone_expr())*/ {
+              OperatorExpr(other) /*, right_expr(other.right_expr->clone_expr())*/ {
                 // DEBUG: moved cloning right expr into body
-                fprintf(stderr, "assignment expr copy constructor successfully cloned base operator expr\n");
+                fprintf(stderr,
+                  "assignment expr copy constructor successfully cloned base operator expr\n");
                 if (other.right_expr == NULL) {
                     fprintf(stderr, "other expr's right expr (in assignment) is null!!!");
                 }
-                fprintf(stderr, "test other's right expr as string: %s\n", other.right_expr->as_string().c_str());
+                fprintf(stderr, "test other's right expr as string: %s\n",
+                  other.right_expr->as_string().c_str());
                 // apparently, despite not being null, cloning still fails
                 right_expr = other.right_expr->clone_expr();
                 fprintf(stderr, "assignment expr copy constructor successfully cloned right expr\n");
 
                 // DEBUG
                 fprintf(stderr, "assignment expr copy constructor called successfully\n");
-              }
+            }
 
             // Destructor - define here if required
 
@@ -952,8 +967,8 @@ namespace Rust {
             }
 
             // Use pointers in constructor to enable polymorphism
-            CompoundAssignmentExpr(
-              ::std::unique_ptr<Expr> value_to_assign_to, ::std::unique_ptr<Expr> value_to_assign, ExprType expr_kind, location_t locus) :
+            CompoundAssignmentExpr(::std::unique_ptr<Expr> value_to_assign_to,
+              ::std::unique_ptr<Expr> value_to_assign, ExprType expr_kind, location_t locus) :
               OperatorExpr(::std::move(value_to_assign_to), ::std::vector<Attribute>(), locus),
               expr_type(expr_kind), right_expr(::std::move(value_to_assign)) {}
             // outer attributes not allowed
@@ -1014,10 +1029,12 @@ namespace Rust {
                 return inner_attrs;
             }
 
-            GroupedExpr(::std::unique_ptr<Expr> parenthesised_expr, ::std::vector<Attribute> inner_attribs,
-              ::std::vector<Attribute> outer_attribs, location_t locus) :
+            GroupedExpr(::std::unique_ptr<Expr> parenthesised_expr,
+              ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs,
+              location_t locus) :
               ExprWithoutBlock(::std::move(outer_attribs)),
-              inner_attrs(::std::move(inner_attribs)), expr_in_parens(::std::move(parenthesised_expr)), locus(locus) {}
+              inner_attrs(::std::move(inner_attribs)),
+              expr_in_parens(::std::move(parenthesised_expr)), locus(locus) {}
 
             // Copy constructor includes clone for expr_in_parens
             GroupedExpr(GroupedExpr const& other) :
@@ -1144,8 +1161,10 @@ namespace Rust {
             }*/
 
             // Constructor requires pointers for polymorphism
-            ArrayElemsCopied(::std::unique_ptr<Expr> copied_elem, ::std::unique_ptr<Expr> copy_amount) :
-              elem_to_copy(::std::move(copied_elem)), num_copies(::std::move(copy_amount)) {}
+            ArrayElemsCopied(
+              ::std::unique_ptr<Expr> copied_elem, ::std::unique_ptr<Expr> copy_amount) :
+              elem_to_copy(::std::move(copied_elem)),
+              num_copies(::std::move(copy_amount)) {}
 
             // Copy constructor required due to unique_ptr - uses custom clone
             ArrayElemsCopied(ArrayElemsCopied const& other) :
@@ -1195,18 +1214,20 @@ namespace Rust {
             }
 
             // Constructor requires ArrayElems pointer
-            ArrayExpr(::std::unique_ptr<ArrayElems> array_elems, ::std::vector<Attribute> inner_attribs,
-              ::std::vector<Attribute> outer_attribs, location_t locus) :
+            ArrayExpr(::std::unique_ptr<ArrayElems> array_elems,
+              ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs,
+              location_t locus) :
               ExprWithoutBlock(::std::move(outer_attribs)),
-              inner_attrs(::std::move(inner_attribs)), internal_elements(::std::move(array_elems)), locus(locus) {}
+              inner_attrs(::std::move(inner_attribs)), internal_elements(::std::move(array_elems)),
+              locus(locus) {}
 
             // Copy constructor requires cloning ArrayElems for polymorphism to hold
             ArrayExpr(ArrayExpr const& other) :
               ExprWithoutBlock(other), inner_attrs(other.inner_attrs), locus(other.locus) {
                 if (other.has_array_elems()) {
-                  internal_elements = other.internal_elements->clone_array_elems();
+                    internal_elements = other.internal_elements->clone_array_elems();
                 }
-              }
+            }
 
             // Destructor - define here if required
 
@@ -1215,7 +1236,7 @@ namespace Rust {
                 ExprWithoutBlock::operator=(other);
                 inner_attrs = other.inner_attrs;
                 if (other.has_array_elems()) {
-                  internal_elements = other.internal_elements->clone_array_elems();
+                    internal_elements = other.internal_elements->clone_array_elems();
                 }
                 locus = other.locus;
                 // outer_attrs = other.outer_attrs;
@@ -1267,10 +1288,12 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            ArrayIndexExpr(
-              ::std::unique_ptr<Expr> array_expr, ::std::unique_ptr<Expr> array_index_expr, ::std::vector<Attribute> outer_attribs, location_t locus) :
+            ArrayIndexExpr(::std::unique_ptr<Expr> array_expr,
+              ::std::unique_ptr<Expr> array_index_expr, ::std::vector<Attribute> outer_attribs,
+              location_t locus) :
               ExprWithoutBlock(::std::move(outer_attribs)),
-              array_expr(::std::move(array_expr)), index_expr(::std::move(array_index_expr)), locus(locus) {}
+              array_expr(::std::move(array_expr)), index_expr(::std::move(array_index_expr)),
+              locus(locus) {}
 
             // Copy constructor requires special cloning due to unique_ptr
             ArrayIndexExpr(ArrayIndexExpr const& other) :
@@ -1332,9 +1355,11 @@ namespace Rust {
             }
 
             TupleExpr(::std::vector< ::std::unique_ptr<Expr> > tuple_elements,
-              ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs, location_t locus) :
+              ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs,
+              location_t locus) :
               ExprWithoutBlock(::std::move(outer_attribs)),
-              inner_attrs(::std::move(inner_attribs)), tuple_elems(::std::move(tuple_elements)), locus(locus) {}
+              inner_attrs(::std::move(inner_attribs)), tuple_elems(::std::move(tuple_elements)),
+              locus(locus) {}
 
             // copy constructor with vector clone
             TupleExpr(TupleExpr const& other) :
@@ -1413,8 +1438,8 @@ namespace Rust {
                 return tuple_index;
             }
 
-            TupleIndexExpr(
-              ::std::unique_ptr<Expr> tuple_expr, TupleIndex index, ::std::vector<Attribute> outer_attribs, location_t locus) :
+            TupleIndexExpr(::std::unique_ptr<Expr> tuple_expr, TupleIndex index,
+              ::std::vector<Attribute> outer_attribs, location_t locus) :
               ExprWithoutBlock(::std::move(outer_attribs)),
               tuple_expr(::std::move(tuple_expr)), tuple_index(index), locus(locus) {}
 
@@ -1525,7 +1550,8 @@ namespace Rust {
             // TODO: should this store location data?
 
           public:
-            StructBase(::std::unique_ptr<Expr> base_struct_ptr) : base_struct(::std::move(base_struct_ptr)) {}
+            StructBase(::std::unique_ptr<Expr> base_struct_ptr) :
+              base_struct(::std::move(base_struct_ptr)) {}
 
             // Copy constructor requires clone
             StructBase(StructBase const& other) {
@@ -1538,7 +1564,7 @@ namespace Rust {
                 fprintf(stderr, "struct base copy constructor called successfully\n");
             }
 
-            // Destructor 
+            // Destructor
             ~StructBase() = default;
 
             // Overload assignment operator to clone base_struct
@@ -1613,7 +1639,8 @@ namespace Rust {
             ::std::unique_ptr<Expr> value;
 
           protected:
-            StructExprFieldWithVal(::std::unique_ptr<Expr> field_value) : value(::std::move(field_value)) {}
+            StructExprFieldWithVal(::std::unique_ptr<Expr> field_value) :
+              value(::std::move(field_value)) {}
 
             // Copy constructor requires clone
             StructExprFieldWithVal(StructExprFieldWithVal const& other) :
@@ -1647,8 +1674,10 @@ namespace Rust {
             // TODO: should this store location data?
 
           public:
-            StructExprFieldIdentifierValue(Identifier field_identifier, ::std::unique_ptr<Expr> field_value) :
-              StructExprFieldWithVal(::std::move(field_value)), field_name(::std::move(field_identifier)) {}
+            StructExprFieldIdentifierValue(
+              Identifier field_identifier, ::std::unique_ptr<Expr> field_value) :
+              StructExprFieldWithVal(::std::move(field_value)),
+              field_name(::std::move(field_identifier)) {}
 
             // copy constructor, destructor, and overloaded assignment operator should carry through
 
@@ -1711,8 +1740,8 @@ namespace Rust {
               StructBase base_struct = StructBase::error(),
               ::std::vector<Attribute> inner_attribs = ::std::vector<Attribute>(),
               ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
-              StructExprStruct(
-                ::std::move(struct_path), ::std::move(inner_attribs), ::std::move(outer_attribs), locus),
+              StructExprStruct(::std::move(struct_path), ::std::move(inner_attribs),
+                ::std::move(outer_attribs), locus),
               fields(::std::move(expr_fields)), struct_base(::std::move(base_struct)) {}
 
             // copy constructor with vector clone
@@ -1769,7 +1798,8 @@ namespace Rust {
             // Use covariance to implement clone function as returning this object rather than base
             virtual StructExprStructFields* clone_expr_without_block_impl() const OVERRIDE {
                 // DEBUG
-                fprintf(stderr, "called structexprstructfields clone expr without block impl - about to return new structexprstructfields\n");
+                fprintf(stderr, "called structexprstructfields clone expr without block impl - about "
+                                "to return new structexprstructfields\n");
 
                 // DEBUG - test creation of a base from this
                 fprintf(stderr, "about to try to create and allocate structexprstruct \n");
@@ -1779,10 +1809,12 @@ namespace Rust {
                 // very weird: can create and allocate structexpstruct but not structexprstructfields
 
                 // DEBUG - test creation of a non-returned class from this
-                fprintf(stderr, "about to try to create and allocate structexprstructfields (but not return)\n");
+                fprintf(stderr,
+                  "about to try to create and allocate structexprstructfields (but not return)\n");
                 StructExprStructFields* test_DELETE2 = new StructExprStructFields(*this);
                 delete test_DELETE2;
-                fprintf(stderr, "managed to create and allocate structexprstructfields (if not returned) \n");
+                fprintf(stderr,
+                  "managed to create and allocate structexprstructfields (if not returned) \n");
                 // ok this fails. fair enough.
 
                 return new StructExprStructFields(*this);
@@ -1801,9 +1833,10 @@ namespace Rust {
             }*/
 
             StructExprStructBase(PathInExpression struct_path, StructBase base_struct,
-              ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs, location_t locus) :
-              StructExprStruct(
-                ::std::move(struct_path), ::std::move(inner_attribs), ::std::move(outer_attribs), locus),
+              ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs,
+              location_t locus) :
+              StructExprStruct(::std::move(struct_path), ::std::move(inner_attribs),
+                ::std::move(outer_attribs), locus),
               struct_base(::std::move(base_struct)) {}
 
           protected:
@@ -1839,9 +1872,11 @@ namespace Rust {
 
             StructExprTuple(PathInExpression struct_path,
               ::std::vector< ::std::unique_ptr<Expr> > tuple_exprs,
-              ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs, location_t locus) :
+              ::std::vector<Attribute> inner_attribs, ::std::vector<Attribute> outer_attribs,
+              location_t locus) :
               StructExpr(::std::move(struct_path), ::std::move(outer_attribs)),
-              inner_attrs(::std::move(inner_attribs)), exprs(::std::move(tuple_exprs)), locus(locus) {}
+              inner_attrs(::std::move(inner_attribs)), exprs(::std::move(tuple_exprs)), locus(locus) {
+            }
 
             // copy constructor with vector clone
             StructExprTuple(StructExprTuple const& other) :
@@ -1896,7 +1931,7 @@ namespace Rust {
 
         // AST node of a "unit" struct creator (no fields and no braces)
         class StructExprUnit : public StructExpr {
-          location_t locus;
+            location_t locus;
 
           public:
             ::std::string as_string() const {
@@ -1904,8 +1939,10 @@ namespace Rust {
                 // return struct_name.as_string();
             }
 
-            StructExprUnit(PathInExpression struct_path, ::std::vector<Attribute> outer_attribs, location_t locus) :
-              StructExpr(::std::move(struct_path), ::std::move(outer_attribs)), locus(locus) {}
+            StructExprUnit(PathInExpression struct_path, ::std::vector<Attribute> outer_attribs,
+              location_t locus) :
+              StructExpr(::std::move(struct_path), ::std::move(outer_attribs)),
+              locus(locus) {}
 
             location_t get_locus() const {
                 return locus;
@@ -1986,7 +2023,8 @@ namespace Rust {
             // TODO: should this store location data?
 
           protected:
-            EnumExprFieldWithVal(::std::unique_ptr<Expr> field_value) : value(::std::move(field_value)) {}
+            EnumExprFieldWithVal(::std::unique_ptr<Expr> field_value) :
+              value(::std::move(field_value)) {}
 
             // Copy constructor must clone unique_ptr value
             EnumExprFieldWithVal(EnumExprFieldWithVal const& other) :
@@ -2185,7 +2223,7 @@ namespace Rust {
 
         // No-field enum variant instance creation AST node
         class EnumExprFieldless : public EnumVariantExpr {
-          location_t locus;
+            location_t locus;
 
           public:
             ::std::string as_string() const {
@@ -2193,9 +2231,10 @@ namespace Rust {
                 return get_enum_variant_path().as_string();
             }
 
-            EnumExprFieldless(
-              PathInExpression enum_variant_path, ::std::vector<Attribute> outer_attribs, location_t locus) :
-              EnumVariantExpr(::std::move(enum_variant_path), ::std::move(outer_attribs)), locus(locus) {}
+            EnumExprFieldless(PathInExpression enum_variant_path,
+              ::std::vector<Attribute> outer_attribs, location_t locus) :
+              EnumVariantExpr(::std::move(enum_variant_path), ::std::move(outer_attribs)),
+              locus(locus) {}
 
             // copy constructor, destructor, and assignment operator should not need defining
 
@@ -2239,10 +2278,12 @@ namespace Rust {
                 return params;
             }*/
 
-            CallExpr(::std::unique_ptr<Expr> function_expr, ::std::vector< ::std::unique_ptr<Expr> > function_params,
+            CallExpr(::std::unique_ptr<Expr> function_expr,
+              ::std::vector< ::std::unique_ptr<Expr> > function_params,
               ::std::vector<Attribute> outer_attribs, location_t locus) :
               ExprWithoutBlock(::std::move(outer_attribs)),
-              function(::std::move(function_expr)), params(::std::move(function_params)), locus(locus) {}
+              function(::std::move(function_expr)), params(::std::move(function_params)),
+              locus(locus) {}
 
             // copy constructor requires clone
             CallExpr(CallExpr const& other) :
@@ -2410,11 +2451,13 @@ namespace Rust {
             FieldAccessExpr(::std::unique_ptr<Expr> field_access_receiver, Identifier field_name,
               ::std::vector<Attribute> outer_attribs, location_t locus) :
               ExprWithoutBlock(::std::move(outer_attribs)),
-              receiver(::std::move(field_access_receiver)), field(::std::move(field_name)), locus(locus) {}
+              receiver(::std::move(field_access_receiver)), field(::std::move(field_name)),
+              locus(locus) {}
 
             // Copy constructor required due to unique_ptr cloning
             FieldAccessExpr(FieldAccessExpr const& other) :
-              ExprWithoutBlock(other), receiver(other.receiver->clone_expr()), field(other.field), locus(other.locus) {}
+              ExprWithoutBlock(other), receiver(other.receiver->clone_expr()), field(other.field),
+              locus(other.locus) {}
 
             // Destructor - define here if required
 
@@ -2472,17 +2515,18 @@ namespace Rust {
             }
 
             // Constructor for closure parameter
-            ClosureParam(::std::unique_ptr<Pattern> param_pattern, ::std::unique_ptr<Type> param_type = NULL) :
-              pattern(::std::move(param_pattern)), type(::std::move(param_type)) {}
+            ClosureParam(
+              ::std::unique_ptr<Pattern> param_pattern, ::std::unique_ptr<Type> param_type = NULL) :
+              pattern(::std::move(param_pattern)),
+              type(::std::move(param_type)) {}
 
             // Copy constructor required due to cloning as a result of unique_ptrs
-            ClosureParam(ClosureParam const& other) :
-              pattern(other.pattern->clone_pattern()) {
+            ClosureParam(ClosureParam const& other) : pattern(other.pattern->clone_pattern()) {
                 // guard to protect from null pointer dereference
                 if (other.type != NULL) {
-                  type = other.type->clone_type();
+                    type = other.type->clone_type();
                 }
-              }
+            }
 
             ~ClosureParam() = default;
 
@@ -2551,8 +2595,8 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Constructor for a ClosureExprInner
-            ClosureExprInner(::std::unique_ptr<Expr> closure_inner_expr, ::std::vector<ClosureParam> closure_params, location_t locus,
-              bool is_move = false,
+            ClosureExprInner(::std::unique_ptr<Expr> closure_inner_expr,
+              ::std::vector<ClosureParam> closure_params, location_t locus, bool is_move = false,
               ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
               ClosureExpr(::std::move(closure_params), is_move, ::std::move(outer_attribs), locus),
               closure_inner(::std::move(closure_inner_expr)) {}
@@ -2634,7 +2678,7 @@ namespace Rust {
               inner_attrs(other.inner_attrs), locus(other.locus) {
                 // guard to protect from null pointer dereference
                 if (other.expr != NULL) {
-                  expr = other.expr->clone_expr_without_block();
+                    expr = other.expr->clone_expr_without_block();
                 }
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
@@ -2716,8 +2760,9 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Constructor potentially with a move
-            ClosureExprInnerTyped(::std::unique_ptr<Type> closure_return_type, ::std::unique_ptr<BlockExpr> closure_expr,
-              ::std::vector<ClosureParam> closure_params, location_t locus, bool is_move = false,
+            ClosureExprInnerTyped(::std::unique_ptr<Type> closure_return_type,
+              ::std::unique_ptr<BlockExpr> closure_expr, ::std::vector<ClosureParam> closure_params,
+              location_t locus, bool is_move = false,
               ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
               ClosureExpr(::std::move(closure_params), is_move, ::std::move(outer_attribs), locus),
               return_type(::std::move(closure_return_type)), expr(::std::move(closure_expr)) {}
@@ -2832,7 +2877,8 @@ namespace Rust {
             }
 
             // Constructor for a break expression
-            BreakExpr(location_t locus, Lifetime break_label = Lifetime::error(), ::std::unique_ptr<Expr> expr_in_break = NULL,
+            BreakExpr(location_t locus, Lifetime break_label = Lifetime::error(),
+              ::std::unique_ptr<Expr> expr_in_break = NULL,
               ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
               ExprWithoutBlock(::std::move(outer_attribs)),
               label(::std::move(break_label)), break_expr(::std::move(expr_in_break)), locus(locus) {}
@@ -2842,9 +2888,9 @@ namespace Rust {
               ExprWithoutBlock(other), label(other.label), locus(other.locus) {
                 // guard to protect from null pointer dereference
                 if (other.break_expr != NULL) {
-                  break_expr = other.break_expr->clone_expr();
+                    break_expr = other.break_expr->clone_expr();
                 }
-              }
+            }
 
             // Destructor - define here if required
 
@@ -2885,15 +2931,16 @@ namespace Rust {
 
         // Base range expression AST node object - abstract
         class RangeExpr : public ExprWithoutBlock {
-          location_t locus;
+            location_t locus;
 
           protected:
             // outer attributes not allowed before range expressions
-            RangeExpr(location_t locus) : ExprWithoutBlock(::std::vector<Attribute>()), locus(locus) {}
+            RangeExpr(location_t locus) :
+              ExprWithoutBlock(::std::vector<Attribute>()), locus(locus) {}
 
           public:
             location_t get_locus() const {
-              return locus;
+                return locus;
             }
 
             location_t get_locus_slow() const OVERRIDE {
@@ -2917,8 +2964,10 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            RangeFromToExpr(::std::unique_ptr<Expr> range_from, ::std::unique_ptr<Expr> range_to, location_t locus) :
-              RangeExpr(locus), from(::std::move(range_from)), to(::std::move(range_to)) {}
+            RangeFromToExpr(::std::unique_ptr<Expr> range_from, ::std::unique_ptr<Expr> range_to,
+              location_t locus) :
+              RangeExpr(locus),
+              from(::std::move(range_from)), to(::std::move(range_to)) {}
 
             // Copy constructor with cloning
             RangeFromToExpr(RangeFromToExpr const& other) :
@@ -2964,7 +3013,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            RangeFromExpr(::std::unique_ptr<Expr> range_from, location_t locus) : RangeExpr(locus), from(::std::move(range_from)) {}
+            RangeFromExpr(::std::unique_ptr<Expr> range_from, location_t locus) :
+              RangeExpr(locus), from(::std::move(range_from)) {}
 
             // Copy constructor with clone
             RangeFromExpr(RangeFromExpr const& other) :
@@ -3010,7 +3060,8 @@ namespace Rust {
             ::std::string as_string() const;
 
             // outer attributes not allowed
-            RangeToExpr(::std::unique_ptr<Expr> range_to, location_t locus) : RangeExpr(locus), to(::std::move(range_to)) {}
+            RangeToExpr(::std::unique_ptr<Expr> range_to, location_t locus) :
+              RangeExpr(locus), to(::std::move(range_to)) {}
 
             // Copy constructor with clone
             RangeToExpr(RangeToExpr const& other) : RangeExpr(other), to(other.to->clone_expr()) {}
@@ -3078,8 +3129,10 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            RangeFromToInclExpr(::std::unique_ptr<Expr> range_from, ::std::unique_ptr<Expr> range_to, location_t locus) :
-              RangeExpr(locus), from(::std::move(range_from)), to(::std::move(range_to)) {}
+            RangeFromToInclExpr(::std::unique_ptr<Expr> range_from, ::std::unique_ptr<Expr> range_to,
+              location_t locus) :
+              RangeExpr(locus),
+              from(::std::move(range_from)), to(::std::move(range_to)) {}
             // outer attributes not allowed
 
             // Copy constructor with clone
@@ -3126,7 +3179,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            RangeToInclExpr(::std::unique_ptr<Expr> range_to, location_t locus) : RangeExpr(locus), to(::std::move(range_to)) {}
+            RangeToInclExpr(::std::unique_ptr<Expr> range_to, location_t locus) :
+              RangeExpr(locus), to(::std::move(range_to)) {}
             // outer attributes not allowed
 
             // Copy constructor with clone
@@ -3188,13 +3242,12 @@ namespace Rust {
               return_expr(::std::move(returned_expr)), locus(locus) {}
 
             // Copy constructor with clone
-            ReturnExpr(ReturnExpr const& other) :
-              ExprWithoutBlock(other), locus(other.locus) {
+            ReturnExpr(ReturnExpr const& other) : ExprWithoutBlock(other), locus(other.locus) {
                 // guard to protect from null pointer dereference
                 if (other.return_expr != NULL) {
-                  return_expr = other.return_expr->clone_expr();
+                    return_expr = other.return_expr->clone_expr();
                 }
-              }
+            }
 
             // Destructor - define here if required
 
@@ -3254,8 +3307,10 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            UnsafeBlockExpr(::std::unique_ptr<BlockExpr> block_expr, ::std::vector<Attribute> outer_attribs, location_t locus) :
-              ExprWithBlock(::std::move(outer_attribs)), expr(::std::move(block_expr)), locus(locus) {}
+            UnsafeBlockExpr(::std::unique_ptr<BlockExpr> block_expr,
+              ::std::vector<Attribute> outer_attribs, location_t locus) :
+              ExprWithBlock(::std::move(outer_attribs)),
+              expr(::std::move(block_expr)), locus(locus) {}
 
             // Copy constructor with clone
             UnsafeBlockExpr(UnsafeBlockExpr const& other) :
@@ -3307,7 +3362,8 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            LoopLabel(Lifetime loop_label, location_t locus = UNKNOWN_LOCATION) : label(::std::move(loop_label)), locus(locus) {}
+            LoopLabel(Lifetime loop_label, location_t locus = UNKNOWN_LOCATION) :
+              label(::std::move(loop_label)), locus(locus) {}
 
             // Returns whether the LoopLabel is in an error state.
             inline bool is_error() const {
@@ -3339,10 +3395,12 @@ namespace Rust {
 
           protected:
             // Constructor for BaseLoopExpr
-            BaseLoopExpr(::std::unique_ptr<BlockExpr> loop_block, location_t locus, LoopLabel loop_label = LoopLabel::error(),
+            BaseLoopExpr(::std::unique_ptr<BlockExpr> loop_block, location_t locus,
+              LoopLabel loop_label = LoopLabel::error(),
               ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
               ExprWithBlock(::std::move(outer_attribs)),
-              loop_label(::std::move(loop_label)), loop_block(::std::move(loop_block)), locus(locus) {}
+              loop_label(::std::move(loop_label)), loop_block(::std::move(loop_block)), locus(locus) {
+            }
 
             // Copy constructor for BaseLoopExpr with clone
             BaseLoopExpr(BaseLoopExpr const& other) :
@@ -3390,9 +3448,11 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Constructor for LoopExpr
-            LoopExpr(::std::unique_ptr<BlockExpr> loop_block, location_t locus, LoopLabel loop_label = LoopLabel::error(),
+            LoopExpr(::std::unique_ptr<BlockExpr> loop_block, location_t locus,
+              LoopLabel loop_label = LoopLabel::error(),
               ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
-              BaseLoopExpr(::std::move(loop_block), locus, ::std::move(loop_label), ::std::move(outer_attribs)) {}
+              BaseLoopExpr(::std::move(loop_block), locus, ::std::move(loop_label),
+                ::std::move(outer_attribs)) {}
 
             // copy constructor, destructor, and assignment operator should not need modification
 
@@ -3421,10 +3481,12 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Constructor for while loop with loop label
-            WhileLoopExpr(::std::unique_ptr<Expr> loop_condition, ::std::unique_ptr<BlockExpr> loop_block, location_t locus,
+            WhileLoopExpr(::std::unique_ptr<Expr> loop_condition,
+              ::std::unique_ptr<BlockExpr> loop_block, location_t locus,
               LoopLabel loop_label = LoopLabel::error(),
               ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
-              BaseLoopExpr(::std::move(loop_block), locus, ::std::move(loop_label), ::std::move(outer_attribs)),
+              BaseLoopExpr(
+                ::std::move(loop_block), locus, ::std::move(loop_label), ::std::move(outer_attribs)),
               condition(::std::move(loop_condition)) {}
 
             // Copy constructor with clone
@@ -3479,10 +3541,13 @@ namespace Rust {
 
             // Constructor with a loop label
             WhileLetLoopExpr(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
-              ::std::unique_ptr<Expr> condition, ::std::unique_ptr<BlockExpr> loop_block, location_t locus, LoopLabel loop_label = LoopLabel::error(),
+              ::std::unique_ptr<Expr> condition, ::std::unique_ptr<BlockExpr> loop_block,
+              location_t locus, LoopLabel loop_label = LoopLabel::error(),
               ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
-              BaseLoopExpr(::std::move(loop_block), locus, ::std::move(loop_label), ::std::move(outer_attribs)),
-              match_arm_patterns(::std::move(match_arm_patterns)), condition(::std::move(condition)) {}
+              BaseLoopExpr(
+                ::std::move(loop_block), locus, ::std::move(loop_label), ::std::move(outer_attribs)),
+              match_arm_patterns(::std::move(match_arm_patterns)), condition(::std::move(condition)) {
+            }
 
             // Copy constructor with clone
             WhileLetLoopExpr(WhileLetLoopExpr const& other) :
@@ -3548,10 +3613,12 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Constructor with loop label
-            ForLoopExpr(::std::unique_ptr<Pattern> loop_pattern, ::std::unique_ptr<Expr> iterator_expr, ::std::unique_ptr<BlockExpr> loop_body,
+            ForLoopExpr(::std::unique_ptr<Pattern> loop_pattern,
+              ::std::unique_ptr<Expr> iterator_expr, ::std::unique_ptr<BlockExpr> loop_body,
               location_t locus, LoopLabel loop_label = LoopLabel::error(),
               ::std::vector<Attribute> outer_attribs = ::std::vector<Attribute>()) :
-              BaseLoopExpr(::std::move(loop_body), locus, ::std::move(loop_label), ::std::move(outer_attribs)),
+              BaseLoopExpr(
+                ::std::move(loop_body), locus, ::std::move(loop_label), ::std::move(outer_attribs)),
               pattern(::std::move(loop_pattern)), iterator_expr(::std::move(iterator_expr)) {}
 
             // Copy constructor with clone
@@ -3614,8 +3681,10 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            IfExpr(::std::unique_ptr<Expr> condition, ::std::unique_ptr<BlockExpr> if_block, location_t locus) :
-              ExprWithBlock(::std::vector<Attribute>()), condition(::std::move(condition)), if_block(::std::move(if_block)), locus(locus) {}
+            IfExpr(::std::unique_ptr<Expr> condition, ::std::unique_ptr<BlockExpr> if_block,
+              location_t locus) :
+              ExprWithBlock(::std::vector<Attribute>()),
+              condition(::std::move(condition)), if_block(::std::move(if_block)), locus(locus) {}
             // outer attributes are never allowed on IfExprs
 
             // Copy constructor with clone
@@ -3685,8 +3754,10 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            IfExprConseqElse(::std::unique_ptr<Expr> condition, ::std::unique_ptr<BlockExpr> if_block, ::std::unique_ptr<BlockExpr> else_block, location_t locus) :
-              IfExpr(::std::move(condition), ::std::move(if_block), locus), else_block(::std::move(else_block)) {}
+            IfExprConseqElse(::std::unique_ptr<Expr> condition, ::std::unique_ptr<BlockExpr> if_block,
+              ::std::unique_ptr<BlockExpr> else_block, location_t locus) :
+              IfExpr(::std::move(condition), ::std::move(if_block), locus),
+              else_block(::std::move(else_block)) {}
             // again, outer attributes not allowed
 
             // Copy constructor with clone
@@ -3738,8 +3809,10 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            IfExprConseqIf(::std::unique_ptr<Expr> condition, ::std::unique_ptr<BlockExpr> if_block, ::std::unique_ptr<IfExpr> conseq_if_expr, location_t locus) :
-              IfExpr(::std::move(condition), ::std::move(if_block), locus), if_expr(::std::move(conseq_if_expr)) {}
+            IfExprConseqIf(::std::unique_ptr<Expr> condition, ::std::unique_ptr<BlockExpr> if_block,
+              ::std::unique_ptr<IfExpr> conseq_if_expr, location_t locus) :
+              IfExpr(::std::move(condition), ::std::move(if_block), locus),
+              if_expr(::std::move(conseq_if_expr)) {}
             // outer attributes not allowed
 
             // Copy constructor with clone
@@ -3798,10 +3871,12 @@ namespace Rust {
           public:
             ::std::string as_string() const;
 
-            IfLetExpr(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns, ::std::unique_ptr<Expr> value,
-              ::std::unique_ptr<BlockExpr> if_block, location_t locus) :
+            IfLetExpr(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
+              ::std::unique_ptr<Expr> value, ::std::unique_ptr<BlockExpr> if_block,
+              location_t locus) :
               ExprWithBlock(::std::vector<Attribute>()),
-              match_arm_patterns(::std::move(match_arm_patterns)), value(::std::move(value)), if_block(::std::move(if_block)), locus(locus) {}
+              match_arm_patterns(::std::move(match_arm_patterns)), value(::std::move(value)),
+              if_block(::std::move(if_block)), locus(locus) {}
             // outer attributes not allowed on if let exprs either
 
             // copy constructor with clone
@@ -3883,8 +3958,11 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            IfExprConseqIfLet(::std::unique_ptr<Expr> condition, ::std::unique_ptr<BlockExpr> if_block, ::std::unique_ptr<IfLetExpr> conseq_if_let_expr, location_t locus) :
-              IfExpr(::std::move(condition), ::std::move(if_block), locus), if_let_expr(::std::move(conseq_if_let_expr)) {}
+            IfExprConseqIfLet(::std::unique_ptr<Expr> condition,
+              ::std::unique_ptr<BlockExpr> if_block, ::std::unique_ptr<IfLetExpr> conseq_if_let_expr,
+              location_t locus) :
+              IfExpr(::std::move(condition), ::std::move(if_block), locus),
+              if_let_expr(::std::move(conseq_if_let_expr)) {}
             // outer attributes not allowed
 
             // Copy constructor with clone
@@ -3937,8 +4015,10 @@ namespace Rust {
             ::std::string as_string() const;
 
             IfLetExprConseqElse(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
-              ::std::unique_ptr<Expr> value, ::std::unique_ptr<BlockExpr> if_block, ::std::unique_ptr<BlockExpr> else_block, location_t locus) :
-              IfLetExpr(::std::move(match_arm_patterns), ::std::move(value), ::std::move(if_block), locus),
+              ::std::unique_ptr<Expr> value, ::std::unique_ptr<BlockExpr> if_block,
+              ::std::unique_ptr<BlockExpr> else_block, location_t locus) :
+              IfLetExpr(
+                ::std::move(match_arm_patterns), ::std::move(value), ::std::move(if_block), locus),
               else_block(::std::move(else_block)) {}
             // outer attributes not allowed
 
@@ -3994,8 +4074,10 @@ namespace Rust {
             ::std::string as_string() const;
 
             IfLetExprConseqIf(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
-              ::std::unique_ptr<Expr> value, ::std::unique_ptr<BlockExpr> if_block, ::std::unique_ptr<IfExpr> if_expr, location_t locus) :
-              IfLetExpr(::std::move(match_arm_patterns), ::std::move(value), ::std::move(if_block), locus),
+              ::std::unique_ptr<Expr> value, ::std::unique_ptr<BlockExpr> if_block,
+              ::std::unique_ptr<IfExpr> if_expr, location_t locus) :
+              IfLetExpr(
+                ::std::move(match_arm_patterns), ::std::move(value), ::std::move(if_block), locus),
               if_expr(::std::move(if_expr)) {}
             // again, outer attributes not allowed
 
@@ -4050,8 +4132,10 @@ namespace Rust {
             ::std::string as_string() const;
 
             IfLetExprConseqIfLet(::std::vector< ::std::unique_ptr<Pattern> > match_arm_patterns,
-              ::std::unique_ptr<Expr> value, ::std::unique_ptr<BlockExpr> if_block, ::std::unique_ptr<IfLetExpr> if_let_expr, location_t locus) :
-              IfLetExpr(::std::move(match_arm_patterns), ::std::move(value), ::std::move(if_block), locus),
+              ::std::unique_ptr<Expr> value, ::std::unique_ptr<BlockExpr> if_block,
+              ::std::unique_ptr<IfLetExpr> if_let_expr, location_t locus) :
+              IfLetExpr(
+                ::std::move(match_arm_patterns), ::std::move(value), ::std::move(if_block), locus),
               if_let_expr(::std::move(if_let_expr)) {}
             // outer attributes not allowed
 
@@ -4123,18 +4207,20 @@ namespace Rust {
               ::std::unique_ptr<Expr> guard_expr = NULL,
               ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
               outer_attrs(::std::move(outer_attrs)),
-              match_arm_patterns(::std::move(match_arm_patterns)), guard_expr(::std::move(guard_expr)) {}
+              match_arm_patterns(::std::move(match_arm_patterns)),
+              guard_expr(::std::move(guard_expr)) {}
 
             // Copy constructor with clone
             MatchArm(MatchArm const& other) :
               /*match_arm_patterns(other.match_arm_patterns),*/ outer_attrs(other.outer_attrs) {
                 // guard to protect from null pointer dereference
                 if (other.guard_expr != NULL) {
-                  guard_expr = other.guard_expr->clone_expr();
+                    guard_expr = other.guard_expr->clone_expr();
                 }
 
                 // DEBUG
-                fprintf(stderr, "started copy-constructing match arm (outer attrs, guard expr done)\n");
+                fprintf(
+                  stderr, "started copy-constructing match arm (outer attrs, guard expr done)\n");
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 match_arm_patterns.reserve(other.match_arm_patterns.size());
@@ -4231,7 +4317,7 @@ namespace Rust {
               MatchCase(other), block_expr(other.block_expr->clone_block_expr()) {
                 // DEBUG
                 fprintf(stderr, "successfully copy constructed match case expr\n");
-              }
+            }
 
             // Destructor - define here if required
 
@@ -4272,14 +4358,15 @@ namespace Rust {
                 delete expr;
             }*/
 
-            MatchCaseExpr(MatchArm arm, ::std::unique_ptr<Expr> expr) : MatchCase(::std::move(arm)), expr(::std::move(expr)) {}
+            MatchCaseExpr(MatchArm arm, ::std::unique_ptr<Expr> expr) :
+              MatchCase(::std::move(arm)), expr(::std::move(expr)) {}
 
             // Copy constructor requires clone
             MatchCaseExpr(MatchCaseExpr const& other) :
               MatchCase(other), expr(other.expr->clone_expr()) {
                 // DEBUG
                 fprintf(stderr, "successfully copy constructed match case expr\n");
-              }
+            }
 
             // Destructor - define here if required
 
@@ -4304,7 +4391,8 @@ namespace Rust {
                 // DEBUG
                 fprintf(stderr, "about to copy construct match case expr\n");
                 if (expr == NULL) {
-                  fprintf(stderr, "warning: match case expr to be copy constructed has null expr!\n");
+                    fprintf(
+                      stderr, "warning: match case expr to be copy constructed has null expr!\n");
                 }
 
                 return new MatchCaseExpr(*this);
@@ -4335,8 +4423,10 @@ namespace Rust {
                 return !match_arms.empty();
             }
 
-            MatchExpr(::std::unique_ptr<Expr> branch_value, ::std::vector< ::std::unique_ptr<MatchCase> > match_arms,
-              ::std::vector<Attribute> inner_attrs, ::std::vector<Attribute> outer_attrs, location_t locus) :
+            MatchExpr(::std::unique_ptr<Expr> branch_value,
+              ::std::vector< ::std::unique_ptr<MatchCase> > match_arms,
+              ::std::vector<Attribute> inner_attrs, ::std::vector<Attribute> outer_attrs,
+              location_t locus) :
               ExprWithBlock(::std::move(outer_attrs)),
               branch_value(::std::move(branch_value)), inner_attrs(::std::move(inner_attrs)),
               match_arms(::std::move(match_arms)), locus(locus) {}
@@ -4346,7 +4436,8 @@ namespace Rust {
               ExprWithBlock(other),
               branch_value(other.branch_value->clone_expr()), /*match_arms(other.match_arms),*/
               inner_attrs(other.inner_attrs), locus(other.locus) {
-                fprintf(stderr, "copy constructor for matchexpr called - only match arm vector copying after this\n");
+                fprintf(stderr, "copy constructor for matchexpr called - only match arm vector "
+                                "copying after this\n");
 
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 match_arms.reserve(other.match_arms.size());
@@ -4414,12 +4505,15 @@ namespace Rust {
 
           public:
             // TODO: ensure outer attributes are actually allowed
-            AwaitExpr(::std::unique_ptr<Expr> awaited_expr, ::std::vector<Attribute> outer_attrs, location_t locus) :
-              ExprWithoutBlock(::std::move(outer_attrs)), awaited_expr(::std::move(awaited_expr)), locus(locus) {}
+            AwaitExpr(::std::unique_ptr<Expr> awaited_expr, ::std::vector<Attribute> outer_attrs,
+              location_t locus) :
+              ExprWithoutBlock(::std::move(outer_attrs)),
+              awaited_expr(::std::move(awaited_expr)), locus(locus) {}
 
             // copy constructor with clone
             AwaitExpr(AwaitExpr const& other) :
-              ExprWithoutBlock(other), awaited_expr(other.awaited_expr->clone_expr()), locus(other.locus) {}
+              ExprWithoutBlock(other), awaited_expr(other.awaited_expr->clone_expr()),
+              locus(other.locus) {}
 
             // destructor - define here if required
 
@@ -4462,8 +4556,8 @@ namespace Rust {
             location_t locus;
 
           public:
-            AsyncBlockExpr(
-              ::std::unique_ptr<BlockExpr> block_expr, bool has_move, ::std::vector<Attribute> outer_attrs, location_t locus) :
+            AsyncBlockExpr(::std::unique_ptr<BlockExpr> block_expr, bool has_move,
+              ::std::vector<Attribute> outer_attrs, location_t locus) :
               ExprWithBlock(::std::move(outer_attrs)),
               has_move(has_move), block_expr(::std::move(block_expr)), locus(locus) {}
 

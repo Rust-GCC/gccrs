@@ -10,14 +10,15 @@
 #include "rust-ast-full.h"
 
 namespace Rust {
-    /* HACK: used to resolve the expression-or-statement problem at the end of a block by allowing either to
-     * be returned (technically). Tagged union would probably take up the same amount of space. */
+    /* HACK: used to resolve the expression-or-statement problem at the end of a block by allowing
+     * either to be returned (technically). Tagged union would probably take up the same amount of
+     * space. */
     struct ExprOrStmt {
         ::std::unique_ptr<AST::ExprWithoutBlock> expr;
         ::std::unique_ptr<AST::Stmt> stmt;
 
-        /* I was going to resist the urge to make this a real class and make it POD, but construction in
-         * steps is too difficult. So it'll just also have a constructor. */
+        /* I was going to resist the urge to make this a real class and make it POD, but construction
+         * in steps is too difficult. So it'll just also have a constructor. */
 
         // expression constructor
         ExprOrStmt(::std::unique_ptr<AST::ExprWithoutBlock> expr) : expr(::std::move(expr)) {}
@@ -43,23 +44,23 @@ namespace Rust {
         ExprOrStmt(ExprOrStmt&& other) = default;
         ExprOrStmt& operator=(ExprOrStmt&& other) = default;
 
-        private:
+      private:
         // private constructor only used for creating error state expr or stmt objects
-          ExprOrStmt(AST::ExprWithoutBlock* expr, AST::Stmt* stmt) : expr(expr), stmt(stmt) {}
+        ExprOrStmt(AST::ExprWithoutBlock* expr, AST::Stmt* stmt) : expr(expr), stmt(stmt) {}
 
-        // make this work: have a disambiguation specifically for known statements (i.e. ';' and 'let').
-        // then, have a special "parse expr or stmt" function that returns this type. inside it, it parses
-        // an expression, and then determines whether to return expr or stmt via whether the next token is
-        // a semicolon. 
-        // should be able to disambiguate inside that function between stmts with blocks and without blocks.
+        // make this work: have a disambiguation specifically for known statements (i.e. ';' and
+        // 'let'). then, have a special "parse expr or stmt" function that returns this type. inside
+        // it, it parses an expression, and then determines whether to return expr or stmt via whether
+        // the next token is a semicolon. should be able to disambiguate inside that function between
+        // stmts with blocks and without blocks.
     };
 
-    /* Restrictions on parsing used to signal that certain ambiguous grammar features should be parsed in a
-     * certain way.*/
+    /* Restrictions on parsing used to signal that certain ambiguous grammar features should be parsed
+     * in a certain way.*/
     struct ParseRestrictions {
         bool can_be_struct_expr = true;
-        /* Whether the expression was entered from a unary expression - prevents stuff like struct exprs
-         * being parsed from a dereference. */
+        /* Whether the expression was entered from a unary expression - prevents stuff like struct
+         * exprs being parsed from a dereference. */
         bool entered_from_unary = false;
     };
 
@@ -144,10 +145,12 @@ namespace Rust {
         // Token tree or macro related
         AST::DelimTokenTree parse_delim_token_tree();
         ::std::unique_ptr<AST::TokenTree> parse_token_tree();
-        ::std::unique_ptr<AST::MacroRulesDefinition> parse_macro_rules_def(::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::MacroRulesDefinition> parse_macro_rules_def(
+          ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::MacroInvocationSemi> parse_macro_invocation_semi(
           ::std::vector<AST::Attribute> outer_attrs);
-        ::std::unique_ptr<AST::MacroInvocation> parse_macro_invocation(::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::MacroInvocation> parse_macro_invocation(
+          ::std::vector<AST::Attribute> outer_attrs);
         AST::MacroRule parse_macro_rule();
         AST::MacroMatcher parse_macro_matcher();
         ::std::unique_ptr<AST::MacroMatch> parse_macro_match();
@@ -162,13 +165,15 @@ namespace Rust {
         AST::Visibility parse_visibility();
 
         // VisItem subclass-related
-        ::std::unique_ptr<AST::Module> parse_module(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::Module> parse_module(
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::ExternCrate> parse_extern_crate(
           AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::UseDeclaration> parse_use_decl(
           AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::UseTree> parse_use_tree();
-        ::std::unique_ptr<AST::Function> parse_function(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::Function> parse_function(
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         AST::FunctionQualifiers parse_function_qualifiers();
         ::std::vector< ::std::unique_ptr<AST::GenericParam> > parse_generic_params_in_angles();
         ::std::vector< ::std::unique_ptr<AST::GenericParam> > parse_generic_params();
@@ -192,25 +197,32 @@ namespace Rust {
         AST::Lifetime parse_lifetime();
         ::std::unique_ptr<AST::TypeAlias> parse_type_alias(
           AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
-        ::std::unique_ptr<AST::Struct> parse_struct(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::Struct> parse_struct(
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         ::std::vector<AST::StructField> parse_struct_fields();
         AST::StructField parse_struct_field();
         ::std::vector<AST::TupleField> parse_tuple_fields();
         AST::TupleField parse_tuple_field();
-        ::std::unique_ptr<AST::Enum> parse_enum(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::Enum> parse_enum(
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         ::std::vector< ::std::unique_ptr<AST::EnumItem> > parse_enum_items();
         ::std::unique_ptr<AST::EnumItem> parse_enum_item();
-        ::std::unique_ptr<AST::Union> parse_union(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::Union> parse_union(
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::ConstantItem> parse_const_item(
           AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::StaticItem> parse_static_item(
           AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
-        ::std::unique_ptr<AST::Trait> parse_trait(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::Trait> parse_trait(
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::TraitItem> parse_trait_item();
-        ::std::unique_ptr<AST::TraitItemType> parse_trait_type(::std::vector<AST::Attribute> outer_attrs);
-        ::std::unique_ptr<AST::TraitItemConst> parse_trait_const(::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::TraitItemType> parse_trait_type(
+          ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::TraitItemConst> parse_trait_const(
+          ::std::vector<AST::Attribute> outer_attrs);
         AST::SelfParam parse_self_param();
-        ::std::unique_ptr<AST::Impl> parse_impl(AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::Impl> parse_impl(
+          AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::InherentImplItem> parse_inherent_impl_item();
         ::std::unique_ptr<AST::InherentImplItem> parse_inherent_impl_function_or_method(
           AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs);
@@ -224,103 +236,156 @@ namespace Rust {
         AST::Method parse_method();
 
         // Expression-related (Pratt parsed)
-        ::std::unique_ptr<AST::Expr> parse_expr(::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::Expr> parse_expr(int right_binding_power, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::Expr> null_denotation_NEW(const_TokenPtr t, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::Expr> left_denotation(const_TokenPtr t, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_binary_plus_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_binary_minus_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_binary_mult_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_binary_div_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_binary_mod_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_bitwise_and_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_bitwise_or_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_bitwise_xor_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_left_shift_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_right_shift_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ComparisonExpr> parse_binary_equal_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ComparisonExpr> parse_binary_not_equal_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ComparisonExpr> parse_binary_greater_than_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ComparisonExpr> parse_binary_less_than_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ComparisonExpr> parse_binary_greater_equal_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ComparisonExpr> parse_binary_less_equal_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::LazyBooleanExpr> parse_lazy_or_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::LazyBooleanExpr> parse_lazy_and_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::TypeCastExpr> parse_type_cast_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> expr_to_cast, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::AssignmentExpr> parse_assig_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_plus_assig_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_minus_assig_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_mult_assig_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_div_assig_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_mod_assig_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_and_assig_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_or_assig_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_xor_assig_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_left_shift_assig_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::Expr> parse_expr(
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::Expr> parse_expr(int right_binding_power,
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::Expr> null_denotation_NEW(const_TokenPtr t,
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::Expr> left_denotation(const_TokenPtr t,
+          ::std::unique_ptr<AST::Expr> left,
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_binary_plus_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_binary_minus_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_binary_mult_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_binary_div_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_binary_mod_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_bitwise_and_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_bitwise_or_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_bitwise_xor_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_left_shift_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ArithmeticOrLogicalExpr> parse_right_shift_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ComparisonExpr> parse_binary_equal_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ComparisonExpr> parse_binary_not_equal_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ComparisonExpr> parse_binary_greater_than_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ComparisonExpr> parse_binary_less_than_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ComparisonExpr> parse_binary_greater_equal_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ComparisonExpr> parse_binary_less_equal_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::LazyBooleanExpr> parse_lazy_or_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::LazyBooleanExpr> parse_lazy_and_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::TypeCastExpr> parse_type_cast_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> expr_to_cast, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::AssignmentExpr> parse_assig_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_plus_assig_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_minus_assig_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_mult_assig_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_div_assig_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_mod_assig_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_and_assig_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_or_assig_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_xor_assig_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_left_shift_assig_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
         ::std::unique_ptr<AST::CompoundAssignmentExpr> parse_right_shift_assig_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::AwaitExpr> parse_await_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> expr_to_await, ::std::vector<AST::Attribute> outer_attrs);
-        ::std::unique_ptr<AST::MethodCallExpr> parse_method_call_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> receiver_expr, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::CallExpr> parse_function_call_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> function_expr, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::RangeExpr> parse_led_range_exclusive_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
+          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left,
+          ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::AwaitExpr> parse_await_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> expr_to_await, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::MethodCallExpr> parse_method_call_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> receiver_expr, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::CallExpr> parse_function_call_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> function_expr, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::RangeExpr> parse_led_range_exclusive_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
         ::std::unique_ptr<AST::RangeExpr> parse_nud_range_exclusive_expr(
           const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs);
-        ::std::unique_ptr<AST::RangeFromToInclExpr> parse_range_inclusive_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::RangeFromToInclExpr> parse_range_inclusive_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> left, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
         ::std::unique_ptr<AST::RangeToInclExpr> parse_range_to_inclusive_expr(
           const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs);
-        ::std::unique_ptr<AST::TupleIndexExpr> parse_tuple_index_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> tuple_expr, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::FieldAccessExpr> parse_field_access_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> struct_expr, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::ArrayIndexExpr> parse_index_expr(
-          const_TokenPtr tok, ::std::unique_ptr<AST::Expr> array_expr, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
-        ::std::unique_ptr<AST::MacroInvocation> parse_macro_invocation_partial(AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
-        ::std::unique_ptr<AST::StructExprStruct> parse_struct_expr_struct_partial(AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
-        ::std::unique_ptr<AST::StructExprTuple> parse_struct_expr_tuple_partial(AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::TupleIndexExpr> parse_tuple_index_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> tuple_expr, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::FieldAccessExpr> parse_field_access_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> struct_expr, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ArrayIndexExpr> parse_index_expr(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> array_expr, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::MacroInvocation> parse_macro_invocation_partial(
+          AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::StructExprStruct> parse_struct_expr_struct_partial(
+          AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::StructExprTuple> parse_struct_expr_tuple_partial(
+          AST::PathInExpression path, ::std::vector<AST::Attribute> outer_attrs);
         AST::PathInExpression parse_path_in_expression_pratt(const_TokenPtr tok);
-        ::std::unique_ptr<AST::ClosureExpr> parse_closure_expr_pratt(
-          const_TokenPtr tok, ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
-        ::std::unique_ptr<AST::TupleIndexExpr> parse_tuple_index_expr_float(const_TokenPtr tok, ::std::unique_ptr<AST::Expr> tuple_expr, ::std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions = ParseRestrictions());
+        ::std::unique_ptr<AST::ClosureExpr> parse_closure_expr_pratt(const_TokenPtr tok,
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
+        ::std::unique_ptr<AST::TupleIndexExpr> parse_tuple_index_expr_float(const_TokenPtr tok,
+          ::std::unique_ptr<AST::Expr> tuple_expr, ::std::vector<AST::Attribute> outer_attrs,
+          ParseRestrictions restrictions = ParseRestrictions());
 
         // Expression-related (non-Pratt parsed)
         ::std::unique_ptr<AST::ExprWithoutBlock> parse_expr_without_block(
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         ::std::unique_ptr<AST::BlockExpr> parse_block_expr(
-          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          bool pratt_parse = false);
         ::std::unique_ptr<AST::IfExpr> parse_if_expr(
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         ::std::unique_ptr<AST::IfLetExpr> parse_if_let_expr(
@@ -338,9 +403,11 @@ namespace Rust {
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
           AST::LoopLabel label = AST::LoopLabel::error());
         ::std::unique_ptr<AST::MatchExpr> parse_match_expr(
-          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          bool pratt_parse = false);
         AST::MatchArm parse_match_arm();
-        ::std::vector< ::std::unique_ptr<AST::Pattern> > parse_match_arm_patterns(TokenId end_token_id);
+        ::std::vector< ::std::unique_ptr<AST::Pattern> > parse_match_arm_patterns(
+          TokenId end_token_id);
         ::std::unique_ptr<AST::BaseLoopExpr> parse_labelled_loop_expr(
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         AST::LoopLabel parse_loop_label();
@@ -356,15 +423,20 @@ namespace Rust {
         ::std::unique_ptr<AST::LiteralExpr> parse_literal_expr(
           ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>());
         ::std::unique_ptr<AST::ReturnExpr> parse_return_expr(
-          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          bool pratt_parse = false);
         ::std::unique_ptr<AST::BreakExpr> parse_break_expr(
-          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          bool pratt_parse = false);
         ::std::unique_ptr<AST::ContinueExpr> parse_continue_expr(
-          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          bool pratt_parse = false);
         ::std::unique_ptr<AST::ArrayExpr> parse_array_expr(
-          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          bool pratt_parse = false);
         ::std::unique_ptr<AST::ExprWithoutBlock> parse_grouped_or_tuple_expr(
-          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(), bool pratt_parse = false);
+          ::std::vector<AST::Attribute> outer_attrs = ::std::vector<AST::Attribute>(),
+          bool pratt_parse = false);
         ::std::unique_ptr<AST::StructExprField> parse_struct_expr_field();
 
         // Type-related
@@ -373,7 +445,8 @@ namespace Rust {
         ::std::unique_ptr<AST::TypeNoBounds> parse_slice_or_array_type();
         ::std::unique_ptr<AST::RawPointerType> parse_raw_pointer_type();
         ::std::unique_ptr<AST::ReferenceType> parse_reference_type();
-        ::std::unique_ptr<AST::BareFunctionType> parse_bare_function_type(::std::vector<AST::LifetimeParam> for_lifetimes);
+        ::std::unique_ptr<AST::BareFunctionType> parse_bare_function_type(
+          ::std::vector<AST::LifetimeParam> for_lifetimes);
         ::std::unique_ptr<AST::Type> parse_paren_prefixed_type();
         ::std::unique_ptr<AST::TypeNoBounds> parse_paren_prefixed_type_no_bounds();
         ::std::unique_ptr<AST::Type> parse_for_prefixed_type();
@@ -383,7 +456,8 @@ namespace Rust {
         ::std::unique_ptr<AST::Stmt> parse_stmt();
         ::std::unique_ptr<AST::LetStmt> parse_let_stmt(::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::ExprStmt> parse_expr_stmt(::std::vector<AST::Attribute> outer_attrs);
-        ::std::unique_ptr<AST::ExprStmtWithBlock> parse_expr_stmt_with_block(::std::vector<AST::Attribute> outer_attrs);
+        ::std::unique_ptr<AST::ExprStmtWithBlock> parse_expr_stmt_with_block(
+          ::std::vector<AST::Attribute> outer_attrs);
         ::std::unique_ptr<AST::ExprStmtWithoutBlock> parse_expr_stmt_without_block(
           ::std::vector<AST::Attribute> outer_attrs);
         ExprOrStmt parse_stmt_or_expr_without_block();

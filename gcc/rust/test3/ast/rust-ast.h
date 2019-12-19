@@ -230,13 +230,16 @@ namespace Rust {
             }
 
           public:
-            DelimTokenTree(DelimType delim_type, ::std::vector< ::std::unique_ptr<TokenTree> > token_trees
-                                    = ::std::vector< ::std::unique_ptr<TokenTree> >(), location_t locus = UNKNOWN_LOCATION) :
+            DelimTokenTree(DelimType delim_type,
+              ::std::vector< ::std::unique_ptr<TokenTree> > token_trees
+              = ::std::vector< ::std::unique_ptr<TokenTree> >(),
+              location_t locus = UNKNOWN_LOCATION) :
               delim_type(delim_type),
               token_trees(::std::move(token_trees)), locus(locus) {}
 
             // Copy constructor with vector clone
-            DelimTokenTree(DelimTokenTree const& other) : delim_type(other.delim_type), locus(other.locus) {
+            DelimTokenTree(DelimTokenTree const& other) :
+              delim_type(other.delim_type), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 token_trees.reserve(other.token_trees.size());
 
@@ -291,7 +294,8 @@ namespace Rust {
             // only allow identifiers, "super", "self", "crate", or "$crate"
           public:
             // TODO: put checks in constructor to enforce this rule?
-            SimplePathSegment(::std::string segment_name, location_t locus = UNKNOWN_LOCATION) : segment_name(::std::move(segment_name)), locus(locus) {}
+            SimplePathSegment(::std::string segment_name, location_t locus = UNKNOWN_LOCATION) :
+              segment_name(::std::move(segment_name)), locus(locus) {}
 
             // Returns whether simple path segment is in an invalid state (currently, if empty).
             inline bool is_error() const {
@@ -359,17 +363,18 @@ namespace Rust {
             }
 
             // Constructor has pointer AttrInput for polymorphism reasons
-            Attribute(SimplePath path, ::std::unique_ptr<AttrInput> input, location_t locus = UNKNOWN_LOCATION) :
-              path(::std::move(path)), attr_input(::std::move(input)), locus(locus) {}
+            Attribute(SimplePath path, ::std::unique_ptr<AttrInput> input,
+              location_t locus = UNKNOWN_LOCATION) :
+              path(::std::move(path)),
+              attr_input(::std::move(input)), locus(locus) {}
 
             // Copy constructor must deep copy attr_input as unique pointer
-            Attribute(Attribute const& other) :
-              path(other.path), locus(other.locus) {
+            Attribute(Attribute const& other) : path(other.path), locus(other.locus) {
                 // guard to protect from null pointer dereference
                 if (other.attr_input != NULL) {
-                  attr_input = other.attr_input->clone_attr_input();
+                    attr_input = other.attr_input->clone_attr_input();
                 }
-              }
+            }
 
             // default destructor
             ~Attribute() = default;
@@ -380,7 +385,7 @@ namespace Rust {
                 locus = other.locus;
                 // guard to protect from null pointer dereference
                 if (other.attr_input != NULL) {
-                  attr_input = other.attr_input->clone_attr_input();
+                    attr_input = other.attr_input->clone_attr_input();
                 }
 
                 return *this;
@@ -586,7 +591,8 @@ namespace Rust {
              *  - get_type() - returns type of expression. set_type() may also be useful for some?
              *  - evaluate() - evaluates expression if constant? can_evaluate()? */
 
-            // HACK: downcasting without dynamic_cast (if possible) via polymorphism - overrided in subclasses of ExprWithoutBlock
+            // HACK: downcasting without dynamic_cast (if possible) via polymorphism - overrided in
+            // subclasses of ExprWithoutBlock
             virtual ExprWithoutBlock* as_expr_without_block() const {
                 // DEBUG
                 fprintf(stderr, "clone expr without block returns null and has not been overriden\n");
@@ -599,9 +605,9 @@ namespace Rust {
 
             virtual ~Expr() {}
 
-            // HACK: slow way of getting location from base expression through virtual methods. 
-            virtual location_t get_locus_slow() const { 
-              return UNKNOWN_LOCATION; 
+            // HACK: slow way of getting location from base expression through virtual methods.
+            virtual location_t get_locus_slow() const {
+                return UNKNOWN_LOCATION;
             }
 
           protected:
@@ -658,8 +664,8 @@ namespace Rust {
             location_t locus;
 
           public:
-            IdentifierExpr(
-              Identifier ident, location_t locus = UNKNOWN_LOCATION, ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
+            IdentifierExpr(Identifier ident, location_t locus = UNKNOWN_LOCATION,
+              ::std::vector<Attribute> outer_attrs = ::std::vector<Attribute>()) :
               ExprWithoutBlock(::std::move(outer_attrs)),
               ident(::std::move(ident)), locus(locus) {}
 
@@ -785,8 +791,10 @@ namespace Rust {
 
           public:
             // Constructor
-            Lifetime(LifetimeType type, ::std::string name = ::std::string(), location_t locus = UNKNOWN_LOCATION) :
-              lifetime_type(type), lifetime_name(::std::move(name)), locus(locus) {}
+            Lifetime(LifetimeType type, ::std::string name = ::std::string(),
+              location_t locus = UNKNOWN_LOCATION) :
+              lifetime_type(type),
+              lifetime_name(::std::move(name)), locus(locus) {}
 
             // Creates an "error" lifetime.
             static Lifetime error() {
@@ -860,11 +868,12 @@ namespace Rust {
             }
 
             // Constructor
-            LifetimeParam(Lifetime lifetime,
-              location_t locus = UNKNOWN_LOCATION, ::std::vector<Lifetime> lifetime_bounds = ::std::vector<Lifetime>(),
+            LifetimeParam(Lifetime lifetime, location_t locus = UNKNOWN_LOCATION,
+              ::std::vector<Lifetime> lifetime_bounds = ::std::vector<Lifetime>(),
               Attribute outer_attr = Attribute::create_empty()) :
               lifetime(::std::move(lifetime)),
-              lifetime_bounds(::std::move(lifetime_bounds)), outer_attr(::std::move(outer_attr)), locus(locus) {}
+              lifetime_bounds(::std::move(lifetime_bounds)), outer_attr(::std::move(outer_attr)),
+              locus(locus) {}
 
             // TODO: remove copy and assignment operator definitions - not required
 
@@ -974,7 +983,9 @@ namespace Rust {
         // A macro invocation item (or statement) AST node (i.e. semi-coloned macro invocation)
         class MacroInvocationSemi
           : public MacroItem
-          , public TraitItem, public InherentImplItem, public TraitImplItem
+          , public TraitItem
+          , public InherentImplItem
+          , public TraitImplItem
         /*, public Statement*/ {
             // already inherits from statement indirectly via item as item is a subclass of statement
             SimplePath path;
@@ -991,7 +1002,8 @@ namespace Rust {
             MacroInvocationSemi(SimplePath macro_path, DelimType delim_type,
               ::std::vector< ::std::unique_ptr<TokenTree> > token_trees,
               ::std::vector<Attribute> outer_attribs, location_t locus) :
-              MacroItem(::std::move(outer_attribs)), path(::std::move(macro_path)), delim_type(delim_type),
+              MacroItem(::std::move(outer_attribs)),
+              path(::std::move(macro_path)), delim_type(delim_type),
               token_trees(::std::move(token_trees)), locus(locus) {}
             /* TODO: possible issue with Item and TraitItem hierarchies both having outer attributes
              * - storage inefficiency at least.
@@ -1002,7 +1014,8 @@ namespace Rust {
 
             // Copy constructor with vector clone
             MacroInvocationSemi(MacroInvocationSemi const& other) :
-              MacroItem(other), TraitItem(other), InherentImplItem(other), TraitImplItem(other), path(other.path), delim_type(other.delim_type), locus(other.locus) {
+              MacroItem(other), TraitItem(other), InherentImplItem(other), TraitImplItem(other),
+              path(other.path), delim_type(other.delim_type), locus(other.locus) {
                 // crappy vector unique pointer clone - TODO is there a better way of doing this?
                 token_trees.reserve(other.token_trees.size());
 
@@ -1128,13 +1141,12 @@ namespace Rust {
               ExprWithoutBlock(::std::move(outer_attribs)) {}
 
           public:
-          // TODO: think of a better and less hacky way to allow this
+            // TODO: think of a better and less hacky way to allow this
 
-          // Replaces the outer attributes of this path expression with the given outer attributes. 
-          void replace_outer_attrs(::std::vector<Attribute> outer_attrs) {
-              set_outer_attrs(::std::move(outer_attrs));
-          }
-
+            // Replaces the outer attributes of this path expression with the given outer attributes.
+            void replace_outer_attrs(::std::vector<Attribute> outer_attrs) {
+                set_outer_attrs(::std::move(outer_attrs));
+            }
         };
     }
 }
