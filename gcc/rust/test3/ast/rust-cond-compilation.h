@@ -17,6 +17,9 @@ namespace Rust {
                   clone_configuration_predicate_impl());
             }
 
+            // not sure if I'll use this but here anyway
+            virtual void accept_vis(ASTVisitor& vis) = 0;
+
           protected:
             // Clone function impl to be overriden in base classes
             virtual ConfigurationPredicate* clone_configuration_predicate_impl() const = 0;
@@ -42,6 +45,8 @@ namespace Rust {
             // Name-only constructor
             ConfigurationOption(Identifier option_name) : option_name(option_name) {}
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ConfigurationOption* clone_configuration_predicate_impl() const OVERRIDE {
@@ -63,6 +68,8 @@ namespace Rust {
               ::std::vector< ::std::unique_ptr<ConfigurationPredicate> > predicate_list) :
               predicate_list(predicate_list) {}
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ConfigurationAll* clone_configuration_predicate_impl() const OVERRIDE {
@@ -78,6 +85,8 @@ namespace Rust {
             ConfigurationAny(
               ::std::vector< ::std::unique_ptr<ConfigurationPredicate> > predicate_list) :
               predicate_list(predicate_list) {}
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -107,9 +116,11 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*ConfigurationNot(ConfigurationNot&& other) = default;
-            ConfigurationNot& operator=(ConfigurationNot&& other) = default;*/
+            // move constructors 
+            ConfigurationNot(ConfigurationNot&& other) = default;
+            ConfigurationNot& operator=(ConfigurationNot&& other) = default;
+
+          virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -139,9 +150,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*CfgAttrAttribute(CfgAttrAttribute&& other) = default;
-            CfgAttrAttribute& operator=(CfgAttrAttribute&& other) = default;*/
+            // move constructors 
+            CfgAttribute(CfgAttribute&& other) = default;
+            CfgAttribute& operator=(CfgAttribute&& other) = default;
         };
 
         // TODO: inline
@@ -175,9 +186,9 @@ namespace Rust {
                 return *this;
             }
 
-            // no move constructors as not supported in c++03
-            /*CfgAttrAttribute(CfgAttrAttribute&& other) = default;
-            CfgAttrAttribute& operator=(CfgAttrAttribute&& other) = default;*/
+            // move constructors 
+            CfgAttrAttribute(CfgAttrAttribute&& other) = default;
+            CfgAttrAttribute& operator=(CfgAttrAttribute&& other) = default;
         };
     }
 }

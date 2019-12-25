@@ -82,6 +82,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual MacroMatchFragment* clone_macro_match_impl() const OVERRIDE {
@@ -152,6 +154,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual MacroMatchRepetition* clone_macro_match_impl() const OVERRIDE {
@@ -215,6 +219,8 @@ namespace Rust {
             }
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -288,6 +294,8 @@ namespace Rust {
               rule_name(::std::move(rule_name)), delim_type(delim_type), rules(::std::move(rules)),
               locus(locus) {}
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual MacroRulesDefinition* clone_item_impl() const OVERRIDE {
@@ -320,6 +328,8 @@ namespace Rust {
             location_t get_locus_slow() const OVERRIDE {
                 return get_locus();
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

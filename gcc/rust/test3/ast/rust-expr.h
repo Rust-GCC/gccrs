@@ -101,6 +101,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual LiteralExpr* clone_expr_impl() const OVERRIDE {
@@ -138,6 +140,8 @@ namespace Rust {
                 return " = " + literal_expr.as_string();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning an AttrInputLiteral object
             virtual AttrInputLiteral* clone_attr_input_impl() const OVERRIDE {
@@ -162,6 +166,8 @@ namespace Rust {
               MetaItem(::std::move(path)), expr(::std::move(expr)) {}
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning derived object
@@ -262,6 +268,8 @@ namespace Rust {
               MetaItem(::std::move(path)), sequence(::std::move(sequence)) {}
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning derived object
@@ -466,6 +474,9 @@ namespace Rust {
             // Overload assignment operator here if required
 
             // Move semantics here if required
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual BorrowExpr* clone_expr_impl() const OVERRIDE {
@@ -499,6 +510,8 @@ namespace Rust {
 
             // Move semantics here if required
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual DereferenceExpr* clone_expr_impl() const OVERRIDE {
@@ -515,12 +528,12 @@ namespace Rust {
         };
 
         // Unary postfix ? error propogation operator. Cannot be overloaded.
-        class ErrorPropogationExpr : public OperatorExpr {
+        class ErrorPropagationExpr : public OperatorExpr {
           public:
             ::std::string as_string() const;
 
             // Constructor calls OperatorExpr's protected constructor
-            ErrorPropogationExpr(::std::unique_ptr<Expr> potential_error_value,
+            ErrorPropagationExpr(::std::unique_ptr<Expr> potential_error_value,
               ::std::vector<Attribute> outer_attribs, location_t locus) :
               OperatorExpr(::std::move(potential_error_value), ::std::move(outer_attribs), locus) {}
 
@@ -532,18 +545,20 @@ namespace Rust {
 
             // Move semantics here if required
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
-            virtual ErrorPropogationExpr* clone_expr_impl() const OVERRIDE {
-                return new ErrorPropogationExpr(*this);
+            virtual ErrorPropagationExpr* clone_expr_impl() const OVERRIDE {
+                return new ErrorPropagationExpr(*this);
             }
 
             // Use covariance to implement clone function as returning this object rather than base
-            virtual ErrorPropogationExpr* clone_expr_without_block_impl() const OVERRIDE {
+            virtual ErrorPropagationExpr* clone_expr_without_block_impl() const OVERRIDE {
                 // DEBUG
-                fprintf(stderr, "called clone_expr_without_block_impl() on errorpropogationexpr\n");
+                fprintf(stderr, "called clone_expr_without_block_impl() on errorpropagationexpr\n");
 
-                return new ErrorPropogationExpr(*this);
+                return new ErrorPropagationExpr(*this);
             }
         };
 
@@ -578,6 +593,8 @@ namespace Rust {
             // Overload assignment operator here if required
 
             // Move semantics here if required
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -656,6 +673,8 @@ namespace Rust {
             ArithmeticOrLogicalExpr(ArithmeticOrLogicalExpr&& other) = default;
             ArithmeticOrLogicalExpr& operator=(ArithmeticOrLogicalExpr&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ArithmeticOrLogicalExpr* clone_expr_impl() const OVERRIDE {
@@ -731,6 +750,8 @@ namespace Rust {
             ComparisonExpr(ComparisonExpr&& other) = default;
             ComparisonExpr& operator=(ComparisonExpr&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
             // TODO: implement via a function call to std::cmp::PartialEq::eq(&op1, &op2) maybe?
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -797,6 +818,8 @@ namespace Rust {
                 return expr_type;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual LazyBooleanExpr* clone_expr_impl() const OVERRIDE {
@@ -847,6 +870,8 @@ namespace Rust {
             // move constructors as not supported in c++03
             TypeCastExpr(TypeCastExpr&& other) = default;
             TypeCastExpr& operator=(TypeCastExpr&& other) = default;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -916,6 +941,8 @@ namespace Rust {
             // move constructors
             AssignmentExpr(AssignmentExpr&& other) = default;
             AssignmentExpr& operator=(AssignmentExpr&& other) = default;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -995,6 +1022,8 @@ namespace Rust {
             CompoundAssignmentExpr(CompoundAssignmentExpr&& other) = default;
             CompoundAssignmentExpr& operator=(CompoundAssignmentExpr&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual CompoundAssignmentExpr* clone_expr_impl() const OVERRIDE {
@@ -1066,6 +1095,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual GroupedExpr* clone_expr_impl() const OVERRIDE {
@@ -1090,6 +1121,8 @@ namespace Rust {
             }
 
             virtual ::std::string as_string() const = 0;
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
 
           protected:
             // pure virtual clone implementation
@@ -1139,6 +1172,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             virtual ArrayElemsValues* clone_array_elems_impl() const OVERRIDE {
                 return new ArrayElemsValues(*this);
@@ -1186,6 +1221,8 @@ namespace Rust {
             ArrayElemsCopied& operator=(ArrayElemsCopied&& other) = default;
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             virtual ArrayElemsCopied* clone_array_elems_impl() const OVERRIDE {
@@ -1256,6 +1293,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ArrayExpr* clone_expr_impl() const OVERRIDE {
@@ -1324,6 +1363,8 @@ namespace Rust {
             location_t get_locus_slow() const OVERRIDE {
                 return get_locus();
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1403,6 +1444,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TupleExpr* clone_expr_impl() const OVERRIDE {
@@ -1473,6 +1516,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TupleIndexExpr* clone_expr_impl() const OVERRIDE {
@@ -1528,6 +1573,8 @@ namespace Rust {
             location_t get_locus_slow() const OVERRIDE {
                 return get_locus();
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1607,6 +1654,8 @@ namespace Rust {
 
             virtual ::std::string as_string() const = 0;
 
+            virtual void accept_vis(ASTVisitor& vis) = 0;
+
           protected:
             // pure virtual clone implementation
             virtual StructExprField* clone_struct_expr_field_impl() const = 0;
@@ -1625,6 +1674,8 @@ namespace Rust {
             ::std::string as_string() const {
                 return field_name;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this rather than base
@@ -1683,6 +1734,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this rather than base
             virtual StructExprFieldIdentifierValue* clone_struct_expr_field_impl() const OVERRIDE {
@@ -1703,6 +1756,8 @@ namespace Rust {
             // copy constructor, destructor, and overloaded assignment operator should carry through
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this rather than base
@@ -1789,6 +1844,8 @@ namespace Rust {
             StructExprStructFields(StructExprStructFields&& other) = default;
             StructExprStructFields& operator=(StructExprStructFields&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual StructExprStructFields* clone_expr_impl() const OVERRIDE {
@@ -1838,6 +1895,8 @@ namespace Rust {
               StructExprStruct(::std::move(struct_path), ::std::move(inner_attribs),
                 ::std::move(outer_attribs), locus),
               struct_base(::std::move(base_struct)) {}
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1917,6 +1976,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual StructExprTuple* clone_expr_impl() const OVERRIDE {
@@ -1951,6 +2012,8 @@ namespace Rust {
             location_t get_locus_slow() const OVERRIDE {
                 return get_locus();
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1993,6 +2056,8 @@ namespace Rust {
                 return ::std::unique_ptr<EnumExprField>(clone_enum_expr_field_impl());
             }
 
+            virtual void accept_vis(ASTVisitor& vis) = 0;
+
           protected:
             // Clone function implementation as pure virtual method
             virtual EnumExprField* clone_enum_expr_field_impl() const = 0;
@@ -2007,6 +2072,8 @@ namespace Rust {
           public:
             EnumExprFieldIdentifier(Identifier field_identifier) :
               field_name(::std::move(field_identifier)) {}
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2056,6 +2123,8 @@ namespace Rust {
 
             // copy constructor, destructor, and assignment operator should not need defining
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual EnumExprFieldIdentifierValue* clone_enum_expr_field_impl() const OVERRIDE {
@@ -2075,6 +2144,8 @@ namespace Rust {
               EnumExprFieldWithVal(::std::move(field_value)), index(field_index) {}
 
             // copy constructor, destructor, and assignment operator should not need defining
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2139,6 +2210,8 @@ namespace Rust {
             location_t get_locus_slow() const OVERRIDE {
                 return get_locus();
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2209,6 +2282,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual EnumExprTuple* clone_expr_impl() const OVERRIDE {
@@ -2245,6 +2320,8 @@ namespace Rust {
             location_t get_locus_slow() const OVERRIDE {
                 return get_locus();
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2334,6 +2411,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual CallExpr* clone_expr_impl() const OVERRIDE {
@@ -2420,6 +2499,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual MethodCallExpr* clone_expr_impl() const OVERRIDE {
@@ -2483,6 +2564,8 @@ namespace Rust {
             location_t get_locus_slow() const OVERRIDE {
                 return get_locus();
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2623,6 +2706,8 @@ namespace Rust {
             ClosureExprInner(ClosureExprInner&& other) = default;
             ClosureExprInner& operator=(ClosureExprInner&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ClosureExprInner* clone_expr_impl() const OVERRIDE {
@@ -2727,6 +2812,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual BlockExpr* clone_expr_impl() const OVERRIDE {
@@ -2790,6 +2877,8 @@ namespace Rust {
             ClosureExprInnerTyped(ClosureExprInnerTyped&& other) = default;
             ClosureExprInnerTyped& operator=(ClosureExprInnerTyped&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ClosureExprInnerTyped* clone_expr_impl() const OVERRIDE {
@@ -2832,6 +2921,8 @@ namespace Rust {
             location_t get_locus_slow() const OVERRIDE {
                 return get_locus();
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2917,6 +3008,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual BreakExpr* clone_expr_impl() const OVERRIDE {
@@ -2984,9 +3077,11 @@ namespace Rust {
                 return *this;
             }
 
-            // move constructors as not supported in c++03
+            // move constructors 
             RangeFromToExpr(RangeFromToExpr&& other) = default;
             RangeFromToExpr& operator=(RangeFromToExpr&& other) = default;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3034,6 +3129,8 @@ namespace Rust {
             RangeFromExpr(RangeFromExpr&& other) = default;
             RangeFromExpr& operator=(RangeFromExpr&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual RangeFromExpr* clone_expr_impl() const OVERRIDE {
@@ -3080,6 +3177,8 @@ namespace Rust {
             RangeToExpr(RangeToExpr&& other) = default;
             RangeToExpr& operator=(RangeToExpr&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual RangeToExpr* clone_expr_impl() const OVERRIDE {
@@ -3100,6 +3199,8 @@ namespace Rust {
 
             RangeFullExpr(location_t locus) : RangeExpr(locus) {}
             // outer attributes not allowed
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3154,6 +3255,8 @@ namespace Rust {
             RangeFromToInclExpr(RangeFromToInclExpr&& other) = default;
             RangeFromToInclExpr& operator=(RangeFromToInclExpr&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual RangeFromToInclExpr* clone_expr_impl() const OVERRIDE {
@@ -3200,6 +3303,8 @@ namespace Rust {
             // move constructors
             RangeToInclExpr(RangeToInclExpr&& other) = default;
             RangeToInclExpr& operator=(RangeToInclExpr&& other) = default;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3273,6 +3378,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ReturnExpr* clone_expr_impl() const OVERRIDE {
@@ -3339,6 +3446,8 @@ namespace Rust {
             location_t get_locus_slow() const OVERRIDE {
                 return get_locus();
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3456,6 +3565,8 @@ namespace Rust {
 
             // copy constructor, destructor, and assignment operator should not need modification
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual LoopExpr* clone_expr_impl() const OVERRIDE {
@@ -3509,6 +3620,8 @@ namespace Rust {
             // move constructors
             WhileLoopExpr(WhileLoopExpr&& other) = default;
             WhileLoopExpr& operator=(WhileLoopExpr&& other) = default;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3586,6 +3699,8 @@ namespace Rust {
             WhileLetLoopExpr(WhileLetLoopExpr&& other) = default;
             WhileLetLoopExpr& operator=(WhileLetLoopExpr&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual WhileLetLoopExpr* clone_expr_impl() const OVERRIDE {
@@ -3643,6 +3758,8 @@ namespace Rust {
             // move constructors
             ForLoopExpr(ForLoopExpr&& other) = default;
             ForLoopExpr& operator=(ForLoopExpr&& other) = default;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3725,6 +3842,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual IfExpr* clone_expr_impl() const OVERRIDE {
@@ -3780,6 +3899,8 @@ namespace Rust {
             IfExprConseqElse(IfExprConseqElse&& other) = default;
             IfExprConseqElse& operator=(IfExprConseqElse&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual IfExprConseqElse* clone_expr_impl() const OVERRIDE {
@@ -3834,6 +3955,8 @@ namespace Rust {
             // move constructors
             IfExprConseqIf(IfExprConseqIf&& other) = default;
             IfExprConseqIf& operator=(IfExprConseqIf&& other) = default;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3929,6 +4052,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual IfLetExpr* clone_expr_impl() const OVERRIDE {
@@ -3984,6 +4109,8 @@ namespace Rust {
             // move constructors
             IfExprConseqIfLet(IfExprConseqIfLet&& other) = default;
             IfExprConseqIfLet& operator=(IfExprConseqIfLet&& other) = default;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -4044,6 +4171,8 @@ namespace Rust {
             IfLetExprConseqElse(IfLetExprConseqElse&& other) = default;
             IfLetExprConseqElse& operator=(IfLetExprConseqElse&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual IfLetExprConseqElse* clone_expr_impl() const OVERRIDE {
@@ -4102,6 +4231,8 @@ namespace Rust {
             IfLetExprConseqIf(IfLetExprConseqIf&& other) = default;
             IfLetExprConseqIf& operator=(IfLetExprConseqIf&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual IfLetExprConseqIf* clone_expr_impl() const OVERRIDE {
@@ -4159,6 +4290,8 @@ namespace Rust {
             // move constructors
             IfLetExprConseqIfLet(IfLetExprConseqIfLet&& other) = default;
             IfLetExprConseqIfLet& operator=(IfLetExprConseqIfLet&& other) = default;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -4295,6 +4428,8 @@ namespace Rust {
             }
 
             virtual ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
         };
 
         // Block expression match case
@@ -4335,6 +4470,8 @@ namespace Rust {
             MatchCaseBlockExpr& operator=(MatchCaseBlockExpr&& other) = default;
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -4384,6 +4521,8 @@ namespace Rust {
             MatchCaseExpr& operator=(MatchCaseExpr&& other) = default;
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -4485,6 +4624,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual MatchExpr* clone_expr_impl() const OVERRIDE {
@@ -4540,6 +4681,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual AwaitExpr* clone_expr_without_block_impl() const OVERRIDE {
@@ -4591,6 +4734,8 @@ namespace Rust {
             location_t get_locus_slow() const OVERRIDE {
                 return get_locus();
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

@@ -1,6 +1,8 @@
 #include "rust-ast-full.h"
 // Dummy implementations of as_string() for now - will complete later for debugging purposes
 
+#include "rust-ast-visitor.h"
+
 namespace Rust {
     namespace AST {
         // Gets a string in a certain delim type.
@@ -1504,7 +1506,7 @@ namespace Rust {
             return from->as_string() + "..=" + to->as_string();
         }
 
-        ::std::string ErrorPropogationExpr::as_string() const {
+        ::std::string ErrorPropagationExpr::as_string() const {
             return main_or_left_expr->as_string() + "?";
         }
 
@@ -3340,6 +3342,637 @@ namespace Rust {
             str += param_type->as_string();
 
             return str;
+        }
+
+        /* Visitor implementations - these are short but inlining can't happen anyway due to virtual 
+         * functions and I didn't want to make the ast header includes any longer than they already are. */
+
+        void Token::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void DelimTokenTree::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void IdentifierExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void Lifetime::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void LifetimeParam::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void MacroInvocationSemi::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void PathInExpression::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void TypePathSegment::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void TypePathSegmentGeneric::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void TypePathSegmentFunction::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void TypePath::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void QualifiedPathInExpression::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void QualifiedPathInType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void LiteralExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void AttrInputLiteral::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void MetaItemLit::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void MetaItemSeq::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void BorrowExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void DereferenceExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void ErrorPropagationExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void NegationExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void ArithmeticOrLogicalExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void ComparisonExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void LazyBooleanExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void TypeCastExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void AssignmentExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void CompoundAssignmentExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void GroupedExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void ArrayElemsValues::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void ArrayElemsCopied::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void ArrayExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void ArrayIndexExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void TupleExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void TupleIndexExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void StructExprStruct::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void StructExprFieldIdentifier::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void StructExprFieldIdentifierValue::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void StructExprFieldIndexValue::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void StructExprStructFields::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void StructExprStructBase::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void StructExprTuple::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void StructExprUnit::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void EnumExprFieldIdentifier::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void EnumExprFieldIdentifierValue::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void EnumExprFieldIndexValue::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        } 
+
+        void EnumExprStruct::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void EnumExprTuple::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void EnumExprFieldless::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void CallExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MethodCallExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void FieldAccessExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ClosureExprInner::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void BlockExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ClosureExprInnerTyped::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ContinueExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void BreakExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void RangeFromToExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void RangeFromExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void RangeToExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void RangeFullExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void RangeFromToInclExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void RangeToInclExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ReturnExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void UnsafeBlockExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void LoopExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void WhileLoopExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void WhileLetLoopExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ForLoopExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void IfExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void IfExprConseqElse::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void IfExprConseqIf::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void IfExprConseqIfLet::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void IfLetExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void IfLetExprConseqElse::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void IfLetExprConseqIf::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void IfLetExprConseqIfLet::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MatchCaseBlockExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MatchCaseExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MatchExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void AwaitExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void AsyncBlockExpr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TypeParam::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void LifetimeWhereClauseItem::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TypeBoundWhereClauseItem::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void Method::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ModuleBodied::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ModuleNoBody::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ExternCrate::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void UseTreeGlob::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void UseTreeList::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void UseTreeRebind::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void UseDeclaration::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void Function::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TypeAlias::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void StructStruct::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TupleStruct::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void EnumItem::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void EnumItemTuple::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void EnumItemStruct::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void EnumItemDiscriminant::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void Enum::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void Union::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ConstantItem::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void StaticItem::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TraitItemFunc::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TraitItemMethod::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TraitItemConst::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TraitItemType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void Trait::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void InherentImpl::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TraitImpl::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ExternalStaticItem::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ExternalFunctionItem::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ExternBlock::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MacroMatchFragment::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MacroMatchRepetition::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MacroMatcher::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MacroRulesDefinition::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MacroInvocation::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void LiteralPattern::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void IdentifierPattern::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void WildcardPattern::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void RangePatternBoundLiteral::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void RangePatternBoundPath::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void RangePatternBoundQualPath::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void RangePattern::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ReferencePattern::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void StructPatternFieldTuplePat::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void StructPatternFieldIdentPat::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void StructPatternFieldIdent::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void StructPattern::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TupleStructItemsNoRange::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TupleStructItemsRange::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TupleStructPattern::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TuplePatternItemsMultiple::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TuplePatternItemsRanged::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TuplePattern::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void GroupedPattern::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void SlicePattern::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void EmptyStmt::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void LetStmt::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ExprStmtWithoutBlock::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ExprStmtWithBlock::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TraitBound::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ImplTraitType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TraitObjectType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ParenthesisedType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ImplTraitTypeOneBound::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TraitObjectTypeOneBound::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void TupleType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void NeverType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void RawPointerType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ReferenceType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void ArrayType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void SliceType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void InferredType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void BareFunctionType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
         }
     }
 }

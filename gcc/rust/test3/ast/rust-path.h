@@ -29,6 +29,8 @@ namespace Rust {
             /* TODO: insert check in constructor for this? Or is this a semantic error best handled
              * then? */
 
+            // TODO: does this require visitor. pretty sure this isn't polymorphic, but not entirely sure
+
             // Creates an error PathIdentSegment.
             static PathIdentSegment create_error() {
                 return PathIdentSegment("");
@@ -167,6 +169,8 @@ namespace Rust {
 
             location_t locus;
 
+            // TODO: does this require visitor? pretty sure not polymorphic
+
           public:
             // Returns true if there are any generic arguments
             inline bool has_generic_args() const {
@@ -280,6 +284,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual PathInExpression* clone_pattern_impl() const OVERRIDE {
@@ -348,6 +354,9 @@ namespace Rust {
             inline bool get_locus() const {
                 return locus;
             }
+
+            // not pure virtual as class not abstract
+            virtual void accept_vis(ASTVisitor& vis);
         };
 
         // Segment used in type path with generic args
@@ -379,6 +388,8 @@ namespace Rust {
                 ::std::move(lifetime_args), ::std::move(type_args), ::std::move(binding_args))) {}
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to override base class method
@@ -502,6 +513,8 @@ namespace Rust {
                 return false;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to override base class method
             virtual TypePathSegmentFunction* clone_type_path_segment_impl() const OVERRIDE {
@@ -592,6 +605,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
         };
 
         struct QualifiedPathType {
@@ -695,6 +710,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual QualifiedPathInExpression* clone_pattern_impl() const OVERRIDE {
@@ -777,6 +794,8 @@ namespace Rust {
             }
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
         };
     }
 }

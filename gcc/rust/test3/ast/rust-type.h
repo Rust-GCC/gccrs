@@ -42,6 +42,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Clone function implementation as (not pure) virtual method
             virtual TraitBound* clone_type_param_bound_impl() const {
@@ -103,6 +105,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
         };
 
         // An opaque value of another type that implements a set of traits
@@ -159,6 +163,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
         };
 
         // A type with parentheses around it, used to avoid ambiguity.
@@ -216,6 +222,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
         };
 
         // Impl trait with a single bound? Poor reference material here.
@@ -244,6 +252,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
         };
 
         /* A trait object with a single trait bound. The "trait bound" is really just the trait.
@@ -283,6 +293,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
         };
 
         class TypePath; // definition moved to "rust-path.h"
@@ -336,6 +348,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TupleType* clone_type_impl() const OVERRIDE {
@@ -374,6 +388,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
         };
 
         // A type consisting of a pointer without safety or liveness guarantees
@@ -425,6 +441,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -494,6 +512,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ReferenceType* clone_type_impl() const OVERRIDE {
@@ -547,6 +567,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
             /*~ArrayType() {
                 delete size;
             }*/
@@ -598,6 +620,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual SliceType* clone_type_impl() const OVERRIDE {
@@ -634,6 +658,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
         };
 
         class QualifiedPathInType; // definition moved to "rust-path.h"
@@ -760,6 +786,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

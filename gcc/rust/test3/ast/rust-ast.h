@@ -27,6 +27,9 @@ namespace Rust {
     typedef int TupleIndex;
 
     namespace AST {
+        // foward decl: ast visitor
+        class ASTVisitor;
+
         // Delimiter types - used in macros and whatever.
         enum DelimType { PARENS, SQUARE, CURLY };
 
@@ -68,6 +71,8 @@ namespace Rust {
 
             virtual ::std::string as_string() const = 0;
 
+            virtual void accept_vis(ASTVisitor& vis) = 0;
+
           protected:
             // pure virtual clone implementation
             virtual AttrInput* clone_attr_input_impl() const = 0;
@@ -85,6 +90,8 @@ namespace Rust {
 
             virtual ::std::string as_string() const = 0;
 
+            virtual void accept_vis(ASTVisitor& vis) = 0;
+
           protected:
             // pure virtual clone implementation
             virtual TokenTree* clone_token_tree_impl() const = 0;
@@ -101,6 +108,8 @@ namespace Rust {
             ::std::unique_ptr<MacroMatch> clone_macro_match() const {
                 return ::std::unique_ptr<MacroMatch>(clone_macro_match_impl());
             }
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
 
           protected:
             // pure virtual clone implementation
@@ -157,6 +166,8 @@ namespace Rust {
             }
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // No virtual for now as not polymorphic but can be in future
@@ -272,18 +283,22 @@ namespace Rust {
             }
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
         };
 
         // Forward decl - definition moved to rust-expr.h as it requires LiteralExpr to be defined
         class AttrInputLiteral;
 
-        // TODO: move applicable stuff into here
+        // TODO: move applicable stuff into here or just don't include it because nothing uses it
         // A segment of a path (maybe)
         class PathSegment {
           public:
             virtual ~PathSegment() {}
 
             virtual ::std::string as_string() const = 0;
+
+            // TODO: add visitor here?
         };
 
         // A segment of a simple path without generic or type arguments
@@ -312,6 +327,8 @@ namespace Rust {
             inline location_t get_locus() const {
                 return locus;
             }
+
+            // TODO: visitor pattern?
         };
 
         // A simple path without generic or type arguments
@@ -342,6 +359,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            // does this need visitor if not polymorphic? probably not
         };
 
         // aka Attr
@@ -468,6 +487,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            // TODO: does this require visitor pattern as not polymorphic?
+
           protected:
             // not virtual as currently no subclasses of Attribute, but could be in future
             /*virtual*/ Attribute* clone_attribute_impl() const {
@@ -475,7 +496,7 @@ namespace Rust {
             }
         };
 
-        // Syntax used for Attribute by most built-in attributes and the meta fragment spec
+        // Syntax used for Attribute by most built-in attributes and the meta fragment spec (abstract)
         class MetaItem {
             SimplePath path;
 
@@ -496,6 +517,8 @@ namespace Rust {
             virtual ~MetaItem() {}
 
             virtual ::std::string as_string() const = 0;
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
         };
 
         // Forward decl - defined in rust-expr.h
@@ -535,6 +558,8 @@ namespace Rust {
 
             virtual ::std::string as_string() const = 0;
 
+            virtual void accept_vis(ASTVisitor& vis) = 0;
+
           protected:
             // Clone function implementation as pure virtual method
             virtual Stmt* clone_stmt_impl() const = 0;
@@ -553,6 +578,8 @@ namespace Rust {
             }
 
             ::std::string as_string() const;
+
+            // visitor accept not required here?
 
           protected:
             // Constructor
@@ -609,6 +636,8 @@ namespace Rust {
             virtual location_t get_locus_slow() const {
                 return UNKNOWN_LOCATION;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
 
           protected:
             // Constructor
@@ -681,6 +710,8 @@ namespace Rust {
                 return get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Clone method implementation
             virtual IdentifierExpr* clone_expr_without_block_impl() const OVERRIDE {
@@ -701,6 +732,8 @@ namespace Rust {
             virtual ~Pattern() {}
 
             virtual ::std::string as_string() const = 0;
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
 
           protected:
             // Clone pattern implementation as pure virtual method
@@ -728,6 +761,8 @@ namespace Rust {
                 return NULL;
             }
             // as pointer, shouldn't require definition beforehand, only forward declaration.
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
 
           protected:
             // Clone function implementation as pure virtual method
@@ -764,6 +799,8 @@ namespace Rust {
             }
 
             virtual ::std::string as_string() const = 0;
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
 
           protected:
             // Clone function implementation as pure virtual method
@@ -808,6 +845,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual Lifetime* clone_type_param_bound_impl() const OVERRIDE {
@@ -826,6 +865,8 @@ namespace Rust {
             }
 
             virtual ::std::string as_string() const = 0;
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
 
           protected:
             // Clone function implementation as pure virtual method
@@ -900,6 +941,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual LifetimeParam* clone_generic_param_impl() const OVERRIDE {
@@ -945,6 +988,8 @@ namespace Rust {
             }
 
             virtual ::std::string as_string() const = 0;
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
         };
 
         // Abstract base class for items used within an inherent impl block (the impl name {} one)
@@ -962,6 +1007,8 @@ namespace Rust {
             }
 
             virtual ::std::string as_string() const = 0;
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
         };
 
         // Abstract base class for items used in a trait impl
@@ -978,6 +1025,8 @@ namespace Rust {
             }
 
             virtual ::std::string as_string() const = 0;
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
         };
 
         // A macro invocation item (or statement) AST node (i.e. semi-coloned macro invocation)
@@ -1047,6 +1096,8 @@ namespace Rust {
             // Move constructors
             MacroInvocationSemi(MacroInvocationSemi&& other) = default;
             MacroInvocationSemi& operator=(MacroInvocationSemi&& other) = default;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

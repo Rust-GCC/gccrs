@@ -2,8 +2,8 @@
 #define RUST_AST_STATEMENT_H
 
 #include "rust-ast.h"
-#include "rust-expr.h"
 #include "rust-path.h"
+#include "rust-expr.h"
 
 namespace Rust {
     namespace AST {
@@ -21,6 +21,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -117,6 +119,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual LetStmt* clone_stmt_impl() const OVERRIDE {
@@ -178,6 +182,8 @@ namespace Rust {
             ExprStmtWithoutBlock(ExprStmtWithoutBlock&& other) = default;
             ExprStmtWithoutBlock& operator=(ExprStmtWithoutBlock&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ExprStmtWithoutBlock* clone_stmt_impl() const OVERRIDE {
@@ -217,6 +223,8 @@ namespace Rust {
             // move constructors
             ExprStmtWithBlock(ExprStmtWithBlock&& other) = default;
             ExprStmtWithBlock& operator=(ExprStmtWithBlock&& other) = default;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

@@ -3992,6 +3992,8 @@ namespace Rust {
     /* For internal use only by parse_inherent_impl_item() - splits giant method into smaller ones
      * and prevents duplication of logic. Strictly, this parses a function or method item inside an
      * inherent impl item block. */
+    // TODO: make this a templated function with "return type" as type param - InherentImplItem is this 
+    // specialisation of the template while TraitImplItem will be the other.
     ::std::unique_ptr<AST::InherentImplItem> Parser::parse_inherent_impl_function_or_method(
       AST::Visibility vis, ::std::vector<AST::Attribute> outer_attrs) {
         location_t locus = lexer.peek_token()->get_locus();
@@ -10357,7 +10359,7 @@ namespace Rust {
             case QUESTION_MARK: {
                 location_t left_locus = left->get_locus_slow();
                 // error propagation expression - unary postfix
-                return ::std::unique_ptr<AST::ErrorPropogationExpr>(new AST::ErrorPropogationExpr(
+                return ::std::unique_ptr<AST::ErrorPropagationExpr>(new AST::ErrorPropagationExpr(
                   ::std::move(left), ::std::move(outer_attrs), left_locus));
             }
             case PLUS:

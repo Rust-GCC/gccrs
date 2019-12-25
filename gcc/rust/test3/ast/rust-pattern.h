@@ -33,6 +33,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual LiteralPattern* clone_pattern_impl() const OVERRIDE {
@@ -104,6 +106,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual IdentifierPattern* clone_pattern_impl() const OVERRIDE {
@@ -125,6 +129,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -153,6 +159,8 @@ namespace Rust {
 
             virtual ::std::string as_string() const = 0;
 
+            virtual void accept_vis(ASTVisitor& vis) = 0;
+
           protected:
             // pure virtual as RangePatternBound is abstract
             virtual RangePatternBound* clone_range_pattern_bound_impl() const = 0;
@@ -179,6 +187,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual RangePatternBoundLiteral* clone_range_pattern_bound_impl() const OVERRIDE {
@@ -204,6 +214,8 @@ namespace Rust {
                 return path.get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual RangePatternBoundPath* clone_range_pattern_bound_impl() const OVERRIDE {
@@ -228,6 +240,8 @@ namespace Rust {
             location_t get_locus() const {
                 return path.get_locus();
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -285,6 +299,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual RangePattern* clone_pattern_impl() const OVERRIDE {
@@ -333,6 +349,8 @@ namespace Rust {
             // default move semantics
             ReferencePattern(ReferencePattern&& other) = default;
             ReferencePattern& operator=(ReferencePattern&& other) = default;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -393,6 +411,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) = 0;
+
           protected:
             StructPatternField(::std::vector<Attribute> outer_attribs, location_t locus) :
               outer_attrs(::std::move(outer_attribs)), locus(locus) {}
@@ -440,6 +460,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual StructPatternFieldTuplePat* clone_struct_pattern_field_impl() const OVERRIDE {
@@ -486,6 +508,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual StructPatternFieldIdentPat* clone_struct_pattern_field_impl() const OVERRIDE {
@@ -507,6 +531,8 @@ namespace Rust {
               has_ref(is_ref), has_mut(is_mut), ident(::std::move(ident)) {}
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -619,6 +645,8 @@ namespace Rust {
                 return path.get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual StructPattern* clone_pattern_impl() const OVERRIDE {
@@ -639,6 +667,8 @@ namespace Rust {
             }
 
             virtual ::std::string as_string() const = 0;
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
 
           protected:
             // pure virtual clone implementation
@@ -681,6 +711,8 @@ namespace Rust {
             TupleStructItemsNoRange& operator=(TupleStructItemsNoRange&& other) = default;
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -744,6 +776,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TupleStructItemsRange* clone_tuple_struct_items_impl() const OVERRIDE {
@@ -789,6 +823,8 @@ namespace Rust {
                 return path.get_locus();
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TupleStructPattern* clone_pattern_impl() const OVERRIDE {
@@ -809,6 +845,8 @@ namespace Rust {
             }
 
             virtual ::std::string as_string() const = 0;
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
 
           protected:
             // pure virtual clone implementation
@@ -885,6 +923,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TuplePatternItemsMultiple* clone_tuple_pattern_items_impl() const OVERRIDE {
@@ -947,6 +987,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TuplePatternItemsRanged* clone_tuple_pattern_items_impl() const OVERRIDE {
@@ -991,6 +1033,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TuplePattern* clone_pattern_impl() const OVERRIDE {
@@ -1034,6 +1078,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1085,6 +1131,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base

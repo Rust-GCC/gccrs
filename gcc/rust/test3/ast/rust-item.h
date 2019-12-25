@@ -120,6 +120,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Clone function implementation as (not pure) virtual method
             virtual TypeParam* clone_generic_param_impl() const {
@@ -138,6 +140,8 @@ namespace Rust {
             }
 
             virtual ::std::string as_string() const = 0;
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
 
           protected:
             // Clone function implementation as pure virtual method
@@ -158,6 +162,8 @@ namespace Rust {
               lifetime(::std::move(lifetime)), lifetime_bounds(::std::move(lifetime_bounds)) {}
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -235,6 +241,8 @@ namespace Rust {
             TypeBoundWhereClauseItem& operator=(TypeBoundWhereClauseItem&& other) = default;
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -687,6 +695,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual Method* clone_inherent_impl_item_impl() const OVERRIDE {
@@ -818,6 +828,8 @@ namespace Rust {
             ModuleBodied(ModuleBodied&& other) = default;
             ModuleBodied& operator=(ModuleBodied&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ModuleBodied* clone_item_impl() const OVERRIDE {
@@ -839,6 +851,8 @@ namespace Rust {
             ModuleNoBody(Identifier name, Visibility visibility, ::std::vector<Attribute> outer_attrs,
               location_t locus) :
               Module(::std::move(name), ::std::move(visibility), locus, ::std::move(outer_attrs)) {}
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -892,6 +906,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ExternCrate* clone_item_impl() const OVERRIDE {
@@ -922,6 +938,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) = 0;
+
           protected:
             // Clone function implementation as pure virtual method
             virtual UseTree* clone_use_tree_impl() const = 0;
@@ -948,6 +966,8 @@ namespace Rust {
             }
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
             // TODO: find way to ensure only PATH_PREFIXED glob_type has path - factory methods?
           protected:
@@ -1017,6 +1037,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
             // TODO: find way to ensure only PATH_PREFIXED path_type has path - factory methods?
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1053,6 +1075,8 @@ namespace Rust {
             }
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
             // TODO: find way to ensure only PATH_PREFIXED path_type has path - factory methods?
           protected:
@@ -1100,6 +1124,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1236,6 +1262,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual Function* clone_item_impl() const OVERRIDE {
@@ -1343,6 +1371,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -1534,6 +1564,8 @@ namespace Rust {
                 return is_unit;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual StructStruct* clone_item_impl() const OVERRIDE {
@@ -1626,6 +1658,8 @@ namespace Rust {
                 ::std::move(vis), locus, ::std::move(outer_attrs)),
               fields(::std::move(fields)) {}
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TupleStruct* clone_item_impl() const OVERRIDE {
@@ -1667,6 +1701,9 @@ namespace Rust {
 
             virtual ::std::string as_string() const;
 
+            // not pure virtual as not abstract
+            virtual void accept_vis(ASTVisitor& vis);
+
           protected:
             // Clone function implementation as (not pure) virtual method
             virtual EnumItem* clone_enum_item_impl() const {
@@ -1692,6 +1729,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Clone function implementation as (not pure) virtual method
             virtual EnumItemTuple* clone_enum_item_impl() const {
@@ -1716,6 +1755,8 @@ namespace Rust {
               struct_fields(::std::move(struct_fields)) {}
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -1760,6 +1801,8 @@ namespace Rust {
             EnumItemDiscriminant& operator=(EnumItemDiscriminant&& other) = default;
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -1864,6 +1907,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual Enum* clone_item_impl() const OVERRIDE {
@@ -1951,6 +1996,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual Union* clone_item_impl() const OVERRIDE {
@@ -2025,6 +2072,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2102,6 +2151,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2270,6 +2321,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Clone function implementation as (not pure) virtual method
             virtual TraitItemFunc* clone_trait_item_impl() const {
@@ -2429,6 +2482,8 @@ namespace Rust {
                 return locus;
             }
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Clone function implementation as (not pure) virtual method
             virtual TraitItemMethod* clone_trait_item_impl() const {
@@ -2493,6 +2548,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -2563,6 +2620,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Clone function implementation as (not pure) virtual method
@@ -2707,6 +2766,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -2862,6 +2923,8 @@ namespace Rust {
             InherentImpl(InherentImpl&& other) = default;
             InherentImpl& operator=(InherentImpl&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual InherentImpl* clone_item_impl() const OVERRIDE {
@@ -2940,6 +3003,8 @@ namespace Rust {
             TraitImpl(TraitImpl&& other) = default;
             TraitImpl& operator=(TraitImpl&& other) = default;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual TraitImpl* clone_item_impl() const OVERRIDE {
@@ -2987,6 +3052,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) = 0;
 
           protected:
             ExternalItem(Identifier item_name, Visibility vis, ::std::vector<Attribute> outer_attrs,
@@ -3055,6 +3122,8 @@ namespace Rust {
             ExternalStaticItem& operator=(ExternalStaticItem&& other) = default;
 
             ::std::string as_string() const;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
@@ -3200,6 +3269,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ExternalFunctionItem* clone_external_item_impl() const OVERRIDE {
@@ -3281,6 +3352,8 @@ namespace Rust {
             location_t get_locus() const {
                 return locus;
             }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
