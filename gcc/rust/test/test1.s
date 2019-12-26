@@ -12,6 +12,6 @@
 .LASF1:
 	.string	"/home/redbrain/workspace/gccrs-build"
 .LASF2:
-	.string	"GNU Rust 10.0.0 20191127 (experimental)"
+	.string	"GNU Rust 10.0.0 20191127 (experimental) -O0"
 	.ident	"GCC: (GNU) 10.0.0 20191127 (experimental)"
 	.section	.note.GNU-stack,"",@progbits

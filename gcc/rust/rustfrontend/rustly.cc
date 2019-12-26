@@ -1,15 +1,23 @@
-#include "rust-system.h"
-#include "rust-c.h"
-
-#include "rdot.h"
-#include "rs-parser.h"
+#include "rustly.h"
 #include "node.h"
 
 extern FILE* yyin;
+static Rustly* rustly;
 
-void rust_parse_input_files (const char** in,
-                             unsigned int n,
-                             bool only_check_syntax)
+
+Rustly::Rustly (bool only_check_syntax, Linemap* linemap)
+    : mSyntaxOnly(only_check_syntax),
+      mLinemap(linemap)
+{
+    
+}
+
+Rustly::~Rustly ()
+{
+    
+}
+
+void Rustly::parse_input_files (size_t n, const char** in)
 {
     int verbose = 1;
     parser_init(verbose);
@@ -19,16 +27,15 @@ void rust_parse_input_files (const char** in,
     size_t i;
     for (i = 0; i < n; ++i)
     {
-        printf("found input: %s\n", in[i]);
-
         yyin = fopen(in[i], "rb");
         if (yyin == NULL) {
             fatal_error(UNKNOWN_LOCATION, "FAILED TO OPEN %s", in[i]);
             return;
         }
 
-        ret = yyparse();
+        ret = yyparse();        
     }
+
 
     printf("--- PARSE COMPLETE: ret:%d, n_nodes:%d ---\n", ret, n_nodes);
     if (nodes) {	
@@ -46,13 +53,31 @@ void rust_parse_input_files (const char** in,
     //     free(tmp);	
     // }
 
-    if (only_check_syntax)
+    if (mSyntaxOnly)
         return;
 
-    // convert to RDOT
 
     // do type inferance
 
     // convert to GENERIC tree's
 }
 
+
+void Rustly::do_compile()
+{
+    // TODO
+}
+
+// C INTERFACE THIS NEEDS CLEANUP AT SOMEPOINT
+
+void
+rust_create_rustly(bool only_check_syntax, Linemap* linemap)
+{
+    rustly = new Rustly(only_check_syntax, linemap);
+}
+
+void
+rust_parse_input_files (const char** in, unsigned int n)
+{
+    rustly->parse_input_files(n, in);
+}

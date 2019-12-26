@@ -1,12 +1,9 @@
 %{
-#include "rdot.h"
 #include "rs-parser.h"
-
 
 static int num_hashes;	
 static int end_hashes;	
 static int saw_non_hash;
-
 %}
 
 %option noyywrap
