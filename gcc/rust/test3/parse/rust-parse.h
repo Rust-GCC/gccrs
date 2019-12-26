@@ -119,7 +119,6 @@ namespace Rust {
         void parse_statement_seq(bool (Parser::*done)());
 
         // AST-related stuff - maybe move or something?
-        AST::Crate parse_crate();
         ::std::vector<AST::Attribute> parse_inner_attributes();
         AST::Attribute parse_inner_attribute();
         ::std::vector<AST::Attribute> parse_outer_attributes();
@@ -493,8 +492,11 @@ namespace Rust {
         // Construct parser with specified lexer reference.
         Parser(Lexer& parLexer) : lexer(parLexer), printf_fn(), puts_fn(), scanf_fn() {}
 
-        // Main entry point for parser.
+        // (old) Main entry point for parser.
         void parse_program();
+
+        // Main entry point for parser.
+        AST::Crate parse_crate();
 
         Tree parse_statement();
 

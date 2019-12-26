@@ -11,6 +11,9 @@
 #include <string>
 
 namespace Rust {
+    // parser forward decl
+    class Parser;
+
     // Defines compiler options (e.g. dump, etc.).
     struct CompileOptions {
         // TODO: use bitfield for smaller memory requirements?
@@ -20,6 +23,7 @@ namespace Rust {
             NO_DUMP,
             LEXER_DUMP,
             PARSER_AST_DUMP,
+            LOAD_CRATES,
             // TODO: add more?
         } dump_option;
     };
@@ -41,6 +45,8 @@ namespace Rust {
         // TODO: should this be private or public?
         void parse_file(const char* filename);
         bool enable_dump(::std::string arg);
+
+        void debug_dump_load_crates(Parser& parser);
     };
 }
 

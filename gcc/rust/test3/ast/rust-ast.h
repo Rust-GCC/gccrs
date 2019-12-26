@@ -361,6 +361,11 @@ namespace Rust {
             }
 
             // does this need visitor if not polymorphic? probably not
+
+            // path-to-string comparison operator
+            bool operator==(const ::std::string& rhs) {
+              return !has_opening_scope_resolution && segments.size() == 1 && segments[0].as_string() == rhs;
+            }
         };
 
         // aka Attr
@@ -489,6 +494,11 @@ namespace Rust {
 
             // TODO: does this require visitor pattern as not polymorphic?
 
+            // Maybe change to const-reference in future
+            SimplePath get_path() const {
+                return path;
+            }
+
           protected:
             // not virtual as currently no subclasses of Attribute, but could be in future
             /*virtual*/ Attribute* clone_attribute_impl() const {
@@ -579,7 +589,8 @@ namespace Rust {
 
             ::std::string as_string() const;
 
-            // visitor accept not required here?
+            // Adds crate names to the vector passed by reference, if it can (polymorphism).
+            virtual void add_crate_name(::std::vector< ::std::string>& names) const {}
 
           protected:
             // Constructor

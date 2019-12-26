@@ -154,6 +154,9 @@ namespace Rust {
             CfgAttribute(CfgAttribute&& other) = default;
             CfgAttribute& operator=(CfgAttribute&& other) = default;
         };
+        /* TODO: ok, best thing to do would be eliminating this class, making Attribute has a "is_cfg()"
+         * method, and having attribute path as "cfg" and AttrInput as ConfigurationPredicate (so make
+         * ConfigurationPredicate a subclass of AttrInput?). Would need special handling in parser, however. */
 
         // TODO: inline
         struct CfgAttrs {

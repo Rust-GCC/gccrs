@@ -1,7 +1,10 @@
 #include "rust-ast-full.h"
-// Dummy implementations of as_string() for now - will complete later for debugging purposes
 
 #include "rust-ast-visitor.h"
+
+/* Compilation unit used for various AST-related functions that would make the headers too long if they
+ * were defined inline and don't receive any benefits from being defined inline because they are virtual.
+ * Also used for various other stuff. */
 
 namespace Rust {
     namespace AST {
@@ -3344,188 +3347,199 @@ namespace Rust {
             return str;
         }
 
-        /* Visitor implementations - these are short but inlining can't happen anyway due to virtual 
-         * functions and I didn't want to make the ast header includes any longer than they already are. */
+        // Override that calls the function recursively on all items contained within the module.
+        void ModuleBodied::add_crate_name(::std::vector< ::std::string>& names) const {
+            /* TODO: test whether module has been 'cfg'-ed out to determine whether to exclude it
+             * from search */
+
+            for (const auto& item : items) {
+                item->add_crate_name(names);
+            }
+        }
+
+        /* Visitor implementations - these are short but inlining can't happen anyway due to virtual
+         * functions and I didn't want to make the ast header includes any longer than they already
+         * are. */
 
         void Token::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void DelimTokenTree::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void IdentifierExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void Lifetime::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void LifetimeParam::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void MacroInvocationSemi::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void PathInExpression::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void TypePathSegment::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void TypePathSegmentGeneric::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void TypePathSegmentFunction::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void TypePath::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void QualifiedPathInExpression::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void QualifiedPathInType::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void LiteralExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void AttrInputLiteral::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void MetaItemLit::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void MetaItemSeq::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void BorrowExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void DereferenceExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void ErrorPropagationExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void NegationExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void ArithmeticOrLogicalExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void ComparisonExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void LazyBooleanExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void TypeCastExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void AssignmentExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void CompoundAssignmentExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void GroupedExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void ArrayElemsValues::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void ArrayElemsCopied::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void ArrayExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void ArrayIndexExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void TupleExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void TupleIndexExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void StructExprStruct::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void StructExprFieldIdentifier::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void StructExprFieldIdentifierValue::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void StructExprFieldIndexValue::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void StructExprStructFields::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void StructExprStructBase::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void StructExprTuple::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void StructExprUnit::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void EnumExprFieldIdentifier::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void EnumExprFieldIdentifierValue::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void EnumExprFieldIndexValue::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
-        } 
+        }
 
         void EnumExprStruct::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);

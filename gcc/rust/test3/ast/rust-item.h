@@ -830,6 +830,9 @@ namespace Rust {
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
+            // Override that runs the function recursively on all items contained within the module.
+            virtual void add_crate_name(::std::vector< ::std::string>& names) const OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this object rather than base
             virtual ModuleBodied* clone_item_impl() const OVERRIDE {
@@ -907,6 +910,11 @@ namespace Rust {
             }
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
+            // Override that adds extern crate name in decl to passed list of names.
+            virtual void add_crate_name(::std::vector< ::std::string>& names) const OVERRIDE {
+                names.push_back(referenced_crate);
+            }
 
           protected:
             // Use covariance to implement clone function as returning this object rather than base
