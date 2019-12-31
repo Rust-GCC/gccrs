@@ -1,11 +1,23 @@
 #include "rust-session-manager.h"
 
 #include "diagnostic.h"
+#include "input.h"
 
 #include "rust-lex.h"
 #include "rust-parse.h"
 
 namespace Rust {
+    // Simple wrapper for FILE* that simplifies destruction. 
+    struct RAIIFile {
+        FILE* file;
+
+        RAIIFile(const char* filename) : file(fopen(filename, "r")) {}
+
+        ~RAIIFile() {
+            fclose(file);
+        }
+    };
+
     void Session::init() {
         // nothing yet
     }
@@ -57,8 +69,14 @@ namespace Rust {
             options.dump_option = CompileOptions::LEXER_DUMP;
         } else if (arg == "parse") {
             options.dump_option = CompileOptions::PARSER_AST_DUMP;
-        } else if (arg == "load-crates") {
-            options.dump_option = CompileOptions::LOAD_CRATES;
+        } else if (arg == "register_plugins") {
+            options.dump_option = CompileOptions::REGISTER_PLUGINS_DUMP;
+        } else if (arg == "injection") {
+            options.dump_option = CompileOptions::INJECTION_DUMP;
+        } else if (arg == "expansion") {
+            options.dump_option = CompileOptions::EXPANSION_DUMP;
+        } else if (arg == "name_resolution") {
+            options.dump_option = CompileOptions::NAME_RESOLUTION_DUMP;
         } else if (arg == "") {
             error_at(UNKNOWN_LOCATION, "dump option was not given a name. choose 'lex' or 'parse'");
             return false;
@@ -79,15 +97,15 @@ namespace Rust {
 
     // Parses a single file with filename filename.
     void Session::parse_file(const char* filename) {
-        FILE* file = fopen(filename, "r");
+        RAIIFile file_wrap(filename);
 
-        if (file == NULL) {
+        if (file_wrap.file == NULL) {
             fatal_error(UNKNOWN_LOCATION, "cannot open filename %s: %m", filename);
         }
 
         // parse file here
         // create lexer and parser - these are file-specific and so aren't instance variables
-        Rust::Lexer lex(filename, file);
+        Rust::Lexer lex(filename, file_wrap.file);
         Rust::Parser parser(lex);
 
         // determine parsing method from options
@@ -96,33 +114,86 @@ namespace Rust {
         switch (options.dump_option) {
             case CompileOptions::NO_DUMP:
                 fatal_error(UNKNOWN_LOCATION, "no-dump parsing has not been enabled yet");
-                break;
+                return;
             case CompileOptions::LEXER_DUMP:
                 parser.debug_dump_lex_output();
-                break;
+                return;
             case CompileOptions::PARSER_AST_DUMP:
                 parser.debug_dump_ast_output();
-                break;
-            case CompileOptions::LOAD_CRATES:
-                debug_dump_load_crates(parser);
+                return;
+            case CompileOptions::REGISTER_PLUGINS_DUMP:
+            case CompileOptions::INJECTION_DUMP:
+            case CompileOptions::EXPANSION_DUMP:
+            case CompileOptions::NAME_RESOLUTION_DUMP:
+                // will break later after more stages
                 break;
             // semantic analysis when completed
             default:
                 fatal_error(UNKNOWN_LOCATION, "unrecognised dump option: '%u'", options.dump_option);
-                break;
+                return;
         }
 
-        fclose(file);
+        /* basic pipeline:
+         *  - lex
+         *  - parse
+         *  - register plugins (dummy stage for now) - attribute injection? what is this? 
+         *    (attribute injection is injecting attributes specified in command line into crate root)
+         *  - injection (some lint checks or dummy, register builtin macros, crate injection)
+         *  - expansion (expands all macros, maybe build test harness, AST validation, maybe macro crate)
+         *  - name resolution (name resolution, maybe feature checking, maybe buffered lints)
+         *  TODO not done */
+
+        // generate crate from parser
+        AST::Crate parsed_crate = parser.parse_crate();
+
+        fprintf(stderr, "\033[0;31mSUCCESSFULLY PARSED CRATE \n\033[0m");
+
+        // register plugins pipeline stage
+        register_plugins(parsed_crate);
+        fprintf(stderr, "\033[0;31mSUCCESSFULLY REGISTERED PLUGINS \n\033[0m");
+
+        if (options.dump_option == CompileOptions::REGISTER_PLUGINS_DUMP) {
+            // TODO: what do I dump here?
+            return;
+        }
+
+        // injection pipeline stage
+        injection(parsed_crate);
+        fprintf(stderr, "\033[0;31mSUCCESSFULLY FINISHED INJECTION \n\033[0m");
+
+        if (options.dump_option == CompileOptions::INJECTION_DUMP) {
+            // TODO: what do I dump here? injected crate names?
+            return;
+        }
+
+        // expansion pipeline stage
+        expansion(parsed_crate);
+        fprintf(stderr, "\033[0;31mSUCCESSFULLY FINISHED EXPANSION \n\033[0m");
+
+        if (options.dump_option == CompileOptions::EXPANSION_DUMP) {
+            // TODO: what do I dump here? expanded macros? AST with expanded macros?
+            return;
+        }
+
+        // name resolution pipeline stage
+        name_resolution(parsed_crate);
+        fprintf(stderr, "\033[0;31mSUCCESSFULLY FINISHED NAME RESOLUTION \n\033[0m");
+
+        if (options.dump_option == CompileOptions::NAME_RESOLUTION_DUMP) {
+            // TODO: what do I dump here? resolved names? AST with resolved names?
+            return;
+        }
     }
 
     // Checks whether 'cfg' attribute prevents compilation.
-    bool check_cfg(const AST::Attribute& attr) {
+    bool check_cfg(const AST::Attribute& attr ATTRIBUTE_UNUSED) {
         // if "has sub items", and if 'cfg' attr, recursively call this on sub items?
 
         // TODO: actually implement. assume true for now
 
         return true;
     }
+    // TODO: deprecated - don't use
 
     // Checks whether any 'cfg' attribute on the item prevents compilation of that item.
     bool check_item_cfg(::std::vector<AST::Attribute> attrs) {
@@ -134,15 +205,23 @@ namespace Rust {
 
         return true;
     }
+    // TODO: deprecated - don't use
 
     // TODO: actually implement method
-    void load_extern_crate(::std::string crate_name) {}
+    void load_extern_crate(::std::string crate_name ATTRIBUTE_UNUSED) {}
+    // TODO: deprecated - don't use
 
     // Parses up to the "load (external) crates" part of the frontend. 
     // TODO: lots of this code is probably actually useful outside of dumping, so maybe split off function
     void Session::debug_dump_load_crates(Parser& parser) {
         // parse crate as AST
         AST::Crate crate = parser.parse_crate();
+
+        /* TODO: search through inner attrs and see whether any of those attr paths contain "no_core", 
+         * "no_std", "compiler_builtins". If so/not, save certain crate names. In these names, insert items
+         * at beginning of crate items. This is crate injection. Also, inject prelude use decl at beginning
+         * (first name is assumed to be prelude - prelude is a use decl automatically generated to enable
+         * using Option and Copy without qualifying it or importing it via 'use' manually) */
 
         ::std::vector< ::std::string> crate_names;
         for (const auto& item : crate.items) {
@@ -160,6 +239,145 @@ namespace Rust {
             load_extern_crate(name/*, basename = ""?*/);
         }
         //  for each loaded crate, load dependencies of it as well
+
+    }
+    // TODO: deprecated - don't use
+
+    void Session::register_plugins(AST::Crate& crate ATTRIBUTE_UNUSED) {
+        fprintf(stderr, "ran register_plugins (with no body)\n");
+    }
+
+    // TODO: move somewhere else
+    bool contains_name(::std::vector<AST::Attribute> attrs, ::std::string name) {
+        for (const auto& attr : attrs) {
+            if (attr.get_path() == name) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void Session::injection(AST::Crate& crate) {
+        fprintf(stderr, "started injection\n");
+
+        // lint checks in future maybe?
+
+        // register builtin macros
+        /* In rustc, builtin macros are divided into 3 categories depending on use - "bang" macros, "attr" 
+         * macros, and "derive" macros. I think the meanings of these categories should be fairly obvious
+         * to anyone who has used rust.
+         * Builtin macro list by category:
+         *  Bang
+         *      - asm
+         *      - assert
+         *      - cfg
+         *      - column
+         *      - compile_error
+         *      - concat_idents
+         *      - concat
+         *      - env
+         *      - file
+         *      - format_args_nl
+         *      - format_args
+         *      - global_asm
+         *      - include_bytes
+         *      - include_str
+         *      - include
+         *      - line
+         *      - log_syntax
+         *      - module_path
+         *      - option_env
+         *      - stringify
+         *      - trace_macros
+         *  Attr
+         *      - bench
+         *      - global_allocator
+         *      - test
+         *      - test_case
+         *  Derive
+         *      - Clone
+         *      - Copy
+         *      - Debug
+         *      - Default
+         *      - Eq
+         *      - Hash
+         *      - Ord
+         *      - PartialEq
+         *      - PartialOrd
+         *      - RustcDecodable
+         *      - RustcEncodable 
+         * rustc also has a "quote" macro that is defined differently and is supposedly not stable so eh. */
+        /* TODO: actually implement injection of these macros. In particular, derive macros, cfg, and test
+         * should be prioritised since they seem to be used the most. */
+
+        // crate injection
+        ::std::vector< ::std::string> names;
+        if (contains_name(crate.inner_attrs, "no_core")) {
+            // no prelude
+            injected_crate_name = "";
+        } else if (contains_name(crate.inner_attrs, "no_std")) {
+            names.push_back("core");
+
+            if (!contains_name(crate.inner_attrs, "compiler_builtins")) {
+                names.push_back("compiler_builtins");
+            } 
+
+            injected_crate_name = "core";
+        } else {
+            names.push_back("std");
+
+            injected_crate_name = "std";
+        }
+
+        // reverse iterate through names to insert crate items in "forward" order at beginning of crate
+        for (auto it = names.rbegin(); it != names.rend(); ++it) {
+            // create "macro use" attribute for use on extern crate item to enable loading macros from it
+            AST::Attribute attr(AST::SimplePath::from_str("macro_use"), NULL);
+
+            // create "extern crate" item with the name
+            ::std::unique_ptr<AST::ExternCrate> extern_crate(new AST::ExternCrate(*it, AST::Visibility::create_error(), { ::std::move(attr) }, UNKNOWN_LOCATION));
+
+            // insert at beginning
+            crate.items.insert(crate.items.begin(), ::std::move(extern_crate));
+        }
+
+        // create use tree path
+        // prelude is injected_crate_name
+        ::std::vector<AST::SimplePathSegment> segments = { AST::SimplePathSegment(injected_crate_name), AST::SimplePathSegment("prelude"), AST::SimplePathSegment("v1") };
+        // create use tree and decl
+        ::std::unique_ptr<AST::UseTreeGlob> use_tree(new AST::UseTreeGlob(AST::UseTreeGlob::PATH_PREFIXED, AST::SimplePath(::std::move(segments)), UNKNOWN_LOCATION));
+        AST::Attribute prelude_attr(AST::SimplePath::from_str("prelude_import"), NULL);
+        ::std::unique_ptr<AST::UseDeclaration> use_decl(new AST::UseDeclaration(::std::move(use_tree), AST::Visibility::create_error(), { ::std::move(prelude_attr) }, UNKNOWN_LOCATION));
+
+        crate.items.insert(crate.items.begin(), ::std::move(use_decl));
+
+        /* TODO: potentially add checking attribute crate type? I can't figure out what this does currently
+         * comment says "Unconditionally collect crate types from attributes to make them used", which 
+         * presumably refers to checking the linkage info by "crate_type". It also seems to ensure that an
+         * invalid crate type is not specified, so maybe just do that.
+         * Valid crate types:
+         * bin
+         * lib
+         * dylib
+         * staticlib
+         * cdylib
+         * rlib
+         * proc-macro */
+
+        fprintf(stderr, "finished injection\n");
+    }
+
+    void Session::expansion(AST::Crate& crate ATTRIBUTE_UNUSED) {
+        fprintf(stderr, "started expansion\n");
+
+        fprintf(stderr, "finished expansion\n");
+    }
+
+    void Session::name_resolution(AST::Crate& crate ATTRIBUTE_UNUSED) {
+        fprintf(stderr, "started name resolution\n");
+
+        fprintf(stderr, "finished name resolution\n");
     }
 
     // NOTEs:
@@ -217,4 +435,19 @@ namespace Rust {
      *  - lower to MIR and post-processing (and do stuff like borrow checking)
      *  - translation to LLVM IR and LLVM optimisations (produce the .o files)
      *  - linking (link together .o files) */
+
+    /* Pierced-together rustc compile pipeline (from source):
+     *  - parse input (parse file to crate) 
+     *  - register plugins (attributes injection, set various options, register lints, load plugins)
+     *  - expansion/configure and expand (initial 'cfg' processing, 'loading compiler plugins', 
+     *    syntax expansion, secondary 'cfg' expansion, synthesis of a test harness if required, injection 
+     *    of any std lib dependency and prelude, and name resolution) - actually documented inline 
+     *      - seeming pierced-together order: pre-AST expansion lint checks, registering builtin macros,
+     *        crate injection, then expand all macros, then maybe build test harness, AST validation,
+     *        maybe create a macro crate (if not rustdoc), name resolution, complete gated feature checking,
+     *        add all buffered lints 
+     *  - create global context (lower to HIR)
+     *  - analysis on global context (HIR optimisations? create MIR?)
+     *  - code generation 
+     *  - link */
 }

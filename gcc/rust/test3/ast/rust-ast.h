@@ -366,6 +366,14 @@ namespace Rust {
             bool operator==(const ::std::string& rhs) {
               return !has_opening_scope_resolution && segments.size() == 1 && segments[0].as_string() == rhs;
             }
+
+            /* Creates a single-segment SimplePath from a string. This will not check to ensure that this
+             * is a valid identifier in path, so be careful. Also, this will have no location data. 
+             * TODO have checks? */
+            static SimplePath from_str(::std::string str) {
+                ::std::vector<AST::SimplePathSegment> single_segments = { AST::SimplePathSegment(::std::move(str)) };
+                return SimplePath(::std::move(single_segments));
+            }
         };
 
         // aka Attr
@@ -590,7 +598,7 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Adds crate names to the vector passed by reference, if it can (polymorphism).
-            virtual void add_crate_name(::std::vector< ::std::string>& names) const {}
+            virtual void add_crate_name(::std::vector< ::std::string>& names ATTRIBUTE_UNUSED) const {}
 
           protected:
             // Constructor
