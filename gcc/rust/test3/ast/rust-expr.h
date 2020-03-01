@@ -142,6 +142,15 @@ namespace Rust {
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
+            // this can never be a cfg predicate - cfg and cfg_attr require a token-tree cfg
+            virtual bool check_cfg_predicate() const OVERRIDE {
+              // TODO: ensure this is true
+              // DEBUG
+              fprintf(stderr, "check_cfg_predicate call went to AttrInputLiteral - should not happen?\n");
+
+                return false;
+            }
+
           protected:
             // Use covariance to implement clone function as returning an AttrInputLiteral object
             virtual AttrInputLiteral* clone_attr_input_impl() const OVERRIDE {
@@ -149,197 +158,43 @@ namespace Rust {
             }
         };
 
-        // A literal meta item
-        class MetaItemLit : public MetaItem {
-            // LiteralExpr* expr;
-            //::std::unique_ptr<LiteralExpr> expr;
-            LiteralExpr expr; // as LiteralExpr not subclassed (currently, at least), ptr not needed
-
-            // TODO: should this store location data?
+        // literal expr only meta item inner - TODO possibly replace with inheritance of LiteralExpr itself?
+        class MetaItemLitExpr : public MetaItemInner {
+          LiteralExpr lit_expr;
 
           public:
-            /*~MetaItemLit() {
-                delete expr;
-            }*/
+            MetaItemLitExpr(LiteralExpr lit_expr) : lit_expr(::std::move(lit_expr)) {}
 
-            MetaItemLit(LiteralExpr expr, SimplePath path) :
-              MetaItem(::std::move(path)), expr(::std::move(expr)) {}
+            ::std::string as_string() const OVERRIDE;
 
-            ::std::string as_string() const;
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
+            virtual bool check_cfg_predicate() const OVERRIDE;
+
+          protected:
+            // Use covariance to implement clone function as returning this type
+            virtual MetaItemLitExpr* clone_meta_item_inner_impl() const OVERRIDE {
+                return new MetaItemLitExpr(*this);
+            }
+        };
+
+        // more generic meta item "path = lit" form
+        class MetaItemPathLit : public MetaItem {
+          SimplePath path;
+          LiteralExpr lit;
+
+          public:
+            MetaItemPathLit(SimplePath path, LiteralExpr lit_expr) : path(::std::move(path)), lit(::std::move(lit_expr)) {}
+
+            ::std::string as_string() const OVERRIDE;
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
           protected:
-            // Use covariance to implement clone function as returning derived object
-            virtual MetaItemLit* clone_meta_item_impl() const OVERRIDE {
-                return new MetaItemLit(*this);
+            // Use covariance to implement clone function as returning this type
+            virtual MetaItemPathLit* clone_meta_item_inner_impl() const OVERRIDE {
+                return new MetaItemPathLit(*this);
             }
-        };
-
-        // An inner meta item
-        struct MetaItemInner {
-            // Allows EITHER MetaItem or LiteralExpression (without suffix)
-            // bool lit_active;
-            /*MetaItem* item;
-            LiteralExpr* expr;*/
-            ::std::unique_ptr<MetaItem> item;
-            //::std::unique_ptr<LiteralExpr> expr;
-            ::std::unique_ptr<LiteralExpr> expr;
-
-            // TODO: should this store location data?
-
-            // as no more conditional delete on expr member variable, must initialise it as NULL
-          public:
-            /*~MetaItemInner() {
-                if (lit_active) {
-                    delete expr;
-                }
-                delete item;
-            }*/
-
-            // Returns whether the MetaItemInner is in an error state.
-            inline bool is_error_state() const {
-                return (item == NULL && expr == NULL) || (item != NULL && expr != NULL);
-            }
-
-            // Returns whether the item is active
-            inline bool is_item_active() const {
-                return item != NULL && expr == NULL;
-            }
-
-            // Returns whether the literal expr is active
-            inline bool is_expr_active() const {
-                return !is_item_active();
-            }
-
-            // Constructor with MetaItem
-            MetaItemInner(::std::unique_ptr<MetaItem> item) :
-              item(::std::move(item)) /*, expr(NULL)*/ {}
-
-            // Constructor with LitExpr
-            MetaItemInner(::std::unique_ptr<LiteralExpr> expr) :
-              /*item(NULL), */ expr(::std::move(expr)) {}
-
-            // Copy constructor with clone
-            MetaItemInner(MetaItemInner const& other) {
-                // guard to protect from null pointer dereference
-                if (other.item != NULL) {
-                    item = other.item->clone_meta_item();
-                }
-                if (other.expr != NULL) {
-                    expr = other.expr->clone_literal_expr();
-                }
-            }
-
-            // Destructor - define here if required
-
-            // Overload assignment operator to use clone
-            MetaItemInner& operator=(MetaItemInner const& other) {
-                // guard to protect from null pointer dereference
-                if (other.item != NULL) {
-                    item = other.item->clone_meta_item();
-                }
-                if (other.expr != NULL) {
-                    expr = other.expr->clone_literal_expr();
-                }
-
-                return *this;
-            }
-
-            // move constructors
-            MetaItemInner(MetaItemInner&& other) = default;
-            MetaItemInner& operator=(MetaItemInner&& other) = default;
-        };
-
-        // A sequence meta item
-        class MetaItemSeq : public MetaItem {
-            // bool has_sequence;
-            ::std::vector<MetaItemInner> sequence;
-
-            // TODO: should this store location data?
-
-          public:
-            // Returns whether the sequence meta item actually has a sequence
-            inline bool has_sequence() const {
-                return !sequence.empty();
-            }
-
-            MetaItemSeq(SimplePath path, ::std::vector<MetaItemInner> sequence) :
-              MetaItem(::std::move(path)), sequence(::std::move(sequence)) {}
-
-            ::std::string as_string() const;
-
-            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
-
-          protected:
-            // Use covariance to implement clone function as returning derived object
-            virtual MetaItemSeq* clone_meta_item_impl() const OVERRIDE {
-                return new MetaItemSeq(*this);
-            }
-        };
-
-        // Something to do with subsets of MetaItem syntax or something
-        struct MetaWord {
-          private:
-            Identifier word;
-
-            // TODO: should this store location data?
-
-          public:
-            MetaWord(Identifier word) : word(::std::move(word)) {}
-        };
-
-        // A name-value string
-        struct MetaNameValueStr {
-          private:
-            Identifier name;
-            ::std::string value;
-
-            // TODO: should this store location data?
-
-          public:
-            MetaNameValueStr(Identifier name, ::std::string value) :
-              name(::std::move(name)), value(::std::move(value)) {}
-        };
-
-        // A list of paths
-        struct MetaListPaths {
-          private:
-            Identifier type_thing;
-            ::std::vector<SimplePath> paths;
-
-            // TODO: should this store location data?
-
-          public:
-            MetaListPaths(Identifier type_thing, ::std::vector<SimplePath> paths) :
-              type_thing(::std::move(type_thing)), paths(::std::move(paths)) {}
-        };
-
-        // A list of identifiers
-        struct MetaListIdents {
-          private:
-            Identifier directive_thing;
-            ::std::vector<Identifier> idents_to_use;
-
-            // TODO: should this store location data?
-
-          public:
-            MetaListIdents(Identifier directive_thing, ::std::vector<Identifier> idents_to_use) :
-              directive_thing(::std::move(directive_thing)),
-              idents_to_use(::std::move(idents_to_use)) {}
-        };
-
-        // A list of MetaNameValueStr
-        struct MetaListNameValueStr {
-          private:
-            Identifier macro_name_thing;
-            ::std::vector<MetaNameValueStr> list;
-
-            // TODO: should this store location data?
-
-          public:
-            MetaListNameValueStr(Identifier macro_name_thing, ::std::vector<MetaNameValueStr> list) :
-              macro_name_thing(::std::move(macro_name_thing)), list(::std::move(list)) {}
         };
 
         // AST node for a non-qualified path expression - FIXME: should this be inheritance instead?

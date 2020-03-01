@@ -1,10 +1,11 @@
 #include "rust-ast-full.h"
+#include "diagnostic.h"
 
 #include "rust-ast-visitor.h"
 
-/* Compilation unit used for various AST-related functions that would make the headers too long if they
- * were defined inline and don't receive any benefits from being defined inline because they are virtual.
- * Also used for various other stuff. */
+/* Compilation unit used for various AST-related functions that would make the headers too long if
+ * they were defined inline and don't receive any benefits from being defined inline because they are
+ * virtual. Also used for various other stuff. */
 
 namespace Rust {
     namespace AST {
@@ -3357,6 +3358,358 @@ namespace Rust {
             }
         }
 
+        void Attribute::parse_attr_to_meta_item() {
+            // only parse if has attribute input
+            if (!has_attr_input()) {
+                return;
+            }
+
+            ::std::unique_ptr<AttrInput> converted_input(attr_input->parse_to_meta_item());
+
+            if (converted_input != NULL) {
+                attr_input = ::std::move(converted_input);
+            }
+        }
+
+        AttrInput* DelimTokenTree::parse_to_meta_item() const {
+            // must have token trees
+            if (token_trees.empty()) {
+                return NULL;
+            }
+
+            // assume top-level delim token tree in attribute - convert all nested ones to token
+            // stream
+            ::std::vector< ::std::unique_ptr<Token> > token_stream = to_token_stream();
+
+            int i = 0;
+            ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items(
+              parse_meta_item_seq(token_stream, i));
+
+            return new AttrInputMetaItemContainer(::std::move(meta_items));
+        }
+
+        ::std::unique_ptr<MetaItemInner> DelimTokenTree::parse_meta_item_inner(
+          const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const {
+            // if first tok not identifier, not a "special" case one
+            if (token_stream[i]->get_id() != IDENTIFIER) {
+                switch (token_stream[i]->get_id()) {
+                    case CHAR_LITERAL:
+                    case STRING_LITERAL:
+                    case BYTE_CHAR_LITERAL:
+                    case BYTE_STRING_LITERAL:
+                    case INT_LITERAL:
+                    case FLOAT_LITERAL:
+                    case TRUE_LITERAL:
+                    case FALSE_LITERAL:
+                        i++;
+                        return parse_meta_item_lit(token_stream[i - 1]);
+                    case SUPER:
+                    case SELF:
+                    case CRATE:
+                    case DOLLAR_SIGN:
+                    case SCOPE_RESOLUTION: {
+                        return parse_path_meta_item(token_stream, i);
+                    }
+                    default:
+                        error_at(
+                          token_stream[i]->get_locus(), "unrecognised token '%s' in meta item", get_token_description(token_stream[i]->get_id()));
+                        return NULL;
+                }
+            }
+
+            // else, check for path
+            if (token_stream[i + 1]->get_id() == SCOPE_RESOLUTION) {
+                // path
+                return parse_path_meta_item(token_stream, i);
+            }
+
+            Identifier ident = token_stream[i]->as_string();
+            if (is_end_meta_item_tok(token_stream[i + 1]->get_id())) {
+                // meta word syntax
+                i++;
+                return ::std::unique_ptr<MetaWord>(new MetaWord(::std::move(ident)));
+            }
+
+            if (token_stream[i + 1]->get_id() == EQUAL) {
+                // maybe meta name value str syntax - check next 2 tokens
+                if (token_stream[i + 2]->get_id() == STRING_LITERAL && is_end_meta_item_tok(token_stream[i + 3]->get_id())) {
+                    // meta name value str syntax
+                    ::std::string value = token_stream[i + 2]->as_string();
+
+                    i += 3;
+
+                    return ::std::unique_ptr<MetaNameValueStr>(new MetaNameValueStr(::std::move(ident), ::std::move(value)));
+                } else {
+                    // just interpret as path-based meta item
+                    return parse_path_meta_item(token_stream, i);
+                }
+            }
+
+            if (token_stream[i + 1]->get_id() != LEFT_PAREN) {
+                error_at(token_stream[i + 1]->get_locus(), "unexpected token '%s' after identifier in attribute", get_token_description(token_stream[i + 1]->get_id()));
+                return NULL;
+            }
+
+            // HACK: parse parenthesised sequence, and then try conversions to other stuff
+            ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items = parse_meta_item_seq(token_stream, i);
+
+            // pass for meta name value str
+            ::std::vector<MetaNameValueStr> meta_name_value_str_items;
+            for (const auto& item : meta_items) {
+                ::std::unique_ptr<MetaNameValueStr> converted_item(item->to_meta_name_value_str());
+                if (converted_item == NULL) {
+                    meta_name_value_str_items.clear();
+                    break;
+                }
+                meta_name_value_str_items.push_back(::std::move(*converted_item));
+            }
+            // if valid, return this
+            if (!meta_name_value_str_items.empty()) {
+                return ::std::unique_ptr<MetaListNameValueStr>(new MetaListNameValueStr(::std::move(ident), ::std::move(meta_name_value_str_items)));
+            }
+            
+            // pass for meta list idents
+            /*::std::vector<Identifier> ident_items;
+            for (const auto& item : meta_items) {
+                ::std::unique_ptr<Identifier> converted_ident(item->to_ident_item());
+                if (converted_ident == NULL) {
+                    ident_items.clear();
+                    break;
+                }
+                ident_items.push_back(::std::move(*converted_ident));
+            }
+            // if valid return this
+            if (!ident_items.empty()) {
+                return ::std::unique_ptr<MetaListIdents>(new MetaListIdents(::std::move(ident), ::std::move(ident_items)));
+            }*/
+            // as currently no meta list ident, currently no path. may change in future
+
+            // pass for meta list paths
+            ::std::vector<SimplePath> path_items;
+            for (const auto& item : meta_items) {
+                SimplePath converted_path(item->to_path_item());
+                if (converted_path.is_empty()) {
+                    path_items.clear();
+                    break;
+                }
+                path_items.push_back(::std::move(converted_path));
+            }
+            if (!path_items.empty()) {
+                return ::std::unique_ptr<MetaListPaths>(new MetaListPaths(::std::move(ident), ::std::move(path_items)));
+            }
+
+            error_at(UNKNOWN_LOCATION, "failed to parse any meta item inner");
+            return NULL;
+        }
+
+        bool DelimTokenTree::is_end_meta_item_tok(TokenId id) const {
+            return id == COMMA || id == RIGHT_PAREN;
+        }
+
+        ::std::unique_ptr<MetaItem> DelimTokenTree::parse_path_meta_item(
+          const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const {
+            SimplePath path = parse_simple_path(token_stream, i);
+            if (path.is_empty()) {
+                error_at(token_stream[i]->get_locus(), "failed to parse simple path in attribute");
+                return NULL;
+            }
+
+            switch (token_stream[i]->get_id()) {
+                case LEFT_PAREN: {
+                    ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items
+                      = parse_meta_item_seq(token_stream, i);
+
+                    return ::std::unique_ptr<MetaItemSeq>(
+                      new MetaItemSeq(::std::move(path), ::std::move(meta_items)));
+                }
+                case EQUAL: {
+                    i++;
+                    Literal lit = parse_literal(token_stream[i]);
+                    if (lit.is_error()) {
+                        error_at(
+                          token_stream[i]->get_locus(), "failed to parse literal in attribute");
+                        return NULL;
+                    }
+                    LiteralExpr expr(::std::move(lit), token_stream[i]->get_locus());
+                    i++;
+                    return ::std::unique_ptr<MetaItemPathLit>(
+                      new MetaItemPathLit(::std::move(path), ::std::move(expr)));
+                }
+                case COMMA:
+                    // just simple path
+                    return ::std::unique_ptr<MetaItemPath>(new MetaItemPath(::std::move(path)));
+                default:
+                    error_at(token_stream[i]->get_locus(), "unrecognised token '%s' in meta item", get_token_description(token_stream[i]->get_id()));
+                    return NULL;
+            }
+        }
+
+        // Parses a parenthesised sequence of meta item inners. Parentheses are required here.
+        ::std::vector< ::std::unique_ptr<MetaItemInner> > DelimTokenTree::parse_meta_item_seq(
+          const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const {
+            int i = 0;
+            int vec_length = token_stream.size();
+            ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items;
+
+            if (token_stream[0]->get_id() != LEFT_PAREN) {
+                error_at(token_stream[0]->get_locus(), "missing left paren in delim token tree");
+                return {};
+            }
+            i++;
+
+            while (i < vec_length && token_stream[i]->get_id() != RIGHT_PAREN) {
+                ::std::unique_ptr<MetaItemInner> inner = parse_meta_item_inner(token_stream, i);
+                if (inner == NULL) {
+                    error_at(
+                      token_stream[i]->get_locus(), "failed to parse inner meta item in attribute");
+                    return {};
+                }
+                meta_items.push_back(::std::move(inner));
+
+                if (token_stream[i]->get_id() != COMMA) {
+                    break;
+                }
+                i++;
+            }
+
+            if (token_stream[i]->get_id() != RIGHT_PAREN) {
+                error_at(token_stream[i]->get_locus(), "missing right paren in delim token tree");
+                return {};
+            }
+
+            return meta_items;
+        }
+
+        ::std::vector< ::std::unique_ptr<Token> > DelimTokenTree::to_token_stream() const {
+            ::std::vector< ::std::unique_ptr<Token> > tokens;
+
+            // simulate presence of delimiters
+            tokens.push_back(::std::unique_ptr<Token>(
+              new Token(LEFT_PAREN, UNKNOWN_LOCATION, "", CORETYPE_UNKNOWN)));
+
+            for (const auto& tree : token_trees) {
+                ::std::vector< ::std::unique_ptr<Token> > stream = tree->to_token_stream();
+
+                tokens.insert(tokens.end(), ::std::make_move_iterator(stream.begin()),
+                  ::std::make_move_iterator(stream.end()));
+            }
+
+            tokens.push_back(::std::unique_ptr<Token>(
+              new Token(RIGHT_PAREN, UNKNOWN_LOCATION, "", CORETYPE_UNKNOWN)));
+
+            return tokens;
+        }
+
+        Literal DelimTokenTree::parse_literal(const ::std::unique_ptr<Token>& tok) const {
+            switch (tok->get_id()) {
+                case CHAR_LITERAL:
+                    return Literal(tok->as_string(), Literal::CHAR);
+                case STRING_LITERAL:
+                    return Literal(tok->as_string(), Literal::STRING);
+                case BYTE_CHAR_LITERAL:
+                    return Literal(tok->as_string(), Literal::BYTE);
+                case BYTE_STRING_LITERAL:
+                    return Literal(tok->as_string(), Literal::BYTE_STRING);
+                case INT_LITERAL:
+                    return Literal(tok->as_string(), Literal::INT);
+                case FLOAT_LITERAL:
+                    return Literal(tok->as_string(), Literal::FLOAT);
+                case TRUE_LITERAL:
+                    return Literal("true", Literal::BOOL);
+                case FALSE_LITERAL:
+                    return Literal("false", Literal::BOOL);
+                default:
+                    error_at(tok->get_locus(), "expected literal - found '%s'", get_token_description(tok->get_id()));
+                    return Literal::create_error();
+            }
+        }
+
+        SimplePath DelimTokenTree::parse_simple_path(
+          const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const {
+            bool has_opening_scope_res = false;
+            if (token_stream[i]->get_id() == SCOPE_RESOLUTION) {
+                has_opening_scope_res = true;
+                i++;
+            }
+
+            ::std::vector<SimplePathSegment> segments;
+
+            SimplePathSegment segment = parse_simple_path_segment(token_stream, i);
+            if (segment.is_error()) {
+                error_at(token_stream[i]->get_locus(),
+                  "failed to parse simple path segment in attribute simple path");
+                return SimplePath::create_empty();
+            }
+            segments.push_back(::std::move(segment));
+
+            while (token_stream[i]->get_id() == SCOPE_RESOLUTION) {
+                i++;
+
+                SimplePathSegment segment = parse_simple_path_segment(token_stream, i);
+                if (segment.is_error()) {
+                    error_at(token_stream[i]->get_locus(),
+                      "failed to parse simple path segment in attribute simple path");
+                    return SimplePath::create_empty();
+                }
+                segments.push_back(::std::move(segment));
+            }
+
+            return SimplePath(::std::move(segments), has_opening_scope_res);
+        }
+
+        SimplePathSegment DelimTokenTree::parse_simple_path_segment(
+          const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const {
+            const ::std::unique_ptr<Token>& tok = token_stream[i];
+            switch (tok->get_id()) {
+                case IDENTIFIER:
+                    i++;
+                    return SimplePathSegment(tok->as_string(), tok->get_locus());
+                case SUPER:
+                    i++;
+                    return SimplePathSegment("super", tok->get_locus());
+                case SELF:
+                    i++;
+                    return SimplePathSegment("self", tok->get_locus());
+                case CRATE:
+                    i++;
+                    return SimplePathSegment("crate", tok->get_locus());
+                case DOLLAR_SIGN:
+                    if (token_stream[i + 1]->get_id() == CRATE) {
+                        i += 2;
+                        return SimplePathSegment("$crate", tok->get_locus());
+                    }
+                    gcc_fallthrough();
+                default:
+                    error_at(tok->get_locus(), "unexpected token '%s' in simple path segment");
+                    return SimplePathSegment::create_error();
+            }
+        }
+
+        ::std::unique_ptr<MetaItemLitExpr> DelimTokenTree::parse_meta_item_lit(
+          const ::std::unique_ptr<Token>& tok) const {
+            LiteralExpr lit_expr(parse_literal(tok), tok->get_locus());
+            return ::std::unique_ptr<MetaItemLitExpr>(new MetaItemLitExpr(::std::move(lit_expr)));
+        }
+
+        bool AttrInputMetaItemContainer::check_cfg_predicate() const {
+            // cfg value of container is purely based on cfg of each inner item - all must be true
+            for (const auto& inner_item : items) {
+                if (!inner_item->check_cfg_predicate()) {
+                    return false;
+                }
+            }
+
+            /* TODO: as far as I can tell, there should only be a single element to check here, so ensure
+             * there is only a single element in items too? */
+
+            return true;
+        }
+
+        bool MetaItemLitExpr::check_cfg_predicate() const {
+            // as far as I can tell, a literal expr can never be a valid cfg body, so false
+            return false;
+        }
+
         /* Visitor implementations - these are short but inlining can't happen anyway due to virtual
          * functions and I didn't want to make the ast header includes any longer than they already
          * are. */
@@ -3421,11 +3774,11 @@ namespace Rust {
             vis.visit(*this);
         }
 
-        void MetaItemLit::accept_vis(ASTVisitor& vis) {
+        void MetaItemLitExpr::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
         }
 
-        void MetaItemSeq::accept_vis(ASTVisitor& vis) {
+        void MetaItemPathLit::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
         }
 

@@ -9,6 +9,7 @@
 // order: config, system, coretypes, options
 
 #include <string>
+#include <vector>
 
 namespace Rust {
     // parser forward decl
@@ -17,6 +18,14 @@ namespace Rust {
     namespace AST {
         struct Crate;
     }
+
+    // Data related to target, most useful for conditional compilation and whatever.
+    struct TargetOptions {
+
+      /* Sorted vector of enabled features (semantically should be a set, but they're less space and time 
+       * efficient) */
+      ::std::vector< ::std::string> features;
+    };
 
     // Defines compiler options (e.g. dump, etc.).
     struct CompileOptions {
@@ -33,6 +42,13 @@ namespace Rust {
             NAME_RESOLUTION_DUMP,
             // TODO: add more?
         } dump_option;
+
+        // configuration options - actually useful for conditional compilation and whatever
+        // data related to target arch, features, os, family, env, endian, pointer width, vendor
+        TargetOptions target_data;
+        bool enable_test = false;
+        bool debug_assertions = false;
+        bool proc_macro = false;
     };
 
     /* Defines a compiler session. This is for a single compiler invocation, so potentially includes 
@@ -57,6 +73,9 @@ namespace Rust {
         bool enable_dump(::std::string arg);
 
         void debug_dump_load_crates(Parser& parser);
+
+        void implicitly_enable_feature(::std::string feature_name);
+        void enable_features();
 
         // pipeline stages - TODO maybe move?
         /* Register plugins pipeline stage. TODO maybe move to another object? Currently dummy stage. In

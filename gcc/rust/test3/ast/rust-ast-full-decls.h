@@ -56,14 +56,8 @@ namespace Rust {
         class ExprWithBlock;
         class LiteralExpr;
         class AttrInputLiteral;
-        class MetaItemLit;
-        struct MetaItemInner;
-        class MetaItemSeq;
-        struct MetaWord;
-        struct MetaNameValueStr;
-        struct MetaListPaths;
-        struct MetaListIdents;
-        struct MetaListNameValueStr;
+        class MetaItemLitExpr;
+        class MetaItemPathLit;
         class OperatorExpr;
         class BorrowExpr;
         class DereferenceExpr;
@@ -212,6 +206,12 @@ namespace Rust {
         struct MacroRule;
         class MacroRulesDefinition;
         class MacroInvocation;
+        class MetaItemPath;
+        class MetaItemSeq;
+        class MetaWord;
+        class MetaNameValueStr;
+        class MetaListPaths;
+        class MetaListNameValueStr;
 
         // rust-pattern.h
         class LiteralPattern;

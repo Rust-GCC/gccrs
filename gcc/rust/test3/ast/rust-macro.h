@@ -357,6 +357,166 @@ namespace Rust {
                 return new MacroInvocation(*this);
             }
         };
+
+        // more generic meta item path-only form
+        class MetaItemPath : public MetaItem {
+          SimplePath path;
+
+          public:
+            MetaItemPath(SimplePath path) : path(::std::move(path)) {}
+
+            ::std::string as_string() const OVERRIDE {
+                return path.as_string();
+            }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
+            // HACK: used to simplify parsing - returns non-empty only in this case
+            virtual SimplePath to_path_item() const {
+                // this should copy construct - TODO ensure it does
+                return path;
+            }
+
+          protected:
+            // Use covariance to implement clone function as returning this type
+            virtual MetaItemPath* clone_meta_item_inner_impl() const OVERRIDE {
+                return new MetaItemPath(*this);
+            }
+        };
+
+        // more generic meta item sequence form
+        class MetaItemSeq : public MetaItem {
+          SimplePath path;
+          ::std::vector< ::std::unique_ptr<MetaItemInner>> seq;
+
+          public:
+            MetaItemSeq(SimplePath path, ::std::vector< ::std::unique_ptr<MetaItemInner>> seq) : path(::std::move(path)), seq(::std::move(seq)) {}
+
+            // copy constructor with vector clone
+            MetaItemSeq(const MetaItemSeq& other) : path(other.path) {
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                seq.reserve(other.seq.size());
+
+                for (const auto& e : other.seq) {
+                    seq.push_back(e->clone_meta_item_inner());
+                }
+            }
+
+            // destructor definition not required
+
+            // overloaded assignment operator with vector clone
+            MetaItemSeq& operator=(const MetaItemSeq& other) {
+                MetaItem::operator=(other);
+                path = other.path;
+                // crappy vector unique pointer clone - TODO is there a better way of doing this?
+                seq.reserve(other.seq.size());
+
+                for (const auto& e : other.seq) {
+                    seq.push_back(e->clone_meta_item_inner());
+                }
+
+                return *this;
+            }
+
+            // default move constructors
+            MetaItemSeq(MetaItemSeq&& other) = default;
+            MetaItemSeq& operator=(MetaItemSeq&& other) = default;
+
+            ::std::string as_string() const OVERRIDE;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
+          protected:
+            // Use covariance to implement clone function as returning this type
+            virtual MetaItemSeq* clone_meta_item_inner_impl() const OVERRIDE {
+                return new MetaItemSeq(*this);
+            }
+        };
+
+        // Preferred specialisation for single-identifier meta items.
+        class MetaWord : public MetaItem {
+          Identifier ident;
+
+          public:
+            MetaWord(Identifier ident) : ident(::std::move(ident)) {}
+
+            ::std::string as_string() const OVERRIDE {
+                return ident;
+            }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
+          protected:
+            // Use covariance to implement clone function as returning this type
+            virtual MetaWord* clone_meta_item_inner_impl() const OVERRIDE {
+                return new MetaWord(*this);
+            }
+        };
+
+        // Preferred specialisation for "identifier '=' string literal" meta items.
+        class MetaNameValueStr : public MetaItem {
+          Identifier ident;
+          ::std::string str;
+
+          public:
+            MetaNameValueStr(Identifier ident, ::std::string str) : ident(::std::move(ident)), str(::std::move(str)) {}
+
+            ::std::string as_string() const OVERRIDE {
+                return ident + " = " + str;
+            }
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
+            // HACK: used to simplify parsing - creates a copy of this
+            virtual MetaNameValueStr* to_meta_name_value_str() const OVERRIDE {
+                return clone_meta_item_inner_impl();
+            }
+
+          protected:
+            // Use covariance to implement clone function as returning this type
+            virtual MetaNameValueStr* clone_meta_item_inner_impl() const OVERRIDE {
+                return new MetaNameValueStr(*this);
+            }
+        };
+
+        // doubles up as MetaListIdents - determine via iterating through each path?
+        // Preferred specialisation for "identifier '(' SimplePath, SimplePath, ... ')'"
+        class MetaListPaths : public MetaItem {
+          Identifier ident;
+          ::std::vector<SimplePath> paths;
+
+          public:
+            MetaListPaths(Identifier ident, ::std::vector<SimplePath> paths) : ident(::std::move(ident)), paths(::std::move(paths)) {}
+
+            ::std::string as_string() const OVERRIDE;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
+          protected:
+            // Use covariance to implement clone function as returning this type
+            virtual MetaListPaths* clone_meta_item_inner_impl() const OVERRIDE {
+                return new MetaListPaths(*this);
+            }
+        };
+
+        // Preferred specialisation for "identifier '(' MetaNameValueStr, ... ')'"
+        class MetaListNameValueStr : public MetaItem {
+          Identifier ident;
+          ::std::vector<MetaNameValueStr> strs;
+
+          public:
+            MetaListNameValueStr(Identifier ident, ::std::vector<MetaNameValueStr> strs) : ident(::std::move(ident)), strs(::std::move(strs)) {}
+
+            ::std::string as_string() const OVERRIDE;
+
+            virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
+          protected:
+            // Use covariance to implement clone function as returning this type
+            virtual MetaListNameValueStr* clone_meta_item_inner_impl() const OVERRIDE {
+                return new MetaListNameValueStr(*this);
+            }
+        };
     }
 }
 

@@ -99,6 +99,8 @@ static bool grs_langhook_init(void) {
     // initialise compiler session
     session.init();
 
+    
+
     return true;
 }
 
@@ -126,24 +128,25 @@ static void grs_langhook_parse_file(void) {
 }
 
 /* Seems to get the exact type for a specific type - e.g. for scalar float with 32-bit bitsize, it
- * returns float, and for 64-bit bitsize, it returns double. */
+ * returns float, and for 64-bit bitsize, it returns double. Used to map RTL nodes to machine modes or
+ * something like that. */
 static tree grs_langhook_type_for_mode(machine_mode mode, int unsignedp) {
+    // TODO: change all this later to match rustc types
     if (mode == TYPE_MODE(float_type_node))
         return float_type_node;
 
     if (mode == TYPE_MODE(double_type_node))
         return double_type_node;
 
-    // don't know what this means but assume it has something to do with weird precisions
-    if (mode == TYPE_MODE(intQI_type_node)) // quarter precision?
+    if (mode == TYPE_MODE(intQI_type_node)) // quarter integer mode - single byte treated as integer
         return unsignedp ? unsigned_intQI_type_node : intQI_type_node;
-    if (mode == TYPE_MODE(intHI_type_node)) // half precision?
+    if (mode == TYPE_MODE(intHI_type_node)) // half integer mode - two-byte integer
         return unsignedp ? unsigned_intHI_type_node : intHI_type_node;
-    if (mode == TYPE_MODE(intSI_type_node)) // single precision?
+    if (mode == TYPE_MODE(intSI_type_node)) // single integer mode - four-byte integer
         return unsignedp ? unsigned_intSI_type_node : intSI_type_node;
-    if (mode == TYPE_MODE(intDI_type_node)) // double precision?
+    if (mode == TYPE_MODE(intDI_type_node)) // double integer mode - eight-byte integer
         return unsignedp ? unsigned_intDI_type_node : intDI_type_node;
-    if (mode == TYPE_MODE(intTI_type_node)) // triple precision?
+    if (mode == TYPE_MODE(intTI_type_node)) // tetra integer mode - 16-byte integer
         return unsignedp ? unsigned_intTI_type_node : intTI_type_node;
 
     if (mode == TYPE_MODE(integer_type_node))
