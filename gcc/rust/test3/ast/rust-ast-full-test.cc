@@ -3381,18 +3381,21 @@ namespace Rust {
             // stream
             ::std::vector< ::std::unique_ptr<Token> > token_stream = to_token_stream();
 
-            int i = 0;
+            // TODO: replace this with a specialised converter that the token stream is moved into
+            /*int i = 0;
             ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items(
-              parse_meta_item_seq(token_stream, i));
+              parse_meta_item_seq(token_stream, i));*/
+            // something like:
+            MacroParser parser(::std::move(token_stream));
+            ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items(parser.parse_meta_item_seq());
 
             return new AttrInputMetaItemContainer(::std::move(meta_items));
         }
 
-        ::std::unique_ptr<MetaItemInner> DelimTokenTree::parse_meta_item_inner(
-          const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const {
+        ::std::unique_ptr<MetaItemInner> MacroParser::parse_meta_item_inner() {
             // if first tok not identifier, not a "special" case one
-            if (token_stream[i]->get_id() != IDENTIFIER) {
-                switch (token_stream[i]->get_id()) {
+            if (peek_token()->get_id() != IDENTIFIER) {
+                switch (peek_token()->get_id()) {
                     case CHAR_LITERAL:
                     case STRING_LITERAL:
                     case BYTE_CHAR_LITERAL:
@@ -3401,57 +3404,57 @@ namespace Rust {
                     case FLOAT_LITERAL:
                     case TRUE_LITERAL:
                     case FALSE_LITERAL:
-                        i++;
-                        return parse_meta_item_lit(token_stream[i - 1]);
+                        //stream_pos++;
+                        return parse_meta_item_lit();
                     case SUPER:
                     case SELF:
                     case CRATE:
                     case DOLLAR_SIGN:
                     case SCOPE_RESOLUTION: {
-                        return parse_path_meta_item(token_stream, i);
+                        return parse_path_meta_item();
                     }
                     default:
                         error_at(
-                          token_stream[i]->get_locus(), "unrecognised token '%s' in meta item", get_token_description(token_stream[i]->get_id()));
+                          peek_token()->get_locus(), "unrecognised token '%s' in meta item", get_token_description(peek_token()->get_id()));
                         return NULL;
                 }
             }
 
             // else, check for path
-            if (token_stream[i + 1]->get_id() == SCOPE_RESOLUTION) {
+            if (peek_token(1)->get_id() == SCOPE_RESOLUTION) {
                 // path
-                return parse_path_meta_item(token_stream, i);
+                return parse_path_meta_item();
             }
 
-            Identifier ident = token_stream[i]->as_string();
-            if (is_end_meta_item_tok(token_stream[i + 1]->get_id())) {
+            Identifier ident = peek_token()->as_string();
+            if (is_end_meta_item_tok(peek_token(1)->get_id())) {
                 // meta word syntax
-                i++;
+                skip_token();
                 return ::std::unique_ptr<MetaWord>(new MetaWord(::std::move(ident)));
             }
 
-            if (token_stream[i + 1]->get_id() == EQUAL) {
+            if (peek_token(1)->get_id() == EQUAL) {
                 // maybe meta name value str syntax - check next 2 tokens
-                if (token_stream[i + 2]->get_id() == STRING_LITERAL && is_end_meta_item_tok(token_stream[i + 3]->get_id())) {
+                if (peek_token(2)->get_id() == STRING_LITERAL && is_end_meta_item_tok(peek_token(3)->get_id())) {
                     // meta name value str syntax
-                    ::std::string value = token_stream[i + 2]->as_string();
+                    ::std::string value = peek_token(2)->as_string();
 
-                    i += 3;
+                    skip_token(2);
 
                     return ::std::unique_ptr<MetaNameValueStr>(new MetaNameValueStr(::std::move(ident), ::std::move(value)));
                 } else {
                     // just interpret as path-based meta item
-                    return parse_path_meta_item(token_stream, i);
+                    return parse_path_meta_item();
                 }
             }
 
-            if (token_stream[i + 1]->get_id() != LEFT_PAREN) {
-                error_at(token_stream[i + 1]->get_locus(), "unexpected token '%s' after identifier in attribute", get_token_description(token_stream[i + 1]->get_id()));
+            if (peek_token(1)->get_id() != LEFT_PAREN) {
+                error_at(peek_token(1)->get_locus(), "unexpected token '%s' after identifier in attribute", get_token_description(peek_token(1)->get_id()));
                 return NULL;
             }
 
             // HACK: parse parenthesised sequence, and then try conversions to other stuff
-            ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items = parse_meta_item_seq(token_stream, i);
+            ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items = parse_meta_item_seq();
 
             // pass for meta name value str
             ::std::vector<MetaNameValueStr> meta_name_value_str_items;
@@ -3502,36 +3505,38 @@ namespace Rust {
             return NULL;
         }
 
-        bool DelimTokenTree::is_end_meta_item_tok(TokenId id) const {
+        bool MacroParser::is_end_meta_item_tok(TokenId id) const {
             return id == COMMA || id == RIGHT_PAREN;
         }
 
-        ::std::unique_ptr<MetaItem> DelimTokenTree::parse_path_meta_item(
-          const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const {
-            SimplePath path = parse_simple_path(token_stream, i);
+        ::std::unique_ptr<MetaItem> MacroParser::parse_path_meta_item() {
+            SimplePath path = parse_simple_path();
             if (path.is_empty()) {
-                error_at(token_stream[i]->get_locus(), "failed to parse simple path in attribute");
+                error_at(peek_token()->get_locus(), "failed to parse simple path in attribute");
                 return NULL;
             }
 
-            switch (token_stream[i]->get_id()) {
+            switch (peek_token()->get_id()) {
                 case LEFT_PAREN: {
                     ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items
-                      = parse_meta_item_seq(token_stream, i);
+                      = parse_meta_item_seq();
 
                     return ::std::unique_ptr<MetaItemSeq>(
                       new MetaItemSeq(::std::move(path), ::std::move(meta_items)));
                 }
                 case EQUAL: {
-                    i++;
-                    Literal lit = parse_literal(token_stream[i]);
+                    skip_token();
+
+                    location_t locus = peek_token()->get_locus();
+                    Literal lit = parse_literal();
                     if (lit.is_error()) {
                         error_at(
-                          token_stream[i]->get_locus(), "failed to parse literal in attribute");
+                          peek_token()->get_locus(), "failed to parse literal in attribute");
                         return NULL;
                     }
-                    LiteralExpr expr(::std::move(lit), token_stream[i]->get_locus());
-                    i++;
+                    LiteralExpr expr(::std::move(lit), locus);
+                    //stream_pos++; 
+                    // shouldn't be required anymore due to parsing literal actually skipping the token
                     return ::std::unique_ptr<MetaItemPathLit>(
                       new MetaItemPathLit(::std::move(path), ::std::move(expr)));
                 }
@@ -3539,47 +3544,53 @@ namespace Rust {
                     // just simple path
                     return ::std::unique_ptr<MetaItemPath>(new MetaItemPath(::std::move(path)));
                 default:
-                    error_at(token_stream[i]->get_locus(), "unrecognised token '%s' in meta item", get_token_description(token_stream[i]->get_id()));
+                    error_at(peek_token()->get_locus(), "unrecognised token '%s' in meta item", get_token_description(peek_token()->get_id()));
                     return NULL;
             }
         }
 
         // Parses a parenthesised sequence of meta item inners. Parentheses are required here.
-        ::std::vector< ::std::unique_ptr<MetaItemInner> > DelimTokenTree::parse_meta_item_seq(
-          const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const {
-            int i = 0;
+        ::std::vector< ::std::unique_ptr<MetaItemInner> > MacroParser::parse_meta_item_seq() {
+            if (stream_pos != 0) {
+                // warning?
+                fprintf(stderr, "WARNING: stream pos for parse_meta_item_seq is not 0!\n");
+            }
+
+            //int i = 0;
             int vec_length = token_stream.size();
             ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items;
 
-            if (token_stream[0]->get_id() != LEFT_PAREN) {
-                error_at(token_stream[0]->get_locus(), "missing left paren in delim token tree");
+            if (peek_token()->get_id() != LEFT_PAREN) {
+                error_at(peek_token()->get_locus(), "missing left paren in delim token tree");
                 return {};
             }
-            i++;
+            skip_token();
 
-            while (i < vec_length && token_stream[i]->get_id() != RIGHT_PAREN) {
-                ::std::unique_ptr<MetaItemInner> inner = parse_meta_item_inner(token_stream, i);
+            while (stream_pos < vec_length && peek_token()->get_id() != RIGHT_PAREN) {
+                ::std::unique_ptr<MetaItemInner> inner = parse_meta_item_inner();
                 if (inner == NULL) {
                     error_at(
-                      token_stream[i]->get_locus(), "failed to parse inner meta item in attribute");
+                      peek_token()->get_locus(), "failed to parse inner meta item in attribute");
                     return {};
                 }
                 meta_items.push_back(::std::move(inner));
 
-                if (token_stream[i]->get_id() != COMMA) {
+                if (peek_token()->get_id() != COMMA) {
                     break;
                 }
-                i++;
+                skip_token();
             }
 
-            if (token_stream[i]->get_id() != RIGHT_PAREN) {
-                error_at(token_stream[i]->get_locus(), "missing right paren in delim token tree");
+            if (peek_token()->get_id() != RIGHT_PAREN) {
+                error_at(peek_token()->get_locus(), "missing right paren in delim token tree");
                 return {};
             }
+            skip_token();
 
             return meta_items;
         }
 
+        // Collects any nested token trees into a flat token stream, suitable for parsing.
         ::std::vector< ::std::unique_ptr<Token> > DelimTokenTree::to_token_stream() const {
             ::std::vector< ::std::unique_ptr<Token> > tokens;
 
@@ -3597,26 +3608,37 @@ namespace Rust {
             tokens.push_back(::std::unique_ptr<Token>(
               new Token(RIGHT_PAREN, UNKNOWN_LOCATION, "", CORETYPE_UNKNOWN)));
 
+            tokens.shrink_to_fit();
+
             return tokens;
         }
 
-        Literal DelimTokenTree::parse_literal(const ::std::unique_ptr<Token>& tok) const {
+        Literal MacroParser::parse_literal() {
+            const ::std::unique_ptr<Token>& tok = peek_token();
             switch (tok->get_id()) {
                 case CHAR_LITERAL:
+                    skip_token();
                     return Literal(tok->as_string(), Literal::CHAR);
                 case STRING_LITERAL:
+                    skip_token();
                     return Literal(tok->as_string(), Literal::STRING);
                 case BYTE_CHAR_LITERAL:
+                    skip_token();
                     return Literal(tok->as_string(), Literal::BYTE);
                 case BYTE_STRING_LITERAL:
+                    skip_token();
                     return Literal(tok->as_string(), Literal::BYTE_STRING);
                 case INT_LITERAL:
+                    skip_token();
                     return Literal(tok->as_string(), Literal::INT);
                 case FLOAT_LITERAL:
+                    skip_token();
                     return Literal(tok->as_string(), Literal::FLOAT);
                 case TRUE_LITERAL:
+                    skip_token();
                     return Literal("true", Literal::BOOL);
                 case FALSE_LITERAL:
+                    skip_token();
                     return Literal("false", Literal::BOOL);
                 default:
                     error_at(tok->get_locus(), "expected literal - found '%s'", get_token_description(tok->get_id()));
@@ -3624,58 +3646,57 @@ namespace Rust {
             }
         }
 
-        SimplePath DelimTokenTree::parse_simple_path(
-          const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const {
+        SimplePath MacroParser::parse_simple_path() {
             bool has_opening_scope_res = false;
-            if (token_stream[i]->get_id() == SCOPE_RESOLUTION) {
+            if (peek_token()->get_id() == SCOPE_RESOLUTION) {
                 has_opening_scope_res = true;
-                i++;
+                skip_token();
             }
 
             ::std::vector<SimplePathSegment> segments;
 
-            SimplePathSegment segment = parse_simple_path_segment(token_stream, i);
+            SimplePathSegment segment = parse_simple_path_segment();
             if (segment.is_error()) {
-                error_at(token_stream[i]->get_locus(),
+                error_at(peek_token()->get_locus(),
                   "failed to parse simple path segment in attribute simple path");
                 return SimplePath::create_empty();
             }
             segments.push_back(::std::move(segment));
 
-            while (token_stream[i]->get_id() == SCOPE_RESOLUTION) {
-                i++;
+            while (peek_token()->get_id() == SCOPE_RESOLUTION) {
+                skip_token();
 
-                SimplePathSegment segment = parse_simple_path_segment(token_stream, i);
+                SimplePathSegment segment = parse_simple_path_segment();
                 if (segment.is_error()) {
-                    error_at(token_stream[i]->get_locus(),
+                    error_at(peek_token()->get_locus(),
                       "failed to parse simple path segment in attribute simple path");
                     return SimplePath::create_empty();
                 }
                 segments.push_back(::std::move(segment));
             }
+            segments.shrink_to_fit();
 
             return SimplePath(::std::move(segments), has_opening_scope_res);
         }
 
-        SimplePathSegment DelimTokenTree::parse_simple_path_segment(
-          const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const {
-            const ::std::unique_ptr<Token>& tok = token_stream[i];
+        SimplePathSegment MacroParser::parse_simple_path_segment() {
+            const ::std::unique_ptr<Token>& tok = peek_token();
             switch (tok->get_id()) {
                 case IDENTIFIER:
-                    i++;
+                    skip_token();
                     return SimplePathSegment(tok->as_string(), tok->get_locus());
                 case SUPER:
-                    i++;
+                    skip_token();
                     return SimplePathSegment("super", tok->get_locus());
                 case SELF:
-                    i++;
+                    skip_token();
                     return SimplePathSegment("self", tok->get_locus());
                 case CRATE:
-                    i++;
+                    skip_token();
                     return SimplePathSegment("crate", tok->get_locus());
                 case DOLLAR_SIGN:
-                    if (token_stream[i + 1]->get_id() == CRATE) {
-                        i += 2;
+                    if (peek_token(1)->get_id() == CRATE) {
+                        skip_token(1);
                         return SimplePathSegment("$crate", tok->get_locus());
                     }
                     gcc_fallthrough();
@@ -3685,9 +3706,9 @@ namespace Rust {
             }
         }
 
-        ::std::unique_ptr<MetaItemLitExpr> DelimTokenTree::parse_meta_item_lit(
-          const ::std::unique_ptr<Token>& tok) const {
-            LiteralExpr lit_expr(parse_literal(tok), tok->get_locus());
+        ::std::unique_ptr<MetaItemLitExpr> MacroParser::parse_meta_item_lit() {
+            location_t locus = peek_token()->get_locus();
+            LiteralExpr lit_expr(parse_literal(), locus);
             return ::std::unique_ptr<MetaItemLitExpr>(new MetaItemLitExpr(::std::move(lit_expr)));
         }
 

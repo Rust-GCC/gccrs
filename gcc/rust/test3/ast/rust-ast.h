@@ -270,14 +270,14 @@ namespace Rust {
 
             // TODO: move all the "parse" functions into a separate class that has the token stream reference - will be cleaner
             // Parse a meta item inner.
-            ::std::unique_ptr<MetaItemInner> parse_meta_item_inner(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
-            SimplePath parse_simple_path(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
-            SimplePathSegment parse_simple_path_segment(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
-            ::std::unique_ptr<MetaItemLitExpr> parse_meta_item_lit(const ::std::unique_ptr<Token>& tok) const;
-            ::std::vector< ::std::unique_ptr<MetaItemInner> > parse_meta_item_seq(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
-            Literal parse_literal(const ::std::unique_ptr<Token>& tok) const;
-            ::std::unique_ptr<MetaItem> parse_path_meta_item(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
-            bool is_end_meta_item_tok(TokenId tok) const;
+            //::std::unique_ptr<MetaItemInner> parse_meta_item_inner(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
+            //SimplePath parse_simple_path(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
+            //SimplePathSegment parse_simple_path_segment(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
+            //::std::unique_ptr<MetaItemLitExpr> parse_meta_item_lit(const ::std::unique_ptr<Token>& tok) const;
+            //::std::vector< ::std::unique_ptr<MetaItemInner> > parse_meta_item_seq(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
+            //Literal parse_literal(const ::std::unique_ptr<Token>& tok) const;
+            //::std::unique_ptr<MetaItem> parse_path_meta_item(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
+            //bool is_end_meta_item_tok(TokenId tok) const;
 
           protected:
             // Use covariance to implement clone function as returning a DelimTokenTree object
@@ -629,7 +629,8 @@ namespace Rust {
           ::std::vector< ::std::unique_ptr<MetaItemInner> > items;
 
           public:
-            AttrInputMetaItemContainer(::std::vector< ::std::unique_ptr<MetaItemInner> > items) : items(::std::move(items)) {}
+            AttrInputMetaItemContainer(::std::vector< ::std::unique_ptr<MetaItemInner> > items) : 
+              items(::std::move(items)) {}
 
             // copy constructor with vector clone
             AttrInputMetaItemContainer(const AttrInputMetaItemContainer& other) {

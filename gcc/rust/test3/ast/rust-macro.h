@@ -360,7 +360,7 @@ namespace Rust {
 
         // more generic meta item path-only form
         class MetaItemPath : public MetaItem {
-          SimplePath path;
+            SimplePath path;
 
           public:
             MetaItemPath(SimplePath path) : path(::std::move(path)) {}
@@ -386,11 +386,12 @@ namespace Rust {
 
         // more generic meta item sequence form
         class MetaItemSeq : public MetaItem {
-          SimplePath path;
-          ::std::vector< ::std::unique_ptr<MetaItemInner>> seq;
+            SimplePath path;
+            ::std::vector< ::std::unique_ptr<MetaItemInner> > seq;
 
           public:
-            MetaItemSeq(SimplePath path, ::std::vector< ::std::unique_ptr<MetaItemInner>> seq) : path(::std::move(path)), seq(::std::move(seq)) {}
+            MetaItemSeq(SimplePath path, ::std::vector< ::std::unique_ptr<MetaItemInner> > seq) :
+              path(::std::move(path)), seq(::std::move(seq)) {}
 
             // copy constructor with vector clone
             MetaItemSeq(const MetaItemSeq& other) : path(other.path) {
@@ -435,7 +436,7 @@ namespace Rust {
 
         // Preferred specialisation for single-identifier meta items.
         class MetaWord : public MetaItem {
-          Identifier ident;
+            Identifier ident;
 
           public:
             MetaWord(Identifier ident) : ident(::std::move(ident)) {}
@@ -455,11 +456,12 @@ namespace Rust {
 
         // Preferred specialisation for "identifier '=' string literal" meta items.
         class MetaNameValueStr : public MetaItem {
-          Identifier ident;
-          ::std::string str;
+            Identifier ident;
+            ::std::string str;
 
           public:
-            MetaNameValueStr(Identifier ident, ::std::string str) : ident(::std::move(ident)), str(::std::move(str)) {}
+            MetaNameValueStr(Identifier ident, ::std::string str) :
+              ident(::std::move(ident)), str(::std::move(str)) {}
 
             ::std::string as_string() const OVERRIDE {
                 return ident + " = " + str;
@@ -482,11 +484,12 @@ namespace Rust {
         // doubles up as MetaListIdents - determine via iterating through each path?
         // Preferred specialisation for "identifier '(' SimplePath, SimplePath, ... ')'"
         class MetaListPaths : public MetaItem {
-          Identifier ident;
-          ::std::vector<SimplePath> paths;
+            Identifier ident;
+            ::std::vector<SimplePath> paths;
 
           public:
-            MetaListPaths(Identifier ident, ::std::vector<SimplePath> paths) : ident(::std::move(ident)), paths(::std::move(paths)) {}
+            MetaListPaths(Identifier ident, ::std::vector<SimplePath> paths) :
+              ident(::std::move(ident)), paths(::std::move(paths)) {}
 
             ::std::string as_string() const OVERRIDE;
 
@@ -501,11 +504,12 @@ namespace Rust {
 
         // Preferred specialisation for "identifier '(' MetaNameValueStr, ... ')'"
         class MetaListNameValueStr : public MetaItem {
-          Identifier ident;
-          ::std::vector<MetaNameValueStr> strs;
+            Identifier ident;
+            ::std::vector<MetaNameValueStr> strs;
 
           public:
-            MetaListNameValueStr(Identifier ident, ::std::vector<MetaNameValueStr> strs) : ident(::std::move(ident)), strs(::std::move(strs)) {}
+            MetaListNameValueStr(Identifier ident, ::std::vector<MetaNameValueStr> strs) :
+              ident(::std::move(ident)), strs(::std::move(strs)) {}
 
             ::std::string as_string() const OVERRIDE;
 
@@ -515,6 +519,50 @@ namespace Rust {
             // Use covariance to implement clone function as returning this type
             virtual MetaListNameValueStr* clone_meta_item_inner_impl() const OVERRIDE {
                 return new MetaListNameValueStr(*this);
+            }
+        };
+
+        // Object that parses macros from a token stream.
+        struct MacroParser {
+          private:
+            ::std::vector< ::std::unique_ptr<Token> > token_stream;
+            // probably have to make this mutable (mutable int stream_pos) otherwise const has to be removed up to DelimTokenTree or further
+            // ok since this changing would have an effect on the results of the methods run (i.e. not logically const), the parsing methods shouldn't be const
+            int stream_pos;
+
+          public:
+            MacroParser(
+              ::std::vector< ::std::unique_ptr<Token> > token_stream, int stream_start_pos = 0) :
+              token_stream(::std::move(token_stream)),
+              stream_pos(stream_start_pos) {}
+
+            ~MacroParser() = default;
+
+            ::std::vector< ::std::unique_ptr<MetaItemInner> > parse_meta_item_seq();
+
+          private:
+            // Parses a MetaItemInner.
+            ::std::unique_ptr<MetaItemInner> parse_meta_item_inner();
+            // Returns whether token can end a meta item.
+            bool is_end_meta_item_tok(TokenId id) const;
+            // Parses a simple path.
+            SimplePath parse_simple_path();
+            // Parses a segment of a simple path (but not scope resolution operator).
+            SimplePathSegment parse_simple_path_segment();
+            // Parses a MetaItemLitExpr.
+            ::std::unique_ptr<MetaItemLitExpr> parse_meta_item_lit();
+            // Parses a literal.
+            Literal parse_literal();
+            // Parses a meta item that begins with a simple path.
+            ::std::unique_ptr<MetaItem> parse_path_meta_item();
+
+            // TODO: should this be const?
+            ::std::unique_ptr<Token>& peek_token(int i = 0) {
+                return token_stream[stream_pos + i];
+            }
+
+            void skip_token(int i = 0) {
+                stream_pos += 1 + i;
             }
         };
     }
