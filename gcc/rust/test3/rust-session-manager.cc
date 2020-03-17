@@ -50,7 +50,7 @@ namespace Rust {
                     implicitly_enable_feature("sse3");
                 }
 
-            options.target_data.features.push_back(feature_name);
+            options.target_data.features.insert(::std::pair< ::std::string, ::std::string>(feature_name, ""));
         }
     }
 

@@ -26,6 +26,8 @@ namespace Rust {
     typedef ::std::string Identifier;
     typedef int TupleIndex;
 
+    struct Session;
+
     namespace AST {
         // foward decl: ast visitor
         class ASTVisitor;
@@ -73,7 +75,7 @@ namespace Rust {
 
             virtual void accept_vis(ASTVisitor& vis) = 0;
 
-            virtual bool check_cfg_predicate() const = 0;
+            virtual bool check_cfg_predicate(const Session& session) const = 0;
 
             // Parse attribute input to meta item, if possible
             virtual AttrInput* parse_to_meta_item() const {
@@ -336,7 +338,7 @@ namespace Rust {
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
-            virtual bool check_cfg_predicate() const OVERRIDE {
+            virtual bool check_cfg_predicate(const Session& session ATTRIBUTE_UNUSED) const OVERRIDE {
               // this should never be called - should be converted first
               return false;
             }
@@ -572,7 +574,7 @@ namespace Rust {
             void parse_attr_to_meta_item();
 
             // Determines whether cfg predicate is true and item with attribute should not be stripped.
-            bool check_cfg_predicate() {
+            bool check_cfg_predicate(const Session& session) {
               // assume that cfg predicate actually can exist, i.e. attribute has cfg or cfg_attr path
 
               if (!has_attr_input()) {
@@ -583,7 +585,7 @@ namespace Rust {
               parse_attr_to_meta_item();
               // can't be const because of this anyway
 
-              return attr_input->check_cfg_predicate();
+              return attr_input->check_cfg_predicate(session);
             }
 
           protected:
@@ -621,7 +623,7 @@ namespace Rust {
                 return SimplePath::create_empty();
             }
 
-            virtual bool check_cfg_predicate() const = 0;
+            virtual bool check_cfg_predicate(const Session& session) const = 0;
         };
 
         // Container used to store MetaItems as AttrInput (bridge-ish kinda thing)
@@ -665,7 +667,7 @@ namespace Rust {
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
-            virtual bool check_cfg_predicate() const OVERRIDE;
+            virtual bool check_cfg_predicate(const Session& session) const OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this type

@@ -143,10 +143,11 @@ namespace Rust {
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
             // this can never be a cfg predicate - cfg and cfg_attr require a token-tree cfg
-            virtual bool check_cfg_predicate() const OVERRIDE {
-              // TODO: ensure this is true
-              // DEBUG
-              fprintf(stderr, "check_cfg_predicate call went to AttrInputLiteral - should not happen?\n");
+            virtual bool check_cfg_predicate(const Session& session ATTRIBUTE_UNUSED) const OVERRIDE {
+                // TODO: ensure this is true
+                // DEBUG
+                fprintf(
+                  stderr, "check_cfg_predicate call went to AttrInputLiteral - should not happen?\n");
 
                 return false;
             }
@@ -158,9 +159,10 @@ namespace Rust {
             }
         };
 
-        // literal expr only meta item inner - TODO possibly replace with inheritance of LiteralExpr itself?
+        // literal expr only meta item inner - TODO possibly replace with inheritance of LiteralExpr
+        // itself?
         class MetaItemLitExpr : public MetaItemInner {
-          LiteralExpr lit_expr;
+            LiteralExpr lit_expr;
 
           public:
             MetaItemLitExpr(LiteralExpr lit_expr) : lit_expr(::std::move(lit_expr)) {}
@@ -169,7 +171,7 @@ namespace Rust {
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
-            virtual bool check_cfg_predicate() const OVERRIDE;
+            virtual bool check_cfg_predicate(const Session& session) const OVERRIDE;
 
           protected:
             // Use covariance to implement clone function as returning this type
@@ -180,15 +182,19 @@ namespace Rust {
 
         // more generic meta item "path = lit" form
         class MetaItemPathLit : public MetaItem {
-          SimplePath path;
-          LiteralExpr lit;
+            SimplePath path;
+            LiteralExpr lit;
 
           public:
-            MetaItemPathLit(SimplePath path, LiteralExpr lit_expr) : path(::std::move(path)), lit(::std::move(lit_expr)) {}
+            MetaItemPathLit(SimplePath path, LiteralExpr lit_expr) :
+              path(::std::move(path)), lit(::std::move(lit_expr)) {}
 
             ::std::string as_string() const OVERRIDE;
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
+            virtual bool check_cfg_predicate(const Session& session) const OVERRIDE;
+            // TODO: return true if "ident" is defined and value of it is "lit", return false otherwise
 
           protected:
             // Use covariance to implement clone function as returning this type
@@ -2932,7 +2938,7 @@ namespace Rust {
                 return *this;
             }
 
-            // move constructors 
+            // move constructors
             RangeFromToExpr(RangeFromToExpr&& other) = default;
             RangeFromToExpr& operator=(RangeFromToExpr&& other) = default;
 

@@ -10,6 +10,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace Rust {
     // parser forward decl
@@ -24,7 +25,12 @@ namespace Rust {
 
       /* Sorted vector of enabled features (semantically should be a set, but they're less space and time 
        * efficient) */
-      ::std::vector< ::std::string> features;
+      //::std::vector< ::std::string> features;
+      /* TODO: as many features actually have values, I'm going to get rid of this as a vector and instead
+       * make it some sort of associative array type, i.e. map or unordered_map. 
+       * Ok, probably doing unordered_map as apparently that's better for few modifications and lots of 
+       * lookups when there is a lot of data (over 100 elements). */
+      ::std::unordered_map< ::std::string, ::std::string> features;
     };
 
     // Defines compiler options (e.g. dump, etc.).

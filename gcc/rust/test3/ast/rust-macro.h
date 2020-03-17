@@ -372,10 +372,12 @@ namespace Rust {
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
             // HACK: used to simplify parsing - returns non-empty only in this case
-            virtual SimplePath to_path_item() const {
+            virtual SimplePath to_path_item() const OVERRIDE {
                 // this should copy construct - TODO ensure it does
                 return path;
             }
+
+            virtual bool check_cfg_predicate(const Session& session) const OVERRIDE; 
 
           protected:
             // Use covariance to implement clone function as returning this type
@@ -427,6 +429,8 @@ namespace Rust {
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
+            virtual bool check_cfg_predicate(const Session& session) const OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this type
             virtual MetaItemSeq* clone_meta_item_inner_impl() const OVERRIDE {
@@ -446,6 +450,8 @@ namespace Rust {
             }
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
+
+            virtual bool check_cfg_predicate(const Session& session) const OVERRIDE; 
 
           protected:
             // Use covariance to implement clone function as returning this type
@@ -474,6 +480,8 @@ namespace Rust {
                 return clone_meta_item_inner_impl();
             }
 
+            virtual bool check_cfg_predicate(const Session& session) const OVERRIDE; 
+
           protected:
             // Use covariance to implement clone function as returning this type
             virtual MetaNameValueStr* clone_meta_item_inner_impl() const OVERRIDE {
@@ -495,6 +503,11 @@ namespace Rust {
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
+            virtual bool check_cfg_predicate(const Session& session) const OVERRIDE;
+
+          private:
+            bool check_path_exists_in_cfg(const Session& session, const SimplePath& path) const;
+
           protected:
             // Use covariance to implement clone function as returning this type
             virtual MetaListPaths* clone_meta_item_inner_impl() const OVERRIDE {
@@ -515,6 +528,8 @@ namespace Rust {
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
+            virtual bool check_cfg_predicate(const Session& session) const OVERRIDE;
+
           protected:
             // Use covariance to implement clone function as returning this type
             virtual MetaListNameValueStr* clone_meta_item_inner_impl() const OVERRIDE {
@@ -526,8 +541,10 @@ namespace Rust {
         struct MacroParser {
           private:
             ::std::vector< ::std::unique_ptr<Token> > token_stream;
-            // probably have to make this mutable (mutable int stream_pos) otherwise const has to be removed up to DelimTokenTree or further
-            // ok since this changing would have an effect on the results of the methods run (i.e. not logically const), the parsing methods shouldn't be const
+            // probably have to make this mutable (mutable int stream_pos) otherwise const has to be
+            // removed up to DelimTokenTree or further ok since this changing would have an effect on
+            // the results of the methods run (i.e. not logically const), the parsing methods
+            // shouldn't be const
             int stream_pos;
 
           public:

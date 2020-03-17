@@ -3,6 +3,8 @@
 
 #include "rust-ast-visitor.h"
 
+#include "rust-session-manager.h"
+
 /* Compilation unit used for various AST-related functions that would make the headers too long if
  * they were defined inline and don't receive any benefits from being defined inline because they are
  * virtual. Also used for various other stuff. */
@@ -3387,7 +3389,8 @@ namespace Rust {
               parse_meta_item_seq(token_stream, i));*/
             // something like:
             MacroParser parser(::std::move(token_stream));
-            ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items(parser.parse_meta_item_seq());
+            ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items(
+              parser.parse_meta_item_seq());
 
             return new AttrInputMetaItemContainer(::std::move(meta_items));
         }
@@ -3404,7 +3407,7 @@ namespace Rust {
                     case FLOAT_LITERAL:
                     case TRUE_LITERAL:
                     case FALSE_LITERAL:
-                        //stream_pos++;
+                        // stream_pos++;
                         return parse_meta_item_lit();
                     case SUPER:
                     case SELF:
@@ -3414,8 +3417,8 @@ namespace Rust {
                         return parse_path_meta_item();
                     }
                     default:
-                        error_at(
-                          peek_token()->get_locus(), "unrecognised token '%s' in meta item", get_token_description(peek_token()->get_id()));
+                        error_at(peek_token()->get_locus(), "unrecognised token '%s' in meta item",
+                          get_token_description(peek_token()->get_id()));
                         return NULL;
                 }
             }
@@ -3435,13 +3438,15 @@ namespace Rust {
 
             if (peek_token(1)->get_id() == EQUAL) {
                 // maybe meta name value str syntax - check next 2 tokens
-                if (peek_token(2)->get_id() == STRING_LITERAL && is_end_meta_item_tok(peek_token(3)->get_id())) {
+                if (peek_token(2)->get_id() == STRING_LITERAL
+                    && is_end_meta_item_tok(peek_token(3)->get_id())) {
                     // meta name value str syntax
                     ::std::string value = peek_token(2)->as_string();
 
                     skip_token(2);
 
-                    return ::std::unique_ptr<MetaNameValueStr>(new MetaNameValueStr(::std::move(ident), ::std::move(value)));
+                    return ::std::unique_ptr<MetaNameValueStr>(
+                      new MetaNameValueStr(::std::move(ident), ::std::move(value)));
                 } else {
                     // just interpret as path-based meta item
                     return parse_path_meta_item();
@@ -3449,7 +3454,9 @@ namespace Rust {
             }
 
             if (peek_token(1)->get_id() != LEFT_PAREN) {
-                error_at(peek_token(1)->get_locus(), "unexpected token '%s' after identifier in attribute", get_token_description(peek_token(1)->get_id()));
+                error_at(peek_token(1)->get_locus(),
+                  "unexpected token '%s' after identifier in attribute",
+                  get_token_description(peek_token(1)->get_id()));
                 return NULL;
             }
 
@@ -3468,9 +3475,10 @@ namespace Rust {
             }
             // if valid, return this
             if (!meta_name_value_str_items.empty()) {
-                return ::std::unique_ptr<MetaListNameValueStr>(new MetaListNameValueStr(::std::move(ident), ::std::move(meta_name_value_str_items)));
+                return ::std::unique_ptr<MetaListNameValueStr>(new MetaListNameValueStr(
+                  ::std::move(ident), ::std::move(meta_name_value_str_items)));
             }
-            
+
             // pass for meta list idents
             /*::std::vector<Identifier> ident_items;
             for (const auto& item : meta_items) {
@@ -3483,7 +3491,8 @@ namespace Rust {
             }
             // if valid return this
             if (!ident_items.empty()) {
-                return ::std::unique_ptr<MetaListIdents>(new MetaListIdents(::std::move(ident), ::std::move(ident_items)));
+                return ::std::unique_ptr<MetaListIdents>(new MetaListIdents(::std::move(ident),
+            ::std::move(ident_items)));
             }*/
             // as currently no meta list ident, currently no path. may change in future
 
@@ -3498,7 +3507,8 @@ namespace Rust {
                 path_items.push_back(::std::move(converted_path));
             }
             if (!path_items.empty()) {
-                return ::std::unique_ptr<MetaListPaths>(new MetaListPaths(::std::move(ident), ::std::move(path_items)));
+                return ::std::unique_ptr<MetaListPaths>(
+                  new MetaListPaths(::std::move(ident), ::std::move(path_items)));
             }
 
             error_at(UNKNOWN_LOCATION, "failed to parse any meta item inner");
@@ -3530,13 +3540,13 @@ namespace Rust {
                     location_t locus = peek_token()->get_locus();
                     Literal lit = parse_literal();
                     if (lit.is_error()) {
-                        error_at(
-                          peek_token()->get_locus(), "failed to parse literal in attribute");
+                        error_at(peek_token()->get_locus(), "failed to parse literal in attribute");
                         return NULL;
                     }
                     LiteralExpr expr(::std::move(lit), locus);
-                    //stream_pos++; 
-                    // shouldn't be required anymore due to parsing literal actually skipping the token
+                    // stream_pos++;
+                    // shouldn't be required anymore due to parsing literal actually skipping the
+                    // token
                     return ::std::unique_ptr<MetaItemPathLit>(
                       new MetaItemPathLit(::std::move(path), ::std::move(expr)));
                 }
@@ -3544,7 +3554,8 @@ namespace Rust {
                     // just simple path
                     return ::std::unique_ptr<MetaItemPath>(new MetaItemPath(::std::move(path)));
                 default:
-                    error_at(peek_token()->get_locus(), "unrecognised token '%s' in meta item", get_token_description(peek_token()->get_id()));
+                    error_at(peek_token()->get_locus(), "unrecognised token '%s' in meta item",
+                      get_token_description(peek_token()->get_id()));
                     return NULL;
             }
         }
@@ -3556,7 +3567,7 @@ namespace Rust {
                 fprintf(stderr, "WARNING: stream pos for parse_meta_item_seq is not 0!\n");
             }
 
-            //int i = 0;
+            // int i = 0;
             int vec_length = token_stream.size();
             ::std::vector< ::std::unique_ptr<MetaItemInner> > meta_items;
 
@@ -3641,7 +3652,8 @@ namespace Rust {
                     skip_token();
                     return Literal("false", Literal::BOOL);
                 default:
-                    error_at(tok->get_locus(), "expected literal - found '%s'", get_token_description(tok->get_id()));
+                    error_at(tok->get_locus(), "expected literal - found '%s'",
+                      get_token_description(tok->get_id()));
                     return Literal::create_error();
             }
         }
@@ -3712,22 +3724,164 @@ namespace Rust {
             return ::std::unique_ptr<MetaItemLitExpr>(new MetaItemLitExpr(::std::move(lit_expr)));
         }
 
-        bool AttrInputMetaItemContainer::check_cfg_predicate() const {
+        bool AttrInputMetaItemContainer::check_cfg_predicate(const Session& session) const {
             // cfg value of container is purely based on cfg of each inner item - all must be true
             for (const auto& inner_item : items) {
-                if (!inner_item->check_cfg_predicate()) {
+                if (!inner_item->check_cfg_predicate(session)) {
                     return false;
                 }
             }
 
-            /* TODO: as far as I can tell, there should only be a single element to check here, so ensure
-             * there is only a single element in items too? */
+            /* TODO: as far as I can tell, there should only be a single element to check here, so
+             * ensure there is only a single element in items too? */
 
             return true;
         }
 
-        bool MetaItemLitExpr::check_cfg_predicate() const {
+        bool MetaItemLitExpr::check_cfg_predicate(const Session& session) const {
             // as far as I can tell, a literal expr can never be a valid cfg body, so false
+            return false;
+        }
+
+        bool MetaListNameValueStr::check_cfg_predicate(const Session& session) const {
+            if (ident == "all") {
+                for (const auto& str : strs) {
+                    if (!str.check_cfg_predicate(session)) {
+                        return false;
+                    }
+                }
+                return true;
+            } else if (ident == "any") {
+                for (const auto& str : strs) {
+                    if (str.check_cfg_predicate(session)) {
+                        return true;
+                    }
+                }
+                return false;
+            } else if (ident == "not") {
+                if (strs.size() != 1) {
+                    error_at(UNKNOWN_LOCATION, "cfg predicate could not be checked for MetaListNameValueStr with ident of 'not' because there are '%i' elements, not '1'", strs.size());
+                    return false;
+                } 
+
+                return !strs[0].check_cfg_predicate(session);
+            } else {
+                error_at(UNKNOWN_LOCATION,
+                  "cfg predicate could not be checked for MetaListNameValueStr with ident of "
+                  "'%s' - ident must be 'all' or 'any'",
+                  ident.c_str());
+                return false;
+            }
+        }
+
+        bool MetaListPaths::check_cfg_predicate(const Session& session) const {
+            if (ident == "all") {
+                for (const auto& path : paths) {
+                    if (!check_path_exists_in_cfg(session, path)) {
+                        return false;
+                    }
+                }
+                return true;
+            } else if (ident == "any") {
+                for (const auto& path : paths) {
+                    if (check_path_exists_in_cfg(session, path)) {
+                        return true;
+                    }
+                }
+                return false;
+            } else if (ident == "not") {
+                if (paths.size() != 1) {
+                    error_at(UNKNOWN_LOCATION, "cfg predicate could not be checked for MetaListPaths with ident of 'not' because there are '%i' elements, not '1'", paths.size());
+                    return false;
+                } 
+
+                return !check_path_exists_in_cfg(session, paths[0]);
+            } else {
+                error_at(UNKNOWN_LOCATION,
+                  "cfg predicate could not be checked for MetaListNameValueStr with ident of "
+                  "'%s' - ident must be 'all' or 'any'",
+                  ident.c_str());
+                return false;
+            }
+        }
+
+        bool MetaListPaths::check_path_exists_in_cfg(const Session& session, const SimplePath& path) const {
+            auto it = session.options.target_data.features.find(path.as_string());
+            if (it != session.options.target_data.features.end()) {
+                return true;
+            }
+            return false;
+        }
+
+        bool MetaItemSeq::check_cfg_predicate(const Session& session) const {
+            if (path.as_string() == "all") {
+                for (const auto& item : seq) {
+                    if (!item->check_cfg_predicate(session)) {
+                        return false;
+                    }
+                }
+                return true;
+            } else if (path.as_string() == "any") {
+                for (const auto& item : seq) {
+                    if (item->check_cfg_predicate(session)) {
+                        return true;
+                    }
+                }
+                return false;
+            } else if (path.as_string() == "not") {
+                if (seq.size() != 1) {
+                    error_at(UNKNOWN_LOCATION, "cfg predicate could not be checked for MetaItemSeq with ident of 'not' because there are '%i' elements, not '1'", seq.size());
+                    return false;
+                } 
+
+                return !seq[0]->check_cfg_predicate(session);
+            } else {
+                error_at(UNKNOWN_LOCATION,
+                  "cfg predicate could not be checked for MetaItemSeq with path of "
+                  "'%s' - path must be 'all' or 'any'",
+                  path.as_string().c_str());
+                return false;
+            }
+        }
+
+        bool MetaWord::check_cfg_predicate(const Session& session) const {
+            auto it = session.options.target_data.features.find(ident);
+            if (it != session.options.target_data.features.end()) {
+                return true;
+            }
+            return false;
+        }
+
+        bool MetaItemPath::check_cfg_predicate(const Session& session) const {
+            /* Strictly speaking, this should always be false, but maybe do check relating to SimplePath 
+             * being identifier. Currently, it would return true if path as identifier existed, and if
+             * the path in string form existed (though this shouldn't occur). */
+            auto it = session.options.target_data.features.find(path.as_string());
+            if (it != session.options.target_data.features.end()) {
+                return true;
+            }
+            return false;
+        }
+
+        bool MetaNameValueStr::check_cfg_predicate(const Session& session) const {
+            auto it = session.options.target_data.features.find(ident);
+            if (it != session.options.target_data.features.end()) {
+                // value must also be the same, not just the name existing
+                if (str == it->second) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool MetaItemPathLit::check_cfg_predicate(const Session& session) const {
+            auto it = session.options.target_data.features.find(path.as_string());
+            if (it != session.options.target_data.features.end()) {
+                // value must also be the same, not just the name existing
+                if (lit.as_string() == it->second) {
+                    return true;
+                }
+            }
             return false;
         }
 
