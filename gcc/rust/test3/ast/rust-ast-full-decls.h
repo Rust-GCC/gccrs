@@ -15,6 +15,8 @@ namespace Rust {
         class SimplePathSegment;
         class SimplePath;
         struct Attribute;
+        class MetaItemInner;
+        class AttrInputMetaItemContainer;
         class MetaItem;
         class Stmt;
         class Item;

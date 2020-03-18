@@ -167,7 +167,9 @@ namespace Rust {
           public:
             MetaItemLitExpr(LiteralExpr lit_expr) : lit_expr(::std::move(lit_expr)) {}
 
-            ::std::string as_string() const OVERRIDE;
+            ::std::string as_string() const OVERRIDE {
+                return lit_expr.as_string();
+            }
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
@@ -189,7 +191,9 @@ namespace Rust {
             MetaItemPathLit(SimplePath path, LiteralExpr lit_expr) :
               path(::std::move(path)), lit(::std::move(lit_expr)) {}
 
-            ::std::string as_string() const OVERRIDE;
+            ::std::string as_string() const OVERRIDE {
+                return path.as_string() + " = " + lit.as_string();
+            }
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 

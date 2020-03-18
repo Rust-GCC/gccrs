@@ -22,9 +22,7 @@ namespace Rust {
 
     // Implicitly enable a feature (and recursively enable dependencies). Used to enable all features now.
     void Session::implicitly_enable_feature(::std::string feature_name) {
-        if (::std::find(
-              options.target_data.features.begin(), options.target_data.features.end(), feature_name)
-            == options.target_data.features.end()) {
+        if (options.target_data.features.find(feature_name) == options.target_data.features.end()) {
                 // if feature has dependencies, enable them
                 if (feature_name == "aes") {
                     implicitly_enable_feature("sse2");
@@ -50,7 +48,7 @@ namespace Rust {
                     implicitly_enable_feature("sse3");
                 }
 
-            options.target_data.features.insert(::std::pair< ::std::string, ::std::string>(feature_name, ""));
+            options.target_data.features.insert(::std::pair< ::std::string, ::std::string>(feature_name, ::std::string("")));
         }
     }
 

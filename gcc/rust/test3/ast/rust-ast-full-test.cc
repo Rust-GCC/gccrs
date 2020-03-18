@@ -3350,6 +3350,46 @@ namespace Rust {
             return str;
         }
 
+        ::std::string MetaItemSeq::as_string() const {
+            ::std::string path_str = path.as_string() + "(";
+
+            for (const auto& item : seq) {
+                path_str += item->as_string() + ", ";
+            }
+
+            return path_str + ")";
+        }
+
+        ::std::string MetaListPaths::as_string() const {
+            ::std::string str = ident + "(";
+
+            for (const auto& path : paths) {
+                str += path.as_string() + ", ";
+            }
+
+            return str + ")";
+        }
+
+        ::std::string MetaListNameValueStr::as_string() const {
+            ::std::string str = ident + "(";
+
+            for (const auto& elem : strs) {
+                str += elem.as_string() + ", ";
+            }
+
+            return str + ")";
+        }
+
+        ::std::string AttrInputMetaItemContainer::as_string() const {
+            ::std::string str = "(";
+
+            for (const auto& item : items) {
+                str += item->as_string() + ", ";
+            }
+
+            return str + ")";
+        }
+
         // Override that calls the function recursively on all items contained within the module.
         void ModuleBodied::add_crate_name(::std::vector< ::std::string>& names) const {
             /* TODO: test whether module has been 'cfg'-ed out to determine whether to exclude it
@@ -3713,7 +3753,8 @@ namespace Rust {
                     }
                     gcc_fallthrough();
                 default:
-                    error_at(tok->get_locus(), "unexpected token '%s' in simple path segment");
+                    error_at(tok->get_locus(), "unexpected token '%s' in simple path segment",
+                      get_token_description(tok->get_id()));
                     return SimplePathSegment::create_error();
             }
         }
@@ -3738,7 +3779,7 @@ namespace Rust {
             return true;
         }
 
-        bool MetaItemLitExpr::check_cfg_predicate(const Session& session) const {
+        bool MetaItemLitExpr::check_cfg_predicate(const Session& session ATTRIBUTE_UNUSED) const {
             // as far as I can tell, a literal expr can never be a valid cfg body, so false
             return false;
         }
@@ -3760,9 +3801,13 @@ namespace Rust {
                 return false;
             } else if (ident == "not") {
                 if (strs.size() != 1) {
-                    error_at(UNKNOWN_LOCATION, "cfg predicate could not be checked for MetaListNameValueStr with ident of 'not' because there are '%i' elements, not '1'", strs.size());
+                    // HACK: convert vector platform-dependent size_type to string to use in printf
+                    error_at(UNKNOWN_LOCATION,
+                      "cfg predicate could not be checked for MetaListNameValueStr with ident of "
+                      "'not' because there are '%s' elements, not '1'",
+                      ::std::to_string(strs.size()).c_str());
                     return false;
-                } 
+                }
 
                 return !strs[0].check_cfg_predicate(session);
             } else {
@@ -3791,9 +3836,13 @@ namespace Rust {
                 return false;
             } else if (ident == "not") {
                 if (paths.size() != 1) {
-                    error_at(UNKNOWN_LOCATION, "cfg predicate could not be checked for MetaListPaths with ident of 'not' because there are '%i' elements, not '1'", paths.size());
+                    // HACK: convert vector platform-dependent size_type to string to use in printf
+                    error_at(UNKNOWN_LOCATION,
+                      "cfg predicate could not be checked for MetaListPaths with ident of 'not' "
+                      "because there are '%s' elements, not '1'",
+                      ::std::to_string(paths.size()).c_str());
                     return false;
-                } 
+                }
 
                 return !check_path_exists_in_cfg(session, paths[0]);
             } else {
@@ -3805,7 +3854,8 @@ namespace Rust {
             }
         }
 
-        bool MetaListPaths::check_path_exists_in_cfg(const Session& session, const SimplePath& path) const {
+        bool MetaListPaths::check_path_exists_in_cfg(
+          const Session& session, const SimplePath& path) const {
             auto it = session.options.target_data.features.find(path.as_string());
             if (it != session.options.target_data.features.end()) {
                 return true;
@@ -3830,9 +3880,13 @@ namespace Rust {
                 return false;
             } else if (path.as_string() == "not") {
                 if (seq.size() != 1) {
-                    error_at(UNKNOWN_LOCATION, "cfg predicate could not be checked for MetaItemSeq with ident of 'not' because there are '%i' elements, not '1'", seq.size());
+                    // HACK: convert vector platform-dependent size_type to string to use in printf
+                    error_at(UNKNOWN_LOCATION,
+                      "cfg predicate could not be checked for MetaItemSeq with ident of 'not' "
+                      "because there are '%s' elements, not '1'",
+                      ::std::to_string(seq.size()).c_str());
                     return false;
-                } 
+                }
 
                 return !seq[0]->check_cfg_predicate(session);
             } else {
@@ -3853,9 +3907,9 @@ namespace Rust {
         }
 
         bool MetaItemPath::check_cfg_predicate(const Session& session) const {
-            /* Strictly speaking, this should always be false, but maybe do check relating to SimplePath 
-             * being identifier. Currently, it would return true if path as identifier existed, and if
-             * the path in string form existed (though this shouldn't occur). */
+            /* Strictly speaking, this should always be false, but maybe do check relating to
+             * SimplePath being identifier. Currently, it would return true if path as identifier
+             * existed, and if the path in string form existed (though this shouldn't occur). */
             auto it = session.options.target_data.features.find(path.as_string());
             if (it != session.options.target_data.features.end()) {
                 return true;
@@ -3883,6 +3937,14 @@ namespace Rust {
                 }
             }
             return false;
+        }
+
+        ::std::vector< ::std::unique_ptr<Token> > Token::to_token_stream() const {
+            // initialisation list doesn't work as it needs copy constructor, so have to do this
+            ::std::vector< ::std::unique_ptr<Token> > dummy_vector;
+            dummy_vector.reserve(1);
+            dummy_vector.push_back(::std::unique_ptr<Token>(clone_token_impl()));
+            return dummy_vector;
         }
 
         /* Visitor implementations - these are short but inlining can't happen anyway due to virtual
@@ -4514,6 +4576,34 @@ namespace Rust {
         }
 
         void BareFunctionType::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MetaItemSeq::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MetaItemPath::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MetaListPaths::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MetaNameValueStr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MetaListNameValueStr::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void AttrInputMetaItemContainer::accept_vis(ASTVisitor& vis) {
+            vis.visit(*this);
+        }
+
+        void MetaWord::accept_vis(ASTVisitor& vis) {
             vis.visit(*this);
         }
     }

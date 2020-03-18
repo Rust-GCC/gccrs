@@ -18,6 +18,7 @@ namespace Rust {
             //virtual void visit(MacroMatch& macro_match) = 0;
             virtual void visit(Token& tok) = 0;
             virtual void visit(DelimTokenTree& delim_tok_tree) = 0;
+            virtual void visit(AttrInputMetaItemContainer& input) = 0;
             //virtual void visit(MetaItem& meta_item) = 0;
             //virtual void visit(Stmt& stmt) = 0;
             //virtual void visit(Expr& expr) = 0;

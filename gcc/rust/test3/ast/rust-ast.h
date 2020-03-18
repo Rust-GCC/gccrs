@@ -79,7 +79,7 @@ namespace Rust {
 
             // Parse attribute input to meta item, if possible
             virtual AttrInput* parse_to_meta_item() const {
-              return NULL;
+                return NULL;
             }
 
           protected:
@@ -104,7 +104,7 @@ namespace Rust {
 
             virtual void accept_vis(ASTVisitor& vis) = 0;
 
-            /* Converts token tree to a flat token stream. Tokens must be pointer to avoid mutual 
+            /* Converts token tree to a flat token stream. Tokens must be pointer to avoid mutual
              * dependency with Token. */
             virtual ::std::vector< ::std::unique_ptr<Token> > to_token_stream() const = 0;
 
@@ -155,7 +155,10 @@ namespace Rust {
             }
 
             // constructor from general text - avoid using if lexer const_TokenPtr is available
-            Token(TokenId token_id, location_t locus, ::std::string str, PrimitiveCoreType type_hint) : token_id(token_id), locus(locus), str(::std::move(str)), type_hint(type_hint) {}
+            Token(
+              TokenId token_id, location_t locus, ::std::string str, PrimitiveCoreType type_hint) :
+              token_id(token_id),
+              locus(locus), str(::std::move(str)), type_hint(type_hint) {}
 
             // Constructor from lexer const_TokenPtr
             /* TODO: find workaround for std::string being NULL - probably have to introduce new
@@ -188,10 +191,8 @@ namespace Rust {
 
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
-            // Return copy of itself.
-            virtual ::std::vector< ::std::unique_ptr<Token> > to_token_stream() const OVERRIDE {
-                return { ::std::unique_ptr<Token>(clone_token_impl()) };
-            }
+            // Return copy of itself but in token stream form.
+            virtual ::std::vector< ::std::unique_ptr<Token> > to_token_stream() const OVERRIDE;
 
             TokenId get_id() const {
                 return token_id;
@@ -270,16 +271,21 @@ namespace Rust {
 
             location_t locus;
 
-            // TODO: move all the "parse" functions into a separate class that has the token stream reference - will be cleaner
-            // Parse a meta item inner.
-            //::std::unique_ptr<MetaItemInner> parse_meta_item_inner(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
-            //SimplePath parse_simple_path(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
-            //SimplePathSegment parse_simple_path_segment(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
-            //::std::unique_ptr<MetaItemLitExpr> parse_meta_item_lit(const ::std::unique_ptr<Token>& tok) const;
-            //::std::vector< ::std::unique_ptr<MetaItemInner> > parse_meta_item_seq(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
-            //Literal parse_literal(const ::std::unique_ptr<Token>& tok) const;
-            //::std::unique_ptr<MetaItem> parse_path_meta_item(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const;
-            //bool is_end_meta_item_tok(TokenId tok) const;
+            // TODO: move all the "parse" functions into a separate class that has the token stream
+            // reference - will be cleaner Parse a meta item inner.
+            //::std::unique_ptr<MetaItemInner> parse_meta_item_inner(const ::std::vector<
+            //::std::unique_ptr<Token> >& token_stream, int& i) const; SimplePath
+            // parse_simple_path(const ::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i)
+            // const; SimplePathSegment parse_simple_path_segment(const ::std::vector<
+            // ::std::unique_ptr<Token> >& token_stream, int& i) const;
+            //::std::unique_ptr<MetaItemLitExpr> parse_meta_item_lit(const ::std::unique_ptr<Token>&
+            //tok) const;
+            //::std::vector< ::std::unique_ptr<MetaItemInner> > parse_meta_item_seq(const
+            //::std::vector< ::std::unique_ptr<Token> >& token_stream, int& i) const; Literal
+            // parse_literal(const ::std::unique_ptr<Token>& tok) const;
+            //::std::unique_ptr<MetaItem> parse_path_meta_item(const ::std::vector<
+            //::std::unique_ptr<Token> >& token_stream, int& i) const; bool
+            // is_end_meta_item_tok(TokenId tok) const;
 
           protected:
             // Use covariance to implement clone function as returning a DelimTokenTree object
@@ -339,8 +345,8 @@ namespace Rust {
             virtual void accept_vis(ASTVisitor& vis) OVERRIDE;
 
             virtual bool check_cfg_predicate(const Session& session ATTRIBUTE_UNUSED) const OVERRIDE {
-              // this should never be called - should be converted first
-              return false;
+                // this should never be called - should be converted first
+                return false;
             }
 
             virtual AttrInput* parse_to_meta_item() const OVERRIDE;
@@ -425,14 +431,17 @@ namespace Rust {
 
             // path-to-string comparison operator
             bool operator==(const ::std::string& rhs) {
-              return !has_opening_scope_resolution && segments.size() == 1 && segments[0].as_string() == rhs;
+                return !has_opening_scope_resolution && segments.size() == 1
+                       && segments[0].as_string() == rhs;
             }
 
-            /* Creates a single-segment SimplePath from a string. This will not check to ensure that this
-             * is a valid identifier in path, so be careful. Also, this will have no location data. 
+            /* Creates a single-segment SimplePath from a string. This will not check to ensure that
+             * this is a valid identifier in path, so be careful. Also, this will have no location
+             * data.
              * TODO have checks? */
             static SimplePath from_str(::std::string str) {
-                ::std::vector<AST::SimplePathSegment> single_segments = { AST::SimplePathSegment(::std::move(str)) };
+                ::std::vector<AST::SimplePathSegment> single_segments
+                  = { AST::SimplePathSegment(::std::move(str)) };
                 return SimplePath(::std::move(single_segments));
             }
         };
@@ -573,19 +582,21 @@ namespace Rust {
             // Call to parse attribute body to meta item syntax.
             void parse_attr_to_meta_item();
 
-            // Determines whether cfg predicate is true and item with attribute should not be stripped.
+            // Determines whether cfg predicate is true and item with attribute should not be
+            // stripped.
             bool check_cfg_predicate(const Session& session) {
-              // assume that cfg predicate actually can exist, i.e. attribute has cfg or cfg_attr path
+                // assume that cfg predicate actually can exist, i.e. attribute has cfg or cfg_attr
+                // path
 
-              if (!has_attr_input()) {
-                return false;
-              }
+                if (!has_attr_input()) {
+                    return false;
+                }
 
-              // TODO: maybe replace with storing a "has been parsed" variable?
-              parse_attr_to_meta_item();
-              // can't be const because of this anyway
+                // TODO: maybe replace with storing a "has been parsed" variable?
+                parse_attr_to_meta_item();
+                // can't be const because of this anyway
 
-              return attr_input->check_cfg_predicate(session);
+                return attr_input->check_cfg_predicate(session);
             }
 
           protected:
@@ -594,6 +605,9 @@ namespace Rust {
                 return new Attribute(*this);
             }
         };
+
+        // Forward decl - defined in rust-macro.h
+        class MetaNameValueStr;
 
         // abstract base meta item inner class
         class MetaItemInner {
@@ -628,10 +642,10 @@ namespace Rust {
 
         // Container used to store MetaItems as AttrInput (bridge-ish kinda thing)
         class AttrInputMetaItemContainer : public AttrInput {
-          ::std::vector< ::std::unique_ptr<MetaItemInner> > items;
+            ::std::vector< ::std::unique_ptr<MetaItemInner> > items;
 
           public:
-            AttrInputMetaItemContainer(::std::vector< ::std::unique_ptr<MetaItemInner> > items) : 
+            AttrInputMetaItemContainer(::std::vector< ::std::unique_ptr<MetaItemInner> > items) :
               items(::std::move(items)) {}
 
             // copy constructor with vector clone
@@ -642,7 +656,7 @@ namespace Rust {
                 for (const auto& e : other.items) {
                     items.push_back(e->clone_meta_item_inner());
                 }
-            } 
+            }
 
             // no destructor definition required
 
@@ -695,9 +709,6 @@ namespace Rust {
         class MetaWord;
 
         // Forward decl - defined in rust-macro.h
-        class MetaNameValueStr;
-
-        // Forward decl - defined in rust-macro.h
         class MetaListPaths;
 
         // Forward decl - defined in rust-macro.h
@@ -738,7 +749,8 @@ namespace Rust {
             ::std::string as_string() const;
 
             // Adds crate names to the vector passed by reference, if it can (polymorphism).
-            virtual void add_crate_name(::std::vector< ::std::string>& names ATTRIBUTE_UNUSED) const {}
+            virtual void add_crate_name(::std::vector< ::std::string>& names ATTRIBUTE_UNUSED) const {
+            }
 
           protected:
             // Constructor
