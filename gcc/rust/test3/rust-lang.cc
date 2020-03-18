@@ -254,8 +254,8 @@ static bool grs_langhook_post_options(const char** pfilename ATTRIBUTE_UNUSED) {
     // can be used to override other options if required
 
     // satisfies an assert in init_excess_precision in toplev.c
-    if (flag_excess_precision_cmdline == EXCESS_PRECISION_DEFAULT)
-        flag_excess_precision_cmdline = EXCESS_PRECISION_STANDARD;
+    if (flag_excess_precision/*_cmdline*/ == EXCESS_PRECISION_DEFAULT)
+        flag_excess_precision/*_cmdline*/ = EXCESS_PRECISION_STANDARD;
 
     /* Returning false means that the backend should be used.  */
     return false;
