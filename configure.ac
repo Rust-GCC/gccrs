@@ -163,7 +163,6 @@ target_libraries="target-libgcc \
 		target-libobjc \
 		target-libada \
 		target-libgo \
-		target-libgrust \
 		target-libphobos \
 		target-zlib"
 

@@ -43,10 +43,10 @@
 #include "realmpfr.h"
 #include "builtins.h"
 
-#include "rust-c.h"
 #include "rust-location.h"
 #include "rust-linemap.h"
 #include "backend.h"
+#include "rust-object-export.h"
 
 // A class wrapping a tree.
 
