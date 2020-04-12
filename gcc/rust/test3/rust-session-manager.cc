@@ -20,48 +20,54 @@ namespace Rust {
         }
     };
 
-    // Implicitly enable a feature (and recursively enable dependencies). Used to enable all features now.
+    // Implicitly enable a target_feature (and recursively enable dependencies).
     void Session::implicitly_enable_feature(::std::string feature_name) {
-        if (options.target_data.features.find(feature_name) == options.target_data.features.end()) {
-                // if feature has dependencies, enable them
-                if (feature_name == "aes") {
-                    implicitly_enable_feature("sse2");
-                } else if (feature_name == "avx") {
-                    implicitly_enable_feature("sse4.2");
-                } else if (feature_name == "avx2") {
-                    implicitly_enable_feature("avx");
-                } else if (feature_name == "fma") {
-                    implicitly_enable_feature("avx");
-                } else if (feature_name == "pclmulqdq") {
-                    implicitly_enable_feature("sse2");
-                } else if (feature_name == "sha") {
-                    implicitly_enable_feature("sse2");
-                } else if (feature_name == "sse2") {
-                    implicitly_enable_feature("sse");
-                } else if (feature_name == "sse3") {
-                    implicitly_enable_feature("sse2");
-                } else if (feature_name == "sse4.1") {
-                    implicitly_enable_feature("sse3");
-                } else if (feature_name == "sse4.2") {
-                    implicitly_enable_feature("sse4.1");
-                } else if (feature_name == "ssse3") {
-                    implicitly_enable_feature("sse3");
-                }
+        // TODO: is this really required since features added would be complete via target spec?
 
-            options.target_data.features.insert(::std::pair< ::std::string, ::std::string>(feature_name, ::std::string("")));
+        if (!options.target_data.has_key_value_pair("target_data", feature_name)) {
+            // if feature has dependencies, enable them
+            if (feature_name == "aes") {
+                implicitly_enable_feature("sse2");
+            } else if (feature_name == "avx") {
+                implicitly_enable_feature("sse4.2");
+            } else if (feature_name == "avx2") {
+                implicitly_enable_feature("avx");
+            } else if (feature_name == "fma") {
+                implicitly_enable_feature("avx");
+            } else if (feature_name == "pclmulqdq") {
+                implicitly_enable_feature("sse2");
+            } else if (feature_name == "sha") {
+                implicitly_enable_feature("sse2");
+            } else if (feature_name == "sse2") {
+                implicitly_enable_feature("sse");
+            } else if (feature_name == "sse3") {
+                implicitly_enable_feature("sse2");
+            } else if (feature_name == "sse4.1") {
+                implicitly_enable_feature("sse3");
+            } else if (feature_name == "sse4.2") {
+                implicitly_enable_feature("sse4.1");
+            } else if (feature_name == "ssse3") {
+                implicitly_enable_feature("sse3");
+            }
+
+            options.target_data.insert_key_value_pair("target_feature", ::std::move(feature_name));
         }
     }
 
+    // Meant to enable all target features. As this will be done by target hook, this method's
+    // deprecated.
     void Session::enable_features() {
         bool has_target_crt_static = false;
         const char* target = "PLACEHOLDER";
+
+        fprintf(stderr, "ERROR: Somewhere in call chain Session::enable_features is called.\n");
 
         if (has_target_crt_static) {
             // enable "crt-static" attribute
         }
 
-        /* TODO: do this via target hook. have one for each target that implicitly enables the features
-         * for that platform. Would probably have to make custom target hook. */
+        /* TODO: do this via target hook. have one for each target that implicitly enables the
+         * features for that platform. Would probably have to make custom target hook. */
 
         /*
         if (target == "x86" || target == "x86_64") {
