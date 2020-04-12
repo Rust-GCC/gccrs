@@ -16,8 +16,9 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#include "rust-system.h"
 #include "rust-diagnostics.h"
+#include "config.h"
+#include "system.h"
 #include "coretypes.h"
 #include "target.h"
 #include "tree.h"
@@ -31,6 +32,7 @@
 #include "convert.h"
 #include "langhooks.h"
 #include "langhooks-def.h"
+
 #include "selftest.h"
 #include "rust-cfg-parser.h"
 #include "rust-privacy-ctx.h"
@@ -64,6 +66,7 @@
  * e.g. HIR conversion.
  */
 
+#include "rust-system.h"
 #include "rust-session-manager.h"
 #include "rust-tree.h"
 
