@@ -17,7 +17,8 @@ jobs:
     - name: Install Deps
       run: |
           sudo apt-get update;
-          sudo apt-get install -y automake \
+          sudo apt-get install -y \
+                  automake \
                   autoconf \
                   libtool \
                   autogen \
@@ -27,7 +28,8 @@ jobs:
                   libmpfr-dev \
                   libmpc-dev \
                   build-essential \
-                  gcc-multilib
+                  gcc-multilib \
+                  g++-multilib
 
     - name: Configure
       run: |
