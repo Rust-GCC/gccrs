@@ -1,0 +1,140 @@
+name: GNU Commit Format Checker
+
+on:
+  pull_request:
+    branches:
+      - master
+      - gcc-patch-dev
+  merge_group:
+
+jobs:
+  check-commit-changelogs:
+    runs-on: ubuntu-latest
+    name: check-changelogs
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Install Deps
+        run: |
+          sudo apt-get update;
+          sudo apt-get install -y \
+            python3 \
+            python3-git
+      
+      - name: GCC check PR Commits
+        run: |
+          if ${{ github.event_name == 'pull_request' }}; then
+            python3 contrib/gcc-changelog/git_check_commit.py origin/${{ github.event.pull_request.base.ref }}..${{ github.event.pull_request.head.sha }}
+          fi
+            
+  check-commit-prefixes:
+    runs-on: ubuntu-latest
+    name: check-gccrs-prefix
+    if: ${{ github.base_ref == 'gcc-patch-dev' }} # master commits don't need the gccrs prefix
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Check for `gccrs` prefix
+        run: |
+          retval=0
+          for commit in $(git rev-list origin/${{ github.event.pull_request.base.ref }}..${{ github.event.pull_request.head.sha }});
+          do
+            echo -n "Checking gccrs prefix for $commit: " >> results
+            if [[ $(git log -1 --format="%s" $commit) = gccrs:* ]]; then
+              echo "OK" >> results
+            else
+              retval=1
+              echo "KO" >> results
+            fi
+          done
+          exit $retval
+
+  check-commit-signoff:
+    runs-on: ubuntu-latest
+    name: check-commit-signoff
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Check for DCO Sign-Off line/possible FSF Copyright Assignment
+        run: |
+          retval=0;
+          rev_list="origin/${{ github.event.pull_request.base.ref }}..${{ github.event.pull_request.head.sha }}"
+
+          for commit in $(git rev-list --reverse "$rev_list"); do
+            echo -n "Checking for DCO Sign-Off for commit $commit... ";
+
+            if [[ $(git log "$commit" -1 --format="%B" | tail -n 2) = Signed-off-by:* ]]; then
+              echo "OK";
+              continue;
+            fi
+
+            author=$(git log -1 --format=%an "$commit");
+
+            if [[ "$(( $(git log --author="$author"|wc -l) - $(git log --author="$author" --grep='Signed-off-by'|wc -l )))" -ne 0 ]]; then
+              echo "OK"
+              echo "$author probably has FSF Copyright Assignment. Check manually that the lack of DCO Sign-Off is allowed."
+            else
+              echo "KO"
+              retval=1;
+            fi
+          done;
+
+          ## check no Signed-off-by in the middle.
+          while read -r f; do
+            echo -n "$f : "
+               if awk 'BEGIN { in_footer = 0; error = 0;}
+                       { DEFAULT = 1; }
+                       /^(Signed-off|Co-authored|Reviewed|Tested)-by/ { in_footer = 1; DEFAULT = 0;}
+                       /^\s*$/  { DEFAULT = 0; }
+                       DEFAULT { if (in_footer == 1) { printf $0 " appears after some Signed-off-by/Co-authored-by/Tested-by/Reviewed-by line "; error = 1; exit (1);} }';
+               then
+                   echo OK
+               else
+                   echo KO
+                   retval=1
+               fi < <(git log "$f" -1 --format="%B")
+          done < <(git rev-list --reverse "$rev_list" )
+
+          exit $retval;
+
+  check-issue-reference:
+    runs-on: ubuntu-latest
+    continue-on-error: true # We do not want to block merge if it is a legitimate GCC bugzilla reference.
+    name: check-issue-reference
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Check for issue number reference in commit messages
+        run: |
+          retval=0;
+          rev_list="origin/${{ github.event.pull_request.base.ref }}..${{ github.event.pull_request.head.sha }}"
+          for commit in $(git rev-list --reverse "$rev_list"); do
+            if [ "$(git log --format=%B -n 1 \"$commit\" | grep '#[0-9]*' | grep -v -i 'Rust-GCC/gccrs#[0-9]*' | wc -l)" -ne 0 ]; then
+              echo "$commit: KO"
+              retval=1
+            else
+              echo "$commit: OK"
+            fi
+          done;
+          if [ "$retval" -ne 0 ]; then
+            echo "Some raw issue references were found (eg. #4242)."
+            echo "You shall rewrite the faulty commit message with this format: Rust-GCC/gccrs#4242"
+            echo "You may ignore this CI step if it represents a valid GCC bugzilla or external repository reference instead."
+          fi
+          exit $retval;
