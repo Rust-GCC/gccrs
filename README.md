@@ -1,3 +1,4 @@
+![C/C++ CI](https://github.com/philberty/gccrs/workflows/C/C++%20CI/badge.svg)
 # GCC Rust
 
 This is an implementation of rust following the gccgo style front-end.
