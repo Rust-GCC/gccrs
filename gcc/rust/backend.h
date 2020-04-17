@@ -1,10 +1,13 @@
-#pragma once
+#ifndef RUST_BACKEND_H
+#define RUST_BACKEND_H
 
 #include <gmp.h>
 #include <mpfr.h>
 #include <mpc.h>
 
 #include "operator.h"
+
+// TODO: Will have to be significantly modified to work with Rust and current setup of gccrs
 
 // Pointers to these types are created by the backend, passed to the
 // frontend, and passed back to the backend.  The types must be
@@ -776,3 +779,5 @@ class Backend
   virtual void
   write_export_data(const char* bytes, unsigned int size) = 0;
 };
+
+#endif // RUST_BACKEND_H
