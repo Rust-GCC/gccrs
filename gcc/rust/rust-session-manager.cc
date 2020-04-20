@@ -5,6 +5,7 @@
 
 #include "rust-lex.h"
 #include "rust-parse.h"
+#include "rust-resolution.h"
 
 #include <algorithm>
 
@@ -363,32 +364,20 @@ Session::parse_file (const char *filename)
   Rust::Lexer lex (filename, file_wrap.file, rust_get_linemap ());
   Rust::Parser parser (lex);
 
-  // determine parsing method from options
-  /* FIXME: currently, the dump means that full compilation will not occur as of
-   * present. In future, dumps should not inhibit full compilation. */
+  // generate crate from parser
+  auto parsed_crate = parser.parse_crate ();
+
+  // give a chance to give some debug
   switch (options.dump_option)
     {
-    case CompileOptions::NO_DUMP:
-      fatal_error (UNKNOWN_LOCATION,
-		   "no-dump parsing has not been enabled yet");
-      return;
     case CompileOptions::LEXER_DUMP:
       parser.debug_dump_lex_output ();
-      return;
-    case CompileOptions::PARSER_AST_DUMP:
-      parser.debug_dump_ast_output ();
-      return;
-    case CompileOptions::REGISTER_PLUGINS_DUMP:
-    case CompileOptions::INJECTION_DUMP:
-    case CompileOptions::EXPANSION_DUMP:
-    case CompileOptions::NAME_RESOLUTION_DUMP:
-      // will break later after more stages
       break;
-    // semantic analysis when completed
+    case CompileOptions::PARSER_AST_DUMP:
+      parser.debug_dump_ast_output (parsed_crate);
+      break;
     default:
-      fatal_error (UNKNOWN_LOCATION, "unrecognised dump option: '%u'",
-		   options.dump_option);
-      return;
+      break;
     }
 
   /* basic pipeline:
@@ -404,9 +393,6 @@ Session::parse_file (const char *filename)
    *  - name resolution (name resolution, maybe feature checking, maybe buffered
    * lints)
    *  TODO not done */
-
-  // generate crate from parser
-  AST::Crate parsed_crate = parser.parse_crate ();
 
   fprintf (stderr, "\033[0;31mSUCCESSFULLY PARSED CRATE \n\033[0m");
 
@@ -702,10 +688,10 @@ Session::expansion (AST::Crate &crate ATTRIBUTE_UNUSED)
 }
 
 void
-Session::name_resolution (AST::Crate &crate ATTRIBUTE_UNUSED)
+Session::name_resolution (AST::Crate &crate)
 {
   fprintf (stderr, "started name resolution\n");
-
+  Analysis::TypeResolution::ResolveNamesAndTypes (crate);
   fprintf (stderr, "finished name resolution\n");
 }
 
