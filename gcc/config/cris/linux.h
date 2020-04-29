@@ -128,6 +128,14 @@ along with GCC; see the file COPYING3.  If not see
     }						\
   while (0)
 
+#ifdef TARGET_RUST_OS_INFO
+# error "TARGET_RUST_OS_INFO already defined in linux.h (cris) - c++ undefines it and redefines it."
+#endif
+#define TARGET_RUST_OS_INFO()		\
+  do {					\
+    GNU_USER_TARGET_RUST_OS_INFO();	\
+  } while (0)
+
 /* Node: Type Layout */
      
 #undef SIZE_TYPE

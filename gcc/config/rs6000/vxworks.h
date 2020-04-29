@@ -43,6 +43,14 @@ along with GCC; see the file COPYING3.  If not see
     }		\
   while (0)
 
+#ifdef TARGET_RUST_OS_INFO
+# error "TARGET_RUST_OS_INFO already defined in vxworks.h (rs6000) - c++ undefines it and redefines it."
+#endif
+#define TARGET_RUST_OS_INFO()			\
+  do {			\
+    VXWORKS_TARGET_RUST_OS_INFO ();			\
+  } while (0)
+
 /* Only big endian PPC is supported by VxWorks.  */
 #undef BYTES_BIG_ENDIAN
 #define BYTES_BIG_ENDIAN 1
