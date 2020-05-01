@@ -5,6 +5,7 @@
 
 #include "target.h"
 #include "tm.h"
+#include "tm_p.h"
 
 #include "rust-lex.h"
 #include "rust-parse.h"
