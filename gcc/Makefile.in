@@ -1197,6 +1197,9 @@ CXX_TARGET_OBJS=@cxx_target_objs@
 # Target specific, D specific object file
 D_TARGET_OBJS=@d_target_objs@
 
+# Target specific, D specific object file
+RUST_TARGET_OBJS=@rust_target_objs@
+
 # Target specific, Fortran specific object file
 FORTRAN_TARGET_OBJS=@fortran_target_objs@
 

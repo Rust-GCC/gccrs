@@ -145,6 +145,9 @@
 #  d_target_objs	List of extra target-dependent objects that be
 #			linked into the D compiler only.
 #
+#  rust_target_objs	List of extra target-dependent objects that be
+#			linked into the Rust compiler only.
+#
 #  fortran_target_objs	List of extra target-dependent objects that be
 #			linked into the fortran compiler only.
 #
@@ -200,6 +203,9 @@
 #
 #  target_has_targetdm	Set to yes or no depending on whether the target
 #			has its own definition of targetdm.
+#
+#  target_has_targetrustm	Set to yes or no depending on whether the target
+#			has its own definition of targetrustm.
 
 out_file=
 common_out_file=
@@ -216,6 +222,7 @@ extra_options=
 c_target_objs=
 cxx_target_objs=
 d_target_objs=
+rust_target_objs=
 fortran_target_objs=
 target_has_targetcm=no
 target_has_targetm_common=yes
@@ -3484,6 +3491,10 @@ fi
 
 if [ "$target_has_targetdm" = "no" ]; then
   d_target_objs="$d_target_objs default-d.o"
+fi
+
+if [ "$target_has_targetrustm" = "no" ]; then
+  rust_target_objs="$rust_target_objs default-rust.o"
 fi
 
 # Support for --with-cpu and related options (and a few unrelated options,

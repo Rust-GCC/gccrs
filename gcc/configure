@@ -644,6 +644,7 @@ GMPINC
 GMPLIBS
 target_cpu_default
 d_target_objs
+rust_target_objs
 fortran_target_objs
 cxx_target_objs
 c_target_objs
