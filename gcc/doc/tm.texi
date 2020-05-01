@@ -10803,7 +10803,7 @@ implement pthreads would return @code{sizeof(pthread_mutex_t)}.
 @cindex parameters, rust abi
 
 @deftypefn {Rust Target Hook} void TARGET_RUST_CPU_INFO (void)
-Declare all environmental version identifiers relating to the target CPU
+Declare all environmental CPU info and features relating to the target CPU
 using the function @code{rust_add_target_info}, which takes a string representing
 the feature key and a string representing the feature value.  Configuration pairs
 predefined by this hook apply to all files that are being compiled.
