@@ -22,8 +22,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "rust/rust-target.h"
 #include "rust/rust-target-def.h"
 
-// FIXME: remove: this is only here to make intellisense happy
-#include "i386.h"
+// FIXME: remove: this is (was) only here to make intellisense happy
+//#include "i386.h"
 
 // HACK: allows conversion of (presumably) numeric values to string
 #ifndef STR_HELPER_RUST
