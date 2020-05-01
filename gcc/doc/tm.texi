@@ -10798,6 +10798,22 @@ would return the @code{sizeof(CRITICAL_SECTION)}, while other platforms that
 implement pthreads would return @code{sizeof(pthread_mutex_t)}.
 @end deftypefn
 
+@node Rust Language and ABI
+@section Rust ABI parameters
+@cindex parameters, rust abi
+
+@deftypefn {Rust Target Hook} void TARGET_RUST_CPU_INFO (void)
+Declare all environmental version identifiers relating to the target CPU
+using the function @code{rust_add_target_info}, which takes a string representing
+the feature key and a string representing the feature value.  Configuration pairs
+predefined by this hook apply to all files that are being compiled.
+@end deftypefn
+
+@deftypefn {Rust Target Hook} void TARGET_RUST_OS_INFO (void)
+Similar to @code{TARGET_RUST_CPU_INFO}, but is used for configuration info
+relating to the target operating system.
+@end deftypefn
+
 @node Named Address Spaces
 @section Adding support for named address spaces
 @cindex named address spaces
