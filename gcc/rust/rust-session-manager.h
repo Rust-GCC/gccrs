@@ -82,15 +82,7 @@ namespace Rust {
         }
 
         // Dump all target options to stderr.
-        void dump_target_options() {
-            fprintf(stderr, "\033[0;31m--PREPARING TO DUMP ALL TARGET OPTIONS--\n\033[0m");
-            for (const auto& pairs : features) {
-                for (const auto& value : pairs.second) {
-                    fprintf(stderr, "%s: \"%s\"\n", pairs.first.c_str(), value.c_str());
-                }
-            }
-            fprintf(stderr, "\033[0;31m--END OF TARGET OPTION DUMP--\n\033[0m");
-        }
+        void dump_target_options() const; 
 
         /* According to reference, Rust uses either multi-map key-values or just values (although
          * values may be aliases for a key-value value). This seems like overkill. Thus, depending on

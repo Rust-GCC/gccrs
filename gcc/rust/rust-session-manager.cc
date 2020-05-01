@@ -598,6 +598,25 @@ namespace Rust {
         fprintf(stderr, "finished name resolution\n");
     }
 
+    void TargetOptions::dump_target_options() const {
+        fprintf(stderr, "\033[0;31m--PREPARING TO DUMP ALL TARGET OPTIONS--\n\033[0m");
+        for (const auto& pairs : features) {
+            for (const auto& value : pairs.second) {
+                fprintf(stderr, "%s: \"%s\"\n", pairs.first.c_str(), value.c_str());
+                fprintf(stderr, "Would've just printed a key-value pair\n");
+            }
+            if (pairs.second.empty()) {
+                fprintf(stderr, "%s", pairs.first.c_str());
+                fprintf(stderr, "Would've just printed a value pair\n");
+            }
+        }
+        if (features.empty()) {
+            fprintf(stderr, "No target options available!\n");
+        }
+
+        fprintf(stderr, "\033[0;31m--END OF TARGET OPTION DUMP--\n\033[0m");
+    }
+
     // NOTEs:
     /* mrustc compile pipeline:
      *  - target load (pass target spec to parser?)
