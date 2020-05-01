@@ -10810,7 +10810,7 @@ predefined by this hook apply to all files that are being compiled.
 @end deftypefn
 
 @deftypefn {Rust Target Hook} void TARGET_RUST_OS_INFO (void)
-Similar to @code{TARGET_RUST_CPU_INFO}, but is used for configuration info
+Similarly to @code{TARGET_RUST_CPU_INFO}, but is used for configuration info
 relating to the target operating system.
 @end deftypefn
 
