@@ -198,11 +198,17 @@ namespace Rust {
     }
 
     void Session::init() {
+#ifndef TARGET_RUST_OS_INFO
+#define TARGET_RUST_OS_INFO()
+#endif
 # define builtin_rust_info(KEY, VALUE) rust_add_target_info (KEY, VALUE)
 
         // initialise target hooks
-        targetrustm.rust_cpu_info();
-        targetrustm.rust_os_info();
+        //targetrustm.rust_cpu_info();
+        //targetrustm.rust_os_info();
+        // ok, that's not working too well TODO - see if can salvage old implementation 
+        TARGET_RUST_CPU_INFO();
+        TARGET_RUST_OS_INFO();
         
 #undef builtin_rust_info
     }
@@ -264,6 +270,10 @@ namespace Rust {
             options.dump_option = CompileOptions::EXPANSION_DUMP;
         } else if (arg == "name_resolution") {
             options.dump_option = CompileOptions::NAME_RESOLUTION_DUMP;
+        } else if (arg == "target_options") {
+            // special case - dump all target options, and then quit compilation
+            options.target_data.dump_target_options();
+            return false;
         } else if (arg == "") {
             error_at(UNKNOWN_LOCATION, "dump option was not given a name. choose 'lex' or 'parse'");
             return false;
