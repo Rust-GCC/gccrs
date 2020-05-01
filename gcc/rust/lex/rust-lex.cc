@@ -1,5 +1,6 @@
 #include "rust-lex.h"
 
+#include "rust-system.h" // for rust_assert and rust_unreachable
 #include "rust-diagnostics.h" // for rust_error_at
 #include "rust-linemap.h"
 #include "safe-ctype.h"
@@ -704,7 +705,7 @@ namespace Rust {
                         skip_input();
                         current_char = peek_input();
                     } else {
-                        gcc_unreachable();
+                        rust_unreachable();
                     }
 
                     return Token::make_byte_string(loc, str);
@@ -1235,7 +1236,7 @@ namespace Rust {
 
                     current_char = peek_input();
                 } else {
-                    gcc_unreachable();
+                    rust_unreachable();
                 }
 
                 return Token::make_string(loc, str);
@@ -1788,7 +1789,7 @@ namespace Rust {
                 long hex_num = ::std::strtol(num_str.c_str(), NULL, 16);
 
                 // assert fits a uint32_t
-                gcc_assert(hex_num < 4294967296);
+                rust_assert(hex_num < 4294967296);
 
                 // ok can't figure out how to just convert to codepoint or use "this" so create new
                 // one
@@ -2223,7 +2224,7 @@ namespace Rust {
 
     void Lexer::test_skip_codepoint_input() {
         int toSkip = test_get_input_codepoint_length();
-        gcc_assert(toSkip >= 1);
+        rust_assert(toSkip >= 1);
 
         skip_input(toSkip - 1);
     }
@@ -2305,7 +2306,7 @@ namespace Rust {
         // TODO: implement if still needed
 
         // error out of function as it is not implemented
-        gcc_assert(1 == 0);
+        rust_assert(1 == 0);
         return { 0 };
         /*
                 uint8_t input = peek_input();
