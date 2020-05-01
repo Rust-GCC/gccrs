@@ -128,6 +128,7 @@ namespace Rust {
             INJECTION_DUMP,
             EXPANSION_DUMP,
             NAME_RESOLUTION_DUMP,
+            TARGET_OPTION_DUMP,
             // TODO: add more?
         } dump_option;
 

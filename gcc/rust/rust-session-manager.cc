@@ -273,8 +273,10 @@ namespace Rust {
             options.dump_option = CompileOptions::NAME_RESOLUTION_DUMP;
         } else if (arg == "target_options") {
             // special case - dump all target options, and then quit compilation
-            options.target_data.dump_target_options();
-            return false;
+            // nope, option handling called before init, so have to make this an actual compile option
+            //options.target_data.dump_target_options();
+            //return false;
+            options.dump_option = CompileOptions::TARGET_OPTION_DUMP;
         } else if (arg == "") {
             error_at(UNKNOWN_LOCATION, "dump option was not given a name. choose 'lex' or 'parse'");
             return false;
@@ -327,6 +329,9 @@ namespace Rust {
                 // will break later after more stages
                 break;
             // semantic analysis when completed
+            case CompileOptions::TARGET_OPTION_DUMP:
+                options.target_data.dump_target_options();
+                return;
             default:
                 fatal_error(UNKNOWN_LOCATION, "unrecognised dump option: '%u'", options.dump_option);
                 return;
