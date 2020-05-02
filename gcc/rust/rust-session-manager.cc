@@ -200,9 +200,11 @@ namespace Rust {
 
     void Session::init() {
 #ifndef TARGET_RUST_OS_INFO
-#define TARGET_RUST_OS_INFO()
+# define TARGET_RUST_OS_INFO()
 #endif
-# define builtin_rust_info(KEY, VALUE) rust_add_target_info (KEY, VALUE)
+//#define builtin_rust_info(KEY, VALUE) rust_add_target_info (KEY, VALUE)
+// might as well use c++ stuff
+#define builtin_rust_info(KEY, VALUE) options.target_data.insert_key_value_pair(KEY, VALUE)
 
         // initialise target hooks
         //targetrustm.rust_cpu_info();
@@ -212,6 +214,22 @@ namespace Rust {
         TARGET_RUST_OS_INFO();
         
 #undef builtin_rust_info
+
+        // target-independent values that should exist in all targets
+        options.target_data.insert_key_value_pair("target_pointer_width", std::to_string(POINTER_SIZE));
+        options.target_data.insert_key_value_pair("target_endian", BYTES_BIG_ENDIAN ? "big" : "little");
+
+        // TODO: find min atomic width and max atomic width
+        // from it, add atomic-related stuff for sizes 8, 16, 32, 64, and 128 (if inside bounds)
+        // in rustc, min atomic width is a known quantity (or 8 if not known), and max is also a known quantity (or is pointer size if not known)
+        // TODO: add atomic pointer if some criteria is satisfied
+
+        // TODO: find whether target has "atomic cas"
+
+        // add debug_assertions if enabled and proc_macro if crate type has it or whatever
+
+        // derived values from hook
+        options.target_data.init_derived_values();
     }
 
     // Initialise default options. Actually called before handle_option, unlike init itself.
@@ -608,11 +626,9 @@ namespace Rust {
         for (const auto& pairs : features) {
             for (const auto& value : pairs.second) {
                 fprintf(stderr, "%s: \"%s\"\n", pairs.first.c_str(), value.c_str());
-                fprintf(stderr, "Would've just printed a key-value pair\n");
             }
             if (pairs.second.empty()) {
                 fprintf(stderr, "%s", pairs.first.c_str());
-                fprintf(stderr, "Would've just printed a value pair\n");
             }
         }
         if (features.empty()) {
@@ -620,6 +636,64 @@ namespace Rust {
         }
 
         fprintf(stderr, "\033[0;31m--END OF TARGET OPTION DUMP--\n\033[0m");
+    }
+
+    void TargetOptions::init_derived_values() {
+        // enable derived values based on target families
+        if (has_key_value_pair("target_family", "unix"))
+            insert_key("unix");
+        if (has_key_value_pair("target_family", "windows"))
+            insert_key("windows");
+        
+        // implicitly enable features
+        if (has_key_value_pair("target_feature", "aes"))
+            enable_implicit_feature_reqs("aes");
+        if (has_key_value_pair("target_feature", "avx"))
+            enable_implicit_feature_reqs("sse4.2");
+        if (has_key_value_pair("target_feature", "avx2"))
+            enable_implicit_feature_reqs("avx");
+        if (has_key_value_pair("target_feature", "pclmulqdq"))
+            enable_implicit_feature_reqs("sse2");
+        if (has_key_value_pair("target_feature", "sha"))
+            enable_implicit_feature_reqs("sse2");
+        if (has_key_value_pair("target_feature", "sse2"))
+            enable_implicit_feature_reqs("sse");
+        if (has_key_value_pair("target_feature", "sse3"))
+            enable_implicit_feature_reqs("sse2");
+        if (has_key_value_pair("target_feature", "sse4.1"))
+            enable_implicit_feature_reqs("sse3");
+        if (has_key_value_pair("target_feature", "sse4.2"))
+            enable_implicit_feature_reqs("sse4.1");
+        if (has_key_value_pair("target_feature", "ssse3"))
+            enable_implicit_feature_reqs("sse3");
+    }
+
+    void TargetOptions::enable_implicit_feature_reqs(std::string feature) {
+        if (feature == "aes") 
+            enable_implicit_feature_reqs("sse2");
+        else if (feature == "avx")
+            enable_implicit_feature_reqs("sse4.2");
+        else if (feature == "avx2")
+            enable_implicit_feature_reqs("avx");
+        else if (feature == "fma")
+            enable_implicit_feature_reqs("avx");
+        else if (feature == "pclmulqdq") 
+            enable_implicit_feature_reqs("sse2");
+        else if (feature == "sha")
+            enable_implicit_feature_reqs("sse2");
+        else if (feature == "sse2")
+            enable_implicit_feature_reqs("sse");
+        else if (feature == "sse3")
+            enable_implicit_feature_reqs("sse2");
+        else if (feature == "sse4.1")
+            enable_implicit_feature_reqs("sse3");
+        else if (feature == "sse4.2")
+            enable_implicit_feature_reqs("sse4.1");
+        else if (feature == "ssse3")
+            enable_implicit_feature_reqs("sse3");
+
+        if (!has_key_value_pair("target_feature", feature))
+            insert_key_value_pair("target_feature", feature);
     }
 
     // NOTEs:

@@ -44,13 +44,13 @@ ix86_rust_target_cpu_info (void)
         rust_add_target_info("target_arch", "x86_64");
 
         // TODO: should these go here or is there a platform-neutral way of getting them (since they aren't defined in i386-c.c or i386-d.c)?
-        rust_add_target_info("target_pointer_width", STRINGIFY_RUST(POINTER_SIZE));
-        rust_add_target_info("target_endian", BYTES_BIG_ENDIAN ? "big" : "little");
+        //rust_add_target_info("target_pointer_width", STRINGIFY_RUST(POINTER_SIZE)); // this did not work
+        //rust_add_target_info("target_endian", BYTES_BIG_ENDIAN ? "big" : "little");
         // there is a platform-neutral way actually, I'm pretty sure - see cppbuiltins.c
 
         if (TARGET_X32) {
             // this means it uses 32-bit pointers with 64-bit, basically (ILP32)
-            rust_add_target_info("target_pointer_width", "32");
+            //rust_add_target_info("target_pointer_width", "32");
             // TODO: may also change x86_64-...-linux-gnu to x86_64-...-linux-gnux32
 
             // is this better than just putting in pointer width outside of if statement?
