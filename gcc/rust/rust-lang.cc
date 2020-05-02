@@ -148,7 +148,6 @@ grs_langhook_parse_file (void)
 {
   fprintf (stderr, "Preparing to parse files. \n");
 
-  // grs_parse_files(num_in_fnames, in_fnames);
   session.parse_files (num_in_fnames, in_fnames);
 }
 
@@ -176,7 +175,7 @@ grs_langhook_type_for_mode (machine_mode mode, int unsignedp)
     return unsignedp ? unsigned_intSI_type_node : intSI_type_node;
   if (mode
       == TYPE_MODE (
-	   intDI_type_node)) // double integer mode - eight-byte integer
+	intDI_type_node)) // double integer mode - eight-byte integer
     return unsignedp ? unsigned_intDI_type_node : intDI_type_node;
   if (mode
       == TYPE_MODE (intTI_type_node)) // tetra integer mode - 16-byte integer

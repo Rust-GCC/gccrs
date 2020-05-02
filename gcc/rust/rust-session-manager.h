@@ -9,7 +9,7 @@
 #include "rust-system.h"
 
 #include "rust-linemap.h"
-#include "backend.h"
+#include "rust-backend.h"
 
 #include <string>
 #include <unordered_map>
@@ -25,7 +25,8 @@ namespace AST {
 struct Crate;
 }
 
-// Data related to target, most useful for conditional compilation and whatever.
+// Data related to target, most useful for conditional compilation and
+// whatever.
 struct TargetOptions
 {
   // TODO: maybe make private and access through helpers to allow changes to
@@ -67,8 +68,8 @@ public:
     return "";
   }
 
-  // Returns all values associated with a key (including none), or an empty set
-  // if no key is found.
+  // Returns all values associated with a key (including none), or an empty
+  // set if no key is found.
   std::unordered_set< ::std::string> get_values_for_key (std::string key) const
   {
     auto it = features.find (key);
@@ -79,10 +80,9 @@ public:
     return {};
   }
 
-  /* Inserts a key (no value) into the feature set. This will do nothing if the
-   * key already exists.
-   * This returns whether the insertion was successful (i.e. whether key already
-   * existed). */
+  /* Inserts a key (no value) into the feature set. This will do nothing if
+   * the key already exists. This returns whether the insertion was successful
+   * (i.e. whether key already existed). */
   bool insert_key (std::string key)
   {
     return features
@@ -102,14 +102,13 @@ public:
    * values (although values may be aliases for a key-value value). This seems
    * like overkill. Thus, depending on whether the attributes used in cfg are
    * fixed or not, I think I'll either put each non-multimap "key-value" as a
-   * separate field and have the multimap "key-values" in a regular map for that
-   * one key, or actually use a multimap.
+   * separate field and have the multimap "key-values" in a regular map for
+   * that one key, or actually use a multimap.
    *
-   * rustc itself uses a set of key-value tuples where the second tuple element
-   * is optional. This gets rid of the requirement to make a multi-map, I guess,
-   * but seems like it might make
-   * search slow (unless all "is defined"-only ones have empty string as second
-   * element). */
+   * rustc itself uses a set of key-value tuples where the second tuple
+   * element is optional. This gets rid of the requirement to make a
+   * multi-map, I guess, but seems like it might make search slow (unless all
+   * "is defined"-only ones have empty string as second element). */
   /* cfg attributes:
    * - target_arch: single value
    * - target_feature: multiple values possible
@@ -117,10 +116,10 @@ public:
    * - target_family: single value (or no value?)
    * - unix: set when target_family = "unix"
    * - windows: set when target_family = "windows"
-   *  - if these are just syntactic sugar, then maybe have a separate set or map
-   * for this kind of stuff
-   * - target_env: set when needed for disambiguation about ABI - usually empty
-   * string for GNU, complicated
+   *  - if these are just syntactic sugar, then maybe have a separate set or
+   * map for this kind of stuff
+   * - target_env: set when needed for disambiguation about ABI - usually
+   * empty string for GNU, complicated
    *  - seems to be a single value (if any)
    * - target_endian: single value; "little" or "big"
    * - target_pointer_width: single value, "32" for 32-bit pointers, etc.
@@ -129,7 +128,8 @@ public:
    *  - again, seems similar to a "is defined" rather than "is equal to" like
    * unix
    * - debug_assertions: seems to "is defined"
-   * - proc_macro: no idea, bad docs. seems to be boolean, so maybe "is defined"
+   * - proc_macro: no idea, bad docs. seems to be boolean, so maybe "is
+   * defined"
    */
 };
 
@@ -200,9 +200,9 @@ private:
 
   // pipeline stages - TODO maybe move?
   /* Register plugins pipeline stage. TODO maybe move to another object?
-   * Currently dummy stage. In future will handle attribute injection (top-level
-   * inner attribute creation from command line arguments), setting options
-   * maybe, registering lints maybe, loading plugins maybe. */
+   * Currently dummy stage. In future will handle attribute injection
+   * (top-level inner attribute creation from command line arguments), setting
+   * options maybe, registering lints maybe, loading plugins maybe. */
   void register_plugins (AST::Crate &crate);
   /* Injection pipeline stage. TODO maybe move to another object? Maybe have
    * some lint checks (in future, obviously), register builtin macros, crate
@@ -212,9 +212,9 @@ private:
    * macros, maybe build test harness in future, AST validation, maybe create
    * macro crate (if not rustdoc).*/
   void expansion (AST::Crate &crate);
-  /* Name resolution pipeline stage. TODO maybe move to another object. Performs
-   * name resolution, maybe complete gated feature checking, maybe create
-   * buffered lints in future.
+  /* Name resolution pipeline stage. TODO maybe move to another object.
+   * Performs name resolution, maybe complete gated feature checking, maybe
+   * create buffered lints in future.
    */
   void name_resolution (AST::Crate &crate);
 };
