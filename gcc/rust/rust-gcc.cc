@@ -45,7 +45,7 @@
 
 #include "rust-location.h"
 #include "rust-linemap.h"
-#include "backend.h"
+#include "rust-backend.h"
 #include "rust-object-export.h"
 
 // TODO: this will have to be significantly modified to work with Rust
@@ -1589,8 +1589,7 @@ Gcc_backend::unary_expression (Operator op, Bexpression *expr,
   enum tree_code code;
   switch (op)
     {
-    case OPERATOR_MINUS:
-      {
+      case OPERATOR_MINUS: {
 	tree computed_type = excess_precision_type (type_tree);
 	if (computed_type != NULL_TREE)
 	  {
@@ -2430,8 +2429,7 @@ Gcc_backend::non_zero_size_type (tree type)
 	}
       return go_non_zero_struct;
 
-    case ARRAY_TYPE:
-      {
+      case ARRAY_TYPE: {
 	tree element_type = non_zero_size_type (TREE_TYPE (type));
 	return build_array_type_nelts (element_type, 1);
       }
@@ -3275,7 +3273,7 @@ Gcc_backend::define_builtin (built_in_function bcode, const char *name,
 // Return the backend generator.
 
 Backend *
-go_get_backend ()
+rust_get_backend ()
 {
   return new Gcc_backend ();
 }
