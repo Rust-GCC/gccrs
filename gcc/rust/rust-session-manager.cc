@@ -628,7 +628,7 @@ namespace Rust {
                 fprintf(stderr, "%s: \"%s\"\n", pairs.first.c_str(), value.c_str());
             }
             if (pairs.second.empty()) {
-                fprintf(stderr, "%s", pairs.first.c_str());
+                fprintf(stderr, "%s\n", pairs.first.c_str());
             }
         }
         if (features.empty()) {
