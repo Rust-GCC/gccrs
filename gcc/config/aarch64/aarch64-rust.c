@@ -38,8 +38,6 @@ aarch64_rust_target_cpu_info (void)
 # error "isa_flag and isa_flag2 already defined in aarch64-rust.c - weird things might happen"
 #endif
 
-  /* appears to be what is referred to what seems to be referred to 
-  as "neon" in rust, at least in target def, according to aarch64-c.c */
   if (TARGET_SIMD) 
     rust_add_target_info ("target_feature", "neon");
   /* appears to be what is referred to what seems to be referred to
@@ -86,6 +84,35 @@ aarch64_rust_target_cpu_info (void)
   // TODO: assuming that this is the correct RCPC and that the AARCH64_FL_RCPC8_4 is not
   if (isa_flag & AARCH64_FL_RCPC)
     rust_add_target_info ("target_feature", "rcpc");
+  // TODO: find below target features if they exist
+  /*if (TARGET_ZCM)
+    rust_add_target_info ("target_feature", "zcm");*/
+  /*if (TARGET_ZCZ)
+    rust_add_target_info ("target_feature", "zcz");*/
+  // some possible target features: "thumb-mode"
+  if (TARGET_SM4)
+    rust_add_target_info ("target_feature", "sm4");
+  if (TARGET_SHA3)
+    rust_add_target_info ("target_feature", "sha3");
+  if (TARGET_SHA2)
+    rust_add_target_info ("target_feature", "sha2");
+  if (TARGET_AES)
+    rust_add_target_info ("target_feature", "aes");
+  if (TARGET_TME)
+    rust_add_target_info ("target_feature", "tme");
+  if (TARGET_MEMTAG)
+    rust_add_target_info ("target_feature", "mte");
+
+  if (AARCH64_ISA_V8_1)
+    rust_add_target_info ("target_feature", "v8.1a");
+  if (AARCH64_ISA_V8_2)
+    rust_add_target_info ("target_feature", "v8.2a");
+  if (AARCH64_ISA_V8_3)
+    rust_add_target_info ("target_feature", "v8.3a");
+  if (AARCH64_ISA_V8_4)
+    rust_add_target_info ("target_feature", "v8.4a");
+  if (AARCH64_ISA_V8_5)
+    rust_add_target_info ("target_feature", "v8.5a");
     
 #undef isa_flag
 #undef isa_flag2
