@@ -336,6 +336,7 @@ aarch64*-*-*)
 	;;
 alpha*-*-*)
 	cpu_type=alpha
+	rust_target_objs="alpha-rust.o"
 	extra_options="${extra_options} g.opt"
 	;;
 amdgcn*)
