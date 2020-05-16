@@ -727,8 +727,7 @@ TypeResolution::visit (AST::LetStmt &stmt)
   // ensure the decl has the type set for compilation later on
   if (!stmt.has_type ())
     {
-      // FIXME
-      // stmt.type = inferedType;
+      stmt.inferedType = inferedType;
     }
 
   // get all the names part of this declaration and add the types to the scope
