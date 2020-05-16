@@ -74,11 +74,12 @@ class LiteralExpr : public ExprWithoutBlock
     ::std::string value_as_string;
     LitType type;*/
   // moved to Literal
+
+public:
   Literal literal;
 
   Location locus;
 
-public:
   ::std::string as_string () const { return literal.as_string (); }
 
   inline Literal::LitType get_lit_type () const
@@ -294,7 +295,7 @@ OVERRIDE { return new PathExprQual(*this);
 class OperatorExpr : public ExprWithoutBlock
 {
   // TODO: create binary and unary operator subclasses?
-
+public:
   Location locus;
 
 protected:
@@ -618,6 +619,10 @@ public:
     = default;
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+
+  void visit_lhs (ASTVisitor &vis) { main_or_left_expr->accept_vis (vis); }
+
+  void visit_rhs (ASTVisitor &vis) { right_expr->accept_vis (vis); }
 
 protected:
   // Use covariance to implement clone function as returning this object rather

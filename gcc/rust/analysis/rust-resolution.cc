@@ -1,20 +1,53 @@
 #include "rust-resolution.h"
 #include "rust-diagnostics.h"
 
+#define ADD_BUILTIN_TYPE(_X, _S)                                               \
+  do                                                                           \
+    {                                                                          \
+      AST::PathIdentSegment seg (_X);                                          \
+      auto typePath = ::std::unique_ptr<AST::TypePathSegment> (                \
+	new AST::TypePathSegment (::std::move (seg), false,                    \
+				  Linemap::unknown_location ()));              \
+      ::std::vector< ::std::unique_ptr<AST::TypePathSegment> > segs;           \
+      segs.push_back (::std::move (typePath));                                 \
+      auto bType = new AST::TypePath (::std::move (segs),                      \
+				      Linemap::unknown_location (), false);    \
+      _S.Insert (_X, bType);                                                   \
+    }                                                                          \
+  while (0)
+
 namespace Rust {
 namespace Analysis {
 
-TypeResolution::TypeResolution (AST::Crate &crate) : scope (), crate (crate)
+TypeResolution::TypeResolution (AST::Crate &crate) : crate (crate)
 {
-  // push all builtin types
-  // base is parse_path_ident_segment based up on segments
-  /*  scope.Insert ("u8",
-	      new AST::MaybeNamedParam (Identifier ("u8"),
-					AST::MaybeNamedParam::IDENTIFIER,
-					NULL, Location ()));*/
+  typeScope.Push ();
+  scope.Push ();
+
+  // push all builtin types - this is probably too basic for future needs
+  ADD_BUILTIN_TYPE ("u8", typeScope);
+  ADD_BUILTIN_TYPE ("u16", typeScope);
+  ADD_BUILTIN_TYPE ("u32", typeScope);
+  ADD_BUILTIN_TYPE ("u64", typeScope);
+
+  ADD_BUILTIN_TYPE ("i8", typeScope);
+  ADD_BUILTIN_TYPE ("i16", typeScope);
+  ADD_BUILTIN_TYPE ("i32", typeScope);
+  ADD_BUILTIN_TYPE ("i64", typeScope);
+
+  ADD_BUILTIN_TYPE ("f32", typeScope);
+  ADD_BUILTIN_TYPE ("f64", typeScope);
+
+  ADD_BUILTIN_TYPE ("char", typeScope);
+  ADD_BUILTIN_TYPE ("str", typeScope);
+  ADD_BUILTIN_TYPE ("bool", typeScope);
 }
 
-TypeResolution::~TypeResolution () {}
+TypeResolution::~TypeResolution ()
+{
+  typeScope.Pop ();
+  scope.Pop ();
+}
 
 bool
 TypeResolution::ResolveNamesAndTypes (AST::Crate &crate)
@@ -26,12 +59,9 @@ TypeResolution::ResolveNamesAndTypes (AST::Crate &crate)
 bool
 TypeResolution::go ()
 {
-  scope.Push ();
   for (auto &item : crate.items)
-    {
-      item->accept_vis (*this);
-    }
-  scope.Pop ();
+    item->accept_vis (*this);
+
   return true;
 }
 
@@ -50,7 +80,15 @@ TypeResolution::visit (AST::AttrInputMetaItemContainer &input)
 void
 TypeResolution::visit (AST::IdentifierExpr &ident_expr)
 {
-  printf ("IdentifierExpr %s\n", ident_expr.as_string ().c_str ());
+  AST::Type *type = NULL;
+  bool ok = scope.Lookup (ident_expr.ident, &type);
+  if (!ok)
+    {
+      rust_error_at (ident_expr.locus, "unknown identifier");
+      return;
+    }
+
+  typeBuffer.push_back (type);
 }
 
 void
@@ -68,22 +106,33 @@ TypeResolution::visit (AST::MacroInvocationSemi &macro)
 // rust-path.h
 void
 TypeResolution::visit (AST::PathInExpression &path)
-{}
+{
+  printf ("PathInExpression: %s\n", path.as_string ().c_str ());
+}
+
 void
 TypeResolution::visit (AST::TypePathSegment &segment)
 {}
 void
 TypeResolution::visit (AST::TypePathSegmentGeneric &segment)
 {}
+
 void
 TypeResolution::visit (AST::TypePathSegmentFunction &segment)
 {}
+
 void
 TypeResolution::visit (AST::TypePath &path)
-{}
+{
+  printf ("TypePath: %s\n", path.as_string ().c_str ());
+}
+
 void
 TypeResolution::visit (AST::QualifiedPathInExpression &path)
-{}
+{
+  printf ("QualifiedPathInExpression: %s\n", path.as_string ().c_str ());
+}
+
 void
 TypeResolution::visit (AST::QualifiedPathInType &path)
 {}
@@ -92,19 +141,69 @@ TypeResolution::visit (AST::QualifiedPathInType &path)
 void
 TypeResolution::visit (AST::LiteralExpr &expr)
 {
-  printf ("LiteralExpr: %s\n", expr.as_string ().c_str ());
-  // figure out what this type is and push it onto the
+  std::string type;
+  switch (expr.literal.get_lit_type ())
+    {
+    case AST::Literal::CHAR:
+      type = "char";
+      break;
+
+    case AST::Literal::STRING:
+    case AST::Literal::RAW_STRING:
+      type = "str";
+      break;
+
+    case AST::Literal::BOOL:
+      type = "bool";
+      break;
+
+    case AST::Literal::BYTE:
+      type = "u8";
+      break;
+
+      // FIXME these are not always going to be the case
+      // eg: suffix on the value can change the type
+    case AST::Literal::FLOAT:
+      type = "f32";
+      break;
+
+    case AST::Literal::INT:
+      type = "i32";
+      break;
+
+    case AST::Literal::BYTE_STRING:
+    case AST::Literal::RAW_BYTE_STRING:
+      // FIXME
+      break;
+    }
+
+  if (type.empty ())
+    {
+      rust_error_at (expr.locus, "unknown literal: %s",
+		     expr.literal.as_string ().c_str ());
+      return;
+    }
+
+  AST::Type *val = NULL;
+  bool ok = typeScope.Lookup (type, &val);
+  if (ok)
+    typeBuffer.push_back (val);
+  else
+    rust_error_at (expr.locus, "unknown literal type: %s", type.c_str ());
 }
 
 void
 TypeResolution::visit (AST::AttrInputLiteral &attr_input)
 {}
+
 void
 TypeResolution::visit (AST::MetaItemLitExpr &meta_item)
 {}
+
 void
 TypeResolution::visit (AST::MetaItemPathLit &meta_item)
 {}
+
 void
 TypeResolution::visit (AST::BorrowExpr &expr)
 {}
@@ -117,24 +216,64 @@ TypeResolution::visit (AST::ErrorPropagationExpr &expr)
 void
 TypeResolution::visit (AST::NegationExpr &expr)
 {}
+
 void
 TypeResolution::visit (AST::ArithmeticOrLogicalExpr &expr)
-{}
+{
+  size_t before;
+  before = typeBuffer.size ();
+  expr.visit_lhs (*this);
+  if (typeBuffer.size () <= before)
+    {
+      rust_error_at (expr.locus, "unable to determine lhs type");
+      return;
+    }
+
+  auto lhsType = typeBuffer.back ();
+  typeBuffer.pop_back ();
+
+  before = typeBuffer.size ();
+  expr.visit_rhs (*this);
+  if (typeBuffer.size () <= before)
+    {
+      rust_error_at (expr.locus, "unable to determine rhs type");
+      return;
+    }
+
+  auto rhsType = typeBuffer.back ();
+  // not poping because we will be checking they match and the
+  // scope will require knowledge of the type
+
+  // do the lhsType and the rhsType match
+  // TODO
+}
+
 void
 TypeResolution::visit (AST::ComparisonExpr &expr)
 {}
+
 void
 TypeResolution::visit (AST::LazyBooleanExpr &expr)
-{}
+{
+  printf ("LazyBooleanExpr: %s\n", expr.as_string ().c_str ());
+}
+
 void
 TypeResolution::visit (AST::TypeCastExpr &expr)
 {}
+
 void
 TypeResolution::visit (AST::AssignmentExpr &expr)
-{}
+{
+  printf ("AssignmentExpr: %s\n", expr.as_string ().c_str ());
+}
+
 void
 TypeResolution::visit (AST::CompoundAssignmentExpr &expr)
-{}
+{
+  printf ("CompoundAssignmentExpr: %s\n", expr.as_string ().c_str ());
+}
+
 void
 TypeResolution::visit (AST::GroupedExpr &expr)
 {}
@@ -391,9 +530,13 @@ TypeResolution::visit (AST::Enum &enum_item)
 void
 TypeResolution::visit (AST::Union &union_item)
 {}
+
 void
 TypeResolution::visit (AST::ConstantItem &const_item)
-{}
+{
+  printf ("ConstantItem: %s\n", const_item.as_string ().c_str ());
+}
+
 void
 TypeResolution::visit (AST::StaticItem &static_item)
 {}
@@ -474,7 +617,6 @@ TypeResolution::visit (AST::LiteralPattern &pattern)
 void
 TypeResolution::visit (AST::IdentifierPattern &pattern)
 {
-  printf ("IdentifierPattern: %s\n", pattern.as_string ().c_str ());
   letPatternBuffer.push_back (pattern);
 }
 
@@ -545,12 +687,15 @@ TypeResolution::visit (AST::EmptyStmt &stmt)
 void
 TypeResolution::visit (AST::LetStmt &stmt)
 {
-  AST::Type *inferedType = NULL;
-  if (stmt.has_type ())
+  if (!stmt.has_init_expr () && !stmt.has_type ())
     {
-      inferedType = stmt.type.get ();
+      rust_error_at (stmt.locus,
+		     "E0282: type annotations or init expression needed");
+      return;
     }
-  else if (stmt.has_init_expr ())
+
+  AST::Type *inferedType = NULL;
+  if (stmt.has_init_expr ())
     {
       stmt.init_expr->accept_vis (*this);
 
@@ -565,13 +710,26 @@ TypeResolution::visit (AST::LetStmt &stmt)
       inferedType = typeBuffer.back ();
       typeBuffer.pop_back ();
     }
-  else
+
+  if (stmt.has_type () && stmt.has_init_expr ())
     {
-      rust_error_at (stmt.locus, "unable to determine type for declaration");
-      return;
+      auto declaredTyped = stmt.type.get ();
+      // TODO compare this type to the inferred type to ensure they match
+    }
+  else if (stmt.has_type () && !stmt.has_init_expr ())
+    {
+      inferedType = stmt.type.get ();
     }
 
-  // TODO check we know what the type is
+  // TODO check we know what the type is in the scope requires the builtins to
+  // be defined at the constructor
+
+  // ensure the decl has the type set for compilation later on
+  if (!stmt.has_type ())
+    {
+      // FIXME
+      // stmt.type = inferedType;
+    }
 
   // get all the names part of this declaration and add the types to the scope
   stmt.variables_pattern->accept_vis (*this);
