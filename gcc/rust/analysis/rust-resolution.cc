@@ -19,7 +19,8 @@
 namespace Rust {
 namespace Analysis {
 
-TypeResolution::TypeResolution (AST::Crate &crate) : crate (crate)
+TypeResolution::TypeResolution (AST::Crate &crate, TopLevelScan &toplevel)
+  : crate (crate), toplevel (toplevel)
 {
   typeScope.Push ();
   scope.Push ();
@@ -50,9 +51,9 @@ TypeResolution::~TypeResolution ()
 }
 
 bool
-TypeResolution::ResolveNamesAndTypes (AST::Crate &crate)
+TypeResolution::ResolveNamesAndTypes (AST::Crate &crate, TopLevelScan &toplevel)
 {
-  TypeResolution resolver (crate);
+  TypeResolution resolver (crate, toplevel);
   return resolver.go ();
 }
 
@@ -61,6 +62,30 @@ TypeResolution::go ()
 {
   for (auto &item : crate.items)
     item->accept_vis (*this);
+
+  return true;
+}
+
+bool
+TypeResolution::typesAreCompatible (AST::Type *lhs, AST::Type *rhs,
+				    Location locus)
+{
+  lhs->accept_vis (*this);
+  rhs->accept_vis (*this);
+
+  auto rhsTypeStr = typeComparisonBuffer.back ();
+  typeComparisonBuffer.pop_back ();
+  auto lhsTypeStr = typeComparisonBuffer.back ();
+  typeComparisonBuffer.pop_back ();
+
+  // FIXME this needs to handle the cases of an i8 going into an i32 which is
+  // compatible
+  if (lhsTypeStr.compare (rhsTypeStr))
+    {
+      rust_error_at (locus, "E0308: expected: %s, found %s",
+		     lhsTypeStr.c_str (), rhsTypeStr.c_str ());
+      return false;
+    }
 
   return true;
 }
@@ -124,18 +149,21 @@ TypeResolution::visit (AST::TypePathSegmentFunction &segment)
 void
 TypeResolution::visit (AST::TypePath &path)
 {
-  printf ("TypePath: %s\n", path.as_string ().c_str ());
+  // this may not be robust enough for type comparisons but lets try it for now
+  typeComparisonBuffer.push_back (path.as_string ());
 }
 
 void
 TypeResolution::visit (AST::QualifiedPathInExpression &path)
 {
-  printf ("QualifiedPathInExpression: %s\n", path.as_string ().c_str ());
+  typeComparisonBuffer.push_back (path.as_string ());
 }
 
 void
 TypeResolution::visit (AST::QualifiedPathInType &path)
-{}
+{
+  typeComparisonBuffer.push_back (path.as_string ());
+}
 
 // rust-expr.h
 void
@@ -245,7 +273,7 @@ TypeResolution::visit (AST::ArithmeticOrLogicalExpr &expr)
   // scope will require knowledge of the type
 
   // do the lhsType and the rhsType match
-  // TODO
+  typesAreCompatible (lhsType, rhsType, expr.right_expr->get_locus_slow ());
 }
 
 void
@@ -254,9 +282,7 @@ TypeResolution::visit (AST::ComparisonExpr &expr)
 
 void
 TypeResolution::visit (AST::LazyBooleanExpr &expr)
-{
-  printf ("LazyBooleanExpr: %s\n", expr.as_string ().c_str ());
-}
+{}
 
 void
 TypeResolution::visit (AST::TypeCastExpr &expr)
@@ -265,14 +291,41 @@ TypeResolution::visit (AST::TypeCastExpr &expr)
 void
 TypeResolution::visit (AST::AssignmentExpr &expr)
 {
-  printf ("AssignmentExpr: %s\n", expr.as_string ().c_str ());
+  size_t before;
+  before = typeBuffer.size ();
+  expr.visit_lhs (*this);
+  if (typeBuffer.size () <= before)
+    {
+      rust_error_at (expr.locus, "unable to determine lhs type");
+      return;
+    }
+
+  auto lhsType = typeBuffer.back ();
+  typeBuffer.pop_back ();
+
+  before = typeBuffer.size ();
+  expr.visit_rhs (*this);
+  if (typeBuffer.size () <= before)
+    {
+      rust_error_at (expr.locus, "unable to determine rhs type");
+      return;
+    }
+
+  auto rhsType = typeBuffer.back ();
+  // not poping because we will be checking they match and the
+  // scope will require knowledge of the type
+
+  // do the lhsType and the rhsType match
+  if (!typesAreCompatible (lhsType, rhsType,
+			   expr.right_expr->get_locus_slow ()))
+    return;
+
+  // is the lhs mutable?
 }
 
 void
 TypeResolution::visit (AST::CompoundAssignmentExpr &expr)
-{
-  printf ("CompoundAssignmentExpr: %s\n", expr.as_string ().c_str ());
-}
+{}
 
 void
 TypeResolution::visit (AST::GroupedExpr &expr)
@@ -340,9 +393,13 @@ TypeResolution::visit (AST::EnumExprTuple &expr)
 void
 TypeResolution::visit (AST::EnumExprFieldless &expr)
 {}
+
 void
 TypeResolution::visit (AST::CallExpr &expr)
-{}
+{
+  printf ("CallExpr: %s\n", expr.as_string ().c_str ());
+}
+
 void
 TypeResolution::visit (AST::MethodCallExpr &expr)
 {}
@@ -481,18 +538,25 @@ TypeResolution::visit (AST::UseDeclaration &use_decl)
 void
 TypeResolution::visit (AST::Function &function)
 {
+  // always emit the function with return type in the event of nil return type
+  // its  a marker for a void function
   scope.Insert (function.function_name, function.return_type.get ());
 
   scope.Push ();
-  printf ("INSIDE FUNCTION: %s\n", function.function_name.c_str ());
-
   for (auto &param : function.function_params)
     {
-      printf ("FUNC PARAM: %s\n", param.as_string ().c_str ());
-    }
+      auto before = letPatternBuffer.size ();
+      param.param_name->accept_vis (*this);
+      if (letPatternBuffer.size () <= before)
+	{
+	  rust_error_at (param.locus, "failed to analyse parameter name");
+	  return;
+	}
 
-  // ensure return types
-  // TODO
+      auto paramName = letPatternBuffer.back ();
+      letPatternBuffer.pop_back ();
+      scope.Insert (paramName.variable_ident, param.type.get ());
+    }
 
   // walk the expression body
   for (auto &stmt : function.function_body->statements)
@@ -713,8 +777,11 @@ TypeResolution::visit (AST::LetStmt &stmt)
 
   if (stmt.has_type () && stmt.has_init_expr ())
     {
-      auto declaredTyped = stmt.type.get ();
-      // TODO compare this type to the inferred type to ensure they match
+      if (!typesAreCompatible (stmt.type.get (), inferedType,
+			       stmt.init_expr->get_locus_slow ()))
+	{
+	  return;
+	}
     }
   else if (stmt.has_type () && !stmt.has_init_expr ())
     {
@@ -727,8 +794,7 @@ TypeResolution::visit (AST::LetStmt &stmt)
   // ensure the decl has the type set for compilation later on
   if (!stmt.has_type ())
     {
-      // FIXME
-      // stmt.type = inferedType;
+      stmt.inferedType = inferedType;
     }
 
   // get all the names part of this declaration and add the types to the scope
@@ -743,16 +809,12 @@ TypeResolution::visit (AST::LetStmt &stmt)
 void
 TypeResolution::visit (AST::ExprStmtWithoutBlock &stmt)
 {
-  printf ("ExprStmtWithoutBlock: %s\n", stmt.as_string ().c_str ());
   stmt.expr->accept_vis (*this);
 }
 
 void
 TypeResolution::visit (AST::ExprStmtWithBlock &stmt)
-{
-  printf ("ExprStmtWithBlock: %s\n", stmt.as_string ().c_str ());
-  stmt.expr->accept_vis (*this);
-}
+{}
 
 // rust-type.h
 void

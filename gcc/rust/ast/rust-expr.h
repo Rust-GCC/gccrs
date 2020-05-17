@@ -568,7 +568,6 @@ public:
     RIGHT_SHIFT	 // std::ops::Shr
   };
 
-private:
   // Note: overloading trait specified in comments
   ExprType expr_type;
 
@@ -880,10 +879,10 @@ protected:
 // Binary assignment expression.
 class AssignmentExpr : public OperatorExpr
 {
+public:
   // Expr* right_expr;
   ::std::unique_ptr<Expr> right_expr;
 
-public:
   /*~AssignmentExpr() {
       delete right_expr;
   }*/
@@ -940,6 +939,10 @@ public:
   AssignmentExpr &operator= (AssignmentExpr &&other) = default;
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+
+  void visit_lhs (ASTVisitor &vis) { main_or_left_expr->accept_vis (vis); }
+
+  void visit_rhs (ASTVisitor &vis) { right_expr->accept_vis (vis); }
 
 protected:
   // Use covariance to implement clone function as returning this object rather
@@ -2523,6 +2526,7 @@ protected:
 // Function call expression AST node
 class CallExpr : public ExprWithoutBlock
 {
+public:
   // Expr* function;
   ::std::unique_ptr<Expr> function;
   //::std::vector<Expr> params; // inlined form of CallParams
@@ -2530,7 +2534,6 @@ class CallExpr : public ExprWithoutBlock
 
   Location locus;
 
-public:
   /*~CallExpr() {
       delete function;
   }*/
