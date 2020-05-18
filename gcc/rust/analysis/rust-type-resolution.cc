@@ -1,4 +1,4 @@
-#include "rust-resolution.h"
+#include "rust-type-resolution.h"
 #include "rust-diagnostics.h"
 
 #define ADD_BUILTIN_TYPE(_X, _S)                                               \
@@ -20,11 +20,8 @@ namespace Rust {
 namespace Analysis {
 
 TypeResolution::TypeResolution (AST::Crate &crate, TopLevelScan &toplevel)
-  : crate (crate), toplevel (toplevel)
+  : Resolution (crate, toplevel)
 {
-  typeScope.Push ();
-  scope.Push ();
-
   // push all builtin types - this is probably too basic for future needs
   ADD_BUILTIN_TYPE ("u8", typeScope);
   ADD_BUILTIN_TYPE ("u16", typeScope);
@@ -51,7 +48,7 @@ TypeResolution::~TypeResolution ()
 }
 
 bool
-TypeResolution::ResolveNamesAndTypes (AST::Crate &crate, TopLevelScan &toplevel)
+TypeResolution::Resolve (AST::Crate &crate, TopLevelScan &toplevel)
 {
   TypeResolution resolver (crate, toplevel);
   return resolver.go ();
