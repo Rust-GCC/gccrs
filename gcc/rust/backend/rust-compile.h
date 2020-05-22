@@ -4,7 +4,7 @@
 #include "rust-ast-full.h"
 #include "rust-ast-visitor.h"
 #include "rust-backend.h"
-#include "scope.h"
+#include "cscope.h"
 
 namespace Rust {
 namespace Compile {
@@ -223,19 +223,26 @@ public:
 
 private:
   Compilation (AST::Crate &crate, Backend *backend);
-
   bool go ();
 
-  Analysis::Scope<AST::Type *> scope;
   AST::Crate &crate;
   Backend *backend;
 
-  /* we need lots of members to be buffers for translation of the AST */
-  std::vector<AST::IdentifierPattern> letPatternBuffer;
+  // utils
+  bool compileVarDecl (Bfunction *fndecl, AST::LetStmt *stmt,
+		       std::vector<Bvariable *> &vars);
 
-  ::Bfunction *currentFndecl;
+  Bexpression *compileBooleanLiteral (std::string val);
+  Bexpression *compileFloatLiteral (std::string val, Location locus);
+  Bexpression *compileIntegerLiteral (std::string val, Location locus);
+
+  // state
+  Scope scope;
   ::Btype *translatedType;
+  std::vector<AST::IdentifierPattern> patternBuffer;
+  std::vector< ::Bexpression *> exprs;
 
+  // careful these are the vectors we pass into the GCC middle-end
   std::vector< ::Btype *> type_decls;
   std::vector< ::Bvariable *> var_decls;
   std::vector< ::Bexpression *> const_decls;
