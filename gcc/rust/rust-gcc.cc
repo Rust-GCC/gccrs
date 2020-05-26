@@ -2652,14 +2652,14 @@ Gcc_backend::temporary_variable (Bfunction *function, Bblock *bblock,
       else
 	push_cfun (DECL_STRUCT_FUNCTION (decl));
 
-      var = create_tmp_var (type_tree, "GOTMP");
+      var = create_tmp_var (type_tree, "RSTMP");
       pop_cfun ();
     }
   else
     {
       gcc_assert (bblock != NULL);
       var = build_decl (location.gcc_location (), VAR_DECL,
-			create_tmp_var_name ("GOTMP"), type_tree);
+			create_tmp_var_name ("RSTMP"), type_tree);
       DECL_ARTIFICIAL (var) = 1;
       DECL_IGNORED_P (var) = 1;
       TREE_USED (var) = 1;
