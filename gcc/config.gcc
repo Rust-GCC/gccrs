@@ -362,6 +362,7 @@ arm*-*-*)
 	c_target_objs="arm-c.o"
 	cxx_target_objs="arm-c.o"
 	d_target_objs="arm-d.o"
+	rust_target_objs="arm-rust.o"
 	extra_options="${extra_options} arm/arm-tables.opt"
 	target_gtfiles="\$(srcdir)/config/arm/arm-builtins.c"
 	;;
