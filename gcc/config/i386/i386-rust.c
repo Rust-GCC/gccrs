@@ -78,6 +78,7 @@ ix86_rust_target_cpu_info (void)
 # error "isa_flag and isa_flag2 already defined in i386-rust.c - weird things might happen"
 #endif
 
+    // options should be feature complete for rustc atm
   if (isa_flag2 & OPTION_MASK_ISA_WBNOINVD)
     ; //def_or_undef (parse_in, "__WBNOINVD__");
   if (isa_flag2 & OPTION_MASK_ISA_AVX512VP2INTERSECT)
@@ -111,23 +112,23 @@ ix86_rust_target_cpu_info (void)
   if (isa_flag & OPTION_MASK_ISA_AVX2)
     rust_add_target_info("target_feature", "avx2");
   if (isa_flag & OPTION_MASK_ISA_AVX512F)
-    ; //def_or_undef (parse_in, "__AVX512F__");
+    rust_add_target_info("target_feature", "avx512f");
   if (isa_flag & OPTION_MASK_ISA_AVX512ER)
-    ; //def_or_undef (parse_in, "__AVX512ER__");
+    rust_add_target_info("target_feature", "avx512er");
   if (isa_flag & OPTION_MASK_ISA_AVX512CD)
-    ; //def_or_undef (parse_in, "__AVX512CD__");
+    rust_add_target_info("target_feature", "avx512cd");
   if (isa_flag & OPTION_MASK_ISA_AVX512PF)
-    ; //def_or_undef (parse_in, "__AVX512PF__");
+    rust_add_target_info("target_feature", "avx512pf");
   if (isa_flag & OPTION_MASK_ISA_AVX512DQ)
-    ; //def_or_undef (parse_in, "__AVX512DQ__");
+    rust_add_target_info("target_feature", "avx512dq");
   if (isa_flag & OPTION_MASK_ISA_AVX512BW)
-    ; //def_or_undef (parse_in, "__AVX512BW__");
+    rust_add_target_info("target_feature", "avx512bw");
   if (isa_flag & OPTION_MASK_ISA_AVX512VL)
-    ; //def_or_undef (parse_in, "__AVX512VL__");
+    rust_add_target_info("target_feature", "avx512vl");
   if (isa_flag & OPTION_MASK_ISA_AVX512VBMI)
-    ; //def_or_undef (parse_in, "__AVX512VBMI__");
+    rust_add_target_info("target_feature", "avx512vbmi");
   if (isa_flag & OPTION_MASK_ISA_AVX512IFMA)
-    ; //def_or_undef (parse_in, "__AVX512IFMA__");
+    rust_add_target_info("target_feature", "avx512ifma");
   if (isa_flag2 & OPTION_MASK_ISA_AVX5124VNNIW)
     ; //def_or_undef (parse_in, "__AVX5124VNNIW__");
   if (isa_flag & OPTION_MASK_ISA_AVX512VBMI2)
@@ -143,13 +144,13 @@ ix86_rust_target_cpu_info (void)
   if (isa_flag & OPTION_MASK_ISA_AVX512BITALG)
     ; //def_or_undef (parse_in, "__AVX512BITALG__");
   if (isa_flag & OPTION_MASK_ISA_AVX512VPOPCNTDQ)
-    ; //def_or_undef (parse_in, "__AVX512VPOPCNTDQ__");
+    rust_add_target_info("target_feature", "avx512vpopcntdq");
   if (isa_flag & OPTION_MASK_ISA_FMA)
     rust_add_target_info("target_feature", "fma");
   if (isa_flag & OPTION_MASK_ISA_RTM)
-    ; //def_or_undef (parse_in, "__RTM__");
+    rust_add_target_info("target_feature", "rtm");
   if (isa_flag & OPTION_MASK_ISA_SSE4A)
-    ; //def_or_undef (parse_in, "__SSE4A__");
+    rust_add_target_info("target_feature", "sse4a");
   if (isa_flag & OPTION_MASK_ISA_FMA4)
     ; //def_or_undef (parse_in, "__FMA4__");
   if (isa_flag & OPTION_MASK_ISA_XOP)
@@ -165,7 +166,7 @@ ix86_rust_target_cpu_info (void)
   if (isa_flag & OPTION_MASK_ISA_LZCNT)
     rust_add_target_info("target_feature", "lzcnt");
   if (isa_flag & OPTION_MASK_ISA_TBM)
-    ; //def_or_undef (parse_in, "__TBM__");
+    rust_add_target_info("target_feature", "tbm");
   if (isa_flag & OPTION_MASK_ISA_POPCNT)
     rust_add_target_info("target_feature", "popcnt");
   if (isa_flag & OPTION_MASK_ISA_FSGSBASE)
@@ -173,13 +174,13 @@ ix86_rust_target_cpu_info (void)
   if (isa_flag & OPTION_MASK_ISA_RDRND)
     rust_add_target_info("target_feature", "rdrand");
   if (isa_flag & OPTION_MASK_ISA_F16C)
-    ; //def_or_undef (parse_in, "__F16C__");
+    rust_add_target_info("target_feature", "f16c");
   if (isa_flag & OPTION_MASK_ISA_RDSEED)
     rust_add_target_info("target_feature", "rdseed");
   if (isa_flag & OPTION_MASK_ISA_PRFCHW)
     ; //def_or_undef (parse_in, "__PRFCHW__");
   if (isa_flag & OPTION_MASK_ISA_ADX)
-    ; //def_or_undef (parse_in, "__ADX__");
+    rust_add_target_info("target_feature", "adx");
   if (isa_flag & OPTION_MASK_ISA_FXSR)
     rust_add_target_info("target_feature", "fxsr");
   if (isa_flag & OPTION_MASK_ISA_XSAVE)
@@ -237,6 +238,10 @@ ix86_rust_target_cpu_info (void)
       //def_or_undef (parse_in, "__iamcu");
       //def_or_undef (parse_in, "__iamcu__");
     }
+  if (TARGET_CMPXCHG16B)
+    rust_add_target_info("target_feature", "cmpxchg16b");
+  if (TARGET_MOVBE)
+    rust_add_target_info("target_feature", "movbe");
 
 #undef isa_flag
 #undef isa_flag2

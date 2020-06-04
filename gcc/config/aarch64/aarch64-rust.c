@@ -37,13 +37,17 @@ aarch64_rust_target_cpu_info (void)
 #else
 # error "isa_flag and isa_flag2 already defined in aarch64-rust.c - weird things might happen"
 #endif
+  // FIXME: almost feature-complete with rustc, missing "ras" feature (which may not be in gcc)
 
   if (TARGET_SIMD) 
     rust_add_target_info ("target_feature", "neon");
   /* appears to be what is referred to what seems to be referred to
   as "fp-armv8" in rust, at least in target def, based on closeness of it in aarch64.h to TARGET_SIMD */
-  if (TARGET_FLOAT)
+  if (TARGET_FLOAT) {
     rust_add_target_info ("target_feature", "fp-armv8");
+    // seems to be translated to "fp", but can't tell if "fp-armv8" exists too
+    rust_add_target_info ("target_feature", "fp");
+  }
   /*if (TARGET_CYCLONE) - need to find this feature (if it exists)
     rust_add_target_info ("target_feature", "cyclone");*/  
   /* appears to be what is referred to what seems to be referred to
@@ -60,10 +64,12 @@ aarch64_rust_target_cpu_info (void)
     rust_add_target_info ("target_feature", "dotprod");
   if (TARGET_F16FML) 
     rust_add_target_info ("target_feature", "fp16fml");
-  if (TARGET_FP_F16INST)
+  if (TARGET_FP_F16INST) {
     rust_add_target_info ("target_feature", "fullfp16");
+    // seems to be translated to "fp16", but not sure, so keep that here too
+    rust_add_target_info ("target_feature", "fp16");
+  }
   // TODO: some feature relating to profiling with feature name "spe" - can't find atm
-  // TODO: some feature with feature name "ras" (and no further info) - can't find atm
   if (TARGET_LSE)
     rust_add_target_info ("target_feature", "lse");
   // hope this is the right thing - llvm calls it "rdm" - TODO ensure that it is

@@ -39,20 +39,28 @@ rs6000_rust_target_cpu_info (void)
 #endif
 #define flags rs6000_isa_flags
 
+  // options should be (almost at least - i.e. power8-altivec and the like) feature complete with rustc
   if ((flags & OPTION_MASK_ALTIVEC) != 0)
     rust_add_target_info ("target_feature", "altivec");
   if ((flags & OPTION_MASK_VSX) != 0)
     rust_add_target_info ("target_feature", "vsx");
-  if ((flags & OPTION_MASK_P8_VECTOR) != 0)
+  /* I can't find any separate gcc equivalent to "power8-altivec" in llvm, but power8-vector has it as a
+   * prerequisite, so just implicitly enable it when enabling the vector. TODO search for it. */
+  if ((flags & OPTION_MASK_P8_VECTOR) != 0) {
     rust_add_target_info ("target_feature", "power8-vector");
+    rust_add_target_info ("target_feature", "power8-altivec");
+  }
   if ((flags & OPTION_MASK_CRYPTO) != 0)
     rust_add_target_info ("target_feature", "crypto");
   if ((flags & OPTION_MASK_HTM) != 0)
     rust_add_target_info ("target_feature", "htm");
   if ((flags & OPTION_MASK_FLOAT128_KEYWORD) != 0)
     rust_add_target_info ("target_feature", "float128");
-  if ((flags & OPTION_MASK_P9_VECTOR) != 0)
+  // Same implicit enabling of power9-altivec happens with power9-vector.
+  if ((flags & OPTION_MASK_P9_VECTOR) != 0) {
     rust_add_target_info ("target_feature", "power9-vector");
+    rust_add_target_info ("target_feature", "power9-altivec");
+  }
   if ((flags & OPTION_MASK_DIRECT_MOVE) != 0)
     rust_add_target_info ("target_feature", "direct-move");
 
