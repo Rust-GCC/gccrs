@@ -1,29 +1,154 @@
-#include "rust-resolution.h"
+#include "rust-type-resolution.h"
+#include "rust-diagnostics.h"
+
+#define ADD_BUILTIN_TYPE(_X, _S)                                               \
+  do                                                                           \
+    {                                                                          \
+      AST::PathIdentSegment seg (_X);                                          \
+      auto typePath = ::std::unique_ptr<AST::TypePathSegment> (                \
+	new AST::TypePathSegment (::std::move (seg), false,                    \
+				  Linemap::unknown_location ()));              \
+      ::std::vector< ::std::unique_ptr<AST::TypePathSegment> > segs;           \
+      segs.push_back (::std::move (typePath));                                 \
+      auto bType = new AST::TypePath (::std::move (segs),                      \
+				      Linemap::unknown_location (), false);    \
+      _S.Insert (_X, bType);                                                   \
+    }                                                                          \
+  while (0)
 
 namespace Rust {
 namespace Analysis {
 
-TypeResolution::TypeResolution (AST::Crate &crate) : scope (), crate (crate) {}
+TypeResolution::TypeResolution (AST::Crate &crate, TopLevelScan &toplevel)
+  : Resolution (crate, toplevel)
+{
+  functionScope.Push ();
+  localsPerBlock.Push ();
 
-TypeResolution::~TypeResolution () {}
+  // push all builtin types - this is probably too basic for future needs
+  ADD_BUILTIN_TYPE ("u8", typeScope);
+  ADD_BUILTIN_TYPE ("u16", typeScope);
+  ADD_BUILTIN_TYPE ("u32", typeScope);
+  ADD_BUILTIN_TYPE ("u64", typeScope);
+
+  ADD_BUILTIN_TYPE ("i8", typeScope);
+  ADD_BUILTIN_TYPE ("i16", typeScope);
+  ADD_BUILTIN_TYPE ("i32", typeScope);
+  ADD_BUILTIN_TYPE ("i64", typeScope);
+
+  ADD_BUILTIN_TYPE ("f32", typeScope);
+  ADD_BUILTIN_TYPE ("f64", typeScope);
+
+  ADD_BUILTIN_TYPE ("char", typeScope);
+  ADD_BUILTIN_TYPE ("str", typeScope);
+  ADD_BUILTIN_TYPE ("bool", typeScope);
+}
+
+TypeResolution::~TypeResolution ()
+{
+  functionScope.Pop ();
+  localsPerBlock.Pop ();
+}
 
 bool
-TypeResolution::ResolveNamesAndTypes (AST::Crate &crate)
+TypeResolution::Resolve (AST::Crate &crate, TopLevelScan &toplevel)
 {
-  TypeResolution resolver (crate);
+  TypeResolution resolver (crate, toplevel);
   return resolver.go ();
 }
 
 bool
 TypeResolution::go ()
 {
-  scope.Push ();
   for (auto &item : crate.items)
-    {
-      item->accept_vis (*this);
-    }
-  scope.Pop ();
+    item->accept_vis (*this);
+
   return true;
+}
+
+bool
+TypeResolution::typesAreCompatible (AST::Type *lhs, AST::Type *rhs,
+				    Location locus)
+{
+  auto before = typeComparisonBuffer.size ();
+  lhs->accept_vis (*this);
+  if (typeComparisonBuffer.size () <= before)
+    {
+      rust_error_at (locus, "failed to understand type for lhs");
+      return false;
+    }
+
+  auto lhsTypeStr = typeComparisonBuffer.back ();
+  typeComparisonBuffer.pop_back ();
+
+  rhs->accept_vis (*this);
+  if (typeComparisonBuffer.size () <= before)
+    {
+      rust_error_at (locus, "failed to understand type for rhs");
+      return false;
+    }
+
+  auto rhsTypeStr = typeComparisonBuffer.back ();
+  typeComparisonBuffer.pop_back ();
+
+  // FIXME this needs to handle the cases of an i8 going into an i32 which is
+  // compatible
+  if (lhsTypeStr.compare (rhsTypeStr))
+    {
+      rust_error_at (locus, "E0308: expected: %s, found %s",
+		     lhsTypeStr.c_str (), rhsTypeStr.c_str ());
+      return false;
+    }
+
+  AST::Type *val = NULL;
+  if (!typeScope.Lookup (lhsTypeStr, &val))
+    {
+      rust_error_at (locus, "unknown type");
+      return false;
+    }
+
+  return true;
+}
+
+bool
+TypeResolution::isTypeInScope (AST::Type *type, Location locus)
+{
+  auto before = typeComparisonBuffer.size ();
+  type->accept_vis (*this);
+  if (typeComparisonBuffer.size () <= before)
+    {
+      rust_error_at (locus, "unable to decipher type: %s",
+		     type->as_string ().c_str ());
+      return false;
+    }
+
+  auto t = typeComparisonBuffer.back ();
+  typeComparisonBuffer.pop_back ();
+
+  AST::Type *val = NULL;
+  if (!typeScope.Lookup (t, &val))
+    {
+      rust_error_at (locus, "unknown type");
+      return false;
+    }
+
+  return true;
+}
+
+AST::Function *
+TypeResolution::lookupFndecl (AST::Expr *expr)
+{
+  size_t before = functionLookup.size ();
+  expr->accept_vis (*this);
+  if (functionLookup.size () > before)
+    {
+      auto fndecl = functionLookup.back ();
+      functionLookup.pop_back ();
+      return fndecl;
+    }
+
+  rust_error_at (expr->get_locus_slow (), "failed to lookup function");
+  return NULL;
 }
 
 void
@@ -40,7 +165,17 @@ TypeResolution::visit (AST::AttrInputMetaItemContainer &input)
 
 void
 TypeResolution::visit (AST::IdentifierExpr &ident_expr)
-{}
+{
+  AST::Type *type = NULL;
+  bool ok = scope.Lookup (ident_expr.ident, &type);
+  if (!ok)
+    {
+      rust_error_at (ident_expr.locus, "unknown identifier");
+      return;
+    }
+
+  typeBuffer.push_back (type);
+}
 
 void
 TypeResolution::visit (AST::Lifetime &lifetime)
@@ -57,39 +192,120 @@ TypeResolution::visit (AST::MacroInvocationSemi &macro)
 // rust-path.h
 void
 TypeResolution::visit (AST::PathInExpression &path)
-{}
+{
+  // look up in the functionScope else lookup in the toplevel scan
+  AST::Function *fndecl = NULL;
+  if (functionScope.Lookup (path.as_string (), &fndecl))
+    {
+      functionLookup.push_back (fndecl);
+      return;
+    }
+
+  fndecl = toplevel.lookupFunction (&path);
+  if (fndecl != NULL)
+    {
+      functionLookup.push_back (fndecl);
+      return;
+    }
+}
+
 void
 TypeResolution::visit (AST::TypePathSegment &segment)
 {}
 void
 TypeResolution::visit (AST::TypePathSegmentGeneric &segment)
 {}
+
 void
 TypeResolution::visit (AST::TypePathSegmentFunction &segment)
 {}
+
 void
 TypeResolution::visit (AST::TypePath &path)
-{}
+{
+  // this may not be robust enough for type comparisons but lets try it for now
+  typeComparisonBuffer.push_back (path.as_string ());
+}
+
 void
 TypeResolution::visit (AST::QualifiedPathInExpression &path)
-{}
+{
+  typeComparisonBuffer.push_back (path.as_string ());
+}
+
 void
 TypeResolution::visit (AST::QualifiedPathInType &path)
-{}
+{
+  typeComparisonBuffer.push_back (path.as_string ());
+}
 
 // rust-expr.h
 void
 TypeResolution::visit (AST::LiteralExpr &expr)
-{}
+{
+  std::string type;
+  switch (expr.literal.get_lit_type ())
+    {
+    case AST::Literal::CHAR:
+      type = "char";
+      break;
+
+    case AST::Literal::STRING:
+    case AST::Literal::RAW_STRING:
+      type = "str";
+      break;
+
+    case AST::Literal::BOOL:
+      type = "bool";
+      break;
+
+    case AST::Literal::BYTE:
+      type = "u8";
+      break;
+
+      // FIXME these are not always going to be the case
+      // eg: suffix on the value can change the type
+    case AST::Literal::FLOAT:
+      type = "f32";
+      break;
+
+    case AST::Literal::INT:
+      type = "i32";
+      break;
+
+    case AST::Literal::BYTE_STRING:
+    case AST::Literal::RAW_BYTE_STRING:
+      // FIXME
+      break;
+    }
+
+  if (type.empty ())
+    {
+      rust_error_at (expr.locus, "unknown literal: %s",
+		     expr.literal.as_string ().c_str ());
+      return;
+    }
+
+  AST::Type *val = NULL;
+  bool ok = typeScope.Lookup (type, &val);
+  if (ok)
+    typeBuffer.push_back (val);
+  else
+    rust_error_at (expr.locus, "unknown literal type: %s", type.c_str ());
+}
+
 void
 TypeResolution::visit (AST::AttrInputLiteral &attr_input)
 {}
+
 void
 TypeResolution::visit (AST::MetaItemLitExpr &meta_item)
 {}
+
 void
 TypeResolution::visit (AST::MetaItemPathLit &meta_item)
 {}
+
 void
 TypeResolution::visit (AST::BorrowExpr &expr)
 {}
@@ -102,24 +318,89 @@ TypeResolution::visit (AST::ErrorPropagationExpr &expr)
 void
 TypeResolution::visit (AST::NegationExpr &expr)
 {}
+
 void
 TypeResolution::visit (AST::ArithmeticOrLogicalExpr &expr)
-{}
+{
+  size_t before;
+  before = typeBuffer.size ();
+  expr.visit_lhs (*this);
+  if (typeBuffer.size () <= before)
+    {
+      rust_error_at (expr.locus, "unable to determine lhs type");
+      return;
+    }
+
+  auto lhsType = typeBuffer.back ();
+  typeBuffer.pop_back ();
+
+  before = typeBuffer.size ();
+  expr.visit_rhs (*this);
+  if (typeBuffer.size () <= before)
+    {
+      rust_error_at (expr.locus, "unable to determine rhs type");
+      return;
+    }
+
+  auto rhsType = typeBuffer.back ();
+  // not poping because we will be checking they match and the
+  // scope will require knowledge of the type
+
+  // do the lhsType and the rhsType match
+  typesAreCompatible (lhsType, rhsType, expr.right_expr->get_locus_slow ());
+}
+
 void
 TypeResolution::visit (AST::ComparisonExpr &expr)
 {}
+
 void
 TypeResolution::visit (AST::LazyBooleanExpr &expr)
 {}
+
 void
 TypeResolution::visit (AST::TypeCastExpr &expr)
 {}
+
 void
 TypeResolution::visit (AST::AssignmentExpr &expr)
-{}
+{
+  size_t before;
+  before = typeBuffer.size ();
+  expr.visit_lhs (*this);
+  if (typeBuffer.size () <= before)
+    {
+      rust_error_at (expr.locus, "unable to determine lhs type");
+      return;
+    }
+
+  auto lhsType = typeBuffer.back ();
+  typeBuffer.pop_back ();
+
+  before = typeBuffer.size ();
+  expr.visit_rhs (*this);
+  if (typeBuffer.size () <= before)
+    {
+      rust_error_at (expr.locus, "unable to determine rhs type");
+      return;
+    }
+
+  auto rhsType = typeBuffer.back ();
+  // not poping because we will be checking they match and the
+  // scope will require knowledge of the type
+
+  // do the lhsType and the rhsType match
+  if (!typesAreCompatible (lhsType, rhsType,
+			   expr.right_expr->get_locus_slow ()))
+    return;
+
+  // is the lhs mutable?
+}
+
 void
 TypeResolution::visit (AST::CompoundAssignmentExpr &expr)
 {}
+
 void
 TypeResolution::visit (AST::GroupedExpr &expr)
 {}
@@ -186,9 +467,51 @@ TypeResolution::visit (AST::EnumExprTuple &expr)
 void
 TypeResolution::visit (AST::EnumExprFieldless &expr)
 {}
+
 void
 TypeResolution::visit (AST::CallExpr &expr)
-{}
+{
+  // this look up should probably be moved to name resolution
+  auto fndecl = lookupFndecl (expr.function.get ());
+  if (fndecl == NULL)
+    return;
+
+  // check num args match
+  if (fndecl->function_params.size () != expr.params.size ())
+    {
+      rust_error_at (expr.get_locus_slow (),
+		     "differing number of arguments vs parameters to function");
+      return;
+    }
+
+  typeBuffer.push_back (fndecl->return_type.get ());
+  expr.fndeclRef = fndecl;
+
+  auto before = typeBuffer.size ();
+  for (auto &item : expr.params)
+    item->accept_vis (*this);
+
+  auto numInferedParams = typeBuffer.size () - before;
+  if (numInferedParams != expr.params.size ())
+    {
+      rust_error_at (expr.locus, "Failed to infer all parameters");
+      return;
+    }
+
+  auto offs = numInferedParams - 1;
+  for (auto it = fndecl->function_params.rbegin ();
+       it != fndecl->function_params.rend (); ++it)
+    {
+      AST::Type *argument = typeBuffer.back ();
+      typeBuffer.pop_back ();
+
+      if (!typesAreCompatible (it->type.get (), argument,
+			       expr.params[offs]->get_locus_slow ()))
+	return;
+      offs--;
+    }
+}
+
 void
 TypeResolution::visit (AST::MethodCallExpr &expr)
 {}
@@ -327,26 +650,51 @@ TypeResolution::visit (AST::UseDeclaration &use_decl)
 void
 TypeResolution::visit (AST::Function &function)
 {
+  // always emit the function with return type in the event of nil return type
+  // its  a marker for a void function
   scope.Insert (function.function_name, function.return_type.get ());
+  functionScope.Insert (function.function_name, &function);
 
+  functionScope.Push ();
   scope.Push ();
-  printf ("INSIDE FUNCTION: %s\n", function.function_name.c_str ());
-
   for (auto &param : function.function_params)
     {
-      printf ("FUNC PARAM: %s\n", param.as_string ().c_str ());
+      if (!isTypeInScope (param.type.get (), param.locus))
+	return;
+
+      auto before = letPatternBuffer.size ();
+      param.param_name->accept_vis (*this);
+      if (letPatternBuffer.size () <= before)
+	{
+	  rust_error_at (param.locus, "failed to analyse parameter name");
+	  return;
+	}
+
+      auto paramName = letPatternBuffer.back ();
+      letPatternBuffer.pop_back ();
+      scope.Insert (paramName.variable_ident, param.type.get ());
     }
 
-  // ensure return types
-  // TODO
+  // ensure the return type is resolved
+  if (function.has_function_return_type ())
+    {
+      if (!isTypeInScope (function.return_type.get (), function.locus))
+	return;
+    }
 
   // walk the expression body
+  localsPerBlock.Push ();
   for (auto &stmt : function.function_body->statements)
     {
       stmt->accept_vis (*this);
     }
 
+  auto localMap = localsPerBlock.Pop ();
+  for (auto &[_, value] : localMap)
+    function.locals.push_back (value);
+
   scope.Pop ();
+  functionScope.Pop ();
 }
 
 void
@@ -376,9 +724,13 @@ TypeResolution::visit (AST::Enum &enum_item)
 void
 TypeResolution::visit (AST::Union &union_item)
 {}
+
 void
 TypeResolution::visit (AST::ConstantItem &const_item)
-{}
+{
+  printf ("ConstantItem: %s\n", const_item.as_string ().c_str ());
+}
+
 void
 TypeResolution::visit (AST::StaticItem &static_item)
 {}
@@ -459,7 +811,6 @@ TypeResolution::visit (AST::LiteralPattern &pattern)
 void
 TypeResolution::visit (AST::IdentifierPattern &pattern)
 {
-  printf ("IdentifierPattern: %s\n", pattern.as_string ().c_str ());
   letPatternBuffer.push_back (pattern);
 }
 
@@ -526,44 +877,92 @@ TypeResolution::visit (AST::SlicePattern &pattern)
 void
 TypeResolution::visit (AST::EmptyStmt &stmt)
 {}
-void
 
+void
 TypeResolution::visit (AST::LetStmt &stmt)
 {
-  printf ("Within LetStmt: %s\n", stmt.as_string ().c_str ());
+  localsPerBlock.Insert (stmt.as_string (), &stmt);
 
+  if (!stmt.has_init_expr () && !stmt.has_type ())
+    {
+      rust_error_at (stmt.locus,
+		     "E0282: type annotations or init expression needed");
+      return;
+    }
+
+  AST::Type *inferedType = NULL;
+  if (stmt.has_init_expr ())
+    {
+      auto before = typeBuffer.size ();
+      stmt.init_expr->accept_vis (*this);
+
+      if (typeBuffer.size () <= before)
+	{
+	  rust_error_at (
+	    stmt.init_expr->get_locus_slow (),
+	    "unable to determine type for declaration from init expr");
+	  return;
+	}
+
+      inferedType = typeBuffer.back ();
+      typeBuffer.pop_back ();
+
+      if (inferedType == NULL)
+	{
+	  rust_error_at (stmt.init_expr->get_locus_slow (),
+			 "void type found for statement initialisation");
+	  return;
+	}
+    }
+
+  if (stmt.has_type () && stmt.has_init_expr ())
+    {
+      if (!typesAreCompatible (stmt.type.get (), inferedType,
+			       stmt.init_expr->get_locus_slow ()))
+	{
+	  return;
+	}
+    }
+
+  // ensure the decl has the type set for compilation later on
   if (!stmt.has_type ())
     {
-      // infer the type
-      printf ("XXX UNKNOWN TYPE PLEASE INFER ME\n");
+      stmt.inferedType = inferedType;
     }
 
-  // TODO check we know what the type is
-
+  // get all the names part of this declaration and add the types to the scope
   stmt.variables_pattern->accept_vis (*this);
-
-  for (auto it = letPatternBuffer.begin (); it != letPatternBuffer.end (); it++)
-    {
-      scope.Insert (it->variable_ident, stmt.type.get ());
-    }
+  for (auto &pattern : letPatternBuffer)
+    scope.Insert (pattern.variable_ident, inferedType);
 
   letPatternBuffer.clear ();
 }
 
 void
 TypeResolution::visit (AST::ExprStmtWithoutBlock &stmt)
-{}
+{
+  stmt.expr->accept_vis (*this);
+}
+
 void
 TypeResolution::visit (AST::ExprStmtWithBlock &stmt)
-{}
+{
+  localsPerBlock.Push ();
+  stmt.expr->accept_vis (*this);
+  auto localMap = localsPerBlock.Pop ();
+  for (auto &[_, value] : localMap)
+    stmt.locals.push_back (value);
+}
 
 // rust-type.h
 void
 TypeResolution::visit (AST::TraitBound &bound)
 {}
+
 void
 TypeResolution::visit (AST::ImplTraitType &type)
 {}
+
 void
 TypeResolution::visit (AST::TraitObjectType &type)
 {}

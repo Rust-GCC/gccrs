@@ -213,6 +213,18 @@ public:
       }
   }
 
+  inline bool is_string_lit () const
+  {
+    switch (token_id)
+      {
+      case STRING_LITERAL:
+      case BYTE_STRING_LITERAL:
+	return true;
+      default:
+	return false;
+      }
+  }
+
   ::std::string as_string () const;
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
@@ -792,6 +804,10 @@ public:
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
+  // HACK: slow way of getting location from base expression through virtual
+  // methods.
+  virtual Location get_locus_slow () const { return Location (); }
+
 protected:
   // Clone function implementation as pure virtual method
   virtual Stmt *clone_stmt_impl () const = 0;
@@ -948,11 +964,11 @@ public:
 // single-segment paths
 class IdentifierExpr : public ExprWithoutBlock
 {
+public:
   Identifier ident;
 
   Location locus;
 
-public:
   IdentifierExpr (Identifier ident, Location locus = Location (),
 		  ::std::vector<Attribute> outer_attrs
 		  = ::std::vector<Attribute> ())

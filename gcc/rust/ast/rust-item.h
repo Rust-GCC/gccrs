@@ -496,7 +496,7 @@ public:
 // A function parameter
 struct FunctionParam
 {
-private:
+public:
   // Pattern* param_name;
   ::std::unique_ptr<Pattern> param_name;
   // Type type;
@@ -504,7 +504,6 @@ private:
 
   Location locus;
 
-public:
   FunctionParam (::std::unique_ptr<Pattern> param_name,
 		 ::std::unique_ptr<Type> param_type, Location locus)
     : param_name (::std::move (param_name)), type (::std::move (param_type)),
@@ -1307,6 +1306,8 @@ protected:
     ::std::vector<FunctionParam> function_params;
 };*/
 
+class LetStmt;
+
 // Rust function declaration AST node
 class Function : public VisItem, public InherentImplItem, public TraitImplItem
 {
@@ -1334,6 +1335,8 @@ public:
   ::std::unique_ptr<BlockExpr> function_body;
 
   Location locus;
+
+  ::std::vector<LetStmt *> locals;
 
   /*~Function() {
       delete function_body;

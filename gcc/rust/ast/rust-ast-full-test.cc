@@ -200,33 +200,26 @@ DelimTokenTree::as_string () const
       end_delim = "}";
       break;
     default:
-      // error
-      return "";
+      fprintf (stderr, "Invalid delimiter type, "
+		       "Should be PARENS, SQUARE, or CURLY.");
+      return "Invalid delimiter type";
     }
   ::std::string str = start_delim;
-  if (token_trees.empty ())
+  if (!token_trees.empty ())
     {
-      str += "none";
-    }
-  else
-    {
-      auto i = token_trees.begin ();
-      auto e = token_trees.end ();
-
-      // DEBUG: null pointer check
-      if (*i == NULL)
+      for (const auto &tree : token_trees)
 	{
-	  fprintf (stderr,
-		   "something really terrible has gone wrong - null pointer "
-		   "token tree in delim token tree.");
-	  return "NULL_POINTER_MARK";
-	}
+	  // DEBUG: null pointer check
+	  if (tree == NULL)
+	    {
+	      fprintf (
+		stderr,
+		"something really terrible has gone wrong - null pointer "
+		"token tree in delim token tree.");
+	      return "NULL_POINTER_MARK";
+	    }
 
-      for (; i != e; i++)
-	{
-	  str += (*i)->as_string ();
-	  if (e != i + 1)
-	    str += ", ";
+	  str += tree->as_string ();
 	}
     }
   str += end_delim;
@@ -242,7 +235,8 @@ Token::as_string () const
   // return get_token_description(token_id);
 
   // maybe fixed - stores everything as string though, so storage-inefficient
-  return str;
+  ::std::string quote = is_string_lit () ? "\"" : "";
+  return quote + str + quote;
 }
 
 ::std::string
@@ -411,7 +405,7 @@ StaticItem::as_string () const
 {
   ::std::string str = VisItem::as_string ();
 
-  str += "static";
+  str += indent_spaces (stay) + "static";
 
   if (has_mut)
     {
@@ -427,7 +421,7 @@ StaticItem::as_string () const
 		       "pointer type in static item.");
       return "NULL_POINTER_MARK";
     }
-  str += "\n  Type: " + type->as_string ();
+  str += "\n" + indent_spaces (stay) + "Type: " + type->as_string ();
 
   // DEBUG: null pointer check
   if (expr == NULL)
@@ -436,7 +430,7 @@ StaticItem::as_string () const
 		       "pointer expr in static item.");
       return "NULL_POINTER_MARK";
     }
-  str += "\n  Expression: " + expr->as_string ();
+  str += "\n" + indent_spaces (stay) + "Expression: " + expr->as_string ();
 
   return str + "\n";
 }
@@ -1528,7 +1522,8 @@ MacroRulesDefinition::as_string () const
 ::std::string
 MacroInvocation::as_string () const
 {
-  return path.as_string () + "!" + token_tree.as_string ();
+  return "MacroInvocation: " + path.as_string () + "!"
+	 + token_tree.as_string ();
 }
 
 ::std::string
@@ -1975,7 +1970,7 @@ IfExprConseqIf::as_string () const
 {
   ::std::string str = IfExpr::as_string ();
 
-  str += "\n Else if expr: \n  " + if_expr->as_string ();
+  str += "\n Else if expr: \n  " + conseq_if_expr->as_string ();
 
   return str;
 }
@@ -3326,13 +3321,15 @@ LetStmt::as_string () const
     {
       // note that this does not print them with "outer attribute" syntax -
       // just the body
+      indent_spaces (enter);
       for (const auto &attr : outer_attrs)
 	{
-	  str += "\n  " + attr.as_string ();
+	  str += "\n" + indent_spaces (stay) + attr.as_string ();
 	}
+      indent_spaces (out);
     }
 
-  str += "\nlet " + variables_pattern->as_string ();
+  str += "\n" + indent_spaces (stay) + "let " + variables_pattern->as_string ();
 
   if (has_type ())
     {
