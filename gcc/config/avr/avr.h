@@ -60,6 +60,8 @@ enum
 
 #define TARGET_CPU_CPP_BUILTINS()	avr_cpu_cpp_builtins (pfile)
 
+#define TARGET_RUST_CPU_INFO avr_rust_target_cpu_info
+
 #define AVR_SHORT_CALLS (TARGET_SHORT_CALLS                             \
                          && avr_arch == &avr_arch_types[ARCH_AVRXMEGA3])
 #define AVR_HAVE_JMP_CALL (avr_arch->have_jmp_call && ! AVR_SHORT_CALLS)

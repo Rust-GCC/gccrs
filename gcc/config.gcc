@@ -370,6 +370,7 @@ avr-*-*)
 	cpu_type=avr
 	c_target_objs="avr-c.o"
 	cxx_target_objs="avr-c.o"
+	rust_target_objs="avr-rust.o"
 	;;
 bfin*-*)
 	cpu_type=bfin

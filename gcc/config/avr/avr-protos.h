@@ -32,6 +32,9 @@ extern rtx avr_return_addr_rtx (int count, rtx tem);
 extern void avr_register_target_pragmas (void);
 extern void avr_init_expanders (void);
 
+/* Defined in avr-rust.c  */
+extern void avr_rust_target_cpu_info (void);
+
 #ifdef TREE_CODE
 extern void avr_asm_output_aligned_decl_common (FILE*, tree, const char*, unsigned HOST_WIDE_INT, unsigned int, bool);
 extern void avr_asm_asm_output_aligned_bss (FILE *, tree, const char *, unsigned HOST_WIDE_INT, int, void (*) (FILE *, tree, const char *, unsigned HOST_WIDE_INT, int));
