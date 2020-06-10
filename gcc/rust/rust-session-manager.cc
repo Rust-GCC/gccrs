@@ -256,6 +256,11 @@ Session::init ()
     // ok, that's not working too well TODO - see if can salvage old implementation 
     TARGET_RUST_CPU_INFO ();
     TARGET_RUST_OS_INFO ();
+
+    /* note that due to issues with gcc targets, some implementations of those two macros above 
+     * (TARGET_RUST_CPU_INFO and TARGET_RUST_OS_INFO) are not function calls, but actually inline 
+     * substitutions. As such, they can't be stored with a function pointer in a "real" target hook. 
+     * At least, that's my current understanding of it. */
         
 #undef builtin_rust_info
 
