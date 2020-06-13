@@ -225,6 +225,7 @@ private:
 
   Scope<AST::Function *> functionScope;
   Scope<AST::LetStmt *> localsPerBlock;
+  Scope<AST::StructStruct *> structsPerBlock;
 };
 
 } // namespace Analysis
