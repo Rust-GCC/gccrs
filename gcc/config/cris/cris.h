@@ -252,6 +252,8 @@ extern int cris_cpu_version;
     }						\
   while (0)
 
+#define TARGET_RUST_CPU_INFO cris_rust_target_cpu_info
+
 /* Previously controlled by target_flags.  Note that this is *not* set
    for -melinux.  */
 #define TARGET_LINUX 0

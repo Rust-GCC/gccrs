@@ -380,6 +380,7 @@ bpf-*-*)
 	;;
 crisv32-*)
 	cpu_type=cris
+	rust_target_objs="cris-rust.o"
 	;;
 frv*)	cpu_type=frv
 	extra_options="${extra_options} g.opt"
@@ -1453,6 +1454,7 @@ crisv32-*-elf | crisv32-*-none)
 	gas=yes
 	extra_options="${extra_options} cris/elf.opt"
 	use_gcc_stdint=wrap
+	rust_target_objs="cris-rust.o"
 	;;
 cris-*-elf | cris-*-none)
 	tm_file="dbxelf.h elfos.h newlib-stdint.h ${tm_file}"
@@ -1460,6 +1462,7 @@ cris-*-elf | cris-*-none)
 	gas=yes
 	extra_options="${extra_options} cris/elf.opt"
 	use_gcc_stdint=wrap
+	rust_target_objs="cris-rust.o"
 	;;
 crisv32-*-linux* | cris-*-linux*)
 	tm_file="dbxelf.h elfos.h ${tm_file} gnu-user.h linux.h glibc-stdint.h cris/linux.h"
@@ -1473,6 +1476,7 @@ crisv32-*-linux* | cris-*-linux*)
 		target_cpu_default=32
 		;;
 	esac
+	rust_target_objs="cris-rust.o"
 	;;
 csky-*-*)
 	if test x${with_endian} != x; then
