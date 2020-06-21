@@ -85,6 +85,9 @@ extern enum h8sx_shift_type h8sx_classify_shift (machine_mode, enum rtx_code, rt
 extern int h8300_ldm_stm_parallel (rtvec, int, int);
 #endif /* RTX_CODE */
 
+/* Defined in h8300-rust.c  */
+extern void h8300_rust_target_cpu_info (void);
+
 #ifdef TREE_CODE
 extern int h8300_funcvec_function_p (tree);
 extern int h8300_eightbit_data_p (tree);
