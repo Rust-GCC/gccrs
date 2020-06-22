@@ -466,6 +466,7 @@ x86_64-*-*)
 		       enqcmdintrin.h avx512vp2intersectintrin.h avx512vp2intersectvlintrin.h"
 	;;
 ia64-*-*)
+	rust_target_objs="ia64-rust.o"
 	extra_headers=ia64intrin.h
 	extra_options="${extra_options} g.opt fused-madd.opt"
 	;;

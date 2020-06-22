@@ -25,7 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Implement TARGET_RUST_CPU_INFO for Renesas H8/300 targets.  */
 
-void frv_rust_target_cpu_info(void) {
+void h8300_rust_target_cpu_info(void) {
     rust_add_target_info("target_arch", "h8300");
 
     // note that llvm has no support, current or historical, so names made up by me (via option names)
