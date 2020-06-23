@@ -29,3 +29,7 @@ MULTILIB_MATCHES = mmodel?medium=mmodel?large
 # SHN_M32R_SCOMMON.
 # This is important for objects referenced in system header files.
 MULTILIB_EXTRA_OPTS = msdata=sdata
+
+m32r-rust.o: $(srcdir)/config/m32r/m32r-rust.c \
+  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(C_COMMON_H)
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<

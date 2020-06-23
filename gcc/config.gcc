@@ -478,6 +478,7 @@ lm32*)
 	;;
 m32r*-*-*)
         cpu_type=m32r
+	rust_target_objs="m32r-rust.o"
 	extra_options="${extra_options} g.opt"
         ;;
 m68k-*-*)
