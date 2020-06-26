@@ -64,4 +64,7 @@ extern void microblaze_eh_return (rtx op0);
 /* Declare functions in microblaze-c.c.  */
 extern void microblaze_cpp_define (struct cpp_reader *); 
 
+/* Defined in microblaze-rust.c  */
+extern void microblaze_rust_target_cpu_info (void);
+
 #endif  /* GCC_MICROBLAZE_PROTOS_H */

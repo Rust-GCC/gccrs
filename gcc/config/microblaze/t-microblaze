@@ -10,3 +10,7 @@ microblaze-c.o: $(srcdir)/config/microblaze/microblaze-c.c \
     $(CONFIG_H) $(SYSTEM_H) $(CPPLIB_H) $(TM_P_H) $(TREE_H) errors.h $(TM_H)
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 	$(srcdir)/config/microblaze/microblaze-c.c
+
+microblaze-rust.o: $(srcdir)/config/microblaze/microblaze-rust.c \
+  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(C_COMMON_H)
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<

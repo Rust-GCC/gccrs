@@ -490,6 +490,7 @@ m68k-*-*)
 microblaze*-*-*)
         cpu_type=microblaze
 	extra_options="${extra_options} g.opt"
+	rust_target_objs="microblaze-rust.o"
         ;;
 mips*-*-*)
 	cpu_type=mips
