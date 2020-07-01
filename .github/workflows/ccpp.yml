@@ -44,3 +44,10 @@ jobs:
       run: |
            cd gccrs-build; \
            make
+
+after_failure: 
+  - echo "hit ccpp.yml after_failure at some point\n"
+  - echo "Build tm.texi:\n"
+  - cat /home/runner/work/gccrs/gccrs/gccrs-build/gcc/tm.texi
+  - echo "Source tm.texi:\n"
+  - cat ../../gcc/doc/tm.texi

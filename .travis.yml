@@ -14,4 +14,9 @@ notifications:
   email:
     on_success: change
     on_failure: always
-after_failure: "echo 'Build tm.texi:\n'; cat /home/runner/work/gccrs/gccrs/gccrs-build/gcc/tm.texi; echo 'Source tm.texi\n'; cat ../../gcc/doc/tm.texi"
+after_failure: 
+  - echo "hit .travis.yml after_failure at some point\n"
+  - echo "Build tm.texi:\n"
+  - cat /home/runner/work/gccrs/gccrs/gccrs-build/gcc/tm.texi
+  - echo "Source tm.texi:\n"
+  - cat ../../gcc/doc/tm.texi
