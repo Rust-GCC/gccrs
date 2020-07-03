@@ -54,7 +54,7 @@ jobs:
         name: tm.texi-build
         path: gccrs-build/gcc/tm.texi
 
-  # doesn't appear to work either; jobs seem to be done separately?
+  # doesn't appear to work either; jobs seem to be done separately (or rather start at same time)
   test_upload_artifact:
     runs-on: ubuntu-latest
     steps:
@@ -63,10 +63,3 @@ jobs:
       with:
         name: tm.texi-build
         path: gccrs-build/gcc/tm.texi
-
-#after_failure: 
-#  - echo "hit ccpp.yml after_failure at some point\n"
-#  - echo "Build tm.texi:\n"
-#  - cat /home/runner/work/gccrs/gccrs/gccrs-build/gcc/tm.texi
-#  - echo "Source tm.texi:\n"
-#  - cat ../../gcc/doc/tm.texi
