@@ -45,7 +45,17 @@ jobs:
            cd gccrs-build; \
            make
 
+    # looks like this gets skipped if build fails, which is unfortunate
     - name: TEST Upload artifact build version as Step
+      uses: actions/upload-artifact@v1
+      with:
+        name: tm.texi-build
+        path: gccrs-build/gcc/tm.texi
+
+  test_upload_artifact:
+    runs-on: ubuntu-latest
+    steps:
+    - name: TEST Upload artifact build version as Job
       uses: actions/upload-artifact@v1
       with:
         name: tm.texi-build
