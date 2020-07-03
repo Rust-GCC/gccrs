@@ -45,6 +45,12 @@ jobs:
            cd gccrs-build; \
            make
 
+    - name: TEST Upload artifact build version as Step
+      uses: actions/upload-artifact@v1
+      with:
+        name: tm.texi-build
+        path: gccrs-build/gcc/tm.texi
+
 #after_failure: 
 #  - echo "hit ccpp.yml after_failure at some point\n"
 #  - echo "Build tm.texi:\n"
