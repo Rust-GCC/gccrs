@@ -46,17 +46,20 @@ jobs:
            make
 
     # looks like this gets skipped if build fails, which is unfortunate
+    # hopefuly the "if: failure()" thing fixes the above
     - name: TEST Upload artifact build version as Step
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v2
+      if: failure()
       with:
         name: tm.texi-build
         path: gccrs-build/gcc/tm.texi
 
+  # doesn't appear to work either; jobs seem to be done separately?
   test_upload_artifact:
     runs-on: ubuntu-latest
     steps:
     - name: TEST Upload artifact build version as Job
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v2
       with:
         name: tm.texi-build
         path: gccrs-build/gcc/tm.texi
