@@ -44,6 +44,21 @@ extern bool msp430x;
     }						\
   while (0)
 
+#define TARGET_RUST_CPU_INFO() \
+  do { \
+    rust_add_target_info("target_arch", "msp430"); \
+    /*TODO: ensure below variables work*/ \
+    if (msp430_hwmult_type == MSP430_HWMULT_SMALL) \
+      rust_add_target_info("target_feature", "hwmult16"); \
+    else if (msp430_hwmult_type == MSP430_HWMULT_LARGE) \
+      rust_add_target_info("target_feature", "hwmult32"); \
+    else if (msp430_hwmult_type == MSP430_HWMULT_F5SERIES) \
+      rust_add_target_info("target_feature", "hwmultf5"); \
+    if (msp430x) \
+      rust_add_target_info("target_feature", "ext"); \
+    /*TODO: add other options that aren't in llvm?*/ \
+  } while (0)
+
 #undef  STARTFILE_SPEC
 #define STARTFILE_SPEC "%{pg:gcrt0.o%s}" \
   "%{!pg:%{minrt:crt0-minrt.o%s}%{!minrt:crt0.o%s}} %{!minrt:crtbegin.o%s}"
