@@ -29,7 +29,6 @@ void cris_rust_target_cpu_info(void) {
     rust_add_target_info("target_arch", "cris");
 
     // llvm seems to have no support for cris (nor historical support), so names are made up by me
-    // TODO: very subject to change
     // TODO maybe put in sub-arches as features? idk. might be useful in this case 
     if (TARGET_MUL_BUG) 
         rust_add_target_info("target_feature", "mul-bug-workaround");

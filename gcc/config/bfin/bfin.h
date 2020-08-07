@@ -202,8 +202,6 @@
     /* TODO maybe add other features? based on old llvm so ones missing */		\
     if (TARGET_SDRAM)		\
         rust_add_target_info("target_feature", "sdram");		\
-    /* I think this should work (seems to generate header from .opt file or something?) */		\
-    /* This is what I believe the .opt file generates from their descriptions. */		\
     if (TARGET_ICPLB)		\
         rust_add_target_info("target_feature", "icplb");		\
     if (ENABLE_WA_05000074)		\
