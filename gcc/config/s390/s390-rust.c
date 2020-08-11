@@ -40,8 +40,8 @@ s390_rust_target_cpu_info (void)
     rust_add_target_info ("target_feature", "soft-float");
   else
     rust_add_target_info ("target_feature", "fp-extension");
-  // TODO: ensure that having hardware float is actually what fp-extension
-  // refers to
+  /* TODO: ensure that having hardware float is actually what fp-extension
+   * refers to */
   /* TODO: find gcc equivalent of distinct-ops (distinct-operands facility),
    * fast-serialization, high-word, interlocked-access1, load-store-on-cond,
    * population-count, message-security-assist-extension3,

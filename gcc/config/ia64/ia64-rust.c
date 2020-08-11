@@ -30,8 +30,8 @@ ia64_rust_target_cpu_info (void)
 {
   rust_add_target_info ("target_arch", "ia64");
 
-  // llvm does not appear to have defined features at any point for IA-64, so I
-  // made up names
+  /* llvm does not appear to have defined features at any point for IA-64, so I
+   * made up names */
   // TODO: should sub-arches be defined here?
   if (TARGET_GNU_AS)
     rust_add_target_info ("target_feature", "gnu-as");
@@ -102,8 +102,8 @@ ia64_rust_target_cpu_info (void)
     rust_add_target_info ("target_feature", "dwarf2-asm");
   if (TARGET_EARLY_STOP_BITS)
     rust_add_target_info ("target_feature", "early-stop-bits");
-  // TODO: do fixed-range somehow (wouldn't work well as define, I don't think),
-  // same for tls-size
+  /* TODO: do fixed-range somehow (wouldn't work well as define, I don't think),
+   * same for tls-size */
 
   if (mflag_sched_br_data_spec)
     rust_add_target_info ("target_feature", "sched-br-data-spec");

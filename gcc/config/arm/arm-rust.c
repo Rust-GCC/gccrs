@@ -70,8 +70,8 @@ arm_rust_target_cpu_info (void)
     rust_add_target_info ("target_feature", "v6");
   if (arm_arch6k)
     rust_add_target_info ("target_feature", "v6k");
-  // as gcc does not appear to consider "v6t2" a proper arch, it is defined when
-  // prequisites are met
+  /* as gcc does not appear to consider "v6t2" a proper arch, it is defined when
+   * prequisites are met */
   bool hasV6T2
     = arm_arch6k && arm_arch_thumb2; // TODO: also "v8m baseline" stuff too
   if (hasV6T2)
@@ -90,8 +90,8 @@ arm_rust_target_cpu_info (void)
     rust_add_target_info ("target_feature", "vfp4");
 
   // llvm features:
-  // should be correct option (i.e. thumb mode rather than just thumb-aware) as
-  // TARGET_ARM is inverse
+  /* should be correct option (i.e. thumb mode rather than just thumb-aware) as
+   * TARGET_ARM is inverse */
   if (TARGET_THUMB)
     rust_add_target_info ("target_feature", "thumb-mode");
   if (TARGET_SOFT_FLOAT)
@@ -175,23 +175,23 @@ arm_rust_target_cpu_info (void)
       if (arm_arch_arm_hwdiv)
 	rust_add_target_info ("target_feature", "hwdiv-arm");
     }
-  // TODO: I'm not sure if there's an exact correlation here (data barrier), so
-  // maybe research There's also the question of whether this also means "full
-  // data barrier" ("dfb" in llvm)
+  /* TODO: I'm not sure if there's an exact correlation here (data barrier), so
+   * maybe research. There's also the question of whether this also means "full
+   * data barrier" ("dfb" in llvm) */
   if (TARGET_HAVE_MEMORY_BARRIER)
     rust_add_target_info ("target_feature", "db");
   if (bitmap_bit_p (arm_active_target.isa, isa_bit_cmse))
     rust_add_target_info ("target_feature", "8msecext");
   if (TARGET_DOTPROD)
     rust_add_target_info ("target_feature", "dotprod");
-  // TODO: supposedly gcc supports RAS, but I couldn't find the option, so
-  // leaving out "ras" for now
+  /* TODO: supposedly gcc supports RAS, but I couldn't find the option, so
+   * leaving out "ras" for now */
   if (bitmap_bit_p (arm_active_target.isa, isa_bit_mp))
     rust_add_target_info ("target_feature", "mp");
-  // TODO: figure out the exact strict-align feature, which I'm pretty sure GCC
-  // has
-  // TODO: figure out how to access long call data (which is in GCC) for
-  // "long-calls"
+  /* TODO: figure out the exact strict-align feature, which I'm pretty sure GCC
+   * has */
+  /* TODO: figure out how to access long call data (which is in GCC) for
+   * "long-calls" */
   if (bitmap_bit_p (arm_active_target.isa, isa_bit_sb))
     rust_add_target_info ("target_feature", "sb");
   if (bitmap_bit_p (arm_active_target.isa, isa_bit_bf16))
@@ -241,8 +241,8 @@ arm_rust_target_cpu_info (void)
 	  && bitmap_bit_p (arm_active_target.isa, isa_bit_mve_float))
 	rust_add_target_info ("target_feature", "mve.fp");
     }
-  // Note: no direct option for "cde" found, but it is implicitly activated via
-  // cdecpx, so do it
+  /* Note: no direct option for "cde" found, but it is implicitly activated via
+   * cdecpx, so do it */
   if (bitmap_bit_p (arm_active_target.isa, isa_bit_cdecp0))
     {
       rust_add_target_info ("target_feature", "cdecp0");
@@ -283,8 +283,8 @@ arm_rust_target_cpu_info (void)
       rust_add_target_info ("target_feature", "cdecp7");
       rust_add_target_info ("target_feature", "cde");
     }
-  // TODO: consider doing the processors as target features, but honestly they
-  // don't seem to fit
+  /* TODO: consider doing the processors as target features, but honestly they
+   * don't seem to fit */
 
   /* TODO: further research support for CLREX (v7clrex), acquire-release
    * (lda/ldaex), slow-fp-brcc (slow FP compare and branch), perfmon, trustzone,

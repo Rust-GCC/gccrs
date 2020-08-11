@@ -34,13 +34,8 @@ ix86_rust_target_cpu_info (void)
 
       if (TARGET_X32)
 	{
-	  // this means it uses 32-bit pointers with 64-bit, basically (ILP32)
-	  // rust_add_target_info("target_pointer_width", "32");
-	  // TODO: may also change x86_64-...-linux-gnu to
-	  // x86_64-...-linux-gnux32
-
-	  // is this better than just putting in pointer width outside of if
-	  // statement?
+	  /* TODO: may also change x86_64-...-linux-gnu to
+	   * x86_64-...-linux-gnux32 */
 
 	  /* TODO: compared to base linux, may also need to change
 	   * max_atomic_width to 64, add "-mx32" to pre-link args, make
@@ -157,13 +152,13 @@ ix86_rust_target_cpu_info (void)
   else
     rust_add_target_info ("target_feature", "32bit-mode");
 
-  // TODO: assuming that the TARGET_80387 (which seems to mean "hard float") is
-  // also required for x87
+  /* TODO: assuming that the TARGET_80387 (which seems to mean "hard float") is
+   * also required for x87 */
   if (TARGET_80387 && (ix86_fpmath & FPMATH_387) != 0)
     rust_add_target_info ("target_feature", "x87");
 
-  // nopl: hard-coded (as gcc doesn't technically have feature) to return true
-  // for cpu arches with it maybe refactor into switch if multiple options
+  /* nopl: hard-coded (as gcc doesn't technically have feature) to return true
+   * for cpu arches with it maybe refactor into switch if multiple options */
   bool hasNOPL
     = ix86_arch == PROCESSOR_PENTIUMPRO || ix86_arch == PROCESSOR_PENTIUM4
       || ix86_arch == PROCESSOR_NOCONA || ix86_arch == PROCESSOR_CORE2
@@ -206,8 +201,8 @@ ix86_rust_target_cpu_info (void)
       || ix86_arch == PROCESSOR_BDVER4 || ix86_arch == PROCESSOR_ZNVER1
       || ix86_arch == PROCESSOR_ZNVER2 || ix86_arch == PROCESSOR_ATHLON
       || ix86_arch == PROCESSOR_K8;
-  // TODO: this is not ideal as it marks the baseline x86-64 CPU as having it -
-  // only AMD ones do
+  /* TODO: this is not ideal as it marks the baseline x86-64 CPU as having it -
+   * only AMD ones do */
   if (hasSlowSHLD)
     rust_add_target_info ("target_feature", "slow-shld");
   if (ix86_arch == PROCESSOR_SILVERMONT)
@@ -276,8 +271,8 @@ ix86_rust_target_cpu_info (void)
     rust_add_target_info ("target_feature", "ptwrite");
   // TODO: add amx-tile, amx-int8, amx-bf16 features when gcc supports them
 
-  // TODO: can't find any gcc option relating to using LEA for adjusting stack
-  // pointer, so hardcoding
+  /* TODO: can't find any gcc option relating to using LEA for adjusting stack
+   * pointer, so hardcoding */
   if (ix86_arch == PROCESSOR_BONNELL)
     rust_add_target_info ("target_feature", "lea-sp");
 
@@ -329,12 +324,13 @@ ix86_rust_target_cpu_info (void)
   if (TARGET_ISA_ENQCMD)
     rust_add_target_info ("target_feature", "enqcmd");
 
-  // these are only enabled by choice in llvm, never by default - TODO determine
-  // if gcc supports them rust_add_target_info("target_feature", "serialize");
+  /* these are only enabled by choice in llvm, never by default - TODO determine
+   * if gcc supports them */
+  // rust_add_target_info("target_feature", "serialize");
   // rust_add_target_info("target_feature", "tsxldtrk");
 
-  // TODO: gcc seems to not record whether to avoid memory operanded
-  // instructions, so basing it on llvm
+  /* TODO: gcc seems to not record whether to avoid memory operanded
+   * instructions, so basing it on llvm */
   bool hasSlowTwoMemOps
     = ix86_arch == PROCESSOR_BONNELL || ix86_arch == PROCESSOR_SILVERMONT
       || ix86_arch == PROCESSOR_GOLDMONT || ix86_arch == PROCESSOR_GOLDMONT_PLUS
@@ -343,14 +339,14 @@ ix86_rust_target_cpu_info (void)
   if (hasSlowTwoMemOps)
     rust_add_target_info ("target_feature", "slow-two-mem-ops");
 
-  // TODO: gcc seems to not record whether LEA needs input at AG stage, so
-  // basing it on llvm
+  /* TODO: gcc seems to not record whether LEA needs input at AG stage, so
+   * basing it on llvm */
   // TODO: maybe something to do with X86_TUNE_OPT_AGU?
   if (ix86_arch == PROCESSOR_BONNELL)
     rust_add_target_info ("target_feature", "lea-uses-ag");
 
-  // TODO: gcc seems to not record whether LEA with certain arguments is slow,
-  // so basing it on llvm
+  /* TODO: gcc seems to not record whether LEA with certain arguments is slow,
+   * so basing it on llvm */
   // TODO: maybe TARGET_AVOID_LEA_FOR_ADDR has something to do with it?
   bool hasSlowLEA
     = ix86_arch == PROCESSOR_SILVERMONT || ix86_arch == PROCESSOR_GOLDMONT
@@ -358,8 +354,8 @@ ix86_rust_target_cpu_info (void)
   if (hasSlowLEA)
     rust_add_target_info ("target_feature", "slow-lea");
 
-  // TODO: gcc seems to not record whether LEA with 3 ops or certain regs is
-  // slow, so basing it on llvm
+  /* TODO: gcc seems to not record whether LEA with 3 ops or certain regs is
+   * slow, so basing it on llvm */
   // TODO: maybe TARGET_AVOID_LEA_FOR_ADDR has something to do with it?
   bool hasSlow3OpsLEA
     = ix86_arch == PROCESSOR_SANDYBRIDGE || ix86_arch == PROCESSOR_HASWELL
@@ -373,25 +369,25 @@ ix86_rust_target_cpu_info (void)
   if (hasSlow3OpsLEA)
     rust_add_target_info ("target_feature", "slow-3ops-lea");
 
-  // TODO: assuming that this is equivalent option - it strictly doesn't cover
-  // same cpus
+  /* TODO: assuming that this is equivalent option - it strictly doesn't cover
+   * same cpus */
   if (!TARGET_USE_INCDEC)
     rust_add_target_info ("target_feature", "slow-incdec");
-  // TODO: assuming that this mask actually refers to "hard float" and not x87
-  // specifically
+  /* TODO: assuming that this mask actually refers to "hard float" and not x87
+   * specifically */
   if (!TARGET_80387)
     rust_add_target_info ("target_feature", "soft-float");
 
-  // TODO: gcc seems to not record if LZCNT/TZCNT has false deps on dest
-  // register, so basing it on llvm
+  /* TODO: gcc seems to not record if LZCNT/TZCNT has false deps on dest
+   * register, so basing it on llvm */
   if (ix86_arch == PROCESSOR_HASWELL)
     rust_add_target_info ("target_feature", "false-deps-lzcnt-tzcnt");
 
   if (TARGET_ISA_PCONFIG)
     rust_add_target_info ("target_feature", "pconfig");
 
-  // TODO: gcc seems to not record if variable-mask shuffles are fast, so basing
-  // it on llvm
+  /* TODO: gcc seems to not record if variable-mask shuffles are fast, so basing
+   * it on llvm */
   bool hasFastVariableShuffle
     = ix86_arch == PROCESSOR_HASWELL || ix86_arch == PROCESSOR_SKYLAKE
       || ix86_arch == PROCESSOR_SKYLAKE_AVX512
@@ -403,13 +399,13 @@ ix86_rust_target_cpu_info (void)
   if (hasFastVariableShuffle)
     rust_add_target_info ("target_feature", "fast-variable-shuffle");
 
-  // TODO: ensure that this actually refers to the right thing - difference in
-  // gcc and llvm description
+  /* TODO: ensure that this actually refers to the right thing - difference in
+   * gcc and llvm description */
   if (TARGET_VZEROUPPER)
     rust_add_target_info ("target_feature", "vzeroupper");
 
-  // option based on llvm arch analysis as gcc tuning costs seem to indicate a
-  // different result
+  /* option based on llvm arch analysis as gcc tuning costs seem to indicate a
+   * different result */
   bool hasFastScalarFSQRT
     = ix86_arch == PROCESSOR_SANDYBRIDGE || ix86_arch == PROCESSOR_HASWELL
       || ix86_arch == PROCESSOR_SKYLAKE || ix86_arch == PROCESSOR_SKYLAKE_AVX512
@@ -482,8 +478,8 @@ ix86_rust_target_cpu_info (void)
   if (hasERMSB)
     rust_add_target_info ("target_feature", "ermsbd");
 
-  // TODO: may exist in gcc as tune macros, but not sure, so based on llvm
-  // arches
+  /* TODO: may exist in gcc as tune macros, but not sure, so based on llvm
+   * arches */
   bool hasBranchFusion
     = ix86_arch == PROCESSOR_BDVER1 || ix86_arch == PROCESSOR_BDVER2
       || ix86_arch == PROCESSOR_BDVER3 || ix86_arch == PROCESSOR_BDVER4
@@ -566,11 +562,11 @@ ix86_rust_target_cpu_info (void)
   if (useGoldmontDivSqrtCosts)
     rust_add_target_info ("target_feature", "use-glm-div-sqrt-costs");
 
-  // TODO: determine if gcc supports alias analysis (in which case "use-aa" is
-  // defined)
+  /* TODO: determine if gcc supports alias analysis (in which case "use-aa" is
+   * defined) */
 
-  // features not supported by llvm but important enough for c frontend to
-  // define macros for
+  /* features not supported by llvm but important enough for c frontend to
+   * define macros for */
   /*if (TARGET_ISA_AVX5124VNNIW)
     rust_add_target_info("target_feature", "avx5124vnniw");
   if (TARGET_ISA_AVX5124FMAPS)

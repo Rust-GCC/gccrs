@@ -25,35 +25,39 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Implement TARGET_RUST_CPU_INFO for Renesas H8/300 targets.  */
 
-void h8300_rust_target_cpu_info(void) {
-    rust_add_target_info("target_arch", "h8300");
+void
+h8300_rust_target_cpu_info (void)
+{
+  rust_add_target_info ("target_arch", "h8300");
 
-    // note that llvm has no support, current or historical, so names made up by me (via option names)
-    // TODO: maybe rename some features as kind of bad names - e.g. "s" is horrible
-    if (TARGET_H8300S_1)
-        rust_add_target_info("target_feature", "s");
-    if (TARGET_H8300SX)
-        rust_add_target_info("target_feature", "sx");
-    if (TARGET_MAC)
-        rust_add_target_info("target_feature", "s2600");
-    if (TARGET_INT32)
-        rust_add_target_info("target_feature", "int32");
-    if (TARGET_ADDRESSES)
-        rust_add_target_info("target_feature", "addresses");
-    if (TARGET_QUICKCALL)
-        rust_add_target_info("target_feature", "quickcall");
-    if (TARGET_SLOWBYTE)
-        rust_add_target_info("target_feature", "slowbyte");
-    if (TARGET_RELAX)
-        rust_add_target_info("target_feature", "relax");
-    if (TARGET_H8300H)
-        rust_add_target_info("target_feature", "h");
-    if (TARGET_NORMAL_MODE)
-        rust_add_target_info("target_feature", "n");
-    if (TARGET_ALIGN_300)
-        rust_add_target_info("target_feature", "align-300");
-    if (TARGET_EXR)
-        rust_add_target_info("target_feature", "exr");
-    if (TARGET_NEXR)
-        rust_add_target_info("target_feature", "nexr");
+  /* note that llvm has no support, current or historical, so names made up by
+   * me (via option names) */
+  /* TODO: maybe rename some features as kind of bad names - e.g. "s" is
+   * horrible */
+  if (TARGET_H8300S_1)
+    rust_add_target_info ("target_feature", "s");
+  if (TARGET_H8300SX)
+    rust_add_target_info ("target_feature", "sx");
+  if (TARGET_MAC)
+    rust_add_target_info ("target_feature", "s2600");
+  if (TARGET_INT32)
+    rust_add_target_info ("target_feature", "int32");
+  if (TARGET_ADDRESSES)
+    rust_add_target_info ("target_feature", "addresses");
+  if (TARGET_QUICKCALL)
+    rust_add_target_info ("target_feature", "quickcall");
+  if (TARGET_SLOWBYTE)
+    rust_add_target_info ("target_feature", "slowbyte");
+  if (TARGET_RELAX)
+    rust_add_target_info ("target_feature", "relax");
+  if (TARGET_H8300H)
+    rust_add_target_info ("target_feature", "h");
+  if (TARGET_NORMAL_MODE)
+    rust_add_target_info ("target_feature", "n");
+  if (TARGET_ALIGN_300)
+    rust_add_target_info ("target_feature", "align-300");
+  if (TARGET_EXR)
+    rust_add_target_info ("target_feature", "exr");
+  if (TARGET_NEXR)
+    rust_add_target_info ("target_feature", "nexr");
 }

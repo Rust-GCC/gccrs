@@ -33,8 +33,8 @@ m68k_rust_target_cpu_info (void)
   /* llvm has no current or historical support for m68k, and llvm forks and
    * mrustc don't suggest any true target feature names, so I made up names and
    * features */
-  // TODO: maybe define subarches as features? probably needed, but not sure how
-  // well it interacts
+  /* TODO: maybe define subarches as features? probably needed, but not sure how
+   * well it interacts */
   if (TARGET_ALIGN_INT)
     rust_add_target_info ("target_feature", "align-int");
   if (TARGET_BITFIELD)

@@ -30,8 +30,8 @@ aarch64_rust_target_cpu_info (void)
 {
   rust_add_target_info ("target_arch", "aarch64");
 
-  // TODO: almost feature-complete with rustc - missing "ras" feature (which is
-  // not in gcc)
+  /* TODO: almost feature-complete with rustc - missing "ras" feature (which is
+   * not in gcc) */
 
   // features from rustc
   if (TARGET_FLOAT)
@@ -150,6 +150,6 @@ aarch64_rust_target_cpu_info (void)
    * Exception Level 2), pmu, tlb-rmi (TLB Range and Maintenance), fmi (Flag
    * Manipulation), no-neg-immediates, lsl-fast, aggressive-fma, altnzcv,
    * specrestrict, ccdp, trbe, ete, tagged-globals, fgt, ecv, maybe cpus */
-  // gcc supports pointer authentication, but i can only find builtins and no
-  // switch for it
+  /* gcc supports pointer authentication, but i can only find builtins and no
+   * switch for it */
 }

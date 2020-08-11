@@ -43,8 +43,8 @@ m32r_rust_target_cpu_info (void)
     rust_add_target_info ("target_feature", "prefer-branch-over-cond");
   if (TARGET_DEBUG)
     rust_add_target_info ("target_feature", "debug");
-  // TODO: find way to have flush-func and flush-trap (they don't work well as
-  // defines)
+  /* TODO: find way to have flush-func and flush-trap (they don't work well as
+   * defines) */
   if (TARGET_LOW_ISSUE_RATE)
     rust_add_target_info ("target_feature", "issue-rate-1");
   else
@@ -61,6 +61,6 @@ m32r_rust_target_cpu_info (void)
     rust_add_target_info ("target_feature", "sdata-sdata");
   else if (TARGET_SDATA_USE)
     rust_add_target_info ("target_feature", "sdata-use");
-  // TODO: couldn't find any option on "-G" even though docs mention it - maybe
-  // check that?
+  /* TODO: couldn't find any option on "-G" even though docs mention it - maybe
+   * check that? */
 }
