@@ -25,58 +25,64 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Implement TARGET_RUST_CPU_INFO for C-SKY targets.  */
 
-void cris_rust_target_cpu_info(void) {
-    rust_add_target_info("target_arch", "csky");
+void
+cris_rust_target_cpu_info (void)
+{
+  rust_add_target_info ("target_arch", "csky");
 
-    // llvm seems to have no support for sky (nor historical support), so names are made up by me
-    // TODO maybe put in sub-arches as features? idk. might be useful in this case 
-    if (TARGET_HARD_FLOAT)
-        rust_add_target_info("target_feature", "hard-float");
-    else
-        rust_add_target_info("target_feature", "soft-float");
-    if (TARGET_DOUBLE_FLOAT)
-        rust_add_target_info("target_feature", "double-float");
-    if (TARGET_FDIVDU)
-        rust_add_target_info("target_feature", "fdivdu");
-    if (TARGET_ELRW)
-        rust_add_target_info("target_feature", "elrw");
-    if (TARGET_ISTACK)
-        rust_add_target_info("target_feature", "istack");
-    if (TARGET_MP)
-        rust_add_target_info("target_feature", "mp");
-    if (TARGET_CP)
-        rust_add_target_info("target_feature", "cp");
-    if (TARGET_CACHE)
-        rust_add_target_info("target_feature", "cache");
-    if (TARGET_SECURITY)
-        rust_add_target_info("target_feature", "security"); // maybe also add define for "mac"?
-    if (TARGET_TRUST)
-        rust_add_target_info("target_feature", "trust");
-    if (TARGET_DSP)
-        rust_add_target_info("target_feature", "dsp");
-    if (TARGET_EDSP)
-        rust_add_target_info("target_feature", "edsp");
-    if (TARGET_VDSP)
-        rust_add_target_info("target_feature", "vdsp");
-    if (TARGET_DIV)
-        rust_add_target_info("target_feature", "div");
-    if (TARGET_MINI_REGISTERS)
-        rust_add_target_info("target_feature", "smart");
-    if (TARGET_HIGH_REGISTERS)
-        rust_add_target_info("target_feature", "high-registers");
-    if (TARGET_ANCHOR)
-        rust_add_target_info("target_feature", "anchor");
-    if (TARGET_PUSHPOP)
-        rust_add_target_info("target_feature", "pushpop");
-    if (TARGET_MULTIPLE_STLD)
-        rust_add_target_info("target_feature", "multiple-stld"); // maybe also add define for "stm"?
-    if (TARGET_CONSTANT_POOL)
-        rust_add_target_info("target_feature", "constpool");
-    if (TARGET_STACK_SIZE)
-        rust_add_target_info("target_feature", "stack-size");
-    if (TARGET_LIBCCRT)
-        rust_add_target_info("target_feature", "ccrt");
-    // maybe have branch cost as target feature? but kind of doesn't really fit as "define"
-    if (flag_sched_prolog)
-        rust_add_target_info("target_feature", "sched-prolog");
+  // llvm seems to have no support for sky (nor historical support), so names
+  // are made up by me
+  // TODO maybe put in sub-arches as features? idk. might be useful in this case
+  if (TARGET_HARD_FLOAT)
+    rust_add_target_info ("target_feature", "hard-float");
+  else
+    rust_add_target_info ("target_feature", "soft-float");
+  if (TARGET_DOUBLE_FLOAT)
+    rust_add_target_info ("target_feature", "double-float");
+  if (TARGET_FDIVDU)
+    rust_add_target_info ("target_feature", "fdivdu");
+  if (TARGET_ELRW)
+    rust_add_target_info ("target_feature", "elrw");
+  if (TARGET_ISTACK)
+    rust_add_target_info ("target_feature", "istack");
+  if (TARGET_MP)
+    rust_add_target_info ("target_feature", "mp");
+  if (TARGET_CP)
+    rust_add_target_info ("target_feature", "cp");
+  if (TARGET_CACHE)
+    rust_add_target_info ("target_feature", "cache");
+  if (TARGET_SECURITY)
+    rust_add_target_info ("target_feature",
+			  "security"); // maybe also add define for "mac"?
+  if (TARGET_TRUST)
+    rust_add_target_info ("target_feature", "trust");
+  if (TARGET_DSP)
+    rust_add_target_info ("target_feature", "dsp");
+  if (TARGET_EDSP)
+    rust_add_target_info ("target_feature", "edsp");
+  if (TARGET_VDSP)
+    rust_add_target_info ("target_feature", "vdsp");
+  if (TARGET_DIV)
+    rust_add_target_info ("target_feature", "div");
+  if (TARGET_MINI_REGISTERS)
+    rust_add_target_info ("target_feature", "smart");
+  if (TARGET_HIGH_REGISTERS)
+    rust_add_target_info ("target_feature", "high-registers");
+  if (TARGET_ANCHOR)
+    rust_add_target_info ("target_feature", "anchor");
+  if (TARGET_PUSHPOP)
+    rust_add_target_info ("target_feature", "pushpop");
+  if (TARGET_MULTIPLE_STLD)
+    rust_add_target_info ("target_feature",
+			  "multiple-stld"); // maybe also add define for "stm"?
+  if (TARGET_CONSTANT_POOL)
+    rust_add_target_info ("target_feature", "constpool");
+  if (TARGET_STACK_SIZE)
+    rust_add_target_info ("target_feature", "stack-size");
+  if (TARGET_LIBCCRT)
+    rust_add_target_info ("target_feature", "ccrt");
+  // maybe have branch cost as target feature? but kind of doesn't really fit as
+  // "define"
+  if (flag_sched_prolog)
+    rust_add_target_info ("target_feature", "sched-prolog");
 }

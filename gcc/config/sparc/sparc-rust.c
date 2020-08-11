@@ -25,40 +25,42 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Implement TARGET_RUST_CPU_INFO for SPARC targets.  */
 
-void sparc_rust_target_cpu_info(void) {
-    if (TARGET_64BIT)
-        rust_add_target_info("target_arch", "sparc64");
-    else 
-        rust_add_target_info("target_arch", "sparc");
+void
+sparc_rust_target_cpu_info (void)
+{
+  if (TARGET_64BIT)
+    rust_add_target_info ("target_arch", "sparc64");
+  else
+    rust_add_target_info ("target_arch", "sparc");
 
-    // names based on llvm 
-    /* TODO: try to isolate soft-mul-div feature (software emulation for integer multiply and divide) 
-     * if doable? does gcc even support this? */
-    if (!(TARGET_FSMULD))
-        rust_add_target_info("target_feature", "no-fsmuld");
-    // TODO: add "no-fmuls" (fmuls instruction) option if can find in gcc
-    if (TARGET_V9)
-        rust_add_target_info("target_feature", "v9");
-    if (TARGET_DEPRECATED_V8_INSNS)
-        rust_add_target_info("target_feature", "deprecated-v8");
-    if (TARGET_VIS)
-        rust_add_target_info("target_feature", "vis");
-    if (TARGET_VIS2)
-        rust_add_target_info("target_feature", "vis2");
-    if (TARGET_VIS3)
-        rust_add_target_info("target_feature", "vis3");
-    if (TARGET_LEON) // TODO: does this mean just leon or also allow leon v3?
-        rust_add_target_info("target_feature", "leon");
-    // TODO: add "leonpwrpsr" (PWRPSR instruction) option if can find in gcc
-    if (TARGET_HARD_QUAD)
-        rust_add_target_info("target_feature", "hard-quad-float");
-    if (TARGET_POPC)
-        rust_add_target_info("target_feature", "popc");
-    if (!(TARGET_FPU))
-        rust_add_target_info("target_feature", "soft-float");
-    /* TODO: add "hasumacsmac" (UMAC and SMAC insns), "hasleoncasa" (CASA insns), 
-     * "insertnopload" (LEON3 fix), "detectroundchange" (LEON3 fix), "fixallfdivsqrt" (LEON fix), 
-     * "leoncyclecounter" if in gcc */
+  // names based on llvm
+  /* TODO: try to isolate soft-mul-div feature (software emulation for integer
+   * multiply and divide) if doable? does gcc even support this? */
+  if (!TARGET_FSMULD)
+    rust_add_target_info ("target_feature", "no-fsmuld");
+  // TODO: add "no-fmuls" (fmuls instruction) option if can find in gcc
+  if (TARGET_V9)
+    rust_add_target_info ("target_feature", "v9");
+  if (TARGET_DEPRECATED_V8_INSNS)
+    rust_add_target_info ("target_feature", "deprecated-v8");
+  if (TARGET_VIS)
+    rust_add_target_info ("target_feature", "vis");
+  if (TARGET_VIS2)
+    rust_add_target_info ("target_feature", "vis2");
+  if (TARGET_VIS3)
+    rust_add_target_info ("target_feature", "vis3");
+  if (TARGET_LEON) // TODO: does this mean just leon or also allow leon v3?
+    rust_add_target_info ("target_feature", "leon");
+  // TODO: add "leonpwrpsr" (PWRPSR instruction) option if can find in gcc
+  if (TARGET_HARD_QUAD)
+    rust_add_target_info ("target_feature", "hard-quad-float");
+  if (TARGET_POPC)
+    rust_add_target_info ("target_feature", "popc");
+  if (!TARGET_FPU)
+    rust_add_target_info ("target_feature", "soft-float");
+  /* TODO: add "hasumacsmac" (UMAC and SMAC insns), "hasleoncasa" (CASA insns),
+   * "insertnopload" (LEON3 fix), "detectroundchange" (LEON3 fix),
+   * "fixallfdivsqrt" (LEON fix), "leoncyclecounter" if in gcc */
 
-    // TODO: maybe add features in gcc that seem to have no llvm equivalent
+  // TODO: maybe add features in gcc that seem to have no llvm equivalent
 }

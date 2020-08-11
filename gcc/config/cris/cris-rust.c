@@ -25,35 +25,39 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Implement TARGET_RUST_CPU_INFO for CRIS targets.  */
 
-void cris_rust_target_cpu_info(void) {
-    rust_add_target_info("target_arch", "cris");
+void
+cris_rust_target_cpu_info (void)
+{
+  rust_add_target_info ("target_arch", "cris");
 
-    // llvm seems to have no support for cris (nor historical support), so names are made up by me
-    // TODO maybe put in sub-arches as features? idk. might be useful in this case 
-    if (TARGET_MUL_BUG) 
-        rust_add_target_info("target_feature", "mul-bug-workaround");
-    if (TARGET_PDEBUG)
-        rust_add_target_info("target_feature", "pdebug");
-    if (TARGET_CCINIT)
-        rust_add_target_info("target_feature", "cc-init");
-    if (TARGET_SIDE_EFFECT_PREFIXES)
-        rust_add_target_info("target_feature", "side-effect-patterns");
-    if (TARGET_STACK_ALIGN)
-        rust_add_target_info("target_feature", "stack-align");
-    if (TARGET_DATA_ALIGN)
-        rust_add_target_info("target_feature", "data-align");
-    if (TARGET_CONST_ALIGN)
-        rust_add_target_info("target_feature", "const-align");
-    // TODO: figure out how gcc stores the 8-bit, 16-bit, and 32-bit options as macros to add them
-    if (TARGET_PROLOGUE_EPILOGUE)
-        rust_add_target_info("target_feature", "prologue-epilogue");
-    // TODO: feature for max stack frame? might be too finicky
-    if (TARGET_TRAP_USING_BREAK8)
-        rust_add_target_info("target_feature", "trap-using-break8");
-    if (TARGET_TRAP_UNALIGNED_ATOMIC)
-        rust_add_target_info("target_feature", "trap-unaligned-atomic");
-    if (TARGET_ATOMICS_MAY_CALL_LIBFUNCS)
-        rust_add_target_info("target_feature", "unaligned-atomic-may-use-library");
-    /* TODO: maybe something about having individual instructions, e.g. "TARGET_HAS_MUL_INSNS", 
-     * "TARGET_HAS_LZ", other stuff in cris.h */
+  // llvm seems to have no support for cris (nor historical support), so names
+  // are made up by me
+  // TODO maybe put in sub-arches as features? idk. might be useful in this case
+  if (TARGET_MUL_BUG)
+    rust_add_target_info ("target_feature", "mul-bug-workaround");
+  if (TARGET_PDEBUG)
+    rust_add_target_info ("target_feature", "pdebug");
+  if (TARGET_CCINIT)
+    rust_add_target_info ("target_feature", "cc-init");
+  if (TARGET_SIDE_EFFECT_PREFIXES)
+    rust_add_target_info ("target_feature", "side-effect-patterns");
+  if (TARGET_STACK_ALIGN)
+    rust_add_target_info ("target_feature", "stack-align");
+  if (TARGET_DATA_ALIGN)
+    rust_add_target_info ("target_feature", "data-align");
+  if (TARGET_CONST_ALIGN)
+    rust_add_target_info ("target_feature", "const-align");
+  // TODO: figure out how gcc stores the 8-bit, 16-bit, and 32-bit options as
+  // macros to add them
+  if (TARGET_PROLOGUE_EPILOGUE)
+    rust_add_target_info ("target_feature", "prologue-epilogue");
+  // TODO: feature for max stack frame? might be too finicky
+  if (TARGET_TRAP_USING_BREAK8)
+    rust_add_target_info ("target_feature", "trap-using-break8");
+  if (TARGET_TRAP_UNALIGNED_ATOMIC)
+    rust_add_target_info ("target_feature", "trap-unaligned-atomic");
+  if (TARGET_ATOMICS_MAY_CALL_LIBFUNCS)
+    rust_add_target_info ("target_feature", "unaligned-atomic-may-use-library");
+  /* TODO: maybe something about having individual instructions, e.g.
+   * "TARGET_HAS_MUL_INSNS", "TARGET_HAS_LZ", other stuff in cris.h */
 }

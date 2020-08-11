@@ -19,6 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "tm_p.h"
 #include "rust/rust-target.h"
 #include "rust/rust-target-def.h"
 
@@ -27,55 +28,101 @@ along with GCC; see the file COPYING3.  If not see
 void
 rs6000_rust_target_cpu_info (void)
 {
-  // note that rustc makes no arch distinction between powerpc64 and powerpc64 little endian
+  /* note that rustc makes no arch distinction between powerpc64 and powerpc64
+   * little endian */
   if (TARGET_64BIT)
     rust_add_target_info ("target_arch", "powerpc64");
   else
     rust_add_target_info ("target_arch", "powerpc");
 
-  // TODO: define properly instead of macros
-#ifdef flags
-# error "multiple flags already defined in rs6000-rust.c"
-#endif
-#define flags rs6000_isa_flags
-
-  // options should be (almost at least - i.e. power8-altivec and the like) feature complete with rustc
-  if ((flags & OPTION_MASK_ALTIVEC) != 0)
+  // features from rustc - feature complete (although with caveats)
+  if (TARGET_ALTIVEC)
     rust_add_target_info ("target_feature", "altivec");
-  if ((flags & OPTION_MASK_VSX) != 0)
-    rust_add_target_info ("target_feature", "vsx");
-  /* I can't find any separate gcc equivalent to "power8-altivec" in llvm, but power8-vector has it as a
-   * prerequisite, so just implicitly enable it when enabling the vector. TODO search for it. */
-  if ((flags & OPTION_MASK_P8_VECTOR) != 0) {
-    rust_add_target_info ("target_feature", "power8-vector");
-    rust_add_target_info ("target_feature", "power8-altivec");
-  }
-  if ((flags & OPTION_MASK_CRYPTO) != 0)
-    rust_add_target_info ("target_feature", "crypto");
-  if ((flags & OPTION_MASK_HTM) != 0)
-    rust_add_target_info ("target_feature", "htm");
-  if ((flags & OPTION_MASK_FLOAT128_KEYWORD) != 0)
-    rust_add_target_info ("target_feature", "float128");
+  /* I can't find any separate gcc equivalent to "power8-altivec" in llvm, but
+   * power8-vector has it as a prerequisite, so just implicitly enable it when
+   * enabling the vector. TODO search for it. */
+  if (TARGET_P8_VECTOR)
+    {
+      rust_add_target_info ("target_feature", "power8-vector");
+      rust_add_target_info ("target_feature", "power8-altivec");
+    }
   // Same implicit enabling of power9-altivec happens with power9-vector.
-  if ((flags & OPTION_MASK_P9_VECTOR) != 0) {
-    rust_add_target_info ("target_feature", "power9-vector");
-    rust_add_target_info ("target_feature", "power9-altivec");
-  }
-  if ((flags & OPTION_MASK_DIRECT_MOVE) != 0)
-    rust_add_target_info ("target_feature", "direct-move");
+  if (TARGET_P9_VECTOR)
+    {
+      rust_add_target_info ("target_feature", "power9-vector");
+      rust_add_target_info ("target_feature", "power9-altivec");
+    }
+  if (TARGET_VSX)
+    rust_add_target_info ("target_feature", "vsx");
 
+  // options from llvm
+  if (TARGET_64BIT)
+    rust_add_target_info ("target_feature", "64bit");
+  if (!TARGET_SOFT_FLOAT)
+    rust_add_target_info ("target_feature", "hard-float");
+  if (TARGET_FRE)
+    rust_add_target_info ("target_feature", "fre");
+  if (TARGET_FRES)
+    rust_add_target_info ("target_feature", "fres");
+  if (TARGET_FRSQRTE)
+    rust_add_target_info ("target_feature", "frsqrte");
+  if (TARGET_FRSQRTES)
+    rust_add_target_info ("target_feature", "frsqrtes");
+  if (TARGET_RECIP_PRECISION)
+    rust_add_target_info ("target_feature", "recipprec");
+  if (TARGET_STFIWX)
+    rust_add_target_info ("target_feature", "stfiwx");
+  if (TARGET_LFIWAX)
+    rust_add_target_info ("target_feature", "lfiwax");
+  if (TARGET_FPRND)
+    rust_add_target_info ("target_feature", "fprnd");
+  if (TARGET_ISEL)
+    rust_add_target_info ("target_feature", "isel");
+  if (TARGET_LDBRX)
+    rust_add_target_info ("target_feature", "ldbrx");
+  if (TARGET_CMPB)
+    rust_add_target_info ("target_feature", "cmpb");
   if (TARGET_SECURE_PLT)
     rust_add_target_info ("target_feature", "secure-plt");
+  if (TARGET_CRYPTO)
+    rust_add_target_info ("target_feature", "crypto");
+  if (TARGET_DIRECT_MOVE)
+    rust_add_target_info ("target_feature", "direct-move");
+  if (rs6000_default_long_calls)
+    rust_add_target_info ("target_feature", "longcall");
+  if (TARGET_HTM)
+    rust_add_target_info ("target_feature", "htm");
+  /* TODO: "fusion" is currently only added implicitly, as can't find gcc option
+   * for only fusion */
+  if (TARGET_P8_FUSION)
+    {
+      rust_add_target_info ("target_feature", "fuse-addi-load");
+      rust_add_target_info ("target_feature", "fusion");
+    }
+  if (TARGET_P8_FUSION_SIGN)
+    {
+      rust_add_target_info ("target_feature", "fuse-addis-load");
+      rust_add_target_info ("target_feature", "fusion");
+    }
+  if (TARGET_FLOAT128_KEYWORD)
+    rust_add_target_info ("target_feature", "float128");
+  // TODO: make some processors have slow-popcntd instead of this
+  if (TARGET_POPCNTD)
+    rust_add_target_info ("target_feature", "popcntd");
+  if (TARGET_PREFIXED_ADDR)
+    rust_add_target_info ("target_feature", "prefix-instrs");
+  if (TARGET_PCREL)
+    rust_add_target_info ("target_feature", "pcrelative-memops");
 
-  if ((flags & OPTION_MASK_SOFT_FLOAT) != 0)
-    ; // apparently not an option - TODO find out if it is
-  else
-    rust_add_target_info ("target_feature", "hard-float");
-
-  // TODO: some possible features (in rustc, listed under powerpc-wrs-vxworks-spe) - "msync"
-  // other possible features (in clang) - "qpx" (when cpu = "a2q"), "bpermd", "extdiv", "spe"
-
-  // note: in gcc, it is possible bpermd is available if popcntd is available (which is power 7)
-
-#undef flags
+  /* TODO: investigate whether 64bitregs is supported by gcc (64-bit registers
+   * in ppc32), same with crbits (use condition register bits individually), fpu
+   * (classic fp instructions - fp is supported, but can it be turned off as
+   * option? could "hard float" replace this concept?), spe, mfocrf, fsqrt,
+   * fcpsgn, fpcvt (related to TARGET_FLOAT128_CVT? TARGET_LFIWZX?), bpermd,
+   * extdiv, icbt, booke, msync, e500, ppc4xx, ppc6xx, two-const-nr,
+   * partword-atomics, invariant-function-descriptors,
+   * allow-unaligned-fp-access, ppc-prera-sched, ppc-postra-sched,
+   * isa-v30-instructions, isa-v31-instructions, power10-vector,
+   * vectors-use-two-units, paired-vector-memops, predictable-select-expensive
+   */
 }

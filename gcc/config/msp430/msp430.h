@@ -47,7 +47,6 @@ extern bool msp430x;
 #define TARGET_RUST_CPU_INFO() \
   do { \
     rust_add_target_info("target_arch", "msp430"); \
-    /*TODO: ensure below variables work*/ \
     if (msp430_hwmult_type == MSP430_HWMULT_SMALL) \
       rust_add_target_info("target_feature", "hwmult16"); \
     else if (msp430_hwmult_type == MSP430_HWMULT_LARGE) \

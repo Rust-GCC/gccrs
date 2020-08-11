@@ -25,29 +25,32 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Implement TARGET_RUST_CPU_INFO for CR16 targets.  */
 
-void cr16_rust_target_cpu_info(void) {
-    rust_add_target_info("target_arch", "cr16");
+void
+cr16_rust_target_cpu_info (void)
+{
+  rust_add_target_info ("target_arch", "cr16");
 
-    // llvm seems to have no support for cr16 (nor historical support), so names are made up by me
-    // TODO maybe put in sub-arches as features? idk
-    if (TARGET_BIT_OPS)
-        rust_add_target_info("target_feature", "bit-ops");
-    if (TARGET_MAC)
-        rust_add_target_info("target_feature", "mac");
-    if (TARGET_DEBUG_ADDR)
-        rust_add_target_info("target_feature", "debug-addr");
-    if (TARGET_INT32)
-        rust_add_target_info("target_feature", "int32");
+  // llvm seems to have no support for cr16 (nor historical support), so names
+  // are made up by me
+  // TODO maybe put in sub-arches as features? idk
+  if (TARGET_BIT_OPS)
+    rust_add_target_info ("target_feature", "bit-ops");
+  if (TARGET_MAC)
+    rust_add_target_info ("target_feature", "mac");
+  if (TARGET_DEBUG_ADDR)
+    rust_add_target_info ("target_feature", "debug-addr");
+  if (TARGET_INT32)
+    rust_add_target_info ("target_feature", "int32");
 
-    if (CR16_TARGET_DATA_NEAR)             
-        rust_add_target_info("target_feature", "data-model-near");
-    if (CR16_TARGET_DATA_MEDIUM)           
-        rust_add_target_info("target_feature", "data-model-medium");
-    if (CR16_TARGET_DATA_FAR)              
-        rust_add_target_info("target_feature", "data-model-far");  
-    
-    if (TARGET_CR16C)
-        rust_add_target_info("target_feature", "cr16c");
-    if (TARGET_CR16CP)
-        rust_add_target_info("target_feature", "cr16cplus");
+  if (CR16_TARGET_DATA_NEAR)
+    rust_add_target_info ("target_feature", "data-model-near");
+  if (CR16_TARGET_DATA_MEDIUM)
+    rust_add_target_info ("target_feature", "data-model-medium");
+  if (CR16_TARGET_DATA_FAR)
+    rust_add_target_info ("target_feature", "data-model-far");
+
+  if (TARGET_CR16C)
+    rust_add_target_info ("target_feature", "cr16c");
+  if (TARGET_CR16CP)
+    rust_add_target_info ("target_feature", "cr16cplus");
 }

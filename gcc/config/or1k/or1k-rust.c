@@ -25,34 +25,38 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Implement TARGET_RUST_CPU_INFO for OpenRISC targets.  */
 
-void or1k_rust_target_cpu_info(void) {
-    rust_add_target_info("target_arch", "or1k");
+void
+or1k_rust_target_cpu_info (void)
+{
+  rust_add_target_info ("target_arch", "or1k");
 
-    // names derived from llvm fork
-    if (!(TARGET_SOFT_MUL)) 
-        rust_add_target_info("target_feature", "mul");
-    if (!(TARGET_SOFT_DIV))
-        rust_add_target_info("target_feature", "div");
-    if (TARGET_ROR) 
-        rust_add_target_info("target_feature", "ror");
-    if (TARGET_CMOV)
-        rust_add_target_info("target_feature", "cmov");
-    /* TODO: add options for addc (add with carry), ffl1 (find first/last one), interrupts (use 
-     * l.lwa/l.swa for atomic RMW ops) if can find gcc equivalents.  */
-    if (TARGET_SEXT)
-        rust_add_target_info("target_feature", "ext");
+  // names derived from llvm fork
+  if (!TARGET_SOFT_MUL)
+    rust_add_target_info ("target_feature", "mul");
+  if (!TARGET_SOFT_DIV)
+    rust_add_target_info ("target_feature", "div");
+  if (TARGET_ROR)
+    rust_add_target_info ("target_feature", "ror");
+  if (TARGET_CMOV)
+    rust_add_target_info ("target_feature", "cmov");
+  /* TODO: add options for addc (add with carry), ffl1 (find first/last one),
+   * interrupts (use l.lwa/l.swa for atomic RMW ops) if can find gcc
+   * equivalents.  */
+  if (TARGET_SEXT)
+    rust_add_target_info ("target_feature", "ext");
 
-    // below are options not in llvm but derived from gcc, as they seemed potentially useful
-    if (TARGET_HARD_FLOAT)
-        rust_add_target_info("target_feature", "hard-float");
-    if (TARGET_DOUBLE_FLOAT)
-        rust_add_target_info("target_feature", "double-float");
-    if (TARGET_FP_UNORDERED)
-        rust_add_target_info("target_feature", "unordered-float");
-    if (TARGET_RORI) 
-        rust_add_target_info("target_feature", "rori");
-    if (TARGET_SFIMM)
-        rust_add_target_info("target_feature", "sfimm");
-    if (TARGET_SHFTIMM) 
-        rust_add_target_info("target_feature", "shftimm");
+  /* below are options not in llvm but derived from gcc, as they seemed
+   * potentially useful */
+  if (TARGET_HARD_FLOAT)
+    rust_add_target_info ("target_feature", "hard-float");
+  if (TARGET_DOUBLE_FLOAT)
+    rust_add_target_info ("target_feature", "double-float");
+  if (TARGET_FP_UNORDERED)
+    rust_add_target_info ("target_feature", "unordered-float");
+  if (TARGET_RORI)
+    rust_add_target_info ("target_feature", "rori");
+  if (TARGET_SFIMM)
+    rust_add_target_info ("target_feature", "sfimm");
+  if (TARGET_SHFTIMM)
+    rust_add_target_info ("target_feature", "shftimm");
 }

@@ -25,57 +25,65 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Implement TARGET_RUST_CPU_INFO for Adapteva Epiphany targets.  */
 
-void epiphany_rust_target_cpu_info(void) {
-    rust_add_target_info("target_arch", "epiphany");
+void
+epiphany_rust_target_cpu_info (void)
+{
+  rust_add_target_info ("target_arch", "epiphany");
 
-    // llvm seems to have no support for sky (nor historical support), so names are made up by me
-    // TODO: should the "no" dichotomy be preserved? probably not, but which should be chosen?
-    if (TARGET_HALF_REG_FILE)
-        rust_add_target_info("target_feature", "half-reg-file");
-    if (TARGET_PREFER_SHORT_INSN_REGS)
-        rust_add_target_info("target_feature", "prefer-short-insn-regs");
-    // TODO: maybe have a "branch-cost" feature? doesn't really fit well with "define-only", though
-    if (TARGET_CMOVE)
-        rust_add_target_info("target_feature", "cmove");
-    // TODO: maybe have a "nops" feature? doesn't really fit well with "define-only", though
-    if (TARGET_SOFT_CMPSF)
-        rust_add_target_info("target_feature", "soft-cmpsf");
-    else
-        rust_add_target_info("target_feature", "no-soft-cmpsf");
-    // TODO: maybe have a "stack-offset" feature? doesn't really fit well with "define-only", though
-    if (TARGET_ROUND_NEAREST)
-        rust_add_target_info("target_feature", "round-nearest");
-    else
-        rust_add_target_info("target_feature", "no-round-nearest");
-    if (TARGET_LONG_CALLS)
-        rust_add_target_info("target_feature", "long-calls");
-    if (TARGET_SHORT_CALLS)
-        rust_add_target_info("target_feature", "short-calls");
-    if (TARGET_SMALL16)
-        rust_add_target_info("target_feature", "small16");
-    // TODO: output mfp-mode somehow - "define-only" may work, but idk
-    if (TARGET_SPLIT_LOHI)
-        rust_add_target_info("target_feature", "split-lohi");
-    else
-        rust_add_target_info("target_feature", "no-split-lohi");
-    if (TARGET_POST_INC)
-        rust_add_target_info("target_feature", "postinc");
-    else
-        rust_add_target_info("target_feature", "no-postinc");
-    if (TARGET_POST_MODIFY)
-        rust_add_target_info("target_feature", "postmodify");
-    else
-        rust_add_target_info("target_feature", "no-postmodify");
-    if (TARGET_VECT_DOUBLE)
-        rust_add_target_info("target_feature", "vect-double");
-    else
-        rust_add_target_info("target_feature", "no-vect-double");
-    // TODO: maybe have a "max-vect-align" feature? doesn't really fit well with "define-only", though
-    if (TARGET_SPLIT_VECMOVE_EARLY)
-        rust_add_target_info("target_feature", "split-vecmove-early");
-    // TODO: maybe a feature about having the -1 register (1reg)?
-    if (TARGET_FP_IARITH)
-        rust_add_target_info("target_feature", "fp-iarith");
-    if (TARGET_MAY_ROUND_FOR_TRUNC)
-        rust_add_target_info("target_feature", "may-round-for-trunc");
+  // llvm seems to have no support for sky (nor historical support), so names
+  // are made up by me
+  // TODO: should the "no" dichotomy be preserved? probably not, but which
+  // should be chosen?
+  if (TARGET_HALF_REG_FILE)
+    rust_add_target_info ("target_feature", "half-reg-file");
+  if (TARGET_PREFER_SHORT_INSN_REGS)
+    rust_add_target_info ("target_feature", "prefer-short-insn-regs");
+  // TODO: maybe have a "branch-cost" feature? doesn't really fit well with
+  // "define-only", though
+  if (TARGET_CMOVE)
+    rust_add_target_info ("target_feature", "cmove");
+  // TODO: maybe have a "nops" feature? doesn't really fit well with
+  // "define-only", though
+  if (TARGET_SOFT_CMPSF)
+    rust_add_target_info ("target_feature", "soft-cmpsf");
+  else
+    rust_add_target_info ("target_feature", "no-soft-cmpsf");
+  // TODO: maybe have a "stack-offset" feature? doesn't really fit well with
+  // "define-only", though
+  if (TARGET_ROUND_NEAREST)
+    rust_add_target_info ("target_feature", "round-nearest");
+  else
+    rust_add_target_info ("target_feature", "no-round-nearest");
+  if (TARGET_LONG_CALLS)
+    rust_add_target_info ("target_feature", "long-calls");
+  if (TARGET_SHORT_CALLS)
+    rust_add_target_info ("target_feature", "short-calls");
+  if (TARGET_SMALL16)
+    rust_add_target_info ("target_feature", "small16");
+  // TODO: output mfp-mode somehow - "define-only" may work, but idk
+  if (TARGET_SPLIT_LOHI)
+    rust_add_target_info ("target_feature", "split-lohi");
+  else
+    rust_add_target_info ("target_feature", "no-split-lohi");
+  if (TARGET_POST_INC)
+    rust_add_target_info ("target_feature", "postinc");
+  else
+    rust_add_target_info ("target_feature", "no-postinc");
+  if (TARGET_POST_MODIFY)
+    rust_add_target_info ("target_feature", "postmodify");
+  else
+    rust_add_target_info ("target_feature", "no-postmodify");
+  if (TARGET_VECT_DOUBLE)
+    rust_add_target_info ("target_feature", "vect-double");
+  else
+    rust_add_target_info ("target_feature", "no-vect-double");
+  // TODO: maybe have a "max-vect-align" feature? doesn't really fit well with
+  // "define-only", though
+  if (TARGET_SPLIT_VECMOVE_EARLY)
+    rust_add_target_info ("target_feature", "split-vecmove-early");
+  // TODO: maybe a feature about having the -1 register (1reg)?
+  if (TARGET_FP_IARITH)
+    rust_add_target_info ("target_feature", "fp-iarith");
+  if (TARGET_MAY_ROUND_FOR_TRUNC)
+    rust_add_target_info ("target_feature", "may-round-for-trunc");
 }

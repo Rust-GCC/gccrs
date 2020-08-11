@@ -25,66 +25,70 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Implement TARGET_RUST_CPU_INFO for Altera Nios II targets.  */
 
-void nios2_rust_target_cpu_info(void) {
-    rust_add_target_info("target_arch", "nios2");
+void
+nios2_rust_target_cpu_info (void)
+{
+  rust_add_target_info ("target_arch", "nios2");
 
-    // made up (most) names as only apparently basic historical support in llvm
-    if (TARGET_HAS_DIV)
-        rust_add_target_info("target_feature", "hw-div");
-    if (TARGET_HAS_MUL)
-        rust_add_target_info("target_feature", "hw-mul");
-    if (TARGET_HAS_MULX)
-        rust_add_target_info("target_feature", "hw-mulx");
-    if (TARGET_FAST_SW_DIV)
-        rust_add_target_info("target_feature", "fast-sw-div");
-    if (TARGET_BYPASS_CACHE)
-        rust_add_target_info("target_feature", "bypass-cache");
-    if (TARGET_BYPASS_CACHE_VOLATILE)
-        rust_add_target_info("target_feature", "no-cache-volatile");
-    // TODO: ensure below switch variable and whatever works
-    // TODO: improve how this works? the defining kinda sucks a bit
-    switch (nios2_gpopt_option) {
-        case gpopt_none:
-            rust_add_target_info("target_feature", "gpopt-none");
-            break;
-        case gpopt_local:
-            rust_add_target_info("target_feature", "gpopt-local");
-            break;
-        case gpopt_global:
-            rust_add_target_info("target_feature", "gpopt-global");
-            break;
-        case gpopt_data:
-            rust_add_target_info("target_feature", "gpopt-data");
-            break;
-        case gpopt_all:
-            rust_add_target_info("target_feature", "gpopt-all");
-            break;
-        default: // unknown gpopt status - should this be an error?
-            break;
+  // made up (most) names as only apparently basic historical support in llvm
+  if (TARGET_HAS_DIV)
+    rust_add_target_info ("target_feature", "hw-div");
+  if (TARGET_HAS_MUL)
+    rust_add_target_info ("target_feature", "hw-mul");
+  if (TARGET_HAS_MULX)
+    rust_add_target_info ("target_feature", "hw-mulx");
+  if (TARGET_FAST_SW_DIV)
+    rust_add_target_info ("target_feature", "fast-sw-div");
+  if (TARGET_BYPASS_CACHE)
+    rust_add_target_info ("target_feature", "bypass-cache");
+  if (TARGET_BYPASS_CACHE_VOLATILE)
+    rust_add_target_info ("target_feature", "no-cache-volatile");
+  // TODO: improve how this works? the defining kinda sucks a bit
+  switch (nios2_gpopt_option)
+    {
+    case gpopt_none:
+      rust_add_target_info ("target_feature", "gpopt-none");
+      break;
+    case gpopt_local:
+      rust_add_target_info ("target_feature", "gpopt-local");
+      break;
+    case gpopt_global:
+      rust_add_target_info ("target_feature", "gpopt-global");
+      break;
+    case gpopt_data:
+      rust_add_target_info ("target_feature", "gpopt-data");
+      break;
+    case gpopt_all:
+      rust_add_target_info ("target_feature", "gpopt-all");
+      break;
+    default: // unknown gpopt status - should this be an error?
+      break;
     }
-    if (TARGET_BIG_ENDIAN)
-        rust_add_target_info("target_feature", "eb");
-    else
-        rust_add_target_info("target_feature", "el");
-    /* TODO: figure out how to have custom-fpu-cfg, custom-ftruncds (including no-custom-ftruncds),
-     * etc. (all custom instructions and their no- equivalents) in define form  */
-    // TODO: ensure below switch and variable works
-    switch (nios2_arch_option) {
-        case ARCH_R1:
-            rust_add_target_info("target_feature", "r1");
-            rust_add_target_info("target_feature", "nios2r1");
-            break;
-        case ARCH_R2:
-            rust_add_target_info("target_feature", "r2");
-            rust_add_target_info("target_feature", "nios2r2");
-            break;
-        default: // should this be an error?
-            break;
+  if (TARGET_BIG_ENDIAN)
+    rust_add_target_info ("target_feature", "eb");
+  else
+    rust_add_target_info ("target_feature", "el");
+  /* TODO: figure out how to have custom-fpu-cfg, custom-ftruncds (including
+   * no-custom-ftruncds), etc. (all custom instructions and their no-
+   * equivalents) in define form  */
+  switch (nios2_arch_option)
+    {
+    case ARCH_R1:
+      rust_add_target_info ("target_feature", "r1");
+      rust_add_target_info ("target_feature", "nios2r1");
+      break;
+    case ARCH_R2:
+      rust_add_target_info ("target_feature", "r2");
+      rust_add_target_info ("target_feature", "nios2r2");
+      break;
+    default: // should this be an error?
+      break;
     }
-    if (TARGET_HAS_BMX)
-        rust_add_target_info("target_feature", "bmx");
-    if (TARGET_HAS_CDX)
-        rust_add_target_info("target_feature", "cdx");
-    // TODO: figure out how to have gprel-sec and r0rel-sec as defines
-    // TODO: maybe extra defines for features available on bare metal target? (hal, smallc, etc.)
+  if (TARGET_HAS_BMX)
+    rust_add_target_info ("target_feature", "bmx");
+  if (TARGET_HAS_CDX)
+    rust_add_target_info ("target_feature", "cdx");
+  // TODO: figure out how to have gprel-sec and r0rel-sec as defines
+  // TODO: maybe extra defines for features available on bare metal target?
+  // (hal, smallc, etc.)
 }

@@ -25,31 +25,34 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Implement TARGET_RUST_CPU_INFO for TI C6X targets.  */
 
-void c6x_rust_target_cpu_info(void) {
-    rust_add_target_info("target_arch", "tic6x");
+void
+c6x_rust_target_cpu_info (void)
+{
+  rust_add_target_info ("target_arch", "tic6x");
 
-    // llvm seems to have no support for c6x (nor historical support), so names are made up by me
-    // TODO maybe put in sub-arches as features? idk
-    if (TARGET_DSBT)
-        rust_add_target_info("target_feature", "dsbt");
-    
-    if (TARGET_INSNS_64)
-        rust_add_target_info("target_feature", "c64x");
-    if (TARGET_INSNS_64PLUS)
-        rust_add_target_info("target_feature", "c64x+");
-    if (TARGET_INSNS_67)
-        rust_add_target_info("target_feature", "c67x");
-    if (TARGET_INSNS_67PLUS)
-        rust_add_target_info("target_feature", "c67x+");
+  // llvm seems to have no support for c6x (nor historical support), so names
+  // are made up by me
+  // TODO maybe put in sub-arches as features? idk
+  if (TARGET_DSBT)
+    rust_add_target_info ("target_feature", "dsbt");
 
-    if (TARGET_LDDW)
-        rust_add_target_info("target_feature", "lddw");
-    if (TARGET_STDW)
-        rust_add_target_info("target_feature", "stdw");
-    if (TARGET_MPY32)
-        rust_add_target_info("target_feature", "mpy32");
-    if (TARGET_FP)
-        rust_add_target_info("target_feature", "fp");
-    if (TARGET_FP_EXT)
-        rust_add_target_info("target_feature", "fp-ext");
+  if (TARGET_INSNS_64)
+    rust_add_target_info ("target_feature", "c64x");
+  if (TARGET_INSNS_64PLUS)
+    rust_add_target_info ("target_feature", "c64x+");
+  if (TARGET_INSNS_67)
+    rust_add_target_info ("target_feature", "c67x");
+  if (TARGET_INSNS_67PLUS)
+    rust_add_target_info ("target_feature", "c67x+");
+
+  if (TARGET_LDDW)
+    rust_add_target_info ("target_feature", "lddw");
+  if (TARGET_STDW)
+    rust_add_target_info ("target_feature", "stdw");
+  if (TARGET_MPY32)
+    rust_add_target_info ("target_feature", "mpy32");
+  if (TARGET_FP)
+    rust_add_target_info ("target_feature", "fp");
+  if (TARGET_FP_EXT)
+    rust_add_target_info ("target_feature", "fp-ext");
 }
