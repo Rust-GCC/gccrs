@@ -53,13 +53,3 @@ jobs:
       with:
         name: tm.texi-build
         path: gccrs-build/gcc/tm.texi
-
-  # doesn't appear to work either; jobs seem to be done separately (or rather start at same time)
-  test_upload_artifact:
-    runs-on: ubuntu-latest
-    steps:
-    - name: TEST Upload artifact build version as Job
-      uses: actions/upload-artifact@v2
-      with:
-        name: tm.texi-build
-        path: gccrs-build/gcc/tm.texi
