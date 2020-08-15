@@ -98,6 +98,15 @@ public:
     features[std::move (key)] = std::move (existing_set);
   }
 
+  // Dump all target options to stderr.
+  void dump_target_options() const; 
+
+  // Creates derived values and implicit enables after all target info is added (e.g. "unix").
+  void init_derived_values();
+
+  // Enables all requirements for the feature given, and will enable feature itself if not enabled.
+  void enable_implicit_feature_reqs(std::string feature);
+
   /* According to reference, Rust uses either multi-map key-values or just
    * values (although values may be aliases for a key-value value). This seems
    * like overkill. Thus, depending on whether the attributes used in cfg are
@@ -149,6 +158,7 @@ struct CompileOptions
     INJECTION_DUMP,
     EXPANSION_DUMP,
     RESOLUTION_DUMP,
+    TARGET_OPTION_DUMP,
     // TODO: add more?
   } dump_option;
 

@@ -29,6 +29,9 @@ extern int    direct_return (void);
 extern void   m32r_load_pic_register (void);
 extern enum m32r_function_type m32r_compute_function_type (tree);
 
+/* Defined in m32r-rust.c  */
+extern void m32r_rust_target_cpu_info (void);
+
 #ifdef RTX_CODE
 extern int    easy_di_const (rtx);
 extern int    easy_df_const (rtx);

@@ -54,6 +54,12 @@
       builtin_assert ("cpu=xstormy16");		\
     }						\
   while (0)
+
+#define TARGET_RUST_CPU_INFO()		    \
+  do {		    \
+    rust_add_target_info("target_arch", "xstormy16"); 	\
+    /*TODO: find way of getting sim info? otherwise no options*/ 	\
+  } while (0)
 
 /* Storage Layout.  */
 

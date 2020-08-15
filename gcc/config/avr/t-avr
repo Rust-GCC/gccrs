@@ -55,6 +55,10 @@ avr-c.o: $(srcdir)/config/avr/avr-c.c \
   $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(C_COMMON_H)
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
 
+avr-rust.o: $(srcdir)/config/avr/avr-rust.c \
+  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(C_COMMON_H)
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
+
 avr-log.o: $(srcdir)/config/avr/avr-log.c \
   $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(INPUT_H) dumpfile.h
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<

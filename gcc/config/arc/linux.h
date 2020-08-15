@@ -29,6 +29,12 @@ along with GCC; see the file COPYING3.  If not see
     }						\
   while (0)
 
+#define TARGET_RUST_OS_INFO()		\
+  do {						\
+    GNU_USER_TARGET_RUST_OS_INFO ();	\
+    /*TODO: does this properly register 'linux' as 'target_os'?*/ \
+  } while (0)
+
 #define GLIBC_DYNAMIC_LINKER   "/lib/ld-linux-arc.so.2"
 #define UCLIBC_DYNAMIC_LINKER  "/lib/ld-uClibc.so.0"
 

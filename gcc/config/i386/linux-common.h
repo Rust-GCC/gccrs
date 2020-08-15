@@ -30,6 +30,17 @@ along with GCC; see the file COPYING3.  If not see
 #define EXTRA_TARGET_D_OS_VERSIONS()		\
   ANDROID_TARGET_D_OS_VERSIONS();
 
+#define EXTRA_TARGET_RUST_OS_INFO()		\
+  ANDROID_TARGET_RUST_OS_INFO();
+
+/* This is previously defined in gnu-user-common.h, but has no linux-specific info.  */
+#undef TARGET_RUST_OS_INFO 
+#define TARGET_RUST_OS_INFO()               \
+  do {                                      \
+    GNU_USER_TARGET_RUST_OS_INFO();         \
+    ANDROID_TARGET_RUST_OS_INFO();          \
+  } while (0)
+
 #define GNU_USER_TARGET_D_CRITSEC_SIZE		\
   (TARGET_64BIT ? (POINTER_SIZE == 64 ? 40 : 32) : 24)
 

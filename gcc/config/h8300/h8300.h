@@ -76,6 +76,8 @@ extern const char * const *h8_reg_names;
     }							\
   while (0)
 
+#define TARGET_RUST_CPU_INFO h8300_rust_target_cpu_info
+
 #define LINK_SPEC "%{mh:%{mn:-m h8300hn}} %{mh:%{!mn:-m h8300h}} %{ms:%{mn:-m h8300sn}} %{ms:%{!mn:-m h8300s}}"
 
 #define LIB_SPEC "%{mrelax:-relax} %{g:-lg} %{!p:%{!pg:-lc}}%{p:-lc_p}%{pg:-lc_p}"

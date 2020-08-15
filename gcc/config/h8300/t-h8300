@@ -27,3 +27,7 @@ s-opinit s-extract s-peep s-attr s-attrtab s-output: \
 $(srcdir)/config/h8300/mova.md: $(srcdir)/config/h8300/genmova.sh
 	$(SHELL) $(srcdir)/config/h8300/genmova.sh \
 	  > $(srcdir)/config/h8300/mova.md
+
+h8300-rust.o: $(srcdir)/config/h8300/h8300-rust.c \
+  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(C_COMMON_H)
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<

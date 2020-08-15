@@ -20,6 +20,9 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Prototypes for the CRIS port.  */
 
+/* Defined in cris-rust.c  */
+extern void cris_rust_target_cpu_info (void);
+
 extern bool cris_simple_epilogue (void);
 #ifdef RTX_CODE
 extern const char *cris_op_str (rtx);

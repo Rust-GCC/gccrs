@@ -92,6 +92,8 @@ extern enum pipeline_type microblaze_pipe;
 /* Names to predefine in the preprocessor for this target machine.  */
 #define TARGET_CPU_CPP_BUILTINS() microblaze_cpp_define (pfile)
 
+#define TARGET_RUST_CPU_INFO microblaze_rust_target_cpu_info
+
 /* Assembler specs.  */
 
 #define TARGET_ASM_SPEC ""

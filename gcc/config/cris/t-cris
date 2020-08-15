@@ -27,3 +27,7 @@
 
 $(out_object_file): gt-cris.h
 gt-cris.h : s-gtype ; @true
+
+cris-rust.o: $(srcdir)/config/cris/cris-rust.c \
+  $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) $(TREE_H) $(C_COMMON_H)
+	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<

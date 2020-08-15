@@ -27,6 +27,11 @@ along with GCC; see the file COPYING3.  If not see
     }						\
   while (0)
 
+#define TARGET_RUST_OS_INFO()		\
+  do {						\
+    GNU_USER_TARGET_RUST_OS_INFO();		\
+  } while (0)
+
 /* Provide a ENDFILE_SPEC appropriate for GNU/Linux.  Here we tack on
    the GNU/Linux magical crtend.o file (see crtstuff.c) which
    provides part of the support for getting C++ file-scope static

@@ -44,3 +44,12 @@ jobs:
       run: |
            cd gccrs-build; \
            make
+
+    # looks like this gets skipped if build fails, which is unfortunate
+    # hopefuly the "if: failure()" thing fixes the above
+    - name: TEST Upload artifact build version as Step
+      uses: actions/upload-artifact@v2
+      if: failure()
+      with:
+        name: tm.texi-build
+        path: gccrs-build/gcc/tm.texi

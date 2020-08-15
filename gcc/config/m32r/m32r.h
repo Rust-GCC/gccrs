@@ -96,6 +96,8 @@
     }						\
   while (0)
 
+#define TARGET_RUST_CPU_INFO m32r_rust_target_cpu_info
+
 /* This macro defines names of additional specifications to put in the specs
    that can be used in various specifications like CC1_SPEC.  Its definition
    is an initializer with a subgrouping for each command option.

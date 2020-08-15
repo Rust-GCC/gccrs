@@ -1,5 +1,6 @@
 #include "rust-lex.h"
 
+#include "rust-system.h" // for rust_assert and rust_unreachable
 #include "rust-diagnostics.h" // for rust_error_at
 #include "rust-linemap.h"
 #include "safe-ctype.h"

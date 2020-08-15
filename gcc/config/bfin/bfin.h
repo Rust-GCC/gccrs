@@ -194,6 +194,36 @@
   while (0)
 #endif
 
+/* Rust target CPU info for this machine. Could not add new compilation unit 
+ without significant modification to target, so included as macro instead. */
+#define TARGET_RUST_CPU_INFO() \
+  do {		\
+    rust_add_target_info("target_arch", "bfin");		\
+    /* TODO maybe add other features? based on old llvm so ones missing */		\
+    if (TARGET_SDRAM)		\
+        rust_add_target_info("target_feature", "sdram");		\
+    if (TARGET_ICPLB)		\
+        rust_add_target_info("target_feature", "icplb");		\
+    if (ENABLE_WA_05000074)		\
+        rust_add_target_info("target_feature", "mi-shift-anomaly");		\
+    if (ENABLE_WA_SPECULATIVE_SYNCS)		\
+        rust_add_target_info("target_feature", "csync-anomaly");		\
+    if (ENABLE_WA_SPECULATIVE_LOADS)		\
+        rust_add_target_info("target_feature", "specld-anomaly");		\
+    if (ENABLE_WA_05000257)		\
+        rust_add_target_info("target_feature", "hwloop-anomaly");		\
+    if (ENABLE_WA_05000283)		\
+        rust_add_target_info("target_feature", "mmr-stall-anomaly");		\
+    if (ENABLE_WA_LOAD_LCREGS)		\
+        rust_add_target_info("target_feature", "lcregs-anomaly");		\
+    if (ENABLE_WA_05000315)		\
+        rust_add_target_info("target_feature", "killed-mmr-anomaly");		\
+    if (ENABLE_WA_RETS)		\
+        rust_add_target_info("target_feature", "rets-anomaly");		\
+    if (ENABLE_WA_INDIRECT_CALLS)		\
+        rust_add_target_info("target_feature", "ind-call-anomaly");		\
+  } while (0)
+
 #define DRIVER_SELF_SPECS SUBTARGET_DRIVER_SELF_SPECS	"\
  %{mleaf-id-shared-library:%{!mid-shared-library:-mid-shared-library}} \
  %{mfdpic:%{!fpic:%{!fpie:%{!fPIC:%{!fPIE:\

@@ -31,6 +31,16 @@
 
 #define TARGET_CPU_CPP_BUILTINS() bpf_target_macros (pfile)
 
+/* Rust target hook. Macro rather than function call due to small size.  */
+#define TARGET_RUST_CPU_INFO()	\
+   do {	\
+	   rust_add_target_info("target_arch", "bpf");	\
+      /* alu32 seems to be enabled by default in bpf.md, and it doesn't look like you can turn it off*/ 	\
+      rust_add_target_info("target_feature", "alu32");	\
+      /* TODO: add "dwarfris" feature if gcc has functionality for it */	\
+      /* TODO: what exactly is "dummy" feature in llvm? It says unused, but who knows?*/	\
+   } while (0)
+
 /**** Storage Layout.  */
 
 /* Endianness and word size.  */

@@ -89,6 +89,9 @@
 #  tm_d_file		A list of headers with definitions of target hook
 #			macros for the D compiler.
 #
+#  tm_rust_file		A list of headers with definitions of target hook
+#			macros for the Rust compiler.
+#
 #  out_file		The name of the machine description C support
 #			file, if different from "$cpu_type/$cpu_type.c".
 #
@@ -145,6 +148,9 @@
 #  d_target_objs	List of extra target-dependent objects that be
 #			linked into the D compiler only.
 #
+#  rust_target_objs	List of extra target-dependent objects that be
+#			linked into the Rust compiler only.
+#
 #  fortran_target_objs	List of extra target-dependent objects that be
 #			linked into the fortran compiler only.
 #
@@ -200,6 +206,9 @@
 #
 #  target_has_targetdm	Set to yes or no depending on whether the target
 #			has its own definition of targetdm.
+#
+#  target_has_targetrustm	Set to yes or no depending on whether the target
+#			has its own definition of targetrustm.
 
 out_file=
 common_out_file=
@@ -216,6 +225,7 @@ extra_options=
 c_target_objs=
 cxx_target_objs=
 d_target_objs=
+rust_target_objs=
 fortran_target_objs=
 target_has_targetcm=no
 target_has_targetm_common=yes
@@ -319,12 +329,14 @@ aarch64*-*-*)
 	c_target_objs="aarch64-c.o"
 	cxx_target_objs="aarch64-c.o"
 	d_target_objs="aarch64-d.o"
+	rust_target_objs="aarch64-rust.o"
 	extra_objs="aarch64-builtins.o aarch-common.o aarch64-sve-builtins.o aarch64-sve-builtins-shapes.o aarch64-sve-builtins-base.o cortex-a57-fma-steering.o aarch64-speculation.o falkor-tag-collision-avoidance.o aarch64-bti-insert.o"
 	target_gtfiles="\$(srcdir)/config/aarch64/aarch64-builtins.c \$(srcdir)/config/aarch64/aarch64-sve-builtins.h \$(srcdir)/config/aarch64/aarch64-sve-builtins.cc"
 	target_has_targetm_common=yes
 	;;
 alpha*-*-*)
 	cpu_type=alpha
+	rust_target_objs="alpha-rust.o"
 	extra_options="${extra_options} g.opt"
 	;;
 amdgcn*)
@@ -338,6 +350,7 @@ arc*-*-*)
 	cpu_type=arc
 	c_target_objs="arc-c.o"
 	cxx_target_objs="arc-c.o"
+	rust_target_objs="arc-rust.o"
 	extra_options="${extra_options} arc/arc-tables.opt g.opt"
 	extra_headers="arc-simd.h"
 	;;
@@ -349,6 +362,7 @@ arm*-*-*)
 	c_target_objs="arm-c.o"
 	cxx_target_objs="arm-c.o"
 	d_target_objs="arm-d.o"
+	rust_target_objs="arm-rust.o"
 	extra_options="${extra_options} arm/arm-tables.opt"
 	target_gtfiles="\$(srcdir)/config/arm/arm-builtins.c"
 	;;
@@ -356,6 +370,7 @@ avr-*-*)
 	cpu_type=avr
 	c_target_objs="avr-c.o"
 	cxx_target_objs="avr-c.o"
+	rust_target_objs="avr-rust.o"
 	;;
 bfin*-*)
 	cpu_type=bfin
@@ -365,9 +380,11 @@ bpf-*-*)
 	;;
 crisv32-*)
 	cpu_type=cris
+	rust_target_objs="cris-rust.o"
 	;;
 frv*)	cpu_type=frv
 	extra_options="${extra_options} g.opt"
+	rust_target_objs="frv-rust.o"
 	;;
 ft32*)	cpu_type=ft32
 	target_has_targetm_common=no
@@ -379,12 +396,14 @@ fido-*-*)
 	cpu_type=m68k
 	extra_headers=math-68881.h
 	extra_options="${extra_options} m68k/m68k-tables.opt"
+	rust_target_objs="m68k-rust.o"
         ;;
 i[34567]86-*-*)
 	cpu_type=i386
 	c_target_objs="i386-c.o"
 	cxx_target_objs="i386-c.o"
 	d_target_objs="i386-d.o"
+	rust_target_objs="i386-rust.o"
 	extra_objs="x86-tune-sched.o x86-tune-sched-bd.o x86-tune-sched-atom.o x86-tune-sched-core.o i386-options.o i386-builtins.o i386-expand.o i386-features.o"
 	target_gtfiles="\$(srcdir)/config/i386/i386-builtins.c \$(srcdir)/config/i386/i386-expand.c \$(srcdir)/config/i386/i386-options.c"
 	extra_options="${extra_options} fused-madd.opt"
@@ -418,6 +437,7 @@ x86_64-*-*)
 	c_target_objs="i386-c.o"
 	cxx_target_objs="i386-c.o"
 	d_target_objs="i386-d.o"
+	rust_target_objs="i386-rust.o"
 	extra_options="${extra_options} fused-madd.opt"
 	extra_objs="x86-tune-sched.o x86-tune-sched-bd.o x86-tune-sched-atom.o x86-tune-sched-core.o i386-options.o i386-builtins.o i386-expand.o i386-features.o"
 	target_gtfiles="\$(srcdir)/config/i386/i386-builtins.c \$(srcdir)/config/i386/i386-expand.c \$(srcdir)/config/i386/i386-options.c"
@@ -447,36 +467,43 @@ x86_64-*-*)
 		       enqcmdintrin.h avx512vp2intersectintrin.h avx512vp2intersectvlintrin.h"
 	;;
 ia64-*-*)
+	rust_target_objs="ia64-rust.o"
 	extra_headers=ia64intrin.h
 	extra_options="${extra_options} g.opt fused-madd.opt"
 	;;
 hppa*-*-*)
 	cpu_type=pa
+	rust_target_objs="pa-rust.o"
 	;;
 lm32*)
 	extra_options="${extra_options} g.opt"
 	;;
 m32r*-*-*)
         cpu_type=m32r
+	rust_target_objs="m32r-rust.o"
 	extra_options="${extra_options} g.opt"
         ;;
 m68k-*-*)
 	extra_headers=math-68881.h
 	extra_options="${extra_options} m68k/m68k-tables.opt"
+	rust_target_objs="m68k-rust.o"
 	;;
 microblaze*-*-*)
         cpu_type=microblaze
 	extra_options="${extra_options} g.opt"
+	rust_target_objs="microblaze-rust.o"
         ;;
 mips*-*-*)
 	cpu_type=mips
 	d_target_objs="mips-d.o"
+	rust_target_objs="mips-rust.o"
 	extra_headers="loongson.h loongson-mmiintrin.h msa.h"
 	extra_objs="frame-header-opt.o"
 	extra_options="${extra_options} g.opt fused-madd.opt mips/mips-tables.opt"
 	;;
 nds32*)
 	cpu_type=nds32
+	rust_target_objs="nds32-rust.o"
 	extra_headers="nds32_intrinsic.h nds32_isr.h nds32_init.inc"
 	case ${target} in
 	  nds32*-*-linux*)
@@ -492,13 +519,16 @@ nds32*)
 	;;
 nios2-*-*)
 	cpu_type=nios2
+	rust_target_objs="nios2-rust.o"
 	extra_options="${extra_options} g.opt"
 	;;
 nvptx-*-*)
 	cpu_type=nvptx
+	rust_target_objs="nvptx-rust.o"
 	;;
 or1k*-*-*)
 	cpu_type=or1k
+	rust_target_objs="or1k-rust.o"
 	;;
 powerpc*-*-*)
 	cpu_type=rs6000
@@ -525,6 +555,7 @@ riscv*)
 	cpu_type=riscv
 	extra_objs="riscv-builtins.o riscv-c.o riscv-sr.o"
 	d_target_objs="riscv-d.o"
+	rust_target_objs="riscv-rust.o"
 	;;
 rs6000*-*-*)
 	extra_options="${extra_options} g.opt fused-madd.opt rs6000/rs6000-tables.opt"
@@ -536,25 +567,30 @@ sparc*-*-*)
 	c_target_objs="sparc-c.o"
 	cxx_target_objs="sparc-c.o"
 	d_target_objs="sparc-d.o"
+	rust_target_objs="sparc-rust.o"
 	extra_headers="visintrin.h"
 	;;
 s390*-*-*)
 	cpu_type=s390
 	d_target_objs="s390-d.o"
+	rust_target_objs="s390-rust.o"
 	extra_options="${extra_options} fused-madd.opt"
 	extra_headers="s390intrin.h htmintrin.h htmxlintrin.h vecintrin.h"
 	;;
 # Note the 'l'; we need to be able to match e.g. "shle" or "shl".
 sh[123456789lbe]*-*-* | sh-*-*)
 	cpu_type=sh
+	rust_target_objs="sh-rust.o"
 	extra_options="${extra_options} fused-madd.opt"
 	extra_objs="${extra_objs} sh_treg_combine.o sh-mem.o sh_optimize_sett_clrt.o"
 	;;
 v850*-*-*)
 	cpu_type=v850
+	rust_target_objs="v850-rust.o"
 	;;
 tic6x-*-*)
 	cpu_type=c6x
+	rust_target_objs="c6x-rust.o"
 	extra_headers="c6x_intrinsics.h"
 	extra_options="${extra_options} c6x/c6x-tables.opt"
 	;;
@@ -571,10 +607,12 @@ esac
 
 tm_file=${cpu_type}/${cpu_type}.h
 tm_d_file=${cpu_type}/${cpu_type}.h
+tm_rust_file=${cpu_type}/${cpu_type}.h
 if test -f ${srcdir}/config/${cpu_type}/${cpu_type}-protos.h
 then
 	tm_p_file=${cpu_type}/${cpu_type}-protos.h
 	tm_d_file="${tm_d_file} ${cpu_type}/${cpu_type}-protos.h"
+	tm_rust_file="${tm_rust_file} ${cpu_type}/${cpu_type}-protos.h"
 fi
 
 extra_modes=
@@ -1424,6 +1462,7 @@ cr16-*-elf)
         tm_file="elfos.h ${tm_file} newlib-stdint.h"
         tmake_file="${tmake_file} cr16/t-cr16 "
         use_collect2=no
+        rust_target_objs="cr16-rust.o"
         ;;
 crisv32-*-elf | crisv32-*-none)
 	tm_file="dbxelf.h elfos.h newlib-stdint.h ${tm_file}"
@@ -1432,6 +1471,7 @@ crisv32-*-elf | crisv32-*-none)
 	gas=yes
 	extra_options="${extra_options} cris/elf.opt"
 	use_gcc_stdint=wrap
+	rust_target_objs="cris-rust.o"
 	;;
 cris-*-elf | cris-*-none)
 	tm_file="dbxelf.h elfos.h newlib-stdint.h ${tm_file}"
@@ -1439,6 +1479,7 @@ cris-*-elf | cris-*-none)
 	gas=yes
 	extra_options="${extra_options} cris/elf.opt"
 	use_gcc_stdint=wrap
+	rust_target_objs="cris-rust.o"
 	;;
 crisv32-*-linux* | cris-*-linux*)
 	tm_file="dbxelf.h elfos.h ${tm_file} gnu-user.h linux.h glibc-stdint.h cris/linux.h"
@@ -1452,6 +1493,7 @@ crisv32-*-linux* | cris-*-linux*)
 		target_cpu_default=32
 		;;
 	esac
+	rust_target_objs="cris-rust.o"
 	;;
 csky-*-*)
 	if test x${with_endian} != x; then
@@ -1519,6 +1561,7 @@ csky-*-*)
 		exit 1
 		;;
 	esac
+	rust_target_objs="csky-rust.o"
 	;;
 epiphany-*-elf | epiphany-*-rtems*)
 	tm_file="${tm_file} dbxelf.h elfos.h"
@@ -1535,6 +1578,7 @@ epiphany-*-elf | epiphany-*-rtems*)
 	extra_objs="${extra_objs} mode-switch-use.o resolve-sw-modes.o"
 	tm_defines="${tm_defines} EPIPHANY_STACK_OFFSET=${with_stack_offset:-8}"
 	extra_headers="epiphany_intrinsics.h"
+	rust_target_objs="epiphany-rust.o"
 	;;
 fr30-*-elf)
 	tm_file="dbxelf.h elfos.h newlib-stdint.h ${tm_file}"
@@ -1601,10 +1645,12 @@ moxie-*-moxiebox*)
 h8300-*-elf*)
 	tmake_file="h8300/t-h8300"
 	tm_file="h8300/h8300.h dbxelf.h elfos.h newlib-stdint.h h8300/elf.h"
+	rust_target_objs="h8300-rust.o"
 	;;
 h8300-*-linux*)
 	tmake_file="${tmake_file} h8300/t-h8300 h8300/t-linux"
 	tm_file="h8300/h8300.h dbxelf.h elfos.h gnu-user.h linux.h glibc-stdint.h h8300/linux.h"
+	rust_target_objs="h8300-rust.o"
 	;;
 hppa*64*-*-linux*)
 	target_cpu_default="MASK_PA_11|MASK_PA_20"
@@ -2743,6 +2789,7 @@ or1k*-*-*)
 pdp11-*-*)
 	tm_file="${tm_file} newlib-stdint.h"
 	use_gcc_stdint=wrap
+	rust_target_objs="pdp11-rust.o"
 	;;
 # port not yet contributed
 #powerpc-*-openbsd*)
@@ -2992,10 +3039,12 @@ rx-*-elf*)
 	tm_file="dbxelf.h elfos.h newlib-stdint.h ${tm_file}"
 	tmake_file="${tmake_file} rx/t-rx"
 	extra_options="${extra_options} rx/elf.opt"
+	rust_target_objs="rx-rust.o"
 	;;
 rx-*-linux*)
 	tm_file="elfos.h linux.h glibc-stdint.h rx/linux.h ../../libgcc/config/rx/rx-abi.h"
 	tmake_file="${tmake_file} rx/t-linux"
+	rust_target_objs="rx-rust.o"
 	;;
 s390-*-linux*)
 	tm_file="s390/s390.h dbxelf.h elfos.h gnu-user.h linux.h glibc-stdint.h s390/linux.h"
@@ -3482,6 +3531,10 @@ fi
 
 if [ "$target_has_targetdm" = "no" ]; then
   d_target_objs="$d_target_objs default-d.o"
+fi
+
+if [ "$target_has_targetrustm" = "no" ]; then
+  rust_target_objs="$rust_target_objs default-rust.o"
 fi
 
 # Support for --with-cpu and related options (and a few unrelated options,
@@ -5162,6 +5215,7 @@ case ${target} in
 		c_target_objs="${c_target_objs} ${cpu_type}-c.o"
 		cxx_target_objs="${cxx_target_objs} ${cpu_type}-c.o"
 		d_target_objs="${d_target_objs} ${cpu_type}-d.o"
+		rust_target_objs="${rust_target_objs} ${cpu_type}-rust.o"		
 		tmake_file="${cpu_type}/t-${cpu_type} ${tmake_file}"
 		;;
 
