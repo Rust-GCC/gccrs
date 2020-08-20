@@ -1782,6 +1782,10 @@ namespace Rust {
 
                 // ensure closing brace if required
                 if (need_close_brace) {
+                    fprintf(stderr, 
+                    "need closing brace in unicode escape: peek/current_char is '%c', peek(1) is '%c', peek(2) is '%c', peek(3) is '%c'", 
+                      peek_input(), peek_input(1), peek_input(2), peek_input(3));
+
                     if (current_char == '}') {
                         skip_input();
                         current_char = peek_input();
