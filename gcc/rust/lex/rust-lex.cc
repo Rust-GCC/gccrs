@@ -658,7 +658,8 @@ namespace Rust {
                                 output_char = 0;
                             }
 
-                            str += output_char;
+                            if (output_char != 0)
+                                str += output_char;
 
                             continue;
                         }
@@ -792,65 +793,72 @@ namespace Rust {
 
                         return Token::make_identifier(loc, str);
                     }
-                } else if (peek == '"' || (peek == '#' && (ISALPHA(peek1) || peek1 == '_'))) {
-                    // raw string literals
-                    std::string str;
-                    str.reserve(16); // some sensible default
+                } else {
+                    int peek_index = 0;
+                    while (peek_input(peek_index) == '#')
+                        peek_index++;
+                    // TODO: optimise by using "peek_index" as the hash count - 1 or something
 
-                    int length = 1;
-                    int hash_count = 0;
+                    if (peek_input(peek_index) == '"') {
+                        // raw string literals
+                        std::string str;
+                        str.reserve(16); // some sensible default
 
-                    // get hash count at beginnning
-                    current_char = peek;
-                    while (current_char == '#') {
-                        hash_count++;
-                        length++;
+                        int length = 1;
+                        int hash_count = 0;
+
+                        // get hash count at beginnning
+                        current_char = peek;
+                        while (current_char == '#') {
+                            hash_count++;
+                            length++;
+
+                            skip_input();
+                            current_char = peek_input();
+                        }
+
+                        if (current_char != '"') {
+                            rust_error_at(get_current_location(), "raw string has no opening '\"'");
+                        }
 
                         skip_input();
-                        current_char = peek_input();
-                    }
+                        Codepoint current_char32 = test_peek_codepoint_input();
 
-                    if (current_char != '"') {
-                        rust_error_at(get_current_location(), "raw string has no opening '\"'");
-                    }
+                        while (true) {
+                            if (current_char32.value == '"') {
+                                bool enough_hashes = true;
 
-                    skip_input();
-                    Codepoint current_char32 = test_peek_codepoint_input();
+                                for (int i = 0; i < hash_count; i++) {
+                                    // if (test_peek_codepoint_input(i + 1) != '#') {
+                                    // TODO: ensure this is a good enough replacement
+                                    if (peek_input(i + 1) != '#') {
+                                        enough_hashes = false; // could continue here -
+                                                               // improve performance
+                                    }
+                                }
 
-                    while (true) {
-                        if (current_char32.value == '"') {
-                            bool enough_hashes = true;
-
-                            for (int i = 0; i < hash_count; i++) {
-                                // if (test_peek_codepoint_input(i + 1) != '#') {
-                                // TODO: ensure this is a good enough replacement
-                                if (peek_input(i + 1) != '#') {
-                                    enough_hashes = false; // could continue here -
-                                                           // improve performance
+                                if (enough_hashes) {
+                                    // skip enough input and peek enough input
+                                    skip_input(hash_count); // is this enough?
+                                    current_char = peek_input();
+                                    length += hash_count + 1;
+                                    break;
                                 }
                             }
 
-                            if (enough_hashes) {
-                                // skip enough input and peek enough input
-                                skip_input(hash_count); // is this enough?
-                                current_char = peek_input();
-                                length += hash_count + 1;
-                                break;
-                            }
+                            length++;
+
+                            str += current_char32;
+                            test_skip_codepoint_input();
+                            current_char32 = test_peek_codepoint_input();
                         }
 
-                        length++;
+                        current_column += length;
 
-                        str += current_char32;
-                        test_skip_codepoint_input();
-                        current_char32 = test_peek_codepoint_input();
+                        str.shrink_to_fit();
+
+                        return Token::make_string(loc, str);
                     }
-
-                    current_column += length;
-
-                    str.shrink_to_fit();
-
-                    return Token::make_string(loc, str);
                 }
             }
 
@@ -876,15 +884,15 @@ namespace Rust {
                 current_column += length;
 
                 // if just a single underscore, not an identifier
-                if (first_is_underscore && length == 1) 
+                if (first_is_underscore && length == 1)
                     return Token::make(UNDERSCORE, loc);
-                
+
                 str.shrink_to_fit();
 
                 TokenId keyword = classify_keyword(str);
-                if (keyword == IDENTIFIER) 
+                if (keyword == IDENTIFIER)
                     return Token::make_identifier(loc, str);
-                else 
+                else
                     return Token::make(keyword, loc);
             }
 
@@ -1157,9 +1165,9 @@ namespace Rust {
                 str.shrink_to_fit();
 
                 // actually make the tokens
-                if (is_real) 
+                if (is_real)
                     return Token::make_float(loc, str, type_hint);
-                else 
+                else
                     return Token::make_int(loc, str, type_hint);
             }
 
@@ -1183,8 +1191,8 @@ namespace Rust {
 
                         // TODO: find a way to parse additional characters after the
                         // escape? return after parsing escape?
-
-                        str += current_char32;
+                        if (current_char32 != Codepoint(0))
+                            str += current_char32;
 
                         // required as parsing utf8 escape only changes current_char
                         // or something
@@ -1465,10 +1473,9 @@ namespace Rust {
 
                 long hexLong = std::strtol(hexNum, NULL, 16);
 
-                if (hexLong > 127)
+                if (hexLong > 255 || hexLong < 0)
                     rust_error_at(get_current_location(),
-                      "ascii \\x escape '\\x%s' out of range - allows up to '\\x7F'", hexNum);
-                // gcc_assert(hexLong < 128); // as ascii
+                      "byte \\x escape '\\x%s' out of range - allows up to '\\xFF'", hexNum);
                 char hexChar = static_cast<char>(hexLong);
 
                 output_char = hexChar;
@@ -1498,7 +1505,7 @@ namespace Rust {
                 rust_error_at(get_current_location(),
                   "cannot have a unicode escape \\u in a byte %s!",
                   opening_char == '\'' ? "character" : "string");
-				return std::make_pair(output_char, additional_length_offset);
+                return std::make_pair(output_char, additional_length_offset);
 #if 0
 			{
                 // TODO: shouldn't be used with this - use parse_utf8_escape
@@ -1615,19 +1622,22 @@ namespace Rust {
                     additional_length_offset++;
                 }
 
-                if (current_char == '\\') {
+                // TODO: why is this "handle escape again" thing here? shouldn't do anything.
+                /*if (current_char == '\\') {
                     auto output_length_pair = parse_escape(opening_char);
                     output_char = output_length_pair.first;
                     additional_length_offset += output_length_pair.second;
                     // return true;
                     return std::make_pair(output_char, additional_length_offset);
-                } else if (current_char == opening_char) {
+                } else */if (current_char == opening_char) {
                     // TODO: does this skip the ' or " character? It shouldn't.
                     output_char = 0;
                     // return true;
                     return std::make_pair(output_char, additional_length_offset);
                 } else {
-                    output_char = current_char;
+                    // TODO: shouldn't this make output_char null so that it isn't added to string?
+                    // or check for escape being zero?
+                    output_char = /*current_char*/0;
 
                     // TODO: test has right result
                     /*skip_input();
@@ -1833,18 +1843,19 @@ namespace Rust {
                     additional_length_offset++;
                 }
 
-                if (current_char == '\\') {
+                // shouldn't need this
+                /*if (current_char == '\\') {
                     auto utf8_escape_pair = parse_utf8_escape(opening_char);
                     output_char = utf8_escape_pair.first;
                     additional_length_offset += utf8_escape_pair.second;
                     // return true;
                     return std::make_pair(output_char, additional_length_offset);
-                } else if (current_char == opening_char) {
+                } else */if (current_char == opening_char) {
                     output_char = 0;
                     // return true;
                     return std::make_pair(output_char, additional_length_offset);
                 } else {
-                    output_char = current_char;
+                    output_char = /*current_char*/0;
 
                     // return true;
                     return std::make_pair(output_char, additional_length_offset);
