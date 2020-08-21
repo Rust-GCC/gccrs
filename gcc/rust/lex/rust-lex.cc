@@ -644,7 +644,14 @@ namespace Rust {
                         if (current_char == '\\') {
                             auto escape_length_pair = parse_escape('"');
                             char output_char = escape_length_pair.first;
-                            length += escape_length_pair.second;
+                            //length += escape_length_pair.second;
+
+                            // TODO: need to fix length - after escape, the length of the line up to the next non-whitespace char of the string is added to length, which is not what we want - we want length to be replaced by that.
+                            // possible option could if "if escape_length_pair.first == 0, then length = escape_length_pair.second else length += escape_length_pair.second."
+                            if (output_char == 0)
+                                length = escape_length_pair.second;
+                            else
+                                length += escape_length_pair.second;
 
                             if (output_char > 127) {
                                 rust_error_at(get_current_location(),
@@ -1174,12 +1181,18 @@ namespace Rust {
                 current_char32 = test_peek_codepoint_input();
 
                 while (current_char32.value != '\n' && current_char32.value != '"') {
-                    // TODO: handle escapes and string continue
                     if (current_char32.value == '\\') {
                         // parse escape
                         auto utf8_escape_pair = parse_utf8_escape('\'');
                         current_char32 = utf8_escape_pair.first;
-                        length += utf8_escape_pair.second;
+                        //length += utf8_escape_pair.second;
+
+                        // TODO: need to fix length - after escape, the length of the line up to the next non-whitespace char of the string is added to length, which is not what we want - we want length to be replaced by that.
+                        // possible option could if "if escape_length_pair.first == 0, then length = escape_length_pair.second else length += escape_length_pair.second."
+                        if (current_char32 == Codepoint(0))
+                            length = utf8_escape_pair.second;
+                        else
+                            length += utf8_escape_pair.second;
 
                         if (current_char32 != Codepoint(0))
                             str += current_char32;
@@ -2089,6 +2102,7 @@ namespace Rust {
     }
 #endif
 
+    // Returns the length of the codepoint at the current position.
     int Lexer::test_get_input_codepoint_length() {
         uint8_t input = peek_input();
 
@@ -2155,7 +2169,7 @@ namespace Rust {
         }
     }
 
-    // TODO: rewrite lexing system to use utf-8 "codepoints" rather than bytes?
+    // Returns the codepoint at the current position.
     Codepoint Lexer::test_peek_codepoint_input() {
         uint8_t input = peek_input();
 
