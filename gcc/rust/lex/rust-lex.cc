@@ -176,9 +176,8 @@ namespace Rust {
             skip_input();
 
             // return end of file token if end of file
-            if (current_char == EOF) {
+            if (current_char == EOF) 
                 return Token::make(END_OF_FILE, loc);
-            }
 
             // detect shebang
             if (loc == 1 && current_line == 1 && current_char == '#') {
@@ -576,10 +575,6 @@ namespace Rust {
             // byte and byte string test
             if (current_char == 'b') {
                 if (peek_input() == '\'') {
-                    // byte - allows any ascii or escapes
-                    // would also have to take into account escapes: \x hex_digit
-                    // hex_digit, \n, \r, \t, \\, \0
-
                     int length = 1;
 
                     // char to save
@@ -644,7 +639,6 @@ namespace Rust {
 
                     int length = 1;
                     current_char = peek_input();
-                    // TODO: handle escapes properly
 
                     while (current_char != '"' && current_char != '\n') {
                         if (current_char == '\\') {
@@ -685,7 +679,6 @@ namespace Rust {
                     str.shrink_to_fit();
 
                     return Token::make_byte_string(loc, str);
-                    // TODO: ensure escapes and string continue work properly
                 } else if (peek_input() == 'r' && (peek_input(1) == '#' || peek_input(1) == '"')) {
                     // raw byte string literals
                     std::string str;
@@ -952,7 +945,6 @@ namespace Rust {
                         str = std::to_string(hex_num);
 
                         // parse in type suffix if it exists
-                        // parse_in_type_suffix (/*current_char, */ type_hint, length);
                         auto type_suffix_pair = parse_in_type_suffix();
                         type_hint = type_suffix_pair.first;
                         length += type_suffix_pair.second;
@@ -1189,8 +1181,6 @@ namespace Rust {
                         current_char32 = utf8_escape_pair.first;
                         length += utf8_escape_pair.second;
 
-                        // TODO: find a way to parse additional characters after the
-                        // escape? return after parsing escape?
                         if (current_char32 != Codepoint(0))
                             str += current_char32;
 
@@ -1222,14 +1212,10 @@ namespace Rust {
 
                 str.shrink_to_fit();
                 return Token::make_string(loc, str);
-                // TODO: account for escapes and string continue
-                // also, in rust a string is a series of unicode characters (4 bytes)
             }
 
             // char literal attempt
             if (current_char == '\'') {
-                /* rust chars are 4 bytes and have some weird unicode representation
-                 * thing */
                 Codepoint current_char32;
 
                 int length = 1;
@@ -1253,8 +1239,6 @@ namespace Rust {
 
                     current_column += length;
 
-                    /* TODO: FIX - char is actually 4 bytes in Rust (uint32) due to
-                     * unicode */
                     return Token::make_char(loc, current_char32);
                 } else {
                     // current_char32 = test_peek_codepoint_input();
@@ -1262,8 +1246,6 @@ namespace Rust {
 
                     if (test_peek_codepoint_input().value == '\'') {
                         // parse normal char literal
-                        /* TODO: FIX - char is actually 4 bytes in Rust (uint32) due
-                         * to unicode */
 
                         // skip the ' character
                         skip_input();
@@ -1433,8 +1415,7 @@ namespace Rust {
         return std::make_pair(str, additional_length_offset);
     }
 
-    // Replace all assorted parse_x_escape with this? Avoids the backwards/peek
-    // issue.
+    /* Parses escapes (and string continues) in "byte" strings and characters. Does not support unicode. */
     std::pair<char, int> Lexer::parse_escape(char opening_char) {
         int additional_length_offset = 0;
         char output_char = 0;
@@ -1622,14 +1603,9 @@ namespace Rust {
                     additional_length_offset++;
                 }
 
-                // TODO: why is this "handle escape again" thing here? shouldn't do anything.
-                /*if (current_char == '\\') {
-                    auto output_length_pair = parse_escape(opening_char);
-                    output_char = output_length_pair.first;
-                    additional_length_offset += output_length_pair.second;
-                    // return true;
-                    return std::make_pair(output_char, additional_length_offset);
-                } else */if (current_char == opening_char) {
+                // shouldn't need this
+#if 0
+                if (current_char == opening_char) {
                     // TODO: does this skip the ' or " character? It shouldn't.
                     output_char = 0;
                     // return true;
@@ -1646,6 +1622,8 @@ namespace Rust {
                     // return true;
                     return std::make_pair(output_char, additional_length_offset);
                 }
+#endif
+                return std::make_pair(0, additional_length_offset);
             default:
                 rust_error_at(get_current_location(), "unknown escape sequence '\\%c'", current_char);
                 // returns false if no parsing could be done
@@ -1653,8 +1631,7 @@ namespace Rust {
                 return std::make_pair(output_char, additional_length_offset);
                 break;
         }
-        // all non-special cases (unicode, string continue) should skip their used
-        // char
+        // all non-special cases (string continue) should skip their used char
         skip_input();
         current_char = peek_input();
         additional_length_offset++;
@@ -1664,6 +1641,7 @@ namespace Rust {
         return std::make_pair(output_char, additional_length_offset);
     }
 
+    // Parses an escape (or string continue) in a string or character. Supports unicode escapes.
     std::pair<Codepoint, int> Lexer::parse_utf8_escape(char opening_char) {
         Codepoint output_char;
         int additional_length_offset = 0;
@@ -1708,7 +1686,6 @@ namespace Rust {
                 // gcc_assert(hexLong < 128); // as ascii
                 char hexChar = static_cast<char>(hexLong);
 
-                // TODO: fix - does this actually give the right character?
                 output_char = hexChar;
             } break;
             case 'n':
@@ -1746,13 +1723,9 @@ namespace Rust {
                     additional_length_offset++;
                 }
 
-                // parse unicode escape
-                // 1-6 hex digits?
+                // parse unicode escape - 1-6 hex digits
                 std::string num_str;
                 num_str.reserve(6);
-
-                // test adding number directly
-                uint32_t test_val;
 
                 // loop through to add entire hex number to string
                 while (is_x_digit(current_char) || current_char == '_') {
@@ -1771,21 +1744,12 @@ namespace Rust {
                     // add raw hex numbers
                     num_str += current_char;
 
-                    // test adding number directly
-                    char tmp[2] = { current_char, 0 };
-                    test_val *= 16;
-                    test_val += std::strtol(tmp, NULL, 16);
-
                     skip_input();
                     current_char = peek_input();
                 }
 
                 // ensure closing brace if required
                 if (need_close_brace) {
-                    fprintf(stderr, 
-                    "need closing brace in unicode escape: peek/current_char is '%c', peek(1) is '%c', peek(2) is '%c', peek(3) is '%c'", 
-                      peek_input(), peek_input(1), peek_input(2), peek_input(3));
-
                     if (current_char == '}') {
                         skip_input();
                         current_char = peek_input();
@@ -1848,13 +1812,8 @@ namespace Rust {
                 }
 
                 // shouldn't need this
-                /*if (current_char == '\\') {
-                    auto utf8_escape_pair = parse_utf8_escape(opening_char);
-                    output_char = utf8_escape_pair.first;
-                    additional_length_offset += utf8_escape_pair.second;
-                    // return true;
-                    return std::make_pair(output_char, additional_length_offset);
-                } else */if (current_char == opening_char) {
+#if 0
+                if (current_char == opening_char) {
                     output_char = 0;
                     // return true;
                     return std::make_pair(output_char, additional_length_offset);
@@ -1864,6 +1823,8 @@ namespace Rust {
                     // return true;
                     return std::make_pair(output_char, additional_length_offset);
                 }
+#endif
+                return std::make_pair(0, additional_length_offset);
             default:
                 rust_error_at(get_current_location(), "unknown escape sequence '\\%c'", current_char);
                 // returns false if no parsing could be done
