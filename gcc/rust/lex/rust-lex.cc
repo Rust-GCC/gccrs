@@ -633,6 +633,7 @@ namespace Rust {
 
                     // skip quote character
                     skip_input();
+                    current_column++;
 
                     std::string str;
                     str.reserve(16); // some sensible default
@@ -677,6 +678,9 @@ namespace Rust {
                     if (current_char == '\n') {
                         rust_error_at(get_current_location(), "unended byte string literal");
                     } else if (current_char == '"') {
+                        // TEST: hopefully column inc should make string line up properly
+                        current_column++;
+
                         skip_input();
                         current_char = peek_input();
                     } else {
@@ -823,6 +827,8 @@ namespace Rust {
 
                         skip_input();
                         Codepoint current_char32 = test_peek_codepoint_input();
+
+                        // TODO: didn't account for current_column++ somewhere - one less than is required
 
                         while (true) {
                             if (current_char32.value == '"') {
@@ -1190,7 +1196,7 @@ namespace Rust {
                         // TODO: need to fix length - after escape, the length of the line up to the next non-whitespace char of the string is added to length, which is not what we want - we want length to be replaced by that.
                         // possible option could if "if escape_length_pair.first == 0, then length = escape_length_pair.second else length += escape_length_pair.second."
                         if (current_char32 == Codepoint(0))
-                            length = utf8_escape_pair.second;
+                            length = utf8_escape_pair.second - 1;
                         else
                             length += utf8_escape_pair.second;
 
