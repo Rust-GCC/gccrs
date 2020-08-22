@@ -575,14 +575,15 @@ namespace Rust {
             // byte and byte string test
             if (current_char == 'b') {
                 if (peek_input() == '\'') {
+                    skip_input();
+                    current_column++;
+                    // make current char the next character
+                    current_char = peek_input();
+
                     int length = 1;
 
                     // char to save
                     char byte_char = 0;
-
-                    skip_input();
-                    // make current char the next character
-                    current_char = peek_input();
 
                     // detect escapes
                     if (current_char == '\\') {
@@ -596,9 +597,7 @@ namespace Rust {
                             byte_char = 0;
                         }
 
-                        // skip_input();
                         current_char = peek_input();
-                        length++;
 
                         if (current_char != '\'') {
                             rust_error_at(get_current_location(), "unclosed byte char");
@@ -613,6 +612,7 @@ namespace Rust {
 
                         skip_input();
                         current_char = peek_input();
+                        length++;
 
                         if (current_char != '\'') {
                             rust_error_at(get_current_location(), "unclosed byte char");
@@ -650,7 +650,7 @@ namespace Rust {
                             // TODO: need to fix length - after escape, the length of the line up to the next non-whitespace char of the string is added to length, which is not what we want - we want length to be replaced by that.
                             // possible option could if "if escape_length_pair.first == 0, then length = escape_length_pair.second else length += escape_length_pair.second."
                             if (output_char == 0)
-                                length = escape_length_pair.second;
+                                length = escape_length_pair.second; // TODO add -1 to line up?
                             else
                                 length += escape_length_pair.second;
 
@@ -701,6 +701,7 @@ namespace Rust {
                     // get hash count at beginnning
                     skip_input();
                     current_char = peek_input();
+                    length++;
                     while (current_char == '#') {
                         hash_count++;
                         length++;
@@ -715,6 +716,7 @@ namespace Rust {
 
                     skip_input();
                     current_char = peek_input();
+                    length++;
 
                     while (true) {
                         if (current_char == '"') {
@@ -825,6 +827,7 @@ namespace Rust {
                             rust_error_at(get_current_location(), "raw string has no opening '\"'");
                         }
 
+                        length++;
                         skip_input();
                         Codepoint current_char32 = test_peek_codepoint_input();
 
@@ -1222,8 +1225,9 @@ namespace Rust {
                 if (current_char32.value == '\n') {
                     rust_error_at(get_current_location(), "unended string literal");
                 } else if (current_char32.value == '"') {
+                    current_column++;
+                    
                     skip_input();
-
                     current_char = peek_input();
                 } else {
                     gcc_unreachable();
