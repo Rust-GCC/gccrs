@@ -650,7 +650,7 @@ namespace Rust {
                             // TODO: need to fix length - after escape, the length of the line up to the next non-whitespace char of the string is added to length, which is not what we want - we want length to be replaced by that.
                             // possible option could if "if escape_length_pair.first == 0, then length = escape_length_pair.second else length += escape_length_pair.second."
                             if (output_char == 0)
-                                length = escape_length_pair.second; // TODO add -1 to line up?
+                                length = escape_length_pair.second - 1; 
                             else
                                 length += escape_length_pair.second;
 
@@ -1199,7 +1199,7 @@ namespace Rust {
                         // TODO: need to fix length - after escape, the length of the line up to the next non-whitespace char of the string is added to length, which is not what we want - we want length to be replaced by that.
                         // possible option could if "if escape_length_pair.first == 0, then length = escape_length_pair.second else length += escape_length_pair.second."
                         if (current_char32 == Codepoint(0))
-                            length = utf8_escape_pair.second - 1;
+                            length = utf8_escape_pair.second - 1; 
                         else
                             length += utf8_escape_pair.second;
 
