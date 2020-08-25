@@ -71,3 +71,10 @@ stamp-*
 /gmp*
 /isl*
 /gettext*
+
+# ADDITIONS from GCCRS front-end
+.vscode/*
+test.code-workspace
+
+gcc/rust/test3-tiny/*
+.clang-format.swap
