@@ -577,7 +577,7 @@ namespace Rust {
                         return raw_ident_ptr;
                 } else {
                     TokenPtr maybe_raw_string_ptr = maybe_parse_raw_string(loc);
-                    if (maybe_parse_raw_string != nullptr)
+                    if (maybe_raw_string_ptr != nullptr)
                         return maybe_raw_string_ptr;
                 }
             }
