@@ -1615,6 +1615,8 @@ namespace Rust {
     template<typename IsDigitFunc>
     TokenPtr Lexer::parse_non_decimal_int_literal(
       Location loc, IsDigitFunc is_digit_func, std::string existent_str, int base) {
+        int length = 1;
+
         skip_input();
         current_char = peek_input();
 
@@ -1635,22 +1637,22 @@ namespace Rust {
             length++;
 
             // add raw numbers
-            str += current_char;
+            existent_str += current_char;
             skip_input();
             current_char = peek_input();
         }
 
-        current_column += length;
-
         // convert value to decimal representation
-        long dec_num = std::strtol(str.c_str(), NULL, base);
+        long dec_num = std::strtol(existent_str.c_str(), NULL, base);
 
-        str = std::to_string(dec_num);
+        existent_str = std::to_string(dec_num);
 
         // parse in type suffix if it exists
         auto type_suffix_pair = parse_in_type_suffix();
         PrimitiveCoreType type_hint = type_suffix_pair.first;
         length += type_suffix_pair.second;
+
+        current_column += length;
 
         if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
             rust_error_at(get_current_location(), "invalid type suffix '%s' for integer (%s) literal",
@@ -1659,7 +1661,7 @@ namespace Rust {
                          : (base == 8 ? "octal" : (base == 2 ? "binary" : "<insert unknown base>")));
             return nullptr;
         }
-        return Token::make_int(loc, str, type_hint);
+        return Token::make_int(loc, existent_str, type_hint);
     }
 
     // Parses a hex, binary or octal int literal.
@@ -1667,8 +1669,6 @@ namespace Rust {
         std::string str;
         str.reserve(16); // some sensible default
         str += current_char;
-
-        int length = 1;
 
         current_char = peek_input();
 
