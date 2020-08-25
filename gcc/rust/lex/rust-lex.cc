@@ -113,22 +113,6 @@ namespace Rust {
         skip_input(0);
     }
 
-    const_TokenPtr Lexer::peek_token(int n) {
-        return token_queue.peek(n);
-    }
-
-    const_TokenPtr Lexer::peek_token() {
-        return peek_token(0);
-    }
-
-    void Lexer::skip_token(int n) {
-        token_queue.skip(n);
-    }
-
-    void Lexer::skip_token() {
-        skip_token(0);
-    }
-
     void Lexer::replace_current_token(TokenPtr replacement) {
         token_queue.replace_current_value(replacement);
     }
@@ -172,11 +156,11 @@ namespace Rust {
         // loop to go through multiple characters to build a single token
         while (true) {
             Location loc = get_current_location();
-            /*int */ current_char = peek_input();
+            current_char = peek_input();
             skip_input();
 
             // return end of file token if end of file
-            if (current_char == EOF) 
+            if (current_char == EOF)
                 return Token::make(END_OF_FILE, loc);
 
             // detect shebang
@@ -187,24 +171,23 @@ namespace Rust {
                     skip_input();
                     current_char = peek_input();
 
-                    switch (current_char) {
-                        case '/':
-                            // shebang
+                    if (current_char == '/') {
+                        // definitely shebang
 
+                        skip_input();
+
+                        // ignore rest of line
+                        while (current_char != '\n') {
+                            current_char = peek_input();
                             skip_input();
+                        }
 
-                            // ignore rest of line
-                            while (current_char != '\n') {
-                                current_char = peek_input();
-                                skip_input();
-                            }
-
-                            // newline
-                            current_line++;
-                            current_column = 1;
-                            // tell line_table that new line starts
-                            line_map->start_line(current_line, max_column_hint);
-                            continue;
+                        // newline
+                        current_line++;
+                        current_column = 1;
+                        // tell line_table that new line starts
+                        line_map->start_line(current_line, max_column_hint);
+                        continue;
                     }
                 }
             }
@@ -575,181 +558,11 @@ namespace Rust {
             // byte and byte string test
             if (current_char == 'b') {
                 if (peek_input() == '\'') {
-                    skip_input();
-                    current_column++;
-                    // make current char the next character
-                    current_char = peek_input();
-
-                    int length = 1;
-
-                    // char to save
-                    char byte_char = 0;
-
-                    // detect escapes
-                    if (current_char == '\\') {
-                        auto escape_length_pair = parse_escape('\'');
-                        byte_char = std::get<0>(escape_length_pair);
-                        length += std::get<1>(escape_length_pair);
-
-                        if (byte_char > 127) {
-                            rust_error_at(
-                              get_current_location(), "byte char '%c' out of range", byte_char);
-                            byte_char = 0;
-                        }
-
-                        current_char = peek_input();
-
-                        if (current_char != '\'') {
-                            rust_error_at(get_current_location(), "unclosed byte char");
-                        }
-
-                        skip_input();
-                        current_char = peek_input();
-                        length++; // go to next char
-                    } else if (current_char != '\'') {
-                        // otherwise, get character from direct input character
-                        byte_char = current_char;
-
-                        skip_input();
-                        current_char = peek_input();
-                        length++;
-
-                        if (current_char != '\'') {
-                            rust_error_at(get_current_location(), "unclosed byte char");
-                        }
-
-                        skip_input();
-                        current_char = peek_input();
-                        length++; // go to next char
-                    } else {
-                        rust_error_at(get_current_location(), "no character inside '' for byte char");
-                    }
-
-                    current_column += length;
-
-                    return Token::make_byte_char(loc, byte_char);
+                    return parse_byte_char(loc);
                 } else if (peek_input() == '"') {
-                    // byte string
-
-                    // skip quote character
-                    skip_input();
-                    current_column++;
-
-                    std::string str;
-                    str.reserve(16); // some sensible default
-
-                    int length = 1;
-                    current_char = peek_input();
-
-                    while (current_char != '"' && current_char != '\n') {
-                        if (current_char == '\\') {
-                            auto escape_length_pair = parse_escape('"');
-                            char output_char = std::get<0>(escape_length_pair);
-                            //length += escape_length_pair.second;
-
-                            // TODO: need to fix length - after escape, the length of the line up to the next non-whitespace char of the string is added to length, which is not what we want - we want length to be replaced by that.
-                            // possible option could if "if escape_length_pair.first == 0, then length = escape_length_pair.second else length += escape_length_pair.second."
-                            if (output_char == 0 && std::get<2>(escape_length_pair))
-                                length = std::get<1>(escape_length_pair) - 1;
-                            else
-                                length += std::get<1>(escape_length_pair);
-
-                            if (output_char > 127) {
-                                rust_error_at(get_current_location(),
-                                  "char '%c' in byte string out of range", output_char);
-                                output_char = 0;
-                            }
-
-                            if (output_char != 0)
-                                str += output_char;
-
-                            continue;
-                        }
-
-                        length++;
-
-                        str += current_char;
-                        skip_input();
-                        current_char = peek_input();
-                    }
-
-                    current_column += length;
-
-                    if (current_char == '\n') {
-                        rust_error_at(get_current_location(), "unended byte string literal");
-                    } else if (current_char == '"') {
-                        // TEST: hopefully column inc should make string line up properly
-                        current_column++;
-
-                        skip_input();
-                        current_char = peek_input();
-                    } else {
-                        gcc_unreachable();
-                    }
-
-                    str.shrink_to_fit();
-
-                    return Token::make_byte_string(loc, str);
+                    return parse_byte_string(loc);
                 } else if (peek_input() == 'r' && (peek_input(1) == '#' || peek_input(1) == '"')) {
-                    // raw byte string literals
-                    std::string str;
-                    str.reserve(16); // some sensible default
-
-                    int length = 1;
-                    int hash_count = 0;
-
-                    // get hash count at beginnning
-                    skip_input();
-                    current_char = peek_input();
-                    length++;
-                    while (current_char == '#') {
-                        hash_count++;
-                        length++;
-
-                        skip_input();
-                        current_char = peek_input();
-                    }
-
-                    if (current_char != '"') {
-                        rust_error_at(get_current_location(), "raw byte string has no opening '\"'");
-                    }
-
-                    skip_input();
-                    current_char = peek_input();
-                    length++;
-
-                    while (true) {
-                        if (current_char == '"') {
-                            bool enough_hashes = true;
-
-                            for (int i = 0; i < hash_count; i++) {
-                                if (peek_input(i + 1) != '#') {
-                                    enough_hashes = false; // could continue here -
-                                                           // improve performance
-                                }
-                            }
-
-                            if (enough_hashes) {
-                                // skip enough input and peek enough input
-                                skip_input(hash_count); // is this enough?
-                                current_char = peek_input();
-                                length += hash_count + 1;
-                                break;
-                            }
-                        }
-
-                        length++;
-
-                        str += current_char;
-                        skip_input();
-                        current_char = peek_input();
-                    }
-
-                    current_column += length;
-
-                    str.shrink_to_fit();
-
-                    return Token::make_byte_string(loc, str);
+                    return parse_raw_byte_string(loc);
                 }
             }
 
@@ -759,150 +572,19 @@ namespace Rust {
                 int peek1 = peek_input(1);
 
                 if (peek == '#' && (ISALPHA(peek1) || peek1 == '_')) {
-                    // raw identifier
-                    std::string str;
-                    str.reserve(16); // default
-
-                    skip_input();
-                    current_char = peek_input();
-
-                    current_column += 2;
-
-                    str += current_char;
-
-                    bool first_is_underscore = current_char == '_';
-
-                    int length = 1;
-                    current_char = peek_input();
-                    // loop through entire name
-                    while (ISALPHA(current_char) || ISDIGIT(current_char) || current_char == '_') {
-                        length++;
-
-                        str += current_char;
-                        skip_input();
-                        current_char = peek_input();
-                    }
-
-                    current_column += length;
-
-                    // if just a single underscore, not an identifier
-                    if (first_is_underscore && length == 1) {
-                        rust_error_at(get_current_location(), "'_' is not a valid raw identifier");
-                    }
-
-                    if (str == "crate" || str == "extern" || str == "self" || str == "super"
-                        || str == "Self") {
-                        rust_error_at(
-                          get_current_location(), "'%s' is a forbidden raw identifier", str.c_str());
-                    } else {
-                        str.shrink_to_fit();
-
-                        return Token::make_identifier(loc, str);
-                    }
+                    TokenPtr raw_ident_ptr = parse_raw_identifier(loc);
+                    if (raw_ident_ptr != nullptr)
+                        return raw_ident_ptr;
                 } else {
-                    int peek_index = 0;
-                    while (peek_input(peek_index) == '#')
-                        peek_index++;
-                    // TODO: optimise by using "peek_index" as the hash count - 1 or something
-
-                    if (peek_input(peek_index) == '"') {
-                        // raw string literals
-                        std::string str;
-                        str.reserve(16); // some sensible default
-
-                        int length = 1;
-                        int hash_count = 0;
-
-                        // get hash count at beginnning
-                        current_char = peek;
-                        while (current_char == '#') {
-                            hash_count++;
-                            length++;
-
-                            skip_input();
-                            current_char = peek_input();
-                        }
-
-                        if (current_char != '"') {
-                            rust_error_at(get_current_location(), "raw string has no opening '\"'");
-                        }
-
-                        length++;
-                        skip_input();
-                        Codepoint current_char32 = test_peek_codepoint_input();
-
-                        // TODO: didn't account for current_column++ somewhere - one less than is required
-
-                        while (true) {
-                            if (current_char32.value == '"') {
-                                bool enough_hashes = true;
-
-                                for (int i = 0; i < hash_count; i++) {
-                                    // if (test_peek_codepoint_input(i + 1) != '#') {
-                                    // TODO: ensure this is a good enough replacement
-                                    if (peek_input(i + 1) != '#') {
-                                        enough_hashes = false; // could continue here -
-                                                               // improve performance
-                                    }
-                                }
-
-                                if (enough_hashes) {
-                                    // skip enough input and peek enough input
-                                    skip_input(hash_count); // is this enough?
-                                    current_char = peek_input();
-                                    length += hash_count + 1;
-                                    break;
-                                }
-                            }
-
-                            length++;
-
-                            str += current_char32;
-                            test_skip_codepoint_input();
-                            current_char32 = test_peek_codepoint_input();
-                        }
-
-                        current_column += length;
-
-                        str.shrink_to_fit();
-
-                        return Token::make_string(loc, str);
-                    }
+                    TokenPtr maybe_raw_string_ptr = maybe_parse_raw_string(loc);
+                    if (maybe_parse_raw_string != nullptr)
+                        return maybe_raw_string_ptr;
                 }
             }
 
             // find identifiers and keywords
             if (ISALPHA(current_char) || current_char == '_') {
-                std::string str;
-                str.reserve(16); // default
-                str += current_char;
-
-                bool first_is_underscore = current_char == '_';
-
-                int length = 1;
-                current_char = peek_input();
-                // loop through entire name
-                while (ISALPHA(current_char) || ISDIGIT(current_char) || current_char == '_') {
-                    length++;
-
-                    str += current_char;
-                    skip_input();
-                    current_char = peek_input();
-                }
-
-                current_column += length;
-
-                // if just a single underscore, not an identifier
-                if (first_is_underscore && length == 1)
-                    return Token::make(UNDERSCORE, loc);
-
-                str.shrink_to_fit();
-
-                TokenId keyword = classify_keyword(str);
-                if (keyword == IDENTIFIER)
-                    return Token::make_identifier(loc, str);
-                else
-                    return Token::make(keyword, loc);
+                return parse_identifier_or_keyword(loc);
             }
 
             // identify literals
@@ -920,149 +602,9 @@ namespace Rust {
 
                 // handle binary, octal, hex literals
                 if (current_char == '0' && !ISDIGIT(peek_input())) {
-                    current_char = peek_input();
-
-                    if (current_char == 'x') {
-                        // hex (integer only)
-
-                        skip_input();
-                        current_char = peek_input();
-
-                        length++;
-
-                        // add 'x' to string after 0 so it is 0xFFAA or whatever
-                        str += 'x';
-
-                        // loop through to add entire hex number to string
-                        while (is_x_digit(current_char) || current_char == '_') {
-                            if (current_char == '_') {
-                                // don't add _ to number
-                                skip_input();
-                                current_char = peek_input();
-
-                                length++;
-
-                                continue;
-                            }
-
-                            length++;
-
-                            // add raw hex numbers
-                            str += current_char;
-                            skip_input();
-                            current_char = peek_input();
-                        }
-
-                        current_column += length;
-
-                        // convert hex value to decimal representation
-                        long hex_num = std::strtol(str.c_str(), NULL, 16);
-
-                        str = std::to_string(hex_num);
-
-                        // parse in type suffix if it exists
-                        auto type_suffix_pair = parse_in_type_suffix();
-                        type_hint = type_suffix_pair.first;
-                        length += type_suffix_pair.second;
-
-                        if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
-                            rust_error_at(get_current_location(),
-                              "invalid type suffix '%s' for integer (hex) literal",
-                              get_type_hint_string(type_hint));
-                        }
-                    } else if (current_char == 'o') {
-                        // octal (integer only)
-
-                        skip_input();
-                        current_char = peek_input();
-
-                        length++;
-
-                        // loop through to add entire octal number to string
-                        while (is_octal_digit(current_char) || current_char == '_') {
-                            if (current_char == '_') {
-                                // don't add _ to number
-                                skip_input();
-                                current_char = peek_input();
-
-                                length++;
-
-                                continue;
-                            }
-
-                            length++;
-
-                            // add raw octal numbers
-                            str += current_char;
-                            skip_input();
-                            current_char = peek_input();
-                        }
-
-                        current_column += length;
-
-                        // convert octal value to decimal representation
-                        long octal_num = std::strtol(str.c_str(), NULL, 8);
-
-                        str = std::to_string(octal_num);
-
-                        // parse in type suffix if it exists
-                        // parse_in_type_suffix (/*current_char, */ type_hint, length);
-                        auto type_suffix_pair = parse_in_type_suffix();
-                        type_hint = type_suffix_pair.first;
-                        length += type_suffix_pair.second;
-
-                        if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
-                            rust_error_at(get_current_location(),
-                              "invalid type suffix '%s' for integer (octal) literal",
-                              get_type_hint_string(type_hint));
-                        }
-                    } else if (current_char == 'b') {
-                        // binary (integer only)
-
-                        skip_input();
-                        current_char = peek_input();
-
-                        length++;
-
-                        // loop through to add entire binary number to string
-                        while (is_bin_digit(current_char) || current_char == '_') {
-                            if (current_char == '_') {
-                                // don't add _ to number
-                                skip_input();
-                                current_char = peek_input();
-
-                                length++;
-
-                                continue;
-                            }
-
-                            length++;
-
-                            // add raw binary numbers
-                            str += current_char;
-                            skip_input();
-                            current_char = peek_input();
-                        }
-
-                        current_column += length;
-
-                        // convert binary value to decimal representation
-                        long bin_num = std::strtol(str.c_str(), NULL, 2);
-
-                        str = std::to_string(bin_num);
-
-                        // parse in type suffix if it exists
-                        // parse_in_type_suffix (/*current_char, */ type_hint, length);
-                        auto type_suffix_pair = parse_in_type_suffix();
-                        type_hint = type_suffix_pair.first;
-                        length += type_suffix_pair.second;
-
-                        if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
-                            rust_error_at(get_current_location(),
-                              "invalid type suffix '%s' for integer (binary) literal",
-                              get_type_hint_string(type_hint));
-                        }
-                    }
+                    TokenPtr non_dec_int_lit_ptr = parse_non_decimal_int_literals(loc);
+                    if (non_dec_int_lit_ptr != nullptr)
+                        return non_dec_int_lit_ptr;
                 } else {
                     // handle decimals (integer or float)
 
@@ -1075,7 +617,8 @@ namespace Rust {
                     length += str_length_pair.second;
 
                     // detect float literal - TODO: fix: "242." is not recognised as a
-                    // float literal
+                    // float literal - possible solution is '.' and then "is_whitespace" or
+                    // "is_float_digit"
                     if (current_char == '.' && is_float_digit(peek_input(1))) {
                         // float with a '.', parse another decimal into it
 
@@ -1179,62 +722,9 @@ namespace Rust {
                     return Token::make_int(loc, str, type_hint);
             }
 
-            // string literals - not processed properly
+            // string literals
             if (current_char == '"') {
-                Codepoint current_char32;
-
-                std::string str;
-                str.reserve(16); // some sensible default
-
-                int length = 1;
-                current_char32 = test_peek_codepoint_input();
-
-                while (current_char32.value != '\n' && current_char32.value != '"') {
-                    if (current_char32.value == '\\') {
-                        // parse escape
-                        auto utf8_escape_pair = parse_utf8_escape('\'');
-                        current_char32 = std::get<0>(utf8_escape_pair);
-                        //length += utf8_escape_pair.second;
-
-                        // TODO: need to fix length - after escape, the length of the line up to the next non-whitespace char of the string is added to length, which is not what we want - we want length to be replaced by that.
-                        // possible option could if "if escape_length_pair.first == 0, then length = escape_length_pair.second else length += escape_length_pair.second."
-                        if (current_char32 == Codepoint(0) && std::get<2>(utf8_escape_pair))
-                            length = std::get<1>(utf8_escape_pair);
-                        else
-                            length += std::get<1>(utf8_escape_pair);
-
-                        if (current_char32 != Codepoint(0))
-                            str += current_char32;
-
-                        // required as parsing utf8 escape only changes current_char
-                        // or something
-                        current_char32 = test_peek_codepoint_input();
-
-                        continue;
-                    }
-
-                    length += test_get_input_codepoint_length();
-
-                    str += current_char32;
-                    test_skip_codepoint_input();
-                    current_char32 = test_peek_codepoint_input();
-                }
-
-                current_column += length;
-
-                if (current_char32.value == '\n') {
-                    rust_error_at(get_current_location(), "unended string literal");
-                } else if (current_char32.value == '"') {
-                    current_column++;
-                    
-                    skip_input();
-                    current_char = peek_input();
-                } else {
-                    gcc_unreachable();
-                }
-
-                str.shrink_to_fit();
-                return Token::make_string(loc, str);
+                return parse_string(loc);
             }
 
             // char literal attempt
@@ -1243,7 +733,7 @@ namespace Rust {
 
                 int length = 1;
 
-                current_char32 = test_peek_codepoint_input();
+                current_char32 = peek_codepoint_input();
 
                 // parse escaped char literal
                 if (current_char32.value == '\\') {
@@ -1252,10 +742,10 @@ namespace Rust {
                     current_char32 = std::get<0>(utf8_escape_pair);
                     length += std::get<1>(utf8_escape_pair);
 
-                    if (test_peek_codepoint_input().value != '\'') {
+                    if (peek_codepoint_input().value != '\'') {
                         rust_error_at(get_current_location(), "unended char literal");
                     } else {
-                        test_skip_codepoint_input();
+                        skip_codepoint_input();
                         current_char = peek_input();
                         length++;
                     }
@@ -1265,9 +755,9 @@ namespace Rust {
                     return Token::make_char(loc, current_char32);
                 } else {
                     // current_char32 = test_peek_codepoint_input();
-                    test_skip_codepoint_input();
+                    skip_codepoint_input();
 
-                    if (test_peek_codepoint_input().value == '\'') {
+                    if (peek_codepoint_input().value == '\'') {
                         // parse normal char literal
 
                         // skip the ' character
@@ -1289,15 +779,15 @@ namespace Rust {
 
                         int length = 1;
 
-                        current_char32 = test_peek_codepoint_input();
+                        current_char32 = peek_codepoint_input();
 
                         while (ISDIGIT(current_char32.value) || ISALPHA(current_char32.value)
                                || current_char32.value == '_') {
-                            length += test_get_input_codepoint_length();
+                            length += get_input_codepoint_length();
 
                             str += current_char32;
-                            test_skip_codepoint_input();
-                            current_char32 = test_peek_codepoint_input();
+                            skip_codepoint_input();
+                            current_char32 = peek_codepoint_input();
                         }
 
                         current_column += length;
@@ -1316,7 +806,7 @@ namespace Rust {
         }
     }
 
-    // Shitty pass-by-reference way of parsing in type suffix.
+    // Parses in a type suffix.
     std::pair<PrimitiveCoreType, int> Lexer::parse_in_type_suffix() {
         std::string suffix;
         suffix.reserve(5);
@@ -1380,6 +870,7 @@ namespace Rust {
         }
     }
 
+    // Parses in the exponent part (if any) of a float literal.
     std::pair<std::string, int> Lexer::parse_in_exponent_part() {
         int additional_length_offset = 0;
         std::string str;
@@ -1415,6 +906,7 @@ namespace Rust {
         return std::make_pair(str, additional_length_offset);
     }
 
+    // Parses a decimal integer.
     std::pair<std::string, int> Lexer::parse_in_decimal() {
         int additional_length_offset = 0;
         std::string str;
@@ -1438,7 +930,8 @@ namespace Rust {
         return std::make_pair(str, additional_length_offset);
     }
 
-    /* Parses escapes (and string continues) in "byte" strings and characters. Does not support unicode. */
+    /* Parses escapes (and string continues) in "byte" strings and characters. Does not support
+     * unicode. */
     std::tuple<char, int, bool> Lexer::parse_escape(char opening_char) {
         int additional_length_offset = 0;
         char output_char = 0;
@@ -1510,97 +1003,6 @@ namespace Rust {
                   "cannot have a unicode escape \\u in a byte %s!",
                   opening_char == '\'' ? "character" : "string");
                 return std::make_tuple(output_char, additional_length_offset, false);
-#if 0
-			{
-                // TODO: shouldn't be used with this - use parse_utf8_escape
-
-                skip_input();
-                current_char = peek_input();
-                additional_length_offset++;
-
-                bool need_close_brace = false;
-
-                // TODO: rustc lexer doesn't seem to allow not having { but mrustc lexer
-                // does? look at spec?
-                if (current_char == '{') {
-                    need_close_brace = true;
-
-                    skip_input();
-                    current_char = peek_input();
-                    additional_length_offset++;
-                }
-
-                // parse unicode escape
-                // 1-6 hex digits?
-                std::string num_str;
-                num_str.reserve(6);
-
-                // test adding number directly
-                uint32_t test_val;
-
-                // loop through to add entire hex number to string
-                while (is_x_digit(current_char) || current_char == '_') {
-                    if (current_char == '_') {
-                        // don't add _ to number
-                        skip_input();
-                        current_char = peek_input();
-
-                        additional_length_offset++;
-
-                        continue;
-                    }
-
-                    additional_length_offset++;
-
-                    // add raw hex numbers
-                    num_str += current_char;
-
-                    // test adding number directly
-                    char tmp[2] = { current_char, 0 };
-                    test_val *= 16;
-                    test_val += std::strtol(tmp, NULL, 16);
-
-                    skip_input();
-                    current_char = peek_input();
-                }
-
-                // ensure closing brace
-                if (need_close_brace && current_char != '}') {
-                    // actually an error
-                    rust_error_at(
-                      get_current_location(), "expected terminating '}' in unicode escape");
-                    // return false;
-                    return std::make_pair(output_char, additional_length_offset);
-                }
-
-                // ensure 1-6 hex characters
-                if (num_str.length() > 6 || num_str.length() < 1) {
-                    rust_error_at(get_current_location(),
-                      "unicode escape should be between 1 and 6 hex "
-                      "characters; it is %lu",
-                      num_str.length());
-                    // return false;
-                    return std::make_pair(output_char, additional_length_offset);
-                }
-
-                long hex_num = std::strtol(num_str.c_str(), NULL, 16);
-
-                // as debug, check hex_num = test_val
-                if (hex_num > 255) {
-                    rust_error_at(
-                      get_current_location(), "non-ascii chars not implemented yet, defaulting to 0");
-                    hex_num = 0;
-                }
-
-                // make output_char the value - UTF-8?
-                // TODO: actually make this work - output char must be 4 bytes, do I
-                // need a string for this?
-                output_char = static_cast</*uint32_t*/ char>(hex_num);
-
-                // return true;
-                return std::make_pair(output_char, additional_length_offset);
-            } break;
-#endif
             case '\r':
             case '\n':
                 // string continue
@@ -1783,9 +1185,6 @@ namespace Rust {
 
                 output_char = Codepoint(static_cast<uint32_t>(hex_num));
 
-                // TODO: what is being outputted? the escape code for the unicode char
-                // (unicode number) or the character number?
-
                 // return true;
                 return std::make_tuple(output_char, additional_length_offset, false);
             } break;
@@ -1833,133 +1232,396 @@ namespace Rust {
         return std::make_tuple(output_char, additional_length_offset, false);
     }
 
-#if 0
-    bool Lexer::parse_ascii_escape(/*char& current_char, */ int& length, char& output_char) {
-        // skip to actual letter
+    // Parses a byte character.
+    TokenPtr Lexer::parse_byte_char(Location loc) {
         skip_input();
+        current_column++;
+        // make current char the next character
         current_char = peek_input();
-        length++;
 
-        switch (current_char) {
-            case 'x': {
-                // hex char string (null-terminated)
-                char hexNum[3] = { 0, 0, 0 };
+        int length = 1;
 
-                // first hex char
-                skip_input();
-                current_char = peek_input();
-                length++;
+        // char to save
+        char byte_char = 0;
 
-                if (!ISXDIGIT(current_char)) {
-                    rust_error_at(get_current_location(), "invalid character '\\x%c' in \\x sequence",
-                      current_char);
-                }
-                hexNum[0] = current_char;
+        // detect escapes
+        if (current_char == '\\') {
+            auto escape_length_pair = parse_escape('\'');
+            byte_char = std::get<0>(escape_length_pair);
+            length += std::get<1>(escape_length_pair);
 
-                // second hex char
-                skip_input();
-                current_char = peek_input();
-                length++;
+            if (byte_char > 127) {
+                rust_error_at(get_current_location(), "byte char '%c' out of range", byte_char);
+                byte_char = 0;
+            }
 
-                if (!ISXDIGIT(current_char)) {
-                    rust_error_at(get_current_location(), "invalid character '\\x%c' in \\x sequence",
-                      current_char);
-                }
-                hexNum[1] = current_char;
+            current_char = peek_input();
 
-                long hexLong = ::std::strtol(hexNum, NULL, 16);
+            if (current_char != '\'') {
+                rust_error_at(get_current_location(), "unclosed byte char");
+            }
 
-                if (hexLong > 127)
-                    rust_error_at(get_current_location(),
-                      "ascii \\x escape '\\x%s' out of range - allows up to '\\x7F'", hexNum);
-                // gcc_assert(hexLong < 128); // as ascii
-                char hexChar = static_cast<char>(hexLong);
-
-                // TODO: fix - does this actually give the right character?
-                output_char = hexChar;
-            } break;
-            case 'n':
-                output_char = '\n';
-                break;
-            case 'r':
-                output_char = '\r';
-                break;
-            case 't':
-                output_char = '\t';
-                break;
-            case '\\':
-                output_char = '\\';
-                break;
-            case '0':
-                output_char = '\0';
-                break;
-            default:
-                // rust_error_at(get_current_location(), "unknown escape sequence '\\%c'", current_char);
-                // returns false if no parsing could be done
-                return false;
-                break;
-        }
-        // returns true if parsing was successful
-        return true;
-    }
-
-    bool Lexer::parse_quote_escape(/*char& current_char, */ int& length, char& output_char) {
-        // skip to actual letter
-        skip_input();
-        current_char = peek_input();
-        length++;
-
-        switch (current_char) {
-            case '\'':
-                output_char = '\'';
-                break;
-            case '"':
-                output_char = '"';
-                break;
-            default:
-                return false;
-                break;
-        }
-        return true;
-    }
-
-    bool Lexer::parse_unicode_escape(
-      /*char& current_char, */ int& length, /*char*/ uint32_t& output_char) {
-        // skip to actual letter
-        skip_input();
-        current_char = peek_input();
-        length++;
-
-        if (current_char != 'u') {
-            // not a unicode escape, but not necessarily an error
-            return false;
-        }
-
-        skip_input();
-        current_char = peek_input();
-        length++;
-
-        bool need_close_brace = false;
-
-        // TODO: rustc lexer doesn't seem to allow not having { but mrustc lexer does? look at spec?
-        if (current_char == '{') {
-            need_close_brace = true;
+            skip_input();
+            current_char = peek_input();
+            length++; // go to next char
+        } else if (current_char != '\'') {
+            // otherwise, get character from direct input character
+            byte_char = current_char;
 
             skip_input();
             current_char = peek_input();
             length++;
+
+            if (current_char != '\'') {
+                rust_error_at(get_current_location(), "unclosed byte char");
+            }
+
+            skip_input();
+            current_char = peek_input();
+            length++; // go to next char
+        } else {
+            rust_error_at(get_current_location(), "no character inside '' for byte char");
         }
 
-        // parse unicode escape
-        // 1-6 hex digits?
-        ::std::string num_str;
-        num_str.reserve(6);
+        current_column += length;
 
-        // test adding number directly
-        uint32_t test_val;
+        return Token::make_byte_char(loc, byte_char);
+    }
 
-        // loop through to add entire hex number to string
-        while (is_x_digit(current_char) || current_char == '_') {
+    // Parses a byte string.
+    TokenPtr Lexer::parse_byte_string(Location loc) {
+        // byte string
+
+        // skip quote character
+        skip_input();
+        current_column++;
+
+        std::string str;
+        str.reserve(16); // some sensible default
+
+        int length = 1;
+        current_char = peek_input();
+
+        while (current_char != '"' && current_char != '\n') {
+            if (current_char == '\\') {
+                auto escape_length_pair = parse_escape('"');
+                char output_char = std::get<0>(escape_length_pair);
+
+                if (output_char == 0 && std::get<2>(escape_length_pair))
+                    length = std::get<1>(escape_length_pair) - 1;
+                else
+                    length += std::get<1>(escape_length_pair);
+
+                if (output_char > 127) {
+                    rust_error_at(
+                      get_current_location(), "char '%c' in byte string out of range", output_char);
+                    output_char = 0;
+                }
+
+                if (output_char != 0)
+                    str += output_char;
+
+                continue;
+            }
+
+            length++;
+
+            str += current_char;
+            skip_input();
+            current_char = peek_input();
+        }
+
+        current_column += length;
+
+        if (current_char == '\n') {
+            rust_error_at(get_current_location(), "unended byte string literal");
+        } else if (current_char == '"') {
+            current_column++;
+
+            skip_input();
+            current_char = peek_input();
+        } else {
+            gcc_unreachable();
+        }
+
+        str.shrink_to_fit();
+
+        return Token::make_byte_string(loc, str);
+    }
+
+    // Parses a raw byte string.
+    TokenPtr Lexer::parse_raw_byte_string(Location loc) {
+        // raw byte string literals
+        std::string str;
+        str.reserve(16); // some sensible default
+
+        int length = 1;
+        int hash_count = 0;
+
+        // get hash count at beginnning
+        skip_input();
+        current_char = peek_input();
+        length++;
+        while (current_char == '#') {
+            hash_count++;
+            length++;
+
+            skip_input();
+            current_char = peek_input();
+        }
+
+        if (current_char != '"') {
+            rust_error_at(get_current_location(), "raw byte string has no opening '\"'");
+        }
+
+        skip_input();
+        current_char = peek_input();
+        length++;
+
+        while (true) {
+            if (current_char == '"') {
+                bool enough_hashes = true;
+
+                for (int i = 0; i < hash_count; i++) {
+                    if (peek_input(i + 1) != '#') {
+                        enough_hashes = false; // could continue here -
+                                               // improve performance
+                    }
+                }
+
+                if (enough_hashes) {
+                    // skip enough input and peek enough input
+                    skip_input(hash_count);
+                    current_char = peek_input();
+                    length += hash_count + 1;
+                    break;
+                }
+            }
+
+            length++;
+
+            str += current_char;
+            skip_input();
+            current_char = peek_input();
+        }
+
+        current_column += length;
+
+        str.shrink_to_fit();
+
+        return Token::make_byte_string(loc, str);
+    }
+
+    // Parses a raw identifier.
+    TokenPtr Lexer::parse_raw_identifier(Location loc) {
+        // raw identifier
+        std::string str;
+        str.reserve(16); // default
+
+        skip_input();
+        current_char = peek_input();
+
+        current_column += 2;
+
+        str += current_char;
+
+        bool first_is_underscore = current_char == '_';
+
+        int length = 1;
+        current_char = peek_input();
+        // loop through entire name
+        while (ISALPHA(current_char) || ISDIGIT(current_char) || current_char == '_') {
+            length++;
+
+            str += current_char;
+            skip_input();
+            current_char = peek_input();
+        }
+
+        current_column += length;
+
+        // if just a single underscore, not an identifier
+        if (first_is_underscore && length == 1) {
+            rust_error_at(get_current_location(), "'_' is not a valid raw identifier");
+        }
+
+        if (str == "crate" || str == "extern" || str == "self" || str == "super" || str == "Self") {
+            rust_error_at(get_current_location(), "'%s' is a forbidden raw identifier", str.c_str());
+
+            return nullptr;
+        } else {
+            str.shrink_to_fit();
+
+            return Token::make_identifier(loc, str);
+        }
+    }
+
+    // Parses a unicode string.
+    TokenPtr Lexer::parse_string(Location loc) {
+        Codepoint current_char32;
+
+        std::string str;
+        str.reserve(16); // some sensible default
+
+        int length = 1;
+        current_char32 = peek_codepoint_input();
+
+        while (current_char32.value != '\n' && current_char32.value != '"') {
+            if (current_char32.value == '\\') {
+                // parse escape
+                auto utf8_escape_pair = parse_utf8_escape('\'');
+                current_char32 = std::get<0>(utf8_escape_pair);
+
+                if (current_char32 == Codepoint(0) && std::get<2>(utf8_escape_pair))
+                    length = std::get<1>(utf8_escape_pair) - 1;
+                else
+                    length += std::get<1>(utf8_escape_pair);
+
+                if (current_char32 != Codepoint(0))
+                    str += current_char32;
+
+                // required as parsing utf8 escape only changes current_char
+                current_char32 = peek_codepoint_input();
+
+                continue;
+            }
+
+            length += get_input_codepoint_length();
+
+            str += current_char32;
+            skip_codepoint_input();
+            current_char32 = peek_codepoint_input();
+        }
+
+        current_column += length;
+
+        if (current_char32.value == '\n') {
+            rust_error_at(get_current_location(), "unended string literal");
+        } else if (current_char32.value == '"') {
+            current_column++;
+
+            skip_input();
+            current_char = peek_input();
+        } else {
+            gcc_unreachable();
+        }
+
+        str.shrink_to_fit();
+        return Token::make_string(loc, str);
+    }
+
+    // Parses an identifier or keyword.
+    TokenPtr Lexer::parse_identifier_or_keyword(Location loc) {
+        std::string str;
+        str.reserve(16); // default
+        str += current_char;
+
+        bool first_is_underscore = current_char == '_';
+
+        int length = 1;
+        current_char = peek_input();
+        // loop through entire name
+        while (ISALPHA(current_char) || ISDIGIT(current_char) || current_char == '_') {
+            length++;
+
+            str += current_char;
+            skip_input();
+            current_char = peek_input();
+        }
+
+        current_column += length;
+
+        // if just a single underscore, not an identifier
+        if (first_is_underscore && length == 1)
+            return Token::make(UNDERSCORE, loc);
+
+        str.shrink_to_fit();
+
+        TokenId keyword = classify_keyword(str);
+        if (keyword == IDENTIFIER)
+            return Token::make_identifier(loc, str);
+        else
+            return Token::make(keyword, loc);
+    }
+
+    // Possibly returns a raw string token if it exists - otherwise returns null.
+    TokenPtr Lexer::maybe_parse_raw_string(Location loc) {
+        int peek_index = 0;
+        while (peek_input(peek_index) == '#')
+            peek_index++;
+
+        if (peek_input(peek_index) == '"')
+            return parse_raw_string(loc, peek_index);
+        else
+            return nullptr;
+    }
+
+    // Returns a raw string token.
+    TokenPtr Lexer::parse_raw_string(Location loc, int initial_hash_count) {
+        // raw string literals
+        std::string str;
+        str.reserve(16); // some sensible default
+
+        int length = 1 + initial_hash_count;
+
+        if (initial_hash_count > 0)
+            skip_input(initial_hash_count - 1);
+
+        current_char = peek_input();
+
+        if (current_char != '"') {
+            rust_error_at(get_current_location(), "raw string has no opening '\"'");
+        }
+
+        length++;
+        skip_input();
+        Codepoint current_char32 = peek_codepoint_input();
+
+        while (true) {
+            if (current_char32.value == '"') {
+                bool enough_hashes = true;
+
+                for (int i = 0; i < initial_hash_count; i++) {
+                    // if (test_peek_codepoint_input(i + 1) != '#') {
+                    if (peek_input(i + 1) != '#') {
+                        enough_hashes = false; // could continue here -
+                                               // improve performance
+                    }
+                }
+
+                if (enough_hashes) {
+                    // skip enough input and peek enough input
+                    skip_input(initial_hash_count);
+                    current_char = peek_input();
+                    length += initial_hash_count + 1;
+                    break;
+                }
+            }
+
+            length++;
+
+            str += current_char32;
+            skip_codepoint_input();
+            current_char32 = peek_codepoint_input();
+        }
+
+        current_column += length;
+
+        str.shrink_to_fit();
+
+        return Token::make_string(loc, str);
+    }
+
+    template<typename IsDigitFunc>
+    TokenPtr Lexer::parse_non_decimal_int_literal(
+      Location loc, IsDigitFunc is_digit_func, std::string existent_str, int base) {
+        skip_input();
+        current_char = peek_input();
+
+        length++;
+
+        // loop through to add entire number to string
+        while (is_digit_func(current_char) || current_char == '_') {
             if (current_char == '_') {
                 // don't add _ to number
                 skip_input();
@@ -1972,115 +1634,202 @@ namespace Rust {
 
             length++;
 
-            // add raw hex numbers
-            num_str += current_char;
-
-            // test adding number directly
-            char tmp[2] = { current_char, 0 };
-            test_val *= 16;
-            test_val += ::std::strtol(tmp, NULL, 16);
-
+            // add raw numbers
+            str += current_char;
             skip_input();
             current_char = peek_input();
         }
 
-        // ensure closing brace
-        if (need_close_brace && current_char != '}') {
-            // actually an error
-            rust_error_at(get_current_location(), "expected terminating '}' in unicode escape");
-            return false;
+        current_column += length;
+
+        // convert value to decimal representation
+        long dec_num = std::strtol(str.c_str(), NULL, base);
+
+        str = std::to_string(dec_num);
+
+        // parse in type suffix if it exists
+        auto type_suffix_pair = parse_in_type_suffix();
+        PrimitiveCoreType type_hint = type_suffix_pair.first;
+        length += type_suffix_pair.second;
+
+        if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
+            rust_error_at(get_current_location(), "invalid type suffix '%s' for integer (%s) literal",
+              get_type_hint_string(type_hint),
+              base == 16 ? "hex"
+                         : (base == 8 ? "octal" : (base == 2 ? "binary" : "<insert unknown base>")));
+            return nullptr;
         }
-
-        // ensure 1-6 hex characters
-        if (num_str.length() > 6 || num_str.length() < 1) {
-            rust_error_at(get_current_location(),
-              "unicode escape should be between 1 and 6 hex characters; it is %lu", num_str.length());
-            return false;
-        }
-
-        long hex_num = ::std::strtol(num_str.c_str(), NULL, 16);
-
-        // as debug, check hex_num = test_val
-
-        // make output_char the value - UTF-8?
-        // TODO: actually make this work - output char must be 4 bytes, do I need a string for this?
-        output_char = static_cast<uint32_t>(hex_num);
-
-        return true;
+        return Token::make_int(loc, str, type_hint);
     }
 
-    bool Lexer::parse_byte_escape(/*char& current_char, */ int& length, char& output_char) {
-        // skip to actual letter
-        skip_input();
+    // Parses a hex, binary or octal int literal.
+    TokenPtr Lexer::parse_non_decimal_int_literals(Location loc) {
+        std::string str;
+        str.reserve(16); // some sensible default
+        str += current_char;
+
+        int length = 1;
+
         current_char = peek_input();
-        length++;
 
-        switch (current_char) {
-            case 'x': {
-                // hex char string (null-terminated)
-                char hexNum[3] = { 0, 0, 0 };
+        if (current_char == 'x') {
+            return parse_non_decimal_int_literal(loc, is_x_digit, str + "x", 16);
 
-                // first hex char
-                skip_input();
-                current_char = peek_input();
+            // hex (integer only)
+
+            /*skip_input();
+            current_char = peek_input();
+
+            length++;
+
+            // add 'x' to string after 0 so it is 0xFFAA or whatever
+            str += 'x';
+
+            // loop through to add entire hex number to string
+            while (is_x_digit(current_char) || current_char == '_') {
+                if (current_char == '_') {
+                    // don't add _ to number
+                    skip_input();
+                    current_char = peek_input();
+
+                    length++;
+
+                    continue;
+                }
+
                 length++;
 
-                if (!ISXDIGIT(current_char)) {
-                    rust_error_at(get_current_location(), "invalid character '\\x%c' in \\x sequence",
-                      current_char);
-                }
-                hexNum[0] = current_char;
-
-                // second hex char
+                // add raw hex numbers
+                str += current_char;
                 skip_input();
                 current_char = peek_input();
+            }
+
+            current_column += length;
+
+            // convert hex value to decimal representation
+            long hex_num = std::strtol(str.c_str(), NULL, 16);
+
+            str = std::to_string(hex_num);
+
+            // parse in type suffix if it exists
+            auto type_suffix_pair = parse_in_type_suffix();
+            PrimitiveCoreType type_hint = type_suffix_pair.first;
+            length += type_suffix_pair.second;
+
+            if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
+                rust_error_at(get_current_location(),
+                  "invalid type suffix '%s' for integer (hex) literal",
+                  get_type_hint_string(type_hint));
+                return nullptr;
+            }
+            return Token::make_int(loc, str, type_hint);*/
+        } else if (current_char == 'o') {
+            // octal (integer only)
+
+            return parse_non_decimal_int_literal(loc, is_octal_digit, str, 8);
+
+            /*skip_input();
+            current_char = peek_input();
+
+            length++;
+
+            // loop through to add entire octal number to string
+            while (is_octal_digit(current_char) || current_char == '_') {
+                if (current_char == '_') {
+                    // don't add _ to number
+                    skip_input();
+                    current_char = peek_input();
+
+                    length++;
+
+                    continue;
+                }
+
                 length++;
 
-                if (!ISXDIGIT(current_char)) {
-                    rust_error_at(get_current_location(), "invalid character '\\x%c' in \\x sequence",
-                      current_char);
+                // add raw octal numbers
+                str += current_char;
+                skip_input();
+                current_char = peek_input();
+            }
+
+            current_column += length;
+
+            // convert octal value to decimal representation
+            long octal_num = std::strtol(str.c_str(), NULL, 8);
+
+            str = std::to_string(octal_num);
+
+            // parse in type suffix if it exists
+            auto type_suffix_pair = parse_in_type_suffix();
+            PrimitiveCoreType type_hint = type_suffix_pair.first;
+            length += type_suffix_pair.second;
+
+            if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
+                rust_error_at(get_current_location(),
+                  "invalid type suffix '%s' for integer (octal) literal",
+                  get_type_hint_string(type_hint));
+                return nullptr;
+            }
+            return Token::make_int(loc, str, type_hint);*/
+        } else if (current_char == 'b') {
+            // binary (integer only)
+
+            return parse_non_decimal_int_literal(loc, is_bin_digit, str, 2);
+
+            /*skip_input();
+            current_char = peek_input();
+
+            length++;
+
+            // loop through to add entire binary number to string
+            while (is_bin_digit(current_char) || current_char == '_') {
+                if (current_char == '_') {
+                    // don't add _ to number
+                    skip_input();
+                    current_char = peek_input();
+
+                    length++;
+
+                    continue;
                 }
-                hexNum[1] = current_char;
 
-                long hexLong = ::std::strtol(hexNum, NULL, 16);
+                length++;
 
-                if (hexLong > 255)
-                    rust_error_at(get_current_location(),
-                      "ascii \\x escape '\\x%s' out of range - allows up to '\\xFF'", hexNum);
-                // gcc_assert(hexLong < 128); // as ascii
-                char hexChar = static_cast<char>(hexLong);
+                // add raw binary numbers
+                str += current_char;
+                skip_input();
+                current_char = peek_input();
+            }
 
-                // TODO: fix - does this actually give the right character?
-                output_char = hexChar;
-            } break;
-            case 'n':
-                output_char = '\n';
-                break;
-            case 'r':
-                output_char = '\r';
-                break;
-            case 't':
-                output_char = '\t';
-                break;
-            case '\\':
-                output_char = '\\';
-                break;
-            case '0':
-                output_char = '\0';
-                break;
-            default:
-                // rust_error_at(get_current_location(), "unknown escape sequence '\\%c'", current_char);
-                // returns false if no parsing could be done
-                return false;
-                break;
+            current_column += length;
+
+            // convert binary value to decimal representation
+            long bin_num = std::strtol(str.c_str(), NULL, 2);
+
+            str = std::to_string(bin_num);
+
+            // parse in type suffix if it exists
+            // parse_in_type_suffix (/*current_char, type_hint, length);
+            auto type_suffix_pair = parse_in_type_suffix();
+            PrimitiveCoreType type_hint = type_suffix_pair.first;
+            length += type_suffix_pair.second;
+
+            if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
+                rust_error_at(get_current_location(),
+                  "invalid type suffix '%s' for integer (binary) literal",
+                  get_type_hint_string(type_hint));
+                return nullptr;
+            }
+            return Token::make_int(loc, str, type_hint);*/
+        } else {
+            return nullptr;
         }
-        // returns true if parsing was successful
-        return true;
     }
-#endif
 
     // Returns the length of the codepoint at the current position.
-    int Lexer::test_get_input_codepoint_length() {
+    int Lexer::get_input_codepoint_length() {
         uint8_t input = peek_input();
 
         if (input < 128) {
@@ -2147,7 +1896,7 @@ namespace Rust {
     }
 
     // Returns the codepoint at the current position.
-    Codepoint Lexer::test_peek_codepoint_input() {
+    Codepoint Lexer::peek_codepoint_input() {
         uint8_t input = peek_input();
 
         if (input < 128) {
@@ -2200,8 +1949,8 @@ namespace Rust {
         }
     }
 
-    void Lexer::test_skip_codepoint_input() {
-        int toSkip = test_get_input_codepoint_length();
+    void Lexer::skip_codepoint_input() {
+        int toSkip = get_input_codepoint_length();
         gcc_assert(toSkip >= 1);
 
         skip_input(toSkip - 1);
