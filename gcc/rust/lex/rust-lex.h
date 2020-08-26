@@ -31,27 +31,19 @@ private:
   // Builds a token from the input queue.
   TokenPtr build_token ();
 
-  // ok maybe all these may mean the lexer structure needs to be rethought
-  /* separated into functions because main method was too long, but they rely on
-   * and change state in the lexer, so variables must be passed by reference. */
   std::pair<std::string, int> parse_in_decimal ();
   std::pair<std::string, int> parse_in_exponent_part ();
   std::pair<PrimitiveCoreType, int> parse_in_type_suffix ();
-  /*bool parse_ascii_escape (int &length,
-				  char &output_char);*/
-  /*bool parse_quote_escape (char& current_char, int &length,
-				  char &output_char);*/
-  /*bool parse_unicode_escape (
-    char& current_char, int &length, Codepoint &output_char);*/
-  /*bool parse_byte_escape (char& current_char, int &length,
-				 char &output_char);*/
   std::tuple<char, int, bool> parse_escape (char opening_char);
   std::tuple<Codepoint, int, bool> parse_utf8_escape (char opening_char);
+  int parse_partial_string_continue ();
+  std::pair<long, int> parse_partial_hex_escape ();
+  std::pair<Codepoint, int> parse_partial_unicode_escape ();
+
   int get_input_codepoint_length ();
   int test_get_input_codepoint_n_length (int n_start_offset);
   Codepoint peek_codepoint_input ();
-  Codepoint test_peek_codepoint_input (
-    int n); // maybe can use get_input_codepoint_length to get starting index
+  Codepoint test_peek_codepoint_input (int n); 
   void skip_codepoint_input ();
 
   TokenPtr parse_byte_char (Location loc);

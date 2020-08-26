@@ -323,29 +323,25 @@ namespace Rust {
                             current_char = peek_input();
 
                             // if /* found
-                            if (current_char == '/') {
-                                if (peek_input(1) == '*') {
-                                    // skip /* characters
-                                    skip_input(1);
+                            if (current_char == '/' && peek_input(1) == '*') {
+                                // skip /* characters
+                                skip_input(1);
 
-                                    current_column += 2;
+                                current_column += 2;
 
-                                    level += 1;
-                                }
+                                level += 1;
                             }
 
                             // ignore until */ is found
-                            if (current_char == '*') {
-                                if (peek_input(1) == '/') {
-                                    // skip */ characters
-                                    skip_input(1);
+                            if (current_char == '*' && peek_input(1) == '/') {
+                                // skip */ characters
+                                skip_input(1);
 
-                                    current_column += 2;
-                                    // should only break inner loop here - seems to do so
-                                    // break;
+                                current_column += 2;
+                                // should only break inner loop here - seems to do so
+                                // break;
 
-                                    level -= 1;
-                                }
+                                level -= 1;
                             }
                         }
 
@@ -759,6 +755,7 @@ namespace Rust {
 
         switch (current_char) {
             case 'x': {
+                /*
                 // hex char string (null-terminated)
                 char hexNum[3] = { 0, 0, 0 };
 
@@ -785,10 +782,18 @@ namespace Rust {
                 hexNum[1] = current_char;
 
                 long hexLong = std::strtol(hexNum, NULL, 16);
+                */
+                auto hex_escape_pair = parse_partial_hex_escape();
+                long hexLong = hex_escape_pair.first;
+                additional_length_offset += hex_escape_pair.second;
 
+                /*if (hexLong > 255 || hexLong < 0)
+                    rust_error_at(get_current_location(),
+                      "byte \\x escape '\\x%s' out of range - allows up to '\\xFF'", hexNum);*/
                 if (hexLong > 255 || hexLong < 0)
                     rust_error_at(get_current_location(),
-                      "byte \\x escape '\\x%s' out of range - allows up to '\\xFF'", hexNum);
+                      "byte \\x escape '\\x%X' out of range - allows up to '\\xFF'",
+                      static_cast<unsigned int>(hexLong));
                 char hexChar = static_cast<char>(hexLong);
 
                 output_char = hexChar;
@@ -822,7 +827,7 @@ namespace Rust {
             case '\r':
             case '\n':
                 // string continue
-                while (is_whitespace(current_char)) {
+                /*while (is_whitespace(current_char)) {
                     if (current_char == '\n') {
                         current_line++;
                         current_column = 1;
@@ -844,7 +849,8 @@ namespace Rust {
                     additional_length_offset++;
                 }
 
-                return std::make_tuple(0, additional_length_offset, true);
+                return std::make_tuple(0, additional_length_offset, true);*/
+                return std::make_tuple(0, parse_partial_string_continue(), true);
             default:
                 rust_error_at(get_current_location(), "unknown escape sequence '\\%c'", current_char);
                 // returns false if no parsing could be done
@@ -874,6 +880,7 @@ namespace Rust {
 
         switch (current_char) {
             case 'x': {
+                /*
                 // hex char string (null-terminated)
                 char hexNum[3] = { 0, 0, 0 };
 
@@ -899,12 +906,19 @@ namespace Rust {
                 }
                 hexNum[1] = current_char;
 
-                long hexLong = std::strtol(hexNum, NULL, 16);
+                long hexLong = std::strtol(hexNum, NULL, 16); */
 
-                if (hexLong > 127)
+                auto hex_escape_pair = parse_partial_hex_escape();
+                long hexLong = hex_escape_pair.first;
+                additional_length_offset += hex_escape_pair.second;
+
+                /*if (hexLong > 127)
                     rust_error_at(get_current_location(),
-                      "ascii \\x escape '\\x%s' out of range - allows up to '\\x7F'", hexNum);
-                // gcc_assert(hexLong < 128); // as ascii
+                      "ascii \\x escape '\\x%s' out of range - allows up to '\\x7F'", hexNum);*/
+                if (hexLong > 127 || hexLong < 0)
+                    rust_error_at(get_current_location(),
+                      "ascii \\x escape '\\x%X' out of range - allows up to '\\x7F'",
+                      static_cast<unsigned int>(hexLong));
                 char hexChar = static_cast<char>(hexLong);
 
                 output_char = hexChar;
@@ -931,7 +945,13 @@ namespace Rust {
                 output_char = '"';
                 break;
             case 'u': {
-                skip_input();
+                auto unicode_escape_pair = parse_partial_unicode_escape();
+                output_char = unicode_escape_pair.first;
+                additional_length_offset += unicode_escape_pair.second;
+
+                return std::make_tuple(output_char, additional_length_offset, false);
+
+                /*skip_input();
                 current_char = peek_input();
                 additional_length_offset++;
 
@@ -994,7 +1014,7 @@ namespace Rust {
                     return std::make_tuple(output_char, additional_length_offset, false);
                 }
 
-                long hex_num = std::strtol(num_str.c_str(), NULL, 16);
+                long hex_num = std::strtol(num_str.c_str(), nullptr, 16);
 
                 // assert fits a uint32_t
                 gcc_assert(hex_num < 4294967296);
@@ -1002,12 +1022,12 @@ namespace Rust {
                 output_char = Codepoint(static_cast<uint32_t>(hex_num));
 
                 // return true;
-                return std::make_tuple(output_char, additional_length_offset, false);
+                return std::make_tuple(output_char, additional_length_offset, false);*/
             } break;
             case '\r':
             case '\n':
                 // string continue
-                while (is_whitespace(current_char)) {
+                /*while (is_whitespace(current_char)) {
                     if (current_char == '\n') {
                         current_line++;
                         current_column = 1;
@@ -1029,7 +1049,8 @@ namespace Rust {
                     additional_length_offset++;
                 }
 
-                return std::make_tuple(0, additional_length_offset, true);
+                return std::make_tuple(0, additional_length_offset, true);*/
+                return std::make_tuple(0, parse_partial_string_continue(), true);
             default:
                 rust_error_at(get_current_location(), "unknown escape sequence '\\%c'", current_char);
                 // returns false if no parsing could be done
@@ -1046,6 +1067,142 @@ namespace Rust {
         // returns true if parsing was successful
         // return true;
         return std::make_tuple(output_char, additional_length_offset, false);
+    }
+
+    // Parses the body of a string continue that has been found in an escape.
+    int Lexer::parse_partial_string_continue() {
+        int additional_length_offset = 1;
+
+        // string continue
+        while (is_whitespace(current_char)) {
+            if (current_char == '\n') {
+                current_line++;
+                current_column = 1;
+                // tell line_table that new line starts
+                line_map->start_line(current_line, max_column_hint);
+
+                // reset "length"
+                additional_length_offset = 1;
+
+                // get next char
+                skip_input();
+                current_char = peek_input();
+
+                continue;
+            }
+
+            skip_input();
+            current_char = peek_input();
+            additional_length_offset++;
+        }
+
+        return additional_length_offset;
+    }
+
+    /* Parses the body of a '\x' escape. Note that it does not check that the number is valid and
+     * smaller than 255. */
+    std::pair<long, int> Lexer::parse_partial_hex_escape() {
+        // hex char string (null-terminated)
+        char hexNum[3] = { 0, 0, 0 };
+
+        // first hex char
+        skip_input();
+        current_char = peek_input();
+        int additional_length_offset = 1;
+
+        if (!is_x_digit(current_char)) {
+            rust_error_at(
+              get_current_location(), "invalid character '\\x%c' in \\x sequence", current_char);
+        }
+        hexNum[0] = current_char;
+
+        // second hex char
+        skip_input();
+        current_char = peek_input();
+        additional_length_offset++;
+
+        if (!is_x_digit(current_char)) {
+            rust_error_at(
+              get_current_location(), "invalid character '\\x%c' in \\x sequence", current_char);
+        }
+        hexNum[1] = current_char;
+
+        long hexLong = std::strtol(hexNum, nullptr, 16);
+
+        return std::make_pair(hexLong, additional_length_offset);
+    }
+
+    // Parses the body of a unicode escape.
+    std::pair<Codepoint, int> Lexer::parse_partial_unicode_escape() {
+        skip_input();
+        current_char = peek_input();
+        int additional_length_offset = 1;
+
+        bool need_close_brace = false;
+        if (current_char == '{') {
+            need_close_brace = true;
+
+            skip_input();
+            current_char = peek_input();
+            additional_length_offset++;
+        }
+
+        // parse unicode escape - 1-6 hex digits
+        std::string num_str;
+        num_str.reserve(6);
+
+        // loop through to add entire hex number to string
+        while (is_x_digit(current_char) || current_char == '_') {
+            if (current_char == '_') {
+                // don't add _ to number
+                skip_input();
+                current_char = peek_input();
+
+                additional_length_offset++;
+
+                continue;
+            }
+
+            additional_length_offset++;
+
+            // add raw hex numbers
+            num_str += current_char;
+
+            skip_input();
+            current_char = peek_input();
+        }
+
+        // ensure closing brace if required
+        if (need_close_brace) {
+            if (current_char == '}') {
+                skip_input();
+                current_char = peek_input();
+                additional_length_offset++;
+            } else {
+                // actually an error, but allow propagation anyway
+                rust_error_at(get_current_location(), "expected terminating '}' in unicode escape");
+                // return false;
+                return std::make_pair(Codepoint(0), additional_length_offset);
+            }
+        }
+
+        // ensure 1-6 hex characters
+        if (num_str.length() > 6 || num_str.length() < 1) {
+            rust_error_at(get_current_location(),
+              "unicode escape should be between 1 and 6 hex "
+              "characters; it is %lu",
+              num_str.length());
+            // return false;
+            return std::make_pair(Codepoint(0), additional_length_offset);
+        }
+
+        long hex_num = std::strtol(num_str.c_str(), nullptr, 16);
+
+        // assert fits a uint32_t
+        gcc_assert(hex_num < 4294967296);
+
+        // return true;
+        return std::make_pair(Codepoint(static_cast<uint32_t>(hex_num)), additional_length_offset);
     }
 
     // Parses a byte character.
@@ -1458,7 +1615,7 @@ namespace Rust {
         }
 
         // convert value to decimal representation
-        long dec_num = std::strtol(existent_str.c_str(), NULL, base);
+        long dec_num = std::strtol(existent_str.c_str(), nullptr, base);
 
         existent_str = std::to_string(dec_num);
 
@@ -1664,23 +1821,8 @@ namespace Rust {
                 // parse lifetime name
                 std::string str;
                 str += current_char32;
+                length++;
 
-                /* TODO: fix lifetime name thing - actually, why am I even
-                 * using utf-8 here? */
-
-                int length = 1;
-
-                /*current_char32 = peek_codepoint_input();
-                while (ISDIGIT(current_char32.value) || ISALPHA(current_char32.value)
-                       || current_char32.value == '_') {
-                    length += get_input_codepoint_length();
-
-                    str += current_char32;
-                    skip_codepoint_input();
-                    current_char32 = peek_codepoint_input();
-                }*/
-
-                // ascii version should work properly
                 current_char = peek_input();
                 while (ISDIGIT(current_char) || ISALPHA(current_char) || current_char == '_') {
                     str += current_char;
@@ -1694,7 +1836,8 @@ namespace Rust {
                 str.shrink_to_fit();
                 return Token::make_lifetime(loc, str);
             } else {
-                rust_error_at(get_current_location(), "expected ' after character constant in char literal");
+                rust_error_at(
+                  get_current_location(), "expected ' after character constant in char literal");
             }
         }
     }
