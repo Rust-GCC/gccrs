@@ -150,6 +150,8 @@ namespace Rust {
             return IDENTIFIER;
         else
             return keyword_keys[idx - keyword_index];
+
+        // TODO: possibly replace this x-macro system with something like hash map?
     }
 
     TokenPtr Lexer::build_token() {
@@ -548,14 +550,14 @@ namespace Rust {
                         }
                     } else if (!ISDIGIT(peek_input())) {
                         // single dot .
-                        // Only if followed by a non-number
+                        // Only if followed by a non-number - otherwise is float
                         current_column++;
                         return Token::make(DOT, loc);
                     }
             }
             // TODO: special handling of _ in the lexer? instead of being identifier
 
-            // byte and byte string test
+            // byte character, byte string and raw byte string literals
             if (current_char == 'b') {
                 if (peek_input() == '\'') {
                     return parse_byte_char(loc);
@@ -566,7 +568,7 @@ namespace Rust {
                 }
             }
 
-            // raw stuff
+            // raw identifiers and raw strings
             if (current_char == 'r') {
                 int peek = peek_input();
                 int peek1 = peek_input(1);
@@ -587,139 +589,19 @@ namespace Rust {
                 return parse_identifier_or_keyword(loc);
             }
 
-            // identify literals
-            // int or float literals - not processed properly
+            // int and float literals
             if (ISDIGIT(current_char) || current_char == '.') { //  _ not allowed as first char
-                std::string str;
-                str.reserve(16); // some sensible default
-                str += current_char;
-
-                PrimitiveCoreType type_hint = CORETYPE_UNKNOWN;
-
-                bool is_real = (current_char == '.');
-
-                int length = 1;
-
-                // handle binary, octal, hex literals
                 if (current_char == '0' && !ISDIGIT(peek_input())) {
+                    // handle binary, octal, hex literals
                     TokenPtr non_dec_int_lit_ptr = parse_non_decimal_int_literals(loc);
                     if (non_dec_int_lit_ptr != nullptr)
                         return non_dec_int_lit_ptr;
                 } else {
                     // handle decimals (integer or float)
-
-                    current_char = peek_input();
-
-                    // parse initial decimal literal - assuming integer
-                    // parse_in_decimal (/*current_char, */ str, length);
-                    auto str_length_pair = parse_in_decimal();
-                    str += str_length_pair.first;
-                    length += str_length_pair.second;
-
-                    // detect float literal - TODO: fix: "242." is not recognised as a
-                    // float literal - possible solution is '.' and then "is_whitespace" or
-                    // "is_float_digit"
-                    if (current_char == '.' && is_float_digit(peek_input(1))) {
-                        // float with a '.', parse another decimal into it
-
-                        is_real = true;
-
-                        // add . to str
-                        str += current_char;
-                        skip_input();
-                        current_char = peek_input();
-
-                        length++;
-
-                        // parse another decimal number for float
-                        auto str_length_pair2 = parse_in_decimal();
-                        str += str_length_pair2.first;
-                        length += str_length_pair2.second;
-
-                        // parse in exponent part if it exists
-                        auto exponent_part = parse_in_exponent_part();
-                        str += exponent_part.first;
-                        length += exponent_part.second;
-
-                        // parse in type suffix if it exists
-                        auto type_suffix_pair = parse_in_type_suffix();
-                        type_hint = type_suffix_pair.first;
-                        length += type_suffix_pair.second;
-
-                        if (type_hint != CORETYPE_F32 && type_hint != CORETYPE_F64
-                            && type_hint != CORETYPE_UNKNOWN) {
-                            rust_error_at(get_current_location(),
-                              "invalid type suffix '%s' for float literal",
-                              get_type_hint_string(type_hint));
-                        }
-                    } else if (current_char == '.' && check_valid_float_dot_end(peek_input(1))) {
-                        is_real = true;
-
-                        // add . to str
-                        str += current_char;
-                        skip_input();
-                        current_char = peek_input();
-                        length++;
-
-                        // add a '0' after the . to stop ambiguity
-                        str += '0';
-
-                        // don't parse another decimal number for float
-
-                        if (type_hint != CORETYPE_F32 && type_hint != CORETYPE_F64
-                            && type_hint != CORETYPE_UNKNOWN) {
-                            rust_error_at(get_current_location(),
-                              "invalid type suffix '%s' for float literal",
-                              get_type_hint_string(type_hint));
-                        }
-                    } else if (current_char == 'E' || current_char == 'e') {
-                        is_real = true;
-
-                        // parse exponent part
-                        // parse_in_exponent_part (/*current_char, */ str, length);
-                        auto exponent_part = parse_in_exponent_part();
-                        str += exponent_part.first;
-                        length += exponent_part.second;
-
-                        // parse in type suffix if it exists
-                        // parse_in_type_suffix (/*current_char, */ type_hint, length);
-                        auto type_suffix_pair = parse_in_type_suffix();
-                        type_hint = type_suffix_pair.first;
-                        length += type_suffix_pair.second;
-
-                        if (type_hint != CORETYPE_F32 && type_hint != CORETYPE_F64
-                            && type_hint != CORETYPE_UNKNOWN) {
-                            rust_error_at(get_current_location(),
-                              "invalid type suffix '%s' for float literal",
-                              get_type_hint_string(type_hint));
-                        }
-                    } else {
-                        // is an integer
-
-                        // parse in type suffix if it exists
-                        // parse_in_type_suffix (/*current_char, */ type_hint, length);
-                        auto type_suffix_pair = parse_in_type_suffix();
-                        type_hint = type_suffix_pair.first;
-                        length += type_suffix_pair.second;
-
-                        if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
-                            rust_error_at(get_current_location(),
-                              "invalid type suffix '%s' for integer "
-                              "(decimal) literal",
-                              get_type_hint_string(type_hint));
-                        }
-                    }
-
-                    current_column += length;
+                    TokenPtr decimal_or_float_ptr = parse_decimal_int_or_float(loc);
+                    if (decimal_or_float_ptr != nullptr)
+                        return decimal_or_float_ptr;
                 }
-
-                str.shrink_to_fit();
-
-                // actually make the tokens
-                if (is_real)
-                    return Token::make_float(loc, str, type_hint);
-                else
-                    return Token::make_int(loc, str, type_hint);
             }
 
             // string literals
@@ -727,77 +609,11 @@ namespace Rust {
                 return parse_string(loc);
             }
 
-            // char literal attempt
+            // char literals and lifetime names
             if (current_char == '\'') {
-                Codepoint current_char32;
-
-                int length = 1;
-
-                current_char32 = peek_codepoint_input();
-
-                // parse escaped char literal
-                if (current_char32.value == '\\') {
-                    // parse escape
-                    auto utf8_escape_pair = parse_utf8_escape('\'');
-                    current_char32 = std::get<0>(utf8_escape_pair);
-                    length += std::get<1>(utf8_escape_pair);
-
-                    if (peek_codepoint_input().value != '\'') {
-                        rust_error_at(get_current_location(), "unended char literal");
-                    } else {
-                        skip_codepoint_input();
-                        current_char = peek_input();
-                        length++;
-                    }
-
-                    current_column += length;
-
-                    return Token::make_char(loc, current_char32);
-                } else {
-                    // current_char32 = test_peek_codepoint_input();
-                    skip_codepoint_input();
-
-                    if (peek_codepoint_input().value == '\'') {
-                        // parse normal char literal
-
-                        // skip the ' character
-                        skip_input();
-                        current_char = peek_input();
-
-                        // TODO fix due to different widths of utf-8 chars
-                        current_column += 3;
-
-                        return Token::make_char(loc, current_char32);
-                    } else if (ISDIGIT(current_char32.value) || ISALPHA(current_char32.value)
-                               || current_char32.value == '_') {
-                        // parse lifetime name
-                        std::string str;
-                        str += current_char32;
-
-                        /* TODO: fix lifetime name thing - actually, why am I even
-                         * using utf-8 here? */
-
-                        int length = 1;
-
-                        current_char32 = peek_codepoint_input();
-
-                        while (ISDIGIT(current_char32.value) || ISALPHA(current_char32.value)
-                               || current_char32.value == '_') {
-                            length += get_input_codepoint_length();
-
-                            str += current_char32;
-                            skip_codepoint_input();
-                            current_char32 = peek_codepoint_input();
-                        }
-
-                        current_column += length;
-
-                        str.shrink_to_fit();
-                        return Token::make_lifetime(loc, str);
-                    } else {
-                        rust_error_at(get_current_location(), "expected ' after character constant");
-                    }
-                }
+                TokenPtr char_or_lifetime_ptr = parse_char_or_lifetime(loc);
+                if (char_or_lifetime_ptr != nullptr)
+                    return char_or_lifetime_ptr;
             }
 
             // didn't match anything so error
@@ -1384,8 +1200,8 @@ namespace Rust {
 
                 for (int i = 0; i < hash_count; i++) {
                     if (peek_input(i + 1) != '#') {
-                        enough_hashes = false; // could continue here -
-                                               // improve performance
+                        enough_hashes = false;
+                        break;
                     }
                 }
 
@@ -1582,10 +1398,9 @@ namespace Rust {
                 bool enough_hashes = true;
 
                 for (int i = 0; i < initial_hash_count; i++) {
-                    // if (test_peek_codepoint_input(i + 1) != '#') {
                     if (peek_input(i + 1) != '#') {
-                        enough_hashes = false; // could continue here -
-                                               // improve performance
+                        enough_hashes = false;
+                        break;
                     }
                 }
 
@@ -1673,158 +1488,214 @@ namespace Rust {
         current_char = peek_input();
 
         if (current_char == 'x') {
-            return parse_non_decimal_int_literal(loc, is_x_digit, str + "x", 16);
-
             // hex (integer only)
-
-            /*skip_input();
-            current_char = peek_input();
-
-            length++;
-
-            // add 'x' to string after 0 so it is 0xFFAA or whatever
-            str += 'x';
-
-            // loop through to add entire hex number to string
-            while (is_x_digit(current_char) || current_char == '_') {
-                if (current_char == '_') {
-                    // don't add _ to number
-                    skip_input();
-                    current_char = peek_input();
-
-                    length++;
-
-                    continue;
-                }
-
-                length++;
-
-                // add raw hex numbers
-                str += current_char;
-                skip_input();
-                current_char = peek_input();
-            }
-
-            current_column += length;
-
-            // convert hex value to decimal representation
-            long hex_num = std::strtol(str.c_str(), NULL, 16);
-
-            str = std::to_string(hex_num);
-
-            // parse in type suffix if it exists
-            auto type_suffix_pair = parse_in_type_suffix();
-            PrimitiveCoreType type_hint = type_suffix_pair.first;
-            length += type_suffix_pair.second;
-
-            if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
-                rust_error_at(get_current_location(),
-                  "invalid type suffix '%s' for integer (hex) literal",
-                  get_type_hint_string(type_hint));
-                return nullptr;
-            }
-            return Token::make_int(loc, str, type_hint);*/
+            return parse_non_decimal_int_literal(loc, is_x_digit, str + "x", 16);
         } else if (current_char == 'o') {
             // octal (integer only)
-
-            return parse_non_decimal_int_literal(loc, is_octal_digit, str, 8);
-
-            /*skip_input();
-            current_char = peek_input();
-
-            length++;
-
-            // loop through to add entire octal number to string
-            while (is_octal_digit(current_char) || current_char == '_') {
-                if (current_char == '_') {
-                    // don't add _ to number
-                    skip_input();
-                    current_char = peek_input();
-
-                    length++;
-
-                    continue;
-                }
-
-                length++;
-
-                // add raw octal numbers
-                str += current_char;
-                skip_input();
-                current_char = peek_input();
-            }
-
-            current_column += length;
-
-            // convert octal value to decimal representation
-            long octal_num = std::strtol(str.c_str(), NULL, 8);
-
-            str = std::to_string(octal_num);
-
-            // parse in type suffix if it exists
-            auto type_suffix_pair = parse_in_type_suffix();
-            PrimitiveCoreType type_hint = type_suffix_pair.first;
-            length += type_suffix_pair.second;
-
-            if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
-                rust_error_at(get_current_location(),
-                  "invalid type suffix '%s' for integer (octal) literal",
-                  get_type_hint_string(type_hint));
-                return nullptr;
-            }
-            return Token::make_int(loc, str, type_hint);*/
+            return parse_non_decimal_int_literal(loc, is_octal_digit, std::move(str), 8);
         } else if (current_char == 'b') {
             // binary (integer only)
+            return parse_non_decimal_int_literal(loc, is_bin_digit, std::move(str), 2);
+        } else {
+            return nullptr;
+        }
+    }
 
-            return parse_non_decimal_int_literal(loc, is_bin_digit, str, 2);
+    // Parses a decimal-based int literal or float literal.
+    TokenPtr Lexer::parse_decimal_int_or_float(Location loc) {
+        std::string str;
+        str.reserve(16); // some sensible default
+        str += current_char;
 
-            /*skip_input();
+        int length = 1;
+
+        current_char = peek_input();
+
+        // parse initial decimal integer (or first integer part of float) literal
+        auto initial_decimal_pair = parse_in_decimal();
+        str += initial_decimal_pair.first;
+        length += initial_decimal_pair.second;
+
+        // detect float literal
+        if (current_char == '.' && is_float_digit(peek_input(1))) {
+            // float with a '.', parse another decimal into it
+
+            // add . to str
+            str += current_char;
+            skip_input();
             current_char = peek_input();
-
             length++;
 
-            // loop through to add entire binary number to string
-            while (is_bin_digit(current_char) || current_char == '_') {
-                if (current_char == '_') {
-                    // don't add _ to number
-                    skip_input();
-                    current_char = peek_input();
+            // parse another decimal number for float
+            auto second_decimal_pair = parse_in_decimal();
+            str += second_decimal_pair.first;
+            length += second_decimal_pair.second;
 
-                    length++;
+            // parse in exponent part if it exists
+            auto exponent_pair = parse_in_exponent_part();
+            str += exponent_pair.first;
+            length += exponent_pair.second;
 
-                    continue;
-                }
+            // parse in type suffix if it exists
+            auto type_suffix_pair = parse_in_type_suffix();
+            PrimitiveCoreType type_hint = type_suffix_pair.first;
+            length += type_suffix_pair.second;
 
-                length++;
-
-                // add raw binary numbers
-                str += current_char;
-                skip_input();
-                current_char = peek_input();
+            if (type_hint != CORETYPE_F32 && type_hint != CORETYPE_F64
+                && type_hint != CORETYPE_UNKNOWN) {
+                rust_error_at(get_current_location(), "invalid type suffix '%s' for float literal",
+                  get_type_hint_string(type_hint));
+                // ignore invalid type suffix as everything else seems fine
+                type_hint = CORETYPE_UNKNOWN;
             }
 
             current_column += length;
 
-            // convert binary value to decimal representation
-            long bin_num = std::strtol(str.c_str(), NULL, 2);
+            str.shrink_to_fit();
+            return Token::make_float(loc, str, type_hint);
+        } else if (current_char == '.' && check_valid_float_dot_end(peek_input(1))) {
+            // float that is just an integer with a terminating '.' character
 
-            str = std::to_string(bin_num);
+            // add . to str
+            str += current_char;
+            skip_input();
+            current_char = peek_input();
+            length++;
+
+            // add a '0' after the . to prevent ambiguity
+            str += '0';
+
+            // type hint not allowed
+
+            current_column += length;
+
+            str.shrink_to_fit();
+            return Token::make_float(loc, str, CORETYPE_UNKNOWN);
+        } else if (current_char == 'E' || current_char == 'e') {
+            // exponent float with no '.' character
+
+            // parse exponent part
+            auto exponent_pair = parse_in_exponent_part();
+            str += exponent_pair.first;
+            length += exponent_pair.second;
 
             // parse in type suffix if it exists
-            // parse_in_type_suffix (/*current_char, type_hint, length);
+            auto type_suffix_pair = parse_in_type_suffix();
+            PrimitiveCoreType type_hint = type_suffix_pair.first;
+            length += type_suffix_pair.second;
+
+            if (type_hint != CORETYPE_F32 && type_hint != CORETYPE_F64
+                && type_hint != CORETYPE_UNKNOWN) {
+                rust_error_at(get_current_location(), "invalid type suffix '%s' for float literal",
+                  get_type_hint_string(type_hint));
+                // ignore invalid type suffix as everything else seems fine
+                type_hint = CORETYPE_UNKNOWN;
+            }
+
+            current_column += length;
+
+            str.shrink_to_fit();
+            return Token::make_float(loc, str, type_hint);
+        } else {
+            // is an integer
+
+            // parse in type suffix if it exists
             auto type_suffix_pair = parse_in_type_suffix();
             PrimitiveCoreType type_hint = type_suffix_pair.first;
             length += type_suffix_pair.second;
 
             if (type_hint == CORETYPE_F32 || type_hint == CORETYPE_F64) {
                 rust_error_at(get_current_location(),
-                  "invalid type suffix '%s' for integer (binary) literal",
+                  "invalid type suffix '%s' for integer "
+                  "(decimal) literal",
                   get_type_hint_string(type_hint));
-                return nullptr;
+                // ignore invalid type suffix as everything else seems fine
+                type_hint = CORETYPE_UNKNOWN;
             }
-            return Token::make_int(loc, str, type_hint);*/
+
+            current_column += length;
+
+            str.shrink_to_fit();
+            return Token::make_int(loc, str, type_hint);
+        }
+    }
+
+    TokenPtr Lexer::parse_char_or_lifetime(Location loc) {
+        Codepoint current_char32;
+
+        int length = 1;
+
+        current_char32 = peek_codepoint_input();
+
+        // parse escaped char literal
+        if (current_char32.value == '\\') {
+            // parse escape
+            auto utf8_escape_pair = parse_utf8_escape('\'');
+            current_char32 = std::get<0>(utf8_escape_pair);
+            length += std::get<1>(utf8_escape_pair);
+
+            if (peek_codepoint_input().value != '\'') {
+                rust_error_at(get_current_location(), "unended char literal");
+            } else {
+                skip_codepoint_input();
+                current_char = peek_input();
+                length++;
+            }
+
+            current_column += length;
+
+            return Token::make_char(loc, current_char32);
         } else {
-            return nullptr;
+            skip_codepoint_input();
+
+            if (peek_codepoint_input().value == '\'') {
+                // parse non-escaped char literal
+
+                // skip the ' character
+                skip_input();
+                current_char = peek_input();
+
+                // TODO fix due to different widths of utf-8 chars?
+                current_column += 3;
+
+                return Token::make_char(loc, current_char32);
+            } else if (ISDIGIT(current_char32.value) || ISALPHA(current_char32.value)
+                       || current_char32.value == '_') {
+                // parse lifetime name
+                std::string str;
+                str += current_char32;
+
+                /* TODO: fix lifetime name thing - actually, why am I even
+                 * using utf-8 here? */
+
+                int length = 1;
+
+                /*current_char32 = peek_codepoint_input();
+                while (ISDIGIT(current_char32.value) || ISALPHA(current_char32.value)
+                       || current_char32.value == '_') {
+                    length += get_input_codepoint_length();
+
+                    str += current_char32;
+                    skip_codepoint_input();
+                    current_char32 = peek_codepoint_input();
+                }*/
+
+                // ascii version should work properly
+                current_char = peek_input();
+                while (ISDIGIT(current_char) || ISALPHA(current_char) || current_char == '_') {
+                    str += current_char;
+                    skip_input();
+                    current_char = peek_input();
+                    length++;
+                }
+
+                current_column += length;
+
+                str.shrink_to_fit();
+                return Token::make_lifetime(loc, str);
+            } else {
+                rust_error_at(get_current_location(), "expected ' after character constant in char literal");
+            }
         }
     }
 

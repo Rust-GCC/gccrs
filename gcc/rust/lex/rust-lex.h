@@ -62,10 +62,12 @@ private:
   TokenPtr maybe_parse_raw_string (Location loc);
   TokenPtr parse_raw_string (Location loc, int initial_hash_count);
   TokenPtr parse_non_decimal_int_literals (Location loc);
-
-  template<typename IsDigitFunc> TokenPtr parse_non_decimal_int_literal(Location loc, IsDigitFunc is_digit_func, std::string existent_str, int base);
-
+  TokenPtr parse_decimal_int_or_float (Location loc);
+  TokenPtr parse_char_or_lifetime (Location loc);
   TokenPtr parse_identifier_or_keyword (Location loc);
+
+  template<typename IsDigitFunc> 
+  TokenPtr parse_non_decimal_int_literal(Location loc, IsDigitFunc is_digit_func, std::string existent_str, int base);
 
 public:
   // Construct lexer with input file and filename provided
