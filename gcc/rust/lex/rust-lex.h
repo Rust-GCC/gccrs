@@ -43,7 +43,7 @@ private:
   int get_input_codepoint_length ();
   int test_get_input_codepoint_n_length (int n_start_offset);
   Codepoint peek_codepoint_input ();
-  Codepoint test_peek_codepoint_input (int n); 
+  Codepoint test_peek_codepoint_input (int n);
   void skip_codepoint_input ();
 
   TokenPtr parse_byte_char (Location loc);
@@ -58,8 +58,10 @@ private:
   TokenPtr parse_char_or_lifetime (Location loc);
   TokenPtr parse_identifier_or_keyword (Location loc);
 
-  template<typename IsDigitFunc> 
-  TokenPtr parse_non_decimal_int_literal(Location loc, IsDigitFunc is_digit_func, std::string existent_str, int base);
+  template <typename IsDigitFunc>
+  TokenPtr parse_non_decimal_int_literal (Location loc,
+					  IsDigitFunc is_digit_func,
+					  std::string existent_str, int base);
 
 public:
   // Construct lexer with input file and filename provided
@@ -97,7 +99,7 @@ private:
   int current_line;
   // Current column number.
   int current_column;
-  // Current character. 
+  // Current character.
   int current_char;
   // Line map.
   Linemap *line_map;
