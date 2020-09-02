@@ -95,10 +95,13 @@ is_whitespace (char character)
   return ISSPACE (character);
 }
 
-Lexer::Lexer (const char *filename, FILE *input, Linemap *linemap)
-  : input (input), current_line (1), current_column (1), line_map (linemap),
-    input_source (input), input_queue (input_source), token_source (this),
-    token_queue (token_source)
+// this compiles fine, so any intellisense saying otherwise is fake news
+Lexer::Lexer (const char *filename, RAIIFile file_input, Linemap *linemap)
+  : input (std::move (file_input)), current_line (1), current_column (1), line_map (linemap),
+    /*input_source (input.get_raw ()), */
+    input_queue {InputSource (input.get_raw ())},
+    /*token_source (this),*/
+    token_queue (TokenSource (this))
 {
   // inform line_table that file is being entered and is in line 1
   line_map->start_file (filename, current_line);
@@ -1000,8 +1003,8 @@ Lexer::parse_escape (char opening_char)
   return std::make_tuple (output_char, additional_length_offset, false);
 }
 
-// Parses an escape (or string continue) in a string or character. Supports
-// unicode escapes.
+/* Parses an escape (or string continue) in a string or character. Supports
+ * unicode escapes. */
 std::tuple<Codepoint, int, bool>
 Lexer::parse_utf8_escape (char opening_char)
 {
@@ -1983,6 +1986,7 @@ Lexer::parse_char_or_lifetime (Location loc)
 	{
 	  rust_error_at (get_current_location (),
 			 "expected ' after character constant in char literal");
+    return nullptr;
 	}
     }
 }

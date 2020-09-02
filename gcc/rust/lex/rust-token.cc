@@ -93,14 +93,14 @@ Token::get_type_hint_str () const
   return get_type_hint_string (type_hint);
 }
 
-const ::std::string &
+const std::string &
 Token::get_str () const
 {
   // FIXME: attempt to return null again
   // gcc_assert(str != NULL);
 
   // HACK: allow referencing an empty string
-  static const ::std::string empty = "";
+  static const std::string empty = "";
 
   if (str == NULL)
     {

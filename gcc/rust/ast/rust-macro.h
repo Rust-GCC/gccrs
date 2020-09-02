@@ -28,7 +28,7 @@ enum MacroFragSpec
 };
 
 inline MacroFragSpec
-get_frag_spec_from_str (::std::string str)
+get_frag_spec_from_str (std::string str)
 {
   if (str == "block")
     return BLOCK;
@@ -74,7 +74,7 @@ class MacroMatchFragment : public MacroMatch
 
 public:
   MacroMatchFragment (Identifier ident, MacroFragSpec frag_spec)
-    : ident (::std::move (ident)), frag_spec (frag_spec)
+    : ident (std::move (ident)), frag_spec (frag_spec)
   {}
 
   // Returns whether macro match fragment is in an error state.
@@ -83,10 +83,10 @@ public:
   // Creates an error state macro match fragment.
   static MacroMatchFragment create_error ()
   {
-    return MacroMatchFragment (::std::string (""), INVALID);
+    return MacroMatchFragment (std::string (""), INVALID);
   }
 
-  ::std::string as_string () const;
+  std::string as_string () const;
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
 
@@ -112,14 +112,14 @@ public:
   };
 
 private:
-  //::std::vector<MacroMatch> matches;
-  ::std::vector< ::std::unique_ptr<MacroMatch> > matches;
+  //std::vector<MacroMatch> matches;
+  std::vector<std::unique_ptr<MacroMatch>> matches;
   MacroRepOp op;
 
   // bool has_sep;
   typedef Token MacroRepSep;
   // any token except delimiters and repetition operators
-  ::std::unique_ptr<MacroRepSep> sep;
+  std::unique_ptr<MacroRepSep> sep;
 
   // TODO: should store location information?
 
@@ -127,9 +127,9 @@ public:
   // Returns whether macro match repetition has separator token.
   inline bool has_sep () const { return sep != NULL; }
 
-  MacroMatchRepetition (::std::vector< ::std::unique_ptr<MacroMatch> > matches,
-			MacroRepOp op, ::std::unique_ptr<MacroRepSep> sep)
-    : matches (::std::move (matches)), op (op), sep (::std::move (sep))
+  MacroMatchRepetition (std::vector<std::unique_ptr<MacroMatch>> matches,
+			MacroRepOp op, std::unique_ptr<MacroRepSep> sep)
+    : matches (std::move (matches)), op (op), sep (std::move (sep))
   {}
 
   // Copy constructor with clone
@@ -171,7 +171,7 @@ public:
   MacroMatchRepetition (MacroMatchRepetition &&other) = default;
   MacroMatchRepetition &operator= (MacroMatchRepetition &&other) = default;
 
-  ::std::string as_string () const;
+  std::string as_string () const;
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
 
@@ -188,8 +188,8 @@ protected:
 class MacroMatcher : public MacroMatch
 {
   DelimType delim_type;
-  //::std::vector<MacroMatch> matches;
-  ::std::vector< ::std::unique_ptr<MacroMatch> > matches;
+  //std::vector<MacroMatch> matches;
+  std::vector<std::unique_ptr<MacroMatch>> matches;
 
   // TODO: think of way to mark invalid that doesn't take up more space
   bool is_invalid;
@@ -198,8 +198,8 @@ class MacroMatcher : public MacroMatch
 
 public:
   MacroMatcher (DelimType delim_type,
-		::std::vector< ::std::unique_ptr<MacroMatch> > matches)
-    : delim_type (delim_type), matches (::std::move (matches)),
+		std::vector<std::unique_ptr<MacroMatch>> matches)
+    : delim_type (delim_type), matches (std::move (matches)),
       is_invalid (false)
   {}
 
@@ -243,7 +243,7 @@ public:
   // Returns whether MacroMatcher is in an error state.
   inline bool is_error () const { return is_invalid; }
 
-  ::std::string as_string () const;
+  std::string as_string () const;
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
 
@@ -270,10 +270,10 @@ private:
 
 public:
   MacroTranscriber (DelimTokenTree token_tree)
-    : token_tree (::std::move (token_tree))
+    : token_tree (std::move (token_tree))
   {}
 
-  ::std::string as_string () const { return token_tree.as_string (); }
+  std::string as_string () const { return token_tree.as_string (); }
 };
 
 // A macro rule? Matcher and transcriber pair?
@@ -287,7 +287,7 @@ private:
 
 public:
   MacroRule (MacroMatcher matcher, MacroTranscriber transcriber)
-    : matcher (::std::move (matcher)), transcriber (::std::move (transcriber))
+    : matcher (std::move (matcher)), transcriber (std::move (transcriber))
   {}
 
   // Returns whether macro rule is in error state.
@@ -300,7 +300,7 @@ public:
 		      MacroTranscriber (DelimTokenTree::create_empty ()));
   }
 
-  ::std::string as_string () const;
+  std::string as_string () const;
 };
 
 // A macro rules definition item AST node
@@ -311,19 +311,19 @@ class MacroRulesDefinition : public MacroItem
   // only curly without required semicolon at end
   DelimType delim_type;
   // MacroRules rules;
-  ::std::vector<MacroRule> rules; // inlined form
+  std::vector<MacroRule> rules; // inlined form
 
   Location locus;
 
 public:
-  ::std::string as_string () const;
+  std::string as_string () const;
 
   MacroRulesDefinition (Identifier rule_name, DelimType delim_type,
-			::std::vector<MacroRule> rules,
-			::std::vector<Attribute> outer_attrs, Location locus)
-    : MacroItem (::std::move (outer_attrs)),
-      rule_name (::std::move (rule_name)), delim_type (delim_type),
-      rules (::std::move (rules)), locus (locus)
+			std::vector<MacroRule> rules,
+			std::vector<Attribute> outer_attrs, Location locus)
+    : MacroItem (std::move (outer_attrs)),
+      rule_name (std::move (rule_name)), delim_type (delim_type),
+      rules (std::move (rules)), locus (locus)
   {}
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
@@ -337,8 +337,8 @@ protected:
   }
 };
 
-// AST node of a macro invocation, which is replaced by the macro result at
-// compile time
+/* AST node of a macro invocation, which is replaced by the macro result at
+ * compile time */
 class MacroInvocation : public TypeNoBounds,
 			public Pattern,
 			public ExprWithoutBlock
@@ -349,12 +349,12 @@ class MacroInvocation : public TypeNoBounds,
   Location locus;
 
 public:
-  ::std::string as_string () const;
+  std::string as_string () const;
 
   MacroInvocation (SimplePath path, DelimTokenTree token_tree,
-		   ::std::vector<Attribute> outer_attrs, Location locus)
-    : ExprWithoutBlock (::std::move (outer_attrs)), path (::std::move (path)),
-      token_tree (::std::move (token_tree)), locus (locus)
+		   std::vector<Attribute> outer_attrs, Location locus)
+    : ExprWithoutBlock (std::move (outer_attrs)), path (std::move (path)),
+      token_tree (std::move (token_tree)), locus (locus)
   {}
 
   Location get_locus () const { return locus; }
@@ -406,9 +406,9 @@ class MetaItemPath : public MetaItem
   SimplePath path;
 
 public:
-  MetaItemPath (SimplePath path) : path (::std::move (path)) {}
+  MetaItemPath (SimplePath path) : path (std::move (path)) {}
 
-  ::std::string as_string () const OVERRIDE { return path.as_string (); }
+  std::string as_string () const OVERRIDE { return path.as_string (); }
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
 
@@ -433,12 +433,12 @@ protected:
 class MetaItemSeq : public MetaItem
 {
   SimplePath path;
-  ::std::vector< ::std::unique_ptr<MetaItemInner> > seq;
+  std::vector<std::unique_ptr<MetaItemInner>> seq;
 
 public:
   MetaItemSeq (SimplePath path,
-	       ::std::vector< ::std::unique_ptr<MetaItemInner> > seq)
-    : path (::std::move (path)), seq (::std::move (seq))
+	       std::vector<std::unique_ptr<MetaItemInner>> seq)
+    : path (std::move (path)), seq (std::move (seq))
   {}
 
   // copy constructor with vector clone
@@ -477,7 +477,7 @@ public:
   MetaItemSeq (MetaItemSeq &&other) = default;
   MetaItemSeq &operator= (MetaItemSeq &&other) = default;
 
-  ::std::string as_string () const OVERRIDE;
+  std::string as_string () const OVERRIDE;
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
 
@@ -497,9 +497,9 @@ class MetaWord : public MetaItem
   Identifier ident;
 
 public:
-  MetaWord (Identifier ident) : ident (::std::move (ident)) {}
+  MetaWord (Identifier ident) : ident (std::move (ident)) {}
 
-  ::std::string as_string () const OVERRIDE { return ident; }
+  std::string as_string () const OVERRIDE { return ident; }
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
 
@@ -517,14 +517,14 @@ protected:
 class MetaNameValueStr : public MetaItem
 {
   Identifier ident;
-  ::std::string str;
+  std::string str;
 
 public:
-  MetaNameValueStr (Identifier ident, ::std::string str)
-    : ident (::std::move (ident)), str (::std::move (str))
+  MetaNameValueStr (Identifier ident, std::string str)
+    : ident (std::move (ident)), str (std::move (str))
   {}
 
-  ::std::string as_string () const OVERRIDE { return ident + " = " + str; }
+  std::string as_string () const OVERRIDE { return ident + " = " + str; }
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
 
@@ -549,14 +549,14 @@ protected:
 class MetaListPaths : public MetaItem
 {
   Identifier ident;
-  ::std::vector<SimplePath> paths;
+  std::vector<SimplePath> paths;
 
 public:
-  MetaListPaths (Identifier ident, ::std::vector<SimplePath> paths)
-    : ident (::std::move (ident)), paths (::std::move (paths))
+  MetaListPaths (Identifier ident, std::vector<SimplePath> paths)
+    : ident (std::move (ident)), paths (std::move (paths))
   {}
 
-  ::std::string as_string () const OVERRIDE;
+  std::string as_string () const OVERRIDE;
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
 
@@ -578,14 +578,14 @@ protected:
 class MetaListNameValueStr : public MetaItem
 {
   Identifier ident;
-  ::std::vector<MetaNameValueStr> strs;
+  std::vector<MetaNameValueStr> strs;
 
 public:
-  MetaListNameValueStr (Identifier ident, ::std::vector<MetaNameValueStr> strs)
-    : ident (::std::move (ident)), strs (::std::move (strs))
+  MetaListNameValueStr (Identifier ident, std::vector<MetaNameValueStr> strs)
+    : ident (std::move (ident)), strs (std::move (strs))
   {}
 
-  ::std::string as_string () const OVERRIDE;
+  std::string as_string () const OVERRIDE;
 
   virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
 
@@ -603,7 +603,7 @@ protected:
 struct MacroParser
 {
 private:
-  ::std::vector< ::std::unique_ptr<Token> > token_stream;
+  std::vector<std::unique_ptr<Token>> token_stream;
   // probably have to make this mutable (mutable int stream_pos) otherwise const
   // has to be removed up to DelimTokenTree or further ok since this changing
   // would have an effect on the results of the methods run (i.e. not logically
@@ -611,18 +611,18 @@ private:
   int stream_pos;
 
 public:
-  MacroParser (::std::vector< ::std::unique_ptr<Token> > token_stream,
+  MacroParser (std::vector<std::unique_ptr<Token>> token_stream,
 	       int stream_start_pos = 0)
-    : token_stream (::std::move (token_stream)), stream_pos (stream_start_pos)
+    : token_stream (std::move (token_stream)), stream_pos (stream_start_pos)
   {}
 
   ~MacroParser () = default;
 
-  ::std::vector< ::std::unique_ptr<MetaItemInner> > parse_meta_item_seq ();
+  std::vector<std::unique_ptr<MetaItemInner>> parse_meta_item_seq ();
 
 private:
   // Parses a MetaItemInner.
-  ::std::unique_ptr<MetaItemInner> parse_meta_item_inner ();
+  std::unique_ptr<MetaItemInner> parse_meta_item_inner ();
   // Returns whether token can end a meta item.
   bool is_end_meta_item_tok (TokenId id) const;
   // Parses a simple path.
@@ -630,14 +630,14 @@ private:
   // Parses a segment of a simple path (but not scope resolution operator).
   SimplePathSegment parse_simple_path_segment ();
   // Parses a MetaItemLitExpr.
-  ::std::unique_ptr<MetaItemLitExpr> parse_meta_item_lit ();
+  std::unique_ptr<MetaItemLitExpr> parse_meta_item_lit ();
   // Parses a literal.
   Literal parse_literal ();
   // Parses a meta item that begins with a simple path.
-  ::std::unique_ptr<MetaItem> parse_path_meta_item ();
+  std::unique_ptr<MetaItem> parse_path_meta_item ();
 
   // TODO: should this be const?
-  ::std::unique_ptr<Token> &peek_token (int i = 0)
+  std::unique_ptr<Token> &peek_token (int i = 0)
   {
     return token_stream[stream_pos + i];
   }
