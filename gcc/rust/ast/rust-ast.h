@@ -22,8 +22,6 @@
 
 namespace Rust {
 // TODO: remove typedefs and make actual types for these
-// typedef int Location;
-// typedef std::string SimplePath;
 typedef std::string Identifier;
 typedef int TupleIndex;
 
@@ -88,7 +86,7 @@ public:
   virtual bool check_cfg_predicate (const Session &session) const = 0;
 
   // Parse attribute input to meta item, if possible
-  virtual AttrInput *parse_to_meta_item () const { return NULL; }
+  virtual AttrInput *parse_to_meta_item () const { return nullptr; }
 
 protected:
   // pure virtual clone implementation
@@ -116,8 +114,7 @@ public:
 
   /* Converts token tree to a flat token stream. Tokens must be pointer to avoid
    * mutual dependency with Token. */
-  virtual std::vector<std::unique_ptr<Token>>
-  to_token_stream () const = 0;
+  virtual std::vector<std::unique_ptr<Token>> to_token_stream () const = 0;
 
 protected:
   // pure virtual clone implementation
@@ -167,8 +164,8 @@ public:
     return std::unique_ptr<Token> (clone_token_impl ());
   }
 
-  // constructor from general text - avoid using if lexer const_TokenPtr is
-  // available
+  /* constructor from general text - avoid using if lexer const_TokenPtr is
+   * available */
   Token (TokenId token_id, Location locus, std::string str,
 	 PrimitiveCoreType type_hint)
     : token_id (token_id), locus (locus), str (std::move (str)),
@@ -176,9 +173,9 @@ public:
   {}
 
   // Constructor from lexer const_TokenPtr
-  /* TODO: find workaround for std::string being NULL - probably have to
+  /* TODO: find workaround for std::string being nullptr - probably have to
    * introduce new method in lexer Token, or maybe make conversion method
-   * there*/
+   * there */
   Token (const_TokenPtr lexer_token_ptr)
     : token_id (lexer_token_ptr->get_id ()),
       locus (lexer_token_ptr->get_locus ()), str (""),
@@ -210,7 +207,7 @@ public:
       }
   }
 
-  inline bool is_string_lit () const
+  bool is_string_lit () const
   {
     switch (token_id)
       {
@@ -222,13 +219,12 @@ public:
       }
   }
 
-  std::string as_string () const;
+  std::string as_string () const override;
 
   void accept_vis (ASTVisitor &vis) override;
 
   // Return copy of itself but in token stream form.
-  std::vector<std::unique_ptr<Token>>
-  to_token_stream () const override;
+  std::vector<std::unique_ptr<Token>> to_token_stream () const override;
 
   TokenId get_id () const { return token_id; }
 
@@ -240,16 +236,13 @@ protected:
 
   /* Use covariance to implement clone function as returning this object rather
    * than base */
-  Token *clone_token_tree_impl () const override
-  {
-    return clone_token_impl();
-  }
+  Token *clone_token_tree_impl () const override { return clone_token_impl (); }
 
   /* Use covariance to implement clone function as returning this object rather
    * than base */
   Token *clone_macro_match_impl () const override
   {
-    return clone_token_impl();
+    return clone_token_impl ();
   }
 };
 
@@ -279,7 +272,7 @@ private:
 public:
   std::string as_string () const { return value_as_string; }
 
-  inline LitType get_lit_type () const { return type; }
+  LitType get_lit_type () const { return type; }
 
   Literal (std::string value_as_string, LitType type)
     : value_as_string (std::move (value_as_string)), type (type)
@@ -296,30 +289,10 @@ class DelimTokenTree : public TokenTree, public AttrInput
 {
   DelimType delim_type;
   std::vector<std::unique_ptr<TokenTree>> token_trees;
-
   Location locus;
 
-  // TODO: move all the "parse" functions into a separate class that has the
-  // token stream reference - will be cleaner Parse a meta item inner.
-  //std::unique_ptr<MetaItemInner> parse_meta_item_inner(const std::vector<
-  //std::unique_ptr<Token>>& token_stream, int& i) const; SimplePath
-  // parse_simple_path(const std::vector<std::unique_ptr<Token>>&
-  // token_stream, int& i) const; SimplePathSegment
-  // parse_simple_path_segment(const std::vector<
-  // std::unique_ptr<Token>>& token_stream, int& i) const;
-  //std::unique_ptr<MetaItemLitExpr> parse_meta_item_lit(const
-  //std::unique_ptr<Token>&
-  // tok) const;
-  //std::vector<std::unique_ptr<MetaItemInner>> parse_meta_item_seq(const
-  //std::vector<std::unique_ptr<Token>>& token_stream, int& i) const;
-  // Literal
-  // parse_literal(const std::unique_ptr<Token>& tok) const;
-  //std::unique_ptr<MetaItem> parse_path_meta_item(const std::vector<
-  //std::unique_ptr<Token>>& token_stream, int& i) const; bool
-  // is_end_meta_item_tok(TokenId tok) const;
-
 protected:
-  DelimTokenTree *clone_delim_tok_tree_impl () const 
+  DelimTokenTree *clone_delim_tok_tree_impl () const
   {
     return new DelimTokenTree (*this);
   }
@@ -351,12 +324,9 @@ public:
   DelimTokenTree (DelimTokenTree const &other)
     : delim_type (other.delim_type), locus (other.locus)
   {
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
     token_trees.reserve (other.token_trees.size ());
-
     for (const auto &e : other.token_trees)
-	token_trees.push_back (e->clone_token_tree ());
+      token_trees.push_back (e->clone_token_tree ());
   }
 
   // overloaded assignment operator with vector clone
@@ -365,12 +335,9 @@ public:
     delim_type = other.delim_type;
     locus = other.locus;
 
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
     token_trees.reserve (other.token_trees.size ());
-
     for (const auto &e : other.token_trees)
-	token_trees.push_back (e->clone_token_tree ());
+      token_trees.push_back (e->clone_token_tree ());
 
     return *this;
   }
@@ -381,7 +348,7 @@ public:
 
   static DelimTokenTree create_empty () { return DelimTokenTree (PARENS); }
 
-  std::string as_string () const;
+  std::string as_string () const override;
 
   void accept_vis (ASTVisitor &vis) override;
 
@@ -394,21 +361,20 @@ public:
 
   AttrInput *parse_to_meta_item () const override;
 
-  std::vector<std::unique_ptr<Token>>
-  to_token_stream () const override;
+  std::vector<std::unique_ptr<Token>> to_token_stream () const override;
 
-  std::unique_ptr<DelimTokenTree> clone_delim_token_tree () const 
+  std::unique_ptr<DelimTokenTree> clone_delim_token_tree () const
   {
-    return std::unique_ptr<DelimTokenTree> (clone_delim_tok_tree_impl());
+    return std::unique_ptr<DelimTokenTree> (clone_delim_tok_tree_impl ());
   }
 };
 
-// Forward decl - definition moved to rust-expr.h as it requires LiteralExpr to
-// be defined
+/* Forward decl - definition moved to rust-expr.h as it requires LiteralExpr to
+ * be defined */
 class AttrInputLiteral;
 
-// TODO: move applicable stuff into here or just don't include it because
-// nothing uses it A segment of a path (maybe)
+/* TODO: move applicable stuff into here or just don't include it because
+ * nothing uses it A segment of a path (maybe) */
 class PathSegment
 {
 public:
@@ -432,9 +398,9 @@ public:
     : segment_name (std::move (segment_name)), locus (locus)
   {}
 
-  // Returns whether simple path segment is in an invalid state (currently, if
-  // empty).
-  inline bool is_error () const { return segment_name.empty (); }
+  /* Returns whether simple path segment is in an invalid state (currently, if
+   * empty). */
+  bool is_error () const { return segment_name.empty (); }
 
   // Creates an error SimplePathSegment
   static SimplePathSegment create_error ()
@@ -442,9 +408,9 @@ public:
     return SimplePathSegment (std::string (""));
   }
 
-  std::string as_string () const;
+  std::string as_string () const override;
 
-  inline Location get_locus () const { return locus; }
+  Location get_locus () const { return locus; }
 
   // TODO: visitor pattern?
 };
@@ -472,7 +438,7 @@ public:
   }
 
   // Returns whether the SimplePath is empty, i.e. has path segments.
-  inline bool is_empty () const { return segments.empty (); }
+  bool is_empty () const { return segments.empty (); }
 
   std::string as_string () const;
 
@@ -507,7 +473,6 @@ private:
   SimplePath path;
 
   // bool has_attr_input;
-  // AttrInput* attr_input;
   std::unique_ptr<AttrInput> attr_input;
 
   Location locus;
@@ -516,7 +481,7 @@ private:
 
 public:
   // Returns whether Attribute has AttrInput
-  inline bool has_attr_input () const { return attr_input != NULL; }
+  bool has_attr_input () const { return attr_input != nullptr; }
 
   // Constructor has pointer AttrInput for polymorphism reasons
   Attribute (SimplePath path, std::unique_ptr<AttrInput> input,
@@ -527,14 +492,12 @@ public:
   // default destructor
   ~Attribute () = default;
 
-  // TODO: should this be a "move-semantics only" type where copying is protected and "clone" is the only way to copy?
-
   // Copy constructor must deep copy attr_input as unique pointer
   Attribute (Attribute const &other) : path (other.path), locus (other.locus)
   {
     // guard to protect from null pointer dereference
-    if (other.attr_input != NULL)
-	attr_input = other.attr_input->clone_attr_input ();
+    if (other.attr_input != nullptr)
+      attr_input = other.attr_input->clone_attr_input ();
   }
 
   // overload assignment operator to use custom clone method
@@ -543,8 +506,8 @@ public:
     path = other.path;
     locus = other.locus;
     // guard to protect from null pointer dereference
-    if (other.attr_input != NULL)
-	attr_input = other.attr_input->clone_attr_input ();
+    if (other.attr_input != nullptr)
+      attr_input = other.attr_input->clone_attr_input ();
 
     return *this;
   }
@@ -562,14 +525,11 @@ public:
   // Creates an empty attribute (which is invalid)
   static Attribute create_empty ()
   {
-    return Attribute (SimplePath::create_empty (), NULL);
+    return Attribute (SimplePath::create_empty (), nullptr);
   }
 
   // Returns whether the attribute is considered an "empty" attribute.
-  inline bool is_empty () const
-  {
-    return attr_input == NULL && path.is_empty ();
-  }
+  bool is_empty () const { return attr_input == nullptr && path.is_empty (); }
 
   /* e.g.:
       #![crate_type = "lib"]
@@ -633,15 +593,15 @@ public:
   // Call to parse attribute body to meta item syntax.
   void parse_attr_to_meta_item ();
 
-  // Determines whether cfg predicate is true and item with attribute should not
-  // be stripped.
+  /* Determines whether cfg predicate is true and item with attribute should not
+   * be stripped. */
   bool check_cfg_predicate (const Session &session)
   {
-    // assume that cfg predicate actually can exist, i.e. attribute has cfg or
-    // cfg_attr path
+    /* assume that cfg predicate actually can exist, i.e. attribute has cfg or
+     * cfg_attr path */
 
     if (!has_attr_input ())
-	return false;
+      return false;
 
     // TODO: maybe replace with storing a "has been parsed" variable?
     parse_attr_to_meta_item ();
@@ -681,9 +641,9 @@ public:
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
-  // HACK: used to simplify parsing - creates a copy of that type, or returns
-  // null
-  virtual MetaNameValueStr *to_meta_name_value_str () const { return NULL; }
+  /* HACK: used to simplify parsing - creates a copy of that type, or returns
+   * null */
+  virtual MetaNameValueStr *to_meta_name_value_str () const { return nullptr; }
 
   // HACK: used to simplify parsing - same thing
   virtual SimplePath to_path_item () const
@@ -719,9 +679,11 @@ public:
   bool check_cfg_predicate (const Session &session) const override;
 
   // Clones this object.
-  std::unique_ptr<AttrInputMetaItemContainer> clone_attr_input_meta_item_container () const 
+  std::unique_ptr<AttrInputMetaItemContainer>
+  clone_attr_input_meta_item_container () const
   {
-    return std::unique_ptr<AttrInputMetaItemContainer> (clone_attr_input_meta_item_container_impl ());
+    return std::unique_ptr<AttrInputMetaItemContainer> (
+      clone_attr_input_meta_item_container_impl ());
   }
 
 protected:
@@ -739,12 +701,9 @@ protected:
   // copy constructor with vector clone
   AttrInputMetaItemContainer (const AttrInputMetaItemContainer &other)
   {
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
     items.reserve (other.items.size ());
-
     for (const auto &e : other.items)
-	items.push_back (e->clone_meta_item_inner ());
+      items.push_back (e->clone_meta_item_inner ());
   }
 
   // copy assignment operator with vector clone
@@ -752,12 +711,10 @@ protected:
   operator= (const AttrInputMetaItemContainer &other)
   {
     AttrInput::operator= (other);
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
-    items.reserve (other.items.size ());
 
+    items.reserve (other.items.size ());
     for (const auto &e : other.items)
-	items.push_back (e->clone_meta_item_inner ());
+      items.push_back (e->clone_meta_item_inner ());
 
     return *this;
   }
@@ -806,8 +763,8 @@ public:
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
-  // HACK: slow way of getting location from base expression through virtual
-  // methods.
+  /* HACK: slow way of getting location from base expression through virtual
+   * methods. */
   virtual Location get_locus_slow () const { return Location (); }
 
 protected:
@@ -831,8 +788,8 @@ public:
 
   std::string as_string () const;
 
-  // Adds crate names to the vector passed by reference, if it can
-  // (polymorphism).
+  /* Adds crate names to the vector passed by reference, if it can
+   * (polymorphism). */
   virtual void
   add_crate_name (std::vector<std::string> &names ATTRIBUTE_UNUSED) const
   {}
@@ -864,10 +821,7 @@ class Expr
   std::vector<Attribute> outer_attrs;
 
 public:
-  inline const std::vector<Attribute> &get_outer_attrs () const
-  {
-    return outer_attrs;
-  }
+  const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
 
   // Unique pointer custom clone function
   std::unique_ptr<Expr> clone_expr () const
@@ -880,25 +834,17 @@ public:
    * for some?
    *  - evaluate() - evaluates expression if constant? can_evaluate()? */
 
-  // HACK: downcasting without dynamic_cast (if possible) via polymorphism -
-  // overrided in subclasses of ExprWithoutBlock
-  virtual ExprWithoutBlock *as_expr_without_block () const
-  {
-    // DEBUG
-    fprintf (
-      stderr,
-      "clone expr without block returns null and has not been overriden\n");
-
-    return NULL;
-  }
+  /* HACK: downcasting without dynamic_cast (if possible) via polymorphism -
+   * overrided in subclasses of ExprWithoutBlock */
+  virtual ExprWithoutBlock *as_expr_without_block () const { return nullptr; }
 
   // TODO: make pure virtual if move out outer attributes to derived classes
   virtual std::string as_string () const;
 
   virtual ~Expr () {}
 
-  // HACK: slow way of getting location from base expression through virtual
-  // methods.
+  /* HACK: slow way of getting location from base expression through virtual
+   * methods. */
   virtual Location get_locus_slow () const { return Location (); }
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
@@ -934,8 +880,8 @@ protected:
   virtual ExprWithoutBlock *clone_expr_without_block_impl () const = 0;
 
   /* Save having to specify two clone methods in derived classes by making expr
-   * clone return exprwithoutblock clone. Hopefully won't affect performance too much.
-   */
+   * clone return exprwithoutblock clone. Hopefully won't affect performance too
+   * much. */
   ExprWithoutBlock *clone_expr_impl () const override
   {
     return clone_expr_without_block_impl ();
@@ -945,8 +891,7 @@ public:
   // Unique pointer custom clone function
   std::unique_ptr<ExprWithoutBlock> clone_expr_without_block () const
   {
-    return std::unique_ptr<ExprWithoutBlock> (
-      clone_expr_without_block_impl ());
+    return std::unique_ptr<ExprWithoutBlock> (clone_expr_without_block_impl ());
   }
 
   /* downcasting hack from expr to use pratt parsing with
@@ -957,9 +902,10 @@ public:
   }
 };
 
-// HACK: IdentifierExpr, delete when figure out identifier vs expr problem in
-// Pratt parser Alternatively, identifiers could just be represented as
-// single-segment paths
+/* HACK: IdentifierExpr, delete when figure out identifier vs expr problem in
+ * Pratt parser */
+/* Alternatively, identifiers could just be represented as single-segment paths
+ */
 class IdentifierExpr : public ExprWithoutBlock
 {
 public:
@@ -977,13 +923,12 @@ public:
   std::string as_string () const override { return ident; }
 
   Location get_locus () const { return locus; }
-
   Location get_locus_slow () const override { return get_locus (); }
 
   void accept_vis (ASTVisitor &vis) override;
 
   // Clones this object.
-  std::unique_ptr<IdentifierExpr> clone_identifier_expr () const 
+  std::unique_ptr<IdentifierExpr> clone_identifier_expr () const
   {
     return std::unique_ptr<IdentifierExpr> (clone_identifier_expr_impl ());
   }
@@ -1045,14 +990,14 @@ public:
 
   virtual std::string as_string () const = 0;
 
-  // HACK: convert to trait bound. Virtual method overriden by classes that
-  // enable this.
+  /* HACK: convert to trait bound. Virtual method overriden by classes that
+   * enable this. */
   virtual TraitBound *to_trait_bound (bool in_parens ATTRIBUTE_UNUSED) const
   {
-    return NULL;
+    return nullptr;
   }
-  // as pointer, shouldn't require definition beforehand, only forward
-  // declaration.
+  /* as pointer, shouldn't require definition beforehand, only forward
+   * declaration. */
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
@@ -1084,8 +1029,8 @@ protected:
   }
 };
 
-// Abstract base class representing a type param bound - Lifetime and TraitBound
-// extends it
+/* Abstract base class representing a type param bound - Lifetime and TraitBound
+ * extends it */
 class TypeParamBound
 {
 public:
@@ -1138,12 +1083,12 @@ public:
   static Lifetime error () { return Lifetime (NAMED, std::string ("")); }
 
   // Returns true if the lifetime is in an error state.
-  inline bool is_error () const
+  bool is_error () const
   {
     return lifetime_type == NAMED && lifetime_name.empty ();
   }
 
-  std::string as_string () const;
+  std::string as_string () const override;
 
   void accept_vis (ASTVisitor &vis) override;
 
@@ -1156,8 +1101,8 @@ protected:
   }
 };
 
-// Base generic parameter in AST. Abstract - can be represented by a Lifetime or
-// Type param
+/* Base generic parameter in AST. Abstract - can be represented by a Lifetime or
+ * Type param */
 class GenericParam
 {
 public:
@@ -1188,17 +1133,17 @@ class LifetimeParam : public GenericParam
   std::vector<Lifetime> lifetime_bounds; // inlined LifetimeBounds
 
   // bool has_outer_attribute;
-  //std::unique_ptr<Attribute> outer_attr;
+  // std::unique_ptr<Attribute> outer_attr;
   Attribute outer_attr;
 
   Location locus;
 
 public:
   // Returns whether the lifetime param has any lifetime bounds.
-  inline bool has_lifetime_bounds () const { return !lifetime_bounds.empty (); }
+  bool has_lifetime_bounds () const { return !lifetime_bounds.empty (); }
 
   // Returns whether the lifetime param has an outer attribute.
-  inline bool has_outer_attribute () const { return !outer_attr.is_empty (); }
+  bool has_outer_attribute () const { return !outer_attr.is_empty (); }
 
   // Creates an error state lifetime param.
   static LifetimeParam create_error ()
@@ -1207,7 +1152,7 @@ public:
   }
 
   // Returns whether the lifetime param is in an error state.
-  inline bool is_error () const { return lifetime.is_error (); }
+  bool is_error () const { return lifetime.is_error (); }
 
   // Constructor
   LifetimeParam (Lifetime lifetime, Location locus = Location (),
@@ -1227,8 +1172,6 @@ public:
       outer_attr (other.outer_attr), locus (other.locus)
   {}
 
-  // Destructor - define here if required
-
   // Overloaded assignment operator to clone attribute
   LifetimeParam &operator= (LifetimeParam const &other)
   {
@@ -1244,13 +1187,13 @@ public:
   LifetimeParam (LifetimeParam &&other) = default;
   LifetimeParam &operator= (LifetimeParam &&other) = default;
 
-  std::string as_string () const;
+  std::string as_string () const override;
 
   void accept_vis (ASTVisitor &vis) override;
 
 protected:
-  // Use covariance to implement clone function as returning this object rather
-  // than base
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
   LifetimeParam *clone_generic_param_impl () const override
   {
     return new LifetimeParam (*this);
@@ -1273,7 +1216,7 @@ class TraitItem
 {
   // bool has_outer_attrs;
   // TODO: remove and rely on virtual functions and VisItem-derived attributes?
-  //std::vector<Attribute> outer_attrs;
+  // std::vector<Attribute> outer_attrs;
 
   // NOTE: all children should have outer attributes
 
@@ -1289,7 +1232,7 @@ public:
   virtual ~TraitItem () {}
 
   // Returns whether TraitItem has outer attributes.
-  /*inline bool has_outer_attrs() const {
+  /*bool has_outer_attrs() const {
       return !outer_attrs.empty();
   }*/
 
@@ -1304,8 +1247,8 @@ public:
   virtual void accept_vis (ASTVisitor &vis) = 0;
 };
 
-// Abstract base class for items used within an inherent impl block (the impl
-// name {} one)
+/* Abstract base class for items used within an inherent impl block (the impl
+ * name {} one) */
 class InherentImplItem
 {
 protected:
@@ -1318,8 +1261,7 @@ public:
   // Unique pointer custom clone function
   std::unique_ptr<InherentImplItem> clone_inherent_impl_item () const
   {
-    return std::unique_ptr<InherentImplItem> (
-      clone_inherent_impl_item_impl ());
+    return std::unique_ptr<InherentImplItem> (clone_inherent_impl_item_impl ());
   }
 
   virtual std::string as_string () const = 0;
@@ -1353,24 +1295,19 @@ class MacroInvocationSemi : public MacroItem,
 			    public TraitItem,
 			    public InherentImplItem,
 			    public TraitImplItem
-/*, public Statement*/ {
-  // already inherits from statement indirectly via item as item is a subclass
-  // of statement
+{
   SimplePath path;
   // all delim types except curly must have invocation end with a semicolon
   DelimType delim_type;
-  //std::vector<TokenTree> token_trees;
   std::vector<std::unique_ptr<TokenTree>> token_trees;
-
   Location locus;
 
 public:
-  std::string as_string () const;
+  std::string as_string () const override;
 
-  MacroInvocationSemi (
-    SimplePath macro_path, DelimType delim_type,
-    std::vector<std::unique_ptr<TokenTree>> token_trees,
-    std::vector<Attribute> outer_attribs, Location locus)
+  MacroInvocationSemi (SimplePath macro_path, DelimType delim_type,
+		       std::vector<std::unique_ptr<TokenTree>> token_trees,
+		       std::vector<Attribute> outer_attribs, Location locus)
     : MacroItem (std::move (outer_attribs)), path (std::move (macro_path)),
       delim_type (delim_type), token_trees (std::move (token_trees)),
       locus (locus)
@@ -1390,9 +1327,10 @@ public:
   void accept_vis (ASTVisitor &vis) override;
 
   // Clones this macro invocation semi.
-  std::unique_ptr<MacroInvocationSemi> clone_macro_invocation_semi () const 
+  std::unique_ptr<MacroInvocationSemi> clone_macro_invocation_semi () const
   {
-    return std::unique_ptr<MacroInvocationSemi> (clone_macro_invocation_semi_impl ());
+    return std::unique_ptr<MacroInvocationSemi> (
+      clone_macro_invocation_semi_impl ());
   }
 
 protected:
@@ -1402,12 +1340,9 @@ protected:
       TraitImplItem (other), path (other.path), delim_type (other.delim_type),
       locus (other.locus)
   {
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
     token_trees.reserve (other.token_trees.size ());
-
     for (const auto &e : other.token_trees)
-	token_trees.push_back (e->clone_token_tree ());
+      token_trees.push_back (e->clone_token_tree ());
   }
 
   // Overloaded assignment operator to vector clone
@@ -1421,17 +1356,14 @@ protected:
     delim_type = other.delim_type;
     locus = other.locus;
 
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
     token_trees.reserve (other.token_trees.size ());
-
     for (const auto &e : other.token_trees)
-	token_trees.push_back (e->clone_token_tree ());
+      token_trees.push_back (e->clone_token_tree ());
 
     return *this;
   }
 
-  MacroInvocationSemi *clone_macro_invocation_semi_impl () const 
+  MacroInvocationSemi *clone_macro_invocation_semi_impl () const
   {
     return new MacroInvocationSemi (*this);
   }
@@ -1479,10 +1411,9 @@ struct Crate
   bool has_shebang;
 
   std::vector<Attribute> inner_attrs;
-  //std::vector<Item> items;
   // dodgy spacing required here
-  // TODO: is it better to have a vector of items here or a module (implicit
-  // top-level one)?
+  /* TODO: is it better to have a vector of items here or a module (implicit
+   * top-level one)? */
   std::vector<std::unique_ptr<Item>> items;
 
 public:
@@ -1499,14 +1430,9 @@ public:
     : has_utf8bom (other.has_utf8bom), has_shebang (other.has_shebang),
       inner_attrs (other.inner_attrs)
   {
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
     items.reserve (other.items.size ());
-
     for (const auto &e : other.items)
-      {
-	items.push_back (e->clone_item ());
-      }
+      items.push_back (e->clone_item ());
   }
 
   ~Crate () = default;
@@ -1518,14 +1444,9 @@ public:
     has_shebang = other.has_shebang;
     has_utf8bom = other.has_utf8bom;
 
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
     items.reserve (other.items.size ());
-
     for (const auto &e : other.items)
-      {
-	items.push_back (e->clone_item ());
-      }
+      items.push_back (e->clone_item ());
 
     return *this;
   }
@@ -1549,8 +1470,8 @@ protected:
 public:
   // TODO: think of a better and less hacky way to allow this
 
-  // Replaces the outer attributes of this path expression with the given outer
-  // attributes.
+  /* Replaces the outer attributes of this path expression with the given outer
+   * attributes. */
   void replace_outer_attrs (std::vector<Attribute> outer_attrs)
   {
     set_outer_attrs (std::move (outer_attrs));

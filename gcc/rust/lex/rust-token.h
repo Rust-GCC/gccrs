@@ -49,8 +49,8 @@ enum PrimitiveCoreType
 //
 // Keep RS_TOKEN_KEYWORD sorted
 
-// note that abstract, async, become, box, do, final, macro, override, priv,
-// try, typeof, unsized, virtual, and yield are unused
+/* note that abstract, async, become, box, do, final, macro, override, priv,
+ * try, typeof, unsized, virtual, and yield are unused */
 #define RS_TOKEN_LIST                                                          \
   RS_TOKEN (FIRST_TOKEN, "<first-token-marker>")                               \
   RS_TOKEN (END_OF_FILE, "end of file")                                        \
@@ -214,8 +214,8 @@ typedef std::shared_ptr<const Token> const_TokenPtr;
 // Hackily defined way to get token description for enum value using x-macros
 const char *
 get_token_description (TokenId id);
-// Hackily defined way to get token description as a string for enum value using
-// x-macros
+/* Hackily defined way to get token description as a string for enum value using
+ * x-macros */
 const char *
 token_id_to_str (TokenId id);
 // Get type hint description as a string.
@@ -232,13 +232,14 @@ private:
   Location locus;
   // Associated text (if any) of token.
   std::string *str;
-  // Type hint for token based on lexer data (e.g. type suffix). Does not exist
-  // for most tokens.
+  // TODO: maybe remove issues and just store std::string as value?
+  /* Type hint for token based on lexer data (e.g. type suffix). Does not exist
+   * for most tokens. */
   PrimitiveCoreType type_hint;
 
   // Token constructor from token id and location. Has a null string.
   Token (TokenId token_id, Location location)
-    : token_id (token_id), locus (location), str (NULL),
+    : token_id (token_id), locus (location), str (nullptr),
       type_hint (CORETYPE_UNKNOWN)
   {}
 
@@ -269,7 +270,7 @@ private:
   {}
 
 public:
-  // No default initialiser.
+  // No default constructor.
   Token () = delete;
   // Do not copy/assign tokens.
   Token (const Token &) = delete;
@@ -373,8 +374,8 @@ public:
   const std::string &
   get_str () const; /*{
 // FIXME: put in header again when fix null problem
-//gcc_assert(str != NULL);
-if (str == NULL) {
+//gcc_assert(str != nullptr);
+if (str == nullptr) {
 error_at(get_locus(), "attempted to get string for '%s', which has no string.
 returning empty string instead.", get_token_description()); return "";
 }
@@ -401,7 +402,7 @@ return *str;
 
   /* Returns whether the token is a literal of any type (int, float, char,
    * string, byte char, byte string). */
-  inline bool is_literal () const
+  bool is_literal () const
   {
     switch (token_id)
       {
@@ -417,12 +418,12 @@ return *str;
       }
   }
 
-  // Returns whether the token actually has a string (regardless of whether it
-  // should or not).
-  inline bool has_str () const { return str != NULL; }
+  /* Returns whether the token actually has a string (regardless of whether it
+   * should or not). */
+  bool has_str () const { return str != nullptr; }
 
   // Returns whether the token should have a string.
-  inline bool should_have_str () const
+  bool should_have_str () const
   {
     return is_literal () || token_id == IDENTIFIER || token_id == LIFETIME;
   }

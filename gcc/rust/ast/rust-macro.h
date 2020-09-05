@@ -78,7 +78,7 @@ public:
   {}
 
   // Returns whether macro match fragment is in an error state.
-  inline bool is_error () const { return frag_spec == INVALID; }
+  bool is_error () const { return frag_spec == INVALID; }
 
   // Creates an error state macro match fragment.
   static MacroMatchFragment create_error ()
@@ -86,14 +86,14 @@ public:
     return MacroMatchFragment (std::string (""), INVALID);
   }
 
-  std::string as_string () const;
+  std::string as_string () const override;
 
-  virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+  void accept_vis (ASTVisitor &vis) override;
 
 protected:
-  // Use covariance to implement clone function as returning this object rather
-  // than base
-  virtual MacroMatchFragment *clone_macro_match_impl () const OVERRIDE
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  MacroMatchFragment *clone_macro_match_impl () const override
   {
     return new MacroMatchFragment (*this);
   }
@@ -112,7 +112,6 @@ public:
   };
 
 private:
-  //std::vector<MacroMatch> matches;
   std::vector<std::unique_ptr<MacroMatch>> matches;
   MacroRepOp op;
 
@@ -125,7 +124,7 @@ private:
 
 public:
   // Returns whether macro match repetition has separator token.
-  inline bool has_sep () const { return sep != NULL; }
+  bool has_sep () const { return sep != NULL; }
 
   MacroMatchRepetition (std::vector<std::unique_ptr<MacroMatch>> matches,
 			MacroRepOp op, std::unique_ptr<MacroRepSep> sep)
@@ -134,35 +133,22 @@ public:
 
   // Copy constructor with clone
   MacroMatchRepetition (MacroMatchRepetition const &other)
-    : /*matches(other.matches),*/ op (other.op), sep (other.sep->clone_token ())
+    : op (other.op), sep (other.sep->clone_token ())
   {
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
     matches.reserve (other.matches.size ());
-
     for (const auto &e : other.matches)
-      {
-	matches.push_back (e->clone_macro_match ());
-      }
+      matches.push_back (e->clone_macro_match ());
   }
-
-  // Destructor - define here if required
 
   // Overloaded assignment operator to clone
   MacroMatchRepetition &operator= (MacroMatchRepetition const &other)
   {
-    // matches = other.matches; // TODO: this needs to clone somehow?
     op = other.op;
     sep = other.sep->clone_token ();
 
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
     matches.reserve (other.matches.size ());
-
     for (const auto &e : other.matches)
-      {
-	matches.push_back (e->clone_macro_match ());
-      }
+      matches.push_back (e->clone_macro_match ());
 
     return *this;
   }
@@ -171,14 +157,14 @@ public:
   MacroMatchRepetition (MacroMatchRepetition &&other) = default;
   MacroMatchRepetition &operator= (MacroMatchRepetition &&other) = default;
 
-  std::string as_string () const;
+  std::string as_string () const override;
 
-  virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+  void accept_vis (ASTVisitor &vis) override;
 
 protected:
-  // Use covariance to implement clone function as returning this object rather
-  // than base
-  virtual MacroMatchRepetition *clone_macro_match_impl () const OVERRIDE
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  MacroMatchRepetition *clone_macro_match_impl () const override
   {
     return new MacroMatchRepetition (*this);
   }
@@ -188,7 +174,6 @@ protected:
 class MacroMatcher : public MacroMatch
 {
   DelimType delim_type;
-  //std::vector<MacroMatch> matches;
   std::vector<std::unique_ptr<MacroMatch>> matches;
 
   // TODO: think of way to mark invalid that doesn't take up more space
@@ -199,21 +184,15 @@ class MacroMatcher : public MacroMatch
 public:
   MacroMatcher (DelimType delim_type,
 		std::vector<std::unique_ptr<MacroMatch>> matches)
-    : delim_type (delim_type), matches (std::move (matches)),
-      is_invalid (false)
+    : delim_type (delim_type), matches (std::move (matches)), is_invalid (false)
   {}
 
   // copy constructor with vector clone
   MacroMatcher (MacroMatcher const &other) : delim_type (other.delim_type)
   {
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
     matches.reserve (other.matches.size ());
-
     for (const auto &e : other.matches)
-      {
-	matches.push_back (e->clone_macro_match ());
-      }
+      matches.push_back (e->clone_macro_match ());
   }
 
   // overloaded assignment operator with vector clone
@@ -221,14 +200,9 @@ public:
   {
     delim_type = other.delim_type;
 
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
     matches.reserve (other.matches.size ());
-
     for (const auto &e : other.matches)
-      {
-	matches.push_back (e->clone_macro_match ());
-      }
+      matches.push_back (e->clone_macro_match ());
 
     return *this;
   }
@@ -241,16 +215,16 @@ public:
   static MacroMatcher create_error () { return MacroMatcher (true); }
 
   // Returns whether MacroMatcher is in an error state.
-  inline bool is_error () const { return is_invalid; }
+  bool is_error () const { return is_invalid; }
 
-  std::string as_string () const;
+  std::string as_string () const override;
 
-  virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+  void accept_vis (ASTVisitor &vis) override;
 
 protected:
-  // Use covariance to implement clone function as returning this object rather
-  // than base
-  virtual MacroMatcher *clone_macro_match_impl () const OVERRIDE
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  MacroMatcher *clone_macro_match_impl () const override
   {
     return new MacroMatcher (*this);
   }
@@ -291,7 +265,7 @@ public:
   {}
 
   // Returns whether macro rule is in error state.
-  inline bool is_error () const { return matcher.is_error (); }
+  bool is_error () const { return matcher.is_error (); }
 
   // Creates an error state macro rule.
   static MacroRule create_error ()
@@ -316,22 +290,21 @@ class MacroRulesDefinition : public MacroItem
   Location locus;
 
 public:
-  std::string as_string () const;
+  std::string as_string () const override;
 
   MacroRulesDefinition (Identifier rule_name, DelimType delim_type,
 			std::vector<MacroRule> rules,
 			std::vector<Attribute> outer_attrs, Location locus)
-    : MacroItem (std::move (outer_attrs)),
-      rule_name (std::move (rule_name)), delim_type (delim_type),
-      rules (std::move (rules)), locus (locus)
+    : MacroItem (std::move (outer_attrs)), rule_name (std::move (rule_name)),
+      delim_type (delim_type), rules (std::move (rules)), locus (locus)
   {}
 
-  virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+  void accept_vis (ASTVisitor &vis) override;
 
 protected:
-  // Use covariance to implement clone function as returning this object rather
-  // than base
-  virtual MacroRulesDefinition *clone_item_impl () const OVERRIDE
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  MacroRulesDefinition *clone_item_impl () const override
   {
     return new MacroRulesDefinition (*this);
   }
@@ -345,11 +318,10 @@ class MacroInvocation : public TypeNoBounds,
 {
   SimplePath path;
   DelimTokenTree token_tree;
-
   Location locus;
 
 public:
-  std::string as_string () const;
+  std::string as_string () const override;
 
   MacroInvocation (SimplePath path, DelimTokenTree token_tree,
 		   std::vector<Attribute> outer_attrs, Location locus)
@@ -358,43 +330,42 @@ public:
   {}
 
   Location get_locus () const { return locus; }
+  Location get_locus_slow () const override { return get_locus (); }
 
-  Location get_locus_slow () const OVERRIDE { return get_locus (); }
-
-  virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+  void accept_vis (ASTVisitor &vis) override;
 
 protected:
-  // Use covariance to implement clone function as returning this object rather
-  // than base
-  virtual MacroInvocation *clone_pattern_impl () const OVERRIDE
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  MacroInvocation *clone_pattern_impl () const override
   {
     return new MacroInvocation (*this);
   }
 
-  // Use covariance to implement clone function as returning this object rather
-  // than base
-  virtual MacroInvocation *clone_expr_impl () const OVERRIDE
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  MacroInvocation *clone_expr_impl () const override
   {
     return new MacroInvocation (*this);
   }
 
-  // Use covariance to implement clone function as returning this object rather
-  // than base
-  virtual MacroInvocation *clone_expr_without_block_impl () const OVERRIDE
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  MacroInvocation *clone_expr_without_block_impl () const override
   {
     return new MacroInvocation (*this);
   }
 
-  // Use covariance to implement clone function as returning this object rather
-  // than base
-  virtual MacroInvocation *clone_type_impl () const OVERRIDE
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  MacroInvocation *clone_type_impl () const override
   {
     return new MacroInvocation (*this);
   }
 
-  // Use covariance to implement clone function as returning this object rather
-  // than base
-  virtual MacroInvocation *clone_type_no_bounds_impl () const OVERRIDE
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  MacroInvocation *clone_type_no_bounds_impl () const override
   {
     return new MacroInvocation (*this);
   }
@@ -408,22 +379,22 @@ class MetaItemPath : public MetaItem
 public:
   MetaItemPath (SimplePath path) : path (std::move (path)) {}
 
-  std::string as_string () const OVERRIDE { return path.as_string (); }
+  std::string as_string () const override { return path.as_string (); }
 
-  virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+  void accept_vis (ASTVisitor &vis) override;
 
   // HACK: used to simplify parsing - returns non-empty only in this case
-  virtual SimplePath to_path_item () const OVERRIDE
+  SimplePath to_path_item () const override
   {
     // this should copy construct - TODO ensure it does
     return path;
   }
 
-  virtual bool check_cfg_predicate (const Session &session) const OVERRIDE;
+  bool check_cfg_predicate (const Session &session) const override;
 
 protected:
   // Use covariance to implement clone function as returning this type
-  virtual MetaItemPath *clone_meta_item_inner_impl () const OVERRIDE
+  MetaItemPath *clone_meta_item_inner_impl () const override
   {
     return new MetaItemPath (*this);
   }
@@ -444,31 +415,20 @@ public:
   // copy constructor with vector clone
   MetaItemSeq (const MetaItemSeq &other) : path (other.path)
   {
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
     seq.reserve (other.seq.size ());
-
     for (const auto &e : other.seq)
-      {
-	seq.push_back (e->clone_meta_item_inner ());
-      }
+      seq.push_back (e->clone_meta_item_inner ());
   }
-
-  // destructor definition not required
 
   // overloaded assignment operator with vector clone
   MetaItemSeq &operator= (const MetaItemSeq &other)
   {
     MetaItem::operator= (other);
     path = other.path;
-    // crappy vector unique pointer clone - TODO is there a better way of doing
-    // this?
-    seq.reserve (other.seq.size ());
 
+    seq.reserve (other.seq.size ());
     for (const auto &e : other.seq)
-      {
-	seq.push_back (e->clone_meta_item_inner ());
-      }
+      seq.push_back (e->clone_meta_item_inner ());
 
     return *this;
   }
@@ -477,15 +437,15 @@ public:
   MetaItemSeq (MetaItemSeq &&other) = default;
   MetaItemSeq &operator= (MetaItemSeq &&other) = default;
 
-  std::string as_string () const OVERRIDE;
+  std::string as_string () const override;
 
-  virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+  void accept_vis (ASTVisitor &vis) override;
 
-  virtual bool check_cfg_predicate (const Session &session) const OVERRIDE;
+  bool check_cfg_predicate (const Session &session) const override;
 
 protected:
   // Use covariance to implement clone function as returning this type
-  virtual MetaItemSeq *clone_meta_item_inner_impl () const OVERRIDE
+  MetaItemSeq *clone_meta_item_inner_impl () const override
   {
     return new MetaItemSeq (*this);
   }
@@ -499,15 +459,15 @@ class MetaWord : public MetaItem
 public:
   MetaWord (Identifier ident) : ident (std::move (ident)) {}
 
-  std::string as_string () const OVERRIDE { return ident; }
+  std::string as_string () const override { return ident; }
 
-  virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+  void accept_vis (ASTVisitor &vis) override;
 
-  virtual bool check_cfg_predicate (const Session &session) const OVERRIDE;
+  bool check_cfg_predicate (const Session &session) const override;
 
 protected:
   // Use covariance to implement clone function as returning this type
-  virtual MetaWord *clone_meta_item_inner_impl () const OVERRIDE
+  MetaWord *clone_meta_item_inner_impl () const override
   {
     return new MetaWord (*this);
   }
@@ -524,21 +484,21 @@ public:
     : ident (std::move (ident)), str (std::move (str))
   {}
 
-  std::string as_string () const OVERRIDE { return ident + " = " + str; }
+  std::string as_string () const override { return ident + " = " + str; }
 
-  virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+  void accept_vis (ASTVisitor &vis) override;
 
   // HACK: used to simplify parsing - creates a copy of this
-  virtual MetaNameValueStr *to_meta_name_value_str () const OVERRIDE
+  MetaNameValueStr *to_meta_name_value_str () const override
   {
     return clone_meta_item_inner_impl ();
   }
 
-  virtual bool check_cfg_predicate (const Session &session) const OVERRIDE;
+  bool check_cfg_predicate (const Session &session) const override;
 
 protected:
   // Use covariance to implement clone function as returning this type
-  virtual MetaNameValueStr *clone_meta_item_inner_impl () const OVERRIDE
+  MetaNameValueStr *clone_meta_item_inner_impl () const override
   {
     return new MetaNameValueStr (*this);
   }
@@ -556,11 +516,11 @@ public:
     : ident (std::move (ident)), paths (std::move (paths))
   {}
 
-  std::string as_string () const OVERRIDE;
+  std::string as_string () const override;
 
-  virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+  void accept_vis (ASTVisitor &vis) override;
 
-  virtual bool check_cfg_predicate (const Session &session) const OVERRIDE;
+  bool check_cfg_predicate (const Session &session) const override;
 
 private:
   bool check_path_exists_in_cfg (const Session &session,
@@ -568,7 +528,7 @@ private:
 
 protected:
   // Use covariance to implement clone function as returning this type
-  virtual MetaListPaths *clone_meta_item_inner_impl () const OVERRIDE
+  MetaListPaths *clone_meta_item_inner_impl () const override
   {
     return new MetaListPaths (*this);
   }
@@ -585,15 +545,15 @@ public:
     : ident (std::move (ident)), strs (std::move (strs))
   {}
 
-  std::string as_string () const OVERRIDE;
+  std::string as_string () const override;
 
-  virtual void accept_vis (ASTVisitor &vis) OVERRIDE;
+  void accept_vis (ASTVisitor &vis) override;
 
-  virtual bool check_cfg_predicate (const Session &session) const OVERRIDE;
+  bool check_cfg_predicate (const Session &session) const override;
 
 protected:
   // Use covariance to implement clone function as returning this type
-  virtual MetaListNameValueStr *clone_meta_item_inner_impl () const OVERRIDE
+  MetaListNameValueStr *clone_meta_item_inner_impl () const override
   {
     return new MetaListNameValueStr (*this);
   }
@@ -604,10 +564,10 @@ struct MacroParser
 {
 private:
   std::vector<std::unique_ptr<Token>> token_stream;
-  // probably have to make this mutable (mutable int stream_pos) otherwise const
-  // has to be removed up to DelimTokenTree or further ok since this changing
-  // would have an effect on the results of the methods run (i.e. not logically
-  // const), the parsing methods shouldn't be const
+  /* probably have to make this mutable (mutable int stream_pos) otherwise const
+   * has to be removed up to DelimTokenTree or further ok since this changing
+   * would have an effect on the results of the methods run (i.e. not logically
+   * const), the parsing methods shouldn't be const */
   int stream_pos;
 
 public:

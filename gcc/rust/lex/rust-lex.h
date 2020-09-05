@@ -26,6 +26,8 @@ public:
   {
     file = other.file;
     other.file = nullptr;
+
+    return *this;
   }
 
   ~RAIIFile ()
@@ -116,6 +118,12 @@ public:
 
   // Replaces the current token with a specified token.
   void replace_current_token (TokenPtr replacement);
+  // FIXME: don't use anymore
+
+  /* Splits the current token into two. Intended for use with nested generics
+   * closes (i.e. T<U<X>> where >> is wrongly lexed as one token). Note that
+   * this will only work with "simple" tokens like punctuation. */
+  void split_current_token (TokenId new_left, TokenId new_right);
 
   Linemap *get_line_map () { return line_map; }
 

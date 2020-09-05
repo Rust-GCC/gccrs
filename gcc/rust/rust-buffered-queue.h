@@ -94,12 +94,9 @@ public:
     // Call peek to ensure requested n is actually in queue.
     peek (n);
 
-    // Clear values from start to n (inclusive).
+    // Clear queue values from start to n (inclusive).
     for (int i = 0; i < (n + 1); i++)
-      {
-	// Clear value at index
 	buffer[start + i] = T ();
-      }
 
     // Move start forward by n + 1.
     start += (n + 1);
@@ -127,13 +124,32 @@ public:
     end++;
   }
 
+  // Insert at arbitrary position (attempt)
+  void insert (int index, T elem_to_insert) 
+  {
+    // TODO: test as this may not work properly
+
+    // n should not be behind
+    gcc_assert (index >= 0);
+
+    // call peek to ensure that the items behind this (at least) are in queue
+    if (index >= 1)
+      peek (index - 1);
+    else
+      peek (index);
+
+    buffer.insert (buffer.begin () + start + index, std::move (elem_to_insert));
+
+    end++;
+  }
+
   // Replaces the current value in the buffer. Total HACK.
   void replace_current_value (T replacement)
   {
     // call peek to ensure value exists
     peek (0);
 
-    buffer[start] = replacement;
+    buffer[start] = std::move (replacement);
 
     // don't move start or end
   }

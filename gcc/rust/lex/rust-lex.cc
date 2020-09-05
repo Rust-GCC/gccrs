@@ -159,6 +159,8 @@ void
 Lexer::replace_current_token (TokenPtr replacement)
 {
   token_queue.replace_current_value (replacement);
+
+  fprintf(stderr, "called 'replace_current_token' - this is deprecated");
 }
 
 /* shitty anonymous namespace that can only be accessed inside the compilation
@@ -2292,5 +2294,16 @@ Lexer::test_peek_codepoint_input (int n)
      0); return output; } else { rust_error_at(get_current_location(), "invalid
      UTF-8 (too long)"); return 0xFFFE;
 	  }*/
+}
+
+void 
+Lexer::split_current_token (TokenId new_left, TokenId new_right) {
+  // TODO: assert that this TokenId is a "simple token" like punctuation and not like "IDENTIFIER"?
+  Location current_loc = peek_token ()->get_locus();
+  TokenPtr new_left_tok = Token::make (new_left, current_loc);
+  TokenPtr new_right_tok = Token::make (new_right, current_loc + 1);
+
+  token_queue.replace_current_value (std::move (new_left_tok));
+  token_queue.insert (1, std::move (new_right_tok));
 }
 } // namespace Rust

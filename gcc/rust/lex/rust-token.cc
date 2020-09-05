@@ -21,8 +21,8 @@ get_token_description (TokenId id)
     }
 }
 
-// Hackily defined way to get token description as a string for enum value using
-// x-macros
+/* Hackily defined way to get token description as a string for enum value using
+ * x-macros */
 const char *
 token_id_to_str (TokenId id)
 {
