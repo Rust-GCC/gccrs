@@ -409,8 +409,8 @@ Session::parse_file (const char *filename)
   // parse file here
   /* create lexer and parser - these are file-specific and so aren't instance
    * variables */
-  Rust::Lexer lex (filename, std::move (file_wrap), rust_get_linemap ());
-  Rust::Parser parser (/*std::move (*/lex/*)*/);
+  Lexer lex (filename, std::move (file_wrap), rust_get_linemap ());
+  Parser<Lexer> parser (std::move (lex));
 
   // generate crate from parser
   auto parsed_crate = parser.parse_crate ();
@@ -534,7 +534,7 @@ load_extern_crate (std::string crate_name ATTRIBUTE_UNUSED)
 // TODO: lots of this code is probably actually useful outside of dumping, so
 // maybe split off function
 void
-Session::debug_dump_load_crates (Parser &parser)
+Session::debug_dump_load_crates (Parser<Lexer> &parser)
 {
   // parse crate as AST
   AST::Crate crate = parser.parse_crate ();
