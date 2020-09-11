@@ -34,7 +34,7 @@ Session::implicitly_enable_feature (std::string feature_name)
   // TODO: is this really required since features added would be complete via
   // target spec?
 
-  if (!options.target_data.has_key_value_pair ("target_data", feature_name))
+  if (!options.target_data.has_key_value_pair ("target_feature", feature_name))
     {
       // if feature has dependencies, enable them
       if (feature_name == "aes")
@@ -272,8 +272,8 @@ Session::init ()
     options.target_data.init_derived_values ();
 }
 
-// Initialise default options. Actually called before handle_option, unlike init
-// itself.
+/* Initialise default options. Actually called before handle_option, unlike init
+ * itself. */
 void
 Session::init_options ()
 {
@@ -301,7 +301,7 @@ Session::handle_option (
       break;
     case OPT_frust_dump_:
       // enable dump and return whether this was successful
-      if (arg != NULL)
+      if (arg != nullptr)
 	{
 	  ret = enable_dump (std::string (arg));
 	}
@@ -324,12 +324,12 @@ Session::handle_option (
 bool
 Session::enable_dump (std::string arg)
 {
-  // FIXME: change dumping algorithm when new non-inhibiting dump system is
-  // created
+  /* FIXME: change dumping algorithm when new non-inhibiting dump system is
+   * created */
   if (arg == "all")
     {
-      error_at (
-	UNKNOWN_LOCATION,
+      rust_error_at (
+	Location (),
 	"dumping all is not supported as of now. choose 'lex', 'parse', or 'target_options");
       return false;
     }
@@ -366,13 +366,13 @@ Session::enable_dump (std::string arg)
     }
   else if (arg == "")
     {
-      error_at (UNKNOWN_LOCATION,
+      rust_error_at (Location (),
 		"dump option was not given a name. choose 'lex', 'parse', or 'target_options'");
       return false;
     }
   else
     {
-      error_at (UNKNOWN_LOCATION,
+      rust_error_at (Location (),
 		"dump option '%s' was unrecognised. choose 'lex', 'parse', or 'target_options",
 		arg.c_str ());
       return false;
@@ -389,8 +389,8 @@ Session::parse_files (int num_files, const char **files)
     {
       parse_file (files[i]);
     }
-  // TODO: should semantic analysis be dealed with here? or per file? for now,
-  // per-file.
+  /* TODO: should semantic analysis be dealed with here? or per file? for now,
+   * per-file. */
 }
 
 // Parses a single file with filename filename.
@@ -399,9 +399,9 @@ Session::parse_file (const char *filename)
 {
   RAIIFile file_wrap (filename);
 
-  if (file_wrap.get_raw() == NULL)
+  if (file_wrap.get_raw() == nullptr)
     {
-      fatal_error (UNKNOWN_LOCATION, "cannot open filename %s: %m", filename);
+      rust_fatal_error (Location (), "cannot open filename %s: %m", filename);
     }
 
   Backend *backend = rust_get_backend ();
@@ -676,7 +676,7 @@ Session::injection (AST::Crate &crate)
     {
       // create "macro use" attribute for use on extern crate item to enable
       // loading macros from it
-      AST::Attribute attr (AST::SimplePath::from_str ("macro_use"), NULL);
+      AST::Attribute attr (AST::SimplePath::from_str ("macro_use"), nullptr);
 
       // create "extern crate" item with the name
       std::unique_ptr<AST::ExternCrate> extern_crate (
@@ -699,7 +699,7 @@ Session::injection (AST::Crate &crate)
 			  AST::SimplePath (std::move (segments)),
 			  Location ()));
   AST::Attribute prelude_attr (AST::SimplePath::from_str ("prelude_import"),
-			       NULL);
+			       nullptr);
   std::unique_ptr<AST::UseDeclaration> use_decl (
     new AST::UseDeclaration (std::move (use_tree),
 			     AST::Visibility::create_error (),
@@ -781,8 +781,8 @@ TargetOptions::init_derived_values ()
     if (has_key_value_pair ("target_family", "windows"))
         insert_key ("windows");
         
-    // implicitly enable features
-    if (has_key_value_pair ("target_feature", "aes"))
+    // implicitly enable features - this should not be required in general
+    if (has_key_value_pair ("target_feature", "aes")) 
         enable_implicit_feature_reqs ("aes");
     if (has_key_value_pair ("target_feature", "avx"))
         enable_implicit_feature_reqs ("sse4.2");
@@ -830,8 +830,11 @@ TargetOptions::enable_implicit_feature_reqs (std::string feature)
     else if (feature == "ssse3")
         enable_implicit_feature_reqs ("sse3");
 
-    if (!has_key_value_pair ("target_feature", feature))
+    if (!has_key_value_pair ("target_feature", feature)) {
         insert_key_value_pair ("target_feature", feature);
+
+        fprintf (stderr, "had to implicitly enable feature '%s'!", feature.c_str ());
+    }
   }
 
 // NOTEs:

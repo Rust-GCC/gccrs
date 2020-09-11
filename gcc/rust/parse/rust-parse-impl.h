@@ -6,29 +6,6 @@
 
 #include "rust-diagnostics.h"
 
-#if 0
-#include "config.h"
-#include "system.h"
-#include "coretypes.h"
-#include "target.h"
-#include "tree.h"
-#include "tree-iterator.h"
-#include "input.h"
-#include "diagnostic.h"
-#include "stringpool.h"
-#include "cgraph.h"
-#include "gimplify.h"
-#include "gimple-expr.h"
-#include "convert.h"
-#include "print-tree.h"
-#include "stor-layout.h"
-#include "fold-const.h"
-/* order: config, system, coretypes, target, tree, tree-iterator, input, diagnostic, stringpool,
- * cgraph, gimplify, gimple-expr, convert, print-tree, stor-layout, fold-const  */
-// probably don't need all these
-#endif
-// maybe put these back in if compiling no longer works
-
 #include <algorithm> // for std::find
 
 namespace Rust {
@@ -43,9 +20,6 @@ enum binding_powers
   LBP_METHOD_CALL = 90,
 
   LBP_FIELD_EXPR = 85,
-
-  // LBP_DOT = 80, /* method call and field expr have different precedence now
-  // */
 
   LBP_FUNCTION_CALL = 80,
   LBP_ARRAY_REF = LBP_FUNCTION_CALL,
@@ -2781,8 +2755,8 @@ Parser<ManagedTokenSource>::parse_generic_params ()
   return generic_params;
 }
 
-// Parses lifetime generic parameters (pointers). Will also consume any trailing
-// comma.
+/* Parses lifetime generic parameters (pointers). Will also consume any trailing
+ * comma. */
 template <typename ManagedTokenSource>
 std::vector<std::unique_ptr<AST::LifetimeParam> >
 Parser<ManagedTokenSource>::parse_lifetime_params ()
@@ -6492,9 +6466,14 @@ Parser<ManagedTokenSource>::parse_expr_stmt_without_block (
   expr = parse_expr_without_block(std::move(outer_attrs));*/
   // HACK: parse expression instead of expression without block, due to Pratt
   // parsing issues
-  std::unique_ptr<AST::Expr> expr = nullptr;
+  /*std::unique_ptr<AST::Expr> expr = nullptr;
   Location locus = lexer.peek_token ()->get_locus ();
-  expr = parse_expr (std::move (outer_attrs));
+  expr = parse_expr (std::move (outer_attrs));*/
+
+  // attempt to parse via parse_expr_without_block
+  std::unique_ptr<AST::ExprWithoutBlock> expr = nullptr;
+  Location locus = lexer.peek_token ()->get_locus ();
+  expr = parse_expr_without_block (std::move (outer_attrs));
   if (expr == nullptr)
     {
       // expr is required, error
@@ -6588,18 +6567,10 @@ Parser<ManagedTokenSource>::parse_expr_without_block (
        * inside the parentheses - if so, tuple expr, otherwise, grouped expr. */
       return parse_grouped_or_tuple_expr (std::move (outer_attrs));
       default: {
-	// HACK: piggyback on pratt parsed expr and abuse polymorphism to
-	// essentially downcast
-
-	// DEBUG
-	fprintf (stderr,
-		 "about to parse expr (in expr without block method)\n");
+	/* HACK: piggyback on pratt parsed expr and abuse polymorphism to
+	 * essentially downcast */
 
 	std::unique_ptr<AST::Expr> expr = parse_expr (std::move (outer_attrs));
-
-	// DEBUG
-	fprintf (stderr,
-		 "successfully parsed expr (in expr without block method)\n");
 
 	if (expr == nullptr)
 	  {
@@ -6611,18 +6582,9 @@ Parser<ManagedTokenSource>::parse_expr_without_block (
 
 	std::unique_ptr<AST::ExprWithoutBlock> expr_without_block (
 	  expr->as_expr_without_block ());
-	// THIS IS THE CAUSE OF THE SEGFAULT
-
-	// DEBUG
-	fprintf (stderr,
-		 "expr to expr without block conversion didn't error\n");
 
 	if (expr_without_block != nullptr)
 	  {
-	    // DEBUG
-	    fprintf (stderr, "expr to expr without block conversion was "
-			     "successful; returning\n");
-
 	    return expr_without_block;
 	  }
 	else
@@ -6676,7 +6638,6 @@ Parser<ManagedTokenSource>::parse_block_expr (
 
       if (expr_or_stmt.stmt != nullptr)
 	{
-	  // FIXME: determine if this move works
 	  stmts.push_back (std::move (expr_or_stmt.stmt));
 	}
       else
@@ -6698,12 +6659,6 @@ Parser<ManagedTokenSource>::parse_block_expr (
       return nullptr;
     }
 
-  // ensure that there is at least either a statement or an expr
-  /*if (stmts.empty() && expr == nullptr) {
-      rust_error_at(lexer.peek_token()->get_id(),
-	"block expression requires statements or an expression without block -
-  found neither"); skip_after_end_block(); return nullptr;
-  }*/
   // grammar allows for empty block expressions
 
   return std::unique_ptr<AST::BlockExpr> (
@@ -7668,8 +7623,8 @@ Parser<ManagedTokenSource>::parse_match_expr (
       locus = lexer.peek_token ()->get_locus () - 6;
     }
 
-  // parse scrutinee expression, which is required (and HACK to prevent struct
-  // expr)
+  /* parse scrutinee expression, which is required (and HACK to prevent struct
+   * expr) */
   ParseRestrictions no_struct_expr;
   no_struct_expr.can_be_struct_expr = false;
   std::unique_ptr<AST::Expr> scrutinee
@@ -7682,8 +7637,8 @@ Parser<ManagedTokenSource>::parse_match_expr (
       // skip somewhere?
       return nullptr;
     }
-  // TODO: check for scrutinee expr not being struct expr? or do so in semantic
-  // analysis
+  /* TODO: check for scrutinee expr not being struct expr? or do so in semantic
+   * analysis */
 
   if (!skip_token (LEFT_CURLY))
     {
@@ -7697,9 +7652,6 @@ Parser<ManagedTokenSource>::parse_match_expr (
   // parse match arms (if they exist)
   std::vector<std::unique_ptr<AST::MatchCase> > match_arms;
 
-  // DEBUG
-  fprintf (stderr, "about to start loop to start parsing match cases\n");
-
   // FIXME: absolute worst control structure ever
   // parse match cases
   while (true)
@@ -7708,15 +7660,9 @@ Parser<ManagedTokenSource>::parse_match_expr (
       AST::MatchArm arm = parse_match_arm ();
       if (arm.is_error ())
 	{
-	  // DEBUG
-	  fprintf (stderr, "broke loop on invalid match arm\n");
-
 	  // not necessarily an error
 	  break;
 	}
-
-      // DEBUG
-      fprintf (stderr, "parsed valid match arm\n");
 
       if (!skip_token (MATCH_ARROW))
 	{
@@ -7724,9 +7670,6 @@ Parser<ManagedTokenSource>::parse_match_expr (
 	  // TODO is returning here a good idea? or is break better?
 	  return nullptr;
 	}
-
-      // DEBUG
-      fprintf (stderr, "skipped match arrow\n");
 
       // branch on next token - if '{', block expr, otherwise just expr
       if (lexer.peek_token ()->get_id () == LEFT_CURLY)
@@ -10792,9 +10735,9 @@ Parser<ManagedTokenSource>::parse_stmt_or_expr_without_block ()
 	       || lexer.peek_token (1)->get_id () == EXCLAM
 	       || lexer.peek_token (1)->get_id () == LEFT_CURLY)
 	{
-	  // path (probably) or macro invocation or struct or enum, so probably
-	  // a macro invocation semi decide how to parse - probably parse path
-	  // and then get macro from it
+	  /* path (probably) or macro invocation or struct or enum, so probably
+	   * a macro invocation semi decide how to parse - probably parse path
+	   * and then get macro from it */
 
 	  // FIXME: old code was good until composability was required
 	  // return parse_path_based_stmt_or_expr(std::move(outer_attrs));
@@ -10987,8 +10930,8 @@ Parser<ManagedTokenSource>::parse_path_based_stmt_or_expr (
 
 	if (not_a_block)
 	  {
-	    // assume struct expr struct (as struct-enum disambiguation requires
-	    // name lookup) again, make statement if final ';'
+	    /* assume struct expr struct (as struct-enum disambiguation requires
+	     * name lookup) again, make statement if final ';' */
 	    expr = parse_struct_expr_struct_partial (std::move (path),
 						     std::move (outer_attrs));
 	    if (expr == nullptr)
@@ -11439,9 +11382,6 @@ Parser<ManagedTokenSource>::skip_after_end_attribute ()
     }
 
   // Don't skip the RIGHT_SQUARE token
-  /*if (t->get_id() == RIGHT_SQUARE) {
-      lexer.skip_token();
-  }*/
 }
 
 /* Pratt parser impl of parse_expr. FIXME: this is only provisional and probably
@@ -11459,11 +11399,8 @@ Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
 
   // parse null denotation (unary part of expression)
   std::unique_ptr<AST::Expr> expr
-    = null_denotation_NEW (current_token, std::move (outer_attrs),
+    = null_denotation (current_token, std::move (outer_attrs),
 			   restrictions);
-
-  // DEBUG
-  fprintf (stderr, "finished parsing null denotation\n");
 
   if (expr == nullptr)
     {
@@ -11472,15 +11409,6 @@ Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
 	       "null denotation is null; returning null for parse_expr\n");
       return nullptr;
     }
-
-  // DEBUG
-  fprintf (stderr,
-	   "null denotation is not null - going on to left denotation\n");
-
-  // DEBUG
-  fprintf (stderr, "initial rbp: '%i', initial lbp: '%i' (for '%s')\n",
-	   right_binding_power, left_binding_power (lexer.peek_token ()),
-	   lexer.peek_token ()->get_token_description ());
 
   // stop parsing if find lower priority token - parse higher priority first
   while (right_binding_power < left_binding_power (lexer.peek_token ()))
@@ -11491,9 +11419,6 @@ Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
       expr = left_denotation (current_token, std::move (expr),
 			      std::vector<AST::Attribute> (), restrictions);
 
-      // DEBUG
-      fprintf (stderr, "successfully got left_denotation in parse_expr \n");
-
       if (expr == nullptr)
 	{
 	  // DEBUG
@@ -11502,14 +11427,7 @@ Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
 
 	  return nullptr;
 	}
-
-      // DEBUG
-      fprintf (stderr,
-	       "left denotation is not null - going to next iteration \n");
     }
-
-  // DEBUG
-  fprintf (stderr, "successfully parsed expr in parse_expr - returning \n");
 
   return expr;
 }
@@ -11533,12 +11451,12 @@ Parser<ManagedTokenSource>::parse_expr (std::vector<AST::Attribute> outer_attrs,
  * simplify stuff. */
 template <typename ManagedTokenSource>
 std::unique_ptr<AST::Expr>
-Parser<ManagedTokenSource>::null_denotation_NEW (
+Parser<ManagedTokenSource>::null_denotation (
   const_TokenPtr tok, std::vector<AST::Attribute> outer_attrs,
   ParseRestrictions restrictions)
 {
-  // note: tok is previous character in input stream, not current one, as
-  // parse_expr skips it before passing it in
+  /* note: tok is previous character in input stream, not current one, as
+   * parse_expr skips it before passing it in */
 
   /* as a Pratt parser (which works by decomposing expressions into a null
    * denotation and then a left denotation), null denotations handle primaries
@@ -11802,9 +11720,9 @@ Parser<ManagedTokenSource>::null_denotation_NEW (
 
 	// HACK: as struct expressions should always be value expressions,
 	// cannot be referenced
-	ParseRestrictions entered_from_unary;
-	entered_from_unary.entered_from_unary = true;
-	entered_from_unary.can_be_struct_expr = false;
+	ParseRestrictions entered_from_unary = { .can_be_struct_expr = false, .entered_from_unary = true };
+	/*entered_from_unary.entered_from_unary = true;
+	entered_from_unary.can_be_struct_expr = false;*/
 
 	if (lexer.peek_token ()->get_id () == MUT)
 	  {
@@ -11986,15 +11904,6 @@ Parser<ManagedTokenSource>::left_denotation (
   std::vector<AST::Attribute> outer_attrs, ParseRestrictions restrictions)
 {
   // Token passed in has already been skipped, so peek gives "next" token
-  /*BinaryHandler binary_handler = get_binary_handler(tok->get_id());
-  if (binary_handler == nullptr) {
-      unexpected_token(tok);
-      return nullptr;
-  }
-
-  return (this->*binary_handler)(tok, left);*/
-  // can't do with binary handler because same token used for several operators
-
   switch (tok->get_id ())
     {
       // FIXME: allow for outer attributes to be applied

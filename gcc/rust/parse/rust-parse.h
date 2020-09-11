@@ -26,18 +26,18 @@ struct ExprOrStmt
   ExprOrStmt (std::unique_ptr<AST::Stmt> stmt) : stmt (std::move (stmt)) {}
 
   // Returns whether this object is in an error state.
-  inline bool is_error () const
+  bool is_error () const
   {
-    return (expr == NULL && stmt == NULL) || (expr != NULL && stmt != NULL);
+    return (expr == nullptr && stmt == nullptr) || (expr != nullptr && stmt != nullptr);
   }
 
   // Returns an error state object.
-  static ExprOrStmt create_error () { return ExprOrStmt (NULL, NULL); }
+  static ExprOrStmt create_error () { return ExprOrStmt (nullptr, nullptr); }
 
   ~ExprOrStmt () = default;
 
-  // no copy constructors/assignment copy as simple object like this shouldn't
-  // require it
+  /* no copy constructors/assignment as simple object like this shouldn't
+   * require it */
 
   // move constructors
   ExprOrStmt (ExprOrStmt &&other) = default;
@@ -58,7 +58,7 @@ private:
 };
 
 /* Restrictions on parsing used to signal that certain ambiguous grammar
- * features should be parsed in a certain way.*/
+ * features should be parsed in a certain way. */
 struct ParseRestrictions
 {
   bool can_be_struct_expr = true;
@@ -229,7 +229,7 @@ private:
 	      = std::vector<AST::Attribute> (),
 	      ParseRestrictions restrictions = ParseRestrictions ());
   std::unique_ptr<AST::Expr>
-  null_denotation_NEW (const_TokenPtr t,
+  null_denotation (const_TokenPtr t,
 		       std::vector<AST::Attribute> outer_attrs
 		       = std::vector<AST::Attribute> (),
 		       ParseRestrictions restrictions = ParseRestrictions ());
@@ -566,8 +566,7 @@ private:
 };
 } // namespace Rust
 
-// TODO: now will have to move all member methods of Parser into this header as it is now template
-// make a separate rust-parse-impl.h header and include it here
+// as now template, include implementations of all methods
 #include "rust-parse-impl.h"
 
 #endif // RUST_PARSE_H
