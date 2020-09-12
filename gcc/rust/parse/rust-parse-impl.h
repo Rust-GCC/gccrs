@@ -6461,16 +6461,7 @@ Parser<ManagedTokenSource>::parse_expr_stmt_without_block (
   /* TODO: maybe move more logic for expr without block in here for better error
    * handling */
 
-  // try to parse expr without block
-  /*AST::ExprWithoutBlock* expr = nullptr;
-  expr = parse_expr_without_block(std::move(outer_attrs));*/
-  // HACK: parse expression instead of expression without block, due to Pratt
-  // parsing issues
-  /*std::unique_ptr<AST::Expr> expr = nullptr;
-  Location locus = lexer.peek_token ()->get_locus ();
-  expr = parse_expr (std::move (outer_attrs));*/
-
-  // attempt to parse via parse_expr_without_block
+  // attempt to parse via parse_expr_without_block - seems to work
   std::unique_ptr<AST::ExprWithoutBlock> expr = nullptr;
   Location locus = lexer.peek_token ()->get_locus ();
   expr = parse_expr_without_block (std::move (outer_attrs));
