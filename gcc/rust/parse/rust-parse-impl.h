@@ -191,20 +191,21 @@ Parser<ManagedTokenSource>::skip_generics_right_angle ()
       lexer.skip_token ();
       return true;
       case RIGHT_SHIFT: {
+#if 0
 	/* shit. preferred HACK would be to replace this token in stream with
 	 * '>', but may not be possible at this point. */
 	// FIXME: ensure locations aren't messed up
 	TokenPtr right_angle = Token::make (RIGHT_ANGLE, tok->get_locus () + 1);
 	lexer.replace_current_token (right_angle);
+#endif
 
 	// new implementation that should be better
-#if 0
   lexer.split_current_token (RIGHT_ANGLE, RIGHT_ANGLE);
   lexer.skip_token ();
-#endif
 	return true;
       }
       case GREATER_OR_EQUAL: {
+#if 0
 	// another HACK - replace with equal (as assignment intended, probably)
 	/* FIXME: is this even required? how many people wouldn't leave a space?
 	 * - apparently rustc has this feature */
@@ -212,14 +213,15 @@ Parser<ManagedTokenSource>::skip_generics_right_angle ()
 	TokenPtr equal = Token::make (EQUAL, tok->get_locus () + 1);
 	lexer.replace_current_token (equal);
 	return true;
+#endif
 
 	// new implementation that should be better
-#if 0
   lexer.split_current_token (RIGHT_ANGLE, EQUAL);
   lexer.skip_token ();
-#endif
+  return true;
       }
       case RIGHT_SHIFT_EQ: {
+#if 0
 	// another HACK - replace with greater or equal
 	// FIXME: again, is this really required? rustc has the feature, though
 	// FIXME: ensure locations aren't messed up
@@ -227,12 +229,12 @@ Parser<ManagedTokenSource>::skip_generics_right_angle ()
 	  = Token::make (GREATER_OR_EQUAL, tok->get_locus () + 1);
 	lexer.replace_current_token (greater_equal);
 	return true;
+#endif
 
 	// new implementation that should be better
-#if 0
   lexer.split_current_token (RIGHT_ANGLE, GREATER_OR_EQUAL);
   lexer.skip_token ();
-#endif
+  return true;
       }
     default:
       rust_error_at (tok->get_locus (),
