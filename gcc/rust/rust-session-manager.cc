@@ -14,6 +14,7 @@
 #include "rust-name-resolution.h"
 #include "rust-type-resolution.h"
 #include "rust-compile.h"
+#include "rust-macro-expand.h"
 
 #include "rust-target.h"
 
@@ -26,24 +27,15 @@ extern Backend *
 rust_get_backend ();
 
 namespace Rust {
-// Simple wrapper for FILE* that simplifies destruction.
-struct RAIIFile
-{
-  FILE *file;
-
-  RAIIFile (const char *filename) : file (fopen (filename, "r")) {}
-
-  ~RAIIFile () { fclose (file); }
-};
 
 // Implicitly enable a target_feature (and recursively enable dependencies).
 void
-Session::implicitly_enable_feature (::std::string feature_name)
+Session::implicitly_enable_feature (std::string feature_name)
 {
   // TODO: is this really required since features added would be complete via
   // target spec?
 
-  if (!options.target_data.has_key_value_pair ("target_data", feature_name))
+  if (!options.target_data.has_key_value_pair ("target_feature", feature_name))
     {
       // if feature has dependencies, enable them
       if (feature_name == "aes")
@@ -92,7 +84,7 @@ Session::implicitly_enable_feature (::std::string feature_name)
 	}
 
       options.target_data.insert_key_value_pair ("target_feature",
-						 ::std::move (feature_name));
+						 std::move (feature_name));
     }
 }
 
@@ -236,7 +228,7 @@ Session::enable_features ()
       }
   }
   options.target_data.features.shrink_to_fit();
-  ::std::sort(options.target_data.features.begin(),
+  std::sort(options.target_data.features.begin(),
   options.target_data.features.end());*/
 }
 
@@ -244,45 +236,53 @@ void
 Session::init ()
 {
 #ifndef TARGET_RUST_OS_INFO
-# define TARGET_RUST_OS_INFO()
+#define TARGET_RUST_OS_INFO()
 #endif
 //#define builtin_rust_info(KEY, VALUE) rust_add_target_info (KEY, VALUE)
 // might as well use c++ stuff
-#define builtin_rust_info(KEY, VALUE) options.target_data.insert_key_value_pair(KEY, VALUE)
+#define builtin_rust_info(KEY, VALUE)                                          \
+  options.target_data.insert_key_value_pair (KEY, VALUE)
 
-    // initialise target hooks
-    //targetrustm.rust_cpu_info();
-    //targetrustm.rust_os_info();
-    // ok, that's not working too well TODO - see if can salvage old implementation 
-    TARGET_RUST_CPU_INFO ();
-    TARGET_RUST_OS_INFO ();
+  // initialise target hooks
+  // targetrustm.rust_cpu_info();
+  // targetrustm.rust_os_info();
+  // ok, that's not working too well TODO - see if can salvage old
+  // implementation
+  TARGET_RUST_CPU_INFO ();
+  TARGET_RUST_OS_INFO ();
 
-    /* note that due to issues with gcc targets, some implementations of those two macros above 
-     * (TARGET_RUST_CPU_INFO and TARGET_RUST_OS_INFO) are not function calls, but actually inline 
-     * substitutions. As such, they can't be stored with a function pointer in a "real" target hook. 
-     * At least, that's my current understanding of it. */
-        
+  /* note that due to issues with gcc targets, some implementations of those two
+   * macros above (TARGET_RUST_CPU_INFO and TARGET_RUST_OS_INFO) are not
+   * function calls, but actually inline substitutions. As such, they can't be
+   * stored with a function pointer in a "real" target hook.
+   * At least, that's my current understanding of it. */
+
 #undef builtin_rust_info
 
-    // target-independent values that should exist in all targets
-    options.target_data.insert_key_value_pair ("target_pointer_width", std::to_string (POINTER_SIZE));
-    options.target_data.insert_key_value_pair ("target_endian", BYTES_BIG_ENDIAN ? "big" : "little");
+  // target-independent values that should exist in all targets
+  options.target_data.insert_key_value_pair ("target_pointer_width",
+					     std::to_string (POINTER_SIZE));
+  options.target_data.insert_key_value_pair ("target_endian", BYTES_BIG_ENDIAN
+								? "big"
+								: "little");
 
-    // TODO: find min atomic width and max atomic width
-    // from it, add atomic-related stuff for sizes 8, 16, 32, 64, and 128 (if inside bounds)
-    // in rustc, min atomic width is a known quantity (or 8 if not known), and max is also a known quantity (or is pointer size if not known)
-    // TODO: add atomic pointer if some criteria is satisfied
+  // TODO: find min atomic width and max atomic width
+  // from it, add atomic-related stuff for sizes 8, 16, 32, 64, and 128 (if
+  // inside bounds) in rustc, min atomic width is a known quantity (or 8 if not
+  // known), and max is also a known quantity (or is pointer size if not known)
+  // TODO: add atomic pointer if some criteria is satisfied
 
-    // TODO: find whether target has "atomic cas"
+  // TODO: find whether target has "atomic cas"
 
-    // add debug_assertions if enabled and proc_macro if crate type has it or whatever
+  // add debug_assertions if enabled and proc_macro if crate type has it or
+  // whatever
 
-    // derived values from hook
-    options.target_data.init_derived_values ();
+  // derived values from hook
+  options.target_data.init_derived_values ();
 }
 
-// Initialise default options. Actually called before handle_option, unlike init
-// itself.
+/* Initialise default options. Actually called before handle_option, unlike init
+ * itself. */
 void
 Session::init_options ()
 {
@@ -310,9 +310,9 @@ Session::handle_option (
       break;
     case OPT_frust_dump_:
       // enable dump and return whether this was successful
-      if (arg != NULL)
+      if (arg != nullptr)
 	{
-	  ret = enable_dump (::std::string (arg));
+	  ret = enable_dump (std::string (arg));
 	}
       else
 	{
@@ -331,15 +331,15 @@ Session::handle_option (
 /* Enables a certain dump depending on the name passed in. Returns true if name
  * is valid, false otherwise. */
 bool
-Session::enable_dump (::std::string arg)
+Session::enable_dump (std::string arg)
 {
-  // FIXME: change dumping algorithm when new non-inhibiting dump system is
-  // created
+  /* FIXME: change dumping algorithm when new non-inhibiting dump system is
+   * created */
   if (arg == "all")
     {
-      error_at (
-	UNKNOWN_LOCATION,
-	"dumping all is not supported as of now. choose 'lex', 'parse', or 'target_options");
+      rust_error_at (Location (),
+		     "dumping all is not supported as of now. choose %<lex%>, "
+		     "%<parse%>, or %<target_options%>");
       return false;
     }
   else if (arg == "lex")
@@ -365,25 +365,28 @@ Session::enable_dump (::std::string arg)
   else if (arg == "resolution")
     {
       options.dump_option = CompileOptions::RESOLUTION_DUMP;
-    } 
-  else if (arg == "target_options") {
+    }
+  else if (arg == "target_options")
+    {
       // special case - dump all target options, and then quit compilation
-      // nope, option handling called before init, so have to make this an actual compile option
-      //options.target_data.dump_target_options();
-      //return false;
+      // nope, option handling called before init, so have to make this an
+      // actual compile option
+      // options.target_data.dump_target_options();
+      // return false;
       options.dump_option = CompileOptions::TARGET_OPTION_DUMP;
     }
   else if (arg == "")
     {
-      error_at (UNKNOWN_LOCATION,
-		"dump option was not given a name. choose 'lex', 'parse', or 'target_options'");
+      rust_error_at (Location (), "dump option was not given a name. choose "
+				  "%<lex%>, %<parse%>, or %<target_options%>");
       return false;
     }
   else
     {
-      error_at (UNKNOWN_LOCATION,
-		"dump option '%s' was unrecognised. choose 'lex', 'parse', or 'target_options",
-		arg.c_str ());
+      rust_error_at (Location (),
+		     "dump option %qs was unrecognised. choose %<lex%>, "
+		     "%<parse%>, or %<target_options%>",
+		     arg.c_str ());
       return false;
     }
   return true;
@@ -398,8 +401,8 @@ Session::parse_files (int num_files, const char **files)
     {
       parse_file (files[i]);
     }
-  // TODO: should semantic analysis be dealed with here? or per file? for now,
-  // per-file.
+  /* TODO: should semantic analysis be dealed with here? or per file? for now,
+   * per-file. */
 }
 
 // Parses a single file with filename filename.
@@ -408,18 +411,18 @@ Session::parse_file (const char *filename)
 {
   RAIIFile file_wrap (filename);
 
-  if (file_wrap.file == NULL)
+  if (file_wrap.get_raw () == nullptr)
     {
-      fatal_error (UNKNOWN_LOCATION, "cannot open filename %s: %m", filename);
+      rust_fatal_error (Location (), "cannot open filename %s: %m", filename);
     }
 
   Backend *backend = rust_get_backend ();
 
   // parse file here
-  // create lexer and parser - these are file-specific and so aren't instance
-  // variables
-  Rust::Lexer lex (filename, file_wrap.file, rust_get_linemap ());
-  Rust::Parser parser (lex);
+  /* create lexer and parser - these are file-specific and so aren't instance
+   * variables */
+  Lexer lex (filename, std::move (file_wrap), rust_get_linemap ());
+  Parser<Lexer> parser (std::move (lex));
 
   // generate crate from parser
   auto parsed_crate = parser.parse_crate ();
@@ -429,7 +432,8 @@ Session::parse_file (const char *filename)
     {
     case CompileOptions::LEXER_DUMP:
       parser.debug_dump_lex_output ();
-      // TODO: rewrite lexer dump or something so that it allows for the crate to already be parsed
+      // TODO: rewrite lexer dump or something so that it allows for the crate
+      // to already be parsed
       break;
     case CompileOptions::PARSER_AST_DUMP:
       parser.debug_dump_ast_output (parsed_crate);
@@ -504,38 +508,9 @@ Session::parse_file (const char *filename)
   Compile::Compilation::Compile (parsed_crate, backend);
 }
 
-// Checks whether 'cfg' attribute prevents compilation.
-bool
-check_cfg (const AST::Attribute &attr ATTRIBUTE_UNUSED)
-{
-  // if "has sub items", and if 'cfg' attr, recursively call this on sub items?
-
-  // TODO: actually implement. assume true for now
-
-  return true;
-}
-// TODO: deprecated - don't use
-
-// Checks whether any 'cfg' attribute on the item prevents compilation of that
-// item.
-bool
-check_item_cfg (::std::vector<AST::Attribute> attrs)
-{
-  for (const auto &attr : attrs)
-    {
-      if (attr.get_path () == "cfg" && !check_cfg (attr))
-	{
-	  return false;
-	}
-    }
-
-  return true;
-}
-// TODO: deprecated - don't use
-
 // TODO: actually implement method
 void
-load_extern_crate (::std::string crate_name ATTRIBUTE_UNUSED)
+load_extern_crate (std::string crate_name ATTRIBUTE_UNUSED)
 {}
 // TODO: deprecated - don't use
 
@@ -543,7 +518,7 @@ load_extern_crate (::std::string crate_name ATTRIBUTE_UNUSED)
 // TODO: lots of this code is probably actually useful outside of dumping, so
 // maybe split off function
 void
-Session::debug_dump_load_crates (Parser &parser)
+Session::debug_dump_load_crates (Parser<Lexer> &parser)
 {
   // parse crate as AST
   AST::Crate crate = parser.parse_crate ();
@@ -556,7 +531,7 @@ Session::debug_dump_load_crates (Parser &parser)
    * enable using Option and Copy without qualifying it or importing it via
    * 'use' manually) */
 
-  ::std::vector< ::std::string> crate_names;
+  std::vector<std::string> crate_names;
   for (const auto &item : crate.items)
     {
       // if item is extern crate, add name? to list of stuff ONLY IF config is
@@ -592,7 +567,7 @@ contains_name (const std::vector<AST::Attribute> &attrs, std::string name)
   for (const auto &attr : attrs)
     {
       if (attr.get_path () == name)
-	    return true;
+	return true;
     }
 
   return false;
@@ -655,7 +630,7 @@ Session::injection (AST::Crate &crate)
    * test should be prioritised since they seem to be used the most. */
 
   // crate injection
-  ::std::vector< ::std::string> names;
+  std::vector<std::string> names;
   if (contains_name (crate.inner_attrs, "no_core"))
     {
       // no prelude
@@ -685,36 +660,35 @@ Session::injection (AST::Crate &crate)
     {
       // create "macro use" attribute for use on extern crate item to enable
       // loading macros from it
-      AST::Attribute attr (AST::SimplePath::from_str ("macro_use"), NULL);
+      AST::Attribute attr (AST::SimplePath::from_str ("macro_use"), nullptr);
 
       // create "extern crate" item with the name
-      ::std::unique_ptr<AST::ExternCrate> extern_crate (
+      std::unique_ptr<AST::ExternCrate> extern_crate (
 	new AST::ExternCrate (*it, AST::Visibility::create_error (),
-			      {::std::move (attr)},
+			      {std::move (attr)},
 			      Linemap::unknown_location ()));
 
       // insert at beginning
-      crate.items.insert (crate.items.begin (), ::std::move (extern_crate));
+      crate.items.insert (crate.items.begin (), std::move (extern_crate));
     }
 
   // create use tree path
   // prelude is injected_crate_name
-  ::std::vector<AST::SimplePathSegment> segments
+  std::vector<AST::SimplePathSegment> segments
     = {AST::SimplePathSegment (injected_crate_name),
        AST::SimplePathSegment ("prelude"), AST::SimplePathSegment ("v1")};
   // create use tree and decl
-  ::std::unique_ptr<AST::UseTreeGlob> use_tree (
+  std::unique_ptr<AST::UseTreeGlob> use_tree (
     new AST::UseTreeGlob (AST::UseTreeGlob::PATH_PREFIXED,
-			  AST::SimplePath (::std::move (segments)),
-			  Location ()));
+			  AST::SimplePath (std::move (segments)), Location ()));
   AST::Attribute prelude_attr (AST::SimplePath::from_str ("prelude_import"),
-			       NULL);
-  ::std::unique_ptr<AST::UseDeclaration> use_decl (
-    new AST::UseDeclaration (::std::move (use_tree),
+			       nullptr);
+  std::unique_ptr<AST::UseDeclaration> use_decl (
+    new AST::UseDeclaration (std::move (use_tree),
 			     AST::Visibility::create_error (),
-			     {::std::move (prelude_attr)}, Location ()));
+			     {std::move (prelude_attr)}, Location ()));
 
-  crate.items.insert (crate.items.begin (), ::std::move (use_decl));
+  crate.items.insert (crate.items.begin (), std::move (use_decl));
 
   /* TODO: potentially add checking attribute crate type? I can't figure out
    * what this does currently comment says "Unconditionally collect crate types
@@ -727,19 +701,22 @@ Session::injection (AST::Crate &crate)
 }
 
 void
-Session::expansion (AST::Crate &crate ATTRIBUTE_UNUSED)
+Session::expansion (AST::Crate &crate)
 {
   fprintf (stderr, "started expansion\n");
 
-  // rustc has a modification to windows PATH temporarily here, which may end up
-  // being required
+  /* rustc has a modification to windows PATH temporarily here, which may end up
+   * being required */
 
   // create macro expansion config?
   // if not, would at least have to configure recursion_limit
+  ExpansionCfg cfg;
 
   // create extctxt? from parse session, cfg, and resolver?
-  // expand by calling cxtctxt object's monotonic_expander's expand_crate
-  // method.
+  /* expand by calling cxtctxt object's monotonic_expander's expand_crate
+   * method. */
+  MacroExpander expander (crate, cfg);
+  expander.expand_crate ();
 
   // error reporting - check unused macros, get missing fragment specifiers
 
@@ -763,85 +740,91 @@ Session::resolution (AST::Crate &crate)
   fprintf (stderr, "finished name resolution\n");
 }
 
-void 
-TargetOptions::dump_target_options () const 
-  {
-    fprintf (stderr, "\033[0;31m--PREPARING TO DUMP ALL TARGET OPTIONS--\n\033[0m");
-    for (const auto& pairs : features) 
-      {
-        for (const auto& value : pairs.second)
-            fprintf (stderr, "%s: \"%s\"\n", pairs.first.c_str (), value.c_str ());
-        
-        if (pairs.second.empty ())
-            fprintf (stderr, "%s\n", pairs.first.c_str ());
-      }
-    if (features.empty ())
-        fprintf (stderr, "No target options available!\n");
+void
+TargetOptions::dump_target_options () const
+{
+  fprintf (stderr,
+	   "\033[0;31m--PREPARING TO DUMP ALL TARGET OPTIONS--\n\033[0m");
+  for (const auto &pairs : features)
+    {
+      for (const auto &value : pairs.second)
+	fprintf (stderr, "%s: \"%s\"\n", pairs.first.c_str (), value.c_str ());
 
-    fprintf (stderr, "\033[0;31m--END OF TARGET OPTION DUMP--\n\033[0m");
-  }
+      if (pairs.second.empty ())
+	fprintf (stderr, "%s\n", pairs.first.c_str ());
+    }
+  if (features.empty ())
+    fprintf (stderr, "No target options available!\n");
 
-void 
-TargetOptions::init_derived_values () 
-  {
-    // enable derived values based on target families
-    if (has_key_value_pair ("target_family", "unix"))
-        insert_key ("unix");
-    if (has_key_value_pair ("target_family", "windows"))
-        insert_key ("windows");
-        
-    // implicitly enable features
-    if (has_key_value_pair ("target_feature", "aes"))
-        enable_implicit_feature_reqs ("aes");
-    if (has_key_value_pair ("target_feature", "avx"))
-        enable_implicit_feature_reqs ("sse4.2");
-    if (has_key_value_pair ("target_feature", "avx2"))
-        enable_implicit_feature_reqs ("avx");
-    if (has_key_value_pair ("target_feature", "pclmulqdq"))
-        enable_implicit_feature_reqs ("sse2");
-    if (has_key_value_pair ("target_feature", "sha"))
-        enable_implicit_feature_reqs ("sse2");
-    if (has_key_value_pair ("target_feature", "sse2"))
-        enable_implicit_feature_reqs ("sse");
-    if (has_key_value_pair ("target_feature", "sse3"))
-        enable_implicit_feature_reqs ("sse2");
-    if (has_key_value_pair ("target_feature", "sse4.1"))
-        enable_implicit_feature_reqs ("sse3");
-    if (has_key_value_pair ("target_feature", "sse4.2"))
-        enable_implicit_feature_reqs ("sse4.1");
-    if (has_key_value_pair ("target_feature", "ssse3"))
-        enable_implicit_feature_reqs ("sse3");
-  }
+  fprintf (stderr, "\033[0;31m--END OF TARGET OPTION DUMP--\n\033[0m");
+}
 
-void 
-TargetOptions::enable_implicit_feature_reqs (std::string feature) 
-  {
-    if (feature == "aes") 
-        enable_implicit_feature_reqs ("sse2");
-    else if (feature == "avx")
-        enable_implicit_feature_reqs ("sse4.2");
-    else if (feature == "avx2")
-        enable_implicit_feature_reqs ("avx");
-    else if (feature == "fma")
-        enable_implicit_feature_reqs ("avx");
-    else if (feature == "pclmulqdq") 
-        enable_implicit_feature_reqs ("sse2");
-    else if (feature == "sha")
-        enable_implicit_feature_reqs ("sse2");
-    else if (feature == "sse2")
-        enable_implicit_feature_reqs ("sse");
-    else if (feature == "sse3")
-        enable_implicit_feature_reqs ("sse2");
-    else if (feature == "sse4.1")
-        enable_implicit_feature_reqs ("sse3");
-    else if (feature == "sse4.2")
-        enable_implicit_feature_reqs ("sse4.1");
-    else if (feature == "ssse3")
-        enable_implicit_feature_reqs ("sse3");
+void
+TargetOptions::init_derived_values ()
+{
+  // enable derived values based on target families
+  if (has_key_value_pair ("target_family", "unix"))
+    insert_key ("unix");
+  if (has_key_value_pair ("target_family", "windows"))
+    insert_key ("windows");
 
-    if (!has_key_value_pair ("target_feature", feature))
-        insert_key_value_pair ("target_feature", feature);
-  }
+  // implicitly enable features - this should not be required in general
+  if (has_key_value_pair ("target_feature", "aes"))
+    enable_implicit_feature_reqs ("aes");
+  if (has_key_value_pair ("target_feature", "avx"))
+    enable_implicit_feature_reqs ("sse4.2");
+  if (has_key_value_pair ("target_feature", "avx2"))
+    enable_implicit_feature_reqs ("avx");
+  if (has_key_value_pair ("target_feature", "pclmulqdq"))
+    enable_implicit_feature_reqs ("sse2");
+  if (has_key_value_pair ("target_feature", "sha"))
+    enable_implicit_feature_reqs ("sse2");
+  if (has_key_value_pair ("target_feature", "sse2"))
+    enable_implicit_feature_reqs ("sse");
+  if (has_key_value_pair ("target_feature", "sse3"))
+    enable_implicit_feature_reqs ("sse2");
+  if (has_key_value_pair ("target_feature", "sse4.1"))
+    enable_implicit_feature_reqs ("sse3");
+  if (has_key_value_pair ("target_feature", "sse4.2"))
+    enable_implicit_feature_reqs ("sse4.1");
+  if (has_key_value_pair ("target_feature", "ssse3"))
+    enable_implicit_feature_reqs ("sse3");
+}
+
+void
+TargetOptions::enable_implicit_feature_reqs (std::string feature)
+{
+  if (feature == "aes")
+    enable_implicit_feature_reqs ("sse2");
+  else if (feature == "avx")
+    enable_implicit_feature_reqs ("sse4.2");
+  else if (feature == "avx2")
+    enable_implicit_feature_reqs ("avx");
+  else if (feature == "fma")
+    enable_implicit_feature_reqs ("avx");
+  else if (feature == "pclmulqdq")
+    enable_implicit_feature_reqs ("sse2");
+  else if (feature == "sha")
+    enable_implicit_feature_reqs ("sse2");
+  else if (feature == "sse2")
+    enable_implicit_feature_reqs ("sse");
+  else if (feature == "sse3")
+    enable_implicit_feature_reqs ("sse2");
+  else if (feature == "sse4.1")
+    enable_implicit_feature_reqs ("sse3");
+  else if (feature == "sse4.2")
+    enable_implicit_feature_reqs ("sse4.1");
+  else if (feature == "ssse3")
+    enable_implicit_feature_reqs ("sse3");
+
+  if (!has_key_value_pair ("target_feature", feature))
+    {
+      insert_key_value_pair ("target_feature", feature);
+
+      fprintf (stderr, "had to implicitly enable feature '%s'!",
+	       feature.c_str ());
+    }
+}
 
 // NOTEs:
 /* mrustc compile pipeline:

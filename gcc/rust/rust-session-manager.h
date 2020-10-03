@@ -19,19 +19,20 @@
 
 namespace Rust {
 // parser forward decl
-class Parser;
+template <typename ManagedTokenSource> class Parser;
+class Lexer;
 // crate forward decl
 namespace AST {
 struct Crate;
 }
 
-// Data related to target, most useful for conditional compilation and
-// whatever.
+/* Data related to target, most useful for conditional compilation and
+ * whatever. */
 struct TargetOptions
 {
-  // TODO: maybe make private and access through helpers to allow changes to
-  // impl
-  std::unordered_map<std::string, std::unordered_set<std::string> > features;
+  /* TODO: maybe make private and access through helpers to allow changes to
+   * impl */
+  std::unordered_map<std::string, std::unordered_set<std::string>> features;
 
 public:
   // Returns whether a key is defined in the feature set.
@@ -54,8 +55,8 @@ public:
     return false;
   }
 
-  // Returns the singular value from the key, or if the key has multiple, an
-  // empty string.
+  /* Returns the singular value from the key, or if the key has multiple, an
+   * empty string. */
   std::string get_singular_value (std::string key) const
   {
     auto it = features.find (key);
@@ -68,15 +69,13 @@ public:
     return "";
   }
 
-  // Returns all values associated with a key (including none), or an empty
-  // set if no key is found.
-  std::unordered_set< ::std::string> get_values_for_key (std::string key) const
+  /* Returns all values associated with a key (including none), or an empty
+   * set if no key is found. */
+  std::unordered_set<std::string> get_values_for_key (std::string key) const
   {
     auto it = features.find (key);
     if (it != features.end ())
-      {
-	return it->second;
-      }
+      return it->second;
     return {};
   }
 
@@ -99,13 +98,15 @@ public:
   }
 
   // Dump all target options to stderr.
-  void dump_target_options() const; 
+  void dump_target_options () const;
 
-  // Creates derived values and implicit enables after all target info is added (e.g. "unix").
-  void init_derived_values();
+  /* Creates derived values and implicit enables after all target info is added
+   * (e.g. "unix"). */
+  void init_derived_values ();
 
-  // Enables all requirements for the feature given, and will enable feature itself if not enabled.
-  void enable_implicit_feature_reqs(std::string feature);
+  /* Enables all requirements for the feature given, and will enable feature
+   * itself if not enabled. */
+  void enable_implicit_feature_reqs (std::string feature);
 
   /* According to reference, Rust uses either multi-map key-values or just
    * values (although values may be aliases for a key-value value). This seems
@@ -147,8 +148,8 @@ struct CompileOptions
 {
   // TODO: use bitfield for smaller memory requirements?
 
-  // FIXME: this is set up for "instead of" dumping - in future, dumps should
-  // not inhibit compilation
+  /* FIXME: this is set up for "instead of" dumping - in future, dumps should
+   * not inhibit compilation */
   enum DumpOptions
   {
     NO_DUMP,
@@ -162,9 +163,9 @@ struct CompileOptions
     // TODO: add more?
   } dump_option;
 
-  // configuration options - actually useful for conditional compilation and
-  // whatever data related to target arch, features, os, family, env, endian,
-  // pointer width, vendor
+  /* configuration options - actually useful for conditional compilation and
+   * whatever data related to target arch, features, os, family, env, endian,
+   * pointer width, vendor */
   TargetOptions target_data;
   bool enable_test = false;
   bool debug_assertions = false;
@@ -176,9 +177,9 @@ struct CompileOptions
 struct Session
 {
   CompileOptions options;
-  // This should really be in a per-crate storage area but it is wiped with
-  // every file so eh.
-  ::std::string injected_crate_name;
+  /* This should really be in a per-crate storage area but it is wiped with
+   * every file so eh. */
+  std::string injected_crate_name;
 
   // backend wrapper to GCC GENERIC
   Backend *backend;
@@ -201,11 +202,11 @@ public:
 private:
   // TODO: should this be private or public?
   void parse_file (const char *filename);
-  bool enable_dump (::std::string arg);
+  bool enable_dump (std::string arg);
 
-  void debug_dump_load_crates (Parser &parser);
+  void debug_dump_load_crates (Parser<Lexer> &parser);
 
-  void implicitly_enable_feature (::std::string feature_name);
+  void implicitly_enable_feature (std::string feature_name);
   void enable_features ();
 
   // pipeline stages - TODO maybe move?
@@ -223,9 +224,8 @@ private:
    * macro crate (if not rustdoc).*/
   void expansion (AST::Crate &crate);
   /* Resolution pipeline stage. TODO maybe move to another object.
-   * Performs name resolution and type resolution, maybe complete gated \
-   * feature checking, maybe create buffered lints in future.
-   */
+   * Performs name resolution and type resolution, maybe complete gated
+   * feature checking, maybe create buffered lints in future. */
   void resolution (AST::Crate &crate);
 };
 } // namespace Rust
