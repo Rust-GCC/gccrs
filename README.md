@@ -3,6 +3,7 @@
 ![Docker Pulls](https://img.shields.io/docker/pulls/philberty/gccrs)
 [![project chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://gcc-rust.zulipchat.com/)
 # GCC Rust
+![GCC Rust](logo.png?raw=true "GCC rust Logo")
 
 This is a full alternative implementaion of the Rust language ontop of GCC.
 Please see the accompanying reporting repository: https://github.com/Rust-GCC/Reporting for
