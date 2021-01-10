@@ -5,11 +5,11 @@
 # GCC Rust
 ![GCC Rust](logo.png?raw=true "GCC rust Logo")
 
-This is a full alternative implementaion of the Rust language ontop of GCC which the goal
+This is a full alternative implementation of the Rust language on top of GCC which the goal
 to become fully upstream with the GNU toolchain.
 
-The origin of this project was a community effort several years ago where Rust was still at version 0.9;
-the language was subject to so much change that it became difficult for a community effort to play catch up.
+The origin of this project was a community effort several years ago where Rust was still at version 0.9.
+The language was subject to so much change that it became difficult for a community effort to play catch up.
 Now that the language is in a stable state, it is a good time to create alternative compilers. The developers of
 the project are keen “Rustaceans” with a desire to give back to the Rust community and to learn what GCC is capable
 of when it comes to a modern language.
