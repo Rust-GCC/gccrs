@@ -16,7 +16,7 @@ of when it comes to a modern language.
 
 ## Development Enviroment
 
-Fetch dependancies for ubuntu:
+Fetch dependencies for ubuntu:
 
 ```bash
 $ apt install build-essential libgmp3-dev libmpfr-dev libmpc-dev flex bison autogen gcc-multilib dejagnu
