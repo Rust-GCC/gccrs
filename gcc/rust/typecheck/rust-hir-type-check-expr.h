@@ -41,8 +41,7 @@ public:
       resolver.infered
 	= new TyTy::UnitType (expr->get_mappings ().get_hirid ());
 
-    resolver.context->insert_type (expr->get_mappings ().get_hirid (),
-				   resolver.infered);
+    resolver.context->insert_type (expr->get_mappings (), resolver.infered);
     return resolver.infered;
   }
 
@@ -183,8 +182,7 @@ public:
 
     infered = lhs->combine (rhs);
     // need to overrite the lhs type with this combination
-    context->insert_type (expr.get_lhs ()->get_mappings ().get_hirid (),
-			  infered);
+    context->insert_type (expr.get_lhs ()->get_mappings (), infered);
   }
 
   void visit (HIR::IdentifierExpr &expr)
