@@ -124,6 +124,11 @@ public:
     ResolveExpr::go (expr.get_right_expr ().get (), expr.get_node_id ());
   }
 
+  void visit (AST::NegationExpr &expr)
+  {
+    ResolveExpr::go (expr.get_negated_expr ().get (), expr.get_node_id ());
+  }
+
   void visit (AST::IfExpr &expr)
   {
     ResolveExpr::go (expr.get_condition_expr ().get (), expr.get_node_id ());
