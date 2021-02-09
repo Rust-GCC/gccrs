@@ -14457,7 +14457,7 @@ Parser<ManagedTokenSource>::done_end ()
 // Dumps lexer output to stderr.
 template <typename ManagedTokenSource>
 void
-Parser<ManagedTokenSource>::debug_dump_lex_output ()
+Parser<ManagedTokenSource>::debug_dump_lex_output (std::ostream &out)
 {
   /* TODO: a better implementation of "lexer dump" (as in dump what was actually
    * tokenised) would actually be to "write" a token to a file every time
@@ -14468,6 +14468,9 @@ Parser<ManagedTokenSource>::debug_dump_lex_output ()
 
   while (true)
     {
+      if (tok->get_id () == Rust::END_OF_FILE)
+	break;
+
       bool has_text = tok->get_id () == Rust::IDENTIFIER
 		      || tok->get_id () == Rust::INT_LITERAL
 		      || tok->get_id () == Rust::FLOAT_LITERAL
@@ -14478,16 +14481,13 @@ Parser<ManagedTokenSource>::debug_dump_lex_output ()
 
       Location loc = tok->get_locus ();
 
-      fprintf (stderr, "<id=%s%s, %s\n", tok->token_id_to_str (),
-	       has_text ? (std::string (", text=") + tok->get_str ()
-			   + std::string (", typehint=")
-			   + std::string (tok->get_type_hint_str ()))
-			    .c_str ()
-			: "",
-	       lexer.get_line_map ()->to_string (loc).c_str ());
-
-      if (tok->get_id () == Rust::END_OF_FILE)
-	break;
+      out << "<id=";
+      out << tok->token_id_to_str ();
+      out << has_text ? (std::string (", text=") + tok->get_str ()
+			 + std::string (", typehint=")
+			 + std::string (tok->get_type_hint_str ()))
+		      : "";
+      out << lexer.get_line_map ()->to_string (loc);
 
       lexer.skip_token ();
       tok = lexer.peek_token ();
@@ -14497,9 +14497,9 @@ Parser<ManagedTokenSource>::debug_dump_lex_output ()
 // Parses crate and dumps AST to stderr, recursively.
 template <typename ManagedTokenSource>
 void
-Parser<ManagedTokenSource>::debug_dump_ast_output (AST::Crate &crate)
+Parser<ManagedTokenSource>::debug_dump_ast_output (AST::Crate &crate,
+						   std::ostream &out)
 {
-  // print crate "as string", which then calls each item as string, etc.
-  fprintf (stderr, "%s", crate.as_string ().c_str ());
+  out << crate.as_string ();
 }
 } // namespace Rust
