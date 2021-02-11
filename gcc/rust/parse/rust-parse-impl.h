@@ -2666,7 +2666,7 @@ Parser<ManagedTokenSource>::parse_generic_params ()
 	}
 
       std::unique_ptr<AST::LifetimeParam> param (
-	new AST::LifetimeParam (std::move (lifetime), 
+	new AST::LifetimeParam (std::move (lifetime),
 				std::move (lifetime_bounds),
 				std::move (outer_attr), locus));
       generic_params.push_back (std::move (param));
@@ -3167,9 +3167,9 @@ Parser<ManagedTokenSource>::parse_lifetime_param ()
       // TODO: have end token passed in?
     }
 
-  return AST::LifetimeParam (std::move (lifetime), 
-			     std::move (lifetime_bounds),
-			     std::move (outer_attr), lifetime_tok->get_locus ());
+  return AST::LifetimeParam (std::move (lifetime), std::move (lifetime_bounds),
+			     std::move (outer_attr),
+			     lifetime_tok->get_locus ());
 }
 
 // Parses type generic parameters. Will also consume any trailing comma.
@@ -3698,7 +3698,7 @@ Parser<ManagedTokenSource>::parse_trait_bound ()
    * handle this) */
   std::vector<AST::LifetimeParam> for_lifetimes;
   if (lexer.peek_token ()->get_id () == FOR)
-      for_lifetimes = parse_for_lifetimes ();
+    for_lifetimes = parse_for_lifetimes ();
 
   // handle TypePath
   AST::TypePath type_path = parse_type_path ();
@@ -12175,6 +12175,10 @@ Parser<ManagedTokenSource>::null_denotation (
     case STRING_LITERAL:
       return std::unique_ptr<AST::LiteralExpr> (
 	new AST::LiteralExpr (tok->get_str (), AST::Literal::STRING,
+			      tok->get_type_hint (), {}, tok->get_locus ()));
+    case CHAR_LITERAL:
+      return std::unique_ptr<AST::LiteralExpr> (
+	new AST::LiteralExpr (tok->get_str (), AST::Literal::CHAR,
 			      tok->get_type_hint (), {}, tok->get_locus ()));
     case TRUE_LITERAL:
       return std::unique_ptr<AST::LiteralExpr> (
