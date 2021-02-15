@@ -45,33 +45,27 @@ expand_format (const char *fmt)
       c++;
       switch (*c)
 	{
-	case '\0':
-	  {
+	  case '\0': {
 	    // malformed format string
 	    rust_unreachable ();
 	  }
-	case '%':
-	  {
+	  case '%': {
 	    ss << "%";
 	    break;
 	  }
-	case 'm':
-	  {
+	  case 'm': {
 	    ss << mformat_value ();
 	    break;
 	  }
-	case '<':
-	  {
+	  case '<': {
 	    ss << rust_open_quote ();
 	    break;
 	  }
-	case '>':
-	  {
+	  case '>': {
 	    ss << rust_close_quote ();
 	    break;
 	  }
-	case 'q':
-	  {
+	  case 'q': {
 	    ss << rust_open_quote ();
 	    c++;
 	    if (*c == 'm')
@@ -85,8 +79,7 @@ expand_format (const char *fmt)
 	    ss << rust_close_quote ();
 	    break;
 	  }
-	default:
-	  {
+	  default: {
 	    ss << "%" << *c;
 	  }
 	}
@@ -214,3 +207,14 @@ rust_debug (const Location location, const char *fmt, ...)
   free (mbuf);
   rust_be_inform (location, rval);
 }
+
+namespace Rust {
+Error::Error (const Location location, const char *fmt, ...) : locus (location)
+{
+  va_list ap;
+
+  va_start (ap, fmt);
+  message = expand_message (fmt, ap);
+  va_end (ap);
+}
+} // namespace Rust
