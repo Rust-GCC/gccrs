@@ -627,9 +627,14 @@ public:
   void debug_dump_lex_output (std::ostream &out);
   void debug_dump_ast_output (AST::Crate &crate, std::ostream &out);
 
+  // Returns whether any parsing errors have occurred.
+  bool has_errors () const { return !error_table.empty (); }
+
 private:
   // The token source (usually lexer) associated with the parser.
   ManagedTokenSource lexer;
+  // The error list.
+  std::vector<Error> error_table;
 };
 } // namespace Rust
 

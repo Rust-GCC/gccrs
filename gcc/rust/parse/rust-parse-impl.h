@@ -251,9 +251,15 @@ Parser<ManagedTokenSource>::skip_generics_right_angle ()
 	return true;
       }
     default:
+#if 0
       rust_error_at (tok->get_locus (),
 		     "expected %<>%> at end of generic argument - found %qs",
 		     tok->get_token_description ());
+#endif
+      error_table.push_back (
+	Error (tok->get_locus (),
+	       "expected %<>%> at end of generic argument - found %qs",
+	       tok->get_token_description ()));
       return false;
     }
 }
@@ -440,8 +446,15 @@ Parser<ManagedTokenSource>::parse_crate ()
       std::unique_ptr<AST::Item> item = parse_item (false);
       if (item == nullptr)
 	{
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse item in crate");
+#endif
+	  Error error (lexer.peek_token ()->get_locus (),
+		       "failed to parse item in crate");
+	  error_table.push_back (std::move (error));
+
+	  // TODO: should all items be cleared?
 	  items = std::vector<std::unique_ptr<AST::Item> > ();
 	  break;
 	}
@@ -450,6 +463,10 @@ Parser<ManagedTokenSource>::parse_crate ()
 
       t = lexer.peek_token ();
     }
+
+  // emit all errors
+  for (const &auto error : error_table)
+    error.emit_error ();
 
   return AST::Crate (std::move (items), std::move (inner_attrs), has_utf8bom,
 		     has_shebang);
@@ -525,8 +542,13 @@ Parser<ManagedTokenSource>::parse_attribute_body ()
   // ensure path is valid to parse attribute input
   if (attr_path.is_empty ())
     {
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "empty simple path in attribute");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		   "empty simple path in attribute");
+      error_table.push_back (std::move (error));
 
       // Skip past potential further info in attribute (i.e. attr_input)
       skip_after_end_attribute ();
@@ -757,10 +779,18 @@ Parser<ManagedTokenSource>::parse_attr_input ()
 	 * token of any type) */
 	if (!t->is_literal ())
 	  {
+#if 0
 	    rust_error_at (
 	      t->get_locus (),
 	      "unknown token %qs in attribute body - literal expected",
 	      t->get_token_description ());
+#endif
+	    Error error (
+	      t->get_locus (),
+	      "unknown token %qs in attribute body - literal expected",
+	      t->get_token_description ());
+	    error_table.push_back (std::move (error));
+
 	    skip_after_end_attribute ();
 	    return nullptr;
 	  }
@@ -808,10 +838,18 @@ Parser<ManagedTokenSource>::parse_attr_input ()
       // means AttrInput is missing, which is allowed
       return nullptr;
     default:
+#if 0
       rust_error_at (t->get_locus (),
 		     "unknown token %qs in attribute body - attribute input "
 		     "or none expected",
 		     t->get_token_description ());
+#endif
+      error_table.push_back (
+	Error (t->get_locus (),
+	       "unknown token %qs in attribute body - attribute input or "
+	       "none expected",
+	       t->get_token_description ()));
+
       skip_after_end_attribute ();
       return nullptr;
     }
@@ -875,10 +913,18 @@ Parser<ManagedTokenSource>::parse_delim_token_tree ()
       delim_type = AST::CURLY;
       break;
     default:
+#if 0
       rust_error_at (t->get_locus (),
 		     "unexpected token %qs - expecting delimiters (for a "
 		     "delimited token tree)",
 		     t->get_token_description ());
+#endif
+      error_table.push_back (
+	Error (t->get_locus (),
+	       "unexpected token %qs - expecting delimiters (for a "
+	       "delimited token tree)",
+	       t->get_token_description ()));
+
       return AST::DelimTokenTree::create_empty ();
     }
 
@@ -894,10 +940,18 @@ Parser<ManagedTokenSource>::parse_delim_token_tree ()
       if (tok_tree == nullptr)
 	{
 	  // TODO: is this error handling appropriate?
+#if 0
 	  rust_error_at (
 	    t->get_locus (),
 	    "failed to parse token tree in delimited token tree - found %qs",
 	    t->get_token_description ());
+#endif
+	  Error error (
+	    t->get_locus (),
+	    "failed to parse token tree in delimited token tree - found %qs",
+	    t->get_token_description ());
+	  error_table.push_back (std::move (error));
+
 	  return AST::DelimTokenTree::create_empty ();
 	}
 
@@ -930,6 +984,7 @@ Parser<ManagedTokenSource>::parse_delim_token_tree ()
   else
     {
       // tokens don't match opening delimiters, so produce error
+#if 0
       rust_error_at (t->get_locus (),
 		     "unexpected token %qs - expecting closing delimiter %qs "
 		     "(for a delimited token tree)",
@@ -937,6 +992,15 @@ Parser<ManagedTokenSource>::parse_delim_token_tree ()
 		     (delim_type == AST::PARENS
 			? ")"
 			: (delim_type == AST::SQUARE ? "]" : "}")));
+#endif
+      Error error (t->get_locus (),
+		   "unexpected token %qs - expecting closing delimiter %qs "
+		   "(for a delimited token tree)",
+		   t->get_token_description (),
+		   (delim_type == AST::PARENS
+		      ? ")"
+		      : (delim_type == AST::SQUARE ? "]" : "}")));
+      error_table.push_back (std::move (error));
 
       /* return empty token tree despite possibly parsing valid token tree -
        * TODO is this a good idea? */
@@ -965,10 +1029,17 @@ Parser<ManagedTokenSource>::parse_token_tree ()
     case RIGHT_SQUARE:
     case RIGHT_CURLY:
       // error - should not be called when this a token
+#if 0
       rust_error_at (t->get_locus (),
 		     "unexpected closing delimiter %qs - token tree requires "
 		     "either paired delimiters or non-delimiter tokens",
 		     t->get_token_description ());
+#endif
+      error_table.push_back (Error (t->get_locus (),
+		   "unexpected closing delimiter %qs - token tree requires "
+		   "either paired delimiters or non-delimiter tokens",
+		   t->get_token_description ());
+
       lexer.skip_token ();
       return nullptr;
     default:
@@ -1079,13 +1150,19 @@ Parser<ManagedTokenSource>::parse_item (bool called_from_statement)
 	  return parse_macro_item (std::move (outer_attrs));
 	}
       gcc_fallthrough ();
-      // TODO: find out how to disable gcc "implicit fallthrough" warning
     default:
       // otherwise unrecognised
       // return parse_macro_item(std::move(outer_attrs));
+#if 0
       rust_error_at (t->get_locus (), "unrecognised token %qs for start of %s",
 		     t->get_token_description (),
 		     called_from_statement ? "statement" : "item");
+#endif
+      error_table.push_back (
+	Error (t->get_locus (), "unrecognised token %qs for start of %s",
+	       t->get_token_description (),
+	       called_from_statement ? "statement" : "item"));
+
       // skip somewhere?
       return nullptr;
       break;
@@ -1142,10 +1219,18 @@ Parser<ManagedTokenSource>::parse_outer_attribute ()
       if (id == EXCLAM)
 	{
 	  // this is inner attribute syntax, so throw error
+#if 0
 	  rust_error_at (
 	    lexer.peek_token ()->get_locus (),
 	    "token %<!%> found, indicating inner attribute definition. Inner "
 	    "attributes are not possible at this location");
+#endif
+
+	  Error error (
+	    lexer.peek_token ()->get_locus (),
+	    "token %<!%> found, indicating inner attribute definition. Inner "
+	    "attributes are not possible at this location");
+	  error_table.push_back (std::move (error));
 	} // TODO: are there any cases where this wouldn't be an error?
       return AST::Attribute::create_empty ();
     }
@@ -1202,18 +1287,32 @@ Parser<ManagedTokenSource>::parse_vis_item (
 	      return parse_extern_block (std::move (vis),
 					 std::move (outer_attrs));
 	    default:
+#if 0
 	      rust_error_at (
 		t->get_locus (),
 		"unexpected token %qs in some sort of extern production",
 		t->get_token_description ());
+#endif
+	      error_table.push_back (
+		Error (t->get_locus (),
+		       "unexpected token %qs in some sort of extern production",
+		       t->get_token_description ()));
+
 	      lexer.skip_token (2); // TODO: is this right thing to do?
 	      return nullptr;
 	    }
 	default:
+#if 0
 	  rust_error_at (
 	    t->get_locus (),
 	    "unexpected token %qs in some sort of extern production",
 	    t->get_token_description ());
+#endif
+	  error_table.push_back (
+	    Error (t->get_locus (),
+		   "unexpected token %qs in some sort of extern production",
+		   t->get_token_description ()));
+
 	  lexer.skip_token (1); // TODO: is this right thing to do?
 	  return nullptr;
 	}
@@ -1254,10 +1353,17 @@ Parser<ManagedTokenSource>::parse_vis_item (
 	case FN_TOK:
 	  return parse_function (std::move (vis), std::move (outer_attrs));
 	default:
+#if 0
 	  rust_error_at (
 	    t->get_locus (),
 	    "unexpected token %qs in some sort of const production",
 	    t->get_token_description ());
+#endif
+	  error_table.push_back (
+	    Error (t->get_locus (),
+		   "unexpected token %qs in some sort of const production",
+		   t->get_token_description ()));
+
 	  lexer.skip_token (1); // TODO: is this right thing to do?
 	  return nullptr;
 	}
@@ -1281,10 +1387,17 @@ Parser<ManagedTokenSource>::parse_vis_item (
 	case IMPL:
 	  return parse_impl (std::move (vis), std::move (outer_attrs));
 	default:
+#if 0
 	  rust_error_at (
 	    t->get_locus (),
 	    "unexpected token %qs in some sort of unsafe production",
 	    t->get_token_description ());
+#endif
+	  error_table.push_back (
+	    Error (t->get_locus (),
+		   "unexpected token %qs in some sort of unsafe production",
+		   t->get_token_description ()));
+
 	  lexer.skip_token (1); // TODO: is this right thing to do?
 	  return nullptr;
 	}
@@ -1345,9 +1458,16 @@ Parser<ManagedTokenSource>::parse_macro_rules_def (
   const_TokenPtr t = lexer.peek_token ();
   if (t->get_id () != IDENTIFIER || t->get_str () != "macro_rules")
     {
+#if 0
       rust_error_at (
 	t->get_locus (),
 	"macro rules definition does not start with %<macro_rules%>");
+#endif
+      Error error (
+	t->get_locus (),
+	"macro rules definition does not start with %<macro_rules%>");
+      error_table.push_back (std::move (error));
+
       // skip after somewhere?
       return nullptr;
     }
@@ -1388,10 +1508,18 @@ Parser<ManagedTokenSource>::parse_macro_rules_def (
       delim_type = AST::CURLY;
       break;
     default:
+#if 0
       rust_error_at (t->get_locus (),
 		     "unexpected token %qs - expecting delimiters (for a "
 		     "macro rules definition)",
 		     t->get_token_description ());
+#endif
+      error_table.push_back (
+	Error (t->get_locus (),
+	       "unexpected token %qs - expecting delimiters (for a "
+	       "macro rules definition)",
+	       t->get_token_description ()));
+
       return nullptr;
     }
   lexer.skip_token ();
@@ -1403,9 +1531,16 @@ Parser<ManagedTokenSource>::parse_macro_rules_def (
   AST::MacroRule initial_rule = parse_macro_rule ();
   if (initial_rule.is_error ())
     {
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "required first macro rule in macro rules definition "
 		     "could not be parsed");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		   "required first macro rule in macro rules definition "
+		   "could not be parsed");
+      error_table.push_back (std::move (error));
+
       // skip after somewhere?
       return nullptr;
     }
@@ -1436,9 +1571,15 @@ Parser<ManagedTokenSource>::parse_macro_rules_def (
       AST::MacroRule rule = parse_macro_rule ();
       if (rule.is_error ())
 	{
+#if 0
 	  rust_error_at (
 	    lexer.peek_token ()->get_locus (),
 	    "failed to parse macro rule in macro rules definition");
+#endif
+	  Error error (lexer.peek_token ()->get_locus (),
+		       "failed to parse macro rule in macro rules definition");
+	  error_table.push_back (std::move (error));
+
 	  return nullptr;
 	}
 
@@ -1478,6 +1619,7 @@ Parser<ManagedTokenSource>::parse_macro_rules_def (
   else
     {
       // tokens don't match opening delimiters, so produce error
+#if 0
       rust_error_at (t->get_locus (),
 		     "unexpected token %qs - expecting closing delimiter %qs "
 		     "(for a macro rules definition)",
@@ -1485,6 +1627,15 @@ Parser<ManagedTokenSource>::parse_macro_rules_def (
 		     (delim_type == AST::PARENS
 			? ")"
 			: (delim_type == AST::SQUARE ? "]" : "}")));
+#endif
+      Error error (t->get_locus (),
+		   "unexpected token %qs - expecting closing delimiter %qs "
+		   "(for a macro rules definition)",
+		   t->get_token_description (),
+		   (delim_type == AST::PARENS
+		      ? ")"
+		      : (delim_type == AST::SQUARE ? "]" : "}")));
+      error_table.push_back (std::move (error));
 
       /* return empty macro definiton despite possibly parsing mostly valid one
        * - TODO is this a good idea? */
@@ -1524,10 +1675,18 @@ Parser<ManagedTokenSource>::parse_macro_invocation_semi (
       delim_type = AST::CURLY;
       break;
     default:
+#if 0
       rust_error_at (t->get_locus (),
 		     "unexpected token %qs - expecting delimiters (for a "
 		     "macro invocation semi body)",
 		     t->get_token_description ());
+#endif
+      error_table.push_back (
+	Error (t->get_locus (),
+	       "unexpected token %qs - expecting delimiters (for a "
+	       "macro invocation semi body)",
+	       t->get_token_description ()));
+
       return nullptr;
     }
   Location tok_tree_locus = t->get_locus ();
@@ -1544,10 +1703,18 @@ Parser<ManagedTokenSource>::parse_macro_invocation_semi (
 
       if (tree == nullptr)
 	{
+#if 0
 	  rust_error_at (t->get_locus (),
 			 "failed to parse token tree for macro invocation semi "
 			 "- found %qs",
 			 t->get_token_description ());
+#endif
+	  Error error (t->get_locus (),
+		       "failed to parse token tree for macro invocation semi "
+		       "- found %qs",
+		       t->get_token_description ());
+	  error_table.push_back (std::move (error));
+
 	  return nullptr;
 	}
 
@@ -1593,6 +1760,7 @@ Parser<ManagedTokenSource>::parse_macro_invocation_semi (
   else
     {
       // tokens don't match opening delimiters, so produce error
+#if 0
       rust_error_at (t->get_locus (),
 		     "unexpected token %qs - expecting closing delimiter %qs "
 		     "(for a macro invocation semi)",
@@ -1600,6 +1768,15 @@ Parser<ManagedTokenSource>::parse_macro_invocation_semi (
 		     (delim_type == AST::PARENS
 			? ")"
 			: (delim_type == AST::SQUARE ? "]" : "}")));
+#endif
+      Error error (t->get_locus (),
+		   "unexpected token %qs - expecting closing delimiter %qs "
+		   "(for a macro invocation semi)",
+		   t->get_token_description (),
+		   (delim_type == AST::PARENS
+		      ? ")"
+		      : (delim_type == AST::SQUARE ? "]" : "}")));
+      error_table.push_back (std::move (error));
 
       /* return empty macro invocation despite possibly parsing mostly valid one
        * - TODO is this a good idea? */
@@ -1617,8 +1794,14 @@ Parser<ManagedTokenSource>::parse_macro_invocation (
   AST::SimplePath macro_path = parse_simple_path ();
   if (macro_path.is_empty ())
     {
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "failed to parse macro invocation path");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		   "failed to parse macro invocation path");
+      error_table.push_back (std::move (error));
+
       // skip?
       return nullptr;
     }
@@ -1688,10 +1871,17 @@ Parser<ManagedTokenSource>::parse_macro_matcher ()
       delim_type = AST::CURLY;
       break;
     default:
+#if 0
       rust_error_at (
 	t->get_locus (),
 	"unexpected token %qs - expecting delimiters (for a macro matcher)",
 	t->get_token_description ());
+#endif
+      error_table.push_back (Error (
+	t->get_locus (),
+	"unexpected token %qs - expecting delimiters (for a macro matcher)",
+	t->get_token_description ()));
+
       return AST::MacroMatcher::create_error ();
     }
   lexer.skip_token ();
@@ -1707,10 +1897,18 @@ Parser<ManagedTokenSource>::parse_macro_matcher ()
 
       if (match == nullptr)
 	{
+#if 0
 	  rust_error_at (
 	    t->get_locus (),
 	    "failed to parse macro match for macro matcher - found %qs",
 	    t->get_token_description ());
+#endif
+	  Error error (
+	    t->get_locus (),
+	    "failed to parse macro match for macro matcher - found %qs",
+	    t->get_token_description ());
+	  error_table.push_back (std::move (error));
+
 	  return AST::MacroMatcher::create_error ();
 	}
 
@@ -1734,6 +1932,7 @@ Parser<ManagedTokenSource>::parse_macro_matcher ()
   else
     {
       // tokens don't match opening delimiters, so produce error
+#if 0
       rust_error_at (t->get_locus (),
 		     "unexpected token %qs - expecting closing delimiter %qs "
 		     "(for a macro matcher)",
@@ -1741,6 +1940,15 @@ Parser<ManagedTokenSource>::parse_macro_matcher ()
 		     (delim_type == AST::PARENS
 			? ")"
 			: (delim_type == AST::SQUARE ? "]" : "}")));
+#endif
+      Error error (t->get_locus (),
+		   "unexpected token %qs - expecting closing delimiter %qs "
+		   "(for a macro matcher)",
+		   t->get_token_description (),
+		   (delim_type == AST::PARENS
+		      ? ")"
+		      : (delim_type == AST::SQUARE ? "]" : "}")));
+      error_table.push_back (std::move (error));
 
       /* return error macro matcher despite possibly parsing mostly correct one?
        * TODO is this the best idea? */
@@ -1764,8 +1972,14 @@ Parser<ManagedTokenSource>::parse_macro_match ()
 	AST::MacroMatcher matcher = parse_macro_matcher ();
 	if (matcher.is_error ())
 	  {
+#if 0
 	    rust_error_at (lexer.peek_token ()->get_locus (),
 			   "failed to parse macro matcher in macro match");
+#endif
+	    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse macro matcher in macro match");
+	    error_table.push_back (std::move (error));
+
 	    return nullptr;
 	  }
 	return std::unique_ptr<AST::MacroMatcher> (
@@ -1784,11 +1998,19 @@ Parser<ManagedTokenSource>::parse_macro_match ()
 	    return parse_macro_match_repetition ();
 	  default:
 	    // error: unrecognised
+#if 0
 	    rust_error_at (
 	      t2->get_locus (),
 	      "unrecognised token combination %<$%s%> at start of "
 	      "macro match - did you mean %<$identifier%> or %<$(%>?",
 	      t2->get_token_description ());
+#endif
+	    error_table.push_back (
+	      Error (t2->get_locus (),
+		     "unrecognised token combination %<$%s%> at start of "
+		     "macro match - did you mean %<$identifier%> or %<$(%>?",
+		     t2->get_token_description ()));
+
 	    // skip somewhere?
 	    return nullptr;
 	  }
@@ -1797,10 +2019,18 @@ Parser<ManagedTokenSource>::parse_macro_match ()
     case RIGHT_SQUARE:
     case RIGHT_CURLY:
       // not allowed
+#if 0
       rust_error_at (t->get_locus (),
 		     "closing delimiters like %qs are not allowed at the "
 		     "start of a macro match",
 		     t->get_token_description ());
+#endif
+      Error error (t->get_locus (),
+		   "closing delimiters like %qs are not allowed at the "
+		   "start of a macro match",
+		   t->get_token_description ());
+      error_table.push_back (std::move (error));
+
       // skip somewhere?
       return nullptr;
     default:
@@ -1820,8 +2050,14 @@ Parser<ManagedTokenSource>::parse_macro_match_fragment ()
   const_TokenPtr ident_tok = expect_token (IDENTIFIER);
   if (ident_tok == nullptr)
     {
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "missing identifier in macro match fragment");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		   "missing identifier in macro match fragment");
+      error_table.push_back (std::move (error));
+
       return nullptr;
     }
   Identifier ident = ident_tok->get_str ();
@@ -1837,9 +2073,16 @@ Parser<ManagedTokenSource>::parse_macro_match_fragment ()
   AST::MacroFragSpec frag = AST::get_frag_spec_from_str (t->get_str ());
   if (frag == AST::INVALID)
     {
+#if 0
       rust_error_at (t->get_locus (),
 		     "invalid fragment specifier %qs in fragment macro match",
 		     t->get_str ().c_str ());
+#endif
+      Error error (t->get_locus (),
+		   "invalid fragment specifier %qs in fragment macro match",
+		   t->get_str ().c_str ());
+      error_table.push_back (std::move (error));
+
       return nullptr;
     }
 
@@ -1861,9 +2104,16 @@ Parser<ManagedTokenSource>::parse_macro_match_repetition ()
   std::unique_ptr<AST::MacroMatch> initial_match = parse_macro_match ();
   if (initial_match == nullptr)
     {
+#if 0
       rust_error_at (
 	lexer.peek_token ()->get_locus (),
 	"could not parse required first macro match in macro match repetition");
+#endif
+      Error error (
+	lexer.peek_token ()->get_locus (),
+	"could not parse required first macro match in macro match repetition");
+      error_table.push_back (std::move (error));
+
       // skip after somewhere?
       return nullptr;
     }
