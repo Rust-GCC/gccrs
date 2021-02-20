@@ -20,8 +20,6 @@ along with GCC; see the file COPYING3.  If not see
 /* DO NOT INCLUDE ANYWHERE - this is automatically included with rust-parse.h
  * This is also the reason why there are no include guards. */
 
-#include "rust-diagnostics.h"
-
 namespace Rust {
 // Left binding powers of operations.
 enum binding_powers
@@ -2127,9 +2125,15 @@ Parser<ManagedTokenSource>::parse_macro_match_repetition ()
 
       if (match == nullptr)
 	{
+#if 0
 	  rust_error_at (
 	    lexer.peek_token ()->get_locus (),
 	    "failed to parse macro match in macro match repetition");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+	    "failed to parse macro match in macro match repetition");
+    error_table.push_back (std::move (error));
+
 	  return nullptr;
 	}
 
@@ -2188,11 +2192,19 @@ Parser<ManagedTokenSource>::parse_macro_match_repetition ()
       lexer.skip_token ();
       break;
     default:
+#if 0
       rust_error_at (
 	t->get_locus (),
 	"expected macro repetition operator (%<*%>, %<+%>, or %<?%>) in "
 	"macro match - found %qs",
 	t->get_token_description ());
+#endif
+    error_table.push_back (Error (
+	t->get_locus (),
+	"expected macro repetition operator (%<*%>, %<+%>, or %<?%>) in "
+	"macro match - found %qs",
+	t->get_token_description ()));
+
       // skip after somewhere?
       return nullptr;
     }
@@ -2254,8 +2266,14 @@ Parser<ManagedTokenSource>::parse_visibility ()
 	AST::SimplePath path = parse_simple_path ();
 	if (path.is_empty ())
 	  {
+#if 0
 	    rust_error_at (lexer.peek_token ()->get_locus (),
 			   "missing path in pub(in path) visibility");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+			   "missing path in pub(in path) visibility");
+      error_table.push_back (std::move (error));
+
 	    // skip after somewhere?
 	    return AST::Visibility::create_error ();
 	  }
@@ -2265,8 +2283,13 @@ Parser<ManagedTokenSource>::parse_visibility ()
 	return AST::Visibility::create_in_path (std::move (path));
       }
     default:
+#if 0
       rust_error_at (t->get_locus (), "unexpected token %qs in visibility",
 		     t->get_token_description ());
+#endif
+      error_table.push_back (Error (t->get_locus (), "unexpected token %qs in visibility",
+		     t->get_token_description ()));
+
       lexer.skip_token ();
       return AST::Visibility::create_error ();
     }
@@ -2313,8 +2336,14 @@ Parser<ManagedTokenSource>::parse_module (
 	    std::unique_ptr<AST::Item> item = parse_item (false);
 	    if (item == nullptr)
 	      {
+#if 0
 		rust_error_at (tok->get_locus (),
 			       "failed to parse item in module");
+#endif
+    Error error (tok->get_locus (),
+			       "failed to parse item in module");
+    error_table.push_back (std::move (error));
+
 		return nullptr;
 	      }
 
@@ -2335,10 +2364,17 @@ Parser<ManagedTokenSource>::parse_module (
 				 std::move (outer_attrs))); // module name?
       }
     default:
+#if 0
       rust_error_at (
 	t->get_locus (),
 	"unexpected token %qs in module declaration/definition item",
 	t->get_token_description ());
+#endif
+      error_table.push_back (Error (
+	t->get_locus (),
+	"unexpected token %qs in module declaration/definition item",
+	t->get_token_description ()));
+
       lexer.skip_token ();
       return nullptr;
     }
@@ -2379,9 +2415,15 @@ Parser<ManagedTokenSource>::parse_extern_crate (
       lexer.skip_token ();
       break;
     default:
+#if 0
       rust_error_at (crate_name_tok->get_locus (),
 		     "expecting crate name (identifier or %<self%>), found %qs",
 		     crate_name_tok->get_token_description ());
+#endif
+      error_table.push_back (Error (crate_name_tok->get_locus (),
+		     "expecting crate name (identifier or %<self%>), found %qs",
+		     crate_name_tok->get_token_description ()));
+
       skip_after_semicolon ();
       return nullptr;
     }
@@ -2418,10 +2460,17 @@ Parser<ManagedTokenSource>::parse_extern_crate (
       lexer.skip_token ();
       break;
     default:
+#if 0
       rust_error_at (
 	as_name_tok->get_locus (),
 	"expecting as clause name (identifier or %<_%>), found %qs",
 	as_name_tok->get_token_description ());
+#endif
+      error_table.push_back (Error (
+	as_name_tok->get_locus (),
+	"expecting as clause name (identifier or %<_%>), found %qs",
+	as_name_tok->get_token_description ()));
+
       skip_after_semicolon ();
       return nullptr;
     }
@@ -2454,8 +2503,14 @@ Parser<ManagedTokenSource>::parse_use_decl (
   std::unique_ptr<AST::UseTree> use_tree = parse_use_tree ();
   if (use_tree == nullptr)
     {
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "could not parse use tree in use declaration");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		     "could not parse use tree in use declaration");
+      error_table.push_back (std::move (error));
+
       skip_after_semicolon ();
       return nullptr;
     }
@@ -2578,18 +2633,33 @@ Parser<ManagedTokenSource>::parse_use_tree ()
 	  }
 	case AS:
 	  // this is not allowed
+#if 0
 	  rust_error_at (
 	    t->get_locus (),
 	    "use declaration with rebind %<as%> requires a valid simple path - "
 	    "none found");
+#endif
+    error_table.push_back (Error (
+	    t->get_locus (),
+	    "use declaration with rebind %<as%> requires a valid simple path - "
+	    "none found"));
+
 	  skip_after_semicolon ();
 	  return nullptr;
 	default:
+#if 0
 	  rust_error_at (t->get_locus (),
 			 "unexpected token %qs in use tree with no valid "
 			 "simple path (i.e. list"
 			 " or glob use tree)",
 			 t->get_token_description ());
+#endif
+    error_table.push_back (Error (t->get_locus (),
+			 "unexpected token %qs in use tree with no valid "
+			 "simple path (i.e. list"
+			 " or glob use tree)",
+			 t->get_token_description ()));
+
 	  skip_after_semicolon ();
 	  return nullptr;
 	}
@@ -2670,11 +2740,19 @@ Parser<ManagedTokenSource>::parse_use_tree ()
 		  new AST::UseTreeRebind (AST::UseTreeRebind::WILDCARD,
 					  std::move (path), locus, "_"));
 	      default:
+#if 0
 		rust_error_at (
 		  t->get_locus (),
 		  "unexpected token %qs in use tree with as clause - expected "
 		  "identifier or %<_%>",
 		  t->get_token_description ());
+#endif
+    error_table.push_back (Error (
+		  t->get_locus (),
+		  "unexpected token %qs in use tree with as clause - expected "
+		  "identifier or %<_%>",
+		  t->get_token_description ()));
+
 		skip_after_semicolon ();
 		return nullptr;
 	      }
@@ -2695,9 +2773,15 @@ Parser<ManagedTokenSource>::parse_use_tree ()
 	    new AST::UseTreeRebind (AST::UseTreeRebind::NONE, std::move (path),
 				    locus));
 	default:
+#if 0
 	  rust_error_at (t->get_locus (),
 			 "unexpected token %qs in use tree with valid path",
 			 t->get_token_description ());
+#endif
+    error_table.push_back (Error (t->get_locus (),
+			 "unexpected token %qs in use tree with valid path",
+			 t->get_token_description ()));
+
 	  // skip_after_semicolon();
 	  return nullptr;
 	}
@@ -2731,9 +2815,16 @@ Parser<ManagedTokenSource>::parse_function (
 
   if (!skip_token (LEFT_PAREN))
     {
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "function declaration missing opening parentheses before "
 		     "parameter list");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		     "function declaration missing opening parentheses before "
+		     "parameter list");
+      error_table.push_back (std::move (error));
+
       skip_after_next_block ();
       return nullptr;
     }
@@ -2746,9 +2837,16 @@ Parser<ManagedTokenSource>::parse_function (
 
   if (!skip_token (RIGHT_PAREN))
     {
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "function declaration missing closing parentheses after "
 		     "parameter list");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		     "function declaration missing closing parentheses after "
+		     "parameter list");
+      error_table.push_back (std::move (error));
+
       skip_after_next_block ();
       return nullptr;
     }
@@ -2942,9 +3040,16 @@ Parser<ManagedTokenSource>::parse_generic_params ()
       const_TokenPtr ident_tok = expect_token (IDENTIFIER);
       if (ident_tok == nullptr)
 	{
+#if 0
 	  rust_error_at (
 	    lexer.peek_token ()->get_locus (),
 	    "failed to parse identifier in type param in generic params");
+#endif
+    Error error (
+	    lexer.peek_token ()->get_locus (),
+	    "failed to parse identifier in type param in generic params");
+    error_table.push_back (std::move (error));
+
 	  return std::vector<std::unique_ptr<AST::GenericParam> > ();
 	}
       Identifier ident = ident_tok->get_str ();
@@ -2969,9 +3074,16 @@ Parser<ManagedTokenSource>::parse_generic_params ()
 	  type = parse_type ();
 	  if (type == nullptr)
 	    {
+#if 0
 	      rust_error_at (
 		lexer.peek_token ()->get_locus (),
 		"failed to parse type in type param in generic params");
+#endif
+        Error error (
+		lexer.peek_token ()->get_locus (),
+		"failed to parse type in type param in generic params");
+        error_table.push_back (std::move (error));
+
 	      return std::vector<std::unique_ptr<AST::GenericParam> > ();
 	    }
 	}
@@ -3002,8 +3114,14 @@ Parser<ManagedTokenSource>::parse_generic_params ()
 
       if (type_param == nullptr)
 	{
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse type param in generic params");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse type param in generic params");
+    error_table.push_back (std::move (error));
+
 	  return std::vector<std::unique_ptr<AST::GenericParam> > ();
 	}
 
@@ -3112,9 +3230,16 @@ Parser<ManagedTokenSource>::parse_generic_params (EndTokenPred is_end_token)
       const_TokenPtr ident_tok = expect_token (IDENTIFIER);
       if (ident_tok == nullptr)
 	{
+#if 0
 	  rust_error_at (
 	    lexer.peek_token ()->get_locus (),
 	    "failed to parse identifier in type param in generic params");
+#endif
+    Error error (
+	    lexer.peek_token ()->get_locus (),
+	    "failed to parse identifier in type param in generic params");
+    error_table.push_back (std::move (error));
+
 	  return {};
 	}
       Identifier ident = ident_tok->get_str ();
@@ -3139,9 +3264,16 @@ Parser<ManagedTokenSource>::parse_generic_params (EndTokenPred is_end_token)
 	  type = parse_type ();
 	  if (type == nullptr)
 	    {
+#if 0
 	      rust_error_at (
 		lexer.peek_token ()->get_locus (),
 		"failed to parse type in type param in generic params");
+#endif
+        Error error (
+		lexer.peek_token ()->get_locus (),
+		"failed to parse type in type param in generic params");
+        error_table.push_back (std::move (error));
+
 	      return {};
 	    }
 	}
@@ -3165,8 +3297,14 @@ Parser<ManagedTokenSource>::parse_generic_params (EndTokenPred is_end_token)
 
       if (type_param == nullptr)
 	{
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse type param in generic params");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse type param in generic params");
+    error_table.push_back (std::move (error));
+
 	  return {};
 	}
 
@@ -3256,8 +3394,14 @@ Parser<ManagedTokenSource>::parse_lifetime_params (EndTokenPred is_end_token)
 	{
 	  /* TODO: is it worth throwing away all lifetime params just because
 	   * one failed? */
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse lifetime param in lifetime params");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse lifetime param in lifetime params");
+    error_table.push_back (std::move (error));
+
 	  return {};
 	}
 
@@ -3329,8 +3473,14 @@ Parser<ManagedTokenSource>::parse_lifetime_params_objs (
 	{
 	  /* TODO: is it worth throwing away all lifetime params just because
 	   * one failed? */
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse lifetime param in lifetime params");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse lifetime param in lifetime params");
+    error_table.push_back (std::move (error));
+
 	  return {};
 	}
 
@@ -3369,7 +3519,12 @@ Parser<ManagedTokenSource>::parse_non_ptr_sequence (
       if (param.is_error ())
 	{
 	  // TODO: is it worth throwing away all params just because one failed?
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (), error_msg.c_str ());
+#endif
+    Error error (lexer.peek_token ()->get_locus (), std::move (error_msg));
+    error_table.push_back (std::move (error));
+
 	  return {};
 	}
 
@@ -3467,8 +3622,14 @@ Parser<ManagedTokenSource>::parse_type_params (EndTokenPred is_end_token)
 
       if (type_param == nullptr)
 	{
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse type param in type params");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse type param in type params");
+    error_table.push_back (std::move (error));
+
 	  return {};
 	}
 
@@ -3526,8 +3687,14 @@ Parser<ManagedTokenSource>::parse_type_param ()
       type = parse_type ();
       if (type == nullptr)
 	{
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse type in type param");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse type in type param");
+    error_table.push_back (std::move (error));
+
 	  return nullptr;
 	}
     }
@@ -3578,8 +3745,14 @@ Parser<ManagedTokenSource>::parse_function_params (EndTokenPred is_end_token)
       AST::FunctionParam param = parse_function_param ();
       if (param.is_error ())
 	{
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse function param (in function params)");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse function param (in function params)");
+    error_table.push_back (std::move (error));
+
 	  // skip somewhere?
 	  return std::vector<AST::FunctionParam> ();
 	}
@@ -3679,7 +3852,12 @@ Parser<ManagedTokenSource>::parse_where_clause ()
 
       if (where_clause_item == nullptr)
 	{
+#if 0
 	  rust_error_at (t->get_locus (), "failed to parse where clause item");
+#endif
+    Error error (t->get_locus (), "failed to parse where clause item");
+    error_table.push_back (std::move (error));
+
 	  return AST::WhereClause::create_empty ();
 	}
 
@@ -3878,9 +4056,16 @@ Parser<ManagedTokenSource>::parse_type_param_bounds (EndTokenPred is_end_token)
       if (bound == nullptr)
 	{
 	  // TODO how wise is it to ditch all bounds if only one failed?
+#if 0
 	  rust_error_at (
 	    lexer.peek_token ()->get_locus (),
 	    "failed to parse type param bound in type param bounds");
+#endif
+    Error error (
+	    lexer.peek_token ()->get_locus (),
+	    "failed to parse type param bound in type param bounds");
+    error_table.push_back (std::move (error));
+
 	  return {};
 	}
 
@@ -4012,8 +4197,14 @@ Parser<ManagedTokenSource>::parse_lifetime_bounds (EndTokenPred is_end_token)
 	{
 	  /* TODO: is it worth throwing away all lifetime bound info just
 	   * because one failed? */
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse lifetime in lifetime bounds");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse lifetime in lifetime bounds");
+    error_table.push_back (std::move (error));
+
 	  return {};
 	}
 
@@ -4076,8 +4267,14 @@ Parser<ManagedTokenSource>::parse_type_alias (
   const_TokenPtr alias_name_tok = expect_token (IDENTIFIER);
   if (alias_name_tok == nullptr)
     {
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "could not parse identifier in type alias");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		     "could not parse identifier in type alias");
+      error_table.push_back (std::move (error));
+
       skip_after_semicolon ();
       return nullptr;
     }
@@ -4134,8 +4331,14 @@ Parser<ManagedTokenSource>::parse_struct (
   const_TokenPtr name_tok = expect_token (IDENTIFIER);
   if (name_tok == nullptr)
     {
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "could not parse struct or tuple struct identifier");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		     "could not parse struct or tuple struct identifier");
+      error_table.push_back (std::move (error));
+
       // skip after somewhere?
       return nullptr;
     }
@@ -4221,9 +4424,15 @@ Parser<ManagedTokenSource>::parse_struct (
 			       std::move (where_clause), std::move (vis),
 			       std::move (outer_attrs), locus));
     default:
+#if 0
       rust_error_at (t->get_locus (),
 		     "unexpected token %qs in struct declaration",
 		     t->get_token_description ());
+#endif
+      error_table.push_back (Error (t->get_locus (),
+		     "unexpected token %qs in struct declaration",
+		     t->get_token_description ()));
+
       // skip somewhere?
       return nullptr;
     }
@@ -4292,8 +4501,14 @@ Parser<ManagedTokenSource>::parse_struct_fields (EndTokenPred is_end_tok)
 	{
 	  /* TODO: should every field be ditched just because one couldn't be
 	   * parsed? */
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse struct field in struct fields");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse struct field in struct fields");
+    error_table.push_back (std::move (error));
+
 	  return {};
 	}
 
@@ -4337,8 +4552,14 @@ Parser<ManagedTokenSource>::parse_struct_field ()
   std::unique_ptr<AST::Type> field_type = parse_type ();
   if (field_type == nullptr)
     {
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "could not parse type in struct field definition");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		     "could not parse type in struct field definition");
+      error_table.push_back (std::move (error));
+
       // skip after somewhere
       return AST::StructField::create_error ();
     }
@@ -4383,8 +4604,14 @@ Parser<ManagedTokenSource>::parse_tuple_fields ()
       AST::TupleField field = parse_tuple_field ();
       if (field.is_error ())
 	{
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse tuple field in tuple fields");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse tuple field in tuple fields");
+    error_table.push_back (std::move (error));
+
 	  return std::vector<AST::TupleField> ();
 	}
 
@@ -4417,8 +4644,14 @@ Parser<ManagedTokenSource>::parse_tuple_field ()
   if (field_type == nullptr)
     {
       // error if null
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "could not parse type in tuple struct field");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		     "could not parse type in tuple struct field");
+      error_table.push_back (std::move (error));
+
       // skip after something
       return AST::TupleField::create_error ();
     }
@@ -4532,8 +4765,14 @@ Parser<ManagedTokenSource>::parse_enum_items (EndTokenPred is_end_tok)
 	{
 	  /* TODO should this ignore all successfully parsed enum items just
 	   * because one failed? */
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse enum item in enum items");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse enum item in enum items");
+    error_table.push_back (std::move (error));
+
 	  return {};
 	}
 
@@ -4700,11 +4939,19 @@ Parser<ManagedTokenSource>::parse_const_item (
       lexer.skip_token ();
       break;
     default:
+#if 0
       rust_error_at (
 	ident_tok->get_locus (),
 	"expected item name (identifier or %<_%>) in constant item "
 	"declaration - found %qs",
 	ident_tok->get_token_description ());
+#endif
+      error_table.push_back (Error (
+	ident_tok->get_locus (),
+	"expected item name (identifier or %<_%>) in constant item "
+	"declaration - found %qs",
+	ident_tok->get_token_description ()));
+
       skip_after_semicolon ();
       return nullptr;
     }
@@ -4847,8 +5094,14 @@ Parser<ManagedTokenSource>::parse_trait (
 
       if (trait_item == nullptr)
 	{
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse trait item in trait");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse trait item in trait");
+    error_table.push_back (std::move (error));
+
 	  return nullptr;
 	}
       trait_items.push_back (std::move (trait_item));
@@ -4969,11 +5222,19 @@ Parser<ManagedTokenSource>::parse_trait_item ()
 	     * block? */
 	    break;
 	  default:
+#if 0
 	    rust_error_at (t->get_locus (),
 			   "expected %<;%> or definiton at the end of trait %s "
 			   "definition - found %qs instead",
 			   is_method ? "method" : "function",
 			   t->get_token_description ());
+#endif
+      error_table.push_back (Error (t->get_locus (),
+			   "expected %<;%> or definiton at the end of trait %s "
+			   "definition - found %qs instead",
+			   is_method ? "method" : "function",
+			   t->get_token_description ()));
+
 	    // skip?
 	    return nullptr;
 	  }
@@ -5154,25 +5415,27 @@ Parser<ManagedTokenSource>::parse_impl (AST::Visibility vis,
   AST::TypePath type_path = parse_type_path ();
   if (type_path.is_error () || lexer.peek_token ()->get_id () != FOR)
     {
-      // cannot parse type path (or not for token next, at least), so must be
-      // inherent impl
+      /* cannot parse type path (or not for token next, at least), so must be
+       * inherent impl */
 
       // hacky conversion of TypePath stack object to Type pointer
       std::unique_ptr<AST::Type> type = nullptr;
       if (!type_path.is_error ())
-	{
-	  // TODO: would move work here?
-	  type = std::unique_ptr<AST::TypePath> (new AST::TypePath (type_path));
-	}
+	  type = std::unique_ptr<AST::TypePath> (new AST::TypePath (std::move (type_path)));
       else
-	{
 	  type = parse_type ();
-	}
+
       // Type is required, so error if null
       if (type == nullptr)
 	{
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "could not parse type in inherent impl");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "could not parse type in inherent impl");
+    error_table.push_back (std::move (error));
+
 	  skip_after_next_block ();
 	  return nullptr;
 	}
@@ -5201,9 +5464,16 @@ Parser<ManagedTokenSource>::parse_impl (AST::Visibility vis,
 
 	  if (impl_item == nullptr)
 	    {
+#if 0
 	      rust_error_at (
 		lexer.peek_token ()->get_locus (),
 		"failed to parse inherent impl item in inherent impl");
+#endif
+        Error error (
+		lexer.peek_token ()->get_locus (),
+		"failed to parse inherent impl item in inherent impl");
+        error_table.push_back (std::move (error));
+
 	      return nullptr;
 	    }
 
@@ -5242,8 +5512,14 @@ Parser<ManagedTokenSource>::parse_impl (AST::Visibility vis,
       // ensure type is included as it is required
       if (type == nullptr)
 	{
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "could not parse type in trait impl");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "could not parse type in trait impl");
+    error_table.push_back (std::move (error));
+
 	  skip_after_next_block ();
 	  return nullptr;
 	}
@@ -5272,8 +5548,14 @@ Parser<ManagedTokenSource>::parse_impl (AST::Visibility vis,
 
 	  if (impl_item == nullptr)
 	    {
+#if 0
 	      rust_error_at (lexer.peek_token ()->get_locus (),
 			     "failed to parse trait impl item in trait impl");
+#endif
+        Error error (lexer.peek_token ()->get_locus (),
+			     "failed to parse trait impl item in trait impl");
+        error_table.push_back (std::move (error));
+
 	      return nullptr;
 	    }
 

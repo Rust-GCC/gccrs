@@ -19,6 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "rust-lex.h"
 #include "rust-ast-full.h"
+#include "rust-diagnostics.h"
 
 namespace Rust {
 /* HACK: used to resolve the expression-or-statement problem at the end of a
