@@ -2024,11 +2024,9 @@ Parser<ManagedTokenSource>::parse_macro_match ()
 		     "start of a macro match",
 		     t->get_token_description ());
 #endif
-      Error error (t->get_locus (),
-		   "closing delimiters like %qs are not allowed at the "
-		   "start of a macro match",
-		   t->get_token_description ());
-      error_table.push_back (std::move (error));
+      error_table.push_back (Error (t->get_locus (),
+		   "closing delimiters like %qs are not allowed at the start of a macro "
+       "match", t->get_token_description ()));
 
       // skip somewhere?
       return nullptr;
@@ -7241,9 +7239,16 @@ Parser<ManagedTokenSource>::parse_qualified_path_type (bool pratt_parse)
       as_type_path = parse_type_path ();
       if (as_type_path.is_error ())
 	{
+#if 0
 	  rust_error_at (
 	    lexer.peek_token ()->get_locus (),
 	    "could not parse type path in as clause in qualified path type");
+#endif
+    Error error (
+	    lexer.peek_token ()->get_locus (),
+	    "could not parse type path in as clause in qualified path type");
+    error_table.push_back (std::move (error));
+
 	  // skip somewhere?
 	  return AST::QualifiedPathType::create_error ();
 	}
@@ -7291,9 +7296,16 @@ Parser<ManagedTokenSource>::parse_qualified_path_in_type ()
   if (initial_segment == nullptr)
     {
       // skip after somewhere?
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "required initial type path segment in qualified path in "
 		     "type could not be parsed");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		     "required initial type path segment in qualified path in "
+		     "type could not be parsed");
+      error_table.push_back (std::move (error));
+
       return AST::QualifiedPathInType::create_error ();
     }
   segments.push_back (std::move (initial_segment));
@@ -7311,9 +7323,16 @@ Parser<ManagedTokenSource>::parse_qualified_path_in_type ()
       if (segment == nullptr)
 	{
 	  // skip after somewhere?
+#if 0
 	  rust_error_at (
 	    t->get_locus (),
 	    "could not parse type path segment in qualified path in type");
+#endif
+    Error error (
+	    t->get_locus (),
+	    "could not parse type path segment in qualified path in type");
+    error_table.push_back (std::move (error));
+
 	  return AST::QualifiedPathInType::create_error ();
 	}
 
@@ -7352,8 +7371,14 @@ Parser<ManagedTokenSource>::parse_self_param ()
 	  // something went wrong somehow
 	  if (lifetime.is_error ())
 	    {
+#if 0
 	      rust_error_at (lexer.peek_token ()->get_locus (),
 			     "failed to parse lifetime in self param");
+#endif
+        Error error (lexer.peek_token ()->get_locus (),
+			     "failed to parse lifetime in self param");
+        error_table.push_back (std::move (error));
+
 	      // skip after somewhere?
 	      return AST::SelfParam::create_error ();
 	    }
@@ -7387,8 +7412,14 @@ Parser<ManagedTokenSource>::parse_self_param ()
       type = parse_type ();
       if (type == nullptr)
 	{
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "could not parse type in self param");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "could not parse type in self param");
+    error_table.push_back (std::move (error));
+
 	  // skip after somewhere?
 	  return AST::SelfParam::create_error ();
 	}

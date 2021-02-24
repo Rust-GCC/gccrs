@@ -216,5 +216,7 @@ Error::Error (const Location location, const char *fmt, ...) : locus (location)
   va_start (ap, fmt);
   message = expand_message (fmt, ap);
   va_end (ap);
+
+  message.shrink_to_fit ();
 }
 } // namespace Rust

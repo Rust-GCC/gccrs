@@ -97,7 +97,9 @@ struct Error
 
   Error (Location locus, std::string message)
     : locus (locus), message (std::move (message))
-  {}
+  {
+    message.shrink_to_fit ();
+  }
 
   // TODO: the attribute part might be incorrect
   Error (Location locus, const char *fmt,
