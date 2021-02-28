@@ -40,7 +40,7 @@ public:
 
   void visit (HIR::InherentImpl &impl_block) override
   {
-    TyTy::TyBase *self = nullptr;
+    TyTy::BaseType *self = nullptr;
     if (!context->lookup_type (
 	  impl_block.get_type ()->get_mappings ().get_hirid (), &self))
       {
@@ -55,7 +55,7 @@ public:
 
   void visit (HIR::Function &function) override
   {
-    TyTy::TyBase *lookup;
+    TyTy::BaseType *lookup;
     if (!context->lookup_type (function.get_mappings ().get_hirid (), &lookup))
       {
 	rust_error_at (function.locus, "failed to lookup function type");
@@ -76,7 +76,7 @@ public:
     context->push_return_type (expected_ret_tyty);
 
     auto result = TypeCheckExpr::Resolve (function.function_body.get (), false);
-    auto ret_resolved = expected_ret_tyty->combine (result);
+    auto ret_resolved = expected_ret_tyty->unify (result);
     if (ret_resolved == nullptr)
       return;
 

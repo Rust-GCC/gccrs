@@ -29,7 +29,7 @@ namespace Resolver {
 class MethodResolution : public TypeCheckBase
 {
 public:
-  static std::vector<HIR::Method *> Probe (TyTy::TyBase *receiver,
+  static std::vector<HIR::Method *> Probe (TyTy::BaseType *receiver,
 					   HIR::PathExprSegment method_name)
   {
     MethodResolution probe (receiver, method_name);
@@ -47,7 +47,7 @@ public:
 
   void visit (HIR::Method &method)
   {
-    TyTy::TyBase *self_lookup = nullptr;
+    TyTy::BaseType *self_lookup = nullptr;
     if (!context->lookup_type (
 	  method.get_self_param ().get_mappings ().get_hirid (), &self_lookup))
       {
@@ -66,24 +66,24 @@ public:
 
     // FIXME this can be simplified with
     // https://github.com/Rust-GCC/gccrs/issues/187
-    auto combined = receiver->combine (self_lookup);
-    if (combined == nullptr)
+    auto unified_ty = receiver->unify (self_lookup);
+    if (unified_ty == nullptr)
       {
 	// incompatible self argument then this is not a valid method for this
 	// receiver
 	return;
       }
-    delete combined;
+    delete unified_ty;
 
     probed.push_back (&method);
   }
 
 private:
-  MethodResolution (TyTy::TyBase *receiver, HIR::PathExprSegment method_name)
+  MethodResolution (TyTy::BaseType *receiver, HIR::PathExprSegment method_name)
     : TypeCheckBase (), receiver (receiver), method_name (method_name)
   {}
 
-  TyTy::TyBase *receiver;
+  TyTy::BaseType *receiver;
   HIR::PathExprSegment method_name;
 
   std::vector<HIR::Method *> probed;

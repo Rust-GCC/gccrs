@@ -28,19 +28,41 @@
 namespace Rust {
 namespace TyTy {
 
+/* Rules specify how to unify two Ty. For example, the result of unifying the
+   two tuples (u64, A) and (B, i64) would be (u64, i64).
+
+   Performing a unification requires a double dispatch. To illustrate, suppose
+   we want to unify `ty1` and `ty2`. Here's what it looks like:
+     1. The caller calls `ty1.unify(ty2)`. This is the first dispatch.
+     2. `ty1` creates a rule specific to its type(e.g. TupleRules).
+     3. The rule calls `ty2.accept_vis(rule)`. This is the second dispatch.
+     4. `ty2` calls `rule.visit(*this)`, which will method-overload to the
+	      correct implementation at compile time.
+
+   The nice thing about Rules is that they seperate unification logic from the
+   representation of Ty. To support unifying a new Ty, implement its
+   `accept_vis` and `unify` method to pass the unification request to Rules.
+   Then, create a new `XXXRules` class and implement one `visit` method for
+   every Ty it can unify with. */
 class BaseRules : public TyVisitor
 {
 public:
   virtual ~BaseRules () {}
 
-  TyBase *combine (TyBase *other)
+  /* Unify two ty. Returns a pointer to the newly-created unified ty, or nullptr
+     if the two types cannot be unified. The caller is responsible for releasing
+     the memory of the returned ty.
+
+     This method is meant to be used internally by Ty. If you're trying to unify
+     two ty, you can simply call `unify` on ty themselves. */
+  BaseType *unify (BaseType *other)
   {
     other->accept_vis (*this);
     if (resolved != nullptr)
       {
-	resolved->append_reference (base->get_ref ());
+	resolved->append_reference (get_base ()->get_ref ());
 	resolved->append_reference (other->get_ref ());
-	for (auto ref : base->get_combined_refs ())
+	for (auto ref : get_base ()->get_combined_refs ())
 	  resolved->append_reference (ref);
 	for (auto ref : other->get_combined_refs ())
 	  resolved->append_reference (ref);
@@ -50,7 +72,7 @@ public:
 	  {
 	    for (auto &ref : resolved->get_combined_refs ())
 	      {
-		TyTy::TyBase *ref_tyty = nullptr;
+		TyTy::BaseType *ref_tyty = nullptr;
 		bool ok = context->lookup_type (ref, &ref_tyty);
 		if (!ok)
 		  continue;
@@ -75,127 +97,149 @@ public:
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (TupleType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (ADTType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (InferType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (FnType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (ArrayType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (BoolType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (IntType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (UintType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (USizeType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (ISizeType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (FloatType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (ErrorType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (StructFieldType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (CharType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
   virtual void visit (ReferenceType &type) override
-
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   base->as_string ().c_str (), type.as_string ().c_str ());
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
 protected:
-  BaseRules (TyBase *base)
+  BaseRules (BaseType *base)
     : mappings (Analysis::Mappings::get ()),
-      context (Resolver::TypeCheckContext::get ()), base (base),
+      context (Resolver::TypeCheckContext::get ()),
       resolved (new ErrorType (base->get_ref (), base->get_ref ()))
   {}
 
   Analysis::Mappings *mappings;
   Resolver::TypeCheckContext *context;
 
-  TyBase *base;
-  TyBase *resolved;
+  /* Temporary storage for the result of a unification.
+     We could return the result directly instead of storing it in the rule
+     object, but that involves modifying the visitor pattern to accommodate
+     the return value, which is too complex. */
+  BaseType *resolved;
+
+private:
+  /* Returns a pointer to the ty that created this rule. */
+  virtual BaseType *get_base () = 0;
 };
 
 class InferRules : public BaseRules
@@ -412,6 +456,8 @@ public:
   }
 
 private:
+  BaseType *get_base () override { return base; }
+
   InferType *base;
 };
 
@@ -423,7 +469,7 @@ public:
 
   void visit (StructFieldType &type)
   {
-    TyBase *ty = base->get_field_type ()->combine (type.get_field_type ());
+    BaseType *ty = base->get_field_type ()->unify (type.get_field_type ());
     if (ty == nullptr)
       return;
 
@@ -432,6 +478,8 @@ public:
   }
 
 private:
+  BaseType *get_base () override { return base; }
+
   StructFieldType *base;
 };
 
@@ -446,6 +494,8 @@ public:
   }
 
 private:
+  BaseType *get_base () override { return base; }
+
   UnitType *base;
 };
 
@@ -474,23 +524,23 @@ public:
 	return;
       }
 
-    // FIXME add an abstract method for is_equal on TyBase
+    // FIXME add an abstract method for is_equal on BaseType
     for (size_t i = 0; i < base->num_params (); i++)
       {
 	auto a = base->param_at (i).second;
 	auto b = type.param_at (i).second;
 
-	auto combined_param = a->combine (b);
-	if (combined_param == nullptr)
+	auto unified_param = a->unify (b);
+	if (unified_param == nullptr)
 	  {
 	    BaseRules::visit (type);
 	    return;
 	  }
       }
 
-    auto combined_return
-      = base->get_return_type ()->combine (type.get_return_type ());
-    if (combined_return == nullptr)
+    auto unified_return
+      = base->get_return_type ()->unify (type.get_return_type ());
+    if (unified_return == nullptr)
       {
 	BaseRules::visit (type);
 	return;
@@ -501,6 +551,8 @@ public:
   }
 
 private:
+  BaseType *get_base () override { return base; }
+
   FnType *base;
 };
 
@@ -512,7 +564,7 @@ public:
   void visit (ArrayType &type) override
   {
     // check base type
-    auto base_resolved = base->get_type ()->combine (type.get_type ());
+    auto base_resolved = base->get_type ()->unify (type.get_type ());
     if (base_resolved == nullptr)
       {
 	// fixme add error message
@@ -533,6 +585,8 @@ public:
   }
 
 private:
+  BaseType *get_base () override { return base; }
+
   ArrayType *base;
 };
 
@@ -547,6 +601,8 @@ public:
   }
 
 private:
+  BaseType *get_base () override { return base; }
+
   BoolType *base;
 };
 
@@ -581,6 +637,8 @@ public:
   }
 
 private:
+  BaseType *get_base () override { return base; }
+
   IntType *base;
 };
 
@@ -615,6 +673,8 @@ public:
   }
 
 private:
+  BaseType *get_base () override { return base; }
+
   UintType *base;
 };
 
@@ -648,6 +708,8 @@ public:
   }
 
 private:
+  BaseType *get_base () override { return base; }
+
   FloatType *base;
 };
 
@@ -670,14 +732,14 @@ public:
 	TyTy::StructFieldType *base_field = base->get_field (i);
 	TyTy::StructFieldType *other_field = type.get_field (i);
 
-	TyBase *combined = base_field->combine (other_field);
-	if (combined == nullptr)
+	BaseType *unified_ty = base_field->unify (other_field);
+	if (unified_ty == nullptr)
 	  {
 	    BaseRules::visit (type);
 	    return;
 	  }
 
-	fields.push_back ((TyTy::StructFieldType *) combined);
+	fields.push_back ((TyTy::StructFieldType *) unified_ty);
       }
 
     resolved = new TyTy::ADTType (type.get_ref (), type.get_ty_ref (),
@@ -685,6 +747,8 @@ public:
   }
 
 private:
+  BaseType *get_base () override { return base; }
+
   ADTType *base;
 };
 
@@ -704,17 +768,17 @@ public:
     std::vector<HirId> fields;
     for (size_t i = 0; i < base->num_fields (); i++)
       {
-	TyBase *bo = base->get_field (i);
-	TyBase *fo = type.get_field (i);
+	BaseType *bo = base->get_field (i);
+	BaseType *fo = type.get_field (i);
 
-	TyBase *combined = bo->combine (fo);
-	if (combined == nullptr)
+	BaseType *unified_ty = bo->unify (fo);
+	if (unified_ty == nullptr)
 	  {
 	    BaseRules::visit (type);
 	    return;
 	  }
 
-	fields.push_back (combined->get_ref ());
+	fields.push_back (unified_ty->get_ref ());
       }
 
     resolved
@@ -722,6 +786,8 @@ public:
   }
 
 private:
+  BaseType *get_base () override { return base; }
+
   TupleType *base;
 };
 
@@ -746,6 +812,8 @@ public:
   void visit (USizeType &type) override { resolved = type.clone (); }
 
 private:
+  BaseType *get_base () override { return base; }
+
   USizeType *base;
 };
 
@@ -770,6 +838,8 @@ public:
   void visit (ISizeType &type) override { resolved = type.clone (); }
 
 private:
+  BaseType *get_base () override { return base; }
+
   ISizeType *base;
 };
 
@@ -793,6 +863,8 @@ public:
   void visit (CharType &type) override { resolved = type.clone (); }
 
 private:
+  BaseType *get_base () override { return base; }
+
   CharType *base;
 };
 
@@ -806,12 +878,14 @@ public:
     auto base_type = base->get_base ();
     auto other_base_type = type.get_base ();
 
-    TyTy::TyBase *base_resolved = base_type->combine (other_base_type);
+    TyTy::BaseType *base_resolved = base_type->unify (other_base_type);
     resolved = new ReferenceType (base->get_ref (), base->get_ty_ref (),
 				  base_resolved->get_ref ());
   }
 
 private:
+  BaseType *get_base () override { return base; }
+
   ReferenceType *base;
 };
 

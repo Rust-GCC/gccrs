@@ -31,8 +31,8 @@ namespace TyTy {
 class TypeCheckCallExpr : private TyVisitor
 {
 public:
-  static TyBase *go (TyBase *ref, HIR::CallExpr &call,
-		     Resolver::TypeCheckContext *context)
+  static BaseType *go (BaseType *ref, HIR::CallExpr &call,
+		       Resolver::TypeCheckContext *context)
   {
     TypeCheckCallExpr checker (call, context);
     ref->accept_vis (checker);
@@ -66,7 +66,7 @@ private:
       mappings (Analysis::Mappings::get ())
   {}
 
-  TyBase *resolved;
+  BaseType *resolved;
   HIR::CallExpr &call;
   Resolver::TypeCheckContext *context;
   Analysis::Mappings *mappings;
@@ -75,8 +75,8 @@ private:
 class TypeCheckMethodCallExpr : private TyVisitor
 {
 public:
-  static TyBase *go (TyBase *ref, HIR::MethodCallExpr &call,
-		     Resolver::TypeCheckContext *context)
+  static BaseType *go (BaseType *ref, HIR::MethodCallExpr &call,
+		       Resolver::TypeCheckContext *context)
   {
     TypeCheckMethodCallExpr checker (call, context);
     ref->accept_vis (checker);
@@ -109,7 +109,7 @@ private:
       mappings (Analysis::Mappings::get ())
   {}
 
-  TyBase *resolved;
+  BaseType *resolved;
   HIR::MethodCallExpr &call;
   Resolver::TypeCheckContext *context;
   Analysis::Mappings *mappings;

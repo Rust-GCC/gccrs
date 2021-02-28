@@ -30,7 +30,7 @@ namespace Resolver {
 class TypeCheckStmt : public TypeCheckBase
 {
 public:
-  static TyTy::TyBase *Resolve (HIR::Stmt *stmt, bool inside_loop)
+  static TyTy::BaseType *Resolve (HIR::Stmt *stmt, bool inside_loop)
   {
     TypeCheckStmt resolver (inside_loop);
     stmt->accept_vis (resolver);
@@ -51,7 +51,7 @@ public:
   {
     infered = new TyTy::UnitType (stmt.get_mappings ().get_hirid ());
 
-    TyTy::TyBase *init_expr_ty = nullptr;
+    TyTy::BaseType *init_expr_ty = nullptr;
     if (stmt.has_init_expr ())
       {
 	init_expr_ty
@@ -65,22 +65,22 @@ public:
 	init_expr_ty->append_reference (ref);
       }
 
-    TyTy::TyBase *specified_ty = nullptr;
+    TyTy::BaseType *specified_ty = nullptr;
     if (stmt.has_type ())
       specified_ty = TypeCheckType::Resolve (stmt.get_type ());
 
     // let x:i32 = 123;
     if (specified_ty != nullptr && init_expr_ty != nullptr)
       {
-	auto combined = specified_ty->combine (init_expr_ty);
-	if (combined->get_kind () == TyTy::TypeKind::ERROR)
+	auto unified_ty = specified_ty->unify (init_expr_ty);
+	if (unified_ty->get_kind () == TyTy::TypeKind::ERROR)
 	  {
 	    rust_fatal_error (stmt.get_locus (),
 			      "failure in setting up let stmt type");
 	    return;
 	  }
 
-	context->insert_type (stmt.get_mappings (), combined);
+	context->insert_type (stmt.get_mappings (), unified_ty);
       }
     else
       {
@@ -110,7 +110,7 @@ private:
     : TypeCheckBase (), infered (nullptr), inside_loop (inside_loop)
   {}
 
-  TyTy::TyBase *infered;
+  TyTy::BaseType *infered;
   bool inside_loop;
 };
 

@@ -32,7 +32,7 @@ namespace Resolver {
 class TypeCheckExpr : public TypeCheckBase
 {
 public:
-  static TyTy::TyBase *Resolve (HIR::Expr *expr, bool inside_loop)
+  static TyTy::BaseType *Resolve (HIR::Expr *expr, bool inside_loop)
   {
     TypeCheckExpr resolver (inside_loop);
     expr->accept_vis (resolver);
@@ -155,7 +155,7 @@ public:
 	return;
       }
 
-    infered = fn_return_tyty->combine (expr_ty);
+    infered = fn_return_tyty->unify (expr_ty);
     fn_return_tyty->append_reference (expr_ty->get_ref ());
     for (auto &ref : infered->get_combined_refs ())
       fn_return_tyty->append_reference (ref);
@@ -163,7 +163,7 @@ public:
 
   void visit (HIR::CallExpr &expr)
   {
-    TyTy::TyBase *function_tyty
+    TyTy::BaseType *function_tyty
       = TypeCheckExpr::Resolve (expr.get_fnexpr (), false);
     if (function_tyty == nullptr)
       return;
@@ -212,7 +212,7 @@ public:
       }
 
     auto resolved_method = probes.at (0);
-    TyTy::TyBase *lookup;
+    TyTy::BaseType *lookup;
     if (!context->lookup_type (resolved_method->get_mappings ().get_hirid (),
 			       &lookup))
       {
@@ -245,7 +245,7 @@ public:
     auto lhs = TypeCheckExpr::Resolve (expr.get_lhs (), false);
     auto rhs = TypeCheckExpr::Resolve (expr.get_rhs (), false);
 
-    auto result = lhs->combine (rhs);
+    auto result = lhs->unify (rhs);
     if (result->get_kind () == TyTy::TypeKind::ERROR)
       {
 	rust_error_at (expr.get_locus (),
@@ -335,7 +335,7 @@ public:
       }
 
     // the base reference for this name _must_ have a type set
-    TyTy::TyBase *lookup;
+    TyTy::BaseType *lookup;
     if (!context->lookup_type (ref, &lookup))
       {
 	rust_error_at (mappings->lookup_location (ref),
@@ -469,7 +469,7 @@ public:
 	return;
       }
 
-    infered = lhs->combine (rhs);
+    infered = lhs->unify (rhs);
     infered->append_reference (lhs->get_ref ());
     infered->append_reference (rhs->get_ref ());
   }
@@ -479,7 +479,7 @@ public:
     auto lhs = TypeCheckExpr::Resolve (expr.get_lhs (), false);
     auto rhs = TypeCheckExpr::Resolve (expr.get_rhs (), false);
 
-    auto result = lhs->combine (rhs);
+    auto result = lhs->unify (rhs);
     if (result == nullptr || result->get_kind () == TyTy::TypeKind::ERROR)
       return;
 
@@ -496,16 +496,16 @@ public:
 
     // we expect the lhs and rhs must be bools at this point
     TyTy::BoolType elhs (expr.get_mappings ().get_hirid ());
-    lhs = elhs.combine (lhs);
+    lhs = elhs.unify (lhs);
     if (lhs == nullptr || lhs->get_kind () == TyTy::TypeKind::ERROR)
       return;
 
     TyTy::BoolType rlhs (expr.get_mappings ().get_hirid ());
-    rhs = elhs.combine (rhs);
+    rhs = elhs.unify (rhs);
     if (lhs == nullptr || lhs->get_kind () == TyTy::TypeKind::ERROR)
       return;
 
-    infered = lhs->combine (rhs);
+    infered = lhs->unify (rhs);
     infered->append_reference (lhs->get_ref ());
     infered->append_reference (rhs->get_ref ());
   }
@@ -575,7 +575,7 @@ public:
     auto else_blk_resolved
       = TypeCheckExpr::Resolve (expr.get_else_block (), inside_loop);
 
-    infered = if_blk_resolved->combine (else_blk_resolved);
+    infered = if_blk_resolved->unify (else_blk_resolved);
   }
 
   void visit (HIR::IfExprConseqIf &expr)
@@ -585,14 +585,14 @@ public:
     auto else_blk
       = TypeCheckExpr::Resolve (expr.get_conseq_if_expr (), inside_loop);
 
-    infered = if_blk->combine (else_blk);
+    infered = if_blk->unify (else_blk);
   }
 
   void visit (HIR::BlockExpr &expr);
 
   void visit (HIR::ArrayIndexExpr &expr)
   {
-    TyTy::TyBase *size_ty;
+    TyTy::BaseType *size_ty;
     if (!context->lookup_builtin ("usize", &size_ty))
       {
 	rust_error_at (
@@ -601,8 +601,8 @@ public:
 	return;
       }
 
-    auto resolved_index_expr = size_ty->combine (
-      TypeCheckExpr::Resolve (expr.get_index_expr (), false));
+    auto resolved_index_expr
+      = size_ty->unify (TypeCheckExpr::Resolve (expr.get_index_expr (), false));
     if (resolved_index_expr == nullptr)
       {
 	rust_error_at (expr.get_index_expr ()->get_locus_slow (),
@@ -647,7 +647,7 @@ public:
 
   void visit (HIR::ArrayElemsValues &elems)
   {
-    std::vector<TyTy::TyBase *> types;
+    std::vector<TyTy::BaseType *> types;
     elems.iterate ([&] (HIR::Expr *e) mutable -> bool {
       types.push_back (TypeCheckExpr::Resolve (e, false));
       return true;
@@ -656,7 +656,7 @@ public:
     infered_array_elems = types[0];
     for (size_t i = 1; i < types.size (); i++)
       {
-	infered_array_elems = infered_array_elems->combine (types.at (i));
+	infered_array_elems = infered_array_elems->unify (types.at (i));
       }
 
     for (auto &elem : types)
@@ -760,7 +760,7 @@ public:
   void visit (HIR::LoopExpr &expr)
   {
     context->push_new_loop_context (expr.get_mappings ().get_hirid ());
-    TyTy::TyBase *block_expr
+    TyTy::BaseType *block_expr
       = TypeCheckExpr::Resolve (expr.get_loop_block ().get (), true);
     if (block_expr->get_kind () != TyTy::TypeKind::UNIT)
       {
@@ -769,7 +769,7 @@ public:
 	return;
       }
 
-    TyTy::TyBase *loop_context_type = context->pop_loop_context ();
+    TyTy::BaseType *loop_context_type = context->pop_loop_context ();
 
     bool loop_context_type_infered
       = (loop_context_type->get_kind () != TyTy::TypeKind::INFER)
@@ -787,7 +787,7 @@ public:
     context->push_new_while_loop_context (expr.get_mappings ().get_hirid ());
 
     TypeCheckExpr::Resolve (expr.get_predicate_expr ().get (), false);
-    TyTy::TyBase *block_expr
+    TyTy::BaseType *block_expr
       = TypeCheckExpr::Resolve (expr.get_loop_block ().get (), true);
 
     if (block_expr->get_kind () != TyTy::TypeKind::UNIT)
@@ -811,10 +811,10 @@ public:
 
     if (expr.has_break_expr ())
       {
-	TyTy::TyBase *break_expr_tyty
+	TyTy::BaseType *break_expr_tyty
 	  = TypeCheckExpr::Resolve (expr.get_expr ().get (), false);
 
-	TyTy::TyBase *loop_context = context->peek_loop_context ();
+	TyTy::BaseType *loop_context = context->peek_loop_context ();
 	if (loop_context->get_kind () == TyTy::TypeKind::ERROR)
 	  {
 	    rust_error_at (expr.get_locus (),
@@ -822,8 +822,8 @@ public:
 	    return;
 	  }
 
-	TyTy::TyBase *combined = loop_context->combine (break_expr_tyty);
-	context->swap_head_loop_context (combined);
+	TyTy::BaseType *unified_ty = loop_context->unify (break_expr_tyty);
+	context->swap_head_loop_context (unified_ty);
       }
 
     infered = new TyTy::UnitType (expr.get_mappings ().get_hirid ());
@@ -843,7 +843,7 @@ public:
 
   void visit (HIR::BorrowExpr &expr)
   {
-    TyTy::TyBase *resolved_base
+    TyTy::BaseType *resolved_base
       = TypeCheckExpr::Resolve (expr.get_expr ().get (), false);
 
     // FIXME double_reference
@@ -854,7 +854,7 @@ public:
 
   void visit (HIR::DereferenceExpr &expr)
   {
-    TyTy::TyBase *resolved_base
+    TyTy::BaseType *resolved_base
       = TypeCheckExpr::Resolve (expr.get_expr ().get (), false);
     if (resolved_base->get_kind () != TyTy::TypeKind::REF)
       {
@@ -874,7 +874,7 @@ private:
   {}
 
   bool
-  validate_arithmetic_type (TyTy::TyBase *type,
+  validate_arithmetic_type (TyTy::BaseType *type,
 			    HIR::ArithmeticOrLogicalExpr::ExprType expr_type)
   {
     // https://doc.rust-lang.org/reference/expressions/operator-expr.html#arithmetic-and-logical-binary-operators
@@ -919,8 +919,8 @@ private:
     gcc_unreachable ();
   }
 
-  TyTy::TyBase *infered;
-  TyTy::TyBase *infered_array_elems;
+  TyTy::BaseType *infered;
+  TyTy::BaseType *infered_array_elems;
 
   bool inside_loop;
 };
