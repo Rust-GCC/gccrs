@@ -15375,9 +15375,16 @@ Parser<ManagedTokenSource>::parse_await_expr (
    * as await */
   if (!skip_token (IDENTIFIER))
     {
+#if 0
       rust_error_at (tok->get_locus (),
 		     "failed to skip %<await%> in await expr "
 		     "- this is probably a deep issue");
+#endif
+      Error error (tok->get_locus (),
+		     "failed to skip %<await%> in await expr "
+		     "- this is probably a deep issue");
+      error_table.push_back (std::move (error));
+
       // skip somewhere?
       return nullptr;
     }
@@ -15571,15 +15578,20 @@ template <typename ManagedTokenSource>
 std::unique_ptr<AST::MethodCallExpr>
 Parser<ManagedTokenSource>::parse_method_call_expr (
   const_TokenPtr tok, std::unique_ptr<AST::Expr> receiver_expr,
-  std::vector<AST::Attribute> outer_attrs,
-  ParseRestrictions restrictions ATTRIBUTE_UNUSED)
+  std::vector<AST::Attribute> outer_attrs, ParseRestrictions)
 {
   // parse path expr segment
   AST::PathExprSegment segment = parse_path_expr_segment ();
   if (segment.is_error ())
     {
+#if 0
       rust_error_at (tok->get_locus (),
 		     "failed to parse path expr segment of method call expr");
+#endif
+      Error error (tok->get_locus (),
+		     "failed to parse path expr segment of method call expr");
+      error_table.push_back (std::move (error));
+
       return nullptr;
     }
 
@@ -15598,18 +15610,22 @@ Parser<ManagedTokenSource>::parse_method_call_expr (
       std::unique_ptr<AST::Expr> param = parse_expr ();
       if (param == nullptr)
 	{
+#if 0
 	  rust_error_at (t->get_locus (),
 			 "failed to parse method param in method call");
+#endif
+    Error error (t->get_locus (),
+			 "failed to parse method param in method call");
+    error_table.push_back (std::move (error));
+
 	  return nullptr;
 	}
       params.push_back (std::move (param));
 
       if (lexer.peek_token ()->get_id () != COMMA)
-	{
 	  break;
-	}
-      lexer.skip_token ();
 
+      lexer.skip_token ();
       t = lexer.peek_token ();
     }
 
@@ -15632,9 +15648,8 @@ Parser<ManagedTokenSource>::parse_method_call_expr (
 template <typename ManagedTokenSource>
 std::unique_ptr<AST::CallExpr>
 Parser<ManagedTokenSource>::parse_function_call_expr (
-  const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> function_expr,
-  std::vector<AST::Attribute> outer_attrs,
-  ParseRestrictions restrictions ATTRIBUTE_UNUSED)
+  const_TokenPtr, std::unique_ptr<AST::Expr> function_expr,
+  std::vector<AST::Attribute> outer_attrs, ParseRestrictions)
 {
   // parse function params (if they exist)
   std::vector<std::unique_ptr<AST::Expr> > params;
@@ -15645,18 +15660,22 @@ Parser<ManagedTokenSource>::parse_function_call_expr (
       std::unique_ptr<AST::Expr> param = parse_expr ();
       if (param == nullptr)
 	{
+#if 0
 	  rust_error_at (t->get_locus (),
 			 "failed to parse function param in function call");
+#endif
+    Error error (t->get_locus (),
+			 "failed to parse function param in function call");
+    error_table.push_back (std::move (error));
+       
 	  return nullptr;
 	}
       params.push_back (std::move (param));
 
       if (lexer.peek_token ()->get_id () != COMMA)
-	{
 	  break;
-	}
-      lexer.skip_token ();
 
+      lexer.skip_token ();
       t = lexer.peek_token ();
     }
 
@@ -15692,8 +15711,14 @@ Parser<ManagedTokenSource>::parse_macro_invocation_partial (
   AST::SimplePath converted_path = path.as_simple_path ();
   if (converted_path.is_empty ())
     {
+#if 0
       rust_error_at (lexer.peek_token ()->get_locus (),
 		     "failed to parse simple path in macro invocation");
+#endif
+      Error error (lexer.peek_token ()->get_locus (),
+		     "failed to parse simple path in macro invocation");
+      error_table.push_back (std::move (error));
+
       return nullptr;
     }
 
@@ -15754,8 +15779,14 @@ Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
 	      = parse_struct_expr_field ();
 	    if (field == nullptr)
 	      {
+#if 0
 		rust_error_at (t->get_locus (),
 			       "failed to parse struct (or enum) expr field");
+#endif
+    Error error (t->get_locus (),
+			       "failed to parse struct (or enum) expr field");
+    error_table.push_back (std::move (error));
+
 		return nullptr;
 	      }
 
@@ -15796,10 +15827,17 @@ Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
 	    std::unique_ptr<AST::Expr> base_expr = parse_expr ();
 	    if (base_expr == nullptr)
 	      {
+#if 0
 		rust_error_at (
 		  lexer.peek_token ()->get_locus (),
 		  "failed to parse struct base expression in struct "
 		  "expression");
+#endif
+    Error error (
+		  lexer.peek_token ()->get_locus (),
+		  "failed to parse struct base expression in struct expression");
+    error_table.push_back (std::move (error));
+
 		return nullptr;
 	      }
 
@@ -15830,10 +15868,17 @@ Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
 					   std::move (outer_attrs)));
       }
     default:
+#if 0
       rust_error_at (t->get_locus (),
 		     "unrecognised token %qs in struct (or enum) expression - "
 		     "expected %<}%>, identifier, int literal, or %<..%>",
 		     t->get_token_description ());
+#endif
+      error_table.push_back (Error (t->get_locus (),
+		     "unrecognised token %qs in struct (or enum) expression - "
+		     "expected %<}%>, identifier, int literal, or %<..%>",
+		     t->get_token_description ()));
+
       return nullptr;
     }
 }
@@ -15864,9 +15909,16 @@ Parser<ManagedTokenSource>::parse_struct_expr_tuple_partial (
       std::unique_ptr<AST::Expr> expr = parse_expr ();
       if (expr == nullptr)
 	{
+#if 0
 	  rust_error_at (
 	    t->get_locus (),
 	    "failed to parse expression in struct (or enum) expression tuple");
+#endif
+    Error error (
+	    t->get_locus (),
+	    "failed to parse expression in struct (or enum) expression tuple");
+    error_table.push_back (std::move (error));
+
 	  return nullptr;
 	}
       exprs.push_back (std::move (expr));
@@ -15937,9 +15989,15 @@ Parser<ManagedTokenSource>::parse_path_in_expression_pratt (const_TokenPtr tok)
 	}
       gcc_fallthrough ();
     default:
+#if 0
       rust_error_at (tok->get_locus (),
 		     "unrecognised token %qs in path in expression",
 		     tok->get_token_description ());
+#endif
+      error_table.push_back (Error (tok->get_locus (),
+		     "unrecognised token %qs in path in expression",
+		     tok->get_token_description ()));
+
       return AST::PathInExpression::create_error ();
     }
 
@@ -15983,8 +16041,14 @@ Parser<ManagedTokenSource>::parse_path_in_expression_pratt (const_TokenPtr tok)
       if (segment.is_error ())
 	{
 	  // skip after somewhere?
+#if 0
 	  rust_error_at (t->get_locus (),
 			 "could not parse path expression segment");
+#endif
+    Error error (t->get_locus (),
+			 "could not parse path expression segment");
+    error_table.push_back (std::move (error));
+
 	  return AST::PathInExpression::create_error ();
 	}
 
@@ -16038,8 +16102,13 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (
 	    if (param.is_error ())
 	      {
 		// TODO is this really an error?
+#if 0
 		rust_error_at (t->get_locus (),
 			       "could not parse closure param");
+#endif
+    Error error (t->get_locus (), "could not parse closure param");
+    error_table.push_back (std::move (error));
+
 		return nullptr;
 	      }
 	    params.push_back (std::move (param));
@@ -16062,10 +16131,17 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (
 	break;
       }
     default:
+#if 0
       rust_error_at (tok->get_locus (),
 		     "unexpected token %qs in closure expression - expected "
 		     "%<|%> or %<||%>",
 		     tok->get_token_description ());
+#endif
+      error_table.push_back (Error (tok->get_locus (),
+		     "unexpected token %qs in closure expression - expected "
+		     "%<|%> or %<||%>",
+		     tok->get_token_description ()));
+
       // skip somewhere?
       return nullptr;
     }
@@ -16084,7 +16160,12 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (
       if (type == nullptr)
 	{
 	  // error
+#if 0
 	  rust_error_at (tok->get_locus (), "failed to parse type for closure");
+#endif
+    Error error (tok->get_locus (), "failed to parse type for closure");
+    error_table.push_back (std::move (error));
+
 	  // skip somewhere?
 	  return nullptr;
 	}
@@ -16094,8 +16175,14 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (
       if (block == nullptr)
 	{
 	  // error
+#if 0
 	  rust_error_at (lexer.peek_token ()->get_locus (),
 			 "failed to parse block expr in closure");
+#endif
+    Error error (lexer.peek_token ()->get_locus (),
+			 "failed to parse block expr in closure");
+    error_table.push_back (std::move (error));
+
 	  // skip somewhere?
 	  return nullptr;
 	}
@@ -16113,8 +16200,14 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (
       std::unique_ptr<AST::Expr> expr = parse_expr ();
       if (expr == nullptr)
 	{
+#if 0
 	  rust_error_at (tok->get_locus (),
 			 "failed to parse expression in closure");
+#endif
+    Error error (tok->get_locus (),
+			 "failed to parse expression in closure");
+    error_table.push_back (std::move (error));
+
 	  // skip somewhere?
 	  return nullptr;
 	}
