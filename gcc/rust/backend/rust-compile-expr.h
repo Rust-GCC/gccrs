@@ -298,126 +298,46 @@ public:
 
   void visit (HIR::ArithmeticOrLogicalExpr &expr)
   {
-    Operator op;
-    switch (expr.get_expr_type ())
-      {
-      case HIR::ArithmeticOrLogicalExpr::ADD:
-	op = OPERATOR_PLUS;
-	break;
-      case HIR::ArithmeticOrLogicalExpr::SUBTRACT:
-	op = OPERATOR_MINUS;
-	break;
-      case HIR::ArithmeticOrLogicalExpr::MULTIPLY:
-	op = OPERATOR_MULT;
-	break;
-      case HIR::ArithmeticOrLogicalExpr::DIVIDE:
-	op = OPERATOR_DIV;
-	break;
-      case HIR::ArithmeticOrLogicalExpr::MODULUS:
-	op = OPERATOR_MOD;
-	break;
-      case HIR::ArithmeticOrLogicalExpr::BITWISE_AND:
-	op = OPERATOR_AND;
-	break;
-      case HIR::ArithmeticOrLogicalExpr::BITWISE_OR:
-	op = OPERATOR_OR;
-	break;
-      case HIR::ArithmeticOrLogicalExpr::BITWISE_XOR:
-	op = OPERATOR_XOR;
-	break;
-      case HIR::ArithmeticOrLogicalExpr::LEFT_SHIFT:
-	op = OPERATOR_LSHIFT;
-	break;
-      case HIR::ArithmeticOrLogicalExpr::RIGHT_SHIFT:
-	op = OPERATOR_RSHIFT;
-	break;
-      default:
-	rust_fatal_error (expr.get_locus (), "failed to compile operator");
-	return;
-      }
-
+    auto op = expr.get_expr_type ();
     auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx);
     auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
+    auto location = expr.get_locus ();
 
-    translated = ctx->get_backend ()->binary_expression (op, lhs, rhs,
-							 expr.get_locus ());
+    translated
+      = ctx->get_backend ()->arithmetic_or_logical_expression (op, lhs, rhs,
+							       location);
   }
 
   void visit (HIR::ComparisonExpr &expr)
   {
-    Operator op;
-    switch (expr.get_expr_type ())
-      {
-      case HIR::ComparisonExpr::EQUAL:
-	op = OPERATOR_EQEQ;
-	break;
-      case HIR::ComparisonExpr::NOT_EQUAL:
-	op = OPERATOR_NOTEQ;
-	break;
-      case HIR::ComparisonExpr::GREATER_THAN:
-	op = OPERATOR_GT;
-	break;
-      case HIR::ComparisonExpr::LESS_THAN:
-	op = OPERATOR_LT;
-	break;
-      case HIR::ComparisonExpr::GREATER_OR_EQUAL:
-	op = OPERATOR_GE;
-	break;
-      case HIR::ComparisonExpr::LESS_OR_EQUAL:
-	op = OPERATOR_LE;
-	break;
-      default:
-	rust_fatal_error (expr.get_locus (), "failed to compile operator");
-	return;
-      }
-
+    auto op = expr.get_expr_type ();
     auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx);
     auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
+    auto location = expr.get_locus ();
 
-    translated = ctx->get_backend ()->binary_expression (op, lhs, rhs,
-							 expr.get_locus ());
+    translated
+      = ctx->get_backend ()->comparison_expression (op, lhs, rhs, location);
   }
 
   void visit (HIR::LazyBooleanExpr &expr)
   {
-    Operator op;
-    switch (expr.get_expr_type ())
-      {
-      case HIR::LazyBooleanExpr::LOGICAL_OR:
-	op = OPERATOR_OROR;
-	break;
-      case HIR::LazyBooleanExpr::LOGICAL_AND:
-	op = OPERATOR_ANDAND;
-	break;
-      default:
-	rust_fatal_error (expr.get_locus (), "failed to compile operator");
-	return;
-      }
-
+    auto op = expr.get_expr_type ();
     auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx);
     auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
+    auto location = expr.get_locus ();
 
-    translated = ctx->get_backend ()->binary_expression (op, lhs, rhs,
-							 expr.get_locus ());
+    translated
+      = ctx->get_backend ()->lazy_boolean_expression (op, lhs, rhs, location);
   }
 
   void visit (HIR::NegationExpr &expr)
   {
-    Operator op (OPERATOR_INVALID);
-    switch (expr.get_negation_type ())
-      {
-      case HIR::NegationExpr::NegationType::NEGATE:
-	op = OPERATOR_MINUS;
-	break;
+    auto op = expr.get_expr_type ();
+    auto negated_expr = CompileExpr::Compile (expr.get_expr (), ctx);
+    auto location = expr.get_locus ();
 
-      case HIR::NegationExpr::NegationType::NOT:
-	op = OPERATOR_NOT;
-	break;
-      }
-
-    Bexpression *negated_expr = CompileExpr::Compile (expr.get_expr (), ctx);
-    translated = ctx->get_backend ()->unary_expression (op, negated_expr,
-							expr.get_locus ());
+    translated
+      = ctx->get_backend ()->negation_expression (op, negated_expr, location);
   }
 
   void visit (HIR::IfExpr &expr)
@@ -539,8 +459,16 @@ public:
 
   void visit (HIR::StructExprStructFields &struct_expr)
   {
-    Btype *type
-      = ResolvePathType::Compile (&struct_expr.get_struct_name (), ctx);
+    TyTy::BaseType *tyty = nullptr;
+    if (!ctx->get_tyctx ()->lookup_type (
+	  struct_expr.get_mappings ().get_hirid (), &tyty))
+      {
+	rust_error_at (struct_expr.get_locus (), "unknown type");
+	return;
+      }
+
+    Btype *type = TyTyResolveCompile::compile (ctx, tyty);
+    rust_assert (type != nullptr);
 
     // this assumes all fields are in order from type resolution and if a base
     // struct was specified those fields are filed via accesors
@@ -573,8 +501,8 @@ public:
 	return;
       }
     rust_assert (receiver->get_kind () == TyTy::TypeKind::ADT);
+    TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (receiver);
 
-    TyTy::ADTType *adt = (TyTy::ADTType *) receiver;
     size_t index = 0;
     adt->get_field (expr.get_field_name (), &index);
 

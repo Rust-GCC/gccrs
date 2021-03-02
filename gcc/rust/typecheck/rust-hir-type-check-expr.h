@@ -168,6 +168,15 @@ public:
     if (function_tyty == nullptr)
       return;
 
+    bool valid_tyty = function_tyty->get_kind () == TyTy::TypeKind::ADT
+		      || function_tyty->get_kind () == TyTy::TypeKind::FNDEF;
+    if (!valid_tyty)
+      {
+	rust_error_at (expr.get_locus (),
+		       "Failed to resolve expression of function call");
+	return;
+      }
+
     infered = TyTy::TypeCheckCallExpr::go (function_tyty, expr, context);
     if (infered == nullptr)
       {
@@ -515,9 +524,9 @@ public:
     auto negated_expr_ty = TypeCheckExpr::Resolve (expr.get_expr (), false);
 
     // https://doc.rust-lang.org/reference/expressions/operator-expr.html#negation-operators
-    switch (expr.get_negation_type ())
+    switch (expr.get_expr_type ())
       {
-	case HIR::NegationExpr::NegationType::NEGATE: {
+	case NegationOperator::NEGATE: {
 	  bool valid
 	    = (negated_expr_ty->get_kind () == TyTy::TypeKind::INT)
 	      || (negated_expr_ty->get_kind () == TyTy::TypeKind::UINT)
@@ -537,7 +546,7 @@ public:
 	}
 	break;
 
-	case HIR::NegationExpr::NegationType::NOT: {
+	case NegationOperator::NOT: {
 	  bool valid
 	    = (negated_expr_ty->get_kind () == TyTy::TypeKind::BOOL)
 	      || (negated_expr_ty->get_kind () == TyTy::TypeKind::INT)
@@ -755,6 +764,29 @@ public:
 		       "failed to resolve PathInExpression type");
 	return;
       }
+
+    HIR::PathExprSegment seg = expr.get_final_segment ();
+    if (!infered->supports_substitions () && seg.has_generic_args ())
+      {
+	rust_error_at (expr.get_locus (),
+		       "path does not support substitutions");
+	return;
+      }
+
+    if (infered->has_subsititions_defined ())
+      {
+	if (infered->get_kind () != TyTy::TypeKind::ADT)
+	  {
+	    rust_error_at (expr.get_locus (),
+			   "substitutions only support on ADT types so far");
+	    return;
+	  }
+
+	TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (infered);
+	infered = seg.has_generic_args ()
+		    ? adt->handle_substitions (seg.get_generic_args ())
+		    : adt->infer_substitions ();
+      }
   }
 
   void visit (HIR::LoopExpr &expr)
@@ -881,11 +913,11 @@ private:
     // this will change later when traits are added
     switch (expr_type)
       {
-      case HIR::ArithmeticOrLogicalExpr::ADD:
-      case HIR::ArithmeticOrLogicalExpr::SUBTRACT:
-      case HIR::ArithmeticOrLogicalExpr::MULTIPLY:
-      case HIR::ArithmeticOrLogicalExpr::DIVIDE:
-      case HIR::ArithmeticOrLogicalExpr::MODULUS:
+      case ArithmeticOrLogicalOperator::ADD:
+      case ArithmeticOrLogicalOperator::SUBTRACT:
+      case ArithmeticOrLogicalOperator::MULTIPLY:
+      case ArithmeticOrLogicalOperator::DIVIDE:
+      case ArithmeticOrLogicalOperator::MODULUS:
 	return (type->get_kind () == TyTy::TypeKind::INT)
 	       || (type->get_kind () == TyTy::TypeKind::UINT)
 	       || (type->get_kind () == TyTy::TypeKind::FLOAT)
@@ -897,9 +929,9 @@ private:
 		       == TyTy::InferType::FLOAT));
 
 	// integers or bools
-      case HIR::ArithmeticOrLogicalExpr::BITWISE_AND:
-      case HIR::ArithmeticOrLogicalExpr::BITWISE_OR:
-      case HIR::ArithmeticOrLogicalExpr::BITWISE_XOR:
+      case ArithmeticOrLogicalOperator::BITWISE_AND:
+      case ArithmeticOrLogicalOperator::BITWISE_OR:
+      case ArithmeticOrLogicalOperator::BITWISE_XOR:
 	return (type->get_kind () == TyTy::TypeKind::INT)
 	       || (type->get_kind () == TyTy::TypeKind::UINT)
 	       || (type->get_kind () == TyTy::TypeKind::BOOL)
@@ -908,8 +940,8 @@ private:
 		       == TyTy::InferType::INTEGRAL));
 
 	// integers only
-      case HIR::ArithmeticOrLogicalExpr::LEFT_SHIFT:
-      case HIR::ArithmeticOrLogicalExpr::RIGHT_SHIFT:
+      case ArithmeticOrLogicalOperator::LEFT_SHIFT:
+      case ArithmeticOrLogicalOperator::RIGHT_SHIFT:
 	return (type->get_kind () == TyTy::TypeKind::INT)
 	       || (type->get_kind () == TyTy::TypeKind::UINT)
 	       || (type->get_kind () == TyTy::TypeKind::INFER

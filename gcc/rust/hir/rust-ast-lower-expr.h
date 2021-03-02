@@ -74,27 +74,7 @@ public:
     return compiler.translated;
   }
 
-  void visit (AST::PathInExpression &expr)
-  {
-    std::vector<HIR::PathExprSegment> path_segments;
-    expr.iterate_path_segments ([&] (AST::PathExprSegment &s) mutable -> bool {
-      rust_assert (s.has_generic_args () == false); // TODO
-
-      HIR::PathIdentSegment is (s.get_ident_segment ().as_string ());
-      HIR::PathExprSegment seg (is, s.get_locus ());
-      path_segments.push_back (seg);
-      return true;
-    });
-
-    auto crate_num = mappings->get_current_crate ();
-    Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
-				   mappings->get_next_hir_id (crate_num),
-				   UNKNOWN_LOCAL_DEFID);
-
-    translated = new HIR::PathInExpression (mapping, std::move (path_segments),
-					    expr.get_locus (),
-					    expr.opening_scope_resolution ());
-  }
+  void visit (AST::PathInExpression &expr) override;
 
 private:
   ASTLowerPathInExpression () : translated (nullptr) {}
@@ -408,42 +388,6 @@ public:
 
   void visit (AST::ArithmeticOrLogicalExpr &expr)
   {
-    HIR::ArithmeticOrLogicalExpr::ExprType kind
-      = HIR::ArithmeticOrLogicalExpr::ExprType::ADD;
-    switch (expr.get_expr_type ())
-      {
-      case AST::ArithmeticOrLogicalExpr::ExprType::ADD:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::ADD;
-	break;
-      case AST::ArithmeticOrLogicalExpr::ExprType::SUBTRACT:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::SUBTRACT;
-	break;
-      case AST::ArithmeticOrLogicalExpr::ExprType::MULTIPLY:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::MULTIPLY;
-	break;
-      case AST::ArithmeticOrLogicalExpr::ExprType::DIVIDE:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::DIVIDE;
-	break;
-      case AST::ArithmeticOrLogicalExpr::ExprType::MODULUS:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::MODULUS;
-	break;
-      case AST::ArithmeticOrLogicalExpr::ExprType::BITWISE_AND:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::BITWISE_AND;
-	break;
-      case AST::ArithmeticOrLogicalExpr::ExprType::BITWISE_OR:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::BITWISE_OR;
-	break;
-      case AST::ArithmeticOrLogicalExpr::ExprType::BITWISE_XOR:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::BITWISE_XOR;
-	break;
-      case AST::ArithmeticOrLogicalExpr::ExprType::LEFT_SHIFT:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::LEFT_SHIFT;
-	break;
-      case AST::ArithmeticOrLogicalExpr::ExprType::RIGHT_SHIFT:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::RIGHT_SHIFT;
-	break;
-      }
-
     HIR::Expr *lhs = ASTLoweringExpr::translate (expr.get_left_expr ().get ());
     rust_assert (lhs != nullptr);
     HIR::Expr *rhs = ASTLoweringExpr::translate (expr.get_right_expr ().get ());
@@ -458,34 +402,12 @@ public:
       = new HIR::ArithmeticOrLogicalExpr (mapping,
 					  std::unique_ptr<HIR::Expr> (lhs),
 					  std::unique_ptr<HIR::Expr> (rhs),
-					  kind, expr.get_locus ());
+					  expr.get_expr_type (),
+					  expr.get_locus ());
   }
 
   void visit (AST::ComparisonExpr &expr)
   {
-    HIR::ComparisonExpr::ExprType kind;
-    switch (expr.get_kind ())
-      {
-      case AST::ComparisonExpr::ExprType::EQUAL:
-	kind = HIR::ComparisonExpr::ExprType::EQUAL;
-	break;
-      case AST::ComparisonExpr::ExprType::NOT_EQUAL:
-	kind = HIR::ComparisonExpr::ExprType::NOT_EQUAL;
-	break;
-      case AST::ComparisonExpr::ExprType::GREATER_THAN:
-	kind = HIR::ComparisonExpr::ExprType::GREATER_THAN;
-	break;
-      case AST::ComparisonExpr::ExprType::LESS_THAN:
-	kind = HIR::ComparisonExpr::ExprType::LESS_THAN;
-	break;
-      case AST::ComparisonExpr::ExprType::GREATER_OR_EQUAL:
-	kind = HIR::ComparisonExpr::ExprType::GREATER_OR_EQUAL;
-	break;
-      case AST::ComparisonExpr::ExprType::LESS_OR_EQUAL:
-	kind = HIR::ComparisonExpr::ExprType::LESS_OR_EQUAL;
-	break;
-      }
-
     HIR::Expr *lhs = ASTLoweringExpr::translate (expr.get_left_expr ().get ());
     rust_assert (lhs != nullptr);
     HIR::Expr *rhs = ASTLoweringExpr::translate (expr.get_right_expr ().get ());
@@ -498,23 +420,12 @@ public:
 
     translated
       = new HIR::ComparisonExpr (mapping, std::unique_ptr<HIR::Expr> (lhs),
-				 std::unique_ptr<HIR::Expr> (rhs), kind,
-				 expr.get_locus ());
+				 std::unique_ptr<HIR::Expr> (rhs),
+				 expr.get_expr_type (), expr.get_locus ());
   }
 
   void visit (AST::LazyBooleanExpr &expr)
   {
-    HIR::LazyBooleanExpr::ExprType kind;
-    switch (expr.get_kind ())
-      {
-      case AST::LazyBooleanExpr::ExprType::LOGICAL_AND:
-	kind = HIR::LazyBooleanExpr::ExprType::LOGICAL_AND;
-	break;
-      case AST::LazyBooleanExpr::ExprType::LOGICAL_OR:
-	kind = HIR::LazyBooleanExpr::ExprType::LOGICAL_OR;
-	break;
-      }
-
     HIR::Expr *lhs = ASTLoweringExpr::translate (expr.get_left_expr ().get ());
     rust_assert (lhs != nullptr);
     HIR::Expr *rhs = ASTLoweringExpr::translate (expr.get_right_expr ().get ());
@@ -527,24 +438,13 @@ public:
 
     translated
       = new HIR::LazyBooleanExpr (mapping, std::unique_ptr<HIR::Expr> (lhs),
-				  std::unique_ptr<HIR::Expr> (rhs), kind,
-				  expr.get_locus ());
+				  std::unique_ptr<HIR::Expr> (rhs),
+				  expr.get_expr_type (), expr.get_locus ());
   }
 
   void visit (AST::NegationExpr &expr)
   {
     std::vector<HIR::Attribute> outer_attribs;
-
-    HIR::NegationExpr::NegationType type;
-    switch (expr.get_negation_type ())
-      {
-      case AST::NegationExpr::NegationType::NEGATE:
-	type = HIR::NegationExpr::NegationType::NEGATE;
-	break;
-      case AST::NegationExpr::NegationType::NOT:
-	type = HIR::NegationExpr::NegationType::NOT;
-	break;
-      }
 
     HIR::Expr *negated_value
       = ASTLoweringExpr::translate (expr.get_negated_expr ().get ());
@@ -555,45 +455,48 @@ public:
 				   UNKNOWN_LOCAL_DEFID);
     translated
       = new HIR::NegationExpr (mapping,
-			       std::unique_ptr<HIR::Expr> (negated_value), type,
-			       std::move (outer_attribs), expr.get_locus ());
+			       std::unique_ptr<HIR::Expr> (negated_value),
+			       expr.get_expr_type (), std::move (outer_attribs),
+			       expr.get_locus ());
   }
 
+  /* Compound assignment expression is compiled away. */
   void visit (AST::CompoundAssignmentExpr &expr)
   {
-    HIR::ArithmeticOrLogicalExpr::ExprType kind
-      = HIR::ArithmeticOrLogicalExpr::ExprType::ADD;
+    /* First we need to find the corresponding arithmetic or logical operator.
+     */
+    ArithmeticOrLogicalOperator op;
     switch (expr.get_expr_type ())
       {
-      case AST::CompoundAssignmentExpr::ExprType::ADD:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::ADD;
+      case CompoundAssignmentOperator::ADD:
+	op = ArithmeticOrLogicalOperator::ADD;
 	break;
-      case AST::CompoundAssignmentExpr::ExprType::SUBTRACT:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::SUBTRACT;
+      case CompoundAssignmentOperator::SUBTRACT:
+	op = ArithmeticOrLogicalOperator::SUBTRACT;
 	break;
-      case AST::CompoundAssignmentExpr::ExprType::MULTIPLY:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::MULTIPLY;
+      case CompoundAssignmentOperator::MULTIPLY:
+	op = ArithmeticOrLogicalOperator::MULTIPLY;
 	break;
-      case AST::CompoundAssignmentExpr::ExprType::DIVIDE:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::DIVIDE;
+      case CompoundAssignmentOperator::DIVIDE:
+	op = ArithmeticOrLogicalOperator::DIVIDE;
 	break;
-      case AST::CompoundAssignmentExpr::ExprType::MODULUS:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::MODULUS;
+      case CompoundAssignmentOperator::MODULUS:
+	op = ArithmeticOrLogicalOperator::MODULUS;
 	break;
-      case AST::CompoundAssignmentExpr::ExprType::BITWISE_AND:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::BITWISE_AND;
+      case CompoundAssignmentOperator::BITWISE_AND:
+	op = ArithmeticOrLogicalOperator::BITWISE_AND;
 	break;
-      case AST::CompoundAssignmentExpr::ExprType::BITWISE_OR:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::BITWISE_OR;
+      case CompoundAssignmentOperator::BITWISE_OR:
+	op = ArithmeticOrLogicalOperator::BITWISE_OR;
 	break;
-      case AST::CompoundAssignmentExpr::ExprType::BITWISE_XOR:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::BITWISE_XOR;
+      case CompoundAssignmentOperator::BITWISE_XOR:
+	op = ArithmeticOrLogicalOperator::BITWISE_XOR;
 	break;
-      case AST::CompoundAssignmentExpr::ExprType::LEFT_SHIFT:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::LEFT_SHIFT;
+      case CompoundAssignmentOperator::LEFT_SHIFT:
+	op = ArithmeticOrLogicalOperator::LEFT_SHIFT;
 	break;
-      case AST::CompoundAssignmentExpr::ExprType::RIGHT_SHIFT:
-	kind = HIR::ArithmeticOrLogicalExpr::ExprType::RIGHT_SHIFT;
+      case CompoundAssignmentOperator::RIGHT_SHIFT:
+	op = ArithmeticOrLogicalOperator::RIGHT_SHIFT;
 	break;
       }
 
@@ -609,7 +512,7 @@ public:
     HIR::Expr *operator_expr
       = new HIR::ArithmeticOrLogicalExpr (mapping, asignee_expr->clone_expr (),
 					  std::unique_ptr<HIR::Expr> (value),
-					  kind, expr.get_locus ());
+					  op, expr.get_locus ());
     translated
       = new HIR::AssignmentExpr (mapping,
 				 std::unique_ptr<HIR::Expr> (asignee_expr),

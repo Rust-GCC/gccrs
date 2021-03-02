@@ -204,11 +204,11 @@ Parser<ManagedTokenSource>::skip_generics_right_angle ()
       return true;
       case RIGHT_SHIFT: {
 #if 0
-	/* shit. preferred HACK would be to replace this token in stream with
-	 * '>', but may not be possible at this point. */
-	// FIXME: ensure locations aren't messed up
-	TokenPtr right_angle = Token::make (RIGHT_ANGLE, tok->get_locus () + 1);
-	lexer.replace_current_token (right_angle);
+        /* shit. preferred HACK would be to replace this token in stream with
+         * '>', but may not be possible at this point. */
+        // FIXME: ensure locations aren't messed up
+        TokenPtr right_angle = Token::make (RIGHT_ANGLE, tok->get_locus () + 1);
+        lexer.replace_current_token (right_angle);
 #endif
 
 	// new implementation that should be better
@@ -218,13 +218,13 @@ Parser<ManagedTokenSource>::skip_generics_right_angle ()
       }
       case GREATER_OR_EQUAL: {
 #if 0
-	// another HACK - replace with equal (as assignment intended, probably)
-	/* FIXME: is this even required? how many people wouldn't leave a space?
-	 * - apparently rustc has this feature */
-	// FIXME: ensure locations aren't messed up
-	TokenPtr equal = Token::make (EQUAL, tok->get_locus () + 1);
-	lexer.replace_current_token (equal);
-	return true;
+        // another HACK - replace with equal (as assignment intended, probably)
+        /* FIXME: is this even required? how many people wouldn't leave a space?
+         * - apparently rustc has this feature */
+        // FIXME: ensure locations aren't messed up
+        TokenPtr equal = Token::make (EQUAL, tok->get_locus () + 1);
+        lexer.replace_current_token (equal);
+        return true;
 #endif
 
 	// new implementation that should be better
@@ -234,13 +234,13 @@ Parser<ManagedTokenSource>::skip_generics_right_angle ()
       }
       case RIGHT_SHIFT_EQ: {
 #if 0
-	// another HACK - replace with greater or equal
-	// FIXME: again, is this really required? rustc has the feature, though
-	// FIXME: ensure locations aren't messed up
-	TokenPtr greater_equal
-	  = Token::make (GREATER_OR_EQUAL, tok->get_locus () + 1);
-	lexer.replace_current_token (greater_equal);
-	return true;
+        // another HACK - replace with greater or equal
+        // FIXME: again, is this really required? rustc has the feature, though
+        // FIXME: ensure locations aren't messed up
+        TokenPtr greater_equal
+          = Token::make (GREATER_OR_EQUAL, tok->get_locus () + 1);
+        lexer.replace_current_token (greater_equal);
+        return true;
 #endif
 
 	// new implementation that should be better
@@ -505,25 +505,37 @@ AST::Attribute
 Parser<ManagedTokenSource>::parse_inner_attribute ()
 {
   if (lexer.peek_token ()->get_id () != HASH)
-    return AST::Attribute::create_empty ();
-
+    {
+      rust_error_at (
+	lexer.peek_token ()->get_locus (),
+	"BUG: token %<#%> is missing, but parse_inner_attribute was invoked.");
+      return AST::Attribute::create_empty ();
+    }
   lexer.skip_token ();
 
   if (lexer.peek_token ()->get_id () != EXCLAM)
-    return AST::Attribute::create_empty ();
-
+    {
+      rust_error_at (lexer.peek_token ()->get_locus (),
+		     "Expect one of `!' or `['");
+      return AST::Attribute::create_empty ();
+    }
   lexer.skip_token ();
 
   if (lexer.peek_token ()->get_id () != LEFT_SQUARE)
-    return AST::Attribute::create_empty ();
-
+    {
+      rust_error_at (lexer.peek_token ()->get_locus (), "Expect `['");
+      return AST::Attribute::create_empty ();
+    }
   lexer.skip_token ();
 
   AST::Attribute actual_attribute = parse_attribute_body ();
+  lexer.skip_token ();
 
   if (lexer.peek_token ()->get_id () != RIGHT_SQUARE)
-    return AST::Attribute::create_empty ();
-
+    {
+      rust_error_at (lexer.peek_token ()->get_locus (), "Expect `]'");
+      return AST::Attribute::create_empty ();
+    }
   lexer.skip_token ();
 
   return actual_attribute;
@@ -9330,55 +9342,55 @@ Parser<ManagedTokenSource>::parse_match_expr (
 #if 0
       // branch on next token - if '{', block expr, otherwise just expr
       if (lexer.peek_token ()->get_id () == LEFT_CURLY)
-	{
-	  // block expr
-	  std::unique_ptr<AST::BlockExpr> block_expr = parse_block_expr ();
-	  if (block_expr == nullptr)
-	    {
-	      rust_error_at (
-		lexer.peek_token ()->get_locus (),
-		"failed to parse block expr in match arm in match expr");
-	      // skip somewhere
-	      return nullptr;
-	    }
+        {
+          // block expr
+          std::unique_ptr<AST::BlockExpr> block_expr = parse_block_expr ();
+          if (block_expr == nullptr)
+            {
+              rust_error_at (
+                lexer.peek_token ()->get_locus (),
+                "failed to parse block expr in match arm in match expr");
+              // skip somewhere
+              return nullptr;
+            }
 
-	  // create match case block expr and add to cases
-	  std::unique_ptr<AST::MatchCaseBlockExpr> match_case_block (
-	    new AST::MatchCaseBlockExpr (std::move (arm),
-					 std::move (block_expr)));
-	  match_arms.push_back (std::move (match_case_block));
+          // create match case block expr and add to cases
+          std::unique_ptr<AST::MatchCaseBlockExpr> match_case_block (
+            new AST::MatchCaseBlockExpr (std::move (arm),
+                                         std::move (block_expr)));
+          match_arms.push_back (std::move (match_case_block));
 
-	  // skip optional comma
-	  if (lexer.peek_token ()->get_id () == COMMA)
-	    {
-	      lexer.skip_token ();
-	    }
-	}
+          // skip optional comma
+          if (lexer.peek_token ()->get_id () == COMMA)
+            {
+              lexer.skip_token ();
+            }
+        }
       else
-	{
-	  // regular expr
-	  std::unique_ptr<AST::Expr> expr = parse_expr ();
-	  if (expr == nullptr)
-	    {
-	      rust_error_at (lexer.peek_token ()->get_locus (),
-			     "failed to parse expr in match arm in match expr");
-	      // skip somewhere?
-	      return nullptr;
-	    }
+        {
+          // regular expr
+          std::unique_ptr<AST::Expr> expr = parse_expr ();
+          if (expr == nullptr)
+            {
+              rust_error_at (lexer.peek_token ()->get_locus (),
+                             "failed to parse expr in match arm in match expr");
+              // skip somewhere?
+              return nullptr;
+            }
 
-	  // construct match case expr and add to cases
-	  std::unique_ptr<AST::MatchCaseExpr> match_case_expr (
-	    new AST::MatchCaseExpr (std::move (arm), std::move (expr)));
-	  match_arms.push_back (std::move (match_case_expr));
+          // construct match case expr and add to cases
+          std::unique_ptr<AST::MatchCaseExpr> match_case_expr (
+            new AST::MatchCaseExpr (std::move (arm), std::move (expr)));
+          match_arms.push_back (std::move (match_case_expr));
 
-	  // skip REQUIRED comma - if no comma, break
-	  if (lexer.peek_token ()->get_id () != COMMA)
-	    {
-	      // if no comma, must be end of cases
-	      break;
-	    }
-	  lexer.skip_token ();
-	}
+          // skip REQUIRED comma - if no comma, break
+          if (lexer.peek_token ()->get_id () != COMMA)
+            {
+              // if no comma, must be end of cases
+              break;
+            }
+          lexer.skip_token ();
+        }
 #endif
     }
 
@@ -13918,7 +13930,7 @@ Parser<ManagedTokenSource>::null_denotation (
 	/* FIXME: allow outer attributes on these expressions by having an outer
 	 * attrs parameter in function*/
 	return std::unique_ptr<AST::NegationExpr> (
-	  new AST::NegationExpr (std::move (expr), AST::NegationExpr::NEGATE,
+	  new AST::NegationExpr (std::move (expr), NegationOperator::NEGATE,
 				 std::move (outer_attrs), tok->get_locus ()));
       }
       case EXCLAM: { // logical or bitwise not
@@ -13941,7 +13953,7 @@ Parser<ManagedTokenSource>::null_denotation (
 
 	// FIXME: allow outer attributes on these expressions
 	return std::unique_ptr<AST::NegationExpr> (
-	  new AST::NegationExpr (std::move (expr), AST::NegationExpr::NOT,
+	  new AST::NegationExpr (std::move (expr), NegationOperator::NOT,
 				 std::move (outer_attrs), tok->get_locus ()));
       }
       case ASTERISK: {
@@ -14188,80 +14200,80 @@ Parser<ManagedTokenSource>::left_denotation (
       // sum expression - binary infix
       /*return parse_binary_plus_expr (tok, std::move (left),
 				     std::move (outer_attrs), restrictions);*/
-      return parse_arithmetic_or_logical_expr (
-	tok, std::move (left), std::move (outer_attrs),
-	AST::ArithmeticOrLogicalExpr::ADD, restrictions);
+      return parse_arithmetic_or_logical_expr (tok, std::move (left),
+					       std::move (outer_attrs),
+					       ArithmeticOrLogicalOperator::ADD,
+					       restrictions);
     case MINUS:
       // difference expression - binary infix
       /*return parse_binary_minus_expr (tok, std::move (left),
 				      std::move (outer_attrs), restrictions);*/
       return parse_arithmetic_or_logical_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::ArithmeticOrLogicalExpr::SUBTRACT, restrictions);
+	ArithmeticOrLogicalOperator::SUBTRACT, restrictions);
     case ASTERISK:
       // product expression - binary infix
       /*return parse_binary_mult_expr (tok, std::move (left),
 				     std::move (outer_attrs), restrictions);*/
       return parse_arithmetic_or_logical_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::ArithmeticOrLogicalExpr::MULTIPLY, restrictions);
+	ArithmeticOrLogicalOperator::MULTIPLY, restrictions);
     case DIV:
       // quotient expression - binary infix
       /*return parse_binary_div_expr (tok, std::move (left),
 				    std::move (outer_attrs), restrictions);*/
       return parse_arithmetic_or_logical_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::ArithmeticOrLogicalExpr::DIVIDE, restrictions);
+	ArithmeticOrLogicalOperator::DIVIDE, restrictions);
     case PERCENT:
       // modulo expression - binary infix
       /*return parse_binary_mod_expr (tok, std::move (left),
 				    std::move (outer_attrs), restrictions);*/
       return parse_arithmetic_or_logical_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::ArithmeticOrLogicalExpr::MODULUS, restrictions);
+	ArithmeticOrLogicalOperator::MODULUS, restrictions);
     case AMP:
       // logical or bitwise and expression - binary infix
       /*return parse_bitwise_and_expr (tok, std::move (left),
 				     std::move (outer_attrs), restrictions);*/
       return parse_arithmetic_or_logical_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::ArithmeticOrLogicalExpr::BITWISE_AND, restrictions);
+	ArithmeticOrLogicalOperator::BITWISE_AND, restrictions);
     case PIPE:
       // logical or bitwise or expression - binary infix
       /*return parse_bitwise_or_expr (tok, std::move (left),
 				    std::move (outer_attrs), restrictions);*/
       return parse_arithmetic_or_logical_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::ArithmeticOrLogicalExpr::BITWISE_OR, restrictions);
+	ArithmeticOrLogicalOperator::BITWISE_OR, restrictions);
     case CARET:
       // logical or bitwise xor expression - binary infix
       /*return parse_bitwise_xor_expr (tok, std::move (left),
 				     std::move (outer_attrs), restrictions);*/
       return parse_arithmetic_or_logical_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::ArithmeticOrLogicalExpr::BITWISE_XOR, restrictions);
+	ArithmeticOrLogicalOperator::BITWISE_XOR, restrictions);
     case LEFT_SHIFT:
       // left shift expression - binary infix
       /*return parse_left_shift_expr (tok, std::move (left),
 				    std::move (outer_attrs), restrictions);*/
       return parse_arithmetic_or_logical_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::ArithmeticOrLogicalExpr::LEFT_SHIFT, restrictions);
+	ArithmeticOrLogicalOperator::LEFT_SHIFT, restrictions);
     case RIGHT_SHIFT:
       // right shift expression - binary infix
       /*return parse_right_shift_expr (tok, std::move (left),
 				     std::move (outer_attrs), restrictions);*/
       return parse_arithmetic_or_logical_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::ArithmeticOrLogicalExpr::RIGHT_SHIFT, restrictions);
+	ArithmeticOrLogicalOperator::RIGHT_SHIFT, restrictions);
     case EQUAL_EQUAL:
       // equal to expression - binary infix (no associativity)
       /*return parse_binary_equal_expr (tok, std::move (left),
 				      std::move (outer_attrs), restrictions);*/
       return parse_comparison_expr (tok, std::move (left),
 				    std::move (outer_attrs),
-				    AST::ComparisonExpr::ExprType::EQUAL,
-				    restrictions);
+				    ComparisonOperator::EQUAL, restrictions);
     case NOT_EQUAL:
       // not equal to expression - binary infix (no associativity)
       /*return parse_binary_not_equal_expr (tok, std::move (left),
@@ -14269,7 +14281,7 @@ Parser<ManagedTokenSource>::left_denotation (
 					  restrictions);*/
       return parse_comparison_expr (tok, std::move (left),
 				    std::move (outer_attrs),
-				    AST::ComparisonExpr::ExprType::NOT_EQUAL,
+				    ComparisonOperator::NOT_EQUAL,
 				    restrictions);
     case RIGHT_ANGLE:
       // greater than expression - binary infix (no associativity)
@@ -14278,7 +14290,7 @@ Parser<ManagedTokenSource>::left_denotation (
 					     restrictions);*/
       return parse_comparison_expr (tok, std::move (left),
 				    std::move (outer_attrs),
-				    AST::ComparisonExpr::ExprType::GREATER_THAN,
+				    ComparisonOperator::GREATER_THAN,
 				    restrictions);
     case LEFT_ANGLE:
       // less than expression - binary infix (no associativity)
@@ -14287,24 +14299,26 @@ Parser<ManagedTokenSource>::left_denotation (
 					  restrictions);*/
       return parse_comparison_expr (tok, std::move (left),
 				    std::move (outer_attrs),
-				    AST::ComparisonExpr::ExprType::LESS_THAN,
+				    ComparisonOperator::LESS_THAN,
 				    restrictions);
     case GREATER_OR_EQUAL:
       // greater than or equal to expression - binary infix (no associativity)
       /*return parse_binary_greater_equal_expr (tok, std::move (left),
 					      std::move (outer_attrs),
 					      restrictions);*/
-      return parse_comparison_expr (
-	tok, std::move (left), std::move (outer_attrs),
-	AST::ComparisonExpr::ExprType::GREATER_OR_EQUAL, restrictions);
+      return parse_comparison_expr (tok, std::move (left),
+				    std::move (outer_attrs),
+				    ComparisonOperator::GREATER_OR_EQUAL,
+				    restrictions);
     case LESS_OR_EQUAL:
       // less than or equal to expression - binary infix (no associativity)
       /*return parse_binary_less_equal_expr (tok, std::move (left),
 					   std::move (outer_attrs),
 					   restrictions);*/
-      return parse_comparison_expr (
-	tok, std::move (left), std::move (outer_attrs),
-	AST::ComparisonExpr::ExprType::LESS_OR_EQUAL, restrictions);
+      return parse_comparison_expr (tok, std::move (left),
+				    std::move (outer_attrs),
+				    ComparisonOperator::LESS_OR_EQUAL,
+				    restrictions);
     case OR:
       // lazy logical or expression - binary infix
       return parse_lazy_or_expr (tok, std::move (left), std::move (outer_attrs),
@@ -14329,7 +14343,7 @@ Parser<ManagedTokenSource>::left_denotation (
 				    std::move (outer_attrs), restrictions);*/
       return parse_compound_assignment_expr (tok, std::move (left),
 					     std::move (outer_attrs),
-					     AST::CompoundAssignmentExpr::ADD,
+					     CompoundAssignmentOperator::ADD,
 					     restrictions);
     case MINUS_EQ:
       /* minus-assignment expression - binary infix (note right-to-left
@@ -14338,7 +14352,7 @@ Parser<ManagedTokenSource>::left_denotation (
 				     std::move (outer_attrs), restrictions);*/
       return parse_compound_assignment_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::CompoundAssignmentExpr::SUBTRACT, restrictions);
+	CompoundAssignmentOperator::SUBTRACT, restrictions);
     case ASTERISK_EQ:
       /* multiply-assignment expression - binary infix (note right-to-left
        * associativity) */
@@ -14346,15 +14360,16 @@ Parser<ManagedTokenSource>::left_denotation (
 				    std::move (outer_attrs), restrictions);*/
       return parse_compound_assignment_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::CompoundAssignmentExpr::MULTIPLY, restrictions);
+	CompoundAssignmentOperator::MULTIPLY, restrictions);
     case DIV_EQ:
       /* division-assignment expression - binary infix (note right-to-left
        * associativity) */
       /*return parse_div_assig_expr (tok, std::move (left),
 				   std::move (outer_attrs), restrictions);*/
-      return parse_compound_assignment_expr (
-	tok, std::move (left), std::move (outer_attrs),
-	AST::CompoundAssignmentExpr::DIVIDE, restrictions);
+      return parse_compound_assignment_expr (tok, std::move (left),
+					     std::move (outer_attrs),
+					     CompoundAssignmentOperator::DIVIDE,
+					     restrictions);
     case PERCENT_EQ:
       /* modulo-assignment expression - binary infix (note right-to-left
        * associativity) */
@@ -14362,7 +14377,7 @@ Parser<ManagedTokenSource>::left_denotation (
 				   std::move (outer_attrs), restrictions);*/
       return parse_compound_assignment_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::CompoundAssignmentExpr::MODULUS, restrictions);
+	CompoundAssignmentOperator::MODULUS, restrictions);
     case AMP_EQ:
       /* bitwise and-assignment expression - binary infix (note right-to-left
        * associativity) */
@@ -14370,7 +14385,7 @@ Parser<ManagedTokenSource>::left_denotation (
 				   std::move (outer_attrs), restrictions);*/
       return parse_compound_assignment_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::CompoundAssignmentExpr::BITWISE_AND, restrictions);
+	CompoundAssignmentOperator::BITWISE_AND, restrictions);
     case PIPE_EQ:
       /* bitwise or-assignment expression - binary infix (note right-to-left
        * associativity) */
@@ -14378,7 +14393,7 @@ Parser<ManagedTokenSource>::left_denotation (
 				  std::move (outer_attrs), restrictions);*/
       return parse_compound_assignment_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::CompoundAssignmentExpr::BITWISE_OR, restrictions);
+	CompoundAssignmentOperator::BITWISE_OR, restrictions);
     case CARET_EQ:
       /* bitwise xor-assignment expression - binary infix (note right-to-left
        * associativity) */
@@ -14386,7 +14401,7 @@ Parser<ManagedTokenSource>::left_denotation (
 				   std::move (outer_attrs), restrictions);*/
       return parse_compound_assignment_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::CompoundAssignmentExpr::BITWISE_XOR, restrictions);
+	CompoundAssignmentOperator::BITWISE_XOR, restrictions);
     case LEFT_SHIFT_EQ:
       /* left shift-assignment expression - binary infix (note right-to-left
        * associativity) */
@@ -14395,7 +14410,7 @@ Parser<ManagedTokenSource>::left_denotation (
 					  restrictions);*/
       return parse_compound_assignment_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::CompoundAssignmentExpr::LEFT_SHIFT, restrictions);
+	CompoundAssignmentOperator::LEFT_SHIFT, restrictions);
     case RIGHT_SHIFT_EQ:
       /* right shift-assignment expression - binary infix (note right-to-left
        * associativity) */
@@ -14404,7 +14419,7 @@ Parser<ManagedTokenSource>::left_denotation (
 					   restrictions);*/
       return parse_compound_assignment_expr (
 	tok, std::move (left), std::move (outer_attrs),
-	AST::CompoundAssignmentExpr::RIGHT_SHIFT, restrictions);
+	CompoundAssignmentOperator::RIGHT_SHIFT, restrictions);
     case DOT_DOT:
       /* range exclusive expression - binary infix (no associativity)
        * either "range" or "range from" */
@@ -14504,25 +14519,25 @@ get_lbp_for_arithmetic_or_logical_expr (
 {
   switch (expr_type)
     {
-    case AST::ArithmeticOrLogicalExpr::ADD:
+    case ArithmeticOrLogicalOperator::ADD:
       return LBP_PLUS;
-    case AST::ArithmeticOrLogicalExpr::SUBTRACT:
+    case ArithmeticOrLogicalOperator::SUBTRACT:
       return LBP_MINUS;
-    case AST::ArithmeticOrLogicalExpr::MULTIPLY:
+    case ArithmeticOrLogicalOperator::MULTIPLY:
       return LBP_MUL;
-    case AST::ArithmeticOrLogicalExpr::DIVIDE:
+    case ArithmeticOrLogicalOperator::DIVIDE:
       return LBP_DIV;
-    case AST::ArithmeticOrLogicalExpr::MODULUS:
+    case ArithmeticOrLogicalOperator::MODULUS:
       return LBP_MOD;
-    case AST::ArithmeticOrLogicalExpr::BITWISE_AND:
+    case ArithmeticOrLogicalOperator::BITWISE_AND:
       return LBP_AMP;
-    case AST::ArithmeticOrLogicalExpr::BITWISE_OR:
+    case ArithmeticOrLogicalOperator::BITWISE_OR:
       return LBP_PIPE;
-    case AST::ArithmeticOrLogicalExpr::BITWISE_XOR:
+    case ArithmeticOrLogicalOperator::BITWISE_XOR:
       return LBP_CARET;
-    case AST::ArithmeticOrLogicalExpr::LEFT_SHIFT:
+    case ArithmeticOrLogicalOperator::LEFT_SHIFT:
       return LBP_L_SHIFT;
-    case AST::ArithmeticOrLogicalExpr::RIGHT_SHIFT:
+    case ArithmeticOrLogicalOperator::RIGHT_SHIFT:
       return LBP_R_SHIFT;
     default:
       // WTF? should not happen, this is an error
@@ -14579,8 +14594,7 @@ Parser<ManagedTokenSource>::parse_binary_plus_expr (
 
   return std::unique_ptr<AST::ArithmeticOrLogicalExpr> (
     new AST::ArithmeticOrLogicalExpr (std::move (left), std::move (right),
-				      AST::ArithmeticOrLogicalExpr::ADD,
-				      locus));
+				      ArithmeticOrLogicalOperator::ADD, locus));
 }
 
 // Parses a binary subtraction expression (with Pratt parsing).
@@ -14602,7 +14616,7 @@ Parser<ManagedTokenSource>::parse_binary_minus_expr (
 
   return std::unique_ptr<AST::ArithmeticOrLogicalExpr> (
     new AST::ArithmeticOrLogicalExpr (std::move (left), std::move (right),
-				      AST::ArithmeticOrLogicalExpr::SUBTRACT,
+				      ArithmeticOrLogicalOperator::SUBTRACT,
 				      locus));
 }
 
@@ -14625,7 +14639,7 @@ Parser<ManagedTokenSource>::parse_binary_mult_expr (
 
   return std::unique_ptr<AST::ArithmeticOrLogicalExpr> (
     new AST::ArithmeticOrLogicalExpr (std::move (left), std::move (right),
-				      AST::ArithmeticOrLogicalExpr::MULTIPLY,
+				      ArithmeticOrLogicalOperator::MULTIPLY,
 				      locus));
 }
 
@@ -14648,7 +14662,7 @@ Parser<ManagedTokenSource>::parse_binary_div_expr (
 
   return std::unique_ptr<AST::ArithmeticOrLogicalExpr> (
     new AST::ArithmeticOrLogicalExpr (std::move (left), std::move (right),
-				      AST::ArithmeticOrLogicalExpr::DIVIDE,
+				      ArithmeticOrLogicalOperator::DIVIDE,
 				      locus));
 }
 
@@ -14671,7 +14685,7 @@ Parser<ManagedTokenSource>::parse_binary_mod_expr (
 
   return std::unique_ptr<AST::ArithmeticOrLogicalExpr> (
     new AST::ArithmeticOrLogicalExpr (std::move (left), std::move (right),
-				      AST::ArithmeticOrLogicalExpr::MODULUS,
+				      ArithmeticOrLogicalOperator::MODULUS,
 				      locus));
 }
 
@@ -14695,7 +14709,7 @@ Parser<ManagedTokenSource>::parse_bitwise_and_expr (
 
   return std::unique_ptr<AST::ArithmeticOrLogicalExpr> (
     new AST::ArithmeticOrLogicalExpr (std::move (left), std::move (right),
-				      AST::ArithmeticOrLogicalExpr::BITWISE_AND,
+				      ArithmeticOrLogicalOperator::BITWISE_AND,
 				      locus));
 }
 
@@ -14719,7 +14733,7 @@ Parser<ManagedTokenSource>::parse_bitwise_or_expr (
 
   return std::unique_ptr<AST::ArithmeticOrLogicalExpr> (
     new AST::ArithmeticOrLogicalExpr (std::move (left), std::move (right),
-				      AST::ArithmeticOrLogicalExpr::BITWISE_OR,
+				      ArithmeticOrLogicalOperator::BITWISE_OR,
 				      locus));
 }
 
@@ -14743,7 +14757,7 @@ Parser<ManagedTokenSource>::parse_bitwise_xor_expr (
 
   return std::unique_ptr<AST::ArithmeticOrLogicalExpr> (
     new AST::ArithmeticOrLogicalExpr (std::move (left), std::move (right),
-				      AST::ArithmeticOrLogicalExpr::BITWISE_XOR,
+				      ArithmeticOrLogicalOperator::BITWISE_XOR,
 				      locus));
 }
 
@@ -14766,7 +14780,7 @@ Parser<ManagedTokenSource>::parse_left_shift_expr (
 
   return std::unique_ptr<AST::ArithmeticOrLogicalExpr> (
     new AST::ArithmeticOrLogicalExpr (std::move (left), std::move (right),
-				      AST::ArithmeticOrLogicalExpr::LEFT_SHIFT,
+				      ArithmeticOrLogicalOperator::LEFT_SHIFT,
 				      locus));
 }
 
@@ -14789,7 +14803,7 @@ Parser<ManagedTokenSource>::parse_right_shift_expr (
 
   return std::unique_ptr<AST::ArithmeticOrLogicalExpr> (
     new AST::ArithmeticOrLogicalExpr (std::move (left), std::move (right),
-				      AST::ArithmeticOrLogicalExpr::RIGHT_SHIFT,
+				      ArithmeticOrLogicalOperator::RIGHT_SHIFT,
 				      locus));
 }
 
@@ -14800,17 +14814,17 @@ get_lbp_for_comparison_expr (AST::ComparisonExpr::ExprType expr_type)
 {
   switch (expr_type)
     {
-    case AST::ComparisonExpr::EQUAL:
+    case ComparisonOperator::EQUAL:
       return LBP_EQUAL;
-    case AST::ComparisonExpr::NOT_EQUAL:
+    case ComparisonOperator::NOT_EQUAL:
       return LBP_NOT_EQUAL;
-    case AST::ComparisonExpr::GREATER_THAN:
+    case ComparisonOperator::GREATER_THAN:
       return LBP_GREATER_THAN;
-    case AST::ComparisonExpr::LESS_THAN:
+    case ComparisonOperator::LESS_THAN:
       return LBP_SMALLER_THAN;
-    case AST::ComparisonExpr::GREATER_OR_EQUAL:
+    case ComparisonOperator::GREATER_OR_EQUAL:
       return LBP_GREATER_EQUAL;
-    case AST::ComparisonExpr::LESS_OR_EQUAL:
+    case ComparisonOperator::LESS_OR_EQUAL:
       return LBP_SMALLER_EQUAL;
     default:
       // WTF? should not happen, this is an error
@@ -14867,7 +14881,7 @@ Parser<ManagedTokenSource>::parse_binary_equal_expr (
 
   return std::unique_ptr<AST::ComparisonExpr> (
     new AST::ComparisonExpr (std::move (left), std::move (right),
-			     AST::ComparisonExpr::EQUAL, locus));
+			     ComparisonOperator::EQUAL, locus));
 }
 
 // Parses a binary not equal to expression (with Pratt parsing).
@@ -14889,7 +14903,7 @@ Parser<ManagedTokenSource>::parse_binary_not_equal_expr (
 
   return std::unique_ptr<AST::ComparisonExpr> (
     new AST::ComparisonExpr (std::move (left), std::move (right),
-			     AST::ComparisonExpr::NOT_EQUAL, locus));
+			     ComparisonOperator::NOT_EQUAL, locus));
 }
 
 // Parses a binary greater than expression (with Pratt parsing).
@@ -14912,7 +14926,7 @@ Parser<ManagedTokenSource>::parse_binary_greater_than_expr (
 
   return std::unique_ptr<AST::ComparisonExpr> (
     new AST::ComparisonExpr (std::move (left), std::move (right),
-			     AST::ComparisonExpr::GREATER_THAN, locus));
+			     ComparisonOperator::GREATER_THAN, locus));
 }
 
 // Parses a binary less than expression (with Pratt parsing).
@@ -14935,7 +14949,7 @@ Parser<ManagedTokenSource>::parse_binary_less_than_expr (
 
   return std::unique_ptr<AST::ComparisonExpr> (
     new AST::ComparisonExpr (std::move (left), std::move (right),
-			     AST::ComparisonExpr::LESS_THAN, locus));
+			     ComparisonOperator::LESS_THAN, locus));
 }
 
 // Parses a binary greater than or equal to expression (with Pratt parsing).
@@ -14958,7 +14972,7 @@ Parser<ManagedTokenSource>::parse_binary_greater_equal_expr (
 
   return std::unique_ptr<AST::ComparisonExpr> (
     new AST::ComparisonExpr (std::move (left), std::move (right),
-			     AST::ComparisonExpr::GREATER_OR_EQUAL, locus));
+			     ComparisonOperator::GREATER_OR_EQUAL, locus));
 }
 
 // Parses a binary less than or equal to expression (with Pratt parsing).
@@ -14981,7 +14995,7 @@ Parser<ManagedTokenSource>::parse_binary_less_equal_expr (
 
   return std::unique_ptr<AST::ComparisonExpr> (
     new AST::ComparisonExpr (std::move (left), std::move (right),
-			     AST::ComparisonExpr::LESS_OR_EQUAL, locus));
+			     ComparisonOperator::LESS_OR_EQUAL, locus));
 }
 
 // Parses a binary lazy boolean or expression (with Pratt parsing).
@@ -15003,7 +15017,7 @@ Parser<ManagedTokenSource>::parse_lazy_or_expr (
 
   return std::unique_ptr<AST::LazyBooleanExpr> (
     new AST::LazyBooleanExpr (std::move (left), std::move (right),
-			      AST::LazyBooleanExpr::LOGICAL_OR, locus));
+			      LazyBooleanOperator::LOGICAL_OR, locus));
 }
 
 // Parses a binary lazy boolean and expression (with Pratt parsing).
@@ -15026,7 +15040,7 @@ Parser<ManagedTokenSource>::parse_lazy_and_expr (
 
   return std::unique_ptr<AST::LazyBooleanExpr> (
     new AST::LazyBooleanExpr (std::move (left), std::move (right),
-			      AST::LazyBooleanExpr::LOGICAL_AND, locus));
+			      LazyBooleanOperator::LOGICAL_AND, locus));
 }
 
 // Parses a pseudo-binary infix type cast expression (with Pratt parsing).
@@ -15080,25 +15094,25 @@ get_lbp_for_compound_assignment_expr (
 {
   switch (expr_type)
     {
-    case AST::CompoundAssignmentExpr::ADD:
+    case CompoundAssignmentOperator::ADD:
       return LBP_PLUS;
-    case AST::CompoundAssignmentExpr::SUBTRACT:
+    case CompoundAssignmentOperator::SUBTRACT:
       return LBP_MINUS;
-    case AST::CompoundAssignmentExpr::MULTIPLY:
+    case CompoundAssignmentOperator::MULTIPLY:
       return LBP_MUL;
-    case AST::CompoundAssignmentExpr::DIVIDE:
+    case CompoundAssignmentOperator::DIVIDE:
       return LBP_DIV;
-    case AST::CompoundAssignmentExpr::MODULUS:
+    case CompoundAssignmentOperator::MODULUS:
       return LBP_MOD;
-    case AST::CompoundAssignmentExpr::BITWISE_AND:
+    case CompoundAssignmentOperator::BITWISE_AND:
       return LBP_AMP;
-    case AST::CompoundAssignmentExpr::BITWISE_OR:
+    case CompoundAssignmentOperator::BITWISE_OR:
       return LBP_PIPE;
-    case AST::CompoundAssignmentExpr::BITWISE_XOR:
+    case CompoundAssignmentOperator::BITWISE_XOR:
       return LBP_CARET;
-    case AST::CompoundAssignmentExpr::LEFT_SHIFT:
+    case CompoundAssignmentOperator::LEFT_SHIFT:
       return LBP_L_SHIFT;
-    case AST::CompoundAssignmentExpr::RIGHT_SHIFT:
+    case CompoundAssignmentOperator::RIGHT_SHIFT:
       return LBP_R_SHIFT;
     default:
       // WTF? should not happen, this is an error
@@ -15158,7 +15172,7 @@ Parser<ManagedTokenSource>::parse_plus_assig_expr (
 
   return std::unique_ptr<AST::CompoundAssignmentExpr> (
     new AST::CompoundAssignmentExpr (std::move (left), std::move (right),
-				     AST::CompoundAssignmentExpr::ADD, locus));
+				     CompoundAssignmentOperator::ADD, locus));
 }
 
 // Parses a binary minus-assignment expression (with Pratt parsing).
@@ -15182,7 +15196,7 @@ Parser<ManagedTokenSource>::parse_minus_assig_expr (
 
   return std::unique_ptr<AST::CompoundAssignmentExpr> (
     new AST::CompoundAssignmentExpr (std::move (left), std::move (right),
-				     AST::CompoundAssignmentExpr::SUBTRACT,
+				     CompoundAssignmentOperator::SUBTRACT,
 				     locus));
 }
 
@@ -15207,7 +15221,7 @@ Parser<ManagedTokenSource>::parse_mult_assig_expr (
 
   return std::unique_ptr<AST::CompoundAssignmentExpr> (
     new AST::CompoundAssignmentExpr (std::move (left), std::move (right),
-				     AST::CompoundAssignmentExpr::MULTIPLY,
+				     CompoundAssignmentOperator::MULTIPLY,
 				     locus));
 }
 
@@ -15232,7 +15246,7 @@ Parser<ManagedTokenSource>::parse_div_assig_expr (
 
   return std::unique_ptr<AST::CompoundAssignmentExpr> (
     new AST::CompoundAssignmentExpr (std::move (left), std::move (right),
-				     AST::CompoundAssignmentExpr::DIVIDE,
+				     CompoundAssignmentOperator::DIVIDE,
 				     locus));
 }
 
@@ -15257,7 +15271,7 @@ Parser<ManagedTokenSource>::parse_mod_assig_expr (
 
   return std::unique_ptr<AST::CompoundAssignmentExpr> (
     new AST::CompoundAssignmentExpr (std::move (left), std::move (right),
-				     AST::CompoundAssignmentExpr::MODULUS,
+				     CompoundAssignmentOperator::MODULUS,
 				     locus));
 }
 
@@ -15282,7 +15296,7 @@ Parser<ManagedTokenSource>::parse_and_assig_expr (
 
   return std::unique_ptr<AST::CompoundAssignmentExpr> (
     new AST::CompoundAssignmentExpr (std::move (left), std::move (right),
-				     AST::CompoundAssignmentExpr::BITWISE_AND,
+				     CompoundAssignmentOperator::BITWISE_AND,
 				     locus));
 }
 
@@ -15307,7 +15321,7 @@ Parser<ManagedTokenSource>::parse_or_assig_expr (
 
   return std::unique_ptr<AST::CompoundAssignmentExpr> (
     new AST::CompoundAssignmentExpr (std::move (left), std::move (right),
-				     AST::CompoundAssignmentExpr::BITWISE_OR,
+				     CompoundAssignmentOperator::BITWISE_OR,
 				     locus));
 }
 
@@ -15332,7 +15346,7 @@ Parser<ManagedTokenSource>::parse_xor_assig_expr (
 
   return std::unique_ptr<AST::CompoundAssignmentExpr> (
     new AST::CompoundAssignmentExpr (std::move (left), std::move (right),
-				     AST::CompoundAssignmentExpr::BITWISE_XOR,
+				     CompoundAssignmentOperator::BITWISE_XOR,
 				     locus));
 }
 
@@ -15357,7 +15371,7 @@ Parser<ManagedTokenSource>::parse_left_shift_assig_expr (
 
   return std::unique_ptr<AST::CompoundAssignmentExpr> (
     new AST::CompoundAssignmentExpr (std::move (left), std::move (right),
-				     AST::CompoundAssignmentExpr::LEFT_SHIFT,
+				     CompoundAssignmentOperator::LEFT_SHIFT,
 				     locus));
 }
 
@@ -15382,7 +15396,7 @@ Parser<ManagedTokenSource>::parse_right_shift_assig_expr (
 
   return std::unique_ptr<AST::CompoundAssignmentExpr> (
     new AST::CompoundAssignmentExpr (std::move (left), std::move (right),
-				     AST::CompoundAssignmentExpr::RIGHT_SHIFT,
+				     CompoundAssignmentOperator::RIGHT_SHIFT,
 				     locus));
 }
 
