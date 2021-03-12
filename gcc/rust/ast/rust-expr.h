@@ -925,7 +925,7 @@ protected:
 
 // Base array initialisation internal element representation thing (abstract)
 // aka ArrayElements
-class ArrayElems
+class ArrayElems : public SexpSerializable
 {
 public:
   virtual ~ArrayElems () {}
@@ -937,6 +937,8 @@ public:
   }
 
   virtual std::string as_string () const = 0;
+
+  virtual std::string to_sexp () const = 0;
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
@@ -986,6 +988,11 @@ public:
   ArrayElemsValues &operator= (ArrayElemsValues &&other) = default;
 
   std::string as_string () const override;
+
+  std::string to_sexp () const override
+  {
+    return sexp ("ArrayElemsValues", values);
+  }
 
   void accept_vis (ASTVisitor &vis) override;
 
@@ -1051,6 +1058,12 @@ public:
 
   std::string as_string () const override;
 
+  std::string to_sexp () const override
+  {
+    return sexp ("ArrayElemsCopied", sexp ("value", elem_to_copy),
+		 sexp ("count", num_copies));
+  }
+
   void accept_vis (ASTVisitor &vis) override;
 
   // TODO: is this better? Or is a "vis_block" better?
@@ -1087,6 +1100,11 @@ class ArrayExpr : public ExprWithoutBlock
 
 public:
   std::string as_string () const override;
+
+  std::string to_sexp () const override
+  {
+    return sexp ("ArrayExpr", internal_elements);
+  }
 
   const std::vector<Attribute> &get_inner_attrs () const { return inner_attrs; }
   std::vector<Attribute> &get_inner_attrs () { return inner_attrs; }
@@ -2837,6 +2855,12 @@ class BlockExpr : public ExprWithBlock
 
 public:
   std::string as_string () const override;
+
+  std::string to_sexp () const override
+  {
+    return sexp ("Block", sexp ("statements", statements),
+		 sexp ("final_expr", expr));
+  }
 
   // Returns whether the block contains statements.
   bool has_statements () const { return !statements.empty (); }

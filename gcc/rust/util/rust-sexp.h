@@ -53,7 +53,14 @@ template <typename T,
 std::string
 to_sexp (const T &ptr)
 {
-  return to_sexp (*ptr);
+  if (ptr == nullptr)
+    {
+      return "[nullptr]";
+    }
+  else
+    {
+      return to_sexp (*ptr);
+    }
 }
 
 template <typename T,
@@ -70,7 +77,7 @@ template <typename T, typename Rust::helper_t<decltype (
 std::string
 to_sexp (const T &ptr)
 {
-  return to_sexp (*ptr);
+  return to_sexp (ptr.get ());
 }
 
 template <typename T, typename Rust::helper_t<
