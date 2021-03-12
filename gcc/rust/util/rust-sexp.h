@@ -91,7 +91,10 @@ to_sexp (const T &container)
       str += " ";
       str += to_sexp (item);
     }
-  str.erase (str.begin ());
+  if (str.size () > 0)
+    {
+      str.erase (str.begin ());
+    }
   return str;
 }
 
