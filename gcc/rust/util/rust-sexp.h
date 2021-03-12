@@ -34,6 +34,12 @@ to_sexp (const SexpSerializable &obj)
   return obj.to_sexp ();
 }
 
+inline std::string
+to_sexp (std::nullptr_t ptr)
+{
+  return "[nullptr]";
+}
+
 template <typename T> struct helper
 {
   using type = void *;
@@ -57,9 +63,9 @@ to_sexp (const T &ptr)
 {
   return to_sexp (*ptr);
 }
+
 template <typename T, typename Rust::helper_t<
 			decltype (std::declval<T> ().cbegin ())> = nullptr>
-
 std::string
 to_sexp (const T &container)
 {
