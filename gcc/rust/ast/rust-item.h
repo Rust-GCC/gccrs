@@ -510,7 +510,7 @@ public:
 };
 
 // A function parameter
-struct FunctionParam
+struct FunctionParam : public SexpSerializable
 {
 private:
   std::vector<Attribute> outer_attrs;
@@ -571,6 +571,8 @@ public:
   }
 
   std::string as_string () const;
+
+  std::string to_sexp () const override { return "[Param placeholder]"; }
 
   Location get_locus () const { return locus; }
 
@@ -1448,6 +1450,15 @@ class Function : public VisItem, public InherentImplItem, public TraitImplItem
 
 public:
   std::string as_string () const override;
+
+  std::string to_sexp () const override
+  {
+    auto return_type
+      = has_return_type () ? Rust::to_sexp (this->return_type) : "void";
+    return sexp ("Function", function_name, sexp ("returns", return_type),
+		 sexp ("params", function_params),
+		 sexp ("body", function_body));
+  }
 
   // Returns whether function has generic parameters.
   bool has_generics () const { return !generic_params.empty (); }
@@ -3802,8 +3813,8 @@ class ExternalItem
 public:
   virtual ~ExternalItem () {}
 
-  /* TODO: spec syntax rules state that "MacroInvocationSemi" can be used as 
-   * ExternalItem, but text body isn't so clear. Adding MacroInvocationSemi 
+  /* TODO: spec syntax rules state that "MacroInvocationSemi" can be used as
+   * ExternalItem, but text body isn't so clear. Adding MacroInvocationSemi
    * support would require a lot of refactoring. */
 
   // Returns whether item has outer attributes.

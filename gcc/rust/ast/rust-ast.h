@@ -28,6 +28,8 @@
 #include "rust-token.h"
 #include "rust-location.h"
 
+#include "util/rust-sexp.h"
+
 namespace Rust {
 // TODO: remove typedefs and make actual types for these
 typedef std::string Identifier;
@@ -801,7 +803,7 @@ struct MetaListNameValueStr;
 
 /* Base statement abstract class. Note that most "statements" are not allowed in
  * top-level module scope - only a subclass of statements called "items" are. */
-class Stmt
+class Stmt : public SexpSerializable
 {
 public:
   // Unique pointer custom clone function
@@ -813,6 +815,9 @@ public:
   virtual ~Stmt () {}
 
   virtual std::string as_string () const = 0;
+
+  // Placeholder for Stmt that hasn't implemented to_sexp
+  virtual std::string to_sexp () const override { return "[Stmt placeholder]"; }
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
@@ -863,9 +868,12 @@ protected:
 class ExprWithoutBlock;
 
 // Base expression AST node - abstract
-class Expr
+class Expr : public SexpSerializable
 {
 public:
+  // Placeholder for Expr that don't serialize to s-expression yet
+  std::string to_sexp () const override { return "[Expr placeholder]"; }
+
   // Unique pointer custom clone function
   std::unique_ptr<Expr> clone_expr () const
   {
@@ -1045,7 +1053,7 @@ protected:
 class TraitBound;
 
 // Base class for types as represented in AST - abstract
-class Type
+class Type : public SexpSerializable
 {
 public:
   // Unique pointer custom clone function
@@ -1058,6 +1066,8 @@ public:
   virtual ~Type () {}
 
   virtual std::string as_string () const = 0;
+
+  std::string to_sexp () const override { return "[Type placeholder]"; }
 
   /* HACK: convert to trait bound. Virtual method overriden by classes that
    * enable this. */
@@ -1542,7 +1552,7 @@ protected:
 };
 
 // A crate AST object - holds all the data for a single compilation unit
-struct Crate
+struct Crate : public SexpSerializable
 {
   bool has_utf8bom;
   bool has_shebang;
@@ -1598,6 +1608,11 @@ public:
 
   // Get crate representation as string (e.g. for debugging).
   std::string as_string () const;
+
+  virtual std::string to_sexp () const override
+  {
+    return sexp ("Crate", sexp ("items", items));
+  }
 
   // Delete all crate information, e.g. if fails cfg.
   void strip_crate ()
