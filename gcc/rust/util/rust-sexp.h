@@ -56,6 +56,15 @@ to_sexp (const T &ptr)
   return to_sexp (*ptr);
 }
 
+template <typename T,
+	  typename std::enable_if<std::is_arithmetic<T>::value, void *>::type
+	  = nullptr>
+std::string
+to_sexp (const T &number)
+{
+  return std::to_string (number);
+}
+
 template <typename T, typename Rust::helper_t<decltype (
 			std::declval<T> ().T::operator* ())> = nullptr>
 std::string
@@ -97,6 +106,7 @@ sexp_inner (const U &stuff, const Ts &...rest)
    Accepts an arbitary number of parameters.
    The following objects are serializable:
      - std::string
+     - numbers
      - any class that implements SexpSerializable
      - containers of serializable objects(e.g. std::vector)
      - pointers to serializable objects(e.g. std::unique_ptr)
