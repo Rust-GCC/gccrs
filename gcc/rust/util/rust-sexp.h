@@ -28,6 +28,15 @@ to_sexp (const char *str)
   return std::string (str);
 }
 
+template <typename T,
+	  typename std::enable_if<std::is_arithmetic<T>::value, void *>::type
+	  = nullptr>
+std::string
+to_sexp (const T &number)
+{
+  return std::to_string (number);
+}
+
 inline std::string
 to_sexp (const SexpSerializable &obj)
 {
@@ -61,15 +70,6 @@ to_sexp (const T &ptr)
     {
       return to_sexp (*ptr);
     }
-}
-
-template <typename T,
-	  typename std::enable_if<std::is_arithmetic<T>::value, void *>::type
-	  = nullptr>
-std::string
-to_sexp (const T &number)
-{
-  return std::to_string (number);
 }
 
 template <typename T, typename Rust::helper_t<decltype (
