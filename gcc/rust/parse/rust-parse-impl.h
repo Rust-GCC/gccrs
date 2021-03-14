@@ -221,10 +221,9 @@ Parser<ManagedTokenSource>::skip_generics_right_angle ()
 	return true;
       }
     default:
-      add_error (
-	Error (tok->get_locus (),
-	       "expected %<>%> at end of generic argument - found %qs",
-	       tok->get_token_description ()));
+      add_error (Error (tok->get_locus (),
+			"expected %<>%> at end of generic argument - found %qs",
+			tok->get_token_description ()));
       return false;
     }
 }
@@ -866,11 +865,10 @@ Parser<ManagedTokenSource>::parse_delim_token_tree ()
       delim_type = AST::CURLY;
       break;
     default:
-      add_error (
-	Error (t->get_locus (),
-	       "unexpected token %qs - expecting delimiters (for a "
-	       "delimited token tree)",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unexpected token %qs - expecting delimiters (for a "
+			"delimited token tree)",
+			t->get_token_description ()));
 
       return AST::DelimTokenTree::create_empty ();
     }
@@ -1080,10 +1078,10 @@ Parser<ManagedTokenSource>::parse_item (bool called_from_statement)
     default:
       // otherwise unrecognised
       // return parse_macro_item(std::move(outer_attrs));
-      add_error (
-	Error (t->get_locus (), "unrecognised token %qs for start of %s",
-	       t->get_token_description (),
-	       called_from_statement ? "statement" : "item"));
+      add_error (Error (t->get_locus (),
+			"unrecognised token %qs for start of %s",
+			t->get_token_description (),
+			called_from_statement ? "statement" : "item"));
 
       // skip somewhere?
       return nullptr;
@@ -1394,11 +1392,10 @@ Parser<ManagedTokenSource>::parse_macro_rules_def (
       delim_type = AST::CURLY;
       break;
     default:
-      add_error (
-	Error (t->get_locus (),
-	       "unexpected token %qs - expecting delimiters (for a "
-	       "macro rules definition)",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unexpected token %qs - expecting delimiters (for a "
+			"macro rules definition)",
+			t->get_token_description ()));
 
       return nullptr;
     }
@@ -1536,11 +1533,10 @@ Parser<ManagedTokenSource>::parse_macro_invocation_semi (
       delim_type = AST::CURLY;
       break;
     default:
-      add_error (
-	Error (t->get_locus (),
-	       "unexpected token %qs - expecting delimiters (for a "
-	       "macro invocation semi body)",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unexpected token %qs - expecting delimiters (for a "
+			"macro invocation semi body)",
+			t->get_token_description ()));
 
       return nullptr;
     }
@@ -2053,9 +2049,8 @@ Parser<ManagedTokenSource>::parse_visibility ()
 	return AST::Visibility::create_in_path (std::move (path));
       }
     default:
-      add_error (Error (t->get_locus (),
-				    "unexpected token %qs in visibility",
-				    t->get_token_description ()));
+      add_error (Error (t->get_locus (), "unexpected token %qs in visibility",
+			t->get_token_description ()));
 
       lexer.skip_token ();
       return AST::Visibility::create_error ();
@@ -2385,10 +2380,10 @@ Parser<ManagedTokenSource>::parse_use_tree ()
 	  return nullptr;
 	default:
 	  add_error (Error (t->get_locus (),
-					"unexpected token %qs in use tree with "
-					"no valid simple path (i.e. list"
-					" or glob use tree)",
-					t->get_token_description ()));
+			    "unexpected token %qs in use tree with "
+			    "no valid simple path (i.e. list"
+			    " or glob use tree)",
+			    t->get_token_description ()));
 
 	  skip_after_semicolon ();
 	  return nullptr;
@@ -2496,10 +2491,9 @@ Parser<ManagedTokenSource>::parse_use_tree ()
 	    new AST::UseTreeRebind (AST::UseTreeRebind::NONE, std::move (path),
 				    locus));
 	default:
-	  add_error (
-	    Error (t->get_locus (),
-		   "unexpected token %qs in use tree with valid path",
-		   t->get_token_description ()));
+	  add_error (Error (t->get_locus (),
+			    "unexpected token %qs in use tree with valid path",
+			    t->get_token_description ()));
 
 	  // skip_after_semicolon();
 	  return nullptr;
@@ -4062,9 +4056,9 @@ Parser<ManagedTokenSource>::parse_struct (
 			       std::move (where_clause), std::move (vis),
 			       std::move (outer_attrs), locus));
     default:
-      add_error (
-	Error (t->get_locus (), "unexpected token %qs in struct declaration",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unexpected token %qs in struct declaration",
+			t->get_token_description ()));
 
       // skip somewhere?
       return nullptr;
@@ -5223,11 +5217,10 @@ Parser<ManagedTokenSource>::parse_inherent_impl_item ()
 							       std::move (
 								 outer_attrs));
 	      default:
-		add_error (
-		  Error (t->get_locus (),
-			 "unexpected token %qs in some sort of const "
-			 "item in inherent impl",
-			 t->get_token_description ()));
+		add_error (Error (t->get_locus (),
+				  "unexpected token %qs in some sort of const "
+				  "item in inherent impl",
+				  t->get_token_description ()));
 
 		lexer.skip_token (1); // TODO: is this right thing to do?
 		return nullptr;
@@ -5264,21 +5257,19 @@ Parser<ManagedTokenSource>::parse_inherent_impl_item ()
 	  return parse_inherent_impl_function_or_method (
 	    AST::Visibility::create_error (), std::move (outer_attrs));
 	default:
-	  add_error (
-	    Error (t->get_locus (),
-		   "unexpected token %qs in some sort of const item "
-		   "in inherent impl",
-		   t->get_token_description ()));
+	  add_error (Error (t->get_locus (),
+			    "unexpected token %qs in some sort of const item "
+			    "in inherent impl",
+			    t->get_token_description ()));
 
 	  lexer.skip_token (1); // TODO: is this right thing to do?
 	  return nullptr;
 	}
       gcc_unreachable ();
     default:
-      add_error (
-	Error (t->get_locus (),
-	       "unrecognised token %qs for item in inherent impl",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unrecognised token %qs for item in inherent impl",
+			t->get_token_description ()));
 
       // skip?
       return nullptr;
@@ -5452,20 +5443,18 @@ Parser<ManagedTokenSource>::parse_trait_impl_item ()
 							    std::move (
 							      outer_attrs));
 	      default:
-		add_error (
-		  Error (t->get_locus (),
-			 "unexpected token %qs in some sort of const "
-			 "item in trait impl",
-			 t->get_token_description ()));
+		add_error (Error (t->get_locus (),
+				  "unexpected token %qs in some sort of const "
+				  "item in trait impl",
+				  t->get_token_description ()));
 
 		lexer.skip_token (1); // TODO: is this right thing to do?
 		return nullptr;
 	      }
 	  default:
-	    add_error (
-	      Error (t->get_locus (),
-		     "unrecognised token %qs for item in trait impl",
-		     t->get_token_description ()));
+	    add_error (Error (t->get_locus (),
+			      "unrecognised token %qs for item in trait impl",
+			      t->get_token_description ()));
 
 	    // skip?
 	    return nullptr;
@@ -5504,9 +5493,9 @@ Parser<ManagedTokenSource>::parse_trait_impl_item ()
 	}
       gcc_unreachable ();
     default:
-      add_error (
-	Error (t->get_locus (), "unrecognised token %qs for item in trait impl",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unrecognised token %qs for item in trait impl",
+			t->get_token_description ()));
 
       // skip?
       return nullptr;
@@ -7433,11 +7422,10 @@ Parser<ManagedTokenSource>::parse_closure_expr (
       params.shrink_to_fit ();
       break;
     default:
-      add_error (
-	Error (t->get_locus (),
-	       "unexpected token %qs in closure expression - expected "
-	       "%<|%> or %<||%>",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unexpected token %qs in closure expression - expected "
+			"%<|%> or %<||%>",
+			t->get_token_description ()));
 
       // skip somewhere?
       return nullptr;
@@ -7566,10 +7554,9 @@ Parser<ManagedTokenSource>::parse_literal_expr (
       break;
     default:
       // error - cannot be a literal expr
-      add_error (
-	Error (t->get_locus (),
-	       "unexpected token %qs when parsing literal expression",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unexpected token %qs when parsing literal expression",
+			t->get_token_description ()));
 
       // skip?
       return nullptr;
@@ -7860,10 +7847,9 @@ Parser<ManagedTokenSource>::parse_if_expr (
 	  }
 	default:
 	  // error - invalid token
-	  add_error (
-	    Error (t->get_locus (),
-		   "unexpected token %qs after else in if expression",
-		   t->get_token_description ()));
+	  add_error (Error (t->get_locus (),
+			    "unexpected token %qs after else in if expression",
+			    t->get_token_description ()));
 
 	  // skip somewhere?
 	  return nullptr;
@@ -8380,10 +8366,9 @@ Parser<ManagedTokenSource>::parse_labelled_loop_expr (
 	}
     default:
       // error
-      add_error (
-	Error (t->get_locus (),
-	       "unexpected token %qs when parsing labelled loop",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unexpected token %qs when parsing labelled loop",
+			t->get_token_description ()));
 
       // skip?
       return nullptr;
@@ -9339,9 +9324,8 @@ Parser<ManagedTokenSource>::parse_type ()
 	  }
       }
     default:
-      add_error (Error (t->get_locus (),
-				    "unrecognised token %qs in type",
-				    t->get_token_description ()));
+      add_error (Error (t->get_locus (), "unrecognised token %qs in type",
+			t->get_token_description ()));
 
       return nullptr;
     }
@@ -9560,11 +9544,10 @@ Parser<ManagedTokenSource>::parse_for_prefixed_type ()
       }
     default:
       // error
-      add_error (
-	Error (t->get_locus (),
-	       "unrecognised token %qs in bare function type or trait "
-	       "object type or trait object type one bound",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unrecognised token %qs in bare function type or trait "
+			"object type or trait object type one bound",
+			t->get_token_description ()));
 
       return nullptr;
     }
@@ -9785,9 +9768,9 @@ Parser<ManagedTokenSource>::parse_raw_pointer_type ()
       lexer.skip_token ();
       break;
     default:
-      add_error (
-	Error (t->get_locus (), "unrecognised token %qs in raw pointer type",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unrecognised token %qs in raw pointer type",
+			t->get_token_description ()));
 
       return nullptr;
     }
@@ -9916,10 +9899,9 @@ Parser<ManagedTokenSource>::parse_type_no_bounds ()
       /* probably a lifetime bound, so probably type param bounds in
        * TraitObjectType. this is not allowed, but detection here for error
        * message */
-      add_error (
-	Error (t->get_locus (),
-	       "lifetime bounds (i.e. in type param bounds, in "
-	       "TraitObjectType) are not allowed as TypeNoBounds"));
+      add_error (Error (t->get_locus (),
+			"lifetime bounds (i.e. in type param bounds, in "
+			"TraitObjectType) are not allowed as TypeNoBounds"));
 
       return nullptr;
     case IDENTIFIER:
@@ -9982,10 +9964,9 @@ Parser<ManagedTokenSource>::parse_type_no_bounds ()
 	    }
 	  case PLUS:
 	    // type param bounds - not allowed, here for error message
-	    add_error (
-	      Error (t->get_locus (),
-		     "type param bounds (in TraitObjectType) are not "
-		     "allowed as TypeNoBounds"));
+	    add_error (Error (t->get_locus (),
+			      "type param bounds (in TraitObjectType) are not "
+			      "allowed as TypeNoBounds"));
 
 	    return nullptr;
 	  default:
@@ -10112,8 +10093,8 @@ Parser<ManagedTokenSource>::parse_type_no_bounds ()
       }
     default:
       add_error (Error (t->get_locus (),
-				    "unrecognised token %qs in type no bounds",
-				    t->get_token_description ()));
+			"unrecognised token %qs in type no bounds",
+			t->get_token_description ()));
 
       return nullptr;
     }
@@ -10268,11 +10249,10 @@ Parser<ManagedTokenSource>::parse_literal_or_range_pattern ()
 	  lexer.skip_token (1);
 	  break;
 	default:
-	  add_error (
-	    Error (range_lower->get_locus (),
-		   "token type %qs cannot be parsed as range pattern "
-		   "bound or literal after minus symbol",
-		   range_lower->get_token_description ()));
+	  add_error (Error (range_lower->get_locus (),
+			    "token type %qs cannot be parsed as range pattern "
+			    "bound or literal after minus symbol",
+			    range_lower->get_token_description ()));
 
 	  return nullptr;
 	}
@@ -10383,11 +10363,10 @@ Parser<ManagedTokenSource>::parse_range_pattern_bound ()
 			    range_lower->get_type_hint ()),
 	      range_lower_locus, true));
 	default:
-	  add_error (
-	    Error (range_lower->get_locus (),
-		   "token type %qs cannot be parsed as range pattern "
-		   "bound after minus symbol",
-		   range_lower->get_token_description ()));
+	  add_error (Error (range_lower->get_locus (),
+			    "token type %qs cannot be parsed as range pattern "
+			    "bound after minus symbol",
+			    range_lower->get_token_description ()));
 
 	  return nullptr;
 	}
@@ -10625,9 +10604,8 @@ Parser<ManagedTokenSource>::parse_pattern ()
 	  }
       }
     default:
-      add_error (Error (t->get_locus (),
-				    "unexpected token %qs in pattern",
-				    t->get_token_description ()));
+      add_error (Error (t->get_locus (), "unexpected token %qs in pattern",
+			t->get_token_description ()));
 
       return nullptr;
     }
@@ -10653,8 +10631,8 @@ Parser<ManagedTokenSource>::parse_reference_pattern ()
       break;
     default:
       add_error (Error (t->get_locus (),
-				    "unexpected token %qs in reference pattern",
-				    t->get_token_description ()));
+			"unexpected token %qs in reference pattern",
+			t->get_token_description ()));
 
       return nullptr;
     }
@@ -10861,11 +10839,10 @@ Parser<ManagedTokenSource>::parse_grouped_or_tuple_pattern ()
       }
     default:
       // error
-      add_error (
-	Error (t->get_locus (),
-	       "unrecognised token %qs in grouped or tuple pattern "
-	       "after first pattern",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unrecognised token %qs in grouped or tuple pattern "
+			"after first pattern",
+			t->get_token_description ()));
 
       return nullptr;
     }
@@ -11267,9 +11244,9 @@ Parser<ManagedTokenSource>::parse_tuple_struct_items ()
       }
     default:
       // error
-      add_error (
-	Error (t->get_locus (), "unexpected token %qs in tuple struct items",
-	       t->get_token_description ()));
+      add_error (Error (t->get_locus (),
+			"unexpected token %qs in tuple struct items",
+			t->get_token_description ()));
 
       return nullptr;
     }
@@ -11420,10 +11397,9 @@ Parser<ManagedTokenSource>::parse_struct_pattern_field_partial (
 	  }
 	default:
 	  // error
-	  add_error (
-	    Error (t->get_locus (),
-		   "unrecognised token %qs in struct pattern field",
-		   t->get_token_description ()));
+	  add_error (Error (t->get_locus (),
+			    "unrecognised token %qs in struct pattern field",
+			    t->get_token_description ()));
 
 	  return nullptr;
 	}
@@ -11556,11 +11532,10 @@ Parser<ManagedTokenSource>::parse_stmt_or_expr_without_block ()
 	      return ExprOrStmt (std::move (item));
 	    }
 	  default:
-	    add_error (
-	      Error (t2->get_locus (),
-		     "unrecognised token %qs after parsing unsafe - "
-		     "expected beginning of expression or statement",
-		     t->get_token_description ()));
+	    add_error (Error (t2->get_locus (),
+			      "unrecognised token %qs after parsing unsafe - "
+			      "expected beginning of expression or statement",
+			      t->get_token_description ()));
 
 	    // skip somewhere?
 	    return ExprOrStmt::create_error ();
@@ -12804,10 +12779,9 @@ Parser<ManagedTokenSource>::null_denotation (
       return parse_array_expr (std::move (outer_attrs), true);
     default:
       if (!restrictions.expr_can_be_null)
-	add_error (
-	  Error (tok->get_locus (),
-		 "found unexpected token %qs in null denotation",
-		 tok->get_token_description ()));
+	add_error (Error (tok->get_locus (),
+			  "found unexpected token %qs in null denotation",
+			  tok->get_token_description ()));
       return nullptr;
     }
 }
@@ -13128,10 +13102,9 @@ Parser<ManagedTokenSource>::left_denotation (
 					   std::move (outer_attrs),
 					   restrictions);
     default:
-      add_error (
-	Error (tok->get_locus (),
-	       "found unexpected token %qs in left denotation",
-	       tok->get_token_description ()));
+      add_error (Error (tok->get_locus (),
+			"found unexpected token %qs in left denotation",
+			tok->get_token_description ()));
 
       return nullptr;
     }
@@ -14596,10 +14569,9 @@ Parser<ManagedTokenSource>::parse_path_in_expression_pratt (const_TokenPtr tok)
 	}
       gcc_fallthrough ();
     default:
-      add_error (
-	Error (tok->get_locus (),
-	       "unrecognised token %qs in path in expression",
-	       tok->get_token_description ()));
+      add_error (Error (tok->get_locus (),
+			"unrecognised token %qs in path in expression",
+			tok->get_token_description ()));
 
       return AST::PathInExpression::create_error ();
     }
@@ -14726,11 +14698,10 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (
 	break;
       }
     default:
-      add_error (
-	Error (tok->get_locus (),
-	       "unexpected token %qs in closure expression - expected "
-	       "%<|%> or %<||%>",
-	       tok->get_token_description ()));
+      add_error (Error (tok->get_locus (),
+			"unexpected token %qs in closure expression - expected "
+			"%<|%> or %<||%>",
+			tok->get_token_description ()));
 
       // skip somewhere?
       return nullptr;
