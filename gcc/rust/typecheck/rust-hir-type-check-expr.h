@@ -127,11 +127,11 @@ public:
 	return;
       }
 
-    std::vector<TyTy::TyCtx> fields;
+    std::vector<TyTy::TyVar> fields;
     for (auto &elem : expr.get_tuple_elems ())
       {
 	auto field_ty = TypeCheckExpr::Resolve (elem.get (), false);
-	fields.push_back (TyTy::TyCtx (field_ty->get_ref ()));
+	fields.push_back (TyTy::TyVar (field_ty->get_ref ()));
       }
     infered = new TyTy::TupleType (expr.get_mappings ().get_hirid (), fields);
   }
@@ -461,7 +461,7 @@ public:
 	  rust_assert (ok);
 
 	  infered = new TyTy::ReferenceType (expr.get_mappings ().get_hirid (),
-					     TyTy::TyCtx (base->get_ref ()));
+					     TyTy::TyVar (base->get_ref ()));
 	}
 	break;
 
@@ -663,7 +663,7 @@ public:
 
     infered
       = new TyTy::ArrayType (expr.get_mappings ().get_hirid (), num_elems,
-			     TyTy::TyCtx (infered_array_elems->get_ref ()));
+			     TyTy::TyVar (infered_array_elems->get_ref ()));
   }
 
   void visit (HIR::ArrayElemsValues &elems)
@@ -893,7 +893,7 @@ public:
     // FIXME double_reference
 
     infered = new TyTy::ReferenceType (expr.get_mappings ().get_hirid (),
-				       TyTy::TyCtx (resolved_base->get_ref ()));
+				       TyTy::TyVar (resolved_base->get_ref ()));
   }
 
   void visit (HIR::DereferenceExpr &expr)
