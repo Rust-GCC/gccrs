@@ -116,6 +116,9 @@ public:
   // Get the Host pointer size in bits
   virtual int get_pointer_size () = 0;
 
+  // Get the raw str type const char*
+  virtual Btype *raw_str_type () = 0;
+
   // Get an unnamed integer type with the given signedness and number
   // of bits.
   virtual Btype *integer_type (bool is_unsigned, int bits) = 0;
@@ -150,6 +153,11 @@ public:
 		 const std::vector<Btyped_identifier> &parameters,
 		 const std::vector<Btyped_identifier> &results,
 		 Btype *result_struct, Location location)
+    = 0;
+
+  virtual Btype *function_ptr_type (Btype *result,
+				    const std::vector<Btype *> &praameters,
+				    Location location)
     = 0;
 
   // Get a struct type.

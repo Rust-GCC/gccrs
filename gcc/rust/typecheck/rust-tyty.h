@@ -35,6 +35,7 @@ enum TypeKind
   PARAM,
   ARRAY,
   FNDEF,
+  FNPTR,
   TUPLE,
   BOOL,
   CHAR,
@@ -113,6 +114,20 @@ protected:
   std::set<HirId> combined;
 
   Analysis::Mappings *mappings;
+};
+
+// this is a placeholder for types that can change like inference variables
+class TyCtx
+{
+public:
+  explicit TyCtx (HirId ref);
+
+  HirId get_ref () const { return ref; }
+
+  BaseType *get_tyty () const;
+
+private:
+  HirId ref;
 };
 
 class InferType : public BaseType
@@ -229,13 +244,12 @@ private:
 class TupleType : public BaseType
 {
 public:
-  TupleType (HirId ref, std::vector<HirId> fields,
-
+  TupleType (HirId ref, std::vector<TyCtx> fields,
 	     std::set<HirId> refs = std::set<HirId> ())
     : BaseType (ref, ref, TypeKind::TUPLE, refs), fields (fields)
   {}
 
-  TupleType (HirId ref, HirId ty_ref, std::vector<HirId> fields,
+  TupleType (HirId ref, HirId ty_ref, std::vector<TyCtx> fields,
 	     std::set<HirId> refs = std::set<HirId> ())
     : BaseType (ref, ty_ref, TypeKind::TUPLE, refs), fields (fields)
   {}
@@ -248,7 +262,7 @@ public:
 
   BaseType *unify (BaseType *other) override;
 
-  virtual bool is_equal (const BaseType &other) const override;
+  bool is_equal (const BaseType &other) const override;
 
   size_t num_fields () const { return fields.size (); }
 
@@ -268,7 +282,7 @@ public:
   std::string get_name () const override final { return as_string (); }
 
 private:
-  std::vector<HirId> fields;
+  std::vector<TyCtx> fields;
 };
 
 class ParamType : public BaseType
@@ -420,7 +434,7 @@ public:
 
   BaseType *unify (BaseType *other) override;
 
-  virtual bool is_equal (const BaseType &other) const override;
+  bool is_equal (const BaseType &other) const override;
 
   size_t num_fields () const { return fields.size (); }
 
@@ -511,11 +525,9 @@ public:
 
   std::string get_name () const override final { return as_string (); }
 
-  BaseType *return_type () { return type; }
-
   BaseType *unify (BaseType *other) override;
 
-  virtual bool is_equal (const BaseType &other) const override;
+  bool is_equal (const BaseType &other) const override;
 
   size_t num_params () const { return params.size (); }
 
@@ -548,19 +560,66 @@ private:
   BaseType *type;
 };
 
+class FnPtr : public BaseType
+{
+public:
+  FnPtr (HirId ref, std::vector<TyCtx> params, TyCtx result_type,
+	 std::set<HirId> refs = std::set<HirId> ())
+    : BaseType (ref, ref, TypeKind::FNPTR, refs), params (std::move (params)),
+      result_type (result_type)
+  {}
+
+  FnPtr (HirId ref, HirId ty_ref, std::vector<TyCtx> params, TyCtx result_type,
+	 std::set<HirId> refs = std::set<HirId> ())
+    : BaseType (ref, ty_ref, TypeKind::FNPTR, refs), params (params),
+      result_type (result_type)
+  {}
+
+  std::string get_name () const override final { return as_string (); }
+
+  BaseType *get_return_type () const { return result_type.get_tyty (); }
+
+  size_t num_params () const { return params.size (); }
+
+  BaseType *param_at (size_t idx) const { return params.at (idx).get_tyty (); }
+
+  void accept_vis (TyVisitor &vis) override;
+
+  std::string as_string () const override;
+
+  BaseType *unify (BaseType *other) override;
+
+  bool is_equal (const BaseType &other) const override;
+
+  BaseType *clone () final override;
+
+  void iterate_params (std::function<bool (BaseType *)> cb) const
+  {
+    for (auto &p : params)
+      {
+	if (!cb (p.get_tyty ()))
+	  return;
+      }
+  }
+
+private:
+  std::vector<TyCtx> params;
+  TyCtx result_type;
+};
+
 class ArrayType : public BaseType
 {
 public:
-  ArrayType (HirId ref, size_t capacity, BaseType *type,
+  ArrayType (HirId ref, size_t capacity, TyCtx base,
 	     std::set<HirId> refs = std::set<HirId> ())
     : BaseType (ref, ref, TypeKind::ARRAY, refs), capacity (capacity),
-      element_type_id (type->get_ref ())
+      element_type (base)
   {}
 
-  ArrayType (HirId ref, HirId ty_ref, size_t capacity, BaseType *type,
+  ArrayType (HirId ref, HirId ty_ref, size_t capacity, TyCtx base,
 	     std::set<HirId> refs = std::set<HirId> ())
     : BaseType (ref, ty_ref, TypeKind::ARRAY, refs), capacity (capacity),
-      element_type_id (type->get_ref ())
+      element_type (base)
   {}
 
   void accept_vis (TyVisitor &vis) override;
@@ -571,19 +630,17 @@ public:
 
   BaseType *unify (BaseType *other) override;
 
-  virtual bool is_equal (const BaseType &other) const override;
+  bool is_equal (const BaseType &other) const override;
 
   size_t get_capacity () const { return capacity; }
 
-  HirId element_type_ref () const { return element_type_id; }
-
-  BaseType *get_type () const;
+  BaseType *get_element_type () const;
 
   BaseType *clone () final override;
 
 private:
   size_t capacity;
-  HirId element_type_id;
+  TyCtx element_type;
 };
 
 class BoolType : public BaseType
@@ -787,19 +844,17 @@ public:
 class ReferenceType : public BaseType
 {
 public:
-  ReferenceType (HirId ref, HirId base,
+  ReferenceType (HirId ref, TyCtx base,
 		 std::set<HirId> refs = std::set<HirId> ())
     : BaseType (ref, ref, TypeKind::REF), base (base)
   {}
 
-  ReferenceType (HirId ref, HirId ty_ref, HirId base,
+  ReferenceType (HirId ref, HirId ty_ref, TyCtx base,
 		 std::set<HirId> refs = std::set<HirId> ())
     : BaseType (ref, ty_ref, TypeKind::REF), base (base)
   {}
 
-  const TyTy::BaseType *get_base () const;
-
-  TyTy::BaseType *get_base ();
+  BaseType *get_base () const;
 
   void accept_vis (TyVisitor &vis) override;
 
@@ -809,12 +864,36 @@ public:
 
   BaseType *unify (BaseType *other) override;
 
-  virtual bool is_equal (const BaseType &other) const override;
+  bool is_equal (const BaseType &other) const override;
 
   BaseType *clone () final override;
 
 private:
-  HirId base;
+  TyCtx base;
+};
+
+class StrType : public BaseType
+{
+public:
+  StrType (HirId ref, std::set<HirId> refs = std::set<HirId> ())
+    : BaseType (ref, ref, TypeKind::STR)
+  {}
+
+  StrType (HirId ref, HirId ty_ref, std::set<HirId> refs = std::set<HirId> ())
+    : BaseType (ref, ty_ref, TypeKind::STR)
+  {}
+
+  std::string get_name () const override final { return as_string (); }
+
+  void accept_vis (TyVisitor &vis) override;
+
+  std::string as_string () const override;
+
+  BaseType *unify (BaseType *other) override;
+
+  bool is_equal (const BaseType &other) const override;
+
+  BaseType *clone () final override;
 };
 
 } // namespace TyTy

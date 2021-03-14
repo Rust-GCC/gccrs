@@ -58,6 +58,8 @@ public:
 
   void visit (TyTy::ParamType &) override { gcc_unreachable (); }
 
+  void visit (TyTy::FnPtr &type) override { gcc_unreachable (); }
+
   void visit (TyTy::UnitType &) override { translated = backend->void_type (); }
 
   void visit (TyTy::FnType &type) override
@@ -207,6 +209,13 @@ public:
   {
     translated = backend->named_type ("char", backend->wchar_type (),
 				      Linemap::predeclared_location ());
+  }
+
+  void visit (TyTy::StrType &) override
+  {
+    Btype *raw_str = backend->raw_str_type ();
+    translated
+      = backend->named_type ("str", raw_str, Linemap::predeclared_location ());
   }
 
 private:

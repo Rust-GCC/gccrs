@@ -187,6 +187,8 @@ public:
 
   int get_pointer_size ();
 
+  Btype *raw_str_type ();
+
   Btype *integer_type (bool, int);
 
   Btype *float_type (int);
@@ -203,6 +205,8 @@ public:
 			const std::vector<Btyped_identifier> &,
 			const std::vector<Btyped_identifier> &, Btype *,
 			const Location);
+
+  Btype *function_ptr_type (Btype *, const std::vector<Btype *> &, Location);
 
   Btype *struct_type (const std::vector<Btyped_identifier> &);
 
@@ -804,6 +808,14 @@ Gcc_backend::get_pointer_size ()
 }
 
 Btype *
+Gcc_backend::raw_str_type ()
+{
+  tree char_ptr = build_pointer_type (char_type_node);
+  tree const_char_type = build_qualified_type (char_ptr, TYPE_QUAL_CONST);
+  return this->make_type (const_char_type);
+}
+
+Btype *
 Gcc_backend::integer_type (bool is_unsigned, int bits)
 {
   tree type;
@@ -970,6 +982,37 @@ Gcc_backend::function_type (const Btyped_identifier &receiver,
   // returns a zero-sized value as returning void.  That should do no
   // harm since there is no actual value to be returned.  See
   // https://gcc.gnu.org/PR72814 for details.
+  if (result != void_type_node && int_size_in_bytes (result) == 0)
+    result = void_type_node;
+
+  tree fntype = build_function_type (result, args);
+  if (fntype == error_mark_node)
+    return this->error_type ();
+
+  return this->make_type (build_pointer_type (fntype));
+}
+
+Btype *
+Gcc_backend::function_ptr_type (Btype *result_type,
+				const std::vector<Btype *> &parameters,
+				Location locus)
+{
+  tree args = NULL_TREE;
+  tree *pp = &args;
+
+  for (auto &param : parameters)
+    {
+      tree t = param->get_tree ();
+      if (t == error_mark_node)
+	return this->error_type ();
+
+      *pp = tree_cons (NULL_TREE, t, NULL_TREE);
+      pp = &TREE_CHAIN (*pp);
+    }
+
+  *pp = void_list_node;
+
+  tree result = result_type->get_tree ();
   if (result != void_type_node && int_size_in_bytes (result) == 0)
     result = void_type_node;
 
@@ -1427,8 +1470,7 @@ Bexpression *
 Gcc_backend::string_constant_expression (const std::string &val)
 {
   tree index_type = build_index_type (size_int (val.length ()));
-  tree const_char_type
-    = build_qualified_type (unsigned_char_type_node, TYPE_QUAL_CONST);
+  tree const_char_type = build_qualified_type (char_type_node, TYPE_QUAL_CONST);
   tree string_type = build_array_type (const_char_type, index_type);
   TYPE_STRING_FLAG (string_type) = 1;
   tree string_val = build_string (val.length (), val.data ());

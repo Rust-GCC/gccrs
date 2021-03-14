@@ -268,8 +268,6 @@ public:
     return compiler.translated;
   }
 
-  virtual ~TyTyResolveCompile () {}
-
   void visit (TyTy::ErrorType &) override { gcc_unreachable (); }
 
   void visit (TyTy::InferType &) override { gcc_unreachable (); }
@@ -314,6 +312,23 @@ public:
 
     translated = ctx->get_backend ()->function_type (
       receiver, parameters, results, NULL,
+      ctx->get_mappings ()->lookup_location (type.get_ref ()));
+  }
+
+  void visit (TyTy::FnPtr &type) override
+  {
+    Btype *result_type
+      = TyTyResolveCompile::compile (ctx, type.get_return_type ());
+
+    std::vector<Btype *> parameters;
+    type.iterate_params ([&] (TyTy::BaseType *p) mutable -> bool {
+      Btype *pty = TyTyResolveCompile::compile (ctx, p);
+      parameters.push_back (pty);
+      return true;
+    });
+
+    translated = ctx->get_backend ()->function_ptr_type (
+      result_type, parameters,
       ctx->get_mappings ()->lookup_location (type.get_ref ()));
   }
 
@@ -393,7 +408,8 @@ public:
     Bexpression *length
       = ctx->get_backend ()->integer_constant_expression (capacity_type, ival);
 
-    Btype *element_type = TyTyResolveCompile::compile (ctx, type.get_type ());
+    Btype *element_type
+      = TyTyResolveCompile::compile (ctx, type.get_element_type ());
     translated = ctx->get_backend ()->array_type (element_type, length);
   }
 
@@ -458,6 +474,14 @@ public:
     Btype *base_compiled_type
       = TyTyResolveCompile::compile (ctx, type.get_base ());
     translated = ctx->get_backend ()->reference_type (base_compiled_type);
+  }
+
+  void visit (TyTy::StrType &type) override
+  {
+    ::Btype *compiled_type = nullptr;
+    bool ok = ctx->lookup_compiled_types (type.get_ty_ref (), &compiled_type);
+    rust_assert (ok);
+    translated = compiled_type;
   }
 
 private:

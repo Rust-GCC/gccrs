@@ -77,7 +77,13 @@ public:
 	  resolved->append_reference (ref);
 
 	bool result_resolved = resolved->get_kind () != TyTy::TypeKind::INFER;
-	if (result_resolved)
+	bool result_is_infer_var
+	  = resolved->get_kind () == TyTy::TypeKind::INFER;
+	bool results_is_non_general_infer_var
+	  = (result_is_infer_var
+	     && ((InferType *) resolved)->get_infer_kind ()
+		  != TyTy::InferType::GENERAL);
+	if (result_resolved || results_is_non_general_infer_var)
 	  {
 	    for (auto &ref : resolved->get_combined_refs ())
 	      {
@@ -135,6 +141,14 @@ public:
   }
 
   virtual void visit (FnType &type) override
+  {
+    Location ref_locus = mappings->lookup_location (type.get_ref ());
+    rust_error_at (ref_locus, "expected [%s] got [%s]",
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
+  }
+
+  virtual void visit (FnPtr &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
     rust_error_at (ref_locus, "expected [%s] got [%s]",
@@ -229,6 +243,14 @@ public:
 		   get_base ()->as_string ().c_str (),
 		   type.as_string ().c_str ());
     gcc_unreachable ();
+  }
+
+  virtual void visit (StrType &type) override
+  {
+    Location ref_locus = mappings->lookup_location (type.get_ref ());
+    rust_error_at (ref_locus, "expected [%s] got [%s]",
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
 protected:
@@ -512,7 +534,6 @@ public:
 	return;
       }
 
-    // FIXME add an abstract method for is_equal on BaseType
     for (size_t i = 0; i < base->num_params (); i++)
       {
 	auto a = base->param_at (i).second;
@@ -544,6 +565,99 @@ private:
   FnType *base;
 };
 
+class FnptrRules : public BaseRules
+{
+public:
+  FnptrRules (FnPtr *base) : BaseRules (base), base (base) {}
+
+  void visit (InferType &type) override
+  {
+    if (type.get_infer_kind () != InferType::InferTypeKind::GENERAL)
+      {
+	BaseRules::visit (type);
+	return;
+      }
+
+    resolved = base->clone ();
+    resolved->set_ref (type.get_ref ());
+  }
+
+  void visit (FnPtr &type) override
+  {
+    auto this_ret_type = base->get_return_type ();
+    auto other_ret_type = type.get_return_type ();
+    auto unified_result = this_ret_type->unify (other_ret_type);
+    if (unified_result == nullptr
+	|| unified_result->get_kind () == TypeKind::ERROR)
+      {
+	BaseRules::visit (type);
+	return;
+      }
+
+    if (base->num_params () != type.num_params ())
+      {
+	BaseRules::visit (type);
+	return;
+      }
+
+    for (size_t i = 0; i < base->num_params (); i++)
+      {
+	auto this_param = base->param_at (i);
+	auto other_param = type.param_at (i);
+	auto unified_param = this_param->unify (other_param);
+	if (unified_param == nullptr
+	    || unified_param->get_kind () == TypeKind::ERROR)
+	  {
+	    BaseRules::visit (type);
+	    return;
+	  }
+      }
+
+    resolved = base->clone ();
+    resolved->set_ref (type.get_ref ());
+  }
+
+  void visit (FnType &type) override
+  {
+    auto this_ret_type = base->get_return_type ();
+    auto other_ret_type = type.get_return_type ();
+    auto unified_result = this_ret_type->unify (other_ret_type);
+    if (unified_result == nullptr
+	|| unified_result->get_kind () == TypeKind::ERROR)
+      {
+	BaseRules::visit (type);
+	return;
+      }
+
+    if (base->num_params () != type.num_params ())
+      {
+	BaseRules::visit (type);
+	return;
+      }
+
+    for (size_t i = 0; i < base->num_params (); i++)
+      {
+	auto this_param = base->param_at (i);
+	auto other_param = type.param_at (i).second;
+	auto unified_param = this_param->unify (other_param);
+	if (unified_param == nullptr
+	    || unified_param->get_kind () == TypeKind::ERROR)
+	  {
+	    BaseRules::visit (type);
+	    return;
+	  }
+      }
+
+    resolved = base->clone ();
+    resolved->set_ref (type.get_ref ());
+  }
+
+private:
+  BaseType *get_base () override { return base; }
+
+  FnPtr *base;
+};
+
 class ArrayRules : public BaseRules
 {
 public:
@@ -552,10 +666,11 @@ public:
   void visit (ArrayType &type) override
   {
     // check base type
-    auto base_resolved = base->get_type ()->unify (type.get_type ());
+    auto base_resolved
+      = base->get_element_type ()->unify (type.get_element_type ());
     if (base_resolved == nullptr)
       {
-	// fixme add error message
+	BaseRules::visit (type);
 	return;
       }
 
@@ -568,8 +683,9 @@ public:
 	return;
       }
 
-    resolved = new ArrayType (type.get_ref (), type.get_ty_ref (),
-			      type.get_capacity (), base_resolved);
+    resolved
+      = new ArrayType (type.get_ref (), type.get_ty_ref (),
+		       type.get_capacity (), TyCtx (base_resolved->get_ref ()));
   }
 
 private:
@@ -744,7 +860,7 @@ class TupleRules : public BaseRules
 public:
   TupleRules (TupleType *base) : BaseRules (base), base (base) {}
 
-  void visit (TupleType &type)
+  void visit (TupleType &type) override
   {
     if (base->num_fields () != type.num_fields ())
       {
@@ -752,7 +868,7 @@ public:
 	return;
       }
 
-    std::vector<HirId> fields;
+    std::vector<TyCtx> fields;
     for (size_t i = 0; i < base->num_fields (); i++)
       {
 	BaseType *bo = base->get_field (i);
@@ -765,7 +881,7 @@ public:
 	    return;
 	  }
 
-	fields.push_back (unified_ty->get_ref ());
+	fields.push_back (TyCtx (unified_ty->get_ref ()));
       }
 
     resolved
@@ -866,8 +982,15 @@ public:
     auto other_base_type = type.get_base ();
 
     TyTy::BaseType *base_resolved = base_type->unify (other_base_type);
+    if (base_resolved == nullptr
+	|| base_resolved->get_kind () == TypeKind::ERROR)
+      {
+	BaseRules::visit (type);
+	return;
+      }
+
     resolved = new ReferenceType (base->get_ref (), base->get_ty_ref (),
-				  base_resolved->get_ref ());
+				  TyCtx (base_resolved->get_ref ()));
   }
 
 private:
@@ -914,6 +1037,21 @@ private:
   BaseType *get_base () override { return base; }
 
   ParamType *base;
+};
+
+class StrRules : public BaseRules
+{
+  // FIXME we will need a enum for the StrType like ByteBuf etc..
+
+public:
+  StrRules (StrType *base) : BaseRules (base), base (base) {}
+
+  void visit (StrType &type) override { resolved = type.clone (); }
+
+private:
+  BaseType *get_base () override { return base; }
+
+  StrType *base;
 };
 
 } // namespace TyTy

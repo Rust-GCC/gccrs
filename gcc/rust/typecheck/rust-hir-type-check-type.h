@@ -107,26 +107,17 @@ public:
 	  ? TypeCheckType::Resolve (fntype.get_return_type ().get ())
 	  : new TyTy::UnitType (fntype.get_mappings ().get_hirid ());
 
-    std::vector<std::pair<HIR::Pattern *, TyTy::BaseType *> > params;
+    std::vector<TyTy::TyCtx> params;
     for (auto &param : fntype.get_function_params ())
       {
-	std::unique_ptr<HIR::Pattern> to_bind;
-
-	bool is_ref = false;
-	bool is_mut = false;
-
-	HIR::Pattern *pattern
-	  = new HIR::IdentifierPattern (param.get_name (), param.get_locus (),
-					is_ref, is_mut, std::move (to_bind));
-
 	TyTy::BaseType *ptype
 	  = TypeCheckType::Resolve (param.get_type ().get ());
-	params.push_back (
-	  std::pair<HIR::Pattern *, TyTy::BaseType *> (pattern, ptype));
+	params.push_back (TyTy::TyCtx (ptype->get_ref ()));
       }
 
-    translated = new TyTy::FnType (fntype.get_mappings ().get_hirid (),
-				   std::move (params), return_type);
+    translated = new TyTy::FnPtr (fntype.get_mappings ().get_hirid (),
+				  std::move (params),
+				  TyTy::TyCtx (return_type->get_ref ()));
   }
 
   void visit (HIR::TupleType &tuple)
@@ -142,11 +133,11 @@ public:
 	return;
       }
 
-    std::vector<HirId> fields;
+    std::vector<TyTy::TyCtx> fields;
     for (auto &elem : tuple.get_elems ())
       {
 	auto field_ty = TypeCheckType::Resolve (elem.get ());
-	fields.push_back (field_ty->get_ref ());
+	fields.push_back (TyTy::TyCtx (field_ty->get_ref ()));
       }
 
     translated
@@ -247,8 +238,8 @@ public:
       }
 
     TyTy::BaseType *base = TypeCheckType::Resolve (type.get_element_type ());
-    translated
-      = new TyTy::ArrayType (type.get_mappings ().get_hirid (), capacity, base);
+    translated = new TyTy::ArrayType (type.get_mappings ().get_hirid (),
+				      capacity, TyTy::TyCtx (base->get_ref ()));
   }
 
   void visit (HIR::ReferenceType &type)
@@ -256,7 +247,7 @@ public:
     TyTy::BaseType *base
       = TypeCheckType::Resolve (type.get_base_type ().get ());
     translated = new TyTy::ReferenceType (type.get_mappings ().get_hirid (),
-					  base->get_ref ());
+					  TyTy::TyCtx (base->get_ref ()));
   }
 
   void visit (HIR::InferredType &type)

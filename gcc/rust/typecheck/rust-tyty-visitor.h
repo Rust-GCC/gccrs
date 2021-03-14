@@ -32,6 +32,7 @@ public:
   virtual void visit (ADTType &type) = 0;
   virtual void visit (TupleType &type) = 0;
   virtual void visit (FnType &type) = 0;
+  virtual void visit (FnPtr &type) = 0;
   virtual void visit (ArrayType &type) = 0;
   virtual void visit (BoolType &type) = 0;
   virtual void visit (IntType &type) = 0;
@@ -43,6 +44,7 @@ public:
   virtual void visit (CharType &type) = 0;
   virtual void visit (ReferenceType &type) = 0;
   virtual void visit (ParamType &type) = 0;
+  virtual void visit (StrType &type) = 0;
 };
 
 } // namespace TyTy
