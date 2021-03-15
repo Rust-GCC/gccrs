@@ -101,7 +101,7 @@ If you want to build an executable file:
 ```bash
 $ docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp \
     gccrs-dev:latest gccrs -g -O2 \
-    gcc/testsuite/rust.test/compilable/type_infer1.rs -o type_infer1.o
+    gcc/testsuite/rust.test/compilable/type_infer1.rs -o type_infer1
 ```
 
 
