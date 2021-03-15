@@ -101,8 +101,10 @@ public:
 
   virtual bool has_subsititions_defined () const { return false; }
 
-  virtual std::string to_string () const {
-    switch(kind){
+  virtual std::string to_string () const 
+  {
+    switch(kind)
+      {
       case TypeKind::INFER:
         return "Infer";
         break;
@@ -118,7 +120,7 @@ public:
       case TypeKind::PARAM:
         return "PARAM";
         break;
-      case: TypeKind::ARRAY:
+      case TypeKind::ARRAY:
         return "ARRAY";
         break;
       case TypeKind::FNDEF:
@@ -160,7 +162,7 @@ public:
       default:
         return "None";
         break;
-    }
+      }
   } 
 
 protected:
