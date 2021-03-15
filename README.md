@@ -111,7 +111,6 @@ $ docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp \
     gcc/testsuite/rust.test/compilable/type_infer1.rs -S -o type_infer1.s 
 ```
 
-
 To emit the debug outputs you can add the option -frust-dump-all :
 ```bash
 $ docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp \
