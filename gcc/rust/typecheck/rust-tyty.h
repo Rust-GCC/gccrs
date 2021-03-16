@@ -900,7 +900,7 @@ class TypeKindFormat
 {
 public:
 
-  static std::string to_string (TypeKind kind) const 
+  static std::string to_string (TypeKind kind)
   {
     switch(kind)
       {
