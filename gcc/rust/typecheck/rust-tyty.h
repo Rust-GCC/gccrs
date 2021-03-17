@@ -164,6 +164,46 @@ public:
 
   std::string get_name () const override final { return as_string (); }
 
+  fnName () const {
+    auto mappings = Analysis::Mappings::get ();
+    switch (infer_kind)
+    {
+    case TyTy::InferType::GENERAL:
+	rust_error_at (mappings->lookup_location (id),
+		       "unable to determine type: please give this a type: %u",
+		       id);
+	break;
+
+	case TyTy::InferType::INTEGRAL: {
+	  TyTy::BaseType *default_integer;
+	  bool ok = context->lookup_builtin ("i32", &default_integer);
+	  rust_assert (ok);
+
+	  auto result = ty->unify (default_integer);
+	  result->set_ref (id);
+	  context->insert_type (
+	    Analysis::NodeMapping (mappings->get_current_crate (), 0, id,
+				   UNKNOWN_LOCAL_DEFID),
+	    result);
+	}
+	break;
+
+	case TyTy::InferType::FLOAT: {
+	  TyTy::BaseType *default_float;
+	  bool ok = context->lookup_builtin ("f64", &default_float);
+	  rust_assert (ok);
+
+	  auto result = ty->unify (default_float);
+	  result->set_ref (id);
+	  context->insert_type (
+	    Analysis::NodeMapping (mappings->get_current_crate (), 0, id,
+				   UNKNOWN_LOCAL_DEFID),
+	    result);
+	}
+	break;
+    }
+  }
+
 private:
   InferTypeKind infer_kind;
 };
