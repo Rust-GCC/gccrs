@@ -899,10 +899,9 @@ public:
 class TypeKindFormat
 {
 public:
-
   static std::string to_string (TypeKind kind)
   {
-    switch(kind)
+    switch (kind)
       {
       case TypeKind::INFER:
         return "Infer";
@@ -962,11 +961,8 @@ public:
         return "None";
         break;
       }
-  } 
-
+  }
 };
-
-
 
 } // namespace TyTy
 } // namespace Rust
