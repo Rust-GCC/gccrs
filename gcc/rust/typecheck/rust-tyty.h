@@ -904,62 +904,62 @@ public:
     switch (kind)
       {
       case TypeKind::INFER:
-       return "Infer";
-       break;
+	return "Infer";
+	break;
       case TypeKind::ADT:
-       return "ADT";
-       break;
+	return "ADT";
+	break;
       case TypeKind::STR:
-       return "STR";
-       break;
+	return "STR";
+	break;
       case TypeKind::REF:
-       return "REF";
-       break;
+	return "REF";
+	break;
       case TypeKind::PARAM:
-       return "PARAM";
-       break;
+	return "PARAM";
+	break;
       case TypeKind::ARRAY:
-       return "ARRAY";
-       break;
+	return "ARRAY";
+	break;
       case TypeKind::FNDEF:
-       return "FnDef";
-       break;
+	return "FnDef";
+	break;
       case TypeKind::FNPTR:
-       return "FnPtr";
-       break;
+	return "FnPtr";
+	break;
       case TypeKind::TUPLE:
-       return "Tuple";
-       break;
+	return "Tuple";
+	break;
       case TypeKind::BOOL:
-       return "Boolean";
-       break;
+	return "Boolean";
+	break;
       case TypeKind::CHAR:
-       return "Character";
-       break;
+	return "Character";
+	break;
       case TypeKind::INT:
-       return "Integer";
-       break;
+	return "Integer";
+	break;
       case TypeKind::UINT:
-       return "Unsigned Integer";
-       break;
+	return "Unsigned Integer";
+	break;
       case TypeKind::FLOAT:
-       return "Float";
-       break;
+	return "Float";
+	break;
       case TypeKind::UNIT:
-       return "Unit";
-       break;
+	return "Unit";
+	break;
       case TypeKind::USIZE:
-       return "Usize";
-       break;
+	return "Usize";
+	break;
       case TypeKind::ISIZE:
-       return "Isize";
-       break;
+	return "Isize";
+	break;
       case TypeKind::ERROR:
-       return "ERROR";
-       break;
+	return "ERROR";
+	break;
       default:
-       return "None";
-       break;
+	return "None";
+	break;
       }
   }
 };
