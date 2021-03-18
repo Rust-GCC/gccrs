@@ -62,9 +62,9 @@ Then invoke the compiler as expected:
 $ gccrs -g -O2 -c test.rs -o test.o
 $ gccrs -o test test.o
 ```
-If the driver of gccrs is not found , you should copy the bin file of gccrs driver to your bin folder (root privileges are required):
+If the driver of gccrs is not found , you should export the path of the bin file of gccrs driver to your bin folder:
 ```bash
-$ sudo cp $HOME/gccrs-install/bin/gccrs /bin/gccrs
+$ export PATH=$HOME/gccrs-install/bin:$PATH
 ```
 
 ## Testsuite
