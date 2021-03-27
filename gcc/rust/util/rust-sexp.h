@@ -104,11 +104,7 @@ private:
 
   template <typename T> void check_nullptr (T &ptr)
   {
-    if (ptr == nullptr)
-      {
-	throw std::runtime_error (
-	  "Attempting to create a S-expression with nullptr");
-      }
+    rust_assert (ptr != nullptr);
   }
 
   // C++ doesn't allow late binding to member variables,

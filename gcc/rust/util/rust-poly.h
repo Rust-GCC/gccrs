@@ -71,11 +71,10 @@ public:
 
   // Construct from raw pointer
   // Will take ownership of the value.
-  poly(std::unique_ptr<T> &&t) {
-    if (t == nullptr) {
-      throw std::runtime_error("Attempting to create a poly from nullptr");
-    }
-    _cloner = Rust::make_unique<ConcreteCloner<T>>(std::move(t));
+  poly (std::unique_ptr<T> &&t)
+  {
+    rust_assert (t != nullptr);
+    _cloner = Rust::make_unique<ConcreteCloner<T>> (std::move (t));
   }
 
   // Copy constructor
