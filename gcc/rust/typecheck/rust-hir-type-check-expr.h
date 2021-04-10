@@ -146,7 +146,7 @@ public:
   {
     if (!expr.has_return_expr ())
       {
-	infered = new TyTy::TupleType (expr.get_mappings ().get_hirid ());
+	infered = new TyTy::NeverType (expr.get_mappings ().get_hirid ());
 	return;
       }
 
@@ -165,6 +165,8 @@ public:
     fn_return_tyty->append_reference (expr_ty->get_ref ());
     for (auto &ref : infered->get_combined_refs ())
       fn_return_tyty->append_reference (ref);
+
+    infered = new TyTy::NeverType (expr.get_mappings ().get_hirid ());
   }
 
   void visit (HIR::CallExpr &expr) override
@@ -904,7 +906,7 @@ public:
 	context->swap_head_loop_context (unified_ty);
       }
 
-    infered = new TyTy::TupleType (expr.get_mappings ().get_hirid ());
+    infered = new TyTy::NeverType (expr.get_mappings ().get_hirid ());
   }
 
   void visit (HIR::ContinueExpr &expr) override
@@ -916,7 +918,7 @@ public:
 	return;
       }
 
-    infered = new TyTy::TupleType (expr.get_mappings ().get_hirid ());
+    infered = new TyTy::NeverType (expr.get_mappings ().get_hirid ());
   }
 
   void visit (HIR::BorrowExpr &expr) override

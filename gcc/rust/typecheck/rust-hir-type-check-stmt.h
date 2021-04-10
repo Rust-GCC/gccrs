@@ -42,6 +42,12 @@ public:
   void visit (HIR::ExprStmtWithBlock &stmt) override
   {
     infered = TypeCheckExpr::Resolve (stmt.get_expr (), inside_loop);
+
+    if (stmt.is_unit_check_needed ())
+      {
+	auto unit = new TyTy::TupleType (stmt.get_mappings ().get_hirid ());
+	infered = unit->unify (infered);
+      }
   }
 
   void visit (HIR::ExprStmtWithoutBlock &stmt) override

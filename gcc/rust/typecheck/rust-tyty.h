@@ -45,6 +45,7 @@ enum TypeKind
   FLOAT,
   USIZE,
   ISIZE,
+  NEVER,
   // there are more to add...
   ERROR
 };
@@ -1137,6 +1138,30 @@ public:
   BaseType *clone () final override;
 };
 
+class NeverType : public BaseType
+{
+public:
+  NeverType (HirId ref, std::set<HirId> refs = std::set<HirId> ())
+    : BaseType (ref, ref, TypeKind::NEVER, refs)
+  {}
+
+  NeverType (HirId ref, HirId ty_ref, std::set<HirId> refs = std::set<HirId> ())
+    : BaseType (ref, ty_ref, TypeKind::NEVER, refs)
+  {}
+
+  void accept_vis (TyVisitor &vis) override;
+
+  std::string as_string () const override;
+
+  BaseType *unify (BaseType *other) override;
+
+  BaseType *clone () final override;
+
+  std::string get_name () const override final { return as_string (); }
+
+  bool is_unit () const override { return true; }
+};
+
 class TypeKindFormat
 {
 public:
@@ -1191,6 +1216,9 @@ public:
 
       case TypeKind::ISIZE:
 	return "Isize";
+
+      case TypeKind::NEVER:
+	return "Never";
 
       case TypeKind::ERROR:
 	return "ERROR";

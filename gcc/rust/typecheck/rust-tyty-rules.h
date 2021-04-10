@@ -242,6 +242,14 @@ public:
 		   type.as_string ().c_str ());
   }
 
+  virtual void visit (NeverType &type) override
+  {
+    Location ref_locus = mappings->lookup_location (type.get_ref ());
+    rust_error_at (ref_locus, "expected [%s] got [%s]",
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
+  }
+
 protected:
   BaseRules (BaseType *base)
     : mappings (Analysis::Mappings::get ()),
@@ -478,6 +486,8 @@ public:
     BaseRules::visit (type);
   }
 
+  void visit (NeverType &type) override { resolved = base->clone (); }
+
 private:
   BaseType *get_base () override { return base; }
 
@@ -535,6 +545,8 @@ public:
     resolved = base->clone ();
     resolved->set_ref (type.get_ref ());
   }
+
+  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
@@ -631,6 +643,8 @@ public:
     resolved->set_ref (type.get_ref ());
   }
 
+  void visit (NeverType &type) override { resolved = base->clone (); }
+
 private:
   BaseType *get_base () override { return base; }
 
@@ -669,6 +683,8 @@ public:
 		       type.get_capacity (), TyVar (base_resolved->get_ref ()));
   }
 
+  void visit (NeverType &type) override { resolved = base->clone (); }
+
 private:
   BaseType *get_base () override { return base; }
 
@@ -700,6 +716,8 @@ public:
 	break;
       }
   }
+
+  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
@@ -739,6 +757,8 @@ public:
       = new IntType (type.get_ref (), type.get_ty_ref (), type.get_int_kind ());
   }
 
+  void visit (NeverType &type) override { resolved = base->clone (); }
+
 private:
   BaseType *get_base () override { return base; }
 
@@ -777,6 +797,8 @@ public:
 			     type.get_uint_kind ());
   }
 
+  void visit (NeverType &type) override { resolved = base->clone (); }
+
 private:
   BaseType *get_base () override { return base; }
 
@@ -813,6 +835,8 @@ public:
     resolved = new FloatType (type.get_ref (), type.get_ty_ref (),
 			      type.get_float_kind ());
   }
+
+  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
@@ -853,6 +877,8 @@ public:
 
     resolved = type.clone ();
   }
+
+  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
@@ -895,6 +921,8 @@ public:
       = new TyTy::TupleType (type.get_ref (), type.get_ty_ref (), fields);
   }
 
+  void visit (NeverType &type) override { resolved = base->clone (); }
+
 private:
   BaseType *get_base () override { return base; }
 
@@ -922,6 +950,8 @@ public:
   }
 
   void visit (USizeType &type) override { resolved = type.clone (); }
+
+  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
@@ -951,6 +981,8 @@ public:
 
   void visit (ISizeType &type) override { resolved = type.clone (); }
 
+  void visit (NeverType &type) override { resolved = base->clone (); }
+
 private:
   BaseType *get_base () override { return base; }
 
@@ -977,6 +1009,8 @@ public:
   }
 
   void visit (CharType &type) override { resolved = type.clone (); }
+
+  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
@@ -1007,6 +1041,8 @@ public:
     resolved = new ReferenceType (base->get_ref (), base->get_ty_ref (),
 				  TyVar (base_resolved->get_ref ()));
   }
+
+  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
@@ -1053,6 +1089,8 @@ public:
     resolved = type.clone ();
   }
 
+  void visit (NeverType &type) override { resolved = base->clone (); }
+
 private:
   BaseType *get_base () override { return base; }
 
@@ -1069,10 +1107,64 @@ public:
 
   void visit (StrType &type) override { resolved = type.clone (); }
 
+  void visit (NeverType &type) override { resolved = base->clone (); }
+
 private:
   BaseType *get_base () override { return base; }
 
   StrType *base;
+};
+
+class NeverRules : public BaseRules
+{
+  using Rust::TyTy::BaseRules::visit;
+
+public:
+  NeverRules (NeverType *base) : BaseRules (base), base (base) {}
+
+  virtual void visit (TupleType &type) override { resolved = type.clone (); }
+
+  virtual void visit (ADTType &type) override { resolved = type.clone (); }
+
+  virtual void visit (InferType &type) override { resolved = type.clone (); }
+
+  virtual void visit (FnType &type) override { resolved = type.clone (); }
+
+  virtual void visit (FnPtr &type) override { resolved = type.clone (); }
+
+  virtual void visit (ArrayType &type) override { resolved = type.clone (); }
+
+  virtual void visit (BoolType &type) override { resolved = type.clone (); }
+
+  virtual void visit (IntType &type) override { resolved = type.clone (); }
+
+  virtual void visit (UintType &type) override { resolved = type.clone (); }
+
+  virtual void visit (USizeType &type) override { resolved = type.clone (); }
+
+  virtual void visit (ISizeType &type) override { resolved = type.clone (); }
+
+  virtual void visit (FloatType &type) override { resolved = type.clone (); }
+
+  virtual void visit (ErrorType &type) override { resolved = type.clone (); }
+
+  virtual void visit (CharType &type) override { resolved = type.clone (); }
+
+  virtual void visit (ReferenceType &type) override
+  {
+    resolved = type.clone ();
+  }
+
+  virtual void visit (ParamType &type) override { resolved = type.clone (); }
+
+  virtual void visit (StrType &type) override { resolved = type.clone (); }
+
+  virtual void visit (NeverType &type) override { resolved = type.clone (); }
+
+private:
+  BaseType *get_base () override { return base; }
+
+  NeverType *base;
 };
 
 } // namespace TyTy
