@@ -59,7 +59,8 @@ public:
     translated
       = new HIR::ExprStmtWithBlock (mapping,
 				    std::unique_ptr<HIR::ExprWithBlock> (expr),
-				    stmt.get_locus ());
+				    stmt.get_locus (),
+				    !stmt.is_semicolon_followed ());
     mappings->insert_location (crate_num, mapping.get_hirid (),
 			       stmt.get_locus ());
     mappings->insert_hir_stmt (crate_num, mapping.get_hirid (), translated);
@@ -93,7 +94,8 @@ public:
 			: nullptr;
     HIR::Expr *init_expression
       = stmt.has_init_expr ()
-	  ? ASTLoweringExpr::translate (stmt.get_init_expr ().get ())
+	  ? ASTLoweringExpr::translate (stmt.get_init_expr ().get (),
+					&terminated)
 	  : nullptr;
 
     auto crate_num = mappings->get_current_crate ();

@@ -64,7 +64,8 @@ public:
     HIR::Visibility vis = HIR::Visibility::create_public ();
 
     HIR::Type *type = ASTLoweringType::translate (constant.get_type ().get ());
-    HIR::Expr *expr = ASTLoweringExpr::translate (constant.get_expr ().get ());
+    HIR::Expr *expr
+      = ASTLoweringExpr::translate (constant.get_expr ().get (), nullptr);
 
     auto crate_num = mappings->get_current_crate ();
     Analysis::NodeMapping mapping (crate_num, constant.get_node_id (),

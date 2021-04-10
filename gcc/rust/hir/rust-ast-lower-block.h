@@ -42,7 +42,8 @@ public:
 	  resolver.translated);
       }
 
-    *terminated = resolver.terminated;
+    if (terminated != nullptr)
+      *terminated = resolver.terminated;
     return resolver.translated;
   }
 
@@ -144,8 +145,8 @@ public:
   {
     std::vector<HIR::Attribute> outer_attribs;
     HIR::BlockExpr *loop_block
-      = ASTLoweringBlock::translate (expr.get_loop_block ().get (),
-				     &terminated);
+      = ASTLoweringBlock::translate (expr.get_loop_block ().get (), nullptr);
+    // TODO: Determine whether it is an infinite loop.
 
     HIR::LoopLabel loop_label = lower_loop_label (expr.get_loop_label ());
 

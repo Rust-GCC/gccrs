@@ -89,7 +89,7 @@ class ASTLoweringExpr : public ASTLoweringBase
   using Rust::HIR::ASTLoweringBase::visit;
 
 public:
-  static HIR::Expr *translate (AST::Expr *expr, bool *terminated = nullptr)
+  static HIR::Expr *translate (AST::Expr *expr, bool *terminated)
   {
     ASTLoweringExpr resolver;
     expr->accept_vis (resolver);
@@ -140,7 +140,7 @@ public:
     std::vector<std::unique_ptr<HIR::Expr> > tuple_elements;
     for (auto &e : expr.get_tuple_elems ())
       {
-	HIR::Expr *t = ASTLoweringExpr::translate (e.get ());
+	HIR::Expr *t = ASTLoweringExpr::translate (e.get (), &terminated);
 	tuple_elements.push_back (std::unique_ptr<HIR::Expr> (t));
       }
 
@@ -182,10 +182,10 @@ public:
 
   void visit (AST::ReturnExpr &expr) override
   {
-    terminated = true;
     HIR::Expr *return_expr
       = expr.has_returned_expr ()
-	  ? ASTLoweringExpr::translate (expr.get_returned_expr ().get ())
+	  ? ASTLoweringExpr::translate (expr.get_returned_expr ().get (),
+					&terminated)
 	  : nullptr;
 
     auto crate_num = mappings->get_current_crate ();
@@ -195,16 +195,19 @@ public:
 
     translated = new HIR::ReturnExpr (mapping, expr.get_locus (),
 				      std::unique_ptr<HIR::Expr> (return_expr));
+    terminated = true;
   }
 
   void visit (AST::CallExpr &expr) override
   {
     std::vector<HIR::Attribute> outer_attribs;
     HIR::Expr *func
-      = ASTLoweringExpr::translate (expr.get_function_expr ().get ());
+      = ASTLoweringExpr::translate (expr.get_function_expr ().get (),
+				    &terminated);
+
     std::vector<std::unique_ptr<HIR::Expr> > params;
     expr.iterate_params ([&] (AST::Expr *p) mutable -> bool {
-      auto trans = ASTLoweringExpr::translate (p);
+      auto trans = ASTLoweringExpr::translate (p, &terminated);
       params.push_back (std::unique_ptr<HIR::Expr> (trans));
       return true;
     });
@@ -228,11 +231,12 @@ public:
       = lower_path_expr_seg (expr.get_method_name ());
 
     HIR::Expr *receiver
-      = ASTLoweringExpr::translate (expr.get_receiver_expr ().get ());
+      = ASTLoweringExpr::translate (expr.get_receiver_expr ().get (),
+				    &terminated);
 
     std::vector<std::unique_ptr<HIR::Expr> > params;
     expr.iterate_params ([&] (AST::Expr *p) mutable -> bool {
-      auto trans = ASTLoweringExpr::translate (p);
+      auto trans = ASTLoweringExpr::translate (p, &terminated);
       params.push_back (std::unique_ptr<HIR::Expr> (trans));
       return true;
     });
@@ -250,8 +254,10 @@ public:
 
   void visit (AST::AssignmentExpr &expr) override
   {
-    HIR::Expr *lhs = ASTLoweringExpr::translate (expr.get_left_expr ().get ());
-    HIR::Expr *rhs = ASTLoweringExpr::translate (expr.get_right_expr ().get ());
+    HIR::Expr *lhs
+      = ASTLoweringExpr::translate (expr.get_left_expr ().get (), &terminated);
+    HIR::Expr *rhs
+      = ASTLoweringExpr::translate (expr.get_right_expr ().get (), &terminated);
 
     auto crate_num = mappings->get_current_crate ();
     Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
@@ -280,6 +286,7 @@ public:
     std::vector<HIR::Attribute> inner_attribs;
 
     expr.get_array_elems ()->accept_vis (*this);
+
     rust_assert (translated_array_elems != nullptr);
     HIR::ArrayElems *elems = translated_array_elems;
 
@@ -296,10 +303,11 @@ public:
   void visit (AST::ArrayIndexExpr &expr) override
   {
     std::vector<Attribute> outer_attribs;
+
     HIR::Expr *array_expr
-      = ASTLoweringExpr::translate (expr.get_array_expr ().get ());
+      = ASTLoweringExpr::translate (expr.get_array_expr ().get (), &terminated);
     HIR::Expr *array_index_expr
-      = ASTLoweringExpr::translate (expr.get_index_expr ().get ());
+      = ASTLoweringExpr::translate (expr.get_index_expr ().get (), &terminated);
 
     auto crate_num = mappings->get_current_crate ();
     Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
@@ -317,7 +325,8 @@ public:
   {
     std::vector<std::unique_ptr<HIR::Expr> > elements;
     elems.iterate ([&] (AST::Expr *elem) mutable -> bool {
-      HIR::Expr *translated_elem = ASTLoweringExpr::translate (elem);
+      HIR::Expr *translated_elem
+	= ASTLoweringExpr::translate (elem, &terminated);
       elements.push_back (std::unique_ptr<HIR::Expr> (translated_elem));
       return true;
     });
@@ -328,9 +337,12 @@ public:
   void visit (AST::ArrayElemsCopied &elems) override
   {
     HIR::Expr *element
-      = ASTLoweringExpr::translate (elems.get_elem_to_copy ().get ());
+      = ASTLoweringExpr::translate (elems.get_elem_to_copy ().get (),
+				    &terminated);
+
     HIR::Expr *num_copies
-      = ASTLoweringExpr::translate (elems.get_num_copies ().get ());
+      = ASTLoweringExpr::translate (elems.get_num_copies ().get (),
+				    &terminated);
 
     size_t folded;
     if (!ArrayCapacityConstant::fold (elems.get_num_copies ().get (), &folded))
@@ -339,6 +351,7 @@ public:
 			  "failed to fold capacity constant");
 	return;
       }
+    rust_assert (!terminated);
 
     translated_array_elems
       = new HIR::ArrayElemsCopied (std::unique_ptr<HIR::Expr> (element),
@@ -391,9 +404,11 @@ public:
 
   void visit (AST::ArithmeticOrLogicalExpr &expr) override
   {
-    HIR::Expr *lhs = ASTLoweringExpr::translate (expr.get_left_expr ().get ());
+    HIR::Expr *lhs
+      = ASTLoweringExpr::translate (expr.get_left_expr ().get (), &terminated);
     rust_assert (lhs != nullptr);
-    HIR::Expr *rhs = ASTLoweringExpr::translate (expr.get_right_expr ().get ());
+    HIR::Expr *rhs
+      = ASTLoweringExpr::translate (expr.get_right_expr ().get (), &terminated);
     rust_assert (rhs != nullptr);
 
     auto crate_num = mappings->get_current_crate ();
@@ -411,9 +426,11 @@ public:
 
   void visit (AST::ComparisonExpr &expr) override
   {
-    HIR::Expr *lhs = ASTLoweringExpr::translate (expr.get_left_expr ().get ());
+    HIR::Expr *lhs
+      = ASTLoweringExpr::translate (expr.get_left_expr ().get (), &terminated);
     rust_assert (lhs != nullptr);
-    HIR::Expr *rhs = ASTLoweringExpr::translate (expr.get_right_expr ().get ());
+    HIR::Expr *rhs
+      = ASTLoweringExpr::translate (expr.get_right_expr ().get (), &terminated);
     rust_assert (rhs != nullptr);
 
     auto crate_num = mappings->get_current_crate ();
@@ -429,9 +446,13 @@ public:
 
   void visit (AST::LazyBooleanExpr &expr) override
   {
-    HIR::Expr *lhs = ASTLoweringExpr::translate (expr.get_left_expr ().get ());
+    // FIXME: The termination check is not correct and neither the codegen.
+    // See also Rust::Compile::CompileExpr::visit (Rust::HIR::LazyBooleanExpr&).
+    HIR::Expr *lhs
+      = ASTLoweringExpr::translate (expr.get_left_expr ().get (), &terminated);
     rust_assert (lhs != nullptr);
-    HIR::Expr *rhs = ASTLoweringExpr::translate (expr.get_right_expr ().get ());
+    HIR::Expr *rhs
+      = ASTLoweringExpr::translate (expr.get_right_expr ().get (), &terminated);
     rust_assert (rhs != nullptr);
 
     auto crate_num = mappings->get_current_crate ();
@@ -450,7 +471,8 @@ public:
     std::vector<HIR::Attribute> outer_attribs;
 
     HIR::Expr *negated_value
-      = ASTLoweringExpr::translate (expr.get_negated_expr ().get ());
+      = ASTLoweringExpr::translate (expr.get_negated_expr ().get (),
+				    &terminated);
 
     auto crate_num = mappings->get_current_crate ();
     Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
@@ -505,22 +527,25 @@ public:
 	gcc_unreachable ();
       }
 
-    HIR::Expr *asignee_expr
-      = ASTLoweringExpr::translate (expr.get_left_expr ().get ());
+    HIR::Expr *assignee_expr
+      = ASTLoweringExpr::translate (expr.get_left_expr ().get (), &terminated);
+    rust_assert (!terminated);
+
     HIR::Expr *value
-      = ASTLoweringExpr::translate (expr.get_right_expr ().get ());
+      = ASTLoweringExpr::translate (expr.get_right_expr ().get (), &terminated);
 
     auto crate_num = mappings->get_current_crate ();
     Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
 				   mappings->get_next_hir_id (crate_num),
 				   UNKNOWN_LOCAL_DEFID);
+
     HIR::Expr *operator_expr
-      = new HIR::ArithmeticOrLogicalExpr (mapping, asignee_expr->clone_expr (),
+      = new HIR::ArithmeticOrLogicalExpr (mapping, assignee_expr->clone_expr (),
 					  std::unique_ptr<HIR::Expr> (value),
 					  op, expr.get_locus ());
     translated
       = new HIR::AssignmentExpr (mapping,
-				 std::unique_ptr<HIR::Expr> (asignee_expr),
+				 std::unique_ptr<HIR::Expr> (assignee_expr),
 				 std::unique_ptr<HIR::Expr> (operator_expr),
 				 expr.get_locus ());
   }
@@ -540,7 +565,10 @@ public:
     if (struct_expr.has_struct_base ())
       {
 	HIR::Expr *translated_base = ASTLoweringExpr::translate (
-	  struct_expr.get_struct_base ().get_base_struct ().get ());
+	  struct_expr.get_struct_base ().get_base_struct ().get (),
+	  &terminated);
+	rust_assert (!terminated);
+
 	base
 	  = new HIR::StructBase (std::unique_ptr<HIR::Expr> (translated_base));
       }
@@ -548,7 +576,7 @@ public:
     std::vector<std::unique_ptr<HIR::StructExprField> > fields;
     struct_expr.iterate ([&] (AST::StructExprField *field) mutable -> bool {
       HIR::StructExprField *translated
-	= ASTLowerStructExprField::translate (field);
+	= ASTLowerStructExprField::translate (field, &terminated);
       fields.push_back (std::unique_ptr<HIR::StructExprField> (translated));
       return true;
     });
@@ -571,7 +599,8 @@ public:
     std::vector<HIR::Attribute> outer_attribs;
 
     HIR::Expr *paren_expr
-      = ASTLoweringExpr::translate (expr.get_expr_in_parens ().get ());
+      = ASTLoweringExpr::translate (expr.get_expr_in_parens ().get (),
+				    &terminated);
 
     auto crate_num = mappings->get_current_crate ();
     Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
@@ -590,7 +619,8 @@ public:
     std::vector<HIR::Attribute> outer_attribs;
 
     HIR::Expr *receiver
-      = ASTLoweringExpr::translate (expr.get_receiver_expr ().get ());
+      = ASTLoweringExpr::translate (expr.get_receiver_expr ().get (),
+				    &terminated);
 
     auto crate_num = mappings->get_current_crate ();
     Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
@@ -619,7 +649,8 @@ public:
     HIR::Lifetime break_label = lower_lifetime (expr.get_label ());
     HIR::Expr *break_expr
       = expr.has_break_expr ()
-	  ? ASTLoweringExpr::translate (expr.get_break_expr ().get ())
+	  ? ASTLoweringExpr::translate (expr.get_break_expr ().get (),
+					&terminated)
 	  : nullptr;
 
     auto crate_num = mappings->get_current_crate ();
@@ -631,6 +662,7 @@ public:
 				     std ::move (break_label),
 				     std::unique_ptr<HIR::Expr> (break_expr),
 				     std::move (outer_attribs));
+    terminated = true;
   }
 
   void visit (AST::ContinueExpr &expr) override
@@ -646,6 +678,7 @@ public:
     translated = new HIR::ContinueExpr (mapping, expr.get_locus (),
 					std ::move (break_label),
 					std::move (outer_attribs));
+    terminated = true;
   }
 
   void visit (AST::BorrowExpr &expr) override
@@ -653,7 +686,8 @@ public:
     std::vector<HIR::Attribute> outer_attribs;
 
     HIR::Expr *borrow_lvalue
-      = ASTLoweringExpr::translate (expr.get_borrowed_expr ().get ());
+      = ASTLoweringExpr::translate (expr.get_borrowed_expr ().get (),
+				    &terminated);
 
     auto crate_num = mappings->get_current_crate ();
     Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
@@ -672,7 +706,8 @@ public:
     std::vector<HIR::Attribute> outer_attribs;
 
     HIR::Expr *dref_lvalue
-      = ASTLoweringExpr::translate (expr.get_dereferenced_expr ().get ());
+      = ASTLoweringExpr::translate (expr.get_dereferenced_expr ().get (),
+				    &terminated);
 
     auto crate_num = mappings->get_current_crate ();
     Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),

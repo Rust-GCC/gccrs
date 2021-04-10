@@ -188,7 +188,7 @@ public:
     HIR::Type *translated_type
       = ASTLoweringType::translate (type.get_elem_type ().get ());
     HIR::Expr *array_size
-      = ASTLoweringExpr::translate (type.get_size_expr ().get ());
+      = ASTLoweringExpr::translate (type.get_size_expr ().get (), nullptr);
 
     auto crate_num = mappings->get_current_crate ();
     Analysis::NodeMapping mapping (crate_num, type.get_node_id (),

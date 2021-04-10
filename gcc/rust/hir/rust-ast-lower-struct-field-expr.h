@@ -30,7 +30,8 @@ class ASTLowerStructExprField : public ASTLoweringBase
   using Rust::HIR::ASTLoweringBase::visit;
 
 public:
-  static HIR::StructExprField *translate (AST::StructExprField *field)
+  static HIR::StructExprField *translate (AST::StructExprField *field,
+					  bool *terminated)
   {
     ASTLowerStructExprField compiler;
     field->accept_vis (compiler);
@@ -44,6 +45,9 @@ public:
       compiler.translated->get_mappings ().get_hirid (),
       field->get_locus_slow ());
 
+    if (terminated)
+      *terminated = compiler.terminated;
+
     return compiler.translated;
   }
 
@@ -56,9 +60,10 @@ public:
   void visit (AST::StructExprFieldIdentifier &field) override;
 
 private:
-  ASTLowerStructExprField () : translated (nullptr) {}
+  ASTLowerStructExprField () : translated (nullptr), terminated (false) {}
 
   HIR::StructExprField *translated;
+  bool terminated;
 };
 
 } // namespace HIR

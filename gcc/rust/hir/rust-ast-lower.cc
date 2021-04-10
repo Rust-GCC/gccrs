@@ -71,10 +71,8 @@ ASTLoweringBlock::visit (AST::BlockExpr &expr)
   std::vector<std::unique_ptr<HIR::Stmt> > block_stmts;
   bool block_did_terminate = false;
   expr.iterate_stmts ([&] (AST::Stmt *s) mutable -> bool {
-    bool terminated = false;
-    auto translated_stmt = ASTLoweringStmt::translate (s, &terminated);
+    auto translated_stmt = ASTLoweringStmt::translate (s, &block_did_terminate);
     block_stmts.push_back (std::unique_ptr<HIR::Stmt> (translated_stmt));
-    block_did_terminate = terminated;
     return !block_did_terminate;
   });
 
@@ -90,7 +88,6 @@ ASTLoweringBlock::visit (AST::BlockExpr &expr)
     return true;
   });
 
-  bool tail_reachable = expr.has_tail_expr () && !block_did_terminate;
   if (expr.has_tail_expr () && block_did_terminate)
     {
       // warning unreachable tail expressions
@@ -99,10 +96,10 @@ ASTLoweringBlock::visit (AST::BlockExpr &expr)
     }
 
   HIR::ExprWithoutBlock *tail_expr = nullptr;
-  if (expr.has_tail_expr ())
+  if (expr.has_tail_expr () && !block_did_terminate)
     {
       tail_expr = (HIR::ExprWithoutBlock *) ASTLoweringExpr::translate (
-	expr.get_tail_expr ().get ());
+	expr.get_tail_expr ().get (), &block_did_terminate);
     }
 
   auto crate_num = mappings->get_current_crate ();
@@ -112,22 +109,19 @@ ASTLoweringBlock::visit (AST::BlockExpr &expr)
   translated
     = new HIR::BlockExpr (mapping, std::move (block_stmts),
 			  std::unique_ptr<HIR::ExprWithoutBlock> (tail_expr),
-			  tail_reachable, std::move (inner_attribs),
+			  !block_did_terminate, std::move (inner_attribs),
 			  std::move (outer_attribs), expr.get_locus ());
-
   terminated = block_did_terminate;
 }
 
 void
 ASTLoweringIfBlock::visit (AST::IfExpr &expr)
 {
-  bool ignored_terminated = false;
   HIR::Expr *condition
     = ASTLoweringExpr::translate (expr.get_condition_expr ().get (),
-				  &ignored_terminated);
+				  &terminated);
   HIR::BlockExpr *block
-    = ASTLoweringBlock::translate (expr.get_if_block ().get (),
-				   &ignored_terminated);
+    = ASTLoweringBlock::translate (expr.get_if_block ().get (), nullptr);
 
   auto crate_num = mappings->get_current_crate ();
   Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
@@ -143,7 +137,8 @@ void
 ASTLoweringIfBlock::visit (AST::IfExprConseqElse &expr)
 {
   HIR::Expr *condition
-    = ASTLoweringExpr::translate (expr.get_condition_expr ().get ());
+    = ASTLoweringExpr::translate (expr.get_condition_expr ().get (),
+				  &terminated);
 
   bool if_block_terminated = false;
   bool else_block_termianted = false;
@@ -155,7 +150,7 @@ ASTLoweringIfBlock::visit (AST::IfExprConseqElse &expr)
     = ASTLoweringBlock::translate (expr.get_else_block ().get (),
 				   &else_block_termianted);
 
-  terminated = if_block_terminated && else_block_termianted;
+  terminated |= if_block_terminated && else_block_termianted;
 
   auto crate_num = mappings->get_current_crate ();
   Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
@@ -174,15 +169,18 @@ void
 ASTLoweringIfBlock::visit (AST::IfExprConseqIf &expr)
 {
   HIR::Expr *condition
-    = ASTLoweringExpr::translate (expr.get_condition_expr ().get ());
+    = ASTLoweringExpr::translate (expr.get_condition_expr ().get (),
+				  &terminated);
 
-  bool ignored_terminated = false;
+  bool if_block_terminated = false;
+  bool conseq_if_terminated = false;
   HIR::BlockExpr *block
     = ASTLoweringBlock::translate (expr.get_if_block ().get (),
-				   &ignored_terminated);
+				   &if_block_terminated);
   HIR::IfExpr *conseq_if_expr
     = ASTLoweringIfBlock::translate (expr.get_conseq_if_expr ().get (),
-				     &ignored_terminated);
+				     &conseq_if_terminated);
+  terminated |= if_block_terminated && conseq_if_terminated;
 
   auto crate_num = mappings->get_current_crate ();
   Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
@@ -201,7 +199,8 @@ ASTLoweringIfBlock::visit (AST::IfExprConseqIf &expr)
 void
 ASTLowerStructExprField::visit (AST::StructExprFieldIdentifierValue &field)
 {
-  HIR::Expr *value = ASTLoweringExpr::translate (field.get_value ().get ());
+  HIR::Expr *value
+    = ASTLoweringExpr::translate (field.get_value ().get (), &terminated);
 
   auto crate_num = mappings->get_current_crate ();
   Analysis::NodeMapping mapping (crate_num, field.get_node_id (),
@@ -216,7 +215,8 @@ ASTLowerStructExprField::visit (AST::StructExprFieldIdentifierValue &field)
 void
 ASTLowerStructExprField::visit (AST::StructExprFieldIndexValue &field)
 {
-  HIR::Expr *value = ASTLoweringExpr::translate (field.get_value ().get ());
+  HIR::Expr *value
+    = ASTLoweringExpr::translate (field.get_value ().get (), &terminated);
 
   auto crate_num = mappings->get_current_crate ();
   Analysis::NodeMapping mapping (crate_num, field.get_node_id (),
@@ -249,7 +249,7 @@ ASTLoweringExprWithBlock::visit (AST::WhileLoopExpr &expr)
 {
   std::vector<HIR::Attribute> outer_attribs;
   HIR::BlockExpr *loop_block
-    = ASTLoweringBlock::translate (expr.get_loop_block ().get (), &terminated);
+    = ASTLoweringBlock::translate (expr.get_loop_block ().get (), nullptr);
 
   HIR::LoopLabel loop_label = lower_loop_label (expr.get_loop_label ());
   HIR::Expr *loop_condition
