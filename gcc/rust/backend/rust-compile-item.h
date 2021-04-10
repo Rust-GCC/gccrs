@@ -50,7 +50,7 @@ public:
     rust_assert (ok);
 
     Btype *type = TyTyResolveCompile::compile (ctx, resolved_type);
-    Bexpression *value = CompileExpr::Compile (var.get_expr (), ctx);
+    Bexpression *value = CompileExpr::Compile (var.get_expr (), ctx, nullptr);
 
     std::string name = var.get_identifier ();
     // FIXME need name mangling
@@ -79,7 +79,8 @@ public:
     rust_assert (ok);
 
     ::Btype *type = TyTyResolveCompile::compile (ctx, resolved_type);
-    Bexpression *value = CompileExpr::Compile (constant.get_expr (), ctx);
+    Bexpression *value
+      = CompileExpr::Compile (constant.get_expr (), ctx, nullptr);
 
     Bexpression *const_expr = ctx->get_backend ()->named_constant_expression (
       type, constant.get_identifier (), value, constant.get_locus ());

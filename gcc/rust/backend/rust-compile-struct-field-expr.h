@@ -30,11 +30,15 @@ class CompileStructExprField : public HIRCompileBase
   using Rust::Compile::HIRCompileBase::visit;
 
 public:
-  static Bexpression *Compile (HIR::StructExprField *field, Context *ctx)
+  static Bexpression *Compile (HIR::StructExprField *field, Context *ctx,
+			       bool *terminated)
   {
     CompileStructExprField compiler (ctx);
     field->accept_vis (compiler);
-    rust_assert (compiler.translated != nullptr);
+    if (terminated && compiler.terminated)
+      *terminated = true;
+    else
+      rust_assert (compiler.translated != nullptr);
     return compiler.translated;
   }
 
@@ -46,10 +50,11 @@ public:
 
 private:
   CompileStructExprField (Context *ctx)
-    : HIRCompileBase (ctx), translated (nullptr)
+    : HIRCompileBase (ctx), translated (nullptr), terminated (false)
   {}
 
   Bexpression *translated;
+  bool terminated;
 };
 
 } // namespace Compile

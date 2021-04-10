@@ -54,10 +54,12 @@ class CompileConditionalBlocks : public HIRCompileBase
 
 public:
   static Bstatement *compile (HIR::IfExpr *expr, Context *ctx,
-			      Bvariable *result)
+			      Bvariable *result, bool *terminated)
   {
     CompileConditionalBlocks resolver (ctx, result);
     expr->accept_vis (resolver);
+    if (terminated)
+      *terminated = resolver.terminated;
     return resolver.translated;
   }
 
@@ -69,9 +71,11 @@ public:
 
 private:
   CompileConditionalBlocks (Context *ctx, Bvariable *result)
-    : HIRCompileBase (ctx), translated (nullptr), result (result)
+    : HIRCompileBase (ctx), translated (nullptr), result (result),
+      terminated (false)
   {}
 
+  bool terminated;
   Bstatement *translated;
   Bvariable *result;
 };
@@ -91,17 +95,20 @@ public:
 
   void visit (HIR::IfExpr &expr) override
   {
-    translated = CompileConditionalBlocks::compile (&expr, ctx, result);
+    translated
+      = CompileConditionalBlocks::compile (&expr, ctx, result, nullptr);
   }
 
   void visit (HIR::IfExprConseqElse &expr) override
   {
-    translated = CompileConditionalBlocks::compile (&expr, ctx, result);
+    translated
+      = CompileConditionalBlocks::compile (&expr, ctx, result, nullptr);
   }
 
   void visit (HIR::IfExprConseqIf &expr) override
   {
-    translated = CompileConditionalBlocks::compile (&expr, ctx, result);
+    translated
+      = CompileConditionalBlocks::compile (&expr, ctx, result, nullptr);
   }
 
 private:

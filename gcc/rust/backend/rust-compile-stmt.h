@@ -42,13 +42,13 @@ public:
   void visit (HIR::ExprStmtWithBlock &stmt) override
   {
     ok = true;
-    translated = CompileExpr::Compile (stmt.get_expr (), ctx);
+    translated = CompileExpr::Compile (stmt.get_expr (), ctx, nullptr);
   }
 
   void visit (HIR::ExprStmtWithoutBlock &stmt) override
   {
     ok = true;
-    translated = CompileExpr::Compile (stmt.get_expr (), ctx);
+    translated = CompileExpr::Compile (stmt.get_expr (), ctx, nullptr);
   }
 
   void visit (HIR::LetStmt &stmt) override
@@ -76,7 +76,8 @@ public:
 	return;
       }
 
-    Bexpression *init = CompileExpr::Compile (stmt.get_init_expr (), ctx);
+    Bexpression *init
+      = CompileExpr::Compile (stmt.get_init_expr (), ctx, nullptr);
     if (init == nullptr)
       return;
 

@@ -33,10 +33,12 @@ class CompileExpr : public HIRCompileBase
   using Rust::Compile::HIRCompileBase::visit;
 
 public:
-  static Bexpression *Compile (HIR::Expr *expr, Context *ctx)
+  static Bexpression *Compile (HIR::Expr *expr, Context *ctx, bool *terminated)
   {
     CompileExpr compiler (ctx);
     expr->accept_vis (compiler);
+    if (terminated)
+      *terminated = compiler.terminated;
     return compiler.translated;
   }
 
@@ -45,7 +47,11 @@ public:
     HIR::Expr *tuple_expr = expr.get_tuple_expr ().get ();
     TupleIndex index = expr.get_tuple_index ();
 
-    Bexpression *receiver_ref = CompileExpr::Compile (tuple_expr, ctx);
+    Bexpression *receiver_ref
+      = CompileExpr::Compile (tuple_expr, ctx, &terminated);
+    if (terminated)
+      return;
+
     translated
       = ctx->get_backend ()->struct_field_expression (receiver_ref, index,
 						      expr.get_locus ());
@@ -75,7 +81,9 @@ public:
     std::vector<Bexpression *> vals;
     for (auto &elem : expr.get_tuple_elems ())
       {
-	auto e = CompileExpr::Compile (elem.get (), ctx);
+	auto e = CompileExpr::Compile (elem.get (), ctx, &terminated);
+	if (terminated)
+	  return;
 	vals.push_back (e);
       }
 
@@ -92,15 +100,19 @@ public:
     if (expr.has_return_expr ())
       {
 	Bexpression *compiled_expr
-	  = CompileExpr::Compile (expr.return_expr.get (), ctx);
-	rust_assert (compiled_expr != nullptr);
+	  = CompileExpr::Compile (expr.return_expr.get (), ctx, &terminated);
+	if (terminated)
+	  return;
 
+	rust_assert (compiled_expr != nullptr);
 	retstmts.push_back (compiled_expr);
       }
 
     auto s = ctx->get_backend ()->return_statement (fncontext.fndecl, retstmts,
 						    expr.get_locus ());
     ctx->add_statement (s);
+
+    terminated = true;
   }
 
   void visit (HIR::CallExpr &expr) override;
@@ -246,8 +258,12 @@ public:
   void visit (HIR::AssignmentExpr &expr) override
   {
     fncontext fn = ctx->peek_fn ();
-    auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx);
-    auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
+    auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx, &terminated);
+    if (terminated)
+      return;
+    auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx, &terminated);
+    if (terminated)
+      return;
 
     Bstatement *assignment
       = ctx->get_backend ()->assignment_statement (fn.fndecl, lhs, rhs,
@@ -257,8 +273,15 @@ public:
 
   void visit (HIR::ArrayIndexExpr &expr) override
   {
-    Bexpression *array = CompileExpr::Compile (expr.get_array_expr (), ctx);
-    Bexpression *index = CompileExpr::Compile (expr.get_index_expr (), ctx);
+    Bexpression *array
+      = CompileExpr::Compile (expr.get_array_expr (), ctx, &terminated);
+    if (terminated)
+      return;
+    Bexpression *index
+      = CompileExpr::Compile (expr.get_index_expr (), ctx, &terminated);
+    if (terminated)
+      return;
+
     translated
       = ctx->get_backend ()->array_index_expression (array, index,
 						     expr.get_locus ());
@@ -278,6 +301,9 @@ public:
     Btype *array_type = TyTyResolveCompile::compile (ctx, tyty);
 
     expr.get_internal_elements ()->accept_vis (*this);
+    if (terminated)
+      return;
+
     std::vector<unsigned long> indexes;
     for (size_t i = 0; i < constructor.size (); i++)
       indexes.push_back (i);
@@ -291,16 +317,18 @@ public:
   void visit (HIR::ArrayElemsValues &elems) override
   {
     elems.iterate ([&] (HIR::Expr *e) mutable -> bool {
-      Bexpression *translated_expr = CompileExpr::Compile (e, ctx);
+      Bexpression *translated_expr = CompileExpr::Compile (e, ctx, &terminated);
       constructor.push_back (translated_expr);
-      return true;
+      return !terminated;
     });
   }
 
   void visit (HIR::ArrayElemsCopied &elems) override
   {
     Bexpression *translated_expr
-      = CompileExpr::Compile (elems.get_elem_to_copy (), ctx);
+      = CompileExpr::Compile (elems.get_elem_to_copy (), ctx, &terminated);
+    if (terminated)
+      return;
 
     for (size_t i = 0; i < elems.get_num_elements (); ++i)
       constructor.push_back (translated_expr);
@@ -308,9 +336,14 @@ public:
 
   void visit (HIR::ArithmeticOrLogicalExpr &expr) override
   {
+    auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx, &terminated);
+    if (terminated)
+      return;
+    auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx, &terminated);
+    if (terminated)
+      return;
+
     auto op = expr.get_expr_type ();
-    auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx);
-    auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
     auto location = expr.get_locus ();
 
     translated
@@ -320,9 +353,14 @@ public:
 
   void visit (HIR::ComparisonExpr &expr) override
   {
+    auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx, &terminated);
+    if (terminated)
+      return;
+    auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx, &terminated);
+    if (terminated)
+      return;
+
     auto op = expr.get_expr_type ();
-    auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx);
-    auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
     auto location = expr.get_locus ();
 
     translated
@@ -331,9 +369,16 @@ public:
 
   void visit (HIR::LazyBooleanExpr &expr) override
   {
+    // FIXME: This is NOT correct.
+    // Consider `func() || return -1;` or `func() || { bar(); false };`.
+    auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx, &terminated);
+    if (terminated)
+      return;
+    auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx, &terminated);
+    if (terminated)
+      return;
+
     auto op = expr.get_expr_type ();
-    auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx);
-    auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
     auto location = expr.get_locus ();
 
     translated
@@ -342,8 +387,12 @@ public:
 
   void visit (HIR::NegationExpr &expr) override
   {
+    auto negated_expr
+      = CompileExpr::Compile (expr.get_expr (), ctx, &terminated);
+    if (terminated)
+      return;
+
     auto op = expr.get_expr_type ();
-    auto negated_expr = CompileExpr::Compile (expr.get_expr (), ctx);
     auto location = expr.get_locus ();
 
     translated
@@ -352,7 +401,10 @@ public:
 
   void visit (HIR::IfExpr &expr) override
   {
-    auto stmt = CompileConditionalBlocks::compile (&expr, ctx, nullptr);
+    auto stmt
+      = CompileConditionalBlocks::compile (&expr, ctx, nullptr, &terminated);
+    if (terminated)
+      return;
     ctx->add_statement (stmt);
   }
 
@@ -383,7 +435,10 @@ public:
 	ctx->add_statement (ret_var_stmt);
       }
 
-    auto stmt = CompileConditionalBlocks::compile (&expr, ctx, tmp);
+    auto stmt
+      = CompileConditionalBlocks::compile (&expr, ctx, tmp, &terminated);
+    if (terminated)
+      return;
     ctx->add_statement (stmt);
 
     if (tmp != NULL)
@@ -420,7 +475,10 @@ public:
 	ctx->add_statement (ret_var_stmt);
       }
 
-    auto stmt = CompileConditionalBlocks::compile (&expr, ctx, tmp);
+    auto stmt
+      = CompileConditionalBlocks::compile (&expr, ctx, tmp, &terminated);
+    if (terminated)
+      return;
     ctx->add_statement (stmt);
 
     if (tmp != NULL)
@@ -441,7 +499,7 @@ public:
       }
 
     Bvariable *tmp = NULL;
-    bool needs_temp = !block_tyty->is_unit ();
+    bool needs_temp = !block_tyty->is_unit () && expr.is_tail_reachable ();
     if (needs_temp)
       {
 	fncontext fnctx = ctx->peek_fn ();
@@ -465,6 +523,8 @@ public:
 	translated
 	  = ctx->get_backend ()->var_expression (tmp, expr.get_locus ());
       }
+
+    terminated = !expr.is_tail_reachable ();
   }
 
   void visit (HIR::StructExprStructFields &struct_expr) override
@@ -484,10 +544,13 @@ public:
     // struct was specified those fields are filed via accesors
     std::vector<Bexpression *> vals;
     struct_expr.iterate ([&] (HIR::StructExprField *field) mutable -> bool {
-      Bexpression *expr = CompileStructExprField::Compile (field, ctx);
+      Bexpression *expr
+	= CompileStructExprField::Compile (field, ctx, &terminated);
       vals.push_back (expr);
-      return true;
+      return !terminated;
     });
+    if (terminated)
+      return;
 
     translated
       = ctx->get_backend ()->constructor_expression (type, vals,
@@ -496,7 +559,8 @@ public:
 
   void visit (HIR::GroupedExpr &expr) override
   {
-    translated = CompileExpr::Compile (expr.get_expr_in_parens ().get (), ctx);
+    translated = CompileExpr::Compile (expr.get_expr_in_parens ().get (), ctx,
+				       &terminated);
   }
 
   void visit (HIR::FieldAccessExpr &expr) override
@@ -517,7 +581,10 @@ public:
     adt->get_field (expr.get_field_name (), &index);
 
     Bexpression *struct_ref
-      = CompileExpr::Compile (expr.get_receiver_expr ().get (), ctx);
+      = CompileExpr::Compile (expr.get_receiver_expr ().get (), ctx,
+			      &terminated);
+    if (terminated)
+      return;
 
     translated
       = ctx->get_backend ()->struct_field_expression (struct_ref, index,
@@ -629,7 +696,10 @@ public:
     ctx->push_loop_begin_label (loop_begin_label);
 
     Bexpression *condition
-      = CompileExpr::Compile (expr.get_predicate_expr ().get (), ctx);
+      = CompileExpr::Compile (expr.get_predicate_expr ().get (), ctx,
+			      &terminated);
+    if (terminated)
+      return;
     Bexpression *exit_expr
       = ctx->get_backend ()->exit_expression (condition, expr.get_locus ());
     Bstatement *break_stmt
@@ -658,7 +728,9 @@ public:
     if (expr.has_break_expr ())
       {
 	Bexpression *compiled_expr
-	  = CompileExpr::Compile (expr.get_expr ().get (), ctx);
+	  = CompileExpr::Compile (expr.get_expr ().get (), ctx, &terminated);
+	if (terminated)
+	  return;
 
 	Bvariable *loop_result_holder = ctx->peek_loop_context ();
 	Bexpression *result_reference = ctx->get_backend ()->var_expression (
@@ -713,6 +785,8 @@ public:
 	  = ctx->get_backend ()->expression_statement (fnctx.fndecl, exit_expr);
 	ctx->add_statement (break_stmt);
       }
+
+    terminated = true;
   }
 
   void visit (HIR::ContinueExpr &expr) override
@@ -752,12 +826,16 @@ public:
     Bstatement *goto_label
       = ctx->get_backend ()->goto_statement (label, expr.get_locus ());
     ctx->add_statement (goto_label);
+
+    terminated = true;
   }
 
   void visit (HIR::BorrowExpr &expr) override
   {
     Bexpression *main_expr
-      = CompileExpr::Compile (expr.get_expr ().get (), ctx);
+      = CompileExpr::Compile (expr.get_expr ().get (), ctx, &terminated);
+    if (terminated)
+      return;
 
     translated
       = ctx->get_backend ()->address_expression (main_expr, expr.get_locus ());
@@ -766,7 +844,9 @@ public:
   void visit (HIR::DereferenceExpr &expr) override
   {
     Bexpression *main_expr
-      = CompileExpr::Compile (expr.get_expr ().get (), ctx);
+      = CompileExpr::Compile (expr.get_expr ().get (), ctx, &terminated);
+    if (terminated)
+      return;
 
     TyTy::BaseType *tyty = nullptr;
     if (!ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
@@ -786,10 +866,14 @@ public:
   }
 
 private:
-  CompileExpr (Context *ctx) : HIRCompileBase (ctx), translated (nullptr) {}
+  CompileExpr (Context *ctx)
+    : HIRCompileBase (ctx), translated (nullptr), terminated (false)
+  {}
 
   Bexpression *translated;
   std::vector<Bexpression *> constructor;
+
+  bool terminated;
 };
 
 } // namespace Compile

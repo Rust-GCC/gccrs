@@ -72,10 +72,14 @@ CompileExpr::visit (HIR::CallExpr &expr)
       // base struct was specified those fields are filed via accesors
       std::vector<Bexpression *> vals;
       expr.iterate_params ([&] (HIR::Expr *argument) mutable -> bool {
-	Bexpression *e = CompileExpr::Compile (argument, ctx);
+	Bexpression *e = CompileExpr::Compile (argument, ctx, &terminated);
+	if (terminated)
+	  return false;
 	vals.push_back (e);
 	return true;
       });
+      if (terminated)
+	return;
 
       translated
 	= ctx->get_backend ()->constructor_expression (type, vals,
@@ -84,15 +88,22 @@ CompileExpr::visit (HIR::CallExpr &expr)
   else
     {
       // must be a call to a function
-      Bexpression *fn = CompileExpr::Compile (expr.get_fnexpr (), ctx);
+      Bexpression *fn
+	= CompileExpr::Compile (expr.get_fnexpr (), ctx, &terminated);
+      if (terminated)
+	return;
 
       std::vector<Bexpression *> args;
       expr.iterate_params ([&] (HIR::Expr *p) mutable -> bool {
-	Bexpression *compiled_expr = CompileExpr::Compile (p, ctx);
+	Bexpression *compiled_expr = CompileExpr::Compile (p, ctx, &terminated);
+	if (terminated)
+	  return false;
 	rust_assert (compiled_expr != nullptr);
 	args.push_back (compiled_expr);
 	return true;
       });
+      if (terminated)
+	return;
 
       auto fncontext = ctx->peek_fn ();
       translated
@@ -173,17 +184,24 @@ CompileExpr::visit (HIR::MethodCallExpr &expr)
   std::vector<Bexpression *> args;
 
   // method receiver
-  Bexpression *self = CompileExpr::Compile (expr.get_receiver ().get (), ctx);
+  Bexpression *self
+    = CompileExpr::Compile (expr.get_receiver ().get (), ctx, &terminated);
+  if (terminated)
+    return;
   rust_assert (self != nullptr);
   args.push_back (self);
 
   // normal args
   expr.iterate_params ([&] (HIR::Expr *p) mutable -> bool {
-    Bexpression *compiled_expr = CompileExpr::Compile (p, ctx);
+    Bexpression *compiled_expr = CompileExpr::Compile (p, ctx, &terminated);
+    if (terminated)
+      return false;
     rust_assert (compiled_expr != nullptr);
     args.push_back (compiled_expr);
     return true;
   });
+  if (terminated)
+    return;
 
   auto fncontext = ctx->peek_fn ();
   translated
@@ -234,34 +252,23 @@ CompileBlock::visit (HIR::BlockExpr &expr)
   for (auto &s : expr.get_statements ())
     {
       auto compiled_expr = CompileStmt::Compile (s.get (), ctx);
-      if (compiled_expr == nullptr)
-	continue;
-
-      if (result == nullptr)
+      if (compiled_expr != nullptr)
 	{
-	  Bstatement *final_stmt
+	  Bstatement *compiled_stmt
 	    = ctx->get_backend ()->expression_statement (fnctx.fndecl,
 							 compiled_expr);
-	  ctx->add_statement (final_stmt);
-	}
-      else
-	{
-	  Bexpression *result_reference
-	    = ctx->get_backend ()->var_expression (result,
-						   s->get_locus_slow ());
-
-	  Bstatement *assignment = ctx->get_backend ()->assignment_statement (
-	    fnctx.fndecl, result_reference, compiled_expr, expr.get_locus ());
-	  ctx->add_statement (assignment);
+	  ctx->add_statement (compiled_stmt);
 	}
     }
 
-  if (expr.has_expr () && expr.tail_expr_reachable ())
+  if (expr.has_expr ())
     {
       // the previous passes will ensure this is a valid return
       // dead code elimination should remove any bad trailing expressions
-      Bexpression *compiled_expr = CompileExpr::Compile (expr.expr.get (), ctx);
-      if (compiled_expr != nullptr)
+      bool terminated = false;
+      Bexpression *compiled_expr
+	= CompileExpr::Compile (expr.expr.get (), ctx, &terminated);
+      if (!terminated && compiled_expr != nullptr)
 	{
 	  if (result == nullptr)
 	    {
@@ -293,10 +300,13 @@ CompileBlock::visit (HIR::BlockExpr &expr)
 void
 CompileConditionalBlocks::visit (HIR::IfExpr &expr)
 {
+  Bexpression *condition_expr
+    = CompileExpr::Compile (expr.get_if_condition (), ctx, &terminated);
+  if (terminated)
+    return;
+
   fncontext fnctx = ctx->peek_fn ();
   Bfunction *fndecl = fnctx.fndecl;
-  Bexpression *condition_expr
-    = CompileExpr::Compile (expr.get_if_condition (), ctx);
   Bblock *then_block
     = CompileBlock::compile (expr.get_if_block (), ctx, result);
 
@@ -308,10 +318,13 @@ CompileConditionalBlocks::visit (HIR::IfExpr &expr)
 void
 CompileConditionalBlocks::visit (HIR::IfExprConseqElse &expr)
 {
+  Bexpression *condition_expr
+    = CompileExpr::Compile (expr.get_if_condition (), ctx, &terminated);
+  if (terminated)
+    return;
+
   fncontext fnctx = ctx->peek_fn ();
   Bfunction *fndecl = fnctx.fndecl;
-  Bexpression *condition_expr
-    = CompileExpr::Compile (expr.get_if_condition (), ctx);
   Bblock *then_block
     = CompileBlock::compile (expr.get_if_block (), ctx, result);
   Bblock *else_block
@@ -325,10 +338,13 @@ CompileConditionalBlocks::visit (HIR::IfExprConseqElse &expr)
 void
 CompileConditionalBlocks::visit (HIR::IfExprConseqIf &expr)
 {
+  Bexpression *condition_expr
+    = CompileExpr::Compile (expr.get_if_condition (), ctx, &terminated);
+  if (terminated)
+    return;
+
   fncontext fnctx = ctx->peek_fn ();
   Bfunction *fndecl = fnctx.fndecl;
-  Bexpression *condition_expr
-    = CompileExpr::Compile (expr.get_if_condition (), ctx);
   Bblock *then_block
     = CompileBlock::compile (expr.get_if_block (), ctx, result);
 
@@ -342,10 +358,12 @@ CompileConditionalBlocks::visit (HIR::IfExprConseqIf &expr)
 				  start_location, end_location);
   ctx->push_block (else_block);
 
+  bool else_terminated = false;
   Bstatement *else_stmt_decl
     = CompileConditionalBlocks::compile (expr.get_conseq_if_expr (), ctx,
-					 result);
-  ctx->add_statement (else_stmt_decl);
+					 result, &else_terminated);
+  if (!else_terminated)
+    ctx->add_statement (else_stmt_decl);
 
   ctx->pop_block ();
 
@@ -359,13 +377,13 @@ CompileConditionalBlocks::visit (HIR::IfExprConseqIf &expr)
 void
 CompileStructExprField::visit (HIR::StructExprFieldIdentifierValue &field)
 {
-  translated = CompileExpr::Compile (field.get_value (), ctx);
+  translated = CompileExpr::Compile (field.get_value (), ctx, &terminated);
 }
 
 void
 CompileStructExprField::visit (HIR::StructExprFieldIndexValue &field)
 {
-  translated = CompileExpr::Compile (field.get_value (), ctx);
+  translated = CompileExpr::Compile (field.get_value (), ctx, &terminated);
 }
 
 void
@@ -375,7 +393,7 @@ CompileStructExprField::visit (HIR::StructExprFieldIdentifier &field)
   // existing code
   HIR::IdentifierExpr expr (field.get_mappings (), field.get_field_name (),
 			    field.get_locus ());
-  translated = CompileExpr::Compile (&expr, ctx);
+  translated = CompileExpr::Compile (&expr, ctx, nullptr);
 }
 
 // Shared methods in compilation
@@ -390,14 +408,30 @@ HIRCompileBase::compile_function_body (
       auto compiled_expr = CompileStmt::Compile (s.get (), ctx);
       if (compiled_expr != nullptr)
 	{
+	  Bstatement *compiled_stmt
+	    = ctx->get_backend ()->expression_statement (fndecl, compiled_expr);
+	  ctx->add_statement (compiled_stmt);
+	}
+    }
+
+  if (function_body->has_expr ())
+    {
+      // the previous passes will ensure this is a valid return
+      // dead code elimination should remove any bad trailing expressions
+      bool terminated = false;
+      Bexpression *compiled_expr
+	= CompileExpr::Compile (function_body->expr.get (), ctx, &terminated);
+
+      if (!terminated && compiled_expr != nullptr)
+	{
 	  if (has_return_type)
 	    {
 	      std::vector<Bexpression *> retstmts;
 	      retstmts.push_back (compiled_expr);
 
-	      auto ret
-		= ctx->get_backend ()->return_statement (fndecl, retstmts,
-							 s->get_locus_slow ());
+	      auto ret = ctx->get_backend ()->return_statement (
+		fndecl, retstmts,
+		function_body->get_final_expr ()->get_locus_slow ());
 	      ctx->add_statement (ret);
 	    }
 	  else
@@ -407,32 +441,6 @@ HIRCompileBase::compile_function_body (
 							     compiled_expr);
 	      ctx->add_statement (final_stmt);
 	    }
-	}
-    }
-
-  if (function_body->has_expr () && function_body->tail_expr_reachable ())
-    {
-      // the previous passes will ensure this is a valid return
-      // dead code elimination should remove any bad trailing expressions
-      Bexpression *compiled_expr
-	= CompileExpr::Compile (function_body->expr.get (), ctx);
-      rust_assert (compiled_expr != nullptr);
-
-      if (has_return_type)
-	{
-	  std::vector<Bexpression *> retstmts;
-	  retstmts.push_back (compiled_expr);
-
-	  auto ret = ctx->get_backend ()->return_statement (
-	    fndecl, retstmts,
-	    function_body->get_final_expr ()->get_locus_slow ());
-	  ctx->add_statement (ret);
-	}
-      else
-	{
-	  Bstatement *final_stmt
-	    = ctx->get_backend ()->expression_statement (fndecl, compiled_expr);
-	  ctx->add_statement (final_stmt);
 	}
     }
 }

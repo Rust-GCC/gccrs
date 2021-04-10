@@ -50,8 +50,11 @@ public:
 					&resolved_type);
     rust_assert (ok);
 
+    bool terminated = false;
     ::Btype *type = TyTyResolveCompile::compile (ctx, resolved_type);
-    Bexpression *value = CompileExpr::Compile (constant.get_expr (), ctx);
+    Bexpression *value
+      = CompileExpr::Compile (constant.get_expr (), ctx, &terminated);
+    rust_assert (!terminated && value);
 
     std::string ident = self->get_name () + "_" + constant.get_identifier ();
     Bexpression *const_expr = ctx->get_backend ()->named_constant_expression (
