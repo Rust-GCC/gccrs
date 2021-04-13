@@ -7613,6 +7613,7 @@ Parser<ManagedTokenSource>::parse_return_expr (
     case RIGHT_CURLY:
     case RIGHT_PAREN:
     case RIGHT_SQUARE:
+    case COMMA:
       break;
     default:
       returned_expr

@@ -109,7 +109,7 @@ public:
       expr->get_locus_slow ());
 
     if (terminated != nullptr)
-      *terminated = resolver.terminated;
+      *terminated |= resolver.terminated;
 
     return resolver.translated;
   }
@@ -351,7 +351,6 @@ public:
 			  "failed to fold capacity constant");
 	return;
       }
-    rust_assert (!terminated);
 
     translated_array_elems
       = new HIR::ArrayElemsCopied (std::unique_ptr<HIR::Expr> (element),

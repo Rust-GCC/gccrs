@@ -46,7 +46,7 @@ public:
       field->get_locus_slow ());
 
     if (terminated)
-      *terminated = compiler.terminated;
+      *terminated |= compiler.terminated;
 
     return compiler.translated;
   }

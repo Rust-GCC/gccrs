@@ -43,7 +43,7 @@ public:
       }
 
     if (terminated != nullptr)
-      *terminated = resolver.terminated;
+      *terminated |= resolver.terminated;
     return resolver.translated;
   }
 
@@ -76,7 +76,7 @@ public:
 	  resolver.translated->get_mappings ().get_hirid (),
 	  resolver.translated);
       }
-    *terminated = resolver.terminated;
+    *terminated |= resolver.terminated;
     return resolver.translated;
   }
 
@@ -115,7 +115,7 @@ public:
 	  resolver.translated);
       }
 
-    *terminated = resolver.terminated;
+    *terminated |= resolver.terminated;
     return resolver.translated;
   }
 
