@@ -67,8 +67,8 @@ public:
       }
 
     other->accept_vis (*this);
-    if (resolved == nullptr)
-      return nullptr;
+    if (resolved->get_kind () == TyTy::TypeKind::ERROR)
+      return resolved;
 
     resolved->append_reference (get_base ()->get_ref ());
     resolved->append_reference (other->get_ref ());
@@ -81,7 +81,7 @@ public:
     bool result_is_infer_var = resolved->get_kind () == TyTy::TypeKind::INFER;
     bool results_is_non_general_infer_var
       = (result_is_infer_var
-	 && ((InferType *) resolved)->get_infer_kind ()
+	 && (static_cast<InferType *> (resolved))->get_infer_kind ()
 	      != TyTy::InferType::GENERAL);
     if (result_resolved || results_is_non_general_infer_var)
       {
@@ -229,7 +229,7 @@ public:
   virtual void visit (ParamType &type) override
   {
     Location ref_locus = mappings->lookup_location (type.get_ref ());
-    rust_error_at (ref_locus, "expected [%s] got [ParamTy <%s>]",
+    rust_error_at (ref_locus, "expected [%s] got [%s]",
 		   get_base ()->as_string ().c_str (),
 		   type.as_string ().c_str ());
   }
@@ -244,10 +244,7 @@ public:
 
   virtual void visit (NeverType &type) override
   {
-    Location ref_locus = mappings->lookup_location (type.get_ref ());
-    rust_error_at (ref_locus, "expected [%s] got [%s]",
-		   get_base ()->as_string ().c_str (),
-		   type.as_string ().c_str ());
+    resolved = get_base ()->clone ();
   }
 
 protected:
@@ -486,8 +483,6 @@ public:
     BaseRules::visit (type);
   }
 
-  void visit (NeverType &type) override { resolved = base->clone (); }
-
 private:
   BaseType *get_base () override { return base; }
 
@@ -545,8 +540,6 @@ public:
     resolved = base->clone ();
     resolved->set_ref (type.get_ref ());
   }
-
-  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
@@ -643,8 +636,6 @@ public:
     resolved->set_ref (type.get_ref ());
   }
 
-  void visit (NeverType &type) override { resolved = base->clone (); }
-
 private:
   BaseType *get_base () override { return base; }
 
@@ -683,8 +674,6 @@ public:
 		       type.get_capacity (), TyVar (base_resolved->get_ref ()));
   }
 
-  void visit (NeverType &type) override { resolved = base->clone (); }
-
 private:
   BaseType *get_base () override { return base; }
 
@@ -716,8 +705,6 @@ public:
 	break;
       }
   }
-
-  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
@@ -757,8 +744,6 @@ public:
       = new IntType (type.get_ref (), type.get_ty_ref (), type.get_int_kind ());
   }
 
-  void visit (NeverType &type) override { resolved = base->clone (); }
-
 private:
   BaseType *get_base () override { return base; }
 
@@ -797,8 +782,6 @@ public:
 			     type.get_uint_kind ());
   }
 
-  void visit (NeverType &type) override { resolved = base->clone (); }
-
 private:
   BaseType *get_base () override { return base; }
 
@@ -836,8 +819,6 @@ public:
 			      type.get_float_kind ());
   }
 
-  void visit (NeverType &type) override { resolved = base->clone (); }
-
 private:
   BaseType *get_base () override { return base; }
 
@@ -853,6 +834,12 @@ public:
 
   void visit (ADTType &type) override
   {
+    if (base->get_identifier ().compare (type.get_identifier ()) != 0)
+      {
+	BaseRules::visit (type);
+	return;
+      }
+
     if (base->num_fields () != type.num_fields ())
       {
 	BaseRules::visit (type);
@@ -868,17 +855,12 @@ public:
 	TyTy::BaseType *other_field_ty = other_field->get_field_type ();
 
 	BaseType *unified_ty = this_field_ty->unify (other_field_ty);
-	if (unified_ty == nullptr)
-	  {
-	    BaseRules::visit (type);
-	    return;
-	  }
+	if (unified_ty->get_kind () == TyTy::TypeKind::ERROR)
+	  return;
       }
 
     resolved = type.clone ();
   }
-
-  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
@@ -908,11 +890,8 @@ public:
 	BaseType *fo = type.get_field (i);
 
 	BaseType *unified_ty = bo->unify (fo);
-	if (unified_ty == nullptr)
-	  {
-	    BaseRules::visit (type);
-	    return;
-	  }
+	if (unified_ty->get_kind () == TyTy::TypeKind::ERROR)
+	  return;
 
 	fields.push_back (TyVar (unified_ty->get_ref ()));
       }
@@ -920,8 +899,6 @@ public:
     resolved
       = new TyTy::TupleType (type.get_ref (), type.get_ty_ref (), fields);
   }
-
-  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
@@ -951,8 +928,6 @@ public:
 
   void visit (USizeType &type) override { resolved = type.clone (); }
 
-  void visit (NeverType &type) override { resolved = base->clone (); }
-
 private:
   BaseType *get_base () override { return base; }
 
@@ -981,8 +956,6 @@ public:
 
   void visit (ISizeType &type) override { resolved = type.clone (); }
 
-  void visit (NeverType &type) override { resolved = base->clone (); }
-
 private:
   BaseType *get_base () override { return base; }
 
@@ -1009,8 +982,6 @@ public:
   }
 
   void visit (CharType &type) override { resolved = type.clone (); }
-
-  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
@@ -1042,8 +1013,6 @@ public:
 				  TyVar (base_resolved->get_ref ()));
   }
 
-  void visit (NeverType &type) override { resolved = base->clone (); }
-
 private:
   BaseType *get_base () override { return base; }
 
@@ -1070,6 +1039,7 @@ public:
   {
     if (base->get_ref () == base->get_ty_ref ())
       return BaseRules::unify (other);
+
     auto context = Resolver::TypeCheckContext::get ();
     BaseType *lookup = nullptr;
     bool ok = context->lookup_type (base->get_ty_ref (), &lookup);
@@ -1089,7 +1059,16 @@ public:
     resolved = type.clone ();
   }
 
-  void visit (NeverType &type) override { resolved = base->clone (); }
+  void visit (InferType &type) override
+  {
+    if (type.get_infer_kind () != InferType::InferTypeKind::GENERAL)
+      {
+	BaseRules::visit (type);
+	return;
+      }
+
+    resolved = base->clone ();
+  }
 
 private:
   BaseType *get_base () override { return base; }
@@ -1106,8 +1085,6 @@ public:
   StrRules (StrType *base) : BaseRules (base), base (base) {}
 
   void visit (StrType &type) override { resolved = type.clone (); }
-
-  void visit (NeverType &type) override { resolved = base->clone (); }
 
 private:
   BaseType *get_base () override { return base; }
