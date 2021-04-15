@@ -40,7 +40,7 @@ public:
     ASTLoweringStmt resolver;
     stmt->accept_vis (resolver);
     rust_assert (resolver.translated != nullptr);
-    *terminated = resolver.terminated;
+    *terminated |= resolver.terminated;
     return resolver.translated;
   }
 

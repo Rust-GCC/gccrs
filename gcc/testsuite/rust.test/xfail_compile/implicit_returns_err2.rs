@@ -1,6 +1,8 @@
 fn test(x: i32) -> i32 {
-    return true; // { dg-error "expected .i32. got .bool." }
-    1 // { dg-warning "unreachable expression" }
+    // { dg-error "expected .i32. got .bool." "" { target *-*-*} .-1 }
+    return 1;
+    // { dg-warning "unreachable expression" "" { target *-*-* } .+1 }
+    true
 }
 
 fn main() {
