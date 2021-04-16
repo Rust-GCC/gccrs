@@ -626,17 +626,28 @@ public:
     auto else_blk_resolved
       = TypeCheckExpr::Resolve (expr.get_else_block (), inside_loop);
 
-    infered = if_blk_resolved->unify (else_blk_resolved);
+    if (if_blk_resolved->get_kind () == TyTy::NEVER)
+      infered = else_blk_resolved;
+    else if (else_blk_resolved->get_kind () == TyTy::NEVER)
+      infered = if_blk_resolved;
+    else
+      infered = if_blk_resolved->unify (else_blk_resolved);
   }
 
   void visit (HIR::IfExprConseqIf &expr) override
   {
     TypeCheckExpr::Resolve (expr.get_if_condition (), false);
-    auto if_blk = TypeCheckExpr::Resolve (expr.get_if_block (), inside_loop);
-    auto else_blk
+    auto if_blk_resolved
+      = TypeCheckExpr::Resolve (expr.get_if_block (), inside_loop);
+    auto else_blk_resolved
       = TypeCheckExpr::Resolve (expr.get_conseq_if_expr (), inside_loop);
 
-    infered = if_blk->unify (else_blk);
+    if (if_blk_resolved->get_kind () == TyTy::NEVER)
+      infered = else_blk_resolved;
+    else if (else_blk_resolved->get_kind () == TyTy::NEVER)
+      infered = if_blk_resolved;
+    else
+      infered = if_blk_resolved->unify (else_blk_resolved);
   }
 
   void visit (HIR::BlockExpr &expr) override;

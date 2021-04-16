@@ -43,7 +43,7 @@ public:
   {
     infered = TypeCheckExpr::Resolve (stmt.get_expr (), inside_loop);
 
-    if (stmt.is_unit_check_needed ())
+    if (stmt.is_unit_check_needed () && infered->get_kind () != TyTy::NEVER)
       {
 	auto unit = new TyTy::TupleType (stmt.get_mappings ().get_hirid ());
 	infered = unit->unify (infered);

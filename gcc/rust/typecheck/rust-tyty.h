@@ -1219,6 +1219,15 @@ public:
 };
 
 // https://doc.rust-lang.org/std/primitive.never.html
+//
+// Since the `!` type is really complicated and it is even still unstable
+// in rustc, only fairly limited support for this type is introduced here.
+// Unification between `!` and ANY other type (including `<T?>`) is simply
+// not allowed. If it is needed, it should be handled manually. For example,
+// unifying `!` with other types is very necessary when resolving types of
+// `if/else` expressions.
+//
+// See related discussion at https://github.com/Rust-GCC/gccrs/pull/364
 class NeverType : public BaseType
 {
 public:

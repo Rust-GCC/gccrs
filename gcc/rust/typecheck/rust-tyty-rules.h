@@ -244,7 +244,10 @@ public:
 
   virtual void visit (NeverType &type) override
   {
-    resolved = get_base ()->clone ();
+    Location ref_locus = mappings->lookup_location (type.get_ref ());
+    rust_error_at (ref_locus, "expected [%s] got [%s]",
+		   get_base ()->as_string ().c_str (),
+		   type.as_string ().c_str ());
   }
 
 protected:
@@ -1098,43 +1101,6 @@ class NeverRules : public BaseRules
 
 public:
   NeverRules (NeverType *base) : BaseRules (base), base (base) {}
-
-  virtual void visit (TupleType &type) override { resolved = type.clone (); }
-
-  virtual void visit (ADTType &type) override { resolved = type.clone (); }
-
-  virtual void visit (InferType &type) override { resolved = type.clone (); }
-
-  virtual void visit (FnType &type) override { resolved = type.clone (); }
-
-  virtual void visit (FnPtr &type) override { resolved = type.clone (); }
-
-  virtual void visit (ArrayType &type) override { resolved = type.clone (); }
-
-  virtual void visit (BoolType &type) override { resolved = type.clone (); }
-
-  virtual void visit (IntType &type) override { resolved = type.clone (); }
-
-  virtual void visit (UintType &type) override { resolved = type.clone (); }
-
-  virtual void visit (USizeType &type) override { resolved = type.clone (); }
-
-  virtual void visit (ISizeType &type) override { resolved = type.clone (); }
-
-  virtual void visit (FloatType &type) override { resolved = type.clone (); }
-
-  virtual void visit (ErrorType &type) override { resolved = type.clone (); }
-
-  virtual void visit (CharType &type) override { resolved = type.clone (); }
-
-  virtual void visit (ReferenceType &type) override
-  {
-    resolved = type.clone ();
-  }
-
-  virtual void visit (ParamType &type) override { resolved = type.clone (); }
-
-  virtual void visit (StrType &type) override { resolved = type.clone (); }
 
   virtual void visit (NeverType &type) override { resolved = type.clone (); }
 

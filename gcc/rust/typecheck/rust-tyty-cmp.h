@@ -84,7 +84,7 @@ public:
 
   virtual void visit (StrType &) override { ok = false; }
 
-  virtual void visit (NeverType &) override { ok = true; }
+  virtual void visit (NeverType &) override { ok = false; }
 
 protected:
   BaseCmp (BaseType *base)
@@ -814,40 +814,6 @@ class NeverCmp : public BaseCmp
 
 public:
   NeverCmp (NeverType *base) : BaseCmp (base), base (base) {}
-
-  void visit (TupleType &type) override { ok = true; }
-
-  void visit (ADTType &type) override { ok = true; }
-
-  void visit (InferType &type) override { ok = true; }
-
-  void visit (FnType &type) override { ok = true; }
-
-  void visit (FnPtr &type) override { ok = true; }
-
-  void visit (ArrayType &type) override { ok = true; }
-
-  void visit (BoolType &type) override { ok = true; }
-
-  void visit (IntType &type) override { ok = true; }
-
-  void visit (UintType &type) override { ok = true; }
-
-  void visit (USizeType &type) override { ok = true; }
-
-  void visit (ISizeType &type) override { ok = true; }
-
-  void visit (FloatType &type) override { ok = true; }
-
-  void visit (ErrorType &type) override { ok = true; }
-
-  void visit (CharType &type) override { ok = true; }
-
-  void visit (ReferenceType &type) override { ok = true; }
-
-  void visit (ParamType &type) override { ok = true; }
-
-  void visit (StrType &type) override { ok = true; }
 
   void visit (NeverType &type) override { ok = true; }
 
