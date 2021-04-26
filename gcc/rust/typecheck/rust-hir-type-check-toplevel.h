@@ -152,12 +152,21 @@ public:
       {
 	for (auto &generic_param : function.get_generic_params ())
 	  {
-	    auto param_type
-	      = TypeResolveGenericParam::Resolve (generic_param.get ());
-	    context->insert_type (generic_param->get_mappings (), param_type);
+	    switch (generic_param.get ()->get_kind ())
+	      {
+	      case HIR::GenericParam::GenericKind::LIFETIME:
+		// Skipping Lifetime completely until better handling.
+		break;
+		case HIR::GenericParam::GenericKind::TYPE: {
+		  auto param_type
+		    = TypeResolveGenericParam::Resolve (generic_param.get ());
+		  context->insert_type (generic_param->get_mappings (),
+					param_type);
 
-	    substitutions.push_back (
-	      TyTy::SubstitutionParamMapping (generic_param, param_type));
+		  substitutions.push_back (
+		    TyTy::SubstitutionParamMapping (generic_param, param_type));
+		}
+	      }
 	  }
       }
 
