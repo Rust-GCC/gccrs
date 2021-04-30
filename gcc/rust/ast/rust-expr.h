@@ -1583,167 +1583,17 @@ public:
   }
 };
 
-/* Base AST node for a single struct expression field (in struct instance
- * creation) - abstract */
-class StructExprField
-{
-public:
-  virtual ~StructExprField () {}
-
-  // Unique pointer custom clone function
-  std::unique_ptr<StructExprField> clone_struct_expr_field () const
-  {
-    return std::unique_ptr<StructExprField> (clone_struct_expr_field_impl ());
-  }
-
-  virtual std::string as_string () const = 0;
-
-  virtual void accept_vis (ASTVisitor &vis) = 0;
-
-  virtual Location get_locus_slow () const = 0;
-
-  NodeId get_node_id () const { return node_id; }
-
-protected:
-  // pure virtual clone implementation
-  virtual StructExprField *clone_struct_expr_field_impl () const = 0;
-
-  StructExprField () : node_id (Analysis::Mappings::get ()->get_next_node_id ())
-  {}
-
-  NodeId node_id;
-};
-
-// Identifier-only variant of StructExprField AST node
-class StructExprFieldIdentifier : public StructExprField
-{
-  Identifier field_name;
-  Location locus;
-
-public:
-  StructExprFieldIdentifier (Identifier field_identifier, Location locus)
-    : StructExprField (), field_name (std::move (field_identifier)),
-      locus (locus)
-  {}
-
-  std::string as_string () const override { return field_name; }
-
-  Location get_locus () const { return locus; }
-  Location get_locus_slow () const final override { return get_locus (); }
-
-  void accept_vis (ASTVisitor &vis) override;
-
-  Identifier get_field_name () const { return field_name; }
-
-protected:
-  /* Use covariance to implement clone function as returning this object rather
-   * than base */
-  StructExprFieldIdentifier *clone_struct_expr_field_impl () const override
-  {
-    return new StructExprFieldIdentifier (*this);
-  }
-};
-
-/* Base AST node for a single struct expression field with an assigned value -
- * abstract */
-class StructExprFieldWithVal : public StructExprField
-{
-  std::unique_ptr<Expr> value;
-
-protected:
-  StructExprFieldWithVal (std::unique_ptr<Expr> field_value)
-    : StructExprField (), value (std::move (field_value))
-  {}
-
-  // Copy constructor requires clone
-  StructExprFieldWithVal (StructExprFieldWithVal const &other)
-    : value (other.value->clone_expr ())
-  {}
-
-  // Overload assignment operator to clone unique_ptr
-  StructExprFieldWithVal &operator= (StructExprFieldWithVal const &other)
-  {
-    value = other.value->clone_expr ();
-
-    return *this;
-  }
-
-  // move constructors
-  StructExprFieldWithVal (StructExprFieldWithVal &&other) = default;
-  StructExprFieldWithVal &operator= (StructExprFieldWithVal &&other) = default;
-
-public:
-  std::string as_string () const override;
-
-  // TODO: is this better? Or is a "vis_block" better?
-  std::unique_ptr<Expr> &get_value ()
-  {
-    rust_assert (value != nullptr);
-    return value;
-  }
-};
-
-// Identifier and value variant of StructExprField AST node
-class StructExprFieldIdentifierValue : public StructExprFieldWithVal
-{
-  Identifier field_name;
-  Location locus;
-
-public:
-  StructExprFieldIdentifierValue (Identifier field_identifier,
-				  std::unique_ptr<Expr> field_value,
-				  Location locus)
-    : StructExprFieldWithVal (std::move (field_value)),
-      field_name (std::move (field_identifier)), locus (locus)
-  {}
-
-  std::string as_string () const override;
-
-  void accept_vis (ASTVisitor &vis) override;
-
-  std::string get_field_name () const { return field_name; }
-
-  Location get_locus () const { return locus; }
-  Location get_locus_slow () const final override { return get_locus (); }
-
-protected:
-  /* Use covariance to implement clone function as returning this object rather
-   * than base */
-  StructExprFieldIdentifierValue *clone_struct_expr_field_impl () const override
-  {
-    return new StructExprFieldIdentifierValue (*this);
-  }
-};
-
-// Tuple index and value variant of StructExprField AST node
-class StructExprFieldIndexValue : public StructExprFieldWithVal
-{
-  TupleIndex index;
-  Location locus;
-
-public:
-  StructExprFieldIndexValue (TupleIndex tuple_index,
-			     std::unique_ptr<Expr> field_value, Location locus)
-    : StructExprFieldWithVal (std::move (field_value)), index (tuple_index),
-      locus (locus)
-  {}
-
-  std::string as_string () const override;
-
-  void accept_vis (ASTVisitor &vis) override;
-
-  TupleIndex get_index () const { return index; }
-
-  Location get_locus () const { return locus; }
-  Location get_locus_slow () const final override { return get_locus (); }
-
-protected:
-  /* Use covariance to implement clone function as returning this object rather
-   * than base */
-  StructExprFieldIndexValue *clone_struct_expr_field_impl () const override
-  {
-    return new StructExprFieldIndexValue (*this);
-  }
+/* A field in a struct expression.
+ * Note: A TupleIndex is treated as an identifier in rustc.
+ * This allows uniform representation of struct and tuple. */
+struct StructExprField {
+    std::vector<Attribute> attrs;
+    NodeId node_id;
+    Location locus;
+    Identifier name; // Can be an index for a tuple.
+    std::unique_ptr<Expr> value; // nullptr in case of a shorthand
+    // std::string as_string();
+    // StructExprField clone();
 };
 
 // AST node of a struct creator with fields

@@ -87,10 +87,6 @@ public:
   virtual void visit (TupleExpr &expr) = 0;
   virtual void visit (TupleIndexExpr &expr) = 0;
   virtual void visit (StructExprStruct &expr) = 0;
-  // virtual void visit(StructExprField& field) = 0;
-  virtual void visit (StructExprFieldIdentifier &field) = 0;
-  virtual void visit (StructExprFieldIdentifierValue &field) = 0;
-  virtual void visit (StructExprFieldIndexValue &field) = 0;
   virtual void visit (StructExprStructFields &expr) = 0;
   virtual void visit (StructExprStructBase &expr) = 0;
   virtual void visit (StructExprTuple &expr) = 0;

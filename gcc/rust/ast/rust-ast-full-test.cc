@@ -3334,27 +3334,6 @@ StructBase::as_string () const
 }
 
 std::string
-StructExprFieldWithVal::as_string () const
-{
-  // used to get value string
-  return value->as_string ();
-}
-
-std::string
-StructExprFieldIdentifierValue::as_string () const
-{
-  // TODO: rewrite to work with non-linearisable exprs
-  return field_name + " : " + StructExprFieldWithVal::as_string ();
-}
-
-std::string
-StructExprFieldIndexValue::as_string () const
-{
-  // TODO: rewrite to work with non-linearisable exprs
-  return std::to_string (index) + " : " + StructExprFieldWithVal::as_string ();
-}
-
-std::string
 StructExprStructFields::as_string () const
 {
   std::string str = StructExprStruct::as_string ();
@@ -5111,24 +5090,6 @@ TupleIndexExpr::accept_vis (ASTVisitor &vis)
 
 void
 StructExprStruct::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprFieldIdentifier::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprFieldIdentifierValue::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprFieldIndexValue::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }
