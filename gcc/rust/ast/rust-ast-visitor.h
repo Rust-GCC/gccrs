@@ -86,11 +86,7 @@ public:
   virtual void visit (ArrayIndexExpr &expr) = 0;
   virtual void visit (TupleExpr &expr) = 0;
   virtual void visit (TupleIndexExpr &expr) = 0;
-  virtual void visit (StructExprStruct &expr) = 0;
-  virtual void visit (StructExprStructFields &expr) = 0;
-  virtual void visit (StructExprStructBase &expr) = 0;
-  virtual void visit (StructExprTuple &expr) = 0;
-  virtual void visit (StructExprUnit &expr) = 0;
+  virtual void visit (StructExpr &expr) = 0;
   // virtual void visit(EnumExprField& field) = 0;
   virtual void visit (EnumExprFieldIdentifier &field) = 0;
   virtual void visit (EnumExprFieldIdentifierValue &field) = 0;

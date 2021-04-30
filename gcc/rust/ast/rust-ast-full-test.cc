@@ -3259,106 +3259,6 @@ TupleType::as_string () const
 }
 
 std::string
-StructExpr::as_string () const
-{
-  std::string str = append_attributes (outer_attrs, OUTER);
-  indent_spaces (enter);
-  str += "\n" + indent_spaces (stay) + "StructExpr:";
-  indent_spaces (enter);
-  str += "\n" + indent_spaces (stay) + "PathInExpr:\n";
-  str += indent_spaces (stay) + struct_name.as_string ();
-  indent_spaces (out);
-  indent_spaces (out);
-  return str;
-}
-
-std::string
-StructExprTuple::as_string () const
-{
-  std::string str = StructExpr::as_string ();
-
-  if (exprs.empty ())
-    {
-      str += "()";
-    }
-  else
-    {
-      auto i = exprs.begin ();
-      auto e = exprs.end ();
-
-      // debug - null pointer check
-      if (*i == nullptr)
-	return "ERROR_MARK_STRING - nullptr struct expr tuple field";
-
-      str += '(';
-      for (; i != e; i++)
-	{
-	  str += (*i)->as_string ();
-	  if (e != i + 1)
-	    str += ", ";
-	}
-      str += ')';
-    }
-
-  indent_spaces (enter);
-  indent_spaces (enter);
-  // inner attributes
-  str += append_attributes (inner_attrs, INNER);
-  indent_spaces (out);
-  indent_spaces (out);
-
-  return str;
-}
-
-std::string
-StructExprStruct::as_string () const
-{
-  // TODO: doesn't this require data from StructExpr?
-  std::string str ("StructExprStruct (or subclass): ");
-
-  str += "\n Path: " + get_struct_name ().as_string ();
-
-  // inner attributes
-  str += append_attributes (inner_attrs, INNER);
-
-  return str;
-}
-
-std::string
-StructBase::as_string () const
-{
-  if (base_struct != nullptr)
-    return base_struct->as_string ();
-  else
-    return "ERROR_MARK_STRING - invalid struct base had as string applied";
-}
-
-std::string
-StructExprStructFields::as_string () const
-{
-  std::string str = StructExprStruct::as_string ();
-
-  str += "\n Fields: ";
-  if (fields.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &field : fields)
-	str += "\n  " + field->as_string ();
-    }
-
-  str += "\n Struct base: ";
-  if (!has_struct_base ())
-    str += "none";
-  else
-    str += struct_base.as_string ();
-
-  return str;
-}
-
-std::string
 EnumExprStruct::as_string () const
 {
   std::string str ("EnumExprStruct (or subclass): ");
@@ -5089,31 +4989,7 @@ TupleIndexExpr::accept_vis (ASTVisitor &vis)
 }
 
 void
-StructExprStruct::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprStructFields::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprStructBase::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprTuple::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprUnit::accept_vis (ASTVisitor &vis)
+StructExpr::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }
