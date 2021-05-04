@@ -1461,6 +1461,15 @@ struct StructExpr : ExprWithoutBlock
   PathInExpression name;
   std::vector<std::unique_ptr<StructExprField>> fields;
   std::unique_ptr<Expr> base; // nullptr when no base is given
+  bool marked_for_strip;
+
+  // Still need a constructor until the entire tree is converted to POD
+  StructExpr (Location locus, PathInExpression name,
+	      std::vector<std::unique_ptr<StructExprField>> &&fields,
+	      std::unique_ptr<Expr> &&base)
+    : locus (locus), name (name), fields (std::move (fields)),
+      base (std::move (base), marked_for_strip (false))
+  {}
 
   Location get_locus_slow () const override;
   void accept_vis (ASTVisitor &vis) override;
@@ -1481,8 +1490,15 @@ struct StructExprField
   Identifier name;	       // Can be an index for a tuple.
   std::unique_ptr<Expr> value; // nullptr in case of a shorthand
 
-  // These methods could be implemented on the struct, but probably not
   // necessary. std::string as_string(); StructExprField clone();
+
+  // We still need a copy constructor until polymorphic value gets in.
+  StructExprField (const StructExprField &rhs)
+    : attrs (rhs.attrs), node_id (rhs.node_id), locus (rhs.locus),
+      name (rhs.name), value (rhs.value->clone_expr ())
+  {}
+
+  std::string as_string () const { return name + ": " + value->as_string (); }
 };
 
 // aka EnumerationVariantExpr

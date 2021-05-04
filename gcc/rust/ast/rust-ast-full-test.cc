@@ -3258,6 +3258,46 @@ TupleType::as_string () const
   return str;
 }
 
+// Methods for StructExpr
+Location
+StructExpr::get_locus_slow () const
+{
+  return locus;
+}
+
+ExprWithoutBlock *
+StructExpr::clone_expr_without_block_impl () const
+{
+  return new StructExpr (locus, name, fields, base->clone_expr ());
+}
+
+std::string
+StructExpr::as_string () const
+{
+  std::string str;
+  str += name.as_string ();
+  str += "{ ";
+  for (auto &field : fields)
+    {
+      str += field->as_string ();
+      str += ", ";
+    }
+  str += " }";
+  return str;
+}
+
+void
+StructExpr::mark_for_strip ()
+{
+  marked_for_strip = true;
+}
+
+bool
+StructExpr::is_marked_for_strip () const
+{
+  return marked_for_strip;
+}
+
 std::string
 EnumExprStruct::as_string () const
 {
