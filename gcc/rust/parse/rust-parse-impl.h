@@ -11955,91 +11955,6 @@ Parser<ManagedTokenSource>::parse_path_based_stmt_or_expr (
     }
 }
 
-// Parses a struct expression field.
-template <typename ManagedTokenSource>
-std::unique_ptr<AST::StructExprField>
-Parser<ManagedTokenSource>::parse_struct_expr_field ()
-{
-  const_TokenPtr t = lexer.peek_token ();
-  switch (t->get_id ())
-    {
-    case IDENTIFIER:
-      if (lexer.peek_token (1)->get_id () == COLON)
-	{
-	  // struct expr field with identifier and expr
-	  Identifier ident = t->get_str ();
-	  lexer.skip_token (1);
-
-	  // parse expression (required)
-	  std::unique_ptr<AST::Expr> expr = parse_expr ();
-	  if (expr == nullptr)
-	    {
-	      Error error (t->get_locus (),
-			   "failed to parse struct expression field with "
-			   "identifier and expression");
-	      add_error (std::move (error));
-
-	      return nullptr;
-	    }
-
-	  return std::unique_ptr<AST::StructExprFieldIdentifierValue> (
-	    new AST::StructExprFieldIdentifierValue (std::move (ident),
-						     std::move (expr),
-						     t->get_locus ()));
-	}
-      else
-	{
-	  // struct expr field with identifier only
-	  Identifier ident = t->get_str ();
-	  lexer.skip_token ();
-
-	  return std::unique_ptr<AST::StructExprFieldIdentifier> (
-	    new AST::StructExprFieldIdentifier (std::move (ident),
-						t->get_locus ()));
-	}
-      case INT_LITERAL: {
-	// parse tuple index field
-	int index = atoi (t->get_str ().c_str ());
-	lexer.skip_token ();
-
-	if (!skip_token (COLON))
-	  {
-	    // skip somewhere?
-	    return nullptr;
-	  }
-
-	// parse field expression (required)
-	std::unique_ptr<AST::Expr> expr = parse_expr ();
-	if (expr == nullptr)
-	  {
-	    Error error (t->get_locus (),
-			 "failed to parse expr in struct (or enum) expr "
-			 "field with tuple index");
-	    add_error (std::move (error));
-
-	    return nullptr;
-	  }
-
-	return std::unique_ptr<AST::StructExprFieldIndexValue> (
-	  new AST::StructExprFieldIndexValue (index, std::move (expr),
-					      t->get_locus ()));
-      }
-    case DOT_DOT:
-      /* this is a struct base and can't be parsed here, so just return nothing
-       * without erroring */
-
-      return nullptr;
-    default:
-      add_error (
-	Error (t->get_locus (),
-	       "unrecognised token %qs as first token of struct expr field - "
-	       "expected identifier or int literal",
-	       t->get_token_description ()));
-
-      return nullptr;
-    }
-}
-
 // Parses a macro invocation or macro invocation semi.
 template <typename ManagedTokenSource>
 ExprOrStmt
@@ -14417,16 +14332,29 @@ Parser<ManagedTokenSource>::parse_struct_expr_partial (
 						       base);
 	  }
 
+	case HASH:
 	case IDENTIFIER:
 	  case INT_LITERAL: {
-	    auto field = parse_struct_expr_field ();
-	    if (field == nullptr)
+	    auto attrs = parse_outer_attributes ();
+	    auto node_id = Analysis::Mappings::get ()->get_next_node_id ();
+	    auto field_locus = lexer.peek_token ()->get_locus ();
+	    auto ident = token->get_str ();
+	    auto value = std::unique_ptr<AST::Expr> ();
+
+	    lexer.skip_token ();
+	    if (skip_token (COLON))
 	      {
-		auto error_locus = lexer.peek_token ()->get_locus ();
-		add_error (
-		  Error (error_locus, "failed to parse struct/enum field"));
+		value = parse_expr ();
+		if (value == nullptr)
+		  {
+		    add_error (field_locus, "failed to parse struct field");
+		    return nullptr;
+		  }
 	      }
-	    fields.push_back (std::move (field));
+
+	    fields.push_back (
+	      AST::StructExprField{attrs, node_id, field_locus, ident, value});
+
 	    if (!skip_token (COMMA))
 	      {
 		// No comma means end of StructExpr
