@@ -14361,139 +14361,91 @@ Parser<ManagedTokenSource>::parse_macro_invocation_partial (
 			      std::move (outer_attrs), macro_locus));
 }
 
-/* Parses a struct expr struct with a path in expression already parsed (but not
- * '{' token). */
+/* Parse a StructExpr, assuming PathInExpression has been parsed,
+ * but not the '{' token.
+ * Note that StructTupleExpr is parsed as a function call instead,
+ * because the syntax cannot be disambiguated without name resolution. */
 template <typename ManagedTokenSource>
-std::unique_ptr<AST::StructExprStruct>
-Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
+std::unique_ptr<AST::StructExpr>
+Parser<ManagedTokenSource>::parse_struct_expr_partial (
   AST::PathInExpression path, std::vector<AST::Attribute> outer_attrs)
 {
-  // assume struct expr struct (as struct-enum disambiguation requires name
-  // lookup) again, make statement if final ';'
+  Location locus = path.get_locus ();
+
+  // Start with empty fields and no base
+  auto fields = std::vector<std::unique_ptr<AST::StructExprField>> ();
+  auto base = std::unique_ptr<AST::Expr> ();
+
+  // Parse the "name-of-the-struct-by-itself" form.
   if (!skip_token (LEFT_CURLY))
     {
-      return nullptr;
+      return Rust::make_unique<AST::StructExpr> (locus, path, fields, base);
     }
 
-  // parse inner attributes
-  std::vector<AST::Attribute> inner_attrs = parse_inner_attributes ();
-
-  // branch based on next token
-  const_TokenPtr t = lexer.peek_token ();
-  Location path_locus = path.get_locus ();
-  switch (t->get_id ())
+  // Parse the curly-braces form.
+  while (true)
     {
-    case RIGHT_CURLY:
-      // struct with no body
-      lexer.skip_token ();
+      auto token = lexer.peek_token ();
+      switch (token->get_id ())
+	{
+	  case RIGHT_CURLY: {
+	    lexer.skip_token ();
+	    return Rust::make_unique<AST::StructExpr> (locus, path, fields,
+						       base);
+	  }
 
-      return std::unique_ptr<AST::StructExprStruct> (
-	new AST::StructExprStruct (std::move (path), std::move (inner_attrs),
-				   std::move (outer_attrs), path_locus));
-    case DOT_DOT:
-      /* technically this would give a struct base-only struct, but this
-       * algorithm should work too. As such, AST type not happening. */
-    case IDENTIFIER:
-      case INT_LITERAL: {
-	// struct with struct expr fields
+	  case DOT_DOT: {
+	    lexer.skip_token ();
+	    base = parse_expr ();
+	    if (base == nullptr)
+	      {
+		auto error_locus = lexer.peek_token ()->get_locus ();
+		add_error (
+		  Error (error_locus, "failed to parse the base struct"));
+		return nullptr;
+	      }
+	    // Note: The base struct must always be the last field.
+	    if (!skip_token (RIGHT_CURLY))
+	      {
+		auto error_locus = lexer.peek_token ()->get_locus ();
+		add_error (
+		  Error (error_locus,
+			 "expects '}' after the base struct. Note: the "
+			 "base struct must always be the last field."));
+	      }
+	    return Rust::make_unique<AST::StructExpr> (locus, path, fields,
+						       base);
+	  }
 
-	// parse struct expr fields
-	std::vector<std::unique_ptr<AST::StructExprField>> fields;
-
-	while (t->get_id () != RIGHT_CURLY && t->get_id () != DOT_DOT)
-	  {
-	    std::unique_ptr<AST::StructExprField> field
-	      = parse_struct_expr_field ();
+	case IDENTIFIER:
+	  case INT_LITERAL: {
+	    auto field = parse_struct_expr_field ();
 	    if (field == nullptr)
 	      {
-		Error error (t->get_locus (),
-			     "failed to parse struct (or enum) expr field");
-		add_error (std::move (error));
-
-		return nullptr;
+		auto error_locus = lexer.peek_token ()->get_locus ();
+		add_error (
+		  Error (error_locus, "failed to parse struct/enum field"));
 	      }
-
-	    // DEBUG:
-	    fprintf (stderr,
-		     "struct/enum expr field validated to not be null \n");
-
 	    fields.push_back (std::move (field));
-
-	    // DEBUG:
-	    fprintf (stderr, "struct/enum expr field pushed back \n");
-
-	    if (lexer.peek_token ()->get_id () != COMMA)
+	    if (!skip_token (COMMA))
 	      {
-		// DEBUG:
-		fprintf (stderr, "lack of comma detected in struct/enum expr "
-				 "fields - break \n");
-		break;
+		// No comma means end of StructExpr
+		return Rust::make_unique<AST::StructExpr> (locus, path, fields,
+							   base);
 	      }
-	    lexer.skip_token ();
-
-	    // DEBUG:
-	    fprintf (stderr, "struct/enum expr fields comma skipped \n");
-
-	    t = lexer.peek_token ();
+	    break;
 	  }
 
-	// DEBUG:
-	fprintf (stderr, "struct/enum expr about to parse struct base \n");
-
-	// parse struct base if it exists
-	AST::StructBase struct_base = AST::StructBase::error ();
-	if (lexer.peek_token ()->get_id () == DOT_DOT)
-	  {
-	    lexer.skip_token ();
-
-	    // parse required struct base expr
-	    std::unique_ptr<AST::Expr> base_expr = parse_expr ();
-	    if (base_expr == nullptr)
-	      {
-		Error error (lexer.peek_token ()->get_locus (),
-			     "failed to parse struct base expression in struct "
-			     "expression");
-		add_error (std::move (error));
-
-		return nullptr;
-	      }
-
-	    // DEBUG:
-	    fprintf (stderr,
-		     "struct/enum expr - parsed and validated base expr \n");
-
-	    struct_base = AST::StructBase (std::move (base_expr));
-
-	    // DEBUG:
-	    fprintf (stderr, "assigned struct base to new struct base \n");
-	  }
-
-	if (!skip_token (RIGHT_CURLY))
-	  {
+	  default: {
+	    add_error (
+	      Error (token->get_locus (),
+		     "unrecognised token %qs in struct (or enum) expression - "
+		     "expected %<}%>, identifier, int literal, or %<..%>",
+		     token->get_token_description ()));
 	    return nullptr;
 	  }
-
-	// DEBUG:
-	fprintf (
-	  stderr,
-	  "struct/enum expr skipped right curly - done and ready to return \n");
-
-	return std::unique_ptr<AST::StructExprStructFields> (
-	  new AST::StructExprStructFields (std::move (path), std::move (fields),
-					   path_locus, std::move (struct_base),
-					   std::move (inner_attrs),
-					   std::move (outer_attrs)));
-      }
-    default:
-      add_error (
-	Error (t->get_locus (),
-	       "unrecognised token %qs in struct (or enum) expression - "
-	       "expected %<}%>, identifier, int literal, or %<..%>",
-	       t->get_token_description ()));
-
-      return nullptr;
+	}
     }
-}
 
 /* Parses a struct expr tuple with a path in expression already parsed (but not
  * '(' token).
