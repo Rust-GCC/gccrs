@@ -3258,125 +3258,44 @@ TupleType::as_string () const
   return str;
 }
 
+// Methods for StructExpr
+Location
+StructExpr::get_locus_slow () const
+{
+  return locus;
+}
+
+ExprWithoutBlock *
+StructExpr::clone_expr_without_block_impl () const
+{
+  return new StructExpr (locus, name, fields, base->clone_expr ());
+}
+
 std::string
 StructExpr::as_string () const
 {
-  std::string str = append_attributes (outer_attrs, OUTER);
-  indent_spaces (enter);
-  str += "\n" + indent_spaces (stay) + "StructExpr:";
-  indent_spaces (enter);
-  str += "\n" + indent_spaces (stay) + "PathInExpr:\n";
-  str += indent_spaces (stay) + struct_name.as_string ();
-  indent_spaces (out);
-  indent_spaces (out);
+  std::string str;
+  str += name.as_string ();
+  str += "{ ";
+  for (auto &field : fields)
+    {
+      str += field->as_string ();
+      str += ", ";
+    }
+  str += " }";
   return str;
 }
 
-std::string
-StructExprTuple::as_string () const
+void
+StructExpr::mark_for_strip ()
 {
-  std::string str = StructExpr::as_string ();
-
-  if (exprs.empty ())
-    {
-      str += "()";
-    }
-  else
-    {
-      auto i = exprs.begin ();
-      auto e = exprs.end ();
-
-      // debug - null pointer check
-      if (*i == nullptr)
-	return "ERROR_MARK_STRING - nullptr struct expr tuple field";
-
-      str += '(';
-      for (; i != e; i++)
-	{
-	  str += (*i)->as_string ();
-	  if (e != i + 1)
-	    str += ", ";
-	}
-      str += ')';
-    }
-
-  indent_spaces (enter);
-  indent_spaces (enter);
-  // inner attributes
-  str += append_attributes (inner_attrs, INNER);
-  indent_spaces (out);
-  indent_spaces (out);
-
-  return str;
+  marked_for_strip = true;
 }
 
-std::string
-StructExprStruct::as_string () const
+bool
+StructExpr::is_marked_for_strip () const
 {
-  // TODO: doesn't this require data from StructExpr?
-  std::string str ("StructExprStruct (or subclass): ");
-
-  str += "\n Path: " + get_struct_name ().as_string ();
-
-  // inner attributes
-  str += append_attributes (inner_attrs, INNER);
-
-  return str;
-}
-
-std::string
-StructBase::as_string () const
-{
-  if (base_struct != nullptr)
-    return base_struct->as_string ();
-  else
-    return "ERROR_MARK_STRING - invalid struct base had as string applied";
-}
-
-std::string
-StructExprFieldWithVal::as_string () const
-{
-  // used to get value string
-  return value->as_string ();
-}
-
-std::string
-StructExprFieldIdentifierValue::as_string () const
-{
-  // TODO: rewrite to work with non-linearisable exprs
-  return field_name + " : " + StructExprFieldWithVal::as_string ();
-}
-
-std::string
-StructExprFieldIndexValue::as_string () const
-{
-  // TODO: rewrite to work with non-linearisable exprs
-  return std::to_string (index) + " : " + StructExprFieldWithVal::as_string ();
-}
-
-std::string
-StructExprStructFields::as_string () const
-{
-  std::string str = StructExprStruct::as_string ();
-
-  str += "\n Fields: ";
-  if (fields.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &field : fields)
-	str += "\n  " + field->as_string ();
-    }
-
-  str += "\n Struct base: ";
-  if (!has_struct_base ())
-    str += "none";
-  else
-    str += struct_base.as_string ();
-
-  return str;
+  return marked_for_strip;
 }
 
 std::string
@@ -5110,49 +5029,7 @@ TupleIndexExpr::accept_vis (ASTVisitor &vis)
 }
 
 void
-StructExprStruct::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprFieldIdentifier::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprFieldIdentifierValue::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprFieldIndexValue::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprStructFields::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprStructBase::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprTuple::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructExprUnit::accept_vis (ASTVisitor &vis)
+StructExpr::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }
