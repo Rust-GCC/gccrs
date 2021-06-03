@@ -1,0 +1,24 @@
+language: c
+
+arch:
+  - amd64
+  - ppc64le
+  - s390x
+  - arm64
+  
+os: linux
+
+before_install:
+  - sudo apt-get install -y automake autoconf libtool autogen bison flex libgmp3-dev libmpfr-dev libmpc-dev build-essential gcc-multilib g++-multilib dejagnu
+
+script:
+  - mkdir -p gccrs-build;
+  - cd gccrs-build; ../configure --enable-languages=rust --disable-bootstrap --enable-multilib; make -j $(nproc); make check-rust
+  - cd gccrs-build; \
+           if grep "# of unexpected" gcc/testsuite/rust/rust.sum;\
+           then \
+              echo "some tests are not correct"; \
+              exit 1; \
+            else \
+              exit 0; \
+            fi
