@@ -1043,6 +1043,8 @@ public:
 
   void visit (HIR::DereferenceExpr &expr) override;
 
+  void visit (HIR::MatchExpr &expr) override;
+
 protected:
   tree compile_dyn_dispatch_call (const TyTy::DynamicObjectType *dyn,
 				  TyTy::BaseType *receiver,
