@@ -609,6 +609,8 @@ ASTLoweringBase::lower_qualifiers (const AST::FunctionQualifiers &qualifiers)
     case AST::FunctionQualifiers::AsyncConstStatus::ASYNC:
       const_status = HIR::FunctionQualifiers::AsyncConstStatus::ASYNC;
       break;
+    default:
+      gcc_unreachable ();
     }
 
   Unsafety unsafety
