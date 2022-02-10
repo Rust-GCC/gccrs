@@ -304,14 +304,39 @@ public:
   std::vector<PathExprSegment> &get_segments () { return segments; }
   const std::vector<PathExprSegment> &get_segments () const { return segments; }
 
-  void iterate_path_segments (std::function<bool (PathExprSegment &)> cb)
-  {
-    for (auto it = segments.begin (); it != segments.end (); it++)
-      {
-	if (!cb (*it))
-	  return;
-      }
-  }
+  // void iterate_path_segments (std::function<bool (PathExprSegment &)> cb)
+  // {
+  //   for (auto it = segments.begin (); it != segments.end (); it++)
+  //     {
+  // if (!cb (*it))
+  //   return;
+  //     }
+  // }
+
+  // void iterate_path_segments (std::vector<HIR::PathExprSegment> path_segments,
+	// 		      Analysis::Mappings *mappings)
+  // {
+  //   for (auto it = segments.begin (); it != segments.end (); it++)
+  //     {
+	// path_segments.push_back (Rust::HIR::ASTLoweringBase::lower_path_expr_seg (*it));
+
+	// // insert the mappings for the segment
+	// HIR::PathExprSegment *lowered_seg = &path_segments.back ();
+	// mappings->insert_hir_path_expr_seg (
+	//   lowered_seg->get_mappings ().get_crate_num (),
+	//   lowered_seg->get_mappings ().get_hirid (), lowered_seg);
+	// return;
+  //     }
+  //   //   [&] (AST::PathExprSegment &s) mutable -> bool {
+  //   //     path_segments.push_back (lower_path_expr_seg (s));
+
+  //   //     // insert the mappings for the segment
+  //   //     HIR::PathExprSegment *lowered_seg = &path_segments.back ();
+  //   //     mappings->insert_hir_path_expr_seg (
+  //   //       lowered_seg->get_mappings ().get_crate_num (),
+  //   //       lowered_seg->get_mappings ().get_hirid (), lowered_seg);
+  //   //     return true;
+  // }
 };
 
 /* AST node representing a path-in-expression pattern (path that allows generic
