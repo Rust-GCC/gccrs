@@ -8,7 +8,7 @@ fn f() {
     let s_p = r_s as *const str;
     let c_p = s_p as *const i8;
 
-    printf(c_p);
+    unsafe { printf(c_p); }
 }
 
 macro_rules! empty0 {
