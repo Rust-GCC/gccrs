@@ -4012,7 +4012,8 @@ MacroExpander::substitute_token (
 	  substitute_repetition (input, macro, fragments, pattern_start,
 				 pattern_end),
 	  // + 2 for the opening and closing parenthesis which are mandatory
-	  pattern_end - pattern_start + 2};
+	  // + 1 for the repetitor (+, *, ?)
+	  pattern_end - pattern_start + 3};
       }
       // TODO: We need to check if the $ was alone. In that case, do
       // not error out: Simply act as if there was an empty identifier
