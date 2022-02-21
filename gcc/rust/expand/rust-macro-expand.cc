@@ -3951,20 +3951,20 @@ MacroExpander::substitute_repetition (
 	}
     }
 
-  rust_debug ("repetition amount to use: %lu", repeat_amount);
+  std::vector<std::unique_ptr<AST::Token>> new_macro;
+  for (size_t tok_idx = pattern_start; tok_idx < pattern_end; tok_idx++)
+    {
+      new_macro.emplace_back (macro.at (tok_idx)->clone_token ());
+      rust_debug ("new macro token: %s",
+		  macro.at (tok_idx)->as_string ().c_str ());
+    }
 
+  // FIXME: We have to be careful and not push the repetition token
+  auto new_tokens = substitute_tokens (input, new_macro, fragments);
+
+  rust_debug ("repetition amount to use: %lu", repeat_amount);
   for (size_t i = 0; i < repeat_amount; i++)
     {
-      std::vector<std::unique_ptr<AST::Token>> new_macro;
-      for (size_t tok_idx = pattern_start; tok_idx < pattern_end; tok_idx++)
-	{
-	  new_macro.emplace_back (macro.at (tok_idx)->clone_token ());
-	  rust_debug ("new macro token: %s",
-		      macro.at (tok_idx)->as_string ().c_str ());
-	}
-
-      auto new_tokens = substitute_tokens (input, new_macro, fragments);
-
       for (auto &new_token : new_tokens)
 	expanded.emplace_back (new_token->clone_token ());
     }
