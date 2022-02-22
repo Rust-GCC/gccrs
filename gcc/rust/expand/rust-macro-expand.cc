@@ -3611,7 +3611,6 @@ MacroExpander::match_n_matches (
   match_amount = 0;
 
   const MacroInvocLexer &source = parser.get_token_source ();
-  std::vector<std::string> fragment_identifiers;
   while (true)
     {
       // If the current token is a closing macro delimiter, break away.
@@ -3637,8 +3636,6 @@ MacroExpander::match_n_matches (
 		  {fragment->get_ident (),
 		   MatchedFragment (fragment->get_ident (), offs_begin,
 				    offs_end)});
-
-		fragment_identifiers.emplace_back (fragment->get_ident ());
 	      }
 	      break;
 
@@ -3677,23 +3674,8 @@ MacroExpander::match_n_matches (
 
   // Check if the amount of matches we got is valid: Is it more than the lower
   // bound and less than the higher bound?
-  auto result = hi_bound ? match_amount >= lo_bound && match_amount <= hi_bound
-			 : match_amount >= lo_bound;
-
-  // We can now set the amount to each fragment we matched in the substack
-  auto &stack_map = sub_stack.peek ();
-  for (auto &fragment_id : fragment_identifiers)
-    {
-      auto it = stack_map.find (fragment_id);
-
-      // We literally just added the fragment to the sub_stack at this point...
-      if (it == stack_map.end ())
-	gcc_unreachable ();
-
-      it->second.set_match_amount (match_amount);
-    }
-
-  return result;
+  return hi_bound ? match_amount >= lo_bound && match_amount <= hi_bound
+		  : match_amount >= lo_bound;
 }
 
 bool
@@ -3734,6 +3716,31 @@ MacroExpander::match_repetition (Parser<MacroInvocLexer> &parser,
 
   rust_debug_loc (rep.get_match_locus (), "%s matched %lu times",
 		  res ? "successfully" : "unsuccessfully", match_amount);
+
+  // We can now set the amount to each fragment we matched in the substack
+  auto &stack_map = sub_stack.peek ();
+  for (auto &match : rep.get_matches ())
+    {
+      if (match->get_macro_match_type ()
+	  == AST::MacroMatch::MacroMatchType::Fragment)
+	{
+	  auto fragment = static_cast<AST::MacroMatchFragment *> (match.get ());
+	  auto it = stack_map.find (fragment->get_ident ());
+
+	  // If we can't find the fragment, but the result was valid, then it's
+	  // a zero-matched fragment and we can insert it
+	  if (it == stack_map.end ())
+	    {
+	      stack_map.insert (
+		{fragment->get_ident (),
+		 MatchedFragment::zero (fragment->get_ident ())});
+	    }
+	  else
+	    {
+	      it->second.set_match_amount (match_amount);
+	    }
+	}
+    }
 
   return res;
 }
