@@ -3634,7 +3634,7 @@ MacroExpander::match_n_matches (
 		// matched fragment get the offset in the token stream
 		size_t offs_end = source.get_offs ();
 		sub_stack.peek ().insert (
-		  {fragment->get_ident (),
+		  {fragment->get_ident () + "@" + std::to_string (match_amount),
 		   MatchedFragment (fragment->get_ident (), offs_begin,
 				    offs_end)});
 
@@ -3684,7 +3684,7 @@ MacroExpander::match_n_matches (
   auto &stack_map = sub_stack.peek ();
   for (auto &fragment_id : fragment_identifiers)
     {
-      auto it = stack_map.find (fragment_id);
+      auto it = stack_map.find (fragment_id + "@0");
 
       // We literally just added the fragment to the sub_stack at this point...
       if (it == stack_map.end ())
@@ -3934,7 +3934,7 @@ MacroExpander::substitute_repetition (
 	  auto &frag_token = macro.at (i + 1);
 	  if (frag_token->get_id () == IDENTIFIER)
 	    {
-	      auto it = fragments.find (frag_token->get_str ());
+	      auto it = fragments.find (frag_token->get_str () + "@0");
 	      if (it == fragments.end ())
 		{
 		  // If the repetition is not anything we know (ie no declared
@@ -3942,7 +3942,9 @@ MacroExpander::substitute_repetition (
 		  // fragment), we can just error out. No need to paste the
 		  // tokens as if nothing had happened.
 		  rust_error_at (frag_token->get_locus (),
-				 "metavar used in repetition does not exist");
+				 "metavar %s used in repetition does not exist",
+				 (frag_token->get_str () + "@0").c_str ());
+		  // FIXME:
 		  return expanded;
 		}
 
@@ -3951,20 +3953,37 @@ MacroExpander::substitute_repetition (
 	}
     }
 
-  std::vector<std::unique_ptr<AST::Token>> new_macro;
-  for (size_t tok_idx = pattern_start; tok_idx < pattern_end; tok_idx++)
-    {
-      new_macro.emplace_back (macro.at (tok_idx)->clone_token ());
-      rust_debug ("new macro token: %s",
-		  macro.at (tok_idx)->as_string ().c_str ());
-    }
-
-  // FIXME: We have to be careful and not push the repetition token
-  auto new_tokens = substitute_tokens (input, new_macro, fragments);
-
   rust_debug ("repetition amount to use: %lu", repeat_amount);
   for (size_t i = 0; i < repeat_amount; i++)
     {
+      std::vector<std::unique_ptr<AST::Token>> new_macro;
+      for (size_t tok_idx = pattern_start; tok_idx < pattern_end; tok_idx++)
+	{
+	  auto &current_tok = macro.at (tok_idx);
+	  // Change the ids so that they point to their proper subfragments
+	  if (current_tok->get_id () == DOLLAR_SIGN)
+	    {
+	      new_macro.emplace_back (current_tok->clone_token ());
+	      tok_idx++;
+	      auto &old_id = macro.at (tok_idx);
+	      const_TokenPtr new_id
+		= Rust::Token::make_identifier (old_id->get_locus (),
+						old_id->get_str () + "@"
+						  + std::to_string (i));
+	      AST::Token *new_id_tok = new AST::Token (new_id);
+
+	      new_macro.emplace_back (std::unique_ptr<AST::Token> (new_id_tok));
+	    }
+	  else
+	    {
+	      new_macro.emplace_back (current_tok->clone_token ());
+	    }
+	  rust_debug ("new macro token: %s",
+		      macro.at (tok_idx)->as_string ().c_str ());
+	}
+      // FIXME: We have to be careful and not push the repetition token
+      auto new_tokens = substitute_tokens (input, new_macro, fragments);
+
       for (auto &new_token : new_tokens)
 	expanded.emplace_back (new_token->clone_token ());
     }
