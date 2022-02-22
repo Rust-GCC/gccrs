@@ -4046,14 +4046,6 @@ MacroExpander::substitute_tokens (
 {
   std::vector<std::unique_ptr<AST::Token>> replaced_tokens;
 
-  // for token in macro
-  // 	if token == ?:
-  // 	// That's not always true: If it's a left paren, it's repetition
-  // 	// We probably want to store the matched amount in the fragment so
-  // 	// we can expand it here
-  // 		id = next_token();
-  // 		frag = fragment.find(id);
-
   for (size_t i = 0; i < macro.size (); i++)
     {
       auto &tok = macro.at (i);
@@ -4074,54 +4066,6 @@ MacroExpander::substitute_tokens (
 	{
 	  replaced_tokens.emplace_back (tok->clone_token ());
 	}
-
-      // std::vector<std::unique_ptr<AST::Token>> parsed_toks;
-
-      // std::string ident;
-      // for (size_t offs = i; i < macro.size (); offs++)
-      //   {
-      //     auto &tok = macro.at (offs);
-      //     if (tok->get_id () == DOLLAR_SIGN && offs == i)
-      //       {
-      //         parsed_toks.push_back (tok->clone_token ());
-      //       }
-      //     else if (tok->get_id () == IDENTIFIER)
-      //       {
-      //         rust_assert (tok->as_string ().size () == 1);
-      //         ident.push_back (tok->as_string ().at (0));
-      //         parsed_toks.push_back (tok->clone_token ());
-      //       }
-      //     else
-      //       {
-      //         break;
-      //       }
-      //   }
-
-      // // lookup the ident
-      // auto it = fragments.find (ident);
-      // if (it == fragments.end ())
-      //   {
-      //     // just leave the tokens in
-      //     for (auto &tok : parsed_toks)
-      //       {
-      //         replaced_tokens.push_back (tok->clone_token ());
-      //       }
-      //   }
-      // else
-      //   {
-      //     // replace
-      //     MatchedFragment &frag = it->second;
-      //     for (size_t offs = frag.token_offset_begin;
-      //          offs < frag.token_offset_end; offs++)
-      //       {
-      //         auto &tok = input.at (offs);
-      //         replaced_tokens.push_back (tok->clone_token ());
-      //       }
-      //   }
-      // i += parsed_toks.size () - 1;
-      //
-      // }
-      // else { replaced_tokens.push_back (tok->clone_token ()); }
     }
 
   return replaced_tokens;
