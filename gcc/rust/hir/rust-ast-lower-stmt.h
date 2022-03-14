@@ -445,6 +445,19 @@ public:
     translated = fn;
   }
 
+  void visit (AST::MacroRulesDefinition &macro_def) override
+  {
+    // FIXME: This lowers macro definitions as statements (i.e. macros defined
+    // in blocks) as an empty statement: We actually need to perform
+    // lowering of the macro and figure out how to store it using rust's
+    // metadata formats: .rlib and .rmeta files
+    auto crate_num = mappings->get_current_crate ();
+    Analysis::NodeMapping mapping (crate_num, macro_def.get_node_id (),
+				   mappings->get_next_hir_id (crate_num),
+				   UNKNOWN_LOCAL_DEFID);
+    translated = new HIR::EmptyStmt (mapping, macro_def.get_locus ());
+  }
+
 private:
   ASTLoweringStmt () : translated (nullptr), terminated (false) {}
 
