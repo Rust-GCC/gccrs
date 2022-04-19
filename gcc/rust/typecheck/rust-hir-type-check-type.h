@@ -189,6 +189,8 @@ public:
 	return nullptr;
       }
 
+    resolver.context->insert_type (param->get_mappings (), resolver.resolved);
+
     return resolver.resolved;
   }
 

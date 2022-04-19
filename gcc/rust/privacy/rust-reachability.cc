@@ -53,6 +53,7 @@ ReachabilityVisitor::visit_generic_predicates (
 	  TyTy::BaseType *generic_ty = nullptr;
 	  auto ok = ty_ctx.lookup_type (generic->get_mappings ().get_hirid (),
 					&generic_ty);
+
 	  rust_assert (ok);
 	  rust_assert (generic_ty->get_kind () == TyTy::PARAM);
 
