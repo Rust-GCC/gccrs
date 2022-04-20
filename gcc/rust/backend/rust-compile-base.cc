@@ -30,6 +30,24 @@
 namespace Rust {
 namespace Compile {
 
+bool
+should_mangle_item (const AST::AttrVec &attrs)
+{
+  for (const auto &attr : attrs)
+    {
+      if (attr.get_path ().as_string ().compare ("no_mangle") == 0)
+	{
+	  if (attr.has_attr_input ())
+	    rust_error_at (
+	      attr.get_locus (),
+	      "attribute %<no_mangle%> does not accept any arguments");
+	  return false;
+	}
+    }
+
+  return false;
+}
+
 void
 HIRCompileBase::setup_attributes_on_fndecl (
   tree fndecl, bool is_main_entry_point, HIR::Visibility &visibility,
@@ -55,6 +73,12 @@ HIRCompileBase::setup_attributes_on_fndecl (
       bool is_inline = attr.get_path ().as_string ().compare ("inline") == 0;
       bool is_must_use
 	= attr.get_path ().as_string ().compare ("must_use") == 0;
+      bool is_cold = attr.get_path ().as_string ().compare ("cold") == 0;
+      bool is_deprecated
+	= attr.get_path ().as_string ().compare ("deprecated") == 0;
+      bool is_link_section
+	= attr.get_path ().as_string ().compare ("link_section") == 0;
+      bool no_mangle = attr.get_path ().as_string ().compare ("no_mangle") == 0;
       if (is_inline)
 	{
 	  handle_inline_attribute_on_fndecl (fndecl, attr);
@@ -63,7 +87,106 @@ HIRCompileBase::setup_attributes_on_fndecl (
 	{
 	  handle_must_use_attribute_on_fndecl (fndecl, attr);
 	}
+      else if (is_cold)
+	{
+	  handle_cold_attribute_on_fndecl (fndecl, attr);
+	}
+      else if (is_link_section)
+	{
+	  handle_link_section_attribute_on_fndecl (fndecl, attr);
+	}
+      else if (is_deprecated)
+	{
+	  handle_deprecated_attribute_on_fndecl (fndecl, attr);
+	}
+      else if (no_mangle)
+	{
+	  // we handled this in `should_mangle_item`
+	  continue;
+	}
     }
+}
+
+void
+HIRCompileBase::handle_cold_attribute_on_fndecl (tree fndecl,
+						 const AST::Attribute &attr)
+{
+  // simple #[cold]
+  if (!attr.has_attr_input ())
+    {
+      tree cold = get_identifier ("cold");
+      // this will get handled by the GCC backend later
+      DECL_ATTRIBUTES (fndecl)
+	= tree_cons (cold, NULL_TREE, DECL_ATTRIBUTES (fndecl));
+      return;
+    }
+
+  rust_error_at (attr.get_locus (),
+		 "attribute %<cold%> does not accept any arguments");
+}
+
+void
+HIRCompileBase::handle_link_section_attribute_on_fndecl (
+  tree fndecl, const AST::Attribute &attr)
+{
+  if (!attr.has_attr_input ())
+    {
+      rust_error_at (attr.get_locus (),
+		     "%<link_section%> expects exactly one argment");
+      return;
+    }
+
+  rust_assert (attr.get_attr_input ().get_attr_input_type ()
+	       == AST::AttrInput::AttrInputType::LITERAL);
+
+  auto &literal = static_cast<AST::AttrInputLiteral &> (attr.get_attr_input ());
+  const auto &msg_str = literal.get_literal ().as_string ();
+
+  if (decl_section_name (fndecl))
+    {
+      rust_warning_at (attr.get_locus (), 0, "section name redefined");
+    }
+
+  set_decl_section_name (fndecl, msg_str.c_str ());
+}
+
+void
+HIRCompileBase::handle_deprecated_attribute_on_fndecl (
+  tree fndecl, const AST::Attribute &attr)
+{
+  tree value = NULL_TREE;
+  TREE_DEPRECATED (fndecl) = 1;
+
+  // simple #[deprecated]
+  if (!attr.has_attr_input ())
+    return;
+
+  const AST::AttrInput &input = attr.get_attr_input ();
+  auto input_type = input.get_attr_input_type ();
+
+  if (input_type == AST::AttrInput::AttrInputType::LITERAL)
+    {
+      // handle #[deprecated = "message"]
+      auto &literal
+	= static_cast<AST::AttrInputLiteral &> (attr.get_attr_input ());
+      const auto &msg_str = literal.get_literal ().as_string ();
+      value = build_string (msg_str.size (), msg_str.c_str ());
+    }
+  else if (input_type == AST::AttrInput::AttrInputType::TOKEN_TREE)
+    {
+      // handle #[deprecated(since = "...", note = "...")]
+      const auto &option = static_cast<const AST::DelimTokenTree &> (input);
+      AST::AttrInputMetaItemContainer *meta_item = option.parse_to_meta_item ();
+      for (const auto &item : meta_item->get_items ())
+	{
+	  // FIXME: does not compile
+	  // std::unique_ptr<AST::MetaNameValueStr> inner =
+	  // item->to_meta_name_value_str ();
+	}
+    }
+
+  DECL_ATTRIBUTES (fndecl) = tree_cons (get_identifier ("deprecated"), value,
+					DECL_ATTRIBUTES (fndecl));
 }
 
 void
@@ -342,7 +465,10 @@ HIRCompileBase::compile_function (
   // we don't mangle the main fn since we haven't implemented the main shim
   bool is_main_fn = fn_name.compare ("main") == 0;
   std::string asm_name = fn_name;
-  if (!is_main_fn)
+  // TODO: we should probably move this part to `setup_attributes_on_fndecl` if
+  // possible
+  bool should_mangle = should_mangle_item (outer_attrs);
+  if (!is_main_fn && should_mangle)
     asm_name = ctx->mangle_item (fntype, *canonical_path);
 
   unsigned int flags = 0;
