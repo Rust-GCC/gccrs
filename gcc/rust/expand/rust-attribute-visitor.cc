@@ -130,14 +130,36 @@ AttrVisitor::expand_generic_args (AST::GenericArgs &args)
   expander.push_context (MacroExpander::ContextType::TYPE);
 
   // expand type args - strip sub-types only
-  for (auto &type : args.get_type_args ())
+  for (auto &arg : args.get_generic_args ())
     {
-      type->accept_vis (*this);
-      maybe_expand_type (type);
+      switch (arg.get_kind ())
+	{
+	  case AST::GenericArg::Kind::Type: {
+	    auto &type = arg.get_type ();
+	    type->accept_vis (*this);
+	    maybe_expand_type (type);
 
-      if (type->is_marked_for_strip ())
-	rust_error_at (type->get_locus (),
-		       "cannot strip type in this position");
+	    if (type->is_marked_for_strip ())
+	      rust_error_at (type->get_locus (),
+			     "cannot strip type in this position");
+	    break;
+	  }
+	  case AST::GenericArg::Kind::Const: {
+	    auto &expr = arg.get_expression ();
+	    expr->accept_vis (*this);
+	    maybe_expand_expr (expr);
+
+	    if (expr->is_marked_for_strip ())
+	      rust_error_at (expr->get_locus (),
+			     "cannot strip expression in this position");
+	    break;
+	  }
+	default:
+	  break;
+	  // FIXME: Figure out what to do here if there is ambiguity. Since the
+	  // resolver comes after the expansion, we need to figure out a way to
+	  // strip ambiguous values here
+	}
     }
 
   expander.pop_context ();

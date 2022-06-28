@@ -88,6 +88,8 @@ ResolvePath::resolve_path (AST::PathInExpression *expr)
       // resolve any generic args
       if (segment.has_generic_args ())
 	{
+	  auto empty = CanonicalPath::create_empty ();
+	  ResolveGenericArgs::go (segment.get_generic_args (), empty, empty);
 	  ResolveType::type_resolve_generic_args (segment.get_generic_args ());
 	}
 
@@ -226,6 +228,8 @@ ResolvePath::resolve_path (AST::QualifiedPathInExpression *expr)
       // generic arguments used
       if (segment.has_generic_args ())
 	{
+	  auto empty = CanonicalPath::create_empty ();
+	  ResolveGenericArgs::go (segment.get_generic_args (), empty, empty);
 	  ResolveType::type_resolve_generic_args (segment.get_generic_args ());
 	}
     }

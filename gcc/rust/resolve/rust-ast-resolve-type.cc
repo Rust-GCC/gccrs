@@ -129,9 +129,25 @@ ResolveRelativeTypePath::go (AST::TypePath &path, NodeId &resolved_node_id)
 	      = static_cast<AST::TypePathSegmentGeneric *> (segment.get ());
 	    if (s->has_generic_args ())
 	      {
-		for (auto &gt : s->get_generic_args ().get_type_args ())
+		// FIXME: Is it correct to use result here?
+		auto empty = CanonicalPath::create_empty ();
+		ResolveGenericArgs::go (s->get_generic_args (), empty, empty);
+		// FIXME: A bit weird... we get the `GenericArgs` from `s` which
+		// contains a `Vec<GenericArg>` and a `Vec<LifetimeArg>`, so
+		// this makes sense, but it's weird to read
+		for (auto &arg : s->get_generic_args ().get_generic_args ())
 		  {
-		    ResolveType::go (gt.get ());
+		    switch (arg.get_kind ())
+		      {
+		      case AST::GenericArg::Kind::Type:
+			ResolveType::go (arg.get_type ().get ());
+			break;
+		      case AST::GenericArg::Kind::Const:
+			break;
+		      default:
+			// At typechecking, we should have no ambiguity left
+			gcc_unreachable ();
+		      }
 		  }
 	      }
 	  }
@@ -364,39 +380,57 @@ ResolveTypeToCanonicalPath::visit (AST::TypePath &path)
 	      = static_cast<AST::TypePathSegmentGeneric *> (final_seg.get ());
 
 	    std::vector<CanonicalPath> args;
+
 	    if (s->has_generic_args ())
 	      {
-		for (auto &gt : s->get_generic_args ().get_type_args ())
+		// FIXME: Is it correct to use result here?
+		ResolveGenericArgs::go (s->get_generic_args (), result, result);
+		// FIXME: A bit weird... we get the `GenericArgs` from `s` which
+		// contains a `Vec<GenericArg>` and a `Vec<LifetimeArg>`, so
+		// this makes sense, but it's weird to read
+		for (auto &generic : s->get_generic_args ().get_generic_args ())
 		  {
 		    CanonicalPath arg = CanonicalPath::create_empty ();
-		    bool ok = ResolveTypeToCanonicalPath::go (gt.get (), arg);
-		    if (ok)
-		      args.push_back (std::move (arg));
+		    switch (generic.get_kind ())
+		      {
+		      case AST::GenericArg::Kind::Type:
+			ResolveType::go (generic.get_type ().get ());
+			break;
+		      case AST::GenericArg::Kind::Const:
+			break;
+		      default:
+			// At typechecking, we should have no ambiguity left
+			gcc_unreachable ();
+			bool ok = ResolveTypeToCanonicalPath::go (
+			  generic.get_type ().get (), arg);
+			if (ok)
+			  args.push_back (std::move (arg));
+		      }
 		  }
-	      }
 
-	    result = *type_path;
-	    if (!args.empty ())
-	      {
-		// append this onto the path
-		std::string buf;
-		for (size_t i = 0; i < args.size (); i++)
+		result = *type_path;
+		if (!args.empty ())
 		  {
-		    bool has_next = (i + 1) < args.size ();
-		    const auto &arg = args.at (i);
+		    // append this onto the path
+		    std::string buf;
+		    for (size_t i = 0; i < args.size (); i++)
+		      {
+			bool has_next = (i + 1) < args.size ();
+			const auto &arg = args.at (i);
 
-		    buf += arg.get ();
-		    if (has_next)
-		      buf += ", ";
+			buf += arg.get ();
+			if (has_next)
+			  buf += ", ";
+		      }
+
+		    std::string arg_seg = "<" + buf + ">";
+		    CanonicalPath argument_seg
+		      = CanonicalPath::new_seg (s->get_node_id (), arg_seg);
+		    result = result.append (argument_seg);
 		  }
-
-		std::string arg_seg = "<" + buf + ">";
-		CanonicalPath argument_seg
-		  = CanonicalPath::new_seg (s->get_node_id (), arg_seg);
-		result = result.append (argument_seg);
 	      }
+	    break;
 	  }
-	  break;
 
 	default:
 	  result = *type_path;
@@ -450,6 +484,61 @@ ResolveTypeToCanonicalPath::visit (AST::SliceType &type)
 ResolveTypeToCanonicalPath::ResolveTypeToCanonicalPath ()
   : ResolverBase (), result (CanonicalPath::create_empty ())
 {}
+
+bool
+ResolveGenericArgs::is_const_value_name (const CanonicalPath &path)
+{
+  NodeId resolved;
+  auto found = resolver->get_name_scope ().lookup (path, &resolved);
+
+  return found;
+}
+
+bool
+ResolveGenericArgs::is_type_name (const CanonicalPath &path)
+{
+  NodeId resolved;
+  auto found = resolver->get_type_scope ().lookup (path, &resolved);
+
+  return found;
+}
+
+void
+ResolveGenericArgs::go (AST::GenericArgs &args, const CanonicalPath &prefix,
+			const CanonicalPath &canonical_prefix)
+{
+  auto empty = CanonicalPath::create_empty ();
+  auto resolver = ResolveGenericArgs (prefix, canonical_prefix);
+
+  for (auto &arg : args.get_generic_args ())
+    resolver.resolve_generic (arg);
+
+  for (auto &lt : args.get_lifetime_args ())
+    resolver.resolve_lifetime (lt);
+}
+
+void
+ResolveGenericArgs::resolve_generic (AST::GenericArg &generic)
+{
+  if (generic.get_kind () == AST::GenericArg::Kind::Either)
+    {
+      // FIXME: Add a NodeId to GenericArg? Or do we not need it?
+      auto path = canonical_prefix.append (
+	CanonicalPath::new_seg (UNKNOWN_NODEID, generic.get_path ()));
+
+      auto is_type = is_type_name (path);
+      auto is_value = is_const_value_name (path);
+
+      // In case we cannot find anything, we resolve the ambiguity to a type.
+      // This causes the typechecker to error out properly and when necessary.
+      // But types also take priority over const values in the case of
+      // ambiguities, hence the weird control flow
+      if (is_type || (!is_type && !is_value))
+	generic = generic.disambiguate_to_type ();
+      else if (is_value)
+	generic = generic.disambiguate_to_const ();
+    }
+}
 
 } // namespace Resolver
 } // namespace Rust

@@ -26,6 +26,41 @@
 namespace Rust {
 namespace Resolver {
 
+// FIXME: Arthur: Move to bottom of file
+class ResolveGenericArgs : public ResolverBase
+{
+  using Rust::Resolver::ResolverBase::visit;
+
+public:
+  /**
+   * Perform name-resolution and disambiguation on a vector of generic arguments
+   * (not parameters!)
+   */
+  static void go (AST::GenericArgs &args, const CanonicalPath &prefix,
+		  const CanonicalPath &canonical_prefix);
+
+private:
+  ResolveGenericArgs (const CanonicalPath &prefix,
+		      const CanonicalPath &canonical_prefix)
+    : ResolverBase (), prefix (prefix), canonical_prefix (canonical_prefix)
+  {}
+
+  bool is_const_value_name (const CanonicalPath &path);
+  bool is_type_name (const CanonicalPath &path);
+
+  /**
+   * Resolve a generic argument to either a const expression or a type argument
+   */
+  void resolve_generic (AST::GenericArg &generic);
+
+  // FIXME: Implement this for real, or do we need it? Is that just a
+  // disambiguator?
+  void resolve_lifetime (AST::Lifetime &) {}
+
+  const CanonicalPath &prefix;
+  const CanonicalPath &canonical_prefix;
+};
+
 class ResolveRelativeTypePath
 {
 public:
@@ -66,8 +101,29 @@ public:
 
   static void type_resolve_generic_args (AST::GenericArgs &args)
   {
-    for (auto &gt : args.get_type_args ())
-      ResolveType::go (gt.get ());
+    auto empty = CanonicalPath::create_empty ();
+    ResolveGenericArgs::go (args, empty, empty);
+
+    for (auto &arg : args.get_generic_args ())
+      {
+	switch (arg.get_kind ())
+	  {
+	  case AST::GenericArg::Kind::Type:
+	    ResolveType::go (arg.get_type ().get ());
+	    break;
+	  case AST::GenericArg::Kind::Const:
+	    break;
+	  default:
+	    gcc_unreachable ();
+	    break;
+	  }
+
+	// FIXME error handling here for inference variable since they do not
+	// have
+	// a node to resolve to
+	// if (resolved == UNKNOWN_NODEID) return false;
+      }
+    // FIXME: This needs to handle lifetimes as well
   }
 
   void visit (AST::BareFunctionType &fntype) override

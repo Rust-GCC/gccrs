@@ -114,9 +114,6 @@ public:
 
 class ConstGenericArg
 {
-  // FIXME: Do we need to disambiguate or no? We should be able to disambiguate
-  // at name-resolution, hence no need for ambiguities here
-
 public:
   ConstGenericArg (std::unique_ptr<Expr> expression, Location locus)
     : expression (std::move (expression)), locus (locus)
