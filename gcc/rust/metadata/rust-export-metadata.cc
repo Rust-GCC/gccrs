@@ -158,8 +158,6 @@ public:
   ExportVisItems (ExportContext &context) : ctx (context) {}
 
   void visit (HIR::Module &module) override {}
-  void visit (HIR::ExternCrate &crate) override {}
-  void visit (HIR::UseDeclaration &use_decl) override {}
   void visit (HIR::TypeAlias &type_alias) override {}
   void visit (HIR::StructStruct &struct_item) override {}
   void visit (HIR::TupleStruct &tuple_struct) override {}

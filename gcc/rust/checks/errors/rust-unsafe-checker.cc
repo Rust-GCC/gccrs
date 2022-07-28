@@ -556,26 +556,6 @@ UnsafeChecker::visit (Module &module)
 }
 
 void
-UnsafeChecker::visit (ExternCrate &crate)
-{}
-
-void
-UnsafeChecker::visit (UseTreeGlob &use_tree)
-{}
-
-void
-UnsafeChecker::visit (UseTreeList &use_tree)
-{}
-
-void
-UnsafeChecker::visit (UseTreeRebind &use_tree)
-{}
-
-void
-UnsafeChecker::visit (UseDeclaration &use_decl)
-{}
-
-void
 UnsafeChecker::visit (Function &function)
 {
   auto is_unsafe_fn = function.get_qualifiers ().is_unsafe ();

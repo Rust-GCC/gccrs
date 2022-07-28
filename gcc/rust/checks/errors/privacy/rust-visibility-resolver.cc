@@ -141,14 +141,6 @@ VisibilityResolver::visit (HIR::Module &mod)
 }
 
 void
-VisibilityResolver::visit (HIR::ExternCrate &crate)
-{}
-
-void
-VisibilityResolver::visit (HIR::UseDeclaration &use_decl)
-{}
-
-void
 VisibilityResolver::visit (HIR::Function &func)
 {
   resolve_and_update (&func);

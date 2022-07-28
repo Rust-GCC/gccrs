@@ -88,20 +88,6 @@ PubRestrictedVisitor::visit (HIR::Module &mod)
 }
 
 void
-PubRestrictedVisitor::visit (HIR::ExternCrate &crate)
-{
-  is_restriction_valid (crate.get_mappings ().get_nodeid (),
-			crate.get_locus ());
-}
-
-void
-PubRestrictedVisitor::visit (HIR::UseDeclaration &use_decl)
-{
-  is_restriction_valid (use_decl.get_mappings ().get_nodeid (),
-			use_decl.get_locus ());
-}
-
-void
 PubRestrictedVisitor::visit (HIR::Function &func)
 {
   is_restriction_valid (func.get_mappings ().get_nodeid (), func.get_locus ());

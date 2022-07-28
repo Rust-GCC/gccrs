@@ -59,8 +59,6 @@ public:
   void visit (HIR::TypePathSegmentFunction &) override {}
   void visit (HIR::TypePath &) override {}
   void visit (HIR::QualifiedPathInType &) override {}
-  void visit (HIR::ExternCrate &) override {}
-  void visit (HIR::UseDeclaration &) override {}
   void visit (HIR::TypeAlias &) override {}
   void visit (HIR::StructStruct &) override {}
   void visit (HIR::Enum &) override {}

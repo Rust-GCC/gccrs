@@ -247,21 +247,6 @@ StaticItem::as_string () const
 }
 
 std::string
-ExternCrate::as_string () const
-{
-  std::string str = VisItem::as_string ();
-
-  str += "extern crate " + referenced_crate;
-
-  if (has_as_clause ())
-    {
-      str += " as " + as_clause_name;
-    }
-
-  return str;
-}
-
-std::string
 TupleStruct::as_string () const
 {
   std::string str = VisItem::as_string ();
@@ -480,118 +465,6 @@ StructStruct::as_string () const
     }
 
   return str + "::" + get_mappings ().as_string () + "\n";
-}
-
-std::string
-UseDeclaration::as_string () const
-{
-  std::string str = VisItem::as_string ();
-
-  // DEBUG: null pointer check
-  if (use_tree == nullptr)
-    {
-      rust_debug (
-	"something really terrible has gone wrong - null pointer use tree in "
-	"use declaration.");
-      return "nullptr_POINTER_MARK";
-    }
-
-  str += "use " + use_tree->as_string ();
-
-  return str;
-}
-
-std::string
-UseTreeGlob::as_string () const
-{
-  switch (glob_type)
-    {
-    case NO_PATH:
-      return "*";
-    case GLOBAL:
-      return "::*";
-      case PATH_PREFIXED: {
-	std::string path_str = path.as_string ();
-	return path_str + "::*";
-      }
-    default:
-      // some kind of error
-      return "ERROR-PATH";
-    }
-  gcc_unreachable ();
-}
-
-std::string
-UseTreeList::as_string () const
-{
-  std::string path_str;
-  switch (path_type)
-    {
-    case NO_PATH:
-      path_str = "{";
-      break;
-    case GLOBAL:
-      path_str = "::{";
-      break;
-      case PATH_PREFIXED: {
-	path_str = path.as_string () + "::{";
-	break;
-      }
-    default:
-      // some kind of error
-      return "ERROR-PATH-LIST";
-    }
-
-  if (has_trees ())
-    {
-      auto i = trees.begin ();
-      auto e = trees.end ();
-
-      // DEBUG: null pointer check
-      if (*i == nullptr)
-	{
-	  rust_debug ("something really terrible has gone wrong - null pointer "
-		      "tree in use tree list.");
-	  return "nullptr_POINTER_MARK";
-	}
-
-      for (; i != e; i++)
-	{
-	  path_str += (*i)->as_string ();
-	  if (e != i + 1)
-	    path_str += ", ";
-	}
-    }
-  else
-    {
-      path_str += "none";
-    }
-
-  return path_str + "}";
-}
-
-std::string
-UseTreeRebind::as_string () const
-{
-  std::string path_str = path.as_string ();
-
-  switch (bind_type)
-    {
-    case NONE:
-      // nothing to add, just path
-      break;
-    case IDENTIFIER:
-      path_str += " as " + identifier;
-      break;
-    case WILDCARD:
-      path_str += " as _";
-      break;
-    default:
-      // error
-      return "ERROR-PATH-REBIND";
-    }
-
-  return path_str;
 }
 
 std::string
@@ -4254,36 +4127,6 @@ Module::accept_vis (HIRVisItemVisitor &vis)
 }
 
 void
-ExternCrate::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-UseTreeGlob::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-UseTreeList::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-UseTreeRebind::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-UseDeclaration::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
 Function::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
@@ -5196,18 +5039,6 @@ Enum::accept_vis (HIRVisItemVisitor &vis)
 }
 
 void
-UseDeclaration::accept_vis (HIRStmtVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-UseDeclaration::accept_vis (HIRVisItemVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
 StructStruct::accept_vis (HIRStmtVisitor &vis)
 {
   vis.visit (*this);
@@ -5257,18 +5088,6 @@ TupleStruct::accept_vis (HIRStmtVisitor &vis)
 
 void
 TupleStruct::accept_vis (HIRVisItemVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-ExternCrate::accept_vis (HIRStmtVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-ExternCrate::accept_vis (HIRVisItemVisitor &vis)
 {
   vis.visit (*this);
 }

@@ -312,22 +312,7 @@ Dump::visit (TypeBoundWhereClauseItem &)
 void
 Dump::visit (Module &)
 {}
-void
-Dump::visit (ExternCrate &)
-{}
 
-void
-Dump::visit (UseTreeGlob &)
-{}
-void
-Dump::visit (UseTreeList &)
-{}
-void
-Dump::visit (UseTreeRebind &)
-{}
-void
-Dump::visit (UseDeclaration &)
-{}
 void
 Dump::visit (Function &function)
 {
@@ -344,6 +329,7 @@ Dump::visit (Function &function)
   stream << std::endl;
   indent--;
 }
+
 void
 Dump::visit (TypeAlias &)
 {}

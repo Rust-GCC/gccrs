@@ -118,8 +118,6 @@ public:
   void visit (HIR::TypePath &) override {}
   void visit (HIR::QualifiedPathInType &) override {}
   void visit (HIR::Module &) override {}
-  void visit (HIR::ExternCrate &) override {}
-  void visit (HIR::UseDeclaration &) override {}
   void visit (HIR::Function &) override {}
   void visit (HIR::TypeAlias &) override {}
   void visit (HIR::StructStruct &) override {}

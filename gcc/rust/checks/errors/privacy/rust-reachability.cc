@@ -85,20 +85,6 @@ ReachabilityVisitor::visit (HIR::Module &mod)
 }
 
 void
-ReachabilityVisitor::visit (HIR::ExternCrate &crate)
-{
-  auto reach = get_reachability_level (crate.get_visibility ());
-  reach = ctx.update_reachability (crate.get_mappings (), reach);
-}
-
-void
-ReachabilityVisitor::visit (HIR::UseDeclaration &use_decl)
-{
-  auto reach = get_reachability_level (use_decl.get_visibility ());
-  reach = ctx.update_reachability (use_decl.get_mappings (), reach);
-}
-
-void
 ReachabilityVisitor::visit (HIR::Function &func)
 {
   auto fn_reach = get_reachability_level (func.get_visibility ());

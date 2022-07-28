@@ -62,8 +62,6 @@ public:
   ReachLevel get_reachability_level (const HIR::Visibility &item_visibility);
 
   virtual void visit (HIR::Module &mod);
-  virtual void visit (HIR::ExternCrate &crate);
-  virtual void visit (HIR::UseDeclaration &use_decl);
   virtual void visit (HIR::Function &func);
   virtual void visit (HIR::TypeAlias &type_alias);
   virtual void visit (HIR::StructStruct &struct_item);

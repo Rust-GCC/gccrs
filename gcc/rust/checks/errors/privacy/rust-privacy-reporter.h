@@ -143,8 +143,6 @@ types
   virtual void visit (HIR::TypePath &path);
   virtual void visit (HIR::QualifiedPathInType &path);
   virtual void visit (HIR::Module &module);
-  virtual void visit (HIR::ExternCrate &crate);
-  virtual void visit (HIR::UseDeclaration &use_decl);
   virtual void visit (HIR::Function &function);
   virtual void visit (HIR::TypeAlias &type_alias);
   virtual void visit (HIR::StructStruct &struct_item);

@@ -97,11 +97,6 @@ public:
   virtual void visit (LifetimeWhereClauseItem &item) = 0;
   virtual void visit (TypeBoundWhereClauseItem &item) = 0;
   virtual void visit (Module &module) = 0;
-  virtual void visit (ExternCrate &crate) = 0;
-  virtual void visit (UseTreeGlob &use_tree) = 0;
-  virtual void visit (UseTreeList &use_tree) = 0;
-  virtual void visit (UseTreeRebind &use_tree) = 0;
-  virtual void visit (UseDeclaration &use_decl) = 0;
   virtual void visit (Function &function) = 0;
   virtual void visit (TypeAlias &type_alias) = 0;
   virtual void visit (StructStruct &struct_item) = 0;
@@ -244,12 +239,6 @@ public:
   virtual void visit (LifetimeWhereClauseItem &) override {}
   virtual void visit (TypeBoundWhereClauseItem &) override {}
   virtual void visit (Module &) override {}
-  virtual void visit (ExternCrate &) override {}
-
-  virtual void visit (UseTreeGlob &) override {}
-  virtual void visit (UseTreeList &) override {}
-  virtual void visit (UseTreeRebind &) override {}
-  virtual void visit (UseDeclaration &) override {}
   virtual void visit (Function &) override {}
   virtual void visit (TypeAlias &) override {}
   virtual void visit (StructStruct &) override {}
@@ -336,8 +325,6 @@ class HIRVisItemVisitor
 {
 public:
   virtual void visit (Module &module) = 0;
-  virtual void visit (ExternCrate &crate) = 0;
-  virtual void visit (UseDeclaration &use_decl) = 0;
   virtual void visit (Function &function) = 0;
   virtual void visit (TypeAlias &type_alias) = 0;
   virtual void visit (StructStruct &struct_item) = 0;
@@ -392,8 +379,6 @@ public:
   virtual void visit (TypePath &path) = 0;
   virtual void visit (QualifiedPathInType &path) = 0;
   virtual void visit (Module &module) = 0;
-  virtual void visit (ExternCrate &crate) = 0;
-  virtual void visit (UseDeclaration &use_decl) = 0;
   virtual void visit (Function &function) = 0;
   virtual void visit (TypeAlias &type_alias) = 0;
   virtual void visit (StructStruct &struct_item) = 0;

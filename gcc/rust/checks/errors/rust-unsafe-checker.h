@@ -132,11 +132,6 @@ private:
   virtual void visit (LifetimeWhereClauseItem &item) override;
   virtual void visit (TypeBoundWhereClauseItem &item) override;
   virtual void visit (Module &module) override;
-  virtual void visit (ExternCrate &crate) override;
-  virtual void visit (UseTreeGlob &use_tree) override;
-  virtual void visit (UseTreeList &use_tree) override;
-  virtual void visit (UseTreeRebind &use_tree) override;
-  virtual void visit (UseDeclaration &use_decl) override;
   virtual void visit (Function &function) override;
   virtual void visit (TypeAlias &type_alias) override;
   virtual void visit (StructStruct &struct_item) override;

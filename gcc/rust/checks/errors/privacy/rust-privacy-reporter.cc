@@ -620,16 +620,6 @@ PrivacyReporter::visit (HIR::Module &module)
 }
 
 void
-PrivacyReporter::visit (HIR::ExternCrate &crate)
-{}
-
-void
-PrivacyReporter::visit (HIR::UseDeclaration &use_decl)
-{
-  // FIXME: Is there anything we need to do here?
-}
-
-void
 PrivacyReporter::visit (HIR::Function &function)
 {
   for (auto &param : function.get_function_params ())
