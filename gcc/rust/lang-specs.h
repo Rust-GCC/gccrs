@@ -22,5 +22,5 @@
 
 {".rs", "@rs", 0, 1, 0},
   {"@rs",
-   "rust1 %i %(cc1_options) %{I*} %{L*} %D %{!fsyntax-only:%(invoke_as)}", 0, 1,
+   "rs1 %i %(cc1_options) %{I*} %{L*} %D %{!fsyntax-only:%(invoke_as)}", 0, 1,
    0},
