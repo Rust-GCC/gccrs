@@ -160,3 +160,9 @@ gengtype-lex.cc:357:15: warning: this statement may fall through [-Wimplicit-fal
 gengtype-lex.cc:357:15: warning: this statement may fall through [-Wimplicit-fallthrough=]
 gengtype-lex.cc:357:15: warning: this statement may fall through [-Wimplicit-fallthrough=]
 libtool: install: warning: remember to run `libtool --finish /usr/local/libexec/gcc/x86_64-pc-linux-gnu/13.0.0'
+../../gcc/rust/backend/rust-constexpr.cc:4444:20: warning: '#' flag used with ‘%D’ gcc_tdiag format [-Wformat=]
+../../gcc/rust/backend/rust-tree.cc:3275:9: warning: '#' flag used with ‘%T’ gcc_tdiag format [-Wformat=]
+../../gcc/rust/backend/rust-tree.cc:3283:20: warning: '#' flag used with ‘%D’ gcc_tdiag format [-Wformat=]
+../../gcc/rust/backend/rust-tree.cc:3838:24: warning: '#' flag used with ‘%T’ gcc_tdiag format [-Wformat=]
+../../gcc/rust/backend/rust-tree.cc:3842:45: warning: '#' flag used with ‘%T’ gcc_tdiag format [-Wformat=]
+../../gcc/rust/backend/rust-tree.cc:3888:44: warning: '#' flag used with ‘%T’ gcc_tdiag format [-Wformat=]
