@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2022 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -81,6 +81,15 @@ private:
    */
   void format_function_param (FunctionParam &param);
   void emit_attrib (const Attribute &attrib);
+
+  /**
+   * Emit an indented string with an optional extra comment
+   */
+  std::ostream &emit_indented_string (const std::string &value,
+				      const std::string &comment = "");
+
+  // Emit formatted string for generic parameters.
+  void emit_generic_params (std::vector<std::unique_ptr<GenericParam>> &params);
 
   // rust-ast.h
   void visit (Token &tok);

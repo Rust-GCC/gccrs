@@ -109,6 +109,22 @@ Dump::emit_attrib (const Attribute &attrib)
 }
 
 void
+Dump::emit_generic_params (std::vector<std::unique_ptr<GenericParam>> &params)
+{
+  stream << "<";
+  for (size_t i = 0; i < params.size (); i++)
+    {
+      auto &param = params.at (i);
+      param->accept_vis (*this);
+
+      bool has_next = (i + 1) < params.size ();
+      if (has_next)
+	stream << ", ";
+    }
+  stream << ">";
+}
+
+void
 Dump::visit (Token &tok)
 {}
 
@@ -555,19 +571,7 @@ Dump::visit (Function &function)
   stream << "fn " << function.get_function_name ();
 
   if (function.has_generics ())
-    {
-      stream << "<";
-      for (size_t i = 0; i < function.get_generic_params ().size (); i++)
-	{
-	  auto &param = function.get_generic_params ().at (i);
-	  param->accept_vis (*this);
-
-	  bool has_next = (i + 1) < function.get_generic_params ().size ();
-	  if (has_next)
-	    stream << ", ";
-	}
-      stream << ">";
-    }
+    emit_generic_params (function.get_generic_params ());
 
   stream << '(';
   auto &params = function.get_function_params ();
