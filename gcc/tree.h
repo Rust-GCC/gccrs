@@ -2542,7 +2542,7 @@ extern tree vector_element_bits_tree (const_tree);
 
 /* Encode/decode the named memory support as part of the qualifier.  If more
    than 8 qualifiers are added, these macros need to be adjusted.  */
-#define ENCODE_QUAL_ADDR_SPACE(NUM) ((NUM & 0xFF) << 8)
+#define ENCODE_QUAL_ADDR_SPACE(NUM) (((NUM) & 0xFF) << 8)
 #define DECODE_QUAL_ADDR_SPACE(X) (((X) >> 8) & 0xFF)
 
 /* Return all qualifiers except for the address space qualifiers.  */
