@@ -824,7 +824,7 @@ void
 Session::expansion (AST::Crate &crate)
 {
   /* We need to name resolve macros and imports here */
-  Resolver::EarlyNameResolver ().go (crate);
+  Resolver::EarlyNameResolver::get ().go (crate);
 
   rust_debug ("started expansion");
 

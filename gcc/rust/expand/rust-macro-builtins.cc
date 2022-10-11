@@ -72,7 +72,7 @@ try_expand_macro_expression (AST::Expr *expr, MacroExpander *expander)
   rust_assert (expander);
 
   auto attr_visitor = Rust::AttrVisitor (*expander);
-  auto early_name_resolver = Resolver::EarlyNameResolver ();
+  auto early_name_resolver = Resolver::EarlyNameResolver::get ();
   expr->accept_vis (early_name_resolver);
   expr->accept_vis (attr_visitor);
   return expander->take_expanded_fragment (attr_visitor);

@@ -323,7 +323,7 @@ struct MacroExpander
     AST::Fragment old_fragment = std::move (expanded_fragment);
     auto accumulator = std::vector<AST::SingleASTNode> ();
     expanded_fragment = AST::Fragment::create_error ();
-    auto early_name_resolver = Resolver::EarlyNameResolver ();
+    auto early_name_resolver = Resolver::EarlyNameResolver::get ();
 
     for (auto &node : old_fragment.get_nodes ())
       {
