@@ -49,6 +49,13 @@ private:
    */
   void resolve_qualified_path_type (AST::QualifiedPathType &path);
 
+  /**
+   * Since the early name resolver is much simpler, we can have simple wrappers
+   * around entering and exiting scopes
+   */
+  void enter_scope (NodeId scope_id);
+  void exit_scope ();
+
   virtual void visit (AST::Token &tok);
   virtual void visit (AST::DelimTokenTree &delim_tok_tree);
   virtual void visit (AST::AttrInputMetaItemContainer &input);

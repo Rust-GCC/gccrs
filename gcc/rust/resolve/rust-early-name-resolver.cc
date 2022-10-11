@@ -60,6 +60,19 @@ EarlyNameResolver::resolve_qualified_path_type (AST::QualifiedPathType &path)
 }
 
 void
+EarlyNameResolver::enter_scope (NodeId scope_id)
+{
+  resolver.get_macro_scope ().push (scope_id);
+  resolver.push_new_macro_rib (resolver.get_macro_scope ().peek ());
+}
+
+void
+EarlyNameResolver::exit_scope ()
+{
+  resolver.get_macro_scope ().pop ();
+}
+
+void
 EarlyNameResolver::visit (AST::Token &tok)
 {}
 
@@ -335,11 +348,15 @@ EarlyNameResolver::visit (AST::ClosureExprInner &expr)
 void
 EarlyNameResolver::visit (AST::BlockExpr &expr)
 {
+  enter_scope (expr.get_node_id ());
+
   for (auto &stmt : expr.get_statements ())
     stmt->accept_vis (*this);
 
   if (expr.has_tail_expr ())
     expr.get_tail_expr ()->accept_vis (*this);
+
+  exit_scope ();
 }
 
 void
@@ -434,8 +451,13 @@ EarlyNameResolver::visit (AST::WhileLetLoopExpr &expr)
 void
 EarlyNameResolver::visit (AST::ForLoopExpr &expr)
 {
+  enter_scope (expr.get_node_id ());
+
+  expr.get_pattern ()->accept_vis (*this);
   expr.get_iterator_expr ()->accept_vis (*this);
   expr.get_loop_block ()->accept_vis (*this);
+
+  exit_scope ();
 }
 
 void
@@ -473,7 +495,12 @@ void
 EarlyNameResolver::visit (AST::IfLetExpr &expr)
 {
   expr.get_value_expr ()->accept_vis (*this);
+
+  enter_scope (expr.get_node_id ());
+
   expr.get_if_block ()->accept_vis (*this);
+
+  exit_scope ();
 }
 
 void
@@ -506,6 +533,8 @@ EarlyNameResolver::visit (AST::MatchExpr &expr)
   expr.get_scrutinee_expr ()->accept_vis (*this);
   for (auto &match_arm : expr.get_match_cases ())
     {
+      enter_scope (match_arm.get_node_id ());
+
       if (match_arm.get_arm ().has_match_arm_guard ())
 	match_arm.get_arm ().get_guard_expr ()->accept_vis (*this);
 
@@ -513,6 +542,8 @@ EarlyNameResolver::visit (AST::MatchExpr &expr)
 	pattern->accept_vis (*this);
 
       match_arm.get_expr ()->accept_vis (*this);
+
+      exit_scope ();
     }
 }
 
