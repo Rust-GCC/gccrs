@@ -56,25 +56,25 @@ public:
    * @return Either the expanded fragment or an empty errored-out fragment
    * indicating an expansion failure.
    */
-  AST::Fragment expand_macro_fragment_recursive ()
-  {
-    auto fragment = expander.take_expanded_fragment (*this);
-    unsigned int original_depth = expander.expansion_depth;
-    auto final_fragment = AST::Fragment::create_error ();
+  // AST::ASTFragment expand_macro_fragment_recursive ()
+  // {
+  //   auto fragment = expander.take_expanded_fragment (*this);
+  //   unsigned int original_depth = expander.expansion_depth;
+  //   auto final_fragment = AST::ASTFragment ({}, true);
 
-    while (fragment.should_expand ())
-      {
-	final_fragment = std::move (fragment);
-	expander.expansion_depth++;
-	// further expand the previously expanded macro fragment
-	auto new_fragment = expander.take_expanded_fragment (*this);
-	if (new_fragment.is_error ())
-	  break;
-	fragment = std::move (new_fragment);
-      }
-    expander.expansion_depth = original_depth;
-    return final_fragment;
-  }
+  //   while (fragment.should_expand ())
+  //     {
+  //     final_fragment = std::move (fragment);
+  //     expander.expansion_depth++;
+  //     // further expand the previously expanded macro fragment
+  //     auto new_fragment = expander.take_expanded_fragment (*this);
+  //     if (new_fragment.is_error ())
+  //       break;
+  //     fragment = std::move (new_fragment);
+  //     }
+  //   expander.expansion_depth = original_depth;
+  //   return final_fragment;
+  // }
 
   /**
    * Expand a set of values, erasing them if they are marked for strip, and
@@ -101,8 +101,7 @@ public:
 	// mark for stripping if required
 	value->accept_vis (*this);
 
-	// recursively expand the children
-	auto final_fragment = expand_macro_fragment_recursive ();
+	auto final_fragment = expander.take_expanded_fragment (*this);
 
 	if (final_fragment.should_expand ())
 	  {

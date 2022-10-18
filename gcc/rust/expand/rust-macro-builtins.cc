@@ -71,6 +71,9 @@ try_expand_macro_expression (AST::Expr *expr, MacroExpander *expander)
 {
   rust_assert (expander);
 
+  /* This is probably the one case where we want to eagerly expand and
+   * name-resolve macros */
+
   auto attr_visitor = Rust::AttrVisitor (*expander);
   auto early_name_resolver = Resolver::EarlyNameResolver::get ();
   expr->accept_vis (early_name_resolver);
