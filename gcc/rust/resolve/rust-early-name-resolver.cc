@@ -37,16 +37,6 @@ EarlyNameResolver::EarlyNameResolver ()
     mappings (*Analysis::Mappings::get ())
 {}
 
-EarlyNameResolver &
-EarlyNameResolver::get ()
-{
-  static EarlyNameResolver instance;
-
-  rust_debug ("[ARTHUR]: Current lexical scope: %d", instance.current_scope);
-
-  return instance;
-}
-
 void
 EarlyNameResolver::go (AST::Crate &crate)
 {

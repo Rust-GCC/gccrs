@@ -30,13 +30,11 @@ namespace Resolver {
 class EarlyNameResolver : public AST::ASTVisitor
 {
 public:
-  static EarlyNameResolver &get ();
+  EarlyNameResolver ();
 
   void go (AST::Crate &crate);
 
 private:
-  EarlyNameResolver ();
-
   /**
    * Execute a lambda within a scope. This is equivalent to calling
    * `enter_scope` before your code and `exit_scope` after. This ensures

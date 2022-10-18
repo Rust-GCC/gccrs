@@ -101,7 +101,7 @@ public:
 	// mark for stripping if required
 	value->accept_vis (*this);
 
-	auto final_fragment = expander.take_expanded_fragment (*this);
+	auto final_fragment = expander.take_expanded_fragment ();
 
 	if (final_fragment.should_expand ())
 	  {

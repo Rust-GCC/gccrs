@@ -74,11 +74,14 @@ try_expand_macro_expression (AST::Expr *expr, MacroExpander *expander)
   /* This is probably the one case where we want to eagerly expand and
    * name-resolve macros */
 
+  /* FIXME: But how do we do that? It's going to be super hard
+   * right? How do we get it right? How does rustc do it? */
+
   auto attr_visitor = Rust::AttrVisitor (*expander);
-  auto early_name_resolver = Resolver::EarlyNameResolver::get ();
+  auto early_name_resolver = Resolver::EarlyNameResolver ();
   expr->accept_vis (early_name_resolver);
   expr->accept_vis (attr_visitor);
-  return expander->take_expanded_fragment (attr_visitor);
+  return expander->take_expanded_fragment ();
 }
 
 /* Expand and then extract a string literal from the macro */
