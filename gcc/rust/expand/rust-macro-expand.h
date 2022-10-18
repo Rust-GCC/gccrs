@@ -345,6 +345,9 @@ struct MacroExpander
    */
   void reset_changed_state () { has_changed_flag = false; }
 
+  AST::MacroRulesDefinition *get_last_definition () { return last_def; }
+  AST::MacroInvocation *get_last_invocation () { return last_invoc; }
+
 private:
   AST::Crate &crate;
   Session &session;
@@ -352,6 +355,9 @@ private:
   std::vector<ContextType> context;
   AST::Fragment expanded_fragment;
   bool has_changed_flag;
+
+  AST::MacroRulesDefinition *last_def;
+  AST::MacroInvocation *last_invoc;
 
 public:
   Resolver::Resolver *resolver;

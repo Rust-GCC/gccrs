@@ -151,6 +151,11 @@ MacroExpander::expand_invoc (AST::MacroInvocation &invoc, bool has_semicolon)
   if (!ok)
     return;
 
+  // We store the last expanded invocation and macro definition for error
+  // reporting in case the recursion limit is reached
+  last_invoc = &invoc;
+  last_def = rules_def;
+
   if (rules_def->is_builtin ())
     fragment
       = rules_def->get_builtin_transcriber () (invoc.get_locus (), invoc_data);

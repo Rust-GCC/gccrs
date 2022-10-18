@@ -835,6 +835,11 @@ Session::expansion (AST::Crate &crate)
   auto fixed_point_reached = false;
   unsigned iterations = 0;
 
+  // create extctxt? from parse session, cfg, and resolver?
+  /* expand by calling cxtctxt object's monotonic_expander's expand_crate
+   * method. */
+  MacroExpander expander (crate, cfg, *this);
+
   // FIXME: Missing expansion_depth check
   // FIXME: How do we handle builtins for that?
   while (!fixed_point_reached && iterations < cfg.recursion_limit)
@@ -842,10 +847,6 @@ Session::expansion (AST::Crate &crate)
       /* We need to name resolve macros and imports here */
       Resolver::EarlyNameResolver ().go (crate);
 
-      // create extctxt? from parse session, cfg, and resolver?
-      /* expand by calling cxtctxt object's monotonic_expander's expand_crate
-       * method. */
-      MacroExpander expander (crate, cfg, *this);
       expander.expand_crate ();
 
       fixed_point_reached = !expander.has_changed ();
@@ -859,7 +860,17 @@ Session::expansion (AST::Crate &crate)
   // TODO: Keep a reference to last MacroRulesDef and last MacroInvocation in
   // MacroExpander
   if (iterations == cfg.recursion_limit)
-    rust_error_at (Location (), "reached recursion limit");
+    {
+      auto last_invoc = expander.get_last_invocation ();
+      auto last_def = expander.get_last_definition ();
+
+      rust_assert (last_def && last_invoc);
+
+      RichLocation range (last_invoc->get_locus ());
+      range.add_range (last_def->get_locus ());
+
+      rust_error_at (range, "reached recursion limit");
+    }
 
   // error reporting - check unused macros, get missing fragment specifiers
 
