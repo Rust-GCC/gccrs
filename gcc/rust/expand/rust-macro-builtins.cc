@@ -37,6 +37,16 @@ make_string (Location locus, std::string value)
 			  PrimitiveCoreType::CORETYPE_STR, {}, locus));
 }
 
+std::unique_ptr<AST::Expr>
+make_macro_invocation (std::string macro, AST::DelimTokenTree arguments)
+{
+  return std::unique_ptr<AST::Expr> (new AST::MacroInvocation (
+    AST::MacroInvocData (AST::SimplePath (
+			   {AST::SimplePathSegment (macro, Location ())}),
+			 std::move (arguments)),
+    {}, Location ()));
+}
+
 /* Match the end token of a macro given the start delimiter of the macro */
 
 static inline TokenId
@@ -78,8 +88,6 @@ try_expand_macro_expression (AST::Expr *expr, MacroExpander *expander)
    * right? How do we get it right? How does rustc do it? */
 
   auto attr_visitor = Rust::AttrVisitor (*expander);
-  auto early_name_resolver = Resolver::EarlyNameResolver ();
-  expr->accept_vis (early_name_resolver);
   expr->accept_vis (attr_visitor);
   return expander->take_expanded_fragment ();
 }
@@ -392,6 +400,47 @@ MacroBuiltin::compile_error_handler (Location invoc_locus,
 
 /* Expand builtin macro concat!(), which joins all the literal parameters
    into a string with no delimiter. */
+
+// This is a weird one. We want to do something where, if something cannot be
+// expanded yet (i.e. macro invocation?) we return the whole MacroInvocation
+// node again but expanded as much as possible.
+// Is that possible? How do we do that?
+//
+// Let's take a few examples:
+//
+// 1. concat!(1, 2, true);
+// 2. concat!(a!(), 2, true);
+// 3. concat!(concat!(1, false), 2, true);
+// 4. concat!(concat!(1, a!()), 2, true);
+//
+// 1. We simply want to return the new fragment: "12true"
+// 2. We want to return `concat!(a_expanded, 2, true)` as a fragment
+// 3. We want to return `concat!(1, false, 2, true)`
+// 4. We want to return `concat!(concat!(1, a_expanded), 2, true);
+//
+// How do we do that?
+//
+// For each (un)expanded fragment: we check if it is expanded fully
+//
+// 1. What is expanded fully?
+// 2. How to check?
+//
+// If it is expanded fully and not a literal, then we error out.
+// Otherwise we simply emplace it back and keep going.
+//
+// In the second case, we must mark that this concat invocation still has some
+// expansion to do: This allows us to return a `MacroInvocation { ... }` as an
+// AST fragment, instead of a completed string.
+//
+// This means that we must change all the `try_expand_many_*` APIs and so on to
+// return some sort of index or way to signify that we might want to reuse some
+// bits and pieces of the original token tree.
+//
+// Now, before that: How do we resolve the names used in a builtin macro
+// invocation?
+// Do we split the two passes of parsing the token tree and then expanding it?
+// Can we do that easily?
+
 AST::Fragment
 MacroBuiltin::concat_handler (Location invoc_locus, AST::MacroInvocData &invoc)
 {
@@ -409,7 +458,8 @@ MacroBuiltin::concat_handler (Location invoc_locus, AST::MacroInvocData &invoc)
 					     invoc.get_expander (), has_error);
   for (auto &expr : expanded_expr)
     {
-      if (!expr->is_literal ())
+      if (!expr->is_literal ()
+	  && expr->get_ast_kind () != AST::MACRO_INVOCATION)
 	{
 	  has_error = true;
 	  rust_error_at (expr->get_locus (), "expected a literal");

@@ -230,13 +230,8 @@ struct MacroExpander
   MacroExpander (AST::Crate &crate, ExpansionCfg cfg, Session &session)
     : cfg (cfg), crate (crate), session (session),
       sub_stack (SubstitutionScope ()),
-<<<<<<< HEAD
       expanded_fragment (AST::Fragment::create_error ()),
-      resolver (Resolver::Resolver::get ()),
-=======
-      expanded_fragment (AST::ASTFragment::create_error ()),
       has_changed_flag (false), resolver (Resolver::Resolver::get ()),
->>>>>>> e81121759cd (session-manager: Run EarlyNameResolution and Expansion in a fixed point)
       mappings (Analysis::Mappings::get ())
   {}
 

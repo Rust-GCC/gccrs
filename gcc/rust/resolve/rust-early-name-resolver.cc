@@ -846,6 +846,18 @@ EarlyNameResolver::visit (AST::MacroInvocation &invoc)
   auto &invoc_data = invoc.get_invoc_data ();
   auto has_semicolon = invoc.has_semicolon ();
 
+  // We need to do one extra thing for macro invocations:
+  // If the macro invoked is a builtin which expects to be expanded eagerly (all
+  // of them? Only some like `concat!`?), we must go through all its "arguments"
+  // and check if some are other macro invocations. In that case, resolve those
+  // macro invocations.
+  // This is going to be enough to make the builtin macros work, but maybe not
+  // enough for them to be eagerly expanded?
+  //
+  // Or...
+  // We simply insert these macro invocations calls and then leave it to the
+  // next fixed-point pass to expand them?
+
   // ??
   // switch on type of macro:
   //  - '!' syntax macro (inner switch)
