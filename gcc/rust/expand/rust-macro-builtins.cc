@@ -334,6 +334,7 @@ MacroBuiltin::include_bytes_handler (Location invoc_locus,
     new AST::BorrowExpr (std::move (array), false, false, {}, invoc_locus));
 
   auto node = AST::SingleASTNode (std::move (borrow));
+
   return AST::Fragment::complete ({node});
 }
 
@@ -385,7 +386,6 @@ MacroBuiltin::compile_error_handler (Location invoc_locus,
 
 /* Expand builtin macro concat!(), which joins all the literal parameters
    into a string with no delimiter. */
-
 AST::Fragment
 MacroBuiltin::concat_handler (Location invoc_locus, AST::MacroInvocData &invoc)
 {
@@ -492,6 +492,7 @@ MacroBuiltin::env_handler (Location invoc_locus, AST::MacroInvocData &invoc)
     }
 
   auto node = AST::SingleASTNode (make_string (invoc_locus, env_value));
+
   return AST::Fragment::complete ({node});
 }
 
