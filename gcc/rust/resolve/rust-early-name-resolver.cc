@@ -47,6 +47,20 @@ EarlyNameResolver::go (AST::Crate &crate)
 }
 
 void
+EarlyNameResolver::scoped (NodeId scope_id, std::function<void ()> fn)
+{
+  auto old_scope = current_scope;
+  current_scope = scope_id;
+  resolver.get_macro_scope ().push (scope_id);
+  resolver.push_new_macro_rib (resolver.get_macro_scope ().peek ());
+
+  fn ();
+
+  resolver.get_macro_scope ().pop ();
+  current_scope = old_scope;
+}
+
+void
 EarlyNameResolver::resolve_generic_args (AST::GenericArgs &generic_args)
 {
   for (auto &arg : generic_args.get_generic_args ())
@@ -898,6 +912,9 @@ EarlyNameResolver::visit (AST::MacroInvocation &invoc)
   AST::MacroRulesDefinition *rules_def = nullptr;
   bool ok = mappings.lookup_macro_def (resolved_node, &rules_def);
   rust_assert (ok);
+
+  if (rules_def->is_builtin ())
+    resolve_builtin_macro_arguments ();
 
   /* Since the EarlyNameResolver runs multiple time (fixed point algorithm)
    * we could be inserting the same macro def over and over again until we

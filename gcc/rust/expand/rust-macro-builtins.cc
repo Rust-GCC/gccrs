@@ -440,6 +440,10 @@ MacroBuiltin::compile_error_handler (Location invoc_locus,
 // invocation?
 // Do we split the two passes of parsing the token tree and then expanding it?
 // Can we do that easily?
+//
+// We still need to show the fact that a call to concat!() might be unexpanded.
+// So if we do see a macro invocation still when parsing the new token tree,
+// return an `Unexpanded` fragment.
 
 AST::Fragment
 MacroBuiltin::concat_handler (Location invoc_locus, AST::MacroInvocData &invoc)

@@ -40,18 +40,7 @@ private:
    * `enter_scope` before your code and `exit_scope` after. This ensures
    * no errors can be committed
    */
-  void scoped (NodeId scope_id, std::function<void ()> fn)
-  {
-    auto old_scope = current_scope;
-    current_scope = scope_id;
-    resolver.get_macro_scope ().push (scope_id);
-    resolver.push_new_macro_rib (resolver.get_macro_scope ().peek ());
-
-    fn ();
-
-    resolver.get_macro_scope ().pop ();
-    current_scope = old_scope;
-  }
+  void scoped (NodeId scope_id, std::function<void ()> fn);
 
   /**
    * The "scope" we are currently in.
@@ -113,6 +102,12 @@ private:
    * invocations
    */
   void resolve_qualified_path_type (AST::QualifiedPathType &path);
+
+  /**
+   * Parse the arguments given to a builtin macro. If one of these arguments
+   * is a macro invocation, then we need to resolve it.
+   */
+  void resolve_builtin_macro_arguments (AST::MacroInvocData &invoc_data);
 
   virtual void visit (AST::Token &tok);
   virtual void visit (AST::DelimTokenTree &delim_tok_tree);
