@@ -835,17 +835,18 @@ Session::expansion (AST::Crate &crate)
   auto fixed_point_reached = false;
   unsigned iterations = 0;
 
+  /* We need to name resolve macros and imports here */
+  auto enr = Resolver::EarlyNameResolver ();
   // create extctxt? from parse session, cfg, and resolver?
   /* expand by calling cxtctxt object's monotonic_expander's expand_crate
    * method. */
-  MacroExpander expander (crate, cfg, *this);
+  auto expander = MacroExpander (crate, cfg, *this, enr);
 
   // FIXME: Missing expansion_depth check
   // FIXME: How do we handle builtins for that?
   while (!fixed_point_reached && iterations < cfg.recursion_limit)
     {
-      /* We need to name resolve macros and imports here */
-      Resolver::EarlyNameResolver ().go (crate);
+      enr.go (crate);
 
       expander.expand_crate ();
 

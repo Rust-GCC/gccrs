@@ -89,7 +89,19 @@ try_expand_macro_expression (AST::Expr *expr, MacroExpander *expander)
 
   auto attr_visitor = Rust::AttrVisitor (*expander);
   expr->accept_vis (attr_visitor);
-  return expander->take_expanded_fragment ();
+
+  auto fragment = expander->take_expanded_fragment ();
+  auto new_expr = fragment.take_expression_fragment ();
+  rust_assert (new_expr->get_ast_kind () == AST::MACRO_INVOCATION);
+
+  // TODO: Figure out a way to avoid the clone/copy dance
+  auto copy = new_expr->clone_expr ();
+  auto invoc = static_cast<AST::MacroInvocation *> (copy.get ());
+
+  expander->get_early_name_resolver ().insert_pending_invocation (
+    expander->get_last_invocation ()->get_macro_node_id (), std::move (*invoc));
+
+  return AST::Fragment::create_error ();
 }
 
 /* Expand and then extract a string literal from the macro */

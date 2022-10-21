@@ -34,6 +34,36 @@ public:
 
   void go (AST::Crate &crate);
 
+  /**
+   * Insert a new `MacroInvocation` to be resolved as part of the next pass of
+   * the `EarlyNameResolver`. This is done in one specific context: Some builtin
+   * macros accept macro invocations as "possible literals": macro invocations
+   * which would be replaced by literals once expanded.
+   *
+   * Because of this, and unlike regular macros, builtin macros need to be
+   * expanded eagerly:
+   *
+   * ```rust
+   * macro_rules! a { () => ( "foo" ) }
+   *
+   * concat!(a!(), 1, 2)
+   * // -> becomes
+   * concat!("foo", 1, 2)
+   * // -> becomes
+   * "foo12"
+   * ```
+   *
+   * Careful: Only insert a pending `MacroInvocation` when resolving builtin
+   * macros! This will trigger assertions otherwise.
+   */
+  void insert_pending_invocation (NodeId parent_id,
+				  AST::MacroInvocation new_invocation);
+
+  /**
+   * Remove all pending invocations
+   */
+  void clear_pending_invocations ();
+
 private:
   /**
    * Execute a lambda within a scope. This is equivalent to calling
@@ -41,6 +71,11 @@ private:
    * no errors can be committed
    */
   void scoped (NodeId scope_id, std::function<void ()> fn);
+
+  /**
+   * Resolve all pending invocations present in a parent macro invocation
+   */
+  void resolve_pending_invocations (NodeId parent_id);
 
   /**
    * The "scope" we are currently in.
@@ -88,6 +123,14 @@ private:
 
   /* The crate's scope */
   NodeId crate_scope;
+
+  /**
+   * Pending invocations resolved when expanding builtin macros. These
+   * invocations need to be expanded eagerly, before the parent macro itself
+   * gets expanded.
+   */
+  std::unordered_map<NodeId, std::vector<AST::MacroInvocation>>
+    pending_invocations;
 
   Resolver &resolver;
   Analysis::Mappings &mappings;

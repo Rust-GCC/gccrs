@@ -227,11 +227,13 @@ struct MacroExpander
   ExpansionCfg cfg;
   unsigned int expansion_depth = 0;
 
-  MacroExpander (AST::Crate &crate, ExpansionCfg cfg, Session &session)
+  MacroExpander (AST::Crate &crate, ExpansionCfg cfg, Session &session,
+		 Resolver::EarlyNameResolver &enr)
     : cfg (cfg), crate (crate), session (session),
       sub_stack (SubstitutionScope ()),
       expanded_fragment (AST::Fragment::create_error ()),
-      has_changed_flag (false), resolver (Resolver::Resolver::get ()),
+      has_changed_flag (false), enr (enr),
+      resolver (Resolver::Resolver::get ()),
       mappings (Analysis::Mappings::get ())
   {}
 
@@ -338,10 +340,16 @@ struct MacroExpander
    * Reset the expander's "changed" state. This function should be executed at
    * each iteration in a fixed point loop
    */
-  void reset_changed_state () { has_changed_flag = false; }
+  void reset_changed_state ()
+  {
+    has_changed_flag = false;
+    enr.clear_pending_invocations ();
+  }
 
   AST::MacroRulesDefinition *get_last_definition () { return last_def; }
   AST::MacroInvocation *get_last_invocation () { return last_invoc; }
+
+  Resolver::EarlyNameResolver &get_early_name_resolver () { return enr; }
 
 private:
   AST::Crate &crate;
@@ -353,6 +361,8 @@ private:
 
   AST::MacroRulesDefinition *last_def;
   AST::MacroInvocation *last_invoc;
+
+  Resolver::EarlyNameResolver &enr;
 
 public:
   Resolver::Resolver *resolver;

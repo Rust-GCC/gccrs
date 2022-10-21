@@ -47,6 +47,39 @@ EarlyNameResolver::go (AST::Crate &crate)
 }
 
 void
+EarlyNameResolver::insert_pending_invocation (
+  NodeId parent_id, AST::MacroInvocation new_invocation)
+{
+  // We assert that we are not in any scope: if the `current_scope` is none,
+  // this means that the ENR will have run through the whole crate and reset
+  // its current scope.
+  rust_assert (current_scope == UNKNOWN_NODEID);
+
+  auto it = pending_invocations.find (parent_id);
+  if (it != pending_invocations.end ())
+    it->second.emplace_back (new_invocation);
+  else
+    pending_invocations.insert ({parent_id, {new_invocation}});
+}
+
+void
+EarlyNameResolver::clear_pending_invocations ()
+{
+  pending_invocations.clear ();
+}
+
+void
+EarlyNameResolver::resolve_pending_invocations (NodeId parent_id)
+{
+  auto it = pending_invocations.find (parent_id);
+  if (it == pending_invocations.end ())
+    return;
+
+  for (auto &invocation : it->second)
+    invocation.accept_vis (*this);
+}
+
+void
 EarlyNameResolver::scoped (NodeId scope_id, std::function<void ()> fn)
 {
   auto old_scope = current_scope;
@@ -913,8 +946,9 @@ EarlyNameResolver::visit (AST::MacroInvocation &invoc)
   bool ok = mappings.lookup_macro_def (resolved_node, &rules_def);
   rust_assert (ok);
 
+  /* If the macro is a builtin, it might have pending invocations */
   if (rules_def->is_builtin ())
-    resolve_builtin_macro_arguments ();
+    resolve_pending_invocations (invoc.get_macro_node_id ());
 
   /* Since the EarlyNameResolver runs multiple time (fixed point algorithm)
    * we could be inserting the same macro def over and over again until we
