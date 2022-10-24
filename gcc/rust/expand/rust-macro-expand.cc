@@ -113,6 +113,8 @@ MacroExpander::expand_decl_macro (Location invoc_locus,
 void
 MacroExpander::expand_invoc (AST::MacroInvocation &invoc, bool has_semicolon)
 {
+  // FIXME: ARTHUR: Can we remove this check? Since we already perform it in the
+  // fixed point
   if (depth_exceeds_recursion_limit ())
     {
       rust_error_at (invoc.get_locus (), "reached recursion limit");
