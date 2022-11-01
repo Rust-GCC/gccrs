@@ -17,6 +17,7 @@
 #include "rust-diagnostics.h"
 #include "rust-system.h"
 #include "rust-builtins.h"
+#include "tree.h"
 
 #include "target.h"
 #include "stringpool.h"

@@ -124,6 +124,11 @@ static tree
 atomic_store_handler_inner (Context *ctx, TyTy::FnType *fntype, int ordering);
 static tree
 atomic_load_handler_inner (Context *ctx, TyTy::FnType *fntype, int ordering);
+static tree
+atomic_compare_exchange_handler_inner (Context *ctx, TyTy::FnType *fntype,
+				       tree weak_boolean_node,
+				       int success_memorder,
+				       int failure_memorder);
 
 static inline std::function<tree (Context *, TyTy::FnType *)>
 atomic_store_handler (int ordering)
@@ -138,6 +143,20 @@ atomic_load_handler (int ordering)
 {
   return [ordering] (Context *ctx, TyTy::FnType *fntype) {
     return atomic_load_handler_inner (ctx, fntype, ordering);
+  };
+}
+
+static inline std::function<tree (Context *, TyTy::FnType *)>
+atomic_compare_exchange_handler (bool weak, int success_memorder,
+				 int failure_memorder)
+{
+  return [weak, success_memorder, failure_memorder] (Context *ctx,
+						     TyTy::FnType *fntype) {
+    return atomic_compare_exchange_handler_inner (ctx, fntype,
+						  weak ? boolean_true_node
+						       : boolean_false_node,
+						  success_memorder,
+						  failure_memorder);
   };
 }
 
@@ -183,6 +202,78 @@ static const std::map<std::string,
     {"atomic_load_acquire", atomic_load_handler (__ATOMIC_ACQUIRE)},
     {"atomic_load_relaxed", atomic_load_handler (__ATOMIC_RELAXED)},
     {"atomic_load_unordered", atomic_load_handler (__ATOMIC_RELAXED)},
+    {"atomic_cxchg_relaxed_relaxed",
+     atomic_compare_exchange_handler (false, __ATOMIC_RELAXED,
+				      __ATOMIC_RELAXED)},
+    {"atomic_cxchg_relaxed_acquire",
+     atomic_compare_exchange_handler (false, __ATOMIC_RELAXED,
+				      __ATOMIC_ACQUIRE)},
+    {"atomic_cxchg_relaxed_seqcst",
+     atomic_compare_exchange_handler (false, __ATOMIC_RELAXED,
+				      __ATOMIC_SEQ_CST)},
+    {"atomic_cxchg_acquire_relaxed",
+     atomic_compare_exchange_handler (false, __ATOMIC_ACQUIRE,
+				      __ATOMIC_RELAXED)},
+    {"atomic_cxchg_acquire_acquire",
+     atomic_compare_exchange_handler (false, __ATOMIC_ACQUIRE,
+				      __ATOMIC_ACQUIRE)},
+    {"atomic_cxchg_acquire_seqcst",
+     atomic_compare_exchange_handler (false, __ATOMIC_ACQUIRE,
+				      __ATOMIC_SEQ_CST)},
+    {"atomic_cxchg_acqrel_relaxed",
+     atomic_compare_exchange_handler (false, __ATOMIC_ACQ_REL,
+				      __ATOMIC_RELAXED)},
+    {"atomic_cxchg_acqrel_acquire",
+     atomic_compare_exchange_handler (false, __ATOMIC_ACQ_REL,
+				      __ATOMIC_RELAXED)},
+    {"atomic_cxchg_acqrel_seqcst",
+     atomic_compare_exchange_handler (false, __ATOMIC_ACQ_REL,
+				      __ATOMIC_RELAXED)},
+    {"atomic_cxchg_seqcst_relaxed",
+     atomic_compare_exchange_handler (false, __ATOMIC_SEQ_CST,
+				      __ATOMIC_RELAXED)},
+    {"atomic_cxchg_seqcst_acquire",
+     atomic_compare_exchange_handler (false, __ATOMIC_SEQ_CST,
+				      __ATOMIC_ACQUIRE)},
+    {"atomic_cxchg_seqcst_seqcst",
+     atomic_compare_exchange_handler (false, __ATOMIC_SEQ_CST,
+				      __ATOMIC_SEQ_CST)},
+    {"atomic_cxchgweak_relaxed_relaxed",
+     atomic_compare_exchange_handler (true, __ATOMIC_RELAXED,
+				      __ATOMIC_RELAXED)},
+    {"atomic_cxchgweak_relaxed_acquire",
+     atomic_compare_exchange_handler (true, __ATOMIC_RELAXED,
+				      __ATOMIC_ACQUIRE)},
+    {"atomic_cxchgweak_relaxed_seqcst",
+     atomic_compare_exchange_handler (true, __ATOMIC_RELAXED,
+				      __ATOMIC_SEQ_CST)},
+    {"atomic_cxchgweak_acquire_relaxed",
+     atomic_compare_exchange_handler (true, __ATOMIC_ACQUIRE,
+				      __ATOMIC_RELAXED)},
+    {"atomic_cxchgweak_acquire_acquire",
+     atomic_compare_exchange_handler (true, __ATOMIC_ACQUIRE,
+				      __ATOMIC_ACQUIRE)},
+    {"atomic_cxchgweak_acquire_seqcst",
+     atomic_compare_exchange_handler (true, __ATOMIC_ACQUIRE,
+				      __ATOMIC_SEQ_CST)},
+    {"atomic_cxchgweak_acqrel_relaxed",
+     atomic_compare_exchange_handler (true, __ATOMIC_ACQ_REL,
+				      __ATOMIC_RELAXED)},
+    {"atomic_cxchgweak_acqrel_acquire",
+     atomic_compare_exchange_handler (true, __ATOMIC_ACQ_REL,
+				      __ATOMIC_RELAXED)},
+    {"atomic_cxchgweak_acqrel_seqcst",
+     atomic_compare_exchange_handler (true, __ATOMIC_ACQ_REL,
+				      __ATOMIC_RELAXED)},
+    {"atomic_cxchgweak_seqcst_relaxed",
+     atomic_compare_exchange_handler (true, __ATOMIC_SEQ_CST,
+				      __ATOMIC_RELAXED)},
+    {"atomic_cxchgweak_seqcst_acquire",
+     atomic_compare_exchange_handler (true, __ATOMIC_SEQ_CST,
+				      __ATOMIC_ACQUIRE)},
+    {"atomic_cxchgweak_seqcst_seqcst",
+     atomic_compare_exchange_handler (true, __ATOMIC_SEQ_CST,
+				      __ATOMIC_SEQ_CST)},
     {"unchecked_add", unchecked_op_handler (PLUS_EXPR)},
     {"unchecked_sub", unchecked_op_handler (MINUS_EXPR)},
     {"unchecked_mul", unchecked_op_handler (MULT_EXPR)},
@@ -860,6 +951,97 @@ atomic_load_handler_inner (Context *ctx, TyTy::FnType *fntype, int ordering)
   TREE_SIDE_EFFECTS (load_call) = 1;
 
   ctx->add_statement (return_statement);
+
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
+static tree
+atomic_compare_exchange_handler_inner (Context *ctx, TyTy::FnType *fntype,
+				       tree weak_value,
+				       int success_memorder_raw,
+				       int failure_memorder_raw)
+{
+  rust_assert (fntype->get_params ().size () == 3);
+  rust_assert (fntype->get_num_substitutions () == 1);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  std::vector<Bvariable *> param_vars;
+  std::vector<tree> types;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars, &types);
+
+  if (!ctx->get_backend ()->function_set_parameters (fndecl, param_vars))
+    return error_mark_node;
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  auto dst = ctx->get_backend ()->var_expression (param_vars[0], Location ());
+  auto old = ctx->get_backend ()->var_expression (param_vars[1], Location ());
+  auto src = ctx->get_backend ()->var_expression (param_vars[2], Location ());
+  auto success_memorder = make_unsigned_long_tree (ctx, success_memorder_raw);
+  auto failure_memorder = make_unsigned_long_tree (ctx, failure_memorder_raw);
+
+  auto monomorphized_type
+    = fntype->get_substs ()[0].get_param_ty ()->resolve ();
+  auto builtin_name
+    = build_atomic_builtin_name ("atomic_compare_exchange_",
+				 fntype->get_locus (), monomorphized_type);
+  if (builtin_name.empty ())
+    return error_mark_node;
+
+  auto atomic_cmp_xchg_raw = NULL_TREE;
+  BuiltinsContext::get ().lookup_simple_builtin (builtin_name,
+						 &atomic_cmp_xchg_raw);
+  rust_assert (atomic_cmp_xchg_raw);
+
+  auto atomic_cmp_xchg = build_fold_addr_expr_loc (Location ().gcc_location (),
+						   atomic_cmp_xchg_raw);
+
+  // The gcc builtin has a fun behavior where if *ptr and *expected are not
+  // equal, it will write *ptr into *expected. So we actually need to create a
+  // tmp variable which is copy(old) and pass the adress as an argument to the
+  // builtin. We then perform the call, and return {tmp, result} as the old
+  // value will have been written into tmp
+
+  // let tmp = old;
+  // let tmp_addr = &tmp;
+  auto tmp_init = NULL_TREE;
+  auto tmp = ctx->get_backend ()
+	       ->temporary_variable (fndecl, NULL_TREE, TREE_TYPE (types[0]),
+				     old, true, Location (), &tmp_init)
+	       ->get_tree (Location ());
+  auto tmp_addr = build_fold_addr_expr (tmp);
+
+  // let call_res = atomic_compare_exchange(dst, tmp_addr, src, ...);
+  auto cxchg_call = ctx->get_backend ()->call_expression (
+    atomic_cmp_xchg,
+    {dst, tmp_addr, src, weak_value, success_memorder, failure_memorder},
+    nullptr, Location ());
+
+  auto call = NULL_TREE;
+  auto call_res = ctx->get_backend ()
+		    ->temporary_variable (fndecl, NULL_TREE, boolean_type_node,
+					  cxchg_call, false, Location (), &call)
+		    ->get_tree (Location ());
+
+  // Add both statements to the current function declaration
+  ctx->add_statement (tmp_init);
+  ctx->add_statement (call);
+
+  // let res = (tmp, call_res);
+  auto constructor_expr = ctx->get_backend ()->constructor_expression (
+    TREE_TYPE (DECL_RESULT (fndecl)), false, {tmp, call_res}, -1, Location ());
+
+  auto ret = ctx->get_backend ()->return_statement (fndecl, {constructor_expr},
+						    Location ());
+
+  ctx->add_statement (ret);
 
   finalize_intrinsic_block (ctx, fndecl);
 
