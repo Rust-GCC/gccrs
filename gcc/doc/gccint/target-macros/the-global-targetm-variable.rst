@@ -63,3 +63,11 @@ This is declared in :samp:`d/d-target.h`, the initializer
 initialize ``targetdm`` themselves, they should set
 ``target_has_targetdm=yes`` in :samp:`config.gcc`; otherwise a default
 definition is used.
+
+Similarly, there is a ``targetrustm`` variable for hooks that are
+specific to the Rust language front end, documented as 'Rust Target
+Hook'.  This is declared in :samp:`rust/rust-target.h`, the initializer
+``TARGETRUSTM_INITIALIZER`` in :samp:`rust/rust-target-def.h`.
+If targets initialize ``targetrustm`` themselves, they should set
+``target_has_targetrustm=yes`` in :samp:`config.gcc`; otherwise a
+default definition is used.

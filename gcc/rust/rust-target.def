@@ -33,7 +33,7 @@ HOOK_VECTOR (TARGETRUSTM_INITIALIZER, gcc_targetrustm)
 DEFHOOK
 (rust_cpu_info,
  "Declare all environmental CPU info and features relating to the target CPU\n\
-using the function @code{rust_add_target_info}, which takes a string\n\
+using the function ``rust_add_target_info``, which takes a string\n\
 representing the feature key and a string representing the feature value.\n\
 Configuration pairs predefined by this hook apply to all files that are being\n\
 compiled.",
@@ -43,7 +43,7 @@ compiled.",
 /* Environmental OS info relating to the target OS.  */
 DEFHOOK
 (rust_os_info,
- "Similar to @code{TARGET_RUST_CPU_INFO}, but is used for configuration info\n\
+ "Similar to ``TARGET_RUST_CPU_INFO``, but is used for configuration info\n\
 relating to the target operating system.",
  void, (void),
  hook_void_void)

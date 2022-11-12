@@ -6901,3 +6901,22 @@
 
 [TARGET_D_TEMPLATES_ALWAYS_COMDAT]
 
+[TARGET_RUST_CPU_INFO]
+.. function:: void TARGET_RUST_CPU_INFO (void)
+
+  Declare all environmental CPU info and features relating to the target CPU
+  using the function ``rust_add_target_info``, which takes a string
+  representing the feature key and a string representing the feature value.
+  Configuration pairs predefined by this hook apply to all files that are being
+  compiled.
+
+[TARGET_RUST_CPU_INFO]
+
+[TARGET_RUST_OS_INFO]
+.. function:: void TARGET_RUST_OS_INFO (void)
+
+  Similar to ``TARGET_RUST_CPU_INFO``, but is used for configuration info
+  relating to the target operating system.
+
+[TARGET_RUST_OS_INFO]
+

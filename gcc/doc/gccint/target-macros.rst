@@ -56,5 +56,6 @@ through the macros defined in the :samp:`.h` file.
   target-macros/parameters-for-precompiled-header-validity-checking
   target-macros/c++-abi-parameters
   target-macros/d-abi-parameters
+  target-macros/rust-abi-parameters
   target-macros/adding-support-for-named-address-spaces
   target-macros/miscellaneous-parameters
