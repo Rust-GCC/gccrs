@@ -110,6 +110,7 @@ AARCH64_CORE("cortex-a78c",  cortexa78c, cortexa57, V8_2A,  (F16, RCPC, DOTPROD,
 AARCH64_CORE("cortex-a65",  cortexa65, cortexa53, V8_2A,  (F16, RCPC, DOTPROD, SSBS), cortexa73, 0x41, 0xd06, -1)
 AARCH64_CORE("cortex-a65ae",  cortexa65ae, cortexa53, V8_2A,  (F16, RCPC, DOTPROD, SSBS), cortexa73, 0x41, 0xd43, -1)
 AARCH64_CORE("cortex-x1",  cortexx1, cortexa57, V8_2A,  (F16, RCPC, DOTPROD, SSBS, PROFILE), neoversen1, 0x41, 0xd44, -1)
+AARCH64_CORE("cortex-x1c",  cortexx1c, cortexa57, V8_2A,  (F16, RCPC, DOTPROD, SSBS, PROFILE, PAUTH), neoversen1, 0x41, 0xd4c, -1)
 AARCH64_CORE("ares",  ares, cortexa57, V8_2A,  (F16, RCPC, DOTPROD, PROFILE), neoversen1, 0x41, 0xd0c, -1)
 AARCH64_CORE("neoverse-n1",  neoversen1, cortexa57, V8_2A,  (F16, RCPC, DOTPROD, PROFILE), neoversen1, 0x41, 0xd0c, -1)
 AARCH64_CORE("neoverse-e1",  neoversee1, cortexa53, V8_2A,  (F16, RCPC, DOTPROD, SSBS), cortexa73, 0x41, 0xd4a, -1)
@@ -166,6 +167,8 @@ AARCH64_CORE("cortex-r82", cortexr82, cortexa53, V8R, (), cortexa53, 0x41, 0xd15
 AARCH64_CORE("cortex-a510",  cortexa510, cortexa55, V9A,  (SVE2_BITPERM, MEMTAG, I8MM, BF16), cortexa53, 0x41, 0xd46, -1)
 
 AARCH64_CORE("cortex-a710",  cortexa710, cortexa57, V9A,  (SVE2_BITPERM, MEMTAG, I8MM, BF16), neoversen2, 0x41, 0xd47, -1)
+
+AARCH64_CORE("cortex-a715",  cortexa715, cortexa57, V9A,  (SVE2_BITPERM, MEMTAG, I8MM, BF16), neoversen2, 0x41, 0xd4d, -1)
 
 AARCH64_CORE("cortex-x2",  cortexx2, cortexa57, V9A,  (SVE2_BITPERM, MEMTAG, I8MM, BF16), neoversen2, 0x41, 0xd48, -1)
 

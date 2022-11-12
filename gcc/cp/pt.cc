@@ -19912,6 +19912,7 @@ tsubst_lambda_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	  goto out;
 	}
       finish_member_declaration (inst);
+      record_lambda_scope_sig_discriminator (r, inst);
 
       tree fn = oldtmpl ? DECL_TEMPLATE_RESULT (inst) : inst;
 
@@ -20936,8 +20937,9 @@ tsubst_copy_and_build (tree t,
 		    /* In a lambda fn, we have to be careful to not
 		       introduce new this captures.  Legacy code can't
 		       be using lambdas anyway, so it's ok to be
-		       stricter.  Be strict with C++20 template-id ADL too.  */
-		    bool strict = in_lambda || template_id_p;
+		       stricter.  Be strict with C++20 template-id ADL too.
+		       And be strict if we're already failing anyway.  */
+		    bool strict = in_lambda || template_id_p || seen_error();
 		    bool diag = true;
 		    if (strict)
 		      error_at (cp_expr_loc_or_input_loc (t),

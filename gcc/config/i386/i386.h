@@ -1933,9 +1933,6 @@ do {							\
 
 #define SLOW_BYTE_ACCESS 0
 
-/* Nonzero if access to memory by shorts is slow and undesirable.  */
-#define SLOW_SHORT_ACCESS 0
-
 /* Define this macro if it is as good or better to call a constant
    function address than to call an address kept in a register.
 
@@ -2225,6 +2222,8 @@ enum processor_type
   PROCESSOR_GOLDMONT,
   PROCESSOR_GOLDMONT_PLUS,
   PROCESSOR_TREMONT,
+  PROCESSOR_SIERRAFOREST,
+  PROCESSOR_GRANDRIDGE,
   PROCESSOR_KNL,
   PROCESSOR_KNM,
   PROCESSOR_SKYLAKE,
@@ -2238,6 +2237,7 @@ enum processor_type
   PROCESSOR_SAPPHIRERAPIDS,
   PROCESSOR_ALDERLAKE,
   PROCESSOR_ROCKETLAKE,
+  PROCESSOR_GRANITERAPIDS,
   PROCESSOR_INTEL,
   PROCESSOR_LUJIAZUI,
   PROCESSOR_GEODE,
@@ -2345,6 +2345,11 @@ constexpr wide_int_bitmask PTA_ALDERLAKE = PTA_TREMONT | PTA_ADX | PTA_AVX
   | PTA_AVX2 | PTA_BMI | PTA_BMI2 | PTA_F16C | PTA_FMA | PTA_LZCNT
   | PTA_PCONFIG | PTA_PKU | PTA_VAES | PTA_VPCLMULQDQ | PTA_SERIALIZE
   | PTA_HRESET | PTA_KL | PTA_WIDEKL | PTA_AVXVNNI;
+constexpr wide_int_bitmask PTA_SIERRAFOREST = PTA_ALDERLAKE | PTA_AVXIFMA
+  | PTA_AVXVNNIINT8 | PTA_AVXNECONVERT | PTA_CMPCCXADD;
+constexpr wide_int_bitmask PTA_GRANITERAPIDS = PTA_SAPPHIRERAPIDS | PTA_AMX_FP16
+  | PTA_PREFETCHI;
+constexpr wide_int_bitmask PTA_GRANDRIDGE = PTA_SIERRAFOREST | PTA_RAOINT;
 constexpr wide_int_bitmask PTA_KNM = PTA_KNL | PTA_AVX5124VNNIW
   | PTA_AVX5124FMAPS | PTA_AVX512VPOPCNTDQ;
 constexpr wide_int_bitmask PTA_ZNVER1 = PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2

@@ -11712,6 +11712,7 @@ cp_parser_lambda_declarator_opt (cp_parser* parser, tree lambda_expr)
       fco = finish_fully_implicit_template (parser, fco);
 
     finish_member_declaration (fco);
+    record_lambda_scope_sig_discriminator (lambda_expr, fco);
 
     obstack_free (&declarator_obstack, p);
 
@@ -29238,8 +29239,7 @@ cp_parser_std_attribute (cp_parser *parser, tree attr_ns)
 
 /* Warn if the attribute ATTRIBUTE appears more than once in the
    attribute-list ATTRIBUTES.  This used to be enforced for certain
-   attributes, but the restriction was removed in P2156.  Note that
-   carries_dependency ([dcl.attr.depend]) isn't implemented yet in GCC.
+   attributes, but the restriction was removed in P2156.
    LOC is the location of ATTRIBUTE.  Returns true if ATTRIBUTE was not
    found in ATTRIBUTES.  */
 
@@ -29248,7 +29248,7 @@ cp_parser_check_std_attribute (location_t loc, tree attributes, tree attribute)
 {
   static auto alist = { "noreturn", "deprecated", "nodiscard", "maybe_unused",
 			"likely", "unlikely", "fallthrough",
-			"no_unique_address" };
+			"no_unique_address", "carries_dependency" };
   if (attributes)
     for (const auto &a : alist)
       if (is_attribute_p (a, get_attribute_name (attribute))
@@ -31449,10 +31449,11 @@ cp_parser_template_declaration_after_parameters (cp_parser* parser,
   else if (cxx_dialect >= cxx11
 	   && cp_lexer_next_token_is_keyword (parser->lexer, RID_USING))
     decl = cp_parser_alias_declaration (parser);
-  else if (cxx_dialect >= cxx20 /* Implies flag_concept.  */
+  else if (flag_concepts
            && cp_lexer_next_token_is_keyword (parser->lexer, RID_CONCEPT)
-           && !cp_lexer_nth_token_is_keyword (parser->lexer, 2, RID_BOOL))
-    /* Allow 'concept bool' to be handled as per the TS.  */
+	   && cp_lexer_nth_token_is (parser->lexer, 2, CPP_NAME))
+    /* -fconcept-ts 'concept bool' syntax is handled below, in
+	cp_parser_single_declaration.  */
     decl = cp_parser_concept_definition (parser);
   else
     {

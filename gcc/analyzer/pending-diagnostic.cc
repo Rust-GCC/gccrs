@@ -19,6 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
+#define INCLUDE_MEMORY
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -49,6 +50,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/exploded-graph.h"
 #include "diagnostic-path.h"
 #include "analyzer/checker-path.h"
+#include "make-unique.h"
 
 #if ENABLE_ANALYZER
 
@@ -165,6 +167,18 @@ pending_diagnostic::fixup_location (location_t loc) const
   return loc;
 }
 
+/* Base implementation of pending_diagnostic::add_function_entry_event.
+   Add a function_entry_event to EMISSION_PATH.  */
+
+void
+pending_diagnostic::add_function_entry_event (const exploded_edge &eedge,
+					      checker_path *emission_path)
+{
+  const exploded_node *dst_node = eedge.m_dest;
+  const program_point &dst_point = dst_node->get_point ();
+  emission_path->add_event (make_unique<function_entry_event> (dst_point));
+}
+
 /* Base implementation of pending_diagnostic::add_call_event.
    Add a call_event to EMISSION_PATH.  */
 
@@ -177,12 +191,30 @@ pending_diagnostic::add_call_event (const exploded_edge &eedge,
   const int src_stack_depth = src_point.get_stack_depth ();
   const gimple *last_stmt = src_point.get_supernode ()->get_last_stmt ();
   emission_path->add_event
-    (new call_event (eedge,
-		     (last_stmt
-		      ? last_stmt->location
-		      : UNKNOWN_LOCATION),
-		     src_point.get_fndecl (),
-		     src_stack_depth));
+    (make_unique<call_event> (eedge,
+			      (last_stmt
+			       ? last_stmt->location
+			       : UNKNOWN_LOCATION),
+			      src_point.get_fndecl (),
+			      src_stack_depth));
+}
+
+/* Base implementation of pending_diagnostic::add_final_event.
+   Add a warning_event to the end of EMISSION_PATH.  */
+
+void
+pending_diagnostic::add_final_event (const state_machine *sm,
+				     const exploded_node *enode,
+				     const gimple *stmt,
+				     tree var, state_machine::state_t state,
+				     checker_path *emission_path)
+{
+  emission_path->add_event
+    (make_unique<warning_event> (get_stmt_location (stmt,
+						    enode->get_function ()),
+				 enode->get_function ()->decl,
+				 enode->get_stack_depth (),
+				 sm, var, state));
 }
 
 } // namespace ana

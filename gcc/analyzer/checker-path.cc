@@ -19,6 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
+#define INCLUDE_MEMORY
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -55,6 +56,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/diagnostic-manager.h"
 #include "analyzer/checker-path.h"
 #include "analyzer/exploded-graph.h"
+#include "make-unique.h"
 
 #if ENABLE_ANALYZER
 
@@ -200,6 +202,20 @@ checker_event::dump (pretty_printer *pp) const
     }
   pp_printf (pp, ", m_loc=%x)",
 	     get_location ());
+}
+
+/* Dump this event to stderr (for debugging/logging purposes).  */
+
+DEBUG_FUNCTION void
+checker_event::debug () const
+{
+  pretty_printer pp;
+  pp_format_decoder (&pp) = default_tree_printer;
+  pp_show_color (&pp) = pp_show_color (global_dc->printer);
+  pp.buffer->stream = stderr;
+  dump (&pp);
+  pp_newline (&pp);
+  pp_flush (&pp);
 }
 
 /* Hook for being notified when this event has its final id EMISSION_ID
@@ -360,6 +376,14 @@ region_creation_event::get_desc (bool can_colorize) const
 }
 
 /* class function_entry_event : public checker_event.  */
+
+function_entry_event::function_entry_event (const program_point &dst_point)
+: checker_event (EK_FUNCTION_ENTRY,
+		 dst_point.get_supernode ()->get_start_location (),
+		 dst_point.get_fndecl (),
+		 dst_point.get_stack_depth ())
+{
+}
 
 /* Implementation of diagnostic_event::get_desc vfunc for
    function_entry_event.
@@ -1036,7 +1060,7 @@ rewind_event::rewind_event (const exploded_edge *eedge,
   m_rewind_info (rewind_info),
   m_eedge (eedge)
 {
-  gcc_assert (m_eedge->m_custom_info == m_rewind_info);
+  gcc_assert (m_eedge->m_custom_info.get () == m_rewind_info);
 }
 
 /* class rewind_from_longjmp_event : public rewind_event.  */
@@ -1226,6 +1250,21 @@ checker_path::maybe_log (logger *logger, const char *desc) const
     }
 }
 
+void
+checker_path::add_event (std::unique_ptr<checker_event> event)
+{
+  if (m_logger)
+    {
+      m_logger->start_log_line ();
+      m_logger->log_partial ("added event[%i]: %s ",
+			     m_events.length (),
+			     event_kind_to_string (event.get ()->m_kind));
+      event.get ()->dump (m_logger->get_printer ());
+      m_logger->end_log_line ();
+    }
+  m_events.safe_push (event.release ());
+}
+
 /* Print a multiline form of this path to STDERR.  */
 
 DEBUG_FUNCTION void
@@ -1261,31 +1300,16 @@ checker_path::add_region_creation_events (const region *reg,
     if (const svalue *capacity_sval = model->get_capacity (reg))
       capacity = model->get_representative_tree (capacity_sval);
 
-  add_event (new region_creation_event (reg, capacity, RCE_MEM_SPACE,
-					loc, fndecl, depth));
+  add_event (make_unique<region_creation_event> (reg, capacity, RCE_MEM_SPACE,
+						 loc, fndecl, depth));
 
   if (capacity)
-    add_event (new region_creation_event (reg, capacity, RCE_CAPACITY,
-					  loc, fndecl, depth));
+    add_event (make_unique<region_creation_event> (reg, capacity, RCE_CAPACITY,
+						   loc, fndecl, depth));
 
   if (debug)
-    add_event (new region_creation_event (reg, capacity, RCE_DEBUG,
-					  loc, fndecl, depth));
-}
-
-/* Add a warning_event to the end of this path.  */
-
-void
-checker_path::add_final_event (const state_machine *sm,
-			       const exploded_node *enode, const gimple *stmt,
-			       tree var, state_machine::state_t state)
-{
-  checker_event *end_of_path
-    = new warning_event (get_stmt_location (stmt, enode->get_function ()),
-			 enode->get_function ()->decl,
-			 enode->get_stack_depth (),
-			 sm, var, state);
-  add_event (end_of_path);
+    add_event (make_unique<region_creation_event> (reg, capacity, RCE_DEBUG,
+						   loc, fndecl, depth));
 }
 
 void

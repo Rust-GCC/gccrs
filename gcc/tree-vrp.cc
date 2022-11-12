@@ -180,7 +180,7 @@ remove_unreachable::remove_and_update_globals (bool final_p)
   bitmap_copy (dce, all_exports);
   // Don't attempt to DCE parameters.
   EXECUTE_IF_SET_IN_BITMAP (all_exports, 0, i, bi)
-    if (SSA_NAME_IS_DEFAULT_DEF (ssa_name (i)))
+    if (!ssa_name (i) || SSA_NAME_IS_DEFAULT_DEF (ssa_name (i)))
       bitmap_clear_bit (dce, i);
   simple_dce_from_worklist (dce);
 
@@ -4442,6 +4442,7 @@ public:
   {
     m_ranger = r;
     m_pta = new pointer_equiv_analyzer (m_ranger);
+    m_last_bb_stmt = NULL;
   }
 
   ~rvrp_folder ()
@@ -4485,6 +4486,7 @@ public:
     for (gphi_iterator gsi = gsi_start_phis (bb); !gsi_end_p (gsi);
 	 gsi_next (&gsi))
       m_ranger->register_inferred_ranges (gsi.phi ());
+    m_last_bb_stmt = last_stmt (bb);
   }
 
   void post_fold_bb (basic_block bb) override
@@ -4497,6 +4499,10 @@ public:
   void pre_fold_stmt (gimple *stmt) override
   {
     m_pta->visit_stmt (stmt);
+    // If this is the last stmt and there are inferred ranges, reparse the
+    // block for transitive inferred ranges that occur earlier in the block.
+    if (stmt == m_last_bb_stmt)
+      m_ranger->register_transitive_inferred_ranges (gimple_bb (stmt));
   }
 
   bool fold_stmt (gimple_stmt_iterator *gsi) override
@@ -4514,6 +4520,7 @@ private:
   gimple_ranger *m_ranger;
   simplify_using_ranges m_simplifier;
   pointer_equiv_analyzer *m_pta;
+  gimple *m_last_bb_stmt;
 };
 
 /* Main entry point for a VRP pass using just ranger. This can be called
