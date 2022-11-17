@@ -377,11 +377,8 @@ HIRCompileBase::verify_array_capacities (tree ltype, tree rtype,
     return false;
 
   unsigned HOST_WIDE_INT ltype_length
-    = wi::ext (wi::to_offset (TYPE_MAX_VALUE (ltype_domain))
-		 - wi::to_offset (TYPE_MIN_VALUE (ltype_domain)) + 1,
-	       TYPE_PRECISION (TREE_TYPE (ltype_domain)),
-	       TYPE_SIGN (TREE_TYPE (ltype_domain)))
-	.to_uhwi ();
+    = TREE_INT_CST_LOW (TYPE_MAX_VALUE (ltype_domain))
+      - TREE_INT_CST_LOW (TYPE_MIN_VALUE (ltype_domain)) + 1;
 
   tree rtype_domain = TYPE_DOMAIN (rtype);
   if (!rtype_domain)
