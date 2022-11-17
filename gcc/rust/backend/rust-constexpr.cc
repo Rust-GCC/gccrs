@@ -31,7 +31,7 @@ namespace Compile {
 
 struct constexpr_global_ctx
 {
-  HOST_WIDE_INT constexpr_ops_count;
+  unsigned long constexpr_ops_count;
 
   constexpr_global_ctx () : constexpr_ops_count (0) {}
 };
