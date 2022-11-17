@@ -2095,8 +2095,8 @@ CompileExpr::compile_integer_literal (const HIR::LiteralExpr &expr,
 		     tyty->get_name ().c_str ());
       return error_mark_node;
     }
-  tree result
-    = double_int_to_tree (type, mpz_get_double_int (type, ival, true));
+
+  tree result = wide_int_to_tree (type, wi::from_mpz (type, ival, true));
 
   mpz_clear (type_min);
   mpz_clear (type_max);
