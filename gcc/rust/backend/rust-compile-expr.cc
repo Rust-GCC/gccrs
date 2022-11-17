@@ -2180,9 +2180,7 @@ CompileExpr::compile_string_literal (const HIR::LiteralExpr &expr,
   rust_assert (ok);
   tree type = TyTyResolveCompile::compile (ctx, usize);
 
-  mpz_t ival;
-  mpz_init_set_ui (ival, literal_value.as_string ().size ());
-  tree size = double_int_to_tree (type, mpz_get_double_int (type, ival, true));
+  tree size = build_int_cstu (type, literal_value.as_string ().size ());
 
   return ctx->get_backend ()->constructor_expression (fat_pointer, false,
 						      {data, size}, -1,
@@ -2575,7 +2573,7 @@ HIRCompileBase::resolve_unsized_slice_adjustment (
 	       TYPE_PRECISION (TREE_TYPE (domain)),
 	       TYPE_SIGN (TREE_TYPE (domain)))
 	.to_uhwi ();
-  tree size = build_int_cst (size_type_node, array_size);
+  tree size = build_int_cstu (size_type_node, array_size);
 
   return ctx->get_backend ()->constructor_expression (fat_pointer, false,
 						      {data, size}, -1, locus);
