@@ -415,15 +415,7 @@ maybe_constexpr_fn (tree t)
 inline tree
 get_nth_callarg (tree t, int n)
 {
-  switch (TREE_CODE (t))
-    {
-    case CALL_EXPR:
-      return CALL_EXPR_ARG (t, n);
-
-    default:
-      gcc_unreachable ();
-      return NULL;
-    }
+  return CALL_EXPR_ARG (t, n);
 }
 
 // forked from gcc/cp/constexpr.cc var_in_maybe_constexpr_fn
