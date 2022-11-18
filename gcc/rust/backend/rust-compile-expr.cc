@@ -2189,8 +2189,6 @@ CompileExpr::compile_string_literal (const HIR::LiteralExpr &expr,
 
   tree size = build_int_cstu (type, literal_value.as_string ().size ());
 
-  mpz_clear (ival);
-
   return ctx->get_backend ()->constructor_expression (fat_pointer, false,
 						      {data, size}, -1,
 						      expr.get_locus ());
