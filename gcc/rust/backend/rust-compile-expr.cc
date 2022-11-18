@@ -2095,7 +2095,14 @@ CompileExpr::compile_integer_literal (const HIR::LiteralExpr &expr,
 		     tyty->get_name ().c_str ());
       return error_mark_node;
     }
-  return double_int_to_tree (type, mpz_get_double_int (type, ival, true));
+  tree result
+    = double_int_to_tree (type, mpz_get_double_int (type, ival, true));
+
+  mpz_clear (type_min);
+  mpz_clear (type_max);
+  mpz_clear (ival);
+
+  return result;
 }
 
 tree
@@ -2183,6 +2190,8 @@ CompileExpr::compile_string_literal (const HIR::LiteralExpr &expr,
   mpz_t ival;
   mpz_init_set_ui (ival, literal_value.as_string ().size ());
   tree size = double_int_to_tree (type, mpz_get_double_int (type, ival, true));
+
+  mpz_clear (ival);
 
   return ctx->get_backend ()->constructor_expression (fat_pointer, false,
 						      {data, size}, -1,
