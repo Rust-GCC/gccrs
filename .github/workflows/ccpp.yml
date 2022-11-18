@@ -6,7 +6,7 @@ on:
       - trying
       - staging
   pull_request:
-    branches: [ master, gcc-patch-dev ]
+    branches: [ gcc-patch-dev ]
 
 env:
   CXXFLAGS: "-Wno-unused-parameter -Werror=overloaded-virtual"
@@ -55,17 +55,6 @@ jobs:
       run: |
            cd gccrs-build; \
            make -Otarget -j $(nproc) 2>&1 | tee log
-
-    - name: Check for new warnings
-      run: |
-           cd gccrs-build
-           < log grep 'warning: ' | sort > log_warnings
-           if diff -U0 ../.github/bors_log_expected_warnings log_warnings; then
-               :
-           else
-               echo 'See <https://github.com/Rust-GCC/gccrs/pull/1026>.'
-               exit 1
-           fi >&2
 
     - name: Run Tests
       run: |
@@ -132,17 +121,6 @@ jobs:
       run: |
            cd gccrs-build; \
            make -Otarget -j $(nproc) 2>&1 | tee log
-
-    - name: Check for new warnings
-      run: |
-           cd gccrs-build
-           < log grep 'warning: ' | sort > log_warnings
-           if diff -U0 ../.github/bors_log_expected_warnings log_warnings; then
-               :
-           else
-               echo 'See <https://github.com/Rust-GCC/gccrs/pull/1026>.'
-               exit 1
-           fi >&2
 
     - name: Run Tests
       run: |

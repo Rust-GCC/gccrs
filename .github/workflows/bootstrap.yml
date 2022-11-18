@@ -2,7 +2,7 @@ name: GCC Bootstrap Build
 
 on:
   push:
-    branches: [ master ]
+    branches: [ gcc-patch-dev ]
 
 env:
   CXXFLAGS: "-Wno-unused-parameter -Werror=overloaded-virtual"
