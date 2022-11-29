@@ -35,18 +35,18 @@ public:
   void visit (HIR::Trait &trait) override;
 
   // FIXME - get rid of toplevel pass
-  void visit (HIR::TypeAlias &alias) override{};
-  void visit (HIR::TupleStruct &struct_decl) override{};
-  void visit (HIR::StructStruct &struct_decl) override{};
-  void visit (HIR::Enum &enum_decl) override{};
-  void visit (HIR::Union &union_decl) override{};
-  void visit (HIR::StaticItem &var) override{};
-  void visit (HIR::ConstantItem &constant) override{};
-  void visit (HIR::ExternBlock &extern_block) override{};
+  void visit (HIR::TypeAlias &alias) override;
+  void visit (HIR::TupleStruct &struct_decl) override;
+  void visit (HIR::StructStruct &struct_decl) override;
+  void visit (HIR::Enum &enum_decl) override;
+  void visit (HIR::Union &union_decl) override;
+  void visit (HIR::StaticItem &var) override;
+  void visit (HIR::ConstantItem &constant) override;
+  void visit (HIR::ExternBlock &extern_block) override;
 
   // nothing to do
-  void visit (HIR::ExternCrate &crate) override {}
-  void visit (HIR::UseDeclaration &use_decl) override {}
+  void visit (HIR::ExternCrate &crate) override;
+  void visit (HIR::UseDeclaration &use_decl) override;
 
 private:
   TypeCheckItem ();

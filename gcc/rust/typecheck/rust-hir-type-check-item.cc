@@ -233,5 +233,47 @@ TypeCheckItem::visit (HIR::Trait &trait)
   TraitResolver::Resolve (trait);
 }
 
+// FIXME - get rid of toplevel pass
+void
+TypeCheckItem::visit (HIR::TypeAlias &alias)
+{}
+
+void
+TypeCheckItem::visit (HIR::TupleStruct &struct_decl)
+{}
+
+void
+TypeCheckItem::visit (HIR::StructStruct &struct_decl)
+{}
+
+void
+TypeCheckItem::visit (HIR::Enum &enum_decl)
+{}
+
+void
+TypeCheckItem::visit (HIR::Union &union_decl)
+{}
+
+void
+TypeCheckItem::visit (HIR::StaticItem &var)
+{}
+
+void
+TypeCheckItem::visit (HIR::ConstantItem &constant)
+{}
+
+void
+TypeCheckItem::visit (HIR::ExternBlock &extern_block)
+{}
+
+// nothing to do
+void
+TypeCheckItem::visit (HIR::ExternCrate &crate)
+{}
+
+void
+TypeCheckItem::visit (HIR::UseDeclaration &use_decl)
+{}
+
 } // namespace Resolver
 } // namespace Rust
