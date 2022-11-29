@@ -16,38 +16,40 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef RUST_HIR_TYPE_BOUNDS_H
-#define RUST_HIR_TYPE_BOUNDS_H
-
-#include "rust-hir-type-check-base.h"
-#include "rust-hir-full.h"
-#include "rust-tyty.h"
+#include "rust-hir-type-bounds.h"
 
 namespace Rust {
 namespace Resolver {
 
-class TypeBoundsProbe : public TypeCheckBase
+std::vector<std::pair<TraitReference *, HIR::ImplBlock *>>
+TypeBoundsProbe::Probe (const TyTy::BaseType *receiver)
 {
-public:
-  static std::vector<std::pair<TraitReference *, HIR::ImplBlock *>>
-  Probe (const TyTy::BaseType *receiver);
+  TypeBoundsProbe probe (receiver);
+  probe.scan ();
+  return probe.trait_references;
+}
 
-  static bool is_bound_satisfied_for_type (TyTy::BaseType *receiver,
-					   TraitReference *ref);
+bool
+TypeBoundsProbe::is_bound_satisfied_for_type (TyTy::BaseType *receiver,
+					      TraitReference *ref)
+{
+  for (auto &bound : receiver->get_specified_bounds ())
+    {
+      const TraitReference *b = bound.get ();
+      if (b->is_equal (*ref))
+	return true;
+    }
 
-private:
-  void scan ();
+  std::vector<std::pair<TraitReference *, HIR::ImplBlock *>> bounds
+    = Probe (receiver);
+  for (auto &bound : bounds)
+    {
+      const TraitReference *b = bound.first;
+      if (b->is_equal (*ref))
+	return true;
+    }
 
-private:
-  TypeBoundsProbe (const TyTy::BaseType *receiver)
-    : TypeCheckBase (), receiver (receiver)
-  {}
-
-  const TyTy::BaseType *receiver;
-  std::vector<std::pair<TraitReference *, HIR::ImplBlock *>> trait_references;
-};
-
+  return false;
+}
 } // namespace Resolver
 } // namespace Rust
-
-#endif // RUST_HIR_TYPE_BOUNDS_H
