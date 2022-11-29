@@ -24,6 +24,72 @@
 #include "safe-ctype.h"
 
 namespace Rust {
+
+void
+RAIIFile::close ()
+{
+  if (file != nullptr && file != stdin)
+    fclose (file);
+}
+
+/**
+ * Create a RAIIFile from an existing instance of FILE*
+ */
+RAIIFile::RAIIFile (FILE *raw, const char *filename)
+  : file (raw), filename (filename)
+{}
+
+RAIIFile::RAIIFile (const char *filename) : filename (filename)
+{
+  if (strcmp (filename, "-") == 0)
+    file = stdin;
+  else
+    file = fopen (filename, "r");
+}
+
+// have to specify setting file to nullptr, otherwise unintended fclose occurs
+RAIIFile::RAIIFile (RAIIFile &&other)
+  : file (other.file), filename (other.filename)
+{
+  other.file = nullptr;
+}
+
+RAIIFile &
+RAIIFile::operator= (RAIIFile &&other)
+{
+  close ();
+  file = other.file;
+  filename = other.filename;
+  other.file = nullptr;
+
+  return *this;
+}
+
+RAIIFile
+RAIIFile::create_error ()
+{
+  return RAIIFile (nullptr, nullptr);
+}
+
+RAIIFile::~RAIIFile () { close (); }
+
+FILE *
+RAIIFile::get_raw ()
+{
+  return file;
+}
+const char *
+RAIIFile::get_filename ()
+{
+  return filename;
+}
+
+bool
+RAIIFile::ok () const
+{
+  return file;
+}
+
 // TODO: move to separate compilation unit?
 // overload += for uint32_t to allow 32-bit encoded utf-8 to be added
 std::string &

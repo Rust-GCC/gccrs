@@ -31,55 +31,27 @@ private:
   FILE *file;
   const char *filename;
 
-  void close ()
-  {
-    if (file != nullptr && file != stdin)
-      fclose (file);
-  }
+  void close ();
 
 public:
-  RAIIFile (const char *filename) : filename (filename)
-  {
-    if (strcmp (filename, "-") == 0)
-      file = stdin;
-    else
-      file = fopen (filename, "r");
-  }
-
-  /**
-   * Create a RAIIFile from an existing instance of FILE*
-   */
-  RAIIFile (FILE *raw, const char *filename = nullptr)
-    : file (raw), filename (filename)
-  {}
+  RAIIFile (const char *filename);
+  RAIIFile (FILE *raw, const char *filename = nullptr);
 
   RAIIFile (const RAIIFile &other) = delete;
   RAIIFile &operator= (const RAIIFile &other) = delete;
 
-  // have to specify setting file to nullptr, otherwise unintended fclose occurs
-  RAIIFile (RAIIFile &&other) : file (other.file), filename (other.filename)
-  {
-    other.file = nullptr;
-  }
+  RAIIFile (RAIIFile &&other);
 
-  RAIIFile &operator= (RAIIFile &&other)
-  {
-    close ();
-    file = other.file;
-    filename = other.filename;
-    other.file = nullptr;
+  RAIIFile &operator= (RAIIFile &&other);
 
-    return *this;
-  }
+  static RAIIFile create_error ();
 
-  static RAIIFile create_error () { return RAIIFile (nullptr, nullptr); }
+  ~RAIIFile ();
 
-  ~RAIIFile () { close (); }
+  FILE *get_raw ();
+  const char *get_filename ();
 
-  FILE *get_raw () { return file; }
-  const char *get_filename () { return filename; }
-
-  bool ok () const { return file; }
+  bool ok () const;
 };
 
 class Lexer
