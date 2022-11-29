@@ -37,28 +37,11 @@ struct DefId
   CrateNum crateNum;
   LocalDefId localDefId;
 
-  bool operator== (const DefId &other) const
-  {
-    return this->crateNum == other.crateNum
-	   && this->localDefId == other.localDefId;
-  }
+  bool operator== (const DefId &other) const;
+  bool operator!= (const DefId &other) const;
+  bool operator< (const DefId &other) const;
 
-  bool operator!= (const DefId &other) const { return !(*this == other); }
-
-  bool operator< (const DefId &other) const
-  {
-    return ((uint64_t) this->crateNum << 32 | this->localDefId)
-	   < ((uint64_t) other.crateNum << 32 | other.localDefId);
-  }
-
-  std::string as_string () const
-  {
-    std::string buf;
-    buf += std::to_string (crateNum);
-    buf += " "; // or anything else
-    buf += std::to_string (localDefId);
-    return buf;
-  }
+  std::string as_string () const;
 };
 
 #define UNKNOWN_CREATENUM ((uint32_t) (0))
