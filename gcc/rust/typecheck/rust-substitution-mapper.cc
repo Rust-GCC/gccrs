@@ -23,6 +23,228 @@ namespace Rust {
 namespace Resolver {
 
 TyTy::BaseType *
+SubstMapper::Resolve (TyTy::BaseType *base, Location locus,
+		      HIR::GenericArgs *generics)
+{
+  SubstMapper mapper (base->get_ref (), generics, locus);
+  base->accept_vis (mapper);
+  rust_assert (mapper.resolved != nullptr);
+  return mapper.resolved;
+}
+
+TyTy::BaseType *
+SubstMapper::InferSubst (TyTy::BaseType *base, Location locus)
+{
+  return SubstMapper::Resolve (base, locus, nullptr);
+}
+
+bool
+SubstMapper::have_generic_args () const
+{
+  return generics != nullptr;
+}
+
+void
+SubstMapper::visit (TyTy::FnType &type)
+{
+  TyTy::FnType *concrete = nullptr;
+  if (!have_generic_args ())
+    {
+      TyTy::BaseType *substs = type.infer_substitions (locus);
+      rust_assert (substs->get_kind () == TyTy::TypeKind::FNDEF);
+      concrete = static_cast<TyTy::FnType *> (substs);
+    }
+  else
+    {
+      TyTy::SubstitutionArgumentMappings mappings
+	= type.get_mappings_from_generic_args (*generics);
+      if (mappings.is_error ())
+	return;
+
+      concrete = type.handle_substitions (mappings);
+    }
+
+  if (concrete != nullptr)
+    resolved = concrete;
+}
+
+void
+SubstMapper::visit (TyTy::ADTType &type)
+{
+  TyTy::ADTType *concrete = nullptr;
+  if (!have_generic_args ())
+    {
+      TyTy::BaseType *substs = type.infer_substitions (locus);
+      rust_assert (substs->get_kind () == TyTy::TypeKind::ADT);
+      concrete = static_cast<TyTy::ADTType *> (substs);
+    }
+  else
+    {
+      TyTy::SubstitutionArgumentMappings mappings
+	= type.get_mappings_from_generic_args (*generics);
+      if (mappings.is_error ())
+	return;
+
+      concrete = type.handle_substitions (mappings);
+    }
+
+  if (concrete != nullptr)
+    resolved = concrete;
+}
+
+void
+SubstMapper::visit (TyTy::PlaceholderType &type)
+{
+  rust_assert (type.can_resolve ());
+  resolved = SubstMapper::Resolve (type.resolve (), locus, generics);
+}
+
+void
+SubstMapper::visit (TyTy::ProjectionType &type)
+{
+  TyTy::ProjectionType *concrete = nullptr;
+  if (!have_generic_args ())
+    {
+      TyTy::BaseType *substs = type.infer_substitions (locus);
+      rust_assert (substs->get_kind () == TyTy::TypeKind::ADT);
+      concrete = static_cast<TyTy::ProjectionType *> (substs);
+    }
+  else
+    {
+      TyTy::SubstitutionArgumentMappings mappings
+	= type.get_mappings_from_generic_args (*generics);
+      if (mappings.is_error ())
+	return;
+
+      concrete = type.handle_substitions (mappings);
+    }
+
+  if (concrete != nullptr)
+    resolved = concrete;
+}
+
+// nothing to do for these
+void
+SubstMapper::visit (TyTy::InferType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::TupleType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::FnPtr &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::ArrayType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::SliceType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::BoolType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::IntType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::UintType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::FloatType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::USizeType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::ISizeType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::ErrorType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::CharType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::ReferenceType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::PointerType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::ParamType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::StrType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::NeverType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::DynamicObjectType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapper::visit (TyTy::ClosureType &)
+{
+  gcc_unreachable ();
+}
+
+TyTy::BaseType *
 SubstMapperInternal::Resolve (TyTy::BaseType *base,
 			      TyTy::SubstitutionArgumentMappings &mappings)
 {
@@ -72,6 +294,436 @@ SubstMapperInternal::mappings_are_bound (
 
   return false;
 }
+
+void
+SubstMapperInternal::visit (TyTy::FnType &type)
+{
+  TyTy::SubstitutionArgumentMappings adjusted
+    = type.adjust_mappings_for_this (mappings);
+  if (adjusted.is_error ())
+    return;
+
+  TyTy::BaseType *concrete = type.handle_substitions (adjusted);
+  if (concrete != nullptr)
+    resolved = concrete;
+}
+
+void
+SubstMapperInternal::visit (TyTy::ADTType &type)
+{
+  TyTy::SubstitutionArgumentMappings adjusted
+    = type.adjust_mappings_for_this (mappings);
+  if (adjusted.is_error ())
+    return;
+
+  TyTy::BaseType *concrete = type.handle_substitions (adjusted);
+  if (concrete != nullptr)
+    resolved = concrete;
+}
+
+// these don't support generic arguments but might contain a type param
+void
+SubstMapperInternal::visit (TyTy::TupleType &type)
+{
+  resolved = type.handle_substitions (mappings);
+}
+
+void
+SubstMapperInternal::visit (TyTy::ReferenceType &type)
+{
+  resolved = type.handle_substitions (mappings);
+}
+
+void
+SubstMapperInternal::visit (TyTy::PointerType &type)
+{
+  resolved = type.handle_substitions (mappings);
+}
+
+void
+SubstMapperInternal::visit (TyTy::ParamType &type)
+{
+  resolved = type.handle_substitions (mappings);
+}
+
+void
+SubstMapperInternal::visit (TyTy::PlaceholderType &type)
+{
+  rust_assert (type.can_resolve ());
+  if (mappings.trait_item_mode ())
+    {
+      resolved = type.resolve ();
+    }
+  else
+    {
+      resolved = SubstMapperInternal::Resolve (type.resolve (), mappings);
+    }
+}
+
+void
+SubstMapperInternal::visit (TyTy::ProjectionType &type)
+{
+  resolved = type.handle_substitions (mappings);
+}
+
+void
+SubstMapperInternal::visit (TyTy::ClosureType &type)
+{
+  resolved = type.handle_substitions (mappings);
+}
+
+void
+SubstMapperInternal::visit (TyTy::ArrayType &type)
+{
+  resolved = type.handle_substitions (mappings);
+}
+
+void
+SubstMapperInternal::visit (TyTy::SliceType &type)
+{
+  resolved = type.handle_substitions (mappings);
+}
+
+// nothing to do for these
+void
+SubstMapperInternal::visit (TyTy::InferType &type)
+{
+  resolved = type.clone ();
+}
+void
+SubstMapperInternal::visit (TyTy::FnPtr &type)
+{
+  resolved = type.clone ();
+}
+void
+SubstMapperInternal::visit (TyTy::BoolType &type)
+{
+  resolved = type.clone ();
+}
+void
+SubstMapperInternal::visit (TyTy::IntType &type)
+{
+  resolved = type.clone ();
+}
+void
+SubstMapperInternal::visit (TyTy::UintType &type)
+{
+  resolved = type.clone ();
+}
+void
+SubstMapperInternal::visit (TyTy::FloatType &type)
+{
+  resolved = type.clone ();
+}
+void
+SubstMapperInternal::visit (TyTy::USizeType &type)
+{
+  resolved = type.clone ();
+}
+void
+SubstMapperInternal::visit (TyTy::ISizeType &type)
+{
+  resolved = type.clone ();
+}
+void
+SubstMapperInternal::visit (TyTy::ErrorType &type)
+{
+  resolved = type.clone ();
+}
+void
+SubstMapperInternal::visit (TyTy::CharType &type)
+{
+  resolved = type.clone ();
+}
+void
+SubstMapperInternal::visit (TyTy::StrType &type)
+{
+  resolved = type.clone ();
+}
+void
+SubstMapperInternal::visit (TyTy::NeverType &type)
+{
+  resolved = type.clone ();
+}
+void
+SubstMapperInternal::visit (TyTy::DynamicObjectType &type)
+{
+  resolved = type.clone ();
+}
+
+TyTy::BaseType *
+SubstMapperFromExisting::Resolve (TyTy::BaseType *concrete,
+				  TyTy::BaseType *receiver)
+{
+  rust_assert (concrete->get_kind () == receiver->get_kind ());
+
+  SubstMapperFromExisting mapper (concrete, receiver);
+  concrete->accept_vis (mapper);
+  return mapper.resolved;
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::FnType &type)
+{
+  rust_assert (type.was_substituted ());
+
+  TyTy::FnType *to_sub = static_cast<TyTy::FnType *> (receiver);
+  resolved = to_sub->handle_substitions (type.get_substitution_arguments ());
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::ADTType &type)
+{
+  rust_assert (type.was_substituted ());
+
+  TyTy::ADTType *to_sub = static_cast<TyTy::ADTType *> (receiver);
+  resolved = to_sub->handle_substitions (type.get_substitution_arguments ());
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::ClosureType &type)
+{
+  rust_assert (type.was_substituted ());
+
+  TyTy::ClosureType *to_sub = static_cast<TyTy::ClosureType *> (receiver);
+  resolved = to_sub->handle_substitions (type.get_substitution_arguments ());
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::InferType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::TupleType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::FnPtr &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::ArrayType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::SliceType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::BoolType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::IntType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::UintType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::FloatType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::USizeType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::ISizeType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::ErrorType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::CharType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::ReferenceType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::PointerType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::ParamType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::StrType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::NeverType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::PlaceholderType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::ProjectionType &)
+{
+  gcc_unreachable ();
+}
+
+void
+SubstMapperFromExisting::visit (TyTy::DynamicObjectType &)
+{
+  gcc_unreachable ();
+}
+
+TyTy::SubstitutionArgumentMappings
+GetUsedSubstArgs::From (const TyTy::BaseType *from)
+{
+  GetUsedSubstArgs mapper;
+  from->accept_vis (mapper);
+  return mapper.args;
+}
+
+void
+GetUsedSubstArgs::visit (const TyTy::FnType &type)
+{
+  args = type.get_substitution_arguments ();
+}
+
+void
+GetUsedSubstArgs::visit (const TyTy::ADTType &type)
+{
+  args = type.get_substitution_arguments ();
+}
+
+void
+GetUsedSubstArgs::visit (const TyTy::ClosureType &type)
+{
+  args = type.get_substitution_arguments ();
+}
+
+void
+GetUsedSubstArgs::visit (const TyTy::InferType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::TupleType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::FnPtr &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::ArrayType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::SliceType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::BoolType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::IntType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::UintType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::FloatType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::USizeType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::ISizeType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::ErrorType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::CharType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::ReferenceType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::PointerType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::ParamType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::StrType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::NeverType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::PlaceholderType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::ProjectionType &)
+{}
+
+void
+GetUsedSubstArgs::visit (const TyTy::DynamicObjectType &)
+{}
 
 } // namespace Resolver
 } // namespace Rust
