@@ -62,6 +62,10 @@ check_extern_static (HIR::ExternalItem *maybe_static, Location locus)
 		   "use of extern static requires unsafe function or block");
 }
 
+/**
+ * Check if a mutable static or external static item is used outside of an
+ * unsafe context
+ */
 void
 UnsafeChecker::check_use_of_static (HirId node_id, Location locus)
 {
@@ -159,6 +163,10 @@ check_extern_call (HIR::ExternalItem *maybe_fn, HIR::ExternBlock *parent_block,
 		 "call to extern function requires unsafe function or block");
 }
 
+/**
+ * Check if a call to an unsafe or external function is outside of an unsafe
+ * context
+ */
 void
 UnsafeChecker::check_function_call (HirId node_id, Location locus)
 {

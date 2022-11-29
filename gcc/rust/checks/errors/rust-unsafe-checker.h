@@ -34,16 +34,8 @@ public:
   void go (HIR::Crate &crate);
 
 private:
-  /**
-   * Check if a mutable static or external static item is used outside of an
-   * unsafe context
-   */
   void check_use_of_static (HirId node_id, Location locus);
 
-  /**
-   * Check if a call to an unsafe or external function is outside of an unsafe
-   * context
-   */
   void check_function_call (HirId node_id, Location locus);
 
   StackedContexts<HirId> unsafe_context;
