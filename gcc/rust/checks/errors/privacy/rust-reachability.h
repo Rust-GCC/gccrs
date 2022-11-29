@@ -30,14 +30,6 @@
 namespace Rust {
 namespace Privacy {
 
-// FIXME: The EmbargoVisitor from rustc is a fixed-point visitor which tries
-// to reach more and more nodes until nothing has changed anymore.
-// Do we need to reproduce this behavior? How long does it take to do this?
-
-/**
- * The ReachabilityVisitor tries to reach all items possible in the crate,
- * according to their privacy level.
- */
 class ReachabilityVisitor : public HIR::HIRVisItemVisitor
 {
 public:
@@ -48,17 +40,10 @@ public:
 
   // FIXME: Add `go` method which takes an `HIR::Crate &` as argument
 
-  /**
-   * Visit all the predicates of all the generic types of a given item, marking
-   * them as reachable or not.
-   */
   void visit_generic_predicates (
     const std::vector<std::unique_ptr<HIR::GenericParam>> &generics,
     ReachLevel item_reach);
 
-  /**
-   * Get the initial reach level for an item based on its visibility.
-   */
   ReachLevel get_reachability_level (const HIR::Visibility &item_visibility);
 
   virtual void visit (HIR::Module &mod);

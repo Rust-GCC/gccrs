@@ -25,10 +25,6 @@
 namespace Rust {
 namespace Privacy {
 
-/**
- * Reachability levels of HIR nodes. These levels are computed through the
- * `ReachabilityVisitor` visitor.
- */
 enum ReachLevel
 {
   Unreachable,
@@ -38,29 +34,9 @@ enum ReachLevel
 class PrivacyContext
 {
 public:
-  /**
-   * Insert a new resolved visibility for a given node. If the node is already
-   * present in the reachability map, then its visibility will only be updated
-   * if the given visibility is higher.
-   *
-   * @param mappings Mappings of the node to store the reach level for
-   * @param reach Level of reachability for the given node
-   *
-   * @return The new reachability level for this node. If this was the first
-   * time inserting this node, then return `reach`. Otherwise, return `reach` or
-   * the existing reach level if it was higher.
-   */
   ReachLevel update_reachability (const Analysis::NodeMapping &mapping,
 				  ReachLevel reach);
 
-  /**
-   * Lookup the visibility of an already declared Node
-   *
-   * @param mapping Mappings of the node to fetch the reach level of
-   *
-   * @return `nullptr` if the reach level for the current node has not been
-   * added, a valid pointer otherwise
-   */
   const ReachLevel *lookup_reachability (const Analysis::NodeMapping &mapping);
 
 private:

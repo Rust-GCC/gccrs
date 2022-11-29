@@ -19,6 +19,15 @@
 #include "rust-reachability.h"
 #include "rust-tyty.h"
 
+// FIXME: The EmbargoVisitor from rustc is a fixed-point visitor which tries
+// to reach more and more nodes until nothing has changed anymore.
+// Do we need to reproduce this behavior? How long does it take to do this?
+
+/**
+ * The ReachabilityVisitor tries to reach all items possible in the crate,
+ * according to their privacy level.
+ */
+
 namespace Rust {
 namespace Privacy {
 
@@ -31,6 +40,9 @@ maybe_get_vis_item (std::unique_ptr<HIR::Item> &item)
   return static_cast<HIR::VisItem *> (item.get ());
 }
 
+/**
+ * Get the initial reach level for an item based on its visibility.
+ */
 ReachLevel
 ReachabilityVisitor::get_reachability_level (
   const HIR::Visibility &item_visibility)
@@ -38,6 +50,10 @@ ReachabilityVisitor::get_reachability_level (
   return item_visibility.is_public () ? current_level : ReachLevel::Unreachable;
 }
 
+/**
+ * Visit all the predicates of all the generic types of a given item, marking
+ * them as reachable or not.
+ */
 void
 ReachabilityVisitor::visit_generic_predicates (
   const std::vector<std::unique_ptr<HIR::GenericParam>> &generics,
