@@ -29,6 +29,9 @@ VisibilityResolver::VisibilityResolver (Analysis::Mappings &mappings,
   : mappings (mappings), resolver (resolver)
 {}
 
+/**
+ * Perform visibility resolving on an entire crate
+ */
 void
 VisibilityResolver::go (HIR::Crate &crate)
 {
@@ -47,6 +50,9 @@ VisibilityResolver::go (HIR::Crate &crate)
     }
 }
 
+/**
+ * Resolve a path to the module it refers
+ */
 bool
 VisibilityResolver::resolve_module_path (const HIR::SimplePath &restriction,
 					 DefId &id)
@@ -87,6 +93,16 @@ VisibilityResolver::resolve_module_path (const HIR::SimplePath &restriction,
   return true;
 }
 
+/**
+ * Resolve the visibility of an item to its ModuleVisibility. This function
+ * emits errors if necessary. The contents of the to_resolve parameter will be
+ * overwritten on success.
+ *
+ * @param visibility Visibility of the item to resolve
+ * @param to_resolve ModuleVisibility reference to fill on success.
+ *
+ * @return false on error, true if the resolving was successful.
+ */
 bool
 VisibilityResolver::resolve_visibility (const HIR::Visibility &visibility,
 					ModuleVisibility &to_resolve)
@@ -112,6 +128,12 @@ VisibilityResolver::resolve_visibility (const HIR::Visibility &visibility,
     }
 }
 
+/**
+ * Resolve the visibility of an item and updates it. This is useful for
+ * vis-items who need to be resolved but do not care about their module
+ * visibility - const items, static items, etc. For items with an impact on
+ * their children (enums, traits), this cannot be used
+ */
 void
 VisibilityResolver::resolve_and_update (const HIR::VisItem *item)
 {

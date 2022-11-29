@@ -27,11 +27,6 @@
 namespace Rust {
 namespace Privacy {
 
-/**
- * This visitor visits all items and expressions of a crate and reports privacy
- * violations. It should be started after using the `VisibilityResolver` visitor
- * which resolves the visibilities of all items of a crate.
- */
 class PrivacyReporter : public HIR::HIRExpressionVisitor,
 			public HIR::HIRStmtVisitor
 {
@@ -40,41 +35,16 @@ public:
 		   Rust::Resolver::Resolver &resolver,
 		   const Rust::Resolver::TypeCheckContext &ty_ctx);
 
-  /**
-   * Perform privacy error reporting on an entire crate
-   */
   void go (HIR::Crate &crate);
 
 private:
-  /**
-   * Check if a given item's visibility is accessible from the current module.
-   *
-   * This function reports the errors it finds.
-   *
-   * @param use_id NodeId of the expression/statement referencing an item with
-   * 		a visibility
-   * @param locus Location of said expression/statement
-   */
   void check_for_privacy_violation (const NodeId &use_id,
 				    const Location &locus);
 
-  /**
-   * Internal function used by `check_type_privacy` when dealing with complex
-types
-   * such as references or arrays
-   */
   void check_base_type_privacy (Analysis::NodeMapping &node_mappings,
 				const TyTy::BaseType *ty,
 				const Location &locus);
 
-  /**
-   * Check the privacy of an explicit type.
-   *
-   * This function reports the errors it finds.
-   *
-   * @param type Reference to an explicit type used in a statement, expression
-   * 		or parameter
-   */
   void check_type_privacy (const HIR::Type *type);
 
   virtual void visit (HIR::StructExprFieldIdentifier &field);

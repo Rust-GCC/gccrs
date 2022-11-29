@@ -36,45 +36,15 @@ public:
   VisibilityResolver (Analysis::Mappings &mappings,
 		      Rust::Resolver::Resolver &resolver);
 
-  /**
-   * Perform visibility resolving on an entire crate
-   */
   void go (HIR::Crate &crate);
 
-  /**
-   * Resolve a path to the module it refers
-   */
   bool resolve_module_path (const HIR::SimplePath &restriction,
 			    DefId &to_resolve);
 
-  /**
-   * Resolve the visibility of an item to its ModuleVisibility. This function
-   * emits errors if necessary. The contents of the to_resolve parameter will be
-   * overwritten on success.
-   *
-   * @param visibility Visibility of the item to resolve
-   * @param to_resolve ModuleVisibility reference to fill on success.
-   *
-   * @return false on error, true if the resolving was successful.
-   */
   bool resolve_visibility (const HIR::Visibility &visibility,
 			   ModuleVisibility &to_resolve);
 
-  /**
-   * Resolve the visibility of an item and updates it. This is useful for
-   * vis-items who need to be resolved but do not care about their module
-   * visibility - const items, static items, etc. For items with an impact on
-   * their children (enums, traits), this cannot be used
-   */
   void resolve_and_update (const HIR::VisItem *item);
-
-  /**
-   * Get the DefId of the parent module we are currently visiting.
-   *
-   * @return UNKNOWN_DEFID if the module stack is empty, a valid `DefId`
-   * otherwise
-   */
-  DefId peek_module ();
 
   virtual void visit (HIR::Module &mod);
   virtual void visit (HIR::ExternCrate &crate);

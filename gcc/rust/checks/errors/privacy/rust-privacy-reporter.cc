@@ -21,6 +21,12 @@
 #include "rust-hir-stmt.h"
 #include "rust-hir-item.h"
 
+/**
+ * This visitor visits all items and expressions of a crate and reports privacy
+ * violations. It should be started after using the `VisibilityResolver` visitor
+ * which resolves the visibilities of all items of a crate.
+ */
+
 namespace Rust {
 namespace Privacy {
 
@@ -31,6 +37,9 @@ PrivacyReporter::PrivacyReporter (
     current_module (Optional<NodeId>::none ())
 {}
 
+/**
+ * Perform privacy error reporting on an entire crate
+ */
 void
 PrivacyReporter::go (HIR::Crate &crate)
 {
@@ -60,6 +69,15 @@ is_child_module (Analysis::Mappings &mappings, NodeId parent,
   return false;
 }
 
+/**
+ * Check if a given item's visibility is accessible from the current module.
+ *
+ * This function reports the errors it finds.
+ *
+ * @param use_id NodeId of the expression/statement referencing an item with
+ * 		a visibility
+ * @param locus Location of said expression/statement
+ */
 // FIXME: This function needs a lot of refactoring
 void
 PrivacyReporter::check_for_privacy_violation (const NodeId &use_id,
@@ -120,6 +138,11 @@ PrivacyReporter::check_for_privacy_violation (const NodeId &use_id,
     rust_error_at (locus, "definition is private in this context");
 }
 
+/**
+ * Internal function used by `check_type_privacy` when dealing with complex
+types
+ * such as references or arrays
+ */
 void
 PrivacyReporter::check_base_type_privacy (Analysis::NodeMapping &node_mappings,
 					  const TyTy::BaseType *ty,
@@ -205,6 +228,14 @@ PrivacyReporter::check_base_type_privacy (Analysis::NodeMapping &node_mappings,
     }
 }
 
+/**
+ * Check the privacy of an explicit type.
+ *
+ * This function reports the errors it finds.
+ *
+ * @param type Reference to an explicit type used in a statement, expression
+ * 		or parameter
+ */
 void
 PrivacyReporter::check_type_privacy (const HIR::Type *type)
 {

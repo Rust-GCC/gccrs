@@ -31,6 +31,12 @@ saw_errors (void);
 namespace Rust {
 namespace Privacy {
 
+/**
+ * Perform the full privacy resolving pass on a crate.
+ *
+ * This resolver first computes the reachability of all items in a crate,
+ * before checking for privacy violations.
+ */
 void
 Resolver::resolve (HIR::Crate &crate)
 {

@@ -29,44 +29,6 @@
 namespace Rust {
 namespace Privacy {
 
-/**
- * This visitor takes care of reporting `pub(restricted)` violations:
- * A `pub(restricted)` violation is defined as the usage of a path restriction
- * on an item which does not restrict the item's visibility to one of its parent
- * modules. What this means is that an user is allowed to specify that an item
- * should be public for any of its parent modules, going all the way to the
- * `crate` module, but not for any of its children module.
- *
- * ```rust
- * mod a {
- * 	mod b {
- * 		pub (in a) struct A0;
- *
- * 		mod c {
- * 			mod d {
- * 				pub (in a) struct A1;
- * 			}
- * 		}
- *
- * 		pub (in c::d) struct A2;
- * 	}
- * }
- * ```
- *
- * The above `A0`'s visibility is valid: It is restricted to a path, `a`,
- * which is a parent of the current module, `b`.
- * Likewise, `A1` is also defined properly: `a` is a parent of `d`, albeit
- * a great-great-great-grandparant of it.
- *
- * `A2` visibility, however, is invalid: Where the struct is defined, the
- * current module is `b`. `c::d` (which refers to the `d` module) is a child of
- * `b`, and not one of its ancestors.
- *
- * Note that these resolution rules are also the ones of the 2015 rust edition:
- * All the `pub(restricted)` visibilities above would be invalid in the 2018
- * edition, as the paths there must be absolute and not relative (`c::d` would
- * become `crate::a::b::c::d` etc). Nonetheless, the logic stays the same.
- */
 class PubRestrictedVisitor : public HIR::HIRVisItemVisitor
 {
 public:
@@ -74,19 +36,6 @@ public:
 
   void go (HIR::Crate &crate);
 
-  /**
-   * Check if an item's restricted visibility (`pub (crate)`, `pub (self)`,
-   * `pub(super)`, `pub (in <path>)`) is valid in the current context.
-   * `pub restricted` visibilities are only allowed when the restriction path
-   * is a parent module of the item being visited.
-   *
-   * In case of error, this function will emit the errors and return.
-   *
-   * @param item_id NodeId of the item to check the restriction of
-   * @param locus Location of the item being checked
-   *
-   * @return true if the visibility restriction is valid, false otherwise.
-   */
   bool is_restriction_valid (NodeId item_id, const Location &locus);
 
   virtual void visit (HIR::Module &mod);

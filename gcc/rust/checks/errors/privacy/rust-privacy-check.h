@@ -30,12 +30,6 @@ namespace Privacy {
 class Resolver
 {
 public:
-  /**
-   * Perform the full privacy resolving pass on a crate.
-   *
-   * This resolver first computes the reachability of all items in a crate,
-   * before checking for privacy violations.
-   */
   static void resolve (HIR::Crate &crate);
 };
 } // namespace Privacy
