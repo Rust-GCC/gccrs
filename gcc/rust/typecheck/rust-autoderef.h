@@ -49,65 +49,26 @@ public:
   static Adjustment get_op_overload_deref_adjustment (
     AdjustmentType type, const TyTy::BaseType *actual,
     const TyTy::BaseType *expected, TyTy::FnType *fn, HIR::ImplItem *deref_item,
-    Adjustment::AdjustmentType requires_ref_adjustment)
-  {
-    rust_assert (type == DEREF || type == DEREF_MUT);
-    return Adjustment (type, actual, expected, fn, deref_item,
-		       requires_ref_adjustment);
-  }
+    Adjustment::AdjustmentType requires_ref_adjustment);
 
-  AdjustmentType get_type () const { return type; }
+  AdjustmentType get_type () const;
 
-  const TyTy::BaseType *get_actual () const { return actual; }
-  const TyTy::BaseType *get_expected () const { return expected; }
+  const TyTy::BaseType *get_actual () const;
+  const TyTy::BaseType *get_expected () const;
 
-  std::string as_string () const
-  {
-    return Adjustment::type_string (get_type ()) + "->"
-	   + get_expected ()->debug_str ();
-  }
+  std::string as_string () const;
 
-  static std::string type_string (AdjustmentType type)
-  {
-    switch (type)
-      {
-      case AdjustmentType::ERROR:
-	return "ERROR";
-      case AdjustmentType::IMM_REF:
-	return "IMM_REF";
-      case AdjustmentType::MUT_REF:
-	return "MUT_REF";
-      case AdjustmentType::DEREF:
-	return "DEREF";
-      case AdjustmentType::DEREF_MUT:
-	return "DEREF_MUT";
-      case AdjustmentType::INDIRECTION:
-	return "INDIRECTION";
-      case AdjustmentType::UNSIZE:
-	return "UNSIZE";
-      }
-    gcc_unreachable ();
-    return "";
-  }
+  static std::string type_string (AdjustmentType type);
 
-  static Adjustment get_error () { return Adjustment{ERROR, nullptr, nullptr}; }
+  static Adjustment get_error ();
 
-  bool is_error () const { return type == ERROR; }
-
-  bool is_deref_adjustment () const { return type == DEREF; }
-
-  bool is_deref_mut_adjustment () const { return type == DEREF_MUT; }
-
-  bool has_operator_overload () const { return deref_operator_fn != nullptr; }
-
-  TyTy::FnType *get_deref_operator_fn () const { return deref_operator_fn; }
-
-  AdjustmentType get_deref_adjustment_type () const
-  {
-    return requires_ref_adjustment;
-  }
-
-  HIR::ImplItem *get_deref_hir_item () const { return deref_item; }
+  bool is_error () const;
+  bool is_deref_adjustment () const;
+  bool is_deref_mut_adjustment () const;
+  bool has_operator_overload () const;
+  TyTy::FnType *get_deref_operator_fn () const;
+  AdjustmentType get_deref_adjustment_type () const;
+  HIR::ImplItem *get_deref_hir_item () const;
 
 private:
   Adjustment (AdjustmentType type, const TyTy::BaseType *actual,

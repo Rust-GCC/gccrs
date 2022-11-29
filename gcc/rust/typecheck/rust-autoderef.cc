@@ -24,6 +24,114 @@
 namespace Rust {
 namespace Resolver {
 
+Adjustment
+Adjustment::get_op_overload_deref_adjustment (
+  AdjustmentType type, const TyTy::BaseType *actual,
+  const TyTy::BaseType *expected, TyTy::FnType *fn, HIR::ImplItem *deref_item,
+  Adjustment::AdjustmentType requires_ref_adjustment)
+{
+  rust_assert (type == DEREF || type == DEREF_MUT);
+  return Adjustment (type, actual, expected, fn, deref_item,
+		     requires_ref_adjustment);
+}
+
+Adjustment::AdjustmentType
+Adjustment::get_type () const
+{
+  return type;
+}
+
+const TyTy::BaseType *
+Adjustment::get_actual () const
+{
+  return actual;
+}
+
+const TyTy::BaseType *
+Adjustment::get_expected () const
+{
+  return expected;
+}
+
+std::string
+Adjustment::as_string () const
+{
+  return Adjustment::type_string (get_type ()) + "->"
+	 + get_expected ()->debug_str ();
+}
+
+std::string
+Adjustment::type_string (AdjustmentType type)
+{
+  switch (type)
+    {
+    case AdjustmentType::ERROR:
+      return "ERROR";
+    case AdjustmentType::IMM_REF:
+      return "IMM_REF";
+    case AdjustmentType::MUT_REF:
+      return "MUT_REF";
+    case AdjustmentType::DEREF:
+      return "DEREF";
+    case AdjustmentType::DEREF_MUT:
+      return "DEREF_MUT";
+    case AdjustmentType::INDIRECTION:
+      return "INDIRECTION";
+    case AdjustmentType::UNSIZE:
+      return "UNSIZE";
+    }
+  gcc_unreachable ();
+  return "";
+}
+
+Adjustment
+Adjustment::get_error ()
+{
+  return Adjustment{ERROR, nullptr, nullptr};
+}
+
+bool
+Adjustment::is_error () const
+{
+  return type == ERROR;
+}
+
+bool
+Adjustment::is_deref_adjustment () const
+{
+  return type == DEREF;
+}
+
+bool
+Adjustment::is_deref_mut_adjustment () const
+{
+  return type == DEREF_MUT;
+}
+
+bool
+Adjustment::has_operator_overload () const
+{
+  return deref_operator_fn != nullptr;
+}
+
+TyTy::FnType *
+Adjustment::get_deref_operator_fn () const
+{
+  return deref_operator_fn;
+}
+
+Adjustment::AdjustmentType
+Adjustment::get_deref_adjustment_type () const
+{
+  return requires_ref_adjustment;
+}
+
+HIR::ImplItem *
+Adjustment::get_deref_hir_item () const
+{
+  return deref_item;
+}
+
 static bool
 resolve_operator_overload_fn (
   Analysis::RustLangItem::ItemType lang_item_type, const TyTy::BaseType *ty,
