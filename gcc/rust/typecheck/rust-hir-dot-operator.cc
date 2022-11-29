@@ -23,6 +23,18 @@
 namespace Rust {
 namespace Resolver {
 
+MethodCandidate
+MethodCandidate::get_error ()
+{
+  return {PathProbeCandidate::get_error (), {}};
+}
+
+bool
+MethodCandidate::is_error () const
+{
+  return candidate.is_error ();
+}
+
 MethodResolver::MethodResolver (bool autoderef_flag,
 				const HIR::PathIdentSegment &segment_name)
   : AutoderefCycle (autoderef_flag), mappings (Analysis::Mappings::get ()),

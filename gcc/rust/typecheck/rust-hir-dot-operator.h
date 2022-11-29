@@ -29,12 +29,8 @@ struct MethodCandidate
   PathProbeCandidate candidate;
   std::vector<Adjustment> adjustments;
 
-  static MethodCandidate get_error ()
-  {
-    return {PathProbeCandidate::get_error (), {}};
-  }
-
-  bool is_error () const { return candidate.is_error (); }
+  static MethodCandidate get_error ();
+  bool is_error () const;
 };
 
 class MethodResolver : protected AutoderefCycle
