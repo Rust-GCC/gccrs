@@ -21,6 +21,18 @@
 namespace Rust {
 namespace Resolver {
 
+bool
+TypeCoercionRules::CoercionResult::is_error ()
+{
+  return tyty == nullptr || tyty->get_kind () == TyTy::TypeKind::ERROR;
+}
+
+TypeCoercionRules::CoercionResult
+TypeCoercionRules::CoercionResult::get_error ()
+{
+  return CoercionResult{{}, nullptr};
+}
+
 TypeCoercionRules::CoercionResult
 TypeCoercionRules::Coerce (TyTy::BaseType *receiver, TyTy::BaseType *expected,
 			   Location locus)

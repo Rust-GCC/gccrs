@@ -33,12 +33,9 @@ public:
     std::vector<Adjustment> adjustments;
     TyTy::BaseType *tyty;
 
-    bool is_error ()
-    {
-      return tyty == nullptr || tyty->get_kind () == TyTy::TypeKind::ERROR;
-    }
+    bool is_error ();
 
-    static CoercionResult get_error () { return CoercionResult{{}, nullptr}; }
+    static CoercionResult get_error ();
   };
 
   static CoercionResult Coerce (TyTy::BaseType *receiver,
