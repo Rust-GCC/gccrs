@@ -163,27 +163,33 @@ public:
 
   virtual std::string get_name () const = 0;
 
-  // Unify two types. Returns a pointer to the newly-created unified ty, or
-  // nullptr if the two ty cannot be unified. The caller is responsible for
-  // releasing the memory of the returned ty.
+  /**
+   * Unify two types. Returns a pointer to the newly-created unified ty, or
+   * nullptr if the two ty cannot be unified. The caller is responsible for
+   * releasing the memory of the returned ty.
+   */
   virtual BaseType *unify (BaseType *other) = 0;
 
-  // similar to unify but does not actually perform type unification but
-  // determines whether they are compatible. Consider the following
-  //
-  // fn foo<T>() -> T { ... }
-  // fn foo() -> i32 { ... }
-  //
-  // when the function has been substituted they can be considered equal.
-  //
-  // It can also be used to optional emit errors for trait item compatibility
-  // checks
+  /**
+   * similar to unify but does not actually perform type unification but
+   * determines whether they are compatible. Consider the following
+   *
+   * fn foo<T>() -> T { ... }
+   * fn foo() -> i32 { ... }
+   *
+   * when the function has been substituted they can be considered equal.
+   *
+   * It can also be used to optional emit errors for trait item compatibility
+   * checks
+   */
   virtual bool can_eq (const BaseType *other, bool emit_errors) const = 0;
 
-  // Check value equality between two ty. Type inference rules are ignored. Two
-  //   ty are considered equal if they're of the same kind, and
-  //     1. (For ADTs, arrays, tuples, refs) have the same underlying ty
-  //     2. (For functions) have the same signature
+  /**
+   * Check value equality between two ty. Type inference rules are ignored. Two
+   *   ty are considered equal if they're of the same kind, and
+   *     1. (For ADTs, arrays, tuples, refs) have the same underlying ty
+   *     2. (For functions) have the same signature
+   */
   virtual bool is_equal (const BaseType &other) const
   {
     return get_kind () == other.get_kind ();
@@ -205,14 +211,18 @@ public:
 
   TypeKind get_kind () const { return kind; }
 
-  /* Returns a pointer to a clone of this. The caller is responsible for
-   * releasing the memory of the returned ty. */
+  /**
+   * Returns a pointer to a clone of this. The caller is responsible for
+   * releasing the memory of the returned ty.
+   */
   virtual BaseType *clone () const = 0;
 
   // TODO
   virtual BaseType *monomorphized_clone () const = 0;
 
-  // get_combined_refs returns the chain of node refs involved in unification
+  /**
+   * Returns the chain of node refs involved in unification
+   */
   std::set<HirId> get_combined_refs () const { return combined; }
 
   void append_reference (HirId id) { combined.insert (id); }
