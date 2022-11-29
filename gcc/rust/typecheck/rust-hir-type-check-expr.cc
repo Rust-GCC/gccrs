@@ -1563,5 +1563,70 @@ TypeCheckExpr::validate_arithmetic_type (
   return false;
 }
 
+void
+TypeCheckExpr::visit (HIR::ClosureExprInnerTyped &)
+{}
+
+void
+TypeCheckExpr::visit (HIR::ClosureExprInner &expr)
+{}
+
+void
+TypeCheckExpr::visit (HIR::ErrorPropagationExpr &expr)
+{}
+
+void
+TypeCheckExpr::visit (HIR::RangeToInclExpr &expr)
+{}
+
+void
+TypeCheckExpr::visit (HIR::WhileLetLoopExpr &expr)
+{}
+
+void
+TypeCheckExpr::visit (HIR::ForLoopExpr &expr)
+{}
+
+void
+TypeCheckExpr::visit (HIR::IfExprConseqIfLet &expr)
+{}
+
+void
+TypeCheckExpr::visit (HIR::IfLetExprConseqElse &expr)
+{}
+
+void
+TypeCheckExpr::visit (HIR::IfLetExprConseqIf &expr)
+{}
+
+void
+TypeCheckExpr::visit (HIR::IfLetExprConseqIfLet &expr)
+{}
+
+void
+TypeCheckExpr::visit (HIR::AwaitExpr &expr)
+{}
+
+void
+TypeCheckExpr::visit (HIR::AsyncBlockExpr &expr)
+{}
+
+// don't need to implement these see rust-hir-type-check-struct-field.h
+void
+TypeCheckExpr::visit (HIR::StructExprFieldIdentifier &field)
+{
+  gcc_unreachable ();
+}
+void
+TypeCheckExpr::visit (HIR::StructExprFieldIdentifierValue &field)
+{
+  gcc_unreachable ();
+}
+void
+TypeCheckExpr::visit (HIR::StructExprFieldIndexValue &field)
+{
+  gcc_unreachable ();
+}
+
 } // namespace Resolver
 } // namespace Rust
