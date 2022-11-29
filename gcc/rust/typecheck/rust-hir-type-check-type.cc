@@ -834,5 +834,30 @@ ResolveWhereClauseItem::visit (HIR::TypeBoundWhereClauseItem &item)
   lookup->inherit_bounds (specified_bounds);
 }
 
+void
+TypeCheckType::visit (HIR::TypePathSegmentFunction &segment)
+{ /* TODO */
+}
+
+void
+TypeCheckType::visit (HIR::TraitBound &bound)
+{ /* TODO */
+}
+
+void
+TypeCheckType::visit (HIR::ImplTraitType &type)
+{ /* TODO */
+}
+
+void
+TypeCheckType::visit (HIR::ParenthesisedType &type)
+{ /* TODO */
+}
+
+void
+TypeCheckType::visit (HIR::ImplTraitTypeOneBound &type)
+{ /* TODO */
+}
+
 } // namespace Resolver
 } // namespace Rust
