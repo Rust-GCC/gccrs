@@ -48,136 +48,43 @@ class CanonicalPath
 public:
   CanonicalPath (const CanonicalPath &other) : segs (other.segs) {}
 
-  CanonicalPath &operator= (const CanonicalPath &other)
-  {
-    segs = other.segs;
-    return *this;
-  }
+  CanonicalPath &operator= (const CanonicalPath &other);
 
-  static CanonicalPath new_seg (NodeId id, const std::string &path)
-  {
-    rust_assert (!path.empty ());
-    return CanonicalPath ({std::pair<NodeId, std::string> (id, path)},
-			  UNKNOWN_CREATENUM);
-  }
+  static CanonicalPath new_seg (NodeId id, const std::string &path);
 
   static CanonicalPath
   trait_impl_projection_seg (NodeId id, const CanonicalPath &trait_seg,
-			     const CanonicalPath &impl_type_seg)
-  {
-    return CanonicalPath::new_seg (id, "<" + impl_type_seg.get () + " as "
-					 + trait_seg.get () + ">");
-  }
+			     const CanonicalPath &impl_type_seg);
 
-  std::string get () const
-  {
-    std::string buf;
-    for (size_t i = 0; i < segs.size (); i++)
-      {
-	bool have_more = (i + 1) < segs.size ();
-	const std::string &seg = segs.at (i).second;
-	buf += seg + (have_more ? "::" : "");
-      }
-    return buf;
-  }
+  std::string get () const;
 
-  static CanonicalPath get_big_self (NodeId id)
-  {
-    return CanonicalPath::new_seg (id, "Self");
-  }
+  static CanonicalPath get_big_self (NodeId id);
 
-  static CanonicalPath create_empty ()
-  {
-    return CanonicalPath ({}, UNKNOWN_CREATENUM);
-  }
+  static CanonicalPath create_empty ();
 
-  bool is_empty () const { return segs.size () == 0; }
+  bool is_empty () const;
 
-  CanonicalPath append (const CanonicalPath &other) const
-  {
-    rust_assert (!other.is_empty ());
-    if (is_empty ())
-      return CanonicalPath (other.segs, crate_num);
+  CanonicalPath append (const CanonicalPath &other) const;
 
-    std::vector<std::pair<NodeId, std::string>> copy (segs);
-    for (auto &s : other.segs)
-      copy.push_back (s);
+  void iterate (std::function<bool (const CanonicalPath &)> cb) const;
 
-    return CanonicalPath (copy, crate_num);
-  }
+  void iterate_segs (std::function<bool (const CanonicalPath &)> cb) const;
 
-  // if we have the path A::B::C this will give a callback for each segment
-  // including the prefix, example:
-  //
-  // path:
-  //   A::B::C
-  //
-  // iterate:
-  //   A
-  //   A::B
-  //   A::B::C
-  void iterate (std::function<bool (const CanonicalPath &)> cb) const
-  {
-    std::vector<std::pair<NodeId, std::string>> buf;
-    for (auto &seg : segs)
-      {
-	buf.push_back (seg);
-	if (!cb (CanonicalPath (buf, crate_num)))
-	  return;
-      }
-  }
+  size_t size () const;
 
-  // if we have the path A::B::C this will give a callback for each segment
-  // example:
-  //
-  // path:
-  //   A::B::C
-  //
-  // iterate:
-  //   A
-  //      B
-  //         C
-  void iterate_segs (std::function<bool (const CanonicalPath &)> cb) const
-  {
-    for (auto &seg : segs)
-      {
-	std::vector<std::pair<NodeId, std::string>> buf;
-	buf.push_back ({seg.first, seg.second});
-	if (!cb (CanonicalPath (buf, crate_num)))
-	  return;
-      }
-  }
+  NodeId get_node_id () const;
 
-  size_t size () const { return segs.size (); }
+  const std::pair<NodeId, std::string> &get_seg_at (size_t index) const;
 
-  NodeId get_node_id () const
-  {
-    rust_assert (!segs.empty ());
-    return segs.back ().first;
-  }
+  bool is_equal (const CanonicalPath &b) const;
 
-  const std::pair<NodeId, std::string> &get_seg_at (size_t index) const
-  {
-    rust_assert (index < size ());
-    return segs.at (index);
-  }
+  void set_crate_num (CrateNum n);
 
-  bool is_equal (const CanonicalPath &b) const
-  {
-    return get ().compare (b.get ()) == 0;
-  }
+  CrateNum get_crate_num () const;
 
-  void set_crate_num (CrateNum n) { crate_num = n; }
+  bool operator== (const CanonicalPath &b) const;
 
-  CrateNum get_crate_num () const
-  {
-    rust_assert (crate_num != UNKNOWN_CREATENUM);
-    return crate_num;
-  }
-
-  bool operator== (const CanonicalPath &b) const { return is_equal (b); }
-
-  bool operator< (const CanonicalPath &b) const { return get () < b.get (); }
+  bool operator< (const CanonicalPath &b) const;
 
 private:
   explicit CanonicalPath (std::vector<std::pair<NodeId, std::string>> path,
