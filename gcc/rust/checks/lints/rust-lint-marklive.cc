@@ -144,7 +144,7 @@ void
 MarkLive::visit (HIR::MethodCallExpr &expr)
 {
   expr.get_receiver ()->accept_vis (*this);
-  visit_path_segment (expr.get_method_name ());
+  MarkLive::visit_path_segment (expr.get_method_name ());
   for (auto &argument : expr.get_arguments ())
     argument->accept_vis (*this);
 
@@ -276,6 +276,288 @@ MarkLive::find_ref_node_id (NodeId ast_node_id, NodeId &ref_node_id)
       bool ok = resolver->lookup_resolved_type (ast_node_id, &ref_node_id);
       rust_assert (ok);
     }
+}
+
+void
+MarkLive::visit (HIR::BorrowExpr &expr)
+{
+  expr.get_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::DereferenceExpr &expr)
+{
+  expr.get_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::NegationExpr &expr)
+{
+  expr.get_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::LazyBooleanExpr &expr)
+{
+  expr.get_lhs ()->accept_vis (*this);
+  expr.get_rhs ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::TypeCastExpr &expr)
+{
+  expr.get_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::GroupedExpr &expr)
+{
+  expr.get_expr_in_parens ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::ArrayExpr &expr)
+{
+  expr.get_internal_elements ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::ArrayIndexExpr &expr)
+{
+  expr.get_array_expr ()->accept_vis (*this);
+  expr.get_index_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::ArrayElemsValues &expr)
+{
+  for (auto &elem : expr.get_values ())
+    {
+      elem->accept_vis (*this);
+    }
+}
+
+void
+MarkLive::visit (HIR::TupleExpr &expr)
+{
+  for (auto &elem : expr.get_tuple_elems ())
+    {
+      elem->accept_vis (*this);
+    }
+}
+
+void
+MarkLive::visit (HIR::BlockExpr &expr)
+{
+  for (auto &s : expr.get_statements ())
+    {
+      s->accept_vis (*this);
+    }
+  if (expr.has_expr ())
+    {
+      expr.get_final_expr ()->accept_vis (*this);
+    }
+}
+
+void
+MarkLive::visit (HIR::UnsafeBlockExpr &expr)
+{
+  expr.get_block_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::LoopExpr &expr)
+{
+  expr.get_loop_block ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::BreakExpr &expr)
+{
+  if (expr.has_break_expr ())
+    expr.get_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::WhileLoopExpr &expr)
+{
+  expr.get_loop_block ()->accept_vis (*this);
+  expr.get_predicate_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::Function &function)
+{
+  function.get_definition ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::ReturnExpr &expr)
+{
+  if (expr.has_return_expr ())
+    expr.get_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::WhileLetLoopExpr &expr)
+{
+  expr.get_loop_block ()->accept_vis (*this);
+  expr.get_cond ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::ForLoopExpr &expr)
+{
+  expr.get_loop_block ()->accept_vis (*this);
+  expr.get_iterator_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::ExprStmtWithoutBlock &stmt)
+{
+  stmt.get_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::ExprStmtWithBlock &stmt)
+{
+  stmt.get_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::CallExpr &expr)
+{
+  expr.get_fnexpr ()->accept_vis (*this);
+  for (auto &argument : expr.get_arguments ())
+    argument->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::ArithmeticOrLogicalExpr &expr)
+{
+  expr.visit_lhs (*this);
+  expr.visit_rhs (*this);
+}
+void
+MarkLive::visit (HIR::ComparisonExpr &expr)
+{
+  expr.get_lhs ()->accept_vis (*this);
+  expr.get_rhs ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::AssignmentExpr &expr)
+{
+  expr.visit_lhs (*this);
+  expr.visit_rhs (*this);
+}
+
+void
+MarkLive::visit (HIR::CompoundAssignmentExpr &expr)
+{
+  expr.visit_lhs (*this);
+  expr.visit_rhs (*this);
+}
+
+void
+MarkLive::visit (HIR::IfExpr &expr)
+{
+  expr.get_if_condition ()->accept_vis (*this);
+  expr.get_if_block ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::IfExprConseqElse &expr)
+{
+  expr.get_if_condition ()->accept_vis (*this);
+  expr.get_if_block ()->accept_vis (*this);
+  expr.get_else_block ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::MatchExpr &expr)
+{
+  expr.get_scrutinee_expr ()->accept_vis (*this);
+  std::vector<HIR::MatchCase> &cases = expr.get_match_cases ();
+  for (auto &&caz : cases)
+    {
+      auto case_arm = caz.get_arm ();
+      if (case_arm.has_match_arm_guard ())
+	case_arm.get_guard_expr ()->accept_vis (*this);
+      caz.get_expr ()->accept_vis (*this);
+    }
+}
+
+void
+MarkLive::visit (HIR::IfExprConseqIf &expr)
+{
+  expr.get_if_condition ()->accept_vis (*this);
+  expr.get_if_block ()->accept_vis (*this);
+  expr.get_conseq_if_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::TraitItemFunc &item)
+{
+  item.get_block_expr ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::ImplBlock &impl)
+{
+  for (auto &&item : impl.get_impl_items ())
+    {
+      item->accept_vis (*this);
+    }
+}
+
+void
+MarkLive::visit (HIR::LetStmt &stmt)
+{
+  if (stmt.has_init_expr ())
+    {
+      stmt.get_init_expr ()->accept_vis (*this);
+    }
+}
+
+void
+MarkLive::visit (HIR::StructExprStruct &stct)
+{
+  stct.get_struct_name ().accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::StructExprStructFields &stct)
+{
+  for (auto &field : stct.get_fields ())
+    {
+      field->accept_vis (*this);
+    }
+
+  stct.get_struct_name ().accept_vis (*this);
+  if (stct.has_struct_base ())
+    {
+      stct.struct_base->base_struct->accept_vis (*this);
+    }
+}
+
+void
+MarkLive::visit (HIR::StructExprFieldIdentifierValue &field)
+{
+  field.get_value ()->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::StructExprStructBase &stct)
+{
+  stct.get_struct_base ()->base_struct->accept_vis (*this);
+}
+
+void
+MarkLive::visit (HIR::Module &module)
+{
+  for (auto &item : module.get_items ())
+    item->accept_vis (*this);
 }
 
 } // namespace Analysis

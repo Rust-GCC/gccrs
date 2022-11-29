@@ -40,250 +40,44 @@ public:
   void visit (HIR::TupleIndexExpr &expr) override;
   void visit (HIR::MethodCallExpr &expr) override;
   void visit (HIR::TypeAlias &alias) override;
-
-  void visit (HIR::BorrowExpr &expr) override
-  {
-    expr.get_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::DereferenceExpr &expr) override
-  {
-    expr.get_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::NegationExpr &expr) override
-  {
-    expr.get_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::LazyBooleanExpr &expr) override
-  {
-    expr.get_lhs ()->accept_vis (*this);
-    expr.get_rhs ()->accept_vis (*this);
-  }
-
-  void visit (HIR::TypeCastExpr &expr) override
-  {
-    expr.get_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::GroupedExpr &expr) override
-  {
-    expr.get_expr_in_parens ()->accept_vis (*this);
-  }
-
-  void visit (HIR::ArrayExpr &expr) override
-  {
-    expr.get_internal_elements ()->accept_vis (*this);
-  }
-
-  void visit (HIR::ArrayIndexExpr &expr) override
-  {
-    expr.get_array_expr ()->accept_vis (*this);
-    expr.get_index_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::ArrayElemsValues &expr) override
-  {
-    for (auto &elem : expr.get_values ())
-      {
-	elem->accept_vis (*this);
-      }
-  }
-
-  void visit (HIR::TupleExpr &expr) override
-  {
-    for (auto &elem : expr.get_tuple_elems ())
-      {
-	elem->accept_vis (*this);
-      }
-  }
-
-  void visit (HIR::BlockExpr &expr) override
-  {
-    for (auto &s : expr.get_statements ())
-      {
-	s->accept_vis (*this);
-      }
-    if (expr.has_expr ())
-      {
-	expr.get_final_expr ()->accept_vis (*this);
-      }
-  }
-
-  void visit (HIR::UnsafeBlockExpr &expr) override
-  {
-    expr.get_block_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::LoopExpr &expr) override
-  {
-    expr.get_loop_block ()->accept_vis (*this);
-  }
-
-  void visit (HIR::BreakExpr &expr) override
-  {
-    if (expr.has_break_expr ())
-      expr.get_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::WhileLoopExpr &expr) override
-  {
-    expr.get_loop_block ()->accept_vis (*this);
-    expr.get_predicate_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::Function &function) override
-  {
-    function.get_definition ()->accept_vis (*this);
-  }
-
-  void visit (HIR::ReturnExpr &expr) override
-  {
-    if (expr.has_return_expr ())
-      expr.get_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::WhileLetLoopExpr &expr) override
-  {
-    expr.get_loop_block ()->accept_vis (*this);
-    expr.get_cond ()->accept_vis (*this);
-  }
-
-  void visit (HIR::ForLoopExpr &expr) override
-  {
-    expr.get_loop_block ()->accept_vis (*this);
-    expr.get_iterator_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::ExprStmtWithoutBlock &stmt) override
-  {
-    stmt.get_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::ExprStmtWithBlock &stmt) override
-  {
-    stmt.get_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::CallExpr &expr) override
-  {
-    expr.get_fnexpr ()->accept_vis (*this);
-    for (auto &argument : expr.get_arguments ())
-      argument->accept_vis (*this);
-  }
-
-  void visit (HIR::ArithmeticOrLogicalExpr &expr) override
-  {
-    expr.visit_lhs (*this);
-    expr.visit_rhs (*this);
-  }
-  void visit (HIR::ComparisonExpr &expr) override
-  {
-    expr.get_lhs ()->accept_vis (*this);
-    expr.get_rhs ()->accept_vis (*this);
-  }
-
-  void visit (HIR::AssignmentExpr &expr) override
-  {
-    expr.visit_lhs (*this);
-    expr.visit_rhs (*this);
-  }
-
-  void visit (HIR::CompoundAssignmentExpr &expr) override
-  {
-    expr.visit_lhs (*this);
-    expr.visit_rhs (*this);
-  }
-
-  void visit (HIR::IfExpr &expr) override
-  {
-    expr.get_if_condition ()->accept_vis (*this);
-    expr.get_if_block ()->accept_vis (*this);
-  }
-
-  void visit (HIR::IfExprConseqElse &expr) override
-  {
-    expr.get_if_condition ()->accept_vis (*this);
-    expr.get_if_block ()->accept_vis (*this);
-    expr.get_else_block ()->accept_vis (*this);
-  }
-
-  void visit (HIR::MatchExpr &expr) override
-  {
-    expr.get_scrutinee_expr ()->accept_vis (*this);
-    std::vector<HIR::MatchCase> &cases = expr.get_match_cases ();
-    for (auto &&caz : cases)
-      {
-	auto case_arm = caz.get_arm ();
-	if (case_arm.has_match_arm_guard ())
-	  case_arm.get_guard_expr ()->accept_vis (*this);
-	caz.get_expr ()->accept_vis (*this);
-      }
-  }
-
-  void visit (HIR::IfExprConseqIf &expr) override
-  {
-    expr.get_if_condition ()->accept_vis (*this);
-    expr.get_if_block ()->accept_vis (*this);
-    expr.get_conseq_if_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::TraitItemFunc &item) override
-  {
-    item.get_block_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::ImplBlock &impl) override
-  {
-    for (auto &&item : impl.get_impl_items ())
-      {
-	item->accept_vis (*this);
-      }
-  }
-
-  void visit (HIR::LetStmt &stmt) override
-  {
-    if (stmt.has_init_expr ())
-      {
-	stmt.get_init_expr ()->accept_vis (*this);
-      }
-  }
-
-  void visit (HIR::StructExprStruct &stct) override
-  {
-    stct.get_struct_name ().accept_vis (*this);
-  }
-
-  void visit (HIR::StructExprStructFields &stct) override
-  {
-    for (auto &field : stct.get_fields ())
-      {
-	field->accept_vis (*this);
-      }
-
-    stct.get_struct_name ().accept_vis (*this);
-    if (stct.has_struct_base ())
-      {
-	stct.struct_base->base_struct->accept_vis (*this);
-      }
-  }
-
-  virtual void visit (HIR::StructExprFieldIdentifierValue &field) override
-  {
-    field.get_value ()->accept_vis (*this);
-  }
-
-  void visit (HIR::StructExprStructBase &stct) override
-  {
-    stct.get_struct_base ()->base_struct->accept_vis (*this);
-  }
-
-  void visit (HIR::Module &module) override
-  {
-    for (auto &item : module.get_items ())
-      item->accept_vis (*this);
-  }
+  void visit (HIR::BorrowExpr &expr) override;
+  void visit (HIR::DereferenceExpr &expr) override;
+  void visit (HIR::NegationExpr &expr) override;
+  void visit (HIR::LazyBooleanExpr &expr) override;
+  void visit (HIR::TypeCastExpr &expr) override;
+  void visit (HIR::GroupedExpr &expr) override;
+  void visit (HIR::ArrayExpr &expr) override;
+  void visit (HIR::ArrayIndexExpr &expr) override;
+  void visit (HIR::ArrayElemsValues &expr) override;
+  void visit (HIR::TupleExpr &expr) override;
+  void visit (HIR::BlockExpr &expr) override;
+  void visit (HIR::UnsafeBlockExpr &expr) override;
+  void visit (HIR::LoopExpr &expr) override;
+  void visit (HIR::BreakExpr &expr) override;
+  void visit (HIR::WhileLoopExpr &expr) override;
+  void visit (HIR::Function &function) override;
+  void visit (HIR::ReturnExpr &expr) override;
+  void visit (HIR::WhileLetLoopExpr &expr) override;
+  void visit (HIR::ForLoopExpr &expr) override;
+  void visit (HIR::ExprStmtWithoutBlock &stmt) override;
+  void visit (HIR::ExprStmtWithBlock &stmt) override;
+  void visit (HIR::CallExpr &expr) override;
+  void visit (HIR::ArithmeticOrLogicalExpr &expr) override;
+  void visit (HIR::ComparisonExpr &expr) override;
+  void visit (HIR::AssignmentExpr &expr) override;
+  void visit (HIR::CompoundAssignmentExpr &expr) override;
+  void visit (HIR::IfExpr &expr) override;
+  void visit (HIR::IfExprConseqElse &expr) override;
+  void visit (HIR::MatchExpr &expr) override;
+  void visit (HIR::IfExprConseqIf &expr) override;
+  void visit (HIR::TraitItemFunc &item) override;
+  void visit (HIR::ImplBlock &impl) override;
+  void visit (HIR::LetStmt &stmt) override;
+  void visit (HIR::StructExprStruct &stct) override;
+  void visit (HIR::StructExprStructFields &stct) override;
+  void visit (HIR::StructExprFieldIdentifierValue &field) override;
+  void visit (HIR::StructExprStructBase &stct) override;
+  void visit (HIR::Module &module) override;
 
 private:
   std::vector<HirId> worklist;
@@ -305,4 +99,4 @@ private:
 } // namespace Analysis
 } // namespace Rust
 
-#endif
+#endif // RUST_HIR_LIVENESS
