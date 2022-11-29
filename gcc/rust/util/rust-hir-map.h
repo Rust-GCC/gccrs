@@ -53,13 +53,7 @@ public:
 
   std::string as_string () const;
 
-  bool is_equal (const NodeMapping &other) const
-  {
-    return get_crate_num () == other.get_crate_num ()
-	   && get_nodeid () == other.get_nodeid ()
-	   && get_hirid () == other.get_hirid ()
-	   && get_local_defid () == other.get_local_defid ();
-  }
+  bool is_equal (const NodeMapping &other) const;
 
 private:
   CrateNum crateNum;
@@ -169,24 +163,11 @@ public:
 
   bool resolve_nodeid_to_stmt (NodeId id, HIR::Stmt **stmt);
 
-  std::set<HirId> &get_hirids_within_crate (CrateNum crate)
-  {
-    return hirNodesWithinCrate[crate];
-  }
+  std::set<HirId> &get_hirids_within_crate (CrateNum crate);
 
-  void insert_impl_item_mapping (HirId impl_item_id, HIR::ImplBlock *impl)
-  {
-    rust_assert (hirImplItemsToImplMappings.find (impl_item_id)
-		 == hirImplItemsToImplMappings.end ());
-    hirImplItemsToImplMappings[impl_item_id] = impl;
-  }
+  void insert_impl_item_mapping (HirId impl_item_id, HIR::ImplBlock *impl);
 
-  HIR::ImplBlock *lookup_associated_impl (HirId impl_item_id)
-  {
-    auto lookup = hirImplItemsToImplMappings.find (impl_item_id);
-    rust_assert (lookup != hirImplItemsToImplMappings.end ());
-    return lookup->second;
-  }
+  HIR::ImplBlock *lookup_associated_impl (HirId impl_item_id);
 
   void iterate_impl_items (
     std::function<bool (HirId, HIR::ImplItem *, HIR::ImplBlock *)> cb);
@@ -196,73 +177,19 @@ public:
   void iterate_trait_items (
     std::function<bool (HIR::TraitItem *item, HIR::Trait *)> cb);
 
-  bool is_impl_item (HirId id)
-  {
-    HirId parent_impl_block_id = UNKNOWN_HIRID;
-    return lookup_hir_implitem (id, &parent_impl_block_id) != nullptr;
-  }
+  bool is_impl_item (HirId id);
 
-  void insert_trait_item_mapping (HirId trait_item_id, HIR::Trait *trait)
-  {
-    rust_assert (hirTraitItemsToTraitMappings.find (trait_item_id)
-		 == hirTraitItemsToTraitMappings.end ());
-    hirTraitItemsToTraitMappings[trait_item_id] = trait;
-  }
+  void insert_trait_item_mapping (HirId trait_item_id, HIR::Trait *trait);
 
-  HIR::Trait *lookup_trait_item_mapping (HirId trait_item_id)
-  {
-    auto lookup = hirTraitItemsToTraitMappings.find (trait_item_id);
-    rust_assert (lookup != hirTraitItemsToTraitMappings.end ());
-    return lookup->second;
-  }
+  HIR::Trait *lookup_trait_item_mapping (HirId trait_item_id);
 
-  void insert_canonical_path (NodeId id, const Resolver::CanonicalPath path)
-  {
-    const Resolver::CanonicalPath *p = nullptr;
-    if (lookup_canonical_path (id, &p))
-      {
-	// if we have already stored a canonical path this is ok so long as
-	// this new path is equal or is smaller that the existing one but in
-	// that case we ignore it.
-	if (p->is_equal (path))
-	  return;
-	else
-	  {
-	    rust_assert (p->size () >= path.size ());
-	    return;
-	  }
-      }
+  void insert_canonical_path (NodeId id, const Resolver::CanonicalPath path);
 
-    paths.emplace (id, std::move (path));
-  }
+  bool lookup_canonical_path (NodeId id, const Resolver::CanonicalPath **path);
 
-  bool lookup_canonical_path (NodeId id, const Resolver::CanonicalPath **path)
-  {
-    auto it = paths.find (id);
-    if (it == paths.end ())
-      return false;
+  void insert_lang_item (RustLangItem::ItemType item_type, DefId id);
 
-    *path = &it->second;
-    return true;
-  }
-
-  void insert_lang_item (RustLangItem::ItemType item_type, DefId id)
-  {
-    auto it = lang_item_mappings.find (item_type);
-    rust_assert (it == lang_item_mappings.end ());
-
-    lang_item_mappings[item_type] = id;
-  }
-
-  bool lookup_lang_item (RustLangItem::ItemType item_type, DefId *id)
-  {
-    auto it = lang_item_mappings.find (item_type);
-    if (it == lang_item_mappings.end ())
-      return false;
-
-    *id = it->second;
-    return true;
-  }
+  bool lookup_lang_item (RustLangItem::ItemType item_type, DefId *id);
 
   void insert_macro_def (AST::MacroRulesDefinition *macro);
 

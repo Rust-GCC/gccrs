@@ -39,6 +39,15 @@ NodeMapping::get_crate_num () const
   return crateNum;
 }
 
+bool
+NodeMapping::is_equal (const NodeMapping &other) const
+{
+  return get_crate_num () == other.get_crate_num ()
+	 && get_nodeid () == other.get_nodeid ()
+	 && get_hirid () == other.get_hirid ()
+	 && get_local_defid () == other.get_local_defid ();
+}
+
 NodeId
 NodeMapping::get_nodeid () const
 {
@@ -755,6 +764,28 @@ Mappings::resolve_nodeid_to_stmt (NodeId id, HIR::Stmt **stmt)
   return resolved_stmt != nullptr;
 }
 
+std::set<HirId> &
+Mappings::get_hirids_within_crate (CrateNum crate)
+{
+  return hirNodesWithinCrate[crate];
+}
+
+void
+Mappings::insert_impl_item_mapping (HirId impl_item_id, HIR::ImplBlock *impl)
+{
+  rust_assert (hirImplItemsToImplMappings.find (impl_item_id)
+	       == hirImplItemsToImplMappings.end ());
+  hirImplItemsToImplMappings[impl_item_id] = impl;
+}
+
+HIR::ImplBlock *
+Mappings::lookup_associated_impl (HirId impl_item_id)
+{
+  auto lookup = hirImplItemsToImplMappings.find (impl_item_id);
+  rust_assert (lookup != hirImplItemsToImplMappings.end ());
+  return lookup->second;
+}
+
 void
 Mappings::iterate_impl_items (
   std::function<bool (HirId, HIR::ImplItem *, HIR::ImplBlock *)> cb)
@@ -973,6 +1004,82 @@ Mappings::lookup_ast_item (NodeId id, AST::Item **result)
     return false;
 
   *result = it->second;
+  return true;
+}
+
+bool
+Mappings::is_impl_item (HirId id)
+{
+  HirId parent_impl_block_id = UNKNOWN_HIRID;
+  return lookup_hir_implitem (id, &parent_impl_block_id) != nullptr;
+}
+
+void
+Mappings::insert_trait_item_mapping (HirId trait_item_id, HIR::Trait *trait)
+{
+  rust_assert (hirTraitItemsToTraitMappings.find (trait_item_id)
+	       == hirTraitItemsToTraitMappings.end ());
+  hirTraitItemsToTraitMappings[trait_item_id] = trait;
+}
+
+HIR::Trait *
+Mappings::lookup_trait_item_mapping (HirId trait_item_id)
+{
+  auto lookup = hirTraitItemsToTraitMappings.find (trait_item_id);
+  rust_assert (lookup != hirTraitItemsToTraitMappings.end ());
+  return lookup->second;
+}
+
+void
+Mappings::insert_canonical_path (NodeId id, const Resolver::CanonicalPath path)
+{
+  const Resolver::CanonicalPath *p = nullptr;
+  if (lookup_canonical_path (id, &p))
+    {
+      // if we have already stored a canonical path this is ok so long as
+      // this new path is equal or is smaller that the existing one but in
+      // that case we ignore it.
+      if (p->is_equal (path))
+	return;
+      else
+	{
+	  rust_assert (p->size () >= path.size ());
+	  return;
+	}
+    }
+
+  paths.emplace (id, std::move (path));
+}
+
+bool
+Mappings::lookup_canonical_path (NodeId id,
+				 const Resolver::CanonicalPath **path)
+{
+  auto it = paths.find (id);
+  if (it == paths.end ())
+    return false;
+
+  *path = &it->second;
+  return true;
+}
+
+void
+Mappings::insert_lang_item (RustLangItem::ItemType item_type, DefId id)
+{
+  auto it = lang_item_mappings.find (item_type);
+  rust_assert (it == lang_item_mappings.end ());
+
+  lang_item_mappings[item_type] = id;
+}
+
+bool
+Mappings::lookup_lang_item (RustLangItem::ItemType item_type, DefId *id)
+{
+  auto it = lang_item_mappings.find (item_type);
+  if (it == lang_item_mappings.end ())
+    return false;
+
+  *id = it->second;
   return true;
 }
 
