@@ -88,6 +88,7 @@ GRS_OBJS = \
     rust/rust-ast-lower-base.o \
     rust/rust-ast-lower-pattern.o \
     rust/rust-ast-lower-item.o \
+	rust/rust-ast-lower-stmt.o \
     rust/rust-name-resolver.o \
     rust/rust-ast-resolve.o \
     rust/rust-ast-resolve-base.o \
@@ -99,6 +100,7 @@ GRS_OBJS = \
     rust/rust-ast-resolve-stmt.o \
     rust/rust-ast-resolve-struct-expr-field.o \
     rust/rust-hir-type-check.o \
+	rust/rust-tycheck-dump.o \
 	rust/rust-hir-type-bounds.o \
     rust/rust-privacy-check.o \
     rust/rust-privacy-ctx.o \
@@ -137,6 +139,9 @@ GRS_OBJS = \
     rust/rust-compile-pattern.o \
     rust/rust-compile-fnparam.o \
     rust/rust-base62.o \
+	rust/fnv-hash.o \
+	rust/rust-mapping-common.o \
+	rust/rust-canonical-path.o \
     rust/rust-optional-test.o \
     rust/rust-compile-item.o \
     rust/rust-compile-implitem.o \
