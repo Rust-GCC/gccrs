@@ -494,5 +494,75 @@ TypeCheckStmt::visit (HIR::Function &function)
   infered = fnType;
 }
 
+void
+TypeCheckStmt::visit (HIR::EnumItemTuple &)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::EnumItemStruct &)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::EnumItem &item)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::EnumItemDiscriminant &)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::TypePathSegmentFunction &segment)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::TypePath &path)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::QualifiedPathInType &path)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::Module &module)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::ExternCrate &crate)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::UseDeclaration &use_decl)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::TypeAlias &type_alias)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::StaticItem &static_item)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::Trait &trait)
+{ /* TODO? */
+}
+
+void
+TypeCheckStmt::visit (HIR::ImplBlock &impl)
+{ /* TODO? */
+}
+
 } // namespace Resolver
 } // namespace Rust
