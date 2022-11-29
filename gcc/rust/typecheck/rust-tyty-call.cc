@@ -22,6 +22,142 @@
 namespace Rust {
 namespace TyTy {
 
+BaseType *
+TypeCheckCallExpr::go (BaseType *ref, HIR::CallExpr &call,
+		       TyTy::VariantDef &variant,
+		       Resolver::TypeCheckContext *context)
+{
+  TypeCheckCallExpr checker (call, variant, context);
+  ref->accept_vis (checker);
+  return checker.resolved;
+}
+
+void
+TypeCheckCallExpr::visit (InferType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (TupleType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (ArrayType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (SliceType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (BoolType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (IntType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (UintType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (FloatType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (USizeType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (ISizeType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (ErrorType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (CharType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (ReferenceType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (PointerType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (ParamType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (StrType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (NeverType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (PlaceholderType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (ProjectionType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (DynamicObjectType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckCallExpr::visit (ClosureType &type)
+{
+  gcc_unreachable ();
+}
+
 void
 TypeCheckCallExpr::visit (ADTType &type)
 {
@@ -202,6 +338,156 @@ TypeCheckCallExpr::visit (FnPtr &type)
 }
 
 // method call checker
+
+// Resolve the Method parameters and return back the return type
+BaseType *
+TypeCheckMethodCallExpr::go (BaseType *ref, HIR::MethodCallExpr &call,
+			     TyTy::BaseType *adjusted_self,
+			     Resolver::TypeCheckContext *context)
+{
+  TypeCheckMethodCallExpr checker (call, adjusted_self, context);
+  ref->accept_vis (checker);
+  return checker.resolved;
+}
+
+void
+TypeCheckMethodCallExpr::visit (InferType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (TupleType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (ArrayType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (SliceType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (BoolType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (IntType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (UintType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (FloatType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (USizeType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (ISizeType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (ErrorType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (ADTType &)
+{
+  gcc_unreachable ();
+};
+
+void
+TypeCheckMethodCallExpr::visit (CharType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (ReferenceType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (PointerType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (ParamType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (StrType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (NeverType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (PlaceholderType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (ProjectionType &)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (DynamicObjectType &)
+{
+  gcc_unreachable ();
+}
+
+// FIXME
+void
+TypeCheckMethodCallExpr::visit (FnPtr &type)
+{
+  gcc_unreachable ();
+}
+
+void
+TypeCheckMethodCallExpr::visit (ClosureType &type)
+{
+  gcc_unreachable ();
+}
 
 void
 TypeCheckMethodCallExpr::visit (FnType &type)

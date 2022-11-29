@@ -33,34 +33,29 @@ class TypeCheckCallExpr : private TyVisitor
 public:
   static BaseType *go (BaseType *ref, HIR::CallExpr &call,
 		       TyTy::VariantDef &variant,
-		       Resolver::TypeCheckContext *context)
-  {
-    TypeCheckCallExpr checker (call, variant, context);
-    ref->accept_vis (checker);
-    return checker.resolved;
-  }
+		       Resolver::TypeCheckContext *context);
 
-  void visit (InferType &) override { gcc_unreachable (); }
-  void visit (TupleType &) override { gcc_unreachable (); }
-  void visit (ArrayType &) override { gcc_unreachable (); }
-  void visit (SliceType &) override { gcc_unreachable (); }
-  void visit (BoolType &) override { gcc_unreachable (); }
-  void visit (IntType &) override { gcc_unreachable (); }
-  void visit (UintType &) override { gcc_unreachable (); }
-  void visit (FloatType &) override { gcc_unreachable (); }
-  void visit (USizeType &) override { gcc_unreachable (); }
-  void visit (ISizeType &) override { gcc_unreachable (); }
-  void visit (ErrorType &) override { gcc_unreachable (); }
-  void visit (CharType &) override { gcc_unreachable (); }
-  void visit (ReferenceType &) override { gcc_unreachable (); }
-  void visit (PointerType &) override { gcc_unreachable (); }
-  void visit (ParamType &) override { gcc_unreachable (); }
-  void visit (StrType &) override { gcc_unreachable (); }
-  void visit (NeverType &) override { gcc_unreachable (); }
-  void visit (PlaceholderType &) override { gcc_unreachable (); }
-  void visit (ProjectionType &) override { gcc_unreachable (); }
-  void visit (DynamicObjectType &) override { gcc_unreachable (); }
-  void visit (ClosureType &type) override { gcc_unreachable (); }
+  void visit (InferType &) override;
+  void visit (TupleType &) override;
+  void visit (ArrayType &) override;
+  void visit (SliceType &) override;
+  void visit (BoolType &) override;
+  void visit (IntType &) override;
+  void visit (UintType &) override;
+  void visit (FloatType &) override;
+  void visit (USizeType &) override;
+  void visit (ISizeType &) override;
+  void visit (ErrorType &) override;
+  void visit (CharType &) override;
+  void visit (ReferenceType &) override;
+  void visit (PointerType &) override;
+  void visit (ParamType &) override;
+  void visit (StrType &) override;
+  void visit (NeverType &) override;
+  void visit (PlaceholderType &) override;
+  void visit (ProjectionType &) override;
+  void visit (DynamicObjectType &) override;
+  void visit (ClosureType &type) override;
 
   // tuple-structs
   void visit (ADTType &type) override;
@@ -90,41 +85,37 @@ public:
   // Resolve the Method parameters and return back the return type
   static BaseType *go (BaseType *ref, HIR::MethodCallExpr &call,
 		       TyTy::BaseType *adjusted_self,
-		       Resolver::TypeCheckContext *context)
-  {
-    TypeCheckMethodCallExpr checker (call, adjusted_self, context);
-    ref->accept_vis (checker);
-    return checker.resolved;
-  }
+		       Resolver::TypeCheckContext *context);
 
-  void visit (InferType &) override { gcc_unreachable (); }
-  void visit (TupleType &) override { gcc_unreachable (); }
-  void visit (ArrayType &) override { gcc_unreachable (); }
-  void visit (SliceType &) override { gcc_unreachable (); }
-  void visit (BoolType &) override { gcc_unreachable (); }
-  void visit (IntType &) override { gcc_unreachable (); }
-  void visit (UintType &) override { gcc_unreachable (); }
-  void visit (FloatType &) override { gcc_unreachable (); }
-  void visit (USizeType &) override { gcc_unreachable (); }
-  void visit (ISizeType &) override { gcc_unreachable (); }
-  void visit (ErrorType &) override { gcc_unreachable (); }
-  void visit (ADTType &) override { gcc_unreachable (); };
-  void visit (CharType &) override { gcc_unreachable (); }
-  void visit (ReferenceType &) override { gcc_unreachable (); }
-  void visit (PointerType &) override { gcc_unreachable (); }
-  void visit (ParamType &) override { gcc_unreachable (); }
-  void visit (StrType &) override { gcc_unreachable (); }
-  void visit (NeverType &) override { gcc_unreachable (); }
-  void visit (PlaceholderType &) override { gcc_unreachable (); }
-  void visit (ProjectionType &) override { gcc_unreachable (); }
-  void visit (DynamicObjectType &) override { gcc_unreachable (); }
+  void visit (InferType &) override;
+  void visit (TupleType &) override;
+  void visit (ArrayType &) override;
+  void visit (SliceType &) override;
+  void visit (BoolType &) override;
+  void visit (IntType &) override;
+  void visit (UintType &) override;
+  void visit (FloatType &) override;
+  void visit (USizeType &) override;
+  void visit (ISizeType &) override;
+  void visit (ErrorType &) override;
+  void visit (ADTType &) override;
+
+  void visit (CharType &) override;
+  void visit (ReferenceType &) override;
+  void visit (PointerType &) override;
+  void visit (ParamType &) override;
+  void visit (StrType &) override;
+  void visit (NeverType &) override;
+  void visit (PlaceholderType &) override;
+  void visit (ProjectionType &) override;
+  void visit (DynamicObjectType &) override;
 
   // FIXME
-  void visit (FnPtr &type) override { gcc_unreachable (); }
+  void visit (FnPtr &type) override;
 
   // call fns
   void visit (FnType &type) override;
-  void visit (ClosureType &type) override { gcc_unreachable (); }
+  void visit (ClosureType &type) override;
 
 private:
   TypeCheckMethodCallExpr (HIR::MethodCallExpr &c,
