@@ -32,12 +32,7 @@ class ResolveTraitItemToRef : public TypeCheckBase,
 public:
   static TraitItemReference
   Resolve (HIR::TraitItem &item, TyTy::BaseType *self,
-	   std::vector<TyTy::SubstitutionParamMapping> substitutions)
-  {
-    ResolveTraitItemToRef resolver (self, std::move (substitutions));
-    item.accept_vis (resolver);
-    return std::move (resolver.resolved);
-  }
+	   std::vector<TyTy::SubstitutionParamMapping> substitutions);
 
   void visit (HIR::TraitItemType &type) override;
 
@@ -78,7 +73,7 @@ private:
   HIR::Trait *resolved_trait_reference;
 
 public:
-  void visit (HIR::Trait &trait) override { resolved_trait_reference = &trait; }
+  void visit (HIR::Trait &trait) override;
 };
 
 } // namespace Resolver

@@ -22,6 +22,17 @@
 namespace Rust {
 namespace Resolver {
 
+TraitItemReference
+
+ResolveTraitItemToRef::Resolve (
+  HIR::TraitItem &item, TyTy::BaseType *self,
+  std::vector<TyTy::SubstitutionParamMapping> substitutions)
+{
+  ResolveTraitItemToRef resolver (self, std::move (substitutions));
+  item.accept_vis (resolver);
+  return std::move (resolver.resolved);
+}
+
 void
 ResolveTraitItemToRef::visit (HIR::TraitItemType &type)
 {
@@ -593,6 +604,12 @@ PathProbeImplTrait::process_trait_impl_items_for_candidates ()
       process_impl_item_candidate (id, item, impl);
       return true;
     });
+}
+
+void
+TraitResolver::visit (HIR::Trait &trait)
+{
+  resolved_trait_reference = &trait;
 }
 
 } // namespace Resolver
