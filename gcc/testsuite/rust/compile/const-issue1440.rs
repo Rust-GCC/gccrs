@@ -1,3 +1,5 @@
+// { dg-xfail-if "expected failure on big endian systems" { be } }
+
 // { dg-additional-options "-w" }
 
 mod intrinsics {
@@ -39,6 +41,7 @@ macro_rules! impl_uint {
                 }
 
                 pub fn to_le(self) -> Self {
+                    // { dg-error "" "" { xfail { le } } .-1 }
                     #[cfg(target_endian = "little")]
                     {
                         self
@@ -46,11 +49,12 @@ macro_rules! impl_uint {
                 }
 
                 pub const fn from_le_bytes(bytes: [u8; mem::size_of::<Self>()]) -> Self {
-                    // { dg-error "only functions marked as .const. are allowed to be called from constant contexts" "" { target *-*-* } .-1 }
+                    // { dg-error "only functions marked as .const. are allowed to be called from constant contexts" "" { target { le } } .-1 }
                     Self::from_le(Self::from_ne_bytes(bytes))
                 }
 
                 pub const fn from_le(x: Self) -> Self {
+                    // { dg-error "" "" { xfail { le } } .-1 }
                     #[cfg(target_endian = "little")]
                     {
                         x
@@ -58,7 +62,7 @@ macro_rules! impl_uint {
                 }
 
                 pub const fn from_ne_bytes(bytes: [u8; mem::size_of::<Self>()]) -> Self {
-                    // { dg-error "only functions marked as .const. are allowed to be called from constant contexts" "" { target *-*-* } .-1 }
+                    // { dg-error "only functions marked as .const. are allowed to be called from constant contexts" "" { target { le } } .-1 }
                     unsafe { mem::transmute(bytes) }
                 }
             }

@@ -1,3 +1,5 @@
+// { dg-xfail-if "expected failure on big endian" { be } }
+
 // { dg-additional-options "-w" }
 mod intrinsics {
     extern "rust-intrinsic" {
@@ -43,6 +45,7 @@ macro_rules! impl_uint {
                 }
 
                 pub fn to_le(self) -> Self {
+                    // { dg-error "" "" { xfail { le } } .-1 }
                     #[cfg(target_endian = "little")]
                     {
                         self
@@ -54,6 +57,7 @@ macro_rules! impl_uint {
                 }
 
                 pub const fn from_le(x: Self) -> Self {
+                    // { dg-error "" "" { xfail { le } } .-1 }
                     #[cfg(target_endian = "little")]
                     {
                         x
