@@ -3836,8 +3836,8 @@ class ExternalItem
 public:
   virtual ~ExternalItem () {}
 
-  /* TODO: spec syntax rules state that "MacroInvocationSemi" can be used as 
-   * ExternalItem, but text body isn't so clear. Adding MacroInvocationSemi 
+  /* TODO: spec syntax rules state that "MacroInvocationSemi" can be used as
+   * ExternalItem, but text body isn't so clear. Adding MacroInvocationSemi
    * support would require a lot of refactoring. */
 
   // Returns whether item has outer attributes.
