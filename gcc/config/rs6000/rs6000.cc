@@ -4369,10 +4369,6 @@ rs6000_option_override_internal (bool global_init_p)
   if (TARGET_POWER10 && (rs6000_isa_flags_explicit & OPTION_MASK_MMA) == 0)
     rs6000_isa_flags |= OPTION_MASK_MMA;
 
-  if (TARGET_POWER10
-      && (rs6000_isa_flags_explicit & OPTION_MASK_P10_FUSION) == 0)
-    rs6000_isa_flags |= OPTION_MASK_P10_FUSION;
-
   /* Turn off vector pair/mma options on non-power10 systems.  */
   else if (!TARGET_POWER10 && TARGET_MMA)
     {
@@ -4381,6 +4377,10 @@ rs6000_option_override_internal (bool global_init_p)
 
       rs6000_isa_flags &= ~OPTION_MASK_MMA;
     }
+
+  if (TARGET_POWER10
+      && (rs6000_isa_flags_explicit & OPTION_MASK_P10_FUSION) == 0)
+    rs6000_isa_flags |= OPTION_MASK_P10_FUSION;
 
   /* MMA requires SIMD support as ISA 3.1 claims and our implementation
      such as "*movoo" uses vector pair access which use VSX registers.
@@ -10251,17 +10251,42 @@ rs6000_emit_set_long_const (rtx dest, HOST_WIDE_INT c)
       if (ud1 != 0)
 	emit_move_insn (dest, gen_rtx_IOR (DImode, temp, GEN_INT (ud1)));
     }
+  else if (ud4 == 0xffff && ud3 == 0xffff && (ud1 & 0x8000))
+    {
+      /* li; xoris */
+      temp = !can_create_pseudo_p () ? dest : gen_reg_rtx (DImode);
+      emit_move_insn (temp, GEN_INT (sext_hwi (ud1, 16)));
+      emit_move_insn (dest, gen_rtx_XOR (DImode, temp,
+					 GEN_INT ((ud2 ^ 0xffff) << 16)));
+    }
   else if (ud3 == 0 && ud4 == 0)
     {
       temp = !can_create_pseudo_p () ? dest : gen_reg_rtx (DImode);
 
       gcc_assert (ud2 & 0x8000);
-      emit_move_insn (temp, GEN_INT (sext_hwi (ud2 << 16, 32)));
-      if (ud1 != 0)
-	emit_move_insn (temp, gen_rtx_IOR (DImode, temp, GEN_INT (ud1)));
-      emit_move_insn (dest,
-		      gen_rtx_ZERO_EXTEND (DImode,
-					   gen_lowpart (SImode,temp)));
+
+      if (ud1 == 0)
+	{
+	  /* lis; rldicl */
+	  emit_move_insn (temp, GEN_INT (sext_hwi (ud2 << 16, 32)));
+	  emit_move_insn (dest,
+			  gen_rtx_AND (DImode, temp, GEN_INT (0xffffffff)));
+	}
+      else if (!(ud1 & 0x8000))
+	{
+	  /* li; oris */
+	  emit_move_insn (temp, GEN_INT (ud1));
+	  emit_move_insn (dest,
+			  gen_rtx_IOR (DImode, temp, GEN_INT (ud2 << 16)));
+	}
+      else
+	{
+	  /* lis; ori; rldicl */
+	  emit_move_insn (temp, GEN_INT (sext_hwi (ud2 << 16, 32)));
+	  emit_move_insn (temp, gen_rtx_IOR (DImode, temp, GEN_INT (ud1)));
+	  emit_move_insn (dest,
+			  gen_rtx_AND (DImode, temp, GEN_INT (0xffffffff)));
+	}
     }
   else if (ud1 == ud3 && ud2 == ud4)
     {
@@ -14923,6 +14948,71 @@ rs6000_reverse_condition (machine_mode mode, enum rtx_code code)
     return reverse_condition_maybe_unordered (code);
   else
     return reverse_condition (code);
+}
+
+/* Check if C (as 64bit integer) can be rotated to a constant which constains
+   nonzero bits at the LOWBITS low bits only.
+
+   Return true if C can be rotated to such constant.  If so, *ROT is written
+   to the number by which C is rotated.
+   Return false otherwise.  */
+
+bool
+can_be_rotated_to_lowbits (unsigned HOST_WIDE_INT c, int lowbits, int *rot)
+{
+  int clz = HOST_BITS_PER_WIDE_INT - lowbits;
+
+  /* case a. 0..0xxx: already at least clz zeros.  */
+  int lz = clz_hwi (c);
+  if (lz >= clz)
+    {
+      *rot = 0;
+      return true;
+    }
+
+  /* case b. 0..0xxx0..0: at least clz zeros.  */
+  int tz = ctz_hwi (c);
+  if (lz + tz >= clz)
+    {
+      *rot = HOST_BITS_PER_WIDE_INT - tz;
+      return true;
+    }
+
+  /* case c. xx10.....0xx: rotate 'clz - 1' bits first, then check case b.
+	       ^bit -> Vbit, , then zeros are at head or tail.
+	     00...00xxx100, 'clz - 1' >= 'bits of xxxx'.  */
+  const int rot_bits = lowbits + 1;
+  unsigned HOST_WIDE_INT rc = (c >> rot_bits) | (c << (clz - 1));
+  tz = ctz_hwi (rc);
+  if (clz_hwi (rc) + tz >= clz)
+    {
+      *rot = HOST_BITS_PER_WIDE_INT - (tz + rot_bits);
+      return true;
+    }
+
+  return false;
+}
+
+/* Check if C (as 64bit integer) can be rotated to a positive 16bits constant
+   which contains 48bits leading zeros and 16bits of any value.  */
+
+bool
+can_be_rotated_to_positive_16bits (HOST_WIDE_INT c)
+{
+  int rot = 0;
+  bool res = can_be_rotated_to_lowbits (c, 16, &rot);
+  return res && rot > 0;
+}
+
+/* Check if C (as 64bit integer) can be rotated to a negative 15bits constant
+   which contains 49bits leading ones and 15bits of any value.  */
+
+bool
+can_be_rotated_to_negative_15bits (HOST_WIDE_INT c)
+{
+  int rot = 0;
+  bool res = can_be_rotated_to_lowbits (~c, 15, &rot);
+  return res && rot > 0;
 }
 
 /* Generate a compare for CODE.  Return a brand-new rtx that
@@ -28809,7 +28899,44 @@ constant_generates_xxspltidp (vec_const_128bit_type *vsx_const)
   return sf_value;
 }
 
-
+/* Now we have only two opaque types, they are __vector_quad and
+   __vector_pair built-in types.  They are target specific and
+   only available when MMA is supported.  With MMA supported, it
+   simply returns true, otherwise it checks if the given gimple
+   STMT is an assignment stmt and uses either of these two opaque
+   types unexpectedly, if yes, it would raise an error message
+   and returns true, otherwise it returns false.  */
+
+bool
+rs6000_opaque_type_invalid_use_p (gimple *stmt)
+{
+  if (TARGET_MMA)
+    return false;
+
+  if (stmt)
+    {
+      /* The usage of MMA opaque types is very limited for now,
+	 to check with gassign is enough so far.  */
+      if (gassign *ga = dyn_cast<gassign *> (stmt))
+	{
+	  tree lhs = gimple_assign_lhs (ga);
+	  tree type = TREE_TYPE (lhs);
+	  if (type == vector_quad_type_node)
+	    {
+	      error ("type %<__vector_quad%> requires the %qs option", "-mmma");
+	      return true;
+	    }
+	  else if (type == vector_pair_type_node)
+	    {
+	      error ("type %<__vector_pair%> requires the %qs option", "-mmma");
+	      return true;
+	    }
+	}
+    }
+
+  return false;
+}
+
 struct gcc_target targetm = TARGET_INITIALIZER;
 
 #include "gt-rs6000.h"

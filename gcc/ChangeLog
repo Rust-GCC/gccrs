@@ -1,3 +1,626 @@
+2022-12-21  Andrew Pinski  <apinski@marvell.com>
+
+	PR tree-optimization/105532
+	* match.pd (~(X >> Y) -> ~X >> Y): Check if it is an integral
+	type before calling tree_nonzero_bits.
+	(popcount(X) + popcount(Y)): Likewise.
+	(popcount(X&C1)): Likewise.
+
+2022-12-21  Chung-Lin Tang  <cltang@codesourcery.com>
+
+	* config/nvptx/nvptx.cc (nvptx_print_operand): Add 'p' case, adjust
+	comments.
+	(enum nvptx_builtins): Add NVPTX_BUILTIN_BAR_RED_AND,
+	NVPTX_BUILTIN_BAR_RED_OR, and NVPTX_BUILTIN_BAR_RED_POPC.
+	(nvptx_expand_bar_red): New function.
+	(nvptx_init_builtins):
+	Add DEFs of __builtin_nvptx_bar_red_[and/or/popc].
+	(nvptx_expand_builtin): Use nvptx_expand_bar_red to expand
+	NVPTX_BUILTIN_BAR_RED_[AND/OR/POPC] cases.
+	* config/nvptx/nvptx.md (define_c_enum "unspecv"): Add
+	UNSPECV_BARRED_AND, UNSPECV_BARRED_OR, and UNSPECV_BARRED_POPC.
+	(BARRED): New int iterator.
+	(barred_op,barred_mode,barred_ptxtype): New int attrs.
+	(nvptx_barred_<barred_op>): New define_insn.
+
+2022-12-21  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/107994
+	* gimplify.cc (gimplify_expr): Catch errorneous comparison
+	operand.
+
+2022-12-21  Jan Hubicka  <hubicka@ucw.cz>
+
+	* lto-opts.cc (lto_write_options): Also skip -fwhole-program.
+
+2022-12-21  Jan Hubicka  <jh@suse.cz>
+
+	* lto-cgraph.cc (lto_output_node): When doing WPA in incremental link
+	pass down resolution info.
+
+2022-12-21  Jan Hubicka  <hubicka@ucw.cz>
+
+	* doc/invoke.texi: Fix documentation of -fwhole-program with LTO
+	and document behaviour for incremental linking.
+
+2022-12-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	* config/rs6000/rs6000.cc (rs6000_option_override_internal): Fix the
+	location for OPTION_MASK_P10_FUSION flag setting.
+
+2022-12-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	* fold-const.cc (fold_convert_const_real_from_real): Treat floating
+	point conversion to a type with same mode as copy instead of normal
+	convertFormat.
+
+2022-12-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	PR target/106736
+	* config/rs6000/mma.md (define_expand movoo): Call function
+	rs6000_opaque_type_invalid_use_p to check and emit error message for
+	the invalid use of opaque type.
+	(define_expand movxo): Likewise.
+	* config/rs6000/rs6000-protos.h
+	(rs6000_opaque_type_invalid_use_p): New function declaration.
+	(currently_expanding_gimple_stmt): New extern declaration.
+	* config/rs6000/rs6000.cc (rs6000_opaque_type_invalid_use_p): New
+	function.
+
+2022-12-21  Jason Merrill  <jason@redhat.com>
+
+	* fold-const.cc (fold_convert_loc): Check return value of
+	protected_set_expr_location_unshare.
+
+2022-12-21  Jason Merrill  <jason@redhat.com>
+
+	PR c++/84471
+	PR c++/107504
+	* fold-const.cc (protected_set_expr_location_unshare): Not static.
+	* tree.h: Declare it.
+	* tree.cc (decl_value_expr_insert): Use it.
+
+2022-12-20  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/101886
+	* tree.cc (walk_tree_1) <case TREE_VEC>: Walk the elements
+	in forward instead of reverse order.
+	<case VECTOR_CST>: Likewise.
+
+2022-12-20  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/108139
+	* gimple-range-cache.cc (ranger_cache::fill_block_cache): Do not
+	use equivalences originating from PHIS.
+
+2022-12-20  Richard Biener  <rguenther@suse.de>
+
+	PR d/104749
+	* doc/install.texi (GDC): Document GDC 9.4 or later is required
+	to build the D language frontend.
+
+2022-12-20  Jiufu Guo  <guojiufu@linux.ibm.com>
+
+	PR target/103743
+	* config/rs6000/rs6000-protos.h (can_be_rotated_to_lowbits): New.
+	(can_be_rotated_to_positive_16bits): New.
+	(can_be_rotated_to_negative_15bits): New.
+	* config/rs6000/rs6000.cc (can_be_rotated_to_lowbits): New definition.
+	(can_be_rotated_to_positive_16bits): New definition.
+	(can_be_rotated_to_negative_15bits): New definition.
+	* config/rs6000/rs6000.md (*rotate_on_cmpdi): New define_insn_and_split.
+	(eqne): Move earlier.
+
+2022-12-19  Jason Merrill  <jason@redhat.com>
+
+	* sort.cc: Disable -Wconditionally-supported in
+	CHECKING_P code.
+
+2022-12-19  Jason Merrill  <jason@redhat.com>
+
+	PR c++/64867
+	* configure.ac (strict_warn): Add -Wconditionally-supported.
+	* configure: Regenerate.
+
+2022-12-19  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/108164
+	* tree-vect-loop-manip.cc (vect_update_ivs_after_vectorizer):
+	Perform vect_step_op_add update in the appropriate type.
+
+2022-12-19  Richard Earnshaw  <rearnsha@arm.com>
+
+	* config/arm/arm-c.cc (__ARM_FEATURE_CLZ): Fix definition of
+	preprocessor macro when target has CLZ in another ISA.
+
+2022-12-19  Ju-Zhe Zhong  <juzhe.zhong@rivai.ai>
+
+	* config/riscv/vector.md: Remove vste.
+
+2022-12-19  Ju-Zhe Zhong  <juzhe.zhong@rivai.ai>
+
+	* config.gcc: Add riscv-vsetvl.o.
+	* config/riscv/riscv-passes.def (INSERT_PASS_BEFORE): Add VSETVL PASS
+	location.
+	* config/riscv/riscv-protos.h (make_pass_vsetvl): New function.
+	(enum avl_type): New enum.
+	(get_ta): New function.
+	(get_ma): Ditto.
+	(get_avl_type): Ditto.
+	(calculate_ratio): Ditto.
+	(enum tail_policy): New enum.
+	(enum mask_policy): Ditto.
+	* config/riscv/riscv-v.cc (calculate_ratio): New function.
+	(emit_pred_op): change the VLMAX mov codgen.
+	(get_ta): New function.
+	(get_ma): Ditto.
+	(enum tail_policy): Change enum.
+	(get_prefer_tail_policy): New function.
+	(enum mask_policy): Change enum.
+	(get_prefer_mask_policy): New function.
+	* config/riscv/t-riscv: Add riscv-vsetvl.o
+	* config/riscv/vector.md: Adjust attribute and pattern for VSETVL
+	PASS.
+	(@vlmax_avl<mode>): Ditto.
+	(@vsetvl<mode>_no_side_effects): Delete.
+	(vsetvl_vtype_change_only): New MD pattern.
+	(@vsetvl_discard_result<mode>): Ditto.
+	* config/riscv/riscv-vsetvl.cc: New file.
+	* config/riscv/riscv-vsetvl.h: New file.
+
+2022-12-19  Ju-Zhe Zhong  <juzhe.zhong@rivai.ai>
+
+	* config/riscv/riscv-vector-switch.def (ENTRY): Correct attributes.
+
+2022-12-19  Kyrylo Tkachov  <kyrylo.tkachov@arm.com>
+
+	PR target/108140
+	* config/aarch64/aarch64-builtins.cc
+	(aarch64_expand_builtin_data_intrinsic): Handle NULL target.
+
+2022-12-19  Jakub Jelinek  <jakub@redhat.com>
+
+	* config/gnu-user.h (LIBHWASAN_EARLY_SPEC): Add libhwasan_preinit.o
+	to link spec if not -shared.
+
+2022-12-19  Ju-Zhe Zhong  <juzhe.zhong@rivai.ai>
+
+	* config/riscv/riscv-v.cc (emit_vlmax_vsetvl): Pass through VLMUL enum
+	instead of machine mode.
+	* config/riscv/riscv-vector-builtins-bases.cc: Ditto.
+	* config/riscv/riscv.cc (riscv_print_operand): Print LMUL by enum vlmul
+	instead of machine mode.
+
+2022-12-19  Jiufu Guo  <guojiufu@linux.ibm.com>
+
+	PR target/106708
+	* config/rs6000/rs6000.cc (rs6000_emit_set_long_const): Add using
+	"li; x?oris" to build constant.
+
+2022-12-19  liuhongt  <hongtao.liu@intel.com>
+
+	PR target/55522
+	* config/i386/gnu-user-common.h (GNU_USER_TARGET_MATHFILE_SPEC):
+	Don't add crtfastmath.o for -shared.
+	* doc/invoke.texi (-shared): Add related documentation.
+
+2022-12-18  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config.gcc: Determine Solaris minor version.
+	Obsolete *-*-solaris2.11.[0-3]*.
+	* doc/install.texi (Specific, *-*-solaris2*): Document it.
+
+2022-12-17  Segher Boessenkool  <segher@kernel.crashing.org>
+
+	* config/rs6000/rs6000-logue.cc (rs6000_output_function_epilogue):
+	Handle GNU Rust for the tbtab lang field.
+
+2022-12-16  John David Anglin  <danglin@gcc.gnu.org>
+
+	* config/pa/pa.cc (pa_option_override): Disable -fstack-protector.
+
+2022-12-16  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	Revert:
+	2022-12-15  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	* ira-costs.cc: Include print-rtl.h.
+	(record_reg_classes, scan_one_insn): Add code to print debug info.
+	* ira.cc (ira_init_register_move_cost): Check that at least one hard
+	reg of the mode are in the class contents to calculate the
+	register move costs.
+
+2022-12-16  Qing Zhao  <qing.zhao@oracle.com>
+
+	* doc/invoke.texi: Document -Wstrict-flex-arrays option.
+	* gimple-array-bounds.cc (check_out_of_bounds_and_warn): Add two more
+	arguments.
+	(array_bounds_checker::check_array_ref): Issue warnings for
+	-Wstrict-flex-arrays.
+	* opts.cc (finish_options): Issue warning for unsupported combination
+	of -Wstrict_flex_arrays and -fstrict-flex-array.
+	* tree-vrp.cc (execute_ranger_vrp): Enable the pass when
+	warn_strict_flex_array is true.
+
+2022-12-16  Palmer Dabbelt  <palmer@rivosinc.com>
+
+	* config/riscv/riscv.cc (riscv_option_override): Fix comment
+	wording.
+
+2022-12-16  Palmer Dabbelt  <palmer@rivosinc.com>
+
+	* doc/extend.texi (__builtin_riscv_pause): Imply
+	Xgnuzihintpausestate.
+
+2022-12-16  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/108086
+	* tree-inline.cc (remap_ssa_name): Do not unshare the
+	result from the decl_map.
+
+2022-12-16  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/108086
+	* tree-inline.cc (copy_bb): Remove handling of (foo *)&this->m
+	substitution which is done in remap_gimple_op_r via
+	re-gimplifying.
+
+2022-12-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR rtl-optimization/106751
+	* loop-invariant.cc (move_invariant_reg): If preheader bb ends
+	with a JUMP_INSN, split the preheader edge and emit invariants
+	into the new preheader basic block.
+
+2022-12-16  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/108086
+	* tree-inline.cc (remap_gimple_stmt): Add stmts to the
+	sequence without updating them.  Simplify x == x detection.
+
+2022-12-16  Haochen Jiang  <haochen.jiang@intel.com>
+
+	* config/i386/cmpccxaddintrin.h
+	(__cmpccxadd_epi32): Rename to _cmpccxadd_epi32.
+	(__cmpccxadd_epi64): Rename to _cmpccxadd_epi64.
+
+2022-12-15  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	* ira-costs.cc: Include print-rtl.h.
+	(record_reg_classes, scan_one_insn): Add code to print debug info.
+	* ira.cc (ira_init_register_move_cost): Check that at least one hard
+	reg of the mode are in the class contents to calculate the
+	register move costs.
+
+2022-12-15  Siddhesh Poyarekar  <siddhesh@gotplt.org>
+
+	* doc/extend.texi (__builtin_dynamic_object_size): Document
+	builtin.
+	* doc/passes.texi
+	(Optimize calls to @code{__builtin_object_size}): Also mention
+	__builtin_dynamic_object_size.
+
+2022-12-15  Siddhesh Poyarekar  <siddhesh@gotplt.org>
+
+	PR middle-end/70090
+	* doc/invoke.texi (-fsanitize=object-size): Use
+	__builtin_dynamic_object_size instead of
+	__builtin_object_size.
+
+2022-12-15  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/108086
+	* tree-inline.cc (copy_edges_for_bb): Walk stmts backwards for
+	splitting the block to avoid quadratic behavior with setting
+	stmts BB on multliple splits.
+
+2022-12-15  Spacetown  <michael.foerderer@gmx.de>
+
+	PR gcov-profile/107537
+	* gcov.cc (output_branch_count): Add annotation '(fallthrough)'
+	or '(throw)' also to uncovered branches.
+
+2022-12-15  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/108086
+	* tree-inline.cc (copy_edges_for_bb): Do not update all
+	stmts again.
+
+2022-12-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/108095
+	* tree-into-ssa.cc (maybe_register_def): Insert debug stmt
+	on all non-EH edges from asm goto if they have a single
+	predecessor rather than asserting there is at most one such edge.
+	Test whether there are no PHI nodes next to the single predecessor
+	test.
+
+2022-12-14  David Faust  <david.faust@oracle.com>
+
+	PR target/106773
+	* btfout.cc (get_section_name): New function.
+	(btf_collect_datasec): Use it here. Process functions, marking them
+	'extern' and generating DATASEC entries for them as appropriate. Move
+	creation of BTF_KIND_FUNC records to here...
+	(btf_dtd_emit_preprocess_cb): ... from here.
+
+2022-12-14  David Faust  <david.faust@oracle.com>
+
+	PR target/106773
+	* btfout.cc (btf_collect_datasec): Correct size of void entries.
+	(btf_dvd_emit_preprocess_cb): Do not skip emitting variables which
+	refer to void types.
+	(btf_init_postprocess): Create 'const void' type record if needed and
+	adjust variables to refer to it as appropriate.
+
+2022-12-14  David Faust  <david.faust@oracle.com>
+
+	PR target/106773
+	* btfout.cc (btf_collect_datasec): Mark extern variables as such.
+	(btf_dvd_emit_preprocess_cb): Skip non-defining extern variable decl
+	if there is a defining decl for the same variable.
+	(btf_asm_varent): Accomodate 'extern' linkage.
+
+2022-12-14  Martin Jambor  <mjambor@suse.cz>
+
+	* ipa-sra.cc (create_parameter_descriptors): Consider the first
+	parameter of a method safe to dereference.
+
+2022-12-14  Martin Jambor  <mjambor@suse.cz>
+
+	* ipa-sra.cc (loaded_decls): Adjust comment.
+	(scan_expr_access): Also detect assignments of address of local
+	variables to a variable.  Bail out early on SSA_NAMEs and
+	constants as an optimization.
+
+2022-12-14  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	* configure.ac (HAVE_PYTHON): Test for Python3 added.
+	* dwarf2out.cc (gen_compile_unit_die): Check language_string
+	and language to DW_LANG_Modula2.
+	* doc/install.texi: Add m2 as a language.
+	(--disable-libgm2): Documented.  Add make check-m2 to testing selected
+	tests.
+	* doc/sourcebuild.texi (GM2): New prerequisite item.
+	(Python3 modules) New item.
+	(libgm2) Added.
+	(gcc/m2) Added.
+	* configure: Rebuilt.
+	* config.in: Rebuilt.
+	* doc/gm2.texi: New file.
+
+2022-12-14  Martin Jambor  <mjambor@suse.cz>
+
+	* doc/invoke.texi (ipa-sra-ptrwrap-growth-factor): Fix the
+	description.
+	* params.opt (ipa-sra-ptrwrap-growth-factor): Likewise.
+
+2022-12-14  Tamar Christina  <tamar.christina@arm.com>
+
+	PR target/107988
+	* config/aarch64/aarch64.cc
+	(aarch64_vectorize_can_special_div_by_constant): Ensure input and output
+	RTL are registers.
+
+2022-12-14  Martin Liska  <mliska@suse.cz>
+
+	* doc/invoke.texi: Document ipa-sra-ptrwrap-growth-factor.
+
+2022-12-14  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/107617
+	* tree-ssa-sccvn.cc (vn_walk_cb_data::push_partial_def):
+	Handle negative pd.rhs_off.
+	(vn_reference_lookup_3): Properly provide pd.rhs_off
+	for .LEN_STORE on big-endian targets.
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	* ipa-param-manipulation.cc
+	(ipa_param_body_adjustments::modify_expression): Bail out early if
+	there are no replacements.
+	(ipa_param_body_adjustments::modify_assignment): Likewise.
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	* ipa-sra.cc (isra_param_desc): New fields safe_size,
+	conditionally_dereferenceable and safe_size_set.
+	(struct gensum_param_desc): New field conditionally_dereferenceable.
+	(struct isra_param_flow): Updated comment of field unit_size.
+	(ipa_sra_function_summaries::duplicate): Copy the new fields.
+	(isra_call_summary::dump): Dump unit_size when representing safe_size.
+	(dump_gensum_param_descriptor): Dump new flag.
+	(dump_isra_param_descriptor): Dump new fields.
+	(isra_analyze_call): Fill unit_size when it represents known safe
+	size.
+	(check_gensum_access): Instead of disqualifying pointers which are not
+	always dereference, mark them as conditionally dereferencable if loads
+	are frequent enough.
+	(process_scan_results): Copy the conditionally_dereferenceable flag.
+	(isra_write_node_summary): Stream new fields, or assert they are not
+	initialized yet.
+	(isra_read_node_info): Stream new fields.
+	(update_safe_size): New function.
+	(propagate_param_hints_accross_call): Propagate safe_sizes.
+	(propagate_hints_to_all_callees): New function.
+	(adjust_parameter_descriptions): Check conditionally_dereferenceable
+	candidates, rework dumping.
+	(ipa_sra_analysis): Move most of hint propagation for one node to
+	propagate_hints_to_all_callees.  Add another loop to stabilize within
+	SCCs and another one to verify.
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	* ipa-sra.cc (isra_param_desc): New field not_specially_constructed.
+	(struct isra_param_flow): New field constructed_for_calls.
+	(isra_call_summary::dump): Dump the new flag.
+	(loaded_decls): New variable.
+	(dump_isra_param_descriptor): New parameter hints, dump
+	not_specially_constructed if it is true.
+	(dump_isra_param_descriptors): New parameter hints, pass it to
+	dump_isra_param_descriptor.
+	(ipa_sra_function_summaries::duplicate): Duplicate new flag.
+	(create_parameter_descriptors): Adjust comment.
+	(get_gensum_param_desc): Bail out when decl2desc is NULL.
+	(scan_expr_access): Add loaded local variables to loaded_decls.
+	(scan_function): Survive if final_bbs is NULL.
+	(isra_analyze_call): Compute constructed_for_calls flag.
+	(process_scan_results): Be optimistic about size limits.  Do not dump
+	computed param hints when dumpint IPA-SRA structures.
+	(isra_write_edge_summary): Stream constructed_for_calls.
+	(isra_read_edge_summary): Likewise.
+	(ipa_sra_dump_all_summaries): New parameter hints, pass it to
+	dump_isra_param_descriptor.
+	(flip_all_hints_pessimistic): New function.
+	(flip_all_param_hints_pessimistic): Likewise.
+	(propagate_param_hints): Likewise.
+	(disable_unavailable_parameters): Renamed to
+	adjust_parameter_descriptions.  Expand size limits for parameters
+	which are specially contstructed by all callers.  Check limits again.p
+	(ipa_sra_analysis): Pass required hints to ipa_sra_dump_all_summaries.
+	Add hint propagation.
+	(ipa_sra_summarize_function): Initialize and destory loaded_decls,
+	rearrange so that scan_function is called even when there are no
+	candidates.
+	* params.opt (ipa-sra-ptrwrap-growth-factor): New parameter.
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	* ipa-sra.cc (ipa_sra_analysis): Move top-down analysis before
+	bottom-up analysis.  Replace FOR_EACH_VEC_ELT with C++11 iteration.
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	PR ipa/103585
+	* params.opt (ipa-sra-deref-prob-threshold): New parameter.
+	* doc/invoke.texi (ipa-sra-deref-prob-threshold): Document it.
+	* ipa-sra.cc (struct gensum_param_access): New field load_count.
+	(struct gensum_param_desc): New field safe_ref, adjusted comments.
+	(by_ref_count): Renamed to unsafe_by_ref_count, adjusted all uses.
+	(dump_gensum_access): Dump the new field.
+	(dump_gensum_param_descriptor): Likewise.
+	(create_parameter_descriptors): Set safe_ref field, move setting
+	by_ref forward.  Only increment unsafe_by_ref_count for unsafe
+	by_ref parameters.
+	(allocate_access): Initialize new field.
+	(mark_param_dereference): Adjust indentation.  Only add data to
+	bb_dereferences for unsafe by_ref parameters.
+	(scan_expr_access): For loads, accumulate BB counts.
+	(dereference_probable_p): New function.
+	(check_gensum_access): Fix leading comment, add parameter FUN.
+	Check cumulative counts of loads for safe by_ref accesses instead
+	of dereferences.
+	(process_scan_results): Do not propagate dereference distances for
+	safe by_ref parameters.  Pass fun to check_gensum_access.  Safe
+	by_ref params do not need the postdominance check.
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	* ipa-cp.cc (clone_for_param_removal_p): New function.
+	(estimate_local_effects): Call it before considering cloning
+	just to remove unused parameters.
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	PR ipa/103227
+	* ipa-param-manipulation.h (class ipa_param_adjustments): Removed
+	member function get_updated_index_or_split.
+	(class ipa_param_body_adjustments): New overload of
+	register_replacement, new member function append_init_stmts, new
+	member m_split_agg_csts_inits.
+	* ipa-param-manipulation.cc: Include ipa-prop.h.
+	(ipa_param_adjustments::get_updated_index_or_split): Removed.
+	(ipa_param_body_adjustments::register_replacement): New overload, use
+	it from the older one.
+	(ipa_param_body_adjustments::common_initialization): Added the
+	capability to create replacements for conflicting IPA-CP discovered
+	constants.
+	(ipa_param_body_adjustments::ipa_param_body_adjustments): Construct
+	the new member.
+	(ipa_param_body_adjustments::append_init_stmts): New function.
+	* ipa-sra.cc: Include ipa-prop.h.
+	(push_param_adjustments_for_index): Require IPA-CP transformation
+	summary as a parameter, do not create replacements which are known to
+	have constant values.
+	(process_isra_node_results): Find and pass to the above function the
+	IPA-CP transformation summary.
+	* ipa-prop.cc (adjust_agg_replacement_values): Remove the
+	functionality replacing IPA-SRA created scalar parameters with
+	constants.  Simplify, do not require parameter descriptors, do not
+	return anything.
+	(ipcp_transform_function): Simplify now that
+	adjust_agg_replacement_values does not change cfg.  Move definition
+	and initialization of descriptors lower.
+	* tree-inline.cc (tree_function_versioning): Call append_init_stmts of
+	param_body_adjs, if there are any.
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	* ipa-prop.cc (useful_ipcp_transformation_info_p): New function.
+	(write_ipcp_transformation_info): Added a parameter, simplified
+	given that is known not to be NULL.
+	(ipcp_write_transformation_summaries): Write out all useful
+	transformation summaries.
+	(read_ipcp_transformation_info): Simplify given that some info
+	will be read.
+	(read_replacements_section): Remove assert.
+	* lto-cgraph.cc (add_node_to): Also set encode_body for clones.
+	* lto-streamer-out.cc (lto_output): Do not output virtual clones.
+
+2022-12-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/108044
+	* config/i386/i386.md (*concat<half><mode>3_5, *concat<mode><dwi>3_6,
+	*concat<mode><dwi>3_7): Split alternative with =ro output constraint
+	into =r,o,o and use Wd input constraint for the last alternative which
+	is enabled for TARGET_64BIT.  Reject ix86_endbr_immediate_operand
+	in the input constant.
+
+2022-12-13  Tamar Christina  <tamar.christina@arm.com>
+
+	* config/aarch64/aarch64.md (tbranch_<code><mode>3): Use gen_int_mode.
+
+2022-12-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/108064
+	* tree-vect-patterns.cc (vect_recog_rotate_pattern): Pass uvectype
+	as 4th argument to append_pattern_def_seq for statements with lhs
+	with utype type.
+
+2022-12-13  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/105801
+	* tree-ssa-ccp.cc (likely_value): .DEFERRED_INIT produces
+	UNDEFINED.
+	* doc/invoke.texi (ftrivial-auto-var-init): Explicitely
+	mention we treat variables without an initializer as
+	undefined also for optimization purposes.
+
+2022-12-13  Tom Tromey  <tom@tromey.com>
+	    Mark Wielaard  <mark@klomp.org>
+	    Marc Poulhiès  <dkm@kataplop.net>
+
+	* dwarf2out.cc (is_rust): New.
+	(base_type_die): Use DW_ATE_UTF for the Rust 'char' type.
+	(gen_compile_unit_die): Handle "GNU Rust".
+
+2022-12-13  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/108076
+	* tree-if-conv.cc (if_convertible_loop_p_1): Reject blocks
+	with non-local or forced labels that we later remove
+	labels from.
+
+2022-12-13  Haochen Gui  <guihaoc@gcc.gnu.org>
+
+	* config/rs6000/rs6000.md (cbranchcc4): New expander.
+
+2022-12-13  Haochen Gui  <guihaoc@gcc.gnu.org>
+
+	* optabs.cc (prepare_cmp_insn): Return a NULL rtx other than
+	assertion failure when targets don't have cbranch optab or
+	predicate check fails.
+
 2022-12-12  Wilco Dijkstra  <wilco.dijkstra@arm.com>
 
 	* config/aarch64/aarch64.cc (aarch64_rtx_costs): Add correct costs

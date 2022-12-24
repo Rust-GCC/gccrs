@@ -1,3 +1,3020 @@
+2022-12-21  Jonathan Yong  <10walls@gmail.com>
+
+	* gcc.c-torture/compile/pr55569.c: fix excess errors.
+
+2022-12-21  Andrew Pinski  <apinski@marvell.com>
+
+	* gcc.c-torture/compile/vector-shift-1.c: New test.
+
+2022-12-21  Tobias Burnus  <tobias@codesourcery.com>
+
+	* gfortran.dg/read_dir-aux.c: New; provides my_mkdir, my_rmdir,
+	my_verify_not_exists and expect_open_to_fail.
+	* gfortran.dg/read_dir.f90: Call those; expect that opening a
+	directory fails on Windows.
+
+2022-12-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	PR target/106736
+	* gcc.target/powerpc/pr106736-1.c: New test.
+	* gcc.target/powerpc/pr106736-2.c: Likewise.
+	* gcc.target/powerpc/pr106736-3.c: Likewise.
+	* gcc.target/powerpc/pr106736-4.c: Likewise.
+	* gcc.target/powerpc/pr106736-5.c: Likewise.
+
+2022-12-21  Jason Merrill  <jason@redhat.com>
+
+	PR c++/84471
+	PR c++/107504
+	* g++.dg/tree-ssa/value-expr1.C: New test.
+	* g++.dg/tree-ssa/value-expr2.C: New test.
+	* g++.dg/analyzer/pr93212.C: Move warning.
+
+2022-12-20  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/101886
+	* g++.dg/concepts/diagnostic12.C: Adjust expected order of
+	template parameters within pretty printed parameter mapping.
+	* g++.dg/concepts/auto6.C: New test.
+
+2022-12-20  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/95375
+	* gfortran.dg/bind_c_procs_4.f90: New test.
+
+2022-12-20  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* g++.dg/coroutines/torture/extern-c-coroutine.C: New test.
+
+2022-12-20  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/103346
+	PR c++/104278
+	PR c++/102553
+	* g++.dg/cpp2a/nontype-class52a.C: New test.
+	* g++.dg/cpp2a/nontype-class53.C: New test.
+	* g++.dg/cpp2a/nontype-class54.C: New test.
+	* g++.dg/cpp2a/nontype-class55.C: New test.
+
+2022-12-20  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/108139
+	* gcc.dg/pr108139.c: New.
+
+2022-12-20  Jiufu Guo  <guojiufu@linux.ibm.com>
+
+	PR target/103743
+	* gcc.target/powerpc/pr103743.c: New test.
+	* gcc.target/powerpc/pr103743_1.c: New test.
+
+2022-12-19  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/100881
+	* g++.dg/cpp2a/srcloc3.C: Adjust expected note s/evaluating/using.
+	* g++.dg/cpp2a/srcloc4.C: Likewise.
+	* g++.dg/cpp2a/srcloc5.C: Likewise.
+	* g++.dg/cpp2a/srcloc6.C: Likewise.
+	* g++.dg/cpp2a/srcloc7.C: Likewise.
+	* g++.dg/cpp2a/srcloc8.C: Likewise.
+	* g++.dg/cpp2a/srcloc9.C: Likewise.
+	* g++.dg/cpp2a/srcloc10.C: Likewise.
+	* g++.dg/cpp2a/srcloc11.C: Likewise.
+	* g++.dg/cpp2a/srcloc12.C: Likewise.
+	* g++.dg/cpp2a/srcloc13.C: Likewise.
+	* g++.dg/modules/pr100881_a.C: New test.
+	* g++.dg/modules/pr100881_b.C: New test.
+
+2022-12-19  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/101886
+	* g++.dg/concepts/auto5.C: New test.
+
+2022-12-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/108043
+	* gcc.dg/pr108043.c: New test.
+	* gcc.dg/c99-complit-2.c (foo): Adjust expected diagnostics for
+	complit with function type.
+
+2022-12-19  Marek Polacek  <polacek@redhat.com>
+
+	PR c/98487
+	* c-c++-common/Wsuggest-attribute-1.c: New test.
+
+2022-12-19  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/108164
+	* gcc.dg/pr108164.c: New testcase.
+
+2022-12-19  Ju-Zhe Zhong  <juzhe.zhong@rivai.ai>
+
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-1.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-10.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-11.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-12.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-13.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-14.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-15.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-16.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-17.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-18.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-19.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-2.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-20.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-21.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-22.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-23.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-24.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-25.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-26.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-27.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-28.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-29.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-3.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-30.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-31.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-32.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-33.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-34.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-35.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-36.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-37.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-38.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-39.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-4.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-40.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-41.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-42.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-43.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-44.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-45.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-46.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-5.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-6.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-7.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-8.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_back_prop-9.c: New test.
+
+2022-12-19  Ju-Zhe Zhong  <juzhe.zhong@rivai.ai>
+
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-1.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-10.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-11.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-12.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-13.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-14.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-15.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-16.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-17.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-18.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-19.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-2.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-20.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-21.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-22.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-23.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-24.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-25.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-26.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-27.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-28.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-3.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-4.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-5.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-6.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-7.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-8.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_bb_prop-9.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_call-1.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_call-2.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_call-3.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_call-4.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_complex_loop-1.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_complex_loop-2.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_conflict-1.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_conflict-10.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_conflict-11.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_conflict-12.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_conflict-2.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_conflict-3.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_conflict-4.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_conflict-5.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_conflict-6.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_conflict-7.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_conflict-8.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_conflict-9.c: New test.
+
+2022-12-19  Ju-Zhe Zhong  <juzhe.zhong@rivai.ai>
+
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-1.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-10.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-11.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-12.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-13.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-14.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-15.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-16.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-17.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-18.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-19.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-2.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-20.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-21.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-22.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-23.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-24.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-25.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-26.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-27.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-28.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-3.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-4.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-5.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-6.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-7.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-8.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_miss_default-9.c: New test.
+
+2022-12-19  Ju-Zhe Zhong  <juzhe.zhong@rivai.ai>
+
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-1.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-10.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-11.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-12.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-13.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-14.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-15.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-16.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-17.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-18.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-19.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-2.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-20.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-21.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-22.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-23.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-24.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-25.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-26.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-27.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-28.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-3.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-4.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-5.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-6.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-7.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-8.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_phi-9.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-1.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-10.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-11.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-12.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-13.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-14.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-15.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-16.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-2.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-3.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-4.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-5.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-6.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-7.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-8.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_switch_vtype-9.c: New test.
+
+2022-12-19  Ju-Zhe Zhong  <juzhe.zhong@rivai.ai>
+
+	* gcc.target/riscv/rvv/rvv.exp: Adjust to enable tests for VSETVL PASS.
+	* gcc.target/riscv/rvv/vsetvl/dump-1.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-1.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-10.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-11.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-12.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-13.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-14.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-15.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-16.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-17.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-18.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-19.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-2.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-3.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-4.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-5.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-6.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-7.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-8.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_block-9.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_vtype-1.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_vtype-2.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_vtype-3.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_vtype-4.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_vtype-5.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_vtype-6.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_vtype-7.c: New test.
+	* gcc.target/riscv/rvv/vsetvl/vlmax_single_vtype-8.c: New test.
+
+2022-12-19  Kito Cheng  <kito.cheng@sifive.com>
+
+	* gcc.target/riscv/rvv/base/mov-1.c: Simplify operand check.
+	* gcc.target/riscv/rvv/base/mov-10.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-11.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-12.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-2.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-3.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-4.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-5.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-6.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-8.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-9.c: Ditto.
+	* gcc.target/riscv/rvv/base/vread_csr.c: Ditto.
+	* gcc.target/riscv/rvv/base/vsetvl-1.c: Ditto.
+	* gcc.target/riscv/rvv/base/vwrite_csr.c: Ditto.
+
+2022-12-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR testsuite/108151
+	* gcc.dg/pr64536.c (bar): Cast long to __INTPTR_TYPE__
+	before casting to long *.
+
+2022-12-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR testsuite/108151
+	* gcc.dg/pr64536.c (bar): Use casts to __INTPTR_TYPE__ rather than
+	long when casting pointer to integral type.
+
+2022-12-19  Kyrylo Tkachov  <kyrylo.tkachov@arm.com>
+
+	PR target/108140
+	* gcc.target/aarch64/acle/pr108140.c: New test.
+
+2022-12-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR fortran/107397
+	* gfortran.dg/pr107397.f90: Adjust expected diagnostic wording and
+	add space between dg-error string and closing }.
+
+2022-12-19  Kito Cheng  <kito.cheng@sifive.com>
+
+	* gcc.target/riscv/rvv/base/vread_csr.c: Use specific option
+	instead.
+	* gcc.target/riscv/rvv/base/vwrite_csr.c: Ditto.
+
+2022-12-19  Jiufu Guo  <guojiufu@linux.ibm.com>
+
+	PR target/106708
+	* gcc.target/powerpc/pr106708.c: New test.
+
+2022-12-19  Kito Cheng  <kito.cheng@sifive.com>
+
+	* gcc.target/riscv/rvv/base/mov-1.c: Use double quotes to
+	include riscv_vector.h rather than angle brackets.
+	* gcc.target/riscv/rvv/base/mov-10.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-11.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-12.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-13.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-2.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-3.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-4.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-5.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-6.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-7.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-8.c: Ditto.
+	* gcc.target/riscv/rvv/base/mov-9.c: Ditto.
+	* gcc.target/riscv/rvv/base/vread_csr.c: Ditto.
+	* gcc.target/riscv/rvv/base/vsetvl-1.c: Ditto.
+	* gcc.target/riscv/rvv/base/vwrite_csr.c: Ditto.
+
+2022-12-18  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	* gm2/pimcoroutines/run/pass/testtime.mod: Reduce sleep times in
+	the test by a factor of 25.
+
+2022-12-18  Steve Kargl  <kargl@gcc.gnu.org>
+
+	PR fortran/107397
+	* gfortran.dg/pr107397.f90: New test.
+
+2022-12-17  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/107437
+	PR c++/87765
+	* g++.dg/cpp1y/lambda-generic-107437.C: New test.
+	* g++.dg/cpp1z/constexpr-lambda26.C: Remove dg-ice.
+
+2022-12-16  John David Anglin  <danglin@gcc.gnu.org>
+
+	* lib/target-supports.exp (check_effective_target_static): Return 0
+	on hppa*-*-*.
+
+2022-12-16  Andrew Pinski  <pinskia@gmail.com>
+	    Iain Sandoe  <iain@sandoe.co.uk>
+
+	PR c++/107768
+	* g++.dg/coroutines/pr107768.C: New test.
+
+2022-12-16  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/106479
+	* gcc.dg/analyzer/pr104308.c (test_memmove_within_uninit): Remove
+	xfail on region creation event.
+
+2022-12-16  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	Revert:
+	2022-12-16  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	* gcc.target/avr/pr90706.c: New.
+
+2022-12-16  Qing Zhao  <qing.zhao@oracle.com>
+
+	* gcc.dg/Warray-bounds-flex-arrays-1.c: Update testing case with
+	-Wstrict-flex-arrays.
+	* gcc.dg/Warray-bounds-flex-arrays-2.c: Likewise.
+	* gcc.dg/Warray-bounds-flex-arrays-3.c: Likewise.
+	* gcc.dg/Warray-bounds-flex-arrays-4.c: Likewise.
+	* gcc.dg/Warray-bounds-flex-arrays-5.c: Likewise.
+	* gcc.dg/Warray-bounds-flex-arrays-6.c: Likewise.
+	* c-c++-common/Wstrict-flex-arrays.c: New test.
+	* gcc.dg/Wstrict-flex-arrays-2.c: New test.
+	* gcc.dg/Wstrict-flex-arrays-3.c: New test.
+	* gcc.dg/Wstrict-flex-arrays.c: New test.
+
+2022-12-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR rtl-optimization/106751
+	* gcc.c-torture/compile/pr106751.c: New test.
+
+2022-12-16  Haochen Jiang  <haochen.jiang@intel.com>
+
+	* gcc.target/i386/cmpccxadd-1.c: Fix intrin name.
+	* gcc.target/i386/cmpccxadd-2.c: Ditto.
+
+2022-12-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/102104
+	PR c++/108090
+	* g++.dg/cpp1z/using-variadic1.C: New test.
+	* g++.dg/cpp1z/using-variadic1a.C: New test.
+	* g++.dg/cpp1z/using-variadic1b.C: New test.
+	* g++.dg/cpp1z/using-variadic1c.C: New test.
+	* g++.dg/cpp1z/using-variadic2.C: New test.
+	* g++.dg/cpp1z/using-variadic3.C: New test.
+
+2022-12-15  Arsen Arsenović  <arsen@aarsen.me>
+
+	* g++.dg/contracts/contracts-externC.C: New test.
+
+2022-12-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/107188
+	* g++.dg/cpp2a/concepts-placeholder11.C: New test.
+
+2022-12-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/100295
+	PR c++/107579
+	* g++.dg/cpp1z/constexpr-if-lambda5.C: New test.
+
+2022-12-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/105518
+	* g++.dg/cpp0x/lambda/lambda-alias1.C: New test.
+
+2022-12-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/108104
+	* g++.dg/template/ptrmem33.C: New test.
+
+2022-12-15  Vladimir N. Makarov  <vmakarov@redhat.com>
+
+	* gcc.target/avr/pr90706.c: New.
+
+2022-12-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/107065
+	* g++.dg/cpp0x/pr107065.C: New test.
+
+2022-12-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libstdc++/108075
+	* g++.dg/cpp23/ext-floating13.C: New test.
+
+2022-12-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* lib/target-supports.exp (check_compile): Further quoting
+	fixes for /* Assembly, /* ObjC and (* Modula-2 *) checks.
+
+2022-12-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* lib/target-supports.exp (check_compile): Add support for
+	Rust and Modula-2.  Use \* rather than * for /* comment for
+	Assembly.
+
+2022-12-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/108095
+	* gcc.dg/pr108095.c: New test.
+
+2022-12-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/108071
+	PR c++/105838
+	* g++.dg/cpp0x/initlist131.C: New test.
+	* g++.dg/cpp0x/initlist132.C: New test.
+	* g++.dg/cpp0x/initlist133.C: New test.
+
+2022-12-14  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/108065
+	* gfortran.dg/analyzer/pr108065.f90: New test.
+
+2022-12-14  David Faust  <david.faust@oracle.com>
+
+	PR target/106773
+	* gcc.dg/debug/btf/btf-datasec-2.c: New test.
+	* gcc.dg/debug/btf/btf-function-6.c: New test.
+
+2022-12-14  David Faust  <david.faust@oracle.com>
+
+	PR target/106773
+	* gcc.dg/debug/btf/btf-pr106773.c: New test.
+
+2022-12-14  David Faust  <david.faust@oracle.com>
+
+	PR target/106773
+	* gcc.dg/debug/btf/btf-variables-4.c: New test.
+	* gcc.dg/debug/btf/btf-variables-5.c: New test.
+
+2022-12-14  Martin Jambor  <mjambor@suse.cz>
+
+	* g++.dg/ipa/ipa-sra-6.C: New test.
+
+2022-12-14  Martin Jambor  <mjambor@suse.cz>
+
+	* gcc.dg/ipa/ipa-sra-29.c: New test.
+
+2022-12-14  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	* lib/gm2-dg.exp: New file.
+	* lib/gm2.exp: New file.
+	* lib/gm2-simple.exp: New file.
+	* lib/gm2-torture.exp: New file.
+	* gm2/calling-c/datatypes/unbounded/run/pass/c.c: New file.
+	* gm2/calling-c/datatypes/unbounded/run/pass/c.def: New file.
+	* gm2/calling-c/datatypes/unbounded/run/pass/calling-c-datatypes-unbounded-run-pass.exp:
+	New file.
+	* gm2/calling-c/datatypes/unbounded/run/pass/m.mod: New file.
+	* gm2/case/pass/case-pass.exp: New file.
+	* gm2/case/pass/testcase1.mod: New file.
+	* gm2/case/pass/testcase2.mod: New file.
+	* gm2/case/pass/testcase3.mod: New file.
+	* gm2/case/pass/testcase4.mod: New file.
+	* gm2/complex/fail/var1.mod: New file.
+	* gm2/complex/pass/arith.mod: New file.
+	* gm2/complex/pass/arith2.mod: New file.
+	* gm2/complex/pass/arith3.mod: New file.
+	* gm2/complex/pass/arith4.mod: New file.
+	* gm2/complex/pass/arith5.mod: New file.
+	* gm2/complex/pass/arith6.mod: New file.
+	* gm2/complex/pass/complex-pass.exp: New file.
+	* gm2/complex/pass/consts.mod: New file.
+	* gm2/complex/pass/consts2.mod: New file.
+	* gm2/complex/pass/consts3.mod: New file.
+	* gm2/complex/pass/tinycabs.mod: New file.
+	* gm2/complex/pass/var1.mod: New file.
+	* gm2/complex/pass/var2.mod: New file.
+	* gm2/complex/pass/var3.mod: New file.
+	* gm2/complex/pass/var4.mod: New file.
+	* gm2/complex/pass/var5.mod: New file.
+	* gm2/complex/pass/var6.mod: New file.
+	* gm2/complex/pass/var7.mod: New file.
+	* gm2/complex/pass/var8.mod: New file.
+	* gm2/complex/run/pass/arith3.mod: New file.
+	* gm2/complex/run/pass/arith4.mod: New file.
+	* gm2/complex/run/pass/arith5.mod: New file.
+	* gm2/complex/run/pass/arith6.mod: New file.
+	* gm2/complex/run/pass/arith7.mod: New file.
+	* gm2/complex/run/pass/arith8.mod: New file.
+	* gm2/complex/run/pass/complex-run-pass.exp: New file.
+	* gm2/coroutines/pim/run/pass/coroutines-pim-run-pass.exp: New file.
+	* gm2/coroutines/pim/run/pass/testiotransfer.mod: New file.
+	* gm2/coroutines/pim/run/pass/testtransfer.mod: New file.
+	* gm2/cpp/fail/another.h: New file.
+	* gm2/cpp/fail/fail1.mod: New file.
+	* gm2/cpp/longcard2.mod: New file.
+	* gm2/cpp/longstrimp.mod: New file.
+	* gm2/cpp/pass/arrayhuge.mod: New file.
+	* gm2/cpp/pass/arrayhuge2.mod: New file.
+	* gm2/cpp/pass/cpp-pass.exp: New file.
+	* gm2/cpp/pass/cpp.mod: New file.
+	* gm2/cpp/pass/cpph.mod: New file.
+	* gm2/cpp/pass/subaddr.mod: New file.
+	* gm2/cpp/pass/testcpp.mod: New file.
+	* gm2/cpp/pass/testcpp2.mod: New file.
+	* gm2/cpp/setchar2.mod: New file.
+	* gm2/cpp/setchar6.mod: New file.
+	* gm2/cse/fail/cse-fail.exp: New file.
+	* gm2/cse/fail/testcse38.mod: New file.
+	* gm2/cse/pass/cse-pass.exp: New file.
+	* gm2/cse/pass/m2t.c: New file.
+	* gm2/cse/pass/testb.mod: New file.
+	* gm2/cse/pass/testbuiltin.def: New file.
+	* gm2/cse/pass/testbuiltin.mod: New file.
+	* gm2/cse/pass/testcse.def: New file.
+	* gm2/cse/pass/testcse.mod: New file.
+	* gm2/cse/pass/testcse10.mod: New file.
+	* gm2/cse/pass/testcse11.mod: New file.
+	* gm2/cse/pass/testcse12.mod: New file.
+	* gm2/cse/pass/testcse13.mod: New file.
+	* gm2/cse/pass/testcse14.mod: New file.
+	* gm2/cse/pass/testcse15.mod: New file.
+	* gm2/cse/pass/testcse16.mod: New file.
+	* gm2/cse/pass/testcse17.mod: New file.
+	* gm2/cse/pass/testcse18.mod: New file.
+	* gm2/cse/pass/testcse19.mod: New file.
+	* gm2/cse/pass/testcse2.mod: New file.
+	* gm2/cse/pass/testcse20.mod: New file.
+	* gm2/cse/pass/testcse21.mod: New file.
+	* gm2/cse/pass/testcse22.mod: New file.
+	* gm2/cse/pass/testcse23.mod: New file.
+	* gm2/cse/pass/testcse24.mod: New file.
+	* gm2/cse/pass/testcse25.mod: New file.
+	* gm2/cse/pass/testcse26.mod: New file.
+	* gm2/cse/pass/testcse27.mod: New file.
+	* gm2/cse/pass/testcse28.mod: New file.
+	* gm2/cse/pass/testcse29.mod: New file.
+	* gm2/cse/pass/testcse3.mod: New file.
+	* gm2/cse/pass/testcse31.mod: New file.
+	* gm2/cse/pass/testcse32.mod: New file.
+	* gm2/cse/pass/testcse33.mod: New file.
+	* gm2/cse/pass/testcse34.mod: New file.
+	* gm2/cse/pass/testcse35.mod: New file.
+	* gm2/cse/pass/testcse36.mod: New file.
+	* gm2/cse/pass/testcse37.mod: New file.
+	* gm2/cse/pass/testcse39.mod: New file.
+	* gm2/cse/pass/testcse4.c: New file.
+	* gm2/cse/pass/testcse4.mod: New file.
+	* gm2/cse/pass/testcse40.mod: New file.
+	* gm2/cse/pass/testcse41.mod: New file.
+	* gm2/cse/pass/testcse42.mod: New file.
+	* gm2/cse/pass/testcse43.mod: New file.
+	* gm2/cse/pass/testcse44.mod: New file.
+	* gm2/cse/pass/testcse45.mod: New file.
+	* gm2/cse/pass/testcse46.mod: New file.
+	* gm2/cse/pass/testcse47.mod: New file.
+	* gm2/cse/pass/testcse48.mod: New file.
+	* gm2/cse/pass/testcse49.mod: New file.
+	* gm2/cse/pass/testcse5.c: New file.
+	* gm2/cse/pass/testcse5.mod: New file.
+	* gm2/cse/pass/testcse50.def: New file.
+	* gm2/cse/pass/testcse50.mod: New file.
+	* gm2/cse/pass/testcse51.mod: New file.
+	* gm2/cse/pass/testcse52.def: New file.
+	* gm2/cse/pass/testcse52.mod: New file.
+	* gm2/cse/pass/testcse53.def: New file.
+	* gm2/cse/pass/testcse53.mod: New file.
+	* gm2/cse/pass/testcse6.c: New file.
+	* gm2/cse/pass/testcse6.mod: New file.
+	* gm2/cse/pass/testcse7.c: New file.
+	* gm2/cse/pass/testcse7.mod: New file.
+	* gm2/cse/pass/testcse8.c: New file.
+	* gm2/cse/pass/testcse8.mod: New file.
+	* gm2/cse/pass/testcse9.c: New file.
+	* gm2/cse/pass/testsize.mod: New file.
+	* gm2/dynamic/pass/add.mod: New file.
+	* gm2/dynamic/pass/dynamic-pass.exp: New file.
+	* gm2/dynamic/pass/prog21.mod: New file.
+	* gm2/dynamic/pass/testarray.mod: New file.
+	* gm2/dynamic/pass/testarray2.mod: New file.
+	* gm2/dynamic/pass/testarray3.mod: New file.
+	* gm2/dynamic/pass/testarray4.mod: New file.
+	* gm2/dynamic/pass/testarray6.mod: New file.
+	* gm2/dynamic/pass/testbec.mod: New file.
+	* gm2/dynamic/pass/testbec10.mod: New file.
+	* gm2/dynamic/pass/testbec11.mod: New file.
+	* gm2/dynamic/pass/testbec12.mod: New file.
+	* gm2/dynamic/pass/testbec13.mod: New file.
+	* gm2/dynamic/pass/testbec14.mod: New file.
+	* gm2/dynamic/pass/testbec15.mod: New file.
+	* gm2/dynamic/pass/testbec16.mod: New file.
+	* gm2/dynamic/pass/testbec17.mod: New file.
+	* gm2/dynamic/pass/testbec18.mod: New file.
+	* gm2/dynamic/pass/testbec19.mod: New file.
+	* gm2/dynamic/pass/testbec2.mod: New file.
+	* gm2/dynamic/pass/testbec20.mod: New file.
+	* gm2/dynamic/pass/testbec21.mod: New file.
+	* gm2/dynamic/pass/testbec22.mod: New file.
+	* gm2/dynamic/pass/testbec23.mod: New file.
+	* gm2/dynamic/pass/testbec24.mod: New file.
+	* gm2/dynamic/pass/testbec25.mod: New file.
+	* gm2/dynamic/pass/testbec26.mod: New file.
+	* gm2/dynamic/pass/testbec27.mod: New file.
+	* gm2/dynamic/pass/testbec28.mod: New file.
+	* gm2/dynamic/pass/testbec29.mod: New file.
+	* gm2/dynamic/pass/testbec3.mod: New file.
+	* gm2/dynamic/pass/testbec30.mod: New file.
+	* gm2/dynamic/pass/testbec31.mod: New file.
+	* gm2/dynamic/pass/testbec32.mod: New file.
+	* gm2/dynamic/pass/testbec33.mod: New file.
+	* gm2/dynamic/pass/testbec34.mod: New file.
+	* gm2/dynamic/pass/testbec35.mod: New file.
+	* gm2/dynamic/pass/testbec36.mod: New file.
+	* gm2/dynamic/pass/testbec37.mod: New file.
+	* gm2/dynamic/pass/testbec38.mod: New file.
+	* gm2/dynamic/pass/testbec39.mod: New file.
+	* gm2/dynamic/pass/testbec4.mod: New file.
+	* gm2/dynamic/pass/testbec40.mod: New file.
+	* gm2/dynamic/pass/testbec41.mod: New file.
+	* gm2/dynamic/pass/testbec42.mod: New file.
+	* gm2/dynamic/pass/testbec43.mod: New file.
+	* gm2/dynamic/pass/testbec44.mod: New file.
+	* gm2/dynamic/pass/testbec45.mod: New file.
+	* gm2/dynamic/pass/testbec5.mod: New file.
+	* gm2/dynamic/pass/testbec6.mod: New file.
+	* gm2/dynamic/pass/testbec7.mod: New file.
+	* gm2/dynamic/pass/testbec8.mod: New file.
+	* gm2/dynamic/pass/testbec9.mod: New file.
+	* gm2/dynamic/pass/testdavid.mod: New file.
+	* gm2/dynamic/pass/testdiv.mod: New file.
+	* gm2/dynamic/pass/testexp.mod: New file.
+	* gm2/dynamic/pass/testfor.mod: New file.
+	* gm2/dynamic/pass/testfor2.mod: New file.
+	* gm2/dynamic/pass/testfunc.mod: New file.
+	* gm2/dynamic/pass/testfunc2.mod: New file.
+	* gm2/dynamic/pass/testfunc3.mod: New file.
+	* gm2/dynamic/pass/testfunc4.mod: New file.
+	* gm2/dynamic/pass/testfunc5.mod: New file.
+	* gm2/dynamic/pass/testfunc6.mod: New file.
+	* gm2/dynamic/pass/testif.mod: New file.
+	* gm2/dynamic/pass/testit.mod: New file.
+	* gm2/dynamic/pass/testloop.mod: New file.
+	* gm2/dynamic/pass/testloop2.mod: New file.
+	* gm2/dynamic/pass/testloop3.mod: New file.
+	* gm2/dynamic/pass/testloop4.mod: New file.
+	* gm2/dynamic/pass/testloop5.mod: New file.
+	* gm2/dynamic/pass/testmin.mod: New file.
+	* gm2/dynamic/pass/testnum4.mod: New file.
+	* gm2/dynamic/pass/testord.mod: New file.
+	* gm2/dynamic/pass/testparam.mod: New file.
+	* gm2/dynamic/pass/testparam2.mod: New file.
+	* gm2/dynamic/pass/testproc.mod: New file.
+	* gm2/dynamic/pass/testproc2.c: New file.
+	* gm2/dynamic/pass/testproc2.def: New file.
+	* gm2/dynamic/pass/testproc2.mod: New file.
+	* gm2/dynamic/pass/testscn.mod: New file.
+	* gm2/dynamic/pass/testset.mod: New file.
+	* gm2/dynamic/pass/testset2.mod: New file.
+	* gm2/dynamic/pass/testset3.mod: New file.
+	* gm2/dynamic/pass/teststr.c: New file.
+	* gm2/dynamic/pass/teststr.mod: New file.
+	* gm2/dynamic/pass/teststr2.mod: New file.
+	* gm2/dynamic/pass/teststring.mod: New file.
+	* gm2/dynamic/pass/testunbounded.mod: New file.
+	* gm2/dynamic/pass/testwith.mod: New file.
+	* gm2/dynamic/pass/testzero.mod: New file.
+	* gm2/dynamic/pass/wc.mod: New file.
+	* gm2/embedded/pass/embedded-pass.exp: New file.
+	* gm2/embedded/pass/varataddress.mod: New file.
+	* gm2/embedded/pass/varataddress1.mod: New file.
+	* gm2/embedded/pass/varataddress2.mod: New file.
+	* gm2/embedded/pass/varataddress3.mod: New file.
+	* gm2/errors/fail/array1.mod: New file.
+	* gm2/errors/fail/badexpr.mod: New file.
+	* gm2/errors/fail/badfor.mod: New file.
+	* gm2/errors/fail/badhigh.mod: New file.
+	* gm2/errors/fail/badshift.mod: New file.
+	* gm2/errors/fail/badsubexpradr.mod: New file.
+	* gm2/errors/fail/binaryconst.mod: New file.
+	* gm2/errors/fail/binarygeneric.mod: New file.
+	* gm2/errors/fail/binarygenericconst.mod: New file.
+	* gm2/errors/fail/end.mod: New file.
+	* gm2/errors/fail/errors-fail.exp: New file.
+	* gm2/errors/fail/mismatched.mod: New file.
+	* gm2/errors/fail/mismatchedproc.mod: New file.
+	* gm2/errors/fail/nestedproc4.mod: New file.
+	* gm2/errors/fail/nomodule.mod: New file.
+	* gm2/errors/fail/proctype.mod: New file.
+	* gm2/errors/fail/prog110.mod: New file.
+	* gm2/errors/fail/prog111.mod: New file.
+	* gm2/errors/fail/prog113.mod: New file.
+	* gm2/errors/fail/prog114.mod: New file.
+	* gm2/errors/fail/testaddress.mod: New file.
+	* gm2/errors/fail/testarray.mod: New file.
+	* gm2/errors/fail/testbit.mod: New file.
+	* gm2/errors/fail/testbit2.mod: New file.
+	* gm2/errors/fail/testcase.mod: New file.
+	* gm2/errors/fail/testcomment.mod: New file.
+	* gm2/errors/fail/testcomment2.mod: New file.
+	* gm2/errors/fail/testcomment3.mod: New file.
+	* gm2/errors/fail/testconst.mod: New file.
+	* gm2/errors/fail/testdyn.mod: New file.
+	* gm2/errors/fail/testdyn2.mod: New file.
+	* gm2/errors/fail/testdyn3.mod: New file.
+	* gm2/errors/fail/testexp.mod: New file.
+	* gm2/errors/fail/testfio.mod: New file.
+	* gm2/errors/fail/testimport.mod: New file.
+	* gm2/errors/fail/testimport2.def: New file.
+	* gm2/errors/fail/testimport2.mod: New file.
+	* gm2/errors/fail/testinit.mod: New file.
+	* gm2/errors/fail/testmodule.mod: New file.
+	* gm2/errors/fail/testnil.mod: New file.
+	* gm2/errors/fail/testnil2.mod: New file.
+	* gm2/errors/fail/testparam.mod: New file.
+	* gm2/errors/fail/testproc.mod: New file.
+	* gm2/errors/fail/testproc2.mod: New file.
+	* gm2/errors/fail/testsize.mod: New file.
+	* gm2/errors/fail/teststring.mod: New file.
+	* gm2/errors/fail/testsub3.mod: New file.
+	* gm2/errors/fail/testsub4.mod: New file.
+	* gm2/errors/fail/testtype.mod: New file.
+	* gm2/errors/fail/testvar.mod: New file.
+	* gm2/errors/fail/testwith.mod: New file.
+	* gm2/errors/fail/testwrite.mod: New file.
+	* gm2/errors/fail/type.mod: New file.
+	* gm2/errors/fail/unarygeneric.mod: New file.
+	* gm2/errors/mustfail: New file.
+	* gm2/errors/options: New file.
+	* gm2/errors/testchar.mod: New file.
+	* gm2/errors/testsub2.mod: New file.
+	* gm2/examples/callingC/pass/examples-callingC-pass.exp: New file.
+	* gm2/examples/callingC/pass/hello.mod: New file.
+	* gm2/examples/callingC/pass/libprintf.def: New file.
+	* gm2/examples/callingC/run/pass/c.c: New file.
+	* gm2/examples/callingC/run/pass/c.def: New file.
+	* gm2/examples/callingC/run/pass/examples-callingC-run-pass.exp: New
+	file.
+	* gm2/examples/callingC/run/pass/hello.mod: New file.
+	* gm2/examples/callingC/run/pass/libprintf.def: New file.
+	* gm2/examples/callingC/run/pass/m.mod: New file.
+	* gm2/examples/cpp/pass/examples-cpp-pass.exp: New file.
+	* gm2/examples/cpp/pass/hello.mod: New file.
+	* gm2/examples/cppDef/pass/a.def: New file.
+	* gm2/examples/cppDef/pass/a.mod: New file.
+	* gm2/examples/cppDef/pass/b.mod: New file.
+	* gm2/examples/cppDef/pass/examples-cppDef-pass.exp: New file.
+	* gm2/examples/cppDef/pass/libprintf.def: New file.
+	* gm2/examples/hello/pass/examples-hello-pass.exp: New file.
+	* gm2/examples/hello/pass/hello.mod: New file.
+	* gm2/examples/map/pass/AdvMap.def: New file.
+	* gm2/examples/map/pass/AdvMap.mod: New file.
+	* gm2/examples/map/pass/BoxMap.def: New file.
+	* gm2/examples/map/pass/BoxMap.mod: New file.
+	* gm2/examples/map/pass/Chance.def: New file.
+	* gm2/examples/map/pass/Chance.mod: New file.
+	* gm2/examples/map/pass/Find.def: New file.
+	* gm2/examples/map/pass/Find.mod: New file.
+	* gm2/examples/map/pass/Geometry.def: New file.
+	* gm2/examples/map/pass/Geometry.mod: New file.
+	* gm2/examples/map/pass/MakeBoxes.def: New file.
+	* gm2/examples/map/pass/MakeBoxes.mod: New file.
+	* gm2/examples/map/pass/Map.mod: New file.
+	* gm2/examples/map/pass/RoomMap.def: New file.
+	* gm2/examples/map/pass/RoomMap.mod: New file.
+	* gm2/examples/map/pass/Semantic.mod: New file.
+	* gm2/examples/map/pass/StoreCoord.def: New file.
+	* gm2/examples/map/pass/StoreCoord.mod: New file.
+	* gm2/examples/map/pass/StoreCoords.def: New file.
+	* gm2/examples/map/pass/StoreCoords.mod: New file.
+	* gm2/examples/map/pass/WriteMap.def: New file.
+	* gm2/examples/map/pass/WriteMap.mod: New file.
+	* gm2/examples/map/pass/examples-map-pass.exp: New file.
+	* gm2/examples/map/pass/makemaps: New file.
+	* gm2/examples/map/pass/testch2.mod: New file.
+	* gm2/examples/map/pass/testchan.mod: New file.
+	* gm2/examples/map/pass/testcoor.mod: New file.
+	* gm2/examples/map/pass/testmaps: New file.
+	* gm2/exceptions/run/pass/cpp.cpp: New file.
+	* gm2/exceptions/run/pass/cpp.def: New file.
+	* gm2/exceptions/run/pass/exceptions-run-pass.exp: New file.
+	* gm2/exceptions/run/pass/libexcept.mod: New file.
+	* gm2/exceptions/run/pass/m2test.def: New file.
+	* gm2/exceptions/run/pass/m2test.mod: New file.
+	* gm2/exceptions/run/pass/mycpp.cpp: New file.
+	* gm2/exceptions/run/pass/mycpp.def: New file.
+	* gm2/exceptions/run/pass/mym2.mod: New file.
+	* gm2/exceptions/run/pass/mym2a.mod: New file.
+	* gm2/extensions/pass/align.mod: New file.
+	* gm2/extensions/pass/align2.mod: New file.
+	* gm2/extensions/pass/card16p.mod: New file.
+	* gm2/extensions/pass/card32p.mod: New file.
+	* gm2/extensions/pass/card64p.mod: New file.
+	* gm2/extensions/pass/card8p.mod: New file.
+	* gm2/extensions/pass/co.def: New file.
+	* gm2/extensions/pass/co.mod: New file.
+	* gm2/extensions/pass/extensions-pass.exp: New file.
+	* gm2/extensions/pass/frame.mod: New file.
+	* gm2/extensions/pass/hello.mod: New file.
+	* gm2/extensions/pass/int16p.mod: New file.
+	* gm2/extensions/pass/int32p.mod: New file.
+	* gm2/extensions/pass/int64p.mod: New file.
+	* gm2/extensions/pass/int8p.mod: New file.
+	* gm2/extensions/pass/intsize8.mod: New file.
+	* gm2/extensions/pass/jmp.mod: New file.
+	* gm2/extensions/pass/libc.def: New file.
+	* gm2/extensions/pass/optparam.mod: New file.
+	* gm2/extensions/pass/optparam2.mod: New file.
+	* gm2/extensions/pass/return.mod: New file.
+	* gm2/extensions/pass/set8.mod: New file.
+	* gm2/extensions/pass/set8a.mod: New file.
+	* gm2/extensions/pass/set8b.mod: New file.
+	* gm2/extensions/pass/testco.mod: New file.
+	* gm2/extensions/run/fail/extensions-run-fail.exp: New file.
+	* gm2/extensions/run/fail/intsize8.mod: New file.
+	* gm2/extensions/run/pass/align3.mod: New file.
+	* gm2/extensions/run/pass/align4.mod: New file.
+	* gm2/extensions/run/pass/align5.mod: New file.
+	* gm2/extensions/run/pass/align6.mod: New file.
+	* gm2/extensions/run/pass/align7.mod: New file.
+	* gm2/extensions/run/pass/callingc.mod: New file.
+	* gm2/extensions/run/pass/card16p.mod: New file.
+	* gm2/extensions/run/pass/card32p.mod: New file.
+	* gm2/extensions/run/pass/card64p.mod: New file.
+	* gm2/extensions/run/pass/card8p.mod: New file.
+	* gm2/extensions/run/pass/column.mod: New file.
+	* gm2/extensions/run/pass/cvararg.c: New file.
+	* gm2/extensions/run/pass/cvararg.def: New file.
+	* gm2/extensions/run/pass/extensions-run-pass.exp: New file.
+	* gm2/extensions/run/pass/int16p.mod: New file.
+	* gm2/extensions/run/pass/int32p.mod: New file.
+	* gm2/extensions/run/pass/int64p.mod: New file.
+	* gm2/extensions/run/pass/int8field.mod: New file.
+	* gm2/extensions/run/pass/int8p.mod: New file.
+	* gm2/extensions/run/pass/packedrecord.mod: New file.
+	* gm2/extensions/run/pass/packedrecord2.mod: New file.
+	* gm2/extensions/run/pass/real32.mod: New file.
+	* gm2/extensions/run/pass/real32a.mod: New file.
+	* gm2/extensions/run/pass/record.mod: New file.
+	* gm2/extensions/run/pass/testopen.mod: New file.
+	* gm2/extensions/run/pass/vararg.mod: New file.
+	* gm2/extensions/run/pass/vararg2.mod: New file.
+	* gm2/extensions/run/pass/vararg3.mod: New file.
+	* gm2/fpu/pass/five.mod: New file.
+	* gm2/fpu/pass/fp.def: New file.
+	* gm2/fpu/pass/fp.mod: New file.
+	* gm2/fpu/pass/fpu-pass.exp: New file.
+	* gm2/fpu/pass/one.mod: New file.
+	* gm2/fpu/pass/r1.mod: New file.
+	* gm2/fpu/pass/realconst.mod: New file.
+	* gm2/fpu/pass/testfp.mod: New file.
+	* gm2/fpu/pass/testfp2.mod: New file.
+	* gm2/fpu/pass/testfpu1.mod: New file.
+	* gm2/fpu/pass/testfpu2.mod: New file.
+	* gm2/fpu/pass/testfpu3.mod: New file.
+	* gm2/fpu/pass/testsin.mod: New file.
+	* gm2/imports/run/pass/c.def: New file.
+	* gm2/imports/run/pass/c.mod: New file.
+	* gm2/imports/run/pass/imports-run-pass.exp: New file.
+	* gm2/imports/run/pass/innermods.mod: New file.
+	* gm2/imports/run/pass/innermods2.mod: New file.
+	* gm2/imports/run/pass/innermods3.mod: New file.
+	* gm2/imports/run/pass/innermods4.mod: New file.
+	* gm2/imports/run/pass/innermods5.def: New file.
+	* gm2/imports/run/pass/innermods5.mod: New file.
+	* gm2/imports/run/pass/innermods6.mod: New file.
+	* gm2/integer/div.mod: New file.
+	* gm2/integer/expr.mod: New file.
+	* gm2/integer/mod.mod: New file.
+	* gm2/integer/mod2.mod: New file.
+	* gm2/integer/one.mod: New file.
+	* gm2/integer/options: New file.
+	* gm2/integer/zero.mod: New file.
+	* gm2/iso/analysis/fail/Makefile: New file.
+	* gm2/iso/analysis/fail/arithoverflow.mod: New file.
+	* gm2/iso/analysis/fail/arithoverflow2.mod: New file.
+	* gm2/iso/analysis/fail/arithsubcard.mod: New file.
+	* gm2/iso/analysis/fail/arrayrange.mod: New file.
+	* gm2/iso/analysis/fail/assignvalue.mod: New file.
+	* gm2/iso/analysis/fail/callassignment.mod: New file.
+	* gm2/iso/analysis/fail/callassignment2.mod: New file.
+	* gm2/iso/analysis/fail/callassignment3.mod: New file.
+	* gm2/iso/analysis/fail/callassignment4.mod: New file.
+	* gm2/iso/analysis/fail/caserange.mod: New file.
+	* gm2/iso/analysis/fail/decvalue.mod: New file.
+	* gm2/iso/analysis/fail/forloop.mod: New file.
+	* gm2/iso/analysis/fail/incvalue.mod: New file.
+	* gm2/iso/analysis/fail/iso-analysis-fail.exp: New file.
+	* gm2/iso/analysis/fail/noreturn.mod: New file.
+	* gm2/iso/analysis/fail/returnvalue.mod: New file.
+	* gm2/iso/analysis/fail/staticarray.mod: New file.
+	* gm2/iso/check/fail/iso-check-fail.exp: New file.
+	* gm2/iso/check/fail/modulusoverflow.mod: New file.
+	* gm2/iso/fail/badarray.mod: New file.
+	* gm2/iso/fail/badarray2.mod: New file.
+	* gm2/iso/fail/badipv4.mod: New file.
+	* gm2/iso/fail/bug10.mod: New file.
+	* gm2/iso/fail/bug8.mod: New file.
+	* gm2/iso/fail/bug9.mod: New file.
+	* gm2/iso/fail/case.mod: New file.
+	* gm2/iso/fail/case2.mod: New file.
+	* gm2/iso/fail/case3.mod: New file.
+	* gm2/iso/fail/const1.mod: New file.
+	* gm2/iso/fail/constarray.mod: New file.
+	* gm2/iso/fail/constarray2.mod: New file.
+	* gm2/iso/fail/constprocedure.mod: New file.
+	* gm2/iso/fail/constrecord.mod: New file.
+	* gm2/iso/fail/constrecord2.mod: New file.
+	* gm2/iso/fail/constrecord3.mod: New file.
+	* gm2/iso/fail/constsubrange.mod: New file.
+	* gm2/iso/fail/constsubrange2.mod: New file.
+	* gm2/iso/fail/constsubrange3.mod: New file.
+	* gm2/iso/fail/defa.def: New file.
+	* gm2/iso/fail/defa.mod: New file.
+	* gm2/iso/fail/defb.def: New file.
+	* gm2/iso/fail/defb.mod: New file.
+	* gm2/iso/fail/defc.def: New file.
+	* gm2/iso/fail/defc.mod: New file.
+	* gm2/iso/fail/except.mod: New file.
+	* gm2/iso/fail/except2.mod: New file.
+	* gm2/iso/fail/iso-fail.exp: New file.
+	* gm2/iso/fail/isoa.def: New file.
+	* gm2/iso/fail/isoa.mod: New file.
+	* gm2/iso/fail/lengthsubexpr.mod: New file.
+	* gm2/iso/fail/proc.mod: New file.
+	* gm2/iso/fail/realbitscast.mod: New file.
+	* gm2/iso/fail/varient.mod: New file.
+	* gm2/iso/fail/varient2.mod: New file.
+	* gm2/iso/future/builtinlj.mod: New file.
+	* gm2/iso/pass/ChanConsts.def: New file.
+	* gm2/iso/pass/ChanConsts.mod: New file.
+	* gm2/iso/pass/ConvTypes.def: New file.
+	* gm2/iso/pass/ConvTypes.mod: New file.
+	* gm2/iso/pass/addadr1.mod: New file.
+	* gm2/iso/pass/bits32c.mod: New file.
+	* gm2/iso/pass/callwraptime.mod: New file.
+	* gm2/iso/pass/caseiso.mod: New file.
+	* gm2/iso/pass/caseiso2.mod: New file.
+	* gm2/iso/pass/cast.mod: New file.
+	* gm2/iso/pass/cast3.mod: New file.
+	* gm2/iso/pass/castiso.mod: New file.
+	* gm2/iso/pass/const1.mod: New file.
+	* gm2/iso/pass/constreal.mod: New file.
+	* gm2/iso/pass/constructor1.mod: New file.
+	* gm2/iso/pass/constructor2.mod: New file.
+	* gm2/iso/pass/constructor3.mod: New file.
+	* gm2/iso/pass/constructor4.mod: New file.
+	* gm2/iso/pass/constructor5.mod: New file.
+	* gm2/iso/pass/constructor6.mod: New file.
+	* gm2/iso/pass/constsize4.mod: New file.
+	* gm2/iso/pass/delim.mod: New file.
+	* gm2/iso/pass/delim2.mod: New file.
+	* gm2/iso/pass/enummodule.mod: New file.
+	* gm2/iso/pass/except1.mod: New file.
+	* gm2/iso/pass/expproc.mod: New file.
+	* gm2/iso/pass/expproc2.mod: New file.
+	* gm2/iso/pass/iso-pass.exp: New file.
+	* gm2/iso/pass/isob.def: New file.
+	* gm2/iso/pass/isob.mod: New file.
+	* gm2/iso/pass/isobitset.mod: New file.
+	* gm2/iso/pass/isobitset2.mod: New file.
+	* gm2/iso/pass/longm.mod: New file.
+	* gm2/iso/pass/m.mod: New file.
+	* gm2/iso/pass/proccast.mod: New file.
+	* gm2/iso/pass/realbitscast.mod: New file.
+	* gm2/iso/pass/set12.mod: New file.
+	* gm2/iso/pass/stringchar.mod: New file.
+	* gm2/iso/pass/subassign.mod: New file.
+	* gm2/iso/pass/testaddindr.mod: New file.
+	* gm2/iso/pass/testconv.def: New file.
+	* gm2/iso/pass/testconv.mod: New file.
+	* gm2/iso/pass/testconv2.def: New file.
+	* gm2/iso/pass/testconv2.mod: New file.
+	* gm2/iso/pass/testconv3.mod: New file.
+	* gm2/iso/pass/testconv4.mod: New file.
+	* gm2/iso/pass/testconv5.mod: New file.
+	* gm2/iso/pass/testconv6.mod: New file.
+	* gm2/iso/pass/testconv7.mod: New file.
+	* gm2/iso/pass/testconv8.mod: New file.
+	* gm2/iso/pass/testconv9.mod: New file.
+	* gm2/iso/pass/testiso.mod: New file.
+	* gm2/iso/pass/testiso2.mod: New file.
+	* gm2/iso/pass/testisosize.mod: New file.
+	* gm2/iso/pass/testlength.mod: New file.
+	* gm2/iso/pass/testlength2.mod: New file.
+	* gm2/iso/pass/testlength3.mod: New file.
+	* gm2/iso/pass/testlength4.mod: New file.
+	* gm2/iso/pass/testlength5.mod: New file.
+	* gm2/iso/pass/unbounded.mod: New file.
+	* gm2/iso/pass/unbounded2.mod: New file.
+	* gm2/iso/run/pass/adraddress.mod: New file.
+	* gm2/iso/run/pass/adrunbounded3.mod: New file.
+	* gm2/iso/run/pass/baseimport.mod: New file.
+	* gm2/iso/run/pass/compsize.mod: New file.
+	* gm2/iso/run/pass/concurrentstore.mod: New file.
+	* gm2/iso/run/pass/constprocedure.mod: New file.
+	* gm2/iso/run/pass/constructor1.mod: New file.
+	* gm2/iso/run/pass/constructor2.mod: New file.
+	* gm2/iso/run/pass/conststrarray.mod: New file.
+	* gm2/iso/run/pass/contimer.mod: New file.
+	* gm2/iso/run/pass/except.c: New file.
+	* gm2/iso/run/pass/except2.mod: New file.
+	* gm2/iso/run/pass/except3.cpp: New file.
+	* gm2/iso/run/pass/except4.mod: New file.
+	* gm2/iso/run/pass/except5.cpp: New file.
+	* gm2/iso/run/pass/except5.mod: New file.
+	* gm2/iso/run/pass/except6.cpp: New file.
+	* gm2/iso/run/pass/except7.mod: New file.
+	* gm2/iso/run/pass/except8.mod: New file.
+	* gm2/iso/run/pass/fileio.def: New file.
+	* gm2/iso/run/pass/fileio.mod: New file.
+	* gm2/iso/run/pass/hello.mod: New file.
+	* gm2/iso/run/pass/int8field.mod: New file.
+	* gm2/iso/run/pass/iso-run-pass.exp: New file.
+	* gm2/iso/run/pass/long.mod: New file.
+	* gm2/iso/run/pass/long2.mod: New file.
+	* gm2/iso/run/pass/long3.mod: New file.
+	* gm2/iso/run/pass/long4.c: New file.
+	* gm2/iso/run/pass/long4.mod: New file.
+	* gm2/iso/run/pass/minmax.mod: New file.
+	* gm2/iso/run/pass/modulus.mod: New file.
+	* gm2/iso/run/pass/nestediso.mod: New file.
+	* gm2/iso/run/pass/nestedrecord.mod: New file.
+	* gm2/iso/run/pass/onebyte.mod: New file.
+	* gm2/iso/run/pass/onebyte2.mod: New file.
+	* gm2/iso/run/pass/onebyte3.mod: New file.
+	* gm2/iso/run/pass/packed.mod: New file.
+	* gm2/iso/run/pass/proc.c: New file.
+	* gm2/iso/run/pass/proc.mod: New file.
+	* gm2/iso/run/pass/proc2.mod: New file.
+	* gm2/iso/run/pass/returnrecord.mod: New file.
+	* gm2/iso/run/pass/shift.mod: New file.
+	* gm2/iso/run/pass/shift2.mod: New file.
+	* gm2/iso/run/pass/shift3.mod: New file.
+	* gm2/iso/run/pass/shift4.mod: New file.
+	* gm2/iso/run/pass/simple: New file.
+	* gm2/iso/run/pass/simplelarge.mod: New file.
+	* gm2/iso/run/pass/strcons.mod: New file.
+	* gm2/iso/run/pass/strcons2.mod: New file.
+	* gm2/iso/run/pass/t.cpp: New file.
+	* gm2/iso/run/pass/t1.cpp: New file.
+	* gm2/iso/run/pass/testLength.mod: New file.
+	* gm2/iso/run/pass/testarray.mod: New file.
+	* gm2/iso/run/pass/testgeneric.mod: New file.
+	* gm2/iso/run/pass/testlarge.mod: New file.
+	* gm2/iso/run/pass/testsystem.mod: New file.
+	* gm2/iso/run/pass/tinyconst.mod: New file.
+	* gm2/iso/run/pass/tinyconst2.mod: New file.
+	* gm2/iso/run/pass/tinyconst3.mod: New file.
+	* gm2/iso/run/pass/tinyconst4.mod: New file.
+	* gm2/iso/run/pass/tinyconst5.mod: New file.
+	* gm2/iso/run/pass/tinytimer.mod: New file.
+	* gm2/iso/run/pass/trivialmodulus.mod: New file.
+	* gm2/iso/run/pass/tsize.mod: New file.
+	* gm2/iso/run/pass/tsize2.mod: New file.
+	* gm2/iso/run/pass/tstLength.mod: New file.
+	* gm2/iso/run/pass/unbounded.mod: New file.
+	* gm2/iso/run/pass/unbounded2.mod: New file.
+	* gm2/iso/run/pass/unbounded3.mod: New file.
+	* gm2/iso/run/pass/unbounded4.mod: New file.
+	* gm2/iso/run/pass/unbounded5.mod: New file.
+	* gm2/iso/run/pass/unbounded6.mod: New file.
+	* gm2/iso/run/pass/unbounded7.mod: New file.
+	* gm2/iso/run/pass/unbounded8.mod: New file.
+	* gm2/isocoroutines/run/pass/coroutine.mod: New file.
+	* gm2/isocoroutines/run/pass/isocoroutines-run-pass.exp: New file.
+	* gm2/isolib/run/pass/arraycons.mod: New file.
+	* gm2/isolib/run/pass/arraycons2.mod: New file.
+	* gm2/isolib/run/pass/arraycons3.mod: New file.
+	* gm2/isolib/run/pass/arraycons5.mod: New file.
+	* gm2/isolib/run/pass/arraycons6.mod: New file.
+	* gm2/isolib/run/pass/arraycons7.mod: New file.
+	* gm2/isolib/run/pass/arrayconst8.mod: New file.
+	* gm2/isolib/run/pass/exceptiontest.mod: New file.
+	* gm2/isolib/run/pass/filepos.mod: New file.
+	* gm2/isolib/run/pass/hello.mod: New file.
+	* gm2/isolib/run/pass/insert.mod: New file.
+	* gm2/isolib/run/pass/intconv.mod: New file.
+	* gm2/isolib/run/pass/isolib-run-pass.exp: New file.
+	* gm2/isolib/run/pass/longstr.mod: New file.
+	* gm2/isolib/run/pass/openlibc.mod: New file.
+	* gm2/isolib/run/pass/raise.mod: New file.
+	* gm2/isolib/run/pass/raise2.mod: New file.
+	* gm2/isolib/run/pass/readreal.mod: New file.
+	* gm2/isolib/run/pass/real1.mod: New file.
+	* gm2/isolib/run/pass/real2.mod: New file.
+	* gm2/isolib/run/pass/real3.mod: New file.
+	* gm2/isolib/run/pass/realconv.mod: New file.
+	* gm2/isolib/run/pass/realconv2.mod: New file.
+	* gm2/isolib/run/pass/realstr.mod: New file.
+	* gm2/isolib/run/pass/sigfig.mod: New file.
+	* gm2/isolib/run/pass/stringreal2.mod: New file.
+	* gm2/isolib/run/pass/termfile.mod-disabled: New file.
+	* gm2/isolib/run/pass/testappend.mod: New file.
+	* gm2/isolib/run/pass/testinput: New file.
+	* gm2/isolib/run/pass/testio.mod: New file.
+	* gm2/isolib/run/pass/testio2.mod: New file.
+	* gm2/isolib/run/pass/testmem.mod: New file.
+	* gm2/isolib/run/pass/testmem2.mod: New file.
+	* gm2/isolib/run/pass/testnumber: New file.
+	* gm2/isolib/run/pass/tiny.mod: New file.
+	* gm2/isolib/run/pass/tiny2.mod: New file.
+	* gm2/isolib/run/pass/tiny3.mod: New file.
+	* gm2/isolib/run/pass/tiny4.mod: New file.
+	* gm2/isolib/run/pass/tiny5.mod: New file.
+	* gm2/libs/a.def: New file.
+	* gm2/libs/a.mod: New file.
+	* gm2/libs/b.def: New file.
+	* gm2/libs/b.mod: New file.
+	* gm2/libs/testraw.mod: New file.
+	* gm2/link/externalscaffold/pass/hello.mod: New file.
+	* gm2/link/externalscaffold/pass/link-externalscaffold-pass.exp: New
+	file.
+	* gm2/link/externalscaffold/pass/scaffold.c: New file.
+	* gm2/link/pim/fail/import.mod: New file.
+	* gm2/link/pim/fail/link-pim-fail.exp: New file.
+	* gm2/link/pim/pass/link-pim-pass.exp: New file.
+	* gm2/link/pimc/pass/README: New file.
+	* gm2/link/pimc/pass/link-pimc-pass.exp: New file.
+	* gm2/link/pimc/pass/testdtoa.mod: New file.
+	* gm2/link/pimc/pass/testerrno.mod: New file.
+	* gm2/link/pimc/pass/testgetopt.mod: New file.
+	* gm2/link/pimc/pass/testldtoa.mod: New file.
+	* gm2/link/pimc/pass/testlibc.mod: New file.
+	* gm2/link/pimc/pass/testlibc2.mod: New file.
+	* gm2/link/pimc/pass/testsckt.mod: New file.
+	* gm2/link/pimc/pass/testselective.mod: New file.
+	* gm2/link/pimc/pass/testsysexceptions.mod: New file.
+	* gm2/link/pimc/pass/testtermios.mod: New file.
+	* gm2/link/pimc/pass/testunixargs.mod: New file.
+	* gm2/link/pimc/pass/testwrapc.mod: New file.
+	* gm2/linking/libarchive/pass/c.c: New file.
+	* gm2/linking/libarchive/pass/c.def: New file.
+	* gm2/linking/libarchive/pass/d.def: New file.
+	* gm2/linking/libarchive/pass/e.def: New file.
+	* gm2/linking/libarchive/pass/linking-libarchive-pass.exp: New file.
+	* gm2/linking/libarchive/pass/m.mod: New file.
+	* gm2/linking/verbose/pass/hello.mod: New file.
+	* gm2/linking/verbose/pass/linking-verbose-pass.exp: New file.
+	* gm2/pim/fail/TestLong3.mod: New file.
+	* gm2/pim/fail/TestLong6.mod: New file.
+	* gm2/pim/fail/a.def: New file.
+	* gm2/pim/fail/assignbounds.mod: New file.
+	* gm2/pim/fail/assignsubrange.mod: New file.
+	* gm2/pim/fail/assignsubrange2.mod: New file.
+	* gm2/pim/fail/b.def: New file.
+	* gm2/pim/fail/bad.def: New file.
+	* gm2/pim/fail/badconst.mod: New file.
+	* gm2/pim/fail/badfunc.mod: New file.
+	* gm2/pim/fail/badparam.mod: New file.
+	* gm2/pim/fail/badparam2.mod: New file.
+	* gm2/pim/fail/badtype.mod: New file.
+	* gm2/pim/fail/badtypes.mod: New file.
+	* gm2/pim/fail/bits.mod: New file.
+	* gm2/pim/fail/bits2.mod: New file.
+	* gm2/pim/fail/bits3.mod: New file.
+	* gm2/pim/fail/bits4.mod: New file.
+	* gm2/pim/fail/cardword.mod: New file.
+	* gm2/pim/fail/constbec.mod: New file.
+	* gm2/pim/fail/constsize3.mod: New file.
+	* gm2/pim/fail/constvar.mod: New file.
+	* gm2/pim/fail/convert5.mod: New file.
+	* gm2/pim/fail/dupconst.mod: New file.
+	* gm2/pim/fail/dupenum.mod: New file.
+	* gm2/pim/fail/dupfield.mod: New file.
+	* gm2/pim/fail/duptype.mod: New file.
+	* gm2/pim/fail/dupvar.mod: New file.
+	* gm2/pim/fail/expression.mod: New file.
+	* gm2/pim/fail/expression2.mod: New file.
+	* gm2/pim/fail/expression3.mod: New file.
+	* gm2/pim/fail/func.mod: New file.
+	* gm2/pim/fail/good.def: New file.
+	* gm2/pim/fail/good.mod: New file.
+	* gm2/pim/fail/import.mod: New file.
+	* gm2/pim/fail/inserttok.def: New file.
+	* gm2/pim/fail/inserttok.mod: New file.
+	* gm2/pim/fail/integer.mod: New file.
+	* gm2/pim/fail/keyword.mod: New file.
+	* gm2/pim/fail/longtypes2.mod: New file.
+	* gm2/pim/fail/longtypes3.mod: New file.
+	* gm2/pim/fail/multisetf.mod: New file.
+	* gm2/pim/fail/nested3.mod: New file.
+	* gm2/pim/fail/opaque.mod: New file.
+	* gm2/pim/fail/opaque2.mod: New file.
+	* gm2/pim/fail/opasfail.mod: New file.
+	* gm2/pim/fail/opcpfail.mod: New file.
+	* gm2/pim/fail/pim-fail.exp: New file.
+	* gm2/pim/fail/procmod.mod: New file.
+	* gm2/pim/fail/rotate.mod: New file.
+	* gm2/pim/fail/rotate2.mod: New file.
+	* gm2/pim/fail/setbec.mod: New file.
+	* gm2/pim/fail/setequiv.mod: New file.
+	* gm2/pim/fail/setsnulf.mod: New file.
+	* gm2/pim/fail/settype.mod: New file.
+	* gm2/pim/fail/shift.mod: New file.
+	* gm2/pim/fail/shift2.mod: New file.
+	* gm2/pim/fail/subrange7.mod: New file.
+	* gm2/pim/fail/unary.mod: New file.
+	* gm2/pim/fail/undeclared.mod: New file.
+	* gm2/pim/fail/val.mod: New file.
+	* gm2/pim/fail/val2.mod: New file.
+	* gm2/pim/fail/wordconst.mod: New file.
+	* gm2/pim/no-options/run/pass/integer.mod: New file.
+	* gm2/pim/no-options/run/pass/pim-no-options-run-pass.exp: New file.
+	* gm2/pim/options/bounds/fail/IdentifierBug.mod: New file.
+	* gm2/pim/options/bounds/fail/pim-options-bounds-fail.exp: New file.
+	* gm2/pim/options/optimize/run/pass/addition.def: New file.
+	* gm2/pim/options/optimize/run/pass/addition.mod: New file.
+	* gm2/pim/options/optimize/run/pass/concat.mod: New file.
+	* gm2/pim/options/optimize/run/pass/pim-options-optimize-run-pass.exp:
+	New file.
+	* gm2/pim/options/optimize/run/pass/testadd.mod: New file.
+	* gm2/pim/pass/ABSBug.mod: New file.
+	* gm2/pim/pass/TestLong4.mod: New file.
+	* gm2/pim/pass/TestLong7.mod: New file.
+	* gm2/pim/pass/TestLong8.mod: New file.
+	* gm2/pim/pass/TestLong9.mod: New file.
+	* gm2/pim/pass/another.mod: New file.
+	* gm2/pim/pass/aochar.mod: New file.
+	* gm2/pim/pass/array.mod: New file.
+	* gm2/pim/pass/array2.mod: New file.
+	* gm2/pim/pass/array3.mod: New file.
+	* gm2/pim/pass/array4.mod: New file.
+	* gm2/pim/pass/array5.mod: New file.
+	* gm2/pim/pass/array6.mod: New file.
+	* gm2/pim/pass/arraybool.mod: New file.
+	* gm2/pim/pass/arraychar.mod: New file.
+	* gm2/pim/pass/arraychar2.mod: New file.
+	* gm2/pim/pass/arraychar3.mod: New file.
+	* gm2/pim/pass/arrayconst1.mod: New file.
+	* gm2/pim/pass/arrayconst2.mod: New file.
+	* gm2/pim/pass/arrayconst3.mod: New file.
+	* gm2/pim/pass/arraydecl.mod: New file.
+	* gm2/pim/pass/arraydim.mod: New file.
+	* gm2/pim/pass/arraydyn.mod: New file.
+	* gm2/pim/pass/arrayeqiv.mod: New file.
+	* gm2/pim/pass/arrayfio.mod: New file.
+	* gm2/pim/pass/arrayhuge.mod: New file.
+	* gm2/pim/pass/arrayhuge2.mod: New file.
+	* gm2/pim/pass/arrayindex.mod: New file.
+	* gm2/pim/pass/arrayindirect.mod: New file.
+	* gm2/pim/pass/arrayinproc.mod: New file.
+	* gm2/pim/pass/arrayint.mod: New file.
+	* gm2/pim/pass/arrayofbyte.mod: New file.
+	* gm2/pim/pass/arrayofcard.mod: New file.
+	* gm2/pim/pass/arrayptr.mod: New file.
+	* gm2/pim/pass/arrayptr2.mod: New file.
+	* gm2/pim/pass/arrayptr3.mod: New file.
+	* gm2/pim/pass/arrayptr4.mod: New file.
+	* gm2/pim/pass/arrayptr5.mod: New file.
+	* gm2/pim/pass/arrayptr6.mod: New file.
+	* gm2/pim/pass/arrayrecord.mod: New file.
+	* gm2/pim/pass/arraytiny.c: New file.
+	* gm2/pim/pass/arraytiny.mod: New file.
+	* gm2/pim/pass/arraytype.mod: New file.
+	* gm2/pim/pass/arraytype2.mod: New file.
+	* gm2/pim/pass/arraytype3.mod: New file.
+	* gm2/pim/pass/arraytype4.mod: New file.
+	* gm2/pim/pass/assignment.mod: New file.
+	* gm2/pim/pass/assignment2.mod: New file.
+	* gm2/pim/pass/assignment3.mod: New file.
+	* gm2/pim/pass/assignment4.mod: New file.
+	* gm2/pim/pass/badpointer.mod: New file.
+	* gm2/pim/pass/bits32.def: New file.
+	* gm2/pim/pass/bits32.mod: New file.
+	* gm2/pim/pass/bits32i.mod: New file.
+	* gm2/pim/pass/bitset.mod: New file.
+	* gm2/pim/pass/bitset2.mod: New file.
+	* gm2/pim/pass/bitset3.mod: New file.
+	* gm2/pim/pass/bitset4.mod: New file.
+	* gm2/pim/pass/bitset5.mod: New file.
+	* gm2/pim/pass/bitsetfunc.mod: New file.
+	* gm2/pim/pass/block.mod: New file.
+	* gm2/pim/pass/blockindirect.mod: New file.
+	* gm2/pim/pass/builtin.def: New file.
+	* gm2/pim/pass/builtin.mod: New file.
+	* gm2/pim/pass/builtin2.mod: New file.
+	* gm2/pim/pass/builtinconst.mod: New file.
+	* gm2/pim/pass/bytearray.mod: New file.
+	* gm2/pim/pass/card.mod: New file.
+	* gm2/pim/pass/card2.mod: New file.
+	* gm2/pim/pass/char.mod: New file.
+	* gm2/pim/pass/char2.mod: New file.
+	* gm2/pim/pass/charproc.mod: New file.
+	* gm2/pim/pass/charset.mod: New file.
+	* gm2/pim/pass/charset2.mod: New file.
+	* gm2/pim/pass/charset3.mod: New file.
+	* gm2/pim/pass/checkparm.def: New file.
+	* gm2/pim/pass/checkparm.mod: New file.
+	* gm2/pim/pass/colour.mod: New file.
+	* gm2/pim/pass/comment1.mod: New file.
+	* gm2/pim/pass/complexarray.mod: New file.
+	* gm2/pim/pass/complextypes.mod: New file.
+	* gm2/pim/pass/constcast.mod: New file.
+	* gm2/pim/pass/constmax.mod: New file.
+	* gm2/pim/pass/constset.mod: New file.
+	* gm2/pim/pass/constset2.mod: New file.
+	* gm2/pim/pass/constset3.mod: New file.
+	* gm2/pim/pass/constsize.mod: New file.
+	* gm2/pim/pass/constsize2.mod: New file.
+	* gm2/pim/pass/convert.mod: New file.
+	* gm2/pim/pass/convert2.mod: New file.
+	* gm2/pim/pass/convert3.mod: New file.
+	* gm2/pim/pass/convert4.mod: New file.
+	* gm2/pim/pass/danglingelse.mod: New file.
+	* gm2/pim/pass/debug: New file.
+	* gm2/pim/pass/defset.def: New file.
+	* gm2/pim/pass/defset.mod: New file.
+	* gm2/pim/pass/deftype.mod: New file.
+	* gm2/pim/pass/divaddr.mod: New file.
+	* gm2/pim/pass/enum.mod: New file.
+	* gm2/pim/pass/enum2.mod: New file.
+	* gm2/pim/pass/enum3.mod: New file.
+	* gm2/pim/pass/file.mod: New file.
+	* gm2/pim/pass/filesystem.mod: New file.
+	* gm2/pim/pass/foo.mod: New file.
+	* gm2/pim/pass/foo2.mod: New file.
+	* gm2/pim/pass/for1.mod: New file.
+	* gm2/pim/pass/function.mod: New file.
+	* gm2/pim/pass/function2.mod: New file.
+	* gm2/pim/pass/gcd.def: New file.
+	* gm2/pim/pass/gcd.mod: New file.
+	* gm2/pim/pass/getconst.mod: New file.
+	* gm2/pim/pass/hello.mod: New file.
+	* gm2/pim/pass/impa.mod: New file.
+	* gm2/pim/pass/impb.def: New file.
+	* gm2/pim/pass/impb.mod: New file.
+	* gm2/pim/pass/impc.def: New file.
+	* gm2/pim/pass/impc.mod: New file.
+	* gm2/pim/pass/impd.mod: New file.
+	* gm2/pim/pass/impe.mod: New file.
+	* gm2/pim/pass/impf.mod: New file.
+	* gm2/pim/pass/impg.mod: New file.
+	* gm2/pim/pass/imph.mod: New file.
+	* gm2/pim/pass/impi.mod: New file.
+	* gm2/pim/pass/impj.mod: New file.
+	* gm2/pim/pass/impk.mod: New file.
+	* gm2/pim/pass/impl.mod: New file.
+	* gm2/pim/pass/impm.mod: New file.
+	* gm2/pim/pass/impn.def: New file.
+	* gm2/pim/pass/impn.mod: New file.
+	* gm2/pim/pass/impo.mod: New file.
+	* gm2/pim/pass/imports.mod: New file.
+	* gm2/pim/pass/impp.def: New file.
+	* gm2/pim/pass/impp.mod: New file.
+	* gm2/pim/pass/impq.def: New file.
+	* gm2/pim/pass/impq.mod: New file.
+	* gm2/pim/pass/incompsets.mod: New file.
+	* gm2/pim/pass/index.mod: New file.
+	* gm2/pim/pass/index2.mod: New file.
+	* gm2/pim/pass/indirect.mod: New file.
+	* gm2/pim/pass/inner.mod: New file.
+	* gm2/pim/pass/inner2.mod: New file.
+	* gm2/pim/pass/int.mod: New file.
+	* gm2/pim/pass/largeset.mod: New file.
+	* gm2/pim/pass/largeset1.mod: New file.
+	* gm2/pim/pass/largeset2.mod: New file.
+	* gm2/pim/pass/largeset3.mod: New file.
+	* gm2/pim/pass/largeset4.mod: New file.
+	* gm2/pim/pass/largeset5.mod: New file.
+	* gm2/pim/pass/largeset6.mod: New file.
+	* gm2/pim/pass/largeset7.mod: New file.
+	* gm2/pim/pass/localmod.mod: New file.
+	* gm2/pim/pass/localproc.mod: New file.
+	* gm2/pim/pass/localvar.mod: New file.
+	* gm2/pim/pass/log: New file.
+	* gm2/pim/pass/longint.mod: New file.
+	* gm2/pim/pass/longint2.mod: New file.
+	* gm2/pim/pass/longmm.mod: New file.
+	* gm2/pim/pass/longreal.mod: New file.
+	* gm2/pim/pass/longtypes.mod: New file.
+	* gm2/pim/pass/longtypes3.mod: New file.
+	* gm2/pim/pass/longtypes4.mod: New file.
+	* gm2/pim/pass/longtypes5.mod: New file.
+	* gm2/pim/pass/longtypes6.mod: New file.
+	* gm2/pim/pass/loopexit.mod: New file.
+	* gm2/pim/pass/math.mod: New file.
+	* gm2/pim/pass/maxlongint.mod: New file.
+	* gm2/pim/pass/maxreal.mod: New file.
+	* gm2/pim/pass/maxreal2.mod: New file.
+	* gm2/pim/pass/minmaxconst.mod: New file.
+	* gm2/pim/pass/minmaxconst2.mod: New file.
+	* gm2/pim/pass/modaddr.mod: New file.
+	* gm2/pim/pass/multaddr.mod: New file.
+	* gm2/pim/pass/multiple.mod: New file.
+	* gm2/pim/pass/multiset.mod: New file.
+	* gm2/pim/pass/multtypes.mod: New file.
+	* gm2/pim/pass/mydef.def: New file.
+	* gm2/pim/pass/negatives.def: New file.
+	* gm2/pim/pass/negatives.mod: New file.
+	* gm2/pim/pass/nested.mod: New file.
+	* gm2/pim/pass/nested2.mod: New file.
+	* gm2/pim/pass/nested3.mod: New file.
+	* gm2/pim/pass/nested4.mod: New file.
+	* gm2/pim/pass/nested5.mod: New file.
+	* gm2/pim/pass/nested6.mod: New file.
+	* gm2/pim/pass/nested7.mod: New file.
+	* gm2/pim/pass/nestedfor.mod: New file.
+	* gm2/pim/pass/nestedif.mod: New file.
+	* gm2/pim/pass/nestedset.mod: New file.
+	* gm2/pim/pass/onezero.mod: New file.
+	* gm2/pim/pass/opaque.def: New file.
+	* gm2/pim/pass/opaque.mod: New file.
+	* gm2/pim/pass/opaque2.mod: New file.
+	* gm2/pim/pass/opaquetype.def: New file.
+	* gm2/pim/pass/opaquetype.mod: New file.
+	* gm2/pim/pass/param.mod: New file.
+	* gm2/pim/pass/param2.mod: New file.
+	* gm2/pim/pass/param3.mod: New file.
+	* gm2/pim/pass/parambool.mod: New file.
+	* gm2/pim/pass/paramreal.mod: New file.
+	* gm2/pim/pass/pim-pass.exp: New file.
+	* gm2/pim/pass/pimimp.mod: New file.
+	* gm2/pim/pass/pointer.mod: New file.
+	* gm2/pim/pass/procadr.mod: New file.
+	* gm2/pim/pass/procconv.mod: New file.
+	* gm2/pim/pass/procconv2.mod: New file.
+	* gm2/pim/pass/procedure1.mod: New file.
+	* gm2/pim/pass/procedure2.mod: New file.
+	* gm2/pim/pass/procindirect.mod: New file.
+	* gm2/pim/pass/procmod.mod: New file.
+	* gm2/pim/pass/procmod2.mod: New file.
+	* gm2/pim/pass/procmod3.mod: New file.
+	* gm2/pim/pass/procmod31.mod: New file.
+	* gm2/pim/pass/procmod4.mod: New file.
+	* gm2/pim/pass/procmod5.mod: New file.
+	* gm2/pim/pass/procmod6.def: New file.
+	* gm2/pim/pass/procmod6.mod: New file.
+	* gm2/pim/pass/procmod7.mod: New file.
+	* gm2/pim/pass/procmod8.mod: New file.
+	* gm2/pim/pass/procmod9.mod: New file.
+	* gm2/pim/pass/proctype.mod: New file.
+	* gm2/pim/pass/proctype2.def: New file.
+	* gm2/pim/pass/proctype3.mod: New file.
+	* gm2/pim/pass/proctype4.mod: New file.
+	* gm2/pim/pass/program.mod: New file.
+	* gm2/pim/pass/program2.mod: New file.
+	* gm2/pim/pass/ptrarray.mod: New file.
+	* gm2/pim/pass/ptrarray2.mod: New file.
+	* gm2/pim/pass/ptrarray3.mod: New file.
+	* gm2/pim/pass/ptrcard.mod: New file.
+	* gm2/pim/pass/quads.def: New file.
+	* gm2/pim/pass/quads.mod: New file.
+	* gm2/pim/pass/real.mod: New file.
+	* gm2/pim/pass/real2.mod: New file.
+	* gm2/pim/pass/real3.mod: New file.
+	* gm2/pim/pass/realconst.mod: New file.
+	* gm2/pim/pass/realneg.mod: New file.
+	* gm2/pim/pass/realneg2.mod: New file.
+	* gm2/pim/pass/realone.mod: New file.
+	* gm2/pim/pass/realsize.mod: New file.
+	* gm2/pim/pass/record1.mod: New file.
+	* gm2/pim/pass/record10.mod: New file.
+	* gm2/pim/pass/record11.mod: New file.
+	* gm2/pim/pass/record12.def: New file.
+	* gm2/pim/pass/record13.def: New file.
+	* gm2/pim/pass/record14.def: New file.
+	* gm2/pim/pass/record15.def: New file.
+	* gm2/pim/pass/record16.def: New file.
+	* gm2/pim/pass/record2.mod: New file.
+	* gm2/pim/pass/record3.mod: New file.
+	* gm2/pim/pass/record4.mod: New file.
+	* gm2/pim/pass/record5.mod: New file.
+	* gm2/pim/pass/record6.mod: New file.
+	* gm2/pim/pass/record7.mod: New file.
+	* gm2/pim/pass/record8.mod: New file.
+	* gm2/pim/pass/record9.mod: New file.
+	* gm2/pim/pass/recordarray.c: New file.
+	* gm2/pim/pass/recordarray.mod: New file.
+	* gm2/pim/pass/recordarray2.mod: New file.
+	* gm2/pim/pass/redef.mod: New file.
+	* gm2/pim/pass/set10.mod: New file.
+	* gm2/pim/pass/set11.def: New file.
+	* gm2/pim/pass/set11.mod: New file.
+	* gm2/pim/pass/set12.mod: New file.
+	* gm2/pim/pass/set4.mod: New file.
+	* gm2/pim/pass/set5.mod: New file.
+	* gm2/pim/pass/set6.mod: New file.
+	* gm2/pim/pass/set7.mod: New file.
+	* gm2/pim/pass/set8.mod: New file.
+	* gm2/pim/pass/set9.mod: New file.
+	* gm2/pim/pass/setchar.mod: New file.
+	* gm2/pim/pass/setchar10.mod: New file.
+	* gm2/pim/pass/setchar11.mod: New file.
+	* gm2/pim/pass/setchar3.mod: New file.
+	* gm2/pim/pass/setchar4.mod: New file.
+	* gm2/pim/pass/setchar5.mod: New file.
+	* gm2/pim/pass/setchar7.mod: New file.
+	* gm2/pim/pass/setchar8.mod: New file.
+	* gm2/pim/pass/setchar9.mod: New file.
+	* gm2/pim/pass/setconst.mod: New file.
+	* gm2/pim/pass/setconst2.mod: New file.
+	* gm2/pim/pass/setconst3.mod: New file.
+	* gm2/pim/pass/setenum.mod: New file.
+	* gm2/pim/pass/setimp.mod: New file.
+	* gm2/pim/pass/setimp2.mod: New file.
+	* gm2/pim/pass/setofchar.mod: New file.
+	* gm2/pim/pass/setoverflow.mod: New file.
+	* gm2/pim/pass/sets.mod: New file.
+	* gm2/pim/pass/sets2.mod: New file.
+	* gm2/pim/pass/sets3.mod: New file.
+	* gm2/pim/pass/sets4.mod: New file.
+	* gm2/pim/pass/sets5.mod: New file.
+	* gm2/pim/pass/sets6.mod: New file.
+	* gm2/pim/pass/setsnul.mod: New file.
+	* gm2/pim/pass/settest1.mod: New file.
+	* gm2/pim/pass/settest2.mod: New file.
+	* gm2/pim/pass/settest3.mod: New file.
+	* gm2/pim/pass/simpleproc.mod: New file.
+	* gm2/pim/pass/sizes.mod: New file.
+	* gm2/pim/pass/sizetype.mod: New file.
+	* gm2/pim/pass/smallset1.mod: New file.
+	* gm2/pim/pass/smallset2.mod: New file.
+	* gm2/pim/pass/smallset3.mod: New file.
+	* gm2/pim/pass/smallset4.mod: New file.
+	* gm2/pim/pass/smallset5.mod: New file.
+	* gm2/pim/pass/smallset6.mod: New file.
+	* gm2/pim/pass/smallset7.mod: New file.
+	* gm2/pim/pass/stabs.mod: New file.
+	* gm2/pim/pass/stdio.mod: New file.
+	* gm2/pim/pass/str1.mod: New file.
+	* gm2/pim/pass/str2.mod: New file.
+	* gm2/pim/pass/str3.mod: New file.
+	* gm2/pim/pass/str4.mod: New file.
+	* gm2/pim/pass/str5.mod: New file.
+	* gm2/pim/pass/stressset.mod: New file.
+	* gm2/pim/pass/stringassign.mod: New file.
+	* gm2/pim/pass/stringopaq.mod: New file.
+	* gm2/pim/pass/strings.mod: New file.
+	* gm2/pim/pass/strparam.def: New file.
+	* gm2/pim/pass/strparam.mod: New file.
+	* gm2/pim/pass/subrange.mod: New file.
+	* gm2/pim/pass/subrange10.mod: New file.
+	* gm2/pim/pass/subrange11.mod: New file.
+	* gm2/pim/pass/subrange12.mod: New file.
+	* gm2/pim/pass/subrange14.mod: New file.
+	* gm2/pim/pass/subrange15.mod: New file.
+	* gm2/pim/pass/subrange16.mod: New file.
+	* gm2/pim/pass/subrange17.mod: New file.
+	* gm2/pim/pass/subrange2.mod: New file.
+	* gm2/pim/pass/subrange3.mod: New file.
+	* gm2/pim/pass/subrange4.mod: New file.
+	* gm2/pim/pass/subrange5.mod: New file.
+	* gm2/pim/pass/subrange6.mod: New file.
+	* gm2/pim/pass/subrange7.mod: New file.
+	* gm2/pim/pass/subrange8.mod: New file.
+	* gm2/pim/pass/subrange9.mod: New file.
+	* gm2/pim/pass/test2recursive.mod: New file.
+	* gm2/pim/pass/testabs.mod: New file.
+	* gm2/pim/pass/testbuiltin.mod: New file.
+	* gm2/pim/pass/testbuiltin2.mod: New file.
+	* gm2/pim/pass/testbuiltstr.mod: New file.
+	* gm2/pim/pass/testcap.mod: New file.
+	* gm2/pim/pass/testcap2.mod: New file.
+	* gm2/pim/pass/testcard.mod: New file.
+	* gm2/pim/pass/testcard2.mod: New file.
+	* gm2/pim/pass/testcard3.mod: New file.
+	* gm2/pim/pass/testcard4.mod: New file.
+	* gm2/pim/pass/testcard5.mod: New file.
+	* gm2/pim/pass/testcase.mod: New file.
+	* gm2/pim/pass/testcase2.mod: New file.
+	* gm2/pim/pass/testcase3.mod: New file.
+	* gm2/pim/pass/testcase4.mod: New file.
+	* gm2/pim/pass/testchar.mod: New file.
+	* gm2/pim/pass/testfloat.mod: New file.
+	* gm2/pim/pass/testfloat2.mod: New file.
+	* gm2/pim/pass/testfloat3.mod: New file.
+	* gm2/pim/pass/testfloat4.mod: New file.
+	* gm2/pim/pass/testfor.mod: New file.
+	* gm2/pim/pass/testimpvar.mod: New file.
+	* gm2/pim/pass/testlong3.mod: New file.
+	* gm2/pim/pass/testmod.mod: New file.
+	* gm2/pim/pass/testmod2.mod: New file.
+	* gm2/pim/pass/testodd.mod: New file.
+	* gm2/pim/pass/testopaque.mod: New file.
+	* gm2/pim/pass/testopaque2.mod: New file.
+	* gm2/pim/pass/testopaque3.mod: New file.
+	* gm2/pim/pass/testord.mod: New file.
+	* gm2/pim/pass/testparam.mod: New file.
+	* gm2/pim/pass/testparam2.mod: New file.
+	* gm2/pim/pass/testparam3.mod: New file.
+	* gm2/pim/pass/testpimsize.mod: New file.
+	* gm2/pim/pass/testrecursive.def: New file.
+	* gm2/pim/pass/testrecursive.mod: New file.
+	* gm2/pim/pass/testreturnstr.mod: New file.
+	* gm2/pim/pass/testset.mod: New file.
+	* gm2/pim/pass/testshort.mod: New file.
+	* gm2/pim/pass/testsinf.mod: New file.
+	* gm2/pim/pass/testsinl.mod: New file.
+	* gm2/pim/pass/testsize.mod: New file.
+	* gm2/pim/pass/testvar.mod: New file.
+	* gm2/pim/pass/testvarin.mod: New file.
+	* gm2/pim/pass/timeio.mod: New file.
+	* gm2/pim/pass/timeio2.mod: New file.
+	* gm2/pim/pass/timeio3.mod: New file.
+	* gm2/pim/pass/timeio4.mod: New file.
+	* gm2/pim/pass/timeio5.mod: New file.
+	* gm2/pim/pass/timeio6.mod: New file.
+	* gm2/pim/pass/timeio7.mod: New file.
+	* gm2/pim/pass/timeio8.mod: New file.
+	* gm2/pim/pass/timeio9.mod: New file.
+	* gm2/pim/pass/tinyalloc.mod: New file.
+	* gm2/pim/pass/tinyarray.mod: New file.
+	* gm2/pim/pass/tinyarray2.mod: New file.
+	* gm2/pim/pass/tinyarray3.mod: New file.
+	* gm2/pim/pass/tinyarray4.mod: New file.
+	* gm2/pim/pass/tinyarray5.mod: New file.
+	* gm2/pim/pass/tinyarray6.mod: New file.
+	* gm2/pim/pass/tinyassign.def: New file.
+	* gm2/pim/pass/tinyassign.mod: New file.
+	* gm2/pim/pass/tinyassign2.mod: New file.
+	* gm2/pim/pass/tinyassign3.mod: New file.
+	* gm2/pim/pass/tinyassign4.mod: New file.
+	* gm2/pim/pass/tinyassign5.mod: New file.
+	* gm2/pim/pass/tinybitset.mod: New file.
+	* gm2/pim/pass/tinyelse.mod: New file.
+	* gm2/pim/pass/tinyenum.mod: New file.
+	* gm2/pim/pass/tinyfor.mod: New file.
+	* gm2/pim/pass/tinyfor2.mod: New file.
+	* gm2/pim/pass/tinyfor3.mod: New file.
+	* gm2/pim/pass/tinyhalt.mod: New file.
+	* gm2/pim/pass/tinyhello.mod: New file.
+	* gm2/pim/pass/tinyif.mod: New file.
+	* gm2/pim/pass/tinyif2.mod: New file.
+	* gm2/pim/pass/tinyif3.mod: New file.
+	* gm2/pim/pass/tinyif4.mod: New file.
+	* gm2/pim/pass/tinyif5.mod: New file.
+	* gm2/pim/pass/tinyif6.mod: New file.
+	* gm2/pim/pass/tinyif7.mod: New file.
+	* gm2/pim/pass/tinyif8.mod: New file.
+	* gm2/pim/pass/tinyimp.mod: New file.
+	* gm2/pim/pass/tinylit.mod: New file.
+	* gm2/pim/pass/tinylit2.mod: New file.
+	* gm2/pim/pass/tinymax.mod: New file.
+	* gm2/pim/pass/tinymod.mod: New file.
+	* gm2/pim/pass/tinynode.mod: New file.
+	* gm2/pim/pass/tinyparam.mod: New file.
+	* gm2/pim/pass/tinyparam2.mod: New file.
+	* gm2/pim/pass/tinyplus.mod: New file.
+	* gm2/pim/pass/tinyproc.mod: New file.
+	* gm2/pim/pass/tinyproc2.mod: New file.
+	* gm2/pim/pass/tinyproc3.mod: New file.
+	* gm2/pim/pass/tinyproc4.mod: New file.
+	* gm2/pim/pass/tinyproc5.mod: New file.
+	* gm2/pim/pass/tinyproc6.mod: New file.
+	* gm2/pim/pass/tinyptr.mod: New file.
+	* gm2/pim/pass/tinyreal.mod: New file.
+	* gm2/pim/pass/tinyrecord.mod: New file.
+	* gm2/pim/pass/tinyrepeat.mod: New file.
+	* gm2/pim/pass/tinyset6.mod: New file.
+	* gm2/pim/pass/tinyset7.mod: New file.
+	* gm2/pim/pass/tinystate.mod: New file.
+	* gm2/pim/pass/tinysub.def: New file.
+	* gm2/pim/pass/tinytest.mod: New file.
+	* gm2/pim/pass/tinytrue.mod: New file.
+	* gm2/pim/pass/tinyvar.mod: New file.
+	* gm2/pim/pass/tinyvar2.mod: New file.
+	* gm2/pim/pass/tinyvar3.mod: New file.
+	* gm2/pim/pass/tinyvar4.mod: New file.
+	* gm2/pim/pass/tinyvar5.mod: New file.
+	* gm2/pim/pass/tinyvarient.mod: New file.
+	* gm2/pim/pass/tinyvarient2.mod: New file.
+	* gm2/pim/pass/tinyvarient3.def: New file.
+	* gm2/pim/pass/tinyvarient3.mod: New file.
+	* gm2/pim/pass/tinyvarient4.mod: New file.
+	* gm2/pim/pass/tinyvarient5.mod: New file.
+	* gm2/pim/pass/tinyvarient6.mod: New file.
+	* gm2/pim/pass/tinywhile.mod: New file.
+	* gm2/pim/pass/tinywith.mod: New file.
+	* gm2/pim/pass/tinywith2.mod: New file.
+	* gm2/pim/pass/tinywith3.mod: New file.
+	* gm2/pim/pass/tinywith4.mod: New file.
+	* gm2/pim/pass/tinywith5.mod: New file.
+	* gm2/pim/pass/tinywith6.mod: New file.
+	* gm2/pim/pass/trunc.mod: New file.
+	* gm2/pim/pass/try: New file.
+	* gm2/pim/pass/typeequiv.mod: New file.
+	* gm2/pim/pass/typeequiv2.mod: New file.
+	* gm2/pim/pass/typeequiv3.mod: New file.
+	* gm2/pim/pass/typeonly.def: New file.
+	* gm2/pim/pass/typeonly.mod: New file.
+	* gm2/pim/pass/typesize.mod: New file.
+	* gm2/pim/pass/unbounded.mod: New file.
+	* gm2/pim/pass/unbounded2.mod: New file.
+	* gm2/pim/pass/unbounded3.mod: New file.
+	* gm2/pim/pass/v.def: New file.
+	* gm2/pim/pass/varaddress.mod: New file.
+	* gm2/pim/pass/varaddress2.mod: New file.
+	* gm2/pim/pass/varaddress3.mod: New file.
+	* gm2/pim/pass/varcard.mod: New file.
+	* gm2/pim/pass/variant9.mod: New file.
+	* gm2/pim/pass/varient.mod: New file.
+	* gm2/pim/pass/varient2.mod: New file.
+	* gm2/pim/pass/varient3.mod: New file.
+	* gm2/pim/pass/varient4.mod: New file.
+	* gm2/pim/pass/varient5.mod: New file.
+	* gm2/pim/pass/varient6.mod: New file.
+	* gm2/pim/pass/varient7.mod: New file.
+	* gm2/pim/pass/varient8.mod: New file.
+	* gm2/pim/pass/varin.def: New file.
+	* gm2/pim/pass/varin.mod: New file.
+	* gm2/pim/pass/varint.mod: New file.
+	* gm2/pim/pass/wincat.mod: New file.
+	* gm2/pim/pass/with.mod: New file.
+	* gm2/pim/pass/wordconst.mod: New file.
+	* gm2/pim/run/fail/case.mod: New file.
+	* gm2/pim/run/fail/nil.mod: New file.
+	* gm2/pim/run/fail/pim-run-fail.exp: New file.
+	* gm2/pim/run/pass/Countdown.mod: New file.
+	* gm2/pim/run/pass/EndFor.def: New file.
+	* gm2/pim/run/pass/EndFor.mod: New file.
+	* gm2/pim/run/pass/EnumTest.mod: New file.
+	* gm2/pim/run/pass/For1.mod: New file.
+	* gm2/pim/run/pass/For10.mod: New file.
+	* gm2/pim/run/pass/For11.mod: New file.
+	* gm2/pim/run/pass/For12.mod: New file.
+	* gm2/pim/run/pass/For2.mod: New file.
+	* gm2/pim/run/pass/For3.mod: New file.
+	* gm2/pim/run/pass/For4.mod: New file.
+	* gm2/pim/run/pass/For5.mod: New file.
+	* gm2/pim/run/pass/For6.mod: New file.
+	* gm2/pim/run/pass/For7.mod: New file.
+	* gm2/pim/run/pass/For8.mod: New file.
+	* gm2/pim/run/pass/For9.mod: New file.
+	* gm2/pim/run/pass/FpuIOBug.mod: New file.
+	* gm2/pim/run/pass/MaxReal.mod: New file.
+	* gm2/pim/run/pass/MaxReal2.mod: New file.
+	* gm2/pim/run/pass/TestLong.mod: New file.
+	* gm2/pim/run/pass/TestLong2.mod: New file.
+	* gm2/pim/run/pass/TestLong4.mod: New file.
+	* gm2/pim/run/pass/TestLong5.mod: New file.
+	* gm2/pim/run/pass/addrarray.mod: New file.
+	* gm2/pim/run/pass/arraychar.mod: New file.
+	* gm2/pim/run/pass/arraychar2.mod: New file.
+	* gm2/pim/run/pass/arrayrecord.mod: New file.
+	* gm2/pim/run/pass/bitsettest.def: New file.
+	* gm2/pim/run/pass/bitsettest.mod: New file.
+	* gm2/pim/run/pass/bytearray.mod: New file.
+	* gm2/pim/run/pass/constdynstr.mod: New file.
+	* gm2/pim/run/pass/conststr.mod: New file.
+	* gm2/pim/run/pass/conststr2.mod: New file.
+	* gm2/pim/run/pass/cycles.mod: New file.
+	* gm2/pim/run/pass/dec.mod: New file.
+	* gm2/pim/run/pass/enums.mod: New file.
+	* gm2/pim/run/pass/incsubrange.def: New file.
+	* gm2/pim/run/pass/incsubrange.mod: New file.
+	* gm2/pim/run/pass/index3.mod: New file.
+	* gm2/pim/run/pass/int16.mod: New file.
+	* gm2/pim/run/pass/int32.mod: New file.
+	* gm2/pim/run/pass/int8.mod: New file.
+	* gm2/pim/run/pass/line.mod: New file.
+	* gm2/pim/run/pass/long.mod: New file.
+	* gm2/pim/run/pass/longfor.mod: New file.
+	* gm2/pim/run/pass/longtypes10.mod: New file.
+	* gm2/pim/run/pass/longtypes7.mod: New file.
+	* gm2/pim/run/pass/longtypes8.mod: New file.
+	* gm2/pim/run/pass/longtypes9.mod: New file.
+	* gm2/pim/run/pass/math.mod: New file.
+	* gm2/pim/run/pass/math2.mod: New file.
+	* gm2/pim/run/pass/mathconst.mod: New file.
+	* gm2/pim/run/pass/minhello.mod: New file.
+	* gm2/pim/run/pass/minimal.mod: New file.
+	* gm2/pim/run/pass/nestedproc.mod: New file.
+	* gm2/pim/run/pass/nestedproc2.mod: New file.
+	* gm2/pim/run/pass/nestedproc3.mod: New file.
+	* gm2/pim/run/pass/nestedproc4.mod: New file.
+	* gm2/pim/run/pass/nestedproc5.mod: New file.
+	* gm2/pim/run/pass/nestedproc6.mod: New file.
+	* gm2/pim/run/pass/nestedproc7.mod: New file.
+	* gm2/pim/run/pass/nestedwith.mod: New file.
+	* gm2/pim/run/pass/nestedwith2.mod: New file.
+	* gm2/pim/run/pass/nestedwith3.mod: New file.
+	* gm2/pim/run/pass/nothing.mod: New file.
+	* gm2/pim/run/pass/pim-run-pass.exp: New file.
+	* gm2/pim/run/pass/prog31ex.mod: New file.
+	* gm2/pim/run/pass/rts.mod: New file.
+	* gm2/pim/run/pass/setcritical.mod: New file.
+	* gm2/pim/run/pass/setequiv.mod: New file.
+	* gm2/pim/run/pass/str6.mod: New file.
+	* gm2/pim/run/pass/stringaddr.mod: New file.
+	* gm2/pim/run/pass/stringaddr2.def: New file.
+	* gm2/pim/run/pass/stringaddr2.mod: New file.
+	* gm2/pim/run/pass/stripped.mod: New file.
+	* gm2/pim/run/pass/sys.def: New file.
+	* gm2/pim/run/pass/sys.mod: New file.
+	* gm2/pim/run/pass/t.def: New file.
+	* gm2/pim/run/pass/testaddr.mod: New file.
+	* gm2/pim/run/pass/testaddr2.mod: New file.
+	* gm2/pim/run/pass/testaddr3.mod: New file.
+	* gm2/pim/run/pass/testarray.mod: New file.
+	* gm2/pim/run/pass/testarray2.mod: New file.
+	* gm2/pim/run/pass/testarray3.mod: New file.
+	* gm2/pim/run/pass/testarray4.mod: New file.
+	* gm2/pim/run/pass/testarray5.mod: New file.
+	* gm2/pim/run/pass/testavail.mod: New file.
+	* gm2/pim/run/pass/testdiv.mod: New file.
+	* gm2/pim/run/pass/testfpufunc.mod: New file.
+	* gm2/pim/run/pass/testfpufunc2.mod: New file.
+	* gm2/pim/run/pass/testlarge.mod: New file.
+	* gm2/pim/run/pass/testlarge2.mod: New file.
+	* gm2/pim/run/pass/testnextproc.mod: New file.
+	* gm2/pim/run/pass/testparam.mod: New file.
+	* gm2/pim/run/pass/testreturnstr.mod: New file.
+	* gm2/pim/run/pass/testreturnstr2.mod: New file.
+	* gm2/pim/run/pass/testreturnstr3.def: New file.
+	* gm2/pim/run/pass/testreturnstr3.mod: New file.
+	* gm2/pim/run/pass/testsize.mod: New file.
+	* gm2/pim/run/pass/testsize2.mod: New file.
+	* gm2/pim/run/pass/testsize3.mod: New file.
+	* gm2/pim/run/pass/testsize4.mod: New file.
+	* gm2/pim/run/pass/testtbitsize.mod: New file.
+	* gm2/pim/run/pass/tinywith.mod: New file.
+	* gm2/pim/run/pass/unbounded.mod: New file.
+	* gm2/pim/run/pass/varaddress3.mod: New file.
+	* gm2/pim/run/pass/varparam2.mod: New file.
+	* gm2/pim/run/pass/varparam3.mod: New file.
+	* gm2/pim/run/pass/varparm.mod: New file.
+	* gm2/pim/run/pass/wr.mod: New file.
+	* gm2/pimcoroutines/pass/imports.mod: New file.
+	* gm2/pimcoroutines/pass/imports2.mod: New file.
+	* gm2/pimcoroutines/pass/pimcoroutines-pass.exp: New file.
+	* gm2/pimcoroutines/run/pass/pimcoroutines-run-pass.exp: New file.
+	* gm2/pimcoroutines/run/pass/testtime.mod: New file.
+	* gm2/pimlib/base/run/pass/FIO.mod: New file.
+	* gm2/pimlib/base/run/pass/StrLib.mod: New file.
+	* gm2/pimlib/base/run/pass/pimlib-base-run-pass.exp: New file.
+	* gm2/pimlib/base/run/pass/testconvert.mod: New file.
+	* gm2/pimlib/coroutines/pass/pimlib-coroutines-pass.exp: New file.
+	* gm2/pimlib/coroutines/pass/priority.mod: New file.
+	* gm2/pimlib/coroutines/pass/priority2.mod: New file.
+	* gm2/pimlib/coroutines/pass/priority3.def: New file.
+	* gm2/pimlib/coroutines/pass/priority3.mod: New file.
+	* gm2/pimlib/logitech/pass/LogitechLong.mod: New file.
+	* gm2/pimlib/logitech/pass/hello.mod: New file.
+	* gm2/pimlib/logitech/pass/pimlib-logitech-pass.exp: New file.
+	* gm2/pimlib/logitech/run/pass/bbits.mod: New file.
+	* gm2/pimlib/logitech/run/pass/hello.mod: New file.
+	* gm2/pimlib/logitech/run/pass/helloinout.mod: New file.
+	* gm2/pimlib/logitech/run/pass/intb.mod: New file.
+	* gm2/pimlib/logitech/run/pass/pimlib-logitech-run-pass.exp: New file.
+	* gm2/pimlib/logitech/run/pass/realconv.mod: New file.
+	* gm2/pimlib/logitech/run/pass/realinput.mod: New file.
+	* gm2/pimlib/logitech/run/pass/realinput2.mod: New file.
+	* gm2/pimlib/logitech/run/pass/realinput3.mod: New file.
+	* gm2/pimlib/logitech/run/pass/rename.mod: New file.
+	* gm2/pimlib/logitech/run/pass/timedate.mod: New file.
+	* gm2/pimlib/logitech/run/pass/writeoct.mod: New file.
+	* gm2/pimlib/pass/pimlib-pass.exp: New file.
+	* gm2/pimlib/run/pass/format.mod: New file.
+	* gm2/pimlib/run/pass/limittests.c: New file.
+	* gm2/pimlib/run/pass/limittests.mod: New file.
+	* gm2/pimlib/run/pass/longreal.mod: New file.
+	* gm2/pimlib/run/pass/pimlib-run-pass.exp: New file.
+	* gm2/pimlib/run/pass/test.c: New file.
+	* gm2/pimlib/run/pass/testreal.mod: New file.
+	* gm2/pimlib/run/pass/testreal2.mod: New file.
+	* gm2/pimlib/run/pass/testreal4.mod: New file.
+	* gm2/projects/README: New file.
+	* gm2/projects/iso/run/pass/halma/halma.mod: New file.
+	* gm2/projects/iso/run/pass/halma/projects-iso-run-pass-halma.exp:
+	New file.
+	* gm2/projects/iso/run/pass/hello/hello.mod: New file.
+	* gm2/projects/iso/run/pass/hello/projects-iso-run-pass-hello.exp:
+	New file.
+	* gm2/projects/log/run/pass/hello/hello.mod: New file.
+	* gm2/projects/log/run/pass/hello/projects-log-run-pass-hello.exp:
+	New file.
+	* gm2/projects/pim/run/pass/hello/hello.mod: New file.
+	* gm2/projects/pim/run/pass/hello/projects-pim-run-pass-hello.exp:
+	New file.
+	* gm2/projects/pim/run/pass/random/AdvMap.def: New file.
+	* gm2/projects/pim/run/pass/random/AdvMap.mod: New file.
+	* gm2/projects/pim/run/pass/random/BoxMap.def: New file.
+	* gm2/projects/pim/run/pass/random/BoxMap.mod: New file.
+	* gm2/projects/pim/run/pass/random/Chance.def: New file.
+	* gm2/projects/pim/run/pass/random/Chance.mod: New file.
+	* gm2/projects/pim/run/pass/random/Geometry.def: New file.
+	* gm2/projects/pim/run/pass/random/Geometry.mod: New file.
+	* gm2/projects/pim/run/pass/random/MakeBoxes.def: New file.
+	* gm2/projects/pim/run/pass/random/MakeBoxes.mod: New file.
+	* gm2/projects/pim/run/pass/random/Map.mod: New file.
+	* gm2/projects/pim/run/pass/random/MapOptions.def: New file.
+	* gm2/projects/pim/run/pass/random/MapOptions.mod: New file.
+	* gm2/projects/pim/run/pass/random/Options.def: New file.
+	* gm2/projects/pim/run/pass/random/Options.mod: New file.
+	* gm2/projects/pim/run/pass/random/RoomMap.def: New file.
+	* gm2/projects/pim/run/pass/random/RoomMap.mod: New file.
+	* gm2/projects/pim/run/pass/random/StoreCoords.def: New file.
+	* gm2/projects/pim/run/pass/random/StoreCoords.mod: New file.
+	* gm2/projects/pim/run/pass/random/WriteMap.def: New file.
+	* gm2/projects/pim/run/pass/random/WriteMap.mod: New file.
+	* gm2/projects/pim/run/pass/random/projects-pim-run-pass-random.exp:
+	New file.
+	* gm2/quads/run/pass/becomes.mod: New file.
+	* gm2/quads/run/pass/param.mod: New file.
+	* gm2/quads/run/pass/quads-run-pass.exp: New file.
+	* gm2/quads/run/pass/return.mod: New file.
+	* gm2/recover/pass/cannot-solve/begin.mod: New file.
+	* gm2/recover/pass/cannot-solve/statementsemi.mod: New file.
+	* gm2/recover/pass/end2.mod: New file.
+	* gm2/recover/pass/of.mod: New file.
+	* gm2/recover/pass/procsemi.mod: New file.
+	* gm2/recover/pass/recover-pass.exp: New file.
+	* gm2/recover/pass/rrbra.mod: New file.
+	* gm2/recover/pass/rsbra.mod: New file.
+	* gm2/recover/pass/semi.mod: New file.
+	* gm2/run/fail/list.mod: New file.
+	* gm2/run/fail/options: New file.
+	* gm2/run/fail/testdec.mod: New file.
+	* gm2/run/fail/testfunc.mod: New file.
+	* gm2/run/pass/cycles.mod: New file.
+	* gm2/run/pass/line.mod: New file.
+	* gm2/run/pass/nestedproc.mod: New file.
+	* gm2/run/pass/nestedproc2.mod: New file.
+	* gm2/run/pass/nestedproc3.mod: New file.
+	* gm2/run/pass/nestedproc5.mod: New file.
+	* gm2/run/pass/nestedset.mod: New file.
+	* gm2/run/pass/nothing.mod: New file.
+	* gm2/run/pass/options: New file.
+	* gm2/run/pass/prog31ex.mod: New file.
+	* gm2/run/pass/rts.mod: New file.
+	* gm2/run/pass/stripped.mod: New file.
+	* gm2/run/pass/testavail.mod: New file.
+	* gm2/run/pass/testfpufunc.mod: New file.
+	* gm2/run/pass/testfpufunc2.mod: New file.
+	* gm2/run/pass/testnextproc.mod: New file.
+	* gm2/run/pass/testparam.mod: New file.
+	* gm2/run/pass/testsize.mod: New file.
+	* gm2/run/pass/testsize2.mod: New file.
+	* gm2/run/pass/testsize3.mod: New file.
+	* gm2/run/pass/wr.mod: New file.
+	* gm2/scripts/addit: New file.
+	* gm2/scripts/comp: New file.
+	* gm2/scripts/compile: New file.
+	* gm2/scripts/compileiso: New file.
+	* gm2/scripts/link: New file.
+	* gm2/scripts/regression: New file.
+	* gm2/scripts/subit: New file.
+	* gm2/sets/run/pass/multisetarith.mod: New file.
+	* gm2/sets/run/pass/multisetarith2.mod: New file.
+	* gm2/sets/run/pass/multisetarith3.mod: New file.
+	* gm2/sets/run/pass/multisetarith4.mod: New file.
+	* gm2/sets/run/pass/multisetrotate.mod: New file.
+	* gm2/sets/run/pass/multisetrotate2.mod: New file.
+	* gm2/sets/run/pass/multisetrotate3.mod: New file.
+	* gm2/sets/run/pass/multisetrotate4.mod: New file.
+	* gm2/sets/run/pass/multisetshift.mod: New file.
+	* gm2/sets/run/pass/multisetshift2.mod: New file.
+	* gm2/sets/run/pass/multisimple.mod: New file.
+	* gm2/sets/run/pass/multisimple2.mod: New file.
+	* gm2/sets/run/pass/multisimple3.mod: New file.
+	* gm2/sets/run/pass/multisimple4.mod: New file.
+	* gm2/sets/run/pass/multisimple5.mod: New file.
+	* gm2/sets/run/pass/multisimple6.mod: New file.
+	* gm2/sets/run/pass/multisimple7.mod: New file.
+	* gm2/sets/run/pass/setarith.mod: New file.
+	* gm2/sets/run/pass/setarith2.mod: New file.
+	* gm2/sets/run/pass/setarith3.mod: New file.
+	* gm2/sets/run/pass/setarith4.mod: New file.
+	* gm2/sets/run/pass/setrotate.mod: New file.
+	* gm2/sets/run/pass/setrotate2.mod: New file.
+	* gm2/sets/run/pass/setrotate3.mod: New file.
+	* gm2/sets/run/pass/setrotate4.mod: New file.
+	* gm2/sets/run/pass/sets-run-pass.exp: New file.
+	* gm2/sets/run/pass/setshift.mod: New file.
+	* gm2/sets/run/pass/setshift2.mod: New file.
+	* gm2/sets/run/pass/simple.mod: New file.
+	* gm2/sets/run/pass/simple2.mod: New file.
+	* gm2/sets/run/pass/simple3.mod: New file.
+	* gm2/sets/run/pass/simple4.mod: New file.
+	* gm2/sets/run/pass/simple5.mod: New file.
+	* gm2/sets/run/pass/simple6.mod: New file.
+	* gm2/sets/run/pass/simple7.mod: New file.
+	* gm2/switches/auto-init/fail/switches-auto-init-fail.exp: New file.
+	* gm2/switches/auto-init/fail/uninitptr.mod: New file.
+	* gm2/switches/auto-init/fail/uninitptr2.mod: New file.
+	* gm2/switches/check-all/pim2/fail/overflow.mod: New file.
+	* gm2/switches/check-all/pim2/fail/overflow2.mod: New file.
+	* gm2/switches/check-all/pim2/fail/overflowdiv1.mod: New file.
+	* gm2/switches/check-all/pim2/fail/switches-check-all-pim2-fail.exp:
+	New file.
+	* gm2/switches/check-all/plugin/iso/fail/divceilposneg.mod: New file.
+	* gm2/switches/check-all/plugin/iso/fail/divceilposneg2.mod: New file.
+	* gm2/switches/check-all/plugin/iso/fail/divceilposnegcall.mod: New
+	file.
+	* gm2/switches/check-all/plugin/iso/fail/divceilposnegcall2.mod: New
+	file.
+	* gm2/switches/check-all/plugin/iso/fail/divfloornegpos.mod: New file.
+	* gm2/switches/check-all/plugin/iso/fail/divfloorpospos.mod: New file.
+	* gm2/switches/check-all/plugin/iso/fail/lowdiv.mod: New file.
+	* gm2/switches/check-all/plugin/iso/fail/switches-check-all-plugin-iso-fail.exp:
+	New file.
+	* gm2/switches/check-all/plugin/pim2/fail/divceil.mod: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/highdiv.mod: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/modulus.mod: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin1.mod: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin3.mod: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin4.def: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin4.mod: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin5.def: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin5.mod: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin6.def: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin6.mod: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin7.def: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin7.mod: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin8.def: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin8.mod: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/plugin9.mod: New file.
+	* gm2/switches/check-all/plugin/pim2/fail/switches-check-all-plugin-pim2-fail.exp:
+	New file.
+	* gm2/switches/check-all/run/fail/cardrange.mod: New file.
+	* gm2/switches/check-all/run/fail/cardrange2.mod: New file.
+	* gm2/switches/check-all/run/fail/cardrange3.mod: New file.
+	* gm2/switches/check-all/run/fail/intrange.mod: New file.
+	* gm2/switches/check-all/run/fail/intrange2.mod: New file.
+	* gm2/switches/check-all/run/fail/intrange3.mod: New file.
+	* gm2/switches/check-all/run/fail/intrange4.mod: New file.
+	* gm2/switches/check-all/run/fail/intrange5.mod: New file.
+	* gm2/switches/check-all/run/fail/multint1.mod: New file.
+	* gm2/switches/check-all/run/fail/multint2.mod: New file.
+	* gm2/switches/check-all/run/fail/multint3.mod: New file.
+	* gm2/switches/check-all/run/fail/rangesupport.def: New file.
+	* gm2/switches/check-all/run/fail/rangesupport.mod: New file.
+	* gm2/switches/check-all/run/fail/realrange.mod: New file.
+	* gm2/switches/check-all/run/fail/subrange.mod: New file.
+	* gm2/switches/check-all/run/fail/switches-check-all-run-fail.exp:
+	New file.
+	* gm2/switches/check-all/run/fail/tinyrange.mod: New file.
+	* gm2/switches/check-all/run/pass/cardrange.mod: New file.
+	* gm2/switches/check-all/run/pass/forcheck.mod: New file.
+	* gm2/switches/check-all/run/pass/subrange.mod: New file.
+	* gm2/switches/check-all/run/pass/switches-check-all-run-pass.exp:
+	New file.
+	* gm2/switches/extended-opaque/fail/a.def: New file.
+	* gm2/switches/extended-opaque/fail/a.mod: New file.
+	* gm2/switches/extended-opaque/fail/switches-extended-opaque-fail.exp:
+	New file.
+	* gm2/switches/extended-opaque/pass/a.def: New file.
+	* gm2/switches/extended-opaque/pass/a.mod: New file.
+	* gm2/switches/extended-opaque/pass/b.mod: New file.
+	* gm2/switches/extended-opaque/pass/switches-extended-opaque-pass.exp:
+	New file.
+	* gm2/switches/iso/run/pass/modulus.mod: New file.
+	* gm2/switches/iso/run/pass/modulus4.mod: New file.
+	* gm2/switches/iso/run/pass/switches-iso-run-pass.exp: New file.
+	* gm2/switches/makeall/fail/switches-makeall-fail.exp: New file.
+	* gm2/switches/makeall/fail/test.def: New file.
+	* gm2/switches/makeall/fail/test.mod: New file.
+	* gm2/switches/makeall/pass/switches-makeall-pass.exp: New file.
+	* gm2/switches/makeall/pass/test.def: New file.
+	* gm2/switches/makeall/pass/test.mod: New file.
+	* gm2/switches/none/run/pass/gm2-none.exp: New file.
+	* gm2/switches/none/run/pass/hello.mod: New file.
+	* gm2/switches/optimization/run/pass/fact.mod: New file.
+	* gm2/switches/optimization/run/pass/switches-optimization-run-pass.exp:
+	New file.
+	* gm2/switches/pedantic-params/fail/a.def: New file.
+	* gm2/switches/pedantic-params/fail/a.mod: New file.
+	* gm2/switches/pedantic-params/fail/switches-pedantic-params-fail.exp:
+	New file.
+	* gm2/switches/pedantic-params/pass/Strings.def: New file.
+	* gm2/switches/pedantic-params/pass/Strings.mod: New file.
+	* gm2/switches/pedantic-params/pass/Strings2.def: New file.
+	* gm2/switches/pedantic-params/pass/Strings2.mod: New file.
+	* gm2/switches/pedantic-params/pass/switches-pedantic-params-pass.exp:
+	New file.
+	* gm2/switches/pedantic/fail/onlywrite.mod: New file.
+	* gm2/switches/pedantic/fail/readb4.mod: New file.
+	* gm2/switches/pic/run/pass/func.c: New file.
+	* gm2/switches/pic/run/pass/func.mod: New file.
+	* gm2/switches/pic/run/pass/func2.c: New file.
+	* gm2/switches/pic/run/pass/func2.mod: New file.
+	* gm2/switches/pic/run/pass/switches-pic-run-pass.exp: New file.
+	* gm2/switches/pim2/run/pass/modulus.mod: New file.
+	* gm2/switches/pim2/run/pass/switches-pim2-run-pass.exp: New file.
+	* gm2/switches/pim3/run/pass/modulus.mod: New file.
+	* gm2/switches/pim3/run/pass/switches-pim3-run-pass.exp: New file.
+	* gm2/switches/pim4/run/pass/FpuIOBug.mod: New file.
+	* gm2/switches/pim4/run/pass/InOutBug.mod: New file.
+	* gm2/switches/pim4/run/pass/NumberIOBug.mod: New file.
+	* gm2/switches/pim4/run/pass/modulus.mod: New file.
+	* gm2/switches/pim4/run/pass/modulus2.mod: New file.
+	* gm2/switches/pim4/run/pass/switches-pim4-run-pass.exp: New file.
+	* gm2/switches/whole-program/pass/run/hello.mod: New file.
+	* gm2/switches/whole-program/pass/run/hello2.mod: New file.
+	* gm2/switches/whole-program/pass/run/switches-whole-program-pass-run.exp:
+	New file.
+	* gm2/switches/whole-program/pass/run/tiny.mod: New file.
+	* gm2/switches/whole-program/pass/run/tiny2.mod: New file.
+	* gm2/types/bitset.mod: New file.
+	* gm2/types/bitset2.mod: New file.
+	* gm2/types/bitset3.mod: New file.
+	* gm2/types/charset.mod: New file.
+	* gm2/types/const.mod: New file.
+	* gm2/types/prog35.mod: New file.
+	* gm2/types/real.mod: New file.
+	* gm2/types/run/pass/d.c: New file.
+	* gm2/types/run/pass/d.def: New file.
+	* gm2/types/run/pass/types-run-pass.exp: New file.
+	* gm2/types/run/pass/varient4.mod: New file.
+	* gm2/types/run/pass/varient5.mod: New file.
+	* gm2/types/string.mod: New file.
+	* gm2/types/type1.mod: New file.
+	* gm2/types/type2.mod: New file.
+	* gm2/types/type3.mod: New file.
+	* gm2/types/type4.mod: New file.
+	* gm2/types/varient.mod: New file.
+	* gm2/types/word.mod: New file.
+	* gm2/ulmlib/pass/ulmlib-pass.exp: New file.
+	* gm2/ulmlib/std/pass/ulmlib-std-pass.exp: New file.
+	* gm2/ulmlib/sys/pass/ulmlib-sys-pass.exp: New file.
+	* gm2/warnings/todo/nestedproc6.mod: New file.
+	* gm2/warnings/todo/options: New file.
+	* gm2/warnings/todo/testfor.mod: New file.
+	* gm2/warnings/todo/testfor2.mod: New file.
+	* gm2/warnings/todo/testfor3.mod: New file.
+	* gm2/warnings/todo/testkeywords.mod: New file.
+	* gm2/warnings/todo/testloop.mod: New file.
+	* gm2/warnings/todo/testscope.mod: New file.
+	* gm2/warnings/todo/testscope2.mod: New file.
+	* gm2/x86-asm/asm.mod: New file.
+	* gm2/x86-asm/asm2.mod: New file.
+
+2022-12-14  Julian Brown  <julian@codesourcery.com>
+
+	PR fortran/107214
+	* gfortran.dg/gomp/pr107214.f90: New test.
+	* gfortran.dg/gomp/pr107214-2.f90: New test.
+	* gfortran.dg/gomp/pr107214-3.f90: New test.
+	* gfortran.dg/gomp/pr107214-4.f90: New test.
+	* gfortran.dg/gomp/pr107214-5.f90: New test.
+	* gfortran.dg/gomp/pr107214-6.f90: New test.
+	* gfortran.dg/gomp/pr107214-7.f90: New test.
+	* gfortran.dg/gomp/pr107214-8.f90: New test.
+
+2022-12-14  Tamar Christina  <tamar.christina@arm.com>
+
+	PR target/107988
+	* gcc.target/aarch64/pr107988-1.c: New test.
+
+2022-12-14  Antoni Boucher  <bouanto@zoho.com>
+	    Guillaume Gomez  <guillaume1.gomez@gmail.com>
+
+	PR jit/108078
+	* jit.dg/test-vector-types.cc: Add tests for vector type comparison
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	* gcc.dg/ipa/ipa-sra-26.c: New test.
+	* gcc.dg/ipa/ipa-sra-27.c: Likewise.
+	* gcc.dg/ipa/ipa-sra-28.c: Likewise.
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	* gfortran.dg/pr48636-2.f90: Disable IPA-SRA.
+	* gfortran.dg/ipa-sra-1.f90: New test.
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	* gcc.dg/ipa/ipa-sra-25.c: New test
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	* g++.dg/ipa/ipa-sra-5.C: New test
+
+2022-12-13  Martin Jambor  <mjambor@suse.cz>
+
+	PR ipa/103227
+	PR ipa/107640
+	* gcc.dg/ipa/pr107640-2.c: New test.
+
+2022-12-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/108044
+	* gcc.target/i386/pr108044-1.c: New test.
+	* gcc.target/i386/pr108044-2.c: New test.
+	* gcc.target/i386/pr108044-3.c: New test.
+	* gcc.target/i386/pr108044-4.c: New test.
+
+2022-12-13  Steve Kargl  <kargl@gcc.gnu.org>
+
+	PR fortran/107423
+	* gfortran.dg/pr107423.f90: New test.
+
+2022-12-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/108064
+	* gcc.c-torture/execute/pr108064.c: New test.
+
+2022-12-13  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/105801
+	* gcc.dg/tree-ssa/ssa-ccp-43.c: New testcase.
+
+2022-12-13  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* lib/rust.exp (rust_init): Add
+	'-frust-incomplete-and-experimental-compiler-do-not-use'.
+
+2022-12-13  Philip Herron  <philip.herron@embecosm.com>
+	    Arthur Cohen  <arthur.cohen@embecosm.com>
+	    Thomas Schwinge  <thomas@codesourcery.com>
+	    Mark Wielaard  <mark@klomp.org>
+	    Marc Poulhiès  <dkm@kataplop.net>
+
+	* rust/execute/torture/block_expr1.rs: New.
+	* rust/execute/torture/builtin_macro_cfg.rs: New.
+	* rust/execute/torture/builtin_macro_concat.rs: New.
+	* rust/execute/torture/builtin_macro_env.rs: New.
+	* rust/execute/torture/builtin_macro_include_bytes.rs: New.
+	* rust/execute/torture/builtin_macro_include_str.rs: New.
+	* rust/execute/torture/builtin_macro_line.rs: New.
+	* rust/execute/torture/builtin_macros1.rs: New.
+	* rust/execute/torture/builtin_macros3.rs: New.
+	* rust/execute/torture/cfg1.rs: New.
+	* rust/execute/torture/cfg2.rs: New.
+	* rust/execute/torture/cfg3.rs: New.
+	* rust/execute/torture/cfg4.rs: New.
+	* rust/execute/torture/cfg5.rs: New.
+	* rust/execute/torture/coercion1.rs: New.
+	* rust/execute/torture/coercion2.rs: New.
+	* rust/execute/torture/const_fold1.rs: New.
+	* rust/execute/torture/const_fold2.rs: New.
+	* rust/execute/torture/copy_nonoverlapping1.rs: New.
+	* rust/execute/torture/empty_main.rs: New.
+	* rust/execute/torture/execute.exp: New.
+	* rust/execute/torture/exit_error.rs: New.
+	* rust/execute/torture/extern_mod4.rs: New.
+	* rust/execute/torture/func1.rs: New.
+	* rust/execute/torture/helloworld1.rs: New.
+	* rust/execute/torture/helloworld2.rs: New.
+	* rust/execute/torture/include.txt: New.
+	* rust/execute/torture/index1.rs: New.
+	* rust/execute/torture/issue-1120.rs: New.
+	* rust/execute/torture/issue-1133.rs: New.
+	* rust/execute/torture/issue-1198.rs: New.
+	* rust/execute/torture/issue-1231.rs: New.
+	* rust/execute/torture/issue-1232.rs: New.
+	* rust/execute/torture/issue-1249.rs: New.
+	* rust/execute/torture/issue-1436.rs: New.
+	* rust/execute/torture/issue-1496.rs: New.
+	* rust/execute/torture/issue-647.rs: New.
+	* rust/execute/torture/issue-845.rs: New.
+	* rust/execute/torture/issue-851.rs: New.
+	* rust/execute/torture/issue-858.rs: New.
+	* rust/execute/torture/issue-976.rs: New.
+	* rust/execute/torture/issue-995.rs: New.
+	* rust/execute/torture/macros1.rs: New.
+	* rust/execute/torture/macros10.rs: New.
+	* rust/execute/torture/macros11.rs: New.
+	* rust/execute/torture/macros12.rs: New.
+	* rust/execute/torture/macros13.rs: New.
+	* rust/execute/torture/macros14.rs: New.
+	* rust/execute/torture/macros16.rs: New.
+	* rust/execute/torture/macros17.rs: New.
+	* rust/execute/torture/macros18.rs: New.
+	* rust/execute/torture/macros19.rs: New.
+	* rust/execute/torture/macros2.rs: New.
+	* rust/execute/torture/macros20.rs: New.
+	* rust/execute/torture/macros21.rs: New.
+	* rust/execute/torture/macros22.rs: New.
+	* rust/execute/torture/macros23.rs: New.
+	* rust/execute/torture/macros24.rs: New.
+	* rust/execute/torture/macros25.rs: New.
+	* rust/execute/torture/macros26.rs: New.
+	* rust/execute/torture/macros27.rs: New.
+	* rust/execute/torture/macros28.rs: New.
+	* rust/execute/torture/macros29.rs: New.
+	* rust/execute/torture/macros3.rs: New.
+	* rust/execute/torture/macros30.rs: New.
+	* rust/execute/torture/macros31.rs: New.
+	* rust/execute/torture/macros4.rs: New.
+	* rust/execute/torture/macros5.rs: New.
+	* rust/execute/torture/macros6.rs: New.
+	* rust/execute/torture/macros7.rs: New.
+	* rust/execute/torture/macros8.rs: New.
+	* rust/execute/torture/macros9.rs: New.
+	* rust/execute/torture/match1.rs: New.
+	* rust/execute/torture/match2.rs: New.
+	* rust/execute/torture/match3.rs: New.
+	* rust/execute/torture/match_bool1.rs: New.
+	* rust/execute/torture/match_byte1.rs: New.
+	* rust/execute/torture/match_char1.rs: New.
+	* rust/execute/torture/match_int1.rs: New.
+	* rust/execute/torture/match_loop1.rs: New.
+	* rust/execute/torture/match_range1.rs: New.
+	* rust/execute/torture/match_range2.rs: New.
+	* rust/execute/torture/match_tuple1.rs: New.
+	* rust/execute/torture/method1.rs: New.
+	* rust/execute/torture/method2.rs: New.
+	* rust/execute/torture/method3.rs: New.
+	* rust/execute/torture/method4.rs: New.
+	* rust/execute/torture/mod1.rs: New.
+	* rust/execute/torture/modules/mod.rs: New.
+	* rust/execute/torture/operator_overload_1.rs: New.
+	* rust/execute/torture/operator_overload_10.rs: New.
+	* rust/execute/torture/operator_overload_11.rs: New.
+	* rust/execute/torture/operator_overload_12.rs: New.
+	* rust/execute/torture/operator_overload_2.rs: New.
+	* rust/execute/torture/operator_overload_3.rs: New.
+	* rust/execute/torture/operator_overload_4.rs: New.
+	* rust/execute/torture/operator_overload_5.rs: New.
+	* rust/execute/torture/operator_overload_6.rs: New.
+	* rust/execute/torture/operator_overload_7.rs: New.
+	* rust/execute/torture/operator_overload_8.rs: New.
+	* rust/execute/torture/operator_overload_9.rs: New.
+	* rust/execute/torture/slice-magic.rs: New.
+	* rust/execute/torture/slice-magic2.rs: New.
+	* rust/execute/torture/slice1.rs: New.
+	* rust/execute/torture/str-layout1.rs: New.
+	* rust/execute/torture/str-zero.rs: New.
+	* rust/execute/torture/trait1.rs: New.
+	* rust/execute/torture/trait10.rs: New.
+	* rust/execute/torture/trait11.rs: New.
+	* rust/execute/torture/trait12.rs: New.
+	* rust/execute/torture/trait13.rs: New.
+	* rust/execute/torture/trait2.rs: New.
+	* rust/execute/torture/trait3.rs: New.
+	* rust/execute/torture/trait4.rs: New.
+	* rust/execute/torture/trait5.rs: New.
+	* rust/execute/torture/trait6.rs: New.
+	* rust/execute/torture/trait7.rs: New.
+	* rust/execute/torture/trait8.rs: New.
+	* rust/execute/torture/trait9.rs: New.
+	* rust/execute/torture/transmute1.rs: New.
+	* rust/execute/torture/wrapping_op1.rs: New.
+	* rust/execute/torture/wrapping_op2.rs: New.
+	* rust/execute/xfail/macro1.rs: New.
+
+2022-12-13  Philip Herron  <philip.herron@embecosm.com>
+	    Arthur Cohen  <arthur.cohen@embecosm.com>
+	    Thomas Schwinge  <thomas@codesourcery.com>
+	    Mark Wielaard  <mark@klomp.org>
+	    Marc Poulhiès  <dkm@kataplop.net>
+
+	* rust/compile/abi-options1.rs: New.
+	* rust/compile/array3.rs: New.
+	* rust/compile/array_empty_list.rs: New.
+	* rust/compile/arrays1.rs: New.
+	* rust/compile/arrays2.rs: New.
+	* rust/compile/attr-mismatch-crate-name.rs: New.
+	* rust/compile/attr_cold.rs: New.
+	* rust/compile/attr_deprecated.rs: New.
+	* rust/compile/attr_deprecated_2.rs: New.
+	* rust/compile/bad-crate-name.rs: New.
+	* rust/compile/bad=file-name.rs: New.
+	* rust/compile/bad_as_bool_char.rs: New.
+	* rust/compile/bad_file_name.txt.rs: New.
+	* rust/compile/bad_inner_doc.rs: New.
+	* rust/compile/bad_pub_enumitems.rs: New.
+	* rust/compile/bad_stmt_enums.rs: New.
+	* rust/compile/bad_toplevel_enums.rs: New.
+	* rust/compile/bad_tuple_index.rs: New.
+	* rust/compile/bad_type1.rs: New.
+	* rust/compile/bad_type2.rs: New.
+	* rust/compile/break1.rs: New.
+	* rust/compile/break2.rs: New.
+	* rust/compile/builtin_macro_compile_error.rs: New.
+	* rust/compile/builtin_macro_concat.rs: New.
+	* rust/compile/builtin_macro_env.rs: New.
+	* rust/compile/builtin_macro_include_bytes.rs: New.
+	* rust/compile/builtin_macro_include_str.rs: New.
+	* rust/compile/builtin_macro_not_found.rs: New.
+	* rust/compile/bytecharstring.rs: New.
+	* rust/compile/canonical_paths1.rs: New.
+	* rust/compile/cast1.rs: New.
+	* rust/compile/cfg1.rs: New.
+	* rust/compile/cfg2.rs: New.
+	* rust/compile/cfg3.rs: New.
+	* rust/compile/cfg4.rs: New.
+	* rust/compile/cfg5.rs: New.
+	* rust/compile/compile.exp: New.
+	* rust/compile/complex-path1.rs: New.
+	* rust/compile/const-issue1440.rs: New.
+	* rust/compile/const1.rs: New.
+	* rust/compile/const2.rs: New.
+	* rust/compile/const3.rs: New.
+	* rust/compile/const_generics_1.rs: New.
+	* rust/compile/const_generics_2.rs: New.
+	* rust/compile/const_generics_3.rs: New.
+	* rust/compile/const_generics_4.rs: New.
+	* rust/compile/const_generics_5.rs: New.
+	* rust/compile/const_generics_6.rs: New.
+	* rust/compile/continue1.rs: New.
+	* rust/compile/deadcode_err1.rs: New.
+	* rust/compile/deadcode_err2.rs: New.
+	* rust/compile/debug-diagnostics-default.rs: New.
+	* rust/compile/debug-diagnostics-off.rs: New.
+	* rust/compile/debug-diagnostics-on.rs: New.
+	* rust/compile/doc_isolated_cr_block_comment.rs: New.
+	* rust/compile/doc_isolated_cr_inner_block_comment.rs: New.
+	* rust/compile/doc_isolated_cr_inner_line_comment.rs: New.
+	* rust/compile/doc_isolated_cr_line_comment.rs: New.
+	* rust/compile/dup_fields.rs: New.
+	* rust/compile/empty_comment_before_match.rs: New.
+	* rust/compile/expected_type_args2.rs: New.
+	* rust/compile/expected_type_args3.rs: New.
+	* rust/compile/func1.rs: New.
+	* rust/compile/func2.rs: New.
+	* rust/compile/func3.rs: New.
+	* rust/compile/func4.rs: New.
+	* rust/compile/func5.rs: New.
+	* rust/compile/generic-default1.rs: New.
+	* rust/compile/generics1.rs: New.
+	* rust/compile/generics10.rs: New.
+	* rust/compile/generics11.rs: New.
+	* rust/compile/generics12.rs: New.
+	* rust/compile/generics13.rs: New.
+	* rust/compile/generics2.rs: New.
+	* rust/compile/generics3.rs: New.
+	* rust/compile/generics4.rs: New.
+	* rust/compile/generics5.rs: New.
+	* rust/compile/generics6.rs: New.
+	* rust/compile/generics7.rs: New.
+	* rust/compile/generics8.rs: New.
+	* rust/compile/generics9.rs: New.
+	* rust/compile/implicit_returns_err1.rs: New.
+	* rust/compile/implicit_returns_err2.rs: New.
+	* rust/compile/implicit_returns_err3.rs: New.
+	* rust/compile/implicit_returns_err4.rs: New.
+	* rust/compile/infer-crate-name.rs: New.
+	* rust/compile/inline_1.rs: New.
+	* rust/compile/inline_2.rs: New.
+	* rust/compile/issue-1005.rs: New.
+	* rust/compile/issue-1019.rs: New.
+	* rust/compile/issue-1023.rs: New.
+	* rust/compile/issue-1031.rs: New.
+	* rust/compile/issue-1034.rs: New.
+	* rust/compile/issue-1089.rs: New.
+	* rust/compile/issue-1128.rs: New.
+	* rust/compile/issue-1129-1.rs: New.
+	* rust/compile/issue-1129-2.rs: New.
+	* rust/compile/issue-1130.rs: New.
+	* rust/compile/issue-1131.rs: New.
+	* rust/compile/issue-1152.rs: New.
+	* rust/compile/issue-1165.rs: New.
+	* rust/compile/issue-1173.rs: New.
+	* rust/compile/issue-1226.rs: New.
+	* rust/compile/issue-1234.rs: New.
+	* rust/compile/issue-1235.rs: New.
+	* rust/compile/issue-1237.rs: New.
+	* rust/compile/issue-1251.rs: New.
+	* rust/compile/issue-1271.rs: New.
+	* rust/compile/issue-1289.rs: New.
+	* rust/compile/issue-1323-1.rs: New.
+	* rust/compile/issue-1323-2.rs: New.
+	* rust/compile/issue-1383.rs: New.
+	* rust/compile/issue-1393.rs: New.
+	* rust/compile/issue-1447.rs: New.
+	* rust/compile/issue-407-2.rs: New.
+	* rust/compile/issue-407.rs: New.
+	* rust/compile/issue-557.rs: New.
+	* rust/compile/issue-635-1.rs: New.
+	* rust/compile/issue-635-2.rs: New.
+	* rust/compile/lookup_err1.rs: New.
+	* rust/compile/macro-issue1053-2.rs: New.
+	* rust/compile/macro-issue1053.rs: New.
+	* rust/compile/macro-issue1224.rs: New.
+	* rust/compile/macro-issue1233.rs: New.
+	* rust/compile/macro-issue1395-2.rs: New.
+	* rust/compile/macro-issue1395.rs: New.
+	* rust/compile/macro-issue1400-2.rs: New.
+	* rust/compile/macro-issue1400.rs: New.
+	* rust/compile/macro1.rs: New.
+	* rust/compile/macro10.rs: New.
+	* rust/compile/macro11.rs: New.
+	* rust/compile/macro12.rs: New.
+	* rust/compile/macro13.rs: New.
+	* rust/compile/macro14.rs: New.
+	* rust/compile/macro15.rs: New.
+	* rust/compile/macro16.rs: New.
+	* rust/compile/macro17.rs: New.
+	* rust/compile/macro18.rs: New.
+	* rust/compile/macro19.rs: New.
+	* rust/compile/macro2.rs: New.
+	* rust/compile/macro20.rs: New.
+	* rust/compile/macro21.rs: New.
+	* rust/compile/macro22.rs: New.
+	* rust/compile/macro23.rs: New.
+	* rust/compile/macro25.rs: New.
+	* rust/compile/macro26.rs: New.
+	* rust/compile/macro27.rs: New.
+	* rust/compile/macro28.rs: New.
+	* rust/compile/macro29.rs: New.
+	* rust/compile/macro3.rs: New.
+	* rust/compile/macro30.rs: New.
+	* rust/compile/macro31.rs: New.
+	* rust/compile/macro32.rs: New.
+	* rust/compile/macro33.rs: New.
+	* rust/compile/macro34.rs: New.
+	* rust/compile/macro35.rs: New.
+	* rust/compile/macro36.rs: New.
+	* rust/compile/macro37.rs: New.
+	* rust/compile/macro38.rs: New.
+	* rust/compile/macro39.rs: New.
+	* rust/compile/macro4.rs: New.
+	* rust/compile/macro40.rs: New.
+	* rust/compile/macro41.rs: New.
+	* rust/compile/macro42.rs: New.
+	* rust/compile/macro5.rs: New.
+	* rust/compile/macro6.rs: New.
+	* rust/compile/macro7.rs: New.
+	* rust/compile/macro8.rs: New.
+	* rust/compile/macro9.rs: New.
+	* rust/compile/macro_return.rs: New.
+	* rust/compile/match1.rs: New.
+	* rust/compile/match2.rs: New.
+	* rust/compile/match3.rs: New.
+	* rust/compile/match4.rs: New.
+	* rust/compile/match5.rs: New.
+	* rust/compile/match6.rs: New.
+	* rust/compile/match7.rs: New.
+	* rust/compile/method1.rs: New.
+	* rust/compile/method2.rs: New.
+	* rust/compile/mismatch-crate-name.rs: New.
+	* rust/compile/missing_middle/both_path.rs: New.
+	* rust/compile/missing_middle/explicit.not.rs: New.
+	* rust/compile/missing_middle/inner_path.rs: New.
+	* rust/compile/missing_middle/other.rs: New.
+	* rust/compile/missing_middle/outer_path.rs: New.
+	* rust/compile/missing_middle/sub/mod.rs: New.
+	* rust/compile/missing_return1.rs: New.
+	* rust/compile/mod_missing_middle.rs: New.
+	* rust/compile/never_type_err1.rs: New.
+	* rust/compile/privacy1.rs: New.
+	* rust/compile/privacy2.rs: New.
+	* rust/compile/privacy3.rs: New.
+	* rust/compile/privacy4.rs: New.
+	* rust/compile/privacy5.rs: New.
+	* rust/compile/privacy6.rs: New.
+	* rust/compile/pub_restricted_1.rs: New.
+	* rust/compile/pub_restricted_2.rs: New.
+	* rust/compile/pub_restricted_3.rs: New.
+	* rust/compile/raw_identifiers_bad_keywords.rs: New.
+	* rust/compile/raw_identifiers_underscore.rs: New.
+	* rust/compile/redef_error1.rs: New.
+	* rust/compile/redef_error2.rs: New.
+	* rust/compile/redef_error3.rs: New.
+	* rust/compile/redef_error4.rs: New.
+	* rust/compile/redef_error5.rs: New.
+	* rust/compile/redef_error6.rs: New.
+	* rust/compile/reference1.rs: New.
+	* rust/compile/self-path1.rs: New.
+	* rust/compile/self-path2.rs: New.
+	* rust/compile/shadow1.rs: New.
+	* rust/compile/specify-crate-name.rs: New.
+	* rust/compile/static_var1.rs: New.
+	* rust/compile/stmt_with_block_err1.rs: New.
+	* rust/compile/struct_align1.rs: New.
+	* rust/compile/struct_align2.rs: New.
+	* rust/compile/struct_init1.rs: New.
+	* rust/compile/struct_pack1.rs: New.
+	* rust/compile/struct_pack2.rs: New.
+	* rust/compile/syntax-only.rs: New.
+	* rust/compile/test_mod.rs: New.
+	* rust/compile/torture/all_doc_comment_line_blocks.rs: New.
+	* rust/compile/torture/all_doc_comment_line_blocks_crlf.rs: New.
+	* rust/compile/torture/arithmetic_expressions1.rs: New.
+	* rust/compile/torture/array_const_fold_1.rs: New.
+	* rust/compile/torture/array_const_fold_2.rs: New.
+	* rust/compile/torture/array_function.rs: New.
+	* rust/compile/torture/array_type_infer.rs: New.
+	* rust/compile/torture/array_zero_length.rs: New.
+	* rust/compile/torture/arrays1.rs: New.
+	* rust/compile/torture/arrays2.rs: New.
+	* rust/compile/torture/arrays3.rs: New.
+	* rust/compile/torture/arrays4.rs: New.
+	* rust/compile/torture/arrays5.rs: New.
+	* rust/compile/torture/arrays6.rs: New.
+	* rust/compile/torture/arrays_index1.rs: New.
+	* rust/compile/torture/arrays_index2.rs: New.
+	* rust/compile/torture/arrays_index3.rs: New.
+	* rust/compile/torture/as_bool_char.rs: New.
+	* rust/compile/torture/associated_types1.rs: New.
+	* rust/compile/torture/autoderef1.rs: New.
+	* rust/compile/torture/block_expr1.rs: New.
+	* rust/compile/torture/block_expr2.rs: New.
+	* rust/compile/torture/block_expr3.rs: New.
+	* rust/compile/torture/block_expr4.rs: New.
+	* rust/compile/torture/block_expr5.rs: New.
+	* rust/compile/torture/block_expr_parser_bug.rs: New.
+	* rust/compile/torture/bom.rs: New.
+	* rust/compile/torture/bom_comment.rs: New.
+	* rust/compile/torture/bom_shebang.rs: New.
+	* rust/compile/torture/bom_whitespace.rs: New.
+	* rust/compile/torture/bools_eq.rs: New.
+	* rust/compile/torture/borrow1.rs: New.
+	* rust/compile/torture/borrow_function.rs: New.
+	* rust/compile/torture/break_function.rs: New.
+	* rust/compile/torture/byte_char_str.rs: New.
+	* rust/compile/torture/byte_str.rs: New.
+	* rust/compile/torture/cast1.rs: New.
+	* rust/compile/torture/cast2.rs: New.
+	* rust/compile/torture/cast3.rs: New.
+	* rust/compile/torture/cfg_attr.rs: New.
+	* rust/compile/torture/char1.rs: New.
+	* rust/compile/torture/check-doc-attr-string.rs: New.
+	* rust/compile/torture/coercion1.rs: New.
+	* rust/compile/torture/coercion2.rs: New.
+	* rust/compile/torture/comparison_expr1.rs: New.
+	* rust/compile/torture/compile.exp: New.
+	* rust/compile/torture/compound_assignment_expr1.rs: New.
+	* rust/compile/torture/conditional.rs: New.
+	* rust/compile/torture/constant1.rs: New.
+	* rust/compile/torture/constant2.rs: New.
+	* rust/compile/torture/constant3.rs: New.
+	* rust/compile/torture/deadcode1.rs: New.
+	* rust/compile/torture/deadcode2.rs: New.
+	* rust/compile/torture/deref1.rs: New.
+	* rust/compile/torture/deref_function.rs: New.
+	* rust/compile/torture/doc_comment.rs: New.
+	* rust/compile/torture/enum1.rs: New.
+	* rust/compile/torture/extern_mod1.rs: New.
+	* rust/compile/torture/extern_mod2.rs: New.
+	* rust/compile/torture/float1.rs: New.
+	* rust/compile/torture/float_types.rs: New.
+	* rust/compile/torture/forward_decl_1.rs: New.
+	* rust/compile/torture/forward_decl_2.rs: New.
+	* rust/compile/torture/forward_decl_3-unsafe.rs: New.
+	* rust/compile/torture/forward_decl_3.rs: New.
+	* rust/compile/torture/forward_decl_4.rs: New.
+	* rust/compile/torture/forward_decl_5.rs: New.
+	* rust/compile/torture/func1.rs: New.
+	* rust/compile/torture/func2.rs: New.
+	* rust/compile/torture/function_reference1.rs: New.
+	* rust/compile/torture/function_reference2.rs: New.
+	* rust/compile/torture/function_reference3.rs: New.
+	* rust/compile/torture/function_reference4.rs: New.
+	* rust/compile/torture/generics1.rs: New.
+	* rust/compile/torture/generics10.rs: New.
+	* rust/compile/torture/generics11.rs: New.
+	* rust/compile/torture/generics12.rs: New.
+	* rust/compile/torture/generics13.rs: New.
+	* rust/compile/torture/generics14.rs: New.
+	* rust/compile/torture/generics15.rs: New.
+	* rust/compile/torture/generics16.rs: New.
+	* rust/compile/torture/generics17.rs: New.
+	* rust/compile/torture/generics18.rs: New.
+	* rust/compile/torture/generics19.rs: New.
+	* rust/compile/torture/generics2.rs: New.
+	* rust/compile/torture/generics20.rs: New.
+	* rust/compile/torture/generics21.rs: New.
+	* rust/compile/torture/generics22.rs: New.
+	* rust/compile/torture/generics23.rs: New.
+	* rust/compile/torture/generics24.rs: New.
+	* rust/compile/torture/generics25.rs: New.
+	* rust/compile/torture/generics26.rs: New.
+	* rust/compile/torture/generics27.rs: New.
+	* rust/compile/torture/generics28.rs: New.
+	* rust/compile/torture/generics29.rs: New.
+	* rust/compile/torture/generics3.rs: New.
+	* rust/compile/torture/generics30.rs: New.
+	* rust/compile/torture/generics31.rs: New.
+	* rust/compile/torture/generics32.rs: New.
+	* rust/compile/torture/generics4.rs: New.
+	* rust/compile/torture/generics5.rs: New.
+	* rust/compile/torture/generics6.rs: New.
+	* rust/compile/torture/generics7.rs: New.
+	* rust/compile/torture/generics8.rs: New.
+	* rust/compile/torture/generics9.rs: New.
+	* rust/compile/torture/grouped_expr_function.rs: New.
+	* rust/compile/torture/identifier-missing-impl-1.rs: New.
+	* rust/compile/torture/if.rs: New.
+	* rust/compile/torture/if_elif.rs: New.
+	* rust/compile/torture/if_elif_else_expr1.rs: New.
+	* rust/compile/torture/if_else.rs: New.
+	* rust/compile/torture/ifunaryexpr.rs: New.
+	* rust/compile/torture/impl_block1.rs: New.
+	* rust/compile/torture/impl_block2.rs: New.
+	* rust/compile/torture/impl_block3.rs: New.
+	* rust/compile/torture/impl_block_unused.rs: New.
+	* rust/compile/torture/implicit_returns1.rs: New.
+	* rust/compile/torture/infer_type1.rs: New.
+	* rust/compile/torture/inner_attributes.rs: New.
+	* rust/compile/torture/integer_inference_var1.rs: New.
+	* rust/compile/torture/integer_inference_var2.rs: New.
+	* rust/compile/torture/integer_inference_var3.rs: New.
+	* rust/compile/torture/integer_inference_var4.rs: New.
+	* rust/compile/torture/integer_inference_var5.rs: New.
+	* rust/compile/torture/integer_types.rs: New.
+	* rust/compile/torture/intrinsics-1.rs: New.
+	* rust/compile/torture/intrinsics-2.rs: New.
+	* rust/compile/torture/isolated_cr_block_comment.rs: New.
+	* rust/compile/torture/isolated_cr_line_comment.rs: New.
+	* rust/compile/torture/issue-1024.rs: New.
+	* rust/compile/torture/issue-1075.rs: New.
+	* rust/compile/torture/issue-1432.rs: New.
+	* rust/compile/torture/issue-1434.rs: New.
+	* rust/compile/torture/issue-368.rs: New.
+	* rust/compile/torture/issue-808.rs: New.
+	* rust/compile/torture/issue-862.rs: New.
+	* rust/compile/torture/issue-893-2.rs: New.
+	* rust/compile/torture/issue-893.rs: New.
+	* rust/compile/torture/lazybooleanexpr_function.rs: New.
+	* rust/compile/torture/lifetime1.rs: New.
+	* rust/compile/torture/literals1.rs: New.
+	* rust/compile/torture/loop1.rs: New.
+	* rust/compile/torture/loop2.rs: New.
+	* rust/compile/torture/loop3.rs: New.
+	* rust/compile/torture/loop4.rs: New.
+	* rust/compile/torture/loop5.rs: New.
+	* rust/compile/torture/loop6.rs: New.
+	* rust/compile/torture/loop7.rs: New.
+	* rust/compile/torture/macro-issue1403.rs: New.
+	* rust/compile/torture/macro-issue1426.rs: New.
+	* rust/compile/torture/macro_as_expr.rs: New.
+	* rust/compile/torture/match1.rs: New.
+	* rust/compile/torture/methods1.rs: New.
+	* rust/compile/torture/methods2.rs: New.
+	* rust/compile/torture/methods3.rs: New.
+	* rust/compile/torture/mod-nameresolve.rs: New.
+	* rust/compile/torture/mod1.rs: New.
+	* rust/compile/torture/mod2.rs: New.
+	* rust/compile/torture/mod3.rs: New.
+	* rust/compile/torture/modules/mod.rs: New.
+	* rust/compile/torture/modules/valid_path.rs: New.
+	* rust/compile/torture/must_use1.rs: New.
+	* rust/compile/torture/must_use2.rs: New.
+	* rust/compile/torture/name_resolve1.rs: New.
+	* rust/compile/torture/negation_function.rs: New.
+	* rust/compile/torture/nested_fn1.rs: New.
+	* rust/compile/torture/nested_fn2.rs: New.
+	* rust/compile/torture/nested_struct1.rs: New.
+	* rust/compile/torture/never_type1.rs: New.
+	* rust/compile/torture/not_shebang.rs: New.
+	* rust/compile/torture/not_shebang_block_comment.rs: New.
+	* rust/compile/torture/not_shebang_comment.rs: New.
+	* rust/compile/torture/not_shebang_multiline_comment.rs: New.
+	* rust/compile/torture/not_shebang_spaces.rs: New.
+	* rust/compile/torture/parameter_usage1.rs: New.
+	* rust/compile/torture/parens1.rs: New.
+	* rust/compile/torture/pointer1.rs: New.
+	* rust/compile/torture/primconsts.rs: New.
+	* rust/compile/torture/prims_struct_eq.rs: New.
+	* rust/compile/torture/range-lang-item1.rs: New.
+	* rust/compile/torture/raw_identifiers.rs: New.
+	* rust/compile/torture/raw_identifiers_keywords.rs: New.
+	* rust/compile/torture/recursive_fn1.rs: New.
+	* rust/compile/torture/return_function.rs: New.
+	* rust/compile/torture/scoping1.rs: New.
+	* rust/compile/torture/self_type1.rs: New.
+	* rust/compile/torture/shadow1.rs: New.
+	* rust/compile/torture/shadow2.rs: New.
+	* rust/compile/torture/shebang.rs: New.
+	* rust/compile/torture/shebang_plus_attr.rs: New.
+	* rust/compile/torture/shebang_plus_attr2.rs: New.
+	* rust/compile/torture/static_function.rs: New.
+	* rust/compile/torture/static_var1.rs: New.
+	* rust/compile/torture/stmt_with_block1.rs: New.
+	* rust/compile/torture/str1.rs: New.
+	* rust/compile/torture/struct_access1.rs: New.
+	* rust/compile/torture/struct_base_init_1.rs: New.
+	* rust/compile/torture/struct_decl.rs: New.
+	* rust/compile/torture/struct_init.rs: New.
+	* rust/compile/torture/struct_init_10.rs: New.
+	* rust/compile/torture/struct_init_11.rs: New.
+	* rust/compile/torture/struct_init_2.rs: New.
+	* rust/compile/torture/struct_init_3.rs: New.
+	* rust/compile/torture/struct_init_4.rs: New.
+	* rust/compile/torture/struct_init_5.rs: New.
+	* rust/compile/torture/struct_init_6.rs: New.
+	* rust/compile/torture/struct_init_7.rs: New.
+	* rust/compile/torture/struct_init_8.rs: New.
+	* rust/compile/torture/struct_init_9.rs: New.
+	* rust/compile/torture/top_attr.rs: New.
+	* rust/compile/torture/traits1.rs: New.
+	* rust/compile/torture/traits10.rs: New.
+	* rust/compile/torture/traits11.rs: New.
+	* rust/compile/torture/traits12.rs: New.
+	* rust/compile/torture/traits13.rs: New.
+	* rust/compile/torture/traits14.rs: New.
+	* rust/compile/torture/traits15.rs: New.
+	* rust/compile/torture/traits16.rs: New.
+	* rust/compile/torture/traits17.rs: New.
+	* rust/compile/torture/traits18.rs: New.
+	* rust/compile/torture/traits19.rs: New.
+	* rust/compile/torture/traits2.rs: New.
+	* rust/compile/torture/traits3.rs: New.
+	* rust/compile/torture/traits4.rs: New.
+	* rust/compile/torture/traits5.rs: New.
+	* rust/compile/torture/traits6.rs: New.
+	* rust/compile/torture/traits7.rs: New.
+	* rust/compile/torture/traits8.rs: New.
+	* rust/compile/torture/traits9.rs: New.
+	* rust/compile/torture/transmute-size-check-1.rs: New.
+	* rust/compile/torture/transmute1.rs: New.
+	* rust/compile/torture/tuple1.rs: New.
+	* rust/compile/torture/tuple2.rs: New.
+	* rust/compile/torture/tuple3.rs: New.
+	* rust/compile/torture/tuple_enum_variants.rs: New.
+	* rust/compile/torture/tuple_field_access.rs: New.
+	* rust/compile/torture/tuple_function.rs: New.
+	* rust/compile/torture/tuple_index.rs: New.
+	* rust/compile/torture/tuple_struct1.rs: New.
+	* rust/compile/torture/tuple_struct2.rs: New.
+	* rust/compile/torture/tuple_struct_unit.rs: New.
+	* rust/compile/torture/tuple_struct_unused.rs: New.
+	* rust/compile/torture/type-alias1.rs: New.
+	* rust/compile/torture/type-alias2.rs: New.
+	* rust/compile/torture/type_infer1.rs: New.
+	* rust/compile/torture/type_infer2.rs: New.
+	* rust/compile/torture/type_infer3.rs: New.
+	* rust/compile/torture/type_infer4.rs: New.
+	* rust/compile/torture/type_infer5.rs: New.
+	* rust/compile/torture/type_infer6.rs: New.
+	* rust/compile/torture/unary_operators.rs: New.
+	* rust/compile/torture/undended-string-1.rs: New.
+	* rust/compile/torture/undended-string-2.rs: New.
+	* rust/compile/torture/underscore_id.rs: New.
+	* rust/compile/torture/union.rs: New.
+	* rust/compile/torture/union_union.rs: New.
+	* rust/compile/torture/unit_type1.rs: New.
+	* rust/compile/torture/unit_type2.rs: New.
+	* rust/compile/torture/unit_type3.rs: New.
+	* rust/compile/torture/unit_type4.rs: New.
+	* rust/compile/torture/unit_type5.rs: New.
+	* rust/compile/torture/unsafe1.rs: New.
+	* rust/compile/torture/unsafe2.rs: New.
+	* rust/compile/torture/unsafe3.rs: New.
+	* rust/compile/torture/unsafe4.rs: New.
+	* rust/compile/torture/unused.rs: New.
+	* rust/compile/torture/unused1.rs: New.
+	* rust/compile/torture/unused_struct.rs: New.
+	* rust/compile/torture/unused_struct_field.rs: New.
+	* rust/compile/torture/usize1.rs: New.
+	* rust/compile/torture/very-broken-attr-string.rs: New.
+	* rust/compile/torture/while_function.rs: New.
+	* rust/compile/traits1.rs: New.
+	* rust/compile/traits10.rs: New.
+	* rust/compile/traits11.rs: New.
+	* rust/compile/traits12.rs: New.
+	* rust/compile/traits2.rs: New.
+	* rust/compile/traits3.rs: New.
+	* rust/compile/traits4.rs: New.
+	* rust/compile/traits5.rs: New.
+	* rust/compile/traits6.rs: New.
+	* rust/compile/traits7.rs: New.
+	* rust/compile/traits8.rs: New.
+	* rust/compile/traits9.rs: New.
+	* rust/compile/tuple1.rs: New.
+	* rust/compile/tuple_struct1.rs: New.
+	* rust/compile/tuple_struct2.rs: New.
+	* rust/compile/tuple_struct3.rs: New.
+	* rust/compile/type-alias1.rs: New.
+	* rust/compile/type-bindings1.rs: New.
+	* rust/compile/unary_negation.rs: New.
+	* rust/compile/unary_not.rs: New.
+	* rust/compile/unconstrained_type_param.rs: New.
+	* rust/compile/unicode_escape.rs: New.
+	* rust/compile/unsafe1.rs: New.
+	* rust/compile/unsafe10.rs: New.
+	* rust/compile/unsafe2.rs: New.
+	* rust/compile/unsafe3.rs: New.
+	* rust/compile/unsafe4.rs: New.
+	* rust/compile/unsafe5.rs: New.
+	* rust/compile/unsafe6.rs: New.
+	* rust/compile/unsafe7.rs: New.
+	* rust/compile/unsafe8.rs: New.
+	* rust/compile/unsafe9.rs: New.
+	* rust/compile/unterminated_c_comment.rs: New.
+	* rust/compile/use_1.rs: New.
+	* rust/compile/usize1.rs: New.
+	* rust/compile/xfail/lifetime_param.rs: New.
+	* rust/compile/xfail/struct_field_vis.rs: New.
+	* rust/compile/xfail/xfail.exp: New.
+	* rust/compile/rawbytestring.rs: New file.
+
+2022-12-13  Philip Herron  <philip.herron@embecosm.com>
+
+	* rust/link/generic_function_0.rs: New.
+	* rust/link/generic_function_1.rs: New.
+	* rust/link/link.exp: New.
+	* rust/link/simple_function_0.rs: New.
+	* rust/link/simple_function_1.rs: New.
+	* rust/link/trait_import_0.rs: New.
+	* rust/link/trait_import_1.rs: New.
+
+2022-12-13  Philip Herron  <philip.herron@embecosm.com>
+	    Tom Tromey  <tom@tromey.com>
+	    Mark Wielaard  <mark@klomp.org>
+	    Marc Poulhiès  <dkm@kataplop.net>
+
+	* rust/debug/chartype.rs: New.
+	* rust/debug/custom_link_section.rs: New.
+	* rust/debug/debug.exp: New.
+	* rust/debug/i8u8.rs: New.
+	* rust/debug/lang.rs: New.
+	* rust/debug/no_mangle.rs: New.
+	* rust/debug/oldlang.rs: New.
+	* rust/debug/tuple.rs: New.
+	* rust/debug/win64-abi.rs: New.
+
+2022-12-13  Philip Herron  <philip.herron@embecosm.com>
+	    Marc Poulhiès  <dkm@kataplop.net>
+	    Thomas Schwinge  <thomas@codesourcery.com>
+
+	* lib/rust-dg.exp: New.
+	* lib/rust.exp: New.
+
+2022-12-13  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/108076
+	* gcc.dg/torture/pr108076.c: New testcase.
+
+2022-12-13  Haochen Gui  <guihaoc@gcc.gnu.org>
+
+	* gcc.target/powerpc/cbranchcc4-1.c: New.
+	* gcc.target/powerpc/cbranchcc4-2.c: New.
+
 2022-12-12  Jason Merrill  <jason@redhat.com>
 
 	Revert:

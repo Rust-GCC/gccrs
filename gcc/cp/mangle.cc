@@ -798,6 +798,25 @@ write_mangled_name (const tree decl, bool top_level)
       write_string ("_Z");
       write_encoding (decl);
     }
+
+  /* If this is the pre/post function for a guarded function, append
+     .pre/post, like something from create_virtual_clone.  */
+  if (DECL_IS_PRE_FN_P (decl))
+    write_string (".pre");
+  else if (DECL_IS_POST_FN_P (decl))
+    write_string (".post");
+
+  /* If this is a coroutine helper, then append an appropriate string to
+     identify which.  */
+  if (tree ramp = DECL_RAMP_FN (decl))
+    {
+      if (DECL_ACTOR_FN (ramp) == decl)
+	write_string (JOIN_STR "actor");
+      else if (DECL_DESTROY_FN (ramp) == decl)
+	write_string (JOIN_STR "destroy");
+      else
+	gcc_unreachable ();
+    }
 }
 
 /* Returns true if the return type of DECL is part of its signature, and
@@ -856,24 +875,6 @@ write_encoding (const tree decl)
 				mangle_return_type_p (decl),
 				d);
 
-      /* If this is the pre/post function for a guarded function, append
-	 .pre/post, like something from create_virtual_clone.  */
-      if (DECL_IS_PRE_FN_P (decl))
-	write_string (".pre");
-      else if (DECL_IS_POST_FN_P (decl))
-	write_string (".post");
-
-      /* If this is a coroutine helper, then append an appropriate string to
-	 identify which.  */
-      if (tree ramp = DECL_RAMP_FN (decl))
-	{
-	  if (DECL_ACTOR_FN (ramp) == decl)
-	    write_string (JOIN_STR "actor");
-	  else if (DECL_DESTROY_FN (ramp) == decl)
-	    write_string (JOIN_STR "destroy");
-	  else
-	    gcc_unreachable ();
-	}
     }
 }
 

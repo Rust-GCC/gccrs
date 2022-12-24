@@ -563,7 +563,8 @@ lto_output_node (struct lto_simple_output_block *ob, struct cgraph_node *node,
 	        LDPR_NUM_KNOWN,
 		/* When doing incremental link, we will get new resolution
 		   info next time we process the file.  */
-		flag_incremental_link ? LDPR_UNKNOWN : node->resolution);
+		flag_incremental_link == INCREMENTAL_LINK_LTO
+		? LDPR_UNKNOWN : node->resolution);
   bp_pack_value (&bp, node->split_part, 1);
   streamer_write_bitpack (&bp);
   streamer_write_data_stream (ob->main_stream, section, strlen (section) + 1);
@@ -797,7 +798,7 @@ add_node_to (lto_symtab_encoder_t encoder, struct cgraph_node *node,
 {
   if (node->clone_of)
     add_node_to (encoder, node->clone_of, include_body);
-  else if (include_body)
+  if (include_body)
     lto_set_symtab_encoder_encode_body (encoder, node);
   lto_symtab_encoder_encode (encoder, node);
 }

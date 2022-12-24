@@ -1,3 +1,169 @@
+2022-12-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/108180
+	* pt.cc (tsubst_expr): Don't call cp_finish_decl on
+	DECL_OMP_PRIVATIZED_MEMBER vars.
+
+2022-12-21  Jason Merrill  <jason@redhat.com>
+
+	PR c++/84471
+	PR c++/107504
+	* coroutines.cc (transform_local_var_uses): Don't
+	specify a location for DECL_VALUE_EXPR.
+	* decl.cc (cp_finish_decomp): Likewise.
+
+2022-12-20  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/101886
+	* pt.cc (find_template_parameter_info::parm_list_tail):
+	New data member.
+	(keep_template_parm): Use parm_list_tail to append rather
+	than prepend to parm_list.
+
+2022-12-20  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* mangle.cc (write_mangled_name): Append the helper function
+	suffixes here...
+	(write_encoding): ... rather than here.
+
+2022-12-20  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/103346
+	PR c++/104278
+	PR c++/102553
+	* pt.cc (tsubst_copy) <case VIEW_CONVERT_EXPR>: Move the
+	handling of C++20 template parameter object wrappers to ...
+	(tsubst_copy_and_build) <case VIEW_CONVERT_EXPR>: ... here.
+	Accept non-TEMPLATE_PARM_INDEX inner operand.  Handle empty
+	TREE_TYPE on substituted inner operand.  Remove same_type_p
+	assert.  Also handle REF_PARENTHESIZED_P VIEW_CONVERT_EXPRs.
+
+2022-12-19  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/100881
+	* constexpr.cc (cxx_eval_builtin_function_call): Adjust calls
+	to fold_builtin_source_location.
+	* cp-gimplify.cc (cp_gimplify_expr): Likewise.
+	(cp_fold): Likewise.
+	(get_source_location_impl_type): Remove location_t parameter and
+	adjust accordingly.  No longer static.
+	(fold_builtin_source_location): Take a CALL_EXPR tree instead of a
+	location and obtain the impl type from its return type.
+	* cp-tree.h (enum cp_tree_index): Remove CPTI_SOURCE_LOCATION_IMPL
+	enumerator.
+	(source_location_impl): Remove.
+	(fold_builtin_source_location): Adjust parameter type.
+	(get_source_location_impl_type): Declare.
+	* decl.cc (cxx_init_decl_processing): Declare
+	__builtin_source_location with auto return type instead of
+	const void*.
+	(require_deduced_type): Update the return type of
+	__builtin_source_location.
+
+2022-12-19  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/101886
+	* pt.cc (extract_autos_r): Recompute TYPE_CANONICAL after
+	adjusting the template type parameter's index.  Simplify
+	by using TEMPLATE_TYPE_IDX.  Add some sanity checks.
+
+2022-12-19  Arsen Arsenović  <arsen@aarsen.me>
+
+	* contracts.cc: Rename references to
+	contract_violation_continuation_mode constants to be lowercase.
+
+2022-12-17  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/107437
+	PR c++/87765
+	* pt.cc (convert_nontype_argument): Relax is_nondep_const_expr
+	test to !inst_dep_expr_p.
+
+2022-12-16  Andrew Pinski  <pinskia@gmail.com>
+	    Iain Sandoe  <iain@sandoe.co.uk>
+
+	PR c++/107768
+	* coroutines.cc (coro_rewrite_function_body): Initialize pointers
+	from nullptr_node.  (morph_fn_to_coro): Likewise.
+
+2022-12-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/102104
+	PR c++/108090
+	* error.cc (dump_decl) <case USING_DECL>: Look through a
+	pack expansion in the name as well.
+	* parser.cc (cp_parser_using_declaration): Handle a parameter
+	pack appearing in the terminal name of a variadic using-decl.
+	* pt.cc (tsubst_decl) <case USING_DECL>: Likewise.  Combine the
+	handling of variadic and non-variadic using-decls.
+
+2022-12-15  Jason Merrill  <jason@redhat.com>
+
+	* init.cc (build_vec_init): Rename "flags" to "cleanup_flags"
+	to distinguish from LOOKUP_*.
+
+2022-12-15  Arsen Arsenović  <arsen@aarsen.me>
+
+	* mangle.cc (write_encoding): Move contract pre/post function
+	mangling from here...
+	(write_mangled_name): ... to here, and make it happen always.
+
+2022-12-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/107188
+	* parser.cc (cp_parser_using_declaration): Give up early if the
+	scope of an access-declaration isn't possibly a class type.
+
+2022-12-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/100295
+	PR c++/107579
+	* pt.cc (el_data::skip_unevaluated_operands): New data member.
+	(extract_locals_r): If skip_unevaluated_operands is true,
+	don't walk into unevaluated contexts.
+	(extract_local_specs): Walk the pattern twice, first with
+	skip_unevaluated_operands true followed by it set to false.
+
+2022-12-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/105518
+	* pt.cc (tsubst_aggr_type): Handle typedefs by delegating to
+	tsubst and adjusting the result if entering_scope.  Split out
+	the main part of the function into ...
+	(tsubst_aggr_type_1) ... here.
+	(tsubst): Use tsubst_aggr_type_1 instead of tsubst_aggr_type.
+	Handle TYPE_PTRMEMFUNC_P RECORD_TYPEs here instead of in
+	tsubst_aggr_type_1.
+
+2022-12-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/108104
+	* pt.cc (unify) <default>: Relax assert to accept any
+	CONSTRUCTOR parm, not just COMPOUND_LITERAL_P one.
+
+2022-12-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/107065
+	* typeck.cc (cp_build_unary_op) <case TRUTH_NOT_EXPR>: If
+	invert_truthvalue_loc returns obvalue_p, wrap it into NON_LVALUE_EXPR.
+	* parser.cc (cp_parser_binary_expression): Don't call
+	warn_logical_not_parentheses if current.lhs is a NON_LVALUE_EXPR
+	of a decl with boolean type.
+
+2022-12-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libstdc++/108075
+	* rtti.cc (emit_support_tinfos): Add pointers to
+	{bfloat16,float{16,32,64,128,32x,64x,128x}}_type_node to fundamentals
+	array.
+
+2022-12-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/108071
+	PR c++/105838
+	* call.cc (struct conversion_obstack_sentinel): New.
+	(maybe_init_list_as_array): Compare conversion of dummy argument.
+
 2022-12-12  Jason Merrill  <jason@redhat.com>
 
 	Revert:
