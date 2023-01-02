@@ -79,23 +79,23 @@ HIRCompileBase::setup_fndecl (tree fndecl, bool is_main_entry_point,
 	{
 	  handle_inline_attribute_on_fndecl (fndecl, attr);
 	}
-      else if (is_must_use)
+      if (is_must_use)
 	{
 	  handle_must_use_attribute_on_fndecl (fndecl, attr);
 	}
-      else if (is_cold)
+      if (is_cold)
 	{
 	  handle_cold_attribute_on_fndecl (fndecl, attr);
 	}
-      else if (is_link_section)
+      if (is_link_section)
 	{
 	  handle_link_section_attribute_on_fndecl (fndecl, attr);
 	}
-      else if (is_deprecated)
+      if (is_deprecated)
 	{
 	  handle_deprecated_attribute_on_fndecl (fndecl, attr);
 	}
-      else if (no_mangle)
+      if (no_mangle)
 	{
 	  handle_no_mangle_attribute_on_fndecl (fndecl, attr);
 	}
