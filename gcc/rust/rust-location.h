@@ -34,6 +34,8 @@ public:
 
   location_t gcc_location () const { return gcc_loc_; }
 
+  void set_offset (unsigned int offset) { gcc_loc_ += offset; }
+
   Location operator+= (location_t rhs)
   {
     gcc_loc_ += rhs;
