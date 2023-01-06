@@ -24,8 +24,15 @@
 #include "rust-parse.h"
 #include "rust-attribute-visitor.h"
 #include "rust-early-name-resolver.h"
+#include "passes/rust-feature-gate.h"
+#include "rust-session-manager.h"
+#include "ordered-hash-map.h"
+#include "rust-feature.h"
 
 namespace Rust {
+
+extern Feature feature_table[];
+
 AST::Fragment
 MacroExpander::expand_decl_macro (Location invoc_locus,
 				  AST::MacroInvocData &invoc,
@@ -317,8 +324,59 @@ MacroExpander::expand_crate ()
   // expand module tree recursively
 
   // post-process
+  feature_gate ();
 
   // extract exported macros?
+}
+
+void
+MacroExpander::feature_gate ()
+{
+  // TODO: check attr_input is valid or not:
+  const auto &feature_hash_map = Feature::load_hash_map ();
+  std::vector<const Feature *> valid_features;
+  for (const auto &attr : crate.inner_attrs)
+    {
+      if (attr.get_path ().as_string () == "feature")
+	{
+	  const auto &attr_input = attr.get_attr_input ();
+	  auto type = attr_input.get_attr_input_type ();
+	  if (type == AST::AttrInput::AttrInputType::TOKEN_TREE)
+	    {
+	      const auto &option = static_cast<const AST::DelimTokenTree &> (
+		attr.get_attr_input ());
+	      auto meta_item = option.parse_to_meta_item ();
+	      for (const auto &item :
+		   static_cast<AST::AttrInputMetaItemContainer *> (
+		     meta_item.get ())
+		     ->get_items ())
+		{
+		  const auto &name = item->as_string ();
+		  const auto &feature_ptr
+		    = feature_hash_map.find (name.c_str ());
+		  if (feature_ptr != feature_hash_map.end ())
+		    {
+		      valid_features.push_back (feature_ptr->second);
+		    }
+		  else
+		    {
+		      rust_error_at (item->get_locus (), "unknown feature '%s'",
+				     name.c_str ());
+		    }
+		}
+	    }
+	}
+    }
+  valid_features.shrink_to_fit ();
+
+  FeatureGateVisitor vis (valid_features);
+  auto &items = crate.items;
+  for (auto it = items.begin (); it != items.end (); it++)
+    {
+      auto &item = *it;
+      // mark for stripping if required
+      item->accept_vis (vis);
+    }
 }
 
 bool

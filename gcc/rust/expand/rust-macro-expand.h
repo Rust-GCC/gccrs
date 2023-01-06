@@ -253,7 +253,7 @@ struct MacroExpander
   void expand_cfg_attrs (AST::AttrVec &attrs);
   bool fails_cfg (const AST::AttrVec &attr) const;
   bool fails_cfg_with_expand (AST::AttrVec &attrs) const;
-
+  void feature_gate ();
   bool depth_exceeds_recursion_limit () const;
 
   bool try_match_rule (AST::MacroRule &match_rule,

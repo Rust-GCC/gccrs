@@ -6193,30 +6193,18 @@ Parser<ManagedTokenSource>::parse_generic_arg ()
 	  {
 	    lexer.skip_token (); // skip ident
 	    lexer.skip_token (); // skip colon
-	    {
-	      // trying to figure out how many bounds we have
-	      std::vector<std::unique_ptr<AST::TypeParamBound>> bounds
-		= parse_type_param_bounds ();
-	      auto locus = tok->get_locus ();
 
-	      if (bounds.size () > 0)
-		{
-		  const auto &last_bound = bounds.back ();
-		  source_range src_range;
-		  auto start_loc = locus.gcc_location ();
-		  src_range.m_start = start_loc;
-		  src_range.m_finish = last_bound->get_locus ().gcc_location ();
-		  location_t combined_loc
-		    = COMBINE_LOCATION_DATA (line_table, start_loc, src_range,
-					     NULL, 0);
-		  locus = Location (combined_loc);
-		}
+	    auto tok = lexer.peek_token ();
+	    std::vector<std::unique_ptr<AST::TypeParamBound>> bounds
+	      = parse_type_param_bounds ();
 
-	      Error error (locus, "associated type bounds are unstable");
-	      add_error (std::move (error));
-
+	    auto type = std::unique_ptr<AST::TraitObjectType> (
+	      new AST::TraitObjectType (std::move (bounds), tok->get_locus (),
+					false));
+	    if (type)
+	      return AST::GenericArg::create_type (std::move (type));
+	    else
 	      return AST::GenericArg::create_error ();
-	    }
 	  }
 	lexer.skip_token ();
 	return AST::GenericArg::create_ambiguous (tok->get_str (),

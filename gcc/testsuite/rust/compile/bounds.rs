@@ -1,3 +1,6 @@
+// { dg-additional-options "-frust-compile-until=expansion" }
+#![feature(associated_type_bounds)]
+
 trait Foo {
     type Bar;
 }
@@ -9,12 +12,11 @@ trait T1 {}
 trait T2 {}
 trait T3 {}
 
-fn c<F: Foo<Bar: Foo>>() where F::Bar: Copy { // { dg-error "associated type bounds are unstable" }
+fn c<F: Foo<Bar: Foo>>() where F::Bar: Copy { 
 }
 
 
-fn d<F: Foo<Bar: Foo // { dg-error "associated type bounds are unstable" }
-
+fn d<F: Foo<Bar: Foo 
 + T0
 
 + T1

@@ -679,7 +679,9 @@ class MetaItemPath : public MetaItem
   SimplePath path;
 
 public:
-  MetaItemPath (SimplePath path) : path (std::move (path)) {}
+  MetaItemPath (SimplePath path, const Location &loc)
+    : MetaItem (loc), path (std::move (path))
+  {}
 
   std::string as_string () const override { return path.as_string (); }
 
@@ -712,12 +714,14 @@ class MetaItemSeq : public MetaItem
 
 public:
   MetaItemSeq (SimplePath path,
-	       std::vector<std::unique_ptr<MetaItemInner> > seq)
-    : path (std::move (path)), seq (std::move (seq))
+	       std::vector<std::unique_ptr<MetaItemInner> > seq,
+	       const Location &loc)
+    : MetaItem (loc), path (std::move (path)), seq (std::move (seq))
   {}
 
   // copy constructor with vector clone
-  MetaItemSeq (const MetaItemSeq &other) : path (other.path)
+  MetaItemSeq (const MetaItemSeq &other)
+    : MetaItem (other.locus), path (other.path)
   {
     seq.reserve (other.seq.size ());
     for (const auto &e : other.seq)
@@ -765,7 +769,8 @@ class MetaWord : public MetaItem
 
 public:
   MetaWord (Identifier ident, Location ident_locus)
-    : ident (std::move (ident)), ident_locus (ident_locus)
+    : MetaItem (ident_locus), ident (std::move (ident)),
+      ident_locus (ident_locus)
   {}
 
   std::string as_string () const override { return ident; }
@@ -797,8 +802,8 @@ class MetaNameValueStr : public MetaItem
 public:
   MetaNameValueStr (Identifier ident, Location ident_locus, std::string str,
 		    Location str_locus)
-    : ident (std::move (ident)), ident_locus (ident_locus),
-      str (std::move (str)), str_locus (str_locus)
+    : MetaItem (str_locus), ident (std::move (ident)),
+      ident_locus (ident_locus), str (std::move (str)), str_locus (str_locus)
   {}
 
   std::string as_string () const override
@@ -844,8 +849,8 @@ class MetaListPaths : public MetaItem
 public:
   MetaListPaths (Identifier ident, Location ident_locus,
 		 std::vector<SimplePath> paths)
-    : ident (std::move (ident)), ident_locus (ident_locus),
-      paths (std::move (paths))
+    : MetaItem (ident_locus), ident (std::move (ident)),
+      ident_locus (ident_locus), paths (std::move (paths))
   {}
 
   std::string as_string () const override;
@@ -878,8 +883,8 @@ class MetaListNameValueStr : public MetaItem
 public:
   MetaListNameValueStr (Identifier ident, Location ident_locus,
 			std::vector<MetaNameValueStr> strs)
-    : ident (std::move (ident)), ident_locus (ident_locus),
-      strs (std::move (strs))
+    : MetaItem (ident_locus), ident (std::move (ident)),
+      ident_locus (ident_locus), strs (std::move (strs))
   {}
 
   std::string as_string () const override;

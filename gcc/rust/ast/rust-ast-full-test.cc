@@ -26,6 +26,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "rust-lex.h"
 #include "rust-parse.h"
 #include "operator.h"
+#include <memory>
 
 /* Compilation unit used for various AST-related functions that would make
  * the headers too long if they were defined inline and don't receive any
@@ -4069,14 +4070,13 @@ Attribute::parse_attr_to_meta_item ()
   if (!has_attr_input () || is_parsed_to_meta_item ())
     return;
 
-  auto res = attr_input->parse_to_meta_item ();
-  std::unique_ptr<AttrInput> converted_input (res);
+  auto converted_input = attr_input->parse_to_meta_item ();
 
   if (converted_input != nullptr)
     attr_input = std::move (converted_input);
 }
 
-AttrInputMetaItemContainer *
+std::unique_ptr<AttrInput>
 DelimTokenTree::parse_to_meta_item () const
 {
   // must have token trees
@@ -4091,7 +4091,8 @@ DelimTokenTree::parse_to_meta_item () const
   std::vector<std::unique_ptr<MetaItemInner>> meta_items (
     parser.parse_meta_item_seq ());
 
-  return new AttrInputMetaItemContainer (std::move (meta_items));
+  return std::unique_ptr<AttrInput> (
+    new AttrInputMetaItemContainer (std::move (meta_items)));
 }
 
 std::unique_ptr<MetaItemInner>
@@ -4275,7 +4276,8 @@ AttributeParser::parse_path_meta_item ()
 	  = parse_meta_item_seq ();
 
 	return std::unique_ptr<MetaItemSeq> (
-	  new MetaItemSeq (std::move (path), std::move (meta_items)));
+	  new MetaItemSeq (std::move (path), std::move (meta_items),
+			   peek_token ()->get_locus ()));
       }
       case EQUAL: {
 	skip_token ();
@@ -4293,12 +4295,12 @@ AttributeParser::parse_path_meta_item ()
 	/* shouldn't be required anymore due to parsing literal actually
 	 * skipping the token */
 	return std::unique_ptr<MetaItemPathLit> (
-	  new MetaItemPathLit (std::move (path), std::move (expr)));
+	  new MetaItemPathLit (std::move (path), std::move (expr), locus));
       }
     case COMMA:
       // just simple path
       return std::unique_ptr<MetaItemPath> (
-	new MetaItemPath (std::move (path)));
+	new MetaItemPath (std::move (path), peek_token ()->get_locus ()));
     default:
       rust_error_at (peek_token ()->get_locus (),
 		     "unrecognised token '%s' in meta item",
@@ -4488,7 +4490,7 @@ AttributeParser::parse_meta_item_lit ()
   Location locus = peek_token ()->get_locus ();
   LiteralExpr lit_expr (parse_literal (), {}, locus);
   return std::unique_ptr<MetaItemLitExpr> (
-    new MetaItemLitExpr (std::move (lit_expr)));
+    new MetaItemLitExpr (std::move (lit_expr), locus));
 }
 
 bool
@@ -4760,7 +4762,8 @@ MetaListPaths::to_attribute () const
   std::vector<std::unique_ptr<MetaItemInner>> new_seq;
   new_seq.reserve (paths.size ());
   for (const auto &e : paths)
-    new_seq.push_back (std::unique_ptr<MetaItemPath> (new MetaItemPath (e)));
+    new_seq.push_back (
+      std::unique_ptr<MetaItemPath> (new MetaItemPath (e, e.get_locus ())));
 
   std::unique_ptr<AttrInputMetaItemContainer> new_seq_container (
     new AttrInputMetaItemContainer (std::move (new_seq)));

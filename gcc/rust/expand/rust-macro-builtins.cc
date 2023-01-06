@@ -501,8 +501,8 @@ MacroBuiltin::cfg_handler (Location invoc_locus, AST::MacroInvocData &invoc)
   // only parse if not already parsed
   if (!invoc.is_parsed ())
     {
-      std::unique_ptr<AST::AttrInputMetaItemContainer> converted_input (
-	invoc.get_delim_tok_tree ().parse_to_meta_item ());
+      std::unique_ptr<AST::AttrInput> converted_input
+	= invoc.get_delim_tok_tree ().parse_to_meta_item ();
 
       if (converted_input == nullptr)
 	{
@@ -512,7 +512,9 @@ MacroBuiltin::cfg_handler (Location invoc_locus, AST::MacroInvocData &invoc)
       else
 	{
 	  std::vector<std::unique_ptr<AST::MetaItemInner>> meta_items (
-	    std::move (converted_input->get_items ()));
+	    std::move (static_cast<AST::AttrInputMetaItemContainer *> (
+			 converted_input.get ())
+			 ->get_items ()));
 	  invoc.set_meta_item_output (std::move (meta_items));
 	}
     }

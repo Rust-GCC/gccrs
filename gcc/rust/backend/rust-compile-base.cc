@@ -186,8 +186,10 @@ HIRCompileBase::handle_deprecated_attribute_on_fndecl (
     {
       // handle #[deprecated(since = "...", note = "...")]
       const auto &option = static_cast<const AST::DelimTokenTree &> (input);
-      AST::AttrInputMetaItemContainer *meta_item = option.parse_to_meta_item ();
-      for (const auto &item : meta_item->get_items ())
+      auto meta_item = option.parse_to_meta_item ();
+      for (const auto &item :
+	   static_cast<AST::AttrInputMetaItemContainer *> (meta_item.get ())
+	     ->get_items ())
 	{
 	  auto converted_item = item->to_meta_name_value_str ();
 	  if (!converted_item)
@@ -239,15 +241,21 @@ HIRCompileBase::handle_inline_attribute_on_fndecl (tree fndecl,
     = input.get_attr_input_type () == AST::AttrInput::AttrInputType::TOKEN_TREE;
   rust_assert (is_token_tree);
   const auto &option = static_cast<const AST::DelimTokenTree &> (input);
-  AST::AttrInputMetaItemContainer *meta_item = option.parse_to_meta_item ();
-  if (meta_item->get_items ().size () != 1)
+  auto meta_item = option.parse_to_meta_item ();
+  if (static_cast<AST::AttrInputMetaItemContainer *> (meta_item.get ())
+	->get_items ()
+	.size ()
+      != 1)
     {
       rust_error_at (attr.get_locus (), "invalid number of arguments");
       return;
     }
 
   const std::string inline_option
-    = meta_item->get_items ().at (0)->as_string ();
+    = static_cast<AST::AttrInputMetaItemContainer *> (meta_item.get ())
+	->get_items ()
+	.at (0)
+	->as_string ();
 
   // we only care about NEVER and ALWAYS else its an error
   bool is_always = inline_option.compare ("always") == 0;

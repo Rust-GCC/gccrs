@@ -146,7 +146,9 @@ class MetaItemLitExpr : public MetaItemInner
   LiteralExpr lit_expr;
 
 public:
-  MetaItemLitExpr (LiteralExpr lit_expr) : lit_expr (std::move (lit_expr)) {}
+  MetaItemLitExpr (LiteralExpr lit_expr, const Location &loc)
+    : MetaItemInner (loc), lit_expr (std::move (lit_expr))
+  {}
 
   std::string as_string () const override { return lit_expr.as_string (); }
 
@@ -169,8 +171,8 @@ class MetaItemPathLit : public MetaItem
   LiteralExpr lit;
 
 public:
-  MetaItemPathLit (SimplePath path, LiteralExpr lit_expr)
-    : path (std::move (path)), lit (std::move (lit_expr))
+  MetaItemPathLit (SimplePath path, LiteralExpr lit_expr, const Location &loc)
+    : MetaItem (loc), path (std::move (path)), lit (std::move (lit_expr))
   {}
 
   std::string as_string () const override

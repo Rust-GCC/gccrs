@@ -166,9 +166,11 @@ check_doc_attribute (const AST::Attribute &attribute)
 	// FIXME: This doesn't check for #[doc(alias(...))]
 	const auto &option = static_cast<const AST::DelimTokenTree &> (
 	  attribute.get_attr_input ());
-	auto *meta_item = option.parse_to_meta_item ();
+	auto meta_item = option.parse_to_meta_item ();
 
-	for (auto &item : meta_item->get_items ())
+	for (auto &item :
+	     static_cast<AST::AttrInputMetaItemContainer *> (meta_item.get ())
+	       ->get_items ())
 	  {
 	    if (item->is_key_value_pair ())
 	      {

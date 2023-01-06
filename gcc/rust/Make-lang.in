@@ -161,6 +161,8 @@ GRS_OBJS = \
     rust/rust-import-archive.o \
     rust/rust-extern-crate.o \
     rust/rust-builtins.o \
+    rust/rust-feature-gate.o \
+    rust/rust-feature.o \
     $(END)
 # removed object files from here
 
@@ -329,7 +331,8 @@ RUST_INCLUDES = -I $(srcdir)/rust \
 	-I $(srcdir)/rust/checks/lints \
 	-I $(srcdir)/rust/checks/errors \
 	-I $(srcdir)/rust/checks/errors/privacy \
-	-I $(srcdir)/rust/util \
+	-I $(srcdir)/rust/feature \
+	-I $(srcdir)/rust/ast/passes \
         -I $(srcdir)/rust/metadata
 
 # add files that require cross-folder includes - currently rust-lang.o, rust-lex.o
@@ -407,5 +410,15 @@ rust/%.o: rust/checks/errors/privacy/%.cc
 
 # build rust/metadata files in rust folder
 rust/%.o: rust/metadata/%.cc
+	$(COMPILE) $(RUST_CXXFLAGS) $(RUST_INCLUDES) $<
+	$(POSTCOMPILE)
+
+# build rust/ast/passes files in rust folder
+rust/%.o: rust/ast/passes/%.cc
+	$(COMPILE) $(RUST_CXXFLAGS) $(RUST_INCLUDES) $<
+	$(POSTCOMPILE)
+
+# build rust/ast/feature files in rust folder
+rust/%.o: rust/feature/%.cc
 	$(COMPILE) $(RUST_CXXFLAGS) $(RUST_INCLUDES) $<
 	$(POSTCOMPILE)

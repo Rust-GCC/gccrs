@@ -597,7 +597,10 @@ public:
   virtual bool check_cfg_predicate (const Session &session) const = 0;
 
   // Parse attribute input to meta item, if possible
-  virtual AttrInput *parse_to_meta_item () const { return nullptr; }
+  virtual std::unique_ptr<AttrInput> parse_to_meta_item () const
+  {
+    return nullptr;
+  }
 
   virtual std::vector<Attribute> separate_cfg_attrs () const { return {}; }
 
@@ -620,6 +623,7 @@ class MetaItemInner
 protected:
   // pure virtual as MetaItemInner
   virtual MetaItemInner *clone_meta_item_inner_impl () const = 0;
+  Location locus;
 
 public:
   // Unique pointer custom clone function
@@ -628,9 +632,13 @@ public:
     return std::unique_ptr<MetaItemInner> (clone_meta_item_inner_impl ());
   }
 
+  MetaItemInner (const Location &loc) : locus (loc) {}
+
   virtual ~MetaItemInner ();
 
   virtual std::string as_string () const = 0;
+
+  virtual Location get_locus () const { return locus; }
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
@@ -806,7 +814,7 @@ public:
     return false;
   }
 
-  AttrInputMetaItemContainer *parse_to_meta_item () const override;
+  std::unique_ptr<AttrInput> parse_to_meta_item () const override;
 
   std::vector<std::unique_ptr<Token> > to_token_stream () const override;
 
@@ -837,6 +845,8 @@ class AttrInputLiteral;
 // abstract base meta item class
 class MetaItem : public MetaItemInner
 {
+public:
+  MetaItem (const Location &loc) : MetaItemInner (loc) {}
 };
 
 // Forward decl - defined in rust-expr.h

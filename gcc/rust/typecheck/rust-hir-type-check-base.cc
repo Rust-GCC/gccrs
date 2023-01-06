@@ -299,11 +299,13 @@ TypeCheckBase::parse_repr_options (const AST::AttrVec &attrs, Location locus)
 			       == AST::AttrInput::AttrInputType::TOKEN_TREE;
 	  rust_assert (is_token_tree);
 	  const auto &option = static_cast<const AST::DelimTokenTree &> (input);
-	  AST::AttrInputMetaItemContainer *meta_items
-	    = option.parse_to_meta_item ();
+	  auto meta_items = option.parse_to_meta_item ();
 
 	  const std::string inline_option
-	    = meta_items->get_items ().at (0)->as_string ();
+	    = static_cast<AST::AttrInputMetaItemContainer *> (meta_items.get ())
+		->get_items ()
+		.at (0)
+		->as_string ();
 
 	  // TODO: it would probably be better to make the MetaItems more aware
 	  // of constructs with nesting like #[repr(packed(2))] rather than
