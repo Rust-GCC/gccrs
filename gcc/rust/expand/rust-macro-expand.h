@@ -340,11 +340,7 @@ struct MacroExpander
    * Reset the expander's "changed" state. This function should be executed at
    * each iteration in a fixed point loop
    */
-  void reset_changed_state ()
-  {
-    has_changed_flag = false;
-    enr.clear_pending_invocations ();
-  }
+  void reset_changed_state () { has_changed_flag = false; }
 
   AST::MacroRulesDefinition *get_last_definition () { return last_def; }
   AST::MacroInvocation *get_last_invocation () { return last_invoc; }

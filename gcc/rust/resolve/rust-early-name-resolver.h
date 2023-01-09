@@ -124,14 +124,6 @@ private:
   /* The crate's scope */
   NodeId crate_scope;
 
-  /**
-   * Pending invocations resolved when expanding builtin macros. These
-   * invocations need to be expanded eagerly, before the parent macro itself
-   * gets expanded.
-   */
-  std::unordered_map<NodeId, std::vector<AST::MacroInvocation>>
-    pending_invocations;
-
   Resolver &resolver;
   Analysis::Mappings &mappings;
 
@@ -145,12 +137,6 @@ private:
    * invocations
    */
   void resolve_qualified_path_type (AST::QualifiedPathType &path);
-
-  /**
-   * Parse the arguments given to a builtin macro. If one of these arguments
-   * is a macro invocation, then we need to resolve it.
-   */
-  void resolve_builtin_macro_arguments (AST::MacroInvocData &invoc_data);
 
   virtual void visit (AST::Token &tok);
   virtual void visit (AST::DelimTokenTree &delim_tok_tree);
