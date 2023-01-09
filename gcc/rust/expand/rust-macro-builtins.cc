@@ -38,13 +38,36 @@ make_string (Location locus, std::string value)
 }
 
 std::unique_ptr<AST::Expr>
-make_macro_invocation (std::string macro, AST::DelimTokenTree arguments)
+make_macro_invocation (AST::BuiltinMacro kind, AST::DelimTokenTree arguments)
 {
-  return std::unique_ptr<AST::Expr> (new AST::MacroInvocation (
+  std::string path_str;
+
+  switch (kind)
+    {
+    case AST::BuiltinMacro::Assert:
+    case AST::BuiltinMacro::File:
+    case AST::BuiltinMacro::Line:
+    case AST::BuiltinMacro::Column:
+    case AST::BuiltinMacro::IncludeBytes:
+    case AST::BuiltinMacro::IncludeStr:
+    case AST::BuiltinMacro::CompileError:
+    case AST::BuiltinMacro::Concat:
+      path_str = "concat";
+      break;
+    case AST::BuiltinMacro::Env:
+    case AST::BuiltinMacro::Cfg:
+    case AST::BuiltinMacro::Include:
+      break;
+    }
+
+  auto new_invocation = std::unique_ptr<AST::Expr> (new AST::MacroInvocation (
+    kind,
     AST::MacroInvocData (AST::SimplePath (
-			   {AST::SimplePathSegment (macro, Location ())}),
+			   {AST::SimplePathSegment (path_str, Location ())}),
 			 std::move (arguments)),
     {}, Location ()));
+
+  return new_invocation;
 }
 
 /* Match the end token of a macro given the start delimiter of the macro */
@@ -89,19 +112,7 @@ try_expand_macro_expression (AST::Expr *expr, MacroExpander *expander)
 
   auto attr_visitor = Rust::AttrVisitor (*expander);
   expr->accept_vis (attr_visitor);
-
-  auto fragment = expander->take_expanded_fragment ();
-  auto new_expr = fragment.take_expression_fragment ();
-  rust_assert (new_expr->get_ast_kind () == AST::MACRO_INVOCATION);
-
-  // TODO: Figure out a way to avoid the clone/copy dance
-  auto copy = new_expr->clone_expr ();
-  auto invoc = static_cast<AST::MacroInvocation *> (copy.get ());
-
-  expander->get_early_name_resolver ().insert_pending_invocation (
-    expander->get_last_invocation ()->get_macro_node_id (), std::move (*invoc));
-
-  return AST::Fragment::create_error ();
+  return expander->take_expanded_fragment ();
 }
 
 /* Expand and then extract a string literal from the macro */
@@ -452,10 +463,6 @@ MacroBuiltin::compile_error_handler (Location invoc_locus,
 // invocation?
 // Do we split the two passes of parsing the token tree and then expanding it?
 // Can we do that easily?
-//
-// We still need to show the fact that a call to concat!() might be unexpanded.
-// So if we do see a macro invocation still when parsing the new token tree,
-// return an `Unexpanded` fragment.
 
 AST::Fragment
 MacroBuiltin::concat_handler (Location invoc_locus, AST::MacroInvocData &invoc)
@@ -474,28 +481,36 @@ MacroBuiltin::concat_handler (Location invoc_locus, AST::MacroInvocData &invoc)
 					     invoc.get_expander (), has_error);
   for (auto &expr : expanded_expr)
     {
-      if (!expr->is_literal ()
-	  && expr->get_ast_kind () != AST::MACRO_INVOCATION)
+      if (expr->get_ast_kind () == AST::MACRO_INVOCATION)
 	{
-	  has_error = true;
-	  rust_error_at (expr->get_locus (), "expected a literal");
-	  // diagnostics copied from rustc
-	  rust_inform (expr->get_locus (),
-		       "only literals (like %<\"foo\"%>, %<42%> and "
-		       "%<3.14%>) can be passed to %<concat!()%>");
-	  continue;
+	  return AST::Fragment::complete (
+	    {make_macro_invocation (AST::BuiltinMacro::Concat,
+				    invoc.get_delim_tok_tree ())});
 	}
-      auto *literal = static_cast<AST::LiteralExpr *> (expr.get ());
-      if (literal->get_lit_type () == AST::Literal::BYTE
-	  || literal->get_lit_type () == AST::Literal::BYTE_STRING)
-	{
-	  has_error = true;
-	  rust_error_at (expr->get_locus (),
-			 "cannot concatenate a byte string literal");
-	  continue;
-	}
-      str += literal->as_string ();
     }
+  //    {
+  //      if (!expr->is_literal ()
+  //   && expr->get_ast_kind () != AST::MACRO_INVOCATION)
+  // {
+  //   has_error = true;
+  //   rust_error_at (expr->get_locus (), "expected a literal");
+  //   // diagnostics copied from rustc
+  //   rust_inform (expr->get_locus (),
+  // 	       "only literals (like %<\"foo\"%>, %<42%> and "
+  // 	       "%<3.14%>) can be passed to %<concat!()%>");
+  //   continue;
+  // }
+  //      auto *literal = static_cast<AST::LiteralExpr *> (expr.get ());
+  //      if (literal->get_lit_type () == AST::Literal::BYTE
+  //   || literal->get_lit_type () == AST::Literal::BYTE_STRING)
+  // {
+  //   has_error = true;
+  //   rust_error_at (expr->get_locus (),
+  // 		 "cannot concatenate a byte string literal");
+  //   continue;
+  // }
+  //      str += literal->as_string ();
+  //    }
 
   parser.skip_token (last_token_id);
 
