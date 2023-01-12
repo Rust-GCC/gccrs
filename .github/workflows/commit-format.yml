@@ -1,0 +1,43 @@
+name: GNU Commit Format Checker
+
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  check_commit_formats:
+    runs-on: ubuntu-latest
+    name: Commits Check
+    
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Install Deps
+        run: |
+          sudo apt-get update;
+          sudo apt-get install -y \
+            python3 \
+            python3-git
+      
+      - name: Get PR Commits
+        run: |
+          git rev-list \
+              origin/master..${{ github.event.pull_request.head.sha }} \
+              > commits.txt
+
+      - name: Check commits
+        run: |
+          for i in `cat commits.txt`; do \
+              echo "Checking commit $i" \
+              python3 contrib/gcc-changelog/git_check_commit.py \
+                  | tee results.log ; \
+          done; \
+          if grep -e "ERR:" -e "FAILED" results.log; \
+          then \
+              echo "::error commit's are not formatted correctly"; \
+              exit 1; \
+          fi
