@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - master
+      - gcc-patch-dev
 
 jobs:
   check_commit_formats:
@@ -23,21 +24,21 @@ jobs:
             python3 \
             python3-git
       
-      - name: Get PR Commits
+      - name: GCC check PR Commits
         run: |
-          git rev-list \
-              origin/master..${{ github.event.pull_request.head.sha }} \
-              > commits.txt
-
-      - name: Check commits
-        run: |
-          for i in `cat commits.txt`; do \
-              echo "Checking commit $i" \
-              python3 contrib/gcc-changelog/git_check_commit.py \
-                  | tee results.log ; \
-          done; \
-          if grep -e "ERR:" -e "FAILED" results.log; \
-          then \
-              echo "::error commit's are not formatted correctly"; \
-              exit 1; \
+          retval=0
+          if ! python3 contrib/gcc-changelog/git_check_commit.py origin/${{ github.event.pull_request.base.ref }}..${{ github.event.pull_request.head.sha }}; then
+            retval=1
           fi
+          for commit in $(git rev-list origin/${{ github.event.pull_request.base.ref }}..${{ github.event.pull_request.head.sha }});
+          do
+            echo -n "Checking gccrs prefix for $commit: "
+            if [[ $(git log -1 --format="%s" $commit) = gccrs:* ]]; then
+              echo "OK"
+            else
+              retval=1
+              echo "KO"
+            fi
+          done
+          exit $retval
+     
