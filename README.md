@@ -92,8 +92,8 @@ $ make install
 Then invoke the compiler from the installation directory:
 
 ```bash
-$ $HOME/gccrs-install/gccrs -g -O2 -c test.rs -o test.o
-$ $HOME/gccrs-install/gccrs -o test test.o
+$ $HOME/gccrs-install/bin/gccrs -g -O2 -c test.rs -o test.o -frust-incomplete-and-experimental-compiler-do-not-use
+$ $HOME/gccrs-install/bin/gccrs -o test test.o
 ```
 
 You can also setup your shell to automatically find the installed compiler. For example for `bash`,
