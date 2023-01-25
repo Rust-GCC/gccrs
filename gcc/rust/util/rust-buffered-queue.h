@@ -70,8 +70,7 @@ public:
 			     new_queue.begin ());
 		  start = 0;
 		  end = num_queued_items;
-		  // TODO: would move be better here? optimisation for move with
-		  // shared pointer?
+		  // TODO: would move be better here? optimisation for move with shared pointer?
 		  // swap member buffer and new queue buffer
 		  std::swap (buffer, new_queue);
 	    */
