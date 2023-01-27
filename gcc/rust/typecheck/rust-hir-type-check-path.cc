@@ -374,6 +374,34 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
 	    {
 	      // get the associated impl block
 	      associated_impl_block = impl;
+	      HirId impl_block_id = impl->get_mappings ().get_hirid ();
+
+	      AssociatedImplTrait *associated = nullptr;
+	      bool found_impl_trait
+		= context->lookup_associated_trait_impl (impl_block_id,
+							 &associated);
+	      if (!found_impl_trait)
+		{
+		  // FIXME
+		  // Can we error? This seems like we should error out as we
+		  // cannot resolve any possible associated types? This needs
+		  // some thought as it may not be a useable facing error, we
+		  // might be resolving a crate with type error's occuring early
+		  // on so it may not be helpful in the end.
+		}
+	      else
+		{
+		  // this predicate must be implicitly implemented when we get
+		  // this type of candidate as it says we have an impl block for
+		  // this type and trait but we may not have an implementation
+		  // of the function within the impl block but are falling back
+		  // to the default implementation within the trait definition
+		  // itself
+		  TyTy::TypeBoundPredicate predicate (*associated->get_trait (),
+						      seg.get_locus ());
+		  // FIXME apply generics?
+		  associated->setup_associated_types (prev_segment, predicate);
+		}
 	    }
 	}
 
