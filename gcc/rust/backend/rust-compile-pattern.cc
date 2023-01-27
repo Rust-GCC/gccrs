@@ -387,5 +387,51 @@ CompilePatternLet::visit (HIR::WildcardPattern &pattern)
     }
 }
 
+void
+CompilePatternLet::visit (HIR::TuplePattern &pattern)
+{
+  rust_assert (!ty->is_unit ());
+  rust_assert (pattern.has_tuple_pattern_items ());
+  switch (pattern.get_items ()->get_pattern_type ())
+    {
+    default:
+      gcc_unreachable ();
+    case HIR::TuplePatternItems::TuplePatternItemType::RANGED:
+      rust_fatal_error (pattern.get_locus (),
+			"ranged tuple pattern in let statement");
+      return;
+    case HIR::TuplePatternItems::TuplePatternItemType::MULTIPLE:
+      break;
+    }
+
+  tree tuple_type = TyTyResolveCompile::compile (ctx, ty);
+  tree init_stmt;
+  Bvariable *tmp_var
+    = ctx->get_backend ()->temporary_variable (ctx->peek_fn ().fndecl,
+					       NULL_TREE, tuple_type, init_expr,
+					       false, pattern.get_locus (),
+					       &init_stmt);
+  tree access_expr
+    = ctx->get_backend ()->var_expression (tmp_var, pattern.get_locus ());
+  ctx->add_statement (init_stmt);
+
+  size_t tuple_idx = 0;
+  auto &items
+    = static_cast<HIR::TuplePatternItemsMultiple &> (*pattern.get_items ());
+  for (auto &sub : items.get_patterns ())
+    {
+      TyTy::BaseType *ty_sub = nullptr;
+      HirId pattern_id = pattern.get_pattern_mappings ().get_hirid ();
+      bool ok = ctx->get_tyctx ()->lookup_type (pattern_id, &ty_sub);
+      rust_assert (ok);
+
+      tree sub_init
+	= ctx->get_backend ()->struct_field_expression (access_expr, tuple_idx,
+							sub->get_locus ());
+      CompilePatternLet::Compile (&*sub, sub_init, ty_sub, rval_locus, ctx);
+      tuple_idx++;
+    }
+}
+
 } // namespace Compile
 } // namespace Rust
