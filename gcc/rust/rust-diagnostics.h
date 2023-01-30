@@ -24,9 +24,9 @@
 #include "rust-linemap.h"
 
 #if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
-#define RUST_ATTRIBUTE_GCC_DIAG(m, n)                                          \
-  __attribute__ ((__format__ (__gcc_tdiag__, m, n)))                           \
-    __attribute__ ((__nonnull__ (m)))
+#define RUST_ATTRIBUTE_GCC_DIAG(m, n)              \
+  __attribute__((__format__(__gcc_tdiag__, m, n))) \
+  __attribute__((__nonnull__(m)))
 #else
 #define RUST_ATTRIBUTE_GCC_DIAG(m, n)
 #endif
@@ -93,9 +93,9 @@ rust_error_at (const RichLocation &, const ErrorCode, const char *fmt, ...)
 // the open/close quote characters it should use when formatting
 // diagnostics (warnings, errors).
 extern const char *
-rust_open_quote ();
+rust_open_quote();
 extern const char *
-rust_close_quote ();
+rust_close_quote();
 
 // These interfaces are used by utilities above to pass warnings and
 // errors (once format specifiers have been expanded) to the back end,
@@ -104,69 +104,49 @@ rust_close_quote ();
 // implement these routines.
 
 // clang-format off
-extern void
-rust_be_internal_error_at (const Location, const std::string &errmsg)
-  RUST_ATTRIBUTE_NORETURN;
-extern void
-rust_be_error_at (const Location, const std::string &errmsg);
-extern void
-rust_be_error_at (const RichLocation &, const std::string &errmsg);
-extern void
-rust_be_error_at (const RichLocation &, const ErrorCode,
-		  const std::string &errmsg);
-extern void
-rust_be_warning_at (const Location, int opt, const std::string &warningmsg);
-extern void
-rust_be_fatal_error (const Location, const std::string &errmsg)
-  RUST_ATTRIBUTE_NORETURN;
-extern void
-rust_be_inform (const Location, const std::string &infomsg);
-extern void
-rust_be_get_quotechars (const char **open_quote, const char **close_quote);
-extern bool
-rust_be_debug_p (void);
+
 // clang-format on
 
-namespace Rust {
-/* A structure used to represent an error. Useful for enabling
- * errors to be ignored, e.g. if backtracking. */
-struct Error
+namespace Rust
 {
-  Location locus;
-  std::string message;
-  // TODO: store more stuff? e.g. node id?
-
-  Error (Location locus, std::string message)
-    : locus (locus), message (std::move (message))
+  /* A structure used to represent an error. Useful for enabling
+   * errors to be ignored, e.g. if backtracking. */
+  struct Error
   {
-    message.shrink_to_fit ();
-  }
+    Location locus;
+    std::string message;
+    // TODO: store more stuff? e.g. node id?
 
-  // TODO: the attribute part might be incorrect
-  Error (Location locus, const char *fmt,
-	 ...) /*RUST_ATTRIBUTE_GCC_DIAG (2, 3)*/ RUST_ATTRIBUTE_GCC_DIAG (3, 4);
+    Error(Location locus, std::string message)
+        : locus(locus), message(std::move(message))
+    {
+      message.shrink_to_fit();
+    }
 
-  // Irreversibly emits the error as an error.
-  void emit_error () const { rust_error_at (locus, "%s", message.c_str ()); }
+    // TODO: the attribute part might be incorrect
+    Error(Location locus, const char *fmt,
+          ...) /*RUST_ATTRIBUTE_GCC_DIAG (2, 3)*/ RUST_ATTRIBUTE_GCC_DIAG(3, 4);
 
-  // Irreversibly emits the error as a fatal error.
-  void emit_fatal_error () const
-  {
-    rust_fatal_error (locus, "%s", message.c_str ());
-  }
-};
+    // Irreversibly emits the error as an error.
+    void emit_error() const { rust_error_at(locus, "%s", message.c_str()); }
+
+    // Irreversibly emits the error as a fatal error.
+    void emit_fatal_error() const
+    {
+      rust_fatal_error(locus, "%s", message.c_str());
+    }
+  };
 } // namespace Rust
 
 // rust_debug uses normal printf formatting, not GCC diagnostic formatting.
-#define rust_debug(...) rust_debug_loc (Location (), __VA_ARGS__)
+#define rust_debug(...) rust_debug_loc(Location(), __VA_ARGS__)
 
 // rust_sorry_at wraps GCC diagnostic "sorry_at" to accept "Location" instead of
 // "location_t"
-#define rust_sorry_at(location, ...)                                           \
-  sorry_at (location.gcc_location (), __VA_ARGS__)
+#define rust_sorry_at(location, ...) \
+  sorry_at(location.gcc_location(), __VA_ARGS__)
 
-void
-rust_debug_loc (const Location location, const char *fmt,
-		...) ATTRIBUTE_PRINTF_2;
+void rust_debug_loc(const Location location, const char *fmt,
+                    ...) ATTRIBUTE_PRINTF_2;
 
 #endif // !defined(RUST_DIAGNOSTICS_H)
