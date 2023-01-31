@@ -104,7 +104,27 @@ rust_close_quote();
 // implement these routines.
 
 // clang-format off
-
+extern void
+rust_be_internal_error_at (const Location, const std::string &errmsg)
+  RUST_ATTRIBUTE_NORETURN;
+extern void
+rust_be_error_at (const Location, const std::string &errmsg);
+extern void
+rust_be_error_at (const RichLocation &, const std::string &errmsg);
+extern void
+rust_be_error_at (const RichLocation &, const ErrorCode,
+		  const std::string &errmsg);
+extern void
+rust_be_warning_at (const Location, int opt, const std::string &warningmsg);
+extern void
+rust_be_fatal_error (const Location, const std::string &errmsg)
+  RUST_ATTRIBUTE_NORETURN;
+extern void
+rust_be_inform (const Location, const std::string &infomsg);
+extern void
+rust_be_get_quotechars (const char **open_quote, const char **close_quote);
+extern bool
+rust_be_debug_p (void);
 // clang-format on
 
 namespace Rust
