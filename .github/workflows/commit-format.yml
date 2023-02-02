@@ -10,23 +10,35 @@ jobs:
   check_commit_changelogs:
     runs-on: ubuntu-latest
     name: check-changelogs
+    permissions:
+      pull-requests: write
     
     steps:
       - uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GERRIS_TOKEN }}
 
       - name: Install Deps
         run: |
           sudo apt-get update;
           sudo apt-get install -y \
             python3 \
-            python3-git
-      
+            python3-git;
+          cargo install --git https://github.com/cohenarthur/gerris;
+
       - name: GCC check PR Commits
         run: |
-          python3 contrib/gcc-changelog/git_check_commit.py origin/${{ github.event.pull_request.base.ref }}..${{ github.event.pull_request.head.sha }}
+          python3 contrib/gcc-changelog/git_check_commit.py origin/${{ github.event.pull_request.base.ref }}..${{ github.event.pull_request.head.sha }} | tee results.log
+          gerris < results.log | tee gerris-results.log
+
+# rerun (remove)
+      - uses: mshick/add-pr-comment@v2
+        with:
+          allow-repeats: true
+          message-path: gerris-results.log
 
   check_commit_prefixes:
     runs-on: ubuntu-latest
