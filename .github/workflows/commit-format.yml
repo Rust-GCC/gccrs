@@ -17,7 +17,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      # mess it up
       - name: Install Deps
         run: |
           sudo apt-get update;
