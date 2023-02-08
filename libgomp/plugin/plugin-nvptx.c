@@ -1,6 +1,6 @@
 /* Plugin for NVPTX execution.
 
-   Copyright (C) 2013-2022 Free Software Foundation, Inc.
+   Copyright (C) 2013-2023 Free Software Foundation, Inc.
 
    Contributed by Mentor Embedded.
 
@@ -1190,7 +1190,9 @@ GOMP_OFFLOAD_get_num_devices (unsigned int omp_requires_mask)
      devices were present.  Unified-shared address: see comment in
      nvptx_open_device for CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING.  */
   if (num_devices > 0
-      && (omp_requires_mask & ~GOMP_REQUIRES_UNIFIED_ADDRESS) != 0)
+      && ((omp_requires_mask
+	   & ~(GOMP_REQUIRES_UNIFIED_ADDRESS
+	       | GOMP_REQUIRES_REVERSE_OFFLOAD)) != 0))
     return -1;
   return num_devices;
 }

@@ -1,5 +1,5 @@
 /* Consolidation of svalues and regions.
-   Copyright (C) 2020-2022 Free Software Foundation, Inc.
+   Copyright (C) 2020-2023 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -1698,7 +1698,7 @@ get_region_for_unexpected_tree_code (region_model_context *ctxt,
 
 const region *
 region_model_manager::
-get_or_create_region_for_heap_alloc (const sbitmap &base_regs_in_use)
+get_or_create_region_for_heap_alloc (const bitmap &base_regs_in_use)
 {
   /* Try to reuse an existing region, if it's unreferenced in the
      client state.  */

@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -8912,8 +8912,9 @@ Parser<ManagedTokenSource>::parse_closure_param ()
 	}
     }
 
-  return AST::ClosureParam (std::move (pattern), pattern->get_locus (),
-			    std::move (type), std::move (outer_attrs));
+  Location loc = pattern->get_locus ();
+  return AST::ClosureParam (std::move (pattern), loc, std::move (type),
+			    std::move (outer_attrs));
 }
 
 // Parses a grouped or tuple expression (disambiguates).

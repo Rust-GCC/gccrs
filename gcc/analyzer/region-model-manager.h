@@ -1,5 +1,5 @@
 /* Consolidation of svalues and regions.
-   Copyright (C) 2020-2022 Free Software Foundation, Inc.
+   Copyright (C) 2020-2023 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -155,7 +155,7 @@ public:
      The number of these within the analysis can grow arbitrarily.
      They are still owned by the manager.  */
   const region *
-  get_or_create_region_for_heap_alloc (const sbitmap &base_regs_in_use);
+  get_or_create_region_for_heap_alloc (const bitmap &base_regs_in_use);
   const region *create_region_for_alloca (const frame_region *frame);
 
   void log_stats (logger *logger, bool show_objs) const;

@@ -1,5 +1,5 @@
 /* Perform type resolution on the various structures.
-   Copyright (C) 2001-2022 Free Software Foundation, Inc.
+   Copyright (C) 2001-2023 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -514,7 +514,7 @@ gfc_resolve_formal_arglist (gfc_symbol *proc)
 	    {
 	      /* F03:C1263 (R1238) The function-name and each dummy-arg-name
 		 shall be specified, explicitly or implicitly, to be scalar.  */
-	      gfc_error ("Argument '%s' of statement function '%s' at %L "
+	      gfc_error ("Argument %qs of statement function %qs at %L "
 			 "must be scalar", sym->name, proc->name,
 			 &proc->declared_at);
 	      continue;
@@ -4381,8 +4381,8 @@ resolve_operator (gfc_expr *e)
 	  guessed = lookup_uop_fuzzy (name, e->value.op.uop->ns->uop_root);
 	  if (guessed)
 	    snprintf (msg, sizeof (msg),
-		      _("Unknown operator %%<%s%%> at %%L; did you mean '%s'?"),
-		      name, guessed);
+		      _("Unknown operator %%<%s%%> at %%L; did you mean "
+			"%%<%s%%>?"), name, guessed);
 	  else
 	    snprintf (msg, sizeof (msg), _("Unknown operator %%<%s%%> at %%L"),
 		      name);
@@ -4575,11 +4575,10 @@ compare_bound_int (gfc_expr *a, int b)
 {
   int i;
 
-  if (a == NULL || a->expr_type != EXPR_CONSTANT)
+  if (a == NULL
+      || a->expr_type != EXPR_CONSTANT
+      || a->ts.type != BT_INTEGER)
     return CMP_UNKNOWN;
-
-  if (a->ts.type != BT_INTEGER)
-    gfc_internal_error ("compare_bound_int(): Bad expression");
 
   i = mpz_cmp_si (a->value.integer, b);
 
@@ -4598,11 +4597,10 @@ compare_bound_mpz_t (gfc_expr *a, mpz_t b)
 {
   int i;
 
-  if (a == NULL || a->expr_type != EXPR_CONSTANT)
+  if (a == NULL
+      || a->expr_type != EXPR_CONSTANT
+      || a->ts.type != BT_INTEGER)
     return CMP_UNKNOWN;
-
-  if (a->ts.type != BT_INTEGER)
-    gfc_internal_error ("compare_bound_int(): Bad expression");
 
   i = mpz_cmp (a->value.integer, b);
 
@@ -4733,23 +4731,24 @@ check_dimension (int i, gfc_array_ref *ar, gfc_array_spec *as)
 #define AR_END (ar->end[i] ? ar->end[i] : as->upper[i])
 
 	compare_result comp_start_end = compare_bound (AR_START, AR_END);
+	compare_result comp_stride_zero = compare_bound_int (ar->stride[i], 0);
 
 	/* Check for zero stride, which is not allowed.  */
-	if (compare_bound_int (ar->stride[i], 0) == CMP_EQ)
+	if (comp_stride_zero == CMP_EQ)
 	  {
 	    gfc_error ("Illegal stride of zero at %L", &ar->c_where[i]);
 	    return false;
 	  }
 
-	/* if start == len || (stride > 0 && start < len)
-			   || (stride < 0 && start > len),
+	/* if start == end || (stride > 0 && start < end)
+			   || (stride < 0 && start > end),
 	   then the array section contains at least one element.  In this
 	   case, there is an out-of-bounds access if
 	   (start < lower || start > upper).  */
-	if (compare_bound (AR_START, AR_END) == CMP_EQ
-	    || ((compare_bound_int (ar->stride[i], 0) == CMP_GT
-		 || ar->stride[i] == NULL) && comp_start_end == CMP_LT)
-	    || (compare_bound_int (ar->stride[i], 0) == CMP_LT
+	if (comp_start_end == CMP_EQ
+	    || ((comp_stride_zero == CMP_GT || ar->stride[i] == NULL)
+		&& comp_start_end == CMP_LT)
+	    || (comp_stride_zero == CMP_LT
 	        && comp_start_end == CMP_GT))
 	  {
 	    if (compare_bound (AR_START, as->lower[i]) == CMP_LT)
@@ -6087,7 +6086,6 @@ check_host_association (gfc_expr *e)
       gfc_find_symbol (e->symtree->name, gfc_current_ns, 1, &sym);
 
       if (sym && old_sym != sym
-	      && sym->ts.type == old_sym->ts.type
 	      && sym->attr.flavor == FL_PROCEDURE
 	      && sym->attr.contained)
 	{
@@ -6131,6 +6129,9 @@ check_host_association (gfc_expr *e)
 			      &old_sym->declared_at, &e->where);
 		  return false;
 		}
+
+	      if (ref == NULL)
+		return false;
 
 	      gcc_assert (ref->type == REF_ARRAY);
 
@@ -7536,7 +7537,8 @@ derived_inaccessible (gfc_symbol *sym)
   for (c = sym->components; c; c = c->next)
     {
 	/* Prevent an infinite loop through this function.  */
-	if (c->ts.type == BT_DERIVED && c->attr.pointer
+	if (c->ts.type == BT_DERIVED
+	    && (c->attr.pointer || c->attr.allocatable)
 	    && sym == c->ts.u.derived)
 	  continue;
 
@@ -8212,7 +8214,7 @@ check_symbols:
 	{
 	  if (i == (ar->dimen + ar->codimen - 1))
 	    {
-	      gfc_error ("Expected '*' in coindex specification in ALLOCATE "
+	      gfc_error ("Expected %<*%> in coindex specification in ALLOCATE "
 			 "statement at %L", &e->where);
 	      goto failure;
 	    }
@@ -11186,7 +11188,7 @@ resolve_ordinary_assign (gfc_code *code, gfc_namespace *ns)
     {
       gfc_error ("Nonallocatable variable must not be polymorphic in intrinsic "
 		 "assignment at %L - check that there is a matching specific "
-		 "subroutine for '=' operator", &lhs->where);
+		 "subroutine for %<=%> operator", &lhs->where);
       return false;
     }
 

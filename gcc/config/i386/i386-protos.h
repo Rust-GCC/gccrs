@@ -1,5 +1,5 @@
 /* Definitions of target machine for GCC for IA-32.
-   Copyright (C) 1988-2022 Free Software Foundation, Inc.
+   Copyright (C) 1988-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -228,6 +228,8 @@ extern void ix86_expand_atomic_fetch_op_loop (rtx, rtx, rtx, enum rtx_code,
 extern void ix86_expand_cmpxchg_loop (rtx *, rtx, rtx, rtx, rtx, rtx,
 				      bool, rtx_code_label *);
 extern rtx ix86_expand_fast_convert_bf_to_sf (rtx);
+extern rtx ix86_memtag_untagged_pointer (rtx, rtx);
+extern bool ix86_memtag_can_tag_addresses (void);
 
 #ifdef TREE_CODE
 extern void init_cumulative_args (CUMULATIVE_ARGS *, tree, rtx, tree, int);

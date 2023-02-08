@@ -1,5 +1,5 @@
 ;; Machine description for AArch64 architecture.
-;; Copyright (C) 2009-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2023 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 ;;
 ;; This file is part of GCC.
@@ -1096,6 +1096,8 @@
 
 ;; Give the number of bits in the mode
 (define_mode_attr sizen [(QI "8") (HI "16") (SI "32") (DI "64")])
+(define_mode_attr ZEROM [(QI "SI") (HI "SI") (SI "SI") (DI "DI")])
+(define_mode_attr zerom [(QI "si") (HI "si") (SI "si") (DI "di")])
 
 ;; Give the ordinal of the MSB in the mode
 (define_mode_attr sizem1 [(QI "#7") (HI "#15") (SI "#31") (DI "#63")

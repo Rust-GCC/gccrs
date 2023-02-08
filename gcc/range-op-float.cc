@@ -1,5 +1,5 @@
 /* Floating point range operators.
-   Copyright (C) 2022 Free Software Foundation, Inc.
+   Copyright (C) 2022-2023 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>.
 
 This file is part of GCC.
@@ -90,6 +90,27 @@ range_operator_float::fold_range (frange &r, tree type,
     ;
   else
     r.clear_nan ();
+
+  // If the result has overflowed and flag_trapping_math, folding this
+  // operation could elide an overflow or division by zero exception.
+  // Avoid returning a singleton +-INF, to keep the propagators (DOM
+  // and substitute_and_fold_engine) from folding.  See PR107608.
+  if (flag_trapping_math
+      && MODE_HAS_INFINITIES (TYPE_MODE (type))
+      && r.known_isinf () && !op1.known_isinf () && !op2.known_isinf ())
+    {
+      REAL_VALUE_TYPE inf = r.lower_bound ();
+      if (real_isneg (&inf))
+	{
+	  REAL_VALUE_TYPE min = real_min_representable (type);
+	  r.set (type, inf, min);
+	}
+      else
+	{
+	  REAL_VALUE_TYPE max = real_max_representable (type);
+	  r.set (type, max, inf);
+	}
+    }
 
   return true;
 }
@@ -254,10 +275,21 @@ frange_nextafter (enum machine_mode mode,
 		  REAL_VALUE_TYPE &value,
 		  const REAL_VALUE_TYPE &inf)
 {
-  const real_format *fmt = REAL_MODE_FORMAT (mode);
-  REAL_VALUE_TYPE tmp;
-  real_nextafter (&tmp, fmt, &value, &inf);
-  value = tmp;
+  if (MODE_COMPOSITE_P (mode)
+      && (real_isdenormal (&value, mode) || real_iszero (&value)))
+    {
+      // IBM extended denormals only have DFmode precision.
+      REAL_VALUE_TYPE tmp, tmp2;
+      real_convert (&tmp2, DFmode, &value);
+      real_nextafter (&tmp, REAL_MODE_FORMAT (DFmode), &tmp2, &inf);
+      real_convert (&value, mode, &tmp);
+    }
+  else
+    {
+      REAL_VALUE_TYPE tmp;
+      real_nextafter (&tmp, REAL_MODE_FORMAT (mode), &value, &inf);
+      value = tmp;
+    }
 }
 
 // Like real_arithmetic, but round the result to INF if the operation
@@ -287,25 +319,77 @@ frange_arithmetic (enum tree_code code, tree type,
 
   // Be extra careful if there may be discrepancies between the
   // compile and runtime results.
-  if ((mode_composite || (real_isneg (&inf) ? real_less (&result, &value)
-			  : !real_less (&value, &result)))
-      && (inexact || !real_identical (&result, &value)))
+  bool round = false;
+  if (mode_composite)
+    round = true;
+  else
     {
-      if (mode_composite)
+      bool low = real_isneg (&inf);
+      round = (low ? !real_less (&result, &value)
+		   : !real_less (&value, &result));
+      if (real_isinf (&result, !low)
+	  && !real_isinf (&value)
+	  && !flag_rounding_math)
 	{
-	  if (real_isdenormal (&result, mode)
-	      || real_iszero (&result))
+	  // Use just [+INF, +INF] rather than [MAX, +INF]
+	  // even if value is larger than MAX and rounds to
+	  // nearest to +INF.  Similarly just [-INF, -INF]
+	  // rather than [-INF, +MAX] even if value is smaller
+	  // than -MAX and rounds to nearest to -INF.
+	  // Unless INEXACT is true, in that case we need some
+	  // extra buffer.
+	  if (!inexact)
+	    round = false;
+	  else
 	    {
-	      // IBM extended denormals only have DFmode precision.
-	      REAL_VALUE_TYPE tmp;
-	      real_convert (&tmp, DFmode, &value);
-	      frange_nextafter (DFmode, tmp, inf);
-	      real_convert (&result, mode, &tmp);
-	      return;
+	      REAL_VALUE_TYPE tmp = result, tmp2;
+	      frange_nextafter (mode, tmp, inf);
+	      // TMP is at this point the maximum representable
+	      // number.
+	      real_arithmetic (&tmp2, MINUS_EXPR, &value, &tmp);
+	      if (real_isneg (&tmp2) != low
+		  && (REAL_EXP (&tmp2) - REAL_EXP (&tmp)
+		      >= 2 - REAL_MODE_FORMAT (mode)->p))
+		round = false;
 	    }
 	}
-      frange_nextafter (mode, result, inf);
     }
+  if (round && (inexact || !real_identical (&result, &value)))
+    {
+      if (mode_composite
+	  && (real_isdenormal (&result, mode) || real_iszero (&result)))
+	{
+	  // IBM extended denormals only have DFmode precision.
+	  REAL_VALUE_TYPE tmp, tmp2;
+	  real_convert (&tmp2, DFmode, &value);
+	  real_nextafter (&tmp, REAL_MODE_FORMAT (DFmode), &tmp2, &inf);
+	  real_convert (&result, mode, &tmp);
+	}
+      else
+	frange_nextafter (mode, result, inf);
+    }
+  if (mode_composite)
+    switch (code)
+      {
+      case PLUS_EXPR:
+      case MINUS_EXPR:
+	// ibm-ldouble-format documents 1ulp for + and -.
+	frange_nextafter (mode, result, inf);
+	break;
+      case MULT_EXPR:
+	// ibm-ldouble-format documents 2ulps for *.
+	frange_nextafter (mode, result, inf);
+	frange_nextafter (mode, result, inf);
+	break;
+      case RDIV_EXPR:
+	// ibm-ldouble-format documents 3ulps for /.
+	frange_nextafter (mode, result, inf);
+	frange_nextafter (mode, result, inf);
+	frange_nextafter (mode, result, inf);
+	break;
+      default:
+	break;
+      }
 }
 
 // Crop R to [-INF, MAX] where MAX is the maximum representable number
@@ -523,6 +607,10 @@ foperator_equal::fold_range (irange &r, tree type,
     {
       if (op1 == op2)
 	r = range_true (type);
+      // If one operand is -0.0 and other 0.0, they are still equal.
+      else if (real_iszero (&op1.lower_bound ())
+	       && real_iszero (&op2.lower_bound ()))
+	r = range_true (type);
       else
 	r = range_false (type);
     }
@@ -533,7 +621,18 @@ foperator_equal::fold_range (irange &r, tree type,
       frange tmp = op1;
       tmp.intersect (op2);
       if (tmp.undefined_p ())
-	r = range_false (type);
+	{
+	  // If one range is [whatever, -0.0] and another
+	  // [0.0, whatever2], we don't know anything either,
+	  // because -0.0 == 0.0.
+	  if ((real_iszero (&op1.upper_bound ())
+	       && real_iszero (&op2.lower_bound ()))
+	      || (real_iszero (&op1.lower_bound ())
+		  && real_iszero (&op2.upper_bound ())))
+	    r = range_true_and_false (type);
+	  else
+	    r = range_false (type);
+	}
       else
 	r = range_true_and_false (type);
     }
@@ -624,10 +723,14 @@ foperator_not_equal::fold_range (irange &r, tree type,
   // consist of a single value, and then compare them.
   else if (op1.singleton_p () && op2.singleton_p ())
     {
-      if (op1 != op2)
-	r = range_true (type);
-      else
+      if (op1 == op2)
 	r = range_false (type);
+      // If one operand is -0.0 and other 0.0, they are still equal.
+      else if (real_iszero (&op1.lower_bound ())
+	       && real_iszero (&op2.lower_bound ()))
+	r = range_false (type);
+      else
+	r = range_true (type);
     }
   else if (!maybe_isnan (op1, op2))
     {
@@ -636,7 +739,18 @@ foperator_not_equal::fold_range (irange &r, tree type,
       frange tmp = op1;
       tmp.intersect (op2);
       if (tmp.undefined_p ())
-	r = range_true (type);
+	{
+	  // If one range is [whatever, -0.0] and another
+	  // [0.0, whatever2], we don't know anything either,
+	  // because -0.0 == 0.0.
+	  if ((real_iszero (&op1.upper_bound ())
+	       && real_iszero (&op2.lower_bound ()))
+	      || (real_iszero (&op1.lower_bound ())
+		  && real_iszero (&op2.upper_bound ())))
+	    r = range_true_and_false (type);
+	  else
+	    r = range_true (type);
+	}
       else
 	r = range_true_and_false (type);
     }

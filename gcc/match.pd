@@ -2,7 +2,7 @@
    This file is consumed by genmatch which produces gimple-match.cc
    and generic-match.cc from it.
 
-   Copyright (C) 2014-2022 Free Software Foundation, Inc.
+   Copyright (C) 2014-2023 Free Software Foundation, Inc.
    Contributed by Richard Biener <rguenther@suse.de>
    and Prathamesh Kulkarni  <bilbotheelffriend@gmail.com>
 
@@ -338,6 +338,20 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  (COPYSIGN_ALL REAL_CST@0 @1)
  (if (REAL_VALUE_NEGATIVE (TREE_REAL_CST (@0)))
   (COPYSIGN_ALL (negate @0) @1)))
+
+/* Transform c ? x * copysign (1, y) : z to c ? x ^ signs(y) : z.
+   tree-ssa-math-opts.cc does the corresponding optimization for
+   unconditional multiplications (via xorsign).  */
+(simplify
+ (IFN_COND_MUL:c @0 @1 (IFN_COPYSIGN real_onep @2) @3)
+ (with { tree signs = sign_mask_for (type); }
+  (if (signs)
+   (with { tree inttype = TREE_TYPE (signs); }
+    (view_convert:type
+     (IFN_COND_XOR:inttype @0
+      (view_convert:inttype @1)
+      (bit_and (view_convert:inttype @2) { signs; })
+      (view_convert:inttype @3)))))))
 
 /* (x >= 0 ? x : 0) + (x <= 0 ? -x : 0) -> abs x.  */
 (simplify
@@ -1370,7 +1384,8 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
    /* For logical right shifts, this is possible only if @0 doesn't
       have MSB set and the logical right shift is changed into
       arithmetic shift.  */
-   (if (!wi::neg_p (tree_nonzero_bits (@0)))
+   (if (INTEGRAL_TYPE_P (type)
+        && !wi::neg_p (tree_nonzero_bits (@0)))
     (with { tree stype = signed_type_for (TREE_TYPE (@0)); }
      (convert (rshift (bit_not! (convert:stype @0)) @1))))))
 
@@ -1906,6 +1921,61 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  (if (INTEGRAL_TYPE_P (type))
   (bit_and @0 @1)))
 
+(for cmp (tcc_comparison)
+     icmp (inverted_tcc_comparison)
+ /* Fold (((a < b) & c) | ((a >= b) & d)) into (a < b ? c : d) & 1.  */
+ (simplify
+  (bit_ior
+   (bit_and:c (convert? (cmp@0  @01 @02)) @3)
+   (bit_and:c (convert? (icmp@4 @01 @02)) @5))
+    (if (INTEGRAL_TYPE_P (type)
+	 /* The scalar version has to be canonicalized after vectorization
+	    because it makes unconditional loads conditional ones, which
+	    means we lose vectorization because the loads may trap.  */
+	 && canonicalize_math_after_vectorization_p ())
+     (bit_and (cond @0 @3 @5) { build_one_cst (type); })))
+
+ /* Fold ((-(a < b) & c) | (-(a >= b) & d)) into a < b ? c : d.  This is
+    canonicalized further and we recognize the conditional form:
+    (a < b ? c : 0) | (a >= b ? d : 0) into a < b ? c : d.  */
+ (simplify
+  (bit_ior
+   (cond (cmp@0  @01 @02) @3 zerop)
+   (cond (icmp@4 @01 @02) @5 zerop))
+    (if (INTEGRAL_TYPE_P (type)
+	 /* The scalar version has to be canonicalized after vectorization
+	    because it makes unconditional loads conditional ones, which
+	    means we lose vectorization because the loads may trap.  */
+	 && canonicalize_math_after_vectorization_p ())
+    (cond @0 @3 @5)))
+
+ /* Vector Fold (((a < b) & c) | ((a >= b) & d)) into a < b ? c : d. 
+    and ((~(a < b) & c) | (~(a >= b) & d)) into a < b ? c : d.  */
+ (simplify
+  (bit_ior
+   (bit_and:c (vec_cond:s (cmp@0 @6 @7) @4 @5) @2)
+   (bit_and:c (vec_cond:s (icmp@1 @6 @7) @4 @5) @3))
+    (if (integer_zerop (@5))
+     (switch
+      (if (integer_onep (@4))
+       (bit_and (vec_cond @0 @2 @3) @4))
+	(if (integer_minus_onep (@4))
+	 (vec_cond @0 @2 @3)))
+    (if (integer_zerop (@4))
+     (switch
+      (if (integer_onep (@5))
+       (bit_and (vec_cond @0 @3 @2) @5))
+      (if (integer_minus_onep (@5))
+       (vec_cond @0 @3 @2))))))
+
+ /* Scalar Vectorized Fold ((-(a < b) & c) | (-(a >= b) & d))
+    into a < b ? d : c.  */
+ (simplify
+  (bit_ior
+   (vec_cond:s (cmp@0 @4 @5) @2 integer_zerop)
+   (vec_cond:s (icmp@1 @4 @5) @3 integer_zerop))
+    (vec_cond @0 @2 @3)))
+
 /* Transform X & -Y into X * Y when Y is { 0 or 1 }.  */
 (simplify
  (bit_and:c (convert? (negate zero_one_valued_p@0)) @1)
@@ -2020,10 +2090,20 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 
 /* (m1 CMP m2) * d -> (m1 CMP m2) ? d : 0  */
 (if (!canonicalize_math_p ())
- (for cmp (gt lt ge le)
+ (for cmp (tcc_comparison)
   (simplify
-   (mult (convert (cmp @0 @1)) @2)
-   (cond (cmp @0 @1) @2 { build_zero_cst (type); }))))
+   (mult:c (convert (cmp@0 @1 @2)) @3)
+   (if (INTEGRAL_TYPE_P (type)
+	&& INTEGRAL_TYPE_P (TREE_TYPE (@0)))
+     (cond @0 @3 { build_zero_cst (type); })))
+/* (-(m1 CMP m2)) & d -> (m1 CMP m2) ? d : 0  */
+  (simplify
+   (bit_and:c (negate (convert (cmp@0 @1 @2))) @3)
+   (if (INTEGRAL_TYPE_P (type)
+	&& INTEGRAL_TYPE_P (TREE_TYPE (@0)))
+     (cond @0 @3 { build_zero_cst (type); })))
+ )
+)
 
 /* For integral types with undefined overflow and C != 0 fold
    x * C EQ/NE y * C into x EQ/NE y.  */
@@ -2260,6 +2340,19 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
        && (CONSTANT_CLASS_P (@1) || (single_use (@2) && single_use (@3))))
    (op @1 { build_zero_cst (TREE_TYPE (@1)); }))))
 
+/* (&a + b) !=/== (&a[1] + c) -> (&a[0] - &a[1]) + b !=/== c */
+(for neeq (ne eq)
+ (simplify
+  (neeq:c ADDR_EXPR@0 (pointer_plus @2 @3))
+   (with { poly_int64 diff; tree inner_type = TREE_TYPE (@3);}
+    (if (ptr_difference_const (@0, @2, &diff))
+     (neeq { build_int_cst_type (inner_type, diff); } @3))))
+ (simplify
+  (neeq (pointer_plus ADDR_EXPR@0 @1) (pointer_plus ADDR_EXPR@2 @3))
+   (with { poly_int64 diff; tree inner_type = TREE_TYPE (@1);}
+    (if (ptr_difference_const (@0, @2, &diff))
+     (neeq (plus { build_int_cst_type (inner_type, diff); } @1) @3)))))
+
 /* X - Y < X is the same as Y > 0 when there is no overflow.
    For equality, this is also true with wrapping overflow.  */
 (for op (simple_comparison)
@@ -2438,14 +2531,17 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  (with { poly_int64 diff; }
    (if (ptr_difference_const (@0, @2, &diff))
     (plus { build_int_cst_type (type, diff); } (convert (minus @1 @3))))))
-
-/* (&a+b) !=/== (&a[1] + c) ->  sizeof(a[0]) + b !=/== c */
-(for neeq (ne eq)
- (simplify
-  (neeq (pointer_plus ADDR_EXPR@0 @1) (pointer_plus ADDR_EXPR@2 @3))
-   (with { poly_int64 diff; tree inner_type = TREE_TYPE (@1);}
-    (if (ptr_difference_const (@0, @2, &diff))
-     (neeq (plus { build_int_cst_type (inner_type, diff); } @1) @3)))))
+/* (p + b) - &p->d -> offsetof (*p, d) + b */
+(simplify
+ (pointer_diff (pointer_plus @0 @1) ADDR_EXPR@2)
+ (with { poly_int64 diff; }
+   (if (ptr_difference_const (@0, @2, &diff))
+    (plus { build_int_cst_type (type, diff); } (convert @1)))))
+(simplify
+ (pointer_diff ADDR_EXPR@0 (pointer_plus @1 @2))
+ (with { poly_int64 diff; }
+   (if (ptr_difference_const (@0, @1, &diff))
+    (minus { build_int_cst_type (type, diff); } (convert @2)))))
 
 /* Canonicalize (T *)(ptr - ptr-cst) to &MEM[ptr + -ptr-cst].  */
 (simplify
@@ -5720,19 +5816,23 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
   /* SSA names are canonicalized to 2nd place.  */
   (cmp addr@0 SSA_NAME@1)
   (with
-   { poly_int64 off; tree base; }
+   {
+     poly_int64 off; tree base;
+     tree addr = (TREE_CODE (@0) == SSA_NAME
+		  ? gimple_assign_rhs1 (SSA_NAME_DEF_STMT (@0)) : @0);
+   }
    /* A local variable can never be pointed to by
       the default SSA name of an incoming parameter.  */
    (if (SSA_NAME_IS_DEFAULT_DEF (@1)
 	&& TREE_CODE (SSA_NAME_VAR (@1)) == PARM_DECL
-	&& (base = get_base_address (TREE_OPERAND (@0, 0)))
+	&& (base = get_base_address (TREE_OPERAND (addr, 0)))
 	&& TREE_CODE (base) == VAR_DECL
 	&& auto_var_in_fn_p (base, current_function_decl))
     (if (cmp == NE_EXPR)
      { constant_boolean_node (true, type); }
      { constant_boolean_node (false, type); })
     /* If the address is based on @1 decide using the offset.  */
-    (if ((base = get_addr_base_and_unit_offset (TREE_OPERAND (@0, 0), &off))
+    (if ((base = get_addr_base_and_unit_offset (TREE_OPERAND (addr, 0), &off))
 	 && TREE_CODE (base) == MEM_REF
 	 && TREE_OPERAND (base, 0) == @1)
      (with { off += mem_ref_offset (base).force_shwi (); }
@@ -7548,7 +7648,8 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 /* popcount(X) + popcount(Y) is popcount(X|Y) when X&Y must be zero.  */
 (simplify
   (plus (POPCOUNT:s @0) (POPCOUNT:s @1))
-  (if (wi::bit_and (tree_nonzero_bits (@0), tree_nonzero_bits (@1)) == 0)
+  (if (INTEGRAL_TYPE_P (type)
+       && wi::bit_and (tree_nonzero_bits (@0), tree_nonzero_bits (@1)) == 0)
     (POPCOUNT (bit_ior @0 @1))))
 
 /* popcount(X) == 0 is X == 0, and related (in)equalities.  */
@@ -7580,15 +7681,16 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 (for pfun (POPCOUNT PARITY)
   (simplify
     (pfun @0)
-    (with { wide_int nz = tree_nonzero_bits (@0); }
-      (switch
-	(if (nz == 1)
-	  (convert @0))
-	(if (wi::popcount (nz) == 1)
-	  (with { tree utype = unsigned_type_for (TREE_TYPE (@0)); }
-	    (convert (rshift:utype (convert:utype @0)
-				   { build_int_cst (integer_type_node,
-						    wi::ctz (nz)); }))))))))
+    (if (INTEGRAL_TYPE_P (type))
+     (with { wide_int nz = tree_nonzero_bits (@0); }
+       (switch
+	 (if (nz == 1)
+	   (convert @0))
+	 (if (wi::popcount (nz) == 1)
+	   (with { tree utype = unsigned_type_for (TREE_TYPE (@0)); }
+	     (convert (rshift:utype (convert:utype @0)
+				    { build_int_cst (integer_type_node,
+						     wi::ctz (nz)); })))))))))
 
 #if GIMPLE
 /* 64- and 32-bits branchless implementations of popcount are detected:

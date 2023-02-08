@@ -1,4 +1,4 @@
-/* Copyright (C) 1988-2022 Free Software Foundation, Inc.
+/* Copyright (C) 1988-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -2033,6 +2033,9 @@ ix86_option_override_internal (bool main_args_p,
   if (TARGET_UINTR && !TARGET_64BIT)
     error ("%<-muintr%> not supported for 32-bit code");
 
+  if (ix86_lam_type && !TARGET_LP64)
+    error ("%<-mlam=%> option: [u48|u57] not supported for 32-bit code");
+
   if (!opts->x_ix86_arch_string)
     opts->x_ix86_arch_string
       = TARGET_64BIT_P (opts->x_ix86_isa_flags)
@@ -2980,6 +2983,8 @@ ix86_option_override_internal (bool main_args_p,
     }
 
   if (ix86_tune_features [X86_TUNE_AVOID_256FMA_CHAINS])
+    SET_OPTION_IF_UNSET (opts, opts_set, param_avoid_fma_max_bits, 512);
+  else if (ix86_tune_features [X86_TUNE_AVOID_256FMA_CHAINS])
     SET_OPTION_IF_UNSET (opts, opts_set, param_avoid_fma_max_bits, 256);
   else if (ix86_tune_features [X86_TUNE_AVOID_128FMA_CHAINS])
     SET_OPTION_IF_UNSET (opts, opts_set, param_avoid_fma_max_bits, 128);

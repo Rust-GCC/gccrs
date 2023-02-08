@@ -1,5 +1,5 @@
 /* Classes for modeling the state of memory.
-   Copyright (C) 2019-2022 Free Software Foundation, Inc.
+   Copyright (C) 2019-2023 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -26,7 +26,7 @@ along with GCC; see the file COPYING3.  If not see
       (Zhongxing Xu, Ted Kremenek, and Jian Zhang)
      http://lcs.ios.ac.cn/~xuzb/canalyze/memmodel.pdf  */
 
-#include "sbitmap.h"
+#include "bitmap.h"
 #include "selftest.h"
 #include "analyzer/svalue.h"
 #include "analyzer/region.h"
@@ -390,7 +390,7 @@ class region_model
 				       region_model_context *ctxt);
   const region *create_region_for_alloca (const svalue *size_in_bytes,
 					  region_model_context *ctxt);
-  void get_referenced_base_regions (auto_sbitmap &out_ids) const;
+  void get_referenced_base_regions (auto_bitmap &out_ids) const;
 
   tree get_representative_tree (const svalue *sval) const;
   tree get_representative_tree (const region *reg) const;
@@ -485,6 +485,7 @@ class region_model
 
   const svalue *check_for_poison (const svalue *sval,
 				  tree expr,
+				  const region *src_region,
 				  region_model_context *ctxt) const;
 
   void check_region_for_write (const region *dest_reg,
@@ -701,6 +702,8 @@ class region_model_context
   {
     return get_state_map_by_name ("taint", out_smap, out_sm, out_sm_idx, NULL);
   }
+
+  bool possibly_tainted_p (const svalue *sval);
 
   /* Get the current statement, if any.  */
   virtual const gimple *get_stmt () const = 0;
@@ -1007,6 +1010,16 @@ public:
   tree m_lhs;
   enum tree_code m_op;
   tree m_rhs;
+};
+
+class rejected_default_case : public rejected_constraint
+{
+public:
+  rejected_default_case (const region_model &model)
+  : rejected_constraint (model)
+  {}
+
+  void dump_to_pp (pretty_printer *pp) const final override;
 };
 
 class rejected_ranges_constraint : public rejected_constraint

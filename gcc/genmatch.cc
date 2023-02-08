@@ -1,7 +1,7 @@
 /* Generate pattern matching and transform code shared between
    GENERIC and GIMPLE folding code from match-and-simplify description.
 
-   Copyright (C) 2014-2022 Free Software Foundation, Inc.
+   Copyright (C) 2014-2023 Free Software Foundation, Inc.
    Contributed by Richard Biener <rguenther@suse.de>
    and Prathamesh Kulkarni  <bilbotheelffriend@gmail.com>
 
@@ -489,6 +489,21 @@ commutative_op (id_base *id)
       case CFN_FNMS:
 	return 0;
 
+      case CFN_COND_ADD:
+      case CFN_COND_MUL:
+      case CFN_COND_MIN:
+      case CFN_COND_MAX:
+      case CFN_COND_FMIN:
+      case CFN_COND_FMAX:
+      case CFN_COND_AND:
+      case CFN_COND_IOR:
+      case CFN_COND_XOR:
+      case CFN_COND_FMA:
+      case CFN_COND_FMS:
+      case CFN_COND_FNMA:
+      case CFN_COND_FNMS:
+	return 1;
+
       default:
 	return -1;
       }
@@ -496,7 +511,7 @@ commutative_op (id_base *id)
     {
       int res = commutative_op (uid->substitutes[0]);
       if (res < 0)
-	return 0;
+	return -1;
       for (unsigned i = 1; i < uid->substitutes.length (); ++i)
 	if (res != commutative_op (uid->substitutes[i]))
 	  return -1;
@@ -2927,8 +2942,16 @@ dt_node::gen_kids (FILE *f, int indent, bool gimple, int depth)
 	  if (expr *e = dyn_cast <expr *> (op->op))
 	    {
 	      if (e->ops.length () == 0
+		  /* In GIMPLE a CONSTRUCTOR always appears in a
+		     separate definition.  */
 		  && (!gimple || !(*e->operation == CONSTRUCTOR)))
-		generic_exprs.safe_push (op);
+		{
+		  generic_exprs.safe_push (op);
+		  /* But ADDR_EXPRs can appear directly when invariant
+		     and in a separate definition when not.  */
+		  if (gimple && *e->operation == ADDR_EXPR)
+		    gimple_exprs.safe_push (op);
+		}
 	      else if (e->operation->kind == id_base::FN)
 		{
 		  if (gimple)

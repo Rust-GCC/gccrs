@@ -1,5 +1,5 @@
 /* Support for plugin-supplied behaviors of known functions.
-   Copyright (C) 2022 Free Software Foundation, Inc.
+   Copyright (C) 2022-2023 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -24,6 +24,18 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/analyzer-logging.h"
 
 namespace ana {
+
+/* Instances of known_function are registered with the known_function_manager
+   when the analyzer starts.
+
+   The known_function_manager has responsibility for determining which
+   known_function instance (if any) is relevant at a call site, by checking
+   name or id, and by calling known_function::matches_call_types_p to ensure
+   that the known_function's preconditions hold (typically assumptions about
+   types e.g. that "has 3 args, and that arg 0 is of pointer type").
+
+   The known_function subclasses themselves have responsibility for
+   determining the outcome(s) of the call.  */
 
 class known_function_manager : public log_user
 {

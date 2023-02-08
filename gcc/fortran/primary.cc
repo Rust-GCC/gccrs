@@ -1,5 +1,5 @@
 /* Primary expression subroutines
-   Copyright (C) 2000-2022 Free Software Foundation, Inc.
+   Copyright (C) 2000-2023 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -586,7 +586,7 @@ match_real_constant (gfc_expr **result, int signflag)
 
   if (c == 'q')
     {
-      if (!gfc_notify_std (GFC_STD_GNU, "exponent-letter 'q' in "
+      if (!gfc_notify_std (GFC_STD_GNU, "exponent-letter %<q%> in "
 			   "real-literal-constant at %C"))
 	return MATCH_ERROR;
       else if (warn_real_q_constant)
@@ -2070,8 +2070,8 @@ gfc_match_varspec (gfc_expr *primary, int equiv_flag, bool sub_flag,
 	  || (sym->ts.type == BT_CLASS && CLASS_DATA (sym)
 	      && CLASS_DATA (sym)->attr.dimension))
 	{
-	  gfc_error ("Array section designator, e.g. '(:)', is required "
-		     "besides the coarray designator '[...]' at %C");
+	  gfc_error ("Array section designator, e.g. %<(:)%>, is required "
+		     "besides the coarray designator %<[...]%> at %C");
 	  return MATCH_ERROR;
 	}
       if ((sym->ts.type != BT_CLASS && !sym->attr.codimension)
@@ -4076,8 +4076,14 @@ match_variable (gfc_expr **result, int equiv_flag, int host_flag)
 	  gfc_error ("Named constant at %C in an EQUIVALENCE");
 	  return MATCH_ERROR;
 	}
-      /* Otherwise this is checked for and an error given in the
-	 variable definition context checks.  */
+      if (gfc_in_match_data())
+	{
+	  gfc_error ("PARAMETER %qs shall not appear in a DATA statement at %C",
+		      sym->name);
+	  return MATCH_ERROR;
+	}
+	/* Otherwise this is checked for an error given in the
+	   variable definition context checks.  */
       break;
 
     case FL_PROCEDURE:

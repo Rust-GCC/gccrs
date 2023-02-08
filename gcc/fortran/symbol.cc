@@ -1,5 +1,5 @@
 /* Maintain binary trees of symbols.
-   Copyright (C) 2000-2022 Free Software Foundation, Inc.
+   Copyright (C) 2000-2023 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -1107,6 +1107,12 @@ gfc_add_contiguous (symbol_attribute *attr, const char *name, locus *where)
 
   if (check_used (attr, name, where))
     return false;
+
+  if (attr->contiguous)
+    {
+      duplicate_attr ("CONTIGUOUS", where);
+      return false;
+    }
 
   attr->contiguous = 1;
   return gfc_check_conflict (attr, name, where);

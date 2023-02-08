@@ -2,7 +2,7 @@
    constexpr functions.  These routines are used both during actual parsing
    and during the instantiation of template functions.
 
-   Copyright (C) 1998-2022 Free Software Foundation, Inc.
+   Copyright (C) 1998-2023 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -1492,7 +1492,7 @@ cxx_eval_builtin_function_call (const constexpr_ctx *ctx, tree t, tree fun,
       temp_override<tree> ovr (current_function_decl);
       if (ctx->call && ctx->call->fundef)
 	current_function_decl = ctx->call->fundef->decl;
-      return fold_builtin_source_location (EXPR_LOCATION (t));
+      return fold_builtin_source_location (t);
     }
 
   int strops = 0;
@@ -2214,6 +2214,22 @@ is_std_construct_at (const constexpr_call *call)
 	  && is_std_construct_at (call->fundef->decl));
 }
 
+/* True if CTX is an instance of std::allocator.  */
+
+bool
+is_std_allocator (tree ctx)
+{
+  if (ctx == NULL_TREE || !CLASS_TYPE_P (ctx) || !TYPE_MAIN_DECL (ctx))
+    return false;
+
+  tree decl = TYPE_MAIN_DECL (ctx);
+  tree name = DECL_NAME (decl);
+  if (name == NULL_TREE || !id_equal (name, "allocator"))
+    return false;
+
+  return decl_in_std_namespace_p (decl);
+}
+
 /* Return true if FNDECL is std::allocator<T>::{,de}allocate.  */
 
 static inline bool
@@ -2224,16 +2240,7 @@ is_std_allocator_allocate (tree fndecl)
       || !(id_equal (name, "allocate") || id_equal (name, "deallocate")))
     return false;
 
-  tree ctx = DECL_CONTEXT (fndecl);
-  if (ctx == NULL_TREE || !CLASS_TYPE_P (ctx) || !TYPE_MAIN_DECL (ctx))
-    return false;
-
-  tree decl = TYPE_MAIN_DECL (ctx);
-  name = DECL_NAME (decl);
-  if (name == NULL_TREE || !id_equal (name, "allocator"))
-    return false;
-
-  return decl_in_std_namespace_p (decl);
+  return is_std_allocator (DECL_CONTEXT (fndecl));
 }
 
 /* Overload for the above taking constexpr_call*.  */
@@ -2993,13 +3000,15 @@ cxx_eval_call_expression (const constexpr_ctx *ctx, tree t,
 
       /* If we have seen this call before, we are done.  */
       maybe_initialize_constexpr_call_table ();
+      bool insert = depth_ok < constexpr_cache_depth;
       constexpr_call **slot
-	= constexpr_call_table->find_slot (&new_call, INSERT);
-      entry = *slot;
+	= constexpr_call_table->find_slot (&new_call,
+					   insert ? INSERT : NO_INSERT);
+      entry = slot ? *slot : NULL;
       if (entry == NULL)
 	{
 	  /* Only cache up to constexpr_cache_depth to limit memory use.  */
-	  if (depth_ok < constexpr_cache_depth)
+	  if (insert)
 	    {
 	      /* We need to keep a pointer to the entry, not just the slot, as
 		 the slot can move during evaluation of the body.  */
@@ -8474,7 +8483,8 @@ fold_simple (tree t)
 static GTY((deletable)) hash_map<tree, tree> *cv_cache;
 
 tree
-maybe_constant_value (tree t, tree decl, bool manifestly_const_eval)
+maybe_constant_value (tree t, tree decl /* = NULL_TREE */,
+		      bool manifestly_const_eval /* = false */)
 {
   tree r;
 
@@ -8499,6 +8509,10 @@ maybe_constant_value (tree t, tree decl, bool manifestly_const_eval)
       r = *cached;
       if (r != t)
 	{
+	  /* Clear processing_template_decl for sake of break_out_target_exprs;
+	     entries in the cv_cache are non-templated.  */
+	  processing_template_decl_sentinel ptds;
+
 	  r = break_out_target_exprs (r, /*clear_loc*/true);
 	  protected_set_expr_location (r, EXPR_LOCATION (t));
 	}

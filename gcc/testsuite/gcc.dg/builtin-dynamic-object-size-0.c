@@ -314,6 +314,71 @@ test_dynarray_struct_subobj2 (size_t sz, size_t off, size_t *objsz)
   return __builtin_dynamic_object_size (&bin.c[off], 1);
 }
 
+/* See pr #108522.  */
+
+#define DEFSTRUCT(_s, _n) \
+  struct DS								      \
+    {									      \
+      char a[_n];							      \
+      unsigned long long b;						      \
+      int c;								      \
+      char d[2 * _n];							      \
+    } _s
+
+size_t
+__attribute__ ((noinline))
+test_dynarray_struct_member_b (size_t sz)
+{
+  DEFSTRUCT (s, sz);
+
+  return __builtin_dynamic_object_size (&s.b, 0);
+}
+
+size_t
+__attribute__ ((noinline))
+test_dynarray_struct_member_c (size_t sz)
+{
+  DEFSTRUCT (s, sz);
+
+  return __builtin_dynamic_object_size (&s.c, 0);
+}
+
+size_t
+__attribute__ ((noinline))
+test_dynarray_struct_member_d (size_t sz, size_t offset)
+{
+  DEFSTRUCT (s, sz);
+
+  return __builtin_dynamic_object_size (&s.d[offset], 0);
+}
+
+size_t
+__attribute__ ((noinline))
+test_dynarray_struct_member_subobj_b (size_t sz)
+{
+  DEFSTRUCT (s, sz);
+
+  return __builtin_dynamic_object_size (&s.b, 1);
+}
+
+size_t
+__attribute__ ((noinline))
+test_dynarray_struct_member_subobj_c (size_t sz)
+{
+  DEFSTRUCT (s, sz);
+
+  return __builtin_dynamic_object_size (&s.c, 1);
+}
+
+size_t
+__attribute__ ((noinline))
+test_dynarray_struct_member_subobj_d (size_t sz, size_t offset)
+{
+  DEFSTRUCT (s, sz);
+
+  return __builtin_dynamic_object_size (&s.d[offset], 1);
+}
+
 size_t
 __attribute__ ((noinline))
 test_substring (size_t sz, size_t off)
@@ -486,7 +551,10 @@ __attribute__ ((noinline))
 test_strdup (const char *in)
 {
   char *res = __builtin_strdup (in);
-  return __builtin_dynamic_object_size (res, 0);
+  size_t sz = __builtin_dynamic_object_size (res, 0);
+
+  __builtin_free (res);
+  return sz;
 }
 
 size_t
@@ -494,7 +562,10 @@ __attribute__ ((noinline))
 test_strndup (const char *in, size_t bound)
 {
   char *res = __builtin_strndup (in, bound);
-  return __builtin_dynamic_object_size (res, 0);
+  size_t sz = __builtin_dynamic_object_size (res, 0);
+
+  __builtin_free (res);
+  return sz;
 }
 
 size_t
@@ -502,7 +573,10 @@ __attribute__ ((noinline))
 test_strdup_min (const char *in)
 {
   char *res = __builtin_strdup (in);
-  return __builtin_dynamic_object_size (res, 2);
+  size_t sz = __builtin_dynamic_object_size (res, 2);
+
+  __builtin_free (res);
+  return sz;
 }
 
 size_t
@@ -510,7 +584,10 @@ __attribute__ ((noinline))
 test_strndup_min (const char *in, size_t bound)
 {
   char *res = __builtin_strndup (in, bound);
-  return __builtin_dynamic_object_size (res, 2);
+  size_t sz = __builtin_dynamic_object_size (res, 2);
+
+  __builtin_free (res);
+  return sz;
 }
 
 /* Other tests.  */
@@ -606,6 +683,24 @@ main (int argc, char **argv)
   size_t objsz = 0;
   if (test_dynarray_struct_subobj2 (42, 4, &objsz)
     != objsz - 4 - sizeof (long) - sizeof (int))
+    FAIL ();
+  DEFSTRUCT(ds, 64);
+  const size_t n = sizeof (ds.a);
+  if (test_dynarray_struct_member_b (n)
+      != sizeof (ds) - __builtin_offsetof (struct DS, b))
+    FAIL ();
+  if (test_dynarray_struct_member_c (n)
+      != sizeof (ds) - __builtin_offsetof (struct DS, c))
+    FAIL ();
+  if (test_dynarray_struct_member_d (n, 0)
+      != sizeof (ds) - __builtin_offsetof (struct DS, d))
+    FAIL ();
+  if (test_dynarray_struct_member_subobj_b (n) != sizeof (ds.b))
+    FAIL ();
+  if (test_dynarray_struct_member_subobj_c (n) != sizeof (ds.c))
+    FAIL ();
+  if (test_dynarray_struct_member_subobj_d (n, n - 2)
+      != sizeof (ds) - __builtin_offsetof (struct DS, d) - n + 2)
     FAIL ();
   if (test_substring_ptrplus (128, 4) != (128 - 4) * sizeof (int))
     FAIL ();

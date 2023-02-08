@@ -1,6 +1,6 @@
 // -*- C++ -*- header.
 
-// Copyright (C) 2008-2022 Free Software Foundation, Inc.
+// Copyright (C) 2008-2023 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -1726,6 +1726,23 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       using __atomic_ref<_Tp>::operator=;
     };
+
+#define __cpp_lib_atomic_lock_free_type_aliases 201907L
+#ifdef _GLIBCXX_HAVE_PLATFORM_WAIT
+  using atomic_signed_lock_free
+    = atomic<make_signed_t<__detail::__platform_wait_t>>;
+  using atomic_unsigned_lock_free
+    = atomic<make_unsigned_t<__detail::__platform_wait_t>>;
+#elif ATOMIC_INT_LOCK_FREE || !(ATOMIC_LONG_LOCK_FREE || ATOMIC_CHAR_LOCK_FREE)
+  using atomic_signed_lock_free = atomic<signed int>;
+  using atomic_unsigned_lock_free = atomic<unsigned int>;
+#elif ATOMIC_LONG_LOCK_FREE
+  using atomic_signed_lock_free = atomic<signed long>;
+  using atomic_unsigned_lock_free = atomic<unsigned long>;
+#elif ATOMIC_CHAR_LOCK_FREE
+  using atomic_signed_lock_free = atomic<signed char>;
+  using atomic_unsigned_lock_free = atomic<unsigned char>;
+#endif
 
 #endif // C++2a
 

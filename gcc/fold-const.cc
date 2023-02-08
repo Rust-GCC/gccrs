@@ -1,5 +1,5 @@
 /* Fold a constant sub-tree into a single node for C-compiler
-   Copyright (C) 1987-2022 Free Software Foundation, Inc.
+   Copyright (C) 1987-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -164,7 +164,7 @@ expr_location_or (tree t, location_t loc)
 /* Similar to protected_set_expr_location, but never modify x in place,
    if location can and needs to be set, unshare it.  */
 
-static inline tree
+tree
 protected_set_expr_location_unshare (tree x, location_t loc)
 {
   if (CAN_HAVE_LOCATION_P (x)
@@ -2178,6 +2178,15 @@ fold_convert_const_real_from_real (tree type, const_tree arg1)
   REAL_VALUE_TYPE value;
   tree t;
 
+  /* If the underlying modes are the same, simply treat it as
+     copy and rebuild with TREE_REAL_CST information and the
+     given type.  */
+  if (TYPE_MODE (type) == TYPE_MODE (TREE_TYPE (arg1)))
+    {
+      t = build_real (type, TREE_REAL_CST (arg1));
+      return t;
+    }
+
   /* Don't perform the operation if flag_signaling_nans is on
      and the operand is a signaling NaN.  */
   if (HONOR_SNANS (arg1)
@@ -2618,7 +2627,7 @@ fold_convert_loc (location_t loc, tree type, tree arg)
       gcc_unreachable ();
     }
  fold_convert_exit:
-  protected_set_expr_location_unshare (tem, loc);
+  tem = protected_set_expr_location_unshare (tem, loc);
   return tem;
 }
 
@@ -9565,7 +9574,9 @@ fold_unary_loc (location_t loc, enum tree_code code, tree type, tree op0)
       if (INTEGRAL_TYPE_P (type)
 	  && TREE_CODE (op0) == MULT_EXPR
 	  && INTEGRAL_TYPE_P (TREE_TYPE (op0))
-	  && TYPE_PRECISION (type) < TYPE_PRECISION (TREE_TYPE (op0)))
+	  && TYPE_PRECISION (type) < TYPE_PRECISION (TREE_TYPE (op0))
+	  && (TYPE_OVERFLOW_WRAPS (TREE_TYPE (op0))
+	      || !sanitize_flags_p (SANITIZE_SI_OVERFLOW)))
 	{
 	  /* Be careful not to introduce new overflows.  */
 	  tree mult_type;
@@ -16344,6 +16355,11 @@ split_address_to_core_and_offset (tree exp,
   poly_int64 bitsize;
   location_t loc = EXPR_LOCATION (exp);
 
+  if (TREE_CODE (exp) == SSA_NAME)
+    if (gassign *def = dyn_cast <gassign *> (SSA_NAME_DEF_STMT (exp)))
+      if (gimple_assign_rhs_code (def) == ADDR_EXPR)
+	exp = gimple_assign_rhs1 (def);
+
   if (TREE_CODE (exp) == ADDR_EXPR)
     {
       core = get_inner_reference (TREE_OPERAND (exp, 0), &bitsize, pbitpos,
@@ -16628,6 +16644,10 @@ address_compare (tree_code code, tree type, tree op0, tree op1,
 		 tree &base0, tree &base1, poly_int64 &off0, poly_int64 &off1,
 		 bool generic)
 {
+  if (TREE_CODE (op0) == SSA_NAME)
+    op0 = gimple_assign_rhs1 (SSA_NAME_DEF_STMT (op0));
+  if (TREE_CODE (op1) == SSA_NAME)
+    op1 = gimple_assign_rhs1 (SSA_NAME_DEF_STMT (op1));
   gcc_checking_assert (TREE_CODE (op0) == ADDR_EXPR);
   gcc_checking_assert (TREE_CODE (op1) == ADDR_EXPR);
   base0 = get_addr_base_and_unit_offset (TREE_OPERAND (op0, 0), &off0);

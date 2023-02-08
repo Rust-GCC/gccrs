@@ -1,5 +1,5 @@
 /* Compiler driver program that can handle many languages.
-   Copyright (C) 1987-2022 Free Software Foundation, Inc.
+   Copyright (C) 1987-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -706,11 +706,11 @@ proper position among the other output files.  */
 #define CPP_SPEC ""
 #endif
 
-/* Subtargets can define SUBTARGET_CC1_SPEC to provide extra args to cc1 and
-   cc1plus or extra switch-translations.  The SUBTARGET_CC1_SPEC is appended
+/* Operating systems can define OS_CC1_SPEC to provide extra args to cc1 and
+   cc1plus or extra switch-translations.  The OS_CC1_SPEC is appended
    to CC1_SPEC in the initialization of cc1_spec.  */
-#ifndef SUBTARGET_CC1_SPEC
-#define SUBTARGET_CC1_SPEC ""
+#ifndef OS_CC1_SPEC
+#define OS_CC1_SPEC ""
 #endif
 
 /* config.h can define CC1_SPEC to provide extra args to cc1 and cc1plus
@@ -1181,7 +1181,7 @@ proper position among the other output files.  */
 static const char *asm_debug = ASM_DEBUG_SPEC;
 static const char *asm_debug_option = ASM_DEBUG_OPTION_SPEC;
 static const char *cpp_spec = CPP_SPEC;
-static const char *cc1_spec = CC1_SPEC SUBTARGET_CC1_SPEC;
+static const char *cc1_spec = CC1_SPEC OS_CC1_SPEC;
 static const char *cc1plus_spec = CC1PLUS_SPEC;
 static const char *link_gcc_c_sequence_spec = LINK_GCC_C_SEQUENCE_SPEC;
 static const char *link_ssp_spec = LINK_SSP_SPEC;
@@ -1423,6 +1423,7 @@ static const struct compiler default_compilers[] =
   {".r", "#Ratfor", 0, 0, 0},
   {".go", "#Go", 0, 1, 0},
   {".d", "#D", 0, 1, 0}, {".dd", "#D", 0, 1, 0}, {".di", "#D", 0, 1, 0},
+  {".mod", "#Modula-2", 0, 0, 0}, {".m2i", "#Modula-2", 0, 0, 0},
   /* Next come the entries for C.  */
   {".c", "@c", 0, 0, 1},
   {"@c",
@@ -4540,12 +4541,14 @@ driver_handle_option (struct gcc_options *opts,
     case OPT_static_libgfortran:
     case OPT_static_libquadmath:
     case OPT_static_libphobos:
+    case OPT_static_libgm2:
     case OPT_static_libstdc__:
-      /* These are always valid, since gcc.cc itself understands the
-	 first two, gfortranspec.cc understands -static-libgfortran,
-	 d-spec.cc understands -static-libphobos, g++spec.cc
-	 understands -static-libstdc++ and libgfortran.spec handles
-	 -static-libquadmath.  */
+      /* These are always valid; gcc.cc itself understands the first two
+	 gfortranspec.cc understands -static-libgfortran,
+	 libgfortran.spec handles -static-libquadmath,
+	 d-spec.cc understands -static-libphobos,
+	 gm2spec.cc understands -static-libgm2,
+	 and g++spec.cc understands -static-libstdc++.  */
       validated = true;
       break;
 
@@ -8749,7 +8752,7 @@ driver::maybe_print_and_exit () const
     {
       printf (_("%s %s%s\n"), progname, pkgversion_string,
 	      version_string);
-      printf ("Copyright %s 2022 Free Software Foundation, Inc.\n",
+      printf ("Copyright %s 2023 Free Software Foundation, Inc.\n",
 	      _("(C)"));
       fputs (_("This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"),

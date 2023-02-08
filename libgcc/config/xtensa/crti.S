@@ -1,5 +1,5 @@
 # Start .init and .fini sections.
-# Copyright (C) 2003-2022 Free Software Foundation, Inc.
+# Copyright (C) 2003-2023 Free Software Foundation, Inc.
 # 
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
 # .init sections.  Users may put any desired instructions in those
 # sections.
 
-#include "xtensa-config.h"
+#include "xtensa-config-builtin.h"
 
 	.section .init
 	.globl _init

@@ -165,9 +165,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       return __state;
     }
 
-    template<typename _CharT, typename _Traits>
-      friend basic_ostream<_CharT, _Traits>&
-      operator<<(basic_ostream<_CharT, _Traits>&, const stacktrace_entry&);
+    friend ostream&
+    operator<<(ostream&, const stacktrace_entry&);
 
     bool
     _M_get_info(string* __desc, string* __file, int* __line) const
@@ -220,6 +219,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 					       &__status);
       if (__status == 0)
 	__s = __str;
+      else
+	__s = __name;
       __builtin_free(__str);
       return __s;
     }
@@ -609,8 +610,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    {
 	      if constexpr (is_same_v<allocator_type, allocator<value_type>>)
 		{
-		  __n *= sizeof(value_type);
-		  void* const __p = _GLIBCXX_OPERATOR_NEW (__n, nothrow_t{});
+		  // For std::allocator we use nothrow-new directly so we
+		  // don't need to handle bad_alloc exceptions.
+		  size_t __nb = __n * sizeof(value_type);
+		  void* const __p = _GLIBCXX_OPERATOR_NEW (__nb, nothrow_t{});
 		  if (__p == nullptr) [[unlikely]]
 		    return nullptr;
 		  _M_frames = static_cast<pointer>(__p);
@@ -720,25 +723,22 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     noexcept(noexcept(__a.swap(__b)))
     { __a.swap(__b); }
 
-  template<typename _CharT, typename _Traits>
-    inline basic_ostream<_CharT, _Traits>&
-    operator<<(basic_ostream<_CharT, _Traits>& __os,
-	       const stacktrace_entry& __f)
-    {
-      string __desc, __file;
-      int __line;
-      if (__f._M_get_info(&__desc, &__file, &__line))
-	{
-	  __os.width(4);
-	  __os << __desc << " at " << __file << ':' << __line;
-	}
-      return __os;
-    }
+  inline ostream&
+  operator<<(ostream& __os, const stacktrace_entry& __f)
+  {
+    string __desc, __file;
+    int __line;
+    if (__f._M_get_info(&__desc, &__file, &__line))
+      {
+	__os.width(4);
+	__os << __desc << " at " << __file << ':' << __line;
+      }
+    return __os;
+  }
 
-  template<typename _CharT, typename _Traits, typename _Allocator>
-    inline basic_ostream<_CharT, _Traits>&
-    operator<<(basic_ostream<_CharT, _Traits>& __os,
-	       const basic_stacktrace<_Allocator>& __st)
+  template<typename _Allocator>
+    inline ostream&
+    operator<<(ostream& __os, const basic_stacktrace<_Allocator>& __st)
     {
       for (stacktrace::size_type __i = 0; __i < __st.size(); ++__i)
 	{

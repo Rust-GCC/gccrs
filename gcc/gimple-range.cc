@@ -1,5 +1,5 @@
 /* Code for GIMPLE range related routines.
-   Copyright (C) 2019-2022 Free Software Foundation, Inc.
+   Copyright (C) 2019-2023 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod <amacleod@redhat.com>
    and Aldy Hernandez <aldyh@redhat.com>.
 
@@ -422,18 +422,20 @@ gimple_ranger::prefill_stmt_dependencies (tree ssa)
       else
 	{
 	  gimple_range_op_handler handler (stmt);
-	  gcc_checking_assert (handler);
-	  tree op = handler.operand2 ();
-	  if (op)
+	  if (handler)
 	    {
-	      Value_Range r (TREE_TYPE (op));
-	      prefill_name (r, op);
-	    }
-	  op = handler.operand1 ();
-	  if (op)
-	    {
-	      Value_Range r (TREE_TYPE (op));
-	      prefill_name (r, op);
+	      tree op = handler.operand2 ();
+	      if (op)
+		{
+		  Value_Range r (TREE_TYPE (op));
+		  prefill_name (r, op);
+		}
+	      op = handler.operand1 ();
+	      if (op)
+		{
+		  Value_Range r (TREE_TYPE (op));
+		  prefill_name (r, op);
+		}
 	    }
 	}
     }

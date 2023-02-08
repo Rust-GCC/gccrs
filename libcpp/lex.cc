@@ -1,5 +1,5 @@
 /* CPP Library - lexical analysis.
-   Copyright (C) 2000-2022 Free Software Foundation, Inc.
+   Copyright (C) 2000-2023 Free Software Foundation, Inc.
    Contributed by Per Bothner, 1994-95.
    Based on CCCP program by Paul Rubin, June 1986
    Adapted to ANSI C, Richard Stallman, Jan 1987
@@ -2135,8 +2135,14 @@ maybe_va_opt_error (cpp_reader *pfile)
       /* __VA_OPT__ should not be accepted at all, but allow it in
 	 system headers.  */
       if (!_cpp_in_system_header (pfile))
-	cpp_error (pfile, CPP_DL_PEDWARN,
-		   "__VA_OPT__ is not available until C++20");
+	{
+	  if (CPP_OPTION (pfile, cplusplus))
+	    cpp_error (pfile, CPP_DL_PEDWARN,
+		       "__VA_OPT__ is not available until C++20");
+	  else
+	    cpp_error (pfile, CPP_DL_PEDWARN,
+		       "__VA_OPT__ is not available until C2X");
+	}
     }
   else if (!pfile->state.va_args_ok)
     {

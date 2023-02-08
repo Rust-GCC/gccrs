@@ -1,5 +1,5 @@
 /* imports.cc -- Build imported modules/declarations.
-   Copyright (C) 2014-2022 Free Software Foundation, Inc.
+   Copyright (C) 2014-2023 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -158,6 +158,20 @@ public:
   {
     if (d->aliassym != NULL)
       d->aliassym->accept (this);
+  }
+
+  /* Build IMPORTED_DECLs for all overloads in a set.  */
+  void visit (OverloadSet *d) final override
+  {
+    vec<tree, va_gc> *tset = NULL;
+
+    vec_alloc (tset, d->a.length);
+
+    for (size_t i = 0; i < d->a.length; i++)
+      vec_safe_push (tset, build_import_decl (d->a[i]));
+
+    this->result_ = build_tree_list_vec (tset);
+    tset->truncate (0);
   }
 
   /* Function aliases are the same as alias symbols.  */

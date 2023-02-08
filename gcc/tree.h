@@ -1,5 +1,5 @@
 /* Definitions for the ubiquitous 'tree' type for GNU compilers.
-   Copyright (C) 1989-2022 Free Software Foundation, Inc.
+   Copyright (C) 1989-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1289,6 +1289,8 @@ get_expr_source_range (tree expr)
 
 extern void protected_set_expr_location (tree, location_t);
 extern void protected_set_expr_location_if_unset (tree, location_t);
+ATTRIBUTE_WARN_UNUSED_RESULT
+extern tree protected_set_expr_location_unshare (tree, location_t);
 
 WARN_UNUSED_RESULT extern tree maybe_wrap_with_location (tree, location_t);
 
@@ -4673,6 +4675,7 @@ extern tree build_one_cst (tree);
 extern tree build_minus_one_cst (tree);
 extern tree build_all_ones_cst (tree);
 extern tree build_zero_cst (tree);
+extern tree sign_mask_for (tree);
 extern tree build_string (unsigned, const char * = NULL);
 extern tree build_poly_int_cst (tree, const poly_wide_int_ref &);
 extern tree build_tree_list (tree, tree CXX_MEM_STAT_INFO);
@@ -4722,6 +4725,7 @@ extern tree signed_or_unsigned_type_for (int, tree);
 extern tree signed_type_for (tree);
 extern tree unsigned_type_for (tree);
 extern bool is_truth_type_for (tree, tree);
+extern bool tree_zero_one_valued_p (tree);
 extern tree truth_type_for (tree);
 extern tree build_pointer_type_for_mode (tree, machine_mode, bool);
 extern tree build_pointer_type (tree);
@@ -5369,6 +5373,7 @@ extern bool tree_nop_conversion_p (const_tree, const_tree);
 extern tree tree_strip_nop_conversions (tree);
 extern tree tree_strip_sign_nop_conversions (tree);
 extern const_tree strip_invariant_refs (const_tree);
+extern tree strip_zero_offset_components (tree);
 extern tree lhd_gcc_personality (void);
 extern void assign_assembler_name_if_needed (tree);
 extern bool warn_deprecated_use (tree, tree);
@@ -5493,6 +5498,7 @@ extern bool needs_to_live_in_memory (const_tree);
 extern tree reconstruct_complex_type (tree, tree);
 extern bool real_onep (const_tree);
 extern bool real_minus_onep (const_tree);
+extern bool real_maybe_zerop (const_tree);
 extern void init_ttree (void);
 extern void build_common_tree_nodes (bool);
 extern void build_common_builtin_nodes (void);

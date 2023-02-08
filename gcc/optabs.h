@@ -1,5 +1,5 @@
 /* Definitions for code generation pass of GNU compiler.
-   Copyright (C) 2001-2022 Free Software Foundation, Inc.
+   Copyright (C) 2001-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -266,6 +266,10 @@ extern rtx prepare_operand (enum insn_code, rtx, int, machine_mode,
    to a label if the comparison is true.  */
 extern void emit_cmp_and_jump_insns (rtx, rtx, enum rtx_code, rtx,
 				     machine_mode, int, rtx,
+				     profile_probability prob
+					= profile_probability::uninitialized ());
+extern void emit_cmp_and_jump_insns (rtx, rtx, enum rtx_code, rtx,
+				     machine_mode, int, tree, rtx,
 				     profile_probability prob
 					= profile_probability::uninitialized ());
 

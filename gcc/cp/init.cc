@@ -1,5 +1,5 @@
 /* Handle initialization things in -*- C++ -*-
-   Copyright (C) 1987-2022 Free Software Foundation, Inc.
+   Copyright (C) 1987-2023 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -669,6 +669,10 @@ get_nsdmi (tree member, bool in_ctor, tsubst_flags_t complain)
       current_class_ref = build0 (PLACEHOLDER_EXPR, DECL_CONTEXT (member));
       current_class_ptr = build_address (current_class_ref);
     }
+
+  /* Clear processing_template_decl for sake of break_out_target_exprs;
+     INIT is always non-templated.  */
+  processing_template_decl_sentinel ptds;
 
   /* Strip redundant TARGET_EXPR so we don't need to remap it, and
      so the aggregate init code below will see a CONSTRUCTOR.  */
@@ -3796,6 +3800,8 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
   if (cookie_expr)
     rval = build2 (COMPOUND_EXPR, TREE_TYPE (rval), cookie_expr, rval);
 
+  suppress_warning (rval, OPT_Wunused_value);
+
   if (rval == data_addr && TREE_CODE (alloc_expr) == TARGET_EXPR)
     /* If we don't have an initializer or a cookie, strip the TARGET_EXPR
        and return the call (which doesn't need to be adjusted).  */
@@ -4308,6 +4314,51 @@ finish_length_check (tree atype, tree iterator, tree obase, unsigned n)
     }
 }
 
+/* walk_tree callback to collect temporaries in an expression.  */
+
+tree
+find_temps_r (tree *tp, int *walk_subtrees, void *data)
+{
+  vec<tree*> &temps = *static_cast<auto_vec<tree*> *>(data);
+  tree t = *tp;
+  if (TREE_CODE (t) == TARGET_EXPR
+      && !TARGET_EXPR_ELIDING_P (t))
+    temps.safe_push (tp);
+  else if (TYPE_P (t))
+    *walk_subtrees = 0;
+
+  return NULL_TREE;
+}
+
+/* If INIT initializes a standard library class, and involves a temporary
+   std::allocator<T>, return a pointer to the temp.
+
+   Used by build_vec_init when initializing an array of e.g. strings to reuse
+   the same temporary allocator for all of the strings.  We can do this because
+   std::allocator has no data and the standard library doesn't care about the
+   address of allocator objects.
+
+   ??? Add an attribute to allow users to assert the same property for other
+   classes, i.e. one object of the type is interchangeable with any other?  */
+
+static tree*
+find_allocator_temp (tree init)
+{
+  if (TREE_CODE (init) == EXPR_STMT)
+    init = EXPR_STMT_EXPR (init);
+  if (TREE_CODE (init) == CONVERT_EXPR)
+    init = TREE_OPERAND (init, 0);
+  tree type = TREE_TYPE (init);
+  if (!CLASS_TYPE_P (type) || !decl_in_std_namespace_p (TYPE_NAME (type)))
+    return NULL;
+  auto_vec<tree*> temps;
+  cp_walk_tree_without_duplicates (&init, find_temps_r, &temps);
+  for (tree *p : temps)
+    if (is_std_allocator (TREE_TYPE (*p)))
+      return p;
+  return NULL;
+}
+
 /* `build_vec_init' returns tree structure that performs
    initialization of a vector of aggregate types.
 
@@ -4334,7 +4385,7 @@ build_vec_init (tree base, tree maxindex, tree init,
 		bool explicit_value_init_p,
 		int from_array,
 		tsubst_flags_t complain,
-		vec<tree, va_gc>** flags /* = nullptr */)
+		vec<tree, va_gc>** cleanup_flags /* = nullptr */)
 {
   tree rval;
   tree base2 = NULL_TREE;
@@ -4545,8 +4596,8 @@ build_vec_init (tree base, tree maxindex, tree init,
 	 anything for arrays.  But if the array is a subobject, we need to
 	 tell split_nonconstant_init how to turn off this cleanup in favor of
 	 the cleanup for the complete object.  */
-      if (flags)
-	vec_safe_push (*flags, build_tree_list (iterator, maxindex));
+      if (cleanup_flags)
+	vec_safe_push (*cleanup_flags, build_tree_list (iterator, maxindex));
     }
 
   /* Should we try to create a constant initializer?  */
@@ -4589,6 +4640,8 @@ build_vec_init (tree base, tree maxindex, tree init,
       if (try_const)
 	vec_alloc (const_vec, CONSTRUCTOR_NELTS (init));
 
+      tree alloc_obj = NULL_TREE;
+
       FOR_EACH_CONSTRUCTOR_ELT (CONSTRUCTOR_ELTS (init), idx, field, elt)
 	{
 	  tree baseref = build1 (INDIRECT_REF, type, base);
@@ -4603,7 +4656,8 @@ build_vec_init (tree base, tree maxindex, tree init,
 	  if (digested)
 	    one_init = cp_build_init_expr (baseref, elt);
 	  else if (tree vi = get_vec_init_expr (elt))
-	    one_init = expand_vec_init_expr (baseref, vi, complain, flags);
+	    one_init = expand_vec_init_expr (baseref, vi, complain,
+					     cleanup_flags);
 	  else if (MAYBE_CLASS_TYPE_P (type) || TREE_CODE (type) == ARRAY_TYPE)
 	    one_init = build_aggr_init (baseref, elt, 0, complain);
 	  else
@@ -4638,7 +4692,17 @@ build_vec_init (tree base, tree maxindex, tree init,
 	    }
 
 	  if (one_init)
-	    finish_expr_stmt (one_init);
+	    {
+	      /* Only create one std::allocator temporary.  */
+	      if (tree *this_alloc = find_allocator_temp (one_init))
+		{
+		  if (alloc_obj)
+		    *this_alloc = alloc_obj;
+		  else
+		    alloc_obj = TARGET_EXPR_SLOT (*this_alloc);
+		}
+	      finish_expr_stmt (one_init);
+	    }
 
 	  one_init = cp_build_unary_op (PREINCREMENT_EXPR, base, false,
 					complain);

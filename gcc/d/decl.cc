@@ -1,5 +1,5 @@
 /* decl.cc -- Lower D frontend declarations to GCC trees.
-   Copyright (C) 2006-2022 Free Software Foundation, Inc.
+   Copyright (C) 2006-2023 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -198,8 +198,16 @@ public:
 	    tree name = (alias != NULL)
 	      ? get_identifier (alias->toChars ()) : NULL_TREE;
 
-	    debug_hooks->imported_module_or_decl (decl, name, context,
-						  false, false);
+	    if (TREE_CODE (decl) != TREE_LIST)
+	      debug_hooks->imported_module_or_decl (decl, name, context,
+						    false, false);
+	    else
+	      {
+		/* Overload sets return a list of imported decls.  */
+		for (; decl != NULL_TREE; decl = TREE_CHAIN (decl))
+		  debug_hooks->imported_module_or_decl (TREE_VALUE (decl), name,
+							context, false, false);
+	      }
 	  }
       }
     else
@@ -1020,7 +1028,8 @@ build_decl_tree (Dsymbol *d)
   input_location = saved_location;
 }
 
-/* Returns true if function FD is defined or instantiated in a root module.  */
+/* Returns true if function FD, or any lexically enclosing scope function of FD
+   is defined or instantiated in a root module.  */
 
 static bool
 function_defined_in_root_p (FuncDeclaration *fd)
@@ -1029,9 +1038,11 @@ function_defined_in_root_p (FuncDeclaration *fd)
   if (md && md->isRoot ())
     return true;
 
-  TemplateInstance *ti = fd->isInstantiated ();
-  if (ti && ti->minst && ti->minst->isRoot ())
-    return true;
+  for (TemplateInstance *ti = fd->isInstantiated (); ti != NULL; ti = ti->tinst)
+    {
+      if (ti->minst && ti->minst->isRoot ())
+	return true;
+    }
 
   return false;
 }
@@ -1059,7 +1070,8 @@ function_needs_inline_definition_p (FuncDeclaration *fd)
 
   /* Check whether function will be regularly defined later in the current
      translation unit.  */
-  if (function_defined_in_root_p (fd))
+  Module *md = fd->getModule ();
+  if (md && md->isRoot ())
     return false;
 
   /* Non-inlineable functions are always external.  */

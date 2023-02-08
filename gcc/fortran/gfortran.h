@@ -1,5 +1,5 @@
 /* gfortran header file
-   Copyright (C) 2000-2022 Free Software Foundation, Inc.
+   Copyright (C) 2000-2023 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -1349,6 +1349,7 @@ typedef struct gfc_omp_namelist
       gfc_omp_reduction_op reduction_op;
       gfc_omp_depend_doacross_op depend_doacross_op;
       gfc_omp_map_op map_op;
+      gfc_expr *align;
       struct
 	{
 	  ENUM_BITFIELD (gfc_omp_linear_op) op:4;
@@ -1870,22 +1871,34 @@ typedef struct gfc_symbol
 
   gfc_namelist *namelist, *namelist_tail;
 
-  /* Change management fields.  Symbols that might be modified by the
-     current statement have the mark member nonzero.  Of these symbols,
-     symbols with old_symbol equal to NULL are symbols created within
-     the current statement.  Otherwise, old_symbol points to a copy of
-     the old symbol. gfc_new is used in symbol.cc to flag new symbols.
-     comp_mark is used to indicate variables which have component accesses
-     in OpenMP/OpenACC directive clauses.  */
-  struct gfc_symbol *old_symbol;
-  unsigned mark:1, comp_mark:1, gfc_new:1;
-
   /* The tlink field is used in the front end to carry the module
      declaration of separate module procedures so that the characteristics
      can be compared with the corresponding declaration in a submodule. In
      translation this field carries a linked list of symbols that require
      deferred initialization.  */
   struct gfc_symbol *tlink;
+
+  /* Change management fields.  Symbols that might be modified by the
+     current statement have the mark member nonzero.  Of these symbols,
+     symbols with old_symbol equal to NULL are symbols created within
+     the current statement.  Otherwise, old_symbol points to a copy of
+     the old symbol. gfc_new is used in symbol.cc to flag new symbols.
+     comp_mark is used to indicate variables which have component accesses
+     in OpenMP/OpenACC directive clauses (cf. c-typeck.cc:c_finish_omp_clauses,
+     map_field_head).
+     data_mark is used to check duplicate mappings for OpenMP data-sharing
+     clauses (see firstprivate_head/lastprivate_head in the above function).
+     dev_mark is used to check duplicate mappings for OpenMP
+     is_device_ptr/has_device_addr clauses (see is_on_device_head in above
+     function).
+     gen_mark is used to check duplicate mappings for OpenMP
+     use_device_ptr/use_device_addr/private/shared clauses (see generic_head in
+     above functon).
+     reduc_mark is used to check duplicate mappings for OpenMP reduction
+     clauses.  */
+  struct gfc_symbol *old_symbol;
+  unsigned mark:1, comp_mark:1, data_mark:1, dev_mark:1, gen_mark:1;
+  unsigned reduc_mark:1, gfc_new:1;
 
   /* Nonzero if all equivalences associated with this symbol have been
      processed.  */
@@ -3572,7 +3585,7 @@ void gfc_free_iterator (gfc_iterator *, int);
 void gfc_free_forall_iterator (gfc_forall_iterator *);
 void gfc_free_alloc_list (gfc_alloc *);
 void gfc_free_namelist (gfc_namelist *);
-void gfc_free_omp_namelist (gfc_omp_namelist *, bool);
+void gfc_free_omp_namelist (gfc_omp_namelist *, bool, bool);
 void gfc_free_equiv (gfc_equiv *);
 void gfc_free_equiv_until (gfc_equiv *, gfc_equiv *);
 void gfc_free_data (gfc_data *);

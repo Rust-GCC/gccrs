@@ -1,5 +1,5 @@
 /* Simplify intrinsic functions at compile-time.
-   Copyright (C) 2000-2022 Free Software Foundation, Inc.
+   Copyright (C) 2000-2023 Free Software Foundation, Inc.
    Contributed by Andy Vaught & Katherine Holcomb
 
 This file is part of GCC.
@@ -720,6 +720,7 @@ simplify_transformation (gfc_expr *array, gfc_expr *dim, gfc_expr *mask,
   size_zero = gfc_is_size_zero_array (array);
 
   if (!(is_constant_array_expr (array) || size_zero)
+      || array->shape == NULL
       || !gfc_is_constant_expr (dim))
     return NULL;
 
@@ -3955,6 +3956,9 @@ gfc_simplify_ishftc (gfc_expr *e, gfc_expr *s, gfc_expr *sz)
 	return NULL;
 
       gfc_extract_int (sz, &ssize);
+
+      if (ssize > isize || ssize <= 0)
+	return &gfc_bad_expr;
     }
   else
     ssize = isize;

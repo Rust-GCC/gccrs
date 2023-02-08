@@ -1,6 +1,6 @@
 // { dg-do compile { target c++11 } }
 
-// Copyright (C) 2015-2022 Free Software Foundation, Inc.
+// Copyright (C) 2015-2023 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,6 +33,8 @@ void f4(std::defer_lock_t);
 void f5(std::try_to_lock_t);
 void f6(std::adopt_lock_t);
 #endif
+
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 int main()
 {
