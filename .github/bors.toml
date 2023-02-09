@@ -2,9 +2,11 @@ status = [
   "build-and-check-ubuntu-64bit",
   "build-and-check-ubuntu-32bit",
   "build-and-check-gcc-48",
+]
+pr_status = [
   "check-commit-changelogs",
   "check-commit-prefixes",
-  "check-commit-signoffs",
+  "check-commit-signoff",
 ]
 # Uncomment this to use a two hour timeout.
 # The default is one hour.
