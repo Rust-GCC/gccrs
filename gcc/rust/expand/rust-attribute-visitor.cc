@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -1122,7 +1122,7 @@ AttrVisitor::visit (AST::CallExpr &expr)
 
       stmt->accept_vis (*this);
 
-      auto final_fragment = expand_macro_fragment_recursive ();
+      auto final_fragment = expander.take_expanded_fragment ();
       if (final_fragment.should_expand ())
 	{
 	  // Remove the current expanded invocation
@@ -3421,7 +3421,7 @@ AttrVisitor::visit (AST::BareFunctionType &type)
 void
 AttrVisitor::maybe_expand_expr (std::unique_ptr<AST::Expr> &expr)
 {
-  auto final_fragment = expand_macro_fragment_recursive ();
+  auto final_fragment = expander.take_expanded_fragment ();
   if (final_fragment.should_expand ()
       && final_fragment.is_expression_fragment ())
     expr = final_fragment.take_expression_fragment ();
@@ -3430,7 +3430,7 @@ AttrVisitor::maybe_expand_expr (std::unique_ptr<AST::Expr> &expr)
 void
 AttrVisitor::maybe_expand_type (std::unique_ptr<AST::Type> &type)
 {
-  auto final_fragment = expand_macro_fragment_recursive ();
+  auto final_fragment = expander.take_expanded_fragment ();
   if (final_fragment.should_expand () && final_fragment.is_type_fragment ())
     type = final_fragment.take_type_fragment ();
 }

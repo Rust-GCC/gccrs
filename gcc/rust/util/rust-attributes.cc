@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -41,6 +41,9 @@ static const BuiltinAttrDefinition __definitions[]
      {"repr", CODE_GENERATION},
      {"path", EXPANSION},
      {"macro_use", NAME_RESOLUTION},
+     // FIXME: This is not implemented yet, see
+     // https://github.com/Rust-GCC/gccrs/issues/1475
+     {"target_feature", CODE_GENERATION},
      // From now on, these are reserved by the compiler and gated through
      // #![feature(rustc_attrs)]
      {"rustc_inherit_overflow_checks", CODE_GENERATION}};

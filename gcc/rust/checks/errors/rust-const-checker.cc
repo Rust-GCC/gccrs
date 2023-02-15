@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -835,10 +835,6 @@ ConstChecker::visit (TuplePattern &)
 {}
 
 void
-ConstChecker::visit (GroupedPattern &)
-{}
-
-void
 ConstChecker::visit (SlicePattern &)
 {}
 
@@ -898,8 +894,12 @@ ConstChecker::visit (RawPointerType &)
 {}
 
 void
-ConstChecker::visit (ReferenceType &)
-{}
+ConstChecker::visit (ReferenceType &type)
+{
+  if (const_context.is_in_context () && type.is_mut ())
+    rust_error_at (type.get_locus (),
+		   "mutable references are not allowed in constant functions");
+}
 
 void
 ConstChecker::visit (ArrayType &type)

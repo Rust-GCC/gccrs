@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -147,7 +147,6 @@ enum PrimitiveCoreType
   RS_TOKEN (INNER_DOC_COMMENT, "#![doc]")                                      \
   RS_TOKEN (OUTER_DOC_COMMENT, "#[doc]")                                       \
   /* have "weak" union and 'static keywords? */                                \
-                                                                               \
   RS_TOKEN_KEYWORD (ABSTRACT, "abstract") /* unused */                         \
   RS_TOKEN_KEYWORD (AS, "as")                                                  \
   RS_TOKEN_KEYWORD (ASYNC, "async")   /* unused */                             \
@@ -172,7 +171,7 @@ enum PrimitiveCoreType
   RS_TOKEN_KEYWORD (IN, "in")                                                  \
   RS_TOKEN_KEYWORD (LET, "let")                                                \
   RS_TOKEN_KEYWORD (LOOP, "loop")                                              \
-  RS_TOKEN_KEYWORD (MACRO, "macro") /* unused */                               \
+  RS_TOKEN_KEYWORD (MACRO, "macro")                                            \
   RS_TOKEN_KEYWORD (MATCH_TOK, "match")                                        \
   RS_TOKEN_KEYWORD (MOD, "mod")                                                \
   RS_TOKEN_KEYWORD (MOVE, "move")                                              \
@@ -200,7 +199,6 @@ enum PrimitiveCoreType
   RS_TOKEN_KEYWORD (WHERE, "where")                                            \
   RS_TOKEN_KEYWORD (WHILE, "while")                                            \
   RS_TOKEN_KEYWORD (YIELD, "yield") /* unused */                               \
-                                                                               \
   RS_TOKEN (LAST_TOKEN, "<last-token-marker>")
 
 // Contains all token types. Crappy implementation via x-macros.

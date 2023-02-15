@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -468,6 +468,10 @@ public:
     rust_assert (pattern != nullptr);
     return pattern;
   }
+
+  bool is_double_reference () const { return has_two_amps; }
+
+  bool get_is_mut () const { return is_mut; }
 
   NodeId get_node_id () const { return node_id; }
 

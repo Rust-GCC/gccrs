@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -68,8 +68,6 @@ protected:
   void resolve_generic_params (
     const std::vector<std::unique_ptr<HIR::GenericParam>> &generic_params,
     std::vector<TyTy::SubstitutionParamMapping> &substitutions);
-
-  bool query_type (HirId reference, TyTy::BaseType **result);
 
   Analysis::Mappings *mappings;
   Resolver *resolver;

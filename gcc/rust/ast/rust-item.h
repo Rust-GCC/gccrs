@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -22,11 +22,11 @@
 #include "rust-ast.h"
 #include "rust-path.h"
 #include "rust-common.h"
+#include "rust-expr.h"
 
 namespace Rust {
 namespace AST {
 // forward decls
-class BlockExpr;
 class TypePath;
 
 // TODO: inline?
@@ -4391,8 +4391,6 @@ protected:
   }
 };
 
-// Replaced with forward decls - defined in "rust-macro.h"
-class MacroItem;
 class MacroRulesDefinition;
 } // namespace AST
 } // namespace Rust

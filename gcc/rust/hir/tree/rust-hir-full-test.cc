@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -2583,11 +2583,6 @@ ReferencePattern::as_string () const
 {
   std::string str ("&");
 
-  if (has_two_amps)
-    {
-      str += "&";
-    }
-
   if (is_mut ())
     {
       str += "mut ";
@@ -4477,12 +4472,6 @@ TuplePattern::accept_vis (HIRFullVisitor &vis)
 }
 
 void
-GroupedPattern::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
 SlicePattern::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
@@ -4604,12 +4593,6 @@ ParenthesisedType::accept_vis (HIRTypeVisitor &vis)
 
 void
 EmptyStmt::accept_vis (HIRStmtVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-GroupedPattern::accept_vis (HIRPatternVisitor &vis)
 {
   vis.visit (*this);
 }

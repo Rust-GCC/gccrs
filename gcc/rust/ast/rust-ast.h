@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -630,6 +630,8 @@ public:
 
   virtual ~MetaItemInner ();
 
+  virtual Location get_locus () const = 0;
+
   virtual std::string as_string () const = 0;
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
@@ -771,6 +773,7 @@ public:
   DelimTokenTree (DelimTokenTree const &other)
     : delim_type (other.delim_type), locus (other.locus)
   {
+    token_trees.clear ();
     token_trees.reserve (other.token_trees.size ());
     for (const auto &e : other.token_trees)
       token_trees.push_back (e->clone_token_tree ());
@@ -782,6 +785,7 @@ public:
     delim_type = other.delim_type;
     locus = other.locus;
 
+    token_trees.clear ();
     token_trees.reserve (other.token_trees.size ());
     for (const auto &e : other.token_trees)
       token_trees.push_back (e->clone_token_tree ());
@@ -1350,11 +1354,6 @@ protected:
   }
 };
 
-// A macro item AST node - abstract base class
-class MacroItem : public Item
-{
-};
-
 // Item used in trait declarations - abstract base class
 class TraitItem
 {
@@ -1525,6 +1524,9 @@ public:
   // TODO: this mutable getter seems kinda dodgy
   DelimTokenTree &get_delim_tok_tree () { return token_tree; }
   const DelimTokenTree &get_delim_tok_tree () const { return token_tree; }
+
+  // Set the delim token tree of a macro invocation
+  void set_delim_tok_tree (DelimTokenTree tree) { token_tree = tree; }
 
   // TODO: this mutable getter seems kinda dodgy
   SimplePath &get_path () { return path; }

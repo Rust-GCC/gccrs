@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2022 Free Software Foundation, Inc.
+# Copyright (C) 2012-2023 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -168,10 +168,7 @@ proc rust_target_compile { source dest type options } {
     global gluefile wrap_flags
     global ALWAYS_RUSTFLAGS
     global RUST_UNDER_TEST
-    global individual_timeout
-
-    # HACK: guard against infinite loops in the compiler
-    set individual_timeout 10
+    
 
     if { [target_info needs_status_wrapper] != "" && [info exists gluefile] } {
 	lappend options "libs=${gluefile}"

@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -45,7 +45,6 @@ public:
   void visit (HIR::QualifiedPathInExpression &expr) override;
 
   // Empty visit for unused Pattern HIR nodes.
-  void visit (HIR::GroupedPattern &) override {}
   void visit (HIR::IdentifierPattern &) override {}
   void visit (HIR::LiteralPattern &) override {}
   void visit (HIR::RangePattern &) override {}

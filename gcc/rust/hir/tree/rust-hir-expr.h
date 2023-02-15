@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -23,7 +23,7 @@
 #include "rust-ast-full-decls.h"
 #include "rust-hir.h"
 #include "rust-hir-path.h"
-#include "operator.h"
+#include "rust-operators.h"
 
 namespace Rust {
 namespace HIR {

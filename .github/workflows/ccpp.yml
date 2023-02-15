@@ -7,6 +7,7 @@ on:
       - staging
   pull_request:
     branches: [ master ]
+  merge_group:
 
 jobs:
   build-and-check-ubuntu-64bit:
@@ -15,7 +16,7 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/bors_log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v2
@@ -92,7 +93,7 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/bors_log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v2

@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -457,9 +457,7 @@ HIRCompileBase::compile_locals_for_block (Context *ctx, Resolver::Rib &rib,
 
       // compile the local
       tree type = TyTyResolveCompile::compile (ctx, tyty);
-      Bvariable *compiled
-	= CompileVarDecl::compile (fndecl, type, pattern, ctx);
-      locals.push_back (compiled);
+      CompileVarDecl::compile (fndecl, type, pattern, locals, ctx);
     }
   return locals;
 }

@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -26,7 +26,7 @@
 #include "rust-location.h"
 #include "rust-linemap.h"
 #include "rust-diagnostics.h"
-#include "operator.h"
+#include "util/rust-operators.h"
 #include "tree.h"
 
 // Pointers to these types are created by the backend, passed to the

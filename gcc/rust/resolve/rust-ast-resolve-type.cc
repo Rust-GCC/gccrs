@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -588,6 +588,11 @@ ResolveGenericArgs::go (AST::GenericArgs &generic_args,
 	resolver.disambiguate (arg);
 
       resolver.resolve_disambiguated_generic (arg);
+    }
+
+  for (auto &binding : generic_args.get_binding_args ())
+    {
+      ResolveType::go (binding.get_type ().get ());
     }
 }
 

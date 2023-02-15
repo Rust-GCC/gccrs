@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -384,13 +384,6 @@ void
 TypeCheckPattern::visit (HIR::IdentifierPattern &)
 {
   infered = parent;
-}
-
-void
-TypeCheckPattern::visit (HIR::GroupedPattern &)
-{
-  // TODO
-  gcc_unreachable ();
 }
 
 void
