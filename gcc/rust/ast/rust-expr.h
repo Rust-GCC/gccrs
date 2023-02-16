@@ -955,11 +955,11 @@ protected:
 // Value array elements
 class ArrayElemsValues : public ArrayElems
 {
-  std::vector<std::unique_ptr<Expr> > values;
+  std::vector<std::unique_ptr<Expr>> values;
   Location locus;
 
 public:
-  ArrayElemsValues (std::vector<std::unique_ptr<Expr> > elems, Location locus)
+  ArrayElemsValues (std::vector<std::unique_ptr<Expr>> elems, Location locus)
     : ArrayElems (), values (std::move (elems)), locus (locus)
   {}
 
@@ -990,11 +990,11 @@ public:
   void accept_vis (ASTVisitor &vis) override;
 
   // TODO: this mutable getter seems really dodgy. Think up better way.
-  const std::vector<std::unique_ptr<Expr> > &get_values () const
+  const std::vector<std::unique_ptr<Expr>> &get_values () const
   {
     return values;
   }
-  std::vector<std::unique_ptr<Expr> > &get_values () { return values; }
+  std::vector<std::unique_ptr<Expr>> &get_values () { return values; }
 
   size_t get_num_values () const { return values.size (); }
 
@@ -1263,7 +1263,7 @@ class TupleExpr : public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
   std::vector<Attribute> inner_attrs;
-  std::vector<std::unique_ptr<Expr> > tuple_elems;
+  std::vector<std::unique_ptr<Expr>> tuple_elems;
   Location locus;
 
   // TODO: find another way to store this to save memory?
@@ -1283,7 +1283,7 @@ public:
     outer_attrs = std::move (new_attrs);
   }
 
-  TupleExpr (std::vector<std::unique_ptr<Expr> > tuple_elements,
+  TupleExpr (std::vector<std::unique_ptr<Expr>> tuple_elements,
 	     std::vector<Attribute> inner_attribs,
 	     std::vector<Attribute> outer_attribs, Location locus)
     : outer_attrs (std::move (outer_attribs)),
@@ -1334,14 +1334,11 @@ public:
   bool is_marked_for_strip () const override { return marked_for_strip; }
 
   // TODO: this mutable getter seems really dodgy. Think up better way.
-  const std::vector<std::unique_ptr<Expr> > &get_tuple_elems () const
+  const std::vector<std::unique_ptr<Expr>> &get_tuple_elems () const
   {
     return tuple_elems;
   }
-  std::vector<std::unique_ptr<Expr> > &get_tuple_elems ()
-  {
-    return tuple_elems;
-  }
+  std::vector<std::unique_ptr<Expr>> &get_tuple_elems () { return tuple_elems; }
 
   bool is_unit () const { return tuple_elems.size () == 0; }
 
@@ -1732,7 +1729,7 @@ protected:
 class StructExprStructFields : public StructExprStruct
 {
   // std::vector<StructExprField> fields;
-  std::vector<std::unique_ptr<StructExprField> > fields;
+  std::vector<std::unique_ptr<StructExprField>> fields;
 
   // bool has_struct_base;
   StructBase struct_base;
@@ -1745,7 +1742,7 @@ public:
   // Constructor for StructExprStructFields when no struct base is used
   StructExprStructFields (
     PathInExpression struct_path,
-    std::vector<std::unique_ptr<StructExprField> > expr_fields, Location locus,
+    std::vector<std::unique_ptr<StructExprField>> expr_fields, Location locus,
     StructBase base_struct = StructBase::error (),
     std::vector<Attribute> inner_attribs = std::vector<Attribute> (),
     std::vector<Attribute> outer_attribs = std::vector<Attribute> ())
@@ -1783,11 +1780,11 @@ public:
   void accept_vis (ASTVisitor &vis) override;
 
   // TODO: this mutable getter seems really dodgy. Think up better way.
-  std::vector<std::unique_ptr<StructExprField> > &get_fields ()
+  std::vector<std::unique_ptr<StructExprField>> &get_fields ()
   {
     return fields;
   }
-  const std::vector<std::unique_ptr<StructExprField> > &get_fields () const
+  const std::vector<std::unique_ptr<StructExprField>> &get_fields () const
   {
     return fields;
   }
@@ -1844,7 +1841,7 @@ class CallExpr : public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
   std::unique_ptr<Expr> function;
-  std::vector<std::unique_ptr<Expr> > params;
+  std::vector<std::unique_ptr<Expr>> params;
   Location locus;
 
 public:
@@ -1853,7 +1850,7 @@ public:
   std::string as_string () const override;
 
   CallExpr (std::unique_ptr<Expr> function_expr,
-	    std::vector<std::unique_ptr<Expr> > function_params,
+	    std::vector<std::unique_ptr<Expr>> function_params,
 	    std::vector<Attribute> outer_attribs, Location locus)
     : outer_attrs (std::move (outer_attribs)),
       function (std::move (function_expr)),
@@ -1910,11 +1907,11 @@ public:
   bool is_marked_for_strip () const override { return function == nullptr; }
 
   // TODO: this mutable getter seems really dodgy. Think up better way.
-  const std::vector<std::unique_ptr<Expr> > &get_params () const
+  const std::vector<std::unique_ptr<Expr>> &get_params () const
   {
     return params;
   }
-  std::vector<std::unique_ptr<Expr> > &get_params () { return params; }
+  std::vector<std::unique_ptr<Expr>> &get_params () { return params; }
 
   // TODO: is this better? Or is a "vis_block" better?
   std::unique_ptr<Expr> &get_function_expr ()
@@ -1946,7 +1943,7 @@ class MethodCallExpr : public ExprWithoutBlock
   std::vector<Attribute> outer_attrs;
   std::unique_ptr<Expr> receiver;
   PathExprSegment method_name;
-  std::vector<std::unique_ptr<Expr> > params;
+  std::vector<std::unique_ptr<Expr>> params;
   Location locus;
 
 public:
@@ -1954,7 +1951,7 @@ public:
 
   MethodCallExpr (std::unique_ptr<Expr> call_receiver,
 		  PathExprSegment method_path,
-		  std::vector<std::unique_ptr<Expr> > method_params,
+		  std::vector<std::unique_ptr<Expr>> method_params,
 		  std::vector<Attribute> outer_attribs, Location locus)
     : outer_attrs (std::move (outer_attribs)),
       receiver (std::move (call_receiver)),
@@ -2010,11 +2007,11 @@ public:
   bool is_marked_for_strip () const override { return receiver == nullptr; }
 
   // TODO: this mutable getter seems really dodgy. Think up better way.
-  const std::vector<std::unique_ptr<Expr> > &get_params () const
+  const std::vector<std::unique_ptr<Expr>> &get_params () const
   {
     return params;
   }
-  std::vector<std::unique_ptr<Expr> > &get_params () { return params; }
+  std::vector<std::unique_ptr<Expr>> &get_params () { return params; }
 
   // TODO: is this better? Or is a "vis_block" better?
   std::unique_ptr<Expr> &get_receiver_expr ()
@@ -2327,7 +2324,7 @@ class BlockExpr : public ExprWithBlock
 {
   std::vector<Attribute> outer_attrs;
   std::vector<Attribute> inner_attrs;
-  std::vector<std::unique_ptr<Stmt> > statements;
+  std::vector<std::unique_ptr<Stmt>> statements;
   std::unique_ptr<Expr> expr;
   Location start_locus;
   Location end_locus;
@@ -2342,7 +2339,7 @@ public:
   // Returns whether the block contains a final expression.
   bool has_tail_expr () const { return expr != nullptr; }
 
-  BlockExpr (std::vector<std::unique_ptr<Stmt> > block_statements,
+  BlockExpr (std::vector<std::unique_ptr<Stmt>> block_statements,
 	     std::unique_ptr<Expr> block_expr,
 	     std::vector<Attribute> inner_attribs,
 	     std::vector<Attribute> outer_attribs, Location start_locus,
@@ -2418,11 +2415,11 @@ public:
   const std::vector<Attribute> &get_inner_attrs () const { return inner_attrs; }
   std::vector<Attribute> &get_inner_attrs () { return inner_attrs; }
 
-  const std::vector<std::unique_ptr<Stmt> > &get_statements () const
+  const std::vector<std::unique_ptr<Stmt>> &get_statements () const
   {
     return statements;
   }
-  std::vector<std::unique_ptr<Stmt> > &get_statements () { return statements; }
+  std::vector<std::unique_ptr<Stmt>> &get_statements () { return statements; }
 
   // TODO: is this better? Or is a "vis_block" better?
   std::unique_ptr<Expr> &get_tail_expr ()
@@ -3462,14 +3459,14 @@ protected:
 class WhileLetLoopExpr : public BaseLoopExpr
 {
   // MatchArmPatterns patterns;
-  std::vector<std::unique_ptr<Pattern> > match_arm_patterns; // inlined
+  std::vector<std::unique_ptr<Pattern>> match_arm_patterns; // inlined
   std::unique_ptr<Expr> scrutinee;
 
 public:
   std::string as_string () const override;
 
   // Constructor with a loop label
-  WhileLetLoopExpr (std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+  WhileLetLoopExpr (std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
 		    std::unique_ptr<Expr> scrutinee,
 		    std::unique_ptr<BlockExpr> loop_block, Location locus,
 		    LoopLabel loop_label = LoopLabel::error (),
@@ -3523,11 +3520,11 @@ public:
   }
 
   // TODO: this mutable getter seems really dodgy. Think up better way.
-  const std::vector<std::unique_ptr<Pattern> > &get_patterns () const
+  const std::vector<std::unique_ptr<Pattern>> &get_patterns () const
   {
     return match_arm_patterns;
   }
-  std::vector<std::unique_ptr<Pattern> > &get_patterns ()
+  std::vector<std::unique_ptr<Pattern>> &get_patterns ()
   {
     return match_arm_patterns;
   }
@@ -3853,7 +3850,7 @@ protected:
 class IfLetExpr : public ExprWithBlock
 {
   std::vector<Attribute> outer_attrs;
-  std::vector<std::unique_ptr<Pattern> > match_arm_patterns; // inlined
+  std::vector<std::unique_ptr<Pattern>> match_arm_patterns; // inlined
   std::unique_ptr<Expr> value;
   std::unique_ptr<BlockExpr> if_block;
   Location locus;
@@ -3861,7 +3858,7 @@ class IfLetExpr : public ExprWithBlock
 public:
   std::string as_string () const override;
 
-  IfLetExpr (std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+  IfLetExpr (std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
 	     std::unique_ptr<Expr> value, std::unique_ptr<BlockExpr> if_block,
 	     std::vector<Attribute> outer_attrs, Location locus)
     : outer_attrs (std::move (outer_attrs)),
@@ -3949,11 +3946,11 @@ public:
   }
 
   // TODO: this mutable getter seems really dodgy. Think up better way.
-  const std::vector<std::unique_ptr<Pattern> > &get_patterns () const
+  const std::vector<std::unique_ptr<Pattern>> &get_patterns () const
   {
     return match_arm_patterns;
   }
-  std::vector<std::unique_ptr<Pattern> > &get_patterns ()
+  std::vector<std::unique_ptr<Pattern>> &get_patterns ()
   {
     return match_arm_patterns;
   }
@@ -4047,11 +4044,11 @@ class IfLetExprConseqElse : public IfLetExpr
 public:
   std::string as_string () const override;
 
-  IfLetExprConseqElse (
-    std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
-    std::unique_ptr<Expr> value, std::unique_ptr<BlockExpr> if_block,
-    std::unique_ptr<BlockExpr> else_block, std::vector<Attribute> outer_attrs,
-    Location locus)
+  IfLetExprConseqElse (std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
+		       std::unique_ptr<Expr> value,
+		       std::unique_ptr<BlockExpr> if_block,
+		       std::unique_ptr<BlockExpr> else_block,
+		       std::vector<Attribute> outer_attrs, Location locus)
     : IfLetExpr (std::move (match_arm_patterns), std::move (value),
 		 std::move (if_block), std::move (outer_attrs), locus),
       else_block (std::move (else_block))
@@ -4107,7 +4104,7 @@ class IfLetExprConseqIf : public IfLetExpr
 public:
   std::string as_string () const override;
 
-  IfLetExprConseqIf (std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+  IfLetExprConseqIf (std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
 		     std::unique_ptr<Expr> value,
 		     std::unique_ptr<BlockExpr> if_block,
 		     std::unique_ptr<IfExpr> if_expr,
@@ -4167,7 +4164,7 @@ public:
   std::string as_string () const override;
 
   IfLetExprConseqIfLet (
-    std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+    std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
     std::unique_ptr<Expr> value, std::unique_ptr<BlockExpr> if_block,
     std::unique_ptr<IfLetExpr> if_let_expr, std::vector<Attribute> outer_attrs,
     Location locus)
@@ -4222,7 +4219,7 @@ struct MatchArm
 private:
   std::vector<Attribute> outer_attrs;
   // MatchArmPatterns patterns;
-  std::vector<std::unique_ptr<Pattern> > match_arm_patterns; // inlined
+  std::vector<std::unique_ptr<Pattern>> match_arm_patterns; // inlined
 
   // bool has_match_arm_guard;
   // inlined from MatchArmGuard
@@ -4235,7 +4232,7 @@ public:
   bool has_match_arm_guard () const { return guard_expr != nullptr; }
 
   // Constructor for match arm with a guard expression
-  MatchArm (std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+  MatchArm (std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
 	    Location locus, std::unique_ptr<Expr> guard_expr = nullptr,
 	    std::vector<Attribute> outer_attrs = std::vector<Attribute> ())
     : outer_attrs (std::move (outer_attrs)),
@@ -4287,7 +4284,7 @@ public:
   static MatchArm create_error ()
   {
     Location locus = Location ();
-    return MatchArm (std::vector<std::unique_ptr<Pattern> > (), locus);
+    return MatchArm (std::vector<std::unique_ptr<Pattern>> (), locus);
   }
 
   std::string as_string () const;
@@ -4303,11 +4300,11 @@ public:
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
   std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
 
-  const std::vector<std::unique_ptr<Pattern> > &get_patterns () const
+  const std::vector<std::unique_ptr<Pattern>> &get_patterns () const
   {
     return match_arm_patterns;
   }
-  std::vector<std::unique_ptr<Pattern> > &get_patterns ()
+  std::vector<std::unique_ptr<Pattern>> &get_patterns ()
   {
     return match_arm_patterns;
   }
@@ -4626,6 +4623,131 @@ protected:
     return new AsyncBlockExpr (*this);
   }
 };
+
+// Inline Assembly Node
+class InlineAsm : public ExprWithoutBlock
+{
+  // Inline-assembly specific options
+  enum InlineAsmOptions
+  {
+    PURE = 1 << 0,
+    NOMEM = 1 << 1,
+    READONLY = 1 << 2,
+    PRESERVES_FLAGS = 1 << 3,
+    NORETURN = 1 << 4,
+    NOSTACK = 1 << 5,
+    ATT_SYNTAX = 1 << 6,
+    RAW = 1 << 7,
+    MAY_UNWIND = 1 << 8,
+  };
+
+  struct InlineAsmSym
+  {
+    NodeId id;
+    // qself, what is this, I am a bit confusted is just a pointer to self ??
+    SimplePathSegment Path;
+    // is SimplePathSegment analogus to path in the rust compiler
+    Location loc;
+  };
+
+  struct InlineAsmRegOrClass
+  {
+    /* constraint is a string because Rust inline assembly allows explicitly
+       specifying a CPU-architectural-specific register */
+    std::string constraint;
+    /* is the constraint a class of registers (e.g. general registers)? or is it
+     * a specific register (e.g. rax)? */
+    bool is_constraint_class;
+    Identifier name;
+    Location locus;
+  };
+
+  struct InlineAsmOperand
+  {
+    enum RegisterType
+    {
+      In,
+      Out,
+      InOut,
+      SplitInOut,
+      Const,
+      Sym,
+    };
+
+    struct In
+    {
+      InlineAsmRegOrClass reg;
+      std::unique_ptr<Expr> expr;
+    };
+
+    struct Out
+    {
+      InlineAsmRegOrClass reg;
+      bool late;
+      std::unique_ptr<Expr> expr; // can be null
+    };
+
+    struct SplitInOut
+    {
+      InlineAsmRegOrClass reg;
+      bool late;
+      std::unique_ptr<Expr> in_expr;
+      std::unique_ptr<Expr> out_expr; // could be null
+    };
+
+    struct Const
+    {
+      bool is_anon_const;
+    };
+
+    struct Sym
+    {
+      InlineAsmSym sym;
+    };
+    Location locus;
+  };
+
+  struct InlineAsmPlaceHolder
+  {
+    size_t operand_idx;
+    char modifier;
+    Location locus;
+  };
+
+  struct InlineAsmTemplatePiece
+  {
+    bool is_placeholder;
+    union
+    {
+      std::string string;
+      InlineAsmPlaceHolder placeholder;
+    };
+  };
+
+  struct TupleClobber
+  {
+    // as gccrs still doesen't contain a symbol class I have put them as strings
+    std::string symbol;
+    Location loc;
+  };
+
+  struct TupleTemplateStr
+  {
+    // as gccrs still doesen't contain a symbol class I have put them as strings
+    std::string symbol;
+    std::string option_string;
+    Location loc;
+  };
+
+public:
+  std::vector<InlineAsmTemplatePiece> template_;
+  TupleTemplateStr template_strs;
+  std::vector<InlineAsmOperand> operands;
+  TupleClobber clobber_abi;
+  InlineAsmOptions options;
+  std::vector<Location> line_spans;
+};
+
 } // namespace AST
 } // namespace Rust
 
