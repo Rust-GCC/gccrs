@@ -2494,8 +2494,7 @@ c_parser_declaration_or_fndef (c_parser *parser, bool fndef_ok,
 		  init = convert_lvalue_to_rvalue (init_loc, init, true, true,
 						   true);
 		  tree init_type = TREE_TYPE (init.value);
-		  bool vm_type = variably_modified_type_p (init_type,
-							   NULL_TREE);
+		  bool vm_type = c_type_variably_modified_p (init_type);
 		  if (vm_type)
 		    init.value = save_expr (init.value);
 		  finish_init ();
@@ -4143,7 +4142,7 @@ c_parser_typeof_specifier (c_parser *parser)
       if (type != NULL)
 	{
 	  ret.spec = groktypename (type, &ret.expr, &ret.expr_const_operands);
-	  pop_maybe_used (variably_modified_type_p (ret.spec, NULL_TREE));
+	  pop_maybe_used (c_type_variably_modified_p (ret.spec));
 	}
     }
   else
@@ -4158,7 +4157,7 @@ c_parser_typeof_specifier (c_parser *parser)
 	error_at (here, "%<typeof%> applied to a bit-field");
       mark_exp_read (expr.value);
       ret.spec = TREE_TYPE (expr.value);
-      was_vm = variably_modified_type_p (ret.spec, NULL_TREE);
+      was_vm = c_type_variably_modified_p (ret.spec);
       /* This is returned with the type so that when the type is
 	 evaluated, this can be evaluated.  */
       if (was_vm)
@@ -9058,7 +9057,7 @@ c_parser_has_attribute_expression (c_parser *parser)
       if (tname)
 	{
 	  oper = groktypename (tname, NULL, NULL);
-	  pop_maybe_used (variably_modified_type_p (oper, NULL_TREE));
+	  pop_maybe_used (c_type_variably_modified_p (oper));
 	}
     }
   else
@@ -9071,7 +9070,7 @@ c_parser_has_attribute_expression (c_parser *parser)
 	  mark_exp_read (cexpr.value);
 	  oper = cexpr.value;
 	  tree etype = TREE_TYPE (oper);
-	  bool was_vm = variably_modified_type_p (etype, NULL_TREE);
+	  bool was_vm = c_type_variably_modified_p (etype);
 	  /* This is returned with the type so that when the type is
 	     evaluated, this can be evaluated.  */
 	  if (was_vm)
@@ -9320,7 +9319,7 @@ c_parser_generic_selection (c_parser *parser)
 	    error_at (assoc.type_location,
 		      "%<_Generic%> association has incomplete type");
 
-	  if (variably_modified_type_p (assoc.type, NULL_TREE))
+	  if (c_type_variably_modified_p (assoc.type))
 	    error_at (assoc.type_location,
 		      "%<_Generic%> association has "
 		      "variable length type");
@@ -18814,32 +18813,71 @@ c_parser_oacc_wait (location_t loc, c_parser *parser, char *p_name)
   return stmt;
 }
 
-/* OpenMP 5.0:
-   # pragma omp allocate (list)  [allocator(allocator)]  */
+/* OpenMP 5.x:
+   # pragma omp allocate (list)  clauses
+
+   OpenMP 5.0 clause:
+   allocator (omp_allocator_handle_t expression)
+
+   OpenMP 5.1 additional clause:
+   align (constant-expression)]  */
 
 static void
 c_parser_omp_allocate (location_t loc, c_parser *parser)
 {
+  tree alignment = NULL_TREE;
   tree allocator = NULL_TREE;
   tree nl = c_parser_omp_var_list_parens (parser, OMP_CLAUSE_ALLOCATE, NULL_TREE);
-  if (c_parser_next_token_is (parser, CPP_COMMA)
-      && c_parser_peek_2nd_token (parser)->type == CPP_NAME)
-    c_parser_consume_token (parser);
-  if (c_parser_next_token_is (parser, CPP_NAME))
+  do
     {
+      if (c_parser_next_token_is (parser, CPP_COMMA)
+	  && c_parser_peek_2nd_token (parser)->type == CPP_NAME)
+	c_parser_consume_token (parser);
+      if (!c_parser_next_token_is (parser, CPP_NAME))
+	break;
       matching_parens parens;
       const char *p = IDENTIFIER_POINTER (c_parser_peek_token (parser)->value);
       c_parser_consume_token (parser);
-      if (strcmp ("allocator", p) != 0)
-	error_at (c_parser_peek_token (parser)->location,
-		  "expected %<allocator%>");
-      else if (parens.require_open (parser))
+      location_t expr_loc = c_parser_peek_token (parser)->location;
+      if (strcmp ("align", p) != 0 && strcmp ("allocator", p) != 0)
 	{
-	  location_t expr_loc = c_parser_peek_token (parser)->location;
-	  c_expr expr = c_parser_expr_no_commas (parser, NULL);
-	  expr = convert_lvalue_to_rvalue (expr_loc, expr, false, true);
-	  allocator = expr.value;
-	  allocator = c_fully_fold (allocator, false, NULL);
+	  error_at (c_parser_peek_token (parser)->location,
+		    "expected %<allocator%> or %<align%>");
+	  break;
+	}
+      if (!parens.require_open (parser))
+	break;
+
+      c_expr expr = c_parser_expr_no_commas (parser, NULL);
+      expr = convert_lvalue_to_rvalue (expr_loc, expr, false, true);
+      expr_loc = c_parser_peek_token (parser)->location;
+      if (p[2] == 'i' && alignment)
+	{
+	  error_at (expr_loc, "too many %qs clauses", "align");
+	  break;
+	}
+      else if (p[2] == 'i')
+	{
+	  alignment = c_fully_fold (expr.value, false, NULL);
+	  if (TREE_CODE (alignment) != INTEGER_CST
+	      || !INTEGRAL_TYPE_P (TREE_TYPE (alignment))
+	      || tree_int_cst_sgn (alignment) != 1
+	      || !integer_pow2p (alignment))
+	    {
+	      error_at (expr_loc, "%<align%> clause argument needs to be "
+				  "positive constant power of two integer "
+				  "expression");
+	      alignment = NULL_TREE;
+	    }
+	}
+      else if (allocator)
+	{
+	  error_at (expr_loc, "too many %qs clauses", "allocator");
+	  break;
+	}
+      else
+	{
+	  allocator = c_fully_fold (expr.value, false, NULL);
 	  tree orig_type
 	    = expr.original_type ? expr.original_type : TREE_TYPE (allocator);
 	  orig_type = TYPE_MAIN_VARIANT (orig_type);
@@ -18848,20 +18886,23 @@ c_parser_omp_allocate (location_t loc, c_parser *parser)
 	      || TYPE_NAME (orig_type)
 		 != get_identifier ("omp_allocator_handle_t"))
 	    {
-	      error_at (expr_loc, "%<allocator%> clause allocator expression "
-				"has type %qT rather than "
-				"%<omp_allocator_handle_t%>",
-				TREE_TYPE (allocator));
+	      error_at (expr_loc,
+			"%<allocator%> clause allocator expression has type "
+			"%qT rather than %<omp_allocator_handle_t%>",
+			TREE_TYPE (allocator));
 	      allocator = NULL_TREE;
 	    }
-	  parens.skip_until_found_close (parser);
 	}
-    }
+      parens.skip_until_found_close (parser);
+    } while (true);
   c_parser_skip_to_pragma_eol (parser);
 
-  if (allocator)
+  if (allocator || alignment)
     for (tree c = nl; c != NULL_TREE; c = OMP_CLAUSE_CHAIN (c))
-      OMP_CLAUSE_ALLOCATE_ALLOCATOR (c) = allocator;
+      {
+	OMP_CLAUSE_ALLOCATE_ALLOCATOR (c) = allocator;
+	OMP_CLAUSE_ALLOCATE_ALIGN (c) = alignment;
+      }
 
   sorry_at (loc, "%<#pragma omp allocate%> not yet supported");
 }

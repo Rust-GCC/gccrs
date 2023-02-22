@@ -4359,6 +4359,7 @@ case "${target}" in
 					case ${arm_multilib} in
 					aprofile|rmprofile)
 						tmake_profile_file="arm/t-multilib"
+						tm_mlib_file="arm/arm-mlib.h"
 						;;
 					@*)
 						ml=`echo "X$arm_multilib" | sed '1s,^X@,,'`
@@ -4397,7 +4398,7 @@ case "${target}" in
 				# through to the multilib selector
 				with_float="soft"
 				tmake_file="${tmake_file} ${tmake_profile_file}"
-				tm_file="$tm_file arm/arm-mlib.h"
+				tm_file="$tm_file $tm_mlib_file"
 				TM_MULTILIB_CONFIG="$with_multilib_list"
 			fi
 		fi
@@ -4888,20 +4889,16 @@ case "${target}" in
 		case ${target} in
 		loongarch64-*-*-*f64)
 			abi_pattern="lp64d"
-			triplet_abi="f64"
 			;;
 		loongarch64-*-*-*f32)
 			abi_pattern="lp64f"
-			triplet_abi="f32"
 			;;
 		loongarch64-*-*-*sf)
 			abi_pattern="lp64s"
-			triplet_abi="sf"
 			;;
 		loongarch64-*-*-*)
 			abi_pattern="lp64[dfs]"
 			abi_default="lp64d"
-			triplet_abi=""
 			;;
 		*)
 			echo "Unsupported target ${target}." 1>&2
@@ -4921,9 +4918,6 @@ case "${target}" in
 			  exit 1
 			  ;;
 		esac
-
-		la_canonical_triplet="loongarch64-${triplet_os}${triplet_abi}"
-
 
 		# Perform initial sanity checks on --with-* options.
 		case ${with_arch} in
@@ -4994,6 +4988,13 @@ case "${target}" in
 			fi
 			;;
 		esac
+
+		case ${with_abi} in
+		  "lp64d") triplet_abi="";;
+		  "lp64f") triplet_abi="f32";;
+		  "lp64s") triplet_abi="sf";;
+		esac
+		la_canonical_triplet="loongarch64-${triplet_os}${triplet_abi}"
 
 		# Set default value for with_abiext (internal)
 		case ${with_abiext} in

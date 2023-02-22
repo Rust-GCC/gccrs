@@ -2535,7 +2535,7 @@ warn_duplicated_cond_add_or_warn (location_t loc, tree cond, vec<tree> **chain)
   if (*chain == NULL)
     return;
 
-  if (TREE_SIDE_EFFECTS (cond))
+  if (TREE_SIDE_EFFECTS (cond) || instantiation_dependent_expression_p (cond))
     {
       /* Uh-oh!  This condition has a side-effect, thus invalidates
 	 the whole chain.  */
@@ -3617,6 +3617,8 @@ warn_parm_array_mismatch (location_t origloc, tree fndecl, tree newparms)
       for (tree newvbl = newa->size, curvbl = cura->size; newvbl;
 	   newvbl = TREE_CHAIN (newvbl), curvbl = TREE_CHAIN (curvbl))
 	{
+	  gcc_assert (curvbl);
+
 	  tree newpos = TREE_PURPOSE (newvbl);
 	  tree curpos = TREE_PURPOSE (curvbl);
 
