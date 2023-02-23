@@ -1,5 +1,5 @@
 /* Compiler arithmetic
-   Copyright (C) 2000-2022 Free Software Foundation, Inc.
+   Copyright (C) 2000-2023 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -778,7 +778,7 @@ gfc_arith_divide (gfc_expr *op1, gfc_expr *op2, gfc_expr **resultp)
 	    {
 	      char *p;
 	      p = mpz_get_str (NULL, 10, result->value.integer);
-	      gfc_warning_now (OPT_Winteger_division, "Integer division "
+	      gfc_warning (OPT_Winteger_division, "Integer division "
 			       "truncated to constant %qs at %L", p,
 			       &op1->where);
 	      free (p);

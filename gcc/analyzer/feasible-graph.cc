@@ -1,5 +1,5 @@
 /* A graph for exploring trees of feasible paths through the egraph.
-   Copyright (C) 2021-2022 Free Software Foundation, Inc.
+   Copyright (C) 2021-2023 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -102,6 +102,36 @@ feasible_node::dump_dot (graphviz_out *gv,
 
   pp_string (pp, "\"];\n\n");
   pp_flush (pp);
+}
+
+/* Attempt to get the region_model for this node's state at TARGET_STMT.
+   Return true and write to *OUT if found.
+   Return false if there's a problem.  */
+
+bool
+feasible_node::get_state_at_stmt (const gimple *target_stmt,
+				  region_model *out) const
+{
+  if (!target_stmt)
+    return false;
+
+  feasibility_state result (m_state);
+
+  /* Update state for the stmts that were processed in each enode.  */
+  for (unsigned stmt_idx = 0; stmt_idx < m_inner_node->m_num_processed_stmts;
+       stmt_idx++)
+    {
+      const gimple *stmt = m_inner_node->get_processed_stmt (stmt_idx);
+      if (stmt == target_stmt)
+	{
+	  *out = result.get_model ();
+	  return true;
+	}
+      result.update_for_stmt (stmt);
+    }
+
+  /* TARGET_STMT not found; wrong node?  */
+  return false;
 }
 
 /* Implementation of dump_dot vfunc for infeasible_node.

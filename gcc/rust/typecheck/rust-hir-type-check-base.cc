@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -17,12 +17,12 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-type-check-base.h"
-#include "rust-hir-type-check-item.h"
-#include "rust-hir-type-check-type.h"
+#include "rust-casts.h"
+#include "rust-coercion.h"
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check-implitem.h"
-#include "rust-coercion.h"
-#include "rust-casts.h"
+#include "rust-hir-type-check-item.h"
+#include "rust-hir-type-check-type.h"
 
 namespace Rust {
 namespace Resolver {
@@ -350,30 +350,6 @@ TypeCheckBase::parse_repr_options (const AST::AttrVec &attrs, Location locus)
 }
 
 TyTy::BaseType *
-TypeCheckBase::unify_site (HirId id, TyTy::TyWithLocation lhs,
-			   TyTy::TyWithLocation rhs, Location unify_locus)
-{
-  TyTy::BaseType *expected = lhs.get_ty ();
-  TyTy::BaseType *expr = rhs.get_ty ();
-
-  rust_debug ("unify_site id={%u} expected={%s} expr={%s}", id,
-	      expected->debug_str ().c_str (), expr->debug_str ().c_str ());
-
-  TyTy::BaseType *unified = expected->unify (expr);
-  if (unified->get_kind () == TyTy::TypeKind::ERROR)
-    {
-      RichLocation r (unify_locus);
-      r.add_range (lhs.get_locus ());
-      r.add_range (rhs.get_locus ());
-      rust_error_at (r, "expected %<%s%> got %<%s%>",
-		     expected->get_name ().c_str (),
-		     expr->get_name ().c_str ());
-    }
-
-  return unified;
-}
-
-TyTy::BaseType *
 TypeCheckBase::coercion_site (HirId id, TyTy::TyWithLocation lhs,
 			      TyTy::TyWithLocation rhs, Location locus)
 {
@@ -443,7 +419,7 @@ TypeCheckBase::cast_site (HirId id, TyTy::TyWithLocation from,
 
 void
 TypeCheckBase::resolve_generic_params (
-  const std::vector<std::unique_ptr<HIR::GenericParam>> &generic_params,
+  const std::vector<std::unique_ptr<HIR::GenericParam> > &generic_params,
   std::vector<TyTy::SubstitutionParamMapping> &substitutions)
 {
   for (auto &generic_param : generic_params)
@@ -490,79 +466,6 @@ TypeCheckBase::resolve_generic_params (
 	  break;
 	}
     }
-}
-
-bool
-TypeCheckBase::query_type (HirId reference, TyTy::BaseType **result)
-{
-  if (context->query_in_progress (reference))
-    return false;
-
-  if (context->lookup_type (reference, result))
-    return true;
-
-  context->insert_query (reference);
-
-  HIR::Item *item = mappings->lookup_hir_item (reference);
-  if (item != nullptr)
-    {
-      rust_debug_loc (item->get_locus (), "resolved item {%u} to", reference);
-      *result = TypeCheckItem::Resolve (*item);
-      context->query_completed (reference);
-      return true;
-    }
-
-  HirId parent_impl_id = UNKNOWN_HIRID;
-  HIR::ImplItem *impl_item
-    = mappings->lookup_hir_implitem (reference, &parent_impl_id);
-  if (impl_item != nullptr)
-    {
-      HIR::ImplBlock *impl_block
-	= mappings->lookup_hir_impl_block (parent_impl_id);
-      rust_assert (impl_block != nullptr);
-
-      // found an impl item
-      rust_debug_loc (impl_item->get_locus (), "resolved impl-item {%u} to",
-		      reference);
-
-      *result = TypeCheckItem::ResolveImplItem (*impl_block, *impl_item);
-      context->query_completed (reference);
-      return true;
-    }
-
-  // is it an impl_type?
-  HIR::ImplBlock *impl_block_by_type = nullptr;
-  bool found_impl_block_type
-    = mappings->lookup_impl_block_type (reference, &impl_block_by_type);
-  if (found_impl_block_type)
-    {
-      *result = TypeCheckItem::ResolveImplBlockSelf (*impl_block_by_type);
-      context->query_completed (reference);
-      return true;
-    }
-
-  // is it an extern item?
-  HirId parent_extern_block_id = UNKNOWN_HIRID;
-  HIR::ExternalItem *extern_item
-    = mappings->lookup_hir_extern_item (reference, &parent_extern_block_id);
-  if (extern_item != nullptr)
-    {
-      HIR::ExternBlock *block
-	= mappings->lookup_hir_extern_block (parent_extern_block_id);
-      rust_assert (block != nullptr);
-
-      *result = TypeCheckTopLevelExternItem::Resolve (extern_item, *block);
-      context->query_completed (reference);
-      return true;
-    }
-
-  // more?
-  Location possible_locus = mappings->lookup_location (reference);
-  rust_debug_loc (possible_locus, "query system failed to resolve: [%u]",
-		  reference);
-  context->query_completed (reference);
-
-  return false;
 }
 
 } // namespace Resolver

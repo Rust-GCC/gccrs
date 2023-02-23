@@ -1,6 +1,6 @@
 // class template regex -*- C++ -*-
 
-// Copyright (C) 2013-2022 Free Software Foundation, Inc.
+// Copyright (C) 2013-2023 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -110,7 +110,7 @@ namespace __detail
 
 #ifdef _GLIBCXX_DEBUG
     std::ostream&
-    _M_print(std::ostream& ostr) const;
+    _M_print(std::ostream& __ostr) const;
 
     // Prints graphviz dot commands for state.
     std::ostream&

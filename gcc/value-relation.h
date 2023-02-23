@@ -1,5 +1,5 @@
 /* Header file for the value range relational processing.
-   Copyright (C) 2020-2022 Free Software Foundation, Inc.
+   Copyright (C) 2020-2023 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod <amacleod@redhat.com>
 
 This file is part of GCC.
@@ -426,6 +426,7 @@ public:
   inline tree op1 () const { return name1; }
   inline tree op2 () const { return name2; }
 
+  relation_trio create_trio (tree lhs, tree op1, tree op2);
   bool union_ (value_relation &p);
   bool intersect (value_relation &p);
   void negate ();

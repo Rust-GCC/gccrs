@@ -1,4 +1,4 @@
-/* Copyright (C) 1988-2022 Free Software Foundation, Inc.
+/* Copyright (C) 1988-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -314,14 +314,12 @@ scalar_chain::~scalar_chain ()
 void
 scalar_chain::add_to_queue (unsigned insn_uid)
 {
-  if (bitmap_bit_p (insns, insn_uid)
-      || bitmap_bit_p (queue, insn_uid))
+  if (!bitmap_set_bit (queue, insn_uid))
     return;
 
   if (dump_file)
     fprintf (dump_file, "  Adding insn %d into chain's #%d queue\n",
 	     insn_uid, chain_id);
-  bitmap_set_bit (queue, insn_uid);
 }
 
 /* For DImode conversion, mark register defined by DEF as requiring
@@ -362,10 +360,9 @@ void
 scalar_chain::analyze_register_chain (bitmap candidates, df_ref ref)
 {
   df_link *chain;
+  bool mark_def = false;
 
-  gcc_assert (bitmap_bit_p (insns, DF_REF_INSN_UID (ref))
-	      || bitmap_bit_p (candidates, DF_REF_INSN_UID (ref)));
-  add_to_queue (DF_REF_INSN_UID (ref));
+  gcc_checking_assert (bitmap_bit_p (insns, DF_REF_INSN_UID (ref)));
 
   for (chain = DF_REF_CHAIN (ref); chain; chain = chain->next)
     {
@@ -398,9 +395,12 @@ scalar_chain::analyze_register_chain (bitmap candidates, df_ref ref)
 	  if (dump_file)
 	    fprintf (dump_file, "  r%d use in insn %d isn't convertible\n",
 		     DF_REF_REGNO (chain->ref), uid);
-	  mark_dual_mode_def (ref);
+	  mark_def = true;
 	}
     }
+
+  if (mark_def)
+    mark_dual_mode_def (ref);
 }
 
 /* Add instruction into a chain.  */
@@ -408,13 +408,11 @@ scalar_chain::analyze_register_chain (bitmap candidates, df_ref ref)
 void
 scalar_chain::add_insn (bitmap candidates, unsigned int insn_uid)
 {
-  if (bitmap_bit_p (insns, insn_uid))
+  if (!bitmap_set_bit (insns, insn_uid))
     return;
 
   if (dump_file)
     fprintf (dump_file, "  Adding insn %d to chain #%d\n", insn_uid, chain_id);
-
-  bitmap_set_bit (insns, insn_uid);
 
   rtx_insn *insn = DF_INSN_UID_GET (insn_uid)->insn;
   rtx def_set = single_set (insn);
@@ -429,6 +427,11 @@ scalar_chain::add_insn (bitmap candidates, unsigned int insn_uid)
   for (ref = DF_INSN_UID_DEFS (insn_uid); ref; ref = DF_REF_NEXT_LOC (ref))
     if (!HARD_REGISTER_P (DF_REF_REG (ref)))
       analyze_register_chain (candidates, ref);
+
+  /* The operand(s) of VEC_SELECT don't need to be converted/convertible.  */
+  if (def_set && GET_CODE (SET_SRC (def_set)) == VEC_SELECT)
+    return;
+
   for (ref = DF_INSN_UID_USES (insn_uid); ref; ref = DF_REF_NEXT_LOC (ref))
     if (!DF_REF_REG_MEM_P (ref))
       analyze_register_chain (candidates, ref);
@@ -562,6 +565,14 @@ general_scalar_chain::compute_convert_gain ()
 	      igain -= vector_const_cost (XEXP (src, 0));
 	    if (CONST_INT_P (XEXP (src, 1)))
 	      igain -= vector_const_cost (XEXP (src, 1));
+	    if (MEM_P (XEXP (src, 1)))
+	      {
+		if (optimize_insn_for_size_p ())
+		  igain -= COSTS_N_BYTES (m == 2 ? 3 : 5);
+		else
+		  igain += m * ix86_cost->int_load[2]
+			   - ix86_cost->sse_load[sse_cost_idx];
+	      }
 	    break;
 
 	  case NEG:
@@ -626,6 +637,23 @@ general_scalar_chain::compute_convert_gain ()
 		igain += (m * ix86_cost->int_store[2]
 			  - ix86_cost->sse_store[sse_cost_idx]);
 		igain -= vector_const_cost (src);
+	      }
+	    break;
+
+	  case VEC_SELECT:
+	    if (XVECEXP (XEXP (src, 1), 0, 0) == const0_rtx)
+	      {
+		// movd (4 bytes) replaced with movdqa (4 bytes).
+		if (!optimize_insn_for_size_p ())
+		  igain += ix86_cost->sse_to_integer - ix86_cost->xmm_move;
+	      }
+	    else
+	      {
+		// pshufd; movd replaced with pshufd.
+		if (optimize_insn_for_size_p ())
+		  igain += COSTS_N_BYTES (4);
+		else
+		  igain += ix86_cost->sse_to_integer;
 	      }
 	    break;
 
@@ -1165,6 +1193,24 @@ general_scalar_chain::convert_insn (rtx_insn *insn)
 
     case CONST_INT:
       convert_op (&src, insn);
+      break;
+
+    case VEC_SELECT:
+      if (XVECEXP (XEXP (src, 1), 0, 0) == const0_rtx)
+	src = XEXP (src, 0);
+      else if (smode == DImode)
+	{
+	  rtx tmp = gen_lowpart (V1TImode, XEXP (src, 0));
+	  dst = gen_lowpart (V1TImode, dst);
+	  src = gen_rtx_LSHIFTRT (V1TImode, tmp, GEN_INT (64));
+	}
+      else
+	{
+	  rtx tmp = XVECEXP (XEXP (src, 1), 0, 0);
+	  rtvec vec = gen_rtvec (4, tmp, tmp, tmp, tmp);
+	  rtx par = gen_rtx_PARALLEL (VOIDmode, vec);
+	  src = gen_rtx_VEC_SELECT (vmode, XEXP (src, 0), par);
+	}
       break;
 
     default:
@@ -1756,6 +1802,19 @@ pseudo_reg_set (rtx_insn *insn)
   return set;
 }
 
+/* Return true if the register REG is defined in a single DEF chain.
+   If it is defined in more than one DEF chains, we may not be able
+   to convert it in all chains.  */
+
+static bool
+single_def_chain_p (rtx reg)
+{
+  df_ref ref = DF_REG_DEF_CHAIN (REGNO (reg));
+  if (!ref)
+    return false;
+  return DF_REF_NEXT_REG (ref) == nullptr;
+}
+
 /* Check if comparison INSN may be transformed into vector comparison.
    Currently we transform equality/inequality checks which look like:
    (set (reg:CCZ 17 flags) (compare:CCZ (reg:TI x) (reg:TI y)))  */
@@ -1917,6 +1976,16 @@ general_scalar_to_vector_candidate_p (rtx_insn *insn, enum machine_mode mode)
     case CONST_INT:
       return REG_P (dst);
 
+    case VEC_SELECT:
+      /* Excluding MEM_P (dst) avoids intefering with vpextr[dq].  */
+      return REG_P (dst)
+	     && REG_P (XEXP (src, 0))
+	     && GET_MODE (XEXP (src, 0)) == (mode == DImode ? V2DImode
+							    : V4SImode)
+	     && GET_CODE (XEXP (src, 1)) == PARALLEL
+	     && XVECLEN (XEXP (src, 1), 0) == 1
+	     && CONST_INT_P (XVECEXP (XEXP (src, 1), 0, 0));
+
     default:
       return false;
     }
@@ -1972,9 +2041,14 @@ timode_scalar_to_vector_candidate_p (rtx_insn *insn)
       && !TARGET_SSE_UNALIGNED_STORE_OPTIMAL)
     return false;
 
+  if (REG_P (dst) && !single_def_chain_p (dst))
+    return false;
+
   switch (GET_CODE (src))
     {
     case REG:
+      return single_def_chain_p (src);
+
     case CONST_WIDE_INT:
       return true;
 
@@ -2207,30 +2281,33 @@ convert_scalars_to_vector (bool timode_p)
       fprintf (dump_file, "There are no candidates for optimization.\n");
 
   for (unsigned i = 0; i <= 2; ++i)
-    while (!bitmap_empty_p (&candidates[i]))
-      {
-	unsigned uid = bitmap_first_set_bit (&candidates[i]);
-	scalar_chain *chain;
+    {
+      bitmap_tree_view (&candidates[i]);
+      while (!bitmap_empty_p (&candidates[i]))
+	{
+	  unsigned uid = bitmap_first_set_bit (&candidates[i]);
+	  scalar_chain *chain;
 
-	if (cand_mode[i] == TImode)
-	  chain = new timode_scalar_chain;
-	else
-	  chain = new general_scalar_chain (cand_mode[i], cand_vmode[i]);
+	  if (cand_mode[i] == TImode)
+	    chain = new timode_scalar_chain;
+	  else
+	    chain = new general_scalar_chain (cand_mode[i], cand_vmode[i]);
 
-	/* Find instructions chain we want to convert to vector mode.
-	   Check all uses and definitions to estimate all required
-	   conversions.  */
-	chain->build (&candidates[i], uid);
+	  /* Find instructions chain we want to convert to vector mode.
+	     Check all uses and definitions to estimate all required
+	     conversions.  */
+	  chain->build (&candidates[i], uid);
 
-	if (chain->compute_convert_gain () > 0)
-	  converted_insns += chain->convert ();
-	else
-	  if (dump_file)
-	    fprintf (dump_file, "Chain #%d conversion is not profitable\n",
-		     chain->chain_id);
+	  if (chain->compute_convert_gain () > 0)
+	    converted_insns += chain->convert ();
+	  else
+	    if (dump_file)
+	      fprintf (dump_file, "Chain #%d conversion is not profitable\n",
+		       chain->chain_id);
 
-	delete chain;
-      }
+	  delete chain;
+	}
+    }
 
   if (dump_file)
     fprintf (dump_file, "Total insns converted: %d\n", converted_insns);

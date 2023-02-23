@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -460,6 +460,9 @@ ASTLoweringBase::visit (AST::GroupedPattern &)
 {}
 void
 ASTLoweringBase::visit (AST::SlicePattern &)
+{}
+void
+ASTLoweringBase::visit (AST::AltPattern &)
 {}
 
 // rust-stmt.h

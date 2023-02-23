@@ -1,5 +1,5 @@
 /* Header file for range operator class.
-   Copyright (C) 2017-2022 Free Software Foundation, Inc.
+   Copyright (C) 2017-2023 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod <amacleod@redhat.com>
    and Aldy Hernandez <aldyh@redhat.com>.
 
@@ -108,6 +108,12 @@ protected:
 			 const wide_int &lh_ub,
 			 const wide_int &rh_lb,
 			 const wide_int &rh_ub) const;
+
+  // Called by fold range to split small subranges into parts when op1 == op2
+  void wi_fold_in_parts_equiv (irange &r, tree type,
+			       const wide_int &lb,
+			       const wide_int &ub,
+			       unsigned limit) const;
 
   // Tree code of the range operator or ERROR_MARK if unknown.
   tree_code m_code;

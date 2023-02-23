@@ -126,6 +126,7 @@ public:
 
   std::unique_ptr<AST::Item> parse_item (bool called_from_statement);
   std::unique_ptr<AST::Pattern> parse_pattern ();
+  std::unique_ptr<AST::Pattern> parse_pattern_no_alt ();
 
   /**
    * Parse a statement
@@ -150,6 +151,8 @@ public:
   std::unique_ptr<AST::TokenTree> parse_token_tree ();
   AST::Attribute parse_attribute_body ();
   AST::AttrVec parse_inner_attributes ();
+  std::unique_ptr<AST::MacroInvocation>
+  parse_macro_invocation (AST::AttrVec outer_attrs);
 
 private:
   void skip_after_semicolon ();
@@ -201,8 +204,6 @@ private:
   parse_decl_macro_def (AST::Visibility vis, AST::AttrVec outer_attrs);
   std::unique_ptr<AST::MacroInvocation>
   parse_macro_invocation_semi (AST::AttrVec outer_attrs);
-  std::unique_ptr<AST::MacroInvocation>
-  parse_macro_invocation (AST::AttrVec outer_attrs);
   AST::MacroRule parse_macro_rule ();
   AST::MacroMatcher parse_macro_matcher ();
   std::unique_ptr<AST::MacroMatch> parse_macro_match ();
@@ -604,6 +605,8 @@ private:
   std::unique_ptr<AST::TypeNoBounds> parse_type_no_bounds ();
   std::unique_ptr<AST::TypeNoBounds> parse_slice_or_array_type ();
   std::unique_ptr<AST::RawPointerType> parse_raw_pointer_type ();
+  std::unique_ptr<AST::ReferenceType>
+  parse_reference_type_inner (Location locus);
   std::unique_ptr<AST::ReferenceType> parse_reference_type ();
   std::unique_ptr<AST::BareFunctionType>
   parse_bare_function_type (std::vector<AST::LifetimeParam> for_lifetimes);

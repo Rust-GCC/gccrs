@@ -1,5 +1,5 @@
 /* Header file for SSA loop optimizations.
-   Copyright (C) 2013-2022 Free Software Foundation, Inc.
+   Copyright (C) 2013-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -71,7 +71,7 @@ extern unsigned tree_num_loop_insns (class loop *, struct eni_weights *);
 
 /* Returns the loop of the statement STMT.  */
 
-static inline class loop *
+inline class loop *
 loop_containing_stmt (gimple *stmt)
 {
   basic_block bb = gimple_bb (stmt);

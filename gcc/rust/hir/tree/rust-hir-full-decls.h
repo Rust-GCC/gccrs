@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -206,7 +206,6 @@ class TuplePatternItems;
 class TuplePatternItemsMultiple;
 class TuplePatternItemsRanged;
 class TuplePattern;
-class GroupedPattern;
 class SlicePattern;
 
 // rust-type.h

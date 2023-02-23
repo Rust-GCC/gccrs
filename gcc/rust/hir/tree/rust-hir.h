@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -838,6 +838,8 @@ public:
   virtual Location get_locus () const = 0;
 
   virtual ImplItemType get_impl_item_type () const = 0;
+
+  virtual std::string get_impl_item_name () const = 0;
 
 protected:
   // Clone function implementation as pure virtual method

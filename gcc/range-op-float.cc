@@ -1,5 +1,5 @@
 /* Floating point range operators.
-   Copyright (C) 2022 Free Software Foundation, Inc.
+   Copyright (C) 2022-2023 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>.
 
 This file is part of GCC.
@@ -90,6 +90,27 @@ range_operator_float::fold_range (frange &r, tree type,
     ;
   else
     r.clear_nan ();
+
+  // If the result has overflowed and flag_trapping_math, folding this
+  // operation could elide an overflow or division by zero exception.
+  // Avoid returning a singleton +-INF, to keep the propagators (DOM
+  // and substitute_and_fold_engine) from folding.  See PR107608.
+  if (flag_trapping_math
+      && MODE_HAS_INFINITIES (TYPE_MODE (type))
+      && r.known_isinf () && !op1.known_isinf () && !op2.known_isinf ())
+    {
+      REAL_VALUE_TYPE inf = r.lower_bound ();
+      if (real_isneg (&inf))
+	{
+	  REAL_VALUE_TYPE min = real_min_representable (type);
+	  r.set (type, inf, min);
+	}
+      else
+	{
+	  REAL_VALUE_TYPE max = real_max_representable (type);
+	  r.set (type, max, inf);
+	}
+    }
 
   return true;
 }
@@ -586,6 +607,10 @@ foperator_equal::fold_range (irange &r, tree type,
     {
       if (op1 == op2)
 	r = range_true (type);
+      // If one operand is -0.0 and other 0.0, they are still equal.
+      else if (real_iszero (&op1.lower_bound ())
+	       && real_iszero (&op2.lower_bound ()))
+	r = range_true (type);
       else
 	r = range_false (type);
     }
@@ -596,7 +621,18 @@ foperator_equal::fold_range (irange &r, tree type,
       frange tmp = op1;
       tmp.intersect (op2);
       if (tmp.undefined_p ())
-	r = range_false (type);
+	{
+	  // If one range is [whatever, -0.0] and another
+	  // [0.0, whatever2], we don't know anything either,
+	  // because -0.0 == 0.0.
+	  if ((real_iszero (&op1.upper_bound ())
+	       && real_iszero (&op2.lower_bound ()))
+	      || (real_iszero (&op1.lower_bound ())
+		  && real_iszero (&op2.upper_bound ())))
+	    r = range_true_and_false (type);
+	  else
+	    r = range_false (type);
+	}
       else
 	r = range_true_and_false (type);
     }
@@ -687,10 +723,14 @@ foperator_not_equal::fold_range (irange &r, tree type,
   // consist of a single value, and then compare them.
   else if (op1.singleton_p () && op2.singleton_p ())
     {
-      if (op1 != op2)
-	r = range_true (type);
-      else
+      if (op1 == op2)
 	r = range_false (type);
+      // If one operand is -0.0 and other 0.0, they are still equal.
+      else if (real_iszero (&op1.lower_bound ())
+	       && real_iszero (&op2.lower_bound ()))
+	r = range_false (type);
+      else
+	r = range_true (type);
     }
   else if (!maybe_isnan (op1, op2))
     {
@@ -699,7 +739,18 @@ foperator_not_equal::fold_range (irange &r, tree type,
       frange tmp = op1;
       tmp.intersect (op2);
       if (tmp.undefined_p ())
-	r = range_true (type);
+	{
+	  // If one range is [whatever, -0.0] and another
+	  // [0.0, whatever2], we don't know anything either,
+	  // because -0.0 == 0.0.
+	  if ((real_iszero (&op1.upper_bound ())
+	       && real_iszero (&op2.lower_bound ()))
+	      || (real_iszero (&op1.lower_bound ())
+		  && real_iszero (&op2.upper_bound ())))
+	    r = range_true_and_false (type);
+	  else
+	    r = range_true (type);
+	}
       else
 	r = range_true_and_false (type);
     }
@@ -815,6 +866,8 @@ foperator_lt::op1_range (frange &r,
       // The TRUE side of x < NAN is unreachable.
       if (op2.known_isnan ())
 	r.set_undefined ();
+      else if (op2.undefined_p ())
+	return false;
       else if (build_lt (r, type, op2))
 	{
 	  r.clear_nan ();
@@ -850,6 +903,8 @@ foperator_lt::op2_range (frange &r,
       // The TRUE side of NAN < x is unreachable.
       if (op1.known_isnan ())
 	r.set_undefined ();
+      else if (op1.undefined_p ())
+	return false;
       else if (build_gt (r, type, op1))
 	{
 	  r.clear_nan ();
@@ -931,6 +986,8 @@ foperator_le::op1_range (frange &r,
       // The TRUE side of x <= NAN is unreachable.
       if (op2.known_isnan ())
 	r.set_undefined ();
+      else if (op2.undefined_p ())
+	return false;
       else if (build_le (r, type, op2))
 	r.clear_nan ();
       break;
@@ -962,6 +1019,8 @@ foperator_le::op2_range (frange &r,
       // The TRUE side of NAN <= x is unreachable.
       if (op1.known_isnan ())
 	r.set_undefined ();
+      else if (op1.undefined_p ())
+	return false;
       else if (build_ge (r, type, op1))
 	r.clear_nan ();
       break;
@@ -970,6 +1029,8 @@ foperator_le::op2_range (frange &r,
       // On the FALSE side of NAN <= x, we know nothing about x.
       if (op1.known_isnan ())
 	r.set_varying (type);
+      else if (op1.undefined_p ())
+	return false;
       else
 	build_lt (r, type, op1);
       break;
@@ -1039,6 +1100,8 @@ foperator_gt::op1_range (frange &r,
       // The TRUE side of x > NAN is unreachable.
       if (op2.known_isnan ())
 	r.set_undefined ();
+      else if (op2.undefined_p ())
+	return false;
       else if (build_gt (r, type, op2))
 	{
 	  r.clear_nan ();
@@ -1051,6 +1114,8 @@ foperator_gt::op1_range (frange &r,
       // On the FALSE side of x > NAN, we know nothing about x.
       if (op2.known_isnan ())
 	r.set_varying (type);
+      else if (op2.undefined_p ())
+	return false;
       else
 	build_le (r, type, op2);
       break;
@@ -1074,6 +1139,8 @@ foperator_gt::op2_range (frange &r,
       // The TRUE side of NAN > x is unreachable.
       if (op1.known_isnan ())
 	r.set_undefined ();
+      else if (op1.undefined_p ())
+	return false;
       else if (build_lt (r, type, op1))
 	{
 	  r.clear_nan ();
@@ -1086,6 +1153,8 @@ foperator_gt::op2_range (frange &r,
       // On The FALSE side of NAN > x, we know nothing about x.
       if (op1.known_isnan ())
 	r.set_varying (type);
+      else if (op1.undefined_p ())
+	return false;
       else
 	build_ge (r, type, op1);
       break;
@@ -1155,6 +1224,8 @@ foperator_ge::op1_range (frange &r,
       // The TRUE side of x >= NAN is unreachable.
       if (op2.known_isnan ())
 	r.set_undefined ();
+      else if (op2.undefined_p ())
+	return false;
       else if (build_ge (r, type, op2))
 	r.clear_nan ();
       break;
@@ -1163,6 +1234,8 @@ foperator_ge::op1_range (frange &r,
       // On the FALSE side of x >= NAN, we know nothing about x.
       if (op2.known_isnan ())
 	r.set_varying (type);
+      else if (op2.undefined_p ())
+	return false;
       else
 	build_lt (r, type, op2);
       break;
@@ -1185,6 +1258,8 @@ foperator_ge::op2_range (frange &r, tree type,
       // The TRUE side of NAN >= x is unreachable.
       if (op1.known_isnan ())
 	r.set_undefined ();
+      else if (op1.undefined_p ())
+	return false;
       else if (build_le (r, type, op1))
 	r.clear_nan ();
       break;
@@ -1193,6 +1268,8 @@ foperator_ge::op2_range (frange &r, tree type,
       // On the FALSE side of NAN >= x, we know nothing about x.
       if (op1.known_isnan ())
 	r.set_varying (type);
+      else if (op1.undefined_p ())
+	return false;
       else
 	build_gt (r, type, op1);
       break;
@@ -1541,6 +1618,8 @@ foperator_unordered_lt::op1_range (frange &r, tree type,
     case BRS_TRUE:
       if (op2.known_isnan ())
 	r.set_varying (type);
+      else if (op2.undefined_p ())
+	return false;
       else
 	build_lt (r, type, op2);
       break;
@@ -1550,6 +1629,8 @@ foperator_unordered_lt::op1_range (frange &r, tree type,
       // impossible for op2 to be a NAN.
       if (op2.known_isnan ())
 	r.set_undefined ();
+      else if (op2.undefined_p ())
+	return false;
       else if (build_ge (r, type, op2))
 	r.clear_nan ();
       break;
@@ -1571,6 +1652,8 @@ foperator_unordered_lt::op2_range (frange &r, tree type,
     case BRS_TRUE:
       if (op1.known_isnan ())
 	r.set_varying (type);
+      else if (op1.undefined_p ())
+	return false;
       else
 	build_gt (r, type, op1);
       break;
@@ -1580,6 +1663,8 @@ foperator_unordered_lt::op2_range (frange &r, tree type,
       // impossible for op1 to be a NAN.
       if (op1.known_isnan ())
 	r.set_undefined ();
+      else if (op1.undefined_p ())
+	return false;
       else if (build_le (r, type, op1))
 	r.clear_nan ();
       break;
@@ -1635,6 +1720,8 @@ foperator_unordered_le::op1_range (frange &r, tree type,
     case BRS_TRUE:
       if (op2.known_isnan ())
 	r.set_varying (type);
+      else if (op2.undefined_p ())
+	return false;
       else
 	build_le (r, type, op2);
       break;
@@ -1666,6 +1753,8 @@ foperator_unordered_le::op2_range (frange &r,
     case BRS_TRUE:
       if (op1.known_isnan ())
 	r.set_varying (type);
+      else if (op1.undefined_p ())
+	return false;
       else
 	build_ge (r, type, op1);
       break;
@@ -1675,6 +1764,8 @@ foperator_unordered_le::op2_range (frange &r,
       // impossible for op1 to be a NAN.
       if (op1.known_isnan ())
 	r.set_undefined ();
+      else if (op1.undefined_p ())
+	return false;
       else if (build_lt (r, type, op1))
 	r.clear_nan ();
       break;
@@ -1732,6 +1823,8 @@ foperator_unordered_gt::op1_range (frange &r,
     case BRS_TRUE:
       if (op2.known_isnan ())
 	r.set_varying (type);
+      else if (op2.undefined_p ())
+	return false;
       else
 	build_gt (r, type, op2);
       break;
@@ -1741,6 +1834,8 @@ foperator_unordered_gt::op1_range (frange &r,
       // impossible for op2 to be a NAN.
       if (op2.known_isnan ())
 	r.set_undefined ();
+      else if (op2.undefined_p ())
+	return false;
       else if (build_le (r, type, op2))
 	r.clear_nan ();
       break;
@@ -1763,6 +1858,8 @@ foperator_unordered_gt::op2_range (frange &r,
     case BRS_TRUE:
       if (op1.known_isnan ())
 	r.set_varying (type);
+      else if (op1.undefined_p ())
+	return false;
       else
 	build_lt (r, type, op1);
       break;
@@ -1772,6 +1869,8 @@ foperator_unordered_gt::op2_range (frange &r,
       // impossible for op1 to be a NAN.
       if (op1.known_isnan ())
 	r.set_undefined ();
+      else if (op1.undefined_p ())
+	return false;
       else if (build_ge (r, type, op1))
 	r.clear_nan ();
       break;
@@ -1829,6 +1928,8 @@ foperator_unordered_ge::op1_range (frange &r,
     case BRS_TRUE:
       if (op2.known_isnan ())
 	r.set_varying (type);
+      else if (op2.undefined_p ())
+	return false;
       else
 	build_ge (r, type, op2);
       break;
@@ -1838,6 +1939,8 @@ foperator_unordered_ge::op1_range (frange &r,
       // impossible for op2 to be a NAN.
       if (op2.known_isnan ())
 	r.set_undefined ();
+      else if (op2.undefined_p ())
+	return false;
       else if (build_lt (r, type, op2))
 	r.clear_nan ();
       break;
@@ -1859,6 +1962,8 @@ foperator_unordered_ge::op2_range (frange &r, tree type,
     case BRS_TRUE:
       if (op1.known_isnan ())
 	r.set_varying (type);
+      else if (op1.undefined_p ())
+	return false;
       else
 	build_le (r, type, op1);
       break;
@@ -1868,6 +1973,8 @@ foperator_unordered_ge::op2_range (frange &r, tree type,
       // impossible for op1 to be a NAN.
       if (op1.known_isnan ())
 	r.set_undefined ();
+      else if (op1.undefined_p ())
+	return false;
       else if (build_gt (r, type, op1))
 	r.clear_nan ();
       break;

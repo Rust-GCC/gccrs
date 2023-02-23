@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -455,9 +455,6 @@ Dump::visit (TuplePatternItemsRanged &)
 {}
 void
 Dump::visit (TuplePattern &)
-{}
-void
-Dump::visit (GroupedPattern &)
 {}
 void
 Dump::visit (SlicePattern &)

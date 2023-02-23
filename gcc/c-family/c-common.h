@@ -1,5 +1,5 @@
 /* Definitions for c-common.cc.
-   Copyright (C) 1987-2022 Free Software Foundation, Inc.
+   Copyright (C) 1987-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -918,6 +918,30 @@ extern tree convert_init (tree, tree);
 /* Subroutine of build_binary_op, used for certain operations.  */
 extern tree shorten_binary_op (tree result_type, tree op0, tree op1, bool bitwise);
 
+/* Return true if division or modulo op0 / op1 or op0 % op1 may be shortened.
+   We can shorten only if we can guarantee that op0 is not signed integral
+   minimum or op1 is not -1, because e.g. (long long) INT_MIN / -1 is
+   well defined INT_MAX + 1LL if long long is wider than int, but INT_MIN / -1
+   is UB.  */
+inline bool
+may_shorten_divmod (tree op0, tree op1)
+{
+  tree type0 = TREE_TYPE (op0);
+  if (TYPE_UNSIGNED (type0))
+    return true;
+  /* A cast from narrower unsigned won't be signed integral minimum,
+     but cast from same or wider precision unsigned could be.  */
+  if (TREE_CODE (op0) == NOP_EXPR
+      && INTEGRAL_TYPE_P (TREE_TYPE (TREE_OPERAND (op0, 0)))
+      && TYPE_UNSIGNED (TREE_TYPE (TREE_OPERAND (op0, 0)))
+      && (TYPE_PRECISION (TREE_TYPE (TREE_OPERAND (op0, 0)))
+	  < TYPE_PRECISION (type0)))
+    return true;
+  if (TREE_CODE (op1) == INTEGER_CST && !integer_all_onesp (op1))
+    return true;
+  return false;
+}
+
 /* Subroutine of build_binary_op, used for comparison operations.
    See if the operands have both been converted from subword integer types
    and, if so, perhaps change them both back to their original type.  */
@@ -1077,6 +1101,7 @@ extern tree lookup_label (tree);
 extern tree lookup_name (tree);
 extern bool lvalue_p (const_tree);
 extern int maybe_adjust_arg_pos_for_attribute (const_tree);
+extern bool instantiation_dependent_expression_p (tree);
 
 extern bool vector_targets_convertible_p (const_tree t1, const_tree t2);
 extern bool vector_types_convertible_p (const_tree t1, const_tree t2, bool emit_lax_note);
@@ -1302,7 +1327,7 @@ extern const struct c_omp_directive *c_omp_categorize_directive (const char *,
 								 const char *);
 
 /* Return next tree in the chain for chain_next walking of tree nodes.  */
-static inline tree
+inline tree
 c_tree_chain_next (tree t)
 {
   /* TREE_CHAIN of a type is TYPE_STUB_DECL, which is different

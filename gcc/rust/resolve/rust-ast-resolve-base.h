@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -178,6 +178,7 @@ public:
   void visit (AST::TuplePattern &);
   void visit (AST::GroupedPattern &);
   void visit (AST::SlicePattern &);
+  void visit (AST::AltPattern &);
 
   void visit (AST::EmptyStmt &);
   void visit (AST::LetStmt &);

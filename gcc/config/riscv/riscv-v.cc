@@ -1,6 +1,7 @@
-/* Subroutines used for code generation for RISC-V 'V' Extension for GNU
-   compiler. Copyright (C) 2022-2022 Free Software Foundation, Inc. Contributed
-   by Juzhe Zhong (juzhe.zhong@rivai.ai), RiVAI Technologies Ltd.
+/* Subroutines used for code generation for RISC-V 'V' Extension for
+   GNU compiler.
+   Copyright (C) 2022-2023 Free Software Foundation, Inc.
+   Contributed by Juzhe Zhong (juzhe.zhong@rivai.ai), RiVAI Technologies Ltd.
 
    This file is part of GCC.
 
@@ -66,16 +67,18 @@ public:
   }
   void add_vundef_operand (machine_mode mode)
   {
-    add_input_operand (gen_rtx_UNSPEC (mode, gen_rtvec (1, const0_rtx),
-				       UNSPEC_VUNDEF),
-		       mode);
+    add_input_operand (RVV_VUNDEF (mode), mode);
   }
   void add_policy_operand (enum tail_policy vta, enum mask_policy vma)
   {
-    rtx tail_policy_rtx = vta == TAIL_UNDISTURBED ? const0_rtx : const1_rtx;
-    rtx mask_policy_rtx = vma == MASK_UNDISTURBED ? const0_rtx : const1_rtx;
+    rtx tail_policy_rtx = gen_int_mode (vta, Pmode);
+    rtx mask_policy_rtx = gen_int_mode (vma, Pmode);
     add_input_operand (tail_policy_rtx, Pmode);
     add_input_operand (mask_policy_rtx, Pmode);
+  }
+  void add_avl_type_operand (avl_type type)
+  {
+    add_input_operand (gen_int_mode (type, Pmode), Pmode);
   }
 
   void expand (enum insn_code icode, bool temporary_volatile_p = false)
@@ -112,34 +115,102 @@ emit_vlmax_vsetvl (machine_mode vmode)
   unsigned int sew = GET_MODE_CLASS (vmode) == MODE_VECTOR_BOOL
 		       ? 8
 		       : GET_MODE_BITSIZE (GET_MODE_INNER (vmode));
+  enum vlmul_type vlmul = get_vlmul (vmode);
+  unsigned int ratio = calculate_ratio (sew, vlmul);
 
-  emit_insn (
-    gen_vsetvl_no_side_effects (Pmode, vl, RVV_VLMAX, gen_int_mode (sew, Pmode),
-				gen_int_mode ((unsigned int) vmode, Pmode),
-				const1_rtx, const1_rtx));
+  if (!optimize)
+    emit_insn (gen_vsetvl (Pmode, vl, RVV_VLMAX, gen_int_mode (sew, Pmode),
+			   gen_int_mode (get_vlmul (vmode), Pmode), const0_rtx,
+			   const0_rtx));
+  else
+    emit_insn (gen_vlmax_avl (Pmode, vl, gen_int_mode (ratio, Pmode)));
+
   return vl;
 }
 
-/* Emit an RVV unmask && vl mov from SRC to DEST.  */
-void
-emit_pred_op (unsigned icode, rtx dest, rtx src, machine_mode mask_mode)
+/* Calculate SEW/LMUL ratio.  */
+unsigned int
+calculate_ratio (unsigned int sew, enum vlmul_type vlmul)
 {
-  insn_expander<7> e;
+  unsigned int ratio;
+  switch (vlmul)
+    {
+    case LMUL_1:
+      ratio = sew;
+      break;
+    case LMUL_2:
+      ratio = sew / 2;
+      break;
+    case LMUL_4:
+      ratio = sew / 4;
+      break;
+    case LMUL_8:
+      ratio = sew / 8;
+      break;
+    case LMUL_F8:
+      ratio = sew * 8;
+      break;
+    case LMUL_F4:
+      ratio = sew * 4;
+      break;
+    case LMUL_F2:
+      ratio = sew * 2;
+      break;
+    default:
+      gcc_unreachable ();
+    }
+  return ratio;
+}
+
+/* Emit an RVV unmask && vl mov from SRC to DEST.  */
+static void
+emit_pred_op (unsigned icode, rtx mask, rtx dest, rtx src, rtx len,
+	      machine_mode mask_mode)
+{
+  insn_expander<8> e;
   machine_mode mode = GET_MODE (dest);
 
   e.add_output_operand (dest, mode);
-  e.add_all_one_mask_operand (mask_mode);
+
+  if (mask)
+    e.add_input_operand (mask, GET_MODE (mask));
+  else
+    e.add_all_one_mask_operand (mask_mode);
+
   e.add_vundef_operand (mode);
 
   e.add_input_operand (src, GET_MODE (src));
 
-  rtx vlmax = emit_vlmax_vsetvl (mode);
-  e.add_input_operand (vlmax, Pmode);
+  if (len)
+    e.add_input_operand (len, Pmode);
+  else
+    {
+      rtx vlmax = emit_vlmax_vsetvl (mode);
+      e.add_input_operand (vlmax, Pmode);
+    }
 
   if (GET_MODE_CLASS (mode) != MODE_VECTOR_BOOL)
-    e.add_policy_operand (TAIL_AGNOSTIC, MASK_AGNOSTIC);
+    e.add_policy_operand (get_prefer_tail_policy (), get_prefer_mask_policy ());
+
+  if (len)
+    e.add_avl_type_operand (avl_type::NONVLMAX);
+  else
+    e.add_avl_type_operand (avl_type::VLMAX);
 
   e.expand ((enum insn_code) icode, MEM_P (dest) || MEM_P (src));
+}
+
+void
+emit_vlmax_op (unsigned icode, rtx dest, rtx src, machine_mode mask_mode)
+{
+  emit_pred_op (icode, NULL_RTX, dest, src, NULL_RTX, mask_mode);
+}
+
+void
+emit_nonvlmax_op (unsigned icode, rtx dest, rtx src, rtx len,
+		  machine_mode mask_mode)
+{
+  emit_pred_op (icode, NULL_RTX, dest, src, len, mask_mode);
 }
 
 static void
@@ -153,7 +224,7 @@ expand_const_vector (rtx target, rtx src, machine_mode mask_mode)
       gcc_assert (
 	const_vec_duplicate_p (src, &elt)
 	&& (rtx_equal_p (elt, const0_rtx) || rtx_equal_p (elt, const1_rtx)));
-      emit_pred_op (code_for_pred_mov (mode), target, src, mode);
+      emit_vlmax_op (code_for_pred_mov (mode), target, src, mask_mode);
       return;
     }
 
@@ -164,10 +235,10 @@ expand_const_vector (rtx target, rtx src, machine_mode mask_mode)
       /* Element in range -16 ~ 15 integer or 0.0 floating-point,
 	 we use vmv.v.i instruction.  */
       if (satisfies_constraint_vi (src) || satisfies_constraint_Wc0 (src))
-	emit_pred_op (code_for_pred_mov (mode), tmp, src, mask_mode);
+	emit_vlmax_op (code_for_pred_mov (mode), tmp, src, mask_mode);
       else
-	emit_pred_op (code_for_pred_broadcast (mode), tmp,
-		      force_reg (elt_mode, elt), mask_mode);
+	emit_vlmax_op (code_for_pred_broadcast (mode), tmp,
+		       force_reg (elt_mode, elt), mask_mode);
 
       if (tmp != target)
 	emit_move_insn (target, tmp);
@@ -206,12 +277,12 @@ legitimize_move (rtx dest, rtx src, machine_mode mask_mode)
     {
       rtx tmp = gen_reg_rtx (mode);
       if (MEM_P (src))
-	emit_pred_op (code_for_pred_mov (mode), tmp, src, mask_mode);
+	emit_vlmax_op (code_for_pred_mov (mode), tmp, src, mask_mode);
       else
 	emit_move_insn (tmp, src);
       src = tmp;
     }
-  emit_pred_op (code_for_pred_mov (mode), dest, src, mask_mode);
+  emit_vlmax_op (code_for_pred_mov (mode), dest, src, mask_mode);
   return true;
 }
 
@@ -254,6 +325,163 @@ get_ratio (machine_mode mode)
     return mode_vtype_infos.ratio_for_min_vlen32[mode];
   else
     return mode_vtype_infos.ratio_for_min_vlen64[mode];
+}
+
+/* Get ta according to operand[tail_op_idx].  */
+int
+get_ta (rtx ta)
+{
+  if (INTVAL (ta) == TAIL_ANY)
+    return INVALID_ATTRIBUTE;
+  return INTVAL (ta);
+}
+
+/* Get ma according to operand[mask_op_idx].  */
+int
+get_ma (rtx ma)
+{
+  if (INTVAL (ma) == MASK_ANY)
+    return INVALID_ATTRIBUTE;
+  return INTVAL (ma);
+}
+
+/* Get prefer tail policy.  */
+enum tail_policy
+get_prefer_tail_policy ()
+{
+  /* TODO: By default, we choose to use TAIL_ANY which allows
+     compiler pick up either agnostic or undisturbed. Maybe we
+     will have a compile option like -mprefer=agnostic to set
+     this value???.  */
+  return TAIL_ANY;
+}
+
+/* Get prefer mask policy.  */
+enum mask_policy
+get_prefer_mask_policy ()
+{
+  /* TODO: By default, we choose to use MASK_ANY which allows
+     compiler pick up either agnostic or undisturbed. Maybe we
+     will have a compile option like -mprefer=agnostic to set
+     this value???.  */
+  return MASK_ANY;
+}
+
+/* Get avl_type rtx.  */
+rtx
+get_avl_type_rtx (enum avl_type type)
+{
+  return gen_int_mode (type, Pmode);
+}
+
+/* Return the RVV vector mode that has NUNITS elements of mode INNER_MODE.
+   This function is not only used by builtins, but also will be used by
+   auto-vectorization in the future.  */
+opt_machine_mode
+get_vector_mode (scalar_mode inner_mode, poly_uint64 nunits)
+{
+  enum mode_class mclass;
+  if (inner_mode == E_BImode)
+    mclass = MODE_VECTOR_BOOL;
+  else if (FLOAT_MODE_P (inner_mode))
+    mclass = MODE_VECTOR_FLOAT;
+  else
+    mclass = MODE_VECTOR_INT;
+  machine_mode mode;
+  FOR_EACH_MODE_IN_CLASS (mode, mclass)
+    if (inner_mode == GET_MODE_INNER (mode)
+	&& known_eq (nunits, GET_MODE_NUNITS (mode))
+	&& riscv_v_ext_vector_mode_p (mode))
+      return mode;
+  return opt_machine_mode ();
+}
+
+bool
+simm5_p (rtx x)
+{
+  if (!CONST_INT_P (x))
+    return false;
+  return IN_RANGE (INTVAL (x), -16, 15);
+}
+
+bool
+neg_simm5_p (rtx x)
+{
+  if (!CONST_INT_P (x))
+    return false;
+  return IN_RANGE (INTVAL (x), -15, 16);
+}
+
+bool
+has_vi_variant_p (rtx_code code, rtx x)
+{
+  switch (code)
+    {
+    case PLUS:
+    case AND:
+    case IOR:
+    case XOR:
+    case SS_PLUS:
+    case US_PLUS:
+    case EQ:
+    case NE:
+    case LE:
+    case LEU:
+    case GT:
+    case GTU:
+      return simm5_p (x);
+
+    case LT:
+    case LTU:
+    case GE:
+    case GEU:
+    case MINUS:
+    case SS_MINUS:
+      return neg_simm5_p (x);
+
+    default:
+      return false;
+    }
+}
+
+bool
+sew64_scalar_helper (rtx *operands, rtx *scalar_op, rtx vl,
+		     machine_mode vector_mode, machine_mode mask_mode,
+		     bool has_vi_variant_p,
+		     void (*emit_vector_func) (rtx *, rtx))
+{
+  machine_mode scalar_mode = GET_MODE_INNER (vector_mode);
+  if (has_vi_variant_p)
+    {
+      *scalar_op = force_reg (scalar_mode, *scalar_op);
+      return false;
+    }
+
+  if (TARGET_64BIT)
+    {
+      if (!rtx_equal_p (*scalar_op, const0_rtx))
+	*scalar_op = force_reg (scalar_mode, *scalar_op);
+      return false;
+    }
+
+  if (immediate_operand (*scalar_op, Pmode))
+    {
+      if (!rtx_equal_p (*scalar_op, const0_rtx))
+	*scalar_op = force_reg (Pmode, *scalar_op);
+
+      *scalar_op = gen_rtx_SIGN_EXTEND (scalar_mode, *scalar_op);
+      return false;
+    }
+
+  if (CONST_INT_P (*scalar_op))
+    *scalar_op = force_reg (scalar_mode, *scalar_op);
+
+  rtx tmp = gen_reg_rtx (vector_mode);
+  riscv_vector::emit_nonvlmax_op (code_for_pred_broadcast (vector_mode), tmp,
+				  *scalar_op, vl, mask_mode);
+  emit_vector_func (operands, tmp);
+
+  return true;
 }
 
 } // namespace riscv_vector

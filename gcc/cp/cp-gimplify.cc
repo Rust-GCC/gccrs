@@ -1,6 +1,6 @@
 /* C++-specific tree lowering bits; see also c-gimplify.cc and gimple.cc.
 
-   Copyright (C) 2002-2022 Free Software Foundation, Inc.
+   Copyright (C) 2002-2023 Free Software Foundation, Inc.
    Contributed by Jason Merrill <jason@redhat.com>
 
 This file is part of GCC.
@@ -43,12 +43,26 @@ along with GCC; see the file COPYING3.  If not see
 #include "omp-general.h"
 #include "opts.h"
 
+/* Flags for cp_fold and cp_fold_r.  */
+
+enum fold_flags {
+  ff_none = 0,
+  /* Whether we're being called from cp_fold_function.  */
+  ff_genericize = 1 << 0,
+  /* Whether we're folding a point where we know we're
+     definitely not in a manifestly constant-evaluated
+     context.  */
+  ff_mce_false = 1 << 1,
+};
+
+using fold_flags_t = int;
+
 /* Forward declarations.  */
 
 static tree cp_genericize_r (tree *, int *, void *);
 static tree cp_fold_r (tree *, int *, void *);
 static void cp_genericize_tree (tree*, bool);
-static tree cp_fold (tree);
+static tree cp_fold (tree, fold_flags_t);
 
 /* Genericize a TRY_BLOCK.  */
 
@@ -250,7 +264,10 @@ cp_gimplify_init_expr (tree *expr_p)
   if (TREE_CODE (from) == TARGET_EXPR)
     if (tree init = TARGET_EXPR_INITIAL (from))
       {
-	gcc_checking_assert (TARGET_EXPR_ELIDING_P (from));
+	/* Make sure that we expected to elide this temporary.  But also allow
+	   gimplify_modify_expr_rhs to elide temporaries of trivial type.  */
+	gcc_checking_assert (TARGET_EXPR_ELIDING_P (from)
+			     || !TREE_ADDRESSABLE (TREE_TYPE (from)));
 	if (target_expr_needs_replace (from))
 	  {
 	    /* If this was changed by cp_genericize_target_expr, we need to
@@ -722,7 +739,7 @@ cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 		break;
 	      case CP_BUILT_IN_SOURCE_LOCATION:
 		*expr_p
-		  = fold_builtin_source_location (EXPR_LOCATION (*expr_p));
+		  = fold_builtin_source_location (*expr_p);
 		break;
 	      case CP_BUILT_IN_IS_CORRESPONDING_MEMBER:
 		*expr_p
@@ -890,6 +907,21 @@ omp_cxx_notice_variable (struct cp_genericize_omp_taskreg *omp_ctx, tree decl)
     }
 }
 
+/* True if any of the element initializers in CTOR are TARGET_EXPRs that are
+   not expected to elide, e.g. because unsafe_copy_elision_p is true.  */
+
+static bool
+any_non_eliding_target_exprs (tree ctor)
+{
+  for (const constructor_elt &e : *CONSTRUCTOR_ELTS (ctor))
+    {
+      if (TREE_CODE (e.value) == TARGET_EXPR
+	  && !TARGET_EXPR_ELIDING_P (e.value))
+	return true;
+    }
+  return false;
+}
+
 /* If we might need to clean up a partially constructed object, break down the
    CONSTRUCTOR with split_nonconstant_init.  Also expand VEC_INIT_EXPR at this
    point.  If initializing TO with FROM is non-trivial, overwrite *REPLACE with
@@ -901,10 +933,11 @@ cp_genericize_init (tree *replace, tree from, tree to)
   tree init = NULL_TREE;
   if (TREE_CODE (from) == VEC_INIT_EXPR)
     init = expand_vec_init_expr (to, from, tf_warning_or_error);
-  else if (flag_exceptions
-	   && TREE_CODE (from) == CONSTRUCTOR
+  else if (TREE_CODE (from) == CONSTRUCTOR
 	   && TREE_SIDE_EFFECTS (from)
-	   && TYPE_HAS_NONTRIVIAL_DESTRUCTOR (TREE_TYPE (from)))
+	   && ((flag_exceptions
+		&& TYPE_HAS_NONTRIVIAL_DESTRUCTOR (TREE_TYPE (from)))
+	       || any_non_eliding_target_exprs (from)))
     {
       to = cp_stabilize_reference (to);
       replace_placeholders (from, to);
@@ -949,6 +982,28 @@ cp_genericize_target_expr (tree *stmt_p)
   gcc_assert (!DECL_INITIAL (slot));
 }
 
+/* Similar to if (target_expr_needs_replace) replace_decl, but TP is the
+   TARGET_EXPR_INITIAL, and this also updates *_SLOT.  We need this extra
+   replacement when cp_folding TARGET_EXPR to preserve the invariant that
+   AGGR_INIT_EXPR_SLOT agrees with the enclosing TARGET_EXPR_SLOT.  */
+
+bool
+maybe_replace_decl (tree *tp, tree decl, tree replacement)
+{
+  if (!*tp || !VOID_TYPE_P (TREE_TYPE (*tp)))
+    return false;
+  tree t = *tp;
+  while (TREE_CODE (t) == COMPOUND_EXPR)
+    t = TREE_OPERAND (t, 1);
+  if (TREE_CODE (t) == AGGR_INIT_EXPR)
+    replace_decl (&AGGR_INIT_EXPR_SLOT (t), decl, replacement);
+  else if (TREE_CODE (t) == VEC_INIT_EXPR)
+    replace_decl (&VEC_INIT_EXPR_SLOT (t), decl, replacement);
+  else
+    replace_decl (tp, decl, replacement);
+  return true;
+}
+
 /* Genericization context.  */
 
 struct cp_genericize_data
@@ -971,9 +1026,8 @@ struct cp_genericize_data
 struct cp_fold_data
 {
   hash_set<tree> pset;
-  bool genericize; // called from cp_fold_function?
-
-  cp_fold_data (bool g): genericize (g) {}
+  fold_flags_t flags;
+  cp_fold_data (fold_flags_t flags): flags (flags) {}
 };
 
 static tree
@@ -1014,7 +1068,7 @@ cp_fold_r (tree *stmt_p, int *walk_subtrees, void *data_)
       break;
     }
 
-  *stmt_p = stmt = cp_fold (*stmt_p);
+  *stmt_p = stmt = cp_fold (*stmt_p, data->flags);
 
   if (data->pset.add (stmt))
     {
@@ -1094,24 +1148,27 @@ cp_fold_r (tree *stmt_p, int *walk_subtrees, void *data_)
 	 here rather than in cp_genericize to avoid problems with the invisible
 	 reference transition.  */
     case INIT_EXPR:
-      if (data->genericize)
+      if (data->flags & ff_genericize)
 	cp_genericize_init_expr (stmt_p);
       break;
 
     case TARGET_EXPR:
-      if (data->genericize)
+      if (data->flags & ff_genericize)
 	cp_genericize_target_expr (stmt_p);
 
       /* Folding might replace e.g. a COND_EXPR with a TARGET_EXPR; in
-	 that case, use it in place of this one.  */
+	 that case, strip it in favor of this one.  */
       if (tree &init = TARGET_EXPR_INITIAL (stmt))
 	{
 	  cp_walk_tree (&init, cp_fold_r, data, NULL);
+	  cp_walk_tree (&TARGET_EXPR_CLEANUP (stmt), cp_fold_r, data, NULL);
 	  *walk_subtrees = 0;
 	  if (TREE_CODE (init) == TARGET_EXPR)
 	    {
-	      TARGET_EXPR_ELIDING_P (init) = TARGET_EXPR_ELIDING_P (stmt);
-	      *stmt_p = init;
+	      tree sub = TARGET_EXPR_INITIAL (init);
+	      maybe_replace_decl (&sub, TARGET_EXPR_SLOT (init),
+				  TARGET_EXPR_SLOT (stmt));
+	      init = sub;
 	    }
 	}
       break;
@@ -1129,7 +1186,10 @@ cp_fold_r (tree *stmt_p, int *walk_subtrees, void *data_)
 void
 cp_fold_function (tree fndecl)
 {
-  cp_fold_data data (/*genericize*/true);
+  /* By now all manifestly-constant-evaluated expressions will have
+     been constant-evaluated already if possible, so we can safely
+     pass ff_mce_false.  */
+  cp_fold_data data (ff_genericize | ff_mce_false);
   cp_walk_tree (&DECL_SAVED_TREE (fndecl), cp_fold_r, &data, NULL);
 }
 
@@ -2342,12 +2402,12 @@ cxx_omp_disregard_value_expr (tree decl, bool shared)
 
 /* Fold expression X which is used as an rvalue if RVAL is true.  */
 
-tree
-cp_fold_maybe_rvalue (tree x, bool rval)
+static tree
+cp_fold_maybe_rvalue (tree x, bool rval, fold_flags_t flags)
 {
   while (true)
     {
-      x = cp_fold (x);
+      x = cp_fold (x, flags);
       if (rval)
 	x = mark_rvalue_use (x);
       if (rval && DECL_P (x)
@@ -2365,12 +2425,24 @@ cp_fold_maybe_rvalue (tree x, bool rval)
   return x;
 }
 
+tree
+cp_fold_maybe_rvalue (tree x, bool rval)
+{
+  return cp_fold_maybe_rvalue (x, rval, ff_none);
+}
+
 /* Fold expression X which is used as an rvalue.  */
+
+static tree
+cp_fold_rvalue (tree x, fold_flags_t flags)
+{
+  return cp_fold_maybe_rvalue (x, true, flags);
+}
 
 tree
 cp_fold_rvalue (tree x)
 {
-  return cp_fold_maybe_rvalue (x, true);
+  return cp_fold_rvalue (x, ff_none);
 }
 
 /* Perform folding on expression X.  */
@@ -2406,7 +2478,7 @@ cp_fully_fold_init (tree x)
   if (processing_template_decl)
     return x;
   x = cp_fully_fold (x);
-  cp_fold_data data (/*genericize*/false);
+  cp_fold_data data (ff_mce_false);
   cp_walk_tree (&x, cp_fold_r, &data, NULL);
   return x;
 }
@@ -2422,15 +2494,29 @@ c_fully_fold (tree x, bool /*in_init*/, bool */*maybe_const*/, bool lval)
   return cp_fold_maybe_rvalue (x, !lval);
 }
 
-static GTY((deletable)) hash_map<tree, tree> *fold_cache;
+static GTY((deletable)) hash_map<tree, tree> *fold_caches[2];
+
+/* Subroutine of cp_fold.  Returns which fold cache to use according
+   to the given flags.  We need multiple caches since the result of
+   folding may depend on which flags are used.  */
+
+static hash_map<tree, tree> *&
+get_fold_cache (fold_flags_t flags)
+{
+  if (flags & ff_mce_false)
+    return fold_caches[1];
+  else
+    return fold_caches[0];
+}
 
 /* Dispose of the whole FOLD_CACHE.  */
 
 void
 clear_fold_cache (void)
 {
-  if (fold_cache != NULL)
-    fold_cache->empty ();
+  for (auto& fold_cache : fold_caches)
+    if (fold_cache != NULL)
+      fold_cache->empty ();
 }
 
 /*  This function tries to fold an expression X.
@@ -2441,7 +2527,7 @@ clear_fold_cache (void)
     Function returns X or its folded variant.  */
 
 static tree
-cp_fold (tree x)
+cp_fold (tree x, fold_flags_t flags)
 {
   tree op0, op1, op2, op3;
   tree org_x = x, r = NULL_TREE;
@@ -2459,6 +2545,7 @@ cp_fold (tree x)
   if (DECL_P (x) || CONSTANT_CLASS_P (x))
     return x;
 
+  auto& fold_cache = get_fold_cache (flags);
   if (fold_cache == NULL)
     fold_cache = hash_map<tree, tree>::create_ggc (101);
 
@@ -2473,7 +2560,7 @@ cp_fold (tree x)
     case CLEANUP_POINT_EXPR:
       /* Strip CLEANUP_POINT_EXPR if the expression doesn't have side
 	 effects.  */
-      r = cp_fold_rvalue (TREE_OPERAND (x, 0));
+      r = cp_fold_rvalue (TREE_OPERAND (x, 0), flags);
       if (!TREE_SIDE_EFFECTS (r))
 	x = r;
       break;
@@ -2498,14 +2585,14 @@ cp_fold (tree x)
 	     Don't create a new tree if op0 != TREE_OPERAND (x, 0), the
 	     folding of the operand should be in the caches and if in cp_fold_r
 	     it will modify it in place.  */
-	  op0 = cp_fold (TREE_OPERAND (x, 0));
+	  op0 = cp_fold (TREE_OPERAND (x, 0), flags);
 	  if (op0 == error_mark_node)
 	    x = error_mark_node;
 	  break;
 	}
 
       loc = EXPR_LOCATION (x);
-      op0 = cp_fold_maybe_rvalue (TREE_OPERAND (x, 0), rval_ops);
+      op0 = cp_fold_maybe_rvalue (TREE_OPERAND (x, 0), rval_ops, flags);
 
       if (code == CONVERT_EXPR
 	  && SCALAR_TYPE_P (TREE_TYPE (x))
@@ -2533,7 +2620,7 @@ cp_fold (tree x)
       break;
 
     case EXCESS_PRECISION_EXPR:
-      op0 = cp_fold_maybe_rvalue (TREE_OPERAND (x, 0), rval_ops);
+      op0 = cp_fold_maybe_rvalue (TREE_OPERAND (x, 0), rval_ops, flags);
       x = fold_convert_loc (EXPR_LOCATION (x), TREE_TYPE (x), op0);
       break;
 
@@ -2543,13 +2630,13 @@ cp_fold (tree x)
 	{
 	  tree p = maybe_undo_parenthesized_ref (x);
 	  if (p != x)
-	    return cp_fold (p);
+	    return cp_fold (p, flags);
 	}
       goto unary;
 
     case ADDR_EXPR:
       loc = EXPR_LOCATION (x);
-      op0 = cp_fold_maybe_rvalue (TREE_OPERAND (x, 0), false);
+      op0 = cp_fold_maybe_rvalue (TREE_OPERAND (x, 0), false, flags);
 
       /* Cope with user tricks that amount to offsetof.  */
       if (op0 != error_mark_node
@@ -2586,7 +2673,7 @@ cp_fold (tree x)
     unary:
 
       loc = EXPR_LOCATION (x);
-      op0 = cp_fold_maybe_rvalue (TREE_OPERAND (x, 0), rval_ops);
+      op0 = cp_fold_maybe_rvalue (TREE_OPERAND (x, 0), rval_ops, flags);
 
     finish_unary:
       if (op0 != TREE_OPERAND (x, 0))
@@ -2613,7 +2700,7 @@ cp_fold (tree x)
       break;
 
     case UNARY_PLUS_EXPR:
-      op0 = cp_fold_rvalue (TREE_OPERAND (x, 0));
+      op0 = cp_fold_rvalue (TREE_OPERAND (x, 0), flags);
       if (op0 == error_mark_node)
 	x = error_mark_node;
       else
@@ -2667,8 +2754,8 @@ cp_fold (tree x)
     case RANGE_EXPR: case COMPLEX_EXPR:
 
       loc = EXPR_LOCATION (x);
-      op0 = cp_fold_maybe_rvalue (TREE_OPERAND (x, 0), rval_ops);
-      op1 = cp_fold_rvalue (TREE_OPERAND (x, 1));
+      op0 = cp_fold_maybe_rvalue (TREE_OPERAND (x, 0), rval_ops, flags);
+      op1 = cp_fold_rvalue (TREE_OPERAND (x, 1), flags);
 
       /* decltype(nullptr) has only one value, so optimize away all comparisons
 	 with that type right away, keeping them in the IL causes troubles for
@@ -2734,9 +2821,9 @@ cp_fold (tree x)
     case VEC_COND_EXPR:
     case COND_EXPR:
       loc = EXPR_LOCATION (x);
-      op0 = cp_fold_rvalue (TREE_OPERAND (x, 0));
-      op1 = cp_fold (TREE_OPERAND (x, 1));
-      op2 = cp_fold (TREE_OPERAND (x, 2));
+      op0 = cp_fold_rvalue (TREE_OPERAND (x, 0), flags);
+      op1 = cp_fold (TREE_OPERAND (x, 1), flags);
+      op2 = cp_fold (TREE_OPERAND (x, 2), flags);
 
       if (TREE_CODE (TREE_TYPE (x)) == BOOLEAN_TYPE)
 	{
@@ -2826,7 +2913,7 @@ cp_fold (tree x)
 	      {
 		if (!same_type_p (TREE_TYPE (x), TREE_TYPE (r)))
 		  r = build_nop (TREE_TYPE (x), r);
-		x = cp_fold (r);
+		x = cp_fold (r, flags);
 		break;
 	      }
 	  }
@@ -2844,13 +2931,18 @@ cp_fold (tree x)
 
 	if (callee && fndecl_built_in_p (callee, BUILT_IN_FRONTEND))
 	  {
+	    iloc_sentinel ils (EXPR_LOCATION (x));
 	    switch (DECL_FE_FUNCTION_CODE (callee))
 	      {
-		/* Defer folding __builtin_is_constant_evaluated.  */
 	      case CP_BUILT_IN_IS_CONSTANT_EVALUATED:
+		/* Defer folding __builtin_is_constant_evaluated unless
+		   we know this isn't a manifestly constant-evaluated
+		   context.  */
+		if (flags & ff_mce_false)
+		  x = boolean_false_node;
 		break;
 	      case CP_BUILT_IN_SOURCE_LOCATION:
-		x = fold_builtin_source_location (EXPR_LOCATION (x));
+		x = fold_builtin_source_location (x);
 		break;
 	      case CP_BUILT_IN_IS_CORRESPONDING_MEMBER:
 	        x = fold_builtin_is_corresponding_member
@@ -2872,7 +2964,7 @@ cp_fold (tree x)
 	    && fndecl_built_in_p (callee, CP_BUILT_IN_SOURCE_LOCATION,
 				  BUILT_IN_FRONTEND))
 	  {
-	    x = fold_builtin_source_location (EXPR_LOCATION (x));
+	    x = fold_builtin_source_location (x);
 	    break;
 	  }
 
@@ -2880,7 +2972,7 @@ cp_fold (tree x)
 	int m = call_expr_nargs (x);
 	for (int i = 0; i < m; i++)
 	  {
-	    r = cp_fold (CALL_EXPR_ARG (x, i));
+	    r = cp_fold (CALL_EXPR_ARG (x, i), flags);
 	    if (r != CALL_EXPR_ARG (x, i))
 	      {
 		if (r == error_mark_node)
@@ -2903,7 +2995,7 @@ cp_fold (tree x)
 
 	if (TREE_CODE (r) != CALL_EXPR)
 	  {
-	    x = cp_fold (r);
+	    x = cp_fold (r, flags);
 	    break;
 	  }
 
@@ -2916,7 +3008,15 @@ cp_fold (tree x)
 	   constant, but the call followed by an INDIRECT_REF is.  */
 	if (callee && DECL_DECLARED_CONSTEXPR_P (callee)
 	    && !flag_no_inline)
-	  r = maybe_constant_value (x);
+	  {
+	    mce_value manifestly_const_eval = mce_unknown;
+	    if (flags & ff_mce_false)
+	      /* Allow folding __builtin_is_constant_evaluated to false during
+		 constexpr evaluation of this call.  */
+	      manifestly_const_eval = mce_false;
+	    r = maybe_constant_value (x, /*decl=*/NULL_TREE,
+				      manifestly_const_eval);
+	  }
 	optimize = sv;
 
         if (TREE_CODE (r) != CALL_EXPR)
@@ -2943,7 +3043,7 @@ cp_fold (tree x)
 	vec<constructor_elt, va_gc> *nelts = NULL;
 	FOR_EACH_VEC_SAFE_ELT (elts, i, p)
 	  {
-	    tree op = cp_fold (p->value);
+	    tree op = cp_fold (p->value, flags);
 	    if (op != p->value)
 	      {
 		if (op == error_mark_node)
@@ -2974,7 +3074,7 @@ cp_fold (tree x)
 
 	for (int i = 0; i < n; i++)
 	  {
-	    tree op = cp_fold (TREE_VEC_ELT (x, i));
+	    tree op = cp_fold (TREE_VEC_ELT (x, i), flags);
 	    if (op != TREE_VEC_ELT (x, i))
 	      {
 		if (!changed)
@@ -2991,10 +3091,10 @@ cp_fold (tree x)
     case ARRAY_RANGE_REF:
 
       loc = EXPR_LOCATION (x);
-      op0 = cp_fold (TREE_OPERAND (x, 0));
-      op1 = cp_fold (TREE_OPERAND (x, 1));
-      op2 = cp_fold (TREE_OPERAND (x, 2));
-      op3 = cp_fold (TREE_OPERAND (x, 3));
+      op0 = cp_fold (TREE_OPERAND (x, 0), flags);
+      op1 = cp_fold (TREE_OPERAND (x, 1), flags);
+      op2 = cp_fold (TREE_OPERAND (x, 2), flags);
+      op3 = cp_fold (TREE_OPERAND (x, 3), flags);
 
       if (op0 != TREE_OPERAND (x, 0)
 	  || op1 != TREE_OPERAND (x, 1)
@@ -3022,7 +3122,7 @@ cp_fold (tree x)
       /* A SAVE_EXPR might contain e.g. (0 * i) + (0 * j), which, after
 	 folding, evaluates to an invariant.  In that case no need to wrap
 	 this folded tree with a SAVE_EXPR.  */
-      r = cp_fold (TREE_OPERAND (x, 0));
+      r = cp_fold (TREE_OPERAND (x, 0), flags);
       if (tree_invariant_p (r))
 	x = r;
       break;
@@ -3171,12 +3271,11 @@ process_stmt_assume_attribute (tree std_attrs, tree statement,
   return remove_attribute ("gnu", "assume", std_attrs);
 }
 
-/* Helper of fold_builtin_source_location, return the
-   std::source_location::__impl type after performing verification
-   on it.  LOC is used for reporting any errors.  */
+/* Return the type std::source_location::__impl after performing
+   verification on it.  */
 
-static tree
-get_source_location_impl_type (location_t loc)
+tree
+get_source_location_impl_type ()
 {
   tree name = get_identifier ("source_location");
   tree decl = lookup_qualified_name (std_node, name);
@@ -3184,9 +3283,9 @@ get_source_location_impl_type (location_t loc)
     {
       auto_diagnostic_group d;
       if (decl == error_mark_node || TREE_CODE (decl) == TREE_LIST)
-	qualified_name_lookup_error (std_node, name, decl, loc);
+	qualified_name_lookup_error (std_node, name, decl, input_location);
       else
-	error_at (loc, "%qD is not a type", decl);
+	error ("%qD is not a type", decl);
       return error_mark_node;
     }
   name = get_identifier ("__impl");
@@ -3196,15 +3295,15 @@ get_source_location_impl_type (location_t loc)
     {
       auto_diagnostic_group d;
       if (decl == error_mark_node || TREE_CODE (decl) == TREE_LIST)
-	qualified_name_lookup_error (type, name, decl, loc);
+	qualified_name_lookup_error (type, name, decl, input_location);
       else
-	error_at (loc, "%qD is not a type", decl);
+	error ("%qD is not a type", decl);
       return error_mark_node;
     }
   type = TREE_TYPE (decl);
   if (TREE_CODE (type) != RECORD_TYPE)
     {
-      error_at (loc, "%qD is not a class type", decl);
+      error ("%qD is not a class type", decl);
       return error_mark_node;
     }
 
@@ -3221,8 +3320,7 @@ get_source_location_impl_type (location_t loc)
 	    {
 	      if (TREE_TYPE (field) != const_string_type_node)
 		{
-		  error_at (loc, "%qD does not have %<const char *%> type",
-			    field);
+		  error ("%qD does not have %<const char *%> type", field);
 		  return error_mark_node;
 		}
 	      cnt++;
@@ -3232,7 +3330,7 @@ get_source_location_impl_type (location_t loc)
 	    {
 	      if (TREE_CODE (TREE_TYPE (field)) != INTEGER_TYPE)
 		{
-		  error_at (loc, "%qD does not have integral type", field);
+		  error ("%qD does not have integral type", field);
 		  return error_mark_node;
 		}
 	      cnt++;
@@ -3244,9 +3342,9 @@ get_source_location_impl_type (location_t loc)
     }
   if (cnt != 4)
     {
-      error_at (loc, "%<std::source_location::__impl%> does not contain only "
-		     "non-static data members %<_M_file_name%>, "
-		     "%<_M_function_name%>, %<_M_line%> and %<_M_column%>");
+      error ("%<std::source_location::__impl%> does not contain only "
+	     "non-static data members %<_M_file_name%>, "
+	     "%<_M_function_name%>, %<_M_line%> and %<_M_column%>");
       return error_mark_node;
     }
   return build_qualified_type (type, TYPE_QUAL_CONST);
@@ -3337,21 +3435,20 @@ static GTY(()) hash_table <source_location_table_entry_hash>
   *source_location_table;
 static GTY(()) unsigned int source_location_id;
 
-/* Fold __builtin_source_location () call.  LOC is the location
-   of the call.  */
+/* Fold the __builtin_source_location () call T.  */
 
 tree
-fold_builtin_source_location (location_t loc)
+fold_builtin_source_location (const_tree t)
 {
-  if (source_location_impl == NULL_TREE)
-    {
-      auto_diagnostic_group d;
-      source_location_impl = get_source_location_impl_type (loc);
-      if (source_location_impl == error_mark_node)
-	inform (loc, "evaluating %qs", "__builtin_source_location");
-    }
+  gcc_assert (TREE_CODE (t) == CALL_EXPR);
+  /* TREE_TYPE (t) is const std::source_location::__impl*  */
+  tree source_location_impl = TREE_TYPE (TREE_TYPE (t));
   if (source_location_impl == error_mark_node)
     return build_zero_cst (const_ptr_type_node);
+  gcc_assert (CLASS_TYPE_P (source_location_impl)
+	      && id_equal (TYPE_IDENTIFIER (source_location_impl), "__impl"));
+
+  location_t loc = EXPR_LOCATION (t);
   if (source_location_table == NULL)
     source_location_table
       = hash_table <source_location_table_entry_hash>::create_ggc (64);
@@ -3427,7 +3524,7 @@ fold_builtin_source_location (location_t loc)
       entryp->var = var;
     }
 
-  return build_fold_addr_expr_with_type_loc (loc, var, const_ptr_type_node);
+  return build_fold_addr_expr_with_type_loc (loc, var, TREE_TYPE (t));
 }
 
 #include "gt-cp-cp-gimplify.h"

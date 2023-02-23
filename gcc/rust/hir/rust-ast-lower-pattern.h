@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -40,6 +40,7 @@ public:
   void visit (AST::LiteralPattern &pattern) override;
   void visit (AST::RangePattern &pattern) override;
   void visit (AST::GroupedPattern &pattern) override;
+  void visit (AST::ReferencePattern &pattern) override;
 
 private:
   ASTLoweringPattern ();

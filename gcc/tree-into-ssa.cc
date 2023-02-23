@@ -1,5 +1,5 @@
 /* Rewrite a program in Normal form into SSA.
-   Copyright (C) 2001-2022 Free Software Foundation, Inc.
+   Copyright (C) 2001-2023 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -1934,9 +1934,8 @@ maybe_register_def (def_operand_p def_p, gimple *stmt,
 	  tree tracked_var = target_for_debug_bind (sym);
 	  if (tracked_var)
 	    {
-	      gimple *note = gimple_build_debug_bind (tracked_var, def, stmt);
-	      /* If stmt ends the bb, insert the debug stmt on the single
-		 non-EH edge from the stmt.  */
+	      /* If stmt ends the bb, insert the debug stmt on the non-EH
+		 edge(s) from the stmt.  */
 	      if (gsi_one_before_end_p (gsi) && stmt_ends_bb_p (stmt))
 		{
 		  basic_block bb = gsi_bb (gsi);
@@ -1945,33 +1944,46 @@ maybe_register_def (def_operand_p def_p, gimple *stmt,
 		  FOR_EACH_EDGE (e, ei, bb->succs)
 		    if (!(e->flags & EDGE_EH))
 		      {
-			gcc_checking_assert (!ef);
+			/* asm goto can have multiple non-EH edges from the
+			   stmt.  Insert on all of them where it is
+			   possible.  */
+			gcc_checking_assert (!ef || (gimple_code (stmt)
+						     == GIMPLE_ASM));
 			ef = e;
-		      }
-		  /* If there are other predecessors to ef->dest, then
-		     there must be PHI nodes for the modified
-		     variable, and therefore there will be debug bind
-		     stmts after the PHI nodes.  The debug bind notes
-		     we'd insert would force the creation of a new
-		     block (diverging codegen) and be redundant with
-		     the post-PHI bind stmts, so don't add them.
+			/* If there are other predecessors to ef->dest, then
+			   there must be PHI nodes for the modified
+			   variable, and therefore there will be debug bind
+			   stmts after the PHI nodes.  The debug bind notes
+			   we'd insert would force the creation of a new
+			   block (diverging codegen) and be redundant with
+			   the post-PHI bind stmts, so don't add them.
 
-		     As for the exit edge, there wouldn't be redundant
-		     bind stmts, but there wouldn't be a PC to bind
-		     them to either, so avoid diverging the CFG.  */
-		  if (ef && single_pred_p (ef->dest)
-		      && ef->dest != EXIT_BLOCK_PTR_FOR_FN (cfun))
-		    {
-		      /* If there were PHI nodes in the node, we'd
-			 have to make sure the value we're binding
-			 doesn't need rewriting.  But there shouldn't
-			 be PHI nodes in a single-predecessor block,
-			 so we just add the note.  */
-		      gsi_insert_on_edge_immediate (ef, note);
-		    }
+			   As for the exit edge, there wouldn't be redundant
+			   bind stmts, but there wouldn't be a PC to bind
+			   them to either, so avoid diverging the CFG.  */
+			if (e
+			    && single_pred_p (e->dest)
+			    && gimple_seq_empty_p (phi_nodes (e->dest))
+			    && e->dest != EXIT_BLOCK_PTR_FOR_FN (cfun))
+			  {
+			    /* If there were PHI nodes in the node, we'd
+			       have to make sure the value we're binding
+			       doesn't need rewriting.  But there shouldn't
+			       be PHI nodes in a single-predecessor block,
+			       so we just add the note.  */
+			    gimple *note
+			      = gimple_build_debug_bind (tracked_var, def,
+							 stmt);
+			    gsi_insert_on_edge_immediate (ef, note);
+			  }
+		      }
 		}
 	      else
-		gsi_insert_after (&gsi, note, GSI_SAME_STMT);
+		{
+		  gimple *note
+		    = gimple_build_debug_bind (tracked_var, def, stmt);
+		  gsi_insert_after (&gsi, note, GSI_SAME_STMT);
+		}
 	    }
 	}
 
@@ -3549,6 +3561,8 @@ update_ssa (unsigned update_flags)
 	bitmap_initialize (&dfs[bb->index], &bitmap_default_obstack);
       compute_dominance_frontiers (dfs);
 
+      bitmap_tree_view (blocks_to_update);
+
       /* insert_update_phi_nodes_for will call add_new_name_mapping
 	 when inserting new PHI nodes, but it will not add any
 	 new members to OLD_SSA_NAMES.  */
@@ -3561,6 +3575,8 @@ update_ssa (unsigned update_flags)
       symbols_to_rename.qsort (insert_updated_phi_nodes_compare_uids);
       FOR_EACH_VEC_ELT (symbols_to_rename, i, sym)
 	insert_updated_phi_nodes_for (sym, dfs, update_flags);
+
+      bitmap_list_view (blocks_to_update);
 
       FOR_EACH_BB_FN (bb, cfun)
 	bitmap_clear (&dfs[bb->index]);

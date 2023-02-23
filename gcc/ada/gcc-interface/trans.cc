@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *          Copyright (C) 1992-2022, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2023, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -9049,7 +9049,9 @@ gnat_gimplify_expr (tree *expr_p, gimple_seq *pre_p,
 
       /* Propagate TREE_NO_WARNING from expression to temporary by using the
 	 SAVE_EXPR itself as an intermediate step.  See gimplify_save_expr.  */
-      if (SAVE_EXPR_RESOLVED_P (expr))
+      if (type == void_type_node)
+	;
+      else if (SAVE_EXPR_RESOLVED_P (expr))
 	TREE_NO_WARNING (op) = TREE_NO_WARNING (expr);
       else
 	TREE_NO_WARNING (expr) = TREE_NO_WARNING (op);
@@ -10564,7 +10566,7 @@ Sloc_to_locus (Source_Ptr Sloc, location_t *locus, bool clear_column,
   *locus
     = linemap_position_for_line_and_column (line_table, map, line, column);
 
-  if (file_map && file_map[file - 1].Instance)
+  if (decl && file_map && file_map[file - 1].Instance)
     decl_to_instance_map->put (decl, file_map[file - 1].Instance);
 
   return true;

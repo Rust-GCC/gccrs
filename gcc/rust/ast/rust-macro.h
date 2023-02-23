@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -222,7 +222,7 @@ public:
   };
 
 private:
-  std::vector<std::unique_ptr<MacroMatch> > matches;
+  std::vector<std::unique_ptr<MacroMatch>> matches;
   MacroRepOp op;
 
   // bool has_sep;
@@ -235,7 +235,7 @@ public:
   // Returns whether macro match repetition has separator token.
   bool has_sep () const { return sep != nullptr; }
 
-  MacroMatchRepetition (std::vector<std::unique_ptr<MacroMatch> > matches,
+  MacroMatchRepetition (std::vector<std::unique_ptr<MacroMatch>> matches,
 			MacroRepOp op, std::unique_ptr<MacroRepSep> sep,
 			Location locus)
     : matches (std::move (matches)), op (op), sep (std::move (sep)),
@@ -290,8 +290,8 @@ public:
 
   MacroRepOp get_op () const { return op; }
   const std::unique_ptr<MacroRepSep> &get_sep () const { return sep; }
-  std::vector<std::unique_ptr<MacroMatch> > &get_matches () { return matches; }
-  const std::vector<std::unique_ptr<MacroMatch> > &get_matches () const
+  std::vector<std::unique_ptr<MacroMatch>> &get_matches () { return matches; }
+  const std::vector<std::unique_ptr<MacroMatch>> &get_matches () const
   {
     return matches;
   }
@@ -309,7 +309,7 @@ protected:
 class MacroMatcher : public MacroMatch
 {
   DelimType delim_type;
-  std::vector<std::unique_ptr<MacroMatch> > matches;
+  std::vector<std::unique_ptr<MacroMatch>> matches;
   Location locus;
 
   // TODO: think of way to mark invalid that doesn't take up more space
@@ -317,7 +317,7 @@ class MacroMatcher : public MacroMatch
 
 public:
   MacroMatcher (DelimType delim_type,
-		std::vector<std::unique_ptr<MacroMatch> > matches,
+		std::vector<std::unique_ptr<MacroMatch>> matches,
 		Location locus)
     : delim_type (delim_type), matches (std::move (matches)), locus (locus),
       is_invalid (false)
@@ -369,8 +369,8 @@ public:
   }
 
   DelimType get_delim_type () const { return delim_type; }
-  std::vector<std::unique_ptr<MacroMatch> > &get_matches () { return matches; }
-  const std::vector<std::unique_ptr<MacroMatch> > &get_matches () const
+  std::vector<std::unique_ptr<MacroMatch>> &get_matches () { return matches; }
+  const std::vector<std::unique_ptr<MacroMatch>> &get_matches () const
   {
     return matches;
   }
@@ -578,8 +578,33 @@ protected:
   }
 };
 
+/**
+ * All builtin macros possible
+ */
+enum class BuiltinMacro
+{
+  Assert,
+  File,
+  Line,
+  Column,
+  IncludeBytes,
+  IncludeStr,
+  CompileError,
+  Concat,
+  Env,
+  Cfg,
+  Include
+};
+
+BuiltinMacro
+builtin_macro_from_string (const std::string &identifier);
+
 /* AST node of a macro invocation, which is replaced by the macro result at
- * compile time */
+ * compile time. This is technically a sum-type/tagged-union, which represents
+ * both classic macro invocations and builtin macro invocations. Regular macro
+ * invocations are expanded lazily, but builtin macro invocations need to be
+ * expanded eagerly, hence the differentiation.
+ */
 class MacroInvocation : public TypeNoBounds,
 			public Pattern,
 			public Item,
@@ -589,26 +614,51 @@ class MacroInvocation : public TypeNoBounds,
 			public ExternalItem,
 			public ExprWithoutBlock
 {
-  std::vector<Attribute> outer_attrs;
-  MacroInvocData invoc_data;
-  Location locus;
-
-  // Important for when we actually expand the macro
-  bool is_semi_coloned;
-
-  NodeId node_id;
-
 public:
+  enum class InvocKind
+  {
+    Regular,
+    Builtin,
+  };
+
   std::string as_string () const override;
 
-  MacroInvocation (MacroInvocData invoc_data,
-		   std::vector<Attribute> outer_attrs, Location locus,
-		   bool is_semi_coloned = false)
-    : outer_attrs (std::move (outer_attrs)),
-      invoc_data (std::move (invoc_data)), locus (locus),
-      is_semi_coloned (is_semi_coloned),
-      node_id (Analysis::Mappings::get ()->get_next_node_id ())
-  {}
+  /**
+   * The default constructor you should use. Whenever we parse a macro call, we
+   * cannot possibly know whether or not this call refers to a builtin macro or
+   * a regular macro. With name resolution and scopes and nested macro calls,
+   * this is literally impossible. Hence, always start by creating a `Regular`
+   * MacroInvocation which will then (maybe!) become a `Builtin` macro
+   * invocation in the expander.
+   */
+  static std::unique_ptr<MacroInvocation>
+  Regular (MacroInvocData invoc_data, std::vector<Attribute> outer_attrs,
+	   Location locus, bool is_semi_coloned = false)
+  {
+    return std::unique_ptr<MacroInvocation> (
+      new MacroInvocation (InvocKind::Regular, Optional<BuiltinMacro>::none (),
+			   invoc_data, outer_attrs, locus, is_semi_coloned,
+			   {}));
+  }
+
+  /**
+   * Create a builtin macro invocation. This can only be done after macro
+   * name-resolution and within the macro expander, so unless you're modifying
+   * these visitors, you probably do not want to use this function.
+   */
+  static std::unique_ptr<MacroInvocation> Builtin (
+    BuiltinMacro kind, MacroInvocData invoc_data,
+    std::vector<Attribute> outer_attrs, Location locus,
+    std::vector<std::unique_ptr<MacroInvocation>> &&pending_eager_invocations
+    = {},
+    bool is_semi_coloned = false)
+  {
+    return std::unique_ptr<MacroInvocation> (
+      new MacroInvocation (InvocKind::Builtin,
+			   Optional<BuiltinMacro>::some (kind), invoc_data,
+			   outer_attrs, locus, is_semi_coloned,
+			   std::move (pending_eager_invocations)));
+  }
 
   Location get_locus () const override final { return locus; }
 
@@ -641,6 +691,82 @@ public:
   MacroInvocData &get_invoc_data () { return invoc_data; }
 
   bool has_semicolon () const { return is_semi_coloned; }
+
+  InvocKind get_kind () const { return kind; }
+  Optional<BuiltinMacro> get_builtin_kind () const { return builtin_kind; }
+
+  /**
+   * Turn the current MacroInvocation into a builtin macro invocation
+   */
+  void map_to_builtin (BuiltinMacro macro)
+  {
+    kind = InvocKind::Builtin;
+    builtin_kind = Optional<BuiltinMacro>::some (macro);
+  }
+
+  /**
+   * Get the list of pending macro invcations within the builtin macro
+   * invocation that should get expanded eagerly.
+   */
+  std::vector<std::unique_ptr<MacroInvocation>> &
+  get_pending_eager_invocations ()
+  {
+    rust_assert (kind == InvocKind::Builtin);
+
+    return pending_eager_invocs;
+  }
+
+private:
+  /* Full constructor */
+  MacroInvocation (
+    InvocKind kind, Optional<BuiltinMacro> builtin_kind,
+    MacroInvocData invoc_data, std::vector<Attribute> outer_attrs,
+    Location locus, bool is_semi_coloned,
+    std::vector<std::unique_ptr<MacroInvocation>> &&pending_eager_invocs)
+    : TraitItem (locus), outer_attrs (std::move (outer_attrs)), locus (locus),
+      node_id (Analysis::Mappings::get ()->get_next_node_id ()),
+      invoc_data (std::move (invoc_data)), is_semi_coloned (is_semi_coloned),
+      kind (kind), builtin_kind (builtin_kind),
+      pending_eager_invocs (std::move (pending_eager_invocs))
+  {}
+
+  MacroInvocation (const MacroInvocation &other)
+    : TraitItem (other.locus), outer_attrs (other.outer_attrs),
+      locus (other.locus), node_id (other.node_id),
+      invoc_data (other.invoc_data), is_semi_coloned (other.is_semi_coloned),
+      kind (other.kind), builtin_kind (other.builtin_kind)
+  {
+    if (other.kind == InvocKind::Builtin)
+      for (auto &pending : other.pending_eager_invocs)
+	pending_eager_invocs.emplace_back (
+	  pending->clone_macro_invocation_impl ());
+  }
+
+  std::vector<Attribute> outer_attrs;
+  Location locus;
+  NodeId node_id;
+
+  /* The data given to the macro invocation */
+  MacroInvocData invoc_data;
+
+  /* Important for when we actually expand the macro */
+  bool is_semi_coloned;
+
+  /* Is this a builtin macro or a regular macro */
+  InvocKind kind;
+
+  /* If it is a builtin macro, which one */
+  Optional<BuiltinMacro> builtin_kind = Optional<BuiltinMacro>::none ();
+
+  /**
+   * Pending invocations within a builtin macro invocation. This vector is empty
+   * and should not be accessed for a regular macro invocation. The macro
+   * invocations within should be name resolved and expanded before the builtin
+   * macro invocation get expanded again. It is then the role of the expander to
+   * insert these new tokens properly in the delimited token tree and try the
+   * builtin transcriber once again.
+   */
+  std::vector<std::unique_ptr<MacroInvocation>> pending_eager_invocs;
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -743,11 +869,10 @@ protected:
 class MetaItemSeq : public MetaItem
 {
   SimplePath path;
-  std::vector<std::unique_ptr<MetaItemInner> > seq;
+  std::vector<std::unique_ptr<MetaItemInner>> seq;
 
 public:
-  MetaItemSeq (SimplePath path,
-	       std::vector<std::unique_ptr<MetaItemInner> > seq)
+  MetaItemSeq (SimplePath path, std::vector<std::unique_ptr<MetaItemInner>> seq)
     : path (std::move (path)), seq (std::move (seq))
   {}
 
@@ -950,18 +1075,18 @@ struct AttributeParser
 {
 private:
   // TODO: might as well rewrite to use lexer tokens
-  std::vector<std::unique_ptr<Token> > token_stream;
+  std::vector<std::unique_ptr<Token>> token_stream;
   int stream_pos;
 
 public:
-  AttributeParser (std::vector<std::unique_ptr<Token> > token_stream,
+  AttributeParser (std::vector<std::unique_ptr<Token>> token_stream,
 		   int stream_start_pos = 0)
     : token_stream (std::move (token_stream)), stream_pos (stream_start_pos)
   {}
 
   ~AttributeParser () = default;
 
-  std::vector<std::unique_ptr<MetaItemInner> > parse_meta_item_seq ();
+  std::vector<std::unique_ptr<MetaItemInner>> parse_meta_item_seq ();
 
 private:
   // Parses a MetaItemInner.

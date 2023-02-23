@@ -1,4 +1,4 @@
-;; Copyright (C) 2016-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2023 Free Software Foundation, Inc.
 
 ;; This file is free software; you can redistribute it and/or modify it under
 ;; the terms of the GNU General Public License as published by the Free
@@ -3486,6 +3486,29 @@
     emit_insn (gen_<expander><mode>3_exec (operands[0], operands[2],
 					   operands[3], operands[4],
 					   operands[1]));
+    DONE;
+  })
+
+(define_code_iterator cond_shiftop [ashift lshiftrt ashiftrt])
+
+(define_expand "cond_<expander><mode>"
+  [(match_operand:V_INT_noHI 0 "register_operand")
+   (match_operand:DI 1 "register_operand")
+   (cond_shiftop:V_INT_noHI
+     (match_operand:V_INT_noHI 2 "gcn_alu_operand")
+     (match_operand:V_INT_noHI 3 "gcn_alu_operand"))
+   (match_operand:V_INT_noHI 4 "register_operand")]
+  ""
+  {
+    operands[1] = force_reg (DImode, operands[1]);
+    operands[2] = force_reg (<MODE>mode, operands[2]);
+
+    rtx shiftby = gen_reg_rtx (<VnSI>mode);
+    convert_move (shiftby, operands[3], 0);
+
+    emit_insn (gen_v<expander><mode>3_exec (operands[0], operands[2],
+                                            shiftby, operands[4],
+                                            operands[1]));
     DONE;
   })
 

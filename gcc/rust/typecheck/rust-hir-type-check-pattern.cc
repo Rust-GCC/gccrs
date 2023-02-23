@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -384,15 +384,6 @@ void
 TypeCheckPattern::visit (HIR::IdentifierPattern &)
 {
   infered = parent;
-}
-
-void
-TypeCheckPattern::visit (HIR::GroupedPattern &pattern)
-{
-  TyTy::BaseType *inner_ty
-    = TypeCheckPattern::Resolve (pattern.get_item ().get (), parent);
-  infered = inner_ty->clone ();
-  infered->set_ref (pattern.get_pattern_mappings ().get_hirid ());
 }
 
 void

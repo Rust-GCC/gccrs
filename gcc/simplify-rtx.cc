@@ -1,5 +1,5 @@
 /* RTL simplification functions for GNU compiler.
-   Copyright (C) 1987-2022 Free Software Foundation, Inc.
+   Copyright (C) 1987-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -7650,6 +7650,22 @@ simplify_context::simplify_subreg (machine_mode outermode, rtx op,
 	  if (tem)
 	    return tem;
 	}
+    }
+
+  /* Try simplifying a SUBREG expression of a non-integer OUTERMODE by using a
+     NEW_OUTERMODE of the same size instead, other simplifications rely on
+     integer to integer subregs and we'd potentially miss out on optimizations
+     otherwise.  */
+  if (known_gt (GET_MODE_SIZE (innermode),
+		GET_MODE_SIZE (outermode))
+      && SCALAR_INT_MODE_P (innermode)
+      && !SCALAR_INT_MODE_P (outermode)
+      && int_mode_for_size (GET_MODE_BITSIZE (outermode),
+			    0).exists (&int_outermode))
+    {
+      rtx tem = simplify_subreg (int_outermode, op, innermode, byte);
+      if (tem)
+	return simplify_gen_subreg (outermode, tem, int_outermode, 0);
     }
 
   /* If OP is a vector comparison and the subreg is not changing the

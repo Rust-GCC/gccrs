@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -63,7 +63,7 @@ VisibilityResolver::resolve_module_path (const HIR::SimplePath &restriction,
   NodeId ref_node_id = UNKNOWN_NODEID;
   if (!resolver.lookup_resolved_name (ast_node_id, &ref_node_id))
     {
-      invalid_path.emit_error ();
+      invalid_path.emit ();
       return false;
     }
   // FIXME: Add a hint here if we can find the path in another scope, such as
@@ -77,7 +77,7 @@ VisibilityResolver::resolve_module_path (const HIR::SimplePath &restriction,
   auto module = mappings.lookup_module (ref);
   if (!module)
     {
-      invalid_path.emit_error ();
+      invalid_path.emit ();
       return false;
     }
 

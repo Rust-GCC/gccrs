@@ -1,5 +1,5 @@
 /* Reassociation for trees.
-   Copyright (C) 2005-2022 Free Software Foundation, Inc.
+   Copyright (C) 2005-2023 Free Software Foundation, Inc.
    Contributed by Daniel Berlin <dan@dberlin.org>
 
 This file is part of GCC.
@@ -2271,6 +2271,15 @@ eliminate_redundant_comparison (enum tree_code opcode,
 	  STRIP_USELESS_TYPE_CONVERSION (newop1);
 	  STRIP_USELESS_TYPE_CONVERSION (newop2);
 	  if (!is_gimple_val (newop1) || !is_gimple_val (newop2))
+	    continue;
+	  if (lcode == TREE_CODE (t)
+	      && operand_equal_p (op1, newop1, 0)
+	      && operand_equal_p (op2, newop2, 0))
+	    t = curr->op;
+	  else if ((TREE_CODE (newop1) == SSA_NAME
+		    && SSA_NAME_OCCURS_IN_ABNORMAL_PHI (newop1))
+		   || (TREE_CODE (newop2) == SSA_NAME
+		       && SSA_NAME_OCCURS_IN_ABNORMAL_PHI (newop2)))
 	    continue;
 	}
 
@@ -4678,6 +4687,9 @@ update_ops (tree var, enum tree_code code, const vec<operand_entry *> &ops,
       gimple_set_uid (g, gimple_uid (stmt));
       gimple_set_visited (g, true);
       gsi_insert_before (&gsi, g, GSI_SAME_STMT);
+      gimple_stmt_iterator gsi2 = gsi_for_stmt (g);
+      if (fold_stmt_inplace (&gsi2))
+	update_stmt (g);
     }
   return var;
 }
@@ -5117,35 +5129,6 @@ maybe_optimize_range_tests (gimple *stmt)
   return cfg_cleanup_needed;
 }
 
-/* Return true if OPERAND is defined by a PHI node which uses the LHS
-   of STMT in it's operands.  This is also known as a "destructive
-   update" operation.  */
-
-static bool
-is_phi_for_stmt (gimple *stmt, tree operand)
-{
-  gimple *def_stmt;
-  gphi *def_phi;
-  tree lhs;
-  use_operand_p arg_p;
-  ssa_op_iter i;
-
-  if (TREE_CODE (operand) != SSA_NAME)
-    return false;
-
-  lhs = gimple_assign_lhs (stmt);
-
-  def_stmt = SSA_NAME_DEF_STMT (operand);
-  def_phi = dyn_cast <gphi *> (def_stmt);
-  if (!def_phi)
-    return false;
-
-  FOR_EACH_PHI_ARG (arg_p, def_phi, i, SSA_OP_USE)
-    if (lhs == USE_FROM_PTR (arg_p))
-      return true;
-  return false;
-}
-
 /* Remove def stmt of VAR if VAR has zero uses and recurse
    on rhs1 operand if so.  */
 
@@ -5177,24 +5160,11 @@ remove_visited_stmt_chain (tree var)
    swaps two operands if it is profitable for binary operation
    consuming OPINDEX + 1 abnd OPINDEX + 2 operands.
 
-   We pair ops with the same rank if possible.
-
-   The alternative we try is to see if STMT is a destructive
-   update style statement, which is like:
-   b = phi (a, ...)
-   a = c + b;
-   In that case, we want to use the destructive update form to
-   expose the possible vectorizer sum reduction opportunity.
-   In that case, the third operand will be the phi node. This
-   check is not performed if STMT is null.
-
-   We could, of course, try to be better as noted above, and do a
-   lot of work to try to find these opportunities in >3 operand
-   cases, but it is unlikely to be worth it.  */
+   We pair ops with the same rank if possible.  */
 
 static void
 swap_ops_for_binary_stmt (const vec<operand_entry *> &ops,
-			  unsigned int opindex, gimple *stmt)
+			  unsigned int opindex)
 {
   operand_entry *oe1, *oe2, *oe3;
 
@@ -5202,17 +5172,9 @@ swap_ops_for_binary_stmt (const vec<operand_entry *> &ops,
   oe2 = ops[opindex + 1];
   oe3 = ops[opindex + 2];
 
-  if ((oe1->rank == oe2->rank
-       && oe2->rank != oe3->rank)
-      || (stmt && is_phi_for_stmt (stmt, oe3->op)
-	  && !is_phi_for_stmt (stmt, oe1->op)
-	  && !is_phi_for_stmt (stmt, oe2->op)))
+  if (oe1->rank == oe2->rank && oe2->rank != oe3->rank)
     std::swap (*oe1, *oe3);
-  else if ((oe1->rank == oe3->rank
-	    && oe2->rank != oe3->rank)
-	   || (stmt && is_phi_for_stmt (stmt, oe2->op)
-	       && !is_phi_for_stmt (stmt, oe1->op)
-	       && !is_phi_for_stmt (stmt, oe3->op)))
+  else if (oe1->rank == oe3->rank && oe2->rank != oe3->rank)
     std::swap (*oe1, *oe2);
 }
 
@@ -5561,7 +5523,7 @@ rewrite_expr_tree_parallel (gassign *stmt, int width,
       else
 	{
 	  if (op_index > 1)
-	    swap_ops_for_binary_stmt (ops, op_index - 2, NULL);
+	    swap_ops_for_binary_stmt (ops, op_index - 2);
 	  operand_entry *oe2 = ops[op_index--];
 	  operand_entry *oe1 = ops[op_index--];
 	  op2 = oe2->op;
@@ -6877,7 +6839,7 @@ reassociate_bb (basic_block bb)
                          binary op are chosen wisely.  */
                       int len = ops.length ();
                       if (len >= 3)
-                        swap_ops_for_binary_stmt (ops, len - 3, stmt);
+			swap_ops_for_binary_stmt (ops, len - 3);
 
 		      new_lhs = rewrite_expr_tree (stmt, rhs_code, 0, ops,
 						   powi_result != NULL
