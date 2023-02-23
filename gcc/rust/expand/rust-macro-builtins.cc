@@ -18,14 +18,14 @@
 
 #include "rust-macro-builtins.h"
 #include "rust-ast.h"
-#include "rust-diagnostics.h"
-#include "rust-expr.h"
-#include "rust-session-manager.h"
-#include "rust-macro-invoc-lexer.h"
-#include "rust-lex.h"
-#include "rust-parse.h"
-#include "rust-early-name-resolver.h"
 #include "rust-attribute-visitor.h"
+#include "rust-diagnostics.h"
+#include "rust-early-name-resolver.h"
+#include "rust-expr.h"
+#include "rust-lex.h"
+#include "rust-macro-invoc-lexer.h"
+#include "rust-parse.h"
+#include "rust-session-manager.h"
 
 namespace Rust {
 namespace {
@@ -662,6 +662,54 @@ MacroBuiltin::env_handler (Location invoc_locus, AST::MacroInvocData &invoc)
 AST::Fragment
 MacroBuiltin::cfg_handler (Location invoc_locus, AST::MacroInvocData &invoc)
 {
+  auto invoc_token_tree = invoc.get_delim_tok_tree ();
+  MacroInvocLexer lex (invoc_token_tree.to_token_stream ());
+  Parser<MacroInvocLexer> parser (lex);
+
+  auto last_token_id = macro_end_token (invoc_token_tree, parser);
+  bool has_error = false;
+
+  auto start = lex.get_offs ();
+  auto expanded_expr = try_expand_many_expr (parser, last_token_id,
+					     invoc.get_expander (), has_error);
+  auto end = lex.get_offs ();
+
+  auto tokens = lex.get_token_slice (start, end);
+
+  if (has_error)
+    return AST::Fragment::create_error ();
+
+  auto pending = check_for_eager_invocations (expanded_expr);
+
+  if (!pending.empty ())
+    {
+      return make_eager_builtin_invocation (AST::BuiltinMacro::Cfg, invoc_locus,
+					    invoc_token_tree,
+					    std::move (pending));
+    }
+
+  const int expr_size = expanded_expr.size ();
+
+  if (expr_size == 0)
+    {
+      rust_error_at (invoc_locus, "cfg-pattern required");
+      return AST::Fragment::create_error ();
+    }
+  if (expr_size > 1)
+    {
+      rust_error_at (invoc_locus, "expected 1 cfg-pattern");
+      return AST::Fragment::create_error ();
+    }
+
+  auto &expr = expanded_expr[0];
+  if (expr->is_literal ())
+    {
+      rust_error_at (expr->get_locus (), "expected identifier");
+      return AST::Fragment::create_error ();
+    }
+
+  parser.skip_token (last_token_id);
+
   // only parse if not already parsed
   if (!invoc.is_parsed ())
     {
@@ -693,7 +741,6 @@ MacroBuiltin::cfg_handler (Location invoc_locus, AST::MacroInvocData &invoc)
 			  PrimitiveCoreType::CORETYPE_BOOL, {}, invoc_locus)));
   auto tok = make_token (
     Token::make (result ? TRUE_LITERAL : FALSE_LITERAL, invoc_locus));
-
   // FIXME: Do not return an empty token vector here
   return AST::Fragment ({literal_exp}, std::move (tok));
 }
