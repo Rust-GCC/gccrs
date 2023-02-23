@@ -1,5 +1,5 @@
 ;; ARM VFP instruction patterns
-;; Copyright (C) 2003-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2023 Free Software Foundation, Inc.
 ;; Written by CodeSourcery.
 ;;
 ;; This file is part of GCC.
@@ -88,7 +88,7 @@
     case 2:
       return "mov%?\t%0, %1\t%@ movhi";
     case 1:
-      if (GET_MODE_CLASS (GET_MODE (operands[1])) == MODE_VECTOR_BOOL)
+      if (VALID_MVE_PRED_MODE (<MODE>mode))
         operands[1] = mve_bool_vec_to_const (operands[1]);
       else
         operands[1] = gen_lowpart (HImode, operands[1]);
@@ -192,7 +192,7 @@
     case 2:
       return "mov%?\t%0, %1\t%@ movhi";
     case 1:
-      if (GET_MODE_CLASS (GET_MODE (operands[1])) == MODE_VECTOR_BOOL)
+      if (VALID_MVE_PRED_MODE (<MODE>mode))
         operands[1] = mve_bool_vec_to_const (operands[1]);
       else
         operands[1] = gen_lowpart (HImode, operands[1]);

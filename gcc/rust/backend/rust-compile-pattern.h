@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -38,7 +38,6 @@ public:
   void visit (HIR::TupleStructPattern &pattern) override;
   void visit (HIR::WildcardPattern &pattern) override;
   void visit (HIR::RangePattern &pattern) override;
-  void visit (HIR::GroupedPattern &pattern) override;
 
   // Empty visit for unused Pattern HIR nodes.
   void visit (HIR::IdentifierPattern &) override {}
@@ -70,7 +69,6 @@ public:
 
   void visit (HIR::StructPattern &pattern) override;
   void visit (HIR::TupleStructPattern &pattern) override;
-  void visit (HIR::GroupedPattern &) override;
 
   // Empty visit for unused Pattern HIR nodes.
   void visit (HIR::IdentifierPattern &) override {}
@@ -89,6 +87,82 @@ protected:
   {}
 
   tree match_scrutinee_expr;
+};
+
+class CompilePatternLet : public HIRCompileBase, public HIR::HIRPatternVisitor
+{
+public:
+  static void Compile (HIR::Pattern *pattern, tree init_expr,
+		       TyTy::BaseType *ty, Location rval_locus, Context *ctx)
+  {
+    CompilePatternLet compiler (ctx, init_expr, ty, rval_locus);
+    pattern->accept_vis (compiler);
+  }
+
+  void visit (HIR::IdentifierPattern &) override;
+  void visit (HIR::WildcardPattern &) override;
+  void visit (HIR::TuplePattern &) override;
+
+  // check for unimplemented Pattern HIR nodes.
+  void visit (HIR::LiteralPattern &pattern) override
+  {
+    rust_sorry_at (pattern.get_locus (),
+		   "literal pattern let statements not supported");
+  }
+
+  void visit (HIR::PathInExpression &pattern) override
+  {
+    rust_sorry_at (pattern.get_locus (),
+		   "path-in-expression pattern let statements not supported");
+  }
+
+  void visit (HIR::QualifiedPathInExpression &pattern) override
+  {
+    rust_sorry_at (
+      pattern.get_locus (),
+      "qualified-path-in-expression pattern let statements not supported");
+  }
+
+  void visit (HIR::RangePattern &pattern) override
+  {
+    rust_sorry_at (pattern.get_locus (),
+		   "range pattern let statements not supported");
+  }
+
+  void visit (HIR::ReferencePattern &pattern) override
+  {
+    rust_sorry_at (pattern.get_locus (),
+		   "reference pattern let statements not supported");
+  }
+
+  void visit (HIR::SlicePattern &pattern) override
+  {
+    rust_sorry_at (pattern.get_locus (),
+		   "slice pattern let statements not supported");
+  }
+
+  void visit (HIR::StructPattern &pattern) override
+  {
+    rust_sorry_at (pattern.get_locus (),
+		   "struct pattern let statements not supported");
+  }
+
+  void visit (HIR::TupleStructPattern &pattern) override
+  {
+    rust_sorry_at (pattern.get_locus (),
+		   "tuple-struct pattern let statements not supported");
+  }
+
+protected:
+  CompilePatternLet (Context *ctx, tree init_expr, TyTy::BaseType *ty,
+		     Location rval_locus)
+    : HIRCompileBase (ctx), init_expr (init_expr), ty (ty),
+      rval_locus (rval_locus)
+  {}
+
+  tree init_expr;
+  TyTy::BaseType *ty;
+  Location rval_locus;
 };
 
 } // namespace Compile

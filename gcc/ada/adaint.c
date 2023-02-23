@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *          Copyright (C) 1992-2022, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2023, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -227,6 +227,7 @@ UINT __gnat_current_ccs_encoding;
 
 #elif defined (_WIN32)
 
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <accctrl.h>
 #include <aclapi.h>
@@ -3525,6 +3526,7 @@ __gnat_cpu_set (int cpu, size_t count ATTRIBUTE_UNUSED, cpu_set_t *set)
 #if defined (__APPLE__)
 #include <mach-o/dyld.h>
 #elif defined (__linux__)
+#include <features.h>
 #include <link.h>
 #endif
 
@@ -3534,7 +3536,7 @@ __gnat_get_executable_load_address (void)
 #if defined (__APPLE__)
   return _dyld_get_image_header (0);
 
-#elif defined (__linux__)
+#elif defined (__linux__) && (defined (__GLIBC__) || defined (__UCLIBC__))
   struct link_map *map = _r_debug.r_map;
   return (const void *)map->l_addr;
 

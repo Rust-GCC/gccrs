@@ -1,5 +1,5 @@
 /* Classes for analyzer diagnostics.
-   Copyright (C) 2019-2022 Free Software Foundation, Inc.
+   Copyright (C) 2019-2023 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -139,6 +139,12 @@ static bool
 fixup_location_in_macro_p (cpp_hashnode *macro)
 {
   ht_identifier ident = macro->ident;
+
+  /* Don't unwind inside "alloca" macro, so that we don't suppress warnings
+     from it (due to being in system headers).  */
+  if (ht_ident_eq (ident, "alloca"))
+    return true;
+
   /* Don't unwind inside <stdarg.h> macros, so that we don't suppress warnings
      from them (due to being in system headers).  */
   if (ht_ident_eq (ident, "va_start")
@@ -232,6 +238,7 @@ pending_diagnostic::add_final_event (const state_machine *sm,
      (event_loc_info (get_stmt_location (stmt, enode->get_function ()),
 		      enode->get_function ()->decl,
 		      enode->get_stack_depth ()),
+      enode,
       sm, var, state));
 }
 

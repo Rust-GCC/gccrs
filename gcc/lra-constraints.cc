@@ -1,5 +1,5 @@
 /* Code for RTL transformations to satisfy insn constraints.
-   Copyright (C) 2010-2022 Free Software Foundation, Inc.
+   Copyright (C) 2010-2023 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
    This file is part of GCC.
@@ -184,12 +184,12 @@ get_try_hard_regno (int regno)
   return ira_class_hard_regs[rclass][0];
 }
 
-/* Return the hard regno of X after removing its subreg.  If X is not
-   a register or a subreg of a register, return -1.  If X is a pseudo,
-   use its assignment.  If FINAL_P return the final hard regno which will
-   be after elimination.  */
+/* Return the hard regno of X after removing its subreg.  If X is not a
+   register or a subreg of a register, return -1.  If X is a pseudo, use its
+   assignment.  If X is a hard regno, return the final hard regno which will be
+   after elimination.  */
 static int
-get_hard_regno (rtx x, bool final_p)
+get_hard_regno (rtx x)
 {
   rtx reg;
   int hard_regno;
@@ -203,7 +203,7 @@ get_hard_regno (rtx x, bool final_p)
     hard_regno = lra_get_regno_hard_regno (hard_regno);
   if (hard_regno < 0)
     return -1;
-  if (final_p)
+  if (HARD_REGISTER_NUM_P (REGNO (reg)))
     hard_regno = lra_get_elimination_hard_regno (hard_regno);
   if (SUBREG_P (x))
     hard_regno += subreg_regno_offset (hard_regno, GET_MODE (reg),
@@ -782,7 +782,7 @@ operands_match_p (rtx x, rtx y, int y_hard_regno)
     {
       int j;
 
-      i = get_hard_regno (x, false);
+      i = get_hard_regno (x);
       if (i < 0)
 	goto slow;
 
@@ -1920,7 +1920,7 @@ uses_hard_regs_p (rtx x, HARD_REG_SET set)
 
   if (REG_P (x) || SUBREG_P (x))
     {
-      x_hard_regno = get_hard_regno (x, true);
+      x_hard_regno = get_hard_regno (x);
       return (x_hard_regno >= 0
 	      && overlaps_hard_reg_set_p (set, mode, x_hard_regno));
     }
@@ -2078,7 +2078,7 @@ process_alt_operands (int only_alternative)
 
       op = no_subreg_reg_operand[nop] = *curr_id->operand_loc[nop];
       /* The real hard regno of the operand after the allocation.  */
-      hard_regno[nop] = get_hard_regno (op, true);
+      hard_regno[nop] = get_hard_regno (op);
 
       operand_reg[nop] = reg = op;
       biggest_mode[nop] = GET_MODE (op);
@@ -2258,7 +2258,7 @@ process_alt_operands (int only_alternative)
 			&& curr_operand_mode[m] != curr_operand_mode[nop])
 		      break;
 		    
-		    m_hregno = get_hard_regno (*curr_id->operand_loc[m], false);
+		    m_hregno = get_hard_regno (*curr_id->operand_loc[m]);
 		    /* We are supposed to match a previous operand.
 		       If we do, we win if that one did.  If we do
 		       not, count both of the operands as losers.
@@ -5100,7 +5100,8 @@ lra_constraints (bool first_p)
 			 && (targetm.preferred_reload_class
 			     (x, lra_get_allocno_class (i)) == NO_REGS))
 			|| contains_symbol_ref_p (x))))
-	      ira_reg_equiv[i].defined_p = false;
+	      ira_reg_equiv[i].defined_p
+		= ira_reg_equiv[i].caller_save_p = false;
 	    if (contains_reg_p (x, false, true))
 	      ira_reg_equiv[i].profitable_p = false;
 	    if (get_equiv (reg) != reg)
@@ -5771,14 +5772,17 @@ choose_split_class (enum reg_class allocno_class,
   return best_cl;
 }
 
-/* Copy any equivalence information from ORIGINAL_REGNO to NEW_REGNO.
-   It only makes sense to call this function if NEW_REGNO is always
-   equal to ORIGINAL_REGNO.  */
+/* Copy any equivalence information from ORIGINAL_REGNO to NEW_REGNO.  It only
+   makes sense to call this function if NEW_REGNO is always equal to
+   ORIGINAL_REGNO.  Set up defined_p flag when caller_save_p flag is set up and
+   CALL_SAVE_P is true.  */
 
 static void
-lra_copy_reg_equiv (unsigned int new_regno, unsigned int original_regno)
+lra_copy_reg_equiv (unsigned int new_regno, unsigned int original_regno,
+		    bool call_save_p)
 {
-  if (!ira_reg_equiv[original_regno].defined_p)
+  if (!ira_reg_equiv[original_regno].defined_p
+      && !(call_save_p && ira_reg_equiv[original_regno].caller_save_p))
     return;
 
   ira_expand_reg_equiv ();
@@ -5958,7 +5962,7 @@ split_reg (bool before_p, int original_regno, rtx_insn *insn,
      rematerializing the original value instead of spilling to the stack.  */
   if (!HARD_REGISTER_NUM_P (original_regno)
       && mode == PSEUDO_REGNO_MODE (original_regno))
-    lra_copy_reg_equiv (new_regno, original_regno);
+    lra_copy_reg_equiv (new_regno, original_regno, call_save_p);
   lra_reg_info[new_regno].restore_rtx = regno_reg_rtx[original_regno];
   bitmap_set_bit (&lra_split_regs, new_regno);
   if (to != NULL)

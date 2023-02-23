@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -67,13 +67,6 @@ public:
     // as new refs to this decl will match back here so it is ok to overwrite
     resolver->get_name_scope ().insert (
       CanonicalPath::new_seg (pattern.get_node_id (), pattern.get_ident ()),
-      pattern.get_node_id (), pattern.get_locus (), type);
-  }
-
-  void visit (AST::WildcardPattern &pattern) override
-  {
-    resolver->get_name_scope ().insert (
-      CanonicalPath::new_seg (pattern.get_node_id (), "_"),
       pattern.get_node_id (), pattern.get_locus (), type);
   }
 

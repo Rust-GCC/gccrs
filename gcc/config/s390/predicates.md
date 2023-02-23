@@ -1,5 +1,5 @@
 ;; Predicate definitions for S/390 and zSeries.
-;; Copyright (C) 2005-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2023 Free Software Foundation, Inc.
 ;; Contributed by Hartmut Penner (hpenner@de.ibm.com) and
 ;;                Ulrich Weigand (uweigand@de.ibm.com).
 ;;
@@ -479,9 +479,9 @@
   if (icode < 0)
     return false;
 
-  extract_constrain_insn (insn);
+  extract_insn (insn);
 
-  return which_alternative >= 0;
+  return constrain_operands (reload_completed, get_enabled_alternatives (insn)) == 1;
 })
 
 ;; Return true if OP is a store multiple operation.  It is known to be a

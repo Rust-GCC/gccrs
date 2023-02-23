@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -242,6 +242,7 @@ private:
   void visit (AST::TuplePattern &pattern);
   void visit (AST::GroupedPattern &pattern);
   void visit (AST::SlicePattern &pattern);
+  void visit (AST::AltPattern &pattern);
 
   // rust-stmt.h
   void visit (AST::EmptyStmt &stmt);

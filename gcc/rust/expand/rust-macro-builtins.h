@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -95,6 +95,8 @@ public:
 					AST::MacroInvocData &invoc);
 
   static AST::Fragment line_handler (Location invoc_locus,
+				     AST::MacroInvocData &invoc);
+  static AST::Fragment option_env_handler (Location invoc_locus,
 				     AST::MacroInvocData &invoc);
 };
 } // namespace Rust

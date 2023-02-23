@@ -1,5 +1,5 @@
 /* Routines for manipulation of expression nodes.
-   Copyright (C) 2000-2022 Free Software Foundation, Inc.
+   Copyright (C) 2000-2023 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -1552,7 +1552,11 @@ find_array_section (gfc_expr *expr, gfc_ref *ref)
       lower = ref->u.ar.as->lower[d];
       upper = ref->u.ar.as->upper[d];
 
-      if (!lower || !upper)
+      if (!lower || !upper
+	  || lower->expr_type != EXPR_CONSTANT
+	  || upper->expr_type != EXPR_CONSTANT
+	  || lower->ts.type != BT_INTEGER
+	  || upper->ts.type != BT_INTEGER)
 	{
 	  t = false;
 	  goto cleanup;
@@ -4996,14 +5000,14 @@ get_union_initializer (gfc_symbol *union_type, gfc_component **map_p)
 static bool
 class_allocatable (gfc_component *comp)
 {
-  return comp->ts.type == BT_CLASS && CLASS_DATA (comp)
+  return comp->ts.type == BT_CLASS && comp->attr.class_ok && CLASS_DATA (comp)
     && CLASS_DATA (comp)->attr.allocatable;
 }
 
 static bool
 class_pointer (gfc_component *comp)
 {
-  return comp->ts.type == BT_CLASS && CLASS_DATA (comp)
+  return comp->ts.type == BT_CLASS && comp->attr.class_ok && CLASS_DATA (comp)
     && CLASS_DATA (comp)->attr.pointer;
 }
 

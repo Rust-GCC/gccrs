@@ -1,5 +1,5 @@
 ;; Machine description for RISC-V for GNU compiler.
-;; Copyright (C) 2011-2022 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2023 Free Software Foundation, Inc.
 ;; Contributed by Andrew Waterman (andrew@sifive.com).
 ;; Based on MIPS target for GNU compiler.
 
@@ -220,7 +220,6 @@
 ;; mfc		transfer from coprocessor
 ;; const	load constant
 ;; arith	integer arithmetic instructions
-;; auipc	integer addition to PC
 ;; logical      integer logical instructions
 ;; shift	integer shift instructions
 ;; slt		set less than instructions
@@ -236,9 +235,13 @@
 ;; fcvt		floating point convert
 ;; fsqrt	floating point square root
 ;; multi	multiword sequence (or user asm statements)
+;; auipc	integer addition to PC
+;; sfb_alu  SFB ALU instruction
 ;; nop		no operation
 ;; ghost	an instruction that produces no real code
 ;; bitmanip	bit manipulation instructions
+;; rotate   rotation instructions
+;; atomic   atomic instructions
 ;; Classification of RVV instructions which will be added to each RVV .md pattern and used by scheduler.
 ;; rdvlenb     vector byte length vlenb csrr read
 ;; rdvl        vector length vl csrr read
@@ -264,7 +267,8 @@
 ;; vicalu      vector arithmetic with carry or borrow instructions
 ;; vshift      vector single-width bit shift instructions
 ;; vnshift     vector narrowing integer shift instructions
-;; vicmp       vector integer comparison/min/max instructions
+;; viminmax    vector integer min/max instructions
+;; vicmp       vector integer comparison instructions
 ;; vimul       vector single-width integer multiply instructions
 ;; vidiv       vector single-width integer divide instructions
 ;; viwmul      vector widening integer multiply instructions
@@ -288,7 +292,8 @@
 ;; vfwmuladd   vector widening floating-point multiply-add instructions
 ;; vfsqrt      vector floating-point square-root instructions
 ;; vfrecp      vector floating-point reciprocal square-root instructions
-;; vfcmp       vector floating-point comparison/min/max instructions
+;; vfminmax    vector floating-point min/max instructions
+;; vfcmp       vector floating-point comparison instructions
 ;; vfsgnj      vector floating-point sign-injection instructions
 ;; vfclass     vector floating-point classify instruction
 ;; vfmerge     vector floating-point merge instruction
@@ -332,11 +337,11 @@
    fmadd,fdiv,fcmp,fcvt,fsqrt,multi,auipc,sfb_alu,nop,ghost,bitmanip,rotate,
    atomic,rdvlenb,rdvl,vsetvl,vlde,vste,vldm,vstm,vlds,vsts,
    vldux,vldox,vstux,vstox,vldff,vldr,vstr,
-   vialu,viwalu,vext,vicalu,vshift,vnshift,vicmp,
+   vialu,viwalu,vext,vicalu,vshift,vnshift,vicmp,viminmax,
    vimul,vidiv,viwmul,vimuladd,viwmuladd,vimerge,vimov,
    vsalu,vaalu,vsmul,vsshift,vnclip,
    vfalu,vfwalu,vfmul,vfdiv,vfwmul,vfmuladd,vfwmuladd,vfsqrt,vfrecp,
-   vfcmp,vfsgnj,vfclass,vfmerge,vfmov,
+   vfcmp,vfminmax,vfsgnj,vfclass,vfmerge,vfmov,
    vfcvtitof,vfcvtftoi,vfwcvtitof,vfwcvtftoi,
    vfwcvtftof,vfncvtitof,vfncvtftoi,vfncvtftof,
    vired,viwred,vfred,vfredo,vfwred,vfwredo,
@@ -1665,6 +1670,24 @@
 {
   riscv_split_symbol (operands[2], operands[1],
 		      MAX_MACHINE_MODE, &operands[3], TRUE);
+})
+
+;; Pretend to have the ability to load complex const_int in order to get
+;; better code generation around them.
+;;
+;; But avoid constants that are special cased elsewhere.
+(define_insn_and_split "*mvconst_internal"
+  [(set (match_operand:GPR 0 "register_operand" "=r")
+        (match_operand:GPR 1 "splittable_const_int_operand" "i"))]
+  "!(p2m1_shift_operand (operands[1], <MODE>mode)
+     || high_mask_shift_operand (operands[1], <MODE>mode))"
+  "#"
+  "&& 1"
+  [(const_int 0)]
+{
+  riscv_move_integer (operands[0], operands[0], INTVAL (operands[1]),
+                      <MODE>mode, TRUE);
+  DONE;
 })
 
 ;; 64-bit integer moves
@@ -3043,7 +3066,7 @@
 )
 
 (define_insn "prefetch"
-  [(prefetch (match_operand 0 "address_operand" "p")
+  [(prefetch (match_operand 0 "address_operand" "r")
              (match_operand 1 "imm5_operand" "i")
              (match_operand 2 "const_int_operand" "n"))]
   "TARGET_ZICBOP"
@@ -3057,7 +3080,7 @@
 })
 
 (define_insn "riscv_prefetchi_<mode>"
-  [(unspec_volatile:X [(match_operand:X 0 "address_operand" "p")
+  [(unspec_volatile:X [(match_operand:X 0 "address_operand" "r")
               (match_operand:X 1 "imm5_operand" "i")]
               UNSPECV_PREI)]
   "TARGET_ZICBOP"

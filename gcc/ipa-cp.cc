@@ -1,5 +1,5 @@
 /* Interprocedural constant propagation
-   Copyright (C) 2005-2022 Free Software Foundation, Inc.
+   Copyright (C) 2005-2023 Free Software Foundation, Inc.
 
    Contributed by Razya Ladelsky <RAZYA@il.ibm.com> and Martin Jambor
    <mjambor@suse.cz>
@@ -1982,7 +1982,9 @@ ipa_agg_value_from_jfunc (ipa_node_params *info, cgraph_node *node,
   tree value = NULL_TREE;
   int src_idx;
 
-  if (item->offset < 0 || item->jftype == IPA_JF_UNKNOWN)
+  if (item->offset < 0
+      || item->jftype == IPA_JF_UNKNOWN
+      || item->offset >= (HOST_WIDE_INT) UINT_MAX * BITS_PER_UNIT)
     return NULL_TREE;
 
   if (item->jftype == IPA_JF_CONST)
@@ -3700,6 +3702,29 @@ get_max_overall_size (cgraph_node *node)
   return max_new_size;
 }
 
+/* Return true if NODE should be cloned just for a parameter removal, possibly
+   dumping a reason if not.  */
+
+static bool
+clone_for_param_removal_p (cgraph_node *node)
+{
+  if (!node->can_change_signature)
+    {
+      if (dump_file && (dump_flags & TDF_DETAILS))
+	fprintf (dump_file, "  Not considering cloning to remove parameters, "
+		 "function cannot change signature.\n");
+      return false;
+    }
+  if (node->can_be_local_p ())
+    {
+      if (dump_file && (dump_flags & TDF_DETAILS))
+	fprintf (dump_file, "  Not considering cloning to remove parameters, "
+		 "IPA-SRA can do it potentially better.\n");
+      return false;
+    }
+  return true;
+}
+
 /* Iterate over known values of parameters of NODE and estimate the local
    effects in terms of time and size they have.  */
 
@@ -3722,7 +3747,7 @@ estimate_local_effects (struct cgraph_node *node)
 						    &removable_params_cost);
   int devirt_bonus = devirtualization_time_bonus (node, &avals);
   if (always_const || devirt_bonus
-      || (removable_params_cost && node->can_change_signature))
+      || (removable_params_cost && clone_for_param_removal_p (node)))
     {
       struct caller_statistics stats;
       ipa_call_estimates estimates;

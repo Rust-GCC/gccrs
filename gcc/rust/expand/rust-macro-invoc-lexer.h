@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -54,6 +54,9 @@ public:
   }
 
   size_t get_offs () const { return offs; }
+
+  std::vector<std::unique_ptr<AST::Token>>
+  get_token_slice (size_t start_idx, size_t end_idx) const;
 
 private:
   size_t offs;

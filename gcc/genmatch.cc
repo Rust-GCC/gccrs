@@ -1,7 +1,7 @@
 /* Generate pattern matching and transform code shared between
    GENERIC and GIMPLE folding code from match-and-simplify description.
 
-   Copyright (C) 2014-2022 Free Software Foundation, Inc.
+   Copyright (C) 2014-2023 Free Software Foundation, Inc.
    Contributed by Richard Biener <rguenther@suse.de>
    and Prathamesh Kulkarni  <bilbotheelffriend@gmail.com>
 
@@ -489,6 +489,21 @@ commutative_op (id_base *id)
       case CFN_FNMS:
 	return 0;
 
+      case CFN_COND_ADD:
+      case CFN_COND_MUL:
+      case CFN_COND_MIN:
+      case CFN_COND_MAX:
+      case CFN_COND_FMIN:
+      case CFN_COND_FMAX:
+      case CFN_COND_AND:
+      case CFN_COND_IOR:
+      case CFN_COND_XOR:
+      case CFN_COND_FMA:
+      case CFN_COND_FMS:
+      case CFN_COND_FNMA:
+      case CFN_COND_FNMS:
+	return 1;
+
       default:
 	return -1;
       }
@@ -496,7 +511,7 @@ commutative_op (id_base *id)
     {
       int res = commutative_op (uid->substitutes[0]);
       if (res < 0)
-	return 0;
+	return -1;
       for (unsigned i = 1; i < uid->substitutes.length (); ++i)
 	if (res != commutative_op (uid->substitutes[i]))
 	  return -1;
@@ -2526,7 +2541,8 @@ expr::gen_transform (FILE *f, int indent, const char *dest, bool gimple,
       for (unsigned i = 0; i < ops.length (); ++i)
 	fprintf (f, ", _o%d[%u]", depth, i);
       fprintf (f, ");\n");
-      fprintf_indent (f, indent, "tem_op.resimplify (lseq, valueize);\n");
+      fprintf_indent (f, indent, "tem_op.resimplify (%s, valueize);\n",
+		      !force_leaf ? "lseq" : "NULL");
       fprintf_indent (f, indent,
 		      "_r%d = maybe_push_res_to_seq (&tem_op, %s);\n", depth,
 		      !force_leaf ? "lseq" : "NULL");
@@ -3436,7 +3452,8 @@ dt_simplify::gen_1 (FILE *f, int indent, bool gimple, operand *result)
 	  if (!is_predicate)
 	    {
 	      fprintf_indent (f, indent,
-			      "res_op->resimplify (lseq, valueize);\n");
+			      "res_op->resimplify (%s, valueize);\n",
+			      !e->force_leaf ? "lseq" : "NULL");
 	      if (e->force_leaf)
 		fprintf_indent (f, indent,
 				"if (!maybe_push_res_to_seq (res_op, NULL)) "

@@ -1,5 +1,5 @@
 /* Internal functions.
-   Copyright (C) 2011-2022 Free Software Foundation, Inc.
+   Copyright (C) 2011-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -4515,12 +4515,6 @@ expand_SPACESHIP (internal_fn, gcall *stmt)
   expand_insn (icode, 3, ops);
   if (!rtx_equal_p (target, ops[0].value))
     emit_move_insn (target, ops[0].value);
-}
-
-void
-expand_TRAP (internal_fn, gcall *)
-{
-  expand_builtin_trap ();
 }
 
 void

@@ -1,5 +1,5 @@
 /* Alias analysis for trees.
-   Copyright (C) 2004-2022 Free Software Foundation, Inc.
+   Copyright (C) 2004-2023 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -3522,6 +3522,7 @@ stmt_kills_ref_p (gimple *stmt, ao_ref *ref)
 			       "ipa-modref: call to %s kills ",
 			       node->dump_name ());
 		      print_generic_expr (dump_file, ref->base);
+		      fprintf (dump_file, "\n");
 		    }
 		    ++alias_stats.modref_kill_yes;
 		    return true;
@@ -3656,7 +3657,10 @@ maybe_skip_until (gimple *phi, tree &target, basic_block target_bb,
   basic_block bb = gimple_bb (phi);
 
   if (!*visited)
-    *visited = BITMAP_ALLOC (NULL);
+    {
+      *visited = BITMAP_ALLOC (NULL);
+      bitmap_tree_view (*visited);
+    }
 
   bitmap_set_bit (*visited, SSA_NAME_VERSION (PHI_RESULT (phi)));
 
@@ -3948,7 +3952,10 @@ walk_aliased_vdefs_1 (ao_ref *ref, tree vdef,
 	{
 	  unsigned i;
 	  if (!*visited)
-	    *visited = BITMAP_ALLOC (NULL);
+	    {
+	      *visited = BITMAP_ALLOC (NULL);
+	      bitmap_tree_view (*visited);
+	    }
 	  for (i = 0; i < gimple_phi_num_args (def_stmt); ++i)
 	    {
 	      int res = walk_aliased_vdefs_1 (ref,

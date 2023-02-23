@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -765,6 +765,10 @@ AttributeChecker::visit (AST::GroupedPattern &)
 
 void
 AttributeChecker::visit (AST::SlicePattern &)
+{}
+
+void
+AttributeChecker::visit (AST::AltPattern &)
 {}
 
 // rust-stmt.h

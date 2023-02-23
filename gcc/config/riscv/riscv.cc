@@ -1,5 +1,5 @@
 /* Subroutines used for code generation for RISC-V.
-   Copyright (C) 2011-2022 Free Software Foundation, Inc.
+   Copyright (C) 2011-2023 Free Software Foundation, Inc.
    Contributed by Andrew Waterman (andrew@sifive.com).
    Based on MIPS target for GNU compiler.
 
@@ -293,7 +293,7 @@ const enum reg_class riscv_regno_to_class[FIRST_PSEUDO_REGISTER] = {
   FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
   FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
   FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
-  FRAME_REGS,	FRAME_REGS,	VL_REGS,	VTYPE_REGS,
+  FRAME_REGS,	FRAME_REGS,	NO_REGS,	NO_REGS,
   NO_REGS,	NO_REGS,	NO_REGS,	NO_REGS,
   NO_REGS,	NO_REGS,	NO_REGS,	NO_REGS,
   NO_REGS,	NO_REGS,	NO_REGS,	NO_REGS,
@@ -4229,15 +4229,54 @@ riscv_print_operand (FILE *file, rtx op, int letter)
 
   switch (letter)
     {
+      case 'o': {
+	/* Print 'OP' variant for RVV instructions.
+	   1. If the operand is VECTOR REG, we print 'v'(vnsrl.wv).
+	   2. If the operand is CONST_INT/CONST_VECTOR, we print 'i'(vnsrl.wi).
+	   3. If the operand is SCALAR REG, we print 'x'(vnsrl.wx).  */
+	if (riscv_v_ext_vector_mode_p (mode))
+	  {
+	    if (REG_P (op))
+	      asm_fprintf (file, "v");
+	    else if (CONST_VECTOR_P (op))
+	      asm_fprintf (file, "i");
+	    else
+	      output_operand_lossage ("invalid vector operand");
+	  }
+	else
+	  {
+	    if (CONST_INT_P (op))
+	      asm_fprintf (file, "i");
+	    else
+	      asm_fprintf (file, "x");
+	  }
+	break;
+      }
       case 'v': {
 	rtx elt;
 
+	if (REG_P (op))
+	  asm_fprintf (file, "%s", reg_names[REGNO (op)]);
+	else
+	  {
+	    if (!const_vec_duplicate_p (op, &elt))
+	      output_operand_lossage ("invalid vector constant");
+	    else if (satisfies_constraint_Wc0 (op))
+	      asm_fprintf (file, "0");
+	    else if (satisfies_constraint_vi (op)
+		     || satisfies_constraint_vj (op))
+	      asm_fprintf (file, "%wd", INTVAL (elt));
+	    else
+	      output_operand_lossage ("invalid vector constant");
+	  }
+	break;
+      }
+      case 'V': {
+	rtx elt;
 	if (!const_vec_duplicate_p (op, &elt))
 	  output_operand_lossage ("invalid vector constant");
-	else if (satisfies_constraint_Wc0 (op))
-	  asm_fprintf (file, "0");
-	else if (satisfies_constraint_vi (op))
-	  asm_fprintf (file, "%wd", INTVAL (elt));
+	else if (satisfies_constraint_vj (op))
+	  asm_fprintf (file, "%wd", -INTVAL (elt));
 	else
 	  output_operand_lossage ("invalid vector constant");
 	break;
@@ -4256,30 +4295,34 @@ riscv_print_operand (FILE *file, rtx op, int letter)
 	  }
 	else if (code == CONST_INT)
 	  {
-	    /* The value in the operand is the unsigned int value
-	       converted from (enum machine_mode).
-	       This RTX is generated as follows:
-
-	       machine_mode mode = XXXmode;
-	       operand = gen_int_mode ((unsigned int)mode, Pmode);
-
-	       So we convert it back into machine_mode and then calculate
-	       the LMUL according to GET_MODE_SIZE.  */
-
-	    machine_mode rvv_mode = (machine_mode) UINTVAL (op);
-	    /* For rvv mask modes, we can not calculate LMUL simpily according
-	       to BYTES_PER_RISCV_VECTOR. When rvv_mode = VNx4BImode.
-	       Set SEW = 8, LMUL = 1 by default if TARGET_MIN_VLEN == 32.
-	       Set SEW = 8, LMUL = 1 / 2 by default if TARGET_MIN_VLEN > 32.  */
-	    bool bool_p = GET_MODE_CLASS (rvv_mode) == MODE_VECTOR_BOOL;
-	    poly_int64 m1_size = BYTES_PER_RISCV_VECTOR;
-	    poly_int64 rvv_size
-	      = bool_p ? GET_MODE_NUNITS (rvv_mode) : GET_MODE_SIZE (rvv_mode);
-	    bool fractional_p = known_lt (rvv_size, BYTES_PER_RISCV_VECTOR);
-	    unsigned int factor
-	      = fractional_p ? exact_div (m1_size, rvv_size).to_constant ()
-			     : exact_div (rvv_size, m1_size).to_constant ();
-	    asm_fprintf (file, "%s%d", fractional_p ? "mf" : "m", factor);
+	    /* If it is a const_int value, it denotes the VLMUL field enum.  */
+	    unsigned int vlmul = UINTVAL (op);
+	    switch (vlmul)
+	      {
+	      case riscv_vector::LMUL_1:
+		asm_fprintf (file, "%s", "m1");
+		break;
+	      case riscv_vector::LMUL_2:
+		asm_fprintf (file, "%s", "m2");
+		break;
+	      case riscv_vector::LMUL_4:
+		asm_fprintf (file, "%s", "m4");
+		break;
+	      case riscv_vector::LMUL_8:
+		asm_fprintf (file, "%s", "m8");
+		break;
+	      case riscv_vector::LMUL_F8:
+		asm_fprintf (file, "%s", "mf8");
+		break;
+	      case riscv_vector::LMUL_F4:
+		asm_fprintf (file, "%s", "mf4");
+		break;
+	      case riscv_vector::LMUL_F2:
+		asm_fprintf (file, "%s", "mf2");
+		break;
+	      default:
+		gcc_unreachable ();
+	      }
 	  }
 	else
 	  output_operand_lossage ("invalid vector constant");
@@ -4332,6 +4375,10 @@ riscv_print_operand (FILE *file, rtx op, int letter)
     case 'i':
       if (code != REG)
         fputs ("i", file);
+      break;
+
+    case 'B':
+      fputs (GET_RTX_NAME (code), file);
       break;
 
     case 'S':
@@ -4835,6 +4882,50 @@ riscv_save_restore_reg (machine_mode mode, int regno,
   fn (gen_rtx_REG (mode, regno), mem);
 }
 
+/* Return the next register up from REGNO up to LIMIT for the callee
+   to save or restore.  OFFSET will be adjusted accordingly.
+   If INC is set, then REGNO will be incremented first.
+   Returns INVALID_REGNUM if there is no such next register.  */
+
+static unsigned int
+riscv_next_saved_reg (unsigned int regno, unsigned int limit,
+		      HOST_WIDE_INT *offset, bool inc = true)
+{
+  if (inc)
+    regno++;
+
+  while (regno <= limit)
+    {
+      if (BITSET_P (cfun->machine->frame.mask, regno - GP_REG_FIRST))
+	{
+	  *offset = *offset - UNITS_PER_WORD;
+	  return regno;
+	}
+
+      regno++;
+    }
+  return INVALID_REGNUM;
+}
+
+/* Return TRUE if provided REGNO is eh return data register.  */
+
+static bool
+riscv_is_eh_return_data_register (unsigned int regno)
+{
+  unsigned int i, regnum;
+
+  if (!crtl->calls_eh_return)
+    return false;
+
+  for (i = 0; (regnum = EH_RETURN_DATA_REGNO (i)) != INVALID_REGNUM; i++)
+    if (regno == regnum)
+      {
+	return true;
+      }
+
+  return false;
+}
+
 /* Call FN for each register that is saved by the current function.
    SP_OFFSET is the offset of the current stack pointer from the start
    of the frame.  */
@@ -4844,36 +4935,31 @@ riscv_for_each_saved_reg (poly_int64 sp_offset, riscv_save_restore_fn fn,
 			  bool epilogue, bool maybe_eh_return)
 {
   HOST_WIDE_INT offset;
+  unsigned int regno;
+  unsigned int start = GP_REG_FIRST;
+  unsigned int limit = GP_REG_LAST;
 
   /* Save the link register and s-registers. */
-  offset = (cfun->machine->frame.gp_sp_offset - sp_offset).to_constant ();
-  for (unsigned int regno = GP_REG_FIRST; regno <= GP_REG_LAST; regno++)
-    if (BITSET_P (cfun->machine->frame.mask, regno - GP_REG_FIRST))
-      {
-	bool handle_reg = !cfun->machine->reg_is_wrapped_separately[regno];
+  offset = (cfun->machine->frame.gp_sp_offset - sp_offset).to_constant ()
+	   + UNITS_PER_WORD;
+  for (regno = riscv_next_saved_reg (start, limit, &offset, false);
+       regno != INVALID_REGNUM;
+       regno = riscv_next_saved_reg (regno, limit, &offset))
+    {
+      if (cfun->machine->reg_is_wrapped_separately[regno])
+	continue;
 
-	/* If this is a normal return in a function that calls the eh_return
-	   builtin, then do not restore the eh return data registers as that
-	   would clobber the return value.  But we do still need to save them
-	   in the prologue, and restore them for an exception return, so we
-	   need special handling here.  */
-	if (epilogue && !maybe_eh_return && crtl->calls_eh_return)
-	  {
-	    unsigned int i, regnum;
+      /* If this is a normal return in a function that calls the eh_return
+	 builtin, then do not restore the eh return data registers as that
+	 would clobber the return value.  But we do still need to save them
+	 in the prologue, and restore them for an exception return, so we
+	 need special handling here.  */
+      if (epilogue && !maybe_eh_return
+	  && riscv_is_eh_return_data_register (regno))
+	continue;
 
-	    for (i = 0; (regnum = EH_RETURN_DATA_REGNO (i)) != INVALID_REGNUM;
-		 i++)
-	      if (regno == regnum)
-		{
-		  handle_reg = FALSE;
-		  break;
-		}
-	  }
-
-	if (handle_reg)
-	  riscv_save_restore_reg (word_mode, regno, offset, fn);
-	offset -= UNITS_PER_WORD;
-      }
+      riscv_save_restore_reg (word_mode, regno, offset, fn);
+    }
 
   /* This loop must iterate over the same space as its companion in
      riscv_compute_frame_info.  */
@@ -5001,8 +5087,9 @@ riscv_adjust_libcall_cfi_prologue ()
       }
 
   /* Debug info for adjust sp.  */
-  adjust_sp_rtx = gen_add3_insn (stack_pointer_rtx,
-				 stack_pointer_rtx, GEN_INT (-saved_size));
+  adjust_sp_rtx =
+    gen_rtx_SET (stack_pointer_rtx,
+		 gen_rtx_PLUS (GET_MODE(stack_pointer_rtx), stack_pointer_rtx, GEN_INT (-saved_size)));
   dwarf = alloc_reg_note (REG_CFA_ADJUST_CFA, adjust_sp_rtx,
 			  dwarf);
   return dwarf;
@@ -5123,8 +5210,9 @@ riscv_adjust_libcall_cfi_epilogue ()
   int saved_size = cfun->machine->frame.save_libcall_adjustment;
 
   /* Debug info for adjust sp.  */
-  adjust_sp_rtx = gen_add3_insn (stack_pointer_rtx,
-				 stack_pointer_rtx, GEN_INT (saved_size));
+  adjust_sp_rtx =
+    gen_rtx_SET (stack_pointer_rtx,
+		 gen_rtx_PLUS (GET_MODE(stack_pointer_rtx), stack_pointer_rtx, GEN_INT (saved_size)));
   dwarf = alloc_reg_note (REG_CFA_ADJUST_CFA, adjust_sp_rtx,
 			  dwarf);
 
@@ -5778,12 +5866,6 @@ riscv_class_max_nregs (reg_class_t rclass, machine_mode mode)
   if (reg_class_subset_p (rclass, V_REGS))
     return riscv_hard_regno_nregs (V_REG_FIRST, mode);
 
-  if (reg_class_subset_p (rclass, VL_REGS))
-    return 1;
-
-  if (reg_class_subset_p (rclass, VTYPE_REGS))
-    return 1;
-
   return 0;
 }
 
@@ -5991,7 +6073,7 @@ riscv_option_override (void)
     target_flags |= MASK_FDIV;
 
   /* Handle -mtune, use -mcpu if -mtune is not given, and use default -mtune
-     if -mtune and -mcpu both not given.  */
+     if both -mtune and -mcpu are not given.  */
   cpu = riscv_parse_tune (riscv_tune_string ? riscv_tune_string :
 			  (riscv_cpu_string ? riscv_cpu_string :
 			   RISCV_TUNE_STRING_DEFAULT));

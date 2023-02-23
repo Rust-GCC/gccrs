@@ -1,5 +1,5 @@
 /* Main parser.
-   Copyright (C) 2000-2022 Free Software Foundation, Inc.
+   Copyright (C) 2000-2023 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -885,6 +885,9 @@ decode_omp_directive (void)
   switch (c)
     {
     case 'a':
+      /* For -fopenmp-simd, ignore 'assumes'; note no clause starts with 's'. */
+      if (!flag_openmp && gfc_match ("assumes") == MATCH_YES)
+	break;
       matcho ("assumes", gfc_match_omp_assumes, ST_OMP_ASSUMES);
       matchs ("assume", gfc_match_omp_assume, ST_OMP_ASSUME);
       matcho ("atomic", gfc_match_omp_atomic, ST_OMP_ATOMIC);
@@ -3934,7 +3937,7 @@ match_deferred_characteristics (gfc_typespec * ts)
   m = gfc_match_prefix (ts);
   gfc_buffer_error (false);
 
-  if (ts->type == BT_DERIVED)
+  if (ts->type == BT_DERIVED || ts->type == BT_CLASS)
     {
       ts->kind = 0;
 
@@ -4015,7 +4018,7 @@ parse_spec (gfc_statement st)
       gfc_symbol* proc = gfc_current_ns->proc_name;
       gcc_assert (proc);
 
-      if (proc->result->ts.type == BT_UNKNOWN)
+      if (proc->result && proc->result->ts.type == BT_UNKNOWN)
 	function_result_typed = true;
     }
 
@@ -4215,7 +4218,7 @@ declSt:
   if (bad_characteristic)
     {
       ts = &gfc_current_block ()->result->ts;
-      if (ts->type != BT_DERIVED)
+      if (ts->type != BT_DERIVED && ts->type != BT_CLASS)
 	gfc_error ("Bad kind expression for function %qs at %L",
 		   gfc_current_block ()->name,
 		   &gfc_current_block ()->declared_at);
@@ -6502,7 +6505,6 @@ parse_module (void)
 {
   gfc_statement st;
   gfc_gsymbol *s;
-  bool error;
 
   s = gfc_get_gsymbol (gfc_new_block->name, false);
   if (s->defined || (s->type != GSYM_UNKNOWN && s->type != GSYM_MODULE))
@@ -6525,7 +6527,6 @@ parse_module (void)
 
   st = parse_spec (ST_NONE);
 
-  error = false;
 loop:
   switch (st)
     {
@@ -6544,16 +6545,11 @@ loop:
     default:
       gfc_error ("Unexpected %s statement in MODULE at %C",
 		 gfc_ascii_statement (st));
-
-      error = true;
       reject_statement ();
       st = next_statement ();
       goto loop;
     }
-
-  /* Make sure not to free the namespace twice on error.  */
-  if (!error)
-    s->ns = gfc_current_ns;
+  s->ns = gfc_current_ns;
 }
 
 

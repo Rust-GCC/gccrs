@@ -1,5 +1,5 @@
 /* Get CPU type and Features for x86 processors.
-   Copyright (C) 2012-2022 Free Software Foundation, Inc.
+   Copyright (C) 2012-2023 Free Software Foundation, Inc.
    Contributed by Sriraman Tallam (tmsriram@google.com)
 
 This file is part of GCC.
@@ -540,7 +540,6 @@ get_intel_cpu (struct __processor_model *cpu_model,
       /* Alder Lake.  */
     case 0xb7:
       /* Raptor Lake.  */
-    case 0xb5:
     case 0xaa:
     case 0xac:
       /* Meteor Lake.  */
@@ -552,6 +551,8 @@ get_intel_cpu (struct __processor_model *cpu_model,
       break;
     case 0x8f:
       /* Sapphire Rapids.  */
+    case 0xcf:
+      /* Emerald Rapids.  */
       cpu = "sapphirerapids";
       CHECK___builtin_cpu_is ("corei7");
       CHECK___builtin_cpu_is ("sapphirerapids");
@@ -600,8 +601,8 @@ get_intel_cpu (struct __processor_model *cpu_model,
 
 static inline const char *
 get_zhaoxin_cpu (struct __processor_model *cpu_model,
-		struct __processor_model2 *cpu_model2,
-		unsigned int *cpu_features2)
+		 struct __processor_model2 *cpu_model2,
+		 unsigned int *cpu_features2)
 {
   const char *cpu = NULL;
   unsigned int family = cpu_model2->__cpu_family;
@@ -1015,6 +1016,10 @@ cpu_indicator_init (struct __processor_model *cpu_model,
   extended_model = (eax >> 12) & 0xf0;
   extended_family = (eax >> 20) & 0xff;
 
+  /* Find available features. */
+  get_available_features (cpu_model, cpu_model2, cpu_features2,
+			  ecx, edx);
+
   if (vendor == signature_INTEL_ebx)
     {
       /* Adjust model and family for Intel CPUS. */
@@ -1029,9 +1034,6 @@ cpu_indicator_init (struct __processor_model *cpu_model,
       cpu_model2->__cpu_family = family;
       cpu_model2->__cpu_model = model;
 
-      /* Find available features. */
-      get_available_features (cpu_model, cpu_model2, cpu_features2,
-			      ecx, edx);
       /* Get CPU type.  */
       get_intel_cpu (cpu_model, cpu_model2, cpu_features2);
       cpu_model->__cpu_vendor = VENDOR_INTEL;
@@ -1048,9 +1050,6 @@ cpu_indicator_init (struct __processor_model *cpu_model,
       cpu_model2->__cpu_family = family;
       cpu_model2->__cpu_model = model;
 
-      /* Find available features. */
-      get_available_features (cpu_model, cpu_model2, cpu_features2,
-			      ecx, edx);
       /* Get CPU type.  */
       get_amd_cpu (cpu_model, cpu_model2, cpu_features2);
       cpu_model->__cpu_vendor = VENDOR_AMD;
@@ -1058,22 +1057,17 @@ cpu_indicator_init (struct __processor_model *cpu_model,
   else if (vendor == signature_CENTAUR_ebx && family < 0x07)
     cpu_model->__cpu_vendor = VENDOR_CENTAUR;
   else if (vendor == signature_SHANGHAI_ebx
-		|| vendor == signature_CENTAUR_ebx)
+	   || vendor == signature_CENTAUR_ebx)
     {
       /* Adjust model and family for ZHAOXIN CPUS.  */
       if (family == 0x07)
-	{
-	  model += extended_model;
-	}
+	model += extended_model;
 
       cpu_model2->__cpu_family = family;
       cpu_model2->__cpu_model = model;
 
-      /* Find available features.  */
-      get_available_features (cpu_model, cpu_model2, cpu_features2,
-				  ecx, edx);
       /* Get CPU type.  */
-      get_zhaoxin_cpu (cpu_model, cpu_model2,cpu_features2);
+      get_zhaoxin_cpu (cpu_model, cpu_model2, cpu_features2);
       cpu_model->__cpu_vendor = VENDOR_ZHAOXIN;
     }
   else if (vendor == signature_CYRIX_ebx)

@@ -1,13 +1,13 @@
 name: Clang Format Lint
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - trying
       - staging
   pull_request:
     branches: [ master ]
+  merge_group:
 
 jobs:
   clang-format:

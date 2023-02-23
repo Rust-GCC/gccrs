@@ -1,5 +1,5 @@
 /* Perform type resolution on the various structures.
-   Copyright (C) 2001-2022 Free Software Foundation, Inc.
+   Copyright (C) 2001-2023 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -953,9 +953,15 @@ resolve_common_vars (gfc_common_head *common_block, bool named_common)
     {
       gsym = gfc_find_gsymbol (gfc_gsym_root, csym->name);
       if (gsym && (gsym->type == GSYM_MODULE || gsym->type == GSYM_PROGRAM))
-	gfc_error_now ("Global entity %qs at %L cannot appear in a "
-			"COMMON block at %L", gsym->name,
-			&gsym->where, &csym->common_block->where);
+	{
+	  if (csym->common_block)
+	    gfc_error_now ("Global entity %qs at %L cannot appear in a "
+			   "COMMON block at %L", gsym->name,
+			   &gsym->where, &csym->common_block->where);
+	  else
+	    gfc_error_now ("Global entity %qs at %L cannot appear in a "
+			   "COMMON block", gsym->name, &gsym->where);
+	}
 
       /* gfc_add_in_common may have been called before, but the reported errors
 	 have been ignored to continue parsing.
@@ -1664,9 +1670,11 @@ check_assumed_size_reference (gfc_symbol *sym, gfc_expr *e)
 
   /* FIXME: The comparison "e->ref->u.ar.type == AR_FULL" is wrong.
      What should it be?  */
-  if (e->ref && (e->ref->u.ar.end[e->ref->u.ar.as->rank - 1] == NULL)
-	  && (e->ref->u.ar.as->type == AS_ASSUMED_SIZE)
-	       && (e->ref->u.ar.type == AR_FULL))
+  if (e->ref
+      && e->ref->u.ar.as
+      && (e->ref->u.ar.end[e->ref->u.ar.as->rank - 1] == NULL)
+      && (e->ref->u.ar.as->type == AS_ASSUMED_SIZE)
+      && (e->ref->u.ar.type == AR_FULL))
     {
       gfc_error ("The upper bound in the last dimension must "
 		 "appear in the reference to the assumed size "
@@ -4575,11 +4583,10 @@ compare_bound_int (gfc_expr *a, int b)
 {
   int i;
 
-  if (a == NULL || a->expr_type != EXPR_CONSTANT)
+  if (a == NULL
+      || a->expr_type != EXPR_CONSTANT
+      || a->ts.type != BT_INTEGER)
     return CMP_UNKNOWN;
-
-  if (a->ts.type != BT_INTEGER)
-    gfc_internal_error ("compare_bound_int(): Bad expression");
 
   i = mpz_cmp_si (a->value.integer, b);
 
@@ -4598,11 +4605,10 @@ compare_bound_mpz_t (gfc_expr *a, mpz_t b)
 {
   int i;
 
-  if (a == NULL || a->expr_type != EXPR_CONSTANT)
+  if (a == NULL
+      || a->expr_type != EXPR_CONSTANT
+      || a->ts.type != BT_INTEGER)
     return CMP_UNKNOWN;
-
-  if (a->ts.type != BT_INTEGER)
-    gfc_internal_error ("compare_bound_int(): Bad expression");
 
   i = mpz_cmp (a->value.integer, b);
 
@@ -4733,23 +4739,24 @@ check_dimension (int i, gfc_array_ref *ar, gfc_array_spec *as)
 #define AR_END (ar->end[i] ? ar->end[i] : as->upper[i])
 
 	compare_result comp_start_end = compare_bound (AR_START, AR_END);
+	compare_result comp_stride_zero = compare_bound_int (ar->stride[i], 0);
 
 	/* Check for zero stride, which is not allowed.  */
-	if (compare_bound_int (ar->stride[i], 0) == CMP_EQ)
+	if (comp_stride_zero == CMP_EQ)
 	  {
 	    gfc_error ("Illegal stride of zero at %L", &ar->c_where[i]);
 	    return false;
 	  }
 
-	/* if start == len || (stride > 0 && start < len)
-			   || (stride < 0 && start > len),
+	/* if start == end || (stride > 0 && start < end)
+			   || (stride < 0 && start > end),
 	   then the array section contains at least one element.  In this
 	   case, there is an out-of-bounds access if
 	   (start < lower || start > upper).  */
-	if (compare_bound (AR_START, AR_END) == CMP_EQ
-	    || ((compare_bound_int (ar->stride[i], 0) == CMP_GT
-		 || ar->stride[i] == NULL) && comp_start_end == CMP_LT)
-	    || (compare_bound_int (ar->stride[i], 0) == CMP_LT
+	if (comp_start_end == CMP_EQ
+	    || ((comp_stride_zero == CMP_GT || ar->stride[i] == NULL)
+		&& comp_start_end == CMP_LT)
+	    || (comp_stride_zero == CMP_LT
 	        && comp_start_end == CMP_GT))
 	  {
 	    if (compare_bound (AR_START, as->lower[i]) == CMP_LT)
@@ -6087,7 +6094,6 @@ check_host_association (gfc_expr *e)
       gfc_find_symbol (e->symtree->name, gfc_current_ns, 1, &sym);
 
       if (sym && old_sym != sym
-	      && sym->ts.type == old_sym->ts.type
 	      && sym->attr.flavor == FL_PROCEDURE
 	      && sym->attr.contained)
 	{
@@ -6131,6 +6137,9 @@ check_host_association (gfc_expr *e)
 			      &old_sym->declared_at, &e->where);
 		  return false;
 		}
+
+	      if (ref == NULL)
+		return false;
 
 	      gcc_assert (ref->type == REF_ARRAY);
 
@@ -11916,9 +11925,14 @@ gfc_resolve_code (gfc_code *code, gfc_namespace *ns)
 	      break;
 	    case EXEC_OMP_DISTRIBUTE_PARALLEL_DO:
 	    case EXEC_OMP_DISTRIBUTE_PARALLEL_DO_SIMD:
+	    case EXEC_OMP_MASKED_TASKLOOP:
+	    case EXEC_OMP_MASKED_TASKLOOP_SIMD:
+	    case EXEC_OMP_MASTER_TASKLOOP:
+	    case EXEC_OMP_MASTER_TASKLOOP_SIMD:
 	    case EXEC_OMP_PARALLEL:
 	    case EXEC_OMP_PARALLEL_DO:
 	    case EXEC_OMP_PARALLEL_DO_SIMD:
+	    case EXEC_OMP_PARALLEL_LOOP:
 	    case EXEC_OMP_PARALLEL_MASKED:
 	    case EXEC_OMP_PARALLEL_MASKED_TASKLOOP:
 	    case EXEC_OMP_PARALLEL_MASKED_TASKLOOP_SIMD:
@@ -11929,11 +11943,13 @@ gfc_resolve_code (gfc_code *code, gfc_namespace *ns)
 	    case EXEC_OMP_TARGET_PARALLEL:
 	    case EXEC_OMP_TARGET_PARALLEL_DO:
 	    case EXEC_OMP_TARGET_PARALLEL_DO_SIMD:
+	    case EXEC_OMP_TARGET_PARALLEL_LOOP:
 	    case EXEC_OMP_TARGET_TEAMS:
 	    case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE:
 	    case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO:
 	    case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD:
 	    case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_SIMD:
+	    case EXEC_OMP_TARGET_TEAMS_LOOP:
 	    case EXEC_OMP_TASK:
 	    case EXEC_OMP_TASKLOOP:
 	    case EXEC_OMP_TASKLOOP_SIMD:
@@ -11942,6 +11958,7 @@ gfc_resolve_code (gfc_code *code, gfc_namespace *ns)
 	    case EXEC_OMP_TEAMS_DISTRIBUTE_PARALLEL_DO:
 	    case EXEC_OMP_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD:
 	    case EXEC_OMP_TEAMS_DISTRIBUTE_SIMD:
+	    case EXEC_OMP_TEAMS_LOOP:
 	      omp_workshare_save = omp_workshare_flag;
 	      omp_workshare_flag = 0;
 	      gfc_resolve_omp_parallel_blocks (code, ns);
@@ -11950,6 +11967,7 @@ gfc_resolve_code (gfc_code *code, gfc_namespace *ns)
 	    case EXEC_OMP_DISTRIBUTE_SIMD:
 	    case EXEC_OMP_DO:
 	    case EXEC_OMP_DO_SIMD:
+	    case EXEC_OMP_LOOP:
 	    case EXEC_OMP_SIMD:
 	    case EXEC_OMP_TARGET_SIMD:
 	      gfc_resolve_omp_do_blocks (code, ns);

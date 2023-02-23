@@ -1,6 +1,6 @@
 /* Build up a list of intrinsic subroutines and functions for the
    name-resolution stage.
-   Copyright (C) 2000-2022 Free Software Foundation, Inc.
+   Copyright (C) 2000-2023 Free Software Foundation, Inc.
    Contributed by Andy Vaught & Katherine Holcomb
 
 This file is part of GCC.
@@ -5419,7 +5419,8 @@ gfc_convert_chartype (gfc_expr *expr, gfc_typespec *ts)
   gcc_assert (expr->ts.type == BT_CHARACTER && ts->type == BT_CHARACTER);
 
   sym = find_char_conv (&expr->ts, ts);
-  gcc_assert (sym);
+  if (sym == NULL)
+    return false;
 
   /* Insert a pre-resolved function call to the right function.  */
   old_where = expr->where;

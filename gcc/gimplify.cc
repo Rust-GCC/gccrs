@@ -1,6 +1,6 @@
 /* Tree lowering pass.  This pass converts the GENERIC functions-as-trees
    tree representation into the GIMPLE form.
-   Copyright (C) 2002-2022 Free Software Foundation, Inc.
+   Copyright (C) 2002-2023 Free Software Foundation, Inc.
    Major work done by Sebastian Pop <s.pop@laposte.net>,
    Diego Novillo <dnovillo@redhat.com> and Jason Merrill <jason@redhat.com>.
 
@@ -6441,7 +6441,7 @@ gimplify_save_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
   gcc_assert (TREE_CODE (*expr_p) == SAVE_EXPR);
   val = TREE_OPERAND (*expr_p, 0);
 
-  if (TREE_TYPE (val) == error_mark_node)
+  if (val && TREE_TYPE (val) == error_mark_node)
     return GS_ERROR;
 
   /* If the SAVE_EXPR has not been resolved, then evaluate it once.  */
@@ -17098,6 +17098,9 @@ gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 		 Compare scalar mode aggregates as scalar mode values.  Using
 		 memcmp for them would be very inefficient at best, and is
 		 plain wrong if bitfields are involved.  */
+	      if (error_operand_p (TREE_OPERAND (*expr_p, 1)))
+		ret = GS_ERROR;
+	      else
 		{
 		  tree type = TREE_TYPE (TREE_OPERAND (*expr_p, 1));
 
@@ -17122,9 +17125,8 @@ gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 		    ret = gimplify_scalar_mode_aggregate_compare (expr_p);
 		  else
 		    ret = gimplify_variable_sized_compare (expr_p);
-
-		  break;
 		}
+	      break;
 
 	    /* If *EXPR_P does not need to be special-cased, handle it
 	       according to its class.  */

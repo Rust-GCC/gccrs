@@ -1,5 +1,5 @@
 /* Language-dependent node constructors for parse phase of GNU compiler.
-   Copyright (C) 1987-2022 Free Software Foundation, Inc.
+   Copyright (C) 1987-2023 Free Software Foundation, Inc.
    Hacked by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -2608,6 +2608,18 @@ dependent_name (tree x)
   return NULL_TREE;
 }
 
+/* Like dependent_name, but instead takes a CALL_EXPR and also checks
+   its dependence.  */
+
+tree
+call_expr_dependent_name (tree x)
+{
+  if (TREE_TYPE (x) != NULL_TREE)
+    /* X isn't dependent, so its callee isn't a dependent name.  */
+    return NULL_TREE;
+  return dependent_name (CALL_EXPR_FN (x));
+}
+
 /* Returns true iff X is an expression for an overloaded function
    whose type cannot be known without performing overload
    resolution.  */
@@ -3342,6 +3354,10 @@ break_out_target_exprs (tree t, bool clear_location /* = false */)
   static int target_remap_count;
   static splay_tree target_remap;
 
+  /* We shouldn't be called on templated trees, nor do we want to
+     produce them.  */
+  gcc_checking_assert (!processing_template_decl);
+
   if (!target_remap_count++)
     target_remap = splay_tree_new (splay_tree_compare_pointers,
 				   /*splay_tree_delete_key_fn=*/NULL,
@@ -3689,14 +3705,20 @@ build_min_non_dep_op_overload (enum tree_code op,
 {
   va_list p;
   int nargs, expected_nargs;
-  tree fn, call;
+  tree fn, call, obj = NULL_TREE;
 
   non_dep = extract_call_expr (non_dep);
 
   nargs = call_expr_nargs (non_dep);
 
   expected_nargs = cp_tree_code_length (op);
-  if (TREE_CODE (TREE_TYPE (overload)) == METHOD_TYPE)
+  if (TREE_CODE (TREE_TYPE (overload)) == METHOD_TYPE
+      /* For ARRAY_REF, operator[] is either a non-static member or newly
+	 static member, never out of class and for the static member case
+	 if user uses single index the operator[] needs to have a single
+	 argument as well, but the function is called with 2 - the object
+	 it is invoked on and the index.  */
+      || op == ARRAY_REF)
     expected_nargs -= 1;
   if ((op == POSTINCREMENT_EXPR
        || op == POSTDECREMENT_EXPR)
@@ -3711,6 +3733,8 @@ build_min_non_dep_op_overload (enum tree_code op,
   if (TREE_CODE (TREE_TYPE (overload)) == FUNCTION_TYPE)
     {
       fn = overload;
+      if (op == ARRAY_REF)
+	obj = va_arg (p, tree);
       for (int i = 0; i < nargs; i++)
 	{
 	  tree arg = va_arg (p, tree);
@@ -3742,6 +3766,8 @@ build_min_non_dep_op_overload (enum tree_code op,
   CALL_EXPR_ORDERED_ARGS (call_expr) = CALL_EXPR_ORDERED_ARGS (non_dep);
   CALL_EXPR_REVERSE_ARGS (call_expr) = CALL_EXPR_REVERSE_ARGS (non_dep);
 
+  if (obj)
+    return keep_unused_object_arg (call, obj, overload);
   return call;
 }
 
@@ -3755,11 +3781,15 @@ build_min_non_dep_op_overload (tree non_dep, tree overload, tree object,
   non_dep = extract_call_expr (non_dep);
 
   unsigned int nargs = call_expr_nargs (non_dep);
-  gcc_assert (TREE_CODE (TREE_TYPE (overload)) == METHOD_TYPE);
-  tree binfo = TYPE_BINFO (TREE_TYPE (object));
-  tree method = build_baselink (binfo, binfo, overload, NULL_TREE);
-  tree fn = build_min (COMPONENT_REF, TREE_TYPE (overload),
-		       object, method, NULL_TREE);
+  tree fn = overload;
+  if (TREE_CODE (TREE_TYPE (overload)) == METHOD_TYPE)
+    {
+      tree binfo = TYPE_BINFO (TREE_TYPE (object));
+      tree method = build_baselink (binfo, binfo, overload, NULL_TREE);
+      fn = build_min (COMPONENT_REF, TREE_TYPE (overload),
+		      object, method, NULL_TREE);
+      object = NULL_TREE;
+    }
   gcc_assert (vec_safe_length (args) == nargs);
 
   tree call = build_min_non_dep_call_vec (non_dep, fn, args);
@@ -3770,6 +3800,8 @@ build_min_non_dep_op_overload (tree non_dep, tree overload, tree object,
   CALL_EXPR_ORDERED_ARGS (call_expr) = CALL_EXPR_ORDERED_ARGS (non_dep);
   CALL_EXPR_REVERSE_ARGS (call_expr) = CALL_EXPR_REVERSE_ARGS (non_dep);
 
+  if (object)
+    return keep_unused_object_arg (call, object, overload);
   return call;
 }
 
@@ -3850,16 +3882,18 @@ decl_internal_context_p (const_tree decl)
   return !TREE_PUBLIC (decl);
 }
 
-/* Subroutine of cp_tree_equal: t1 and t2 are the CALL_EXPR_FNs of two
-   CALL_EXPRS.  Return whether they are equivalent.  */
+/* Subroutine of cp_tree_equal: t1 and t2 are two CALL_EXPRs.
+   Return whether their CALL_EXPR_FNs are equivalent.  */
 
 static bool
 called_fns_equal (tree t1, tree t2)
 {
   /* Core 1321: dependent names are equivalent even if the overload sets
      are different.  But do compare explicit template arguments.  */
-  tree name1 = dependent_name (t1);
-  tree name2 = dependent_name (t2);
+  tree name1 = call_expr_dependent_name (t1);
+  tree name2 = call_expr_dependent_name (t2);
+  t1 = CALL_EXPR_FN (t1);
+  t2 = CALL_EXPR_FN (t2);
   if (name1 || name2)
     {
       tree targs1 = NULL_TREE, targs2 = NULL_TREE;
@@ -4017,7 +4051,7 @@ cp_tree_equal (tree t1, tree t2)
 	if (KOENIG_LOOKUP_P (t1) != KOENIG_LOOKUP_P (t2))
 	  return false;
 
-	if (!called_fns_equal (CALL_EXPR_FN (t1), CALL_EXPR_FN (t2)))
+	if (!called_fns_equal (t1, t2))
 	  return false;
 
 	call_expr_arg_iterator iter1, iter2;

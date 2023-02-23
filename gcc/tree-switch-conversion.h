@@ -1,5 +1,5 @@
 /* Tree switch conversion for GNU compiler.
-   Copyright (C) 2017-2022 Free Software Foundation, Inc.
+   Copyright (C) 2017-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -914,7 +914,7 @@ switch_decision_tree::reset_out_edges_aux (gswitch *swtch)
 
 /* Release CLUSTERS vector and destruct all dynamically allocated items.  */
 
-static inline void
+inline void
 release_clusters (vec<cluster *> &clusters)
 {
   for (unsigned i = 0; i < clusters.length (); i++)

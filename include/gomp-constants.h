@@ -1,6 +1,6 @@
 /* Communication between GCC and libgomp.
 
-   Copyright (C) 2014-2022 Free Software Foundation, Inc.
+   Copyright (C) 2014-2023 Free Software Foundation, Inc.
 
    Contributed by Mentor Embedded.
 
@@ -284,7 +284,7 @@ enum gomp_map_kind
    to the plugin interface defined in libgomp/libgomp.h.  */
 #define GOMP_VERSION	2
 #define GOMP_VERSION_NVIDIA_PTX 1
-#define GOMP_VERSION_GCN 2
+#define GOMP_VERSION_GCN 3
 
 #define GOMP_VERSION_PACK(LIB, DEV) (((LIB) << 16) | (DEV))
 #define GOMP_VERSION_LIB(PACK) (((PACK) >> 16) & 0xffff)

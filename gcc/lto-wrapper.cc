@@ -1,5 +1,5 @@
 /* Wrapper to call lto.  Used by collect2 and the linker plugin.
-   Copyright (C) 2009-2022 Free Software Foundation, Inc.
+   Copyright (C) 2009-2023 Free Software Foundation, Inc.
 
    Factored out of collect2 by Rafael Espindola <espindola@google.com>
 
@@ -335,6 +335,8 @@ merge_and_complain (vec<cl_decoded_option> &decoded_options,
 
 	case OPT_fopenmp:
 	case OPT_fopenacc:
+	case OPT_fasynchronous_unwind_tables:
+	case OPT_funwind_tables:
 	  /* For selected options we can merge conservatively.  */
 	  if (existing_opt == -1)
 	    decoded_options.safe_push (*foption);
@@ -737,6 +739,8 @@ append_compiler_options (obstack *argv_obstack, vec<cl_decoded_option> opts)
 	case OPT_fopenacc_dim_:
 	case OPT_foffload_abi_:
 	case OPT_fcf_protection_:
+	case OPT_fasynchronous_unwind_tables:
+	case OPT_funwind_tables:
 	case OPT_g:
 	case OPT_O:
 	case OPT_Ofast:

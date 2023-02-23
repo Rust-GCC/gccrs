@@ -1,5 +1,5 @@
 /* Common hooks for RISC-V.
-   Copyright (C) 2016-2022 Free Software Foundation, Inc.
+   Copyright (C) 2016-2023 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1177,6 +1177,7 @@ static const riscv_ext_flag_table_t riscv_ext_flag_table[] =
   {"f", &gcc_options::x_target_flags, MASK_HARD_FLOAT},
   {"d", &gcc_options::x_target_flags, MASK_DOUBLE_FLOAT},
   {"c", &gcc_options::x_target_flags, MASK_RVC},
+  {"v", &gcc_options::x_target_flags, MASK_FULL_V},
   {"v", &gcc_options::x_target_flags, MASK_VECTOR},
 
   {"zicsr",    &gcc_options::x_riscv_zi_subext, MASK_ZICSR},
@@ -1538,7 +1539,7 @@ riscv_check_conds (
 
   for (itr = conds.begin (); itr != conds.end (); ++itr)
     {
-      /* We'll check march= and mabi= in ohter place.  */
+      /* We'll check march= and mabi= in other place.  */
       if (prefixed_with (*itr, "march=") || prefixed_with (*itr, "mabi="))
 	continue;
 
@@ -1700,7 +1701,10 @@ riscv_compute_multilib (
 
       /* Record highest match score multi-lib setting.  */
       if (match_score > max_match_score)
-	best_match_multi_lib = i;
+	{
+	  best_match_multi_lib = i;
+	  max_match_score = match_score;
+	}
     }
 
   if (best_match_multi_lib == -1)
@@ -1756,6 +1760,10 @@ static const struct default_options riscv_option_optimization_table[] =
   {
     { OPT_LEVELS_1_PLUS, OPT_fsection_anchors, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_free, NULL, 1 },
+#if TARGET_DEFAULT_ASYNC_UNWIND_TABLES == 1
+    { OPT_LEVELS_ALL, OPT_fasynchronous_unwind_tables, NULL, 1 },
+    { OPT_LEVELS_ALL, OPT_funwind_tables, NULL, 1},
+#endif
     { OPT_LEVELS_NONE, 0, NULL, 0 }
   };
 

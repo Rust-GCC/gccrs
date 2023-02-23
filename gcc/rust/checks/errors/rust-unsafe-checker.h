@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Free Software Foundation, Inc.
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -168,7 +168,6 @@ private:
   virtual void visit (TuplePatternItemsMultiple &tuple_items) override;
   virtual void visit (TuplePatternItemsRanged &tuple_items) override;
   virtual void visit (TuplePattern &pattern) override;
-  virtual void visit (GroupedPattern &pattern) override;
   virtual void visit (SlicePattern &pattern) override;
   virtual void visit (EmptyStmt &stmt) override;
   virtual void visit (LetStmt &stmt) override;
