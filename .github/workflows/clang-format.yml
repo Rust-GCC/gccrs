@@ -1,7 +1,6 @@
 name: Clang Format Lint
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - trying
