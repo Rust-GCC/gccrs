@@ -91,6 +91,9 @@ make_eager_builtin_invocation (
     case AST::BuiltinMacro::Include:
       path_str = "include";
       break;
+    case AST::BuiltinMacro::Option_env:
+      path_str = "option_env";
+      break;
     }
 
   std::unique_ptr<AST::Expr> node = AST::MacroInvocation::Builtin (
@@ -782,5 +785,71 @@ MacroBuiltin::line_handler (Location invoc_locus, AST::MacroInvocData &)
   // FIXME: Do not return an empty token vector here
   return AST::Fragment ({line_no}, std::move (tok));
 }
+
+// Option_env
+AST::Fragment
+MacroBuiltin::option_env_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  auto invoc_token_tree = invoc.get_delim_tok_tree ();
+  MacroInvocLexer lex (invoc_token_tree.to_token_stream ());
+  Parser<MacroInvocLexer> parser (lex);
+
+  auto last_token_id = macro_end_token (invoc_token_tree, parser);
+  std::unique_ptr<AST::LiteralExpr> error_expr = nullptr;
+  std::unique_ptr<AST::LiteralExpr> lit_expr = nullptr;
+  bool has_error = false;
+
+  auto start = lex.get_offs ();
+  auto expanded_expr = try_expand_many_expr (parser, last_token_id,
+					     invoc.get_expander (), has_error);
+  auto end = lex.get_offs ();
+
+  auto tokens = lex.get_token_slice (start, end);
+
+  if (has_error)
+    return AST::Fragment::create_error ();
+
+  auto pending = check_for_eager_invocations (expanded_expr);
+  if (!pending.empty ())
+    return make_eager_builtin_invocation (AST::BuiltinMacro::Env, invoc_locus,
+					  invoc_token_tree,
+					  std::move (pending));
+
+  if (expanded_expr.size () < 1 || expanded_expr.size () > 2)
+    {
+      rust_error_at (invoc_locus, "env! takes 1 or 2 arguments");
+      return AST::Fragment::create_error ();
+    }
+  if (expanded_expr.size () > 0)
+    {
+      if (!(lit_expr
+	    = try_extract_string_literal_from_fragment (invoc_locus,
+							expanded_expr[0])))
+	{
+	  return AST::Fragment::create_error ();
+	}
+    }
+  if (expanded_expr.size () > 1)
+    {
+      if (!(error_expr
+	    = try_extract_string_literal_from_fragment (invoc_locus,
+							expanded_expr[1])))
+	{
+	  return AST::Fragment::create_error ();
+	}
+    }
+
+  parser.skip_token (last_token_id);
+
+  auto env_value = getenv (lit_expr->as_string ().c_str ());
+
+  auto node = AST::SingleASTNode (make_string (invoc_locus, env_value));
+  auto tok
+    = make_token (Token::make_string (invoc_locus, std::move (env_value)));
+
+  // FIXME: Do not return an empty token vector here
+  return AST::Fragment ({node}, std::move (tok));
+}
+
 
 } // namespace Rust
