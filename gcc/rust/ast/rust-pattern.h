@@ -759,9 +759,8 @@ protected:
 };
 
 // Elements of a struct pattern
-struct StructPatternElements
+class StructPatternElements
 {
-private:
   // bool has_struct_pattern_fields;
   std::vector<std::unique_ptr<StructPatternField>> fields;
 
