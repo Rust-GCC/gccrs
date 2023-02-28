@@ -652,7 +652,7 @@ private:
   std::unique_ptr<AST::Pattern> parse_grouped_or_tuple_pattern ();
   std::unique_ptr<AST::SlicePattern> parse_slice_pattern ();
   std::unique_ptr<AST::Pattern> parse_ident_leading_pattern ();
-  std::unique_ptr<AST::TupleStructItems> parse_tuple_struct_items ();
+  std::unique_ptr<AST::TupleItems> parse_tuple_struct_items ();
   AST::StructPatternElements parse_struct_pattern_elems ();
   std::unique_ptr<AST::StructPatternField> parse_struct_pattern_field ();
   std::unique_ptr<AST::StructPatternField>

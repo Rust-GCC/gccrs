@@ -171,12 +171,10 @@ public:
   void visit (AST::StructPatternFieldIdent &);
   void visit (AST::StructPattern &);
 
-  void visit (AST::TupleStructItemsNoRange &);
-  void visit (AST::TupleStructItemsRange &);
+  void visit (AST::TupleItemsMultiple &);
+  void visit (AST::TupleItemsRanged &);
   void visit (AST::TupleStructPattern &);
 
-  void visit (AST::TuplePatternItemsMultiple &);
-  void visit (AST::TuplePatternItemsRanged &);
   void visit (AST::TuplePattern &);
   void visit (AST::GroupedPattern &);
   void visit (AST::SlicePattern &);

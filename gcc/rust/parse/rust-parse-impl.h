@@ -10834,7 +10834,7 @@ Parser<ManagedTokenSource>::parse_pattern_no_alt ()
 		}
 
 	      // parse items
-	      std::unique_ptr<AST::TupleStructItems> items
+	      std::unique_ptr<AST::TupleItems> items
 		= parse_tuple_struct_items ();
 	      if (items == nullptr)
 		{
@@ -10987,17 +10987,16 @@ Parser<ManagedTokenSource>::parse_grouped_or_tuple_pattern ()
 	}
 
       // create ranged tuple pattern items with only upper items
-      std::unique_ptr<AST::TuplePatternItemsRanged> items (
-	new AST::TuplePatternItemsRanged (
-	  std::vector<std::unique_ptr<AST::Pattern>> (), std::move (patterns)));
+      std::unique_ptr<AST::TupleItemsRanged> items (new AST::TupleItemsRanged (
+	std::vector<std::unique_ptr<AST::Pattern>> (), std::move (patterns)));
       return std::unique_ptr<AST::TuplePattern> (
 	new AST::TuplePattern (std::move (items), paren_locus));
     }
   else if (lexer.peek_token ()->get_id () == RIGHT_PAREN)
     {
       skip_token (RIGHT_PAREN);
-      auto items = std::unique_ptr<AST::TuplePatternItemsMultiple> (
-	new AST::TuplePatternItemsMultiple (
+      auto items = std::unique_ptr<AST::TupleItemsMultiple> (
+	new AST::TupleItemsMultiple (
 	  std::vector<std::unique_ptr<AST::Pattern>> ()));
       return std::unique_ptr<AST::TuplePattern> (
 	new AST::TuplePattern (std::move (items), paren_locus));
@@ -11060,8 +11059,8 @@ Parser<ManagedTokenSource>::parse_grouped_or_tuple_pattern ()
 	    // non-ranged tuple pattern
 	    lexer.skip_token ();
 
-	    std::unique_ptr<AST::TuplePatternItemsMultiple> items (
-	      new AST::TuplePatternItemsMultiple (std::move (patterns)));
+	    std::unique_ptr<AST::TupleItemsMultiple> items (
+	      new AST::TupleItemsMultiple (std::move (patterns)));
 	    return std::unique_ptr<AST::TuplePattern> (
 	      new AST::TuplePattern (std::move (items), paren_locus));
 	  }
@@ -11101,9 +11100,9 @@ Parser<ManagedTokenSource>::parse_grouped_or_tuple_pattern ()
 		return nullptr;
 	      }
 
-	    std::unique_ptr<AST::TuplePatternItemsRanged> items (
-	      new AST::TuplePatternItemsRanged (std::move (patterns),
-						std::move (upper_patterns)));
+	    std::unique_ptr<AST::TupleItemsRanged> items (
+	      new AST::TupleItemsRanged (std::move (patterns),
+					 std::move (upper_patterns)));
 	    return std::unique_ptr<AST::TuplePattern> (
 	      new AST::TuplePattern (std::move (items), paren_locus));
 	  }
@@ -11297,8 +11296,7 @@ Parser<ManagedTokenSource>::parse_ident_leading_pattern ()
 	  }
 
 	// parse items
-	std::unique_ptr<AST::TupleStructItems> items
-	  = parse_tuple_struct_items ();
+	std::unique_ptr<AST::TupleItems> items = parse_tuple_struct_items ();
 	if (items == nullptr)
 	  {
 	    Error error (lexer.peek_token ()->get_locus (),
@@ -11402,7 +11400,7 @@ Parser<ManagedTokenSource>::parse_ident_leading_pattern ()
 
 // Parses tuple struct items if they exist. Does not parse parentheses.
 template <typename ManagedTokenSource>
-std::unique_ptr<AST::TupleStructItems>
+std::unique_ptr<AST::TupleItems>
 Parser<ManagedTokenSource>::parse_tuple_struct_items ()
 {
   std::vector<std::unique_ptr<AST::Pattern>> lower_patterns;
@@ -11449,9 +11447,9 @@ Parser<ManagedTokenSource>::parse_tuple_struct_items ()
       rust_debug (
 	"finished parsing tuple struct items ranged (upper/none only)");
 
-      return std::unique_ptr<AST::TupleStructItemsRange> (
-	new AST::TupleStructItemsRange (std::move (lower_patterns),
-					std::move (upper_patterns)));
+      return std::unique_ptr<AST::TupleItemsRanged> (
+	new AST::TupleItemsRanged (std::move (lower_patterns),
+				   std::move (upper_patterns)));
     }
 
   // has at least some lower patterns
@@ -11493,8 +11491,8 @@ Parser<ManagedTokenSource>::parse_tuple_struct_items ()
   switch (t->get_id ())
     {
     case RIGHT_PAREN:
-      return std::unique_ptr<AST::TupleStructItemsNoRange> (
-	new AST::TupleStructItemsNoRange (std::move (lower_patterns)));
+      return std::unique_ptr<AST::TupleItemsMultiple> (
+	new AST::TupleItemsMultiple (std::move (lower_patterns)));
       case DOT_DOT: {
 	// has an upper range that must be parsed separately
 	lexer.skip_token ();
@@ -11525,9 +11523,9 @@ Parser<ManagedTokenSource>::parse_tuple_struct_items ()
 	    t = lexer.peek_token ();
 	  }
 
-	return std::unique_ptr<AST::TupleStructItemsRange> (
-	  new AST::TupleStructItemsRange (std::move (lower_patterns),
-					  std::move (upper_patterns)));
+	return std::unique_ptr<AST::TupleItemsRanged> (
+	  new AST::TupleItemsRanged (std::move (lower_patterns),
+				     std::move (upper_patterns)));
       }
     default:
       // error
