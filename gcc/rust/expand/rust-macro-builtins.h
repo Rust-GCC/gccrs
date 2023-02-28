@@ -96,8 +96,9 @@ public:
 
   static AST::Fragment line_handler (Location invoc_locus,
 				     AST::MacroInvocData &invoc);
+
   static AST::Fragment option_env_handler (Location invoc_locus,
-				     AST::MacroInvocData &invoc);
+					   AST::MacroInvocData &invoc);
 };
 } // namespace Rust
 

@@ -1,7 +1,6 @@
 name: GCC Bootstrap Build
 
 on:
-  workflow_dispatch:
   push:
     branches: [ master ]
   merge_group:

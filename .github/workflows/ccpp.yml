@@ -1,7 +1,6 @@
 name: GCC Rust build and test
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - trying

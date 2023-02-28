@@ -1,7 +1,6 @@
 name: GNU Commit Format Checker
 
 on:
-  workflow_dispatch:
   pull_request:
     branches:
       - master
