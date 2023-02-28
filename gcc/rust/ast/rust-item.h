@@ -743,6 +743,7 @@ class Method : public InherentImplItem, public TraitImplItem
   std::unique_ptr<BlockExpr> function_body;
   Location locus;
   NodeId node_id;
+  bool is_default;
 
 public:
   // Returns whether the method is in an error state.
@@ -783,7 +784,8 @@ public:
 	  SelfParam self_param, std::vector<FunctionParam> function_params,
 	  std::unique_ptr<Type> return_type, WhereClause where_clause,
 	  std::unique_ptr<BlockExpr> function_body, Visibility vis,
-	  std::vector<Attribute> outer_attrs, Location locus)
+	  std::vector<Attribute> outer_attrs, Location locus,
+	  bool is_default = false)
     : outer_attrs (std::move (outer_attrs)), vis (std::move (vis)),
       qualifiers (std::move (qualifiers)),
       method_name (std::move (method_name)),
@@ -793,7 +795,8 @@ public:
       return_type (std::move (return_type)),
       where_clause (std::move (where_clause)),
       function_body (std::move (function_body)), locus (locus),
-      node_id (Analysis::Mappings::get ()->get_next_node_id ())
+      node_id (Analysis::Mappings::get ()->get_next_node_id ()),
+      is_default (is_default)
   {}
 
   // TODO: add constructor with less fields
@@ -803,7 +806,8 @@ public:
     : outer_attrs (other.outer_attrs), vis (other.vis),
       qualifiers (other.qualifiers), method_name (other.method_name),
       self_param (other.self_param), function_params (other.function_params),
-      where_clause (other.where_clause), locus (other.locus)
+      where_clause (other.where_clause), locus (other.locus),
+      is_default (other.is_default)
   {
     // guard to prevent null dereference (always required)
     if (other.return_type != nullptr)
@@ -831,6 +835,7 @@ public:
     function_params = other.function_params;
     where_clause = other.where_clause;
     locus = other.locus;
+    is_default = other.is_default;
 
     // guard to prevent null dereference (always required)
     if (other.return_type != nullptr)
@@ -1526,6 +1531,7 @@ class Function : public VisItem, public InherentImplItem, public TraitImplItem
   WhereClause where_clause;
   std::unique_ptr<BlockExpr> function_body;
   Location locus;
+  bool is_default;
 
 public:
   std::string as_string () const override;
@@ -1548,7 +1554,8 @@ public:
 	    std::vector<FunctionParam> function_params,
 	    std::unique_ptr<Type> return_type, WhereClause where_clause,
 	    std::unique_ptr<BlockExpr> function_body, Visibility vis,
-	    std::vector<Attribute> outer_attrs, Location locus)
+	    std::vector<Attribute> outer_attrs, Location locus,
+	    bool is_default = false)
     : VisItem (std::move (vis), std::move (outer_attrs)),
       qualifiers (std::move (qualifiers)),
       function_name (std::move (function_name)),
@@ -1556,7 +1563,8 @@ public:
       function_params (std::move (function_params)),
       return_type (std::move (return_type)),
       where_clause (std::move (where_clause)),
-      function_body (std::move (function_body)), locus (locus)
+      function_body (std::move (function_body)), locus (locus),
+      is_default (is_default)
   {}
 
   // TODO: add constructor with less fields
@@ -1566,7 +1574,8 @@ public:
     : VisItem (other), qualifiers (other.qualifiers),
       function_name (other.function_name),
       function_params (other.function_params),
-      where_clause (other.where_clause), locus (other.locus)
+      where_clause (other.where_clause), locus (other.locus),
+      is_default (other.is_default)
   {
     // guard to prevent null dereference (always required)
     if (other.return_type != nullptr)
@@ -1592,6 +1601,7 @@ public:
     // visibility = other.visibility->clone_visibility();
     // outer_attrs = other.outer_attrs;
     locus = other.locus;
+    is_default = other.is_default;
 
     // guard to prevent null dereference (always required)
     if (other.return_type != nullptr)
@@ -3399,6 +3409,7 @@ protected:
 class Trait : public VisItem
 {
   bool has_unsafe;
+  bool has_auto;
   Identifier name;
   std::vector<std::unique_ptr<GenericParam>> generic_params;
   std::vector<std::unique_ptr<TypeParamBound>> type_param_bounds;
@@ -3428,9 +3439,10 @@ public:
   Identifier get_identifier () const { return name; }
 
   bool is_unsafe () const { return has_unsafe; }
+  bool is_auto () const { return has_auto; }
 
   // Mega-constructor
-  Trait (Identifier name, bool is_unsafe,
+  Trait (Identifier name, bool is_unsafe, bool is_auto,
 	 std::vector<std::unique_ptr<GenericParam>> generic_params,
 	 std::vector<std::unique_ptr<TypeParamBound>> type_param_bounds,
 	 WhereClause where_clause,
@@ -3438,7 +3450,7 @@ public:
 	 std::vector<Attribute> outer_attrs, std::vector<Attribute> inner_attrs,
 	 Location locus)
     : VisItem (std::move (vis), std::move (outer_attrs)),
-      has_unsafe (is_unsafe), name (std::move (name)),
+      has_unsafe (is_unsafe), has_auto (is_auto), name (std::move (name)),
       generic_params (std::move (generic_params)),
       type_param_bounds (std::move (type_param_bounds)),
       where_clause (std::move (where_clause)),
@@ -3448,9 +3460,9 @@ public:
 
   // Copy constructor with vector clone
   Trait (Trait const &other)
-    : VisItem (other), has_unsafe (other.has_unsafe), name (other.name),
-      where_clause (other.where_clause), inner_attrs (other.inner_attrs),
-      locus (other.locus)
+    : VisItem (other), has_unsafe (other.has_unsafe), has_auto (other.has_auto),
+      name (other.name), where_clause (other.where_clause),
+      inner_attrs (other.inner_attrs), locus (other.locus)
   {
     generic_params.reserve (other.generic_params.size ());
     for (const auto &e : other.generic_params)
@@ -3471,6 +3483,7 @@ public:
     VisItem::operator= (other);
     name = other.name;
     has_unsafe = other.has_unsafe;
+    has_auto = other.has_auto;
     where_clause = other.where_clause;
     inner_attrs = other.inner_attrs;
     locus = other.locus;
@@ -3903,6 +3916,82 @@ protected:
   std::string get_item_name () const { return item_name; }
 };
 #endif
+
+// A foreign type defined outside the current crate.
+// https://rust-lang.github.io/rfcs/1861-extern-types.html
+class ExternalTypeItem : public ExternalItem
+{
+  std::vector<Attribute> outer_attrs;
+
+  Visibility visibility;
+  Identifier item_name;
+  Location locus;
+
+  bool marked_for_strip;
+
+public:
+  ExternalTypeItem (Identifier item_name, Visibility vis,
+		    std::vector<Attribute> outer_attrs, Location locus)
+    : ExternalItem (), outer_attrs (std::move (outer_attrs)), visibility (vis),
+      item_name (std::move (item_name)), locus (locus), marked_for_strip (false)
+  {}
+
+  ExternalTypeItem (ExternalTypeItem const &other)
+    : outer_attrs (other.outer_attrs), visibility (other.visibility),
+      item_name (other.item_name), locus (other.locus),
+      marked_for_strip (other.marked_for_strip)
+  {
+    node_id = other.node_id;
+  }
+
+  ExternalTypeItem &operator= (ExternalTypeItem const &other)
+  {
+    node_id = other.node_id;
+    outer_attrs = other.outer_attrs;
+    visibility = other.visibility;
+    item_name = other.item_name;
+    locus = other.locus;
+    marked_for_strip = other.marked_for_strip;
+
+    return *this;
+  }
+
+  // move constructors
+  ExternalTypeItem (ExternalTypeItem &&other) = default;
+  ExternalTypeItem &operator= (ExternalTypeItem &&other) = default;
+
+  std::string as_string () const override;
+
+  void accept_vis (ASTVisitor &vis) override;
+
+  // Returns whether item has outer attributes.
+  bool has_outer_attrs () const { return !outer_attrs.empty (); }
+
+  // Returns whether item has non-default visibility.
+  bool has_visibility () const { return !visibility.is_error (); }
+
+  Location get_locus () const { return locus; }
+
+  void mark_for_strip () override { marked_for_strip = true; };
+  bool is_marked_for_strip () const override { return marked_for_strip; };
+
+  // TODO: this mutable getter seems really dodgy. Think up better way.
+  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
+
+  Identifier get_identifier () const { return item_name; }
+
+  Visibility &get_visibility () { return visibility; }
+  const Visibility &get_visibility () const { return visibility; }
+
+protected:
+  /* Use covariance to implement clone function as returning this object
+   * rather than base */
+  ExternalTypeItem *clone_external_item_impl () const override
+  {
+    return new ExternalTypeItem (*this);
+  }
+};
 
 // A static item used in an extern block
 class ExternalStaticItem : public ExternalItem

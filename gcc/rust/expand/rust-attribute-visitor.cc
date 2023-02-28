@@ -2734,6 +2734,20 @@ AttrVisitor::visit (AST::TraitImpl &impl)
   expand_macro_children (MacroExpander::TRAIT_IMPL, impl.get_impl_items (),
 			 extractor);
 }
+
+void
+AttrVisitor::visit (AST::ExternalTypeItem &item)
+{
+  expander.expand_cfg_attrs (item.get_outer_attrs ());
+
+  if (expander.fails_cfg_with_expand (item.get_outer_attrs ()))
+    item.mark_for_strip ();
+
+  // TODO: Can we do anything like expand a macro here?
+  // extern "C" { type ffi_ty!(); }
+  // ?
+}
+
 void
 AttrVisitor::visit (AST::ExternalStaticItem &item)
 {
@@ -2757,6 +2771,7 @@ AttrVisitor::visit (AST::ExternalStaticItem &item)
 
   expander.pop_context ();
 }
+
 void
 AttrVisitor::visit (AST::ExternalFunctionItem &item)
 {

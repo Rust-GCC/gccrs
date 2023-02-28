@@ -1057,6 +1057,7 @@ Parser<ManagedTokenSource>::parse_item (bool called_from_statement)
     case ENUM_TOK:
     case CONST:
     case STATIC_TOK:
+    case AUTO:
     case TRAIT:
     case IMPL:
     case MACRO:
@@ -1084,6 +1085,13 @@ Parser<ManagedTokenSource>::parse_item (bool called_from_statement)
 	{
 	  return parse_vis_item (std::move (outer_attrs));
 	  // or should this go straight to parsing union?
+	}
+      else if (t->get_str () == "default")
+	{
+	  add_error (Error (t->get_locus (),
+			    "%qs is only allowed on items within %qs blocks",
+			    "default", "impl"));
+	  return nullptr;
 	}
       else if (t->get_str () == "macro_rules")
 	{
@@ -1304,6 +1312,7 @@ Parser<ManagedTokenSource>::parse_vis_item (AST::AttrVec outer_attrs)
 	}
     case STATIC_TOK:
       return parse_static_item (std::move (vis), std::move (outer_attrs));
+    case AUTO:
     case TRAIT:
       return parse_trait (std::move (vis), std::move (outer_attrs));
     case IMPL:
@@ -1314,6 +1323,7 @@ Parser<ManagedTokenSource>::parse_vis_item (AST::AttrVec outer_attrs)
 
       switch (t->get_id ())
 	{
+	case AUTO:
 	case TRAIT:
 	  return parse_trait (std::move (vis), std::move (outer_attrs));
 	case EXTERN_TOK:
@@ -2034,6 +2044,7 @@ Parser<ManagedTokenSource>::parse_macro_match ()
 	  case STATIC_TOK:
 	  case STRUCT_TOK:
 	  case SUPER:
+	  case AUTO:
 	  case TRAIT:
 	  case TRUE_LITERAL:
 	  case TRY:
@@ -4753,9 +4764,17 @@ Parser<ManagedTokenSource>::parse_trait (AST::Visibility vis,
 {
   Location locus = lexer.peek_token ()->get_locus ();
   bool is_unsafe = false;
+  bool is_auto_trait = false;
+
   if (lexer.peek_token ()->get_id () == UNSAFE)
     {
       is_unsafe = true;
+      lexer.skip_token ();
+    }
+
+  if (lexer.peek_token ()->get_id () == AUTO)
+    {
+      is_auto_trait = true;
       lexer.skip_token ();
     }
 
@@ -4824,12 +4843,25 @@ Parser<ManagedTokenSource>::parse_trait (AST::Visibility vis,
       return nullptr;
     }
 
+  if (is_auto_trait && !trait_items.empty ())
+    {
+      add_error (
+	Error (locus, "associated items are forbidden within auto traits"));
+
+      // FIXME: unsure if this should be done at parsing time or not
+      for (const auto &item : trait_items)
+	add_error (Error::Hint (item->get_locus (), "remove this item"));
+
+      return nullptr;
+    }
+
   trait_items.shrink_to_fit ();
   return std::unique_ptr<AST::Trait> (
-    new AST::Trait (std::move (ident), is_unsafe, std::move (generic_params),
-		    std::move (type_param_bounds), std::move (where_clause),
-		    std::move (trait_items), std::move (vis),
-		    std::move (outer_attrs), std::move (inner_attrs), locus));
+    new AST::Trait (std::move (ident), is_unsafe, is_auto_trait,
+		    std::move (generic_params), std::move (type_param_bounds),
+		    std::move (where_clause), std::move (trait_items),
+		    std::move (vis), std::move (outer_attrs),
+		    std::move (inner_attrs), locus));
 }
 
 // Parses a trait item used inside traits (not trait, the Item).
@@ -5513,13 +5545,14 @@ Parser<ManagedTokenSource>::parse_trait_impl_item ()
   // parse outer attributes (if they exist)
   AST::AttrVec outer_attrs = parse_outer_attributes ();
 
-  // TODO: clean this function up, it is basically unreadable hacks
+  auto visibility = AST::Visibility::create_private ();
+  if (lexer.peek_token ()->get_id () == PUB)
+    visibility = parse_visibility ();
 
   // branch on next token:
   const_TokenPtr t = lexer.peek_token ();
   switch (t->get_id ())
     {
-    case IDENTIFIER:
     case SUPER:
     case SELF:
     case CRATE:
@@ -5527,67 +5560,20 @@ Parser<ManagedTokenSource>::parse_trait_impl_item ()
       // these seem to be SimplePath tokens, so this is a macro invocation
       // semi
       return parse_macro_invocation_semi (std::move (outer_attrs));
+    case IDENTIFIER:
+      if (lexer.peek_token ()->get_str () == "default")
+	return parse_trait_impl_function_or_method (visibility,
+						    std::move (outer_attrs));
+      else
+	return parse_macro_invocation_semi (std::move (outer_attrs));
     case TYPE:
-      return parse_type_alias (AST::Visibility::create_private (),
-			       std::move (outer_attrs));
-      case PUB: {
-	// visibility, so not a macro invocation semi - must be constant,
-	// function, or method
-	AST::Visibility vis = parse_visibility ();
-
-	// TODO: is a recursive call to parse_trait_impl_item better?
-	switch (lexer.peek_token ()->get_id ())
-	  {
-	  case TYPE:
-	    return parse_type_alias (std::move (vis), std::move (outer_attrs));
-	  case EXTERN_TOK:
-	  case UNSAFE:
-	  case FN_TOK:
-	    // function or method
-	    return parse_trait_impl_function_or_method (std::move (vis),
-							std::move (
-							  outer_attrs));
-	  case CONST:
-	    // lookahead to resolve production - could be function/method or
-	    // const item
-	    t = lexer.peek_token (1);
-
-	    switch (t->get_id ())
-	      {
-	      case IDENTIFIER:
-	      case UNDERSCORE:
-		return parse_const_item (std::move (vis),
-					 std::move (outer_attrs));
-	      case UNSAFE:
-	      case EXTERN_TOK:
-	      case FN_TOK:
-		return parse_trait_impl_function_or_method (std::move (vis),
-							    std::move (
-							      outer_attrs));
-	      default:
-		add_error (Error (t->get_locus (),
-				  "unexpected token %qs in some sort of const "
-				  "item in trait impl",
-				  t->get_token_description ()));
-
-		lexer.skip_token (1); // TODO: is this right thing to do?
-		return nullptr;
-	      }
-	  default:
-	    add_error (Error (t->get_locus (),
-			      "unrecognised token %qs for item in trait impl",
-			      t->get_token_description ()));
-
-	    // skip?
-	    return nullptr;
-	  }
-      }
+      return parse_type_alias (visibility, std::move (outer_attrs));
     case EXTERN_TOK:
     case UNSAFE:
     case FN_TOK:
       // function or method
-      return parse_trait_impl_function_or_method (
-	AST::Visibility::create_private (), std::move (outer_attrs));
+      return parse_trait_impl_function_or_method (visibility,
+						  std::move (outer_attrs));
     case CONST:
       // lookahead to resolve production - could be function/method or const
       // item
@@ -5597,13 +5583,12 @@ Parser<ManagedTokenSource>::parse_trait_impl_item ()
 	{
 	case IDENTIFIER:
 	case UNDERSCORE:
-	  return parse_const_item (AST::Visibility::create_private (),
-				   std::move (outer_attrs));
+	  return parse_const_item (visibility, std::move (outer_attrs));
 	case UNSAFE:
 	case EXTERN_TOK:
 	case FN_TOK:
-	  return parse_trait_impl_function_or_method (
-	    AST::Visibility::create_private (), std::move (outer_attrs));
+	  return parse_trait_impl_function_or_method (visibility,
+						      std::move (outer_attrs));
 	default:
 	  add_error (Error (
 	    t->get_locus (),
@@ -5615,13 +5600,14 @@ Parser<ManagedTokenSource>::parse_trait_impl_item ()
 	}
       gcc_unreachable ();
     default:
-      add_error (Error (t->get_locus (),
-			"unrecognised token %qs for item in trait impl",
-			t->get_token_description ()));
-
-      // skip?
-      return nullptr;
+      break;
     }
+  add_error (Error (t->get_locus (),
+		    "unrecognised token %qs for item in trait impl",
+		    t->get_token_description ()));
+
+  // skip?
+  return nullptr;
 }
 
 /* For internal use only by parse_trait_impl_item() - splits giant method into
@@ -5639,6 +5625,14 @@ Parser<ManagedTokenSource>::parse_trait_impl_function_or_method (
 
   // parse function or method qualifiers
   AST::FunctionQualifiers qualifiers = parse_function_qualifiers ();
+
+  auto is_default = false;
+  auto t = lexer.peek_token ();
+  if (t->get_id () == IDENTIFIER && t->get_str () == "default")
+    {
+      is_default = true;
+      lexer.skip_token ();
+    }
 
   skip_token (FN_TOK);
 
@@ -5764,21 +5758,19 @@ Parser<ManagedTokenSource>::parse_trait_impl_function_or_method (
   // do actual if instead of ternary for return value optimisation
   if (is_method)
     {
-      return std::unique_ptr<AST::Method> (
-	new AST::Method (std::move (ident), std::move (qualifiers),
-			 std::move (generic_params), std::move (self_param),
-			 std::move (function_params), std::move (return_type),
-			 std::move (where_clause), std::move (body),
-			 std::move (vis), std::move (outer_attrs), locus));
+      return std::unique_ptr<AST::Method> (new AST::Method (
+	std::move (ident), std::move (qualifiers), std::move (generic_params),
+	std::move (self_param), std::move (function_params),
+	std::move (return_type), std::move (where_clause), std::move (body),
+	std::move (vis), std::move (outer_attrs), locus, is_default));
     }
   else
     {
-      return std::unique_ptr<AST::Function> (
-	new AST::Function (std::move (ident), std::move (qualifiers),
-			   std::move (generic_params),
-			   std::move (function_params), std::move (return_type),
-			   std::move (where_clause), std::move (body),
-			   std::move (vis), std::move (outer_attrs), locus));
+      return std::unique_ptr<AST::Function> (new AST::Function (
+	std::move (ident), std::move (qualifiers), std::move (generic_params),
+	std::move (function_params), std::move (return_type),
+	std::move (where_clause), std::move (body), std::move (vis),
+	std::move (outer_attrs), locus, is_default));
     }
 }
 
@@ -6120,6 +6112,7 @@ Parser<ManagedTokenSource>::parse_stmt (ParseRestrictions restrictions)
     case ENUM_TOK:
     case CONST:
     case STATIC_TOK:
+    case AUTO:
     case TRAIT:
     case IMPL:
     case MACRO:
@@ -11769,6 +11762,7 @@ Parser<ManagedTokenSource>::parse_stmt_or_expr_without_block ()
     case ENUM_TOK:
     case CONST:
     case STATIC_TOK:
+    case AUTO:
     case TRAIT:
       case IMPL: {
 	std::unique_ptr<AST::VisItem> item (
@@ -11790,6 +11784,7 @@ Parser<ManagedTokenSource>::parse_stmt_or_expr_without_block ()
 	      // unsafe block
 	      return parse_stmt_or_expr_with_block (std::move (outer_attrs));
 	    }
+	  case AUTO:
 	    case TRAIT: {
 	      // unsafe trait
 	      std::unique_ptr<AST::VisItem> item (
