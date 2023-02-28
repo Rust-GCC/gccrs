@@ -73,15 +73,15 @@ ASTLoweringPattern::visit (AST::TupleStructPattern &pattern)
   auto &items = pattern.get_items ();
   switch (items->get_item_type ())
     {
-      case AST::TupleStructItems::RANGE: {
+      case AST::TupleItems::RANGED: {
 	// TODO
 	gcc_unreachable ();
       }
       break;
 
-      case AST::TupleStructItems::NO_RANGE: {
-	AST::TupleStructItemsNoRange &items_no_range
-	  = static_cast<AST::TupleStructItemsNoRange &> (*items.get ());
+      case AST::TupleItems::MULTIPLE: {
+	AST::TupleItemsMultiple &items_no_range
+	  = static_cast<AST::TupleItemsMultiple &> (*items.get ());
 
 	std::vector<std::unique_ptr<HIR::Pattern>> patterns;
 	for (auto &inner_pattern : items_no_range.get_patterns ())
@@ -184,20 +184,18 @@ void
 ASTLoweringPattern::visit (AST::TuplePattern &pattern)
 {
   std::unique_ptr<HIR::TuplePatternItems> items;
-  switch (pattern.get_items ()->get_pattern_type ())
+  switch (pattern.get_items ()->get_item_type ())
     {
-      case AST::TuplePatternItems::TuplePatternItemType::MULTIPLE: {
-	AST::TuplePatternItemsMultiple &ref
-	  = *static_cast<AST::TuplePatternItemsMultiple *> (
-	    pattern.get_items ().get ());
+      case AST::TupleItems::MULTIPLE: {
+	AST::TupleItemsMultiple &ref = *static_cast<AST::TupleItemsMultiple *> (
+	  pattern.get_items ().get ());
 	items = lower_tuple_pattern_multiple (ref);
       }
       break;
 
-      case AST::TuplePatternItems::TuplePatternItemType::RANGED: {
-	AST::TuplePatternItemsRanged &ref
-	  = *static_cast<AST::TuplePatternItemsRanged *> (
-	    pattern.get_items ().get ());
+      case AST::TupleItems::RANGED: {
+	AST::TupleItemsRanged &ref
+	  = *static_cast<AST::TupleItemsRanged *> (pattern.get_items ().get ());
 	items = lower_tuple_pattern_ranged (ref);
       }
       break;

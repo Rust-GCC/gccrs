@@ -443,21 +443,15 @@ ASTLoweringBase::visit (AST::StructPattern &)
 {}
 //  void ASTLoweringBase::visit(TupleStructItemstuple_items) {}
 void
-ASTLoweringBase::visit (AST::TupleStructItemsNoRange &)
+ASTLoweringBase::visit (AST::TupleItemsMultiple &)
 {}
 void
-ASTLoweringBase::visit (AST::TupleStructItemsRange &)
+ASTLoweringBase::visit (AST::TupleItemsRanged &)
 {}
 void
 ASTLoweringBase::visit (AST::TupleStructPattern &)
 {}
 //  void ASTLoweringBase::visit(TuplePatternItemstuple_items) {}
-void
-ASTLoweringBase::visit (AST::TuplePatternItemsMultiple &)
-{}
-void
-ASTLoweringBase::visit (AST::TuplePatternItemsRanged &)
-{}
 void
 ASTLoweringBase::visit (AST::TuplePattern &)
 {}
@@ -811,8 +805,7 @@ ASTLoweringBase::attribute_handled_in_another_pass (
 }
 
 std::unique_ptr<HIR::TuplePatternItems>
-ASTLoweringBase::lower_tuple_pattern_multiple (
-  AST::TuplePatternItemsMultiple &pattern)
+ASTLoweringBase::lower_tuple_pattern_multiple (AST::TupleItemsMultiple &pattern)
 {
   std::vector<std::unique_ptr<HIR::Pattern>> patterns;
   for (auto &p : pattern.get_patterns ())
@@ -826,8 +819,7 @@ ASTLoweringBase::lower_tuple_pattern_multiple (
 }
 
 std::unique_ptr<TuplePatternItems>
-ASTLoweringBase::lower_tuple_pattern_ranged (
-  AST::TuplePatternItemsRanged &pattern)
+ASTLoweringBase::lower_tuple_pattern_ranged (AST::TupleItemsRanged &pattern)
 {
   std::vector<std::unique_ptr<HIR::Pattern>> lower_patterns;
   std::vector<std::unique_ptr<HIR::Pattern>> upper_patterns;

@@ -559,23 +559,15 @@ ResolverBase::visit (AST::StructPattern &)
 {}
 
 void
-ResolverBase::visit (AST::TupleStructItemsNoRange &)
+ResolverBase::visit (AST::TupleItemsMultiple &)
 {}
 
 void
-ResolverBase::visit (AST::TupleStructItemsRange &)
+ResolverBase::visit (AST::TupleItemsRanged &)
 {}
 
 void
 ResolverBase::visit (AST::TupleStructPattern &)
-{}
-
-void
-ResolverBase::visit (AST::TuplePatternItemsMultiple &)
-{}
-
-void
-ResolverBase::visit (AST::TuplePatternItemsRanged &)
 {}
 
 void

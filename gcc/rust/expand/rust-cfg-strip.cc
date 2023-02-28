@@ -2987,7 +2987,7 @@ CfgStrip::visit (AST::StructPattern &pattern)
     }
 }
 void
-CfgStrip::visit (AST::TupleStructItemsNoRange &tuple_items)
+CfgStrip::visit (AST::TupleItemsMultiple &tuple_items)
 {
   // can't strip individual patterns, only sub-patterns
   for (auto &pattern : tuple_items.get_patterns ())
@@ -3001,7 +3001,7 @@ CfgStrip::visit (AST::TupleStructItemsNoRange &tuple_items)
     }
 }
 void
-CfgStrip::visit (AST::TupleStructItemsRange &tuple_items)
+CfgStrip::visit (AST::TupleItemsRanged &tuple_items)
 {
   // can't strip individual patterns, only sub-patterns
   for (auto &lower_pattern : tuple_items.get_lower_patterns ())
@@ -3034,43 +3034,6 @@ CfgStrip::visit (AST::TupleStructPattern &pattern)
 
   if (pattern.has_items ())
     pattern.get_items ()->accept_vis (*this);
-}
-void
-CfgStrip::visit (AST::TuplePatternItemsMultiple &tuple_items)
-{
-  // can't strip individual patterns, only sub-patterns
-  for (auto &pattern : tuple_items.get_patterns ())
-    {
-      pattern->accept_vis (*this);
-
-      if (pattern->is_marked_for_strip ())
-	rust_error_at (pattern->get_locus (),
-		       "cannot strip pattern in this position");
-      // TODO: quit stripping now? or keep going?
-    }
-}
-void
-CfgStrip::visit (AST::TuplePatternItemsRanged &tuple_items)
-{
-  // can't strip individual patterns, only sub-patterns
-  for (auto &lower_pattern : tuple_items.get_lower_patterns ())
-    {
-      lower_pattern->accept_vis (*this);
-
-      if (lower_pattern->is_marked_for_strip ())
-	rust_error_at (lower_pattern->get_locus (),
-		       "cannot strip pattern in this position");
-      // TODO: quit stripping now? or keep going?
-    }
-  for (auto &upper_pattern : tuple_items.get_upper_patterns ())
-    {
-      upper_pattern->accept_vis (*this);
-
-      if (upper_pattern->is_marked_for_strip ())
-	rust_error_at (upper_pattern->get_locus (),
-		       "cannot strip pattern in this position");
-      // TODO: quit stripping now? or keep going?
-    }
 }
 void
 CfgStrip::visit (AST::TuplePattern &pattern)
