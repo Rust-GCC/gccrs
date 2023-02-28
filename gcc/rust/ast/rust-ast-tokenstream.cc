@@ -2551,7 +2551,7 @@ TokenStream::visit (StructPattern &pattern)
 // void TokenStream::visit(TupleStructItems& ){}
 
 void
-TokenStream::visit (TupleStructItemsNoRange &pattern)
+TokenStream::visit (TupleItemsMultiple &pattern)
 {
   for (auto &pat : pattern.get_patterns ())
     {
@@ -2560,7 +2560,7 @@ TokenStream::visit (TupleStructItemsNoRange &pattern)
 }
 
 void
-TokenStream::visit (TupleStructItemsRange &pattern)
+TokenStream::visit (TupleItemsRanged &pattern)
 {
   for (auto &lower : pattern.get_lower_patterns ())
     {
@@ -2586,26 +2586,6 @@ TokenStream::visit (TupleStructPattern &pattern)
 // void
 // TokenStream::visit (TuplePatternItems &)
 // {}
-
-void
-TokenStream::visit (TuplePatternItemsMultiple &pattern)
-{
-  visit_items_joined_by_separator (pattern.get_patterns (), COMMA);
-}
-
-void
-TokenStream::visit (TuplePatternItemsRanged &pattern)
-{
-  for (auto &lower : pattern.get_lower_patterns ())
-    {
-      visit (lower);
-    }
-  tokens.push_back (Rust::Token::make (DOT_DOT, Location ()));
-  for (auto &upper : pattern.get_lower_patterns ())
-    {
-      visit (upper);
-    }
-}
 
 void
 TokenStream::visit (TuplePattern &pattern)
