@@ -90,18 +90,18 @@ TypeCheckPattern::visit (HIR::TupleStructPattern &pattern)
   // error[E0023]: this pattern has 0 fields, but the corresponding tuple
   // variant has 1 field
 
-  std::unique_ptr<HIR::TupleStructItems> &items = pattern.get_items ();
+  std::unique_ptr<HIR::TupleItems> &items = pattern.get_items ();
   switch (items->get_item_type ())
     {
-      case HIR::TupleStructItems::RANGE: {
+      case HIR::TupleItems::RANGED: {
 	// TODO
 	gcc_unreachable ();
       }
       break;
 
-      case HIR::TupleStructItems::NO_RANGE: {
-	HIR::TupleStructItemsNoRange &items_no_range
-	  = static_cast<HIR::TupleStructItemsNoRange &> (*items.get ());
+      case HIR::TupleItems::MULTIPLE: {
+	HIR::TupleItemsMultiple &items_no_range
+	  = static_cast<HIR::TupleItemsMultiple &> (*items.get ());
 
 	if (items_no_range.get_patterns ().size () != variant->num_fields ())
 	  {
@@ -254,13 +254,12 @@ TypeCheckPattern::visit (HIR::WildcardPattern &pattern)
 void
 TypeCheckPattern::visit (HIR::TuplePattern &pattern)
 {
-  std::unique_ptr<HIR::TuplePatternItems> items;
-  switch (pattern.get_items ()->get_pattern_type ())
+  std::unique_ptr<HIR::TupleItems> &items = pattern.get_items ();
+  switch (items->get_item_type ())
     {
-      case HIR::TuplePatternItems::TuplePatternItemType::MULTIPLE: {
-	HIR::TuplePatternItemsMultiple &ref
-	  = *static_cast<HIR::TuplePatternItemsMultiple *> (
-	    pattern.get_items ().get ());
+      case HIR::TupleItems::MULTIPLE: {
+	HIR::TupleItemsMultiple &ref
+	  = *static_cast<HIR::TupleItemsMultiple *> (items.get ());
 
 	if (parent->get_kind () != TyTy::TUPLE)
 	  {
@@ -297,7 +296,7 @@ TypeCheckPattern::visit (HIR::TuplePattern &pattern)
       }
       break;
 
-      case HIR::TuplePatternItems::TuplePatternItemType::RANGED: {
+      case HIR::TupleItems::RANGED: {
 	// HIR::TuplePatternItemsRanged &ref
 	//   = *static_cast<HIR::TuplePatternItemsRanged *> (
 	//     pattern.get_items ().get ());

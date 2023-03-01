@@ -811,23 +811,15 @@ ConstChecker::visit (StructPattern &)
 {}
 
 void
-ConstChecker::visit (TupleStructItemsNoRange &)
+ConstChecker::visit (TupleItemsMultiple &)
 {}
 
 void
-ConstChecker::visit (TupleStructItemsRange &)
+ConstChecker::visit (TupleItemsRanged &)
 {}
 
 void
 ConstChecker::visit (TupleStructPattern &)
-{}
-
-void
-ConstChecker::visit (TuplePatternItemsMultiple &)
-{}
-
-void
-ConstChecker::visit (TuplePatternItemsRanged &)
 {}
 
 void

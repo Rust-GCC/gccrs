@@ -804,7 +804,7 @@ ASTLoweringBase::attribute_handled_in_another_pass (
   return lookup.handler != Analysis::CompilerPass::HIR_LOWERING;
 }
 
-std::unique_ptr<HIR::TuplePatternItems>
+std::unique_ptr<HIR::TupleItems>
 ASTLoweringBase::lower_tuple_pattern_multiple (AST::TupleItemsMultiple &pattern)
 {
   std::vector<std::unique_ptr<HIR::Pattern>> patterns;
@@ -814,11 +814,11 @@ ASTLoweringBase::lower_tuple_pattern_multiple (AST::TupleItemsMultiple &pattern)
       patterns.push_back (std::unique_ptr<HIR::Pattern> (translated));
     }
 
-  return std::unique_ptr<HIR::TuplePatternItems> (
-    new HIR::TuplePatternItemsMultiple (std::move (patterns)));
+  return std::unique_ptr<HIR::TupleItems> (
+    new HIR::TupleItemsMultiple (std::move (patterns)));
 }
 
-std::unique_ptr<TuplePatternItems>
+std::unique_ptr<TupleItems>
 ASTLoweringBase::lower_tuple_pattern_ranged (AST::TupleItemsRanged &pattern)
 {
   std::vector<std::unique_ptr<HIR::Pattern>> lower_patterns;
@@ -836,9 +836,9 @@ ASTLoweringBase::lower_tuple_pattern_ranged (AST::TupleItemsRanged &pattern)
       upper_patterns.push_back (std::unique_ptr<HIR::Pattern> (translated));
     }
 
-  return std::unique_ptr<HIR::TuplePatternItems> (
-    new HIR::TuplePatternItemsRanged (std::move (lower_patterns),
-				      std::move (upper_patterns)));
+  return std::unique_ptr<HIR::TupleItems> (
+    new HIR::TupleItemsRanged (std::move (lower_patterns),
+			       std::move (upper_patterns)));
 }
 
 std::unique_ptr<HIR::RangePatternBound>

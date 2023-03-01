@@ -193,18 +193,18 @@ CompilePatternBindings::visit (HIR::TupleStructPattern &pattern)
   rust_assert (variant->get_variant_type ()
 	       == TyTy::VariantDef::VariantType::TUPLE);
 
-  std::unique_ptr<HIR::TupleStructItems> &items = pattern.get_items ();
+  std::unique_ptr<HIR::TupleItems> &items = pattern.get_items ();
   switch (items->get_item_type ())
     {
-      case HIR::TupleStructItems::RANGE: {
+      case HIR::TupleItems::RANGED: {
 	// TODO
 	gcc_unreachable ();
       }
       break;
 
-      case HIR::TupleStructItems::NO_RANGE: {
-	HIR::TupleStructItemsNoRange &items_no_range
-	  = static_cast<HIR::TupleStructItemsNoRange &> (*items.get ());
+      case HIR::TupleItems::MULTIPLE: {
+	HIR::TupleItemsMultiple &items_no_range
+	  = static_cast<HIR::TupleItemsMultiple &> (*items.get ());
 
 	rust_assert (items_no_range.get_patterns ().size ()
 		     == variant->num_fields ());
@@ -404,12 +404,12 @@ CompilePatternLet::visit (HIR::TuplePattern &pattern)
     = ctx->get_backend ()->var_expression (tmp_var, pattern.get_locus ());
   ctx->add_statement (init_stmt);
 
-  switch (pattern.get_items ()->get_pattern_type ())
+  switch (pattern.get_items ()->get_item_type ())
     {
-      case HIR::TuplePatternItems::TuplePatternItemType::RANGED: {
+      case HIR::TupleItems::RANGED: {
 	size_t tuple_idx = 0;
 	auto &items
-	  = static_cast<HIR::TuplePatternItemsRanged &> (*pattern.get_items ());
+	  = static_cast<HIR::TupleItemsRanged &> (*pattern.get_items ());
 
 	auto &items_lower = items.get_lower_patterns ();
 	auto &items_upper = items.get_upper_patterns ();
@@ -448,10 +448,10 @@ CompilePatternLet::visit (HIR::TuplePattern &pattern)
 
 	return;
       }
-      case HIR::TuplePatternItems::TuplePatternItemType::MULTIPLE: {
+      case HIR::TupleItems::MULTIPLE: {
 	size_t tuple_idx = 0;
-	auto &items = static_cast<HIR::TuplePatternItemsMultiple &> (
-	  *pattern.get_items ());
+	auto &items
+	  = static_cast<HIR::TupleItemsMultiple &> (*pattern.get_items ());
 
 	for (auto &sub : items.get_patterns ())
 	  {

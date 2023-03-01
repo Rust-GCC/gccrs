@@ -2413,53 +2413,6 @@ SlicePattern::as_string () const
 }
 
 std::string
-TuplePatternItemsMultiple::as_string () const
-{
-  std::string str;
-
-  for (const auto &pattern : patterns)
-    {
-      str += "\n " + pattern->as_string ();
-    }
-
-  return str;
-}
-
-std::string
-TuplePatternItemsRanged::as_string () const
-{
-  std::string str;
-
-  str += "\n Lower patterns: ";
-  if (lower_patterns.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &lower : lower_patterns)
-	{
-	  str += "\n  " + lower->as_string ();
-	}
-    }
-
-  str += "\n Upper patterns: ";
-  if (upper_patterns.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &upper : upper_patterns)
-	{
-	  str += "\n  " + upper->as_string ();
-	}
-    }
-
-  return str;
-}
-
-std::string
 TuplePattern::as_string () const
 {
   return "TuplePattern: " + items->as_string ();
@@ -2620,7 +2573,7 @@ IdentifierPattern::as_string () const
 }
 
 std::string
-TupleStructItemsNoRange::as_string () const
+TupleItemsMultiple::as_string () const
 {
   std::string str;
 
@@ -2633,7 +2586,7 @@ TupleStructItemsNoRange::as_string () const
 }
 
 std::string
-TupleStructItemsRange::as_string () const
+TupleItemsRanged::as_string () const
 {
   std::string str ("\n  Lower patterns: ");
 
@@ -4437,31 +4390,19 @@ StructPattern::accept_vis (HIRFullVisitor &vis)
 }
 
 void
-TupleStructItemsNoRange::accept_vis (HIRFullVisitor &vis)
+TupleItemsMultiple::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
 }
 
 void
-TupleStructItemsRange::accept_vis (HIRFullVisitor &vis)
+TupleItemsRanged::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
 }
 
 void
 TupleStructPattern::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TuplePatternItemsMultiple::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TuplePatternItemsRanged::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
 }

@@ -302,10 +302,10 @@ protected:
   bool
   attribute_handled_in_another_pass (const std::string &attribute_path) const;
 
-  std::unique_ptr<TuplePatternItems>
+  std::unique_ptr<TupleItems>
   lower_tuple_pattern_multiple (AST::TupleItemsMultiple &pattern);
 
-  std::unique_ptr<TuplePatternItems>
+  std::unique_ptr<TupleItems>
   lower_tuple_pattern_ranged (AST::TupleItemsRanged &pattern);
 
   std::unique_ptr<HIR::RangePatternBound>

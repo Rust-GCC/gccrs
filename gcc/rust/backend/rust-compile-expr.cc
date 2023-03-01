@@ -1084,13 +1084,11 @@ sort_tuple_patterns (HIR::MatchExpr &expr)
 
       rust_assert (ref.has_tuple_pattern_items ());
 
-      auto items
-	= HIR::TuplePattern (ref).get_items ()->clone_tuple_pattern_items ();
-      if (items->get_pattern_type ()
-	  == HIR::TuplePatternItems::TuplePatternItemType::MULTIPLE)
+      auto items = HIR::TuplePattern (ref).get_items ()->clone_tuple_items ();
+      if (items->get_item_type () == HIR::TupleItems::MULTIPLE)
 	{
 	  auto items_ref
-	    = *static_cast<HIR::TuplePatternItemsMultiple *> (items.get ());
+	    = *static_cast<HIR::TupleItemsMultiple *> (items.get ());
 
 	  // Pop the first pattern out
 	  auto patterns = std::vector<std::unique_ptr<HIR::Pattern>> ();
@@ -1109,8 +1107,8 @@ sort_tuple_patterns (HIR::MatchExpr &expr)
 	    }
 	  else
 	    {
-	      auto new_items = std::unique_ptr<HIR::TuplePatternItems> (
-		new HIR::TuplePatternItemsMultiple (std::move (patterns)));
+	      auto new_items = std::unique_ptr<HIR::TupleItems> (
+		new HIR::TupleItemsMultiple (std::move (patterns)));
 
 	      // Construct a TuplePattern from the rest of the patterns
 	      result_pattern = std::unique_ptr<HIR::Pattern> (
