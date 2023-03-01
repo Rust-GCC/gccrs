@@ -980,5 +980,9 @@ void
 UnsafeChecker::visit (BareFunctionType &)
 {}
 
+void
+UnsafeChecker::visit (ExportedMacro &)
+{}
+
 } // namespace HIR
 } // namespace Rust

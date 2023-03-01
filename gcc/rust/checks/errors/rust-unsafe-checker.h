@@ -186,6 +186,7 @@ private:
   virtual void visit (SliceType &type) override;
   virtual void visit (InferredType &type) override;
   virtual void visit (BareFunctionType &type) override;
+  virtual void visit (ExportedMacro &macro) override;
 };
 
 } // namespace HIR
