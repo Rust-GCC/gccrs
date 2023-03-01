@@ -69,7 +69,7 @@ ASTLoweringPattern::visit (AST::TupleStructPattern &pattern)
   HIR::PathInExpression *path
     = ASTLowerPathInExpression::translate (&pattern.get_path ());
 
-  TupleStructItems *lowered = nullptr;
+  TupleItems *lowered = nullptr;
   auto &items = pattern.get_items ();
   switch (items->get_item_type ())
     {
@@ -91,7 +91,7 @@ ASTLoweringPattern::visit (AST::TupleStructPattern &pattern)
 	    patterns.push_back (std::unique_ptr<HIR::Pattern> (p));
 	  }
 
-	lowered = new HIR::TupleStructItemsNoRange (std::move (patterns));
+	lowered = new HIR::TupleItemsMultiple (std::move (patterns));
       }
       break;
     }
@@ -101,8 +101,9 @@ ASTLoweringPattern::visit (AST::TupleStructPattern &pattern)
 				 mappings->get_next_hir_id (crate_num),
 				 UNKNOWN_LOCAL_DEFID);
 
-  translated = new HIR::TupleStructPattern (
-    mapping, *path, std::unique_ptr<HIR::TupleStructItems> (lowered));
+  translated
+    = new HIR::TupleStructPattern (mapping, *path,
+				   std::unique_ptr<HIR::TupleItems> (lowered));
 }
 
 void
@@ -183,7 +184,7 @@ ASTLoweringPattern::visit (AST::WildcardPattern &pattern)
 void
 ASTLoweringPattern::visit (AST::TuplePattern &pattern)
 {
-  std::unique_ptr<HIR::TuplePatternItems> items;
+  std::unique_ptr<HIR::TupleItems> items;
   switch (pattern.get_items ()->get_item_type ())
     {
       case AST::TupleItems::MULTIPLE: {

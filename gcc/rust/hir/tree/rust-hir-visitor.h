@@ -128,11 +128,9 @@ public:
   virtual void visit (StructPatternFieldIdentPat &field) = 0;
   virtual void visit (StructPatternFieldIdent &field) = 0;
   virtual void visit (StructPattern &pattern) = 0;
-  virtual void visit (TupleStructItemsNoRange &tuple_items) = 0;
-  virtual void visit (TupleStructItemsRange &tuple_items) = 0;
+  virtual void visit (TupleItemsMultiple &tuple_items) = 0;
+  virtual void visit (TupleItemsRanged &tuple_items) = 0;
   virtual void visit (TupleStructPattern &pattern) = 0;
-  virtual void visit (TuplePatternItemsMultiple &tuple_items) = 0;
-  virtual void visit (TuplePatternItemsRanged &tuple_items) = 0;
   virtual void visit (TuplePattern &pattern) = 0;
   virtual void visit (SlicePattern &pattern) = 0;
   virtual void visit (AltPattern &pattern) = 0;
@@ -275,12 +273,10 @@ public:
   virtual void visit (StructPatternFieldIdent &) override {}
   virtual void visit (StructPattern &) override {}
 
-  virtual void visit (TupleStructItemsNoRange &) override {}
-  virtual void visit (TupleStructItemsRange &) override {}
+  virtual void visit (TupleItemsMultiple &) override {}
+  virtual void visit (TupleItemsRanged &) override {}
   virtual void visit (TupleStructPattern &) override {}
 
-  virtual void visit (TuplePatternItemsMultiple &) override {}
-  virtual void visit (TuplePatternItemsRanged &) override {}
   virtual void visit (TuplePattern &) override {}
   virtual void visit (SlicePattern &) override {}
   virtual void visit (AltPattern &) override {}

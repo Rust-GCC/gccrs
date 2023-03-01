@@ -845,23 +845,15 @@ UnsafeChecker::visit (StructPattern &)
 {}
 
 void
-UnsafeChecker::visit (TupleStructItemsNoRange &)
+UnsafeChecker::visit (TupleItemsMultiple &)
 {}
 
 void
-UnsafeChecker::visit (TupleStructItemsRange &)
+UnsafeChecker::visit (TupleItemsRanged &)
 {}
 
 void
 UnsafeChecker::visit (TupleStructPattern &)
-{}
-
-void
-UnsafeChecker::visit (TuplePatternItemsMultiple &)
-{}
-
-void
-UnsafeChecker::visit (TuplePatternItemsRanged &)
 {}
 
 void
