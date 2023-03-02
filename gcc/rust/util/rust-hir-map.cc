@@ -854,6 +854,7 @@ Mappings::insert_macro_def (AST::MacroRulesDefinition *macro)
       {"file", MacroBuiltin::file_handler},
       {"line", MacroBuiltin::line_handler},
       {"column", MacroBuiltin::column_handler},
+      {"option_env",MacroBuiltin::option_env_handler},
       {"include_bytes", MacroBuiltin::include_bytes_handler},
       {"include_str", MacroBuiltin::include_str_handler},
       {"compile_error", MacroBuiltin::compile_error_handler},
