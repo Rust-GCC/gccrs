@@ -23,6 +23,7 @@
 #include "rust-ast-dump.h"
 #include "rust-abi.h"
 #include "rust-object-export.h"
+#include "rust-exported-macro-collector.h"
 
 #include "md5.h"
 
@@ -205,6 +206,8 @@ PublicInterface::ExportTo (HIR::Crate &crate, const std::string &output_path)
 void
 PublicInterface::gather_export_data ()
 {
+  ExportedMacroCollector (crate).collect ();
+
   ExportVisItems visitor (context);
   for (auto &item : crate.items)
     {
