@@ -2573,49 +2573,49 @@ IdentifierPattern::as_string () const
 }
 
 std::string
-TupleItemsMultiple::as_string () const
+TupleItems::as_string () const
 {
-  std::string str;
-
-  for (const auto &pattern : patterns)
+  if (!has_range)
     {
-      str += "\n  " + pattern->as_string ();
-    }
+      std::string str;
 
-  return str;
-}
+      for (const auto &pattern : patterns)
+	{
+	  str += "\n  " + pattern->as_string ();
+	}
 
-std::string
-TupleItemsRanged::as_string () const
-{
-  std::string str ("\n  Lower patterns: ");
-
-  if (lower_patterns.empty ())
-    {
-      str += "none";
+      return str;
     }
   else
     {
-      for (const auto &lower : lower_patterns)
-	{
-	  str += "\n   " + lower->as_string ();
-	}
-    }
+      auto current = patterns.cbegin ();
+      auto split = current + range_idx;
+      auto end = patterns.cend ();
+      std::string str ("\n  Lower patterns: ");
 
-  str += "\n  Upper patterns: ";
-  if (upper_patterns.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &upper : upper_patterns)
+      if (current == split)
 	{
-	  str += "\n   " + upper->as_string ();
+	  str += "none";
 	}
-    }
+      else
+	{
+	  for (; current != split; current++)
+	    str += "\n   " + (*current)->as_string ();
+	}
 
-  return str;
+      str += "\n  Upper patterns: ";
+      if (current == end)
+	{
+	  str += "none";
+	}
+      else
+	{
+	  for (; current != end; current++)
+	    str += "\n   " + (*current)->as_string ();
+	}
+
+      return str;
+    }
 }
 
 std::string
@@ -4390,13 +4390,7 @@ StructPattern::accept_vis (HIRFullVisitor &vis)
 }
 
 void
-TupleItemsMultiple::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TupleItemsRanged::accept_vis (HIRFullVisitor &vis)
+TupleItems::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
 }

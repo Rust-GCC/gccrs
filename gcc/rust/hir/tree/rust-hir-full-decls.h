@@ -202,8 +202,6 @@ class StructPatternFieldIdentPat;
 class StructPatternFieldIdent;
 class StructPattern;
 class TupleItems;
-class TupleItemsMultiple;
-class TupleItemsRanged;
 class TupleStructPattern;
 class TuplePattern;
 class SlicePattern;

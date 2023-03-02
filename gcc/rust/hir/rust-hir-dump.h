@@ -156,8 +156,7 @@ private:
   virtual void visit (StructPatternFieldIdent &) override;
   virtual void visit (StructPattern &) override;
 
-  virtual void visit (TupleItemsMultiple &) override;
-  virtual void visit (TupleItemsRanged &) override;
+  virtual void visit (TupleItems &) override;
   virtual void visit (TupleStructPattern &) override;
 
   virtual void visit (TuplePattern &) override;

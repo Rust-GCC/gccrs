@@ -162,8 +162,7 @@ private:
   virtual void visit (StructPatternFieldIdentPat &field) override;
   virtual void visit (StructPatternFieldIdent &field) override;
   virtual void visit (StructPattern &pattern) override;
-  virtual void visit (TupleItemsMultiple &tuple_items) override;
-  virtual void visit (TupleItemsRanged &tuple_items) override;
+  virtual void visit (TupleItems &tuple_items) override;
   virtual void visit (TupleStructPattern &pattern) override;
   virtual void visit (TuplePattern &pattern) override;
   virtual void visit (SlicePattern &pattern) override;

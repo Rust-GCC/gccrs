@@ -100,24 +100,20 @@ TypeCheckPattern::visit (HIR::TupleStructPattern &pattern)
       break;
 
       case HIR::TupleItems::MULTIPLE: {
-	HIR::TupleItemsMultiple &items_no_range
-	  = static_cast<HIR::TupleItemsMultiple &> (*items.get ());
-
-	if (items_no_range.get_patterns ().size () != variant->num_fields ())
+	if (items->get_patterns ().size () != variant->num_fields ())
 	  {
-	    rust_error_at (
-	      pattern.get_locus (),
-	      "this pattern has %lu fields but the corresponding "
-	      "tuple variant has %lu field",
-	      (unsigned long) items_no_range.get_patterns ().size (),
-	      (unsigned long) variant->num_fields ());
+	    rust_error_at (pattern.get_locus (),
+			   "this pattern has %lu fields but the corresponding "
+			   "tuple variant has %lu field",
+			   (unsigned long) items->get_patterns ().size (),
+			   (unsigned long) variant->num_fields ());
 	    // we continue on to try and setup the types as best we can for
 	    // type checking
 	  }
 
 	// iterate the fields and set them up, I wish we had ZIP
 	size_t i = 0;
-	for (auto &pattern : items_no_range.get_patterns ())
+	for (auto &pattern : items->get_patterns ())
 	  {
 	    if (i >= variant->num_fields ())
 	      break;
@@ -258,9 +254,6 @@ TypeCheckPattern::visit (HIR::TuplePattern &pattern)
   switch (items->get_item_type ())
     {
       case HIR::TupleItems::MULTIPLE: {
-	HIR::TupleItemsMultiple &ref
-	  = *static_cast<HIR::TupleItemsMultiple *> (items.get ());
-
 	if (parent->get_kind () != TyTy::TUPLE)
 	  {
 	    rust_error_at (pattern.get_locus (), "expected %s, found tuple",
@@ -268,7 +261,7 @@ TypeCheckPattern::visit (HIR::TuplePattern &pattern)
 	    break;
 	  }
 
-	const auto &patterns = ref.get_patterns ();
+	const auto &patterns = items->get_patterns ();
 	size_t nitems_to_resolve = patterns.size ();
 
 	TyTy::TupleType &par = *static_cast<TyTy::TupleType *> (parent);

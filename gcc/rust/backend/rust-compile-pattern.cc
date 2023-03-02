@@ -203,18 +203,14 @@ CompilePatternBindings::visit (HIR::TupleStructPattern &pattern)
       break;
 
       case HIR::TupleItems::MULTIPLE: {
-	HIR::TupleItemsMultiple &items_no_range
-	  = static_cast<HIR::TupleItemsMultiple &> (*items.get ());
-
-	rust_assert (items_no_range.get_patterns ().size ()
-		     == variant->num_fields ());
+	rust_assert (items->get_patterns ().size () == variant->num_fields ());
 
 	if (adt->is_enum ())
 	  {
 	    // we are offsetting by + 1 here since the first field in the record
 	    // is always the discriminator
 	    size_t tuple_field_index = 1;
-	    for (auto &pattern : items_no_range.get_patterns ())
+	    for (auto &pattern : items->get_patterns ())
 	      {
 		tree variant_accessor
 		  = ctx->get_backend ()->struct_field_expression (
@@ -230,7 +226,7 @@ CompilePatternBindings::visit (HIR::TupleStructPattern &pattern)
 	else
 	  {
 	    size_t tuple_field_index = 0;
-	    for (auto &pattern : items_no_range.get_patterns ())
+	    for (auto &pattern : items->get_patterns ())
 	      {
 		tree variant_accessor = match_scrutinee_expr;
 
@@ -404,44 +400,45 @@ CompilePatternLet::visit (HIR::TuplePattern &pattern)
     = ctx->get_backend ()->var_expression (tmp_var, pattern.get_locus ());
   ctx->add_statement (init_stmt);
 
-  switch (pattern.get_items ()->get_item_type ())
+  auto &items = *pattern.get_items ();
+
+  switch (items.get_item_type ())
     {
       case HIR::TupleItems::RANGED: {
 	size_t tuple_idx = 0;
-	auto &items
-	  = static_cast<HIR::TupleItemsRanged &> (*pattern.get_items ());
 
-	auto &items_lower = items.get_lower_patterns ();
-	auto &items_upper = items.get_upper_patterns ();
+	auto current = items.get_patterns ().begin ();
+	auto end = items.get_patterns ().end ();
+	auto mid = current + items.get_range_idx ();
 
-	for (auto &sub : items_lower)
+	for (; current != mid; current++)
 	  {
 	    TyTy::BaseType *ty_sub = nullptr;
-	    HirId pattern_id = pattern.get_pattern_mappings ().get_hirid ();
+	    HirId pattern_id = (*current)->get_pattern_mappings ().get_hirid ();
 	    bool ok = ctx->get_tyctx ()->lookup_type (pattern_id, &ty_sub);
 	    rust_assert (ok);
 
 	    tree sub_init = ctx->get_backend ()->struct_field_expression (
-	      access_expr, tuple_idx, sub->get_locus ());
-	    CompilePatternLet::Compile (sub.get (), sub_init, ty_sub,
+	      access_expr, tuple_idx, (*current)->get_locus ());
+	    CompilePatternLet::Compile ((*current).get (), sub_init, ty_sub,
 					rval_locus, ctx);
 	    tuple_idx++;
 	  }
 
 	rust_assert (ty->get_kind () == TyTy::TypeKind::TUPLE);
 	tuple_idx = static_cast<TyTy::TupleType &> (*ty).num_fields ()
-		    - items_upper.size ();
+		    - (end - current);
 
-	for (auto &sub : items_upper)
+	for (; current != end; current++)
 	  {
 	    TyTy::BaseType *ty_sub = nullptr;
-	    HirId pattern_id = pattern.get_pattern_mappings ().get_hirid ();
+	    HirId pattern_id = (*current)->get_pattern_mappings ().get_hirid ();
 	    bool ok = ctx->get_tyctx ()->lookup_type (pattern_id, &ty_sub);
 	    rust_assert (ok);
 
 	    tree sub_init = ctx->get_backend ()->struct_field_expression (
-	      access_expr, tuple_idx, sub->get_locus ());
-	    CompilePatternLet::Compile (sub.get (), sub_init, ty_sub,
+	      access_expr, tuple_idx, (*current)->get_locus ());
+	    CompilePatternLet::Compile ((*current).get (), sub_init, ty_sub,
 					rval_locus, ctx);
 	    tuple_idx++;
 	  }
@@ -450,13 +447,12 @@ CompilePatternLet::visit (HIR::TuplePattern &pattern)
       }
       case HIR::TupleItems::MULTIPLE: {
 	size_t tuple_idx = 0;
-	auto &items
-	  = static_cast<HIR::TupleItemsMultiple &> (*pattern.get_items ());
+	auto &items = *pattern.get_items ();
 
 	for (auto &sub : items.get_patterns ())
 	  {
 	    TyTy::BaseType *ty_sub = nullptr;
-	    HirId pattern_id = pattern.get_pattern_mappings ().get_hirid ();
+	    HirId pattern_id = sub->get_pattern_mappings ().get_hirid ();
 	    bool ok = ctx->get_tyctx ()->lookup_type (pattern_id, &ty_sub);
 	    rust_assert (ok);
 
