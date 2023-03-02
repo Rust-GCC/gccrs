@@ -318,6 +318,8 @@ protected:
   HIR::ExternBlock *lower_extern_block (AST::ExternBlock &extern_block);
 
   HIR::ClosureParam lower_closure_param (AST::ClosureParam &param);
+
+  HIR::ExportedMacro *lower_macro_definition (AST::MacroRulesDefinition &def);
 };
 
 } // namespace HIR
