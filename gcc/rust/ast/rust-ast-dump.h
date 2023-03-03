@@ -272,8 +272,7 @@ private:
   void visit (StructPatternFieldIdent &field);
   void visit (StructPattern &pattern);
   // void visit(TupleStructItems& tuple_items);
-  void visit (TupleItemsMultiple &tuple_items);
-  void visit (TupleItemsRanged &tuple_items);
+  void visit (TupleItems &tuple_items);
   void visit (TupleStructPattern &pattern);
   // void visit(TuplePatternItems& tuple_items);
   void visit (TuplePattern &pattern);

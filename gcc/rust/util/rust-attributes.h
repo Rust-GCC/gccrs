@@ -235,8 +235,7 @@ private:
   void visit (AST::StructPatternFieldIdent &field);
   void visit (AST::StructPattern &pattern);
   // void visit(TupleStructItems& tuple_items);
-  void visit (AST::TupleItemsMultiple &tuple_items);
-  void visit (AST::TupleItemsRanged &tuple_items);
+  void visit (AST::TupleItems &tuple_items);
   void visit (AST::TupleStructPattern &pattern);
   // void visit(TuplePatternItems& tuple_items);
   void visit (AST::TuplePattern &pattern);

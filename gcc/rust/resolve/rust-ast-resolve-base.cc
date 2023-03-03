@@ -559,11 +559,7 @@ ResolverBase::visit (AST::StructPattern &)
 {}
 
 void
-ResolverBase::visit (AST::TupleItemsMultiple &)
-{}
-
-void
-ResolverBase::visit (AST::TupleItemsRanged &)
+ResolverBase::visit (AST::TupleItems &)
 {}
 
 void

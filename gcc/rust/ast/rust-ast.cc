@@ -2859,41 +2859,12 @@ IdentifierPattern::as_string () const
 }
 
 std::string
-TupleItemsMultiple::as_string () const
+TupleItems::as_string () const
 {
   std::string str;
 
   for (const auto &pattern : patterns)
     str += "\n  " + pattern->as_string ();
-
-  return str;
-}
-
-std::string
-TupleItemsRanged::as_string () const
-{
-  std::string str ("\n  Lower patterns: ");
-
-  if (lower_patterns.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &lower : lower_patterns)
-	str += "\n   " + lower->as_string ();
-    }
-
-  str += "\n  Upper patterns: ";
-  if (upper_patterns.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &upper : upper_patterns)
-	str += "\n   " + upper->as_string ();
-    }
 
   return str;
 }
@@ -5595,13 +5566,7 @@ StructPattern::accept_vis (ASTVisitor &vis)
 }
 
 void
-TupleItemsMultiple::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TupleItemsRanged::accept_vis (ASTVisitor &vis)
+TupleItems::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }

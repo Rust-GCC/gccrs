@@ -1636,11 +1636,7 @@ Dump::visit (StructPattern &)
 // void Dump::visit(TupleStructItems& ){}
 
 void
-Dump::visit (TupleItemsMultiple &)
-{}
-
-void
-Dump::visit (TupleItemsRanged &)
+Dump::visit (TupleItems &)
 {}
 
 void

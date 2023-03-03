@@ -34,26 +34,8 @@ PatternDeclaration::visit (AST::TupleStructPattern &pattern)
 {
   ResolvePath::go (&pattern.get_path ());
 
-  std::unique_ptr<AST::TupleItems> &items = pattern.get_items ();
-  switch (items->get_item_type ())
-    {
-      case AST::TupleItems::RANGED: {
-	// TODO
-	gcc_unreachable ();
-      }
-      break;
-
-      case AST::TupleItems::MULTIPLE: {
-	AST::TupleItemsMultiple &items_no_range
-	  = static_cast<AST::TupleItemsMultiple &> (*items.get ());
-
-	for (auto &inner_pattern : items_no_range.get_patterns ())
-	  {
-	    PatternDeclaration::go (inner_pattern.get (), type);
-	  }
-      }
-      break;
-    }
+  for (auto &inner_pattern : pattern.get_items ()->get_patterns ())
+    PatternDeclaration::go (inner_pattern.get (), type);
 }
 
 void
@@ -98,29 +80,8 @@ PatternDeclaration::visit (AST::StructPattern &pattern)
 void
 PatternDeclaration::visit (AST::TuplePattern &pattern)
 {
-  std::unique_ptr<AST::TupleItems> &items = pattern.get_items ();
-  switch (items->get_item_type ())
-    {
-      case AST::TupleItems::MULTIPLE: {
-	AST::TupleItemsMultiple &ref = *static_cast<AST::TupleItemsMultiple *> (
-	  pattern.get_items ().get ());
-
-	for (auto &p : ref.get_patterns ())
-	  p->accept_vis (*this);
-      }
-      break;
-
-      case AST::TupleItems::RANGED: {
-	AST::TupleItemsRanged &ref
-	  = *static_cast<AST::TupleItemsRanged *> (pattern.get_items ().get ());
-
-	for (auto &p : ref.get_lower_patterns ())
-	  p->accept_vis (*this);
-	for (auto &p : ref.get_upper_patterns ())
-	  p->accept_vis (*this);
-      }
-      break;
-    }
+  for (auto &p : pattern.get_items ()->get_patterns ())
+    p->accept_vis (*this);
 }
 
 static void

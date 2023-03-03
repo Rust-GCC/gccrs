@@ -1091,6 +1091,9 @@ public:
   virtual std::string as_string () const = 0;
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
+  // TODO: something else - this is for lowering TupleItems to HIR
+  virtual bool is_rest_pattern () const { return false; }
+
   // as only one kind of pattern can be stripped, have default of nothing
   virtual void mark_for_strip () {}
   virtual bool is_marked_for_strip () const { return false; }

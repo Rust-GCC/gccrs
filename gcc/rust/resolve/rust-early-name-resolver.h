@@ -243,8 +243,7 @@ private:
   virtual void visit (AST::StructPatternFieldIdentPat &field);
   virtual void visit (AST::StructPatternFieldIdent &field);
   virtual void visit (AST::StructPattern &pattern);
-  virtual void visit (AST::TupleItemsMultiple &tuple_items);
-  virtual void visit (AST::TupleItemsRanged &tuple_items);
+  virtual void visit (AST::TupleItems &tuple_items);
   virtual void visit (AST::TupleStructPattern &pattern);
   virtual void visit (AST::TuplePattern &pattern);
   virtual void visit (AST::GroupedPattern &pattern);

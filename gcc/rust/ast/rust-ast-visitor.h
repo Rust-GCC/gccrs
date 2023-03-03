@@ -196,8 +196,7 @@ public:
   virtual void visit (StructPatternFieldIdent &field) = 0;
   virtual void visit (StructPattern &pattern) = 0;
   // virtual void visit(TupleStructItems& tuple_items) = 0;
-  virtual void visit (TupleItemsMultiple &tuple_items) = 0;
-  virtual void visit (TupleItemsRanged &tuple_items) = 0;
+  virtual void visit (TupleItems &tuple_items) = 0;
   virtual void visit (TupleStructPattern &pattern) = 0;
   // virtual void visit(TuplePatternItems& tuple_items) = 0;
   virtual void visit (TuplePattern &pattern) = 0;

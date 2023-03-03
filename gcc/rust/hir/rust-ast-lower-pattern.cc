@@ -69,32 +69,7 @@ ASTLoweringPattern::visit (AST::TupleStructPattern &pattern)
   HIR::PathInExpression *path
     = ASTLowerPathInExpression::translate (&pattern.get_path ());
 
-  TupleItems *lowered = nullptr;
-  auto &items = pattern.get_items ();
-  switch (items->get_item_type ())
-    {
-      case AST::TupleItems::RANGED: {
-	// TODO
-	gcc_unreachable ();
-      }
-      break;
-
-      case AST::TupleItems::MULTIPLE: {
-	AST::TupleItemsMultiple &items_no_range
-	  = static_cast<AST::TupleItemsMultiple &> (*items.get ());
-
-	std::vector<std::unique_ptr<HIR::Pattern> > patterns;
-	for (auto &inner_pattern : items_no_range.get_patterns ())
-	  {
-	    HIR::Pattern *p
-	      = ASTLoweringPattern::translate (inner_pattern.get ());
-	    patterns.push_back (std::unique_ptr<HIR::Pattern> (p));
-	  }
-
-	lowered = new HIR::TupleItems (std::move (patterns), 0, false);
-      }
-      break;
-    }
+  auto lowered = lower_tuple_pattern_items (*pattern.get_items ());
 
   auto crate_num = mappings->get_current_crate ();
   Analysis::NodeMapping mapping (crate_num, pattern.get_node_id (),
@@ -102,8 +77,7 @@ ASTLoweringPattern::visit (AST::TupleStructPattern &pattern)
 				 UNKNOWN_LOCAL_DEFID);
 
   translated
-    = new HIR::TupleStructPattern (mapping, *path,
-				   std::unique_ptr<HIR::TupleItems> (lowered));
+    = new HIR::TupleStructPattern (mapping, *path, std::move (lowered));
 }
 
 void
@@ -184,23 +158,8 @@ ASTLoweringPattern::visit (AST::WildcardPattern &pattern)
 void
 ASTLoweringPattern::visit (AST::TuplePattern &pattern)
 {
-  std::unique_ptr<HIR::TupleItems> items;
-  switch (pattern.get_items ()->get_item_type ())
-    {
-      case AST::TupleItems::MULTIPLE: {
-	AST::TupleItemsMultiple &ref = *static_cast<AST::TupleItemsMultiple *> (
-	  pattern.get_items ().get ());
-	items = lower_tuple_pattern_multiple (ref);
-      }
-      break;
-
-      case AST::TupleItems::RANGED: {
-	AST::TupleItemsRanged &ref
-	  = *static_cast<AST::TupleItemsRanged *> (pattern.get_items ().get ());
-	items = lower_tuple_pattern_ranged (ref);
-      }
-      break;
-    }
+  std::unique_ptr<HIR::TupleItems> items
+    = lower_tuple_pattern_items (*pattern.get_items ());
 
   auto crate_num = mappings->get_current_crate ();
   Analysis::NodeMapping mapping (crate_num, pattern.get_node_id (),

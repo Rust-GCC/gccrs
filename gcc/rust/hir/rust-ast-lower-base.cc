@@ -443,10 +443,7 @@ ASTLoweringBase::visit (AST::StructPattern &)
 {}
 //  void ASTLoweringBase::visit(TupleStructItemstuple_items) {}
 void
-ASTLoweringBase::visit (AST::TupleItemsMultiple &)
-{}
-void
-ASTLoweringBase::visit (AST::TupleItemsRanged &)
+ASTLoweringBase::visit (AST::TupleItems &)
 {}
 void
 ASTLoweringBase::visit (AST::TupleStructPattern &)
@@ -805,39 +802,37 @@ ASTLoweringBase::attribute_handled_in_another_pass (
 }
 
 std::unique_ptr<HIR::TupleItems>
-ASTLoweringBase::lower_tuple_pattern_multiple (AST::TupleItemsMultiple &pattern)
+ASTLoweringBase::lower_tuple_pattern_items (AST::TupleItems &pattern)
 {
+  bool has_rest = false;
+  size_t pattern_idx = 0;
   std::vector<std::unique_ptr<HIR::Pattern>> patterns;
-  for (auto &p : pattern.get_patterns ())
+
+  for (size_t i = 0; i < pattern.get_patterns ().size (); i++)
     {
-      HIR::Pattern *translated = ASTLoweringPattern::translate (p.get ());
-      patterns.push_back (std::unique_ptr<HIR::Pattern> (translated));
+      auto &p = pattern.get_patterns ()[i];
+      if (p->is_rest_pattern ())
+	{
+	  if (has_rest)
+	    {
+	      rust_error_at (p->get_locus (),
+			     "%<..%> can only be used once per tuple pattern");
+	    }
+	  else
+	    {
+	      has_rest = true;
+	      pattern_idx = i;
+	    }
+	}
+      else
+	{
+	  HIR::Pattern *translated = ASTLoweringPattern::translate (p.get ());
+	  patterns.push_back (std::unique_ptr<HIR::Pattern> (translated));
+	}
     }
 
   return std::unique_ptr<HIR::TupleItems> (
-    new HIR::TupleItems (std::move (patterns), 0, false));
-}
-
-std::unique_ptr<TupleItems>
-ASTLoweringBase::lower_tuple_pattern_ranged (AST::TupleItemsRanged &pattern)
-{
-  std::vector<std::unique_ptr<HIR::Pattern>> patterns;
-
-  for (auto &p : pattern.get_lower_patterns ())
-    {
-      HIR::Pattern *translated = ASTLoweringPattern::translate (p.get ());
-      patterns.push_back (std::unique_ptr<HIR::Pattern> (translated));
-    }
-
-  for (auto &p : pattern.get_upper_patterns ())
-    {
-      HIR::Pattern *translated = ASTLoweringPattern::translate (p.get ());
-      patterns.push_back (std::unique_ptr<HIR::Pattern> (translated));
-    }
-
-  return std::unique_ptr<HIR::TupleItems> (
-    new HIR::TupleItems (std::move (patterns),
-			 pattern.get_lower_patterns ().size (), true));
+    new HIR::TupleItems (std::move (patterns), pattern_idx, has_rest));
 }
 
 std::unique_ptr<HIR::RangePatternBound>

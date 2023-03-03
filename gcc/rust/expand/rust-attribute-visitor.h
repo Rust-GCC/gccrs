@@ -252,8 +252,7 @@ public:
   void visit (AST::StructPatternFieldIdentPat &field) override;
   void visit (AST::StructPatternFieldIdent &field) override;
   void visit (AST::StructPattern &pattern) override;
-  void visit (AST::TupleItemsMultiple &tuple_items) override;
-  void visit (AST::TupleItemsRanged &tuple_items) override;
+  void visit (AST::TupleItems &tuple_items) override;
   void visit (AST::TupleStructPattern &pattern) override;
   void visit (AST::TuplePattern &pattern) override;
   void visit (AST::GroupedPattern &pattern) override;

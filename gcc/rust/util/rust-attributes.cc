@@ -743,11 +743,7 @@ AttributeChecker::visit (AST::StructPattern &)
 // void AttributeChecker::visit(TupleStructItems& ){}
 
 void
-AttributeChecker::visit (AST::TupleItemsMultiple &)
-{}
-
-void
-AttributeChecker::visit (AST::TupleItemsRanged &)
+AttributeChecker::visit (AST::TupleItems &)
 {}
 
 void

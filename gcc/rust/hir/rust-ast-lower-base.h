@@ -224,8 +224,7 @@ public:
   virtual void visit (AST::StructPatternFieldIdent &field);
   virtual void visit (AST::StructPattern &pattern);
   //  virtual void visit(TupleStructItems& tuple_items);
-  virtual void visit (AST::TupleItemsMultiple &tuple_items);
-  virtual void visit (AST::TupleItemsRanged &tuple_items);
+  virtual void visit (AST::TupleItems &tuple_items);
   virtual void visit (AST::TupleStructPattern &pattern);
   //  virtual void visit(TuplePatternItems& tuple_items);
   virtual void visit (AST::TuplePattern &pattern);
@@ -303,10 +302,7 @@ protected:
   attribute_handled_in_another_pass (const std::string &attribute_path) const;
 
   std::unique_ptr<TupleItems>
-  lower_tuple_pattern_multiple (AST::TupleItemsMultiple &pattern);
-
-  std::unique_ptr<TupleItems>
-  lower_tuple_pattern_ranged (AST::TupleItemsRanged &pattern);
+  lower_tuple_pattern_items (AST::TupleItems &pattern);
 
   std::unique_ptr<HIR::RangePatternBound>
   lower_range_pattern_bound (AST::RangePatternBound *bound);

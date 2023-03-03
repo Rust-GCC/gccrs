@@ -3046,7 +3046,7 @@ AttrVisitor::visit (AST::StructPattern &pattern)
     }
 }
 void
-AttrVisitor::visit (AST::TupleItemsMultiple &tuple_items)
+AttrVisitor::visit (AST::TupleItems &tuple_items)
 {
   // can't strip individual patterns, only sub-patterns
   for (auto &pattern : tuple_items.get_patterns ())
@@ -3055,29 +3055,6 @@ AttrVisitor::visit (AST::TupleItemsMultiple &tuple_items)
 
       if (pattern->is_marked_for_strip ())
 	rust_error_at (pattern->get_locus (),
-		       "cannot strip pattern in this position");
-      // TODO: quit stripping now? or keep going?
-    }
-}
-void
-AttrVisitor::visit (AST::TupleItemsRanged &tuple_items)
-{
-  // can't strip individual patterns, only sub-patterns
-  for (auto &lower_pattern : tuple_items.get_lower_patterns ())
-    {
-      lower_pattern->accept_vis (*this);
-
-      if (lower_pattern->is_marked_for_strip ())
-	rust_error_at (lower_pattern->get_locus (),
-		       "cannot strip pattern in this position");
-      // TODO: quit stripping now? or keep going?
-    }
-  for (auto &upper_pattern : tuple_items.get_upper_patterns ())
-    {
-      upper_pattern->accept_vis (*this);
-
-      if (upper_pattern->is_marked_for_strip ())
-	rust_error_at (upper_pattern->get_locus (),
 		       "cannot strip pattern in this position");
       // TODO: quit stripping now? or keep going?
     }

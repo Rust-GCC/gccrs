@@ -171,8 +171,7 @@ public:
   void visit (AST::StructPatternFieldIdent &);
   void visit (AST::StructPattern &);
 
-  void visit (AST::TupleItemsMultiple &);
-  void visit (AST::TupleItemsRanged &);
+  void visit (AST::TupleItems &);
   void visit (AST::TupleStructPattern &);
 
   void visit (AST::TuplePattern &);

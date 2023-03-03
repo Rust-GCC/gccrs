@@ -1013,18 +1013,9 @@ EarlyNameResolver::visit (AST::StructPattern &)
 {}
 
 void
-EarlyNameResolver::visit (AST::TupleItemsMultiple &tuple_items)
+EarlyNameResolver::visit (AST::TupleItems &tuple_items)
 {
   for (auto &pattern : tuple_items.get_patterns ())
-    pattern->accept_vis (*this);
-}
-
-void
-EarlyNameResolver::visit (AST::TupleItemsRanged &tuple_items)
-{
-  for (auto &pattern : tuple_items.get_lower_patterns ())
-    pattern->accept_vis (*this);
-  for (auto &pattern : tuple_items.get_upper_patterns ())
     pattern->accept_vis (*this);
 }
 
