@@ -1066,7 +1066,7 @@ sort_tuple_patterns (HIR::MatchExpr &expr)
       // patterns separated by the '|' token. Rustc abstracts these as "Or"
       // patterns, and part of its simplification process is to get rid of them.
       // We should get rid of the ORs too, maybe here or earlier than here?
-      auto pat = case_arm.get_patterns ()[0]->clone_pattern ();
+      auto pat = case_arm.get_pattern ()->clone_pattern ();
 
       // Record wildcards so we can add them in inner matches.
       if (pat->get_pattern_type () == HIR::Pattern::PatternType::WILDCARD)
@@ -1119,13 +1119,8 @@ sort_tuple_patterns (HIR::MatchExpr &expr)
 				       ref.get_locus ()));
 	    }
 
-	  // I don't know why we need to make foo separately here but
-	  // using the { new_tuple } syntax in new_arm constructor does not
-	  // compile.
-	  auto foo = std::vector<std::unique_ptr<HIR::Pattern>> ();
-	  foo.emplace_back (std::move (result_pattern));
-	  HIR::MatchArm new_arm (std::move (foo), Location (), nullptr,
-				 AST::AttrVec ());
+	  HIR::MatchArm new_arm (std::move (result_pattern), Location (),
+				 nullptr, AST::AttrVec ());
 
 	  HIR::MatchCase new_case (match_case.get_mappings (), new_arm,
 				   match_case.get_expr ()->clone_expr ());
@@ -1246,10 +1241,8 @@ simplify_tuple_match (HIR::MatchExpr &expr)
 
       inner_match = simplify_tuple_match (inner_match);
 
-      auto outer_arm_pat = std::vector<std::unique_ptr<HIR::Pattern>> ();
-      outer_arm_pat.emplace_back (map.heads[i]->clone_pattern ());
-
-      HIR::MatchArm outer_arm (std::move (outer_arm_pat), expr.get_locus ());
+      HIR::MatchArm outer_arm (std::move (map.heads[i]->clone_pattern ()),
+			       expr.get_locus ());
 
       // Need to move the inner match to the heap and put it in a unique_ptr to
       // build the actual match case of the outer expression
@@ -1501,7 +1494,7 @@ CompileExpr::visit (HIR::MatchExpr &expr)
     {
       // for now lets just get single pattern's working
       HIR::MatchArm &kase_arm = kase.get_arm ();
-      rust_assert (kase_arm.get_patterns ().size () > 0);
+      rust_assert (kase_arm.get_pattern () != nullptr);
 
       // generate implicit label
       Location arm_locus = kase_arm.get_locus ();
@@ -1509,16 +1502,14 @@ CompileExpr::visit (HIR::MatchExpr &expr)
 	fndecl, "" /* empty creates an artificial label */, arm_locus);
 
       // setup the bindings for the block
-      for (auto &kase_pattern : kase_arm.get_patterns ())
-	{
-	  tree switch_kase_expr
-	    = CompilePatternCaseLabelExpr::Compile (kase_pattern.get (),
-						    case_label, ctx);
-	  ctx->add_statement (switch_kase_expr);
+      auto &kase_pattern = kase_arm.get_pattern ();
+      tree switch_kase_expr
+	= CompilePatternCaseLabelExpr::Compile (kase_pattern.get (), case_label,
+						ctx);
+      ctx->add_statement (switch_kase_expr);
 
-	  CompilePatternBindings::Compile (kase_pattern.get (),
-					   match_scrutinee_expr, ctx);
-	}
+      CompilePatternBindings::Compile (kase_pattern.get (),
+				       match_scrutinee_expr, ctx);
 
       // compile the expr and setup the assignment if required when tmp != NULL
       tree kase_expr_tree = CompileExpr::Compile (kase.get_expr ().get (), ctx);

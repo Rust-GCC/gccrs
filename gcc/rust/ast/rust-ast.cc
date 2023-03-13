@@ -1814,14 +1814,13 @@ IfLetExpr::as_string () const
   str += append_attributes (outer_attrs, OUTER);
 
   str += "\n Condition match arm patterns: ";
-  if (match_arm_patterns.empty ())
+  if (match_arm_pattern == nullptr)
     {
       str += "none";
     }
   else
     {
-      for (const auto &pattern : match_arm_patterns)
-	str += "\n  " + pattern->as_string ();
+      str += "\n  " + match_arm_pattern->as_string ();
     }
 
   str += "\n Scrutinee expr: " + value->as_string ();
@@ -2058,14 +2057,13 @@ WhileLetLoopExpr::as_string () const
     str += loop_label.as_string ();
 
   str += "\n Match arm patterns: ";
-  if (match_arm_patterns.empty ())
+  if (match_arm_pattern == nullptr)
     {
       str += "none";
     }
   else
     {
-      for (const auto &pattern : match_arm_patterns)
-	str += "\n  " + pattern->as_string ();
+      str += "\n  " + match_arm_pattern->as_string ();
     }
 
   str += "\n Scrutinee expr: " + scrutinee->as_string ();
@@ -2144,14 +2142,13 @@ MatchArm::as_string () const
   std::string str = append_attributes (outer_attrs, OUTER);
 
   str += "\nPatterns: ";
-  if (match_arm_patterns.empty ())
+  if (match_arm_pattern == nullptr)
     {
       str += "none";
     }
   else
     {
-      for (const auto &pattern : match_arm_patterns)
-	str += "\n " + pattern->as_string ();
+      str += "\n " + match_arm_pattern->as_string ();
     }
 
   str += "\nGuard expr: ";

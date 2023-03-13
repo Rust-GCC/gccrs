@@ -231,12 +231,10 @@ ASTLoweringIfBlock::visit (AST::IfExprConseqIf &expr)
 void
 ASTLoweringIfLetBlock::visit (AST::IfLetExpr &expr)
 {
-  std::vector<std::unique_ptr<HIR::Pattern> > patterns;
-  for (auto &pattern : expr.get_patterns ())
-    {
-      HIR::Pattern *ptrn = ASTLoweringPattern::translate (pattern.get ());
-      patterns.push_back (std::unique_ptr<HIR::Pattern> (ptrn));
-    }
+  auto &pattern = expr.get_pattern ();
+  auto lowered_pattern = std::unique_ptr<HIR::Pattern> (
+    ASTLoweringPattern::translate (pattern.get ()));
+
   HIR::Expr *value_ptr
     = ASTLoweringExpr::translate (expr.get_value_expr ().get ());
 
@@ -250,7 +248,7 @@ ASTLoweringIfLetBlock::visit (AST::IfLetExpr &expr)
 				 mappings->get_next_hir_id (crate_num),
 				 UNKNOWN_LOCAL_DEFID);
 
-  translated = new HIR::IfLetExpr (mapping, std::move (patterns),
+  translated = new HIR::IfLetExpr (mapping, std::move (lowered_pattern),
 				   std::unique_ptr<HIR::Expr> (value_ptr),
 				   std::unique_ptr<HIR::BlockExpr> (block),
 				   expr.get_locus ());
@@ -373,14 +371,11 @@ ASTLoweringExprWithBlock::visit (AST::MatchExpr &expr)
 	    match_case.get_arm ().get_guard_expr ().get ());
 	}
 
-      std::vector<std::unique_ptr<HIR::Pattern> > match_arm_patterns;
-      for (auto &pattern : match_case.get_arm ().get_patterns ())
-	{
-	  HIR::Pattern *ptrn = ASTLoweringPattern::translate (pattern.get ());
-	  match_arm_patterns.push_back (std::unique_ptr<HIR::Pattern> (ptrn));
-	}
+      auto &pattern = match_case.get_arm ().get_pattern ();
+      auto match_arm_pattern = std::unique_ptr<HIR::Pattern> (
+	ASTLoweringPattern::translate (pattern.get ()));
 
-      HIR::MatchArm arm (std::move (match_arm_patterns), expr.get_locus (),
+      HIR::MatchArm arm (std::move (match_arm_pattern), expr.get_locus (),
 			 std::unique_ptr<HIR::Expr> (kase_guard_expr),
 			 match_case.get_arm ().get_outer_attrs ());
 

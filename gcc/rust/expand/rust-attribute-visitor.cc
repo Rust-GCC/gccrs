@@ -1539,13 +1539,11 @@ AttrVisitor::visit (AST::WhileLetLoopExpr &expr)
       return;
     }
 
-  for (auto &pattern : expr.get_patterns ())
-    {
-      pattern->accept_vis (*this);
-      if (pattern->is_marked_for_strip ())
-	rust_error_at (pattern->get_locus (),
-		       "cannot strip pattern in this position");
-    }
+  auto &pattern = expr.get_pattern ();
+  pattern->accept_vis (*this);
+  if (pattern->is_marked_for_strip ())
+    rust_error_at (pattern->get_locus (),
+		   "cannot strip pattern in this position");
 
   // can't strip scrutinee expr itself, but can strip sub-expressions
   auto &scrutinee_expr = expr.get_scrutinee_expr ();
@@ -1748,13 +1746,11 @@ AttrVisitor::visit (AST::IfLetExpr &expr)
       return;
     }
 
-  for (auto &pattern : expr.get_patterns ())
-    {
-      pattern->accept_vis (*this);
-      if (pattern->is_marked_for_strip ())
-	rust_error_at (pattern->get_locus (),
-		       "cannot strip pattern in this position");
-    }
+  auto &pattern = expr.get_pattern ();
+  pattern->accept_vis (*this);
+  if (pattern->is_marked_for_strip ())
+    rust_error_at (pattern->get_locus (),
+		   "cannot strip pattern in this position");
 
   // can't strip value expr itself, but can strip sub-expressions
   auto &value_expr = expr.get_value_expr ();
@@ -1783,13 +1779,11 @@ AttrVisitor::visit (AST::IfLetExprConseqElse &expr)
       return;
     }
 
-  for (auto &pattern : expr.get_patterns ())
-    {
-      pattern->accept_vis (*this);
-      if (pattern->is_marked_for_strip ())
-	rust_error_at (pattern->get_locus (),
-		       "cannot strip pattern in this position");
-    }
+  auto &pattern = expr.get_pattern ();
+  pattern->accept_vis (*this);
+  if (pattern->is_marked_for_strip ())
+    rust_error_at (pattern->get_locus (),
+		   "cannot strip pattern in this position");
 
   // can't strip value expr itself, but can strip sub-expressions
   auto &value_expr = expr.get_value_expr ();
@@ -1826,13 +1820,11 @@ AttrVisitor::visit (AST::IfLetExprConseqIf &expr)
       return;
     }
 
-  for (auto &pattern : expr.get_patterns ())
-    {
-      pattern->accept_vis (*this);
-      if (pattern->is_marked_for_strip ())
-	rust_error_at (pattern->get_locus (),
-		       "cannot strip pattern in this position");
-    }
+  auto &pattern = expr.get_pattern ();
+  pattern->accept_vis (*this);
+  if (pattern->is_marked_for_strip ())
+    rust_error_at (pattern->get_locus (),
+		   "cannot strip pattern in this position");
 
   // can't strip value expr itself, but can strip sub-expressions
   auto &value_expr = expr.get_value_expr ();
@@ -1869,13 +1861,11 @@ AttrVisitor::visit (AST::IfLetExprConseqIfLet &expr)
       return;
     }
 
-  for (auto &pattern : expr.get_patterns ())
-    {
-      pattern->accept_vis (*this);
-      if (pattern->is_marked_for_strip ())
-	rust_error_at (pattern->get_locus (),
-		       "cannot strip pattern in this position");
-    }
+  auto &pattern = expr.get_pattern ();
+  pattern->accept_vis (*this);
+  if (pattern->is_marked_for_strip ())
+    rust_error_at (pattern->get_locus (),
+		   "cannot strip pattern in this position");
 
   // can't strip value expr itself, but can strip sub-expressions
   auto &value_expr = expr.get_value_expr ();
@@ -1945,13 +1935,11 @@ AttrVisitor::visit (AST::MatchExpr &expr)
 	  continue;
 	}
 
-      for (auto &pattern : match_arm.get_patterns ())
-	{
-	  pattern->accept_vis (*this);
-	  if (pattern->is_marked_for_strip ())
-	    rust_error_at (pattern->get_locus (),
-			   "cannot strip pattern in this position");
-	}
+      auto &pattern = match_arm.get_pattern ();
+      pattern->accept_vis (*this);
+      if (pattern->is_marked_for_strip ())
+	rust_error_at (pattern->get_locus (),
+		       "cannot strip pattern in this position");
 
       /* assuming that guard expression cannot be stripped as
        * strictly speaking you would have to strip the whole guard to

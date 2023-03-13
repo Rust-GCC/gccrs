@@ -563,8 +563,6 @@ private:
   parse_match_expr (AST::AttrVec outer_attrs = AST::AttrVec (),
 		    Location pratt_parsed_loc = Linemap::unknown_location ());
   AST::MatchArm parse_match_arm ();
-  std::vector<std::unique_ptr<AST::Pattern> >
-  parse_match_arm_patterns (TokenId end_token_id);
   std::unique_ptr<AST::BaseLoopExpr>
   parse_labelled_loop_expr (AST::AttrVec outer_attrs = AST::AttrVec ());
   AST::LoopLabel parse_loop_label ();

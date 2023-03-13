@@ -501,16 +501,14 @@ TypeCheckExpr::visit (HIR::IfLetExpr &expr)
   TyTy::BaseType *scrutinee_tyty
     = TypeCheckExpr::Resolve (expr.get_scrutinee_expr ().get ());
 
-  for (auto &pattern : expr.get_patterns ())
-    {
-      TyTy::BaseType *kase_arm_ty
-	= TypeCheckPattern::Resolve (pattern.get (), scrutinee_tyty);
+  auto &pattern = expr.get_pattern ();
+  TyTy::BaseType *kase_arm_ty
+    = TypeCheckPattern::Resolve (pattern.get (), scrutinee_tyty);
 
-      unify_site (expr.get_mappings ().get_hirid (),
-		  TyTy::TyWithLocation (scrutinee_tyty),
-		  TyTy::TyWithLocation (kase_arm_ty, pattern->get_locus ()),
-		  expr.get_locus ());
-    }
+  unify_site (expr.get_mappings ().get_hirid (),
+	      TyTy::TyWithLocation (scrutinee_tyty),
+	      TyTy::TyWithLocation (kase_arm_ty, pattern->get_locus ()),
+	      expr.get_locus ());
 
   TypeCheckExpr::Resolve (expr.get_if_block ());
 
@@ -1401,20 +1399,19 @@ TypeCheckExpr::visit (HIR::MatchExpr &expr)
     {
       // lets check the arms
       HIR::MatchArm &kase_arm = kase.get_arm ();
-      for (auto &pattern : kase_arm.get_patterns ())
-	{
-	  TyTy::BaseType *kase_arm_ty
-	    = TypeCheckPattern::Resolve (pattern.get (), scrutinee_tyty);
+      auto &pattern = kase_arm.get_pattern ();
 
-	  TyTy::BaseType *checked_kase = unify_site (
-	    expr.get_mappings ().get_hirid (),
-	    TyTy::TyWithLocation (scrutinee_tyty,
-				  expr.get_scrutinee_expr ()->get_locus ()),
-	    TyTy::TyWithLocation (kase_arm_ty, pattern->get_locus ()),
-	    expr.get_locus ());
-	  if (checked_kase->get_kind () == TyTy::TypeKind::ERROR)
-	    return;
-	}
+      TyTy::BaseType *kase_arm_ty
+	= TypeCheckPattern::Resolve (pattern.get (), scrutinee_tyty);
+
+      TyTy::BaseType *checked_kase = unify_site (
+	expr.get_mappings ().get_hirid (),
+	TyTy::TyWithLocation (scrutinee_tyty,
+			      expr.get_scrutinee_expr ()->get_locus ()),
+	TyTy::TyWithLocation (kase_arm_ty, pattern->get_locus ()),
+	expr.get_locus ());
+      if (checked_kase->get_kind () == TyTy::TypeKind::ERROR)
+	return;
 
       // check the kase type
       TyTy::BaseType *kase_block_ty

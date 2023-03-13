@@ -207,10 +207,7 @@ ResolveExpr::visit (AST::IfLetExpr &expr)
   resolver->push_new_type_rib (resolver->get_type_scope ().peek ());
   resolver->push_new_label_rib (resolver->get_type_scope ().peek ());
 
-  for (auto &pattern : expr.get_patterns ())
-    {
-      PatternDeclaration::go (pattern.get (), Rib::ItemType::Var);
-    }
+  PatternDeclaration::go (expr.get_pattern ().get (), Rib::ItemType::Var);
 
   ResolveExpr::go (expr.get_if_block ().get (), prefix, canonical_prefix);
 
@@ -517,11 +514,7 @@ ResolveExpr::visit (AST::MatchExpr &expr)
 	ResolveExpr::go (arm.get_guard_expr ().get (), prefix,
 			 canonical_prefix);
 
-      // insert any possible new patterns
-      for (auto &pattern : arm.get_patterns ())
-	{
-	  PatternDeclaration::go (pattern.get (), Rib::ItemType::Var);
-	}
+      PatternDeclaration::go (arm.get_pattern ().get (), Rib::ItemType::Var);
 
       // resolve the body
       ResolveExpr::go (match_case.get_expr ().get (), prefix, canonical_prefix);

@@ -3053,7 +3053,7 @@ protected:
 class WhileLetLoopExpr : public BaseLoopExpr
 {
   // MatchArmPatterns patterns;
-  std::vector<std::unique_ptr<Pattern> > match_arm_patterns; // inlined
+  std::unique_ptr<Pattern> match_arm_pattern; // inlined
   std::unique_ptr<Expr> condition;
 
 public:
@@ -3061,27 +3061,23 @@ public:
 
   // Constructor with a loop label
   WhileLetLoopExpr (Analysis::NodeMapping mappings,
-		    std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+		    std::unique_ptr<Pattern> match_arm_pattern,
 		    std::unique_ptr<Expr> condition,
 		    std::unique_ptr<BlockExpr> loop_block, Location locus,
 		    LoopLabel loop_label,
 		    AST::AttrVec outer_attribs = AST::AttrVec ())
     : BaseLoopExpr (std::move (mappings), std::move (loop_block), locus,
 		    std::move (loop_label), std::move (outer_attribs)),
-      match_arm_patterns (std::move (match_arm_patterns)),
+      match_arm_pattern (std::move (match_arm_pattern)),
       condition (std::move (condition))
   {}
 
   // Copy constructor with clone
   WhileLetLoopExpr (WhileLetLoopExpr const &other)
     : BaseLoopExpr (other),
-      /*match_arm_patterns(other.match_arm_patterns),*/ condition (
-	other.condition->clone_expr ())
-  {
-    match_arm_patterns.reserve (other.match_arm_patterns.size ());
-    for (const auto &e : other.match_arm_patterns)
-      match_arm_patterns.push_back (e->clone_pattern ());
-  }
+      match_arm_pattern (other.match_arm_pattern->clone_pattern ()),
+      condition (other.condition->clone_expr ())
+  {}
 
   // Overloaded assignment operator to clone pointers
   WhileLetLoopExpr &operator= (WhileLetLoopExpr const &other)
@@ -3093,9 +3089,9 @@ public:
     // loop_label = other.loop_label;
     // outer_attrs = other.outer_attrs;
 
-    match_arm_patterns.reserve (other.match_arm_patterns.size ());
-    for (const auto &e : other.match_arm_patterns)
-      match_arm_patterns.push_back (e->clone_pattern ());
+    match_arm_pattern = nullptr;
+    if (other.match_arm_pattern != nullptr)
+      match_arm_pattern = other.match_arm_pattern->clone_pattern ();
 
     return *this;
   }
@@ -3416,7 +3412,7 @@ protected:
 class IfLetExpr : public ExprWithBlock
 {
   // MatchArmPatterns patterns;
-  std::vector<std::unique_ptr<Pattern> > match_arm_patterns; // inlined
+  std::unique_ptr<Pattern> match_arm_pattern; // inlined
   std::unique_ptr<Expr> value;
   std::unique_ptr<BlockExpr> if_block;
 
@@ -3426,11 +3422,11 @@ public:
   std::string as_string () const override;
 
   IfLetExpr (Analysis::NodeMapping mappings,
-	     std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+	     std::unique_ptr<Pattern> match_arm_pattern,
 	     std::unique_ptr<Expr> value, std::unique_ptr<BlockExpr> if_block,
 	     Location locus)
     : ExprWithBlock (std::move (mappings), AST::AttrVec ()),
-      match_arm_patterns (std::move (match_arm_patterns)),
+      match_arm_pattern (std::move (match_arm_pattern)),
       value (std::move (value)), if_block (std::move (if_block)), locus (locus)
   {}
   // outer attributes not allowed on if let exprs either
@@ -3438,14 +3434,10 @@ public:
   // copy constructor with clone
   IfLetExpr (IfLetExpr const &other)
     : ExprWithBlock (other),
-      /*match_arm_patterns(other.match_arm_patterns),*/ value (
-	other.value->clone_expr ()),
+      match_arm_pattern (other.match_arm_pattern->clone_pattern ()),
+      value (other.value->clone_expr ()),
       if_block (other.if_block->clone_block_expr ()), locus (other.locus)
-  {
-    match_arm_patterns.reserve (other.match_arm_patterns.size ());
-    for (const auto &e : other.match_arm_patterns)
-      match_arm_patterns.push_back (e->clone_pattern ());
-  }
+  {}
 
   // overload assignment operator to clone
   IfLetExpr &operator= (IfLetExpr const &other)
@@ -3456,9 +3448,9 @@ public:
     if_block = other.if_block->clone_block_expr ();
     locus = other.locus;
 
-    match_arm_patterns.reserve (other.match_arm_patterns.size ());
-    for (const auto &e : other.match_arm_patterns)
-      match_arm_patterns.push_back (e->clone_pattern ());
+    match_arm_pattern = nullptr;
+    if (other.match_arm_pattern != nullptr)
+      match_arm_pattern = other.match_arm_pattern->clone_pattern ();
 
     return *this;
   }
@@ -3484,10 +3476,7 @@ public:
     return value;
   }
 
-  std::vector<std::unique_ptr<Pattern> > &get_patterns ()
-  {
-    return match_arm_patterns;
-  }
+  std::unique_ptr<Pattern> &get_pattern () { return match_arm_pattern; }
 
   BlockExpr *get_if_block () { return if_block.get (); }
 
@@ -3589,12 +3578,12 @@ class IfLetExprConseqElse : public IfLetExpr
 public:
   std::string as_string () const override;
 
-  IfLetExprConseqElse (
-    Analysis::NodeMapping mappings,
-    std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
-    std::unique_ptr<Expr> value, std::unique_ptr<BlockExpr> if_block,
-    std::unique_ptr<BlockExpr> else_block, Location locus)
-    : IfLetExpr (std::move (mappings), std::move (match_arm_patterns),
+  IfLetExprConseqElse (Analysis::NodeMapping mappings,
+		       std::unique_ptr<Pattern> match_arm_pattern,
+		       std::unique_ptr<Expr> value,
+		       std::unique_ptr<BlockExpr> if_block,
+		       std::unique_ptr<BlockExpr> else_block, Location locus)
+    : IfLetExpr (std::move (mappings), std::move (match_arm_pattern),
 		 std::move (value), std::move (if_block), locus),
       else_block (std::move (else_block))
   {}
@@ -3658,11 +3647,11 @@ public:
   std::string as_string () const override;
 
   IfLetExprConseqIf (Analysis::NodeMapping mappings,
-		     std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+		     std::unique_ptr<Pattern> match_arm_pattern,
 		     std::unique_ptr<Expr> value,
 		     std::unique_ptr<BlockExpr> if_block,
 		     std::unique_ptr<IfExpr> if_expr, Location locus)
-    : IfLetExpr (std::move (mappings), std::move (match_arm_patterns),
+    : IfLetExpr (std::move (mappings), std::move (match_arm_pattern),
 		 std::move (value), std::move (if_block), locus),
       if_expr (std::move (if_expr))
   {}
@@ -3724,12 +3713,12 @@ class IfLetExprConseqIfLet : public IfLetExpr
 public:
   std::string as_string () const override;
 
-  IfLetExprConseqIfLet (
-    Analysis::NodeMapping mappings,
-    std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
-    std::unique_ptr<Expr> value, std::unique_ptr<BlockExpr> if_block,
-    std::unique_ptr<IfLetExpr> if_let_expr, Location locus)
-    : IfLetExpr (std::move (mappings), std::move (match_arm_patterns),
+  IfLetExprConseqIfLet (Analysis::NodeMapping mappings,
+			std::unique_ptr<Pattern> match_arm_pattern,
+			std::unique_ptr<Expr> value,
+			std::unique_ptr<BlockExpr> if_block,
+			std::unique_ptr<IfLetExpr> if_let_expr, Location locus)
+    : IfLetExpr (std::move (mappings), std::move (match_arm_pattern),
 		 std::move (value), std::move (if_block), locus),
       if_let_expr (std::move (if_let_expr))
   {}
@@ -3787,7 +3776,7 @@ struct MatchArm
 {
 private:
   AST::AttrVec outer_attrs;
-  std::vector<std::unique_ptr<Pattern> > match_arm_patterns;
+  std::unique_ptr<Pattern> match_arm_pattern;
   std::unique_ptr<Expr> guard_expr;
   Location locus;
 
@@ -3796,26 +3785,24 @@ public:
   bool has_match_arm_guard () const { return guard_expr != nullptr; }
 
   // Constructor for match arm with a guard expression
-  MatchArm (std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
-	    Location locus, std::unique_ptr<Expr> guard_expr = nullptr,
+  MatchArm (std::unique_ptr<Pattern> match_arm_pattern, Location locus,
+	    std::unique_ptr<Expr> guard_expr = nullptr,
 	    AST::AttrVec outer_attrs = AST::AttrVec ())
     : outer_attrs (std::move (outer_attrs)),
-      match_arm_patterns (std::move (match_arm_patterns)),
+      match_arm_pattern (std::move (match_arm_pattern)),
       guard_expr (std::move (guard_expr)), locus (locus)
   {}
 
   // Copy constructor with clone
-  MatchArm (MatchArm const &other) : outer_attrs (other.outer_attrs)
+  MatchArm (MatchArm const &other)
+    : outer_attrs (other.outer_attrs), locus (other.locus)
   {
     // guard to protect from null pointer dereference
     if (other.guard_expr != nullptr)
       guard_expr = other.guard_expr->clone_expr ();
 
-    match_arm_patterns.reserve (other.match_arm_patterns.size ());
-    for (const auto &e : other.match_arm_patterns)
-      match_arm_patterns.push_back (e->clone_pattern ());
-
-    locus = other.locus;
+    if (other.match_arm_pattern != nullptr)
+      match_arm_pattern = other.match_arm_pattern->clone_pattern ();
   }
 
   ~MatchArm () = default;
@@ -3825,13 +3812,13 @@ public:
   {
     outer_attrs = other.outer_attrs;
 
+    guard_expr = nullptr;
     if (other.guard_expr != nullptr)
       guard_expr = other.guard_expr->clone_expr ();
 
-    match_arm_patterns.clear ();
-    match_arm_patterns.reserve (other.match_arm_patterns.size ());
-    for (const auto &e : other.match_arm_patterns)
-      match_arm_patterns.push_back (e->clone_pattern ());
+    match_arm_pattern = nullptr;
+    if (other.match_arm_pattern != nullptr)
+      match_arm_pattern = other.match_arm_pattern->clone_pattern ();
 
     return *this;
   }
@@ -3841,21 +3828,18 @@ public:
   MatchArm &operator= (MatchArm &&other) = default;
 
   // Returns whether match arm is in an error state.
-  bool is_error () const { return match_arm_patterns.empty (); }
+  bool is_error () const { return match_arm_pattern == nullptr; }
 
   // Creates a match arm in an error state.
   static MatchArm create_error ()
   {
     Location locus = Location ();
-    return MatchArm (std::vector<std::unique_ptr<Pattern> > (), locus);
+    return MatchArm (std::unique_ptr<Pattern> (), locus);
   }
 
   std::string as_string () const;
 
-  std::vector<std::unique_ptr<Pattern> > &get_patterns ()
-  {
-    return match_arm_patterns;
-  }
+  std::unique_ptr<Pattern> &get_pattern () { return match_arm_pattern; }
 
   std::unique_ptr<Expr> &get_guard_expr ()
   {

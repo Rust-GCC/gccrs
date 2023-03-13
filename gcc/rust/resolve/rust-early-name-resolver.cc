@@ -517,8 +517,7 @@ EarlyNameResolver::visit (AST::MatchExpr &expr)
 	  if (arm.get_arm ().has_match_arm_guard ())
 	    arm.get_arm ().get_guard_expr ()->accept_vis (*this);
 
-	  for (auto &pattern : arm.get_arm ().get_patterns ())
-	    pattern->accept_vis (*this);
+	  arm.get_arm ().get_pattern ()->accept_vis (*this);
 
 	  arm.get_expr ()->accept_vis (*this);
 	});
