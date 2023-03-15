@@ -80,8 +80,6 @@ public:
   void visit (HIR::IfExprConseqIfLet &) override {}
   void visit (HIR::IfLetExpr &) override {}
   void visit (HIR::IfLetExprConseqElse &) override {}
-  void visit (HIR::IfLetExprConseqIf &) override {}
-  void visit (HIR::IfLetExprConseqIfLet &) override {}
 
   // lets not worry about async yet....
   void visit (HIR::AwaitExpr &) override {}

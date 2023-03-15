@@ -100,8 +100,6 @@ private:
   virtual void visit (IfExprConseqIfLet &) override;
   virtual void visit (IfLetExpr &) override;
   virtual void visit (IfLetExprConseqElse &) override;
-  virtual void visit (IfLetExprConseqIf &) override;
-  virtual void visit (IfLetExprConseqIfLet &) override;
 
   virtual void visit (MatchExpr &) override;
   virtual void visit (AwaitExpr &) override;
