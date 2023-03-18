@@ -157,6 +157,24 @@ private:
   tree translated;
 };
 
+class SimplifyMatchExpr
+{
+public:
+  static tree go (HIR::MatchExpr &expr, Context *ctx, Bvariable *result);
+
+  tree compile_case_expr (HIR::Expr *expr);
+  tree simplify_remaining_cases (size_t case_index);
+
+private:
+  SimplifyMatchExpr (HIR::MatchExpr &expr, Context *ctx, Bvariable *result)
+    : expr (expr), ctx (ctx), result (result)
+  {}
+
+  HIR::MatchExpr &expr;
+  Context *ctx;
+  Bvariable *result;
+};
+
 } // namespace Compile
 } // namespace Rust
 
