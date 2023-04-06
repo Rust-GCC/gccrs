@@ -46,8 +46,14 @@ enum Kind
   MACRO_INVOCATION,
 };
 
+class Visitable
+{
+public:
+  virtual void accept_vis (ASTVisitor &vis) = 0;
+};
+
 // Abstract base class for all AST elements
-class Node
+class Node : public Visitable
 {
 public:
   /**
@@ -72,7 +78,7 @@ enum DelimType
 class Token;
 
 // A tree of tokens (or a single token) - abstract base class
-class TokenTree
+class TokenTree : public Visitable
 {
 public:
   virtual ~TokenTree () {}
@@ -85,8 +91,6 @@ public:
 
   virtual std::string as_string () const = 0;
 
-  virtual void accept_vis (ASTVisitor &vis) = 0;
-
   /* Converts token tree to a flat token stream. Tokens must be pointer to avoid
    * mutual dependency with Token. */
   virtual std::vector<std::unique_ptr<Token> > to_token_stream () const = 0;
@@ -97,7 +101,7 @@ protected:
 };
 
 // Abstract base class for a macro match
-class MacroMatch
+class MacroMatch : public Visitable
 {
 public:
   enum MacroMatchType
@@ -118,8 +122,6 @@ public:
   {
     return std::unique_ptr<MacroMatch> (clone_macro_match_impl ());
   }
-
-  virtual void accept_vis (ASTVisitor &vis) = 0;
 
   virtual MacroMatchType get_macro_match_type () const = 0;
 
@@ -582,7 +584,7 @@ protected:
 };
 
 // Attribute body - abstract base class
-class AttrInput
+class AttrInput : public Visitable
 {
 public:
   enum AttrInputType
@@ -601,8 +603,6 @@ public:
   }
 
   virtual std::string as_string () const = 0;
-
-  virtual void accept_vis (ASTVisitor &vis) = 0;
 
   virtual bool check_cfg_predicate (const Session &session) const = 0;
 
@@ -625,7 +625,7 @@ protected:
 class MetaNameValueStr;
 
 // abstract base meta item inner class
-class MetaItemInner
+class MetaItemInner : public Visitable
 {
 protected:
   // pure virtual as MetaItemInner
@@ -643,8 +643,6 @@ public:
   virtual Location get_locus () const = 0;
 
   virtual std::string as_string () const = 0;
-
-  virtual void accept_vis (ASTVisitor &vis) = 0;
 
   /* HACK: used to simplify parsing - creates a copy of that type, or returns
    * null */
@@ -889,8 +887,6 @@ public:
 
   virtual std::string as_string () const = 0;
 
-  virtual void accept_vis (ASTVisitor &vis) = 0;
-
   virtual Location get_locus () const = 0;
 
   virtual void mark_for_strip () = 0;
@@ -970,8 +966,6 @@ public:
 
   // HACK: strictly not needed, but faster than full downcast clone
   virtual bool is_expr_without_block () const = 0;
-
-  virtual void accept_vis (ASTVisitor &vis) = 0;
 
   virtual void mark_for_strip () = 0;
   virtual bool is_marked_for_strip () const = 0;
@@ -1085,7 +1079,7 @@ protected:
 };
 
 // Pattern base AST node
-class Pattern
+class Pattern : public Visitable
 {
 public:
   // Unique pointer custom clone function
@@ -1099,7 +1093,6 @@ public:
   virtual ~Pattern () {}
 
   virtual std::string as_string () const = 0;
-  virtual void accept_vis (ASTVisitor &vis) = 0;
 
   // as only one kind of pattern can be stripped, have default of nothing
   virtual void mark_for_strip () {}
@@ -1136,8 +1129,6 @@ public:
   virtual TraitBound *to_trait_bound (bool) const { return nullptr; }
   /* as pointer, shouldn't require definition beforehand, only forward
    * declaration. */
-
-  virtual void accept_vis (ASTVisitor &vis) = 0;
 
   // as only two kinds of types can be stripped, have default of nothing
   virtual void mark_for_strip () {}
@@ -1183,7 +1174,7 @@ protected:
 
 /* Abstract base class representing a type param bound - Lifetime and TraitBound
  * extends it */
-class TypeParamBound
+class TypeParamBound : public Visitable
 {
 public:
   virtual ~TypeParamBound () {}
@@ -1195,8 +1186,6 @@ public:
   }
 
   virtual std::string as_string () const = 0;
-
-  virtual void accept_vis (ASTVisitor &vis) = 0;
 
   NodeId get_node_id () const { return node_id; }
 
@@ -1272,7 +1261,7 @@ protected:
 
 /* Base generic parameter in AST. Abstract - can be represented by a Lifetime or
  * Type param */
-class GenericParam
+class GenericParam : public Visitable
 {
 public:
   enum class Kind
@@ -1291,8 +1280,6 @@ public:
   }
 
   virtual std::string as_string () const = 0;
-
-  virtual void accept_vis (ASTVisitor &vis) = 0;
 
   virtual Location get_locus () const = 0;
 
@@ -1365,7 +1352,7 @@ protected:
 };
 
 // Item used in trait declarations - abstract base class
-class TraitItem
+class TraitItem : public Visitable
 {
 protected:
   TraitItem (Location locus)
@@ -1389,8 +1376,6 @@ public:
 
   virtual std::string as_string () const = 0;
 
-  virtual void accept_vis (ASTVisitor &vis) = 0;
-
   virtual void mark_for_strip () = 0;
   virtual bool is_marked_for_strip () const = 0;
 
@@ -1400,7 +1385,7 @@ public:
 
 /* Abstract base class for items used within an inherent impl block (the impl
  * name {} one) */
-class InherentImplItem
+class InherentImplItem : public Visitable
 {
 protected:
   // Clone function implementation as pure virtual method
@@ -1417,8 +1402,6 @@ public:
 
   virtual std::string as_string () const = 0;
 
-  virtual void accept_vis (ASTVisitor &vis) = 0;
-
   virtual void mark_for_strip () = 0;
   virtual bool is_marked_for_strip () const = 0;
 
@@ -1426,7 +1409,7 @@ public:
 };
 
 // Abstract base class for items used in a trait impl
-class TraitImplItem
+class TraitImplItem : public Visitable
 {
 protected:
   virtual TraitImplItem *clone_trait_impl_item_impl () const = 0;
@@ -1442,14 +1425,12 @@ public:
 
   virtual std::string as_string () const = 0;
 
-  virtual void accept_vis (ASTVisitor &vis) = 0;
-
   virtual void mark_for_strip () = 0;
   virtual bool is_marked_for_strip () const = 0;
 };
 
 // Abstract base class for an item used inside an extern block
-class ExternalItem
+class ExternalItem : public Visitable
 {
 public:
   ExternalItem () : node_id (Analysis::Mappings::get ()->get_next_node_id ()) {}
@@ -1463,8 +1444,6 @@ public:
   }
 
   virtual std::string as_string () const = 0;
-
-  virtual void accept_vis (ASTVisitor &vis) = 0;
 
   virtual void mark_for_strip () = 0;
   virtual bool is_marked_for_strip () const = 0;
@@ -1569,7 +1548,7 @@ public:
   }
 };
 
-class SingleASTNode
+class SingleASTNode : public Visitable
 {
 public:
   enum NodeType
@@ -1785,7 +1764,7 @@ public:
     return std::move (type);
   }
 
-  void accept_vis (ASTVisitor &vis)
+  void accept_vis (ASTVisitor &vis) override
   {
     switch (kind)
       {
