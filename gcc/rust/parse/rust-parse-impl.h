@@ -5614,8 +5614,9 @@ Parser<ManagedTokenSource>::parse_trait_impl_item ()
 	case UNSAFE:
 	case EXTERN_TOK:
 	case FN_TOK:
-	  return parse_trait_impl_function_or_method (visibility,
-						      std::move (outer_attrs));
+	  add_error (Error (t->get_locus (),
+			    "trait functions cannot be declared const"));
+	  return nullptr;
 	default:
 	  add_error (Error (
 	    t->get_locus (),
