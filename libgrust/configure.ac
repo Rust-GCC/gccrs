@@ -35,7 +35,6 @@ AC_CHECK_HEADERS(limits.h stddef.h string.h strings.h stdlib.h \
 # Check for tools
 AM_PROG_AR
 AC_PROG_CC
-AC_PROG_CXX
 AM_PROG_AS
 AC_PROG_MAKE_SET
 AC_PROG_INSTALL

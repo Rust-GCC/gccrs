@@ -1,4 +1,4 @@
-SUFFIXES = .cc .o .a .lo .la
+SUFFIXES = .c .o .a .lo .la
 
 ACLOCAL_AMFLAGS = -I .. -I ../../config
 
@@ -51,7 +51,7 @@ AM_MAKEFLAGS = \
 toolexeclib_LTLIBRARIES = libproc_macro.la
 
 libproc_macro_la_SOURCES = \
-	proc_macro.cc
+	proc_macro.c
 
 include_HEADERS = \
 	proc_macro.h
