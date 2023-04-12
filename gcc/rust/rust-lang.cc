@@ -41,6 +41,7 @@
 #include "optional.h"
 #include "rust-unicode.h"
 #include "rust-punycode.h"
+#include "stringpool.h"
 
 #include <mpfr.h>
 // note: header files must be in this order or else forward declarations don't
@@ -105,6 +106,8 @@ grs_langhook_init (void)
    built-in functions. The parameter (signed_char = false) specifies
    whether char is signed.  */
   build_common_tree_nodes (false);
+
+  main_identifier_node = get_identifier ("main");
 
   // Builds built-ins for middle-end after all front-end built-ins are already
   // instantiated
