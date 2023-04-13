@@ -78,7 +78,7 @@ public:
   bool is_marked_for_strip () const override { return literal.is_error (); }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -152,6 +152,8 @@ public:
 
   Location get_locus () const override { return lit_expr.get_locus (); }
 
+  LiteralExpr get_literal () const { return lit_expr; }
+
   void accept_vis (ASTVisitor &vis) override;
 
   bool check_cfg_predicate (const Session &session) const override;
@@ -174,6 +176,10 @@ public:
   MetaItemPathLit (SimplePath path, LiteralExpr lit_expr)
     : path (std::move (path)), lit (std::move (lit_expr))
   {}
+
+  SimplePath get_path () const { return path; }
+
+  LiteralExpr get_literal () const { return lit; }
 
   std::string as_string () const override
   {
@@ -263,7 +269,7 @@ public:
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -859,7 +865,7 @@ public:
   std::vector<Attribute> &get_inner_attrs () { return inner_attrs; }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -1090,7 +1096,7 @@ public:
   std::vector<Attribute> &get_inner_attrs () { return inner_attrs; }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -1250,7 +1256,7 @@ public:
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -1284,7 +1290,7 @@ public:
   std::vector<Attribute> &get_inner_attrs () { return inner_attrs; }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -1433,7 +1439,7 @@ public:
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -1477,7 +1483,7 @@ public:
   bool is_marked_for_strip () const override { return struct_name.is_error (); }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -1932,7 +1938,7 @@ public:
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -2035,7 +2041,7 @@ public:
   PathExprSegment &get_method_name () { return method_name; }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -2120,7 +2126,7 @@ public:
   Identifier get_field_name () const { return field; }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -2248,7 +2254,7 @@ public:
   std::vector<ClosureParam> &get_params () { return params; }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -2443,7 +2449,7 @@ public:
   void strip_tail_expr () { expr = nullptr; }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -2588,7 +2594,7 @@ public:
   bool is_marked_for_strip () const override { return marked_for_strip; }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -2684,7 +2690,7 @@ public:
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -2717,6 +2723,12 @@ public:
   // should never be called - error if called
   void set_outer_attrs (std::vector<Attribute> /* new_attrs */) override
   {
+    rust_assert (false);
+  }
+
+  std::vector<Attribute> &get_outer_attrs () override
+  {
+    // RangeExpr cannot have any outer attributes
     rust_assert (false);
   }
 };
@@ -3174,7 +3186,7 @@ public:
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -3256,7 +3268,7 @@ public:
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -3375,7 +3387,7 @@ public:
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -3724,7 +3736,7 @@ public:
 
   // TODO: this mutable getter seems really dodgy. Think up better way.
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
 protected:
   // Base clone function but still concrete as concrete base class
@@ -3741,14 +3753,14 @@ protected:
 // If expression with an ending "else" expression AST node (trailing)
 class IfExprConseqElse : public IfExpr
 {
-  std::unique_ptr<BlockExpr> else_block;
+  std::unique_ptr<ExprWithBlock> else_block;
 
 public:
   std::string as_string () const override;
 
   IfExprConseqElse (std::unique_ptr<Expr> condition,
 		    std::unique_ptr<BlockExpr> if_block,
-		    std::unique_ptr<BlockExpr> else_block,
+		    std::unique_ptr<ExprWithBlock> else_block,
 		    std::vector<Attribute> outer_attrs, Location locus)
     : IfExpr (std::move (condition), std::move (if_block),
 	      std::move (outer_attrs), locus),
@@ -3758,7 +3770,7 @@ public:
 
   // Copy constructor with clone
   IfExprConseqElse (IfExprConseqElse const &other)
-    : IfExpr (other), else_block (other.else_block->clone_block_expr ())
+    : IfExpr (other), else_block (other.else_block->clone_expr_with_block ())
   {}
 
   // Overloaded assignment operator with cloning
@@ -3767,7 +3779,7 @@ public:
     IfExpr::operator= (other);
     // condition = other.condition->clone_expr();
     // if_block = other.if_block->clone_block_expr();
-    else_block = other.else_block->clone_block_expr ();
+    else_block = other.else_block->clone_expr_with_block ();
 
     return *this;
   }
@@ -3781,7 +3793,7 @@ public:
   void vis_else_block (ASTVisitor &vis) { else_block->accept_vis (vis); }
 
   // TODO: is this better? Or is a "vis_block" better?
-  std::unique_ptr<BlockExpr> &get_else_block ()
+  std::unique_ptr<ExprWithBlock> &get_else_block ()
   {
     rust_assert (else_block != nullptr);
     return else_block;
@@ -3793,67 +3805,6 @@ protected:
   IfExprConseqElse *clone_if_expr_impl () const override
   {
     return new IfExprConseqElse (*this);
-  }
-};
-
-// If expression with an ending "else if" expression AST node
-class IfExprConseqIf : public IfExpr
-{
-  std::unique_ptr<IfExpr> conseq_if_expr;
-
-public:
-  std::string as_string () const override;
-
-  IfExprConseqIf (std::unique_ptr<Expr> condition,
-		  std::unique_ptr<BlockExpr> if_block,
-		  std::unique_ptr<IfExpr> conseq_if_expr,
-		  std::vector<Attribute> outer_attrs, Location locus)
-    : IfExpr (std::move (condition), std::move (if_block),
-	      std::move (outer_attrs), locus),
-      conseq_if_expr (std::move (conseq_if_expr))
-  {}
-  // outer attributes not allowed
-
-  // Copy constructor with clone
-  IfExprConseqIf (IfExprConseqIf const &other)
-    : IfExpr (other), conseq_if_expr (other.conseq_if_expr->clone_if_expr ())
-  {}
-
-  // Overloaded assignment operator to use clone
-  IfExprConseqIf &operator= (IfExprConseqIf const &other)
-  {
-    IfExpr::operator= (other);
-    // condition = other.condition->clone_expr();
-    // if_block = other.if_block->clone_block_expr();
-    conseq_if_expr = other.conseq_if_expr->clone_if_expr ();
-
-    return *this;
-  }
-
-  // move constructors
-  IfExprConseqIf (IfExprConseqIf &&other) = default;
-  IfExprConseqIf &operator= (IfExprConseqIf &&other) = default;
-
-  void accept_vis (ASTVisitor &vis) override;
-
-  void vis_conseq_if_expr (ASTVisitor &vis)
-  {
-    conseq_if_expr->accept_vis (vis);
-  }
-
-  // TODO: is this better? Or is a "vis_block" better?
-  std::unique_ptr<IfExpr> &get_conseq_if_expr ()
-  {
-    rust_assert (conseq_if_expr != nullptr);
-    return conseq_if_expr;
-  }
-
-protected:
-  /* Use covariance to implement clone function as returning this object rather
-   * than base */
-  IfExprConseqIf *clone_if_expr_impl () const override
-  {
-    return new IfExprConseqIf (*this);
   }
 };
 
@@ -3973,7 +3924,7 @@ public:
 
   // TODO: this mutable getter seems really dodgy. Think up better way.
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -3987,62 +3938,6 @@ protected:
   virtual IfLetExpr *clone_if_let_expr_impl () const
   {
     return new IfLetExpr (*this);
-  }
-};
-
-// If expression with an ending "else if let" expression AST node
-class IfExprConseqIfLet : public IfExpr
-{
-  std::unique_ptr<IfLetExpr> if_let_expr;
-
-public:
-  std::string as_string () const override;
-
-  IfExprConseqIfLet (std::unique_ptr<Expr> condition,
-		     std::unique_ptr<BlockExpr> if_block,
-		     std::unique_ptr<IfLetExpr> conseq_if_let_expr,
-		     std::vector<Attribute> outer_attrs, Location locus)
-    : IfExpr (std::move (condition), std::move (if_block),
-	      std::move (outer_attrs), locus),
-      if_let_expr (std::move (conseq_if_let_expr))
-  {}
-  // outer attributes not allowed
-
-  // Copy constructor with clone
-  IfExprConseqIfLet (IfExprConseqIfLet const &other)
-    : IfExpr (other), if_let_expr (other.if_let_expr->clone_if_let_expr ())
-  {}
-
-  // Overloaded assignment operator to use clone
-  IfExprConseqIfLet &operator= (IfExprConseqIfLet const &other)
-  {
-    IfExpr::operator= (other);
-    // condition = other.condition->clone_expr();
-    // if_block = other.if_block->clone_block_expr();
-    if_let_expr = other.if_let_expr->clone_if_let_expr ();
-
-    return *this;
-  }
-
-  // move constructors
-  IfExprConseqIfLet (IfExprConseqIfLet &&other) = default;
-  IfExprConseqIfLet &operator= (IfExprConseqIfLet &&other) = default;
-
-  void accept_vis (ASTVisitor &vis) override;
-
-  // TODO: is this better? Or is a "vis_block" better?
-  std::unique_ptr<IfLetExpr> &get_conseq_if_let_expr ()
-  {
-    rust_assert (if_let_expr != nullptr);
-    return if_let_expr;
-  }
-
-protected:
-  /* Use covariance to implement clone function as returning this object rather
-   * than base */
-  IfExprConseqIfLet *clone_if_expr_impl () const override
-  {
-    return new IfExprConseqIfLet (*this);
   }
 };
 
@@ -4449,7 +4344,7 @@ public:
   std::vector<Attribute> &get_inner_attrs () { return inner_attrs; }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -4538,7 +4433,7 @@ public:
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {
@@ -4603,6 +4498,7 @@ public:
 
   std::string as_string () const override;
 
+  bool get_has_move () { return has_move; }
   Location get_locus () const override final { return locus; }
 
   void accept_vis (ASTVisitor &vis) override;
@@ -4619,7 +4515,7 @@ public:
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
-  std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
+  std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
   void set_outer_attrs (std::vector<Attribute> new_attrs) override
   {

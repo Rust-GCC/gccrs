@@ -114,6 +114,9 @@ public:
   void insert_hir_item (HIR::Item *item);
   HIR::Item *lookup_hir_item (HirId id);
 
+  void insert_hir_enumitem (HIR::Enum *parent, HIR::EnumItem *item);
+  std::pair<HIR::Enum *, HIR::EnumItem *> lookup_hir_enumitem (HirId id);
+
   void insert_hir_trait_item (HIR::TraitItem *item);
   HIR::TraitItem *lookup_hir_trait_item (HirId id);
 
@@ -276,6 +279,9 @@ public:
   bool lookup_macro_invocation (AST::MacroInvocation &invoc,
 				AST::MacroRulesDefinition **def);
 
+  void insert_exported_macro (AST::MacroRulesDefinition &def);
+  std::vector<NodeId> &get_exported_macros ();
+
   void insert_visibility (NodeId id, Privacy::ModuleVisibility visibility);
   bool lookup_visibility (NodeId id, Privacy::ModuleVisibility &def);
 
@@ -317,6 +323,7 @@ private:
 
   std::map<HirId, HIR::Module *> hirModuleMappings;
   std::map<HirId, HIR::Item *> hirItemMappings;
+  std::map<HirId, std::pair<HIR::Enum *, HIR::EnumItem *>> hirEnumItemMappings;
   std::map<HirId, HIR::Type *> hirTypeMappings;
   std::map<HirId, HIR::Expr *> hirExprMappings;
   std::map<HirId, HIR::Stmt *> hirStmtMappings;
@@ -346,6 +353,7 @@ private:
   // macros
   std::map<NodeId, AST::MacroRulesDefinition *> macroMappings;
   std::map<NodeId, AST::MacroRulesDefinition *> macroInvocations;
+  std::vector<NodeId> exportedMacros;
 
   // crate names
   std::map<CrateNum, std::string> crate_names;

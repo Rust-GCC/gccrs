@@ -39,15 +39,16 @@ static const BuiltinAttrDefinition __definitions[]
      {"link_section", CODE_GENERATION},
      {"no_mangle", CODE_GENERATION},
      {"repr", CODE_GENERATION},
+     {"rustc_builtin_macro", EXPANSION},
      {"path", EXPANSION},
      {"macro_use", NAME_RESOLUTION},
-     {"macro_export", CODE_GENERATION}, // FIXME: And NAME_RESOLUTION as well
      // FIXME: This is not implemented yet, see
      // https://github.com/Rust-GCC/gccrs/issues/1475
      {"target_feature", CODE_GENERATION},
      // From now on, these are reserved by the compiler and gated through
      // #![feature(rustc_attrs)]
-     {"rustc_inherit_overflow_checks", CODE_GENERATION}};
+     {"rustc_inherit_overflow_checks", CODE_GENERATION},
+     {"stable", STATIC_ANALYSIS}};
 
 BuiltinAttributeMappings *
 BuiltinAttributeMappings::get ()
@@ -465,14 +466,6 @@ AttributeChecker::visit (AST::IfExpr &)
 
 void
 AttributeChecker::visit (AST::IfExprConseqElse &)
-{}
-
-void
-AttributeChecker::visit (AST::IfExprConseqIf &)
-{}
-
-void
-AttributeChecker::visit (AST::IfExprConseqIfLet &)
 {}
 
 void

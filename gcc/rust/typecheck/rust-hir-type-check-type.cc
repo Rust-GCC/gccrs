@@ -19,6 +19,10 @@
 #include "rust-hir-type-check-type.h"
 #include "rust-hir-trait-resolve.h"
 #include "rust-hir-type-check-expr.h"
+#include "rust-hir-path-probe.h"
+#include "rust-hir-type-bounds.h"
+#include "rust-substitution-mapper.h"
+#include "rust-type-util.h"
 
 namespace Rust {
 namespace Resolver {
@@ -66,10 +70,18 @@ TypeCheckType::Resolve (HIR::Type *type)
 void
 TypeCheckType::visit (HIR::BareFunctionType &fntype)
 {
-  TyTy::BaseType *return_type
-    = fntype.has_return_type ()
-	? TypeCheckType::Resolve (fntype.get_return_type ().get ())
-	: TyTy::TupleType::get_unit_type (fntype.get_mappings ().get_hirid ());
+  TyTy::BaseType *return_type;
+  if (fntype.has_return_type ())
+    {
+      return_type = TypeCheckType::Resolve (fntype.get_return_type ().get ());
+    }
+  else
+    {
+      // needs a new implicit ID
+      HirId ref = mappings->get_next_hir_id ();
+      return_type = TyTy::TupleType::get_unit_type (ref);
+      context->insert_implicit_type (ref, return_type);
+    }
 
   std::vector<TyTy::TyVar> params;
   for (auto &param : fntype.get_function_params ())
@@ -242,7 +254,7 @@ TypeCheckType::visit (HIR::QualifiedPathInType &path)
       // turbo-fish segment path::<ty>
       if (generic_seg.has_generic_args ())
 	{
-	  if (!translated->can_substitute ())
+	  if (!translated->has_subsititions_defined ())
 	    {
 	      rust_error_at (item_seg->get_locus (),
 			     "substitutions not supported for %s",
@@ -386,17 +398,10 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 	  HIR::TypePathSegmentGeneric *generic_segment
 	    = static_cast<HIR::TypePathSegmentGeneric *> (seg.get ());
 
-	  if (!lookup->can_substitute ())
-	    {
-	      rust_error_at (path.get_locus (),
-			     "TypePath %s declares generic arguments but the "
-			     "type %s does not have any",
-			     path.as_string ().c_str (),
-			     lookup->as_string ().c_str ());
-	      return new TyTy::ErrorType (lookup->get_ref ());
-	    }
 	  lookup = SubstMapper::Resolve (lookup, path.get_locus (),
 					 &generic_segment->get_generic_args ());
+	  if (lookup->get_kind () == TyTy::TypeKind::ERROR)
+	    return new TyTy::ErrorType (seg->get_mappings ().get_hirid ());
 	}
       else if (lookup->needs_generic_substitutions ())
 	{
@@ -481,13 +486,6 @@ TypeCheckType::resolve_segments (
 	{
 	  HIR::TypePathSegmentGeneric *generic_segment
 	    = static_cast<HIR::TypePathSegmentGeneric *> (seg.get ());
-
-	  if (!tyseg->can_substitute ())
-	    {
-	      rust_error_at (expr_locus, "substitutions not supported for %s",
-			     tyseg->as_string ().c_str ());
-	      return new TyTy::ErrorType (expr_id);
-	    }
 
 	  tyseg = SubstMapper::Resolve (tyseg, expr_locus,
 					&generic_segment->get_generic_args ());
@@ -631,6 +629,7 @@ TypeCheckType::visit (HIR::InferredType &type)
 {
   translated = new TyTy::InferType (type.get_mappings ().get_hirid (),
 				    TyTy::InferType::InferTypeKind::GENERAL,
+				    TyTy::InferType::TypeHint::Default (),
 				    type.get_locus ());
 }
 

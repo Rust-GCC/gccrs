@@ -81,12 +81,8 @@ public:
   virtual void visit (ForLoopExpr &expr) = 0;
   virtual void visit (IfExpr &expr) = 0;
   virtual void visit (IfExprConseqElse &expr) = 0;
-  virtual void visit (IfExprConseqIf &expr) = 0;
-  virtual void visit (IfExprConseqIfLet &expr) = 0;
   virtual void visit (IfLetExpr &expr) = 0;
   virtual void visit (IfLetExprConseqElse &expr) = 0;
-  virtual void visit (IfLetExprConseqIf &expr) = 0;
-  virtual void visit (IfLetExprConseqIfLet &expr) = 0;
   virtual void visit (MatchExpr &expr) = 0;
   virtual void visit (AwaitExpr &expr) = 0;
   virtual void visit (AsyncBlockExpr &expr) = 0;
@@ -142,8 +138,7 @@ public:
   virtual void visit (AltPattern &pattern) = 0;
   virtual void visit (EmptyStmt &stmt) = 0;
   virtual void visit (LetStmt &stmt) = 0;
-  virtual void visit (ExprStmtWithoutBlock &stmt) = 0;
-  virtual void visit (ExprStmtWithBlock &stmt) = 0;
+  virtual void visit (ExprStmt &stmt) = 0;
   virtual void visit (TraitBound &bound) = 0;
   virtual void visit (ImplTraitType &type) = 0;
   virtual void visit (TraitObjectType &type) = 0;
@@ -157,7 +152,6 @@ public:
   virtual void visit (SliceType &type) = 0;
   virtual void visit (InferredType &type) = 0;
   virtual void visit (BareFunctionType &type) = 0;
-  virtual void visit (ExportedMacro &macro) = 0;
 };
 
 class HIRFullVisitorBase : public HIRFullVisitor
@@ -224,12 +218,8 @@ public:
   virtual void visit (ForLoopExpr &) override {}
   virtual void visit (IfExpr &) override {}
   virtual void visit (IfExprConseqElse &) override {}
-  virtual void visit (IfExprConseqIf &) override {}
-  virtual void visit (IfExprConseqIfLet &) override {}
   virtual void visit (IfLetExpr &) override {}
   virtual void visit (IfLetExprConseqElse &) override {}
-  virtual void visit (IfLetExprConseqIf &) override {}
-  virtual void visit (IfLetExprConseqIfLet &) override {}
 
   virtual void visit (MatchExpr &) override {}
   virtual void visit (AwaitExpr &) override {}
@@ -296,8 +286,7 @@ public:
 
   virtual void visit (EmptyStmt &) override {}
   virtual void visit (LetStmt &) override {}
-  virtual void visit (ExprStmtWithoutBlock &) override {}
-  virtual void visit (ExprStmtWithBlock &) override {}
+  virtual void visit (ExprStmt &) override {}
 
   virtual void visit (TraitBound &) override {}
   virtual void visit (ImplTraitType &) override {}
@@ -312,7 +301,6 @@ public:
   virtual void visit (SliceType &) override {}
   virtual void visit (InferredType &) override {}
   virtual void visit (BareFunctionType &) override {}
-  virtual void visit (ExportedMacro &) override {}
 };
 
 class HIRExternalItemVisitor
@@ -347,7 +335,6 @@ public:
   virtual void visit (Trait &trait) = 0;
   virtual void visit (ImplBlock &impl) = 0;
   virtual void visit (ExternBlock &block) = 0;
-  virtual void visit (ExportedMacro &macro) = 0;
 };
 
 class HIRImplVisitor
@@ -405,9 +392,7 @@ public:
   virtual void visit (ExternBlock &block) = 0;
   virtual void visit (EmptyStmt &stmt) = 0;
   virtual void visit (LetStmt &stmt) = 0;
-  virtual void visit (ExprStmtWithoutBlock &stmt) = 0;
-  virtual void visit (ExprStmtWithBlock &stmt) = 0;
-  virtual void visit (ExportedMacro &macro) = 0;
+  virtual void visit (ExprStmt &stmt) = 0;
 };
 
 class HIRExpressionVisitor
@@ -460,12 +445,8 @@ public:
   virtual void visit (ForLoopExpr &expr) = 0;
   virtual void visit (IfExpr &expr) = 0;
   virtual void visit (IfExprConseqElse &expr) = 0;
-  virtual void visit (IfExprConseqIf &expr) = 0;
-  virtual void visit (IfExprConseqIfLet &expr) = 0;
   virtual void visit (IfLetExpr &expr) = 0;
   virtual void visit (IfLetExprConseqElse &expr) = 0;
-  virtual void visit (IfLetExprConseqIf &expr) = 0;
-  virtual void visit (IfLetExprConseqIfLet &expr) = 0;
   virtual void visit (MatchExpr &expr) = 0;
   virtual void visit (AwaitExpr &expr) = 0;
   virtual void visit (AsyncBlockExpr &expr) = 0;

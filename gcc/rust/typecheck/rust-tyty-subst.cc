@@ -17,11 +17,11 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-tyty-subst.h"
-#include "rust-hir-full.h"
 #include "rust-tyty.h"
 #include "rust-hir-type-check.h"
 #include "rust-substitution-mapper.h"
 #include "rust-hir-type-check-type.h"
+#include "rust-hir-type-bounds.h"
 
 namespace Rust {
 namespace TyTy {
@@ -236,16 +236,17 @@ SubstitutionArg::as_string () const
 SubstitutionArgumentMappings::SubstitutionArgumentMappings (
   std::vector<SubstitutionArg> mappings,
   std::map<std::string, BaseType *> binding_args, Location locus,
-  ParamSubstCb param_subst_cb, bool trait_item_flag)
+  ParamSubstCb param_subst_cb, bool trait_item_flag, bool error_flag)
   : mappings (mappings), binding_args (binding_args), locus (locus),
-    param_subst_cb (param_subst_cb), trait_item_flag (trait_item_flag)
+    param_subst_cb (param_subst_cb), trait_item_flag (trait_item_flag),
+    error_flag (error_flag)
 {}
 
 SubstitutionArgumentMappings::SubstitutionArgumentMappings (
   const SubstitutionArgumentMappings &other)
   : mappings (other.mappings), binding_args (other.binding_args),
     locus (other.locus), param_subst_cb (nullptr),
-    trait_item_flag (other.trait_item_flag)
+    trait_item_flag (other.trait_item_flag), error_flag (other.error_flag)
 {}
 
 SubstitutionArgumentMappings &
@@ -257,6 +258,7 @@ SubstitutionArgumentMappings::operator= (
   locus = other.locus;
   param_subst_cb = nullptr;
   trait_item_flag = other.trait_item_flag;
+  error_flag = other.error_flag;
 
   return *this;
 }
@@ -264,13 +266,21 @@ SubstitutionArgumentMappings::operator= (
 SubstitutionArgumentMappings
 SubstitutionArgumentMappings::error ()
 {
-  return SubstitutionArgumentMappings ({}, {}, Location (), nullptr, false);
+  return SubstitutionArgumentMappings ({}, {}, Location (), nullptr, false,
+				       true);
+}
+
+SubstitutionArgumentMappings
+SubstitutionArgumentMappings::empty ()
+{
+  return SubstitutionArgumentMappings ({}, {}, Location (), nullptr, false,
+				       false);
 }
 
 bool
 SubstitutionArgumentMappings::is_error () const
 {
-  return mappings.size () == 0;
+  return error_flag;
 }
 
 bool
@@ -648,7 +658,7 @@ SubstitutionRef::get_mappings_from_generic_args (HIR::GenericArgs &args)
 	    return SubstitutionArgumentMappings::error ();
 
 	  // this resolved default might already contain default parameters
-	  if (resolved->contains_type_parameters ())
+	  if (!resolved->is_concrete ())
 	    {
 	      SubstitutionArgumentMappings intermediate (mappings,
 							 binding_arguments,
@@ -819,57 +829,6 @@ SubstitutionRef::solve_mappings_from_receiver_for_self (
   return SubstitutionArgumentMappings (resolved_mappings,
 				       mappings.get_binding_args (),
 				       mappings.get_locus ());
-}
-
-SubstitutionArgumentMappings
-SubstitutionRef::solve_missing_mappings_from_this (SubstitutionRef &ref,
-						   SubstitutionRef &to)
-{
-  rust_assert (!ref.needs_substitution ());
-  rust_assert (needs_substitution ());
-  rust_assert (get_num_substitutions () == ref.get_num_substitutions ());
-
-  Location locus = used_arguments.get_locus ();
-  std::vector<SubstitutionArg> resolved_mappings;
-
-  std::map<HirId, std::pair<ParamType *, BaseType *>> substs;
-  for (size_t i = 0; i < get_num_substitutions (); i++)
-    {
-      SubstitutionParamMapping &a = substitutions.at (i);
-      SubstitutionParamMapping &b = ref.substitutions.at (i);
-
-      if (a.need_substitution ())
-	{
-	  const BaseType *root = a.get_param_ty ()->resolve ()->get_root ();
-	  rust_assert (root->get_kind () == TyTy::TypeKind::PARAM);
-	  const ParamType *p = static_cast<const TyTy::ParamType *> (root);
-
-	  substs[p->get_ty_ref ()] = {static_cast<ParamType *> (p->clone ()),
-				      b.get_param_ty ()->resolve ()};
-	}
-    }
-
-  for (auto it = substs.begin (); it != substs.end (); it++)
-    {
-      HirId param_id = it->first;
-      BaseType *arg = it->second.second;
-
-      const SubstitutionParamMapping *associate_param = nullptr;
-      for (SubstitutionParamMapping &p : to.substitutions)
-	{
-	  if (p.get_param_ty ()->get_ty_ref () == param_id)
-	    {
-	      associate_param = &p;
-	      break;
-	    }
-	}
-
-      rust_assert (associate_param != nullptr);
-      SubstitutionArg argument (associate_param, arg);
-      resolved_mappings.push_back (std::move (argument));
-    }
-
-  return SubstitutionArgumentMappings (resolved_mappings, {}, locus);
 }
 
 Resolver::AssociatedImplTrait *

@@ -17,7 +17,11 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-ast-resolve-item.h"
+#include "rust-ast-resolve-toplevel.h"
+#include "rust-ast-resolve-type.h"
+#include "rust-ast-resolve-pattern.h"
 #include "rust-ast-resolve-path.h"
+
 #include "selftest.h"
 
 namespace Rust {
@@ -134,15 +138,25 @@ ResolveTraitItems::visit (AST::TraitItemMethod &func)
 				       self_param.get_has_ref (),
 				       self_param.get_is_mut (),
 				       std::unique_ptr<AST::Pattern> (nullptr));
-
-  std::vector<std::unique_ptr<AST::TypePathSegment>> segments;
-  segments.push_back (std::unique_ptr<AST::TypePathSegment> (
-    new AST::TypePathSegment ("Self", false, self_param.get_locus ())));
-
-  AST::TypePath self_type_path (std::move (segments), self_param.get_locus ());
-
-  ResolveType::go (&self_type_path);
   PatternDeclaration::go (&self_pattern, Rib::ItemType::Param);
+
+  if (self_param.has_type ())
+    {
+      // This shouldn't happen the parser should already error for this
+      rust_assert (!self_param.get_has_ref ());
+      ResolveType::go (self_param.get_type ().get ());
+    }
+  else
+    {
+      // here we implicitly make self have a type path of Self
+      std::vector<std::unique_ptr<AST::TypePathSegment>> segments;
+      segments.push_back (std::unique_ptr<AST::TypePathSegment> (
+	new AST::TypePathSegment ("Self", false, self_param.get_locus ())));
+
+      AST::TypePath self_type_path (std::move (segments),
+				    self_param.get_locus ());
+      ResolveType::go (&self_type_path);
+    }
 
   std::vector<PatternBinding> bindings
     = {PatternBinding (PatternBoundCtx::Product, std::set<Identifier> ())};
@@ -632,15 +646,25 @@ ResolveItem::visit (AST::Method &method)
 				       self_param.get_has_ref (),
 				       self_param.get_is_mut (),
 				       std::unique_ptr<AST::Pattern> (nullptr));
-
-  std::vector<std::unique_ptr<AST::TypePathSegment>> segments;
-  segments.push_back (std::unique_ptr<AST::TypePathSegment> (
-    new AST::TypePathSegment ("Self", false, self_param.get_locus ())));
-
-  AST::TypePath self_type_path (std::move (segments), self_param.get_locus ());
-
-  ResolveType::go (&self_type_path);
   PatternDeclaration::go (&self_pattern, Rib::ItemType::Param);
+
+  if (self_param.has_type ())
+    {
+      // This shouldn't happen the parser should already error for this
+      rust_assert (!self_param.get_has_ref ());
+      ResolveType::go (self_param.get_type ().get ());
+    }
+  else
+    {
+      // here we implicitly make self have a type path of Self
+      std::vector<std::unique_ptr<AST::TypePathSegment>> segments;
+      segments.push_back (std::unique_ptr<AST::TypePathSegment> (
+	new AST::TypePathSegment ("Self", false, self_param.get_locus ())));
+
+      AST::TypePath self_type_path (std::move (segments),
+				    self_param.get_locus ());
+      ResolveType::go (&self_type_path);
+    }
 
   std::vector<PatternBinding> bindings
     = {PatternBinding (PatternBoundCtx::Product, std::set<Identifier> ())};
@@ -979,7 +1003,7 @@ flatten_use_dec_to_paths (const AST::UseDeclaration &use_item)
 void
 ResolveItem::visit (AST::UseDeclaration &use_item)
 {
-  auto to_resolve = flatten_use_dec_to_paths (use_item);
+  std::vector<AST::SimplePath> to_resolve = flatten_use_dec_to_paths (use_item);
 
   // FIXME: I think this does not actually resolve glob use-decls and is going
   // the wrong way about it. RFC #1560 specifies the following:
@@ -989,8 +1013,27 @@ ResolveItem::visit (AST::UseDeclaration &use_item)
   // importing module.
   //
   // Which is the opposite of what we're doing if I understand correctly?
+
+  NodeId current_module = resolver->peek_current_module_scope ();
   for (auto &path : to_resolve)
-    ResolvePath::go (&path);
+    {
+      rust_debug ("resolving use-decl path: [%s]", path.as_string ().c_str ());
+      NodeId resolved_node_id = ResolvePath::go (&path);
+      bool ok = resolved_node_id != UNKNOWN_NODEID;
+      if (!ok)
+	continue;
+
+      const AST::SimplePathSegment &final_seg = path.get_final_segment ();
+
+      auto decl
+	= CanonicalPath::new_seg (resolved_node_id, final_seg.as_string ());
+      mappings->insert_module_child_item (current_module, decl);
+
+      resolver->get_type_scope ().insert (decl, resolved_node_id,
+					  path.get_locus (),
+					  Rib::ItemType::Type);
+      rust_debug ("use-decl rexporting: [%s]", decl.get ().c_str ());
+    }
 }
 
 ResolveImplItems::ResolveImplItems (const CanonicalPath &prefix,

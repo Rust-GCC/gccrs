@@ -51,7 +51,9 @@ Dump::go (HIR::Crate &crate)
       stream << std::endl;
       item->accept_vis (*this);
     }
+  stream << std::endl;
   stream << indentation;
+
   stream << "]," << std::endl;
   indentation.decrement ();
   //
@@ -66,8 +68,39 @@ Dump::go (HIR::Crate &crate)
 }
 
 void
-Dump::visit (Lifetime &)
-{}
+Dump::visit (AST::Attribute &attribute)
+{
+  std::string path_str = attribute.get_path ().as_string ();
+  stream << path_str;
+  if (attribute.has_attr_input ())
+    stream << attribute.get_attr_input ().as_string ();
+}
+
+void
+Dump::visit (Lifetime &lifetime)
+{
+  if (lifetime.is_error ())
+    {
+      stream << "error lifetime";
+      return;
+    }
+
+  switch (lifetime.get_lifetime_type ())
+    {
+    case AST::Lifetime::LifetimeType::NAMED:
+      stream << "'" << lifetime.get_name ();
+      break;
+    case AST::Lifetime::LifetimeType::STATIC:
+      stream << "'static";
+      break;
+    case AST::Lifetime::LifetimeType::WILDCARD:
+      stream << "'_";
+      break;
+    default:
+      stream << "ERROR-MARK-STRING: lifetime type failure";
+      break;
+    }
+}
 void
 Dump::visit (LifetimeParam &)
 {}
@@ -235,29 +268,48 @@ Dump::visit (ClosureExpr &)
 void
 Dump::visit (BlockExpr &block_expr)
 {
-  stream << "BlockExpr: [";
+  stream << "BlockExpr: [\n";
+
   indentation.increment ();
-  stream << std::endl;
   // TODO: inner attributes
+  if (!block_expr.inner_attrs.empty ())
+    {
+      stream << indentation << "inner_attrs: [";
+      indentation.increment ();
+      for (auto &attr : block_expr.inner_attrs)
+	{
+	  stream << "\n";
+	  stream << indentation;
+	  visit (attr);
+	}
+      indentation.decrement ();
+      stream << "\n" << indentation << "]\n";
+    }
 
   // statements
+  // impl null pointer check
+
   if (block_expr.has_statements ())
     {
       auto &stmts = block_expr.get_statements ();
       for (auto &stmt : stmts)
 	{
 	  stream << indentation << "Stmt: {\n";
-	  // stream << indentation;
 	  stmt->accept_vis (*this);
 	  stream << "\n";
 	  stream << indentation << "}\n";
 	}
     }
 
-  // // TODO: print tail expression if exists
+  // final expression
+  if (block_expr.has_expr ())
+    {
+      stream << indentation << "final expression:";
+      stream << "\n" << indentation << block_expr.expr->as_string ();
+    }
 
   indentation.decrement ();
-  stream << indentation << "]";
+  stream << "\n" << indentation << "]";
 }
 
 void
@@ -309,22 +361,10 @@ void
 Dump::visit (IfExprConseqElse &)
 {}
 void
-Dump::visit (IfExprConseqIf &)
-{}
-void
-Dump::visit (IfExprConseqIfLet &)
-{}
-void
 Dump::visit (IfLetExpr &)
 {}
 void
 Dump::visit (IfLetExprConseqElse &)
-{}
-void
-Dump::visit (IfLetExprConseqIf &)
-{}
-void
-Dump::visit (IfLetExprConseqIfLet &)
 {}
 
 void
@@ -609,14 +649,11 @@ Dump::visit (LetStmt &let_stmt)
   indentation.decrement ();
 }
 void
-Dump::visit (ExprStmtWithoutBlock &expr_stmt)
+Dump::visit (ExprStmt &expr_stmt)
 {
   auto expr = expr_stmt.get_expr ();
   expr->accept_vis (*this);
 }
-void
-Dump::visit (ExprStmtWithBlock &)
-{}
 
 void
 Dump::visit (TraitBound &)
@@ -656,9 +693,6 @@ Dump::visit (InferredType &)
 {}
 void
 Dump::visit (BareFunctionType &)
-{}
-void
-Dump::visit (ExportedMacro &)
 {}
 } // namespace HIR
 } // namespace Rust

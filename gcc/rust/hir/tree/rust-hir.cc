@@ -1075,9 +1075,9 @@ PathInExpression::as_string () const
 }
 
 std::string
-ExprStmtWithBlock::as_string () const
+ExprStmt::as_string () const
 {
-  std::string str = indent_spaces (enter) + "ExprStmtWithBlock: \n";
+  std::string str = indent_spaces (enter) + "ExprStmt:\n";
 
   if (expr == nullptr)
     {
@@ -1525,27 +1525,7 @@ IfExprConseqElse::as_string () const
 {
   std::string str = IfExpr::as_string ();
 
-  str += "\n Else block expr: " + else_block->as_string ();
-
-  return str;
-}
-
-std::string
-IfExprConseqIf::as_string () const
-{
-  std::string str = IfExpr::as_string ();
-
-  str += "\n Else if expr: \n  " + conseq_if_expr->as_string ();
-
-  return str;
-}
-
-std::string
-IfExprConseqIfLet::as_string () const
-{
-  std::string str = IfExpr::as_string ();
-
-  str += "\n Else if let expr: \n  " + if_let_expr->as_string ();
+  str += "\n Else expr: " + else_block->as_string ();
 
   return str;
 }
@@ -1580,27 +1560,7 @@ IfLetExprConseqElse::as_string () const
 {
   std::string str = IfLetExpr::as_string ();
 
-  str += "\n Else block expr: " + else_block->as_string ();
-
-  return str;
-}
-
-std::string
-IfLetExprConseqIf::as_string () const
-{
-  std::string str = IfLetExpr::as_string ();
-
-  str += "\n Else if expr: \n  " + if_expr->as_string ();
-
-  return str;
-}
-
-std::string
-IfLetExprConseqIfLet::as_string () const
-{
-  std::string str = IfLetExpr::as_string ();
-
-  str += "\n Else if let expr: \n  " + if_let_expr->as_string ();
+  str += "\n Else expr: " + else_block->as_string ();
 
   return str;
 }
@@ -1977,26 +1937,6 @@ TupleExpr::as_string () const
 	  str += "\n  " + elem->as_string ();
 	}
     }
-
-  return str;
-}
-
-std::string
-ExprStmtWithoutBlock::as_string () const
-{
-  std::string str ("ExprStmtWithoutBlock:\n");
-  indent_spaces (enter);
-  str += indent_spaces (stay);
-
-  if (expr == nullptr)
-    {
-      str += "none (this shouldn't happen and is probably an error)";
-    }
-  else
-    {
-      str += expr->as_string ();
-    }
-  indent_spaces (out);
 
   return str;
 }
@@ -4138,18 +4078,6 @@ IfExprConseqElse::accept_vis (HIRFullVisitor &vis)
 }
 
 void
-IfExprConseqIf::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-IfExprConseqIfLet::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
 IfLetExpr::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
@@ -4157,18 +4085,6 @@ IfLetExpr::accept_vis (HIRFullVisitor &vis)
 
 void
 IfLetExprConseqElse::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-IfLetExprConseqIf::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-IfLetExprConseqIfLet::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
 }
@@ -4510,13 +4426,7 @@ LetStmt::accept_vis (HIRFullVisitor &vis)
 }
 
 void
-ExprStmtWithoutBlock::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-ExprStmtWithBlock::accept_vis (HIRFullVisitor &vis)
+ExprStmt::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
 }
@@ -4858,7 +4768,7 @@ QualifiedPathInType::accept_vis (HIRTypeVisitor &vis)
 }
 
 void
-ExprStmtWithoutBlock::accept_vis (HIRStmtVisitor &vis)
+ExprStmt::accept_vis (HIRStmtVisitor &vis)
 {
   vis.visit (*this);
 }
@@ -4924,18 +4834,6 @@ RangeFromToInclExpr::accept_vis (HIRExpressionVisitor &vis)
 }
 
 void
-IfLetExprConseqIfLet::accept_vis (HIRExpressionVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-IfLetExprConseqIf::accept_vis (HIRExpressionVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
 IfLetExprConseqElse::accept_vis (HIRExpressionVisitor &vis)
 {
   vis.visit (*this);
@@ -4943,18 +4841,6 @@ IfLetExprConseqElse::accept_vis (HIRExpressionVisitor &vis)
 
 void
 IfLetExpr::accept_vis (HIRExpressionVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-IfExprConseqIfLet::accept_vis (HIRExpressionVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-IfExprConseqIf::accept_vis (HIRExpressionVisitor &vis)
 {
   vis.visit (*this);
 }
@@ -5057,12 +4943,6 @@ ReturnExpr::accept_vis (HIRExpressionVisitor &vis)
 
 void
 QualifiedPathInExpression::accept_vis (HIRPatternVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-ExprStmtWithBlock::accept_vis (HIRStmtVisitor &vis)
 {
   vis.visit (*this);
 }
@@ -5267,42 +5147,6 @@ ConstGenericParam::as_string () const
 void
 ConstGenericParam::accept_vis (HIRFullVisitor &)
 {}
-
-void
-ExportedMacro::accept_vis (HIRVisItemVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-ExportedMacro::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-ExportedMacro::accept_vis (HIRStmtVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-Location
-ExportedMacro::get_locus () const
-{
-  return locus;
-}
-
-Item::ItemKind
-ExportedMacro::get_item_kind () const
-{
-  return ItemKind::MacroExport;
-}
-
-ExportedMacro *
-ExportedMacro::clone_item_impl () const
-{
-  return new ExportedMacro (*this);
-}
 
 } // namespace HIR
 } // namespace Rust

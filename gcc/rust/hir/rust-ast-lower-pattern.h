@@ -41,6 +41,8 @@ public:
   void visit (AST::RangePattern &pattern) override;
   void visit (AST::GroupedPattern &pattern) override;
   void visit (AST::ReferencePattern &pattern) override;
+  void visit (AST::SlicePattern &pattern) override;
+  void visit (AST::AltPattern &pattern) override;
 
 private:
   ASTLoweringPattern ();

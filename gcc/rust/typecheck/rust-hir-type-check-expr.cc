@@ -16,17 +16,16 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#include "rust-hir-full.h"
 #include "rust-tyty-call.h"
 #include "rust-hir-type-check-struct-field.h"
 #include "rust-hir-path-probe.h"
 #include "rust-substitution-mapper.h"
 #include "rust-hir-trait-resolve.h"
-#include "rust-hir-type-bounds.h"
 #include "rust-hir-dot-operator.h"
 #include "rust-hir-type-check-pattern.h"
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check-stmt.h"
+#include "rust-type-util.h"
 
 namespace Rust {
 namespace Resolver {
@@ -466,29 +465,6 @@ TypeCheckExpr::visit (HIR::IfExprConseqElse &expr)
 			      expr.get_if_block ()->get_locus ()),
 	TyTy::TyWithLocation (else_blk_resolved,
 			      expr.get_else_block ()->get_locus ()),
-	expr.get_locus ());
-    }
-}
-
-void
-TypeCheckExpr::visit (HIR::IfExprConseqIf &expr)
-{
-  TypeCheckExpr::Resolve (expr.get_if_condition ());
-  auto if_blk_resolved = TypeCheckExpr::Resolve (expr.get_if_block ());
-  auto else_blk_resolved = TypeCheckExpr::Resolve (expr.get_conseq_if_expr ());
-
-  if (if_blk_resolved->get_kind () == TyTy::NEVER)
-    infered = else_blk_resolved;
-  else if (else_blk_resolved->get_kind () == TyTy::NEVER)
-    infered = if_blk_resolved;
-  else
-    {
-      infered = unify_site (
-	expr.get_mappings ().get_hirid (),
-	TyTy::TyWithLocation (if_blk_resolved,
-			      expr.get_if_block ()->get_locus ()),
-	TyTy::TyWithLocation (else_blk_resolved,
-			      expr.get_conseq_if_expr ()->get_locus ()),
 	expr.get_locus ());
     }
 }
@@ -1405,6 +1381,8 @@ TypeCheckExpr::visit (HIR::MatchExpr &expr)
 	{
 	  TyTy::BaseType *kase_arm_ty
 	    = TypeCheckPattern::Resolve (pattern.get (), scrutinee_tyty);
+	  if (kase_arm_ty->get_kind () == TyTy ::TypeKind::ERROR)
+	    return;
 
 	  TyTy::BaseType *checked_kase = unify_site (
 	    expr.get_mappings ().get_hirid (),

@@ -20,9 +20,6 @@
 #define RUST_COMPILE_BASE
 
 #include "rust-compile-context.h"
-#include "rust-compile-type.h"
-#include "rust-hir-visitor.h"
-#include "rust-hir-full.h"
 
 namespace Rust {
 namespace Compile {
@@ -82,6 +79,12 @@ protected:
 
   tree resolve_unsized_dyn_adjustment (Resolver::Adjustment &adjustment,
 				       tree expression, Location locus);
+
+  tree resolve_method_address (TyTy::FnType *fntype, HirId ref,
+			       TyTy::BaseType *receiver,
+			       const HIR::PathIdentSegment &segment,
+			       const Analysis::NodeMapping &expr_mappings,
+			       Location expr_locus);
 
   static void setup_fndecl (tree fndecl, bool is_main_entry_point,
 			    bool is_generic_fn, HIR::Visibility &visibility,

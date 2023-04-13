@@ -201,7 +201,7 @@ PrivacyReporter::check_base_type_privacy (Analysis::NodeMapping &node_mappings,
     case TyTy::INFER:
       return;
     case TyTy::ERROR:
-      rust_unreachable ();
+      return;
     }
 }
 
@@ -547,23 +547,6 @@ PrivacyReporter::visit (HIR::IfExprConseqElse &expr)
 }
 
 void
-PrivacyReporter::visit (HIR::IfExprConseqIf &expr)
-{
-  expr.get_if_condition ()->accept_vis (*this);
-  expr.get_if_block ()->accept_vis (*this);
-  expr.get_conseq_if_expr ()->accept_vis (*this);
-}
-
-void
-PrivacyReporter::visit (HIR::IfExprConseqIfLet &expr)
-{
-  expr.get_if_condition ()->accept_vis (*this);
-  expr.get_if_block ()->accept_vis (*this);
-
-  // TODO: We need to visit the if_let_expr as well
-}
-
-void
 PrivacyReporter::visit (HIR::IfLetExpr &)
 {
   // TODO: We need to visit the if_let_expr
@@ -572,22 +555,6 @@ PrivacyReporter::visit (HIR::IfLetExpr &)
 
 void
 PrivacyReporter::visit (HIR::IfLetExprConseqElse &)
-{
-  // TODO: We need to visit the if_let_expr
-  // TODO: We need to visit the if_block as well
-  // TODO: We need to visit the else_block as well
-}
-
-void
-PrivacyReporter::visit (HIR::IfLetExprConseqIf &)
-{
-  // TODO: We need to visit the if_let_expr
-  // TODO: We need to visit the if_block as well
-  // TODO: We need to visit the else_block as well
-}
-
-void
-PrivacyReporter::visit (HIR::IfLetExprConseqIfLet &)
 {
   // TODO: We need to visit the if_let_expr
   // TODO: We need to visit the if_block as well
@@ -750,20 +717,10 @@ PrivacyReporter::visit (HIR::LetStmt &stmt)
 }
 
 void
-PrivacyReporter::visit (HIR::ExprStmtWithoutBlock &stmt)
+PrivacyReporter::visit (HIR::ExprStmt &stmt)
 {
   stmt.get_expr ()->accept_vis (*this);
 }
-
-void
-PrivacyReporter::visit (HIR::ExprStmtWithBlock &stmt)
-{
-  stmt.get_expr ()->accept_vis (*this);
-}
-
-void
-PrivacyReporter::visit (HIR::ExportedMacro &)
-{}
 
 } // namespace Privacy
 } // namespace Rust

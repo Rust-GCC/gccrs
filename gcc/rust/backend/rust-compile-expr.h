@@ -45,7 +45,6 @@ public:
   void visit (HIR::NegationExpr &expr) override;
   void visit (HIR::TypeCastExpr &expr) override;
   void visit (HIR::IfExpr &expr) override;
-  void visit (HIR::IfExprConseqIf &expr) override;
   void visit (HIR::IfExprConseqElse &expr) override;
   void visit (HIR::BlockExpr &expr) override;
   void visit (HIR::UnsafeBlockExpr &expr) override;
@@ -77,11 +76,8 @@ public:
   // TODO
   // these need to be sugared in the HIR to if statements and a match
   void visit (HIR::WhileLetLoopExpr &) override {}
-  void visit (HIR::IfExprConseqIfLet &) override {}
   void visit (HIR::IfLetExpr &) override {}
   void visit (HIR::IfLetExprConseqElse &) override {}
-  void visit (HIR::IfLetExprConseqIf &) override {}
-  void visit (HIR::IfLetExprConseqIfLet &) override {}
 
   // lets not worry about async yet....
   void visit (HIR::AwaitExpr &) override {}
@@ -100,12 +96,6 @@ protected:
   tree get_receiver_from_dyn (const TyTy::DynamicObjectType *dyn,
 			      TyTy::BaseType *receiver, TyTy::FnType *fntype,
 			      tree receiver_ref, Location expr_locus);
-
-  tree resolve_method_address (TyTy::FnType *fntype, HirId ref,
-			       TyTy::BaseType *receiver,
-			       HIR::PathIdentSegment &segment,
-			       Analysis::NodeMapping expr_mappings,
-			       Location expr_locus);
 
   tree
   resolve_operator_overload (Analysis::RustLangItem::ItemType lang_item_type,

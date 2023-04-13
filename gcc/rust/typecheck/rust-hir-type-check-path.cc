@@ -19,6 +19,9 @@
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check-type.h"
 #include "rust-hir-trait-resolve.h"
+#include "rust-substitution-mapper.h"
+#include "rust-hir-path-probe.h"
+#include "rust-type-util.h"
 
 namespace Rust {
 namespace Resolver {
@@ -110,7 +113,7 @@ TypeCheckExpr::visit (HIR::QualifiedPathInExpression &expr)
   // turbo-fish segment path::<ty>
   if (item_seg.has_generic_args ())
     {
-      if (!infered->can_substitute ())
+      if (!infered->has_subsititions_defined ())
 	{
 	  rust_error_at (item_seg.get_locus (),
 			 "substitutions not supported for %s",
@@ -147,11 +150,6 @@ TypeCheckExpr::visit (HIR::PathInExpression &expr)
   TyTy::BaseType *tyseg = resolve_root_path (expr, &offset, &resolved_node_id);
   if (tyseg->get_kind () == TyTy::TypeKind::ERROR)
     return;
-
-  if (tyseg->needs_generic_substitutions ())
-    {
-      tyseg = SubstMapper::InferSubst (tyseg, expr.get_locus ());
-    }
 
   bool fully_resolved = offset == expr.get_segments ().size ();
   if (fully_resolved)
@@ -246,6 +244,19 @@ TypeCheckExpr::resolve_root_path (HIR::PathInExpression &expr, size_t *offset,
 	  return root_tyty;
 	}
 
+      // is it an enum item?
+      std::pair<HIR::Enum *, HIR::EnumItem *> enum_item_lookup
+	= mappings->lookup_hir_enumitem (ref);
+      bool is_enum_item = enum_item_lookup.first != nullptr
+			  && enum_item_lookup.second != nullptr;
+      if (is_enum_item)
+	{
+	  HirId expr_id = expr.get_mappings ().get_hirid ();
+	  HirId variant_id
+	    = enum_item_lookup.second->get_mappings ().get_hirid ();
+	  context->insert_variant_definition (expr_id, variant_id);
+	}
+
       // if we have a previous segment type
       if (root_tyty != nullptr)
 	{
@@ -269,18 +280,14 @@ TypeCheckExpr::resolve_root_path (HIR::PathInExpression &expr, size_t *offset,
       // turbo-fish segment path::<ty>
       if (seg.has_generic_args ())
 	{
-	  if (!lookup->can_substitute ())
-	    {
-	      rust_error_at (expr.get_locus (),
-			     "substitutions not supported for %s",
-			     root_tyty->as_string ().c_str ());
-	      return new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
-	    }
-
 	  lookup = SubstMapper::Resolve (lookup, expr.get_locus (),
 					 &seg.get_generic_args ());
 	  if (lookup->get_kind () == TyTy::TypeKind::ERROR)
 	    return new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
+	}
+      else if (lookup->needs_generic_substitutions ())
+	{
+	  lookup = SubstMapper::InferSubst (lookup, expr.get_locus ());
 	}
 
       *root_resolved_node_id = ref_node_id;
@@ -305,21 +312,19 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
   for (size_t i = offset; i < segments.size (); i++)
     {
       HIR::PathExprSegment &seg = segments.at (i);
-
-      bool probe_bounds = true;
       bool probe_impls = !reciever_is_generic;
-      bool ignore_mandatory_trait_items = !reciever_is_generic;
 
       // probe the path is done in two parts one where we search impls if no
       // candidate is found then we search extensions from traits
       auto candidates
 	= PathProbeType::Probe (prev_segment, seg.get_segment (), probe_impls,
-				false, ignore_mandatory_trait_items);
+				false, true /*ignore_mandatory_trait_items*/);
       if (candidates.size () == 0)
 	{
 	  candidates
 	    = PathProbeType::Probe (prev_segment, seg.get_segment (), false,
-				    probe_bounds, ignore_mandatory_trait_items);
+				    true /*probe_bounds*/,
+				    false /*ignore_mandatory_trait_items*/);
 
 	  if (candidates.size () == 0)
 	    {
@@ -347,9 +352,13 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
 	  const TyTy::VariantDef *variant = candidate.item.enum_field.variant;
 
 	  HirId variant_id = variant->get_id ();
-	  HIR::Item *enum_item = mappings->lookup_hir_item (variant_id);
-	  rust_assert (enum_item != nullptr);
+	  std::pair<HIR::Enum *, HIR::EnumItem *> enum_item_lookup
+	    = mappings->lookup_hir_enumitem (variant_id);
+	  bool enum_item_ok = enum_item_lookup.first != nullptr
+			      && enum_item_lookup.second != nullptr;
+	  rust_assert (enum_item_ok);
 
+	  HIR::EnumItem *enum_item = enum_item_lookup.second;
 	  resolved_node_id = enum_item->get_mappings ().get_nodeid ();
 
 	  // insert the id of the variant we are resolved to
@@ -437,13 +446,6 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
 
       if (seg.has_generic_args ())
 	{
-	  if (!tyseg->can_substitute ())
-	    {
-	      rust_error_at (expr_locus, "substitutions not supported for %s",
-			     tyseg->as_string ().c_str ());
-	      return;
-	    }
-
 	  tyseg = SubstMapper::Resolve (tyseg, expr_locus,
 					&seg.get_generic_args ());
 	  if (tyseg->get_kind () == TyTy::TypeKind::ERROR)

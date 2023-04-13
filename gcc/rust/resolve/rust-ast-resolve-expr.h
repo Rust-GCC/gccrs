@@ -21,7 +21,6 @@
 
 #include "rust-ast-resolve-base.h"
 #include "rust-ast-resolve-pattern.h"
-#include "rust-ast-full.h"
 
 namespace Rust {
 namespace Resolver {
@@ -51,7 +50,6 @@ public:
   void visit (AST::TypeCastExpr &expr) override;
   void visit (AST::IfExpr &expr) override;
   void visit (AST::IfExprConseqElse &expr) override;
-  void visit (AST::IfExprConseqIf &expr) override;
   void visit (AST::IfLetExpr &expr) override;
   void visit (AST::BlockExpr &expr) override;
   void visit (AST::UnsafeBlockExpr &expr) override;

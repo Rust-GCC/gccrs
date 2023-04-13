@@ -213,7 +213,7 @@ private:
 // Object used to store shared data (between functions) for macro expansion.
 struct MacroExpander
 {
-  enum ContextType
+  enum class ContextType
   {
     ITEM,
     BLOCK,
@@ -255,10 +255,6 @@ struct MacroExpander
   AST::Fragment expand_decl_macro (Location locus, AST::MacroInvocData &invoc,
 				   AST::MacroRulesDefinition &rules_def,
 				   bool semicolon);
-
-  void expand_cfg_attrs (AST::AttrVec &attrs);
-  bool fails_cfg (const AST::AttrVec &attr) const;
-  bool fails_cfg_with_expand (AST::AttrVec &attrs) const;
 
   bool depth_exceeds_recursion_limit () const;
 

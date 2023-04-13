@@ -144,6 +144,21 @@ ExportContext::emit_function (const HIR::Function &fn)
   public_interface_buffer += oss.str ();
 }
 
+void
+ExportContext::emit_macro (NodeId macro)
+{
+  std::stringstream oss;
+  AST::Dump dumper (oss);
+
+  AST::Item *item;
+  auto ok = mappings->lookup_ast_item (macro, &item);
+  rust_assert (ok);
+
+  dumper.go (*item);
+
+  public_interface_buffer += oss.str ();
+}
+
 const std::string &
 ExportContext::get_interface_buffer () const
 {
@@ -169,7 +184,6 @@ public:
   void visit (HIR::StaticItem &) override {}
   void visit (HIR::ImplBlock &) override {}
   void visit (HIR::ExternBlock &) override {}
-  void visit (HIR::ExportedMacro &) override {}
 
   void visit (HIR::Trait &trait) override { ctx.emit_trait (trait); }
 
@@ -216,6 +230,9 @@ PublicInterface::gather_export_data ()
       if (is_crate_public (vis_item))
 	vis_item.accept_vis (visitor);
     }
+
+  for (const auto &macro : mappings.get_exported_macros ())
+    context.emit_macro (macro);
 }
 
 void

@@ -109,7 +109,8 @@ public:
 				std::map<std::string, BaseType *> binding_args,
 				Location locus,
 				ParamSubstCb param_subst_cb = nullptr,
-				bool trait_item_flag = false);
+				bool trait_item_flag = false,
+				bool error_flag = false);
 
   SubstitutionArgumentMappings (const SubstitutionArgumentMappings &other);
   SubstitutionArgumentMappings &
@@ -120,6 +121,7 @@ public:
     = default;
 
   static SubstitutionArgumentMappings error ();
+  static SubstitutionArgumentMappings empty ();
 
   bool is_error () const;
 
@@ -161,6 +163,7 @@ private:
   Location locus;
   ParamSubstCb param_subst_cb;
   bool trait_item_flag;
+  bool error_flag;
 };
 
 class SubstitutionRef
@@ -291,11 +294,12 @@ public:
   SubstitutionArgumentMappings solve_mappings_from_receiver_for_self (
     SubstitutionArgumentMappings &mappings) const;
 
-  // TODO comment
-  SubstitutionArgumentMappings
-  solve_missing_mappings_from_this (SubstitutionRef &ref, SubstitutionRef &to);
-
-  // TODO comment
+  // Given a type such as:
+  //
+  //   fn<X,Y>(a:&X, b:Y) -> (...)
+  //
+  // This function will inject implicit inference variables for the type
+  // parameters X and Y
   BaseType *infer_substitions (Location locus);
 
   // this clears any possible projections from higher ranked trait bounds which

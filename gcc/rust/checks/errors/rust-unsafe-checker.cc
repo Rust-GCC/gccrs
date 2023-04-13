@@ -602,23 +602,6 @@ UnsafeChecker::visit (IfExprConseqElse &expr)
 }
 
 void
-UnsafeChecker::visit (IfExprConseqIf &expr)
-{
-  expr.get_if_condition ()->accept_vis (*this);
-  expr.get_if_block ()->accept_vis (*this);
-  expr.get_conseq_if_expr ()->accept_vis (*this);
-}
-
-void
-UnsafeChecker::visit (IfExprConseqIfLet &expr)
-{
-  expr.get_if_condition ()->accept_vis (*this);
-  expr.get_if_block ()->accept_vis (*this);
-
-  // TODO: Visit conseq if let expression
-}
-
-void
 UnsafeChecker::visit (IfLetExpr &expr)
 {
   expr.get_scrutinee_expr ()->accept_vis (*this);
@@ -632,22 +615,6 @@ UnsafeChecker::visit (IfLetExprConseqElse &expr)
   expr.get_if_block ()->accept_vis (*this);
 
   // TODO: Visit else expression
-}
-
-void
-UnsafeChecker::visit (IfLetExprConseqIf &expr)
-{
-  expr.get_scrutinee_expr ()->accept_vis (*this);
-  expr.get_if_block ()->accept_vis (*this);
-}
-
-void
-UnsafeChecker::visit (IfLetExprConseqIfLet &expr)
-{
-  expr.get_scrutinee_expr ()->accept_vis (*this);
-  expr.get_if_block ()->accept_vis (*this);
-
-  // TODO: Visit conseq if let expression
 }
 
 void
@@ -921,13 +888,7 @@ UnsafeChecker::visit (LetStmt &stmt)
 }
 
 void
-UnsafeChecker::visit (ExprStmtWithoutBlock &stmt)
-{
-  stmt.get_expr ()->accept_vis (*this);
-}
-
-void
-UnsafeChecker::visit (ExprStmtWithBlock &stmt)
+UnsafeChecker::visit (ExprStmt &stmt)
 {
   stmt.get_expr ()->accept_vis (*this);
 }
@@ -982,10 +943,6 @@ UnsafeChecker::visit (InferredType &)
 
 void
 UnsafeChecker::visit (BareFunctionType &)
-{}
-
-void
-UnsafeChecker::visit (ExportedMacro &)
 {}
 
 } // namespace HIR

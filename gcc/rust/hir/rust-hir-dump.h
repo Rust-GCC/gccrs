@@ -37,6 +37,7 @@ private:
   Indent indentation;
   std::ostream &stream;
 
+  void visit (AST::Attribute &attribute);
   virtual void visit (Lifetime &) override;
   virtual void visit (LifetimeParam &) override;
   virtual void visit (PathInExpression &) override;
@@ -96,12 +97,8 @@ private:
   virtual void visit (ForLoopExpr &) override;
   virtual void visit (IfExpr &) override;
   virtual void visit (IfExprConseqElse &) override;
-  virtual void visit (IfExprConseqIf &) override;
-  virtual void visit (IfExprConseqIfLet &) override;
   virtual void visit (IfLetExpr &) override;
   virtual void visit (IfLetExprConseqElse &) override;
-  virtual void visit (IfLetExprConseqIf &) override;
-  virtual void visit (IfLetExprConseqIfLet &) override;
 
   virtual void visit (MatchExpr &) override;
   virtual void visit (AwaitExpr &) override;
@@ -168,8 +165,7 @@ private:
 
   virtual void visit (EmptyStmt &) override;
   virtual void visit (LetStmt &) override;
-  virtual void visit (ExprStmtWithoutBlock &) override;
-  virtual void visit (ExprStmtWithBlock &) override;
+  virtual void visit (ExprStmt &) override;
 
   virtual void visit (TraitBound &) override;
   virtual void visit (ImplTraitType &) override;
@@ -184,7 +180,6 @@ private:
   virtual void visit (SliceType &) override;
   virtual void visit (InferredType &) override;
   virtual void visit (BareFunctionType &) override;
-  virtual void visit (ExportedMacro &) override;
 };
 
 } // namespace HIR

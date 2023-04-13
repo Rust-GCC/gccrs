@@ -122,12 +122,8 @@ types
   virtual void visit (HIR::ForLoopExpr &expr);
   virtual void visit (HIR::IfExpr &expr);
   virtual void visit (HIR::IfExprConseqElse &expr);
-  virtual void visit (HIR::IfExprConseqIf &expr);
-  virtual void visit (HIR::IfExprConseqIfLet &expr);
   virtual void visit (HIR::IfLetExpr &expr);
   virtual void visit (HIR::IfLetExprConseqElse &expr);
-  virtual void visit (HIR::IfLetExprConseqIf &expr);
-  virtual void visit (HIR::IfLetExprConseqIfLet &expr);
   virtual void visit (HIR::MatchExpr &expr);
   virtual void visit (HIR::AwaitExpr &expr);
   virtual void visit (HIR::AsyncBlockExpr &expr);
@@ -155,9 +151,7 @@ types
   virtual void visit (HIR::ExternBlock &block);
   virtual void visit (HIR::EmptyStmt &stmt);
   virtual void visit (HIR::LetStmt &stmt);
-  virtual void visit (HIR::ExprStmtWithoutBlock &stmt);
-  virtual void visit (HIR::ExprStmtWithBlock &stmt);
-  virtual void visit (HIR::ExportedMacro &macro);
+  virtual void visit (HIR::ExprStmt &stmt);
 
   Analysis::Mappings &mappings;
   Rust::Resolver::Resolver &resolver;

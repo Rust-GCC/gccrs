@@ -29,8 +29,7 @@ class TypeCheckStmt : private TypeCheckBase, private HIR::HIRStmtVisitor
 public:
   static TyTy::BaseType *Resolve (HIR::Stmt *stmt);
 
-  void visit (HIR::ExprStmtWithBlock &stmt) override;
-  void visit (HIR::ExprStmtWithoutBlock &stmt) override;
+  void visit (HIR::ExprStmt &stmt) override;
   void visit (HIR::EmptyStmt &stmt) override;
   void visit (HIR::ExternBlock &extern_block) override;
   void visit (HIR::ConstantItem &constant) override;
@@ -47,7 +46,6 @@ public:
   void visit (HIR::ImplBlock &impl) override;
   void visit (HIR::TypePath &path) override;
   void visit (HIR::QualifiedPathInType &path) override;
-  void visit (HIR::ExportedMacro &path) override;
 
   // FIXME
   // this seems like it should not be part of this visitor

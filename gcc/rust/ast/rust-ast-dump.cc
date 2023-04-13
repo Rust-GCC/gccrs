@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-ast-dump.h"
+#include "rust-expr.h"
 
 namespace Rust {
 namespace AST {
@@ -936,22 +937,6 @@ Dump::visit (IfExprConseqElse &expr)
 }
 
 void
-Dump::visit (IfExprConseqIf &expr)
-{
-  stream << "if ";
-  visit (expr.get_condition_expr ());
-  stream << " ";
-  visit (expr.get_if_block ());
-  stream << indentation << "else ";
-  // The "if" part of the "else if" is printed by the next visitor
-  visit (expr.get_conseq_if_expr ());
-}
-
-void
-Dump::visit (IfExprConseqIfLet &)
-{}
-
-void
 Dump::visit (IfLetExpr &)
 {}
 
@@ -1532,7 +1517,6 @@ Dump::visit (MacroRule &rule)
   visit (rule.get_matcher ());
   stream << " => ";
   visit (rule.get_transcriber ().get_token_tree ());
-  stream << ";";
 }
 
 void
@@ -1917,5 +1901,21 @@ Dump::visit (BareFunctionType &type)
     }
 }
 
+void
+Dump::debug (Visitable &v)
+{
+  auto dump = Dump (std::cerr);
+
+  std::cerr << '\n';
+  v.accept_vis (dump);
+  std::cerr << '\n';
+}
+
 } // namespace AST
 } // namespace Rust
+
+void
+debug (Rust::AST::Visitable &v)
+{
+  Rust::AST::Dump::debug (v);
+}

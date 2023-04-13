@@ -642,7 +642,7 @@ public:
   }
 
   // Returns whether a visibility has a path
-  bool has_path () const { return !(is_error ()) && vis_type == PUB_IN_PATH; }
+  bool has_path () const { return !is_error () && vis_type >= PUB_CRATE; }
 
   // Returns whether visibility is public or not.
   bool is_public () const { return vis_type != PRIV && !is_error (); }
@@ -1280,6 +1280,8 @@ public:
 
   void accept_vis (ASTVisitor &vis) override;
 
+  PathType get_glob_type () { return glob_type; }
+
   Kind get_kind () const override { return Glob; }
 
   SimplePath get_path () const
@@ -1367,6 +1369,8 @@ public:
 
   std::string as_string () const override;
 
+  PathType get_path_type () { return path_type; }
+
   void accept_vis (ASTVisitor &vis) override;
 
   Kind get_kind () const override { return List; }
@@ -1375,6 +1379,8 @@ public:
     rust_assert (has_path ());
     return path;
   }
+
+  std::vector<std::unique_ptr<UseTree>> &get_trees () { return trees; }
 
   const std::vector<std::unique_ptr<UseTree>> &get_trees () const
   {
@@ -1423,6 +1429,8 @@ public:
   bool has_identifier () const { return bind_type == IDENTIFIER; }
 
   std::string as_string () const override;
+
+  NewBindType get_new_bind_type () { return bind_type; }
 
   void accept_vis (ASTVisitor &vis) override;
 
@@ -1497,6 +1505,9 @@ public:
   UseDeclaration &operator= (UseDeclaration &&other) = default;
 
   Location get_locus () const override final { return locus; }
+
+  std::unique_ptr<UseTree> &get_tree () { return use_tree; }
+
   const std::unique_ptr<UseTree> &get_tree () const { return use_tree; }
 
   void accept_vis (ASTVisitor &vis) override;
@@ -2642,6 +2653,8 @@ public:
     return type == nullptr && const_expr == nullptr;
   }
 
+  bool has_expr () { return const_expr != nullptr; }
+
   // TODO: is this better? Or is a "vis_block" better?
   std::unique_ptr<Expr> &get_expr ()
   {
@@ -2753,6 +2766,8 @@ public:
   {
     return type == nullptr && expr == nullptr;
   }
+
+  bool has_expr () { return expr != nullptr; }
 
   // TODO: is this better? Or is a "vis_block" better?
   std::unique_ptr<Expr> &get_expr ()
@@ -4072,6 +4087,8 @@ public:
 
   Identifier get_identifier () const { return item_name; }
 
+  Visibility &get_visibility () { return visibility; }
+
   const Visibility &get_visibility () const { return visibility; }
 
   bool is_mut () const { return has_mut; }
@@ -4114,6 +4131,8 @@ public:
   }
 
   std::string get_name () const { return name; }
+
+  Location get_locus () { return locus; }
 
   // Creates an error state named function parameter.
   static NamedFunctionParam create_error ()

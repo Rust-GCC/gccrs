@@ -156,12 +156,7 @@ public:
     expr.get_iterator_expr ()->accept_vis (*this);
   }
 
-  void visit (HIR::ExprStmtWithoutBlock &stmt) override
-  {
-    stmt.get_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::ExprStmtWithBlock &stmt) override
+  void visit (HIR::ExprStmt &stmt) override
   {
     stmt.get_expr ()->accept_vis (*this);
   }
@@ -220,13 +215,6 @@ public:
 	  case_arm.get_guard_expr ()->accept_vis (*this);
 	caz.get_expr ()->accept_vis (*this);
       }
-  }
-
-  void visit (HIR::IfExprConseqIf &expr) override
-  {
-    expr.get_if_condition ()->accept_vis (*this);
-    expr.get_if_block ()->accept_vis (*this);
-    expr.get_conseq_if_expr ()->accept_vis (*this);
   }
 
   void visit (HIR::TraitItemFunc &item) override

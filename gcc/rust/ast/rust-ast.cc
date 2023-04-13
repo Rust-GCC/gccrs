@@ -35,102 +35,6 @@ along with GCC; see the file COPYING3.  If not see
 namespace Rust {
 namespace AST {
 
-enum indent_mode
-{
-  enter,
-  out,
-  stay
-};
-
-std::string
-indent_spaces (enum indent_mode mode)
-{
-  static int indent = 0;
-  std::string str = "";
-  if (out == mode)
-    indent--;
-  for (int i = 0; i < indent; i++)
-    str += " ";
-  if (enter == mode)
-    indent++;
-
-  return str;
-}
-
-// Gets a string in a certain delim type.
-std::string
-get_string_in_delims (std::string str_input, DelimType delim_type)
-{
-  switch (delim_type)
-    {
-    case PARENS:
-      return "(" + str_input + ")";
-    case SQUARE:
-      return "[" + str_input + "]";
-    case CURLY:
-      return "{" + str_input + "}";
-    default:
-      return "ERROR-MARK-STRING (delims)";
-    }
-  gcc_unreachable ();
-}
-
-enum AttrMode
-{
-  OUTER,
-  INNER
-};
-
-std::string
-get_mode_dump_desc (AttrMode mode)
-{
-  switch (mode)
-    {
-    case OUTER:
-      return "outer attributes";
-    case INNER:
-      return "inner attributes";
-    default:
-      gcc_unreachable ();
-      return "";
-    }
-}
-
-// Adds lines below adding attributes
-std::string
-append_attributes (std::vector<Attribute> attrs, AttrMode mode)
-{
-  indent_spaces (enter);
-
-  std::string str
-    = "\n" + indent_spaces (stay) + get_mode_dump_desc (mode) + ": ";
-  // str += "\n" + indent_spaces (stay) + "inner attributes: ";
-  if (attrs.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      /* note that this does not print them with outer or "inner attribute"
-       * syntax - just prints the body */
-      for (const auto &attr : attrs)
-	str += "\n" + indent_spaces (stay) + attr.as_string ();
-    }
-
-  indent_spaces (out);
-
-  return str;
-}
-
-// Removes the beginning and end quotes of a quoted string.
-std::string
-unquote_string (std::string input)
-{
-  rust_assert (input.front () == '"');
-  rust_assert (input.back () == '"');
-  return input.substr (1, input.length () - 2);
-}
-
 std::string
 Crate::as_string () const
 {
@@ -272,7 +176,7 @@ std::string
 SimplePath::as_string () const
 {
   std::string path;
-  if (has_opening_scope_resolution)
+  if (opening_scope_resolution)
     path = "::";
 
   // crappy hack because doing proper for loop would be more code
@@ -1357,17 +1261,6 @@ MacroInvocData::as_string () const
 }
 
 std::string
-PathInExpression::as_string () const
-{
-  std::string str;
-
-  if (has_opening_scope_resolution)
-    str = "::";
-
-  return str + PathPattern::as_string ();
-}
-
-std::string
 ExprStmtWithBlock::as_string () const
 {
   std::string str = indent_spaces (enter) + "ExprStmtWithBlock: \n";
@@ -1438,20 +1331,6 @@ ClosureExprInnerTyped::as_string () const
 }
 
 std::string
-PathPattern::as_string () const
-{
-  std::string str;
-
-  for (const auto &segment : segments)
-    str += segment.as_string () + "::";
-
-  // basically a hack - remove last two characters of string (remove final ::)
-  str.erase (str.length () - 2);
-
-  return str;
-}
-
-std::string
 QualifiedPathType::as_string () const
 {
   std::string str ("<");
@@ -1461,12 +1340,6 @@ QualifiedPathType::as_string () const
     str += " as " + trait_path.as_string ();
 
   return str + ">";
-}
-
-std::string
-QualifiedPathInExpression::as_string () const
-{
-  return path_type.as_string () + "::" + PathPattern::as_string ();
 }
 
 std::string
@@ -1498,22 +1371,6 @@ ReturnExpr::as_string () const
 
   if (has_returned_expr ())
     str += return_expr->as_string ();
-
-  return str;
-}
-
-std::string
-GroupedExpr::as_string () const
-{
-  std::string str ("Grouped expr:");
-
-  // outer attrs
-  str += append_attributes (outer_attrs, OUTER);
-
-  // inner attributes
-  str += append_attributes (inner_attrs, INNER);
-
-  str += "\n Expr in parens: " + expr_in_parens->as_string ();
 
   return str;
 }
@@ -1781,27 +1638,7 @@ IfExprConseqElse::as_string () const
 {
   std::string str = IfExpr::as_string ();
 
-  str += "\n Else block expr: " + else_block->as_string ();
-
-  return str;
-}
-
-std::string
-IfExprConseqIf::as_string () const
-{
-  std::string str = IfExpr::as_string ();
-
-  str += "\n Else if expr: \n  " + conseq_if_expr->as_string ();
-
-  return str;
-}
-
-std::string
-IfExprConseqIfLet::as_string () const
-{
-  std::string str = IfExpr::as_string ();
-
-  str += "\n Else if let expr: \n  " + if_let_expr->as_string ();
+  str += "\n Else expr: " + else_block->as_string ();
 
   return str;
 }
@@ -2373,35 +2210,9 @@ LifetimeParam::as_string () const
 }
 
 std::string
-ConstGenericParam::as_string () const
-{
-  std::string str ("ConstGenericParam: ");
-  str += "const " + name + ": " + type->as_string ();
-
-  if (has_default_value ())
-    str += " = " + get_default_value ().as_string ();
-
-  return str;
-}
-
-std::string
 MacroMatchFragment::as_string () const
 {
   return "$" + ident + ": " + frag_spec.as_string ();
-}
-
-std::string
-QualifiedPathInType::as_string () const
-{
-  /* TODO: this may need adjusting if segments (e.g. with functions) can't be
-   * literalised */
-  std::string str = path_type.as_string ();
-
-  str += "::" + associated_segment->as_string ();
-  for (const auto &segment : segments)
-    str += "::" + segment->as_string ();
-
-  return str;
 }
 
 std::string
@@ -2468,25 +2279,6 @@ Lifetime::as_string () const
 }
 
 std::string
-TypePath::as_string () const
-{
-  /* TODO: this may need to be rewritten if a segment (e.g. function) can't be
-   * literalised */
-  std::string str;
-
-  if (has_opening_scope_resolution)
-    str = "::";
-
-  for (const auto &segment : segments)
-    str += segment->as_string () + "::";
-
-  // kinda hack - remove last 2 '::' characters
-  str.erase (str.length () - 2);
-
-  return str;
-}
-
-std::string
 TypeParam::as_string () const
 {
   std::string str ("TypeParam: ");
@@ -2519,136 +2311,6 @@ TypeParam::as_string () const
   return str;
 }
 
-SimplePath
-PathPattern::convert_to_simple_path (bool with_opening_scope_resolution) const
-{
-  if (!has_segments ())
-    return SimplePath::create_empty ();
-
-  // create vector of reserved size (to minimise reallocations)
-  std::vector<SimplePathSegment> simple_segments;
-  simple_segments.reserve (segments.size ());
-
-  for (const auto &segment : segments)
-    {
-      // return empty path if doesn't meet simple path segment requirements
-      if (segment.is_error () || segment.has_generic_args ()
-	  || segment.as_string () == "Self")
-	return SimplePath::create_empty ();
-
-      // create segment and add to vector
-      std::string segment_str = segment.as_string ();
-      simple_segments.push_back (
-	SimplePathSegment (std::move (segment_str), segment.get_locus ()));
-    }
-
-  // kind of a HACK to get locus depending on opening scope resolution
-  Location locus = Linemap::unknown_location ();
-  if (with_opening_scope_resolution)
-    locus = simple_segments[0].get_locus () - 2; // minus 2 chars for ::
-  else
-    locus = simple_segments[0].get_locus ();
-  // FIXME: this hack probably doesn't actually work
-
-  return SimplePath (std::move (simple_segments), with_opening_scope_resolution,
-		     locus);
-}
-
-SimplePath
-TypePath::as_simple_path () const
-{
-  if (segments.empty ())
-    return SimplePath::create_empty ();
-
-  // create vector of reserved size (to minimise reallocations)
-  std::vector<SimplePathSegment> simple_segments;
-  simple_segments.reserve (segments.size ());
-
-  for (const auto &segment : segments)
-    {
-      // return empty path if doesn't meet simple path segment requirements
-      if (segment == nullptr || segment->is_error ()
-	  || !segment->is_ident_only () || segment->as_string () == "Self")
-	return SimplePath::create_empty ();
-
-      // create segment and add to vector
-      std::string segment_str = segment->as_string ();
-      simple_segments.push_back (
-	SimplePathSegment (std::move (segment_str), segment->get_locus ()));
-    }
-
-  return SimplePath (std::move (simple_segments), has_opening_scope_resolution,
-		     locus);
-}
-
-std::string
-PathExprSegment::as_string () const
-{
-  // TODO: rewrite dump to work with non-literalisable types
-  std::string ident_str = segment_name.as_string ();
-  if (has_generic_args ())
-    ident_str += "::<" + generic_args.as_string () + ">";
-
-  return ident_str;
-}
-
-std::string
-GenericArgs::as_string () const
-{
-  std::string args;
-
-  // lifetime args
-  if (!lifetime_args.empty ())
-    {
-      auto i = lifetime_args.begin ();
-      auto e = lifetime_args.end ();
-
-      for (; i != e; i++)
-	{
-	  args += (*i).as_string ();
-	  if (e != i + 1)
-	    args += ", ";
-	}
-    }
-
-  // type args
-  if (!generic_args.empty ())
-    {
-      auto i = generic_args.begin ();
-      auto e = generic_args.end ();
-
-      for (; i != e; i++)
-	{
-	  args += (*i).as_string ();
-	  if (e != i + 1)
-	    args += ", ";
-	}
-    }
-
-  // binding args
-  if (!binding_args.empty ())
-    {
-      auto i = binding_args.begin ();
-      auto e = binding_args.end ();
-
-      for (; i != e; i++)
-	{
-	  args += (*i).as_string ();
-	  if (e != i + 1)
-	    args += ", ";
-	}
-    }
-
-  return args;
-}
-
-std::string
-GenericArgsBinding::as_string () const
-{
-  // TODO: rewrite to work with non-literalisable types
-  return identifier + " = " + type->as_string ();
-}
-
 std::string
 ForLoopExpr::as_string () const
 {
@@ -2672,286 +2334,6 @@ ForLoopExpr::as_string () const
 }
 
 std::string
-RangePattern::as_string () const
-{
-  // TODO: maybe rewrite to work with non-linearisable bounds
-  if (has_ellipsis_syntax)
-    return lower->as_string () + "..." + upper->as_string ();
-  else
-    return lower->as_string () + "..=" + upper->as_string ();
-}
-
-std::string
-RangePatternBoundLiteral::as_string () const
-{
-  std::string str;
-
-  if (has_minus)
-    str += "-";
-
-  str += literal.as_string ();
-
-  return str;
-}
-
-std::string
-SlicePattern::as_string () const
-{
-  std::string str ("SlicePattern: ");
-
-  for (const auto &pattern : items)
-    str += "\n " + pattern->as_string ();
-
-  return str;
-}
-
-std::string
-AltPattern::as_string () const
-{
-  std::string str ("AltPattern: ");
-
-  for (const auto &pattern : alts)
-    str += "\n " + pattern->as_string ();
-
-  return str;
-}
-
-std::string
-TuplePatternItemsMultiple::as_string () const
-{
-  std::string str;
-
-  for (const auto &pattern : patterns)
-    str += "\n " + pattern->as_string ();
-
-  return str;
-}
-
-std::string
-TuplePatternItemsRanged::as_string () const
-{
-  std::string str;
-
-  str += "\n Lower patterns: ";
-  if (lower_patterns.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &lower : lower_patterns)
-	str += "\n  " + lower->as_string ();
-    }
-
-  str += "\n Upper patterns: ";
-  if (upper_patterns.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &upper : upper_patterns)
-	str += "\n  " + upper->as_string ();
-    }
-
-  return str;
-}
-
-std::string
-TuplePattern::as_string () const
-{
-  return "TuplePattern: " + items->as_string ();
-}
-
-std::string
-StructPatternField::as_string () const
-{
-  // outer attributes
-  std::string str = append_attributes (outer_attrs, OUTER);
-
-  return str;
-}
-
-std::string
-StructPatternFieldIdent::as_string () const
-{
-  std::string str = StructPatternField::as_string ();
-
-  str += "\n";
-
-  if (has_ref)
-    str += "ref ";
-
-  if (has_mut)
-    str += "mut ";
-
-  str += ident;
-
-  return str;
-}
-
-std::string
-StructPatternFieldTuplePat::as_string () const
-{
-  // TODO: maybe rewrite to work with non-linearisable patterns
-  std::string str = StructPatternField::as_string ();
-
-  str += "\n";
-
-  str += std::to_string (index) + " : " + tuple_pattern->as_string ();
-
-  return str;
-}
-
-std::string
-StructPatternFieldIdentPat::as_string () const
-{
-  // TODO: maybe rewrite to work with non-linearisable patterns
-  std::string str = StructPatternField::as_string ();
-
-  str += "\n";
-
-  str += ident + " : " + ident_pattern->as_string ();
-
-  return str;
-}
-
-std::string
-StructPatternElements::as_string () const
-{
-  std::string str ("\n  Fields: ");
-
-  if (!has_struct_pattern_fields ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &field : fields)
-	str += "\n   " + field->as_string ();
-    }
-
-  str += "\n  Etc: ";
-  if (has_struct_pattern_etc)
-    str += "true";
-  else
-    str += "false";
-
-  return str;
-}
-
-std::string
-StructPattern::as_string () const
-{
-  std::string str ("StructPattern: \n Path: ");
-
-  str += path.as_string ();
-
-  str += "\n Struct pattern elems: ";
-  if (!has_struct_pattern_elems ())
-    str += "none";
-  else
-    str += elems.as_string ();
-
-  return str;
-}
-
-std::string
-LiteralPattern::as_string () const
-{
-  return lit.as_string ();
-}
-
-std::string
-ReferencePattern::as_string () const
-{
-  // TODO: maybe rewrite to work with non-linearisable patterns
-  std::string str ("&");
-
-  if (has_two_amps)
-    str += "&";
-
-  if (is_mut)
-    str += "mut ";
-
-  str += pattern->as_string ();
-
-  return str;
-}
-
-std::string
-IdentifierPattern::as_string () const
-{
-  // TODO: maybe rewrite to work with non-linearisable patterns
-  std::string str;
-
-  if (is_ref)
-    str += "ref ";
-
-  if (is_mut)
-    str += "mut ";
-
-  str += variable_ident;
-
-  if (has_pattern_to_bind ())
-    str += " @ " + to_bind->as_string ();
-
-  return str;
-}
-
-std::string
-TupleStructItemsNoRange::as_string () const
-{
-  std::string str;
-
-  for (const auto &pattern : patterns)
-    str += "\n  " + pattern->as_string ();
-
-  return str;
-}
-
-std::string
-TupleStructItemsRange::as_string () const
-{
-  std::string str ("\n  Lower patterns: ");
-
-  if (lower_patterns.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &lower : lower_patterns)
-	str += "\n   " + lower->as_string ();
-    }
-
-  str += "\n  Upper patterns: ";
-  if (upper_patterns.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &upper : upper_patterns)
-	str += "\n   " + upper->as_string ();
-    }
-
-  return str;
-}
-
-std::string
-TupleStructPattern::as_string () const
-{
-  std::string str ("TupleStructPattern: \n Path: ");
-
-  str += path.as_string ();
-
-  str += "\n Tuple struct items: " + items->as_string ();
-
-  return str;
-}
-
-std::string
 LetStmt::as_string () const
 {
   // TODO: rewrite to work with non-linearisable types and exprs
@@ -2966,13 +2348,6 @@ LetStmt::as_string () const
     str += " = " + init_expr->as_string ();
 
   return str;
-}
-
-// hopefully definition here will prevent circular dependency issue
-TraitBound *
-TypePath::to_trait_bound (bool in_parens) const
-{
-  return new TraitBound (TypePath (*this), get_locus (), in_parens);
 }
 
 std::string
@@ -3123,13 +2498,6 @@ ImplTraitTypeOneBound::as_string () const
 }
 
 std::string
-TypePathSegmentGeneric::as_string () const
-{
-  // TODO: rewrite to work with non-linearisable types
-  return TypePathSegment::as_string () + "<" + generic_args.as_string () + ">";
-}
-
-std::string
 TraitObjectTypeOneBound::as_string () const
 {
   std::string str ("TraitObjectTypeOneBound: \n Has dyn dispatch: ");
@@ -3142,40 +2510,6 @@ TraitObjectTypeOneBound::as_string () const
   str += "\n TraitBound: " + trait_bound.as_string ();
 
   return str;
-}
-
-std::string
-TypePathFunction::as_string () const
-{
-  // TODO: rewrite to work with non-linearisable types
-  std::string str ("(");
-
-  if (has_inputs ())
-    {
-      auto i = inputs.begin ();
-      auto e = inputs.end ();
-
-      for (; i != e; i++)
-	{
-	  str += (*i)->as_string ();
-	  if (e != i + 1)
-	    str += ", ";
-	}
-    }
-
-  str += ")";
-
-  if (has_return_type ())
-    str += " -> " + return_type->as_string ();
-
-  return str;
-}
-
-std::string
-TypePathSegmentFunction::as_string () const
-{
-  // TODO: rewrite to work with non-linearisable types
-  return TypePathSegment::as_string () + function_path.as_string ();
 }
 
 std::string
@@ -4934,54 +4268,6 @@ LifetimeParam::accept_vis (ASTVisitor &vis)
 }
 
 void
-ConstGenericParam::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-PathInExpression::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TypePathSegment::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TypePathSegmentGeneric::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TypePathSegmentFunction::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TypePath::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-QualifiedPathInExpression::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-QualifiedPathInType::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
 LiteralExpr::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
@@ -5061,12 +4347,6 @@ AssignmentExpr::accept_vis (ASTVisitor &vis)
 
 void
 CompoundAssignmentExpr::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-GroupedExpr::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }
@@ -5271,18 +4551,6 @@ IfExpr::accept_vis (ASTVisitor &vis)
 
 void
 IfExprConseqElse::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-IfExprConseqIf::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-IfExprConseqIfLet::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }
@@ -5558,138 +4826,6 @@ MacroInvocation::accept_vis (ASTVisitor &vis)
 }
 
 void
-LiteralPattern::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-IdentifierPattern::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-WildcardPattern::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-RestPattern::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-RangePatternBoundLiteral::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-RangePatternBoundPath::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-RangePatternBoundQualPath::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-RangePattern::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-ReferencePattern::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructPatternFieldTuplePat::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructPatternFieldIdentPat::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructPatternFieldIdent::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-StructPattern::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TupleStructItemsNoRange::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TupleStructItemsRange::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TupleStructPattern::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TuplePatternItemsMultiple::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TuplePatternItemsRanged::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-TuplePattern::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-GroupedPattern::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-SlicePattern::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-AltPattern::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
 EmptyStmt::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
@@ -5837,30 +4973,6 @@ void
 MetaWord::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
-}
-
-GenericArg
-GenericArg::disambiguate_to_const () const
-{
-  rust_assert (get_kind () == Kind::Either);
-
-  // FIXME: is it fine to have no outer attributes?
-  return GenericArg::create_const (
-    std::unique_ptr<Expr> (new IdentifierExpr (path, {}, locus)));
-}
-
-GenericArg
-GenericArg::disambiguate_to_type () const
-{
-  rust_assert (get_kind () == Kind::Either);
-
-  auto segment = std::unique_ptr<TypePathSegment> (
-    new TypePathSegment (path, false, locus));
-  auto segments = std::vector<std::unique_ptr<TypePathSegment>> ();
-  segments.emplace_back (std::move (segment));
-
-  return GenericArg::create_type (
-    std::unique_ptr<Type> (new TypePath (std::move (segments), locus)));
 }
 
 } // namespace AST

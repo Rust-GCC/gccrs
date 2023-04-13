@@ -17,6 +17,15 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-ast-lower-item.h"
+#include "rust-diagnostics.h"
+#include "rust-ast-lower.h"
+#include "rust-ast-lower-base.h"
+#include "rust-ast-lower-enumitem.h"
+#include "rust-ast-lower-type.h"
+#include "rust-ast-lower-implitem.h"
+#include "rust-ast-lower-expr.h"
+#include "rust-ast-lower-pattern.h"
+#include "rust-ast-lower-block.h"
 
 namespace Rust {
 namespace HIR {
@@ -265,11 +274,16 @@ ASTLoweringItem::visit (AST::Enum &enum_decl)
 				 mappings->get_next_hir_id (crate_num),
 				 mappings->get_next_localdef_id (crate_num));
 
-  translated = new HIR::Enum (mapping, enum_decl.get_identifier (), vis,
-			      std::move (generic_params),
-			      std::move (where_clause), /* is_unit, */
-			      std::move (items), enum_decl.get_outer_attrs (),
-			      enum_decl.get_locus ());
+  HIR::Enum *hir_enum
+    = new HIR::Enum (mapping, enum_decl.get_identifier (), vis,
+		     std::move (generic_params), std::move (where_clause),
+		     std::move (items), enum_decl.get_outer_attrs (),
+		     enum_decl.get_locus ());
+  translated = hir_enum;
+  for (auto &variant : hir_enum->get_variants ())
+    {
+      mappings->insert_hir_enumitem (hir_enum, variant.get ());
+    }
 }
 
 void
@@ -694,23 +708,7 @@ ASTLoweringItem::visit (AST::ExternBlock &extern_block)
 void
 ASTLoweringItem::visit (AST::MacroRulesDefinition &def)
 {
-  bool is_export = false;
-  for (const auto &attr : def.get_outer_attrs ())
-    if (attr.get_path ().as_string () == "macro_export")
-      is_export = true;
-
-  if (is_export)
-    {
-      auto crate_num = mappings->get_current_crate ();
-      Analysis::NodeMapping mapping (crate_num, def.get_node_id (),
-				     mappings->get_next_hir_id (crate_num),
-				     mappings->get_next_localdef_id (
-				       crate_num));
-      auto locus = def.get_locus ();
-
-      translated
-	= new HIR::ExportedMacro (mapping, def.get_outer_attrs (), locus);
-    }
+  lower_macro_definition (def);
 }
 
 HIR::SimplePath

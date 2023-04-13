@@ -38,21 +38,8 @@ public:
   void go (AST::Crate &crate);
   void go (AST::Item &item);
 
-  /**
-   * Use the AST Dump as a debugging tool
-   */
-  template <typename T> static void debug (T &instance)
-  {
-    auto dump = Dump (std::cerr);
-
-    std::cerr << '\n';
-    instance.accept_vis (dump);
-    std::cerr << '\n';
-  }
-  template <typename T> static void debug (std::unique_ptr<T> &instance)
-  {
-    debug (*instance);
-  }
+  // Helper method to get a quick debug dump to standard error output
+  static void debug (Visitable &v);
 
 private:
   std::ostream &stream;
@@ -197,8 +184,6 @@ private:
   void visit (ForLoopExpr &expr);
   void visit (IfExpr &expr);
   void visit (IfExprConseqElse &expr);
-  void visit (IfExprConseqIf &expr);
-  void visit (IfExprConseqIfLet &expr);
   void visit (IfLetExpr &expr);
   void visit (IfLetExprConseqElse &expr);
   void visit (IfLetExprConseqIf &expr);
@@ -308,5 +293,9 @@ private:
 
 } // namespace AST
 } // namespace Rust
+
+// In the global namespace to make it easier to call from debugger
+void
+debug (Rust::AST::Visitable &v);
 
 #endif // !RUST_AST_DUMP_H

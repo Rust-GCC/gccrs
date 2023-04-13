@@ -17,13 +17,12 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-type-check-stmt.h"
-#include "rust-hir-full.h"
 #include "rust-hir-type-check-type.h"
 #include "rust-hir-type-check-expr.h"
-#include "rust-hir-type-check-enumitem.h"
 #include "rust-hir-type-check-implitem.h"
 #include "rust-hir-type-check-item.h"
 #include "rust-hir-type-check-pattern.h"
+#include "rust-type-util.h"
 
 namespace Rust {
 namespace Resolver {
@@ -37,13 +36,7 @@ TypeCheckStmt::Resolve (HIR::Stmt *stmt)
 }
 
 void
-TypeCheckStmt::visit (HIR::ExprStmtWithBlock &stmt)
-{
-  infered = TypeCheckExpr::Resolve (stmt.get_expr ());
-}
-
-void
-TypeCheckStmt::visit (HIR::ExprStmtWithoutBlock &stmt)
+TypeCheckStmt::visit (HIR::ExprStmt &stmt)
 {
   infered = TypeCheckExpr::Resolve (stmt.get_expr ());
 }
@@ -128,11 +121,11 @@ TypeCheckStmt::visit (HIR::LetStmt &stmt)
       // let x;
       else
 	{
-	  TypeCheckPattern::Resolve (
-	    &stmt_pattern,
-	    new TyTy::InferType (
-	      stmt_pattern.get_pattern_mappings ().get_hirid (),
-	      TyTy::InferType::InferTypeKind::GENERAL, stmt.get_locus ()));
+	  auto infer = new TyTy::InferType (
+	    stmt_pattern.get_pattern_mappings ().get_hirid (),
+	    TyTy::InferType::InferTypeKind::GENERAL,
+	    TyTy::InferType::TypeHint::Default (), stmt.get_locus ());
+	  TypeCheckPattern::Resolve (&stmt_pattern, infer);
 	}
     }
 }
@@ -147,10 +140,6 @@ TypeCheckStmt::visit (HIR::QualifiedPathInType &path)
 {
   infered = TypeCheckType::Resolve (&path);
 }
-
-void
-TypeCheckStmt::visit (HIR::ExportedMacro &path)
-{}
 
 void
 TypeCheckStmt::visit (HIR::TupleStruct &struct_decl)

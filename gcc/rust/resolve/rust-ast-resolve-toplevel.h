@@ -20,11 +20,8 @@
 #define RUST_AST_RESOLVE_TOPLEVEL_H
 
 #include "rust-ast-resolve-base.h"
-#include "rust-ast-resolve-type.h"
 #include "rust-ast-resolve-implitem.h"
-#include "rust-ast-full.h"
 #include "rust-name-resolver.h"
-#include "rust-session-manager.h"
 
 namespace Rust {
 namespace Resolver {
@@ -135,8 +132,11 @@ public:
 	rust_error_at (r, "redefined multiple times");
       });
 
+    resolver->push_new_module_scope (enum_decl.get_node_id ());
     for (auto &variant : enum_decl.get_variants ())
       ResolveTopLevel::go (variant.get (), path, cpath);
+
+    resolver->pop_module_scope ();
 
     NodeId current_module = resolver->peek_current_module_scope ();
     mappings->insert_module_child_item (current_module, decl);
@@ -159,6 +159,10 @@ public:
       });
 
     mappings->insert_canonical_path (item.get_node_id (), cpath);
+
+    NodeId current_module = resolver->peek_current_module_scope ();
+    mappings->insert_module_child_item (current_module, decl);
+    mappings->insert_module_child (current_module, item.get_node_id ());
   }
 
   void visit (AST::EnumItemTuple &item) override
@@ -177,6 +181,10 @@ public:
       });
 
     mappings->insert_canonical_path (item.get_node_id (), cpath);
+
+    NodeId current_module = resolver->peek_current_module_scope ();
+    mappings->insert_module_child_item (current_module, decl);
+    mappings->insert_module_child (current_module, item.get_node_id ());
   }
 
   void visit (AST::EnumItemStruct &item) override
@@ -195,6 +203,10 @@ public:
       });
 
     mappings->insert_canonical_path (item.get_node_id (), cpath);
+
+    NodeId current_module = resolver->peek_current_module_scope ();
+    mappings->insert_module_child_item (current_module, decl);
+    mappings->insert_module_child (current_module, item.get_node_id ());
   }
 
   void visit (AST::EnumItemDiscriminant &item) override
@@ -213,6 +225,10 @@ public:
       });
 
     mappings->insert_canonical_path (item.get_node_id (), cpath);
+
+    NodeId current_module = resolver->peek_current_module_scope ();
+    mappings->insert_module_child_item (current_module, decl);
+    mappings->insert_module_child (current_module, item.get_node_id ());
   }
 
   void visit (AST::StructStruct &struct_decl) override

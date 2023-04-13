@@ -186,6 +186,7 @@ HIRCompileBase::query_compile (HirId ref, TyTy::BaseType *lookup,
     = ctx->get_mappings ()->lookup_hir_extern_item (ref, &parent_block);
   bool is_hir_item = resolved_item != nullptr;
   bool is_hir_extern_item = resolved_extern_item != nullptr;
+  bool is_fn = lookup->get_kind () == TyTy::TypeKind::FNDEF;
   if (is_hir_item)
     {
       if (!lookup->has_subsititions_defined ())
@@ -206,23 +207,27 @@ HIRCompileBase::query_compile (HirId ref, TyTy::BaseType *lookup,
     }
   else
     {
+      if (is_fn)
+	{
+	  TyTy::FnType *fn = static_cast<TyTy::FnType *> (lookup);
+	  TyTy::BaseType *receiver = nullptr;
+
+	  if (fn->is_method ())
+	    {
+	      receiver = fn->get_self_type ();
+	      receiver = receiver->destructure ();
+
+	      return resolve_method_address (fn, ref, receiver, final_segment,
+					     mappings, expr_locus);
+	    }
+	}
+
       HirId parent_impl_id = UNKNOWN_HIRID;
       HIR::ImplItem *resolved_item
 	= ctx->get_mappings ()->lookup_hir_implitem (ref, &parent_impl_id);
       bool is_impl_item = resolved_item != nullptr;
       if (is_impl_item)
 	{
-	  rust_assert (parent_impl_id != UNKNOWN_HIRID);
-	  HIR::Item *impl_ref
-	    = ctx->get_mappings ()->lookup_hir_item (parent_impl_id);
-	  rust_assert (impl_ref != nullptr);
-	  HIR::ImplBlock *impl = static_cast<HIR::ImplBlock *> (impl_ref);
-
-	  TyTy::BaseType *self = nullptr;
-	  bool ok = ctx->get_tyctx ()->lookup_type (
-	    impl->get_type ()->get_mappings ().get_hirid (), &self);
-	  rust_assert (ok);
-
 	  if (!lookup->has_subsititions_defined ())
 	    return CompileInherentImplItem::Compile (resolved_item, ctx,
 						     nullptr, true, expr_locus);
@@ -248,12 +253,7 @@ HIRCompileBase::query_compile (HirId ref, TyTy::BaseType *lookup,
 	  ok = ctx->get_tyctx ()->lookup_receiver (mappings.get_hirid (),
 						   &receiver);
 	  rust_assert (ok);
-
-	  if (receiver->get_kind () == TyTy::TypeKind::PARAM)
-	    {
-	      TyTy::ParamType *p = static_cast<TyTy::ParamType *> (receiver);
-	      receiver = p->resolve ();
-	    }
+	  receiver = receiver->destructure ();
 
 	  // the type resolver can only resolve type bounds to their trait
 	  // item so its up to us to figure out if this path should resolve

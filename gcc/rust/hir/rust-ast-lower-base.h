@@ -143,8 +143,6 @@ public:
   virtual void visit (AST::ForLoopExpr &expr);
   virtual void visit (AST::IfExpr &expr);
   virtual void visit (AST::IfExprConseqElse &expr);
-  virtual void visit (AST::IfExprConseqIf &expr);
-  virtual void visit (AST::IfExprConseqIfLet &expr);
   virtual void visit (AST::IfLetExpr &expr);
   virtual void visit (AST::IfLetExprConseqElse &expr);
   virtual void visit (AST::IfLetExprConseqIf &expr);
@@ -318,6 +316,9 @@ protected:
   HIR::ExternBlock *lower_extern_block (AST::ExternBlock &extern_block);
 
   HIR::ClosureParam lower_closure_param (AST::ClosureParam &param);
+
+  /* Lower a macro definition if it should be exported */
+  void lower_macro_definition (AST::MacroRulesDefinition &def);
 };
 
 } // namespace HIR

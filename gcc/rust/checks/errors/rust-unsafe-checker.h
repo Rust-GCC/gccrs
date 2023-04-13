@@ -111,12 +111,8 @@ private:
   virtual void visit (ForLoopExpr &expr) override;
   virtual void visit (IfExpr &expr) override;
   virtual void visit (IfExprConseqElse &expr) override;
-  virtual void visit (IfExprConseqIf &expr) override;
-  virtual void visit (IfExprConseqIfLet &expr) override;
   virtual void visit (IfLetExpr &expr) override;
   virtual void visit (IfLetExprConseqElse &expr) override;
-  virtual void visit (IfLetExprConseqIf &expr) override;
-  virtual void visit (IfLetExprConseqIfLet &expr) override;
   virtual void visit (MatchExpr &expr) override;
   virtual void visit (AwaitExpr &expr) override;
   virtual void visit (AsyncBlockExpr &expr) override;
@@ -172,8 +168,7 @@ private:
   virtual void visit (AltPattern &pattern) override;
   virtual void visit (EmptyStmt &stmt) override;
   virtual void visit (LetStmt &stmt) override;
-  virtual void visit (ExprStmtWithoutBlock &stmt) override;
-  virtual void visit (ExprStmtWithBlock &stmt) override;
+  virtual void visit (ExprStmt &stmt) override;
   virtual void visit (TraitBound &bound) override;
   virtual void visit (ImplTraitType &type) override;
   virtual void visit (TraitObjectType &type) override;
@@ -187,7 +182,6 @@ private:
   virtual void visit (SliceType &type) override;
   virtual void visit (InferredType &type) override;
   virtual void visit (BareFunctionType &type) override;
-  virtual void visit (ExportedMacro &macro) override;
 };
 
 } // namespace HIR

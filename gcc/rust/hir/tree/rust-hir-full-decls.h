@@ -35,9 +35,6 @@ class Lifetime;
 class GenericParam;
 class LifetimeParam;
 
-// FIXME: ARTHUR: Move this somewhere else
-class ExportedMacro;
-
 class TraitItem;
 class ImplItem;
 struct Crate;
@@ -117,12 +114,8 @@ class WhileLetLoopExpr;
 class ForLoopExpr;
 class IfExpr;
 class IfExprConseqElse;
-class IfExprConseqIf;
 class IfLetExpr;
-class IfExprConseqIfLet;
 class IfLetExprConseqElse;
-class IfLetExprConseqIf;
-class IfLetExprConseqIfLet;
 struct MatchArm;
 // class MatchCase;
 // class MatchCaseBlockExpr;
@@ -136,8 +129,6 @@ class AsyncBlockExpr;
 class EmptyStmt;
 class LetStmt;
 class ExprStmt;
-class ExprStmtWithoutBlock;
-class ExprStmtWithBlock;
 
 // rust-item.h
 class TypeParam;

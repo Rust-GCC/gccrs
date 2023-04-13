@@ -136,12 +136,7 @@ public:
       }
   }
 
-  void visit (HIR::ExprStmtWithBlock &stmt) override
-  {
-    stmt.get_expr ()->accept_vis (*this);
-  }
-
-  void visit (HIR::ExprStmtWithoutBlock &stmt) override
+  void visit (HIR::ExprStmt &stmt) override
   {
     stmt.get_expr ()->accept_vis (*this);
   }
@@ -195,8 +190,6 @@ public:
   {
     dump += "ctor: " + type_string (expr.get_mappings ());
   }
-
-  void visit (HIR::ExportedMacro &) override {}
 
 protected:
   std::string type_string (const Analysis::NodeMapping &mappings)

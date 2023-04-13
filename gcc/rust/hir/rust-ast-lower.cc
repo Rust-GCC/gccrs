@@ -18,7 +18,7 @@
 
 #include "rust-ast-lower.h"
 #include "rust-ast-lower-item.h"
-#include "rust-ast-lower-implitem.h"
+#include "rust-ast-lower-stmt.h"
 #include "rust-ast-lower-expr.h"
 #include "rust-ast-lower-block.h"
 #include "rust-ast-lower-type.h"
@@ -72,7 +72,7 @@ ASTLowering::Resolve (AST::Crate &astCrate)
 std::unique_ptr<HIR::Crate>
 ASTLowering::go ()
 {
-  std::vector<std::unique_ptr<HIR::Item> > items;
+  std::vector<std::unique_ptr<HIR::Item>> items;
 
   for (auto it = astCrate.items.begin (); it != astCrate.items.end (); it++)
     {
@@ -95,14 +95,11 @@ ASTLowering::go ()
 void
 ASTLoweringBlock::visit (AST::BlockExpr &expr)
 {
-  std::vector<std::unique_ptr<HIR::Stmt> > block_stmts;
+  std::vector<std::unique_ptr<HIR::Stmt>> block_stmts;
   bool block_did_terminate = false;
 
   for (auto &s : expr.get_statements ())
     {
-      if (s->get_ast_kind () == AST::Kind::MACRO_RULES_DEFINITION)
-	continue;
-
       if (s->get_ast_kind () == AST::Kind::MACRO_INVOCATION)
 	rust_fatal_error (
 	  s->get_locus (),
@@ -115,8 +112,10 @@ ASTLoweringBlock::visit (AST::BlockExpr &expr)
 
       bool terminated = false;
       auto translated_stmt = ASTLoweringStmt::translate (s.get (), &terminated);
-      block_stmts.push_back (std::unique_ptr<HIR::Stmt> (translated_stmt));
       block_did_terminate |= terminated;
+
+      if (translated_stmt)
+	block_stmts.push_back (std::unique_ptr<HIR::Stmt> (translated_stmt));
     }
 
   if (expr.has_tail_expr () && block_did_terminate)
@@ -183,9 +182,9 @@ ASTLoweringIfBlock::visit (AST::IfExprConseqElse &expr)
   HIR::BlockExpr *if_block
     = ASTLoweringBlock::translate (expr.get_if_block ().get (),
 				   &if_block_terminated);
-  HIR::BlockExpr *else_block
-    = ASTLoweringBlock::translate (expr.get_else_block ().get (),
-				   &else_block_termianted);
+  HIR::ExprWithBlock *else_block
+    = ASTLoweringExprWithBlock::translate (expr.get_else_block ().get (),
+					   &else_block_termianted);
 
   terminated = if_block_terminated && else_block_termianted;
 
@@ -194,44 +193,16 @@ ASTLoweringIfBlock::visit (AST::IfExprConseqElse &expr)
 				 mappings->get_next_hir_id (crate_num),
 				 UNKNOWN_LOCAL_DEFID);
 
-  translated
-    = new HIR::IfExprConseqElse (mapping,
-				 std::unique_ptr<HIR::Expr> (condition),
-				 std::unique_ptr<HIR::BlockExpr> (if_block),
-				 std::unique_ptr<HIR::BlockExpr> (else_block),
-				 expr.get_locus ());
-}
-
-void
-ASTLoweringIfBlock::visit (AST::IfExprConseqIf &expr)
-{
-  HIR::Expr *condition
-    = ASTLoweringExpr::translate (expr.get_condition_expr ().get ());
-
-  bool ignored_terminated = false;
-  HIR::BlockExpr *block
-    = ASTLoweringBlock::translate (expr.get_if_block ().get (),
-				   &ignored_terminated);
-  HIR::IfExpr *conseq_if_expr
-    = ASTLoweringIfBlock::translate (expr.get_conseq_if_expr ().get (),
-				     &ignored_terminated);
-
-  auto crate_num = mappings->get_current_crate ();
-  Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
-				 mappings->get_next_hir_id (crate_num),
-				 UNKNOWN_LOCAL_DEFID);
-
-  translated
-    = new HIR::IfExprConseqIf (mapping, std::unique_ptr<HIR::Expr> (condition),
-			       std::unique_ptr<HIR::BlockExpr> (block),
-			       std::unique_ptr<HIR::IfExpr> (conseq_if_expr),
-			       expr.get_locus ());
+  translated = new HIR::IfExprConseqElse (
+    mapping, std::unique_ptr<HIR::Expr> (condition),
+    std::unique_ptr<HIR::BlockExpr> (if_block),
+    std::unique_ptr<HIR::ExprWithBlock> (else_block), expr.get_locus ());
 }
 
 void
 ASTLoweringIfLetBlock::visit (AST::IfLetExpr &expr)
 {
-  std::vector<std::unique_ptr<HIR::Pattern> > patterns;
+  std::vector<std::unique_ptr<HIR::Pattern>> patterns;
   for (auto &pattern : expr.get_patterns ())
     {
       HIR::Pattern *ptrn = ASTLoweringPattern::translate (pattern.get ());
@@ -373,7 +344,7 @@ ASTLoweringExprWithBlock::visit (AST::MatchExpr &expr)
 	    match_case.get_arm ().get_guard_expr ().get ());
 	}
 
-      std::vector<std::unique_ptr<HIR::Pattern> > match_arm_patterns;
+      std::vector<std::unique_ptr<HIR::Pattern>> match_arm_patterns;
       for (auto &pattern : match_case.get_arm ().get_patterns ())
 	{
 	  HIR::Pattern *ptrn = ASTLoweringPattern::translate (pattern.get ());
