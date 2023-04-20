@@ -237,7 +237,9 @@ SubstMapperInternal::visit (TyTy::ParamType &type)
 void
 SubstMapperInternal::visit (TyTy::PlaceholderType &type)
 {
-  rust_assert (type.can_resolve ());
+  if (!type.can_resolve ())
+    return;
+
   if (mappings.trait_item_mode ())
     {
       resolved = type.resolve ();
