@@ -3301,13 +3301,17 @@ file_exists (const std::string path)
 }
 
 static std::string
-filename_from_path_attribute (std::vector<Attribute> &outer_attrs)
+filename_from_path_attribute (std::vector<Attribute> &inner_attrs)
 {
-  // An out-of-line module cannot have inner attributes. Additionally, the
+  // An out-of-line module cannot have outer attributes. Additionally, the
   // default name is specified as `""` so that the caller can detect the case
   // of "no path given" and use the default path logic (`name.rs` or
   // `name/mod.rs`).
-  return extract_module_path ({}, outer_attrs, "");
+
+  // NOTE: inner attributes here refer to "#[" attributes
+  // outer attributes refer to "#![" attributes (they point outward)
+  // terminology is probably confused
+  return extract_module_path (inner_attrs, {}, "");
 }
 
 void
