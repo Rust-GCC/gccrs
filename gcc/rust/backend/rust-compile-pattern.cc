@@ -26,8 +26,15 @@ namespace Rust {
 namespace Compile {
 
 void
-CompilePatternCaseLabelExpr::visit (HIR::PathInExpression &pattern)
+CompileMatchArmPattern::visit (HIR::PathInExpression &pattern)
 {
+  tree scrutinee_first_record_expr
+    = ctx->get_backend ()->struct_field_expression (compiled_scrutinee, 0,
+						    scrutinee_locus);
+  tree match_scrutinee_expr_qualifier_expr
+    = ctx->get_backend ()->struct_field_expression (scrutinee_first_record_expr,
+						    0, scrutinee_locus);
+
   // lookup the type
   TyTy::BaseType *lookup = nullptr;
   bool ok
@@ -53,35 +60,32 @@ CompilePatternCaseLabelExpr::visit (HIR::PathInExpression &pattern)
   HIR::Expr *discrim_expr = variant->get_discriminant ();
   tree discrim_expr_node = CompileExpr::Compile (discrim_expr, ctx);
   tree folded_discrim_expr = fold_expr (discrim_expr_node);
-  tree case_low = folded_discrim_expr;
 
-  case_label_expr
-    = build_case_label (case_low, NULL_TREE, associated_case_label);
+  compiled_condition = ctx->get_backend ()->comparison_expression (
+    ComparisonOperator::EQUAL, folded_discrim_expr,
+    match_scrutinee_expr_qualifier_expr, pattern.get_locus ());
 }
 
 void
-CompilePatternCaseLabelExpr::visit (HIR::StructPattern &pattern)
+CompileMatchArmPattern::visit (HIR::StructPattern &pattern)
 {
-  CompilePatternCaseLabelExpr::visit (pattern.get_path ());
+  CompileMatchArmPattern::visit (pattern.get_path ());
 }
 
 void
-CompilePatternCaseLabelExpr::visit (HIR::TupleStructPattern &pattern)
+CompileMatchArmPattern::visit (HIR::TupleStructPattern &pattern)
 {
-  CompilePatternCaseLabelExpr::visit (pattern.get_path ());
+  CompileMatchArmPattern::visit (pattern.get_path ());
 }
 
 void
-CompilePatternCaseLabelExpr::visit (HIR::WildcardPattern &pattern)
+CompileMatchArmPattern::visit (HIR::WildcardPattern &pattern)
 {
-  // operand 0 being NULL_TREE signifies this is the default case label see:
-  // tree.def for documentation for CASE_LABEL_EXPR
-  case_label_expr
-    = build_case_label (NULL_TREE, NULL_TREE, associated_case_label);
+  compiled_condition = ctx->get_backend ()->boolean_constant_expression (true);
 }
 
 void
-CompilePatternCaseLabelExpr::visit (HIR::LiteralPattern &pattern)
+CompileMatchArmPattern::visit (HIR::LiteralPattern &pattern)
 {
   // Compile the literal
   HIR::LiteralExpr *litexpr
@@ -101,7 +105,67 @@ CompilePatternCaseLabelExpr::visit (HIR::LiteralPattern &pattern)
 
   tree lit = CompileExpr::Compile (litexpr, ctx);
 
-  case_label_expr = build_case_label (lit, NULL_TREE, associated_case_label);
+  compiled_condition
+    = ctx->get_backend ()->comparison_expression (ComparisonOperator::EQUAL,
+						  lit, compiled_scrutinee,
+						  pattern.get_locus ());
+}
+
+void
+CompileMatchArmPattern::visit (HIR::TuplePattern &pattern)
+{
+  TyTy::BaseType *tyty = nullptr;
+  if (!ctx->get_tyctx ()->lookup_type (
+	pattern.get_pattern_mappings ().get_hirid (), &tyty))
+    {
+      rust_fatal_error (pattern.get_locus (),
+			"did not resolve type for this TupleExpr");
+      return;
+    }
+
+  if (tyty->is_unit ())
+    {
+      tree compiled_pattern = ctx->get_backend ()->unit_expression ();
+      // FIXME: should we return a constant true here? assuming that the length
+      // is checked already,
+      //        then they're supposed to always match.
+      compiled_condition
+	= ctx->get_backend ()->comparison_expression (ComparisonOperator::EQUAL,
+						      compiled_pattern,
+						      compiled_scrutinee,
+						      pattern.get_locus ());
+      return;
+    }
+
+  tree tuple_type = TyTyResolveCompile::compile (ctx, tyty);
+  rust_assert (tuple_type != nullptr);
+
+  // this assumes all fields are in order from type resolution
+  std::vector<tree> vals;
+  if (pattern.get_items ()->get_pattern_type ()
+      == HIR::TuplePatternItems::TuplePatternItemType::MULTIPLE)
+    {
+      auto &items
+	= static_cast<HIR::TuplePatternItemsMultiple &> (*pattern.get_items ());
+      size_t tuple_elt_index = 0;
+      compiled_condition
+	= ctx->get_backend ()->boolean_constant_expression (true);
+      for (auto &tuple_elt : items.get_patterns ())
+	{
+	  tree match_tuple_elt
+	    = ctx->get_backend ()->struct_field_expression (compiled_scrutinee,
+							    tuple_elt_index,
+							    scrutinee_locus);
+	  tree new_condition
+	    = CompileMatchArmPattern::Compile (tuple_elt.get (),
+					       match_tuple_elt, ctx,
+					       scrutinee_locus);
+	  compiled_condition = ctx->get_backend ()->lazy_boolean_expression (
+	    LazyBooleanOperator::LOGICAL_AND, new_condition, compiled_condition,
+	    pattern.get_locus ());
+	  tuple_elt_index++;
+	}
+    }
 }
 
 static tree
@@ -150,7 +214,7 @@ compile_range_pattern_bound (HIR::RangePatternBound *bound,
 }
 
 void
-CompilePatternCaseLabelExpr::visit (HIR::RangePattern &pattern)
+CompileMatchArmPattern::visit (HIR::RangePattern &pattern)
 {
   tree upper = compile_range_pattern_bound (pattern.get_upper_bound ().get (),
 					    pattern.get_pattern_mappings (),
@@ -159,7 +223,16 @@ CompilePatternCaseLabelExpr::visit (HIR::RangePattern &pattern)
 					    pattern.get_pattern_mappings (),
 					    pattern.get_locus (), ctx);
 
-  case_label_expr = build_case_label (lower, upper, associated_case_label);
+  tree lower_condition = ctx->get_backend ()->comparison_expression (
+    ComparisonOperator::GREATER_OR_EQUAL, compiled_scrutinee, lower,
+    pattern.get_locus ());
+  tree upper_condition = ctx->get_backend ()->comparison_expression (
+    ComparisonOperator::LESS_OR_EQUAL, compiled_scrutinee, upper,
+    pattern.get_locus ());
+
+  compiled_condition = ctx->get_backend ()->lazy_boolean_expression (
+    LazyBooleanOperator::LOGICAL_AND, lower_condition, upper_condition,
+    pattern.get_locus ());
 }
 
 // setup the bindings

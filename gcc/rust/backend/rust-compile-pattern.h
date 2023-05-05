@@ -21,16 +21,18 @@
 namespace Rust {
 namespace Compile {
 
-class CompilePatternCaseLabelExpr : public HIRCompileBase,
-				    public HIR::HIRPatternVisitor
+// Compiles a match arm pattern and returns an expression for
+// comparison with the compiled expression for the new if statement
+class CompileMatchArmPattern : public HIRCompileBase,
+			       public HIR::HIRPatternVisitor
 {
 public:
-  static tree Compile (HIR::Pattern *pattern, tree associated_case_label,
-		       Context *ctx)
+  static tree Compile (HIR::Pattern *pattern, tree compiled_scrutinee,
+		       Context *ctx, Location scrutinee_locus)
   {
-    CompilePatternCaseLabelExpr compiler (ctx, associated_case_label);
+    CompileMatchArmPattern compiler (compiled_scrutinee, ctx, scrutinee_locus);
     pattern->accept_vis (compiler);
-    return compiler.case_label_expr;
+    return compiler.compiled_condition;
   }
 
   void visit (HIR::PathInExpression &pattern) override;
@@ -38,6 +40,8 @@ public:
   void visit (HIR::TupleStructPattern &pattern) override;
   void visit (HIR::WildcardPattern &pattern) override;
   void visit (HIR::RangePattern &pattern) override;
+  void visit (HIR::LiteralPattern &) override;
+  void visit (HIR::TuplePattern &) override;
 
   // unsupported
   void visit (HIR::AltPattern &pattern) override
@@ -48,19 +52,20 @@ public:
 
   // Empty visit for unused Pattern HIR nodes.
   void visit (HIR::IdentifierPattern &) override {}
-  void visit (HIR::LiteralPattern &) override;
   void visit (HIR::QualifiedPathInExpression &) override {}
   void visit (HIR::ReferencePattern &) override {}
   void visit (HIR::SlicePattern &) override {}
-  void visit (HIR::TuplePattern &) override {}
 
-  CompilePatternCaseLabelExpr (Context *ctx, tree associated_case_label)
-    : HIRCompileBase (ctx), case_label_expr (error_mark_node),
-      associated_case_label (associated_case_label)
+private:
+  CompileMatchArmPattern (tree compiled_scrutinee, Context *ctx,
+			  Location scrutinee_locus)
+    : HIRCompileBase (ctx), compiled_scrutinee (compiled_scrutinee),
+      compiled_condition (error_mark_node), scrutinee_locus (scrutinee_locus)
   {}
 
-  tree case_label_expr;
-  tree associated_case_label;
+  tree compiled_scrutinee;
+  tree compiled_condition;
+  Location scrutinee_locus;
 };
 
 class CompilePatternBindings : public HIRCompileBase,
