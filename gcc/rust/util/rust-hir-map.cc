@@ -868,6 +868,7 @@ Mappings::iterate_trait_items (
 void
 Mappings::insert_macro_def (AST::MacroRulesDefinition *macro)
 {
+  // HACK: Treat attribute macros like regular macros
   static std::map<
     std::string, std::function<AST::Fragment (Location, AST::MacroInvocData &)>>
     builtin_macros = {
@@ -881,8 +882,24 @@ Mappings::insert_macro_def (AST::MacroRulesDefinition *macro)
       {"compile_error", MacroBuiltin::compile_error_handler},
       {"concat", MacroBuiltin::concat_handler},
       {"env", MacroBuiltin::env_handler},
+      {"option_env", MacroBuiltin::option_env_handler},
       {"cfg", MacroBuiltin::cfg_handler},
+      {"cfg_accessible", MacroBuiltin::cfg_accessible_handler},
       {"include", MacroBuiltin::include_handler},
+      {"format_args", MacroBuiltin::format_args_handler},
+      {"format_args_nl", MacroBuiltin::format_args_nl_handler},
+      {"concat_idents", MacroBuiltin::concat_idents_handler},
+      {"module_path", MacroBuiltin::module_path_handler},
+      {"llvm_asm", MacroBuiltin::llvm_asm_handler},
+      {"global_asm", MacroBuiltin::global_asm_handler},
+      {"log_syntax", MacroBuiltin::log_syntax_handler},
+      {"trace_macros", MacroBuiltin::trace_macros_handler},
+      {"test", MacroBuiltin::test_handler},
+      {"bench", MacroBuiltin::bench_handler},
+      {"test_case", MacroBuiltin::test_case_handler},
+      {"global_allocator", MacroBuiltin::global_allocator_handler},
+      {"RustcDecodable", MacroBuiltin::rustc_dec_handler},
+      {"RustcEncodable", MacroBuiltin::rustc_enc_handler},
     };
 
   auto outer_attrs = macro->get_outer_attrs ();

@@ -722,6 +722,14 @@ MacroBuiltin::env_handler (Location invoc_locus, AST::MacroInvocData &invoc)
 }
 
 AST::Fragment
+MacroBuiltin::option_env_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "option_env not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
 MacroBuiltin::cfg_handler (Location invoc_locus, AST::MacroInvocData &invoc)
 {
   // only parse if not already parsed
@@ -758,6 +766,14 @@ MacroBuiltin::cfg_handler (Location invoc_locus, AST::MacroInvocData &invoc)
 
   // FIXME: Do not return an empty token vector here
   return AST::Fragment ({literal_exp}, std::move (tok));
+}
+
+AST::Fragment
+MacroBuiltin::cfg_accessible_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "cfg_accessible not supported");
+  return AST::Fragment::create_error ();
 }
 
 /* Expand builtin macro include!(), which includes a source file at the current
@@ -876,6 +892,118 @@ MacroBuiltin::stringify_handler (Location invoc_locus,
   auto token
     = make_token (Token::make_string (invoc_locus, std::move (content)));
   return AST::Fragment ({node}, std::move (token));
-} // namespace Rust
+}
+
+AST::Fragment
+MacroBuiltin::format_args_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "format_args not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::format_args_nl_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "format_args_nl not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::concat_idents_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "concat_idents not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::module_path_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "module_path not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::llvm_asm_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "llvm_asm not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::global_asm_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "global_asm not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::log_syntax_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "log_syntax not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::trace_macros_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "trace_macros not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::test_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "test not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::bench_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "bench not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::test_case_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "test_case not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::global_allocator_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "global_allocator not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::rustc_dec_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "RustcDecode not supported");
+  return AST::Fragment::create_error ();
+}
+
+AST::Fragment
+MacroBuiltin::rustc_enc_handler (Location invoc_locus, AST::MacroInvocData &invoc)
+{
+  // TODO
+  rust_sorry_at (invoc_locus, "RustcEncode not supported");
+  return AST::Fragment::create_error ();
+}
 
 } // namespace Rust

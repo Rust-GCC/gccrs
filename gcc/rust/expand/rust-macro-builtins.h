@@ -91,14 +91,62 @@ public:
   static AST::Fragment env_handler (Location invoc_locus,
 				    AST::MacroInvocData &invoc);
 
+  static AST::Fragment option_env_handler (Location invoc_locus,
+					   AST::MacroInvocData &invoc);
+
   static AST::Fragment cfg_handler (Location invoc_locus,
 				    AST::MacroInvocData &invoc);
+
+  static AST::Fragment cfg_accessible_handler (Location invoc_locus,
+					       AST::MacroInvocData &invoc);
 
   static AST::Fragment include_handler (Location invoc_locus,
 					AST::MacroInvocData &invoc);
 
   static AST::Fragment line_handler (Location invoc_locus,
 				     AST::MacroInvocData &invoc);
+
+  static AST::Fragment format_args_handler (Location invoc_locus,
+					    AST::MacroInvocData &invoc);
+
+  static AST::Fragment format_args_nl_handler (Location invoc_locus,
+					       AST::MacroInvocData &invoc);
+
+  static AST::Fragment concat_idents_handler (Location invoc_locus,
+					      AST::MacroInvocData &invoc);
+
+  static AST::Fragment module_path_handler (Location invoc_locus,
+					    AST::MacroInvocData &invoc);
+
+  static AST::Fragment llvm_asm_handler (Location invoc_locus,
+					 AST::MacroInvocData &invoc);
+
+  static AST::Fragment global_asm_handler (Location invoc_locus,
+					   AST::MacroInvocData &invoc);
+
+  static AST::Fragment log_syntax_handler (Location invoc_locus,
+					   AST::MacroInvocData &invoc);
+
+  static AST::Fragment trace_macros_handler (Location invoc_locus,
+					     AST::MacroInvocData &invoc);
+
+  static AST::Fragment test_handler (Location invoc_locus,
+				     AST::MacroInvocData &invoc);
+
+  static AST::Fragment bench_handler (Location invoc_locus,
+				      AST::MacroInvocData &invoc);
+
+  static AST::Fragment test_case_handler (Location invoc_locus,
+					  AST::MacroInvocData &invoc);
+
+  static AST::Fragment global_allocator_handler (Location invoc_locus,
+						 AST::MacroInvocData &invoc);
+
+  static AST::Fragment rustc_dec_handler (Location invoc_locus,
+					  AST::MacroInvocData &invoc);
+
+  static AST::Fragment rustc_enc_handler (Location invoc_locus,
+					  AST::MacroInvocData &invoc);
 };
 } // namespace Rust
 
