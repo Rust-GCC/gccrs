@@ -1216,6 +1216,9 @@ EarlyNameResolver::visit (AST::BareFunctionType &type)
   for (auto &param : type.get_function_params ())
     param.get_type ()->accept_vis (*this);
 
+  auto something = 15;
+  auto another = 14;
+
   if (type.has_return_type ())
     type.get_return_type ()->accept_vis (*this);
 }
