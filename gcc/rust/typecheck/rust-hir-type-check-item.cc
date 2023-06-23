@@ -73,6 +73,62 @@ TypeCheckItem::ResolveImplBlockSelf (HIR::ImplBlock &impl_block)
   return resolver.resolve_impl_block_self (impl_block);
 }
 
+TyTy::BaseType *
+TypeCheckItem::ResolveImplBlockSelfWithInference (
+  HIR::ImplBlock &impl, Location locus,
+  TyTy::SubstitutionArgumentMappings *infer_arguments)
+{
+  TypeCheckItem resolver;
+
+  bool failed_flag = false;
+  std::vector<TyTy::SubstitutionParamMapping> substitutions
+    = resolver.resolve_impl_block_substitutions (impl, failed_flag);
+  if (failed_flag)
+    {
+      return new TyTy::ErrorType (impl.get_mappings ().get_hirid ());
+    }
+
+  // now that we have the param mappings we need to query the self type
+  TyTy::BaseType *self = resolver.resolve_impl_block_self (impl);
+
+  // nothing to do
+  if (substitutions.empty () || self->is_concrete ())
+    return self;
+
+  // generate inference variables for the subst-param-mappings
+  std::vector<TyTy::SubstitutionArg> args;
+  for (auto &p : substitutions)
+    {
+      if (p.needs_substitution ())
+	{
+	  TyTy::TyVar infer_var = TyTy::TyVar::get_implicit_infer_var (locus);
+	  args.push_back (TyTy::SubstitutionArg (&p, infer_var.get_tyty ()));
+	}
+      else
+	{
+	  TyTy::ParamType *param = p.get_param_ty ();
+	  TyTy::BaseType *resolved = param->destructure ();
+	  args.push_back (TyTy::SubstitutionArg (&p, resolved));
+	}
+    }
+
+  // create argument mappings
+  *infer_arguments
+    = TyTy::SubstitutionArgumentMappings (std::move (args), {}, locus);
+
+  TyTy::BaseType *infer = SubstMapperInternal::Resolve (self, *infer_arguments);
+
+  // we only need to apply to the bounds manually on types which dont bind
+  // generics
+  if (!infer->has_subsititions_defined ())
+    {
+      for (auto &bound : infer->get_specified_bounds ())
+	bound.handle_substitions (*infer_arguments);
+    }
+
+  return infer;
+}
+
 void
 TypeCheckItem::visit (HIR::TypeAlias &alias)
 {

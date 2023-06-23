@@ -571,7 +571,10 @@ public:
     is_builtin_rule = true;
   }
 
-  Kind get_ast_kind () const override { return Kind::MACRO_RULES_DEFINITION; }
+  AST::Kind get_ast_kind () const override
+  {
+    return AST::Kind::MACRO_RULES_DEFINITION;
+  }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -670,7 +673,10 @@ public:
     return ExprWithoutBlock::get_node_id ();
   }
 
-  Kind get_ast_kind () const override { return Kind::MACRO_INVOCATION; }
+  AST::Kind get_ast_kind () const override
+  {
+    return AST::Kind::MACRO_INVOCATION;
+  }
 
   NodeId get_macro_node_id () const { return node_id; }
 
@@ -787,6 +793,8 @@ public:
     return new MacroInvocation (*this);
   }
 
+  void add_semicolon () override { is_semi_coloned = true; }
+
 protected:
   Item *clone_item_impl () const override
   {
@@ -808,15 +816,6 @@ protected:
   InherentImplItem *clone_inherent_impl_item_impl () const override
   {
     return clone_macro_invocation_impl ();
-  }
-
-  Expr *to_stmt () const override
-
-  {
-    auto new_impl = clone_macro_invocation_impl ();
-    new_impl->is_semi_coloned = true;
-
-    return new_impl;
   }
 };
 

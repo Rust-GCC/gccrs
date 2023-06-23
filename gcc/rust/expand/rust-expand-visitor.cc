@@ -97,14 +97,14 @@ get_traits_to_derive (AST::Attribute &attr)
 }
 
 static std::unique_ptr<AST::Item>
-builtin_derive_item (std::unique_ptr<AST::Item> &item,
-		     const AST::Attribute &derive, BuiltinMacro to_derive)
+builtin_derive_item (AST::Item &item, const AST::Attribute &derive,
+		     BuiltinMacro to_derive)
 {
-  return AST::DeriveVisitor::derive (*item, derive, to_derive);
+  return AST::DeriveVisitor::derive (item, derive, to_derive);
 }
 
 static std::vector<std::unique_ptr<AST::Item>>
-derive_item (std::unique_ptr<AST::Item> &item, const std::string &to_derive,
+derive_item (AST::Item &item, const std::string &to_derive,
 	     MacroExpander &expander)
 {
   std::vector<std::unique_ptr<AST::Item>> result;
@@ -127,8 +127,8 @@ derive_item (std::unique_ptr<AST::Item> &item, const std::string &to_derive,
 }
 
 static std::vector<std::unique_ptr<AST::Item>>
-expand_attribute (std::unique_ptr<AST::Item> &item, AST::SimplePath &name,
-		  MacroExpander &expander)
+expand_item_attribute (AST::Item &item, AST::SimplePath &name,
+		       MacroExpander &expander)
 {
   std::vector<std::unique_ptr<AST::Item>> result;
   auto frag = expander.expand_attribute_proc_macro (item, name);
@@ -147,6 +147,69 @@ expand_attribute (std::unique_ptr<AST::Item> &item, AST::SimplePath &name,
 	}
     }
   return result;
+}
+
+/* Helper function to expand a given attribute on a statement and collect back
+ * statements.
+ * T should be anything that can be used as a statement accepting outer
+ * attributes.
+ */
+template <typename T>
+static std::vector<std::unique_ptr<AST::Stmt>>
+expand_stmt_attribute (T &statement, AST::SimplePath &attribute,
+		       MacroExpander &expander)
+{
+  std::vector<std::unique_ptr<AST::Stmt>> result;
+  auto frag = expander.expand_attribute_proc_macro (statement, attribute);
+  if (!frag.is_error ())
+    {
+      for (auto &node : frag.get_nodes ())
+	{
+	  switch (node.get_kind ())
+	    {
+	    case AST::SingleASTNode::STMT:
+	      result.push_back (node.take_stmt ());
+	      break;
+	    default:
+	      gcc_unreachable ();
+	    }
+	}
+    }
+  return result;
+}
+
+void
+expand_tail_expr (AST::BlockExpr &block_expr, MacroExpander &expander)
+{
+  if (block_expr.has_tail_expr ())
+    {
+      auto tail = block_expr.take_tail_expr ();
+      auto attrs = tail->get_outer_attrs ();
+      bool changed = false;
+      for (auto it = attrs.begin (); it != attrs.end ();)
+	{
+	  auto current = *it;
+	  if (is_builtin (current))
+	    {
+	      it++;
+	    }
+	  else
+	    {
+	      it = attrs.erase (it);
+	      changed = true;
+	      auto new_stmts
+		= expand_stmt_attribute (block_expr, current.get_path (),
+					 expander);
+	      auto &stmts = block_expr.get_statements ();
+	      std::move (new_stmts.begin (), new_stmts.end (),
+			 std::inserter (stmts, stmts.end ()));
+	    }
+	}
+      if (changed)
+	block_expr.normalize_tail_expr ();
+      else
+	block_expr.set_tail_expr (std::move (tail));
+    }
 }
 
 void
@@ -179,7 +242,7 @@ ExpandVisitor::expand_inner_items (
 		      if (MacroBuiltin::builtins.is_iter_ok (maybe_builtin))
 			{
 			  auto new_item
-			    = builtin_derive_item (item, current,
+			    = builtin_derive_item (*item, current,
 						   maybe_builtin->second);
 			  // this inserts the derive *before* the item - is it a
 			  // problem?
@@ -188,7 +251,7 @@ ExpandVisitor::expand_inner_items (
 		      else
 			{
 			  auto new_items
-			    = derive_item (item, to_derive, expander);
+			    = derive_item (*item, to_derive, expander);
 			  std::move (new_items.begin (), new_items.end (),
 				     std::inserter (items, it));
 			}
@@ -204,8 +267,8 @@ ExpandVisitor::expand_inner_items (
 		    {
 		      attr_it = attrs.erase (attr_it);
 		      auto new_items
-			= expand_attribute (item, current.get_path (),
-					    expander);
+			= expand_item_attribute (*item, current.get_path (),
+						 expander);
 		      it = items.erase (it);
 		      std::move (new_items.begin (), new_items.end (),
 				 std::inserter (items, it));
@@ -229,37 +292,85 @@ ExpandVisitor::expand_inner_items (
 }
 
 void
-ExpandVisitor::expand_inner_stmts (
-  std::vector<std::unique_ptr<AST::Stmt>> &stmts)
+ExpandVisitor::expand_inner_stmts (AST::BlockExpr &expr)
 {
-  expander.push_context (MacroExpander::ContextType::BLOCK);
+  auto &stmts = expr.get_statements ();
+  expander.push_context (MacroExpander::ContextType::STMT);
 
   for (auto it = stmts.begin (); it != stmts.end (); it++)
     {
-      // TODO: Eventually we need to derive here as well
+      auto &stmt = *it;
 
-      // auto &stmt = *it;
+      // skip all non-item statements
+      if (stmt->get_stmt_kind () != AST::Stmt::Kind::Item)
+	continue;
 
-      // if (stmt->has_outer_attrs ())
-      // {
-      //   auto traits_to_derive
-      //     = get_traits_to_derive (stmt->get_outer_attrs ());
+      auto &item = static_cast<AST::Item &> (*stmt.get ());
 
-      //   // FIXME: This needs to be reworked absolutely
-      //   static const std::set<std::string> builtin_derives
-      //     = {"Clone", "Copy", "Eq", "PartialEq", "Ord", "PartialOrd"};
+      if (item.has_outer_attrs ())
+	{
+	  auto &attrs = item.get_outer_attrs ();
 
-      //   for (auto &to_derive : traits_to_derive)
-      //     if (builtin_derives.find (to_derive) != builtin_derives.end ())
-      //       {
-      // 	auto new_item = derive_item (
-      // 	  item, item->get_outer_attrs ()[0] /* FIXME: This is wrong */,
-      // 	  to_derive);
-      // 	// this inserts the derive *before* the item - is it a problem?
-      // 	it = items.insert (it, std::move (new_item));
-      //       }
-      // }
+	  for (auto attr_it = attrs.begin (); attr_it != attrs.end ();
+	       /* erase => No increment*/)
+	    {
+	      auto current = *attr_it;
+
+	      if (is_derive (current))
+		{
+		  attr_it = attrs.erase (attr_it);
+		  // Get traits to derive in the current attribute
+		  auto traits_to_derive = get_traits_to_derive (current);
+		  for (auto &to_derive : traits_to_derive)
+		    {
+		      auto maybe_builtin
+			= MacroBuiltin::builtins.lookup (to_derive);
+		      if (MacroBuiltin::builtins.is_iter_ok (maybe_builtin))
+			{
+			  auto new_item
+			    = builtin_derive_item (item, current,
+						   maybe_builtin->second);
+			  // this inserts the derive *before* the item - is it a
+			  // problem?
+			  it = stmts.insert (it, std::move (new_item));
+			}
+		      else
+			{
+			  auto new_items
+			    = derive_item (item, to_derive, expander);
+			  std::move (new_items.begin (), new_items.end (),
+				     std::inserter (stmts, it));
+			}
+		    }
+		}
+	      else /* Attribute */
+		{
+		  if (is_builtin (current))
+		    {
+		      attr_it++;
+		    }
+		  else
+		    {
+		      attr_it = attrs.erase (attr_it);
+		      auto new_items
+			= expand_stmt_attribute (item, current.get_path (),
+						 expander);
+		      it = stmts.erase (it);
+		      std::move (new_items.begin (), new_items.end (),
+				 std::inserter (stmts, it));
+		      // TODO: Improve this ?
+		      // item is invalid since it refers to now deleted,
+		      // cancel the loop increment and break.
+		      it--;
+		      break;
+		    }
+		}
+	    }
+	}
     }
+
+  if (!expr.has_tail_expr ())
+    expr.normalize_tail_expr ();
 
   std::function<std::unique_ptr<AST::Stmt> (AST::SingleASTNode)> extractor
     = [] (AST::SingleASTNode node) { return node.take_stmt (); };
@@ -272,10 +383,9 @@ ExpandVisitor::expand_inner_stmts (
 void
 ExpandVisitor::maybe_expand_expr (std::unique_ptr<AST::Expr> &expr)
 {
-  // FIXME: ARTHUR: Why isn't there a ContextType::EXPR? We can only
-  // reach `parse_expr` once in MacroExpander::transcribe_rule(), but it
-  // would make things clearer wouldn't it?
+  expander.push_context (MacroExpander::ContextType::EXPR);
   expr->accept_vis (*this);
+  expander.pop_context ();
 
   auto final_fragment = expander.take_expanded_fragment ();
   if (final_fragment.should_expand ()
@@ -730,14 +840,11 @@ ExpandVisitor::visit (AST::ClosureExprInner &expr)
 void
 ExpandVisitor::visit (AST::BlockExpr &expr)
 {
-  expand_inner_stmts (expr.get_statements ());
+  expand_inner_stmts (expr);
 
-  expander.push_context (MacroExpander::ContextType::BLOCK);
-
+  expand_tail_expr (expr, expander);
   if (expr.has_tail_expr ())
     maybe_expand_expr (expr.get_tail_expr ());
-
-  expander.pop_context ();
 }
 
 void
@@ -1438,7 +1545,7 @@ ExpandVisitor::visit (AST::LetStmt &stmt)
 void
 ExpandVisitor::visit (AST::ExprStmt &stmt)
 {
-  visit (stmt.get_expr ());
+  maybe_expand_expr (stmt.get_expr ());
 }
 
 void

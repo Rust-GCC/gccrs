@@ -48,6 +48,8 @@ public:
 
   bool is_item () const override final { return false; }
 
+  Stmt::Kind get_stmt_kind () final { return Stmt::Kind::Empty; }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -172,6 +174,7 @@ public:
   }
 
   bool is_item () const override final { return false; }
+  Stmt::Kind get_stmt_kind () final { return Stmt::Kind::Let; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -192,12 +195,20 @@ public:
   bool is_item () const override final { return false; }
 
   bool is_expr () const override final { return true; }
+
+  // Used for the last statement for statement macros with a trailing
+  // semicolon.
+  void add_semicolon () override final { semicolon_followed = true; }
+
   std::string as_string () const override;
+
+  Stmt::Kind get_stmt_kind () final { return Stmt::Kind::Expr; }
 
   std::vector<LetStmt *> locals;
 
-  ExprStmt (std::unique_ptr<Expr> expr, Location locus, bool semicolon_followed)
-    : expr (expr->to_stmt ()), locus (locus),
+  ExprStmt (std::unique_ptr<Expr> &&expr, Location locus,
+	    bool semicolon_followed)
+    : expr (std::move (expr)), locus (locus),
       semicolon_followed (semicolon_followed)
   {}
 

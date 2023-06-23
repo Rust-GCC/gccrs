@@ -414,12 +414,16 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
 	  bool found_impl_trait
 	    = context->lookup_associated_trait_impl (impl_block_id,
 						     &associated);
-	  TyTy::BaseType *impl_block_ty
-	    = TypeCheckItem::ResolveImplBlockSelf (*associated_impl_block);
 
-	  if (impl_block_ty->needs_generic_substitutions ())
-	    impl_block_ty
-	      = SubstMapper::InferSubst (impl_block_ty, seg.get_locus ());
+	  auto mappings = TyTy::SubstitutionArgumentMappings::error ();
+	  TyTy::BaseType *impl_block_ty
+	    = TypeCheckItem::ResolveImplBlockSelfWithInference (
+	      *associated_impl_block, seg.get_locus (), &mappings);
+
+	  // we need to apply the arguments to the segment type so they get
+	  // unified properly
+	  if (!mappings.is_error ())
+	    tyseg = SubstMapperInternal::Resolve (tyseg, mappings);
 
 	  prev_segment = unify_site (seg.get_mappings ().get_hirid (),
 				     TyTy::TyWithLocation (prev_segment),
@@ -427,32 +431,22 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
 				     seg.get_locus ());
 	  bool ok = prev_segment->get_kind () != TyTy::TypeKind::ERROR;
 	  if (!ok)
-	    {
-	      return;
-	    }
+	    return;
 
 	  if (found_impl_trait)
 	    {
 	      // we need to setup with apropriate bounds
 	      HIR::TypePath &bound_path
 		= *associated->get_impl_block ()->get_trait_ref ().get ();
+	      const auto &trait_ref = *TraitResolver::Resolve (bound_path);
+	      rust_assert (!trait_ref.is_error ());
 
-	      // generate an implicit HIR Type we can apply to the predicate
-	      HirId implicit_id = mappings->get_next_hir_id ();
-	      context->insert_implicit_type (implicit_id, impl_block_ty);
-
-	      Analysis::NodeMapping mappings (expr_mappings.get_crate_num (),
-					      expr_mappings.get_nodeid (),
-					      implicit_id,
-					      expr_mappings.get_local_defid ());
-	      HIR::TypePath *implicit_self_bound
-		= new HIR::TypePath (mappings, {},
-				     Linemap::predeclared_location (), false);
-
-	      TyTy::TypeBoundPredicate predicate
-		= get_predicate_from_bound (bound_path, implicit_self_bound);
-	      impl_block_ty
-		= associated->setup_associated_types (prev_segment, predicate);
+	      const auto &predicate
+		= impl_block_ty->lookup_predicate (trait_ref.get_defid ());
+	      if (!predicate.is_error ())
+		impl_block_ty
+		  = associated->setup_associated_types (prev_segment,
+							predicate);
 	    }
 	}
 

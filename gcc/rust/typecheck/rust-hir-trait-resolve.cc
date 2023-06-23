@@ -400,6 +400,36 @@ TraitItemReference::associated_type_reset (bool only_projections) const
     }
 }
 
+void
+AssociatedImplTrait::setup_raw_associated_types ()
+{
+  auto &impl_items = impl->get_impl_items ();
+  for (auto &impl_item : impl_items)
+    {
+      bool is_type_alias = impl_item->get_impl_item_type ()
+			   == HIR::ImplItem::ImplItemType::TYPE_ALIAS;
+      if (!is_type_alias)
+	continue;
+
+      HIR::TypeAlias &type = *static_cast<HIR::TypeAlias *> (impl_item.get ());
+
+      TraitItemReference *resolved_trait_item = nullptr;
+      bool ok = trait->lookup_trait_item (type.get_new_type_name (),
+					  &resolved_trait_item);
+      if (!ok)
+	continue;
+      if (resolved_trait_item->get_trait_item_type ()
+	  != TraitItemReference::TraitItemType::TYPE)
+	continue;
+
+      TyTy::BaseType *lookup;
+      ok = context->lookup_type (type.get_mappings ().get_hirid (), &lookup);
+      rust_assert (ok);
+
+      resolved_trait_item->associated_type_set (lookup);
+    }
+}
+
 TyTy::BaseType *
 AssociatedImplTrait::setup_associated_types (
   const TyTy::BaseType *self, const TyTy::TypeBoundPredicate &bound)
@@ -483,11 +513,9 @@ AssociatedImplTrait::setup_associated_types (
 	? SubstMapperInternal::Resolve (associated_self, infer_arguments)
 	: associated_self;
 
-  // FIXME this needs to do a lookup for the trait-reference DefId instead of
-  // assuming its the first one in the list
-  rust_assert (associated_self->num_specified_bounds () > 0);
-  TyTy::TypeBoundPredicate &impl_predicate
-    = associated_self->get_specified_bounds ().at (0);
+  const TyTy::TypeBoundPredicate &impl_predicate
+    = associated_self->lookup_predicate (bound.get_id ());
+  rust_assert (!impl_predicate.is_error ());
 
   // infer the arguments on the predicate
   std::vector<TyTy::BaseType *> impl_trait_predicate_args;

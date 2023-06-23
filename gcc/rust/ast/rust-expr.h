@@ -2487,8 +2487,23 @@ public:
     return expr;
   }
 
+  std::unique_ptr<Expr> take_tail_expr ()
+  {
+    rust_assert (has_tail_expr ());
+    return std::move (expr);
+  }
+
+  void set_tail_expr (std::unique_ptr<Expr> expr)
+  {
+    this->expr = std::move (expr);
+  }
+
   // Removes the tail expression from the block.
-  void strip_tail_expr ();
+  void strip_tail_expr () { expr = nullptr; }
+  // Normalizes a trailing statement without a semicolon to a tail expression.
+  void normalize_tail_expr ();
+
+  void try_convert_last_stmt ();
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
   std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
