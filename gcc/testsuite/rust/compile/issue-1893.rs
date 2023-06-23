@@ -1,3 +1,4 @@
+// { dg-additional-options "-frust-compile-until=nameresolution" }
 pub enum Option<T> {
     None,
     Some(T),
@@ -9,8 +10,10 @@ pub enum Result<T, E> {
 }
 
 pub trait TryFrom<T> {
+    /// The type returned in the event of a conversion error.
     type Error;
 
+    /// Performs the conversion.
     fn try_from(value: T) -> Result<Self, Self::Error>;
 }
 

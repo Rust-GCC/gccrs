@@ -78,8 +78,7 @@ MacroExpander::expand_decl_macro (Location invoc_locus,
 
   // find matching arm
   AST::MacroRule *matched_rule = nullptr;
-  std::map<std::string, std::unique_ptr<MatchedFragmentContainer>>
-    matched_fragments;
+  std::map<std::string, MatchedFragmentContainer> matched_fragments;
   for (auto &rule : rules_def.get_rules ())
     {
       sub_stack.push ();
@@ -110,13 +109,8 @@ MacroExpander::expand_decl_macro (Location invoc_locus,
       return AST::Fragment::create_error ();
     }
 
-  std::map<std::string, MatchedFragmentContainer *> matched_fragments_ptr;
-
-  for (auto &ent : matched_fragments)
-    matched_fragments_ptr.emplace (ent.first, ent.second.get ());
-
-  return transcribe_rule (*matched_rule, invoc_token_tree,
-			  matched_fragments_ptr, semicolon, peek_context ());
+  return transcribe_rule (*matched_rule, invoc_token_tree, matched_fragments,
+			  semicolon, peek_context ());
 }
 
 void
@@ -700,6 +694,13 @@ MacroExpander::match_repetition (Parser<MacroInvocLexer> &parser,
       gcc_unreachable ();
     }
 
+  if (!res)
+    rust_error_at (rep.get_match_locus (),
+		   "invalid amount of matches for macro invocation. Expected "
+		   "between %s and %s, got %lu",
+		   lo_str.c_str (), hi_str.c_str (),
+		   (unsigned long) match_amount);
+
   rust_debug_loc (rep.get_match_locus (), "%s matched %lu times",
 		  res ? "successfully" : "unsuccessfully",
 		  (unsigned long) match_amount);
@@ -730,7 +731,7 @@ MacroExpander::match_repetition (Parser<MacroInvocLexer> &parser,
  * Helper function to refactor calling a parsing function 0 or more times
  */
 static AST::Fragment
-parse_many (Parser<MacroInvocLexer> &parser, TokenId delimiter,
+parse_many (Parser<MacroInvocLexer> &parser, TokenId &delimiter,
 	    std::function<AST::SingleASTNode ()> parse_fn)
 {
   auto &lexer = parser.get_token_source ();
@@ -842,22 +843,18 @@ transcribe_many_trait_impl_items (Parser<MacroInvocLexer> &parser,
  * @param delimiter Id of the token on which parsing should stop
  */
 static AST::Fragment
-transcribe_many_stmts (Parser<MacroInvocLexer> &parser, TokenId delimiter,
-		       bool semicolon)
+transcribe_many_stmts (Parser<MacroInvocLexer> &parser, TokenId &delimiter)
 {
   auto restrictions = ParseRestrictions ();
-  restrictions.allow_close_after_expr_stmt = true;
+  restrictions.consume_semi = false;
 
-  return parse_many (parser, delimiter,
-		     [&parser, restrictions, delimiter, semicolon] () {
-		       auto stmt = parser.parse_stmt (restrictions);
-		       if (semicolon && stmt
-			   && parser.peek_current_token ()->get_id ()
-				== delimiter)
-			 stmt->add_semicolon ();
-
-		       return AST::SingleASTNode (std::move (stmt));
-		     });
+  // FIXME: This is invalid! It needs to also handle cases where the macro
+  // transcriber is an expression, but since the macro call is followed by
+  // a semicolon, it's a valid ExprStmt
+  return parse_many (parser, delimiter, [&parser, restrictions] () {
+    auto stmt = parser.parse_stmt (restrictions);
+    return AST::SingleASTNode (std::move (stmt));
+  });
 }
 
 /**
@@ -901,6 +898,16 @@ transcribe_type (Parser<MacroInvocLexer> &parser)
 }
 
 static AST::Fragment
+transcribe_on_delimiter (Parser<MacroInvocLexer> &parser, bool semicolon,
+			 AST::DelimType delimiter, TokenId last_token_id)
+{
+  if (semicolon || delimiter == AST::DelimType::CURLY)
+    return transcribe_many_stmts (parser, last_token_id);
+  else
+    return transcribe_expression (parser);
+} // namespace Rust
+
+static AST::Fragment
 transcribe_context (MacroExpander::ContextType ctx,
 		    Parser<MacroInvocLexer> &parser, bool semicolon,
 		    AST::DelimType delimiter, TokenId last_token_id)
@@ -941,12 +948,9 @@ transcribe_context (MacroExpander::ContextType ctx,
     case MacroExpander::ContextType::TYPE:
       return transcribe_type (parser);
       break;
-    case MacroExpander::ContextType::STMT:
-      return transcribe_many_stmts (parser, last_token_id, semicolon);
-    case MacroExpander::ContextType::EXPR:
-      return transcribe_expression (parser);
     default:
-      gcc_unreachable ();
+      return transcribe_on_delimiter (parser, semicolon, delimiter,
+				      last_token_id);
     }
 }
 
@@ -967,7 +971,7 @@ tokens_to_str (std::vector<std::unique_ptr<AST::Token>> &tokens)
 AST::Fragment
 MacroExpander::transcribe_rule (
   AST::MacroRule &match_rule, AST::DelimTokenTree &invoc_token_tree,
-  std::map<std::string, MatchedFragmentContainer *> &matched_fragments,
+  std::map<std::string, MatchedFragmentContainer> &matched_fragments,
   bool semicolon, ContextType ctx)
 {
   // we can manipulate the token tree to substitute the dollar identifiers so
@@ -1110,7 +1114,7 @@ MacroExpander::parse_proc_macro_output (ProcMacro::TokenStream ts)
 	  nodes.push_back ({std::move (result)});
 	}
       break;
-    case ContextType::STMT:
+    case ContextType::BLOCK:
       while (lex.peek_token ()->get_id () != END_OF_FILE)
 	{
 	  auto result = parser.parse_stmt ();
@@ -1124,7 +1128,6 @@ MacroExpander::parse_proc_macro_output (ProcMacro::TokenStream ts)
     case ContextType::TRAIT_IMPL:
     case ContextType::EXTERN:
     case ContextType::TYPE:
-    case ContextType::EXPR:
     default:
       gcc_unreachable ();
     }
@@ -1133,46 +1136,6 @@ MacroExpander::parse_proc_macro_output (ProcMacro::TokenStream ts)
     return AST::Fragment::create_error ();
   else
     return {nodes, std::vector<std::unique_ptr<AST::Token>> ()};
-}
-
-MatchedFragment &
-MatchedFragmentContainer::get_single_fragment ()
-{
-  rust_assert (is_single_fragment ());
-
-  return static_cast<MatchedFragmentContainerMetaVar &> (*this).get_fragment ();
-}
-
-std::vector<std::unique_ptr<MatchedFragmentContainer>> &
-MatchedFragmentContainer::get_fragments ()
-{
-  rust_assert (!is_single_fragment ());
-
-  return static_cast<MatchedFragmentContainerRepetition &> (*this)
-    .get_fragments ();
-}
-
-void
-MatchedFragmentContainer::add_fragment (MatchedFragment fragment)
-{
-  rust_assert (!is_single_fragment ());
-
-  return static_cast<MatchedFragmentContainerRepetition &> (*this)
-    .add_fragment (fragment);
-}
-
-std::unique_ptr<MatchedFragmentContainer>
-MatchedFragmentContainer::zero ()
-{
-  return std::unique_ptr<MatchedFragmentContainer> (
-    new MatchedFragmentContainerRepetition ());
-}
-
-std::unique_ptr<MatchedFragmentContainer>
-MatchedFragmentContainer::metavar (MatchedFragment fragment)
-{
-  return std::unique_ptr<MatchedFragmentContainer> (
-    new MatchedFragmentContainerMetaVar (fragment));
 }
 
 } // namespace Rust

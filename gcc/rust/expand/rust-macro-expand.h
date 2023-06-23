@@ -90,64 +90,26 @@ public:
     Repetition,
   };
 
-  virtual Kind get_kind () const = 0;
-
-  virtual std::string as_string () const = 0;
+  MatchedFragmentContainer (std::vector<MatchedFragment> fragments,
+			    Kind kind = Kind::Repetition)
+    : fragments (fragments), kind (kind)
+  {}
 
   /**
    * Create a valid fragment matched zero times. This is useful for repetitions
    * which allow the absence of a fragment, such as * and ?
    */
-  static std::unique_ptr<MatchedFragmentContainer> zero ();
+  static MatchedFragmentContainer zero ()
+  {
+    return MatchedFragmentContainer ({});
+  }
 
   /**
    * Create a valid fragment matched one time
    */
-  static std::unique_ptr<MatchedFragmentContainer>
-  metavar (MatchedFragment fragment);
-
-  /**
-   * Add a matched fragment to the container
-   */
-  void add_fragment (MatchedFragment fragment);
-
-  // const std::string &get_fragment_name () const { return fragment_name; }
-
-  bool is_single_fragment () const { return get_kind () == Kind::MetaVar; }
-
-  MatchedFragment &get_single_fragment ();
-
-  std::vector<std::unique_ptr<MatchedFragmentContainer>> &get_fragments ();
-};
-
-class MatchedFragmentContainerMetaVar : public MatchedFragmentContainer
-{
-  MatchedFragment fragment;
-
-public:
-  MatchedFragmentContainerMetaVar (const MatchedFragment &fragment)
-    : fragment (fragment)
-  {}
-
-  MatchedFragment &get_fragment () { return fragment; }
-
-  virtual Kind get_kind () const { return Kind::MetaVar; }
-
-  virtual std::string as_string () const { return fragment.as_string (); }
-};
-
-class MatchedFragmentContainerRepetition : public MatchedFragmentContainer
-{
-  std::vector<std::unique_ptr<MatchedFragmentContainer>> fragments;
-
-public:
-  MatchedFragmentContainerRepetition () {}
-
-  size_t get_match_amount () const { return fragments.size (); }
-
-  std::vector<std::unique_ptr<MatchedFragmentContainer>> &get_fragments ()
+  static MatchedFragmentContainer metavar (MatchedFragment fragment)
   {
-    return fragments;
+    return MatchedFragmentContainer ({fragment}, Kind::MetaVar);
   }
 
   /**
@@ -155,23 +117,39 @@ public:
    */
   void add_fragment (MatchedFragment fragment)
   {
-    fragments.emplace_back (metavar (fragment));
+    rust_assert (!is_single_fragment ());
+
+    fragments.emplace_back (fragment);
   }
 
-  virtual Kind get_kind () const { return Kind::Repetition; }
-
-  virtual std::string as_string () const
+  size_t get_match_amount () const { return fragments.size (); }
+  const std::vector<MatchedFragment> &get_fragments () const
   {
-    std::string acc = "[";
-    for (size_t i = 0; i < fragments.size (); i++)
-      {
-	if (i)
-	  acc += " ";
-	acc += fragments[i]->as_string ();
-      }
-    acc += "]";
-    return acc;
+    return fragments;
   }
+  // const std::string &get_fragment_name () const { return fragment_name; }
+
+  bool is_single_fragment () const
+  {
+    return get_match_amount () == 1 && kind == Kind::MetaVar;
+  }
+
+  const MatchedFragment get_single_fragment () const
+  {
+    rust_assert (is_single_fragment ());
+
+    return fragments[0];
+  }
+
+  const Kind &get_kind () const { return kind; }
+
+private:
+  /**
+   * Fragments matched `match_amount` times. This can be an empty vector
+   * in case having zero matches is allowed (i.e ? or * operators)
+   */
+  std::vector<MatchedFragment> fragments;
+  Kind kind;
 };
 
 class SubstitutionScope
@@ -181,14 +159,14 @@ public:
 
   void push () { stack.push_back ({}); }
 
-  std::map<std::string, std::unique_ptr<MatchedFragmentContainer>> pop ()
+  std::map<std::string, MatchedFragmentContainer> pop ()
   {
-    auto top = std::move (stack.back ());
+    auto top = stack.back ();
     stack.pop_back ();
     return top;
   }
 
-  std::map<std::string, std::unique_ptr<MatchedFragmentContainer>> &peek ()
+  std::map<std::string, MatchedFragmentContainer> &peek ()
   {
     return stack.back ();
   }
@@ -202,8 +180,8 @@ public:
     auto it = current_map.find (fragment.fragment_ident);
 
     if (it == current_map.end ())
-      current_map.emplace (fragment.fragment_ident,
-			   MatchedFragmentContainer::metavar (fragment));
+      current_map.insert ({fragment.fragment_ident,
+			   MatchedFragmentContainer::metavar (fragment)});
     else
       gcc_unreachable ();
   }
@@ -218,28 +196,23 @@ public:
     auto it = current_map.find (fragment.fragment_ident);
 
     if (it == current_map.end ())
-      it = current_map
-	     .emplace (fragment.fragment_ident,
-		       std::unique_ptr<MatchedFragmentContainer> (
-			 new MatchedFragmentContainerRepetition ()))
-	     .first;
-
-    it->second->add_fragment (fragment);
+      current_map.insert (
+	{fragment.fragment_ident, MatchedFragmentContainer ({fragment})});
+    else
+      it->second.add_fragment (fragment);
   }
 
-  void insert_matches (std::string key,
-		       std::unique_ptr<MatchedFragmentContainer> matches)
+  void insert_matches (std::string key, MatchedFragmentContainer matches)
   {
     auto &current_map = stack.back ();
     auto it = current_map.find (key);
     rust_assert (it == current_map.end ());
 
-    current_map.emplace (std::move (key), std::move (matches));
+    current_map.insert ({key, matches});
   }
 
 private:
-  std::vector<std::map<std::string, std::unique_ptr<MatchedFragmentContainer>>>
-    stack;
+  std::vector<std::map<std::string, MatchedFragmentContainer>> stack;
 };
 
 // Object used to store shared data (between functions) for macro expansion.
@@ -248,8 +221,7 @@ struct MacroExpander
   enum class ContextType
   {
     ITEM,
-    STMT,
-    EXPR,
+    BLOCK,
     EXTERN,
     TYPE,
     TRAIT,
@@ -296,7 +268,7 @@ struct MacroExpander
 
   AST::Fragment transcribe_rule (
     AST::MacroRule &match_rule, AST::DelimTokenTree &invoc_token_tree,
-    std::map<std::string, MatchedFragmentContainer *> &matched_fragments,
+    std::map<std::string, MatchedFragmentContainer> &matched_fragments,
     bool semicolon, ContextType ctx);
 
   bool match_fragment (Parser<MacroInvocLexer> &parser,

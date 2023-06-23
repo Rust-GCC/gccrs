@@ -884,15 +884,6 @@ class MetaListNameValueStr;
 class Stmt : public Node
 {
 public:
-  enum class Kind
-  {
-    Empty,
-    Item,
-    Let,
-    Expr,
-    MacroInvocation,
-  };
-
   // Unique pointer custom clone function
   std::unique_ptr<Stmt> clone_stmt () const
   {
@@ -909,13 +900,9 @@ public:
   virtual bool is_marked_for_strip () const = 0;
   NodeId get_node_id () const { return node_id; }
 
-  virtual Kind get_stmt_kind () = 0;
-
-  // TODO: Can we remove these two?
   virtual bool is_item () const = 0;
-  virtual bool is_expr () const { return false; }
 
-  virtual void add_semicolon () {}
+  virtual bool is_expr () const { return false; }
 
 protected:
   Stmt () : node_id (Analysis::Mappings::get ()->get_next_node_id ()) {}
@@ -941,8 +928,6 @@ public:
   virtual void
   add_crate_name (std::vector<std::string> &names ATTRIBUTE_UNUSED) const
   {}
-
-  Stmt::Kind get_stmt_kind () final { return Stmt::Kind::Item; }
 
   // FIXME: ARTHUR: Is it okay to have removed that final? Is it *required*
   // behavior that we have items that can also be expressions?
@@ -1000,6 +985,8 @@ public:
   virtual void set_node_id (NodeId id) { node_id = id; }
 
   virtual std::vector<Attribute> &get_outer_attrs () = 0;
+
+  virtual Expr *to_stmt () const { return clone_expr_impl (); }
 
   // TODO: think of less hacky way to implement this kind of thing
   // Sets outer attributes.

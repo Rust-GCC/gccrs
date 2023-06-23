@@ -4223,15 +4223,15 @@ Attribute::is_parsed_to_meta_item () const
 }
 
 void
-BlockExpr::normalize_tail_expr ()
+BlockExpr::strip_tail_expr ()
 {
-  if (!expr)
+  if (expr)
     {
+      expr = nullptr;
+
       // HACK: try to turn the last statement into a tail expression
-      if (!statements.empty () && statements.back ()->is_expr ())
+      if (statements.size () && statements.back ()->is_expr ())
 	{
-	  // Watch out: This reference become invalid when the vector is
-	  // modified.
 	  auto &stmt = static_cast<ExprStmt &> (*statements.back ());
 
 	  if (!stmt.is_semicolon_followed ())

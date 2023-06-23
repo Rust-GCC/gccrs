@@ -168,14 +168,10 @@ SubstitutionParamMapping::override_context ()
 SubstitutionArg::SubstitutionArg (const SubstitutionParamMapping *param,
 				  BaseType *argument)
   : param (param), argument (argument)
-{
-  if (param != nullptr)
-    original_param = param->get_param_ty ();
-}
+{}
 
 SubstitutionArg::SubstitutionArg (const SubstitutionArg &other)
-  : param (other.param), original_param (other.original_param),
-    argument (other.argument)
+  : param (other.param), argument (other.argument)
 {}
 
 SubstitutionArg &
@@ -183,8 +179,6 @@ SubstitutionArg::operator= (const SubstitutionArg &other)
 {
   param = other.param;
   argument = other.argument;
-  original_param = other.original_param;
-
   return *this;
 }
 
@@ -204,12 +198,6 @@ const SubstitutionParamMapping *
 SubstitutionArg::get_param_mapping () const
 {
   return param;
-}
-
-const ParamType *
-SubstitutionArg::get_param_ty () const
-{
-  return original_param;
 }
 
 SubstitutionArg
@@ -239,7 +227,7 @@ SubstitutionArg::is_conrete () const
 std::string
 SubstitutionArg::as_string () const
 {
-  return original_param->as_string ()
+  return param->as_string ()
 	 + (argument != nullptr ? ":" + argument->as_string () : "");
 }
 
@@ -301,7 +289,9 @@ SubstitutionArgumentMappings::get_argument_for_symbol (
 {
   for (auto &mapping : mappings)
     {
-      const ParamType *p = mapping.get_param_ty ();
+      const SubstitutionParamMapping *param = mapping.get_param_mapping ();
+      const ParamType *p = param->get_param_ty ();
+
       if (p->get_symbol ().compare (param_to_find->get_symbol ()) == 0)
 	{
 	  *argument = mapping;

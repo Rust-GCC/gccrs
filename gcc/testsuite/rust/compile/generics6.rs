@@ -24,6 +24,8 @@ impl Foo<f32> {
 
 fn main() {
     let a: i32 = Foo::test(); // { dg-error "multiple applicable items in scope for: test" }
-    // { dg-error {Failed to resolve expression of function call} "" { target *-*-* } .-1 }
+    // { dg-error {failed to type resolve expression} "" { target *-*-* } .-1 }
+    // { dg-error {Failed to resolve expression of function call} "" { target *-*-* } .-2 }
+    // { duplicate _dg-error {failed to type resolve expression} "" { target *-*-* } .-3 }
 }
 

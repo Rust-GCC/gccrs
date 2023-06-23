@@ -87,8 +87,6 @@ public:
 
   const SubstitutionParamMapping *get_param_mapping () const;
 
-  const ParamType *get_param_ty () const;
-
   static SubstitutionArg error ();
 
   bool is_error () const;
@@ -99,7 +97,6 @@ public:
 
 private:
   const SubstitutionParamMapping *param;
-  const ParamType *original_param;
   BaseType *argument;
 };
 
