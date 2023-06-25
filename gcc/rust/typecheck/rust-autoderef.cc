@@ -334,7 +334,6 @@ AutoderefCycle::cycle (TyTy::BaseType *receiver)
 	return false;
 
       // try unsize
-
       Adjustment unsize = Adjuster::try_unsize_type (r);
       if (!unsize.is_error ())
 	{
@@ -347,6 +346,13 @@ AutoderefCycle::cycle (TyTy::BaseType *receiver)
 	    return true;
 
 	  adjustments.pop_back ();
+	}
+
+      bool is_ptr = receiver->get_kind () == TyTy::TypeKind::POINTER;
+      if (is_ptr)
+	{
+	  // deref of raw pointers is unsafe
+	  return false;
 	}
 
       Adjustment deref
