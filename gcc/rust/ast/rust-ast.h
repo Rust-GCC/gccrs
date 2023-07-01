@@ -49,6 +49,32 @@ public:
 
   bool empty () const { return ident.empty (); }
 
+  bool operator<(const Identifier &oth) const { return node_id < oth.node_id; }
+
+  bool operator<= (const Identifier &oth) const
+  {
+    return node_id <= oth.node_id;
+  }
+
+  bool operator> (const Identifier &oth) const { return node_id > oth.node_id; }
+
+  bool operator>= (const Identifier &oth) const
+  {
+    return node_id >= oth.node_id;
+  }
+
+  bool operator== (const Identifier &oth) const
+  {
+    return node_id == oth.node_id;
+  }
+
+  bool operator!= (const Identifier &oth) const
+  {
+    return node_id != oth.node_id;
+  }
+
+  friend std::hash<Rust::Identifier>;
+
 private:
   std::string ident;
   NodeId node_id;
@@ -1985,12 +2011,11 @@ class PathExpr : public ExprWithoutBlock
 } // namespace Rust
 
 namespace std {
-template <> struct less<Rust::Identifier>
+template <> struct hash<Rust::Identifier>
 {
-  bool operator() (const Rust::Identifier &lhs,
-		   const Rust::Identifier &rhs) const
+  size_t operator() (const Rust::Identifier &ident) const
   {
-    return lhs.as_string () < rhs.as_string ();
+    return std::hash<Rust::NodeId> () (ident.node_id);
   }
 };
 } // namespace std
