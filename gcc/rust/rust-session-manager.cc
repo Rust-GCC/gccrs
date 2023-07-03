@@ -488,8 +488,8 @@ Session::compile_crate (const char *filename)
       dump_lex_stream.open (kLexDumpFile);
       if (dump_lex_stream.fail ())
 	{
-	  rust_error_at (Linemap::unknown_location (),
-			 "cannot open %s:%m; ignored", kLexDumpFile);
+	  rust_error_at (UNKNOWN_LOCATION, "cannot open %s:%m; ignored",
+			 kLexDumpFile);
 	}
       auto stream = Optional<std::ofstream &>::some (dump_lex_stream);
       dump_lex_opt = std::move (stream);
@@ -499,7 +499,7 @@ Session::compile_crate (const char *filename)
 
   if (!lex.input_source_is_valid_utf8 ())
     {
-      rust_error_at (Linemap::unknown_location (),
+      rust_error_at (UNKNOWN_LOCATION,
 		     "cannot read %s; stream did not contain valid UTF-8",
 		     filename);
       return;
@@ -801,8 +801,7 @@ Session::injection (AST::Crate &crate)
       // create "extern crate" item with the name
       std::unique_ptr<AST::ExternCrate> extern_crate (
 	new AST::ExternCrate (*it, AST::Visibility::create_error (),
-			      {std::move (attr)},
-			      Linemap::unknown_location ()));
+			      {std::move (attr)}, UNKNOWN_LOCATION));
 
       // insert at beginning
       // crate.items.insert (crate.items.begin (), std::move (extern_crate));
@@ -911,7 +910,7 @@ Session::dump_ast_pretty (AST::Crate &crate, bool expanded) const
 
   if (out.fail ())
     {
-      rust_error_at (Linemap::unknown_location (), "cannot open %s:%m; ignored",
+      rust_error_at (UNKNOWN_LOCATION, "cannot open %s:%m; ignored",
 		     kASTDumpFile);
       return;
     }
@@ -928,7 +927,7 @@ Session::dump_hir (HIR::Crate &crate) const
   out.open (kHIRDumpFile);
   if (out.fail ())
     {
-      rust_error_at (Linemap::unknown_location (), "cannot open %s:%m; ignored",
+      rust_error_at (UNKNOWN_LOCATION, "cannot open %s:%m; ignored",
 		     kHIRDumpFile);
       return;
     }
@@ -944,7 +943,7 @@ Session::dump_hir_pretty (HIR::Crate &crate) const
   out.open (kHIRPrettyDumpFile);
   if (out.fail ())
     {
-      rust_error_at (Linemap::unknown_location (), "cannot open %s:%m; ignored",
+      rust_error_at (UNKNOWN_LOCATION, "cannot open %s:%m; ignored",
 		     kHIRPrettyDumpFile);
       return;
     }
@@ -1036,7 +1035,7 @@ TargetOptions::dump_target_options () const
   out.open (kTargetOptionsDumpFile);
   if (out.fail ())
     {
-      rust_error_at (Linemap::unknown_location (), "cannot open %s:%m; ignored",
+      rust_error_at (UNKNOWN_LOCATION, "cannot open %s:%m; ignored",
 		     kTargetOptionsDumpFile);
       return;
     }
