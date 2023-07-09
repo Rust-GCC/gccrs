@@ -1829,7 +1829,7 @@ Lexer::parse_byte_string (Location loc)
     }
   else
     {
-      gcc_unreachable ();
+      rust_unreachable ();
     }
 
   str.shrink_to_fit ();
@@ -2059,7 +2059,7 @@ Lexer::parse_string (Location loc)
     }
   else
     {
-      gcc_unreachable ();
+      rust_unreachable ();
     }
 
   str.shrink_to_fit ();

@@ -112,7 +112,7 @@ TypeKindFormat::to_string (TypeKind kind)
     case TypeKind::ERROR:
       return "ERROR";
     }
-  gcc_unreachable ();
+  rust_unreachable ();
 }
 
 bool
@@ -671,7 +671,7 @@ BaseType::monomorphized_clone () const
       break;
     }
 
-  gcc_unreachable ();
+  rust_unreachable ();
   return nullptr;
 }
 
@@ -1405,7 +1405,7 @@ VariantDef::variant_type_string (VariantType type)
     case STRUCT:
       return "struct";
     }
-  gcc_unreachable ();
+  rust_unreachable ();
   return "";
 }
 
@@ -2278,7 +2278,7 @@ ClosureType::clone () const
 ClosureType *
 ClosureType::handle_substitions (SubstitutionArgumentMappings &mappings)
 {
-  gcc_unreachable ();
+  rust_unreachable ();
   return nullptr;
 }
 
@@ -2587,7 +2587,7 @@ IntType::as_string () const
     case I128:
       return "i128";
     }
-  gcc_unreachable ();
+  rust_unreachable ();
   return "__unknown_int_type";
 }
 
@@ -2674,7 +2674,7 @@ UintType::as_string () const
     case U128:
       return "u128";
     }
-  gcc_unreachable ();
+  rust_unreachable ();
   return "__unknown_uint_type";
 }
 
@@ -2755,7 +2755,7 @@ FloatType::as_string () const
     case F64:
       return "f64";
     }
-  gcc_unreachable ();
+  rust_unreachable ();
   return "__unknown_float_type";
 }
 
