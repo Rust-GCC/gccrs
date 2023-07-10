@@ -2385,8 +2385,8 @@ class BlockExpr : public ExprWithBlock
   std::vector<Attribute> inner_attrs;
   std::vector<std::unique_ptr<Stmt> > statements;
   std::unique_ptr<Expr> expr;
-  Location start_locus;
-  Location end_locus;
+  location_t start_locus;
+  location_t end_locus;
   bool marked_for_strip = false;
 
 public:
@@ -2401,8 +2401,8 @@ public:
   BlockExpr (std::vector<std::unique_ptr<Stmt> > block_statements,
 	     std::unique_ptr<Expr> block_expr,
 	     std::vector<Attribute> inner_attribs,
-	     std::vector<Attribute> outer_attribs, Location start_locus,
-	     Location end_locus)
+	     std::vector<Attribute> outer_attribs, location_t start_locus,
+	     location_t end_locus)
     : outer_attrs (std::move (outer_attribs)),
       inner_attrs (std::move (inner_attribs)),
       statements (std::move (block_statements)), expr (std::move (block_expr)),
@@ -2459,8 +2459,8 @@ public:
 
   Location get_locus () const override final { return start_locus; }
 
-  Location get_start_locus () const { return start_locus; }
-  Location get_end_locus () const { return end_locus; }
+  location_t get_start_locus () const { return start_locus; }
+  location_t get_end_locus () const { return end_locus; }
 
   void accept_vis (ASTVisitor &vis) override;
 
@@ -4585,7 +4585,7 @@ struct TupleClobber
 {
   // as gccrs still doesen't contain a symbol class I have put them as strings
   std::string symbol;
-  Location loc;
+  location_t loc;
 };
 
 struct TupleTemplateStr
@@ -4593,7 +4593,7 @@ struct TupleTemplateStr
   // as gccrs still doesen't contain a symbol class I have put them as strings
   std::string symbol;
   std::string optional_symbol;
-  Location loc;
+  location_t loc;
 };
 
 // Inline Assembly Node
@@ -4605,7 +4605,7 @@ public:
   std::vector<InlineAsmOperand> operands;
   TupleClobber clobber_abi;
   InlineAsmOptions options;
-  std::vector<Location> line_spans;
+  std::vector<location_t> line_spans;
 };
 
 } // namespace AST
