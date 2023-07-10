@@ -404,7 +404,7 @@ public:
 
   std::string as_string () const { return token_tree.as_string (); }
 
-  Location get_locus () const { return locus; }
+  location_t get_locus () const { return locus; }
 
   DelimTokenTree &get_token_tree () { return token_tree; }
   const DelimTokenTree &get_token_tree () const { return token_tree; }
@@ -436,7 +436,7 @@ public:
 		      locus);
   }
 
-  Location get_locus () const { return locus; }
+  location_t get_locus () const { return locus; }
 
   std::string as_string () const;
 
@@ -550,7 +550,7 @@ public:
   std::vector<MacroRule> &get_macro_rules () { return rules; }
   const std::vector<MacroRule> &get_macro_rules () const { return rules; }
 
-  Location get_locus () const override final { return locus; }
+  location_t get_locus () const override final { return locus; }
 
   Identifier get_rule_name () const { return rule_name; }
 
@@ -644,7 +644,7 @@ public:
 			   std::move (pending_eager_invocations)));
   }
 
-  Location get_locus () const override final { return locus; }
+  location_t get_locus () const override final { return locus; }
 
   void accept_vis (ASTVisitor &vis) override;
 
@@ -836,7 +836,7 @@ public:
     return path;
   }
 
-  Location get_locus () const override { return path.get_locus (); }
+  location_t get_locus () const override { return path.get_locus (); }
 
   bool check_cfg_predicate (const Session &session) const override;
 
@@ -894,7 +894,7 @@ public:
 
   void accept_vis (ASTVisitor &vis) override;
 
-  Location get_locus () const override { return path.get_locus (); }
+  location_t get_locus () const override { return path.get_locus (); }
 
   bool check_cfg_predicate (const Session &session) const override;
 
@@ -925,7 +925,7 @@ public:
 
   Identifier get_ident () const { return ident; }
 
-  Location get_locus () const override { return ident_locus; }
+  location_t get_locus () const override { return ident_locus; }
 
   bool check_cfg_predicate (const Session &session) const override;
 
@@ -969,7 +969,7 @@ public:
     return std::unique_ptr<MetaNameValueStr> (clone_meta_item_inner_impl ());
   }
 
-  Location get_locus () const override { return ident_locus; }
+  location_t get_locus () const override { return ident_locus; }
 
   bool check_cfg_predicate (const Session &session) const override;
 
@@ -1013,7 +1013,7 @@ public:
 
   std::vector<SimplePath> &get_paths () { return paths; };
 
-  Location get_locus () const override { return ident_locus; }
+  location_t get_locus () const override { return ident_locus; }
 
   bool check_cfg_predicate (const Session &session) const override;
 
@@ -1053,7 +1053,7 @@ public:
 
   std::vector<MetaNameValueStr> &get_values () { return strs; }
 
-  Location get_locus () const override { return ident_locus; }
+  location_t get_locus () const override { return ident_locus; }
 
   bool check_cfg_predicate (const Session &session) const override;
 
