@@ -1,0 +1,9598 @@
+// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+
+// This file is part of GCC.
+
+// GCC is free software; you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free
+// Software Foundation; either version 3, or (at your option) any later
+// version.
+
+// GCC is distributed in the hope that it will be useful, but WITHOUT ANY
+// WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+// for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with GCC; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
+
+#include "rust-optional.h"
+#include "rust-system.h"
+
+namespace Rust {
+
+std::pair<uint32_t, uint32_t> 
+decompose(uint32_t codepoint)
+{
+  switch(codepoint)
+  {
+  case 0xc0:
+    return {0x41, 0x300};
+  case 0xc1:
+    return {0x41, 0x301};
+  case 0xc2:
+    return {0x41, 0x302};
+  case 0xc3:
+    return {0x41, 0x303};
+  case 0xc4:
+    return {0x41, 0x308};
+  case 0xc5:
+    return {0x41, 0x30a};
+  case 0xc7:
+    return {0x43, 0x327};
+  case 0xc8:
+    return {0x45, 0x300};
+  case 0xc9:
+    return {0x45, 0x301};
+  case 0xca:
+    return {0x45, 0x302};
+  case 0xcb:
+    return {0x45, 0x308};
+  case 0xcc:
+    return {0x49, 0x300};
+  case 0xcd:
+    return {0x49, 0x301};
+  case 0xce:
+    return {0x49, 0x302};
+  case 0xcf:
+    return {0x49, 0x308};
+  case 0xd1:
+    return {0x4e, 0x303};
+  case 0xd2:
+    return {0x4f, 0x300};
+  case 0xd3:
+    return {0x4f, 0x301};
+  case 0xd4:
+    return {0x4f, 0x302};
+  case 0xd5:
+    return {0x4f, 0x303};
+  case 0xd6:
+    return {0x4f, 0x308};
+  case 0xd9:
+    return {0x55, 0x300};
+  case 0xda:
+    return {0x55, 0x301};
+  case 0xdb:
+    return {0x55, 0x302};
+  case 0xdc:
+    return {0x55, 0x308};
+  case 0xdd:
+    return {0x59, 0x301};
+  case 0xe0:
+    return {0x61, 0x300};
+  case 0xe1:
+    return {0x61, 0x301};
+  case 0xe2:
+    return {0x61, 0x302};
+  case 0xe3:
+    return {0x61, 0x303};
+  case 0xe4:
+    return {0x61, 0x308};
+  case 0xe5:
+    return {0x61, 0x30a};
+  case 0xe7:
+    return {0x63, 0x327};
+  case 0xe8:
+    return {0x65, 0x300};
+  case 0xe9:
+    return {0x65, 0x301};
+  case 0xea:
+    return {0x65, 0x302};
+  case 0xeb:
+    return {0x65, 0x308};
+  case 0xec:
+    return {0x69, 0x300};
+  case 0xed:
+    return {0x69, 0x301};
+  case 0xee:
+    return {0x69, 0x302};
+  case 0xef:
+    return {0x69, 0x308};
+  case 0xf1:
+    return {0x6e, 0x303};
+  case 0xf2:
+    return {0x6f, 0x300};
+  case 0xf3:
+    return {0x6f, 0x301};
+  case 0xf4:
+    return {0x6f, 0x302};
+  case 0xf5:
+    return {0x6f, 0x303};
+  case 0xf6:
+    return {0x6f, 0x308};
+  case 0xf9:
+    return {0x75, 0x300};
+  case 0xfa:
+    return {0x75, 0x301};
+  case 0xfb:
+    return {0x75, 0x302};
+  case 0xfc:
+    return {0x75, 0x308};
+  case 0xfd:
+    return {0x79, 0x301};
+  case 0xff:
+    return {0x79, 0x308};
+  case 0x100:
+    return {0x41, 0x304};
+  case 0x101:
+    return {0x61, 0x304};
+  case 0x102:
+    return {0x41, 0x306};
+  case 0x103:
+    return {0x61, 0x306};
+  case 0x104:
+    return {0x41, 0x328};
+  case 0x105:
+    return {0x61, 0x328};
+  case 0x106:
+    return {0x43, 0x301};
+  case 0x107:
+    return {0x63, 0x301};
+  case 0x108:
+    return {0x43, 0x302};
+  case 0x109:
+    return {0x63, 0x302};
+  case 0x10a:
+    return {0x43, 0x307};
+  case 0x10b:
+    return {0x63, 0x307};
+  case 0x10c:
+    return {0x43, 0x30c};
+  case 0x10d:
+    return {0x63, 0x30c};
+  case 0x10e:
+    return {0x44, 0x30c};
+  case 0x10f:
+    return {0x64, 0x30c};
+  case 0x112:
+    return {0x45, 0x304};
+  case 0x113:
+    return {0x65, 0x304};
+  case 0x114:
+    return {0x45, 0x306};
+  case 0x115:
+    return {0x65, 0x306};
+  case 0x116:
+    return {0x45, 0x307};
+  case 0x117:
+    return {0x65, 0x307};
+  case 0x118:
+    return {0x45, 0x328};
+  case 0x119:
+    return {0x65, 0x328};
+  case 0x11a:
+    return {0x45, 0x30c};
+  case 0x11b:
+    return {0x65, 0x30c};
+  case 0x11c:
+    return {0x47, 0x302};
+  case 0x11d:
+    return {0x67, 0x302};
+  case 0x11e:
+    return {0x47, 0x306};
+  case 0x11f:
+    return {0x67, 0x306};
+  case 0x120:
+    return {0x47, 0x307};
+  case 0x121:
+    return {0x67, 0x307};
+  case 0x122:
+    return {0x47, 0x327};
+  case 0x123:
+    return {0x67, 0x327};
+  case 0x124:
+    return {0x48, 0x302};
+  case 0x125:
+    return {0x68, 0x302};
+  case 0x128:
+    return {0x49, 0x303};
+  case 0x129:
+    return {0x69, 0x303};
+  case 0x12a:
+    return {0x49, 0x304};
+  case 0x12b:
+    return {0x69, 0x304};
+  case 0x12c:
+    return {0x49, 0x306};
+  case 0x12d:
+    return {0x69, 0x306};
+  case 0x12e:
+    return {0x49, 0x328};
+  case 0x12f:
+    return {0x69, 0x328};
+  case 0x130:
+    return {0x49, 0x307};
+  case 0x134:
+    return {0x4a, 0x302};
+  case 0x135:
+    return {0x6a, 0x302};
+  case 0x136:
+    return {0x4b, 0x327};
+  case 0x137:
+    return {0x6b, 0x327};
+  case 0x139:
+    return {0x4c, 0x301};
+  case 0x13a:
+    return {0x6c, 0x301};
+  case 0x13b:
+    return {0x4c, 0x327};
+  case 0x13c:
+    return {0x6c, 0x327};
+  case 0x13d:
+    return {0x4c, 0x30c};
+  case 0x13e:
+    return {0x6c, 0x30c};
+  case 0x143:
+    return {0x4e, 0x301};
+  case 0x144:
+    return {0x6e, 0x301};
+  case 0x145:
+    return {0x4e, 0x327};
+  case 0x146:
+    return {0x6e, 0x327};
+  case 0x147:
+    return {0x4e, 0x30c};
+  case 0x148:
+    return {0x6e, 0x30c};
+  case 0x14c:
+    return {0x4f, 0x304};
+  case 0x14d:
+    return {0x6f, 0x304};
+  case 0x14e:
+    return {0x4f, 0x306};
+  case 0x14f:
+    return {0x6f, 0x306};
+  case 0x150:
+    return {0x4f, 0x30b};
+  case 0x151:
+    return {0x6f, 0x30b};
+  case 0x154:
+    return {0x52, 0x301};
+  case 0x155:
+    return {0x72, 0x301};
+  case 0x156:
+    return {0x52, 0x327};
+  case 0x157:
+    return {0x72, 0x327};
+  case 0x158:
+    return {0x52, 0x30c};
+  case 0x159:
+    return {0x72, 0x30c};
+  case 0x15a:
+    return {0x53, 0x301};
+  case 0x15b:
+    return {0x73, 0x301};
+  case 0x15c:
+    return {0x53, 0x302};
+  case 0x15d:
+    return {0x73, 0x302};
+  case 0x15e:
+    return {0x53, 0x327};
+  case 0x15f:
+    return {0x73, 0x327};
+  case 0x160:
+    return {0x53, 0x30c};
+  case 0x161:
+    return {0x73, 0x30c};
+  case 0x162:
+    return {0x54, 0x327};
+  case 0x163:
+    return {0x74, 0x327};
+  case 0x164:
+    return {0x54, 0x30c};
+  case 0x165:
+    return {0x74, 0x30c};
+  case 0x168:
+    return {0x55, 0x303};
+  case 0x169:
+    return {0x75, 0x303};
+  case 0x16a:
+    return {0x55, 0x304};
+  case 0x16b:
+    return {0x75, 0x304};
+  case 0x16c:
+    return {0x55, 0x306};
+  case 0x16d:
+    return {0x75, 0x306};
+  case 0x16e:
+    return {0x55, 0x30a};
+  case 0x16f:
+    return {0x75, 0x30a};
+  case 0x170:
+    return {0x55, 0x30b};
+  case 0x171:
+    return {0x75, 0x30b};
+  case 0x172:
+    return {0x55, 0x328};
+  case 0x173:
+    return {0x75, 0x328};
+  case 0x174:
+    return {0x57, 0x302};
+  case 0x175:
+    return {0x77, 0x302};
+  case 0x176:
+    return {0x59, 0x302};
+  case 0x177:
+    return {0x79, 0x302};
+  case 0x178:
+    return {0x59, 0x308};
+  case 0x179:
+    return {0x5a, 0x301};
+  case 0x17a:
+    return {0x7a, 0x301};
+  case 0x17b:
+    return {0x5a, 0x307};
+  case 0x17c:
+    return {0x7a, 0x307};
+  case 0x17d:
+    return {0x5a, 0x30c};
+  case 0x17e:
+    return {0x7a, 0x30c};
+  case 0x1a0:
+    return {0x4f, 0x31b};
+  case 0x1a1:
+    return {0x6f, 0x31b};
+  case 0x1af:
+    return {0x55, 0x31b};
+  case 0x1b0:
+    return {0x75, 0x31b};
+  case 0x1cd:
+    return {0x41, 0x30c};
+  case 0x1ce:
+    return {0x61, 0x30c};
+  case 0x1cf:
+    return {0x49, 0x30c};
+  case 0x1d0:
+    return {0x69, 0x30c};
+  case 0x1d1:
+    return {0x4f, 0x30c};
+  case 0x1d2:
+    return {0x6f, 0x30c};
+  case 0x1d3:
+    return {0x55, 0x30c};
+  case 0x1d4:
+    return {0x75, 0x30c};
+  case 0x1d5:
+    return {0xdc, 0x304};
+  case 0x1d6:
+    return {0xfc, 0x304};
+  case 0x1d7:
+    return {0xdc, 0x301};
+  case 0x1d8:
+    return {0xfc, 0x301};
+  case 0x1d9:
+    return {0xdc, 0x30c};
+  case 0x1da:
+    return {0xfc, 0x30c};
+  case 0x1db:
+    return {0xdc, 0x300};
+  case 0x1dc:
+    return {0xfc, 0x300};
+  case 0x1de:
+    return {0xc4, 0x304};
+  case 0x1df:
+    return {0xe4, 0x304};
+  case 0x1e0:
+    return {0x226, 0x304};
+  case 0x1e1:
+    return {0x227, 0x304};
+  case 0x1e2:
+    return {0xc6, 0x304};
+  case 0x1e3:
+    return {0xe6, 0x304};
+  case 0x1e6:
+    return {0x47, 0x30c};
+  case 0x1e7:
+    return {0x67, 0x30c};
+  case 0x1e8:
+    return {0x4b, 0x30c};
+  case 0x1e9:
+    return {0x6b, 0x30c};
+  case 0x1ea:
+    return {0x4f, 0x328};
+  case 0x1eb:
+    return {0x6f, 0x328};
+  case 0x1ec:
+    return {0x1ea, 0x304};
+  case 0x1ed:
+    return {0x1eb, 0x304};
+  case 0x1ee:
+    return {0x1b7, 0x30c};
+  case 0x1ef:
+    return {0x292, 0x30c};
+  case 0x1f0:
+    return {0x6a, 0x30c};
+  case 0x1f4:
+    return {0x47, 0x301};
+  case 0x1f5:
+    return {0x67, 0x301};
+  case 0x1f8:
+    return {0x4e, 0x300};
+  case 0x1f9:
+    return {0x6e, 0x300};
+  case 0x1fa:
+    return {0xc5, 0x301};
+  case 0x1fb:
+    return {0xe5, 0x301};
+  case 0x1fc:
+    return {0xc6, 0x301};
+  case 0x1fd:
+    return {0xe6, 0x301};
+  case 0x1fe:
+    return {0xd8, 0x301};
+  case 0x1ff:
+    return {0xf8, 0x301};
+  case 0x200:
+    return {0x41, 0x30f};
+  case 0x201:
+    return {0x61, 0x30f};
+  case 0x202:
+    return {0x41, 0x311};
+  case 0x203:
+    return {0x61, 0x311};
+  case 0x204:
+    return {0x45, 0x30f};
+  case 0x205:
+    return {0x65, 0x30f};
+  case 0x206:
+    return {0x45, 0x311};
+  case 0x207:
+    return {0x65, 0x311};
+  case 0x208:
+    return {0x49, 0x30f};
+  case 0x209:
+    return {0x69, 0x30f};
+  case 0x20a:
+    return {0x49, 0x311};
+  case 0x20b:
+    return {0x69, 0x311};
+  case 0x20c:
+    return {0x4f, 0x30f};
+  case 0x20d:
+    return {0x6f, 0x30f};
+  case 0x20e:
+    return {0x4f, 0x311};
+  case 0x20f:
+    return {0x6f, 0x311};
+  case 0x210:
+    return {0x52, 0x30f};
+  case 0x211:
+    return {0x72, 0x30f};
+  case 0x212:
+    return {0x52, 0x311};
+  case 0x213:
+    return {0x72, 0x311};
+  case 0x214:
+    return {0x55, 0x30f};
+  case 0x215:
+    return {0x75, 0x30f};
+  case 0x216:
+    return {0x55, 0x311};
+  case 0x217:
+    return {0x75, 0x311};
+  case 0x218:
+    return {0x53, 0x326};
+  case 0x219:
+    return {0x73, 0x326};
+  case 0x21a:
+    return {0x54, 0x326};
+  case 0x21b:
+    return {0x74, 0x326};
+  case 0x21e:
+    return {0x48, 0x30c};
+  case 0x21f:
+    return {0x68, 0x30c};
+  case 0x226:
+    return {0x41, 0x307};
+  case 0x227:
+    return {0x61, 0x307};
+  case 0x228:
+    return {0x45, 0x327};
+  case 0x229:
+    return {0x65, 0x327};
+  case 0x22a:
+    return {0xd6, 0x304};
+  case 0x22b:
+    return {0xf6, 0x304};
+  case 0x22c:
+    return {0xd5, 0x304};
+  case 0x22d:
+    return {0xf5, 0x304};
+  case 0x22e:
+    return {0x4f, 0x307};
+  case 0x22f:
+    return {0x6f, 0x307};
+  case 0x230:
+    return {0x22e, 0x304};
+  case 0x231:
+    return {0x22f, 0x304};
+  case 0x232:
+    return {0x59, 0x304};
+  case 0x233:
+    return {0x79, 0x304};
+  case 0x340:
+    return {0x300, 0x0};
+  case 0x341:
+    return {0x301, 0x0};
+  case 0x343:
+    return {0x313, 0x0};
+  case 0x344:
+    return {0x308, 0x301};
+  case 0x374:
+    return {0x2b9, 0x0};
+  case 0x37e:
+    return {0x3b, 0x0};
+  case 0x385:
+    return {0xa8, 0x301};
+  case 0x386:
+    return {0x391, 0x301};
+  case 0x387:
+    return {0xb7, 0x0};
+  case 0x388:
+    return {0x395, 0x301};
+  case 0x389:
+    return {0x397, 0x301};
+  case 0x38a:
+    return {0x399, 0x301};
+  case 0x38c:
+    return {0x39f, 0x301};
+  case 0x38e:
+    return {0x3a5, 0x301};
+  case 0x38f:
+    return {0x3a9, 0x301};
+  case 0x390:
+    return {0x3ca, 0x301};
+  case 0x3aa:
+    return {0x399, 0x308};
+  case 0x3ab:
+    return {0x3a5, 0x308};
+  case 0x3ac:
+    return {0x3b1, 0x301};
+  case 0x3ad:
+    return {0x3b5, 0x301};
+  case 0x3ae:
+    return {0x3b7, 0x301};
+  case 0x3af:
+    return {0x3b9, 0x301};
+  case 0x3b0:
+    return {0x3cb, 0x301};
+  case 0x3ca:
+    return {0x3b9, 0x308};
+  case 0x3cb:
+    return {0x3c5, 0x308};
+  case 0x3cc:
+    return {0x3bf, 0x301};
+  case 0x3cd:
+    return {0x3c5, 0x301};
+  case 0x3ce:
+    return {0x3c9, 0x301};
+  case 0x3d3:
+    return {0x3d2, 0x301};
+  case 0x3d4:
+    return {0x3d2, 0x308};
+  case 0x400:
+    return {0x415, 0x300};
+  case 0x401:
+    return {0x415, 0x308};
+  case 0x403:
+    return {0x413, 0x301};
+  case 0x407:
+    return {0x406, 0x308};
+  case 0x40c:
+    return {0x41a, 0x301};
+  case 0x40d:
+    return {0x418, 0x300};
+  case 0x40e:
+    return {0x423, 0x306};
+  case 0x419:
+    return {0x418, 0x306};
+  case 0x439:
+    return {0x438, 0x306};
+  case 0x450:
+    return {0x435, 0x300};
+  case 0x451:
+    return {0x435, 0x308};
+  case 0x453:
+    return {0x433, 0x301};
+  case 0x457:
+    return {0x456, 0x308};
+  case 0x45c:
+    return {0x43a, 0x301};
+  case 0x45d:
+    return {0x438, 0x300};
+  case 0x45e:
+    return {0x443, 0x306};
+  case 0x476:
+    return {0x474, 0x30f};
+  case 0x477:
+    return {0x475, 0x30f};
+  case 0x4c1:
+    return {0x416, 0x306};
+  case 0x4c2:
+    return {0x436, 0x306};
+  case 0x4d0:
+    return {0x410, 0x306};
+  case 0x4d1:
+    return {0x430, 0x306};
+  case 0x4d2:
+    return {0x410, 0x308};
+  case 0x4d3:
+    return {0x430, 0x308};
+  case 0x4d6:
+    return {0x415, 0x306};
+  case 0x4d7:
+    return {0x435, 0x306};
+  case 0x4da:
+    return {0x4d8, 0x308};
+  case 0x4db:
+    return {0x4d9, 0x308};
+  case 0x4dc:
+    return {0x416, 0x308};
+  case 0x4dd:
+    return {0x436, 0x308};
+  case 0x4de:
+    return {0x417, 0x308};
+  case 0x4df:
+    return {0x437, 0x308};
+  case 0x4e2:
+    return {0x418, 0x304};
+  case 0x4e3:
+    return {0x438, 0x304};
+  case 0x4e4:
+    return {0x418, 0x308};
+  case 0x4e5:
+    return {0x438, 0x308};
+  case 0x4e6:
+    return {0x41e, 0x308};
+  case 0x4e7:
+    return {0x43e, 0x308};
+  case 0x4ea:
+    return {0x4e8, 0x308};
+  case 0x4eb:
+    return {0x4e9, 0x308};
+  case 0x4ec:
+    return {0x42d, 0x308};
+  case 0x4ed:
+    return {0x44d, 0x308};
+  case 0x4ee:
+    return {0x423, 0x304};
+  case 0x4ef:
+    return {0x443, 0x304};
+  case 0x4f0:
+    return {0x423, 0x308};
+  case 0x4f1:
+    return {0x443, 0x308};
+  case 0x4f2:
+    return {0x423, 0x30b};
+  case 0x4f3:
+    return {0x443, 0x30b};
+  case 0x4f4:
+    return {0x427, 0x308};
+  case 0x4f5:
+    return {0x447, 0x308};
+  case 0x4f8:
+    return {0x42b, 0x308};
+  case 0x4f9:
+    return {0x44b, 0x308};
+  case 0x622:
+    return {0x627, 0x653};
+  case 0x623:
+    return {0x627, 0x654};
+  case 0x624:
+    return {0x648, 0x654};
+  case 0x625:
+    return {0x627, 0x655};
+  case 0x626:
+    return {0x64a, 0x654};
+  case 0x6c0:
+    return {0x6d5, 0x654};
+  case 0x6c2:
+    return {0x6c1, 0x654};
+  case 0x6d3:
+    return {0x6d2, 0x654};
+  case 0x929:
+    return {0x928, 0x93c};
+  case 0x931:
+    return {0x930, 0x93c};
+  case 0x934:
+    return {0x933, 0x93c};
+  case 0x958:
+    return {0x915, 0x93c};
+  case 0x959:
+    return {0x916, 0x93c};
+  case 0x95a:
+    return {0x917, 0x93c};
+  case 0x95b:
+    return {0x91c, 0x93c};
+  case 0x95c:
+    return {0x921, 0x93c};
+  case 0x95d:
+    return {0x922, 0x93c};
+  case 0x95e:
+    return {0x92b, 0x93c};
+  case 0x95f:
+    return {0x92f, 0x93c};
+  case 0x9cb:
+    return {0x9c7, 0x9be};
+  case 0x9cc:
+    return {0x9c7, 0x9d7};
+  case 0x9dc:
+    return {0x9a1, 0x9bc};
+  case 0x9dd:
+    return {0x9a2, 0x9bc};
+  case 0x9df:
+    return {0x9af, 0x9bc};
+  case 0xa33:
+    return {0xa32, 0xa3c};
+  case 0xa36:
+    return {0xa38, 0xa3c};
+  case 0xa59:
+    return {0xa16, 0xa3c};
+  case 0xa5a:
+    return {0xa17, 0xa3c};
+  case 0xa5b:
+    return {0xa1c, 0xa3c};
+  case 0xa5e:
+    return {0xa2b, 0xa3c};
+  case 0xb48:
+    return {0xb47, 0xb56};
+  case 0xb4b:
+    return {0xb47, 0xb3e};
+  case 0xb4c:
+    return {0xb47, 0xb57};
+  case 0xb5c:
+    return {0xb21, 0xb3c};
+  case 0xb5d:
+    return {0xb22, 0xb3c};
+  case 0xb94:
+    return {0xb92, 0xbd7};
+  case 0xbca:
+    return {0xbc6, 0xbbe};
+  case 0xbcb:
+    return {0xbc7, 0xbbe};
+  case 0xbcc:
+    return {0xbc6, 0xbd7};
+  case 0xc48:
+    return {0xc46, 0xc56};
+  case 0xcc0:
+    return {0xcbf, 0xcd5};
+  case 0xcc7:
+    return {0xcc6, 0xcd5};
+  case 0xcc8:
+    return {0xcc6, 0xcd6};
+  case 0xcca:
+    return {0xcc6, 0xcc2};
+  case 0xccb:
+    return {0xcca, 0xcd5};
+  case 0xd4a:
+    return {0xd46, 0xd3e};
+  case 0xd4b:
+    return {0xd47, 0xd3e};
+  case 0xd4c:
+    return {0xd46, 0xd57};
+  case 0xdda:
+    return {0xdd9, 0xdca};
+  case 0xddc:
+    return {0xdd9, 0xdcf};
+  case 0xddd:
+    return {0xddc, 0xdca};
+  case 0xdde:
+    return {0xdd9, 0xddf};
+  case 0xf43:
+    return {0xf42, 0xfb7};
+  case 0xf4d:
+    return {0xf4c, 0xfb7};
+  case 0xf52:
+    return {0xf51, 0xfb7};
+  case 0xf57:
+    return {0xf56, 0xfb7};
+  case 0xf5c:
+    return {0xf5b, 0xfb7};
+  case 0xf69:
+    return {0xf40, 0xfb5};
+  case 0xf73:
+    return {0xf71, 0xf72};
+  case 0xf75:
+    return {0xf71, 0xf74};
+  case 0xf76:
+    return {0xfb2, 0xf80};
+  case 0xf78:
+    return {0xfb3, 0xf80};
+  case 0xf81:
+    return {0xf71, 0xf80};
+  case 0xf93:
+    return {0xf92, 0xfb7};
+  case 0xf9d:
+    return {0xf9c, 0xfb7};
+  case 0xfa2:
+    return {0xfa1, 0xfb7};
+  case 0xfa7:
+    return {0xfa6, 0xfb7};
+  case 0xfac:
+    return {0xfab, 0xfb7};
+  case 0xfb9:
+    return {0xf90, 0xfb5};
+  case 0x1026:
+    return {0x1025, 0x102e};
+  case 0x1b06:
+    return {0x1b05, 0x1b35};
+  case 0x1b08:
+    return {0x1b07, 0x1b35};
+  case 0x1b0a:
+    return {0x1b09, 0x1b35};
+  case 0x1b0c:
+    return {0x1b0b, 0x1b35};
+  case 0x1b0e:
+    return {0x1b0d, 0x1b35};
+  case 0x1b12:
+    return {0x1b11, 0x1b35};
+  case 0x1b3b:
+    return {0x1b3a, 0x1b35};
+  case 0x1b3d:
+    return {0x1b3c, 0x1b35};
+  case 0x1b40:
+    return {0x1b3e, 0x1b35};
+  case 0x1b41:
+    return {0x1b3f, 0x1b35};
+  case 0x1b43:
+    return {0x1b42, 0x1b35};
+  case 0x1e00:
+    return {0x41, 0x325};
+  case 0x1e01:
+    return {0x61, 0x325};
+  case 0x1e02:
+    return {0x42, 0x307};
+  case 0x1e03:
+    return {0x62, 0x307};
+  case 0x1e04:
+    return {0x42, 0x323};
+  case 0x1e05:
+    return {0x62, 0x323};
+  case 0x1e06:
+    return {0x42, 0x331};
+  case 0x1e07:
+    return {0x62, 0x331};
+  case 0x1e08:
+    return {0xc7, 0x301};
+  case 0x1e09:
+    return {0xe7, 0x301};
+  case 0x1e0a:
+    return {0x44, 0x307};
+  case 0x1e0b:
+    return {0x64, 0x307};
+  case 0x1e0c:
+    return {0x44, 0x323};
+  case 0x1e0d:
+    return {0x64, 0x323};
+  case 0x1e0e:
+    return {0x44, 0x331};
+  case 0x1e0f:
+    return {0x64, 0x331};
+  case 0x1e10:
+    return {0x44, 0x327};
+  case 0x1e11:
+    return {0x64, 0x327};
+  case 0x1e12:
+    return {0x44, 0x32d};
+  case 0x1e13:
+    return {0x64, 0x32d};
+  case 0x1e14:
+    return {0x112, 0x300};
+  case 0x1e15:
+    return {0x113, 0x300};
+  case 0x1e16:
+    return {0x112, 0x301};
+  case 0x1e17:
+    return {0x113, 0x301};
+  case 0x1e18:
+    return {0x45, 0x32d};
+  case 0x1e19:
+    return {0x65, 0x32d};
+  case 0x1e1a:
+    return {0x45, 0x330};
+  case 0x1e1b:
+    return {0x65, 0x330};
+  case 0x1e1c:
+    return {0x228, 0x306};
+  case 0x1e1d:
+    return {0x229, 0x306};
+  case 0x1e1e:
+    return {0x46, 0x307};
+  case 0x1e1f:
+    return {0x66, 0x307};
+  case 0x1e20:
+    return {0x47, 0x304};
+  case 0x1e21:
+    return {0x67, 0x304};
+  case 0x1e22:
+    return {0x48, 0x307};
+  case 0x1e23:
+    return {0x68, 0x307};
+  case 0x1e24:
+    return {0x48, 0x323};
+  case 0x1e25:
+    return {0x68, 0x323};
+  case 0x1e26:
+    return {0x48, 0x308};
+  case 0x1e27:
+    return {0x68, 0x308};
+  case 0x1e28:
+    return {0x48, 0x327};
+  case 0x1e29:
+    return {0x68, 0x327};
+  case 0x1e2a:
+    return {0x48, 0x32e};
+  case 0x1e2b:
+    return {0x68, 0x32e};
+  case 0x1e2c:
+    return {0x49, 0x330};
+  case 0x1e2d:
+    return {0x69, 0x330};
+  case 0x1e2e:
+    return {0xcf, 0x301};
+  case 0x1e2f:
+    return {0xef, 0x301};
+  case 0x1e30:
+    return {0x4b, 0x301};
+  case 0x1e31:
+    return {0x6b, 0x301};
+  case 0x1e32:
+    return {0x4b, 0x323};
+  case 0x1e33:
+    return {0x6b, 0x323};
+  case 0x1e34:
+    return {0x4b, 0x331};
+  case 0x1e35:
+    return {0x6b, 0x331};
+  case 0x1e36:
+    return {0x4c, 0x323};
+  case 0x1e37:
+    return {0x6c, 0x323};
+  case 0x1e38:
+    return {0x1e36, 0x304};
+  case 0x1e39:
+    return {0x1e37, 0x304};
+  case 0x1e3a:
+    return {0x4c, 0x331};
+  case 0x1e3b:
+    return {0x6c, 0x331};
+  case 0x1e3c:
+    return {0x4c, 0x32d};
+  case 0x1e3d:
+    return {0x6c, 0x32d};
+  case 0x1e3e:
+    return {0x4d, 0x301};
+  case 0x1e3f:
+    return {0x6d, 0x301};
+  case 0x1e40:
+    return {0x4d, 0x307};
+  case 0x1e41:
+    return {0x6d, 0x307};
+  case 0x1e42:
+    return {0x4d, 0x323};
+  case 0x1e43:
+    return {0x6d, 0x323};
+  case 0x1e44:
+    return {0x4e, 0x307};
+  case 0x1e45:
+    return {0x6e, 0x307};
+  case 0x1e46:
+    return {0x4e, 0x323};
+  case 0x1e47:
+    return {0x6e, 0x323};
+  case 0x1e48:
+    return {0x4e, 0x331};
+  case 0x1e49:
+    return {0x6e, 0x331};
+  case 0x1e4a:
+    return {0x4e, 0x32d};
+  case 0x1e4b:
+    return {0x6e, 0x32d};
+  case 0x1e4c:
+    return {0xd5, 0x301};
+  case 0x1e4d:
+    return {0xf5, 0x301};
+  case 0x1e4e:
+    return {0xd5, 0x308};
+  case 0x1e4f:
+    return {0xf5, 0x308};
+  case 0x1e50:
+    return {0x14c, 0x300};
+  case 0x1e51:
+    return {0x14d, 0x300};
+  case 0x1e52:
+    return {0x14c, 0x301};
+  case 0x1e53:
+    return {0x14d, 0x301};
+  case 0x1e54:
+    return {0x50, 0x301};
+  case 0x1e55:
+    return {0x70, 0x301};
+  case 0x1e56:
+    return {0x50, 0x307};
+  case 0x1e57:
+    return {0x70, 0x307};
+  case 0x1e58:
+    return {0x52, 0x307};
+  case 0x1e59:
+    return {0x72, 0x307};
+  case 0x1e5a:
+    return {0x52, 0x323};
+  case 0x1e5b:
+    return {0x72, 0x323};
+  case 0x1e5c:
+    return {0x1e5a, 0x304};
+  case 0x1e5d:
+    return {0x1e5b, 0x304};
+  case 0x1e5e:
+    return {0x52, 0x331};
+  case 0x1e5f:
+    return {0x72, 0x331};
+  case 0x1e60:
+    return {0x53, 0x307};
+  case 0x1e61:
+    return {0x73, 0x307};
+  case 0x1e62:
+    return {0x53, 0x323};
+  case 0x1e63:
+    return {0x73, 0x323};
+  case 0x1e64:
+    return {0x15a, 0x307};
+  case 0x1e65:
+    return {0x15b, 0x307};
+  case 0x1e66:
+    return {0x160, 0x307};
+  case 0x1e67:
+    return {0x161, 0x307};
+  case 0x1e68:
+    return {0x1e62, 0x307};
+  case 0x1e69:
+    return {0x1e63, 0x307};
+  case 0x1e6a:
+    return {0x54, 0x307};
+  case 0x1e6b:
+    return {0x74, 0x307};
+  case 0x1e6c:
+    return {0x54, 0x323};
+  case 0x1e6d:
+    return {0x74, 0x323};
+  case 0x1e6e:
+    return {0x54, 0x331};
+  case 0x1e6f:
+    return {0x74, 0x331};
+  case 0x1e70:
+    return {0x54, 0x32d};
+  case 0x1e71:
+    return {0x74, 0x32d};
+  case 0x1e72:
+    return {0x55, 0x324};
+  case 0x1e73:
+    return {0x75, 0x324};
+  case 0x1e74:
+    return {0x55, 0x330};
+  case 0x1e75:
+    return {0x75, 0x330};
+  case 0x1e76:
+    return {0x55, 0x32d};
+  case 0x1e77:
+    return {0x75, 0x32d};
+  case 0x1e78:
+    return {0x168, 0x301};
+  case 0x1e79:
+    return {0x169, 0x301};
+  case 0x1e7a:
+    return {0x16a, 0x308};
+  case 0x1e7b:
+    return {0x16b, 0x308};
+  case 0x1e7c:
+    return {0x56, 0x303};
+  case 0x1e7d:
+    return {0x76, 0x303};
+  case 0x1e7e:
+    return {0x56, 0x323};
+  case 0x1e7f:
+    return {0x76, 0x323};
+  case 0x1e80:
+    return {0x57, 0x300};
+  case 0x1e81:
+    return {0x77, 0x300};
+  case 0x1e82:
+    return {0x57, 0x301};
+  case 0x1e83:
+    return {0x77, 0x301};
+  case 0x1e84:
+    return {0x57, 0x308};
+  case 0x1e85:
+    return {0x77, 0x308};
+  case 0x1e86:
+    return {0x57, 0x307};
+  case 0x1e87:
+    return {0x77, 0x307};
+  case 0x1e88:
+    return {0x57, 0x323};
+  case 0x1e89:
+    return {0x77, 0x323};
+  case 0x1e8a:
+    return {0x58, 0x307};
+  case 0x1e8b:
+    return {0x78, 0x307};
+  case 0x1e8c:
+    return {0x58, 0x308};
+  case 0x1e8d:
+    return {0x78, 0x308};
+  case 0x1e8e:
+    return {0x59, 0x307};
+  case 0x1e8f:
+    return {0x79, 0x307};
+  case 0x1e90:
+    return {0x5a, 0x302};
+  case 0x1e91:
+    return {0x7a, 0x302};
+  case 0x1e92:
+    return {0x5a, 0x323};
+  case 0x1e93:
+    return {0x7a, 0x323};
+  case 0x1e94:
+    return {0x5a, 0x331};
+  case 0x1e95:
+    return {0x7a, 0x331};
+  case 0x1e96:
+    return {0x68, 0x331};
+  case 0x1e97:
+    return {0x74, 0x308};
+  case 0x1e98:
+    return {0x77, 0x30a};
+  case 0x1e99:
+    return {0x79, 0x30a};
+  case 0x1e9b:
+    return {0x17f, 0x307};
+  case 0x1ea0:
+    return {0x41, 0x323};
+  case 0x1ea1:
+    return {0x61, 0x323};
+  case 0x1ea2:
+    return {0x41, 0x309};
+  case 0x1ea3:
+    return {0x61, 0x309};
+  case 0x1ea4:
+    return {0xc2, 0x301};
+  case 0x1ea5:
+    return {0xe2, 0x301};
+  case 0x1ea6:
+    return {0xc2, 0x300};
+  case 0x1ea7:
+    return {0xe2, 0x300};
+  case 0x1ea8:
+    return {0xc2, 0x309};
+  case 0x1ea9:
+    return {0xe2, 0x309};
+  case 0x1eaa:
+    return {0xc2, 0x303};
+  case 0x1eab:
+    return {0xe2, 0x303};
+  case 0x1eac:
+    return {0x1ea0, 0x302};
+  case 0x1ead:
+    return {0x1ea1, 0x302};
+  case 0x1eae:
+    return {0x102, 0x301};
+  case 0x1eaf:
+    return {0x103, 0x301};
+  case 0x1eb0:
+    return {0x102, 0x300};
+  case 0x1eb1:
+    return {0x103, 0x300};
+  case 0x1eb2:
+    return {0x102, 0x309};
+  case 0x1eb3:
+    return {0x103, 0x309};
+  case 0x1eb4:
+    return {0x102, 0x303};
+  case 0x1eb5:
+    return {0x103, 0x303};
+  case 0x1eb6:
+    return {0x1ea0, 0x306};
+  case 0x1eb7:
+    return {0x1ea1, 0x306};
+  case 0x1eb8:
+    return {0x45, 0x323};
+  case 0x1eb9:
+    return {0x65, 0x323};
+  case 0x1eba:
+    return {0x45, 0x309};
+  case 0x1ebb:
+    return {0x65, 0x309};
+  case 0x1ebc:
+    return {0x45, 0x303};
+  case 0x1ebd:
+    return {0x65, 0x303};
+  case 0x1ebe:
+    return {0xca, 0x301};
+  case 0x1ebf:
+    return {0xea, 0x301};
+  case 0x1ec0:
+    return {0xca, 0x300};
+  case 0x1ec1:
+    return {0xea, 0x300};
+  case 0x1ec2:
+    return {0xca, 0x309};
+  case 0x1ec3:
+    return {0xea, 0x309};
+  case 0x1ec4:
+    return {0xca, 0x303};
+  case 0x1ec5:
+    return {0xea, 0x303};
+  case 0x1ec6:
+    return {0x1eb8, 0x302};
+  case 0x1ec7:
+    return {0x1eb9, 0x302};
+  case 0x1ec8:
+    return {0x49, 0x309};
+  case 0x1ec9:
+    return {0x69, 0x309};
+  case 0x1eca:
+    return {0x49, 0x323};
+  case 0x1ecb:
+    return {0x69, 0x323};
+  case 0x1ecc:
+    return {0x4f, 0x323};
+  case 0x1ecd:
+    return {0x6f, 0x323};
+  case 0x1ece:
+    return {0x4f, 0x309};
+  case 0x1ecf:
+    return {0x6f, 0x309};
+  case 0x1ed0:
+    return {0xd4, 0x301};
+  case 0x1ed1:
+    return {0xf4, 0x301};
+  case 0x1ed2:
+    return {0xd4, 0x300};
+  case 0x1ed3:
+    return {0xf4, 0x300};
+  case 0x1ed4:
+    return {0xd4, 0x309};
+  case 0x1ed5:
+    return {0xf4, 0x309};
+  case 0x1ed6:
+    return {0xd4, 0x303};
+  case 0x1ed7:
+    return {0xf4, 0x303};
+  case 0x1ed8:
+    return {0x1ecc, 0x302};
+  case 0x1ed9:
+    return {0x1ecd, 0x302};
+  case 0x1eda:
+    return {0x1a0, 0x301};
+  case 0x1edb:
+    return {0x1a1, 0x301};
+  case 0x1edc:
+    return {0x1a0, 0x300};
+  case 0x1edd:
+    return {0x1a1, 0x300};
+  case 0x1ede:
+    return {0x1a0, 0x309};
+  case 0x1edf:
+    return {0x1a1, 0x309};
+  case 0x1ee0:
+    return {0x1a0, 0x303};
+  case 0x1ee1:
+    return {0x1a1, 0x303};
+  case 0x1ee2:
+    return {0x1a0, 0x323};
+  case 0x1ee3:
+    return {0x1a1, 0x323};
+  case 0x1ee4:
+    return {0x55, 0x323};
+  case 0x1ee5:
+    return {0x75, 0x323};
+  case 0x1ee6:
+    return {0x55, 0x309};
+  case 0x1ee7:
+    return {0x75, 0x309};
+  case 0x1ee8:
+    return {0x1af, 0x301};
+  case 0x1ee9:
+    return {0x1b0, 0x301};
+  case 0x1eea:
+    return {0x1af, 0x300};
+  case 0x1eeb:
+    return {0x1b0, 0x300};
+  case 0x1eec:
+    return {0x1af, 0x309};
+  case 0x1eed:
+    return {0x1b0, 0x309};
+  case 0x1eee:
+    return {0x1af, 0x303};
+  case 0x1eef:
+    return {0x1b0, 0x303};
+  case 0x1ef0:
+    return {0x1af, 0x323};
+  case 0x1ef1:
+    return {0x1b0, 0x323};
+  case 0x1ef2:
+    return {0x59, 0x300};
+  case 0x1ef3:
+    return {0x79, 0x300};
+  case 0x1ef4:
+    return {0x59, 0x323};
+  case 0x1ef5:
+    return {0x79, 0x323};
+  case 0x1ef6:
+    return {0x59, 0x309};
+  case 0x1ef7:
+    return {0x79, 0x309};
+  case 0x1ef8:
+    return {0x59, 0x303};
+  case 0x1ef9:
+    return {0x79, 0x303};
+  case 0x1f00:
+    return {0x3b1, 0x313};
+  case 0x1f01:
+    return {0x3b1, 0x314};
+  case 0x1f02:
+    return {0x1f00, 0x300};
+  case 0x1f03:
+    return {0x1f01, 0x300};
+  case 0x1f04:
+    return {0x1f00, 0x301};
+  case 0x1f05:
+    return {0x1f01, 0x301};
+  case 0x1f06:
+    return {0x1f00, 0x342};
+  case 0x1f07:
+    return {0x1f01, 0x342};
+  case 0x1f08:
+    return {0x391, 0x313};
+  case 0x1f09:
+    return {0x391, 0x314};
+  case 0x1f0a:
+    return {0x1f08, 0x300};
+  case 0x1f0b:
+    return {0x1f09, 0x300};
+  case 0x1f0c:
+    return {0x1f08, 0x301};
+  case 0x1f0d:
+    return {0x1f09, 0x301};
+  case 0x1f0e:
+    return {0x1f08, 0x342};
+  case 0x1f0f:
+    return {0x1f09, 0x342};
+  case 0x1f10:
+    return {0x3b5, 0x313};
+  case 0x1f11:
+    return {0x3b5, 0x314};
+  case 0x1f12:
+    return {0x1f10, 0x300};
+  case 0x1f13:
+    return {0x1f11, 0x300};
+  case 0x1f14:
+    return {0x1f10, 0x301};
+  case 0x1f15:
+    return {0x1f11, 0x301};
+  case 0x1f18:
+    return {0x395, 0x313};
+  case 0x1f19:
+    return {0x395, 0x314};
+  case 0x1f1a:
+    return {0x1f18, 0x300};
+  case 0x1f1b:
+    return {0x1f19, 0x300};
+  case 0x1f1c:
+    return {0x1f18, 0x301};
+  case 0x1f1d:
+    return {0x1f19, 0x301};
+  case 0x1f20:
+    return {0x3b7, 0x313};
+  case 0x1f21:
+    return {0x3b7, 0x314};
+  case 0x1f22:
+    return {0x1f20, 0x300};
+  case 0x1f23:
+    return {0x1f21, 0x300};
+  case 0x1f24:
+    return {0x1f20, 0x301};
+  case 0x1f25:
+    return {0x1f21, 0x301};
+  case 0x1f26:
+    return {0x1f20, 0x342};
+  case 0x1f27:
+    return {0x1f21, 0x342};
+  case 0x1f28:
+    return {0x397, 0x313};
+  case 0x1f29:
+    return {0x397, 0x314};
+  case 0x1f2a:
+    return {0x1f28, 0x300};
+  case 0x1f2b:
+    return {0x1f29, 0x300};
+  case 0x1f2c:
+    return {0x1f28, 0x301};
+  case 0x1f2d:
+    return {0x1f29, 0x301};
+  case 0x1f2e:
+    return {0x1f28, 0x342};
+  case 0x1f2f:
+    return {0x1f29, 0x342};
+  case 0x1f30:
+    return {0x3b9, 0x313};
+  case 0x1f31:
+    return {0x3b9, 0x314};
+  case 0x1f32:
+    return {0x1f30, 0x300};
+  case 0x1f33:
+    return {0x1f31, 0x300};
+  case 0x1f34:
+    return {0x1f30, 0x301};
+  case 0x1f35:
+    return {0x1f31, 0x301};
+  case 0x1f36:
+    return {0x1f30, 0x342};
+  case 0x1f37:
+    return {0x1f31, 0x342};
+  case 0x1f38:
+    return {0x399, 0x313};
+  case 0x1f39:
+    return {0x399, 0x314};
+  case 0x1f3a:
+    return {0x1f38, 0x300};
+  case 0x1f3b:
+    return {0x1f39, 0x300};
+  case 0x1f3c:
+    return {0x1f38, 0x301};
+  case 0x1f3d:
+    return {0x1f39, 0x301};
+  case 0x1f3e:
+    return {0x1f38, 0x342};
+  case 0x1f3f:
+    return {0x1f39, 0x342};
+  case 0x1f40:
+    return {0x3bf, 0x313};
+  case 0x1f41:
+    return {0x3bf, 0x314};
+  case 0x1f42:
+    return {0x1f40, 0x300};
+  case 0x1f43:
+    return {0x1f41, 0x300};
+  case 0x1f44:
+    return {0x1f40, 0x301};
+  case 0x1f45:
+    return {0x1f41, 0x301};
+  case 0x1f48:
+    return {0x39f, 0x313};
+  case 0x1f49:
+    return {0x39f, 0x314};
+  case 0x1f4a:
+    return {0x1f48, 0x300};
+  case 0x1f4b:
+    return {0x1f49, 0x300};
+  case 0x1f4c:
+    return {0x1f48, 0x301};
+  case 0x1f4d:
+    return {0x1f49, 0x301};
+  case 0x1f50:
+    return {0x3c5, 0x313};
+  case 0x1f51:
+    return {0x3c5, 0x314};
+  case 0x1f52:
+    return {0x1f50, 0x300};
+  case 0x1f53:
+    return {0x1f51, 0x300};
+  case 0x1f54:
+    return {0x1f50, 0x301};
+  case 0x1f55:
+    return {0x1f51, 0x301};
+  case 0x1f56:
+    return {0x1f50, 0x342};
+  case 0x1f57:
+    return {0x1f51, 0x342};
+  case 0x1f59:
+    return {0x3a5, 0x314};
+  case 0x1f5b:
+    return {0x1f59, 0x300};
+  case 0x1f5d:
+    return {0x1f59, 0x301};
+  case 0x1f5f:
+    return {0x1f59, 0x342};
+  case 0x1f60:
+    return {0x3c9, 0x313};
+  case 0x1f61:
+    return {0x3c9, 0x314};
+  case 0x1f62:
+    return {0x1f60, 0x300};
+  case 0x1f63:
+    return {0x1f61, 0x300};
+  case 0x1f64:
+    return {0x1f60, 0x301};
+  case 0x1f65:
+    return {0x1f61, 0x301};
+  case 0x1f66:
+    return {0x1f60, 0x342};
+  case 0x1f67:
+    return {0x1f61, 0x342};
+  case 0x1f68:
+    return {0x3a9, 0x313};
+  case 0x1f69:
+    return {0x3a9, 0x314};
+  case 0x1f6a:
+    return {0x1f68, 0x300};
+  case 0x1f6b:
+    return {0x1f69, 0x300};
+  case 0x1f6c:
+    return {0x1f68, 0x301};
+  case 0x1f6d:
+    return {0x1f69, 0x301};
+  case 0x1f6e:
+    return {0x1f68, 0x342};
+  case 0x1f6f:
+    return {0x1f69, 0x342};
+  case 0x1f70:
+    return {0x3b1, 0x300};
+  case 0x1f71:
+    return {0x3ac, 0x0};
+  case 0x1f72:
+    return {0x3b5, 0x300};
+  case 0x1f73:
+    return {0x3ad, 0x0};
+  case 0x1f74:
+    return {0x3b7, 0x300};
+  case 0x1f75:
+    return {0x3ae, 0x0};
+  case 0x1f76:
+    return {0x3b9, 0x300};
+  case 0x1f77:
+    return {0x3af, 0x0};
+  case 0x1f78:
+    return {0x3bf, 0x300};
+  case 0x1f79:
+    return {0x3cc, 0x0};
+  case 0x1f7a:
+    return {0x3c5, 0x300};
+  case 0x1f7b:
+    return {0x3cd, 0x0};
+  case 0x1f7c:
+    return {0x3c9, 0x300};
+  case 0x1f7d:
+    return {0x3ce, 0x0};
+  case 0x1f80:
+    return {0x1f00, 0x345};
+  case 0x1f81:
+    return {0x1f01, 0x345};
+  case 0x1f82:
+    return {0x1f02, 0x345};
+  case 0x1f83:
+    return {0x1f03, 0x345};
+  case 0x1f84:
+    return {0x1f04, 0x345};
+  case 0x1f85:
+    return {0x1f05, 0x345};
+  case 0x1f86:
+    return {0x1f06, 0x345};
+  case 0x1f87:
+    return {0x1f07, 0x345};
+  case 0x1f88:
+    return {0x1f08, 0x345};
+  case 0x1f89:
+    return {0x1f09, 0x345};
+  case 0x1f8a:
+    return {0x1f0a, 0x345};
+  case 0x1f8b:
+    return {0x1f0b, 0x345};
+  case 0x1f8c:
+    return {0x1f0c, 0x345};
+  case 0x1f8d:
+    return {0x1f0d, 0x345};
+  case 0x1f8e:
+    return {0x1f0e, 0x345};
+  case 0x1f8f:
+    return {0x1f0f, 0x345};
+  case 0x1f90:
+    return {0x1f20, 0x345};
+  case 0x1f91:
+    return {0x1f21, 0x345};
+  case 0x1f92:
+    return {0x1f22, 0x345};
+  case 0x1f93:
+    return {0x1f23, 0x345};
+  case 0x1f94:
+    return {0x1f24, 0x345};
+  case 0x1f95:
+    return {0x1f25, 0x345};
+  case 0x1f96:
+    return {0x1f26, 0x345};
+  case 0x1f97:
+    return {0x1f27, 0x345};
+  case 0x1f98:
+    return {0x1f28, 0x345};
+  case 0x1f99:
+    return {0x1f29, 0x345};
+  case 0x1f9a:
+    return {0x1f2a, 0x345};
+  case 0x1f9b:
+    return {0x1f2b, 0x345};
+  case 0x1f9c:
+    return {0x1f2c, 0x345};
+  case 0x1f9d:
+    return {0x1f2d, 0x345};
+  case 0x1f9e:
+    return {0x1f2e, 0x345};
+  case 0x1f9f:
+    return {0x1f2f, 0x345};
+  case 0x1fa0:
+    return {0x1f60, 0x345};
+  case 0x1fa1:
+    return {0x1f61, 0x345};
+  case 0x1fa2:
+    return {0x1f62, 0x345};
+  case 0x1fa3:
+    return {0x1f63, 0x345};
+  case 0x1fa4:
+    return {0x1f64, 0x345};
+  case 0x1fa5:
+    return {0x1f65, 0x345};
+  case 0x1fa6:
+    return {0x1f66, 0x345};
+  case 0x1fa7:
+    return {0x1f67, 0x345};
+  case 0x1fa8:
+    return {0x1f68, 0x345};
+  case 0x1fa9:
+    return {0x1f69, 0x345};
+  case 0x1faa:
+    return {0x1f6a, 0x345};
+  case 0x1fab:
+    return {0x1f6b, 0x345};
+  case 0x1fac:
+    return {0x1f6c, 0x345};
+  case 0x1fad:
+    return {0x1f6d, 0x345};
+  case 0x1fae:
+    return {0x1f6e, 0x345};
+  case 0x1faf:
+    return {0x1f6f, 0x345};
+  case 0x1fb0:
+    return {0x3b1, 0x306};
+  case 0x1fb1:
+    return {0x3b1, 0x304};
+  case 0x1fb2:
+    return {0x1f70, 0x345};
+  case 0x1fb3:
+    return {0x3b1, 0x345};
+  case 0x1fb4:
+    return {0x3ac, 0x345};
+  case 0x1fb6:
+    return {0x3b1, 0x342};
+  case 0x1fb7:
+    return {0x1fb6, 0x345};
+  case 0x1fb8:
+    return {0x391, 0x306};
+  case 0x1fb9:
+    return {0x391, 0x304};
+  case 0x1fba:
+    return {0x391, 0x300};
+  case 0x1fbb:
+    return {0x386, 0x0};
+  case 0x1fbc:
+    return {0x391, 0x345};
+  case 0x1fbe:
+    return {0x3b9, 0x0};
+  case 0x1fc1:
+    return {0xa8, 0x342};
+  case 0x1fc2:
+    return {0x1f74, 0x345};
+  case 0x1fc3:
+    return {0x3b7, 0x345};
+  case 0x1fc4:
+    return {0x3ae, 0x345};
+  case 0x1fc6:
+    return {0x3b7, 0x342};
+  case 0x1fc7:
+    return {0x1fc6, 0x345};
+  case 0x1fc8:
+    return {0x395, 0x300};
+  case 0x1fc9:
+    return {0x388, 0x0};
+  case 0x1fca:
+    return {0x397, 0x300};
+  case 0x1fcb:
+    return {0x389, 0x0};
+  case 0x1fcc:
+    return {0x397, 0x345};
+  case 0x1fcd:
+    return {0x1fbf, 0x300};
+  case 0x1fce:
+    return {0x1fbf, 0x301};
+  case 0x1fcf:
+    return {0x1fbf, 0x342};
+  case 0x1fd0:
+    return {0x3b9, 0x306};
+  case 0x1fd1:
+    return {0x3b9, 0x304};
+  case 0x1fd2:
+    return {0x3ca, 0x300};
+  case 0x1fd3:
+    return {0x390, 0x0};
+  case 0x1fd6:
+    return {0x3b9, 0x342};
+  case 0x1fd7:
+    return {0x3ca, 0x342};
+  case 0x1fd8:
+    return {0x399, 0x306};
+  case 0x1fd9:
+    return {0x399, 0x304};
+  case 0x1fda:
+    return {0x399, 0x300};
+  case 0x1fdb:
+    return {0x38a, 0x0};
+  case 0x1fdd:
+    return {0x1ffe, 0x300};
+  case 0x1fde:
+    return {0x1ffe, 0x301};
+  case 0x1fdf:
+    return {0x1ffe, 0x342};
+  case 0x1fe0:
+    return {0x3c5, 0x306};
+  case 0x1fe1:
+    return {0x3c5, 0x304};
+  case 0x1fe2:
+    return {0x3cb, 0x300};
+  case 0x1fe3:
+    return {0x3b0, 0x0};
+  case 0x1fe4:
+    return {0x3c1, 0x313};
+  case 0x1fe5:
+    return {0x3c1, 0x314};
+  case 0x1fe6:
+    return {0x3c5, 0x342};
+  case 0x1fe7:
+    return {0x3cb, 0x342};
+  case 0x1fe8:
+    return {0x3a5, 0x306};
+  case 0x1fe9:
+    return {0x3a5, 0x304};
+  case 0x1fea:
+    return {0x3a5, 0x300};
+  case 0x1feb:
+    return {0x38e, 0x0};
+  case 0x1fec:
+    return {0x3a1, 0x314};
+  case 0x1fed:
+    return {0xa8, 0x300};
+  case 0x1fee:
+    return {0x385, 0x0};
+  case 0x1fef:
+    return {0x60, 0x0};
+  case 0x1ff2:
+    return {0x1f7c, 0x345};
+  case 0x1ff3:
+    return {0x3c9, 0x345};
+  case 0x1ff4:
+    return {0x3ce, 0x345};
+  case 0x1ff6:
+    return {0x3c9, 0x342};
+  case 0x1ff7:
+    return {0x1ff6, 0x345};
+  case 0x1ff8:
+    return {0x39f, 0x300};
+  case 0x1ff9:
+    return {0x38c, 0x0};
+  case 0x1ffa:
+    return {0x3a9, 0x300};
+  case 0x1ffb:
+    return {0x38f, 0x0};
+  case 0x1ffc:
+    return {0x3a9, 0x345};
+  case 0x1ffd:
+    return {0xb4, 0x0};
+  case 0x2000:
+    return {0x2002, 0x0};
+  case 0x2001:
+    return {0x2003, 0x0};
+  case 0x2126:
+    return {0x3a9, 0x0};
+  case 0x212a:
+    return {0x4b, 0x0};
+  case 0x212b:
+    return {0xc5, 0x0};
+  case 0x219a:
+    return {0x2190, 0x338};
+  case 0x219b:
+    return {0x2192, 0x338};
+  case 0x21ae:
+    return {0x2194, 0x338};
+  case 0x21cd:
+    return {0x21d0, 0x338};
+  case 0x21ce:
+    return {0x21d4, 0x338};
+  case 0x21cf:
+    return {0x21d2, 0x338};
+  case 0x2204:
+    return {0x2203, 0x338};
+  case 0x2209:
+    return {0x2208, 0x338};
+  case 0x220c:
+    return {0x220b, 0x338};
+  case 0x2224:
+    return {0x2223, 0x338};
+  case 0x2226:
+    return {0x2225, 0x338};
+  case 0x2241:
+    return {0x223c, 0x338};
+  case 0x2244:
+    return {0x2243, 0x338};
+  case 0x2247:
+    return {0x2245, 0x338};
+  case 0x2249:
+    return {0x2248, 0x338};
+  case 0x2260:
+    return {0x3d, 0x338};
+  case 0x2262:
+    return {0x2261, 0x338};
+  case 0x226d:
+    return {0x224d, 0x338};
+  case 0x226e:
+    return {0x3c, 0x338};
+  case 0x226f:
+    return {0x3e, 0x338};
+  case 0x2270:
+    return {0x2264, 0x338};
+  case 0x2271:
+    return {0x2265, 0x338};
+  case 0x2274:
+    return {0x2272, 0x338};
+  case 0x2275:
+    return {0x2273, 0x338};
+  case 0x2278:
+    return {0x2276, 0x338};
+  case 0x2279:
+    return {0x2277, 0x338};
+  case 0x2280:
+    return {0x227a, 0x338};
+  case 0x2281:
+    return {0x227b, 0x338};
+  case 0x2284:
+    return {0x2282, 0x338};
+  case 0x2285:
+    return {0x2283, 0x338};
+  case 0x2288:
+    return {0x2286, 0x338};
+  case 0x2289:
+    return {0x2287, 0x338};
+  case 0x22ac:
+    return {0x22a2, 0x338};
+  case 0x22ad:
+    return {0x22a8, 0x338};
+  case 0x22ae:
+    return {0x22a9, 0x338};
+  case 0x22af:
+    return {0x22ab, 0x338};
+  case 0x22e0:
+    return {0x227c, 0x338};
+  case 0x22e1:
+    return {0x227d, 0x338};
+  case 0x22e2:
+    return {0x2291, 0x338};
+  case 0x22e3:
+    return {0x2292, 0x338};
+  case 0x22ea:
+    return {0x22b2, 0x338};
+  case 0x22eb:
+    return {0x22b3, 0x338};
+  case 0x22ec:
+    return {0x22b4, 0x338};
+  case 0x22ed:
+    return {0x22b5, 0x338};
+  case 0x2329:
+    return {0x3008, 0x0};
+  case 0x232a:
+    return {0x3009, 0x0};
+  case 0x2adc:
+    return {0x2add, 0x338};
+  case 0x304c:
+    return {0x304b, 0x3099};
+  case 0x304e:
+    return {0x304d, 0x3099};
+  case 0x3050:
+    return {0x304f, 0x3099};
+  case 0x3052:
+    return {0x3051, 0x3099};
+  case 0x3054:
+    return {0x3053, 0x3099};
+  case 0x3056:
+    return {0x3055, 0x3099};
+  case 0x3058:
+    return {0x3057, 0x3099};
+  case 0x305a:
+    return {0x3059, 0x3099};
+  case 0x305c:
+    return {0x305b, 0x3099};
+  case 0x305e:
+    return {0x305d, 0x3099};
+  case 0x3060:
+    return {0x305f, 0x3099};
+  case 0x3062:
+    return {0x3061, 0x3099};
+  case 0x3065:
+    return {0x3064, 0x3099};
+  case 0x3067:
+    return {0x3066, 0x3099};
+  case 0x3069:
+    return {0x3068, 0x3099};
+  case 0x3070:
+    return {0x306f, 0x3099};
+  case 0x3071:
+    return {0x306f, 0x309a};
+  case 0x3073:
+    return {0x3072, 0x3099};
+  case 0x3074:
+    return {0x3072, 0x309a};
+  case 0x3076:
+    return {0x3075, 0x3099};
+  case 0x3077:
+    return {0x3075, 0x309a};
+  case 0x3079:
+    return {0x3078, 0x3099};
+  case 0x307a:
+    return {0x3078, 0x309a};
+  case 0x307c:
+    return {0x307b, 0x3099};
+  case 0x307d:
+    return {0x307b, 0x309a};
+  case 0x3094:
+    return {0x3046, 0x3099};
+  case 0x309e:
+    return {0x309d, 0x3099};
+  case 0x30ac:
+    return {0x30ab, 0x3099};
+  case 0x30ae:
+    return {0x30ad, 0x3099};
+  case 0x30b0:
+    return {0x30af, 0x3099};
+  case 0x30b2:
+    return {0x30b1, 0x3099};
+  case 0x30b4:
+    return {0x30b3, 0x3099};
+  case 0x30b6:
+    return {0x30b5, 0x3099};
+  case 0x30b8:
+    return {0x30b7, 0x3099};
+  case 0x30ba:
+    return {0x30b9, 0x3099};
+  case 0x30bc:
+    return {0x30bb, 0x3099};
+  case 0x30be:
+    return {0x30bd, 0x3099};
+  case 0x30c0:
+    return {0x30bf, 0x3099};
+  case 0x30c2:
+    return {0x30c1, 0x3099};
+  case 0x30c5:
+    return {0x30c4, 0x3099};
+  case 0x30c7:
+    return {0x30c6, 0x3099};
+  case 0x30c9:
+    return {0x30c8, 0x3099};
+  case 0x30d0:
+    return {0x30cf, 0x3099};
+  case 0x30d1:
+    return {0x30cf, 0x309a};
+  case 0x30d3:
+    return {0x30d2, 0x3099};
+  case 0x30d4:
+    return {0x30d2, 0x309a};
+  case 0x30d6:
+    return {0x30d5, 0x3099};
+  case 0x30d7:
+    return {0x30d5, 0x309a};
+  case 0x30d9:
+    return {0x30d8, 0x3099};
+  case 0x30da:
+    return {0x30d8, 0x309a};
+  case 0x30dc:
+    return {0x30db, 0x3099};
+  case 0x30dd:
+    return {0x30db, 0x309a};
+  case 0x30f4:
+    return {0x30a6, 0x3099};
+  case 0x30f7:
+    return {0x30ef, 0x3099};
+  case 0x30f8:
+    return {0x30f0, 0x3099};
+  case 0x30f9:
+    return {0x30f1, 0x3099};
+  case 0x30fa:
+    return {0x30f2, 0x3099};
+  case 0x30fe:
+    return {0x30fd, 0x3099};
+  case 0xf900:
+    return {0x8c48, 0x0};
+  case 0xf901:
+    return {0x66f4, 0x0};
+  case 0xf902:
+    return {0x8eca, 0x0};
+  case 0xf903:
+    return {0x8cc8, 0x0};
+  case 0xf904:
+    return {0x6ed1, 0x0};
+  case 0xf905:
+    return {0x4e32, 0x0};
+  case 0xf906:
+    return {0x53e5, 0x0};
+  case 0xf907:
+    return {0x9f9c, 0x0};
+  case 0xf908:
+    return {0x9f9c, 0x0};
+  case 0xf909:
+    return {0x5951, 0x0};
+  case 0xf90a:
+    return {0x91d1, 0x0};
+  case 0xf90b:
+    return {0x5587, 0x0};
+  case 0xf90c:
+    return {0x5948, 0x0};
+  case 0xf90d:
+    return {0x61f6, 0x0};
+  case 0xf90e:
+    return {0x7669, 0x0};
+  case 0xf90f:
+    return {0x7f85, 0x0};
+  case 0xf910:
+    return {0x863f, 0x0};
+  case 0xf911:
+    return {0x87ba, 0x0};
+  case 0xf912:
+    return {0x88f8, 0x0};
+  case 0xf913:
+    return {0x908f, 0x0};
+  case 0xf914:
+    return {0x6a02, 0x0};
+  case 0xf915:
+    return {0x6d1b, 0x0};
+  case 0xf916:
+    return {0x70d9, 0x0};
+  case 0xf917:
+    return {0x73de, 0x0};
+  case 0xf918:
+    return {0x843d, 0x0};
+  case 0xf919:
+    return {0x916a, 0x0};
+  case 0xf91a:
+    return {0x99f1, 0x0};
+  case 0xf91b:
+    return {0x4e82, 0x0};
+  case 0xf91c:
+    return {0x5375, 0x0};
+  case 0xf91d:
+    return {0x6b04, 0x0};
+  case 0xf91e:
+    return {0x721b, 0x0};
+  case 0xf91f:
+    return {0x862d, 0x0};
+  case 0xf920:
+    return {0x9e1e, 0x0};
+  case 0xf921:
+    return {0x5d50, 0x0};
+  case 0xf922:
+    return {0x6feb, 0x0};
+  case 0xf923:
+    return {0x85cd, 0x0};
+  case 0xf924:
+    return {0x8964, 0x0};
+  case 0xf925:
+    return {0x62c9, 0x0};
+  case 0xf926:
+    return {0x81d8, 0x0};
+  case 0xf927:
+    return {0x881f, 0x0};
+  case 0xf928:
+    return {0x5eca, 0x0};
+  case 0xf929:
+    return {0x6717, 0x0};
+  case 0xf92a:
+    return {0x6d6a, 0x0};
+  case 0xf92b:
+    return {0x72fc, 0x0};
+  case 0xf92c:
+    return {0x90ce, 0x0};
+  case 0xf92d:
+    return {0x4f86, 0x0};
+  case 0xf92e:
+    return {0x51b7, 0x0};
+  case 0xf92f:
+    return {0x52de, 0x0};
+  case 0xf930:
+    return {0x64c4, 0x0};
+  case 0xf931:
+    return {0x6ad3, 0x0};
+  case 0xf932:
+    return {0x7210, 0x0};
+  case 0xf933:
+    return {0x76e7, 0x0};
+  case 0xf934:
+    return {0x8001, 0x0};
+  case 0xf935:
+    return {0x8606, 0x0};
+  case 0xf936:
+    return {0x865c, 0x0};
+  case 0xf937:
+    return {0x8def, 0x0};
+  case 0xf938:
+    return {0x9732, 0x0};
+  case 0xf939:
+    return {0x9b6f, 0x0};
+  case 0xf93a:
+    return {0x9dfa, 0x0};
+  case 0xf93b:
+    return {0x788c, 0x0};
+  case 0xf93c:
+    return {0x797f, 0x0};
+  case 0xf93d:
+    return {0x7da0, 0x0};
+  case 0xf93e:
+    return {0x83c9, 0x0};
+  case 0xf93f:
+    return {0x9304, 0x0};
+  case 0xf940:
+    return {0x9e7f, 0x0};
+  case 0xf941:
+    return {0x8ad6, 0x0};
+  case 0xf942:
+    return {0x58df, 0x0};
+  case 0xf943:
+    return {0x5f04, 0x0};
+  case 0xf944:
+    return {0x7c60, 0x0};
+  case 0xf945:
+    return {0x807e, 0x0};
+  case 0xf946:
+    return {0x7262, 0x0};
+  case 0xf947:
+    return {0x78ca, 0x0};
+  case 0xf948:
+    return {0x8cc2, 0x0};
+  case 0xf949:
+    return {0x96f7, 0x0};
+  case 0xf94a:
+    return {0x58d8, 0x0};
+  case 0xf94b:
+    return {0x5c62, 0x0};
+  case 0xf94c:
+    return {0x6a13, 0x0};
+  case 0xf94d:
+    return {0x6dda, 0x0};
+  case 0xf94e:
+    return {0x6f0f, 0x0};
+  case 0xf94f:
+    return {0x7d2f, 0x0};
+  case 0xf950:
+    return {0x7e37, 0x0};
+  case 0xf951:
+    return {0x964b, 0x0};
+  case 0xf952:
+    return {0x52d2, 0x0};
+  case 0xf953:
+    return {0x808b, 0x0};
+  case 0xf954:
+    return {0x51dc, 0x0};
+  case 0xf955:
+    return {0x51cc, 0x0};
+  case 0xf956:
+    return {0x7a1c, 0x0};
+  case 0xf957:
+    return {0x7dbe, 0x0};
+  case 0xf958:
+    return {0x83f1, 0x0};
+  case 0xf959:
+    return {0x9675, 0x0};
+  case 0xf95a:
+    return {0x8b80, 0x0};
+  case 0xf95b:
+    return {0x62cf, 0x0};
+  case 0xf95c:
+    return {0x6a02, 0x0};
+  case 0xf95d:
+    return {0x8afe, 0x0};
+  case 0xf95e:
+    return {0x4e39, 0x0};
+  case 0xf95f:
+    return {0x5be7, 0x0};
+  case 0xf960:
+    return {0x6012, 0x0};
+  case 0xf961:
+    return {0x7387, 0x0};
+  case 0xf962:
+    return {0x7570, 0x0};
+  case 0xf963:
+    return {0x5317, 0x0};
+  case 0xf964:
+    return {0x78fb, 0x0};
+  case 0xf965:
+    return {0x4fbf, 0x0};
+  case 0xf966:
+    return {0x5fa9, 0x0};
+  case 0xf967:
+    return {0x4e0d, 0x0};
+  case 0xf968:
+    return {0x6ccc, 0x0};
+  case 0xf969:
+    return {0x6578, 0x0};
+  case 0xf96a:
+    return {0x7d22, 0x0};
+  case 0xf96b:
+    return {0x53c3, 0x0};
+  case 0xf96c:
+    return {0x585e, 0x0};
+  case 0xf96d:
+    return {0x7701, 0x0};
+  case 0xf96e:
+    return {0x8449, 0x0};
+  case 0xf96f:
+    return {0x8aaa, 0x0};
+  case 0xf970:
+    return {0x6bba, 0x0};
+  case 0xf971:
+    return {0x8fb0, 0x0};
+  case 0xf972:
+    return {0x6c88, 0x0};
+  case 0xf973:
+    return {0x62fe, 0x0};
+  case 0xf974:
+    return {0x82e5, 0x0};
+  case 0xf975:
+    return {0x63a0, 0x0};
+  case 0xf976:
+    return {0x7565, 0x0};
+  case 0xf977:
+    return {0x4eae, 0x0};
+  case 0xf978:
+    return {0x5169, 0x0};
+  case 0xf979:
+    return {0x51c9, 0x0};
+  case 0xf97a:
+    return {0x6881, 0x0};
+  case 0xf97b:
+    return {0x7ce7, 0x0};
+  case 0xf97c:
+    return {0x826f, 0x0};
+  case 0xf97d:
+    return {0x8ad2, 0x0};
+  case 0xf97e:
+    return {0x91cf, 0x0};
+  case 0xf97f:
+    return {0x52f5, 0x0};
+  case 0xf980:
+    return {0x5442, 0x0};
+  case 0xf981:
+    return {0x5973, 0x0};
+  case 0xf982:
+    return {0x5eec, 0x0};
+  case 0xf983:
+    return {0x65c5, 0x0};
+  case 0xf984:
+    return {0x6ffe, 0x0};
+  case 0xf985:
+    return {0x792a, 0x0};
+  case 0xf986:
+    return {0x95ad, 0x0};
+  case 0xf987:
+    return {0x9a6a, 0x0};
+  case 0xf988:
+    return {0x9e97, 0x0};
+  case 0xf989:
+    return {0x9ece, 0x0};
+  case 0xf98a:
+    return {0x529b, 0x0};
+  case 0xf98b:
+    return {0x66c6, 0x0};
+  case 0xf98c:
+    return {0x6b77, 0x0};
+  case 0xf98d:
+    return {0x8f62, 0x0};
+  case 0xf98e:
+    return {0x5e74, 0x0};
+  case 0xf98f:
+    return {0x6190, 0x0};
+  case 0xf990:
+    return {0x6200, 0x0};
+  case 0xf991:
+    return {0x649a, 0x0};
+  case 0xf992:
+    return {0x6f23, 0x0};
+  case 0xf993:
+    return {0x7149, 0x0};
+  case 0xf994:
+    return {0x7489, 0x0};
+  case 0xf995:
+    return {0x79ca, 0x0};
+  case 0xf996:
+    return {0x7df4, 0x0};
+  case 0xf997:
+    return {0x806f, 0x0};
+  case 0xf998:
+    return {0x8f26, 0x0};
+  case 0xf999:
+    return {0x84ee, 0x0};
+  case 0xf99a:
+    return {0x9023, 0x0};
+  case 0xf99b:
+    return {0x934a, 0x0};
+  case 0xf99c:
+    return {0x5217, 0x0};
+  case 0xf99d:
+    return {0x52a3, 0x0};
+  case 0xf99e:
+    return {0x54bd, 0x0};
+  case 0xf99f:
+    return {0x70c8, 0x0};
+  case 0xf9a0:
+    return {0x88c2, 0x0};
+  case 0xf9a1:
+    return {0x8aaa, 0x0};
+  case 0xf9a2:
+    return {0x5ec9, 0x0};
+  case 0xf9a3:
+    return {0x5ff5, 0x0};
+  case 0xf9a4:
+    return {0x637b, 0x0};
+  case 0xf9a5:
+    return {0x6bae, 0x0};
+  case 0xf9a6:
+    return {0x7c3e, 0x0};
+  case 0xf9a7:
+    return {0x7375, 0x0};
+  case 0xf9a8:
+    return {0x4ee4, 0x0};
+  case 0xf9a9:
+    return {0x56f9, 0x0};
+  case 0xf9aa:
+    return {0x5be7, 0x0};
+  case 0xf9ab:
+    return {0x5dba, 0x0};
+  case 0xf9ac:
+    return {0x601c, 0x0};
+  case 0xf9ad:
+    return {0x73b2, 0x0};
+  case 0xf9ae:
+    return {0x7469, 0x0};
+  case 0xf9af:
+    return {0x7f9a, 0x0};
+  case 0xf9b0:
+    return {0x8046, 0x0};
+  case 0xf9b1:
+    return {0x9234, 0x0};
+  case 0xf9b2:
+    return {0x96f6, 0x0};
+  case 0xf9b3:
+    return {0x9748, 0x0};
+  case 0xf9b4:
+    return {0x9818, 0x0};
+  case 0xf9b5:
+    return {0x4f8b, 0x0};
+  case 0xf9b6:
+    return {0x79ae, 0x0};
+  case 0xf9b7:
+    return {0x91b4, 0x0};
+  case 0xf9b8:
+    return {0x96b8, 0x0};
+  case 0xf9b9:
+    return {0x60e1, 0x0};
+  case 0xf9ba:
+    return {0x4e86, 0x0};
+  case 0xf9bb:
+    return {0x50da, 0x0};
+  case 0xf9bc:
+    return {0x5bee, 0x0};
+  case 0xf9bd:
+    return {0x5c3f, 0x0};
+  case 0xf9be:
+    return {0x6599, 0x0};
+  case 0xf9bf:
+    return {0x6a02, 0x0};
+  case 0xf9c0:
+    return {0x71ce, 0x0};
+  case 0xf9c1:
+    return {0x7642, 0x0};
+  case 0xf9c2:
+    return {0x84fc, 0x0};
+  case 0xf9c3:
+    return {0x907c, 0x0};
+  case 0xf9c4:
+    return {0x9f8d, 0x0};
+  case 0xf9c5:
+    return {0x6688, 0x0};
+  case 0xf9c6:
+    return {0x962e, 0x0};
+  case 0xf9c7:
+    return {0x5289, 0x0};
+  case 0xf9c8:
+    return {0x677b, 0x0};
+  case 0xf9c9:
+    return {0x67f3, 0x0};
+  case 0xf9ca:
+    return {0x6d41, 0x0};
+  case 0xf9cb:
+    return {0x6e9c, 0x0};
+  case 0xf9cc:
+    return {0x7409, 0x0};
+  case 0xf9cd:
+    return {0x7559, 0x0};
+  case 0xf9ce:
+    return {0x786b, 0x0};
+  case 0xf9cf:
+    return {0x7d10, 0x0};
+  case 0xf9d0:
+    return {0x985e, 0x0};
+  case 0xf9d1:
+    return {0x516d, 0x0};
+  case 0xf9d2:
+    return {0x622e, 0x0};
+  case 0xf9d3:
+    return {0x9678, 0x0};
+  case 0xf9d4:
+    return {0x502b, 0x0};
+  case 0xf9d5:
+    return {0x5d19, 0x0};
+  case 0xf9d6:
+    return {0x6dea, 0x0};
+  case 0xf9d7:
+    return {0x8f2a, 0x0};
+  case 0xf9d8:
+    return {0x5f8b, 0x0};
+  case 0xf9d9:
+    return {0x6144, 0x0};
+  case 0xf9da:
+    return {0x6817, 0x0};
+  case 0xf9db:
+    return {0x7387, 0x0};
+  case 0xf9dc:
+    return {0x9686, 0x0};
+  case 0xf9dd:
+    return {0x5229, 0x0};
+  case 0xf9de:
+    return {0x540f, 0x0};
+  case 0xf9df:
+    return {0x5c65, 0x0};
+  case 0xf9e0:
+    return {0x6613, 0x0};
+  case 0xf9e1:
+    return {0x674e, 0x0};
+  case 0xf9e2:
+    return {0x68a8, 0x0};
+  case 0xf9e3:
+    return {0x6ce5, 0x0};
+  case 0xf9e4:
+    return {0x7406, 0x0};
+  case 0xf9e5:
+    return {0x75e2, 0x0};
+  case 0xf9e6:
+    return {0x7f79, 0x0};
+  case 0xf9e7:
+    return {0x88cf, 0x0};
+  case 0xf9e8:
+    return {0x88e1, 0x0};
+  case 0xf9e9:
+    return {0x91cc, 0x0};
+  case 0xf9ea:
+    return {0x96e2, 0x0};
+  case 0xf9eb:
+    return {0x533f, 0x0};
+  case 0xf9ec:
+    return {0x6eba, 0x0};
+  case 0xf9ed:
+    return {0x541d, 0x0};
+  case 0xf9ee:
+    return {0x71d0, 0x0};
+  case 0xf9ef:
+    return {0x7498, 0x0};
+  case 0xf9f0:
+    return {0x85fa, 0x0};
+  case 0xf9f1:
+    return {0x96a3, 0x0};
+  case 0xf9f2:
+    return {0x9c57, 0x0};
+  case 0xf9f3:
+    return {0x9e9f, 0x0};
+  case 0xf9f4:
+    return {0x6797, 0x0};
+  case 0xf9f5:
+    return {0x6dcb, 0x0};
+  case 0xf9f6:
+    return {0x81e8, 0x0};
+  case 0xf9f7:
+    return {0x7acb, 0x0};
+  case 0xf9f8:
+    return {0x7b20, 0x0};
+  case 0xf9f9:
+    return {0x7c92, 0x0};
+  case 0xf9fa:
+    return {0x72c0, 0x0};
+  case 0xf9fb:
+    return {0x7099, 0x0};
+  case 0xf9fc:
+    return {0x8b58, 0x0};
+  case 0xf9fd:
+    return {0x4ec0, 0x0};
+  case 0xf9fe:
+    return {0x8336, 0x0};
+  case 0xf9ff:
+    return {0x523a, 0x0};
+  case 0xfa00:
+    return {0x5207, 0x0};
+  case 0xfa01:
+    return {0x5ea6, 0x0};
+  case 0xfa02:
+    return {0x62d3, 0x0};
+  case 0xfa03:
+    return {0x7cd6, 0x0};
+  case 0xfa04:
+    return {0x5b85, 0x0};
+  case 0xfa05:
+    return {0x6d1e, 0x0};
+  case 0xfa06:
+    return {0x66b4, 0x0};
+  case 0xfa07:
+    return {0x8f3b, 0x0};
+  case 0xfa08:
+    return {0x884c, 0x0};
+  case 0xfa09:
+    return {0x964d, 0x0};
+  case 0xfa0a:
+    return {0x898b, 0x0};
+  case 0xfa0b:
+    return {0x5ed3, 0x0};
+  case 0xfa0c:
+    return {0x5140, 0x0};
+  case 0xfa0d:
+    return {0x55c0, 0x0};
+  case 0xfa10:
+    return {0x585a, 0x0};
+  case 0xfa12:
+    return {0x6674, 0x0};
+  case 0xfa15:
+    return {0x51de, 0x0};
+  case 0xfa16:
+    return {0x732a, 0x0};
+  case 0xfa17:
+    return {0x76ca, 0x0};
+  case 0xfa18:
+    return {0x793c, 0x0};
+  case 0xfa19:
+    return {0x795e, 0x0};
+  case 0xfa1a:
+    return {0x7965, 0x0};
+  case 0xfa1b:
+    return {0x798f, 0x0};
+  case 0xfa1c:
+    return {0x9756, 0x0};
+  case 0xfa1d:
+    return {0x7cbe, 0x0};
+  case 0xfa1e:
+    return {0x7fbd, 0x0};
+  case 0xfa20:
+    return {0x8612, 0x0};
+  case 0xfa22:
+    return {0x8af8, 0x0};
+  case 0xfa25:
+    return {0x9038, 0x0};
+  case 0xfa26:
+    return {0x90fd, 0x0};
+  case 0xfa2a:
+    return {0x98ef, 0x0};
+  case 0xfa2b:
+    return {0x98fc, 0x0};
+  case 0xfa2c:
+    return {0x9928, 0x0};
+  case 0xfa2d:
+    return {0x9db4, 0x0};
+  case 0xfa2e:
+    return {0x90de, 0x0};
+  case 0xfa2f:
+    return {0x96b7, 0x0};
+  case 0xfa30:
+    return {0x4fae, 0x0};
+  case 0xfa31:
+    return {0x50e7, 0x0};
+  case 0xfa32:
+    return {0x514d, 0x0};
+  case 0xfa33:
+    return {0x52c9, 0x0};
+  case 0xfa34:
+    return {0x52e4, 0x0};
+  case 0xfa35:
+    return {0x5351, 0x0};
+  case 0xfa36:
+    return {0x559d, 0x0};
+  case 0xfa37:
+    return {0x5606, 0x0};
+  case 0xfa38:
+    return {0x5668, 0x0};
+  case 0xfa39:
+    return {0x5840, 0x0};
+  case 0xfa3a:
+    return {0x58a8, 0x0};
+  case 0xfa3b:
+    return {0x5c64, 0x0};
+  case 0xfa3c:
+    return {0x5c6e, 0x0};
+  case 0xfa3d:
+    return {0x6094, 0x0};
+  case 0xfa3e:
+    return {0x6168, 0x0};
+  case 0xfa3f:
+    return {0x618e, 0x0};
+  case 0xfa40:
+    return {0x61f2, 0x0};
+  case 0xfa41:
+    return {0x654f, 0x0};
+  case 0xfa42:
+    return {0x65e2, 0x0};
+  case 0xfa43:
+    return {0x6691, 0x0};
+  case 0xfa44:
+    return {0x6885, 0x0};
+  case 0xfa45:
+    return {0x6d77, 0x0};
+  case 0xfa46:
+    return {0x6e1a, 0x0};
+  case 0xfa47:
+    return {0x6f22, 0x0};
+  case 0xfa48:
+    return {0x716e, 0x0};
+  case 0xfa49:
+    return {0x722b, 0x0};
+  case 0xfa4a:
+    return {0x7422, 0x0};
+  case 0xfa4b:
+    return {0x7891, 0x0};
+  case 0xfa4c:
+    return {0x793e, 0x0};
+  case 0xfa4d:
+    return {0x7949, 0x0};
+  case 0xfa4e:
+    return {0x7948, 0x0};
+  case 0xfa4f:
+    return {0x7950, 0x0};
+  case 0xfa50:
+    return {0x7956, 0x0};
+  case 0xfa51:
+    return {0x795d, 0x0};
+  case 0xfa52:
+    return {0x798d, 0x0};
+  case 0xfa53:
+    return {0x798e, 0x0};
+  case 0xfa54:
+    return {0x7a40, 0x0};
+  case 0xfa55:
+    return {0x7a81, 0x0};
+  case 0xfa56:
+    return {0x7bc0, 0x0};
+  case 0xfa57:
+    return {0x7df4, 0x0};
+  case 0xfa58:
+    return {0x7e09, 0x0};
+  case 0xfa59:
+    return {0x7e41, 0x0};
+  case 0xfa5a:
+    return {0x7f72, 0x0};
+  case 0xfa5b:
+    return {0x8005, 0x0};
+  case 0xfa5c:
+    return {0x81ed, 0x0};
+  case 0xfa5d:
+    return {0x8279, 0x0};
+  case 0xfa5e:
+    return {0x8279, 0x0};
+  case 0xfa5f:
+    return {0x8457, 0x0};
+  case 0xfa60:
+    return {0x8910, 0x0};
+  case 0xfa61:
+    return {0x8996, 0x0};
+  case 0xfa62:
+    return {0x8b01, 0x0};
+  case 0xfa63:
+    return {0x8b39, 0x0};
+  case 0xfa64:
+    return {0x8cd3, 0x0};
+  case 0xfa65:
+    return {0x8d08, 0x0};
+  case 0xfa66:
+    return {0x8fb6, 0x0};
+  case 0xfa67:
+    return {0x9038, 0x0};
+  case 0xfa68:
+    return {0x96e3, 0x0};
+  case 0xfa69:
+    return {0x97ff, 0x0};
+  case 0xfa6a:
+    return {0x983b, 0x0};
+  case 0xfa6b:
+    return {0x6075, 0x0};
+  case 0xfa6c:
+    return {0x242ee, 0x0};
+  case 0xfa6d:
+    return {0x8218, 0x0};
+  case 0xfa70:
+    return {0x4e26, 0x0};
+  case 0xfa71:
+    return {0x51b5, 0x0};
+  case 0xfa72:
+    return {0x5168, 0x0};
+  case 0xfa73:
+    return {0x4f80, 0x0};
+  case 0xfa74:
+    return {0x5145, 0x0};
+  case 0xfa75:
+    return {0x5180, 0x0};
+  case 0xfa76:
+    return {0x52c7, 0x0};
+  case 0xfa77:
+    return {0x52fa, 0x0};
+  case 0xfa78:
+    return {0x559d, 0x0};
+  case 0xfa79:
+    return {0x5555, 0x0};
+  case 0xfa7a:
+    return {0x5599, 0x0};
+  case 0xfa7b:
+    return {0x55e2, 0x0};
+  case 0xfa7c:
+    return {0x585a, 0x0};
+  case 0xfa7d:
+    return {0x58b3, 0x0};
+  case 0xfa7e:
+    return {0x5944, 0x0};
+  case 0xfa7f:
+    return {0x5954, 0x0};
+  case 0xfa80:
+    return {0x5a62, 0x0};
+  case 0xfa81:
+    return {0x5b28, 0x0};
+  case 0xfa82:
+    return {0x5ed2, 0x0};
+  case 0xfa83:
+    return {0x5ed9, 0x0};
+  case 0xfa84:
+    return {0x5f69, 0x0};
+  case 0xfa85:
+    return {0x5fad, 0x0};
+  case 0xfa86:
+    return {0x60d8, 0x0};
+  case 0xfa87:
+    return {0x614e, 0x0};
+  case 0xfa88:
+    return {0x6108, 0x0};
+  case 0xfa89:
+    return {0x618e, 0x0};
+  case 0xfa8a:
+    return {0x6160, 0x0};
+  case 0xfa8b:
+    return {0x61f2, 0x0};
+  case 0xfa8c:
+    return {0x6234, 0x0};
+  case 0xfa8d:
+    return {0x63c4, 0x0};
+  case 0xfa8e:
+    return {0x641c, 0x0};
+  case 0xfa8f:
+    return {0x6452, 0x0};
+  case 0xfa90:
+    return {0x6556, 0x0};
+  case 0xfa91:
+    return {0x6674, 0x0};
+  case 0xfa92:
+    return {0x6717, 0x0};
+  case 0xfa93:
+    return {0x671b, 0x0};
+  case 0xfa94:
+    return {0x6756, 0x0};
+  case 0xfa95:
+    return {0x6b79, 0x0};
+  case 0xfa96:
+    return {0x6bba, 0x0};
+  case 0xfa97:
+    return {0x6d41, 0x0};
+  case 0xfa98:
+    return {0x6edb, 0x0};
+  case 0xfa99:
+    return {0x6ecb, 0x0};
+  case 0xfa9a:
+    return {0x6f22, 0x0};
+  case 0xfa9b:
+    return {0x701e, 0x0};
+  case 0xfa9c:
+    return {0x716e, 0x0};
+  case 0xfa9d:
+    return {0x77a7, 0x0};
+  case 0xfa9e:
+    return {0x7235, 0x0};
+  case 0xfa9f:
+    return {0x72af, 0x0};
+  case 0xfaa0:
+    return {0x732a, 0x0};
+  case 0xfaa1:
+    return {0x7471, 0x0};
+  case 0xfaa2:
+    return {0x7506, 0x0};
+  case 0xfaa3:
+    return {0x753b, 0x0};
+  case 0xfaa4:
+    return {0x761d, 0x0};
+  case 0xfaa5:
+    return {0x761f, 0x0};
+  case 0xfaa6:
+    return {0x76ca, 0x0};
+  case 0xfaa7:
+    return {0x76db, 0x0};
+  case 0xfaa8:
+    return {0x76f4, 0x0};
+  case 0xfaa9:
+    return {0x774a, 0x0};
+  case 0xfaaa:
+    return {0x7740, 0x0};
+  case 0xfaab:
+    return {0x78cc, 0x0};
+  case 0xfaac:
+    return {0x7ab1, 0x0};
+  case 0xfaad:
+    return {0x7bc0, 0x0};
+  case 0xfaae:
+    return {0x7c7b, 0x0};
+  case 0xfaaf:
+    return {0x7d5b, 0x0};
+  case 0xfab0:
+    return {0x7df4, 0x0};
+  case 0xfab1:
+    return {0x7f3e, 0x0};
+  case 0xfab2:
+    return {0x8005, 0x0};
+  case 0xfab3:
+    return {0x8352, 0x0};
+  case 0xfab4:
+    return {0x83ef, 0x0};
+  case 0xfab5:
+    return {0x8779, 0x0};
+  case 0xfab6:
+    return {0x8941, 0x0};
+  case 0xfab7:
+    return {0x8986, 0x0};
+  case 0xfab8:
+    return {0x8996, 0x0};
+  case 0xfab9:
+    return {0x8abf, 0x0};
+  case 0xfaba:
+    return {0x8af8, 0x0};
+  case 0xfabb:
+    return {0x8acb, 0x0};
+  case 0xfabc:
+    return {0x8b01, 0x0};
+  case 0xfabd:
+    return {0x8afe, 0x0};
+  case 0xfabe:
+    return {0x8aed, 0x0};
+  case 0xfabf:
+    return {0x8b39, 0x0};
+  case 0xfac0:
+    return {0x8b8a, 0x0};
+  case 0xfac1:
+    return {0x8d08, 0x0};
+  case 0xfac2:
+    return {0x8f38, 0x0};
+  case 0xfac3:
+    return {0x9072, 0x0};
+  case 0xfac4:
+    return {0x9199, 0x0};
+  case 0xfac5:
+    return {0x9276, 0x0};
+  case 0xfac6:
+    return {0x967c, 0x0};
+  case 0xfac7:
+    return {0x96e3, 0x0};
+  case 0xfac8:
+    return {0x9756, 0x0};
+  case 0xfac9:
+    return {0x97db, 0x0};
+  case 0xfaca:
+    return {0x97ff, 0x0};
+  case 0xfacb:
+    return {0x980b, 0x0};
+  case 0xfacc:
+    return {0x983b, 0x0};
+  case 0xfacd:
+    return {0x9b12, 0x0};
+  case 0xface:
+    return {0x9f9c, 0x0};
+  case 0xfacf:
+    return {0x2284a, 0x0};
+  case 0xfad0:
+    return {0x22844, 0x0};
+  case 0xfad1:
+    return {0x233d5, 0x0};
+  case 0xfad2:
+    return {0x3b9d, 0x0};
+  case 0xfad3:
+    return {0x4018, 0x0};
+  case 0xfad4:
+    return {0x4039, 0x0};
+  case 0xfad5:
+    return {0x25249, 0x0};
+  case 0xfad6:
+    return {0x25cd0, 0x0};
+  case 0xfad7:
+    return {0x27ed3, 0x0};
+  case 0xfad8:
+    return {0x9f43, 0x0};
+  case 0xfad9:
+    return {0x9f8e, 0x0};
+  case 0xfb1d:
+    return {0x5d9, 0x5b4};
+  case 0xfb1f:
+    return {0x5f2, 0x5b7};
+  case 0xfb2a:
+    return {0x5e9, 0x5c1};
+  case 0xfb2b:
+    return {0x5e9, 0x5c2};
+  case 0xfb2c:
+    return {0xfb49, 0x5c1};
+  case 0xfb2d:
+    return {0xfb49, 0x5c2};
+  case 0xfb2e:
+    return {0x5d0, 0x5b7};
+  case 0xfb2f:
+    return {0x5d0, 0x5b8};
+  case 0xfb30:
+    return {0x5d0, 0x5bc};
+  case 0xfb31:
+    return {0x5d1, 0x5bc};
+  case 0xfb32:
+    return {0x5d2, 0x5bc};
+  case 0xfb33:
+    return {0x5d3, 0x5bc};
+  case 0xfb34:
+    return {0x5d4, 0x5bc};
+  case 0xfb35:
+    return {0x5d5, 0x5bc};
+  case 0xfb36:
+    return {0x5d6, 0x5bc};
+  case 0xfb38:
+    return {0x5d8, 0x5bc};
+  case 0xfb39:
+    return {0x5d9, 0x5bc};
+  case 0xfb3a:
+    return {0x5da, 0x5bc};
+  case 0xfb3b:
+    return {0x5db, 0x5bc};
+  case 0xfb3c:
+    return {0x5dc, 0x5bc};
+  case 0xfb3e:
+    return {0x5de, 0x5bc};
+  case 0xfb40:
+    return {0x5e0, 0x5bc};
+  case 0xfb41:
+    return {0x5e1, 0x5bc};
+  case 0xfb43:
+    return {0x5e3, 0x5bc};
+  case 0xfb44:
+    return {0x5e4, 0x5bc};
+  case 0xfb46:
+    return {0x5e6, 0x5bc};
+  case 0xfb47:
+    return {0x5e7, 0x5bc};
+  case 0xfb48:
+    return {0x5e8, 0x5bc};
+  case 0xfb49:
+    return {0x5e9, 0x5bc};
+  case 0xfb4a:
+    return {0x5ea, 0x5bc};
+  case 0xfb4b:
+    return {0x5d5, 0x5b9};
+  case 0xfb4c:
+    return {0x5d1, 0x5bf};
+  case 0xfb4d:
+    return {0x5db, 0x5bf};
+  case 0xfb4e:
+    return {0x5e4, 0x5bf};
+  case 0x1109a:
+    return {0x11099, 0x110ba};
+  case 0x1109c:
+    return {0x1109b, 0x110ba};
+  case 0x110ab:
+    return {0x110a5, 0x110ba};
+  case 0x1112e:
+    return {0x11131, 0x11127};
+  case 0x1112f:
+    return {0x11132, 0x11127};
+  case 0x1134b:
+    return {0x11347, 0x1133e};
+  case 0x1134c:
+    return {0x11347, 0x11357};
+  case 0x114bb:
+    return {0x114b9, 0x114ba};
+  case 0x114bc:
+    return {0x114b9, 0x114b0};
+  case 0x114be:
+    return {0x114b9, 0x114bd};
+  case 0x115ba:
+    return {0x115b8, 0x115af};
+  case 0x115bb:
+    return {0x115b9, 0x115af};
+  case 0x11938:
+    return {0x11935, 0x11930};
+  case 0x1d15e:
+    return {0x1d157, 0x1d165};
+  case 0x1d15f:
+    return {0x1d158, 0x1d165};
+  case 0x1d160:
+    return {0x1d15f, 0x1d16e};
+  case 0x1d161:
+    return {0x1d15f, 0x1d16f};
+  case 0x1d162:
+    return {0x1d15f, 0x1d170};
+  case 0x1d163:
+    return {0x1d15f, 0x1d171};
+  case 0x1d164:
+    return {0x1d15f, 0x1d172};
+  case 0x1d1bb:
+    return {0x1d1b9, 0x1d165};
+  case 0x1d1bc:
+    return {0x1d1ba, 0x1d165};
+  case 0x1d1bd:
+    return {0x1d1bb, 0x1d16e};
+  case 0x1d1be:
+    return {0x1d1bc, 0x1d16e};
+  case 0x1d1bf:
+    return {0x1d1bb, 0x1d16f};
+  case 0x1d1c0:
+    return {0x1d1bc, 0x1d16f};
+  case 0x2f800:
+    return {0x4e3d, 0x0};
+  case 0x2f801:
+    return {0x4e38, 0x0};
+  case 0x2f802:
+    return {0x4e41, 0x0};
+  case 0x2f803:
+    return {0x20122, 0x0};
+  case 0x2f804:
+    return {0x4f60, 0x0};
+  case 0x2f805:
+    return {0x4fae, 0x0};
+  case 0x2f806:
+    return {0x4fbb, 0x0};
+  case 0x2f807:
+    return {0x5002, 0x0};
+  case 0x2f808:
+    return {0x507a, 0x0};
+  case 0x2f809:
+    return {0x5099, 0x0};
+  case 0x2f80a:
+    return {0x50e7, 0x0};
+  case 0x2f80b:
+    return {0x50cf, 0x0};
+  case 0x2f80c:
+    return {0x349e, 0x0};
+  case 0x2f80d:
+    return {0x2063a, 0x0};
+  case 0x2f80e:
+    return {0x514d, 0x0};
+  case 0x2f80f:
+    return {0x5154, 0x0};
+  case 0x2f810:
+    return {0x5164, 0x0};
+  case 0x2f811:
+    return {0x5177, 0x0};
+  case 0x2f812:
+    return {0x2051c, 0x0};
+  case 0x2f813:
+    return {0x34b9, 0x0};
+  case 0x2f814:
+    return {0x5167, 0x0};
+  case 0x2f815:
+    return {0x518d, 0x0};
+  case 0x2f816:
+    return {0x2054b, 0x0};
+  case 0x2f817:
+    return {0x5197, 0x0};
+  case 0x2f818:
+    return {0x51a4, 0x0};
+  case 0x2f819:
+    return {0x4ecc, 0x0};
+  case 0x2f81a:
+    return {0x51ac, 0x0};
+  case 0x2f81b:
+    return {0x51b5, 0x0};
+  case 0x2f81c:
+    return {0x291df, 0x0};
+  case 0x2f81d:
+    return {0x51f5, 0x0};
+  case 0x2f81e:
+    return {0x5203, 0x0};
+  case 0x2f81f:
+    return {0x34df, 0x0};
+  case 0x2f820:
+    return {0x523b, 0x0};
+  case 0x2f821:
+    return {0x5246, 0x0};
+  case 0x2f822:
+    return {0x5272, 0x0};
+  case 0x2f823:
+    return {0x5277, 0x0};
+  case 0x2f824:
+    return {0x3515, 0x0};
+  case 0x2f825:
+    return {0x52c7, 0x0};
+  case 0x2f826:
+    return {0x52c9, 0x0};
+  case 0x2f827:
+    return {0x52e4, 0x0};
+  case 0x2f828:
+    return {0x52fa, 0x0};
+  case 0x2f829:
+    return {0x5305, 0x0};
+  case 0x2f82a:
+    return {0x5306, 0x0};
+  case 0x2f82b:
+    return {0x5317, 0x0};
+  case 0x2f82c:
+    return {0x5349, 0x0};
+  case 0x2f82d:
+    return {0x5351, 0x0};
+  case 0x2f82e:
+    return {0x535a, 0x0};
+  case 0x2f82f:
+    return {0x5373, 0x0};
+  case 0x2f830:
+    return {0x537d, 0x0};
+  case 0x2f831:
+    return {0x537f, 0x0};
+  case 0x2f832:
+    return {0x537f, 0x0};
+  case 0x2f833:
+    return {0x537f, 0x0};
+  case 0x2f834:
+    return {0x20a2c, 0x0};
+  case 0x2f835:
+    return {0x7070, 0x0};
+  case 0x2f836:
+    return {0x53ca, 0x0};
+  case 0x2f837:
+    return {0x53df, 0x0};
+  case 0x2f838:
+    return {0x20b63, 0x0};
+  case 0x2f839:
+    return {0x53eb, 0x0};
+  case 0x2f83a:
+    return {0x53f1, 0x0};
+  case 0x2f83b:
+    return {0x5406, 0x0};
+  case 0x2f83c:
+    return {0x549e, 0x0};
+  case 0x2f83d:
+    return {0x5438, 0x0};
+  case 0x2f83e:
+    return {0x5448, 0x0};
+  case 0x2f83f:
+    return {0x5468, 0x0};
+  case 0x2f840:
+    return {0x54a2, 0x0};
+  case 0x2f841:
+    return {0x54f6, 0x0};
+  case 0x2f842:
+    return {0x5510, 0x0};
+  case 0x2f843:
+    return {0x5553, 0x0};
+  case 0x2f844:
+    return {0x5563, 0x0};
+  case 0x2f845:
+    return {0x5584, 0x0};
+  case 0x2f846:
+    return {0x5584, 0x0};
+  case 0x2f847:
+    return {0x5599, 0x0};
+  case 0x2f848:
+    return {0x55ab, 0x0};
+  case 0x2f849:
+    return {0x55b3, 0x0};
+  case 0x2f84a:
+    return {0x55c2, 0x0};
+  case 0x2f84b:
+    return {0x5716, 0x0};
+  case 0x2f84c:
+    return {0x5606, 0x0};
+  case 0x2f84d:
+    return {0x5717, 0x0};
+  case 0x2f84e:
+    return {0x5651, 0x0};
+  case 0x2f84f:
+    return {0x5674, 0x0};
+  case 0x2f850:
+    return {0x5207, 0x0};
+  case 0x2f851:
+    return {0x58ee, 0x0};
+  case 0x2f852:
+    return {0x57ce, 0x0};
+  case 0x2f853:
+    return {0x57f4, 0x0};
+  case 0x2f854:
+    return {0x580d, 0x0};
+  case 0x2f855:
+    return {0x578b, 0x0};
+  case 0x2f856:
+    return {0x5832, 0x0};
+  case 0x2f857:
+    return {0x5831, 0x0};
+  case 0x2f858:
+    return {0x58ac, 0x0};
+  case 0x2f859:
+    return {0x214e4, 0x0};
+  case 0x2f85a:
+    return {0x58f2, 0x0};
+  case 0x2f85b:
+    return {0x58f7, 0x0};
+  case 0x2f85c:
+    return {0x5906, 0x0};
+  case 0x2f85d:
+    return {0x591a, 0x0};
+  case 0x2f85e:
+    return {0x5922, 0x0};
+  case 0x2f85f:
+    return {0x5962, 0x0};
+  case 0x2f860:
+    return {0x216a8, 0x0};
+  case 0x2f861:
+    return {0x216ea, 0x0};
+  case 0x2f862:
+    return {0x59ec, 0x0};
+  case 0x2f863:
+    return {0x5a1b, 0x0};
+  case 0x2f864:
+    return {0x5a27, 0x0};
+  case 0x2f865:
+    return {0x59d8, 0x0};
+  case 0x2f866:
+    return {0x5a66, 0x0};
+  case 0x2f867:
+    return {0x36ee, 0x0};
+  case 0x2f868:
+    return {0x36fc, 0x0};
+  case 0x2f869:
+    return {0x5b08, 0x0};
+  case 0x2f86a:
+    return {0x5b3e, 0x0};
+  case 0x2f86b:
+    return {0x5b3e, 0x0};
+  case 0x2f86c:
+    return {0x219c8, 0x0};
+  case 0x2f86d:
+    return {0x5bc3, 0x0};
+  case 0x2f86e:
+    return {0x5bd8, 0x0};
+  case 0x2f86f:
+    return {0x5be7, 0x0};
+  case 0x2f870:
+    return {0x5bf3, 0x0};
+  case 0x2f871:
+    return {0x21b18, 0x0};
+  case 0x2f872:
+    return {0x5bff, 0x0};
+  case 0x2f873:
+    return {0x5c06, 0x0};
+  case 0x2f874:
+    return {0x5f53, 0x0};
+  case 0x2f875:
+    return {0x5c22, 0x0};
+  case 0x2f876:
+    return {0x3781, 0x0};
+  case 0x2f877:
+    return {0x5c60, 0x0};
+  case 0x2f878:
+    return {0x5c6e, 0x0};
+  case 0x2f879:
+    return {0x5cc0, 0x0};
+  case 0x2f87a:
+    return {0x5c8d, 0x0};
+  case 0x2f87b:
+    return {0x21de4, 0x0};
+  case 0x2f87c:
+    return {0x5d43, 0x0};
+  case 0x2f87d:
+    return {0x21de6, 0x0};
+  case 0x2f87e:
+    return {0x5d6e, 0x0};
+  case 0x2f87f:
+    return {0x5d6b, 0x0};
+  case 0x2f880:
+    return {0x5d7c, 0x0};
+  case 0x2f881:
+    return {0x5de1, 0x0};
+  case 0x2f882:
+    return {0x5de2, 0x0};
+  case 0x2f883:
+    return {0x382f, 0x0};
+  case 0x2f884:
+    return {0x5dfd, 0x0};
+  case 0x2f885:
+    return {0x5e28, 0x0};
+  case 0x2f886:
+    return {0x5e3d, 0x0};
+  case 0x2f887:
+    return {0x5e69, 0x0};
+  case 0x2f888:
+    return {0x3862, 0x0};
+  case 0x2f889:
+    return {0x22183, 0x0};
+  case 0x2f88a:
+    return {0x387c, 0x0};
+  case 0x2f88b:
+    return {0x5eb0, 0x0};
+  case 0x2f88c:
+    return {0x5eb3, 0x0};
+  case 0x2f88d:
+    return {0x5eb6, 0x0};
+  case 0x2f88e:
+    return {0x5eca, 0x0};
+  case 0x2f88f:
+    return {0x2a392, 0x0};
+  case 0x2f890:
+    return {0x5efe, 0x0};
+  case 0x2f891:
+    return {0x22331, 0x0};
+  case 0x2f892:
+    return {0x22331, 0x0};
+  case 0x2f893:
+    return {0x8201, 0x0};
+  case 0x2f894:
+    return {0x5f22, 0x0};
+  case 0x2f895:
+    return {0x5f22, 0x0};
+  case 0x2f896:
+    return {0x38c7, 0x0};
+  case 0x2f897:
+    return {0x232b8, 0x0};
+  case 0x2f898:
+    return {0x261da, 0x0};
+  case 0x2f899:
+    return {0x5f62, 0x0};
+  case 0x2f89a:
+    return {0x5f6b, 0x0};
+  case 0x2f89b:
+    return {0x38e3, 0x0};
+  case 0x2f89c:
+    return {0x5f9a, 0x0};
+  case 0x2f89d:
+    return {0x5fcd, 0x0};
+  case 0x2f89e:
+    return {0x5fd7, 0x0};
+  case 0x2f89f:
+    return {0x5ff9, 0x0};
+  case 0x2f8a0:
+    return {0x6081, 0x0};
+  case 0x2f8a1:
+    return {0x393a, 0x0};
+  case 0x2f8a2:
+    return {0x391c, 0x0};
+  case 0x2f8a3:
+    return {0x6094, 0x0};
+  case 0x2f8a4:
+    return {0x226d4, 0x0};
+  case 0x2f8a5:
+    return {0x60c7, 0x0};
+  case 0x2f8a6:
+    return {0x6148, 0x0};
+  case 0x2f8a7:
+    return {0x614c, 0x0};
+  case 0x2f8a8:
+    return {0x614e, 0x0};
+  case 0x2f8a9:
+    return {0x614c, 0x0};
+  case 0x2f8aa:
+    return {0x617a, 0x0};
+  case 0x2f8ab:
+    return {0x618e, 0x0};
+  case 0x2f8ac:
+    return {0x61b2, 0x0};
+  case 0x2f8ad:
+    return {0x61a4, 0x0};
+  case 0x2f8ae:
+    return {0x61af, 0x0};
+  case 0x2f8af:
+    return {0x61de, 0x0};
+  case 0x2f8b0:
+    return {0x61f2, 0x0};
+  case 0x2f8b1:
+    return {0x61f6, 0x0};
+  case 0x2f8b2:
+    return {0x6210, 0x0};
+  case 0x2f8b3:
+    return {0x621b, 0x0};
+  case 0x2f8b4:
+    return {0x625d, 0x0};
+  case 0x2f8b5:
+    return {0x62b1, 0x0};
+  case 0x2f8b6:
+    return {0x62d4, 0x0};
+  case 0x2f8b7:
+    return {0x6350, 0x0};
+  case 0x2f8b8:
+    return {0x22b0c, 0x0};
+  case 0x2f8b9:
+    return {0x633d, 0x0};
+  case 0x2f8ba:
+    return {0x62fc, 0x0};
+  case 0x2f8bb:
+    return {0x6368, 0x0};
+  case 0x2f8bc:
+    return {0x6383, 0x0};
+  case 0x2f8bd:
+    return {0x63e4, 0x0};
+  case 0x2f8be:
+    return {0x22bf1, 0x0};
+  case 0x2f8bf:
+    return {0x6422, 0x0};
+  case 0x2f8c0:
+    return {0x63c5, 0x0};
+  case 0x2f8c1:
+    return {0x63a9, 0x0};
+  case 0x2f8c2:
+    return {0x3a2e, 0x0};
+  case 0x2f8c3:
+    return {0x6469, 0x0};
+  case 0x2f8c4:
+    return {0x647e, 0x0};
+  case 0x2f8c5:
+    return {0x649d, 0x0};
+  case 0x2f8c6:
+    return {0x6477, 0x0};
+  case 0x2f8c7:
+    return {0x3a6c, 0x0};
+  case 0x2f8c8:
+    return {0x654f, 0x0};
+  case 0x2f8c9:
+    return {0x656c, 0x0};
+  case 0x2f8ca:
+    return {0x2300a, 0x0};
+  case 0x2f8cb:
+    return {0x65e3, 0x0};
+  case 0x2f8cc:
+    return {0x66f8, 0x0};
+  case 0x2f8cd:
+    return {0x6649, 0x0};
+  case 0x2f8ce:
+    return {0x3b19, 0x0};
+  case 0x2f8cf:
+    return {0x6691, 0x0};
+  case 0x2f8d0:
+    return {0x3b08, 0x0};
+  case 0x2f8d1:
+    return {0x3ae4, 0x0};
+  case 0x2f8d2:
+    return {0x5192, 0x0};
+  case 0x2f8d3:
+    return {0x5195, 0x0};
+  case 0x2f8d4:
+    return {0x6700, 0x0};
+  case 0x2f8d5:
+    return {0x669c, 0x0};
+  case 0x2f8d6:
+    return {0x80ad, 0x0};
+  case 0x2f8d7:
+    return {0x43d9, 0x0};
+  case 0x2f8d8:
+    return {0x6717, 0x0};
+  case 0x2f8d9:
+    return {0x671b, 0x0};
+  case 0x2f8da:
+    return {0x6721, 0x0};
+  case 0x2f8db:
+    return {0x675e, 0x0};
+  case 0x2f8dc:
+    return {0x6753, 0x0};
+  case 0x2f8dd:
+    return {0x233c3, 0x0};
+  case 0x2f8de:
+    return {0x3b49, 0x0};
+  case 0x2f8df:
+    return {0x67fa, 0x0};
+  case 0x2f8e0:
+    return {0x6785, 0x0};
+  case 0x2f8e1:
+    return {0x6852, 0x0};
+  case 0x2f8e2:
+    return {0x6885, 0x0};
+  case 0x2f8e3:
+    return {0x2346d, 0x0};
+  case 0x2f8e4:
+    return {0x688e, 0x0};
+  case 0x2f8e5:
+    return {0x681f, 0x0};
+  case 0x2f8e6:
+    return {0x6914, 0x0};
+  case 0x2f8e7:
+    return {0x3b9d, 0x0};
+  case 0x2f8e8:
+    return {0x6942, 0x0};
+  case 0x2f8e9:
+    return {0x69a3, 0x0};
+  case 0x2f8ea:
+    return {0x69ea, 0x0};
+  case 0x2f8eb:
+    return {0x6aa8, 0x0};
+  case 0x2f8ec:
+    return {0x236a3, 0x0};
+  case 0x2f8ed:
+    return {0x6adb, 0x0};
+  case 0x2f8ee:
+    return {0x3c18, 0x0};
+  case 0x2f8ef:
+    return {0x6b21, 0x0};
+  case 0x2f8f0:
+    return {0x238a7, 0x0};
+  case 0x2f8f1:
+    return {0x6b54, 0x0};
+  case 0x2f8f2:
+    return {0x3c4e, 0x0};
+  case 0x2f8f3:
+    return {0x6b72, 0x0};
+  case 0x2f8f4:
+    return {0x6b9f, 0x0};
+  case 0x2f8f5:
+    return {0x6bba, 0x0};
+  case 0x2f8f6:
+    return {0x6bbb, 0x0};
+  case 0x2f8f7:
+    return {0x23a8d, 0x0};
+  case 0x2f8f8:
+    return {0x21d0b, 0x0};
+  case 0x2f8f9:
+    return {0x23afa, 0x0};
+  case 0x2f8fa:
+    return {0x6c4e, 0x0};
+  case 0x2f8fb:
+    return {0x23cbc, 0x0};
+  case 0x2f8fc:
+    return {0x6cbf, 0x0};
+  case 0x2f8fd:
+    return {0x6ccd, 0x0};
+  case 0x2f8fe:
+    return {0x6c67, 0x0};
+  case 0x2f8ff:
+    return {0x6d16, 0x0};
+  case 0x2f900:
+    return {0x6d3e, 0x0};
+  case 0x2f901:
+    return {0x6d77, 0x0};
+  case 0x2f902:
+    return {0x6d41, 0x0};
+  case 0x2f903:
+    return {0x6d69, 0x0};
+  case 0x2f904:
+    return {0x6d78, 0x0};
+  case 0x2f905:
+    return {0x6d85, 0x0};
+  case 0x2f906:
+    return {0x23d1e, 0x0};
+  case 0x2f907:
+    return {0x6d34, 0x0};
+  case 0x2f908:
+    return {0x6e2f, 0x0};
+  case 0x2f909:
+    return {0x6e6e, 0x0};
+  case 0x2f90a:
+    return {0x3d33, 0x0};
+  case 0x2f90b:
+    return {0x6ecb, 0x0};
+  case 0x2f90c:
+    return {0x6ec7, 0x0};
+  case 0x2f90d:
+    return {0x23ed1, 0x0};
+  case 0x2f90e:
+    return {0x6df9, 0x0};
+  case 0x2f90f:
+    return {0x6f6e, 0x0};
+  case 0x2f910:
+    return {0x23f5e, 0x0};
+  case 0x2f911:
+    return {0x23f8e, 0x0};
+  case 0x2f912:
+    return {0x6fc6, 0x0};
+  case 0x2f913:
+    return {0x7039, 0x0};
+  case 0x2f914:
+    return {0x701e, 0x0};
+  case 0x2f915:
+    return {0x701b, 0x0};
+  case 0x2f916:
+    return {0x3d96, 0x0};
+  case 0x2f917:
+    return {0x704a, 0x0};
+  case 0x2f918:
+    return {0x707d, 0x0};
+  case 0x2f919:
+    return {0x7077, 0x0};
+  case 0x2f91a:
+    return {0x70ad, 0x0};
+  case 0x2f91b:
+    return {0x20525, 0x0};
+  case 0x2f91c:
+    return {0x7145, 0x0};
+  case 0x2f91d:
+    return {0x24263, 0x0};
+  case 0x2f91e:
+    return {0x719c, 0x0};
+  case 0x2f91f:
+    return {0x243ab, 0x0};
+  case 0x2f920:
+    return {0x7228, 0x0};
+  case 0x2f921:
+    return {0x7235, 0x0};
+  case 0x2f922:
+    return {0x7250, 0x0};
+  case 0x2f923:
+    return {0x24608, 0x0};
+  case 0x2f924:
+    return {0x7280, 0x0};
+  case 0x2f925:
+    return {0x7295, 0x0};
+  case 0x2f926:
+    return {0x24735, 0x0};
+  case 0x2f927:
+    return {0x24814, 0x0};
+  case 0x2f928:
+    return {0x737a, 0x0};
+  case 0x2f929:
+    return {0x738b, 0x0};
+  case 0x2f92a:
+    return {0x3eac, 0x0};
+  case 0x2f92b:
+    return {0x73a5, 0x0};
+  case 0x2f92c:
+    return {0x3eb8, 0x0};
+  case 0x2f92d:
+    return {0x3eb8, 0x0};
+  case 0x2f92e:
+    return {0x7447, 0x0};
+  case 0x2f92f:
+    return {0x745c, 0x0};
+  case 0x2f930:
+    return {0x7471, 0x0};
+  case 0x2f931:
+    return {0x7485, 0x0};
+  case 0x2f932:
+    return {0x74ca, 0x0};
+  case 0x2f933:
+    return {0x3f1b, 0x0};
+  case 0x2f934:
+    return {0x7524, 0x0};
+  case 0x2f935:
+    return {0x24c36, 0x0};
+  case 0x2f936:
+    return {0x753e, 0x0};
+  case 0x2f937:
+    return {0x24c92, 0x0};
+  case 0x2f938:
+    return {0x7570, 0x0};
+  case 0x2f939:
+    return {0x2219f, 0x0};
+  case 0x2f93a:
+    return {0x7610, 0x0};
+  case 0x2f93b:
+    return {0x24fa1, 0x0};
+  case 0x2f93c:
+    return {0x24fb8, 0x0};
+  case 0x2f93d:
+    return {0x25044, 0x0};
+  case 0x2f93e:
+    return {0x3ffc, 0x0};
+  case 0x2f93f:
+    return {0x4008, 0x0};
+  case 0x2f940:
+    return {0x76f4, 0x0};
+  case 0x2f941:
+    return {0x250f3, 0x0};
+  case 0x2f942:
+    return {0x250f2, 0x0};
+  case 0x2f943:
+    return {0x25119, 0x0};
+  case 0x2f944:
+    return {0x25133, 0x0};
+  case 0x2f945:
+    return {0x771e, 0x0};
+  case 0x2f946:
+    return {0x771f, 0x0};
+  case 0x2f947:
+    return {0x771f, 0x0};
+  case 0x2f948:
+    return {0x774a, 0x0};
+  case 0x2f949:
+    return {0x4039, 0x0};
+  case 0x2f94a:
+    return {0x778b, 0x0};
+  case 0x2f94b:
+    return {0x4046, 0x0};
+  case 0x2f94c:
+    return {0x4096, 0x0};
+  case 0x2f94d:
+    return {0x2541d, 0x0};
+  case 0x2f94e:
+    return {0x784e, 0x0};
+  case 0x2f94f:
+    return {0x788c, 0x0};
+  case 0x2f950:
+    return {0x78cc, 0x0};
+  case 0x2f951:
+    return {0x40e3, 0x0};
+  case 0x2f952:
+    return {0x25626, 0x0};
+  case 0x2f953:
+    return {0x7956, 0x0};
+  case 0x2f954:
+    return {0x2569a, 0x0};
+  case 0x2f955:
+    return {0x256c5, 0x0};
+  case 0x2f956:
+    return {0x798f, 0x0};
+  case 0x2f957:
+    return {0x79eb, 0x0};
+  case 0x2f958:
+    return {0x412f, 0x0};
+  case 0x2f959:
+    return {0x7a40, 0x0};
+  case 0x2f95a:
+    return {0x7a4a, 0x0};
+  case 0x2f95b:
+    return {0x7a4f, 0x0};
+  case 0x2f95c:
+    return {0x2597c, 0x0};
+  case 0x2f95d:
+    return {0x25aa7, 0x0};
+  case 0x2f95e:
+    return {0x25aa7, 0x0};
+  case 0x2f95f:
+    return {0x7aee, 0x0};
+  case 0x2f960:
+    return {0x4202, 0x0};
+  case 0x2f961:
+    return {0x25bab, 0x0};
+  case 0x2f962:
+    return {0x7bc6, 0x0};
+  case 0x2f963:
+    return {0x7bc9, 0x0};
+  case 0x2f964:
+    return {0x4227, 0x0};
+  case 0x2f965:
+    return {0x25c80, 0x0};
+  case 0x2f966:
+    return {0x7cd2, 0x0};
+  case 0x2f967:
+    return {0x42a0, 0x0};
+  case 0x2f968:
+    return {0x7ce8, 0x0};
+  case 0x2f969:
+    return {0x7ce3, 0x0};
+  case 0x2f96a:
+    return {0x7d00, 0x0};
+  case 0x2f96b:
+    return {0x25f86, 0x0};
+  case 0x2f96c:
+    return {0x7d63, 0x0};
+  case 0x2f96d:
+    return {0x4301, 0x0};
+  case 0x2f96e:
+    return {0x7dc7, 0x0};
+  case 0x2f96f:
+    return {0x7e02, 0x0};
+  case 0x2f970:
+    return {0x7e45, 0x0};
+  case 0x2f971:
+    return {0x4334, 0x0};
+  case 0x2f972:
+    return {0x26228, 0x0};
+  case 0x2f973:
+    return {0x26247, 0x0};
+  case 0x2f974:
+    return {0x4359, 0x0};
+  case 0x2f975:
+    return {0x262d9, 0x0};
+  case 0x2f976:
+    return {0x7f7a, 0x0};
+  case 0x2f977:
+    return {0x2633e, 0x0};
+  case 0x2f978:
+    return {0x7f95, 0x0};
+  case 0x2f979:
+    return {0x7ffa, 0x0};
+  case 0x2f97a:
+    return {0x8005, 0x0};
+  case 0x2f97b:
+    return {0x264da, 0x0};
+  case 0x2f97c:
+    return {0x26523, 0x0};
+  case 0x2f97d:
+    return {0x8060, 0x0};
+  case 0x2f97e:
+    return {0x265a8, 0x0};
+  case 0x2f97f:
+    return {0x8070, 0x0};
+  case 0x2f980:
+    return {0x2335f, 0x0};
+  case 0x2f981:
+    return {0x43d5, 0x0};
+  case 0x2f982:
+    return {0x80b2, 0x0};
+  case 0x2f983:
+    return {0x8103, 0x0};
+  case 0x2f984:
+    return {0x440b, 0x0};
+  case 0x2f985:
+    return {0x813e, 0x0};
+  case 0x2f986:
+    return {0x5ab5, 0x0};
+  case 0x2f987:
+    return {0x267a7, 0x0};
+  case 0x2f988:
+    return {0x267b5, 0x0};
+  case 0x2f989:
+    return {0x23393, 0x0};
+  case 0x2f98a:
+    return {0x2339c, 0x0};
+  case 0x2f98b:
+    return {0x8201, 0x0};
+  case 0x2f98c:
+    return {0x8204, 0x0};
+  case 0x2f98d:
+    return {0x8f9e, 0x0};
+  case 0x2f98e:
+    return {0x446b, 0x0};
+  case 0x2f98f:
+    return {0x8291, 0x0};
+  case 0x2f990:
+    return {0x828b, 0x0};
+  case 0x2f991:
+    return {0x829d, 0x0};
+  case 0x2f992:
+    return {0x52b3, 0x0};
+  case 0x2f993:
+    return {0x82b1, 0x0};
+  case 0x2f994:
+    return {0x82b3, 0x0};
+  case 0x2f995:
+    return {0x82bd, 0x0};
+  case 0x2f996:
+    return {0x82e6, 0x0};
+  case 0x2f997:
+    return {0x26b3c, 0x0};
+  case 0x2f998:
+    return {0x82e5, 0x0};
+  case 0x2f999:
+    return {0x831d, 0x0};
+  case 0x2f99a:
+    return {0x8363, 0x0};
+  case 0x2f99b:
+    return {0x83ad, 0x0};
+  case 0x2f99c:
+    return {0x8323, 0x0};
+  case 0x2f99d:
+    return {0x83bd, 0x0};
+  case 0x2f99e:
+    return {0x83e7, 0x0};
+  case 0x2f99f:
+    return {0x8457, 0x0};
+  case 0x2f9a0:
+    return {0x8353, 0x0};
+  case 0x2f9a1:
+    return {0x83ca, 0x0};
+  case 0x2f9a2:
+    return {0x83cc, 0x0};
+  case 0x2f9a3:
+    return {0x83dc, 0x0};
+  case 0x2f9a4:
+    return {0x26c36, 0x0};
+  case 0x2f9a5:
+    return {0x26d6b, 0x0};
+  case 0x2f9a6:
+    return {0x26cd5, 0x0};
+  case 0x2f9a7:
+    return {0x452b, 0x0};
+  case 0x2f9a8:
+    return {0x84f1, 0x0};
+  case 0x2f9a9:
+    return {0x84f3, 0x0};
+  case 0x2f9aa:
+    return {0x8516, 0x0};
+  case 0x2f9ab:
+    return {0x273ca, 0x0};
+  case 0x2f9ac:
+    return {0x8564, 0x0};
+  case 0x2f9ad:
+    return {0x26f2c, 0x0};
+  case 0x2f9ae:
+    return {0x455d, 0x0};
+  case 0x2f9af:
+    return {0x4561, 0x0};
+  case 0x2f9b0:
+    return {0x26fb1, 0x0};
+  case 0x2f9b1:
+    return {0x270d2, 0x0};
+  case 0x2f9b2:
+    return {0x456b, 0x0};
+  case 0x2f9b3:
+    return {0x8650, 0x0};
+  case 0x2f9b4:
+    return {0x865c, 0x0};
+  case 0x2f9b5:
+    return {0x8667, 0x0};
+  case 0x2f9b6:
+    return {0x8669, 0x0};
+  case 0x2f9b7:
+    return {0x86a9, 0x0};
+  case 0x2f9b8:
+    return {0x8688, 0x0};
+  case 0x2f9b9:
+    return {0x870e, 0x0};
+  case 0x2f9ba:
+    return {0x86e2, 0x0};
+  case 0x2f9bb:
+    return {0x8779, 0x0};
+  case 0x2f9bc:
+    return {0x8728, 0x0};
+  case 0x2f9bd:
+    return {0x876b, 0x0};
+  case 0x2f9be:
+    return {0x8786, 0x0};
+  case 0x2f9bf:
+    return {0x45d7, 0x0};
+  case 0x2f9c0:
+    return {0x87e1, 0x0};
+  case 0x2f9c1:
+    return {0x8801, 0x0};
+  case 0x2f9c2:
+    return {0x45f9, 0x0};
+  case 0x2f9c3:
+    return {0x8860, 0x0};
+  case 0x2f9c4:
+    return {0x8863, 0x0};
+  case 0x2f9c5:
+    return {0x27667, 0x0};
+  case 0x2f9c6:
+    return {0x88d7, 0x0};
+  case 0x2f9c7:
+    return {0x88de, 0x0};
+  case 0x2f9c8:
+    return {0x4635, 0x0};
+  case 0x2f9c9:
+    return {0x88fa, 0x0};
+  case 0x2f9ca:
+    return {0x34bb, 0x0};
+  case 0x2f9cb:
+    return {0x278ae, 0x0};
+  case 0x2f9cc:
+    return {0x27966, 0x0};
+  case 0x2f9cd:
+    return {0x46be, 0x0};
+  case 0x2f9ce:
+    return {0x46c7, 0x0};
+  case 0x2f9cf:
+    return {0x8aa0, 0x0};
+  case 0x2f9d0:
+    return {0x8aed, 0x0};
+  case 0x2f9d1:
+    return {0x8b8a, 0x0};
+  case 0x2f9d2:
+    return {0x8c55, 0x0};
+  case 0x2f9d3:
+    return {0x27ca8, 0x0};
+  case 0x2f9d4:
+    return {0x8cab, 0x0};
+  case 0x2f9d5:
+    return {0x8cc1, 0x0};
+  case 0x2f9d6:
+    return {0x8d1b, 0x0};
+  case 0x2f9d7:
+    return {0x8d77, 0x0};
+  case 0x2f9d8:
+    return {0x27f2f, 0x0};
+  case 0x2f9d9:
+    return {0x20804, 0x0};
+  case 0x2f9da:
+    return {0x8dcb, 0x0};
+  case 0x2f9db:
+    return {0x8dbc, 0x0};
+  case 0x2f9dc:
+    return {0x8df0, 0x0};
+  case 0x2f9dd:
+    return {0x208de, 0x0};
+  case 0x2f9de:
+    return {0x8ed4, 0x0};
+  case 0x2f9df:
+    return {0x8f38, 0x0};
+  case 0x2f9e0:
+    return {0x285d2, 0x0};
+  case 0x2f9e1:
+    return {0x285ed, 0x0};
+  case 0x2f9e2:
+    return {0x9094, 0x0};
+  case 0x2f9e3:
+    return {0x90f1, 0x0};
+  case 0x2f9e4:
+    return {0x9111, 0x0};
+  case 0x2f9e5:
+    return {0x2872e, 0x0};
+  case 0x2f9e6:
+    return {0x911b, 0x0};
+  case 0x2f9e7:
+    return {0x9238, 0x0};
+  case 0x2f9e8:
+    return {0x92d7, 0x0};
+  case 0x2f9e9:
+    return {0x92d8, 0x0};
+  case 0x2f9ea:
+    return {0x927c, 0x0};
+  case 0x2f9eb:
+    return {0x93f9, 0x0};
+  case 0x2f9ec:
+    return {0x9415, 0x0};
+  case 0x2f9ed:
+    return {0x28bfa, 0x0};
+  case 0x2f9ee:
+    return {0x958b, 0x0};
+  case 0x2f9ef:
+    return {0x4995, 0x0};
+  case 0x2f9f0:
+    return {0x95b7, 0x0};
+  case 0x2f9f1:
+    return {0x28d77, 0x0};
+  case 0x2f9f2:
+    return {0x49e6, 0x0};
+  case 0x2f9f3:
+    return {0x96c3, 0x0};
+  case 0x2f9f4:
+    return {0x5db2, 0x0};
+  case 0x2f9f5:
+    return {0x9723, 0x0};
+  case 0x2f9f6:
+    return {0x29145, 0x0};
+  case 0x2f9f7:
+    return {0x2921a, 0x0};
+  case 0x2f9f8:
+    return {0x4a6e, 0x0};
+  case 0x2f9f9:
+    return {0x4a76, 0x0};
+  case 0x2f9fa:
+    return {0x97e0, 0x0};
+  case 0x2f9fb:
+    return {0x2940a, 0x0};
+  case 0x2f9fc:
+    return {0x4ab2, 0x0};
+  case 0x2f9fd:
+    return {0x29496, 0x0};
+  case 0x2f9fe:
+    return {0x980b, 0x0};
+  case 0x2f9ff:
+    return {0x980b, 0x0};
+  case 0x2fa00:
+    return {0x9829, 0x0};
+  case 0x2fa01:
+    return {0x295b6, 0x0};
+  case 0x2fa02:
+    return {0x98e2, 0x0};
+  case 0x2fa03:
+    return {0x4b33, 0x0};
+  case 0x2fa04:
+    return {0x9929, 0x0};
+  case 0x2fa05:
+    return {0x99a7, 0x0};
+  case 0x2fa06:
+    return {0x99c2, 0x0};
+  case 0x2fa07:
+    return {0x99fe, 0x0};
+  case 0x2fa08:
+    return {0x4bce, 0x0};
+  case 0x2fa09:
+    return {0x29b30, 0x0};
+  case 0x2fa0a:
+    return {0x9b12, 0x0};
+  case 0x2fa0b:
+    return {0x9c40, 0x0};
+  case 0x2fa0c:
+    return {0x9cfd, 0x0};
+  case 0x2fa0d:
+    return {0x4cce, 0x0};
+  case 0x2fa0e:
+    return {0x4ced, 0x0};
+  case 0x2fa0f:
+    return {0x9d67, 0x0};
+  case 0x2fa10:
+    return {0x2a0ce, 0x0};
+  case 0x2fa11:
+    return {0x4cf8, 0x0};
+  case 0x2fa12:
+    return {0x2a105, 0x0};
+  case 0x2fa13:
+    return {0x2a20e, 0x0};
+  case 0x2fa14:
+    return {0x2a291, 0x0};
+  case 0x2fa15:
+    return {0x9ebb, 0x0};
+  case 0x2fa16:
+    return {0x4d56, 0x0};
+  case 0x2fa17:
+    return {0x9ef9, 0x0};
+  case 0x2fa18:
+    return {0x9efe, 0x0};
+  case 0x2fa19:
+    return {0x9f05, 0x0};
+  case 0x2fa1a:
+    return {0x9f0f, 0x0};
+  case 0x2fa1b:
+    return {0x9f16, 0x0};
+  case 0x2fa1c:
+    return {0x9f3b, 0x0};
+  case 0x2fa1d:
+    return {0x2a600, 0x0};
+  default:
+    return {0, 0};
+  }
+}
+
+Optional<uint32_t> 
+compose_one_char(uint32_t cp)
+{
+  switch(cp)
+  {
+  case 0x3b:
+    return {0x37e};
+  case 0x4b:
+    return {0x212a};
+  case 0x60:
+    return {0x1fef};
+  case 0xb4:
+    return {0x1ffd};
+  case 0xb7:
+    return {0x387};
+  case 0xc5:
+    return {0x212b};
+  case 0x2b9:
+    return {0x374};
+  case 0x300:
+    return {0x340};
+  case 0x301:
+    return {0x341};
+  case 0x313:
+    return {0x343};
+  case 0x385:
+    return {0x1fee};
+  case 0x386:
+    return {0x1fbb};
+  case 0x388:
+    return {0x1fc9};
+  case 0x389:
+    return {0x1fcb};
+  case 0x38a:
+    return {0x1fdb};
+  case 0x38c:
+    return {0x1ff9};
+  case 0x38e:
+    return {0x1feb};
+  case 0x38f:
+    return {0x1ffb};
+  case 0x390:
+    return {0x1fd3};
+  case 0x3a9:
+    return {0x2126};
+  case 0x3ac:
+    return {0x1f71};
+  case 0x3ad:
+    return {0x1f73};
+  case 0x3ae:
+    return {0x1f75};
+  case 0x3af:
+    return {0x1f77};
+  case 0x3b0:
+    return {0x1fe3};
+  case 0x3b9:
+    return {0x1fbe};
+  case 0x3cc:
+    return {0x1f79};
+  case 0x3cd:
+    return {0x1f7b};
+  case 0x3ce:
+    return {0x1f7d};
+  case 0x2002:
+    return {0x2000};
+  case 0x2003:
+    return {0x2001};
+  case 0x3008:
+    return {0x2329};
+  case 0x3009:
+    return {0x232a};
+  case 0x349e:
+    return {0x2f80c};
+  case 0x34b9:
+    return {0x2f813};
+  case 0x34bb:
+    return {0x2f9ca};
+  case 0x34df:
+    return {0x2f81f};
+  case 0x3515:
+    return {0x2f824};
+  case 0x36ee:
+    return {0x2f867};
+  case 0x36fc:
+    return {0x2f868};
+  case 0x3781:
+    return {0x2f876};
+  case 0x382f:
+    return {0x2f883};
+  case 0x3862:
+    return {0x2f888};
+  case 0x387c:
+    return {0x2f88a};
+  case 0x38c7:
+    return {0x2f896};
+  case 0x38e3:
+    return {0x2f89b};
+  case 0x391c:
+    return {0x2f8a2};
+  case 0x393a:
+    return {0x2f8a1};
+  case 0x3a2e:
+    return {0x2f8c2};
+  case 0x3a6c:
+    return {0x2f8c7};
+  case 0x3ae4:
+    return {0x2f8d1};
+  case 0x3b08:
+    return {0x2f8d0};
+  case 0x3b19:
+    return {0x2f8ce};
+  case 0x3b49:
+    return {0x2f8de};
+  case 0x3b9d:
+    return {0xfad2};
+  case 0x3c18:
+    return {0x2f8ee};
+  case 0x3c4e:
+    return {0x2f8f2};
+  case 0x3d33:
+    return {0x2f90a};
+  case 0x3d96:
+    return {0x2f916};
+  case 0x3eac:
+    return {0x2f92a};
+  case 0x3eb8:
+    return {0x2f92c};
+  case 0x3f1b:
+    return {0x2f933};
+  case 0x3ffc:
+    return {0x2f93e};
+  case 0x4008:
+    return {0x2f93f};
+  case 0x4018:
+    return {0xfad3};
+  case 0x4039:
+    return {0xfad4};
+  case 0x4046:
+    return {0x2f94b};
+  case 0x4096:
+    return {0x2f94c};
+  case 0x40e3:
+    return {0x2f951};
+  case 0x412f:
+    return {0x2f958};
+  case 0x4202:
+    return {0x2f960};
+  case 0x4227:
+    return {0x2f964};
+  case 0x42a0:
+    return {0x2f967};
+  case 0x4301:
+    return {0x2f96d};
+  case 0x4334:
+    return {0x2f971};
+  case 0x4359:
+    return {0x2f974};
+  case 0x43d5:
+    return {0x2f981};
+  case 0x43d9:
+    return {0x2f8d7};
+  case 0x440b:
+    return {0x2f984};
+  case 0x446b:
+    return {0x2f98e};
+  case 0x452b:
+    return {0x2f9a7};
+  case 0x455d:
+    return {0x2f9ae};
+  case 0x4561:
+    return {0x2f9af};
+  case 0x456b:
+    return {0x2f9b2};
+  case 0x45d7:
+    return {0x2f9bf};
+  case 0x45f9:
+    return {0x2f9c2};
+  case 0x4635:
+    return {0x2f9c8};
+  case 0x46be:
+    return {0x2f9cd};
+  case 0x46c7:
+    return {0x2f9ce};
+  case 0x4995:
+    return {0x2f9ef};
+  case 0x49e6:
+    return {0x2f9f2};
+  case 0x4a6e:
+    return {0x2f9f8};
+  case 0x4a76:
+    return {0x2f9f9};
+  case 0x4ab2:
+    return {0x2f9fc};
+  case 0x4b33:
+    return {0x2fa03};
+  case 0x4bce:
+    return {0x2fa08};
+  case 0x4cce:
+    return {0x2fa0d};
+  case 0x4ced:
+    return {0x2fa0e};
+  case 0x4cf8:
+    return {0x2fa11};
+  case 0x4d56:
+    return {0x2fa16};
+  case 0x4e0d:
+    return {0xf967};
+  case 0x4e26:
+    return {0xfa70};
+  case 0x4e32:
+    return {0xf905};
+  case 0x4e38:
+    return {0x2f801};
+  case 0x4e39:
+    return {0xf95e};
+  case 0x4e3d:
+    return {0x2f800};
+  case 0x4e41:
+    return {0x2f802};
+  case 0x4e82:
+    return {0xf91b};
+  case 0x4e86:
+    return {0xf9ba};
+  case 0x4eae:
+    return {0xf977};
+  case 0x4ec0:
+    return {0xf9fd};
+  case 0x4ecc:
+    return {0x2f819};
+  case 0x4ee4:
+    return {0xf9a8};
+  case 0x4f60:
+    return {0x2f804};
+  case 0x4f80:
+    return {0xfa73};
+  case 0x4f86:
+    return {0xf92d};
+  case 0x4f8b:
+    return {0xf9b5};
+  case 0x4fae:
+    return {0xfa30};
+  case 0x4fbb:
+    return {0x2f806};
+  case 0x4fbf:
+    return {0xf965};
+  case 0x5002:
+    return {0x2f807};
+  case 0x502b:
+    return {0xf9d4};
+  case 0x507a:
+    return {0x2f808};
+  case 0x5099:
+    return {0x2f809};
+  case 0x50cf:
+    return {0x2f80b};
+  case 0x50da:
+    return {0xf9bb};
+  case 0x50e7:
+    return {0xfa31};
+  case 0x5140:
+    return {0xfa0c};
+  case 0x5145:
+    return {0xfa74};
+  case 0x514d:
+    return {0xfa32};
+  case 0x5154:
+    return {0x2f80f};
+  case 0x5164:
+    return {0x2f810};
+  case 0x5167:
+    return {0x2f814};
+  case 0x5168:
+    return {0xfa72};
+  case 0x5169:
+    return {0xf978};
+  case 0x516d:
+    return {0xf9d1};
+  case 0x5177:
+    return {0x2f811};
+  case 0x5180:
+    return {0xfa75};
+  case 0x518d:
+    return {0x2f815};
+  case 0x5192:
+    return {0x2f8d2};
+  case 0x5195:
+    return {0x2f8d3};
+  case 0x5197:
+    return {0x2f817};
+  case 0x51a4:
+    return {0x2f818};
+  case 0x51ac:
+    return {0x2f81a};
+  case 0x51b5:
+    return {0xfa71};
+  case 0x51b7:
+    return {0xf92e};
+  case 0x51c9:
+    return {0xf979};
+  case 0x51cc:
+    return {0xf955};
+  case 0x51dc:
+    return {0xf954};
+  case 0x51de:
+    return {0xfa15};
+  case 0x51f5:
+    return {0x2f81d};
+  case 0x5203:
+    return {0x2f81e};
+  case 0x5207:
+    return {0xfa00};
+  case 0x5217:
+    return {0xf99c};
+  case 0x5229:
+    return {0xf9dd};
+  case 0x523a:
+    return {0xf9ff};
+  case 0x523b:
+    return {0x2f820};
+  case 0x5246:
+    return {0x2f821};
+  case 0x5272:
+    return {0x2f822};
+  case 0x5277:
+    return {0x2f823};
+  case 0x5289:
+    return {0xf9c7};
+  case 0x529b:
+    return {0xf98a};
+  case 0x52a3:
+    return {0xf99d};
+  case 0x52b3:
+    return {0x2f992};
+  case 0x52c7:
+    return {0xfa76};
+  case 0x52c9:
+    return {0xfa33};
+  case 0x52d2:
+    return {0xf952};
+  case 0x52de:
+    return {0xf92f};
+  case 0x52e4:
+    return {0xfa34};
+  case 0x52f5:
+    return {0xf97f};
+  case 0x52fa:
+    return {0xfa77};
+  case 0x5305:
+    return {0x2f829};
+  case 0x5306:
+    return {0x2f82a};
+  case 0x5317:
+    return {0xf963};
+  case 0x533f:
+    return {0xf9eb};
+  case 0x5349:
+    return {0x2f82c};
+  case 0x5351:
+    return {0xfa35};
+  case 0x535a:
+    return {0x2f82e};
+  case 0x5373:
+    return {0x2f82f};
+  case 0x5375:
+    return {0xf91c};
+  case 0x537d:
+    return {0x2f830};
+  case 0x537f:
+    return {0x2f831};
+  case 0x53c3:
+    return {0xf96b};
+  case 0x53ca:
+    return {0x2f836};
+  case 0x53df:
+    return {0x2f837};
+  case 0x53e5:
+    return {0xf906};
+  case 0x53eb:
+    return {0x2f839};
+  case 0x53f1:
+    return {0x2f83a};
+  case 0x5406:
+    return {0x2f83b};
+  case 0x540f:
+    return {0xf9de};
+  case 0x541d:
+    return {0xf9ed};
+  case 0x5438:
+    return {0x2f83d};
+  case 0x5442:
+    return {0xf980};
+  case 0x5448:
+    return {0x2f83e};
+  case 0x5468:
+    return {0x2f83f};
+  case 0x549e:
+    return {0x2f83c};
+  case 0x54a2:
+    return {0x2f840};
+  case 0x54bd:
+    return {0xf99e};
+  case 0x54f6:
+    return {0x2f841};
+  case 0x5510:
+    return {0x2f842};
+  case 0x5553:
+    return {0x2f843};
+  case 0x5555:
+    return {0xfa79};
+  case 0x5563:
+    return {0x2f844};
+  case 0x5584:
+    return {0x2f845};
+  case 0x5587:
+    return {0xf90b};
+  case 0x5599:
+    return {0xfa7a};
+  case 0x559d:
+    return {0xfa36};
+  case 0x55ab:
+    return {0x2f848};
+  case 0x55b3:
+    return {0x2f849};
+  case 0x55c0:
+    return {0xfa0d};
+  case 0x55c2:
+    return {0x2f84a};
+  case 0x55e2:
+    return {0xfa7b};
+  case 0x5606:
+    return {0xfa37};
+  case 0x5651:
+    return {0x2f84e};
+  case 0x5668:
+    return {0xfa38};
+  case 0x5674:
+    return {0x2f84f};
+  case 0x56f9:
+    return {0xf9a9};
+  case 0x5716:
+    return {0x2f84b};
+  case 0x5717:
+    return {0x2f84d};
+  case 0x578b:
+    return {0x2f855};
+  case 0x57ce:
+    return {0x2f852};
+  case 0x57f4:
+    return {0x2f853};
+  case 0x580d:
+    return {0x2f854};
+  case 0x5831:
+    return {0x2f857};
+  case 0x5832:
+    return {0x2f856};
+  case 0x5840:
+    return {0xfa39};
+  case 0x585a:
+    return {0xfa10};
+  case 0x585e:
+    return {0xf96c};
+  case 0x58a8:
+    return {0xfa3a};
+  case 0x58ac:
+    return {0x2f858};
+  case 0x58b3:
+    return {0xfa7d};
+  case 0x58d8:
+    return {0xf94a};
+  case 0x58df:
+    return {0xf942};
+  case 0x58ee:
+    return {0x2f851};
+  case 0x58f2:
+    return {0x2f85a};
+  case 0x58f7:
+    return {0x2f85b};
+  case 0x5906:
+    return {0x2f85c};
+  case 0x591a:
+    return {0x2f85d};
+  case 0x5922:
+    return {0x2f85e};
+  case 0x5944:
+    return {0xfa7e};
+  case 0x5948:
+    return {0xf90c};
+  case 0x5951:
+    return {0xf909};
+  case 0x5954:
+    return {0xfa7f};
+  case 0x5962:
+    return {0x2f85f};
+  case 0x5973:
+    return {0xf981};
+  case 0x59d8:
+    return {0x2f865};
+  case 0x59ec:
+    return {0x2f862};
+  case 0x5a1b:
+    return {0x2f863};
+  case 0x5a27:
+    return {0x2f864};
+  case 0x5a62:
+    return {0xfa80};
+  case 0x5a66:
+    return {0x2f866};
+  case 0x5ab5:
+    return {0x2f986};
+  case 0x5b08:
+    return {0x2f869};
+  case 0x5b28:
+    return {0xfa81};
+  case 0x5b3e:
+    return {0x2f86a};
+  case 0x5b85:
+    return {0xfa04};
+  case 0x5bc3:
+    return {0x2f86d};
+  case 0x5bd8:
+    return {0x2f86e};
+  case 0x5be7:
+    return {0xf95f};
+  case 0x5bee:
+    return {0xf9bc};
+  case 0x5bf3:
+    return {0x2f870};
+  case 0x5bff:
+    return {0x2f872};
+  case 0x5c06:
+    return {0x2f873};
+  case 0x5c22:
+    return {0x2f875};
+  case 0x5c3f:
+    return {0xf9bd};
+  case 0x5c60:
+    return {0x2f877};
+  case 0x5c62:
+    return {0xf94b};
+  case 0x5c64:
+    return {0xfa3b};
+  case 0x5c65:
+    return {0xf9df};
+  case 0x5c6e:
+    return {0xfa3c};
+  case 0x5c8d:
+    return {0x2f87a};
+  case 0x5cc0:
+    return {0x2f879};
+  case 0x5d19:
+    return {0xf9d5};
+  case 0x5d43:
+    return {0x2f87c};
+  case 0x5d50:
+    return {0xf921};
+  case 0x5d6b:
+    return {0x2f87f};
+  case 0x5d6e:
+    return {0x2f87e};
+  case 0x5d7c:
+    return {0x2f880};
+  case 0x5db2:
+    return {0x2f9f4};
+  case 0x5dba:
+    return {0xf9ab};
+  case 0x5de1:
+    return {0x2f881};
+  case 0x5de2:
+    return {0x2f882};
+  case 0x5dfd:
+    return {0x2f884};
+  case 0x5e28:
+    return {0x2f885};
+  case 0x5e3d:
+    return {0x2f886};
+  case 0x5e69:
+    return {0x2f887};
+  case 0x5e74:
+    return {0xf98e};
+  case 0x5ea6:
+    return {0xfa01};
+  case 0x5eb0:
+    return {0x2f88b};
+  case 0x5eb3:
+    return {0x2f88c};
+  case 0x5eb6:
+    return {0x2f88d};
+  case 0x5ec9:
+    return {0xf9a2};
+  case 0x5eca:
+    return {0xf928};
+  case 0x5ed2:
+    return {0xfa82};
+  case 0x5ed3:
+    return {0xfa0b};
+  case 0x5ed9:
+    return {0xfa83};
+  case 0x5eec:
+    return {0xf982};
+  case 0x5efe:
+    return {0x2f890};
+  case 0x5f04:
+    return {0xf943};
+  case 0x5f22:
+    return {0x2f894};
+  case 0x5f53:
+    return {0x2f874};
+  case 0x5f62:
+    return {0x2f899};
+  case 0x5f69:
+    return {0xfa84};
+  case 0x5f6b:
+    return {0x2f89a};
+  case 0x5f8b:
+    return {0xf9d8};
+  case 0x5f9a:
+    return {0x2f89c};
+  case 0x5fa9:
+    return {0xf966};
+  case 0x5fad:
+    return {0xfa85};
+  case 0x5fcd:
+    return {0x2f89d};
+  case 0x5fd7:
+    return {0x2f89e};
+  case 0x5ff5:
+    return {0xf9a3};
+  case 0x5ff9:
+    return {0x2f89f};
+  case 0x6012:
+    return {0xf960};
+  case 0x601c:
+    return {0xf9ac};
+  case 0x6075:
+    return {0xfa6b};
+  case 0x6081:
+    return {0x2f8a0};
+  case 0x6094:
+    return {0xfa3d};
+  case 0x60c7:
+    return {0x2f8a5};
+  case 0x60d8:
+    return {0xfa86};
+  case 0x60e1:
+    return {0xf9b9};
+  case 0x6108:
+    return {0xfa88};
+  case 0x6144:
+    return {0xf9d9};
+  case 0x6148:
+    return {0x2f8a6};
+  case 0x614c:
+    return {0x2f8a7};
+  case 0x614e:
+    return {0xfa87};
+  case 0x6160:
+    return {0xfa8a};
+  case 0x6168:
+    return {0xfa3e};
+  case 0x617a:
+    return {0x2f8aa};
+  case 0x618e:
+    return {0xfa3f};
+  case 0x6190:
+    return {0xf98f};
+  case 0x61a4:
+    return {0x2f8ad};
+  case 0x61af:
+    return {0x2f8ae};
+  case 0x61b2:
+    return {0x2f8ac};
+  case 0x61de:
+    return {0x2f8af};
+  case 0x61f2:
+    return {0xfa40};
+  case 0x61f6:
+    return {0xf90d};
+  case 0x6200:
+    return {0xf990};
+  case 0x6210:
+    return {0x2f8b2};
+  case 0x621b:
+    return {0x2f8b3};
+  case 0x622e:
+    return {0xf9d2};
+  case 0x6234:
+    return {0xfa8c};
+  case 0x625d:
+    return {0x2f8b4};
+  case 0x62b1:
+    return {0x2f8b5};
+  case 0x62c9:
+    return {0xf925};
+  case 0x62cf:
+    return {0xf95b};
+  case 0x62d3:
+    return {0xfa02};
+  case 0x62d4:
+    return {0x2f8b6};
+  case 0x62fc:
+    return {0x2f8ba};
+  case 0x62fe:
+    return {0xf973};
+  case 0x633d:
+    return {0x2f8b9};
+  case 0x6350:
+    return {0x2f8b7};
+  case 0x6368:
+    return {0x2f8bb};
+  case 0x637b:
+    return {0xf9a4};
+  case 0x6383:
+    return {0x2f8bc};
+  case 0x63a0:
+    return {0xf975};
+  case 0x63a9:
+    return {0x2f8c1};
+  case 0x63c4:
+    return {0xfa8d};
+  case 0x63c5:
+    return {0x2f8c0};
+  case 0x63e4:
+    return {0x2f8bd};
+  case 0x641c:
+    return {0xfa8e};
+  case 0x6422:
+    return {0x2f8bf};
+  case 0x6452:
+    return {0xfa8f};
+  case 0x6469:
+    return {0x2f8c3};
+  case 0x6477:
+    return {0x2f8c6};
+  case 0x647e:
+    return {0x2f8c4};
+  case 0x649a:
+    return {0xf991};
+  case 0x649d:
+    return {0x2f8c5};
+  case 0x64c4:
+    return {0xf930};
+  case 0x654f:
+    return {0xfa41};
+  case 0x6556:
+    return {0xfa90};
+  case 0x656c:
+    return {0x2f8c9};
+  case 0x6578:
+    return {0xf969};
+  case 0x6599:
+    return {0xf9be};
+  case 0x65c5:
+    return {0xf983};
+  case 0x65e2:
+    return {0xfa42};
+  case 0x65e3:
+    return {0x2f8cb};
+  case 0x6613:
+    return {0xf9e0};
+  case 0x6649:
+    return {0x2f8cd};
+  case 0x6674:
+    return {0xfa12};
+  case 0x6688:
+    return {0xf9c5};
+  case 0x6691:
+    return {0xfa43};
+  case 0x669c:
+    return {0x2f8d5};
+  case 0x66b4:
+    return {0xfa06};
+  case 0x66c6:
+    return {0xf98b};
+  case 0x66f4:
+    return {0xf901};
+  case 0x66f8:
+    return {0x2f8cc};
+  case 0x6700:
+    return {0x2f8d4};
+  case 0x6717:
+    return {0xf929};
+  case 0x671b:
+    return {0xfa93};
+  case 0x6721:
+    return {0x2f8da};
+  case 0x674e:
+    return {0xf9e1};
+  case 0x6753:
+    return {0x2f8dc};
+  case 0x6756:
+    return {0xfa94};
+  case 0x675e:
+    return {0x2f8db};
+  case 0x677b:
+    return {0xf9c8};
+  case 0x6785:
+    return {0x2f8e0};
+  case 0x6797:
+    return {0xf9f4};
+  case 0x67f3:
+    return {0xf9c9};
+  case 0x67fa:
+    return {0x2f8df};
+  case 0x6817:
+    return {0xf9da};
+  case 0x681f:
+    return {0x2f8e5};
+  case 0x6852:
+    return {0x2f8e1};
+  case 0x6881:
+    return {0xf97a};
+  case 0x6885:
+    return {0xfa44};
+  case 0x688e:
+    return {0x2f8e4};
+  case 0x68a8:
+    return {0xf9e2};
+  case 0x6914:
+    return {0x2f8e6};
+  case 0x6942:
+    return {0x2f8e8};
+  case 0x69a3:
+    return {0x2f8e9};
+  case 0x69ea:
+    return {0x2f8ea};
+  case 0x6a02:
+    return {0xf914};
+  case 0x6a13:
+    return {0xf94c};
+  case 0x6aa8:
+    return {0x2f8eb};
+  case 0x6ad3:
+    return {0xf931};
+  case 0x6adb:
+    return {0x2f8ed};
+  case 0x6b04:
+    return {0xf91d};
+  case 0x6b21:
+    return {0x2f8ef};
+  case 0x6b54:
+    return {0x2f8f1};
+  case 0x6b72:
+    return {0x2f8f3};
+  case 0x6b77:
+    return {0xf98c};
+  case 0x6b79:
+    return {0xfa95};
+  case 0x6b9f:
+    return {0x2f8f4};
+  case 0x6bae:
+    return {0xf9a5};
+  case 0x6bba:
+    return {0xf970};
+  case 0x6bbb:
+    return {0x2f8f6};
+  case 0x6c4e:
+    return {0x2f8fa};
+  case 0x6c67:
+    return {0x2f8fe};
+  case 0x6c88:
+    return {0xf972};
+  case 0x6cbf:
+    return {0x2f8fc};
+  case 0x6ccc:
+    return {0xf968};
+  case 0x6ccd:
+    return {0x2f8fd};
+  case 0x6ce5:
+    return {0xf9e3};
+  case 0x6d16:
+    return {0x2f8ff};
+  case 0x6d1b:
+    return {0xf915};
+  case 0x6d1e:
+    return {0xfa05};
+  case 0x6d34:
+    return {0x2f907};
+  case 0x6d3e:
+    return {0x2f900};
+  case 0x6d41:
+    return {0xf9ca};
+  case 0x6d69:
+    return {0x2f903};
+  case 0x6d6a:
+    return {0xf92a};
+  case 0x6d77:
+    return {0xfa45};
+  case 0x6d78:
+    return {0x2f904};
+  case 0x6d85:
+    return {0x2f905};
+  case 0x6dcb:
+    return {0xf9f5};
+  case 0x6dda:
+    return {0xf94d};
+  case 0x6dea:
+    return {0xf9d6};
+  case 0x6df9:
+    return {0x2f90e};
+  case 0x6e1a:
+    return {0xfa46};
+  case 0x6e2f:
+    return {0x2f908};
+  case 0x6e6e:
+    return {0x2f909};
+  case 0x6e9c:
+    return {0xf9cb};
+  case 0x6eba:
+    return {0xf9ec};
+  case 0x6ec7:
+    return {0x2f90c};
+  case 0x6ecb:
+    return {0xfa99};
+  case 0x6ed1:
+    return {0xf904};
+  case 0x6edb:
+    return {0xfa98};
+  case 0x6f0f:
+    return {0xf94e};
+  case 0x6f22:
+    return {0xfa47};
+  case 0x6f23:
+    return {0xf992};
+  case 0x6f6e:
+    return {0x2f90f};
+  case 0x6fc6:
+    return {0x2f912};
+  case 0x6feb:
+    return {0xf922};
+  case 0x6ffe:
+    return {0xf984};
+  case 0x701b:
+    return {0x2f915};
+  case 0x701e:
+    return {0xfa9b};
+  case 0x7039:
+    return {0x2f913};
+  case 0x704a:
+    return {0x2f917};
+  case 0x7070:
+    return {0x2f835};
+  case 0x7077:
+    return {0x2f919};
+  case 0x707d:
+    return {0x2f918};
+  case 0x7099:
+    return {0xf9fb};
+  case 0x70ad:
+    return {0x2f91a};
+  case 0x70c8:
+    return {0xf99f};
+  case 0x70d9:
+    return {0xf916};
+  case 0x7145:
+    return {0x2f91c};
+  case 0x7149:
+    return {0xf993};
+  case 0x716e:
+    return {0xfa48};
+  case 0x719c:
+    return {0x2f91e};
+  case 0x71ce:
+    return {0xf9c0};
+  case 0x71d0:
+    return {0xf9ee};
+  case 0x7210:
+    return {0xf932};
+  case 0x721b:
+    return {0xf91e};
+  case 0x7228:
+    return {0x2f920};
+  case 0x722b:
+    return {0xfa49};
+  case 0x7235:
+    return {0xfa9e};
+  case 0x7250:
+    return {0x2f922};
+  case 0x7262:
+    return {0xf946};
+  case 0x7280:
+    return {0x2f924};
+  case 0x7295:
+    return {0x2f925};
+  case 0x72af:
+    return {0xfa9f};
+  case 0x72c0:
+    return {0xf9fa};
+  case 0x72fc:
+    return {0xf92b};
+  case 0x732a:
+    return {0xfa16};
+  case 0x7375:
+    return {0xf9a7};
+  case 0x737a:
+    return {0x2f928};
+  case 0x7387:
+    return {0xf961};
+  case 0x738b:
+    return {0x2f929};
+  case 0x73a5:
+    return {0x2f92b};
+  case 0x73b2:
+    return {0xf9ad};
+  case 0x73de:
+    return {0xf917};
+  case 0x7406:
+    return {0xf9e4};
+  case 0x7409:
+    return {0xf9cc};
+  case 0x7422:
+    return {0xfa4a};
+  case 0x7447:
+    return {0x2f92e};
+  case 0x745c:
+    return {0x2f92f};
+  case 0x7469:
+    return {0xf9ae};
+  case 0x7471:
+    return {0xfaa1};
+  case 0x7485:
+    return {0x2f931};
+  case 0x7489:
+    return {0xf994};
+  case 0x7498:
+    return {0xf9ef};
+  case 0x74ca:
+    return {0x2f932};
+  case 0x7506:
+    return {0xfaa2};
+  case 0x7524:
+    return {0x2f934};
+  case 0x753b:
+    return {0xfaa3};
+  case 0x753e:
+    return {0x2f936};
+  case 0x7559:
+    return {0xf9cd};
+  case 0x7565:
+    return {0xf976};
+  case 0x7570:
+    return {0xf962};
+  case 0x75e2:
+    return {0xf9e5};
+  case 0x7610:
+    return {0x2f93a};
+  case 0x761d:
+    return {0xfaa4};
+  case 0x761f:
+    return {0xfaa5};
+  case 0x7642:
+    return {0xf9c1};
+  case 0x7669:
+    return {0xf90e};
+  case 0x76ca:
+    return {0xfa17};
+  case 0x76db:
+    return {0xfaa7};
+  case 0x76e7:
+    return {0xf933};
+  case 0x76f4:
+    return {0xfaa8};
+  case 0x7701:
+    return {0xf96d};
+  case 0x771e:
+    return {0x2f945};
+  case 0x771f:
+    return {0x2f946};
+  case 0x7740:
+    return {0xfaaa};
+  case 0x774a:
+    return {0xfaa9};
+  case 0x778b:
+    return {0x2f94a};
+  case 0x77a7:
+    return {0xfa9d};
+  case 0x784e:
+    return {0x2f94e};
+  case 0x786b:
+    return {0xf9ce};
+  case 0x788c:
+    return {0xf93b};
+  case 0x7891:
+    return {0xfa4b};
+  case 0x78ca:
+    return {0xf947};
+  case 0x78cc:
+    return {0xfaab};
+  case 0x78fb:
+    return {0xf964};
+  case 0x792a:
+    return {0xf985};
+  case 0x793c:
+    return {0xfa18};
+  case 0x793e:
+    return {0xfa4c};
+  case 0x7948:
+    return {0xfa4e};
+  case 0x7949:
+    return {0xfa4d};
+  case 0x7950:
+    return {0xfa4f};
+  case 0x7956:
+    return {0xfa50};
+  case 0x795d:
+    return {0xfa51};
+  case 0x795e:
+    return {0xfa19};
+  case 0x7965:
+    return {0xfa1a};
+  case 0x797f:
+    return {0xf93c};
+  case 0x798d:
+    return {0xfa52};
+  case 0x798e:
+    return {0xfa53};
+  case 0x798f:
+    return {0xfa1b};
+  case 0x79ae:
+    return {0xf9b6};
+  case 0x79ca:
+    return {0xf995};
+  case 0x79eb:
+    return {0x2f957};
+  case 0x7a1c:
+    return {0xf956};
+  case 0x7a40:
+    return {0xfa54};
+  case 0x7a4a:
+    return {0x2f95a};
+  case 0x7a4f:
+    return {0x2f95b};
+  case 0x7a81:
+    return {0xfa55};
+  case 0x7ab1:
+    return {0xfaac};
+  case 0x7acb:
+    return {0xf9f7};
+  case 0x7aee:
+    return {0x2f95f};
+  case 0x7b20:
+    return {0xf9f8};
+  case 0x7bc0:
+    return {0xfa56};
+  case 0x7bc6:
+    return {0x2f962};
+  case 0x7bc9:
+    return {0x2f963};
+  case 0x7c3e:
+    return {0xf9a6};
+  case 0x7c60:
+    return {0xf944};
+  case 0x7c7b:
+    return {0xfaae};
+  case 0x7c92:
+    return {0xf9f9};
+  case 0x7cbe:
+    return {0xfa1d};
+  case 0x7cd2:
+    return {0x2f966};
+  case 0x7cd6:
+    return {0xfa03};
+  case 0x7ce3:
+    return {0x2f969};
+  case 0x7ce7:
+    return {0xf97b};
+  case 0x7ce8:
+    return {0x2f968};
+  case 0x7d00:
+    return {0x2f96a};
+  case 0x7d10:
+    return {0xf9cf};
+  case 0x7d22:
+    return {0xf96a};
+  case 0x7d2f:
+    return {0xf94f};
+  case 0x7d5b:
+    return {0xfaaf};
+  case 0x7d63:
+    return {0x2f96c};
+  case 0x7da0:
+    return {0xf93d};
+  case 0x7dbe:
+    return {0xf957};
+  case 0x7dc7:
+    return {0x2f96e};
+  case 0x7df4:
+    return {0xf996};
+  case 0x7e02:
+    return {0x2f96f};
+  case 0x7e09:
+    return {0xfa58};
+  case 0x7e37:
+    return {0xf950};
+  case 0x7e41:
+    return {0xfa59};
+  case 0x7e45:
+    return {0x2f970};
+  case 0x7f3e:
+    return {0xfab1};
+  case 0x7f72:
+    return {0xfa5a};
+  case 0x7f79:
+    return {0xf9e6};
+  case 0x7f7a:
+    return {0x2f976};
+  case 0x7f85:
+    return {0xf90f};
+  case 0x7f95:
+    return {0x2f978};
+  case 0x7f9a:
+    return {0xf9af};
+  case 0x7fbd:
+    return {0xfa1e};
+  case 0x7ffa:
+    return {0x2f979};
+  case 0x8001:
+    return {0xf934};
+  case 0x8005:
+    return {0xfa5b};
+  case 0x8046:
+    return {0xf9b0};
+  case 0x8060:
+    return {0x2f97d};
+  case 0x806f:
+    return {0xf997};
+  case 0x8070:
+    return {0x2f97f};
+  case 0x807e:
+    return {0xf945};
+  case 0x808b:
+    return {0xf953};
+  case 0x80ad:
+    return {0x2f8d6};
+  case 0x80b2:
+    return {0x2f982};
+  case 0x8103:
+    return {0x2f983};
+  case 0x813e:
+    return {0x2f985};
+  case 0x81d8:
+    return {0xf926};
+  case 0x81e8:
+    return {0xf9f6};
+  case 0x81ed:
+    return {0xfa5c};
+  case 0x8201:
+    return {0x2f893};
+  case 0x8204:
+    return {0x2f98c};
+  case 0x8218:
+    return {0xfa6d};
+  case 0x826f:
+    return {0xf97c};
+  case 0x8279:
+    return {0xfa5d};
+  case 0x828b:
+    return {0x2f990};
+  case 0x8291:
+    return {0x2f98f};
+  case 0x829d:
+    return {0x2f991};
+  case 0x82b1:
+    return {0x2f993};
+  case 0x82b3:
+    return {0x2f994};
+  case 0x82bd:
+    return {0x2f995};
+  case 0x82e5:
+    return {0xf974};
+  case 0x82e6:
+    return {0x2f996};
+  case 0x831d:
+    return {0x2f999};
+  case 0x8323:
+    return {0x2f99c};
+  case 0x8336:
+    return {0xf9fe};
+  case 0x8352:
+    return {0xfab3};
+  case 0x8353:
+    return {0x2f9a0};
+  case 0x8363:
+    return {0x2f99a};
+  case 0x83ad:
+    return {0x2f99b};
+  case 0x83bd:
+    return {0x2f99d};
+  case 0x83c9:
+    return {0xf93e};
+  case 0x83ca:
+    return {0x2f9a1};
+  case 0x83cc:
+    return {0x2f9a2};
+  case 0x83dc:
+    return {0x2f9a3};
+  case 0x83e7:
+    return {0x2f99e};
+  case 0x83ef:
+    return {0xfab4};
+  case 0x83f1:
+    return {0xf958};
+  case 0x843d:
+    return {0xf918};
+  case 0x8449:
+    return {0xf96e};
+  case 0x8457:
+    return {0xfa5f};
+  case 0x84ee:
+    return {0xf999};
+  case 0x84f1:
+    return {0x2f9a8};
+  case 0x84f3:
+    return {0x2f9a9};
+  case 0x84fc:
+    return {0xf9c2};
+  case 0x8516:
+    return {0x2f9aa};
+  case 0x8564:
+    return {0x2f9ac};
+  case 0x85cd:
+    return {0xf923};
+  case 0x85fa:
+    return {0xf9f0};
+  case 0x8606:
+    return {0xf935};
+  case 0x8612:
+    return {0xfa20};
+  case 0x862d:
+    return {0xf91f};
+  case 0x863f:
+    return {0xf910};
+  case 0x8650:
+    return {0x2f9b3};
+  case 0x865c:
+    return {0xf936};
+  case 0x8667:
+    return {0x2f9b5};
+  case 0x8669:
+    return {0x2f9b6};
+  case 0x8688:
+    return {0x2f9b8};
+  case 0x86a9:
+    return {0x2f9b7};
+  case 0x86e2:
+    return {0x2f9ba};
+  case 0x870e:
+    return {0x2f9b9};
+  case 0x8728:
+    return {0x2f9bc};
+  case 0x876b:
+    return {0x2f9bd};
+  case 0x8779:
+    return {0xfab5};
+  case 0x8786:
+    return {0x2f9be};
+  case 0x87ba:
+    return {0xf911};
+  case 0x87e1:
+    return {0x2f9c0};
+  case 0x8801:
+    return {0x2f9c1};
+  case 0x881f:
+    return {0xf927};
+  case 0x884c:
+    return {0xfa08};
+  case 0x8860:
+    return {0x2f9c3};
+  case 0x8863:
+    return {0x2f9c4};
+  case 0x88c2:
+    return {0xf9a0};
+  case 0x88cf:
+    return {0xf9e7};
+  case 0x88d7:
+    return {0x2f9c6};
+  case 0x88de:
+    return {0x2f9c7};
+  case 0x88e1:
+    return {0xf9e8};
+  case 0x88f8:
+    return {0xf912};
+  case 0x88fa:
+    return {0x2f9c9};
+  case 0x8910:
+    return {0xfa60};
+  case 0x8941:
+    return {0xfab6};
+  case 0x8964:
+    return {0xf924};
+  case 0x8986:
+    return {0xfab7};
+  case 0x898b:
+    return {0xfa0a};
+  case 0x8996:
+    return {0xfa61};
+  case 0x8aa0:
+    return {0x2f9cf};
+  case 0x8aaa:
+    return {0xf96f};
+  case 0x8abf:
+    return {0xfab9};
+  case 0x8acb:
+    return {0xfabb};
+  case 0x8ad2:
+    return {0xf97d};
+  case 0x8ad6:
+    return {0xf941};
+  case 0x8aed:
+    return {0xfabe};
+  case 0x8af8:
+    return {0xfa22};
+  case 0x8afe:
+    return {0xf95d};
+  case 0x8b01:
+    return {0xfa62};
+  case 0x8b39:
+    return {0xfa63};
+  case 0x8b58:
+    return {0xf9fc};
+  case 0x8b80:
+    return {0xf95a};
+  case 0x8b8a:
+    return {0xfac0};
+  case 0x8c48:
+    return {0xf900};
+  case 0x8c55:
+    return {0x2f9d2};
+  case 0x8cab:
+    return {0x2f9d4};
+  case 0x8cc1:
+    return {0x2f9d5};
+  case 0x8cc2:
+    return {0xf948};
+  case 0x8cc8:
+    return {0xf903};
+  case 0x8cd3:
+    return {0xfa64};
+  case 0x8d08:
+    return {0xfa65};
+  case 0x8d1b:
+    return {0x2f9d6};
+  case 0x8d77:
+    return {0x2f9d7};
+  case 0x8dbc:
+    return {0x2f9db};
+  case 0x8dcb:
+    return {0x2f9da};
+  case 0x8def:
+    return {0xf937};
+  case 0x8df0:
+    return {0x2f9dc};
+  case 0x8eca:
+    return {0xf902};
+  case 0x8ed4:
+    return {0x2f9de};
+  case 0x8f26:
+    return {0xf998};
+  case 0x8f2a:
+    return {0xf9d7};
+  case 0x8f38:
+    return {0xfac2};
+  case 0x8f3b:
+    return {0xfa07};
+  case 0x8f62:
+    return {0xf98d};
+  case 0x8f9e:
+    return {0x2f98d};
+  case 0x8fb0:
+    return {0xf971};
+  case 0x8fb6:
+    return {0xfa66};
+  case 0x9023:
+    return {0xf99a};
+  case 0x9038:
+    return {0xfa25};
+  case 0x9072:
+    return {0xfac3};
+  case 0x907c:
+    return {0xf9c3};
+  case 0x908f:
+    return {0xf913};
+  case 0x9094:
+    return {0x2f9e2};
+  case 0x90ce:
+    return {0xf92c};
+  case 0x90de:
+    return {0xfa2e};
+  case 0x90f1:
+    return {0x2f9e3};
+  case 0x90fd:
+    return {0xfa26};
+  case 0x9111:
+    return {0x2f9e4};
+  case 0x911b:
+    return {0x2f9e6};
+  case 0x916a:
+    return {0xf919};
+  case 0x9199:
+    return {0xfac4};
+  case 0x91b4:
+    return {0xf9b7};
+  case 0x91cc:
+    return {0xf9e9};
+  case 0x91cf:
+    return {0xf97e};
+  case 0x91d1:
+    return {0xf90a};
+  case 0x9234:
+    return {0xf9b1};
+  case 0x9238:
+    return {0x2f9e7};
+  case 0x9276:
+    return {0xfac5};
+  case 0x927c:
+    return {0x2f9ea};
+  case 0x92d7:
+    return {0x2f9e8};
+  case 0x92d8:
+    return {0x2f9e9};
+  case 0x9304:
+    return {0xf93f};
+  case 0x934a:
+    return {0xf99b};
+  case 0x93f9:
+    return {0x2f9eb};
+  case 0x9415:
+    return {0x2f9ec};
+  case 0x958b:
+    return {0x2f9ee};
+  case 0x95ad:
+    return {0xf986};
+  case 0x95b7:
+    return {0x2f9f0};
+  case 0x962e:
+    return {0xf9c6};
+  case 0x964b:
+    return {0xf951};
+  case 0x964d:
+    return {0xfa09};
+  case 0x9675:
+    return {0xf959};
+  case 0x9678:
+    return {0xf9d3};
+  case 0x967c:
+    return {0xfac6};
+  case 0x9686:
+    return {0xf9dc};
+  case 0x96a3:
+    return {0xf9f1};
+  case 0x96b7:
+    return {0xfa2f};
+  case 0x96b8:
+    return {0xf9b8};
+  case 0x96c3:
+    return {0x2f9f3};
+  case 0x96e2:
+    return {0xf9ea};
+  case 0x96e3:
+    return {0xfa68};
+  case 0x96f6:
+    return {0xf9b2};
+  case 0x96f7:
+    return {0xf949};
+  case 0x9723:
+    return {0x2f9f5};
+  case 0x9732:
+    return {0xf938};
+  case 0x9748:
+    return {0xf9b3};
+  case 0x9756:
+    return {0xfa1c};
+  case 0x97db:
+    return {0xfac9};
+  case 0x97e0:
+    return {0x2f9fa};
+  case 0x97ff:
+    return {0xfa69};
+  case 0x980b:
+    return {0xfacb};
+  case 0x9818:
+    return {0xf9b4};
+  case 0x9829:
+    return {0x2fa00};
+  case 0x983b:
+    return {0xfa6a};
+  case 0x985e:
+    return {0xf9d0};
+  case 0x98e2:
+    return {0x2fa02};
+  case 0x98ef:
+    return {0xfa2a};
+  case 0x98fc:
+    return {0xfa2b};
+  case 0x9928:
+    return {0xfa2c};
+  case 0x9929:
+    return {0x2fa04};
+  case 0x99a7:
+    return {0x2fa05};
+  case 0x99c2:
+    return {0x2fa06};
+  case 0x99f1:
+    return {0xf91a};
+  case 0x99fe:
+    return {0x2fa07};
+  case 0x9a6a:
+    return {0xf987};
+  case 0x9b12:
+    return {0xfacd};
+  case 0x9b6f:
+    return {0xf939};
+  case 0x9c40:
+    return {0x2fa0b};
+  case 0x9c57:
+    return {0xf9f2};
+  case 0x9cfd:
+    return {0x2fa0c};
+  case 0x9d67:
+    return {0x2fa0f};
+  case 0x9db4:
+    return {0xfa2d};
+  case 0x9dfa:
+    return {0xf93a};
+  case 0x9e1e:
+    return {0xf920};
+  case 0x9e7f:
+    return {0xf940};
+  case 0x9e97:
+    return {0xf988};
+  case 0x9e9f:
+    return {0xf9f3};
+  case 0x9ebb:
+    return {0x2fa15};
+  case 0x9ece:
+    return {0xf989};
+  case 0x9ef9:
+    return {0x2fa17};
+  case 0x9efe:
+    return {0x2fa18};
+  case 0x9f05:
+    return {0x2fa19};
+  case 0x9f0f:
+    return {0x2fa1a};
+  case 0x9f16:
+    return {0x2fa1b};
+  case 0x9f3b:
+    return {0x2fa1c};
+  case 0x9f43:
+    return {0xfad8};
+  case 0x9f8d:
+    return {0xf9c4};
+  case 0x9f8e:
+    return {0xfad9};
+  case 0x9f9c:
+    return {0xf907};
+  case 0x20122:
+    return {0x2f803};
+  case 0x2051c:
+    return {0x2f812};
+  case 0x20525:
+    return {0x2f91b};
+  case 0x2054b:
+    return {0x2f816};
+  case 0x2063a:
+    return {0x2f80d};
+  case 0x20804:
+    return {0x2f9d9};
+  case 0x208de:
+    return {0x2f9dd};
+  case 0x20a2c:
+    return {0x2f834};
+  case 0x20b63:
+    return {0x2f838};
+  case 0x214e4:
+    return {0x2f859};
+  case 0x216a8:
+    return {0x2f860};
+  case 0x216ea:
+    return {0x2f861};
+  case 0x219c8:
+    return {0x2f86c};
+  case 0x21b18:
+    return {0x2f871};
+  case 0x21d0b:
+    return {0x2f8f8};
+  case 0x21de4:
+    return {0x2f87b};
+  case 0x21de6:
+    return {0x2f87d};
+  case 0x22183:
+    return {0x2f889};
+  case 0x2219f:
+    return {0x2f939};
+  case 0x22331:
+    return {0x2f891};
+  case 0x226d4:
+    return {0x2f8a4};
+  case 0x22844:
+    return {0xfad0};
+  case 0x2284a:
+    return {0xfacf};
+  case 0x22b0c:
+    return {0x2f8b8};
+  case 0x22bf1:
+    return {0x2f8be};
+  case 0x2300a:
+    return {0x2f8ca};
+  case 0x232b8:
+    return {0x2f897};
+  case 0x2335f:
+    return {0x2f980};
+  case 0x23393:
+    return {0x2f989};
+  case 0x2339c:
+    return {0x2f98a};
+  case 0x233c3:
+    return {0x2f8dd};
+  case 0x233d5:
+    return {0xfad1};
+  case 0x2346d:
+    return {0x2f8e3};
+  case 0x236a3:
+    return {0x2f8ec};
+  case 0x238a7:
+    return {0x2f8f0};
+  case 0x23a8d:
+    return {0x2f8f7};
+  case 0x23afa:
+    return {0x2f8f9};
+  case 0x23cbc:
+    return {0x2f8fb};
+  case 0x23d1e:
+    return {0x2f906};
+  case 0x23ed1:
+    return {0x2f90d};
+  case 0x23f5e:
+    return {0x2f910};
+  case 0x23f8e:
+    return {0x2f911};
+  case 0x24263:
+    return {0x2f91d};
+  case 0x242ee:
+    return {0xfa6c};
+  case 0x243ab:
+    return {0x2f91f};
+  case 0x24608:
+    return {0x2f923};
+  case 0x24735:
+    return {0x2f926};
+  case 0x24814:
+    return {0x2f927};
+  case 0x24c36:
+    return {0x2f935};
+  case 0x24c92:
+    return {0x2f937};
+  case 0x24fa1:
+    return {0x2f93b};
+  case 0x24fb8:
+    return {0x2f93c};
+  case 0x25044:
+    return {0x2f93d};
+  case 0x250f2:
+    return {0x2f942};
+  case 0x250f3:
+    return {0x2f941};
+  case 0x25119:
+    return {0x2f943};
+  case 0x25133:
+    return {0x2f944};
+  case 0x25249:
+    return {0xfad5};
+  case 0x2541d:
+    return {0x2f94d};
+  case 0x25626:
+    return {0x2f952};
+  case 0x2569a:
+    return {0x2f954};
+  case 0x256c5:
+    return {0x2f955};
+  case 0x2597c:
+    return {0x2f95c};
+  case 0x25aa7:
+    return {0x2f95d};
+  case 0x25bab:
+    return {0x2f961};
+  case 0x25c80:
+    return {0x2f965};
+  case 0x25cd0:
+    return {0xfad6};
+  case 0x25f86:
+    return {0x2f96b};
+  case 0x261da:
+    return {0x2f898};
+  case 0x26228:
+    return {0x2f972};
+  case 0x26247:
+    return {0x2f973};
+  case 0x262d9:
+    return {0x2f975};
+  case 0x2633e:
+    return {0x2f977};
+  case 0x264da:
+    return {0x2f97b};
+  case 0x26523:
+    return {0x2f97c};
+  case 0x265a8:
+    return {0x2f97e};
+  case 0x267a7:
+    return {0x2f987};
+  case 0x267b5:
+    return {0x2f988};
+  case 0x26b3c:
+    return {0x2f997};
+  case 0x26c36:
+    return {0x2f9a4};
+  case 0x26cd5:
+    return {0x2f9a6};
+  case 0x26d6b:
+    return {0x2f9a5};
+  case 0x26f2c:
+    return {0x2f9ad};
+  case 0x26fb1:
+    return {0x2f9b0};
+  case 0x270d2:
+    return {0x2f9b1};
+  case 0x273ca:
+    return {0x2f9ab};
+  case 0x27667:
+    return {0x2f9c5};
+  case 0x278ae:
+    return {0x2f9cb};
+  case 0x27966:
+    return {0x2f9cc};
+  case 0x27ca8:
+    return {0x2f9d3};
+  case 0x27ed3:
+    return {0xfad7};
+  case 0x27f2f:
+    return {0x2f9d8};
+  case 0x285d2:
+    return {0x2f9e0};
+  case 0x285ed:
+    return {0x2f9e1};
+  case 0x2872e:
+    return {0x2f9e5};
+  case 0x28bfa:
+    return {0x2f9ed};
+  case 0x28d77:
+    return {0x2f9f1};
+  case 0x29145:
+    return {0x2f9f6};
+  case 0x291df:
+    return {0x2f81c};
+  case 0x2921a:
+    return {0x2f9f7};
+  case 0x2940a:
+    return {0x2f9fb};
+  case 0x29496:
+    return {0x2f9fd};
+  case 0x295b6:
+    return {0x2fa01};
+  case 0x29b30:
+    return {0x2fa09};
+  case 0x2a0ce:
+    return {0x2fa10};
+  case 0x2a105:
+    return {0x2fa12};
+  case 0x2a20e:
+    return {0x2fa13};
+  case 0x2a291:
+    return {0x2fa14};
+  case 0x2a392:
+    return {0x2f88f};
+  case 0x2a600:
+    return {0x2fa1d};
+  default:
+    return Optional<uint32_t>::none();
+  }
+}
+
+Optional<uint32_t> 
+compose_two_char(uint32_t cp1, uint32_t cp2)
+{
+  switch(cp1)
+  {
+  case 0x3c:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x226e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3d:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2260};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3e:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x226f};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x41:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0xc0};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x42:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e02};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x43:
+    switch(cp2)
+     {
+    case 0x327:
+      return {0xc7};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x44:
+    switch(cp2)
+     {
+    case 0x30c:
+      return {0x10e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x45:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0xc8};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x46:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e1e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x47:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x11c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x48:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x124};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x49:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0xcc};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x4a:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x134};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x4b:
+    switch(cp2)
+     {
+    case 0x327:
+      return {0x136};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x4c:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x139};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x4d:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1e3e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x4e:
+    switch(cp2)
+     {
+    case 0x303:
+      return {0xd1};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x4f:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0xd2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x50:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1e54};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x52:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x154};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x53:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x15a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x54:
+    switch(cp2)
+     {
+    case 0x327:
+      return {0x162};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x55:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0xd9};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x56:
+    switch(cp2)
+     {
+    case 0x303:
+      return {0x1e7c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x57:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x174};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x58:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e8a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x59:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0xdd};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5a:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x179};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x61:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0xe0};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x62:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e03};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x63:
+    switch(cp2)
+     {
+    case 0x327:
+      return {0xe7};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x64:
+    switch(cp2)
+     {
+    case 0x30c:
+      return {0x10f};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x65:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0xe8};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x66:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e1f};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x67:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x11d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x68:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x125};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x69:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0xec};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x6a:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x135};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x6b:
+    switch(cp2)
+     {
+    case 0x327:
+      return {0x137};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x6c:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x13a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x6d:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1e3f};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x6e:
+    switch(cp2)
+     {
+    case 0x303:
+      return {0xf1};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x6f:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0xf2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x70:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1e55};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x72:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x155};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x73:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x15b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x74:
+    switch(cp2)
+     {
+    case 0x327:
+      return {0x163};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x75:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0xf9};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x76:
+    switch(cp2)
+     {
+    case 0x303:
+      return {0x1e7d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x77:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x175};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x78:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e8b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x79:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0xfd};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x7a:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x17a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xa8:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x385};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xc2:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1ea4};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xc4:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1de};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xc5:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1fa};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xc6:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1e2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xc7:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1e08};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xca:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1ebe};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xcf:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1e2e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xd4:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1ed0};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xd5:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x22c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xd6:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x22a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xd8:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1fe};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xdc:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1d5};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xe2:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1ea5};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xe4:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1df};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xe5:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1fb};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xe6:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1e3};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xe7:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1e09};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xea:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1ebf};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xef:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1e2f};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf4:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1ed1};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf5:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x22d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf6:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x22b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf8:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1ff};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xfc:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1d6};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x102:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1eae};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x103:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1eaf};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x112:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1e14};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x113:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1e15};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x14c:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1e50};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x14d:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1e51};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x15a:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e64};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x15b:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e65};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x160:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e66};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x161:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e67};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x168:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1e78};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x169:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1e79};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x16a:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x1e7a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x16b:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x1e7b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x17f:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e9b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1a0:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1eda};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1a1:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1edb};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1af:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1ee8};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b0:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x1ee9};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b7:
+    switch(cp2)
+     {
+    case 0x30c:
+      return {0x1ee};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1ea:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1ec};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1eb:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1ed};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x226:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1e0};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x227:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1e1};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x228:
+    switch(cp2)
+     {
+    case 0x306:
+      return {0x1e1c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x229:
+    switch(cp2)
+     {
+    case 0x306:
+      return {0x1e1d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x22e:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x230};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x22f:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x231};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x292:
+    switch(cp2)
+     {
+    case 0x30c:
+      return {0x1ef};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x308:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x344};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x391:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x386};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x395:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x388};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x397:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x389};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x399:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x38a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x39f:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x38c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3a1:
+    switch(cp2)
+     {
+    case 0x314:
+      return {0x1fec};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3a5:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x38e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3a9:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x38f};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3ac:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fb4};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3ae:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fc4};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3b1:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x3ac};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3b5:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x3ad};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3b7:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x3ae};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3b9:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x3af};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3bf:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x3cc};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3c1:
+    switch(cp2)
+     {
+    case 0x313:
+      return {0x1fe4};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3c5:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x3cb};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3c9:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x3ce};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3ca:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x390};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3cb:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x3b0};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3ce:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1ff4};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3d2:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x3d3};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x406:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x407};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x410:
+    switch(cp2)
+     {
+    case 0x306:
+      return {0x4d0};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x413:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x403};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x415:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x400};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x416:
+    switch(cp2)
+     {
+    case 0x306:
+      return {0x4c1};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x417:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4de};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x418:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x40d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x41a:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x40c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x41e:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4e6};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x423:
+    switch(cp2)
+     {
+    case 0x306:
+      return {0x40e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x427:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4f4};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x42b:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4f8};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x42d:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4ec};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x430:
+    switch(cp2)
+     {
+    case 0x306:
+      return {0x4d1};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x433:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x453};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x435:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x450};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x436:
+    switch(cp2)
+     {
+    case 0x306:
+      return {0x4c2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x437:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4df};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x438:
+    switch(cp2)
+     {
+    case 0x306:
+      return {0x439};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x43a:
+    switch(cp2)
+     {
+    case 0x301:
+      return {0x45c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x43e:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4e7};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x443:
+    switch(cp2)
+     {
+    case 0x306:
+      return {0x45e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x447:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4f5};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x44b:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4f9};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x44d:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4ed};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x456:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x457};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x474:
+    switch(cp2)
+     {
+    case 0x30f:
+      return {0x476};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x475:
+    switch(cp2)
+     {
+    case 0x30f:
+      return {0x477};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x4d8:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4da};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x4d9:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4db};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x4e8:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4ea};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x4e9:
+    switch(cp2)
+     {
+    case 0x308:
+      return {0x4eb};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5d0:
+    switch(cp2)
+     {
+    case 0x5b7:
+      return {0xfb2e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5d1:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb31};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5d2:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb32};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5d3:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb33};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5d4:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb34};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5d5:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb35};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5d6:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb36};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5d8:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb38};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5d9:
+    switch(cp2)
+     {
+    case 0x5b4:
+      return {0xfb1d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5da:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb3a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5db:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb3b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5dc:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb3c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5de:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb3e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5e0:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb40};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5e1:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb41};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5e3:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb43};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5e4:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb44};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5e6:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb46};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5e7:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb47};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5e8:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb48};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5e9:
+    switch(cp2)
+     {
+    case 0x5c1:
+      return {0xfb2a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5ea:
+    switch(cp2)
+     {
+    case 0x5bc:
+      return {0xfb4a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x5f2:
+    switch(cp2)
+     {
+    case 0x5b7:
+      return {0xfb1f};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x627:
+    switch(cp2)
+     {
+    case 0x653:
+      return {0x622};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x648:
+    switch(cp2)
+     {
+    case 0x654:
+      return {0x624};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x64a:
+    switch(cp2)
+     {
+    case 0x654:
+      return {0x626};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x6c1:
+    switch(cp2)
+     {
+    case 0x654:
+      return {0x6c2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x6d2:
+    switch(cp2)
+     {
+    case 0x654:
+      return {0x6d3};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x6d5:
+    switch(cp2)
+     {
+    case 0x654:
+      return {0x6c0};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x915:
+    switch(cp2)
+     {
+    case 0x93c:
+      return {0x958};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x916:
+    switch(cp2)
+     {
+    case 0x93c:
+      return {0x959};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x917:
+    switch(cp2)
+     {
+    case 0x93c:
+      return {0x95a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x91c:
+    switch(cp2)
+     {
+    case 0x93c:
+      return {0x95b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x921:
+    switch(cp2)
+     {
+    case 0x93c:
+      return {0x95c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x922:
+    switch(cp2)
+     {
+    case 0x93c:
+      return {0x95d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x928:
+    switch(cp2)
+     {
+    case 0x93c:
+      return {0x929};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x92b:
+    switch(cp2)
+     {
+    case 0x93c:
+      return {0x95e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x92f:
+    switch(cp2)
+     {
+    case 0x93c:
+      return {0x95f};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x930:
+    switch(cp2)
+     {
+    case 0x93c:
+      return {0x931};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x933:
+    switch(cp2)
+     {
+    case 0x93c:
+      return {0x934};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x9a1:
+    switch(cp2)
+     {
+    case 0x9bc:
+      return {0x9dc};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x9a2:
+    switch(cp2)
+     {
+    case 0x9bc:
+      return {0x9dd};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x9af:
+    switch(cp2)
+     {
+    case 0x9bc:
+      return {0x9df};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x9c7:
+    switch(cp2)
+     {
+    case 0x9be:
+      return {0x9cb};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xa16:
+    switch(cp2)
+     {
+    case 0xa3c:
+      return {0xa59};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xa17:
+    switch(cp2)
+     {
+    case 0xa3c:
+      return {0xa5a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xa1c:
+    switch(cp2)
+     {
+    case 0xa3c:
+      return {0xa5b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xa2b:
+    switch(cp2)
+     {
+    case 0xa3c:
+      return {0xa5e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xa32:
+    switch(cp2)
+     {
+    case 0xa3c:
+      return {0xa33};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xa38:
+    switch(cp2)
+     {
+    case 0xa3c:
+      return {0xa36};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xb21:
+    switch(cp2)
+     {
+    case 0xb3c:
+      return {0xb5c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xb22:
+    switch(cp2)
+     {
+    case 0xb3c:
+      return {0xb5d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xb47:
+    switch(cp2)
+     {
+    case 0xb56:
+      return {0xb48};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xb92:
+    switch(cp2)
+     {
+    case 0xbd7:
+      return {0xb94};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xbc6:
+    switch(cp2)
+     {
+    case 0xbbe:
+      return {0xbca};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xbc7:
+    switch(cp2)
+     {
+    case 0xbbe:
+      return {0xbcb};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xc46:
+    switch(cp2)
+     {
+    case 0xc56:
+      return {0xc48};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xcbf:
+    switch(cp2)
+     {
+    case 0xcd5:
+      return {0xcc0};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xcc6:
+    switch(cp2)
+     {
+    case 0xcd5:
+      return {0xcc7};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xcca:
+    switch(cp2)
+     {
+    case 0xcd5:
+      return {0xccb};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xd46:
+    switch(cp2)
+     {
+    case 0xd3e:
+      return {0xd4a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xd47:
+    switch(cp2)
+     {
+    case 0xd3e:
+      return {0xd4b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xdd9:
+    switch(cp2)
+     {
+    case 0xdca:
+      return {0xdda};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xddc:
+    switch(cp2)
+     {
+    case 0xdca:
+      return {0xddd};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf40:
+    switch(cp2)
+     {
+    case 0xfb5:
+      return {0xf69};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf42:
+    switch(cp2)
+     {
+    case 0xfb7:
+      return {0xf43};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf4c:
+    switch(cp2)
+     {
+    case 0xfb7:
+      return {0xf4d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf51:
+    switch(cp2)
+     {
+    case 0xfb7:
+      return {0xf52};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf56:
+    switch(cp2)
+     {
+    case 0xfb7:
+      return {0xf57};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf5b:
+    switch(cp2)
+     {
+    case 0xfb7:
+      return {0xf5c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf71:
+    switch(cp2)
+     {
+    case 0xf72:
+      return {0xf73};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf90:
+    switch(cp2)
+     {
+    case 0xfb5:
+      return {0xfb9};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf92:
+    switch(cp2)
+     {
+    case 0xfb7:
+      return {0xf93};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xf9c:
+    switch(cp2)
+     {
+    case 0xfb7:
+      return {0xf9d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xfa1:
+    switch(cp2)
+     {
+    case 0xfb7:
+      return {0xfa2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xfa6:
+    switch(cp2)
+     {
+    case 0xfb7:
+      return {0xfa7};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xfab:
+    switch(cp2)
+     {
+    case 0xfb7:
+      return {0xfac};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xfb2:
+    switch(cp2)
+     {
+    case 0xf80:
+      return {0xf76};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xfb3:
+    switch(cp2)
+     {
+    case 0xf80:
+      return {0xf78};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1025:
+    switch(cp2)
+     {
+    case 0x102e:
+      return {0x1026};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b05:
+    switch(cp2)
+     {
+    case 0x1b35:
+      return {0x1b06};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b07:
+    switch(cp2)
+     {
+    case 0x1b35:
+      return {0x1b08};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b09:
+    switch(cp2)
+     {
+    case 0x1b35:
+      return {0x1b0a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b0b:
+    switch(cp2)
+     {
+    case 0x1b35:
+      return {0x1b0c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b0d:
+    switch(cp2)
+     {
+    case 0x1b35:
+      return {0x1b0e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b11:
+    switch(cp2)
+     {
+    case 0x1b35:
+      return {0x1b12};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b3a:
+    switch(cp2)
+     {
+    case 0x1b35:
+      return {0x1b3b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b3c:
+    switch(cp2)
+     {
+    case 0x1b35:
+      return {0x1b3d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b3e:
+    switch(cp2)
+     {
+    case 0x1b35:
+      return {0x1b40};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b3f:
+    switch(cp2)
+     {
+    case 0x1b35:
+      return {0x1b41};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1b42:
+    switch(cp2)
+     {
+    case 0x1b35:
+      return {0x1b43};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1e36:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1e38};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1e37:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1e39};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1e5a:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1e5c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1e5b:
+    switch(cp2)
+     {
+    case 0x304:
+      return {0x1e5d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1e62:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e68};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1e63:
+    switch(cp2)
+     {
+    case 0x307:
+      return {0x1e69};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1ea0:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x1eac};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1ea1:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x1ead};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1eb8:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x1ec6};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1eb9:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x1ec7};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1ecc:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x1ed8};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1ecd:
+    switch(cp2)
+     {
+    case 0x302:
+      return {0x1ed9};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f00:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f02};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f01:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f03};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f02:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f82};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f03:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f83};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f04:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f84};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f05:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f85};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f06:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f86};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f07:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f87};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f08:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f0a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f09:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f0b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f0a:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f8a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f0b:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f8b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f0c:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f8c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f0d:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f8d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f0e:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f8e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f0f:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f8f};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f10:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f12};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f11:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f13};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f18:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f1a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f19:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f1b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f20:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f22};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f21:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f23};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f22:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f92};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f23:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f93};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f24:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f94};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f25:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f95};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f26:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f96};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f27:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f97};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f28:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f2a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f29:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f2b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f2a:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f9a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f2b:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f9b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f2c:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f9c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f2d:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f9d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f2e:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f9e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f2f:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1f9f};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f30:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f32};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f31:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f33};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f38:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f3a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f39:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f3b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f40:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f42};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f41:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f43};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f48:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f4a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f49:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f4b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f50:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f52};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f51:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f53};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f59:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f5b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f60:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f62};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f61:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f63};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f62:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fa2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f63:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fa3};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f64:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fa4};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f65:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fa5};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f66:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fa6};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f67:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fa7};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f68:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f6a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f69:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1f6b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f6a:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1faa};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f6b:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fab};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f6c:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fac};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f6d:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fad};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f6e:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fae};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f6f:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1faf};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f70:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fb2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f74:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fc2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1f7c:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1ff2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1fb6:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fb7};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1fbf:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1fcd};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1fc6:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1fc7};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1ff6:
+    switch(cp2)
+     {
+    case 0x345:
+      return {0x1ff7};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1ffe:
+    switch(cp2)
+     {
+    case 0x300:
+      return {0x1fdd};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2190:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x219a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2192:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x219b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2194:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x21ae};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x21d0:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x21cd};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x21d2:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x21cf};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x21d4:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x21ce};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2203:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2204};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2208:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2209};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x220b:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x220c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2223:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2224};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2225:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2226};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x223c:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2241};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2243:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2244};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2245:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2247};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2248:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2249};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x224d:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x226d};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2261:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2262};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2264:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2270};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2265:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2271};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2272:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2274};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2273:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2275};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2276:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2278};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2277:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2279};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x227a:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2280};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x227b:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2281};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x227c:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x22e0};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x227d:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x22e1};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2282:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2284};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2283:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2285};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2286:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2288};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2287:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2289};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2291:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x22e2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2292:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x22e3};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x22a2:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x22ac};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x22a8:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x22ad};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x22a9:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x22ae};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x22ab:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x22af};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x22b2:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x22ea};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x22b3:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x22eb};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x22b4:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x22ec};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x22b5:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x22ed};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x2add:
+    switch(cp2)
+     {
+    case 0x338:
+      return {0x2adc};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3046:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3094};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x304b:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x304c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x304d:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x304e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x304f:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3050};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3051:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3052};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3053:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3054};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3055:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3056};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3057:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3058};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3059:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x305a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x305b:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x305c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x305d:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x305e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x305f:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3060};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3061:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3062};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3064:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3065};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3066:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3067};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3068:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3069};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x306f:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3070};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3072:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3073};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3075:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3076};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x3078:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x3079};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x307b:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x307c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x309d:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x309e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30a6:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30f4};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30ab:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30ac};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30ad:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30ae};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30af:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30b0};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30b1:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30b2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30b3:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30b4};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30b5:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30b6};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30b7:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30b8};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30b9:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30ba};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30bb:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30bc};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30bd:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30be};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30bf:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30c0};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30c1:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30c2};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30c4:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30c5};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30c6:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30c7};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30c8:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30c9};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30cf:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30d0};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30d2:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30d3};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30d5:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30d6};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30d8:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30d9};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30db:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30dc};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30ef:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30f7};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30f0:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30f8};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30f1:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30f9};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30f2:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30fa};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x30fd:
+    switch(cp2)
+     {
+    case 0x3099:
+      return {0x30fe};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0xfb49:
+    switch(cp2)
+     {
+    case 0x5c1:
+      return {0xfb2c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x11099:
+    switch(cp2)
+     {
+    case 0x110ba:
+      return {0x1109a};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1109b:
+    switch(cp2)
+     {
+    case 0x110ba:
+      return {0x1109c};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x110a5:
+    switch(cp2)
+     {
+    case 0x110ba:
+      return {0x110ab};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x11131:
+    switch(cp2)
+     {
+    case 0x11127:
+      return {0x1112e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x11132:
+    switch(cp2)
+     {
+    case 0x11127:
+      return {0x1112f};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x11347:
+    switch(cp2)
+     {
+    case 0x1133e:
+      return {0x1134b};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x114b9:
+    switch(cp2)
+     {
+    case 0x114ba:
+      return {0x114bb};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x115b8:
+    switch(cp2)
+     {
+    case 0x115af:
+      return {0x115ba};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x115b9:
+    switch(cp2)
+     {
+    case 0x115af:
+      return {0x115bb};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x11935:
+    switch(cp2)
+     {
+    case 0x11930:
+      return {0x11938};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1d157:
+    switch(cp2)
+     {
+    case 0x1d165:
+      return {0x1d15e};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1d158:
+    switch(cp2)
+     {
+    case 0x1d165:
+      return {0x1d15f};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1d15f:
+    switch(cp2)
+     {
+    case 0x1d16e:
+      return {0x1d160};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1d1b9:
+    switch(cp2)
+     {
+    case 0x1d165:
+      return {0x1d1bb};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1d1ba:
+    switch(cp2)
+     {
+    case 0x1d165:
+      return {0x1d1bc};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1d1bb:
+    switch(cp2)
+     {
+    case 0x1d16e:
+      return {0x1d1bd};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  case 0x1d1bc:
+    switch(cp2)
+     {
+    case 0x1d16e:
+      return {0x1d1be};
+    default:
+      return Optional<uint32_t>::none();
+    } break;
+  default:
+    return Optional<uint32_t>::none();
+  }
+}
+
+} // namespace Rust
