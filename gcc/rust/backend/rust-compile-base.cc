@@ -673,10 +673,9 @@ HIRCompileBase::compile_constant_item (
   // machineary that we already have. This means the best approach is to
   // make a _fake_ function with a block so it can hold onto temps then
   // use our constexpr code to fold it completely or error_mark_node
-  Backend::typed_identifier receiver;
+  typed_identifier receiver;
   tree compiled_fn_type = ctx->get_backend ()->function_type (
-    receiver, {}, {Backend::typed_identifier ("_", const_type, locus)}, NULL,
-    locus);
+    receiver, {}, {typed_identifier ("_", const_type, locus)}, NULL, locus);
   tree fndecl
     = ctx->get_backend ()->function (compiled_fn_type, ident, "", 0, locus);
   TREE_READONLY (fndecl) = 1;

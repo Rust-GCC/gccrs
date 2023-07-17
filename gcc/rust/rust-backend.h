@@ -37,6 +37,23 @@
 // The backend representation of a variable.
 class Bvariable;
 
+// Name/type/location.  Used for function parameters, struct fields,
+// interface methods.
+struct typed_identifier
+{
+  std::string name;
+  tree type;
+  location_t location;
+
+  typed_identifier () : name (), type (NULL_TREE), location (UNKNOWN_LOCATION)
+  {}
+
+  typed_identifier (const std::string &a_name, tree a_type,
+		    location_t a_location)
+    : name (a_name), type (a_type), location (a_location)
+  {}
+};
+
 // The backend interface.  This is a pure abstract class that a
 // specific backend will implement.
 
@@ -44,23 +61,6 @@ class Backend
 {
 public:
   virtual ~Backend () {}
-
-  // Name/type/location.  Used for function parameters, struct fields,
-  // interface methods.
-  struct typed_identifier
-  {
-    std::string name;
-    tree type;
-    location_t location;
-
-    typed_identifier () : name (), type (NULL_TREE), location (UNKNOWN_LOCATION)
-    {}
-
-    typed_identifier (const std::string &a_name, tree a_type,
-		      location_t a_location)
-      : name (a_name), type (a_type), location (a_location)
-    {}
-  };
 
   // debug
   virtual void debug (tree) = 0;
