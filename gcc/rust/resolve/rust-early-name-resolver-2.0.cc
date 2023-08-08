@@ -135,8 +135,10 @@ Early::visit (AST::MacroInvocation &invoc)
   // if the definition still does not have a value, then it's an error
   if (!definition.has_value ())
     {
-      rust_error_at (invoc.get_locus (), ErrorCode::E0433,
-		     "could not resolve macro invocation");
+      collect_error ([&] () {
+	rust_error_at (invoc.get_locus (), ErrorCode::E0433,
+		       "could not resolve macro invocation");
+      });
       return;
     }
 
