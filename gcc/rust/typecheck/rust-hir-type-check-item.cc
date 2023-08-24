@@ -17,12 +17,16 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-type-check-item.h"
+#include "rust-canonical-path.h"
+#include "rust-diagnostics.h"
 #include "rust-hir-type-check-enumitem.h"
 #include "rust-hir-type-check-implitem.h"
 #include "rust-hir-type-check-type.h"
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check-pattern.h"
 #include "rust-hir-trait-resolve.h"
+#include "rust-identifier.h"
+#include "rust-immutable-name-resolution-context.h"
 #include "rust-substitution-mapper.h"
 #include "rust-type-util.h"
 
@@ -171,12 +175,13 @@ TypeCheckItem::visit (HIR::TupleStruct &struct_decl)
       idx++;
     }
 
-  // get the path
-  const CanonicalPath *canonical_path = nullptr;
-  bool ok = mappings->lookup_canonical_path (
-    struct_decl.get_mappings ().get_nodeid (), &canonical_path);
-  rust_assert (ok);
-  RustIdent ident{*canonical_path, struct_decl.get_locus ()};
+  // const CanonicalPath *canonical_path = nullptr;
+  // bool ok = mappings->lookup_canonical_path (
+  //   struct_decl.get_mappings ().get_nodeid (), &canonical_path);
+  // rust_assert (ok);
+  // RustIdent ident{*canonical_path, struct_decl.get_locus ()};
+
+  RustIdent ident (CanonicalPath::create_empty (), struct_decl.get_locus ());
 
   // its a single variant ADT
   std::vector<TyTy::VariantDef *> variants;
@@ -229,11 +234,14 @@ TypeCheckItem::visit (HIR::StructStruct &struct_decl)
     }
 
   // get the path
-  const CanonicalPath *canonical_path = nullptr;
-  bool ok = mappings->lookup_canonical_path (
-    struct_decl.get_mappings ().get_nodeid (), &canonical_path);
-  rust_assert (ok);
-  RustIdent ident{*canonical_path, struct_decl.get_locus ()};
+  // const CanonicalPath *canonical_path = nullptr;
+  // bool ok = mappings->lookup_canonical_path (
+  //   struct_decl.get_mappings ().get_nodeid (), &canonical_path);
+  // rust_assert (ok);
+
+  // RustIdent ident{*canonical_path, struct_decl.get_locus ()};
+
+  RustIdent ident (CanonicalPath::create_empty (), struct_decl.get_locus ());
 
   // its a single variant ADT
   std::vector<TyTy::VariantDef *> variants;

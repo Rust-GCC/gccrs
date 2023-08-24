@@ -17,10 +17,13 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-type-check-type.h"
+#include "options.h"
 #include "rust-hir-trait-resolve.h"
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-path-probe.h"
 #include "rust-hir-type-bounds.h"
+#include "rust-immutable-name-resolution-context.h"
+#include "rust-mapping-common.h"
 #include "rust-substitution-mapper.h"
 #include "rust-type-util.h"
 
@@ -327,11 +330,26 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
       bool is_root = *offset == 0;
       NodeId ast_node_id = seg->get_mappings ().get_nodeid ();
 
+      auto name_resolver2_0
+	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+
       // then lookup the reference_node_id
       NodeId ref_node_id = UNKNOWN_NODEID;
-      if (!resolver->lookup_resolved_name (ast_node_id, &ref_node_id))
+
+      // FIXME: HACK: ARTHUR: Disgusting
+      if (flag_name_resolution_2_0)
 	{
-	  resolver->lookup_resolved_type (ast_node_id, &ref_node_id);
+	  // I think that whole ResolveRootPath can just be resolved by the name
+	  // resolution pass, correct?
+	  auto candidate = name_resolver2_0.lookup (ast_node_id);
+
+	  // FIXME: We then need to do reverse lookup, correct?
+	  ref_node_id = candidate ? *candidate : UNKNOWN_NODEID;
+	}
+      else
+	{
+	  if (!resolver->lookup_resolved_name (ast_node_id, &ref_node_id))
+	    resolver->lookup_resolved_type (ast_node_id, &ref_node_id);
 	}
 
       // ref_node_id is the NodeId that the segments refers to.
