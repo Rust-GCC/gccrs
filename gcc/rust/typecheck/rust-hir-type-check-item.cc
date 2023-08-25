@@ -479,10 +479,6 @@ TypeCheckItem::visit (HIR::Function &function)
       TypeCheckPattern::Resolve (param.get_param_name ().get (), param_tyty);
     }
 
-  rust_warning_at (function.get_locus (), 0,
-		   "Arthur didn't clean up his stupid code: %s:%d", __FILE__,
-		   __LINE__);
-
   auto path = CanonicalPath::create_empty ();
 
   // FIXME: HACK: ARTHUR: Disgusting
