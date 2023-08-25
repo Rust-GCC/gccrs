@@ -26,6 +26,7 @@
 #include "rust-hir-type-check-pattern.h"
 #include "rust-hir-trait-resolve.h"
 #include "rust-identifier.h"
+#include "rust-session-manager.h"
 #include "rust-immutable-name-resolution-context.h"
 #include "rust-substitution-mapper.h"
 #include "rust-type-util.h"
@@ -478,13 +479,34 @@ TypeCheckItem::visit (HIR::Function &function)
       TypeCheckPattern::Resolve (param.get_param_name ().get (), param_tyty);
     }
 
-  const CanonicalPath *canonical_path = nullptr;
-  bool ok
-    = mappings->lookup_canonical_path (function.get_mappings ().get_nodeid (),
-				       &canonical_path);
-  rust_assert (ok);
+  rust_warning_at (function.get_locus (), 0,
+		   "Arthur didn't clean up his stupid code: %s:%d", __FILE__,
+		   __LINE__);
 
-  RustIdent ident{*canonical_path, function.get_locus ()};
+  auto path = CanonicalPath::create_empty ();
+
+  // FIXME: HACK: ARTHUR: Disgusting
+  if (flag_name_resolution_2_0)
+    {
+      auto nr_ctx
+	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+      auto canonical_path = nr_ctx.values.to_canonical_path (
+	function.get_mappings ().get_nodeid ());
+
+      path = canonical_path.value ();
+    }
+  else
+    {
+      const CanonicalPath *canonical_path = nullptr;
+      bool ok = mappings->lookup_canonical_path (
+	function.get_mappings ().get_nodeid (), &canonical_path);
+      rust_assert (ok);
+
+      path = *canonical_path;
+    }
+
+  RustIdent ident{path, function.get_locus ()};
+
   auto fnType = new TyTy::FnType (function.get_mappings ().get_hirid (),
 				  function.get_mappings ().get_defid (),
 				  function.get_function_name ().as_string (),

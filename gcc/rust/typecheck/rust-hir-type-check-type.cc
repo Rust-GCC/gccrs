@@ -126,6 +126,8 @@ TypeCheckType::visit (HIR::TupleType &tuple)
 void
 TypeCheckType::visit (HIR::TypePath &path)
 {
+  rust_debug ("{ARTHUR}: Path visited: %s", path.as_string ().c_str ());
+
   // this can happen so we need to look up the root then resolve the
   // remaining segments if possible
   size_t offset = 0;
@@ -336,21 +338,17 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
       // then lookup the reference_node_id
       NodeId ref_node_id = UNKNOWN_NODEID;
 
-      // FIXME: HACK: ARTHUR: Disgusting
+      // FIXME: HACK: ARTHUR: Remove this
       if (flag_name_resolution_2_0)
-	{
-	  // I think that whole ResolveRootPath can just be resolved by the name
-	  // resolution pass, correct?
-	  auto candidate = name_resolver2_0.lookup (ast_node_id);
-
-	  // FIXME: We then need to do reverse lookup, correct?
-	  ref_node_id = candidate ? *candidate : UNKNOWN_NODEID;
-	}
-      else
-	{
-	  if (!resolver->lookup_resolved_name (ast_node_id, &ref_node_id))
-	    resolver->lookup_resolved_type (ast_node_id, &ref_node_id);
-	}
+	// assign the ref_node_id if we've found something
+	name_resolver2_0.lookup (path.get_mappings ().get_nodeid ())
+	  .map ([&ref_node_id, &path] (NodeId resolved) {
+	    rust_warning_at (path.get_locus (), 0,
+			     "{ARTHUR}: found reference: %d", resolved);
+	    ref_node_id = resolved;
+	  });
+      else if (!resolver->lookup_resolved_name (ast_node_id, &ref_node_id))
+	resolver->lookup_resolved_type (ast_node_id, &ref_node_id);
 
       // ref_node_id is the NodeId that the segments refers to.
       if (ref_node_id == UNKNOWN_NODEID)
