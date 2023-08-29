@@ -332,7 +332,7 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
       bool is_root = *offset == 0;
       NodeId ast_node_id = seg->get_mappings ().get_nodeid ();
 
-      auto name_resolver2_0
+      auto nr_ctx
 	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
 
       // then lookup the reference_node_id
@@ -341,7 +341,7 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
       // FIXME: HACK: ARTHUR: Remove this
       if (flag_name_resolution_2_0)
 	// assign the ref_node_id if we've found something
-	name_resolver2_0.lookup (path.get_mappings ().get_nodeid ())
+	nr_ctx.lookup (path.get_mappings ().get_nodeid ())
 	  .map ([&ref_node_id, &path] (NodeId resolved) {
 	    rust_warning_at (path.get_locus (), 0,
 			     "{ARTHUR}: found reference: %d", resolved);
