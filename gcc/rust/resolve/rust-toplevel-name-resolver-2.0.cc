@@ -466,6 +466,18 @@ flatten_glob (const AST::UseTreeGlob &glob, std::vector<AST::SimplePath> &paths)
 {
   if (glob.has_path ())
     paths.emplace_back (glob.get_path ());
+
+  // so what is the plan for glob imports
+  // 1. figure out the rib which contains all the exports, in each namespace
+  // 2. for that namespace, go through all the nodes
+  // 3. filter out the exported ones (is that correct?)
+  // 4. export them in the current rib, BUT make them shadowable
+
+  // 1. needs us to be able to find a Rib based on a SimplePath - can we already
+  // do that with resolve path?
+  // 2. ok
+  // 3. how do we get the visibiliy information for each node? in the mappings?
+  // 4. ok
 }
 
 void
