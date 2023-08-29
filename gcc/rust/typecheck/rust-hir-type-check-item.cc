@@ -176,13 +176,31 @@ TypeCheckItem::visit (HIR::TupleStruct &struct_decl)
       idx++;
     }
 
-  // const CanonicalPath *canonical_path = nullptr;
-  // bool ok = mappings->lookup_canonical_path (
-  //   struct_decl.get_mappings ().get_nodeid (), &canonical_path);
-  // rust_assert (ok);
-  // RustIdent ident{*canonical_path, struct_decl.get_locus ()};
+  // get the path
 
-  RustIdent ident (CanonicalPath::create_empty (), struct_decl.get_locus ());
+  auto path = CanonicalPath::create_empty ();
+
+  // FIXME: HACK: ARTHUR: Disgusting
+  if (flag_name_resolution_2_0)
+    {
+      auto nr_ctx
+	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+      auto canonical_path = nr_ctx.values.to_canonical_path (
+	struct_decl.get_mappings ().get_nodeid ());
+
+      path = canonical_path.value ();
+    }
+  else
+    {
+      const CanonicalPath *canonical_path = nullptr;
+      bool ok = mappings->lookup_canonical_path (
+	struct_decl.get_mappings ().get_nodeid (), &canonical_path);
+      rust_assert (ok);
+
+      path = *canonical_path;
+    }
+
+  RustIdent ident{path, struct_decl.get_locus ()};
 
   // its a single variant ADT
   std::vector<TyTy::VariantDef *> variants;
@@ -234,15 +252,29 @@ TypeCheckItem::visit (HIR::StructStruct &struct_decl)
       context->insert_type (field.get_mappings (), ty_field->get_field_type ());
     }
 
-  // get the path
-  // const CanonicalPath *canonical_path = nullptr;
-  // bool ok = mappings->lookup_canonical_path (
-  //   struct_decl.get_mappings ().get_nodeid (), &canonical_path);
-  // rust_assert (ok);
+  auto path = CanonicalPath::create_empty ();
 
-  // RustIdent ident{*canonical_path, struct_decl.get_locus ()};
+  // FIXME: HACK: ARTHUR: Disgusting
+  if (flag_name_resolution_2_0)
+    {
+      auto nr_ctx
+	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+      auto canonical_path = nr_ctx.values.to_canonical_path (
+	struct_decl.get_mappings ().get_nodeid ());
 
-  RustIdent ident (CanonicalPath::create_empty (), struct_decl.get_locus ());
+      path = canonical_path.value ();
+    }
+  else
+    {
+      const CanonicalPath *canonical_path = nullptr;
+      bool ok = mappings->lookup_canonical_path (
+	struct_decl.get_mappings ().get_nodeid (), &canonical_path);
+      rust_assert (ok);
+
+      path = *canonical_path;
+    }
+
+  RustIdent ident{path, struct_decl.get_locus ()};
 
   // its a single variant ADT
   std::vector<TyTy::VariantDef *> variants;

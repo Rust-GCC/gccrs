@@ -204,11 +204,7 @@ TypeCheckExpr::resolve_root_path (HIR::PathInExpression &expr, size_t *offset,
       if (flag_name_resolution_2_0)
 	// assign the ref_node_id if we've found something
 	nr_ctx.lookup (expr.get_mappings ().get_nodeid ())
-	  .map ([&ref_node_id, &expr] (NodeId resolved) {
-	    rust_warning_at (expr.get_locus (), 0,
-			     "{ARTHUR}: found reference: %d", resolved);
-	    ref_node_id = resolved;
-	  });
+	  .map ([&ref_node_id] (NodeId resolved) { ref_node_id = resolved; });
       else if (!resolver->lookup_resolved_name (ast_node_id, &ref_node_id))
 	resolver->lookup_resolved_type (ast_node_id, &ref_node_id);
 
