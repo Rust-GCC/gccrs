@@ -199,4 +199,17 @@ frust-name-resolution-2.0
 Rust Var(flag_name_resolution_2_0)
 Use the temporary and experimental name resolution pipeline instead of the stable one
 
+frust-panic=
+Rust Joined RejectNegative Enum(frust_panic) Var(flag_rust_panic)
+-frust-edition=[unwind|abort]             Panic strategy to compile crate with
+
+Enum
+Name(frust_panic) Type(int) UnknownError(unknown panic strategy %qs)
+
+EnumValue
+Enum(frust_panic) String(unwind) Value(0)
+
+EnumValue
+Enum(frust_panic) String(abort) Value(1)
+
 ; This comment is to ensure we retain the blank line above.
