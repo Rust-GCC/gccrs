@@ -23,6 +23,7 @@
 #include "rust-diagnostics.h"
 #include "rust-location.h"
 #include "rust-constexpr.h"
+#include "rust-session-manager.h"
 #include "rust-tree.h"
 #include "tree-core.h"
 #include "rust-gcc.h"
@@ -77,8 +78,6 @@ static tree
 rotate_handler (Context *ctx, TyTy::FnType *fntype, tree_code op);
 static tree
 wrapping_op_handler_inner (Context *ctx, TyTy::FnType *fntype, tree_code op);
-static tree
-copy_nonoverlapping_handler (Context *ctx, TyTy::FnType *fntype);
 static tree
 op_with_overflow_inner (Context *ctx, TyTy::FnType *fntype, tree_code op);
 static tree
@@ -165,6 +164,31 @@ unchecked_op_handler (tree_code op)
   };
 }
 
+static inline tree
+copy_handler_inner (Context *ctx, TyTy::FnType *fntype, bool overlaps);
+
+const static std::function<tree (Context *, TyTy::FnType *)>
+copy_handler (bool overlaps)
+{
+  return [overlaps] (Context *ctx, TyTy::FnType *fntype) {
+    return copy_handler_inner (ctx, fntype, overlaps);
+  };
+}
+
+static inline tree
+expect_handler_inner (Context *ctx, TyTy::FnType *fntype, bool likely);
+
+const static std::function<tree (Context *, TyTy::FnType *)>
+expect_handler (bool likely)
+{
+  return [likely] (Context *ctx, TyTy::FnType *fntype) {
+    return expect_handler_inner (ctx, fntype, likely);
+  };
+}
+
+static tree
+try_handler (Context *ctx, TyTy::FnType *fntype);
+
 inline tree
 sorry_handler (Context *ctx, TyTy::FnType *fntype)
 {
@@ -188,7 +212,8 @@ static const std::map<std::string,
     {"add_with_overflow", op_with_overflow (PLUS_EXPR)},
     {"sub_with_overflow", op_with_overflow (MINUS_EXPR)},
     {"mul_with_overflow", op_with_overflow (MULT_EXPR)},
-    {"copy_nonoverlapping", copy_nonoverlapping_handler},
+    {"copy", copy_handler (true)},
+    {"copy_nonoverlapping", copy_handler (false)},
     {"prefetch_read_data", prefetch_read_data},
     {"prefetch_write_data", prefetch_write_data},
     {"atomic_store_seqcst", atomic_store_handler (__ATOMIC_SEQ_CST)},
@@ -208,6 +233,9 @@ static const std::map<std::string,
     {"unchecked_shr", unchecked_op_handler (RSHIFT_EXPR)},
     {"uninit", uninit_handler},
     {"move_val_init", move_val_init_handler},
+    {"likely", expect_handler (true)},
+    {"unlikely", expect_handler (false)},
+    {"try", try_handler},
 };
 
 Intrinsics::Intrinsics (Context *ctx) : ctx (ctx) {}
@@ -673,9 +701,10 @@ op_with_overflow_inner (Context *ctx, TyTy::FnType *fntype, tree_code op)
 
 /**
  * fn copy_nonoverlapping<T>(src: *const T, dst: *mut T, count: usize);
+ * fn copy<T>(src: *const T, dst: *mut T, count: usize);
  */
 static tree
-copy_nonoverlapping_handler (Context *ctx, TyTy::FnType *fntype)
+copy_handler_inner (Context *ctx, TyTy::FnType *fntype, bool overlaps)
 {
   rust_assert (fntype->get_params ().size () == 3);
   rust_assert (fntype->get_num_substitutions () == 1);
@@ -686,7 +715,7 @@ copy_nonoverlapping_handler (Context *ctx, TyTy::FnType *fntype)
 
   auto fndecl = compile_intrinsic_function (ctx, fntype);
 
-  // Most intrinsic functions are pure - not `copy_nonoverlapping`
+  // Most intrinsic functions are pure - not `copy_nonoverlapping` and `copy`
   TREE_READONLY (fndecl) = 0;
   TREE_SIDE_EFFECTS (fndecl) = 1;
 
@@ -717,7 +746,9 @@ copy_nonoverlapping_handler (Context *ctx, TyTy::FnType *fntype)
     = build2 (MULT_EXPR, size_type_node, TYPE_SIZE_UNIT (param_type), count);
 
   tree memcpy_raw = nullptr;
-  BuiltinsContext::get ().lookup_simple_builtin ("memcpy", &memcpy_raw);
+  BuiltinsContext::get ().lookup_simple_builtin (overlaps ? "memmove"
+							  : "memcpy",
+						 &memcpy_raw);
   rust_assert (memcpy_raw);
   auto memcpy = build_fold_addr_expr_loc (UNKNOWN_LOCATION, memcpy_raw);
 
@@ -1099,6 +1130,117 @@ move_val_init_handler (Context *ctx, TyTy::FnType *fntype)
   ctx->add_statement (memset_call);
   // BUILTIN size_of FN BODY END
 
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
+static inline tree
+expect_handler_inner (Context *ctx, TyTy::FnType *fntype, bool likely)
+{
+  rust_assert (fntype->get_params ().size () == 1);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  // BUILTIN expect_handler_inner FN BODY BEGIN
+  // setup the params
+  std::vector<Bvariable *> param_vars;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars);
+  tree expr = Backend::var_expression (param_vars[0], UNDEF_LOCATION);
+  tree expect_fn_raw = nullptr;
+  BuiltinsContext::get ().lookup_simple_builtin ("expect", &expect_fn_raw);
+  rust_assert (expect_fn_raw);
+  auto expect_fn = build_fold_addr_expr_loc (BUILTINS_LOCATION, expect_fn_raw);
+
+  // we need to convert the expression return type to long to match the expected
+  // parameter type of __builtin_expect
+  auto expect_src = build1 (CONVERT_EXPR, long_integer_type_node, expr);
+  auto expect_value
+    = make_unsigned_long_tree (static_cast<unsigned long> (likely));
+
+  auto expect_call
+    = Backend::call_expression (expect_fn, {expect_src, expect_value}, nullptr,
+				BUILTINS_LOCATION);
+  // the return value also needs to be casted (to bool)
+  auto expect_call_bool = build1 (CONVERT_EXPR, boolean_type_node, expect_call);
+  auto return_statement
+    = Backend::return_statement (fndecl, expect_call_bool, BUILTINS_LOCATION);
+  ctx->add_statement (return_statement);
+  // BUILTIN expect_handler_inner FN BODY END
+
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
+static tree
+try_handler (Context *ctx, TyTy::FnType *fntype)
+{
+  rust_assert (fntype->get_params ().size () == 3);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  // BUILTIN try_handler FN BODY BEGIN
+  // setup the params
+  std::vector<Bvariable *> param_vars;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars);
+  if (!Backend::function_set_parameters (fndecl, param_vars))
+    return error_mark_node;
+  tree enclosing_scope = NULL_TREE;
+
+  bool panic_is_abort = Session::get_instance ().options.get_panic_strategy ()
+			== CompileOptions::PanicStrategy::Abort;
+  tree try_fn = Backend::var_expression (param_vars[0], UNDEF_LOCATION);
+  tree user_data = Backend::var_expression (param_vars[1], UNDEF_LOCATION);
+  tree catch_fn = Backend::var_expression (param_vars[2], UNDEF_LOCATION);
+  tree normal_return_stmt
+    = Backend::return_statement (fndecl, integer_zero_node, BUILTINS_LOCATION);
+  tree error_return_stmt
+    = Backend::return_statement (fndecl, integer_one_node, BUILTINS_LOCATION);
+  tree try_call = Backend::call_expression (try_fn, {user_data}, nullptr,
+					    BUILTINS_LOCATION);
+  tree catch_call = NULL_TREE;
+  tree try_block = Backend::block (fndecl, enclosing_scope, {}, UNDEF_LOCATION,
+				   UNDEF_LOCATION);
+  Backend::block_add_statements (try_block,
+				 std::vector<tree>{try_call,
+						   normal_return_stmt});
+  if (panic_is_abort)
+    {
+      // skip building the try-catch construct
+      ctx->add_statement (try_block);
+      finalize_intrinsic_block (ctx, fndecl);
+      return fndecl;
+    }
+
+  tree eh_pointer
+    = build_call_expr (builtin_decl_explicit (BUILT_IN_EH_POINTER), 1,
+		       integer_zero_node);
+  catch_call = Backend::call_expression (catch_fn, {user_data, eh_pointer},
+					 nullptr, BUILTINS_LOCATION);
+
+  tree catch_block = Backend::block (fndecl, enclosing_scope, {},
+				     UNDEF_LOCATION, UNDEF_LOCATION);
+  Backend::block_add_statements (catch_block,
+				 std::vector<tree>{catch_call,
+						   error_return_stmt});
+  // TODO(liushuyu): eh_personality needs to be implemented as a runtime thing
+  auto eh_construct
+    = Backend::exception_handler_statement (try_block, catch_block, NULL_TREE,
+					    BUILTINS_LOCATION);
+  ctx->add_statement (eh_construct);
+  // BUILTIN try_handler FN BODY END
   finalize_intrinsic_block (ctx, fndecl);
 
   return fndecl;
