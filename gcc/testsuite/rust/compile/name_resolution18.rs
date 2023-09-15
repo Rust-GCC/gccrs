@@ -1,3 +1,5 @@
+// { dg-options "-frust-name-resolution-2.0" }
+
 struct Marker;
 
 struct Foo {
