@@ -1,4 +1,12 @@
+<<<<<<< HEAD
 // { dg-additional-options "-frust-name-resolution-2.0 -frust-compile-until=lowering" }
+=======
+// { dg-options "-frust-name-resolution-2.0" }
+
+pub mod foo {
+    pub macro bar() {}
+}
+>>>>>>> 9cd774074db (Change to name resolution 2.0)
 
 fn foo() {
     let b = 10;
