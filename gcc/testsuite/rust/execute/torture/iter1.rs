@@ -16,7 +16,7 @@ mod option {
 }
 
 mod result {
-    enum Result<T, E> {
+    pub enum Result<T, E> {
         Ok(T),
         Err(E),
     }

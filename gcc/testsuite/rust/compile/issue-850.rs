@@ -6,7 +6,7 @@ extern "C" {
 }
 
 mod option {
-    enum Option<T> {
+    pub enum Option<T> {
         #[lang = "None"]
         None,
         #[lang = "Some"]

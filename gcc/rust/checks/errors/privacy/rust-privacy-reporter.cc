@@ -138,20 +138,28 @@ PrivacyReporter::check_for_privacy_violation (const NodeId &use_id,
 
   switch (vis.get_kind ())
     {
-    case ModuleVisibility::Public:
-      break;
+  case ModuleVisibility::Public: {
+    rust_debug("PUBLIC");
+    break;
+  }
       case ModuleVisibility::Restricted: {
-	// If we are in the crate, everything is restricted correctly, but we
-	// can't get a module for it
-	if (!current_module.has_value ())
-	  return;
+    rust_debug("RESTRICTED");
+    // If we are in the crate, everything is restricted correctly, but we
+    // can't get a module for it
 
-	auto module = mappings.lookup_defid (vis.get_module_id ());
-	rust_assert (module != nullptr);
+    auto module = mappings.lookup_defid(vis.get_module_id());
+    // rust_assert (module != nullptr);
+    if (!current_module.has_value() && module == nullptr)
+      break;
 
-	auto mod_node_id = module->get_mappings ().get_nodeid ();
+    auto mod_node_id = module->get_mappings().get_nodeid();
 
-	// We are in the module referenced by the pub(restricted) visibility.
+    if ((!current_module.has_value()) and mod_node_id) {
+      valid = false;
+      break;
+    }
+
+        // We are in the module referenced by the pub(restricted) visibility.
 	// This is valid
 	if (mod_node_id == current_module.value ())
 	  break;
