@@ -578,6 +578,11 @@ public:
 
   MacroKind get_kind () const { return kind; }
 
+  std::unique_ptr<MacroRulesDefinition> clone_macro_rules_def () const
+  {
+    return std::unique_ptr<MacroRulesDefinition> (clone_item_impl ());
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */

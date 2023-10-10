@@ -917,7 +917,8 @@ Mappings::insert_macro_invocation (AST::MacroInvocation &invoc,
   auto it = macroInvocations.find (invoc.get_macro_node_id ());
   rust_assert (it == macroInvocations.end ());
 
-  macroInvocations[invoc.get_macro_node_id ()] = def;
+  // TODO: remove hack that converts use-after-free into memory leak
+  macroInvocations[invoc.get_macro_node_id ()] = def->clone_macro_rules_def ().release ();
 }
 
 bool
