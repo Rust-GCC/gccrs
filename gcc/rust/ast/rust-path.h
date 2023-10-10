@@ -1153,8 +1153,7 @@ public:
   // Constructor
   TypePath (std::vector<std::unique_ptr<TypePathSegment>> segments,
 	    location_t locus, bool has_opening_scope_resolution = false)
-    : TypeNoBounds (),
-      has_opening_scope_resolution (has_opening_scope_resolution),
+    : has_opening_scope_resolution (has_opening_scope_resolution),
       segments (std::move (segments)), locus (locus)
   {}
 

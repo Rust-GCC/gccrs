@@ -105,6 +105,36 @@ public:
   friend class Expr;
 };
 
+class Located
+{
+public:
+  virtual location_t get_locus () const = 0;
+};
+
+class LocatedImpl : virtual public Located
+{
+private:
+  location_t locus;
+
+protected:
+  LocatedImpl (location_t locus) : locus (locus) {}
+
+public:
+  location_t get_locus () const override final { return locus; }
+};
+
+class NodeIdStore
+{
+  NodeId node_id;
+
+public:
+  NodeIdStore () : node_id (Analysis::Mappings::get ()->get_next_node_id ()) {}
+
+  NodeId get_node_id () const { return node_id; }
+
+  friend class Expr;
+};
+
 class Visitable
 {
 public:
@@ -1735,8 +1765,10 @@ public:
     return std::unique_ptr<AssociatedItem> (clone_associated_item_impl ());
   }
 
-  NodeId get_node_id () const { return node_id; }
-  location_t get_locus () const override { return locus; }
+  virtual std::string as_string () const = 0;
+
+  virtual void mark_for_strip () = 0;
+  virtual bool is_marked_for_strip () const = 0;
 };
 
 // Abstract base class for an item used inside an extern block
