@@ -653,8 +653,12 @@ aarch64_get_extension_string_for_isa_flags
 
      However, assemblers with Armv8-R AArch64 support should not have this
      issue, so we don't need this fix when targeting Armv8-R.  */
-  auto explicit_flags = (!(current_flags & AARCH64_FL_V8R)
-			 ? AARCH64_FL_CRC : 0);
+  aarch64_feature_flags explicit_flags =
+#ifndef DISABLE_AARCH64_AS_CRC_BUGFIX
+     (!(current_flags & AARCH64_FL_V8R) ? AARCH64_FL_CRC : 0);
+#else
+     0;
+#endif
 
   /* Add the features in isa_flags & ~current_flags using the smallest
      possible number of extensions.  We can do this by iterating over the
