@@ -162,6 +162,31 @@ protected:
   }
 };
 
+class Variadic
+{
+private:
+  std::vector<Attribute> outer_attrs;
+  tl::optional<std::string> name;
+
+public:
+  Variadic (std::vector<Attribute> outer_attrs)
+    : outer_attrs (std::move (outer_attrs)), name (tl::nullopt)
+  {}
+
+  Variadic (std::vector<Attribute> outer_attrs, std::string name)
+    : outer_attrs (std::move (outer_attrs)),
+      name (tl::optional<std::string> (name))
+  {}
+
+  const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
+
+  // Returns whether item has outer attributes on its variadic parameters.
+  bool has_variadic_outer_attrs () const
+  {
+    return !get_outer_attrs ().empty ();
+  }
+};
+
 /* "where" clause item base. Abstract - use LifetimeWhereClauseItem,
  * TypeBoundWhereClauseItem */
 class WhereClauseItem
