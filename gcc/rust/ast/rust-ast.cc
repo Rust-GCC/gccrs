@@ -2862,7 +2862,7 @@ ExternalFunctionItem::as_string () const
 
   // function params
   str += "\n Function params: ";
-  if (function_params.empty () && !has_variadics)
+  if (function_params.empty () && !is_variadic ())
     {
       str += "none";
     }
@@ -2871,12 +2871,12 @@ ExternalFunctionItem::as_string () const
       for (const auto &param : function_params)
 	str += "\n  " + param.as_string ();
 
-      if (has_variadics)
+      if (is_variadic ())
 	{
 	  str += "\n  variadic outer attrs: ";
-	  if (has_variadic_outer_attrs ())
+	  if (variadic->has_variadic_outer_attrs ())
 	    {
-	      for (const auto &attr : variadic_outer_attrs)
+	      for (const auto &attr : variadic->get_outer_attrs ())
 		str += "\n   " + attr.as_string ();
 	    }
 	  else

@@ -19,6 +19,7 @@
 #ifndef RUST_AST_ITEM_H
 #define RUST_AST_ITEM_H
 
+#include "optional.h"
 #include "rust-ast.h"
 #include "rust-path.h"
 #include "rust-common.h"
@@ -4267,8 +4268,7 @@ class ExternalFunctionItem : public ExternalItem
   WhereClause where_clause;
 
   std::vector<NamedFunctionParam> function_params;
-  bool has_variadics;
-  std::vector<Attribute> variadic_outer_attrs;
+  tl::optional<Variadic> variadic;
 
 public:
   // Returns whether item has generic parameters.
@@ -4287,13 +4287,7 @@ public:
   bool has_visibility () const { return !visibility.is_error (); }
 
   // Returns whether item has variadic parameters.
-  bool is_variadic () const { return has_variadics; }
-
-  // Returns whether item has outer attributes on its variadic parameters.
-  bool has_variadic_outer_attrs () const
-  {
-    return !variadic_outer_attrs.empty ();
-  }
+  bool is_variadic () const { return variadic.has_value (); }
 
   location_t get_locus () const { return locus; }
 
@@ -4312,10 +4306,12 @@ public:
       locus (locus), generic_params (std::move (generic_params)),
       return_type (std::move (return_type)),
       where_clause (std::move (where_clause)),
-      function_params (std::move (function_params)),
-      has_variadics (has_variadics),
-      variadic_outer_attrs (std::move (variadic_outer_attrs))
+      function_params (std::move (function_params))
   {
+    if (has_variadics)
+      variadic = tl::optional<Variadic> (variadic_outer_attrs);
+    else
+      variadic = tl::nullopt;
     // TODO: assert that if has variadic outer attrs, then has_variadics is
     // true?
   }
@@ -4325,9 +4321,7 @@ public:
     : outer_attrs (other.outer_attrs), visibility (other.visibility),
       item_name (other.item_name), locus (other.locus),
       where_clause (other.where_clause),
-      function_params (other.function_params),
-      has_variadics (other.has_variadics),
-      variadic_outer_attrs (other.variadic_outer_attrs)
+      function_params (other.function_params), variadic (other.variadic)
   {
     node_id = other.node_id;
     // guard to prevent null pointer dereference
@@ -4348,8 +4342,7 @@ public:
     locus = other.locus;
     where_clause = other.where_clause;
     function_params = other.function_params;
-    has_variadics = other.has_variadics;
-    variadic_outer_attrs = other.variadic_outer_attrs;
+    variadic = other.variadic;
     node_id = other.node_id;
 
     // guard to prevent null pointer dereference
