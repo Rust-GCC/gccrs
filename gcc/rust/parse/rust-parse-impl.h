@@ -2906,7 +2906,7 @@ Parser<ManagedTokenSource>::parse_function (AST::Visibility vis,
 		       std::move (generic_params), std::move (function_params),
 		       std::move (return_type), std::move (where_clause),
 		       std::move (block_expr), std::move (vis),
-		       std::move (outer_attrs), locus));
+		       std::move (outer_attrs), locus, tl::nullopt));
 }
 
 // Parses function or method qualifiers (i.e. const, unsafe, and extern).
@@ -5628,12 +5628,11 @@ Parser<ManagedTokenSource>::parse_inherent_impl_function_or_method (
     }
   else
     {
-      return std::unique_ptr<AST::Function> (
-	new AST::Function (std::move (ident), std::move (qualifiers),
-			   std::move (generic_params),
-			   std::move (function_params), std::move (return_type),
-			   std::move (where_clause), std::move (body),
-			   std::move (vis), std::move (outer_attrs), locus));
+      return std::unique_ptr<AST::Function> (new AST::Function (
+	std::move (ident), std::move (qualifiers), std::move (generic_params),
+	std::move (function_params), std::move (return_type),
+	std::move (where_clause), std::move (body), std::move (vis),
+	std::move (outer_attrs), locus, tl::nullopt));
     }
 }
 
@@ -5870,7 +5869,7 @@ Parser<ManagedTokenSource>::parse_trait_impl_function_or_method (
 	std::move (ident), std::move (qualifiers), std::move (generic_params),
 	std::move (function_params), std::move (return_type),
 	std::move (where_clause), std::move (body), std::move (vis),
-	std::move (outer_attrs), locus, is_default));
+	std::move (outer_attrs), locus, tl::nullopt, is_default));
     }
 }
 

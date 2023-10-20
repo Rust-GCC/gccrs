@@ -1581,6 +1581,7 @@ class Function : public VisItem, public InherentImplItem, public TraitImplItem
   std::unique_ptr<BlockExpr> function_body;
   location_t locus;
   bool is_default;
+  tl::optional<Variadic> variadic;
 
 public:
   std::string as_string () const override;
@@ -1604,7 +1605,7 @@ public:
 	    std::unique_ptr<Type> return_type, WhereClause where_clause,
 	    std::unique_ptr<BlockExpr> function_body, Visibility vis,
 	    std::vector<Attribute> outer_attrs, location_t locus,
-	    bool is_default = false)
+	    tl::optional<Variadic> variadic, bool is_default = false)
     : VisItem (std::move (vis), std::move (outer_attrs)),
       qualifiers (std::move (qualifiers)),
       function_name (std::move (function_name)),
@@ -1613,7 +1614,7 @@ public:
       return_type (std::move (return_type)),
       where_clause (std::move (where_clause)),
       function_body (std::move (function_body)), locus (locus),
-      is_default (is_default)
+      is_default (is_default), variadic (variadic)
   {}
 
   // TODO: add constructor with less fields
@@ -1624,7 +1625,7 @@ public:
       function_name (other.function_name),
       function_params (other.function_params),
       where_clause (other.where_clause), locus (other.locus),
-      is_default (other.is_default)
+      is_default (other.is_default), variadic (other.variadic)
   {
     // guard to prevent null dereference (always required)
     if (other.return_type != nullptr)
@@ -1651,6 +1652,7 @@ public:
     // outer_attrs = other.outer_attrs;
     locus = other.locus;
     is_default = other.is_default;
+    variadic = other.variadic;
 
     // guard to prevent null dereference (always required)
     if (other.return_type != nullptr)
