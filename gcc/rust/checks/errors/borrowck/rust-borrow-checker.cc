@@ -20,6 +20,7 @@
 #include "rust-function-collector.h"
 #include "rust-bir-builder.h"
 #include "rust-bir-dump.h"
+#include "polonius/rust-polonius.h"
 
 namespace Rust {
 namespace HIR {
@@ -86,6 +87,9 @@ BorrowChecker::go (HIR::Crate &crate)
 	  dump_function_bir (filename, bir,
 			     func->get_function_name ().as_string ());
 	}
+
+      Polonius::Facts facts; // Dummy facts for now.
+      Polonius::polonius_run (facts.freeze (), true);
     }
 
   for (auto closure ATTRIBUTE_UNUSED : collector.get_closures ())

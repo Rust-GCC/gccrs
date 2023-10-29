@@ -20,6 +20,7 @@
 
 # This file provides the language dependent support in the main Makefile.
 
+
 #RUST_EXES = rust
 
 # Use strict warnings for this front end.
@@ -199,14 +200,19 @@ RUST_ALL_OBJS = $(GRS_OBJS) $(RUST_TARGET_OBJS)
 
 rust_OBJS = $(RUST_ALL_OBJS) rust/rustspec.o
 
-RUST_LDFLAGS = $(LDFLAGS) -L./../libgrust/libproc_macro_internal
-RUST_LIBDEPS = $(LIBDEPS) ../libgrust/libproc_macro_internal/libproc_macro_internal.a
+# FIXME: Experiment - move to configure
+CLANG_TARGET := $(shell echo "$(target)" | sed 's/-pc-/-unknown-/')
+POLONIUS_LDFLAGS = $(shell cargo rustc --manifest-path $(srcdir)/rust/checks/errors/borrowck/ffi-polonius/Cargo.toml -q --message-format short -- --target $(CLANG_TARGET) --print=native-static-libs 2>&1 | grep "note: native-static-libs:" | sed 's/note: native-static-libs: //g')
+RUST_LDFLAGS = $(LDFLAGS) -L./../libgrust/libproc_macro_internal $(POLONIUS_LDFLAGS)
+RUST_LIBDEPS = $(LIBDEPS) ../libgrust/libproc_macro_internal/libproc_macro_internal.a rust/libffi_polonius.a
 
 # The compiler itself is called crab1
 crab1$(exeext): $(RUST_ALL_OBJS) attribs.o $(BACKEND) $(RUST_LIBDEPS) $(rust.prev)
 	@$(call LINK_PROGRESS,$(INDEX.rust),start)
 	+$(LLINKER) $(ALL_LINKERFLAGS) $(RUST_LDFLAGS) -o $@ \
-	      $(RUST_ALL_OBJS) attribs.o $(BACKEND) $(LIBS) ../libgrust/libproc_macro_internal/libproc_macro_internal.a $(BACKENDLIBS)
+	      $(RUST_ALL_OBJS) attribs.o $(BACKEND) \
+	      $(LIBS) ../libgrust/libproc_macro_internal/libproc_macro_internal.a rust/libffi_polonius.a \
+ 		  $(BACKENDLIBS)
 	@$(call LINK_PROGRESS,$(INDEX.rust),end)
 
 # Build hooks.
@@ -240,6 +246,7 @@ rust.srcman:
 # Clean hooks.
 
 rust.mostlyclean:
+	rm -rf rust/ffi-polonius/release libffi_polonius.a
 #	cd $(srcdir)/rust; rm -f *.o y.tab.h y.tab.c lex.yy.c
 
 rust.clean: rust.mostlyclean
@@ -461,3 +468,9 @@ rust/%.o: rust/checks/errors/borrowck/%.cc
 rust/%.o: rust/metadata/%.cc
 	$(COMPILE) $(RUST_CXXFLAGS) $(RUST_INCLUDES) $<
 	$(POSTCOMPILE)
+
+rust/libffi_polonius.a: \
+	rust/checks/errors/borrowck/ffi-polonius/Cargo.toml \
+	$(wildcard $(srcdir)/rust/checks/errors/borrowck/ffi-polonius/src/*)
+	cargo build --manifest-path $(srcdir)/rust/checks/errors/borrowck/ffi-polonius/Cargo.toml --release --target-dir rust/ffi-polonius
+	cp rust/ffi-polonius/release/libffi_polonius.a rust/libffi_polonius.a
