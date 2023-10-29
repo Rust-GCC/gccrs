@@ -37,7 +37,8 @@ jobs:
                   build-essential \
                   gcc-multilib \
                   g++-multilib \
-                  dejagnu
+                  dejagnu \
+                  cargo
 
     - name: Configure
       run: |
@@ -114,7 +115,8 @@ jobs:
                   build-essential \
                   gcc-multilib \
                   g++-multilib \
-                  dejagnu
+                  dejagnu \
+                  cargo
 
     - name: Configure
       run: |
@@ -192,7 +194,11 @@ jobs:
                   g++-4.8 \
                   gcc-4.8-multilib \
                   g++-4.8-multilib \
-                  dejagnu
+                  dejagnu \
+                  curl
+
+    - name: Install Rust (not available in system repository)
+      uses: dtolnay/rust-toolchain@nightly
 
     - name: Configure
       run: |
@@ -247,7 +253,7 @@ jobs:
 
     - name: Install Deps
       run: |
-          brew install dejagnu mpfr libmpc gmp
+          brew install dejagnu mpfr libmpc gmp rust
 
     - name: Configure
       run: |
