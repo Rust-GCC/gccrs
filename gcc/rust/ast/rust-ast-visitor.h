@@ -389,9 +389,12 @@ protected:
   virtual void visit (AST::InferredType &type) override;
   virtual void visit (AST::BareFunctionType &type) override;
 
-  template <typename T> void visit (T &node);
+  template <typename T> void visit (T &node) { node.accept_vis (*this); }
 
-  template <typename T> void visit (std::unique_ptr<T> &node);
+  template <typename T> void visit (std::unique_ptr<T> &node)
+  {
+    node->accept_vis (*this);
+  }
 
   virtual void visit (AST::GenericArgsBinding &binding);
   virtual void visit (AST::PathExprSegment &segment);
