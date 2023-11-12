@@ -116,7 +116,6 @@ TypeBoundsProbe::assemble_sized_builtin ()
     case TyTy::ARRAY:
     case TyTy::REF:
     case TyTy::POINTER:
-    case TyTy::PARAM:
     case TyTy::FNDEF:
     case TyTy::FNPTR:
     case TyTy::BOOL:
@@ -136,7 +135,6 @@ TypeBoundsProbe::assemble_sized_builtin ()
 
       // FIXME str and slice need to be moved and test cases updated
     case TyTy::SLICE:
-    case TyTy::STR:
     case TyTy::ADT:
     case TyTy::TUPLE:
       // FIXME add extra checks
@@ -144,6 +142,8 @@ TypeBoundsProbe::assemble_sized_builtin ()
       break;
 
     case TyTy::DYNAMIC:
+    case TyTy::STR:
+    case TyTy::PARAM:
     case TyTy::ERROR:
       break;
     }

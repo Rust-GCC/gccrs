@@ -20,26 +20,30 @@
 #define RUST_SIZED_CHECKER_H
 
 #include "rust-hir-visitor.h"
+#include "rust-tyty.h"
+#include "rust-hir-trait-reference.h"
+#include "rust-hir-type-check.h"
 
 namespace Rust {
 namespace HIR {
 
-class SizedChecker : public HIRVisItemVisitor, public HIRTraitItemVisitor,
-		     public HIRImplVisitor, public HIRExternalItemVisitor
+class SizedChecker : public HIRFullVisitorBase
 {
-  static TraitReference *sized_trait_cache;
+  static Resolver::TraitReference *sized_trait_cache;
 
-  static void expect_sized (TyTy::BaseType *, location_t);
-  static void expect_sized (std::vector<FunctionParam> &);
-  static void expect_sized (Type &);
-  static void expect_sized (SelfParam &);
+  static bool is_sized (TyTy::BaseType *);
 
   Analysis::Mappings &mappings;
+  Resolver::TypeCheckContext *tyctx;
 
 public:
-  SizedChecker () : mappings (*Analysis::Mappings::get ());
+  SizedChecker () : mappings (*Analysis::Mappings::get ()), tyctx (Resolver::TypeCheckContext::get ()) {}
 
   void go (Crate &crate);
+
+  // all items which could contain variables/functions
+
+  using HIRFullVisitorBase::visit;
 
   void visit (Module &) override;
   void visit (Function &) override;
@@ -49,26 +53,7 @@ public:
 
   void visit (TraitItemFunc &) override;
 
-  void visit (ExternalFunctionItem &) override;
-
-  // unused
-  void visit (ExternCrate &) override {}
-  void visit (UseDeclaration &) override {}
-  void visit (TypeAlias &) override {}
-  void visit (StructStruct &) override {}
-  void visit (TupleStruct &) override {}
-  void visit (Enum &) override {}
-  void visit (Union &) override {}
-  void visit (ConstantItem &) override {}
-  void visit (StaticItem &) override {}
-
-  void visit (TraitItemConst &) override {}
-  void visit (TraitItemType &) override {}
-
-  void visit (ConstantItem &) override {}
-  void visit (TypeAlias &) override {}
-
-  void visit (ExternalStaticItem &) override {}
+  // void visit (ExternalFunctionItem &) override;
 };
 
 } // namespace HIR

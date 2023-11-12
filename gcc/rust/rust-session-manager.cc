@@ -48,6 +48,7 @@
 #include "rust-attribute-values.h"
 #include "rust-borrow-checker.h"
 #include "rust-ast-validation.h"
+#include "rust-sized-checker.h"
 
 #include "input.h"
 #include "selftest.h"
@@ -651,6 +652,15 @@ Session::compile_crate (const char *filename)
 
   // type resolve
   Resolver::TypeResolution::Resolve (hir);
+
+  if (saw_errors ())
+    return;
+
+  if (last_step == CompileOptions::CompileStep::SizedCheck)
+    return;
+
+  // verify that variables/function parameters/return values/etc. are sized
+  HIR::SizedChecker ().go (hir);
 
   if (saw_errors ())
     return;
