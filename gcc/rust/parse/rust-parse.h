@@ -21,6 +21,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "rust-ast-full.h"
 #include "rust-diagnostics.h"
 
+#include "expected.h"
+
 namespace Rust {
 /* HACK: used to resolve the expression-or-statement problem at the end of a
  * block by allowing either to be returned (technically). Tagged union would
@@ -92,6 +94,12 @@ struct ParseRestrictions
   bool allow_close_after_expr_stmt = false;
 };
 
+enum ParseSelfError
+{
+  SELF_PTR,
+  PARSING,
+  NOT_SELF,
+};
 // Parser implementation for gccrs.
 // TODO: if updated to C++20, ManagedTokenSource would be useful as a concept
 template <typename ManagedTokenSource> class Parser
@@ -334,7 +342,9 @@ private:
   parse_trait_type (AST::AttrVec outer_attrs);
   std::unique_ptr<AST::TraitItemConst>
   parse_trait_const (AST::AttrVec outer_attrs);
-  std::unique_ptr<AST::Param> parse_self_param ();
+
+  tl::expected<std::unique_ptr<AST::Param>, ParseSelfError> parse_self_param ();
+
   std::unique_ptr<AST::Impl> parse_impl (AST::Visibility vis,
 					 AST::AttrVec outer_attrs);
   std::unique_ptr<AST::InherentImplItem>
