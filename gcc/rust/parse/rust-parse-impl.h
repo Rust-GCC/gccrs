@@ -22,6 +22,7 @@
 /* DO NOT INCLUDE ANYWHERE - this is automatically included with rust-parse.h
  * This is also the reason why there are no include guards. */
 
+#include "rust-common.h"
 #include "rust-item.h"
 #include "rust-token.h"
 #define INCLUDE_ALGORITHM
@@ -2406,8 +2407,8 @@ Parser<ManagedTokenSource>::parse_module (AST::Visibility vis,
       // Construct an external module
       return std::unique_ptr<AST::Module> (
 	new AST::Module (std::move (name), std::move (vis),
-			 std::move (outer_attrs), locus, lexer.get_filename (),
-			 inline_module_stack));
+			 std::move (outer_attrs), locus, Unsafety::Normal,
+			 lexer.get_filename (), inline_module_stack));
       case LEFT_CURLY: {
 	lexer.skip_token ();
 
@@ -2463,7 +2464,8 @@ Parser<ManagedTokenSource>::parse_module (AST::Visibility vis,
 
 	return std::unique_ptr<AST::Module> (
 	  new AST::Module (std::move (name), locus, std::move (items),
-			   std::move (vis), std::move (inner_attrs),
+			   std::move (vis), Unsafety::Normal,
+			   std::move (inner_attrs),
 			   std::move (outer_attrs))); // module name?
       }
     default:
