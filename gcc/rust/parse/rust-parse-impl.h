@@ -1382,6 +1382,8 @@ Parser<ManagedTokenSource>::parse_vis_item (AST::AttrVec outer_attrs)
 	  return parse_const_item (std::move (vis), std::move (outer_attrs));
 	case UNSAFE:
 	case EXTERN_KW:
+	case ASYNC:
+	  return parse_async_item (std::move (vis), std::move (outer_attrs));
 	case FN_KW:
 	  return parse_function (std::move (vis), std::move (outer_attrs));
 	default:
@@ -1442,7 +1444,9 @@ std::unique_ptr<AST::Function>
 Parser<ManagedTokenSource>::parse_async_item (AST::Visibility vis,
 					      AST::AttrVec outer_attrs)
 {
-  const_TokenPtr t = lexer.peek_token ();
+  auto offset = (lexer.peek_token ()->get_id () == CONST) ? 1 : 0;
+  const_TokenPtr t = lexer.peek_token (offset);
+
   if (Session::get_instance ().options.get_edition ()
       == CompileOptions::Edition::E2015)
     {
@@ -1453,7 +1457,7 @@ Parser<ManagedTokenSource>::parse_async_item (AST::Visibility vis,
 		     "to use %<async fn%>, switch to Rust 2018 or later"));
     }
 
-  t = lexer.peek_token (1);
+  t = lexer.peek_token (offset + 1);
 
   switch (t->get_id ())
     {
