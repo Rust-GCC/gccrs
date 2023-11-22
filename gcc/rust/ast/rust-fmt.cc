@@ -25,7 +25,7 @@ Fmt::parse_fmt_string (Fmt::Input input)
   return Fmt ();
 }
 
-Fmt::ParseResult<tl::optional<Fmt::Format>>
+tl::expected<Fmt::Result<tl::optional<Fmt::Format>>, Fmt::Error>
 Fmt::maybe_format (Fmt::Input input)
 {
   tl::optional<Fmt::Format> none = tl::nullopt;
@@ -33,31 +33,31 @@ Fmt::maybe_format (Fmt::Input input)
   return Fmt::Result (input, none);
 }
 
-Fmt::ParseResult<Fmt::Format>
+tl::expected<Fmt::Result<Fmt::Format>, Fmt::Error>
 Fmt::format (Input input)
 {
   return Fmt::Result (input, Format ());
 }
 
-Fmt::ParseResult<Fmt::Argument>
+tl::expected<Fmt::Result<Fmt::Argument>, Fmt::Error>
 Fmt::argument (Input input)
 {
   return Fmt::Result (input, Argument ());
 }
 
-Fmt::ParseResult<Fmt::FormatSpec>
+tl::expected<Fmt::Result<Fmt::FormatSpec>, Fmt::Error>
 Fmt::format_spec (Input input)
 {
   return Fmt::Result (input, FormatSpec ());
 }
 
-Fmt::ParseResult<Fmt::Fill>
+tl::expected<Fmt::Result<Fmt::Fill>, Fmt::Error>
 Fmt::fill (Input input)
 {
   return Fmt::Result (input, Fill ());
 }
 
-Fmt::ParseResult<Fmt::Align>
+tl::expected<Fmt::Result<Fmt::Align>, Fmt::Error>
 Fmt::align (Input input)
 {
   switch (input[0])
@@ -76,7 +76,7 @@ Fmt::align (Input input)
     }
 }
 
-Fmt::ParseResult<Fmt::Sign>
+tl::expected<Fmt::Result<Fmt::Sign>, Fmt::Error>
 Fmt::sign (Input input)
 {
   switch (input[0])

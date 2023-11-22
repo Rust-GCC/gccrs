@@ -64,7 +64,19 @@ private:
   // expected node let's look at nom
   // TODO: no string view :( use an owned string for now?
 
-  template <typename T> using ParseResult = tl::expected<Result<T>, Error>;
+  template <typename T> struct ParseResult
+  {
+    tl::expected<Result<T>, Error> inner;
+
+    ParseResult (tl::expected<Result<T>, Error> inner) : inner (inner) {}
+    ParseResult operator= (tl::expected<Result<T>, Error> inner)
+    {
+      return ParseResult (inner);
+    }
+
+    Input remaining_input () { return inner->remaining_input; }
+    T value () { return inner->value; }
+  };
 
   struct Format
   {
@@ -105,14 +117,15 @@ private:
   };
 
   // let's do one function per rule in the BNF
-  static ParseResult<std::string> text (Input input);
-  static ParseResult<tl::optional<Format>> maybe_format (Input input);
-  static ParseResult<Format> format (Input input);
-  static ParseResult<Argument> argument (Input input);
-  static ParseResult<FormatSpec> format_spec (Input input);
-  static ParseResult<Fill> fill (Input input);
-  static ParseResult<Align> align (Input input);
-  static ParseResult<Sign> sign (Input input);
+  static tl::expected<Result<std::string>, Error> text (Input input);
+  static tl::expected<Result<tl::optional<Format>>, Error>
+  maybe_format (Input input);
+  static tl::expected<Result<Format>, Error> format (Input input);
+  static tl::expected<Result<Argument>, Error> argument (Input input);
+  static tl::expected<Result<FormatSpec>, Error> format_spec (Input input);
+  static tl::expected<Result<Fill>, Error> fill (Input input);
+  static tl::expected<Result<Align>, Error> align (Input input);
+  static tl::expected<Result<Sign>, Error> sign (Input input);
 };
 
 } // namespace Rust
