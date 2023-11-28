@@ -5377,12 +5377,12 @@ Parser<ManagedTokenSource>::parse_impl (AST::Visibility vis,
       AST::AttrVec inner_attrs = parse_inner_attributes ();
 
       // parse inherent impl items
-      std::vector<std::unique_ptr<AST::InherentImplItem>> impl_items;
+      std::vector<std::unique_ptr<AST::AssociatedItem>> impl_items;
 
       const_TokenPtr t = lexer.peek_token ();
       while (t->get_id () != RIGHT_CURLY)
 	{
-	  std::unique_ptr<AST::InherentImplItem> impl_item
+	  std::unique_ptr<AST::AssociatedItem> impl_item
 	    = parse_inherent_impl_item ();
 
 	  if (impl_item == nullptr)
@@ -5501,7 +5501,7 @@ Parser<ManagedTokenSource>::parse_impl (AST::Visibility vis,
 
 // Parses a single inherent impl item (item inside an inherent impl block).
 template <typename ManagedTokenSource>
-std::unique_ptr<AST::InherentImplItem>
+std::unique_ptr<AST::AssociatedItem>
 Parser<ManagedTokenSource>::parse_inherent_impl_item ()
 {
   // parse outer attributes (if they exist)
@@ -5618,7 +5618,7 @@ Parser<ManagedTokenSource>::parse_inherent_impl_item ()
 // InherentImplItem is this specialisation of the template while TraitImplItem
 // will be the other.
 template <typename ManagedTokenSource>
-std::unique_ptr<AST::InherentImplItem>
+std::unique_ptr<AST::AssociatedItem>
 Parser<ManagedTokenSource>::parse_inherent_impl_function_or_method (
   AST::Visibility vis, AST::AttrVec outer_attrs)
 {
