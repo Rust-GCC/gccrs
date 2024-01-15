@@ -21,6 +21,8 @@
 #include "rust-diagnostics.h"
 #include "rust-item.h"
 #include "rust-keyword-values.h"
+#include "rust-pattern.h"
+#include "safe-ctype.h"
 
 namespace Rust {
 
@@ -178,6 +180,42 @@ ASTValidation::visit (AST::Module &module)
     rust_error_at (module.get_locus (), "module cannot be declared unsafe");
 
   AST::ContextualASTVisitor::visit (module);
+}
+
+void
+ASTValidation::visit (AST::RangePattern &pattern)
+{
+  if (pattern.get_has_lower_bound () && pattern.get_has_upper_bound ())
+    {
+      auto &lower = pattern.get_lower_bound ();
+      auto &upper = pattern.get_upper_bound ();
+
+      if (lower->get_bound_type () == AST::RangePatternBound::LITERAL
+	  && upper->get_bound_type () == AST::RangePatternBound::LITERAL)
+	{
+	  int lower_value{};
+	  int upper_value{};
+	  // if numeric range, get lower and upper numeric values
+	  if (ISDIGIT (lower->as_string ()[0]))
+	    {
+	      lower_value = std::stoi (lower->as_string ());
+	      upper_value = std::stoi (upper->as_string ());
+	    }
+	  // else if character range, get lower and upper ASCII values
+	  else
+	    {
+	      lower_value = lower->as_string ()[0];
+	      upper_value = upper->as_string ()[0];
+	    }
+	  // raise error if range is empty
+	  if (lower_value > upper_value)
+	    {
+	      rust_error_at (
+		pattern.get_locus (), ErrorCode::E0030,
+		"lower range bound must be less than or equal to upper");
+	    }
+	}
+    }
 }
 
 } // namespace Rust

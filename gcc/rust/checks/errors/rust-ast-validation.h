@@ -43,6 +43,7 @@ public:
   virtual void visit (AST::Function &function);
   virtual void visit (AST::Trait &trait);
   virtual void visit (AST::TraitFunctionDecl &decl);
+  virtual void visit (AST::RangePattern &pattern);
 };
 
 } // namespace Rust

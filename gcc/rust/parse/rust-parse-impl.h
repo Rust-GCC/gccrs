@@ -10435,7 +10435,7 @@ Parser<ManagedTokenSource>::parse_literal_or_range_pattern ()
 
       return std::unique_ptr<AST::RangePattern> (
 	new AST::RangePattern (std::move (lower), std::move (upper),
-			       range_lower->get_locus ()));
+			       range_lower->get_locus (), next->get_id () == ELLIPSIS));
     }
   else
     {
