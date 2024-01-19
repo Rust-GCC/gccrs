@@ -1060,7 +1060,7 @@ Union::as_string () const
 }
 
 Function::Function (Function const &other)
-  : VisItem (other), qualifiers (other.qualifiers),
+  : VisItem (other), TraitItem (other), qualifiers (other.qualifiers),
     function_name (other.function_name), where_clause (other.where_clause),
     locus (other.locus), is_default (other.is_default)
 {
@@ -1087,6 +1087,7 @@ Function &
 Function::operator= (Function const &other)
 {
   VisItem::operator= (other);
+  TraitItem::operator=(other);
   function_name = other.function_name;
   qualifiers = other.qualifiers;
   where_clause = other.where_clause;

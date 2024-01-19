@@ -1685,6 +1685,10 @@ protected:
       locus (locus)
   {}
 
+  TraitItem (Visibility vis, location_t locus, NodeId node_id)
+    : node_id (node_id), vis (vis), locus (locus)
+  {}
+
   // Clone function implementation as pure virtual method
   virtual TraitItem *clone_associated_item_impl () const override = 0;
 

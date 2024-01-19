@@ -1289,7 +1289,7 @@ protected:
 class LetStmt;
 
 // Rust function declaration AST node
-class Function : public VisItem, public TraitImplItem
+class Function : public VisItem, public TraitItem
 {
   FunctionQualifiers qualifiers;
   Identifier function_name;
@@ -1323,6 +1323,10 @@ public:
 
   bool has_body () const { return function_body.has_value (); }
 
+  // Returns node_id, function is needed as VisItem and TraitItem both have
+  // get_node_id()
+  NodeId get_node_id () const { return VisItem::node_id; }
+
   // Mega-constructor with all possible fields
   Function (Identifier function_name, FunctionQualifiers qualifiers,
 	    std::vector<std::unique_ptr<GenericParam>> generic_params,
@@ -1331,7 +1335,8 @@ public:
 	    tl::optional<std::unique_ptr<BlockExpr>> function_body,
 	    Visibility vis, std::vector<Attribute> outer_attrs,
 	    location_t locus, bool is_default = false)
-    : VisItem (std::move (vis), std::move (outer_attrs)),
+    : VisItem (vis, std::move (outer_attrs)),
+      TraitItem (vis, locus, VisItem::get_node_id ()),
       qualifiers (std::move (qualifiers)),
       function_name (std::move (function_name)),
       generic_params (std::move (generic_params)),
