@@ -43,6 +43,54 @@ CompileTraitItem::visit (HIR::TraitItemConst &constant)
 }
 
 void
+CompileTraitItem::visit (HIR::Function &func)
+{
+  rust_assert (concrete->get_kind () == TyTy::TypeKind::FNDEF);
+  TyTy::FnType *fntype = static_cast<TyTy::FnType *> (concrete);
+  fntype->monomorphize ();
+  // items can be forward compiled which means we may not need to invoke this
+  // code. We might also have already compiled this generic function as well.
+  tree lookup = NULL_TREE;
+  if (ctx->lookup_function_decl (fntype->get_ty_ref (), &lookup,
+				 fntype->get_id (), fntype))
+    {
+      // has this been added to the list then it must be finished
+      if (ctx->function_completed (lookup))
+	{
+	  tree dummy = NULL_TREE;
+	  if (!ctx->lookup_function_decl (fntype->get_ty_ref (), &dummy))
+	    {
+	      ctx->insert_function_decl (fntype, lookup);
+	    }
+
+	  reference = address_expression (lookup, ref_locus);
+	  return;
+	}
+    }
+
+  if (fntype->has_substitutions_defined ())
+    {
+      // override the Hir Lookups for the substituions in this context
+      fntype->override_context ();
+    }
+
+  const Resolver::CanonicalPath *canonical_path = nullptr;
+  bool ok = ctx->get_mappings ()->lookup_canonical_path (
+    func.get_mappings ().get_nodeid (), &canonical_path);
+  rust_assert (ok);
+
+  // FIXME: How do we get the proper visibility here?
+  auto vis = HIR::Visibility (HIR::Visibility::VisType::PUBLIC);
+  tree fndecl
+    = compile_function (func.get_function_name ().as_string (),
+			func.get_self (), func.get_function_params (),
+			func.get_qualifiers (), vis,
+			func.get_outer_attrs (), func.get_locus (),
+			func.get_definition ().get (), canonical_path, fntype);
+  reference = address_expression (fndecl, ref_locus);
+}
+
+void
 CompileTraitItem::visit (HIR::TraitItemFunc &func)
 {
   rust_assert (func.has_block_defined ());

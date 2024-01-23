@@ -37,6 +37,7 @@ public:
 
   void visit (HIR::TraitItemConst &cst) override;
 
+  void visit (HIR::Function &fn) override;
   void visit (HIR::TraitItemFunc &fn) override;
 
 private:

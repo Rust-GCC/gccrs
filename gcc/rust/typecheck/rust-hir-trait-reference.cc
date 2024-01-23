@@ -87,7 +87,7 @@ TraitItemReference::get_tyty () const
 
     case FN:
       return get_type_from_fn (
-	static_cast</*const*/ HIR::TraitItemFunc &> (*hir_trait_item));
+	static_cast</*const*/ HIR::Function &> (*hir_trait_item));
       break;
 
     default:

@@ -96,7 +96,7 @@ void
 ASTValidation::visit (AST::Function &function)
 {
   std::set<Context> valid_context
-    = {Context::INHERENT_IMPL, Context::TRAIT_IMPL};
+    = {Context::INHERENT_IMPL, Context::TRAIT_IMPL, Context::TRAIT};
 
   const auto &qualifiers = function.get_qualifiers ();
   if (qualifiers.is_async () && qualifiers.is_const ())

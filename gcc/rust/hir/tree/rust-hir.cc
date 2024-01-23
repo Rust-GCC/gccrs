@@ -4987,6 +4987,12 @@ Function::accept_vis (HIRImplVisitor &vis)
 }
 
 void
+Function::accept_vis (HIRTraitItemVisitor &vis)
+{
+  vis.visit (*this);
+}
+
+void
 Union::accept_vis (HIRStmtVisitor &vis)
 {
   vis.visit (*this);

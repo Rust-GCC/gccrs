@@ -821,7 +821,7 @@ public:
 
   virtual location_t get_trait_locus () const = 0;
 
-  virtual TraitItemKind get_item_kind () const = 0;
+  virtual TraitItemKind get_trait_item_kind () const = 0;
 
   virtual AST::AttrVec &get_outer_attrs () = 0;
   virtual const AST::AttrVec &get_outer_attrs () const = 0;

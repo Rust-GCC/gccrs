@@ -19,12 +19,14 @@
 #ifndef RUST_AST_ITEM_H
 #define RUST_AST_ITEM_H
 
+#include "optional.h"
 #include "rust-ast.h"
 #include "rust-hir-map.h"
 #include "rust-mapping-common.h"
 #include "rust-path.h"
 #include "rust-common.h"
 #include "rust-expr.h"
+#include <memory>
 
 namespace Rust {
 namespace AST {
@@ -1323,6 +1325,8 @@ public:
 
   bool has_body () const { return function_body.has_value (); }
 
+  tl::optional<std::unique_ptr<BlockExpr>>& get_definition ()  { return function_body; }
+
   // Returns node_id, function is needed as VisItem and TraitItem both have
   // get_node_id()
   NodeId get_node_id () const { return VisItem::node_id; }
@@ -1392,12 +1396,6 @@ public:
   const std::vector<std::unique_ptr<GenericParam>> &get_generic_params () const
   {
     return generic_params;
-  }
-
-  // TODO: is this better? Or is a "vis_block" better?
-  tl::optional<std::unique_ptr<BlockExpr>> &get_definition ()
-  {
-    return function_body;
   }
 
   const FunctionQualifiers &get_qualifiers () const { return qualifiers; }

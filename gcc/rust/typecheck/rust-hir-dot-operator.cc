@@ -282,7 +282,7 @@ MethodResolver::select (TyTy::BaseType &receiver)
 
       const HIR::Trait *trait = trait_ref->get_hir_trait_ref ();
       HIR::TraitItem *item = item_ref->get_hir_trait_item ();
-      if (item->get_item_kind () != HIR::TraitItem::TraitItemKind::FUNC)
+      if (item->get_trait_item_kind () != HIR::TraitItem::TraitItemKind::FUNC)
 	return true;
 
       HIR::TraitItemFunc *func = static_cast<HIR::TraitItemFunc *> (item);

@@ -61,6 +61,19 @@ ResolveTraitItemToRef::visit (HIR::TraitItemConst &cst)
 }
 
 void
+ResolveTraitItemToRef::visit (HIR::Function &fn)
+{
+  // create trait-item-ref
+  location_t locus = fn.get_locus ();
+  bool is_optional = fn.has_body ();
+  std::string identifier = fn.get_function_name ().as_string ();
+
+  resolved = TraitItemReference (identifier, is_optional,
+				 TraitItemReference::TraitItemType::FN, &fn,
+				 self, std::move (substitutions), locus);
+}
+
+void
 ResolveTraitItemToRef::visit (HIR::TraitItemFunc &fn)
 {
   // create trait-item-ref
@@ -316,7 +329,7 @@ TraitItemReference::on_resolved ()
       break;
 
     case FN:
-      resolve_item (static_cast<HIR::TraitItemFunc &> (*hir_trait_item));
+      resolve_item (static_cast<HIR::Function &> (*hir_trait_item));
       break;
 
     default:
@@ -337,6 +350,37 @@ void
 TraitItemReference::resolve_item (HIR::TraitItemConst &constant)
 {
   // TODO
+}
+
+void
+TraitItemReference::resolve_item (HIR::Function &func)
+{
+  TyTy::BaseType *item_tyty = get_tyty ();
+  if (item_tyty->get_kind () == TyTy::TypeKind::ERROR)
+    return;
+
+  if (!is_optional ())
+    return;
+
+  // check the block and return types
+  rust_assert (item_tyty->get_kind () == TyTy::TypeKind::FNDEF);
+
+  // need to get the return type from this
+  TyTy::FnType *resolved_fn_type = static_cast<TyTy::FnType *> (item_tyty);
+  auto expected_ret_tyty = resolved_fn_type->get_return_type ();
+  context->push_return_type (TypeCheckContextItem (&func), expected_ret_tyty);
+
+  auto block_expr_ty = TypeCheckExpr::Resolve (func.get_body ().get ());
+
+  location_t fn_return_locus = func.has_return_type ()
+				 ? func.get_return_type ()->get_locus ()
+				 : func.get_locus ();
+
+  coercion_site (func.get_mappings ().get_hirid (),
+		 TyTy::TyWithLocation (expected_ret_tyty, fn_return_locus),
+		 TyTy::TyWithLocation (block_expr_ty), func.get_locus ());
+
+  context->pop_return_type ();
 }
 
 void

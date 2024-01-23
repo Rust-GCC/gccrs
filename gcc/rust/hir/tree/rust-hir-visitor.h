@@ -311,6 +311,7 @@ public:
 class HIRTraitItemVisitor
 {
 public:
+  virtual void visit (Function &item) = 0;
   virtual void visit (TraitItemFunc &item) = 0;
   virtual void visit (TraitItemConst &item) = 0;
   virtual void visit (TraitItemType &item) = 0;

@@ -25,6 +25,7 @@
 #include "rust-hir-expr.h"
 #include "rust-hir.h"
 #include "rust-hir-path.h"
+#include <memory>
 
 namespace Rust {
 namespace HIR {
@@ -1081,7 +1082,7 @@ protected:
 class LetStmt;
 
 // Rust function declaration HIR node
-class Function : public VisItem, public ImplItem
+class Function : public VisItem, public ImplItem, public TraitItem
 {
   FunctionQualifiers qualifiers;
   Identifier function_name;
@@ -1115,6 +1116,40 @@ public:
 
   ItemKind get_item_kind () const override { return ItemKind::Function; }
 
+  TraitItemKind get_trait_item_kind () const override
+  {
+    return TraitItemKind::FUNC;
+  }
+
+  const std::string trait_identifier () const override
+  {
+    return function_name.as_string ();
+  }
+
+  location_t get_trait_locus () const override { return locus; }
+
+  AST::AttrVec &get_outer_attrs () override final { return outer_attrs; }
+
+  const AST::AttrVec &get_outer_attrs () const override final
+  {
+    return outer_attrs;
+  }
+
+  // Returns mappings, this function is needed otherwise call is ambigious as
+  // both VisItem and TraiItem have this function
+  const Analysis::NodeMapping &get_mappings () const
+  {
+    return VisItem::get_mappings ();
+  }
+
+  // Returns whether function has a body
+  bool has_body () const { return function_body != nullptr; }
+
+  // Returns function body/definition
+  std::unique_ptr<BlockExpr> &get_body () { return function_body; }
+
+  SelfParam &get_self () { return self; }
+
   // Mega-constructor with all possible fields
   Function (Analysis::NodeMapping mappings, Identifier function_name,
 	    FunctionQualifiers qualifiers,
@@ -1123,8 +1158,8 @@ public:
 	    std::unique_ptr<Type> return_type, WhereClause where_clause,
 	    std::unique_ptr<BlockExpr> function_body, Visibility vis,
 	    AST::AttrVec outer_attrs, SelfParam self, location_t locus)
-    : VisItem (std::move (mappings), std::move (vis), std::move (outer_attrs)),
-      qualifiers (std::move (qualifiers)),
+    : VisItem (mappings, std::move (vis), std::move (outer_attrs)),
+      TraitItem (std::move (mappings)), qualifiers (std::move (qualifiers)),
       function_name (std::move (function_name)),
       generic_params (std::move (generic_params)),
       function_params (std::move (function_params)),
@@ -1136,7 +1171,7 @@ public:
 
   // Copy constructor with clone
   Function (Function const &other)
-    : VisItem (other), qualifiers (other.qualifiers),
+    : VisItem (other), TraitItem (other), qualifiers (other.qualifiers),
       function_name (other.function_name),
       function_params (other.function_params),
       where_clause (other.where_clause),
@@ -1158,6 +1193,7 @@ public:
   Function &operator= (Function const &other)
   {
     VisItem::operator= (other);
+    TraitItem::operator= (other);
     function_name = other.function_name;
     qualifiers = other.qualifiers;
     function_params = other.function_params;
@@ -1188,12 +1224,13 @@ public:
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRImplVisitor &vis) override;
+  void accept_vis (HIRTraitItemVisitor &vis) override;
   void accept_vis (HIRStmtVisitor &vis) override;
   void accept_vis (HIRVisItemVisitor &vis) override;
 
   Analysis::NodeMapping get_impl_mappings () const override
   {
-    return get_mappings ();
+    return VisItem::get_mappings ();
   };
 
   std::vector<FunctionParam> &get_function_params () { return function_params; }
@@ -1243,6 +1280,11 @@ protected:
   /* Use covariance to implement clone function as returning this object
    * rather than base */
   Function *clone_inherent_impl_item_impl () const override
+  {
+    return new Function (*this);
+  }
+
+  Function *clone_trait_item_impl () const override
   {
     return new Function (*this);
   }
@@ -2400,7 +2442,7 @@ public:
     return decl.get_function_name ().as_string ();
   }
 
-  TraitItemKind get_item_kind () const override final
+  TraitItemKind get_trait_item_kind () const override final
   {
     return TraitItemKind::FUNC;
   }
@@ -2487,7 +2529,7 @@ public:
     return name.as_string ();
   }
 
-  TraitItemKind get_item_kind () const override final
+  TraitItemKind get_trait_item_kind () const override final
   {
     return TraitItemKind::CONST;
   }
@@ -2579,7 +2621,7 @@ public:
     return name.as_string ();
   }
 
-  TraitItemKind get_item_kind () const override final
+  TraitItemKind get_trait_item_kind () const override final
   {
     return TraitItemKind::TYPE;
   }

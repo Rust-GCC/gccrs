@@ -118,11 +118,13 @@ private:
   TyTy::BaseType *
   get_type_from_constant (/*const*/ HIR::TraitItemConst &constant) const;
 
+  TyTy::BaseType *get_type_from_fn (/*const*/ HIR::Function &fn) const;
   TyTy::BaseType *get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const;
 
   bool is_item_resolved () const;
   void resolve_item (HIR::TraitItemType &type);
   void resolve_item (HIR::TraitItemConst &constant);
+  void resolve_item (HIR::Function &func);
   void resolve_item (HIR::TraitItemFunc &func);
 
   std::string identifier;

@@ -149,6 +149,145 @@ TraitItemReference::get_type_from_constant (
 }
 
 TyTy::BaseType *
+TraitItemReference::get_type_from_fn (/*const*/ HIR::Function &fn) const
+{
+  std::vector<TyTy::SubstitutionParamMapping> substitutions
+    = inherited_substitutions;
+
+  if (fn.has_generics ())
+    {
+      for (auto &generic_param : fn.get_generic_params ())
+	{
+	  switch (generic_param.get ()->get_kind ())
+	    {
+	    case HIR::GenericParam::GenericKind::LIFETIME:
+	    case HIR::GenericParam::GenericKind::CONST:
+	      // FIXME: Skipping Lifetime and Const completely until better
+	      // handling.
+	      break;
+
+	      case HIR::GenericParam::GenericKind::TYPE: {
+		auto param_type
+		  = TypeResolveGenericParam::Resolve (generic_param.get ());
+		context->insert_type (generic_param->get_mappings (),
+				      param_type);
+
+		substitutions.push_back (TyTy::SubstitutionParamMapping (
+		  static_cast<HIR::TypeParam &> (*generic_param), param_type));
+	      }
+	      break;
+	    }
+	}
+    }
+
+  TyTy::BaseType *ret_type = nullptr;
+  if (!fn.has_return_type ())
+    ret_type = TyTy::TupleType::get_unit_type (fn.get_mappings ().get_hirid ());
+  else
+    {
+      auto resolved
+	= TypeCheckType::Resolve (fn.get_return_type ().get ());
+      if (resolved->get_kind () == TyTy::TypeKind::ERROR)
+	{
+	  rust_error_at (fn.get_locus (), "failed to resolve return type");
+	  return get_error ();
+	}
+
+      ret_type = resolved->clone ();
+      ret_type->set_ref (
+	fn.get_return_type ()->get_mappings ().get_hirid ());
+    }
+
+  std::vector<std::pair<HIR::Pattern *, TyTy::BaseType *> > params;
+  if (fn.is_method ())
+    {
+      // these are implicit mappings and not used
+      auto mappings = Analysis::Mappings::get ();
+      auto crate_num = mappings->get_current_crate ();
+      Analysis::NodeMapping mapping (crate_num, mappings->get_next_node_id (),
+				     mappings->get_next_hir_id (crate_num),
+				     UNKNOWN_LOCAL_DEFID);
+
+      // add the synthetic self param at the front, this is a placeholder
+      // for compilation to know parameter names. The types are ignored
+      // but we reuse the HIR identifier pattern which requires it
+      HIR::SelfParam &self_param = fn.get_self ();
+      HIR::IdentifierPattern *self_pattern = new HIR::IdentifierPattern (
+	mapping, {"self"}, self_param.get_locus (), self_param.is_ref (),
+	self_param.is_mut () ? Mutability::Mut : Mutability::Imm,
+	std::unique_ptr<HIR::Pattern> (nullptr));
+      // might have a specified type
+      TyTy::BaseType *self_type = nullptr;
+      if (self_param.has_type ())
+	{
+	  std::unique_ptr<HIR::Type> &specified_type = self_param.get_type ();
+	  self_type = TypeCheckType::Resolve (specified_type.get ());
+	}
+      else
+	{
+	  switch (self_param.get_self_kind ())
+	    {
+	    case HIR::SelfParam::IMM:
+	    case HIR::SelfParam::MUT:
+	      self_type = self->clone ();
+	      break;
+
+	    case HIR::SelfParam::IMM_REF:
+	      self_type = new TyTy::ReferenceType (
+		self_param.get_mappings ().get_hirid (),
+		TyTy::TyVar (self->get_ref ()), Mutability::Imm);
+	      break;
+
+	    case HIR::SelfParam::MUT_REF:
+	      self_type = new TyTy::ReferenceType (
+		self_param.get_mappings ().get_hirid (),
+		TyTy::TyVar (self->get_ref ()), Mutability::Mut);
+	      break;
+
+	    default:
+	      rust_unreachable ();
+	      return nullptr;
+	    }
+	}
+
+      context->insert_type (self_param.get_mappings (), self_type);
+      params.push_back (
+	std::pair<HIR::Pattern *, TyTy::BaseType *> (self_pattern, self_type));
+    }
+
+  for (auto &param : fn.get_function_params ())
+    {
+      // get the name as well required for later on
+      auto param_tyty = TypeCheckType::Resolve (param.get_type ().get ());
+      params.push_back (std::pair<HIR::Pattern *, TyTy::BaseType *> (
+	param.get_param_name ().get (), param_tyty));
+
+      context->insert_type (param.get_mappings (), param_tyty);
+      TypeCheckPattern::Resolve (param.get_param_name ().get (), param_tyty);
+    }
+
+  auto mappings = Analysis::Mappings::get ();
+  const CanonicalPath *canonical_path = nullptr;
+  bool ok = mappings->lookup_canonical_path (fn.get_mappings ().get_nodeid (),
+					     &canonical_path);
+  // compiler errors here
+  rust_assert (ok);
+
+  RustIdent ident{*canonical_path, fn.get_locus ()};
+  auto resolved
+    = new TyTy::FnType (fn.get_mappings ().get_hirid (),
+			fn.get_mappings ().get_defid (),
+			fn.get_function_name ().as_string (), ident,
+			fn.is_method ()
+			  ? TyTy::FnType::FNTYPE_IS_METHOD_FLAG
+			  : TyTy::FnType::FNTYPE_DEFAULT_FLAGS,
+			ABI::RUST, std::move (params), ret_type, substitutions);
+
+  context->insert_type (fn.get_mappings (), resolved);
+  return resolved;
+}
+
+TyTy::BaseType *
 TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
 {
   std::vector<TyTy::SubstitutionParamMapping> substitutions

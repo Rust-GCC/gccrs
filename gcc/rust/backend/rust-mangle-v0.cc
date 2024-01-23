@@ -410,7 +410,7 @@ v0_path (Rust::Compile::Context *ctx, const TyTy::BaseType *ty,
       }
     else if (trait_item != nullptr)
       {
-	switch (trait_item->get_item_kind ())
+	switch (trait_item->get_trait_item_kind ())
 	  {
 	    case HIR::TraitItem::FUNC: {
 	      HIR::Function *fn = static_cast<HIR::Function *> (impl_item);
