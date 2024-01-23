@@ -16,6 +16,6 @@ macro_rules! a {
 }
 
 fn main() {
-    // { dg-final { scan-tree-dump-times {"abheyho"} 1 gimple } }
+    // { dg-final { scan-assembler {"abheyho"} } }
     let _ = concat!("a", 'b', a!(), a!(b c d e f a!()), '\0');
 }
