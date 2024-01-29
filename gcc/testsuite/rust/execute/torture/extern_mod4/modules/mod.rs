@@ -1,3 +1,3 @@
-fn return_12() -> i32 {
+pub fn return_12() -> i32 {
     12
 }
