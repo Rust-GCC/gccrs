@@ -47,11 +47,8 @@ TopLevel::insert_or_error_out (const Identifier &identifier,
 
   auto result = ctx.insert (identifier, node_id, ns);
 
-  if (!result)
+  if (!result && result.error ().existing != node_id)
     {
-      // can we do something like check if the node id is the same? if it is the
-      // same, it's not an error, just the resolver running multiple times?
-
       rich_location rich_loc (line_table, locus);
       rich_loc.add_range (node_locations[result.error ().existing]);
 
@@ -94,7 +91,7 @@ insert_macros (std::vector<PROC_MACRO> &macros, NameResolutionContext &ctx)
     {
       auto res = ctx.macros.insert (macro.get_name (), macro.get_node_id ());
 
-      if (!res)
+      if (!res && res.error ().existing != macro.get_node_id ())
 	{
 	  rust_error_at (UNKNOWN_LOCATION, ErrorCode::E0428,
 			 "macro %qs defined multiple times",
@@ -170,7 +167,7 @@ TopLevel::visit (AST::MacroRulesDefinition &macro)
     {
       auto res = ctx.macros.insert_at_root (macro.get_rule_name (),
 					    macro.get_node_id ());
-      if (!res)
+      if (!res && res.error ().existing != macro.get_node_id ())
 	{
 	  // TODO: Factor this
 	  rich_location rich_loc (line_table, macro.get_locus ());
@@ -332,40 +329,48 @@ TopLevel::handle_use_dec (AST::SimplePath path)
 
   auto found = false;
 
-  auto resolve_and_insert = [this, &found, &declared_name,
-			     locus] (Namespace ns,
-				     const AST::SimplePath &path) {
-    tl::optional<NodeId> resolved = tl::nullopt;
+  auto resolve_and_insert
+    = [this, &found, &declared_name, locus] (Namespace ns,
+					     const AST::SimplePath &path) {
+	tl::optional<NodeId> resolved = tl::nullopt;
 
-    // FIXME: resolve_path needs to return an `expected<NodeId, Error>` so
-    // that we can improve it with hints or location or w/ever. and maybe
-    // only emit it the first time.
-    switch (ns)
-      {
-      case Namespace::Values:
-	resolved = ctx.values.resolve_path (path.get_segments ());
-	break;
-      case Namespace::Types:
-	resolved = ctx.types.resolve_path (path.get_segments ());
-	break;
-      case Namespace::Macros:
-	resolved = ctx.macros.resolve_path (path.get_segments ());
-	break;
-      case Namespace::Labels:
-	// TODO: Is that okay?
-	rust_unreachable ();
-      }
+	// FIXME: resolve_path needs to return an `expected<NodeId, Error>` so
+	// that we can improve it with hints or location or w/ever. and maybe
+	// only emit it the first time.
+	switch (ns)
+	  {
+	  case Namespace::Values:
+	    resolved = ctx.values.resolve_path (path.get_segments ());
+	    break;
+	  case Namespace::Types:
+	    resolved = ctx.types.resolve_path (path.get_segments ());
+	    break;
+	  case Namespace::Macros:
+	    resolved = ctx.macros.resolve_path (path.get_segments ());
+	    break;
+	  case Namespace::Labels:
+	    // TODO: Is that okay?
+	    rust_unreachable ();
+	  }
 
-    // FIXME: Ugly
-    (void) resolved.map ([this, &found, &declared_name, locus, ns] (NodeId id) {
-      found = true;
+	// FIXME: Ugly
+	(void) resolved.map (
+	  [this, &found, &declared_name, locus, ns, path] (NodeId id) {
+	    found = true;
 
-      // what do we do with the id?
-      insert_or_error_out (declared_name, locus, id, ns);
+	    // what do we do with the id?
+	    insert_or_error_out (declared_name, locus, id, ns);
+	    auto result = node_forwarding.find (id);
+	    if (result != node_forwarding.cend ()
+		&& result->second != path.get_node_id ())
+	      rust_error_at (path.get_locus (), "%<%s%> defined multiple times",
+			     declared_name.c_str ());
+	    else // No previous thing has inserted this into our scope
+	      node_forwarding.insert ({id, path.get_node_id ()});
 
-      return id;
-    });
-  };
+	    return id;
+	  });
+      };
 
   // do this for all namespaces (even Labels?)
 
@@ -466,6 +471,18 @@ flatten_glob (const AST::UseTreeGlob &glob, std::vector<AST::SimplePath> &paths)
 {
   if (glob.has_path ())
     paths.emplace_back (glob.get_path ());
+
+  // so what is the plan for glob imports
+  // 1. figure out the rib which contains all the exports, in each namespace
+  // 2. for that namespace, go through all the nodes
+  // 3. filter out the exported ones (is that correct?)
+  // 4. export them in the current rib, BUT make them shadowable
+
+  // 1. needs us to be able to find a Rib based on a SimplePath - can we already
+  // do that with resolve path?
+  // 2. ok
+  // 3. how do we get the visibiliy information for each node? in the mappings?
+  // 4. ok
 }
 
 void
@@ -483,8 +500,7 @@ TopLevel::visit (AST::UseDeclaration &use)
   for (auto &path : paths)
     if (!handle_use_dec (path))
       rust_error_at (path.get_final_segment ().get_locus (), ErrorCode::E0433,
-		     "could not resolve import %qs",
-		     path.as_string ().c_str ());
+		     "unresolved import %qs", path.as_string ().c_str ());
 }
 
 } // namespace Resolver2_0

@@ -59,6 +59,7 @@ private:
 
   // FIXME: Do we move these to our mappings?
   std::unordered_map<NodeId, location_t> node_locations;
+  std::unordered_map<NodeId, NodeId> node_forwarding;
 
   void visit (AST::Module &module) override;
   void visit (AST::MacroRulesDefinition &macro) override;

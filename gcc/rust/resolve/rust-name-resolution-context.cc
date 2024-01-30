@@ -17,6 +17,8 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-name-resolution-context.h"
+#include "optional.h"
+#include "rust-mapping-common.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -44,12 +46,23 @@ NameResolutionContext::insert (Identifier name, NodeId id, Namespace ns)
 }
 
 void
-NameResolutionContext::map_usage (NodeId usage, NodeId definition)
+NameResolutionContext::map_usage (Usage usage, Definition definition)
 {
   auto inserted = resolved_nodes.emplace (usage, definition).second;
 
   // is that valid?
   rust_assert (inserted);
+}
+
+tl::optional<NodeId>
+NameResolutionContext::lookup (NodeId usage)
+{
+  auto it = resolved_nodes.find (Usage (usage));
+
+  if (it == resolved_nodes.end ())
+    return tl::nullopt;
+
+  return it->second.id;
 }
 
 void

@@ -18,6 +18,7 @@
 
 #include "rust-session-manager.h"
 #include "rust-diagnostics.h"
+#include "rust-immutable-name-resolution-context.h"
 #include "rust-unsafe-checker.h"
 #include "rust-lex.h"
 #include "rust-parse.h"
@@ -42,6 +43,7 @@
 #include "rust-early-name-resolver.h"
 #include "rust-name-resolution-context.h"
 #include "rust-early-name-resolver-2.0.h"
+#include "rust-late-name-resolver-2.0.h"
 #include "rust-cfg-strip.h"
 #include "rust-expand-visitor.h"
 #include "rust-unicode.h"
@@ -67,6 +69,10 @@ const char *kASTDumpFile = "gccrs.ast.dump";
 const char *kASTPrettyDumpFile = "gccrs.ast-pretty.dump";
 const char *kASTPrettyDumpFileExpanded = "gccrs.ast-pretty-expanded.dump";
 const char *kASTExpandedDumpFile = "gccrs.ast-expanded.dump";
+const char *kASTmacroResolutionDumpFile = "gccrs.ast-macro-resolution.dump";
+const char *kASTlabelResolutionDumpFile = "gccrs.ast-label-resolution.dump";
+const char *kASTtypeResolutionDumpFile = "gccrs.ast-type-resolution.dump";
+const char *kASTvalueResolutionDumpFile = "gccrs.ast-value-resolution.dump";
 const char *kHIRDumpFile = "gccrs.hir.dump";
 const char *kHIRPrettyDumpFile = "gccrs.hir-pretty.dump";
 const char *kHIRTypeResolutionDumpFile = "gccrs.type-resolution.dump";
@@ -84,6 +90,7 @@ Session::get_instance ()
 
 static std::string
 infer_crate_name (const std::string &filename)
+
 {
   if (filename == "-")
     return kDefaultCrateName;
@@ -590,8 +597,10 @@ Session::compile_crate (const char *filename)
   if (last_step == CompileOptions::CompileStep::Expansion)
     return;
 
+  auto name_resolution_ctx = Resolver2_0::NameResolutionContext ();
   // expansion pipeline stage
-  expansion (parsed_crate);
+
+  expansion (parsed_crate, name_resolution_ctx);
   rust_debug ("\033[0;31mSUCCESSFULLY FINISHED EXPANSION \033[0m");
   if (options.dump_option_enabled (CompileOptions::EXPANSION_DUMP))
     {
@@ -616,12 +625,13 @@ Session::compile_crate (const char *filename)
     return;
 
   // resolution pipeline stage
-  Resolver::NameResolution::Resolve (parsed_crate);
+  if (flag_name_resolution_2_0)
+    Resolver2_0::Late (name_resolution_ctx).go (parsed_crate);
+  else
+    Resolver::NameResolution::Resolve (parsed_crate);
 
   if (options.dump_option_enabled (CompileOptions::RESOLUTION_DUMP))
-    {
-      // TODO: what do I dump here? resolved names? AST with resolved names?
-    }
+    dump_name_resolution (name_resolution_ctx);
 
   if (saw_errors ())
     return;
@@ -648,6 +658,9 @@ Session::compile_crate (const char *filename)
 
   if (last_step == CompileOptions::CompileStep::TypeCheck)
     return;
+
+  // name resolution is done, we now freeze the name resolver for type checking
+  Resolver2_0::ImmutableNameResolutionContext::init (name_resolution_ctx);
 
   // type resolve
   Resolver::TypeResolution::Resolve (hir);
@@ -878,7 +891,7 @@ Session::injection (AST::Crate &crate)
 }
 
 void
-Session::expansion (AST::Crate &crate)
+Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
 {
   rust_debug ("started expansion");
 
@@ -904,8 +917,6 @@ Session::expansion (AST::Crate &crate)
       // Errors might happen during cfg strip pass
       if (saw_errors ())
 	break;
-
-      auto ctx = Resolver2_0::NameResolutionContext ();
 
       if (flag_name_resolution_2_0)
 	{
@@ -973,6 +984,23 @@ Session::dump_ast_pretty (AST::Crate &crate, bool expanded) const
   AST::Dump (out).go (crate);
 
   out.close ();
+}
+
+void
+Session::dump_name_resolution (Resolver2_0::NameResolutionContext &ctx) const
+{
+  std::array<std::pair<std::string, std::ofstream>, 4> content_and_streams = {{
+    {ctx.types.as_debug_string (), std::ofstream (kASTtypeResolutionDumpFile)},
+    {ctx.macros.as_debug_string (),
+     std::ofstream (kASTmacroResolutionDumpFile)},
+    {ctx.labels.as_debug_string (),
+     std::ofstream (kASTlabelResolutionDumpFile)},
+    {ctx.values.as_debug_string (),
+     std::ofstream (kASTvalueResolutionDumpFile)},
+  }};
+
+  for (auto &to_dump : content_and_streams)
+    to_dump.second << to_dump.first;
 }
 
 void
