@@ -617,7 +617,8 @@ SubstitutionRef::get_mappings_from_generic_args (HIR::GenericArgs &args)
   if (args.get_type_args ().size () + offs > substitutions.size ())
     {
       rich_location r (line_table, args.get_locus ());
-      r.add_range (substitutions.front ().get_param_locus ());
+      if (!substitutions.empty ())
+	r.add_range (substitutions.front ().get_param_locus ());
 
       rust_error_at (
 	r,
